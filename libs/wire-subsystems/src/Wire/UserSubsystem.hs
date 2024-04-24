@@ -14,8 +14,8 @@ data UserSubsystem m a where
   GetUserProfile :: Local UserId -> Qualified UserId -> UserSubsystem m (Maybe UserProfile)
   GetUserProfiles :: Local UserId -> [Qualified UserId] -> UserSubsystem m [UserProfile]
   -- | Sometimes we don't have any identity of a requesting user, and local profiles are public.
-  GetLocalUserProfile :: [UserId] -> UserSubsystem m (Maybe UserProfile)
-  GetLocalUserProfiles :: [UserId] -> UserSubsystem m [UserProfile]
+  GetLocalUserProfile :: Local UserId -> UserSubsystem m (Maybe UserProfile)
+  GetLocalUserProfiles :: Local [UserId] -> UserSubsystem m [UserProfile]
   -- | These give us partial success and hide concurrency in the interpreter.
   GetUserProfilesWithErrors :: Local UserId -> [Qualified UserId] -> UserSubsystem m ([(Qualified UserId, FederationError)], [UserProfile])
 

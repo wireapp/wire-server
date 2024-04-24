@@ -60,13 +60,13 @@ interpretFederationAPIAccessGeneral runFedM isFederationConfigured =
       RunFederatedBucketed remotes rpc -> runFederatedBucketed runFedM remotes rpc
       IsFederationConfigured -> isFederationConfigured
 
-interpretfederationAPIAccessFails ::
+interpretFederationAPIAccessFails ::
   forall fedM r.
-  Member (Error FederationError) r =>
+  (Member (Error FederationError) r) =>
   FederatedActionRunner fedM r ->
   (Sem r Bool) ->
   InterpreterFor (FederationAPIAccess fedM) r
-interpretfederationAPIAccessFails _runFedM isFederationConfigured = interpret $ \case
+interpretFederationAPIAccessFails _runFedM isFederationConfigured = interpret $ \case
   RunFederatedEither _remote _rpc -> throw $ FederationUnexpectedError "RunFederatedEither"
   RunFederatedConcurrently _remotes _rpc -> throw $ FederationUnexpectedError "RunFederatedConcurrently"
   RunFederatedBucketed _remotes _rpc -> throw $ FederationUnexpectedError "RunFederatedBucketed"

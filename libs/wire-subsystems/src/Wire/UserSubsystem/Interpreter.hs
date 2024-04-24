@@ -7,7 +7,7 @@ import Data.Json.Util
 import Data.LegalHold
 import Data.Qualified
 import Data.Time.Clock
-import Imports
+import Imports hiding (local)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -44,12 +44,12 @@ runUserSubsystem ::
     Typeable fedM
   ) =>
   UserSubsystemConfig ->
-  InterpreterFor UserSubsystem a
+  InterpreterFor UserSubsystem r
 runUserSubsystem cfg = interpret $ \case
   GetUserProfile self other -> runInputConst cfg $ getUserProfileImpl self other
   GetUserProfiles self others -> runInputConst cfg $ getUserProfilesImpl self others
-  GetLocalUserProfile others -> undefined others -- :: [UserId] -> UserSubsystem m (Maybe UserProfile)
-  GetLocalUserProfiles others -> undefined others -- :: [UserId] -> UserSubsystem m [UserProfile]
+  GetLocalUserProfile other -> runInputConst cfg $ getLocalUserProfileImpl [other]
+  GetLocalUserProfiles others -> runInputConst cfg $ getLocalUserProfilesImpl others
   GetUserProfilesWithErrors self others -> runInputConst cfg $ getUserProfilesWithErrorsImpl self others
 
 getUserProfileImpl ::
@@ -97,6 +97,21 @@ getUserProfilesImpl self others =
       (getUserProfilesFromDomain self)
       (bucketQualified others)
 
+getLocalUserProfilesImpl ::
+  forall r.
+  ( Member UserStore r,
+    Member (Input UserSubsystemConfig) r,
+    Member DeleteQueue r,
+    Member Now r,
+    Member GalleyAPIAccess r
+  ) =>
+  Local [UserId] ->
+  Sem r [UserProfile]
+getLocalUserProfilesImpl = getUserProfilesLocalPart Nothing
+
+getLocalUserProfileImpl :: a
+getLocalUserProfileImpl = undefined
+
 getUserProfilesFromDomain ::
   ( Member GalleyAPIAccess r,
     Member (Error FederationError) r,
@@ -115,7 +130,7 @@ getUserProfilesFromDomain ::
 getUserProfilesFromDomain self =
   foldQualified
     self
-    (getUserProfilesLocalPart self)
+    (getUserProfilesLocalPart (Just self))
     getUserProfilesRemotePart
 
 getUserProfilesRemotePart ::
@@ -138,30 +153,35 @@ getUserProfilesLocalPart ::
     Member Now r,
     Member GalleyAPIAccess r
   ) =>
-  Local UserId ->
+  Maybe (Local UserId) ->
   Local [UserId] ->
   Sem r [UserProfile]
 getUserProfilesLocalPart requestingUser luids = do
-  emailVisibility <- inputs emailVisibilityConfig
+  emailVisibilityConfig <- inputs emailVisibilityConfig
   emailVisibilityConfigWithViewer <-
-    traverse (const getRequestingUserInfo) emailVisibility
+    case emailVisibilityConfig of
+      EmailVisibleIfOnTeam -> pure EmailVisibleIfOnTeam
+      EmailVisibleToSelf -> pure EmailVisibleToSelf
+      EmailVisibleIfOnSameTeam () ->
+        EmailVisibleIfOnSameTeam . join @Maybe
+          <$> traverse getRequestingUserInfo requestingUser
   -- FUTUREWORK: (in the interpreters where it makes sense) pull paginated lists from the DB,
   -- not just single rows.
   catMaybes <$> traverse (getLocalUserProfile emailVisibilityConfigWithViewer) (sequence luids)
   where
-    getRequestingUserInfo :: Sem r (Maybe (TeamId, TeamMember))
-    getRequestingUserInfo = do
+    getRequestingUserInfo :: Local UserId -> Sem r (Maybe (TeamId, TeamMember))
+    getRequestingUserInfo self = do
       -- FUTUREWORK: it is an internal error for the two lookups (for 'User' and 'TeamMember')
       -- to return 'Nothing'.  we could throw errors here if that happens, rather than just
       -- returning an empty profile list from 'lookupProfiles'.
-      mUser <- getUser $ tUnqualified requestingUser
+      mUser <- getUser $ tUnqualified self
       let mUserNotPending = do
             user <- mUser
             guard $ not (hasPendingInvitation user)
             pure user
       case mUserNotPending >>= (.teamId) of
         Nothing -> pure Nothing
-        Just tid -> (tid,) <$$> getTeamMember (tUnqualified requestingUser) tid
+        Just tid -> (tid,) <$$> getTeamMember (tUnqualified self) tid
 
 getLocalUserProfile ::
   forall r.

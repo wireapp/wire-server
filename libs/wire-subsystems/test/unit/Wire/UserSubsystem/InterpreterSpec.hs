@@ -3,6 +3,7 @@
 
 module Wire.UserSubsystem.InterpreterSpec (spec) where
 
+import Control.Exception (throw)
 import Data.Default (Default (def))
 import Data.Domain
 import Data.Id
@@ -17,7 +18,7 @@ import Data.Time
 import Data.Type.Equality
 import Imports
 import Polysemy
-import Polysemy.Error
+import Polysemy.Error hiding (throw)
 import Polysemy.Input
 import Polysemy.State
 import Servant.Client.Core
@@ -53,12 +54,13 @@ spec = describe "UserSubsystem.Interpreter" do
           let remoteBackend = def {users = targetUsers}
               federation = [(remoteDomain, remoteBackend)]
               retrievedProfiles =
-                runFederationStack [viewer] federation Nothing (UserSubsystemConfig visibility miniLocale) $
-                  QS.getUserProfiles
-                    (toLocalUnsafe domain viewer.id)
-                    ( map (flip Qualified remoteDomain . (.id)) $
-                        S.toList targetUsers
-                    )
+                runFederationStack [viewer] federation Nothing $
+                  runUserSubsystem (UserSubsystemConfig visibility miniLocale) $
+                    QS.getUserProfiles
+                      (toLocalUnsafe domain viewer.id)
+                      ( map (flip Qualified remoteDomain . (.id)) $
+                          S.toList targetUsers
+                      )
           remoteDomain /= domain ==>
             retrievedProfiles
               === [ mkUserProfileWithEmail
@@ -73,8 +75,9 @@ spec = describe "UserSubsystem.Interpreter" do
         \viewer targetUserIds visibility domain locale ->
           let config = UserSubsystemConfig visibility locale
               retrievedProfiles =
-                runNoFederationStack [] Nothing config $
-                  QS.getUserProfiles (toLocalUnsafe domain viewer) (map (`Qualified` domain) targetUserIds)
+                runNoFederationStack [] Nothing $
+                  runUserSubsystem config $
+                    QS.getUserProfiles (toLocalUnsafe domain viewer) (map (`Qualified` domain) targetUserIds)
            in retrievedProfiles === []
 
       prop "gets a local user profile when the user exists and both user and viewer have accepted their invitations" $
@@ -83,8 +86,9 @@ spec = describe "UserSubsystem.Interpreter" do
               targetUser = if sameTeam then targetUserNoTeam {teamId = viewer.teamId} else targetUserNoTeam
               config = UserSubsystemConfig visibility locale
               retrievedProfiles =
-                runNoFederationStack [targetUser, viewer] (Just teamMember) config $
-                  QS.getUserProfiles (toLocalUnsafe domain viewer.id) [Qualified targetUser.id domain]
+                runNoFederationStack [targetUser, viewer] (Just teamMember) $
+                  runUserSubsystem config $
+                    QS.getUserProfiles (toLocalUnsafe domain viewer.id) [Qualified targetUser.id domain]
            in retrievedProfiles
                 === [ mkUserProfile
                         (fmap (const $ (,) <$> viewer.teamId <*> Just teamMember) visibility)
@@ -98,8 +102,9 @@ spec = describe "UserSubsystem.Interpreter" do
               targetUser = if sameTeam then targetUserNoTeam {teamId = viewer.teamId} else targetUserNoTeam
               config = UserSubsystemConfig visibility locale
               retrievedProfile =
-                runNoFederationStack [targetUser, viewer] (Just teamMember) config $
-                  QS.getUserProfiles (toLocalUnsafe domain viewer.id) [Qualified targetUser.id domain]
+                runNoFederationStack [targetUser, viewer] (Just teamMember) $
+                  runUserSubsystem config $
+                    QS.getUserProfiles (toLocalUnsafe domain viewer.id) [Qualified targetUser.id domain]
            in retrievedProfile
                 === [ mkUserProfile
                         (fmap (const Nothing) visibility)
@@ -112,8 +117,9 @@ spec = describe "UserSubsystem.Interpreter" do
           let teamMember = mkTeamMember viewer.id fullPermissions Nothing UserLegalHoldDisabled
               config = UserSubsystemConfig visibility locale
               retrievedProfile =
-                runNoFederationStack [targetUser, viewer] (Just teamMember) config $
-                  QS.getLocalUserProfiles [targetUser.id]
+                runNoFederationStack [targetUser, viewer] (Just teamMember) $
+                  runUserSubsystem config $
+                    QS.getLocalUserProfiles (toLocalUnsafe domain [targetUser.id])
            in retrievedProfile === []
 
       prop "gets a remote user profile when the user exists and both user and viewer have accepted their invitations" $
@@ -125,46 +131,52 @@ spec = describe "UserSubsystem.Interpreter" do
         let remoteBackend = def {users = targetUsers}
             federation = [(remoteDomain, remoteBackend)]
             retrievedProfilesWithErrors :: ([(Qualified UserId, FederationError)], [UserProfile]) =
-              runFederationStack [viewer] federation Nothing (UserSubsystemConfig visibility miniLocale) $
-                QS.getUserProfilesWithErrors
-                  (toLocalUnsafe domain viewer.id)
-                  ( map (flip Qualified remoteDomain . (.id)) $
-                      S.toList targetUsers
-                  )
+              runFederationStack [viewer] federation Nothing $
+                runErrorUnsafe $
+                  runUserSubsystem (UserSubsystemConfig visibility miniLocale) $
+                    QS.getUserProfilesWithErrors
+                      (toLocalUnsafe domain viewer.id)
+                      ( map (flip Qualified remoteDomain . (.id)) $
+                          S.toList targetUsers
+                      )
             retrievedProfiles :: [UserProfile] =
-              runFederationStack [viewer] federation Nothing (UserSubsystemConfig visibility miniLocale) $
-                QS.getUserProfiles
-                  (toLocalUnsafe domain viewer.id)
-                  ( map (flip Qualified remoteDomain . (.id)) $
-                      S.toList targetUsers
-                  )
+              runFederationStack [viewer] federation Nothing $
+                runUserSubsystem (UserSubsystemConfig visibility miniLocale) $
+                  QS.getUserProfiles
+                    (toLocalUnsafe domain viewer.id)
+                    ( map (flip Qualified remoteDomain . (.id)) $
+                        S.toList targetUsers
+                    )
         remoteDomain /= domain ==>
           length (fst retrievedProfilesWithErrors) === 0
             .&&. snd retrievedProfilesWithErrors === retrievedProfiles
-            .&&. (length $ snd retrievedProfilesWithErrors) === length targetUsers
+            .&&. length (snd retrievedProfilesWithErrors) === length targetUsers
 
-    focus . prop "If we get errors, the non-failing user profiles are returned together with errors for failing ones" $
+    prop "If we get errors, the non-failing user profiles are returned together with errors for failing ones" $
       \viewer targetUsers visibility domain remoteDomain -> do
         let remoteBackend = def {users = targetUsers}
             federation = [(remoteDomain, remoteBackend)]
             retrievedProfilesWithErrors :: ([(Qualified UserId, FederationError)], [UserProfile]) =
-              runFederationStackFails [viewer] federation Nothing (UserSubsystemConfig visibility miniLocale) $
-                QS.getUserProfilesWithErrors
-                  (toLocalUnsafe domain viewer.id)
-                  ( map (flip Qualified remoteDomain . (.id)) $
-                      S.toList targetUsers
-                  )
+              runFederationStackFails [viewer] federation Nothing $
+                runUserSubsystem (UserSubsystemConfig visibility miniLocale) $
+                  QS.getUserProfilesWithErrors
+                    (toLocalUnsafe domain viewer.id)
+                    ( map (flip Qualified remoteDomain . (.id)) $
+                        S.toList targetUsers
+                    )
             retrievedProfiles :: [UserProfile] =
-              runFederationStack [viewer] federation Nothing (UserSubsystemConfig visibility miniLocale) $
-                QS.getUserProfiles
-                  (toLocalUnsafe domain viewer.id)
-                  ( map (flip Qualified remoteDomain . (.id)) $
-                      S.toList targetUsers
-                  )
+              runFederationStack [viewer] federation Nothing $
+                runErrorUnsafe $
+                  runUserSubsystem (UserSubsystemConfig visibility miniLocale) $
+                    QS.getUserProfiles
+                      (toLocalUnsafe domain viewer.id)
+                      ( map (flip Qualified remoteDomain . (.id)) $
+                          S.toList targetUsers
+                      )
         remoteDomain /= domain ==>
           length (fst retrievedProfilesWithErrors) === length targetUsers
             .&&. snd retrievedProfilesWithErrors === retrievedProfiles
-            .&&. (length $ snd retrievedProfilesWithErrors) === 0
+            .&&. length (snd retrievedProfilesWithErrors) === 0
 
 newtype PendingStoredUser = PendingStoredUser StoredUser
   deriving (Show, Eq)
@@ -184,12 +196,10 @@ instance Arbitrary NotPendingStoredUser where
     pure $ NotPendingStoredUser (user {status = notPendingStatus})
 
 type GetUserProfileEffects =
-  [ QS.UserSubsystem,
-    GalleyAPIAccess,
+  [ GalleyAPIAccess,
     UserStore,
     DeleteQueue,
     State [InternalNotification],
-    Input UserSubsystemConfig,
     Now,
     FederationAPIAccess MiniFederationMonad,
     Concurrency 'Unsafe,
@@ -330,66 +340,64 @@ runFederationStack ::
   [StoredUser] ->
   Map Domain MiniBackend ->
   Maybe TeamMember ->
-  UserSubsystemConfig ->
   Sem GetUserProfileEffects a ->
   a
-runFederationStack allLocalUsers fedBackends teamMember config =
+runFederationStack allLocalUsers fedBackends teamMember =
   run
     . runErrorUnsafe
     . sequentiallyPerformConcurrency
     . miniFederationAPIAccess fedBackends
     . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
-    . runInputConst config
     . evalState []
     . inMemoryDeleteQueueInterpreter
     . staticUserStoreInterpreter allLocalUsers
     . miniGalleyAPIAccess teamMember
-    . runUserSubsystem
 
 runFederationStackFails ::
   [StoredUser] ->
   Map Domain MiniBackend ->
   Maybe TeamMember ->
-  UserSubsystemConfig ->
   Sem GetUserProfileEffects a ->
   a
-runFederationStackFails allLocalUsers fedBackends teamMember config =
+runFederationStackFails allLocalUsers fedBackends teamMember =
   run
-    . runError @FederationError -- TODO: fix this, so that our failing test can pass
+    . runErrorRethrow
     . sequentiallyPerformConcurrency
     . miniFederationAPIAccessFails fedBackends
     . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
-    . runInputConst config
     . evalState []
     . inMemoryDeleteQueueInterpreter
     . staticUserStoreInterpreter allLocalUsers
     . miniGalleyAPIAccess teamMember
-    . runUserSubsystem
 
 runNoFederationStack ::
   [StoredUser] ->
   Maybe TeamMember ->
-  UserSubsystemConfig ->
   Sem GetUserProfileEffects a ->
   a
-runNoFederationStack allUsers teamMember config =
+runNoFederationStack allUsers teamMember =
   run
     . runErrorUnsafe
     . sequentiallyPerformConcurrency
     . emptyFederationAPIAcesss
     . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
-    . runInputConst config
     . evalState []
     . inMemoryDeleteQueueInterpreter
     . staticUserStoreInterpreter allUsers
     . miniGalleyAPIAccess teamMember
-    . runUserSubsystem
 
 inMemoryDeleteQueueInterpreter :: Member (State [InternalNotification]) r => InterpreterFor DeleteQueue r
 inMemoryDeleteQueueInterpreter = interpret $ \case
   EnqueueUserDeletion uid -> modify (\l -> DeleteUser uid : l)
   EnqueueClientDeletion cid uid mConnId -> modify (\l -> DeleteClient cid uid mConnId : l)
   EnqueueServiceDeletion pid sid -> modify (\l -> DeleteService pid sid : l)
+
+runErrorRethrow :: Exception e => InterpreterFor (Error e) r
+runErrorRethrow action = do
+  res <- runError action
+  case res of
+    Left e -> throw e
+    Right x -> pure x
 
 runErrorUnsafe :: Exception e => InterpreterFor (Error e) r
 runErrorUnsafe action = do
@@ -415,12 +423,13 @@ miniFederationAPIAccess userProfiles =
 
 miniFederationAPIAccessFails ::
   forall r.
+  (Member (Error FederationError) r) =>
   Map Domain MiniBackend ->
   InterpreterFor (FederationAPIAccess MiniFederationMonad) r
 miniFederationAPIAccessFails userProfiles =
   let runner :: FederatedActionRunner MiniFederationMonad r
       runner domain rpc = pure . Right $ runMiniFederation domain userProfiles rpc
-   in interpretfederationAPIAccessFails runner (pure True)
+   in interpretFederationAPIAccessFails runner (pure True)
 
 staticUserStoreInterpreter :: [StoredUser] -> InterpreterFor UserStore r
 staticUserStoreInterpreter allUsers = interpret $ \case
