@@ -37,7 +37,7 @@ import Data.Id
 import Data.Metrics (Metrics)
 import Data.Metrics.AWS (gaugeTokenRemaing)
 import Data.Metrics.Middleware qualified as M
-import Data.Metrics.Servant (servantPlusWAIPrometheusMiddleware)
+import Data.Metrics.Servant
 import Data.Misc (portNumber)
 import Data.Singletons
 import Data.Text (unpack)
@@ -59,9 +59,7 @@ import Network.HTTP.Types qualified as HTTP
 import Network.Wai
 import Network.Wai.Middleware.Gunzip qualified as GZip
 import Network.Wai.Middleware.Gzip qualified as GZip
-import Network.Wai.Routing (Routes)
 import Network.Wai.Utilities.Server
-import Polysemy (Sem)
 import Servant hiding (route)
 import System.Logger (Logger, msg, val, (.=), (~~))
 import System.Logger qualified as Log
@@ -100,7 +98,7 @@ mkApp opts =
     lift $ runClient (env ^. cstate) $ versionCheck schemaVersion
     let middlewares =
           versionMiddleware (foldMap expandVersionExp (opts ^. settings . disabledAPIVersions))
-            . servantPlusWAIPrometheusMiddleware waiSitemap (Proxy @CombinedAPI)
+            . servantPrometheusMiddleware (Proxy @CombinedAPI)
             . GZip.gunzip
             . GZip.gzip GZip.def
             . catchErrors logger [Right metrics]
@@ -110,12 +108,6 @@ mkApp opts =
       Log.close logger
     pure (middlewares $ servantApp env, env)
   where
-    waiSitemap :: Routes () (Sem GalleyEffects) ()
-    waiSitemap = pure ()
-
-    rtree = compile waiSitemap
-    runGalley e r k = evalGalleyToIO e (route rtree r k)
-
     -- the servant API wraps the one defined using wai-routing
     servantApp :: Env -> Application
     servantApp e0 r cont = do
@@ -130,7 +122,6 @@ mkApp opts =
         ( hoistAPIHandler (toServantHandler e) servantSitemap
             :<|> hoistAPIHandler (toServantHandler e) internalAPI
             :<|> hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
-            :<|> Servant.Tagged (runGalley e)
         )
         r
         cont
@@ -176,7 +167,6 @@ type CombinedAPI =
   GalleyAPI
     :<|> InternalAPI
     :<|> FederationAPI
-    :<|> Servant.Raw
 
 refreshMetrics :: App ()
 refreshMetrics = do

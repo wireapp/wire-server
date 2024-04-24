@@ -64,7 +64,6 @@ import Imports hiding (forkIO)
 import Network.AMQP qualified as Q
 import Network.HTTP.Types
 import Network.Wai
-import Network.Wai.Predicate hiding (Error, fromEither)
 import Network.Wai.Utilities qualified as Wai
 import Polysemy
 import Polysemy.Error
@@ -92,8 +91,6 @@ import Wire.API.Team.Role
 import Wire.API.User hiding (userId)
 import Wire.API.User.Auth.ReAuth
 import Wire.NotificationSubsystem
-
-type JSON = Media "application" "json"
 
 ensureAccessRole ::
   ( Member BrigAccess r,
