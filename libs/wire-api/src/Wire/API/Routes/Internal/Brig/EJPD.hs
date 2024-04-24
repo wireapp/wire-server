@@ -111,7 +111,7 @@ instance ToSchema EJPDContact where
 
       contactFoundSchema :: ValueSchema SwaggerDoc (Relation, EJPDResponseItem)
       contactFoundSchema = unnamed $ object "Object" do
-        (,) <$> fst .= field "contact_item" schema <*> snd .= field "contact_relation" schema
+        (,) <$> fst .= field "contact_relation" schema <*> snd .= field "contact_item" schema
 
 deriving via Schema EJPDContact instance Aeson.ToJSON EJPDContact
 

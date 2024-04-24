@@ -49,6 +49,7 @@ import Wire.API.Provider.Service qualified as Provider.Service
 import Wire.API.Provider.Service.Tag qualified as Provider.Service.Tag
 import Wire.API.Push.Token qualified as Push.Token
 import Wire.API.Routes.FederationDomainConfig qualified as FederationDomainConfig
+import Wire.API.Routes.Internal.Brig.EJPD qualified as EJPD
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as TeamsIntra
 import Wire.API.Routes.Version qualified as Routes.Version
 import Wire.API.SystemSettings qualified as SystemSettings
@@ -136,6 +137,7 @@ tests =
       testRoundTrip @Conversation.Role.ConversationRolesList,
       testRoundTrip @Conversation.Typing.TypingStatus,
       testRoundTrip @CustomBackend.CustomBackend,
+      testRoundTrip @EJPD.EJPDContact,
       testRoundTrip @Event.Conversation.Event,
       testRoundTrip @Event.Conversation.EventType,
       testRoundTrip @Event.Conversation.SimpleMember,

@@ -24,15 +24,18 @@ setupEJPD =
     (owner1, tid1, [usr1, usr2]) <- createTeam OwnDomain 3
     handle1 <- liftIO $ UUID.nextRandom <&> ("usr1-handle-" <>) . UUID.toString
     handle2 <- liftIO $ UUID.nextRandom <&> ("usr2-handle-" <>) . UUID.toString
+    owner1Handle <- liftIO $ UUID.nextRandom <&> ("owner1-handle-" <>) . UUID.toString
     void $ putHandle usr1 handle1
     void $ putHandle usr2 handle2
+    void $ putHandle owner1 owner1Handle
     email3 <- liftIO $ UUID.nextRandom <&> \uuid -> "usr3-" <> UUID.toString uuid <> "@example.com"
     email4 <- liftIO $ UUID.nextRandom <&> \uuid -> "usr4-" <> UUID.toString uuid <> "@example.com"
     email5 <- liftIO $ UUID.nextRandom <&> \uuid -> "usr5-" <> UUID.toString uuid <> "@example.com"
     usr3 <- randomUser OwnDomain def {BI.email = Just email3, BI.name = Just "usr3"}
     usr4 <- randomUser OwnDomain def {BI.email = Just email4, BI.name = Just "usr4"}
     -- user 5 lives on a remote domain
-    usr5 <- randomUser OtherDomain def {BI.email = Just email5, BI.name = Just "usr5"}
+    -- we also can't see their email ever
+    usr5 <- removeField "email" =<< randomUser OtherDomain def {BI.email = Just email5, BI.name = Just "usr5"}
     handle3 <- liftIO $ UUID.nextRandom <&> ("usr3-handle-" <>) . UUID.toString
     handle4 <- liftIO $ UUID.nextRandom <&> ("usr4-handle-" <>) . UUID.toString
     handle5 <- liftIO $ UUID.nextRandom <&> ("usr5-handle-" <>) . UUID.toString
@@ -41,8 +44,7 @@ setupEJPD =
     void $ putHandle usr5 handle5
 
     connectTwoUsers usr3 usr5
-    connectTwoUsers usr2 usr4
-    connectTwoUsers usr4 usr5
+    connectUsers [usr2, usr4, usr5]
 
     toks1 <- do
       cl11 <- objId $ addClient (usr1 %. "qualified_id") def >>= getJSON 201
@@ -80,22 +82,35 @@ setupEJPD =
           parse resp =
             getJSON 201 resp <&> \val ->
               object
-                [ "conv_name" .= (val ^?! key (fromString "name") . _String),
-                  "conv_id" .= (val ^?! key (fromString "id") . _String)
+                [ "conv_name" .= do val ^?! key (fromString "name") . _String,
+                  "conv_id" .= do val ^?! key (fromString "qualified_id") . _Object
                 ]
 
-      conv1 <- parse =<< postConversation usr1 (defMLS {name = Just "11", qualifiedUsers = [], team = Just tid1})
-      conv12 <- parse =<< postConversation usr1 (defProteus {name = Just "12", qualifiedUsers = [usr2], team = Just tid1})
-      conv35 <- parse =<< postConversation usr3 (defProteus {name = Just "35", qualifiedUsers = [usr5]})
-      conv524 <- parse =<< postConversation usr5 (defProteus {name = Just "524", qualifiedUsers = [usr2, usr4]})
+      conv1 <-
+        parse
+          =<< postConversation usr1 do
+            defMLS {name = Just "11", qualifiedUsers = [], team = Just tid1}
+      conv12 <-
+        parse
+          =<< postConversation usr1 do
+            defProteus {name = Just "12", qualifiedUsers = [usr2], team = Just tid1}
+      conv35 <-
+        parse
+          =<< postConversation
+            usr3
+            do defProteus {name = Just "35", qualifiedUsers = [usr5]}
+      conv524 <-
+        parse
+          =<< postConversation usr5 do
+            defProteus {name = Just "524", qualifiedUsers = [usr2, usr4]}
       pure (Just ([conv1, conv12]), Just ([conv12, conv524]), Just [conv35], Just [conv524], Just [conv524, conv35])
 
-    let usr2contacts = Just $ (,"accepted") <$> [ejpd4]
+    let usr2contacts = Just $ (,"accepted") <$> [ejpd4, ejpd5]
         usr3contacts = Just $ (,"accepted") <$> [ejpd5]
         usr4contacts = Just $ (,"accepted") <$> [ejpd2, ejpd5]
         usr5contacts = Just $ (,"accepted") <$> [ejpd3, ejpd4]
 
-        ejpd0 = mkUsr owner1 Nothing [] Nothing (Just ([ejpd1, ejpd2], "list_complete")) Nothing Nothing
+        ejpd0 = mkUsr owner1 (Just owner1Handle) [] Nothing (Just ([ejpd1, ejpd2], "list_complete")) Nothing Nothing
         ejpd1 = mkUsr usr1 (Just handle1) toks1 Nothing (Just ([ejpd0, ejpd2], "list_complete")) convs1 (Just assets1)
         ejpd2 = mkUsr usr2 (Just handle2) toks2 usr2contacts (Just ([ejpd0, ejpd1], "list_complete")) convs2 (Just assets2)
         ejpd3 = mkUsr usr3 (Just handle3) [] usr3contacts Nothing convs3 (Just assets3)
@@ -115,33 +130,31 @@ setupEJPD =
       Maybe [A.Value] ->
       Maybe [String {- asset url -}] ->
       A.Value
-    mkUsr usr handle toks contacts teamContacts convs assets = result
+    mkUsr usr hdl toks contacts teamContacts convs assets = result
       where
         result =
           object
             [ -- (We know we have "id", but using ^? instead of ^. avoids the need for a Monoid instance for Value.)
-              "ejpd_response_user_id" .= (usr ^? key (fromString "id")),
+              "ejpd_response_user_id" .= do usr ^? key (fromString "qualified_id"),
               "ejpd_response_team_id" .= (usr ^? key (fromString "team")),
               "ejpd_response_name" .= (usr ^? key (fromString "name")),
-              "ejpd_response_handle" .= handle,
+              "ejpd_response_handle" .= hdl,
               "ejpd_response_email" .= (usr ^? key (fromString "email")),
               "ejpd_response_phone" .= (usr ^? key (fromString "phone")),
               "ejpd_response_push_tokens" .= toks,
-              "ejpd_response_contacts" .= (trimContacts _1 <$> contacts),
-              "ejpd_response_team_contacts" .= (teamContacts & _Just . _1 %~ trimContacts id),
+              "ejpd_response_contacts"
+                .= let f (item, relation) = object ["contact_item" .= item, "contact_relation" .= relation]
+                    in (map (f . trimContact _1) <$> contacts),
+              "ejpd_response_team_contacts" .= (teamContacts & _Just . _1 %~ map (trimContact id)),
               "ejpd_response_conversations" .= convs,
               "ejpd_response_assets" .= assets
             ]
 
-    trimContacts :: forall x. Lens' x A.Value -> [x] -> [x]
-    trimContacts lns =
-      fmap
-        ( lns
-            %~ ( \case
-                   trimmable@(A.Object _) -> trimItem trimmable
-                   other -> error $ show other
-               )
-        )
+    trimContact :: forall x. Lens' x A.Value -> x -> x
+    trimContact lns =
+      lns %~ \case
+        trimmable@(A.Object _) -> trimItem trimmable
+        other -> error $ show other
 
     trimItem :: A.Value -> A.Value
     trimItem =

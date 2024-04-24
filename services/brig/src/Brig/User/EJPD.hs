@@ -67,7 +67,7 @@ ejpdRequest ::
     Member Rpc r,
     Member (ConnectionStore InternalPaging) r,
     Member (Concurrency 'Unsafe) r,
-    Member (Final IO) r, -- 'lookupProfiles' has ExceptT and ReaderT in its return type.
+    Member (Final IO) r, -- running the AppT monad requires Final IO
     Member TinyLog r
   ) =>
   Maybe Bool ->
@@ -110,7 +110,7 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
               let getPage = flip (remoteConnectedUsersPaginated luid) maxBound
               firstPage <- getPage Nothing
 
-              let userProfiles :: (Page InternalPaging (Remote UserConnection)) -> Sem r [EJPDContact]
+              let userProfiles :: Page InternalPaging (Remote UserConnection) -> Sem r [EJPDContact]
                   userProfiles pg = do
                     let qualifiedRemoteContactIds :: [(Qualified UserId, Relation)]
                         qualifiedRemoteContactIds = (ucTo &&& ucStatus) . qUnqualified . tUntagged <$> pageItems pg
@@ -171,6 +171,7 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
               forM members $ \uid' -> do
                 mbUsr <- wrapClient $ lookupUser NoPendingInvitations uid'
                 maybe (pure Nothing) (fmap Just . responseItemForExistingUser False) mbUsr
+            liftSem $ warn $ Log.msg ("userid: " <> show uid <> ", contacts: \n" <> show contactsFull)
 
             pure . Just . (,Team.toNewListType (memberList ^. Team.teamMemberListType)) . Set.fromList . catMaybes $ contactsFull
           _ -> do
@@ -201,14 +202,15 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
 
       pure $
         EJPDResponseItem
-          (tUntagged luid)
-          (userTeam target)
-          (userDisplayName target)
-          (userHandle target)
-          (userEmail target)
-          (userPhone target)
-          (Set.fromList ptoks)
-          mbContacts
-          mbTeamContacts
-          mbConversations
-          mbAssets
+          { ejpdResponseUserId = tUntagged luid,
+            ejpdResponseTeamId = userTeam target,
+            ejpdResponseName = userDisplayName target,
+            ejpdResponseHandle = userHandle target,
+            ejpdResponseEmail = userEmail target,
+            ejpdResponsePhone = userPhone target,
+            ejpdResponsePushTokens = Set.fromList ptoks,
+            ejpdResponseContacts = mbContacts,
+            ejpdResponseTeamContacts = mbTeamContacts,
+            ejpdResponseConversations = mbConversations,
+            ejpdResponseAssets = mbAssets
+          }
