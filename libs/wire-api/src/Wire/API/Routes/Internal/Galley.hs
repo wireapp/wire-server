@@ -18,6 +18,7 @@
 module Wire.API.Routes.Internal.Galley where
 
 import Control.Lens ((.~))
+import Data.Domain
 import Data.Id as Id
 import Data.OpenApi (OpenApi, info, title)
 import Data.Range
@@ -30,6 +31,7 @@ import Wire.API.Bot
 import Wire.API.Bot.Service
 import Wire.API.Conversation
 import Wire.API.Conversation.Role
+import Wire.API.CustomBackend
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
@@ -672,6 +674,14 @@ type IMiscAPI =
                     '[JSON]
                     (UpdateResponses "Bot not found" "Bot deleted" Event)
                     (UpdateResult Event)
+           )
+    :<|> Named
+           "put-custom-backend"
+           ( "custom-backend"
+               :> "by-domain"
+               :> Capture "domain" Domain
+               :> ReqBody '[JSON] CustomBackend
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 201 "OK")
            )
 
 swaggerDoc :: OpenApi

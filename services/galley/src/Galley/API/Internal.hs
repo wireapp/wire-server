@@ -57,6 +57,7 @@ import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.ClientStore
 import Galley.Effects.ConversationStore
+import Galley.Effects.CustomBackendStore
 import Galley.Effects.LegalHoldStore as LegalHoldStore
 import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.ServiceStore
@@ -72,7 +73,6 @@ import Imports hiding (head)
 import Network.AMQP qualified as Q
 import Network.Wai.Predicate hiding (Error, err, result, setStatus)
 import Network.Wai.Routing hiding (App, route, toList)
-import Network.Wai.Utilities hiding (Error)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -82,7 +82,6 @@ import System.Logger.Class hiding (Path, name)
 import System.Logger.Class qualified as Log
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
-import Wire.API.CustomBackend
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
@@ -181,6 +180,7 @@ miscAPI =
     <@> mkNamedAPI @"delete-service" deleteService
     <@> mkNamedAPI @"add-bot" Update.addBot
     <@> mkNamedAPI @"delete-bot" Update.rmBot
+    <@> mkNamedAPI @"put-custom-backend" setCustomBackend
 
 featureAPI :: API IFeatureAPI GalleyEffects
 featureAPI =
@@ -260,10 +260,6 @@ featureAPI =
 waiInternalSitemap :: Routes a (Sem GalleyEffects) ()
 waiInternalSitemap = unsafeCallsFed @'Galley @"on-client-removed" $ unsafeCallsFed @'Galley @"on-mls-message-sent" $ do
   -- Misc API (internal) ------------------------------------------------
-
-  put "/i/custom-backend/by-domain/:domain" (continue CustomBackend.internalPutCustomBackendByDomainH) $
-    capture "domain"
-      .&. jsonRequest @CustomBackend
 
   delete "/i/custom-backend/by-domain/:domain" (continue CustomBackend.internalDeleteCustomBackendByDomainH) $
     capture "domain"
