@@ -5,7 +5,11 @@
 
 --
 
-module Test.EJPD (testEJPDRequest) where
+module Test.EJPD
+  ( testEJPDRequest,
+    testEJPDRequestRemote,
+  )
+where
 
 import API.Brig
 import qualified API.BrigInternal as BI
@@ -39,10 +43,8 @@ setupEJPD =
     email5 <- liftIO $ UUID.nextRandom <&> \uuid -> "usr5-" <> UUID.toString uuid <> "@example.com"
     usr3 <- randomUser OwnDomain def {BI.email = Just email3, BI.name = Just "usr3"}
     usr4 <- randomUser OwnDomain def {BI.email = Just email4, BI.name = Just "usr4"}
-    -- user 5 lives on a remote domain
-    -- currently we can't expose data from federated backends via this EJPD endpoint
-    -- therefore we are going to verify that the remote user, or their conversations are not included in the response
-    usr5 <- randomUser OtherDomain def {BI.email = Just email5, BI.name = Just "usr5"}
+    usr5 <- randomUser OwnDomain def {BI.email = Just email5, BI.name = Just "usr5"}
+    usrRemote <- randomUser OtherDomain def {BI.email = Nothing, BI.name = Just "usrRemote"}
     handle3 <- liftIO $ UUID.nextRandom <&> ("usr3-handle-" <>) . UUID.toString
     handle4 <- liftIO $ UUID.nextRandom <&> ("usr4-handle-" <>) . UUID.toString
     handle5 <- liftIO $ UUID.nextRandom <&> ("usr5-handle-" <>) . UUID.toString
@@ -51,7 +53,7 @@ setupEJPD =
     void $ putHandle usr5 handle5
 
     connectTwoUsers usr3 usr5
-    connectUsers [usr2, usr4, usr5]
+    connectUsers [usr2, usr4, usr5, usrRemote]
 
     toks1 <- do
       cl11 <- objId $ addClient (usr1 %. "qualified_id") def >>= getJSON 201
@@ -110,15 +112,15 @@ setupEJPD =
         parse
           =<< postConversation usr5 do
             defProteus {name = Just "524", qualifiedUsers = [usr2, usr4]}
-      -- remote conv35 was created by usr3, and therefore should not be seen in EJPD response of usr5
-      -- similarly conv524 was created by usr5, and should not be seen in EJPD response of usr2 or usr4
-      pure (Just ([conv1, conv12]), Just ([conv12]), Just [conv35], Just [], Just [conv524])
+      pure (Just ([conv1, conv12]), Just ([conv12, conv524]), Just [conv35], Just [conv524], Just [conv35, conv524])
 
-    -- remote contacts should not be included in the response
-    let usr2contacts = Just $ (,"accepted") <$> [ejpd4]
-        usr3contacts = Just $ (,"accepted") <$> []
-        usr4contacts = Just $ (,"accepted") <$> [ejpd2]
-        usr5contacts = Just $ (,"accepted") <$> []
+    assertSuccess =<< postConversation usrRemote do
+      defProteus {name = Just "remote245", qualifiedUsers = [usr2, usr4, usr5]}
+
+    let usr2contacts = Just $ (,"accepted") <$> [ejpd4, ejpd5]
+        usr3contacts = Just $ (,"accepted") <$> [ejpd5]
+        usr4contacts = Just $ (,"accepted") <$> [ejpd2, ejpd5]
+        usr5contacts = Just $ (,"accepted") <$> [ejpd2, ejpd3, ejpd4]
 
         ejpd0 = mkUsr owner1 (Just owner1Handle) [] Nothing (Just ([ejpd1, ejpd2], "list_complete")) Nothing Nothing
         ejpd1 = mkUsr usr1 (Just handle1) toks1 Nothing (Just ([ejpd0, ejpd2], "list_complete")) convs1 (Just assets1)
@@ -205,5 +207,13 @@ testEJPDRequest = do
   check [usr1]
   check [usr2]
   check [usr3]
+  check [usr4, usr5]
 
--- check [usr4, usr5]
+testEJPDRequestRemote :: HasCallStack => App ()
+testEJPDRequestRemote = do
+  usrRemote <- randomUser OtherDomain def {BI.email = Nothing, BI.name = Just "usrRemote"}
+  handleRemote <- liftIO $ UUID.nextRandom <&> ("usrRemote-handle-" <>) . UUID.toString
+  void $ putHandle usrRemote handleRemote
+
+  have <- BI.getEJPDInfo OwnDomain [handleRemote] "include_contacts"
+  shouldBeEmpty $ have.json %. "ejpd_response"
