@@ -34,6 +34,7 @@ import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.FederationStatus
 import Wire.API.MakesFederatedCall
+import Wire.API.Provider.Service (ServiceRef)
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti
 import Wire.API.Routes.Internal.Galley.TeamsIntra
@@ -628,6 +629,15 @@ type IMiscAPI =
                :> ReqBody '[JSON] Service
                :> MultiVerb1
                     'POST
+                    '[JSON]
+                    (RespondEmpty 200 "OK")
+           )
+    :<|> Named
+           "delete-service"
+           ( "services"
+               :> ReqBody '[JSON] ServiceRef
+               :> MultiVerb1
+                    'DELETE
                     '[JSON]
                     (RespondEmpty 200 "OK")
            )

@@ -93,7 +93,6 @@ import Wire.API.Event.LeaveReason
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
-import Wire.API.Provider.Service hiding (Service)
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Galley
 import Wire.API.Routes.Internal.Galley.TeamsIntra
@@ -182,6 +181,7 @@ miscAPI =
     <@> mkNamedAPI @"test-add-client" createClient
     <@> mkNamedAPI @"test-delete-client" Clients.rmClient
     <@> mkNamedAPI @"add-service" createService
+    <@> mkNamedAPI @"delete-service" deleteService
 
 featureAPI :: API IFeatureAPI GalleyEffects
 featureAPI =
@@ -261,9 +261,6 @@ featureAPI =
 waiInternalSitemap :: Routes a (Sem GalleyEffects) ()
 waiInternalSitemap = unsafeCallsFed @'Galley @"on-client-removed" $ unsafeCallsFed @'Galley @"on-mls-message-sent" $ do
   -- Misc API (internal) ------------------------------------------------
-
-  delete "/i/services" (continue Update.rmServiceH) $
-    jsonRequest @ServiceRef
 
   -- This endpoint can lead to the following events being sent:
   -- - MemberJoin event to members

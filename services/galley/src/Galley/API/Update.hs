@@ -66,7 +66,6 @@ module Galley.API.Update
     memberTyping,
 
     -- * External Services
-    rmServiceH,
     Galley.API.Update.addBotH,
     rmBotH,
     postBotMessageUnqualified,
@@ -104,7 +103,6 @@ import Galley.Effects.ConversationStore qualified as E
 import Galley.Effects.ExternalAccess qualified as E
 import Galley.Effects.FederatorAccess qualified as E
 import Galley.Effects.MemberStore qualified as E
-import Galley.Effects.ServiceStore qualified as E
 import Galley.Effects.WaiRoutes
 import Galley.Options
 import Galley.Types.Bot hiding (addBot)
@@ -134,7 +132,6 @@ import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Message
 import Wire.API.Password (mkSafePassword)
-import Wire.API.Provider.Service (ServiceRef)
 import Wire.API.Routes.Public (ZHostValue)
 import Wire.API.Routes.Public.Galley.Messaging
 import Wire.API.Routes.Public.Util (UpdateResult (..))
@@ -1545,16 +1542,6 @@ memberTypingUnqualified ::
 memberTypingUnqualified lusr zcon cnv ts = do
   lcnv <- qualifyLocal cnv
   memberTyping lusr zcon (tUntagged lcnv) ts
-
-rmServiceH ::
-  ( Member ServiceStore r,
-    Member WaiRoutes r
-  ) =>
-  JsonRequest ServiceRef ->
-  Sem r Response
-rmServiceH req = do
-  E.deleteService =<< fromJsonBody req
-  pure empty
 
 addBotH ::
   ( Member ClientStore r,
