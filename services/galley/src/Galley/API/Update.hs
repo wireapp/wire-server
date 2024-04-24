@@ -67,7 +67,7 @@ module Galley.API.Update
 
     -- * External Services
     addBot,
-    rmBotH,
+    rmBot,
     postBotMessageUnqualified,
   )
 where
@@ -103,15 +103,10 @@ import Galley.Effects.ConversationStore qualified as E
 import Galley.Effects.ExternalAccess qualified as E
 import Galley.Effects.FederatorAccess qualified as E
 import Galley.Effects.MemberStore qualified as E
-import Galley.Effects.WaiRoutes
 import Galley.Options
 import Galley.Types.Conversations.Members (LocalMember (..))
 import Galley.Types.UserList
 import Imports hiding (forkIO)
-import Network.HTTP.Types
-import Network.Wai
-import Network.Wai.Predicate hiding (Error, and, failure, setStatus, _1, _2)
-import Network.Wai.Utilities hiding (Error)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -255,11 +250,6 @@ unblockRemoteConv lusr rcnv = do
   E.createMembersInRemoteConversation rcnv [tUnqualified lusr]
 
 -- conversation updates
-
-handleUpdateResult :: UpdateResult Event -> Response
-handleUpdateResult = \case
-  Updated ev -> json ev & setStatus status200
-  Unchanged -> empty & setStatus status204
 
 type UpdateConversationAccessEffects =
   '[ BackendNotificationQueueAccess,
@@ -1600,25 +1590,6 @@ addBot lusr zcon b = do
         let botId = qualifyAs lusr (botUserId (b ^. addBotId))
         ensureMemberLimit (Data.convProtocolTag c) (toList $ Data.convLocalMembers c) [tUntagged botId]
       pure (bots, users)
-
-rmBotH ::
-  ( Member ClientStore r,
-    Member ConversationStore r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member ExternalAccess r,
-    Member NotificationSubsystem r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member MemberStore r,
-    Member WaiRoutes r,
-    Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r
-  ) =>
-  UserId ::: Maybe ConnId ::: JsonRequest RemoveBot ->
-  Sem r Response
-rmBotH (zusr ::: zcon ::: req) = do
-  lusr <- qualifyLocal zusr
-  bot <- fromJsonBody req
-  handleUpdateResult <$> rmBot lusr zcon bot
 
 rmBot ::
   ( Member ClientStore r,

@@ -43,7 +43,6 @@ import Galley.API.LegalHold (unsetTeamLegalholdWhitelistedH)
 import Galley.API.LegalHold.Conflicts
 import Galley.API.MLS.Removal
 import Galley.API.One2One
-import Galley.API.Public
 import Galley.API.Public.Servant
 import Galley.API.Query qualified as Query
 import Galley.API.Teams (uncheckedDeleteTeamMember)
@@ -74,7 +73,6 @@ import Network.AMQP qualified as Q
 import Network.Wai.Predicate hiding (Error, err, result, setStatus)
 import Network.Wai.Routing hiding (App, route, toList)
 import Network.Wai.Utilities hiding (Error)
-import Network.Wai.Utilities.ZAuth
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -82,7 +80,6 @@ import Polysemy.TinyLog qualified as P
 import Servant hiding (JSON, WithStatus)
 import System.Logger.Class hiding (Path, name)
 import System.Logger.Class qualified as Log
-import Wire.API.Bot
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
 import Wire.API.CustomBackend
@@ -183,6 +180,7 @@ miscAPI =
     <@> mkNamedAPI @"add-service" createService
     <@> mkNamedAPI @"delete-service" deleteService
     <@> mkNamedAPI @"add-bot" Update.addBot
+    <@> mkNamedAPI @"delete-bot" Update.rmBot
 
 featureAPI :: API IFeatureAPI GalleyEffects
 featureAPI =
@@ -262,13 +260,6 @@ featureAPI =
 waiInternalSitemap :: Routes a (Sem GalleyEffects) ()
 waiInternalSitemap = unsafeCallsFed @'Galley @"on-client-removed" $ unsafeCallsFed @'Galley @"on-mls-message-sent" $ do
   -- Misc API (internal) ------------------------------------------------
-
-  -- This endpoint can lead to the following events being sent:
-  -- - MemberLeave event to members
-  delete "/i/bots" (continueE Update.rmBotH) $
-    zauthUserId
-      .&. opt zauthConnId
-      .&. jsonRequest @RemoveBot
 
   put "/i/custom-backend/by-domain/:domain" (continue CustomBackend.internalPutCustomBackendByDomainH) $
     capture "domain"

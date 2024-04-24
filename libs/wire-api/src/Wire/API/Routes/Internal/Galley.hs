@@ -44,6 +44,7 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Galley.Feature
+import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
 import Wire.API.Team
@@ -655,6 +656,22 @@ type IMiscAPI =
                :> ZConn
                :> ReqBody '[JSON] AddBot
                :> Post '[JSON] Event
+           )
+    :<|> Named
+           "delete-bot"
+           ( -- This endpoint can lead to the following events being sent:
+             -- - MemberLeave event to members
+             CanThrow 'ConvNotFound
+               :> CanThrow ('ActionDenied 'RemoveConversationMember)
+               :> "bots"
+               :> ZLocalUser
+               :> ZOptConn
+               :> ReqBody '[JSON] RemoveBot
+               :> MultiVerb
+                    'DELETE
+                    '[JSON]
+                    (UpdateResponses "Bot not found" "Bot deleted" Event)
+                    (UpdateResult Event)
            )
 
 swaggerDoc :: OpenApi
