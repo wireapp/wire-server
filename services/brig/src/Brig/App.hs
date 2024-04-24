@@ -358,7 +358,7 @@ initZAuth o = do
 
 initHttpManager :: IO Manager
 initHttpManager = do
-  initHttpManagerWithTLSConfig True Nothing
+  initHttpManagerWithTLSConfig False Nothing
 
 initHttpManagerWithTLSConfig :: Bool -> Maybe FilePath -> IO Manager
 initHttpManagerWithTLSConfig skipTlsVerify mCustomCa = do
