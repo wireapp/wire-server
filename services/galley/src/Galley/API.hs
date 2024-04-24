@@ -21,7 +21,6 @@ module Galley.API
   )
 where
 
-import Galley.API.Internal
 import Galley.API.Public qualified as Public
 import Galley.API.Public.Servant
 import Galley.App (GalleyEffects)
@@ -29,6 +28,4 @@ import Network.Wai.Routing (Routes)
 import Polysemy
 
 waiSitemap :: Routes () (Sem GalleyEffects) ()
-waiSitemap = do
-  Public.sitemap
-  waiInternalSitemap
+waiSitemap = Public.sitemap

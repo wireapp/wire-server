@@ -683,6 +683,13 @@ type IMiscAPI =
                :> ReqBody '[JSON] CustomBackend
                :> MultiVerb1 'PUT '[JSON] (RespondEmpty 201 "OK")
            )
+    :<|> Named
+           "delete-custom-backend"
+           ( "custom-backend"
+               :> "by-domain"
+               :> Capture "domain" Domain
+               :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 200 "OK")
+           )
 
 swaggerDoc :: OpenApi
 swaggerDoc =

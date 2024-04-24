@@ -18,18 +18,12 @@
 -- | See also: 'DomainsBlockedForRegistration'.
 module Galley.API.CustomBackend
   ( getCustomBackendByDomain,
-    internalDeleteCustomBackendByDomainH,
   )
 where
 
 import Data.Domain (Domain)
-import Galley.API.Util
 import Galley.Effects.CustomBackendStore
 import Imports hiding ((\\))
-import Network.HTTP.Types
-import Network.Wai
-import Network.Wai.Predicate hiding (Error, setStatus)
-import Network.Wai.Utilities hiding (Error)
 import Polysemy
 import Wire.API.CustomBackend qualified as Public
 import Wire.API.Error
@@ -47,10 +41,3 @@ getCustomBackendByDomain domain =
   getCustomBackend domain >>= \case
     Nothing -> throwS @'CustomBackendNotFound
     Just customBackend -> pure customBackend
-
--- INTERNAL -------------------------------------------------------------------
-
-internalDeleteCustomBackendByDomainH :: Member CustomBackendStore r => Domain ::: JSON -> Sem r Response
-internalDeleteCustomBackendByDomainH (domain ::: _) = do
-  deleteCustomBackend domain
-  pure (empty & setStatus status200)

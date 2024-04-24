@@ -16,8 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.API.Internal
-  ( waiInternalSitemap,
-    internalAPI,
+  ( internalAPI,
     InternalAPI,
     deleteLoop,
     safeForever,
@@ -37,7 +36,6 @@ import Data.Time
 import Galley.API.Action
 import Galley.API.Clients qualified as Clients
 import Galley.API.Create qualified as Create
-import Galley.API.CustomBackend qualified as CustomBackend
 import Galley.API.Error
 import Galley.API.LegalHold (unsetTeamLegalholdWhitelistedH)
 import Galley.API.LegalHold.Conflicts
@@ -71,8 +69,6 @@ import Galley.Types.UserList
 import Gundeck.Types.Push.V2 qualified as PushV2
 import Imports hiding (head)
 import Network.AMQP qualified as Q
-import Network.Wai.Predicate hiding (Error, err, result, setStatus)
-import Network.Wai.Routing hiding (App, route, toList)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -181,6 +177,7 @@ miscAPI =
     <@> mkNamedAPI @"add-bot" Update.addBot
     <@> mkNamedAPI @"delete-bot" Update.rmBot
     <@> mkNamedAPI @"put-custom-backend" setCustomBackend
+    <@> mkNamedAPI @"delete-custom-backend" deleteCustomBackend
 
 featureAPI :: API IFeatureAPI GalleyEffects
 featureAPI =
@@ -256,14 +253,6 @@ featureAPI =
     <@> mkNamedAPI @'("iput", LimitedEventFanoutConfig) setFeatureStatusInternal
     <@> mkNamedAPI @'("ipatch", LimitedEventFanoutConfig) patchFeatureStatusInternal
     <@> mkNamedAPI @"feature-configs-internal" (maybe getAllFeatureConfigsForServer getAllFeatureConfigsForUser)
-
-waiInternalSitemap :: Routes a (Sem GalleyEffects) ()
-waiInternalSitemap = unsafeCallsFed @'Galley @"on-client-removed" $ unsafeCallsFed @'Galley @"on-mls-message-sent" $ do
-  -- Misc API (internal) ------------------------------------------------
-
-  delete "/i/custom-backend/by-domain/:domain" (continue CustomBackend.internalDeleteCustomBackendByDomainH) $
-    capture "domain"
-      .&. accept "application" "json"
 
 rmUser ::
   forall p1 p2 r.
