@@ -41,6 +41,8 @@ import UnliftIO.Async
 import UnliftIO.Exception
 import Util.Options
 
+-- TODO: This code seems copy pasted from AWS.Brig. We should dedup the
+-- copy-pasta before we merge
 data Env = Env
   { logger :: !Logger,
     amazonkaEnv :: !AWS.Env
