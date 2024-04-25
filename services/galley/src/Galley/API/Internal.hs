@@ -145,7 +145,7 @@ ejpdGetConvInfo uid = do
   firstPage <- Query.conversationIdsPageFrom luid initialPageRequest
   getPages luid firstPage
   where
-    initialPageRequest = mkPageRequest Nothing
+    initialPageRequest = mkPageRequest $ Just (MTP.MultiTablePagingState MTP.PagingLocals Nothing)
     mkPageRequest = MTP.GetMultiTablePageRequest (toRange (Proxy @1000))
 
     getPages :: Local UserId -> ConvIdsPage -> Sem r [EJPDConvInfo]

@@ -344,6 +344,8 @@ conversationIdsPageFromV2 listGlobalSelf lusr Public.GetMultiTablePageRequest {.
   case gmtprState of
     Just (Public.ConversationPagingState Public.PagingRemotes stateBS) ->
       remotesOnly (mkState <$> stateBS) gmtprSize
+    Just (Public.ConversationPagingState Public.PagingLocals stateBS) ->
+      localsOnly localDomain (mkState <$> stateBS) gmtprSize
     _ -> localsAndRemotes localDomain (fmap mkState . Public.mtpsState =<< gmtprState) gmtprSize
   where
     mkState :: ByteString -> C.PagingState
@@ -355,9 +357,7 @@ conversationIdsPageFromV2 listGlobalSelf lusr Public.GetMultiTablePageRequest {.
       Range 1 1000 Int32 ->
       Sem r Public.ConvIdsPage
     localsAndRemotes localDomain pagingState size = do
-      localPage <-
-        pageToConvIdPage Public.PagingLocals . fmap (`Qualified` localDomain)
-          <$> E.listItems (tUnqualified lusr) pagingState size
+      localPage <- localsOnly localDomain pagingState size
       let remainingSize = fromRange size - fromIntegral (length (Public.mtpResults localPage))
       if Public.mtpHasMore localPage || remainingSize <= 0
         then -- We haven't checked the remotes yet, so has_more must always be True here.
@@ -371,6 +371,16 @@ conversationIdsPageFromV2 listGlobalSelf lusr Public.GetMultiTablePageRequest {.
                   Public.mtpResults (filterOut localPage)
                     <> Public.mtpResults remotePage
               }
+
+    localsOnly ::
+      Domain ->
+      Maybe C.PagingState ->
+      Range 1 1000 Int32 ->
+      Sem r Public.ConvIdsPage
+    localsOnly localDomain pagingState size =
+      pageToConvIdPage Public.PagingLocals
+        . fmap (`Qualified` localDomain)
+        <$> E.listItems (tUnqualified lusr) pagingState size
 
     remotesOnly ::
       Maybe C.PagingState ->
