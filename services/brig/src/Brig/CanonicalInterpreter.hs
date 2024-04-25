@@ -21,6 +21,7 @@ import Brig.Effects.UserPendingActivationStore.Cassandra (userPendingActivationS
 import Brig.Options (ImplicitNoFederationRestriction (federationDomainConfig), federationDomainConfigs, federationStrategy)
 import Brig.Options qualified as Opt
 import Cassandra qualified as Cas
+import Control.Exception (ErrorCall)
 import Control.Lens (to, (^.))
 import Control.Monad.Catch (throwM)
 import Data.Qualified (Local, toLocalUnsafe)
@@ -59,7 +60,6 @@ import Wire.UserStore
 import Wire.UserStore.Cassandra
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Interpreter
-import Control.Exception (ErrorCall)
 
 type BrigCanonicalEffects =
   '[ UserSubsystem,

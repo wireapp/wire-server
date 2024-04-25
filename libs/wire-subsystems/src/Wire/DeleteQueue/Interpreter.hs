@@ -1,7 +1,7 @@
 module Wire.DeleteQueue.Interpreter
   ( runDeleteQueue,
     mkEnv,
-    Env
+    Env,
   )
 where
 

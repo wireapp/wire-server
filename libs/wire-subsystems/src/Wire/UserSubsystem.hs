@@ -21,9 +21,9 @@ data UserSubsystem m a where
 makeSem ''UserSubsystem
 
 getUserProfile :: Member UserSubsystem r => Local UserId -> Qualified UserId -> Sem r (Maybe UserProfile)
-getUserProfile luid targetUser = 
+getUserProfile luid targetUser =
   listToMaybe <$> getUserProfiles luid [targetUser]
 
-getLocalUserProfile  :: Member UserSubsystem r => Local UserId -> Sem r (Maybe UserProfile)
-getLocalUserProfile targetUser = 
-  listToMaybe <$> getLocalUserProfiles ((:[]) <$> targetUser)
+getLocalUserProfile :: Member UserSubsystem r => Local UserId -> Sem r (Maybe UserProfile)
+getLocalUserProfile targetUser =
+  listToMaybe <$> getLocalUserProfiles ((: []) <$> targetUser)
