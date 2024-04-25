@@ -85,18 +85,11 @@ instance ToSchema EJPDConvInfo where
         <*> ejpdConvId .= field "conv_id" schema
 
 data EJPDContact
-  = -- | looking up the remote profile page containing this uid failed with FederationError
-    EJPDContactRemoteError
-      { -- ejpdContactError :: FederationError,
-        -- (^ we could include that, but we don't want to import wire-federation-api, or mess
-        -- around with type arguments all over the place.)
-        ejpdContactErrorUid :: Qualified UserId
-      }
-  | -- | local or remote contact with relation
+  = -- | local or remote contact with relation
     EJPDContactFound
-      { ejpdContactRelation :: Relation,
-        ejpdContactFound :: EJPDResponseItem
-      }
+    { ejpdContactRelation :: Relation,
+      ejpdContactFound :: EJPDResponseItem
+    }
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform EJPDContact)
 
@@ -104,12 +97,8 @@ $(makePrisms ''EJPDContact)
 
 instance ToSchema EJPDContact where
   schema = named "EJDPContact" do
-    tag _EJPDContactRemoteError remoteErrorSchema
-      <> tag _EJPDContactFound contactFoundSchema
+    tag _EJPDContactFound contactFoundSchema
     where
-      remoteErrorSchema :: ValueSchema SwaggerDoc (Qualified UserId)
-      remoteErrorSchema = unnamed schema
-
       contactFoundSchema :: ValueSchema SwaggerDoc (Relation, EJPDResponseItem)
       contactFoundSchema = unnamed $ object "Object" do
         (,) <$> fst .= field "contact_relation" schema <*> snd .= field "contact_item" schema
