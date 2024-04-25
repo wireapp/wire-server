@@ -181,6 +181,7 @@ import Wire.GalleyAPIAccess as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.UserSubsystem
 
 data AllowSCIMUpdates
   = AllowSCIMUpdates
@@ -1533,33 +1534,24 @@ deleteUserNoVerify uid = do
   enqueueUserDeletion uid
 
 deleteUsersNoVerify ::
-  ( Member DeleteQueue r,
-    MonadReader Env (Sem r),
-    Member (Embed IO) r
-  ) =>
+  (Member DeleteQueue r) =>
   [UserId] ->
-  Sem r ()
+  AppT r ()
 deleteUsersNoVerify uids = do
-  for_ uids deleteUserNoVerify
+  liftSem $ for_ uids deleteUserNoVerify
   m <- view metrics
   Metrics.counterAdd (fromIntegral . length $ uids) (Metrics.path "user.enqueue_multi_delete_total") m
   Metrics.counterIncr (Metrics.path "user.enqueue_multi_delete_calls_total") m
 
 -- | Similar to lookupProfiles except it returns all results and all errors
 -- allowing for partial success.
---
--- FUTUREWORK(fisx): this function is a wrapper around 'getUserProfiles' from the user subsystem,
--- and the type doesn't fit very well.
 lookupProfilesV3 ::
-  ( Member GalleyAPIAccess r,
-    Member (Concurrency 'Unsafe) r
-  ) =>
-  -- | User 'self' on whose behalf the profiles are requested.
+  (Member UserSubsystem r) =>
   Local UserId ->
   -- | The users ('others') for which to obtain the profiles.
   [Qualified UserId] ->
-  AppT r ([(Qualified UserId, FederationError)], [UserProfile])
-lookupProfilesV3 self others = undefined
+  Sem r ([(Qualified UserId, FederationError)], [UserProfile])
+lookupProfilesV3 self others = getUserProfilesWithErrors self others
 
 -- t <-
 --   liftSem $ traverseConcurrentlyAppT

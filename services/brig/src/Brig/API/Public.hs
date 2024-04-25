@@ -888,9 +888,7 @@ listUsersByIdsOrHandlesV3 self q = do
 -- using a new return type
 listUsersByIdsOrHandles ::
   forall r.
-  ( Member GalleyAPIAccess r,
-    Member (Concurrency 'Unsafe) r
-  ) =>
+  (Member UserSubsystem r) =>
   UserId ->
   Public.ListUsersQuery ->
   Handler r ListUsersById
@@ -910,7 +908,7 @@ listUsersByIdsOrHandles self q = do
       Local UserId ->
       [Qualified UserId] ->
       Handler r ([(Qualified UserId, FederationError)], [Public.UserProfile])
-    byIds lself uids = lift (API.lookupProfilesV3 lself uids) !>> fedError
+    byIds lself uids = lift (liftSem (getUserProfilesWithErrors lself uids))
 
 newtype GetActivationCodeResp
   = GetActivationCodeResp (Public.ActivationKey, Public.ActivationCode)

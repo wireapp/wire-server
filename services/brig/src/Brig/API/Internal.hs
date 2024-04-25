@@ -98,7 +98,6 @@ import Wire.API.User.RichInfo
 import Wire.API.UserEvent
 import Wire.DeleteQueue
 import Wire.GalleyAPIAccess (GalleyAPIAccess, ShowOrHideInvitationUrl (..))
-import Wire.InternalEvent
 import Wire.NotificationSubsystem
 import Wire.Rpc
 import Wire.Sem.Concurrency

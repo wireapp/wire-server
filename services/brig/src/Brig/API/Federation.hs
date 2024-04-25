@@ -69,6 +69,7 @@ import Wire.API.User.Client.Prekey
 import Wire.API.User.Search hiding (searchPolicy)
 import Wire.API.UserEvent
 import Wire.API.UserMap (UserMap)
+import Wire.DeleteQueue
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
@@ -80,7 +81,9 @@ federationSitemap ::
   ( Member GalleyAPIAccess r,
     Member (Concurrency 'Unsafe) r,
     Member FederationConfigStore r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member UserSubsystem r,
+    Member DeleteQueue r
   ) =>
   ServerT FederationAPI (Handler r)
 federationSitemap =
@@ -135,8 +138,7 @@ sendConnectionAction originDomain NewConnectionRequest {..} = do
     else pure NewConnectionResponseNotFederating
 
 getUserByHandle ::
-  ( Member GalleyAPIAccess r,
-    Member FederationConfigStore r,
+  ( Member FederationConfigStore r,
     Member UserSubsystem r
   ) =>
   Domain ->
@@ -157,17 +159,20 @@ getUserByHandle domain handle = do
       case maybeOwnerId of
         Nothing ->
           pure Nothing
-        Just ownerId -> getLocalUserProfile ownerId
+        Just ownerId -> do
+          localOwnerId <- qualifyLocal ownerId
+          liftSem $ getLocalUserProfile localOwnerId
 
 getUsersByIds ::
-  Member GalleyAPIAccess r =>
+  (Member UserSubsystem r) =>
   Domain ->
   [UserId] ->
   ExceptT Error (AppT r) [UserProfile]
-getUsersByIds _ uids =
-  lift (API.lookupLocalProfiles Nothing uids)
+getUsersByIds _ uids = do
+  luids <- qualifyLocal uids
+  lift $ liftSem $ getLocalUserProfiles luids
 
-claimPrekey :: Domain -> (UserId, ClientId) -> (Handler r) (Maybe ClientPrekey)
+claimPrekey :: (Member DeleteQueue r) => Domain -> (UserId, ClientId) -> (Handler r) (Maybe ClientPrekey)
 claimPrekey _ (user, client) = do
   API.claimLocalPrekey LegalholdPlusFederationNotImplemented user client !>> clientError
 
@@ -176,7 +181,7 @@ claimPrekeyBundle _ user =
   API.claimLocalPrekeyBundle LegalholdPlusFederationNotImplemented user !>> clientError
 
 claimMultiPrekeyBundle ::
-  Member (Concurrency 'Unsafe) r =>
+  (Member (Concurrency 'Unsafe) r, Member DeleteQueue r) =>
   Domain ->
   UserClients ->
   Handler r UserClientPrekeyMap
@@ -196,8 +201,8 @@ fedClaimKeyPackages domain ckpr =
 -- | Searching for federated users on a remote backend
 searchUsers ::
   forall r.
-  ( Member GalleyAPIAccess r,
-    Member FederationConfigStore r
+  ( Member FederationConfigStore r,
+    Member UserSubsystem r
   ) =>
   Domain ->
   SearchRequest ->
@@ -238,8 +243,9 @@ searchUsers domain (SearchRequest searchTerm mTeam mOnlyInTeams) = do
             Nothing -> pure []
             Just foundUser -> do
               mFoundUserTeamId <- lift $ wrapClient $ Data.lookupUserTeam foundUser
+              localFoundUser <- qualifyLocal foundUser
               if isTeamAllowed mOnlyInTeams mFoundUserTeamId
-                then lift $ contactFromProfile <$$> API.lookupLocalProfiles Nothing [foundUser]
+                then lift $ liftSem $ (fmap contactFromProfile . maybeToList) <$> getLocalUserProfile localFoundUser
                 else pure []
       | otherwise = pure []
 
