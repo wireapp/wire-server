@@ -32,11 +32,10 @@ import Galley.API.Query qualified as Query
 import Galley.API.Util
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
-import Galley.Effects.BrigAccess qualified as E
 import Galley.Effects.ClientStore qualified as E
 import Galley.Effects.ConversationStore (getConversation)
 import Galley.Env
-import Galley.Types.Clients (clientIds, fromUserClients)
+import Galley.Types.Clients (clientIds)
 import Imports
 import Network.AMQP qualified as Q
 import Polysemy
@@ -52,20 +51,13 @@ import Wire.API.Routes.MultiTablePaging
 import Wire.NotificationSubsystem
 import Wire.Sem.Paging.Cassandra (CassandraPaging)
 
--- TODO: refactor
 getClients ::
   ( Member BrigAccess r,
     Member ClientStore r
   ) =>
   UserId ->
   Sem r [ClientId]
-getClients usr = do
-  isInternal <- E.useIntraClientListing
-  clts <-
-    if isInternal
-      then fromUserClients <$> E.lookupClients [usr]
-      else E.getClients [usr]
-  pure (clientIds usr clts)
+getClients usr = clientIds usr <$> getBrigClients [usr]
 
 -- | Remove a client from conversations it is part of according to the
 -- conversation protocol (Proteus or MLS). In addition, remove the client from

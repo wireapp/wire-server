@@ -47,6 +47,7 @@ import Galley.Data.Types qualified as DataTypes
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.BrigAccess
+import Galley.Effects.ClientStore
 import Galley.Effects.CodeStore
 import Galley.Effects.ConversationStore
 import Galley.Effects.ExternalAccess
@@ -55,6 +56,7 @@ import Galley.Effects.LegalHoldStore
 import Galley.Effects.MemberStore
 import Galley.Effects.TeamStore
 import Galley.Options
+import Galley.Types.Clients (Clients, fromUserClients)
 import Galley.Types.Conversations.Members
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
@@ -1050,6 +1052,18 @@ conversationExisted lusr cnv = Existed <$> conversationView lusr cnv
 
 getLocalUsers :: Domain -> NonEmpty (Qualified UserId) -> [UserId]
 getLocalUsers localDomain = map qUnqualified . filter ((== localDomain) . qDomain) . toList
+
+getBrigClients ::
+  ( Member BrigAccess r,
+    Member ClientStore r
+  ) =>
+  [UserId] ->
+  Sem r Clients
+getBrigClients users = do
+  isInternal <- useIntraClientListing
+  if isInternal
+    then fromUserClients <$> lookupClients users
+    else getClients users
 
 --------------------------------------------------------------------------------
 -- Handling remote errors
