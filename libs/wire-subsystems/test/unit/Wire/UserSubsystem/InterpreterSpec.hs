@@ -53,7 +53,7 @@ spec = describe "UserSubsystem.Interpreter" do
           let remoteBackend1 = def {users = targetUsers1}
               remoteBackend2 = def {users = targetUsers2}
               viewer = viewerTeam {teamId = Nothing}
-              -- Having teams adds complications in email visibility, 
+              -- Having teams adds complications in email visibility,
               -- all that stuff is tested in [without federation] tests
               localTargetUsers =
                 S.fromList $

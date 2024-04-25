@@ -21,6 +21,7 @@
 , errors
 , exceptions
 , extended
+, extra
 , gitignoreSource
 , gundeck-types
 , HsOpenSSL
@@ -82,6 +83,7 @@ mkDerivation {
     errors
     exceptions
     extended
+    extra
     gundeck-types
     HsOpenSSL
     http-client
