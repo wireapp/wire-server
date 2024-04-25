@@ -18,14 +18,6 @@
 -- | Working with STOMP queues (targeting ActiveMQ specifically).
 module Wire.Queue.Stomp where
 
--- ( Env (..),
---   mkEnv,
---   Broker (..),
---   Credentials (..),
---   enqueue,
---   listen,
--- )
-
 import Codec.MIME.Type qualified as MIME
 import Control.Exception (try)
 import Control.Monad.Catch (Handler (..), MonadMask)

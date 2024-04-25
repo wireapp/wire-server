@@ -60,6 +60,7 @@ import Wire.API.Team.Feature qualified as Public
 import Wire.API.User
 import Wire.Arbitrary (Arbitrary, arbitrary)
 import Wire.Queue
+import Wire.Queue.Stomp
 
 newtype Timeout = Timeout
   { timeoutDiff :: NominalDiffTime
@@ -149,15 +150,6 @@ data EmailSMTPOpts = EmailSMTPOpts
   deriving (Show, Generic)
 
 instance FromJSON EmailSMTPOpts
-
-data StompOpts = StompOpts
-  { stompHost :: !Text,
-    stompPort :: !Int,
-    stompTls :: !Bool
-  }
-  deriving (Show, Generic)
-
-instance FromJSON StompOpts
 
 data InternalEventsOpts = InternalEventsOpts
   { internalEventsQueue :: !Queue

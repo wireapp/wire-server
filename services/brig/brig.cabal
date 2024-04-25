@@ -153,6 +153,7 @@ library
     Brig.Provider.Email
     Brig.Provider.RPC
     Brig.Provider.Template
+    Brig.Queue
     Brig.RPC
     Brig.Run
     Brig.Schema.Run

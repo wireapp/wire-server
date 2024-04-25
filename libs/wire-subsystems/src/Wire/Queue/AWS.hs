@@ -20,31 +20,6 @@
 
 module Wire.Queue.AWS where
 
--- ( -- * Monad
---   Env,
---   mkEnv,
---   Amazon,
---   amazonkaEnv,
---   execute,
---   sesQueue,
---   userJournalQueue,
---   prekeyTable,
---   Error (..),
-
---   -- * SES
---   sendMail,
-
---   -- * SQS
---   listen,
---   enqueueFIFO,
---   enqueueStandard,
---   getQueueUrl,
-
---   -- * AWS
---   exec,
---   execCatch,
--- )
-
 import Amazonka (AWSRequest, AWSResponse)
 import Amazonka qualified as AWS
 import Amazonka.SQS qualified as SQS
