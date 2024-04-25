@@ -44,10 +44,10 @@ data:
       {{- if $.Values.secrets.elasticsearch }}
       credentials: /etc/wire/brig/secrets/elasticsearch-credentials.yaml
       {{- end }}
-      {{- if (include "configureElasticSearchCa" .) }}
+      {{- if eq (include "configureElasticSearchCa" .) "true" }}
       caCert: /etc/wire/brig/elasticsearch-ca/{{ include "elasticsearchTlsSecretKey" .}}
       {{- end }}
-      {{- if (include "configureAdditionalElasticSearchCa" .) }}
+      {{- if eq (include "configureAdditionalElasticSearchCa" .) "true" }}
       additionalCaCert: /etc/wire/brig/additional-elasticsearch-ca/{{ include "additionalElasticsearchTlsSecretKey" .}}
       {{- end }}
       {{- if $.Values.secrets.elasticsearchAdditional }}
