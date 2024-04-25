@@ -1,2 +1,0 @@
-To ensure certificate revocations get active in a short time frame, disable
-caching of proxy results on client side by setting respective HTTP headers.

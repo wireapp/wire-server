@@ -1,5 +1,0 @@
-Avoid IO Exception when querying
-
-  GET /converations/{cnv_domain}/{cnv}/groupinfo
-
-with public group state not set in galley.converation.

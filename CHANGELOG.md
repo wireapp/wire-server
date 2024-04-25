@@ -1,3 +1,241 @@
+# [2024-04-25] (Chart Release 4.42.0)
+
+## Release notes
+
+
+* There is a new optional Boolean in Brig's Helm chart, `config.multiSFT.enabled`,
+  signalling whether calls between federated SFT servers are allowed.
+
+  IMPORTANT: The value of this new option needs be set to the value of
+  `multiSFT.enabled` in SFT's Helm chart. Otherwise federated SFT servers won't
+  work.
+
+  If provided, the field `is_federating` in the response of `/calls/config/v2`
+  will reflect `multiSFT.enabled`'s value.
+
+  Example:
+
+  ```
+  # [brig/values.yaml]
+  multiSFT:
+    enabled: true
+  ```
+
+  Also, the optional object `sftToken` with its fields `ttl` and `secret` define
+  whether an SFT credential would be rendered in the response of
+  `/calls/config/v2`. The field `ttl` determines the seconds for the credential to
+  be valid and `secret` is the path to the secret shared with SFT to create
+  credentials.
+
+  Example:
+
+  ```
+  # [brig.yaml]
+  sft:
+    sftBaseDomain: sft.wire.example.com
+    sftSRVServiceName: sft
+    sftDiscoveryIntervalSeconds: 10
+    sftListLength: 20
+    sftToken:
+      ttl: 120
+      secret: /path/to/secret
+  ``` (#3915)
+
+* The "addClient" internal endpoint of galley has been changed. This can cause temporary failures during upgrades if brig attempts to use this endpoint on a different version of galley. (#3904)
+
+* Removed the deprecated and unused field `geoDb` from Brig's config. (#3975)
+
+* Added support for 3 more MLS ciphersuites. To enable MLS, all supported signature schemes (ed25519 and the three ecdsa variants) now need to have private keys specified in galley's configuration file. (#3964)
+
+
+## API changes
+
+
+* Create version 6 of client-related endpoints, fixing an oddity in the serialisation of capabilities. (#3904)
+
+* Add gzip request support to spar and proxy (#4013)
+
+
+## Features
+
+
+* Backend validates display name during DPoP challenge (#3890)
+
+* Add Helm chart `smallstep-accomp` that provides a CRL endpoint proxy for federated E2EI (#3896)
+
+* Support for Elasticsearch password authentication (#6717, #7283)
+
+* Support unblocking a user in an MLS 1-to-1 conversation (#3940)
+
+* Add E2EI configuration setup to smallstep-accomp chart (#3944)
+
+* Remove Helm migrated charts webapp, team-settings, account-pages, sftd (#3927)
+
+* charts/nginz: Rate limiting claiming MLS key-pacakges by requesting and target user (#3918)
+
+* Support connecting to Elasticsearch over TLS
+
+  It can be enabled by setting these options on the wire-server helm chart:
+
+  ```yaml
+  brig:
+    config:
+      elasticsearch:
+        scheme: https
+
+        # When custom CAs are required, one of these must be set:
+        tlsCa: <PEM encoded CA certificates>
+        tlsCaSecretRef:
+          name: <Name of the secret>
+          key: <Key in the secret containing pem encoded CA Cert>
+
+        # When TLS needs to be used without verification:
+        insecureSkipVerifyTls: true
+
+  elasticsearch-index:
+    elasticsearch:
+      scheme: https
+
+      # When custom CAs are required, one of these must be set:
+      tlsCa: <PEM encoded CA certificates>
+      tlsCaSecretRef:
+        name: <Name of the secret>
+        key: <Key in the secret containing pem encoded CA Cert>
+
+      # When TLS needs to be used without verification:
+      insecureSkipVerifyTls: true
+  ``` (#3989)
+
+* Make gundeck's notificationTTL configurable. The value defines how long
+  notifications are (at most) stored in the database. Decreasing this value e.g.
+  helps to safe database space on test environments. (#3960)
+
+* charts/nginz: Allow 3000 reqs/min on /conversations/one2one/:user_domain/:user (#3918)
+
+* Support authenticating to redis (#3971)
+
+
+## Bug fixes and other updates
+
+
+* Send connection cancelled event to local pending connection when user gets deleted (#3861)
+
+* Optional `apiProxy` attribute added to `deeplink.json` in nginz chart (#3933)
+
+* coturn cert-reloader sidecar config: process name should not contain the path (helm chart) (#3916)
+
+* Prevent conflict on subsequent tries to provision a SCIM user (#3914)
+
+* Avoid IO Exception when querying
+
+    GET /converations/{cnv_domain}/{cnv}/groupinfo
+
+  with public group state not set in galley.converation. (#3939)
+
+* Return an actual list of other users in a remote MLS 1-to-1 conversation (#3998)
+
+* charts/background-worker: Fix name of the service monitor (#3913)
+
+* Fix crash when enqueing an empty list of notifications and federation is disabled (#PR_NOT_FOUND)
+
+* Add the request ID to the request's execution environment in gundeck, such that it can be logged. (#3903)
+
+* The AWS SNS ARN was parsed by accumulating the environment name up to the first
+  dash ('-') such that parts of this name spilled over into the app name. Now, we
+  accumulate up to the last dash. (#3894)
+
+* Fix bug where welcome notifications were generated for each client instead of for each user (#3907)
+
+* Do not deliver MLS one-to-one conversation messages to a user that blocked the sender (#3889, #3906)
+
+*  Optimize getting all feature configs (#4002)
+
+
+## Documentation
+
+
+* adds new coding-conventions.md and talks about the decision we made for `cs` (#4006)
+
+* Distinguish UTCTime and UTCTimeMillis in swagger (#3899)
+
+* Patch hole in scim docs regarding wire team role manipulation. (#3897)
+
+
+## Internal changes
+
+
+* Create a new script (`Sbom.hs`) to generate the wire-server sbom (bill of material) file. (#3942)
+
+* port flaking LH tests to new integration and improve the ergonomics of our testing library (#3876)
+
+* some small refactorings to make it more clear in code what is happening when registering a scim token and an IdP (#3966)
+
+* In order for the CRL-proxy to function correctly, it needs to have CORS headers set.
+  We are now setting the CORS headers on the ingress level. (#3956)
+
+* drop cs in all production code and from Imports (#4001)
+
+* Galley's internal `DELETE /i/client/:clientID` now early-exits before visiting all conversations if the client is already gone.
+  Galley now reports debug logs for every call to Cassandra. (#3985)
+
+* move formatting and linting of haskell files to treefmt, remove some of the now unneeded rules (#4000)
+
+* Integration test cases for strangely behaving feature config settings. (#4007)
+
+* Add ldap-scim-bridge chart to the wire-server release (#3999)
+
+* Disable `integration` subchart of `wire-server` by default (#3682)
+
+* Provide password as value in `elasticsearch-ephemeral`. This way we can use
+  different passwords on our test systems. Ensuring that the password is really
+  configurable (and not accidentally hardcoded somewhere.) (#3994)
+
+* Upgraded fluent-bit chart to version 0.46.2
+  Added example values for fluent-bit helm chart for output to syslog server (#4012)
+
+* Ported 2FA tests to the new integration test suite (#3986)
+
+* To ensure certificate revocations get active in a short time frame, disable
+  caching of proxy results on client side by setting respective HTTP headers. (#3952)
+
+* Ensure that targets of the smallstep nginx proxy are resolved at runtime via the
+  configured DNS server. This has two benefits: The target gets adjusted when it's
+  changed at the DNS server. And, nginx doesn't fail to start when the target
+  doesn't exist yet. (#3947)
+
+* Use schema-profunctor for user event serialisation and introduce golden tests (#3912)
+
+* Setup federation-v0 environment for use in integration tests:
+   - add federation-v0 domain to test environment
+   - provision integration certificates with cert-manager (#3849, #3898)
+
+* Add assets to output of ejpd-info end-point in stern; also:
+
+  - [brig] now talks to carghold for profile picture extraction;
+  - [integration] migrate ejpd tests;
+  - [integration] enhanced `shouldMatch` shows a diff on failure now;
+  - [integration] added `shouldMatchLeniently` for rule-based canonicalization of arguments (#3875)
+
+* Bump hsaml2, saml2-web-sso dependencies. (#3995)
+
+* Remove support for push token transport types APNSVoIP, APNSVoIPSandbox from gundeck. (#3967)
+
+* Include remote domain in federator error logs (#3919)
+
+* Remove remaining splinters of wai-routing, wai-predicate from brig. (#3996)
+
+
+## Federation changes
+
+
+* The on-conversation-updated notification is now queued instead of being sent directly. A new version of the notification has been introduced with a different JSON format for the body, mostly for testing purposes of the versioning system.
+
+  Since the notification is now sent asynchronously, some error conditions in case of unreachable backends cannot be triggered anymore. (#3831)
+
+* Versioning of backend to backend notifications. Notifications are now stored in "bundles" containing a serialised payload for each supported version. The background worker then dynamically selects the best version to use and sends only the notification corresponding to that version.
+   (#3831)
+
+
 # [2024-02-13] (Chart Release 4.41.0)
 
 # [2024-02-12] (Chart Release 4.40.0)

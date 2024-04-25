@@ -1,2 +1,0 @@
-Galley's internal `DELETE /i/client/:clientID` now early-exits before visiting all conversations if the client is already gone.
-Galley now reports debug logs for every call to Cassandra.
