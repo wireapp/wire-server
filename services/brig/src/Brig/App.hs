@@ -32,7 +32,6 @@ module Brig.App
     closeEnv,
     awsEnv,
     smtpEnv,
-    stompEnv,
     cargohold,
     galley,
     galleyEndpoint,
@@ -152,7 +151,9 @@ import Util.Options
 import Wire.API.Routes.Version
 import Wire.API.User.Identity (Email)
 import Wire.API.User.Profile (Locale)
+import Wire.DeleteQueue.Interpreter
 import Wire.Queue
+import Wire.Queue.AWS qualified as AWSQueue
 import Wire.Queue.Stomp qualified as Stomp
 
 schemaVersion :: Int32
@@ -172,10 +173,9 @@ data Env = Env
     _smtpEnv :: Maybe SMTP.SMTP,
     _emailSender :: Email,
     _awsEnv :: AWS.Env,
-    _stompEnv :: Maybe Stomp.Env,
     _metrics :: Metrics,
     _applog :: Logger,
-    _internalEvents :: Queue,
+    _internalEvents :: QueueEnv,
     _requestId :: RequestId,
     _usrTemplates :: Localised UserTemplates,
     _provTemplates :: Localised ProviderTemplates,
@@ -240,16 +240,21 @@ newEnv o = do
   let sett = Opt.optSettings o
   nxm <- initCredentials (Opt.setNexmo sett)
   twl <- initCredentials (Opt.setTwilio sett)
-  stomp <- case (Opt.stomp o, Opt.setStomp sett) of
-    (Nothing, Nothing) -> pure Nothing
-    (Just s, Just c) -> Just . Stomp.mkEnv s <$> initCredentials c
-    (Just _, Nothing) -> error "STOMP is configured but 'setStomp' is not set"
-    (Nothing, Just _) -> error "'setStomp' is present but STOMP is not configured"
   -- This is messy. See Note [queue refactoring] to learn how we
-  -- eventually plan to solve this mess.
+  -- eventually plan to solve this mess
   eventsQueue <- case Opt.internalEventsQueue (Opt.internalEvents o) of
-    StompQueue q -> pure (StompQueue q)
-    SqsQueue q -> SqsQueue <$> AWS.getQueueUrl (aws ^. AWS.amazonkaEnv) q
+    StompQueue q ->
+      case (Opt.stomp o, Opt.setStomp sett) of
+        (Just stompOpts, Just credsPath) -> do
+          creds <- initCredentials credsPath
+          pure $ StompQueueEnv (Stomp.mkBroker stompOpts creds) q
+        (Nothing, Nothing) -> error "STOMP queue is requested, but STOMP connection is not configured"
+        (Just _, Nothing) -> error "STOMP is configured but 'setStomp' is not set"
+        (Nothing, Just _) -> error "'setStomp' is present but STOMP is not configured"
+    SqsQueue q -> do
+      let sqsLogger = clone (Just "aws.brig") lgr
+      awsQueueEnv <- AWSQueue.mkEnv sqsLogger o.aws.sqsEndpoint mgr
+      SqsQueueEnv awsQueueEnv <$> AWS.getQueueUrl awsQueueEnv.amazonkaEnv q
   mSFTEnv <- mapM (Calling.mkSFTEnv sha512) $ Opt.sft o
   prekeyLocalLock <- case Opt.randomPrekeys o of
     Just True -> do
@@ -276,7 +281,6 @@ newEnv o = do
         _smtpEnv = emailSMTP,
         _emailSender = Opt.emailSender . Opt.general . Opt.emailSMS $ o,
         _awsEnv = aws,
-        _stompEnv = stomp,
         _metrics = mtr,
         _applog = lgr,
         _internalEvents = eventsQueue,

@@ -46,7 +46,6 @@ import Wire.GundeckAPIAccess
 import Wire.NotificationSubsystem
 import Wire.NotificationSubsystem.Interpreter (defaultNotificationSubsystemConfig, runNotificationSubsystemGundeck)
 import Wire.ParseException
-import Wire.Queue qualified as Q
 import Wire.Rpc
 import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.IO
@@ -64,8 +63,6 @@ import Wire.UserSubsystem.Interpreter
 type BrigCanonicalEffects =
   '[ UserSubsystem,
      DeleteQueue,
-     Input Q.Queue,
-     Input DQ.Env,
      Error Wire.API.Federation.Error.FederationError,
      Wire.FederationAPIAccess.FederationAPIAccess Wire.API.Federation.Client.FederatorClient,
      UserStore,
@@ -149,9 +146,7 @@ runBrigToIO e (AppT ma) = do
               . interpretUserStoreCassandra (e ^. casClient)
               . interpretFederationAPIAccess federationApiAccessConfig
               . throwFederationErrorAsWaiError
-              . runInputConst (mkEnv Nothing Nothing)
-              . runInputConst (e ^. internalEvents)
-              . runDeleteQueue
+              . runDeleteQueue (e ^. internalEvents)
               . runUserSubsystem userSubsystemConfig
           )
     )

@@ -43,20 +43,8 @@ import Util.Options
 
 data Env = Env
   { logger :: !Logger,
-    userJournalQueue :: !(Maybe Text),
     amazonkaEnv :: !AWS.Env
   }
-
-data AWSOpts = AWSOpts
-  { -- | Event journal queue for user events
-    --   (e.g. user deletion)
-    userJournalQueue :: !(Maybe Text),
-    -- | AWS SQS endpoint
-    sqsEndpoint :: !AWSEndpoint
-  }
-  deriving (Show, Generic)
-
-instance FromJSON AWSOpts
 
 newtype Amazon a = Amazon
   { unAmazon :: ReaderT Env (ResourceT IO) a
@@ -79,15 +67,13 @@ instance MonadLogger Amazon where
     env <- ask
     Logger.log env.logger l m
 
-mkEnv :: Logger -> AWSOpts -> Manager -> IO Env
-mkEnv lgr opts mgr = do
-  let g = Logger.clone (Just "aws.brig") lgr
+mkEnv :: Logger -> AWSEndpoint -> Manager -> IO Env
+mkEnv logger sqsEndpoint mgr = do
   e <-
     mkAwsEnv
-      g
-      (mkEndpoint SQS.defaultService (sqsEndpoint opts))
-  jq <- maybe (pure Nothing) (fmap Just . getQueueUrl e) (opts.userJournalQueue)
-  pure (Env g jq e)
+      logger
+      (mkEndpoint SQS.defaultService sqsEndpoint)
+  pure (Env logger e)
   where
     mkEndpoint svc e = AWS.setEndpoint (e ^. awsSecure) (e ^. awsHost) (e ^. awsPort) svc
     mkAwsEnv g sqs = do

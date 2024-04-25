@@ -67,22 +67,18 @@ data StompOpts = StompOpts
 
 instance FromJSON StompOpts
 
--- | Construct an 'Env' with some default settings.
-mkEnv ::
+mkBroker ::
   -- | Options that can be customized
   StompOpts ->
   -- | Credentials
   Credentials ->
-  Env
-mkEnv o cred =
-  Env
-    { broker =
-        Broker
-          { host = stompHost o,
-            port = stompPort o,
-            auth = Just cred,
-            tls = stompTls o
-          }
+  Broker
+mkBroker o cred =
+  Broker
+    { host = stompHost o,
+      port = stompPort o,
+      auth = Just cred,
+      tls = stompTls o
     }
 
 -- | Send a message to a STOMP queue.
