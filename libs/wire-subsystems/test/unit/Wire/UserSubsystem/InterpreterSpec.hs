@@ -1,8 +1,8 @@
 {-# LANGUAGE OverloadedLists #-}
-{-# OPTIONS_GHC -Wwarn #-}
 
 module Wire.UserSubsystem.InterpreterSpec (spec) where
 
+import Data.Bifunctor (first)
 import Data.Default (Default (def))
 import Data.Domain
 import Data.Id
@@ -24,7 +24,6 @@ import Servant.Client.Core
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
-import Test.QuickCheck.Property (Result (ok))
 import Type.Reflection
 import Wire.API.Federation.API
 import Wire.API.Federation.Component
@@ -48,25 +47,52 @@ spec :: Spec
 spec = describe "UserSubsystem.Interpreter" do
   describe "getUserProfiles" do
     describe "[with federation]" do
-      prop "all users on federating backends" $
-        \viewer targetUsers visibility domain remoteDomain -> do
-          let remoteBackend = def {users = targetUsers}
-              federation = [(remoteDomain, remoteBackend)]
+      prop "gets all users on multiple federating backends" $
+        \viewer targetUsers1 targetUsers2 visibility localDomain remoteDomain1 remoteDomain2 -> do
+          let remoteBackend1 = def {users = targetUsers1}
+              remoteBackend2 = def {users = targetUsers2}
+              federation = [(remoteDomain1, remoteBackend1), (remoteDomain2, remoteBackend2)]
+              mkUserIds domain = map (flip Qualified domain . (.id)) . S.toList
+              target1 = mkUserIds remoteDomain1 targetUsers1
+              target2 = mkUserIds remoteDomain2 targetUsers2
               retrievedProfiles =
                 runFederationStack [viewer] federation Nothing (UserSubsystemConfig visibility miniLocale) $
                   getUserProfilesImpl
-                    (toLocalUnsafe domain viewer.id)
-                    ( map (flip Qualified remoteDomain . (.id)) $
-                        S.toList targetUsers
-                    )
-          remoteDomain /= domain ==>
-            retrievedProfiles
-              === [ mkUserProfileWithEmail
-                      Nothing
-                      (mkUserFromStored remoteDomain miniLocale targetUser)
-                      UserLegalHoldDisabled
-                    | targetUser <- S.toList targetUsers
-                  ]
+                    (toLocalUnsafe localDomain viewer.id)
+                    (target1 <> target2)
+              mkExpectedProfiles domain users =
+                [ mkUserProfileWithEmail
+                    Nothing
+                    (mkUserFromStored domain miniLocale targetUser)
+                    UserLegalHoldDisabled
+                  | targetUser <- S.toList users
+                ]
+              expectedProfiles1 = mkExpectedProfiles remoteDomain1 targetUsers1
+              expectedProfiles2 = mkExpectedProfiles remoteDomain2 targetUsers2
+
+          sortOn (.profileQualifiedId) retrievedProfiles === sortOn (.profileQualifiedId) (expectedProfiles1 <> expectedProfiles2)
+
+    prop "fails when a backend is offline or returns an error" $
+      \viewer onlineTargetUsers offlineTargetUsers visibility localDomain onlineDomain offlineDomain -> do
+        let onlineRemoteBackend = def {users = onlineTargetUsers}
+            offlineRemoteBackend = def {users = offlineTargetUsers}
+            online = [(onlineDomain, onlineRemoteBackend)]
+            offline = [(offlineDomain, offlineRemoteBackend)]
+            mkUserIds domain users = map (flip Qualified domain . (.id)) (S.toList users)
+            onlineUsers = mkUserIds onlineDomain onlineTargetUsers
+            offlineUsers = mkUserIds offlineDomain offlineTargetUsers
+            config = UserSubsystemConfig visibility miniLocale
+
+            result =
+              runFederationStackWithUnavailableBackendsEither [viewer] online offline Nothing config $
+                getUserProfilesImpl
+                  (toLocalUnsafe localDomain viewer.id)
+                  (onlineUsers <> offlineUsers)
+        localDomain /= offlineDomain && offlineTargetUsers /= [] ==>
+          -- The FederationError doesn't have an instance
+          -- for Eq because of dependency on HTTP2Error
+          first (displayException) result
+            === Left (displayException (FederationUnexpectedError "RunFederatedEither"))
 
     describe "[without federation]" do
       prop "returns nothing when none of the users exist" $
@@ -116,9 +142,6 @@ spec = describe "UserSubsystem.Interpreter" do
                   getLocalUserProfilesImpl (toLocalUnsafe domain [targetUser.id])
            in retrievedProfile === []
 
-      prop "gets a remote user profile when the user exists and both user and viewer have accepted their invitations" $
-        pending
-
   describe "getUserProfilesWithErrors" $ do
     prop "If no errors, same behavior as getUserProfiles" $
       \viewer targetUsers visibility domain remoteDomain -> do
@@ -126,7 +149,7 @@ spec = describe "UserSubsystem.Interpreter" do
             federation = [(remoteDomain, remoteBackend)]
             config = UserSubsystemConfig visibility miniLocale
             retrievedProfilesWithErrors :: ([(Qualified UserId, FederationError)], [UserProfile]) =
-              runFederationStackToError [viewer] federation mempty Nothing config $
+              runFederationStackWithUnavailableBackends [viewer] federation mempty Nothing config $
                 getUserProfilesWithErrorsImpl
                   (toLocalUnsafe domain viewer.id)
                   ( map (flip Qualified remoteDomain . (.id)) $
@@ -152,7 +175,7 @@ spec = describe "UserSubsystem.Interpreter" do
             online = mempty
             config = UserSubsystemConfig visibility miniLocale
             retrievedProfilesWithErrors :: ([(Qualified UserId, FederationError)], [UserProfile]) =
-              runFederationStackToError [viewer] online offline Nothing config $
+              runFederationStackWithUnavailableBackends [viewer] online offline Nothing config $
                 getUserProfilesWithErrorsImpl
                   (toLocalUnsafe domain viewer.id)
                   ( map (flip Qualified remoteDomain . (.id)) $
@@ -173,7 +196,7 @@ spec = describe "UserSubsystem.Interpreter" do
             remoteBUsers = map (flip Qualified remoteDomainB . (.id)) (S.toList targetUsers)
             config = UserSubsystemConfig visibility miniLocale
             retrievedProfilesWithErrors :: ([(Qualified UserId, FederationError)], [UserProfile]) =
-              runFederationStackToError [viewer] online offline Nothing config $
+              runFederationStackWithUnavailableBackends [viewer] online offline Nothing config $
                 getUserProfilesWithErrorsImpl
                   (toLocalUnsafe domain viewer.id)
                   (remoteAUsers <> remoteBUsers)
@@ -341,27 +364,16 @@ interpretNowConst time = interpret \case
   Wire.Sem.Now.Get -> pure time
 
 runFederationStack ::
-  Semigroup a =>
   [StoredUser] ->
   Map Domain MiniBackend ->
   Maybe TeamMember ->
   UserSubsystemConfig ->
   Sem GetUserProfileEffects a ->
   a
-runFederationStack allLocalUsers fedBackends teamMember cfg =
-  run
-    . runErrorUnsafe
-    . sequentiallyPerformConcurrency
-    . miniFederationAPIAccess fedBackends mempty
-    . runInputConst cfg
-    . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
-    . evalState []
-    . inMemoryDeleteQueueInterpreter
-    . staticUserStoreInterpreter allLocalUsers
-    . miniGalleyAPIAccess teamMember
+runFederationStack allLocalUsers fedBackends =
+  runFederationStackWithUnavailableBackends allLocalUsers fedBackends mempty
 
-runFederationStackToError ::
-  Semigroup a =>
+runFederationStackWithUnavailableBackends ::
   [StoredUser] ->
   -- | the available backend
   Map Domain MiniBackend ->
@@ -371,9 +383,29 @@ runFederationStackToError ::
   UserSubsystemConfig ->
   Sem GetUserProfileEffects a ->
   a
-runFederationStackToError allLocalUsers availableBackends unavailableBackends teamMember cfg =
+runFederationStackWithUnavailableBackends allLocalUsers availableBackends unavailableBackends teamMember cfg =
+  let unsafeError e = error $ "Unexpected error: " <> displayException e
+   in either unsafeError Imports.id
+        . runFederationStackWithUnavailableBackendsEither
+          allLocalUsers
+          availableBackends
+          unavailableBackends
+          teamMember
+          cfg
+
+runFederationStackWithUnavailableBackendsEither ::
+  [StoredUser] ->
+  -- | the available backend
+  Map Domain MiniBackend ->
+  -- | the down backend
+  Map Domain MiniBackend ->
+  Maybe TeamMember ->
+  UserSubsystemConfig ->
+  Sem GetUserProfileEffects a ->
+  Either FederationError a
+runFederationStackWithUnavailableBackendsEither allLocalUsers availableBackends unavailableBackends teamMember cfg =
   run
-    . runErrorUnsafe
+    . runError
     . sequentiallyPerformConcurrency
     . miniFederationAPIAccess availableBackends unavailableBackends
     . runInputConst cfg
@@ -420,22 +452,21 @@ emptyFederationAPIAcesss = interpret $ \case
 
 miniFederationAPIAccess ::
   forall a r.
-  ( Member (Concurrency 'Unsafe) r,
-    Member (Error FederationError) r,
-    Semigroup a
-  ) =>
   Map Domain MiniBackend ->
   Map Domain MiniBackend ->
   Sem (FederationAPIAccess MiniFederationMonad : r) a ->
   Sem r a
-miniFederationAPIAccess online offline = do
-  let runner ::FederatedActionRunner MiniFederationMonad r
+miniFederationAPIAccess online _offline = do
+  let runner :: FederatedActionRunner MiniFederationMonad r
       runner domain rpc = pure . Right $ runMiniFederation domain online rpc
   interpret \case
     RunFederatedEither remote rpc ->
       if isJust (M.lookup (qDomain $ tUntagged remote) online)
         then FI.runFederatedEither runner remote rpc
         else pure $ Left do FederationUnexpectedError "RunFederatedEither"
+    RunFederatedConcurrently _remotes _rpc -> undefined
+    RunFederatedBucketed _domain _rpc -> undefined
+    IsFederationConfigured -> undefined
 
 staticUserStoreInterpreter :: [StoredUser] -> InterpreterFor UserStore r
 staticUserStoreInterpreter allUsers = interpret $ \case
@@ -445,15 +476,3 @@ miniGalleyAPIAccess :: Maybe TeamMember -> InterpreterFor GalleyAPIAccess r
 miniGalleyAPIAccess member = interpret $ \case
   GetTeamMember _ _ -> pure member
   _ -> error "uninterpreted effect: GalleyAPIAccess"
-
-interpretFederationAPIAccessFails ::
-  forall fedM r.
-  (Member (Error FederationError) r) =>
-  FederatedActionRunner fedM r ->
-  (Sem r Bool) ->
-  InterpreterFor (FederationAPIAccess fedM) r
-interpretFederationAPIAccessFails _runFedM isFederationConfigured = interpret $ \case
-  RunFederatedEither remote rpc -> pure $ Left do FederationUnexpectedError "RunFederatedEither"
-  RunFederatedConcurrently _remotes _rpc -> throw $ FederationUnexpectedError "RunFederatedConcurrently"
-  RunFederatedBucketed _remotes _rpc -> throw $ FederationUnexpectedError "RunFederatedBucketed"
-  IsFederationConfigured -> isFederationConfigured

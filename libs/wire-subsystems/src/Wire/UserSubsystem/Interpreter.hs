@@ -46,9 +46,7 @@ runUserSubsystem ::
   UserSubsystemConfig ->
   InterpreterFor UserSubsystem r
 runUserSubsystem cfg = interpret $ \case
-  GetUserProfile self other -> runInputConst cfg $ getUserProfileImpl self other
   GetUserProfiles self others -> runInputConst cfg $ getUserProfilesImpl self others
-  GetLocalUserProfile other -> runInputConst cfg $ getLocalUserProfileImpl [other]
   GetLocalUserProfiles others -> runInputConst cfg $ getLocalUserProfilesImpl others
   GetUserProfilesWithErrors self others -> runInputConst cfg $ getUserProfilesWithErrorsImpl self others
 
@@ -108,9 +106,6 @@ getLocalUserProfilesImpl ::
   Local [UserId] ->
   Sem r [UserProfile]
 getLocalUserProfilesImpl = getUserProfilesLocalPart Nothing
-
-getLocalUserProfileImpl :: a
-getLocalUserProfileImpl = undefined
 
 getUserProfilesFromDomain ::
   ( Member GalleyAPIAccess r,
