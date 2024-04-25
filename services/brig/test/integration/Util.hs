@@ -1080,7 +1080,7 @@ circumventSettingsOverride = runHttpT
 --
 --   Beware: (1) Not all async parts of brig are running in this.  (2) other services will
 --   see the old, unaltered brig.
-withSettingsOverrides :: MonadIO m => Opt.Opts -> WaiTest.Session a -> m a
+withSettingsOverrides :: (MonadIO m, HasCallStack) => Opt.Opts -> WaiTest.Session a -> m a
 withSettingsOverrides opts action = liftIO $ do
   (brigApp, env) <- Run.mkApp opts
   sftDiscovery <-

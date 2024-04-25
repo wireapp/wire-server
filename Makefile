@@ -273,9 +273,17 @@ db-reset: c
 	./dist/gundeck-schema --keyspace gundeck_test2 --replication-factor 1 --reset
 	./dist/spar-schema --keyspace spar_test2 --replication-factor 1 --reset
 	./integration/scripts/integration-dynamic-backends-db-schemas.sh --replication-factor 1 --reset
-	./dist/brig-index reset --elasticsearch-index-prefix directory --elasticsearch-server http://localhost:9200 --elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
-	./dist/brig-index reset --elasticsearch-index-prefix directory2 --elasticsearch-server http://localhost:9200 --elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
-	./integration/scripts/integration-dynamic-backends-brig-index.sh --elasticsearch-server http://localhost:9200 --elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
+	./dist/brig-index reset \
+		--elasticsearch-index-prefix directory \
+		--elasticsearch-server https://localhost:9200 \
+		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
+	./dist/brig-index reset \
+		--elasticsearch-index-prefix directory2 \
+		--elasticsearch-server https://localhost:9200 \
+		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
+	./integration/scripts/integration-dynamic-backends-brig-index.sh \
+		--elasticsearch-server https://localhost:9200 \
+		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
 
 
 
@@ -291,9 +299,20 @@ db-migrate: c
 	./dist/gundeck-schema --keyspace gundeck_test2 --replication-factor 1 > /dev/null
 	./dist/spar-schema --keyspace spar_test2 --replication-factor 1 > /dev/null
 	./integration/scripts/integration-dynamic-backends-db-schemas.sh --replication-factor 1 > /dev/null
-	./dist/brig-index reset --elasticsearch-index-prefix directory --elasticsearch-server http://localhost:9200 --elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
-	./dist/brig-index reset --elasticsearch-index-prefix directory2 --elasticsearch-server http://localhost:9200 --elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
-	./integration/scripts/integration-dynamic-backends-brig-index.sh --elasticsearch-server http://localhost:9200 --elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
+	./dist/brig-index reset \
+		--elasticsearch-index-prefix directory \
+		--elasticsearch-server https://localhost:9200 \
+	  --elasticsearch-ca-cert ./services/brig/test/resources/elasticsearch-ca.pem \
+		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
+	./dist/brig-index reset \
+		--elasticsearch-index-prefix directory2 \
+		--elasticsearch-server https://localhost:9200 \
+	  --elasticsearch-ca-cert ./services/brig/test/resources/elasticsearch-ca.pem \
+		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
+	./integration/scripts/integration-dynamic-backends-brig-index.sh \
+		--elasticsearch-server https://localhost:9200 \
+	  --elasticsearch-ca-cert ./services/brig/test/resources/elasticsearch-ca.pem \
+		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
 
 #################################
 ## dependencies

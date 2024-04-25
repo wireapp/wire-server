@@ -50,6 +50,9 @@ export FEDERATION_CA_CERTIFICATE
 echo "Installing charts..."
 
 set +e
+# This exists because we need to run `helmfile` with `--skip-deps`, without that it doesn't work.
+helm repo add bedag https://bedag.github.io/helm-charts/
+
 helmfile --environment "$HELMFILE_ENV" --file "${TOP_LEVEL}/hack/helmfile.yaml" sync --skip-deps --concurrency 0
 EXIT_CODE=$?
 

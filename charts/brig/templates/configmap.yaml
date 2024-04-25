@@ -33,17 +33,28 @@ data:
       {{- end }}
 
     elasticsearch:
-      url: http://{{ .elasticsearch.host }}:{{ .elasticsearch.port }}
+      url: {{ .elasticsearch.scheme }}://{{ .elasticsearch.host }}:{{ .elasticsearch.port }}
       index: {{ .elasticsearch.index }}
+      {{- if .elasticsearch.additionalWriteHost }}
+      additionalWriteIndexUrl: {{ .elasticsearch.additionalWriteScheme }}://{{ .elasticsearch.additionalWriteHost }}:{{ .elasticsearch.additionalWritePort }}
+      {{- end }}
       {{- if .elasticsearch.additionalWriteIndex }}
       additionalWriteIndex: {{ .elasticsearch.additionalWriteIndex }}
       {{- end }}
       {{- if $.Values.secrets.elasticsearch }}
       credentials: /etc/wire/brig/secrets/elasticsearch-credentials.yaml
       {{- end }}
+      {{- if (include "configureElasticSearchCa" .) }}
+      caCert: /etc/wire/brig/elasticsearch-ca/{{ include "elasticsearchTlsSecretKey" .}}
+      {{- end }}
+      {{- if (include "configureAdditionalElasticSearchCa" .) }}
+      additionalCaCert: /etc/wire/brig/additional-elasticsearch-ca/{{ include "additionalElasticsearchTlsSecretKey" .}}
+      {{- end }}
       {{- if $.Values.secrets.elasticsearchAdditional }}
       additionalCredentials: /etc/wire/brig/secrets/elasticsearch-additional-credentials.yaml
       {{- end }}
+      insecureSkipVerifyTls: {{ .elasticsearch.insecureSkipVerifyTls }}
+      additionalInsecureSkipVerifyTls: {{ .elasticsearch.additionalInsecureSkipVerifyTls }}
 
     cargohold:
       host: cargohold

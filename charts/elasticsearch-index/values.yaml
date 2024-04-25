@@ -1,9 +1,18 @@
 # Default values for elasticsearch-index
 elasticsearch:
+  scheme: http
   #host:  # elasticsearch-client|elasticsearch-ephemeral
   port: 9200
   index: directory
   delete_template: directory
+#  To enable TLS verification with a custom CA:
+#  tlsCa: <CA in PEM format (can be self-signed)>
+#
+#  Or refer to an existing secret (containing the CA):
+#  tlsCaSecretRef:
+#    name: <secret-name>
+#    key: <ca-attribute>
+  insecureSkipTlsVerify: false
 cassandra:
   # host:
   port: 9042
