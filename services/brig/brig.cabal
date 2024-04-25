@@ -573,3 +573,4 @@ test-suite brig-tests
     , uri-bytestring
     , uuid
     , wire-api
+    , wire-subsystems
