@@ -1,4 +1,0 @@
-Ensure that targets of the smallstep nginx proxy are resolved at runtime via the
-configured DNS server. This has two benefits: The target gets adjusted when it's
-changed at the DNS server. And, nginx doesn't fail to start when the target
-doesn't exist yet.

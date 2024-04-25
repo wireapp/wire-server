@@ -1,3 +1,0 @@
-Make gundeck's notificationTTL configurable. The value defines how long
-notifications are (at most) stored in the database. Decreasing this value e.g.
-helps to safe database space on test environments.

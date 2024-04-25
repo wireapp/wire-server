@@ -1,1 +1,0 @@
-charts/nginz: Allow 3000 reqs/min on /conversations/one2one/:user_domain/:user

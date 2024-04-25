@@ -1,2 +1,0 @@
-Versioning of backend to backend notifications. Notifications are now stored in "bundles" containing a serialised payload for each supported version. The background worker then dynamically selects the best version to use and sends only the notification corresponding to that version.
-
