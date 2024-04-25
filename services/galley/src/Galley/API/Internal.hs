@@ -145,8 +145,8 @@ ejpdGetConvInfo uid = do
   firstPage <- Query.conversationIdsPageFrom luid initialPageRequest
   getPages luid firstPage
   where
-    initialPageRequest = mkPageRequest $ Just (MTP.MultiTablePagingState MTP.PagingLocals Nothing)
-    mkPageRequest = MTP.GetMultiTablePageRequest (toRange (Proxy @1000))
+    initialPageRequest = mkPageRequest (MTP.MultiTablePagingState MTP.PagingLocals Nothing)
+    mkPageRequest = MTP.GetMultiTablePageRequest (toRange (Proxy @1000)) . Just
 
     getPages :: Local UserId -> ConvIdsPage -> Sem r [EJPDConvInfo]
     getPages luid page = do
@@ -166,7 +166,7 @@ ejpdGetConvInfo uid = do
       renderedPage <- mapMaybe mk <$> getConversations (fst $ partitionQualified luid convids)
       if MTP.mtpHasMore page
         then do
-          newPage <- Query.conversationIdsPageFrom luid (mkPageRequest . Just . MTP.mtpPagingState $ page)
+          newPage <- Query.conversationIdsPageFrom luid (mkPageRequest . MTP.mtpPagingState $ page)
           morePages <- getPages luid newPage
           pure $ renderedPage <> morePages
         else pure renderedPage
