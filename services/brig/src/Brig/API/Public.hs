@@ -688,9 +688,7 @@ getRichInfo self user = do
   wrapClientE $ fromMaybe mempty <$> API.lookupRichInfo user
 
 getSupportedProtocols ::
-  ( Member GalleyAPIAccess r,
-    Member UserSubsystem r
-  ) =>
+  (Member UserSubsystem r) =>
   Local UserId ->
   Qualified UserId ->
   Handler r (Set Public.BaseProtocolTag)
@@ -834,10 +832,7 @@ getUserUnqualifiedH self uid = do
 
 -- FUTUREWORK: Make servant understand that at least one of these is required
 listUsersByUnqualifiedIdsOrHandles ::
-  ( Member GalleyAPIAccess r,
-    Member (Concurrency 'Unsafe) r,
-    Member UserSubsystem r
-  ) =>
+  (Member UserSubsystem r) =>
   UserId ->
   Maybe (CommaSeparatedList UserId) ->
   Maybe (Range 1 4 (CommaSeparatedList Handle)) ->
@@ -870,10 +865,7 @@ listUsersByIdsOrHandlesGetUsers lself hs = do
 
 listUsersByIdsOrHandlesV3 ::
   forall r.
-  ( Member GalleyAPIAccess r,
-    Member UserSubsystem r,
-    Member (Concurrency 'Unsafe) r
-  ) =>
+  (Member UserSubsystem r) =>
   UserId ->
   Public.ListUsersQuery ->
   (Handler r) [Public.UserProfile]
@@ -1041,8 +1033,7 @@ checkHandles _ (Public.CheckHandles hs num) = do
 -- 'Handle.getHandleInfo') returns UserProfile to reduce traffic between backends
 -- in a federated scenario.
 getHandleInfoUnqualifiedH ::
-  ( Member GalleyAPIAccess r,
-    Member UserSubsystem r
+  ( Member UserSubsystem r
   ) =>
   UserId ->
   Handle ->

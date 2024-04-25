@@ -72,7 +72,7 @@ import Wire.API.UserMap (UserMap)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
-import Wire.UserSubsystem (UserSubsystem)
+import Wire.UserSubsystem
 
 type FederationAPI = "federation" :> BrigApi
 
