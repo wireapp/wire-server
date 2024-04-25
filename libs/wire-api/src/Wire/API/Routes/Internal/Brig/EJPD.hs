@@ -84,13 +84,14 @@ instance ToSchema EJPDConvInfo where
         <$> ejpdConvName .= field "conv_name" schema
         <*> ejpdConvId .= field "conv_id" schema
 
--- ejpdContactError :: FederationError,
--- (^ we could include that, but we don't want to import wire-federation-api, or mess
--- around with type arguments all over the place.)
-
 data EJPDContact
   = -- | looking up the remote profile page containing this uid failed with FederationError
-    EJPDContactRemoteError {ejpdContactErrorUid :: Qualified UserId}
+    EJPDContactRemoteError
+      { -- ejpdContactError :: FederationError,
+        -- (^ we could include that, but we don't want to import wire-federation-api, or mess
+        -- around with type arguments all over the place.)
+        ejpdContactErrorUid :: Qualified UserId
+      }
   | -- | local or remote contact with relation
     EJPDContactFound
       { ejpdContactRelation :: Relation,
