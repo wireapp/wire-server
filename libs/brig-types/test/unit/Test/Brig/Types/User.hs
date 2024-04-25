@@ -48,7 +48,7 @@ roundtripTests =
     testRoundTrip @RichInfoUpdate,
     testRoundTrip @NewUserScimInvitation,
     testRoundTripWithSwagger @EJPDRequestBody,
-    testRoundTripWithSwagger @EJPDResponseBody,
+    testRoundTrip @EJPDResponseBody,
     testRoundTrip @UpdateConnectionsInternal,
     testRoundTrip @SearchVisibilityInbound,
     testRoundTripWithSwagger @UserAccount,
