@@ -3,6 +3,7 @@
 module Wire.UserSubsystem.InterpreterSpec (spec) where
 
 import Data.Bifunctor (first)
+import Data.Coerce
 import Data.Default (Default (def))
 import Data.Domain
 import Data.Id
@@ -48,18 +49,25 @@ spec = describe "UserSubsystem.Interpreter" do
   describe "getUserProfiles" do
     describe "[with federation]" do
       prop "gets all users on multiple federating backends" $
-        \viewer targetUsers1 targetUsers2 visibility localDomain remoteDomain1 remoteDomain2 -> do
+        \viewerTeam (localTargetUsersNotPending :: [NotPendingStoredUser]) targetUsers1 targetUsers2 visibility localDomain remoteDomain1 remoteDomain2 -> do
           let remoteBackend1 = def {users = targetUsers1}
               remoteBackend2 = def {users = targetUsers2}
+              viewer = viewerTeam {teamId = Nothing}
+              -- Having teams adds complications in email visibility, 
+              -- all that stuff is tested in [without federation] tests
+              localTargetUsers =
+                S.fromList $
+                  map (\user -> (coerce user) {teamId = Nothing}) localTargetUsersNotPending
               federation = [(remoteDomain1, remoteBackend1), (remoteDomain2, remoteBackend2)]
               mkUserIds domain = map (flip Qualified domain . (.id)) . S.toList
+              localTargets = mkUserIds localDomain localTargetUsers
               target1 = mkUserIds remoteDomain1 targetUsers1
               target2 = mkUserIds remoteDomain2 targetUsers2
               retrievedProfiles =
-                runFederationStack [viewer] federation Nothing (UserSubsystemConfig visibility miniLocale) $
+                runFederationStack ([viewer] <> S.toList localTargetUsers) federation Nothing (UserSubsystemConfig visibility miniLocale) $
                   getUserProfilesImpl
                     (toLocalUnsafe localDomain viewer.id)
-                    (target1 <> target2)
+                    (localTargets <> target1 <> target2)
               mkExpectedProfiles domain users =
                 [ mkUserProfileWithEmail
                     Nothing
@@ -67,10 +75,13 @@ spec = describe "UserSubsystem.Interpreter" do
                     UserLegalHoldDisabled
                   | targetUser <- S.toList users
                 ]
+              expectedLocalProfiles = mkExpectedProfiles localDomain localTargetUsers
               expectedProfiles1 = mkExpectedProfiles remoteDomain1 targetUsers1
               expectedProfiles2 = mkExpectedProfiles remoteDomain2 targetUsers2
+              expectedProfiles = expectedLocalProfiles <> expectedProfiles1 <> expectedProfiles2
 
-          sortOn (.profileQualifiedId) retrievedProfiles === sortOn (.profileQualifiedId) (expectedProfiles1 <> expectedProfiles2)
+          sortOn (.profileQualifiedId) retrievedProfiles
+            === sortOn (.profileQualifiedId) expectedProfiles
 
     prop "fails when a backend is offline or returns an error" $
       \viewer onlineTargetUsers offlineTargetUsers visibility localDomain onlineDomain offlineDomain -> do
