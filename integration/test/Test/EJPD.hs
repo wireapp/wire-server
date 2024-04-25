@@ -145,7 +145,7 @@ setupEJPD =
         result =
           object
             [ -- (We know we have "id", but using ^? instead of ^. avoids the need for a Monoid instance for Value.)
-              "ejpd_response_user_id" .= do usr ^? key (fromString "qualified_id"),
+              "ejpd_response_user_id" .= (usr ^? key (fromString "qualified_id")),
               "ejpd_response_team_id" .= (usr ^? key (fromString "team")),
               "ejpd_response_name" .= (usr ^? key (fromString "name")),
               "ejpd_response_handle" .= hdl,
