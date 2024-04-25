@@ -42,6 +42,7 @@ module Galley.Effects
     SearchVisibilityStore,
     ServiceStore,
     SubConversationStore,
+    Random,
     TeamFeatureStore,
     TeamMemberStore,
     TeamNotificationStore,
@@ -92,11 +93,14 @@ import Galley.Effects.TeamStore
 import Galley.Effects.WaiRoutes
 import Galley.Env
 import Galley.Options
+import Galley.Types.Teams (FeatureLegalHold)
+import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
 import Wire.API.Error
+import Wire.API.Team.Feature (AllFeatureConfigs)
 import Wire.GundeckAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Rpc
@@ -122,11 +126,11 @@ type GalleyEffects1 =
      SubConversationStore,
      Random,
      CustomBackendStore,
+     TeamFeatureStore,
      LegalHoldStore,
      MemberStore,
      SearchVisibilityStore,
      ServiceStore,
-     TeamFeatureStore,
      TeamNotificationStore,
      TeamStore,
      TeamMemberStore InternalPaging,
@@ -136,6 +140,8 @@ type GalleyEffects1 =
      ListItems LegacyPaging ConvId,
      ListItems LegacyPaging TeamId,
      ListItems InternalPaging TeamId,
+     Input AllFeatureConfigs,
+     Input (Maybe [TeamId], FeatureLegalHold),
      Input (Local ()),
      Input Opts,
      WaiRoutes,

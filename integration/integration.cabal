@@ -118,16 +118,19 @@ library
     Test.Connection
     Test.Conversation
     Test.Demo
+    Test.EJPD
     Test.Errors
     Test.ExternalPartner
     Test.FeatureFlags
     Test.Federation
     Test.Federator
     Test.LegalHold
+    Test.Login
     Test.MessageTimer
     Test.MLS
     Test.MLS.KeyPackage
     Test.MLS.Message
+    Test.MLS.Notifications
     Test.MLS.One2One
     Test.MLS.SubConversation
     Test.MLS.Unreachable
@@ -136,6 +139,7 @@ library
     Test.Roles
     Test.Search
     Test.Services
+    Test.Spar
     Test.Swagger
     Test.TeamSettings
     Test.User
@@ -164,6 +168,7 @@ library
 
   build-depends:
     , aeson
+    , aeson-diff
     , aeson-pretty
     , array
     , async
@@ -228,5 +233,6 @@ library
     , warp-tls
     , websockets
     , wire-message-proto-lens
+    , wreq
     , xml
     , yaml

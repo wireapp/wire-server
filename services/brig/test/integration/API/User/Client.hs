@@ -52,6 +52,7 @@ import Data.Nonce (isValidBase64UrlEncodedUUID)
 import Data.Qualified (Qualified (..))
 import Data.Range (unsafeRange)
 import Data.Set qualified as Set
+import Data.String.Conversions
 import Data.Text.Ascii (AsciiChars (validate), encodeBase64UrlUnpadded, toText)
 import Data.Text.Encoding qualified as T
 import Data.Time (addUTCTime)
@@ -71,6 +72,8 @@ import UnliftIO (mapConcurrently)
 import Util
 import Wire.API.Internal.Notification
 import Wire.API.MLS.CipherSuite
+import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned
 import Wire.API.Team.Feature qualified as Public
 import Wire.API.User
 import Wire.API.User qualified as Public
@@ -257,7 +260,7 @@ testAddGetClient params brig cannon = do
       let etype = j ^? key "type" . _String
       let eclient = j ^? key "client"
       etype @?= Just "user.client-add"
-      fmap fromJSON eclient @?= Just (Success c)
+      fmap fromJSON eclient @?= Just (Success (Versioned @'V5 c))
     pure c
   liftIO $ clientMLSPublicKeys c @?= keys
   getClient brig uid (clientId c) !!! do
@@ -1395,6 +1398,7 @@ data DPoPClaimsSet = DPoPClaimsSet
     claimHtu :: Text,
     claimChal :: Text,
     claimHandle :: Text,
+    claimDisplayName :: Text,
     claimTeamId :: Text
   }
   deriving (Eq, Show, Generic)
@@ -1411,6 +1415,7 @@ instance A.FromJSON DPoPClaimsSet where
       <*> o A..: "htu"
       <*> o A..: "chal"
       <*> o A..: "handle"
+      <*> o A..: "name"
       <*> o A..: "team"
 
 instance A.ToJSON DPoPClaimsSet where
@@ -1420,6 +1425,7 @@ instance A.ToJSON DPoPClaimsSet where
       & ins "htu" (claimHtu s)
       & ins "chal" (claimChal s)
       & ins "handle" (claimHandle s)
+      & ins "name" (claimDisplayName s)
       & ins "team" (claimTeamId s)
     where
       ins k v (Object o) = Object $ M.insert k (A.toJSON v) o
@@ -1456,7 +1462,16 @@ testCreateAccessToken opts n brig = do
           & claimSub ?~ fromMaybe (error "invalid sub claim") ((clientIdentity :: Text) ^? stringOrUri)
           & claimJti ?~ "6fc59e7f-b666-4ffc-b738-4f4760c884ca"
           & claimAud ?~ (maybe (error "invalid sub claim") (Audience . (: [])) (("https://wire.com/acme/challenge/abcd" :: Text) ^? stringOrUri))
-  let dpopClaims = DPoPClaimsSet claimsSet' nonceBs "POST" httpsUrl "wa2VrkCtW1sauJ2D3uKY8rc7y4kl4usH" handle (UUID.toText (toUUID tid))
+  let dpopClaims =
+        DPoPClaimsSet
+          claimsSet'
+          nonceBs
+          "POST"
+          httpsUrl
+          "wa2VrkCtW1sauJ2D3uKY8rc7y4kl4usH"
+          handle
+          (fromName u.userDisplayName)
+          (UUID.toText (toUUID tid))
   signedOrError <- fmap encodeCompact <$> liftIO (signAccessToken dpopClaims)
   case signedOrError of
     Left err -> liftIO $ assertFailure $ "failed to sign claims: " <> show err

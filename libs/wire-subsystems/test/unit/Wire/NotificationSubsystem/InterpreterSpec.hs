@@ -8,6 +8,7 @@ import Data.List.NonEmpty (NonEmpty ((:|)), fromList)
 import Data.List1 qualified as List1
 import Data.Range (fromRange, toRange)
 import Data.Set qualified as Set
+import Data.String.Conversions
 import Data.Time.Clock.DiffTime
 import Gundeck.Types.Push.V2 qualified as V2
 import Imports

@@ -85,6 +85,7 @@ library
     , schema-profunctor
     , text                   >=0.11
     , types-common           >=0.16
+    , utf8-string
     , uuid
     , wire-api
 
@@ -97,7 +98,6 @@ test-suite galley-types-tests
   -- cabal-fmt: expand test
   other-modules:
     Paths_galley_types
-    Test.Galley.Permissions
     Test.Galley.Roundtrip
     Test.Galley.Types
 
@@ -153,13 +153,10 @@ test-suite galley-types-tests
   build-depends:
       aeson
     , base
-    , containers
     , galley-types
     , imports
-    , lens
     , QuickCheck
     , tasty
-    , tasty-hunit
     , tasty-quickcheck
     , wire-api
 

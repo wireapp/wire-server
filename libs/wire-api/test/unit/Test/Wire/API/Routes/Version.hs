@@ -4,6 +4,7 @@ import Data.Aeson as Aeson
 import Data.Binary.Builder
 import Data.ByteString.Conversion
 import Data.Set as Set
+import Data.String.Conversions
 import Imports
 import Servant.API
 import Test.Tasty

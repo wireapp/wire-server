@@ -22,12 +22,15 @@ import Data.OpenApi
 import Imports
 import Servant
 import Servant.OpenApi
+import Wire.API.Asset
 import Wire.API.Routes.MultiVerb
+import Wire.API.Routes.Named
 
 type InternalAPI =
   "i"
-    :> "status"
-    :> MultiVerb 'GET '() '[RespondEmpty 200 "OK"] ()
+    :> ( "status" :> MultiVerb 'GET '() '[RespondEmpty 200 "OK"] ()
+           :<|> Named "iGetAsset" ("assets" :> Capture "key" AssetKey :> Get '[Servant.JSON] Text)
+       )
 
 swaggerDoc :: OpenApi
 swaggerDoc =

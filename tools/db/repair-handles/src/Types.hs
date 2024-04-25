@@ -19,7 +19,6 @@
 
 module Types where
 
-import Brig.Data.Instances ()
 import Cassandra hiding (Set)
 import Control.Lens
 import Data.Id

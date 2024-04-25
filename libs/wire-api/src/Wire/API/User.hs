@@ -35,6 +35,7 @@ module Wire.API.User
     SelfProfile (..),
     -- User (should not be here)
     User (..),
+    userId,
     userEmail,
     userPhone,
     userSSOId,
@@ -42,8 +43,7 @@ module Wire.API.User
     userSCIMExternalId,
     scimExternalId,
     ssoIssuerAndNameId,
-    connectedProfile,
-    publicProfile,
+    mkUserProfile,
     userObjectSchema,
 
     -- * NewUser
@@ -59,6 +59,7 @@ module Wire.API.User
     CreateUserSparInternalResponses,
     newUserFromSpar,
     urefToExternalId,
+    urefToExternalIdUnsafe,
     urefToEmail,
     ExpiresIn,
     newUserInvitationCode,
@@ -136,6 +137,9 @@ module Wire.API.User
     UpdateSSOIdResponse (..),
     CheckHandleResponse (..),
     UpdateConnectionsInternal (..),
+    EmailVisibility (..),
+    EmailVisibilityConfig,
+    EmailVisibilityConfigWithViewer,
 
     -- * re-exports
     module Wire.API.User.Identity,
@@ -155,16 +159,18 @@ module Wire.API.User
   )
 where
 
+import Cassandra qualified as C
 import Control.Applicative
 import Control.Arrow ((&&&))
 import Control.Error.Safe (rightMay)
 import Control.Lens (makePrisms, over, view, (.~), (?~), (^.))
-import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Aeson (FromJSON (..), ToJSON (..), withText)
 import Data.Aeson.Types qualified as A
 import Data.Attoparsec.ByteString qualified as Parser
 import Data.Attoparsec.Text qualified as TParser
 import Data.Bifunctor qualified as Bifunctor
 import Data.Bits
+import Data.ByteString (toStrict)
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Conversion
 import Data.CaseInsensitive qualified as CI
@@ -189,6 +195,7 @@ import Data.Set qualified as Set
 import Data.Text qualified as T
 import Data.Text.Ascii
 import Data.Text.Encoding qualified as T
+import Data.Text.Encoding.Error
 import Data.Time.Clock (NominalDiffTime)
 import Data.UUID (UUID, nil)
 import Data.UUID qualified as UUID
@@ -209,6 +216,8 @@ import Wire.API.Error.Brig qualified as E
 import Wire.API.Provider.Service (ServiceRef)
 import Wire.API.Routes.MultiVerb
 import Wire.API.Team (BindingNewTeam, bindingNewTeamObjectSchema)
+import Wire.API.Team.Member (TeamMember)
+import Wire.API.Team.Member qualified as TeamMember
 import Wire.API.Team.Role
 import Wire.API.User.Activation (ActivationCode, ActivationKey)
 import Wire.API.User.Auth (CookieLabel)
@@ -322,7 +331,7 @@ newtype PhonePrefix = PhonePrefix {fromPhonePrefix :: Text}
 instance Arbitrary PhonePrefix where
   arbitrary = do
     digits <- take 8 <$> QC.listOf1 (QC.elements ['0' .. '9'])
-    pure . PhonePrefix . cs $ "+" <> digits
+    pure . PhonePrefix . T.pack $ "+" <> digits
 
 instance ToSchema PhonePrefix where
   schema = fromPhonePrefix .= parsedText "PhonePrefix" phonePrefixParser
@@ -337,7 +346,9 @@ instance ToByteString PhonePrefix where
   builder = builder . fromPhonePrefix
 
 instance FromHttpApiData PhonePrefix where
-  parseUrlPiece = Bifunctor.first cs . phonePrefixParser
+  parseUrlPiece = Bifunctor.first T.pack . phonePrefixParser
+
+deriving instance C.Cql PhonePrefix
 
 phonePrefixParser :: Text -> Either String PhonePrefix
 phonePrefixParser p = maybe err pure (parsePhonePrefix p)
@@ -664,8 +675,7 @@ instance FromJSON SelfProfile where
 
 -- | The data of an existing user.
 data User = User
-  { userId :: UserId,
-    userQualifiedId :: Qualified UserId,
+  { userQualifiedId :: Qualified UserId,
     -- | User identity. For endpoints like @/self@, it will be present in the response iff
     -- the user is activated, and the email/phone contained in it will be guaranteedly
     -- verified. {#RefActivation}
@@ -696,6 +706,9 @@ data User = User
   deriving (Arbitrary) via (GenericUniform User)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema User)
 
+userId :: User -> UserId
+userId = qUnqualified . userQualifiedId
+
 -- -- FUTUREWORK:
 -- -- disentangle json serializations for 'User', 'NewUser', 'UserIdentity', 'NewUserOrigin'.
 instance ToSchema User where
@@ -704,10 +717,10 @@ instance ToSchema User where
 userObjectSchema :: ObjectSchema SwaggerDoc User
 userObjectSchema =
   User
-    <$> userId
-      .= field "id" schema
-    <*> userQualifiedId
+    <$> userQualifiedId
       .= field "qualified_id" schema
+    <* userId
+      .= optional (field "id" (deprecatedSchema "qualified_id" schema))
     <*> userIdentity
       .= maybeUserIdentityObjectSchema
     <*> userDisplayName
@@ -755,7 +768,11 @@ scimExternalId ManagedByWire (UserSSOId _) = Nothing
 ssoIssuerAndNameId :: UserSSOId -> Maybe (Text, Text)
 ssoIssuerAndNameId (UserSSOId (SAML.UserRef (SAML.Issuer uri) nameIdXML)) = Just (fromUri uri, fromNameId nameIdXML)
   where
-    fromUri = cs . toLazyByteString . serializeURIRef
+    fromUri =
+      T.decodeUtf8With lenientDecode
+        . toStrict
+        . toLazyByteString
+        . serializeURIRef
     fromNameId = CI.original . SAML.unsafeShowNameID
 ssoIssuerAndNameId (UserScimExternalId _) = Nothing
 
@@ -766,60 +783,54 @@ userIssuer user = userSSOId user >>= fromSSOId
     fromSSOId (UserSSOId (SAML.UserRef issuer _)) = Just issuer
     fromSSOId _ = Nothing
 
-connectedProfile :: User -> UserLegalHoldStatus -> UserProfile
-connectedProfile u legalHoldStatus =
-  UserProfile
-    { profileQualifiedId = userQualifiedId u,
-      profileHandle = userHandle u,
-      profileName = userDisplayName u,
-      profilePict = userPict u,
-      profileAssets = userAssets u,
-      profileAccentId = userAccentId u,
-      profileService = userService u,
-      profileDeleted = userDeleted u,
-      profileExpire = userExpire u,
-      profileTeam = userTeam u,
-      -- We don't want to show the email by default;
-      -- However we do allow adding it back in intentionally later.
-      profileEmail = Nothing,
-      profileLegalholdStatus = legalHoldStatus,
-      profileSupportedProtocols = userSupportedProtocols u
-    }
+-- | Configurations for whether to show a user's email to others.
+data EmailVisibility a
+  = -- | Anyone can see the email of someone who is on ANY team.
+    --         This may sound strange; but certain on-premise hosters have many different teams
+    --         and still want them to see each-other's emails.
+    EmailVisibleIfOnTeam
+  | -- | Anyone on your team with at least 'Member' privileges can see your email address.
+    EmailVisibleIfOnSameTeam a
+  | -- | Show your email only to yourself
+    EmailVisibleToSelf
+  deriving (Eq, Show)
 
--- FUTUREWORK: should public and conect profile be separate types?
-publicProfile :: User -> UserLegalHoldStatus -> UserProfile
-publicProfile u legalHoldStatus =
-  -- Note that we explicitly unpack and repack the types here rather than using
-  -- RecordWildCards or something similar because we want changes to the public profile
-  -- to be EXPLICIT and INTENTIONAL so we don't accidentally leak sensitive data.
-  let UserProfile
-        { profileQualifiedId,
-          profileHandle,
-          profileName,
-          profilePict,
-          profileAssets,
-          profileAccentId,
-          profileService,
-          profileDeleted,
-          profileExpire,
-          profileTeam,
-          profileLegalholdStatus,
-          profileSupportedProtocols
-        } = connectedProfile u legalHoldStatus
-   in UserProfile
-        { profileEmail = Nothing,
-          profileQualifiedId,
-          profileHandle,
-          profileName,
-          profilePict,
-          profileAssets,
-          profileAccentId,
-          profileService,
-          profileDeleted,
-          profileExpire,
-          profileTeam,
-          profileLegalholdStatus,
-          profileSupportedProtocols
+type EmailVisibilityConfig = EmailVisibility ()
+
+type EmailVisibilityConfigWithViewer = EmailVisibility (Maybe (TeamId, TeamMember))
+
+instance FromJSON (EmailVisibility ()) where
+  parseJSON = withText "EmailVisibility" $ \case
+    "visible_if_on_team" -> pure EmailVisibleIfOnTeam
+    "visible_if_on_same_team" -> pure $ EmailVisibleIfOnSameTeam ()
+    "visible_to_self" -> pure EmailVisibleToSelf
+    _ -> fail "unexpected value for EmailVisibility settings"
+
+mkUserProfile :: EmailVisibilityConfigWithViewer -> User -> UserLegalHoldStatus -> UserProfile
+mkUserProfile emailVisibilityConfigAndViewer u legalHoldStatus =
+  let isEmailVisible = case emailVisibilityConfigAndViewer of
+        EmailVisibleToSelf -> False
+        EmailVisibleIfOnTeam -> isJust (userTeam u)
+        EmailVisibleIfOnSameTeam Nothing -> False
+        EmailVisibleIfOnSameTeam (Just (viewerTeamId, viewerMembership)) ->
+          Just viewerTeamId == userTeam u
+            && TeamMember.hasPermission viewerMembership TeamMember.ViewSameTeamEmails
+   in -- This profile would be visible to any other user. When a new field is
+      -- added, please make sure it is OK for other users to have access to it.
+      UserProfile
+        { profileQualifiedId = userQualifiedId u,
+          profileHandle = userHandle u,
+          profileName = userDisplayName u,
+          profilePict = userPict u,
+          profileAssets = userAssets u,
+          profileAccentId = userAccentId u,
+          profileService = userService u,
+          profileDeleted = userDeleted u,
+          profileExpire = userExpire u,
+          profileTeam = userTeam u,
+          profileEmail = if isEmailVisible then userEmail u else Nothing,
+          profileLegalholdStatus = legalHoldStatus,
+          profileSupportedProtocols = userSupportedProtocols u
         }
 
 --------------------------------------------------------------------------------
@@ -957,6 +968,9 @@ urefToEmail :: SAML.UserRef -> Maybe Email
 urefToEmail uref = case uref ^. SAML.uidSubject . SAML.nameID of
   SAML.UNameIDEmail email -> parseEmail . SAMLEmail.render . CI.original $ email
   _ -> Nothing
+
+urefToExternalIdUnsafe :: SAML.UserRef -> Text
+urefToExternalIdUnsafe = CI.original . SAML.unsafeShowNameID . view SAML.uidSubject
 
 data CreateUserSparError
   = CreateUserSparHandleError ChangeHandleError
@@ -1352,10 +1366,16 @@ instance S.ToParamSchema InvitationCode where
   toParamSchema _ = S.toParamSchema (Proxy @Text)
 
 instance FromHttpApiData InvitationCode where
-  parseQueryParam = bimap cs InvitationCode . validateBase64Url
+  parseQueryParam = bimap T.pack InvitationCode . validateBase64Url
 
 instance ToHttpApiData InvitationCode where
-  toQueryParam = cs . toByteString . fromInvitationCode
+  toQueryParam =
+    T.decodeUtf8With lenientDecode
+      . toStrict
+      . toByteString
+      . fromInvitationCode
+
+deriving instance C.Cql InvitationCode
 
 --------------------------------------------------------------------------------
 -- NewTeamUser
@@ -1857,6 +1877,24 @@ instance Schema.ToSchema AccountStatus where
           Schema.element "pending-invitation" PendingInvitation
         ]
 
+instance C.Cql AccountStatus where
+  ctype = C.Tagged C.IntColumn
+
+  toCql Active = C.CqlInt 0
+  toCql Suspended = C.CqlInt 1
+  toCql Deleted = C.CqlInt 2
+  toCql Ephemeral = C.CqlInt 3
+  toCql PendingInvitation = C.CqlInt 4
+
+  fromCql (C.CqlInt i) = case i of
+    0 -> pure Active
+    1 -> pure Suspended
+    2 -> pure Deleted
+    3 -> pure Ephemeral
+    4 -> pure PendingInvitation
+    n -> Left $ "unexpected account status: " ++ show n
+  fromCql _ = Left "account status: int expected"
+
 data AccountStatusResp = AccountStatusResp {fromAccountStatusResp :: AccountStatus}
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform AccountStatusResp)
@@ -1904,6 +1942,7 @@ instance Schema.ToSchema UserAccount where
 data NewUserScimInvitation = NewUserScimInvitation
   -- FIXME: the TID should be captured in the route as usual
   { newUserScimInvTeamId :: TeamId,
+    newUserScimInvUserId :: UserId,
     newUserScimInvLocale :: Maybe Locale,
     newUserScimInvName :: Name,
     newUserScimInvEmail :: Email,
@@ -1918,6 +1957,7 @@ instance Schema.ToSchema NewUserScimInvitation where
     Schema.object "NewUserScimInvitation" $
       NewUserScimInvitation
         <$> newUserScimInvTeamId Schema..= Schema.field "team_id" Schema.schema
+        <*> newUserScimInvUserId Schema..= Schema.field "user_id" Schema.schema
         <*> newUserScimInvLocale Schema..= maybe_ (optField "locale" Schema.schema)
         <*> newUserScimInvName Schema..= Schema.field "name" Schema.schema
         <*> newUserScimInvEmail Schema..= Schema.field "email" Schema.schema
@@ -1966,10 +2006,13 @@ instance S.ToParamSchema VerificationAction where
       }
 
 instance FromHttpApiData VerificationAction where
-  parseUrlPiece = maybeToEither "Invalid verification action" . fromByteString . cs
+  parseUrlPiece =
+    maybeToEither "Invalid verification action"
+      . fromByteString
+      . T.encodeUtf8
 
 instance ToHttpApiData VerificationAction where
-  toQueryParam a = cs (toByteString' a)
+  toQueryParam a = T.decodeUtf8With lenientDecode (toByteString' a)
 
 data SendVerificationCode = SendVerificationCode
   { svcAction :: VerificationAction,
@@ -1999,6 +2042,13 @@ data BaseProtocolTag = BaseProtocolProteusTag | BaseProtocolMLSTag
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform BaseProtocolTag)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema BaseProtocolTag)
+
+instance C.Cql (Imports.Set BaseProtocolTag) where
+  ctype = C.Tagged C.IntColumn
+
+  toCql = C.CqlInt . fromIntegral . protocolSetBits
+  fromCql (C.CqlInt bits) = pure $ protocolSetFromBits (fromIntegral bits)
+  fromCql _ = Left "Protocol set: Int expected"
 
 baseProtocolMask :: BaseProtocolTag -> Word32
 baseProtocolMask BaseProtocolProteusTag = 1

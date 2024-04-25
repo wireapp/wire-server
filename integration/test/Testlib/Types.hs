@@ -102,11 +102,13 @@ data GlobalEnv = GlobalEnv
   { gServiceMap :: Map String ServiceMap,
     gDomain1 :: String,
     gDomain2 :: String,
+    gIntegrationTestHostName :: String,
+    gFederationV0Domain :: String,
     gDynamicDomains :: [String],
     gDefaultAPIVersion :: Int,
     gManager :: HTTP.Manager,
     gServicesCwdBase :: Maybe FilePath,
-    gRemovalKeyPath :: FilePath,
+    gRemovalKeyPaths :: Map String FilePath,
     gBackendResourcePool :: ResourcePool BackendResource,
     gRabbitMQConfig :: RabbitMQConfig,
     gTempDir :: FilePath,
@@ -116,6 +118,8 @@ data GlobalEnv = GlobalEnv
 data IntegrationConfig = IntegrationConfig
   { backendOne :: BackendConfig,
     backendTwo :: BackendConfig,
+    federationV0 :: BackendConfig,
+    integrationTestHostName :: String,
     dynamicBackends :: Map String DynamicBackendConfig,
     rabbitmq :: RabbitMQConfig,
     cassandra :: CassandraConfig
@@ -128,6 +132,8 @@ instance FromJSON IntegrationConfig where
       IntegrationConfig
         <$> parseJSON (Object o)
         <*> o .: fromString "backendTwo"
+        <*> o .: fromString "federation-v0"
+        <*> o .: fromString "integrationTestHostName"
         <*> o .: fromString "dynamicBackends"
         <*> o .: fromString "rabbitmq"
         <*> o .: fromString "cassandra"
@@ -192,11 +198,14 @@ data Env = Env
   { serviceMap :: Map String ServiceMap,
     domain1 :: String,
     domain2 :: String,
+    integrationTestHostName :: String,
+    federationV0Domain :: String,
     dynamicDomains :: [String],
     defaultAPIVersion :: Int,
     manager :: HTTP.Manager,
     servicesCwdBase :: Maybe FilePath,
-    removalKeyPath :: FilePath,
+    -- | paths to removal keys by signature scheme
+    removalKeyPaths :: Map String FilePath,
     prekeys :: IORef [(Int, String)],
     lastPrekeys :: IORef [String],
     mls :: IORef MLSState,
@@ -217,6 +226,9 @@ data Response = Response
 instance HasField "json" Response (App Aeson.Value) where
   getField response = maybe (assertFailure "Response has no json body") pure response.jsonBody
 
+data CredentialType = BasicCredentialType | X509CredentialType
+  deriving (Eq, Show)
+
 data ClientIdentity = ClientIdentity
   { domain :: String,
     user :: String,
@@ -225,16 +237,33 @@ data ClientIdentity = ClientIdentity
   deriving stock (Show, Eq, Ord, Generic)
 
 newtype Ciphersuite = Ciphersuite {code :: String}
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic)
 
 instance Default Ciphersuite where
   def = Ciphersuite "0x0001"
 
 data ClientGroupState = ClientGroupState
   { group :: Maybe ByteString,
-    keystore :: Maybe ByteString
+    -- | mls-test-cli stores by signature scheme
+    keystore :: Map String ByteString,
+    credType :: CredentialType
   }
   deriving (Show)
+
+instance Default ClientGroupState where
+  def =
+    ClientGroupState
+      { group = Nothing,
+        keystore = mempty,
+        credType = BasicCredentialType
+      }
+
+csSignatureScheme :: Ciphersuite -> String
+csSignatureScheme (Ciphersuite code) = case code of
+  "0x0002" -> "ecdsa_secp256r1_sha256"
+  "0x0005" -> "ecdsa_secp521r1_sha512"
+  "0x0007" -> "ecdsa_secp384r1_sha384"
+  _ -> "ed25519"
 
 data MLSProtocol = MLSProtocolMLS | MLSProtocolMixed
   deriving (Eq, Show)
@@ -359,6 +388,9 @@ assertJust :: HasCallStack => String -> Maybe a -> App a
 assertJust _ (Just x) = pure x
 assertJust msg Nothing = assertFailure msg
 
+assertNothing :: (HasCallStack) => Maybe a -> App ()
+assertNothing = maybe (pure ()) $ const $ assertFailure "Maybe value was Just, not Nothing"
+
 addFailureContext :: String -> App a -> App a
 addFailureContext msg = modifyFailureMsg (\m -> m <> "\nThis failure happened in this context:\n" <> msg)
 
@@ -438,7 +470,17 @@ lookupConfigOverride overrides = \case
   Stern -> overrides.sternCfg
   FederatorInternal -> overrides.federatorInternalCfg
 
-data Service = Brig | Galley | Cannon | Gundeck | Cargohold | Nginz | Spar | BackgroundWorker | Stern | FederatorInternal
+data Service
+  = Brig
+  | Galley
+  | Cannon
+  | Gundeck
+  | Cargohold
+  | Nginz
+  | Spar
+  | BackgroundWorker
+  | Stern
+  | FederatorInternal
   deriving
     ( Show,
       Eq,

@@ -64,7 +64,7 @@ import System.Timeout (timeout)
 import Test.Tasty
 import Test.Tasty.HUnit
 import TestSetup
-import Util (runRedisProxy, withSettingsOverrides)
+import Util (runRedisProxy, withEnvOverrides, withSettingsOverrides)
 import Wire.API.Internal.Notification
 import Prelude qualified
 
@@ -838,9 +838,8 @@ testSharePushToken = do
   gcmTok <- Token . T.decodeUtf8 . toByteString' <$> randomId
   apsTok <- Token . T.decodeUtf8 . B16.encode <$> randomBytes 32
   let tok1 = pushToken GCM "test" gcmTok
-  let tok2 = pushToken APNSVoIP "com.wire.dev.ent" apsTok
-  let tok3 = pushToken APNS "com.wire.int.ent" apsTok
-  forM_ [tok1, tok2, tok3] $ \tk -> do
+  let tok2 = pushToken APNS "com.wire.int.ent" apsTok
+  forM_ [tok1, tok2] $ \tk -> do
     u1 <- randomUser
     u2 <- randomUser
     c1 <- randomClientId
@@ -922,7 +921,12 @@ testRedisMigration = do
       map resource . decodePresence <$> (getPresence g (toByteString' uid) <!! const 200 === statusCode)
     liftIO $ assertEqual "With both redises: presences should match the set presences" [cannonURI] retrievedPresence
 
-  withSettingsOverrides (redis .~ redis2) $ do
+  redis2CredsAsRedis1Creds <- do
+    username <- ("REDIS_USERNAME",) <$$> lookupEnv "REDIS_ADDITIONAL_WRITE_USERNAME"
+    password <- ("REDIS_PASSWORD",) <$$> lookupEnv "REDIS_ADDITIONAL_WRITE_PASSWORD"
+    pure $ catMaybes [username, password]
+
+  withEnvOverrides redis2CredsAsRedis1Creds $ withSettingsOverrides (redis .~ redis2) $ do
     g <- view tsGundeck
     retrievedPresence <-
       map resource . decodePresence <$> (getPresence g (toByteString' uid) <!! const 200 === statusCode)

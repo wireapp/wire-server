@@ -23,11 +23,15 @@ module Spar.Sem.ScimExternalIdStore.Cassandra
 where
 
 import Cassandra
+import Data.Bifunctor (second)
 import Data.Id
 import Imports
 import Polysemy
+import Spar.Data.Instances ()
+import Spar.Scim.Types (ScimUserCreationStatus (ScimUserCreated))
 import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore (..))
 import Wire.API.User.Identity
+import Wire.API.User.Scim (ValidExternalId, runValidExternalIdUnsafe)
 
 scimExternalIdStoreToCassandra ::
   forall m r a.
@@ -40,6 +44,8 @@ scimExternalIdStoreToCassandra =
       Insert tid em uid -> insertScimExternalId tid em uid
       Lookup tid em -> lookupScimExternalId tid em
       Delete tid em -> deleteScimExternalId tid em
+      InsertStatus tid veid buid status -> insertScimExternalIdStatus tid veid buid status
+      LookupStatus tid veid -> lookupScimExternalIdStatus tid veid
 
 -- | If a scim externalId does not have an associated saml idp issuer, it cannot be stored in
 -- table @spar.user@.  In those cases, and only in those cases, we store the mapping to
@@ -67,3 +73,19 @@ deleteScimExternalId tid (fromEmail -> email) =
   where
     delete :: PrepQuery W (TeamId, Text) ()
     delete = "DELETE FROM scim_external WHERE team = ? and external_id = ?"
+
+insertScimExternalIdStatus :: (HasCallStack, MonadClient m) => TeamId -> ValidExternalId -> UserId -> ScimUserCreationStatus -> m ()
+insertScimExternalIdStatus tid veid uid status =
+  retry x5 . write insert $ params LocalQuorum (tid, runValidExternalIdUnsafe veid, uid, status)
+  where
+    insert :: PrepQuery W (TeamId, Text, UserId, ScimUserCreationStatus) ()
+    insert = "INSERT INTO scim_external (team, external_id, user, creation_status) VALUES (?, ?, ?, ?)"
+
+lookupScimExternalIdStatus :: (HasCallStack, MonadClient m) => TeamId -> ValidExternalId -> m (Maybe (UserId, ScimUserCreationStatus))
+lookupScimExternalIdStatus tid veid = do
+  mResult <- retry x1 . query1 sel $ params LocalQuorum (tid, runValidExternalIdUnsafe veid)
+  -- if the user exists and the status is not present, we assume the user was created successfully
+  pure $ mResult <&> second (fromMaybe ScimUserCreated)
+  where
+    sel :: PrepQuery R (TeamId, Text) (UserId, Maybe ScimUserCreationStatus)
+    sel = "SELECT user, creation_status FROM scim_external WHERE team = ? and external_id = ?"

@@ -24,6 +24,7 @@
 , exceptions
 , extended
 , extra
+, foldl
 , gitignoreSource
 , gundeck-types
 , hedis
@@ -56,6 +57,7 @@
 , safe-exceptions
 , scientific
 , servant-server
+, string-conversions
 , tagged
 , tasty
 , tasty-ant-xml
@@ -105,6 +107,7 @@ mkDerivation {
     exceptions
     extended
     extra
+    foldl
     gundeck-types
     hedis
     http-client
@@ -184,6 +187,7 @@ mkDerivation {
     aeson
     aeson-pretty
     amazonka
+    amazonka-core
     async
     base
     bytestring-conversion
@@ -202,6 +206,7 @@ mkDerivation {
     quickcheck-instances
     quickcheck-state-machine
     scientific
+    string-conversions
     tasty
     tasty-hunit
     tasty-quickcheck

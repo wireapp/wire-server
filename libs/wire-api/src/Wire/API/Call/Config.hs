@@ -27,6 +27,7 @@ module Wire.API.Call.Config
     rtcConfSftServers,
     rtcConfSftServersAll,
     rtcConfTTL,
+    rtcConfIsFederating,
 
     -- * RTCIceServer
     RTCIceServer,
@@ -47,6 +48,15 @@ module Wire.API.Call.Config
     TurnHost (..),
     isHostName,
 
+    -- * SFTUsername
+    SFTUsername (SFTUsername),
+    mkSFTUsername,
+    suExpiresAt,
+    suVersion,
+    suKeyindex,
+    suShared,
+    suRandom,
+
     -- * TurnUsername
     TurnUsername,
     turnUsername,
@@ -60,6 +70,14 @@ module Wire.API.Call.Config
     SFTServer,
     sftServer,
     sftURL,
+
+    -- * AuthSFTServer
+    AuthSFTServer,
+    authSFTServer,
+    nauthSFTServer,
+    authURL,
+    authUsername,
+    authCredential,
 
     -- * convenience
     isUdp,
@@ -75,6 +93,7 @@ import Data.Aeson qualified as A hiding ((<?>))
 import Data.Aeson.Types qualified as A
 import Data.Attoparsec.Text hiding (Parser, parse)
 import Data.Attoparsec.Text qualified as Text
+import Data.ByteString (toStrict)
 import Data.ByteString.Builder
 import Data.ByteString.Conversion (toByteString)
 import Data.ByteString.Conversion qualified as BC
@@ -86,6 +105,7 @@ import Data.Schema
 import Data.Text qualified as Text
 import Data.Text.Ascii
 import Data.Text.Encoding qualified as TE
+import Data.Text.Encoding.Error
 import Data.Text.Strict.Lens (utf8)
 import Data.Time.Clock.POSIX
 import Imports
@@ -106,7 +126,8 @@ data RTCConfiguration = RTCConfiguration
   { _rtcConfIceServers :: NonEmpty RTCIceServer,
     _rtcConfSftServers :: Maybe (NonEmpty SFTServer),
     _rtcConfTTL :: Word32,
-    _rtcConfSftServersAll :: Maybe [SFTServer]
+    _rtcConfSftServersAll :: Maybe [AuthSFTServer],
+    _rtcConfIsFederating :: Maybe Bool
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform RTCConfiguration)
@@ -116,7 +137,8 @@ rtcConfiguration ::
   NonEmpty RTCIceServer ->
   Maybe (NonEmpty SFTServer) ->
   Word32 ->
-  Maybe [SFTServer] ->
+  Maybe [AuthSFTServer] ->
+  Maybe Bool ->
   RTCConfiguration
 rtcConfiguration = RTCConfiguration
 
@@ -132,6 +154,8 @@ instance ToSchema RTCConfiguration where
           .= fieldWithDocModifier "ttl" (description ?~ "Number of seconds after which the configuration should be refreshed (advisory)") schema
         <*> _rtcConfSftServersAll
           .= maybe_ (optFieldWithDocModifier "sft_servers_all" (description ?~ "Array of all SFT servers") (array schema))
+        <*> _rtcConfIsFederating
+          .= maybe_ (optFieldWithDocModifier "is_federating" (description ?~ "True if the client should connect to an SFT in the sft_servers_all and request it to federate") schema)
 
 --------------------------------------------------------------------------------
 -- SFTServer
@@ -156,6 +180,39 @@ instance ToSchema SFTServer where
 
 sftServer :: HttpsUrl -> SFTServer
 sftServer = SFTServer
+
+--------------------------------------------------------------------------------
+-- AuthSFTServer
+
+data AuthSFTServer = AuthSFTServer
+  { _authURL :: HttpsUrl,
+    _authUsername :: Maybe SFTUsername,
+    _authCredential :: Maybe AsciiBase64
+  }
+  deriving stock (Eq, Show, Ord, Generic)
+  deriving (Arbitrary) via (GenericUniform AuthSFTServer)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema AuthSFTServer)
+
+instance ToSchema AuthSFTServer where
+  schema =
+    objectWithDocModifier "SftServer" (description ?~ "Inspired by WebRTC 'RTCIceServer' object, contains details of SFT servers") $
+      AuthSFTServer
+        <$> (pure . _authURL)
+          .= fieldWithDocModifier "urls" (description ?~ "Array containing exactly one SFT server address of the form 'https://<addr>:<port>'") (withParser (array schema) p)
+        <*> _authUsername
+          .= maybe_ (optFieldWithDocModifier "username" (description ?~ "String containing the SFT username") schema)
+        <*> _authCredential
+          .= maybe_ (optFieldWithDocModifier "credential" (description ?~ "String containing the SFT credential") schema)
+    where
+      p :: [HttpsUrl] -> A.Parser HttpsUrl
+      p [url] = pure url
+      p xs = fail $ "SFTServer can only have exactly one URL, found " <> show (length xs)
+
+nauthSFTServer :: SFTServer -> AuthSFTServer
+nauthSFTServer = (\u -> AuthSFTServer u Nothing Nothing) . _sftURL
+
+authSFTServer :: SFTServer -> SFTUsername -> AsciiBase64 -> AuthSFTServer
+authSFTServer svr u = AuthSFTServer (_sftURL svr) (Just u) . Just
 
 --------------------------------------------------------------------------------
 -- RTCIceServer
@@ -209,7 +266,9 @@ data TurnURI = TurnURI
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema TurnURI)
 
 instance ToSchema TurnURI where
-  schema = (cs . toByteString) .= parsedText "TurnURI" parseTurnURI
+  schema =
+    (TE.decodeUtf8With lenientDecode . toStrict . toByteString)
+      .= parsedText "TurnURI" parseTurnURI
 
 turnURI :: Scheme -> TurnHost -> Port -> Maybe Transport -> TurnURI
 turnURI = TurnURI
@@ -389,6 +448,83 @@ instance ToSchema Transport where
         ]
 
 --------------------------------------------------------------------------------
+-- SFTUsername
+
+data SFTUsername = SFTUsername
+  { -- | must be positive, integral number of seconds
+    _suExpiresAt :: POSIXTime,
+    _suVersion :: Word,
+    -- | seems to large, but uint32_t is used in C
+    _suKeyindex :: Word32,
+    -- | whether the user is allowed to initialise an SFT conference
+    _suShared :: Bool,
+    -- | [a-z0-9]+
+    _suRandom :: Text
+  }
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema SFTUsername)
+
+-- note that the random value is not checked for well-formedness
+mkSFTUsername :: POSIXTime -> Text -> SFTUsername
+mkSFTUsername expires rnd =
+  SFTUsername
+    { _suExpiresAt = expires,
+      _suVersion = 1,
+      _suKeyindex = 0,
+      _suShared = True,
+      _suRandom = rnd
+    }
+
+instance ToSchema SFTUsername where
+  schema = toText .= parsedText "" fromText
+    where
+      fromText :: Text -> Either String SFTUsername
+      fromText = parseOnly (parseSFTUsername <* endOfInput)
+
+      toText :: SFTUsername -> Text
+      toText = TE.decodeUtf8With lenientDecode . toStrict . toByteString
+
+instance BC.ToByteString SFTUsername where
+  builder su =
+    shortByteString "d="
+      <> word64Dec (round (_suExpiresAt su))
+      <> shortByteString ".v="
+      <> wordDec (_suVersion su)
+      <> shortByteString ".k="
+      <> word32Dec (_suKeyindex su)
+      <> shortByteString ".s="
+      <> wordDec (boolToWord $ _suShared su)
+      <> shortByteString ".r="
+      <> byteString (view (re utf8) (_suRandom su))
+    where
+      boolToWord :: Num a => Bool -> a
+      boolToWord False = 0
+      boolToWord True = 1
+
+parseSFTUsername :: Text.Parser SFTUsername
+parseSFTUsername =
+  SFTUsername
+    <$> (string "d=" *> fmap (fromIntegral :: Word64 -> POSIXTime) decimal)
+    <*> (string ".v=" *> decimal)
+    <*> (string ".k=" *> decimal)
+    <*> (string ".s=" *> (wordToBool <$> decimal))
+    <*> (string ".r=" *> takeWhile1 (inClass "a-z0-9"))
+  where
+    wordToBool :: Word -> Bool
+    wordToBool = odd
+
+instance Arbitrary SFTUsername where
+  arbitrary =
+    SFTUsername
+      <$> (fromIntegral <$> arbitrary @Word64)
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> (Text.pack <$> QC.listOf1 genAlphaNum)
+    where
+      genAlphaNum = QC.elements $ ['a' .. 'z'] <> ['0' .. '9']
+
+--------------------------------------------------------------------------------
 -- TurnUsername
 
 data TurnUsername = TurnUsername
@@ -423,7 +559,7 @@ instance ToSchema TurnUsername where
       fromText = parseOnly (parseTurnUsername <* endOfInput)
 
       toText :: TurnUsername -> Text
-      toText = cs . toByteString
+      toText = TE.decodeUtf8With lenientDecode . toStrict . toByteString
 
 instance BC.ToByteString TurnUsername where
   builder tu =
@@ -509,5 +645,7 @@ isTls uri =
 makeLenses ''RTCConfiguration
 makeLenses ''RTCIceServer
 makeLenses ''TurnURI
+makeLenses ''SFTUsername
 makeLenses ''TurnUsername
 makeLenses ''SFTServer
+makeLenses ''AuthSFTServer

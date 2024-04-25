@@ -1,5 +1,7 @@
 module Federator.Health where
 
+import Data.ByteString (fromStrict)
+import Data.ByteString.UTF8 qualified as UTF8
 import Imports
 import Network.HTTP.Client
 import Network.HTTP.Types.Status qualified as HTTP
@@ -20,4 +22,11 @@ status mgr otherName otherPort False = do
   res <- liftIO $ httpNoBody req mgr
   if HTTP.statusIsSuccessful $ responseStatus res
     then pure NoContent
-    else throwError Servant.err500 {Servant.errBody = otherName <> " server responded with status code = " <> cs (show (responseStatus res))}
+    else
+      throwError
+        Servant.err500
+          { Servant.errBody =
+              otherName
+                <> " server responded with status code = "
+                <> (fromStrict . UTF8.fromString . show . responseStatus $ res)
+          }

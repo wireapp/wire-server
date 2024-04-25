@@ -27,6 +27,7 @@
 module Spar.Error
   ( SparError,
     SparCustomError (..),
+    SparProvisioningMoreThanOneIdP (..),
     IdpDbError (..),
     throwSpar,
     sparToServerErrorWithLogging,
@@ -45,6 +46,10 @@ import Bilge (ResponseLBS, responseBody, responseJsonMaybe)
 import qualified Bilge
 import Control.Monad.Except
 import Data.Aeson
+import qualified Data.ByteString.UTF8 as UTF8
+import Data.Text.Encoding.Error
+import qualified Data.Text.Lazy as LText
+import qualified Data.Text.Lazy.Encoding as LText
 import Data.Typeable (typeRep)
 import GHC.Stack (callStack, prettyCallStack)
 import Imports
@@ -96,7 +101,8 @@ data SparCustomError
   | SparIdPIssuerInUse
   | SparIdPCannotDeleteOwnIdp
   | IdpDbError IdpDbError
-  | SparProvisioningMoreThanOneIdP LText
+  | -- | scim tokens can only be created in case where there's at most one idp
+    SparProvisioningMoreThanOneIdP SparProvisioningMoreThanOneIdP
   | SparProvisioningTokenLimitReached
   | -- | FUTUREWORK(fisx): This constructor is used in exactly one place (see
     -- "Spar.Sem.SAML2.Library"), for an error that immediately gets caught.
@@ -106,6 +112,13 @@ data SparCustomError
     SparInternalError LText
   | -- | All errors returned from SCIM handlers are wrapped into 'SparScimError'
     SparScimError Scim.ScimError
+  deriving (Eq, Show)
+
+data SparProvisioningMoreThanOneIdP
+  = -- | a scim token and an idp exist; it is forbidden to create a second IdP
+    ScimTokenAndSecondIdpForbidden
+  | -- | two IdPs exist and a scim token is forbidden to create
+    TwoIdpsAndScimTokenForbidden
   deriving (Eq, Show)
 
 data IdpDbError
@@ -125,7 +138,10 @@ sparToServerErrorWithLogging logger err = do
 
 servantToWaiError :: ServerError -> Wai.Error
 servantToWaiError (ServerError code phrase body _headers) =
-  Wai.mkError (Status code (cs phrase)) (cs phrase) (cs body)
+  Wai.mkError
+    (Status code (UTF8.fromString phrase))
+    (LText.pack phrase)
+    (LText.decodeUtf8With lenientDecode body)
 
 sparToServerError :: SparError -> ServerError
 sparToServerError = either id waiToServant . renderSparError
@@ -134,7 +150,7 @@ waiToServant :: Wai.Error -> ServerError
 waiToServant waierr =
   ServerError
     { errHTTPCode = statusCode (Wai.code waierr),
-      errReasonPhrase = cs (Wai.label waierr),
+      errReasonPhrase = LText.unpack (Wai.label waierr),
       errBody = encode waierr,
       errHeaders = []
     }
@@ -155,23 +171,41 @@ renderSparError (SAML.CustomError SparReAuthCodeAuthFailed) = Right $ Wai.mkErro
 renderSparError (SAML.CustomError SparReAuthCodeAuthRequired) = Right $ Wai.mkError status403 "code-authentication-required" "Reauthentication failed. Verification code required."
 renderSparError (SAML.CustomError SparCouldNotRetrieveCookie) = Right $ Wai.mkError status502 "bad-upstream" "Unable to get a cookie from an upstream server."
 renderSparError (SAML.CustomError (SparCassandraError msg)) = Right $ Wai.mkError status500 "server-error" msg -- TODO: should we be more specific here and make it 'db-error'?
-renderSparError (SAML.CustomError (SparCassandraTTLError ttlerr)) = Right $ Wai.mkError status400 "ttl-error" (cs $ show ttlerr)
+renderSparError (SAML.CustomError (SparCassandraTTLError ttlerr)) =
+  Right $
+    Wai.mkError
+      status400
+      "ttl-error"
+      (LText.pack $ show ttlerr)
 renderSparError (SAML.UnknownIdP msg) = Right $ Wai.mkError status404 "not-found" ("IdP not found: " <> msg)
 renderSparError (SAML.Forbidden msg) = Right $ Wai.mkError status403 "forbidden" ("Forbidden: " <> msg)
-renderSparError (SAML.BadSamlResponseBase64Error msg) = Right $ Wai.mkError status400 "bad-response-encoding" ("Bad response: base64 error: " <> cs msg)
-renderSparError (SAML.BadSamlResponseXmlError msg) = Right $ Wai.mkError status400 "bad-response-xml" ("Bad response: XML parse error: " <> cs msg)
-renderSparError (SAML.BadSamlResponseSamlError msg) = Right $ Wai.mkError status400 "bad-response-saml" ("Bad response: SAML parse error: " <> cs msg)
+renderSparError (SAML.BadSamlResponseBase64Error msg) =
+  Right $
+    Wai.mkError status400 "bad-response-encoding" ("Bad response: base64 error: " <> msg)
+renderSparError (SAML.BadSamlResponseXmlError msg) =
+  Right $
+    Wai.mkError status400 "bad-response-xml" ("Bad response: XML parse error: " <> msg)
+renderSparError (SAML.BadSamlResponseSamlError msg) =
+  Right $
+    Wai.mkError status400 "bad-response-saml" ("Bad response: SAML parse error: " <> msg)
 renderSparError SAML.BadSamlResponseFormFieldMissing = Right $ Wai.mkError status400 "bad-response-saml" "Bad response: SAMLResponse form field missing from HTTP body"
 renderSparError SAML.BadSamlResponseIssuerMissing = Right $ Wai.mkError status400 "bad-response-saml" "Bad response: no Issuer in AuthnResponse"
 renderSparError SAML.BadSamlResponseNoAssertions = Right $ Wai.mkError status400 "bad-response-saml" "Bad response: no assertions in AuthnResponse"
 renderSparError SAML.BadSamlResponseAssertionWithoutID = Right $ Wai.mkError status400 "bad-response-saml" "Bad response: assertion without ID"
-renderSparError (SAML.BadSamlResponseInvalidSignature msg) = Right $ Wai.mkError status400 "bad-response-signature" (cs msg)
+renderSparError (SAML.BadSamlResponseInvalidSignature msg) =
+  Right $
+    Wai.mkError status400 "bad-response-signature" msg
 renderSparError (SAML.CustomError (SparIdPNotFound "")) = Right $ Wai.mkError status404 "not-found" "Could not find IdP."
 renderSparError (SAML.CustomError (SparIdPNotFound msg)) = Right $ Wai.mkError status404 "not-found" ("Could not find IdP: " <> msg)
 renderSparError (SAML.CustomError SparSamlCredentialsNotFound) = Right $ Wai.mkError status404 "not-found" "Could not find SAML credentials, and auto-provisioning is disabled."
 renderSparError (SAML.CustomError SparMissingZUsr) = Right $ Wai.mkError status400 "client-error" "[header] 'Z-User' required"
 renderSparError (SAML.CustomError SparNotInTeam) = Right $ Wai.mkError status403 "no-team-member" "Requesting user is not a team member or not a member of this team."
-renderSparError (SAML.CustomError (SparNoPermission perm)) = Right $ Wai.mkError status403 "insufficient-permissions" ("You need permission " <> cs perm <> ".")
+renderSparError (SAML.CustomError (SparNoPermission perm)) =
+  Right $
+    Wai.mkError
+      status403
+      "insufficient-permissions"
+      ("You need permission " <> perm <> ".")
 renderSparError (SAML.CustomError SparSSODisabled) = Right $ Wai.mkError status403 "sso-disabled" "Please ask customer support to enable this feature for your team."
 renderSparError SAML.UnknownError = Right $ Wai.mkError status500 "server-error" "Unknown server error."
 renderSparError (SAML.BadServerConfig msg) = Right $ Wai.mkError status500 "server-error" ("Error in server config: " <> msg)
@@ -191,7 +225,11 @@ renderSparError (SAML.CustomError (IdpDbError IdpNonUnique)) = Right $ Wai.mkErr
 renderSparError (SAML.CustomError (IdpDbError IdpWrongTeam)) = Right $ Wai.mkError status409 "idp-wrong-team" "The IdP is not part of this team."
 renderSparError (SAML.CustomError (IdpDbError IdpNotFound)) = renderSparError (SAML.CustomError (SparIdPNotFound ""))
 -- Errors related to provisioning
-renderSparError (SAML.CustomError (SparProvisioningMoreThanOneIdP msg)) = Right $ Wai.mkError status400 "more-than-one-idp" ("Team can have at most one IdP configured: " <> msg)
+renderSparError (SAML.CustomError (SparProvisioningMoreThanOneIdP msg)) = Right $
+  Wai.mkError status400 "more-than-one-idp" do
+    "Team can have at most one IdP configured: " <> case msg of
+      ScimTokenAndSecondIdpForbidden -> "teams with SCIM tokens can only have at most one IdP"
+      TwoIdpsAndScimTokenForbidden -> "SCIM tokens can only be created for a team with at most one IdP"
 renderSparError (SAML.CustomError SparProvisioningTokenLimitReached) = Right $ Wai.mkError status403 "token-limit-reached" "The limit of provisioning tokens per team has been reached"
 -- SCIM errors
 renderSparError (SAML.CustomError (SparScimError err)) = Left $ Scim.scimToServerError err
@@ -220,7 +258,7 @@ rethrow serviceName resp = do
           ( SAML.CustomError
               . SparCouldNotParseRfcResponse serviceName
               . ("internal error: " <>)
-              . cs
+              . LText.pack
               . show
               . (Bilge.statusCode resp,)
               . fromMaybe "<empty body>"
@@ -232,10 +270,10 @@ rethrow serviceName resp = do
 parseResponse :: forall a m. (FromJSON a, MonadError SparError m, Typeable a) => LText -> ResponseLBS -> m a
 parseResponse serviceName resp = do
   let typeinfo :: LText
-      typeinfo = cs $ show (typeRep ([] @a)) <> ": "
+      typeinfo = LText.pack $ show (typeRep ([] @a)) <> ": "
 
       err :: forall a'. LText -> m a'
       err = throwSpar . SparCouldNotParseRfcResponse serviceName . (typeinfo <>)
 
   bdy <- maybe (err "no body") pure $ responseBody resp
-  either (err . cs) pure $ eitherDecode' bdy
+  either (err . LText.pack) pure $ eitherDecode' bdy

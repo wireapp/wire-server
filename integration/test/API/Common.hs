@@ -14,8 +14,10 @@ teamRole "admin" = 5951
 teamRole "owner" = 8191
 teamRole bad = error $ "unknown team role: " <> bad
 
+-- | please don't use special shell characters like '!' here.  it makes writing shell lines
+-- that use test data a lot less straight-forward.
 defPassword :: String
-defPassword = "hunter2!"
+defPassword = "hunter2."
 
 randomEmail :: App String
 randomEmail = do
@@ -31,8 +33,11 @@ randomName = liftIO $ do
     pick = (chars !) <$> randomRIO (Array.bounds chars)
 
 randomHandle :: App String
-randomHandle = liftIO $ do
-  n <- randomRIO (50, 256)
+randomHandle = randomHandleWithRange 50 256
+
+randomHandleWithRange :: Int -> Int -> App String
+randomHandleWithRange min' max' = liftIO $ do
+  n <- randomRIO (min', max')
   replicateM n pick
   where
     chars = mkArray $ ['a' .. 'z'] <> ['0' .. '9'] <> "_-."

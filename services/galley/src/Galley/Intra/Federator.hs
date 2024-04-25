@@ -21,6 +21,7 @@ import Control.Lens
 import Control.Monad.Except
 import Data.Bifunctor
 import Data.Qualified
+import Galley.Cassandra.Util
 import Galley.Effects.FederatorAccess (FederatorAccess (..))
 import Galley.Env
 import Galley.Env qualified as E
@@ -29,27 +30,37 @@ import Galley.Options
 import Imports
 import Polysemy
 import Polysemy.Input
+import Polysemy.TinyLog
 import UnliftIO
 import Wire.API.Federation.Client
 import Wire.API.Federation.Error
 
 interpretFederatorAccess ::
   ( Member (Embed IO) r,
-    Member (Input Env) r
+    Member (Input Env) r,
+    Member TinyLog r
   ) =>
   Sem (FederatorAccess ': r) a ->
   Sem r a
 interpretFederatorAccess = interpret $ \case
-  RunFederated dom rpc -> embedApp $ runFederated dom rpc
-  RunFederatedEither dom rpc -> embedApp $ runFederatedEither dom rpc
-  RunFederatedConcurrently rs f -> embedApp $ runFederatedConcurrently rs f
-  RunFederatedConcurrentlyEither rs f ->
-    embedApp $
-      runFederatedConcurrentlyEither rs f
-  RunFederatedConcurrentlyBucketsEither rs f ->
-    embedApp $
-      runFederatedConcurrentlyBucketsEither rs f
-  IsFederationConfigured -> embedApp $ isJust <$> view E.federator
+  RunFederated dom rpc -> do
+    logEffect "FederatorAccess.RunFederated"
+    embedApp $ runFederated dom rpc
+  RunFederatedEither dom rpc -> do
+    logEffect "FederatorAccess.RunFederatedEither"
+    embedApp $ runFederatedEither dom rpc
+  RunFederatedConcurrently rs f -> do
+    logEffect "FederatorAccess.RunFederatedConcurrently"
+    embedApp $ runFederatedConcurrently rs f
+  RunFederatedConcurrentlyEither rs f -> do
+    logEffect "FederatorAccess.RunFederatedConcurrentlyEither"
+    embedApp $ runFederatedConcurrentlyEither rs f
+  RunFederatedConcurrentlyBucketsEither rs f -> do
+    logEffect "FederatorAccess.RunFederatedConcurrentlyBucketsEither"
+    embedApp $ runFederatedConcurrentlyBucketsEither rs f
+  IsFederationConfigured -> do
+    logEffect "FederatorAccess.IsFederationConfigured"
+    embedApp $ isJust <$> view E.federator
 
 runFederatedEither ::
   Remote x ->
@@ -102,9 +113,10 @@ runFederatedConcurrentlyEither xs rpc =
     bimap (r,) (qualifyAs r) <$> runFederatedEither r (rpc r)
 
 runFederatedConcurrentlyBucketsEither ::
-  [(Remote [a], y)] ->
-  ((Remote [a], y) -> FederatorClient c b) ->
-  App [Either (Remote [a], FederationError) (Remote b)]
+  Foldable f =>
+  f (Remote x) ->
+  (Remote x -> FederatorClient c b) ->
+  App [Either (Remote x, FederationError) (Remote b)]
 runFederatedConcurrentlyBucketsEither xs rpc =
-  pooledForConcurrentlyN 8 xs $ \(r, v) ->
-    bimap (r,) (qualifyAs r) <$> runFederatedEither r (rpc (r, v))
+  pooledForConcurrentlyN 8 (toList xs) $ \r ->
+    bimap (r,) (qualifyAs r) <$> runFederatedEither r (rpc r)

@@ -55,6 +55,9 @@ repositories:
   - name: ingress
     url: 'https://kubernetes.github.io/ingress-nginx'
 
+  - name: bedag
+    url: 'https://bedag.github.io/helm-charts/'
+
 releases:
   - name: 'fake-aws'
     namespace: '{{ .Values.namespace1 }}'
@@ -67,13 +70,62 @@ releases:
     chart: '../.local/charts/fake-aws'
     values:
       - './helm_vars/fake-aws/values.yaml'
+
+  - name: 'elasticsearch-certs'
+    namespace: '{{ .Values.namespace1 }}'
+    chart: bedag/raw
+    values:
+      - './helm_vars/elasticsearch-certs/es-cert-issuer.yaml.gotmpl'
+
   - name: 'databases-ephemeral'
     namespace: '{{ .Values.namespace1 }}'
     chart: '../.local/charts/databases-ephemeral'
+    values:
+      - redis-ephemeral:
+          redis-ephemeral:
+            usePassword: true
+            password: very-secure-redis-master-password
+        elasticsearch-ephemeral:
+          tls:
+            enabled: true
+            issuerRef:
+              name: elasticsearch
+              kind: Issuer
+    needs:
+      - elasticsearch-certs
+
+  # Required for testing redis migration
+  - name: 'redis-ephemeral-2'
+    namespace: '{{ .Values.namespace1 }}'
+    chart: '../.local/charts/redis-ephemeral'
+    values:
+      - redis-ephemeral:
+          nameOverride: redis-ephemeral-2
+          usePassword: true
+          password: very-secure-redis-master-password-2
+
+  - name: 'elasticsearch-certs'
+    namespace: '{{ .Values.namespace2 }}'
+    chart: bedag/raw
+    values:
+      - './helm_vars/elasticsearch-certs/es-cert-issuer.yaml.gotmpl'
 
   - name: 'databases-ephemeral'
     namespace: '{{ .Values.namespace2 }}'
     chart: '../.local/charts/databases-ephemeral'
+    values:
+      - redis-ephemeral:
+          redis-ephemeral:
+            usePassword: true
+            password: very-secure-redis-master-password
+        elasticsearch-ephemeral:
+          tls:
+            enabled: true
+            issuerRef:
+              name: elasticsearch
+              kind: Issuer
+    needs:
+      - elasticsearch-certs
 
   - name: k8ssandra-test-cluster
     chart: '../.local/charts/k8ssandra-test-cluster'
@@ -118,13 +170,14 @@ releases:
     chart: '../.local/charts/nginx-ingress-services'
     values:
       - './helm_vars/nginx-ingress-services/values.yaml.gotmpl'
-      - './helm_vars/nginx-ingress-services/certificates-namespace1.yaml'
     set:
       # Federation domain is also the SRV record created by the
       # federation-test-helper service. Maybe we can find a way to make these
       # differ, so we don't make any silly assumptions in the code.
       - name: config.dns.federator
         value: '{{ .Values.federationDomain1 }}'
+      - name: config.dns.certificateDomain
+        value: '*.{{ .Values.federationDomainBase1 }}'
     needs:
       - 'ingress'
 
@@ -133,13 +186,14 @@ releases:
     chart: '../.local/charts/nginx-ingress-services'
     values:
       - './helm_vars/nginx-ingress-services/values.yaml.gotmpl'
-      - './helm_vars/nginx-ingress-services/certificates-namespace2.yaml'
     set:
       # Federation domain is also the SRV record created by the
       # federation-test-helper service. Maybe we can find a way to make these
       # differ, so we don't make any silly assumptions in the code.
       - name: config.dns.federator
         value: '{{ .Values.federationDomain2 }}'
+      - name: config.dns.certificateDomain
+        value: '*.{{ .Values.federationDomainBase2 }}'
     needs:
       - 'ingress'
 
@@ -153,7 +207,6 @@ releases:
     chart: '../.local/charts/wire-server'
     values:
       - './helm_vars/wire-server/values.yaml.gotmpl'
-      - './helm_vars/wire-server/certificates-namespace1.yaml'
     set:
       - name: brig.config.optSettings.setFederationDomain
         value: {{ .Values.federationDomain1 }}
@@ -169,7 +222,6 @@ releases:
     chart: '../.local/charts/wire-server'
     values:
       - './helm_vars/wire-server/values.yaml.gotmpl'
-      - './helm_vars/wire-server/certificates-namespace2.yaml'
     set:
       - name: brig.config.optSettings.setFederationDomain
         value: {{ .Values.federationDomain2 }}

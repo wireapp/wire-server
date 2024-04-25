@@ -57,6 +57,11 @@ config:
   # the database if notifications have inlined payloads.
   internalPageSize: 100
 
+  # TTL of stored notifications in Seconds. After this period, notifications
+  # will be deleted and thus not delivered.
+  # The default is 28 days.
+  notificationTTL: 2419200
+
 serviceAccount:
   # When setting this to 'false', either make sure that a service account named
   # 'gundeck' exists or change the 'name' field to 'default'

@@ -45,7 +45,6 @@ import Data.Text.Encoding (encodeUtf8)
 import Data.Time (addUTCTime, getCurrentTime)
 import Data.UUID qualified as UUID (fromString)
 import Data.UUID.V4 qualified as UUID
-import Galley.Types.Teams qualified as Team
 import Imports
 import Network.HTTP.Types qualified as HTTP
 import Network.Wai qualified as Wai
@@ -408,7 +407,7 @@ testInvitationRoles brig galley = do
             . zConn "c"
             . paths ["teams", toByteString' tid, "members", toByteString' uid]
     mem :: TeamMember <- responseJsonError =<< (get memreq <!! const 200 === statusCode)
-    liftIO $ assertEqual "perms" (Team.rolePermissions RoleExternalPartner) (mem ^. permissions)
+    liftIO $ assertEqual "perms" (rolePermissions RoleExternalPartner) (mem ^. permissions)
   -- alice creates an owner charly.  failure!
   do
     charlyEmail <- randomEmail
@@ -858,7 +857,7 @@ testDeleteTeamUser brig galley = do
     const 403 === statusCode
     const (Just "no-self-delete-for-team-owner") === fmap Error.label . responseJsonMaybe
   -- Demote creator
-  updatePermissions invitee tid (creator, Team.rolePermissions RoleAdmin) galley
+  updatePermissions invitee tid (creator, rolePermissions RoleAdmin) galley
   -- Now the creator can delete the account
   deleteUser creator (Just defPassword) brig !!! const 200 === statusCode
   -- The new full permission member cannot
@@ -961,7 +960,7 @@ testDeleteUserSSO brig galley = do
   Just (userId -> creator') <- mkuser True
   updatePermissions creator tid (creator', fullPermissions) galley
   -- demote and delete creator, but cannot do it for second owner yet (as someone needs to demote them)
-  updatePermissions creator' tid (creator, Team.rolePermissions RoleMember) galley
+  updatePermissions creator' tid (creator, rolePermissions RoleMember) galley
   deleteUser creator (Just defPassword) brig !!! const 200 === statusCode
   -- create sso user without email, make an owner
   Just (userId -> user3) <- mkuser False
@@ -969,7 +968,7 @@ testDeleteUserSSO brig galley = do
   -- can't delete herself, even without email
   deleteUser user3 (Just defPassword) brig !!! const 403 === statusCode
   -- delete second owner now, we don't enforce existence of emails in the backend
-  updatePermissions user3 tid (creator', Team.rolePermissions RoleMember) galley
+  updatePermissions user3 tid (creator', rolePermissions RoleMember) galley
   deleteUser creator' (Just defPassword) brig !!! const 200 === statusCode
 
 test2FaDisabledForSsoUser :: Brig -> Galley -> Http ()

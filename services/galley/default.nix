@@ -27,6 +27,7 @@
 , conduit
 , containers
 , cookie
+, cql
 , crypton
 , crypton-x509
 , currency-codes
@@ -89,6 +90,7 @@
 , ssl-util
 , stm
 , streaming-commons
+, string-conversions
 , tagged
 , tasty
 , tasty-ant-xml
@@ -109,6 +111,7 @@
 , unliftio
 , unordered-containers
 , uri-bytestring
+, utf8-string
 , uuid
 , uuid-types
 , vector
@@ -151,6 +154,7 @@ mkDerivation {
     cereal
     comonad
     containers
+    cql
     crypton
     crypton-x509
     currency-codes
@@ -206,6 +210,7 @@ mkDerivation {
     types-common-journal
     unliftio
     uri-bytestring
+    utf8-string
     uuid
     wai
     wai-extra
@@ -281,6 +286,7 @@ mkDerivation {
     sop-core
     ssl-util
     streaming-commons
+    string-conversions
     tagged
     tasty
     tasty-ant-xml

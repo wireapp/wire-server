@@ -29,7 +29,6 @@ module Brig.Unique
   )
 where
 
-import Brig.Data.Instances ()
 import Cassandra as C
 import Control.Concurrent.Timeout
 import Data.Id

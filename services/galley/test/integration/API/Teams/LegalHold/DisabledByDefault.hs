@@ -31,7 +31,6 @@ import Bilge hiding (accept, head, timeout, trace)
 import Bilge.Assert
 import Brig.Types.Intra (UserSet (..))
 import Brig.Types.Test.Arbitrary ()
-import Brig.Types.User.Event qualified as Ev
 import Cassandra.Exec qualified as Cql
 import Control.Category ((>>>))
 import Control.Concurrent.Chan
@@ -48,7 +47,6 @@ import Galley.Cassandra.LegalHold
 import Galley.Cassandra.LegalHold qualified as LegalHoldData
 import Galley.Env qualified as Galley
 import Galley.Types.Clients qualified as Clients
-import Galley.Types.Teams
 import Imports
 import Network.HTTP.Types.Status (status200, status404)
 import Network.Wai as Wai
@@ -71,6 +69,7 @@ import Wire.API.Team.Permission
 import Wire.API.Team.Role
 import Wire.API.User.Client
 import Wire.API.User.Client qualified as Client
+import Wire.API.UserEvent qualified as Ev
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -93,7 +92,6 @@ tests s =
       testOnlyIfLhEnabled s "POST /clients" testCannotCreateLegalHoldDeviceOldAPI,
       testOnlyIfLhEnabled s "GET /teams/{tid}/members" testGetTeamMembersIncludesLHStatus,
       testOnlyIfLhEnabled s "POST /register - cannot add team members above fanout limit" testAddTeamUserTooLargeWithLegalhold,
-      testOnlyIfLhEnabled s "GET legalhold status in user profile" testGetLegalholdStatus,
       {- TODO:
           conversations/{cnv}/otr/messages - possibly show the legal hold device (if missing) as a different device type (or show that on device level, depending on how client teams prefer)
           GET /team/{tid}/members - show legal hold status of all members
@@ -237,7 +235,7 @@ testApproveLegalHoldDevice = do
           UserLegalHoldEnabled
           userStatus
       let pluck = \case
-            Ev.ClientAdded _ eClient -> do
+            Ev.ClientAdded eClient -> do
               clientId eClient @?= someClientId
               clientType eClient @?= LegalHoldClientType
               clientClass eClient @?= Just LegalHoldClient
@@ -316,7 +314,7 @@ testDisableLegalHoldForUser = do
     requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
     approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
     assertNotification mws $ \case
-      Ev.ClientAdded _ client -> do
+      Ev.ClientAdded client -> do
         clientId client @?= someClientId
         clientType client @?= LegalHoldClientType
         clientClass client @?= Just LegalHoldClient
@@ -332,7 +330,7 @@ testDisableLegalHoldForUser = do
       assertEqual "method" "POST" (requestMethod req)
       assertEqual "path" (pathInfo req) ["legalhold", "remove"]
     assertNotification mws $ \case
-      Ev.ClientEvent (Ev.ClientRemoved _ clientId') -> clientId' @?= someClientId
+      Ev.ClientEvent (Ev.ClientRemoved clientId') -> clientId' @?= someClientId
       _ -> assertBool "Unexpected event" False
     assertNotification mws $ \case
       Ev.UserEvent (Ev.UserLegalHoldDisabled uid) -> uid @?= member

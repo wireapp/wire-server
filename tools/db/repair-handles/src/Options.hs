@@ -17,9 +17,9 @@
 
 module Options where
 
-import Brig.Data.Instances ()
 import Cassandra hiding (Set)
 import Data.Id
+import Data.Text qualified as T
 import Data.UUID
 import Imports
 import Options.Applicative hiding (action)
@@ -56,7 +56,7 @@ cassandraSettingsParser ks =
           <> value 9042
           <> showDefault
       )
-    <*> ( Keyspace . cs
+    <*> ( Keyspace . T.pack
             <$> strOption
               ( long ("cassandra-keyspace-" ++ ks)
                   <> metavar "STRING"

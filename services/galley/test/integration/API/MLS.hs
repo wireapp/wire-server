@@ -59,7 +59,6 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Galley
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
-import Wire.API.MLS.Keys
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.Message
@@ -153,7 +152,6 @@ tests s =
           test s "remove users bypassing MLS" testRemoveUsersDirectly,
           test s "send proteus message to an MLS conversation" testProteusMessage
         ],
-      test s "public keys" testPublicKeys,
       testGroup
         "GroupInfo"
         [ test s "get group info for a local conversation" testGetGroupInfoOfLocalConv,
@@ -880,11 +878,11 @@ testRemoteToRemoteInSub = do
   connectWithRemoteUser alice qbob
   let cu =
         ConversationUpdate
-          { cuTime = now,
-            cuOrigUserId = qbob,
-            cuConvId = conv,
-            cuAlreadyPresentUsers = [],
-            cuAction =
+          { time = now,
+            origUserId = qbob,
+            convId = conv,
+            alreadyPresentUsers = [],
+            action =
               SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember)
           }
   void $ runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
@@ -1199,29 +1197,6 @@ testExternalAddProposalWrongUser = do
       !!! do
         const 404 === statusCode
         const (Just "no-conversation") === fmap Wai.label . responseJsonError
-
--- FUTUREWORK: test processing a commit containing the external proposal
-testPublicKeys :: TestM ()
-testPublicKeys = do
-  u <- randomId
-  g <- viewGalley
-  keys <-
-    responseJsonError
-      =<< get
-        ( g
-            . paths ["mls", "public-keys"]
-            . zUser u
-        )
-        <!! const 200 === statusCode
-
-  liftIO $
-    Map.keys
-      ( Map.findWithDefault
-          mempty
-          RemovalPurpose
-          (unMLSPublicKeys keys)
-      )
-      @?= [Ed25519]
 
 testBackendRemoveProposalRecreateClient :: TestM ()
 testBackendRemoveProposalRecreateClient = do

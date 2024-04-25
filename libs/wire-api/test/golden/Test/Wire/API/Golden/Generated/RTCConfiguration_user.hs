@@ -19,46 +19,15 @@
 
 module Test.Wire.API.Golden.Generated.RTCConfiguration_user where
 
-import Control.Lens ((.~))
-import Data.Coerce (coerce)
-import Data.List.NonEmpty (NonEmpty (..))
-import Data.Misc (HttpsUrl (HttpsUrl), IpAddr (IpAddr))
-import Data.Text.Ascii (AsciiChars (validate))
-import Data.Time (secondsToNominalDiffTime)
-import Imports (Maybe (Just, Nothing), fromRight, read, undefined, (&))
+import Control.Lens
+import Data.Coerce
+import Data.List.NonEmpty
+import Data.Misc
+import Data.Text.Ascii
+import Data.Time
+import Imports
 import URI.ByteString
-  ( Authority
-      ( Authority,
-        authorityHost,
-        authorityPort,
-        authorityUserInfo
-      ),
-    Host (Host, hostBS),
-    Query (Query, queryPairs),
-    Scheme (Scheme, schemeBS),
-    URIRef
-      ( URI,
-        uriAuthority,
-        uriFragment,
-        uriPath,
-        uriQuery,
-        uriScheme
-      ),
-  )
 import Wire.API.Call.Config
-  ( RTCConfiguration,
-    Scheme (SchemeTurn, SchemeTurns),
-    Transport (TransportTCP, TransportUDP),
-    TurnHost (TurnHostIp, TurnHostName),
-    rtcConfiguration,
-    rtcIceServer,
-    sftServer,
-    tuKeyindex,
-    tuT,
-    tuVersion,
-    turnURI,
-    turnUsername,
-  )
 
 testObject_RTCConfiguration_user_1 :: RTCConfiguration
 testObject_RTCConfiguration_user_1 =
@@ -153,6 +122,7 @@ testObject_RTCConfiguration_user_1 =
     )
     Nothing
     2
+    Nothing
     Nothing
 
 testObject_RTCConfiguration_user_2 :: RTCConfiguration
@@ -332,6 +302,7 @@ testObject_RTCConfiguration_user_2 =
     )
     4
     Nothing
+    Nothing
 
 testObject_RTCConfiguration_user_3 :: RTCConfiguration
 testObject_RTCConfiguration_user_3 =
@@ -476,6 +447,7 @@ testObject_RTCConfiguration_user_3 =
         )
     )
     9
+    Nothing
     Nothing
 
 testObject_RTCConfiguration_user_4 :: RTCConfiguration
@@ -672,6 +644,7 @@ testObject_RTCConfiguration_user_4 =
     )
     2
     Nothing
+    Nothing
 
 testObject_RTCConfiguration_user_5 :: RTCConfiguration
 testObject_RTCConfiguration_user_5 =
@@ -714,6 +687,7 @@ testObject_RTCConfiguration_user_5 =
     )
     2
     Nothing
+    Nothing
 
 testObject_RTCConfiguration_user_6 :: RTCConfiguration
 testObject_RTCConfiguration_user_6 =
@@ -735,6 +709,7 @@ testObject_RTCConfiguration_user_6 =
     )
     Nothing
     2
+    Nothing
     Nothing
 
 testObject_RTCConfiguration_user_7 :: RTCConfiguration
@@ -758,22 +733,50 @@ testObject_RTCConfiguration_user_7 =
     Nothing
     2
     ( Just
-        [ sftServer
-            ( coerce
-                URI
-                  { uriScheme = Scheme {schemeBS = "https"},
-                    uriAuthority =
-                      Just
-                        ( Authority
-                            { authorityUserInfo = Nothing,
-                              authorityHost = Host {hostBS = "example.com"},
-                              authorityPort = Nothing
-                            }
-                        ),
-                    uriPath = "",
-                    uriQuery = Query {queryPairs = []},
-                    uriFragment = Nothing
-                  }
+        [ authSFTServer
+            ( sftServer
+                ( coerce
+                    URI
+                      { uriScheme = Scheme {schemeBS = "https"},
+                        uriAuthority =
+                          Just
+                            ( Authority
+                                { authorityUserInfo = Nothing,
+                                  authorityHost = Host {hostBS = "example.com"},
+                                  authorityPort = Nothing
+                                }
+                            ),
+                        uriPath = "",
+                        uriQuery = Query {queryPairs = []},
+                        uriFragment = Nothing
+                      }
+                )
             )
+            (mkSFTUsername (secondsToNominalDiffTime 12) "username")
+            "credential"
         ]
     )
+    Nothing
+
+testObject_RTCConfiguration_user_8 :: RTCConfiguration
+testObject_RTCConfiguration_user_8 =
+  rtcConfiguration
+    ( rtcIceServer
+        ( turnURI SchemeTurns (TurnHostIp (IpAddr (read "248.187.155.126"))) (read "1") Nothing
+            :| [ turnURI SchemeTurn (TurnHostIp (IpAddr (read "166.155.90.230"))) (read "0") (Just TransportTCP),
+                 turnURI SchemeTurns (TurnHostName "xn--mgbh0fb.xn--kgbechtv") (read "1") (Just TransportTCP),
+                 turnURI SchemeTurn (TurnHostName "host.name") (read "1") (Just TransportTCP)
+               ]
+        )
+        ( turnUsername (secondsToNominalDiffTime 2.000000000000) "tj"
+            & tuVersion .~ 0
+            & tuKeyindex .~ 0
+            & tuT .~ '\1011805'
+        )
+        (fromRight undefined (validate ""))
+        :| []
+    )
+    Nothing
+    2
+    Nothing
+    (Just True)

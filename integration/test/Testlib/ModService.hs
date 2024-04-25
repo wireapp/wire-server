@@ -117,7 +117,7 @@ traverseConcurrentlyCodensity f args = do
 
     pure result
 
-startDynamicBackends :: HasCallStack => [ServiceOverrides] -> (HasCallStack => [String] -> App a) -> App a
+startDynamicBackends :: [ServiceOverrides] -> ([String] -> App a) -> App a
 startDynamicBackends beOverrides k =
   runCodensity
     do
@@ -128,7 +128,7 @@ startDynamicBackends beOverrides k =
       pure $ map (.berDomain) resources
     k
 
-startDynamicBackend :: HasCallStack => BackendResource -> ServiceOverrides -> Codensity App ()
+startDynamicBackend :: BackendResource -> ServiceOverrides -> Codensity App ()
 startDynamicBackend resource beOverrides = do
   let overrides =
         mconcat

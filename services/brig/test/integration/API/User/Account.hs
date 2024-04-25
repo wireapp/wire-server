@@ -57,6 +57,7 @@ import Data.Proxy
 import Data.Qualified
 import Data.Range
 import Data.Set qualified as Set
+import Data.String.Conversions
 import Data.Text qualified as T
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as T

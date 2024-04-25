@@ -1,0 +1,14 @@
+{
+    "capabilities": {
+        "capabilities": [
+            "legalhold-implicit-consent"
+        ]
+    },
+    "class": "phone",
+    "cookie": "",
+    "id": "1",
+    "label": "-󼊣v",
+    "mls_public_keys": {},
+    "time": "1864-05-06T18:43:52.483Z",
+    "type": "legalhold"
+}

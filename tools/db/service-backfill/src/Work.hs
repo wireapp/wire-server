@@ -1,7 +1,5 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- This file is part of the Wire Server implementation.
@@ -32,9 +30,6 @@ import Imports
 import System.Logger (Logger)
 import System.Logger qualified as Log
 import UnliftIO.Async (pooledMapConcurrentlyN)
-import Wire.API.User
-
-deriving instance Cql Name
 
 runCommand :: Logger -> ClientState -> ClientState -> IO ()
 runCommand l brig galley =

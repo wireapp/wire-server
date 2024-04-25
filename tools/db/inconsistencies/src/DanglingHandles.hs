@@ -21,7 +21,6 @@
 
 module DanglingHandles where
 
-import Brig.Data.Instances ()
 import Cassandra
 import Cassandra.Util
 import Conduit
@@ -52,7 +51,7 @@ runCommand l brig inconsistenciesFile = do
               pure userHandles
           )
         .| C.mapM (liftIO . pooledMapConcurrentlyN 48 (\(handle, userId, claimTime) -> checkUser l brig handle userId claimTime False))
-        .| C.map ((<> "\n") . BS.intercalate "\n" . map (cs . Aeson.encode) . catMaybes)
+        .| C.map ((<> "\n") . BS.intercalate "\n" . map (BS.toStrict . Aeson.encode) . catMaybes)
         .| sinkFile inconsistenciesFile
 
 examineHandles :: Logger -> ClientState -> FilePath -> FilePath -> Bool -> IO ()
@@ -69,7 +68,7 @@ examineHandles l brig handlesFile errorsFile fixClaim = do
                 Log.info l (Log.field "handlesProcesses" i)
               liftIO $ checkHandle l brig handle fixClaim
           )
-        .| C.map ((<> "\n") . cs . Aeson.encode)
+        .| C.map ((<> "\n") . BS.toStrict . Aeson.encode)
         .| sinkFile errorsFile
 
 pageSize :: Int32

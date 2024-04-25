@@ -4,6 +4,7 @@
 # dependencies are added or removed.
 { mkDerivation
 , aeson
+, aeson-diff
 , aeson-pretty
 , array
 , async
@@ -72,6 +73,7 @@
 , warp-tls
 , websockets
 , wire-message-proto-lens
+, wreq
 , xml
 , yaml
 }:
@@ -91,6 +93,7 @@ mkDerivation {
   ];
   libraryHaskellDepends = [
     aeson
+    aeson-diff
     aeson-pretty
     array
     async
@@ -155,6 +158,7 @@ mkDerivation {
     warp-tls
     websockets
     wire-message-proto-lens
+    wreq
     xml
     yaml
   ];

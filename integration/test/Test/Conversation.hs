@@ -850,3 +850,24 @@ testGuestLinksExpired = do
       liftIO $ threadDelay (1_100_000)
       bindResponse (getJoinCodeConv tm k v) $ \resp -> do
         resp.status `shouldMatchInt` 404
+
+testConversationWithFedV0 :: HasCallStack => App ()
+testConversationWithFedV0 = do
+  alice <- randomUser OwnDomain def
+  bob <- randomUser FedV0Domain def
+  withAPIVersion 4 $ connectTwoUsers alice bob
+
+  conv <-
+    postConversation alice (defProteus {qualifiedUsers = [bob]})
+      >>= getJSON 201
+
+  withWebSocket bob $ \ws -> do
+    void $ changeConversationName alice conv "foobar" >>= getJSON 200
+    void $ awaitMatch isConvNameChangeNotif ws
+
+testConversationWithoutFederation :: HasCallStack => App ()
+testConversationWithoutFederation = withModifiedBackend
+  (def {galleyCfg = removeField "federator" >=> removeField "rabbitmq"})
+  $ \domain -> do
+    [alice, bob] <- createAndConnectUsers [domain, domain]
+    void $ postConversation alice (defProteus {qualifiedUsers = [bob]}) >>= getJSON 201

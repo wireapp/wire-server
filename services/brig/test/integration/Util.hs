@@ -50,6 +50,7 @@ import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Char8 qualified as B8
 import Data.ByteString.Conversion
+import Data.Default
 import Data.Domain (Domain (..), domainText, mkDomain)
 import Data.Handle (Handle (..))
 import Data.Id
@@ -60,6 +61,7 @@ import Data.Proxy
 import Data.Qualified hiding (isLocal)
 import Data.Range
 import Data.Sequence qualified as Seq
+import Data.String.Conversions
 import Data.Text qualified as T
 import Data.Text qualified as Text
 import Data.Text.Ascii qualified as Ascii
@@ -1078,7 +1080,7 @@ circumventSettingsOverride = runHttpT
 --
 --   Beware: (1) Not all async parts of brig are running in this.  (2) other services will
 --   see the old, unaltered brig.
-withSettingsOverrides :: MonadIO m => Opt.Opts -> WaiTest.Session a -> m a
+withSettingsOverrides :: (MonadIO m, HasCallStack) => Opt.Opts -> WaiTest.Session a -> m a
 withSettingsOverrides opts action = liftIO $ do
   (brigApp, env) <- Run.mkApp opts
   sftDiscovery <-
@@ -1231,8 +1233,7 @@ withMockedFederatorAndGalley opts _domain fedResp galleyHandler action = do
   result <- assertRight <=< runExceptT $
     withTempMockedService initState galleyHandler $ \galleyMockState ->
       Mock.withTempMockFederator
-        [("Content-Type", "application/json")]
-        ((\r -> pure ("application" // "json", r)) <=< fedResp)
+        def {Mock.handler = (\r -> pure ("application" // "json", r)) <=< fedResp}
         $ \fedMockPort -> do
           let opts' =
                 opts

@@ -18,6 +18,7 @@
 module Galley.Cassandra.TeamFeatures
   ( interpretTeamFeatureStoreToCassandra,
     getFeatureConfigMulti,
+    getAllFeatureConfigsForServer,
   )
 where
 
@@ -27,12 +28,19 @@ import Control.Monad.Trans.Maybe
 import Data.Id
 import Data.Misc (HttpsUrl)
 import Data.Time
+import Galley.API.Teams.Features.Get
+import Galley.Cassandra.GetAllTeamFeatureConfigs
 import Galley.Cassandra.Instances ()
 import Galley.Cassandra.Store
+import Galley.Cassandra.Util
+import Galley.Effects (LegalHoldStore)
+import Galley.Effects.LegalHoldStore qualified as LH
 import Galley.Effects.TeamFeatureStore qualified as TFS
+import Galley.Types.Teams (FeatureLegalHold)
 import Imports
 import Polysemy
 import Polysemy.Input
+import Polysemy.TinyLog
 import UnliftIO.Async (pooledMapConcurrentlyN)
 import Wire.API.Conversation.Protocol (ProtocolTag)
 import Wire.API.MLS.CipherSuite
@@ -40,16 +48,42 @@ import Wire.API.Team.Feature
 
 interpretTeamFeatureStoreToCassandra ::
   ( Member (Embed IO) r,
-    Member (Input ClientState) r
+    Member (Input ClientState) r,
+    Member (Input AllFeatureConfigs) r,
+    Member (Input (Maybe [TeamId], FeatureLegalHold)) r,
+    Member LegalHoldStore r,
+    Member TinyLog r
   ) =>
   Sem (TFS.TeamFeatureStore ': r) a ->
   Sem r a
 interpretTeamFeatureStoreToCassandra = interpret $ \case
-  TFS.GetFeatureConfig sing tid -> embedClient $ getFeatureConfig sing tid
-  TFS.GetFeatureConfigMulti sing tids -> embedClient $ getFeatureConfigMulti sing tids
-  TFS.SetFeatureConfig sing tid wsnl -> embedClient $ setFeatureConfig sing tid wsnl
-  TFS.GetFeatureLockStatus sing tid -> embedClient $ getFeatureLockStatus sing tid
-  TFS.SetFeatureLockStatus sing tid ls -> embedClient $ setFeatureLockStatus sing tid ls
+  TFS.GetFeatureConfig sing tid -> do
+    logEffect "TeamFeatureStore.GetFeatureConfig"
+    embedClient $ getFeatureConfig sing tid
+  TFS.GetFeatureConfigMulti sing tids -> do
+    logEffect "TeamFeatureStore.GetFeatureConfigMulti"
+    embedClient $ getFeatureConfigMulti sing tids
+  TFS.SetFeatureConfig sing tid wsnl -> do
+    logEffect "TeamFeatureStore.SetFeatureConfig"
+    embedClient $ setFeatureConfig sing tid wsnl
+  TFS.GetFeatureLockStatus sing tid -> do
+    logEffect "TeamFeatureStore.GetFeatureLockStatus"
+    embedClient $ getFeatureLockStatus sing tid
+  TFS.SetFeatureLockStatus sing tid ls -> do
+    logEffect "TeamFeatureStore.SetFeatureLockStatus"
+    embedClient $ setFeatureLockStatus sing tid ls
+  TFS.GetAllFeatureConfigs tid -> do
+    logEffect "TeamFeatureStore.GetAllFeatureConfigs"
+    serverConfigs <- input
+    (allowListForExposeInvitationURLs, featureLH) <- input
+    hasTeamImplicitLegalhold <- LH.isTeamLegalholdWhitelisted tid
+    embedClient $
+      getAllFeatureConfigs
+        allowListForExposeInvitationURLs
+        featureLH
+        hasTeamImplicitLegalhold
+        serverConfigs
+        tid
 
 getFeatureConfig :: MonadClient m => FeatureSingleton cfg -> TeamId -> m (Maybe (WithStatusNoLock cfg))
 getFeatureConfig FeatureSingletonLegalholdConfig tid = getTrivialConfigC "legalhold_status" tid
@@ -66,6 +100,8 @@ getFeatureConfig FeatureSingletonAppLockConfig tid = runMaybeT $ do
     WithStatusNoLock
       <$> mStatus
       <*> (AppLockConfig <$> mEnforce <*> mTimeout)
+      -- FUTUREWORK: the above line is duplicated in
+      -- "Galley.Cassandra.GetAllTeamFeatureConfigs"; make sure the two don't diverge!
       <*> Just FeatureTTLUnlimited
   where
     select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe EnforceAppLock, Maybe Int32)
@@ -81,6 +117,8 @@ getFeatureConfig FeatureSingletonSelfDeletingMessagesConfig tid = runMaybeT $ do
     WithStatusNoLock
       <$> mEnabled
       <*> fmap SelfDeletingMessagesConfig mTimeout
+      -- FUTUREWORK: the above line is duplicated in
+      -- "Galley.Cassandra.GetAllTeamFeatureConfigs"; make sure the two don't diverge!
       <*> Just FeatureTTLUnlimited
   where
     select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe Int32)
@@ -92,7 +130,12 @@ getFeatureConfig FeatureSingletonConferenceCallingConfig tid = do
   retry x1 q <&> \case
     Nothing -> Nothing
     Just (Nothing, _) -> Nothing
-    Just (Just status, mTtl) -> Just . forgetLock . setStatus status . setWsTTL (fromMaybe FeatureTTLUnlimited mTtl) $ defFeatureStatus
+    Just (Just status, mTtl) ->
+      Just
+        . forgetLock
+        . setStatus status
+        . setWsTTL (fromMaybe FeatureTTLUnlimited mTtl)
+        $ defFeatureStatus
   where
     select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe FeatureTTL)
     select =
@@ -108,7 +151,9 @@ getFeatureConfig FeatureSingletonMLSConfig tid = do
     Just (status, defaultProtocol, protocolToggleUsers, allowedCipherSuites, defaultCipherSuite, supportedProtocols) ->
       WithStatusNoLock
         <$> status
-        <*> ( MLSConfig
+        <*> ( -- FUTUREWORK: this block is duplicated in
+              -- "Galley.Cassandra.GetAllTeamFeatureConfigs"; make sure the two don't diverge!
+              MLSConfig
                 <$> maybe (Just []) (Just . C.fromSet) protocolToggleUsers
                 <*> defaultProtocol
                 <*> maybe (Just []) (Just . C.fromSet) allowedCipherSuites
@@ -130,7 +175,10 @@ getFeatureConfig FeatureSingletonMlsE2EIdConfig tid = do
       Just $
         WithStatusNoLock
           fs
-          (MlsE2EIdConfig (toGracePeriodOrDefault mGracePeriod) mUrl)
+          ( -- FUTUREWORK: this block is duplicated in
+            -- "Galley.Cassandra.GetAllTeamFeatureConfigs"; make sure the two don't diverge!
+            MlsE2EIdConfig (toGracePeriodOrDefault mGracePeriod) mUrl
+          )
           FeatureTTLUnlimited
   where
     toGracePeriodOrDefault :: Maybe Int32 -> NominalDiffTime
@@ -149,6 +197,8 @@ getFeatureConfig FeatureSingletonMlsMigration tid = do
       Just $
         WithStatusNoLock
           fs
+          -- FUTUREWORK: the following expression is duplicated in
+          -- "Galley.Cassandra.GetAllTeamFeatureConfigs"; make sure the two don't diverge!
           MlsMigrationConfig
             { startTime = startTime,
               finaliseRegardlessAfter = finaliseRegardlessAfter

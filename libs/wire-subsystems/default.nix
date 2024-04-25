@@ -26,6 +26,7 @@
 , QuickCheck
 , quickcheck-instances
 , retry
+, string-conversions
 , text
 , tinylog
 , types-common
@@ -73,6 +74,7 @@ mkDerivation {
     polysemy-wire-zoo
     QuickCheck
     quickcheck-instances
+    string-conversions
     types-common
     wire-api
   ];

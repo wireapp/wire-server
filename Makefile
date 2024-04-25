@@ -7,7 +7,7 @@ DOCKER_TAG            ?= $(USER)
 # default helm chart version must be 0.0.42 for local development (because 42 is the answer to the universe and everything)
 HELM_SEMVER           ?= 0.0.42
 # The list of helm charts needed on internal kubernetes testing environments
-CHARTS_INTEGRATION    := wire-server databases-ephemeral redis-cluster rabbitmq fake-aws ingress-nginx-controller nginx-ingress-controller nginx-ingress-services fluent-bit kibana sftd restund coturn k8ssandra-test-cluster
+CHARTS_INTEGRATION    := wire-server databases-ephemeral redis-cluster rabbitmq fake-aws ingress-nginx-controller nginx-ingress-controller nginx-ingress-services fluent-bit kibana restund coturn k8ssandra-test-cluster
 # The list of helm charts to publish on S3
 # FUTUREWORK: after we "inline local subcharts",
 # (e.g. move charts/brig to charts/wire-server/brig)
@@ -17,8 +17,8 @@ CHARTS_RELEASE := wire-server redis-ephemeral redis-cluster rabbitmq rabbitmq-ex
 fake-aws fake-aws-s3 fake-aws-sqs aws-ingress fluent-bit kibana backoffice		\
 calling-test demo-smtp elasticsearch-curator elasticsearch-external				\
 elasticsearch-ephemeral minio-external cassandra-external						\
-nginx-ingress-controller ingress-nginx-controller nginx-ingress-services reaper sftd restund coturn		\
-inbucket k8ssandra-test-cluster postgresql
+nginx-ingress-controller ingress-nginx-controller nginx-ingress-services reaper restund coturn		\
+inbucket k8ssandra-test-cluster postgresql ldap-scim-bridge smallstep-accomp
 KIND_CLUSTER_NAME     := wire-server
 HELM_PARALLELISM      ?= 1 # 1 for sequential tests; 6 for all-parallel tests
 
@@ -129,9 +129,8 @@ devtest:
 .PHONY: sanitize-pr
 sanitize-pr:
 	./hack/bin/generate-local-nix-packages.sh
-	make formatf
 	make hlint-inplace-pr
-	make hlint-check-pr  # sometimes inplace has been observed not to do its job very well.
+	make format
 	make git-add-cassandra-schema
 	@git diff-files --quiet -- || ( echo "There are unstaged changes, please take a look, consider committing them, and try again."; exit 1 )
 	@git diff-index --quiet --cached HEAD -- || ( echo "There are staged changes, please take a look, consider committing them, and try again."; exit 1 )
@@ -155,27 +154,15 @@ ghcid:
 
 # Used by CI
 .PHONY: lint-all
-lint-all: formatc hlint-check-all check-local-nix-derivations treefmt-check
-
-.PHONY: hlint-check-all
-hlint-check-all:
-	./tools/hlint.sh -f all -m check
+lint-all: treefmt-check check-local-nix-derivations
 
 .PHONY: hlint-inplace-all
 hlint-inplace-all:
 	./tools/hlint.sh -f all -m inplace
 
-.PHONY: hlint-check-pr
-hlint-check-pr:
-	./tools/hlint.sh -f pr -m check
-
 .PHONY: hlint-inplace-pr
 hlint-inplace-pr:
 	./tools/hlint.sh -f pr -m inplace
-
-.PHONY: hlint-check
-hlint-check:
-	./tools/hlint.sh -f changeset -m check
 
 .PHONY: hlint-inplace
 hlint-inplace:
@@ -192,35 +179,27 @@ check-local-nix-derivations: regen-local-nix-derivations
 services: init install
 	$(MAKE) -C services/nginz
 
-# formats all Haskell files (which don't contain CPP)
+# formats everything according to treefmt rules
+# this may take a while (5 minutes) on first run but should be instant on 
+# any subsequent run except after you have changed files.
 .PHONY: format
 format:
-	./tools/ormolu.sh
+	treefmt
 
-# formats all Haskell files changed in this PR, even if local changes are not committed to git
-.PHONY: formatf
-formatf:
-	./tools/ormolu.sh -f pr
-
-# formats all Haskell files even if local changes are not committed to git
-.PHONY: formatf-all
-formatf-all:
-	./tools/ormolu.sh -f all
-
-# checks that all Haskell files are formatted; fail if a `make format` run is needed.
+# checks the format
 .PHONY: formatc
-formatc:
-	./tools/ormolu.sh -c
+formatc: 
+	treefmt-check
 
 # For any Haskell or Rust file, update or add a license header if necessary.
 # Headers should be added according to Ormolu's formatting rules, but please check just in case.
 .PHONY: add-license
 add-license:
-	# Check headroom is installed. If not, please run 'stack install headroom'
+	# Check headroom is installed.
 	command -v headroom
 	headroom run
 	@echo ""
-	@echo "you might want to run 'make formatf' now to make sure ormolu is happy"
+	@echo "you might want to run 'make format' now to make sure ormolu is happy"
 
 .PHONY: treefmt
 treefmt:
@@ -294,9 +273,17 @@ db-reset: c
 	./dist/gundeck-schema --keyspace gundeck_test2 --replication-factor 1 --reset
 	./dist/spar-schema --keyspace spar_test2 --replication-factor 1 --reset
 	./integration/scripts/integration-dynamic-backends-db-schemas.sh --replication-factor 1 --reset
-	./dist/brig-index reset --elasticsearch-index-prefix directory --elasticsearch-server http://localhost:9200 > /dev/null
-	./dist/brig-index reset --elasticsearch-index-prefix directory2 --elasticsearch-server http://localhost:9200 > /dev/null
-	./integration/scripts/integration-dynamic-backends-brig-index.sh --elasticsearch-server http://localhost:9200 > /dev/null
+	./dist/brig-index reset \
+		--elasticsearch-index-prefix directory \
+		--elasticsearch-server https://localhost:9200 \
+		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
+	./dist/brig-index reset \
+		--elasticsearch-index-prefix directory2 \
+		--elasticsearch-server https://localhost:9200 \
+		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
+	./integration/scripts/integration-dynamic-backends-brig-index.sh \
+		--elasticsearch-server https://localhost:9200 \
+		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
 
 
 
@@ -312,9 +299,20 @@ db-migrate: c
 	./dist/gundeck-schema --keyspace gundeck_test2 --replication-factor 1 > /dev/null
 	./dist/spar-schema --keyspace spar_test2 --replication-factor 1 > /dev/null
 	./integration/scripts/integration-dynamic-backends-db-schemas.sh --replication-factor 1 > /dev/null
-	./dist/brig-index reset --elasticsearch-index-prefix directory --elasticsearch-server http://localhost:9200 > /dev/null
-	./dist/brig-index reset --elasticsearch-index-prefix directory2 --elasticsearch-server http://localhost:9200 > /dev/null
-	./integration/scripts/integration-dynamic-backends-brig-index.sh --elasticsearch-server http://localhost:9200 > /dev/null
+	./dist/brig-index reset \
+		--elasticsearch-index-prefix directory \
+		--elasticsearch-server https://localhost:9200 \
+	  --elasticsearch-ca-cert ./services/brig/test/resources/elasticsearch-ca.pem \
+		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
+	./dist/brig-index reset \
+		--elasticsearch-index-prefix directory2 \
+		--elasticsearch-server https://localhost:9200 \
+	  --elasticsearch-ca-cert ./services/brig/test/resources/elasticsearch-ca.pem \
+		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
+	./integration/scripts/integration-dynamic-backends-brig-index.sh \
+		--elasticsearch-server https://localhost:9200 \
+	  --elasticsearch-ca-cert ./services/brig/test/resources/elasticsearch-ca.pem \
+		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
 
 #################################
 ## dependencies
@@ -512,6 +510,7 @@ guard-inotify:
 
 .PHONY: kind-integration-setup
 kind-integration-setup: guard-inotify .local/kind-kubeconfig
+	KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig helmfile sync -f $(CURDIR)/hack/helmfile-federation-v0.yaml
 	HELMFILE_ENV="kind" KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig make kube-integration-setup
 
 .PHONY: kind-integration-test
@@ -545,11 +544,12 @@ helm-template-%: clean-charts charts-integration
 	./hack/bin/helm-template.sh $(*)
 
 # Ask the security team for the `DEPENDENCY_TRACK_API_KEY` (if you need it)
+# changing the directory is necessary because of some quirkiness of how 
+# runhaskell / ghci behaves (it doesn't find modules that aren't in the same 
+# directory as the script that is being executed)
 .PHONY: upload-bombon
 upload-bombon:
-	nix build -f nix wireServer.allLocalPackagesBom -o "bill-of-materials.$(HELM_SEMVER).json"
-	./hack/bin/bombon.hs -- \
-		--bom-filepath "./bill-of-materials.$(HELM_SEMVER).json" \
+	cd ./hack/bin && ./bombon.hs -- \
 		--project-version $(HELM_SEMVER) \
 		--api-key $(DEPENDENCY_TRACK_API_KEY) \
 		--auto-create

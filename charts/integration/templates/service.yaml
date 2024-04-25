@@ -3,6 +3,17 @@
 apiVersion: v1
 kind: Service
 metadata:
+  name: integration-headless
+spec:
+  selector:
+    app: integration-integration
+  type: ClusterIP
+  clusterIP: None
+
+---
+apiVersion: v1
+kind: Service
+metadata:
   name: integration
 spec:
   ports:

@@ -43,6 +43,7 @@ module Wire.API.User.RichInfo
   )
 where
 
+import Cassandra qualified as C
 import Control.Lens ((%~), (?~), _1)
 import Data.Aeson qualified as A
 import Data.Aeson.Key qualified as A
@@ -132,7 +133,7 @@ ciObject name sch = mkSchema s r w
         desc = S.description ?~ ("json object with case-insensitive fields." :: Text)
 
     r :: A.Value -> A.Parser b
-    r = A.withObject (cs name) f
+    r = A.withObject (Text.unpack name) f
       where
         f :: A.Object -> A.Parser b
         f = schemaIn sch . g
@@ -319,6 +320,12 @@ instance Arbitrary RichInfoAssocList where
   arbitrary = mkRichInfoAssocList <$> arbitrary
   shrink (RichInfoAssocList things) = mkRichInfoAssocList <$> QC.shrink things
 
+instance C.Cql RichInfoAssocList where
+  ctype = C.Tagged C.BlobColumn
+  toCql = C.toCql . C.Blob . A.encode
+  fromCql (C.CqlBlob v) = A.eitherDecode v
+  fromCql _ = Left "RichInfo: Blob expected"
+
 --------------------------------------------------------------------------------
 -- RichField
 
@@ -343,8 +350,8 @@ instance ToSchema RichField where
 instance Arbitrary RichField where
   arbitrary =
     RichField
-      <$> (CI.mk . cs . QC.getPrintableString <$> arbitrary)
-      <*> (cs . QC.getPrintableString <$> arbitrary)
+      <$> (CI.mk . Text.pack . QC.getPrintableString <$> arbitrary)
+      <*> (Text.pack . QC.getPrintableString <$> arbitrary)
   shrink (RichField k v) = RichField <$> QC.shrink k <*> QC.shrink v
 
 --------------------------------------------------------------------------------

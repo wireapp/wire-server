@@ -23,9 +23,9 @@ import Data.Conduit.Internal (zipSources)
 import Data.Conduit.List qualified as C
 import Data.Id
 import Galley.DataMigration.Types
-import Galley.Types.Teams
 import Imports
 import System.Logger.Class qualified as Log
+import Wire.API.Team.Member
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
 

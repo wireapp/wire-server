@@ -56,7 +56,6 @@ import Bilge.RPC (RPCException (RPCException))
 import Bilge.Request qualified as RPC (empty, host, method, port)
 import Bilge.Response (responseJsonThrow)
 import Bilge.Retry (rpcHandlers)
-import Brig.Data.Instances ()
 import Brig.Index.Types (CreateIndexSettings (..))
 import Brig.Types.Search (SearchVisibilityInbound, defaultSearchVisibilityInbound, searchVisibilityInboundFromFeatureStatus)
 import Brig.User.Search.Index.Types as Types
@@ -70,17 +69,20 @@ import Control.Retry (RetryPolicy, exponentialBackoff, limitRetries, recovering)
 import Data.Aeson as Aeson
 import Data.Aeson.Encoding
 import Data.Aeson.Lens
+import Data.ByteString (toStrict)
 import Data.ByteString.Builder (Builder, toLazyByteString)
 import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.Conversion qualified as Bytes
 import Data.ByteString.Lazy qualified as BL
+import Data.Credentials
 import Data.Handle (Handle)
 import Data.Id
 import Data.Map qualified as Map
 import Data.Metrics
 import Data.Text qualified as T
 import Data.Text qualified as Text
-import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import Data.Text.Encoding
+import Data.Text.Encoding.Error
 import Data.Text.Lazy qualified as LT
 import Data.Text.Lazy.Builder.Int (decimal)
 import Data.Text.Lens hiding (text)
@@ -112,7 +114,10 @@ data IndexEnv = IndexEnv
     idxAdditionalName :: Maybe ES.IndexName,
     idxAdditionalElastic :: Maybe ES.BHEnv,
     idxGalley :: Endpoint,
-    idxHttpManager :: Manager
+    -- | Used to make RPC calls to other wire-server services
+    idxRpcHttpManager :: Manager,
+    -- credentials for reindexing have to be passed via the env because bulk API requests are not supported by bloodhound
+    idxCredentials :: Maybe Credentials
   }
 
 newtype IndexIO a = IndexIO (ReaderT IndexEnv IO a)
@@ -150,7 +155,7 @@ instance ES.MonadBH IndexIO where
 
 instance MonadHttp IndexIO where
   handleRequestWithCont req handler = do
-    manager <- asks idxHttpManager
+    manager <- asks idxRpcHttpManager
     liftIO $ withResponse req manager handler
 
 withDefaultESUrl :: (MonadIndexIO m) => ES.BH m a -> m a
@@ -210,12 +215,13 @@ updateIndex (IndexUpdateUsers updateType ius) = liftIndexIO $ do
   let (ES.MappingName mpp) = mappingName
   let (ES.Server base) = ES.bhServer bhe
   req <- parseRequest (view unpacked $ base <> "/" <> idx <> "/" <> mpp <> "/_bulk")
+  authHeaders <- mkAuthHeaders
   res <-
     liftIO $
       httpLbs
         req
           { method = "POST",
-            requestHeaders = [(hContentType, "application/x-ndjson")], -- sic
+            requestHeaders = [(hContentType, "application/x-ndjson")] <> authHeaders, -- sic
             requestBody = RequestBodyLBS (toLazyByteString (foldMap bulkEncode ius))
           }
         (ES.bhManager bhe)
@@ -229,6 +235,10 @@ updateIndex (IndexUpdateUsers updateType ius) = liftIndexIO $ do
       (path ("user.index.update.bulk.status." <> review builder (decimal s)))
       m
   where
+    mkAuthHeaders = do
+      creds <- asks idxCredentials
+      pure $ maybe [] ((: []) . mkBasicAuthHeader) creds
+
     encodeJSONToString :: ToJSON a => a -> Builder
     encodeJSONToString = fromEncoding . toEncoding
     bulkEncode iu =
@@ -332,7 +342,12 @@ createIndex' failIfExists (CreateIndexSettings settings shardCount mbDeleteTempl
     for_ mbDeleteTemplate $ \templateName@(ES.TemplateName tname) -> do
       tExists <- ES.templateExists templateName
       when tExists $ do
-        dr <- traceES (cs ("Delete index template " <> "\"" <> tname <> "\"")) $ ES.deleteTemplate templateName
+        dr <-
+          traceES
+            ( encodeUtf8
+                ("Delete index template " <> "\"" <> tname <> "\"")
+            )
+            $ ES.deleteTemplate templateName
         unless (ES.isSuccess dr) $
           throwM (IndexError "Deleting index template failed.")
 
@@ -888,7 +903,11 @@ reindexRowToIndexUser
       idpUrl (UserScimExternalId _) = Nothing
 
       fromUri :: URI -> Text
-      fromUri = cs . toLazyByteString . serializeURIRef
+      fromUri =
+        decodeUtf8With lenientDecode
+          . toStrict
+          . toLazyByteString
+          . serializeURIRef
 
       sso :: UserSSOId -> Maybe Sso
       sso userSsoId = do

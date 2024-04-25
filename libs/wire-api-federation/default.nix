@@ -11,6 +11,7 @@
 , bytestring
 , bytestring-conversion
 , containers
+, dns-util
 , exceptions
 , gitignoreSource
 , HsOpenSSL
@@ -58,6 +59,7 @@ mkDerivation {
     bytestring
     bytestring-conversion
     containers
+    dns-util
     exceptions
     HsOpenSSL
     http-media

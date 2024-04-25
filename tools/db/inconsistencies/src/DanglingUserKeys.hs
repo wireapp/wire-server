@@ -22,7 +22,6 @@
 
 module DanglingUserKeys where
 
-import Brig.Data.Instances ()
 import Brig.Data.UserKey
 import Brig.Email (EmailKey (..), mkEmailKey)
 import Brig.Phone (PhoneKey (..), mkPhoneKey)
@@ -54,8 +53,8 @@ runCommand l brig inconsistenciesFile = do
               Log.info l (Log.field "keys" (show ((i - 1) * pageSize + fromIntegral (length userKeys))))
               pure userKeys
           )
-        .| C.mapM (liftIO . pooledMapConcurrentlyN 48 (\(key, userId, claimTime) -> checkUser l brig key userId claimTime False))
-        .| C.map ((<> "\n") . BS.intercalate "\n" . map (cs . Aeson.encode) . catMaybes)
+        .| C.mapM (liftIO . pooledMapConcurrentlyN 48 (\(key, uid, claimTime) -> checkUser l brig key uid claimTime False))
+        .| C.map ((<> "\n") . BS.intercalate "\n" . map (BS.toStrict . Aeson.encode) . catMaybes)
         .| sinkFile inconsistenciesFile
 
 runRepair :: Logger -> ClientState -> FilePath -> FilePath -> Bool -> IO ()
@@ -72,7 +71,7 @@ runRepair l brig inputFile outputFile repairData = do
                 Log.info l (Log.field "keysProcesses" i)
               liftIO $ checkKey l brig key repairData
           )
-        .| C.map ((<> "\n") . cs . Aeson.encode)
+        .| C.map ((<> "\n") . BS.toStrict . Aeson.encode)
         .| sinkFile outputFile
 
 pageSize :: Int32
@@ -176,8 +175,8 @@ insertKey l u k = do
 --     3.c  this user's email, when searched for does not exist in user_keys. Do nothing, let this be handled by the other module EmailLessUsers.hs
 --   4. user has an email in user_keys but no email inside user table -> do nothing. How to resolve?
 checkUser :: Logger -> ClientState -> UserKey -> UserId -> Writetime UserId -> Bool -> IO (Maybe Inconsistency)
-checkUser l brig key userId time repairData = do
-  maybeDetails <- runClient brig $ getUserDetails userId
+checkUser l brig key uid time repairData = do
+  maybeDetails <- runClient brig $ getUserDetails uid
   case maybeDetails of
     Nothing -> do
       let status = Nothing
@@ -187,7 +186,7 @@ checkUser l brig key userId time repairData = do
       when repairData $ -- case 2.
         runClient brig $
           freeUserKey l key
-      pure . Just $ Inconsistency {..}
+      pure . Just $ Inconsistency {userId = uid, ..}
     Just (mStatus, mStatusWriteTime, mEmail, mEmailWriteTime, mPhone, mPhoneWriteTime) -> do
       let status = WithWritetime <$> mStatus <*> mStatusWriteTime
           userEmail = WithWritetime <$> mEmail <*> mEmailWriteTime
@@ -203,20 +202,20 @@ checkUser l brig key userId time repairData = do
         then do
           let inconsistencyCase = "1."
           when repairData $ runClient brig (freeUserKey l key)
-          pure . Just $ Inconsistency {..}
+          pure . Just $ Inconsistency {userId = uid, ..}
         else
           if keyError
             then do
               case mEmail of
                 Nothing -> do
-                  Log.warn l (Log.msg (Log.val "Subcase 4: user has no email") . Log.field "userId" (show userId))
+                  Log.warn l (Log.msg (Log.val "Subcase 4: user has no email") . Log.field "userId" (show uid))
                   let inconsistencyCase = "4."
-                  pure . Just $ Inconsistency {..}
+                  pure . Just $ Inconsistency {userId = uid, ..}
                 Just email -> do
                   validKeysEntry <- runClient brig $ getKey (userEmailKey email)
                   case validKeysEntry of
-                    Just (uid, _) ->
-                      if uid == userId
+                    Just (keyEntryUserId, _) ->
+                      if keyEntryUserId == uid
                         then do
                           -- there is a valid matching user_key entry for a user in the user table; just *also* an extra entry that can be cleaned up (case 3.a.)
                           Log.warn l (Log.msg (Log.val "Subcase 3a: entry can be repaired by removing entry") . Log.field "key" (keyText key))
@@ -224,13 +223,13 @@ checkUser l brig key userId time repairData = do
                           when repairData $
                             runClient brig $
                               freeUserKey l key
-                          pure . Just $ Inconsistency {..}
+                          pure . Just $ Inconsistency {userId = uid, ..}
                         else do
                           let inconsistencyCase = "3.b."
-                          Log.warn l (Log.msg (Log.val "Subcase 3b: double mismatch entry in user_keys") . Log.field "userId" (show userId))
-                          pure . Just $ Inconsistency {..}
+                          Log.warn l (Log.msg (Log.val "Subcase 3b: double mismatch entry in user_keys") . Log.field "userId" (show uid))
+                          pure . Just $ Inconsistency {userId = uid, ..}
                     Nothing -> do
                       let inconsistencyCase = "3.c."
-                      Log.warn l (Log.msg (Log.val "Subcase 3c: missing entry in user_keys") . Log.field "userId" (show userId))
-                      pure . Just $ Inconsistency {..}
+                      Log.warn l (Log.msg (Log.val "Subcase 3c: missing entry in user_keys") . Log.field "userId" (show uid))
+                      pure . Just $ Inconsistency {userId = uid, ..}
             else pure Nothing

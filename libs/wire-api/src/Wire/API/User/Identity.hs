@@ -52,6 +52,7 @@ module Wire.API.User.Identity
   )
 where
 
+import Cassandra qualified as C
 import Control.Applicative (optional)
 import Control.Lens (dimap, over, (.~), (?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..))
@@ -59,13 +60,17 @@ import Data.Aeson qualified as A
 import Data.Aeson.Types qualified as A
 import Data.Attoparsec.Text
 import Data.Bifunctor (first)
+import Data.ByteString (fromStrict, toStrict)
 import Data.ByteString.Conversion
+import Data.ByteString.UTF8 qualified as UTF8
 import Data.CaseInsensitive qualified as CI
 import Data.OpenApi (ToParamSchema (..))
 import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Text qualified as Text
-import Data.Text.Encoding (decodeUtf8', encodeUtf8)
+import Data.Text.Encoding
+import Data.Text.Encoding.Error
+import Data.Text.Lazy qualified as LT
 import Data.Time.Clock
 import Data.Tuple.Extra (fst3, snd3, thd3)
 import Imports
@@ -188,16 +193,26 @@ instance FromByteString Email where
   parser = parser >>= maybe (fail "Invalid email") pure . parseEmail
 
 instance S.FromHttpApiData Email where
-  parseUrlPiece = maybe (Left "Invalid email") Right . fromByteString . cs
+  parseUrlPiece = maybe (Left "Invalid email") Right . fromByteString . encodeUtf8
 
 instance S.ToHttpApiData Email where
-  toUrlPiece = cs . toByteString'
+  toUrlPiece = decodeUtf8With lenientDecode . toByteString'
 
 instance Arbitrary Email where
   arbitrary = do
     localPart <- Text.filter (/= '@') <$> arbitrary
     domain <- Text.filter (/= '@') <$> arbitrary
     pure $ Email localPart domain
+
+instance C.Cql Email where
+  ctype = C.Tagged C.TextColumn
+
+  fromCql (C.CqlText t) = case parseEmail t of
+    Just e -> pure e
+    Nothing -> Left "fromCql: Invalid email"
+  fromCql _ = Left "fromCql: email: CqlText expected"
+
+  toCql = C.toCql . fromEmail
 
 fromEmail :: Email -> Text
 fromEmail (Email loc dom) = loc <> "@" <> dom
@@ -270,10 +285,10 @@ instance FromByteString Phone where
   parser = parser >>= maybe (fail "Invalid phone") pure . parsePhone
 
 instance S.FromHttpApiData Phone where
-  parseUrlPiece = maybe (Left "Invalid phone") Right . fromByteString . cs
+  parseUrlPiece = maybe (Left "Invalid phone") Right . fromByteString . encodeUtf8
 
 instance S.ToHttpApiData Phone where
-  toUrlPiece = cs . toByteString'
+  toUrlPiece = decodeUtf8With lenientDecode . toByteString'
 
 instance Arbitrary Phone where
   arbitrary =
@@ -282,6 +297,8 @@ instance Arbitrary Phone where
       mini <- mkdigits 8
       maxi <- mkdigits =<< QC.chooseInt (0, 7)
       pure $ '+' : mini <> maxi
+
+deriving instance C.Cql Phone
 
 -- | Parses a phone number in E.164 format with a mandatory leading '+'.
 parsePhone :: Text -> Maybe Phone
@@ -314,6 +331,16 @@ data UserSSOId
   | UserScimExternalId Text
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserSSOId)
+
+instance C.Cql UserSSOId where
+  ctype = C.Tagged C.TextColumn
+
+  fromCql (C.CqlText t) = case A.eitherDecode $ fromStrict (encodeUtf8 t) of
+    Right i -> pure i
+    Left msg -> Left $ "fromCql: Invalid UserSSOId: " ++ msg
+  fromCql _ = Left "fromCql: UserSSOId: CqlText expected"
+
+  toCql = C.toCql . decodeUtf8With lenientDecode . toStrict . A.encode
 
 -- | FUTUREWORK: This schema should ideally be a choice of either tenant+subject, or scim_external_id
 -- but this is currently not possible to derive in swagger2
@@ -371,7 +398,7 @@ lenientlyParseSAMLIssuer mbtxt = forM mbtxt $ \txt -> do
       asurl :: Either String SAML.Issuer
       asurl =
         bimap show SAML.Issuer $
-          URI.parseURI URI.laxURIParserOptions (cs txt)
+          URI.parseURI URI.laxURIParserOptions (encodeUtf8 . LT.toStrict $ txt)
 
       err :: String
       err = "lenientlyParseSAMLIssuer: " <> show (asxml, asurl, mbtxt)
@@ -389,11 +416,11 @@ lenientlyParseSAMLNameID (Just txt) = do
         maybe
           (Left "not an email")
           (fmap emailToSAMLNameID . validateEmail)
-          (parseEmail (cs txt))
+          (parseEmail . LT.toStrict $ txt)
 
       astxt :: Either String SAML.NameID
       astxt = do
-        nm <- mkName (cs txt)
+        nm <- mkName . LT.toStrict $ txt
         SAML.mkNameID (SAML.mkUNameIDUnspecified (fromName nm)) Nothing Nothing Nothing
 
       err :: String
@@ -426,7 +453,12 @@ mkSampleUref :: Text -> Text -> SAML.UserRef
 mkSampleUref iseed nseed = SAML.UserRef issuer nameid
   where
     issuer :: SAML.Issuer
-    issuer = SAML.Issuer ([uri|http://example.com/|] & URI.pathL .~ cs ("/" </> cs iseed))
+    issuer =
+      SAML.Issuer
+        ( [uri|http://example.com/|]
+            & URI.pathL
+              .~ UTF8.fromString ("/" </> Text.unpack iseed)
+        )
 
     nameid :: SAML.NameID
     nameid = fromRight (error "impossible") $ do

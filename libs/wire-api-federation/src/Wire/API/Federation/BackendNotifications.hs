@@ -4,11 +4,14 @@
 module Wire.API.Federation.BackendNotifications where
 
 import Control.Exception
+import Control.Monad.Codensity
 import Control.Monad.Except
-import Data.Aeson
+import Data.Aeson qualified as A
 import Data.Domain
 import Data.Id (RequestId)
+import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as Map
+import Data.Schema
 import Data.Text qualified as Text
 import Data.Text.Lazy.Encoding qualified as TL
 import Imports
@@ -20,6 +23,8 @@ import Wire.API.Federation.API.Common
 import Wire.API.Federation.Client
 import Wire.API.Federation.Component
 import Wire.API.Federation.Error
+import Wire.API.Federation.HasNotificationEndpoint
+import Wire.API.Federation.Version
 import Wire.API.RawJson
 
 -- | NOTE: Stored in RabbitMQ, any changes to serialization of this object could cause
@@ -33,46 +38,115 @@ data BackendNotification = BackendNotification
     -- pusher. This also makes development less clunky as we don't have to
     -- create a sum type here for all types of notifications that could exist.
     body :: RawJson,
+    -- | The federation API versions that the 'body' corresponds to. The field
+    -- is optional so that messages already in the queue are not lost.
+    bodyVersions :: Maybe VersionRange,
     requestId :: Maybe RequestId
   }
   deriving (Show, Eq)
+  deriving (A.ToJSON, A.FromJSON) via (Schema BackendNotification)
 
-instance ToJSON BackendNotification where
-  toJSON notif =
-    object
-      [ "ownDomain" .= notif.ownDomain,
-        "targetComponent" .= notif.targetComponent,
-        "path" .= notif.path,
-        "body" .= TL.decodeUtf8 notif.body.rawJsonBytes,
-        "requestId" .= notif.requestId
-      ]
+instance ToSchema BackendNotification where
+  schema =
+    object "BackendNotification" $
+      BackendNotification
+        <$> ownDomain .= field "ownDomain" schema
+        <*> targetComponent .= field "targetComponent" schema
+        <*> path .= field "path" schema
+        <*> (TL.decodeUtf8 . rawJsonBytes . body)
+          .= field "body" (RawJson . TL.encodeUtf8 <$> schema)
+        <*> bodyVersions .= maybe_ (optField "bodyVersions" schema)
+        <*> (.requestId) .= maybe_ (optField "requestId" schema)
 
-instance FromJSON BackendNotification where
-  parseJSON = withObject "BackendNotification" $ \o ->
-    BackendNotification
-      <$> o .: "ownDomain"
-      <*> o .: "targetComponent"
-      <*> o .: "path"
-      <*> (RawJson . TL.encodeUtf8 <$> o .: "body")
-      <*> o .:? "requestId"
+-- | Convert a federation endpoint to a backend notification to be enqueued to a
+-- RabbitMQ queue.
+fedNotifToBackendNotif ::
+  forall {k} (tag :: k).
+  ( HasFedPath tag,
+    HasVersionRange tag,
+    KnownComponent (NotificationComponent k),
+    A.ToJSON (Payload tag)
+  ) =>
+  RequestId ->
+  Domain ->
+  Payload tag ->
+  BackendNotification
+fedNotifToBackendNotif rid ownDomain payload =
+  let p = Text.pack $ fedPath @tag
+      b = RawJson . A.encode $ payload
+   in toNotif p b
+  where
+    toNotif :: Text -> RawJson -> BackendNotification
+    toNotif path body =
+      BackendNotification
+        { ownDomain = ownDomain,
+          targetComponent = componentVal @(NotificationComponent k),
+          path = path,
+          body = body,
+          bodyVersions = Just $ versionRange @tag,
+          requestId = Just rid
+        }
+
+newtype PayloadBundle (c :: Component) = PayloadBundle
+  { notifications :: NE.NonEmpty BackendNotification
+  }
+  deriving (A.ToJSON, A.FromJSON) via (Schema (PayloadBundle c))
+  deriving newtype (Semigroup)
+
+instance ToSchema (PayloadBundle c) where
+  schema =
+    object "PayloadBundle" $
+      PayloadBundle
+        <$> notifications .= field "notifications" (nonEmptyArray schema)
+
+toBundle ::
+  forall {k} (tag :: k).
+  ( HasFedPath tag,
+    HasVersionRange tag,
+    KnownComponent (NotificationComponent k),
+    A.ToJSON (Payload tag)
+  ) =>
+  RequestId ->
+  -- | The origin domain
+  Domain ->
+  Payload tag ->
+  PayloadBundle (NotificationComponent k)
+toBundle reqId originDomain payload =
+  let notif = fedNotifToBackendNotif @tag reqId originDomain payload
+   in PayloadBundle . pure $ notif
+
+makeBundle ::
+  forall {k} (tag :: k) c.
+  ( HasFedPath tag,
+    HasVersionRange tag,
+    KnownComponent (NotificationComponent k),
+    A.ToJSON (Payload tag),
+    c ~ NotificationComponent k
+  ) =>
+  Payload tag ->
+  FedQueueClient c (PayloadBundle c)
+makeBundle payload = do
+  reqId <- asks (.requestId)
+  origin <- asks (.originDomain)
+  pure $ toBundle @tag reqId origin payload
 
 type BackendNotificationAPI = Capture "name" Text :> ReqBody '[JSON] RawJson :> Post '[JSON] EmptyResponse
 
-sendNotification :: FederatorClientEnv -> Component -> Text -> RawJson -> IO (Either FederatorClientError ())
-sendNotification env component path body =
-  case component of
-    Brig -> go @'Brig
-    Galley -> go @'Galley
-    Cargohold -> go @'Cargohold
+sendNotification :: FederatorClientVersionedEnv -> Component -> Text -> RawJson -> IO (Either FederatorClientError ())
+sendNotification env component path body = case someComponent component of
+  SomeComponent p -> go p
   where
     withoutFirstSlash :: Text -> Text
     withoutFirstSlash (Text.stripPrefix "/" -> Just t) = t
     withoutFirstSlash t = t
 
-    go :: forall c. (KnownComponent c) => IO (Either FederatorClientError ())
-    go =
-      runFederatorClient env . void $
-        clientIn (Proxy @BackendNotificationAPI) (Proxy @(FederatorClient c)) (withoutFirstSlash path) body
+    go :: forall c. KnownComponent c => Proxy c -> IO (Either FederatorClientError ())
+    go _ =
+      lowerCodensity
+        . runExceptT
+        . runVersionedFederatorClientToCodensity env
+        . void
+        $ clientIn (Proxy @BackendNotificationAPI) (Proxy @(FederatorClient c)) (withoutFirstSlash path) body
 
 enqueue :: Q.Channel -> RequestId -> Domain -> Domain -> Q.DeliveryMode -> FedQueueClient c a -> IO a
 enqueue channel requestId originDomain targetDomain deliveryMode (FedQueueClient action) =

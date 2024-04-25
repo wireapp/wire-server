@@ -40,6 +40,7 @@ module Wire.API.Connection
   )
 where
 
+import Cassandra qualified as C
 import Control.Applicative (optional)
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
@@ -223,6 +224,38 @@ instance ToHttpApiData Relation where
     Sent -> "sent"
     Cancelled -> "cancelled"
     MissingLegalholdConsent -> "missing-legalhold-consent"
+
+instance C.Cql RelationWithHistory where
+  ctype = C.Tagged C.IntColumn
+
+  fromCql (C.CqlInt i) = case i of
+    0 -> pure AcceptedWithHistory
+    1 -> pure BlockedWithHistory
+    2 -> pure PendingWithHistory
+    3 -> pure IgnoredWithHistory
+    4 -> pure SentWithHistory
+    5 -> pure CancelledWithHistory
+    6 -> pure MissingLegalholdConsentFromAccepted
+    7 -> pure MissingLegalholdConsentFromBlocked
+    8 -> pure MissingLegalholdConsentFromPending
+    9 -> pure MissingLegalholdConsentFromIgnored
+    10 -> pure MissingLegalholdConsentFromSent
+    11 -> pure MissingLegalholdConsentFromCancelled
+    n -> Left $ "unexpected RelationWithHistory: " ++ show n
+  fromCql _ = Left "RelationWithHistory: int expected"
+
+  toCql AcceptedWithHistory = C.CqlInt 0
+  toCql BlockedWithHistory = C.CqlInt 1
+  toCql PendingWithHistory = C.CqlInt 2
+  toCql IgnoredWithHistory = C.CqlInt 3
+  toCql SentWithHistory = C.CqlInt 4
+  toCql CancelledWithHistory = C.CqlInt 5
+  toCql MissingLegalholdConsentFromAccepted = C.CqlInt 6
+  toCql MissingLegalholdConsentFromBlocked = C.CqlInt 7
+  toCql MissingLegalholdConsentFromPending = C.CqlInt 8
+  toCql MissingLegalholdConsentFromIgnored = C.CqlInt 9
+  toCql MissingLegalholdConsentFromSent = C.CqlInt 10
+  toCql MissingLegalholdConsentFromCancelled = C.CqlInt 11
 
 ----------------
 -- Requests

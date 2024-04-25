@@ -24,14 +24,25 @@ For example:
   mlsPrivateKeyPaths:
     removal:
       ed25519: /etc/secrets/ed25519.pem
+      ecdsa_secp256r1_sha256: /etc/secrets/ecdsa_secp256r1_sha256
+      ecdsa_secp384r1_sha384: /etc/secrets/ecdsa_secp384r1_sha384
+      ecdsa_secp521r1_sha512: /etc/secrets/ecdsa_secp521r1_sha512
 ```
 
 A simple way to generate an ed25519 private key, discarding the corresponding
 certificate, is to run the following command:
 
 ```
-openssl req -nodes -newkey ed25519 -keyout ed25519.pem -out /dev/null -subj /
+openssl genpkey -algorithm ed25519
 ```
+
+ECDSA private keys can be generated with:
+
+```
+openssl genpkey -algorithm ec -genparam dsa -pkeyopt ec_paramgen_curve:P-256
+```
+
+and similar (replace `P-256` with `P-384` or `P-521`).
 
 ## Feature flags
 
@@ -197,26 +208,7 @@ Individual teams can overwrite the default setting.
 
 ### Classified domains
 
-To enable classified domains, the following needs to be in galley.yaml or wire-server/values.yaml under `settings` / `featureFlags`:
-
-```yaml
-classifiedDomains:
-  status: enabled
-  config:
-    domains: ["example.com", "example2.com"]
-```
-
-Note that when enabling this feature, it is important to provide your own domain
-too in the list of domains. In the example above, `example.com` or `example2.com` is your domain.
-
-To disable, either omit the entry entirely (it is disabled by default), or provide the following:
-
-```yaml
-classifiedDomains:
-  status: disabled
-  config:
-    domains: []
-```
+To enable classified domains, see the documentation on classified domains: {ref}`classified-domains`
 
 ### Conference Calling
 
@@ -536,6 +528,30 @@ This setting assumes that the sft load balancer has been deployed with the `sftd
 
 Additionally if `setSftListAllServers` is set to `enabled` (disabled by default) then the `/calls/config/v2` endpoint will include a list of all servers that are load balanced by `setSftStaticUrl` at field `sft_servers_all`. This is required to enable calls between federated instances of Wire.
 
+Calls between federated SFT servers can be enabled using the optional boolean `multiSFT.enabled`. If provided, the field `is_federating` in the response of `/calls/config/v2` will reflect `multiSFT.enabled`'s value.
+
+```
+# [brig.yaml]
+multiSFT:
+  enabled: true
+```
+
+Also, the optional object `sftToken` with its fields `ttl` and `secret` define whether an SFT credential would be rendered in the response of `/calls/config/v2`. The field `ttl` determines the seconds for the credential to be valid and `secret` is the path to the secret shared with SFT to create credentials.
+
+Example:
+
+```
+# [brig.yaml]
+sft:
+  sftBaseDomain: sft.wire.example.com
+  sftSRVServiceName: sft
+  sftDiscoveryIntervalSeconds: 10
+  sftListLength: 20
+  sftToken:
+    ttl: 120
+    secret: /path/to/secret
+```
+
 ### Locale
 
 
@@ -847,7 +863,8 @@ client), a **C**ertificate **A**uthority in PEM format needs to be configured.
 
 The ways differ regarding the kind of program:
 - *Services* expect a `cassandra.tlsCa: <filepath>` attribute in their config file.
-- *CLI commands* (e.g. migrations) accept a `--tls-ca-certificate-file <filepath>` parameter.
+- *\*-schema CLI commands* accept a `--tls-ca-certificate-file <filepath>` parameter.
+- *brig-index migrate-data* accepts a `--cassandra-ca-cert <filepath>` parameter.
 
 When a CA PEM file is configured, all Cassandra connections are opened with TLS
 encryption i.e. there is no fallback to unencrypted connections. This ensures
@@ -872,3 +889,142 @@ accessible to services (and not the private key.)
 
 The corresponding Cassandra options are described in Cassandra's documentation:
 [client_encryption_options](https://cassandra.apache.org/doc/stable/cassandra/configuration/cass_yaml_file.html#client_encryption_options)
+
+## Configure Elasticsearch basic authentication
+
+When the Wire backend is configured to work against a custom Elasticsearch
+instance, it may be desired to enable basic authentication for the internal
+communication between the Wire backend and the ES instance. To do so the
+Elasticsearch credentials can be set in wire-server's secrets for `brig` and
+`elasticsearch-index` as follows:
+
+```yaml
+brig:
+  secrets:
+    elasticsearch:
+      username: elastic
+      password: changeme
+
+elasticsearch-index:
+  secrets:
+    elasticsearch:
+      username: elastic
+      password: changeme
+```
+
+In some cases an additional Elasticsearch instance is needed (e.g. for index
+migrations). To configure credentials for the additional ES instance add the
+secret as follows:
+
+```yaml
+brig:
+  secrets:
+    elasticsearchAdditional:
+      username: elastic
+      password: changeme
+```
+
+## Configure TLS for Elasticsearch
+
+If the elasticsearch instance requires TLS, it can be configured like this:
+
+```yaml
+brig:
+  config:
+    elasticsearch:
+      scheme: https
+
+elasticsearch-index:
+  elasticsearch:
+    scheme: https
+```
+
+In case a custom CA certificate is required it can be provided like this:
+
+```yaml
+brig:
+  config:
+    elasticsearch:
+      tlsCa: <PEM encoded CA certificates>
+elasticsearch-index:
+  elasticsearch:
+    tlsCa: <PEM encoded CA certificates>
+```
+
+There is another way to provide this, in case there already exists a kubernetes
+secret containing the CA certificate(s):
+
+```yaml
+brig:
+  config:
+    elasticsearch:
+      tlsCaSecretRef:
+        name: <Name of the secret>
+        key: <Key in the secret containing pem encoded CA Cert>
+elasticsearch-index:
+  elasticsearch:
+    tlsCaSecretRef:
+      name: <Name of the secret>
+      key: <Key in the secret containing pem encoded CA Cert>
+```
+
+For configuring `addtionalWriteIndex` in brig (this is required during a
+migration from one index to another or one ES instance to another), the settings
+need to be like this:
+
+```yaml
+brig:
+  config:
+    elasticsearch:
+      additionalWriteScheme: https
+      # One or none of these:
+      # addtionalTlsCa: <similar to tlsCa>
+      # addtionalTlsCaSecretRef: <similar to tlsCaSecretRef>
+```
+
+
+**WARNING:** Please do this only if you know what you're doing.
+
+In case it is not possible to verify TLS certificate of the elasticsearch
+server, it can be turned off without tuning off TLS like this:
+
+```yaml
+brig:
+  config:
+    elasticsearch:
+      insecureSkipVerifyTls: true
+      addtionalInsecureSkipVerifyTls: true # only required when addtional index is being used.
+elasticsearch-index:
+  elasticsearch:
+    insecureSkipVerifyTls: true
+```
+
+## Configure Redis authentication
+
+If the redis used needs authentication with either username and password or just
+password (legacy auth), it can be configured like this:
+
+```yaml
+gundeck:
+  secrets:
+    redisUsername: <username>
+    redisPassword: <password>
+```
+
+**NOTE**: When using redis < 6, the `redisUsername` must not be set at all (not
+even set to `null` or empty string, the key must be absent from the config).
+When using redis >= 6 and using legacy auth, the `redisUsername` must either be
+not set at all or set to `"default"`.
+
+While doing migrations to another redis instance, the credentials for the
+addtional redis can be set as follows:
+
+```yaml
+gundeck:
+  secrets:
+    redisAdditionalWriteUsername: <username>  # Do not set this at all when using legacy auth
+    redisAdditionalWritePassword: <password>
+```
+
+**NOTE**: `redisAddtiionalWriteUsername` follows same restrictions as
+`redisUsername` when using legacy auth.

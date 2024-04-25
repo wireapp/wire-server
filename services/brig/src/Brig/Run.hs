@@ -22,11 +22,10 @@ module Brig.Run
 where
 
 import AWS.Util (readAuthExpiration)
-import Brig.API (sitemap)
 import Brig.API.Federation
 import Brig.API.Handler
 import Brig.API.Internal qualified as IAPI
-import Brig.API.Public (DocsAPI, docsAPI, servantSitemap)
+import Brig.API.Public
 import Brig.API.User qualified as API
 import Brig.AWS (amazonkaEnv, sesQueue)
 import Brig.AWS qualified as AWS
@@ -46,11 +45,13 @@ import Control.Lens (view, (.~), (^.))
 import Control.Monad.Catch (MonadCatch, finally)
 import Control.Monad.Random (randomRIO)
 import Data.Aeson qualified as Aeson
+import Data.ByteString.UTF8 qualified as UTF8
 import Data.Id (RequestId (..))
 import Data.Metrics.AWS (gaugeTokenRemaing)
 import Data.Metrics.Servant qualified as Metrics
 import Data.Proxy (Proxy (Proxy))
 import Data.Text (unpack)
+import Data.Text.Encoding
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
 import Imports hiding (head)
@@ -59,8 +60,6 @@ import Network.HTTP.Types qualified as HTTP
 import Network.Wai qualified as Wai
 import Network.Wai.Middleware.Gunzip qualified as GZip
 import Network.Wai.Middleware.Gzip qualified as GZip
-import Network.Wai.Routing (Tree)
-import Network.Wai.Routing.Route (App)
 import Network.Wai.Utilities (lookupRequestId)
 import Network.Wai.Utilities.Server
 import Network.Wai.Utilities.Server qualified as Server
@@ -72,6 +71,7 @@ import System.Logger qualified as Log
 import System.Logger.Class (MonadLogger, err)
 import Util.Options
 import Wire.API.Routes.API
+import Wire.API.Routes.Internal.Brig qualified as IAPI
 import Wire.API.Routes.Public.Brig
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
@@ -119,21 +119,15 @@ mkApp o = do
   e <- newEnv o
   pure (middleware e $ \reqId -> servantApp (e & requestId .~ reqId), e)
   where
-    rtree :: Tree (App (Handler BrigCanonicalEffects))
-    rtree = compile sitemap
-
     middleware :: Env -> (RequestId -> Wai.Application) -> Wai.Application
     middleware e =
       -- this rewrites the request, so it must be at the top (i.e. applied last)
       versionMiddleware (e ^. disabledVersions)
-        . Metrics.servantPlusWAIPrometheusMiddleware (sitemap @BrigCanonicalEffects) (Proxy @ServantCombinedAPI)
+        . Metrics.servantPrometheusMiddleware (Proxy @ServantCombinedAPI)
         . GZip.gunzip
         . GZip.gzip GZip.def
         . catchErrors (e ^. applog) [Right $ e ^. metrics]
         . lookupRequestIdMiddleware (e ^. applog)
-
-    app :: Env -> Wai.Request -> (Wai.Response -> IO Wai.ResponseReceived) -> IO Wai.ResponseReceived
-    app e r k = runHandler e r (Server.route rtree r k) k
 
     -- the servant API wraps the one defined using wai-routing
     servantApp :: Env -> Wai.Application
@@ -147,7 +141,6 @@ mkApp o = do
                 :<|> hoistServerWithDomain @IAPI.API (toServantHandler e) IAPI.servantSitemap
                 :<|> hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
                 :<|> hoistServerWithDomain @VersionAPI (toServantHandler e) versionAPI
-                :<|> Servant.Tagged (app e)
             )
 
 type ServantCombinedAPI =
@@ -156,7 +149,6 @@ type ServantCombinedAPI =
       :<|> IAPI.API
       :<|> FederationAPI
       :<|> VersionAPI
-      :<|> Servant.Raw
   )
 
 lookupRequestIdMiddleware :: Logger -> (RequestId -> Wai.Application) -> Wai.Application
@@ -165,7 +157,7 @@ lookupRequestIdMiddleware logger mkapp req cont = do
     Just rid -> do
       mkapp (RequestId rid) req cont
     Nothing -> do
-      localRid <- RequestId . cs . UUID.toText <$> UUID.nextRandom
+      localRid <- RequestId . encodeUtf8 . UUID.toText <$> UUID.nextRandom
       Log.info logger $
         "request-id" .= localRid
           ~~ "method" .= Wai.requestMethod req
@@ -183,7 +175,7 @@ bodyParserErrorFormatter :: Servant.ErrorFormatter
 bodyParserErrorFormatter _ _ errMsg =
   Servant.ServerError
     { Servant.errHTTPCode = HTTP.statusCode HTTP.status400,
-      Servant.errReasonPhrase = cs $ HTTP.statusMessage HTTP.status400,
+      Servant.errReasonPhrase = UTF8.toString $ HTTP.statusMessage HTTP.status400,
       Servant.errBody =
         Aeson.encode $
           Aeson.object
@@ -228,7 +220,7 @@ pendingActivationCleanup = do
     safeForever funName action =
       forever $
         action `catchAny` \exc -> do
-          err $ "error" .= show exc ~~ msg (val $ cs funName <> " failed")
+          err $ "error" .= show exc ~~ msg (val $ UTF8.fromString funName <> " failed")
           -- pause to keep worst-case noise in logs manageable
           threadDelay 60_000_000
 

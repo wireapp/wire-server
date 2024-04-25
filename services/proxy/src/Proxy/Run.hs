@@ -25,6 +25,7 @@ import Control.Monad.Catch
 import Data.Metrics.Middleware hiding (path)
 import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
 import Imports hiding (head)
+import Network.Wai.Middleware.Gunzip qualified as GZip
 import Network.Wai.Utilities.Server hiding (serverPort)
 import Proxy.API (sitemap)
 import Proxy.Env
@@ -43,5 +44,6 @@ run o = do
   let middleware =
         versionMiddleware (foldMap expandVersionExp (o ^. disabledAPIVersions))
           . waiPrometheusMiddleware (sitemap e)
+          . GZip.gunzip
           . catchErrors (e ^. applog) [Right m]
   runSettingsWithShutdown s (middleware app) Nothing `finally` destroyEnv e

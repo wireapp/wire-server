@@ -33,7 +33,7 @@ import Galley.API.MLS.Types
 import Galley.API.MLS.Util
 import Galley.Effects
 import Galley.Effects.MemberStore
-import Imports hiding (cs)
+import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Resource (Resource)
@@ -41,6 +41,7 @@ import Polysemy.State
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Error.Galley
+import Wire.API.Federation.Error
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Credential
 import Wire.API.MLS.LeafNode
@@ -121,7 +122,8 @@ getExternalCommitData senderIdentity lConvOrSub epoch commit = do
 
 processExternalCommit ::
   forall r.
-  ( Member (ErrorS 'MLSStaleMessage) r,
+  ( Member (Error FederationError) r,
+    Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
     Member Resource r,
     HasProposalActionEffects r

@@ -82,6 +82,7 @@ import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Aeson.Types (emptyArray)
 import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Conversion
+import Data.ByteString.UTF8 qualified as UTF8
 import Data.Handle (Handle)
 import Data.Id
 import Data.Int
@@ -90,8 +91,9 @@ import Data.Map qualified as Map
 import Data.Proxy (Proxy (Proxy))
 import Data.Qualified (qUnqualified)
 import Data.Text (strip)
-import Data.Text.Encoding (decodeUtf8, encodeUtf8)
-import Data.Text.Lazy (pack)
+import Data.Text.Encoding
+import Data.Text.Encoding.Error
+import Data.Text.Lazy as LT (pack)
 import Data.Text.Lazy.Encoding qualified as TL
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Imports
@@ -133,10 +135,10 @@ backendApiVersion :: Version
 backendApiVersion = V2
 
 versionedPath :: ByteString -> Request -> Request
-versionedPath = Bilge.path . ((cs (toUrlPiece backendApiVersion) <> "/") <>)
+versionedPath = Bilge.path . ((encodeUtf8 (toUrlPiece backendApiVersion) <> "/") <>)
 
 versionedPaths :: [ByteString] -> Request -> Request
-versionedPaths = Bilge.paths . (cs (toUrlPiece backendApiVersion) :)
+versionedPaths = Bilge.paths . (encodeUtf8 (toUrlPiece backendApiVersion) :)
 
 -------------------------------------------------------------------------------
 
@@ -273,7 +275,11 @@ getEjpdInfo handles includeContacts = do
   info $ msg "Getting ejpd info on users by handle"
   b <- view brig
   let bdy :: Value
-      bdy = object ["ejpd_request" .= (cs @_ @Text . toByteString' <$> handles)]
+      bdy =
+        object
+          [ "ejpd_request"
+              .= (decodeUtf8With lenientDecode . toByteString' <$> handles)
+          ]
   r <-
     catchRpcErrors $
       rpc'
@@ -334,7 +340,11 @@ deleteAccount uid = do
 
 setStatusBindingTeam :: TeamId -> Team.TeamStatus -> Handler ()
 setStatusBindingTeam tid status = do
-  info $ msg ("Setting team status to " <> cs (encode status))
+  info $
+    msg
+      ( "Setting team status to "
+          <> UTF8.toString (BS.toStrict . encode $ status)
+      )
   g <- view galley
   void . catchRpcErrors $
     rpc'
@@ -569,7 +579,18 @@ setTeamFeatureFlag tid status = do
       FeatureTTLUnlimited -> pure ()
       FeatureTTLSeconds ((`div` (60 * 60 * 24)) -> days) -> do
         unless (days <= daysLimit) $ do
-          throwE (mkError status400 "bad-data" (cs $ "ttl limit is " <> show daysLimit <> " days; I got " <> show days <> "."))
+          throwE
+            ( mkError
+                status400
+                "bad-data"
+                ( LT.pack $
+                    "ttl limit is "
+                      <> show daysLimit
+                      <> " days; I got "
+                      <> show days
+                      <> "."
+                )
+            )
       where
         daysLimit = 2000
 
@@ -910,7 +931,7 @@ getSsoDomainRedirect domain = do
         "galley"
         g
         ( method GET
-            . versionedPaths ["custom-backend", "by-domain", cs domain]
+            . versionedPaths ["custom-backend", "by-domain", encodeUtf8 domain]
             . expectStatus (`elem` [200, 404])
         )
   case statusCode r of
@@ -932,7 +953,12 @@ putSsoDomainRedirect domain config welcome = do
       "galley"
       g
       ( method PUT
-          . Bilge.paths ["i", "custom-backend", "by-domain", urlEncode True (cs domain)]
+          . Bilge.paths
+            [ "i",
+              "custom-backend",
+              "by-domain",
+              urlEncode True (encodeUtf8 domain)
+            ]
           . Bilge.json (object ["config_json_url" .= config, "webapp_welcome_url" .= welcome])
           . expect2xx
       )
@@ -947,7 +973,12 @@ deleteSsoDomainRedirect domain = do
       "galley"
       g
       ( method DELETE
-          . Bilge.paths ["i", "custom-backend", "by-domain", urlEncode True (cs domain)]
+          . Bilge.paths
+            [ "i",
+              "custom-backend",
+              "by-domain",
+              urlEncode True (encodeUtf8 domain)
+            ]
           . expect2xx
       )
 
@@ -980,7 +1011,7 @@ getOAuthClient cid = do
   case statusCode r of
     200 -> parseResponse (mkError status502 "bad-upstream") r
     404 -> throwE (mkError status404 "bad-upstream" "not-found")
-    _ -> throwE (mkError status502 "bad-upstream" (cs $ show r))
+    _ -> throwE (mkError status502 "bad-upstream" (LT.pack $ show r))
 
 updateOAuthClient :: OAuthClientId -> OAuthClientConfig -> Handler OAuthClient
 updateOAuthClient cid conf = do

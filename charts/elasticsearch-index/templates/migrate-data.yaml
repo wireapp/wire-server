@@ -22,15 +22,18 @@ spec:
     spec:
       restartPolicy: OnFailure
       containers:
-        # Creates index in elasticsearch only when it doesn't exist.
-        # Does nothing if the index exists.
+        # Reindexes all users when a new migration is detected.
         - name: brig-index
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
           args:
             - migrate-data
             - --elasticsearch-server
-            - "http://{{ required "missing elasticsearch-index.elasticsearch.host!" .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"
+            - "{{ .Values.elasticsearch.scheme }}://{{ required "missing elasticsearch-index.elasticsearch.host!" .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"
+            {{- if hasKey .Values.secrets "elasticsearch" }}
+            - --elasticsearch-credentials
+            - "/etc/wire/elasticsearch-index/secrets/elasticsearch-credentials.yaml"
+            {{- end }}
             - --elasticsearch-index
             - "{{ or (.Values.elasticsearch.additionalWriteIndex) (.Values.elasticsearch.index) }}"
             - --cassandra-host
@@ -44,17 +47,42 @@ spec:
             - --galley-port
             - "{{ required "missing elasticsearch-index.galley.port!" .Values.galley.port }}"
             {{- if eq (include "useCassandraTLS" .Values) "true" }}
-            - --tls-ca-certificate-file
-            - /certs/{{- (include "tlsSecretRef" .Values | fromYaml).key }}
+            - --cassandra-ca-cert
+            - /certs/cassandra/{{- include "cassandraTlsSecretKey" .Values }}
             {{- end }}
-          {{- if eq (include "useCassandraTLS" .Values) "true" }}
+            {{- if eq (include "configureElasticsearchCa" .Values) "true" }}
+            - --elasticsearch-ca-cert
+            - /certs/elasticsearch/{{- include "elasticsearchTlsSecretKey" .Values}}
+            {{- end }}
+            {{- if .Values.elasticsearch.insecureSkipTlsVerify }}
+            - --elasticsearch-insecure-skip-tls-verify
+            {{- end }}
           volumeMounts:
-            - name: elasticsearch-index-migrate-cassandra-client-ca
-              mountPath: "/certs"
+          {{- if hasKey .Values.secrets "elasticsearch" }}
+            - name: "elasticsearch-index-secrets"
+              mountPath: "/etc/wire/elasticsearch-index/secrets"
           {{- end }}
-      {{- if eq (include "useCassandraTLS" .Values) "true" }}
+          {{- if eq (include "useCassandraTLS" .Values) "true" }}
+            - name: elasticsearch-index-migrate-cassandra-client-ca
+              mountPath: "/certs/cassandra"
+          {{- end }}
+          {{- if eq (include "configureElasticsearchCa" .Values) "true" }}
+            - name: elasticsearch-ca
+              mountPath: "/certs/elasticsearch"
+          {{- end }}
       volumes:
+        {{- if hasKey .Values.secrets "elasticsearch" }}
+        - name: elasticsearch-index-secrets
+          secret:
+            secretName: elasticsearch-index
+        {{- end }}
+        {{- if eq (include "useCassandraTLS" .Values) "true" }}
         - name: elasticsearch-index-migrate-cassandra-client-ca
           secret:
-            secretName: {{ (include "tlsSecretRef" .Values | fromYaml).name }}
-      {{- end}}
+            secretName: {{ include "cassandraTlsSecretName" .Values }}
+        {{- end }}
+        {{- if eq (include "configureElasticsearchCa" .Values) "true" }}
+        - name: elasticsearch-ca
+          secret:
+            secretName: {{ include "elasticsearchTlsSecretName" .Values }}
+        {{- end }}

@@ -30,7 +30,7 @@ import Cassandra qualified as DB
 import Data.Aeson as A
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Misc
-import Imports hiding (cs)
+import Imports
 import Test.Tasty hiding (Timeout)
 import Util
 import Wire.API.User

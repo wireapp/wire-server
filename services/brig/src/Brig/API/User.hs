@@ -115,6 +115,7 @@ import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.BlacklistStore qualified as BlacklistStore
 import Brig.Effects.CodeStore (CodeStore)
 import Brig.Effects.CodeStore qualified as E
+import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.GalleyProvider
 import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
@@ -131,7 +132,6 @@ import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Connection
 import Brig.Types.Intra
-import Brig.Types.User.Event
 import Brig.User.Auth.Cookie (listCookies, revokeAllCookies)
 import Brig.User.Email
 import Brig.User.Handle
@@ -140,7 +140,6 @@ import Brig.User.Phone
 import Brig.User.Search.Index (reindex)
 import Brig.User.Search.TeamSize qualified as TeamSize
 import Cassandra hiding (Set)
-import Control.Arrow ((&&&))
 import Control.Error
 import Control.Lens (view, (^.))
 import Control.Monad.Catch
@@ -153,16 +152,15 @@ import Data.Json.Util
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Extra
 import Data.List1 as List1 (List1, singleton)
-import Data.Map.Strict qualified as Map
 import Data.Metrics qualified as Metrics
 import Data.Misc
 import Data.Qualified
-import Data.Time.Clock (addUTCTime, diffUTCTime)
+import Data.Time.Clock (UTCTime, addUTCTime, diffUTCTime)
 import Data.UUID.V4 (nextRandom)
-import Galley.Types.Teams qualified as Team
-import Imports hiding (cs)
+import Imports
 import Network.Wai.Utilities
 import Polysemy
+import Polysemy.Input (Input)
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import System.Logger.Class (MonadLogger)
@@ -173,7 +171,6 @@ import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Federation.Error
 import Wire.API.Password
-import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Team hiding (newTeam)
 import Wire.API.Team.Feature
@@ -187,8 +184,10 @@ import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.Password
 import Wire.API.User.RichInfo
+import Wire.API.UserEvent
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
+import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 data AllowSCIMUpdates
   = AllowSCIMUpdates
@@ -232,7 +231,10 @@ createUserSpar ::
   ( Member GalleyProvider r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   NewUserSpar ->
   ExceptT CreateUserSparError (AppT r) CreateUserResult
@@ -302,7 +304,10 @@ createUser ::
     Member (UserPendingActivationStore p) r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   NewUser ->
   ExceptT RegisterError (AppT r) CreateUserResult
@@ -548,10 +553,9 @@ createUserInviteViaScim ::
     Member (UserPendingActivationStore p) r,
     Member TinyLog r
   ) =>
-  UserId ->
   NewUserScimInvitation ->
   ExceptT Error.Error (AppT r) UserAccount
-createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail _) = do
+createUserInviteViaScim (NewUserScimInvitation tid uid loc name rawEmail _) = do
   email <- either (const . throwE . Error.StdError $ errorToWai @'E.InvalidEmail) pure (validateEmail rawEmail)
   let emKey = userEmailKey email
   verifyUniquenessAndCheckBlacklist emKey !>> identityErrorToBrigError
@@ -592,7 +596,10 @@ updateUser ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member GalleyProvider r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -623,7 +630,10 @@ updateUser uid mconn uu allowScim = do
 changeLocale ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   ConnId ->
@@ -639,7 +649,10 @@ changeLocale uid conn (LocaleUpdate loc) = do
 changeManagedBy ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   ConnId ->
@@ -655,7 +668,10 @@ changeManagedBy uid conn (ManagedByUpdate mb) = do
 changeSupportedProtocols ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   ConnId ->
@@ -672,7 +688,10 @@ changeHandle ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member GalleyProvider r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -840,7 +859,10 @@ changePhone u phone = do
 removeEmail ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   ConnId ->
@@ -861,7 +883,10 @@ removeEmail uid conn = do
 removePhone ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   ConnId ->
@@ -887,7 +912,10 @@ revokeIdentity ::
   forall r.
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   Either Email Phone ->
   AppT r ()
@@ -930,7 +958,10 @@ changeAccountStatus ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member (Concurrency 'Unsafe) r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   List1 UserId ->
   AccountStatus ->
@@ -950,7 +981,10 @@ changeAccountStatus usrs status = do
 changeSingleAccountStatus ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   AccountStatus ->
@@ -980,7 +1014,10 @@ activate ::
   ( Member GalleyProvider r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   ActivationTarget ->
   ActivationCode ->
@@ -993,7 +1030,10 @@ activateWithCurrency ::
   ( Member GalleyProvider r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   ActivationTarget ->
   ActivationCode ->
@@ -1037,7 +1077,10 @@ preverify tgt code = do
 onActivated ::
   ( Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   ActivationEvent ->
   (AppT r) (UserId, Maybe UserIdentity, Bool)
@@ -1265,7 +1308,10 @@ deleteSelfUser ::
   ( Member GalleyProvider r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   Maybe PlainTextPassword6 ->
@@ -1346,7 +1392,10 @@ deleteSelfUser uid pwd = do
 verifyDeleteUser ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   VerifyDeleteUser ->
   ExceptT DeleteUserError (AppT r) ()
@@ -1364,7 +1413,10 @@ verifyDeleteUser d = do
 ensureAccountDeleted ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   AppT r DeleteUserResult
@@ -1404,7 +1456,10 @@ ensureAccountDeleted uid = do
 deleteAccount ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserAccount ->
   Sem r ()
@@ -1601,22 +1656,17 @@ lookupLocalProfiles ::
   AppT r [UserProfile]
 lookupLocalProfiles requestingUser others = do
   users <- wrapHttpClient $ Data.lookupUsers NoPendingInvitations others >>= mapM userGC
-  css <- case requestingUser of
-    Just localReqUser -> toMap <$> wrapHttpClient (Data.lookupConnectionStatus (map userId users) [localReqUser])
-    Nothing -> pure mempty
-  emailVisibility' <- view (settings . emailVisibility)
-  emailVisibility'' <- case emailVisibility' of
-    EmailVisibleIfOnTeam -> pure EmailVisibleIfOnTeam'
-    EmailVisibleIfOnSameTeam -> case requestingUser of
-      Just localReqUser -> EmailVisibleIfOnSameTeam' <$> getSelfInfo localReqUser
-      Nothing -> pure EmailVisibleToSelf'
-    EmailVisibleToSelf -> pure EmailVisibleToSelf'
+  emailVisibilityConfig <- view (settings . emailVisibility)
+  emailVisibilityConfigWithViewer <-
+    case emailVisibilityConfig of
+      EmailVisibleIfOnTeam -> pure EmailVisibleIfOnTeam
+      EmailVisibleToSelf -> pure EmailVisibleToSelf
+      EmailVisibleIfOnSameTeam () ->
+        EmailVisibleIfOnSameTeam . join @Maybe
+          <$> traverse getSelfInfo requestingUser
   usersAndStatus <- liftSem $ for users $ \u -> (u,) <$> getLegalHoldStatus' u
-  pure $ map (toProfile emailVisibility'' css) usersAndStatus
+  pure $ map (uncurry $ mkUserProfile emailVisibilityConfigWithViewer) usersAndStatus
   where
-    toMap :: [ConnectionStatus] -> Map UserId Relation
-    toMap = Map.fromList . map (csFrom &&& csStatus)
-
     getSelfInfo :: UserId -> AppT r (Maybe (TeamId, TeamMember))
     getSelfInfo selfId = do
       -- FUTUREWORK: it is an internal error for the two lookups (for 'User' and 'TeamMember')
@@ -1626,16 +1676,6 @@ lookupLocalProfiles requestingUser others = do
       case userTeam =<< mUser of
         Nothing -> pure Nothing
         Just tid -> (tid,) <$$> liftSem (GalleyProvider.getTeamMember selfId tid)
-
-    toProfile :: EmailVisibility' -> Map UserId Relation -> (User, UserLegalHoldStatus) -> UserProfile
-    toProfile emailVisibility'' css (u, userLegalHold) =
-      let cs = Map.lookup (userId u) css
-          profileEmail' = getEmailForProfile u emailVisibility''
-          baseProfile =
-            if Just (userId u) == requestingUser || cs == Just Accepted || cs == Just Sent
-              then connectedProfile u userLegalHold
-              else publicProfile u userLegalHold
-       in baseProfile {profileEmail = profileEmail'}
 
 getLegalHoldStatus ::
   Member GalleyProvider r =>
@@ -1653,28 +1693,6 @@ getLegalHoldStatus' user =
     Just tid -> do
       teamMember <- GalleyProvider.getTeamMember (userId user) tid
       pure $ maybe defUserLegalHoldStatus (^. legalHoldStatus) teamMember
-
-data EmailVisibility'
-  = EmailVisibleIfOnTeam'
-  | EmailVisibleIfOnSameTeam' (Maybe (TeamId, TeamMember))
-  | EmailVisibleToSelf'
-
--- | Gets the email if it's visible to the requester according to configured settings
-getEmailForProfile ::
-  User ->
-  EmailVisibility' ->
-  Maybe Email
-getEmailForProfile profileOwner EmailVisibleIfOnTeam' =
-  if isJust (userTeam profileOwner)
-    then userEmail profileOwner
-    else Nothing
-getEmailForProfile profileOwner (EmailVisibleIfOnSameTeam' (Just (viewerTeamId, viewerTeamMember))) =
-  if Just viewerTeamId == userTeam profileOwner
-    && Team.hasPermission viewerTeamMember Team.ViewSameTeamEmails
-    then userEmail profileOwner
-    else Nothing
-getEmailForProfile _ (EmailVisibleIfOnSameTeam' Nothing) = Nothing
-getEmailForProfile _ EmailVisibleToSelf' = Nothing
 
 -- | Find user accounts for a given identity, both activated and those
 -- currently pending activation.

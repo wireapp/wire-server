@@ -20,6 +20,7 @@ module Test.Wire.API.User.Search where
 import Data.Aeson (encode, toJSON)
 import Data.Aeson qualified as Aeson
 import Data.Aeson.KeyMap qualified as KeyMap
+import Data.String.Conversions
 import Imports
 import Test.Tasty qualified as T
 import Test.Tasty.QuickCheck (counterexample, testProperty)

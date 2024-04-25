@@ -462,9 +462,37 @@ let
   allLocalPackagesBom = lib.buildBom allLocalPackages {
     includeBuildtimeDependencies = true;
   };
+
+  haskellPackages = hPkgs localModsEnableAll;
+  haskellPackagesUnoptimizedNoDocs = hPkgs localModsOnlyTests;
+
+  toplevel-derivations =
+    let
+      mk = pkg:
+        import ./pkg-info.nix {
+          inherit pkg;
+          inherit (pkgs) lib hostPlatform writeText;
+        };
+      out = import ./all-toplevel-derivations.nix {
+        inherit (pkgs) lib;
+        fn = mk;
+        # more than two takes more than 32GB of RAM, so this is what 
+        # we're limiting ourselves to
+        recursionDepth = 2;
+        keyFilter = k: k != "passthru";
+        # only import the package sets we want; this makes the database
+        # less copmplete but makes it so that nix doesn't get OOMkilled
+        pkgSet = {
+          inherit pkgs;
+          inherit haskellPackages;
+        };
+      };
+    in
+    pkgs.writeText "all-toplevel.jsonl" (builtins.concatStringsSep "\n" out);
 in
 {
-  inherit ciImage hoogleImage allImages allLocalPackages allLocalPackagesBom;
+  inherit ciImage hoogleImage allImages allLocalPackages allLocalPackagesBom
+    toplevel-derivations haskellPackages haskellPackagesUnoptimizedNoDocs imagesList;
 
   images = images localModsEnableAll;
   imagesUnoptimizedNoDocs = images localModsOnlyTests;
@@ -475,7 +503,6 @@ in
     enableTests = true;
     enableDocs = false;
   };
-  inherit imagesList;
 
   devEnv = pkgs.buildEnv {
     name = "wire-server-dev-env";
@@ -508,6 +535,7 @@ in
       pkgs.yq
       pkgs.nginz
       pkgs.rabbitmqadmin
+      pkgs.sbomqs
 
       pkgs.cabal-install
       pkgs.nix-prefetch-git
@@ -523,6 +551,4 @@ in
   };
 
   inherit brig-templates;
-  haskellPackages = hPkgs localModsEnableAll;
-  haskellPackagesUnoptimizedNoDocs = hPkgs localModsOnlyTests;
 } // attrsets.genAttrs wireServerPackages (e: (hPkgs localModsEnableAll).${e})

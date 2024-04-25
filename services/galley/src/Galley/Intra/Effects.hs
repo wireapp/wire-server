@@ -23,6 +23,7 @@ module Galley.Intra.Effects
 where
 
 import Galley.API.Error
+import Galley.Cassandra.Util
 import Galley.Effects.BotAccess (BotAccess (..))
 import Galley.Effects.BrigAccess (BrigAccess (..))
 import Galley.Effects.SparAccess (SparAccess (..))
@@ -36,66 +37,106 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import Polysemy.TinyLog qualified as P
+import Polysemy.TinyLog
 import UnliftIO qualified
 
 interpretBrigAccess ::
   ( Member (Embed IO) r,
     Member (Error InternalError) r,
-    Member P.TinyLog r,
+    Member TinyLog r,
     Member (Input Env) r
   ) =>
   Sem (BrigAccess ': r) a ->
   Sem r a
 interpretBrigAccess = interpret $ \case
-  GetConnectionsUnqualified uids muids mrel ->
+  GetConnectionsUnqualified uids muids mrel -> do
+    logEffect "BrigAccess.GetConnectionsUnqualified"
     embedApp $ getConnectionsUnqualified uids muids mrel
-  GetConnectionsUnqualifiedBidi uids1 uids2 mrel1 mrel2 ->
+  GetConnectionsUnqualifiedBidi uids1 uids2 mrel1 mrel2 -> do
+    logEffect "BrigAccess.GetConnectionsUnqualifiedBidi"
     embedApp $
       UnliftIO.concurrently
         (getConnectionsUnqualified uids1 (Just uids2) mrel1)
         (getConnectionsUnqualified uids2 (Just uids1) mrel2)
-  GetConnections uids mquids mrel ->
+  GetConnections uids mquids mrel -> do
+    logEffect "BrigAccess.GetConnections"
     embedApp $
       getConnections uids mquids mrel
-  PutConnectionInternal uc -> embedApp $ putConnectionInternal uc
-  ReauthUser uid reauth -> embedApp $ reAuthUser uid reauth
-  LookupActivatedUsers uids -> embedApp $ lookupActivatedUsers uids
-  GetUsers uids -> embedApp $ getUsers uids
-  DeleteUser uid -> embedApp $ deleteUser uid
-  GetContactList uid -> embedApp $ getContactList uid
-  GetRichInfoMultiUser uids -> embedApp $ getRichInfoMultiUser uids
-  GetSize tid -> embedApp $ getSize tid
-  LookupClients uids -> embedApp $ lookupClients uids
-  LookupClientsFull uids -> embedApp $ lookupClientsFull uids
-  NotifyClientsAboutLegalHoldRequest self other pk ->
+  PutConnectionInternal uc -> do
+    logEffect "BrigAccess.PutConnectionInternal"
+    embedApp $ putConnectionInternal uc
+  ReauthUser uid reauth -> do
+    logEffect "BrigAccess.ReauthUser"
+    embedApp $ reAuthUser uid reauth
+  LookupActivatedUsers uids -> do
+    logEffect "BrigAccess.LookupActivatedUsers"
+    embedApp $ lookupActivatedUsers uids
+  GetUsers uids -> do
+    logEffect "BrigAccess.GetUsers"
+    embedApp $ getUsers uids
+  DeleteUser uid -> do
+    logEffect "BrigAccess.DeleteUser"
+    embedApp $ deleteUser uid
+  GetContactList uid -> do
+    logEffect "BrigAccess.GetContactList"
+    embedApp $ getContactList uid
+  GetRichInfoMultiUser uids -> do
+    logEffect "BrigAccess.GetRichInfoMultiUser"
+    embedApp $ getRichInfoMultiUser uids
+  GetSize tid -> do
+    logEffect "BrigAccess.GetSize"
+    embedApp $ getSize tid
+  LookupClients uids -> do
+    logEffect "BrigAccess.LookupClients"
+    embedApp $ lookupClients uids
+  LookupClientsFull uids -> do
+    logEffect "BrigAccess.LookupClientsFull"
+    embedApp $ lookupClientsFull uids
+  NotifyClientsAboutLegalHoldRequest self other pk -> do
+    logEffect "BrigAccess.NotifyClientsAboutLegalHoldRequest"
     embedApp $ notifyClientsAboutLegalHoldRequest self other pk
-  GetLegalHoldAuthToken uid mpwd -> getLegalHoldAuthToken uid mpwd
-  AddLegalHoldClientToUserEither uid conn pks lpk ->
+  GetLegalHoldAuthToken uid mpwd -> do
+    logEffect "BrigAccess.GetLegalHoldAuthToken"
+    getLegalHoldAuthToken uid mpwd
+  AddLegalHoldClientToUserEither uid conn pks lpk -> do
+    logEffect "BrigAccess.AddLegalHoldClientToUserEither"
     embedApp $ addLegalHoldClientToUser uid conn pks lpk
-  RemoveLegalHoldClientFromUser uid ->
+  RemoveLegalHoldClientFromUser uid -> do
+    logEffect "BrigAccess.RemoveLegalHoldClientFromUser"
     embedApp $ removeLegalHoldClientFromUser uid
-  GetAccountConferenceCallingConfigClient uid ->
+  GetAccountConferenceCallingConfigClient uid -> do
+    logEffect "BrigAccess.GetAccountConferenceCallingConfigClient"
     embedApp $ getAccountConferenceCallingConfigClient uid
-  GetLocalMLSClients qusr ss -> embedApp $ getLocalMLSClients qusr ss
-  UpdateSearchVisibilityInbound status ->
+  GetLocalMLSClients qusr ss -> do
+    logEffect "BrigAccess.GetLocalMLSClients"
+    embedApp $ getLocalMLSClients qusr ss
+  UpdateSearchVisibilityInbound status -> do
+    logEffect "BrigAccess.UpdateSearchVisibilityInbound"
     embedApp $ updateSearchVisibilityInbound status
 
 interpretSparAccess ::
   ( Member (Embed IO) r,
-    Member (Input Env) r
+    Member (Input Env) r,
+    Member TinyLog r
   ) =>
   Sem (SparAccess ': r) a ->
   Sem r a
 interpretSparAccess = interpret $ \case
-  DeleteTeam tid -> embedApp $ deleteTeam tid
-  LookupScimUserInfos uids -> embedApp $ lookupScimUserInfos uids
+  DeleteTeam tid -> do
+    logEffect "SparAccess.DeleteTeam"
+    embedApp $ deleteTeam tid
+  LookupScimUserInfos uids -> do
+    logEffect "SparAccess.LookupScimUserInfos"
+    embedApp $ lookupScimUserInfos uids
 
 interpretBotAccess ::
   ( Member (Embed IO) r,
-    Member (Input Env) r
+    Member (Input Env) r,
+    Member TinyLog r
   ) =>
   Sem (BotAccess ': r) a ->
   Sem r a
 interpretBotAccess = interpret $ \case
-  DeleteBot cid bid -> embedApp $ deleteBot cid bid
+  DeleteBot cid bid -> do
+    logEffect "BotAccess.DeleteBot"
+    embedApp $ deleteBot cid bid

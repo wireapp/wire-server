@@ -32,11 +32,17 @@ module Spar.Data.Instances
 where
 
 import Cassandra as Cas
+import Data.ByteString (toStrict)
 import Data.ByteString.Conversion (fromByteString, toByteString)
+import qualified Data.Text.Encoding as T
+import Data.Text.Encoding.Error
+import qualified Data.Text.Lazy as LT
+import Data.Text.Lazy.Encoding as LT
 import Data.X509 (SignedCertificate)
 import Imports
 import SAML2.Util (parseURI')
 import qualified SAML2.WebSSO as SAML
+import Spar.Scim.Types (ScimUserCreationStatus (..))
 import Text.XML.DSig (parseKeyInfo, renderKeyInfo)
 import URI.ByteString
 import Wire.API.User.Saml
@@ -51,9 +57,9 @@ instance Cql SAML.XmlText where
 
 instance Cql SignedCertificate where
   ctype = Tagged BlobColumn
-  toCql = CqlBlob . cs . renderKeyInfo
+  toCql = CqlBlob . LT.encodeUtf8 . renderKeyInfo
 
-  fromCql (CqlBlob t) = parseKeyInfo False (cs t)
+  fromCql (CqlBlob t) = parseKeyInfo False (LT.decodeUtf8With lenientDecode t)
   fromCql _ = Left "SignedCertificate: expected CqlBlob"
 
 instance Cql (URIRef Absolute) where
@@ -65,9 +71,9 @@ instance Cql (URIRef Absolute) where
 
 instance Cql SAML.NameID where
   ctype = Tagged TextColumn
-  toCql = CqlText . cs . SAML.encodeElem
+  toCql = CqlText . LT.toStrict . SAML.encodeElem
 
-  fromCql (CqlText t) = SAML.decodeElem (cs t)
+  fromCql (CqlText t) = SAML.decodeElem (LT.fromStrict t)
   fromCql _ = Left "NameID: expected CqlText"
 
 deriving instance Cql SAML.Issuer
@@ -105,8 +111,12 @@ deriving instance Cql ScimToken
 
 instance Cql ScimTokenHash where
   ctype = Tagged TextColumn
-  toCql = CqlText . cs . toByteString
-  fromCql (CqlText t) = maybe (Left "ScimTokenHash: parse error") Right (fromByteString . cs $ t)
+  toCql = CqlText . T.decodeUtf8With lenientDecode . toStrict . toByteString
+  fromCql (CqlText t) =
+    maybe
+      (Left "ScimTokenHash: parse error")
+      Right
+      (fromByteString . T.encodeUtf8 $ t)
   fromCql _ = Left "ScimTokenHash: expected CqlText"
 
 instance Cql ScimTokenLookupKey where
@@ -117,3 +127,15 @@ instance Cql ScimTokenLookupKey where
   fromCql s@(CqlText _) =
     ScimTokenLookupKeyHashed <$> fromCql s <|> ScimTokenLookupKeyPlaintext <$> fromCql s
   fromCql _ = Left "ScimTokenLookupKey: expected CqlText"
+
+instance Cql ScimUserCreationStatus where
+  ctype = Tagged IntColumn
+
+  toCql ScimUserCreated = CqlInt 0
+  toCql ScimUserCreating = CqlInt 1
+
+  fromCql (CqlInt i) = case i of
+    0 -> pure ScimUserCreated
+    1 -> pure ScimUserCreating
+    n -> Left $ "unexpected ScimUserCreationStatus: " ++ show n
+  fromCql _ = Left "int expected"

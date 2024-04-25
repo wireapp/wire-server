@@ -82,8 +82,8 @@ let
     saml2-web-sso = {
       src = fetchgit {
         url = "https://github.com/wireapp/saml2-web-sso";
-        rev = "d50bddadf9bd9a96dd6036dad0e2dda27567ec1a";
-        sha256 = "sha256-IKovI1h2Wkm3Y7Sz6XsxLOv654SgUasaWsDX6gi9hZw=";
+        rev = "0cf23a87b140ba5b960a848ecad3976e6fdaac88";
+        sha256 = "sha256-Gm58Yjt5ZGh74cfEjcZSx6jvwkpFC324xTPLhLS29r0=";
       };
     };
 
@@ -110,9 +110,18 @@ let
 
     hsaml2 = {
       src = fetchgit {
-        url = "https://github.com/wireapp/hsaml2";
-        rev = "723b377fcd759c8be9ad4b2e159a6a06df0d17c9";
-        sha256 = "sha256-rPfztTu+NR/5FuoYWGMCfJFhrMn4o09bMcEKoerNX4A=";
+        url = "https://github.com/dylex/hsaml2";
+        rev = "95d9dc7502c2533f7927de00cbc2bd20ad989ace";
+        sha256 = "sha256-z3s/ZkkCd2ThVBsu72pS/+XygHImuffz/HVy3hkQ6eo=";
+      };
+    };
+
+    # PR: https://github.com/informatikr/hedis/pull/224
+    hedis = {
+      src = fetchgit {
+        url = "https://github.com/wireapp/hedis";
+        rev = "81cdd8a2350b96168a06662c2601a41141a19f2d";
+        sha256 = "sha256-0g6x9UOUq7s5ClnxMXvjYR2AsWNA6ymv1tYlQC44hGs=";
       };
     };
 
@@ -261,7 +270,7 @@ let
       version = "5.0.18.4";
       sha256 = "sha256-gIc4hpdUfTS33rZPfzwLfVcXkQaglmsljqViyYdihdk=";
     };
-    # dependency of hoogle 
+    # dependency of hoogle
     safe = {
       version = "0.3.20";
       sha256 = "sha256-PGwjhrRnkH8cLhd7fHTZFd6ts9abp0w5sLlV8ke1yXU=";

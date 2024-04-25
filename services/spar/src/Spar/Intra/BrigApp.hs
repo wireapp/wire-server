@@ -52,7 +52,8 @@ import Data.ByteString.Conversion
 import qualified Data.CaseInsensitive as CI
 import Data.Handle (Handle (Handle))
 import Data.Id (TeamId, UserId)
-import Galley.Types.Teams (HiddenPerm (CreateReadDeleteScimToken), IsPerm)
+import Data.Text.Encoding
+import Data.Text.Encoding.Error
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -62,6 +63,7 @@ import Spar.Sem.BrigAccess (BrigAccess)
 import qualified Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.GalleyAccess as GalleyAccess
+import Wire.API.Team.Member (HiddenPerm (CreateReadDeleteScimToken), IsPerm)
 import Wire.API.User
 import Wire.API.User.Scim (ValidExternalId (..), runValidExternalIdEither)
 
@@ -178,7 +180,7 @@ giveDefaultHandle :: (HasCallStack, Member BrigAccess r) => User -> Sem r Handle
 giveDefaultHandle usr = case userHandle usr of
   Just handle -> pure handle
   Nothing -> do
-    let handle = Handle . cs . toByteString' $ uid
+    let handle = Handle . decodeUtf8With lenientDecode . toByteString' $ uid
         uid = userId usr
     BrigAccess.setHandle uid handle
     pure handle

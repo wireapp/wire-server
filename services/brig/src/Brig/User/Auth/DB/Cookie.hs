@@ -23,7 +23,7 @@ import Brig.User.Auth.DB.Instances ()
 import Cassandra
 import Data.Id
 import Data.Time.Clock
-import Imports hiding (cs)
+import Imports
 import Wire.API.User.Auth
 
 newtype TTL = TTL {ttlSeconds :: Int32}

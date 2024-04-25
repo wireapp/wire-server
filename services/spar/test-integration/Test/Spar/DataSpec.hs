@@ -67,7 +67,8 @@ spec = do
   describe "TTL" $ do
     it "works in seconds" $ do
       env <- ask
-      (_, _, (^. SAML.idpId) -> idpid) <- registerTestIdP
+      (owner, _teamid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+      ((^. SAML.idpId) -> idpid) <- registerTestIdP owner
       (_, req) <- call $ callAuthnReq (env ^. teSpar) idpid
       let probe :: (MonadIO m, MonadReader TestEnv m) => m Bool
           probe = runSpar $ AReqIDStore.isAlive (req ^. SAML.rqID)

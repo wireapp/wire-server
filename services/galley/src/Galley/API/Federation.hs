@@ -84,7 +84,9 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Common (EmptyResponse (..))
 import Wire.API.Federation.API.Galley
+import Wire.API.Federation.Endpoint
 import Wire.API.Federation.Error
+import Wire.API.Federation.Version
 import Wire.API.MLS.Credential
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.Serialisation
@@ -119,6 +121,7 @@ federationSitemap =
     :<|> Named @"on-client-removed" onClientRemoved
     :<|> Named @"on-message-sent" onMessageSent
     :<|> Named @"on-mls-message-sent" onMLSMessageSent
+    :<|> Named @(Versioned 'V0 "on-conversation-updated") onConversationUpdatedV0
     :<|> Named @"on-conversation-updated" onConversationUpdated
     :<|> Named @"on-user-deleted-conversations" onUserDeleted
 
@@ -126,12 +129,14 @@ onClientRemoved ::
   ( Member BackendNotificationQueueAccess r,
     Member ConversationStore r,
     Member ExternalAccess r,
+    Member (Error FederationError) r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member Random r,
     Member SubConversationStore r,
     Member TinyLog r
   ) =>
@@ -225,6 +230,20 @@ onConversationUpdated requestingDomain cu = do
   void $ updateLocalStateOfRemoteConv rcu Nothing
   pure EmptyResponse
 
+onConversationUpdatedV0 ::
+  ( Member BrigAccess r,
+    Member NotificationSubsystem r,
+    Member ExternalAccess r,
+    Member (Input (Local ())) r,
+    Member MemberStore r,
+    Member P.TinyLog r
+  ) =>
+  Domain ->
+  ConversationUpdateV0 ->
+  Sem r EmptyResponse
+onConversationUpdatedV0 domain cu =
+  onConversationUpdated domain (conversationUpdateFromV0 cu)
+
 -- as of now this will not generate the necessary events on the leaver's domain
 leaveConversation ::
   ( Member BackendNotificationQueueAccess r,
@@ -238,6 +257,7 @@ leaveConversation ::
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member Random r,
     Member SubConversationStore r,
     Member TinyLog r
   ) =>
@@ -378,6 +398,7 @@ onUserDeleted ::
   ( Member BackendNotificationQueueAccess r,
     Member ConversationStore r,
     Member FireAndForget r,
+    Member (Error FederationError) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
@@ -385,6 +406,7 @@ onUserDeleted ::
     Member (Input Env) r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member Random r,
     Member SubConversationStore r,
     Member TinyLog r
   ) =>
@@ -452,6 +474,7 @@ updateConversation ::
     Member TeamStore r,
     Member TinyLog r,
     Member ConversationStore r,
+    Member Random r,
     Member SubConversationStore r,
     Member TeamFeatureStore r,
     Member (Input (Local ())) r
@@ -464,7 +487,7 @@ updateConversation origDomain updateRequest = do
   let rusr = toRemoteUnsafe origDomain updateRequest.user
       lcnv = qualifyAs loc updateRequest.convId
 
-  mkResponse $ case action updateRequest of
+  mkResponse $ case updateRequest.action of
     SomeConversationAction tag action -> case tag of
       SConversationJoinTag ->
         mapToGalleyError @(HasConversationActionGalleyErrors 'ConversationJoinTag)
@@ -571,6 +594,7 @@ sendMLSCommitBundle ::
     Member Resource r,
     Member TeamStore r,
     Member P.TinyLog r,
+    Member Random r,
     Member SubConversationStore r,
     Member ProposalStore r
   ) =>
@@ -662,6 +686,7 @@ getSubConversationForRemoteUser domain GetSubConversationsRequest {..} =
 
 leaveSubConversation ::
   ( HasLeaveSubConversationEffects r,
+    Member (Error FederationError) r,
     Member (Input (Local ())) r,
     Member Resource r
   ) =>

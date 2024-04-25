@@ -7,6 +7,8 @@ import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.BlacklistStore.Cassandra (interpretBlacklistStoreToCassandra)
 import Brig.Effects.CodeStore (CodeStore)
 import Brig.Effects.CodeStore.Cassandra (codeStoreToCassandra, interpretClientToIO)
+import Brig.Effects.ConnectionStore (ConnectionStore)
+import Brig.Effects.ConnectionStore.Cassandra (connectionStoreToCassandra)
 import Brig.Effects.FederationConfigStore (FederationConfigStore)
 import Brig.Effects.FederationConfigStore.Cassandra (interpretFederationDomainConfig, remotesMapFromCfgFile)
 import Brig.Effects.GalleyProvider (GalleyProvider)
@@ -15,19 +17,24 @@ import Brig.Effects.JwtTools
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.PasswordResetStore.CodeStore (passwordResetStoreToCodeStore)
 import Brig.Effects.PublicKeyBundle
+import Brig.Effects.SFT (SFT, interpretSFT)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Effects.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
 import Brig.Options (ImplicitNoFederationRestriction (federationDomainConfig), federationDomainConfigs, federationStrategy)
+import Brig.Options qualified as Opt
 import Brig.RPC (ParseException)
 import Cassandra qualified as Cas
 import Control.Lens ((^.))
 import Control.Monad.Catch (throwM)
+import Data.Qualified (Local, toLocalUnsafe)
+import Data.Time.Clock (UTCTime, getCurrentTime)
 import Imports
-import Polysemy (Embed, Final, embedToFinal, runFinal)
+import Polysemy (Embed, Final, embed, embedToFinal, runFinal)
 import Polysemy.Async
 import Polysemy.Conc
 import Polysemy.Embed (runEmbedded)
 import Polysemy.Error (Error, mapError, runError)
+import Polysemy.Input (Input, runInputConst, runInputSem)
 import Polysemy.TinyLog (TinyLog)
 import Wire.GundeckAPIAccess
 import Wire.NotificationSubsystem
@@ -43,7 +50,11 @@ import Wire.Sem.Now.IO (nowToIOAction)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 type BrigCanonicalEffects =
-  '[ NotificationSubsystem,
+  '[ SFT,
+     ConnectionStore InternalPaging,
+     Input UTCTime,
+     Input (Local ()),
+     NotificationSubsystem,
      GundeckAPIAccess,
      FederationConfigStore,
      Jwk,
@@ -98,6 +109,10 @@ runBrigToIO e (AppT ma) = do
               . interpretFederationDomainConfig (e ^. settings . federationStrategy) (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) (e ^. settings . federationDomainConfigs))
               . runGundeckAPIAccess (e ^. gundeckEndpoint)
               . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig (e ^. requestId))
+              . runInputConst (toLocalUnsafe (e ^. settings . Opt.federationDomain) ())
+              . runInputSem (embed getCurrentTime)
+              . connectionStoreToCassandra
+              . interpretSFT (e ^. httpManager)
           )
     )
     $ runReaderT ma e

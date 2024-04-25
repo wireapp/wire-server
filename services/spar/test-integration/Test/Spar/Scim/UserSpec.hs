@@ -50,6 +50,7 @@ import Data.Id (TeamId, UserId, randomId)
 import Data.Ix (inRange)
 import Data.LanguageCodes (ISO639_1 (..))
 import Data.Misc (HttpsUrl, mkHttpsUrl)
+import Data.String.Conversions
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Data.Vector as V
 import qualified Data.ZAuth.Token as ZAuth
@@ -124,7 +125,9 @@ specImportToScimFromSAML =
   where
     check :: Bool -> Bool -> Feature.FeatureStatus -> SpecWith TestEnv
     check sameHandle sameDisplayName valemail = it (show (sameHandle, sameDisplayName, valemail)) $ do
-      (_ownerid, teamid, idp, (_, privCreds)) <- registerTestIdPWithMeta
+      env <- ask
+      (owner, teamid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+      (idp, (_, privCreds)) <- registerTestIdPWithMeta owner
       setSamlEmailValidation teamid valemail
 
       -- saml-auto-provision a new user
@@ -376,7 +379,9 @@ specSuspend = do
   describe "suspend" $ do
     let checkPreExistingUser :: Bool -> TestSpar ()
         checkPreExistingUser isActive = do
-          (_, teamid, idp, (_, privCreds)) <- registerTestIdPWithMeta
+          env <- ask
+          (owner, teamid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+          (idp, (_, privCreds)) <- registerTestIdPWithMeta owner
           member <- loginSsoUserFirstTime idp privCreds
           -- NOTE: once SCIM is enabled, SSO Auto-provisioning is disabled
           tok <- registerScimToken teamid (Just (idp ^. SAML.idpId))
@@ -775,7 +780,7 @@ testCreateUserWithSamlIdP = do
   let uid = userId brigUser
       eid = Scim.User.externalId user
       sml :: HasCallStack => UserSSOId
-      sml = fromJust $ userIdentity >=> ssoIdentity $ brigUser
+      sml = fromJust $ ssoIdentity =<< userIdentity brigUser
    in testCsvData tid owner uid eid (Just sml) True
 
   -- members table contains an entry
@@ -1021,7 +1026,9 @@ testRichInfo = do
 -- @spar.user@; create it via scim.  This should work despite the dangling database entry.
 testScimCreateVsUserRef :: TestSpar ()
 testScimCreateVsUserRef = do
-  (_ownerid, teamid, idp, (_, privCreds)) <- registerTestIdPWithMeta
+  env <- ask
+  (owner, teamid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  (idp, (_, privCreds)) <- registerTestIdPWithMeta owner
   (usr, uname) :: (Scim.User.User SparTag, SAML.UnqualifiedNameID) <-
     randomScimUserWithSubject
   let uref = SAML.UserRef tenant subj
@@ -1189,7 +1196,9 @@ testFindProvisionedUser = do
 -- The user is migrated by using the email as the externalId
 testFindSamlAutoProvisionedUserMigratedWithEmailInTeamWithSSO :: TestSpar ()
 testFindSamlAutoProvisionedUserMigratedWithEmailInTeamWithSSO = do
-  (_owner, teamid, idp, (_, privCreds)) <- registerTestIdPWithMeta
+  env <- ask
+  (owner, teamid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  (idp, (_, privCreds)) <- registerTestIdPWithMeta owner
 
   -- auto-provision user via saml
   memberWithSSO <- do
@@ -1372,7 +1381,9 @@ shouldBeManagedBy uid flag = do
 -- the issue here.
 testGetNonScimSAMLUser :: TestSpar ()
 testGetNonScimSAMLUser = do
-  (_, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
+  env <- ask
+  (owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  (idp, (_, privcreds)) <- registerTestIdPWithMeta owner
   -- NOTE: once SCIM is enabled SSO Auto-provisioning is disabled, so we register the scim token later.
 
   uidSso <- loginSsoUserFirstTime idp privcreds
@@ -1414,7 +1425,9 @@ testGetNonScimInviteUserNoIdP = do
 
 testGetUserWithNoHandle :: TestSpar ()
 testGetUserWithNoHandle = do
-  (_, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
+  env <- ask
+  (owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  (idp, (_, privcreds)) <- registerTestIdPWithMeta owner
   -- NOTE: once SCIM is enabled SSO Auto-provisioning is disabled, so we register the scim token later.
   uid <- loginSsoUserFirstTime idp privcreds
   tok <- registerScimToken tid (Just (idp ^. SAML.idpId))
@@ -2000,17 +2013,17 @@ testPatchIvalidInput patchOp = do
   let galley = env ^. teGalley
   (owner, tid) <- call $ createUserWithTeam brig galley
   tok <- registerScimToken tid Nothing
-  userId <- createScimUserWithRole brig tid owner tok defaultRole
+  uid <- createScimUserWithRole brig tid owner tok defaultRole
   let patchWithInvalidRole =
         PatchOp.Operation
           PatchOp.Replace
           (Just (PatchOp.NormalPath (Filter.topLevelAttrPath "roles")))
           (Just $ Data.Aeson.Array $ V.singleton $ Data.Aeson.String "invalid-role")
-  patchUser' tok userId (PatchOp.PatchOp [patchWithInvalidRole]) !!! do
+  patchUser' tok uid (PatchOp.PatchOp [patchWithInvalidRole]) !!! do
     const 400 === statusCode
     const (Just "The role 'invalid-role' is not valid. Valid roles are owner, admin, member, partner.") =~= responseBody
   let patchWithTooManyRoles = patchOp "roles" [defaultRole, defaultRole]
-  patchUser' tok userId (PatchOp.PatchOp [patchWithTooManyRoles]) !!! do
+  patchUser' tok uid (PatchOp.PatchOp [patchWithTooManyRoles]) !!! do
     const 400 === statusCode
     const (Just "A user cannot have more than one role.") =~= responseBody
 
@@ -2028,13 +2041,13 @@ testPatchRole replaceOrAdd = do
   where
     testCreateUserWithInitialRoleAndPatchToTargetRole :: BrigReq -> TeamId -> UserId -> ScimToken -> Role -> Maybe Role -> TestSpar ()
     testCreateUserWithInitialRoleAndPatchToTargetRole brig tid owner tok initialRole mTargetRole = do
-      userId <- createScimUserWithRole brig tid owner tok initialRole
-      void $ patchUser tok userId $ PatchOp.PatchOp [replaceOrAdd "roles" (maybeToList mTargetRole)]
-      checkTeamMembersRole tid owner userId (fromMaybe initialRole mTargetRole)
+      uid <- createScimUserWithRole brig tid owner tok initialRole
+      void $ patchUser tok uid $ PatchOp.PatchOp [replaceOrAdd "roles" (maybeToList mTargetRole)]
+      checkTeamMembersRole tid owner uid (fromMaybe initialRole mTargetRole)
       -- also check if remove works
       let removeAttrib name = PatchOp.Operation PatchOp.Remove (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name))) Nothing
-      void $ patchUser tok userId $ PatchOp.PatchOp [removeAttrib "roles"]
-      checkTeamMembersRole tid owner userId (fromMaybe initialRole mTargetRole)
+      void $ patchUser tok uid $ PatchOp.PatchOp [removeAttrib "roles"]
+      checkTeamMembersRole tid owner uid (fromMaybe initialRole mTargetRole)
 
 createScimUserWithRole :: BrigReq -> TeamId -> UserId -> ScimToken -> Role -> TestSpar UserId
 createScimUserWithRole brig tid owner tok initialRole = do

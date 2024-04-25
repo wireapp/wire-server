@@ -35,6 +35,8 @@ import Data.OpenApi qualified as S
 import Data.OpenApi.ParamSchema
 import Data.Proxy (Proxy (Proxy))
 import Data.Schema
+import Data.Text.Encoding
+import Data.Text.Encoding.Error
 import Data.UUID as UUID (UUID, fromByteString, toByteString)
 import Data.UUID.V4 (nextRandom)
 import Imports
@@ -48,10 +50,15 @@ newtype Nonce = Nonce {unNonce :: UUID}
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema Nonce)
 
 instance ToSchema Nonce where
-  schema = (cs . toByteString') .= parsedText "Nonce" p
+  schema =
+    (decodeUtf8With lenientDecode . toByteString') .= parsedText "Nonce" p
     where
       p :: Text -> Either String Nonce
-      p = maybe (Left "Invalid Nonce") Right . fromByteString' . cs
+      p =
+        maybe (Left "Invalid Nonce") Right
+          . fromByteString'
+          . fromStrict
+          . encodeUtf8
 
 instance ToByteString Nonce where
   builder = builder . Base64.encodeUnpadded . toStrict . UUID.toByteString . unNonce
@@ -68,16 +75,20 @@ instance ToParamSchema Nonce where
   toParamSchema _ = toParamSchema (Proxy @Text)
 
 instance ToHttpApiData Nonce where
-  toQueryParam = cs . toByteString'
+  toQueryParam = decodeUtf8With lenientDecode . toByteString'
 
 instance FromHttpApiData Nonce where
-  parseQueryParam = maybe (Left "Invalid Nonce") Right . fromByteString' . cs
+  parseQueryParam =
+    maybe (Left "Invalid Nonce") Right
+      . fromByteString'
+      . fromStrict
+      . encodeUtf8
 
 randomNonce :: MonadIO m => m Nonce
 randomNonce = Nonce <$> liftIO nextRandom
 
 isValidBase64UrlEncodedUUID :: ByteString -> Bool
-isValidBase64UrlEncodedUUID = isJust . fromByteString' @Nonce . cs
+isValidBase64UrlEncodedUUID = isJust . fromByteString' @Nonce . fromStrict
 
 instance Cql Nonce where
   ctype = Tagged UuidColumn

@@ -39,6 +39,7 @@ library
     Spar.Schema.V15
     Spar.Schema.V16
     Spar.Schema.V17
+    Spar.Schema.V18
     Spar.Schema.V2
     Spar.Schema.V3
     Spar.Schema.V4
@@ -101,6 +102,7 @@ library
   default-extensions:
     AllowAmbiguousTypes
     BangPatterns
+    BlockArguments
     ConstraintKinds
     DataKinds
     DefaultSignatures
@@ -162,7 +164,6 @@ library
     , crypton-x509
     , exceptions
     , extended
-    , galley-types
     , hscim
     , hspec
     , http-types
@@ -178,7 +179,7 @@ library
     , polysemy-wire-zoo
     , QuickCheck
     , raw-strings-qq
-    , saml2-web-sso          >=0.19
+    , saml2-web-sso          >=0.20
     , servant-multipart
     , servant-server
     , text
@@ -188,8 +189,10 @@ library
     , transformers
     , types-common
     , uri-bytestring
+    , utf8-string
     , uuid
     , wai
+    , wai-middleware-gunzip
     , wai-utilities
     , warp
     , wire-api
@@ -204,6 +207,7 @@ executable spar
   default-extensions:
     AllowAmbiguousTypes
     BangPatterns
+    BlockArguments
     ConstraintKinds
     DataKinds
     DefaultSignatures
@@ -282,6 +286,7 @@ executable spar-integration
   default-extensions:
     AllowAmbiguousTypes
     BangPatterns
+    BlockArguments
     ConstraintKinds
     DataKinds
     DefaultSignatures
@@ -346,7 +351,6 @@ executable spar-integration
     , email-validate
     , exceptions
     , extended
-    , galley-types
     , hscim
     , HsOpenSSL
     , hspec
@@ -370,11 +374,12 @@ executable spar-integration
     , random
     , raw-strings-qq
     , retry
-    , saml2-web-sso          >=0.19
+    , saml2-web-sso          >=0.20
     , servant
     , servant-server
     , silently
     , spar
+    , string-conversions
     , tasty-hunit
     , text
     , time
@@ -408,6 +413,7 @@ executable spar-migrate-data
   default-extensions:
     AllowAmbiguousTypes
     BangPatterns
+    BlockArguments
     ConstraintKinds
     DataKinds
     DefaultSignatures
@@ -462,13 +468,14 @@ executable spar-migrate-data
     , imports
     , lens
     , optparse-applicative
-    , saml2-web-sso         >=0.19
+    , saml2-web-sso         >=0.20
     , spar
     , text
     , time
     , tinylog
     , types-common
     , uri-bytestring
+    , utf8-string
 
   default-language:   Haskell2010
 
@@ -478,6 +485,7 @@ executable spar-schema
   default-extensions:
     AllowAmbiguousTypes
     BangPatterns
+    BlockArguments
     ConstraintKinds
     DataKinds
     DefaultSignatures
@@ -551,6 +559,7 @@ test-suite spec
   default-extensions:
     AllowAmbiguousTypes
     BangPatterns
+    BlockArguments
     ConstraintKinds
     DataKinds
     DefaultSignatures
@@ -617,10 +626,11 @@ test-suite spec
     , polysemy-plugin
     , polysemy-wire-zoo
     , QuickCheck
-    , saml2-web-sso          >=0.19
+    , saml2-web-sso          >=0.20
     , servant
     , servant-openapi3
     , spar
+    , string-conversions
     , time
     , tinylog
     , types-common

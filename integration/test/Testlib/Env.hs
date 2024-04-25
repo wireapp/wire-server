@@ -4,6 +4,7 @@ module Testlib.Env where
 
 import Control.Monad.Codensity
 import Control.Monad.IO.Class
+import Control.Monad.Reader
 import Data.Default
 import Data.Function ((&))
 import Data.Functor
@@ -86,23 +87,26 @@ mkGlobalEnv cfgFile = do
   let sm =
         Map.fromList $
           [ (intConfig.backendOne.originDomain, intConfig.backendOne.beServiceMap),
-            (intConfig.backendTwo.originDomain, intConfig.backendTwo.beServiceMap)
+            (intConfig.backendTwo.originDomain, intConfig.backendTwo.beServiceMap),
+            (intConfig.federationV0.originDomain, intConfig.federationV0.beServiceMap)
           ]
             <> [(berDomain resource, resourceServiceMap resource) | resource <- resources]
   tempDir <- Codensity $ withSystemTempDirectory "test"
   timeOutSeconds <-
     liftIO $
-      fromMaybe 10 . (readMaybe @Int =<<) <$> (lookupEnv "TEST_TIMEOUT_SECONDS")
+      fromMaybe 10 . (readMaybe @Int =<<) <$> lookupEnv "TEST_TIMEOUT_SECONDS"
   pure
     GlobalEnv
       { gServiceMap = sm,
         gDomain1 = intConfig.backendOne.originDomain,
         gDomain2 = intConfig.backendTwo.originDomain,
+        gIntegrationTestHostName = intConfig.integrationTestHostName,
+        gFederationV0Domain = intConfig.federationV0.originDomain,
         gDynamicDomains = (.domain) <$> Map.elems intConfig.dynamicBackends,
         gDefaultAPIVersion = 6,
         gManager = manager,
         gServicesCwdBase = devEnvProjectRoot <&> (</> "services"),
-        gRemovalKeyPath = error "Uninitialised removal key path",
+        gRemovalKeyPaths = mempty,
         gBackendResourcePool = resourcePool,
         gRabbitMQConfig = intConfig.rabbitmq,
         gTempDir = tempDir,
@@ -135,11 +139,13 @@ mkEnv ge = do
         { serviceMap = gServiceMap ge,
           domain1 = gDomain1 ge,
           domain2 = gDomain2 ge,
+          integrationTestHostName = gIntegrationTestHostName ge,
+          federationV0Domain = gFederationV0Domain ge,
           dynamicDomains = gDynamicDomains ge,
           defaultAPIVersion = gDefaultAPIVersion ge,
           manager = gManager ge,
           servicesCwdBase = gServicesCwdBase ge,
-          removalKeyPath = gRemovalKeyPath ge,
+          removalKeyPaths = gRemovalKeyPaths ge,
           prekeys = pks,
           lastPrekeys = lpks,
           mls = mls,
@@ -160,11 +166,9 @@ create ioRef =
         Nothing -> error "No resources available"
         Just (r, s') -> (s', r)
 
-emptyClientGroupState :: ClientGroupState
-emptyClientGroupState = ClientGroupState Nothing Nothing
-
 allCiphersuites :: [Ciphersuite]
-allCiphersuites = map Ciphersuite ["0x0001", "0xf031"]
+-- FUTUREWORK: add 0x0005 to this list once openmls supports it
+allCiphersuites = map Ciphersuite ["0x0001", "0xf031", "0x0002", "0x0007"]
 
 mkMLSState :: Codensity IO MLSState
 mkMLSState = Codensity $ \k ->
@@ -181,3 +185,6 @@ mkMLSState = Codensity $ \k ->
           ciphersuite = def,
           protocol = MLSProtocolMLS
         }
+
+withAPIVersion :: Int -> App a -> App a
+withAPIVersion v = local $ \e -> e {defaultAPIVersion = v}

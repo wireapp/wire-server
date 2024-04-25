@@ -45,7 +45,6 @@ import Data.Domain (Domain)
 import Data.Handle (parseHandle)
 import Data.Id
 import Data.Range
-import Galley.Types.Teams (HiddenPerm (SearchContacts))
 import Imports
 import Network.Wai.Utilities ((!>>))
 import Polysemy
@@ -55,6 +54,7 @@ import System.Logger.Class qualified as Log
 import Wire.API.Federation.API.Brig qualified as FedBrig
 import Wire.API.Federation.API.Brig qualified as S
 import Wire.API.Routes.FederationDomainConfig
+import Wire.API.Team.Member (HiddenPerm (SearchContacts))
 import Wire.API.Team.Permission qualified as Public
 import Wire.API.Team.SearchVisibility (TeamSearchVisibility (..))
 import Wire.API.User.Search

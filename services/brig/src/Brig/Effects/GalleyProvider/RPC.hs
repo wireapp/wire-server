@@ -19,7 +19,7 @@ module Brig.Effects.GalleyProvider.RPC where
 
 import Bilge hiding (head, options, requestId)
 import Brig.API.Types
-import Brig.Effects.GalleyProvider (GalleyProvider (..))
+import Brig.Effects.GalleyProvider (GalleyProvider (..), MLSOneToOneEstablished (..))
 import Brig.RPC hiding (galleyRequest)
 import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 import Control.Error (hush)
@@ -33,8 +33,9 @@ import Data.Id
 import Data.Json.Util (UTCTimeMillis)
 import Data.Qualified
 import Data.Range
-import Galley.Types.Teams qualified as Team
 import Imports
+import Network.HTTP.Client qualified as HTTP
+import Network.HTTP.Types qualified as HTTP
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error qualified as Wai
@@ -51,8 +52,7 @@ import Wire.API.Routes.Version
 import Wire.API.Team
 import Wire.API.Team.Conversation qualified as Conv
 import Wire.API.Team.Feature
-import Wire.API.Team.Member qualified as Member
-import Wire.API.Team.Member qualified as Team
+import Wire.API.Team.Member as Member
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
 import Wire.Rpc
@@ -89,6 +89,8 @@ interpretGalleyProviderToRpc disabledVersions galleyEndpoint =
           GetAllFeatureConfigsForUser m_id' -> getAllFeatureConfigsForUser m_id'
           GetVerificationCodeEnabled id' -> getVerificationCodeEnabled id'
           GetExposeInvitationURLsToTeamAdmin id' -> getTeamExposeInvitationURLsToTeamAdmin id'
+          IsMLSOne2OneEstablished lusr qother -> checkMLSOne2OneEstablished lusr qother
+          UnblockConversation lusr mconn qcnv -> unblockConversation v lusr mconn qcnv
 
 galleyRequest :: (Member Rpc r, Member (Input Endpoint) r) => (Request -> Request) -> Sem r (Response (Maybe LByteString))
 galleyRequest req = do
@@ -246,7 +248,7 @@ addTeamMember u tid (minvmeta, role) = do
     200 -> True
     _ -> False
   where
-    prm = Team.rolePermissions role
+    prm = Member.rolePermissions role
     bdy = Member.mkNewTeamMember u prm minvmeta
     req =
       method POST
@@ -294,7 +296,7 @@ getTeamMember ::
   ) =>
   UserId ->
   TeamId ->
-  Sem r (Maybe Team.TeamMember)
+  Sem r (Maybe TeamMember)
 getTeamMember u tid = do
   debug $
     remote "galley"
@@ -322,7 +324,7 @@ getTeamMembers ::
     Member TinyLog r
   ) =>
   TeamId ->
-  Sem r Team.TeamMemberList
+  Sem r TeamMemberList
 getTeamMembers tid = do
   debug $ remote "galley" . msg (val "Get team members")
   galleyRequest req >>= decodeBodyOrThrow "galley"
@@ -523,4 +525,68 @@ getTeamExposeInvitationURLsToTeamAdmin tid = do
     req =
       method GET
         . paths ["i", "teams", toByteString' tid, "features", featureNameBS @ExposeInvitationURLsToTeamAdminConfig]
+        . expect2xx
+
+checkMLSOne2OneEstablished ::
+  ( Member (Error ParseException) r,
+    Member (Input Endpoint) r,
+    Member Rpc r,
+    Member TinyLog r
+  ) =>
+  Local UserId ->
+  Qualified UserId ->
+  Sem r MLSOneToOneEstablished
+checkMLSOne2OneEstablished self (Qualified other otherDomain) = do
+  debug $ remote "galley" . msg (val "Get the MLS one-to-one conversation")
+  responseSelf <- galleyRequest req
+  case HTTP.statusCode (HTTP.responseStatus responseSelf) of
+    200 -> do
+      established <- decodeBodyOrThrow @Bool "galley" responseSelf
+      pure $ if established then Established else NotEstablished
+    403 -> pure NotAMember
+    400 -> pure NotEstablished
+    _ -> pure NotEstablished
+  where
+    req =
+      method GET
+        . paths
+          [ "i",
+            "conversations",
+            "mls-one2one",
+            toByteString' otherDomain,
+            toByteString' other,
+            "established"
+          ]
+        . zUser (tUnqualified self)
+
+unblockConversation ::
+  ( Member (Error ParseException) r,
+    Member (Input Endpoint) r,
+    Member Rpc r,
+    Member TinyLog r
+  ) =>
+  Version ->
+  Local UserId ->
+  Maybe ConnId ->
+  Qualified ConvId ->
+  Sem r Conversation
+unblockConversation v lusr mconn (Qualified cnv cdom) = do
+  debug $
+    remote "galley"
+      . field "conv" (toByteString cnv)
+      . field "domain" (toByteString cdom)
+      . msg (val "Unblocking conversation")
+  void $ galleyRequest putReq
+  galleyRequest getReq >>= decodeBodyOrThrow @Conversation "galley"
+  where
+    putReq =
+      method PUT
+        . paths ["i", "conversations", toByteString' cdom, toByteString' cnv, "unblock"]
+        . zUser (tUnqualified lusr)
+        . maybe id (header "Z-Connection" . fromConnId) mconn
+        . expect2xx
+    getReq =
+      method GET
+        . paths [toHeader v, "conversations", toByteString' cdom, toByteString' cnv]
+        . zUser (tUnqualified lusr)
         . expect2xx

@@ -31,6 +31,7 @@ import qualified Spar.Schema.V14 as V14
 import qualified Spar.Schema.V15 as V15
 import qualified Spar.Schema.V16 as V16
 import qualified Spar.Schema.V17 as V17
+import qualified Spar.Schema.V18 as V18
 import qualified Spar.Schema.V2 as V2
 import qualified Spar.Schema.V3 as V3
 import qualified Spar.Schema.V4 as V4
@@ -76,7 +77,8 @@ migrations =
     V14.migration,
     V15.migration,
     V16.migration,
-    V17.migration
+    V17.migration,
+    V18.migration
     -- TODO: Add a migration that removes unused fields
     -- (we don't want to risk running a migration which would
     -- effectively break the currently deployed spar service)

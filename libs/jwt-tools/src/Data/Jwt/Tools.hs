@@ -34,6 +34,7 @@ module Data.Jwt.Tools
     NowEpoch (..),
     PemBundle (..),
     Handle (..),
+    DisplayName (..),
     TeamId (..),
   )
 where
@@ -41,6 +42,7 @@ where
 import Control.Exception hiding (handle)
 import Control.Monad.Trans.Except
 import Data.ByteString.Conversion
+import Data.ByteString.UTF8 qualified as UTF8
 import Foreign.C.String (CString, newCString, peekCString)
 import Foreign.Ptr (Ptr, nullPtr)
 import Imports
@@ -74,12 +76,15 @@ type EpochWord64 = Word64
 
 type BackendBundleCStr = CString
 
+type DisplayNameCStr = CString
+
 foreign import ccall unsafe "generate_dpop_access_token"
   generate_dpop_access_token ::
     ProofCStr ->
     UserIdCStr ->
     ClientIdWord64 ->
     HandleCStr ->
+    DisplayNameCStr ->
     TeamIdCStr ->
     DomainCStr ->
     NonceCStr ->
@@ -102,6 +107,7 @@ generateDpopAccessTokenFfi ::
   UserIdCStr ->
   ClientIdWord64 ->
   HandleCStr ->
+  DisplayNameCStr ->
   TeamIdCStr ->
   DomainCStr ->
   NonceCStr ->
@@ -112,8 +118,8 @@ generateDpopAccessTokenFfi ::
   EpochWord64 ->
   BackendBundleCStr ->
   IO (Maybe (Ptr HsResult))
-generateDpopAccessTokenFfi dpopProof user client handle tid domain nonce uri method maxSkewSecs expiration now backendKeys = do
-  ptr <- generate_dpop_access_token dpopProof user client handle tid domain nonce uri method maxSkewSecs expiration now backendKeys
+generateDpopAccessTokenFfi dpopProof user client handle displayName tid domain nonce uri method maxSkewSecs expiration now backendKeys = do
+  ptr <- generate_dpop_access_token dpopProof user client handle displayName tid domain nonce uri method maxSkewSecs expiration now backendKeys
   if ptr /= nullPtr
     then pure $ Just ptr
     else pure Nothing
@@ -138,6 +144,7 @@ generateDpopToken ::
   UserId ->
   ClientId ->
   Handle ->
+  DisplayName ->
   TeamId ->
   Domain ->
   Nonce ->
@@ -148,15 +155,16 @@ generateDpopToken ::
   NowEpoch ->
   PemBundle ->
   ExceptT DPoPTokenGenerationError m ByteString
-generateDpopToken dpopProof uid cid handle tid domain nonce uri method maxSkewSecs maxExpiration now backendPubkeyBundle = do
+generateDpopToken dpopProof uid cid handle displayName tid domain nonce uri method maxSkewSecs maxExpiration now backendPubkeyBundle = do
   dpopProofCStr <- toCStr dpopProof
   uidCStr <- toCStr uid
   handleCStr <- toCStr handle
+  displayNameCStr <- toCStr displayName
   tidCStr <- toCStr tid
   domainCStr <- toCStr domain
   nonceCStr <- toCStr nonce
   uriCStr <- toCStr uri
-  methodCStr <- liftIO $ newCString $ cs $ methodToBS method
+  methodCStr <- liftIO $ newCString $ UTF8.toString $ methodToBS method
   backendPubkeyBundleCStr <- toCStr backendPubkeyBundle
 
   -- log all variable inputs (can comment in if need to generate new test data)
@@ -165,6 +173,7 @@ generateDpopToken dpopProof uid cid handle tid domain nonce uri method maxSkewSe
   -- traceM $ "nonce = Nonce " <> show (_unNonce nonce)
   -- traceM $ "expires = ExpiryEpoch " <> show (_unExpiryEpoch maxExpiration)
   -- traceM $ "handle = Handle " <> show (_unHandle handle)
+  -- traceM $ "displayName = DisplayName " <> show (_unDisplayName displayName)
   -- traceM $ "tid = TeamId " <> show (_unTeamId tid)
 
   let before =
@@ -173,6 +182,7 @@ generateDpopToken dpopProof uid cid handle tid domain nonce uri method maxSkewSe
           uidCStr
           (_unClientId cid)
           handleCStr
+          displayNameCStr
           tidCStr
           domainCStr
           nonceCStr
@@ -196,7 +206,7 @@ generateDpopToken dpopProof uid cid handle tid domain nonce uri method maxSkewSe
     toCStr = liftIO . newCString . toStr
       where
         toStr :: a -> String
-        toStr = cs . toByteString'
+        toStr = UTF8.toString . toByteString'
 
     methodToBS :: StdMethod -> ByteString
     methodToBS = \case
@@ -212,8 +222,8 @@ generateDpopToken dpopProof uid cid handle tid domain nonce uri method maxSkewSe
 
 toResult :: Maybe Word8 -> Maybe String -> Either DPoPTokenGenerationError ByteString
 -- the only valid cases are when the error=0 (meaning no error) or nothing and the token is not null
-toResult (Just 0) (Just token) = Right $ cs token
-toResult Nothing (Just token) = Right $ cs token
+toResult (Just 0) (Just token) = Right $ UTF8.fromString token
+toResult Nothing (Just token) = Right $ UTF8.fromString token
 -- errors
 toResult (Just errNo) _ = Left $ fromInt (fromIntegral errNo)
   where
@@ -270,6 +280,10 @@ newtype NowEpoch = NowEpoch {_unNowEpoch :: Word64}
   deriving newtype (ToByteString)
 
 newtype PemBundle = PemBundle {_unPemBundle :: ByteString}
+  deriving (Eq, Show)
+  deriving newtype (ToByteString)
+
+newtype DisplayName = DisplayName {_unDisplayName :: ByteString}
   deriving (Eq, Show)
   deriving newtype (ToByteString)
 
@@ -359,4 +373,6 @@ data DPoPTokenGenerationError
     DpopHandleMismatch
   | -- Client team does not match the supplied team
     DpopTeamMismatch
+  | --  Client display name does not match the supplied display name
+    DpopDisplayNameMismatch
   deriving (Eq, Show, Generic, Bounded, Enum)

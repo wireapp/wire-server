@@ -1,4 +1,5 @@
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE RecordWildCards #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -48,35 +49,37 @@ import Data.Misc (HttpsUrl)
 import Data.Range
 import Data.Text.Ascii (AsciiBase64, encodeBase64)
 import Data.Text.Strict.Lens
-import Data.Time.Clock.POSIX (getPOSIXTime)
+import Data.Time.Clock.POSIX
 import Imports hiding (head)
 import OpenSSL.EVP.Digest (Digest, hmacBS)
 import Polysemy
 import Polysemy.Error qualified as Polysemy
 import System.Logger.Class qualified as Log
 import System.Random.MWC qualified as MWC
-import Wire.API.Call.Config (SFTServer)
 import Wire.API.Call.Config qualified as Public
 import Wire.Network.DNS.SRV (srvTarget)
-import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
 
 -- | ('UserId', 'ConnId' are required as args here to make sure this is an authenticated end-point.)
-getCallsConfigV2 :: UserId -> ConnId -> Maybe (Range 1 10 Int) -> (Handler r) Public.RTCConfiguration
+getCallsConfigV2 ::
+  ( Member (Embed IO) r,
+    Member SFT r
+  ) =>
+  UserId ->
+  ConnId ->
+  Maybe (Range 1 10 Int) ->
+  (Handler r) Public.RTCConfiguration
 getCallsConfigV2 _ _ limit = do
   env <- view turnEnv
   staticUrl <- view $ settings . Opt.sftStaticUrl
   sftListAllServers <- fromMaybe Opt.HideAllSFTServers <$> view (settings . Opt.sftListAllServers)
   sftEnv' <- view sftEnv
-  logger <- view applog
-  manager <- view httpManager
+  sftFederation <- view enableSFTFederation
   discoveredServers <- turnServersV2 (env ^. turnServers)
   eitherConfig <-
-    liftIO
-      . runM @IO
-      . loggerToTinyLog logger
-      . interpretSFT manager
+    lift
+      . liftSem
       . Polysemy.runError
-      $ newConfig env discoveredServers staticUrl sftEnv' limit sftListAllServers CallsConfigV2
+      $ newConfig env discoveredServers staticUrl sftEnv' limit sftListAllServers (CallsConfigV2 sftFederation)
   handleNoTurnServers eitherConfig
 
 -- | Throws '500 Internal Server Error' when no turn servers are found. This is
@@ -91,18 +94,20 @@ handleNoTurnServers (Left NoTurnServers) = do
   Log.err $ Log.msg (Log.val "Call config requested before TURN URIs could be discovered.")
   throwE $ StdError internalServerError
 
-getCallsConfig :: UserId -> ConnId -> (Handler r) Public.RTCConfiguration
+getCallsConfig ::
+  ( Member (Embed IO) r,
+    Member SFT r
+  ) =>
+  UserId ->
+  ConnId ->
+  (Handler r) Public.RTCConfiguration
 getCallsConfig _ _ = do
   env <- view turnEnv
-  logger <- view applog
-  manager <- view httpManager
   discoveredServers <- turnServersV1 (env ^. turnServers)
   eitherConfig <-
     (dropTransport <$$>)
-      . liftIO
-      . runM @IO
-      . loggerToTinyLog logger
-      . interpretSFT manager
+      . lift
+      . liftSem
       . Polysemy.runError
       $ newConfig env discoveredServers Nothing Nothing Nothing HideAllSFTServers CallsConfigDeprecated
   handleNoTurnServers eitherConfig
@@ -116,7 +121,7 @@ getCallsConfig _ _ = do
 
 data CallsConfigVersion
   = CallsConfigDeprecated
-  | CallsConfigV2
+  | CallsConfigV2 (Maybe Bool)
 
 data NoTurnServers = NoTurnServers
   deriving (Show)
@@ -129,7 +134,10 @@ instance Exception NoTurnServers
 -- to be set or only one of them (perhaps Data.These combined with error
 -- handling).
 newConfig ::
-  Members [Embed IO, SFT, Polysemy.Error NoTurnServers] r =>
+  ( Member (Embed IO) r,
+    Member SFT r,
+    Member (Polysemy.Error NoTurnServers) r
+  ) =>
   Calling.TurnEnv ->
   Discovery (NonEmpty Public.TurnURI) ->
   Maybe HttpsUrl ->
@@ -139,7 +147,6 @@ newConfig ::
   CallsConfigVersion ->
   Sem r Public.RTCConfiguration
 newConfig env discoveredServers sftStaticUrl mSftEnv limit listAllServers version = do
-  let (sha, secret, tTTL, cTTL, prng) = (env ^. turnSHA512, env ^. turnSecret, env ^. turnTokenTTL, env ^. turnConfigTTL, env ^. turnPrng)
   -- randomize list of servers (before limiting the list, to ensure not always the same servers are chosen if limit is set)
   randomizedUris <-
     liftIO . randomize
@@ -150,8 +157,8 @@ newConfig env discoveredServers sftStaticUrl mSftEnv limit listAllServers versio
   -- randomize again (as limitedList partially re-orders uris)
   finalUris <- liftIO $ randomize limitedUris
   srvs <- for finalUris $ \uri -> do
-    u <- liftIO $ genUsername tTTL prng
-    pure $ Public.rtcIceServer (pure uri) u (computeCred sha secret u)
+    u <- liftIO $ genTurnUsername (env ^. turnTokenTTL) (env ^. turnPrng)
+    pure . Public.rtcIceServer (pure uri) u $ computeCred (env ^. turnSHA512) (env ^. turnSecret) u
 
   let staticSft = pure . Public.sftServer <$> sftStaticUrl
   allSrvEntries <-
@@ -163,16 +170,21 @@ newConfig env discoveredServers sftStaticUrl mSftEnv limit listAllServers versio
       let subsetLength = Calling.sftListLength actualSftEnv
       mapM (getRandomElements subsetLength) allSrvEntries
 
-  mSftServersAll :: Maybe [SFTServer] <- case version of
-    CallsConfigDeprecated -> pure Nothing
-    CallsConfigV2 ->
-      case (listAllServers, sftStaticUrl) of
-        (HideAllSFTServers, _) -> pure Nothing
-        (ListAllSFTServers, Nothing) -> pure . Just $ sftServerFromSrvTarget . srvTarget <$> maybe [] toList allSrvEntries
-        (ListAllSFTServers, Just url) -> hush . unSFTGetResponse <$> sftGetAllServers url
+  let sftFederation' = case version of
+        CallsConfigDeprecated -> Nothing
+        CallsConfigV2 fed -> fed
+
+  mSftServersAll <-
+    case version of
+      CallsConfigDeprecated -> pure Nothing
+      CallsConfigV2 _ ->
+        case (listAllServers, sftStaticUrl) of
+          (HideAllSFTServers, _) -> pure Nothing
+          (ListAllSFTServers, Nothing) -> mapM (mapM authenticate) . pure $ sftServerFromSrvTarget . srvTarget <$> maybe [] toList allSrvEntries
+          (ListAllSFTServers, Just url) -> mapM (mapM authenticate) . hush . unSFTGetResponse =<< sftGetAllServers url
 
   let mSftServers = staticSft <|> sftServerFromSrvTarget . srvTarget <$$> srvEntries
-  pure $ Public.rtcConfiguration srvs mSftServers cTTL mSftServersAll
+  pure $ Public.rtcConfiguration srvs mSftServers (env ^. turnConfigTTL) mSftServersAll sftFederation'
   where
     limitedList :: NonEmpty Public.TurnURI -> Range 1 10 Int -> NonEmpty Public.TurnURI
     limitedList uris lim =
@@ -182,10 +194,27 @@ newConfig env discoveredServers sftStaticUrl mSftEnv limit listAllServers versio
       -- it should also be safe to assume the returning list has length >= 1
       NonEmpty.nonEmpty (Public.limitServers (NonEmpty.toList uris) (fromRange lim))
         & fromMaybe (error "newConfig:limitedList: empty list of servers")
-    genUsername :: Word32 -> MWC.GenIO -> IO Public.TurnUsername
+    genUsername :: Word32 -> MWC.GenIO -> IO (POSIXTime, Text)
     genUsername ttl prng = do
       rnd <- view (packedBytes . utf8) <$> replicateM 16 (MWC.uniformR (97, 122) prng)
       t <- fromIntegral . (+ ttl) . round <$> getPOSIXTime
-      pure $ Public.turnUsername t rnd
-    computeCred :: Digest -> ByteString -> Public.TurnUsername -> AsciiBase64
+      pure $ (t, rnd)
+    genTurnUsername :: Word32 -> MWC.GenIO -> IO Public.TurnUsername
+    genTurnUsername = (fmap (uncurry Public.turnUsername) .) . genUsername
+    genSFTUsername :: Word32 -> MWC.GenIO -> IO Public.SFTUsername
+    genSFTUsername = (fmap (uncurry Public.mkSFTUsername) .) . genUsername
+    computeCred :: ToByteString a => Digest -> ByteString -> a -> AsciiBase64
     computeCred dig secret = encodeBase64 . hmacBS dig secret . toByteString'
+    authenticate ::
+      Member (Embed IO) r =>
+      Public.SFTServer ->
+      Sem r Public.AuthSFTServer
+    authenticate =
+      maybe
+        (pure . Public.nauthSFTServer)
+        ( \SFTTokenEnv {..} sftsvr -> do
+            username <- liftIO $ genSFTUsername sftTokenTTL sftTokenPRNG
+            let credential = computeCred sftTokenSHA sftTokenSecret username
+            pure $ Public.authSFTServer sftsvr username credential
+        )
+        (sftToken =<< mSftEnv)

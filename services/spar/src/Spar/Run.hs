@@ -35,12 +35,14 @@ import Control.Lens (to, (^.))
 import Data.Id
 import Data.Metrics.Servant (servantPrometheusMiddleware)
 import Data.Proxy (Proxy (Proxy))
+import Data.Text.Encoding
 import qualified Data.UUID as UUID
 import Data.UUID.V4 as UUID
 import Imports
 import Network.Wai (Application)
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
+import qualified Network.Wai.Middleware.Gunzip as GZip
 import Network.Wai.Utilities.Request (lookupRequestId)
 import qualified Network.Wai.Utilities.Server as WU
 import qualified SAML2.WebSSO as SAML
@@ -92,17 +94,18 @@ mkApp sparCtxOpts = do
   sparCtxCas <- initCassandra sparCtxOpts sparCtxLogger
   sparCtxHttpManager <- Bilge.newManager Bilge.defaultManagerSettings
   let sparCtxHttpBrig =
-        Bilge.host (sparCtxOpts ^. to brig . host . to cs)
+        Bilge.host (sparCtxOpts ^. to brig . host . to encodeUtf8)
           . Bilge.port (sparCtxOpts ^. to brig . port)
           $ Bilge.empty
   let sparCtxHttpGalley =
-        Bilge.host (sparCtxOpts ^. to galley . host . to cs)
+        Bilge.host (sparCtxOpts ^. to galley . host . to encodeUtf8)
           . Bilge.port (sparCtxOpts ^. to galley . port)
           $ Bilge.empty
   let wrappedApp =
         versionMiddleware (foldMap expandVersionExp (disabledAPIVersions sparCtxOpts))
           . WU.heavyDebugLogging heavyLogOnly logLevel sparCtxLogger
           . servantPrometheusMiddleware (Proxy @SparAPI)
+          . GZip.gunzip
           . WU.catchErrors sparCtxLogger []
           -- Error 'Response's are usually not thrown as exceptions, but logged in
           -- 'renderSparErrorWithLogging' before the 'Application' can construct a 'Response'
@@ -125,6 +128,6 @@ lookupRequestIdMiddleware logger mkapp req cont = do
     Just rid -> do
       mkapp (RequestId rid) req cont
     Nothing -> do
-      localRid <- RequestId . cs . UUID.toText <$> UUID.nextRandom
+      localRid <- RequestId . encodeUtf8 . UUID.toText <$> UUID.nextRandom
       Log.info logger $ "request-id" .= localRid ~~ "request" .= (show req) ~~ msg (val "generated a new request id for local request")
       mkapp localRid req cont

@@ -14,7 +14,6 @@
 , tinylog
 , types-common
 , unliftio
-, wire-api
 }:
 mkDerivation {
   pname = "auto-whitelist";
@@ -32,7 +31,6 @@ mkDerivation {
     tinylog
     types-common
     unliftio
-    wire-api
   ];
   description = "Backfill service tables";
   license = lib.licenses.agpl3Only;

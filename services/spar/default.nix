@@ -23,7 +23,6 @@
 , email-validate
 , exceptions
 , extended
-, galley-types
 , gitignoreSource
 , hscim
 , HsOpenSSL
@@ -60,6 +59,7 @@
 , servant-openapi3
 , servant-server
 , silently
+, string-conversions
 , tasty-hunit
 , text
 , text-latin1
@@ -68,10 +68,12 @@
 , transformers
 , types-common
 , uri-bytestring
+, utf8-string
 , uuid
 , vector
 , wai
 , wai-extra
+, wai-middleware-gunzip
 , wai-utilities
 , warp
 , wire-api
@@ -101,7 +103,6 @@ mkDerivation {
     crypton-x509
     exceptions
     extended
-    galley-types
     hscim
     hspec
     http-types
@@ -127,8 +128,10 @@ mkDerivation {
     transformers
     types-common
     uri-bytestring
+    utf8-string
     uuid
     wai
+    wai-middleware-gunzip
     wai-utilities
     warp
     wire-api
@@ -154,7 +157,6 @@ mkDerivation {
     email-validate
     exceptions
     extended
-    galley-types
     hscim
     HsOpenSSL
     hspec
@@ -182,6 +184,7 @@ mkDerivation {
     servant
     servant-server
     silently
+    string-conversions
     tasty-hunit
     text
     time
@@ -189,6 +192,7 @@ mkDerivation {
     transformers
     types-common
     uri-bytestring
+    utf8-string
     uuid
     vector
     wai-extra
@@ -223,6 +227,7 @@ mkDerivation {
     saml2-web-sso
     servant
     servant-openapi3
+    string-conversions
     time
     tinylog
     types-common

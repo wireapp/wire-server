@@ -44,7 +44,7 @@ import Wire.API.Federation.API.Brig qualified as S
 import Wire.API.Federation.Component
 import Wire.API.Federation.Version
 import Wire.API.Routes.FederationDomainConfig as FD
-import Wire.API.User
+import Wire.API.User as User
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Search
@@ -126,7 +126,7 @@ testFulltextSearchMultipleUsers opts brig = do
   update'' :: UserUpdate <- liftIO $ generate arbitrary
   let update' = update'' {uupName = Just (Name (fromHandle handle))}
       update = RequestBodyLBS . encode $ update'
-  put (brig . path "/self" . contentJson . zUser identityThief.userId . zConn "c" . body update) !!! const 200 === statusCode
+  put (brig . path "/self" . contentJson . zUser (User.userId identityThief) . zConn "c" . body update) !!! const 200 === statusCode
 
   refreshIndex brig
 
@@ -272,9 +272,9 @@ testGetUsersByIdsSuccess :: Brig -> FedClient 'Brig -> Http ()
 testGetUsersByIdsSuccess brig fedBrigClient = do
   user1 <- randomUser brig
   user2 <- randomUser brig
-  let uid1 = user1.userId
+  let uid1 = User.userId user1
       quid1 = userQualifiedId user1
-      uid2 = user2.userId
+      uid2 = User.userId user2
       quid2 = userQualifiedId user2
   profiles <- runFedClient @"get-users-by-ids" fedBrigClient (Domain "example.com") [uid1, uid2]
   liftIO $ do
@@ -287,7 +287,7 @@ testGetUsersByIdsPartial brig fedBrigClient = do
   absentUserId :: UserId <- Id <$> lift UUIDv4.nextRandom
   profiles <-
     runFedClient @"get-users-by-ids" fedBrigClient (Domain "example.com") $
-      [presentUser.userId, absentUserId]
+      [User.userId presentUser, absentUserId]
   liftIO $
     assertEqual "should return the present user and skip the absent ones" [userQualifiedId presentUser] (profileQualifiedId <$> profiles)
 
@@ -302,7 +302,7 @@ testGetUsersByIdsFederationRestrictionAllowAllFound fedBrigClient = do
 testClaimPrekeySuccess :: Brig -> FedClient 'Brig -> Http ()
 testClaimPrekeySuccess brig fedBrigClient = do
   user <- randomUser brig
-  let uid = user.userId
+  let uid = User.userId user
   let new = defNewClient PermanentClientType [head somePrekeys] (head someLastPrekeys)
   c <- responseJsonError =<< addClient brig uid new
   mkey <- runFedClient @"claim-prekey" fedBrigClient (Domain "example.com") (uid, clientId c)
@@ -351,7 +351,7 @@ addTestClients brig uid idxs =
 
 testGetUserClients :: Brig -> FedClient 'Brig -> Http ()
 testGetUserClients brig fedBrigClient = do
-  uid1 <- (.userId) <$> randomUser brig
+  uid1 <- User.userId <$> randomUser brig
   clients :: [Client] <- addTestClients brig uid1 [0, 1, 2]
   UserMap userClients <- runFedClient @"get-user-clients" fedBrigClient (Domain "example.com") (GetUserClients [uid1])
   liftIO $
@@ -373,4 +373,4 @@ testGetUserClientsNotFound fedBrigClient = do
 testAPIVersion :: Brig -> FedClient 'Brig -> Http ()
 testAPIVersion _brig fedBrigClient = do
   vinfo <- runFedClient @"api-version" fedBrigClient (Domain "far-away.example.com") ()
-  liftIO $ vinfoSupported vinfo @?= toList supportedVersions
+  liftIO $ vinfoSupported vinfo @?= map versionInt (toList supportedVersions)

@@ -23,6 +23,7 @@
 , gitignoreSource
 , hashable
 , http-api-data
+, http-types
 , imports
 , iproute
 , iso3166-country-codes
@@ -40,6 +41,7 @@
 , random
 , schema-profunctor
 , servant-server
+, string-conversions
 , tagged
 , tasty
 , tasty-hunit
@@ -51,6 +53,7 @@
 , unix
 , unordered-containers
 , uri-bytestring
+, utf8-string
 , uuid
 , yaml
 }:
@@ -77,6 +80,7 @@ mkDerivation {
     generic-random
     hashable
     http-api-data
+    http-types
     imports
     iproute
     iso3166-country-codes
@@ -103,6 +107,7 @@ mkDerivation {
     unix
     unordered-containers
     uri-bytestring
+    utf8-string
     uuid
     yaml
   ];
@@ -114,6 +119,7 @@ mkDerivation {
     cereal
     imports
     protobuf
+    string-conversions
     tasty
     tasty-hunit
     tasty-quickcheck

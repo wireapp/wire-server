@@ -39,13 +39,15 @@ import Galley.Cassandra.Instances ()
 import Galley.Cassandra.Queries qualified as Cql
 import Galley.Cassandra.Services
 import Galley.Cassandra.Store
+import Galley.Cassandra.Util
 import Galley.Effects.MemberStore (MemberStore (..))
 import Galley.Types.Conversations.Members
 import Galley.Types.ToUserRole
 import Galley.Types.UserList
-import Imports hiding (Set, cs)
+import Imports hiding (Set)
 import Polysemy
 import Polysemy.Input
+import Polysemy.TinyLog
 import UnliftIO qualified
 import Wire.API.Conversation.Member hiding (Member)
 import Wire.API.Conversation.Role
@@ -390,34 +392,76 @@ removeAllMLSClients groupId = do
 
 interpretMemberStoreToCassandra ::
   ( Member (Embed IO) r,
-    Member (Input ClientState) r
+    Member (Input ClientState) r,
+    Member TinyLog r
   ) =>
   Sem (MemberStore ': r) a ->
   Sem r a
 interpretMemberStoreToCassandra = interpret $ \case
-  CreateMembers cid ul -> embedClient $ addMembers cid ul
-  CreateMembersInRemoteConversation rcid uids ->
+  CreateMembers cid ul -> do
+    logEffect "MemberStore.CreateMembers"
+    embedClient $ addMembers cid ul
+  CreateMembersInRemoteConversation rcid uids -> do
+    logEffect "MemberStore.CreateMembersInRemoteConversation"
     embedClient $ addLocalMembersToRemoteConv rcid uids
-  CreateBotMember sr bid cid -> embedClient $ addBotMember sr bid cid
-  GetLocalMember cid uid -> embedClient $ member cid uid
-  GetLocalMembers cid -> embedClient $ members cid
-  GetAllLocalMembers -> embedClient allMembers
-  GetRemoteMember cid uid -> embedClient $ lookupRemoteMember cid (tDomain uid) (tUnqualified uid)
-  GetRemoteMembers rcid -> embedClient $ lookupRemoteMembers rcid
-  CheckLocalMemberRemoteConv uid rcnv -> fmap (not . null) $ embedClient $ lookupLocalMemberRemoteConv uid rcnv
-  SelectRemoteMembers uids rcnv -> embedClient $ filterRemoteConvMembers uids rcnv
-  SetSelfMember qcid luid upd -> embedClient $ updateSelfMember qcid luid upd
-  SetOtherMember lcid quid upd ->
+  CreateBotMember sr bid cid -> do
+    logEffect "MemberStore.CreateBotMember"
+    embedClient $ addBotMember sr bid cid
+  GetLocalMember cid uid -> do
+    logEffect "MemberStore.GetLocalMember"
+    embedClient $ member cid uid
+  GetLocalMembers cid -> do
+    logEffect "MemberStore.GetLocalMembers"
+    embedClient $ members cid
+  GetAllLocalMembers -> do
+    logEffect "MemberStore.GetAllLocalMembers"
+    embedClient allMembers
+  GetRemoteMember cid uid -> do
+    logEffect "MemberStore.GetRemoteMember"
+    embedClient $ lookupRemoteMember cid (tDomain uid) (tUnqualified uid)
+  GetRemoteMembers rcid -> do
+    logEffect "MemberStore.GetRemoteMembers"
+    embedClient $ lookupRemoteMembers rcid
+  CheckLocalMemberRemoteConv uid rcnv -> do
+    logEffect "MemberStore.CheckLocalMemberRemoteConv"
+    fmap (not . null) $ embedClient $ lookupLocalMemberRemoteConv uid rcnv
+  SelectRemoteMembers uids rcnv -> do
+    logEffect "MemberStore.SelectRemoteMembers"
+    embedClient $ filterRemoteConvMembers uids rcnv
+  SetSelfMember qcid luid upd -> do
+    logEffect "MemberStore.SetSelfMember"
+    embedClient $ updateSelfMember qcid luid upd
+  SetOtherMember lcid quid upd -> do
+    logEffect "MemberStore.SetOtherMember"
     embedClient $ updateOtherMemberLocalConv lcid quid upd
-  DeleteMembers cnv ul -> embedClient $ removeMembersFromLocalConv cnv ul
-  DeleteMembersInRemoteConversation rcnv uids ->
+  DeleteMembers cnv ul -> do
+    logEffect "MemberStore.DeleteMembers"
+    embedClient $ removeMembersFromLocalConv cnv ul
+  DeleteMembersInRemoteConversation rcnv uids -> do
+    logEffect "MemberStore.DeleteMembersInRemoteConversation"
     embedClient $
       removeLocalMembersFromRemoteConv rcnv uids
-  AddMLSClients lcnv quid cs -> embedClient $ addMLSClients lcnv quid cs
-  PlanClientRemoval lcnv cids -> embedClient $ planMLSClientRemoval lcnv cids
-  RemoveMLSClients lcnv quid cs -> embedClient $ removeMLSClients lcnv quid cs
-  RemoveAllMLSClients gid -> embedClient $ removeAllMLSClients gid
-  LookupMLSClients lcnv -> embedClient $ lookupMLSClients lcnv
-  LookupMLSClientLeafIndices lcnv -> embedClient $ lookupMLSClientLeafIndices lcnv
-  GetRemoteMembersByDomain dom -> embedClient $ lookupRemoteMembersByDomain dom
-  GetLocalMembersByDomain dom -> embedClient $ lookupLocalMembersByDomain dom
+  AddMLSClients lcnv quid cs -> do
+    logEffect "MemberStore.AddMLSClients"
+    embedClient $ addMLSClients lcnv quid cs
+  PlanClientRemoval lcnv cids -> do
+    logEffect "MemberStore.PlanClientRemoval"
+    embedClient $ planMLSClientRemoval lcnv cids
+  RemoveMLSClients lcnv quid cs -> do
+    logEffect "MemberStore.RemoveMLSClients"
+    embedClient $ removeMLSClients lcnv quid cs
+  RemoveAllMLSClients gid -> do
+    logEffect "MemberStore.RemoveAllMLSClients"
+    embedClient $ removeAllMLSClients gid
+  LookupMLSClients lcnv -> do
+    logEffect "MemberStore.LookupMLSClients"
+    embedClient $ lookupMLSClients lcnv
+  LookupMLSClientLeafIndices lcnv -> do
+    logEffect "MemberStore.LookupMLSClientLeafIndices"
+    embedClient $ lookupMLSClientLeafIndices lcnv
+  GetRemoteMembersByDomain dom -> do
+    logEffect "MemberStore.GetRemoteMembersByDomain"
+    embedClient $ lookupRemoteMembersByDomain dom
+  GetLocalMembersByDomain dom -> do
+    logEffect "MemberStore.GetLocalMembersByDomain"
+    embedClient $ lookupLocalMembersByDomain dom

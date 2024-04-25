@@ -1,0 +1,20 @@
+{
+    "type": "user.activate",
+    "user": {
+        "accent_id": 1,
+        "assets": [],
+        "deleted": true,
+        "id": "539d9183-32a5-4fc4-ba5c-4634454e7585",
+        "locale": "tn-SB",
+        "managed_by": "wire",
+        "name": "alice",
+        "picture": [],
+        "qualified_id": {
+            "domain": "foo.example.com",
+            "id": "539d9183-32a5-4fc4-ba5c-4634454e7585"
+        },
+        "supported_protocols": [
+            "proteus"
+        ]
+    }
+}

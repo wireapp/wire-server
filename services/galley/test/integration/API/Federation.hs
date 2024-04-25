@@ -120,12 +120,9 @@ getConversationsAllFound = do
               uooRemoteUser = rAlice,
               uooActor = LocalActor,
               uooActorDesiredMembership = Included,
-              uooConvId = Just cnv1Id
+              uooConvId = cnv1Id
             }
-    UpsertOne2OneConversationResponse cnv1IdReturned <-
-      responseJsonError
-        =<< iUpsertOne2OneConversation createO2O
-    liftIO $ assertEqual "Mismatch in the generated conversation ID" cnv1IdReturned cnv1Id
+    iUpsertOne2OneConversation createO2O !!! const 200 === statusCode
 
   do
     convs <-
@@ -244,11 +241,11 @@ addLocalUser = do
   now <- liftIO getCurrentTime
   let cu =
         FedGalley.ConversationUpdate
-          { FedGalley.cuTime = now,
-            FedGalley.cuOrigUserId = qbob,
-            FedGalley.cuConvId = conv,
-            FedGalley.cuAlreadyPresentUsers = [charlie],
-            FedGalley.cuAction =
+          { FedGalley.time = now,
+            FedGalley.origUserId = qbob,
+            FedGalley.convId = conv,
+            FedGalley.alreadyPresentUsers = [charlie],
+            FedGalley.action =
               SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qalice :| [qdee]) roleNameWireMember)
           }
   WS.bracketRN c [alice, charlie, dee] $ \[wsA, wsC, wsD] -> do
@@ -298,15 +295,15 @@ addUnconnectedUsersOnly = do
     -- Bob attempts to add unconnected Charlie (possible abuse)
     let cu =
           FedGalley.ConversationUpdate
-            { FedGalley.cuTime = now,
-              FedGalley.cuOrigUserId = qBob,
-              FedGalley.cuConvId = conv,
-              FedGalley.cuAlreadyPresentUsers = [alice],
-              FedGalley.cuAction =
+            { FedGalley.time = now,
+              FedGalley.origUserId = qBob,
+              FedGalley.convId = conv,
+              FedGalley.alreadyPresentUsers = [alice],
+              FedGalley.action =
                 SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qCharlie :| []) roleNameWireMember)
             }
     -- Alice receives no notifications from this
-    void $ runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cu
+    void $ runFedClient @("on-conversation-updated") fedGalleyClient remoteDomain cu
     WS.assertNoEvent (5 # Second) [wsA]
 
 -- | This test invokes the federation endpoint:
@@ -332,20 +329,20 @@ removeLocalUser = do
   now <- liftIO getCurrentTime
   let cuAdd =
         FedGalley.ConversationUpdate
-          { FedGalley.cuTime = now,
-            FedGalley.cuOrigUserId = qBob,
-            FedGalley.cuConvId = conv,
-            FedGalley.cuAlreadyPresentUsers = [],
-            FedGalley.cuAction =
+          { FedGalley.time = now,
+            FedGalley.origUserId = qBob,
+            FedGalley.convId = conv,
+            FedGalley.alreadyPresentUsers = [],
+            FedGalley.action =
               SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
           }
       cuRemove =
         FedGalley.ConversationUpdate
-          { FedGalley.cuTime = addUTCTime (secondsToNominalDiffTime 5) now,
-            FedGalley.cuOrigUserId = qAlice,
-            FedGalley.cuConvId = conv,
-            FedGalley.cuAlreadyPresentUsers = [alice],
-            FedGalley.cuAction =
+          { FedGalley.time = addUTCTime (secondsToNominalDiffTime 5) now,
+            FedGalley.origUserId = qAlice,
+            FedGalley.convId = conv,
+            FedGalley.alreadyPresentUsers = [alice],
+            FedGalley.action =
               SomeConversationAction (sing @'ConversationLeaveTag) ()
           }
 
@@ -405,11 +402,11 @@ removeRemoteUser = do
 
   let cuRemove user =
         FedGalley.ConversationUpdate
-          { FedGalley.cuTime = addUTCTime (secondsToNominalDiffTime 5) now,
-            FedGalley.cuOrigUserId = qBob,
-            FedGalley.cuConvId = conv,
-            FedGalley.cuAlreadyPresentUsers = [alice, charlie, dee],
-            FedGalley.cuAction =
+          { FedGalley.time = addUTCTime (secondsToNominalDiffTime 5) now,
+            FedGalley.origUserId = qBob,
+            FedGalley.convId = conv,
+            FedGalley.alreadyPresentUsers = [alice, charlie, dee],
+            FedGalley.action =
               SomeConversationAction
                 (sing @'ConversationRemoveMembersTag)
                 (ConversationRemoveMembers (pure user) EdReasonRemoved)
@@ -460,11 +457,11 @@ notifyUpdate extras action etype edata = do
   now <- liftIO getCurrentTime
   let cu =
         FedGalley.ConversationUpdate
-          { FedGalley.cuTime = now,
-            FedGalley.cuOrigUserId = qbob,
-            FedGalley.cuConvId = conv,
-            FedGalley.cuAlreadyPresentUsers = [alice, charlie],
-            FedGalley.cuAction = action
+          { FedGalley.time = now,
+            FedGalley.origUserId = qbob,
+            FedGalley.convId = conv,
+            FedGalley.alreadyPresentUsers = [alice, charlie],
+            FedGalley.action = action
           }
   WS.bracketR2 c alice charlie $ \(wsA, wsC) -> do
     void $ runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
@@ -502,11 +499,11 @@ notifyUpdateUnavailable extras action etype edata = do
   now <- liftIO getCurrentTime
   let cu =
         FedGalley.ConversationUpdate
-          { FedGalley.cuTime = now,
-            FedGalley.cuOrigUserId = qbob,
-            FedGalley.cuConvId = conv,
-            FedGalley.cuAlreadyPresentUsers = [alice, charlie],
-            FedGalley.cuAction = action
+          { FedGalley.time = now,
+            FedGalley.origUserId = qbob,
+            FedGalley.convId = conv,
+            FedGalley.alreadyPresentUsers = [alice, charlie],
+            FedGalley.action = action
           }
   WS.bracketR2 c alice charlie $ \(wsA, wsC) -> do
     ((), _fedRequests) <-
@@ -638,11 +635,11 @@ notifyDeletedConversation = do
     now <- liftIO getCurrentTime
     let cu =
           FedGalley.ConversationUpdate
-            { FedGalley.cuTime = now,
-              FedGalley.cuOrigUserId = qbob,
-              FedGalley.cuConvId = qUnqualified qconv,
-              FedGalley.cuAlreadyPresentUsers = [alice],
-              FedGalley.cuAction = SomeConversationAction (sing @'ConversationDeleteTag) ()
+            { FedGalley.time = now,
+              FedGalley.origUserId = qbob,
+              FedGalley.convId = qUnqualified qconv,
+              FedGalley.alreadyPresentUsers = [alice],
+              FedGalley.action = SomeConversationAction (sing @'ConversationDeleteTag) ()
             }
     void $ runFedClient @"on-conversation-updated" fedGalleyClient bobDomain cu
 
@@ -694,11 +691,11 @@ addRemoteUser = do
   -- The conversation owning
   let cu =
         FedGalley.ConversationUpdate
-          { FedGalley.cuTime = now,
-            FedGalley.cuOrigUserId = qbob,
-            FedGalley.cuConvId = qUnqualified qconv,
-            FedGalley.cuAlreadyPresentUsers = map qUnqualified [qalice, qcharlie],
-            FedGalley.cuAction =
+          { FedGalley.time = now,
+            FedGalley.origUserId = qbob,
+            FedGalley.convId = qUnqualified qconv,
+            FedGalley.alreadyPresentUsers = map qUnqualified [qalice, qcharlie],
+            FedGalley.action =
               SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qdee :| [qeve, qflo]) roleNameWireMember)
           }
   WS.bracketRN c (map qUnqualified [qalice, qcharlie, qdee, qflo]) $ \[wsA, wsC, wsD, wsF] -> do
@@ -777,11 +774,11 @@ onMessageSent = do
   connectWithRemoteUser alice qbob
   let cu =
         FedGalley.ConversationUpdate
-          { FedGalley.cuTime = now,
-            FedGalley.cuOrigUserId = qbob,
-            FedGalley.cuConvId = conv,
-            FedGalley.cuAlreadyPresentUsers = [],
-            FedGalley.cuAction =
+          { FedGalley.time = now,
+            FedGalley.origUserId = qbob,
+            FedGalley.convId = conv,
+            FedGalley.alreadyPresentUsers = [],
+            FedGalley.action =
               SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember)
           }
   void $ runFedClient @"on-conversation-updated" fedGalleyClient bdom cu

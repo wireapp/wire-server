@@ -122,6 +122,7 @@
 , statistics
 , stomp-queue
 , streaming-commons
+, string-conversions
 , tasty
 , tasty-ant-xml
 , tasty-cannon
@@ -144,14 +145,13 @@
 , unliftio
 , unordered-containers
 , uri-bytestring
+, utf8-string
 , uuid
 , vector
 , wai
 , wai-extra
 , wai-middleware-gunzip
-, wai-predicates
 , wai-route
-, wai-routing
 , wai-utilities
 , warp
 , warp-tls
@@ -279,13 +279,12 @@ mkDerivation {
     unliftio
     unordered-containers
     uri-bytestring
+    utf8-string
     uuid
     vector
     wai
     wai-extra
     wai-middleware-gunzip
-    wai-predicates
-    wai-routing
     wai-utilities
     wire-api
     wire-api-federation
@@ -356,6 +355,7 @@ mkDerivation {
     servant-client-core
     spar
     streaming-commons
+    string-conversions
     tasty
     tasty-ant-xml
     tasty-cannon

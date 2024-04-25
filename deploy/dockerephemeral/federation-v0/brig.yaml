@@ -10,7 +10,8 @@ cassandra:
   # filterNodesByDatacentre: datacenter1
 
 elasticsearch:
-  url: http://demo_wire_elasticsearch:9200
+  # FUTUREWORK: use separate ES v0 instance
+  url: http://elastic:changeme@demo_wire_elasticsearch:9200
   index: directory_test
 
 rabbitmq:

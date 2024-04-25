@@ -77,9 +77,20 @@ services:
     networks:
       - demo_wire
 
+  redis-master:
+    container_name: demo_wire_redis
+    image: redis:6.0-alpine
+    command: redis-server /usr/local/etc/redis/redis.conf
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - ./docker/redis-master-mode.conf:/usr/local/etc/redis/redis.conf
+    networks:
+      - demo_wire
+
   redis-cluster:
     image: 'redis:6.0-alpine'
-    command: redis-cli --cluster create 172.20.0.31:6373 172.20.0.32:6374 172.20.0.33:6375 172.20.0.34:6376 172.20.0.35:6377 172.20.0.36:6378 --cluster-replicas 1 --cluster-yes
+    command: redis-cli --cluster create 172.20.0.31:6373 172.20.0.32:6374 172.20.0.33:6375 172.20.0.34:6376 172.20.0.35:6377 172.20.0.36:6378 --cluster-replicas 1 --cluster-yes -a very-secure-redis-cluster-password
     networks:
       redis:
         ipv4_address: 172.20.0.30
@@ -159,10 +170,13 @@ services:
 
   elasticsearch:
     container_name: demo_wire_elasticsearch
-    #image: elasticsearch:5.6
-    image: julialongtin/elasticsearch:0.0.9-amd64
-    # https://hub.docker.com/_/elastic is deprecated, but 6.2.4 did not work without further changes.
-    # image: docker.elastic.co/elasticsearch/elasticsearch:6.2.4
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM julialongtin/elasticsearch:0.0.9-amd64
+        RUN /usr/share/elasticsearch/bin/elasticsearch-plugin install x-pack -b
+        # this seems to be necessary to run X-Pack on Alpine (https://discuss.elastic.co/t/elasticsearch-failing-to-start-due-to-x-pack/85125/7)
+        RUN rm -rf /usr/share/elasticsearch/plugins/x-pack/platform/linux-x86_64
     ulimits:
       nofile:
         soft: 65536
@@ -171,12 +185,17 @@ services:
       - "127.0.0.1:9200:9200"
       - "127.0.0.1:9300:9300"
     environment:
+      - "xpack.ml.enabled=false"
+      - "xpack.security.enabled=true"
+      - "xpack.security.http.ssl.enabled=true"
+      - "xpack.ssl.certificate=certs/elasticsearch-cert.pem"
+      - "xpack.ssl.key=certs/elasticsearch-key.pem"
       - "bootstrap.system_call_filter=false"
-# ES_JVM_OPTIONS is reserved, so...
-# what's present in the jvm.options file by default.
-#      - "JVM_OPTIONS_ES=-Xmx2g -Xms2g"
       - "JVM_OPTIONS_ES=-Xmx512m -Xms512m"
       - "discovery.type=single-node"
+    volumes:
+      - ./docker/elasticsearch-cert.pem:/usr/share/elasticsearch/config/certs/elasticsearch-cert.pem
+      - ./docker/elasticsearch-key.pem:/usr/share/elasticsearch/config/certs/elasticsearch-key.pem
     networks:
       - demo_wire
 

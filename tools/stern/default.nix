@@ -15,7 +15,6 @@
 , exceptions
 , extended
 , extra
-, galley-types
 , gitignoreSource
 , HsOpenSSL
 , http-client
@@ -37,6 +36,7 @@
 , servant-server
 , servant-swagger-ui
 , split
+, string-conversions
 , tagged
 , tasty
 , tasty-ant-xml
@@ -46,6 +46,7 @@
 , transformers
 , types-common
 , unliftio
+, utf8-string
 , uuid
 , wai
 , wai-routing
@@ -70,7 +71,6 @@ mkDerivation {
     errors
     exceptions
     extended
-    galley-types
     http-client
     http-types
     imports
@@ -89,6 +89,7 @@ mkDerivation {
     transformers
     types-common
     unliftio
+    utf8-string
     uuid
     wai
     wai-routing
@@ -116,6 +117,7 @@ mkDerivation {
     random
     retry
     schema-profunctor
+    string-conversions
     tagged
     tasty
     tasty-ant-xml

@@ -33,16 +33,27 @@ putTeamMember user team perms = do
       req
 
 getTeamFeature :: (HasCallStack, MakesValue domain_) => domain_ -> String -> String -> App Response
-getTeamFeature domain_ featureName tid = do
+getTeamFeature domain_ tid featureName = do
   req <- baseRequest domain_ Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", featureName]
   submit "GET" $ req
 
 setTeamFeatureStatus :: (HasCallStack, MakesValue domain, MakesValue team) => domain -> team -> String -> String -> App ()
 setTeamFeatureStatus domain team featureName status = do
+  setTeamFeatureStatusExpectHttpStatus domain team featureName status 200
+
+setTeamFeatureStatusExpectHttpStatus :: (HasCallStack, MakesValue domain, MakesValue team) => domain -> team -> String -> String -> Int -> App ()
+setTeamFeatureStatusExpectHttpStatus domain team featureName status httpStatus = do
   tid <- asString team
   req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", featureName]
-  res <- submit "PATCH" $ req & addJSONObject ["status" .= status]
-  res.status `shouldMatchInt` 200
+  bindResponse (submit "PATCH" $ req & addJSONObject ["status" .= status]) $ \res -> do
+    res.status `shouldMatchInt` httpStatus
+
+setTeamFeatureLockStatus :: (HasCallStack, MakesValue domain, MakesValue team) => domain -> team -> String -> String -> App ()
+setTeamFeatureLockStatus domain team featureName status = do
+  tid <- asString team
+  req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", featureName, status]
+  bindResponse (submit "PUT" $ req) $ \res ->
+    res.status `shouldMatchInt` 200
 
 getFederationStatus ::
   ( HasCallStack,
@@ -59,14 +70,34 @@ getFederationStatus user domains =
           "GET"
           $ req & addJSONObject ["domains" .= domainList]
 
-legalholdWhitelistTeam :: (HasCallStack, MakesValue uid, MakesValue tid) => uid -> tid -> App Response
-legalholdWhitelistTeam uid tid = do
+-- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/galley/#/galley/put_i_legalhold_whitelisted_teams__tid_
+legalholdWhitelistTeam :: (HasCallStack, MakesValue uid, MakesValue tid) => tid -> uid -> App Response
+legalholdWhitelistTeam tid uid = do
   tidStr <- asString tid
   req <- baseRequest uid Galley Unversioned $ joinHttpPath ["i", "legalhold", "whitelisted-teams", tidStr]
   submit "PUT" req
 
-legalholdIsTeamInWhitelist :: (HasCallStack, MakesValue uid, MakesValue tid) => uid -> tid -> App Response
-legalholdIsTeamInWhitelist uid tid = do
+-- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/galley/#/galley/get_i_legalhold_whitelisted_teams__tid_
+legalholdIsTeamInWhitelist :: (HasCallStack, MakesValue uid, MakesValue tid) => tid -> uid -> App Response
+legalholdIsTeamInWhitelist tid uid = do
   tidStr <- asString tid
   req <- baseRequest uid Galley Unversioned $ joinHttpPath ["i", "legalhold", "whitelisted-teams", tidStr]
   submit "GET" req
+
+-- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/galley/#/galley/get_i_teams__tid__features_legalhold
+legalholdIsEnabled :: (HasCallStack, MakesValue tid, MakesValue uid) => tid -> uid -> App Response
+legalholdIsEnabled tid uid = do
+  tidStr <- asString tid
+  baseRequest uid Galley Unversioned do joinHttpPath ["i", "teams", tidStr, "features", "legalhold"]
+    >>= submit "GET"
+
+generateVerificationCode :: (HasCallStack, MakesValue domain, MakesValue email) => domain -> email -> App ()
+generateVerificationCode domain email = do
+  res <- generateVerificationCode' domain email
+  res.status `shouldMatchInt` 200
+
+generateVerificationCode' :: (HasCallStack, MakesValue domain, MakesValue email) => domain -> email -> App Response
+generateVerificationCode' domain email = do
+  req <- baseRequest domain Brig Versioned "/verification-code/send"
+  emailStr <- asString email
+  submit "POST" $ req & addJSONObject ["email" .= emailStr, "action" .= "login"]

@@ -17,7 +17,6 @@
 
 module Brig.Provider.DB where
 
-import Brig.Data.Instances ()
 import Brig.Email (EmailKey, emailKeyOrig, emailKeyUniq)
 import Brig.Types.Instances ()
 import Brig.Types.Provider.Tag

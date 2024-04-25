@@ -22,23 +22,28 @@ where
 
 import Brig.API.User qualified as API
 import Brig.App
+import Brig.Effects.ConnectionStore
 import Brig.IO.Intra (rmClient)
 import Brig.IO.Intra qualified as Intra
 import Brig.InternalEvent.Types
 import Brig.Options (defDeleteThrottleMillis, setDeleteThrottleMillis)
 import Brig.Provider.API qualified as API
-import Brig.Types.User.Event
 import Control.Lens (view)
 import Control.Monad.Catch
 import Data.ByteString.Conversion
+import Data.Qualified (Local)
+import Data.Time.Clock (UTCTime)
 import Imports
 import Polysemy
 import Polysemy.Conc
+import Polysemy.Input (Input)
 import Polysemy.Time
 import Polysemy.TinyLog as Log
 import System.Logger.Class (field, msg, val, (~~))
+import Wire.API.UserEvent
 import Wire.NotificationSubsystem
 import Wire.Sem.Delay
+import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 -- | Handle an internal event.
 --
@@ -48,14 +53,17 @@ onEvent ::
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member Delay r,
-    Member Race r
+    Member Race r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   InternalNotification ->
   Sem r ()
 onEvent n = handleTimeout $ case n of
   DeleteClient clientId uid mcon -> do
     rmClient uid clientId
-    Intra.onClientEvent uid mcon (ClientRemoved uid clientId)
+    Intra.onClientEvent uid mcon (ClientRemoved clientId)
   DeleteUser uid -> do
     Log.info $
       msg (val "Processing user delete event")

@@ -4,8 +4,10 @@ module Test.MLS where
 
 import API.Brig (claimKeyPackages, deleteClient)
 import API.Galley
+import qualified Data.Aeson.KeyMap as KM
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as B8
+import qualified Data.Set as Set
 import qualified Data.Text.Encoding as T
 import MLS.Util
 import Notifications
@@ -24,7 +26,7 @@ testSendMessageNoReturnToSender = do
   -- the message
   withWebSockets [alice1, alice2, bob1, bob2] $ \(wsSender : wss) -> do
     mp <- createApplicationMessage alice1 "hello, bob"
-    void . bindResponse (postMLSMessage mp.sender mp.message) $ \resp -> do
+    bindResponse (postMLSMessage mp.sender mp.message) $ \resp -> do
       resp.status `shouldMatchInt` 201
     for_ wss $ \ws -> do
       n <- awaitMatch (\n -> nPayload n %. "type" `isEqual` "conversation.mls-message-add") ws
@@ -323,9 +325,12 @@ testAddUserSimple :: HasCallStack => Ciphersuite -> CredentialType -> App ()
 testAddUserSimple suite ctype = do
   setMLSCiphersuite suite
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
-  [alice1, bob1, bob2] <- traverse (createMLSClient def {credType = ctype}) [alice, bob, bob]
 
-  traverse_ uploadNewKeyPackage [bob1, bob2]
+  bob1 <- createMLSClient def {credType = ctype} bob
+  void $ uploadNewKeyPackage bob1
+  [alice1, bob2] <- traverse (createMLSClient def {credType = ctype}) [alice, bob]
+
+  traverse_ uploadNewKeyPackage [bob2]
   (_, qcnv) <- createNewGroup alice1
 
   resp <- createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
@@ -365,8 +370,9 @@ testRemoteAddUser = do
     resp.status `shouldMatchInt` 500
     resp.json %. "label" `shouldMatch` "federation-not-implemented"
 
-testRemoteRemoveClient :: HasCallStack => App ()
-testRemoteRemoveClient = do
+testRemoteRemoveClient :: HasCallStack => Ciphersuite -> App ()
+testRemoteRemoveClient suite = do
+  setMLSCiphersuite suite
   [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
   [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
   void $ uploadNewKeyPackage bob1
@@ -478,8 +484,9 @@ testRemoveClientsIncomplete = do
   err <- postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 409
   err %. "label" `shouldMatch` "mls-client-mismatch"
 
-testAdminRemovesUserFromConv :: HasCallStack => App ()
-testAdminRemovesUserFromConv = do
+testAdminRemovesUserFromConv :: HasCallStack => Ciphersuite -> App ()
+testAdminRemovesUserFromConv suite = do
+  setMLSCiphersuite suite
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
   [alice1, bob1, bob2] <- traverse (createMLSClient def) [alice, bob, bob]
 
@@ -674,7 +681,7 @@ testCommitNotReferencingAllProposals = do
 
 testUnsupportedCiphersuite :: HasCallStack => App ()
 testUnsupportedCiphersuite = do
-  setMLSCiphersuite (Ciphersuite "0x0002")
+  setMLSCiphersuite (Ciphersuite "0x0003")
   alice <- randomUser OwnDomain def
   alice1 <- createMLSClient def alice
   void $ createNewGroup alice1
@@ -684,3 +691,59 @@ testUnsupportedCiphersuite = do
   bindResponse (postMLSCommitBundle alice1 (mkBundle mp)) $ \resp -> do
     resp.status `shouldMatchInt` 400
     resp.json %. "label" `shouldMatch` "mls-protocol-error"
+
+testBackendRemoveProposal :: HasCallStack => Ciphersuite -> Domain -> App ()
+testBackendRemoveProposal suite domain = do
+  setMLSCiphersuite suite
+  [alice, bob] <- createAndConnectUsers [OwnDomain, domain]
+  (alice1 : bobClients) <- traverse (createMLSClient def) [alice, bob, bob]
+  traverse_ uploadNewKeyPackage bobClients
+  void $ createNewGroup alice1
+
+  void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+
+  let isRemoveProposalFor :: Int -> Value -> App Bool
+      isRemoveProposalFor index e =
+        isNewMLSMessageNotif e &&~ do
+          msgData <- e %. "payload.0.data" & asByteString
+          msg <- showMessage alice1 msgData
+          fieldEquals msg "message.content.body.Proposal.Remove.removed" index
+
+  withWebSocket alice1 \ws -> do
+    deleteUser bob
+    for_ (zip [1 ..] bobClients) \(index, _) -> do
+      void $ consumeMessageWithPredicate (isRemoveProposalFor index) alice1 Nothing ws
+
+  bobUser <- asString $ bob %. "id"
+  modifyMLSState $ \mls ->
+    mls
+      { members = Set.filter (\m -> m.user /= bobUser) mls.members
+      }
+
+  -- alice commits the external proposals
+  r <- createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
+  shouldBeEmpty $ r %. "events"
+
+testPublicKeys :: HasCallStack => App ()
+testPublicKeys = do
+  alice <- randomUserId OwnDomain
+  let expectedKeys =
+        [ "ed25519",
+          "ecdsa_secp256r1_sha256",
+          "ecdsa_secp384r1_sha384",
+          "ecdsa_secp521r1_sha512"
+        ]
+  bindResponse (getMLSPublicKeys alice) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    (KM.keys <$> asObject (resp.json %. "removal")) `shouldMatchSet` expectedKeys
+
+testPublicKeysMLSNotEnabled :: HasCallStack => App ()
+testPublicKeysMLSNotEnabled = withModifiedBackend
+  def
+    { galleyCfg = removeField "settings.mlsPrivateKeyPaths"
+    }
+  $ \domain -> do
+    alice <- randomUserId domain
+    bindResponse (getMLSPublicKeys alice) $ \resp -> do
+      resp.status `shouldMatchInt` 400
+      resp.json %. "label" `shouldMatch` "mls-not-enabled"

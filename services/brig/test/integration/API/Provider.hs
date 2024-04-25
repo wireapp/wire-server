@@ -574,22 +574,22 @@ testClaimUserPrekeys :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
 testClaimUserPrekeys config db brig galley = withTestService config db brig defServiceApp $ \sref _ -> do
   (pid, sid, u1, _u2, _h) <- prepareUsers sref brig
   cid <- do
-    rs <- createConv galley u1.userId [] <!! const 201 === statusCode
+    rs <- createConv galley (User.userId u1) [] <!! const 201 === statusCode
     let Just cnv = responseJsonMaybe rs
     let cid = qUnqualified . cnvQualifiedId $ cnv
     pure cid
-  addBotResponse :: AddBotResponse <- responseJsonError =<< addBot brig u1.userId pid sid cid <!! const 201 === statusCode
+  addBotResponse :: AddBotResponse <- responseJsonError =<< addBot brig (User.userId u1) pid sid cid <!! const 201 === statusCode
   let bid = addBotResponse.rsAddBotId
   let new = defNewClient TemporaryClientType (take 1 somePrekeys) (Imports.head someLastPrekeys)
-  c :: Client <- responseJsonError =<< addClient brig u1.userId new
+  c :: Client <- responseJsonError =<< addClient brig (User.userId u1) new
 
-  let userClients = UserClients $ Map.fromList [(u1.userId, Set.fromList [c.clientId])]
+  let userClients = UserClients $ Map.fromList [((User.userId u1), Set.fromList [c.clientId])]
   actual <- responseJsonError =<< claimUsersPrekeys brig bid userClients <!! const 200 === statusCode
 
   let expected =
         UserClientPrekeyMap $
           UserClientMap $
-            Map.fromList [(u1.userId, Map.fromList [(c.clientId, Just (Imports.head somePrekeys))])]
+            Map.fromList [((User.userId u1), Map.fromList [(c.clientId, Just (Imports.head somePrekeys))])]
 
   liftIO $ assertEqual "claim prekeys" expected actual
 
@@ -597,28 +597,28 @@ testListUserProfiles :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
 testListUserProfiles config db brig galley = withTestService config db brig defServiceApp $ \sref _ -> do
   (pid, sid, u1, u2, _h) <- prepareUsers sref brig
   cid <- do
-    rs <- createConv galley u1.userId [] <!! const 201 === statusCode
+    rs <- createConv galley (User.userId u1) [] <!! const 201 === statusCode
     let Just cnv = responseJsonMaybe rs
     let cid = qUnqualified . cnvQualifiedId $ cnv
     pure cid
-  addBotResponse :: AddBotResponse <- responseJsonError =<< addBot brig u1.userId pid sid cid <!! const 201 === statusCode
+  addBotResponse :: AddBotResponse <- responseJsonError =<< addBot brig (User.userId u1) pid sid cid <!! const 201 === statusCode
   let bid = addBotResponse.rsAddBotId
-  resp :: [Ext.BotUserView] <- responseJsonError =<< listUserProfiles brig bid [u1.userId, u2.userId] <!! const 200 === statusCode
-  liftIO $ Set.fromList (fmap (.botUserViewId) resp) @?= Set.fromList [u1.userId, u2.userId]
+  resp :: [Ext.BotUserView] <- responseJsonError =<< listUserProfiles brig bid [(User.userId u1), (User.userId u2)] <!! const 200 === statusCode
+  liftIO $ Set.fromList (fmap (.botUserViewId) resp) @?= Set.fromList [(User.userId u1), (User.userId u2)]
 
 testGetUserClients :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
 testGetUserClients config db brig galley = withTestService config db brig defServiceApp $ \sref _ -> do
   (pid, sid, u1, _u2, _h) <- prepareUsers sref brig
   cid <- do
-    rs <- createConv galley u1.userId [] <!! const 201 === statusCode
+    rs <- createConv galley (User.userId u1) [] <!! const 201 === statusCode
     let Just cnv = responseJsonMaybe rs
     let cid = qUnqualified . cnvQualifiedId $ cnv
     pure cid
-  addBotResponse :: AddBotResponse <- responseJsonError =<< addBot brig u1.userId pid sid cid <!! const 201 === statusCode
+  addBotResponse :: AddBotResponse <- responseJsonError =<< addBot brig (User.userId u1) pid sid cid <!! const 201 === statusCode
   let bid = addBotResponse.rsAddBotId
   let new = defNewClient TemporaryClientType (take 1 somePrekeys) (Imports.head someLastPrekeys)
-  expected :: Client <- responseJsonError =<< addClient brig u1.userId new
-  [actual] :: [PubClient] <- responseJsonError =<< getUserClients brig bid u1.userId <!! const 200 === statusCode
+  expected :: Client <- responseJsonError =<< addClient brig (User.userId u1) new
+  [actual] :: [PubClient] <- responseJsonError =<< getUserClients brig bid (User.userId u1) <!! const 200 === statusCode
   liftIO $ actual.pubClientId @?= expected.clientId
 
 testAddBotBlocked :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
@@ -1680,10 +1680,10 @@ testRegisterProvider db' brig = do
       activateProvider brig (Code.codeKey vcode) (Code.codeValue vcode)
         !!! const 200 === statusCode
     Nothing -> do
-      _rs <-
+      rs <-
         getProviderActivationCodeInternal brig email
           <!! const 200 === statusCode
-      let Just pair = responseJsonMaybe _rs :: Maybe Code.KeyValuePair
+      let Just pair = responseJsonMaybe rs :: Maybe Code.KeyValuePair
       activateProvider brig (Code.key pair) (Code.code pair)
         !!! const 200 === statusCode
   -- Login succeeds after activation (due to auto-approval)

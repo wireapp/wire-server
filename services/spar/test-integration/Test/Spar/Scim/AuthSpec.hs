@@ -37,10 +37,10 @@ import qualified Data.Code as Code
 import Data.Id (ScimTokenId, TeamId, UserId, randomId)
 import Data.Misc
 import Data.Range (unsafeRange)
+import Data.String.Conversions
 import Data.Text.Ascii (AsciiChars (validate))
 import Data.Time (UTCTime)
 import Data.Time.Clock (getCurrentTime)
-import qualified Galley.Types.Teams as Galley
 import Imports
 import OpenSSL.Random (randBytes)
 import qualified SAML2.WebSSO as SAML
@@ -50,6 +50,7 @@ import Text.RawString.QQ (r)
 import Util
 import Wire.API.Team.Feature (featureNameBS)
 import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Member (rolePermissions)
 import Wire.API.Team.Role
 import Wire.API.User (userEmail)
 import qualified Wire.API.User as Public
@@ -90,7 +91,8 @@ testCreateToken :: TestSpar ()
 testCreateToken = do
   env <- ask
   -- Create a token
-  (owner, _, _) <- registerTestIdP
+  (owner, _tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  _ <- registerTestIdP owner
   CreateScimTokenResponse token _ <-
     createToken
       owner
@@ -111,7 +113,8 @@ testCreateToken = do
 testCreateTokenWithVerificationCode :: TestSpar ()
 testCreateTokenWithVerificationCode = do
   env <- ask
-  (owner, teamId, _) <- registerTestIdP
+  (owner, teamId) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  _ <- registerTestIdP owner
   unlockFeature (env ^. teGalley) teamId
   setSndFactorPasswordChallengeStatus (env ^. teGalley) teamId Public.FeatureStatusEnabled
   user <- getUserBrig owner
@@ -168,7 +171,8 @@ testTokenLimit :: TestSpar ()
 testTokenLimit = do
   env <- ask
   -- Create two tokens
-  (owner, _, _) <- registerTestIdP
+  (owner, _teamId) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  _ <- registerTestIdP owner
   _ <-
     createToken
       owner
@@ -224,7 +228,8 @@ testNumIdPs = do
 testCreateTokenAuthorizesOnlyAdmins :: TestSpar ()
 testCreateTokenAuthorizesOnlyAdmins = do
   env <- ask
-  (_, teamId, _) <- registerTestIdP
+  (owner, teamId) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  _ <- registerTestIdP owner
 
   let mkUser :: Role -> TestSpar UserId
       mkUser role = do
@@ -233,7 +238,7 @@ testCreateTokenAuthorizesOnlyAdmins = do
             (env ^. teBrig)
             (env ^. teGalley)
             teamId
-            (Galley.rolePermissions role)
+            (rolePermissions role)
 
   let createToken' uid =
         createToken_
@@ -261,7 +266,8 @@ testCreateTokenRequiresPassword :: TestSpar ()
 testCreateTokenRequiresPassword = do
   env <- ask
   -- Create a new team
-  (owner, _, _) <- registerTestIdP
+  (owner, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  _ <- registerTestIdP owner
   -- Creating a token doesn't work without a password
   createToken_
     owner
@@ -296,7 +302,9 @@ specListTokens = describe "GET /auth-tokens" $ do
 testListTokens :: TestSpar ()
 testListTokens = do
   -- Create two tokens
-  (owner, _, _) <- registerTestIdP
+  env <- ask
+  (owner, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  _ <- registerTestIdP owner
   _ <-
     createToken
       owner
@@ -321,7 +329,9 @@ testListTokens = do
 
 testPlaintextTokensAreConverted :: TestSpar ()
 testPlaintextTokensAreConverted = do
-  (_, teamId, _) <- registerTestIdP
+  env <- ask
+  (owner, teamId) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  _ <- registerTestIdP owner
 
   -- create a legacy plaintext token in the DB
   token <- createLegacyPlaintextToken teamId
@@ -402,7 +412,8 @@ testDeletedTokensAreUnusable :: TestSpar ()
 testDeletedTokensAreUnusable = do
   env <- ask
   -- Create a token
-  (owner, _, _) <- registerTestIdP
+  (owner, _teamId) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  _ <- registerTestIdP owner
   CreateScimTokenResponse token tokenInfo <-
     createToken
       owner
@@ -425,7 +436,9 @@ testDeletedTokensAreUnusable = do
 testDeletedTokensAreUnlistable :: TestSpar ()
 testDeletedTokensAreUnlistable = do
   -- Create a token
-  (owner, _, _) <- registerTestIdP
+  env <- ask
+  (owner, _teamId) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  _ <- registerTestIdP owner
   CreateScimTokenResponse _ tokenInfo <-
     createToken
       owner

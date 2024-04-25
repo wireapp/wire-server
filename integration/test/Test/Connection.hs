@@ -19,6 +19,7 @@ module Test.Connection where
 import API.Brig (getConnection, postConnection, putConnection)
 import API.BrigInternal
 import API.Galley
+import Notifications
 import SetupHelpers
 import Testlib.Prelude
 import UnliftIO.Async (forConcurrently_)
@@ -401,3 +402,14 @@ testFederationAllowMixedConnectWithRemote =
     connectTwoUsers alice bob
   where
     defSearchPolicy = "full_search"
+
+testPendingConnectionUserDeleted :: HasCallStack => Domain -> App ()
+testPendingConnectionUserDeleted bobsDomain = do
+  alice <- randomUser OwnDomain def
+  bob <- randomUser bobsDomain def
+
+  withWebSockets [bob] $ \[bobWs] -> do
+    void $ postConnection alice bob >>= getBody 201
+    void $ awaitMatch (isConnectionNotif "pending") bobWs
+    void $ deleteUser alice
+    void $ awaitMatch (isConnectionNotif "cancelled") bobWs

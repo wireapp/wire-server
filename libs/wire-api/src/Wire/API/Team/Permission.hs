@@ -53,6 +53,7 @@ import Data.Schema
 import Data.Set qualified as Set
 import Data.Singletons.Base.TH
 import Imports
+import Test.QuickCheck (oneof)
 import Wire.API.Util.Aeson (CustomEncoded (..))
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
@@ -89,7 +90,7 @@ instance ToSchema Permissions where
 instance Arbitrary Permissions where
   arbitrary =
     maybe (error "instance Arbitrary Permissions") pure =<< do
-      selfperms <- arbitrary
+      selfperms <- oneof $ map (pure . intToPerms) [1025, 1587, 5951, 8191]
       copyperms <- Set.intersection selfperms <$> arbitrary
       pure $ newPermissions selfperms copyperms
 

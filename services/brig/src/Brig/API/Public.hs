@@ -48,12 +48,14 @@ import Brig.Data.UserKey qualified as UserKey
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.CodeStore (CodeStore)
+import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.FederationConfigStore (FederationConfigStore)
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.Effects.JwtTools (JwtTools)
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
+import Brig.Effects.SFT
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Options hiding (internalEvents, sesQueue)
 import Brig.Provider.API
@@ -76,8 +78,10 @@ import Control.Monad.Catch (throwM)
 import Control.Monad.Except
 import Data.Aeson hiding (json)
 import Data.Bifunctor
+import Data.ByteString (fromStrict, toStrict)
 import Data.ByteString.Lazy qualified as Lazy
 import Data.ByteString.Lazy.Char8 qualified as LBS
+import Data.ByteString.UTF8 qualified as UTF8
 import Data.CommaSeparatedList
 import Data.Domain
 import Data.FileEmbed
@@ -93,14 +97,16 @@ import Data.Range
 import Data.Schema ()
 import Data.Text qualified as Text
 import Data.Text.Ascii qualified as Ascii
+import Data.Text.Encoding qualified as Text
 import Data.Text.Lazy (pack)
+import Data.Time.Clock (UTCTime)
 import Data.ZAuth.Token qualified as ZAuth
 import FileEmbedLzma
-import Galley.Types.Teams (HiddenPerm (..), hasPermission)
 import Imports hiding (head)
 import Network.Socket (PortNumber)
 import Network.Wai.Utilities as Utilities
 import Polysemy
+import Polysemy.Input (Input)
 import Polysemy.TinyLog (TinyLog)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant qualified
@@ -139,6 +145,7 @@ import Wire.API.SwaggerHelper (cleanupSwagger)
 import Wire.API.SystemSettings
 import Wire.API.Team qualified as Public
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
+import Wire.API.Team.Member (HiddenPerm (..), hasPermission)
 import Wire.API.User (RegisterError (RegisterErrorAllowlistError))
 import Wire.API.User qualified as Public
 import Wire.API.User.Activation qualified as Public
@@ -155,6 +162,7 @@ import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Now (Now)
+import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 -- User API -----------------------------------------------------------
 
@@ -212,7 +220,7 @@ versionedSwaggerDocsAPI Nothing = allroutes (throwError listAllVersionsResp)
       Servant.Server (SwaggerSchemaUI "swagger-ui" "swagger.json")
     allroutes action =
       -- why?  see 'SwaggerSchemaUI' type.
-      action :<|> action :<|> action :<|> error (cs listAllVersionsHTML)
+      action :<|> action :<|> action :<|> error (UTF8.toString . toStrict $ listAllVersionsHTML)
 
     listAllVersionsResp :: ServerError
     listAllVersionsResp = ServerError 200 mempty listAllVersionsHTML [("Content-Type", "text/html;charset=utf-8")]
@@ -222,7 +230,11 @@ versionedSwaggerDocsAPI Nothing = allroutes (throwError listAllVersionsResp)
       "<html><head></head><body><h2>please pick an api version</h2>"
         <> mconcat
           [ let url = "/" <> toQueryParam v <> "/api/swagger-ui/"
-             in "<a href=\"" <> cs url <> "\">" <> cs url <> "</a><br>"
+             in "<a href=\""
+                  <> (fromStrict . Text.encodeUtf8 $ url)
+                  <> "\">"
+                  <> (fromStrict . Text.encodeUtf8 $ url)
+                  <> "</a><br>"
             | v <- [minBound :: Version ..]
           ]
         <> "</body>"
@@ -266,17 +278,22 @@ servantSitemap ::
     Member BlacklistStore r,
     Member CodeStore r,
     Member (Concurrency 'Unsafe) r,
+    Member (ConnectionStore InternalPaging) r,
+    Member (Embed HttpClientIO) r,
+    Member (Embed IO) r,
+    Member FederationConfigStore r,
     Member GalleyProvider r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member Jwk r,
     Member JwtTools r,
+    Member NotificationSubsystem r,
     Member Now r,
     Member PasswordResetStore r,
     Member PublicKeyBundle r,
-    Member (UserPendingActivationStore p) r,
-    Member Jwk r,
-    Member FederationConfigStore r,
-    Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member TinyLog r
+    Member SFT r,
+    Member TinyLog r,
+    Member (UserPendingActivationStore p) r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -362,10 +379,13 @@ servantSitemap =
 
     userClientAPI :: ServerT UserClientAPI (Handler r)
     userClientAPI =
-      Named @"add-client" (callsFed (exposeAnnotations addClient))
+      Named @"add-client-v5" (callsFed (exposeAnnotations addClient))
+        :<|> Named @"add-client" (callsFed (exposeAnnotations addClient))
         :<|> Named @"update-client" updateClient
         :<|> Named @"delete-client" deleteClient
+        :<|> Named @"list-clients-v5" listClients
         :<|> Named @"list-clients" listClients
+        :<|> Named @"get-client-v5" getClient
         :<|> Named @"get-client" getClient
         :<|> Named @"get-client-capabilities" getClientCapabilities
         :<|> Named @"get-client-prekeys" getClientPrekeys
@@ -563,22 +583,21 @@ addClient ::
   ( Member GalleyProvider r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   ConnId ->
   Public.NewClient ->
-  (Handler r) NewClientResponse
+  Handler r Public.Client
 addClient usr con new = do
   -- Users can't add legal hold clients
   when (Public.newClientType new == Public.LegalHoldClientType) $
     throwE (clientError ClientLegalHoldCannotBeAdded)
-  clientResponse
-    <$> API.addClient usr (Just con) new
-      !>> clientError
-  where
-    clientResponse :: Public.Client -> NewClientResponse
-    clientResponse client = Servant.addHeader (Public.clientId client) client
+  API.addClient usr (Just con) new
+    !>> clientError
 
 deleteClient :: UserId -> ConnId -> ClientId -> Public.RmClient -> (Handler r) ()
 deleteClient usr con clt body =
@@ -686,7 +705,10 @@ createUser ::
     Member (UserPendingActivationStore p) r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   Public.NewUserPublic ->
   (Handler r) (Either Public.RegisterError Public.RegisterSuccess)
@@ -718,9 +740,10 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
             )
   lift . Log.info $ context . Log.msg @Text "Sucessfully created user"
 
-  let Public.User {userLocale, userDisplayName, userId} = usr
-  let userEmail = Public.userEmail usr
-  let userPhone = Public.userPhone usr
+  let Public.User {userLocale, userDisplayName} = usr
+      userEmail = Public.userEmail usr
+      userPhone = Public.userPhone usr
+      userId = Public.userId usr
   lift $ do
     for_ (liftM2 (,) userEmail epair) $ \(e, p) ->
       sendActivationEmail e userDisplayName p (Just userLocale) newUserTeam
@@ -878,7 +901,10 @@ updateUser ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member GalleyProvider r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   ConnId ->
@@ -905,7 +931,10 @@ changePhone u _ (Public.puPhone -> phone) = lift . exceptTToMaybe $ do
 removePhone ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   ConnId ->
@@ -916,7 +945,10 @@ removePhone self conn =
 removeEmail ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   ConnId ->
@@ -933,7 +965,10 @@ changePassword u cp = lift . exceptTToMaybe $ API.changePassword u cp
 changeLocale ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   ConnId ->
@@ -944,7 +979,10 @@ changeLocale u conn l = lift $ API.changeLocale u conn l
 changeSupportedProtocols ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -988,7 +1026,10 @@ changeHandle ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member GalleyProvider r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   ConnId ->
@@ -1081,7 +1122,8 @@ createConnection self conn target = do
   API.createConnection lself conn target !>> connError
 
 updateLocalConnection ::
-  ( Member NotificationSubsystem r,
+  ( Member GalleyProvider r,
+    Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r
   ) =>
@@ -1100,7 +1142,8 @@ updateConnection ::
   ( Member FederationConfigStore r,
     Member NotificationSubsystem r,
     Member TinyLog r,
-    Member (Embed HttpClientIO) r
+    Member (Embed HttpClientIO) r,
+    Member GalleyProvider r
   ) =>
   UserId ->
   ConnId ->
@@ -1174,7 +1217,10 @@ deleteSelfUser ::
   ( Member GalleyProvider r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   Public.DeleteUser ->
@@ -1185,7 +1231,10 @@ deleteSelfUser u body = do
 verifyDeleteUser ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   Public.VerifyDeleteUser ->
   Handler r ()
@@ -1226,7 +1275,10 @@ activate ::
   ( Member GalleyProvider r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   Public.ActivationKey ->
   Public.ActivationCode ->
@@ -1240,7 +1292,10 @@ activateKey ::
   ( Member GalleyProvider r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   Public.Activate ->
   (Handler r) ActivationRespWithStatus

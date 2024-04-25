@@ -9,6 +9,7 @@ import Control.Monad.Trans.Except
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Builder qualified as Builder
 import Data.ByteString.Lazy qualified as LBS
+import Data.Default
 import Data.Domain
 import Data.Id
 import Data.Range
@@ -37,9 +38,11 @@ import Test.QuickCheck
 import Test.Wire.Util
 import UnliftIO.Async
 import Util.Options
+import Wire.API.Conversation.Action
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
+import Wire.API.Federation.API.Galley
 import Wire.API.Federation.BackendNotifications
 import Wire.API.RawJson
 import Wire.BackendNotificationPusher
@@ -51,7 +54,6 @@ spec :: Spec
 spec = do
   describe "pushNotification" $ do
     it "should push notifications" $ do
-      let returnSuccess _ = pure ("application/json", Aeson.encode EmptyResponse)
       let origDomain = Domain "origin.example.com"
           targetDomain = Domain "target.example.com"
       -- Just using 'arbitrary' could generate a very big list, making tests very
@@ -64,6 +66,7 @@ spec = do
                 ownDomain = origDomain,
                 path = "/on-user-deleted-connections",
                 body = RawJson $ Aeson.encode notifContent,
+                bodyVersions = Nothing,
                 requestId = Just $ RequestId "N/A"
               }
       envelope <- newMockEnvelope
@@ -74,7 +77,7 @@ spec = do
               }
       runningFlag <- newMVar ()
       (env, fedReqs) <-
-        withTempMockFederator [] returnSuccess . runTestAppT $ do
+        withTempMockFederator def . runTestAppT $ do
           wait =<< pushNotification runningFlag targetDomain (msg, envelope)
           ask
 
@@ -92,8 +95,88 @@ spec = do
       getVectorWith env.backendNotificationMetrics.pushedCounter getCounter
         `shouldReturn` [(domainText targetDomain, 1)]
 
+    it "should push notification bundles" $ do
+      let origDomain = Domain "origin.example.com"
+          targetDomain = Domain "target.example.com"
+      -- Just using 'arbitrary' could generate a very big list, making tests very
+      -- slow. Make me wonder if notification pusher should even try to parse the
+      -- actual content, seems like wasted compute power.
+      notifContent <-
+        generate $
+          ClientRemovedRequest <$> arbitrary <*> arbitrary <*> arbitrary
+      let bundle = toBundle @'OnClientRemovedTag (RequestId "N/A") origDomain notifContent
+      envelope <- newMockEnvelope
+      let msg =
+            Q.newMsg
+              { Q.msgBody = Aeson.encode bundle,
+                Q.msgContentType = Just "application/json"
+              }
+      runningFlag <- newMVar ()
+      (env, fedReqs) <-
+        withTempMockFederator def . runTestAppT $ do
+          wait =<< pushNotification runningFlag targetDomain (msg, envelope)
+          ask
+
+      readIORef envelope.acks `shouldReturn` 1
+      readIORef envelope.rejections `shouldReturn` []
+      fedReqs
+        `shouldBe` [ FederatedRequest
+                       { frTargetDomain = targetDomain,
+                         frOriginDomain = origDomain,
+                         frComponent = Galley,
+                         frRPC = "on-client-removed",
+                         frBody = Aeson.encode notifContent
+                       }
+                   ]
+      getVectorWith env.backendNotificationMetrics.pushedCounter getCounter
+        `shouldReturn` [(domainText targetDomain, 1)]
+
+    it "should negotiate the best version" $ do
+      let origDomain = Domain "origin.example.com"
+          targetDomain = Domain "target.example.com"
+      update <- generate $ do
+        now <- arbitrary
+        user <- arbitrary
+        convId <- arbitrary
+        pure
+          ConversationUpdate
+            { time = now,
+              origUserId = user,
+              convId = convId,
+              alreadyPresentUsers = [],
+              action = SomeConversationAction SConversationLeaveTag ()
+            }
+      let update0 = conversationUpdateToV0 update
+      let bundle =
+            toBundle (RequestId "N/A") origDomain update
+              <> toBundle (RequestId "N/A") origDomain update0
+      envelope <- newMockEnvelope
+      let msg =
+            Q.newMsg
+              { Q.msgBody = Aeson.encode bundle,
+                Q.msgContentType = Just "application/json"
+              }
+      runningFlag <- newMVar ()
+      (env, fedReqs) <-
+        withTempMockFederator def {versions = [0, 2]} . runTestAppT $ do
+          wait =<< pushNotification runningFlag targetDomain (msg, envelope)
+          ask
+
+      readIORef envelope.acks `shouldReturn` 1
+      readIORef envelope.rejections `shouldReturn` []
+      fedReqs
+        `shouldBe` [ FederatedRequest
+                       { frTargetDomain = targetDomain,
+                         frOriginDomain = origDomain,
+                         frComponent = Galley,
+                         frRPC = "on-conversation-updated",
+                         frBody = Aeson.encode update0
+                       }
+                   ]
+      getVectorWith env.backendNotificationMetrics.pushedCounter getCounter
+        `shouldReturn` [(domainText targetDomain, 1)]
+
     it "should reject invalid notifications" $ do
-      let returnSuccess _ = pure ("application/json", Aeson.encode EmptyResponse)
       envelope <- newMockEnvelope
       let msg =
             Q.newMsg
@@ -102,7 +185,7 @@ spec = do
               }
       runningFlag <- newMVar ()
       (env, fedReqs) <-
-        withTempMockFederator [] returnSuccess . runTestAppT $ do
+        withTempMockFederator def . runTestAppT $ do
           wait =<< pushNotification runningFlag (Domain "target.example.com") (msg, envelope)
           ask
 
@@ -131,6 +214,7 @@ spec = do
                 ownDomain = origDomain,
                 path = "/on-user-deleted-connections",
                 body = RawJson $ Aeson.encode notifContent,
+                bodyVersions = Nothing,
                 requestId = Just $ RequestId "N/A"
               }
       envelope <- newMockEnvelope
@@ -142,7 +226,7 @@ spec = do
       runningFlag <- newMVar ()
       env <- testEnv
       pushThread <-
-        async $ withTempMockFederator [] mockRemote . runTestAppTWithEnv env $ do
+        async $ withTempMockFederator def {handler = mockRemote} . runTestAppTWithEnv env $ do
           wait =<< pushNotification runningFlag targetDomain (msg, envelope)
 
       -- Wait for two calls, so we can be sure that the metric about stuck

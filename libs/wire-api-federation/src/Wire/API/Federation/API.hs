@@ -24,12 +24,14 @@ module Wire.API.Federation.API
     HasUnsafeFedEndpoint,
     fedClient,
     fedQueueClient,
+    sendBundle,
     fedClientIn,
     unsafeFedClientIn,
     module Wire.API.MakesFederatedCall,
 
     -- * Re-exports
     Component (..),
+    makeConversationUpdateBundle,
   )
 where
 
@@ -45,6 +47,7 @@ import Servant.Client.Core
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Cargohold
 import Wire.API.Federation.API.Galley
+import Wire.API.Federation.API.Util
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
 import Wire.API.Federation.Component
@@ -88,21 +91,21 @@ fedClient ::
   Client m api
 fedClient = clientIn (Proxy @api) (Proxy @m)
 
-fedQueueClient ::
-  forall {k} (tag :: k).
-  ( HasNotificationEndpoint tag,
-    KnownSymbol (NotificationPath tag),
-    KnownComponent (NotificationComponent k),
-    ToJSON (Payload tag)
-  ) =>
-  Payload tag ->
-  FedQueueClient (NotificationComponent k) ()
-fedQueueClient payload = do
+fedClientIn ::
+  forall (comp :: Component) (name :: Symbol) m api.
+  (HasFedEndpoint comp api name, HasClient m api) =>
+  Client m api
+fedClientIn = clientIn (Proxy @api) (Proxy @m)
+
+sendBundle ::
+  KnownComponent c =>
+  PayloadBundle c ->
+  FedQueueClient c ()
+sendBundle bundle = do
   env <- ask
-  let notif = fedNotifToBackendNotif @tag env.requestId env.originDomain payload
-      msg =
+  let msg =
         newMsg
-          { msgBody = encode notif,
+          { msgBody = encode bundle,
             msgDeliveryMode = Just (env.deliveryMode),
             msgContentType = Just "application/json"
           }
@@ -112,11 +115,18 @@ fedQueueClient payload = do
     ensureQueue env.channel env.targetDomain._domainText
     void $ publishMsg env.channel exchange (routingKey env.targetDomain._domainText) msg
 
-fedClientIn ::
-  forall (comp :: Component) (name :: Symbol) m api.
-  (HasFedEndpoint comp api name, HasClient m api) =>
-  Client m api
-fedClientIn = clientIn (Proxy @api) (Proxy @m)
+fedQueueClient ::
+  forall {k} (tag :: k) c.
+  ( HasNotificationEndpoint tag,
+    HasVersionRange tag,
+    HasFedPath tag,
+    KnownComponent (NotificationComponent k),
+    ToJSON (Payload tag),
+    c ~ NotificationComponent k
+  ) =>
+  Payload tag ->
+  FedQueueClient c ()
+fedQueueClient payload = sendBundle =<< makeBundle @tag payload
 
 -- | Like 'fedClientIn', but doesn't propagate a 'CallsFed' constraint. Intended
 -- to be used in test situations only.

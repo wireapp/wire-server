@@ -18,10 +18,10 @@
 , QuickCheck
 , schema-profunctor
 , tasty
-, tasty-hunit
 , tasty-quickcheck
 , text
 , types-common
+, utf8-string
 , uuid
 , wire-api
 }:
@@ -44,18 +44,16 @@ mkDerivation {
     schema-profunctor
     text
     types-common
+    utf8-string
     uuid
     wire-api
   ];
   testHaskellDepends = [
     aeson
     base
-    containers
     imports
-    lens
     QuickCheck
     tasty
-    tasty-hunit
     tasty-quickcheck
     wire-api
   ];

@@ -7,6 +7,7 @@
 , aeson-diff
 , aeson-pretty
 , aeson-qq
+, asn1-encoding
 , async
 , attoparsec
 , base
@@ -86,6 +87,7 @@
 , singletons-base
 , singletons-th
 , sop-core
+, string-conversions
 , tagged
 , tasty
 , tasty-hspec
@@ -93,6 +95,7 @@
 , tasty-quickcheck
 , text
 , time
+, tinylog
 , transitive-anns
 , types-common
 , unliftio
@@ -115,6 +118,7 @@ mkDerivation {
   src = gitignoreSource ./.;
   libraryHaskellDepends = [
     aeson
+    asn1-encoding
     async
     attoparsec
     base
@@ -190,6 +194,7 @@ mkDerivation {
     tagged
     text
     time
+    tinylog
     transitive-anns
     types-common
     unordered-containers
@@ -242,6 +247,7 @@ mkDerivation {
     schema-profunctor
     servant
     servant-server
+    string-conversions
     tasty
     tasty-hspec
     tasty-hunit

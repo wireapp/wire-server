@@ -26,7 +26,7 @@ where
 import Data.Aeson
 import Data.Id (ClientId, UserId)
 import Data.Map.Strict qualified as Map
-import Imports hiding (cs)
+import Imports
 import Wire.API.Message
 
 --------------------------------------------------------------------------------

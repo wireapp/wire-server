@@ -165,6 +165,7 @@ removeSettingsInternalPaging ::
     Member MemberStore r,
     Member ProposalStore r,
     Member P.TinyLog r,
+    Member Random r,
     Member SubConversationStore r,
     Member TeamFeatureStore r,
     Member (TeamMemberStore InternalPaging) r,
@@ -209,6 +210,7 @@ removeSettings ::
     Member MemberStore r,
     Member ProposalStore r,
     Member P.TinyLog r,
+    Member Random r,
     Member SubConversationStore r
   ) =>
   UserId ->
@@ -262,6 +264,7 @@ removeSettings' ::
     Member (TeamMemberStore p) r,
     Member TeamStore r,
     Member ProposalStore r,
+    Member Random r,
     Member P.TinyLog r,
     Member SubConversationStore r
   ) =>
@@ -348,6 +351,7 @@ grantConsent ::
     Member MemberStore r,
     Member ProposalStore r,
     Member P.TinyLog r,
+    Member Random r,
     Member SubConversationStore r,
     Member TeamStore r
   ) =>
@@ -395,6 +399,7 @@ requestDevice ::
     Member MemberStore r,
     Member ProposalStore r,
     Member P.TinyLog r,
+    Member Random r,
     Member SubConversationStore r,
     Member TeamFeatureStore r,
     Member TeamStore r
@@ -475,6 +480,7 @@ approveDevice ::
     Member MemberStore r,
     Member ProposalStore r,
     Member P.TinyLog r,
+    Member Random r,
     Member SubConversationStore r,
     Member TeamFeatureStore r,
     Member TeamStore r
@@ -551,6 +557,7 @@ disableForUser ::
     Member MemberStore r,
     Member ProposalStore r,
     Member P.TinyLog r,
+    Member Random r,
     Member SubConversationStore r,
     Member TeamStore r
   ) =>
@@ -605,6 +612,7 @@ changeLegalholdStatus ::
     Member MemberStore r,
     Member TeamStore r,
     Member ProposalStore r,
+    Member Random r,
     Member P.TinyLog r,
     Member SubConversationStore r
   ) =>
@@ -720,6 +728,7 @@ handleGroupConvPolicyConflicts ::
     Member MemberStore r,
     Member ProposalStore r,
     Member P.TinyLog r,
+    Member Random r,
     Member SubConversationStore r,
     Member TeamStore r
   ) =>

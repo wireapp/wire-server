@@ -25,6 +25,7 @@ module Brig.Calling
     unSFTServers,
     mkSFTServers,
     SFTEnv (..),
+    SFTTokenEnv (..),
     Discovery (..),
     TurnEnv,
     TurnServers (..),
@@ -62,6 +63,7 @@ import Data.Misc
 import Data.Range
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
+import Data.Text.Encoding.Error
 import Data.Text.IO qualified as Text
 import Data.Time.Clock (DiffTime, diffTimeToPicoseconds)
 import Imports
@@ -133,7 +135,9 @@ data SFTEnv = SFTEnv
     sftDiscoveryInterval :: Int,
     -- | maximum amount of servers to give out,
     -- even if more are in the SRV record
-    sftListLength :: Range 1 100 Int
+    sftListLength :: Range 1 100 Int,
+    -- | token parameters
+    sftToken :: Maybe SFTTokenEnv
   }
 
 data Discovery a
@@ -182,6 +186,13 @@ srvDiscoveryLoop domain discoveryInterval saveAction = forever $ do
   forM_ servers saveAction
   delay discoveryInterval
 
+data SFTTokenEnv = SFTTokenEnv
+  { sftTokenTTL :: Word32,
+    sftTokenSecret :: ByteString,
+    sftTokenPRNG :: GenIO,
+    sftTokenSHA :: Digest
+  }
+
 mkSFTDomain :: SFTOptions -> DNS.Domain
 mkSFTDomain SFTOptions {..} = DNS.normalize $ maybe defSftServiceName ("_" <>) sftSRVServiceName <> "._tcp." <> sftBaseDomain
 
@@ -190,13 +201,21 @@ sftDiscoveryLoop SFTEnv {..} =
   srvDiscoveryLoop sftDomain sftDiscoveryInterval $
     atomicWriteIORef sftServers . Discovered . SFTServers
 
-mkSFTEnv :: SFTOptions -> IO SFTEnv
-mkSFTEnv opts =
+mkSFTEnv :: Digest -> SFTOptions -> IO SFTEnv
+mkSFTEnv digest opts =
   SFTEnv
     <$> newIORef NotDiscoveredYet
     <*> pure (mkSFTDomain opts)
     <*> pure (diffTimeToMicroseconds (fromMaybe defSrvDiscoveryIntervalSeconds (Opts.sftDiscoveryIntervalSeconds opts)))
     <*> pure (fromMaybe defSftListLength (Opts.sftListLength opts))
+    <*> forM (Opts.sftTokenOptions opts) (mkSFTTokenEnv digest)
+
+mkSFTTokenEnv :: Digest -> Opts.SFTTokenOptions -> IO SFTTokenEnv
+mkSFTTokenEnv digest opts =
+  SFTTokenEnv (Opts.sttTTL opts)
+    <$> BS.readFile (Opts.sttSecret opts)
+    <*> createSystemRandom
+    <*> pure digest
 
 -- | Start SFT service discovery synchronously
 startSFTServiceDiscovery :: Log.Logger -> SFTEnv -> IO ()
@@ -325,7 +344,15 @@ startDNSBasedTurnDiscovery logger opts deprecatedUdpRef udpRef tcpRef tlsRef = d
 
 turnURIFromSRV :: Scheme -> Maybe Transport -> SrvEntry -> TurnURI
 turnURIFromSRV sch mtr SrvEntry {..} =
-  turnURI sch (TurnHostName . cs . stripDot $ srvTargetDomain srvTarget) (Port $ srvTargetPort srvTarget) mtr
+  turnURI
+    sch
+    ( TurnHostName
+        . Text.decodeUtf8With lenientDecode
+        . stripDot
+        $ srvTargetDomain srvTarget
+    )
+    (Port $ srvTargetPort srvTarget)
+    mtr
   where
     stripDot h
       | "." `BS.isSuffixOf` h = BS.take (BS.length h - 1) h

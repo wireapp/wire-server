@@ -16,7 +16,7 @@ spec:
     # integration tests need access to the client certificate private key
     - name: "federator-secrets"
       secret:
-        secretName: "federator-secret"
+        secretName: {{ if .Values.tls.useCertManager }} "federator-certificate-secret" {{ else }} "federator-secret" {{ end }}
     # integration tests need access to the CA
     - name: "federator-ca"
       configMap:

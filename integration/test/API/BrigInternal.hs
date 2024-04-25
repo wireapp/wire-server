@@ -236,3 +236,28 @@ addClient user args = do
   req <- baseRequest user Brig Unversioned $ "/i/clients/" <> uid
   val <- mkAddClientValue args
   submit "POST" $ req & addJSONObject val
+
+-- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/post_i_clients_full
+getClientsFull :: (HasCallStack, MakesValue users, MakesValue uid) => uid -> users -> App Response
+getClientsFull user users = do
+  val <- make users
+  baseRequest user Brig Unversioned do joinHttpPath ["i", "clients", "full"]
+    >>= submit "POST" . addJSONObject ["users" .= val]
+
+-- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/post_i_ejpd_request
+getEJPDInfo :: (HasCallStack, MakesValue dom) => dom -> [String] -> String -> App Response
+getEJPDInfo dom handles mode = do
+  req <- rawBaseRequest dom Brig Unversioned "/i/ejpd-request"
+  let query = case mode of
+        "" -> []
+        "include_contacts" -> [("include_contacts", "true")]
+        bad -> error $ show bad
+  submit "POST" $ req & addJSONObject ["ejpd_request" .= handles] & addQueryParams query
+
+-- https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/get_i_users__uid__verification_code__action_
+getVerificationCode :: (HasCallStack, MakesValue user) => user -> String -> App Response
+getVerificationCode user action = do
+  uid <- objId user
+  domain <- objDomain user
+  req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "users", uid, "verification-code", action]
+  submit "GET" req

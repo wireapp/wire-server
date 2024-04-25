@@ -36,6 +36,7 @@ import Data.Aeson.Lens (key, _String)
 import Data.ByteString.Conversion (fromByteString, toByteString')
 import Data.Id (InvitationId, TeamId, UserId)
 import Data.Range (unsafeRange)
+import Data.String.Conversions
 import Data.Text.Encoding (encodeUtf8)
 import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID

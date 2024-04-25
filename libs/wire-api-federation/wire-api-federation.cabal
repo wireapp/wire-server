@@ -23,6 +23,7 @@ library
     Wire.API.Federation.API.Common
     Wire.API.Federation.API.Galley
     Wire.API.Federation.API.Galley.Notifications
+    Wire.API.Federation.API.Util
     Wire.API.Federation.BackendNotifications
     Wire.API.Federation.Client
     Wire.API.Federation.Component
@@ -90,6 +91,7 @@ library
     , bytestring
     , bytestring-conversion
     , containers
+    , dns-util
     , exceptions
     , HsOpenSSL
     , http-media

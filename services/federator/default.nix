@@ -52,6 +52,7 @@
 , servant-client
 , servant-client-core
 , servant-server
+, string-conversions
 , tasty
 , tasty-hunit
 , tasty-quickcheck
@@ -61,6 +62,7 @@
 , transformers
 , types-common
 , unix
+, utf8-string
 , uuid
 , wai
 , wai-extra
@@ -88,6 +90,7 @@ mkDerivation {
     containers
     crypton-x509
     crypton-x509-validation
+    data-default
     dns
     dns-util
     exceptions
@@ -119,6 +122,7 @@ mkDerivation {
     transformers
     types-common
     unix
+    utf8-string
     uuid
     wai
     wai-utilities
@@ -153,11 +157,11 @@ mkDerivation {
     QuickCheck
     random
     servant-client-core
+    string-conversions
     tasty-hunit
     text
     types-common
     uuid
-    wai-utilities
     wire-api
     wire-api-federation
     yaml
@@ -188,6 +192,7 @@ mkDerivation {
     servant-client
     servant-client-core
     servant-server
+    string-conversions
     tasty
     tasty-hunit
     tasty-quickcheck

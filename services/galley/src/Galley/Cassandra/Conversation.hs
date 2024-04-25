@@ -41,13 +41,14 @@ import Galley.Cassandra.Conversation.MLS
 import Galley.Cassandra.Conversation.Members
 import Galley.Cassandra.Queries qualified as Cql
 import Galley.Cassandra.Store
+import Galley.Cassandra.Util
 import Galley.Data.Conversation
 import Galley.Data.Conversation.Types
 import Galley.Effects.ConversationStore (ConversationStore (..))
 import Galley.Types.Conversations.Members
 import Galley.Types.ToUserRole
 import Galley.Types.UserList
-import Imports hiding (cs)
+import Imports
 import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog
@@ -198,8 +199,8 @@ conversationMeta conv =
 
 getGroupInfo :: ConvId -> Client (Maybe GroupInfoData)
 getGroupInfo cid = do
-  runIdentity
-    <$$> retry
+  (runIdentity =<<)
+    <$> retry
       x1
       ( query1
           Cql.selectGroupInfo
@@ -450,27 +451,75 @@ interpretConversationStoreToCassandra ::
   Sem (ConversationStore ': r) a ->
   Sem r a
 interpretConversationStoreToCassandra = interpret $ \case
-  CreateConversationId -> Id <$> embed nextRandom
-  CreateConversation loc nc -> embedClient $ createConversation loc nc
-  CreateMLSSelfConversation lusr -> embedClient $ createMLSSelfConversation lusr
-  GetConversation cid -> embedClient $ getConversation cid
-  GetConversationEpoch cid -> embedClient $ getConvEpoch cid
-  GetConversations cids -> localConversations cids
-  GetConversationMetadata cid -> embedClient $ conversationMeta cid
-  GetGroupInfo cid -> embedClient $ getGroupInfo cid
-  IsConversationAlive cid -> embedClient $ isConvAlive cid
-  SelectConversations uid cids -> embedClient $ localConversationIdsOf uid cids
-  GetRemoteConversationStatus uid cids -> embedClient $ remoteConversationStatus uid cids
-  SetConversationType cid ty -> embedClient $ updateConvType cid ty
-  SetConversationName cid value -> embedClient $ updateConvName cid value
-  SetConversationAccess cid value -> embedClient $ updateConvAccess cid value
-  SetConversationReceiptMode cid value -> embedClient $ updateConvReceiptMode cid value
-  SetConversationMessageTimer cid value -> embedClient $ updateConvMessageTimer cid value
-  SetConversationEpoch cid epoch -> embedClient $ updateConvEpoch cid epoch
-  SetConversationCipherSuite cid cs -> embedClient $ updateConvCipherSuite cid cs
-  DeleteConversation cid -> embedClient $ deleteConversation cid
-  SetGroupInfo cid gib -> embedClient $ setGroupInfo cid gib
-  AcquireCommitLock gId epoch ttl -> embedClient $ acquireCommitLock gId epoch ttl
-  ReleaseCommitLock gId epoch -> embedClient $ releaseCommitLock gId epoch
-  UpdateToMixedProtocol cid ct cs -> updateToMixedProtocol cid ct cs
-  UpdateToMLSProtocol cid -> updateToMLSProtocol cid
+  CreateConversationId -> do
+    logEffect "ConversationStore.CreateConversationId"
+    Id <$> embed nextRandom
+  CreateConversation loc nc -> do
+    logEffect "ConversationStore.CreateConversation"
+    embedClient $ createConversation loc nc
+  CreateMLSSelfConversation lusr -> do
+    logEffect "ConversationStore.CreateMLSSelfConversation"
+    embedClient $ createMLSSelfConversation lusr
+  GetConversation cid -> do
+    logEffect "ConversationStore.GetConversation"
+    embedClient $ getConversation cid
+  GetConversationEpoch cid -> do
+    logEffect "ConversationStore.GetConversationEpoch"
+    embedClient $ getConvEpoch cid
+  GetConversations cids -> do
+    logEffect "ConversationStore.GetConversations"
+    localConversations cids
+  GetConversationMetadata cid -> do
+    logEffect "ConversationStore.GetConversationMetadata"
+    embedClient $ conversationMeta cid
+  GetGroupInfo cid -> do
+    logEffect "ConversationStore.GetGroupInfo"
+    embedClient $ getGroupInfo cid
+  IsConversationAlive cid -> do
+    logEffect "ConversationStore.IsConversationAlive"
+    embedClient $ isConvAlive cid
+  SelectConversations uid cids -> do
+    logEffect "ConversationStore.SelectConversations"
+    embedClient $ localConversationIdsOf uid cids
+  GetRemoteConversationStatus uid cids -> do
+    logEffect "ConversationStore.GetRemoteConversationStatus"
+    embedClient $ remoteConversationStatus uid cids
+  SetConversationType cid ty -> do
+    logEffect "ConversationStore.SetConversationType"
+    embedClient $ updateConvType cid ty
+  SetConversationName cid value -> do
+    logEffect "ConversationStore.SetConversationName"
+    embedClient $ updateConvName cid value
+  SetConversationAccess cid value -> do
+    logEffect "ConversationStore.SetConversationAccess"
+    embedClient $ updateConvAccess cid value
+  SetConversationReceiptMode cid value -> do
+    logEffect "ConversationStore.SetConversationReceiptMode"
+    embedClient $ updateConvReceiptMode cid value
+  SetConversationMessageTimer cid value -> do
+    logEffect "ConversationStore.SetConversationMessageTimer"
+    embedClient $ updateConvMessageTimer cid value
+  SetConversationEpoch cid epoch -> do
+    logEffect "ConversationStore.SetConversationEpoch"
+    embedClient $ updateConvEpoch cid epoch
+  SetConversationCipherSuite cid cs -> do
+    logEffect "ConversationStore.SetConversationCipherSuite"
+    embedClient $ updateConvCipherSuite cid cs
+  DeleteConversation cid -> do
+    logEffect "ConversationStore.DeleteConversation"
+    embedClient $ deleteConversation cid
+  SetGroupInfo cid gib -> do
+    logEffect "ConversationStore.SetGroupInfo"
+    embedClient $ setGroupInfo cid gib
+  AcquireCommitLock gId epoch ttl -> do
+    logEffect "ConversationStore.AcquireCommitLock"
+    embedClient $ acquireCommitLock gId epoch ttl
+  ReleaseCommitLock gId epoch -> do
+    logEffect "ConversationStore.ReleaseCommitLock"
+    embedClient $ releaseCommitLock gId epoch
+  UpdateToMixedProtocol cid ct cs -> do
+    logEffect "ConversationStore.UpdateToMixedProtocol"
+    updateToMixedProtocol cid ct cs
+  UpdateToMLSProtocol cid -> do
+    logEffect "ConversationStore.UpdateToMLSProtocol"
+    updateToMLSProtocol cid

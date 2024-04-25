@@ -27,6 +27,7 @@ import Data.Domain
 import Data.Id
 import Data.Metrics.Servant qualified as Metrics
 import Data.Proxy
+import Data.Text.Encoding qualified as T
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
 import Federator.Env
@@ -117,7 +118,7 @@ callOutward mReqId targetDomain component (RPC path) req = do
   rid <- case mReqId of
     Just r -> pure r
     Nothing -> do
-      localRid <- liftIO $ RequestId . cs . UUID.toText <$> UUID.nextRandom
+      localRid <- liftIO $ RequestId . T.encodeUtf8 . UUID.toText <$> UUID.nextRandom
       info $
         "request-id" .= localRid
           ~~ "method" .= Wai.requestMethod req

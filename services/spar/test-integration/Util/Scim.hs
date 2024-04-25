@@ -30,11 +30,11 @@ import qualified Data.ByteString.Lazy as Lazy
 import Data.Handle (Handle (Handle))
 import Data.Id
 import Data.LanguageCodes (ISO639_1 (EN))
+import Data.String.Conversions
 import qualified Data.Text.Lazy as Lazy
 import Data.Time
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
-import qualified Galley.Types.Teams as Teams
 import Imports
 import qualified Network.Wai.Utilities as Error
 import Polysemy.Error (runError)
@@ -72,23 +72,33 @@ import Wire.API.User.Scim
 -- the IdP is registered with the team; the SCIM token can be used to manipulate the team.
 registerIdPAndScimToken :: HasCallStack => TestSpar (ScimToken, (UserId, TeamId, IdP))
 registerIdPAndScimToken = do
-  team@(_owner, teamid, idp) <- registerTestIdP
-  (,team) <$> registerScimToken teamid (Just (idp ^. idpId))
+  env <- ask
+  (owner, teamid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  idp <- registerTestIdP owner
+  token <- registerScimToken teamid (Just (idp ^. idpId))
+  let team = (owner, teamid, idp)
+  pure (token, team)
 
 -- | Call 'registerTestIdPWithMeta', then 'registerScimToken'.  The user returned is the owner of the team;
 -- the IdP is registered with the team; the SCIM token can be used to manipulate the team.
 registerIdPAndScimTokenWithMeta :: HasCallStack => TestSpar (ScimToken, (UserId, TeamId, IdP, (IdPMetadataInfo, SAML.SignPrivCreds)))
 registerIdPAndScimTokenWithMeta = do
-  team@(_owner, teamid, idp, _) <- registerTestIdPWithMeta
+  env <- ask
+  (owner, teamid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  (idp, meta) <- registerTestIdPWithMeta owner
+  let team = (owner, teamid, idp, meta)
   (,team) <$> registerScimToken teamid (Just (idp ^. idpId))
 
 -- | Create a fresh SCIM token and register it for the team.
+--
+-- FUTUREWORK(mangoiv): this is an integration test, it should use the
+-- API, and not directly manipulate the database
 registerScimToken :: HasCallStack => TeamId -> Maybe IdPId -> TestSpar ScimToken
 registerScimToken teamid midpid = do
   tok <-
     ScimToken <$> do
       code <- liftIO UUID.nextRandom
-      pure $ "scim-test-token/" <> "team=" <> idToText teamid <> "/code=" <> UUID.toText code
+      pure $ "scim-test-token/team=" <> idToText teamid <> "/code=" <> UUID.toText code
   scimTokenId <- randomId
   now <- liftIO getCurrentTime
   runSpar $
@@ -747,4 +757,4 @@ getDefaultUserLocale = do
 checkTeamMembersRole :: HasCallStack => TeamId -> UserId -> UserId -> Role -> TestSpar ()
 checkTeamMembersRole tid owner uid role = do
   [member] <- filter ((== uid) . (^. Member.userId)) <$> getTeamMembers owner tid
-  liftIO $ (member ^. Member.permissions . to Teams.permissionsRole) `shouldBe` Just role
+  liftIO $ (member ^. Member.permissions . to Member.permissionsRole) `shouldBe` Just role

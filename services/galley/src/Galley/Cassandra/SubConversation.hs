@@ -31,10 +31,12 @@ import Galley.API.MLS.Types
 import Galley.Cassandra.Conversation.MLS
 import Galley.Cassandra.Queries qualified as Cql
 import Galley.Cassandra.Store (embedClient)
+import Galley.Cassandra.Util
 import Galley.Effects.SubConversationStore (SubConversationStore (..))
-import Imports hiding (cs)
+import Imports
 import Polysemy
 import Polysemy.Input
+import Polysemy.TinyLog
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Group
@@ -124,20 +126,40 @@ listSubConversations cid = do
       )
 
 interpretSubConversationStoreToCassandra ::
-  Members '[Embed IO, Input ClientState] r =>
+  ( Member (Embed IO) r,
+    Member (Input ClientState) r,
+    Member TinyLog r
+  ) =>
   Sem (SubConversationStore ': r) a ->
   Sem r a
 interpretSubConversationStoreToCassandra = interpret $ \case
-  CreateSubConversation convId subConvId suite groupId ->
+  CreateSubConversation convId subConvId suite groupId -> do
+    logEffect "SubConversationStore.CreateSubConversation"
     embedClient (insertSubConversation convId subConvId suite groupId)
-  GetSubConversation convId subConvId -> embedClient (selectSubConversation convId subConvId)
-  GetSubConversationGroupInfo convId subConvId -> embedClient (selectSubConvGroupInfo convId subConvId)
-  GetSubConversationEpoch convId subConvId -> embedClient (selectSubConvEpoch convId subConvId)
-  SetSubConversationGroupInfo convId subConvId mPgs -> embedClient (updateSubConvGroupInfo convId subConvId mPgs)
-  SetSubConversationEpoch cid sconv epoch -> embedClient $ setEpochForSubConversation cid sconv epoch
-  SetSubConversationCipherSuite cid sconv cs -> embedClient $ setCipherSuiteForSubConversation cid sconv cs
-  ListSubConversations cid -> embedClient $ listSubConversations cid
-  DeleteSubConversation convId subConvId -> embedClient $ deleteSubConversation convId subConvId
+  GetSubConversation convId subConvId -> do
+    logEffect "SubConversationStore.GetSubConversation"
+    embedClient (selectSubConversation convId subConvId)
+  GetSubConversationGroupInfo convId subConvId -> do
+    logEffect "SubConversationStore.GetSubConversationGroupInfo"
+    embedClient (selectSubConvGroupInfo convId subConvId)
+  GetSubConversationEpoch convId subConvId -> do
+    logEffect "SubConversationStore.GetSubConversationEpoch"
+    embedClient (selectSubConvEpoch convId subConvId)
+  SetSubConversationGroupInfo convId subConvId mPgs -> do
+    logEffect "SubConversationStore.SetSubConversationGroupInfo"
+    embedClient (updateSubConvGroupInfo convId subConvId mPgs)
+  SetSubConversationEpoch cid sconv epoch -> do
+    logEffect "SubConversationStore.SetSubConversationEpoch"
+    embedClient (setEpochForSubConversation cid sconv epoch)
+  SetSubConversationCipherSuite cid sconv cs -> do
+    logEffect "SubConversationStore.SetSubConversationCipherSuite"
+    embedClient (setCipherSuiteForSubConversation cid sconv cs)
+  ListSubConversations cid -> do
+    logEffect "SubConversationStore.ListSubConversations"
+    embedClient (listSubConversations cid)
+  DeleteSubConversation convId subConvId -> do
+    logEffect "SubConversationStore.DeleteSubConversation"
+    embedClient (deleteSubConversation convId subConvId)
 
 --------------------------------------------------------------------------------
 -- Utilities

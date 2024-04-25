@@ -30,7 +30,7 @@ import Brig.User.Auth.Cookie.Limit
 import Brig.ZAuth qualified as ZAuth
 import Control.Applicative
 import Control.Lens qualified as Lens
-import Data.Aeson (defaultOptions, fieldLabelModifier, genericParseJSON, withText)
+import Data.Aeson (defaultOptions, fieldLabelModifier, genericParseJSON)
 import Data.Aeson qualified as A
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Types (typeMismatch)
@@ -49,6 +49,7 @@ import Data.Text.Encoding qualified as Text
 import Data.Time.Clock (DiffTime, NominalDiffTime, secondsToDiffTime)
 import Data.Yaml (FromJSON (..), ToJSON (..), (.:), (.:?))
 import Data.Yaml qualified as Y
+import Database.Bloodhound.Types qualified as ES
 import Galley.Types.Teams (unImplicitLockStatus)
 import Imports
 import Network.AMQP.Extended
@@ -74,9 +75,9 @@ instance Read Timeout where
 
 data ElasticSearchOpts = ElasticSearchOpts
   { -- | ElasticSearch URL
-    url :: !Text,
+    url :: !ES.Server,
     -- | The name of the ElasticSearch user index
-    index :: !Text,
+    index :: !ES.IndexName,
     -- | An additional index to write user data, useful while migrating to a new
     -- index.
     -- There is a bug hidden when using this option. Sometimes a user won't get
@@ -85,12 +86,20 @@ data ElasticSearchOpts = ElasticSearchOpts
     -- tools/db/find-undead which can be used to find the undead users right
     -- after the migration, if they exist, we can run the reindexing to get data
     -- in elasticsearch in a consistent state.
-    additionalWriteIndex :: !(Maybe Text),
+    additionalWriteIndex :: !(Maybe ES.IndexName),
     -- | An additional ES URL to write user data, useful while migrating to a
-    -- new instace of ES. It is necessary to provide 'additionalWriteIndex' for
+    -- new instance of ES. It is necessary to provide 'additionalWriteIndex' for
     -- this to be used. If this is 'Nothing' and 'additionalWriteIndex' is
     -- configured, the 'url' field will be used.
-    additionalWriteIndexUrl :: !(Maybe Text)
+    additionalWriteIndexUrl :: !(Maybe ES.Server),
+    -- | Elasticsearch credentials
+    credentials :: !(Maybe FilePathSecrets),
+    -- | Credentials for additional ES index (maily used for migrations)
+    additionalCredentials :: !(Maybe FilePathSecrets),
+    insecureSkipVerifyTls :: Bool,
+    caCert :: Maybe FilePath,
+    additionalInsecureSkipVerifyTls :: Bool,
+    additionalCaCert :: Maybe FilePath
   }
   deriving (Show, Generic)
 
@@ -359,34 +368,6 @@ instance FromJSON TurnDnsOpts where
       <$> (asciiOnly =<< o .: "baseDomain")
       <*> o .:? "discoveryIntervalSeconds"
 
--- | Configurations for whether to show a user's email to others.
-data EmailVisibility
-  = -- | Anyone can see the email of someone who is on ANY team.
-    --         This may sound strange; but certain on-premise hosters have many different teams
-    --         and still want them to see each-other's emails.
-    EmailVisibleIfOnTeam
-  | -- | Anyone on your team with at least 'Member' privileges can see your email address.
-    EmailVisibleIfOnSameTeam
-  | -- | Show your email only to yourself
-    EmailVisibleToSelf
-  deriving (Eq, Show, Bounded, Enum)
-
-instance FromJSON EmailVisibility where
-  parseJSON = withText "EmailVisibility" $ \case
-    "visible_if_on_team" -> pure EmailVisibleIfOnTeam
-    "visible_if_on_same_team" -> pure EmailVisibleIfOnSameTeam
-    "visible_to_self" -> pure EmailVisibleToSelf
-    _ ->
-      fail $
-        "unexpected value for EmailVisibility settings: "
-          <> "expected one of "
-          <> show (Aeson.encode <$> [(minBound :: EmailVisibility) ..])
-
-instance ToJSON EmailVisibility where
-  toJSON EmailVisibleIfOnTeam = "visible_if_on_team"
-  toJSON EmailVisibleIfOnSameTeam = "visible_if_on_same_team"
-  toJSON EmailVisibleToSelf = "visible_to_self"
-
 data ListAllSFTServers
   = ListAllSFTServers
   | HideAllSFTServers
@@ -420,6 +401,8 @@ data Opts = Opts
     cassandra :: !CassandraOpts,
     -- | ElasticSearch settings
     elasticsearch :: !ElasticSearchOpts,
+    -- | SFT Federation
+    multiSFT :: !(Maybe Bool),
     -- | RabbitMQ settings, required when federation is enabled.
     rabbitmq :: !(Maybe RabbitMqOpts),
     -- | AWS settings
@@ -440,8 +423,6 @@ data Opts = Opts
 
     -- | Disco URL
     discoUrl :: !(Maybe Text),
-    -- | GeoDB file path
-    geoDb :: !(Maybe FilePath),
     -- | Event queue for
     --   Brig-generated events (e.g.
     --   user deletion)
@@ -528,7 +509,7 @@ data Settings = Settings
     --   the given provider id
     setProviderSearchFilter :: !(Maybe ProviderId),
     -- | Whether to expose user emails and to whom
-    setEmailVisibility :: !EmailVisibility,
+    setEmailVisibility :: !EmailVisibilityConfig,
     setPropertyMaxKeyLen :: !(Maybe Int64),
     setPropertyMaxValueLen :: !(Maybe Int64),
     -- | How long, in milliseconds, to wait
@@ -832,7 +813,8 @@ data SFTOptions = SFTOptions
   { sftBaseDomain :: !DNS.Domain,
     sftSRVServiceName :: !(Maybe ByteString), -- defaults to defSftServiceName if unset
     sftDiscoveryIntervalSeconds :: !(Maybe DiffTime), -- defaults to defSftDiscoveryIntervalSeconds
-    sftListLength :: !(Maybe (Range 1 100 Int)) -- defaults to defSftListLength
+    sftListLength :: !(Maybe (Range 1 100 Int)), -- defaults to defSftListLength
+    sftTokenOptions :: !(Maybe SFTTokenOptions)
   }
   deriving (Show, Generic)
 
@@ -843,6 +825,19 @@ instance FromJSON SFTOptions where
       <*> (mapM asciiOnly =<< o .:? "sftSRVServiceName")
       <*> (secondsToDiffTime <$$> o .:? "sftDiscoveryIntervalSeconds")
       <*> (o .:? "sftListLength")
+      <*> (o .:? "sftToken")
+
+data SFTTokenOptions = SFTTokenOptions
+  { sttTTL :: !Word32,
+    sttSecret :: !FilePath
+  }
+  deriving (Show, Generic)
+
+instance FromJSON SFTTokenOptions where
+  parseJSON = Y.withObject "SFTTokenOptions" $ \o ->
+    SFTTokenOptions
+      <$> (o .: "ttl")
+      <*> (o .: "secret")
 
 asciiOnly :: Text -> Y.Parser ByteString
 asciiOnly t =
@@ -912,7 +907,8 @@ Lens.makeLensesFor
   [ ("optSettings", "optionSettings"),
     ("elasticsearch", "elasticsearchL"),
     ("sft", "sftL"),
-    ("turn", "turnL")
+    ("turn", "turnL"),
+    ("multiSFT", "multiSFTL")
   ]
   ''Opts
 
@@ -942,8 +938,12 @@ Lens.makeLensesFor
 Lens.makeLensesFor
   [ ("url", "urlL"),
     ("index", "indexL"),
+    ("caCert", "caCertL"),
+    ("insecureSkipVerifyTls", "insecureSkipVerifyTlsL"),
     ("additionalWriteIndex", "additionalWriteIndexL"),
-    ("additionalWriteIndexUrl", "additionalWriteIndexUrlL")
+    ("additionalWriteIndexUrl", "additionalWriteIndexUrlL"),
+    ("additionalCaCert", "additionalCaCertL"),
+    ("additionalInsecureSkipVerifyTls", "additionalInsecureSkipVerifyTlsL")
   ]
   ''ElasticSearchOpts
 

@@ -42,7 +42,7 @@
 -- * Request and response types for SCIM-related endpoints.
 module Wire.API.User.Scim where
 
-import Control.Lens (Prism', makeLenses, mapped, prism', (.~), (?~))
+import Control.Lens (Prism', makeLenses, mapped, prism', (.~), (?~), (^.))
 import Control.Monad.Except (throwError)
 import Crypto.Hash (hash)
 import Crypto.Hash.Algorithms (SHA512)
@@ -61,7 +61,8 @@ import Data.Map qualified as Map
 import Data.Misc (PlainTextPassword6)
 import Data.OpenApi hiding (Operation)
 import Data.Proxy
-import Data.Text.Encoding (encodeUtf8)
+import Data.Text qualified as T
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Time.Clock (UTCTime)
 import Imports
 import SAML2.WebSSO qualified as SAML
@@ -83,7 +84,8 @@ import Web.Scim.Schema.Schema qualified as Scim
 import Web.Scim.Schema.User qualified as Scim
 import Web.Scim.Schema.User qualified as Scim.User
 import Wire.API.Team.Role (Role)
-import Wire.API.User.Identity (Email)
+import Wire.API.User (emailFromSAMLNameID, urefToExternalIdUnsafe)
+import Wire.API.User.Identity (Email, fromEmail)
 import Wire.API.User.Profile as BT
 import Wire.API.User.RichInfo qualified as RI
 import Wire.API.User.Saml ()
@@ -128,7 +130,7 @@ data ScimTokenLookupKey
 hashScimToken :: ScimToken -> ScimTokenHash
 hashScimToken token =
   let digest = hash @ByteString @SHA512 (encodeUtf8 (fromScimToken token))
-   in ScimTokenHash (cs @ByteString @Text (convertToBase Base64 digest))
+   in ScimTokenHash (decodeUtf8 (convertToBase Base64 digest))
 
 -- | Metadata that we store about each token.
 data ScimTokenInfo = ScimTokenInfo
@@ -251,8 +253,8 @@ instance QC.Arbitrary (Scim.User SparTag) where
     where
       addFields :: Scim.User.User tag -> QC.Gen (Scim.User.User tag)
       addFields usr = do
-        gexternalId <- cs . QC.getPrintableString <$$> QC.arbitrary
-        gdisplayName <- cs . QC.getPrintableString <$$> QC.arbitrary
+        gexternalId <- T.pack . QC.getPrintableString <$$> QC.arbitrary
+        gdisplayName <- T.pack . QC.getPrintableString <$$> QC.arbitrary
         gactive <- Just . Scim.ScimBool <$> QC.arbitrary -- (`Nothing` maps on `Just True` and was in the way of a unit test.)
         gemails <- catMaybes <$> (A.decode <$$> QC.listOf (QC.elements ["a@b.c", "x@y,z", "roland@st.uv"]))
         pure
@@ -267,7 +269,7 @@ instance QC.Arbitrary (Scim.User SparTag) where
       genSchemas = QC.listOf1 $ QC.elements Scim.fakeEnumSchema
 
       genUserName :: QC.Gen Text
-      genUserName = cs . QC.getPrintableString <$> QC.arbitrary
+      genUserName = T.pack . QC.getPrintableString <$> QC.arbitrary
 
       genExtra :: QC.Gen ScimUserExtra
       genExtra = QC.arbitrary
@@ -338,6 +340,15 @@ data ValidExternalId
   | EmailOnly Email
   deriving (Eq, Show, Generic)
 
+instance Arbitrary ValidExternalId where
+  arbitrary = do
+    muref <- QC.arbitrary
+    case muref of
+      Just uref -> case emailFromSAMLNameID $ uref ^. SAML.uidSubject of
+        Just e -> pure $ EmailAndUref e uref
+        Nothing -> pure $ UrefOnly uref
+      Nothing -> EmailOnly <$> QC.arbitrary
+
 -- | Take apart a 'ValidExternalId', using 'SAML.UserRef' if available, otherwise 'Email'.
 runValidExternalIdEither :: (SAML.UserRef -> a) -> (Email -> a) -> ValidExternalId -> a
 runValidExternalIdEither doUref doEmail = \case
@@ -352,6 +363,11 @@ runValidExternalIdBoth merge doUref doEmail = \case
   EmailAndUref eml uref -> doUref uref `merge` doEmail eml
   UrefOnly uref -> doUref uref
   EmailOnly em -> doEmail em
+
+-- | Returns either the extracted `UnqualifiedNameID` if present and not qualified, or the email address.
+-- This throws an exception if there are any qualifiers.
+runValidExternalIdUnsafe :: ValidExternalId -> Text
+runValidExternalIdUnsafe = runValidExternalIdEither urefToExternalIdUnsafe fromEmail
 
 veidUref :: Prism' ValidExternalId SAML.UserRef
 veidUref = prism' UrefOnly $

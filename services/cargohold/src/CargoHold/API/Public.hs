@@ -27,21 +27,25 @@ import qualified CargoHold.Types.V3 as V3
 import Control.Lens
 import Control.Monad.Trans.Except (throwE)
 import Data.ByteString.Builder
+import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import Data.Id
 import Data.Kind
 import Data.Qualified
+import Data.Text.Encoding
+import Data.Text.Encoding.Error
 import Imports hiding (head)
 import qualified Network.HTTP.Types as HTTP
 import Servant.API
 import Servant.Server hiding (Handler)
-import URI.ByteString
+import URI.ByteString as URI
 import Wire.API.Asset
 import Wire.API.Federation.API
 import Wire.API.Routes.AssetBody
 import Wire.API.Routes.Internal.Brig (brigInternalClient)
 import Wire.API.Routes.Internal.Cargohold
+import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Cargohold
 import Wire.API.User (AccountStatus (Active), AccountStatusResp (..))
 
@@ -74,7 +78,23 @@ servantSitemap =
         :<|> deleteAssetV4
 
 internalSitemap :: ServerT InternalAPI Handler
-internalSitemap = pure ()
+internalSitemap =
+  pure ()
+    :<|> Named @"iGetAsset" iDownloadAssetV3
+
+-- | Like 'downloadAssetV3' below, but it works without user session token, and has a
+-- different route type.
+iDownloadAssetV3 :: V3.AssetKey -> Handler Text
+iDownloadAssetV3 key = do
+  render <$> V3.downloadUnsafe key Nothing
+  where
+    -- (NB: don't use HttpsUrl here, as in some test environments we legitimately use "http"!)
+    render :: URI.URI -> Text
+    render =
+      decodeUtf8With lenientDecode
+        . LBS.toStrict
+        . Builder.toLazyByteString
+        . URI.serializeURIRef
 
 class HasLocation (tag :: PrincipalTag) where
   assetLocation :: Local AssetKey -> [Text]

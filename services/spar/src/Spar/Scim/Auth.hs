@@ -38,10 +38,9 @@ where
 import Control.Lens hiding (Strict, (.=))
 import qualified Data.ByteString.Base64 as ES
 import Data.Id (ScimTokenId, UserId)
+import qualified Data.Text.Encoding as T
+import Data.Text.Encoding.Error
 import Imports
--- FUTUREWORK: these imports are not very handy.  split up Spar.Scim into
--- Spar.Scim.{Core,User,Group} to avoid at least some of the hscim name clashes?
-
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -133,7 +132,9 @@ createScimToken zusr Api.CreateScimToken {..} = do
 
   let caseOneOrNoIdP :: Maybe SAML.IdPId -> Sem r CreateScimTokenResponse
       caseOneOrNoIdP midpid = do
-        token <- ScimToken . cs . ES.encode <$> Random.bytes 32
+        token <-
+          ScimToken . T.decodeUtf8With lenientDecode . ES.encode
+            <$> Random.bytes 32
         tokenid <- Random.scimTokenId
         -- FUTUREWORK(fisx): the fact that we're using @Now.get@
         -- here means that the 'Now' effect should not contain
@@ -157,10 +158,7 @@ createScimToken zusr Api.CreateScimToken {..} = do
     -- NB: if the following case does not result in errors, 'validateScimUser' needs to
     -- be changed.  currently, it relies on the fact that there is never more than one IdP.
     -- https://wearezeta.atlassian.net/browse/SQSERVICES-165
-    _ ->
-      throwSparSem $
-        E.SparProvisioningMoreThanOneIdP
-          "SCIM tokens can only be created for a team with at most one IdP"
+    _ -> throwSparSem $ E.SparProvisioningMoreThanOneIdP E.TwoIdpsAndScimTokenForbidden
 
 -- | > docs/reference/provisioning/scim-token.md {#RefScimTokenDelete}
 --

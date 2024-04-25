@@ -25,6 +25,7 @@ import Data.Binary.Builder
 import Data.Domain
 import Data.Id
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent))
+import Data.String.Conversions
 import Data.Text.Encoding qualified as Text
 import Federator.Discovery
 import Federator.Monitor (FederationSetupError)
@@ -58,7 +59,7 @@ spec env = do
         brig <- view teBrig <$> ask
         user <- randomUser brig
 
-        let expectedProfile = publicProfile user UserLegalHoldNoConsent
+        let expectedProfile = mkUserProfile EmailVisibleToSelf user UserLegalHoldNoConsent
         runTestSem $ do
           resp <-
             liftToCodensity

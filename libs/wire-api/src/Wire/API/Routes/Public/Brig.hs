@@ -65,6 +65,7 @@ import Wire.API.Routes.Public.Brig.Services (ServicesAPI)
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned
 import Wire.API.SystemSettings
 import Wire.API.Team.Invitation
 import Wire.API.Team.Size
@@ -125,8 +126,6 @@ type CaptureUserId name = Capture' '[Description "User Id"] name UserId
 type QualifiedCaptureUserId name = QualifiedCapture' '[Description "User Id"] name UserId
 
 type CaptureClientId name = Capture' '[Description "ClientId"] name ClientId
-
-type NewClientResponse = Headers '[Header "Location" ClientId] Client
 
 type DeleteSelfResponses =
   '[ RespondEmpty 200 "Deletion is initiated.",
@@ -316,6 +315,7 @@ type SelfAPI =
                \password, it must be provided. if password is correct, or if neither \
                \a verified identity nor a password exists, account deletion \
                \is scheduled immediately."
+          :> MakesFederatedCall 'Brig "send-connection-action"
           :> CanThrow 'InvalidUser
           :> CanThrow 'InvalidCode
           :> CanThrow 'BadCredentials
@@ -333,6 +333,7 @@ type SelfAPI =
     Named
       "put-self"
       ( Summary "Update your profile."
+          :> MakesFederatedCall 'Brig "send-connection-action"
           :> ZUser
           :> ZConn
           :> "self"
@@ -358,6 +359,7 @@ type SelfAPI =
           :> Description
                "Your phone number can only be removed if you also have an \
                \email address and a password."
+          :> MakesFederatedCall 'Brig "send-connection-action"
           :> ZUser
           :> ZConn
           :> "self"
@@ -373,6 +375,7 @@ type SelfAPI =
           :> Description
                "Your email address can only be removed if you also have a \
                \phone number."
+          :> MakesFederatedCall 'Brig "send-connection-action"
           :> ZUser
           :> ZConn
           :> "self"
@@ -405,6 +408,7 @@ type SelfAPI =
     :<|> Named
            "change-locale"
            ( Summary "Change your locale."
+               :> MakesFederatedCall 'Brig "send-connection-action"
                :> ZUser
                :> ZConn
                :> "self"
@@ -415,6 +419,8 @@ type SelfAPI =
     :<|> Named
            "change-handle"
            ( Summary "Change your handle."
+               :> MakesFederatedCall 'Brig "send-connection-action"
+               :> MakesFederatedCall 'Brig "send-connection-action"
                :> ZUser
                :> ZConn
                :> "self"
@@ -477,6 +483,7 @@ type AccountAPI =
              "If the environment where the registration takes \
              \place is private and a registered email address or phone \
              \number is not whitelisted, a 403 error is returned."
+        :> MakesFederatedCall 'Brig "send-connection-action"
         :> "register"
         :> ReqBody '[JSON] NewUserPublic
         :> MultiVerb 'POST '[JSON] RegisterResponses (Either RegisterError RegisterSuccess)
@@ -487,6 +494,7 @@ type AccountAPI =
     :<|> Named
            "verify-delete"
            ( Summary "Verify account deletion with a code."
+               :> MakesFederatedCall 'Brig "send-connection-action"
                :> CanThrow 'InvalidCode
                :> "delete"
                :> ReqBody '[JSON] VerifyDeleteUser
@@ -498,6 +506,7 @@ type AccountAPI =
     :<|> Named
            "get-activate"
            ( Summary "Activate (i.e. confirm) an email address or phone number."
+               :> MakesFederatedCall 'Brig "send-connection-action"
                :> Description "See also 'POST /activate' which has a larger feature set."
                :> CanThrow 'UserKeyExists
                :> CanThrow 'InvalidActivationCodeWrongUser
@@ -524,6 +533,7 @@ type AccountAPI =
                :> Description
                     "Activation only succeeds once and the number of \
                     \failed attempts for a valid key is limited."
+               :> MakesFederatedCall 'Brig "send-connection-action"
                :> CanThrow 'UserKeyExists
                :> CanThrow 'InvalidActivationCodeWrongUser
                :> CanThrow 'InvalidActivationCodeWrongCode
@@ -719,15 +729,19 @@ type PrekeyAPI =
                :> Post '[JSON] QualifiedUserClientPrekeyMapV4
            )
 
-type UserClientAPI =
-  -- User Client API ----------------------------------------------------
+-- User Client API ----------------------------------------------------
 
+type ClientHeaders = '[DescHeader "Location" "Client ID" ClientId]
+
+type UserClientAPI =
   -- This endpoint can lead to the following events being sent:
   -- - ClientAdded event to self
   -- - ClientRemoved event to self, if removing old clients due to max number
   Named
-    "add-client"
+    "add-client-v5"
     ( Summary "Register a new client"
+        :> Until 'V6
+        :> MakesFederatedCall 'Brig "send-connection-action"
         :> CanThrow 'TooManyClients
         :> CanThrow 'MissingAuth
         :> CanThrow 'MalformedPrekeys
@@ -737,8 +751,38 @@ type UserClientAPI =
         :> ZConn
         :> "clients"
         :> ReqBody '[JSON] NewClient
-        :> Verb 'POST 201 '[JSON] NewClientResponse
+        :> MultiVerb1
+             'POST
+             '[JSON]
+             ( WithHeaders
+                 ClientHeaders
+                 Client
+                 (VersionedRespond 'V5 201 "Client registered" Client)
+             )
     )
+    :<|> Named
+           "add-client"
+           ( Summary "Register a new client"
+               :> From 'V6
+               :> MakesFederatedCall 'Brig "send-connection-action"
+               :> CanThrow 'TooManyClients
+               :> CanThrow 'MissingAuth
+               :> CanThrow 'MalformedPrekeys
+               :> CanThrow 'CodeAuthenticationFailed
+               :> CanThrow 'CodeAuthenticationRequired
+               :> ZUser
+               :> ZConn
+               :> "clients"
+               :> ReqBody '[JSON] NewClient
+               :> MultiVerb1
+                    'POST
+                    '[JSON]
+                    ( WithHeaders
+                        ClientHeaders
+                        Client
+                        (Respond 201 "Client registered" Client)
+                    )
+           )
     :<|> Named
            "update-client"
            ( Summary "Update a registered client"
@@ -763,15 +807,48 @@ type UserClientAPI =
           :> MultiVerb 'DELETE '[JSON] '[RespondEmpty 200 "Client deleted"] ()
       )
     :<|> Named
-           "list-clients"
+           "list-clients-v5"
            ( Summary "List the registered clients"
+               :> Until 'V6
                :> ZUser
                :> "clients"
-               :> Get '[JSON] [Client]
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    ( VersionedRespond 'V5 200 "List of clients" [Client]
+                    )
+           )
+    :<|> Named
+           "list-clients"
+           ( Summary "List the registered clients"
+               :> From 'V6
+               :> ZUser
+               :> "clients"
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    ( Respond 200 "List of clients" [Client]
+                    )
+           )
+    :<|> Named
+           "get-client-v5"
+           ( Summary "Get a registered client by ID"
+               :> Until 'V6
+               :> ZUser
+               :> "clients"
+               :> CaptureClientId "client"
+               :> MultiVerb
+                    'GET
+                    '[JSON]
+                    '[ EmptyErrorForLegacyReasons 404 "Client not found",
+                       VersionedRespond 'V5 200 "Client found" Client
+                     ]
+                    (Maybe Client)
            )
     :<|> Named
            "get-client"
            ( Summary "Get a registered client by ID"
+               :> From 'V6
                :> ZUser
                :> "clients"
                :> CaptureClientId "client"
@@ -1334,6 +1411,7 @@ type AuthAPI =
              \ Every other combination is invalid.\
              \ Access tokens can be given as query parameter or authorisation\
              \ header, with the latter being preferred."
+        :> MakesFederatedCall 'Brig "send-connection-action"
         :> QueryParam "client_id" ClientId
         :> Cookies '["zuid" ::: SomeUserToken]
         :> Bearer SomeAccessToken
@@ -1364,6 +1442,7 @@ type AuthAPI =
            ( "login"
                :> Summary "Authenticate a user to obtain a cookie and first access token"
                :> Description "Logins are throttled at the server's discretion"
+               :> MakesFederatedCall 'Brig "send-connection-action"
                :> ReqBody '[JSON] Login
                :> QueryParam'
                     [ Optional,

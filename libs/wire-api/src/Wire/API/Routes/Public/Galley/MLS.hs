@@ -116,7 +116,7 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSNotEnabled
                :> "public-keys"
                :> ZLocalUser
-               :> MultiVerb1 'GET '[JSON] (Respond 200 "Public keys" MLSPublicKeys)
+               :> MultiVerb1 'GET '[JSON] (Respond 200 "Public keys" (MLSKeysByPurpose MLSPublicKeys))
            )
 
 type MLSAPI = LiftNamed ("mls" :> MLSMessagingAPI)

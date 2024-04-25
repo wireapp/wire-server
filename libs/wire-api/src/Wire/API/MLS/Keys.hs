@@ -1,5 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -17,52 +15,69 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.MLS.Keys
-  ( MLSKeys (..),
-    MLSPublicKeys (..),
-    mlsKeysToPublic,
-  )
-where
+module Wire.API.MLS.Keys where
 
-import Crypto.PubKey.Ed25519
+import Crypto.ECC (Curve_P256R1, Curve_P384R1, Curve_P521R1)
+import Crypto.PubKey.ECDSA qualified as ECDSA
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.ByteArray
 import Data.Json.Util
-import Data.Map qualified as Map
 import Data.OpenApi qualified as S
-import Data.Schema
-import Imports
+import Data.Proxy
+import Data.Schema hiding (HasField)
+import Imports hiding (First, getFirst)
 import Wire.API.MLS.CipherSuite
-import Wire.API.MLS.Credential
 
-data MLSKeys = MLSKeys
-  { mlsKeyPair_ed25519 :: Maybe (SecretKey, PublicKey)
+data MLSKeysByPurpose a = MLSKeysByPurpose
+  { removal :: a
   }
+  deriving (Eq, Show, Functor, Foldable, Traversable)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema (MLSKeysByPurpose a)
 
-instance Semigroup MLSKeys where
-  MLSKeys Nothing <> MLSKeys ed2 = MLSKeys ed2
-  MLSKeys ed1 <> MLSKeys _ = MLSKeys ed1
-
-instance Monoid MLSKeys where
-  mempty = MLSKeys Nothing
-
-newtype MLSPublicKeys = MLSPublicKeys
-  { unMLSPublicKeys :: Map SignaturePurpose (Map SignatureSchemeTag ByteString)
-  }
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema MLSPublicKeys
-  deriving newtype (Semigroup, Monoid)
-
-instance ToSchema MLSPublicKeys where
+instance ToSchema a => ToSchema (MLSKeysByPurpose a) where
   schema =
-    named "MLSKeys" $
-      MLSPublicKeys
-        <$> unMLSPublicKeys
-          .= map_ (map_ base64Schema)
+    object "MLSKeysByPurpose" $
+      MLSKeysByPurpose
+        <$> (.removal) .= field "removal" schema
 
-mlsKeysToPublic1 :: MLSKeys -> Map SignatureSchemeTag ByteString
-mlsKeysToPublic1 (MLSKeys mEd25519key) =
-  foldMap (Map.singleton Ed25519 . convert . snd) mEd25519key
+data MLSKeys a = MLSKeys
+  { ed25519 :: a,
+    ecdsa_secp256r1_sha256 :: a,
+    ecdsa_secp384r1_sha384 :: a,
+    ecdsa_secp521r1_sha512 :: a
+  }
+  deriving (Eq, Show)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema (MLSKeys a)
 
-mlsKeysToPublic :: (SignaturePurpose -> MLSKeys) -> MLSPublicKeys
-mlsKeysToPublic f = flip foldMap [minBound .. maxBound] $ \purpose ->
-  MLSPublicKeys (Map.singleton purpose (mlsKeysToPublic1 (f purpose)))
+instance ToSchema a => ToSchema (MLSKeys a) where
+  schema =
+    object "MLSKeys" $
+      MLSKeys
+        <$> ed25519 .= field "ed25519" schema
+        <*> ecdsa_secp256r1_sha256 .= field "ecdsa_secp256r1_sha256" schema
+        <*> ecdsa_secp384r1_sha384 .= field "ecdsa_secp384r1_sha384" schema
+        <*> ecdsa_secp521r1_sha512 .= field "ecdsa_secp521r1_sha512" schema
+
+data MLSPrivateKeys = MLSPrivateKeys
+  { mlsKeyPair_ed25519 :: KeyPair Ed25519,
+    mlsKeyPair_ecdsa_secp256r1_sha256 :: KeyPair Ecdsa_secp256r1_sha256,
+    mlsKeyPair_ecdsa_secp384r1_sha384 :: KeyPair Ecdsa_secp384r1_sha384,
+    mlsKeyPair_ecdsa_secp521r1_sha512 :: KeyPair Ecdsa_secp521r1_sha512
+  }
+
+type MLSPublicKeys = MLSKeys MLSPublicKey
+
+newtype MLSPublicKey = MLSPublicKey {unwrapMLSPublicKey :: ByteString}
+  deriving (Eq, Show)
+
+instance ToSchema MLSPublicKey where
+  schema = named "MLSPublicKey" $ MLSPublicKey <$> unwrapMLSPublicKey .= base64Schema
+
+mlsKeysToPublic :: MLSPrivateKeys -> MLSPublicKeys
+mlsKeysToPublic (MLSPrivateKeys (_, ed) (_, ec256) (_, ec384) (_, ec521)) =
+  MLSKeys
+    { ed25519 = MLSPublicKey $ convert ed,
+      ecdsa_secp256r1_sha256 = MLSPublicKey $ ECDSA.encodePublic (Proxy @Curve_P256R1) ec256,
+      ecdsa_secp384r1_sha384 = MLSPublicKey $ ECDSA.encodePublic (Proxy @Curve_P384R1) ec384,
+      ecdsa_secp521r1_sha512 = MLSPublicKey $ ECDSA.encodePublic (Proxy @Curve_P521R1) ec521
+    }

@@ -25,11 +25,12 @@ where
 import Control.Applicative
 import Control.Error.Util
 import Data.ByteArray qualified as BA
+import Data.Text qualified as T
 import Data.Text.Lazy qualified as LT
 import Data.Text.Lazy.Builder qualified as LT
 import Data.Text.Lazy.Builder.Int qualified as LT
 import Data.X509 qualified as X509
-import Imports hiding (cs)
+import Imports
 import Wire.API.MLS.Capabilities
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
@@ -119,9 +120,24 @@ validateCredential cs pkey mIdentity cred = do
         "Failed to parse identity: " <> e
 
 validateCredentialKey :: SignatureSchemeTag -> ByteString -> X509.PubKey -> Either Text ()
-validateCredentialKey Ed25519 pk1 (X509.PubKeyEd25519 pk2) =
-  note "Certificate public key does not match client's" $ guard (pk1 == BA.convert pk2)
-validateCredentialKey _ _ _ = Left "Certificate signature scheme does not match client's public key"
+validateCredentialKey Ed25519 pk1 (X509.PubKeyEd25519 pk2) = validateCredentialKeyBS pk1 (BA.convert pk2)
+validateCredentialKey Ecdsa_secp256r1_sha256 pk1 (X509.PubKeyEC pk2) =
+  case pk2.pubkeyEC_pub of
+    X509.SerializedPoint bs -> validateCredentialKeyBS pk1 bs
+validateCredentialKey Ecdsa_secp384r1_sha384 pk1 (X509.PubKeyEC pk2) =
+  case pk2.pubkeyEC_pub of
+    X509.SerializedPoint bs -> validateCredentialKeyBS pk1 bs
+validateCredentialKey Ecdsa_secp521r1_sha512 pk1 (X509.PubKeyEC pk2) =
+  case pk2.pubkeyEC_pub of
+    X509.SerializedPoint bs -> validateCredentialKeyBS pk1 bs
+validateCredentialKey ss _ _ =
+  Left $
+    "Certificate signature scheme " <> T.pack (show ss) <> " does not match client's public key"
+
+validateCredentialKeyBS :: ByteString -> ByteString -> Either Text ()
+validateCredentialKeyBS pk1 pk2 =
+  note "Certificate public key does not match client's" $
+    guard (pk1 == pk2)
 
 validateSource :: LeafNodeSourceTag -> LeafNodeSource -> Either Text ()
 validateSource t s = do

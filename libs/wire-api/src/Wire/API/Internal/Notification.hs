@@ -47,7 +47,7 @@ import Data.Id
 import Data.List1
 import Data.OpenApi qualified as Swagger
 import Data.Schema qualified as S
-import Imports hiding (cs)
+import Imports
 import Wire.API.Notification
 
 -------------------------------------------------------------------------------

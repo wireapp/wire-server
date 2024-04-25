@@ -45,7 +45,7 @@ import Data.Json.Util
 import Data.OpenApi qualified as S
 import Data.Schema hiding (HasField)
 import GHC.Records
-import Imports hiding (cs)
+import Imports
 import Test.QuickCheck hiding (label)
 import Wire.API.Event.Conversation
 import Wire.API.MLS.CipherSuite

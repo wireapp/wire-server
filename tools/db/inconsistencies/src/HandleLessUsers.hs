@@ -21,7 +21,6 @@
 
 module HandleLessUsers where
 
-import Brig.Data.Instances ()
 import Cassandra
 import Cassandra.Util
 import Conduit
@@ -50,7 +49,7 @@ runCommand l brig inconsistenciesFile = do
               pure $ mapMaybe userWithHandleAndStatus userDetails
           )
         .| C.mapM (liftIO . pooledMapConcurrentlyN 48 (checkUser brig))
-        .| C.map ((<> "\n") . BS.intercalate "\n" . map (cs . Aeson.encode) . catMaybes)
+        .| C.map ((<> "\n") . BS.intercalate "\n" . map (BS.toStrict . Aeson.encode) . catMaybes)
         .| sinkFile inconsistenciesFile
 
 pageSize :: Int32

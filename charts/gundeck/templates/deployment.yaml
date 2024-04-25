@@ -65,6 +65,34 @@ spec:
                 name: gundeck
                 key: awsSecretKey
           {{- end }}
+          {{- if hasKey .Values.secrets "redisUsername" }}
+          - name: REDIS_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: gundeck
+                key: redisUsername
+          {{- end }}
+          {{- if hasKey .Values.secrets "redisPassword" }}
+          - name: REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: gundeck
+                key: redisPassword
+          {{- end }}
+          {{- if hasKey .Values.secrets "redisAdditionalWriteUsername" }}
+          - name: REDIS_ADDITIONAL_WRITE_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: gundeck
+                key: redisAdditionalWriteUsername
+          {{- end }}
+          {{- if hasKey .Values.secrets "redisAdditionalWritePassword" }}
+          - name: REDIS_ADDITIONAL_WRITE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: gundeck
+                key: redisAdditionalWritePassword
+          {{- end }}
           - name: AWS_REGION
             value: "{{ .Values.config.aws.region }}"
           {{- with .Values.config.proxy }}

@@ -34,7 +34,7 @@ where
 import Control.Arrow ((&&&))
 import Control.Error
 import Control.Exception (ErrorCall (ErrorCall))
-import Control.Lens (view, (.~), (^.))
+import Control.Lens (to, view, (.~), (^.))
 import Control.Monad.Catch
 import Data.Aeson as Aeson (Object)
 import Data.Id
@@ -62,7 +62,7 @@ import Gundeck.ThreadBudget
 import Gundeck.Types
 import Gundeck.Types.Presence qualified as Presence
 import Gundeck.Util
-import Imports hiding (cs)
+import Imports
 import Network.HTTP.Types
 import Network.Wai.Utilities
 import System.Logger.Class (msg, val, (+++), (.=), (~~))
@@ -374,31 +374,16 @@ nativeTargets psh rcps' alreadySent =
       null (psh ^. pushConnections)
         || a ^. addrConn `elem` psh ^. pushConnections
     -- Apply transport preference in case of alternative transports for the
-    -- same client (currently only APNS vs APNS VoIP). If no explicit
-    -- preference is given, the default preference depends on the priority.
+    -- same client. If no explicit preference is given, the default preference depends on the priority.
     preference as =
       let pref = psh ^. pushNativeAps >>= view apsPreference
        in filter (pick (fromMaybe defPreference pref)) as
       where
         pick pr a = case a ^. addrTransport of
           GCM -> True
-          APNS -> pr == ApsStdPreference || notAny a APNSVoIP
-          APNSSandbox -> pr == ApsStdPreference || notAny a APNSVoIPSandbox
-          APNSVoIP -> pr == ApsVoIPPreference || notAny a APNS
-          APNSVoIPSandbox -> pr == ApsVoIPPreference || notAny a APNSSandbox
-        notAny a t =
-          not
-            ( any
-                ( \a' ->
-                    addrEqualClient a a'
-                      && a ^. addrApp == a' ^. addrApp
-                      && a' ^. addrTransport == t
-                )
-                as
-            )
-        defPreference = case psh ^. pushNativePriority of
-          LowPriority -> ApsStdPreference
-          HighPriority -> ApsVoIPPreference
+          APNS -> pr == ApsStdPreference
+          APNSSandbox -> pr == ApsStdPreference
+        defPreference = ApsStdPreference
     check :: Either SomeException [a] -> m [a]
     check (Left e) = mntgtLogErr e >> pure []
     check (Right r) = pure r
@@ -525,22 +510,35 @@ addToken uid cid newtok = mpaRunWithBudget 1 (Left Public.AddTokenErrorNoBudget)
 updateEndpoint :: UserId -> PushToken -> EndpointArn -> Aws.SNSEndpoint -> Gundeck ()
 updateEndpoint uid t arn e = do
   env <- view awsEnv
+  requestId <- view reqId
+
   unless (equalTransport && equalApp) $ do
-    Log.err $ logMessage uid arn (t ^. token) "Transport or app mismatch"
+    Log.err $ logMessage requestId "PushToken does not fit to user_push data: Transport or app mismatch"
     throwM $ mkError status500 "server-error" "Server Error"
-  Log.info $ logMessage uid arn (t ^. token) "Upserting push token."
+
+  Log.info $ logMessage requestId "Upserting push token."
   let users = Set.insert uid (e ^. endpointUsers)
   Aws.execute env $ Aws.updateEndpoint users (t ^. token) arn
   where
     equalTransport = t ^. tokenTransport == arn ^. snsTopic . endpointTransport
     equalApp = t ^. tokenApp == arn ^. snsTopic . endpointAppName
-    logMessage a r tk m =
+    logMessage requestId m =
       "user"
-        .= UUID.toASCIIBytes (toUUID a)
+        .= UUID.toASCIIBytes (toUUID uid)
         ~~ "token"
-          .= Text.take 16 (tokenText tk)
+          .= Text.take 16 (t ^. token . to tokenText)
+        ~~ "tokenTransport"
+          .= show (t ^. tokenTransport)
+        ~~ "tokenApp"
+          .= (t ^. tokenApp . to appNameText)
         ~~ "arn"
-          .= toText r
+          .= toText arn
+        ~~ "endpointTransport"
+          .= show (arn ^. snsTopic . endpointTransport)
+        ~~ "endpointAppName"
+          .= (arn ^. snsTopic . endpointAppName . to appNameText)
+        ~~ "request"
+          .= unRequestId requestId
         ~~ msg (val m)
 
 deleteToken :: UserId -> Token -> Gundeck (Maybe ())

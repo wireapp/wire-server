@@ -61,6 +61,7 @@ import Data.ByteString.Base64.URL qualified as B64U
 import Data.ByteString.Builder qualified as BB
 import Data.ByteString.Conversion qualified as BS
 import Data.ByteString.Lazy qualified as L
+import Data.ByteString.UTF8 qualified as UTF8
 import Data.Fixed
 import Data.OpenApi qualified as S
 import Data.Schema
@@ -101,17 +102,24 @@ newtype UTCTimeMillis = UTCTimeMillis {fromUTCTimeMillis :: UTCTime}
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema UTCTimeMillis
 
 instance ToSchema UTCTimeMillis where
-  schema = UTCTimeMillis <$> showUTCTimeMillis .= utcTimeTextSchema
+  schema =
+    UTCTimeMillis
+      <$> showUTCTimeMillis
+        .= ( utcTimeTextSchema "UTCTimeMillis"
+               & doc . S.schema
+                 %~ (S.format ?~ "yyyy-mm-ddThh:MM:ss.qqqZ")
+                   . (S.example ?~ "2021-05-12T10:52:02.671Z")
+           )
 
-utcTimeTextSchema :: ValueSchemaP NamedSwaggerDoc Text UTCTime
-utcTimeTextSchema =
-  parsedText "UTCTime" (Atto.parseOnly (Atto.utcTime <* Atto.endOfInput))
+utcTimeTextSchema :: Text -> ValueSchemaP NamedSwaggerDoc Text UTCTime
+utcTimeTextSchema name =
+  parsedText name (Atto.parseOnly (Atto.utcTime <* Atto.endOfInput))
     & doc . S.schema
-      %~ (S.format ?~ "yyyy-mm-ddThh:MM:ss.qqq")
-        . (S.example ?~ "2021-05-12T10:52:02.671Z")
+      %~ (S.format ?~ "yyyy-mm-ddThh:MM:ssZ")
+        . (S.example ?~ "2021-05-12T10:52:02Z")
 
 utcTimeSchema :: ValueSchema NamedSwaggerDoc UTCTime
-utcTimeSchema = showUTCTime .= utcTimeTextSchema
+utcTimeSchema = showUTCTime .= utcTimeTextSchema "UTCTime"
 
 {-# INLINE toUTCTimeMillis #-}
 toUTCTimeMillis :: UTCTime -> UTCTimeMillis
@@ -134,7 +142,7 @@ instance Show UTCTimeMillis where
   showsPrec d = showParen (d > 10) . showString . Text.unpack . showUTCTimeMillis
 
 instance BS.ToByteString UTCTimeMillis where
-  builder = BB.byteString . cs . show
+  builder = BB.byteString . UTF8.fromString . show
 
 instance BS.FromByteString UTCTimeMillis where
   parser = maybe (fail "UTCTimeMillis") pure . readUTCTimeMillis =<< BS.parser

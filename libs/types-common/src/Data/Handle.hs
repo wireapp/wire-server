@@ -25,6 +25,7 @@ module Data.Handle
   )
 where
 
+import Cassandra qualified as C
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Attoparsec.ByteString.Char8 qualified as Atto
 import Data.Bifunctor (Bifunctor (first))
@@ -49,6 +50,8 @@ newtype Handle = Handle
   deriving stock (Eq, Ord, Show, Generic)
   deriving newtype (ToByteString, Hashable, S.ToParamSchema)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema Handle
+
+deriving instance C.Cql Handle
 
 instance ToSchema Handle where
   schema = fromHandle .= parsedText "Handle" p

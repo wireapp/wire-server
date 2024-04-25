@@ -29,6 +29,7 @@ where
 
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Conversion
+import Data.ByteString.UTF8 qualified as UTF8
 import Data.Map qualified as Map
 import Data.Misc
 import Data.Schema
@@ -58,7 +59,7 @@ interpretSFT :: Members [Embed IO, TinyLog] r => Manager -> Sem (SFT ': r) a -> 
 interpretSFT httpManager = interpret $ \(SFTGetAllServers url) -> do
   let urlWithPath = ensureHttpsUrl $ (httpsUrl url) {uriPath = "/sft_servers_all.json"}
   fmap SFTGetResponse . runSftError urlWithPath $ do
-    let req = parseRequest_ . cs . toByteString' $ urlWithPath
+    let req = parseRequest_ . UTF8.toString . toByteString' $ urlWithPath
     response <- fromExceptionVia @HttpException (SFTError . show) (responseBody <$> httpLbs req httpManager)
     let eList = Aeson.eitherDecode @AllURLs response
     res <- fromEither $ bimap SFTError (fmap sftServer . unAllURLs) eList
@@ -92,6 +93,6 @@ interpretSFTInMemory m = interpret $ \(SFTGetAllServers url) ->
   case Map.lookup url m of
     Nothing -> do
       let msg = "No value in the lookup map"
-      err $ Log.field "url" (show url) . Log.msg (cs msg :: ByteString)
+      err $ Log.field "url" (show url) . Log.msg (UTF8.fromString msg :: ByteString)
       pure . SFTGetResponse . Left . SFTError $ msg
     Just ss -> pure ss

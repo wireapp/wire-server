@@ -26,11 +26,13 @@ import Data.Aeson
 import Data.Id (TeamId, UserId)
 import Data.OpenApi hiding (Header (..))
 import Data.Proxy
+import Data.String.Conversions
 import Imports
 import SAML2.WebSSO.Test.Arbitrary ()
 import SAML2.WebSSO.Types
 import Servant.API.ContentTypes
 import Spar.Scim
+import Spar.Scim.Types (ScimUserCreationStatus)
 import qualified Spar.Sem.IdPConfigStore as E
 import Test.QuickCheck
 import URI.ByteString
@@ -115,3 +117,5 @@ instance CoArbitrary (IdPConfig WireIdP)
 
 instance CoArbitrary IdPMetadata where
   coarbitrary = coarbitrary . show
+
+instance CoArbitrary ScimUserCreationStatus

@@ -33,6 +33,7 @@ import Data.ByteString.Lazy qualified as LBS
 import Data.ProtoLens.Encoding (decodeMessage, encodeMessage)
 import Data.ProtoLens.Message (Message)
 import Data.ProtoLens.TextFormat (readMessage, showMessage)
+import Data.String.Conversions
 import Data.Text.Lazy.IO qualified as LText
 import Imports
 import Test.Tasty (TestTree)

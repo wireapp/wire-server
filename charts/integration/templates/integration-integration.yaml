@@ -75,10 +75,15 @@ spec:
     - name: "nginz-secrets"
       secret:
         secretName: "nginz"
+
+    - name: elasticsearch-ca
+      secret:
+        secretName: {{ .Values.config.elasticsearch.tlsCaSecretRef.name }}
+
     {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
     - name: integration-cassandra
       secret:
-        secretName: {{ (include "tlsSecretRef" .Values.config | fromYaml).name }}
+        secretName: {{ include "cassandraTlsSecretName" .Values.config }}
     {{- end }}
   restartPolicy: Never
 
@@ -90,9 +95,11 @@ spec:
       {{- toYaml .Values.podSecurityContext | nindent 6 }}
         {{- end }}
     volumeMounts:
+      - name: elasticsearch-ca
+        mountPath: "/certs/elasticsearch"
       {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
       - name: "integration-cassandra"
-        mountPath: "/certs"
+        mountPath: "/certs/cassandra"
       {{- end }}
     env:
     - name: INTEGRATION_DYNAMIC_BACKENDS_POOLSIZE
@@ -124,10 +131,12 @@ spec:
           --port {{ .Values.config.cassandra.port }} \
           --replication-factor {{ .Values.config.cassandra.replicationFactor }} \
           {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
-          --tls-ca-certificate-file /certs/{{- (include "tlsSecretRef" .Values.config | fromYaml).key }}
+          --tls-ca-certificate-file /certs/cassandra/{{- include "cassandraTlsSecretKey" .Values.config }}
           {{ end }}
 
-        integration-dynamic-backends-brig-index.sh --elasticsearch-server http://{{ .Values.config.elasticsearch.host }}:9200
+        integration-dynamic-backends-brig-index.sh \
+          --elasticsearch-server https://elastic:changeme@{{ .Values.config.elasticsearch.host }}:9200 \
+          --elasticsearch-ca-cert /certs/elasticsearch/{{ .Values.config.elasticsearch.tlsCaSecretRef.key }}
         integration-dynamic-backends-ses.sh {{ .Values.config.sesEndpointUrl }}
         integration-dynamic-backends-s3.sh {{ .Values.config.s3EndpointUrl }}
         {{- range $name, $dynamicBackend := .Values.config.dynamicBackends }}
@@ -227,6 +236,9 @@ spec:
     - name: nginz-secrets
       mountPath: /etc/wire/nginz/secrets
 
+    - name: elasticsearch-ca
+      mountPath: /etc/wire/brig/elasticsearch-ca
+
     {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
     - name: "integration-cassandra"
       mountPath: "/certs"
@@ -262,6 +274,20 @@ spec:
         secretKeyRef:
           name: brig
           key: rabbitmqPassword
+    {{- if hasKey .Values.secrets "redisUsername" }}
+    - name: REDIS_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: integration
+          key: redisUsername
+    {{- end }}
+    {{- if hasKey .Values.secrets "redisPassword" }}
+    - name: REDIS_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: integration
+          key: redisPassword
+    {{- end }}
     - name: TEST_XML
       value: /tmp/result.xml
     {{- if .Values.config.uploadXml }}

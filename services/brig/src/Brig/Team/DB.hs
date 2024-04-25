@@ -38,7 +38,6 @@ module Brig.Team.DB
 where
 
 import Brig.App as App
-import Brig.Data.Instances ()
 import Brig.Data.Types as T
 import Brig.Options
 import Brig.Team.Template

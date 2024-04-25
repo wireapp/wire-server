@@ -12,7 +12,9 @@
 , imports
 , lib
 , rusty_jwt_tools_ffi
+, string-conversions
 , transformers
+, utf8-string
 }:
 mkDerivation {
   pname = "jwt-tools";
@@ -24,9 +26,16 @@ mkDerivation {
     http-types
     imports
     transformers
+    utf8-string
   ];
   librarySystemDepends = [ rusty_jwt_tools_ffi ];
-  testHaskellDepends = [ bytestring hspec imports transformers ];
+  testHaskellDepends = [
+    bytestring
+    hspec
+    imports
+    string-conversions
+    transformers
+  ];
   description = "FFI to rusty-jwt-tools";
   license = lib.licenses.agpl3Only;
 }

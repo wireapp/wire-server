@@ -5,19 +5,24 @@ module SetupHelpers where
 
 import API.Brig
 import API.BrigInternal
+import API.Cargohold
 import API.Common
 import API.Galley
+import API.GalleyInternal (legalholdWhitelistTeam)
 import Control.Monad.Reader
 import Crypto.Random (getRandomBytes)
 import Data.Aeson hiding ((.=))
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString.Base64.URL as B64Url
 import Data.ByteString.Char8 (unpack)
+import qualified Data.CaseInsensitive as CI
 import Data.Default
 import Data.Function
+import Data.String.Conversions (cs)
 import Data.UUID.V1 (nextUUID)
 import Data.UUID.V4 (nextRandom)
 import GHC.Stack
+import Testlib.MockIntegrationService (mkLegalHoldSettings)
 import Testlib.Prelude
 
 randomUser :: (HasCallStack, MakesValue domain) => domain -> CreateUser -> App Value
@@ -88,7 +93,7 @@ connectTwoUsers alice bob = do
   bindResponse (postConnection alice bob) (\resp -> resp.status `shouldMatchInt` 201)
   bindResponse (putConnection bob alice "accepted") (\resp -> resp.status `shouldMatchInt` 200)
 
-connectUsers :: HasCallStack => [Value] -> App ()
+connectUsers :: (HasCallStack, MakesValue usr) => [usr] -> App ()
 connectUsers users = traverse_ (uncurry connectTwoUsers) $ do
   t <- tails users
   (a, others) <- maybeToList (uncons t)
@@ -276,3 +281,93 @@ setupProvider u np@(NewProvider {..}) = do
     pure (k, c)
   activateProvider dom key code
   loginProvider dom newProviderEmail pass $> provider
+
+-- | setup a legalhold device for @uid@, authorised by @owner@
+--   at the specified port
+setUpLHDevice ::
+  (HasCallStack, MakesValue tid, MakesValue owner, MakesValue uid) =>
+  tid ->
+  owner ->
+  uid ->
+  -- | the host and port the LH service is running on
+  (String, Int) ->
+  App ()
+setUpLHDevice tid alice bob lhPort = do
+  legalholdWhitelistTeam tid alice
+    >>= assertStatus 200
+
+  -- the status messages for these have already been tested
+  postLegalHoldSettings tid alice (mkLegalHoldSettings lhPort)
+    >>= assertStatus 201
+
+  requestLegalHoldDevice tid alice bob
+    >>= assertStatus 201
+
+  approveLegalHoldDevice tid bob defPassword
+    >>= assertStatus 200
+
+lhDeviceIdOf :: MakesValue user => user -> App String
+lhDeviceIdOf bob = do
+  bobId <- objId bob
+  getClientsFull bob [bobId] `bindResponse` \resp ->
+    do
+      resp.json %. bobId
+        & asList
+        >>= filterM \val -> (== "legalhold") <$> (val %. "type" & asString)
+      >>= assertOne
+      >>= (%. "id")
+      >>= asString
+
+randomScimUser :: App Value
+randomScimUser = do
+  email <- randomEmail
+  handle <- randomHandleWithRange 12 128
+  pure $
+    object
+      [ "schemas" .= ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        "externalId" .= email,
+        "userName" .= handle,
+        "displayName" .= handle
+      ]
+
+-- | This adds one random asset to the `assets` field in the user record and returns an asset
+-- key.  The asset carries a fresh UUIDv4 in text form (even though it is typed 'preview` and
+-- `image').
+uploadProfilePicture :: (HasCallStack, MakesValue usr) => usr -> App (String, String, String)
+uploadProfilePicture usr = do
+  payload <- ("asset_contents=" <>) <$> randomId
+  asset <- bindResponse (uploadFreshAsset usr payload) (getJSON 201)
+  dom <- asset %. "domain" & asString
+  key <- asset %. "key" & asString
+  Success (oldAssets :: [Value]) <- bindResponse (getSelf usr) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "assets" <&> fromJSON
+  bindResponse
+    (putSelf usr def {assets = Just (object ["key" .= key, "size" .= "preview", "type" .= "image"] : oldAssets)})
+    assertSuccess
+  pure (dom, key, payload)
+
+-- | Take a calling user (any user will do) and an asset domain and key, and return a
+-- (temporarily valid) s3 url plus asset payload (if created with `uploadProfilePicture`,
+-- that's a UUIDv4).
+downloadProfilePicture :: (HasCallStack, MakesValue caller) => caller -> String -> String -> App (String, String)
+downloadProfilePicture caller assetDomain assetKey = do
+  locurl <- bindResponse (downloadAsset caller caller assetKey assetDomain noRedirect) $ \resp -> do
+    resp.status `shouldMatchInt` 302
+    maybe
+      (error "no location header in 302 response!?")
+      (pure . cs)
+      (lookup (CI.mk (cs "Location")) resp.headers)
+
+  payload <- bindResponse (downloadAsset caller caller assetKey assetDomain id) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    pure $ cs resp.body
+
+  pure (locurl, payload)
+
+-- | Call 'uploadProfilePicture' and 'downloadPicture', returning the return value of the
+-- latter.
+uploadDownloadProfilePicture :: (HasCallStack, MakesValue usr) => usr -> App (String, String)
+uploadDownloadProfilePicture usr = do
+  (dom, key, _payload) <- uploadProfilePicture usr
+  downloadProfilePicture usr dom key

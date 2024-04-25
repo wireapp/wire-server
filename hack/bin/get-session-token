@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+
+#set -x
+set -e -o pipefail
+
+WIRE_COOKIEJAR=/tmp/get-session-token.cookiejar
+
+#WIRE_HOST=https://prod-nginz-https.wire.com
+#WIRE_USER='...'
+#WIRE_PASSWORD='...'
+
+# run eg. './create_test_team_admins.sh -c', and fill user and password from the output:
+WIRE_HOST=http://localhost:8080
+WIRE_USER='...'
+WIRE_PASSWORD='...'
+
+function wire_login () {
+  curl -b $WIRE_COOKIEJAR -c $WIRE_COOKIEJAR -X POST \
+    --header 'Content-Type: application/json' \
+    --header 'Accept: application/json' \
+    -d '{"email":"'"$WIRE_USER"'","password":"'"$WIRE_PASSWORD"'"}' \
+    $WIRE_HOST/login'?persist=false'
+}
+
+function wire_logout () {
+  curl -b $WIRE_COOKIEJAR -c $WIRE_COOKIEJAR -v -X POST \
+    --header 'Content-Type: application/json' \
+    --header 'Accept: application/json' \
+    --header "Authorization: Bearer $BEARER" \
+    "{$WIRE_HOST}/access/logout"
+}
+
+export RESP
+RESP=$(wire_login)
+echo "[$RESP]"
+
+export BEARER
+BEARER=$(echo "$RESP" | jq -r .access_token)
+echo "Authorization: Bearer $BEARER"
+
+#cat $WIRE_COOKIEJAR
+#export RESP
+#RESP=$(wire_logout)
+#echo "[$RESP]"

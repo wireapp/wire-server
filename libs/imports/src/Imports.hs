@@ -114,7 +114,6 @@ module Imports
     -- * Extra Helpers
     whenM,
     unlessM,
-    cs,
 
     -- * Functor
     (<$$>),
@@ -165,7 +164,6 @@ import Data.Ord
 import Data.Semigroup hiding (diff)
 import Data.Set (Set)
 import Data.String
-import Data.String.Conversions (cs)
 import Data.Text (Text)
 import Data.Text.Lazy qualified
 import Data.Traversable

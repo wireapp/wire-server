@@ -19,7 +19,6 @@
 , tasty-hunit
 , tasty-quickcheck
 , text
-, tinylog
 , types-common
 , wire-api
 }:
@@ -38,7 +37,6 @@ mkDerivation {
     imports
     QuickCheck
     text
-    tinylog
     types-common
     wire-api
   ];

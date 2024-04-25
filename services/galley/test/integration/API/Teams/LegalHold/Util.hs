@@ -11,7 +11,6 @@ import API.Util
 import Bilge hiding (accept, head, timeout, trace)
 import Bilge.Assert
 import Brig.Types.Test.Arbitrary ()
-import Brig.Types.User.Event qualified as Ev
 import Control.Concurrent.Async qualified as Async
 import Control.Concurrent.Chan
 import Control.Concurrent.Timeout hiding (threadDelay)
@@ -26,12 +25,12 @@ import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Conversion
 import Data.CallStack
 import Data.Id
-import Data.LegalHold
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.List1 qualified as List1
 import Data.Misc (PlainTextPassword6)
 import Data.PEM
 import Data.Streaming.Network (bindRandomPortTCP)
+import Data.String.Conversions
 import Data.Tagged
 import Data.Text.Encoding (encodeUtf8)
 import Galley.Options
@@ -58,9 +57,8 @@ import Wire.API.Provider.Service
 import Wire.API.Team.Feature qualified as Public
 import Wire.API.Team.LegalHold
 import Wire.API.Team.LegalHold.External
-import Wire.API.Team.Member qualified as Team
-import Wire.API.User (UserProfile (..))
 import Wire.API.User.Client
+import Wire.API.UserEvent qualified as Ev
 
 --------------------------------------------------------------------
 -- setup helpers
@@ -220,60 +218,6 @@ publicKeyNotMatchingService =
             "-----END PUBLIC KEY-----"
           ]
    in k
-
-testGetLegalholdStatus :: TestM ()
-testGetLegalholdStatus = do
-  (owner1, tid1) <- createBindingTeam
-  member1 <- view Team.userId <$> addUserToTeam owner1 tid1
-
-  (owner2, tid2) <- createBindingTeam
-  member2 <- view Team.userId <$> addUserToTeam owner2 tid2
-
-  personal <- randomUser
-
-  let check :: HasCallStack => UserId -> UserId -> Maybe TeamId -> UserLegalHoldStatus -> TestM ()
-      check getter targetUser targetTeam stat = do
-        profile <- getUserProfile getter targetUser
-        when (profileLegalholdStatus profile /= stat) $ do
-          meminfo <- getUserStatusTyped targetUser `mapM` targetTeam
-
-          liftIO . forM_ meminfo $ \mem -> do
-            assertEqual "member LH status" stat (ulhsrStatus mem)
-            assertEqual "team id in brig user record" targetTeam (profileTeam profile)
-
-          liftIO $ assertEqual "user profile status info" stat (profileLegalholdStatus profile)
-
-      requestDev :: HasCallStack => UserId -> UserId -> TeamId -> TestM ()
-      requestDev requestor target tid = do
-        requestLegalHoldDevice requestor target tid !!! testResponse 201 Nothing
-
-      approveDev :: HasCallStack => UserId -> TeamId -> TestM ()
-      approveDev target tid = do
-        approveLegalHoldDevice (Just defPassword) target target tid !!! testResponse 200 Nothing
-
-  check owner1 member1 (Just tid1) UserLegalHoldNoConsent
-  check member1 member1 (Just tid1) UserLegalHoldNoConsent
-  check owner2 member1 (Just tid1) UserLegalHoldNoConsent
-  check member2 member1 (Just tid1) UserLegalHoldNoConsent
-  check personal member1 (Just tid1) UserLegalHoldNoConsent
-  check owner1 personal Nothing UserLegalHoldNoConsent
-  check member1 personal Nothing UserLegalHoldNoConsent
-  check owner2 personal Nothing UserLegalHoldNoConsent
-  check member2 personal Nothing UserLegalHoldNoConsent
-  check personal personal Nothing UserLegalHoldNoConsent
-
-  putLHWhitelistTeam tid1 !!! const 200 === statusCode
-
-  withDummyTestServiceForTeam owner1 tid1 $ \_chan -> do
-    check owner1 member1 (Just tid1) UserLegalHoldDisabled
-    check member2 member1 (Just tid1) UserLegalHoldDisabled
-    check personal member1 (Just tid1) UserLegalHoldDisabled
-
-    requestDev owner1 member1 tid1
-    check personal member1 (Just tid1) UserLegalHoldPending
-
-    approveDev member1 tid1
-    check personal member1 (Just tid1) UserLegalHoldEnabled
 
 ----------------------------------------------------------------------
 -- API helpers
@@ -487,26 +431,6 @@ requestLegalHoldDevice' g zusr uid tid = do
 ----------------------------------------------------------------------
 -- test helpers
 
-deriving instance Show Ev.Event
-
-deriving instance Show Ev.UserEvent
-
-deriving instance Show Ev.ClientEvent
-
-deriving instance Show Ev.PropertyEvent
-
-deriving instance Show Ev.ConnectionEvent
-
--- (partial implementation, just good enough to make the tests work)
-instance FromJSON Ev.Event where
-  parseJSON ev = flip (withObject "Ev.Event") ev $ \o -> do
-    typ :: Text <- o .: "type"
-    if
-        | typ `elem` ["user.legalhold-request", "user.legalhold-enable", "user.legalhold-disable"] -> Ev.UserEvent <$> Aeson.parseJSON ev
-        | typ `elem` ["user.client-add", "user.client-remove"] -> Ev.ClientEvent <$> Aeson.parseJSON ev
-        | typ == "user.connection" -> Ev.ConnectionEvent <$> Aeson.parseJSON ev
-        | otherwise -> fail $ "Ev.Event: unsupported event type: " <> show typ
-
 -- (partial implementation, just good enough to make the tests work)
 instance FromJSON Ev.UserEvent where
   parseJSON = withObject "Ev.UserEvent" $ \o -> do
@@ -528,11 +452,9 @@ instance FromJSON Ev.ClientEvent where
   parseJSON = withObject "Ev.ClientEvent" $ \o -> do
     tag :: Text <- o .: "type"
     case tag of
-      "user.client-add" -> Ev.ClientAdded fakeuid <$> o .: "client"
-      "user.client-remove" -> Ev.ClientRemoved fakeuid <$> (o .: "client" >>= withObject "id" (.: "id"))
+      "user.client-add" -> Ev.ClientAdded <$> o .: "client"
+      "user.client-remove" -> Ev.ClientRemoved <$> (o .: "client" >>= withObject "id" (.: "id"))
       x -> fail $ "Ev.ClientEvent: unsupported event type: " ++ show x
-    where
-      fakeuid = read @UserId "6980fb5e-ba64-11eb-a339-0b3625bf01be"
 
 instance FromJSON Ev.ConnectionEvent where
   parseJSON = Aeson.withObject "ConnectionEvent" $ \o -> do
@@ -541,7 +463,6 @@ instance FromJSON Ev.ConnectionEvent where
       "user.connection" ->
         Ev.ConnectionUpdated
           <$> o .: "connection"
-          <*> pure Nothing
           <*> pure Nothing
       x -> fail $ "unspported event type: " ++ show x
 

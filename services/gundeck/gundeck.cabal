@@ -128,6 +128,7 @@ library
     , exceptions             >=0.4
     , extended
     , extra                  >=1.1
+    , foldl
     , gundeck-types          >=1.0
     , hedis                  >=0.14.0
     , http-client            >=0.7
@@ -391,6 +392,7 @@ test-suite gundeck-tests
   type:               exitcode-stdio-1.0
   main-is:            Main.hs
   other-modules:
+    Aws.Arn
     DelayQueue
     Json
     MockGundeck
@@ -452,6 +454,7 @@ test-suite gundeck-tests
       aeson
     , aeson-pretty
     , amazonka
+    , amazonka-core
     , async
     , base
     , bytestring-conversion
@@ -471,6 +474,7 @@ test-suite gundeck-tests
     , quickcheck-instances
     , quickcheck-state-machine
     , scientific
+    , string-conversions
     , tasty
     , tasty-hunit
     , tasty-quickcheck

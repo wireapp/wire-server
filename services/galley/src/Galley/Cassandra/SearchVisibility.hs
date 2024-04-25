@@ -22,22 +22,31 @@ import Data.Id
 import Galley.Cassandra.Instances ()
 import Galley.Cassandra.Queries
 import Galley.Cassandra.Store
+import Galley.Cassandra.Util
 import Galley.Effects.SearchVisibilityStore (SearchVisibilityStore (..))
 import Imports
 import Polysemy
 import Polysemy.Input
+import Polysemy.TinyLog
 import Wire.API.Team.SearchVisibility
 
 interpretSearchVisibilityStoreToCassandra ::
   ( Member (Embed IO) r,
-    Member (Input ClientState) r
+    Member (Input ClientState) r,
+    Member TinyLog r
   ) =>
   Sem (SearchVisibilityStore ': r) a ->
   Sem r a
 interpretSearchVisibilityStoreToCassandra = interpret $ \case
-  GetSearchVisibility tid -> embedClient $ getSearchVisibility tid
-  SetSearchVisibility tid value -> embedClient $ setSearchVisibility tid value
-  ResetSearchVisibility tid -> embedClient $ resetSearchVisibility tid
+  GetSearchVisibility tid -> do
+    logEffect "SearchVisibilityStore.GetSearchVisibility"
+    embedClient $ getSearchVisibility tid
+  SetSearchVisibility tid value -> do
+    logEffect "SearchVisibilityStore.SetSearchVisibility"
+    embedClient $ setSearchVisibility tid value
+  ResetSearchVisibility tid -> do
+    logEffect "SearchVisibilityStore.ResetSearchVisibility"
+    embedClient $ resetSearchVisibility tid
 
 -- | Return whether a given team is allowed to enable/disable sso
 getSearchVisibility :: MonadClient m => TeamId -> m TeamSearchVisibility

@@ -22,7 +22,6 @@ module Galley.API.Teams.Features
     setFeatureStatusInternal,
     patchFeatureStatusInternal,
     getFeatureStatusForUser,
-    getAllFeatureConfigsForServer,
     getAllFeatureConfigsForTeam,
     getAllFeatureConfigsForUser,
     updateLockStatus,
@@ -38,6 +37,7 @@ where
 
 import Control.Lens
 import Data.ByteString.Conversion (toByteString')
+import Data.ByteString.UTF8 qualified as UTF8
 import Data.Id
 import Data.Json.Util
 import Data.Kind
@@ -204,7 +204,7 @@ pushFeatureConfigEvent tid event = do
       P.warn $
         Log.field "action" (Log.val "Features.pushFeatureConfigEvent")
           . Log.field "feature" (Log.val (toByteString' . Event._eventFeatureName $ event))
-          . Log.field "team" (Log.val (cs . show $ tid))
+          . Log.field "team" (Log.val (UTF8.fromString . show $ tid))
           . Log.msg @Text "Fanout limit exceeded. Events will not be sent."
     else do
       let recipients = membersToRecipients Nothing (memList ^. teamMembers)
@@ -319,7 +319,8 @@ instance SetFeatureConfig LegalholdConfig where
         Member TeamFeatureStore r,
         Member TeamStore r,
         Member (TeamMemberStore InternalPaging) r,
-        Member P.TinyLog r
+        Member P.TinyLog r,
+        Member Random r
       )
 
   -- we're good to update the status now.

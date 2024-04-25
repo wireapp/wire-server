@@ -37,7 +37,7 @@ testModifiedGalley = do
 
   let getFeatureStatus :: (MakesValue domain) => domain -> String -> App Value
       getFeatureStatus domain team = do
-        bindResponse (GalleyI.getTeamFeature domain "searchVisibility" team) $ \res -> do
+        bindResponse (GalleyI.getTeamFeature domain team "searchVisibility") $ \res -> do
           res.status `shouldMatchInt` 200
           res.json %. "status"
 
@@ -75,7 +75,7 @@ testModifiedServices = do
 
   withModifiedBackend serviceMap $ \domain -> do
     (_user, tid, _) <- createTeam domain 1
-    bindResponse (GalleyI.getTeamFeature domain "searchVisibility" tid) $ \res -> do
+    bindResponse (GalleyI.getTeamFeature domain tid "searchVisibility") $ \res -> do
       res.status `shouldMatchInt` 200
       res.json %. "status" `shouldMatch` "enabled"
 
@@ -194,3 +194,16 @@ testUnrace = do
     True `shouldMatch` False
   -}
   retryT $ True `shouldMatch` True
+
+testFedV0Instance :: HasCallStack => App ()
+testFedV0Instance = do
+  res <- BrigP.getAPIVersion FedV0Domain >>= getJSON 200
+  res %. "domain" `shouldMatch` FedV0Domain
+
+testFedV0Federation :: HasCallStack => App ()
+testFedV0Federation = do
+  alice <- randomUser OwnDomain def
+  bob <- randomUser FedV0Domain def
+
+  bob' <- BrigP.getUser alice bob >>= getJSON 200
+  bob' %. "qualified_id" `shouldMatch` (bob %. "qualified_id")

@@ -27,11 +27,16 @@ module Wire.API.MLS.CipherSuite
 
     -- * MLS signature schemes
     SignatureScheme (..),
+    IsSignatureScheme,
     SignatureSchemeTag (..),
+    SignatureSchemeCurve,
     signatureScheme,
     signatureSchemeName,
     signatureSchemeTag,
     csSignatureScheme,
+
+    -- * Key pairs
+    KeyPair,
 
     -- * Utilities
     csHash,
@@ -41,14 +46,18 @@ module Wire.API.MLS.CipherSuite
   )
 where
 
+import Cassandra qualified as C
 import Cassandra.CQL
 import Control.Applicative
 import Control.Error (note)
 import Control.Lens ((?~))
+import Crypto.ECC hiding (KeyPair)
 import Crypto.Error
 import Crypto.Hash (hashWith)
 import Crypto.Hash.Algorithms
+import Crypto.PubKey.ECDSA qualified as ECDSA
 import Crypto.PubKey.Ed25519 qualified as Ed25519
+import Crypto.Random.Types
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Types (FromJSON (..), FromJSONKey (..), ToJSON (..), ToJSONKey (..))
 import Data.Aeson.Types qualified as Aeson
@@ -67,8 +76,9 @@ import Data.Text.Lazy qualified as LT
 import Data.Text.Lazy.Builder qualified as LT
 import Data.Text.Lazy.Builder.Int qualified as LT
 import Data.Word
-import Imports hiding (cs)
+import Imports
 import Web.HttpApiData
+import Wire.API.MLS.ECDSA qualified as ECDSA
 import Wire.API.MLS.Serialisation
 import Wire.Arbitrary
 
@@ -106,6 +116,9 @@ instance FromByteString CipherSuite where
 
 data CipherSuiteTag
   = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+  | MLS_128_DHKEMP256_AES128GCM_SHA256_P256
+  | MLS_256_DHKEMP384_AES256GCM_SHA384_P384
+  | MLS_256_DHKEMP521_AES256GCM_SHA512_P521
   | MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519
   deriving stock (Bounded, Enum, Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform CipherSuiteTag)
@@ -134,6 +147,16 @@ instance ToSchema CipherSuiteTag where
           pure
           (cipherSuiteTag (CipherSuite index))
 
+instance C.Cql CipherSuiteTag where
+  ctype = Tagged IntColumn
+  toCql = CqlInt . fromIntegral . cipherSuiteNumber . tagCipherSuite
+
+  fromCql (CqlInt index) =
+    case cipherSuiteTag (CipherSuite (fromIntegral index)) of
+      Just t -> Right t
+      Nothing -> Left "CipherSuiteTag: unexpected index"
+  fromCql _ = Left "CipherSuiteTag: int expected"
+
 -- | See https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol.html#table-5.
 cipherSuiteTag :: CipherSuite -> Maybe CipherSuiteTag
 cipherSuiteTag cs = listToMaybe $ do
@@ -143,18 +166,34 @@ cipherSuiteTag cs = listToMaybe $ do
 
 -- | Inverse of 'cipherSuiteTag'
 tagCipherSuite :: CipherSuiteTag -> CipherSuite
-tagCipherSuite MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = CipherSuite 1
+tagCipherSuite MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = CipherSuite 0x1
+tagCipherSuite MLS_128_DHKEMP256_AES128GCM_SHA256_P256 = CipherSuite 0x2
+tagCipherSuite MLS_256_DHKEMP384_AES256GCM_SHA384_P384 = CipherSuite 0x7
+tagCipherSuite MLS_256_DHKEMP521_AES256GCM_SHA512_P521 = CipherSuite 0x5
 tagCipherSuite MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519 = CipherSuite 0xf031
 
-csHash :: CipherSuiteTag -> ByteString -> RawMLS a -> ByteString
-csHash MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = sha256Hash
-csHash MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519 = sha256Hash
+data SomeHashAlgorithm where
+  SomeHashAlgorithm :: HashAlgorithm a => a -> SomeHashAlgorithm
 
-sha256Hash :: ByteString -> RawMLS a -> ByteString
-sha256Hash ctx value = convert . hashWith SHA256 . encodeMLS' $ RefHashInput ctx value
+csHashAlgorithm :: CipherSuiteTag -> SomeHashAlgorithm
+csHashAlgorithm MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = SomeHashAlgorithm SHA256
+csHashAlgorithm MLS_128_DHKEMP256_AES128GCM_SHA256_P256 = SomeHashAlgorithm SHA256
+csHashAlgorithm MLS_256_DHKEMP384_AES256GCM_SHA384_P384 = SomeHashAlgorithm SHA384
+csHashAlgorithm MLS_256_DHKEMP521_AES256GCM_SHA512_P521 = SomeHashAlgorithm SHA512
+csHashAlgorithm MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519 = SomeHashAlgorithm SHA256
+
+csHash :: CipherSuiteTag -> ByteString -> RawMLS a -> ByteString
+csHash cs ctx value = case csHashAlgorithm cs of
+  SomeHashAlgorithm a -> convert . hashWith a . encodeMLS' $ RefHashInput ctx value
 
 csVerifySignature :: CipherSuiteTag -> ByteString -> RawMLS a -> ByteString -> Bool
 csVerifySignature MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = ed25519VerifySignature
+csVerifySignature MLS_128_DHKEMP256_AES128GCM_SHA256_P256 =
+  ECDSA.verifySignature (Proxy @Curve_P256R1) SHA256
+csVerifySignature MLS_256_DHKEMP384_AES256GCM_SHA384_P384 =
+  ECDSA.verifySignature (Proxy @Curve_P384R1) SHA384
+csVerifySignature MLS_256_DHKEMP521_AES256GCM_SHA512_P521 =
+  ECDSA.verifySignature (Proxy @Curve_P521R1) SHA512
 csVerifySignature MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519 = ed25519VerifySignature
 
 ed25519VerifySignature :: ByteString -> RawMLS a -> ByteString -> Bool
@@ -198,13 +237,43 @@ csVerifySignatureWithLabel ::
 csVerifySignatureWithLabel cs pub label x sig =
   csVerifySignature cs pub (mkRawMLS (mkSignContent label x)) sig
 
--- FUTUREWORK: generalise to arbitrary ciphersuites
-signWithLabel :: ByteString -> Ed25519.SecretKey -> Ed25519.PublicKey -> RawMLS a -> ByteString
-signWithLabel sigLabel priv pub x = BA.convert $ Ed25519.sign priv pub (encodeMLS' (mkSignContent sigLabel x))
+signWithLabel ::
+  forall ss a m.
+  (IsSignatureScheme ss, MonadRandom m) =>
+  ByteString ->
+  KeyPair ss ->
+  RawMLS a ->
+  m ByteString
+signWithLabel sigLabel kp x = sign @ss kp (encodeMLS' (mkSignContent sigLabel x))
 
 csSignatureScheme :: CipherSuiteTag -> SignatureSchemeTag
 csSignatureScheme MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = Ed25519
+csSignatureScheme MLS_128_DHKEMP256_AES128GCM_SHA256_P256 = Ecdsa_secp256r1_sha256
+csSignatureScheme MLS_256_DHKEMP384_AES256GCM_SHA384_P384 = Ecdsa_secp384r1_sha384
+csSignatureScheme MLS_256_DHKEMP521_AES256GCM_SHA512_P521 = Ecdsa_secp521r1_sha512
 csSignatureScheme MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519 = Ed25519
+
+type family PrivateKey (ss :: SignatureSchemeTag)
+
+type instance PrivateKey Ed25519 = Ed25519.SecretKey
+
+type instance PrivateKey Ecdsa_secp256r1_sha256 = ECDSA.PrivateKey Curve_P256R1
+
+type instance PrivateKey Ecdsa_secp384r1_sha384 = ECDSA.PrivateKey Curve_P384R1
+
+type instance PrivateKey Ecdsa_secp521r1_sha512 = ECDSA.PrivateKey Curve_P521R1
+
+type family PublicKey (ss :: SignatureSchemeTag)
+
+type instance PublicKey Ed25519 = Ed25519.PublicKey
+
+type instance PublicKey Ecdsa_secp256r1_sha256 = ECDSA.PublicKey Curve_P256R1
+
+type instance PublicKey Ecdsa_secp384r1_sha384 = ECDSA.PublicKey Curve_P384R1
+
+type instance PublicKey Ecdsa_secp521r1_sha512 = ECDSA.PublicKey Curve_P521R1
+
+type KeyPair (ss :: SignatureSchemeTag) = (PrivateKey ss, PublicKey ss)
 
 -- | A TLS signature scheme.
 --
@@ -216,9 +285,42 @@ newtype SignatureScheme = SignatureScheme {unSignatureScheme :: Word16}
 signatureScheme :: SignatureSchemeTag -> SignatureScheme
 signatureScheme = SignatureScheme . signatureSchemeNumber
 
-data SignatureSchemeTag = Ed25519
+data SignatureSchemeTag
+  = Ed25519
+  | Ecdsa_secp256r1_sha256
+  | Ecdsa_secp384r1_sha384
+  | Ecdsa_secp521r1_sha512
   deriving stock (Bounded, Enum, Eq, Ord, Show, Generic)
   deriving (Arbitrary) via GenericUniform SignatureSchemeTag
+
+class IsSignatureScheme (ss :: SignatureSchemeTag) where
+  sign :: MonadRandom m => KeyPair ss -> ByteString -> m ByteString
+
+instance IsSignatureScheme 'Ed25519 where
+  sign (priv, pub) = pure . BA.convert . Ed25519.sign priv pub
+
+instance IsSignatureScheme 'Ecdsa_secp256r1_sha256 where
+  sign (priv, _) =
+    fmap (ECDSA.encodeSignature (Proxy @Curve_P256R1))
+      . ECDSA.sign (Proxy @Curve_P256R1) priv SHA256
+
+instance IsSignatureScheme 'Ecdsa_secp384r1_sha384 where
+  sign (priv, _) =
+    fmap (ECDSA.encodeSignature (Proxy @Curve_P384R1))
+      . ECDSA.sign (Proxy @Curve_P384R1) priv SHA384
+
+instance IsSignatureScheme 'Ecdsa_secp521r1_sha512 where
+  sign (priv, _) =
+    fmap (ECDSA.encodeSignature (Proxy @Curve_P521R1))
+      . ECDSA.sign (Proxy @Curve_P521R1) priv SHA512
+
+type family SignatureSchemeCurve (ss :: SignatureSchemeTag)
+
+type instance SignatureSchemeCurve 'Ecdsa_secp256r1_sha256 = Curve_P256R1
+
+type instance SignatureSchemeCurve 'Ecdsa_secp384r1_sha384 = Curve_P384R1
+
+type instance SignatureSchemeCurve 'Ecdsa_secp521r1_sha512 = Curve_P521R1
 
 instance Cql SignatureSchemeTag where
   ctype = Tagged TextColumn
@@ -230,9 +332,15 @@ instance Cql SignatureSchemeTag where
 
 signatureSchemeNumber :: SignatureSchemeTag -> Word16
 signatureSchemeNumber Ed25519 = 0x807
+signatureSchemeNumber Ecdsa_secp256r1_sha256 = 0x403
+signatureSchemeNumber Ecdsa_secp384r1_sha384 = 0x503
+signatureSchemeNumber Ecdsa_secp521r1_sha512 = 0x603
 
 signatureSchemeName :: SignatureSchemeTag -> Text
 signatureSchemeName Ed25519 = "ed25519"
+signatureSchemeName Ecdsa_secp256r1_sha256 = "ecdsa_secp256r1_sha256"
+signatureSchemeName Ecdsa_secp384r1_sha384 = "ecdsa_secp384r1_sha384"
+signatureSchemeName Ecdsa_secp521r1_sha512 = "ecdsa_secp521r1_sha512"
 
 signatureSchemeTag :: SignatureScheme -> Maybe SignatureSchemeTag
 signatureSchemeTag (SignatureScheme n) = getAlt $

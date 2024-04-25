@@ -37,6 +37,7 @@ module Brig.App
     galley,
     galleyEndpoint,
     gundeckEndpoint,
+    cargoholdEndpoint,
     federator,
     casClient,
     userTemplates,
@@ -65,15 +66,16 @@ module Brig.App
     rabbitmqChannel,
     fsWatcher,
     disabledVersions,
+    enableSFTFederation,
+    mkIndexEnv,
 
     -- * App Monad
     AppT (..),
     viewFederationDomain,
     qualifyLocal,
+    qualifyLocal',
 
-    -- * Crutches that should be removed once Brig has been completely
-
-    -- * transitioned to Polysemy
+    -- * Crutches that should be removed once Brig has been completely transitioned to Polysemy
     wrapClient,
     wrapClientE,
     wrapClientM,
@@ -85,6 +87,7 @@ module Brig.App
     liftSem,
     lowerAppT,
     temporaryGetEnv,
+    initHttpManagerWithTLSConfig,
   )
 where
 
@@ -94,7 +97,7 @@ import Bilge.IO
 import Bilge.RPC (HasRequestId (..))
 import Brig.AWS qualified as AWS
 import Brig.Calling qualified as Calling
-import Brig.Options (Opts, Settings)
+import Brig.Options (ElasticSearchOpts, Opts, Settings (..))
 import Brig.Options qualified as Opt
 import Brig.Provider.Template
 import Brig.Queue.Stomp qualified as Stomp
@@ -116,6 +119,7 @@ import Control.Lens hiding (index, (.=))
 import Control.Monad.Catch
 import Control.Monad.Trans.Resource
 import Data.ByteString.Conversion
+import Data.Credentials (Credentials (..))
 import Data.Domain
 import Data.Metrics (Metrics)
 import Data.Metrics.Middleware qualified as Metrics
@@ -126,7 +130,6 @@ import Data.Text.Encoding (encodeUtf8)
 import Data.Text.Encoding qualified as Text
 import Data.Text.IO qualified as Text
 import Data.Time.Clock
-import Data.Yaml (FromJSON)
 import Database.Bloodhound qualified as ES
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Imports
@@ -139,6 +142,7 @@ import OpenSSL.Session (SSLOption (..))
 import OpenSSL.Session qualified as SSL
 import Polysemy
 import Polysemy.Final
+import Polysemy.Input (Input, input)
 import Ropes.Nexmo qualified as Nexmo
 import Ropes.Twilio qualified as Twilio
 import Ssl.Util
@@ -162,6 +166,7 @@ data Env = Env
     _galley :: RPC.Request,
     _galleyEndpoint :: Endpoint,
     _gundeckEndpoint :: Endpoint,
+    _cargoholdEndpoint :: Endpoint,
     _federator :: Maybe Endpoint, -- FUTUREWORK: should we use a better type here? E.g. to avoid fresh connections all the time?
     _casClient :: Cas.ClientState,
     _smtpEnv :: Maybe SMTP.SMTP,
@@ -193,7 +198,8 @@ data Env = Env
     _randomPrekeyLocalLock :: Maybe (MVar ()),
     _keyPackageLocalLock :: MVar (),
     _rabbitmqChannel :: Maybe (MVar Q.Channel),
-    _disabledVersions :: Set Version
+    _disabledVersions :: Set Version,
+    _enableSFTFederation :: Maybe Bool
   }
 
 makeLenses ''Env
@@ -244,7 +250,7 @@ newEnv o = do
   eventsQueue <- case Opt.internalEventsQueue (Opt.internalEvents o) of
     StompQueue q -> pure (StompQueue q)
     SqsQueue q -> SqsQueue <$> AWS.getQueueUrl (aws ^. AWS.amazonkaEnv) q
-  mSFTEnv <- mapM Calling.mkSFTEnv $ Opt.sft o
+  mSFTEnv <- mapM (Calling.mkSFTEnv sha512) $ Opt.sft o
   prekeyLocalLock <- case Opt.randomPrekeys o of
     Just True -> do
       Log.info lgr $ Log.msg (Log.val "randomPrekeys: active")
@@ -255,13 +261,14 @@ newEnv o = do
   kpLock <- newMVar ()
   rabbitChan <- traverse (Q.mkRabbitMqChannelMVar lgr) o.rabbitmq
   let allDisabledVersions = foldMap expandVersionExp (Opt.setDisabledAPIVersions sett)
-
+  idxEnv <- mkIndexEnv o.elasticsearch lgr mtr (Opt.galley o) mgr
   pure $!
     Env
       { _cargohold = mkEndpoint $ Opt.cargohold o,
         _galley = mkEndpoint $ Opt.galley o,
         _galleyEndpoint = Opt.galley o,
         _gundeckEndpoint = Opt.gundeck o,
+        _cargoholdEndpoint = Opt.cargohold o,
         _federator = Opt.federatorInternal o,
         _casClient = cas,
         _smtpEnv = emailSMTP,
@@ -289,11 +296,12 @@ newEnv o = do
         _zauthEnv = zau,
         _digestMD5 = md5,
         _digestSHA256 = sha256,
-        _indexEnv = mkIndexEnv o lgr mgr mtr (Opt.galley o),
+        _indexEnv = idxEnv,
         _randomPrekeyLocalLock = prekeyLocalLock,
         _keyPackageLocalLock = kpLock,
         _rabbitmqChannel = rabbitChan,
-        _disabledVersions = allDisabledVersions
+        _disabledVersions = allDisabledVersions,
+        _enableSFTFederation = Opt.multiSFT o
       }
   where
     emailConn _ (Opt.EmailAWS aws) = pure (Just aws, Nothing)
@@ -308,14 +316,33 @@ newEnv o = do
       pure (Nothing, Just smtp)
     mkEndpoint service = RPC.host (encodeUtf8 (service ^. host)) . RPC.port (service ^. port) $ RPC.empty
 
-mkIndexEnv :: Opts -> Logger -> Manager -> Metrics -> Endpoint -> IndexEnv
-mkIndexEnv o lgr mgr mtr galleyEp =
-  let bhe = ES.mkBHEnv (ES.Server (Opt.url (Opt.elasticsearch o))) mgr
-      lgr' = Log.clone (Just "index.brig") lgr
-      mainIndex = ES.IndexName $ Opt.index (Opt.elasticsearch o)
-      additionalIndex = ES.IndexName <$> Opt.additionalWriteIndex (Opt.elasticsearch o)
-      additionalBhe = flip ES.mkBHEnv mgr . ES.Server <$> Opt.additionalWriteIndexUrl (Opt.elasticsearch o)
-   in IndexEnv mtr lgr' bhe Nothing mainIndex additionalIndex additionalBhe galleyEp mgr
+mkIndexEnv :: ElasticSearchOpts -> Logger -> Metrics -> Endpoint -> Manager -> IO IndexEnv
+mkIndexEnv esOpts logger metricsStorage galleyEp rpcHttpManager = do
+  mEsCreds :: Maybe Credentials <- for esOpts.credentials initCredentials
+  mEsAddCreds :: Maybe Credentials <- for esOpts.additionalCredentials initCredentials
+
+  let mkBhEnv skipVerifyTls mCustomCa mCreds url = do
+        mgr <- initHttpManagerWithTLSConfig skipVerifyTls mCustomCa
+        let bhe = ES.mkBHEnv url mgr
+        pure $ maybe bhe (\creds -> bhe {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername creds.username) (ES.EsPassword creds.password)}) mCreds
+      esLogger = Log.clone (Just "index.brig") logger
+  bhEnv <- mkBhEnv esOpts.insecureSkipVerifyTls esOpts.caCert mEsCreds esOpts.url
+  additionalBhEnv <-
+    for esOpts.additionalWriteIndexUrl $
+      mkBhEnv esOpts.additionalInsecureSkipVerifyTls esOpts.additionalCaCert mEsAddCreds
+  pure $
+    IndexEnv
+      { idxMetrics = metricsStorage,
+        idxLogger = esLogger,
+        idxElastic = bhEnv,
+        idxRequest = Nothing,
+        idxName = esOpts.index,
+        idxAdditionalName = esOpts.additionalWriteIndex,
+        idxAdditionalElastic = additionalBhEnv,
+        idxGalley = galleyEp,
+        idxRpcHttpManager = rpcHttpManager,
+        idxCredentials = mEsCreds
+      }
 
 initZAuth :: Opts -> IO ZAuth.Env
 initZAuth o = do
@@ -331,14 +358,25 @@ initZAuth o = do
 
 initHttpManager :: IO Manager
 initHttpManager = do
+  initHttpManagerWithTLSConfig False Nothing
+
+initHttpManagerWithTLSConfig :: Bool -> Maybe FilePath -> IO Manager
+initHttpManagerWithTLSConfig skipTlsVerify mCustomCa = do
   -- See Note [SSL context]
   ctx <- SSL.context
   SSL.contextAddOption ctx SSL_OP_NO_SSLv2
   SSL.contextAddOption ctx SSL_OP_NO_SSLv3
   SSL.contextSetCiphers ctx "HIGH"
-  SSL.contextSetVerificationMode ctx $
-    SSL.VerifyPeer True True Nothing
-  SSL.contextSetDefaultVerifyPaths ctx
+  if skipTlsVerify
+    then SSL.contextSetVerificationMode ctx SSL.VerifyNone
+    else
+      SSL.contextSetVerificationMode ctx $
+        SSL.VerifyPeer True True Nothing
+  case mCustomCa of
+    Nothing -> SSL.contextSetDefaultVerifyPaths ctx
+    Just customCa -> do
+      filePath <- canonicalizePath customCa
+      SSL.contextSetCAFile ctx filePath
   -- Unfortunately, there are quite some AWS services we talk to
   -- (e.g. SES, Dynamo) that still only support TLSv1.
   -- Ideally: SSL.contextAddOption ctx SSL_OP_NO_TLSv1
@@ -403,11 +441,6 @@ initCassandra o g =
     (Opt.discoUrl o)
     (Just schemaVersion)
     g
-
-initCredentials :: (FromJSON a) => FilePathSecrets -> IO a
-initCredentials secretFile = do
-  dat <- loadSecret secretFile
-  pure $ either (\e -> error $ "Could not load secrets from " ++ show secretFile ++ ": " ++ e) id dat
 
 userTemplates :: (MonadReader Env m) => Maybe Locale -> m (Locale, UserTemplates)
 userTemplates l = forLocale l <$> view usrTemplates
@@ -599,3 +632,6 @@ viewFederationDomain = view (settings . Opt.federationDomain)
 
 qualifyLocal :: (MonadReader Env m) => a -> m (Local a)
 qualifyLocal a = toLocalUnsafe <$> viewFederationDomain <*> pure a
+
+qualifyLocal' :: (Member (Input (Local ()))) r => a -> Sem r (Local a)
+qualifyLocal' a = flip toLocalUnsafe a . tDomain <$> input

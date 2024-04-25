@@ -47,6 +47,10 @@ spec =
       ]
     testObjects [(LeaveConversationRequest.testObject_LeaveConversationRequest1, "testObject_LeaveConversationRequest1.json")]
     testObjects
+      [ (ConversationUpdate.testObject_ConversationUpdate1V0, "testObject_ConversationUpdate1V0.json"),
+        (ConversationUpdate.testObject_ConversationUpdate2V0, "testObject_ConversationUpdate2V0.json")
+      ]
+    testObjects
       [ (ConversationUpdate.testObject_ConversationUpdate1, "testObject_ConversationUpdate1.json"),
         (ConversationUpdate.testObject_ConversationUpdate2, "testObject_ConversationUpdate2.json")
       ]

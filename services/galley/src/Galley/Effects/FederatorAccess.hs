@@ -63,11 +63,11 @@ data FederatorAccess m a where
   -- already in buckets. The buckets are paired with arbitrary data that affect
   -- the payload of the request for each remote backend.
   RunFederatedConcurrentlyBucketsEither ::
-    forall (c :: Component) a m x y.
-    (KnownComponent c) =>
-    [(Remote [x], y)] ->
-    ((Remote [x], y) -> FederatorClient c a) ->
-    FederatorAccess m [Either (Remote [x], FederationError) (Remote a)]
+    forall (c :: Component) f a m x.
+    (KnownComponent c, Foldable f) =>
+    f (Remote x) ->
+    (Remote x -> FederatorClient c a) ->
+    FederatorAccess m [Either (Remote x, FederationError) (Remote a)]
   IsFederationConfigured :: FederatorAccess m Bool
 
 makeSem ''FederatorAccess

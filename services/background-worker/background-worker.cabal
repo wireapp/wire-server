@@ -29,6 +29,7 @@ library
   build-depends:
       aeson
     , amqp
+    , base
     , containers
     , exceptions
     , extended
@@ -48,7 +49,9 @@ library
     , transformers-base
     , types-common
     , unliftio
+    , utf8-string
     , wai-utilities
+    , wire-api
     , wire-api-federation
 
   default-extensions:
@@ -176,6 +179,7 @@ test-suite background-worker-test
     , base
     , bytestring
     , containers
+    , data-default
     , extended
     , federator
     , hspec

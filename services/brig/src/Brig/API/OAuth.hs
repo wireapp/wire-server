@@ -39,6 +39,7 @@ import Data.Id
 import Data.Misc
 import Data.Set qualified as Set
 import Data.Text.Ascii
+import Data.Text.Encoding qualified as T
 import Data.Time
 import Imports hiding (exp)
 import OpenSSL.Random (randBytes)
@@ -125,13 +126,40 @@ createNewOAuthAuthorizationCode :: UserId -> CreateOAuthAuthorizationCodeRequest
 createNewOAuthAuthorizationCode uid code = do
   runExceptT (validateAndCreateAuthorizationCode uid code) >>= \case
     Right oauthCode ->
-      pure $ CreateOAuthCodeSuccess $ code.redirectUri & addParams [("code", toByteString' oauthCode), ("state", cs code.state)]
+      pure $
+        CreateOAuthCodeSuccess $
+          code.redirectUri
+            & addParams
+              [ ("code", toByteString' oauthCode),
+                ("state", T.encodeUtf8 code.state)
+              ]
     Left CreateNewOAuthCodeErrorFeatureDisabled ->
-      pure $ CreateOAuthCodeFeatureDisabled $ code.redirectUri & addParams [("error", "access_denied"), ("error_description", "OAuth is not enabled"), ("state", cs code.state)]
+      pure $
+        CreateOAuthCodeFeatureDisabled $
+          code.redirectUri
+            & addParams
+              [ ("error", "access_denied"),
+                ("error_description", "OAuth is not enabled"),
+                ("state", T.encodeUtf8 code.state)
+              ]
     Left CreateNewOAuthCodeErrorClientNotFound ->
-      pure $ CreateOAuthCodeClientNotFound $ code.redirectUri & addParams [("error", "access_denied"), ("error_description", "The client ID was not found"), ("state", cs code.state)]
+      pure $
+        CreateOAuthCodeClientNotFound $
+          code.redirectUri
+            & addParams
+              [ ("error", "access_denied"),
+                ("error_description", "The client ID was not found"),
+                ("state", T.encodeUtf8 code.state)
+              ]
     Left CreateNewOAuthCodeErrorUnsupportedResponseType ->
-      pure $ CreateOAuthCodeUnsupportedResponseType $ code.redirectUri & addParams [("error", "access_denied"), ("error_description", "The client ID was not found"), ("state", cs code.state)]
+      pure $
+        CreateOAuthCodeUnsupportedResponseType $
+          code.redirectUri
+            & addParams
+              [ ("error", "access_denied"),
+                ("error_description", "The client ID was not found"),
+                ("state", T.encodeUtf8 code.state)
+              ]
     Left CreateNewOAuthCodeErrorRedirectUrlMissMatch ->
       pure CreateOAuthCodeRedirectUrlMissMatch
 

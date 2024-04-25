@@ -161,15 +161,15 @@ import Data.Id
 import Data.Misc (PlainTextPassword6, plainTextPassword6Unsafe)
 import Data.Proxy
 import Data.Range
+import Data.String.Conversions
 import Data.Text (pack)
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (encodeUtf8)
+import qualified Data.Text.Lazy.Encoding as LT
 import Data.UUID as UUID hiding (fromByteString, null)
 import Data.UUID.V4 as UUID (nextRandom)
 import qualified Data.Yaml as Yaml
 import GHC.TypeLits
-import Galley.Types.Teams (rolePermissions)
-import qualified Galley.Types.Teams as Teams
 import Imports hiding (head)
 import Network.HTTP.Client.MultipartFormData
 import qualified Network.Wai.Handler.Warp as Warp
@@ -207,7 +207,7 @@ import Wire.API.Team (Icon (..))
 import qualified Wire.API.Team as Galley
 import Wire.API.Team.Feature (FeatureStatus (..), FeatureTTL' (..), FeatureTrivialConfig (trivialConfig), SSOConfig, WithStatusNoLock (WithStatusNoLock))
 import qualified Wire.API.Team.Invitation as TeamInvitation
-import Wire.API.Team.Member (NewTeamMember, TeamMemberList)
+import Wire.API.Team.Member (NewTeamMember, TeamMemberList, rolePermissions)
 import qualified Wire.API.Team.Member as Member
 import qualified Wire.API.Team.Member as Team
 import Wire.API.Team.Permission
@@ -807,36 +807,33 @@ getTestSPMetadata tid = do
 -- | See 'registerTestIdPWithMeta'
 registerTestIdP ::
   (HasCallStack, MonadRandom m, MonadIO m, MonadReader TestEnv m) =>
-  m (UserId, TeamId, IdP)
-registerTestIdP = do
-  (uid, tid, idp, _) <- registerTestIdPWithMeta
-  pure (uid, tid, idp)
+  UserId ->
+  m IdP
+registerTestIdP owner = fst <$> registerTestIdPWithMeta owner
 
--- | Create a fresh 'IdPMetadata' suitable for testing.  Call 'createUserWithTeam' and create the
--- idp in the resulting team.  The user returned is the owner of the team.
+-- | Create a fresh 'IdPMetadata' suitable for testing.
 registerTestIdPWithMeta ::
   (HasCallStack, MonadRandom m, MonadIO m, MonadReader TestEnv m) =>
-  m (UserId, TeamId, IdP, (IdPMetadataInfo, SAML.SignPrivCreds))
-registerTestIdPWithMeta = do
+  UserId ->
+  m (IdP, (IdPMetadataInfo, SAML.SignPrivCreds))
+registerTestIdPWithMeta owner = do
   SampleIdP idpmeta privkey _ _ <- makeSampleIdPMetadata
   env <- ask
-  (uid, tid, idp) <- registerTestIdPFrom idpmeta (env ^. teMgr) (env ^. teBrig) (env ^. teGalley) (env ^. teSpar)
-  pure (uid, tid, idp, (IdPMetadataValue (cs $ SAML.encode idpmeta) idpmeta, privkey))
+  idp <- registerTestIdPFrom idpmeta (env ^. teMgr) owner (env ^. teSpar)
+  pure (idp, (IdPMetadataValue (cs $ SAML.encode idpmeta) idpmeta, privkey))
 
 -- | Helper for 'registerTestIdP'.
 registerTestIdPFrom ::
   (HasCallStack, MonadIO m, MonadReader TestEnv m) =>
   IdPMetadata ->
   Manager ->
-  BrigReq ->
-  GalleyReq ->
+  UserId ->
   SparReq ->
-  m (UserId, TeamId, IdP)
-registerTestIdPFrom metadata mgr brig galley spar = do
+  m IdP
+registerTestIdPFrom metadata mgr owner spar = do
   apiVer <- view teWireIdPAPIVersion
   liftIO . runHttpT mgr $ do
-    (uid, tid) <- createUserWithTeam brig galley
-    (uid,tid,) <$> callIdpCreate apiVer spar (Just uid) metadata
+    callIdpCreate apiVer spar (Just owner) metadata
 
 getCookie :: KnownSymbol name => proxy name -> ResponseLBS -> Either String (SAML.SimpleSetCookie name)
 getCookie proxy rsp = do
@@ -1092,7 +1089,7 @@ callIdpCreate' apiversion sparreq_ muid metadata = do
             WireIdPAPIV1 -> Bilge.query [("api_version", Just "v1") | explicitQueryParam]
             WireIdPAPIV2 -> Bilge.query [("api_version", Just "v2")]
         )
-      . body (RequestBodyLBS . cs $ SAML.encode metadata)
+      . body (RequestBodyLBS . LT.encodeUtf8 $ SAML.encode metadata)
       . header "Content-Type" "application/xml"
 
 callIdpCreateRaw :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> ByteString -> LByteString -> m IdP
@@ -1374,7 +1371,7 @@ checkChangeRoleOfTeamMember :: TeamId -> UserId -> UserId -> TestSpar ()
 checkChangeRoleOfTeamMember tid adminId targetId = forM_ [minBound ..] $ \role -> do
   updateTeamMemberRole tid adminId targetId role
   [member'] <- filter ((== targetId) . (^. Member.userId)) <$> getTeamMembers adminId tid
-  liftIO $ (member' ^. Member.permissions . to Teams.permissionsRole) `shouldBe` Just role
+  liftIO $ (member' ^. Member.permissions . to Member.permissionsRole) `shouldBe` Just role
 
 eventually :: HasCallStack => TestSpar a -> TestSpar a
 eventually = recoverAll (limitRetries 3 <> exponentialBackoff 100000) . const

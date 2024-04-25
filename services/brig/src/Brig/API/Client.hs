@@ -53,6 +53,7 @@ import Brig.App
 import Brig.Data.Client qualified as Data
 import Brig.Data.Nonce as Nonce
 import Brig.Data.User qualified as Data
+import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.Effects.JwtTools (JwtTools)
@@ -68,7 +69,6 @@ import Brig.Options qualified as Opt
 import Brig.Queue qualified as Queue
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
-import Brig.Types.User.Event
 import Brig.User.Auth qualified as UserAuth
 import Brig.User.Auth.Cookie qualified as Auth
 import Brig.User.Email
@@ -76,6 +76,7 @@ import Cassandra (MonadClient)
 import Control.Error
 import Control.Lens (view)
 import Control.Monad.Trans.Except (except)
+import Data.ByteString (toStrict)
 import Data.ByteString.Conversion
 import Data.Code as Code
 import Data.Domain
@@ -86,10 +87,14 @@ import Data.Map.Strict qualified as Map
 import Data.Misc (PlainTextPassword6)
 import Data.Qualified
 import Data.Set qualified as Set
+import Data.Text.Encoding qualified as T
+import Data.Text.Encoding.Error
+import Data.Time.Clock (UTCTime)
 import Imports
 import Network.HTTP.Types.Method (StdMethod)
 import Network.Wai.Utilities
 import Polysemy
+import Polysemy.Input (Input)
 import Polysemy.TinyLog
 import Servant (Link, ToHttpApiData (toUrlPiece))
 import System.Logger.Class (field, msg, val, (~~))
@@ -105,11 +110,13 @@ import Wire.API.User qualified as Code
 import Wire.API.User.Client
 import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey
+import Wire.API.UserEvent
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap, qualifiedUserMap), UserMap (userMap))
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.FromUTC (FromUTC (fromUTCTime))
 import Wire.Sem.Now as Now
+import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 lookupLocalClient :: UserId -> ClientId -> (AppT r) (Maybe Client)
 lookupLocalClient uid = wrapClient . Data.lookupClient uid
@@ -158,7 +165,10 @@ addClient ::
   ( Member GalleyProvider r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -173,7 +183,10 @@ addClientWithReAuthPolicy ::
   ( Member GalleyProvider r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   Data.ReAuthPolicy ->
   UserId ->
@@ -201,7 +214,7 @@ addClientWithReAuthPolicy policy u con new = do
   lift $ do
     for_ old $ execDelete u con
     liftSem $ GalleyProvider.newClient u (clientId clt)
-    liftSem $ Intra.onClientEvent u con (ClientAdded u clt)
+    liftSem $ Intra.onClientEvent u con (ClientAdded clt)
     when (clientType clt == LegalHoldClientType) $ liftSem $ Intra.onUserEvent u con (UserLegalHoldEnabled u)
     when (count > 1) $
       for_ (userEmail usr) $
@@ -215,10 +228,10 @@ addClientWithReAuthPolicy policy u con new = do
       Maybe Code.Value ->
       UserId ->
       ExceptT ClientError (AppT r) ()
-    verifyCode mbCode userId =
+    verifyCode mbCode uid =
       -- this only happens inside the login flow (in particular, when logging in from a new device)
       -- the code obtained for logging in is used a second time for adding the device
-      UserAuth.verifyCode mbCode Code.Login userId `catchE` \case
+      UserAuth.verifyCode mbCode Code.Login uid `catchE` \case
         VerificationCodeRequired -> throwE ClientCodeAuthenticationRequired
         VerificationCodeNoPendingCode -> throwE ClientCodeAuthenticationFailed
         VerificationCodeNoEmail -> throwE ClientCodeAuthenticationFailed
@@ -475,7 +488,10 @@ pubClient c =
 legalHoldClientRequested ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   LegalHoldClientRequest ->
@@ -493,7 +509,10 @@ legalHoldClientRequested targetUser (LegalHoldClientRequest _requester lastPreke
 removeLegalHoldClient ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   AppT r ()
@@ -516,14 +535,26 @@ createAccessToken ::
 createAccessToken luid cid method link proof = do
   let domain = tDomain luid
   let uid = tUnqualified luid
-  (tid, handle) <- do
+  (tid, handle, displayName) <- do
     mUser <- lift $ wrapClient (Data.lookupUser NoPendingInvitations uid)
     except $
-      (,)
+      (,,)
         <$> note NotATeamUser (userTeam =<< mUser)
         <*> note MissingHandle (userHandle =<< mUser)
-  nonce <- ExceptT $ note NonceNotFound <$> wrapClient (Nonce.lookupAndDeleteNonce uid (cs $ toByteString cid))
-  httpsUrl <- except $ note MisconfiguredRequestUrl $ fromByteString $ "https://" <> toByteString' domain <> "/" <> cs (toUrlPiece link)
+        <*> note MissingName (userDisplayName <$> mUser)
+  nonce <-
+    ExceptT $
+      note NonceNotFound
+        <$> wrapClient
+          ( Nonce.lookupAndDeleteNonce
+              uid
+              (T.decodeUtf8With lenientDecode . toStrict $ toByteString cid)
+          )
+  httpsUrl <-
+    except $
+      note MisconfiguredRequestUrl $
+        fromByteString $
+          "https://" <> toByteString' domain <> "/" <> T.encodeUtf8 (toUrlPiece link)
   maxSkewSeconds <- Opt.setDpopMaxSkewSecs <$> view settings
   expiresIn <- Opt.setDpopTokenExpirationTimeSecs <$> view settings
   now <- fromUTCTime <$> lift (liftSem Now.get)
@@ -538,6 +569,7 @@ createAccessToken luid cid method link proof = do
           proof
           (ClientIdentity domain uid cid)
           handle
+          displayName
           tid
           nonce
           httpsUrl

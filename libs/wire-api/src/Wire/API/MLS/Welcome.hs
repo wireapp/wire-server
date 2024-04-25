@@ -18,7 +18,7 @@
 module Wire.API.MLS.Welcome where
 
 import Data.OpenApi qualified as S
-import Imports hiding (cs)
+import Imports
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.KeyPackage

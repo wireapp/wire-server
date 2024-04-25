@@ -27,11 +27,12 @@ where
 import Data.Bifunctor
 import Data.Id
 import Data.Map qualified as Map
+import Data.Proxy
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Time
 import Galley.API.MLS.Conversation
-import Galley.API.MLS.Keys (getMLSRemovalKey)
+import Galley.API.MLS.Keys
 import Galley.API.MLS.Propagate
 import Galley.API.MLS.Types
 import Galley.Data.Conversation.Types
@@ -42,13 +43,16 @@ import Galley.Effects.ProposalStore
 import Galley.Effects.SubConversationStore
 import Galley.Env
 import Galley.Types.Conversations.Members
-import Imports hiding (cs)
+import Imports
 import Polysemy
+import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
 import System.Logger qualified as Log
 import Wire.API.Conversation.Protocol
+import Wire.API.Federation.Error
 import Wire.API.MLS.AuthenticatedContent
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Message
@@ -56,16 +60,20 @@ import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.NotificationSubsystem
+import Wire.Sem.Random
 
 -- | Send remove proposals for a set of clients to clients in the ClientMap.
 createAndSendRemoveProposals ::
-  ( Member (Input UTCTime) r,
+  forall r t.
+  ( Member (Error FederationError) r,
+    Member (Input UTCTime) r,
     Member TinyLog r,
     Member BackendNotificationQueueAccess r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member ProposalStore r,
     Member (Input Env) r,
+    Member Random r,
     Foldable t
   ) =>
   Local ConvOrSubConv ->
@@ -81,22 +89,22 @@ createAndSendRemoveProposals ::
   Sem r ()
 createAndSendRemoveProposals lConvOrSubConv indices qusr cm = do
   let meta = (tUnqualified lConvOrSubConv).mlsMeta
-  mKeyPair <- getMLSRemovalKey
+  mKeyPair <- getMLSRemovalKey (csSignatureScheme (cnvmlsCipherSuite meta))
   case mKeyPair of
     Nothing -> do
       warn $ Log.msg ("No backend removal key is configured (See 'mlsPrivateKeyPaths' in galley's config). Not able to remove client from MLS conversation." :: Text)
-    Just (secKey, pubKey) -> do
+    Just (SomeKeyPair (_ :: Proxy ss) kp) -> do
       for_ indices $ \idx -> do
         let proposal = mkRawMLS (RemoveProposal idx)
-            pmsg =
-              mkSignedPublicMessage
-                secKey
-                pubKey
-                (cnvmlsGroupId meta)
-                (cnvmlsEpoch meta)
-                (TaggedSenderExternal 0)
-                (FramedContentProposal proposal)
-            msg = mkRawMLS (mkMessage (MessagePublic pmsg))
+        pmsg <-
+          liftRandom $
+            mkSignedPublicMessage @ss
+              kp
+              (cnvmlsGroupId meta)
+              (cnvmlsEpoch meta)
+              (TaggedSenderExternal 0)
+              (FramedContentProposal proposal)
+        let msg = mkRawMLS (mkMessage (MessagePublic pmsg))
         storeProposal
           (cnvmlsGroupId meta)
           (cnvmlsEpoch meta)
@@ -106,7 +114,8 @@ createAndSendRemoveProposals lConvOrSubConv indices qusr cm = do
         propagateMessage qusr Nothing lConvOrSubConv Nothing msg cm
 
 removeClientsWithClientMapRecursively ::
-  ( Member (Input UTCTime) r,
+  ( Member (Error FederationError) r,
+    Member (Input UTCTime) r,
     Member TinyLog r,
     Member BackendNotificationQueueAccess r,
     Member ExternalAccess r,
@@ -115,6 +124,7 @@ removeClientsWithClientMapRecursively ::
     Member ProposalStore r,
     Member SubConversationStore r,
     Member (Input Env) r,
+    Member Random r,
     Functor f,
     Foldable f
   ) =>
@@ -138,7 +148,8 @@ removeClientsWithClientMapRecursively lMlsConv getClients qusr = do
   removeClientsFromSubConvs lMlsConv getClients qusr
 
 removeClientsFromSubConvs ::
-  ( Member (Input UTCTime) r,
+  ( Member (Error FederationError) r,
+    Member (Input UTCTime) r,
     Member TinyLog r,
     Member BackendNotificationQueueAccess r,
     Member ExternalAccess r,
@@ -147,6 +158,7 @@ removeClientsFromSubConvs ::
     Member ProposalStore r,
     Member SubConversationStore r,
     Member (Input Env) r,
+    Member Random r,
     Functor f,
     Foldable f
   ) =>
@@ -177,12 +189,14 @@ removeClientsFromSubConvs lMlsConv getClients qusr = do
 -- | Send remove proposals for a single client of a user to the local conversation.
 removeClient ::
   ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member Random r,
     Member SubConversationStore r,
     Member TinyLog r
   ) =>
@@ -212,12 +226,14 @@ data RemoveUserIncludeMain
 -- | Send remove proposals for all clients of the user to the local conversation.
 removeUser ::
   ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member Random r,
     Member SubConversationStore r,
     Member TinyLog r
   ) =>
@@ -257,12 +273,14 @@ listSubConversations' cid = do
 -- | Send remove proposals for clients of users that are not part of a conversation
 removeExtraneousClients ::
   ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member Random r,
     Member SubConversationStore r,
     Member TinyLog r
   ) =>

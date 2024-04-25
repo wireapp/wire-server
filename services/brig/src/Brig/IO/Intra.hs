@@ -29,7 +29,6 @@ module Brig.IO.Intra
     createConnectConv,
     acceptConnectConv,
     blockConv,
-    unblockConv,
     upsertOne2OneConversation,
 
     -- * Clients
@@ -52,57 +51,57 @@ import Brig.API.Error (internalServerError)
 import Brig.API.Types
 import Brig.API.Util
 import Brig.App
-import Brig.Data.Connection (lookupContactList)
+import Brig.Data.Connection
 import Brig.Data.Connection qualified as Data
-import Brig.Federation.Client (notifyUserDeleted)
+import Brig.Effects.ConnectionStore (ConnectionStore)
+import Brig.Effects.ConnectionStore qualified as E
+import Brig.Federation.Client (notifyUserDeleted, sendConnectionAction)
 import Brig.IO.Journal qualified as Journal
+import Brig.IO.Logging
 import Brig.RPC
-import Brig.Types.User.Event
 import Brig.User.Search.Index qualified as Search
-import Cassandra (MonadClient)
-import Conduit (runConduit, (.|))
-import Control.Error (ExceptT)
+import Control.Error (ExceptT, runExceptT)
 import Control.Lens (view, (.~), (?~), (^.), (^?))
 import Control.Monad.Catch
 import Control.Monad.Trans.Except (throwE)
 import Data.Aeson hiding (json)
-import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as BL
-import Data.Conduit.List qualified as C
 import Data.Id
-import Data.Json.Util ((#))
+import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List1 (List1, singleton)
 import Data.Proxy
 import Data.Qualified
 import Data.Range
-import GHC.TypeLits
+import Data.Time.Clock (UTCTime)
 import Gundeck.Types.Push.V2 (RecipientClients (RecipientClientsAll))
 import Gundeck.Types.Push.V2 qualified as V2
 import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Polysemy
+import Polysemy.Input (Input, input)
 import Polysemy.TinyLog (TinyLog)
-import System.Logger.Class (MonadLogger)
 import System.Logger.Message hiding ((.=))
 import Wire.API.Connection
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Event.Conversation (Connect (Connect))
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Error
-import Wire.API.Properties
-import Wire.API.Routes.Internal.Galley.ConversationsIntra (UpsertOne2OneConversationRequest, UpsertOne2OneConversationResponse)
+import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Routes.Internal.Galley.TeamsIntra (GuardLegalholdPolicyConflicts (GuardLegalholdPolicyConflicts))
 import Wire.API.Team.LegalHold (LegalholdProtectee)
 import Wire.API.Team.Member qualified as Team
 import Wire.API.User
 import Wire.API.User.Client
+import Wire.API.UserEvent
 import Wire.NotificationSubsystem
 import Wire.Rpc
 import Wire.Sem.Logger qualified as Log
+import Wire.Sem.Paging qualified as P
+import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 -----------------------------------------------------------------------------
 -- Event Handlers
@@ -110,7 +109,10 @@ import Wire.Sem.Logger qualified as Log
 onUserEvent ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -168,7 +170,7 @@ onClientEvent orig conn e = do
   let event = ClientEvent e
   let rcps = Recipient orig V2.RecipientClientsAll :| []
   pushNotifications
-    [ newPush1 (Just orig) (toPushFormat event) rcps
+    [ newPush1 (Just orig) (toJSONObject event) rcps
         & pushConn .~ conn
         & pushApsData .~ toApsData event
     ]
@@ -228,7 +230,10 @@ journalEvent orig e = case e of
 dispatchNotifications ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -252,49 +257,103 @@ dispatchNotifications orig conn e = case e of
     -- n.b. Synchronously fetch the contact list on the current thread.
     -- If done asynchronously, the connections may already have been deleted.
     notifyUserDeletionLocals orig conn event
-    embed $ notifyUserDeletionRemotes orig
+    notifyUserDeletionRemotes orig
   where
     event = singleton $ UserEvent e
 
 notifyUserDeletionLocals ::
+  forall r.
   ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r
   ) =>
   UserId ->
   Maybe ConnId ->
   List1 Event ->
   Sem r ()
 notifyUserDeletionLocals deleted conn event = do
-  recipients <- (:|) deleted <$> embed (lookupContactList deleted)
-  notify event deleted V2.RouteDirect conn (pure recipients)
+  luid <- qualifyLocal' deleted
+  -- first we send a notification to the deleted user's devices
+  notify event deleted V2.RouteDirect conn (pure (deleted :| []))
+  -- then to all their connections
+  connectionPages Nothing luid (toRange (Proxy @500))
+  where
+    handler :: [UserConnection] -> Sem r ()
+    handler connections = do
+      -- sent event to connections that are accepted
+      case qUnqualified . ucTo <$> filter ((==) Accepted . ucStatus) connections of
+        x : xs -> notify event deleted V2.RouteDirect conn (pure (x :| xs))
+        [] -> pure ()
+      -- also send a connection cancelled event to connections that are pending
+      d <- tDomain <$> input
+      forM_
+        (filter ((==) Sent . ucStatus) connections)
+        ( \uc -> do
+            now <- toUTCTimeMillis <$> input
+            -- because the connections are going to be removed from the database anyway when a user gets deleted
+            -- we don't need to save the updated connection state in the database
+            -- note that we switch from and to users so that the "other" user becomes the recipient of the event
+            let ucCancelled =
+                  UserConnection
+                    (qUnqualified (ucTo uc))
+                    (Qualified (ucFrom uc) d)
+                    Cancelled
+                    now
+                    (ucConvId uc)
+            let e = ConnectionUpdated ucCancelled Nothing
+            onConnectionEvent deleted conn e
+        )
+
+    connectionPages :: Maybe UserId -> Local UserId -> Range 1 500 Int32 -> Sem r ()
+    connectionPages mbStart user pageSize = do
+      page <- embed $ Data.lookupLocalConnections user mbStart pageSize
+      case resultList page of
+        [] -> pure ()
+        xs -> do
+          handler xs
+          when (Data.resultHasMore page) $
+            connectionPages (Just (maximum (qUnqualified . ucTo <$> xs))) user pageSize
 
 notifyUserDeletionRemotes ::
-  forall m.
-  ( MonadReader Env m,
-    MonadClient m,
-    MonadLogger m,
-    MonadMask m
+  forall r.
+  ( Member (Embed HttpClientIO) r,
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
-  m ()
+  Sem r ()
 notifyUserDeletionRemotes deleted = do
-  runConduit $
-    Data.lookupRemoteConnectedUsersC deleted (fromInteger (natVal (Proxy @UserDeletedNotificationMaxConnections)))
-      .| C.mapM_ fanoutNotifications
+  luid <- qualifyLocal' deleted
+  P.withChunks (\mps -> E.remoteConnectedUsersPaginated luid mps maxBound) fanoutNotifications
   where
-    fanoutNotifications :: [Remote UserId] -> m ()
+    fanoutNotifications :: [Remote UserConnection] -> Sem r ()
     fanoutNotifications = mapM_ notifyBackend . bucketRemote
 
-    notifyBackend :: Remote [UserId] -> m ()
-    notifyBackend uids = do
-      case tUnqualified (checked <$> uids) of
+    notifyBackend :: Remote [UserConnection] -> Sem r ()
+    notifyBackend ucs = do
+      case tUnqualified (checked <$> ucs) of
         Nothing ->
           -- The user IDs cannot be more than 1000, so we can assume the range
           -- check will only fail because there are 0 User Ids.
           pure ()
-        Just rangedUids -> do
-          luidDeleted <- qualifyLocal deleted
-          notifyUserDeleted luidDeleted (qualifyAs uids rangedUids)
+        Just rangedUcs -> do
+          luidDeleted <- qualifyLocal' deleted
+          embed $ notifyUserDeleted luidDeleted (qualifyAs ucs ((fmap (fmap (qUnqualified . ucTo))) rangedUcs))
+          -- also sent connection cancelled events to the connections that are pending
+          let remotePendingConnections = qualifyAs ucs <$> filter ((==) Sent . ucStatus) (fromRange rangedUcs)
+          forM_ remotePendingConnections $ sendCancelledEvent luidDeleted
+
+    sendCancelledEvent :: Local UserId -> Remote UserConnection -> Sem r ()
+    sendCancelledEvent luidDeleted ruc = do
+      embed (runExceptT (sendConnectionAction luidDeleted Nothing (qUnqualified . ucTo <$> ruc) RemoteRescind)) >>= \case
+        -- should we abort the whole process if we fail to send the event to a remote backend?
+        Left e ->
+          Log.err $
+            field "error" (show e)
+              . msg (val "An error occurred while sending a connection cancelled event to a remote backend.")
+        Right _ -> pure ()
 
 -- | (Asynchronously) notifies other users of events.
 notify ::
@@ -312,7 +371,7 @@ notify ::
 notify (toList -> events) orig route conn recipients = do
   rs <- (\u -> Recipient u RecipientClientsAll) <$$> recipients
   let pushes = flip map events $ \event ->
-        newPush1 (Just orig) (toPushFormat event) rs
+        newPush1 (Just orig) (toJSONObject event) rs
           & pushConn .~ conn
           & pushRoute .~ route
           & pushApsData .~ toApsData event
@@ -362,130 +421,8 @@ notifyContacts events orig route conn = do
           view Team.userId <$> mems ^. Team.teamMembers
     screenMemberList _ = []
 
--- Event Serialisation:
-
-toPushFormat :: Event -> Object
-toPushFormat (UserEvent (UserCreated u)) =
-  KeyMap.fromList
-    [ "type" .= ("user.new" :: Text),
-      "user" .= SelfProfile (u {userIdentity = Nothing})
-    ]
-toPushFormat (UserEvent (UserActivated u)) =
-  KeyMap.fromList
-    [ "type" .= ("user.activate" :: Text),
-      "user" .= SelfProfile u
-    ]
-toPushFormat (UserEvent (UserUpdated (UserUpdatedData i n pic acc ass hdl loc mb ssoId ssoIdDel prots))) =
-  KeyMap.fromList
-    [ "type" .= ("user.update" :: Text),
-      "user"
-        .= object
-          ( "id" .= i
-              # "name" .= n
-              # "picture" .= pic -- DEPRECATED
-              # "accent_id" .= acc
-              # "assets" .= ass
-              # "handle" .= hdl
-              # "locale" .= loc
-              # "managed_by" .= mb
-              # "sso_id" .= ssoId
-              # "sso_id_deleted" .= ssoIdDel
-              # "supported_protocols" .= prots
-              # []
-          )
-    ]
-toPushFormat (UserEvent (UserIdentityUpdated UserIdentityUpdatedData {..})) =
-  KeyMap.fromList
-    [ "type" .= ("user.update" :: Text),
-      "user"
-        .= object
-          ( "id" .= eiuId
-              # "email" .= eiuEmail
-              # "phone" .= eiuPhone
-              # []
-          )
-    ]
-toPushFormat (UserEvent (UserIdentityRemoved (UserIdentityRemovedData i e p))) =
-  KeyMap.fromList
-    [ "type" .= ("user.identity-remove" :: Text),
-      "user"
-        .= object
-          ( "id" .= i
-              # "email" .= e
-              # "phone" .= p
-              # []
-          )
-    ]
-toPushFormat (ConnectionEvent (ConnectionUpdated uc _ name)) =
-  KeyMap.fromList $
-    "type" .= ("user.connection" :: Text)
-      # "connection" .= uc
-      # "user" .= case name of
-        Just n -> Just $ object ["name" .= n]
-        Nothing -> Nothing
-      # []
-toPushFormat (UserEvent (UserSuspended i)) =
-  KeyMap.fromList
-    [ "type" .= ("user.suspend" :: Text),
-      "id" .= i
-    ]
-toPushFormat (UserEvent (UserResumed i)) =
-  KeyMap.fromList
-    [ "type" .= ("user.resume" :: Text),
-      "id" .= i
-    ]
-toPushFormat (UserEvent (UserDeleted qid)) =
-  KeyMap.fromList
-    [ "type" .= ("user.delete" :: Text),
-      "id" .= qUnqualified qid,
-      "qualified_id" .= qid
-    ]
-toPushFormat (UserEvent (UserLegalHoldDisabled i)) =
-  KeyMap.fromList
-    [ "type" .= ("user.legalhold-disable" :: Text),
-      "id" .= i
-    ]
-toPushFormat (UserEvent (UserLegalHoldEnabled i)) =
-  KeyMap.fromList
-    [ "type" .= ("user.legalhold-enable" :: Text),
-      "id" .= i
-    ]
-toPushFormat (PropertyEvent (PropertySet _ k v)) =
-  KeyMap.fromList
-    [ "type" .= ("user.properties-set" :: Text),
-      "key" .= k,
-      "value" .= propertyValue v
-    ]
-toPushFormat (PropertyEvent (PropertyDeleted _ k)) =
-  KeyMap.fromList
-    [ "type" .= ("user.properties-delete" :: Text),
-      "key" .= k
-    ]
-toPushFormat (PropertyEvent (PropertiesCleared _)) =
-  KeyMap.fromList
-    [ "type" .= ("user.properties-clear" :: Text)
-    ]
-toPushFormat (ClientEvent (ClientAdded _ c)) =
-  KeyMap.fromList
-    [ "type" .= ("user.client-add" :: Text),
-      "client" .= c
-    ]
-toPushFormat (ClientEvent (ClientRemoved _ clientId)) =
-  KeyMap.fromList
-    [ "type" .= ("user.client-remove" :: Text),
-      "client" .= IdObject clientId
-    ]
-toPushFormat (UserEvent (LegalHoldClientRequested payload)) =
-  let LegalHoldClientRequestedData targetUser lastPrekey' clientId = payload
-   in KeyMap.fromList
-        [ "type" .= ("user.legalhold-request" :: Text),
-          "id" .= targetUser,
-          "last_prekey" .= lastPrekey',
-          "client" .= IdObject clientId
-        ]
-
 toApsData :: Event -> Maybe V2.ApsData
-toApsData (ConnectionEvent (ConnectionUpdated uc _ name)) =
+toApsData (ConnectionEvent (ConnectionUpdated uc name)) =
   case (ucStatus uc, name) of
     (MissingLegalholdConsent, _) -> Nothing
     (Pending, n) -> apsConnRequest <$> n
@@ -582,77 +519,31 @@ acceptConnectConv from conn =
     (liftSem . acceptLocalConnectConv from conn . tUnqualified)
     (const (throwM federationNotImplemented))
 
--- | Calls 'Galley.API.blockConvH'.
-blockLocalConv ::
-  ( Member (Embed HttpClientIO) r,
-    Member TinyLog r
-  ) =>
-  Local UserId ->
-  Maybe ConnId ->
-  ConvId ->
-  Sem r ()
-blockLocalConv lusr conn cnv = do
-  Log.debug $
-    remote "galley"
-      . field "conv" (toByteString cnv)
-      . msg (val "Blocking conversation")
-  embed $ void $ galleyRequest PUT req
-  where
-    req =
-      paths ["/i/conversations", toByteString' cnv, "block"]
-        . zUser (tUnqualified lusr)
-        . maybe id (header "Z-Connection" . fromConnId) conn
-        . expect2xx
-
 blockConv ::
   ( Member (Embed HttpClientIO) r,
     Member TinyLog r
   ) =>
   Local UserId ->
-  Maybe ConnId ->
   Qualified ConvId ->
-  AppT r ()
-blockConv lusr conn =
-  foldQualified
-    lusr
-    (liftSem . blockLocalConv lusr conn . tUnqualified)
-    (const (throwM federationNotImplemented))
-
--- | Calls 'Galley.API.unblockConvH'.
-unblockLocalConv ::
-  ( Member (Embed HttpClientIO) r,
-    Member TinyLog r
-  ) =>
-  Local UserId ->
-  Maybe ConnId ->
-  ConvId ->
-  Sem r Conversation
-unblockLocalConv lusr conn cnv = do
+  Sem r ()
+blockConv lusr qcnv = do
   Log.debug $
     remote "galley"
-      . field "conv" (toByteString cnv)
-      . msg (val "Unblocking conversation")
-  embed $ galleyRequest PUT req >>= decodeBody "galley"
+      . field "conv" (toByteString . qUnqualified $ qcnv)
+      . field "domain" (toByteString . qDomain $ qcnv)
+      . msg (val "Blocking conversation")
+  embed . void $ galleyRequest PUT req
   where
     req =
-      paths ["/i/conversations", toByteString' cnv, "unblock"]
+      paths
+        [ "i",
+          "conversations",
+          toByteString' (qDomain qcnv),
+          toByteString' (qUnqualified qcnv),
+          "block"
+        ]
         . zUser (tUnqualified lusr)
-        . maybe id (header "Z-Connection" . fromConnId) conn
         . expect2xx
-
-unblockConv ::
-  ( Member (Embed HttpClientIO) r,
-    Member TinyLog r
-  ) =>
-  Local UserId ->
-  Maybe ConnId ->
-  Qualified ConvId ->
-  AppT r Conversation
-unblockConv luid conn =
-  foldQualified
-    luid
-    (liftSem . unblockLocalConv luid conn . tUnqualified)
-    (const (throwM federationNotImplemented))
 
 upsertOne2OneConversation ::
   ( MonadReader Env m,
@@ -662,11 +553,11 @@ upsertOne2OneConversation ::
     HasRequestId m
   ) =>
   UpsertOne2OneConversationRequest ->
-  m UpsertOne2OneConversationResponse
+  m ()
 upsertOne2OneConversation urequest = do
   response <- galleyRequest POST req
   case Bilge.statusCode response of
-    200 -> decodeBody "galley" response
+    200 -> pure ()
     _ -> throwM internalServerError
   where
     req =

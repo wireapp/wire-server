@@ -17,10 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Class.UserSpec
-  ( spec,
-  )
-where
+module Test.Class.UserSpec (spec) where
 
 import Data.ByteString.Lazy (ByteString)
 import Network.Wai (Application)

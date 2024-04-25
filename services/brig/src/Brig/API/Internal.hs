@@ -15,9 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Brig.API.Internal
-  ( sitemap,
-    servantSitemap,
-    BrigIRoutes.API,
+  ( servantSitemap,
     getMLSClients,
   )
 where
@@ -42,6 +40,7 @@ import Brig.Data.User qualified as Data
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.CodeStore (CodeStore)
+import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.FederationConfigStore (AddFederationRemoteResult (..), AddFederationRemoteTeamResult (..), FederationConfigStore, UpdateFederationResult (..))
 import Brig.Effects.FederationConfigStore qualified as E
 import Brig.Effects.GalleyProvider (GalleyProvider)
@@ -57,7 +56,6 @@ import Brig.Types.Connection
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User
-import Brig.Types.User.Event (UserEvent (UserUpdated), UserUpdatedData (eupSSOId, eupSSOIdRemoved), emptyUserUpdatedData)
 import Brig.User.API.Search qualified as Search
 import Brig.User.EJPD qualified
 import Brig.User.Search.Index qualified as Index
@@ -71,11 +69,14 @@ import Data.Id as Id
 import Data.Map.Strict qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
+import Data.Text qualified as T
+import Data.Text.Lazy qualified as LT
+import Data.Time.Clock (UTCTime)
 import Data.Time.Clock.System
 import Imports hiding (head)
-import Network.Wai.Routing hiding (toList)
 import Network.Wai.Utilities as Utilities
 import Polysemy
+import Polysemy.Input (Input)
 import Polysemy.TinyLog (TinyLog)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.OpenApi.Internal.Orphans ()
@@ -96,25 +97,29 @@ import Wire.API.User
 import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.RichInfo
+import Wire.API.UserEvent
 import Wire.NotificationSubsystem
+import Wire.Rpc
 import Wire.Sem.Concurrency
-
----------------------------------------------------------------------------
--- Sitemap (servant)
+import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 servantSitemap ::
   forall r p.
-  ( Member BlacklistStore r,
+  ( Member BlacklistPhonePrefixStore r,
+    Member BlacklistStore r,
     Member CodeStore r,
-    Member BlacklistPhonePrefixStore r,
-    Member PasswordResetStore r,
-    Member GalleyProvider r,
-    Member (UserPendingActivationStore p) r,
-    Member FederationConfigStore r,
+    Member (Concurrency 'Unsafe) r,
+    Member (ConnectionStore InternalPaging) r,
     Member (Embed HttpClientIO) r,
+    Member FederationConfigStore r,
+    Member GalleyProvider r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
     Member NotificationSubsystem r,
+    Member PasswordResetStore r,
+    Member Rpc r,
     Member TinyLog r,
-    Member (Concurrency 'Unsafe) r
+    Member (UserPendingActivationStore p) r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -130,20 +135,19 @@ servantSitemap =
     :<|> internalOauthAPI
     :<|> internalSearchIndexAPI
     :<|> federationRemotesAPI
+    :<|> Provider.internalProviderAPI
 
 istatusAPI :: forall r. ServerT BrigIRoutes.IStatusAPI (Handler r)
 istatusAPI = Named @"get-status" (pure NoContent)
 
 ejpdAPI ::
-  (Member GalleyProvider r, Member NotificationSubsystem r) =>
-  ServerT BrigIRoutes.EJPD_API (Handler r)
+  ( Member GalleyProvider r,
+    Member NotificationSubsystem r,
+    Member Rpc r
+  ) =>
+  ServerT BrigIRoutes.EJPDRequest (Handler r)
 ejpdAPI =
   Brig.User.EJPD.ejpdRequest
-    :<|> Named @"get-account-conference-calling-config" getAccountConferenceCallingConfig
-    :<|> putAccountConferenceCallingConfig
-    :<|> deleteAccountConferenceCallingConfig
-    :<|> getConnectionsStatusUnqualified
-    :<|> getConnectionsStatus
 
 mlsAPI :: ServerT BrigIRoutes.MLSAPI (Handler r)
 mlsAPI = getMLSClients
@@ -157,11 +161,19 @@ accountAPI ::
     Member (UserPendingActivationStore p) r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
-  Named @"createUserNoVerify" (callsFed (exposeAnnotations createUserNoVerify))
+  Named @"get-account-conference-calling-config" getAccountConferenceCallingConfig
+    :<|> putAccountConferenceCallingConfig
+    :<|> deleteAccountConferenceCallingConfig
+    :<|> getConnectionsStatusUnqualified
+    :<|> getConnectionsStatus
+    :<|> Named @"createUserNoVerify" (callsFed (exposeAnnotations createUserNoVerify))
     :<|> Named @"createUserNoVerifySpar" (callsFed (exposeAnnotations createUserNoVerifySpar))
     :<|> Named @"putSelfEmail" changeSelfEmailMaybeSendH
     :<|> Named @"iDeleteUser" deleteUserNoAuthH
@@ -201,7 +213,10 @@ teamsAPI ::
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member (Concurrency 'Unsafe) r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI =
@@ -226,7 +241,10 @@ authAPI ::
   ( Member GalleyProvider r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   ServerT BrigIRoutes.AuthAPI (Handler r)
 authAPI =
@@ -280,24 +298,24 @@ addFederationRemote fedDomConf = do
         "keeping track of remote domains in the brig config file is deprecated, but as long as we \
         \do that, adding a domain with different settings than in the config file is not allowed.  want "
           <> ( "Just "
-                 <> cs (show fedDomConf)
+                 <> T.pack (show fedDomConf)
                  <> "or Nothing, "
              )
           <> ( "got "
-                 <> cs (show (Map.lookup (domain fedDomConf) cfg))
+                 <> T.pack (show (Map.lookup (domain fedDomConf) cfg))
              )
 
 updateFederationRemote :: (Member FederationConfigStore r) => Domain -> FederationDomainConfig -> (Handler r) ()
 updateFederationRemote dom fedcfg = do
   if (dom /= fedcfg.domain)
     then
-      throwError . fedError . FederationUnexpectedError . cs $
+      throwError . fedError . FederationUnexpectedError . T.pack $
         "federation domain of a given peer cannot be changed from " <> show (domain fedcfg) <> " to " <> show dom <> "."
     else
       lift (liftSem (E.updateFederationConfig fedcfg)) >>= \case
         UpdateFederationSuccess -> pure ()
         UpdateFederationRemoteNotFound ->
-          throwError . fedError . FederationUnexpectedError . cs $
+          throwError . fedError . FederationUnexpectedError . T.pack $
             "federation domain does not exist and cannot be updated: " <> show (dom, fedcfg)
         UpdateFederationRemoteDivergingConfig ->
           throwError . fedError . FederationUnexpectedError $
@@ -353,16 +371,6 @@ internalSearchIndexAPI =
     :<|> Named @"indexReindexIfSameOrNewer" (NoContent <$ lift (wrapClient Search.reindexAllIfSameOrNewer))
 
 ---------------------------------------------------------------------------
--- Sitemap (wai-route)
-
-sitemap ::
-  ( Member GalleyProvider r
-  ) =>
-  Routes a (Handler r) ()
-sitemap = unsafeCallsFed @'Brig @"on-user-deleted-connections" $ do
-  Provider.routesInternal
-
----------------------------------------------------------------------------
 -- Handlers
 
 -- | Add a client without authentication checks
@@ -370,7 +378,10 @@ addClientInternalH ::
   ( Member GalleyProvider r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   Maybe Bool ->
@@ -386,7 +397,10 @@ addClientInternalH usr mSkipReAuth new connId = do
 legalHoldClientRequestedH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   LegalHoldClientRequest ->
@@ -397,7 +411,10 @@ legalHoldClientRequestedH targetUser clientRequest = do
 removeLegalHoldClientH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   (Handler r) NoContent
@@ -419,7 +436,10 @@ createUserNoVerify ::
     Member (UserPendingActivationStore p) r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   NewUser ->
   (Handler r) (Either RegisterError SelfProfile)
@@ -440,7 +460,10 @@ createUserNoVerifySpar ::
   ( Member GalleyProvider r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   NewUserSpar ->
   (Handler r) (Either CreateUserSparError SelfProfile)
@@ -461,7 +484,10 @@ createUserNoVerifySpar uData =
 deleteUserNoAuthH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   (Handler r) DeleteUserResponse
@@ -547,7 +573,13 @@ listActivatedAccounts elh includePendingInvitations = do
 getActivationCodeH :: Maybe Email -> Maybe Phone -> (Handler r) GetActivationCodeResp
 getActivationCodeH (Just email) Nothing = getActivationCode (Left email)
 getActivationCodeH Nothing (Just phone) = getActivationCode (Right phone)
-getActivationCodeH bade badp = throwStd (badRequest ("need exactly one of email, phone: " <> Imports.cs (show (bade, badp))))
+getActivationCodeH bade badp =
+  throwStd
+    ( badRequest
+        ( "need exactly one of email, phone: "
+            <> LT.pack (show (bade, badp))
+        )
+    )
 
 getActivationCode :: Either Email Phone -> (Handler r) GetActivationCodeResp
 getActivationCode emailOrPhone = do
@@ -563,7 +595,11 @@ getPasswordResetCodeH ::
   (Handler r) GetPasswordResetCodeResp
 getPasswordResetCodeH (Just email) Nothing = getPasswordResetCode (Left email)
 getPasswordResetCodeH Nothing (Just phone) = getPasswordResetCode (Right phone)
-getPasswordResetCodeH bade badp = throwStd (badRequest ("need exactly one of email, phone: " <> Imports.cs (show (bade, badp))))
+getPasswordResetCodeH bade badp =
+  throwStd
+    ( badRequest
+        ("need exactly one of email, phone: " <> LT.pack (show (bade, badp)))
+    )
 
 getPasswordResetCode ::
   ( Member CodeStore r,
@@ -577,7 +613,10 @@ getPasswordResetCode emailOrPhone =
 changeAccountStatusH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   AccountStatusUpdate ->
@@ -622,17 +661,25 @@ getConnectionsStatus (ConnectionsStatusRequestV2 froms mtos mrel) = do
 revokeIdentityH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   Maybe Email ->
   Maybe Phone ->
   (Handler r) NoContent
 revokeIdentityH (Just email) Nothing = lift $ NoContent <$ API.revokeIdentity (Left email)
 revokeIdentityH Nothing (Just phone) = lift $ NoContent <$ API.revokeIdentity (Right phone)
-revokeIdentityH bade badp = throwStd (badRequest ("need exactly one of email, phone: " <> Imports.cs (show (bade, badp))))
+revokeIdentityH bade badp =
+  throwStd
+    ( badRequest
+        ("need exactly one of email, phone: " <> LT.pack (show (bade, badp)))
+    )
 
 updateConnectionInternalH ::
-  ( Member NotificationSubsystem r,
+  ( Member GalleyProvider r,
+    Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r
   ) =>
@@ -645,7 +692,11 @@ updateConnectionInternalH updateConn = do
 checkBlacklistH :: Member BlacklistStore r => Maybe Email -> Maybe Phone -> (Handler r) CheckBlacklistResponse
 checkBlacklistH (Just email) Nothing = checkBlacklist (Left email)
 checkBlacklistH Nothing (Just phone) = checkBlacklist (Right phone)
-checkBlacklistH bade badp = throwStd (badRequest ("need exactly one of email, phone: " <> Imports.cs (show (bade, badp))))
+checkBlacklistH bade badp =
+  throwStd
+    ( badRequest
+        ("need exactly one of email, phone: " <> LT.pack (show (bade, badp)))
+    )
 
 checkBlacklist :: Member BlacklistStore r => Either Email Phone -> (Handler r) CheckBlacklistResponse
 checkBlacklist emailOrPhone = lift $ bool NotBlacklisted YesBlacklisted <$> API.isBlacklisted emailOrPhone
@@ -653,7 +704,11 @@ checkBlacklist emailOrPhone = lift $ bool NotBlacklisted YesBlacklisted <$> API.
 deleteFromBlacklistH :: Member BlacklistStore r => Maybe Email -> Maybe Phone -> (Handler r) NoContent
 deleteFromBlacklistH (Just email) Nothing = deleteFromBlacklist (Left email)
 deleteFromBlacklistH Nothing (Just phone) = deleteFromBlacklist (Right phone)
-deleteFromBlacklistH bade badp = throwStd (badRequest ("need exactly one of email, phone: " <> Imports.cs (show (bade, badp))))
+deleteFromBlacklistH bade badp =
+  throwStd
+    ( badRequest
+        ("need exactly one of email, phone: " <> LT.pack (show (bade, badp)))
+    )
 
 deleteFromBlacklist :: Member BlacklistStore r => Either Email Phone -> (Handler r) NoContent
 deleteFromBlacklist emailOrPhone = lift $ NoContent <$ API.blacklistDelete emailOrPhone
@@ -661,7 +716,11 @@ deleteFromBlacklist emailOrPhone = lift $ NoContent <$ API.blacklistDelete email
 addBlacklistH :: Member BlacklistStore r => Maybe Email -> Maybe Phone -> (Handler r) NoContent
 addBlacklistH (Just email) Nothing = addBlacklist (Left email)
 addBlacklistH Nothing (Just phone) = addBlacklist (Right phone)
-addBlacklistH bade badp = throwStd (badRequest ("need exactly one of email, phone: " <> Imports.cs (show (bade, badp))))
+addBlacklistH bade badp =
+  throwStd
+    ( badRequest
+        ("need exactly one of email, phone: " <> LT.pack (show (bade, badp)))
+    )
 
 addBlacklist :: Member BlacklistStore r => Either Email Phone -> (Handler r) NoContent
 addBlacklist emailOrPhone = lift $ NoContent <$ API.blacklistInsert emailOrPhone
@@ -685,7 +744,10 @@ addPhonePrefixH prefix = lift $ NoContent <$ API.phonePrefixInsert prefix
 updateSSOIdH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   UserSSOId ->
@@ -701,7 +763,10 @@ updateSSOIdH uid ssoid = do
 deleteSSOIdH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   (Handler r) UpdateSSOIdResponse
@@ -766,7 +831,10 @@ updateHandleH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member GalleyProvider r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   HandleUpdate ->
@@ -780,7 +848,10 @@ updateUserNameH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member GalleyProvider r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   NameUpdate ->

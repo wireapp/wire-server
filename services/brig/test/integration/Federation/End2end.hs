@@ -38,7 +38,7 @@ import Data.Qualified
 import Data.Range (checked)
 import Data.Set qualified as Set
 import Federation.Util
-import Imports hiding (cs)
+import Imports
 import System.IO.Temp
 import System.Logger qualified as Log
 import Test.Tasty

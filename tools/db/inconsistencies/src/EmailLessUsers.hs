@@ -21,7 +21,6 @@
 
 module EmailLessUsers where
 
-import Brig.Data.Instances ()
 import Brig.Data.UserKey
 import Brig.Email
 import Cassandra
@@ -55,7 +54,7 @@ runCommand l brig inconsistenciesFile = do
               pure $ mapMaybe userWithEmailAndStatus userDetails
           )
         .| C.mapM (liftIO . pooledMapConcurrentlyN 48 (checkUser l brig False))
-        .| C.map ((<> "\n") . BS.intercalate "\n" . map (cs . Aeson.encode) . catMaybes)
+        .| C.map ((<> "\n") . BS.intercalate "\n" . map (BS.toStrict . Aeson.encode) . catMaybes)
         .| sinkFile inconsistenciesFile
 
 runRepair :: Logger -> ClientState -> FilePath -> FilePath -> Bool -> IO ()
@@ -72,7 +71,7 @@ runRepair l brig inputFile outputFile repairData = do
                 Log.info l (Log.field "linesProcessed" i)
               liftIO $ repairUser l brig repairData uid
           )
-        .| C.map ((<> "\n") . cs . Aeson.encode)
+        .| C.map ((<> "\n") . BS.toStrict . Aeson.encode)
         .| sinkFile outputFile
 
 pageSize :: Int32
@@ -136,7 +135,7 @@ repairUser l brig repairData uid = do
     Just x -> checkUser l brig repairData x
 
 checkUser :: Logger -> ClientState -> Bool -> (UserId, AccountStatus, Writetime AccountStatus, Email, Writetime Email) -> IO (Maybe EmailInfo)
-checkUser l brig repairData (userId, statusValue, statusWritetime, userEmailValue, userEmailWriteTime) = do
+checkUser l brig repairData (uid, statusValue, statusWritetime, userEmailValue, userEmailWriteTime) = do
   let status = WithWritetime statusValue statusWritetime
       userEmail = WithWritetime userEmailValue userEmailWriteTime
   mKeyDetails <- runClient brig $ K.getKey (userEmailKey userEmailValue)
@@ -145,11 +144,11 @@ checkUser l brig repairData (userId, statusValue, statusWritetime, userEmailValu
       let emailKey = Nothing
           inconsistencyCase = if statusValue == Active then "1-missing-email" else "2-missing-email-but-not-active"
       when (repairData && (statusValue == Active)) $ do
-        insertMissingEmail l brig userEmailValue userId
-      pure . Just $ EmailInfo {..}
+        insertMissingEmail l brig userEmailValue uid
+      pure . Just $ EmailInfo {userId = uid, ..}
     Just (emailKeyValue, emailClaimTime) -> do
       let emailKey = Just $ WithWritetime emailKeyValue emailClaimTime
       let inconsistencyCase = "3-wrong-email"
-      if emailKeyValue == userId
+      if emailKeyValue == uid
         then pure Nothing
-        else pure . Just $ EmailInfo {..}
+        else pure . Just $ EmailInfo {userId = uid, ..}

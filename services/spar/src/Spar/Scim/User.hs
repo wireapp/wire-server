@@ -45,19 +45,23 @@ where
 import qualified Control.Applicative as Applicative (empty)
 import Control.Lens hiding (op)
 import Control.Monad.Error.Class (MonadError)
-import Control.Monad.Except (throwError)
+import Control.Monad.Except (throwError, withExceptT)
 import Control.Monad.Trans.Except (mapExceptT)
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Crypto.Hash (Digest, SHA256, hashlazy)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Text as Aeson
+import Data.ByteString (toStrict)
 import Data.ByteString.Conversion (fromByteString, toByteString, toByteString')
+import qualified Data.ByteString.UTF8 as UTF8
 import Data.Handle (Handle (Handle), parseHandle)
 import Data.Id (Id (..), TeamId, UserId, idToText)
 import Data.Json.Util (UTCTimeMillis, fromUTCTimeMillis, toUTCTimeMillis)
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
+import Data.Text.Encoding.Error
+import qualified Data.Text.Lazy as LText
 import qualified Data.UUID as UUID
-import qualified Galley.Types.Teams as Galley
 import Imports
 import Network.URI (URI, parseURI)
 import Polysemy
@@ -66,12 +70,14 @@ import Polysemy.Input
 import qualified SAML2.WebSSO as SAML
 import Spar.App (getUserByUrefUnsafe, getUserByUrefViaOldIssuerUnsafe, getUserIdByScimExternalId)
 import qualified Spar.App
+import Spar.Intra.BrigApp as Intra
 import qualified Spar.Intra.BrigApp as Brig
 import Spar.Options
 import Spar.Scim.Auth ()
-import Spar.Scim.Types (normalizeLikeStored)
+import Spar.Scim.Types
 import qualified Spar.Scim.Types as ST
-import Spar.Sem.BrigAccess as BrigAccess
+import Spar.Sem.BrigAccess (BrigAccess)
+import qualified Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.GalleyAccess as GalleyAccess
 import Spar.Sem.IdPConfigStore (IdPConfigStore)
 import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
@@ -272,7 +278,9 @@ validateScimUser' errloc midp richInfoLimit user = do
   -- FUTUREWORK: 'Scim.userName' should be case insensitive; then the toLower here would
   -- be a little less brittle.
   uname <- do
-    let err msg = throw . Scim.badRequest Scim.InvalidValue . Just $ cs msg <> " (" <> errloc <> ")"
+    let err msg =
+          throw . Scim.badRequest Scim.InvalidValue . Just $
+            Text.pack msg <> " (" <> errloc <> ")"
     either err pure $ Brig.mkUserName (Scim.displayName user) veid
   richInfo <- validateRichInfo (Scim.extra user ^. ST.sueRichInfo)
   let active = Scim.active user
@@ -281,7 +289,12 @@ validateScimUser' errloc midp richInfoLimit user = do
   pure $ ST.ValidScimUser veid handl uname richInfo (maybe True Scim.unScimBool active) (flip Locale Nothing <$> lang) mRole
   where
     validRoleNames :: Text
-    validRoleNames = cs $ intercalate ", " $ map (cs . toByteString') [minBound @Role .. maxBound]
+    validRoleNames =
+      Text.pack $
+        intercalate ", " $
+          map
+            (UTF8.toString . toByteString')
+            [minBound @Role .. maxBound]
 
     validateRole =
       Scim.roles <&> \case
@@ -290,7 +303,7 @@ validateScimUser' errloc midp richInfoLimit user = do
           maybe
             (throw $ badRequest $ "The role '" <> roleName <> "' is not valid. Valid roles are " <> validRoleNames <> ".")
             (pure . Just)
-            (fromByteString $ cs roleName)
+            (fromByteString $ Text.encodeUtf8 roleName)
         (_ : _ : _) -> throw $ badRequest "A user cannot have more than one role."
 
     badRequest :: Text -> Scim.ScimError
@@ -307,14 +320,14 @@ validateScimUser' errloc midp richInfoLimit user = do
         throw $
           ( Scim.badRequest
               Scim.InvalidValue
-              ( Just . cs $
+              ( Just . Text.pack $
                   show [RI.richInfoMapURN @Text, RI.richInfoAssocListURN @Text]
                     <> " together exceed the size limit: max "
                     <> show richInfoLimit
                     <> " characters, but got "
                     <> show sze
                     <> " ("
-                    <> cs errloc
+                    <> Text.unpack errloc
                     <> ")"
               )
           )
@@ -397,7 +410,8 @@ logScim context postcontext action =
         let errorMsg =
               case Scim.detail e of
                 Just d -> d
-                Nothing -> cs (Aeson.encode e)
+                Nothing ->
+                  Text.decodeUtf8With lenientDecode . toStrict . Aeson.encode $ e
         Logger.warn $ context . Log.msg errorMsg
         pure (Left e)
       Right x -> do
@@ -406,7 +420,7 @@ logScim context postcontext action =
 
 logEmail :: Email -> (Msg -> Msg)
 logEmail email =
-  Log.field "email_sha256" (sha256String . cs . show $ email)
+  Log.field "email_sha256" (sha256String . Text.pack . show $ email)
 
 logVSU :: ST.ValidScimUser -> (Msg -> Msg)
 logVSU (ST.ValidScimUser veid handl _name _richInfo _active _lang _role) =
@@ -457,7 +471,8 @@ createValidScimUser ::
     Member BrigAccess r,
     Member ScimExternalIdStore r,
     Member ScimUserTimesStore r,
-    Member SAMLUserStore r
+    Member SAMLUserStore r,
+    Member IdPConfigStore r
   ) =>
   ScimTokenInfo ->
   ST.ValidScimUser ->
@@ -470,37 +485,50 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
     )
     logScimUserId
     $ do
+      lift (ScimExternalIdStore.lookupStatus stiTeam veid) >>= \case
+        Just (buid, ScimUserCreated) ->
+          -- If the user has been created, but can't be found in brig anymore,
+          -- the invitation has timed out and the user has been deleted on brig's side.
+          -- If this is the case we can safely create the user again.
+          -- Otherwise we return a conflict error.
+          lift (BrigAccess.getStatusMaybe buid) >>= \case
+            Just Active -> throwError externalIdTakenError
+            Just Suspended -> throwError externalIdTakenError
+            Just Ephemeral -> throwError externalIdTakenError
+            Just PendingInvitation -> throwError externalIdTakenError
+            Just Deleted -> pure ()
+            Nothing -> pure ()
+        Just (buid, ScimUserCreating) ->
+          incompleteUserCreationCleanUp buid externalIdTakenError
+        Nothing -> pure ()
+
       -- ensure uniqueness constraints of all affected identifiers.
       -- {if we crash now, retry POST will just work}
       assertExternalIdUnused stiTeam veid
       assertHandleUnused handl
       -- {if we crash now, retry POST will just work, or user gets told the handle
       -- is already in use and stops POSTing}
+      buid <- lift $ Id <$> Random.uuid
+
+      lift $ ScimExternalIdStore.insertStatus stiTeam veid buid ScimUserCreating
 
       -- Generate a UserId will be used both for scim user in spar and for brig.
-      buid <-
-        lift $ do
-          buid <-
-            ST.runValidExternalIdEither
-              ( \uref ->
-                  do
-                    -- FUTUREWORK: outsource this and some other fragments from
-                    -- `createValidScimUser` into a function `createValidScimUserBrig` similar
-                    -- to `createValidScimUserSpar`?
-                    uid <- Id <$> Random.uuid
-                    BrigAccess.createSAML uref uid stiTeam name ManagedByScim (Just handl) (Just richInfo) language (fromMaybe defaultRole role)
-              )
-              ( \email -> do
-                  buid <- BrigAccess.createNoSAML email stiTeam name language (fromMaybe defaultRole role)
-                  BrigAccess.setHandle buid handl -- FUTUREWORK: possibly do the same one req as we do for saml?
-                  pure buid
-              )
-              veid
+      lift $ do
+        ST.runValidExternalIdEither
+          ( \uref ->
+              -- FUTUREWORK: outsource this and some other fragments from
+              -- `createValidScimUser` into a function `createValidScimUserBrig` similar
+              -- to `createValidScimUserSpar`?
+              void $ BrigAccess.createSAML uref buid stiTeam name ManagedByScim (Just handl) (Just richInfo) language (fromMaybe defaultRole role)
+          )
+          ( \email -> do
+              void $ BrigAccess.createNoSAML email buid stiTeam name language (fromMaybe defaultRole role)
+              BrigAccess.setHandle buid handl -- FUTUREWORK: possibly do the same one req as we do for saml?
+          )
+          veid
+        Logger.debug ("createValidScimUser: brig says " <> show buid)
 
-          Logger.debug ("createValidScimUser: brig says " <> show buid)
-
-          BrigAccess.setRichInfo buid richInfo
-          pure buid
+        BrigAccess.setRichInfo buid richInfo
 
       -- {If we crash now,  a POST retry will fail with 409 user already exists.
       -- Azure at some point will retry with GET /Users?filter=userName eq handle
@@ -530,7 +558,22 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
         let new = ST.scimActiveFlagToAccountStatus old (Scim.unScimBool <$> active)
             active = Scim.active . Scim.value . Scim.thing $ storedUser
         when (new /= old) $ BrigAccess.setStatus buid new
+
+      lift $ ScimExternalIdStore.insertStatus stiTeam veid buid ScimUserCreated
       pure storedUser
+  where
+    incompleteUserCreationCleanUp :: UserId -> Scim.ScimError -> Scim.ScimHandler (Sem r) ()
+    incompleteUserCreationCleanUp buid e = do
+      -- something went wrong while storing the user in brig
+      -- we can try clean up now, but if brig is down, we can't do much
+      -- maybe retrying the user creation in brig is also an option?
+      -- after clean up we rethrow the error so the handler returns the correct failure
+      lift $ Logger.warn $ Log.msg @Text "An earlier attempt of creating a user with this external ID has failed and left some inconsistent data. Attempting to clean up."
+      withExceptT (const e) $ deleteScimUser tokeninfo buid
+      lift $ Logger.info $ Log.msg @Text "Clean up successful."
+
+    externalIdTakenError :: Scim.ScimError
+    externalIdTakenError = Scim.conflict {Scim.detail = Just "ExternalId is already taken"}
 
 -- | Store scim timestamps, saml credentials, scim externalId locally in spar.  Table
 -- `spar.scim_external` gets an entry iff there is no `UserRef`: if there is, we don't do a
@@ -672,9 +715,9 @@ toScimStoredUser' createdAt lastChangedAt baseuri uid usr =
       usr {Scim.User.schemas = ST.userSchemas}
   where
     mkLocation :: String -> URI
-    mkLocation pathSuffix = convURI $ baseuri SAML.=/ cs pathSuffix
+    mkLocation pathSuffix = convURI $ baseuri SAML.=/ Text.pack pathSuffix
       where
-        convURI uri = fromMaybe err . parseURI . cs . URIBS.serializeURIRef' $ uri
+        convURI uri = fromMaybe err . parseURI . UTF8.toString . URIBS.serializeURIRef' $ uri
           where
             err = error $ "internal error: " <> show uri
     meta =
@@ -685,7 +728,7 @@ toScimStoredUser' createdAt lastChangedAt baseuri uid usr =
           Scim.version = calculateVersion uid usr,
           -- TODO: it looks like we need to add this to the HTTP header.
           -- https://tools.ietf.org/html/rfc7644#section-3.14
-          Scim.location = Scim.URI . mkLocation $ "/Users/" <> cs (idToText uid)
+          Scim.location = Scim.URI . mkLocation $ "/Users/" <> Text.unpack (idToText uid)
         }
 
 updScimStoredUser ::
@@ -960,7 +1003,7 @@ synthesizeStoredUser usr veid =
   where
     getRole :: Sem r Role
     getRole = do
-      let tmRoleOrDefault m = fromMaybe defaultRole $ m >>= \member -> member ^. Member.permissions . to Galley.permissionsRole
+      let tmRoleOrDefault m = fromMaybe defaultRole $ m >>= \member -> member ^. Member.permissions . to Member.permissionsRole
       maybe (pure defaultRole) (\tid -> tmRoleOrDefault <$> GalleyAccess.getTeamMember tid (userId $ accountUser usr)) (userTeam $ accountUser usr)
 
 synthesizeStoredUser' ::
@@ -1002,7 +1045,15 @@ synthesizeScimUser info =
           Scim.displayName = Just $ fromName (info ^. ST.vsuName),
           Scim.active = Just . Scim.ScimBool $ info ^. ST.vsuActive,
           Scim.preferredLanguage = lan2Text . lLanguage <$> info ^. ST.vsuLocale,
-          Scim.roles = maybe [] ((: []) . cs . toByteString) (info ^. ST.vsuRole)
+          Scim.roles =
+            maybe
+              []
+              ( (: [])
+                  . Text.decodeUtf8With lenientDecode
+                  . toStrict
+                  . toByteString
+              )
+              (info ^. ST.vsuRole)
         }
 
 -- TODO: now write a test, either in /integration or in spar, whichever is easier.  (spar)
@@ -1133,7 +1184,7 @@ logFilter (FilterAttrCompare attr op val) =
       Scim.ValNull -> "null"
       Scim.ValBool True -> "true"
       Scim.ValBool False -> "false"
-      Scim.ValNumber n -> cs $ Aeson.encodeToLazyText (Aeson.Number n)
+      Scim.ValNumber n -> LText.toStrict $ Aeson.encodeToLazyText (Aeson.Number n)
       Scim.ValString s ->
         "sha256 "
           <> sha256String s

@@ -1,0 +1,13 @@
+{
+    "capabilities": {
+        "capabilities": []
+    },
+    "class": "legalhold",
+    "cookie": "5",
+    "id": "3",
+    "label": "\u001fb",
+    "mls_public_keys": {},
+    "model": "ML",
+    "time": "1864-05-08T11:57:08.087Z",
+    "type": "temporary"
+}

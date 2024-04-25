@@ -45,7 +45,6 @@ import Data.UUID.Tagged qualified as U
 import Galley.API.Action
 import Galley.API.Error
 import Galley.API.MLS
-import Galley.API.MLS.Keys (getMLSRemovalKey)
 import Galley.API.Mapping
 import Galley.API.One2One
 import Galley.API.Util
@@ -91,7 +90,8 @@ import Wire.NotificationSubsystem
 -- | The public-facing endpoint for creating group conversations in the client
 -- API up to and including version 3.
 createGroupConversationUpToV3 ::
-  ( Member BrigAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
     Member ConversationStore r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Error FederationError) r,
@@ -129,7 +129,8 @@ createGroupConversationUpToV3 lusr conn newConv = mapError UnreachableBackendsLe
 -- | The public-facing endpoint for creating group conversations in the client
 -- API in version 4 and above.
 createGroupConversation ::
-  ( Member BrigAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
     Member ConversationStore r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Error FederationError) r,
@@ -169,7 +170,8 @@ createGroupConversation lusr conn newConv = do
     CreateGroupConversation conv mempty
 
 createGroupConversationGeneric ::
-  ( Member BrigAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
     Member ConversationStore r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Error FederationError) r,
@@ -204,8 +206,6 @@ createGroupConversationGeneric lusr conn newConv = do
   when (newConvProtocol newConv == BaseProtocolMLSTag) $ do
     -- Here we fail early in order to notify users of this misconfiguration
     assertMLSEnabled
-    unlessM (isJust <$> getMLSRemovalKey) $
-      throw (InternalErrorWithDescription "No backend removal key is configured (See 'mlsPrivateKeyPaths' in galley's config). Refusing to create MLS conversation.")
 
   lcnv <- traverse (const E.createConversationId) lusr
   do
@@ -309,7 +309,8 @@ createProteusSelfConversation lusr = do
       conversationCreated lusr c
 
 createOne2OneConversation ::
-  ( Member BrigAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -386,7 +387,8 @@ createOne2OneConversation lusr zcon j =
         Nothing -> throwS @'TeamNotFound
 
 createLegacyOne2OneConversationUnchecked ::
-  ( Member ConversationStore r,
+  ( Member BackendNotificationQueueAccess r,
+    Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (Error InvalidInput) r,
@@ -428,7 +430,8 @@ createLegacyOne2OneConversationUnchecked self zcon name mtid other = do
           Right () -> conversationCreated self c
 
 createOne2OneConversationUnchecked ::
-  ( Member ConversationStore r,
+  ( Member BackendNotificationQueueAccess r,
+    Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (Error UnreachableBackends) r,
@@ -452,7 +455,8 @@ createOne2OneConversationUnchecked self zcon name mtid other = do
   create (one2OneConvId BaseProtocolProteusTag (tUntagged self) other) self zcon name mtid other
 
 createOne2OneConversationLocally ::
-  ( Member ConversationStore r,
+  ( Member BackendNotificationQueueAccess r,
+    Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (Error UnreachableBackends) r,
@@ -502,7 +506,8 @@ createOne2OneConversationRemotely _ _ _ _ _ _ =
   throw FederationNotImplemented
 
 createConnectConversation ::
-  ( Member ConversationStore r,
+  ( Member BackendNotificationQueueAccess r,
+    Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -654,6 +659,7 @@ notifyCreatedConversation ::
     Member (Error UnreachableBackends) r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
+    Member BackendNotificationQueueAccess r,
     Member (Input UTCTime) r,
     Member P.TinyLog r
   ) =>

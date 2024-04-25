@@ -26,6 +26,7 @@ module Brig.Types.Search
   )
 where
 
+import Cassandra qualified as C
 import Data.Aeson
 import Data.Attoparsec.ByteString
 import Data.ByteString.Builder
@@ -76,6 +77,16 @@ instance FromByteString SearchVisibilityInbound where
   parser =
     SearchableByOwnTeam <$ string "searchable-by-own-team"
       <|> SearchableByAllTeams <$ string "searchable-by-all-teams"
+
+instance C.Cql SearchVisibilityInbound where
+  ctype = C.Tagged C.IntColumn
+
+  toCql SearchableByOwnTeam = C.CqlInt 0
+  toCql SearchableByAllTeams = C.CqlInt 1
+
+  fromCql (C.CqlInt 0) = pure SearchableByOwnTeam
+  fromCql (C.CqlInt 1) = pure SearchableByAllTeams
+  fromCql n = Left $ "Unexpected SearchVisibilityInbound: " ++ show n
 
 defaultSearchVisibilityInbound :: SearchVisibilityInbound
 defaultSearchVisibilityInbound = SearchableByOwnTeam

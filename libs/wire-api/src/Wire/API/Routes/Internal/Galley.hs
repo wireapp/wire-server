@@ -42,6 +42,7 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Galley.Feature
+import Wire.API.Routes.QualifiedCapture
 import Wire.API.Team
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
@@ -256,7 +257,7 @@ type InternalAPIBase =
                :> "one2one"
                :> "upsert"
                :> ReqBody '[Servant.JSON] UpsertOne2OneConversationRequest
-               :> Post '[Servant.JSON] UpsertOne2OneConversationResponse
+               :> MultiVerb1 'POST '[Servant.JSON] (RespondEmpty 200 "Upsert One2One Policy")
            )
     :<|> IFeatureAPI
     :<|> IFederationAPI
@@ -492,7 +493,7 @@ type IConversationAPI =
                :> Put '[Servant.JSON] Conversation
            )
     :<|> Named
-           "conversation-block"
+           "conversation-block-unqualified"
            ( CanThrow 'InvalidOperation
                :> CanThrow 'ConvNotFound
                :> ZUser
@@ -500,6 +501,31 @@ type IConversationAPI =
                :> Capture "cnv" ConvId
                :> "block"
                :> Put '[Servant.JSON] ()
+           )
+    :<|> Named
+           "conversation-block"
+           ( CanThrow 'InvalidOperation
+               :> CanThrow 'ConvNotFound
+               :> ZLocalUser
+               :> "conversations"
+               :> QualifiedCapture "cnv" ConvId
+               :> "block"
+               :> Put '[Servant.JSON] ()
+           )
+    -- This endpoint can lead to the following events being sent:
+    -- - MemberJoin event to you, if the conversation existed and had < 2 members before
+    -- - MemberJoin event to other, if the conversation existed and only the other was member
+    --   before
+    :<|> Named
+           "conversation-unblock-unqualified"
+           ( CanThrow 'InvalidOperation
+               :> CanThrow 'ConvNotFound
+               :> ZLocalUser
+               :> ZOptConn
+               :> "conversations"
+               :> Capture "cnv" ConvId
+               :> "unblock"
+               :> Put '[Servant.JSON] Conversation
            )
     -- This endpoint can lead to the following events being sent:
     -- - MemberJoin event to you, if the conversation existed and had < 2 members before
@@ -512,9 +538,9 @@ type IConversationAPI =
                :> ZLocalUser
                :> ZOptConn
                :> "conversations"
-               :> Capture "cnv" ConvId
+               :> QualifiedCapture "cnv" ConvId
                :> "unblock"
-               :> Put '[Servant.JSON] Conversation
+               :> Put '[Servant.JSON] ()
            )
     :<|> Named
            "conversation-meta"
@@ -523,6 +549,27 @@ type IConversationAPI =
                :> Capture "cnv" ConvId
                :> "meta"
                :> Get '[Servant.JSON] ConversationMetadata
+           )
+    :<|> Named
+           "conversation-mls-one-to-one"
+           ( CanThrow 'NotConnected
+               :> CanThrow 'MLSNotEnabled
+               :> "conversations"
+               :> "mls-one2one"
+               :> ZLocalUser
+               :> QualifiedCapture "user" UserId
+               :> Get '[Servant.JSON] Conversation
+           )
+    :<|> Named
+           "conversation-mls-one-to-one-established"
+           ( CanThrow 'NotConnected
+               :> CanThrow 'MLSNotEnabled
+               :> ZLocalUser
+               :> "conversations"
+               :> "mls-one2one"
+               :> QualifiedCapture "user" UserId
+               :> "established"
+               :> Get '[Servant.JSON] Bool
            )
 
 swaggerDoc :: OpenApi

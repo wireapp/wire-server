@@ -42,7 +42,6 @@ import OpenSSL.Session as Ssl
 import Ssl.Util
 import System.Logger
 import Util.Options
-import Wire.API.MLS.Credential
 import Wire.API.MLS.Keys
 import Wire.API.Team.Member
 import Wire.NotificationSubsystem.Interpreter
@@ -64,7 +63,7 @@ data Env = Env
     _deleteQueue :: Q.Queue DeleteItem,
     _extEnv :: ExtEnv,
     _aEnv :: Maybe Aws.Env,
-    _mlsKeys :: SignaturePurpose -> MLSKeys,
+    _mlsKeys :: Maybe (MLSKeysByPurpose MLSPrivateKeys),
     _rabbitmqChannel :: Maybe (MVar Q.Channel),
     _convCodeURI :: Either HttpsUrl (Map Text HttpsUrl)
   }

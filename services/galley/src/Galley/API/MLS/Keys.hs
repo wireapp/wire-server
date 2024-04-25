@@ -15,16 +15,43 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.MLS.Keys (getMLSRemovalKey) where
+module Galley.API.MLS.Keys (getMLSRemovalKey, SomeKeyPair (..)) where
 
+import Control.Error.Util (hush)
 import Control.Lens (view)
-import Crypto.PubKey.Ed25519 (PublicKey, SecretKey)
+import Data.Proxy
 import Galley.Env
-import Imports
+import Imports hiding (getFirst)
 import Polysemy
+import Polysemy.Error
 import Polysemy.Input
-import Wire.API.MLS.Credential (SignaturePurpose (RemovalPurpose))
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Keys
 
-getMLSRemovalKey :: Member (Input Env) r => Sem r (Maybe (SecretKey, PublicKey))
-getMLSRemovalKey = mlsKeyPair_ed25519 <$> (inputs (view mlsKeys) <*> pure RemovalPurpose)
+data SomeKeyPair where
+  SomeKeyPair :: forall ss. IsSignatureScheme ss => Proxy ss -> KeyPair ss -> SomeKeyPair
+
+getMLSRemovalKey ::
+  Member (Input Env) r =>
+  SignatureSchemeTag ->
+  Sem r (Maybe SomeKeyPair)
+getMLSRemovalKey ss = fmap hush . runError @() $ do
+  keysByPurpose <- note () =<< inputs (view mlsKeys)
+  let keys = keysByPurpose.removal
+  case ss of
+    Ed25519 -> pure $ SomeKeyPair (Proxy @Ed25519) (mlsKeyPair_ed25519 keys)
+    Ecdsa_secp256r1_sha256 ->
+      pure $
+        SomeKeyPair
+          (Proxy @Ecdsa_secp256r1_sha256)
+          (mlsKeyPair_ecdsa_secp256r1_sha256 keys)
+    Ecdsa_secp384r1_sha384 ->
+      pure $
+        SomeKeyPair
+          (Proxy @Ecdsa_secp384r1_sha384)
+          (mlsKeyPair_ecdsa_secp384r1_sha384 keys)
+    Ecdsa_secp521r1_sha512 ->
+      pure $
+        SomeKeyPair
+          (Proxy @Ecdsa_secp521r1_sha512)
+          (mlsKeyPair_ecdsa_secp521r1_sha512 keys)

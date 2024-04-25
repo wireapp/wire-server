@@ -17,10 +17,10 @@
 
 module Brig.Provider.API
   ( -- * Main stuff
-    routesInternal,
     botAPI,
     servicesAPI,
     providerAPI,
+    internalProviderAPI,
 
     -- * Event handlers
     finishDeleteService,
@@ -58,7 +58,6 @@ import Control.Exception.Enclosed (handleAny)
 import Control.Lens (view, (^.))
 import Control.Monad.Catch (MonadMask)
 import Control.Monad.Except
-import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
@@ -79,14 +78,9 @@ import Data.Text.Encoding qualified as Text
 import Data.Text.Lazy qualified as Text
 import GHC.TypeNats
 import Imports
-import Network.HTTP.Types.Status
-import Network.Wai (Response)
-import Network.Wai.Predicate (accept)
-import Network.Wai.Routing
+import Network.HTTP.Types
 import Network.Wai.Utilities.Error ((!>>))
 import Network.Wai.Utilities.Error qualified as Wai
-import Network.Wai.Utilities.Response (json)
-import Network.Wai.Utilities.ZAuth
 import OpenSSL.EVP.Digest qualified as SSL
 import OpenSSL.EVP.PKey qualified as SSL
 import OpenSSL.PEM qualified as SSL
@@ -114,6 +108,7 @@ import Wire.API.Provider.External qualified as Ext
 import Wire.API.Provider.Service
 import Wire.API.Provider.Service qualified as Public
 import Wire.API.Provider.Service.Tag qualified as Public
+import Wire.API.Routes.Internal.Brig qualified as BrigIRoutes
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig.Bot (BotAPI)
 import Wire.API.Routes.Public.Brig.Provider (ProviderAPI)
@@ -122,7 +117,7 @@ import Wire.API.Team.Feature qualified as Feature
 import Wire.API.Team.LegalHold (LegalholdProtectee (UnprotectedBot))
 import Wire.API.Team.Permission
 import Wire.API.User hiding (cpNewPassword, cpOldPassword)
-import Wire.API.User qualified as Public (UserProfile, publicProfile)
+import Wire.API.User qualified as Public (UserProfile, mkUserProfile)
 import Wire.API.User.Auth
 import Wire.API.User.Client
 import Wire.API.User.Client qualified as Public (Client, ClientCapability (ClientSupportsLegalholdImplicitConsent), PubClient (..), UserClientPrekeyMap, UserClients, userClients)
@@ -142,6 +137,7 @@ botAPI =
     :<|> Named @"bot-delete-self" botDeleteSelf
     :<|> Named @"bot-list-prekeys" botListPrekeys
     :<|> Named @"bot-update-prekeys" botUpdatePrekeys
+    :<|> Named @"bot-get-client-v5" botGetClient
     :<|> Named @"bot-get-client" botGetClient
     :<|> Named @"bot-claim-users-prekeys" botClaimUsersPrekeys
     :<|> Named @"bot-list-users" botListUserProfiles
@@ -176,11 +172,8 @@ providerAPI =
     :<|> Named @"provider-get-account" getAccount
     :<|> Named @"provider-get-profile" getProviderProfile
 
-routesInternal :: Member GalleyProvider r => Routes a (Handler r) ()
-routesInternal = do
-  get "/i/provider/activation-code" (continue getActivationCodeH) $
-    accept "application" "json"
-      .&> param "email"
+internalProviderAPI :: Member GalleyProvider r => ServerT BrigIRoutes.ProviderAPI (Handler r)
+internalProviderAPI = Named @"get-provider-activation-code" getActivationCodeH
 
 --------------------------------------------------------------------------------
 -- Public API (Unauthenticated)
@@ -241,26 +234,15 @@ activateAccountKey key val = do
       lift $ sendApprovalConfirmMail name email
       pure . Just $ Public.ProviderActivationResponse email
 
-getActivationCodeH :: Member GalleyProvider r => Public.Email -> (Handler r) Response
+getActivationCodeH :: Member GalleyProvider r => Public.Email -> (Handler r) Code.KeyValuePair
 getActivationCodeH e = do
   guardSecondFactorDisabled Nothing
-  json <$> getActivationCode e
-
-getActivationCode :: Public.Email -> (Handler r) FoundActivationCode
-getActivationCode e = do
   email <- case validateEmail e of
     Right em -> pure em
     Left _ -> throwStd (errorToWai @'E.InvalidEmail)
   gen <- Code.mkGen (Code.ForEmail email)
   code <- wrapClientE $ Code.lookup (Code.genKey gen) Code.IdentityVerification
-  maybe (throwStd activationKeyNotFound) (pure . FoundActivationCode) code
-
-newtype FoundActivationCode = FoundActivationCode Code.Code
-
-instance ToJSON FoundActivationCode where
-  toJSON (FoundActivationCode vcode) =
-    toJSON $
-      Code.KeyValuePair (Code.codeKey vcode) (Code.codeValue vcode)
+  maybe (throwStd activationKeyNotFound) (pure . Code.codeToKeyValuePair) code
 
 login :: Member GalleyProvider r => ProviderLogin -> Handler r ProviderTokenCookie
 login l = do
@@ -693,7 +675,7 @@ addBot zuid zcon cid add = do
   let colour = fromMaybe defaultAccentId (Ext.rsNewBotColour rs)
   let pict = Pict [] -- Legacy
   let sref = newServiceRef sid pid
-  let usr = User (botUserId bid) (Qualified (botUserId bid) domain) Nothing name pict assets colour False locale (Just sref) Nothing Nothing Nothing ManagedByWire defSupportedProtocols
+  let usr = User (Qualified (botUserId bid) domain) Nothing name pict assets colour False locale (Just sref) Nothing Nothing Nothing ManagedByWire defSupportedProtocols
   let newClt =
         (newClient PermanentClientType (Ext.rsNewBotLastPrekey rs))
           { newClientPrekeys = Ext.rsNewBotPrekeys rs
@@ -751,7 +733,7 @@ guardConvAdmin conv = do
 botGetSelf :: BotId -> (Handler r) Public.UserProfile
 botGetSelf bot = do
   p <- lift $ wrapClient $ User.lookupUser NoPendingInvitations (botUserId bot)
-  maybe (throwStd (errorToWai @'E.UserNotFound)) (pure . (`Public.publicProfile` UserLegalHoldNoConsent)) p
+  maybe (throwStd (errorToWai @'E.UserNotFound)) (\u -> pure $ Public.mkUserProfile EmailVisibleToSelf u UserLegalHoldNoConsent) p
 
 botGetClient :: Member GalleyProvider r => BotId -> (Handler r) (Maybe Public.Client)
 botGetClient bot = do

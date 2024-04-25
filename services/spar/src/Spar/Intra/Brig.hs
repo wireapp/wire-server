@@ -130,14 +130,15 @@ createBrigUserSAML uref (Id buid) teamid name managedBy handle richInfo mLocale 
 createBrigUserNoSAML ::
   (HasCallStack, MonadSparToBrig m) =>
   Email ->
+  UserId ->
   TeamId ->
   -- | User name
   Name ->
   Maybe Locale ->
   Role ->
   m UserId
-createBrigUserNoSAML email teamid uname locale role = do
-  let newUser = NewUserScimInvitation teamid locale uname email role
+createBrigUserNoSAML email uid teamid uname locale role = do
+  let newUser = NewUserScimInvitation teamid uid locale uname email role
   resp :: ResponseLBS <-
     call $
       method POST

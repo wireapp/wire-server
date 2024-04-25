@@ -30,7 +30,7 @@ import Galley.API.MLS.Types
 import Galley.Data.Conversation.Types qualified as Data
 import Galley.Effects.ConversationStore
 import Galley.Types.UserList
-import Imports hiding (cs)
+import Imports
 import Polysemy
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Protocol
@@ -109,7 +109,7 @@ remoteMLSOne2OneConversation lself rother rc =
   let members =
         ConvMembers
           { cmSelf = defMember (tUntagged lself),
-            cmOthers = []
+            cmOthers = rc.members.others
           }
    in Conversation
         { cnvQualifiedId = tUntagged (qualifyAs rother rc.id),

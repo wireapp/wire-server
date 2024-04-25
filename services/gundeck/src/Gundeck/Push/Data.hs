@@ -38,26 +38,29 @@ import System.Logger.Class qualified as Log
 lookup :: (MonadClient m, MonadLogger m) => UserId -> Consistency -> m [Address]
 lookup u c = foldM mk [] =<< retry x1 (query q (params c (Identity u)))
   where
-    q :: PrepQuery R (Identity UserId) (UserId, Transport, AppName, Token, Maybe EndpointArn, ConnId, Maybe ClientId)
+    q :: PrepQuery R (Identity UserId) (UserId, Either Int32 Transport, AppName, Token, Maybe EndpointArn, ConnId, Maybe ClientId)
     q = "select usr, transport, app, ptoken, arn, connection, client from user_push where usr = ?"
     mk as r = maybe as (: as) <$> mkAddr r
 
 insert :: MonadClient m => UserId -> Transport -> AppName -> Token -> EndpointArn -> ConnId -> ClientId -> m ()
-insert u t a p e o c = retry x5 $ write q (params LocalQuorum (u, t, a, p, e, o, c))
+insert u t a p e o c = retry x5 $ write q (params LocalQuorum (u, Right t, a, p, e, o, c))
   where
-    q :: PrepQuery W (UserId, Transport, AppName, Token, EndpointArn, ConnId, ClientId) ()
+    q :: PrepQuery W (UserId, Either Int32 Transport, AppName, Token, EndpointArn, ConnId, ClientId) ()
     q = "insert into user_push (usr, transport, app, ptoken, arn, connection, client) values (?, ?, ?, ?, ?, ?, ?)"
 
 updateArn :: MonadClient m => UserId -> Transport -> AppName -> Token -> EndpointArn -> m ()
-updateArn uid transport app token arn = retry x5 $ write q (params LocalQuorum (arn, uid, transport, app, token))
+updateArn uid transport app token arn = retry x5 $ write q (params LocalQuorum (arn, uid, Right transport, app, token))
   where
-    q :: PrepQuery W (EndpointArn, UserId, Transport, AppName, Token) ()
+    q :: PrepQuery W (EndpointArn, UserId, Either Int32 Transport, AppName, Token) ()
     q = {- `IF EXISTS`, but that requires benchmarking -} "update user_push set arn = ? where usr = ? and transport = ? and app = ? and ptoken = ?"
 
 delete :: MonadClient m => UserId -> Transport -> AppName -> Token -> m ()
-delete u t a p = retry x5 $ write q (params LocalQuorum (u, t, a, p))
+delete u t = deleteAux u (Right t)
+
+deleteAux :: MonadClient m => UserId -> Either Int32 Transport -> AppName -> Token -> m ()
+deleteAux u t a p = retry x5 $ write q (params LocalQuorum (u, t, a, p))
   where
-    q :: PrepQuery W (UserId, Transport, AppName, Token) ()
+    q :: PrepQuery W (UserId, Either Int32 Transport, AppName, Token) ()
     q = "delete from user_push where usr = ? and transport = ? and app = ? and ptoken = ?"
 
 erase :: MonadClient m => UserId -> m ()
@@ -68,16 +71,20 @@ erase u = retry x5 $ write q (params LocalQuorum (Identity u))
 
 mkAddr ::
   (MonadClient m, MonadLogger m) =>
-  (UserId, Transport, AppName, Token, Maybe EndpointArn, ConnId, Maybe ClientId) ->
+  (UserId, Either Int32 Transport, AppName, Token, Maybe EndpointArn, ConnId, Maybe ClientId) ->
   m (Maybe Address)
-mkAddr (usr, trp, app, tok, arn, con, clt) = case (clt, arn) of
-  (Just c, Just a) -> pure $! Just $! Address usr a con (pushToken trp app tok c)
+mkAddr (usr, trp, app, tok, arn, con, clt) = case (trp, clt, arn) of
+  (Right t, Just c, Just a) -> pure $! Just $! Address usr a con (pushToken t app tok c)
   _ -> do
     Log.info $
       field "user" (toByteString usr)
         ~~ field "transport" (show trp)
         ~~ field "app" (appNameText app)
         ~~ field "token" (tokenText tok)
-        ~~ msg (val "Deleting legacy push token without a client or ARN.")
-    delete usr trp app tok
+        ~~ msg
+          ( val
+              "Deleting legacy push token without a client or ARN, or with deprecated \
+              \APNSVoIP* transports (transport type not shown in this message)."
+          )
+    deleteAux usr trp app tok
     pure Nothing

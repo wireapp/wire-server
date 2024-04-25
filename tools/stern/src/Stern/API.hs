@@ -34,6 +34,7 @@ import Control.Monad.Except
 import Data.Aeson hiding (Error, json)
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Aeson.Types (emptyArray)
+import Data.ByteString (fromStrict)
 import Data.ByteString.Conversion
 import Data.Handle (Handle)
 import Data.Id
@@ -42,6 +43,10 @@ import Data.Range
 import Data.Schema hiding ((.=))
 import Data.Text (unpack)
 import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
+import Data.Text.Encoding.Error
+import Data.Text.Lazy qualified as LT
+import Data.Text.Lazy.Encoding qualified as LT
 import GHC.TypeLits (KnownSymbol)
 import Imports hiding (head)
 import Network.HTTP.Types
@@ -108,7 +113,11 @@ sitemap env = Servant.Server.hoistServer (Proxy @SternAPI) nt sitemap'
 
     renderError :: Error -> Servant.Server.ServerError
     renderError (Error code label message _ _) =
-      Servant.Server.ServerError (statusCode code) (cs label) (cs message) [("Content-type", "application/json")]
+      Servant.Server.ServerError
+        (statusCode code)
+        (LT.unpack label)
+        (LT.encodeUtf8 message)
+        [("Content-type", "application/json")]
 
 sitemap' :: ServerT SternAPI Handler
 sitemap' =
@@ -364,7 +373,7 @@ setSearchVisibility :: TeamId -> TeamSearchVisibility -> Handler NoContent
 setSearchVisibility tid status = NoContent <$ Intra.setSearchVisibility tid status
 
 getTeamInvoice :: TeamId -> InvoiceId -> Handler Text
-getTeamInvoice tid iid = cs <$> Intra.getInvoiceUrl tid iid
+getTeamInvoice tid iid = T.decodeUtf8With lenientDecode <$> Intra.getInvoiceUrl tid iid
 
 getTeamBillingInfo :: TeamId -> Handler TeamBillingInfo
 getTeamBillingInfo tid = do
@@ -416,16 +425,30 @@ getUserData uid mMaxConvs mMaxNotifs = do
   conns <- Intra.getUserConnections uid
   convs <- Intra.getUserConversations uid (fromMaybe 1 mMaxConvs)
   clts <- Intra.getUserClients uid
-  notfs <- (Intra.getUserNotifications uid (fromMaybe 10 mMaxNotifs) <&> toJSON @[QueuedNotification]) `catchE` (pure . String . cs . show)
-  consent <- (Intra.getUserConsentValue uid <&> toJSON @ConsentValue) `catchE` (pure . String . cs . show)
-  consentLog <- (Intra.getUserConsentLog uid <&> toJSON @ConsentLog) `catchE` (pure . String . cs . show)
+  notfs <-
+    ( Intra.getUserNotifications uid (fromMaybe 10 mMaxNotifs)
+        <&> toJSON @[QueuedNotification]
+      )
+      `catchE` (pure . String . T.pack . show)
+  consent <-
+    (Intra.getUserConsentValue uid <&> toJSON @ConsentValue)
+      `catchE` (pure . String . T.pack . show)
+  consentLog <-
+    (Intra.getUserConsentLog uid <&> toJSON @ConsentLog)
+      `catchE` (pure . String . T.pack . show)
   cookies <- Intra.getUserCookies uid
   properties <- Intra.getUserProperties uid
   -- Get all info from Marketo too
   let em = userEmail $ accountUser account
   marketo <- do
     let noEmail = MarketoResult $ KeyMap.singleton "results" emptyArray
-    maybe (pure $ toJSON noEmail) (\e -> (Intra.getMarketoResult e <&> toJSON) `catchE` (pure . String . cs . show)) em
+    maybe
+      (pure $ toJSON noEmail)
+      ( \e ->
+          (Intra.getMarketoResult e <&> toJSON)
+            `catchE` (pure . String . T.pack . show)
+      )
+      em
   pure . UserMetaInfo . KeyMap.fromList $
     [ "account" .= account,
       "cookies" .= cookies,
@@ -442,7 +465,11 @@ getUserData uid mMaxConvs mMaxNotifs = do
 -- Utilities
 
 instance FromByteString a => Servant.FromHttpApiData [a] where
-  parseUrlPiece = maybe (Left "not a list of a's") (Right . fromList) . fromByteString' . cs
+  parseUrlPiece =
+    maybe (Left "not a list of a's") (Right . fromList)
+      . fromByteString'
+      . fromStrict
+      . T.encodeUtf8
 
 groupByStatus :: [UserConnection] -> UserConnectionGroups
 groupByStatus conns =

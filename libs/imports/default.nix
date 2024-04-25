@@ -11,7 +11,6 @@
 , gitignoreSource
 , lib
 , mtl
-, string-conversions
 , text
 , transformers
 , unliftio
@@ -29,7 +28,6 @@ mkDerivation {
     deepseq
     extra
     mtl
-    string-conversions
     text
     transformers
     unliftio

@@ -24,8 +24,8 @@ module Wire.API.MLS.AuthenticatedContent
   )
 where
 
-import Crypto.PubKey.Ed25519
-import Imports hiding (cs)
+import Crypto.Random.Types
+import Imports
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Context
 import Wire.API.MLS.Epoch
@@ -85,8 +85,15 @@ taggedSenderMembershipTag _ = Nothing
 
 -- | Craft a message with the backend itself as a sender. Return the message and its ref.
 mkSignedPublicMessage ::
-  SecretKey -> PublicKey -> GroupId -> Epoch -> TaggedSender -> FramedContentData -> PublicMessage
-mkSignedPublicMessage priv pub gid epoch sender payload =
+  forall ss m.
+  (IsSignatureScheme ss, MonadRandom m) =>
+  KeyPair ss ->
+  GroupId ->
+  Epoch ->
+  TaggedSender ->
+  FramedContentData ->
+  m PublicMessage
+mkSignedPublicMessage kp gid epoch sender payload = do
   let framedContent =
         mkRawMLS
           FramedContent
@@ -103,9 +110,10 @@ mkSignedPublicMessage priv pub gid epoch sender payload =
             content = framedContent,
             groupContext = Nothing
           }
-      sig = signWithLabel "FramedContentTBS" priv pub (mkRawMLS tbs)
-   in PublicMessage
-        { content = framedContent,
-          authData = mkRawMLS (FramedContentAuthData sig Nothing),
-          membershipTag = taggedSenderMembershipTag sender
-        }
+  sig <- signWithLabel @ss "FramedContentTBS" kp (mkRawMLS tbs)
+  pure
+    PublicMessage
+      { content = framedContent,
+        authData = mkRawMLS (FramedContentAuthData sig Nothing),
+        membershipTag = taggedSenderMembershipTag sender
+      }

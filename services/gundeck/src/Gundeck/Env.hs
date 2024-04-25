@@ -26,6 +26,7 @@ import Control.AutoUpdate
 import Control.Concurrent.Async (Async)
 import Control.Lens (makeLenses, (^.))
 import Control.Retry (capDelay, exponentialBackoff)
+import Data.ByteString.Char8 qualified as BSChar8
 import Data.Metrics.Middleware (Metrics)
 import Data.Misc (Milliseconds (..))
 import Data.Text (unpack)
@@ -74,12 +75,16 @@ createEnv m o = do
           managerResponseTimeout = responseTimeoutMicro 5000000
         }
 
-  (rThread, r) <- createRedisPool l (o ^. redis) "main-redis"
+  redisUsername <- BSChar8.pack <$$> lookupEnv "REDIS_USERNAME"
+  redisPassword <- BSChar8.pack <$$> lookupEnv "REDIS_PASSWORD"
+  (rThread, r) <- createRedisPool l (o ^. redis) redisUsername redisPassword "main-redis"
 
   (rAdditionalThreads, rAdditional) <- case o ^. redisAdditionalWrite of
     Nothing -> pure ([], Nothing)
     Just additionalRedis -> do
-      (rAddThread, rAdd) <- createRedisPool l additionalRedis "additional-write-redis"
+      additionalRedisUsername <- BSChar8.pack <$$> lookupEnv "REDIS_ADDITIONAL_WRITE_USERNAME"
+      addtionalRedisPassword <- BSChar8.pack <$$> lookupEnv "REDIS_ADDITIONAL_WRITE_PASSWORD"
+      (rAddThread, rAdd) <- createRedisPool l additionalRedis additionalRedisUsername addtionalRedisPassword "additional-write-redis"
       pure ([rAddThread], Just rAdd)
 
   p <-
@@ -103,12 +108,14 @@ reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg
 reqIdMsg = ("request" Logger..=) . unRequestId
 {-# INLINE reqIdMsg #-}
 
-createRedisPool :: Logger.Logger -> RedisEndpoint -> ByteString -> IO (Async (), Redis.RobustConnection)
-createRedisPool l ep identifier = do
+createRedisPool :: Logger.Logger -> RedisEndpoint -> Maybe ByteString -> Maybe ByteString -> ByteString -> IO (Async (), Redis.RobustConnection)
+createRedisPool l ep username password identifier = do
   let redisConnInfo =
         Redis.defaultConnectInfo
           { Redis.connectHost = unpack $ ep ^. O.host,
             Redis.connectPort = Redis.PortNumber (fromIntegral $ ep ^. O.port),
+            Redis.connectUsername = username,
+            Redis.connectAuth = password,
             Redis.connectTimeout = Just (secondsToNominalDiffTime 5),
             Redis.connectMaxConnections = 100
           }
@@ -116,10 +123,13 @@ createRedisPool l ep identifier = do
   Log.info l $
     Log.msg (Log.val $ "starting connection to " <> identifier <> "...")
       . Log.field "connectionMode" (show $ ep ^. O.connectionMode)
-      . Log.field "connInfo" (show redisConnInfo)
+      . Log.field "connInfo" (safeShowConnInfo redisConnInfo)
   let connectWithRetry = Redis.connectRobust l (capDelay 1000000 (exponentialBackoff 50000))
   r <- case ep ^. O.connectionMode of
     Master -> connectWithRetry $ Redis.checkedConnect redisConnInfo
     Cluster -> connectWithRetry $ Redis.checkedConnectCluster redisConnInfo
   Log.info l $ Log.msg (Log.val $ "Established connection to " <> identifier <> ".")
   pure r
+
+safeShowConnInfo :: Redis.ConnectInfo -> String
+safeShowConnInfo connInfo = show $ connInfo {Redis.connectAuth = "[REDACTED]" <$ Redis.connectAuth connInfo}

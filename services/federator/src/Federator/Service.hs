@@ -94,7 +94,7 @@ interpretServiceHTTP = interpret $ \case
               path = rpcPath,
               requestHeaders =
                 [ ("Content-Type", "application/json"),
-                  (originDomainHeaderName, cs (domainText domain)),
+                  (originDomainHeaderName, Text.encodeUtf8 (domainText domain)),
                   (RPC.requestIdName, unRequestId rid)
                 ]
                   <> headers

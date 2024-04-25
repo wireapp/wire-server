@@ -35,6 +35,7 @@ import Data.Id
 import Data.Range (unsafeRange)
 import Data.Schema
 import Data.Set qualified as Set
+import Data.String.Conversions
 import GHC.TypeLits
 import Imports
 import Stern.API.Routes (UserConnectionGroups (..))
@@ -402,19 +403,19 @@ testGetUsersByHandles = do
   h <- randomHandle
   void $ setHandle uid h
   [ua] <- getUsersByHandles h
-  liftIO $ ua.accountUser.userId @?= uid
+  liftIO $ userId ua.accountUser @?= uid
 
 testGetUsersByPhone :: TestM ()
 testGetUsersByPhone = do
   (uid, phone) <- randomPhoneUser
   [ua] <- getUsersByPhone phone
-  liftIO $ ua.accountUser.userId @?= uid
+  liftIO $ userId ua.accountUser @?= uid
 
 testGetUsersByEmail :: TestM ()
 testGetUsersByEmail = do
   (uid, email) <- randomEmailUser
   [ua] <- getUsersByEmail email
-  liftIO $ ua.accountUser.userId @?= uid
+  liftIO $ userId ua.accountUser @?= uid
 
 testUnsuspendUser :: TestM ()
 testUnsuspendUser = do
@@ -448,7 +449,7 @@ testGetUsersByIds = do
   uas <- getUsersByIds [uid1, uid2]
   liftIO $ do
     length uas @?= 2
-    Set.fromList ((.accountUser.userId) <$> uas) @?= Set.fromList [uid1, uid2]
+    Set.fromList (userId . (.accountUser) <$> uas) @?= Set.fromList [uid1, uid2]
 
 testGetTeamInfo :: TestM ()
 testGetTeamInfo = do

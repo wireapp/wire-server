@@ -31,6 +31,7 @@ module Wire.API.User.Password
   )
 where
 
+import Cassandra qualified as C
 import Control.Lens ((?~))
 import Data.Aeson qualified as A
 import Data.Aeson.Types (Parser)
@@ -180,6 +181,8 @@ instance ToParamSchema PasswordResetKey where
 instance FromHttpApiData PasswordResetKey where
   parseQueryParam = fmap PasswordResetKey . parseQueryParam
 
+deriving instance C.Cql PasswordResetKey
+
 --------------------------------------------------------------------------------
 -- PasswordResetCode
 
@@ -189,6 +192,8 @@ newtype PasswordResetCode = PasswordResetCode
   deriving stock (Eq, Show, Generic)
   deriving newtype (ToSchema, FromByteString, ToByteString, A.FromJSON, A.ToJSON)
   deriving (Arbitrary) via (Ranged 6 1024 AsciiBase64Url)
+
+deriving instance C.Cql PasswordResetCode
 
 --------------------------------------------------------------------------------
 -- DEPRECATED

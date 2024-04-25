@@ -1,0 +1,13 @@
+{
+    "capabilities": {
+        "capabilities": []
+    },
+    "cookie": "L",
+    "id": "0",
+    "mls_public_keys": {
+        "ed25519": "Wm1GclpTQndkV0pzYVdNZ2EyVjU="
+    },
+    "model": "\u0018",
+    "time": "1864-05-10T18:42:04.137Z",
+    "type": "permanent"
+}

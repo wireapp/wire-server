@@ -21,7 +21,6 @@ module Wire.API.Routes.Internal.Brig
     brigInternalClient,
     runBrigInternalClient,
     IStatusAPI,
-    EJPD_API,
     AccountAPI,
     MLSAPI,
     TeamsAPI,
@@ -31,6 +30,7 @@ module Wire.API.Routes.Internal.Brig
     FederationRemotesAPI,
     EJPDRequest,
     ISearchIndexAPI,
+    ProviderAPI,
     GetAccountConferenceCallingConfig,
     PutAccountConferenceCallingConfig,
     DeleteAccountConferenceCallingConfig,
@@ -156,31 +156,29 @@ type GetAllConnections =
     :> ReqBody '[Servant.JSON] ConnectionsStatusRequestV2
     :> Post '[Servant.JSON] [ConnectionStatusV2]
 
-type EJPD_API =
-  ( EJPDRequest
-      :<|> Named "get-account-conference-calling-config" GetAccountConferenceCallingConfig
-      :<|> PutAccountConferenceCallingConfig
-      :<|> DeleteAccountConferenceCallingConfig
-      :<|> GetAllConnectionsUnqualified
-      :<|> GetAllConnections
-  )
-
 type AccountAPI =
-  -- This endpoint can lead to the following events being sent:
-  -- - UserActivated event to created user, if it is a team invitation or user has an SSO ID
-  -- - UserIdentityUpdated event to created user, if email or phone get activated
-  Named
-    "createUserNoVerify"
-    ( "users"
-        :> MakesFederatedCall 'Brig "on-user-deleted-connections"
-        :> ReqBody '[Servant.JSON] NewUser
-        :> MultiVerb 'POST '[Servant.JSON] RegisterInternalResponses (Either RegisterError SelfProfile)
-    )
+  Named "get-account-conference-calling-config" GetAccountConferenceCallingConfig
+    :<|> PutAccountConferenceCallingConfig
+    :<|> DeleteAccountConferenceCallingConfig
+    :<|> GetAllConnectionsUnqualified
+    :<|> GetAllConnections
+    :<|> Named
+           "createUserNoVerify"
+           -- This endpoint can lead to the following events being sent:
+           -- - UserActivated event to created user, if it is a team invitation or user has an SSO ID
+           -- - UserIdentityUpdated event to created user, if email or phone get activated
+           ( "users"
+               :> MakesFederatedCall 'Brig "on-user-deleted-connections"
+               :> MakesFederatedCall 'Brig "send-connection-action"
+               :> ReqBody '[Servant.JSON] NewUser
+               :> MultiVerb 'POST '[Servant.JSON] RegisterInternalResponses (Either RegisterError SelfProfile)
+           )
     :<|> Named
            "createUserNoVerifySpar"
            ( "users"
                :> "spar"
                :> MakesFederatedCall 'Brig "on-user-deleted-connections"
+               :> MakesFederatedCall 'Brig "send-connection-action"
                :> ReqBody '[Servant.JSON] NewUserSpar
                :> MultiVerb 'POST '[Servant.JSON] CreateUserSparInternalResponses (Either CreateUserSparError SelfProfile)
            )
@@ -530,7 +528,7 @@ type GetVerificationCode =
 type API =
   "i"
     :> ( IStatusAPI
-           :<|> EJPD_API
+           :<|> EJPDRequest
            :<|> AccountAPI
            :<|> MLSAPI
            :<|> GetVerificationCode
@@ -541,6 +539,7 @@ type API =
            :<|> OAuthAPI
            :<|> ISearchIndexAPI
            :<|> FederationRemotesAPI
+           :<|> ProviderAPI
        )
 
 type IStatusAPI =
@@ -679,6 +678,7 @@ type AuthAPI =
     "legalhold-login"
     ( "legalhold-login"
         :> MakesFederatedCall 'Brig "on-user-deleted-connections"
+        :> MakesFederatedCall 'Brig "send-connection-action"
         :> ReqBody '[JSON] LegalHoldLogin
         :> MultiVerb1 'POST '[JSON] TokenResponse
     )
@@ -686,6 +686,7 @@ type AuthAPI =
            "sso-login"
            ( "sso-login"
                :> MakesFederatedCall 'Brig "on-user-deleted-connections"
+               :> MakesFederatedCall 'Brig "send-connection-action"
                :> ReqBody '[JSON] SsoLogin
                :> QueryParam' [Optional, Strict] "persist" Bool
                :> MultiVerb1 'POST '[JSON] TokenResponse
@@ -766,6 +767,17 @@ type FederationRemotesAPI =
                :> Capture "team" TeamId
                :> Delete '[JSON] ()
            )
+
+type ProviderAPI =
+  ( Named
+      "get-provider-activation-code"
+      ( Summary "Retrieve activation code via api instead of email (for testing only)"
+          :> "provider"
+          :> "activation-code"
+          :> QueryParam' '[Required, Strict] "email" Email
+          :> MultiVerb1 'GET '[JSON] (Respond 200 "" Code.KeyValuePair)
+      )
+  )
 
 type FederationRemotesAPIDescription =
   "See https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections for background. "

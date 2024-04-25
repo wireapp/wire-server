@@ -65,6 +65,7 @@ import Data.Range
 import Data.Serialize (runPut)
 import Data.Set qualified as Set
 import Data.Singletons
+import Data.String.Conversions
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as T
 import Data.Text.Encoding qualified as Text
@@ -81,7 +82,6 @@ import Galley.Intra.User (chunkify)
 import Galley.Options qualified as Opts
 import Galley.Run qualified as Run
 import Galley.Types.Conversations.One2One
-import Galley.Types.Teams qualified as Team
 import Galley.Types.UserList
 import Imports
 import Network.HTTP.Client qualified as HTTP
@@ -145,7 +145,7 @@ import Wire.API.Team.Member hiding (userId)
 import Wire.API.Team.Member qualified as Team
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.Team.Role
-import Wire.API.User hiding (AccountStatus (..))
+import Wire.API.User as User hiding (AccountStatus (..))
 import Wire.API.User.Auth hiding (Access)
 import Wire.API.User.Client
 import Wire.API.User.Client qualified as Client
@@ -194,12 +194,12 @@ symmPermissions p = let s = Set.fromList p in fromJust (newPermissions s s)
 
 createBindingTeam :: HasCallStack => TestM (UserId, TeamId)
 createBindingTeam = do
-  first Wire.API.User.userId <$> createBindingTeam'
+  first User.userId <$> createBindingTeam'
 
 createBindingTeam' :: HasCallStack => TestM (User, TeamId)
 createBindingTeam' = do
   owner <- randomTeamCreator'
-  teams <- getTeams owner.userId []
+  teams <- getTeams (User.userId owner) []
   team <- assertOne $ view teamListTeams teams
   let tid = view teamId team
   SQS.assertTeamActivate "create team" tid
@@ -457,7 +457,7 @@ addUserToTeamWithRole :: HasCallStack => Maybe Role -> UserId -> TeamId -> TestM
 addUserToTeamWithRole role inviter tid = do
   (inv, rsp2) <- addUserToTeamWithRole' role inviter tid
   let invitee :: User = responseJsonUnsafe rsp2
-      inviteeId = invitee.userId
+      inviteeId = User.userId invitee
   let invmeta = Just (inviter, inCreatedAt inv)
   mem <- getTeamMember inviter tid inviteeId
   liftIO $ assertEqual "Member has no/wrong invitation metadata" invmeta (mem ^. Team.invitation)
@@ -485,7 +485,7 @@ addUserToTeamWithRole' role inviter tid = do
 addUserToTeamWithSSO :: HasCallStack => Bool -> TeamId -> TestM TeamMember
 addUserToTeamWithSSO hasEmail tid = do
   let ssoid = UserSSOId mkSimpleSampleUref
-  uid <- fmap (\(u :: User) -> u.userId) $ responseJsonError =<< postSSOUser "SSO User" hasEmail ssoid tid
+  uid <- fmap (\(u :: User) -> User.userId u) $ responseJsonError =<< postSSOUser "SSO User" hasEmail ssoid tid
   getTeamMember uid tid uid
 
 makeOwner :: HasCallStack => UserId -> TeamMember -> TeamId -> TestM ()
@@ -2175,7 +2175,7 @@ ephemeralUser = do
   let p = object ["name" .= name]
   r <- post (b . path "/register" . json p) <!! const 201 === statusCode
   user <- responseJsonError r
-  pure $ Wire.API.User.userId user
+  pure $ User.userId user
 
 randomClient :: HasCallStack => UserId -> LastPrekey -> TestM ClientId
 randomClient uid lk = randomClientWithCaps uid lk Nothing
@@ -2676,11 +2676,13 @@ withTempMockFederator' ::
   m b ->
   m (b, [FederatedRequest])
 withTempMockFederator' resp action = do
-  let mock = runMock (assertFailure . Text.unpack) $ do
-        r <- resp
-        pure ("application" // "json", r)
+  let mock =
+        def
+          { handler = runMock (assertFailure . Text.unpack) $ do
+              r <- resp
+              pure ("application" // "json", r)
+          }
   Mock.withTempMockFederator
-    [("Content-Type", "application/json")]
     mock
     $ \mockPort -> do
       withSettingsOverrides (\opts -> opts & Opts.federator ?~ Endpoint "127.0.0.1" (fromIntegral mockPort)) action
@@ -2895,23 +2897,18 @@ iUpsertOne2OneConversation req = do
 
 createOne2OneConvWithRemote :: HasCallStack => Local UserId -> Remote UserId -> TestM ()
 createOne2OneConvWithRemote localUser remoteUser = do
-  let mkRequest actor mConvId =
+  let convId = one2OneConvId BaseProtocolProteusTag (tUntagged localUser) (tUntagged remoteUser)
+      mkRequest actor =
         UpsertOne2OneConversationRequest
           { uooLocalUser = localUser,
             uooRemoteUser = remoteUser,
             uooActor = actor,
             uooActorDesiredMembership = Included,
-            uooConvId = mConvId
+            uooConvId = convId
           }
-  ooConvId <-
-    fmap uuorConvId
-      . responseJsonError
-      =<< iUpsertOne2OneConversation (mkRequest LocalActor Nothing)
-        <!! const 200
-          === statusCode
-  iUpsertOne2OneConversation (mkRequest RemoteActor (Just ooConvId))
-    !!! const 200
-      === statusCode
+
+  iUpsertOne2OneConversation (mkRequest LocalActor) !!! const 200 === statusCode
+  iUpsertOne2OneConversation (mkRequest RemoteActor) !!! const 200 === statusCode
 
 generateRemoteAndConvId :: Bool -> Local UserId -> TestM (Remote UserId, Qualified ConvId)
 generateRemoteAndConvId = generateRemoteAndConvIdWithDomain (Domain "far-away.example.com")
