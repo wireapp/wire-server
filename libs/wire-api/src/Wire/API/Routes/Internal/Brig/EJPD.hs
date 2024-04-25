@@ -120,8 +120,8 @@ deriving via
     OpenAPI.ToSchema EJPDResponseBody
 
 -- FUTUREWORK(mangoiv): we probably want to write a proper schema for this; the issue here was that
--- (a, b) was serialized/ deserialized as Array with Aeson; schema-profunctor lacks support for this
--- but it should be added eventually (similaly to object, there should be a list / array combinator
+-- (a, b) was serialized / deserialized as Array with Aeson; schema-profunctor lacks support for this
+-- but it should be added eventually (similarly to object, there should be a list / array combinator
 -- that just wraps into Array or uses the Aeson parser to deserialize from a list)
 instance ToSchema EJPDResponseItem where
   schema = mkSchema (swaggerDoc @EJPDResponseItem) (Aeson.parseJSON) (Just . Aeson.toJSON)
