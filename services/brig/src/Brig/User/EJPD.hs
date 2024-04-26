@@ -62,14 +62,14 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
   ExceptT $ Right . EJPDResponseBody . catMaybes <$> forM handles responseItemForHandle
   where
     -- find uid given handle
-    responseItemForHandle :: Handle -> (AppT r) (Maybe EJPDResponseItem)
+    responseItemForHandle :: Handle -> (AppT r) (Maybe EJPDResponseItemRoot)
     responseItemForHandle hdl = do
       mbUid <- wrapClient $ lookupHandle hdl
       mbUsr <- maybe (pure Nothing) (wrapClient . lookupUser NoPendingInvitations) mbUid
       maybe (pure Nothing) (fmap Just . responseItemForExistingUser includeContacts) mbUsr
 
     -- construct response item given uid
-    responseItemForExistingUser :: Bool -> User -> (AppT r) EJPDResponseItem
+    responseItemForExistingUser :: Bool -> User -> (AppT r) EJPDResponseItemRoot
     responseItemForExistingUser reallyIncludeContacts target = do
       let uid = userId target
       luid <- qualifyLocal uid
@@ -88,7 +88,7 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
               catMaybes <$> do
                 forM contacts $ \(uid', relationDropHistory -> rel) -> do
                   mbUsr <- wrapClient $ lookupUser NoPendingInvitations uid' -- FUTUREWORK: use polysemy effect, not wrapClient
-                  maybe (pure Nothing) (fmap (Just . EJPDContactFound rel) . responseItemForExistingUser False) mbUsr
+                  maybe (pure Nothing) (fmap (Just . EJPDContactFound rel . toEJPDResponseItemLeaf) . responseItemForExistingUser False) mbUsr
 
             pure . Just . Set.fromList $ localContacts
           else do
@@ -105,7 +105,12 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
                 mbUsr <- wrapClient $ lookupUser NoPendingInvitations uid'
                 maybe (pure Nothing) (fmap Just . responseItemForExistingUser False) mbUsr
 
-            pure . Just . (,Team.toNewListType (memberList ^. Team.teamMemberListType)) . Set.fromList . catMaybes $ contactsFull
+            let listType = Team.toNewListType (memberList ^. Team.teamMemberListType)
+
+            pure . Just $
+              EJPDTeamContacts
+                (Set.fromList $ toEJPDResponseItemLeaf <$> catMaybes contactsFull)
+                listType
           _ -> do
             pure Nothing
 
@@ -133,16 +138,16 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
           something -> Just (Set.fromList something)
 
       pure $
-        EJPDResponseItem
-          { ejpdResponseUserId = tUntagged luid,
-            ejpdResponseTeamId = userTeam target,
-            ejpdResponseName = userDisplayName target,
-            ejpdResponseHandle = userHandle target,
-            ejpdResponseEmail = userEmail target,
-            ejpdResponsePhone = userPhone target,
-            ejpdResponsePushTokens = Set.fromList ptoks,
-            ejpdResponseContacts = mbContacts,
-            ejpdResponseTeamContacts = mbTeamContacts,
-            ejpdResponseConversations = mbConversations,
-            ejpdResponseAssets = mbAssets
+        EJPDResponseItemRoot
+          { ejpdResponseRootUserId = tUntagged luid,
+            ejpdResponseRootTeamId = userTeam target,
+            ejpdResponseRootName = userDisplayName target,
+            ejpdResponseRootHandle = userHandle target,
+            ejpdResponseRootEmail = userEmail target,
+            ejpdResponseRootPhone = userPhone target,
+            ejpdResponseRootPushTokens = Set.fromList ptoks,
+            ejpdResponseRootContacts = mbContacts,
+            ejpdResponseRootTeamContacts = mbTeamContacts,
+            ejpdResponseRootConversations = mbConversations,
+            ejpdResponseRootAssets = mbAssets
           }

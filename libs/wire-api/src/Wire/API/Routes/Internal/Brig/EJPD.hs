@@ -1,6 +1,4 @@
--- see https://gitlab.haskell.org/ghc/ghc/-/issues/24710
-{-# LANGUAGE TemplateHaskell #-}
-{-# OPTIONS_GHC -Wno-partial-fields #-}
+{-# LANGUAGE RecordWildCards #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -25,20 +23,22 @@
 module Wire.API.Routes.Internal.Brig.EJPD
   ( EJPDRequestBody (EJPDRequestBody, ejpdRequestBody),
     EJPDResponseBody (EJPDResponseBody, ejpdResponseBody),
-    EJPDResponseItem (..),
+    EJPDResponseItemRoot (..),
+    EJPDResponseItemLeaf (..),
     EJPDConvInfo (..),
     EJPDContact (..),
+    EJPDTeamContacts (..),
+    toEJPDResponseItemLeaf,
   )
 where
 
-import Control.Lens (makePrisms)
 import Data.Aeson qualified as Aeson
 import Data.Handle (Handle)
 import Data.Id (ConvId, TeamId, UserId)
 import Data.OpenApi qualified as OpenAPI
 import Data.Qualified
 import Data.Schema
-import Deriving.Swagger qualified as S (CamelToSnake, CustomSwagger (..), FieldLabelModifier, StripSuffix)
+import Data.Set as Set
 import Imports hiding (head)
 import Test.QuickCheck (Arbitrary)
 import Wire.API.Connection (Relation)
@@ -50,32 +50,131 @@ import Wire.Arbitrary (GenericUniform (..))
 newtype EJPDRequestBody = EJPDRequestBody {ejpdRequestBody :: [Handle]}
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform EJPDRequestBody)
-  deriving (OpenAPI.ToSchema) via S.CustomSwagger '[S.FieldLabelModifier (S.CamelToSnake, S.StripSuffix "_body")] EJPDRequestBody
+  deriving (Aeson.ToJSON, Aeson.FromJSON, OpenAPI.ToSchema) via (Schema EJPDRequestBody)
 
-newtype EJPDResponseBody = EJPDResponseBody {ejpdResponseBody :: [EJPDResponseItem]}
+newtype EJPDResponseBody = EJPDResponseBody {ejpdResponseBody :: [EJPDResponseItemRoot]}
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform EJPDResponseBody)
+  deriving (Aeson.ToJSON, Aeson.FromJSON, OpenAPI.ToSchema) via (Schema EJPDResponseBody)
 
-data EJPDResponseItem = EJPDResponseItem
-  { ejpdResponseUserId :: Qualified UserId,
-    ejpdResponseTeamId :: Maybe TeamId,
-    ejpdResponseName :: Name,
-    ejpdResponseHandle :: Maybe Handle,
-    ejpdResponseEmail :: Maybe Email,
-    ejpdResponsePhone :: Maybe Phone,
-    ejpdResponsePushTokens :: Set Text, -- 'Wire.API.Push.V2.Token.Token', but that would produce an orphan instance.
-    ejpdResponseContacts :: Maybe (Set EJPDContact),
-    ejpdResponseTeamContacts :: Maybe (Set EJPDResponseItem, NewListType),
-    ejpdResponseConversations :: Maybe (Set EJPDConvInfo),
-    ejpdResponseAssets :: Maybe (Set Text) -- urls pointing to s3 resources
+data EJPDResponseItemRoot = EJPDResponseItemRoot
+  { ejpdResponseRootUserId :: Qualified UserId,
+    ejpdResponseRootTeamId :: Maybe TeamId,
+    ejpdResponseRootName :: Name,
+    ejpdResponseRootHandle :: Maybe Handle,
+    ejpdResponseRootEmail :: Maybe Email,
+    ejpdResponseRootPhone :: Maybe Phone,
+    ejpdResponseRootPushTokens :: Set Text, -- 'Wire.API.Push.V2.Token.Token', but that would produce an orphan instance.
+    ejpdResponseRootContacts :: Maybe (Set EJPDContact),
+    ejpdResponseRootTeamContacts :: Maybe EJPDTeamContacts,
+    ejpdResponseRootConversations :: Maybe (Set EJPDConvInfo),
+    ejpdResponseRootAssets :: Maybe (Set Text) -- urls pointing to s3 resources
   }
   deriving stock (Eq, Ord, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform EJPDResponseItem)
+  deriving (Arbitrary) via (GenericUniform EJPDResponseItemRoot)
+
+data EJPDResponseItemLeaf = EJPDResponseItemLeaf
+  { ejpdResponseLeafUserId :: Qualified UserId,
+    ejpdResponseLeafTeamId :: Maybe TeamId,
+    ejpdResponseLeafName :: Name,
+    ejpdResponseLeafHandle :: Maybe Handle,
+    ejpdResponseLeafEmail :: Maybe Email,
+    ejpdResponseLeafPhone :: Maybe Phone,
+    ejpdResponseLeafPushTokens :: Set Text, -- 'Wire.API.Push.V2.Token.Token', but that would produce an orphan instance.
+    ejpdResponseLeafConversations :: Maybe (Set EJPDConvInfo),
+    ejpdResponseLeafAssets :: Maybe (Set Text) -- urls pointing to s3 resources
+  }
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform EJPDResponseItemLeaf)
+
+data EJPDContact
+  = -- | local or remote contact with relation
+    EJPDContactFound
+    { ejpdContactRelation :: Relation,
+      ejpdContactFound :: EJPDResponseItemLeaf
+    }
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform EJPDContact)
+  deriving (Aeson.ToJSON, Aeson.FromJSON, OpenAPI.ToSchema) via Schema EJPDContact
+
+data EJPDTeamContacts = EJPDTeamContacts
+  { ejpdTeamContacts :: Set EJPDResponseItemLeaf,
+    ejpdTeamContactsListType :: NewListType
+  }
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform EJPDTeamContacts)
 
 data EJPDConvInfo = EJPDConvInfo {ejpdConvName :: Text, ejpdConvId :: Qualified ConvId}
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform EJPDConvInfo)
   deriving (Aeson.ToJSON, Aeson.FromJSON, OpenAPI.ToSchema) via Schema EJPDConvInfo
+
+----------------------------------------------------------------------
+
+toEJPDResponseItemLeaf :: EJPDResponseItemRoot -> EJPDResponseItemLeaf
+toEJPDResponseItemLeaf EJPDResponseItemRoot {..} =
+  EJPDResponseItemLeaf
+    { ejpdResponseLeafUserId = ejpdResponseRootUserId,
+      ejpdResponseLeafTeamId = ejpdResponseRootTeamId,
+      ejpdResponseLeafName = ejpdResponseRootName,
+      ejpdResponseLeafHandle = ejpdResponseRootHandle,
+      ejpdResponseLeafEmail = ejpdResponseRootEmail,
+      ejpdResponseLeafPhone = ejpdResponseRootPhone,
+      ejpdResponseLeafPushTokens = ejpdResponseRootPushTokens,
+      ejpdResponseLeafConversations = ejpdResponseRootConversations,
+      ejpdResponseLeafAssets = ejpdResponseRootAssets
+    }
+
+----------------------------------------------------------------------
+
+instance ToSchema EJPDRequestBody where
+  schema = object "EJPDRequestBody" do
+    EJPDRequestBody <$> ejpdRequestBody .= field "EJPDRequest" (array schema)
+
+instance ToSchema EJPDResponseBody where
+  schema = object "EJPDResponseBody" do
+    EJPDResponseBody <$> ejpdResponseBody .= field "EJPDResponse" (array schema)
+
+instance ToSchema EJPDResponseItemRoot where
+  schema = object "EJPDResponseItemRoot" do
+    EJPDResponseItemRoot
+      <$> ejpdResponseRootUserId .= field "UserId" schema
+      <*> ejpdResponseRootTeamId .= maybe_ (optField "TeamId" schema)
+      <*> ejpdResponseRootName .= field "Name" schema
+      <*> ejpdResponseRootHandle .= maybe_ (optField "Handle" schema)
+      <*> ejpdResponseRootEmail .= maybe_ (optField "Email" schema)
+      <*> ejpdResponseRootPhone .= maybe_ (optField "Phone" schema)
+      <*> (Set.toList . ejpdResponseRootPushTokens) .= (Set.fromList <$> field "PushTokens" (array schema))
+      <*> (fmap Set.toList . ejpdResponseRootContacts) .= (Set.fromList <$$> maybe_ (optField "Contacts" (array schema)))
+      <*> ejpdResponseRootTeamContacts .= maybe_ (optField "TeamContacts" schema)
+      <*> (fmap Set.toList . ejpdResponseRootConversations) .= (Set.fromList <$$> maybe_ (optField "Conversations" (array schema)))
+      <*> (fmap Set.toList . ejpdResponseRootAssets) .= (Set.fromList <$$> maybe_ (optField "Assets" (array schema)))
+
+instance ToSchema EJPDResponseItemLeaf where
+  schema = object "EJPDResponseItemLeaf" do
+    EJPDResponseItemLeaf
+      <$> ejpdResponseLeafUserId .= field "UserId" schema
+      <*> ejpdResponseLeafTeamId .= maybe_ (optField "TeamId" schema)
+      <*> ejpdResponseLeafName .= field "Name" schema
+      <*> ejpdResponseLeafHandle .= maybe_ (optField "Handle" schema)
+      <*> ejpdResponseLeafEmail .= maybe_ (optField "Email" schema)
+      <*> ejpdResponseLeafPhone .= maybe_ (optField "Phone" schema)
+      <*> (Set.toList . ejpdResponseLeafPushTokens) .= (Set.fromList <$> field "PushTokens" (array schema))
+      <*> (fmap Set.toList . ejpdResponseLeafConversations) .= (Set.fromList <$$> maybe_ (optField "Conversations" (array schema)))
+      <*> (fmap Set.toList . ejpdResponseLeafAssets) .= (Set.fromList <$$> maybe_ (optField "Assets" (array schema)))
+
+instance ToSchema EJPDContact where
+  schema =
+    object "EJDPContact" do
+      EJPDContactFound
+        <$> ejpdContactRelation .= field "contact_relation" schema
+        <*> ejpdContactFound .= field "contact_item" schema
+
+instance ToSchema EJPDTeamContacts where
+  schema = object "EJPDTeamContacts" do
+    EJPDTeamContacts
+      <$> (Set.toList . ejpdTeamContacts) .= (Set.fromList <$> field "TeamContacts" (array schema))
+      <*> ejpdTeamContactsListType .= field "ListType" schema
 
 instance ToSchema EJPDConvInfo where
   schema =
@@ -83,88 +182,3 @@ instance ToSchema EJPDConvInfo where
       EJPDConvInfo
         <$> ejpdConvName .= field "conv_name" schema
         <*> ejpdConvId .= field "conv_id" schema
-
-data EJPDContact
-  = -- | local or remote contact with relation
-    EJPDContactFound
-    { ejpdContactRelation :: Relation,
-      ejpdContactFound :: EJPDResponseItem
-    }
-  deriving stock (Eq, Ord, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform EJPDContact)
-
-$(makePrisms ''EJPDContact)
-
-instance ToSchema EJPDContact where
-  schema = named "EJDPContact" do
-    tag _EJPDContactFound contactFoundSchema
-    where
-      contactFoundSchema :: ValueSchema SwaggerDoc (Relation, EJPDResponseItem)
-      contactFoundSchema = unnamed $ object "Object" do
-        (,) <$> fst .= field "contact_relation" schema <*> snd .= field "contact_item" schema
-
-deriving via Schema EJPDContact instance Aeson.ToJSON EJPDContact
-
-deriving via Schema EJPDContact instance Aeson.FromJSON EJPDContact
-
-deriving via Schema EJPDContact instance OpenAPI.ToSchema EJPDContact
-
-deriving via
-  S.CustomSwagger '[S.FieldLabelModifier S.CamelToSnake] EJPDResponseItem
-  instance
-    OpenAPI.ToSchema EJPDResponseItem
-
-deriving via
-  S.CustomSwagger '[S.FieldLabelModifier (S.CamelToSnake, S.StripSuffix "_body")] EJPDResponseBody
-  instance
-    OpenAPI.ToSchema EJPDResponseBody
-
--- FUTUREWORK(mangoiv): we probably want to write a proper schema for this; the issue here was that
--- (a, b) was serialized / deserialized as Array with Aeson; schema-profunctor lacks support for this
--- but it should be added eventually (similarly to object, there should be a list / array combinator
--- that just wraps into Array or uses the Aeson parser to deserialize from a list)
-instance ToSchema EJPDResponseItem where
-  schema = mkSchema (swaggerDoc @EJPDResponseItem) (Aeson.parseJSON) (Just . Aeson.toJSON)
-
-instance Aeson.ToJSON EJPDResponseItem where
-  toJSON rspi =
-    Aeson.object
-      [ "ejpd_response_user_id" Aeson..= ejpdResponseUserId rspi,
-        "ejpd_response_team_id" Aeson..= ejpdResponseTeamId rspi,
-        "ejpd_response_name" Aeson..= ejpdResponseName rspi,
-        "ejpd_response_handle" Aeson..= ejpdResponseHandle rspi,
-        "ejpd_response_email" Aeson..= ejpdResponseEmail rspi,
-        "ejpd_response_phone" Aeson..= ejpdResponsePhone rspi,
-        "ejpd_response_push_tokens" Aeson..= ejpdResponsePushTokens rspi,
-        "ejpd_response_contacts" Aeson..= ejpdResponseContacts rspi,
-        "ejpd_response_team_contacts" Aeson..= ejpdResponseTeamContacts rspi,
-        "ejpd_response_conversations" Aeson..= ejpdResponseConversations rspi,
-        "ejpd_response_assets" Aeson..= ejpdResponseAssets rspi
-      ]
-
-instance Aeson.FromJSON EJPDResponseItem where
-  parseJSON = Aeson.withObject "EJPDResponseItem" $ \obj ->
-    EJPDResponseItem
-      <$> obj Aeson..: "ejpd_response_user_id"
-      <*> obj Aeson..:? "ejpd_response_team_id"
-      <*> obj Aeson..: "ejpd_response_name"
-      <*> obj Aeson..:? "ejpd_response_handle"
-      <*> obj Aeson..:? "ejpd_response_email"
-      <*> obj Aeson..:? "ejpd_response_phone"
-      <*> obj Aeson..: "ejpd_response_push_tokens"
-      <*> obj Aeson..:? "ejpd_response_contacts"
-      <*> obj Aeson..:? "ejpd_response_team_contacts"
-      <*> obj Aeson..:? "ejpd_response_conversations"
-      <*> obj Aeson..:? "ejpd_response_assets"
-
-instance Aeson.ToJSON EJPDRequestBody where
-  toJSON (EJPDRequestBody hs) = Aeson.object ["ejpd_request" Aeson..= hs]
-
-instance Aeson.FromJSON EJPDRequestBody where
-  parseJSON = Aeson.withObject "EJPDRequestBody" $ EJPDRequestBody <$$> (Aeson..: "ejpd_request")
-
-instance Aeson.ToJSON EJPDResponseBody where
-  toJSON (EJPDResponseBody is) = Aeson.object ["ejpd_response" Aeson..= is]
-
-instance Aeson.FromJSON EJPDResponseBody where
-  parseJSON = Aeson.withObject "EJPDResponseBody" $ EJPDResponseBody <$$> (Aeson..: "ejpd_response")
