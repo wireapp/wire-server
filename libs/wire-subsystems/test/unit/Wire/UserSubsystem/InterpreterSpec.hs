@@ -281,7 +281,6 @@ data SubsystemOperationList where
 
 infixr 5 :::
 
-{- ORMOLU_DISABLE -}
 lookupSubsystemOperation ::
   Typeable a =>
   -- | The type to compare to
@@ -312,7 +311,6 @@ instance FederationMonad MiniFederationMonad where
         (Brig, "get-users-by-ids", miniGetUsersByIds)
           ::: (Brig, "get-user-by-id", miniGetUserById)
           ::: TNil
-{- ORMOLU_ENABLE -}
 
 miniLocale :: Locale
 miniLocale =
