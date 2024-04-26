@@ -235,7 +235,7 @@ testEjpdInfo = do
   h <- randomHandle
   void $ setHandle uid h
   info <- ejpdInfo True [Handle h]
-  liftIO $ fmap (.ejpdResponseHandle) info.ejpdResponseBody @?= [Just (Handle h)]
+  liftIO $ fmap (.ejpdResponseRootHandle) info.ejpdResponseBody @?= [Just (Handle h)]
 
 testUserBlacklist :: TestM ()
 testUserBlacklist = do
