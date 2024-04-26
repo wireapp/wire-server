@@ -182,16 +182,18 @@ getLocalUserProfile emailVisibilityConfigWithViewer luid = do
     guard $ not (hasPendingInvitation storedUser)
     let user = mkUserFromStored domain locale storedUser
         usrProfile = mkUserProfile emailVisibilityConfigWithViewer user UserLegalHoldDisabled
-    case user.userExpire of
-      Nothing -> pure usrProfile
-      Just (fromUTCTimeMillis -> e) -> do
-        t <- lift $ Now.get
-        -- ephemeral users past their expiry date are deleted
-        when (diffUTCTime e t < 0) $
-          lift $
-            enqueueUserDeletion . qUnqualified $
-              user.userQualifiedId
-        pure usrProfile
+    lift $ deleteLocalIfExpired user
+    pure usrProfile
+
+-- | ephemeral users past their expiry date are queued for deletion
+deleteLocalIfExpired :: forall r. (Member DeleteQueue r, Member Now r) => User -> Sem r ()
+deleteLocalIfExpired user =
+  case user.userExpire of
+    Nothing -> pure ()
+    Just (fromUTCTimeMillis -> e) -> do
+      t <- Now.get
+      when (diffUTCTime e t < 0) $
+        enqueueUserDeletion (qUnqualified user.userQualifiedId)
 
 getUserProfilesWithErrorsImpl ::
   forall r fedM.
