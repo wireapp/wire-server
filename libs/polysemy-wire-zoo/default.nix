@@ -8,6 +8,7 @@
 , bytestring
 , cassandra-util
 , containers
+, crypton
 , gitignoreSource
 , HsOpenSSL
 , hspec
@@ -36,6 +37,7 @@ mkDerivation {
     base
     bytestring
     cassandra-util
+    crypton
     HsOpenSSL
     hspec
     imports

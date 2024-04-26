@@ -153,6 +153,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member LegalHoldStore r,
       Member MemberStore r,
       Member ProposalStore r,
+      Member Random r,
       Member SubConversationStore r,
       Member TeamStore r,
       Member TinyLog r,
@@ -170,6 +171,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member (Input Env) r,
       Member ProposalStore r,
       Member SubConversationStore r,
+      Member Random r,
       Member TinyLog r
     )
   HasConversationActionEffects 'ConversationRemoveMembersTag r =
@@ -183,6 +185,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member FederatorAccess r,
       Member GundeckAccess r,
       Member (Error InternalError) r,
+      Member Random r,
       Member TinyLog r,
       Member (Error NoChanges) r
     )
@@ -228,7 +231,8 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member TinyLog r,
       Member (Input UTCTime) r,
       Member ConversationStore r,
-      Member SubConversationStore r
+      Member SubConversationStore r,
+      Member Random r
     )
   HasConversationActionEffects 'ConversationMessageTimerUpdateTag r =
     ( Member ConversationStore r,
@@ -255,6 +259,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member (Input UTCTime) r,
       Member MemberStore r,
       Member ProposalStore r,
+      Member Random r,
       Member SubConversationStore r,
       Member TeamFeatureStore r,
       Member TeamStore r,
@@ -1039,7 +1044,8 @@ kickMember ::
     Member (Input Env) r,
     Member MemberStore r,
     Member SubConversationStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member Random r
   ) =>
   Qualified UserId ->
   Local Conversation ->

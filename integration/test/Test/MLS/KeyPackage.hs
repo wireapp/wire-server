@@ -54,12 +54,9 @@ testKeyPackageMultipleCiphersuites = do
 testKeyPackageUploadNoKey :: App ()
 testKeyPackageUploadNoKey = do
   alice <- randomUser OwnDomain def
-  alice1 <- do
-    cid <- createWireClient alice
-    initMLSClient def cid
-    pure cid
+  alice1 <- createWireClient alice
 
-  (kp, _) <- generateKeyPackage alice1 def
+  (kp, _) <- generateKeyPackage alice1
 
   -- if we upload a keypackage without a key,
   -- we get a bad request
@@ -184,6 +181,7 @@ testKeyPackageRemoteClaim = do
 
 testKeyPackageCount :: HasCallStack => Ciphersuite -> App ()
 testKeyPackageCount cs = do
+  setMLSCiphersuite cs
   alice <- randomUser OwnDomain def
   alice1 <- createMLSClient def alice
 
@@ -192,7 +190,7 @@ testKeyPackageCount cs = do
     resp.json %. "count" `shouldMatchInt` 0
 
   let count = 10
-  kps <- map fst <$> replicateM count (generateKeyPackage alice1 cs)
+  kps <- map fst <$> replicateM count (generateKeyPackage alice1)
   void $ uploadKeyPackages alice1 kps >>= getBody 201
 
   bindResponse (countKeyPackages cs alice1) $ \resp -> do
@@ -201,11 +199,11 @@ testKeyPackageCount cs = do
 
 testUnsupportedCiphersuite :: HasCallStack => App ()
 testUnsupportedCiphersuite = do
-  let suite = Ciphersuite "0x0002"
+  let suite = Ciphersuite "0x0003"
   setMLSCiphersuite suite
   bob <- randomUser OwnDomain def
   bob1 <- createMLSClient def bob
-  (kp, _) <- generateKeyPackage bob1 suite
+  (kp, _) <- generateKeyPackage bob1
   bindResponse (uploadKeyPackages bob1 [kp]) $ \resp -> do
     resp.status `shouldMatchInt` 400
     resp.json %. "label" `shouldMatch` "mls-protocol-error"
@@ -223,12 +221,12 @@ testReplaceKeyPackages = do
 
   -- setup: upload a batch of key packages for each ciphersuite
   void $
-    replicateM 4 (fmap fst (generateKeyPackage alice1 def))
+    replicateM 4 (fmap fst (generateKeyPackage alice1))
       >>= uploadKeyPackages alice1
       >>= getBody 201
   setMLSCiphersuite suite
   void $
-    replicateM 5 (fmap fst (generateKeyPackage alice1 suite))
+    replicateM 5 (fmap fst (generateKeyPackage alice1))
       >>= uploadKeyPackages alice1
       >>= getBody 201
 
@@ -237,7 +235,7 @@ testReplaceKeyPackages = do
 
   do
     -- generate a new batch of key packages
-    (kps, refs) <- unzip <$> replicateM 3 (generateKeyPackage alice1 suite)
+    (kps, refs) <- unzip <$> replicateM 3 (generateKeyPackage alice1)
 
     -- replace old key packages with new
     void $ replaceKeyPackages alice1 [suite] kps >>= getBody 201
@@ -262,7 +260,7 @@ testReplaceKeyPackages = do
   do
     -- replenish key packages for the second ciphersuite
     void $
-      replicateM 5 (fmap fst (generateKeyPackage alice1 suite))
+      replicateM 5 (fmap fst (generateKeyPackage alice1))
         >>= uploadKeyPackages alice1
         >>= getBody 201
 
@@ -270,8 +268,10 @@ testReplaceKeyPackages = do
     checkCount suite 5
 
     -- replace all key packages with fresh ones
-    kps1 <- replicateM 2 (fmap fst (generateKeyPackage alice1 def))
-    kps2 <- replicateM 2 (fmap fst (generateKeyPackage alice1 suite))
+    setMLSCiphersuite def
+    kps1 <- replicateM 2 (fmap fst (generateKeyPackage alice1))
+    setMLSCiphersuite suite
+    kps2 <- replicateM 2 (fmap fst (generateKeyPackage alice1))
 
     void $ replaceKeyPackages alice1 [def, suite] (kps1 <> kps2) >>= getBody 201
 

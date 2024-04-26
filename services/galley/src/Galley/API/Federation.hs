@@ -136,6 +136,7 @@ onClientRemoved ::
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member Random r,
     Member SubConversationStore r,
     Member TinyLog r
   ) =>
@@ -256,6 +257,7 @@ leaveConversation ::
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member Random r,
     Member SubConversationStore r,
     Member TinyLog r
   ) =>
@@ -404,6 +406,7 @@ onUserDeleted ::
     Member (Input Env) r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member Random r,
     Member SubConversationStore r,
     Member TinyLog r
   ) =>
@@ -471,6 +474,7 @@ updateConversation ::
     Member TeamStore r,
     Member TinyLog r,
     Member ConversationStore r,
+    Member Random r,
     Member SubConversationStore r,
     Member TeamFeatureStore r,
     Member (Input (Local ())) r
@@ -590,6 +594,7 @@ sendMLSCommitBundle ::
     Member Resource r,
     Member TeamStore r,
     Member P.TinyLog r,
+    Member Random r,
     Member SubConversationStore r,
     Member ProposalStore r
   ) =>

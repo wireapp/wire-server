@@ -85,6 +85,7 @@ library
     , base             >=4.6 && <5.0
     , bytestring
     , cassandra-util
+    , crypton
     , HsOpenSSL
     , hspec
     , imports
