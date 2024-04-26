@@ -17,6 +17,7 @@ import Data.Aeson.Lens
 import Data.String.Conversions (cs)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
+import Debug.Trace (traceM)
 import qualified Network.Wreq as Wreq
 import SetupHelpers
 import Testlib.JSON
@@ -145,19 +146,19 @@ setupEJPD =
         result =
           object
             [ -- (We know we have "id", but using ^? instead of ^. avoids the need for a Monoid instance for Value.)
-              "ejpd_response_user_id" .= (usr ^? key (fromString "qualified_id")),
-              "ejpd_response_team_id" .= (usr ^? key (fromString "team")),
-              "ejpd_response_name" .= (usr ^? key (fromString "name")),
-              "ejpd_response_handle" .= hdl,
-              "ejpd_response_email" .= (usr ^? key (fromString "email")),
-              "ejpd_response_phone" .= (usr ^? key (fromString "phone")),
-              "ejpd_response_push_tokens" .= toks,
-              "ejpd_response_contacts"
+              "UserId" .= (usr ^? key (fromString "qualified_id")),
+              "TeamId" .= (usr ^? key (fromString "team")),
+              "Name" .= (usr ^? key (fromString "name")),
+              "Handle" .= hdl,
+              "Email" .= (usr ^? key (fromString "email")),
+              "Phone" .= (usr ^? key (fromString "phone")),
+              "PushTokens" .= toks,
+              "Contacts"
                 .= let f (item, relation) = object ["contact_item" .= item, "contact_relation" .= relation]
                     in (map (f . trimContact _1) <$> contacts),
-              "ejpd_response_team_contacts" .= (teamContacts & _Just . _1 %~ map (trimContact id)),
-              "ejpd_response_conversations" .= convs,
-              "ejpd_response_assets" .= assets
+              "TeamContacts" .= (teamContacts & _Just . _1 %~ map (trimContact id)),
+              "Conversations" .= convs,
+              "Assets" .= assets
             ]
 
     trimContact :: forall x. Lens' x A.Value -> x -> x
@@ -178,9 +179,9 @@ testEJPDRequest = do
 
   let check :: HasCallStack => [A.Value] -> App ()
       check want = do
-        let handle = cs . (^?! (key (fromString "ejpd_response_handle") . _String))
+        let handle = cs . (^?! (key (fromString "Handle") . _String))
         have <- BI.getEJPDInfo OwnDomain (handle <$> want) "include_contacts"
-        have.json `shouldMatchSpecial` object ["ejpd_response" .= want]
+        have.json `shouldMatchSpecial` object ["EJPDResponse" .= want]
 
       shouldMatchSpecial :: (MakesValue a, MakesValue b, HasCallStack) => a -> b -> App ()
       shouldMatchSpecial = shouldMatchWithRules [minBound ..] resolveAssetLinks
@@ -199,9 +200,13 @@ testEJPDRequest = do
           fetchIt :: String -> App String
           fetchIt url = liftIO $ (cs . view Wreq.responseBody) <$> Wreq.get url
 
+  traceM "*** usr1"
   check [usr1]
+  traceM "*** usr2"
   check [usr2]
+  traceM "*** usr3"
   check [usr3]
+  traceM "*** usr45"
   check [usr4, usr5]
 
 testEJPDRequestRemote :: HasCallStack => App ()
@@ -211,4 +216,4 @@ testEJPDRequestRemote = do
   assertSuccess =<< putHandle usrRemote handleRemote
 
   have <- BI.getEJPDInfo OwnDomain [handleRemote] "include_contacts"
-  shouldBeEmpty $ have.json %. "ejpd_response"
+  shouldBeEmpty $ have.json %. "EJPDResponse"

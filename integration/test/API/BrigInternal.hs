@@ -252,7 +252,7 @@ getEJPDInfo dom handles mode = do
         "" -> []
         "include_contacts" -> [("include_contacts", "true")]
         bad -> error $ show bad
-  submit "POST" $ req & addJSONObject ["ejpd_request" .= handles] & addQueryParams query
+  submit "POST" $ req & addJSONObject ["EJPDRequest" .= handles] & addQueryParams query
 
 -- https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/get_i_users__uid__verification_code__action_
 getVerificationCode :: (HasCallStack, MakesValue user) => user -> String -> App Response
