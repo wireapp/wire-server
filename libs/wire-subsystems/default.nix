@@ -80,16 +80,19 @@ mkDerivation {
     containers
     cql
     currency-codes
+    data-default
     errors
     exceptions
     extended
     extra
     gundeck-types
     HsOpenSSL
+    hspec
     http-client
     http-types
     http2-manager
     imports
+    iso639
     lens
     mime
     mime-mail

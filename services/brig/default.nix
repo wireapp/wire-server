@@ -401,6 +401,7 @@ mkDerivation {
     uri-bytestring
     uuid
     wire-api
+    wire-subsystems
   ];
   description = "User Service";
   license = lib.licenses.agpl3Only;
