@@ -1,4 +1,8 @@
-module Wire.UserSubsystem.Interpreter where
+module Wire.UserSubsystem.Interpreter
+  ( runUserSubsystem,
+    UserSubsystemConfig (..),
+  )
+where
 
 import Control.Monad.Trans.Maybe
 import Data.Either.Extra
@@ -49,24 +53,6 @@ runUserSubsystem cfg = interpret $ \case
   GetUserProfiles self others -> runInputConst cfg $ getUserProfilesImpl self others
   GetLocalUserProfiles others -> runInputConst cfg $ getLocalUserProfilesImpl others
   GetUserProfilesWithErrors self others -> runInputConst cfg $ getUserProfilesWithErrorsImpl self others
-
-getUserProfileImpl ::
-  ( Member GalleyAPIAccess r,
-    Member (Input UserSubsystemConfig) r,
-    Member UserStore r,
-    Member (Concurrency 'Unsafe) r, -- TODO: subsystems should implement concurrency inside interpreters, not depend on this dangerous effect.
-    Member (Error FederationError) r,
-    Member (FederationAPIAccess fedM) r,
-    Member DeleteQueue r,
-    Member Now r,
-    RunClient (fedM 'Brig),
-    FederationMonad fedM,
-    Typeable fedM
-  ) =>
-  Local UserId ->
-  Qualified UserId ->
-  Sem r (Maybe UserProfile)
-getUserProfileImpl self other = listToMaybe <$> getUserProfilesImpl self [other]
 
 -- | Obtain user profiles for a list of users as they can be seen by
 -- a given user 'self'. If 'self' is an unknown 'UserId', return '[]'.
