@@ -59,6 +59,7 @@ import Network.HTTP.Types qualified as HTTP
 import Network.Wai
 import Network.Wai.Middleware.Gunzip qualified as GZip
 import Network.Wai.Middleware.Gzip qualified as GZip
+import Network.Wai.Utilities.Error
 import Network.Wai.Utilities.Server
 import Servant hiding (route)
 import System.Logger (Logger, msg, val, (.=), (~~))
@@ -108,6 +109,28 @@ mkApp opts =
       Log.close logger
     pure (middlewares $ servantApp env, env)
   where
+    -- Used as a last case in the servant tree. Previously, there used to be a
+    -- wai-routing application in that position. That was causing any `Fail`
+    -- route results in any servant endpoint to be recovered and ultimately
+    -- report a 404 since no other matching path would normally be found in
+    -- the wai-routing application. Now there is no wai-routing application
+    -- anymore, so without this fallback, any `Fail` result would commit to the
+    -- failed endpoint and return the error for that specific path, which would
+    -- break compatibility with older API versions.
+    --
+    -- Note that, since we have many overlapping paths (e.g.
+    -- `/conversations/:uuid` and `/conversations/list`), even without the
+    -- fallback, errors would not entirely be consistent. For example, a `Fail`
+    -- result when attempting to call `/conversations/list`, say if the content
+    -- type is incorrect, would cause `conversations/:uuid` to be matched and
+    -- report a 400 `invalid UUID` error.
+    fallback :: Application
+    fallback _ k =
+      k $
+        responseLBS HTTP.status404 [("Content-Type", "application/json")] $
+          Aeson.encode $
+            mkError HTTP.status404 "no-endpoint" "The requested endpoint does not exist"
+
     -- the servant API wraps the one defined using wai-routing
     servantApp :: Env -> Application
     servantApp e0 r cont = do
@@ -122,6 +145,7 @@ mkApp opts =
         ( hoistAPIHandler (toServantHandler e) servantSitemap
             :<|> hoistAPIHandler (toServantHandler e) internalAPI
             :<|> hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
+            :<|> Tagged fallback
         )
         r
         cont
@@ -167,6 +191,7 @@ type CombinedAPI =
   GalleyAPI
     :<|> InternalAPI
     :<|> FederationAPI
+    :<|> Raw
 
 refreshMetrics :: App ()
 refreshMetrics = do
