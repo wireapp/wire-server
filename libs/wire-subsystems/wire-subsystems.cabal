@@ -77,6 +77,7 @@ library
     Wire.GalleyAPIAccess.Rpc
     Wire.GundeckAPIAccess
     Wire.InternalEvent
+    Wire.MiniBackend
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
     Wire.ParseException
@@ -106,16 +107,19 @@ library
     , containers
     , cql
     , currency-codes
+    , data-default
     , errors
     , exceptions
     , extended
     , extra
     , gundeck-types
     , HsOpenSSL
+    , hspec
     , http-client
     , http-types
     , http2-manager
     , imports
+    , iso639
     , lens
     , mime
     , mime-mail
