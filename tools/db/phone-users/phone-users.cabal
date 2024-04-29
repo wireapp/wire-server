@@ -29,6 +29,7 @@ library
     , bytestring
     , cassandra-util
     , conduit
+    , cql
     , imports
     , lens
     , optparse-applicative

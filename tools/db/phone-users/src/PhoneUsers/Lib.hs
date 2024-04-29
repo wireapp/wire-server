@@ -25,12 +25,14 @@ import Data.Conduit
 import qualified Data.Conduit.Combinators as Conduit
 import Data.Id (TeamId, UserId)
 import Data.Time
+import qualified Database.CQL.Protocol as CQL
 import Imports
 import Options.Applicative
 import PhoneUsers.Types
 import qualified System.IO as SIO
 import qualified System.Logger as Log
 import Wire.API.Team.Feature (FeatureStatus (FeatureStatusDisabled, FeatureStatusEnabled))
+import Wire.API.User (AccountStatus (Active))
 
 lookupClients :: ClientState -> UserId -> IO [Maybe UTCTime]
 lookupClients client u = do
@@ -41,12 +43,12 @@ lookupClients client u = do
 
 readUsers :: ClientState -> ConduitM () [UserRow] IO ()
 readUsers client =
-  transPipe (runClient client) $
-    paginateC selectUsersAll (paramsP LocalQuorum () 200) x5
+  transPipe (runClient client) (paginateC selectUsersAll (paramsP LocalQuorum () 200) x5)
+    .| Conduit.map (fmap CQL.asRecord)
   where
-    selectUsersAll :: C.PrepQuery C.R () UserRow
+    selectUsersAll :: C.PrepQuery C.R () (CQL.TupleType UserRow)
     selectUsersAll =
-      "SELECT id,  email, phone, sso_id, activated, status, handle, team, managed_by FROM user"
+      "SELECT id, email, phone, activated, status, team FROM user"
 
 process :: Maybe Int -> ClientState -> ClientState -> IO Result
 process limit brigClient galleyClient =
@@ -60,13 +62,12 @@ process limit brigClient galleyClient =
 
 getUserInfo :: ClientState -> ClientState -> UserRow -> IO UserInfo
 getUserInfo brigClient galleyClient ur = do
-  if not $ isCandidate ur
+  if not $ isCandidate
     then pure NoPhoneUser
     else do
-      let (uid, _, _, _, _, _, _, mTid, _) = ur
       -- should we give C* a little break here and add a small threadDelay?
       threadDelay 200
-      lastActiveTimeStamps <- lookupClients brigClient uid
+      lastActiveTimeStamps <- lookupClients brigClient ur.id
       now <- getCurrentTime
       -- activity:
       --   inactive: they have no client or client's last_active is greater than 90 days ago
@@ -77,7 +78,7 @@ getUserInfo brigClient galleyClient ur = do
       userInfo <-
         if activeLast90Days
           then do
-            case mTid of
+            apu <- case ur.team of
               Nothing -> pure ActivePersonalUser
               Just tid -> do
                 isPaying <- isPayingTeam galleyClient tid
@@ -85,14 +86,18 @@ getUserInfo brigClient galleyClient ur = do
                   if isPaying
                     then ActiveTeamUser Free
                     else ActiveTeamUser Paid
+            putStrLn ""
+            putStrLn $ "active phone user found: " <> show apu
+            print ur
+            putStrLn $ "last active time stamps: " <> show lastActiveTimeStamps
+            pure apu
           else pure InactiveLast90Days
-      SIO.hPrint stderr ur >> SIO.hPrint stderr lastActiveTimeStamps >> SIO.hPrint stderr userInfo
       pure $ PhoneUser userInfo
   where
     -- to qualify as an active phone user candidate, their account must be active and they must have a phone number but no verified email
-    isCandidate :: UserRow -> Bool
-    isCandidate (_, mEmail, mPhone, _, active, _, _, _, _) =
-      active && isJust mPhone && isNothing mEmail
+    isCandidate :: Bool
+    isCandidate =
+      ur.activated && ur.status == Just Active && isJust ur.phone && isNothing ur.email
 
     clientWasActiveLast90Days :: UTCTime -> UTCTime -> Bool
     clientWasActiveLast90Days now lastActive = diffUTCTime now lastActive < 90 * nominalDay
@@ -149,7 +154,13 @@ main = do
   putStrLn "\n"
   print res
   where
-    initLogger = Log.new . Log.setOutput Log.StdOut . Log.setFormat Nothing . Log.setBufSize 0 $ Log.defSettings
+    initLogger =
+      Log.new
+        . Log.setLogLevel Log.Warn
+        . Log.setOutput Log.StdOut
+        . Log.setFormat Nothing
+        . Log.setBufSize 0
+        $ Log.defSettings
     initCas settings l =
       C.init
         . C.setLogger (C.mkLogger l)

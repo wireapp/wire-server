@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -24,9 +25,9 @@ import Control.Lens
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Encode.Pretty as A
 import qualified Data.ByteString.Lazy.Char8 as LC8
-import Data.Handle
 import Data.Id
 import Data.Text.Strict.Lens
+import Database.CQL.Protocol hiding (Result)
 import Imports
 import Options.Applicative
 import Wire.API.User
@@ -153,17 +154,22 @@ instance Monoid Result where
 
 type Activated = Bool
 
-type UserRow =
-  ( UserId,
-    Maybe Email,
-    Maybe Phone,
-    Maybe UserSSOId,
-    Activated,
-    Maybe AccountStatus,
-    Maybe Handle,
-    Maybe TeamId,
-    Maybe ManagedBy
-  )
+data UserRow = UserRow
+  { id :: UserId,
+    email :: Maybe Email,
+    phone :: Maybe Phone,
+    activated :: Activated,
+    status :: Maybe AccountStatus,
+    team :: Maybe TeamId
+  }
+  deriving (Generic)
+
+instance A.ToJSON UserRow
+
+recordInstance ''UserRow
+
+instance Show UserRow where
+  show = LC8.unpack . A.encodePretty
 
 data TeamUser = Free | Paid
   deriving (Show)
