@@ -154,31 +154,7 @@ ghcid:
 
 # Used by CI
 .PHONY: lint-all
-lint-all: treefmt-check check-local-nix-derivations hlint-check-all
-
-.PHONY: hlint-check-all
-hlint-check-all:
-	./tools/hlint.sh -f all -m check
-
-.PHONY: hlint-inplace-all
-hlint-inplace-all:
-	./tools/hlint.sh -f all -m inplace
-
-.PHONY: hlint-check-pr
-hlint-check-pr:
-	./tools/hlint.sh -f pr -m check
-
-.PHONY: hlint-inplace-pr
-hlint-inplace-pr:
-	./tools/hlint.sh -f pr -m inplace
-
-.PHONY: hlint-check
-hlint-check:
-	./tools/hlint.sh -f changeset -m check
-
-.PHONY: hlint-inplace
-hlint-inplace:
-	./tools/hlint.sh -f changeset -m inplace
+lint-all: treefmt-check check-local-nix-derivations
 
 .PHONY: hlint-inplace-all
 hlint-inplace-all:

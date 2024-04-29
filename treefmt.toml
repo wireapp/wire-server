@@ -18,6 +18,11 @@ options = [
   "--check-idempotence",
 ]
 
+[formatter.hlint]
+command = "hlint"
+includes = ["*.hs"]
+excludes = [ "dist*" ]
+
 [formatter.shellcheck]
 command = "shellcheck"
 includes = ["*.sh"]
