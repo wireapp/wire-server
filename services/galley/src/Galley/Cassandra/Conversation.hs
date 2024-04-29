@@ -77,18 +77,11 @@ createMLSSelfConversation lusr = do
           }
       meta = ncMetadata nc
       gid = convToGroupId . groupIdParts meta.cnvmType . fmap Conv . tUntagged . qualifyAs lusr $ cnv
-      -- FUTUREWORK: Stop hard-coding the cipher suite
-      --
-      -- 'CipherSuite 1' corresponds to
-      -- 'MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519'.
-      cs = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
       proto =
         ProtocolMLS
           ConversationMLSData
             { cnvmlsGroupId = gid,
-              cnvmlsEpoch = Epoch 0,
-              cnvmlsEpochTimestamp = Nothing,
-              cnvmlsCipherSuite = cs
+              cnvmlsActiveData = Nothing
             }
   retry x5 . batch $ do
     setType BatchLogged
@@ -104,8 +97,7 @@ createMLSSelfConversation lusr = do
         cnvmTeam meta,
         cnvmMessageTimer meta,
         cnvmReceiptMode meta,
-        Just gid,
-        Just cs
+        Just gid
       )
 
   (lmems, rmems) <- addMembers cnv (ncUsers nc)
@@ -122,27 +114,16 @@ createMLSSelfConversation lusr = do
 createConversation :: Local ConvId -> NewConversation -> Client Conversation
 createConversation lcnv nc = do
   let meta = ncMetadata nc
-      (proto, mgid, mep, mcs) = case ncProtocol nc of
-        BaseProtocolProteusTag -> (ProtocolProteus, Nothing, Nothing, Nothing)
+      (proto, mgid) = case ncProtocol nc of
+        BaseProtocolProteusTag -> (ProtocolProteus, Nothing)
         BaseProtocolMLSTag ->
           let gid = convToGroupId . groupIdParts meta.cnvmType $ Conv <$> tUntagged lcnv
-              ep = Epoch 0
-              cs = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
            in ( ProtocolMLS
                   ConversationMLSData
                     { cnvmlsGroupId = gid,
-                      cnvmlsEpoch = ep,
-                      cnvmlsEpochTimestamp = Nothing,
-                      cnvmlsCipherSuite = cs
+                      cnvmlsActiveData = Nothing
                     },
-                Just gid,
-                Just ep,
-                -- FUTUREWORK: Make the cipher suite be a record field in
-                -- 'NewConversation' instead of hard-coding it here.
-                --
-                -- 'CipherSuite 1' corresponds to
-                -- 'MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519'.
-                Just cs
+                Just gid
               )
   retry x5 . batch $ do
     setType BatchLogged
@@ -159,9 +140,7 @@ createConversation lcnv nc = do
         cnvmMessageTimer meta,
         cnvmReceiptMode meta,
         baseProtocolToProtocol (ncProtocol nc),
-        mgid,
-        mep,
-        mcs
+        mgid
       )
     for_ (cnvmTeam meta) $ \tid -> addPrepQuery Cql.insertTeamConv (tid, tUnqualified lcnv)
   (lmems, rmems) <- addMembers (tUnqualified lcnv) (ncUsers nc)
@@ -355,15 +334,12 @@ toConversationMLSData :: Maybe GroupId -> Maybe Epoch -> Maybe UTCTime -> Maybe 
 toConversationMLSData mgid mepoch mtimestamp mcs =
   ConversationMLSData
     <$> mgid
-    -- If there is no epoch in the database, assume the epoch is 0
-    <*> (mepoch <|> Just (Epoch 0))
-    <*> pure (mepoch `toTimestamp` mtimestamp)
-    <*> mcs
-  where
-    toTimestamp :: Maybe Epoch -> Maybe UTCTime -> Maybe UTCTime
-    toTimestamp Nothing _ = Nothing
-    toTimestamp (Just (Epoch 0)) _ = Nothing
-    toTimestamp (Just _) ts = ts
+    <*> pure
+      ( ActiveMLSConversationData
+          <$> mepoch
+          <*> mtimestamp
+          <*> mcs
+      )
 
 toConv ::
   ConvId ->

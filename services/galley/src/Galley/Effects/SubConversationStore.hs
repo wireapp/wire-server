@@ -30,7 +30,7 @@ import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.SubConversation
 
 data SubConversationStore m a where
-  CreateSubConversation :: ConvId -> SubConvId -> CipherSuiteTag -> GroupId -> SubConversationStore m SubConversation
+  CreateSubConversation :: ConvId -> SubConvId -> GroupId -> SubConversationStore m SubConversation
   GetSubConversation :: ConvId -> SubConvId -> SubConversationStore m (Maybe SubConversation)
   GetSubConversationGroupInfo :: ConvId -> SubConvId -> SubConversationStore m (Maybe GroupInfoData)
   GetSubConversationEpoch :: ConvId -> SubConvId -> SubConversationStore m (Maybe Epoch)

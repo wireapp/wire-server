@@ -30,7 +30,6 @@ import Galley.Types.Conversations.Members
 import Imports hiding (cs)
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
-import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Group.Serialisation
 import Wire.API.MLS.LeafNode
@@ -148,17 +147,15 @@ data SubConversation = SubConversation
   }
   deriving (Eq, Show)
 
-newSubConversation :: ConvId -> SubConvId -> CipherSuiteTag -> GroupId -> SubConversation
-newSubConversation convId subConvId suite groupId =
+newSubConversation :: ConvId -> SubConvId -> GroupId -> SubConversation
+newSubConversation convId subConvId groupId =
   SubConversation
     { scParentConvId = convId,
       scSubConvId = subConvId,
       scMLSData =
         ConversationMLSData
           { cnvmlsGroupId = groupId,
-            cnvmlsEpoch = Epoch 0,
-            cnvmlsEpochTimestamp = Nothing,
-            cnvmlsCipherSuite = suite
+            cnvmlsActiveData = Nothing
           },
       scMembers = mkClientMap [],
       scIndexMap = mempty
@@ -167,15 +164,13 @@ newSubConversation convId subConvId suite groupId =
 newSubConversationFromParent ::
   Local ConvId ->
   SubConvId ->
-  ConversationMLSData ->
   SubConversation
-newSubConversationFromParent lconv sconv mlsMeta =
+newSubConversationFromParent lconv sconv =
   let groupId =
         convToGroupId
           . groupIdParts RegularConv
           $ flip SubConv sconv <$> tUntagged lconv
-      suite = cnvmlsCipherSuite mlsMeta
-   in newSubConversation (tUnqualified lconv) sconv suite groupId
+   in newSubConversation (tUnqualified lconv) sconv groupId
 
 toPublicSubConv :: Qualified SubConversation -> PublicSubConversation
 toPublicSubConv (Qualified (SubConversation {..}) domain) =
@@ -184,9 +179,7 @@ toPublicSubConv (Qualified (SubConversation {..}) domain) =
         { pscParentConvId = Qualified scParentConvId domain,
           pscSubConvId = scSubConvId,
           pscGroupId = cnvmlsGroupId scMLSData,
-          pscEpoch = cnvmlsEpoch scMLSData,
-          pscEpochTimestamp = cnvmlsEpochTimestamp scMLSData,
-          pscCipherSuite = cnvmlsCipherSuite scMLSData,
+          pscActiveData = cnvmlsActiveData scMLSData,
           pscMembers = members
         }
 
@@ -215,14 +208,8 @@ instance HasField "migrationState" ConvOrSubConv MLSMigrationState where
   getField (Conv c) = c.mcMigrationState
   getField (SubConv _ _) = MLSMigrationMLS
 
-convOrSubConvSetCipherSuite :: CipherSuiteTag -> ConvOrSubConv -> ConvOrSubConv
-convOrSubConvSetCipherSuite cs (Conv c) =
-  Conv $
-    c
-      { mcMLSData = (mcMLSData c) {cnvmlsCipherSuite = cs}
-      }
-convOrSubConvSetCipherSuite cs (SubConv c s) =
-  SubConv c $
-    s
-      { scMLSData = (scMLSData s) {cnvmlsCipherSuite = cs}
-      }
+convOrSubConvActivate :: ActiveMLSConversationData -> ConvOrSubConv -> ConvOrSubConv
+convOrSubConvActivate activeData (Conv c) =
+  Conv $ c {mcMLSData = (mcMLSData c) {cnvmlsActiveData = Just activeData}}
+convOrSubConvActivate activeData (SubConv c s) =
+  SubConv c $ s {scMLSData = (scMLSData s) {cnvmlsActiveData = Just activeData}}

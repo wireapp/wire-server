@@ -86,9 +86,11 @@ createAndSendRemoveProposals ::
   -- conversation/subconversation client maps.
   ClientMap ->
   Sem r ()
-createAndSendRemoveProposals lConvOrSubConv indices qusr cm = do
+createAndSendRemoveProposals lConvOrSubConv indices qusr cm = void . runError @() $ do
   let meta = (tUnqualified lConvOrSubConv).mlsMeta
-  mKeyPair <- getMLSRemovalKey (csSignatureScheme (cnvmlsCipherSuite meta))
+  activeData <- note () $ cnvmlsActiveData meta
+  let cs = activeData.ciphersuite
+  mKeyPair <- getMLSRemovalKey (csSignatureScheme cs)
   case mKeyPair of
     Nothing -> do
       warn $ Log.msg ("No backend removal key is configured (See 'mlsPrivateKeyPaths' in galley's config). Not able to remove client from MLS conversation." :: Text)
@@ -107,7 +109,7 @@ createAndSendRemoveProposals lConvOrSubConv indices qusr cm = do
         storeProposal
           (cnvmlsGroupId meta)
           (cnvmlsEpoch meta)
-          (publicMessageRef (cnvmlsCipherSuite meta) pmsg)
+          (publicMessageRef cs pmsg)
           ProposalOriginBackend
           proposal
         propagateMessage qusr Nothing lConvOrSubConv Nothing msg cm

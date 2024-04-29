@@ -16,6 +16,18 @@ instance HasTests x => HasTests (Versioned' -> x) where
       <> mkTests m (n <> "[version=v3]") s f (x (Versioned' (ExplicitVersion 3)))
       <> mkTests m (n <> "[version=v6]") s f (x (Versioned' (ExplicitVersion 6)))
 
+-- | Used to test endpoints that have changed after version 5
+data Version5 = Version5 | NoVersion5
+
+instance HasTests x => HasTests (Version5 -> x) where
+  mkTests m n s f x =
+    mkTests m (n <> "[version=versioned]") s f (x NoVersion5)
+      <> mkTests m (n <> "[version=v5]") s f (x Version5)
+
+withVersion5 :: Version5 -> App a -> App a
+withVersion5 Version5 = withAPIVersion 5
+withVersion5 NoVersion5 = id
+
 testVersion :: Versioned' -> App ()
 testVersion (Versioned' v) = withModifiedBackend
   def {brigCfg = setField "optSettings.setDisabledAPIVersions" ([] :: [String])}

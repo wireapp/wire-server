@@ -178,6 +178,13 @@ fieldEquals a fieldSelector b = do
     Just f ->
       f `isEqual` b
 
+assertFieldMissing :: (HasCallStack, MakesValue a) => a -> String -> App ()
+assertFieldMissing x k = do
+  mValue <- lookupField x k
+  case mValue of
+    Nothing -> pure ()
+    Just _ -> assertFailureWithJSON x $ "Field \"" <> k <> "\" should be missing from object:"
+
 assertField :: (HasCallStack, MakesValue a) => a -> String -> Maybe Value -> App Value
 assertField x k Nothing = assertFailureWithJSON x $ "Field \"" <> k <> "\" is missing from object:"
 assertField _ _ (Just x) = pure x

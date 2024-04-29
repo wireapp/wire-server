@@ -1,0 +1,12 @@
+{
+    "cipher_suite": 1,
+    "epoch": 5,
+    "epoch_timestamp": "2023-01-17T00:00:42Z",
+    "group_id": "dGVzdF9ncm91cA==",
+    "members": [],
+    "parent_qualified_id": {
+        "domain": "golden.example.com",
+        "id": "00000000-0000-0001-0000-000100000001"
+    },
+    "subconv_id": "test_group"
+}

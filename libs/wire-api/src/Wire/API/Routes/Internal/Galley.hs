@@ -43,6 +43,7 @@ import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Galley.Feature
 import Wire.API.Routes.QualifiedCapture
+import Wire.API.Routes.Version
 import Wire.API.Team
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
@@ -226,7 +227,7 @@ type InternalAPIBase =
                :> "conversations"
                :> "connect"
                :> ReqBody '[Servant.JSON] Connect
-               :> ConversationVerb
+               :> ConversationVerb 'V6 Conversation
            )
     -- This endpoint is meant for testing membership of a conversation
     :<|> Named

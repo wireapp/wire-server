@@ -388,12 +388,26 @@ tests =
       testGroup "Golden: Conversation_user V2" $
         testObjects
           [ (Versioned @'V2 Test.Wire.API.Golden.Generated.Conversation_user.testObject_Conversation_user_1, "testObject_Conversation_v2_user_1.json"),
-            (Versioned @'V2 Test.Wire.API.Golden.Generated.Conversation_user.testObject_Conversation_user_2, "testObject_Conversation_v2_user_2.json")
+            (Versioned @'V2 Test.Wire.API.Golden.Generated.Conversation_user.testObject_Conversation_user_2, "testObject_Conversation_v2_user_2.json"),
+            (Versioned @'V2 Test.Wire.API.Golden.Generated.Conversation_user.testObject_Conversation_user_3, "testObject_Conversation_v2_user_3.json"),
+            (Versioned @'V2 Test.Wire.API.Golden.Generated.Conversation_user.testObject_Conversation_user_4, "testObject_Conversation_v2_user_4.json"),
+            (Versioned @'V2 Test.Wire.API.Golden.Generated.Conversation_user.testObject_Conversation_user_5, "testObject_Conversation_v2_user_5.json")
+          ],
+      testGroup "Golden: Conversation_user V5" $
+        testObjects
+          [ (Versioned @'V5 Test.Wire.API.Golden.Generated.Conversation_user.testObject_Conversation_user_1, "testObject_Conversation_v5_user_1.json"),
+            (Versioned @'V5 Test.Wire.API.Golden.Generated.Conversation_user.testObject_Conversation_user_2, "testObject_Conversation_v5_user_2.json"),
+            (Versioned @'V5 Test.Wire.API.Golden.Generated.Conversation_user.testObject_Conversation_user_3, "testObject_Conversation_v5_user_3.json"),
+            (Versioned @'V5 Test.Wire.API.Golden.Generated.Conversation_user.testObject_Conversation_user_4, "testObject_Conversation_v5_user_4.json"),
+            (Versioned @'V5 Test.Wire.API.Golden.Generated.Conversation_user.testObject_Conversation_user_5, "testObject_Conversation_v5_user_5.json")
           ],
       testGroup "Golden: Conversation_user" $
         testObjects
           [ (Test.Wire.API.Golden.Generated.Conversation_user.testObject_Conversation_user_1, "testObject_Conversation_user_1.json"),
-            (Test.Wire.API.Golden.Generated.Conversation_user.testObject_Conversation_user_2, "testObject_Conversation_user_2.json")
+            (Test.Wire.API.Golden.Generated.Conversation_user.testObject_Conversation_user_2, "testObject_Conversation_user_2.json"),
+            (Test.Wire.API.Golden.Generated.Conversation_user.testObject_Conversation_user_3, "testObject_Conversation_user_3.json"),
+            (Test.Wire.API.Golden.Generated.Conversation_user.testObject_Conversation_user_4, "testObject_Conversation_user_4.json"),
+            (Test.Wire.API.Golden.Generated.Conversation_user.testObject_Conversation_user_5, "testObject_Conversation_user_5.json")
           ],
       testGroup "Golden: NewConv_user V2" $
         testObjects

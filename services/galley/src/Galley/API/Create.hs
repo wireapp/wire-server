@@ -70,6 +70,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import Wire.API.Conversation hiding (Conversation, Member)
+import Wire.API.Conversation qualified as Public
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
@@ -115,7 +116,7 @@ createGroupConversationUpToV3 ::
   Local UserId ->
   Maybe ConnId ->
   NewConv ->
-  Sem r ConversationResponse
+  Sem r (ConversationResponse Public.Conversation)
 createGroupConversationUpToV3 lusr conn newConv = mapError UnreachableBackendsLegacy $
   do
     conv <-
@@ -290,13 +291,13 @@ createProteusSelfConversation ::
     Member P.TinyLog r
   ) =>
   Local UserId ->
-  Sem r ConversationResponse
+  Sem r (ConversationResponse Public.Conversation)
 createProteusSelfConversation lusr = do
   let lcnv = fmap Data.selfConv lusr
   c <- E.getConversation (tUnqualified lcnv)
   maybe (create lcnv) (conversationExisted lusr) c
   where
-    create :: Local ConvId -> Sem r ConversationResponse
+    create :: Local ConvId -> Sem r (ConversationResponse Public.Conversation)
     create lcnv = do
       let nc =
             NewConversation
@@ -331,7 +332,7 @@ createOne2OneConversation ::
   Local UserId ->
   ConnId ->
   NewConv ->
-  Sem r ConversationResponse
+  Sem r (ConversationResponse Public.Conversation)
 createOne2OneConversation lusr zcon j =
   mapError @UnreachableBackends @UnreachableBackendsLegacy UnreachableBackendsLegacy $ do
     let allUsers = newConvMembers lusr j
@@ -401,7 +402,7 @@ createLegacyOne2OneConversationUnchecked ::
   Maybe (Range 1 256 Text) ->
   Maybe TeamId ->
   Local UserId ->
-  Sem r ConversationResponse
+  Sem r (ConversationResponse Public.Conversation)
 createLegacyOne2OneConversationUnchecked self zcon name mtid other = do
   lcnv <- localOne2OneConvId self other
   let meta =
@@ -444,7 +445,7 @@ createOne2OneConversationUnchecked ::
   Maybe (Range 1 256 Text) ->
   Maybe TeamId ->
   Qualified UserId ->
-  Sem r ConversationResponse
+  Sem r (ConversationResponse Public.Conversation)
 createOne2OneConversationUnchecked self zcon name mtid other = do
   let create =
         foldQualified
@@ -470,7 +471,7 @@ createOne2OneConversationLocally ::
   Maybe (Range 1 256 Text) ->
   Maybe TeamId ->
   Qualified UserId ->
-  Sem r ConversationResponse
+  Sem r (ConversationResponse Public.Conversation)
 createOne2OneConversationLocally lcnv self zcon name mtid other = do
   mc <- E.getConversation (tUnqualified lcnv)
   case mc of
@@ -500,7 +501,7 @@ createOne2OneConversationRemotely ::
   Maybe (Range 1 256 Text) ->
   Maybe TeamId ->
   Qualified UserId ->
-  Sem r ConversationResponse
+  Sem r (ConversationResponse Public.Conversation)
 createOne2OneConversationRemotely _ _ _ _ _ _ =
   throw FederationNotImplemented
 
@@ -522,7 +523,7 @@ createConnectConversation ::
   Local UserId ->
   Maybe ConnId ->
   Connect ->
-  Sem r ConversationResponse
+  Sem r (ConversationResponse Public.Conversation)
 createConnectConversation lusr conn j = do
   lrecipient <- ensureLocal lusr (cRecipient j)
   n <- rangeCheckedMaybe (cName j)
@@ -642,7 +643,7 @@ conversationCreated ::
   ) =>
   Local UserId ->
   Data.Conversation ->
-  Sem r ConversationResponse
+  Sem r (ConversationResponse Public.Conversation)
 conversationCreated lusr cnv = Created <$> conversationView lusr cnv
 
 -- | The return set contains all the remote users that could not be contacted.
