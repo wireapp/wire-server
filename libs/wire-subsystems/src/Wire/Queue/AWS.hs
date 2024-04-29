@@ -32,7 +32,6 @@ import Data.Aeson hiding ((.=))
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Lazy qualified as BL
 import Data.Text.Encoding qualified as Text
-import Data.UUID hiding (null)
 import Imports hiding (group)
 import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..), Manager)
 import System.Logger qualified as Logger
@@ -151,14 +150,6 @@ enqueueStandard :: Text -> BL.ByteString -> Amazon SQS.SendMessageResponse
 enqueueStandard url m = retrying retry5x (const canRetry) (const (sendCatch req)) >>= throwA
   where
     req = SQS.newSendMessage url $ Text.decodeLatin1 (BL.toStrict m)
-
-enqueueFIFO :: Text -> Text -> UUID -> BL.ByteString -> Amazon SQS.SendMessageResponse
-enqueueFIFO url group dedup m = retrying retry5x (const canRetry) (const (sendCatch req)) >>= throwA
-  where
-    req =
-      SQS.newSendMessage url (Text.decodeLatin1 (BL.toStrict m))
-        & SQS.sendMessage_messageGroupId ?~ group
-        & SQS.sendMessage_messageDeduplicationId ?~ toText dedup
 
 --------------------------------------------------------------------------------
 -- Utilities

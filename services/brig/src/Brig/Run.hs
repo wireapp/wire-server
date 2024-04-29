@@ -77,6 +77,7 @@ import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 import Wire.API.User (AccountStatus (PendingInvitation))
 import Wire.DeleteQueue
+import Wire.Queue.AWS qualified as AWSQueue
 import Wire.Sem.Paging qualified as P
 
 -- FUTUREWORK: If any of these async threads die, we will have no clue about it
@@ -97,7 +98,7 @@ run o = do
   emailListener <- for (e ^. awsEnv . sesQueue) $ \q ->
     Async.async $
       AWS.execute (e ^. awsEnv) $
-        AWS.listen throttleMillis q (runBrigToIO e . SesNotification.onEvent)
+        AWSQueue.listen throttleMillis q (runBrigToIO e . SesNotification.onEvent)
   sftDiscovery <- forM (e ^. sftEnv) $ Async.async . Calling.startSFTServiceDiscovery (e ^. applog)
   turnDiscovery <- Calling.startTurnDiscovery (e ^. applog) (e ^. fsWatcher) (e ^. turnEnv)
   authMetrics <- Async.async (runBrigToIO e collectAuthMetrics)

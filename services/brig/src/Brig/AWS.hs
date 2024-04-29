@@ -34,10 +34,7 @@ module Brig.AWS
     sendMail,
 
     -- * SQS
-    listen,
     enqueueFIFO,
-    enqueueStandard,
-    getQueueUrl,
 
     -- * AWS
     exec,
@@ -58,7 +55,6 @@ import Control.Lens hiding ((.=))
 import Control.Monad.Catch
 import Control.Monad.Trans.Resource
 import Control.Retry
-import Data.Aeson hiding ((.=))
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Lazy qualified as BL
 import Data.Text qualified as Text
@@ -70,9 +66,8 @@ import Network.HTTP.Types.Status (status400)
 import Network.Mail.Mime
 import System.Logger qualified as Logger
 import System.Logger.Class
-import UnliftIO.Async
-import UnliftIO.Exception
 import Util.Options
+import Wire.Queue.AWS qualified as WQ
 
 data Env = Env
   { _logger :: !Logger,
@@ -115,8 +110,8 @@ mkEnv lgr opts emailOpts mgr = do
       sesEndpoint
       dynamoEndpoint
       (mkEndpoint SQS.defaultService (Opt.sqsEndpoint opts))
-  sq <- maybe (pure Nothing) (fmap Just . getQueueUrl e . Opt.sesQueue) emailOpts
-  jq <- maybe (pure Nothing) (fmap Just . getQueueUrl e) (Opt.userJournalQueue opts)
+  sq <- maybe (pure Nothing) (fmap Just . WQ.getQueueUrl e . Opt.sesQueue) emailOpts
+  jq <- maybe (pure Nothing) (fmap Just . WQ.getQueueUrl e) (Opt.userJournalQueue opts)
   pure (Env g sq jq pk e)
   where
     mkEndpoint svc e = AWS.setEndpoint (e ^. awsSecure) (e ^. awsHost) (e ^. awsPort) svc
@@ -144,13 +139,6 @@ mkEnv lgr opts emailOpts mgr = do
     -- they are still revealed on debug level.
     mapLevel AWS.Error = Logger.Debug
 
-getQueueUrl ::
-  (MonadUnliftIO m, MonadCatch m) =>
-  AWS.Env ->
-  Text ->
-  m Text
-getQueueUrl e q = view SQS.getQueueUrlResponse_queueUrl <$> exec e (SQS.newGetQueueUrl q)
-
 execute :: MonadIO m => Env -> Amazon a -> m a
 execute e m = liftIO $ runResourceT (runReaderT (unAmazon m) e)
 
@@ -166,33 +154,6 @@ instance Exception Error
 
 --------------------------------------------------------------------------------
 -- SQS
-
-listen :: (FromJSON a, Show a) => Int -> Text -> (a -> IO ()) -> Amazon ()
-listen throttleMillis url callback = forever . handleAny unexpectedError $ do
-  msgs <- fromMaybe [] . view SQS.receiveMessageResponse_messages <$> send receive
-  void $ mapConcurrently onMessage msgs
-  when (null msgs) $
-    threadDelay (1000 * throttleMillis)
-  where
-    receive =
-      SQS.newReceiveMessage url
-        & set SQS.receiveMessage_waitTimeSeconds (Just 20)
-          . set SQS.receiveMessage_maxNumberOfMessages (Just 10)
-    onMessage m =
-      case decodeStrict . Text.encodeUtf8 =<< (m ^. SQS.message_body) of
-        Nothing -> err $ msg ("Failed to parse SQS event: " ++ show m)
-        Just n -> do
-          debug $ msg ("Received SQS event: " ++ show n)
-          liftIO $ callback n
-          for_ (m ^. SQS.message_receiptHandle) (void . send . SQS.newDeleteMessage url)
-    unexpectedError x = do
-      err $ "error" .= show x ~~ msg (val "Failed to read from SQS")
-      threadDelay 3000000
-
-enqueueStandard :: Text -> BL.ByteString -> Amazon SQS.SendMessageResponse
-enqueueStandard url m = retrying retry5x (const canRetry) (const (sendCatch req)) >>= throwA
-  where
-    req = SQS.newSendMessage url $ Text.decodeLatin1 (BL.toStrict m)
 
 enqueueFIFO :: Text -> Text -> UUID -> BL.ByteString -> Amazon SQS.SendMessageResponse
 enqueueFIFO url group dedup m = retrying retry5x (const canRetry) (const (sendCatch req)) >>= throwA
@@ -239,12 +200,6 @@ sendCatch :: (AWSRequest r, Typeable r, Typeable (AWSResponse r)) => r -> Amazon
 sendCatch req = do
   env <- view amazonkaEnv
   AWS.trying AWS._Error . AWS.send env $ req
-
-send ::
-  (AWSRequest r, Typeable r, Typeable (AWSResponse r)) =>
-  r ->
-  Amazon (AWSResponse r)
-send r = throwA =<< sendCatch r
 
 throwA :: Either AWS.Error a -> Amazon a
 throwA = either (throwM . GeneralError) pure

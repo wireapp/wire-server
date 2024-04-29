@@ -254,7 +254,7 @@ newEnv o = do
     SqsQueue q -> do
       let sqsLogger = clone (Just "aws.brig") lgr
       awsQueueEnv <- AWSQueue.mkEnv sqsLogger o.aws.sqsEndpoint mgr
-      SqsQueueEnv awsQueueEnv <$> AWS.getQueueUrl awsQueueEnv.amazonkaEnv q
+      SqsQueueEnv awsQueueEnv <$> AWSQueue.getQueueUrl awsQueueEnv.amazonkaEnv q
   mSFTEnv <- mapM (Calling.mkSFTEnv sha512) $ Opt.sft o
   prekeyLocalLock <- case Opt.randomPrekeys o of
     Just True -> do
