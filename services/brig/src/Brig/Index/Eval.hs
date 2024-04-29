@@ -22,10 +22,13 @@ module Brig.Index.Eval
   )
 where
 
+import Brig.App (initHttpManagerWithTLSConfig, mkIndexEnv)
 import Brig.Index.Migrations
 import Brig.Index.Options
+import Brig.Options
 import Brig.User.Search.Index
 import Cassandra qualified as C
+import Cassandra.Options
 import Cassandra.Util (defInitCassandra)
 import Control.Lens
 import Control.Monad.Catch
@@ -37,7 +40,6 @@ import Data.Credentials (Credentials (..))
 import Data.Metrics qualified as Metrics
 import Database.Bloodhound qualified as ES
 import Imports
-import Network.HTTP.Client as HTTP
 import System.Logger qualified as Log
 import System.Logger.Class (Logger, MonadLogger (..))
 import Util.Options (initCredentials)
@@ -45,36 +47,33 @@ import Util.Options (initCredentials)
 runCommand :: Logger -> Command -> IO ()
 runCommand l = \case
   Create es galley -> do
-    mCreds <- for (es ^. esCredentials) initCredentials
-    e <- initIndex es mCreds galley
+    e <- initIndex (es ^. esConnection) galley
     runIndexIO e $ createIndexIfNotPresent (mkCreateIndexSettings es)
   Reset es galley -> do
-    mCreds <- for (es ^. esCredentials) initCredentials
-    e <- initIndex es mCreds galley
+    e <- initIndex (es ^. esConnection) galley
     runIndexIO e $ resetIndex (mkCreateIndexSettings es)
   Reindex es cas galley -> do
-    mCreds <- for (es ^. esCredentials) initCredentials
-    e <- initIndex es mCreds galley
+    e <- initIndex (es ^. esConnection) galley
     c <- initDb cas
     runReindexIO e c reindexAll
   ReindexSameOrNewer es cas galley -> do
-    mCreds <- for (es ^. esCredentials) initCredentials
-    e <- initIndex es mCreds galley
+    e <- initIndex (es ^. esConnection) galley
     c <- initDb cas
     runReindexIO e c reindexAllIfSameOrNewer
-  UpdateMapping esURI indexName mSecretPath galley -> do
-    mCreds <- for mSecretPath initCredentials
-    e <- initIndex' esURI indexName mCreds galley
+  UpdateMapping esConn galley -> do
+    e <- initIndex esConn galley
     runIndexIO e updateMapping
   Migrate es cas galley -> do
-    mCreds <- for (es ^. esCredentials) initCredentials
-    migrate l mCreds es cas galley
+    migrate l es cas galley
   ReindexFromAnotherIndex reindexSettings -> do
-    mgr <- newManager defaultManagerSettings
-    mCreds <- for (view reindexCredentials reindexSettings) initCredentials
-    let bhEnv = initES (view reindexEsServer reindexSettings) mgr mCreds
+    mgr <-
+      initHttpManagerWithTLSConfig
+        (reindexSettings ^. reindexEsConnection . to esInsecureSkipVerifyTls)
+        (reindexSettings ^. reindexEsConnection . to esCaCert)
+    mCreds <- for (reindexSettings ^. reindexEsConnection . to esCredentials) initCredentials
+    let bhEnv = initES (reindexSettings ^. reindexEsConnection . to esServer) mgr mCreds
     ES.runBH bhEnv $ do
-      let src = view reindexSrcIndex reindexSettings
+      let src = reindexSettings ^. reindexEsConnection . to esIndex
           dest = view reindexDestIndex reindexSettings
           timeoutSeconds = view reindexTimeoutSeconds reindexSettings
 
@@ -95,22 +94,25 @@ runCommand l = \case
           waitForTaskToComplete @ES.ReindexResponse timeoutSeconds taskNodeId
           Log.info l $ Log.msg ("Finished reindexing" :: ByteString)
   where
-    initIndex es mCreds gly =
-      initIndex' (es ^. esServer) (es ^. esIndex) mCreds gly
+    initIndex :: ESConnectionSettings -> Endpoint -> IO IndexEnv
+    initIndex esConn gly = do
+      mgr <- initHttpManagerWithTLSConfig esConn.esInsecureSkipVerifyTls esConn.esCaCert
+      let esOpts =
+            ElasticSearchOpts
+              { url = toESServer esConn.esServer,
+                index = esConn.esIndex,
+                credentials = esConn.esCredentials,
+                insecureSkipVerifyTls = esConn.esInsecureSkipVerifyTls,
+                caCert = esConn.esCaCert,
+                additionalWriteIndex = Nothing,
+                additionalWriteIndexUrl = Nothing,
+                additionalCredentials = Nothing,
+                additionalInsecureSkipVerifyTls = False,
+                additionalCaCert = Nothing
+              }
 
-    initIndex' esURI indexName mCreds galleyEndpoint = do
-      mgr <- newManager defaultManagerSettings
-      IndexEnv
-        <$> Metrics.metrics
-        <*> pure l
-        <*> pure (initES esURI mgr mCreds)
-        <*> pure Nothing
-        <*> pure indexName
-        <*> pure Nothing
-        <*> pure Nothing
-        <*> pure galleyEndpoint
-        <*> pure mgr
-        <*> pure mCreds
+      metricsStorage <- Metrics.metrics
+      mkIndexEnv esOpts l metricsStorage gly mgr
 
     initES esURI mgr mCreds =
       let env = ES.mkBHEnv (toESServer esURI) mgr

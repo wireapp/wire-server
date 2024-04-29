@@ -148,6 +148,7 @@ postMLSMessageFromLocalUser lusr c conn smsg = do
 postMLSCommitBundle ::
   ( HasProposalEffects r,
     Members MLSBundleStaticErrors r,
+    Member Random r,
     Member Resource r,
     Member SubConversationStore r
   ) =>
@@ -169,6 +170,7 @@ postMLSCommitBundle loc qusr c ctype qConvOrSub conn bundle =
 postMLSCommitBundleFromLocalUser ::
   ( HasProposalEffects r,
     Members MLSBundleStaticErrors r,
+    Member Random r,
     Member Resource r,
     Member SubConversationStore r
   ) =>
@@ -191,7 +193,8 @@ postMLSCommitBundleToLocalConv ::
   ( HasProposalEffects r,
     Members MLSBundleStaticErrors r,
     Member Resource r,
-    Member SubConversationStore r
+    Member SubConversationStore r,
+    Member Random r
   ) =>
   Qualified UserId ->
   ClientId ->

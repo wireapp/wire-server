@@ -21,21 +21,35 @@ spec:
         chart: "{{.Chart.Name}}-{{.Chart.Version}}"
     spec:
       restartPolicy: OnFailure
-      {{- if hasKey .Values.secrets "elasticsearch" }}
+      {{- if or (eq (include "configureElasticsearchCa" .Values) "true") (hasKey .Values.secrets "elasticsearch") }}
       volumes:
+        {{- if hasKey .Values.secrets "elasticsearch" }}
         - name: elasticsearch-index-secrets
           secret:
             secretName: elasticsearch-index
+        {{- end }}
+        {{- if eq (include "configureElasticsearchCa" .Values) "true" }}
+        - name: elasticsearch-ca
+          secret:
+            secretName: {{ include "elasticsearchTlsSecretName" .Values }}
+        {{- end }}
       {{- end }}
       initContainers:
         # Creates index in elasticsearch only when it doesn't exist.
         # Does nothing if the index exists.
         - name: brig-index-create
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          {{- if hasKey .Values.secrets "elasticsearch" }}
+          {{- if or (eq (include "configureElasticsearchCa" .Values) "true") (hasKey .Values.secrets "elasticsearch") }}
           volumeMounts:
+            {{- if hasKey .Values.secrets "elasticsearch" }}
             - name: "elasticsearch-index-secrets"
               mountPath: "/etc/wire/elasticsearch-index/secrets"
+            {{- end }}
+
+            {{- if eq (include "configureElasticsearchCa" .Values) "true" }}
+            - name: elasticsearch-ca
+              mountPath: "/certs/elasticsearch"
+            {{- end }}
           {{- end }}
           {{- if eq (include "includeSecurityContext" .) "true" }}
           securityContext:
@@ -44,7 +58,7 @@ spec:
           args:
             - create
             - --elasticsearch-server
-            - "http://{{ required "missing elasticsearch-index.elasticsearch.host!" .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"
+            - "{{ .Values.elasticsearch.scheme }}://{{ required "missing elasticsearch-index.elasticsearch.host!" .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"
             {{- if hasKey .Values.secrets "elasticsearch" }}
             - --elasticsearch-credentials
             - "/etc/wire/elasticsearch-index/secrets/elasticsearch-credentials.yaml"
@@ -57,15 +71,29 @@ spec:
             {{- if .Values.elasticsearch.delete_template }}
             - --delete-template
             - "{{ .Values.elasticsearch.delete_template }}"
-            {{- end}}
+            {{- end }}
+            {{- if eq (include "configureElasticsearchCa" .Values) "true" }}
+            - --elasticsearch-ca-cert
+            - /certs/elasticsearch/{{- include "elasticsearchTlsSecretKey" .Values}}
+            {{- end }}
+            {{- if .Values.elasticsearch.insecureSkipTlsVerify }}
+            - --elasticsearch-insecure-skip-tls-verify
+            {{- end }}
       containers:
         - name: brig-index-update-mapping
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
-          {{- if hasKey .Values.secrets "elasticsearch" }}
+          {{- if or (eq (include "configureElasticsearchCa" .Values) "true") (hasKey .Values.secrets "elasticsearch") }}
           volumeMounts:
+            {{- if hasKey .Values.secrets "elasticsearch" }}
             - name: "elasticsearch-index-secrets"
               mountPath: "/etc/wire/elasticsearch-index/secrets"
+            {{- end }}
+
+            {{- if eq (include "configureElasticsearchCa" .Values) "true" }}
+            - name: elasticsearch-ca
+              mountPath: "/certs/elasticsearch"
+            {{- end }}
           {{- end }}
           {{- if eq (include "includeSecurityContext" .) "true" }}
           securityContext:
@@ -74,10 +102,17 @@ spec:
           args:
             - update-mapping
             - --elasticsearch-server
-            - "http://{{ required "missing elasticsearch-index.elasticsearch.host!" .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"
+            - "{{ .Values.elasticsearch.scheme }}://{{ required "missing elasticsearch-index.elasticsearch.host!" .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"
             {{- if hasKey .Values.secrets "elasticsearch" }}
             - --elasticsearch-credentials
             - "/etc/wire/elasticsearch-index/secrets/elasticsearch-credentials.yaml"
             {{- end }}
             - --elasticsearch-index
             - "{{ or (.Values.elasticsearch.additionalWriteIndex) (.Values.elasticsearch.index) }}"
+            {{- if eq (include "configureElasticsearchCa" .Values) "true" }}
+            - --elasticsearch-ca-cert
+            - /certs/elasticsearch/{{- include "elasticsearchTlsSecretKey" .Values}}
+            {{- end }}
+            {{- if .Values.elasticsearch.insecureSkipTlsVerify }}
+            - --elasticsearch-insecure-skip-tls-verify
+            {{- end }}

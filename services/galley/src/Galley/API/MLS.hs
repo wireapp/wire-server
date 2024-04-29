@@ -25,7 +25,6 @@ module Galley.API.MLS
   )
 where
 
-import Control.Lens (view)
 import Data.Id
 import Data.Qualified
 import Galley.API.MLS.Enabled
@@ -43,8 +42,6 @@ getMLSPublicKeys ::
     Member (ErrorS 'MLSNotEnabled) r
   ) =>
   Local UserId ->
-  Sem r MLSPublicKeys
+  Sem r (MLSKeysByPurpose MLSPublicKeys)
 getMLSPublicKeys _ = do
-  assertMLSEnabled
-  keys <- inputs (view mlsKeys)
-  pure $ mlsKeysToPublic keys
+  fmap mlsKeysToPublic <$> getMLSPrivateKeys

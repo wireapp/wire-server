@@ -3,6 +3,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -31,6 +32,7 @@ import API.Team.Util
 import API.User.Util
 import Bilge
 import Bilge.Assert
+import Brig.App (initHttpManagerWithTLSConfig)
 import Brig.Options qualified as Opt
 import Brig.Options qualified as Opts
 import Control.Lens ((.~), (?~), (^.))
@@ -49,7 +51,6 @@ import Data.Text.Encoding qualified as Text
 import Database.Bloodhound qualified as ES
 import Federation.Util
 import Imports
-import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.ReverseProxy (waiProxyTo)
 import Network.HTTP.ReverseProxy qualified as Wai
 import Network.HTTP.Types qualified as HTTP
@@ -89,7 +90,7 @@ tests opts mgr galley brig = do
         testWithBothIndices opts mgr "Non ascii names" $ testSearchNonAsciiNames brig,
         testWithBothIndices opts mgr "user with umlaut" $ testSearchWithUmlaut brig,
         testWithBothIndices opts mgr "user with japanese name" $ testSearchCJK brig,
-        test mgr "migration to new index" $ testMigrationToNewIndex mgr opts brig,
+        test mgr "migration to new index" $ testMigrationToNewIndex opts brig,
         testGroup "team A: SearchVisibilityStandard (= unrestricted outbound search)" $
           [ testGroup "team A: SearchableByOwnTeam (= restricted inbound search)" $
               [ testWithBothIndices opts mgr "  I. non-team user cannot find team A member by display name" $ testSearchTeamMemberAsNonMemberDisplayName mgr brig galley FeatureStatusDisabled,
@@ -607,14 +608,13 @@ testSearchOtherDomain opts brig = do
 -- cluster. This test spins up a proxy server to pass requests to our only ES
 -- server. The proxy server ensures that only requests to the 'old' index go
 -- through.
-testMigrationToNewIndex :: (TestConstraints m, MonadUnliftIO m) => Manager -> Opt.Opts -> Brig -> m ()
-testMigrationToNewIndex mgr opts brig = do
-  -- (optsOldIndex, ES.IndexName -> oldIndexName) <- optsForOldIndex opts
-  withOldESProxy opts mgr $ \oldESUrl oldESIndex -> do
+testMigrationToNewIndex :: (TestConstraints m, MonadUnliftIO m) => Opt.Opts -> Brig -> m ()
+testMigrationToNewIndex opts brig = do
+  withOldESProxy opts $ \oldESUrl oldESIndex -> do
     let optsOldIndex =
           opts
-            & Opt.elasticsearchL . Opt.indexL .~ oldESIndex
-            & Opt.elasticsearchL . Opt.urlL .~ oldESUrl
+            & Opt.elasticsearchL . Opt.indexL .~ (ES.IndexName oldESIndex)
+            & Opt.elasticsearchL . Opt.urlL .~ (ES.Server oldESUrl)
     -- Phase 1: Using old index only
     (phase1NonTeamUser, teamOwner, phase1TeamUser1, phase1TeamUser2, tid) <- withSettingsOverrides optsOldIndex $ do
       nonTeamUser <- randomUser brig
@@ -626,6 +626,8 @@ testMigrationToNewIndex mgr opts brig = do
           optsOldIndex
             & Opt.elasticsearchL . Opt.additionalWriteIndexL ?~ (opts ^. Opt.elasticsearchL . Opt.indexL)
             & Opt.elasticsearchL . Opt.additionalWriteIndexUrlL ?~ (opts ^. Opt.elasticsearchL . Opt.urlL)
+            & Opt.elasticsearchL . Opt.additionalCaCertL .~ (opts ^. Opt.elasticsearchL . Opt.caCertL)
+            & Opt.elasticsearchL . Opt.additionalInsecureSkipVerifyTlsL .~ (opts ^. Opt.elasticsearchL . Opt.insecureSkipVerifyTlsL)
     (phase2NonTeamUser, phase2TeamUser) <- withSettingsOverrides phase2OptsWhile $ do
       phase2NonTeamUser <- randomUser brig
       phase2TeamUser <- inviteAndRegisterUser teamOwner tid brig
@@ -650,7 +652,7 @@ testMigrationToNewIndex mgr opts brig = do
     assertCanFindByName brig phase1TeamUser1 phase2TeamUser
 
     -- Run Migrations
-    let newIndexName = ES.IndexName $ opts ^. Opt.elasticsearchL . Opt.indexL
+    let newIndexName = opts ^. Opt.elasticsearchL . Opt.indexL
     taskNodeId <- assertRight =<< runBH opts (ES.reindexAsync $ ES.mkReindexRequest (ES.IndexName oldESIndex) newIndexName)
     runBH opts $ waitForTaskToComplete @ES.ReindexResponse taskNodeId
 
@@ -686,10 +688,11 @@ testMigrationToNewIndex mgr opts brig = do
     assertCanFindByName brig phase1TeamUser1 phase3NonTeamUser
     assertCanFindByName brig phase1TeamUser1 phase3TeamUser
 
-withOldESProxy :: (TestConstraints m, MonadUnliftIO m) => Opt.Opts -> Manager -> (Text -> Text -> m a) -> m a
-withOldESProxy opts mgr f = do
+withOldESProxy :: (TestConstraints m, MonadUnliftIO m, HasCallStack) => Opt.Opts -> (Text -> Text -> m a) -> m a
+withOldESProxy opts f = do
   indexName <- randomHandle
   createIndexWithMapping opts indexName oldMapping
+  mgr <- liftIO $ initHttpManagerWithTLSConfig opts.elasticsearch.insecureSkipVerifyTls opts.elasticsearch.caCert
   (proxyPort, sock) <- liftIO Warp.openFreePort
   bracket
     (async $ liftIO $ Warp.runSettingsSocket Warp.defaultSettings sock $ indexProxyServer indexName opts mgr)
@@ -698,13 +701,14 @@ withOldESProxy opts mgr f = do
 
 indexProxyServer :: Text -> Opt.Opts -> Manager -> Wai.Application
 indexProxyServer idx opts mgr =
-  let proxyURI = either (error . show) id $ URI.parseURI URI.strictURIParserOptions (Text.encodeUtf8 (Opts.url (Opts.elasticsearch opts)))
+  let toUri (ES.Server url) = either (error . show) id $ URI.parseURI URI.strictURIParserOptions (Text.encodeUtf8 url)
+      proxyURI = toUri (Opts.url (Opts.elasticsearch opts))
       proxyToHost = URI.hostBS . URI.authorityHost . fromMaybe (error "No Host") . URI.uriAuthority $ proxyURI
       proxyToPort = URI.portNumber . fromMaybe (URI.Port 9200) . URI.authorityPort . fromMaybe (error "No Host") . URI.uriAuthority $ proxyURI
       proxyApp req =
         pure $
           if headMay (Wai.pathInfo req) == Just idx
-            then Wai.WPRProxyDest (Wai.ProxyDest proxyToHost proxyToPort)
+            then Wai.WPRProxyDestSecure (Wai.ProxyDest proxyToHost proxyToPort)
             else Wai.WPRResponse (Wai.responseLBS HTTP.status400 [] $ "Refusing to proxy to path=" <> cs (Wai.rawPathInfo req))
    in waiProxyTo proxyApp Wai.defaultOnExc mgr
 
@@ -728,7 +732,7 @@ testWithBothIndices opts mgr name f = do
       test mgr "old-index" $ withOldIndex opts f
     ]
 
-testWithBothIndicesAndOpts :: Opt.Opts -> Manager -> TestName -> (Opt.Opts -> Http ()) -> TestTree
+testWithBothIndicesAndOpts :: Opt.Opts -> Manager -> TestName -> (HasCallStack => Opt.Opts -> Http ()) -> TestTree
 testWithBothIndicesAndOpts opts mgr name f =
   testGroup
     name
@@ -738,20 +742,20 @@ testWithBothIndicesAndOpts opts mgr name f =
         f newOpts <* deleteIndex opts indexName
     ]
 
-withOldIndex :: MonadIO m => Opt.Opts -> WaiTest.Session a -> m a
+withOldIndex :: (MonadIO m, HasCallStack) => Opt.Opts -> WaiTest.Session a -> m a
 withOldIndex opts f = do
   indexName <- randomHandle
   createIndexWithMapping opts indexName oldMapping
-  let newOpts = opts & Opt.elasticsearchL . Opt.indexL .~ indexName
+  let newOpts = opts & Opt.elasticsearchL . Opt.indexL .~ (ES.IndexName indexName)
   withSettingsOverrides newOpts f <* deleteIndex opts indexName
 
-optsForOldIndex :: MonadIO m => Opt.Opts -> m (Opt.Opts, Text)
+optsForOldIndex :: (MonadIO m, HasCallStack) => Opt.Opts -> m (Opt.Opts, Text)
 optsForOldIndex opts = do
   indexName <- randomHandle
   createIndexWithMapping opts indexName oldMapping
-  pure (opts & Opt.elasticsearchL . Opt.indexL .~ indexName, indexName)
+  pure (opts & Opt.elasticsearchL . Opt.indexL .~ (ES.IndexName indexName), indexName)
 
-createIndexWithMapping :: MonadIO m => Opt.Opts -> Text -> Value -> m ()
+createIndexWithMapping :: (MonadIO m, HasCallStack) => Opt.Opts -> Text -> Value -> m ()
 createIndexWithMapping opts name val = do
   let indexName = ES.IndexName name
   createReply <- runBH opts $ ES.createIndexWith [ES.AnalysisSetting analysisSettings] 1 indexName
@@ -762,15 +766,15 @@ createIndexWithMapping opts name val = do
     liftIO $ assertFailure $ "failed to create mapping: " <> show name
 
 -- | This doesn't fail if ES returns error because we don't really want to fail the tests for this
-deleteIndex :: MonadIO m => Opt.Opts -> Text -> m ()
+deleteIndex :: (MonadIO m, HasCallStack) => Opt.Opts -> Text -> m ()
 deleteIndex opts name = do
   let indexName = ES.IndexName name
   void $ runBH opts $ ES.deleteIndex indexName
 
-runBH :: MonadIO m => Opt.Opts -> ES.BH m a -> m a
+runBH :: (MonadIO m, HasCallStack) => Opt.Opts -> ES.BH m a -> m a
 runBH opts action = do
-  let esURL = opts ^. Opt.elasticsearchL . Opt.urlL
-  mgr <- liftIO $ HTTP.newManager HTTP.defaultManagerSettings
+  let (ES.Server esURL) = opts ^. Opt.elasticsearchL . Opt.urlL
+  mgr <- liftIO $ initHttpManagerWithTLSConfig opts.elasticsearch.insecureSkipVerifyTls opts.elasticsearch.caCert
   let bEnv = mkBHEnv esURL mgr
   ES.runBH bEnv action
 

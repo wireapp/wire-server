@@ -33,17 +33,28 @@ data:
       {{- end }}
 
     elasticsearch:
-      url: http://{{ .elasticsearch.host }}:{{ .elasticsearch.port }}
+      url: {{ .elasticsearch.scheme }}://{{ .elasticsearch.host }}:{{ .elasticsearch.port }}
       index: {{ .elasticsearch.index }}
+      {{- if .elasticsearch.additionalWriteHost }}
+      additionalWriteIndexUrl: {{ .elasticsearch.additionalWriteScheme }}://{{ .elasticsearch.additionalWriteHost }}:{{ .elasticsearch.additionalWritePort }}
+      {{- end }}
       {{- if .elasticsearch.additionalWriteIndex }}
       additionalWriteIndex: {{ .elasticsearch.additionalWriteIndex }}
       {{- end }}
       {{- if $.Values.secrets.elasticsearch }}
       credentials: /etc/wire/brig/secrets/elasticsearch-credentials.yaml
       {{- end }}
+      {{- if eq (include "configureElasticSearchCa" .) "true" }}
+      caCert: /etc/wire/brig/elasticsearch-ca/{{ include "elasticsearchTlsSecretKey" .}}
+      {{- end }}
+      {{- if eq (include "configureAdditionalElasticSearchCa" .) "true" }}
+      additionalCaCert: /etc/wire/brig/additional-elasticsearch-ca/{{ include "additionalElasticsearchTlsSecretKey" .}}
+      {{- end }}
       {{- if $.Values.secrets.elasticsearchAdditional }}
       additionalCredentials: /etc/wire/brig/secrets/elasticsearch-additional-credentials.yaml
       {{- end }}
+      insecureSkipVerifyTls: {{ .elasticsearch.insecureSkipVerifyTls }}
+      additionalInsecureSkipVerifyTls: {{ .elasticsearch.additionalInsecureSkipVerifyTls }}
 
     cargohold:
       host: cargohold
@@ -57,7 +68,9 @@ data:
       host: gundeck
       port: 8080
 
+    {{- if .multiSFT }}
     multiSFT: {{ .multiSFT.enabled }}
+    {{- end }}
     {{- if .enableFederation }}
     # TODO remove this
     federator:

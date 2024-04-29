@@ -42,14 +42,18 @@
 {{ or (hasKey .cassandra "tlsCa") (hasKey .cassandra "tlsCaSecretRef") }}
 {{- end -}}
 
-{{/* Return a Dict of TLS CA secret name and key
-This is used to switch between provided secret (e.g. by cert-manager) and
-created one (in case the CA is provided as PEM string.)
-*/}}
-{{- define "tlsSecretRef" -}}
+{{- define "cassandraTlsSecretName" -}}
 {{- if .cassandra.tlsCaSecretRef -}}
-{{ .cassandra.tlsCaSecretRef | toYaml }}
+{{ .cassandra.tlsCaSecretRef.name }}
 {{- else }}
-{{- dict "name" "integration-cassandra" "key" "ca.pem" | toYaml -}}
+{{- print "integration-cassandra" -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "cassandraTlsSecretKey" -}}
+{{- if .cassandra.tlsCaSecretRef -}}
+{{ .cassandra.tlsCaSecretRef.key }}
+{{- else }}
+{{- print "ca.pem" -}}
 {{- end -}}
 {{- end -}}

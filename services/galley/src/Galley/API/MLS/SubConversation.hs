@@ -335,6 +335,7 @@ type HasLeaveSubConversationEffects r =
          Input UTCTime,
          MemberStore,
          ProposalStore,
+         Random,
          SubConversationStore,
          TinyLog
        ]

@@ -42,6 +42,7 @@ import Imports
 import Network.Wai (Application)
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
+import qualified Network.Wai.Middleware.Gunzip as GZip
 import Network.Wai.Utilities.Request (lookupRequestId)
 import qualified Network.Wai.Utilities.Server as WU
 import qualified SAML2.WebSSO as SAML
@@ -104,6 +105,7 @@ mkApp sparCtxOpts = do
         versionMiddleware (foldMap expandVersionExp (disabledAPIVersions sparCtxOpts))
           . WU.heavyDebugLogging heavyLogOnly logLevel sparCtxLogger
           . servantPrometheusMiddleware (Proxy @SparAPI)
+          . GZip.gunzip
           . WU.catchErrors sparCtxLogger []
           -- Error 'Response's are usually not thrown as exceptions, but logged in
           -- 'renderSparErrorWithLogging' before the 'Application' can construct a 'Response'

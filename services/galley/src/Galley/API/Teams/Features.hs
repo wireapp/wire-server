@@ -22,7 +22,6 @@ module Galley.API.Teams.Features
     setFeatureStatusInternal,
     patchFeatureStatusInternal,
     getFeatureStatusForUser,
-    getAllFeatureConfigsForServer,
     getAllFeatureConfigsForTeam,
     getAllFeatureConfigsForUser,
     updateLockStatus,
@@ -320,7 +319,8 @@ instance SetFeatureConfig LegalholdConfig where
         Member TeamFeatureStore r,
         Member TeamStore r,
         Member (TeamMemberStore InternalPaging) r,
-        Member P.TinyLog r
+        Member P.TinyLog r,
+        Member Random r
       )
 
   -- we're good to update the status now.

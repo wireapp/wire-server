@@ -106,7 +106,7 @@ mkGlobalEnv cfgFile = do
         gDefaultAPIVersion = 6,
         gManager = manager,
         gServicesCwdBase = devEnvProjectRoot <&> (</> "services"),
-        gRemovalKeyPath = error "Uninitialised removal key path",
+        gRemovalKeyPaths = mempty,
         gBackendResourcePool = resourcePool,
         gRabbitMQConfig = intConfig.rabbitmq,
         gTempDir = tempDir,
@@ -145,7 +145,7 @@ mkEnv ge = do
           defaultAPIVersion = gDefaultAPIVersion ge,
           manager = gManager ge,
           servicesCwdBase = gServicesCwdBase ge,
-          removalKeyPath = gRemovalKeyPath ge,
+          removalKeyPaths = gRemovalKeyPaths ge,
           prekeys = pks,
           lastPrekeys = lpks,
           mls = mls,
@@ -166,11 +166,9 @@ create ioRef =
         Nothing -> error "No resources available"
         Just (r, s') -> (s', r)
 
-emptyClientGroupState :: ClientGroupState
-emptyClientGroupState = ClientGroupState Nothing Nothing
-
 allCiphersuites :: [Ciphersuite]
-allCiphersuites = map Ciphersuite ["0x0001", "0xf031"]
+-- FUTUREWORK: add 0x0005 to this list once openmls supports it
+allCiphersuites = map Ciphersuite ["0x0001", "0xf031", "0x0002", "0x0007"]
 
 mkMLSState :: Codensity IO MLSState
 mkMLSState = Codensity $ \k ->

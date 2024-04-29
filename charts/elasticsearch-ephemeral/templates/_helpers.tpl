@@ -14,4 +14,3 @@ We truncate at 53 chars (63 - len("-discovery")) because some Kubernetes name fi
 {{- $name := default .Chart.Name .Values.nameOverride -}}
 {{- printf "%s" $name | trunc 53 | trimSuffix "-" -}}
 {{- end -}}
-
