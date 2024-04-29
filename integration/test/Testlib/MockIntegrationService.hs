@@ -94,12 +94,16 @@ openFreePortAnyAddr = liftIO $ bindRandomPortTCP (fromString "*6")
 
 type LiftedApplication = Request -> (Wai.Response -> App ResponseReceived) -> App ResponseReceived
 
+type Host = String
+
+-- | The channel exists to facilitate out of http comms between the test and the
+-- service. Could be used for recording (request, response) pairs.
 withMockServer ::
   (HasCallStack) =>
   -- | the mock server
   (Chan e -> LiftedApplication) ->
   -- | the test
-  ((String, Warp.Port) -> Chan e -> App a) ->
+  ((Host, Warp.Port) -> Chan e -> App a) ->
   App a
 withMockServer mkApp go = withFreePortAnyAddr \(sPort, sock) -> do
   serverStarted <- newEmptyMVar
