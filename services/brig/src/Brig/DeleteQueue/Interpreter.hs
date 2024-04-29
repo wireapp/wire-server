@@ -1,10 +1,11 @@
-module Wire.DeleteQueue.Interpreter
+module Brig.DeleteQueue.Interpreter
   ( runDeleteQueue,
     QueueEnv (..),
   )
 where
 
 import Amazonka.SQS.Lens
+import Brig.AWS qualified as AWS
 import Control.Exception (ErrorCall (..))
 import Control.Lens
 import Data.Aeson
@@ -25,7 +26,7 @@ import Wire.Sem.Logger
 
 data QueueEnv
   = StompQueueEnv Stomp.Broker Text
-  | SqsQueueEnv AWS.Env Text
+  | SqsQueueEnv AWS.Env Int Text
 
 runDeleteQueue ::
   ( Member (Embed IO) r,
@@ -54,7 +55,7 @@ enqueue ::
   Sem r ()
 enqueue (StompQueueEnv broker queue) message =
   embed @IO $ Stomp.enqueue broker queue message
-enqueue (SqsQueueEnv awsEnv queue) message = do
+enqueue (SqsQueueEnv awsEnv _ queue) message = do
   let body = encode message
   md5 <- embed @IO $ getDigestByName "MD5"
   let bodyMD5 = fmap (flip digest body) md5

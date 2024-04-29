@@ -32,6 +32,7 @@ module Brig.App
     closeEnv,
     awsEnv,
     smtpEnv,
+    stompEnv,
     cargohold,
     galley,
     galleyEndpoint,
@@ -99,6 +100,8 @@ import Brig.Calling qualified as Calling
 import Brig.Options (ElasticSearchOpts, Opts, Settings (..))
 import Brig.Options qualified as Opt
 import Brig.Provider.Template
+import Brig.Queue.Stomp qualified as Stomp
+import Brig.Queue.Types (Queue (..))
 import Brig.SMTP qualified as SMTP
 import Brig.Schema.Run qualified as Migrations
 import Brig.Team.Template
@@ -173,9 +176,10 @@ data Env = Env
     _smtpEnv :: Maybe SMTP.SMTP,
     _emailSender :: Email,
     _awsEnv :: AWS.Env,
+    _stompEnv :: Maybe Stomp.Env,
     _metrics :: Metrics,
     _applog :: Logger,
-    _internalEvents :: QueueEnv,
+    _internalEvents :: Queue,
     _requestId :: RequestId,
     _usrTemplates :: Localised UserTemplates,
     _provTemplates :: Localised ProviderTemplates,
@@ -254,7 +258,8 @@ newEnv o = do
     SqsQueue q -> do
       let sqsLogger = clone (Just "aws.brig") lgr
       awsQueueEnv <- AWSQueue.mkEnv sqsLogger o.aws.sqsEndpoint mgr
-      SqsQueueEnv awsQueueEnv <$> AWSQueue.getQueueUrl awsQueueEnv.amazonkaEnv q
+      let throttleMillis = fromMaybe Opt.defSqsThrottleMillis . view Opt.sqsThrottleMillis . Opt.optSettings $ o
+      SqsQueueEnv awsQueueEnv throttleMillis <$> AWSQueue.getQueueUrl awsQueueEnv.amazonkaEnv q
   mSFTEnv <- mapM (Calling.mkSFTEnv sha512) $ Opt.sft o
   prekeyLocalLock <- case Opt.randomPrekeys o of
     Just True -> do
@@ -279,6 +284,7 @@ newEnv o = do
         _smtpEnv = emailSMTP,
         _emailSender = Opt.emailSender . Opt.general . Opt.emailSMS $ o,
         _awsEnv = aws,
+        _stompEnv = stomp,
         _metrics = mtr,
         _applog = lgr,
         _internalEvents = eventsQueue,

@@ -70,7 +70,6 @@ library
   -- cabal-fmt: expand src
   exposed-modules:
     Wire.DeleteQueue
-    Wire.DeleteQueue.Interpreter
     Wire.FederationAPIAccess
     Wire.FederationAPIAccess.Interpreter
     Wire.GalleyAPIAccess
@@ -81,9 +80,6 @@ library
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
     Wire.ParseException
-    Wire.Queue
-    Wire.Queue.AWS
-    Wire.Queue.Stomp
     Wire.Rpc
     Wire.StoredUser
     Wire.UserStore

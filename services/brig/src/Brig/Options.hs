@@ -24,6 +24,7 @@
 module Brig.Options where
 
 import Brig.Allowlists (AllowlistEmailDomains (..), AllowlistPhonePrefixes (..))
+import Brig.Queue.Types (Queue (..))
 import Brig.SMTP (SMTPConnType (..))
 import Brig.User.Auth.Cookie.Limit
 import Brig.ZAuth qualified as ZAuth
@@ -60,8 +61,6 @@ import Wire.API.Routes.Version
 import Wire.API.Team.Feature qualified as Public
 import Wire.API.User
 import Wire.Arbitrary (Arbitrary, arbitrary)
-import Wire.Queue
-import Wire.Queue.Stomp
 
 newtype Timeout = Timeout
   { timeoutDiff :: NominalDiffTime
@@ -155,6 +154,15 @@ data EmailSMTPOpts = EmailSMTPOpts
   deriving (Show, Generic)
 
 instance FromJSON EmailSMTPOpts
+
+data StompOpts = StompOpts
+  { stompHost :: !Text,
+    stompPort :: !Int,
+    stompTls :: !Bool
+  }
+  deriving (Show, Generic)
+
+instance FromJSON StompOpts
 
 data InternalEventsOpts = InternalEventsOpts
   { internalEventsQueue :: !Queue
