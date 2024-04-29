@@ -4,6 +4,7 @@ module Wire.UserSubsystem.Interpreter
   )
 where
 
+import Control.Lens ((^?))
 import Control.Monad.Trans.Maybe
 import Data.Either.Extra
 import Data.Id
@@ -167,6 +168,7 @@ getUserProfilesLocalPart requestingUser luids = do
 getLocalUserProfile ::
   forall r.
   ( Member UserStore r,
+    Member GalleyAPIAccess r,
     Member DeleteQueue r,
     Member Now r,
     Member (Input UserSubsystemConfig) r
@@ -180,8 +182,14 @@ getLocalUserProfile emailVisibilityConfigWithViewer luid = do
   runMaybeT $ do
     storedUser <- MaybeT $ getUser (tUnqualified luid)
     guard $ not (hasPendingInvitation storedUser)
+    teamMember <- lift $ getTeamMember storedUser.id `mapM` storedUser.teamId
+    let lhs = fromMaybe UserLegalHoldDisabled (teamMember ^? legalHoldStatus)
     let user = mkUserFromStored domain locale storedUser
-        usrProfile = mkUserProfile emailVisibilityConfigWithViewer user UserLegalHoldDisabled
+        usrProfile =
+          mkUserProfile
+            emailVisibilityConfigWithViewer
+            user
+            lhs
     lift $ deleteLocalIfExpired user
     pure usrProfile
 
