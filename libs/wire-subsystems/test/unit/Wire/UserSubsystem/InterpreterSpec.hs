@@ -6,7 +6,7 @@ import Data.Bifunctor (first)
 import Data.Coerce
 import Data.Default (Default (def))
 import Data.Id
-import Data.LegalHold (UserLegalHoldStatus, defUserLegalHoldStatus)
+import Data.LegalHold (defUserLegalHoldStatus)
 import Data.Qualified
 import Data.Set qualified as S
 import Imports

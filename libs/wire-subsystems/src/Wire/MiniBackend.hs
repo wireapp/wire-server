@@ -4,7 +4,7 @@ import Data.Default (Default (def))
 import Data.Domain
 import Data.Id
 import Data.LanguageCodes (ISO639_1 (EN))
-import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldDisabled))
+import Data.LegalHold (defUserLegalHoldStatus)
 import Data.Map.Lazy qualified as LM
 import Data.Map.Strict qualified as M
 import Data.Proxy
@@ -168,7 +168,7 @@ miniGetAllProfiles = do
   dom <- input
   pure $
     map
-      (\u -> mkUserProfileWithEmail Nothing (mkUserFromStored dom miniLocale u) UserLegalHoldDisabled)
+      (\u -> mkUserProfileWithEmail Nothing (mkUserFromStored dom miniLocale u) defUserLegalHoldStatus)
       (S.toList users)
 
 miniGetUsersByIds :: [UserId] -> MiniFederationMonad 'Brig [UserProfile]
