@@ -1,3 +1,11 @@
+# [2024-04-26] (Chart Release 4.43.0)
+
+## Bug fixes and other updates
+
+
+* charts/brig: Fix template for settings ES CA certs (#4022)
+
+
 # [2024-04-25] (Chart Release 4.42.0)
 
 ## Release notes
