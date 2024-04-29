@@ -184,7 +184,7 @@ getLocalUserProfile emailVisibilityConfigWithViewer luid = do
     guard $ not (hasPendingInvitation storedUser)
     lhs :: UserLegalHoldStatus <- do
       teamMember <- lift $ join <$> (getTeamMember storedUser.id `mapM` storedUser.teamId)
-      pure $ maybe UserLegalHoldDisabled (view legalHoldStatus) teamMember
+      pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) teamMember
     let user = mkUserFromStored domain locale storedUser
         usrProfile = mkUserProfile emailVisibilityConfigWithViewer user lhs
     lift $ deleteLocalIfExpired user
