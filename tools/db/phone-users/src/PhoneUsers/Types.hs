@@ -26,6 +26,8 @@ import qualified Data.Aeson.Encode.Pretty as A
 import qualified Data.ByteString.Lazy.Char8 as LC8
 import Data.Handle
 import Data.Id
+import qualified Data.OpenApi as Swagger
+import qualified Data.Schema as S
 import Data.Text.Strict.Lens
 import Imports
 import Options.Applicative
@@ -35,7 +37,9 @@ data Opts = Opts
   { cHost :: String,
     cPort :: Int,
     cKeyspace :: C.Keyspace,
-    limit :: Maybe Int
+    limit :: Maybe Int,
+    ibisHost :: String,
+    ibisPort :: Int
   }
 
 sampleParser :: Parser Opts
@@ -77,13 +81,29 @@ sampleParser =
               <> help "Limit the number of users to process"
           )
       )
+    <*> strOption
+      ( long "ibis-host"
+          <> short 'i'
+          <> metavar "HOST"
+          <> help "Ibis Host"
+          <> value "localhost"
+          <> showDefault
+      )
+    <*> option
+      auto
+      ( long "ibis-port"
+          <> short 'o'
+          <> metavar "PORT"
+          <> help "Ibis Port"
+          <> value 8080
+          <> showDefault
+      )
 
 data Result = Result
   { usersSearched :: Int,
     phoneUsersTotal :: Int,
     inactivePhoneUsers :: Int,
-    activePhoneUsers :: Int,
-    activeTeamPhoneUsers :: Int,
+    activePersonalPhoneUsers :: Int,
     activeFreeTeamPhoneUsers :: Int,
     activePaidTeamPhoneUsers :: Int
   }
@@ -100,8 +120,7 @@ instance Semigroup Result where
       { usersSearched = r1.usersSearched + r2.usersSearched,
         phoneUsersTotal = r1.phoneUsersTotal + r2.phoneUsersTotal,
         inactivePhoneUsers = r1.inactivePhoneUsers + r2.inactivePhoneUsers,
-        activePhoneUsers = r1.activePhoneUsers + r2.activePhoneUsers,
-        activeTeamPhoneUsers = r1.activeTeamPhoneUsers + r2.activeTeamPhoneUsers,
+        activePersonalPhoneUsers = r1.activePersonalPhoneUsers + r2.activePersonalPhoneUsers,
         activeFreeTeamPhoneUsers = r1.activeFreeTeamPhoneUsers + r2.activeFreeTeamPhoneUsers,
         activePaidTeamPhoneUsers = r1.activePaidTeamPhoneUsers + r2.activePaidTeamPhoneUsers
       }
@@ -112,8 +131,7 @@ instance Monoid Result where
       { usersSearched = 0,
         phoneUsersTotal = 0,
         inactivePhoneUsers = 0,
-        activePhoneUsers = 0,
-        activeTeamPhoneUsers = 0,
+        activePersonalPhoneUsers = 0,
         activeFreeTeamPhoneUsers = 0,
         activePaidTeamPhoneUsers = 0
       }
@@ -143,3 +161,29 @@ data PhoneUserInfo
   | ActivePersonalUser
   | ActiveTeamUser TeamUser
   deriving (Show)
+
+data TeamBillingInfo = TeamBillingInfo
+  { tbiFirstname :: Text,
+    tbiLastname :: Text,
+    tbiStreet :: Text,
+    tbiZip :: Text,
+    tbiCity :: Text,
+    tbiCountry :: Text,
+    tbiCompany :: Maybe Text,
+    tbiState :: Maybe Text
+  }
+  deriving (Eq, Show)
+  deriving (A.ToJSON, A.FromJSON, Swagger.ToSchema) via S.Schema TeamBillingInfo
+
+instance S.ToSchema TeamBillingInfo where
+  schema =
+    S.object "TeamBillingInfo" $
+      TeamBillingInfo
+        <$> tbiFirstname S..= S.field "firstname" S.schema
+        <*> tbiLastname S..= S.field "lastname" S.schema
+        <*> tbiStreet S..= S.field "street" S.schema
+        <*> tbiZip S..= S.field "zip" S.schema
+        <*> tbiCity S..= S.field "city" S.schema
+        <*> tbiCountry S..= S.field "country" S.schema
+        <*> tbiCompany S..= S.maybe_ (S.optField "company" S.schema)
+        <*> tbiState S..= S.maybe_ (S.optField "state" S.schema)

@@ -48,6 +48,7 @@ packages:
   , tools/db/inconsistencies/
   , tools/db/migrate-sso-feature-flag/
   , tools/db/move-team/
+  , tools/db/phone-users/
   , tools/db/repair-handles/
   , tools/db/repair-brig-clients-table/
   , tools/db/service-backfill/
@@ -179,6 +180,6 @@ package fedcalls
 -- - these packages have bounds that are justified with their current
 --   dependency set, however, we have updated their dependencies, such
 --   that they work with newer base and ghc (api) versions
-allow-newer: 
+allow-newer:
   , proto-lens-protoc:base
   , proto-lens-protoc:ghc
