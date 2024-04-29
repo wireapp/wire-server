@@ -1,4 +1,4 @@
-module Testlib.MockIntegrationService (withMockServer, lhMockAppWithPrekeys, lhMockApp, mkLegalHoldSettings, CreateMock (..)) where
+module Testlib.MockIntegrationService (withMockServer, lhMockAppWithPrekeys, lhMockApp, mkLegalHoldSettings, CreateMock (..), LiftedApplication) where
 
 import Control.Monad.Catch
 import Control.Monad.Reader
