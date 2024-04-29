@@ -642,3 +642,11 @@ getCallsConfigV2 :: (HasCallStack, MakesValue user) => user -> App Response
 getCallsConfigV2 user = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["calls", "config", "v2"]
   submit "GET" req
+
+addBot :: MakesValue user => user -> String -> String -> String -> App Response
+addBot user providerId serviceId convId = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["conversations", convId, "bots"]
+  submit "POST" $
+    req
+      & zType "access"
+      & addJSONObject ["provider" .= providerId, "service" .= serviceId]

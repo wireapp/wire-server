@@ -108,6 +108,7 @@ library
     Test.AssetDownload
     Test.AssetUpload
     Test.B2B
+    Test.Bot
     Test.Brig
     Test.Cargohold.API
     Test.Cargohold.API.Federation
