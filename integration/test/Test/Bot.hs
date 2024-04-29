@@ -5,6 +5,7 @@ module Test.Bot where
 import API.Brig
 import API.Common
 import API.Galley
+import qualified Data.Aeson as Aeson
 import Data.String.Conversions (cs)
 import Network.HTTP.Types (status200, status201)
 import Network.Wai (responseLBS)
@@ -55,11 +56,17 @@ onBotCreate,
     Wai.Request ->
     (Wai.Response -> App Wai.ResponseReceived) ->
     App Wai.ResponseReceived
-onBotCreate _ req k = do
-  print req
-  k (responseLBS status201 mempty mempty)
-onBotMessage _ req k = do
+onBotCreate _headers _req k = do
+  ((: []) -> pks) <- getPrekey
+  lpk <- getLastPrekey
+  k $ responseLBS status201 mempty do
+    Aeson.encode $
+      object
+        [ "prekeys" .= pks,
+          "last_prekey" .= lpk
+        ]
+onBotMessage _headers req k = do
   print req
   k (responseLBS status200 mempty mempty)
-onBotAlive _ _req k = do
+onBotAlive _headers _req k = do
   k (responseLBS status200 mempty (cs "success"))
