@@ -117,11 +117,12 @@ let
     };
 
     # PR: https://github.com/informatikr/hedis/pull/224
+    # PR: https://github.com/informatikr/hedis/pull/226
     hedis = {
       src = fetchgit {
         url = "https://github.com/wireapp/hedis";
-        rev = "81cdd8a2350b96168a06662c2601a41141a19f2d";
-        sha256 = "sha256-0g6x9UOUq7s5ClnxMXvjYR2AsWNA6ymv1tYlQC44hGs=";
+        rev = "c45975e4b5f42b9d0c853e2d59ed55582f6b1482";
+        sha256 = "sha256-oB7Z7ErYFguLiWPaFzCsD3Q+7UPfAkvdkc8aKSePmbQ=";
       };
     };
 
