@@ -31,20 +31,11 @@ library
     , conduit
     , imports
     , lens
-    , openapi3
     , optparse-applicative
-    , schema-profunctor
-    , servant
-    , servant-openapi3
-    , servant-server
-    , bytestring-conversion
-    , servant-swagger-ui
     , time
     , tinylog
     , types-common
     , wire-api
-    , http-client
-    , http-types
 
   default-extensions:
     AllowAmbiguousTypes

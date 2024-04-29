@@ -26,52 +26,28 @@ import qualified Data.Aeson.Encode.Pretty as A
 import qualified Data.ByteString.Lazy.Char8 as LC8
 import Data.Handle
 import Data.Id
-import qualified Data.OpenApi as Swagger
-import qualified Data.Schema as S
 import Data.Text.Strict.Lens
 import Imports
 import Options.Applicative
 import Wire.API.User
 
-data Opts = Opts
-  { cHost :: String,
-    cPort :: Int,
-    cKeyspace :: C.Keyspace,
-    limit :: Maybe Int,
-    ibisHost :: String,
-    ibisPort :: Int
+data CassandraSettings = CassandraSettings
+  { host :: String,
+    port :: Int,
+    keyspace :: C.Keyspace
   }
 
-sampleParser :: Parser Opts
-sampleParser =
+data Opts = Opts
+  { brigDb :: CassandraSettings,
+    galleyDb :: CassandraSettings,
+    limit :: Maybe Int
+  }
+
+optsParser :: Parser Opts
+optsParser =
   Opts
-    <$> strOption
-      ( long "cassandra-host"
-          <> short 's'
-          <> metavar "HOST"
-          <> help "Cassandra Host"
-          <> value "localhost"
-          <> showDefault
-      )
-    <*> option
-      auto
-      ( long "cassandra-port"
-          <> short 'p'
-          <> metavar "PORT"
-          <> help "Cassandra Port"
-          <> value 9042
-          <> showDefault
-      )
-    <*> ( C.Keyspace . view packed
-            <$> strOption
-              ( long "cassandra-keyspace"
-                  <> short 'k'
-                  <> metavar "STRING"
-                  <> help "Cassandra Keyspace"
-                  <> value "brig_test"
-                  <> showDefault
-              )
-        )
+    <$> brigCassandraParser
+    <*> galleyCassandraParser
     <*> optional
       ( option
           auto
@@ -81,23 +57,62 @@ sampleParser =
               <> help "Limit the number of users to process"
           )
       )
-    <*> strOption
-      ( long "ibis-host"
-          <> short 'i'
+
+galleyCassandraParser :: Parser CassandraSettings
+galleyCassandraParser =
+  CassandraSettings
+    <$> strOption
+      ( long "galley-cassandra-host"
           <> metavar "HOST"
-          <> help "Ibis Host"
+          <> help "Cassandra Host for galley"
           <> value "localhost"
           <> showDefault
       )
     <*> option
       auto
-      ( long "ibis-port"
-          <> short 'o'
+      ( long "galley-cassandra-port"
           <> metavar "PORT"
-          <> help "Ibis Port"
-          <> value 8080
+          <> help "Cassandra Port for galley"
+          <> value 9043
           <> showDefault
       )
+    <*> ( C.Keyspace . view packed
+            <$> strOption
+              ( long "galley-cassandra-keyspace"
+                  <> metavar "STRING"
+                  <> help "Cassandra Keyspace for galley"
+                  <> value "galley_test"
+                  <> showDefault
+              )
+        )
+
+brigCassandraParser :: Parser CassandraSettings
+brigCassandraParser =
+  CassandraSettings
+    <$> strOption
+      ( long "brig-cassandra-host"
+          <> metavar "HOST"
+          <> help "Cassandra Host for brig"
+          <> value "localhost"
+          <> showDefault
+      )
+    <*> option
+      auto
+      ( long "brig-cassandra-port"
+          <> metavar "PORT"
+          <> help "Cassandra Port for brig"
+          <> value 9042
+          <> showDefault
+      )
+    <*> ( C.Keyspace . view packed
+            <$> strOption
+              ( long "brig-cassandra-keyspace"
+                  <> metavar "STRING"
+                  <> help "Cassandra Keyspace for brig"
+                  <> value "brig_test"
+                  <> showDefault
+              )
+        )
 
 data Result = Result
   { usersSearched :: Int,
@@ -161,29 +176,3 @@ data PhoneUserInfo
   | ActivePersonalUser
   | ActiveTeamUser TeamUser
   deriving (Show)
-
-data TeamBillingInfo = TeamBillingInfo
-  { tbiFirstname :: Text,
-    tbiLastname :: Text,
-    tbiStreet :: Text,
-    tbiZip :: Text,
-    tbiCity :: Text,
-    tbiCountry :: Text,
-    tbiCompany :: Maybe Text,
-    tbiState :: Maybe Text
-  }
-  deriving (Eq, Show)
-  deriving (A.ToJSON, A.FromJSON, Swagger.ToSchema) via S.Schema TeamBillingInfo
-
-instance S.ToSchema TeamBillingInfo where
-  schema =
-    S.object "TeamBillingInfo" $
-      TeamBillingInfo
-        <$> tbiFirstname S..= S.field "firstname" S.schema
-        <*> tbiLastname S..= S.field "lastname" S.schema
-        <*> tbiStreet S..= S.field "street" S.schema
-        <*> tbiZip S..= S.field "zip" S.schema
-        <*> tbiCity S..= S.field "city" S.schema
-        <*> tbiCountry S..= S.field "country" S.schema
-        <*> tbiCompany S..= S.maybe_ (S.optField "company" S.schema)
-        <*> tbiState S..= S.maybe_ (S.optField "state" S.schema)

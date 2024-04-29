@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -22,19 +21,16 @@ module PhoneUsers.Lib where
 
 import Cassandra as C
 import Cassandra.Settings as C
-import qualified Data.Aeson as A
-import Data.ByteString.Conversion
 import Data.Conduit
 import qualified Data.Conduit.Combinators as Conduit
 import Data.Id (TeamId, UserId)
 import Data.Time
 import Imports
-import Network.HTTP.Client
-import Network.HTTP.Types.Status
 import Options.Applicative
 import PhoneUsers.Types
 import qualified System.IO as SIO
 import qualified System.Logger as Log
+import Wire.API.Team.Feature (FeatureStatus (FeatureStatusDisabled, FeatureStatusEnabled))
 
 lookupClients :: ClientState -> UserId -> IO [Maybe UTCTime]
 lookupClients client u = do
@@ -52,25 +48,25 @@ readUsers client =
     selectUsersAll =
       "SELECT id,  email, phone, sso_id, activated, status, handle, team, managed_by FROM user"
 
-process :: Manager -> Maybe Int -> ClientState -> String -> Int -> IO Result
-process mgr limit client ibisHost ibisPort =
+process :: Maybe Int -> ClientState -> ClientState -> IO Result
+process limit brigClient galleyClient =
   runConduit $
-    readUsers client
+    readUsers brigClient
       .| Conduit.mapM (\chunk -> SIO.hPutStr stderr "." $> chunk)
       .| Conduit.concat
       .| (maybe (Conduit.filter (const True)) Conduit.take limit)
-      .| Conduit.mapM (getUserInfo mgr client ibisHost ibisPort)
+      .| Conduit.mapM (getUserInfo brigClient galleyClient)
       .| Conduit.foldMap infoToResult
 
-getUserInfo :: Manager -> ClientState -> String -> Int -> UserRow -> IO UserInfo
-getUserInfo mgr client ibisHost ibisPort ur = do
+getUserInfo :: ClientState -> ClientState -> UserRow -> IO UserInfo
+getUserInfo brigClient galleyClient ur = do
   if not $ isCandidate ur
     then pure NoPhoneUser
     else do
       let (uid, _, _, _, _, _, _, mTid, _) = ur
       -- should we give C* a little break here and add a small threadDelay?
       threadDelay 200
-      lastActiveTimeStamps <- lookupClients client uid
+      lastActiveTimeStamps <- lookupClients brigClient uid
       now <- getCurrentTime
       -- activity:
       --   inactive: they have no client or client's last_active is greater than 90 days ago
@@ -84,10 +80,11 @@ getUserInfo mgr client ibisHost ibisPort ur = do
             case mTid of
               Nothing -> pure ActivePersonalUser
               Just tid -> do
-                mBillingInfo <- getTeamBillingInfo mgr ibisHost ibisPort tid
-                pure $ case mBillingInfo of
-                  Nothing -> ActiveTeamUser Free
-                  Just _ -> ActiveTeamUser Paid
+                isPaying <- isPayingTeam galleyClient tid
+                pure $
+                  if isPaying
+                    then ActiveTeamUser Free
+                    else ActiveTeamUser Paid
           else pure InactiveLast90Days
       SIO.hPrint stderr ur >> SIO.hPrint stderr lastActiveTimeStamps >> SIO.hPrint stderr userInfo
       pure $ PhoneUser userInfo
@@ -100,23 +97,22 @@ getUserInfo mgr client ibisHost ibisPort ur = do
     clientWasActiveLast90Days :: UTCTime -> UTCTime -> Bool
     clientWasActiveLast90Days now lastActive = diffUTCTime now lastActive < 90 * nominalDay
 
-getTeamBillingInfo :: Manager -> String -> Int -> TeamId -> IO (Maybe TeamBillingInfo)
-getTeamBillingInfo mgr ibisHost ibisPort tid = do
-  initRequest <- parseRequest ibisHost
-  let req = initRequest {port = ibisPort, path = "/i/team/" <> toByteString' tid <> "/billing"}
-  response <- httpLbs req mgr
-  let status = statusCode $ responseStatus response
-  case status of
-    200 -> do
-      case A.eitherDecode $ responseBody response of
-        Right bi -> pure $ Just bi
-        Left e -> do
-          SIO.hPutStrLn stderr $ "Failed to decode response body: " <> e
-          pure Nothing
-    404 -> pure Nothing
-    _ -> do
-      SIO.hPutStrLn stderr $ "Unexpected status code: " <> show status
-      pure Nothing
+-- if conference_calling is enabled for the team, then it's a paying team
+isPayingTeam :: ClientState -> TeamId -> IO Bool
+isPayingTeam client tid = do
+  status <- getConferenceCalling client tid
+  pure $ case status of
+    Just FeatureStatusEnabled -> True
+    Just FeatureStatusDisabled -> False
+    Nothing -> False
+
+getConferenceCalling :: ClientState -> TeamId -> IO (Maybe FeatureStatus)
+getConferenceCalling client tid = do
+  runClient client $ runIdentity <$$> retry x1 (query1 select (params LocalQuorum (Identity tid)))
+  where
+    select :: PrepQuery R (Identity TeamId) (Identity FeatureStatus)
+    select =
+      "select conference_calling from team_features where team_id = ?"
 
 infoToResult :: UserInfo -> Result
 infoToResult = \case
@@ -144,22 +140,22 @@ infoToResult = \case
 
 main :: IO ()
 main = do
-  opts <- execParser (info (helper <*> sampleParser) desc)
+  opts <- execParser (info (helper <*> optsParser) desc)
   logger <- initLogger
-  client <- initCas opts logger
-  mgr <- newManager defaultManagerSettings
+  brigClient <- initCas opts.brigDb logger
+  galleyClient <- initCas opts.galleyDb logger
   putStrLn "scanning users table..."
-  res <- process mgr opts.limit client opts.ibisHost opts.ibisPort
+  res <- process opts.limit brigClient galleyClient
   putStrLn "\n"
   print res
   where
     initLogger = Log.new . Log.setOutput Log.StdOut . Log.setFormat Nothing . Log.setBufSize 0 $ Log.defSettings
-    initCas Opts {..} l =
+    initCas settings l =
       C.init
         . C.setLogger (C.mkLogger l)
-        . C.setContacts cHost []
-        . C.setPortNumber (fromIntegral cPort)
-        . C.setKeyspace cKeyspace
+        . C.setContacts settings.host []
+        . C.setPortNumber (fromIntegral settings.port)
+        . C.setKeyspace settings.keyspace
         . C.setProtocolVersion C.V4
         $ C.defSettings
     desc = header "phone-users" <> progDesc "This program scans brig's users table and determines the number of users that can only login by phone/sms" <> fullDesc
