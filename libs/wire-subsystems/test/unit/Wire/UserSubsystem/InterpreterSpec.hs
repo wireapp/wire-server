@@ -6,7 +6,7 @@ import Data.Bifunctor (first)
 import Data.Coerce
 import Data.Default (Default (def))
 import Data.Id
-import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldDisabled))
+import Data.LegalHold (UserLegalHoldStatus, defUserLegalHoldStatus)
 import Data.Qualified
 import Data.Set qualified as S
 import Imports
@@ -50,7 +50,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 [ mkUserProfileWithEmail
                     Nothing
                     (mkUserFromStored domain miniLocale targetUser)
-                    UserLegalHoldDisabled
+                    defUserLegalHoldStatus
                   | targetUser <- S.toList users
                 ]
               expectedLocalProfiles = mkExpectedProfiles localDomain localTargetUsers
@@ -94,7 +94,7 @@ spec = describe "UserSubsystem.Interpreter" do
 
       prop "gets a local user profile when the user exists and both user and viewer have accepted their invitations" $
         \(NotPendingStoredUser viewer) (NotPendingStoredUser targetUserNoTeam) visibility domain locale sameTeam ->
-          let teamMember = mkTeamMember viewer.id fullPermissions Nothing UserLegalHoldDisabled
+          let teamMember = mkTeamMember viewer.id fullPermissions Nothing defUserLegalHoldStatus
               targetUser = if sameTeam then targetUserNoTeam {teamId = viewer.teamId} else targetUserNoTeam
               config = UserSubsystemConfig visibility locale
               retrievedProfiles =
@@ -104,12 +104,12 @@ spec = describe "UserSubsystem.Interpreter" do
                 === [ mkUserProfile
                         (fmap (const $ (,) <$> viewer.teamId <*> Just teamMember) visibility)
                         (mkUserFromStored domain locale targetUser)
-                        UserLegalHoldDisabled
+                        defUserLegalHoldStatus
                     ]
 
       prop "gets a local user profile when the target user exists and has accepted their invitation but the viewer has not accepted their invitation" $
         \(PendingStoredUser viewer) (NotPendingStoredUser targetUserNoTeam) visibility domain locale sameTeam ->
-          let teamMember = mkTeamMember viewer.id fullPermissions Nothing UserLegalHoldDisabled
+          let teamMember = mkTeamMember viewer.id fullPermissions Nothing defUserLegalHoldStatus
               targetUser = if sameTeam then targetUserNoTeam {teamId = viewer.teamId} else targetUserNoTeam
               config = UserSubsystemConfig visibility locale
               retrievedProfile =
@@ -119,12 +119,12 @@ spec = describe "UserSubsystem.Interpreter" do
                 === [ mkUserProfile
                         (fmap (const Nothing) visibility)
                         (mkUserFromStored domain locale targetUser)
-                        UserLegalHoldDisabled
+                        defUserLegalHoldStatus
                     ]
 
       prop "returns Nothing if the target user has not accepted their invitation yet" $
         \viewer (PendingStoredUser targetUser) visibility domain locale ->
-          let teamMember = mkTeamMember viewer.id fullPermissions Nothing UserLegalHoldDisabled
+          let teamMember = mkTeamMember viewer.id fullPermissions Nothing defUserLegalHoldStatus
               config = UserSubsystemConfig visibility locale
               retrievedProfile =
                 runNoFederationStack [targetUser, viewer] (Just teamMember) config $
