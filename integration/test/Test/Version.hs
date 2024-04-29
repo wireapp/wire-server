@@ -17,6 +17,19 @@ instance TestCases Versioned' where
       MkTestCase "[version=v6]" (Versioned' (ExplicitVersion 6))
     ]
 
+-- | Used to test endpoints that have changed after version 5
+data Version5 = Version5 | NoVersion5
+
+instance TestCases Version5 where
+  testCases =
+    [ MkTestCase "[version=versioned]" NoVersion5,
+      MkTestCase "[version=v5]" Version5
+    ]
+
+withVersion5 :: Version5 -> App a -> App a
+withVersion5 Version5 = withAPIVersion 5
+withVersion5 NoVersion5 = id
+
 testVersion :: Versioned' -> App ()
 testVersion (Versioned' v) = withModifiedBackend
   def {brigCfg = setField "optSettings.setDisabledAPIVersions" ([] :: [String])}

@@ -1,0 +1,61 @@
+{
+    "access": [
+        "invite",
+        "invite",
+        "code",
+        "link",
+        "invite",
+        "private",
+        "link",
+        "code",
+        "code",
+        "link",
+        "private",
+        "invite"
+    ],
+    "access_role": "non_activated",
+    "access_role_v2": [
+        "team_member",
+        "guest",
+        "service"
+    ],
+    "cipher_suite": 1,
+    "creator": "00000000-0000-0000-0000-000200000001",
+    "epoch": 42,
+    "epoch_timestamp": "2023-01-17T00:00:42Z",
+    "group_id": "dGVzdF9ncm91cA==",
+    "id": "00000000-0000-0000-0000-000000000002",
+    "last_event": "0.0",
+    "last_event_time": "1970-01-01T00:00:00.000Z",
+    "members": {
+        "others": [],
+        "self": {
+            "conversation_role": "9b2d3thyqh4ptkwtq2n2v9qsni_ln1ca66et_z8dlhfs9oamp328knl3rj9kcj",
+            "hidden": true,
+            "hidden_ref": "",
+            "id": "00000000-0000-0001-0000-000100000001",
+            "otr_archived": false,
+            "otr_archived_ref": null,
+            "otr_muted_ref": null,
+            "otr_muted_status": -1,
+            "qualified_id": {
+                "domain": "golden.example.com",
+                "id": "00000000-0000-0001-0000-000100000001"
+            },
+            "service": null,
+            "status": 0,
+            "status_ref": "0.0",
+            "status_time": "1970-01-01T00:00:00.000Z"
+        }
+    },
+    "message_timer": 1319272593797015,
+    "name": "",
+    "protocol": "mls",
+    "qualified_id": {
+        "domain": "golden.example.com",
+        "id": "00000000-0000-0000-0000-000000000002"
+    },
+    "receipt_mode": 2,
+    "team": "00000000-0000-0001-0000-000200000000",
+    "type": 1
+}

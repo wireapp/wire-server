@@ -54,6 +54,7 @@ import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.LeaveReason
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Proposal qualified as Proposal
@@ -76,15 +77,15 @@ processInternalCommit ::
   ClientIdentity ->
   Maybe ConnId ->
   Local ConvOrSubConv ->
+  CipherSuiteTag ->
   Epoch ->
   ProposalAction ->
   Commit ->
   Sem r [LocalConversationUpdate]
-processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
+processInternalCommit senderIdentity con lConvOrSub ciphersuite epoch action commit = do
   let convOrSub = tUnqualified lConvOrSub
       qusr = cidQualifiedUser senderIdentity
       cm = convOrSub.members
-      suite = cnvmlsCipherSuite convOrSub.mlsMeta
       newUserClients = Map.assocs (paAdd action)
 
   -- check all pending proposals are referenced in the commit
@@ -154,7 +155,7 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
                     -- final set of clients in the conversation
                     let clients = Map.keysSet (newclients <> Map.findWithDefault mempty qtarget cm)
                     -- get list of mls clients from Brig (local or remote)
-                    getClientInfo lConvOrSub qtarget suite >>= \case
+                    getClientInfo lConvOrSub qtarget ciphersuite >>= \case
                       Left _e -> pure (Just qtarget)
                       Right clientInfo -> do
                         let allClients = Set.map ciId clientInfo
@@ -192,7 +193,6 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
                   createSubConversation
                     cnv
                     sub
-                    convOrSub.mlsMeta.cnvmlsCipherSuite
                     convOrSub.mlsMeta.cnvmlsGroupId
               pure []
             Conv _
