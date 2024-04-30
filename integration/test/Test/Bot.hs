@@ -23,6 +23,8 @@ import UnliftIO
 
 testBotCustomCA :: App ()
 testBotCustomCA = do
+  -- TODO(mangoiv): this should be generated either from within haskell 
+  -- or by calling the bash script (or the opensslssl commands themselves(?)) in a `withTempDir`
   cert <- readFile "/tmp/ca/Example-RootCA/Example-RootCA.crt"
   privkey <- readFile "/tmp/ca/Example-RootCA/Example-RootCA.key"
   pubkey <- readFile "/tmp/ca/Example-RootCA/Example-RootCA.pub"
