@@ -15,9 +15,9 @@ inbucket:
     INBUCKET_MAILBOXNAMING: full
     INBUCKET_STORAGE_RETENTIONPERIOD: "72h"
 
-# The production ACME server of let's encrypt has a very strict rate limiting
-# and bans for weeks. Better try with the staging ACME server first.
-useStagingACMEServer: true
+# issuerRef:
+#   kind: ClusterIssuer
+#   name: letsencrypt
 
 # Enables and configures HTTP Basic Auth secret as e.g. created with
 # `htpasswd -bc auth username password`.
