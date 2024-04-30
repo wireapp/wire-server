@@ -5,6 +5,7 @@ module Wire.UserSubsystem.InterpreterSpec (spec) where
 import Data.Bifunctor (first)
 import Data.Coerce
 import Data.Default (Default (def))
+import Data.Domain
 import Data.Id
 import Data.LegalHold (defUserLegalHoldStatus)
 import Data.Qualified
@@ -62,18 +63,16 @@ spec = describe "UserSubsystem.Interpreter" do
             === sortOn (.profileQualifiedId) expectedProfiles
 
     prop "fails when a backend is offline or returns an error" $
-      \viewer onlineTargetUsers offlineTargetUsers visibility localDomain onlineDomain offlineDomain -> do
+      \viewer onlineTargetUsers (offlineTargetUsers :: Set StoredUser) visibility localDomain onlineDomain (offlineDomain :: Domain) -> do
         let onlineRemoteBackend = def {users = onlineTargetUsers}
-            offlineRemoteBackend = def {users = offlineTargetUsers}
             online = [(onlineDomain, onlineRemoteBackend)]
-            offline = [(offlineDomain, offlineRemoteBackend)]
             mkUserIds domain users = map (flip Qualified domain . (.id)) (S.toList users)
             onlineUsers = mkUserIds onlineDomain onlineTargetUsers
             offlineUsers = mkUserIds offlineDomain offlineTargetUsers
             config = UserSubsystemConfig visibility miniLocale
 
             result =
-              runFederationStackWithUnavailableBackendsEither [viewer] online offline Nothing config $
+              runFederationStackEither [viewer] online Nothing config $
                 getUserProfiles
                   (toLocalUnsafe localDomain viewer.id)
                   (onlineUsers <> offlineUsers)
@@ -138,7 +137,7 @@ spec = describe "UserSubsystem.Interpreter" do
             federation = [(remoteDomain, remoteBackend)]
             config = UserSubsystemConfig visibility miniLocale
             retrievedProfilesWithErrors :: ([(Qualified UserId, FederationError)], [UserProfile]) =
-              runFederationStackWithUnavailableBackends [viewer] federation mempty Nothing config $
+              runFederationStack [viewer] federation Nothing config $
                 getUserProfilesWithErrors
                   (toLocalUnsafe domain viewer.id)
                   ( map (flip Qualified remoteDomain . (.id)) $
@@ -158,13 +157,11 @@ spec = describe "UserSubsystem.Interpreter" do
             .&&. length (snd retrievedProfilesWithErrors) === length targetUsers
 
     prop "Remote users on offline backend always fail to return" $
-      \viewer targetUsers visibility domain remoteDomain -> do
-        let remoteBackend = def {users = targetUsers}
-            offline = [(remoteDomain, remoteBackend)]
-            online = mempty
+      \viewer (targetUsers :: Set StoredUser) visibility domain remoteDomain -> do
+        let online = mempty
             config = UserSubsystemConfig visibility miniLocale
             retrievedProfilesWithErrors :: ([(Qualified UserId, FederationError)], [UserProfile]) =
-              runFederationStackWithUnavailableBackends [viewer] online offline Nothing config $
+              runFederationStack [viewer] online Nothing config $
                 getUserProfilesWithErrors
                   (toLocalUnsafe domain viewer.id)
                   ( map (flip Qualified remoteDomain . (.id)) $
@@ -177,15 +174,13 @@ spec = describe "UserSubsystem.Interpreter" do
     prop "Remote users with one offline and one online backend return errors for offline backend but successed with online backend" $
       \viewer targetUsers visibility domain remoteDomainA remoteDomainB -> do
         let remoteBackendA = def {users = targetUsers}
-            remoteBackendB = def {users = targetUsers}
             online = [(remoteDomainA, remoteBackendA)]
-            offline = [(remoteDomainB, remoteBackendB)]
             allDomains = [domain, remoteDomainA, remoteDomainB]
             remoteAUsers = map (flip Qualified remoteDomainA . (.id)) (S.toList targetUsers)
             remoteBUsers = map (flip Qualified remoteDomainB . (.id)) (S.toList targetUsers)
             config = UserSubsystemConfig visibility miniLocale
             retrievedProfilesWithErrors :: ([(Qualified UserId, FederationError)], [UserProfile]) =
-              runFederationStackWithUnavailableBackends [viewer] online offline Nothing config $
+              runFederationStack [viewer] online Nothing config $
                 getUserProfilesWithErrors
                   (toLocalUnsafe domain viewer.id)
                   (remoteAUsers <> remoteBUsers)

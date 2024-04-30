@@ -201,44 +201,28 @@ runFederationStack ::
   UserSubsystemConfig ->
   Sem GetUserProfileEffects a ->
   a
-runFederationStack allLocalUsers fedBackends =
-  runFederationStackWithUnavailableBackends allLocalUsers fedBackends mempty
-
-runFederationStackWithUnavailableBackends ::
-  [StoredUser] ->
-  -- | the available backend
-  Map Domain MiniBackend ->
-  -- | the down backend
-  Map Domain MiniBackend ->
-  Maybe TeamMember ->
-  UserSubsystemConfig ->
-  Sem GetUserProfileEffects a ->
-  a
-runFederationStackWithUnavailableBackends allLocalUsers availableBackends unavailableBackends teamMember cfg =
+runFederationStack allLocalUsers fedBackends teamMember cfg =
   let unsafeError e = error $ "Unexpected error: " <> displayException e
    in either unsafeError Imports.id
-        . runFederationStackWithUnavailableBackendsEither
+        . runFederationStackEither
           allLocalUsers
-          availableBackends
-          unavailableBackends
+          fedBackends
           teamMember
           cfg
 
-runFederationStackWithUnavailableBackendsEither ::
+runFederationStackEither ::
   [StoredUser] ->
   -- | the available backend
-  Map Domain MiniBackend ->
-  -- | the down backend
   Map Domain MiniBackend ->
   Maybe TeamMember ->
   UserSubsystemConfig ->
   Sem GetUserProfileEffects a ->
   Either FederationError a
-runFederationStackWithUnavailableBackendsEither allLocalUsers availableBackends unavailableBackends teamMember cfg =
+runFederationStackEither allLocalUsers backends teamMember cfg =
   run
     . runError
     . sequentiallyPerformConcurrency
-    . miniFederationAPIAccess availableBackends unavailableBackends
+    . miniFederationAPIAccess backends
     . runInputConst cfg
     . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
     . evalState []
@@ -280,10 +264,9 @@ emptyFederationAPIAcesss = interpret $ \case
 miniFederationAPIAccess ::
   forall a r.
   Map Domain MiniBackend ->
-  Map Domain MiniBackend ->
   Sem (FederationAPIAccess MiniFederationMonad : r) a ->
   Sem r a
-miniFederationAPIAccess online _offline = do
+miniFederationAPIAccess online = do
   let runner :: FederatedActionRunner MiniFederationMonad r
       runner domain rpc = pure . Right $ runMiniFederation domain online rpc
   interpret \case
