@@ -18,7 +18,6 @@ library
     Wire.Sem.Concurrency.IO
     Wire.Sem.Concurrency.Sequential
     Wire.Sem.Delay
-    Wire.Sem.FromUTC
     Wire.Sem.Jwk
     Wire.Sem.Logger
     Wire.Sem.Logger.Level
