@@ -31,19 +31,20 @@ import Options.Applicative
 import PhoneUsers.Types
 import qualified System.IO as SIO
 import qualified System.Logger as Log
+import System.Logger.Message ((.=))
 import Wire.API.Team.Feature (FeatureStatus (FeatureStatusDisabled, FeatureStatusEnabled))
 import Wire.API.User (AccountStatus (Active))
 
 lookupClientsLastActiveTimestamps :: ClientState -> UserId -> IO [Maybe UTCTime]
 lookupClientsLastActiveTimestamps client u = do
-  runClient client $ runIdentity <$$> retry x1 (query selectClients (params LocalQuorum (Identity u)))
+  runClient client $ runIdentity <$$> retry x1 (query selectClients (params One (Identity u)))
   where
     selectClients :: PrepQuery R (Identity UserId) (Identity (Maybe UTCTime))
     selectClients = "SELECT last_active from clients where user = ?"
 
 readUsers :: ClientState -> ConduitM () [UserRow] IO ()
 readUsers client =
-  transPipe (runClient client) (paginateC selectUsersAll (paramsP LocalQuorum () 200) x5)
+  transPipe (runClient client) (paginateC selectUsersAll (paramsP One () 1000) x5)
     .| Conduit.map (fmap CQL.asRecord)
   where
     selectUsersAll :: C.PrepQuery C.R () (CQL.TupleType UserRow)
@@ -52,29 +53,29 @@ readUsers client =
 
 getConferenceCalling :: ClientState -> TeamId -> IO (Maybe FeatureStatus)
 getConferenceCalling client tid = do
-  runClient client $ runIdentity <$$> retry x1 (query1 select (params LocalQuorum (Identity tid)))
+  runClient client $ runIdentity <$$> retry x1 (query1 select (params One (Identity tid)))
   where
     select :: PrepQuery R (Identity TeamId) (Identity FeatureStatus)
     select =
       "select conference_calling from team_features where team_id = ?"
 
-process :: Maybe Int -> ClientState -> ClientState -> IO Result
-process limit brigClient galleyClient =
+process :: Log.Logger -> Maybe Int -> ClientState -> ClientState -> IO Result
+process logger limit brigClient galleyClient =
   runConduit $
     readUsers brigClient
       .| Conduit.mapM (\chunk -> SIO.hPutStr stderr "." $> chunk)
       .| Conduit.concat
       .| (maybe (Conduit.filter (const True)) Conduit.take limit)
-      .| Conduit.mapM (getUserInfo brigClient galleyClient)
+      .| Conduit.mapM (getUserInfo logger brigClient galleyClient)
       .| Conduit.foldMap infoToResult
 
-getUserInfo :: ClientState -> ClientState -> UserRow -> IO UserInfo
-getUserInfo brigClient galleyClient ur = do
+getUserInfo :: Log.Logger -> ClientState -> ClientState -> UserRow -> IO UserInfo
+getUserInfo logger brigClient galleyClient ur = do
   if not $ isCandidate
     then pure NoPhoneUser
     else do
       -- should we give C* a little break here and add a small threadDelay?
-      threadDelay 200
+      -- threadDelay 200
       lastActiveTimeStamps <- lookupClientsLastActiveTimestamps brigClient ur.id
       now <- getCurrentTime
       -- activity:
@@ -94,10 +95,9 @@ getUserInfo brigClient galleyClient ur = do
                   if isPaying
                     then ActiveTeamUser Free
                     else ActiveTeamUser Paid
-            putStrLn ""
-            putStrLn $ "active phone user found: " <> show apu
-            print ur
-            putStrLn $ "last active time stamps: " <> show lastActiveTimeStamps
+            Log.info logger $ "active_phone_user" .= show apu
+            Log.info logger $ "user_record" .= show ur
+            Log.info logger $ "last_active_time_stamps" .= show lastActiveTimeStamps
             pure apu
           else pure InactiveLast90Days
       pure $ PhoneUser userInfo
@@ -150,13 +150,13 @@ main = do
   brigClient <- initCas opts.brigDb logger
   galleyClient <- initCas opts.galleyDb logger
   putStrLn "scanning users table..."
-  res <- process opts.limit brigClient galleyClient
+  res <- process logger opts.limit brigClient galleyClient
   putStrLn "\n"
   print res
   where
     initLogger =
       Log.new
-        . Log.setLogLevel Log.Warn
+        . Log.setLogLevel Log.Info
         . Log.setOutput Log.StdOut
         . Log.setFormat Nothing
         . Log.setBufSize 0
