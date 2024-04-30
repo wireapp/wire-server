@@ -1,4 +1,0 @@
-dependencies:
-- name: inbucket
-  version: 2.1.0
-  repository: https://inbucket.github.io/inbucket-community
