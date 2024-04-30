@@ -1553,16 +1553,6 @@ lookupProfilesV3 ::
   Sem r ([(Qualified UserId, FederationError)], [UserProfile])
 lookupProfilesV3 self others = getUserProfilesWithErrors self others
 
--- t <-
---   liftSem $ traverseConcurrentlyAppT
---     (getUserProfiles self)
---     (bucketQualified others)
--- let (l, r) = partitionEithers t
--- pure (l >>= flattenUsers, join r)
--- where
---   flattenUsers :: (Qualified [UserId], FederationError) -> [(Qualified UserId, FederationError)]
---   flattenUsers (l, e) = (,e) <$> sequenceA l
-
 getLegalHoldStatus ::
   Member GalleyAPIAccess r =>
   UserId ->
