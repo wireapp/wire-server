@@ -24,7 +24,6 @@ library
   build-depends:
     , aeson
     , aeson-pretty
-    , attoparsec
     , base
     , bytestring
     , cassandra-util

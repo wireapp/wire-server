@@ -5,7 +5,6 @@
 { mkDerivation
 , aeson
 , aeson-pretty
-, attoparsec
 , base
 , bytestring
 , cassandra-util
@@ -30,7 +29,6 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     aeson-pretty
-    attoparsec
     base
     bytestring
     cassandra-util
