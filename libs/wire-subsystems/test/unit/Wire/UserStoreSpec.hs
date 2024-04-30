@@ -29,12 +29,6 @@ spec = do
             then user.userExpire === storedUser.expires
             else user.userExpire === Nothing
 
-    prop "user expires" $ \domain defaultLocale storedUser ->
-      let user = mkUserFromStored domain defaultLocale storedUser
-       in if storedUser.status == Just Ephemeral
-            then user.userExpire === storedUser.expires
-            else user.userExpire === Nothing
-
     prop "user locale" $ \domain defaultLocale storedUser ->
       let user = mkUserFromStored domain defaultLocale storedUser
        in if (isJust storedUser.language)
