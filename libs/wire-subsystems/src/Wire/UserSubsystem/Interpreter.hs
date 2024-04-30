@@ -39,7 +39,7 @@ data UserSubsystemConfig = UserSubsystemConfig
 runUserSubsystem ::
   ( Member GalleyAPIAccess r,
     Member UserStore r,
-    Member (Concurrency 'Unsafe) r, -- TODO: subsystems should implement concurrency inside interpreters, not depend on this dangerous effect.
+    Member (Concurrency 'Unsafe) r, -- FUTUREWORK: subsystems should implement concurrency inside interpreters, not depend on this dangerous effect.
     Member (Error FederationError) r,
     Member (FederationAPIAccess fedM) r,
     Member DeleteQueue r,
@@ -61,7 +61,7 @@ getUserProfilesImpl ::
   ( Member GalleyAPIAccess r,
     Member (Input UserSubsystemConfig) r,
     Member UserStore r,
-    Member (Concurrency 'Unsafe) r, -- TODO: subsystems should implement concurrency inside interpreters, not depend on this dangerous effect.
+    Member (Concurrency 'Unsafe) r, -- FUTUREWORK: subsystems should implement concurrency inside interpreters, not depend on this dangerous effect.
     Member (Error FederationError) r,
     Member (FederationAPIAccess fedM) r,
     Member DeleteQueue r,
@@ -203,7 +203,7 @@ deleteLocalIfExpired user =
 getUserProfilesWithErrorsImpl ::
   forall r fedM.
   ( Member UserStore r,
-    Member (Concurrency 'Unsafe) r, -- TODO: subsystems should implement concurrency inside interpreters, not depend on this dangerous effect.
+    Member (Concurrency 'Unsafe) r, -- FUTUREWORK: subsystems should implement concurrency inside interpreters, not depend on this dangerous effect.
     Member (Input UserSubsystemConfig) r,
     Member (FederationAPIAccess fedM) r,
     Member GalleyAPIAccess r,
