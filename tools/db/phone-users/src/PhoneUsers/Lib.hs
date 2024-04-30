@@ -34,8 +34,8 @@ import qualified System.Logger as Log
 import Wire.API.Team.Feature (FeatureStatus (FeatureStatusDisabled, FeatureStatusEnabled))
 import Wire.API.User (AccountStatus (Active))
 
-lookupClients :: ClientState -> UserId -> IO [Maybe UTCTime]
-lookupClients client u = do
+lookupClientsLastActiveTimestamps :: ClientState -> UserId -> IO [Maybe UTCTime]
+lookupClientsLastActiveTimestamps client u = do
   runClient client $ runIdentity <$$> retry x1 (query selectClients (params LocalQuorum (Identity u)))
   where
     selectClients :: PrepQuery R (Identity UserId) (Identity (Maybe UTCTime))
@@ -49,6 +49,14 @@ readUsers client =
     selectUsersAll :: C.PrepQuery C.R () (CQL.TupleType UserRow)
     selectUsersAll =
       "SELECT id, email, phone, activated, status, team FROM user"
+
+getConferenceCalling :: ClientState -> TeamId -> IO (Maybe FeatureStatus)
+getConferenceCalling client tid = do
+  runClient client $ runIdentity <$$> retry x1 (query1 select (params LocalQuorum (Identity tid)))
+  where
+    select :: PrepQuery R (Identity TeamId) (Identity FeatureStatus)
+    select =
+      "select conference_calling from team_features where team_id = ?"
 
 process :: Maybe Int -> ClientState -> ClientState -> IO Result
 process limit brigClient galleyClient =
@@ -67,7 +75,7 @@ getUserInfo brigClient galleyClient ur = do
     else do
       -- should we give C* a little break here and add a small threadDelay?
       threadDelay 200
-      lastActiveTimeStamps <- lookupClients brigClient ur.id
+      lastActiveTimeStamps <- lookupClientsLastActiveTimestamps brigClient ur.id
       now <- getCurrentTime
       -- activity:
       --   inactive: they have no client or client's last_active is greater than 90 days ago
@@ -102,22 +110,14 @@ getUserInfo brigClient galleyClient ur = do
     clientWasActiveLast90Days :: UTCTime -> UTCTime -> Bool
     clientWasActiveLast90Days now lastActive = diffUTCTime now lastActive < 90 * nominalDay
 
--- if conference_calling is enabled for the team, then it's a paying team
-isPayingTeam :: ClientState -> TeamId -> IO Bool
-isPayingTeam client tid = do
-  status <- getConferenceCalling client tid
-  pure $ case status of
-    Just FeatureStatusEnabled -> True
-    Just FeatureStatusDisabled -> False
-    Nothing -> False
-
-getConferenceCalling :: ClientState -> TeamId -> IO (Maybe FeatureStatus)
-getConferenceCalling client tid = do
-  runClient client $ runIdentity <$$> retry x1 (query1 select (params LocalQuorum (Identity tid)))
-  where
-    select :: PrepQuery R (Identity TeamId) (Identity FeatureStatus)
-    select =
-      "select conference_calling from team_features where team_id = ?"
+    -- if conference_calling is enabled for the team, then it's a paying team
+    isPayingTeam :: ClientState -> TeamId -> IO Bool
+    isPayingTeam client tid = do
+      status <- getConferenceCalling client tid
+      pure $ case status of
+        Just FeatureStatusEnabled -> True
+        Just FeatureStatusDisabled -> False
+        Nothing -> False
 
 infoToResult :: UserInfo -> Result
 infoToResult = \case
