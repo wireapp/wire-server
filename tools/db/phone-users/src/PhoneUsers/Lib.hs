@@ -31,7 +31,7 @@ import Options.Applicative
 import PhoneUsers.Types
 import qualified System.IO as SIO
 import qualified System.Logger as Log
-import System.Logger.Message ((.=))
+import System.Logger.Message ((.=), (~~))
 import Wire.API.Team.Feature (FeatureStatus (FeatureStatusDisabled, FeatureStatusEnabled))
 import Wire.API.User (AccountStatus (Active))
 
@@ -95,9 +95,11 @@ getUserInfo logger brigClient galleyClient ur = do
                   if isPaying
                     then ActiveTeamUser Free
                     else ActiveTeamUser Paid
-            Log.info logger $ "active_phone_user" .= show apu
-            Log.info logger $ "user_record" .= show ur
-            Log.info logger $ "last_active_time_stamps" .= show lastActiveTimeStamps
+            Log.info logger $
+              "active_phone_user" .= show apu
+                ~~ "user_record" .= show ur
+                ~~ "last_active_timestamps" .= show lastActiveTimeStamps
+                ~~ Log.msg (Log.val "active phone user found")
             pure apu
           else pure InactiveLast90Days
       pure $ PhoneUser userInfo
