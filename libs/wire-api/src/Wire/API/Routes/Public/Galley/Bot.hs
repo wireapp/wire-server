@@ -23,6 +23,7 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.MakesFederatedCall
 import Wire.API.Message
+import Wire.API.Provider.Bot
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
@@ -47,3 +48,16 @@ type BotAPI =
              (PostOtrResponses ClientMismatch)
              (PostOtrResponse ClientMismatch)
     )
+    :<|> Named
+           "get-bot-conversation"
+           ( CanThrow 'AccessDenied
+               :> CanThrow 'ConvNotFound
+               :> CanThrow OperationDenied
+               :> CanThrow 'NotATeamMember
+               :> CanThrow 'TeamNotFound
+               :> "bot"
+               :> "conversation"
+               :> ZBot
+               :> ZConversation
+               :> Get '[JSON] BotConvView
+           )

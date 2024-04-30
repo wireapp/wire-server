@@ -1,1 +1,0 @@
-Fix bug where welcome notifications were generated for each client instead of for each user

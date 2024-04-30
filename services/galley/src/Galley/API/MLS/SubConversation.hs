@@ -120,7 +120,7 @@ getLocalSubConversation qusr lconv sconv = do
   msub <- Eff.getSubConversation (tUnqualified lconv) sconv
   sub <- case msub of
     Nothing -> do
-      (mlsMeta, mlsProtocol) <- noteS @'ConvNotFound (mlsMetadata c)
+      (_mlsMeta, mlsProtocol) <- noteS @'ConvNotFound (mlsMetadata c)
 
       case mlsProtocol of
         MLSMigrationMixed -> throwS @'MLSSubConvUnsupportedConvType
@@ -128,7 +128,7 @@ getLocalSubConversation qusr lconv sconv = do
 
       -- deriving this deterministically to prevent race conditions with
       -- multiple threads creating the subconversation
-      pure (newSubConversationFromParent lconv sconv mlsMeta)
+      pure (newSubConversationFromParent lconv sconv)
     Just sub -> pure sub
   pure (toPublicSubConv (tUntagged (qualifyAs lconv sub)))
 
@@ -263,10 +263,6 @@ deleteLocalSubConversation qusr lcnvId scnvId dsc = do
       lConvOrSubId = qualifyAs lcnvId (SubConv cnvId scnvId)
   cnv <- getConversationAndCheckMembership qusr lcnvId
 
-  (mlsMeta, _mlsProtocol) <- noteS @'ConvNotFound (mlsMetadata cnv)
-
-  let cs = cnvmlsCipherSuite mlsMeta
-
   withCommitLock lConvOrSubId (dscGroupId dsc) (dscEpoch dsc) $ do
     sconv <-
       Eff.getSubConversation cnvId scnvId
@@ -287,7 +283,7 @@ deleteLocalSubConversation qusr lcnvId scnvId dsc = do
             $ nextGenGroupId gid
 
     -- the following overwrites any prior information about the subconversation
-    void $ Eff.createSubConversation cnvId scnvId cs newGid
+    void $ Eff.createSubConversation cnvId scnvId newGid
 
 deleteRemoteSubConversation ::
   ( Members

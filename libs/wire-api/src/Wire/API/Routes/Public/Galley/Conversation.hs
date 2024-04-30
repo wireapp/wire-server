@@ -48,9 +48,7 @@ import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
 import Wire.API.Team.Feature
 
-type ConversationResponse = ResponseForExistedCreated Conversation
-
--- | A type similar to 'ConversationResponse' introduced to allow for a failure
+-- | A type similar to 'ResponseForExistedCreated' introduced to allow for a failure
 -- to add remote members while creating a conversation or due to involved
 -- backends forming an incomplete graph.
 data CreateGroupConversationResponse
@@ -72,50 +70,26 @@ instance
 
 type ConversationHeaders = '[DescHeader "Location" "Conversation ID" ConvId]
 
-type ConversationVerb =
-  MultiVerb
-    'POST
-    '[JSON]
-    '[ WithHeaders
-         ConversationHeaders
-         Conversation
-         (Respond 200 "Conversation existed" Conversation),
-       WithHeaders
-         ConversationHeaders
-         Conversation
-         (Respond 201 "Conversation created" Conversation)
-     ]
-    ConversationResponse
+type family ConversationResponse r
 
-type CreateGroupConversationVerb =
-  MultiVerb
-    'POST
-    '[JSON]
-    '[ WithHeaders
-         ConversationHeaders
-         Conversation
-         (Respond 200 "Conversation existed" Conversation),
-       WithHeaders
-         ConversationHeaders
-         CreateGroupConversation
-         (Respond 201 "Conversation created" CreateGroupConversation)
-     ]
-    CreateGroupConversationResponse
+type instance ConversationResponse Conversation = ResponseForExistedCreated Conversation
 
-type ConversationV2Verb =
+type instance ConversationResponse CreateGroupConversation = CreateGroupConversationResponse
+
+type ConversationVerb v r =
   MultiVerb
     'POST
     '[JSON]
     '[ WithHeaders
          ConversationHeaders
          Conversation
-         (VersionedRespond 'V2 200 "Conversation existed" Conversation),
+         (VersionedRespond v 200 "Conversation existed" Conversation),
        WithHeaders
          ConversationHeaders
-         Conversation
-         (VersionedRespond 'V2 201 "Conversation created" Conversation)
+         r
+         (VersionedRespond v 201 "Conversation created" r)
      ]
-    ConversationResponse
+    (ConversationResponse r)
 
 type CreateConversationCodeVerb =
   MultiVerb
@@ -177,9 +151,22 @@ type ConversationAPI =
                :> MultiVerb1 'GET '[JSON] (VersionedRespond 'V2 200 "Conversation" Conversation)
            )
     :<|> Named
-           "get-conversation"
+           "get-conversation@v5"
            ( Summary "Get a conversation by ID"
                :> From 'V3
+               :> Until 'V6
+               :> MakesFederatedCall 'Galley "get-conversations"
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'ConvAccessDenied
+               :> ZLocalUser
+               :> "conversations"
+               :> QualifiedCapture "cnv" ConvId
+               :> MultiVerb1 'GET '[JSON] (VersionedRespond 'V5 200 "Conversation" Conversation)
+           )
+    :<|> Named
+           "get-conversation"
+           ( Summary "Get a conversation by ID"
+               :> From 'V6
                :> MakesFederatedCall 'Galley "get-conversations"
                :> CanThrow 'ConvNotFound
                :> CanThrow 'ConvAccessDenied
@@ -340,10 +327,30 @@ type ConversationAPI =
                     )
            )
     :<|> Named
-           "list-conversations"
+           "list-conversations@v5"
            ( Summary "Get conversation metadata for a list of conversation ids"
                :> MakesFederatedCall 'Galley "get-conversations"
                :> From 'V3
+               :> Until 'V6
+               :> ZLocalUser
+               :> "conversations"
+               :> "list"
+               :> ReqBody '[JSON] ListConversations
+               :> MultiVerb1
+                    'POST
+                    '[JSON]
+                    ( VersionedRespond
+                        'V5
+                        200
+                        "Conversation page"
+                        ConversationsResponse
+                    )
+           )
+    :<|> Named
+           "list-conversations"
+           ( Summary "Get conversation metadata for a list of conversation ids"
+               :> MakesFederatedCall 'Galley "get-conversations"
+               :> From 'V6
                :> ZLocalUser
                :> "conversations"
                :> "list"
@@ -389,7 +396,7 @@ type ConversationAPI =
                :> ZOptConn
                :> "conversations"
                :> VersionedReqBody 'V2 '[Servant.JSON] NewConv
-               :> ConversationV2Verb
+               :> ConversationVerb 'V2 Conversation
            )
     :<|> Named
            "create-group-conversation@v3"
@@ -413,16 +420,17 @@ type ConversationAPI =
                :> ZOptConn
                :> "conversations"
                :> ReqBody '[Servant.JSON] NewConv
-               :> ConversationVerb
+               :> ConversationVerb 'V3 Conversation
            )
     :<|> Named
-           "create-group-conversation"
+           "create-group-conversation@v5"
            ( Summary "Create a new conversation"
                :> MakesFederatedCall 'Brig "api-version"
                :> MakesFederatedCall 'Brig "get-not-fully-connected-backends"
                :> MakesFederatedCall 'Galley "on-conversation-created"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> From 'V4
+               :> Until 'V6
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'MLSNonEmptyMemberList
                :> CanThrow 'MLSNotEnabled
@@ -437,7 +445,31 @@ type ConversationAPI =
                :> ZOptConn
                :> "conversations"
                :> ReqBody '[Servant.JSON] NewConv
-               :> CreateGroupConversationVerb
+               :> ConversationVerb 'V5 CreateGroupConversation
+           )
+    :<|> Named
+           "create-group-conversation"
+           ( Summary "Create a new conversation"
+               :> MakesFederatedCall 'Brig "api-version"
+               :> MakesFederatedCall 'Brig "get-not-fully-connected-backends"
+               :> MakesFederatedCall 'Galley "on-conversation-created"
+               :> MakesFederatedCall 'Galley "on-conversation-updated"
+               :> From 'V6
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'MLSNonEmptyMemberList
+               :> CanThrow 'MLSNotEnabled
+               :> CanThrow 'NotConnected
+               :> CanThrow 'NotATeamMember
+               :> CanThrow OperationDenied
+               :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow NonFederatingBackends
+               :> CanThrow UnreachableBackends
+               :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
+               :> ZLocalUser
+               :> ZOptConn
+               :> "conversations"
+               :> ReqBody '[Servant.JSON] NewConv
+               :> ConversationVerb 'V6 CreateGroupConversation
            )
     :<|> Named
            "create-self-conversation@v2"
@@ -446,21 +478,50 @@ type ConversationAPI =
                :> ZLocalUser
                :> "conversations"
                :> "self"
-               :> ConversationV2Verb
+               :> ConversationVerb 'V2 Conversation
+           )
+    :<|> Named
+           "create-self-conversation@v5"
+           ( Summary "Create a self-conversation"
+               :> From 'V3
+               :> Until 'V6
+               :> ZLocalUser
+               :> "conversations"
+               :> "self"
+               :> ConversationVerb 'V5 Conversation
            )
     :<|> Named
            "create-self-conversation"
            ( Summary "Create a self-conversation"
-               :> From 'V3
+               :> From 'V6
                :> ZLocalUser
                :> "conversations"
                :> "self"
-               :> ConversationVerb
+               :> ConversationVerb 'V6 Conversation
+           )
+    :<|> Named
+           "get-mls-self-conversation@v5"
+           ( Summary "Get the user's MLS self-conversation"
+               :> From 'V5
+               :> Until 'V6
+               :> ZLocalUser
+               :> "conversations"
+               :> "mls-self"
+               :> CanThrow 'MLSNotEnabled
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    ( VersionedRespond
+                        'V5
+                        200
+                        "The MLS self-conversation"
+                        Conversation
+                    )
            )
     :<|> Named
            "get-mls-self-conversation"
            ( Summary "Get the user's MLS self-conversation"
-               :> From 'V5
+               :> From 'V6
                :> ZLocalUser
                :> "conversations"
                :> "mls-self"
@@ -586,7 +647,7 @@ type ConversationAPI =
                :> "conversations"
                :> "one2one"
                :> VersionedReqBody 'V2 '[JSON] NewConv
-               :> ConversationV2Verb
+               :> ConversationVerb 'V2 Conversation
            )
     :<|> Named
            "create-one-to-one-conversation"
@@ -608,7 +669,20 @@ type ConversationAPI =
                :> "conversations"
                :> "one2one"
                :> ReqBody '[JSON] NewConv
-               :> ConversationVerb
+               :> ConversationVerb 'V3 Conversation
+           )
+    :<|> Named
+           "get-one-to-one-mls-conversation@v5"
+           ( Summary "Get an MLS 1:1 conversation"
+               :> From 'V5
+               :> Until 'V6
+               :> ZLocalUser
+               :> CanThrow 'MLSNotEnabled
+               :> CanThrow 'NotConnected
+               :> "conversations"
+               :> "one2one"
+               :> QualifiedCapture "usr" UserId
+               :> MultiVerb1 'GET '[JSON] (VersionedRespond 'V5 200 "MLS 1-1 conversation" Conversation)
            )
     :<|> Named
            "get-one-to-one-mls-conversation"

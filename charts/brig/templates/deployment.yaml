@@ -34,19 +34,30 @@ spec:
         - name: "brig-config"
           configMap:
             name: "brig"
+        - name: "brig-secrets"
+          secret:
+            secretName: "brig"
         {{- if eq $.Values.turn.serversSource "files" }}
         - name: "turn-servers"
           configMap:
             name: "turn"
         {{- end }}
-        - name: "brig-secrets"
-          secret:
-            secretName: "brig"
         {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
         - name: "brig-cassandra"
           secret:
             secretName: {{ (include "tlsSecretRef" .Values.config | fromYaml).name }}
         {{- end}}
+        {{- if eq (include "configureElasticSearchCa" .Values.config) "true" }}
+        - name: "elasticsearch-ca"
+          secret:
+            secretName: {{ include "elasticsearchTlsSecretName" .Values.config }}
+        {{- end }}
+        {{- if eq (include "configureAdditionalElasticSearchCa" .Values.config) "true" }}
+        - name: "additional-elasticsearch-ca"
+          secret:
+            secretName: {{ include "additionalElasticsearchTlsSecretName" .Values.config }}
+        {{- end }}
+
       containers:
         - name: brig
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -67,6 +78,14 @@ spec:
           {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
           - name: "brig-cassandra"
             mountPath: "/etc/wire/brig/cassandra"
+          {{- end }}
+          {{- if eq (include "configureElasticSearchCa" .Values.config) "true" }}
+          - name: "elasticsearch-ca"
+            mountPath: "/etc/wire/brig/elasticsearch-ca/"
+          {{- end }}
+          {{- if eq (include "configureAdditionalElasticSearchCa" .Values.config) "true" }}
+          - name: "additional-elasticsearch-ca"
+            mountPath: "/etc/wire/brig/additional-elasticsearch-ca/"
           {{- end }}
           env:
           - name: LOG_LEVEL

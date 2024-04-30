@@ -1,2 +1,0 @@
-In order for the CRL-proxy to function correctly, it needs to have CORS headers set.
-We are now setting the CORS headers on the ingress level.

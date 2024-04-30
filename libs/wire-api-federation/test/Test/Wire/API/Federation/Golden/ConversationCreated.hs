@@ -86,5 +86,16 @@ testObject_ConversationCreated2 =
       nonCreatorMembers = Set.fromList [],
       messageTimer = Nothing,
       receiptMode = Nothing,
-      protocol = ProtocolMLS (ConversationMLSData (GroupId "group") (Epoch 3) (Just (UTCTime (fromGregorian 2020 8 29) 0)) MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519)
+      protocol =
+        ProtocolMLS
+          ( ConversationMLSData
+              (GroupId "group")
+              ( Just
+                  ( ActiveMLSConversationData
+                      (Epoch 3)
+                      (UTCTime (fromGregorian 2020 8 29) 0)
+                      MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+                  )
+              )
+          )
     }

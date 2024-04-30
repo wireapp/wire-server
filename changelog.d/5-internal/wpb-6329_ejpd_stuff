@@ -1,6 +1,0 @@
-Add assets to output of ejpd-info end-point in stern; also:
-
-- [brig] now talks to carghold for profile picture extraction;
-- [integration] migrate ejpd tests;
-- [integration] enhanced `shouldMatch` shows a diff on failure now;
-- [integration] added `shouldMatchLeniently` for rule-based canonicalization of arguments

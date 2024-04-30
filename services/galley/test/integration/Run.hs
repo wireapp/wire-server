@@ -28,27 +28,22 @@ import Cassandra.Util
 import Control.Lens
 import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Conversion
-import Data.Metrics.Test (pathsConsistencyCheck)
-import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Proxy
 import Data.Tagged
 import Data.Text (pack)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml (decodeFileEither)
 import Federation
-import Galley.API
 import Galley.Aws qualified as Aws
 import Galley.Options hiding (endpoint)
 import Galley.Options qualified as O
 import Imports hiding (local)
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
-import Network.Wai.Utilities.Server (compile)
 import OpenSSL (withOpenSSL)
 import Options.Applicative
 import System.Logger.Class qualified as Logger
 import Test.Tasty
-import Test.Tasty.HUnit
 import Test.Tasty.Ingredients
 import Test.Tasty.Ingredients.Basic
 import Test.Tasty.Options
@@ -97,12 +92,7 @@ main = withOpenSSL $ runTests go
     go g i = withResource (getOpts g i) releaseOpts $ \setup ->
       testGroup
         "galley"
-        [ testCase "sitemap" $
-            assertEqual
-              "inconsistent sitemap"
-              mempty
-              (pathsConsistencyCheck . treeToPaths . compile $ Galley.API.waiSitemap),
-          API.tests setup,
+        [ API.tests setup,
           test setup "isConvMemberL" isConvMemberLTests
         ]
     getOpts gFile iFile = do

@@ -39,7 +39,7 @@ openssl genpkey -algorithm ed25519
 ECDSA private keys can be generated with:
 
 ```
-openssl genpkey -algorithm ec -genparam dsa -pkeyopt ec_paramgen_curve:P-256
+openssl genpkey -algorithm ec -pkeyopt ec_paramgen_curve:P-256
 ```
 
 and similar (replace `P-256` with `P-384` or `P-521`).
@@ -863,7 +863,8 @@ client), a **C**ertificate **A**uthority in PEM format needs to be configured.
 
 The ways differ regarding the kind of program:
 - *Services* expect a `cassandra.tlsCa: <filepath>` attribute in their config file.
-- *CLI commands* (e.g. migrations) accept a `--tls-ca-certificate-file <filepath>` parameter.
+- *\*-schema CLI commands* accept a `--tls-ca-certificate-file <filepath>` parameter.
+- *brig-index migrate-data* accepts a `--cassandra-ca-cert <filepath>` parameter.
 
 When a CA PEM file is configured, all Cassandra connections are opened with TLS
 encryption i.e. there is no fallback to unencrypted connections. This ensures
@@ -921,6 +922,81 @@ brig:
     elasticsearchAdditional:
       username: elastic
       password: changeme
+```
+
+## Configure TLS for Elasticsearch
+
+If the elasticsearch instance requires TLS, it can be configured like this:
+
+```yaml
+brig:
+  config:
+    elasticsearch:
+      scheme: https
+
+elasticsearch-index:
+  elasticsearch:
+    scheme: https
+```
+
+In case a custom CA certificate is required it can be provided like this:
+
+```yaml
+brig:
+  config:
+    elasticsearch:
+      tlsCa: <PEM encoded CA certificates>
+elasticsearch-index:
+  elasticsearch:
+    tlsCa: <PEM encoded CA certificates>
+```
+
+There is another way to provide this, in case there already exists a kubernetes
+secret containing the CA certificate(s):
+
+```yaml
+brig:
+  config:
+    elasticsearch:
+      tlsCaSecretRef:
+        name: <Name of the secret>
+        key: <Key in the secret containing pem encoded CA Cert>
+elasticsearch-index:
+  elasticsearch:
+    tlsCaSecretRef:
+      name: <Name of the secret>
+      key: <Key in the secret containing pem encoded CA Cert>
+```
+
+For configuring `addtionalWriteIndex` in brig (this is required during a
+migration from one index to another or one ES instance to another), the settings
+need to be like this:
+
+```yaml
+brig:
+  config:
+    elasticsearch:
+      additionalWriteScheme: https
+      # One or none of these:
+      # addtionalTlsCa: <similar to tlsCa>
+      # addtionalTlsCaSecretRef: <similar to tlsCaSecretRef>
+```
+
+
+**WARNING:** Please do this only if you know what you're doing.
+
+In case it is not possible to verify TLS certificate of the elasticsearch
+server, it can be turned off without tuning off TLS like this:
+
+```yaml
+brig:
+  config:
+    elasticsearch:
+      insecureSkipVerifyTls: true
+      addtionalInsecureSkipVerifyTls: true # only required when addtional index is being used.
+elasticsearch-index:
+  elasticsearch:
+    insecureSkipVerifyTls: true
 ```
 
 ## Configure Redis authentication

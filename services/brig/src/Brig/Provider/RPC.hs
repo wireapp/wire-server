@@ -42,9 +42,6 @@ import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Id
 import Data.List1 qualified as List1
-import Galley.Types.Bot qualified as Galley
-import Galley.Types.Bot.Service (serviceEnabled)
-import Galley.Types.Bot.Service qualified as Galley
 import Imports
 import Network.HTTP.Client qualified as Http
 import Network.HTTP.Types.Method
@@ -53,6 +50,9 @@ import Ssl.Util (withVerifiedSslConnection)
 import System.Logger.Class (MonadLogger, field, msg, val, (~~))
 import System.Logger.Class qualified as Log
 import URI.ByteString
+import Wire.API.Bot qualified as Galley
+import Wire.API.Bot.Service (serviceEnabled)
+import Wire.API.Bot.Service qualified as Galley
 import Wire.API.Event.Conversation qualified as Conv
 import Wire.API.Provider (httpsUrl)
 import Wire.API.Provider.External
