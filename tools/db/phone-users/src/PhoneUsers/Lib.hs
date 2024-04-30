@@ -23,6 +23,7 @@ import Cassandra as C
 import Cassandra.Settings as C
 import Data.Conduit
 import qualified Data.Conduit.Combinators as Conduit
+import qualified Data.Conduit.List as CL
 import Data.Id (TeamId, UserId)
 import Data.Time
 import qualified Database.CQL.Protocol as CQL
@@ -67,19 +68,10 @@ process logger limit brigClient galleyClient =
       .| Conduit.concat
       .| (maybe (Conduit.filter (const True)) Conduit.take limit)
       .| Conduit.mapM (getUserInfo logger brigClient galleyClient)
-      .| chunked logger
-      .| Conduit.fold
-
-chunked :: Log.Logger -> ConduitT UserInfo Result IO ()
-chunked logger = do
-  Conduit.take 10000 .| foldAndLog logger
-  chunked logger
-
-foldAndLog :: Log.Logger -> ConduitT UserInfo Result IO ()
-foldAndLog logger = do
-  result <- Conduit.foldMap infoToResult
-  Log.info logger $ "intermediate_result" .= show result
-  yield result
+      .| forever (CL.isolate 10000 .| (Conduit.foldMap infoToResult >>= yield))
+      .| Conduit.takeWhile ((> 0) . usersSearched)
+      .| CL.scan (<>) mempty
+        `fuseUpstream` Conduit.mapM_ (\r -> Log.info logger $ "intermediate_result" .= show r)
 
 getUserInfo :: Log.Logger -> ClientState -> ClientState -> UserRow -> IO UserInfo
 getUserInfo logger brigClient galleyClient ur = do
