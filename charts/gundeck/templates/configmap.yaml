@@ -33,6 +33,8 @@ data:
       host: {{ .redis.host }}
       port: {{ .redis.port }}
       connectionMode: {{ .redis.connectionMode }}
+      enableTls: {{ .redis.enableTls }}
+      verifyTls: {{ .redis.verifyTls }}
 
     {{- if .redisAdditionalWrite }}
     redisAdditionalWrite:

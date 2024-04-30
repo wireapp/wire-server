@@ -31,6 +31,8 @@ config:
     host: redis-ephemeral-master
     port: 6379
     connectionMode: "master" # master | cluster
+    enableTls: false
+    verifyTls: true
   # redisAdditionalWrite:
   #   host: redis-two
   #   port: 6379
