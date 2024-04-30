@@ -45,4 +45,4 @@ data:
       port: 6379
       connectionMode: master
       enableTls: false
-      verifyTls: true
+      insecureSkipVerifyTls: true

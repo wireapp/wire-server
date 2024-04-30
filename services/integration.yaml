@@ -123,7 +123,7 @@ redis2:
   port: 6379
   connectionMode: master
   enableTls: false
-  verifyTls: true
+  insecureSkipVerifyTls: false
 
 dynamicBackends:
   dynamic-backend-1:

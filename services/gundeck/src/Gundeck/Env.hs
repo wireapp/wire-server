@@ -141,9 +141,9 @@ createRedisPool l ep username password identifier = do
         pure $
           defClientParams
             { clientHooks =
-                if ep._verifyTls
-                  then defClientParams.clientHooks
-                  else defClientParams.clientHooks {onServerCertificate = \_ _ _ _ -> pure []},
+                if ep._insecureSkipVerifyTls
+                  then defClientParams.clientHooks {onServerCertificate = \_ _ _ _ -> pure []}
+                  else defClientParams.clientHooks,
               clientShared =
                 case customCertStore of
                   Nothing -> defClientParams.clientShared

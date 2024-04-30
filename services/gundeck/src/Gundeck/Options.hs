@@ -114,9 +114,9 @@ data RedisEndpoint = RedisEndpoint
     _enableTls :: !Bool,
     -- | When not specified, use system CA bundle
     _tlsCa :: !(Maybe FilePath),
-    -- | When 'False', uses TLS but does not verify hostname or CA or validity
-    -- of the cert. Not recommended to set to 'False'.
-    _verifyTls :: !Bool
+    -- | When 'True', uses TLS but does not verify hostname or CA or validity of
+    -- the cert. Not recommended to set to 'True'.
+    _insecureSkipVerifyTls :: !Bool
   }
   deriving (Show, Generic)
 

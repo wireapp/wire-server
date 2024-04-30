@@ -34,7 +34,7 @@ data:
       port: {{ .redis.port }}
       connectionMode: {{ .redis.connectionMode }}
       enableTls: {{ .redis.enableTls }}
-      verifyTls: {{ .redis.verifyTls }}
+      insecureSkipVerifyTls: {{ .redis.insecureSkipVerifyTls }}
       {{- if eq (include "configureRedisCa" .) "true" }}
       tlsCa: /etc/wire/gundeck/redis-ca/{{ include "redisTlsSecretKey" .}}
       {{- end }}
@@ -45,7 +45,7 @@ data:
       port: {{ .redisAdditionalWrite.port }}
       connectionMode: {{ .redisAdditionalWrite.connectionMode }}
       enableTls: {{ .redisAdditionalWrite.enableTls }}
-      verifyTls: {{ .redisAdditionalWrite.verifyTls }}
+      insecureSkipVerifyTls: {{ .redisAdditionalWrite.insecureSkipVerifyTls }}
       {{- if eq (include "configureAdditionalRedisCa" .) "true" }}
       tlsCa: /etc/wire/gundeck/additional-redis-ca/{{ include "additionalRedisTlsSecretKey" .}}
       {{- end }}
