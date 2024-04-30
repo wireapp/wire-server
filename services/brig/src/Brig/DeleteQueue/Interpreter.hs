@@ -6,6 +6,7 @@ where
 
 import Amazonka.SQS.Lens
 import Brig.AWS qualified as AWS
+import Brig.Queue.Stomp qualified as Stomp
 import Control.Exception (ErrorCall (..))
 import Control.Lens
 import Data.Aeson
@@ -20,10 +21,9 @@ import Polysemy.Error
 import System.Logger.Class qualified as Log
 import Wire.DeleteQueue
 import Wire.InternalEvent
-import Wire.Queue.AWS qualified as AWS
-import Wire.Queue.Stomp qualified as Stomp
 import Wire.Sem.Logger
 
+-- | The queue environment constructed from `QueueOpts`.
 data QueueEnv
   = StompQueueEnv Stomp.Broker Text
   | SqsQueueEnv AWS.Env Int Text

@@ -32,7 +32,6 @@ module Brig.App
     closeEnv,
     awsEnv,
     smtpEnv,
-    stompEnv,
     cargohold,
     galley,
     galleyEndpoint,
@@ -97,11 +96,12 @@ import Bilge.IO
 import Bilge.RPC (HasRequestId (..))
 import Brig.AWS qualified as AWS
 import Brig.Calling qualified as Calling
+import Brig.DeleteQueue.Interpreter
 import Brig.Options (ElasticSearchOpts, Opts, Settings (..))
 import Brig.Options qualified as Opt
 import Brig.Provider.Template
 import Brig.Queue.Stomp qualified as Stomp
-import Brig.Queue.Types (Queue (..))
+import Brig.Queue.Types
 import Brig.SMTP qualified as SMTP
 import Brig.Schema.Run qualified as Migrations
 import Brig.Team.Template
@@ -154,10 +154,6 @@ import Util.Options
 import Wire.API.Routes.Version
 import Wire.API.User.Identity (Email)
 import Wire.API.User.Profile (Locale)
-import Wire.DeleteQueue.Interpreter
-import Wire.Queue
-import Wire.Queue.AWS qualified as AWSQueue
-import Wire.Queue.Stomp qualified as Stomp
 
 schemaVersion :: Int32
 schemaVersion = Migrations.lastSchemaVersion
@@ -176,10 +172,9 @@ data Env = Env
     _smtpEnv :: Maybe SMTP.SMTP,
     _emailSender :: Email,
     _awsEnv :: AWS.Env,
-    _stompEnv :: Maybe Stomp.Env,
     _metrics :: Metrics,
     _applog :: Logger,
-    _internalEvents :: Queue,
+    _internalEvents :: QueueEnv,
     _requestId :: RequestId,
     _usrTemplates :: Localised UserTemplates,
     _provTemplates :: Localised ProviderTemplates,
@@ -244,22 +239,17 @@ newEnv o = do
   let sett = Opt.optSettings o
   nxm <- initCredentials (Opt.setNexmo sett)
   twl <- initCredentials (Opt.setTwilio sett)
-  -- This is messy. See Note [queue refactoring] to learn how we
-  -- eventually plan to solve this mess
-  eventsQueue <- case Opt.internalEventsQueue (Opt.internalEvents o) of
-    StompQueue q ->
-      case (Opt.stomp o, Opt.setStomp sett) of
-        (Just stompOpts, Just credsPath) -> do
-          creds <- initCredentials credsPath
-          pure $ StompQueueEnv (Stomp.mkBroker stompOpts creds) q
-        (Nothing, Nothing) -> error "STOMP queue is requested, but STOMP connection is not configured"
+  eventsQueue :: QueueEnv <- case Opt.internalEventsQueue (Opt.internalEvents o) of
+    StompQueueOpts q -> do
+      stomp :: Stomp.Env <- case (Opt.stomp o, Opt.setStomp sett) of
+        (Just s, Just c) -> Stomp.mkEnv s <$> initCredentials c
         (Just _, Nothing) -> error "STOMP is configured but 'setStomp' is not set"
         (Nothing, Just _) -> error "'setStomp' is present but STOMP is not configured"
-    SqsQueue q -> do
-      let sqsLogger = clone (Just "aws.brig") lgr
-      awsQueueEnv <- AWSQueue.mkEnv sqsLogger o.aws.sqsEndpoint mgr
-      let throttleMillis = fromMaybe Opt.defSqsThrottleMillis . view Opt.sqsThrottleMillis . Opt.optSettings $ o
-      SqsQueueEnv awsQueueEnv throttleMillis <$> AWSQueue.getQueueUrl awsQueueEnv.amazonkaEnv q
+        (Nothing, Nothing) -> error "stomp is selected for internal events, but not configured in 'setStomp', STOMP"
+      pure (StompQueueEnv (Stomp.broker stomp) q)
+    SqsQueueOpts q -> do
+      let throttleMillis = fromMaybe Opt.defSqsThrottleMillis (view Opt.sqsThrottleMillis $ Opt.optSettings o)
+      SqsQueueEnv aws throttleMillis <$> AWS.getQueueUrl (aws ^. AWS.amazonkaEnv) q
   mSFTEnv <- mapM (Calling.mkSFTEnv sha512) $ Opt.sft o
   prekeyLocalLock <- case Opt.randomPrekeys o of
     Just True -> do
@@ -283,11 +273,10 @@ newEnv o = do
         _casClient = cas,
         _smtpEnv = emailSMTP,
         _emailSender = Opt.emailSender . Opt.general . Opt.emailSMS $ o,
-        _awsEnv = aws,
-        _stompEnv = stomp,
+        _awsEnv = aws, -- used by `journalEvent` directly
         _metrics = mtr,
         _applog = lgr,
-        _internalEvents = eventsQueue,
+        _internalEvents = (eventsQueue :: QueueEnv),
         _requestId = RequestId "N/A",
         _usrTemplates = utp,
         _provTemplates = ptp,

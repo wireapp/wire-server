@@ -1,6 +1,7 @@
 module Brig.CanonicalInterpreter where
 
 import Brig.App as App
+import Brig.DeleteQueue.Interpreter as DQ
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistPhonePrefixStore.Cassandra (interpretBlacklistPhonePrefixStoreToCassandra)
 import Brig.Effects.BlacklistStore (BlacklistStore)
@@ -37,7 +38,6 @@ import Polysemy.TinyLog (TinyLog)
 import Wire.API.Federation.Client qualified
 import Wire.API.Federation.Error
 import Wire.DeleteQueue
-import Wire.DeleteQueue.Interpreter as DQ
 import Wire.FederationAPIAccess qualified
 import Wire.FederationAPIAccess.Interpreter (FederationAPIAccessConfig (..), interpretFederationAPIAccess)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)

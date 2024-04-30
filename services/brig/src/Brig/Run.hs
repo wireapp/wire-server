@@ -77,7 +77,6 @@ import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 import Wire.API.User (AccountStatus (PendingInvitation))
 import Wire.DeleteQueue
-import Wire.Queue.AWS qualified as AWSQueue
 import Wire.Sem.Paging qualified as P
 
 -- FUTUREWORK: If any of these async threads die, we will have no clue about it
@@ -98,7 +97,7 @@ run o = do
   emailListener <- for (e ^. awsEnv . sesQueue) $ \q ->
     Async.async $
       AWS.execute (e ^. awsEnv) $
-        AWSQueue.listen throttleMillis q (runBrigToIO e . SesNotification.onEvent)
+        AWS.listen throttleMillis q (runBrigToIO e . SesNotification.onEvent)
   sftDiscovery <- forM (e ^. sftEnv) $ Async.async . Calling.startSFTServiceDiscovery (e ^. applog)
   turnDiscovery <- Calling.startTurnDiscovery (e ^. applog) (e ^. fsWatcher) (e ^. turnEnv)
   authMetrics <- Async.async (runBrigToIO e collectAuthMetrics)
@@ -188,6 +187,9 @@ bodyParserErrorFormatter _ _ errMsg =
       Servant.errHeaders = [(HTTP.hContentType, HTTPMedia.renderHeader (Servant.contentType (Proxy @Servant.JSON)))]
     }
 
+-- | Go through expired pending activations/invitations and delete them.  This could probably
+-- be done with cassandra TTLs, but it involves several tables and may require adjusting their
+-- write operations.
 pendingActivationCleanup ::
   forall r p.
   ( P.Paging p,

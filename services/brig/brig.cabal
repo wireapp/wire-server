@@ -118,7 +118,6 @@ library
     Brig.Data.User
     Brig.Data.UserKey
     Brig.DeleteQueue.Interpreter
-    Brig.DeleteQueue.Queue
     Brig.Effects.BlacklistPhonePrefixStore
     Brig.Effects.BlacklistPhonePrefixStore.Cassandra
     Brig.Effects.BlacklistStore
