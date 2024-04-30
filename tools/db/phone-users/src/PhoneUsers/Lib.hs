@@ -29,7 +29,7 @@ import qualified Database.CQL.Protocol as CQL
 import Imports
 import Options.Applicative
 import PhoneUsers.Types
-import qualified System.IO as SIO
+-- import qualified System.IO as SIO
 import qualified System.Logger as Log
 import System.Logger.Message ((.=), (~~))
 import Wire.API.Team.Feature (FeatureStatus (FeatureStatusDisabled, FeatureStatusEnabled))
@@ -63,11 +63,23 @@ process :: Log.Logger -> Maybe Int -> ClientState -> ClientState -> IO Result
 process logger limit brigClient galleyClient =
   runConduit $
     readUsers brigClient
-      .| Conduit.mapM (\chunk -> SIO.hPutStr stderr "." $> chunk)
+      -- .| Conduit.mapM (\chunk -> SIO.hPutStr stderr "." $> chunk)
       .| Conduit.concat
       .| (maybe (Conduit.filter (const True)) Conduit.take limit)
       .| Conduit.mapM (getUserInfo logger brigClient galleyClient)
-      .| Conduit.foldMap infoToResult
+      .| chunked logger
+      .| Conduit.fold
+
+chunked :: Log.Logger -> ConduitT UserInfo Result IO ()
+chunked logger = do
+  Conduit.take 10000 .| foldAndLog logger
+  chunked logger
+
+foldAndLog :: Log.Logger -> ConduitT UserInfo Result IO ()
+foldAndLog logger = do
+  result <- Conduit.foldMap infoToResult
+  Log.info logger $ "intermediate_result" .= show result
+  yield result
 
 getUserInfo :: Log.Logger -> ClientState -> ClientState -> UserRow -> IO UserInfo
 getUserInfo logger brigClient galleyClient ur = do
@@ -153,8 +165,7 @@ main = do
   galleyClient <- initCas opts.galleyDb logger
   putStrLn "scanning users table..."
   res <- process logger opts.limit brigClient galleyClient
-  putStrLn "\n"
-  print res
+  Log.info logger $ "result" .= show res
   where
     initLogger =
       Log.new

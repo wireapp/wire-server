@@ -24,7 +24,6 @@ library
   build-depends:
     , aeson
     , aeson-pretty
-    , base
     , bytestring
     , cassandra-util
     , conduit
