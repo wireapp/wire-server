@@ -129,8 +129,9 @@ devtest:
 .PHONY: sanitize-pr
 sanitize-pr:
 	./hack/bin/generate-local-nix-packages.sh
+	make formatf
 	make hlint-inplace-pr
-	make format
+	make hlint-check-pr  # sometimes inplace has been observed not to do its job very well.
 	make git-add-cassandra-schema
 	@git diff-files --quiet -- || ( echo "There are unstaged changes, please take a look, consider committing them, and try again."; exit 1 )
 	@git diff-index --quiet --cached HEAD -- || ( echo "There are staged changes, please take a look, consider committing them, and try again."; exit 1 )
@@ -154,7 +155,7 @@ ghcid:
 
 # Used by CI
 .PHONY: lint-all
-lint-all: treefmt-check check-local-nix-derivations hlint-check-all
+lint-all: formatc hlint-check-all check-local-nix-derivations treefmt-check
 
 .PHONY: hlint-check-all
 hlint-check-all:
@@ -180,18 +181,6 @@ hlint-check:
 hlint-inplace:
 	./tools/hlint.sh -f changeset -m inplace
 
-.PHONY: hlint-inplace-all
-hlint-inplace-all:
-	./tools/hlint.sh -f all -m inplace
-
-.PHONY: hlint-inplace-pr
-hlint-inplace-pr:
-	./tools/hlint.sh -f pr -m inplace
-
-.PHONY: hlint-inplace
-hlint-inplace:
-	./tools/hlint.sh -f changeset -m inplace
-
 regen-local-nix-derivations:
 	./hack/bin/generate-local-nix-packages.sh
 
@@ -203,27 +192,35 @@ check-local-nix-derivations: regen-local-nix-derivations
 services: init install
 	$(MAKE) -C services/nginz
 
-# formats everything according to treefmt rules
-# this may take a while (5 minutes) on first run but should be instant on 
-# any subsequent run except after you have changed files.
+# formats all Haskell files (which don't contain CPP)
 .PHONY: format
 format:
-	treefmt
+	./tools/ormolu.sh
 
-# checks the format
+# formats all Haskell files changed in this PR, even if local changes are not committed to git
+.PHONY: formatf
+formatf:
+	./tools/ormolu.sh -f pr
+
+# formats all Haskell files even if local changes are not committed to git
+.PHONY: formatf-all
+formatf-all:
+	./tools/ormolu.sh -f all
+
+# checks that all Haskell files are formatted; fail if a `make format` run is needed.
 .PHONY: formatc
-formatc: 
-	treefmt-check
+formatc:
+	./tools/ormolu.sh -c
 
 # For any Haskell or Rust file, update or add a license header if necessary.
 # Headers should be added according to Ormolu's formatting rules, but please check just in case.
 .PHONY: add-license
 add-license:
-	# Check headroom is installed.
+	# Check headroom is installed. If not, please run 'stack install headroom'
 	command -v headroom
 	headroom run
 	@echo ""
-	@echo "you might want to run 'make format' now to make sure ormolu is happy"
+	@echo "you might want to run 'make formatf' now to make sure ormolu is happy"
 
 .PHONY: treefmt
 treefmt:
