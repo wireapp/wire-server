@@ -7,13 +7,12 @@ import Imports
 data ParseException = ParseException
   { _parseExceptionRemote :: !Text,
     _parseExceptionMsg :: String
-  }
-
-instance Show ParseException where
-  show (ParseException r m) =
+  } 
+  deriving stock (Eq, Ord, Show)
+  
+instance Exception ParseException where 
+  displayException (ParseException r m) =
     "Failed to parse response from remote "
       ++ Text.unpack r
       ++ " with message: "
       ++ m
-
-instance Exception ParseException
