@@ -120,9 +120,6 @@ lookupSubsystemOperation goal@(goalComp, goalRoute, Proxy @goalType) a = \case
 
 instance FederationMonad MiniFederationMonad where
   fedClientWithProxy (Proxy @name) (Proxy @api) (_ :: Proxy (MiniFederationMonad comp)) =
-    -- TODO(mangoiv): checking the type of the Client alone is not enough; we also want to check that
-    -- the route is correct; this has yet to be implemented by storing an existential of the route
-    -- or, more easily a `Text` that represents it
     lookupSubsystemOperation
       (componentVal @comp, nameVal @name, Proxy @(Client (MiniFederationMonad comp) api))
       do
