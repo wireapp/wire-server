@@ -14,6 +14,8 @@
 , attoparsec
 , auto-update
 , base
+, base-prelude
+, base16-bytestring
 , base64-bytestring
 , bilge
 , binary
@@ -80,6 +82,7 @@
 , mtl
 , mwc-random
 , network
+, network-conduit-tls
 , network-uri
 , openapi3
 , optparse-applicative
@@ -117,6 +120,7 @@
 , split
 , ssl-util
 , statistics
+, stomp-queue
 , streaming-commons
 , string-conversions
 , tasty
@@ -174,6 +178,8 @@ mkDerivation {
     async
     auto-update
     base
+    base-prelude
+    base16-bytestring
     base64-bytestring
     bilge
     bloodhound
@@ -222,12 +228,14 @@ mkDerivation {
     lens-aeson
     metrics-core
     metrics-wai
+    mime
     mime-mail
     mmorph
     MonadRandom
     mtl
     mwc-random
     network
+    network-conduit-tls
     openapi3
     optparse-applicative
     polysemy
@@ -254,6 +262,7 @@ mkDerivation {
     split
     ssl-util
     statistics
+    stomp-queue
     template
     template-haskell
     text
@@ -288,6 +297,7 @@ mkDerivation {
     async
     attoparsec
     base
+    base16-bytestring
     bilge
     bloodhound
     brig-types
