@@ -873,7 +873,6 @@ testCreateUserAnonExpiry b = do
   ensureExpiry (expire selfBob) "bob/self"
   awaitExpiry 5 (userId u1) (userId bob)
   resBob' <- getProfile (userId u1) (userId bob)
-  print $ "\n -------- bob: " <> show resBob'
   liftIO $ assertBool "Bob must be in deleted state" (fromMaybe False $ deleted resBob')
   where
     getProfile :: UserId -> UserId -> Http ResponseLBS
