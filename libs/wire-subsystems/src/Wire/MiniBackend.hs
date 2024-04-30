@@ -26,6 +26,7 @@ import Wire.API.Federation.Error
 import Wire.API.Team.Member
 import Wire.API.User hiding (DeleteUser)
 import Wire.DeleteQueue
+import Wire.DeleteQueue.InMemory
 import Wire.FederationAPIAccess
 import Wire.FederationAPIAccess.Interpreter as FI
 import Wire.GalleyAPIAccess
@@ -264,12 +265,6 @@ runNoFederationStack allUsers teamMember cfg =
     . staticUserStoreInterpreter allUsers
     . miniGalleyAPIAccess teamMember
     . runUserSubsystem cfg
-
-inMemoryDeleteQueueInterpreter :: Member (State [InternalNotification]) r => InterpreterFor DeleteQueue r
-inMemoryDeleteQueueInterpreter = interpret $ \case
-  EnqueueUserDeletion uid -> modify (\l -> DeleteUser uid : l)
-  EnqueueClientDeletion cid uid mConnId -> modify (\l -> DeleteClient cid uid mConnId : l)
-  EnqueueServiceDeletion pid sid -> modify (\l -> DeleteService pid sid : l)
 
 runErrorUnsafe :: Exception e => InterpreterFor (Error e) r
 runErrorUnsafe action = do

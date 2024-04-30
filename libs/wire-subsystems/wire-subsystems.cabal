@@ -70,6 +70,7 @@ library
   -- cabal-fmt: expand src
   exposed-modules:
     Wire.DeleteQueue
+    Wire.DeleteQueue.InMemory
     Wire.FederationAPIAccess
     Wire.FederationAPIAccess.Interpreter
     Wire.GalleyAPIAccess
