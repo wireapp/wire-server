@@ -221,7 +221,12 @@ getUserProfilesWithErrorsImpl self others = do
   where
     go :: Qualified [UserId] -> Sem r (Either (FederationError, Qualified [UserId]) [UserProfile])
     go bucket = runError (getUserProfilesFromDomain self bucket) <&> mapLeft (,bucket)
-
+    -- this function will partition the Eithers into a list of pairs such that 
+    -- - the left side will contain a list of users with a federation error 'Left's
+    -- - the right side will contain a list of user profiles obtained from the 'Right's
+    -- - the left side will have to transform a pair of error and user ids into a list 
+    --   of users ids paired with errors; this is done by just pairing all of them with
+    --   the same error
     aggregate ::
       ( inp ~ [Either (FederationError, Qualified [UserId]) [UserProfile]],
         outp ~ ([(Qualified UserId, FederationError)], [UserProfile])
