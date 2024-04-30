@@ -17,7 +17,6 @@ import Data.Aeson.Lens
 import Data.String.Conversions (cs)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
-import Debug.Trace (traceM)
 import qualified Network.Wreq as Wreq
 import SetupHelpers
 import Testlib.JSON
@@ -200,13 +199,9 @@ testEJPDRequest = do
           fetchIt :: String -> App String
           fetchIt url = liftIO $ (cs . view Wreq.responseBody) <$> Wreq.get url
 
-  traceM "*** usr1"
   check [usr1]
-  traceM "*** usr2"
   check [usr2]
-  traceM "*** usr3"
   check [usr3]
-  traceM "*** usr45"
   check [usr4, usr5]
 
 testEJPDRequestRemote :: HasCallStack => App ()
