@@ -16,8 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.API.Internal
-  ( waiInternalSitemap,
-    internalAPI,
+  ( internalAPI,
     InternalAPI,
     deleteLoop,
     safeForever,
@@ -37,13 +36,11 @@ import Data.Time
 import Galley.API.Action
 import Galley.API.Clients qualified as Clients
 import Galley.API.Create qualified as Create
-import Galley.API.CustomBackend qualified as CustomBackend
 import Galley.API.Error
 import Galley.API.LegalHold (unsetTeamLegalholdWhitelistedH)
 import Galley.API.LegalHold.Conflicts
 import Galley.API.MLS.Removal
 import Galley.API.One2One
-import Galley.API.Public
 import Galley.API.Public.Servant
 import Galley.API.Query qualified as Query
 import Galley.API.Teams (uncheckedDeleteTeamMember)
@@ -58,24 +55,20 @@ import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.ClientStore
 import Galley.Effects.ConversationStore
+import Galley.Effects.CustomBackendStore
 import Galley.Effects.LegalHoldStore as LegalHoldStore
 import Galley.Effects.MemberStore qualified as E
+import Galley.Effects.ServiceStore
 import Galley.Effects.TeamStore
 import Galley.Effects.TeamStore qualified as E
 import Galley.Monad
 import Galley.Options hiding (brig)
 import Galley.Queue qualified as Q
-import Galley.Types.Bot (AddBot, RemoveBot)
-import Galley.Types.Bot.Service
 import Galley.Types.Conversations.Members (RemoteMember (rmId))
 import Galley.Types.UserList
 import Gundeck.Types.Push.V2 qualified as PushV2
 import Imports hiding (head)
 import Network.AMQP qualified as Q
-import Network.Wai.Predicate hiding (Error, err, result, setStatus)
-import Network.Wai.Routing hiding (App, route, toList)
-import Network.Wai.Utilities hiding (Error)
-import Network.Wai.Utilities.ZAuth
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -85,7 +78,6 @@ import System.Logger.Class hiding (Path, name)
 import System.Logger.Class qualified as Log
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
-import Wire.API.CustomBackend
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
@@ -93,7 +85,6 @@ import Wire.API.Event.LeaveReason
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
-import Wire.API.Provider.Service hiding (Service)
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Galley
 import Wire.API.Routes.Internal.Galley.TeamsIntra
@@ -114,6 +105,7 @@ internalAPI =
       <@> mkNamedAPI @"guard-legalhold-policy-conflicts" guardLegalholdPolicyConflictsH
       <@> legalholdWhitelistedTeamsAPI
       <@> iTeamsAPI
+      <@> miscAPI
       <@> mkNamedAPI @"upsert-one2one" iUpsertOne2OneConversation
       <@> featureAPI
       <@> federationAPI
@@ -172,6 +164,20 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)
           ( mkNamedAPI @"get-search-visibility-internal" (Teams.getSearchVisibilityInternal tid)
               <@> mkNamedAPI @"set-search-visibility-internal" (Teams.setSearchVisibilityInternal (featureEnabledForTeam @SearchVisibilityAvailableConfig) tid)
           )
+
+miscAPI :: API IMiscAPI GalleyEffects
+miscAPI =
+  mkNamedAPI @"get-team-members" Teams.getBindingTeamMembers
+    <@> mkNamedAPI @"get-team-id" lookupBindingTeam
+    <@> mkNamedAPI @"test-get-clients" Clients.getClients
+    <@> mkNamedAPI @"test-add-client" createClient
+    <@> mkNamedAPI @"test-delete-client" Clients.rmClient
+    <@> mkNamedAPI @"add-service" createService
+    <@> mkNamedAPI @"delete-service" deleteService
+    <@> mkNamedAPI @"add-bot" Update.addBot
+    <@> mkNamedAPI @"delete-bot" Update.rmBot
+    <@> mkNamedAPI @"put-custom-backend" setCustomBackend
+    <@> mkNamedAPI @"delete-custom-backend" deleteCustomBackend
 
 featureAPI :: API IFeatureAPI GalleyEffects
 featureAPI =
@@ -247,56 +253,6 @@ featureAPI =
     <@> mkNamedAPI @'("iput", LimitedEventFanoutConfig) setFeatureStatusInternal
     <@> mkNamedAPI @'("ipatch", LimitedEventFanoutConfig) patchFeatureStatusInternal
     <@> mkNamedAPI @"feature-configs-internal" (maybe getAllFeatureConfigsForServer getAllFeatureConfigsForUser)
-
-waiInternalSitemap :: Routes a (Sem GalleyEffects) ()
-waiInternalSitemap = unsafeCallsFed @'Galley @"on-client-removed" $ unsafeCallsFed @'Galley @"on-mls-message-sent" $ do
-  -- Misc API (internal) ------------------------------------------------
-
-  get "/i/users/:uid/team/members" (continueE Teams.getBindingTeamMembersH) $
-    capture "uid"
-
-  get "/i/users/:uid/team" (continueE Teams.getBindingTeamIdH) $
-    capture "uid"
-
-  get "/i/test/clients" (continueE Clients.getClientsH) $
-    zauthUserId
-  -- eg. https://github.com/wireapp/wire-server/blob/3bdca5fc8154e324773802a0deb46d884bd09143/services/brig/test/integration/API/User/Client.hs#L319
-
-  post "/i/clients/:client" (continue Clients.addClientH) $
-    zauthUserId
-      .&. capture "client"
-
-  delete "/i/clients/:client" (continue Clients.rmClientH) $
-    zauthUserId
-      .&. capture "client"
-
-  post "/i/services" (continue Update.addServiceH) $
-    jsonRequest @Service
-
-  delete "/i/services" (continue Update.rmServiceH) $
-    jsonRequest @ServiceRef
-
-  -- This endpoint can lead to the following events being sent:
-  -- - MemberJoin event to members
-  post "/i/bots" (continueE Update.addBotH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. jsonRequest @AddBot
-
-  -- This endpoint can lead to the following events being sent:
-  -- - MemberLeave event to members
-  delete "/i/bots" (continueE Update.rmBotH) $
-    zauthUserId
-      .&. opt zauthConnId
-      .&. jsonRequest @RemoveBot
-
-  put "/i/custom-backend/by-domain/:domain" (continue CustomBackend.internalPutCustomBackendByDomainH) $
-    capture "domain"
-      .&. jsonRequest @CustomBackend
-
-  delete "/i/custom-backend/by-domain/:domain" (continue CustomBackend.internalDeleteCustomBackendByDomainH) $
-    capture "domain"
-      .&. accept "application" "json"
 
 rmUser ::
   forall p1 p2 r.

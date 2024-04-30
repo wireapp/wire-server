@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
@@ -18,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Types.Bot
+module Wire.API.Bot
   ( AddBot,
     addBot,
     addBotService,
@@ -33,8 +32,10 @@ module Galley.Types.Bot
 where
 
 import Control.Lens (makeLenses)
-import Data.Aeson
+import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Id
+import Data.OpenApi qualified as S
+import Data.Schema
 import Imports
 import Wire.API.Provider.Service (ServiceRef)
 
@@ -46,28 +47,19 @@ data AddBot = AddBot
     _addBotId :: !BotId,
     _addBotClient :: !ClientId
   }
-
-makeLenses ''AddBot
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema AddBot
 
 addBot :: ServiceRef -> ConvId -> BotId -> ClientId -> AddBot
 addBot = AddBot
 
-instance FromJSON AddBot where
-  parseJSON = withObject "AddBot" $ \o ->
-    AddBot
-      <$> o .: "service"
-      <*> o .: "conversation"
-      <*> o .: "bot"
-      <*> o .: "client"
-
-instance ToJSON AddBot where
-  toJSON a =
-    object
-      [ "service" .= _addBotService a,
-        "conversation" .= _addBotConv a,
-        "bot" .= _addBotId a,
-        "client" .= _addBotClient a
-      ]
+instance ToSchema AddBot where
+  schema =
+    object "AddBot" $
+      AddBot
+        <$> _addBotService .= field "service" schema
+        <*> _addBotConv .= field "conversation" schema
+        <*> _addBotId .= field "bot" schema
+        <*> _addBotClient .= field "client" schema
 
 -- RemoveBot ------------------------------------------------------------------
 
@@ -75,21 +67,17 @@ data RemoveBot = RemoveBot
   { _rmBotConv :: !ConvId,
     _rmBotId :: !BotId
   }
-
-makeLenses ''RemoveBot
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema RemoveBot
 
 removeBot :: ConvId -> BotId -> RemoveBot
 removeBot = RemoveBot
 
-instance FromJSON RemoveBot where
-  parseJSON = withObject "RemoveBot" $ \o ->
-    RemoveBot
-      <$> o .: "conversation"
-      <*> o .: "bot"
+instance ToSchema RemoveBot where
+  schema =
+    object "RemoveBot" $
+      RemoveBot
+        <$> _rmBotConv .= field "conversation" schema
+        <*> _rmBotId .= field "bot" schema
 
-instance ToJSON RemoveBot where
-  toJSON a =
-    object
-      [ "conversation" .= _rmBotConv a,
-        "bot" .= _rmBotId a
-      ]
+makeLenses ''AddBot
+makeLenses ''RemoveBot

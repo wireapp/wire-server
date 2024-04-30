@@ -66,10 +66,8 @@ module Galley.API.Update
     memberTyping,
 
     -- * External Services
-    addServiceH,
-    rmServiceH,
-    Galley.API.Update.addBotH,
-    rmBotH,
+    addBot,
+    rmBot,
     postBotMessageUnqualified,
   )
 where
@@ -105,22 +103,15 @@ import Galley.Effects.ConversationStore qualified as E
 import Galley.Effects.ExternalAccess qualified as E
 import Galley.Effects.FederatorAccess qualified as E
 import Galley.Effects.MemberStore qualified as E
-import Galley.Effects.ServiceStore qualified as E
-import Galley.Effects.WaiRoutes
 import Galley.Options
-import Galley.Types.Bot hiding (addBot)
-import Galley.Types.Bot.Service (Service)
 import Galley.Types.Conversations.Members (LocalMember (..))
 import Galley.Types.UserList
 import Imports hiding (forkIO)
-import Network.HTTP.Types
-import Network.Wai
-import Network.Wai.Predicate hiding (Error, and, failure, setStatus, _1, _2)
-import Network.Wai.Utilities hiding (Error)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
+import Wire.API.Bot hiding (addBot)
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Code
@@ -136,7 +127,6 @@ import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Message
 import Wire.API.Password (mkSafePassword)
-import Wire.API.Provider.Service (ServiceRef)
 import Wire.API.Routes.Public (ZHostValue)
 import Wire.API.Routes.Public.Galley.Messaging
 import Wire.API.Routes.Public.Util (UpdateResult (..))
@@ -260,11 +250,6 @@ unblockRemoteConv lusr rcnv = do
   E.createMembersInRemoteConversation rcnv [tUnqualified lusr]
 
 -- conversation updates
-
-handleUpdateResult :: UpdateResult Event -> Response
-handleUpdateResult = \case
-  Updated ev -> json ev & setStatus status200
-  Unchanged -> empty & setStatus status204
 
 type UpdateConversationAccessEffects =
   '[ BackendNotificationQueueAccess,
@@ -1548,48 +1533,6 @@ memberTypingUnqualified lusr zcon cnv ts = do
   lcnv <- qualifyLocal cnv
   memberTyping lusr zcon (tUntagged lcnv) ts
 
-addServiceH ::
-  ( Member ServiceStore r,
-    Member WaiRoutes r
-  ) =>
-  JsonRequest Service ->
-  Sem r Response
-addServiceH req = do
-  E.createService =<< fromJsonBody req
-  pure empty
-
-rmServiceH ::
-  ( Member ServiceStore r,
-    Member WaiRoutes r
-  ) =>
-  JsonRequest ServiceRef ->
-  Sem r Response
-rmServiceH req = do
-  E.deleteService =<< fromJsonBody req
-  pure empty
-
-addBotH ::
-  ( Member ClientStore r,
-    Member ConversationStore r,
-    Member (ErrorS ('ActionDenied 'AddConversationMember)) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
-    Member (ErrorS 'TooManyMembers) r,
-    Member ExternalAccess r,
-    Member NotificationSubsystem r,
-    Member (Input (Local ())) r,
-    Member (Input Opts) r,
-    Member (Input UTCTime) r,
-    Member MemberStore r,
-    Member WaiRoutes r
-  ) =>
-  UserId ::: ConnId ::: JsonRequest AddBot ->
-  Sem r Response
-addBotH (zusr ::: zcon ::: req) = do
-  bot <- fromJsonBody req
-  lusr <- qualifyLocal zusr
-  json <$> addBot lusr zcon bot
-
 addBot ::
   forall r.
   ( Member ClientStore r,
@@ -1647,25 +1590,6 @@ addBot lusr zcon b = do
         let botId = qualifyAs lusr (botUserId (b ^. addBotId))
         ensureMemberLimit (Data.convProtocolTag c) (toList $ Data.convLocalMembers c) [tUntagged botId]
       pure (bots, users)
-
-rmBotH ::
-  ( Member ClientStore r,
-    Member ConversationStore r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member ExternalAccess r,
-    Member NotificationSubsystem r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member MemberStore r,
-    Member WaiRoutes r,
-    Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r
-  ) =>
-  UserId ::: Maybe ConnId ::: JsonRequest RemoveBot ->
-  Sem r Response
-rmBotH (zusr ::: zcon ::: req) = do
-  lusr <- qualifyLocal zusr
-  bot <- fromJsonBody req
-  handleUpdateResult <$> rmBot lusr zcon bot
 
 rmBot ::
   ( Member ClientStore r,

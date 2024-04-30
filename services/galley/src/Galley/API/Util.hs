@@ -47,6 +47,7 @@ import Galley.Data.Types qualified as DataTypes
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.BrigAccess
+import Galley.Effects.ClientStore
 import Galley.Effects.CodeStore
 import Galley.Effects.ConversationStore
 import Galley.Effects.ExternalAccess
@@ -55,6 +56,7 @@ import Galley.Effects.LegalHoldStore
 import Galley.Effects.MemberStore
 import Galley.Effects.TeamStore
 import Galley.Options
+import Galley.Types.Clients (Clients, fromUserClients)
 import Galley.Types.Conversations.Members
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
@@ -64,7 +66,6 @@ import Imports hiding (forkIO)
 import Network.AMQP qualified as Q
 import Network.HTTP.Types
 import Network.Wai
-import Network.Wai.Predicate hiding (Error, fromEither)
 import Network.Wai.Utilities qualified as Wai
 import Polysemy
 import Polysemy.Error
@@ -92,8 +93,6 @@ import Wire.API.Team.Role
 import Wire.API.User hiding (userId)
 import Wire.API.User.Auth.ReAuth
 import Wire.NotificationSubsystem
-
-type JSON = Media "application" "json"
 
 ensureAccessRole ::
   ( Member BrigAccess r,
@@ -1053,6 +1052,18 @@ conversationExisted lusr cnv = Existed <$> conversationView lusr cnv
 
 getLocalUsers :: Domain -> NonEmpty (Qualified UserId) -> [UserId]
 getLocalUsers localDomain = map qUnqualified . filter ((== localDomain) . qDomain) . toList
+
+getBrigClients ::
+  ( Member BrigAccess r,
+    Member ClientStore r
+  ) =>
+  [UserId] ->
+  Sem r Clients
+getBrigClients users = do
+  isInternal <- useIntraClientListing
+  if isInternal
+    then fromUserClients <$> lookupClients users
+    else getClients users
 
 --------------------------------------------------------------------------------
 -- Handling remote errors
