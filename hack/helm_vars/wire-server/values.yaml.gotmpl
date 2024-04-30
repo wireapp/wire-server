@@ -331,7 +331,9 @@ gundeck:
       host: redis-ephemeral-master
       connectionMode: master
       enableTls: true
-      verifyTls: false
+      tlsCaSecretRef:
+        name: "redis-certificate"
+        key: "ca.crt"
     aws:
       account: "123456789012"
       region: eu-west-1
@@ -490,6 +492,10 @@ integration:
     elasticsearch:
       tlsCaSecretRef:
         name: "elasticsearch-ephemeral-certificate"
+        key: "ca.crt"
+    redis:
+      tlsCaSecretRef:
+        name: "redis-certificate"
         key: "ca.crt"
     {{- if .Values.uploadXml }}
     uploadXml:

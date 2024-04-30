@@ -35,10 +35,20 @@ data:
       connectionMode: {{ .redis.connectionMode }}
       enableTls: {{ .redis.enableTls }}
       verifyTls: {{ .redis.verifyTls }}
+      {{- if eq (include "configureRedisCa" .) "true" }}
+      tlsCa: /etc/wire/gundeck/redis-ca/{{ include "redisTlsSecretKey" .}}
+      {{- end }}
 
     {{- if .redisAdditionalWrite }}
     redisAdditionalWrite:
-      {{- toYaml .redisAdditionalWrite | nindent 6 }}
+      host: {{ .redisAdditionalWrite.host }}
+      port: {{ .redisAdditionalWrite.port }}
+      connectionMode: {{ .redisAdditionalWrite.connectionMode }}
+      enableTls: {{ .redisAdditionalWrite.enableTls }}
+      verifyTls: {{ .redisAdditionalWrite.verifyTls }}
+      {{- if eq (include "configureAdditionalRedisCa" .) "true" }}
+      tlsCa: /etc/wire/gundeck/additional-redis-ca/{{ include "additionalRedisTlsSecretKey" .}}
+      {{- end }}
     {{- end }}
 
     # Gundeck uses discovery for AWS access key / secrets
