@@ -49,7 +49,6 @@
 , utf8-string
 , uuid
 , wai
-, wai-routing
 , wai-utilities
 , wire-api
 , yaml
@@ -92,7 +91,6 @@ mkDerivation {
     utf8-string
     uuid
     wai
-    wai-routing
     wai-utilities
     wire-api
     yaml
