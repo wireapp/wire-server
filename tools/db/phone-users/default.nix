@@ -29,7 +29,6 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     aeson-pretty
-    base
     bytestring
     cassandra-util
     conduit
