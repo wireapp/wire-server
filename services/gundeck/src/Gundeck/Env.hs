@@ -111,24 +111,6 @@ reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg
 reqIdMsg = ("request" Logger..=) . unRequestId
 {-# INLINE reqIdMsg #-}
 
-testConnInfo :: Redis.ConnectInfo
-testConnInfo =
-  let tlsParams =
-        (defaultParamsClient "localhost" "")
-          { clientHooks = (defaultParamsClient "" "").clientHooks {onServerCertificate = \_ _ _ _ -> pure []},
-            clientSupported = (defaultParamsClient "" "").clientSupported {supportedVersions = [TLS.TLS12], supportedCiphers = TLS.ciphersuite_strong},
-            clientDebug = (defaultParamsClient "" "").clientDebug {debugKeyLogger = appendFile "/tmp/redis-tls-debug" . (<> "\n")}
-          }
-   in Redis.defaultConnectInfo
-        { Redis.connectHost = "localhost",
-          Redis.connectPort = Redis.PortNumber 6377,
-          Redis.connectUsername = Nothing,
-          Redis.connectAuth = Just "very-secure-redis-cluster-password",
-          Redis.connectTimeout = Just (secondsToNominalDiffTime 5),
-          Redis.connectMaxConnections = 100,
-          Redis.connectTLSParams = Just tlsParams
-        }
-
 createRedisPool :: Logger.Logger -> RedisEndpoint -> Maybe ByteString -> Maybe ByteString -> ByteString -> IO (Async (), Redis.RobustConnection)
 createRedisPool l ep username password identifier = do
   customCertStore <-
