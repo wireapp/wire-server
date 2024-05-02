@@ -39,8 +39,7 @@ import Data.UUID (toString)
 import Data.UUID.V4 qualified as UUID
 import Imports
 import Network.HTTP.Client (responseTimeoutMicro)
-import Network.Wai (Request, ResponseReceived)
-import Network.Wai.Routing (Continue)
+import Network.Wai (Request, Response, ResponseReceived)
 import Network.Wai.Utilities (Error (..), lookupRequestId)
 import Network.Wai.Utilities.Error qualified as WaiError
 import Network.Wai.Utilities.Response (json, setStatus)
@@ -124,6 +123,8 @@ runAppT e (AppT ma) = runReaderT ma e
 -- Handler Monad
 
 type Handler = ExceptT Error App
+
+type Continue m = Response -> m ResponseReceived
 
 runHandler :: Env -> Request -> Handler ResponseReceived -> Continue IO -> IO ResponseReceived
 runHandler e r h k = do

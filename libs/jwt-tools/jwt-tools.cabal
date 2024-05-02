@@ -80,12 +80,10 @@ test-suite jwt-tools-tests
   main-is:            Spec.hs
   type:               exitcode-stdio-1.0
   build-depends:
-      bytestring
-    , hspec
+      hspec
     , imports
     , jwt-tools
     , string-conversions
-    , transformers
 
   hs-source-dirs:     test
   default-language:   GHC2021
