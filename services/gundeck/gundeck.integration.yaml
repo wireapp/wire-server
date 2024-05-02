@@ -19,7 +19,7 @@ redis:
   connectionMode: cluster # master | cluster
   enableTls: true
   tlsCa: ../../deploy/dockerephemeral/docker/redis-ca.pem
-  insecureSkipVerifyTls: true
+  insecureSkipVerifyTls: false
 
 # redisAdditionalWrite:
 #   host: 127.0.0.1
