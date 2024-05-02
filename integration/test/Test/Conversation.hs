@@ -851,6 +851,19 @@ testGuestLinksExpired = do
       bindResponse (getJoinCodeConv tm k v) $ \resp -> do
         resp.status `shouldMatchInt` 404
 
+{-
+----- Conversation.testConversationWithFedV0 FAIL (0.21 s) -----
+assertion failure:
+Actual:
+500
+Expected:
+201
+
+call stack:
+1. assertFailure at test/Testlib/Assertions.hs:84
+2. shouldMatchWithMsg at test/Testlib/Assertions.hs:62
+
+-}
 testConversationWithFedV0 :: HasCallStack => App ()
 testConversationWithFedV0 = do
   alice <- randomUser OwnDomain def
