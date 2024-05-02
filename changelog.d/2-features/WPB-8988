@@ -1,0 +1,1 @@
+Upgrade `rusty-jwt-tools` to support `ecdsa_secp256r1_sha256`
