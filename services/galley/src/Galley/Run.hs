@@ -131,7 +131,6 @@ mkApp opts =
           Aeson.encode $
             mkError HTTP.status404 "no-endpoint" "The requested endpoint does not exist"
 
-    -- the servant API wraps the one defined using wai-routing
     servantApp :: Env -> Application
     servantApp e0 r cont = do
       rid <- lookupReqId (e0 ^. applog) r
