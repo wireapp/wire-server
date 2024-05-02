@@ -53,6 +53,7 @@ packages:
   , tools/db/repair-brig-clients-table/
   , tools/db/service-backfill/
   , tools/fedcalls/
+  , tools/find-tests/
   , tools/rabbitmq-consumer
   , tools/rex/
   , tools/stern/
@@ -173,6 +174,8 @@ package wire-subsystems
 package zauth
     ghc-options: -Werror
 package fedcalls
+    ghc-options: -Werror
+package find-tests
     ghc-options: -Werror
 
 -- NOTE:
