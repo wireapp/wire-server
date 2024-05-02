@@ -116,7 +116,7 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
 
       mbConversations <-
         if reallyIncludeContacts
-          then liftSem $ Just . Set.fromList <$> GalleyProvider.getEJPDConvInfo uid
+          then liftSem $ Just . Set.fromList <$> GalleyAPIAccess.getEJPDConvInfo uid
           else pure Nothing
 
       mbAssets <- do
