@@ -1070,7 +1070,7 @@ this:
 gundeck:
   config:
     redisAdditionalWrite:
-      enableTLS: true
+      enableTls: true
       # One or none of these:
       # tlsCa: <similar to tlsCa>
       # tlsCaSecretRef: <similar to tlsCaSecretRef>
@@ -1086,7 +1086,7 @@ server, it can be turned off without tuning off TLS like this:
 gundeck:
   config:
     redis:
-      insecureSkipTlsVerify: true
+      insecureSkipVerifyTls: true
     redisAdditionalWrite:
-      insecureSkipTlsVerify: true
+      insecureSkipVerifyTls: true
 ```

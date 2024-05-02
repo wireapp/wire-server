@@ -6,7 +6,7 @@ It can be enabled by setting these options on the wire-server helm chart:
 gundeck:
   config:
     redis:
-      enableTLS: true
+      enableTls: true
 
       # When custom CAs are required, one of these must be set:
       tlsCa: <PEM encoded CA certificates>
@@ -15,6 +15,6 @@ gundeck:
         key: <Key in the secret containing pem encoded CA Cert>
 
       # When TLS needs to be used without verification:
-      insecureSkipTlsVerify: true
+      insecureSkipVerifyTls: true
 ```
 (##)

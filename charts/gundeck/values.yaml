@@ -32,7 +32,7 @@ config:
     port: 6379
     connectionMode: "master" # master | cluster
     enableTls: false
-    insecureSkipTlsVerify: false
+    insecureSkipVerifyTls: false
     # To configure custom TLS CA, please provide one of these:
     # tlsCa: <CA in PEM format (can be self-signed)>
     #
@@ -47,7 +47,7 @@ config:
   #   port: 6379
   #   connectionMode: master
   #   enableTls: false
-  #   insecureSkipTlsVerify: false
+  #   insecureSkipVerifyTls: false
   #
   # # To configure custom TLS CA, please provide one of these:
   # # tlsCa: <CA in PEM format (can be self-signed)>
