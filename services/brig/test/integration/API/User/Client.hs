@@ -1473,7 +1473,7 @@ testCreateAccessToken opts n brig = do
           handle
           (fromName u.userDisplayName)
           (UUID.toText (toUUID tid))
-  signedOrError <- fmap encodeCompact <$> liftIO (signProofEcdasaP256 dpopClaims)
+  signedOrError <- fmap encodeCompact <$> liftIO (signProofEcdsaP256 dpopClaims)
   case signedOrError of
     Left err -> liftIO $ assertFailure $ "failed to sign claims: " <> show err
     Right signed -> do
@@ -1494,8 +1494,8 @@ testCreateAccessToken opts n brig = do
               & (typ ?~ HeaderParam () "dpop+jwt")
       signJWT jwkKey h claims
 
-    signProofEcdasaP256 :: DPoPClaimsSet -> IO (Either JWTError SignedJWT)
-    signProofEcdasaP256 claims = runJOSE $ do
+    signProofEcdsaP256 :: DPoPClaimsSet -> IO (Either JWTError SignedJWT)
+    signProofEcdsaP256 claims = runJOSE $ do
       algo <- bestJWSAlg jwkKeyBundleEcdsaP256
       let h =
             newJWSHeader ((), algo)
