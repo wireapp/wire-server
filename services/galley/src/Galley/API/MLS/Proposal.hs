@@ -60,6 +60,7 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.Error
 import Wire.API.MLS.AuthenticatedContent
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.LeafNode
@@ -146,28 +147,28 @@ derefOrCheckProposal ::
     Member (State IndexMap) r,
     Member (ErrorS 'MLSProposalNotFound) r
   ) =>
-  ConversationMLSData ->
-  GroupId ->
   Epoch ->
+  CipherSuiteTag ->
+  GroupId ->
   ProposalOrRef ->
   Sem r Proposal
-derefOrCheckProposal _mlsMeta groupId epoch (Ref ref) = do
+derefOrCheckProposal epoch _ciphersuite groupId (Ref ref) = do
   p <- getProposal groupId epoch ref >>= noteS @'MLSProposalNotFound
   pure p.value
-derefOrCheckProposal mlsMeta _ _ (Inline p) = do
+derefOrCheckProposal _epoch ciphersuite _ (Inline p) = do
   im <- get
-  checkProposal mlsMeta im p
+  checkProposal ciphersuite im p
   pure p
 
 checkProposal ::
   ( Member (Error MLSProtocolError) r,
     Member (ErrorS 'MLSInvalidLeafNodeIndex) r
   ) =>
-  ConversationMLSData ->
+  CipherSuiteTag ->
   IndexMap ->
   Proposal ->
   Sem r ()
-checkProposal mlsMeta im p = case p of
+checkProposal ciphersuite im p = case p of
   AddProposal kp -> do
     (cs, _lifetime) <-
       either
@@ -175,7 +176,7 @@ checkProposal mlsMeta im p = case p of
         pure
         $ validateKeyPackage Nothing kp.value
     -- we are not checking lifetime constraints here
-    unless (mlsMeta.cnvmlsCipherSuite == cs) $
+    unless (ciphersuite == cs) $
       throw (mlsProtocolError "Key package ciphersuite does not match conversation")
   RemoveProposal idx -> do
     void $ noteS @'MLSInvalidLeafNodeIndex $ imLookup im idx
@@ -194,13 +195,13 @@ applyProposals ::
     Member (ErrorS 'MLSUnsupportedProposal) r,
     Member (ErrorS 'MLSInvalidLeafNodeIndex) r
   ) =>
-  ConversationMLSData ->
+  CipherSuiteTag ->
   GroupId ->
   [Proposal] ->
   Sem r ProposalAction
-applyProposals mlsMeta groupId =
+applyProposals ciphersuite groupId =
   -- proposals are sorted before processing
-  foldMap (applyProposal mlsMeta groupId)
+  foldMap (applyProposal ciphersuite groupId)
     . sortOn proposalProcessingStage
 
 applyProposal ::
@@ -209,27 +210,27 @@ applyProposal ::
     Member (ErrorS 'MLSUnsupportedProposal) r,
     Member (ErrorS 'MLSInvalidLeafNodeIndex) r
   ) =>
-  ConversationMLSData ->
+  CipherSuiteTag ->
   GroupId ->
   Proposal ->
   Sem r ProposalAction
-applyProposal mlsMeta _groupId (AddProposal kp) = do
+applyProposal ciphersuite _groupId (AddProposal kp) = do
   (cs, _lifetime) <-
     either
       (\msg -> throw (mlsProtocolError ("Invalid key package in Add proposal: " <> msg)))
       pure
       $ validateKeyPackage Nothing kp.value
-  unless (mlsMeta.cnvmlsCipherSuite == cs) $
+  unless (ciphersuite == cs) $
     throw (mlsProtocolError "Key package ciphersuite does not match conversation")
   -- we are not checking lifetime constraints here
   cid <- getKeyPackageIdentity kp.value
   addProposedClient cid
-applyProposal _mlsMeta _groupId (RemoveProposal idx) = do
+applyProposal _ciphersuite _groupId (RemoveProposal idx) = do
   im <- get
   (cid, im') <- noteS @'MLSInvalidLeafNodeIndex $ imRemoveClient im idx
   put im'
   pure (paRemoveClient cid idx)
-applyProposal _mlsMeta _groupId _ = pure mempty
+applyProposal _activeData _groupId _ = pure mempty
 
 processProposal ::
   HasProposalEffects r =>
@@ -245,21 +246,23 @@ processProposal ::
   Sem r ()
 processProposal qusr lConvOrSub groupId epoch pub prop = do
   let mlsMeta = (tUnqualified lConvOrSub).mlsMeta
-  -- Check if the epoch number matches that of a conversation
-  unless (epoch == cnvmlsEpoch mlsMeta) $ throwS @'MLSStaleMessage
   -- Check if the group ID matches that of a conversation
   unless (groupId == cnvmlsGroupId mlsMeta) $ throwS @'ConvNotFound
-  let suiteTag = cnvmlsCipherSuite mlsMeta
 
-  -- Reject proposals before first commit
-  when (mlsMeta.cnvmlsEpoch == Epoch 0) $
-    throw (mlsProtocolError "Bare proposals at epoch 0 are not supported")
+  case cnvmlsActiveData mlsMeta of
+    Nothing -> throw $ mlsProtocolError "Bare proposals at epoch 0 are not supported"
+    Just activeData -> do
+      -- Check if the epoch number matches that of a conversation
+      unless (epoch == activeData.epoch) $ throwS @'MLSStaleMessage
 
-  -- FUTUREWORK: validate the member's conversation role
-  checkProposal mlsMeta (tUnqualified lConvOrSub).indexMap prop.value
-  when (isExternal pub.sender) $ checkExternalProposalUser qusr prop.value
-  let propRef = authContentRef suiteTag (incomingMessageAuthenticatedContent pub)
-  storeProposal groupId epoch propRef ProposalOriginClient prop
+      -- FUTUREWORK: validate the member's conversation role
+      checkProposal activeData.ciphersuite (tUnqualified lConvOrSub).indexMap prop.value
+      when (isExternal pub.sender) $ checkExternalProposalUser qusr prop.value
+      let propRef =
+            authContentRef
+              activeData.ciphersuite
+              (incomingMessageAuthenticatedContent pub)
+      storeProposal groupId epoch propRef ProposalOriginClient prop
 
 getKeyPackageIdentity ::
   Member (ErrorS 'MLSUnsupportedProposal) r =>

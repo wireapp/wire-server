@@ -73,7 +73,6 @@ import Galley.Cassandra.TeamFeatures
 import Galley.Cassandra.TeamNotifications
 import Galley.Effects
 import Galley.Effects.FireAndForget
-import Galley.Effects.WaiRoutes.IO
 import Galley.Env
 import Galley.External
 import Galley.Intra.BackendNotificationQueue
@@ -258,7 +257,6 @@ evalGalley e =
     . interpretTinyLog e
     . interpretQueue (e ^. deleteQueue)
     . runInputSem (embed getCurrentTime) -- FUTUREWORK: could we take the time only once instead?
-    . interpretWaiRoutes
     . runInputConst (e ^. options)
     . runInputConst (toLocalUnsafe (e ^. options . settings . federationDomain) ())
     . interpretTeamFeatureSpecialContext e

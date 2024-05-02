@@ -298,11 +298,7 @@ postBroadcast lusr con msg = runError $ do
   contacts <- getContactList senderUser
   let users = toList $ Set.union (Set.fromList tMembers) (Set.fromList contacts)
 
-  isInternal <- useIntraClientListing
-  localClients <-
-    if isInternal
-      then Clients.fromUserClients <$> lookupClients users
-      else getClients users
+  localClients <- getBrigClients users
   let qualifiedLocalClients =
         Map.mapKeys (tDomain lusr,)
           . makeUserMap (Set.fromList users)

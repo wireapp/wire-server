@@ -39,7 +39,7 @@ openssl genpkey -algorithm ed25519
 ECDSA private keys can be generated with:
 
 ```
-openssl genpkey -algorithm ec -genparam dsa -pkeyopt ec_paramgen_curve:P-256
+openssl genpkey -algorithm ec -pkeyopt ec_paramgen_curve:P-256
 ```
 
 and similar (replace `P-256` with `P-384` or `P-521`).

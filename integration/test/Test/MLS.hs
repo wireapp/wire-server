@@ -12,6 +12,7 @@ import qualified Data.Text.Encoding as T
 import MLS.Util
 import Notifications
 import SetupHelpers
+import Test.Version
 import Testlib.Prelude
 
 testSendMessageNoReturnToSender :: HasCallStack => App ()
@@ -331,7 +332,14 @@ testAddUserSimple suite ctype = do
   [alice1, bob2] <- traverse (createMLSClient def {credType = ctype}) [alice, bob]
 
   traverse_ uploadNewKeyPackage [bob2]
-  (_, qcnv) <- createNewGroup alice1
+  qcnv <- withWebSocket alice $ \ws -> do
+    (_, qcnv) <- createNewGroup alice1
+    -- check that the conversation inside the ConvCreated event contains
+    -- epoch and ciphersuite, regardless of the API version
+    n <- awaitMatch isConvCreateNotif ws
+    n %. "payload.0.data.epoch" `shouldMatchInt` 0
+    n %. "payload.0.data.cipher_suite" `shouldMatchInt` 1
+    pure qcnv
 
   resp <- createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
   events <- resp %. "events" & asList
@@ -412,12 +420,17 @@ testCreateSubConvProteus = do
   bindResponse (getSubConversation alice conv "conference") $ \resp ->
     resp.status `shouldMatchInt` 404
 
-testSelfConversation :: App ()
-testSelfConversation = do
+testSelfConversation :: Version5 -> App ()
+testSelfConversation v = withVersion5 v $ do
   alice <- randomUser OwnDomain def
   creator : others <- traverse (createMLSClient def) (replicate 3 alice)
   traverse_ uploadNewKeyPackage others
-  void $ createSelfGroup creator
+  (_, conv) <- createSelfGroup creator
+  conv %. "epoch" `shouldMatchInt` 0
+  case v of
+    Version5 -> conv %. "cipher_suite" `shouldMatchInt` 1
+    NoVersion5 -> assertFieldMissing conv "cipher_suite"
+
   void $ createAddCommit creator [alice] >>= sendAndConsumeCommitBundle
 
   newClient <- createMLSClient def alice
