@@ -1038,7 +1038,7 @@ If the redis instance requires TLS, it can be configured like this:
 gundeck:
   config:
     redis:
-      enableTLS: true
+      enableTls: true
 ```
 
 In case a custom CA certificate is required it can be provided like this:
