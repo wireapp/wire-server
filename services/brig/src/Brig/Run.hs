@@ -76,6 +76,7 @@ import Wire.API.Routes.Public.Brig
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 import Wire.API.User (AccountStatus (PendingInvitation))
+import Wire.DeleteQueue
 import Wire.Sem.Paging qualified as P
 
 -- FUTUREWORK: If any of these async threads die, we will have no clue about it
@@ -186,7 +187,16 @@ bodyParserErrorFormatter _ _ errMsg =
       Servant.errHeaders = [(HTTP.hContentType, HTTPMedia.renderHeader (Servant.contentType (Proxy @Servant.JSON)))]
     }
 
-pendingActivationCleanup :: forall r p. (P.Paging p, Member (UserPendingActivationStore p) r) => AppT r ()
+-- | Go through expired pending activations/invitations and delete them.  This could probably
+-- be done with cassandra TTLs, but it involves several tables and may require adjusting their
+-- write operations.
+pendingActivationCleanup ::
+  forall r p.
+  ( P.Paging p,
+    Member (UserPendingActivationStore p) r,
+    Member DeleteQueue r
+  ) =>
+  AppT r ()
 pendingActivationCleanup = do
   safeForever "pendingActivationCleanup" $ do
     now <- liftIO =<< view currentTime

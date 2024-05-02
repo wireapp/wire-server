@@ -22,6 +22,9 @@ module Wire.API.Federation.API
   ( FedApi,
     HasFedEndpoint,
     HasUnsafeFedEndpoint,
+    FederationMonad (..),
+    IsNamed (..),
+    nameVal,
     fedClient,
     fedQueueClient,
     sendBundle,
@@ -39,6 +42,8 @@ import Data.Aeson
 import Data.Domain
 import Data.Kind
 import Data.Proxy
+import Data.Singletons
+import Data.Text qualified as Text
 import GHC.TypeLits
 import Imports
 import Network.AMQP
@@ -53,6 +58,7 @@ import Wire.API.Federation.Client
 import Wire.API.Federation.Component
 import Wire.API.Federation.Endpoint
 import Wire.API.Federation.HasNotificationEndpoint
+import Wire.API.Federation.Version
 import Wire.API.MakesFederatedCall
 import Wire.API.Routes.Named
 
@@ -73,6 +79,35 @@ type HasFedEndpoint comp api name = (HasUnsafeFedEndpoint comp api name)
 -- you to forget about some federated calls.
 type HasUnsafeFedEndpoint comp api name = 'Just api ~ LookupEndpoint (FedApi comp) name
 
+nameVal :: forall {k} (name :: k). IsNamed name => Text
+nameVal = nameVal' @k @name
+
+class IsNamed (name :: k) where
+  nameVal' :: Text
+
+instance KnownSymbol name => IsNamed (name :: Symbol) where
+  nameVal' = Text.pack (symbolVal (Proxy @name))
+
+instance (IsNamed name, SingI v) => IsNamed (Versioned (v :: Version) name) where
+  nameVal' = versionText (demote @v) <> "-" <> nameVal @name
+
+class FederationMonad (fedM :: Component -> Type -> Type) where
+  fedClientWithProxy ::
+    forall (comp :: Component) name api.
+    ( HasClient (fedM comp) api,
+      HasFedEndpoint comp api name,
+      KnownComponent comp,
+      IsNamed name,
+      Typeable (Client (fedM comp) api)
+    ) =>
+    Proxy name ->
+    Proxy api ->
+    Proxy (fedM comp) ->
+    Client (fedM comp) api
+
+instance FederationMonad FederatorClient where
+  fedClientWithProxy _ = clientIn
+
 -- | Return a client for a named endpoint.
 --
 -- This function introduces an 'AddAnnotation' constraint, which is
@@ -81,15 +116,18 @@ type HasUnsafeFedEndpoint comp api name = 'Just api ~ LookupEndpoint (FedApi com
 -- 'Wire.API.MakesFederatedCall.exposeAnnotations' for a better understanding
 -- of the information flow here.
 fedClient ::
-  forall (comp :: Component) name m (showcomp :: Symbol) api x.
+  forall (comp :: Component) name fedM (showcomp :: Symbol) api x.
   ( AddAnnotation 'Remote showcomp (FedPath name) x,
     showcomp ~ ShowComponent comp,
     HasFedEndpoint comp api name,
-    HasClient m api,
-    m ~ FederatorClient comp
+    HasClient (fedM comp) api,
+    KnownComponent comp,
+    IsNamed name,
+    FederationMonad fedM,
+    Typeable (Client (fedM comp) api)
   ) =>
-  Client m api
-fedClient = clientIn (Proxy @api) (Proxy @m)
+  Client (fedM comp) api
+fedClient = fedClientWithProxy (Proxy @name) (Proxy @api) (Proxy @(fedM comp))
 
 fedClientIn ::
   forall (comp :: Component) (name :: Symbol) m api.

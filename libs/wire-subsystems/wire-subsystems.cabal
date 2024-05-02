@@ -65,37 +65,83 @@ common common-all
 
 library
   import:           common-all
+  ghc-options:      -fplugin=Polysemy.Plugin -fplugin=TransitiveAnns.Plugin
 
   -- cabal-fmt: expand src
   exposed-modules:
+    Wire.DeleteQueue
+    Wire.DeleteQueue.InMemory
+    Wire.FederationAPIAccess
+    Wire.FederationAPIAccess.Interpreter
+    Wire.GalleyAPIAccess
+    Wire.GalleyAPIAccess.Rpc
     Wire.GundeckAPIAccess
+    Wire.InternalEvent
+    Wire.MiniBackend
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
+    Wire.ParseException
     Wire.Rpc
+    Wire.StoredUser
+    Wire.UserStore
+    Wire.UserStore.Cassandra
+    Wire.UserSubsystem
+    Wire.UserSubsystem.Interpreter
 
   hs-source-dirs:   src
   build-depends:
     , aeson
+    , amazonka
+    , amazonka-core
+    , amazonka-sqs
     , async
     , base
+    , base16-bytestring
     , bilge
+    , bytestring
     , bytestring-conversion
+    , cassandra-util
     , containers
+    , cql
+    , currency-codes
+    , data-default
+    , errors
     , exceptions
     , extended
+    , extra
     , gundeck-types
+    , HsOpenSSL
+    , hspec
     , http-client
     , http-types
+    , http2-manager
     , imports
+    , iso639
     , lens
+    , mime
+    , mime-mail
+    , network-conduit-tls
     , polysemy
+    , polysemy-plugin
+    , polysemy-time
     , polysemy-wire-zoo
     , QuickCheck
+    , resourcet
     , retry
+    , servant
+    , servant-client-core
+    , stomp-queue
     , text
+    , time
     , tinylog
+    , transformers
+    , transitive-anns
     , types-common
+    , unliftio
+    , uuid
+    , wai-utilities
     , wire-api
+    , wire-api-federation
 
   default-language: GHC2021
 
@@ -105,11 +151,14 @@ test-suite wire-subsystems-tests
   default-language:   GHC2021
   hs-source-dirs:     test/unit
   main-is:            ../Main.hs
+  ghc-options:        -fplugin=Polysemy.Plugin
 
   -- cabal-fmt: expand test/unit
   other-modules:
     Spec
     Wire.NotificationSubsystem.InterpreterSpec
+    Wire.UserStoreSpec
+    Wire.UserSubsystem.InterpreterSpec
 
   build-tool-depends: hspec-discover:hspec-discover
   build-depends:
@@ -119,15 +168,23 @@ test-suite wire-subsystems-tests
     , bilge
     , bytestring
     , containers
+    , data-default
     , extended
     , gundeck-types
     , hspec
     , imports
+    , iso639
     , polysemy
+    , polysemy-plugin
+    , polysemy-time
     , polysemy-wire-zoo
     , QuickCheck
     , quickcheck-instances
+    , servant-client-core
     , string-conversions
+    , time
+    , transformers
     , types-common
     , wire-api
+    , wire-api-federation
     , wire-subsystems

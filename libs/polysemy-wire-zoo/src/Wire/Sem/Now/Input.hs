@@ -18,22 +18,17 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.Sem.Now.Input
-  ( nowToInput,
-  )
-where
+module Wire.Sem.Now.Input (nowToInput) where
 
 import Data.Time (UTCTime)
 import Imports
 import Polysemy
 import Polysemy.Input
-import Wire.Sem.FromUTC (FromUTC (..))
 import Wire.Sem.Now
 
 nowToInput ::
-  FromUTC t =>
   Member (Input UTCTime) r =>
   Sem (Now ': r) a ->
   Sem r a
 nowToInput = interpret $ \case
-  Get -> fromUTCTime <$> input
+  Get -> input

@@ -16,10 +16,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE TemplateHaskell #-}
 
-module Brig.Effects.GalleyProvider where
+module Wire.GalleyAPIAccess where
 
-import Brig.API.Types
-import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 import Data.Currency qualified as Currency
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
@@ -36,90 +34,93 @@ import Wire.API.Team.Member qualified as Team
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
 
+data ShowOrHideInvitationUrl = ShowInvitationUrl | HideInvitationUrl
+  deriving (Eq, Show)
+
 data MLSOneToOneEstablished
   = Established
   | NotEstablished
   | NotAMember
   deriving (Eq, Show)
 
-data GalleyProvider m a where
+data GalleyAPIAccess m a where
   CreateSelfConv ::
     UserId ->
-    GalleyProvider m ()
+    GalleyAPIAccess m ()
   GetConv ::
     UserId ->
     Local ConvId ->
-    GalleyProvider m (Maybe Conversation)
+    GalleyAPIAccess m (Maybe Conversation)
   GetTeamConv ::
     UserId ->
     TeamId ->
     ConvId ->
-    GalleyProvider m (Maybe Conv.TeamConversation)
+    GalleyAPIAccess m (Maybe Conv.TeamConversation)
   NewClient ::
     UserId ->
     ClientId ->
-    GalleyProvider m ()
+    GalleyAPIAccess m ()
   CheckUserCanJoinTeam ::
     TeamId ->
-    GalleyProvider m (Maybe Wai.Error)
+    GalleyAPIAccess m (Maybe Wai.Error)
   AddTeamMember ::
     UserId ->
     TeamId ->
     (Maybe (UserId, UTCTimeMillis), Role) ->
-    GalleyProvider m Bool
+    GalleyAPIAccess m Bool
   CreateTeam ::
     UserId ->
     BindingNewTeam ->
     TeamId ->
-    GalleyProvider m CreateUserTeam
+    GalleyAPIAccess m ()
   GetTeamMember ::
     UserId ->
     TeamId ->
-    GalleyProvider m (Maybe Team.TeamMember)
+    GalleyAPIAccess m (Maybe Team.TeamMember)
   GetTeamMembers ::
     TeamId ->
-    GalleyProvider m Team.TeamMemberList
+    GalleyAPIAccess m Team.TeamMemberList
   GetTeamId ::
     UserId ->
-    GalleyProvider m (Maybe TeamId)
+    GalleyAPIAccess m (Maybe TeamId)
   GetTeam ::
     TeamId ->
-    GalleyProvider m Team.TeamData
+    GalleyAPIAccess m Team.TeamData
   GetTeamName ::
     TeamId ->
-    GalleyProvider m Team.TeamName
+    GalleyAPIAccess m Team.TeamName
   GetTeamLegalHoldStatus ::
     TeamId ->
-    GalleyProvider m (WithStatus LegalholdConfig)
+    GalleyAPIAccess m (WithStatus LegalholdConfig)
   GetTeamSearchVisibility ::
     TeamId ->
-    GalleyProvider m TeamSearchVisibility
+    GalleyAPIAccess m TeamSearchVisibility
   ChangeTeamStatus ::
     TeamId ->
     Team.TeamStatus ->
     Maybe Currency.Alpha ->
-    GalleyProvider m ()
+    GalleyAPIAccess m ()
   MemberIsTeamOwner ::
     TeamId ->
     UserId ->
-    GalleyProvider m Bool
+    GalleyAPIAccess m Bool
   GetAllFeatureConfigsForUser ::
     Maybe UserId ->
-    GalleyProvider m AllFeatureConfigs
+    GalleyAPIAccess m AllFeatureConfigs
   GetVerificationCodeEnabled ::
     TeamId ->
-    GalleyProvider m Bool
+    GalleyAPIAccess m Bool
   GetExposeInvitationURLsToTeamAdmin ::
     TeamId ->
-    GalleyProvider m ShowOrHideInvitationUrl
+    GalleyAPIAccess m ShowOrHideInvitationUrl
   IsMLSOne2OneEstablished ::
     Local UserId ->
     Qualified UserId ->
-    GalleyProvider m MLSOneToOneEstablished
+    GalleyAPIAccess m MLSOneToOneEstablished
   UnblockConversation ::
     Local UserId ->
     Maybe ConnId ->
     Qualified ConvId ->
-    GalleyProvider m Conversation
+    GalleyAPIAccess m Conversation
 
-makeSem ''GalleyProvider
+makeSem ''GalleyAPIAccess

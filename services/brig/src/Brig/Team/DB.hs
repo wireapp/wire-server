@@ -41,7 +41,6 @@ import Brig.App as App
 import Brig.Data.Types as T
 import Brig.Options
 import Brig.Team.Template
-import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 import Brig.Template (renderTextWithBranding)
 import Cassandra as C
 import Control.Lens (view)
@@ -63,6 +62,7 @@ import UnliftIO.Async (pooledMapConcurrentlyN_)
 import Wire.API.Team.Invitation hiding (HeadInvitationByEmailResult (..))
 import Wire.API.Team.Role
 import Wire.API.User
+import Wire.GalleyAPIAccess (ShowOrHideInvitationUrl (..))
 
 mkInvitationCode :: IO InvitationCode
 mkInvitationCode = InvitationCode . encodeBase64Url <$> randBytes 24

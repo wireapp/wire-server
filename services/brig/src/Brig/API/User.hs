@@ -39,10 +39,7 @@ module Brig.API.User
     Data.lookupAccount,
     Data.lookupStatus,
     lookupAccountsByIdentity,
-    lookupProfile,
-    lookupProfiles,
     lookupProfilesV3,
-    lookupLocalProfiles,
     getLegalHoldStatus,
     Data.lookupName,
     Data.lookupLocale,
@@ -116,19 +113,13 @@ import Brig.Effects.BlacklistStore qualified as BlacklistStore
 import Brig.Effects.CodeStore (CodeStore)
 import Brig.Effects.CodeStore qualified as E
 import Brig.Effects.ConnectionStore (ConnectionStore)
-import Brig.Effects.GalleyProvider
-import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.PasswordResetStore qualified as E
 import Brig.Effects.UserPendingActivationStore (UserPendingActivation (..), UserPendingActivationStore)
 import Brig.Effects.UserPendingActivationStore qualified as UserPendingActivationStore
-import Brig.Federation.Client qualified as Federation
 import Brig.IO.Intra qualified as Intra
-import Brig.InternalEvent.Types qualified as Internal
 import Brig.Options hiding (Timeout, internalEvents)
-import Brig.Queue qualified as Queue
 import Brig.Team.DB qualified as Team
-import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Connection
 import Brig.Types.Intra
@@ -155,7 +146,8 @@ import Data.List1 as List1 (List1, singleton)
 import Data.Metrics qualified as Metrics
 import Data.Misc
 import Data.Qualified
-import Data.Time.Clock (UTCTime, addUTCTime, diffUTCTime)
+import Data.Range
+import Data.Time.Clock (UTCTime, addUTCTime)
 import Data.UUID.V4 (nextRandom)
 import Imports
 import Network.Wai.Utilities
@@ -163,7 +155,6 @@ import Polysemy
 import Polysemy.Input (Input)
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
-import System.Logger.Class (MonadLogger)
 import System.Logger.Message
 import UnliftIO.Async (mapConcurrently_)
 import Wire.API.Connection
@@ -176,7 +167,7 @@ import Wire.API.Team hiding (newTeam)
 import Wire.API.Team.Feature
 import Wire.API.Team.Invitation
 import Wire.API.Team.Invitation qualified as Team
-import Wire.API.Team.Member (TeamMember, legalHoldStatus)
+import Wire.API.Team.Member (legalHoldStatus)
 import Wire.API.Team.Role
 import Wire.API.Team.Size
 import Wire.API.User
@@ -185,9 +176,12 @@ import Wire.API.User.Client
 import Wire.API.User.Password
 import Wire.API.User.RichInfo
 import Wire.API.UserEvent
+import Wire.DeleteQueue
+import Wire.GalleyAPIAccess as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.UserSubsystem
 
 data AllowSCIMUpdates
   = AllowSCIMUpdates
@@ -228,7 +222,7 @@ verifyUniquenessAndCheckBlacklist uk = do
 
 createUserSpar ::
   forall r.
-  ( Member GalleyProvider r,
+  ( Member GalleyAPIAccess r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member TinyLog r,
@@ -255,7 +249,7 @@ createUserSpar new = do
     case unRichInfo <$> newUserSparRichInfo new of
       Just richInfo -> wrapClient $ Data.updateRichInfo uid richInfo
       Nothing -> pure () -- Nothing to do
-    liftSem $ GalleyProvider.createSelfConv uid
+    liftSem $ GalleyAPIAccess.createSelfConv uid
     liftSem $ Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
 
     pure account
@@ -282,7 +276,7 @@ createUserSpar new = do
     addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> Role -> ExceptT RegisterError (AppT r) CreateUserTeam
     addUserToTeamSSO account tid ident role = do
       let uid = userId (accountUser account)
-      added <- lift $ liftSem $ GalleyProvider.addTeamMember uid tid (Nothing, role)
+      added <- lift $ liftSem $ GalleyAPIAccess.addTeamMember uid tid (Nothing, role)
       unless added $
         throwE RegisterErrorTooManyTeamMembers
       lift $ do
@@ -293,14 +287,14 @@ createUserSpar new = do
             field "user" (toByteString uid)
               . field "team" (toByteString tid)
               . msg (val "Added via SSO")
-      Team.TeamName nm <- lift $ liftSem $ GalleyProvider.getTeamName tid
+      Team.TeamName nm <- lift $ liftSem $ GalleyAPIAccess.getTeamName tid
       pure $ CreateUserTeam tid nm
 
 -- docs/reference/user/registration.md {#RefRegistration}
 createUser ::
   forall r p.
   ( Member BlacklistStore r,
-    Member GalleyProvider r,
+    Member GalleyAPIAccess r,
     Member (UserPendingActivationStore p) r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
@@ -315,7 +309,7 @@ createUser new = do
   (email, phone) <- validateEmailAndPhone new
 
   -- get invitation and existing account
-  (newTeam, teamInvitation, tid) <-
+  (mNewTeamUser, teamInvitation, tid) <-
     case newUserTeam new of
       Just (NewTeamMember i) -> do
         mbTeamInv <- findTeamInvitation (userEmailKey <$> email) i
@@ -364,7 +358,7 @@ createUser new = do
       Log.info $ field "user" (toByteString uid) . msg (val "Creating user")
 
     wrapClient $ Data.insertAccount account Nothing pw False
-    liftSem $ GalleyProvider.createSelfConv uid
+    liftSem $ GalleyAPIAccess.createSelfConv uid
     liftSem $ Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
 
     pure account
@@ -373,13 +367,14 @@ createUser new = do
 
   createUserTeam <- do
     activatedTeam <- lift $ do
-      case (tid, newTeam) of
-        (Just tid', Just nt) -> do
-          created <- liftSem $ GalleyProvider.createTeam uid (bnuTeam nt) tid'
+      case (tid, mNewTeamUser) of
+        (Just tid', Just newTeamUser) -> do
+          liftSem $ GalleyAPIAccess.createTeam uid (bnuTeam newTeamUser) tid'
           let activating = isJust (newUserEmailCode new)
+              BindingNewTeam newTeam = newTeamUser.bnuTeam
           pure $
             if activating
-              then Just created
+              then Just $ CreateUserTeam tid' (fromRange (newTeam ^. newTeamName))
               else Nothing
         _ -> pure Nothing
 
@@ -387,7 +382,7 @@ createUser new = do
       Just (inv, invInfo) -> do
         let em = Team.inInviteeEmail inv
         acceptTeamInvitation account inv invInfo (userEmailKey em) (EmailIdentity em)
-        Team.TeamName nm <- lift $ liftSem $ GalleyProvider.getTeamName (Team.inTeam inv)
+        Team.TeamName nm <- lift $ liftSem $ GalleyAPIAccess.getTeamName (Team.inTeam inv)
         pure (Just $ CreateUserTeam (Team.inTeam inv) nm)
       Nothing -> pure Nothing
 
@@ -400,7 +395,7 @@ createUser new = do
   edata <-
     if isJust teamInvitation
       then pure Nothing
-      else handleEmailActivation email uid newTeam
+      else handleEmailActivation email uid mNewTeamUser
 
   pdata <- handlePhoneActivation phone uid
 
@@ -453,7 +448,7 @@ createUser new = do
         throwE RegisterErrorTooManyTeamMembers
       -- FUTUREWORK: The above can easily be done/tested in the intra call.
       --             Remove after the next release.
-      canAdd <- lift $ liftSem $ GalleyProvider.checkUserCanJoinTeam tid
+      canAdd <- lift $ liftSem $ GalleyAPIAccess.checkUserCanJoinTeam tid
       case canAdd of
         Just e -> throwM $ API.UserNotAllowedToJoinTeam e
         Nothing -> pure ()
@@ -472,7 +467,7 @@ createUser new = do
         throwE RegisterErrorUserKeyExists
       let minvmeta :: (Maybe (UserId, UTCTimeMillis), Role)
           minvmeta = ((,inCreatedAt inv) <$> inCreatedBy inv, Team.inRole inv)
-      added <- lift $ liftSem $ GalleyProvider.addTeamMember uid (Team.iiTeam ii) minvmeta
+      added <- lift $ liftSem $ GalleyAPIAccess.addTeamMember uid (Team.iiTeam ii) minvmeta
       unless added $
         throwE RegisterErrorTooManyTeamMembers
       lift $ do
@@ -490,7 +485,7 @@ createUser new = do
     addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT RegisterError (AppT r) CreateUserTeam
     addUserToTeamSSO account tid ident = do
       let uid = userId (accountUser account)
-      added <- lift $ liftSem $ GalleyProvider.addTeamMember uid tid (Nothing, defaultRole)
+      added <- lift $ liftSem $ GalleyAPIAccess.addTeamMember uid tid (Nothing, defaultRole)
       unless added $
         throwE RegisterErrorTooManyTeamMembers
       lift $ do
@@ -501,7 +496,7 @@ createUser new = do
             field "user" (toByteString uid)
               . field "team" (toByteString tid)
               . msg (val "Added via SSO")
-      Team.TeamName nm <- lift $ liftSem $ GalleyProvider.getTeamName tid
+      Team.TeamName nm <- lift $ liftSem $ GalleyAPIAccess.getTeamName tid
       pure $ CreateUserTeam tid nm
 
     -- Handle e-mail activation (deprecated, see #RefRegistrationNoPreverification in /docs/reference/user/registration.md)
@@ -595,7 +590,7 @@ checkRestrictedUserCreation new = do
 updateUser ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member GalleyProvider r,
+    Member GalleyAPIAccess r,
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
@@ -687,7 +682,7 @@ changeSupportedProtocols uid conn prots = do
 changeHandle ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member GalleyProvider r,
+    Member GalleyAPIAccess r,
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
@@ -1011,7 +1006,7 @@ mkUserEvent usrs status =
 -- Activation
 
 activate ::
-  ( Member GalleyProvider r,
+  ( Member GalleyAPIAccess r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
@@ -1027,7 +1022,7 @@ activate ::
 activate tgt code usr = activateWithCurrency tgt code usr Nothing
 
 activateWithCurrency ::
-  ( Member GalleyProvider r,
+  ( Member GalleyAPIAccess r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
@@ -1060,8 +1055,8 @@ activateWithCurrency tgt code usr cur = do
       pure $ ActivationSuccess ident first
   where
     activateTeam uid = do
-      tid <- liftSem $ GalleyProvider.getTeamId uid
-      for_ tid $ \t -> liftSem $ GalleyProvider.changeTeamStatus t Team.Active cur
+      tid <- liftSem $ GalleyAPIAccess.getTeamId uid
+      for_ tid $ \t -> liftSem $ GalleyAPIAccess.changeTeamStatus t Team.Active cur
 
 preverify ::
   ( MonadClient m,
@@ -1102,7 +1097,7 @@ onActivated (PhoneActivated uid phone) = do
 sendActivationCode ::
   ( Member BlacklistStore r,
     Member BlacklistPhonePrefixStore r,
-    Member GalleyProvider r
+    Member GalleyAPIAccess r
   ) =>
   Either Email Phone ->
   Maybe Locale ->
@@ -1177,7 +1172,7 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
           loc' = loc <|> Just (userLocale u)
       void . forEmailKey ek $ \em -> lift $ do
         -- Get user's team, if any.
-        mbTeam <- mapM (fmap Team.tdTeam . liftSem . GalleyProvider.getTeam) (userTeam u)
+        mbTeam <- mapM (fmap Team.tdTeam . liftSem . GalleyAPIAccess.getTeam) (userTeam u)
         -- Depending on whether the user is a team creator, send either
         -- a team activation email or a regular email. Note that we
         -- don't have to check if the team is binding because if the
@@ -1305,7 +1300,7 @@ mkPasswordResetKey ident = case ident of
 -- TODO: communicate deletions of SSO users to SSO service.
 deleteSelfUser ::
   forall r.
-  ( Member GalleyProvider r,
+  ( Member GalleyAPIAccess r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
@@ -1332,7 +1327,7 @@ deleteSelfUser uid pwd = do
       case userTeam $ accountUser acc of
         Nothing -> pure ()
         Just tid -> do
-          isOwner <- lift $ liftSem $ GalleyProvider.memberIsTeamOwner tid uid
+          isOwner <- lift $ liftSem $ GalleyAPIAccess.memberIsTeamOwner tid uid
           when isOwner $ throwE DeleteUserOwnerDeletingSelf
     go a = maybe (byIdentity a) (byPassword a) pwd
     getEmailOrPhone :: UserIdentity -> Maybe (Either Email Phone)
@@ -1532,166 +1527,47 @@ lookupPasswordResetCode emailOrPhone = do
       pure $ (k,) <$> c
 
 deleteUserNoVerify ::
-  ( MonadReader Env m,
-    MonadIO m,
-    MonadLogger m,
-    MonadThrow m
-  ) =>
+  Member DeleteQueue r =>
   UserId ->
-  m ()
+  Sem r ()
 deleteUserNoVerify uid = do
-  queue <- view internalEvents
-  Queue.enqueue queue (Internal.DeleteUser uid)
+  enqueueUserDeletion uid
 
-deleteUsersNoVerify :: [UserId] -> (AppT r) ()
+deleteUsersNoVerify ::
+  (Member DeleteQueue r) =>
+  [UserId] ->
+  AppT r ()
 deleteUsersNoVerify uids = do
-  for_ uids deleteUserNoVerify
+  liftSem $ for_ uids deleteUserNoVerify
   m <- view metrics
   Metrics.counterAdd (fromIntegral . length $ uids) (Metrics.path "user.enqueue_multi_delete_total") m
   Metrics.counterIncr (Metrics.path "user.enqueue_multi_delete_calls_total") m
 
--- | Garbage collect users if they're ephemeral and they have expired.
--- Always returns the user (deletion itself is delayed)
-userGC ::
-  ( MonadIO m,
-    MonadReader Env m,
-    MonadLogger m,
-    MonadThrow m
-  ) =>
-  User ->
-  m User
-userGC u = case userExpire u of
-  Nothing -> pure u
-  (Just (fromUTCTimeMillis -> e)) -> do
-    now <- liftIO =<< view currentTime
-    -- ephemeral users past their expiry date are deleted
-    when (diffUTCTime e now < 0) $
-      deleteUserNoVerify (userId u)
-    pure u
-
-lookupProfile ::
-  (Member GalleyProvider r) =>
-  Local UserId ->
-  Qualified UserId ->
-  ExceptT FederationError (AppT r) (Maybe UserProfile)
-lookupProfile self other =
-  listToMaybe
-    <$> lookupProfilesFromDomain
-      self
-      (fmap pure other)
-
--- | Obtain user profiles for a list of users as they can be seen by
--- a given user 'self'. User 'self' can see the 'FullProfile' of any other user 'other',
--- if the reverse relation (other -> self) is either 'Accepted' or 'Sent'.
--- Otherwise only the 'PublicProfile' is accessible for user 'self'.
--- If 'self' is an unknown 'UserId', return '[]'.
-lookupProfiles ::
-  ( Member GalleyProvider r,
-    Member (Concurrency 'Unsafe) r
-  ) =>
-  -- | User 'self' on whose behalf the profiles are requested.
-  Local UserId ->
-  -- | The users ('others') for which to obtain the profiles.
-  [Qualified UserId] ->
-  ExceptT FederationError (AppT r) [UserProfile]
-lookupProfiles self others =
-  concat
-    <$> traverseConcurrentlyWithErrorsAppT
-      (lookupProfilesFromDomain self)
-      (bucketQualified others)
-
 -- | Similar to lookupProfiles except it returns all results and all errors
 -- allowing for partial success.
 lookupProfilesV3 ::
-  ( Member GalleyProvider r,
-    Member (Concurrency 'Unsafe) r
-  ) =>
-  -- | User 'self' on whose behalf the profiles are requested.
+  (Member UserSubsystem r) =>
   Local UserId ->
   -- | The users ('others') for which to obtain the profiles.
   [Qualified UserId] ->
-  AppT r ([(Qualified UserId, FederationError)], [UserProfile])
-lookupProfilesV3 self others = do
-  t <-
-    traverseConcurrentlyAppT
-      (lookupProfilesFromDomain self)
-      (bucketQualified others)
-  let (l, r) = partitionEithers t
-  pure (l >>= flattenUsers, join r)
-  where
-    flattenUsers :: (Qualified [UserId], FederationError) -> [(Qualified UserId, FederationError)]
-    flattenUsers (l, e) = (,e) <$> sequenceA l
-
-lookupProfilesFromDomain ::
-  (Member GalleyProvider r) =>
-  Local UserId ->
-  Qualified [UserId] ->
-  ExceptT FederationError (AppT r) [UserProfile]
-lookupProfilesFromDomain self =
-  foldQualified
-    self
-    (lift . lookupLocalProfiles (Just (tUnqualified self)) . tUnqualified)
-    (mapExceptT wrapHttp . lookupRemoteProfiles)
-
-lookupRemoteProfiles ::
-  ( MonadIO m,
-    MonadReader Env m,
-    MonadLogger m
-  ) =>
-  Remote [UserId] ->
-  ExceptT FederationError m [UserProfile]
-lookupRemoteProfiles (tUntagged -> Qualified uids domain) =
-  Federation.getUsersByIds domain uids
-
--- FUTUREWORK: This function encodes a few business rules about exposing email
--- ids, but it is also very complex. Maybe this can be made easy by extracting a
--- pure function and writing tests for that.
-lookupLocalProfiles ::
-  forall r.
-  Member GalleyProvider r =>
-  -- | This is present only when an authenticated user is requesting access.
-  Maybe UserId ->
-  -- | The users ('others') for which to obtain the profiles.
-  [UserId] ->
-  AppT r [UserProfile]
-lookupLocalProfiles requestingUser others = do
-  users <- wrapHttpClient $ Data.lookupUsers NoPendingInvitations others >>= mapM userGC
-  emailVisibilityConfig <- view (settings . emailVisibility)
-  emailVisibilityConfigWithViewer <-
-    case emailVisibilityConfig of
-      EmailVisibleIfOnTeam -> pure EmailVisibleIfOnTeam
-      EmailVisibleToSelf -> pure EmailVisibleToSelf
-      EmailVisibleIfOnSameTeam () ->
-        EmailVisibleIfOnSameTeam . join @Maybe
-          <$> traverse getSelfInfo requestingUser
-  usersAndStatus <- liftSem $ for users $ \u -> (u,) <$> getLegalHoldStatus' u
-  pure $ map (uncurry $ mkUserProfile emailVisibilityConfigWithViewer) usersAndStatus
-  where
-    getSelfInfo :: UserId -> AppT r (Maybe (TeamId, TeamMember))
-    getSelfInfo selfId = do
-      -- FUTUREWORK: it is an internal error for the two lookups (for 'User' and 'TeamMember')
-      -- to return 'Nothing'.  we could throw errors here if that happens, rather than just
-      -- returning an empty profile list from 'lookupProfiles'.
-      mUser <- wrapHttp $ Data.lookupUser NoPendingInvitations selfId
-      case userTeam =<< mUser of
-        Nothing -> pure Nothing
-        Just tid -> (tid,) <$$> liftSem (GalleyProvider.getTeamMember selfId tid)
+  Sem r ([(Qualified UserId, FederationError)], [UserProfile])
+lookupProfilesV3 self others = getUserProfilesWithErrors self others
 
 getLegalHoldStatus ::
-  Member GalleyProvider r =>
+  Member GalleyAPIAccess r =>
   UserId ->
   AppT r (Maybe UserLegalHoldStatus)
 getLegalHoldStatus uid = traverse (liftSem . getLegalHoldStatus' . accountUser) =<< wrapHttpClient (lookupAccount uid)
 
 getLegalHoldStatus' ::
-  Member GalleyProvider r =>
+  Member GalleyAPIAccess r =>
   User ->
   Sem r UserLegalHoldStatus
 getLegalHoldStatus' user =
   case userTeam user of
     Nothing -> pure defUserLegalHoldStatus
     Just tid -> do
-      teamMember <- GalleyProvider.getTeamMember (userId user) tid
+      teamMember <- GalleyAPIAccess.getTeamMember (userId user) tid
       pure $ maybe defUserLegalHoldStatus (^. legalHoldStatus) teamMember
 
 -- | Find user accounts for a given identity, both activated and those
@@ -1730,7 +1606,7 @@ phonePrefixDelete = liftSem . BlacklistPhonePrefixStore.delete
 phonePrefixInsert :: Member BlacklistPhonePrefixStore r => ExcludedPrefix -> (AppT r) ()
 phonePrefixInsert = liftSem . BlacklistPhonePrefixStore.insert
 
-userUnderE2EId :: Member GalleyProvider r => UserId -> Sem r Bool
+userUnderE2EId :: Member GalleyAPIAccess r => UserId -> Sem r Bool
 userUnderE2EId uid = do
   wsStatus . afcMlsE2EId <$> getAllFeatureConfigsForUser (Just uid) <&> \case
     FeatureStatusEnabled -> True
@@ -1743,7 +1619,7 @@ userUnderE2EId uid = do
 -- - comments in `testUpdateHandle` in `/integration`.
 --
 -- FUTUREWORK: figure out a better way for clients to detect E2EId (V6?)
-hackForBlockingHandleChangeForE2EIdTeams :: Member GalleyProvider r => SelfProfile -> Sem r SelfProfile
+hackForBlockingHandleChangeForE2EIdTeams :: Member GalleyAPIAccess r => SelfProfile -> Sem r SelfProfile
 hackForBlockingHandleChangeForE2EIdTeams (SelfProfile user) = do
   hasE2EId <- userUnderE2EId . userId $ user
   pure . SelfProfile $

@@ -24,7 +24,7 @@
 module Brig.Options where
 
 import Brig.Allowlists (AllowlistEmailDomains (..), AllowlistPhonePrefixes (..))
-import Brig.Queue.Types (Queue (..))
+import Brig.Queue.Types (QueueOpts (..))
 import Brig.SMTP (SMTPConnType (..))
 import Brig.User.Auth.Cookie.Limit
 import Brig.ZAuth qualified as ZAuth
@@ -165,7 +165,7 @@ data StompOpts = StompOpts
 instance FromJSON StompOpts
 
 data InternalEventsOpts = InternalEventsOpts
-  { internalEventsQueue :: !Queue
+  { internalEventsQueue :: !QueueOpts
   }
   deriving (Show)
 

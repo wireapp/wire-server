@@ -15,15 +15,9 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Effects.GalleyProvider.RPC where
+module Wire.GalleyAPIAccess.Rpc where
 
 import Bilge hiding (head, options, requestId)
-import Brig.API.Types
-import Brig.Effects.GalleyProvider (GalleyProvider (..), MLSOneToOneEstablished (..))
-import Brig.RPC hiding (galleyRequest)
-import Brig.Team.Types (ShowOrHideInvitationUrl (..))
-import Control.Error (hush)
-import Control.Lens ((^.))
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as BL
@@ -32,7 +26,6 @@ import Data.Currency qualified as Currency
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
 import Data.Qualified
-import Data.Range
 import Imports
 import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Types qualified as HTTP
@@ -44,7 +37,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
 import Servant.API (toHeader)
-import System.Logger (field, msg, val)
+import System.Logger.Message
 import Util.Options
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
@@ -55,18 +48,20 @@ import Wire.API.Team.Feature
 import Wire.API.Team.Member as Member
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
+import Wire.GalleyAPIAccess (GalleyAPIAccess (..), MLSOneToOneEstablished (..), ShowOrHideInvitationUrl (..))
+import Wire.ParseException
 import Wire.Rpc
 
-interpretGalleyProviderToRpc ::
+interpretGalleyAPIAccessToRpc ::
   ( Member (Error ParseException) r,
     Member Rpc r,
     Member TinyLog r
   ) =>
   Set Version ->
   Endpoint ->
-  Sem (GalleyProvider ': r) a ->
+  Sem (GalleyAPIAccess ': r) a ->
   Sem r a
-interpretGalleyProviderToRpc disabledVersions galleyEndpoint =
+interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
   let v = fromMaybe (error "service can't run with undefined API version") $ maxAvailableVersion disabledVersions
    in interpret $
         runInputConst galleyEndpoint . \case
@@ -220,7 +215,7 @@ checkUserCanJoinTeam tid = do
   rs <- galleyRequest req
   pure $ case Bilge.statusCode rs of
     200 -> Nothing
-    _ -> case decodeBodyMaybe "galley" rs of
+    _ -> case responseJsonMaybe rs of
       Just (e :: Wai.Error) -> pure e
       Nothing -> error ("Invalid response from galley: " <> show rs)
   where
@@ -267,17 +262,12 @@ createTeam ::
   UserId ->
   BindingNewTeam ->
   TeamId ->
-  Sem r CreateUserTeam
-createTeam u t@(BindingNewTeam bt) teamid = do
+  Sem r ()
+createTeam u t teamid = do
   debug $
     remote "galley"
       . msg (val "Creating Team")
-  r <- galleyRequest $ req teamid
-  tid <-
-    maybe (error "invalid team id") pure $
-      fromByteString $
-        getHeader' "Location" r
-  pure (CreateUserTeam tid $ fromRange (bt ^. newTeamName))
+  void $ galleyRequest $ req teamid
   where
     req tid =
       method PUT
@@ -462,16 +452,7 @@ getVerificationCodeEnabled tid = do
         . expect2xx
 
 decodeBodyOrThrow :: forall a r. (Typeable a, FromJSON a, Member (Error ParseException) r) => Text -> Response (Maybe BL.ByteString) -> Sem r a
-decodeBodyOrThrow t r =
-  case decodeBody @a t r of
-    Left a ->
-      case Imports.fromException a of
-        Just pe -> throw @ParseException pe
-        Nothing -> error "impossible: something other than ParseExceptionNothing was thrown by decodeBody"
-    Right b -> pure b
-
-decodeBodyMaybe :: (Typeable a, FromJSON a) => Text -> Response (Maybe BL.ByteString) -> Maybe a
-decodeBodyMaybe t r = hush $ decodeBody t r
+decodeBodyOrThrow ctx r = either (throw . ParseException ctx) pure (responseJsonEither r)
 
 getAllFeatureConfigsForUser ::
   (Member Rpc r, Member (Input Endpoint) r) =>
@@ -590,3 +571,6 @@ unblockConversation v lusr mconn (Qualified cnv cdom) = do
         . paths [toHeader v, "conversations", toByteString' cdom, toByteString' cnv]
         . zUser (tUnqualified lusr)
         . expect2xx
+
+remote :: ByteString -> Msg -> Msg
+remote = field "remote"

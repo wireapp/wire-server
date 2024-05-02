@@ -57,6 +57,7 @@ import Wire.API.Event.Conversation qualified as Conv
 import Wire.API.Provider (httpsUrl)
 import Wire.API.Provider.External
 import Wire.API.Provider.Service qualified as Galley
+import Wire.ParseException
 import Wire.Rpc
 
 --------------------------------------------------------------------------------
