@@ -1473,7 +1473,7 @@ testCreateAccessToken opts n brig = do
           handle
           (fromName u.userDisplayName)
           (UUID.toText (toUUID tid))
-  signedOrError <- fmap encodeCompact <$> liftIO (signAccessToken dpopClaims)
+  signedOrError <- fmap encodeCompact <$> liftIO (signProofEcdsaP256 dpopClaims)
   case signedOrError of
     Left err -> liftIO $ assertFailure $ "failed to sign claims: " <> show err
     Right signed -> do
@@ -1484,14 +1484,24 @@ testCreateAccessToken opts n brig = do
       let accessToken = fromRight (error $ "failed to create token: " <> show response) $ responseJsonEither response
       liftIO $ datrType accessToken @?= DPoP
   where
-    signAccessToken :: DPoPClaimsSet -> IO (Either JWTError SignedJWT)
-    signAccessToken claims = runJOSE $ do
+    -- FUTUREWORK: parameterize the signing algorithm
+    _signProof :: DPoPClaimsSet -> IO (Either JWTError SignedJWT)
+    _signProof claims = runJOSE $ do
       algo <- bestJWSAlg jwkKey
       let h =
             newJWSHeader ((), algo)
               & (jwk ?~ HeaderParam () jwkPubKey)
               & (typ ?~ HeaderParam () "dpop+jwt")
       signJWT jwkKey h claims
+
+    signProofEcdsaP256 :: DPoPClaimsSet -> IO (Either JWTError SignedJWT)
+    signProofEcdsaP256 claims = runJOSE $ do
+      algo <- bestJWSAlg jwkKeyBundleEcdsaP256
+      let h =
+            newJWSHeader ((), algo)
+              & (jwk ?~ HeaderParam () jwkPublicKeyEcdsaP256)
+              & (typ ?~ HeaderParam () "dpop+jwt")
+      signJWT jwkKeyBundleEcdsaP256 h claims
 
     jwkKey :: JWK
     jwkKey = do
@@ -1502,6 +1512,16 @@ testCreateAccessToken opts n brig = do
     jwkPubKey = do
       fromMaybe (error "invalid jwk") . A.decode $
         "{\"kty\":\"OKP\",\"crv\":\"Ed25519\",\"x\":\"nLJGN-Oa6Jsq3KclZggLl7UvAVdmB0Q6C3N5BCgphHw\"}"
+
+    jwkKeyBundleEcdsaP256 :: JWK
+    jwkKeyBundleEcdsaP256 = do
+      fromMaybe (error "invalid jwk") . A.decode $
+        "{\"kty\":\"EC\",\"alg\":\"ES256\",\"crv\":\"P-256\",\"x\":\"hcYjloNodyCLF_rQd_HIszSpa2J-vzrgntneAJW5pA8\",\"y\":\"6MXxnHq1FmAWCc6A7YValxvekicBv53ARTQO35mRKJ8\",\"d\":\"yz1weEXJbJao6wLiml8fahLt3BnJxdHWfbpUB0i8GLo\"}"
+
+    jwkPublicKeyEcdsaP256 :: JWK
+    jwkPublicKeyEcdsaP256 = do
+      fromMaybe (error "invalid jwk") . A.decode $
+        "{\"kty\":\"EC\",\"alg\":\"ES256\",\"crv\":\"P-256\",\"x\":\"hcYjloNodyCLF_rQd_HIszSpa2J-vzrgntneAJW5pA8\",\"y\":\"6MXxnHq1FmAWCc6A7YValxvekicBv53ARTQO35mRKJ8\"}"
 
 testCreateAccessTokenMissingProof :: Brig -> Http ()
 testCreateAccessTokenMissingProof brig = do
