@@ -113,15 +113,13 @@ reqIdMsg = ("request" Logger..=) . unRequestId
 
 createRedisPool :: Logger.Logger -> RedisEndpoint -> Maybe ByteString -> Maybe ByteString -> ByteString -> IO (Async (), Redis.RobustConnection)
 createRedisPool l ep username password identifier = do
-  customCertStore <-
-    case ep._tlsCa of
-      Nothing -> pure Nothing
-      Just caPath -> CertStore.readCertificateStore caPath
-  let tlsParams = do
+  customCertStore <- case ep._tlsCa of
+    Nothing -> pure Nothing
+    Just caPath -> CertStore.readCertificateStore caPath
+  let defClientParams = defaultParamsClient (Text.unpack ep._host) ""
+      tlsParams =
         guard ep._enableTls
-        defClientParams <- Just $ defaultParamsClient (Text.unpack ep._host) ""
-        pure $
-          defClientParams
+          $> defClientParams
             { clientHooks =
                 if ep._insecureSkipVerifyTls
                   then defClientParams.clientHooks {onServerCertificate = \_ _ _ _ -> pure []}
