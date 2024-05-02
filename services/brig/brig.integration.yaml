@@ -201,7 +201,7 @@ optSettings:
   setNonceTtlSecs: 5
   setDpopMaxSkewSecs: 1
   setDpopTokenExpirationTimeSecs: 300 # 5 minutes
-  setPublicKeyBundle: test/resources/jwt/ed25519_bundle.pem
+  setPublicKeyBundle: test/resources/jwt/ecdsa_secp256r1_sha256_key.pem
   setEnableMLS: true
   # To only allow specific email address domains to register, uncomment and update the setting below
   # setAllowlistEmailDomains:
