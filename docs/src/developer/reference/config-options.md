@@ -1028,3 +1028,65 @@ gundeck:
 
 **NOTE**: `redisAddtiionalWriteUsername` follows same restrictions as
 `redisUsername` when using legacy auth.
+
+
+## Configure TLS for Redis
+
+If the redis instance requires TLS, it can be configured like this:
+
+```yaml
+gundeck:
+  config:
+    redis:
+      enableTLS: true
+```
+
+In case a custom CA certificate is required it can be provided like this:
+
+```yaml
+gundeck:
+  config:
+    redis:
+      tlsCa: <PEM encoded CA certificates>
+```
+
+There is another way to provide this, in case there already exists a kubernetes
+secret containing the CA certificate(s):
+
+```yaml
+gundeck:
+  config:
+    redis:
+      tlsCaSecretRef:
+        name: <Name of the secret>
+        key: <Key in the secret containing pem encoded CA Cert>
+```
+
+For configuring `redisAdditionalWrite` in gundeck (this is required during a
+migration from one redis instance to another), the settings need to be like
+this:
+
+```yaml
+gundeck:
+  config:
+    redisAdditionalWrite:
+      enableTLS: true
+      # One or none of these:
+      # tlsCa: <similar to tlsCa>
+      # tlsCaSecretRef: <similar to tlsCaSecretRef>
+```
+
+
+**WARNING:** Please do this only if you know what you're doing.
+
+In case it is not possible to verify TLS certificate of the elasticsearch
+server, it can be turned off without tuning off TLS like this:
+
+```yaml
+gundeck:
+  config:
+    redis:
+      insecureSkipTlsVerify: true
+    redisAdditionalWrite:
+      insecureSkipTlsVerify: true
+```
