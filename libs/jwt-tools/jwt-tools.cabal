@@ -82,8 +82,6 @@ test-suite jwt-tools-tests
       hspec
     , imports
     , jwt-tools
-    , transformers
-    , string-conversions
 
   hs-source-dirs:     test
   default-language:   GHC2021
