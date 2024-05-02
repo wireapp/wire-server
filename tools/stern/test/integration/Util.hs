@@ -240,5 +240,7 @@ getTeamMember getter tid gettee = do
 
 getTeamMember' :: (HasCallStack, MonadHttp m, MonadIO m, MonadCatch m) => Galley -> UserId -> TeamId -> UserId -> m TeamMember
 getTeamMember' g getter tid gettee = do
-  r <- get (g . paths ["teams", toByteString' tid, "members", toByteString' gettee] . zUser getter) <!! const 200 === statusCode
+  r <-
+    get (g . paths ["teams", toByteString' tid, "members", toByteString' gettee] . zUser getter)
+      <!! const 200 === statusCode
   responseJsonError r

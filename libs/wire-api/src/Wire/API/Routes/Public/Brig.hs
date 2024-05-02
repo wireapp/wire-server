@@ -155,7 +155,7 @@ type UserAPI =
     ( Summary "Get a user by UserId"
         :> MakesFederatedCall 'Brig "get-users-by-ids"
         :> Until 'V2
-        :> ZUser
+        :> ZLocalUser
         :> "users"
         :> CaptureUserId "uid"
         :> GetUserVerb
@@ -166,7 +166,7 @@ type UserAPI =
       "get-user-qualified"
       ( Summary "Get a user by Domain and UserId"
           :> MakesFederatedCall 'Brig "get-users-by-ids"
-          :> ZUser
+          :> ZLocalUser
           :> "users"
           :> QualifiedCaptureUserId "uid"
           :> GetUserVerb

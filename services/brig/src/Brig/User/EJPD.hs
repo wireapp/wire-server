@@ -27,8 +27,6 @@ import Brig.API.User (lookupHandle)
 import Brig.App
 import Brig.Data.Connection qualified as Conn
 import Brig.Data.User (lookupUser)
-import Brig.Effects.GalleyProvider (GalleyProvider)
-import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Control.Error hiding (bool)
 import Control.Lens (view, (^.))
 import Data.Aeson qualified as A
@@ -46,12 +44,14 @@ import Wire.API.Push.Token qualified as PushTok
 import Wire.API.Routes.Internal.Brig.EJPD
 import Wire.API.Team.Member qualified as Team
 import Wire.API.User
+import Wire.GalleyAPIAccess (GalleyAPIAccess)
+import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Rpc
 
 ejpdRequest ::
   forall r.
-  ( Member GalleyProvider r,
+  ( Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member Rpc r
   ) =>
@@ -97,7 +97,7 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
       mbTeamContacts <-
         case (reallyIncludeContacts, userTeam target) of
           (True, Just tid) -> do
-            memberList <- liftSem $ GalleyProvider.getTeamMembers tid
+            memberList <- liftSem $ GalleyAPIAccess.getTeamMembers tid
             let members = (view Team.userId <$> (memberList ^. Team.teamMembers)) \\ [uid]
 
             contactsFull <-

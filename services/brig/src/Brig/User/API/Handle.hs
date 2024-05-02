@@ -28,7 +28,6 @@ import Brig.API.Handler (Handler)
 import Brig.API.User qualified as API
 import Brig.App
 import Brig.Data.User qualified as Data
-import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Federation.Client qualified as Federation
 import Brig.Options (searchSameTeamOnly)
 import Control.Lens (view)
@@ -43,9 +42,10 @@ import Wire.API.User
 import Wire.API.User qualified as Public
 import Wire.API.User.Search
 import Wire.API.User.Search qualified as Public
+import Wire.UserSubsystem
 
 getHandleInfo ::
-  (Member GalleyProvider r) =>
+  (Member UserSubsystem r) =>
   UserId ->
   Qualified Handle ->
   (Handler r) (Maybe Public.UserProfile)
@@ -65,7 +65,7 @@ getRemoteHandleInfo handle = do
   Federation.getUserHandleInfo handle !>> fedError
 
 getLocalHandleInfo ::
-  (Member GalleyProvider r) =>
+  (Member UserSubsystem r) =>
   Local UserId ->
   Handle ->
   (Handler r) (Maybe Public.UserProfile)
@@ -76,7 +76,9 @@ getLocalHandleInfo self handle = do
     Nothing -> pure Nothing
     Just ownerId -> do
       domain <- viewFederationDomain
-      ownerProfile <- API.lookupProfile self (Qualified ownerId domain) !>> fedError
+      ownerProfile <-
+        (lift . liftSem $ getUserProfile self (Qualified ownerId domain))
+          !>> fedError
       owner <- filterHandleResults self (maybeToList ownerProfile)
       pure $ listToMaybe owner
 

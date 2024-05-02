@@ -74,6 +74,7 @@ import Data.Text.Lazy qualified as LT
 import Data.Time.Clock
 import Data.Tuple.Extra (fst3, snd3, thd3)
 import Imports
+import SAML2.WebSSO (UserRef (..))
 import SAML2.WebSSO.Test.Arbitrary ()
 import SAML2.WebSSO.Types qualified as SAML
 import SAML2.WebSSO.Types.Email qualified as SAMLEmail
@@ -341,6 +342,18 @@ instance C.Cql UserSSOId where
   fromCql _ = Left "fromCql: UserSSOId: CqlText expected"
 
   toCql = C.toCql . decodeUtf8With lenientDecode . toStrict . A.encode
+
+instance Ord UserSSOId where
+  compare (UserSSOId ref1) (UserSSOId ref2) = ref1 `ordUserRef` ref2
+  compare (UserSSOId _) (UserScimExternalId _) = LT
+  compare (UserScimExternalId _) (UserSSOId _) = GT
+  compare (UserScimExternalId t1) (UserScimExternalId t2) = t1 `compare` t2
+
+-- FUTUREWORK(mangoiv): this should be upstreamed, there's no reason why SAML.UserRef doesn't have
+-- an Ord instane, both of its constituents have one
+ordUserRef :: SAML.UserRef -> SAML.UserRef -> Ordering
+ordUserRef (UserRef tenant1 subject1) (UserRef tenant2 subject2) =
+  compare tenant1 tenant2 <> compare subject1 subject2
 
 -- | FUTUREWORK: This schema should ideally be a choice of either tenant+subject, or scim_external_id
 -- but this is currently not possible to derive in swagger2

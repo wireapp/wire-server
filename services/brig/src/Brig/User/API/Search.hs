@@ -30,8 +30,6 @@ import Brig.App
 import Brig.Data.User qualified as DB
 import Brig.Effects.FederationConfigStore
 import Brig.Effects.FederationConfigStore qualified as E
-import Brig.Effects.GalleyProvider (GalleyProvider)
-import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.Federation.Client qualified as Federation
 import Brig.Options qualified as Opts
 import Brig.Team.Util (ensurePermissions, ensurePermissionsOrPersonalUser)
@@ -59,12 +57,16 @@ import Wire.API.Team.Permission qualified as Public
 import Wire.API.Team.SearchVisibility (TeamSearchVisibility (..))
 import Wire.API.User.Search
 import Wire.API.User.Search qualified as Public
+import Wire.GalleyAPIAccess (GalleyAPIAccess)
+import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
+import Wire.UserSubsystem
 
 -- FUTUREWORK: Consider augmenting 'SearchResult' with full user profiles
 -- for all results. This is tracked in https://wearezeta.atlassian.net/browse/SQCORE-599
 search ::
-  ( Member GalleyProvider r,
-    Member FederationConfigStore r
+  ( Member GalleyAPIAccess r,
+    Member FederationConfigStore r,
+    Member UserSubsystem r
   ) =>
   UserId ->
   Text ->
@@ -113,7 +115,9 @@ searchRemotely domain mTid searchTerm = do
 
 searchLocally ::
   forall r.
-  (Member GalleyProvider r) =>
+  ( Member GalleyAPIAccess r,
+    Member UserSubsystem r
+  ) =>
   UserId ->
   Text ->
   Maybe (Range 1 500 Int32) ->
@@ -156,7 +160,7 @@ searchLocally searcherId searchTerm maybeMaxResults = do
             then pure (Search.TeamOnly t)
             else do
               -- For team users, we need to check the visibility flag
-              handleTeamVisibility t <$> liftSem (GalleyProvider.getTeamSearchVisibility t)
+              handleTeamVisibility t <$> liftSem (GalleyAPIAccess.getTeamSearchVisibility t)
 
     exactHandleSearch :: (Handler r) (Maybe Contact)
     exactHandleSearch = do
@@ -168,7 +172,7 @@ searchLocally searcherId searchTerm maybeMaxResults = do
             <$$> HandleAPI.getLocalHandleInfo lsearcherId handle
 
 teamUserSearch ::
-  Member GalleyProvider r =>
+  Member GalleyAPIAccess r =>
   UserId ->
   TeamId ->
   Maybe Text ->

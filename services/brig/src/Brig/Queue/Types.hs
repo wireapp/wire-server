@@ -16,20 +16,20 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.Queue.Types
-  ( Queue (..),
+  ( QueueOpts (..),
   )
 where
 
 import Data.Aeson
 import Imports
 
--- | A remote queue that you can publish to and listen from.
-data Queue = StompQueue Text | SqsQueue Text
+-- | Config file info for a remote queue that you can publish to and listen from.
+data QueueOpts = StompQueueOpts Text | SqsQueueOpts Text
   deriving (Eq, Show)
 
-instance FromJSON Queue where
+instance FromJSON QueueOpts where
   parseJSON = withObject "Queue" $ \o ->
     o .: "queueType" >>= \case
-      "stomp" -> StompQueue <$> o .: "queueName"
-      "sqs" -> SqsQueue <$> o .: "queueName"
+      "stomp" -> StompQueueOpts <$> o .: "queueName"
+      "sqs" -> SqsQueueOpts <$> o .: "queueName"
       other -> fail ("unknown 'queueType': " <> other)

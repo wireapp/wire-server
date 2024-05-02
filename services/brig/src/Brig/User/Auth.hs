@@ -48,8 +48,6 @@ import Brig.Data.User qualified as Data
 import Brig.Data.UserKey
 import Brig.Data.UserKey qualified as Data
 import Brig.Effects.ConnectionStore (ConnectionStore)
-import Brig.Effects.GalleyProvider (GalleyProvider)
-import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.Email
 import Brig.Options qualified as Opt
 import Brig.Phone
@@ -85,6 +83,8 @@ import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.Sso
+import Wire.GalleyAPIAccess (GalleyAPIAccess)
+import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 
@@ -130,7 +130,7 @@ lookupLoginCode phone =
 
 login ::
   forall r.
-  ( Member GalleyProvider r,
+  ( Member GalleyAPIAccess r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
@@ -174,7 +174,7 @@ login (SmsLogin (SmsLoginData phone code label)) typ = do
 
 verifyCode ::
   forall r.
-  Member GalleyProvider r =>
+  Member GalleyAPIAccess r =>
   Maybe Code.Value ->
   VerificationAction ->
   UserId ->
@@ -182,7 +182,7 @@ verifyCode ::
 verifyCode mbCode action uid = do
   (mbEmail, mbTeamId) <- getEmailAndTeamId uid
   featureEnabled <- lift $ do
-    mbFeatureEnabled <- liftSem $ GalleyProvider.getVerificationCodeEnabled `traverse` mbTeamId
+    mbFeatureEnabled <- liftSem $ GalleyAPIAccess.getVerificationCodeEnabled `traverse` mbTeamId
     pure $ fromMaybe (Public.wsStatus (Public.defFeatureStatus @Public.SndFactorPasswordChallengeConfig) == Public.FeatureStatusEnabled) mbFeatureEnabled
   isSsoUser <- wrapHttpClientE $ Data.isSamlUser uid
   when (featureEnabled && not isSsoUser) $ do
@@ -448,7 +448,7 @@ ssoLogin (SsoLogin uid label) typ = do
 
 -- | Log in as a LegalHold service, getting LegalHoldUser/Access Tokens.
 legalHoldLogin ::
-  ( Member GalleyProvider r,
+  ( Member GalleyAPIAccess r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member TinyLog r,
@@ -464,7 +464,7 @@ legalHoldLogin (LegalHoldLogin uid pw label) typ = do
   -- legalhold login is only possible if
   -- the user is a team user
   -- and the team has legalhold enabled
-  mteam <- lift $ liftSem $ GalleyProvider.getTeamId uid
+  mteam <- lift $ liftSem $ GalleyAPIAccess.getTeamId uid
   case mteam of
     Nothing -> throwE LegalHoldLoginNoBindingTeam
     Just tid -> assertLegalHoldEnabled tid
@@ -473,11 +473,11 @@ legalHoldLogin (LegalHoldLogin uid pw label) typ = do
     !>> LegalHoldLoginError
 
 assertLegalHoldEnabled ::
-  Member GalleyProvider r =>
+  Member GalleyAPIAccess r =>
   TeamId ->
   ExceptT LegalHoldLoginError (AppT r) ()
 assertLegalHoldEnabled tid = do
-  stat <- lift $ liftSem $ GalleyProvider.getTeamLegalHoldStatus tid
+  stat <- lift $ liftSem $ GalleyAPIAccess.getTeamLegalHoldStatus tid
   case wsStatus stat of
     FeatureStatusDisabled -> throwE LegalHoldLoginLegalHoldNotEnabled
     FeatureStatusEnabled -> pure ()

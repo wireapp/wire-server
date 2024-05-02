@@ -13,6 +13,7 @@
 - ignore: { name: Use section }
 - ignore: { name: "Use :" }
 - ignore: { name: Use underscore }
+- ignore: { name: Use error }
 
 # custom rules:
 - hint: { lhs: (() <$), rhs: void }
