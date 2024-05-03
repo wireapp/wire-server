@@ -119,13 +119,16 @@ serveServant ::
   IO ()
 serveServant middleware server env port =
   Warp.run port
-    . Wai.catchErrors (view applog env) []
+    . Wai.catchErrorsWithRequestId getRequestId (view applog env) []
     . middleware
     $ app
   where
     app :: Wai.Application
     app =
       genericServe server
+
+    getRequestId :: Wai.Request -> Maybe ByteString
+    getRequestId = lookup "Wire-Origin-Request-Id" . Wai.requestHeaders
 
 type AllEffects =
   '[ Metrics,
