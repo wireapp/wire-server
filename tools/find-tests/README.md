@@ -16,3 +16,7 @@ The Haskell code must follow these rules:
 1. the function must be declared on top level (column 1).
 2. the order must be comment, signature, fundecl, in that order.
 3. no empty lines between comment, signature, fundecl.
+
+[for wire internal use:] If you are using this and run into problems:
+please open a Jira ticket and provide the git commit of wire-server
+that failed, plus the input json to the find-tests executable.
