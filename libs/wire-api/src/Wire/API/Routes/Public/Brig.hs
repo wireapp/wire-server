@@ -343,6 +343,7 @@ type SelfAPI =
     :<|> Named
            "change-phone"
            ( Summary "Change your phone number."
+               :> Until 'V6
                :> ZUser
                :> ZConn
                :> "self"
@@ -360,6 +361,7 @@ type SelfAPI =
                "Your phone number can only be removed if you also have an \
                \email address and a password."
           :> MakesFederatedCall 'Brig "send-connection-action"
+          :> Until 'V6
           :> ZUser
           :> ZConn
           :> "self"
