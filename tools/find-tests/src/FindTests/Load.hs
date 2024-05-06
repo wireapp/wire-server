@@ -24,17 +24,9 @@ module FindTests.Load
   )
 where
 
-import Data.Aeson
-import Data.ByteString.Lazy.Char8 as BS
-import Data.Map qualified as Map
-import FindTests.Parse
 import GHC
 import GHC.Driver.Flags
-import GHC.Driver.Ppr
 import GHC.Driver.Session
-import GHC.Hs.Dump
-import GHC.Parser qualified as P
-import GHC.Parser.Lexer qualified as P
 import GHC.Paths (libdir)
 import GHC.Utils.Logger
 import Imports as I

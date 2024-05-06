@@ -192,6 +192,8 @@ test-suite spec
   other-modules:      FindTests.ParseSpec
   build-depends:
       aeson
+    , aeson-diff
+    , aeson-pretty
     , base
     , bytestring
     , containers
@@ -200,6 +202,9 @@ test-suite spec
     , ghc
     , ghc-paths
     , hspec
+    , HUnit
     , imports
+    , lens
+    , lens-aeson
 
   default-language:   GHC2021
