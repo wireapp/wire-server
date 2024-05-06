@@ -30,6 +30,7 @@ import Data.Map qualified as Map
 import FindTests.CliInput
 import FindTests.Load
 import FindTests.Parse
+import FindTests.StolenFromIntegration
 import GHC
 import GHC.Driver.Flags
 import GHC.Driver.Ppr

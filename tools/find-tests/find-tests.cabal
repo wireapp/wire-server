@@ -18,8 +18,8 @@ library
   -- cabal-fmt: expand src
   exposed-modules:
     FindTests.CliInput
-    FindTests.Load
     FindTests.Parse
+    FindTests.StolenFromIntegration
 
   default-extensions:
     AllowAmbiguousTypes
@@ -72,12 +72,15 @@ library
   build-depends:
       aeson
     , aeson-pretty
+    , base
     , bytestring
+    , Cabal
+    , Cabal-syntax
     , containers
+    , directory
     , extra
     , filepath
-    , ghc
-    , ghc-paths
+    , haskell-src-exts
     , imports
 
   default-language:   GHC2021
@@ -140,8 +143,6 @@ executable find-tests
     , containers
     , filepath
     , find-tests
-    , ghc
-    , ghc-paths
     , imports
 
   default-language:   GHC2021
@@ -202,8 +203,6 @@ test-suite spec
     , containers
     , filepath
     , find-tests
-    , ghc
-    , ghc-paths
     , hspec
     , HUnit
     , imports
