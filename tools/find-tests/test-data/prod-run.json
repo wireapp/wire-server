@@ -1,15 +1,15 @@
 {
-  "/integration": {
+  "integration": {
     "/test/Test/AccessUpdate.hs": [
       "testAccessUpdateGuestRemoved"
     ]
   },
-  "/libs/zauth": {
+  "libs/zauth": {
     "test/ZAuth.hs": [
       "testExpired"
     ]
   },
-  "/services/brig": {
+  "services/brig": {
     "/test/integration/API/User/Account.hs": [
       "testCreateUserEmptyName",
       "testCreateUserWithInvalidVerificationCode",

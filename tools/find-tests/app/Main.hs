@@ -24,24 +24,17 @@ module Main
 where
 
 import Data.Aeson
-import Data.Aeson.Encode.Pretty (encodePretty)
+-- import Data.Aeson.Encode.Pretty (encodePretty)
 import Data.ByteString.Lazy.Char8 as BS
 import Data.Map qualified as Map
 import FindTests.CliInput
-import FindTests.Load
-import FindTests.Parse
+-- import FindTests.Load
+-- import FindTests.Parse
 import FindTests.StolenFromIntegration
-import GHC
-import GHC.Driver.Flags
-import GHC.Driver.Ppr
-import GHC.Driver.Session
-import GHC.Hs
-import GHC.Hs.Dump
-import GHC.Paths (libdir)
-import GHC.Utils.Logger
 import Imports as I
-import System.FilePath
-import System.FilePath (takeBaseName)
+
+-- import System.FilePath
+-- import System.FilePath (takeBaseName)
 
 -- usage:
 --
@@ -51,13 +44,12 @@ import System.FilePath (takeBaseName)
 main :: IO ()
 main = do
   [cliInputFile] <- getArgs
-  wireServerRoot <- lookupEnv "WIRE_SERVER_ROOT" >>= maybe (error "*** $WIRE_SERVER_ROOT is not defined") pure
 
   CliInput cliInput <-
     either (error . show . ((cliInputFile <> ": ") <>)) pure
       =<< (eitherDecode <$> BS.readFile cliInputFile)
 
-  let flatten :: forall e v. Show e => [[[Either e v]]] -> [v]
+  let flatten :: forall e v. (e ~ (), v ~ (), Show e) => [[[Either e v]]] -> [v]
       flatten nestedInput = if I.null bad then good else error $ errmsg <> show bad
         where
           (bad, good) = I.partitionEithers . join . join $ nestedInput
@@ -66,21 +58,22 @@ main = do
           -- the target function.  please open a ticket."
           errmsg = ""
 
-  runApp $ \dflags -> do
-    cliOutput :: [FoundTestCase] <- fmap flatten . forM (Map.toList cliInput) $
-      \(packageName, moduleMapping) -> forM (Map.toList moduleMapping) $
-        \(relTargetFile, testCaseNames) -> do
-          let absTargetFile = wireServerRoot <> packageName <> relTargetFile
-          parsed <- loadHsModule absTargetFile
+  _cliOutput :: [()] <- fmap flatten . forM (Map.toList cliInput) $
+    \(packageName, moduleMapping) -> do
+      parsed <- collectTestsInModule packageName `mapM` (Map.keys moduleMapping)
 
-          let mapping :: Map String FoundTestCase
-              mapping = parseTestCases dflags absTargetFile parsed
+      error $ show parsed
 
-          -- for debugging:
-          -- I.putStrLn . showSDoc dflags . showAstDataFull $ parsed
-          -- liftIO $ BS.putStrLn $ encode mapping
+  {-
+            let mapping :: Map String FoundTestCase
+                mapping = parseTestCases absTargetFile parsed
 
-          --  . fmap fromJust $ flip Map.lookup mapping <$> testCaseNames
-          pure (undefined :: [Either () FoundTestCase])
+            -- for debugging:
+            -- I.putStrLn . showSDoc dflags . showAstDataFull $ parsed
+            -- liftIO $ BS.putStrLn $ encode mapping
 
-    error . BS.unpack . encodePretty $ cliOutput
+            --  . fmap fromJust $ flip Map.lookup mapping <$> testCaseNames
+
+            error . BS.unpack . encodePretty $ cliOutput
+  -}
+  pure undefined

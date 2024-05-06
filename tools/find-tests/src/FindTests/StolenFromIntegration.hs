@@ -4,7 +4,7 @@
 {-# OPTIONS_GHC -Wall #-}
 
 -- | This is duplicate code, see /integration/Setup.hs
-module FindTests.StolenFromIntegration (collectTests) where
+module FindTests.StolenFromIntegration (collectTestsInModule) where
 
 import Control.Applicative
 import Control.Monad
@@ -12,32 +12,34 @@ import Data.Bool
 import Data.Foldable
 import Data.Function
 import Data.List
-import Data.Map qualified as Map
+-- import Data.Map qualified as Map
 import Data.Maybe
-import Data.Monoid
-import Data.Set qualified as Set
+-- import Data.Monoid
+-- import Data.Set qualified as Set
 import Data.String
-import Distribution.Simple hiding (Language (..), Module (..))
-import Distribution.Simple.BuildPaths
-import Distribution.Simple.LocalBuildInfo
-import Distribution.Types.BuildInfo
-import Distribution.Types.Library
-import Distribution.Types.PackageDescription
-import Distribution.Utils.Path
+-- import Distribution.Simple hiding (Language (..), Module (..))
+-- import Distribution.Simple.BuildPaths
+-- import Distribution.Simple.LocalBuildInfo
+-- import Distribution.Types.BuildInfo
+-- import Distribution.Types.Library
+-- import Distribution.Types.PackageDescription
+-- import Distribution.Utils.Path
 import Language.Haskell.Exts (Comment (..), Decl (TypeSig), Language (..), Module (..), Name (..), ParseMode (..), SrcSpanInfo, associateHaddock, fromParseResult, parseFileWithComments)
 import Language.Haskell.Exts qualified as Exts
-import System.Directory
-import System.FilePath
+-- import System.Directory
+import System.Environment
+import System.FilePath hiding ((</>))
+import System.FilePath qualified
 import Prelude
 
+{-
 collectTests :: FilePath -> [FilePath] -> IO [(String, String, String, String)]
-collectTests pkgRoot roots =
-  concat <$> traverse (findAllTests . (<> "/Test")) roots
+collectTests pkgRoot modPaths =
+  concat <$> (findAllTests `mapM` modPaths)
   where
     findAllTests :: FilePath -> IO [(String, String, String, String)]
-    findAllTests root = do
-      paths <- findPaths root
-      concat <$> traverse (findModuleTests root) (filter (not . noise) paths)
+    findAllTests modPath = do
+      concat <$> traverse findModuleTests (filter (not . noise) paths)
 
     -- don't touch emacs auto-save or backup files
     noise :: FilePath -> Bool
@@ -48,26 +50,18 @@ collectTests pkgRoot roots =
         autosave ('#' : _) = True -- (if you want to make this pattern more strict: there is also a '#' at the end.)
         autosave _ = False
 
-    findModuleTests :: FilePath -> FilePath -> IO [(String, String, String, String)]
-    findModuleTests root path = do
-      let modl = "Test." <> toModule root path
+    findModuleTests :: FilePath -> IO [(String, String, String, String)]
+    findModuleTests modPath = do
+      let modl = toModule modPath
       tests <- collectTestsInModule pkgRoot path
       pure $ map (\(testName, summary, full) -> (modl, testName, summary, full)) tests
 
-    toModule :: FilePath -> FilePath -> String
-    toModule root = map setDot . dropExtension . makeRelative root
+    toModule :: FilePath -> String
+    toModule = map setDot . dropExtension
       where
         setDot '/' = '.'
         setDot c = c
-
-    findPaths :: FilePath -> IO [FilePath]
-    findPaths d = do
-      isDir <- doesDirectoryExist d
-      if isDir
-        then do
-          entries <- listDirectory d
-          concat <$> traverse (findPaths . (d </>)) entries
-        else pure [d]
+-}
 
 stripHaddock :: String -> String
 stripHaddock = \case
@@ -86,6 +80,9 @@ collectDescription ls =
 
 collectTestsInModule :: FilePath -> FilePath -> IO [(String, String, String)]
 collectTestsInModule pkgRoot fn = do
+  repoRoot <- lookupEnv "WIRE_SERVER_ROOT" >>= maybe (error "*** $WIRE_SERVER_ROOT is not defined") pure
+  let absolutePath = repoRoot <//> pkgRoot <//> fn
+
   -- associateHaddock requires all comments that we want to stick onto a test
   -- should be in the Haddock style, otherwise they won't make it through the parser.
   res <-
@@ -119,8 +116,6 @@ collectTestsInModule pkgRoot fn = do
               let (summary, rest) = collectDescription comments
                in pure (n', summary, rest)
             else Nothing
-
-    absolutePath = pkgRoot </> fn
 
     -- All of the haskell-src-exts supported extensions that we are using.
     -- Several that are in the cabal file couldn't be directly copied over,
@@ -168,3 +163,10 @@ collectTestsInModule pkgRoot fn = do
         Exts.EnableExtension Exts.UndecidableInstances,
         Exts.EnableExtension Exts.ViewPatterns
       ]
+
+-- | `(</>)` from "System.FilePath" interprets double-/ as "delete everything I said so far".
+(<//>) :: FilePath -> FilePath -> FilePath
+fp1 <//> fp2
+  | last fp1 == '/' = init fp1 <//> fp2
+  | head fp2 == '/' = fp1 <//> tail fp2
+  | otherwise = fp1 System.FilePath.</> fp2

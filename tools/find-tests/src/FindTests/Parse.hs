@@ -17,7 +17,9 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module FindTests.Parse
+module FindTests.Parse where
+
+{-
   ( FoundTestCase (..),
     parseTestCases,
   )
@@ -26,14 +28,12 @@ where
 import Data.Aeson
 import Data.List.Extra
 import Data.Map qualified as Map
-import GHC
-import GHC.Driver.Ppr
-import GHC.Types.Name.Occurrence
-import GHC.Utils.Outputable
 import Imports as I
 
 ----------------------------------------------------------------------
 -- types
+
+type SrcSpan = ()
 
 data FoundTestCase = FoundTestCase
   { testCaseFileName :: FilePath, -- the file containing the haskell module
@@ -99,3 +99,4 @@ findDecls dflags = join . map q . hsmodDecls . unLoc
     h (Unqual o) = o
     h (Qual _ o) = o
     h bad = error $ "unexpected RdrName: " I.<> s bad
+-}

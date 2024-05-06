@@ -27,6 +27,7 @@ import System.Directory
 import System.FilePath
 import Prelude
 
+-- | (Hint: we stole this for `/tools/find-tests/src/FindTests/StolenFromIntegration.hs`)
 collectTests :: FilePath -> [FilePath] -> IO [(String, String, String, String)]
 collectTests pkgRoot roots =
   concat <$> traverse (findAllTests . (<> "/Test")) roots

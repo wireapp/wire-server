@@ -1,8 +1,10 @@
 module HelloWorld where
 
 -- | woeijf owijfe wef
-main :: IO ()
-main = print "wef"
+main :: IO {- bla -} ()
+main =
+  -- bloo
+  print "wef"
 
 -- | subcomment
 sub ::
