@@ -1431,6 +1431,7 @@ type AuthAPI =
                     \ 10 minutes. Only one login code may be pending at a time.\
                     \ For 2nd factor authentication login with email and password, use the\
                     \ `/verification-code/send` endpoint."
+               :> Until 'V6
                :> ReqBody '[JSON] SendLoginCode
                :> CanThrow 'InvalidPhone
                :> CanThrow 'PasswordExists
