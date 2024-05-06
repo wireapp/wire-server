@@ -17,6 +17,7 @@ library
 
   -- cabal-fmt: expand src
   exposed-modules:
+    FindTests.CliInput
     FindTests.Load
     FindTests.Parse
 
@@ -70,6 +71,7 @@ library
 
   build-depends:
       aeson
+    , aeson-pretty
     , bytestring
     , containers
     , extra
@@ -133,6 +135,7 @@ executable find-tests
 
   build-depends:
       aeson
+    , aeson-pretty
     , bytestring
     , containers
     , filepath

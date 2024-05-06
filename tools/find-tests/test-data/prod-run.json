@@ -1,0 +1,30 @@
+{
+  "/integration": {
+    "/test/Test/AccessUpdate.hs": [
+      "testAccessUpdateGuestRemoved"
+    ]
+  },
+  "/libs/zauth": {
+    "test/ZAuth.hs": [
+      "testExpired"
+    ]
+  },
+  "/services/brig": {
+    "/test/integration/API/User/Account.hs": [
+      "testCreateUserEmptyName",
+      "testCreateUserWithInvalidVerificationCode",
+      "testCreateUserLongName",
+      "testCreateUserConflict",
+      "testCreateUserInvalidEmailOrPhone"
+    ],
+    "/test/integration/API/User/Auth.hs": [
+      "testLoginFailure",
+      "testLimitRetries",
+      "testInvalidCookie",
+      "testTooManyCookies"
+    ],
+    "/test/integration/API/User/Client.hs": [
+      "testAddGetClientMissingCode"
+    ]
+  }
+}

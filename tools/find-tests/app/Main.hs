@@ -24,8 +24,10 @@ module Main
 where
 
 import Data.Aeson
+import Data.Aeson.Encode.Pretty (encodePretty)
 import Data.ByteString.Lazy.Char8 as BS
 import Data.Map qualified as Map
+import FindTests.CliInput
 import FindTests.Load
 import FindTests.Parse
 import GHC
@@ -37,71 +39,47 @@ import GHC.Hs.Dump
 import GHC.Paths (libdir)
 import GHC.Utils.Logger
 import Imports as I
+import System.FilePath
 import System.FilePath (takeBaseName)
 
 -- usage:
 --
 -- >>> $ make -C ~/src/wire-server c package=find-tests
--- >>> $ cd ~/src/wire-server && echo 'module Tests where\n\nsub :: Int\nsub = 3\n\nmain :: IO ()\nmain = print "yeay"\n > /tmp/Tests.hs
--- >>> $ cd ~/src/wire-server && ./dist/find-tests /tmp/Tests.hs test1
-
-{-
-
-/integration/test/Test/AccessUpdate.hs,testAccessUpdateGuestRemoved
-/libs/zauth/test/ZAuth.hs,testExpired
-/services/brig/test/integration/API/User/Account.hs,testCreateUserWithInvalidVerificationCode
-/services/brig/test/integration/API/User/Account.hs,testCreateUserEmptyName
-/services/brig/test/integration/API/User/Account.hs,testCreateUserLongName
-/services/brig/test/integration/API/User/Account.hs,testCreateUserConflict
-/services/brig/test/integration/API/User/Account.hs,testCreateUserInvalidEmailOrPhone
-/services/brig/test/integration/API/User/Auth.hs,testLoginFailure
-/services/brig/test/integration/API/User/Auth.hs,testLimitRetries
-/services/brig/test/integration/API/User/Auth.hs,testInvalidCookie
-/services/brig/test/integration/API/User/Auth.hs,testTooManyCookies
-/services/brig/test/integration/API/User/Client.hs,testAddGetClientMissingCode
-/services/brig/test/integration/API/User/Client.hs,testAddGetClientWrongCode
-/services/brig/test/integration/API/User/Client.hs,testAddGetClientCodeExpired
-/services/brig/test/integration/API/User/Client.hs,testTooManyClients
-/services/brig/test/integration/API/User/Client.hs,testRemoveClient
-/services/brig/test/integration/API/User/Client.hs,testRemoveClientShortPwd
-/services/brig/test/integration/API/User/Client.hs,testRemoveClientIncorrectPwd
-/services/brig/test/integration/API/User/Client.hs,testAddMultipleTemporary
-
--- hm...  maybe it's easier to extract this list from the html audit report?
-
-/services/federator/test/integration/Test/Federator/IngressSpec.hs,
-/services/federator/test/integration/Test/Federator/InwardSpec.hs,
-/services/federator/test/unit/Test/Federator/InternalServer.hs,
-/services/federator/test/unit/Test/Federator/Options.hs,
-/services/federator/test/unit/Test/Federator/Remote.hs,
-/services/federator/test/unit/Test/Federator/Validation.hs,
-/services/galley/test/integration/API.hs,
-/services/galley/test/integration/API/Teams.hs,
-/services/galley/test/integration/API/Federation.hs,
-/services/spar/test-integration/Test/Spar/APISpec.hs,
-/services/spar/test-integration/Test/Spar/Scim/AuthSpec.hs,
-/services/spar/test-integration/Test/Spar/Scim/UserSpec.hs,
-
-file not found:
-/services/brig/test/integration/API/UserHandles.hs,
-
--}
+-- >>> $ cd ~/src/wire-server && ./dist/find-tests ./tools/find-tests/test-data/prod-run.json
 
 main :: IO ()
 main = do
-  [targetFile, targetFunction] <- getArgs
+  [cliInputFile] <- getArgs
+  wireServerRoot <- lookupEnv "WIRE_SERVER_ROOT" >>= maybe (error "*** $WIRE_SERVER_ROOT is not defined") pure
+
+  CliInput cliInput <-
+    either (error . show . ((cliInputFile <> ": ") <>)) pure
+      =<< (eitherDecode <$> BS.readFile cliInputFile)
+
+  let flatten :: forall e v. Show e => [[[Either e v]]] -> [v]
+      flatten nestedInput = if I.null bad then good else error $ errmsg <> show bad
+        where
+          (bad, good) = I.partitionEithers . join . join $ nestedInput
+          -- TODO: lookup failure msg: "if you think the function should be found, this could be
+          -- because the parser is ignoring the function due to some peculiarity in the syntax of
+          -- the target function.  please open a ticket."
+          errmsg = ""
 
   runApp $ \dflags -> do
-    parsed <- loadHsModule targetFile
+    cliOutput :: [FoundTestCase] <- fmap flatten . forM (Map.toList cliInput) $
+      \(packageName, moduleMapping) -> forM (Map.toList moduleMapping) $
+        \(relTargetFile, testCaseNames) -> do
+          let absTargetFile = wireServerRoot <> packageName <> relTargetFile
+          parsed <- loadHsModule absTargetFile
 
-    let docs = {- fmap (anchor . getLoc) $ priorComments $ comments $ hsmodAnn $ unLoc $ -} parsed
+          let mapping :: Map String FoundTestCase
+              mapping = parseTestCases dflags absTargetFile parsed
 
-    -- I.putStrLn . showSDoc dflags . showAstDataFull $ docs
-    let mapping = parseTestCases dflags targetFile parsed
+          -- for debugging:
+          -- I.putStrLn . showSDoc dflags . showAstDataFull $ parsed
+          -- liftIO $ BS.putStrLn $ encode mapping
 
-    -- TODO: lookup failure msg: "if you think the function should be found, this could be
-    -- because the parser is ignoring the function due to some peculiarity in the syntax of
-    -- the target function.  please open a ticket."
+          --  . fmap fromJust $ flip Map.lookup mapping <$> testCaseNames
+          pure (undefined :: [Either () FoundTestCase])
 
-    liftIO $ BS.putStrLn $ encode mapping
-    print (Map.lookup targetFunction mapping)
+    error . BS.unpack . encodePretty $ cliOutput
