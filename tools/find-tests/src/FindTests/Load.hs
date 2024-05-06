@@ -33,6 +33,8 @@ import GHC.Driver.Flags
 import GHC.Driver.Ppr
 import GHC.Driver.Session
 import GHC.Hs.Dump
+import GHC.Parser qualified as P
+import GHC.Parser.Lexer qualified as P
 import GHC.Paths (libdir)
 import GHC.Utils.Logger
 import Imports as I
@@ -47,6 +49,13 @@ runApp action = do
         dflags <- wireGhcFlags
         action dflags
 
+-- | Load both token stream (needed for comment processing) and AST (needed for fun
+-- declaration processing).
+--
+-- NB: if we need to read comments, maybe the easiest way is to parse the token stream, filter
+-- for comment tokens, and find the latest one before a declaration.  but it's probably much
+-- better to forbid comments *above* type signatures and require to put them in the function
+-- body, then they will be included without extra effort.
 loadHsModule :: FilePath -> Ghc ParsedSource
 loadHsModule targetFile = do
   let targetModule = takeBaseName targetFile

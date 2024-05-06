@@ -28,20 +28,16 @@ import Data.List.Extra
 import Data.Map qualified as Map
 import GHC
 import GHC.Driver.Ppr
-import GHC.Driver.Session
-import GHC.Paths (libdir)
 import GHC.Types.Name.Occurrence
-import GHC.Utils.Logger
 import GHC.Utils.Outputable
 import Imports as I
-import System.FilePath (takeBaseName)
 
 ----------------------------------------------------------------------
 -- types
 
 data FoundTestCase = FoundTestCase
-  { testCaseName :: String, -- the haskell identifier of the function
-  -- testCaseDesc :: String, -- some test you can search for in test runs to find output from this test (wherever that works: same as `testCaseName`)
+  { testCaseFileName :: FilePath, -- the file containing the haskell module
+    testCaseName :: String, -- the haskell identifier of the function
     testCaseDocs :: Maybe SrcSpan, -- comments associated with this function
     testCaseSigD :: Maybe SrcSpan, -- type signature
     testCaseValD :: Maybe SrcSpan -- value declaration
@@ -51,8 +47,8 @@ data FoundTestCase = FoundTestCase
 instance ToJSON FoundTestCase where
   toJSON (FoundTestCase {..}) =
     object
-      [ "name" .= testCaseName,
-        -- "desc" .= testCaseDesc,
+      [ "filename" .= testCaseFileName,
+        "name" .= testCaseName,
         "docs" .= (srcSpanToJSON <$> testCaseDocs),
         "sigd" .= (srcSpanToJSON <$> testCaseSigD),
         "vald" .= (srcSpanToJSON <$> testCaseValD)
@@ -66,7 +62,7 @@ srcSpanToJSON (RealSrcSpan real _) =
           [ "startLine" .= srcSpanStartLine real,
             "endLine" .= srcSpanEndLine real,
             "startCol" .= srcSpanStartCol real,
-            "startCol" .= srcSpanStartCol real
+            "endCol" .= srcSpanEndCol real
           ]
     ]
 srcSpanToJSON bad@(UnhelpfulSpan _) =
@@ -76,35 +72,14 @@ srcSpanToJSON bad@(UnhelpfulSpan _) =
 -- find
 
 -- | Get the mapping of top-level decls including exactly what we need (more or less).
-parseTestCases :: DynFlags -> ParsedSource -> Map String FoundTestCase
-parseTestCases dflags hsmod = resultWithDocs
+parseTestCases :: DynFlags -> FilePath -> ParsedSource -> Map String FoundTestCase
+parseTestCases dflags filename hsmod = I.foldl' addDecl mempty (findDecls dflags hsmod)
   where
-    resultWithDocs = I.foldl' addComment resultWithDecls (findComments dflags hsmod)
-    resultWithDecls = I.foldl' addDecl mempty (findDecls dflags hsmod)
-
-    addComment :: Map String FoundTestCase -> SrcSpan -> Map String FoundTestCase
-    addComment mapping commentloc =
-      case associateComment mapping commentloc of
-        Just name -> Map.alter (Just . maybe (error "impossible!") (\tc -> tc {testCaseDocs = Just commentloc})) name mapping
-        Nothing -> mapping
-
     addDecl :: Map String FoundTestCase -> (WhatDecl String, SrcSpan) -> Map String FoundTestCase
     addDecl mapping (WhatDeclT name, loc) =
-      Map.alter (Just . maybe (FoundTestCase name Nothing (Just loc) Nothing) (\tc -> tc {testCaseSigD = Just loc})) name mapping
+      Map.alter (Just . maybe (FoundTestCase filename name Nothing (Just loc) Nothing) (\tc -> tc {testCaseSigD = Just loc})) name mapping
     addDecl mapping (WhatDeclF name, loc) =
-      Map.alter (Just . maybe (FoundTestCase name Nothing Nothing (Just loc)) (\tc -> tc {testCaseValD = Just loc})) name mapping
-
-----------------------------------------------------------------------
--- comments
-
--- | Find all locations of comments (haddocks or otherwise).
-findComments :: DynFlags -> ParsedSource -> [SrcSpan]
-findComments = undefined
-
--- | Find the name of the test function declaration that belongs to a comment located at a
--- location.
-associateComment :: Map String FoundTestCase -> SrcSpan -> Maybe String
-associateComment = undefined
+      Map.alter (Just . maybe (FoundTestCase filename name Nothing Nothing (Just loc)) (\tc -> tc {testCaseValD = Just loc})) name mapping
 
 ----------------------------------------------------------------------
 -- decls

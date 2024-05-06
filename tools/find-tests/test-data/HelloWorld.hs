@@ -5,5 +5,7 @@ main :: IO ()
 main = print "wef"
 
 -- | subcomment
-sub :: Int
-sub = 3
+sub ::
+  Int ->
+  Bool
+sub _ = True

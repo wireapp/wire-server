@@ -1,6 +1,7 @@
 module FindTests.ParseSpec where
 
 import Data.Aeson
+import Data.ByteString.Lazy.Char8 qualified as BS
 import Data.Map qualified as Map
 import FindTests.Load
 import FindTests.Parse
@@ -16,17 +17,22 @@ import Imports as I
 import System.FilePath
 import Test.Hspec
 
-readTestSourceFile :: FilePath -> IO ParsedSource
+readTestSourceFile :: FilePath -> IO (Value, DynFlags, ParsedSource)
 readTestSourceFile filename = do
   wireServerRoot <- lookupEnv "WIRE_SERVER_ROOT" >>= maybe (error "*** $WIRE_SERVER_ROOT is not defined") pure
-  runApp $ \_dflags -> loadHsModule (wireServerRoot </> "tools/find-tests/test-data" </> filename)
+  let testDataRoot = wireServerRoot </> "tools/find-tests/test-data"
+      testDataHs = wireServerRoot </> "tools/find-tests/test-data" </> filename
+      testDataJson = wireServerRoot </> "tools/find-tests/test-data" </> (takeBaseName filename <.> "json")
+  expected <- either (error . show . ((testDataJson I.<> ": ") I.<>)) pure =<< (eitherDecode . BS.pack <$> readFile testDataJson)
+  runApp $ \dflags -> (expected,dflags,) <$> loadHsModule testDataHs
 
-tcase :: FilePath -> (DynFlags -> ParsedSource -> Expectation) -> Spec
-tcase filename action =
-  before ((,) <$> (runApp pure) <*> (readTestSourceFile filename)) $
-    it ("file: " I.<> filename) (uncurry action)
+tcase :: FilePath -> Spec
+tcase filename =
+  before (readTestSourceFile filename) $
+    it ("file: " I.<> filename) $ \(expected, dflags, parsed) -> do
+      toJSON (parseTestCases dflags filename parsed) `shouldBe` expected
 
 spec :: Spec
 spec = do
   describe "parseTestCases" $ do
-    tcase "HelloWorld.hs" $ \dflags hsmod -> parseTestCases dflags hsmod `shouldBe` mempty
+    tcase "HelloWorld.hs" -- FUTUREWORK: collect all test cases with getDirectory or something.
