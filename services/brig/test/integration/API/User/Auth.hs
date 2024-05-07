@@ -100,9 +100,9 @@ tests conf m z db b g n =
           test m "handle" (testHandleLogin b),
           test m "email-untrusted-domain" (testLoginUntrustedDomain b),
           test m "send-phone-code" (testSendLoginCode b),
-          test m "failure" (testLoginFailure b),
+          test m "testLoginFailure - failure" (testLoginFailure b),
           test m "throttle" (testThrottleLogins conf b),
-          test m "limit-retry" (testLimitRetries conf b),
+          test m "testLimitRetries - limit-retry" (testLimitRetries conf b),
           test m "login with 6 character password" (testLoginWith6CharPassword b db),
           testGroup
             "sso-login"
@@ -129,8 +129,8 @@ tests conf m z db b g n =
         ],
       testGroup
         "refresh /access"
-        [ test m "invalid-cookie" (testInvalidCookie @ZAuth.User z b),
-          test m "invalid-cookie legalhold" (testInvalidCookie @ZAuth.LegalHoldUser z b),
+        [ test m "testInvalidCookie - invalid-cookie" (testInvalidCookie @ZAuth.User z b),
+          test m "testInvalidCookie - invalid-cookie legalhold" (testInvalidCookie @ZAuth.LegalHoldUser z b),
           test m "invalid-token" (testInvalidToken z b),
           test m "missing-cookie" (testMissingCookie @ZAuth.User @ZAuth.Access z b),
           test m "missing-cookie legalhold" (testMissingCookie @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess z b),
@@ -161,7 +161,7 @@ tests conf m z db b g n =
         [ test m "list" (testListCookies b),
           test m "remove-by-label" (testRemoveCookiesByLabel b),
           test m "remove-by-label-id" (testRemoveCookiesByLabelAndId b),
-          test m "limit" (testTooManyCookies conf b),
+          test m "testTooManyCookies - limit" (testTooManyCookies conf b),
           test m "logout" (testLogout b)
         ],
       testGroup
