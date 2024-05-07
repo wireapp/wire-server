@@ -878,7 +878,7 @@ testCreateUserAnonExpiry b = do
           let diff = diffUTCTime a now
               minExp = 1 :: Integer -- 1 second
               maxExp = 60 * 60 * 24 * 10 :: Integer -- 10 days
-          liftIO $ assertBool "expiry must in be the future" (diff >= fromIntegral minExp)
+          liftIO $ assertBool "expiry must be in the future" (diff >= fromIntegral minExp)
           liftIO $ assertBool "expiry must be less than 10 days" (diff < fromIntegral maxExp)
     expire :: ResponseLBS -> Maybe UTCTime
     expire r = field "expires_at" =<< responseJsonMaybe r
