@@ -38,7 +38,6 @@ testBaz :: HasCallStack => App ()
 testBaz = pure ()
 -}
 
--- | @SF.Federation @SF.Separation @TSFI.RESTfulAPI @S2
 --
 -- The test asserts that, among others, remote users are removed from a
 -- conversation when an access update occurs that disallows guests from
@@ -74,7 +73,6 @@ testAccessUpdateGuestRemoved = do
     res.status `shouldMatchInt` 200
     res.json %. "members.others.0.qualified_id" `shouldMatch` objQidObject bob
 
--- @END
 
 testAccessUpdateGuestRemovedUnreachableRemotes :: HasCallStack => App ()
 testAccessUpdateGuestRemovedUnreachableRemotes = do

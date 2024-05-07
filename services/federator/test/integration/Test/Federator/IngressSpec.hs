@@ -75,7 +75,6 @@ spec env = do
 
   it "testRejectRequestsWithoutClientCertIngress" (testRejectRequestsWithoutClientCertIngress env)
 
--- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
 --
 -- This test was primarily intended to test that federator is using the API right (header
 -- name etc.), but it is also effectively testing that federator rejects clients without

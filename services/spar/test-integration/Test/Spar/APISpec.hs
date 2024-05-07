@@ -292,7 +292,6 @@ specFinalizeLogin = do
             authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp3 spmeta authnreq True
             loginSuccess =<< submitAuthnResponse tid3 authnresp
 
-      -- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
       -- Do not authenticate if SSO IdP response is for different team
       context "rejectsSAMLResponseInWrongTeam" $ do
         it "fails" $ do
@@ -319,7 +318,6 @@ specFinalizeLogin = do
             authnresp <- runSimpleSP $ mkAuthnResponseWithSubj subj privcreds idp2 spmeta authnreq True
             loginFailure =<< submitAuthnResponse tid2 authnresp
 
-      -- @END
 
       context "user is created once, then deleted in team settings, then can login again." $ do
         it "responds with 'allowed'" $ do

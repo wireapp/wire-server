@@ -161,7 +161,6 @@ testAddGetClientVerificationCode db brig galley = do
     const 200 === statusCode
     const (Just c) === responseJsonMaybe
 
--- @SF.Channel @TSFI.RESTfulAPI @S2
 --
 -- Test that device cannot be added with missing second factor email verification code when this feature is enabled
 testAddGetClientMissingCode :: Brig -> Galley -> Http ()
@@ -178,9 +177,7 @@ testAddGetClientMissingCode brig galley = do
     const 403 === statusCode
     const (Just "code-authentication-required") === fmap Error.label . responseJsonMaybe
 
--- @END
 
--- @SF.Channel @TSFI.RESTfulAPI @S2
 --
 -- Test that device cannot be added with wrong second factor email verification code when this feature is enabled
 testAddGetClientWrongCode :: Brig -> Galley -> Http ()
@@ -198,9 +195,7 @@ testAddGetClientWrongCode brig galley = do
     const 403 === statusCode
     const (Just "code-authentication-failed") === fmap Error.label . responseJsonMaybe
 
--- @END
 
--- @SF.Channel @TSFI.RESTfulAPI @S2
 --
 -- Test that device cannot be added with expired second factor email verification code when this feature is enabled
 testAddGetClientCodeExpired :: DB.ClientState -> Opt.Opts -> Brig -> Galley -> Http ()
@@ -225,7 +220,6 @@ testAddGetClientCodeExpired db opts brig galley = do
     const 403 === statusCode
     const (Just "code-authentication-failed") === fmap Error.label . responseJsonMaybe
 
--- @END
 
 data AddGetClient = AddGetClient
   { addWithPassword :: Bool,
@@ -904,7 +898,6 @@ testMultiUserGetPrekeysQualifiedV4 brig opts = do
       const (Right $ expectedUserClientMap) === responseJsonEither
 
 -- The testTooManyClients test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
 -- The test validates the upper bound on the number of permanent clients per
 -- user. It does so by trying to create one permanent client more than allowed.
@@ -986,7 +979,6 @@ testRegularPrekeysCannotBeSentAsLastPrekeysDuringUpdate brig = do
       === statusCode
 
 -- The testRemoveClient test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
 -- This test validates creating and deleting a client. A client is created and
 -- consequently deleted. Deleting a second time yields response 404 not found.
@@ -1032,10 +1024,8 @@ testRemoveClient hasPwd brig cannon = do
           newClientCookie = Just defCookieLabel
         }
 
--- @END
 
 -- The testRemoveClientShortPwd test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
 -- The test checks if a client can be deleted by providing a too short password.
 -- This is done by using a single-character password, whereas the minimum is 6
@@ -1068,10 +1058,8 @@ testRemoveClientShortPwd brig = do
           newClientCookie = Just defCookieLabel
         }
 
--- @END
 
 -- The testRemoveClientIncorrectPwd test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
 -- The test checks if a client can be deleted by providing a syntax-valid, but
 -- incorrect password. The client deletion attempt fails with a 403 error
@@ -1104,7 +1092,6 @@ testRemoveClientIncorrectPwd brig = do
           newClientCookie = Just defCookieLabel
         }
 
--- @END
 
 testUpdateClient :: Opt.Opts -> Brig -> Http ()
 testUpdateClient opts brig = do
@@ -1298,7 +1285,6 @@ testMissingClient brig = do
         . responseHeaders
 
 -- The testAddMultipleTemporary test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI @S2
 -- Legacy (galley)
 --
 -- Add temporary client, check that all services (both galley and
@@ -1356,7 +1342,6 @@ testAddMultipleTemporary brig galley cannon = do
             . zUser u
       pure $ Vec.length <$> (preview _Array =<< responseJsonMaybe @Value r)
 
--- @END
 
 testPreKeyRace :: Brig -> Http ()
 testPreKeyRace brig = do

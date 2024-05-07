@@ -423,7 +423,6 @@ testSendLoginCode brig = do
   liftIO $ assertEqual "timeout" (Just (Code.Timeout 600)) _timeout
 
 -- The testLoginFailure test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
 -- Test that trying to log in with a wrong password or non-existent email fails.
 testLoginFailure :: Brig -> Http ()
@@ -446,7 +445,6 @@ testLoginFailure brig = do
     PersistentCookie
     !!! const 403 === statusCode
 
--- @END
 
 testThrottleLogins :: Opts.Opts -> Brig -> Http ()
 testThrottleLogins conf b = do
@@ -473,7 +471,6 @@ testThrottleLogins conf b = do
   login b (defEmailLogin e) SessionCookie !!! const 200 === statusCode
 
 -- The testLimitRetries test conforms to the following testing standards:
--- @SF.Channel @TSFI.RESTfulAPI @TSFI.NTP @S2
 --
 -- The following test tests the login retries. It checks that a user can make
 -- only a prespecified number of attempts to log in with an invalid password,
@@ -528,7 +525,6 @@ testLimitRetries conf brig = do
   liftIO $ threadDelay (1000000 * 2)
   login brig (defEmailLogin email) SessionCookie !!! const 200 === statusCode
 
--- @END
 
 -------------------------------------------------------------------------------
 -- LegalHold Login
@@ -656,7 +652,6 @@ testNoUserSsoLogin brig = do
 -- Token Refresh
 
 -- The testInvalidCookie test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI @TSFI.NTP @S2
 --
 -- Test that invalid and expired tokens do not work.
 testInvalidCookie :: forall u. ZAuth.UserTokenLike u => ZAuth.Env -> Brig -> Http ()
@@ -674,7 +669,6 @@ testInvalidCookie z b = do
     const 403 === statusCode
     const (Just "expired") =~= responseBody
 
--- @END
 
 testInvalidToken :: ZAuth.Env -> Brig -> Http ()
 testInvalidToken z b = do
@@ -1188,7 +1182,6 @@ testRemoveCookiesByLabelAndId b = do
   listCookies b (userId u) >>= liftIO . ([lbl] @=?) . map cookieLabel
 
 -- The testTooManyCookies test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
 -- The test asserts that there is an upper limit for the number of user cookies
 -- per cookie type. It does that by concurrently attempting to create more
@@ -1238,7 +1231,6 @@ testTooManyCookies config b = do
             )
         xxx -> error ("Unexpected status code when logging in: " ++ show xxx)
 
--- @END
 
 testLogout :: Brig -> Http ()
 testLogout b = do

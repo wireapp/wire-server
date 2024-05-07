@@ -172,7 +172,6 @@ tests _ at opts p b c ch g aws userJournalWatcher =
     ]
 
 -- The testCreateUserWithInvalidVerificationCode test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
 -- Registering with an invalid verification code and valid account details should fail.
 testCreateUserWithInvalidVerificationCode :: Brig -> Http ()
@@ -197,7 +196,6 @@ testCreateUserWithInvalidVerificationCode brig = do
           ]
   postUserRegister' regEmail brig !!! const 404 === statusCode
 
--- @END
 
 testUpdateUserEmailByTeamOwner :: Opt.Opts -> Brig -> Http ()
 testUpdateUserEmailByTeamOwner opts brig = do
@@ -336,7 +334,6 @@ assertOnlySelfConversations galley uid = do
     liftIO $ cnvType conv @?= SelfConv
 
 -- The testCreateUserEmptyName test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
 -- An empty name is not allowed on registration
 testCreateUserEmptyName :: Brig -> Http ()
@@ -348,10 +345,8 @@ testCreateUserEmptyName brig = do
   post (brig . path "/register" . contentJson . body p)
     !!! const 400 === statusCode
 
--- @END
 
 -- The testCreateUserLongName test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
 -- a name with > 128 characters is not allowed.
 testCreateUserLongName :: Brig -> Http ()
@@ -364,7 +359,6 @@ testCreateUserLongName brig = do
   post (brig . path "/register" . contentJson . body p)
     !!! const 400 === statusCode
 
--- @END
 
 testCreateUserAnon :: Brig -> Galley -> Http ()
 testCreateUserAnon brig galley = do
@@ -443,7 +437,6 @@ testCreateUserNoEmailNoPassword brig = do
     !!! (const 202 === statusCode)
 
 -- The testCreateUserConflict test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
 -- email address must not be taken on @/register@.
 testCreateUserConflict :: Opt.Opts -> Brig -> Http ()
@@ -475,10 +468,8 @@ testCreateUserConflict _ brig = do
     const 409 === statusCode
     const (Just "key-exists") === fmap Error.label . responseJsonMaybe
 
--- @END
 
 -- The testCreateUserInvalidEmailOrPhone test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
 -- Test to make sure a new user cannot be created with an invalid email address or invalid phone number.
 testCreateUserInvalidEmailOrPhone :: Opt.Opts -> Brig -> Http ()
@@ -508,7 +499,6 @@ testCreateUserInvalidEmailOrPhone _ brig = do
   post (brig . path "/register" . contentJson . body reqPhone)
     !!! const 400 === statusCode
 
--- @END
 
 testCreateUserBlacklist :: Opt.Opts -> Brig -> AWS.Env -> Http ()
 testCreateUserBlacklist (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ _ = pure ()
