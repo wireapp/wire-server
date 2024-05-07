@@ -24,6 +24,9 @@ import Data.UUID.V4 (nextRandom)
 import GHC.Stack
 import Testlib.MockIntegrationService (mkLegalHoldSettings)
 import Testlib.Prelude
+import Data.Text.Encoding (decodeUtf8)
+import qualified Data.ByteString.Base16 as Base16
+import qualified Data.Text as Text
 
 randomUser :: (HasCallStack, MakesValue domain) => domain -> CreateUser -> App Value
 randomUser domain cu = bindResponse (createUser domain cu) $ \resp -> do
@@ -182,6 +185,9 @@ createMLSOne2OnePartner domain other convDomain = loop
 -- Copied from `src/CargoHold/API/V3.hs` and inlined to avoid pulling in `types-common`
 randomToken :: HasCallStack => App String
 randomToken = unpack . B64Url.encode <$> liftIO (getRandomBytes 16)
+
+randomSnsToken :: HasCallStack => Int -> App String
+randomSnsToken = fmap (Text.unpack . decodeUtf8 . Base16.encode) . randomBytes
 
 randomId :: HasCallStack => App String
 randomId = liftIO (show <$> nextRandom)

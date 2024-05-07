@@ -83,24 +83,49 @@ generateAndPostPushToken ::
   App Response
 generateAndPostPushToken user client args = do
   token <- generateToken args.tokenSize
-  clientJson <- make client
-  postPushToken user $
+  clientId <- make client & asString
+  postPushToken user $ PushToken args.transport args.app token clientId
+
+data PushToken = PushToken
+  { transport :: String,
+    app :: String,
+    token :: String,
+    client :: String
+  }
+  deriving (Show, Eq)
+
+instance ToJSON PushToken where
+  toJSON pt =
     object
-      [ "transport" .= args.transport,
-        "app" .= args.app,
-        "token" .= token,
-        "client" .= clientJson
+      [ "transport" .= pt.transport,
+        "app" .= pt.app,
+        "token" .= pt.token,
+        "client" .= pt.client
       ]
+
+instance MakesValue PushToken where
+  make = pure . toJSON
 
 generateToken :: Int -> App String
 generateToken =
   fmap (Text.unpack . Text.decodeUtf8 . Base16.encode) . randomBytes
 
 postPushToken ::
-  (HasCallStack, MakesValue user) =>
+  ( HasCallStack,
+    MakesValue token,
+    MakesValue user
+  ) =>
   user ->
-  Value ->
+  token ->
   App Response
 postPushToken user token = do
   req <- baseRequest user Gundeck Versioned "/push/tokens"
-  submit "POST" $ req & addJSON token
+  tokenJson <- make token
+  submit "POST" $ req & addJSON tokenJson
+
+listPushTokens :: (MakesValue user) => user -> App Response
+listPushTokens user = do
+  req <-
+    baseRequest user Gundeck Versioned $
+      joinHttpPath ["/push/tokens"]
+  submit "GET" req

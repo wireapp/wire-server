@@ -53,8 +53,15 @@ randomHex n = liftIO $ replicateM n pick
     chars = mkArray (['0' .. '9'] <> ['a' .. 'f'])
     pick = (chars !) <$> randomRIO (Array.bounds chars)
 
+-- Should not have leading 0.
 randomClientId :: App String
-randomClientId = randomHex 16
+randomClientId = do 
+  second <- randomHex 15
+  first <- pick
+  pure $ first : second
+  where
+    chars = mkArray (['1' .. '9'] <> ['a' .. 'f'])
+    pick = (chars !) <$> randomRIO (Array.bounds chars)
 
 mkArray :: [a] -> Array.Array Int a
 mkArray l = Array.listArray (0, length l - 1) l
