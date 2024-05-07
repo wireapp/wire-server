@@ -1,6 +1,9 @@
 module API.Gundeck where
 
 import API.Common
+import qualified Data.ByteString.Base16 as Base16
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import Testlib.Prelude
 
 data GetNotifications = GetNotifications
@@ -58,37 +61,46 @@ getLastNotification user opts = do
     baseRequest user Gundeck Versioned "/notifications/last"
   submit "GET" $ req & addQueryParams [("client", c) | c <- toList opts.client]
 
-data PostPushToken = PostPushToken
+data GeneratePushToken = GeneratePushToken
   { transport :: String,
     app :: String,
-    token :: Maybe String,
     tokenSize :: Int
   }
 
-instance Default PostPushToken where
+instance Default GeneratePushToken where
   def =
-    PostPushToken
+    GeneratePushToken
       { transport = "GCM",
         app = "test",
-        token = Nothing,
         tokenSize = 16
       }
 
-postPushToken ::
-  (HasCallStack, MakesValue u, MakesValue c) =>
-  u ->
-  c ->
-  PostPushToken ->
+generateAndPostPushToken ::
+  (HasCallStack, MakesValue user, MakesValue client) =>
+  user ->
+  client ->
+  GeneratePushToken ->
   App Response
-postPushToken u client args = do
-  req <- baseRequest u Gundeck Versioned "/push/tokens"
-  token <- maybe (randomHex (args.tokenSize * 2)) pure args.token
-  c <- make client
-  let t =
-        object
-          [ "transport" .= args.transport,
-            "app" .= args.app,
-            "token" .= token,
-            "client" .= c
-          ]
-  submit "POST" $ req & addJSON t
+generateAndPostPushToken user client args = do
+  token <- generateToken args.tokenSize
+  clientJson <- make client
+  postPushToken user $
+    object
+      [ "transport" .= args.transport,
+        "app" .= args.app,
+        "token" .= token,
+        "client" .= clientJson
+      ]
+
+generateToken :: Int -> App String
+generateToken =
+  fmap (Text.unpack . Text.decodeUtf8 . Base16.encode) . randomBytes
+
+postPushToken ::
+  (HasCallStack, MakesValue user) =>
+  user ->
+  Value ->
+  App Response
+postPushToken user token = do
+  req <- baseRequest user Gundeck Versioned "/push/tokens"
+  submit "POST" $ req & addJSON token

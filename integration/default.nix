@@ -10,6 +10,7 @@
 , async
 , attoparsec
 , base
+, base16-bytestring
 , base64-bytestring
 , bytestring
 , bytestring-conversion
@@ -99,6 +100,7 @@ mkDerivation {
     async
     attoparsec
     base
+    base16-bytestring
     base64-bytestring
     bytestring
     bytestring-conversion
