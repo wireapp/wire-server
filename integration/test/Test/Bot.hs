@@ -22,44 +22,38 @@ import Testlib.MockIntegrationService
 import Testlib.Prelude
 import UnliftIO
 
+{- FIXME(mangoiv):
+ -
+ - The issue is as follows:
+ -
+ - certificate validation should work only for self-signed certs, this is checked by the signature
+ - verification function; so this test fails if there's any unknown entity (CA) involved who
+ - signed the cert. (a cert can only have one signatory, a CA or self)
+ -
+ - this test succeeds if the signature verification fails (because it's not self signed), however,
+ - even if Brig starts to do signature verification, the test would still succeed, because brig
+ - doesn't know (or trust) the CA, anyway, even if it does signature verification.
+ -
+ - For this test to make sense, we would have to make sure that the brig we're testing against
+ - *would* trust the CA, *if* it did verification, because only in that case it would now succeed
+ - with verification and not return a "PinInvalidCert" error.
+ - -}
 testBotRootCA :: App ()
 testBotRootCA = do
-  (cert, privkey, pubkey) <- bundleToTriple <$> createRootCA def {caName = "Example"}
-  let settings = MkMockServerSettings cert privkey pubkey
+  (_, rootPrivKey) <- mkKeyPair
+  (ownerPubKey, privateKeyToString -> ownerPrivKey) <- mkKeyPair
+  let rootSignedLeaf = signedCertToString $ intermediateCert "Kabel" ownerPubKey "Example-Root" rootPrivKey
+      settings = MkMockServerSettings rootSignedLeaf ownerPrivKey (publicKeyToString ownerPubKey)
   withBotWithSettings settings \resp' -> withResponse resp' \resp -> do
     resp.status `shouldMatchInt` 502
     resp.json %. "label" `shouldMatch` "bad-gateway"
-    resp.json %. "message" `shouldMatch` "The upstream service returned an invalid response: PinFingerprintMismatch"
-
-testBotIntermCA :: App ()
-testBotIntermCA = do
-  (cert, privkey, pubkey) <-
-    bundleToTriple <$> do
-      createRootCA def {caName = "Where'sDecrypt"}
-        >>= intermediateCA def {caName = "Hoogle"}
-  let settings = MkMockServerSettings cert privkey pubkey
-  withBotWithSettings settings \resp' -> withResponse resp' \resp -> do
-    resp.status `shouldMatchInt` 502
-    resp.json %. "label" `shouldMatch` "bad-gateway"
-    resp.json %. "message" `shouldMatch` "The upstream service returned an invalid response: PinFingerprintMismatch"
-
-testBotLeafCert :: App ()
-testBotLeafCert = do
-  (cert, privkey, pubkey) <-
-    bundleToTriple <$> do
-      createRootCA def {caName = "Where'sDecrypt"}
-        >>= intermediateCA def {caName = "Hoogle"}
-        >>= leafCert "Kabel"
-
-  let settings = MkMockServerSettings cert privkey pubkey
-  withBotWithSettings settings \resp' -> withResponse resp' \resp -> do
-    resp.status `shouldMatchInt` 502
-    resp.json %. "label" `shouldMatch` "bad-gateway"
-    resp.json %. "message" `shouldMatch` "The upstream service returned an invalid response: PinFingerprintMismatch"
+    resp.json %. "message" `shouldMatch` "The upstream service returned an invalid response: PinInvalidCert"
 
 testBotSelfSigned :: App ()
 testBotSelfSigned = do
-  withBotWithSettings def \resp' -> do
+  keys@(publicKeyToString -> pub, privateKeyToString -> priv) <- mkKeyPair
+  let cert = signedCertToString $ selfSignedCert "Kabel" keys
+  withBotWithSettings MkMockServerSettings {certificate = cert, privateKey = priv, publicKey = pub} \resp' -> do
     resp <- withResponse resp' \resp -> do
       resp.status `shouldMatchInt` 201
       pure resp
@@ -100,7 +94,7 @@ withBotWithSettings settings k = do
     providerId <- provider %. "id" & asString
     service <-
       newService OwnDomain providerId $
-        def {newServiceUrl = "https://" <> host <> ":" <> show port}
+        def {newServiceUrl = "https://" <> host <> ":" <> show port, newServiceKey = cs settings.publicKey}
     serviceId <- asString $ service %. "id"
     conv <- getJSON 201 =<< postConversation alice defProteus
     convId <- conv %. "id" & asString
