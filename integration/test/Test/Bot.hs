@@ -17,17 +17,39 @@ import Numeric.Lens (hex)
 import qualified Proto.Otr as Proto
 import qualified Proto.Otr_Fields as Proto
 import SetupHelpers
+import Testlib.Certs
 import Testlib.MockIntegrationService
 import Testlib.Prelude
 import UnliftIO
 
-testBotCustomCA :: App ()
-testBotCustomCA = do
-  -- TODO(mangoiv): this should be generated either from within haskell 
-  -- or by calling the bash script (or the opensslssl commands themselves(?)) in a `withTempDir`
-  cert <- readFile "/tmp/ca/Example-RootCA/Example-RootCA.crt"
-  privkey <- readFile "/tmp/ca/Example-RootCA/Example-RootCA.key"
-  pubkey <- readFile "/tmp/ca/Example-RootCA/Example-RootCA.pub"
+testBotRootCA :: App ()
+testBotRootCA = do
+  (cert, privkey, pubkey) <- bundleToTriple <$> createRootCA def {caName = "Example"}
+  let settings = MkMockServerSettings cert privkey pubkey
+  withBotWithSettings settings \resp' -> withResponse resp' \resp -> do
+    resp.status `shouldMatchInt` 502
+    resp.json %. "label" `shouldMatch` "bad-gateway"
+    resp.json %. "message" `shouldMatch` "The upstream service returned an invalid response: PinFingerprintMismatch"
+
+testBotIntermCA :: App ()
+testBotIntermCA = do
+  (cert, privkey, pubkey) <-
+    bundleToTriple <$> do
+      createRootCA def {caName = "Where'sDecrypt"}
+        >>= intermediateCA def {caName = "Hoogle"}
+  let settings = MkMockServerSettings cert privkey pubkey
+  withBotWithSettings settings \resp' -> withResponse resp' \resp -> do
+    resp.status `shouldMatchInt` 502
+    resp.json %. "label" `shouldMatch` "bad-gateway"
+    resp.json %. "message" `shouldMatch` "The upstream service returned an invalid response: PinFingerprintMismatch"
+
+testBotLeafCert :: App ()
+testBotLeafCert = do
+  (cert, privkey, pubkey) <-
+    bundleToTriple <$> do
+      createRootCA def {caName = "Where'sDecrypt"}
+        >>= intermediateCA def {caName = "Hoogle"}
+        >>= leafCert "Kabel"
 
   let settings = MkMockServerSettings cert privkey pubkey
   withBotWithSettings settings \resp' -> withResponse resp' \resp -> do

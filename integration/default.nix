@@ -7,6 +7,8 @@
 , aeson-diff
 , aeson-pretty
 , array
+, asn1-encoding
+, asn1-types
 , async
 , attoparsec
 , base
@@ -20,6 +22,8 @@
 , cql
 , cql-io
 , crypton
+, crypton-x509
+, cryptostore
 , data-default
 , data-timeout
 , deriving-aeson
@@ -32,6 +36,7 @@
 , gitignoreSource
 , haskell-src-exts
 , hex
+, hourglass
 , HsOpenSSL
 , http-client
 , http-types
@@ -98,6 +103,8 @@ mkDerivation {
     aeson-diff
     aeson-pretty
     array
+    asn1-encoding
+    asn1-types
     async
     attoparsec
     base
@@ -110,6 +117,8 @@ mkDerivation {
     cql
     cql-io
     crypton
+    crypton-x509
+    cryptostore
     data-default
     data-timeout
     deriving-aeson
@@ -120,6 +129,7 @@ mkDerivation {
     extra
     filepath
     hex
+    hourglass
     HsOpenSSL
     http-client
     http-types
