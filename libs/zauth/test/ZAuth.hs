@@ -56,7 +56,7 @@ tests = do
           ],
         testGroup
           "Signing and Verifying"
-          [ testCase "expired" (runCreate z 1 $ testExpired v),
+          [ testCase "testExpired - expired" (runCreate z 1 $ testExpired v),
             testCase "not expired" (runCreate z 2 $ testNotExpired v),
             testCase "signed access-token is valid" (runCreate z 3 $ testSignAndVerify v)
           ],

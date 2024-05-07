@@ -108,27 +108,27 @@ tests _cl _at opts p db n b c g =
       testGroup
         "post /clients - verification code"
         [ test p "success" $ testAddGetClientVerificationCode db b g,
-          test p "missing code" $ testAddGetClientMissingCode b g,
-          test p "wrong code" $ testAddGetClientWrongCode b g,
-          test p "expired code" $ testAddGetClientCodeExpired db opts b g
+          test p "testAddGetClientMissingCode - missing code" $ testAddGetClientMissingCode b g,
+          test p "testAddGetClientWrongCode - wrong code" $ testAddGetClientWrongCode b g,
+          test p "testAddGetClientCodeExpired - expired code" $ testAddGetClientCodeExpired db opts b g
         ],
       test p "post /clients - 201 (with mls keys)" $ testAddGetClient def {addWithMLSKeys = True} b c,
       test p "post /clients - 403" $ testClientReauthentication b,
       test p "get /clients - 200" $ testListClients b,
       test p "get /clients/:client/prekeys - 200" $ testListPrekeyIds b,
-      test p "post /clients - 400" $ testTooManyClients opts b,
-      test p "client/prekeys not empty" $ testPrekeysNotEmptyRandomPrekeys opts b,
-      test p "lastprekeys not bogus" $ testRegularPrekeysCannotBeSentAsLastPrekeys b,
-      test p "lastprekeys not bogus during update" $ testRegularPrekeysCannotBeSentAsLastPrekeysDuringUpdate b,
-      test p "delete /clients/:client - 200 (pwd)" $ testRemoveClient True b c,
-      test p "delete /clients/:client - 200 (no pwd)" $ testRemoveClient False b c,
-      test p "delete /clients/:client - 400 (short pwd)" $ testRemoveClientShortPwd b,
-      test p "delete /clients/:client - 403 (incorrect pwd)" $ testRemoveClientIncorrectPwd b,
+      test p "testTooManyClients - post /clients - 400" $ testTooManyClients opts b,
+      test p "testPrekeysNotEmptyRandomPrekeys - client/prekeys not empty" $ testPrekeysNotEmptyRandomPrekeys opts b,
+      test p "testRegularPrekeysCannotBeSentAsLastPrekeys - lastprekeys not bogus" $ testRegularPrekeysCannotBeSentAsLastPrekeys b,
+      test p "testRegularPrekeysCannotBeSentAsLastPrekeysDuringUpdate - lastprekeys not bogus during update" $ testRegularPrekeysCannotBeSentAsLastPrekeysDuringUpdate b,
+      test p "testRemoveClient - delete /clients/:client - 200 (pwd)" $ testRemoveClient True b c,
+      test p "testRemoveClient - delete /clients/:client - 200 (no pwd)" $ testRemoveClient False b c,
+      test p "testRemoveClientShortPwd - delete /clients/:client - 400 (short pwd)" $ testRemoveClientShortPwd b,
+      test p "testRemoveClientIncorrectPwd - delete /clients/:client - 403 (incorrect pwd)" $ testRemoveClientIncorrectPwd b,
       test p "put /clients/:client - 200" $ testUpdateClient opts b,
       test p "put /clients/:client - 200 (mls keys)" $ testMLSPublicKeyUpdate b,
       test p "get /clients/:client - 404" $ testMissingClient b,
       test p "get /clients/:client - 200" $ testMLSClient b,
-      test p "post /clients - 200 multiple temporary" $ testAddMultipleTemporary b g c,
+      test p "testAddMultipleTemporary - post /clients - 200 multiple temporary" $ testAddMultipleTemporary b g c,
       test p "client/prekeys/race" $ testPreKeyRace b,
       test p "get/head nonce/clients" $ testNewNonce b,
       testGroup
@@ -903,6 +903,7 @@ testMultiUserGetPrekeysQualifiedV4 brig opts = do
       const 200 === statusCode
       const (Right $ expectedUserClientMap) === responseJsonEither
 
+-- TODO(leif): check if all tests should be included
 -- The testTooManyClients test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
@@ -937,25 +938,25 @@ testPrekeysNotEmptyRandomPrekeys :: Opt.Opts -> Brig -> Http ()
 testPrekeysNotEmptyRandomPrekeys opts brig = do
   -- Run the test for randomPrekeys (not dynamoDB locking)
   let newOpts = opts {Opt.randomPrekeys = Just True}
-  ensurePrekeysNotEmpty newOpts brig
-
-ensurePrekeysNotEmpty :: Opt.Opts -> Brig -> Http ()
-ensurePrekeysNotEmpty opts brig = withSettingsOverrides opts $ do
-  lgr <- Log.new Log.defSettings
-  uid <- userId <$> randomUser brig
-  -- Create a client with 1 regular prekey and 1 last resort prekey
-  c <- responseJsonError =<< addClient brig uid (defNewClient PermanentClientType [somePrekeys !! 10] (someLastPrekeys !! 10))
-  -- Claim the first regular one
-  _rs1 <- getPreKey brig uid uid (clientId c) <!! const 200 === statusCode
-  -- Claim again; this should give the last resort one
-  rs2 <- getPreKey brig uid uid (clientId c) <!! const 200 === statusCode
-  let pId2 = prekeyId . prekeyData <$> responseJsonMaybe rs2
-  liftIO $ assertEqual "last prekey rs2" (Just lastPrekeyId) pId2
-  liftIO $ Log.warn lgr (Log.msg (Log.val "First claim of last resort successful, claim again..."))
-  -- Claim again; this should (again) give the last resort one
-  rs3 <- getPreKey brig uid uid (clientId c) <!! const 200 === statusCode
-  let pId3 = prekeyId . prekeyData <$> responseJsonMaybe rs3
-  liftIO $ assertEqual "last prekey rs3" (Just lastPrekeyId) pId3
+  ensurePrekeysNotEmpty newOpts
+  where
+    ensurePrekeysNotEmpty :: Opt.Opts -> Http ()
+    ensurePrekeysNotEmpty newOpts = withSettingsOverrides newOpts $ do
+      lgr <- Log.new Log.defSettings
+      uid <- userId <$> randomUser brig
+      -- Create a client with 1 regular prekey and 1 last resort prekey
+      c <- responseJsonError =<< addClient brig uid (defNewClient PermanentClientType [somePrekeys !! 10] (someLastPrekeys !! 10))
+      -- Claim the first regular one
+      _rs1 <- getPreKey brig uid uid (clientId c) <!! const 200 === statusCode
+      -- Claim again; this should give the last resort one
+      rs2 <- getPreKey brig uid uid (clientId c) <!! const 200 === statusCode
+      let pId2 = prekeyId . prekeyData <$> responseJsonMaybe rs2
+      liftIO $ assertEqual "last prekey rs2" (Just lastPrekeyId) pId2
+      liftIO $ Log.warn lgr (Log.msg (Log.val "First claim of last resort successful, claim again..."))
+      -- Claim again; this should (again) give the last resort one
+      rs3 <- getPreKey brig uid uid (clientId c) <!! const 200 === statusCode
+      let pId3 = prekeyId . prekeyData <$> responseJsonMaybe rs3
+      liftIO $ assertEqual "last prekey rs3" (Just lastPrekeyId) pId3
 
 testRegularPrekeysCannotBeSentAsLastPrekeys :: Brig -> Http ()
 testRegularPrekeysCannotBeSentAsLastPrekeys brig = do

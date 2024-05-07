@@ -56,7 +56,7 @@ tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon
 tests _cl _at conf p b c g =
   testGroup
     "handles"
-    [ test p "handles/update" $ testHandleUpdate b c,
+    [ test p "testHandleUpdate - handles/update" $ testHandleUpdate b c,
       test p "handles/race" $ testHandleRace b,
       test p "handles/query" $ testHandleQuery conf b,
       test p "handles/query - team-search-visibility SearchVisibilityStandard" $ testHandleQuerySearchVisibilityStandard conf b,
