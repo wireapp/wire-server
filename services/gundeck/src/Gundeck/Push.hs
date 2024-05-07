@@ -374,16 +374,31 @@ nativeTargets psh rcps' alreadySent =
       null (psh ^. pushConnections)
         || a ^. addrConn `elem` psh ^. pushConnections
     -- Apply transport preference in case of alternative transports for the
-    -- same client. If no explicit preference is given, the default preference depends on the priority.
+    -- same client (currently only APNS vs APNS VoIP). If no explicit
+    -- preference is given, the default preference depends on the priority.
     preference as =
       let pref = psh ^. pushNativeAps >>= view apsPreference
        in filter (pick (fromMaybe defPreference pref)) as
       where
         pick pr a = case a ^. addrTransport of
           GCM -> True
-          APNS -> pr == ApsStdPreference
-          APNSSandbox -> pr == ApsStdPreference
-        defPreference = ApsStdPreference
+          APNS -> pr == ApsStdPreference || notAny a APNSVoIP
+          APNSSandbox -> pr == ApsStdPreference || notAny a APNSVoIPSandbox
+          APNSVoIP -> pr == ApsVoIPPreference || notAny a APNS
+          APNSVoIPSandbox -> pr == ApsVoIPPreference || notAny a APNSSandbox
+        notAny a t =
+          not
+            ( any
+                ( \a' ->
+                    addrEqualClient a a'
+                      && a ^. addrApp == a' ^. addrApp
+                      && a' ^. addrTransport == t
+                )
+                as
+            )
+        defPreference = case psh ^. pushNativePriority of
+          LowPriority -> ApsStdPreference
+          HighPriority -> ApsVoIPPreference
     check :: Either SomeException [a] -> m [a]
     check (Left e) = mntgtLogErr e >> pure []
     check (Right r) = pure r

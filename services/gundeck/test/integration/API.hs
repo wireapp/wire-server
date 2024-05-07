@@ -838,8 +838,9 @@ testSharePushToken = do
   gcmTok <- Token . T.decodeUtf8 . toByteString' <$> randomId
   apsTok <- Token . T.decodeUtf8 . B16.encode <$> randomBytes 32
   let tok1 = pushToken GCM "test" gcmTok
-  let tok2 = pushToken APNS "com.wire.int.ent" apsTok
-  forM_ [tok1, tok2] $ \tk -> do
+  let tok2 = pushToken APNSVoIP "com.wire.dev.ent" apsTok
+  let tok3 = pushToken APNS "com.wire.int.ent" apsTok
+  forM_ [tok1, tok2, tok3] $ \tk -> do
     u1 <- randomUser
     u2 <- randomUser
     c1 <- randomClientId

@@ -34,22 +34,21 @@ import Gundeck.Aws.Arn (EndpointArn)
 import Gundeck.Types
 import Imports
 
--- | We provide a instance for `Either Int Transport` so we can handle (ie., gracefully ignore
--- rather than crash on) deprecated values in cassandra.  See "Gundeck.Push.Data".
-instance Cql (Either Int32 Transport) where
+instance Cql Transport where
   ctype = Tagged IntColumn
 
-  toCql (Right GCM) = CqlInt 0
-  toCql (Right APNS) = CqlInt 1
-  toCql (Right APNSSandbox) = CqlInt 2
-  toCql (Left i) = CqlInt i -- (this is weird, but it's helpful for cleaning up deprecated tokens.)
+  toCql GCM = CqlInt 0
+  toCql APNS = CqlInt 1
+  toCql APNSSandbox = CqlInt 2
+  toCql APNSVoIP = CqlInt 3
+  toCql APNSVoIPSandbox = CqlInt 4
 
   fromCql (CqlInt i) = case i of
-    0 -> pure $ Right GCM
-    1 -> pure $ Right APNS
-    2 -> pure $ Right APNSSandbox
-    3 -> pure (Left 3) -- `APNSVoIPV1` tokens are deprecated and will be ignored
-    4 -> pure (Left 4) -- `APNSVoIPSandboxV1` tokens are deprecated and will be ignored
+    0 -> pure GCM
+    1 -> pure APNS
+    2 -> pure APNSSandbox
+    3 -> pure APNSVoIP
+    4 -> pure APNSVoIPSandbox
     n -> Left $ "unexpected transport: " ++ show n
   fromCql _ = Left "transport: int expected"
 

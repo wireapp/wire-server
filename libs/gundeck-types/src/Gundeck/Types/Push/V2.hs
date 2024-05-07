@@ -178,14 +178,17 @@ newtype ApsLocKey = ApsLocKey {fromLocKey :: Text}
 
 data ApsPreference
   = ApsStdPreference
+  | ApsVoIPPreference
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via GenericUniform ApsPreference
 
 instance ToJSON ApsPreference where
+  toJSON ApsVoIPPreference = "voip"
   toJSON ApsStdPreference = "std"
 
 instance FromJSON ApsPreference where
   parseJSON = withText "ApsPreference" $ \case
+    "voip" -> pure ApsVoIPPreference
     "std" -> pure ApsStdPreference
     x -> fail $ "Invalid preference: " ++ show x
 
