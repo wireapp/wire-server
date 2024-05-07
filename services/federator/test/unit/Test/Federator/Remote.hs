@@ -138,7 +138,7 @@ testValidatesCertificateSuccess =
 testValidatesCertificateWrongHostname :: TestTree
 testValidatesCertificateWrongHostname =
   testGroup
-    "refuses to connect with server"
+    "testValidatesCertificateWrongHostname - refuses to connect with server"
     [ testCase "when the server's certificate doesn't match the hostname" $
         withMockServer certForWrongDomain $ \port -> do
           tlsSettings <- mkTLSSettingsOrThrow settings

@@ -144,14 +144,14 @@ tests s =
       testGroup
         "delete team - verification code"
         [ test s "success" testDeleteTeamVerificationCodeSuccess,
-          test s "wrong code" testDeleteTeamVerificationCodeWrongCode,
-          test s "missing code" testDeleteTeamVerificationCodeMissingCode,
-          test s "expired code" testDeleteTeamVerificationCodeExpiredCode
+          test s "testDeleteTeamVerificationCodeWrongCode - wrong code" testDeleteTeamVerificationCodeWrongCode,
+          test s "testDeleteTeamVerificationCodeMissingCode - missing code" testDeleteTeamVerificationCodeMissingCode,
+          test s "testDeleteTeamVerificationCodeExpiredCode - expired code" testDeleteTeamVerificationCodeExpiredCode
         ],
       test s "delete team conversation" testDeleteTeamConv,
       test s "update team data" testUpdateTeam,
       test s "update team data icon validation" testUpdateTeamIconValidation,
-      test s "update team member" testUpdateTeamMember,
+      test s "testUpdateTeamMember - update team member" testUpdateTeamMember,
       test s "update team status" testUpdateTeamStatus,
       test s "send billing events to owners even in large teams" testBillingInLargeTeam,
       testGroup "broadcast" $

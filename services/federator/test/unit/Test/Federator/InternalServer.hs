@@ -112,7 +112,7 @@ federatedRequestSuccess =
 -- Refuse to send outgoing request to non-included domain when AllowDynamic is configured.
 federatedRequestFailureAllowList :: TestTree
 federatedRequestFailureAllowList =
-  testCase "should not make a call when target domain not in the allow list" $ do
+  testCase "federatedRequestFailureAllowList - should not make a call when target domain not in the allow list" $ do
     let settings = noClientCertSettings
     let targetDomain = Domain "target.example.com"
         headers = [(originDomainHeaderName, "origin.example.com")]

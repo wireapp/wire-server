@@ -120,7 +120,7 @@ federateWithAllowListFail =
 -- Refuse to send outgoing request to non-included domain when AllowDynamic is configured.
 validateDomainAllowListFail :: TestTree
 validateDomainAllowListFail =
-  testCase "allow list validation" $ do
+  testCase "validateDomainAllowListFail - allow list validation" $ do
     Right exampleCert <- decodeCertificate <$> BS.readFile "test/resources/unit/localhost.example.com.pem"
     let settings = noClientCertSettings
     res <-
@@ -157,7 +157,7 @@ validateDomainAllowListSuccess =
 -- domain in the `Wire-origin-domain` header.
 validateDomainCertWrongDomain :: TestTree
 validateDomainCertWrongDomain =
-  testCase "should fail if the client certificate has a wrong domain" $ do
+  testCase "validateDomainCertWrongDomain - should fail if the client certificate has a wrong domain" $ do
     Right exampleCert <- decodeCertificate <$> BS.readFile "test/resources/unit/localhost.example.com.pem"
     res <-
       runM
@@ -257,7 +257,7 @@ validateDomainNonIdentitySRV =
 -- Reject request if the client certificate for federator is invalid
 validateDomainCertInvalid :: TestTree
 validateDomainCertInvalid =
-  testCase "should fail if the client certificate is invalid" $ do
+  testCase "validateDomainCertInvalid - should fail if the client certificate is invalid" $ do
     let res = decodeCertificate "not a certificate"
     res @?= Left "no certificate found"
 

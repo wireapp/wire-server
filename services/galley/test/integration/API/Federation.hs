@@ -69,7 +69,7 @@ tests s =
   testGroup
     "federation"
     [ test s "POST /federation/get-conversations : All Found" getConversationsAllFound,
-      test s "POST /federation/get-conversations : Conversations user is not a part of are excluded from result" getConversationsNotPartOf,
+      test s "getConversationsNotPartOf - POST /federation/get-conversations : Conversations user is not a part of are excluded from result" getConversationsNotPartOf,
       test s "POST /federation/on-conversation-created : Add local user to remote conversation" onConvCreated,
       test s "POST /federation/on-conversation-updated : Add local user to remote conversation" addLocalUser,
       test s "POST /federation/on-conversation-updated : Add only unconnected local users to remote conversation" addUnconnectedUsersOnly,

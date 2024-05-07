@@ -209,27 +209,27 @@ tests s =
           test s "conversation receipt mode update" putReceiptModeOk,
           test s "remote conversation receipt mode update" putRemoteReceiptModeOk,
           test s "leave connect conversation" leaveConnectConversation,
-          test s "post conversations/:cnv/otr/message: message delivery and missing clients" postCryptoMessageVerifyMsgSentAndRejectIfMissingClient,
-          test s "post conversations/:cnv/otr/message: mismatch and prekey fetching" postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysJson,
-          test s "post conversations/:cnv/otr/message: mismatch with protobuf" postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysProto,
+          test s "postCryptoMessageVerifyMsgSentAndRejectIfMissingClient - post conversations/:cnv/otr/message: message delivery and missing clients" postCryptoMessageVerifyMsgSentAndRejectIfMissingClient,
+          test s "postCryptoMessageVerifyRejectMissingClientAndRespondMissingPrekeysJson - post conversations/:cnv/otr/message: mismatch and prekey fetching" postCryptoMessageVerifyRejectMissingClientAndRespondMissingPrekeysJson,
+          test s "postCryptoMessageVerifyRejectMissingClientAndRespondMissingPrekeysProto - post conversations/:cnv/otr/message: mismatch with protobuf" postCryptoMessageVerifyRejectMissingClientAndRespondMissingPrekeysProto,
           test s "post conversations/:cnv/otr/message: unknown sender client" postCryptoMessageNotAuthorizeUnknownClient,
-          test s "post conversations/:cnv/otr/message: ignore_missing and report_missing" postCryptoMessageVerifyCorrectResponseIfIgnoreAndReportMissingQueryParam,
-          test s "post message qualified - local owning backend - missing clients" postMessageQualifiedLocalOwningBackendMissingClients,
+          test s "postCryptoMessageVerifyCorrectResponseIfIgnoreAndReportMissingQueryParam - post conversations/:cnv/otr/message: ignore_missing and report_missing" postCryptoMessageVerifyCorrectResponseIfIgnoreAndReportMissingQueryParam,
+          test s "postMessageQualifiedLocalOwningBackendMissingClients - post message qualified - local owning backend - missing clients" postMessageQualifiedLocalOwningBackendMissingClients,
           test s "post message qualified - local owning backend - redundant and deleted clients" postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients,
-          test s "post message qualified - local owning backend - ignore missing" postMessageQualifiedLocalOwningBackendIgnoreMissingClients,
+          test s "postMessageQualifiedLocalOwningBackendIgnoreMissingClients - post message qualified - local owning backend - ignore missing" postMessageQualifiedLocalOwningBackendIgnoreMissingClients,
           test s "post message qualified - local owning backend - failed to send clients" postMessageQualifiedLocalOwningBackendFailedToSendClients,
           test s "post message qualified - local owning backend - failed to fetch clients" postMessageQualifiedFailedToSendFetchingClients,
           test s "post message qualified - remote owning backend - federation failure" postMessageQualifiedRemoteOwningBackendFailure,
           test s "post message qualified - remote owning backend - success" postMessageQualifiedRemoteOwningBackendSuccess,
           test s "join conversation" postJoinConvOk,
           test s "get code-access conversation information" testJoinCodeConv,
-          test s "join code-access conversation - no password" postJoinCodeConvOk,
+          test s "postJoinCodeConvOk - join code-access conversation - no password" postJoinCodeConvOk,
           test s "join code-access conversation - password" postJoinCodeConvWithPassword,
           test s "convert invite to code-access conversation" postConvertCodeConv,
           test s "convert code to team-access conversation" postConvertTeamConv,
           test s "team member can't join via guest link if access role removed" testTeamMemberCantJoinViaGuestLinkIfAccessRoleRemoved,
           test s "cannot join private conversation" postJoinConvFail,
-          test s "revoke guest links for team conversation" testJoinTeamConvGuestLinksDisabled,
+          test s "testJoinTeamConvGuestLinksDisabled - revoke guest links for team conversation" testJoinTeamConvGuestLinksDisabled,
           test s "revoke guest links for non-team conversation" testJoinNonTeamConvGuestLinksDisabled,
           test s "get code rejected if guest links disabled" testGetCodeRejectedIfGuestLinksDisabled,
           test s "post code rejected if guest links disabled" testPostCodeRejectedIfGuestLinksDisabled,
@@ -242,8 +242,8 @@ tests s =
             ],
           test s "remove user with only local convs" removeUserNoFederation,
           test s "iUpsertOne2OneConversation" testAllOne2OneConversationRequests,
-          test s "post message - reject if missing client" postMessageRejectIfMissingClients,
-          test s "post message - client that is not in group doesn't receive message" postMessageClientNotInGroupDoesNotReceiveMsg,
+          test s "postMessageRejectIfMissingClients - post message - reject if missing client" postMessageRejectIfMissingClients,
+          test s "postMessageClientNotInGroupDoesNotReceiveMsg - post message - client that is not in group doesn't receive message" postMessageClientNotInGroupDoesNotReceiveMsg,
           test s "get guest links status from foreign team conversation" getGuestLinksStatusFromForeignTeamConv,
           testGroup
             "Typing indicators"
@@ -503,8 +503,8 @@ postCryptoMessageVerifyMsgSentAndRejectIfMissingClient = do
 
 -- @SF.Separation @TSFI.RESTfulAPI @S2
 -- This test verifies basic mismatch behavior of the the JSON endpoint.
-postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysJson :: TestM ()
-postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysJson = do
+postCryptoMessageVerifyRejectMissingClientAndRespondMissingPrekeysJson :: TestM ()
+postCryptoMessageVerifyRejectMissingClientAndRespondMissingPrekeysJson = do
   (alice, ac) <- randomUserWithClient (head someLastPrekeys)
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
   (eve, ec) <- randomUserWithClient (someLastPrekeys !! 2)
@@ -531,8 +531,8 @@ postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysJson = do
 
 -- @SF.Separation @TSFI.RESTfulAPI @S2
 -- This test verifies basic mismatch behaviour of the protobuf endpoint.
-postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysProto :: TestM ()
-postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysProto = do
+postCryptoMessageVerifyRejectMissingClientAndRespondMissingPrekeysProto :: TestM ()
+postCryptoMessageVerifyRejectMissingClientAndRespondMissingPrekeysProto = do
   (alice, ac) <- randomUserWithClient (head someLastPrekeys)
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
   (eve, ec) <- randomUserWithClient (someLastPrekeys !! 2)
