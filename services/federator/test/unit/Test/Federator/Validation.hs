@@ -132,7 +132,6 @@ validateDomainAllowListFail =
         $ validateDomain exampleCert (Domain "localhost.example.com")
     res @?= Left (FederationDenied (Domain "localhost.example.com"))
 
-
 validateDomainAllowListSuccess :: TestTree
 validateDomainAllowListSuccess =
   testCase "should give parsed domain if in the allow list" $ do
@@ -165,7 +164,6 @@ validateDomainCertWrongDomain =
         . runInputConst scaffoldingFederationDomainConfigs
         $ validateDomain exampleCert (Domain "foo.example.com")
     res @?= Left (AuthenticationFailure (pure [X509.NameMismatch "foo.example.com"]))
-
 
 validateDomainCertCN :: TestTree
 validateDomainCertCN =
@@ -255,4 +253,3 @@ validateDomainCertInvalid =
   testCase "validateDomainCertInvalid - should fail if the client certificate is invalid" $ do
     let res = decodeCertificate "not a certificate"
     res @?= Left "no certificate found"
-

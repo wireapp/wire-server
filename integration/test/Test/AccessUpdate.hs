@@ -73,7 +73,6 @@ testAccessUpdateGuestRemoved = do
     res.status `shouldMatchInt` 200
     res.json %. "members.others.0.qualified_id" `shouldMatch` objQidObject bob
 
-
 testAccessUpdateGuestRemovedUnreachableRemotes :: HasCallStack => App ()
 testAccessUpdateGuestRemovedUnreachableRemotes = do
   resourcePool <- asks resourcePool

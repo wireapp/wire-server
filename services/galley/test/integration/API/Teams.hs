@@ -1065,7 +1065,6 @@ testDeleteTeamVerificationCodeMissingCode = do
       const 403 === statusCode
       const "code-authentication-required" === (Error.label . responseJsonUnsafeWithMsg "error label")
 
-
 --
 -- Test that team cannot be deleted with expired second factor email verification code when this feature is enabled
 testDeleteTeamVerificationCodeExpiredCode :: TestM ()
@@ -1090,7 +1089,6 @@ testDeleteTeamVerificationCodeExpiredCode = do
       const 403 === statusCode
       const "code-authentication-failed" === (Error.label . responseJsonUnsafeWithMsg "error label")
 
-
 --
 -- Test that team cannot be deleted with wrong second factor email verification code when this feature is enabled
 testDeleteTeamVerificationCodeWrongCode :: TestM ()
@@ -1112,7 +1110,6 @@ testDeleteTeamVerificationCodeWrongCode = do
     !!! do
       const 403 === statusCode
       const "code-authentication-failed" === (Error.label . responseJsonUnsafeWithMsg "error label")
-
 
 setFeatureLockStatus :: forall cfg. (KnownSymbol (Public.FeatureSymbol cfg)) => TeamId -> Public.LockStatus -> TestM ()
 setFeatureLockStatus tid status = do
@@ -1456,7 +1453,6 @@ testUpdateTeamMember = do
       let e = List1.head (WS.unpackPayload notif)
       e ^. eventTeam @?= tid
       e ^. eventData @?= EdMemberUpdate uid mPerm
-
 
 testUpdateTeamStatus :: TestM ()
 testUpdateTeamStatus = do

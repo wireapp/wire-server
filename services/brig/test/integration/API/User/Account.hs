@@ -196,7 +196,6 @@ testCreateUserWithInvalidVerificationCode brig = do
           ]
   postUserRegister' regEmail brig !!! const 404 === statusCode
 
-
 testUpdateUserEmailByTeamOwner :: Opt.Opts -> Brig -> Http ()
 testUpdateUserEmailByTeamOwner opts brig = do
   (_, teamOwner, emailOwner : otherTeamMember : _) <- createPopulatedBindingTeamWithNamesAndHandles brig 2
@@ -345,7 +344,6 @@ testCreateUserEmptyName brig = do
   post (brig . path "/register" . contentJson . body p)
     !!! const 400 === statusCode
 
-
 -- The testCreateUserLongName test conforms to the following testing standards:
 --
 -- a name with > 128 characters is not allowed.
@@ -358,7 +356,6 @@ testCreateUserLongName brig = do
             ["name" .= (nameTooLong :: Text)]
   post (brig . path "/register" . contentJson . body p)
     !!! const 400 === statusCode
-
 
 testCreateUserAnon :: Brig -> Galley -> Http ()
 testCreateUserAnon brig galley = do
@@ -468,7 +465,6 @@ testCreateUserConflict _ brig = do
     const 409 === statusCode
     const (Just "key-exists") === fmap Error.label . responseJsonMaybe
 
-
 -- The testCreateUserInvalidEmailOrPhone test conforms to the following testing standards:
 --
 -- Test to make sure a new user cannot be created with an invalid email address or invalid phone number.
@@ -498,7 +494,6 @@ testCreateUserInvalidEmailOrPhone _ brig = do
             ]
   post (brig . path "/register" . contentJson . body reqPhone)
     !!! const 400 === statusCode
-
 
 testCreateUserBlacklist :: Opt.Opts -> Brig -> AWS.Env -> Http ()
 testCreateUserBlacklist (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ _ = pure ()

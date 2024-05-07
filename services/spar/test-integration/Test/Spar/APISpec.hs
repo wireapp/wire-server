@@ -318,7 +318,6 @@ specFinalizeLogin = do
             authnresp <- runSimpleSP $ mkAuthnResponseWithSubj subj privcreds idp2 spmeta authnreq True
             loginFailure =<< submitAuthnResponse tid2 authnresp
 
-
       context "user is created once, then deleted in team settings, then can login again." $ do
         it "responds with 'allowed'" $ do
           (ownerid, teamid) <- callCreateUserWithTeam

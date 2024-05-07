@@ -141,7 +141,6 @@ testCreateTokenWithVerificationCode = do
       call $
         post (brig . paths ["verification-code", "send"] . contentJson . json (Public.SendVerificationCode action email))
 
-
 unlockFeature :: GalleyReq -> TeamId -> TestSpar ()
 unlockFeature galley tid =
   call $ put (galley . paths ["i", "teams", toByteString' tid, "features", featureNameBS @Public.SndFactorPasswordChallengeConfig, toByteString' Public.LockStatusUnlocked]) !!! const 200 === statusCode
@@ -251,7 +250,6 @@ testCreateTokenAuthorizesOnlyAdmins = do
 
   (mkUser RoleAdmin >>= createToken')
     !!! const 200 === statusCode
-
 
 -- | Test that for a user with a password, token creation requires reauthentication (i.e. the
 -- field @"password"@ should be provided).
@@ -462,4 +460,3 @@ testAuthIsNeeded = do
   listUsers_ (Just invalidToken) Nothing (env ^. teSpar) !!! checkErr 401 Nothing
   -- Try to do @GET /Users@ without a token and check that it fails
   listUsers_ Nothing Nothing (env ^. teSpar) !!! checkErr 401 Nothing
-

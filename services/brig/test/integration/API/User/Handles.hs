@@ -139,7 +139,6 @@ testHandleUpdate brig cannon = do
   put (brig . path "/self/handle" . contentJson . zUser uid2 . zConn "c" . body update)
     !!! const 200 === statusCode
 
-
 testHandleRace :: Brig -> Http ()
 testHandleRace brig = do
   us <- replicateM 10 (userId <$> randomUser brig)

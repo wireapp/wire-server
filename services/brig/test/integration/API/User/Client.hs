@@ -177,7 +177,6 @@ testAddGetClientMissingCode brig galley = do
     const 403 === statusCode
     const (Just "code-authentication-required") === fmap Error.label . responseJsonMaybe
 
-
 --
 -- Test that device cannot be added with wrong second factor email verification code when this feature is enabled
 testAddGetClientWrongCode :: Brig -> Galley -> Http ()
@@ -194,7 +193,6 @@ testAddGetClientWrongCode brig galley = do
   addClient' (Just wrongCode) !!! do
     const 403 === statusCode
     const (Just "code-authentication-failed") === fmap Error.label . responseJsonMaybe
-
 
 --
 -- Test that device cannot be added with expired second factor email verification code when this feature is enabled
@@ -219,7 +217,6 @@ testAddGetClientCodeExpired db opts brig galley = do
   addClient' codeValue !!! do
     const 403 === statusCode
     const (Just "code-authentication-failed") === fmap Error.label . responseJsonMaybe
-
 
 data AddGetClient = AddGetClient
   { addWithPassword :: Bool,
@@ -1024,7 +1021,6 @@ testRemoveClient hasPwd brig cannon = do
           newClientCookie = Just defCookieLabel
         }
 
-
 -- The testRemoveClientShortPwd test conforms to the following testing standards:
 --
 -- The test checks if a client can be deleted by providing a too short password.
@@ -1058,7 +1054,6 @@ testRemoveClientShortPwd brig = do
           newClientCookie = Just defCookieLabel
         }
 
-
 -- The testRemoveClientIncorrectPwd test conforms to the following testing standards:
 --
 -- The test checks if a client can be deleted by providing a syntax-valid, but
@@ -1091,7 +1086,6 @@ testRemoveClientIncorrectPwd brig = do
         { newClientLabel = Just "Nexus 5x",
           newClientCookie = Just defCookieLabel
         }
-
 
 testUpdateClient :: Opt.Opts -> Brig -> Http ()
 testUpdateClient opts brig = do
@@ -1341,7 +1335,6 @@ testAddMultipleTemporary brig galley cannon = do
             . path "i/test/clients"
             . zUser u
       pure $ Vec.length <$> (preview _Array =<< responseJsonMaybe @Value r)
-
 
 testPreKeyRace :: Brig -> Http ()
 testPreKeyRace brig = do

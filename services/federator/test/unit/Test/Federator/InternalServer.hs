@@ -149,4 +149,3 @@ federatedRequestFailureAllowList =
         . interpretMetricsEmpty
         $ callOutward Nothing targetDomain Brig (RPC "get-user-by-handle") request
     eith @?= Left (FederationDenied targetDomain)
-

@@ -154,7 +154,6 @@ testValidatesCertificateWrongHostname =
             Right _ -> assertFailure "Expected connection with the server to fail"
     ]
 
-
 testConnectionError :: TestTree
 testConnectionError = testCase "connection failures are reported correctly" $ do
   tlsSettings <- mkTLSSettingsOrThrow settings

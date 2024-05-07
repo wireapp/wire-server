@@ -38,7 +38,6 @@ testLoginVerify6DigitWrongCodeFails = do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "code-authentication-failed"
 
-
 --
 -- Test that login without verification code fails if SndFactorPasswordChallenge feature is enabled in team
 testLoginVerify6DigitMissingCodeFails :: HasCallStack => App ()
@@ -50,7 +49,6 @@ testLoginVerify6DigitMissingCodeFails = do
   bindResponse (login owner email defPassword) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "code-authentication-required"
-
 
 --
 -- Test that login fails with expired second factor email verification code
@@ -74,7 +72,6 @@ testLoginVerify6DigitExpiredCodeFails = do
       bindResponse (loginWith2ndFactor owner email defPassword code) \resp -> do
         resp.status `shouldMatchInt` 403
         resp.json %. "label" `shouldMatch` "code-authentication-failed"
-
 
 testLoginVerify6DigitResendCodeSuccessAndRateLimiting :: HasCallStack => App ()
 testLoginVerify6DigitResendCodeSuccessAndRateLimiting = do

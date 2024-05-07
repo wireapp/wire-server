@@ -187,7 +187,6 @@ getConversationsNotPartOf = do
       GetConversationsRequest rando [qUnqualified . cnvQualifiedId $ cnv1]
   liftIO $ assertEqual "conversation list not empty" [] convs
 
-
 onConvCreated :: TestM ()
 onConvCreated = do
   c <- view tsCannon
