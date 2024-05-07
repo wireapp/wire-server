@@ -903,7 +903,6 @@ testMultiUserGetPrekeysQualifiedV4 brig opts = do
       const 200 === statusCode
       const (Right $ expectedUserClientMap) === responseJsonEither
 
--- TODO(leif): check if all tests should be included
 -- The testTooManyClients test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
@@ -985,8 +984,6 @@ testRegularPrekeysCannotBeSentAsLastPrekeysDuringUpdate brig = do
     )
     !!! const 400
       === statusCode
-
--- @END
 
 -- The testRemoveClient test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
