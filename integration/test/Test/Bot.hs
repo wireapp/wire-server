@@ -22,7 +22,7 @@ import Testlib.MockIntegrationService
 import Testlib.Prelude
 import UnliftIO
 
-{- FIXME(mangoiv):
+{- FUTUREWORK(mangoiv):
  -
  - The issue is as follows:
  -
@@ -38,8 +38,8 @@ import UnliftIO
  - *would* trust the CA, *if* it did verification, because only in that case it would now succeed
  - with verification and not return a "PinInvalidCert" error.
  - -}
-testBotRootCA :: App ()
-testBotRootCA = do
+testBotUnknownSignatory :: App ()
+testBotUnknownSignatory = do
   (_, rootPrivKey) <- mkKeyPair
   (ownerPubKey, privateKeyToString -> ownerPrivKey) <- mkKeyPair
   let rootSignedLeaf = signedCertToString $ intermediateCert "Kabel" ownerPubKey "Example-Root" rootPrivKey
