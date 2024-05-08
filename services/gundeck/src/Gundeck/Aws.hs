@@ -369,12 +369,17 @@ newtype Attributes = Attributes
 
 -- Note [VoIP TTLs]
 -- ~~~~~~~~~~~~~~~~
--- For GCM, APNS and APNS_SANDBOX, SNS treats the TTL "0"
+-- The TTL message attributes for APNS_VOIP and APNS_VOIP_SANDBOX are not
+-- documented but appear to work. The reason might be that TTLs were
+-- introduced before support for VoIP notifications. There is a catch,
+-- however. For GCM, APNS and APNS_SANDBOX, SNS treats the TTL "0"
 -- specially, i.e. it forwards it to the provider where it has a special
--- meaning. Which means if the TTL is lower than the "dwell time" in SNS,
--- the notification is never sent to the provider. So we must specify a
--- reasonably large TTL for transient VoIP notifications, so that they are
--- not discarded already by SNS.
+-- meaning. That does not appear to be the case for APNS_VOIP and
+-- APNS_VOIP_SANDBOX, for which the TTL is interpreted normally, which means
+-- if the TTL is lower than the "dwell time" in SNS, the notification is
+-- never sent to the provider. So we must specify a reasonably large TTL
+-- for transient VoIP notifications, so that they are not discarded
+-- already by SNS.
 --
 -- cf. http://docs.aws.amazon.com/sns/latest/dg/sns-ttl.html
 
@@ -390,9 +395,13 @@ timeToLive t s = Attributes (Endo (ttlAttr s))
     ttlNow GCM = "0"
     ttlNow APNS = "0"
     ttlNow APNSSandbox = "0"
+    ttlNow APNSVoIP = "15" -- See note [VoIP TTLs]
+    ttlNow APNSVoIPSandbox = "15" -- See note [VoIP TTLs]
     ttlKey GCM = "AWS.SNS.MOBILE.GCM.TTL"
     ttlKey APNS = "AWS.SNS.MOBILE.APNS.TTL"
     ttlKey APNSSandbox = "AWS.SNS.MOBILE.APNS_SANDBOX.TTL"
+    ttlKey APNSVoIP = "AWS.SNS.MOBILE.APNS_VOIP.TTL"
+    ttlKey APNSVoIPSandbox = "AWS.SNS.MOBILE.APNS_VOIP_SANDBOX.TTL"
 
 publish :: EndpointArn -> LT.Text -> Attributes -> Amazon (Either PublishError ())
 publish arn txt attrs = do

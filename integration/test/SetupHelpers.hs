@@ -13,12 +13,15 @@ import Control.Monad.Reader
 import Crypto.Random (getRandomBytes)
 import Data.Aeson hiding ((.=))
 import qualified Data.Aeson.Types as Aeson
+import qualified Data.ByteString.Base16 as Base16
 import qualified Data.ByteString.Base64.URL as B64Url
 import Data.ByteString.Char8 (unpack)
 import qualified Data.CaseInsensitive as CI
 import Data.Default
 import Data.Function
 import Data.String.Conversions (cs)
+import qualified Data.Text as Text
+import Data.Text.Encoding (decodeUtf8)
 import Data.UUID.V1 (nextUUID)
 import Data.UUID.V4 (nextRandom)
 import GHC.Stack
@@ -182,6 +185,15 @@ createMLSOne2OnePartner domain other convDomain = loop
 -- Copied from `src/CargoHold/API/V3.hs` and inlined to avoid pulling in `types-common`
 randomToken :: HasCallStack => App String
 randomToken = unpack . B64Url.encode <$> liftIO (getRandomBytes 16)
+
+data TokenLength = GCM | APNS
+
+randomSnsToken :: HasCallStack => TokenLength -> App String
+randomSnsToken = \case
+  GCM -> mkTok 16
+  APNS -> mkTok 32
+  where
+    mkTok = fmap (Text.unpack . decodeUtf8 . Base16.encode) . randomBytes
 
 randomId :: HasCallStack => App String
 randomId = liftIO (show <$> nextRandom)
