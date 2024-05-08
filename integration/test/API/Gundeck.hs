@@ -129,3 +129,15 @@ listPushTokens user = do
     baseRequest user Gundeck Versioned $
       joinHttpPath ["/push/tokens"]
   submit "GET" req
+
+unregisterClient ::
+  (MakesValue user, MakesValue client) =>
+  user ->
+  client ->
+  App Response
+unregisterClient user client = do
+  cid <- asString client
+  req <-
+    baseRequest user Gundeck Unversioned $
+      joinHttpPath ["/i/clients", cid]
+  submit "DELETE" req

@@ -14,18 +14,16 @@ testRegisterPushToken = do
   aliceC2 <- randomClientId
   aliceC1 <- randomClientId
 
-  -- TODO(elland): remove magic numbers;
-  -- GCM uses 16 bytes, APNS uses 32
   -- Client 1 with 4 tokens
-  c1Apns1 <- randomSnsToken 32
-  c1Apns1Overlap <- randomSnsToken 32
-  c1Apns2 <- randomSnsToken 32
-  c1Gcm1 <- randomSnsToken 16
+  c1Apns1 <- randomSnsToken APNS
+  c1Apns1Overlap <- randomSnsToken APNS
+  c1Apns2 <- randomSnsToken APNS
+  c1Gcm1 <- randomSnsToken GCM
 
   -- Client 2 with 1 token
-  c2Apns1 <- randomSnsToken 32
-  c2Gcm1 <- randomSnsToken 16
-  c2Gcm1Overlap <- randomSnsToken 16
+  c2Apns1 <- randomSnsToken APNS
+  c2Gcm1 <- randomSnsToken GCM
+  c2Gcm1Overlap <- randomSnsToken GCM
 
   let apnsToken = PushToken "APNS_SANDBOX" "test"
   let gcmToken = PushToken "GCM" "test"
@@ -40,17 +38,46 @@ testRegisterPushToken = do
   let c2Gcm1OverlapToken = gcmToken c2Gcm1Overlap aliceC2
 
   -- Register non-overlapping tokens for client 1
-  void $ getJSON 201 =<< (postPushToken alice c1Apns1Token)
-  void $ getJSON 201 =<< (postPushToken alice c1Apns2Token)
-  void $ getJSON 201 =<< (postPushToken alice c1Gcm1Token)
+  assertStatus 201 =<< (postPushToken alice c1Apns1Token)
+  assertStatus 201 =<< (postPushToken alice c1Apns2Token)
+  assertStatus 201 =<< (postPushToken alice c1Gcm1Token)
 
   -- register non-overlapping tokens for client 2
-  void $ getJSON 201 =<< (postPushToken alice c2Apns1Token)
-  void $ getJSON 201 =<< (postPushToken alice c2Gcm1Token)
+  assertStatus 201 =<< (postPushToken alice c2Apns1Token)
+  assertStatus 201 =<< (postPushToken alice c2Gcm1Token)
 
   bindResponse (listPushTokens alice) \resp -> do
     resp.status `shouldMatchInt` 200
     allTokens <- resp.json %. "tokens"
-    allTokens `shouldMatchSet` [c1Apns1Token, c1Apns2Token, c1Gcm1Token, c2Apns1Token, c2Gcm1Token]
+    allTokens
+      `shouldMatchSet` [ c1Apns1Token,
+                         c1Apns2Token,
+                         c1Gcm1Token,
+                         c2Apns1Token,
+                         c2Gcm1Token
+                       ]
 
   -- Resistering an overlapping token overwrites it.
+  assertStatus 201 =<< postPushToken alice c1Apns1OverlapToken
+  assertStatus 201 =<< postPushToken alice c2Gcm1OverlapToken
+
+  bindResponse (listPushTokens alice) \resp -> do
+    resp.status `shouldMatchInt` 200
+    allTokens <- resp.json %. "tokens"
+    allTokens
+      `shouldMatchSet` [ c1Apns1OverlapToken,
+                         c1Apns2Token,
+                         c1Gcm1Token,
+                         c2Apns1Token,
+                         c2Gcm1OverlapToken
+                       ]
+
+  -- Push tokens are deleted alongside clients
+  assertStatus 200 =<< unregisterClient alice aliceC1
+  assertStatus 200 =<< unregisterClient alice aliceC2
+
+  bindResponse (listPushTokens alice) \resp -> do
+    resp.status `shouldMatchInt` 200
+    allTokens <- resp.json %. "tokens"
+    allTokens
+      `shouldMatchSet` ([] :: [PushToken])

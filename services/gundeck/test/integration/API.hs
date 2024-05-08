@@ -106,8 +106,7 @@ tests s =
         ],
       testGroup
         "Tokens"
-        [ test s "register a push token" testRegisterPushToken,
-          test s "unregister a push token" testUnregisterPushToken
+        [ test s "unregister a push token" testUnregisterPushToken
         ],
       testGroup
         "Websocket pingpong"
@@ -724,49 +723,6 @@ testUnregisterClient = do
 -- ${env}-test (FCM), ${env}-test (APNS_SANDBOX), ${env}-com.wire.ent (APNS_SANDBOX),
 -- with ${env} normally being integration.
 
-testRegisterPushToken :: TestM ()
-testRegisterPushToken = do
-  g <- view tsGundeck
-  uid <- randomUser
-  -- Client 1 with 4 distinct tokens
-  c1 <- randomClientId
-  t11 <- randomToken c1 apnsToken
-  t11' <- randomToken c1 apnsToken -- overlaps
-  t12 <- randomToken c1 apnsToken {tName = AppName "com.wire.ent"} -- different app
-  t13 <- randomToken c1 gcmToken -- different transport
-
-  -- Client 2 with 1 token
-  c2 <- randomClientId
-  t21 <- randomToken c2 apnsToken
-  t22 <- randomToken c2 gcmToken -- different transport
-  t22' <- randomToken c2 gcmToken -- overlaps
-
-  -- Register non-overlapping tokens
-  _ <- registerPushToken uid t11
-  _ <- registerPushToken uid t12
-  _ <- registerPushToken uid t13
-  _ <- registerPushToken uid t21
-  _ <- registerPushToken uid t22
-  -- Check tokens
-  _tokens <- sortPushTokens <$> listPushTokens uid
-  let _expected = sortPushTokens [t11, t12, t13, t21, t22]
-  liftIO $ assertEqual "unexpected tokens" _expected _tokens
-  -- Register overlapping tokens. The previous overlapped
-  -- tokens should be removed, but none of the others.
-  _ <- registerPushToken uid t11'
-  _ <- registerPushToken uid t22'
-  -- Check tokens
-  _tokens <- sortPushTokens <$> listPushTokens uid
-  let _expected = sortPushTokens [t11', t12, t13, t21, t22']
-  liftIO $ assertEqual "unexpected tokens" _expected _tokens
-  -- Native push tokens are deleted together with the client
-  unregisterClient g uid c1 !!! const 200 === statusCode
-  unregisterClient g uid c1 !!! const 200 === statusCode -- (deleting a non-existing token is ok.)
-  unregisterClient g uid c2 !!! const 200 === statusCode
-  unregisterClient g uid c2 !!! const 200 === statusCode -- (deleting a non-existing token is ok.)
-  _tokens <- listPushTokens uid
-  liftIO $ assertEqual "unexpected tokens" [] _tokens
-
 -- TODO: Try to make this test more performant, this test takes too long right now
 testRegisterTooManyTokens :: TestM ()
 testRegisterTooManyTokens = do
@@ -995,10 +951,6 @@ connectUsersAndDevicesWithSendingClientsRaw ca uidsAndConnIds = do
 
 assertPresences :: (UserId, [ConnId]) -> TestM ()
 assertPresences (uid, conns) = wsAssertPresences uid (length conns)
-
--- | Sort 'PushToken's based on the actual 'token' values.
-sortPushTokens :: [PushToken] -> [PushToken]
-sortPushTokens = sortBy (compare `on` view token)
 
 wsRun :: HasCallStack => CannonR -> UserId -> ConnId -> WS.ClientApp () -> TestM (Async ())
 wsRun ca uid (ConnId con) app = do

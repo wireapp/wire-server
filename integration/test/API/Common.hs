@@ -55,7 +55,7 @@ randomHex n = liftIO $ replicateM n pick
 
 -- Should not have leading 0.
 randomClientId :: App String
-randomClientId = do 
+randomClientId = do
   second <- randomHex 15
   first <- pick
   pure $ first : second
