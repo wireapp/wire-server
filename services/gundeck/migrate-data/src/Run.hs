@@ -27,6 +27,6 @@ main :: IO ()
 main = do
   o <- execParser (info (helper <*> cassandraSettingsParser) desc)
   l <- Log.mkLogger Log.Debug Nothing Nothing
-  migrate l o [ V1_DeleteApnsVoipTokens.migration ]
+  migrate l o [V1_DeleteApnsVoipTokens.migration]
   where
     desc = header "Gundeck Cassandra Data Migrations" <> fullDesc

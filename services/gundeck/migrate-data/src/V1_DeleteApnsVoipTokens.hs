@@ -22,10 +22,10 @@ import Conduit
 import Data.Conduit.Internal (zipSources)
 import Data.Conduit.List qualified as C
 import Data.Id
+import Data.Text qualified as Text
 import Gundeck.DataMigration.Types
 import Imports
 import System.Logger.Class qualified as Log
-import Data.Text qualified as Text
 
 migration :: Migration
 migration =
@@ -43,7 +43,7 @@ migration =
                     >> pure p
               )
             .| C.concatMap (filter isVoipToken)
-            .| C.map (\(uid, token, app, transport, _mArn)  -> (uid, token, app, transport))
+            .| C.map (\(uid, token, app, transport, _mArn) -> (uid, token, app, transport))
             .| C.mapM_ deletePushToken
     }
 
@@ -76,15 +76,15 @@ isVoipTransport 4 = True -- APNS_VOIP_SANDBOX
 isVoipTransport _ = False
 
 isVoipArn :: Text -> Bool
-isVoipArn arn = 
+isVoipArn arn =
   case Text.splitOn ":" arn of
-    ["arn", "aws", "sns", _region, _accountId, topic] -> 
+    ["arn", "aws", "sns", _region, _accountId, topic] ->
       case Text.splitOn "/" topic of
-        ("endpoint" : "APNS_VOIP" : _ ) -> True
-        ("endpoint" : "APNS_VOIP_SANDBOX" : _ ) -> True
+        ("endpoint" : "APNS_VOIP" : _) -> True
+        ("endpoint" : "APNS_VOIP_SANDBOX" : _) -> True
         _ -> False
     _ -> False
- 
+
 isVoipToken :: (UserId, Text, Text, Int32, Maybe Text) -> Bool
 isVoipToken (_, _, _, transport, mArn) =
   isVoipTransport transport || maybe False isVoipArn mArn
