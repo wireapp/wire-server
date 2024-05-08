@@ -31,6 +31,7 @@ import Data.Qualified
 import Data.Time
 import Galley.API.Error
 import Galley.API.MLS.Conversation
+import Galley.API.MLS.IncomingMessage
 import Galley.API.MLS.Proposal
 import Galley.API.MLS.Types
 import Galley.Effects
@@ -59,6 +60,7 @@ import Wire.API.Federation.Version
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Credential
+import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.User.Client
 
@@ -98,9 +100,10 @@ getCommitData ::
   ClientIdentity ->
   Local ConvOrSubConv ->
   Epoch ->
-  Commit ->
+  CipherSuiteTag ->
+  IncomingBundle ->
   Sem r ProposalAction
-getCommitData senderIdentity lConvOrSub epoch commit = do
+getCommitData senderIdentity lConvOrSub epoch ciphersuite bundle = do
   let convOrSub = tUnqualified lConvOrSub
       groupId = cnvmlsGroupId convOrSub.mlsMeta
 
@@ -109,8 +112,11 @@ getCommitData senderIdentity lConvOrSub epoch commit = do
       if epoch == Epoch 0
         then addProposedClient senderIdentity
         else mempty
-    proposals <- traverse (derefOrCheckProposal convOrSub.mlsMeta groupId epoch) commit.proposals
-    action <- applyProposals convOrSub.mlsMeta groupId proposals
+    proposals <-
+      traverse
+        (derefOrCheckProposal epoch ciphersuite groupId)
+        bundle.commit.value.proposals
+    action <- applyProposals ciphersuite groupId proposals
     pure (creatorAction <> action)
 
 incrementEpoch ::

@@ -393,10 +393,10 @@ taggedEventDataSchema =
       ConvAccessUpdate ->
         tag
           _EdConvAccessUpdate
-          (unnamed (conversationAccessDataSchema V2))
+          (unnamed (conversationAccessDataSchema (Just V2)))
       ConvCodeUpdate -> tag _EdConvCodeUpdate (unnamed schema)
       ConvConnect -> tag _EdConnect (unnamed schema)
-      ConvCreate -> tag _EdConversation (unnamed (conversationSchema V2))
+      ConvCreate -> tag _EdConversation (unnamed (conversationSchema (Just V2)))
       ConvMessageTimerUpdate -> tag _EdConvMessageTimerUpdate (unnamed schema)
       ConvReceiptModeUpdate -> tag _EdConvReceiptModeUpdate (unnamed schema)
       OtrMessageAdd -> tag _EdOtrMessage (unnamed schema)

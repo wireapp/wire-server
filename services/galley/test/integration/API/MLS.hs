@@ -57,7 +57,6 @@ import Wire.API.Conversation.Role
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Galley
-import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
@@ -1868,7 +1867,7 @@ testAddClientSubConvFailure = do
       assertEqual
         "The subconversation epoch has moved beyond 1"
         (Epoch 1)
-        (pscEpoch finalSub)
+        (fromJust (pscActiveData finalSub)).epoch
 
 -- FUTUREWORK: implement the following test
 
@@ -1969,9 +1968,7 @@ testGetRemoteSubConv isAMember = do
           { pscParentConvId = qconv,
             pscSubConvId = sconv,
             pscGroupId = GroupId "deadbeef",
-            pscEpoch = Epoch 0,
-            pscEpochTimestamp = Nothing,
-            pscCipherSuite = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519,
+            pscActiveData = Nothing,
             pscMembers = []
           }
   let mock = do
@@ -2073,7 +2070,8 @@ testJoinDeletedSubConvWithRemoval = do
           responseJsonError
             =<< getSubConv (qUnqualified bob) qcnv subConvId
               <!! const 200 === statusCode
-      let dsc = DeleteSubConversationRequest (pscGroupId sub) (pscEpoch sub)
+      let Just activeData = pscActiveData sub
+      let dsc = DeleteSubConversationRequest (pscGroupId sub) activeData.epoch
       liftTest $
         deleteSubConv (qUnqualified bob) qcnv subConvId dsc
           !!! const 200 === statusCode
@@ -2102,7 +2100,8 @@ testDeleteSubConvStale = do
     pure (qcnv, sub)
 
   -- the commit was made, yet the epoch for the request body is old
-  let dsc = DeleteSubConversationRequest (pscGroupId sub) (pscEpoch sub)
+  let epoch = maybe (Epoch 0) (.epoch) (pscActiveData sub)
+  let dsc = DeleteSubConversationRequest (pscGroupId sub) epoch
   deleteSubConv (qUnqualified alice) qcnv sconv dsc
     !!! do const 409 === statusCode
 
@@ -2169,8 +2168,7 @@ testLastLeaverSubConv = do
             <!! do
               const 200 === statusCode
     liftIO $ do
-      pscEpoch psc @?= Epoch 0
-      pscEpochTimestamp psc @?= Nothing
+      pscActiveData psc @?= Nothing
       assertBool "group ID unchanged" $ pscGroupId prePsc /= pscGroupId psc
       length (pscMembers psc) @?= 0
 

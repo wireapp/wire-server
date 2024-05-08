@@ -22,14 +22,23 @@ import API.Galley
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.Set as Set
+import qualified Data.Text as T
+import qualified Data.Text.Read as T
 import MLS.Util
 import Notifications
 import SetupHelpers
+import Test.Version
 import Testlib.Prelude
 
-testGetMLSOne2One :: HasCallStack => Domain -> App ()
-testGetMLSOne2One otherDomain = do
+testGetMLSOne2One :: HasCallStack => Version5 -> Domain -> App ()
+testGetMLSOne2One v otherDomain = withVersion5 v $ do
   [alice, bob] <- createAndConnectUsers [OwnDomain, otherDomain]
+
+  let assertConvData conv = do
+        conv %. "epoch" `shouldMatchInt` 0
+        case v of
+          Version5 -> conv %. "cipher_suite" `shouldMatchInt` 1
+          NoVersion5 -> assertFieldMissing conv "cipher_suite"
 
   conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
   conv %. "type" `shouldMatchInt` 2
@@ -37,6 +46,7 @@ testGetMLSOne2One otherDomain = do
 
   conv %. "members.self.conversation_role" `shouldMatch` "wire_member"
   conv %. "members.self.qualified_id" `shouldMatch` (alice %. "qualified_id")
+  assertConvData conv
 
   convId <- conv %. "qualified_id"
 
@@ -47,7 +57,7 @@ testGetMLSOne2One otherDomain = do
 
   conv2 %. "type" `shouldMatchInt` 2
   conv2 %. "qualified_id" `shouldMatch` convId
-  conv2 %. "epoch" `shouldMatch` (conv %. "epoch")
+  assertConvData conv2
 
 testMLSOne2OneOtherMember :: HasCallStack => One2OneScenario -> App ()
 testMLSOne2OneOtherMember scenario = do
@@ -219,8 +229,9 @@ one2OneScenarioConvDomain One2OneScenarioLocal = OwnDomain
 one2OneScenarioConvDomain One2OneScenarioLocalConv = OwnDomain
 one2OneScenarioConvDomain One2OneScenarioRemoteConv = OtherDomain
 
-testMLSOne2One :: HasCallStack => One2OneScenario -> App ()
-testMLSOne2One scenario = do
+testMLSOne2One :: HasCallStack => Ciphersuite -> One2OneScenario -> App ()
+testMLSOne2One suite scenario = do
+  setMLSCiphersuite suite
   alice <- randomUser OwnDomain def
   let otherDomain = one2OneScenarioUserDomain scenario
       convDomain = one2OneScenarioConvDomain scenario
@@ -247,3 +258,9 @@ testMLSOne2One scenario = do
     let isMessage n = nPayload n %. "type" `isEqual` "conversation.mls-message-add"
     n <- awaitMatch isMessage ws
     nPayload n %. "data" `shouldMatch` B8.unpack (Base64.encode mp.message)
+
+  void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
+
+  conv' <- getMLSOne2OneConversation alice bob >>= getJSON 200
+  (suiteCode, _) <- assertOne $ T.hexadecimal (T.pack suite.code)
+  conv' %. "cipher_suite" `shouldMatchInt` suiteCode

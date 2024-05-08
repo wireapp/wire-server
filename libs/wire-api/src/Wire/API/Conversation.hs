@@ -104,10 +104,11 @@ import Data.Range (Range, fromRange, rangedSchema)
 import Data.SOP
 import Data.Schema
 import Data.Set qualified as Set
+import Data.Singletons
+import Data.Text qualified as Text
 import Data.UUID qualified as UUID
 import Data.UUID.V5 qualified as UUIDV5
 import Imports
-import Servant.API
 import System.Random (randomRIO)
 import Wire.API.Conversation.Member
 import Wire.API.Conversation.Protocol
@@ -154,9 +155,9 @@ defConversationMetadata mCreator =
       cnvmReceiptMode = Nothing
     }
 
-accessRolesVersionedSchema :: Version -> ObjectSchema SwaggerDoc (Set AccessRole)
-accessRolesVersionedSchema v =
-  if v > V2 then accessRolesSchema else accessRolesSchemaV2
+accessRolesVersionedSchema :: Maybe Version -> ObjectSchema SwaggerDoc (Set AccessRole)
+accessRolesVersionedSchema (Just v) | v < V3 = accessRolesSchemaV2
+accessRolesVersionedSchema _ = accessRolesSchema
 
 accessRolesSchema :: ObjectSchema SwaggerDoc (Set AccessRole)
 accessRolesSchema = field "access_role" (set schema)
@@ -265,12 +266,12 @@ cnvReceiptMode :: Conversation -> Maybe ReceiptMode
 cnvReceiptMode = cnvmReceiptMode . cnvMetadata
 
 instance ToSchema Conversation where
-  schema = conversationSchema V3
+  schema = conversationSchema Nothing
 
-instance ToSchema (Versioned 'V2 Conversation) where
-  schema = Versioned <$> unVersioned .= conversationSchema V2
+instance SingI v => ToSchema (Versioned v Conversation) where
+  schema = Versioned <$> unVersioned .= conversationSchema (Just (demote @v))
 
-conversationObjectSchema :: Version -> ObjectSchema SwaggerDoc Conversation
+conversationObjectSchema :: Maybe Version -> ObjectSchema SwaggerDoc Conversation
 conversationObjectSchema v =
   Conversation
     <$> cnvQualifiedId .= field "qualified_id" schema
@@ -278,14 +279,14 @@ conversationObjectSchema v =
       .= optional (field "id" (deprecatedSchema "qualified_id" schema))
     <*> cnvMetadata .= conversationMetadataObjectSchema (accessRolesVersionedSchema v)
     <*> cnvMembers .= field "members" schema
-    <*> cnvProtocol .= protocolSchema
+    <*> cnvProtocol .= protocolSchema v
 
 conversationSchema ::
-  Version ->
+  Maybe Version ->
   ValueSchema NamedSwaggerDoc Conversation
 conversationSchema v =
   objectWithDocModifier
-    "Conversation"
+    ("Conversation" <> foldMap (Text.toUpper . versionText) v)
     (description ?~ "A conversation object as returned from the server")
     (conversationObjectSchema v)
 
@@ -302,20 +303,26 @@ data CreateGroupConversation = CreateGroupConversation
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema CreateGroupConversation
 
 instance ToSchema CreateGroupConversation where
-  schema =
-    objectWithDocModifier
-      "CreateGroupConversation"
-      (description ?~ "A created group-conversation object extended with a list of failed-to-add users")
-      $ CreateGroupConversation
-        <$> cgcConversation .= conversationObjectSchema V4
-        <*> (toFlatList . cgcFailedToAdd)
-          .= field "failed_to_add" (fromFlatList <$> array schema)
-    where
-      toFlatList :: Map Domain (Set a) -> [Qualified a]
-      toFlatList m =
-        (\(d, s) -> flip Qualified d <$> Set.toList s) =<< Map.assocs m
-      fromFlatList :: Ord a => [Qualified a] -> Map Domain (Set a)
-      fromFlatList = fmap Set.fromList . indexQualified
+  schema = createGroupConversationSchema Nothing
+
+instance SingI v => ToSchema (Versioned v CreateGroupConversation) where
+  schema = Versioned <$> unVersioned .= createGroupConversationSchema (Just (demote @v))
+
+createGroupConversationSchema :: Maybe Version -> ValueSchema NamedSwaggerDoc CreateGroupConversation
+createGroupConversationSchema v =
+  objectWithDocModifier
+    "CreateGroupConversation"
+    (description ?~ "A created group-conversation object extended with a list of failed-to-add users")
+    $ CreateGroupConversation
+      <$> cgcConversation .= conversationObjectSchema v
+      <*> (toFlatList . cgcFailedToAdd)
+        .= field "failed_to_add" (fromFlatList <$> array schema)
+  where
+    toFlatList :: Map Domain (Set a) -> [Qualified a]
+    toFlatList m =
+      (\(d, s) -> flip Qualified d <$> Set.toList s) =<< Map.assocs m
+    fromFlatList :: Ord a => [Qualified a] -> Map Domain (Set a)
+    fromFlatList = fmap Set.fromList . indexQualified
 
 -- | Limited view of a 'Conversation'. Is used to inform users with an invite
 -- link about the conversation.
@@ -364,7 +371,7 @@ instance ToSchema (Versioned 'V2 (ConversationList Conversation)) where
   schema =
     Versioned
       <$> unVersioned
-        .= conversationListSchema (conversationSchema V2)
+        .= conversationListSchema (conversationSchema (Just V2))
 
 conversationListSchema ::
   forall a.
@@ -426,13 +433,13 @@ data ConversationsResponse = ConversationsResponse
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationsResponse
 
 conversationsResponseSchema ::
-  Version ->
+  Maybe Version ->
   ValueSchema NamedSwaggerDoc ConversationsResponse
 conversationsResponseSchema v =
   let notFoundDoc = description ?~ "These conversations either don't exist or are deleted."
       failedDoc = description ?~ "The server failed to fetch these conversations, most likely due to network issues while contacting a remote server"
    in objectWithDocModifier
-        "ConversationsResponse"
+        ("ConversationsResponse" <> foldMap (Text.toUpper . versionText) v)
         (description ?~ "Response object for getting metadata of a list of conversations")
         $ ConversationsResponse
           <$> crFound .= field "found" (array (conversationSchema v))
@@ -440,10 +447,10 @@ conversationsResponseSchema v =
           <*> crFailed .= fieldWithDocModifier "failed" failedDoc (array schema)
 
 instance ToSchema ConversationsResponse where
-  schema = conversationsResponseSchema V3
+  schema = conversationsResponseSchema Nothing
 
-instance ToSchema (Versioned 'V2 ConversationsResponse) where
-  schema = Versioned <$> unVersioned .= conversationsResponseSchema V2
+instance SingI v => ToSchema (Versioned v ConversationsResponse) where
+  schema = Versioned <$> unVersioned .= conversationsResponseSchema (Just (demote @v))
 
 --------------------------------------------------------------------------------
 -- Conversation properties
@@ -658,18 +665,19 @@ data NewConv = NewConv
 
 instance ToSchema NewConv where
   schema =
-    newConvSchema $
+    newConvSchema Nothing $
       maybe_ (optField "access_role" (set schema))
 
 instance ToSchema (Versioned 'V2 NewConv) where
-  schema = Versioned <$> unVersioned .= newConvSchema accessRolesSchemaOptV2
+  schema = Versioned <$> unVersioned .= newConvSchema (Just V2) accessRolesSchemaOptV2
 
 newConvSchema ::
+  Maybe Version ->
   ObjectSchema SwaggerDoc (Maybe (Set AccessRole)) ->
   ValueSchema NamedSwaggerDoc NewConv
-newConvSchema sch =
+newConvSchema v sch =
   objectWithDocModifier
-    "NewConv"
+    ("NewConv" <> foldMap (Text.toUpper . versionText) v)
     (description ?~ "JSON object to create a new conversation. When using 'qualified_users' (preferred), you can omit 'users'")
     $ NewConv
       <$> newConvUsers
@@ -830,22 +838,18 @@ data ConversationAccessData = ConversationAccessData
   deriving (Arbitrary) via (GenericUniform ConversationAccessData)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationAccessData
 
-conversationAccessDataSchema :: Version -> ValueSchema NamedSwaggerDoc ConversationAccessData
+conversationAccessDataSchema :: Maybe Version -> ValueSchema NamedSwaggerDoc ConversationAccessData
 conversationAccessDataSchema v =
-  object ("ConversationAccessData" <> suffix) $
+  object ("ConversationAccessData" <> foldMap (Text.toUpper . versionText) v) $
     ConversationAccessData
       <$> cupAccess .= field "access" (set schema)
       <*> cupAccessRoles .= accessRolesVersionedSchema v
-  where
-    suffix
-      | v == maxBound = ""
-      | otherwise = toUrlPiece v
 
 instance ToSchema ConversationAccessData where
-  schema = conversationAccessDataSchema V3
+  schema = conversationAccessDataSchema Nothing
 
 instance ToSchema (Versioned 'V2 ConversationAccessData) where
-  schema = Versioned <$> unVersioned .= conversationAccessDataSchema V2
+  schema = Versioned <$> unVersioned .= conversationAccessDataSchema (Just V2)
 
 data ConversationReceiptModeUpdate = ConversationReceiptModeUpdate
   { cruReceiptMode :: ReceiptMode

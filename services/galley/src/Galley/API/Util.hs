@@ -1033,7 +1033,7 @@ conversationExisted ::
   ) =>
   Local UserId ->
   Data.Conversation ->
-  Sem r ConversationResponse
+  Sem r (ConversationResponse Conversation)
 conversationExisted lusr cnv = Existed <$> conversationView lusr cnv
 
 getLocalUsers :: Domain -> NonEmpty (Qualified UserId) -> [UserId]
