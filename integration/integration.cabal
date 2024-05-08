@@ -136,6 +136,7 @@ library
     Test.MLS.Unreachable
     Test.Notifications
     Test.Presence
+    Test.PushToken
     Test.Roles
     Test.Search
     Test.Services
@@ -174,6 +175,7 @@ library
     , async
     , attoparsec
     , base
+    , base16-bytestring
     , base64-bytestring
     , bytestring
     , bytestring-conversion

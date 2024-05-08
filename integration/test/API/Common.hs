@@ -4,7 +4,8 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Data.Array ((!))
 import qualified Data.Array as Array
-import System.Random (randomRIO)
+import qualified Data.ByteString as BS
+import System.Random (randomIO, randomRIO)
 import Testlib.Prelude
 
 teamRole :: String -> Int
@@ -43,14 +44,24 @@ randomHandleWithRange min' max' = liftIO $ do
     chars = mkArray $ ['a' .. 'z'] <> ['0' .. '9'] <> "_-."
     pick = (chars !) <$> randomRIO (Array.bounds chars)
 
+randomBytes :: Int -> App ByteString
+randomBytes n = liftIO $ BS.pack <$> replicateM n randomIO
+
 randomHex :: Int -> App String
 randomHex n = liftIO $ replicateM n pick
   where
     chars = mkArray (['0' .. '9'] <> ['a' .. 'f'])
     pick = (chars !) <$> randomRIO (Array.bounds chars)
 
+-- Should not have leading 0.
 randomClientId :: App String
-randomClientId = randomHex 16
+randomClientId = do
+  second <- randomHex 15
+  first <- pick
+  pure $ first : second
+  where
+    chars = mkArray (['1' .. '9'] <> ['a' .. 'f'])
+    pick = (chars !) <$> randomRIO (Array.bounds chars)
 
 mkArray :: [a] -> Array.Array Int a
 mkArray l = Array.listArray (0, length l - 1) l

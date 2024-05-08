@@ -73,6 +73,8 @@ instance FromJSON SnsNotification where
       [("GCM", String n)] -> parseGcm n
       [("APNS", String n)] -> parseApns APNS n
       [("APNS_SANDBOX", String n)] -> parseApns APNSSandbox n
+      [("APNS_VOIP", String n)] -> parseApns APNSVoIP n
+      [("APNS_VOIP_SANDBOX", String n)] -> parseApns APNSVoIPSandbox n
       _ -> mempty
     where
       parseApns t n =

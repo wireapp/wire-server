@@ -135,6 +135,8 @@ arnTransportText :: Transport -> Text
 arnTransportText GCM = "GCM"
 arnTransportText APNS = "APNS"
 arnTransportText APNSSandbox = "APNS_SANDBOX"
+arnTransportText APNSVoIP = "APNS_VOIP"
+arnTransportText APNSVoIPSandbox = "APNS_VOIP_SANDBOX"
 
 -- Parsers --------------------------------------------------------------------
 
@@ -163,5 +165,7 @@ endpointTopicParser = do
 transportParser :: Parser Transport
 transportParser =
   string "GCM" $> GCM
+    <|> string "APNS_VOIP_SANDBOX" $> APNSVoIPSandbox
+    <|> string "APNS_VOIP" $> APNSVoIP
     <|> string "APNS_SANDBOX" $> APNSSandbox
     <|> string "APNS" $> APNS

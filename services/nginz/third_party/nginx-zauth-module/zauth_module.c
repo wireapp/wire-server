@@ -469,8 +469,8 @@ static ngx_int_t zauth_parse_request (ngx_http_request_t * r) {
         } else {
                 ngx_str_t name   = ngx_string("zprovider");
                 ngx_str_t cookie = ngx_null_string;
-                ngx_int_t index  = ngx_http_parse_multi_header_lines(&r->headers_in.cookies, &name, &cookie);
-                if (index != NGX_DECLINED) {
+                ngx_table_elt_t* cookie_header  = ngx_http_parse_multi_header_lines(r, r->headers_in.cookie, &name, &cookie);
+                if (cookie_header != NULL) {
                         res = zauth_token_parse(cookie.data, cookie.len, &tkn);
                 }
         }

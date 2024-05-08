@@ -52,23 +52,23 @@ setupEJPD =
 
     toks1 <- do
       cl11 <- objId $ addClient (usr1 %. "qualified_id") def >>= getJSON 201
-      bindResponse (postPushToken usr1 cl11 def) $ \resp -> do
+      bindResponse (generateAndPostPushToken usr1 cl11 def) $ \resp -> do
         resp.status `shouldMatchInt` 201
         tok <- resp.json %. "token" & asString
         pure [tok]
     toks2 <- do
       cl21 <- objId $ addClient (usr2 %. "qualified_id") def >>= getJSON 201
       cl22 <- objId $ addClient (usr2 %. "qualified_id") def >>= getJSON 201
-      t1 <- bindResponse (postPushToken usr2 cl21 def) $ \resp -> do
+      t1 <- bindResponse (generateAndPostPushToken usr2 cl21 def) $ \resp -> do
         resp.status `shouldMatchInt` 201
         resp.json %. "token" & asString
-      t2 <- bindResponse (postPushToken usr2 cl22 def) $ \resp -> do
+      t2 <- bindResponse (generateAndPostPushToken usr2 cl22 def) $ \resp -> do
         resp.status `shouldMatchInt` 201
         resp.json %. "token" & asString
       pure [t1, t2]
     toks4 <- do
       cl41 <- objId $ addClient (usr4 %. "qualified_id") def >>= getJSON 201
-      bindResponse (postPushToken usr4 cl41 def) $ \resp -> do
+      bindResponse (generateAndPostPushToken usr4 cl41 def) $ \resp -> do
         resp.status `shouldMatchInt` 201
         tok <- resp.json %. "token" & asString
         pure [tok]
