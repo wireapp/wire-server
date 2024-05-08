@@ -45,14 +45,12 @@ module Gundeck.Types.Push.V2
     recipientClients,
     Route (..),
     ApsData,
-    ApsPreference (..),
     ApsLocKey (..),
     ApsSound (..),
     apsData,
     apsLocKey,
     apsLocArgs,
     apsSound,
-    apsPreference,
     apsBadge,
 
     -- * Priority (re-export)
@@ -176,24 +174,10 @@ newtype ApsSound = ApsSound {fromSound :: Text}
 newtype ApsLocKey = ApsLocKey {fromLocKey :: Text}
   deriving (Eq, Show, ToJSON, FromJSON, Arbitrary)
 
-data ApsPreference
-  = ApsStdPreference
-  deriving (Eq, Show, Generic)
-  deriving (Arbitrary) via GenericUniform ApsPreference
-
-instance ToJSON ApsPreference where
-  toJSON ApsStdPreference = "std"
-
-instance FromJSON ApsPreference where
-  parseJSON = withText "ApsPreference" $ \case
-    "std" -> pure ApsStdPreference
-    x -> fail $ "Invalid preference: " ++ show x
-
 data ApsData = ApsData
   { _apsLocKey :: !ApsLocKey,
     _apsLocArgs :: [Text],
     _apsSound :: !(Maybe ApsSound),
-    _apsPreference :: !(Maybe ApsPreference),
     _apsBadge :: !Bool
   }
   deriving (Eq, Show, Generic)
@@ -202,15 +186,14 @@ data ApsData = ApsData
 makeLenses ''ApsData
 
 apsData :: ApsLocKey -> [Text] -> ApsData
-apsData lk la = ApsData lk la Nothing Nothing True
+apsData lk la = ApsData lk la Nothing True
 
 instance ToJSON ApsData where
-  toJSON (ApsData k a s p b) =
+  toJSON (ApsData k a s b) =
     object $
       "loc_key" .= k
         # "loc_args" .= a
         # "sound" .= s
-        # "preference" .= p
         # "badge" .= b
         # []
 
@@ -220,7 +203,6 @@ instance FromJSON ApsData where
       <$> o .: "loc_key"
       <*> o .:? "loc_args" .!= []
       <*> o .:? "sound"
-      <*> o .:? "preference"
       <*> o .:? "badge" .!= True
 
 -----------------------------------------------------------------------------

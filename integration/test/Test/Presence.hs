@@ -27,7 +27,7 @@ testRemoveUser :: HasCallStack => App ()
 testRemoveUser = do
   -- register alice and add a push token
   (alice, c) <- registerUser
-  void $ postPushToken alice c def >>= getJSON 201
+  void $ generateAndPostPushToken alice c def >>= getJSON 201
   do
     t <- getPushTokens alice >>= getJSON 200
     tokens <- t %. "tokens" & asList
