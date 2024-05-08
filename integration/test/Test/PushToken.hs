@@ -92,4 +92,3 @@ testVoipTokenRegistrationFails = do
   postPushToken alice apnsVoipToken `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 400
     resp.json %. "label" `shouldMatch` "apns-voip-not-supported"
-

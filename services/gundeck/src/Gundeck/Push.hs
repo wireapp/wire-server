@@ -33,10 +33,10 @@ where
 
 import Control.Arrow ((&&&))
 import Control.Error
-import Control.Monad.Except (throwError)
 import Control.Exception (ErrorCall (ErrorCall))
 import Control.Lens (to, view, (.~), (^.))
 import Control.Monad.Catch
+import Control.Monad.Except (throwError)
 import Data.Aeson as Aeson (Object)
 import Data.Id
 import Data.List.Extra qualified as List
@@ -408,16 +408,17 @@ type AddTokenResponse = Either Public.AddTokenError Public.AddTokenSuccess
 
 addToken :: UserId -> ConnId -> PushToken -> Gundeck AddTokenResponse
 addToken uid cid newtok = mpaRunWithBudget 1 (Left Public.AddTokenErrorNoBudget) $ runExceptT $ do
-  when (newtok ^. tokenTransport  `elem` [APNSVoIP, APNSVoIPSandbox]) $ 
+  when (newtok ^. tokenTransport `elem` [APNSVoIP, APNSVoIPSandbox]) $
     throwError Public.AddTokenErrorApnsVoipNotSupported
 
   (cur, old) <- lift $ foldl' (matching newtok) (Nothing, []) <$> Data.lookup uid Data.LocalQuorum
-  lift $ Log.info $
-    "user"
-      .= UUID.toASCIIBytes (toUUID uid)
-      ~~ "token"
-        .= Text.take 16 (tokenText (newtok ^. token))
-      ~~ msg (val "Registering push token")
+  lift $
+    Log.info $
+      "user"
+        .= UUID.toASCIIBytes (toUUID uid)
+        ~~ "token"
+          .= Text.take 16 (tokenText (newtok ^. token))
+        ~~ msg (val "Registering push token")
   addr <- continue newtok cur
   lift $ Native.deleteTokens old (Just addr)
   pure $ Public.AddTokenSuccess newtok
@@ -462,10 +463,11 @@ addToken uid cid newtok = mpaRunWithBudget 1 (Left Public.AddTokenErrorNoBudget)
           lift $ Log.info $ msg ("Push token of unknown application: '" <> appNameText app' <> "'")
           throwError Public.AddTokenErrorNotFound
         Left (Aws.InvalidToken _) -> do
-          lift $ Log.info $
-            "token"
-              .= tokenText tok
-              ~~ msg (val "Invalid push token.")
+          lift $
+            Log.info $
+              "token"
+                .= tokenText tok
+                ~~ msg (val "Invalid push token.")
           throwError Public.AddTokenErrorInvalid
         Left (Aws.TokenTooLong l) -> do
           lift $ Log.info $ msg ("Push token is too long: token length = " ++ show l)
