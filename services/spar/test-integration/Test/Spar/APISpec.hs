@@ -215,7 +215,8 @@ specFinalizeLogin :: SpecWith TestEnv
 specFinalizeLogin = do
   describe "POST /sso/finalize-login" $ do
     context "not granted" $ do
-      it "testRejectsSAMLResponseSayingAccessNotGranted - responds with a very peculiar 'forbidden' HTTP response" $ do
+      it "testRejectsSAMLResponseSayingAccessNotGranted - responds with a very peculiar 'forbidden' HTTP response" $
+        testRejectsSAMLResponseSayingAccessNotGranted
 
     context "access granted" $ do
       let loginSuccess :: HasCallStack => ResponseLBS -> TestSpar ()
@@ -381,41 +382,6 @@ specFinalizeLogin = do
           pending
 
     context "bad AuthnResponse" $ do
-      let check ::
-            (IdP -> TestSpar SAML.AuthnRequest) ->
-            (SignPrivCreds -> IdP -> SAML.SPMetadata -> SAML.AuthnRequest -> SimpleSP SignedAuthnResponse) ->
-            (TeamId -> SignedAuthnResponse -> TestSpar (Response (Maybe LByteString))) ->
-            (ResponseLBS -> IO ()) ->
-            TestSpar ()
-          check mkareq mkaresp submitaresp checkresp = do
-            (ownerid, teamid) <- callCreateUserWithTeam
-            (idp, (_, privcreds)) <- registerTestIdPWithMeta ownerid
-            authnreq <- mkareq idp
-            spmeta <- getTestSPMetadata teamid
-            authnresp <-
-              runSimpleSP $
-                mkaresp
-                  privcreds
-                  idp
-                  spmeta
-                  authnreq
-            sparresp <- submitaresp teamid authnresp
-            liftIO $ checkresp sparresp
-
-          shouldContainInBase64 :: String -> String -> Expectation
-          shouldContainInBase64 hay needle = cs hay'' `shouldContain` needle
-            where
-              Right (Just hay'') = decodeBase64 <$> validateBase64 hay'
-              hay' = cs $ f hay
-                where
-                  -- exercise to the reader: do this more idiomatically!
-                  f (splitAt 5 -> ("<pre>", s)) = g s
-                  f (_ : s) = f s
-                  f "" = ""
-                  g (splitAt 6 -> ("</pre>", _)) = ""
-                  g (c : s) = c : g s
-                  g "" = ""
-
       it "testRejectsSAMLResponseFromWrongIssuer" testRejectsSAMLResponseFromWrongIssuer
       it "testRejectsSAMLResponseSignedWithWrongKey" testRejectsSAMLResponseSignedWithWrongKey
       it "testRejectsSAMLResponseIfRequestIsStale" testRejectsSAMLResponseIfRequestIsStale
@@ -1696,7 +1662,7 @@ specReAuthSsoUserWithPassword =
 ----------------------------------------------------------------------
 -- tests for bsi audit
 
-testRejectsSAMLResponseSayingAccessNotGranted :: SpecWith TestEnv
+testRejectsSAMLResponseSayingAccessNotGranted :: TestSpar ()
 testRejectsSAMLResponseSayingAccessNotGranted = do
   (user, tid) <- callCreateUserWithTeam
   (idp, (_, privcreds)) <- registerTestIdPWithMeta user
@@ -1718,7 +1684,7 @@ testRejectsSAMLResponseSayingAccessNotGranted = do
     hasPersistentCookieHeader sparresp `shouldBe` Left "no set-cookie header"
 
 -- Do not authenticate if SSO IdP response is for unknown issuer
-testRejectsSAMLResponseFromWrongIssuer :: SpecWith Env
+testRejectsSAMLResponseFromWrongIssuer :: TestSpar ()
 testRejectsSAMLResponseFromWrongIssuer = do
   let mkareq = negotiateAuthnRequest
       mkaresp privcreds idp spmeta authnreq =
@@ -1735,14 +1701,14 @@ testRejectsSAMLResponseFromWrongIssuer = do
         (cs . fromJust . responseBody $ sparresp) `shouldContain` "<title>wire:sso:error:not-found</title>"
         (cs . fromJust . responseBody $ sparresp) `shouldContainInBase64` "(CustomError (IdpDbError IdpNotFound)"
         (cs . fromJust . responseBody $ sparresp) `shouldContainInBase64` "Input {iName = \"SAMLResponse\""
-  check
+  checkSamlFlow
     mkareq
     mkaresp
     submitaresp
     checkresp
 
 -- Do not authenticate if SSO IdP response is signed with wrong key
-testRejectsSAMLResponseSignedWithWrongKey :: SpecWith TestEnv
+testRejectsSAMLResponseSignedWithWrongKey :: TestSpar ()
 testRejectsSAMLResponseSignedWithWrongKey = do
   (ownerid, _teamid) <- callCreateUserWithTeam
   (_, (_, badprivcreds)) <- registerTestIdPWithMeta ownerid
@@ -1756,10 +1722,10 @@ testRejectsSAMLResponseSignedWithWrongKey = do
           True
       submitaresp = submitAuthnResponse
       checkresp sparresp = statusCode sparresp `shouldBe` 400
-  check mkareq mkaresp submitaresp checkresp
+  checkSamlFlow mkareq mkaresp submitaresp checkresp
 
 -- Do not authenticate if SSO IdP response has no corresponding request anymore
-testRejectsSAMLResponseIfRequestIsStale :: TestEnv
+testRejectsSAMLResponseIfRequestIsStale :: TestSpar ()
 testRejectsSAMLResponseIfRequestIsStale = do
   let mkareq idp = do
         req <- negotiateAuthnRequest idp
@@ -1771,10 +1737,10 @@ testRejectsSAMLResponseIfRequestIsStale = do
         statusCode sparresp `shouldBe` 200
         (cs . fromJust . responseBody $ sparresp) `shouldContain` "<title>wire:sso:error:forbidden</title>"
         (cs . fromJust . responseBody $ sparresp) `shouldContain` "bad InResponseTo attribute(s)"
-  check mkareq mkaresp submitaresp checkresp
+  checkSamlFlow mkareq mkaresp submitaresp checkresp
 
 -- Do not authenticate if SSO IdP response is gone missing
-testRejectsSAMLResponseIfResponseIsStale :: TestEnv
+testRejectsSAMLResponseIfResponseIsStale :: TestSpar ()
 testRejectsSAMLResponseIfResponseIsStale = do
   let mkareq = negotiateAuthnRequest
       mkaresp privcreds idp spmeta authnreq = mkAuthnResponse privcreds idp spmeta authnreq True
@@ -1784,4 +1750,42 @@ testRejectsSAMLResponseIfResponseIsStale = do
       checkresp sparresp = do
         statusCode sparresp `shouldBe` 200
         (cs . fromJust . responseBody $ sparresp) `shouldContain` "<title>wire:sso:error:forbidden</title>"
-  check mkareq mkaresp submitaresp checkresp
+  checkSamlFlow mkareq mkaresp submitaresp checkresp
+
+----------------------------------------------------------------------
+-- Helpers
+
+shouldContainInBase64 :: String -> String -> Expectation
+shouldContainInBase64 hay needle = cs hay'' `shouldContain` needle
+  where
+    Right (Just hay'') = decodeBase64 <$> validateBase64 hay'
+    hay' = cs $ f hay
+      where
+        -- exercise to the reader: do this more idiomatically!
+        f (splitAt 5 -> ("<pre>", s)) = g s
+        f (_ : s) = f s
+        f "" = ""
+        g (splitAt 6 -> ("</pre>", _)) = ""
+        g (c : s) = c : g s
+        g "" = ""
+
+checkSamlFlow ::
+  (IdP -> TestSpar SAML.AuthnRequest) ->
+  (SignPrivCreds -> IdP -> SAML.SPMetadata -> SAML.AuthnRequest -> SimpleSP SignedAuthnResponse) ->
+  (TeamId -> SignedAuthnResponse -> TestSpar (Response (Maybe LByteString))) ->
+  (ResponseLBS -> IO ()) ->
+  TestSpar ()
+checkSamlFlow mkareq mkaresp submitaresp checkresp = do
+  (ownerid, teamid) <- callCreateUserWithTeam
+  (idp, (_, privcreds)) <- registerTestIdPWithMeta ownerid
+  authnreq <- mkareq idp
+  spmeta <- getTestSPMetadata teamid
+  authnresp <-
+    runSimpleSP $
+      mkaresp
+        privcreds
+        idp
+        spmeta
+        authnreq
+  sparresp <- submitaresp teamid authnresp
+  liftIO $ checkresp sparresp
