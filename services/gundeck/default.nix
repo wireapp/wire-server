@@ -18,6 +18,7 @@
 , bytestring
 , bytestring-conversion
 , cassandra-util
+, conduit
 , containers
 , criterion
 , errors
@@ -153,8 +154,10 @@ mkDerivation {
     bytestring
     bytestring-conversion
     cassandra-util
+    conduit
     containers
     exceptions
+    extended
     gundeck-types
     HsOpenSSL
     http-client
@@ -175,6 +178,7 @@ mkDerivation {
     tasty-ant-xml
     tasty-hunit
     text
+    time
     tinylog
     types-common
     uuid

@@ -1,4 +1,4 @@
-cabal-version: 1.12
+cabal-version: 3.0
 name:          gundeck
 version:       1.45.0
 synopsis:      Push Notification Hub
@@ -6,7 +6,7 @@ category:      Network
 author:        Wire Swiss GmbH
 maintainer:    Wire Swiss GmbH <backend@wire.com>
 copyright:     (c) 2017 Wire Swiss GmbH
-license:       AGPL-3
+license:       AGPL-3.0-only
 license-file:  LICENSE
 build-type:    Simple
 
@@ -110,7 +110,7 @@ library
     -Wredundant-constraints -Wunused-packages
 
   build-depends:
-      aeson                  >=2.0.1.0
+    , aeson                  >=2.0.1.0
     , amazonka               >=2
     , amazonka-core          >=2
     , amazonka-sns           >=2
@@ -219,7 +219,7 @@ executable gundeck
     -Wunused-packages
 
   build-depends:
-      base
+    , base
     , gundeck
     , HsOpenSSL
     , imports
@@ -288,7 +288,7 @@ executable gundeck-integration
     -threaded -Wredundant-constraints -Wunused-packages
 
   build-depends:
-      aeson
+    , aeson
     , async
     , base                   >=4   && <5
     , base16-bytestring      >=0.1
@@ -326,6 +326,81 @@ executable gundeck-integration
     , websockets             >=0.8
     , wire-api
     , yaml
+
+  default-language:   GHC2021
+
+executable gundeck-migrate-data
+  main-is:            ../main.hs
+  hs-source-dirs:     migrate-data/src
+  default-extensions:
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    DuplicateRecordFields
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    NoImplicitPrelude
+    OverloadedRecordDot
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -threaded -Wredundant-constraints -Wunused-packages
+
+  -- cabal-fmt: expand migrate-data/src
+  other-modules:
+    Gundeck.DataMigration
+    Gundeck.DataMigration.Types
+    Run
+    V1_DeleteApnsVoipTokens
+
+  build-depends:
+    , base
+    , cassandra-util
+    , conduit
+    , exceptions
+    , extended
+    , imports
+    , optparse-applicative
+    , text
+    , time
+    , tinylog
+    , types-common
+
+  if flag(static)
+    ld-options: -static
 
   default-language:   GHC2021
 
@@ -380,7 +455,7 @@ executable gundeck-schema
     -threaded -Wredundant-constraints -Wunused-packages
 
   build-depends:
-      gundeck
+    , gundeck
     , imports
 
   if flag(static)
@@ -451,7 +526,7 @@ test-suite gundeck-tests
     -threaded -Wredundant-constraints -Wunused-packages
 
   build-depends:
-      aeson
+    , aeson
     , aeson-pretty
     , amazonka
     , amazonka-core
@@ -540,7 +615,7 @@ benchmark gundeck-bench
     -Wredundant-constraints -Wunused-packages
 
   build-depends:
-      amazonka
+    , amazonka
     , base
     , criterion
     , gundeck
