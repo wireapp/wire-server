@@ -33,6 +33,7 @@ where
 
 import Control.Arrow ((&&&))
 import Control.Error
+import Control.Monad.Except (throwError)
 import Control.Exception (ErrorCall (ErrorCall))
 import Control.Lens (to, view, (.~), (^.))
 import Control.Monad.Catch
@@ -406,21 +407,17 @@ nativeTargets psh rcps' alreadySent =
 type AddTokenResponse = Either Public.AddTokenError Public.AddTokenSuccess
 
 addToken :: UserId -> ConnId -> PushToken -> Gundeck AddTokenResponse
-addToken uid cid newtok = mpaRunWithBudget 1 (Left Public.AddTokenErrorNoBudget) $ do
-  (cur, old) <- foldl' (matching newtok) (Nothing, []) <$> Data.lookup uid Data.LocalQuorum
-  Log.info $
+addToken uid cid newtok = mpaRunWithBudget 1 (Left Public.AddTokenErrorNoBudget) $ runExceptT $ do
+  (cur, old) <- lift $ foldl' (matching newtok) (Nothing, []) <$> Data.lookup uid Data.LocalQuorum
+  lift $ Log.info $
     "user"
       .= UUID.toASCIIBytes (toUUID uid)
       ~~ "token"
         .= Text.take 16 (tokenText (newtok ^. token))
       ~~ msg (val "Registering push token")
-  continue newtok cur
-    >>= either
-      pure
-      ( \a -> do
-          Native.deleteTokens old (Just a)
-          pure (Right $ Public.AddTokenSuccess newtok)
-      )
+  addr <- continue newtok cur
+  lift $ Native.deleteTokens old (Just addr)
+  pure $ Public.AddTokenSuccess newtok
   where
     matching ::
       PushToken ->
@@ -439,14 +436,14 @@ addToken uid cid newtok = mpaRunWithBudget 1 (Left Public.AddTokenErrorNoBudget)
     continue ::
       PushToken ->
       Maybe Address ->
-      Gundeck (Either AddTokenResponse Address)
+      ExceptT Public.AddTokenError Gundeck Address
     continue t Nothing = create (0 :: Int) t
     continue t (Just a) = update (0 :: Int) t (a ^. addrEndpoint)
 
     create ::
       Int ->
       PushToken ->
-      Gundeck (Either AddTokenResponse Address)
+      ExceptT Public.AddTokenError Gundeck Address
     create n t = do
       let trp = t ^. tokenTransport
       let app = t ^. tokenApp
@@ -456,32 +453,32 @@ addToken uid cid newtok = mpaRunWithBudget 1 (Left Public.AddTokenErrorNoBudget)
       ept <- Aws.execute aws' (Aws.createEndpoint uid trp env app tok)
       case ept of
         Left (Aws.EndpointInUse arn) -> do
-          Log.info $ "arn" .= toText arn ~~ msg (val "ARN in use")
+          lift $ Log.info $ "arn" .= toText arn ~~ msg (val "ARN in use")
           update (n + 1) t arn
         Left (Aws.AppNotFound app') -> do
-          Log.info $ msg ("Push token of unknown application: '" <> appNameText app' <> "'")
-          pure (Left (Left Public.AddTokenErrorNotFound))
+          lift $ Log.info $ msg ("Push token of unknown application: '" <> appNameText app' <> "'")
+          throwError Public.AddTokenErrorNotFound
         Left (Aws.InvalidToken _) -> do
-          Log.info $
+          lift $ Log.info $
             "token"
               .= tokenText tok
               ~~ msg (val "Invalid push token.")
-          pure (Left (Left Public.AddTokenErrorInvalid))
+          throwError Public.AddTokenErrorInvalid
         Left (Aws.TokenTooLong l) -> do
-          Log.info $ msg ("Push token is too long: token length = " ++ show l)
-          pure (Left (Left Public.AddTokenErrorTooLong))
+          lift $ Log.info $ msg ("Push token is too long: token length = " ++ show l)
+          throwError Public.AddTokenErrorTooLong
         Right arn -> do
           Data.insert uid trp app tok arn cid (t ^. tokenClient)
-          pure (Right (mkAddr t arn))
+          pure $ mkAddr t arn
 
     update ::
       Int ->
       PushToken ->
       SnsArn EndpointTopic ->
-      Gundeck (Either AddTokenResponse Address)
+      ExceptT Public.AddTokenError Gundeck Address
     update n t arn = do
       when (n >= 3) $ do
-        Log.err $ msg (val "AWS SNS inconsistency w.r.t. " +++ toText arn)
+        lift $ Log.err $ msg (val "AWS SNS inconsistency w.r.t. " +++ toText arn)
         throwM (mkError status500 "server-error" "Server Error")
       aws' <- view awsEnv
       ept <- Aws.execute aws' (Aws.lookupEndpoint arn)
@@ -489,7 +486,7 @@ addToken uid cid newtok = mpaRunWithBudget 1 (Left Public.AddTokenErrorNoBudget)
         Nothing -> create (n + 1) t
         Just ep ->
           do
-            updateEndpoint uid t arn ep
+            lift $ updateEndpoint uid t arn ep
             Data.insert
               uid
               (t ^. tokenTransport)
@@ -498,7 +495,7 @@ addToken uid cid newtok = mpaRunWithBudget 1 (Left Public.AddTokenErrorNoBudget)
               arn
               cid
               (t ^. tokenClient)
-            pure (Right (mkAddr t arn))
+            pure $ mkAddr t arn
             `catch` \case
               -- Note: If the endpoint was recently deleted (not necessarily
               -- concurrently), we may get an EndpointNotFound error despite
@@ -507,7 +504,7 @@ addToken uid cid newtok = mpaRunWithBudget 1 (Left Public.AddTokenErrorNoBudget)
               -- possibly updates in general). We make another attempt to (re-)create
               -- the endpoint in these cases instead of failing immediately.
               Aws.EndpointNotFound {} -> create (n + 1) t
-              Aws.InvalidCustomData {} -> pure (Left (Left Public.AddTokenErrorMetadataTooLong))
+              Aws.InvalidCustomData {} -> throwError Public.AddTokenErrorMetadataTooLong
               ex -> throwM ex
 
     mkAddr ::
