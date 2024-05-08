@@ -81,3 +81,15 @@ testRegisterPushToken = do
     allTokens <- resp.json %. "tokens"
     allTokens
       `shouldMatchSet` ([] :: [PushToken])
+
+testVoipTokenRegistrationFails :: App ()
+testVoipTokenRegistrationFails = do
+  alice <- randomUser OwnDomain def
+  aliceC2 <- randomClientId
+
+  token <- randomSnsToken APNS
+  let apnsVoipToken = PushToken "APNS_VOIP_SANDBOX" "test" token aliceC2
+  postPushToken alice apnsVoipToken `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.json %. "label" `shouldMatch` "apns-voip-not-supported"
+

@@ -175,7 +175,8 @@ type AddTokenErrorResponses =
      ErrorResponse 'E.AddTokenErrorNotFound,
      ErrorResponse 'E.AddTokenErrorInvalid,
      ErrorResponse 'E.AddTokenErrorTooLong,
-     ErrorResponse 'E.AddTokenErrorMetadataTooLong
+     ErrorResponse 'E.AddTokenErrorMetadataTooLong,
+     ErrorResponse 'E.AddTokenErrorApnsVoipNotSupported
    ]
 
 type AddTokenSuccessResponses =
@@ -193,6 +194,7 @@ data AddTokenError
   | AddTokenErrorInvalid
   | AddTokenErrorTooLong
   | AddTokenErrorMetadataTooLong
+  | AddTokenErrorApnsVoipNotSupported
   deriving (Show, Generic)
   deriving (AsUnion AddTokenErrorResponses) via GenericAsUnion AddTokenErrorResponses AddTokenError
 

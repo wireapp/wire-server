@@ -408,6 +408,9 @@ type AddTokenResponse = Either Public.AddTokenError Public.AddTokenSuccess
 
 addToken :: UserId -> ConnId -> PushToken -> Gundeck AddTokenResponse
 addToken uid cid newtok = mpaRunWithBudget 1 (Left Public.AddTokenErrorNoBudget) $ runExceptT $ do
+  when (newtok ^. tokenTransport  `elem` [APNSVoIP, APNSVoIPSandbox]) $ 
+    throwError Public.AddTokenErrorApnsVoipNotSupported
+
   (cur, old) <- lift $ foldl' (matching newtok) (Nothing, []) <$> Data.lookup uid Data.LocalQuorum
   lift $ Log.info $
     "user"
