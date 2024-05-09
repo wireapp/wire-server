@@ -249,7 +249,7 @@ createUserSpar new = do
   -- Set handle
   lift $ updateHandle' luid handle'
 
-  pure $! CreateUserResult account Nothing Nothing (Just userTeam)
+  pure $! CreateUserResult account Nothing (Just userTeam)
   where
     updateHandle' :: Local UserId -> Maybe Handle -> AppT r ()
     updateHandle' _ Nothing = pure ()
@@ -381,11 +381,9 @@ createUser new = do
       then pure Nothing
       else handleEmailActivation email uid mNewTeamUser
 
-  pdata <- handlePhoneActivation Nothing uid
-
   lift $ initAccountFeatureConfig uid
 
-  pure $! CreateUserResult account edata pdata createUserTeam
+  pure $! CreateUserResult account edata createUserTeam
   where
     -- NOTE: all functions in the where block don't use any arguments of createUser
 
@@ -497,23 +495,6 @@ createUser new = do
           void $
             activateWithCurrency (ActivateKey ak) c (Just uid) (bnuCurrency =<< newTeam)
               !>> activationErrorToRegisterError
-          pure Nothing
-
-    -- Handle phone activation (deprecated, see #RefRegistrationNoPreverification in /docs/reference/user/registration.md)
-    handlePhoneActivation :: Maybe Phone -> UserId -> ExceptT RegisterError (AppT r) (Maybe Activation)
-    handlePhoneActivation phone uid = do
-      fmap join . for (userPhoneKey <$> phone) $ \pk -> case newUserPhoneCode new of
-        Nothing -> do
-          timeout <- setActivationTimeout <$> view settings
-          pdata <- lift . wrapClient $ Data.newActivation pk timeout (Just uid)
-          lift . liftSem . Log.info $
-            field "user" (toByteString uid)
-              . field "activation.key" (toByteString $ activationKey pdata)
-              . msg (val "Created phone activation key/code pair")
-          pure $ Just pdata
-        Just c -> do
-          ak <- liftIO $ Data.mkActivationKey pk
-          void $ activate (ActivateKey ak) c (Just uid) !>> activationErrorToRegisterError
           pure Nothing
 
 initAccountFeatureConfig :: UserId -> (AppT r) ()
@@ -923,59 +904,32 @@ onActivated (PhoneActivated uid phone) = do
 -- docs/reference/user/activation.md {#RefActivationRequest}
 sendActivationCode ::
   ( Member BlacklistStore r,
-    Member BlacklistPhonePrefixStore r,
-    Member UserKeyStore r,
+    Member EmailSmsSubsystem r,
     Member GalleyAPIAccess r,
-    Member EmailSmsSubsystem r
+    Member UserKeyStore r
   ) =>
-  Either Email Phone ->
+  Email ->
   Maybe Locale ->
   Bool ->
   ExceptT SendActivationCodeError (AppT r) ()
-sendActivationCode emailOrPhone loc call = case emailOrPhone of
-  Left email -> do
-    ek <-
-      either
-        (const . throwE . InvalidRecipient $ userEmailKey email)
-        (pure . userEmailKey)
-        (validateEmail email)
-    exists <- lift $ liftSem $ isJust <$> lookupKey ek
-    when exists $
-      throwE $
-        UserKeyInUse ek
-    blacklisted <- lift . liftSem $ BlacklistStore.exists ek
-    when blacklisted $
-      throwE (ActivationBlacklistedUserKey ek)
-    uc <- lift . wrapClient $ Data.lookupActivationCode ek
-    case uc of
-      Nothing -> sendVerificationEmail ek Nothing -- Fresh code request, no user
-      Just (Nothing, c) -> sendVerificationEmail ek (Just c) -- Re-requesting existing code
-      Just (Just uid, c) -> sendActivationEmail ek c uid -- User re-requesting activation
-  Right phone -> do
-    -- validatePhone returns the canonical E.164 phone number format
-    canonical <-
-      maybe
-        (throwE $ InvalidRecipient (userPhoneKey phone))
-        pure
-        =<< lift (wrapClient $ validatePhone phone)
-    let pk = userPhoneKey canonical
-    exists <- lift $ liftSem $ isJust <$> lookupKey pk
-    when exists $
-      throwE $
-        UserKeyInUse pk
-    blacklisted <- lift . liftSem $ BlacklistStore.exists pk
-    when blacklisted $
-      throwE (ActivationBlacklistedUserKey pk)
-    -- check if any prefixes of this phone number are blocked
-    prefixExcluded <- lift . liftSem $ BlacklistPhonePrefixStore.existsAny canonical
-    when prefixExcluded $
-      throwE (ActivationBlacklistedUserKey pk)
-    c <- lift . wrapClient $ fmap snd <$> Data.lookupActivationCode pk
-    p <- wrapClientE $ mkPair pk c Nothing
-    void . lift . wrapHttp $ forPhoneKey pk $ \ph ->
-      if call
-        then sendActivationCall ph p loc
-        else sendActivationSms ph p loc
+sendActivationCode email loc _call = do
+  ek <-
+    either
+      (const . throwE . InvalidRecipient $ userEmailKey email)
+      (pure . userEmailKey)
+      (validateEmail email)
+  exists <- lift $ liftSem $ isJust <$> lookupKey ek
+  when exists $
+    throwE $
+      UserKeyInUse ek
+  blacklisted <- lift . liftSem $ BlacklistStore.exists ek
+  when blacklisted $
+    throwE (ActivationBlacklistedUserKey ek)
+  uc <- lift . wrapClient $ Data.lookupActivationCode ek
+  case uc of
+    Nothing -> sendVerificationEmail ek Nothing -- Fresh code request, no user
+    Just (Nothing, c) -> sendVerificationEmail ek (Just c) -- Re-requesting existing code
+    Just (Just uid, c) -> sendActivationEmail ek c uid -- User re-requesting activation
   where
     notFound = throwM . UserDisplayNameNotFound
     mkPair k c u = do
