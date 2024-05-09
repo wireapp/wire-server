@@ -38,7 +38,7 @@ testObject_NewUserPublic_user_1 =
         { newUserDisplayName =
             Name {fromName = "\\sY4]u\1033976\DLE\1027259\FS\ETX \US\ETB\1066640dw;}\1073386@\184511\r8"},
           newUserUUID = Nothing,
-          newUserIdentity = Just (PhoneIdentity (Phone {fromPhone = "+35453839"})),
+          newUserIdentity = Just (EmailIdentity (Email {emailLocal = "test", emailDomain = "example.com"})),
           newUserPict = Nothing,
           newUserAssets =
             [ ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete),
