@@ -294,13 +294,26 @@ type UserAPI =
 
 type SelfAPI =
   Named
-    "get-self"
+    "get-self-v5"
     ( Summary "Get your own profile"
         :> DescriptionOAuthScope 'ReadSelf
+        :> Until 'V6
         :> ZUser
         :> "self"
-        :> Get '[JSON] SelfProfile
+        :> MultiVerb1
+             'GET
+             '[JSON]
+             (VersionedRespond 'V5 200 "" SelfProfile)
     )
+    :<|> Named
+           "get-self"
+           ( Summary "Get your own profile"
+               :> DescriptionOAuthScope 'ReadSelf
+               :> From 'V6
+               :> ZUser
+               :> "self"
+               :> Get '[JSON] SelfProfile
+           )
     :<|>
     -- This endpoint can lead to the following events being sent:
     -- - UserDeleted event to contacts of self
