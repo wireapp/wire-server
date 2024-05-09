@@ -296,7 +296,7 @@ createUser ::
   NewUser ->
   ExceptT RegisterError (AppT r) CreateUserResult
 createUser new = do
-  (email, phone) <- validateEmailAndPhone new
+  email <- validateEmailAndPhone new
 
   -- get invitation and existing account
   (mNewTeamUser, teamInvitation, tid) <-
@@ -319,7 +319,7 @@ createUser new = do
 
   let (new', mbHandle) = case mbExistingAccount of
         Nothing ->
-          ( new {newUserIdentity = newIdentity email phone (newUserSSOId new)},
+          ( new {newUserIdentity = newIdentity email Nothing (newUserSSOId new)},
             Nothing
           )
         Just existingAccount ->
@@ -333,7 +333,7 @@ createUser new = do
                   _ -> newUserSSOId new
            in ( new
                   { newUserManagedBy = Just (userManagedBy existingUser),
-                    newUserIdentity = newIdentity email phone mbSSOid
+                    newUserIdentity = newIdentity email Nothing mbSSOid
                   },
                 userHandle existingUser
               )
@@ -387,7 +387,7 @@ createUser new = do
       then pure Nothing
       else handleEmailActivation email uid mNewTeamUser
 
-  pdata <- handlePhoneActivation phone uid
+  pdata <- handlePhoneActivation Nothing uid
 
   lift $ initAccountFeatureConfig uid
 
@@ -395,7 +395,7 @@ createUser new = do
   where
     -- NOTE: all functions in the where block don't use any arguments of createUser
 
-    validateEmailAndPhone :: NewUser -> ExceptT RegisterError (AppT r) (Maybe Email, Maybe Phone)
+    validateEmailAndPhone :: NewUser -> ExceptT RegisterError (AppT r) (Maybe Email)
     validateEmailAndPhone newUser = do
       -- Validate e-mail
       email <- for (newUserEmail newUser) $ \e ->
@@ -404,17 +404,14 @@ createUser new = do
           pure
           (validateEmail e)
 
-      -- Validate phone
-      phone <- for (newUserPhone newUser) $ \p ->
-        maybe
-          (throwE RegisterErrorInvalidPhone)
-          pure
-          =<< lift (wrapClient $ validatePhone p)
+      -- Disallow registering a user with a phone number
+      when (isJust (newUserPhone newUser)) $
+        throwE RegisterErrorInvalidPhone
 
-      for_ (catMaybes [userEmailKey <$> email, userPhoneKey <$> phone]) $ \k ->
+      for_ (userEmailKey <$> email) $ \k ->
         verifyUniquenessAndCheckBlacklist k !>> identityErrorToRegisterError
 
-      pure (email, phone)
+      pure email
 
     findTeamInvitation :: Maybe UserKey -> InvitationCode -> ExceptT RegisterError (AppT r) (Maybe (Team.Invitation, Team.InvitationInfo, TeamId))
     findTeamInvitation Nothing _ = throwE RegisterErrorMissingIdentity

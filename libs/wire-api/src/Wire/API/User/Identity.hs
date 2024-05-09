@@ -100,7 +100,22 @@ data UserIdentity
   | PhoneIdentity Phone
   | SSOIdentity UserSSOId (Maybe Email) (Maybe Phone)
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform UserIdentity)
+
+-- | A tag for the 'UserIdentity' type. The tags for the 'PhoneIdentity' and
+-- 'FullIdentity' cases are omitted because the 'Arbitrary' instance should not
+-- generate a user identity with a phone number. Phone number-based user
+-- accounts are no longer supported.
+data UserIdentityTag
+  = EmailIdentityTag
+  | SSOIdentityTag
+  deriving stock (Generic)
+  deriving (Arbitrary) via (GenericUniform UserIdentityTag)
+
+instance Arbitrary UserIdentity where
+  arbitrary =
+    arbitrary >>= \case
+      EmailIdentityTag -> EmailIdentity <$> arbitrary
+      SSOIdentityTag -> SSOIdentity <$> arbitrary <*> arbitrary <*> pure Nothing
 
 userIdentityObjectSchema :: ObjectSchema SwaggerDoc UserIdentity
 userIdentityObjectSchema =
