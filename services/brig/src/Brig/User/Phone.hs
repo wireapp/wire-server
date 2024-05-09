@@ -19,7 +19,6 @@
 
 module Brig.User.Phone
   ( ActivationSms (..),
-    sendActivationSms,
     PasswordResetSms (..),
     sendPasswordResetSms,
     LoginSms (..),
@@ -60,22 +59,6 @@ import Wire.API.User.Activation
 import Wire.API.User.Auth
 import Wire.API.User.Password
 import Wire.EmailSmsSubsystem.Template (TemplateBranding, renderTextWithBranding)
-
-sendActivationSms ::
-  ( MonadClient m,
-    MonadReader Env m,
-    MonadCatch m,
-    Log.MonadLogger m,
-    MonadMonitor m
-  ) =>
-  Phone ->
-  ActivationPair ->
-  Maybe Locale ->
-  m ()
-sendActivationSms to (_, c) loc = do
-  branding <- view templateBranding
-  (loc', tpl) <- userTemplates loc
-  sendSms loc' $ renderActivationSms (ActivationSms to c) (activationSms tpl) branding
 
 sendPasswordResetSms ::
   ( MonadClient m,
@@ -163,15 +146,6 @@ data ActivationSms = ActivationSms
   { actSmsTo :: !Phone,
     actSmsCode :: !ActivationCode
   }
-
-renderActivationSms :: ActivationSms -> ActivationSmsTemplate -> TemplateBranding -> SMSMessage
-renderActivationSms ActivationSms {..} (ActivationSmsTemplate url t from) branding =
-  SMSMessage from (fromPhone actSmsTo) (toStrict $ renderTextWithBranding t replace branding)
-  where
-    replace "code" = codeText
-    replace "url" = renderSmsActivationUrl url codeText
-    replace x = x
-    codeText = Ascii.toText (fromActivationCode actSmsCode)
 
 -------------------------------------------------------------------------------
 -- Password Reset SMS

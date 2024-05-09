@@ -28,6 +28,7 @@ import Test.Wire.API.Golden.Generated.SimpleMember_user
 import Test.Wire.API.Golden.Runner
 import Wire.API.Conversation (Conversation, MemberUpdate, OtherMemberUpdate)
 import Wire.API.User (NewUser, NewUserPublic)
+import Wire.API.User.Activation
 import Wire.API.User.Client (RmClient)
 
 tests :: TestTree
@@ -80,12 +81,16 @@ tests =
               "testObject_NewUser_user_6-3.json",
           testCase "testObject_NewUser_user_7.json" $
             testFromJSONFailureWithMsg @NewUser
-              (Just "Users cannot be registered with a phone number anymore")
+              (Just "Users cannot be registered with a phone number any more")
               "testObject_NewUser_user_7.json",
           testCase "testObject_NewUser_user_8.json" $
             testFromJSONFailureWithMsg @NewUser
-              (Just "Users cannot be registered with a phone number anymore")
-              "testObject_NewUser_user_8.json"
+              (Just "Users cannot be registered with a phone number any more")
+              "testObject_NewUser_user_8.json",
+          testCase "testObject_NewUser_user_9.json" $
+            testFromJSONFailureWithMsg @NewUser
+              (Just "Users cannot be registered with a phone number any more")
+              "testObject_NewUser_user_9.json"
         ],
       testGroup "NewUserPublic: failure" $
         [ testCase "testObject_NewUserPublic_user_1-2.json" $
@@ -96,5 +101,19 @@ tests =
             testFromJSONFailureWithMsg @NewUserPublic
               (Just "only managed-by-Wire users can be created here.")
               "testObject_NewUserPublic_user_1-3.json"
+        ],
+      testGroup "SendActivationCode: failure" $
+        [ testCase "testObject_SendActivationCode_user_1.json" $
+            testFromJSONFailureWithMsg @SendActivationCode
+              (Just "The phone option is not supported any more.")
+              "testObject_SendActivationCode_user_1.json",
+          testCase "testObject_SendActivationCode_user_2.json" $
+            testFromJSONFailureWithMsg @SendActivationCode
+              (Just "Only 'email' allowed. The phone option is not supported any more.")
+              "testObject_SendActivationCode_user_2.json",
+          testCase "testObject_SendActivationCode_user_3.json" $
+            testFromJSONFailureWithMsg @SendActivationCode
+              (Just "The 'email' field is required.")
+              "testObject_SendActivationCode_user_3.json"
         ]
     ]

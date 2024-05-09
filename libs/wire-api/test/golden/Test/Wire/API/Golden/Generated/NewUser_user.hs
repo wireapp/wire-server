@@ -79,7 +79,7 @@ testObject_NewUser_user_1 =
         ],
       newUserAccentId = Just (ColourId {fromColourId = -7404}),
       newUserEmailCode = Just (ActivationCode {fromActivationCode = fromRight undefined (validate "1YgaHo0=")}),
-      newUserPhoneCode = Just (ActivationCode {fromActivationCode = fromRight undefined (validate "z1OeJQ==")}),
+      newUserPhoneCode = Nothing,
       newUserOrigin =
         Just
           ( NewUserOriginInvitationCode
@@ -191,4 +191,16 @@ testObject_NewUser_user_8 =
               (Phone "+12345678")
           ),
       newUserPassword = Just (plainTextPassword8Unsafe "12345678")
+    }
+
+testObject_NewUser_user_9 :: NewUser
+testObject_NewUser_user_9 =
+  testObject_NewUser_user_1
+    { newUserPhoneCode =
+        Just
+          ( ActivationCode
+              { fromActivationCode =
+                  fromRight undefined (validate "z1OeJQ==")
+              }
+          )
     }

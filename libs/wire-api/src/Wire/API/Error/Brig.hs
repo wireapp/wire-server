@@ -181,7 +181,7 @@ type instance MapError 'AllowlistError = 'StaticError 403 "unauthorized" "Unauth
 
 type instance MapError 'InvalidInvitationCode = 'StaticError 400 "invalid-invitation-code" "Invalid invitation code."
 
-type instance MapError 'MissingIdentity = 'StaticError 403 "missing-identity" "Using an invitation code requires registering the given email and/or phone."
+type instance MapError 'MissingIdentity = 'StaticError 403 "missing-identity" "Using an invitation code requires registering the given email."
 
 type instance
   MapError 'BlacklistedEmail =

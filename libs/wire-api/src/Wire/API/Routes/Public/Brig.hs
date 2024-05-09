@@ -481,8 +481,8 @@ type AccountAPI =
     ( Summary "Register a new user."
         :> Description
              "If the environment where the registration takes \
-             \place is private and a registered email address or phone \
-             \number is not whitelisted, a 403 error is returned."
+             \place is private and a registered email address \
+             \is not whitelisted, a 403 error is returned."
         :> MakesFederatedCall 'Brig "send-connection-action"
         :> "register"
         :> ReqBody '[JSON] NewUserPublic
@@ -550,7 +550,7 @@ type AccountAPI =
     -- docs/reference/user/activation.md {#RefActivationRequest}
     :<|> Named
            "post-activate-send"
-           ( Summary "Send (or resend) an email or phone activation code."
+           ( Summary "Send (or resend) an email activation code."
                :> CanThrow 'UserKeyExists
                :> CanThrow 'InvalidEmail
                :> CanThrow 'InvalidPhone

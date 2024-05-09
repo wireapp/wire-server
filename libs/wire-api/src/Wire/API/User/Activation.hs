@@ -195,7 +195,7 @@ instance ToSchema ActivationResponse where
 -- for a phone number or e-mail address. If a phone is used,
 -- one can also request a call instead of SMS.
 data SendActivationCode = SendActivationCode
-  { saUserKey :: Either Email Phone,
+  { saUserKey :: Email,
     saLocale :: Maybe Locale,
     saCall :: Bool
   }
@@ -211,33 +211,31 @@ instance ToSchema SendActivationCode where
         <*> saLocale .= maybe_ (optFieldWithDocModifier "locale" (description ?~ "Locale to use for the activation code template.") schema)
         <*> saCall .= (fromMaybe False <$> optFieldWithDocModifier "voice_call" (description ?~ "Request the code with a call instead (default is SMS).") schema)
     where
-      maybeUserKeyToTuple :: Either Email Phone -> (Maybe Email, Maybe Phone)
-      maybeUserKeyToTuple = \case
-        Left email -> (Just email, Nothing)
-        Right phone -> (Nothing, Just phone)
+      maybeUserKeyToTuple :: Email -> (Maybe Email, Maybe Phone)
+      maybeUserKeyToTuple email = (Just email, Nothing)
 
       objectDesc :: NamedSwaggerDoc -> NamedSwaggerDoc
       objectDesc =
         description
-          ?~ "Data for requesting an email or phone activation code to be sent. \
-             \One of 'email' or 'phone' must be present."
+          ?~ "Data for requesting an email activation code to be sent. \
+             \'email' must be present. Phone activation code is not supported any more."
 
-      userKeyObjectSchema :: ObjectSchemaP SwaggerDoc (Maybe Email, Maybe Phone) (Either Email Phone)
+      userKeyObjectSchema :: ObjectSchemaP SwaggerDoc (Maybe Email, Maybe Phone) Email
       userKeyObjectSchema =
         withParser userKeyTupleObjectSchema maybeUserKeyFromTuple
         where
           userKeyTupleObjectSchema :: ObjectSchema SwaggerDoc (Maybe Email, Maybe Phone)
           userKeyTupleObjectSchema =
             (,)
-              <$> fst .= maybe_ (optFieldWithDocModifier "email" phoneDocs schema)
-              <*> snd .= maybe_ (optFieldWithDocModifier "phone" emailDocs schema)
+              <$> fst .= maybe_ (optFieldWithDocModifier "email" emailDocs schema)
+              <*> snd .= maybe_ (optFieldWithDocModifier "phone" phoneDocs schema)
             where
               emailDocs = description ?~ "Email address to send the code to."
-              phoneDocs = description ?~ "E.164 phone number to send the code to."
+              phoneDocs = description ?~ "Phone number based activation is not supported any more. This field is ignored."
 
-          maybeUserKeyFromTuple :: (Maybe Email, Maybe Phone) -> Parser (Either Email Phone)
+          maybeUserKeyFromTuple :: (Maybe Email, Maybe Phone) -> Parser Email
           maybeUserKeyFromTuple = \case
-            (Just _, Just _) -> fail "Only one of 'email' or 'phone' allowed."
-            (Just email, Nothing) -> pure $ Left email
-            (Nothing, Just phone) -> pure $ Right phone
-            (Nothing, Nothing) -> fail "One of 'email' or 'phone' required."
+            (Just _, Just _) -> fail "Only 'email' allowed. The phone option is not supported any more."
+            (Just email, Nothing) -> pure email
+            (Nothing, Just _) -> fail "The phone option is not supported any more."
+            (Nothing, Nothing) -> fail "The 'email' field is required."

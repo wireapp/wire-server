@@ -56,8 +56,6 @@ data CreateUserResult = CreateUserResult
     createdAccount :: !UserAccount,
     -- | Activation data for the registered email address, if any.
     createdEmailActivation :: !(Maybe Activation),
-    -- | Activation data for the registered phone number, if any.
-    createdPhoneActivation :: !(Maybe Activation),
     -- | Info of a team just created/joined
     createdUserTeam :: !(Maybe CreateUserTeam)
   }

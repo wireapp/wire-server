@@ -52,8 +52,7 @@ testObject_NewUserPublic_user_1 =
                   { fromActivationCode = fromRight undefined (validate "cfTQLlhl6H6sYloQXsghILggxWoGhM2WGbxjzm0=")
                   }
               ),
-          newUserPhoneCode =
-            Just (ActivationCode {fromActivationCode = fromRight undefined (validate "wCWrnJoscPLT")}),
+          newUserPhoneCode = Nothing,
           newUserOrigin =
             Just
               ( NewUserOriginTeamUser

@@ -1,4 +1,6 @@
 {
     "email": "test@example.com",
+    "phone": "+8943652812",
+    "locale": "cu-VI",
     "voice_call": false
 }
