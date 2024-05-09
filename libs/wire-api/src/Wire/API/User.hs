@@ -875,6 +875,8 @@ validateNewUserPublic nu
       Left "only managed-by-Wire users can be created here."
   | isJust (newUserPhone nu) =
       Left "A new user cannot be registered with a phone number"
+  | isJust (newUserPhoneCode nu) =
+      Left "A new user cannot be activated via a phone number"
   | otherwise =
       Right (NewUserPublic nu)
 
@@ -1141,6 +1143,7 @@ data NewUserRaw = NewUserRaw
     newUserRawAssets :: [Asset],
     newUserRawAccentId :: Maybe ColourId,
     newUserRawEmailCode :: Maybe ActivationCode,
+    -- | This is deprecated and it should always be 'Nothing'.
     newUserRawPhoneCode :: Maybe ActivationCode,
     newUserRawInvitationCode :: Maybe InvitationCode,
     newUserRawTeamCode :: Maybe InvitationCode,
@@ -1166,7 +1169,7 @@ newUserRawObjectSchema =
     <*> newUserRawPhone
       .= withParser
         (maybe_ (optFieldWithDocModifier "phone" phoneDesc schema))
-        (either fail pure . validateNewUserRawPhone)
+        (either fail pure . validateNewUserRawPhoneEntity)
     <*> newUserRawSSOId
       .= maybe_ (optField "sso_id" genericToSchema)
     <*> newUserRawPict
@@ -1178,7 +1181,9 @@ newUserRawObjectSchema =
     <*> newUserRawEmailCode
       .= maybe_ (optField "email_code" schema)
     <*> newUserRawPhoneCode
-      .= maybe_ (optField "phone_code" schema)
+      .= withParser
+        (maybe_ (optFieldWithDocModifier "phone_code" phoneDesc schema))
+        (either fail pure . validateNewUserRawPhoneEntity)
     <*> newUserRawInvitationCode
       .= maybe_ (optField "invitation_code" schema)
     <*> newUserRawTeamCode
@@ -1204,9 +1209,9 @@ newUserRawObjectSchema =
       v
         & description ?~ "Deprecated, please ignore."
         & S.deprecated ?~ True
-    validateNewUserRawPhone :: Maybe Phone -> Either String (Maybe Phone)
-    validateNewUserRawPhone Nothing = Right Nothing
-    validateNewUserRawPhone (Just _) = Left "Users cannot be registered with a phone number anymore"
+    validateNewUserRawPhoneEntity :: Maybe a -> Either String (Maybe a)
+    validateNewUserRawPhoneEntity Nothing = Right Nothing
+    validateNewUserRawPhoneEntity (Just _) = Left "Users cannot be registered with a phone number any more"
 
 instance ToSchema NewUser where
   schema =
@@ -1257,6 +1262,8 @@ newUserFromRaw NewUserRaw {..} = do
     case (newUserRawExpiresIn, identity) of
       (Just _, Just _) -> fail "Only users without an identity can expire"
       _ -> pure newUserRawExpiresIn
+  when (isJust newUserRawPhoneCode) $
+    fail "The account cannot be activated via a phone number any more"
   pure $
     NewUser
       { newUserDisplayName = newUserRawDisplayName,
@@ -1287,7 +1294,7 @@ instance Arbitrary NewUser where
     newUserAssets <- arbitrary
     newUserAccentId <- arbitrary
     newUserEmailCode <- arbitrary
-    newUserPhoneCode <- arbitrary
+    let newUserPhoneCode = Nothing
     newUserLabel <- arbitrary
     newUserLocale <- arbitrary
     newUserPassword <- genUserPassword newUserIdentity newUserOrigin

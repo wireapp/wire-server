@@ -468,8 +468,7 @@ createUserNoVerify uData = lift . runExceptT $ do
   let usr = accountUser acc
   let uid = userId usr
   let eac = createdEmailActivation result
-  let pac = createdPhoneActivation result
-  for_ (catMaybes [eac, pac]) $ \adata ->
+  for_ eac $ \adata ->
     let key = ActivateKey $ activationKey adata
         code = activationCode adata
      in API.activate key code (Just uid) !>> activationErrorToRegisterError
@@ -494,8 +493,7 @@ createUserNoVerifySpar uData =
     let usr = accountUser acc
     let uid = userId usr
     let eac = createdEmailActivation result
-    let pac = createdPhoneActivation result
-    for_ (catMaybes [eac, pac]) $ \adata ->
+    for_ eac $ \adata ->
       let key = ActivateKey $ activationKey adata
           code = activationCode adata
        in API.activate key code (Just uid) !>> CreateUserSparRegistrationError . activationErrorToRegisterError
