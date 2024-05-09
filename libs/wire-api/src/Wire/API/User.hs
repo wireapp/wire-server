@@ -875,6 +875,8 @@ validateNewUserPublic nu
       Left "it is not allowed to provide a UUID for the users here."
   | newUserManagedBy nu `notElem` [Nothing, Just ManagedByWire] =
       Left "only managed-by-Wire users can be created here."
+  | isJust (newUserPhone nu) =
+      Left "A new user cannot be registered with a phone number"
   | otherwise =
       Right (NewUserPublic nu)
 
@@ -1133,6 +1135,7 @@ data NewUserRaw = NewUserRaw
   { newUserRawDisplayName :: Name,
     newUserRawUUID :: Maybe UUID,
     newUserRawEmail :: Maybe Email,
+    -- | This is deprecated and it should always be 'Nothing'.
     newUserRawPhone :: Maybe Phone,
     newUserRawSSOId :: Maybe UserSSOId,
     -- | DEPRECATED
@@ -1163,7 +1166,9 @@ newUserRawObjectSchema =
     <*> newUserRawEmail
       .= maybe_ (optField "email" schema)
     <*> newUserRawPhone
-      .= maybe_ (optField "phone" schema)
+      .= withParser
+        (maybe_ (optFieldWithDocModifier "phone" phoneDesc schema))
+        (either fail pure . validateNewUserRawPhone)
     <*> newUserRawSSOId
       .= maybe_ (optField "sso_id" genericToSchema)
     <*> newUserRawPict
@@ -1196,6 +1201,14 @@ newUserRawObjectSchema =
       .= maybe_ (optField "managed_by" schema)
     <*> newUserRawSupportedProtocols
       .= maybe_ (optField "supported_protocols" (set schema))
+  where
+    phoneDesc v =
+      v
+        & description ?~ "Deprecated, please ignore."
+        & S.deprecated ?~ True
+    validateNewUserRawPhone :: Maybe Phone -> Either String (Maybe Phone)
+    validateNewUserRawPhone Nothing = Right Nothing
+    validateNewUserRawPhone (Just _) = Left "Users cannot be registered with a phone number anymore"
 
 instance ToSchema NewUser where
   schema =
@@ -1235,7 +1248,13 @@ newUserFromRaw NewUserRaw {..} = do
         (isJust newUserRawPassword)
         (isJust newUserRawSSOId)
         (newUserRawInvitationCode, newUserRawTeamCode, newUserRawTeam, newUserRawTeamId)
-  let identity = maybeUserIdentityFromComponents (newUserRawEmail, newUserRawPhone, newUserRawSSOId)
+  let identity =
+        maybeUserIdentityFromComponents
+          (newUserRawEmail, newUserRawPhone, newUserRawSSOId)
+  case identity of
+    Just (FullIdentity _ _) -> fail "New users cannot be registered with a phone number"
+    Just (PhoneIdentity _) -> fail "New users cannot be registered with a phone number"
+    _ -> pure ()
   expiresIn <-
     case (newUserRawExpiresIn, identity) of
       (Just _, Just _) -> fail "Only users without an identity can expire"

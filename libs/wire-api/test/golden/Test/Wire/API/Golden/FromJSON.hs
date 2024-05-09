@@ -77,7 +77,15 @@ tests =
           testCase "testObject_NewUser_user_6-3.json" $
             testFromJSONFailureWithMsg @NewUser
               (Just "sso_id, team_id must be either both present or both absent.")
-              "testObject_NewUser_user_6-3.json"
+              "testObject_NewUser_user_6-3.json",
+          testCase "testObject_NewUser_user_7.json" $
+            testFromJSONFailureWithMsg @NewUser
+              (Just "Users cannot be registered with a phone number anymore")
+              "testObject_NewUser_user_7.json",
+          testCase "testObject_NewUser_user_8.json" $
+            testFromJSONFailureWithMsg @NewUser
+              (Just "Users cannot be registered with a phone number anymore")
+              "testObject_NewUser_user_8.json"
         ],
       testGroup "NewUserPublic: failure" $
         [ testCase "testObject_NewUserPublic_user_1-2.json" $

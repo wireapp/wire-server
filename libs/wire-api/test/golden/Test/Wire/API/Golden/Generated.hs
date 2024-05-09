@@ -860,12 +860,6 @@ tests =
             ),
             ( Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_6,
               "testObject_NewUser_user_6.json"
-            ),
-            ( Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_7,
-              "testObject_NewUser_user_7.json"
-            ),
-            ( Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_8,
-              "testObject_NewUser_user_8.json"
             )
           ],
       testGroup "Golden: NewUserPublic_user" $

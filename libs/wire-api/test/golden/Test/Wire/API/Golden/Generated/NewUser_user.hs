@@ -54,11 +54,7 @@ import Wire.API.User
     NewUser (..),
     NewUserOrigin (..),
     Pict (Pict, fromPict),
-    UserIdentity
-      ( EmailIdentity,
-        PhoneIdentity,
-        SSOIdentity
-      ),
+    UserIdentity (..),
     emptyNewUser,
   )
 import Wire.API.User.Activation (ActivationCode (ActivationCode, fromActivationCode))
@@ -184,6 +180,15 @@ testObject_NewUser_user_8 =
       (Name {fromName = "test name"})
   )
     { newUserOrigin = Just (NewUserOriginTeamUser (NewTeamMember invCode)),
-      newUserIdentity = Just (PhoneIdentity (Phone "+12345678")),
+      newUserIdentity =
+        Just
+          ( FullIdentity
+              ( Email
+                  { emailLocal = "S\ENQX\1076723$\STX\"\1110507e\1015716\24831\1031964L\ETB",
+                    emailDomain = "P.b"
+                  }
+              )
+              (Phone "+12345678")
+          ),
       newUserPassword = Just (plainTextPassword8Unsafe "12345678")
     }
