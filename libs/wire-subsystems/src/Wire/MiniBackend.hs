@@ -16,6 +16,7 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.Internal
 import Polysemy.State
 import Servant.Client.Core
 import Test.QuickCheck
@@ -35,6 +36,8 @@ import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.Sequential
 import Wire.Sem.Now
 import Wire.StoredUser
+import Wire.UserEvents
+import Wire.UserEvents.Null
 import Wire.UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Interpreter
@@ -56,17 +59,22 @@ instance Arbitrary NotPendingStoredUser where
     notPendingStatus <- elements (Nothing : map Just [Active, Suspended, Deleted, Ephemeral])
     pure $ NotPendingStoredUser (user {status = notPendingStatus})
 
+type AllErrors =
+  [ Error UserSubsystemError,
+    Error FederationError
+  ]
+
 type GetUserProfileEffects =
   [ UserSubsystem,
     GalleyAPIAccess,
     UserStore,
     DeleteQueue,
+    UserEvents,
     State [InternalNotification],
     Now,
     Input UserSubsystemConfig,
     FederationAPIAccess MiniFederationMonad,
-    Concurrency 'Unsafe,
-    Error FederationError
+    Concurrency 'Unsafe
   ]
 
 -- | a type representing the state of a single backend
@@ -199,33 +207,32 @@ runFederationStack ::
   Map Domain MiniBackend ->
   Maybe TeamMember ->
   UserSubsystemConfig ->
-  Sem GetUserProfileEffects a ->
+  Sem (GetUserProfileEffects `Append` AllErrors) a ->
   a
 runFederationStack allLocalUsers fedBackends teamMember cfg =
-  let unsafeError e = error $ "Unexpected error: " <> displayException e
-   in either unsafeError Imports.id
-        . runFederationStackEither
-          allLocalUsers
-          fedBackends
-          teamMember
-          cfg
+  runAllErrorsUnsafe
+    . interpretFederationStackEither
+      allLocalUsers
+      fedBackends
+      teamMember
+      cfg
 
-runFederationStackEither ::
+interpretFederationStackEither ::
+  (Members AllErrors r) =>
   [StoredUser] ->
   -- | the available backend
   Map Domain MiniBackend ->
   Maybe TeamMember ->
   UserSubsystemConfig ->
-  Sem GetUserProfileEffects a ->
-  Either FederationError a
-runFederationStackEither allLocalUsers backends teamMember cfg =
-  run
-    . runError
-    . sequentiallyPerformConcurrency
+  Sem (GetUserProfileEffects `Append` r) a ->
+  Sem r a
+interpretFederationStackEither allLocalUsers backends teamMember cfg =
+  sequentiallyPerformConcurrency
     . miniFederationAPIAccess backends
     . runInputConst cfg
     . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
     . evalState []
+    . nullUserEventsInterpreter
     . inMemoryDeleteQueueInterpreter
     . staticUserStoreInterpreter allLocalUsers
     . miniGalleyAPIAccess teamMember
@@ -235,16 +242,25 @@ runNoFederationStack ::
   [StoredUser] ->
   Maybe TeamMember ->
   UserSubsystemConfig ->
-  Sem GetUserProfileEffects a ->
+  Sem (GetUserProfileEffects `Append` AllErrors) a ->
   a
 runNoFederationStack allUsers teamMember cfg =
-  run
-    . runErrorUnsafe
-    . sequentiallyPerformConcurrency
+  runAllErrorsUnsafe . interpretNoFederationStack allUsers teamMember cfg
+
+interpretNoFederationStack ::
+  (Members AllErrors r) =>
+  [StoredUser] ->
+  Maybe TeamMember ->
+  UserSubsystemConfig ->
+  Sem (GetUserProfileEffects `Append` r) a ->
+  Sem r a
+interpretNoFederationStack allUsers teamMember cfg =
+  sequentiallyPerformConcurrency
     . emptyFederationAPIAcesss
     . runInputConst cfg
     . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
     . evalState []
+    . nullUserEventsInterpreter
     . inMemoryDeleteQueueInterpreter
     . staticUserStoreInterpreter allUsers
     . miniGalleyAPIAccess teamMember
@@ -256,6 +272,9 @@ runErrorUnsafe action = do
   case res of
     Left e -> error $ "Unexpected error: " <> displayException e
     Right x -> pure x
+
+runAllErrorsUnsafe :: forall a. Sem AllErrors a -> a
+runAllErrorsUnsafe = run . runErrorUnsafe . runErrorUnsafe
 
 emptyFederationAPIAcesss :: InterpreterFor (FederationAPIAccess MiniFederationMonad) r
 emptyFederationAPIAcesss = interpret $ \case
@@ -281,6 +300,7 @@ miniFederationAPIAccess online = do
 staticUserStoreInterpreter :: [StoredUser] -> InterpreterFor UserStore r
 staticUserStoreInterpreter allUsers = interpret $ \case
   GetUser uid -> pure $ find (\user -> user.id == uid) allUsers
+  UpdateUser _uid _update -> error "TODO: UpdateUser"
 
 miniGalleyAPIAccess :: Maybe TeamMember -> InterpreterFor GalleyAPIAccess r
 miniGalleyAPIAccess member = interpret $ \case

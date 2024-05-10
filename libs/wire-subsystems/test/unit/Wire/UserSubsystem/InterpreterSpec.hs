@@ -11,6 +11,8 @@ import Data.LegalHold (defUserLegalHoldStatus)
 import Data.Qualified
 import Data.Set qualified as S
 import Imports
+import Polysemy
+import Polysemy.Error
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
@@ -72,14 +74,18 @@ spec = describe "UserSubsystem.Interpreter" do
             config = UserSubsystemConfig visibility miniLocale
 
             result =
-              runFederationStackEither [viewer] online Nothing config $
-                getUserProfiles
+              run
+                . runErrorUnsafe @UserSubsystemError
+                . runError @FederationError
+                . interpretFederationStackEither [viewer] online Nothing config
+                $ getUserProfiles
                   (toLocalUnsafe localDomain viewer.id)
                   (onlineUsers <> offlineUsers)
+
         localDomain /= offlineDomain && offlineTargetUsers /= [] ==>
           -- The FederationError doesn't have an instance
           -- for Eq because of dependency on HTTP2Error
-          first (displayException) result
+          first displayException result
             === Left (displayException (FederationUnexpectedError "RunFederatedEither"))
 
     describe "[without federation]" do

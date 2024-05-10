@@ -183,11 +183,6 @@ import Wire.Sem.Concurrency
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserSubsystem
 
-data AllowSCIMUpdates
-  = AllowSCIMUpdates
-  | ForbidSCIMUpdates
-  deriving (Show, Eq, Ord)
-
 -------------------------------------------------------------------------------
 -- Create User
 

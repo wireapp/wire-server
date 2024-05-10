@@ -19,8 +19,10 @@ import Polysemy.Input
 import Servant.Client.Core
 import Wire.API.Federation.API
 import Wire.API.Federation.Error
+import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.User
+import Wire.API.UserEvent (profileUpdated)
 import Wire.DeleteQueue
 import Wire.FederationAPIAccess
 import Wire.GalleyAPIAccess
@@ -28,8 +30,9 @@ import Wire.Sem.Concurrency
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredUser
+import Wire.UserEvents
 import Wire.UserStore
-import Wire.UserSubsystem (UserSubsystem (..))
+import Wire.UserSubsystem (AllowSCIMUpdates (..), UserSubsystem (..), UserSubsystemError (..))
 
 data UserSubsystemConfig = UserSubsystemConfig
   { emailVisibilityConfig :: EmailVisibilityConfig,
@@ -41,8 +44,10 @@ runUserSubsystem ::
     Member UserStore r,
     Member (Concurrency 'Unsafe) r, -- FUTUREWORK: subsystems should implement concurrency inside interpreters, not depend on this dangerous effect.
     Member (Error FederationError) r,
+    Member (Error UserSubsystemError) r,
     Member (FederationAPIAccess fedM) r,
     Member DeleteQueue r,
+    Member UserEvents r,
     Member Now r,
     RunClient (fedM 'Brig),
     FederationMonad fedM,
@@ -50,10 +55,29 @@ runUserSubsystem ::
   ) =>
   UserSubsystemConfig ->
   InterpreterFor UserSubsystem r
-runUserSubsystem cfg = interpret $ \case
-  GetUserProfiles self others -> runInputConst cfg $ getUserProfilesImpl self others
-  GetLocalUserProfiles others -> runInputConst cfg $ getLocalUserProfilesImpl others
-  GetUserProfilesWithErrors self others -> runInputConst cfg $ getUserProfilesWithErrorsImpl self others
+runUserSubsystem cfg = runInputConst cfg . interpretUserSubsystem . raiseUnder
+
+interpretUserSubsystem ::
+  ( Member GalleyAPIAccess r,
+    Member UserStore r,
+    Member (Concurrency 'Unsafe) r,
+    Member (Error FederationError) r,
+    Member (Error UserSubsystemError) r,
+    Member (FederationAPIAccess fedM) r,
+    Member (Input UserSubsystemConfig) r,
+    Member DeleteQueue r,
+    Member UserEvents r,
+    Member Now r,
+    RunClient (fedM 'Brig),
+    FederationMonad fedM,
+    Typeable fedM
+  ) =>
+  InterpreterFor UserSubsystem r
+interpretUserSubsystem = interpret $ \case
+  GetUserProfiles self others -> getUserProfilesImpl self others
+  GetLocalUserProfiles others -> getLocalUserProfilesImpl others
+  GetUserProfilesWithErrors self others -> getUserProfilesWithErrorsImpl self others
+  UpdateUserProfile self mconn update allowScim -> updateUserProfileImpl self mconn update allowScim
 
 -- | Obtain user profiles for a list of users as they can be seen by
 -- a given user 'self'. If 'self' is an unknown 'UserId', return '[]'.
@@ -238,3 +262,35 @@ getUserProfilesWithErrorsImpl self others = do
 
     renderBucketError :: (FederationError, Qualified [UserId]) -> [(Qualified UserId, FederationError)]
     renderBucketError (err, qlist) = (,err) . (flip Qualified (qDomain qlist)) <$> qUnqualified qlist
+
+updateUserProfileImpl ::
+  ( Member UserStore r,
+    Member (Error UserSubsystemError) r,
+    Member UserEvents r,
+    Member GalleyAPIAccess r
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  UserUpdate ->
+  AllowSCIMUpdates ->
+  Sem r ()
+updateUserProfileImpl (tUnqualified -> uid) mconn update allowScim = do
+  -- check if name updates are allowed
+  for_ (uupName update) $ \newName -> do
+    mbUser <- getUser uid
+    user <- maybe (throw UserSubsystemProfileNotFound) pure mbUser
+    unless
+      ( user.managedBy /= Just ManagedByScim
+          || user.name == newName
+          || allowScim == AllowSCIMUpdates
+      )
+      $ throw UserSubsystemDisplayNameManagedByScim
+    hasE2EId <-
+      wsStatus . afcMlsE2EId <$> getAllFeatureConfigsForUser (Just uid) <&> \case
+        FeatureStatusEnabled -> True
+        FeatureStatusDisabled -> False
+    when (hasE2EId && newName /= user.name) $
+      throw UserSubsystemDisplayNameManagedByScim
+
+  updateUser uid update
+  onUserEvent uid mconn (profileUpdated uid update)
