@@ -63,7 +63,7 @@ spec = do
   specDeleteToken
   specListTokens
   describe "Miscellaneous" $ do
-    it "doesn't allow SCIM operations with invalid or missing SCIM token" testAuthIsNeeded
+    it "testAuthIsNeeded - doesn't allow SCIM operations with invalid or missing SCIM token" testAuthIsNeeded
 
 ----------------------------------------------------------------------------
 -- Token creation
@@ -74,9 +74,9 @@ specCreateToken = describe "POST /auth-tokens" $ do
   it "works" testCreateToken
   it "respects the token limit" testTokenLimit
   it "requires the team to have no more than one IdP" testNumIdPs
-  it "authorizes only admins and owners" testCreateTokenAuthorizesOnlyAdmins
+  it "testCreateTokenAuthorizesOnlyAdmins - authorizes only admins and owners" testCreateTokenAuthorizesOnlyAdmins
   it "requires a password" testCreateTokenRequiresPassword
-  it "works with verification code" testCreateTokenWithVerificationCode
+  it "testCreateTokenWithVerificationCode - works with verification code" testCreateTokenWithVerificationCode
 
 -- FUTUREWORK: we should also test that for a password-less user, e.g. for an SSO user,
 -- reauthentication is not required. We currently (2019-03-05) can't test that because
@@ -106,8 +106,6 @@ testCreateToken = do
   listUsers_ (Just token) (Just fltr) (env ^. teSpar)
     !!! const 200 === statusCode
 
--- @SF.Channel @TSFI.RESTfulAPI @S2
---
 -- Test positive case but also that a SCIM token cannot be created with wrong
 -- or missing second factor email verification code when this feature is enabled
 testCreateTokenWithVerificationCode :: TestSpar ()
@@ -142,8 +140,6 @@ testCreateTokenWithVerificationCode = do
     requestVerificationCode brig email action = do
       call $
         post (brig . paths ["verification-code", "send"] . contentJson . json (Public.SendVerificationCode action email))
-
--- @END
 
 unlockFeature :: GalleyReq -> TeamId -> TestSpar ()
 unlockFeature galley tid =
@@ -223,7 +219,6 @@ testNumIdPs = do
   createToken_ owner (CreateScimToken "drei" (Just defPassword) Nothing) (env ^. teSpar)
     !!! checkErr 400 (Just "more-than-one-idp")
 
--- @SF.Provisioning @TSFI.RESTfulAPI @S2
 -- Test that a token can only be created as a team owner
 testCreateTokenAuthorizesOnlyAdmins :: TestSpar ()
 testCreateTokenAuthorizesOnlyAdmins = do
@@ -255,8 +250,6 @@ testCreateTokenAuthorizesOnlyAdmins = do
 
   (mkUser RoleAdmin >>= createToken')
     !!! const 200 === statusCode
-
--- @END
 
 -- | Test that for a user with a password, token creation requires reauthentication (i.e. the
 -- field @"password"@ should be provided).
@@ -456,7 +449,6 @@ testDeletedTokensAreUnlistable = do
 ----------------------------------------------------------------------------
 -- Miscellaneous tests
 
--- @SF.Provisioning @TSFI.RESTfulAPI @S2
 -- This test verifies that the SCIM API responds with an authentication error
 -- and can't be used if it receives an invalid secret token
 -- or if no token is provided at all
@@ -468,5 +460,3 @@ testAuthIsNeeded = do
   listUsers_ (Just invalidToken) Nothing (env ^. teSpar) !!! checkErr 401 Nothing
   -- Try to do @GET /Users@ without a token and check that it fails
   listUsers_ Nothing Nothing (env ^. teSpar) !!! checkErr 401 Nothing
-
--- @END
