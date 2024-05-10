@@ -129,7 +129,6 @@ testValidatesCertificateSuccess =
             Right _ -> assertFailure "Congratulations, you fixed a known issue!"
     ]
 
--- @SF.Federation @TSFI.Federate @TSFI.DNS @S2
 --
 -- This is a group of test cases where refusing to connect with the server is
 -- checked. The second test case refuses to connect with a server when the
@@ -138,7 +137,7 @@ testValidatesCertificateSuccess =
 testValidatesCertificateWrongHostname :: TestTree
 testValidatesCertificateWrongHostname =
   testGroup
-    "refuses to connect with server"
+    "testValidatesCertificateWrongHostname - refuses to connect with server"
     [ testCase "when the server's certificate doesn't match the hostname" $
         withMockServer certForWrongDomain $ \port -> do
           tlsSettings <- mkTLSSettingsOrThrow settings
@@ -154,8 +153,6 @@ testValidatesCertificateWrongHostname =
             Left x -> assertFailure $ "Expected TLS failure, got: " <> show x
             Right _ -> assertFailure "Expected connection with the server to fail"
     ]
-
--- @END
 
 testConnectionError :: TestTree
 testConnectionError = testCase "connection failures are reported correctly" $ do

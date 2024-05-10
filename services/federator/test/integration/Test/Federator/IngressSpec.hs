@@ -73,45 +73,42 @@ spec env = do
             responseStatusCode resp `shouldBe` HTTP.status200
             actualProfile `shouldBe` Just [expectedProfile]
 
-  -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
-  --
-  -- This test was primarily intended to test that federator is using the API right (header
-  -- name etc.), but it is also effectively testing that federator rejects clients without
-  -- certificates that have been validated by ingress.
-  --
-  -- We can't test end-to-end here: the TLS termination happens in k8s, and would have to be
-  -- tested there (and with a good emulation of the concrete configuration of the prod
-  -- system).
-  it "rejectRequestsWithoutClientCertIngress" $
-    runTestFederator env $ do
-      brig <- view teBrig <$> ask
-      user <- randomUser brig
-      hdl <- randomHandle
-      _ <- putHandle brig (userId user) hdl
+  it "testRejectRequestsWithoutClientCertIngress" (testRejectRequestsWithoutClientCertIngress env)
 
-      settings <- view teSettings
-      sslCtxWithoutCert <-
-        either (throwM @_ @FederationSetupError) pure
-          <=< runM
-            . runEmbedded (liftIO @(TestFederator IO))
-            . runError
-          $ mkSSLContextWithoutCert settings
-      runTestSem $ do
-        r <-
-          runError @RemoteError $
-            inwardBrigCallViaIngressWithSettings
-              sslCtxWithoutCert
-              "get-user-by-handle"
-              (Aeson.fromEncoding (Aeson.toEncoding hdl))
-        liftToCodensity . embed $ case r of
-          Right _ -> expectationFailure "Expected client certificate error, got response"
-          Left (RemoteError {}) ->
-            expectationFailure "Expected client certificate error, got remote error"
-          Left (RemoteErrorResponse _ _ status _) -> status `shouldBe` HTTP.status400
+--
+-- This test was primarily intended to test that federator is using the API right (header
+-- name etc.), but it is also effectively testing that federator rejects clients without
+-- certificates that have been validated by ingress.
+--
+-- We can't test end-to-end here: the TLS termination happens in k8s, and would have to be
+-- tested there (and with a good emulation of the concrete configuration of the prod
+-- system).
+testRejectRequestsWithoutClientCertIngress :: TestEnv -> IO ()
+testRejectRequestsWithoutClientCertIngress env = runTestFederator env $ do
+  brig <- view teBrig <$> ask
+  user <- randomUser brig
+  hdl <- randomHandle
+  _ <- putHandle brig (userId user) hdl
 
--- FUTUREWORK: ORMOLU_DISABLE
--- @END
--- ORMOLU_ENABLE
+  settings <- view teSettings
+  sslCtxWithoutCert <-
+    either (throwM @_ @FederationSetupError) pure
+      <=< runM
+        . runEmbedded (liftIO @(TestFederator IO))
+        . runError
+      $ mkSSLContextWithoutCert settings
+  runTestSem $ do
+    r <-
+      runError @RemoteError $
+        inwardBrigCallViaIngressWithSettings
+          sslCtxWithoutCert
+          "get-user-by-handle"
+          (Aeson.fromEncoding (Aeson.toEncoding hdl))
+    liftToCodensity . embed $ case r of
+      Right _ -> expectationFailure "Expected client certificate error, got response"
+      Left (RemoteError {}) ->
+        expectationFailure "Expected client certificate error, got remote error"
+      Left (RemoteErrorResponse _ _ status _) -> status `shouldBe` HTTP.status400
 
 liftToCodensity :: Member (Embed (Codensity IO)) r => Sem (Embed IO ': r) a -> Sem r a
 liftToCodensity = runEmbedded @IO @(Codensity IO) lift

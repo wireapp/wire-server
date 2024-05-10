@@ -79,14 +79,7 @@ spec env =
 
         liftIO $ bdy `shouldBe` [expectedProfile]
 
-    -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
-    --
-    -- This test is covered by the unit tests 'validateDomainCertWrongDomain' because
-    -- the domain matching is checked on certificate validation.
-    it "shouldRejectMissmatchingOriginDomainInward" $
-      runTestFederator env $
-        pure ()
-    -- @END
+    it "testShouldRejectMissmatchingOriginDomainInward" (testShouldRejectMissmatchingOriginDomainInward env)
 
     it "should be able to call cargohold" $
       runTestFederator env $ do
@@ -117,23 +110,24 @@ spec env =
         inwardCall "/i/users" (encode o)
           !!! const 404 === statusCode
 
-    -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
-    --
-    -- See related tests in unit tests (for matching client certificates against domain names)
-    -- and "IngressSpec".
-    it "rejectRequestsWithoutClientCertInward" $
-      runTestFederator env $ do
-        originDomain <- originDomain <$> view teTstOpts
-        hdl <- randomHandle
-        inwardCallWithHeaders
-          "federation/brig/get-user-by-handle"
-          [(originDomainHeaderName, toByteString' originDomain)]
-          (encode hdl)
-          !!! const 400 === statusCode
+    it "testRejectRequestsWithoutClientCertInward" (testRejectRequestsWithoutClientCertInward env)
 
--- TODO: ORMOLU_DISABLE
--- @END
--- ORMOLU_ENABLE
+-- This test is covered by the unit tests 'validateDomainCertWrongDomain' because
+-- the domain matching is checked on certificate validation.
+testShouldRejectMissmatchingOriginDomainInward :: TestEnv -> IO ()
+testShouldRejectMissmatchingOriginDomainInward env = runTestFederator env $ pure ()
+
+-- See related tests in unit tests (for matching client certificates against domain names)
+-- and "IngressSpec".
+testRejectRequestsWithoutClientCertInward :: TestEnv -> IO ()
+testRejectRequestsWithoutClientCertInward env = runTestFederator env $ do
+  originDomain <- originDomain <$> view teTstOpts
+  hdl <- randomHandle
+  inwardCallWithHeaders
+    "federation/brig/get-user-by-handle"
+    [(originDomainHeaderName, toByteString' originDomain)]
+    (encode hdl)
+    !!! const 400 === statusCode
 
 inwardCallWithHeaders ::
   (MonadIO m, MonadHttp m, MonadReader TestEnv m, HasCallStack) =>
