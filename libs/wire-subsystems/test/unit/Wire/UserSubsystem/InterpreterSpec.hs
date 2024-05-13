@@ -195,18 +195,24 @@ spec = describe "UserSubsystem.Interpreter" do
           length (fst retrievedProfilesWithErrors) === length remoteBUsers
             .&&. length (snd retrievedProfilesWithErrors) === length remoteAUsers
 
-    prop "Update user name" $
-      \(NotPendingStoredUser alice) localDomain name config allowScim -> do
+    prop "Update user" $
+      \(NotPendingStoredUser alice) localDomain mname mpict massets maccentid config allowScim -> do
         let lusr = toLocalUnsafe localDomain alice.id
             profile = fromJust $ runNoFederationStack [alice {managedBy = Just ManagedByWire}] Nothing config do
-              updateUserProfile lusr Nothing def {uupName = Just name} (bool AllowSCIMUpdates ForbidSCIMUpdates allowScim)
+              updateUserProfile lusr Nothing def {uupName = mname, uupPict = mpict, uupAssets = massets, uupAccentId = maccentid} 
+                (bool AllowSCIMUpdates ForbidSCIMUpdates allowScim)
               getUserProfile lusr (tUntagged lusr)
          in profile.profileQualifiedId === tUntagged lusr
-              .&&. profile.profileName === name
+              -- if the name/ pict/ assets/ accent id are not set, the original 
+              -- value should be preserved
+              .&&. profile.profileName === fromMaybe profile.profileName mname
+              .&&. profile.profilePict === fromMaybe profile.profilePict mpict
+              .&&. profile.profileAssets === fromMaybe profile.profileAssets massets
+              .&&. profile.profileAccentId === fromMaybe profile.profileAccentId maccentid
 
     prop
       "user managed by scim doesn't allow update"
-      \(NotPendingStoredUser alice) localDomain name config ->
+      \(NotPendingStoredUser alice) localDomain update name config ->
         alice.name /= name ==>
           let lusr = toLocalUnsafe localDomain alice.id
               profileErr :: Either UserSubsystemError (Maybe UserProfile) =
@@ -214,13 +220,13 @@ spec = describe "UserSubsystem.Interpreter" do
                   . runErrorUnsafe
                   . runError
                   $ interpretNoFederationStack [alice {managedBy = Just ManagedByScim}] Nothing def config do
-                    updateUserProfile lusr Nothing def {uupName = Just name} ForbidSCIMUpdates
+                    updateUserProfile lusr Nothing update {uupName = Just name} ForbidSCIMUpdates
                     getUserProfile lusr (tUntagged lusr)
            in Left UserSubsystemDisplayNameManagedByScim === profileErr
 
     prop
       "if e2e identity is activated, the user name cannot be updated"
-      \(NotPendingStoredUser alice) localDomain name config ->
+      \(NotPendingStoredUser alice) localDomain update name config ->
         alice.name /= name ==>
           let lusr = toLocalUnsafe localDomain alice.id
               profileErr :: Either UserSubsystemError (Maybe UserProfile) =
@@ -228,6 +234,6 @@ spec = describe "UserSubsystem.Interpreter" do
                   . runErrorUnsafe
                   . runError
                   $ interpretNoFederationStack [alice] Nothing def {afcMlsE2EId = setStatus FeatureStatusEnabled defFeatureStatus} config do
-                    updateUserProfile lusr Nothing def {uupName = Just name} AllowSCIMUpdates
+                    updateUserProfile lusr Nothing update {uupName = Just name} AllowSCIMUpdates
                     getUserProfile lusr (tUntagged lusr)
            in Left UserSubsystemDisplayNameManagedByScim === profileErr
