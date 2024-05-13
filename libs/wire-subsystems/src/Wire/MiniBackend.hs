@@ -1,4 +1,18 @@
-module Wire.MiniBackend where
+{-# OPTIONS -Wno-unused-top-binds #-}
+module Wire.MiniBackend
+  ( -- * Mini backends
+    MiniBackend (..),
+    interpretFederationStack,
+    runFederationStack,
+    runNoFederationStack,
+    runErrorUnsafe,
+    miniLocale,
+
+    -- * Quickcheck helpers
+    NotPendingStoredUser (..),
+    PendingStoredUser (..),
+  )
+where
 
 import Data.Default (Default (def))
 import Data.Domain
@@ -34,7 +48,7 @@ import Wire.GalleyAPIAccess
 import Wire.InternalEvent
 import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.Sequential
-import Wire.Sem.Now
+import Wire.Sem.Now hiding (get)
 import Wire.StoredUser
 import Wire.UserEvents
 import Wire.UserEvents.Null
@@ -71,6 +85,7 @@ type GetUserProfileEffects =
     DeleteQueue,
     UserEvents,
     State [InternalNotification],
+    State [StoredUser],
     Now,
     Input UserSubsystemConfig,
     FederationAPIAccess MiniFederationMonad,
@@ -211,13 +226,13 @@ runFederationStack ::
   a
 runFederationStack allLocalUsers fedBackends teamMember cfg =
   runAllErrorsUnsafe
-    . interpretFederationStackEither
+    . interpretFederationStack
       allLocalUsers
       fedBackends
       teamMember
       cfg
 
-interpretFederationStackEither ::
+interpretFederationStack ::
   (Members AllErrors r) =>
   [StoredUser] ->
   -- | the available backend
@@ -226,15 +241,16 @@ interpretFederationStackEither ::
   UserSubsystemConfig ->
   Sem (GetUserProfileEffects `Append` r) a ->
   Sem r a
-interpretFederationStackEither allLocalUsers backends teamMember cfg =
+interpretFederationStack allLocalUsers backends teamMember cfg =
   sequentiallyPerformConcurrency
     . miniFederationAPIAccess backends
     . runInputConst cfg
     . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
+    . evalState allLocalUsers
     . evalState []
     . nullUserEventsInterpreter
     . inMemoryDeleteQueueInterpreter
-    . staticUserStoreInterpreter allLocalUsers
+    . staticUserStoreInterpreter
     . miniGalleyAPIAccess teamMember
     . runUserSubsystem cfg
 
@@ -259,10 +275,11 @@ interpretNoFederationStack allUsers teamMember cfg =
     . emptyFederationAPIAcesss
     . runInputConst cfg
     . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
+    . evalState allUsers
     . evalState []
     . nullUserEventsInterpreter
     . inMemoryDeleteQueueInterpreter
-    . staticUserStoreInterpreter allUsers
+    . staticUserStoreInterpreter
     . miniGalleyAPIAccess teamMember
     . runUserSubsystem cfg
 
@@ -297,9 +314,9 @@ miniFederationAPIAccess online = do
     RunFederatedBucketed _domain _rpc -> error "unimplemented: RunFederatedBucketed"
     IsFederationConfigured -> pure True
 
-staticUserStoreInterpreter :: [StoredUser] -> InterpreterFor UserStore r
-staticUserStoreInterpreter allUsers = interpret $ \case
-  GetUser uid -> pure $ find (\user -> user.id == uid) allUsers
+staticUserStoreInterpreter :: Member (State [StoredUser]) r => InterpreterFor UserStore r
+staticUserStoreInterpreter = interpret $ \case
+  GetUser uid -> find (\user -> user.id == uid) <$> get
   UpdateUser _uid _update -> error "TODO: UpdateUser"
 
 miniGalleyAPIAccess :: Maybe TeamMember -> InterpreterFor GalleyAPIAccess r

@@ -77,7 +77,7 @@ spec = describe "UserSubsystem.Interpreter" do
               run
                 . runErrorUnsafe @UserSubsystemError
                 . runError @FederationError
-                . interpretFederationStackEither [viewer] online Nothing config
+                . interpretFederationStack [viewer] online Nothing config
                 $ getUserProfiles
                   (toLocalUnsafe localDomain viewer.id)
                   (onlineUsers <> offlineUsers)
