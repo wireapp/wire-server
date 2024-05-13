@@ -61,7 +61,7 @@ cassandraSettingsParser =
     <*> ( C.Keyspace
             <$> Opts.strOption
               ( Opts.long "cassandra-keyspace"
-                  <> Opts.value "galley_test"
+                  <> Opts.value "gundeck_test"
               )
         )
     <*> ( (Opts.optional . Opts.strOption)
