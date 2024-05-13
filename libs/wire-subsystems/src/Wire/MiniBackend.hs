@@ -5,6 +5,7 @@ module Wire.MiniBackend
     MiniBackend (..),
     interpretFederationStack,
     runFederationStack,
+    interpretNoFederationStack,
     runNoFederationStack,
     runErrorUnsafe,
     miniLocale,
@@ -27,7 +28,6 @@ import Data.Qualified
 import Data.Set qualified as S
 import Data.Time
 import Data.Type.Equality
-import Debug.Trace
 import Imports
 import Polysemy
 import Polysemy.Error

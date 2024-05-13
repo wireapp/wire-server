@@ -195,13 +195,20 @@ spec = describe "UserSubsystem.Interpreter" do
             .&&. length (snd retrievedProfilesWithErrors) === length remoteAUsers
 
     prop "Update user name" $
+      \(NotPendingStoredUser alice) localDomain name config allowScim -> do
+        let lusr = toLocalUnsafe localDomain alice.id
+            profile = fromJust $ runNoFederationStack [alice {managedBy = Just ManagedByWire}] Nothing config do
+              updateUserProfile lusr Nothing def {uupName = Just name} (bool AllowSCIMUpdates ForbidSCIMUpdates allowScim)
+              getUserProfile lusr (tUntagged lusr)
+         in profile.profileQualifiedId === tUntagged lusr
+              .&&. profile.profileName === name
+
+    prop "user managed by scim doesn't allow update" $
       \(NotPendingStoredUser alice) localDomain name config ->
         alice.name /= name ==>
           let lusr = toLocalUnsafe localDomain alice.id
-              mProfile = runNoFederationStack [alice] Nothing config $
-                do
-                  updateUserProfile lusr Nothing def {uupName = Just name} AllowSCIMUpdates
+              profileErr :: Either UserSubsystemError (Maybe UserProfile) =
+                run $ runErrorUnsafe $ runError $ interpretNoFederationStack [alice {managedBy = Just ManagedByScim}] Nothing config do
+                  updateUserProfile lusr Nothing def {uupName = Just name} ForbidSCIMUpdates
                   getUserProfile lusr (tUntagged lusr)
-              profile = fromMaybe (error "mProfile is Nothing") mProfile
-           in profile.profileQualifiedId == tUntagged lusr
-                && profile.profileName == name
+           in Left UserSubsystemDisplayNameManagedByScim === profileErr
