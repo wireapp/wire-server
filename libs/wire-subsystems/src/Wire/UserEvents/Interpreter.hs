@@ -7,4 +7,4 @@ import Wire.UserEvents
 interpretUserEvents :: InterpreterFor UserEvents r
 interpretUserEvents = interpret $ \case
   -- TODO
-  OnUserEvent _ _ _ -> pure ()
+  GenerateUserEvent _ _ _ -> pure ()

@@ -293,4 +293,4 @@ updateUserProfileImpl (tUnqualified -> uid) mconn update allowScim = do
       throw UserSubsystemDisplayNameManagedByScim
 
   updateUser uid update
-  onUserEvent uid mconn (profileUpdated uid update)
+  generateUserEvent uid mconn (profileUpdated uid update)

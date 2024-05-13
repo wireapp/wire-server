@@ -6,4 +6,4 @@ import Wire.UserEvents
 
 nullUserEventsInterpreter :: InterpreterFor UserEvents r
 nullUserEventsInterpreter = interpret $ \case
-  OnUserEvent _ _ _ -> pure ()
+  GenerateUserEvent _ _ _ -> pure ()

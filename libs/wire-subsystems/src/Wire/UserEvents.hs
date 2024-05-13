@@ -8,6 +8,6 @@ import Polysemy
 import Wire.API.UserEvent
 
 data UserEvents m a where
-  OnUserEvent :: UserId -> Maybe ConnId -> UserEvent -> UserEvents m ()
+  GenerateUserEvent :: UserId -> Maybe ConnId -> UserEvent -> UserEvents m ()
 
 makeSem ''UserEvents
