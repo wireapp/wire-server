@@ -19,6 +19,7 @@ import Brig.Effects.PublicKeyBundle
 import Brig.Effects.SFT (SFT, interpretSFT)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Effects.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
+import Brig.IO.Intra (runUserEvents)
 import Brig.Options (ImplicitNoFederationRestriction (federationDomainConfig), federationDomainConfigs, federationStrategy)
 import Brig.Options qualified as Opt
 import Cassandra qualified as Cas
@@ -57,7 +58,6 @@ import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIOAction)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserEvents
-import Wire.UserEvents.Interpreter
 import Wire.UserStore
 import Wire.UserStore.Cassandra
 import Wire.UserSubsystem
@@ -154,7 +154,7 @@ runBrigToIO e (AppT ma) = do
               . rethrowWaiErrorIO
               . mapError federationErrorToWai
               . mapError userSubsystemErrorToWai
-              . interpretUserEvents
+              . runUserEvents
               . runDeleteQueue (e ^. internalEvents)
               . runUserSubsystem userSubsystemConfig
           )

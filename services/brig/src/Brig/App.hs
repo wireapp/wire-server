@@ -73,6 +73,7 @@ module Brig.App
     viewFederationDomain,
     qualifyLocal,
     qualifyLocal',
+    ensureLocal,
 
     -- * Crutches that should be removed once Brig has been completely transitioned to Polysemy
     wrapClient,
@@ -151,6 +152,7 @@ import System.Logger.Class hiding (Settings, settings)
 import System.Logger.Class qualified as LC
 import System.Logger.Extended qualified as Log
 import Util.Options
+import Wire.API.Federation.Error (federationNotImplemented)
 import Wire.API.Routes.Version
 import Wire.API.User.Identity (Email)
 import Wire.API.User.Profile (Locale)
@@ -636,3 +638,9 @@ qualifyLocal a = toLocalUnsafe <$> viewFederationDomain <*> pure a
 -- FUTUREWORK: rename to 'qualifyLocalPoly'
 qualifyLocal' :: (Member (Input (Local ()))) r => a -> Sem r (Local a)
 qualifyLocal' a = flip toLocalUnsafe a . tDomain <$> input
+
+-- | Convert a qualified value into a local one. Throw if the value is not actually local.
+ensureLocal :: Qualified a -> AppT r (Local a)
+ensureLocal x = do
+  loc <- qualifyLocal ()
+  foldQualified loc pure (\_ -> throwM federationNotImplemented) x

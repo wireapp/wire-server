@@ -5,5 +5,5 @@ import Polysemy
 import Wire.UserEvents
 
 nullUserEventsInterpreter :: InterpreterFor UserEvents r
-nullUserEventsInterpreter = interpret $ \case
-  GenerateUserEvent _ _ _ -> pure ()
+nullUserEventsInterpreter = interpret \case
+  GenerateUserEvent {} -> pure ()

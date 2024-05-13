@@ -47,7 +47,6 @@ import Data.Bifunctor
 import Data.Handle (Handle, parseHandle)
 import Data.Id
 import Data.Maybe
-import Data.Qualified
 import Data.Text qualified as T
 import Data.Text.Ascii (AsciiText (toText))
 import Imports
@@ -60,7 +59,6 @@ import UnliftIO.Exception (throwIO, try)
 import Util.Logging (sha256String)
 import Wire.API.Error
 import Wire.API.Error.Brig
-import Wire.API.Federation.Error
 import Wire.API.User
 import Wire.Sem.Concurrency qualified as C
 
@@ -162,12 +160,6 @@ traverseConcurrentlyWithErrorsAppT f t = do
 
 exceptTToMaybe :: Monad m => ExceptT e m () -> m (Maybe e)
 exceptTToMaybe = (pure . either Just (const Nothing)) <=< runExceptT
-
--- | Convert a qualified value into a local one. Throw if the value is not actually local.
-ensureLocal :: Qualified a -> AppT r (Local a)
-ensureLocal x = do
-  loc <- qualifyLocal ()
-  foldQualified loc pure (\_ -> throwM federationNotImplemented) x
 
 tryInsertVerificationCode :: Code.Code -> (RetryAfter -> e) -> ExceptT e (AppT r) ()
 tryInsertVerificationCode code e = do

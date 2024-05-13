@@ -199,11 +199,14 @@ spec = describe "UserSubsystem.Interpreter" do
       \(NotPendingStoredUser alice) localDomain mname mpict massets maccentid config allowScim -> do
         let lusr = toLocalUnsafe localDomain alice.id
             profile = fromJust $ runNoFederationStack [alice {managedBy = Just ManagedByWire}] Nothing config do
-              updateUserProfile lusr Nothing def {uupName = mname, uupPict = mpict, uupAssets = massets, uupAccentId = maccentid} 
+              updateUserProfile
+                lusr
+                Nothing
+                def {uupName = mname, uupPict = mpict, uupAssets = massets, uupAccentId = maccentid}
                 (bool AllowSCIMUpdates ForbidSCIMUpdates allowScim)
               getUserProfile lusr (tUntagged lusr)
          in profile.profileQualifiedId === tUntagged lusr
-              -- if the name/ pict/ assets/ accent id are not set, the original 
+              -- if the name/ pict/ assets/ accent id are not set, the original
               -- value should be preserved
               .&&. profile.profileName === fromMaybe profile.profileName mname
               .&&. profile.profilePict === fromMaybe profile.profilePict mpict
