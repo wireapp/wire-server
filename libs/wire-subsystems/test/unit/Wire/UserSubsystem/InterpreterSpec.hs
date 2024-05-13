@@ -17,6 +17,7 @@ import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
 import Wire.API.Federation.Error
+import Wire.API.Team.Feature (AllFeatureConfigs (afcMlsE2EId), FeatureStatus (..), defFeatureStatus, setStatus)
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
 import Wire.API.User hiding (DeleteUser)
@@ -203,12 +204,30 @@ spec = describe "UserSubsystem.Interpreter" do
          in profile.profileQualifiedId === tUntagged lusr
               .&&. profile.profileName === name
 
-    prop "user managed by scim doesn't allow update" $
+    prop
+      "user managed by scim doesn't allow update"
       \(NotPendingStoredUser alice) localDomain name config ->
         alice.name /= name ==>
           let lusr = toLocalUnsafe localDomain alice.id
               profileErr :: Either UserSubsystemError (Maybe UserProfile) =
-                run $ runErrorUnsafe $ runError $ interpretNoFederationStack [alice {managedBy = Just ManagedByScim}] Nothing config do
-                  updateUserProfile lusr Nothing def {uupName = Just name} ForbidSCIMUpdates
-                  getUserProfile lusr (tUntagged lusr)
+                run
+                  . runErrorUnsafe
+                  . runError
+                  $ interpretNoFederationStack [alice {managedBy = Just ManagedByScim}] Nothing def config do
+                    updateUserProfile lusr Nothing def {uupName = Just name} ForbidSCIMUpdates
+                    getUserProfile lusr (tUntagged lusr)
+           in Left UserSubsystemDisplayNameManagedByScim === profileErr
+
+    prop
+      "if e2e identity is activated, the user name cannot be updated"
+      \(NotPendingStoredUser alice) localDomain name config ->
+        alice.name /= name ==>
+          let lusr = toLocalUnsafe localDomain alice.id
+              profileErr :: Either UserSubsystemError (Maybe UserProfile) =
+                run
+                  . runErrorUnsafe
+                  . runError
+                  $ interpretNoFederationStack [alice] Nothing def {afcMlsE2EId = setStatus FeatureStatusEnabled defFeatureStatus} config do
+                    updateUserProfile lusr Nothing def {uupName = Just name} AllowSCIMUpdates
+                    getUserProfile lusr (tUntagged lusr)
            in Left UserSubsystemDisplayNameManagedByScim === profileErr

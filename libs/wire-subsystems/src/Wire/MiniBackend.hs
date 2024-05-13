@@ -40,6 +40,7 @@ import Type.Reflection
 import Wire.API.Federation.API
 import Wire.API.Federation.Component
 import Wire.API.Federation.Error
+import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.User hiding (DeleteUser)
 import Wire.DeleteQueue
@@ -253,7 +254,7 @@ interpretFederationStack allLocalUsers backends teamMember cfg =
     . nullUserEventsInterpreter
     . inMemoryDeleteQueueInterpreter
     . staticUserStoreInterpreter
-    . miniGalleyAPIAccess teamMember
+    . miniGalleyAPIAccess teamMember def
     . runUserSubsystem cfg
 
 runNoFederationStack ::
@@ -263,16 +264,17 @@ runNoFederationStack ::
   Sem (GetUserProfileEffects `Append` AllErrors) a ->
   a
 runNoFederationStack allUsers teamMember cfg =
-  runAllErrorsUnsafe . interpretNoFederationStack allUsers teamMember cfg
+  runAllErrorsUnsafe . interpretNoFederationStack allUsers teamMember def cfg
 
 interpretNoFederationStack ::
   (Members AllErrors r) =>
   [StoredUser] ->
   Maybe TeamMember ->
+  AllFeatureConfigs ->
   UserSubsystemConfig ->
   Sem (GetUserProfileEffects `Append` r) a ->
   Sem r a
-interpretNoFederationStack allUsers teamMember cfg =
+interpretNoFederationStack allUsers teamMember galleyConfigs cfg =
   sequentiallyPerformConcurrency
     . emptyFederationAPIAcesss
     . runInputConst cfg
@@ -282,7 +284,7 @@ interpretNoFederationStack allUsers teamMember cfg =
     . nullUserEventsInterpreter
     . inMemoryDeleteQueueInterpreter
     . staticUserStoreInterpreter
-    . miniGalleyAPIAccess teamMember
+    . miniGalleyAPIAccess teamMember galleyConfigs
     . runUserSubsystem cfg
 
 runErrorUnsafe :: Exception e => InterpreterFor (Error e) r
@@ -331,8 +333,14 @@ staticUserStoreInterpreter = interpret $ \case
               $ u
       doUpdate u = u
 
-miniGalleyAPIAccess :: Maybe TeamMember -> InterpreterFor GalleyAPIAccess r
-miniGalleyAPIAccess member = interpret $ \case
+-- | interprets galley by statically returning the values passed
+miniGalleyAPIAccess ::
+  -- | what to return when calling GetTeamMember
+  Maybe TeamMember ->
+  -- | what to return when calling GetAllFeatureConfigsForUser
+  AllFeatureConfigs ->
+  InterpreterFor GalleyAPIAccess r
+miniGalleyAPIAccess member configs = interpret $ \case
   GetTeamMember _ _ -> pure member
-  GetAllFeatureConfigsForUser _ -> pure def
+  GetAllFeatureConfigsForUser _ -> pure configs
   _ -> error "uninterpreted effect: GalleyAPIAccess"
