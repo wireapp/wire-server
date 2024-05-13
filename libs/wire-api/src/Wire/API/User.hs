@@ -177,6 +177,7 @@ import Data.ByteString.Conversion
 import Data.CaseInsensitive qualified as CI
 import Data.Code qualified as Code
 import Data.Currency qualified as Currency
+import Data.Default
 import Data.Domain (Domain (Domain))
 import Data.Either.Extra (maybeToEither)
 import Data.Handle (Handle)
@@ -227,7 +228,6 @@ import Wire.API.User.Password
 import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
-import Data.Default
 
 --------------------------------------------------------------------------------
 -- UserIdList

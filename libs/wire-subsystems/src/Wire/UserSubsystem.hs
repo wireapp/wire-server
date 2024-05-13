@@ -5,15 +5,28 @@ module Wire.UserSubsystem where
 import Data.Id
 import Data.Qualified
 import Imports
+import Network.Wai.Utilities qualified as Wai
 import Polysemy
+import Wire.API.Error
+-- FUTUREWORK(mangoiv): this should probably be renamed such that it doesn't
+-- associate with the name "brig" anymore
+import Wire.API.Error.Brig (BrigError (..))
 import Wire.API.Federation.Error
 import Wire.API.User
 
 -- | All errors that are thrown by the user subsystem are subsumed under this sum type.
 data UserSubsystemError
-  = UserSubsystemDisplayNameManagedByScim
+  = -- | user is managed by scim or e2ei is enabled
+    --   FUTUREWORK(mangoiv): the name should probably resemble that
+    UserSubsystemDisplayNameManagedByScim
   | UserSubsystemProfileNotFound
   deriving (Eq, Show)
+
+userSubsystemErrorToWai :: UserSubsystemError -> Wai.Error
+userSubsystemErrorToWai =
+  dynErrorToWai . \case
+    UserSubsystemProfileNotFound -> dynError @(MapError UserNotFound)
+    UserSubsystemDisplayNameManagedByScim -> dynError @(MapError NameManagedByScim)
 
 instance Exception UserSubsystemError
 

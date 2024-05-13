@@ -28,6 +28,7 @@ import Control.Monad.Catch (throwM)
 import Data.Qualified (Local, toLocalUnsafe)
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Imports
+import Network.Wai.Utilities qualified as Wai
 import Polysemy
 import Polysemy.Async
 import Polysemy.Conc
@@ -68,6 +69,7 @@ type BrigCanonicalEffects =
      UserEvents,
      Error UserSubsystemError,
      Error Wire.API.Federation.Error.FederationError,
+     Error Wai.Error,
      Wire.FederationAPIAccess.FederationAPIAccess Wire.API.Federation.Client.FederatorClient,
      UserStore,
      SFT,
@@ -149,8 +151,9 @@ runBrigToIO e (AppT ma) = do
               . interpretSFT (e ^. httpManager)
               . interpretUserStoreCassandra (e ^. casClient)
               . interpretFederationAPIAccess federationApiAccessConfig
-              . throwFederationErrorAsWaiError
-              . mapError @UserSubsystemError SomeException
+              . rethrowWaiErrorIO
+              . mapError federationErrorToWai
+              . mapError userSubsystemErrorToWai
               . interpretUserEvents
               . runDeleteQueue (e ^. internalEvents)
               . runUserSubsystem userSubsystemConfig
@@ -158,9 +161,9 @@ runBrigToIO e (AppT ma) = do
     )
     $ runReaderT ma e
 
-throwFederationErrorAsWaiError :: Member (Final IO) r => InterpreterFor (Error FederationError) r
-throwFederationErrorAsWaiError action = do
-  eithError <- errorToIOFinal action
+rethrowWaiErrorIO :: Member (Final IO) r => InterpreterFor (Error Wai.Error) r
+rethrowWaiErrorIO act = do
+  eithError <- errorToIOFinal act
   case eithError of
-    Left err -> embedToFinal $ throwM $ federationErrorToWai err
+    Left err -> embedToFinal $ throwM $ err
     Right a -> pure a
