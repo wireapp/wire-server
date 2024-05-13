@@ -22,6 +22,7 @@ import Cassandra.Schema
 import Control.Exception (finally)
 import Gundeck.Schema.V1 qualified as V1
 import Gundeck.Schema.V10 qualified as V10
+import Gundeck.Schema.V11 qualified as V11
 import Gundeck.Schema.V2 qualified as V2
 import Gundeck.Schema.V3 qualified as V3
 import Gundeck.Schema.V4 qualified as V4
@@ -61,5 +62,6 @@ migrations =
     V7.migration,
     V8.migration,
     V9.migration,
-    V10.migration
+    V10.migration,
+    V11.migration
   ]
