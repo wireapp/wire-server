@@ -1,4 +1,5 @@
-{-# OPTIONS -Wno-unused-top-binds #-}
+{-# OPTIONS -Wwarn #-}
+
 module Wire.MiniBackend
   ( -- * Mini backends
     MiniBackend (..),
@@ -26,6 +27,7 @@ import Data.Qualified
 import Data.Set qualified as S
 import Data.Time
 import Data.Type.Equality
+import Debug.Trace
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -332,4 +334,5 @@ staticUserStoreInterpreter = interpret $ \case
 miniGalleyAPIAccess :: Maybe TeamMember -> InterpreterFor GalleyAPIAccess r
 miniGalleyAPIAccess member = interpret $ \case
   GetTeamMember _ _ -> pure member
+  GetAllFeatureConfigsForUser _ -> pure def
   _ -> error "uninterpreted effect: GalleyAPIAccess"

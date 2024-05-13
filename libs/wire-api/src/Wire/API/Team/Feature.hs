@@ -97,6 +97,7 @@ import Data.Attoparsec.ByteString qualified as Parser
 import Data.ByteString (fromStrict)
 import Data.ByteString.Conversion
 import Data.ByteString.UTF8 qualified as UTF8
+import Data.Default
 import Data.Domain (Domain)
 import Data.Either.Extra (maybeToEither)
 import Data.Id
@@ -1235,6 +1236,31 @@ data AllFeatureConfigs = AllFeatureConfigs
   }
   deriving stock (Eq, Show)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AllFeatureConfigs)
+
+instance Default AllFeatureConfigs where
+  def =
+    AllFeatureConfigs
+      { afcLegalholdStatus = defFeatureStatus,
+        afcSSOStatus = defFeatureStatus,
+        afcTeamSearchVisibilityAvailable = defFeatureStatus,
+        afcSearchVisibilityInboundConfig = defFeatureStatus,
+        afcValidateSAMLEmails = defFeatureStatus,
+        afcDigitalSignatures = defFeatureStatus,
+        afcAppLock = defFeatureStatus,
+        afcFileSharing = defFeatureStatus,
+        afcClassifiedDomains = defFeatureStatus,
+        afcConferenceCalling = defFeatureStatus,
+        afcSelfDeletingMessages = defFeatureStatus,
+        afcGuestLink = defFeatureStatus,
+        afcSndFactorPasswordChallenge = defFeatureStatus,
+        afcMLS = defFeatureStatus,
+        afcExposeInvitationURLsToTeamAdmin = defFeatureStatus,
+        afcOutlookCalIntegration = defFeatureStatus,
+        afcMlsE2EId = defFeatureStatus,
+        afcMlsMigration = defFeatureStatus,
+        afcEnforceFileDownloadLocation = defFeatureStatus,
+        afcLimitedEventFanout = defFeatureStatus
+      }
 
 instance ToSchema AllFeatureConfigs where
   schema =

@@ -227,6 +227,7 @@ import Wire.API.User.Password
 import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+import Data.Default
 
 --------------------------------------------------------------------------------
 -- UserIdList
@@ -1496,6 +1497,9 @@ data UserUpdate = UserUpdate
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema UserUpdate)
   deriving (Arbitrary) via (GenericUniform UserUpdate)
+
+instance Default UserUpdate where
+  def = UserUpdate Nothing Nothing Nothing Nothing
 
 instance ToSchema UserUpdate where
   schema =

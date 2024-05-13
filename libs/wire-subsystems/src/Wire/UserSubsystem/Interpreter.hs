@@ -23,6 +23,7 @@ import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.User
 import Wire.API.UserEvent (profileUpdated)
+import Wire.Arbitrary
 import Wire.DeleteQueue
 import Wire.FederationAPIAccess
 import Wire.GalleyAPIAccess
@@ -38,6 +39,10 @@ data UserSubsystemConfig = UserSubsystemConfig
   { emailVisibilityConfig :: EmailVisibilityConfig,
     defaultLocale :: Locale
   }
+  deriving (Show)
+
+instance Arbitrary UserSubsystemConfig where
+  arbitrary = UserSubsystemConfig <$> arbitrary <*> arbitrary
 
 runUserSubsystem ::
   ( Member GalleyAPIAccess r,

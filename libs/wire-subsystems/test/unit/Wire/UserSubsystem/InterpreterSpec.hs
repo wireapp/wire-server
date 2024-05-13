@@ -193,3 +193,15 @@ spec = describe "UserSubsystem.Interpreter" do
         nub allDomains == allDomains ==>
           length (fst retrievedProfilesWithErrors) === length remoteBUsers
             .&&. length (snd retrievedProfilesWithErrors) === length remoteAUsers
+
+    prop "Update user name" $
+      \(NotPendingStoredUser alice) localDomain name config ->
+        alice.name /= name ==>
+          let lusr = toLocalUnsafe localDomain alice.id
+              mProfile = runNoFederationStack [alice] Nothing config $
+                do
+                  updateUserProfile lusr Nothing def {uupName = Just name} AllowSCIMUpdates
+                  getUserProfile lusr (tUntagged lusr)
+              profile = fromMaybe (error "mProfile is Nothing") mProfile
+           in profile.profileQualifiedId == tUntagged lusr
+                && profile.profileName == name
