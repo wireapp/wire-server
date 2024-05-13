@@ -24,17 +24,29 @@ library
   build-depends:
     , aeson
     , aeson-pretty
+    , bilge
     , bytestring
+    , bytestring-conversion
     , cassandra-util
     , conduit
     , containers
     , cql
+    , exceptions
+    , galley
+    , HsOpenSSL
+    , http-client
+    , http-client-openssl
+    , http-types
     , imports
     , lens
     , monoidal-containers
     , optparse-applicative
+    , retry
+    , ssl-util
     , tinylog
     , types-common
+    , uri-bytestring
+    , wire-api
 
   default-extensions:
     AllowAmbiguousTypes
