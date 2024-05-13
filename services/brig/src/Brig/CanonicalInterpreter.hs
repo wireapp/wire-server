@@ -55,6 +55,8 @@ import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIOAction)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.UserEvents
+import Wire.UserEvents.Interpreter
 import Wire.UserStore
 import Wire.UserStore.Cassandra
 import Wire.UserSubsystem
@@ -63,6 +65,8 @@ import Wire.UserSubsystem.Interpreter
 type BrigCanonicalEffects =
   '[ UserSubsystem,
      DeleteQueue,
+     UserEvents,
+     Error UserSubsystemError,
      Error Wire.API.Federation.Error.FederationError,
      Wire.FederationAPIAccess.FederationAPIAccess Wire.API.Federation.Client.FederatorClient,
      UserStore,
@@ -146,6 +150,8 @@ runBrigToIO e (AppT ma) = do
               . interpretUserStoreCassandra (e ^. casClient)
               . interpretFederationAPIAccess federationApiAccessConfig
               . throwFederationErrorAsWaiError
+              . mapError @UserSubsystemError SomeException
+              . interpretUserEvents
               . runDeleteQueue (e ^. internalEvents)
               . runUserSubsystem userSubsystemConfig
           )
