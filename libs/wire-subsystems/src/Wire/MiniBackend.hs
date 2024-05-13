@@ -317,7 +317,17 @@ miniFederationAPIAccess online = do
 staticUserStoreInterpreter :: Member (State [StoredUser]) r => InterpreterFor UserStore r
 staticUserStoreInterpreter = interpret $ \case
   GetUser uid -> find (\user -> user.id == uid) <$> get
-  UpdateUser _uid _update -> error "TODO: UpdateUser"
+  UpdateUser uid update -> modify (map doUpdate)
+    where
+      doUpdate :: StoredUser -> StoredUser
+      doUpdate u
+        | u.id == uid =
+            maybe Imports.id setStoredUserAccentId update.uupAccentId
+              . maybe Imports.id setStoredUserAssets update.uupAssets
+              . maybe Imports.id setStoredUserPict update.uupPict
+              . maybe Imports.id setStoredUserName update.uupName
+              $ u
+      doUpdate u = u
 
 miniGalleyAPIAccess :: Maybe TeamMember -> InterpreterFor GalleyAPIAccess r
 miniGalleyAPIAccess member = interpret $ \case

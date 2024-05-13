@@ -37,6 +37,18 @@ data StoredUser = StoredUser
   deriving (Show, Eq, Ord, Generic)
   deriving (Arbitrary) via (GenericUniform StoredUser)
 
+setStoredUserName :: Name -> StoredUser -> StoredUser
+setStoredUserName n u = u {name = n}
+
+setStoredUserPict :: Pict -> StoredUser -> StoredUser
+setStoredUserPict p u = u {pict = Just p}
+
+setStoredUserAssets :: [Asset] -> StoredUser -> StoredUser
+setStoredUserAssets a u = u {assets = Just a}
+
+setStoredUserAccentId :: ColourId -> StoredUser -> StoredUser
+setStoredUserAccentId a u = u {accentId = a}
+
 recordInstance ''StoredUser
 
 hasPendingInvitation :: StoredUser -> Bool
