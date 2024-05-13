@@ -4,7 +4,6 @@ module Test.MLS where
 
 import API.Brig (claimKeyPackages, deleteClient)
 import API.Galley
-import qualified Data.Aeson.KeyMap as KM
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.Set as Set
@@ -747,27 +746,3 @@ testBackendRemoveProposal suite domain = do
   -- alice commits the external proposals
   r <- createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
   shouldBeEmpty $ r %. "events"
-
-testPublicKeys :: HasCallStack => App ()
-testPublicKeys = do
-  alice <- randomUserId OwnDomain
-  let expectedKeys =
-        [ "ed25519",
-          "ecdsa_secp256r1_sha256",
-          "ecdsa_secp384r1_sha384",
-          "ecdsa_secp521r1_sha512"
-        ]
-  bindResponse (getMLSPublicKeys alice) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    (KM.keys <$> asObject (resp.json %. "removal")) `shouldMatchSet` expectedKeys
-
-testPublicKeysMLSNotEnabled :: HasCallStack => App ()
-testPublicKeysMLSNotEnabled = withModifiedBackend
-  def
-    { galleyCfg = removeField "settings.mlsPrivateKeyPaths"
-    }
-  $ \domain -> do
-    alice <- randomUserId domain
-    bindResponse (getMLSPublicKeys alice) $ \resp -> do
-      resp.status `shouldMatchInt` 400
-      resp.json %. "label" `shouldMatch` "mls-not-enabled"

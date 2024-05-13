@@ -22,6 +22,7 @@ module Galley.API.MLS
     postMLSCommitBundleFromLocalUser,
     postMLSMessageFromLocalUser,
     getMLSPublicKeys,
+    getMLSPublicKeysJWK,
   )
 where
 
@@ -43,5 +44,12 @@ getMLSPublicKeys ::
   ) =>
   Local UserId ->
   Sem r (MLSKeysByPurpose MLSPublicKeys)
-getMLSPublicKeys _ = do
-  fmap mlsKeysToPublic <$> getMLSPrivateKeys
+getMLSPublicKeys _ = mlsKeysToPublic <$$> getMLSPrivateKeys
+
+getMLSPublicKeysJWK ::
+  ( Member (Input Env) r,
+    Member (ErrorS 'MLSNotEnabled) r
+  ) =>
+  Local UserId ->
+  Sem r (MLSKeysByPurpose MLSPublicKeysJWK)
+getMLSPublicKeysJWK _ = mapM mlsKeysToPublicJWK =<< getMLSPrivateKeys
