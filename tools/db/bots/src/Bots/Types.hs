@@ -24,6 +24,7 @@ import Cassandra as C
 import Control.Lens
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Encode.Pretty as A
+import Data.ByteString.Conversion (toByteString')
 import qualified Data.ByteString.Lazy.Char8 as LC8
 import Data.Id
 import Data.Map.Monoidal (MonoidalMap)
@@ -138,27 +139,29 @@ data Service = Service
 
 instance A.ToJSON Service
 
+instance Show Service where
+  show = LC8.unpack . A.encodePretty
+
 data TeamsWithService = TeamsWithService
   { entriesSearched :: Int,
-    teams :: MonoidalMap TeamId (Set.Set Service)
+    teams :: MonoidalMap TeamId (Set.Set Service),
+    services :: MonoidalMap Service (Set.Set TeamId, Set.Set ConvId),
+    convs :: Set.Set ConvId
   }
   deriving (Eq, Generic)
 
 instance Semigroup TeamsWithService where
-  TeamsWithService a b <> TeamsWithService c d = TeamsWithService (a + c) (b <> d)
+  TeamsWithService es1 ts1 ss1 convs1 <> TeamsWithService es2 ts2 ss2 convs2 =
+    TeamsWithService (es1 + es2) (ts1 <> ts2) (ss1 <> ss2) (convs1 <> convs2)
 
 instance Monoid TeamsWithService where
-  mempty = TeamsWithService 0 mempty
-
-instance A.ToJSON TeamsWithService
-
-instance Show TeamsWithService where
-  show = LC8.unpack . A.encodePretty
+  mempty = TeamsWithService 0 mempty mempty mempty
 
 data ServiceTeamRow = ServiceTeamRow
-  { team :: TeamId,
-    provider :: ProviderId,
-    service :: ServiceId
+  { provider :: ProviderId,
+    service :: ServiceId,
+    conv :: ConvId,
+    team :: Maybe TeamId
   }
   deriving (Generic)
 
@@ -195,6 +198,20 @@ recordInstance ''ServiceRow
 
 toTeamsWithService :: Text -> HttpsUrl -> Bool -> ServiceTeamRow -> TeamsWithService
 toTeamsWithService name url isBackendActive sr =
-  mempty
-    & MM.insert sr.team (Set.fromList [Service sr.provider sr.service name url isBackendActive])
-    & TeamsWithService 1
+  TeamsWithService
+    1
+    (foldMap (\tid -> MM.singleton tid (Set.fromList [Service sr.provider sr.service name url isBackendActive])) sr.team)
+    (MM.singleton (Service sr.provider sr.service name url isBackendActive) (Set.fromList (maybeToList sr.team), Set.singleton sr.conv))
+    (Set.singleton sr.conv)
+
+servicesToCsv :: MonoidalMap Service (Set.Set TeamId, Set.Set ConvId) -> String
+servicesToCsv mm =
+  ( "provider,service,name,base_url,backend_active,num_teams,num_convs"
+      : ( MM.toList mm
+            & fmap
+              ( \(Service p s n u a, (length -> numTeams, length -> numConvs)) ->
+                  (intercalate "," [show p, show s, show n, show (toByteString' u), show a, show numTeams, show numConvs])
+              )
+        )
+  )
+    & intercalate "\n"

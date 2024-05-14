@@ -56,7 +56,7 @@ scanServiceTeam client =
   where
     selectAll :: C.PrepQuery C.R () (CQL.TupleType ServiceTeamRow)
     selectAll =
-      "SELECT team, provider, service FROM service_whitelist"
+      "SELECT provider, service, conv, team FROM service_user"
 
 isTeamActive :: ClientState -> TeamId -> IO Bool
 isTeamActive client tid = do
@@ -140,7 +140,7 @@ lookupServiceName client pid sid =
 
 checkTeamAndServiceActive :: Log.Logger -> ExternalServiceSettings -> ClientState -> ClientState -> ServiceTeamRow -> IO TeamsWithService
 checkTeamAndServiceActive logger extSrvSettings galleyClient brigClient sr = do
-  active <- isTeamActive galleyClient sr.team
+  active <- maybe (pure False) (isTeamActive galleyClient) sr.team
   if active
     then do
       mService <- lookupService galleyClient sr.provider sr.service
@@ -150,10 +150,10 @@ checkTeamAndServiceActive logger extSrvSettings galleyClient brigClient sr = do
           mName <- lookupServiceName brigClient sr.provider sr.service
           pure $ toTeamsWithService (fromMaybe "not found" mName) svr.baseUrl isBackendActive sr
         Nothing ->
-          pure $ TeamsWithService 1 mempty
+          pure $ TeamsWithService 1 mempty mempty mempty
     else do
       Log.debug logger $ "service_team" .= show sr ~~ Log.msg (Log.val "team is not active")
-      pure $ TeamsWithService 1 mempty
+      pure $ TeamsWithService 1 mempty mempty mempty
 
 process :: Log.Logger -> Maybe Int -> ExternalServiceSettings -> ClientState -> ClientState -> IO TeamsWithService
 process logger limit extSrvSettings brigClient galleyClient =
@@ -162,7 +162,7 @@ process logger limit extSrvSettings brigClient galleyClient =
       .| Conduit.concat
       .| (maybe (Conduit.filter (const True)) Conduit.take limit)
       .| Conduit.mapM (checkTeamAndServiceActive logger extSrvSettings galleyClient brigClient)
-      .| forever (CL.isolate 500 .| (Conduit.fold >>= yield))
+      .| forever (CL.isolate 1000 .| (Conduit.fold >>= yield))
       .| Conduit.takeWhile ((> 0) . entriesSearched)
       .| CL.scan (<>) mempty
         `fuseUpstream` Conduit.mapM_ (\r -> Log.info logger $ "entries_searched" .= show r.entriesSearched)
@@ -175,8 +175,10 @@ main = do
   galleyClient <- initCas opts.galleyDb logger
   extSrvSettings <- initExtEnv logger
   res <- process logger opts.limit extSrvSettings brigClient galleyClient
+  Log.info logger $ "services" .= servicesToCsv res.services
   Log.info logger $ "total_entries" .= show res.entriesSearched
-  Log.info logger $ "result" .= show res
+  Log.info logger $ "number_of_teams_with_service" .= show (length res.teams)
+  Log.info logger $ "number_of_conversations_with_service" .= show (length res.convs)
   where
     initLogger =
       Log.new

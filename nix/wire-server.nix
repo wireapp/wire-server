@@ -86,6 +86,7 @@ let
     integration = [ "integration" ];
     rabbitmq-consumer = [ "rabbitmq-consumer" ];
     test-stats = [ "test-stats" ];
+    bots = [ "bots" ];
   };
 
   attrsets = lib.attrsets;
@@ -476,7 +477,7 @@ let
       out = import ./all-toplevel-derivations.nix {
         inherit (pkgs) lib;
         fn = mk;
-        # more than two takes more than 32GB of RAM, so this is what 
+        # more than two takes more than 32GB of RAM, so this is what
         # we're limiting ourselves to
         recursionDepth = 2;
         keyFilter = k: k != "passthru";
