@@ -20,12 +20,16 @@ module Wire.API.MLS.Keys where
 import Crypto.ECC (Curve_P256R1, Curve_P384R1, Curve_P521R1)
 import Crypto.PubKey.ECDSA qualified as ECDSA
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import Data.ByteArray
+import Data.Bifunctor
+import Data.ByteArray qualified as BA
 import Data.Json.Util
 import Data.OpenApi qualified as S
 import Data.Proxy
 import Data.Schema hiding (HasField)
 import Imports hiding (First, getFirst)
+import Polysemy
+import Wire.API.Error
+import Wire.API.Error.Galley
 import Wire.API.MLS.CipherSuite
 
 data MLSKeysByPurpose a = MLSKeysByPurpose
@@ -76,8 +80,44 @@ instance ToSchema MLSPublicKey where
 mlsKeysToPublic :: MLSPrivateKeys -> MLSPublicKeys
 mlsKeysToPublic (MLSPrivateKeys (_, ed) (_, ec256) (_, ec384) (_, ec521)) =
   MLSKeys
-    { ed25519 = MLSPublicKey $ convert ed,
+    { ed25519 = MLSPublicKey $ BA.convert ed,
       ecdsa_secp256r1_sha256 = MLSPublicKey $ ECDSA.encodePublic (Proxy @Curve_P256R1) ec256,
       ecdsa_secp384r1_sha384 = MLSPublicKey $ ECDSA.encodePublic (Proxy @Curve_P384R1) ec384,
       ecdsa_secp521r1_sha512 = MLSPublicKey $ ECDSA.encodePublic (Proxy @Curve_P521R1) ec521
     }
+
+data JWK = JWK
+  { keyType :: String,
+    curve :: String,
+    pubX :: ByteString,
+    pubY :: Maybe ByteString
+  }
+  deriving (Show, Ord, Eq)
+
+instance ToSchema JWK where
+  schema =
+    object "JWK" $
+      JWK
+        <$> (.keyType) .= field "kty" schema
+        <*> (.curve) .= field "crv" schema
+        <*> (.pubX) .= field "x" base64URLSchema
+        <*> (.pubY) .= maybe_ (optField "y" base64URLSchema)
+
+type MLSPublicKeysJWK = MLSKeys JWK
+
+mlsKeysToPublicJWK ::
+  ( Member (ErrorS 'MLSNotEnabled) r
+  ) =>
+  MLSPrivateKeys ->
+  Sem r MLSPublicKeysJWK
+mlsKeysToPublicJWK (MLSPrivateKeys (_, ed) (_, ec256) (_, ec384) (_, ec521)) =
+  MLSKeys (JWK "OKP" "Ed25519" (BA.convert ed) Nothing)
+    <$> (uncurry (JWK "EC" "P-256") . second Just <$> splitXY (ECDSA.encodePublic (Proxy @Curve_P256R1) ec256))
+    <*> (uncurry (JWK "EC" "P-384") . second Just <$> splitXY (ECDSA.encodePublic (Proxy @Curve_P384R1) ec384))
+    <*> (uncurry (JWK "EC" "P-521") . second Just <$> splitXY (ECDSA.encodePublic (Proxy @Curve_P521R1) ec521))
+  where
+    splitXY mxy = do
+      (m, xy) <- noteS @'MLSNotEnabled $ BA.uncons mxy
+      unless (m == 4) $ throwS @'MLSNotEnabled
+      let size = BA.length xy `div` 2
+      pure $ BA.splitAt size xy

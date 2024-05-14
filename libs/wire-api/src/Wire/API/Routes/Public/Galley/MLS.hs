@@ -110,13 +110,23 @@ type MLSMessagingAPI =
                :> MultiVerb1 'POST '[JSON] (Respond 201 "Commit accepted and forwarded" MLSMessageSendingStatus)
            )
     :<|> Named
-           "mls-public-keys"
+           "mls-public-keys-v5"
            ( Summary "Get public keys used by the backend to sign external proposals"
                :> From 'V5
+               :> Until 'V6
                :> CanThrow 'MLSNotEnabled
                :> "public-keys"
                :> ZLocalUser
                :> MultiVerb1 'GET '[JSON] (Respond 200 "Public keys" (MLSKeysByPurpose MLSPublicKeys))
+           )
+    :<|> Named
+           "mls-public-keys"
+           ( Summary "Get public keys used by the backend to sign external proposals"
+               :> From 'V6
+               :> CanThrow 'MLSNotEnabled
+               :> "public-keys"
+               :> ZLocalUser
+               :> MultiVerb1 'GET '[JSON] (Respond 200 "Public keys" (MLSKeysByPurpose MLSPublicKeysJWK))
            )
 
 type MLSAPI = LiftNamed ("mls" :> MLSMessagingAPI)
