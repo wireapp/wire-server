@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedLists #-}
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 module Wire.UserSubsystem.InterpreterSpec (spec) where
 
@@ -22,9 +23,9 @@ import Wire.API.Team.Feature (AllFeatureConfigs (afcMlsE2EId), FeatureStatus (..
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
 import Wire.API.User hiding (DeleteUser)
-import Wire.API.UserEvent
 import Wire.MiniBackend
 import Wire.StoredUser
+import Wire.UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Interpreter
 
@@ -212,10 +213,10 @@ spec = describe "UserSubsystem.Interpreter" do
          in profile.profileQualifiedId === tUntagged lusr
               -- if the name/ pict/ assets/ accent id are not set, the original
               -- value should be preserved
-              .&&. profile.profileName === fromMaybe profile.profileName update.uupName
-              .&&. profile.profilePict === fromMaybe profile.profilePict update.uupPict
-              .&&. profile.profileAssets === fromMaybe profile.profileAssets update.uupAssets
-              .&&. profile.profileAccentId === fromMaybe profile.profileAccentId update.uupAccentId
+              .&&. profile.profileName === fromMaybe profile.profileName update.name
+              .&&. profile.profilePict === fromMaybe profile.profilePict update.pict
+              .&&. profile.profileAssets === fromMaybe profile.profileAssets update.assets
+              .&&. profile.profileAccentId === fromMaybe profile.profileAccentId update.accentId
 
     prop "Update user events" $
       \(NotPendingStoredUser alice) localDomain update config allowScim -> do
@@ -228,11 +229,11 @@ spec = describe "UserSubsystem.Interpreter" do
                 update
                 allowScim
               get @[MiniEvent]
-         in events === [MkMiniEvent alice.id (profileUpdated alice.id update)]
+         in events === [MkMiniEvent alice.id (mkProfileUpdateEvent alice.id update)]
 
     prop
       "user managed by scim doesn't allow update"
-      \(NotPendingStoredUser alice) localDomain update name config ->
+      \(NotPendingStoredUser alice) localDomain (update :: UserProfileUpdate) name config ->
         alice.name /= name ==>
           let lusr = toLocalUnsafe localDomain alice.id
               localBackend = def {users = [alice {managedBy = Just ManagedByScim}]}
@@ -241,7 +242,7 @@ spec = describe "UserSubsystem.Interpreter" do
                   . runErrorUnsafe
                   . runError
                   $ interpretNoFederationStack localBackend Nothing def config do
-                    updateUserProfile lusr Nothing update {uupName = Just name} ForbidSCIMUpdates
+                    updateUserProfile lusr Nothing update {name = Just name} ForbidSCIMUpdates
                     getUserProfile lusr (tUntagged lusr)
            in Left UserSubsystemDisplayNameManagedByScim === profileErr
 
@@ -256,6 +257,6 @@ spec = describe "UserSubsystem.Interpreter" do
                   . runErrorUnsafe
                   . runError
                   $ interpretNoFederationStack localBackend Nothing def {afcMlsE2EId = setStatus FeatureStatusEnabled defFeatureStatus} config do
-                    updateUserProfile lusr Nothing update {uupName = Just name} AllowSCIMUpdates
+                    updateUserProfile lusr Nothing update {name = Just name} AllowSCIMUpdates
                     getUserProfile lusr (tUntagged lusr)
            in Left UserSubsystemDisplayNameManagedByScim === profileErr

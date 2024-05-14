@@ -1,6 +1,7 @@
 module Wire.UserSubsystem.Interpreter
   ( runUserSubsystem,
     UserSubsystemConfig (..),
+    mkProfileUpdateEvent,
   )
 where
 
@@ -22,7 +23,7 @@ import Wire.API.Federation.Error
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.User
-import Wire.API.UserEvent (profileUpdated)
+import Wire.API.UserEvent
 import Wire.Arbitrary
 import Wire.DeleteQueue
 import Wire.FederationAPIAccess
@@ -276,12 +277,12 @@ updateUserProfileImpl ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
-  UserUpdate ->
+  UserProfileUpdate ->
   AllowSCIMUpdates ->
   Sem r ()
 updateUserProfileImpl (tUnqualified -> uid) mconn update allowScim = do
   -- check if name updates are allowed
-  for_ (uupName update) $ \newName -> do
+  for_ update.name $ \newName -> do
     mbUser <- getUser uid
     user <- maybe (throw UserSubsystemProfileNotFound) pure mbUser
     unless
@@ -298,4 +299,14 @@ updateUserProfileImpl (tUnqualified -> uid) mconn update allowScim = do
       throw UserSubsystemDisplayNameManagedByScim
 
   updateUser uid update
-  generateUserEvent uid mconn (profileUpdated uid update)
+  generateUserEvent uid mconn (mkProfileUpdateEvent uid update)
+
+mkProfileUpdateEvent :: UserId -> UserProfileUpdate -> UserEvent
+mkProfileUpdateEvent uid update =
+  UserUpdated $
+    (emptyUserUpdatedData uid)
+      { eupName = update.name,
+        eupPict = update.pict,
+        eupAccentId = update.accentId,
+        eupAssets = update.assets
+      }

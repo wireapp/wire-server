@@ -22,14 +22,14 @@ getUserImpl uid = embed $ do
   mUserTuple <- retry x1 $ query1 selectUser (params LocalQuorum (Identity uid))
   pure $ asRecord <$> mUserTuple
 
-updateUserImpl :: Member (Embed Client) r => UserId -> UserUpdate -> Sem r ()
+updateUserImpl :: Member (Embed Client) r => UserId -> UserProfileUpdate -> Sem r ()
 updateUserImpl uid update = embed . retry x5 . batch $ do
   setType BatchLogged
   setConsistency LocalQuorum
-  for_ update.uupName $ \n -> addPrepQuery userDisplayNameUpdate (n, uid)
-  for_ update.uupPict $ \p -> addPrepQuery userPictUpdate (p, uid)
-  for_ update.uupAssets $ \a -> addPrepQuery userAssetsUpdate (a, uid)
-  for_ update.uupAccentId $ \c -> addPrepQuery userAccentIdUpdate (c, uid)
+  for_ update.name $ \n -> addPrepQuery userDisplayNameUpdate (n, uid)
+  for_ update.pict $ \p -> addPrepQuery userPictUpdate (p, uid)
+  for_ update.assets $ \a -> addPrepQuery userAssetsUpdate (a, uid)
+  for_ update.accentId $ \c -> addPrepQuery userAccentIdUpdate (c, uid)
 
 selectUser :: PrepQuery R (Identity UserId) (TupleType StoredUser)
 selectUser =

@@ -177,7 +177,6 @@ import Data.ByteString.Conversion
 import Data.CaseInsensitive qualified as CI
 import Data.Code qualified as Code
 import Data.Currency qualified as Currency
-import Data.Default
 import Data.Domain (Domain (Domain))
 import Data.Either.Extra (maybeToEither)
 import Data.Handle (Handle)
@@ -1497,9 +1496,6 @@ data UserUpdate = UserUpdate
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema UserUpdate)
   deriving (Arbitrary) via (GenericUniform UserUpdate)
-
-instance Default UserUpdate where
-  def = UserUpdate Nothing Nothing Nothing Nothing
 
 instance ToSchema UserUpdate where
   schema =
