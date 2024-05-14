@@ -10,6 +10,9 @@ module Wire.MiniBackend
     runErrorUnsafe,
     miniLocale,
 
+    -- * Mini events
+    MiniEvent (..),
+
     -- * Quickcheck helpers
     NotPendingStoredUser (..),
     PendingStoredUser (..),
@@ -42,6 +45,7 @@ import Wire.API.Federation.Error
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.User hiding (DeleteUser)
+import Wire.API.UserEvent
 import Wire.DeleteQueue
 import Wire.DeleteQueue.InMemory
 import Wire.FederationAPIAccess
@@ -53,7 +57,6 @@ import Wire.Sem.Concurrency.Sequential
 import Wire.Sem.Now hiding (get)
 import Wire.StoredUser
 import Wire.UserEvents
-import Wire.UserEvents.Null
 import Wire.UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Interpreter
@@ -88,11 +91,18 @@ type GetUserProfileEffects =
     UserEvents,
     State [InternalNotification],
     State MiniBackend,
+    State [MiniEvent],
     Now,
     Input UserSubsystemConfig,
     FederationAPIAccess MiniFederationMonad,
     Concurrency 'Unsafe
   ]
+
+data MiniEvent = MkMiniEvent
+  { userId :: UserId,
+    event :: UserEvent
+  }
+  deriving stock (Eq, Show)
 
 -- | a type representing the state of a single backend
 data MiniBackend = MkMiniBackend
@@ -249,9 +259,10 @@ interpretFederationStack localBackend backends teamMember cfg =
     . miniFederationAPIAccess backends
     . runInputConst cfg
     . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
+    . evalState []
     . evalState localBackend
     . evalState []
-    . nullUserEventsInterpreter
+    . miniEventInterpreter
     . inMemoryDeleteQueueInterpreter
     . staticUserStoreInterpreter
     . miniGalleyAPIAccess teamMember def
@@ -279,9 +290,10 @@ interpretNoFederationStack localBackend teamMember galleyConfigs cfg =
     . emptyFederationAPIAcesss
     . runInputConst cfg
     . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
+    . evalState []
     . evalState localBackend
     . evalState []
-    . nullUserEventsInterpreter
+    . miniEventInterpreter
     . inMemoryDeleteQueueInterpreter
     . staticUserStoreInterpreter
     . miniGalleyAPIAccess teamMember galleyConfigs
@@ -355,3 +367,9 @@ miniGalleyAPIAccess member configs = interpret $ \case
   GetTeamMember _ _ -> pure member
   GetAllFeatureConfigsForUser _ -> pure configs
   _ -> error "uninterpreted effect: GalleyAPIAccess"
+
+miniEventInterpreter ::
+  Member (State [MiniEvent]) r =>
+  InterpreterFor UserEvents r
+miniEventInterpreter = interpret \case
+  GenerateUserEvent uid _mconn e -> modify (MkMiniEvent uid e :)

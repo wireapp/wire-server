@@ -13,6 +13,7 @@ import Data.Set qualified as S
 import Imports
 import Polysemy
 import Polysemy.Error
+import Polysemy.State
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
@@ -21,6 +22,7 @@ import Wire.API.Team.Feature (AllFeatureConfigs (afcMlsE2EId), FeatureStatus (..
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
 import Wire.API.User hiding (DeleteUser)
+import Wire.API.UserEvent
 import Wire.MiniBackend
 import Wire.StoredUser
 import Wire.UserSubsystem
@@ -197,23 +199,36 @@ spec = describe "UserSubsystem.Interpreter" do
             .&&. length (snd retrievedProfilesWithErrors) === length remoteAUsers
 
     prop "Update user" $
-      \(NotPendingStoredUser alice) localDomain mname mpict massets maccentid config allowScim -> do
+      \(NotPendingStoredUser alice) localDomain update config allowScim -> do
         let lusr = toLocalUnsafe localDomain alice.id
             localBackend = def {users = [alice {managedBy = Just ManagedByWire}]}
             profile = fromJust $ runNoFederationStack localBackend Nothing config do
               updateUserProfile
                 lusr
                 Nothing
-                def {uupName = mname, uupPict = mpict, uupAssets = massets, uupAccentId = maccentid}
+                update
                 (bool AllowSCIMUpdates ForbidSCIMUpdates allowScim)
               getUserProfile lusr (tUntagged lusr)
          in profile.profileQualifiedId === tUntagged lusr
               -- if the name/ pict/ assets/ accent id are not set, the original
               -- value should be preserved
-              .&&. profile.profileName === fromMaybe profile.profileName mname
-              .&&. profile.profilePict === fromMaybe profile.profilePict mpict
-              .&&. profile.profileAssets === fromMaybe profile.profileAssets massets
-              .&&. profile.profileAccentId === fromMaybe profile.profileAccentId maccentid
+              .&&. profile.profileName === fromMaybe profile.profileName update.uupName
+              .&&. profile.profilePict === fromMaybe profile.profilePict update.uupPict
+              .&&. profile.profileAssets === fromMaybe profile.profileAssets update.uupAssets
+              .&&. profile.profileAccentId === fromMaybe profile.profileAccentId update.uupAccentId
+
+    prop "Update user events" $
+      \(NotPendingStoredUser alice) localDomain update config allowScim -> do
+        let lusr = toLocalUnsafe localDomain alice.id
+            localBackend = def {users = [alice {managedBy = Just ManagedByWire}]}
+            events = runNoFederationStack localBackend Nothing config do
+              updateUserProfile
+                lusr
+                Nothing
+                update
+                (bool AllowSCIMUpdates ForbidSCIMUpdates allowScim)
+              get @[MiniEvent]
+         in events === [MkMiniEvent alice.id (profileUpdated alice.id update)]
 
     prop
       "user managed by scim doesn't allow update"

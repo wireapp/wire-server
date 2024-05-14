@@ -84,7 +84,6 @@ library
     Wire.Rpc
     Wire.StoredUser
     Wire.UserEvents
-    Wire.UserEvents.Null
     Wire.UserStore
     Wire.UserStore.Cassandra
     Wire.UserSubsystem
