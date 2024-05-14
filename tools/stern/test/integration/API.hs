@@ -407,9 +407,11 @@ testGetUsersByHandles = do
 
 testGetUsersByPhone :: TestM ()
 testGetUsersByPhone = do
-  (uid, phone) <- randomPhoneUser
-  [ua] <- getUsersByPhone phone
-  liftIO $ userId ua.accountUser @?= uid
+  (_uid, phone) <- randomPhoneUser
+  resp <- getUsersByPhone phone
+  liftIO $ do
+    statusCode resp @?= 400
+    statusMessage resp @?= "invalid-phone"
 
 testGetUsersByEmail :: TestM ()
 testGetUsersByEmail = do
@@ -511,11 +513,10 @@ getUsersByHandles h = do
   r <- get (stern . paths ["users", "by-handles"] . queryItem "handles" (cs h) . expect2xx)
   pure $ responseJsonUnsafe r
 
-getUsersByPhone :: Phone -> TestM [UserAccount]
+getUsersByPhone :: Phone -> TestM ResponseLBS
 getUsersByPhone phone = do
   stern <- view tsStern
-  r <- get (stern . paths ["users", "by-phone"] . queryItem "phone" (toByteString' phone) . expect2xx)
-  pure $ responseJsonUnsafe r
+  get (stern . paths ["users", "by-phone"] . queryItem "phone" (toByteString' phone))
 
 getUsersByEmail :: Email -> TestM [UserAccount]
 getUsersByEmail email = do

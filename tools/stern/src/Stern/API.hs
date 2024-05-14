@@ -213,7 +213,7 @@ usersByEmail :: Email -> Handler [UserAccount]
 usersByEmail = Intra.getUserProfilesByIdentity . Left
 
 usersByPhone :: Phone -> Handler [UserAccount]
-usersByPhone = Intra.getUserProfilesByIdentity . Right
+usersByPhone _ = throwE $ mkError status400 "invalid-phone" "Phone numbers are no longer supported"
 
 usersByIds :: [UserId] -> Handler [UserAccount]
 usersByIds = Intra.getUserProfiles . Left
