@@ -200,7 +200,7 @@ spec = describe "UserSubsystem.Interpreter" do
             .&&. length (snd retrievedProfilesWithErrors) === length remoteAUsers
 
     prop "Update user" $
-      \(NotPendingStoredUser alice) localDomain update config allowScim -> do
+      \(NotPendingStoredUser alice) localDomain update config -> do
         let lusr = toLocalUnsafe localDomain alice.id
             localBackend = def {users = [alice {managedBy = Just ManagedByWire}]}
             profile = fromJust $ runNoFederationStack localBackend Nothing config do
@@ -208,26 +208,21 @@ spec = describe "UserSubsystem.Interpreter" do
                 lusr
                 Nothing
                 update
-                allowScim
               getUserProfile lusr (tUntagged lusr)
          in profile.profileQualifiedId === tUntagged lusr
               -- if the name/ pict/ assets/ accent id are not set, the original
               -- value should be preserved
-              .&&. profile.profileName === fromMaybe profile.profileName update.name
+              .&&. profile.profileName === maybe profile.profileName (.value) update.name
               .&&. profile.profilePict === fromMaybe profile.profilePict update.pict
               .&&. profile.profileAssets === fromMaybe profile.profileAssets update.assets
               .&&. profile.profileAccentId === fromMaybe profile.profileAccentId update.accentId
 
     prop "Update user events" $
-      \(NotPendingStoredUser alice) localDomain update config allowScim -> do
+      \(NotPendingStoredUser alice) localDomain update config -> do
         let lusr = toLocalUnsafe localDomain alice.id
             localBackend = def {users = [alice {managedBy = Just ManagedByWire}]}
             events = runNoFederationStack localBackend Nothing config do
-              updateUserProfile
-                lusr
-                Nothing
-                update
-                allowScim
+              updateUserProfile lusr Nothing update
               get @[MiniEvent]
          in events === [MkMiniEvent alice.id (mkProfileUpdateEvent alice.id update)]
 
@@ -242,7 +237,7 @@ spec = describe "UserSubsystem.Interpreter" do
                   . runErrorUnsafe
                   . runError
                   $ interpretNoFederationStack localBackend Nothing def config do
-                    updateUserProfile lusr Nothing update {name = Just name} ForbidSCIMUpdates
+                    updateUserProfile lusr Nothing update {name = Just (forbidScimUpdate name)}
                     getUserProfile lusr (tUntagged lusr)
            in Left UserSubsystemDisplayNameManagedByScim === profileErr
 
@@ -257,6 +252,6 @@ spec = describe "UserSubsystem.Interpreter" do
                   . runErrorUnsafe
                   . runError
                   $ interpretNoFederationStack localBackend Nothing def {afcMlsE2EId = setStatus FeatureStatusEnabled defFeatureStatus} config do
-                    updateUserProfile lusr Nothing update {name = Just name} AllowSCIMUpdates
+                    updateUserProfile lusr Nothing update {name = Just (allowScimUpdate name)}
                     getUserProfile lusr (tUntagged lusr)
            in Left UserSubsystemDisplayNameManagedByScim === profileErr

@@ -105,7 +105,7 @@ import Wire.NotificationSubsystem
 import Wire.Rpc
 import Wire.Sem.Concurrency
 import Wire.Sem.Paging.Cassandra (InternalPaging)
-import Wire.UserStore (UserProfileUpdate (..))
+import Wire.UserStore (UserProfileUpdate (..), allowScimUpdate)
 import Wire.UserSubsystem
 
 servantSitemap ::
@@ -869,9 +869,9 @@ updateUserNameH uid (NameUpdate nameUpd) =
   NoContent <$ do
     luid <- qualifyLocal uid
     name <- either (const $ throwStd (errorToWai @'E.InvalidUser)) pure $ mkName nameUpd
-    let uu = (def :: UserProfileUpdate) {name = Just name}
+    let uu = (def :: UserProfileUpdate) {name = Just (allowScimUpdate name)}
     lift (wrapClient $ Data.lookupUser WithPendingInvitations uid) >>= \case
-      Just _ -> lift . liftSem $ updateUserProfile luid Nothing uu API.AllowSCIMUpdates
+      Just _ -> lift . liftSem $ updateUserProfile luid Nothing uu
       Nothing -> throwStd (errorToWai @'E.InvalidUser)
 
 checkHandleInternalH :: Handle -> (Handler r) CheckHandleResponse

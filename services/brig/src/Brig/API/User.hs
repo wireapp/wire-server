@@ -181,6 +181,7 @@ import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserSubsystem
+import Wire.UserStore (AllowSCIMUpdates(..))
 
 -------------------------------------------------------------------------------
 -- Create User

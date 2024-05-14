@@ -264,8 +264,8 @@ library
     , cql
     , cryptobox-haskell          >=0.1.1
     , currency-codes             >=2.0
-    , data-timeout               >=0.3
     , data-default
+    , data-timeout               >=0.3
     , dns
     , dns-util
     , enclosed-exceptions        >=1.0

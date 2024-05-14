@@ -165,7 +165,7 @@ import Wire.Sem.Concurrency
 import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
-import Wire.UserStore (UserProfileUpdate (..))
+import Wire.UserStore (UserProfileUpdate (..), forbidScimUpdate)
 import Wire.UserSubsystem
 
 -- User API -----------------------------------------------------------
@@ -927,13 +927,13 @@ updateUser ::
 updateUser uid conn uu = do
   let update =
         def
-          { name = uu.uupName,
+          { name = fmap forbidScimUpdate uu.uupName,
             pict = uu.uupPict,
             assets = uu.uupAssets,
             accentId = uu.uupAccentId
           }
   lift . liftSem $
-    updateUserProfile uid (Just conn) update ForbidSCIMUpdates
+    updateUserProfile uid (Just conn) update
 
 changePhone ::
   ( Member BlacklistStore r,
@@ -995,7 +995,6 @@ changeLocale lusr conn l =
       lusr
       (Just conn)
       def {locale = Just l.luLocale}
-      ForbidSCIMUpdates
 
 changeSupportedProtocols ::
   ( Member (Embed HttpClientIO) r,

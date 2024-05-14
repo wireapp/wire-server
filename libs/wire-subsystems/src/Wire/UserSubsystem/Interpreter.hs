@@ -34,7 +34,7 @@ import Wire.Sem.Now qualified as Now
 import Wire.StoredUser
 import Wire.UserEvents
 import Wire.UserStore
-import Wire.UserSubsystem (AllowSCIMUpdates (..), UserSubsystem (..), UserSubsystemError (..))
+import Wire.UserSubsystem
 
 data UserSubsystemConfig = UserSubsystemConfig
   { emailVisibilityConfig :: EmailVisibilityConfig,
@@ -83,7 +83,7 @@ interpretUserSubsystem = interpret $ \case
   GetUserProfiles self others -> getUserProfilesImpl self others
   GetLocalUserProfiles others -> getLocalUserProfilesImpl others
   GetUserProfilesWithErrors self others -> getUserProfilesWithErrorsImpl self others
-  UpdateUserProfile self mconn update allowScim -> updateUserProfileImpl self mconn update allowScim
+  UpdateUserProfile self mconn update -> updateUserProfileImpl self mconn update
 
 -- | Obtain user profiles for a list of users as they can be seen by
 -- a given user 'self'. If 'self' is an unknown 'UserId', return '[]'.
@@ -179,7 +179,7 @@ getUserProfilesLocalPart requestingUser luids = do
           <$> traverse getRequestingUserInfo requestingUser
   -- FUTUREWORK: (in the interpreters where it makes sense) pull paginated lists from the DB,
   -- not just single rows.
-  catMaybes <$> traverse (getLocalUserProfile emailVisibilityConfigWithViewer) (sequence luids)
+  catMaybes <$> traverse (getLocalUserProfileImpl emailVisibilityConfigWithViewer) (sequence luids)
   where
     getRequestingUserInfo :: Local UserId -> Sem r (Maybe (TeamId, TeamMember))
     getRequestingUserInfo self = do
@@ -195,7 +195,7 @@ getUserProfilesLocalPart requestingUser luids = do
         Nothing -> pure Nothing
         Just tid -> (tid,) <$$> getTeamMember (tUnqualified self) tid
 
-getLocalUserProfile ::
+getLocalUserProfileImpl ::
   forall r.
   ( Member UserStore r,
     Member GalleyAPIAccess r,
@@ -206,7 +206,7 @@ getLocalUserProfile ::
   EmailVisibilityConfigWithViewer ->
   Local UserId ->
   Sem r (Maybe UserProfile)
-getLocalUserProfile emailVisibilityConfigWithViewer luid = do
+getLocalUserProfileImpl emailVisibilityConfigWithViewer luid = do
   let domain = tDomain luid
   locale <- inputs defaultLocale
   runMaybeT $ do
@@ -278,24 +278,23 @@ updateUserProfileImpl ::
   Local UserId ->
   Maybe ConnId ->
   UserProfileUpdate ->
-  AllowSCIMUpdates ->
   Sem r ()
-updateUserProfileImpl (tUnqualified -> uid) mconn update allowScim = do
+updateUserProfileImpl (tUnqualified -> uid) mconn update = do
   -- check if name updates are allowed
-  for_ update.name $ \newName -> do
+  for_ update.name $ \nameUpdate -> do
     mbUser <- getUser uid
     user <- maybe (throw UserSubsystemProfileNotFound) pure mbUser
     unless
       ( user.managedBy /= Just ManagedByScim
-          || user.name == newName
-          || allowScim == AllowSCIMUpdates
+          || user.name == nameUpdate.value
+          || AllowSCIMUpdates == nameUpdate.allowScim
       )
       $ throw UserSubsystemDisplayNameManagedByScim
     hasE2EId <-
       wsStatus . afcMlsE2EId <$> getAllFeatureConfigsForUser (Just uid) <&> \case
         FeatureStatusEnabled -> True
         FeatureStatusDisabled -> False
-    when (hasE2EId && newName /= user.name) $
+    when (hasE2EId && nameUpdate.value /= user.name) $
       throw UserSubsystemDisplayNameManagedByScim
 
   updateUser uid update
@@ -305,7 +304,7 @@ mkProfileUpdateEvent :: UserId -> UserProfileUpdate -> UserEvent
 mkProfileUpdateEvent uid update =
   UserUpdated $
     (emptyUserUpdatedData uid)
-      { eupName = update.name,
+      { eupName = fmap (.value) update.name,
         eupPict = update.pict,
         eupAccentId = update.accentId,
         eupAssets = update.assets

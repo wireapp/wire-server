@@ -26,7 +26,7 @@ updateUserImpl :: Member (Embed Client) r => UserId -> UserProfileUpdate -> Sem 
 updateUserImpl uid update = embed . retry x5 . batch $ do
   setType BatchLogged
   setConsistency LocalQuorum
-  for_ update.name $ \n -> addPrepQuery userDisplayNameUpdate (n, uid)
+  for_ update.name $ \n -> addPrepQuery userDisplayNameUpdate (n.value, uid)
   for_ update.pict $ \p -> addPrepQuery userPictUpdate (p, uid)
   for_ update.assets $ \a -> addPrepQuery userAssetsUpdate (a, uid)
   for_ update.accentId $ \c -> addPrepQuery userAccentIdUpdate (c, uid)

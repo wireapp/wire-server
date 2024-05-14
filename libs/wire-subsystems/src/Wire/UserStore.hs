@@ -10,10 +10,33 @@ import Wire.API.User
 import Wire.Arbitrary
 import Wire.StoredUser
 
+data AllowSCIMUpdates
+  = AllowSCIMUpdates
+  | ForbidSCIMUpdates
+  deriving (Show, Eq, Ord, Generic)
+  deriving (Arbitrary) via GenericUniform AllowSCIMUpdates
+
+data ScimUpdate a = MkScimUpdate
+  { -- | whether changes to SCIM-managed users should be allowed
+    allowScim :: AllowSCIMUpdates,
+    value :: a
+  }
+  deriving stock (Eq, Ord, Show)
+  deriving (Functor, Foldable, Traversable)
+
+forbidScimUpdate :: a -> ScimUpdate a
+forbidScimUpdate = MkScimUpdate ForbidSCIMUpdates
+
+allowScimUpdate :: a -> ScimUpdate a
+allowScimUpdate = MkScimUpdate AllowSCIMUpdates
+
+instance Arbitrary a => Arbitrary (ScimUpdate a) where
+  arbitrary = MkScimUpdate <$> arbitrary <*> arbitrary
+
 -- this is similar to `UserUpdate` in `Wire.API.User`, but supports updates to
 -- all profile fields rather than just four.
 data UserProfileUpdate = MkUserProfileUpdate
-  { name :: Maybe Name,
+  { name :: Maybe (ScimUpdate Name),
     pict :: Maybe Pict,
     assets :: Maybe [Asset],
     accentId :: Maybe ColourId,
