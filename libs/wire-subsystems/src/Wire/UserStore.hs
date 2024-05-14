@@ -16,7 +16,8 @@ data UserProfileUpdate = MkUserProfileUpdate
   { name :: Maybe Name,
     pict :: Maybe Pict,
     assets :: Maybe [Asset],
-    accentId :: Maybe ColourId
+    accentId :: Maybe ColourId,
+    locale :: Maybe Locale
   }
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via GenericUniform UserProfileUpdate
@@ -27,7 +28,8 @@ instance Default UserProfileUpdate where
       { name = Nothing,
         pict = Nothing,
         assets = Nothing,
-        accentId = Nothing
+        accentId = Nothing,
+        locale = Nothing
       }
 
 data UserStore m a where

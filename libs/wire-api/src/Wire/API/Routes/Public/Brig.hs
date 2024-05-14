@@ -409,7 +409,7 @@ type SelfAPI =
            "change-locale"
            ( Summary "Change your locale."
                :> MakesFederatedCall 'Brig "send-connection-action"
-               :> ZUser
+               :> ZLocalUser
                :> ZConn
                :> "self"
                :> "locale"

@@ -984,18 +984,18 @@ changePassword :: UserId -> Public.PasswordChange -> (Handler r) (Maybe Public.C
 changePassword u cp = lift . exceptTToMaybe $ API.changePassword u cp
 
 changeLocale ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
-  ) =>
-  UserId ->
+  Member UserSubsystem r =>
+  Local UserId ->
   ConnId ->
   Public.LocaleUpdate ->
   (Handler r) ()
-changeLocale u conn l = lift $ API.changeLocale u conn l
+changeLocale lusr conn l =
+  lift . liftSem $
+    updateUserProfile
+      lusr
+      (Just conn)
+      def {locale = Just l.luLocale}
+      ForbidSCIMUpdates
 
 changeSupportedProtocols ::
   ( Member (Embed HttpClientIO) r,
