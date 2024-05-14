@@ -334,11 +334,11 @@ type SelfAPI =
       "put-self"
       ( Summary "Update your profile."
           :> MakesFederatedCall 'Brig "send-connection-action"
-          :> ZUser
+          :> ZLocalUser
           :> ZConn
           :> "self"
           :> ReqBody '[JSON] UserUpdate
-          :> MultiVerb 'PUT '[JSON] PutSelfResponses (Maybe UpdateProfileError)
+          :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "User updated")
       )
     :<|> Named
            "change-phone"

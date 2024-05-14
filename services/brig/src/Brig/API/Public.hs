@@ -81,6 +81,7 @@ import Data.ByteString.Lazy qualified as Lazy
 import Data.ByteString.Lazy.Char8 qualified as LBS
 import Data.ByteString.UTF8 qualified as UTF8
 import Data.CommaSeparatedList
+import Data.Default
 import Data.Domain
 import Data.FileEmbed
 import Data.Handle (Handle, parseHandle)
@@ -164,6 +165,7 @@ import Wire.Sem.Concurrency
 import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.UserStore (UserProfileUpdate (..))
 import Wire.UserSubsystem
 
 -- User API -----------------------------------------------------------
@@ -917,21 +919,21 @@ instance ToJSON GetActivationCodeResp where
   toJSON (GetActivationCodeResp (k, c)) = object ["key" .= k, "code" .= c]
 
 updateUser ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member GalleyAPIAccess r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
-  ) =>
-  UserId ->
+  Member UserSubsystem r =>
+  Local UserId ->
   ConnId ->
   Public.UserUpdate ->
-  (Handler r) (Maybe Public.UpdateProfileError)
+  Handler r ()
 updateUser uid conn uu = do
-  eithErr <- lift $ runExceptT $ API.updateUser uid (Just conn) uu API.ForbidSCIMUpdates
-  pure $ either Just (const Nothing) eithErr
+  let update =
+        def
+          { name = uu.uupName,
+            pict = uu.uupPict,
+            assets = uu.uupAssets,
+            accentId = uu.uupAccentId
+          }
+  lift . liftSem $
+    updateUserProfile uid (Just conn) update ForbidSCIMUpdates
 
 changePhone ::
   ( Member BlacklistStore r,

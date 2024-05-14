@@ -22,7 +22,6 @@ module Brig.API.User
     createUserSpar,
     createUserInviteViaScim,
     checkRestrictedUserCreation,
-    Brig.API.User.updateUser,
     changeLocale,
     changeSelfEmail,
     changeEmail,
@@ -578,41 +577,6 @@ checkRestrictedUserCreation new = do
         && not (isNewUserEphemeral new)
     )
     $ throwE RegisterErrorUserCreationRestricted
-
--------------------------------------------------------------------------------
--- Update Profile
-
-updateUser ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member GalleyAPIAccess r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
-  ) =>
-  UserId ->
-  Maybe ConnId ->
-  UserUpdate ->
-  AllowSCIMUpdates ->
-  ExceptT UpdateProfileError (AppT r) ()
-updateUser uid mconn uu allowScim = do
-  for_ (uupName uu) $ \newName -> do
-    mbUser <- lift . wrapClient $ Data.lookupUser WithPendingInvitations uid
-    user <- maybe (throwE ProfileNotFound) pure mbUser
-    unless
-      ( userManagedBy user /= ManagedByScim
-          || userDisplayName user == newName
-          || allowScim == AllowSCIMUpdates
-      )
-      $ throwE DisplayNameManagedByScim
-    hasE2EId <- lift . liftSem . userUnderE2EId $ uid
-    when (hasE2EId && newName /= userDisplayName user) $
-      throwE DisplayNameManagedByScim
-
-  lift $ do
-    wrapClient $ Data.updateUser uid uu
-    liftSem $ Intra.onUserEvent uid mconn (profileUpdated uid uu)
 
 -------------------------------------------------------------------------------
 -- Update Locale

@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -61,6 +63,7 @@ import Control.Error hiding (bool)
 import Control.Lens (view)
 import Data.ByteString.Conversion (toByteString)
 import Data.CommaSeparatedList
+import Data.Default
 import Data.Domain (Domain)
 import Data.Handle
 import Data.Id as Id
@@ -102,6 +105,8 @@ import Wire.NotificationSubsystem
 import Wire.Rpc
 import Wire.Sem.Concurrency
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.UserStore (UserProfileUpdate (..))
+import Wire.UserSubsystem
 
 servantSitemap ::
   forall r p.
@@ -117,6 +122,7 @@ servantSitemap ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member NotificationSubsystem r,
+    Member UserSubsystem r,
     Member PasswordResetStore r,
     Member Rpc r,
     Member TinyLog r,
@@ -163,6 +169,7 @@ accountAPI ::
     Member (UserPendingActivationStore p) r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
+    Member UserSubsystem r,
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
@@ -854,29 +861,17 @@ updateHandleH uid (HandleUpdate handleUpd) =
     API.changeHandle uid Nothing handle API.AllowSCIMUpdates !>> changeHandleError
 
 updateUserNameH ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member GalleyAPIAccess r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
-  ) =>
+  Member UserSubsystem r =>
   UserId ->
   NameUpdate ->
   (Handler r) NoContent
 updateUserNameH uid (NameUpdate nameUpd) =
   NoContent <$ do
+    luid <- qualifyLocal uid
     name <- either (const $ throwStd (errorToWai @'E.InvalidUser)) pure $ mkName nameUpd
-    let uu =
-          UserUpdate
-            { uupName = Just name,
-              uupPict = Nothing,
-              uupAssets = Nothing,
-              uupAccentId = Nothing
-            }
+    let uu = (def :: UserProfileUpdate) {name = Just name}
     lift (wrapClient $ Data.lookupUser WithPendingInvitations uid) >>= \case
-      Just _ -> API.updateUser uid Nothing uu API.AllowSCIMUpdates !>> updateProfileError
+      Just _ -> lift . liftSem $ updateUserProfile luid Nothing uu API.AllowSCIMUpdates
       Nothing -> throwStd (errorToWai @'E.InvalidUser)
 
 checkHandleInternalH :: Handle -> (Handler r) CheckHandleResponse
