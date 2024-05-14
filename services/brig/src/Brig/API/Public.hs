@@ -1074,7 +1074,7 @@ sendActivationCode ::
 sendActivationCode Public.SendActivationCode {..} = do
   customerExtensionCheckBlockedDomains saUserKey
   checkAllowlist . Left $ saUserKey
-  API.sendActivationCode saUserKey saLocale saCall !>> sendActCodeError
+  API.sendActivationCode saUserKey saLocale !>> sendActCodeError
 
 -- | If the user presents an email address from a blocked domain, throw an error.
 --
