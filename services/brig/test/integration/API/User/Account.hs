@@ -1531,7 +1531,7 @@ testDomainsBlockedForRegistration opts brig = withDomainsBlockedForRegistration 
   post (brig . path "/activate/send" . contentJson . body (p goodEmail)) !!! do
     const 200 === statusCode
   where
-    p email = RequestBodyLBS . encode $ SendActivationCode email Nothing False
+    p email = RequestBodyLBS . encode $ SendActivationCode email Nothing
 
 -- | FUTUREWORK: @setRestrictUserCreation@ perhaps needs to be tested in one place only, since it's the
 -- first thing that we check on the /register endpoint. Other tests that make use of @setRestrictUserCreation@

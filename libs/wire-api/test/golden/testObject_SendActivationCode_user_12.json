@@ -1,5 +1,4 @@
 {
     "email": "test@example.com",
-    "locale": "ve-MU",
-    "voice_call": true
+    "locale": "ve-MU"
 }

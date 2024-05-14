@@ -910,9 +910,8 @@ sendActivationCode ::
   ) =>
   Email ->
   Maybe Locale ->
-  Bool ->
   ExceptT SendActivationCodeError (AppT r) ()
-sendActivationCode email loc _call = do
+sendActivationCode email loc = do
   ek <-
     either
       (const . throwE . InvalidRecipient $ userEmailKey email)

@@ -196,8 +196,7 @@ instance ToSchema ActivationResponse where
 -- one can also request a call instead of SMS.
 data SendActivationCode = SendActivationCode
   { saUserKey :: Email,
-    saLocale :: Maybe Locale,
-    saCall :: Bool
+    saLocale :: Maybe Locale
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SendActivationCode)
@@ -209,10 +208,11 @@ instance ToSchema SendActivationCode where
       SendActivationCode
         <$> (maybeUserKeyToTuple . saUserKey) .= userKeyObjectSchema
         <*> saLocale .= maybe_ (optFieldWithDocModifier "locale" (description ?~ "Locale to use for the activation code template.") schema)
-        <*> saCall .= (fromMaybe False <$> optFieldWithDocModifier "voice_call" (description ?~ "Request the code with a call instead (default is SMS).") schema)
+        <* const (Nothing :: Maybe Bool) .= maybe_ (optFieldWithDocModifier "voice_call" callDesc schema)
     where
       maybeUserKeyToTuple :: Email -> (Maybe Email, Maybe Phone)
       maybeUserKeyToTuple email = (Just email, Nothing)
+      callDesc = description ?~ "This field is ignored as requesting a code via a call is not supported any more."
 
       objectDesc :: NamedSwaggerDoc -> NamedSwaggerDoc
       objectDesc =
