@@ -20,8 +20,6 @@
 module Bots.Lib where
 
 import qualified Bilge
-import Data.Map qualified as M
-import Data.Map (Map)
 import Bilge.Retry
 import Bots.Types
 import Cassandra as C
@@ -35,6 +33,7 @@ import Data.Conduit
 import qualified Data.Conduit.Combinators as Conduit
 import qualified Data.Conduit.List as CL
 import Data.Id
+import qualified Data.Map as M
 import Data.Misc (Fingerprint, HttpsUrl (..), Rsa)
 import qualified Database.CQL.Protocol as CQL
 import Galley.Cassandra.Instances ()
@@ -142,8 +141,8 @@ lookupServiceName client pid sid =
     q :: PrepQuery R (ProviderId, ServiceId) (Identity Text)
     q = "select name from service where provider = ? AND id = ?"
 
-checkTeamAndServiceActive :: RequestCache -> Log.Logger -> ExternalServiceSettings -> ClientState -> ClientState -> ServiceTeamRow -> IO TeamsWithService
-checkTeamAndServiceActive reqCacheRef logger extSrvSettings galleyClient brigClient sr = do
+checkTeamAndServiceActive :: IORef RequestCache -> IORef (Map (ProviderId, ServiceId) (Maybe Text)) -> Log.Logger -> ExternalServiceSettings -> ClientState -> ClientState -> ServiceTeamRow -> IO TeamsWithService
+checkTeamAndServiceActive reqCacheRef nameCacheRef logger extSrvSettings galleyClient brigClient sr = do
   active <- maybe (pure False) (isTeamActive galleyClient) sr.team
   if active
     then do
@@ -151,13 +150,21 @@ checkTeamAndServiceActive reqCacheRef logger extSrvSettings galleyClient brigCli
       case mService of
         Just svr -> do
           cache <- readIORef reqCacheRef
-          isBackendActive <- case M.lookup svr.baseUrl of 
+          isBackendActive <- case M.lookup svr.baseUrl cache of
             Nothing -> do
               b <- reqToServiceOptionsReturns2xx logger extSrvSettings svr
-              writeIORef reqCacheRef (M.insert svr.baseUrl b)
-              pure b 
-            Just b -> pure b
-          mName <- lookupServiceName brigClient sr.provider sr.service
+              writeIORef reqCacheRef (M.insert svr.baseUrl b cache)
+              pure b
+            Just b -> do
+              Log.info logger $ Log.msg (Log.val "cache hit")
+              pure b
+          nameCache <- readIORef nameCacheRef
+          mName <- case M.lookup (sr.provider, sr.service) nameCache of
+            Nothing -> do
+              mName <- lookupServiceName brigClient sr.provider sr.service
+              writeIORef nameCacheRef (M.insert (sr.provider, sr.service) mName nameCache)
+              pure mName
+            Just mName -> pure mName
           pure $ toTeamsWithService (fromMaybe "not found" mName) svr.baseUrl isBackendActive sr
         Nothing ->
           pure $ TeamsWithService 1 mempty mempty mempty
@@ -168,11 +175,12 @@ checkTeamAndServiceActive reqCacheRef logger extSrvSettings galleyClient brigCli
 process :: Log.Logger -> Maybe Int -> ExternalServiceSettings -> ClientState -> ClientState -> IO TeamsWithService
 process logger limit extSrvSettings brigClient galleyClient = do
   reqCache :: IORef RequestCache <- newIORef M.empty
+  nameCache :: IORef (Map (ProviderId, ServiceId) (Maybe Text)) <- newIORef M.empty
   runConduit $
     scanServiceTeam brigClient
       .| Conduit.concat
       .| (maybe (Conduit.filter (const True)) Conduit.take limit)
-      .| Conduit.mapM (checkTeamAndServiceActive reqCache logger extSrvSettings galleyClient brigClient)
+      .| Conduit.mapM (checkTeamAndServiceActive reqCache nameCache logger extSrvSettings galleyClient brigClient)
       .| forever (CL.isolate 1000 .| (Conduit.fold >>= yield))
       .| Conduit.takeWhile ((> 0) . entriesSearched)
       .| CL.scan (<>) mempty
