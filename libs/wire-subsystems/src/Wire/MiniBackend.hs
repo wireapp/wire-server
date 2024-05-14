@@ -25,7 +25,6 @@ import Data.Map.Lazy qualified as LM
 import Data.Map.Strict qualified as M
 import Data.Proxy
 import Data.Qualified
-import Data.Set qualified as S
 import Data.Time
 import Data.Type.Equality
 import Imports
@@ -88,7 +87,7 @@ type GetUserProfileEffects =
     DeleteQueue,
     UserEvents,
     State [InternalNotification],
-    State [StoredUser],
+    State MiniBackend,
     Now,
     Input UserSubsystemConfig,
     FederationAPIAccess MiniFederationMonad,
@@ -99,7 +98,7 @@ type GetUserProfileEffects =
 data MiniBackend = MkMiniBackend
   { -- | this is morally the same as the users stored in the actual backend
     --   invariant: for each key, the user.id and the key are the same
-    users :: Set StoredUser
+    users :: [StoredUser]
   }
 
 instance Default MiniBackend where
@@ -193,7 +192,7 @@ miniGetAllProfiles = do
   pure $
     map
       (\u -> mkUserProfileWithEmail Nothing (mkUserFromStored dom miniLocale u) defUserLegalHoldStatus)
-      (S.toList users)
+      users
 
 miniGetUsersByIds :: [UserId] -> MiniFederationMonad 'Brig [UserProfile]
 miniGetUsersByIds userIds = runOnOwnBackend do
@@ -221,35 +220,36 @@ interpretNowConst time = interpret \case
   Wire.Sem.Now.Get -> pure time
 
 runFederationStack ::
-  [StoredUser] ->
+  MiniBackend ->
   Map Domain MiniBackend ->
   Maybe TeamMember ->
   UserSubsystemConfig ->
   Sem (GetUserProfileEffects `Append` AllErrors) a ->
   a
-runFederationStack allLocalUsers fedBackends teamMember cfg =
+runFederationStack localBackend fedBackends teamMember cfg =
   runAllErrorsUnsafe
     . interpretFederationStack
-      allLocalUsers
+      localBackend
       fedBackends
       teamMember
       cfg
 
 interpretFederationStack ::
   (Members AllErrors r) =>
-  [StoredUser] ->
-  -- | the available backend
+  -- | the local backend
+  MiniBackend ->
+  -- | the available backends
   Map Domain MiniBackend ->
   Maybe TeamMember ->
   UserSubsystemConfig ->
   Sem (GetUserProfileEffects `Append` r) a ->
   Sem r a
-interpretFederationStack allLocalUsers backends teamMember cfg =
+interpretFederationStack localBackend backends teamMember cfg =
   sequentiallyPerformConcurrency
     . miniFederationAPIAccess backends
     . runInputConst cfg
     . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
-    . evalState allLocalUsers
+    . evalState localBackend
     . evalState []
     . nullUserEventsInterpreter
     . inMemoryDeleteQueueInterpreter
@@ -258,28 +258,28 @@ interpretFederationStack allLocalUsers backends teamMember cfg =
     . runUserSubsystem cfg
 
 runNoFederationStack ::
-  [StoredUser] ->
+  MiniBackend ->
   Maybe TeamMember ->
   UserSubsystemConfig ->
   Sem (GetUserProfileEffects `Append` AllErrors) a ->
   a
-runNoFederationStack allUsers teamMember cfg =
-  runAllErrorsUnsafe . interpretNoFederationStack allUsers teamMember def cfg
+runNoFederationStack localBackend teamMember cfg =
+  runAllErrorsUnsafe . interpretNoFederationStack localBackend teamMember def cfg
 
 interpretNoFederationStack ::
   (Members AllErrors r) =>
-  [StoredUser] ->
+  MiniBackend ->
   Maybe TeamMember ->
   AllFeatureConfigs ->
   UserSubsystemConfig ->
   Sem (GetUserProfileEffects `Append` r) a ->
   Sem r a
-interpretNoFederationStack allUsers teamMember galleyConfigs cfg =
+interpretNoFederationStack localBackend teamMember galleyConfigs cfg =
   sequentiallyPerformConcurrency
     . emptyFederationAPIAcesss
     . runInputConst cfg
     . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
-    . evalState allUsers
+    . evalState localBackend
     . evalState []
     . nullUserEventsInterpreter
     . inMemoryDeleteQueueInterpreter
@@ -318,10 +318,21 @@ miniFederationAPIAccess online = do
     RunFederatedBucketed _domain _rpc -> error "unimplemented: RunFederatedBucketed"
     IsFederationConfigured -> pure True
 
-staticUserStoreInterpreter :: Member (State [StoredUser]) r => InterpreterFor UserStore r
+getLocalUsers :: Member (State MiniBackend) r => Sem r [StoredUser]
+getLocalUsers = gets (.users)
+
+modifyLocalUsers ::
+  Member (State MiniBackend) r =>
+  ([StoredUser] -> [StoredUser]) ->
+  Sem r ()
+modifyLocalUsers f = modify $ \b -> b {users = f b.users}
+
+staticUserStoreInterpreter ::
+  Member (State MiniBackend) r =>
+  InterpreterFor UserStore r
 staticUserStoreInterpreter = interpret $ \case
-  GetUser uid -> find (\user -> user.id == uid) <$> get
-  UpdateUser uid update -> modify (map doUpdate)
+  GetUser uid -> find (\user -> user.id == uid) <$> getLocalUsers
+  UpdateUser uid update -> modifyLocalUsers (map doUpdate)
     where
       doUpdate :: StoredUser -> StoredUser
       doUpdate u

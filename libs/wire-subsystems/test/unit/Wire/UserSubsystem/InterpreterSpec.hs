@@ -37,16 +37,15 @@ spec = describe "UserSubsystem.Interpreter" do
               viewer = viewerTeam {teamId = Nothing}
               -- Having teams adds complications in email visibility,
               -- all that stuff is tested in [without federation] tests
-              localTargetUsers =
-                S.fromList $
-                  map (\user -> (coerce user) {teamId = Nothing}) localTargetUsersNotPending
+              localTargetUsers = map (\user -> (coerce user) {teamId = Nothing}) localTargetUsersNotPending
               federation = [(remoteDomain1, remoteBackend1), (remoteDomain2, remoteBackend2)]
-              mkUserIds domain = map (flip Qualified domain . (.id)) . S.toList
+              mkUserIds domain = map (flip Qualified domain . (.id))
               localTargets = mkUserIds localDomain localTargetUsers
               target1 = mkUserIds remoteDomain1 targetUsers1
               target2 = mkUserIds remoteDomain2 targetUsers2
+              localBackend = def {users = [viewer] <> localTargetUsers}
               retrievedProfiles =
-                runFederationStack ([viewer] <> S.toList localTargetUsers) federation Nothing (UserSubsystemConfig visibility miniLocale) $
+                runFederationStack localBackend federation Nothing (UserSubsystemConfig visibility miniLocale) $
                   getUserProfiles
                     (toLocalUnsafe localDomain viewer.id)
                     (localTargets <> target1 <> target2)
@@ -55,7 +54,7 @@ spec = describe "UserSubsystem.Interpreter" do
                     Nothing
                     (mkUserFromStored domain miniLocale targetUser)
                     defUserLegalHoldStatus
-                  | targetUser <- S.toList users
+                  | targetUser <- users
                 ]
               expectedLocalProfiles = mkExpectedProfiles localDomain localTargetUsers
               expectedProfiles1 = mkExpectedProfiles remoteDomain1 targetUsers1
@@ -66,24 +65,24 @@ spec = describe "UserSubsystem.Interpreter" do
             === sortOn (.profileQualifiedId) expectedProfiles
 
     prop "fails when a backend is offline or returns an error" $
-      \viewer onlineTargetUsers (offlineTargetUsers :: Set StoredUser) visibility localDomain onlineDomain (offlineDomain :: Domain) -> do
+      \viewer onlineTargetUsers (offlineTargetUsers :: [StoredUser]) visibility localDomain onlineDomain (offlineDomain :: Domain) -> do
         let onlineRemoteBackend = def {users = onlineTargetUsers}
             online = [(onlineDomain, onlineRemoteBackend)]
-            mkUserIds domain users = map (flip Qualified domain . (.id)) (S.toList users)
+            mkUserIds domain users = map (flip Qualified domain . (.id)) users
             onlineUsers = mkUserIds onlineDomain onlineTargetUsers
             offlineUsers = mkUserIds offlineDomain offlineTargetUsers
             config = UserSubsystemConfig visibility miniLocale
-
+            localBackend = def {users = [viewer]}
             result =
               run
                 . runErrorUnsafe @UserSubsystemError
                 . runError @FederationError
-                . interpretFederationStack [viewer] online Nothing config
+                . interpretFederationStack localBackend online Nothing config
                 $ getUserProfiles
                   (toLocalUnsafe localDomain viewer.id)
                   (onlineUsers <> offlineUsers)
 
-        localDomain /= offlineDomain && offlineTargetUsers /= [] ==>
+        localDomain /= offlineDomain && not (null offlineTargetUsers) ==>
           -- The FederationError doesn't have an instance
           -- for Eq because of dependency on HTTP2Error
           first displayException result
@@ -94,7 +93,7 @@ spec = describe "UserSubsystem.Interpreter" do
         \viewer targetUserIds visibility domain locale ->
           let config = UserSubsystemConfig visibility locale
               retrievedProfiles =
-                runNoFederationStack [] Nothing config $
+                runNoFederationStack def Nothing config $
                   getUserProfiles (toLocalUnsafe domain viewer) (map (`Qualified` domain) targetUserIds)
            in retrievedProfiles === []
 
@@ -103,8 +102,9 @@ spec = describe "UserSubsystem.Interpreter" do
           let teamMember = mkTeamMember viewer.id fullPermissions Nothing defUserLegalHoldStatus
               targetUser = if sameTeam then targetUserNoTeam {teamId = viewer.teamId} else targetUserNoTeam
               config = UserSubsystemConfig visibility locale
+              localBackend = def {users = [targetUser, viewer]}
               retrievedProfiles =
-                runNoFederationStack [targetUser, viewer] (Just teamMember) config $
+                runNoFederationStack localBackend (Just teamMember) config $
                   getUserProfiles (toLocalUnsafe domain viewer.id) [Qualified targetUser.id domain]
            in retrievedProfiles
                 === [ mkUserProfile
@@ -118,8 +118,9 @@ spec = describe "UserSubsystem.Interpreter" do
           let teamMember = mkTeamMember viewer.id fullPermissions Nothing defUserLegalHoldStatus
               targetUser = if sameTeam then targetUserNoTeam {teamId = viewer.teamId} else targetUserNoTeam
               config = UserSubsystemConfig visibility locale
+              localBackend = def {users = [targetUser, viewer]}
               retrievedProfile =
-                runNoFederationStack [targetUser, viewer] (Just teamMember) config $
+                runNoFederationStack localBackend (Just teamMember) config $
                   getUserProfiles (toLocalUnsafe domain viewer.id) [Qualified targetUser.id domain]
            in retrievedProfile
                 === [ mkUserProfile
@@ -132,8 +133,9 @@ spec = describe "UserSubsystem.Interpreter" do
         \viewer (PendingStoredUser targetUser) visibility domain locale ->
           let teamMember = mkTeamMember viewer.id fullPermissions Nothing defUserLegalHoldStatus
               config = UserSubsystemConfig visibility locale
+              localBackend = def {users = [targetUser, viewer]}
               retrievedProfile =
-                runNoFederationStack [targetUser, viewer] (Just teamMember) config $
+                runNoFederationStack localBackend (Just teamMember) config $
                   getLocalUserProfiles (toLocalUnsafe domain [targetUser.id])
            in retrievedProfile === []
 
@@ -143,20 +145,17 @@ spec = describe "UserSubsystem.Interpreter" do
         let remoteBackend = def {users = targetUsers}
             federation = [(remoteDomain, remoteBackend)]
             config = UserSubsystemConfig visibility miniLocale
+            localBackend = def {users = [viewer]}
             retrievedProfilesWithErrors :: ([(Qualified UserId, FederationError)], [UserProfile]) =
-              runFederationStack [viewer] federation Nothing config $
+              runFederationStack localBackend federation Nothing config $
                 getUserProfilesWithErrors
                   (toLocalUnsafe domain viewer.id)
-                  ( map (flip Qualified remoteDomain . (.id)) $
-                      S.toList targetUsers
-                  )
+                  (map (flip Qualified remoteDomain . (.id)) targetUsers)
             retrievedProfiles :: [UserProfile] =
-              runFederationStack [viewer] federation Nothing config $
+              runFederationStack localBackend federation Nothing config $
                 getUserProfiles
                   (toLocalUnsafe domain viewer.id)
-                  ( map (flip Qualified remoteDomain . (.id)) $
-                      S.toList targetUsers
-                  )
+                  (map (flip Qualified remoteDomain . (.id)) targetUsers)
         remoteDomain /= domain ==>
           counterexample ("Retrieved profiles with errors: " <> show retrievedProfilesWithErrors) do
             length (fst retrievedProfilesWithErrors) === 0
@@ -167,8 +166,9 @@ spec = describe "UserSubsystem.Interpreter" do
       \viewer (targetUsers :: Set StoredUser) visibility domain remoteDomain -> do
         let online = mempty
             config = UserSubsystemConfig visibility miniLocale
+            localBackend = def {users = [viewer]}
             retrievedProfilesWithErrors :: ([(Qualified UserId, FederationError)], [UserProfile]) =
-              runFederationStack [viewer] online Nothing config $
+              runFederationStack localBackend online Nothing config $
                 getUserProfilesWithErrors
                   (toLocalUnsafe domain viewer.id)
                   ( map (flip Qualified remoteDomain . (.id)) $
@@ -183,11 +183,12 @@ spec = describe "UserSubsystem.Interpreter" do
         let remoteBackendA = def {users = targetUsers}
             online = [(remoteDomainA, remoteBackendA)]
             allDomains = [domain, remoteDomainA, remoteDomainB]
-            remoteAUsers = map (flip Qualified remoteDomainA . (.id)) (S.toList targetUsers)
-            remoteBUsers = map (flip Qualified remoteDomainB . (.id)) (S.toList targetUsers)
+            remoteAUsers = map (flip Qualified remoteDomainA . (.id)) targetUsers
+            remoteBUsers = map (flip Qualified remoteDomainB . (.id)) targetUsers
             config = UserSubsystemConfig visibility miniLocale
+            localBackend = def {users = [viewer]}
             retrievedProfilesWithErrors :: ([(Qualified UserId, FederationError)], [UserProfile]) =
-              runFederationStack [viewer] online Nothing config $
+              runFederationStack localBackend online Nothing config $
                 getUserProfilesWithErrors
                   (toLocalUnsafe domain viewer.id)
                   (remoteAUsers <> remoteBUsers)
@@ -198,7 +199,8 @@ spec = describe "UserSubsystem.Interpreter" do
     prop "Update user" $
       \(NotPendingStoredUser alice) localDomain mname mpict massets maccentid config allowScim -> do
         let lusr = toLocalUnsafe localDomain alice.id
-            profile = fromJust $ runNoFederationStack [alice {managedBy = Just ManagedByWire}] Nothing config do
+            localBackend = def {users = [alice {managedBy = Just ManagedByWire}]}
+            profile = fromJust $ runNoFederationStack localBackend Nothing config do
               updateUserProfile
                 lusr
                 Nothing
@@ -218,11 +220,12 @@ spec = describe "UserSubsystem.Interpreter" do
       \(NotPendingStoredUser alice) localDomain update name config ->
         alice.name /= name ==>
           let lusr = toLocalUnsafe localDomain alice.id
+              localBackend = def {users = [alice {managedBy = Just ManagedByScim}]}
               profileErr :: Either UserSubsystemError (Maybe UserProfile) =
                 run
                   . runErrorUnsafe
                   . runError
-                  $ interpretNoFederationStack [alice {managedBy = Just ManagedByScim}] Nothing def config do
+                  $ interpretNoFederationStack localBackend Nothing def config do
                     updateUserProfile lusr Nothing update {uupName = Just name} ForbidSCIMUpdates
                     getUserProfile lusr (tUntagged lusr)
            in Left UserSubsystemDisplayNameManagedByScim === profileErr
@@ -232,11 +235,12 @@ spec = describe "UserSubsystem.Interpreter" do
       \(NotPendingStoredUser alice) localDomain update name config ->
         alice.name /= name ==>
           let lusr = toLocalUnsafe localDomain alice.id
+              localBackend = def {users = [alice]}
               profileErr :: Either UserSubsystemError (Maybe UserProfile) =
                 run
                   . runErrorUnsafe
                   . runError
-                  $ interpretNoFederationStack [alice] Nothing def {afcMlsE2EId = setStatus FeatureStatusEnabled defFeatureStatus} config do
+                  $ interpretNoFederationStack localBackend Nothing def {afcMlsE2EId = setStatus FeatureStatusEnabled defFeatureStatus} config do
                     updateUserProfile lusr Nothing update {uupName = Just name} AllowSCIMUpdates
                     getUserProfile lusr (tUntagged lusr)
            in Left UserSubsystemDisplayNameManagedByScim === profileErr
