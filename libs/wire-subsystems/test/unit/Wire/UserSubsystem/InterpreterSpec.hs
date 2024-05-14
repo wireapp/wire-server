@@ -207,7 +207,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 lusr
                 Nothing
                 update
-                (bool AllowSCIMUpdates ForbidSCIMUpdates allowScim)
+                allowScim
               getUserProfile lusr (tUntagged lusr)
          in profile.profileQualifiedId === tUntagged lusr
               -- if the name/ pict/ assets/ accent id are not set, the original
@@ -226,7 +226,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 lusr
                 Nothing
                 update
-                (bool AllowSCIMUpdates ForbidSCIMUpdates allowScim)
+                allowScim
               get @[MiniEvent]
          in events === [MkMiniEvent alice.id (profileUpdated alice.id update)]
 

@@ -13,6 +13,7 @@ import Wire.API.Error
 import Wire.API.Error.Brig (BrigError (..))
 import Wire.API.Federation.Error
 import Wire.API.User
+import Wire.Arbitrary
 
 -- | All errors that are thrown by the user subsystem are subsumed under this sum type.
 data UserSubsystemError
@@ -33,7 +34,8 @@ instance Exception UserSubsystemError
 data AllowSCIMUpdates
   = AllowSCIMUpdates
   | ForbidSCIMUpdates
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (Arbitrary) via GenericUniform AllowSCIMUpdates
 
 data UserSubsystem m a where
   -- | First arg is for authorization only.
