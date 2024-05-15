@@ -100,9 +100,9 @@ tests conf m n b c g aws = do
             test m "post /teams/:tid/invitations - roles" $ testInvitationRoles b g,
             test m "post /register - 201 accepted" $ testInvitationEmailAccepted b g,
             test m "post /register - 201 accepted (with domain blocking customer extension)" $ testInvitationEmailAcceptedInBlockedDomain conf b g,
-            test m "post /register - 201 extended accepted" $ testInvitationEmailAndPhoneAccepted b g,
             test m "post /register user & team - 201 accepted" $ testCreateTeam b g aws,
             test m "post /register user & team - 201 preverified" $ testCreateTeamPreverified b g aws,
+            test m "post /register - 400 incorrect phone" $ testInvitationPhoneInvalid b g,
             test m "post /register - 400 no passwordless" $ testTeamNoPassword b,
             test m "post /register - 400 code already used" $ testInvitationCodeExists b,
             test m "post /register - 400 bad code" $ testInvitationInvalidCode b,
@@ -445,24 +445,13 @@ testInvitationEmailAcceptedInBlockedDomain opts brig galley = do
       replacementBrigApp = withDomainsBlockedForRegistration opts [emailDomain inviteeEmail]
   void $ createAndVerifyInvitation' (Just replacementBrigApp) (accept (irInviteeEmail invite)) invite brig galley
 
-testInvitationEmailAndPhoneAccepted :: Brig -> Galley -> Http ()
-testInvitationEmailAndPhoneAccepted brig galley = do
-  inviteeEmail <- randomEmail
+testInvitationPhoneInvalid :: Brig -> Galley -> Http ()
+testInvitationPhoneInvalid brig _galley = do
   inviteePhone <- randomPhone
-  -- Prepare the extended invitation
-  let stdInvite = stdInvitationRequest inviteeEmail
-      inviteeName = Name "Invited Member"
-      extInvite = stdInvite {irInviteePhone = Just inviteePhone, irInviteeName = Just inviteeName}
-  -- Register the same (pre verified) phone number
   let phoneReq = RequestBodyLBS . encode $ object ["phone" .= fromPhone inviteePhone]
-  post (brig . path "/activate/send" . contentJson . body phoneReq) !!! (const 200 === statusCode)
-  Just (_, phoneCode) <- getActivationCode brig (Right inviteePhone)
-  -- Register the user with the extra supplied information
-  (profile, invitation) <- createAndVerifyInvitation (extAccept inviteeEmail inviteeName inviteePhone phoneCode) extInvite brig galley
-  liftIO $ assertEqual "Wrong name in profile" (Just inviteeName) (userDisplayName . selfUser <$> profile)
-  liftIO $ assertEqual "Wrong name in invitation" (Just inviteeName) (inInviteeName invitation)
-  liftIO $ assertEqual "Wrong phone number in profile" (Just inviteePhone) ((userPhone . selfUser) =<< profile)
-  liftIO $ assertEqual "Wrong phone number in invitation" (Just inviteePhone) (inInviteePhone invitation)
+  post (brig . path "/activate/send" . contentJson . body phoneReq) !!! do
+    const 400 === statusCode
+    const (Just "bad-request") === fmap Error.label . responseJsonMaybe
 
 -- | FUTUREWORK: this is an alternative helper to 'createPopulatedBindingTeam'.  it has been
 -- added concurrently, and the two should probably be consolidated.
