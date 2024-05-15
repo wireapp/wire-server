@@ -35,7 +35,7 @@ import Brig.AWS qualified as AWS
 import Brig.App
 import Brig.CanonicalInterpreter (BrigCanonicalEffects, runBrigToIO)
 import Brig.Options (setAllowlistEmailDomains, setAllowlistPhonePrefixes)
-import Brig.Phone (Phone, PhoneException (..))
+import Brig.Phone (Phone)
 import Control.Error
 import Control.Exception (throwIO)
 import Control.Lens (view)
@@ -100,13 +100,12 @@ instance Exception UserNotAllowedToJoinTeam
 
 brigErrorHandlers :: Logger -> ByteString -> [Catch.Handler IO (Either Error a)]
 brigErrorHandlers logger reqId =
-  [ Catch.Handler $ \(ex :: PhoneException) ->
-      pure (Left (phoneError ex)),
-    Catch.Handler $ \(ex :: ZV.Failure) ->
+  [ Catch.Handler $ \(ex :: ZV.Failure) ->
       pure (Left (zauthError ex)),
     Catch.Handler $ \(ex :: AWS.Error) ->
       case ex of
-        AWS.SESInvalidDomain -> pure (Left (StdError (errorToWai @'InvalidEmail)))
+        AWS.SESInvalidDomain ->
+          pure (Left (StdError (errorToWai @'InvalidEmail)))
         _ -> throwM ex,
     Catch.Handler $ \(UserNotAllowedToJoinTeam e) -> pure (Left $ StdError e),
     Catch.Handler $ \(e :: SomeException) -> do
