@@ -179,8 +179,10 @@ testPutPhone :: TestM ()
 testPutPhone = do
   uid <- randomUser
   phone <- randomPhone
-  -- We simply test that this call returns 200
-  putPhone uid (PhoneUpdate phone)
+  resp <- putPhone uid (PhoneUpdate phone)
+  liftIO $ do
+    statusCode resp @?= 400
+    statusMessage resp @?= "invalid-phone"
 
 testDeleteUser :: TestM ()
 testDeleteUser = do
@@ -572,10 +574,10 @@ putEmail uid emailUpdate = do
   s <- view tsStern
   void $ put (s . paths ["users", toByteString' uid, "email"] . json emailUpdate . expect2xx)
 
-putPhone :: UserId -> PhoneUpdate -> TestM ()
+putPhone :: UserId -> PhoneUpdate -> TestM ResponseLBS
 putPhone uid phoneUpdate = do
   s <- view tsStern
-  void $ put (s . paths ["users", toByteString' uid, "phone"] . json phoneUpdate . expect2xx)
+  put (s . paths ["users", toByteString' uid, "phone"] . json phoneUpdate)
 
 deleteUser :: UserId -> Either Email Phone -> TestM ()
 deleteUser uid emailOrPhone = do

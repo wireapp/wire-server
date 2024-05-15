@@ -213,7 +213,7 @@ usersByEmail :: Email -> Handler [UserAccount]
 usersByEmail = Intra.getUserProfilesByIdentity . Left
 
 usersByPhone :: Phone -> Handler [UserAccount]
-usersByPhone _ = throwE $ mkError status400 "invalid-phone" "Phone numbers are no longer supported"
+usersByPhone _ = throwE invalidPhoneError
 
 usersByIds :: [UserId] -> Handler [UserAccount]
 usersByIds = Intra.getUserProfiles . Left
@@ -244,7 +244,7 @@ changeEmail :: UserId -> EmailUpdate -> Handler NoContent
 changeEmail uid upd = NoContent <$ Intra.changeEmail uid upd
 
 changePhone :: UserId -> PhoneUpdate -> Handler NoContent
-changePhone uid upd = NoContent <$ Intra.changePhone uid upd
+changePhone _ _ = throwE invalidPhoneError
 
 deleteUser :: UserId -> Maybe Email -> Maybe Phone -> Handler NoContent
 deleteUser uid mbEmail mbPhone = do
@@ -502,3 +502,6 @@ ifNothing e = maybe (throwE e) pure
 
 noSuchUser :: Maybe a -> Handler a
 noSuchUser = ifNothing (mkError status404 "no-user" "No such user")
+
+invalidPhoneError :: Error
+invalidPhoneError = mkError status400 "invalid-phone" "Phone numbers are no longer supported"
