@@ -97,7 +97,6 @@ randomUserProfile'' isCreator hasPassword hasEmail = do
           ["name" .= fromEmail e]
             <> ["password" .= defPassword | hasPassword]
             <> ["email" .= fromEmail e | hasEmail]
-            -- <> ["phone" .= fromPhone p]
             <> ["team" .= BindingNewTeam (newNewTeam (unsafeRange "teamName") DefaultIcon) | isCreator]
   (,(e, p)) . responseJsonUnsafe <$> (post (b . path "/i/users" . Bilge.json pl) <!! const 201 === statusCode)
 

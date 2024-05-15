@@ -51,7 +51,6 @@ import Data.Json.Util (fromUTCTimeMillis)
 import Data.LegalHold
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.List1 (singleton)
-import Data.List1 qualified as List1
 import Data.Misc (plainTextPassword6Unsafe)
 import Data.Proxy
 import Data.Qualified
@@ -86,7 +85,6 @@ import Wire.API.Asset hiding (Asset)
 import Wire.API.Asset qualified as Asset
 import Wire.API.Connection
 import Wire.API.Conversation
-import Wire.API.Internal.Notification
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Team.Feature (ExposeInvitationURLsToTeamAdminConfig (..), FeatureStatus (..), FeatureTTL' (..), LockStatus (LockStatusLocked), withStatus)
 import Wire.API.Team.Invitation (Invitation (inInvitation))
@@ -144,10 +142,9 @@ tests _ at opts p b c ch g aws userJournalWatcher =
       test p "post /activate/send - 403 prefix excluded" $ testSendActivationCodePrefixExcluded b,
       test p "post /i/users/phone-prefix" $ testInternalPhonePrefixes b,
       test p "put /i/users/:uid/status (suspend)" $ testSuspendUser b,
-      test p "get /i/users?:(email|phone) - 200" $ testGetByIdentity b,
+      test p "get /i/users?:email - 200" $ testGetByIdentity b,
       -- "get /i/users?:ids=...&includePendingInvitations=..." is tested in 'testCreateUserNoIdP', 'testCreateUserTimeout'
       -- in spar's integration tests, module "Test.Spar.Scim.UserSpec"
-      test p "delete/phone-email" $ testEmailPhoneDelete b c,
       test p "delete/by-password" $ testDeleteUserByPassword b c userJournalWatcher,
       test p "delete/with-legalhold" $ testDeleteUserWithLegalHold b c userJournalWatcher,
       test p "delete/by-code" $ testDeleteUserByCode b,
@@ -1105,15 +1102,12 @@ testSuspendUser brig = do
 
 testGetByIdentity :: Brig -> Http ()
 testGetByIdentity brig = do
-  p <- randomPhone
   e <- randomEmail
   let emailBs = T.encodeUtf8 $ fromEmail e
-      phoneBs = T.encodeUtf8 $ fromPhone p
       newUser =
         RequestBodyLBS . encode $
           object
             [ "name" .= ("Alice" :: Text),
-              "phone" .= fromPhone p,
               "email" .= fromEmail e
             ]
   rs <-
@@ -1121,9 +1115,6 @@ testGetByIdentity brig = do
       <!! const 201 === statusCode
   let Just uid = userId <$> responseJsonMaybe rs
   get (brig . zUser uid . path "i/users" . queryItem "email" emailBs) !!! do
-    const 200 === statusCode
-    const (Just [uid]) === getUids
-  get (brig . zUser uid . path "i/users" . queryItem "phone" phoneBs) !!! do
     const 200 === statusCode
     const (Just [uid]) === getUids
   where
@@ -1286,69 +1277,6 @@ insertPrefix brig prefix = do
 
 deletePrefix :: Brig -> PhonePrefix -> Http ()
 deletePrefix brig prefix = delete (brig . paths ["/i/users/phone-prefixes", toByteString' prefix]) !!! const 200 === statusCode
-
-testEmailPhoneDelete :: Brig -> Cannon -> Http ()
-testEmailPhoneDelete brig cannon = do
-  user <- randomUser brig
-  let uid = userId user
-  let Just email = userEmail user
-  (cky, tok) <- do
-    rsp <-
-      login brig (emailLogin email defPassword Nothing) PersistentCookie
-        <!! const 200 === statusCode
-    pure (decodeCookie rsp, decodeToken rsp)
-  -- Cannot remove the only identity
-  delete (brig . path "/self/email" . zUser uid . zConn "c")
-    !!! const 403 === statusCode
-  -- Add a phone number
-  phone <- randomPhone
-  let phoneUpdate = RequestBodyLBS . encode $ PhoneUpdate phone
-  put (brig . path "/self/phone" . contentJson . zUser uid . zConn "c" . body phoneUpdate)
-    !!! const 202 === statusCode
-  act <- getActivationCode brig (Right phone)
-  case act of
-    Nothing -> liftIO $ assertFailure "missing activation key/code"
-    Just kc -> activate brig kc !!! const 200 === statusCode
-  -- Remove the email
-  WS.bracketR cannon uid $ \ws -> do
-    delete (brig . path "/self/email" . zUser uid . zConn "c")
-      !!! (const 200 === statusCode)
-    void . liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
-      let j = Object $ List1.head (ntfPayload n)
-      let etype = j ^? key "type" . _String
-      let euser = j ^? key "user" . key "id" . _String
-      let eemail = j ^? key "user" . key "email" . _String
-      etype @?= Just "user.identity-remove"
-      euser @?= Just (UUID.toText (toUUID uid))
-      eemail @?= Just (fromEmail email)
-  get (brig . path "/self" . zUser uid) !!! do
-    const 200 === statusCode
-    const Nothing === (userEmail <=< responseJsonMaybe)
-  -- Cannot remove the only remaining identity
-  delete (brig . path "/self/phone" . zUser uid . zConn "c")
-    !!! const 403 === statusCode
-  -- Add back a new email address
-  eml <- randomEmail
-  initiateEmailUpdateCreds brig eml (cky, tok) uid !!! (const 202 === statusCode)
-  act' <- getActivationCode brig (Left eml)
-  case act' of
-    Nothing -> liftIO $ assertFailure "missing activation key/code"
-    Just kc -> activate brig kc !!! const 200 === statusCode
-  -- Remove the phone number
-  WS.bracketR cannon uid $ \ws -> do
-    delete (brig . path "/self/phone" . zUser uid . zConn "c")
-      !!! const 200 === statusCode
-    void . liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
-      let j = Object $ List1.head (ntfPayload n)
-      let etype = j ^? key "type" . _String
-      let euser = j ^? key "user" . key "id" . _String
-      let ephone = j ^? key "user" . key "phone" . _String
-      etype @?= Just "user.identity-remove"
-      euser @?= Just (UUID.toText (toUUID uid))
-      ephone @?= Just (fromPhone phone)
-  get (brig . path "/self" . zUser uid) !!! do
-    const 200 === statusCode
-    const Nothing === (userPhone <=< responseJsonMaybe)
 
 testDeleteUserByPassword :: Brig -> Cannon -> UserJournalWatcher -> Http ()
 testDeleteUserByPassword brig cannon userJournalWatcher = do
