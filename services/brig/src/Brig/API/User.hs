@@ -26,7 +26,6 @@ module Brig.API.User
     checkRestrictedUserCreation,
     changeSelfEmail,
     changeEmail,
-    changePhone,
     CheckHandleResp (..),
     checkHandle,
     lookupHandle,
@@ -621,37 +620,6 @@ changeEmail u email updateOrigin = do
       timeout <- setActivationTimeout <$> view settings
       act <- lift . wrapClient $ Data.newActivation ek timeout (Just u)
       pure $ ChangeEmailNeedsActivation (usr, act, em)
-
--------------------------------------------------------------------------------
--- Change Phone
-
-changePhone ::
-  ( Member BlacklistStore r,
-    Member BlacklistPhonePrefixStore r
-  ) =>
-  UserId ->
-  Phone ->
-  ExceptT ChangePhoneError (AppT r) (Activation, Phone)
-changePhone u phone = do
-  canonical <-
-    maybe
-      (throwE InvalidNewPhone)
-      pure
-      =<< lift (wrapClient $ validatePhone phone)
-  let pk = userPhoneKey canonical
-  available <- lift . wrapClient $ Data.keyAvailable pk (Just u)
-  unless available $
-    throwE PhoneExists
-  timeout <- setActivationTimeout <$> view settings
-  blacklisted <- lift . liftSem $ BlacklistStore.exists pk
-  when blacklisted $
-    throwE BlacklistedNewPhone
-  -- check if any prefixes of this phone number are blocked
-  prefixExcluded <- lift . liftSem $ BlacklistPhonePrefixStore.existsAny canonical
-  when prefixExcluded $
-    throwE BlacklistedNewPhone
-  act <- lift . wrapClient $ Data.newActivation pk timeout (Just u)
-  pure (act, canonical)
 
 -------------------------------------------------------------------------------
 -- Remove Email

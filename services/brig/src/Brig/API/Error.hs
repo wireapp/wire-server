@@ -18,7 +18,6 @@
 module Brig.API.Error where
 
 import Brig.API.Types
-import Brig.Phone (PhoneException (..))
 import Control.Monad.Error.Class hiding (Error)
 import Data.Aeson
 import Data.Aeson.KeyMap qualified as KeyMap
@@ -262,11 +261,6 @@ deleteUserError (DeleteUserVerificationCodeThrottled t) =
 accountStatusError :: AccountStatusError -> Error
 accountStatusError InvalidAccountStatus = StdError invalidAccountStatus
 accountStatusError AccountNotFound = StdError (notFound "Account not found")
-
-phoneError :: PhoneException -> Error
-phoneError PhoneNumberUnreachable = StdError (errorToWai @'E.InvalidPhone)
-phoneError PhoneNumberBarred = StdError (errorToWai @'E.BlacklistedPhone)
-phoneError (PhoneBudgetExhausted t) = RichError phoneBudgetExhausted (PhoneBudgetTimeout t) []
 
 updateProfileError :: UpdateProfileError -> Error
 updateProfileError DisplayNameManagedByScim = StdError (propertyManagedByScim "name")
