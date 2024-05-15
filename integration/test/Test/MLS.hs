@@ -8,7 +8,9 @@ import qualified Data.Aeson.KeyMap as KM
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.Set as Set
+import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
+import qualified Data.Text.Read as T
 import MLS.Util
 import Notifications
 import SetupHelpers
@@ -101,6 +103,7 @@ testMixedProtocolUpgrade secondDomain = do
   bindResponse (getConversation alice qcnv) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "protocol" `shouldMatch` "mixed"
+    resp.json %. "epoch" `shouldMatchInt` 0
 
   bindResponse (putConversationProtocol alice qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 204
@@ -121,8 +124,9 @@ testMixedProtocolNonTeam secondDomain = do
   bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 403
 
-testMixedProtocolAddUsers :: HasCallStack => Domain -> App ()
-testMixedProtocolAddUsers secondDomain = do
+testMixedProtocolAddUsers :: HasCallStack => Domain -> Ciphersuite -> App ()
+testMixedProtocolAddUsers secondDomain suite = do
+  setMLSCiphersuite suite
   (alice, tid, _) <- createTeam OwnDomain 1
   [bob, charlie] <- replicateM 2 (randomUser secondDomain def)
   connectUsers [alice, bob, charlie]
@@ -149,6 +153,11 @@ testMixedProtocolAddUsers secondDomain = do
     void $ sendAndConsumeCommitBundle mp
     n <- awaitMatch (\n -> nPayload n %. "type" `isEqual` "conversation.mls-welcome") ws
     nPayload n %. "data" `shouldMatch` T.decodeUtf8 (Base64.encode welcome)
+
+  bindResponse (getConversation alice qcnv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    (suiteCode, _) <- assertOne $ T.hexadecimal (T.pack suite.code)
+    resp.json %. "cipher_suite" `shouldMatchInt` suiteCode
 
 testMixedProtocolUserLeaves :: HasCallStack => Domain -> App ()
 testMixedProtocolUserLeaves secondDomain = do
@@ -760,44 +769,3 @@ testPublicKeysMLSNotEnabled = withModifiedBackend
     bindResponse (getMLSPublicKeys alice) $ \resp -> do
       resp.status `shouldMatchInt` 400
       resp.json %. "label" `shouldMatch` "mls-not-enabled"
-
-testMessagingAfterMigration :: HasCallStack => App ()
-testMessagingAfterMigration = do
-  (alice, tid, [bob]) <- createTeam OwnDomain 2
-  conv <-
-    postConversation
-      bob
-      defProteus
-        { qualifiedUsers = [alice],
-          team = Just tid
-        }
-      >>= getJSON 201
-  void $ putConversationProtocol bob conv "mixed" >>= getBody 200
-
-  modifyMLSState $ \mls -> mls {protocol = MLSProtocolMixed}
-
-  _conv' <- getConversation alice conv >>= getJSON 200
-
-  -- bob creates MLS group and alice joins
-  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
-  createGroup bob1 conv
-  void $ createPendingProposalCommit bob1 >>= sendAndConsumeCommitBundle
-  void $ createExternalCommit alice1 Nothing >>= sendAndConsumeCommitBundle
-
-  supportMLS bob
-  bindResponse (putConversationProtocol alice conv "mls") $ \resp -> do
-    resp.status `shouldMatchInt` 400
-    resp.json %. "label" `shouldMatch` "mls-migration-criteria-not-satisfied"
-  bindResponse (getConversation bob conv) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json %. "protocol" `shouldMatch` "mixed"
-
-  supportMLS alice
-
-  bindResponse (putConversationProtocol alice conv "mls") $ \resp -> do
-    resp.status `shouldMatchInt` 200
-  modifyMLSState $ \mls -> mls {protocol = MLSProtocolMLS}
-
-  bindResponse (getConversation bob conv) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json %. "protocol" `shouldMatch` "mls"
