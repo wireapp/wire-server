@@ -143,6 +143,7 @@ testMixedProtocolAddUsers secondDomain suite = do
 
   bindResponse (getConversation alice qcnv) $ \resp -> do
     resp.status `shouldMatchInt` 200
+    resp.json %. "epoch" `shouldMatchInt` 0
     createGroup alice1 resp.json
 
   traverse_ uploadNewKeyPackage [bob1]
@@ -156,6 +157,7 @@ testMixedProtocolAddUsers secondDomain suite = do
 
   bindResponse (getConversation alice qcnv) $ \resp -> do
     resp.status `shouldMatchInt` 200
+    resp.json %. "epoch" `shouldMatchInt` 1
     (suiteCode, _) <- assertOne $ T.hexadecimal (T.pack suite.code)
     resp.json %. "cipher_suite" `shouldMatchInt` suiteCode
 
