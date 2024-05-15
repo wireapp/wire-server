@@ -31,6 +31,7 @@ import Control.Retry
 import Data.ByteString.Conversion.To
 import Data.Conduit
 import qualified Data.Conduit.Combinators as Conduit
+import Data.Conduit.ConcurrentMap (concurrentMapM_numCaps)
 import qualified Data.Conduit.List as CL
 import Data.Id
 import qualified Data.Map as M
@@ -50,7 +51,7 @@ import System.Logger.Message ((.=), (~~))
 import URI.ByteString
 import Wire.API.Routes.Internal.Galley.TeamsIntra (TeamStatus (..))
 
-scanServiceTeam :: ClientState -> ConduitM () [ServiceTeamRow] IO ()
+scanServiceTeam :: MonadIO m => ClientState -> ConduitM () [ServiceTeamRow] m ()
 scanServiceTeam client =
   transPipe (runClient client) (paginateC selectAll (paramsP One () 1000) x5)
     .| Conduit.map (fmap CQL.asRecord)
@@ -176,11 +177,11 @@ process :: Log.Logger -> Maybe Int -> ExternalServiceSettings -> ClientState -> 
 process logger limit extSrvSettings brigClient galleyClient = do
   reqCache :: IORef RequestCache <- newIORef M.empty
   nameCache :: IORef (Map (ProviderId, ServiceId) (Maybe Text)) <- newIORef M.empty
-  runConduit $
+  runConduitRes $
     scanServiceTeam brigClient
       .| Conduit.concat
       .| (maybe (Conduit.filter (const True)) Conduit.take limit)
-      .| Conduit.mapM (checkTeamAndServiceActive reqCache nameCache logger extSrvSettings galleyClient brigClient)
+      .| concurrentMapM_numCaps 1000 (liftIO . checkTeamAndServiceActive reqCache nameCache logger extSrvSettings galleyClient brigClient)
       .| forever (CL.isolate 1000 .| (Conduit.fold >>= yield))
       .| Conduit.takeWhile ((> 0) . entriesSearched)
       .| CL.scan (<>) mempty
