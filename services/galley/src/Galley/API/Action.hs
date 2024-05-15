@@ -118,7 +118,6 @@ import Wire.API.Federation.API.Galley
 import Wire.API.Federation.API.Galley qualified as F
 import Wire.API.Federation.Error
 import Wire.API.FederationStatus
-import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.Feature
 import Wire.API.Team.LegalHold
@@ -492,7 +491,7 @@ performAction tag origUser lconv action = do
     SConversationUpdateProtocolTag -> do
       case (protocolTag (convProtocol (tUnqualified lconv)), action, convTeam (tUnqualified lconv)) of
         (ProtocolProteusTag, ProtocolMixedTag, Just _) -> do
-          E.updateToMixedProtocol lcnv (convType (tUnqualified lconv)) MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+          E.updateToMixedProtocol lcnv (convType (tUnqualified lconv))
           pure (mempty, action)
         (ProtocolMixedTag, ProtocolMLSTag, Just tid) -> do
           mig <- getFeatureStatus @MlsMigrationConfig DontDoAuth tid

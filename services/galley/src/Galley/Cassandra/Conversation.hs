@@ -396,15 +396,14 @@ updateToMixedProtocol ::
     r =>
   Local ConvId ->
   ConvType ->
-  CipherSuiteTag ->
   Sem r ()
-updateToMixedProtocol lcnv ct cs = do
+updateToMixedProtocol lcnv ct = do
   let gid = convToGroupId . groupIdParts ct $ Conv <$> tUntagged lcnv
       epoch = Epoch 0
   embedClient . retry x5 . batch $ do
     setType BatchLogged
     setConsistency LocalQuorum
-    addPrepQuery Cql.updateToMixedConv (tUnqualified lcnv, ProtocolMixedTag, gid, epoch, cs)
+    addPrepQuery Cql.updateToMixedConv (tUnqualified lcnv, ProtocolMixedTag, gid, epoch)
   pure ()
 
 updateToMLSProtocol ::
@@ -493,9 +492,9 @@ interpretConversationStoreToCassandra = interpret $ \case
   ReleaseCommitLock gId epoch -> do
     logEffect "ConversationStore.ReleaseCommitLock"
     embedClient $ releaseCommitLock gId epoch
-  UpdateToMixedProtocol cid ct cs -> do
+  UpdateToMixedProtocol cid ct -> do
     logEffect "ConversationStore.UpdateToMixedProtocol"
-    updateToMixedProtocol cid ct cs
+    updateToMixedProtocol cid ct
   UpdateToMLSProtocol cid -> do
     logEffect "ConversationStore.UpdateToMLSProtocol"
     updateToMLSProtocol cid
