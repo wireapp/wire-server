@@ -760,3 +760,44 @@ testPublicKeysMLSNotEnabled = withModifiedBackend
     bindResponse (getMLSPublicKeys alice) $ \resp -> do
       resp.status `shouldMatchInt` 400
       resp.json %. "label" `shouldMatch` "mls-not-enabled"
+
+testMessagingAfterMigration :: HasCallStack => App ()
+testMessagingAfterMigration = do
+  (alice, tid, [bob]) <- createTeam OwnDomain 2
+  conv <-
+    postConversation
+      bob
+      defProteus
+        { qualifiedUsers = [alice],
+          team = Just tid
+        }
+      >>= getJSON 201
+  void $ putConversationProtocol bob conv "mixed" >>= getBody 200
+
+  modifyMLSState $ \mls -> mls {protocol = MLSProtocolMixed}
+
+  _conv' <- getConversation alice conv >>= getJSON 200
+
+  -- bob creates MLS group and alice joins
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  createGroup bob1 conv
+  void $ createPendingProposalCommit bob1 >>= sendAndConsumeCommitBundle
+  void $ createExternalCommit alice1 Nothing >>= sendAndConsumeCommitBundle
+
+  supportMLS bob
+  bindResponse (putConversationProtocol alice conv "mls") $ \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.json %. "label" `shouldMatch` "mls-migration-criteria-not-satisfied"
+  bindResponse (getConversation bob conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "protocol" `shouldMatch` "mixed"
+
+  supportMLS alice
+
+  bindResponse (putConversationProtocol alice conv "mls") $ \resp -> do
+    resp.status `shouldMatchInt` 200
+  modifyMLSState $ \mls -> mls {protocol = MLSProtocolMLS}
+
+  bindResponse (getConversation bob conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "protocol" `shouldMatch` "mls"
