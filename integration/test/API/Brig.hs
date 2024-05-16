@@ -541,6 +541,12 @@ activateProvider dom key code = do
   submit "GET" (addQueryParams ps req) `bindResponse` \resp -> do
     resp.status `shouldMatchOneOf` [Number 200, Number 204]
 
+activateUserV5 :: (HasCallStack, MakesValue dom, MakesValue bdy) => dom -> bdy -> App Response
+activateUserV5 dom bdy = do
+  b <- make bdy
+  req <- rawBaseRequest dom Brig (ExplicitVersion 5) $ joinHttpPath ["activate", "send"]
+  submit "POST" $ (addJSON b req)
+
 -- | Returns the value of the Set-Cookie header that is to be used to
 -- authenticate to provider endpoints.
 loginProvider ::
