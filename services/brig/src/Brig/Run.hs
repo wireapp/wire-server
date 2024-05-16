@@ -165,13 +165,13 @@ customFormatters =
 bodyParserErrorFormatter :: Servant.ErrorFormatter
 bodyParserErrorFormatter _ _ errMsg =
   if "invalid-phone" `isSuffixOf` errMsg
-    then mkErr "The phone option is not supported any more." "invalid-phone"
+    then mkErr invalidPhoneMsg "invalid-phone" invalidPhoneMsg
     else
       let statusMsg = UTF8.toString $ HTTP.statusMessage HTTP.status400
-       in mkErr statusMsg "bad-request"
+       in mkErr statusMsg "bad-request" errMsg
   where
-    mkErr :: String -> Text -> Servant.ServerError
-    mkErr reason label =
+    mkErr :: String -> Text -> String -> Servant.ServerError
+    mkErr reason label m =
       Servant.ServerError
         { Servant.errHTTPCode = HTTP.statusCode HTTP.status400,
           Servant.errReasonPhrase = reason,
@@ -179,11 +179,12 @@ bodyParserErrorFormatter _ _ errMsg =
             Aeson.encode $
               Aeson.object
                 [ "code" Aeson..= Aeson.Number 400,
-                  "message" Aeson..= reason,
+                  "message" Aeson..= m,
                   "label" Aeson..= label
                 ],
           Servant.errHeaders = [(HTTP.hContentType, HTTPMedia.renderHeader (Servant.contentType (Proxy @Servant.JSON)))]
         }
+    invalidPhoneMsg = "The phone option is not supported any more."
 
 -- | Go through expired pending activations/invitations and delete them.  This could probably
 -- be done with cassandra TTLs, but it involves several tables and may require adjusting their

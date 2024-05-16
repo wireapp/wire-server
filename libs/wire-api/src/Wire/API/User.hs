@@ -1211,7 +1211,7 @@ newUserRawObjectSchema =
         & S.deprecated ?~ True
     validateNewUserRawPhoneEntity :: Maybe a -> Either String (Maybe a)
     validateNewUserRawPhoneEntity Nothing = Right Nothing
-    validateNewUserRawPhoneEntity (Just _) = Left "Users cannot be registered with a phone number any more"
+    validateNewUserRawPhoneEntity (Just _) = Left "invalid-phone"
 
 instance ToSchema NewUser where
   schema =
