@@ -159,20 +159,32 @@ customFormatters =
     { Servant.bodyParserErrorFormatter = bodyParserErrorFormatter
     }
 
+-- We use this to massage the format of specific errors throw
+-- when parsing invalid bodies for requests.
+-- More specifically we want to override the error reason and label for
+-- invalid phone errors due to droppping phone based account support.
 bodyParserErrorFormatter :: Servant.ErrorFormatter
 bodyParserErrorFormatter _ _ errMsg =
-  Servant.ServerError
-    { Servant.errHTTPCode = HTTP.statusCode HTTP.status400,
-      Servant.errReasonPhrase = UTF8.toString $ HTTP.statusMessage HTTP.status400,
-      Servant.errBody =
-        Aeson.encode $
-          Aeson.object
-            [ "code" Aeson..= Aeson.Number 400,
-              "message" Aeson..= errMsg,
-              "label" Aeson..= ("bad-request" :: Text)
-            ],
-      Servant.errHeaders = [(HTTP.hContentType, HTTPMedia.renderHeader (Servant.contentType (Proxy @Servant.JSON)))]
-    }
+  if "invalid-phone" `isSuffixOf` errMsg
+    then mkErr "The phone option is not supported any more." "invalid-phone"
+    else
+      let statusMsg = UTF8.toString $ HTTP.statusMessage HTTP.status400
+       in mkErr statusMsg "bad-request"
+  where
+    mkErr :: String -> Text -> Servant.ServerError
+    mkErr reason label =
+      Servant.ServerError
+        { Servant.errHTTPCode = HTTP.statusCode HTTP.status400,
+          Servant.errReasonPhrase = reason,
+          Servant.errBody =
+            Aeson.encode $
+              Aeson.object
+                [ "code" Aeson..= Aeson.Number 400,
+                  "message" Aeson..= reason,
+                  "label" Aeson..= label
+                ],
+          Servant.errHeaders = [(HTTP.hContentType, HTTPMedia.renderHeader (Servant.contentType (Proxy @Servant.JSON)))]
+        }
 
 -- | Go through expired pending activations/invitations and delete them.  This could probably
 -- be done with cassandra TTLs, but it involves several tables and may require adjusting their
