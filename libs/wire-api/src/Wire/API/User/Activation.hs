@@ -237,5 +237,5 @@ instance ToSchema SendActivationCode where
           maybeUserKeyFromTuple = \case
             (Just _, Just _) -> fail "Only 'email' allowed. The phone option is not supported any more."
             (Just email, Nothing) -> pure email
-            (Nothing, Just _) -> fail "The phone option is not supported any more."
+            (Nothing, Just _) -> fail "invalid-phone"
             (Nothing, Nothing) -> fail "The 'email' field is required."
