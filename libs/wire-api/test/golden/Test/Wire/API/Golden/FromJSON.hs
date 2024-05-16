@@ -82,15 +82,15 @@ tests =
               "testObject_NewUser_user_6-3.json",
           testCase "testObject_NewUser_user_7.json" $
             testFromJSONFailureWithMsg @NewUser
-              (Just "Users cannot be registered with a phone number any more")
+              (Just "invalid-phone")
               "testObject_NewUser_user_7.json",
           testCase "testObject_NewUser_user_8.json" $
             testFromJSONFailureWithMsg @NewUser
-              (Just "Users cannot be registered with a phone number any more")
+              (Just "invalid-phone")
               "testObject_NewUser_user_8.json",
           testCase "testObject_NewUser_user_9.json" $
             testFromJSONFailureWithMsg @NewUser
-              (Just "Users cannot be registered with a phone number any more")
+              (Just "invalid-phone")
               "testObject_NewUser_user_9.json"
         ],
       testGroup "NewUserPublic: failure" $
@@ -108,7 +108,7 @@ tests =
         [ testGroup "failure" $
             [ testCase "testObject_SendActivationCode_user_1.json" $
                 testFromJSONFailureWithMsg @SendActivationCode
-                  (Just "The phone option is not supported any more.")
+                  (Just "invalid-phone")
                   "testObject_SendActivationCode_user_1.json",
               testCase "testObject_SendActivationCode_user_2.json" $
                 testFromJSONFailureWithMsg @SendActivationCode
