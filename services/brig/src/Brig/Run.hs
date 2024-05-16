@@ -22,6 +22,7 @@ module Brig.Run
 where
 
 import AWS.Util (readAuthExpiration)
+import Bilge (requestIdName)
 import Brig.API.Federation
 import Brig.API.Handler
 import Brig.API.Internal qualified as IAPI
@@ -60,7 +61,6 @@ import Network.HTTP.Types qualified as HTTP
 import Network.Wai qualified as Wai
 import Network.Wai.Middleware.Gunzip qualified as GZip
 import Network.Wai.Middleware.Gzip qualified as GZip
-import Network.Wai.Utilities (lookupRequestId)
 import Network.Wai.Utilities.Server
 import Network.Wai.Utilities.Server qualified as Server
 import Polysemy (Member)
@@ -118,9 +118,9 @@ run o = do
 mkApp :: Opts -> IO (Wai.Application, Env)
 mkApp o = do
   e <- newEnv o
-  pure (middleware e $ \reqId -> servantApp (e & requestId .~ reqId), e)
+  pure (middleware e $ servantApp e, e)
   where
-    middleware :: Env -> (RequestId -> Wai.Application) -> Wai.Application
+    middleware :: Env -> Wai.Middleware
     middleware e =
       -- this rewrites the request, so it must be at the top (i.e. applied last)
       versionMiddleware (e ^. disabledVersions)
@@ -128,21 +128,24 @@ mkApp o = do
         . GZip.gunzip
         . GZip.gzip GZip.def
         . catchErrors (e ^. applog) [Right $ e ^. metrics]
-        . lookupRequestIdMiddleware (e ^. applog)
 
     -- the servant API wraps the one defined using wai-routing
     servantApp :: Env -> Wai.Application
-    servantApp e =
+    servantApp e0 req cont = do
+      rid <- lookupRequestId (e0 ^. applog) req
+      let e = requestId .~ rid $ e0
       let localDomain = view (settings . federationDomain) e
-       in Servant.serveWithContext
-            (Proxy @ServantCombinedAPI)
-            (customFormatters :. localDomain :. Servant.EmptyContext)
-            ( docsAPI
-                :<|> hoistServerWithDomain @BrigAPI (toServantHandler e) servantSitemap
-                :<|> hoistServerWithDomain @IAPI.API (toServantHandler e) IAPI.servantSitemap
-                :<|> hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
-                :<|> hoistServerWithDomain @VersionAPI (toServantHandler e) versionAPI
-            )
+      Servant.serveWithContext
+        (Proxy @ServantCombinedAPI)
+        (customFormatters :. localDomain :. Servant.EmptyContext)
+        ( docsAPI
+            :<|> hoistServerWithDomain @BrigAPI (toServantHandler e) servantSitemap
+            :<|> hoistServerWithDomain @IAPI.API (toServantHandler e) IAPI.servantSitemap
+            :<|> hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
+            :<|> hoistServerWithDomain @VersionAPI (toServantHandler e) versionAPI
+        )
+        req
+        cont
 
 type ServantCombinedAPI =
   ( DocsAPI
@@ -152,11 +155,12 @@ type ServantCombinedAPI =
       :<|> VersionAPI
   )
 
-lookupRequestIdMiddleware :: Logger -> (RequestId -> Wai.Application) -> Wai.Application
-lookupRequestIdMiddleware logger mkapp req cont = do
-  case lookupRequestId req of
-    Just rid -> do
-      mkapp (RequestId rid) req cont
+-- Middleware :: Wai.Application -> Wai.Application
+
+lookupRequestId :: Logger -> Wai.Request -> IO RequestId
+lookupRequestId logger req = do
+  case lookup requestIdName $ Wai.requestHeaders req of
+    Just rid -> pure (RequestId rid)
     Nothing -> do
       localRid <- RequestId . encodeUtf8 . UUID.toText <$> UUID.nextRandom
       Log.info logger $
@@ -164,7 +168,7 @@ lookupRequestIdMiddleware logger mkapp req cont = do
           ~~ "method" .= Wai.requestMethod req
           ~~ "path" .= Wai.rawPathInfo req
           ~~ msg (val "generated a new request id for local request")
-      mkapp localRid req cont
+      pure localRid
 
 customFormatters :: Servant.ErrorFormatters
 customFormatters =
