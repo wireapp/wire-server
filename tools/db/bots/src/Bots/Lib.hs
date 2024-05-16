@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE NumericUnderscores #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -99,7 +100,7 @@ reqToServiceOptionsReturns2xx logger extSrvSettings sr = do
                     . maybe (Bilge.port 443) Bilge.port (urlPort httpsUrl)
                     . Bilge.paths [url ^. pathL, "bots"]
                     . Bilge.header "Authorization" ("Bearer " <> authToken)
-                    . Bilge.timeout 5000
+                    . Bilge.timeout 1000
                     . Bilge.secure
       mStatusCode <-
         (Just . Bilge.statusCode <$> runReq) `catch` \(e :: SomeException) -> do
@@ -133,7 +134,7 @@ reqToServiceOptionsReturns2xx logger extSrvSettings sr = do
         HTTP.httpNoBody req extSrvSettings.manager
 
     x3 :: RetryPolicy
-    x3 = limitRetries 3 <> constantDelay 1000000
+    x3 = limitRetries 2 <> constantDelay 500_000
 
 lookupServiceName :: ClientState -> ProviderId -> ServiceId -> IO (Maybe Text)
 lookupServiceName client pid sid =

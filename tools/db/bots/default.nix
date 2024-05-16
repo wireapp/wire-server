@@ -11,6 +11,7 @@
 , bytestring-conversion
 , cassandra-util
 , conduit
+, conduit-concurrent-map
 , containers
 , cql
 , exceptions
@@ -46,6 +47,7 @@ mkDerivation {
     bytestring-conversion
     cassandra-util
     conduit
+    conduit-concurrent-map
     containers
     cql
     exceptions
