@@ -102,7 +102,6 @@ tests conf m n b c g aws = do
             test m "post /register - 201 accepted (with domain blocking customer extension)" $ testInvitationEmailAcceptedInBlockedDomain conf b g,
             test m "post /register user & team - 201 accepted" $ testCreateTeam b g aws,
             test m "post /register user & team - 201 preverified" $ testCreateTeamPreverified b g aws,
-            test m "post /register - 400 incorrect phone" $ testInvitationPhoneInvalid b g,
             test m "post /register - 400 no passwordless" $ testTeamNoPassword b,
             test m "post /register - 400 code already used" $ testInvitationCodeExists b,
             test m "post /register - 400 bad code" $ testInvitationInvalidCode b,
@@ -444,14 +443,6 @@ testInvitationEmailAcceptedInBlockedDomain opts brig galley = do
   let invite = stdInvitationRequest inviteeEmail
       replacementBrigApp = withDomainsBlockedForRegistration opts [emailDomain inviteeEmail]
   void $ createAndVerifyInvitation' (Just replacementBrigApp) (accept (irInviteeEmail invite)) invite brig galley
-
-testInvitationPhoneInvalid :: Brig -> Galley -> Http ()
-testInvitationPhoneInvalid brig _galley = do
-  inviteePhone <- randomPhone
-  let phoneReq = RequestBodyLBS . encode $ object ["phone" .= fromPhone inviteePhone]
-  post (brig . path "/activate/send" . contentJson . body phoneReq) !!! do
-    const 400 === statusCode
-    const (Just "bad-request") === fmap Error.label . responseJsonMaybe
 
 -- | FUTUREWORK: this is an alternative helper to 'createPopulatedBindingTeam'.  it has been
 -- added concurrently, and the two should probably be consolidated.
