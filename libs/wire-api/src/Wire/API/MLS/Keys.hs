@@ -106,7 +106,7 @@ instance ToSchema JWK where
 type MLSPublicKeysJWK = MLSKeys JWK
 
 mlsKeysToPublicJWK ::
-  ( Member (ErrorS 'MLSNotEnabled) r
+  ( Member (ErrorS 'MLSInvalidRemovalKey) r
   ) =>
   MLSPrivateKeys ->
   Sem r MLSPublicKeysJWK
@@ -132,9 +132,10 @@ mlsKeysToPublicJWK (MLSPrivateKeys (_, ed) (_, ec256) (_, ec384) (_, ec521)) =
     -- is true for ECDSA.encodePublic.
     -- https://www.rfc-editor.org/rfc/rfc8422#section-5.4.1
     splitXY mxy = do
-      (m, xy) <- noteS @'MLSNotEnabled $ BA.uncons mxy
+      (m, xy) <- noteS @'MLSInvalidRemovalKey $ BA.uncons mxy
       -- The first Byte m is 4 for the uncompressed representation of curve points.
-      unless (m == 4) $ throwS @'MLSNotEnabled
-      -- The first half of the folling Bytes belong to X and the second half to Y.
+      unless (m == 4) $ throwS @'MLSInvalidRemovalKey
+      -- The first half of the following Bytes belong to X and the second half
+      -- to Y.
       let size = BA.length xy `div` 2
       pure $ BA.splitAt size xy

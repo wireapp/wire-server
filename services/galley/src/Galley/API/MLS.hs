@@ -48,6 +48,7 @@ getMLSPublicKeys _ = mlsKeysToPublic <$$> getMLSPrivateKeys
 
 getMLSPublicKeysJWK ::
   ( Member (Input Env) r,
+    Member (ErrorS 'MLSInvalidRemovalKey) r,
     Member (ErrorS 'MLSNotEnabled) r
   ) =>
   Local UserId ->
