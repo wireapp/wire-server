@@ -63,7 +63,7 @@ featureAPI =
     <@> mkNamedAPI @'("put", OutlookCalIntegrationConfig) (setFeatureStatus . DoAuth)
     <@> mkNamedAPI @'("get", MlsE2EIdConfig) (getFeatureStatus . DoAuth)
     <@> mkNamedAPI @"put-MlsE2EIdConfig@v5" (setFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("put", MlsE2EIdConfig) (setFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("put", MlsE2EIdConfig) (guardMlsE2EIdConfig (setFeatureStatus . DoAuth))
     <@> mkNamedAPI @'("get", MlsMigrationConfig) (getFeatureStatus . DoAuth)
     <@> mkNamedAPI @'("put", MlsMigrationConfig) (setFeatureStatus . DoAuth)
     <@> mkNamedAPI @'("get", EnforceFileDownloadLocationConfig) (getFeatureStatus . DoAuth)

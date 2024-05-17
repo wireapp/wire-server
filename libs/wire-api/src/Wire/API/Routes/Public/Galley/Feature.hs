@@ -89,7 +89,7 @@ type FeatureAPI =
     :<|> FeatureStatusPut '[] '() OutlookCalIntegrationConfig
     :<|> From 'V5 ::> FeatureStatusGet MlsE2EIdConfig
     :<|> From 'V5 ::> Until 'V6 ::> Named "put-MlsE2EIdConfig@v5" (ZUser :> FeatureStatusBasePutPublic '() MlsE2EIdConfig)
-    :<|> From 'V6 ::> FeatureStatusPut '[] '() MlsE2EIdConfig
+    :<|> From 'V6 ::> FeatureStatusPut '[] '( 'MLSE2EIDMissingCrlProxy, '()) MlsE2EIdConfig
     :<|> From 'V5 ::> FeatureStatusGet MlsMigrationConfig
     :<|> From 'V5 ::> FeatureStatusPut '[] '() MlsMigrationConfig
     :<|> From 'V5
