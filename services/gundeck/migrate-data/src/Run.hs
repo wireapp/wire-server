@@ -15,17 +15,18 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.Public.MLS where
+module Run where
 
-import Galley.API.MLS
-import Galley.App
-import Wire.API.MakesFederatedCall
-import Wire.API.Routes.API
-import Wire.API.Routes.Public.Galley.MLS
+import Gundeck.DataMigration
+import Imports
+import Options.Applicative
+import System.Logger.Extended qualified as Log
+import V1_DeleteApnsVoipTokens qualified
 
-mlsAPI :: API MLSAPI GalleyEffects
-mlsAPI =
-  mkNamedAPI @"mls-message" (callsFed (exposeAnnotations postMLSMessageFromLocalUser))
-    <@> mkNamedAPI @"mls-commit-bundle" (callsFed (exposeAnnotations postMLSCommitBundleFromLocalUser))
-    <@> mkNamedAPI @"mls-public-keys-v5" getMLSPublicKeys
-    <@> mkNamedAPI @"mls-public-keys" getMLSPublicKeysJWK
+main :: IO ()
+main = do
+  o <- execParser (info (helper <*> cassandraSettingsParser) desc)
+  l <- Log.mkLogger Log.Debug Nothing Nothing
+  migrate l o [V1_DeleteApnsVoipTokens.migration]
+  where
+    desc = header "Gundeck Cassandra Data Migrations" <> fullDesc
