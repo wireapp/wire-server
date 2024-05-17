@@ -41,6 +41,7 @@ module Data.Json.Util
     -- * Base64
     Base64ByteString (..),
     base64Schema,
+    base64URLSchema,
     Base64ByteStringL (..),
     base64SchemaL,
     fromBase64TextLenient,
@@ -227,6 +228,16 @@ base64SchemaN =
 
 base64Schema :: ValueSchema SwaggerDoc ByteString
 base64Schema = unnamed base64SchemaN
+
+base64URLSchemaN :: ValueSchema NamedSwaggerDoc ByteString
+base64URLSchemaN =
+  ( (Text.decodeUtf8 . B64U.encodeUnpadded)
+      .= parsedText "Base64URLByteString" (B64U.decodeUnpadded . Text.encodeUtf8)
+  )
+    & doc %~ fmap (S.schema . S.example ?~ A.String "ZXhhbXBsZQo=")
+
+base64URLSchema :: ValueSchema SwaggerDoc ByteString
+base64URLSchema = unnamed base64URLSchemaN
 
 --------------------------------------------------------------------------------
 
