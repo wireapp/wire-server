@@ -123,7 +123,6 @@ type MLSMessagingAPI =
            "mls-public-keys"
            ( Summary "Get public keys used by the backend to sign external proposals"
                :> From 'V6
-               :> CanThrow 'MLSInvalidRemovalKey
                :> CanThrow 'MLSNotEnabled
                :> "public-keys"
                :> ZLocalUser

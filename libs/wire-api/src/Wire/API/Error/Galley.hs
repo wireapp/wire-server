@@ -85,7 +85,6 @@ data GalleyError
   | ConvInvalidProtocolTransition
   | -- MLS Errors
     MLSNotEnabled
-  | MLSInvalidRemovalKey
   | MLSNonEmptyMemberList
   | MLSDuplicatePublicKey
   | MLSInvalidLeafNodeIndex
@@ -217,8 +216,6 @@ type instance
       400
       "mls-not-enabled"
       "MLS is not configured on this backend. See docs.wire.com for instructions on how to enable it"
-
-type instance MapError 'MLSInvalidRemovalKey = 'StaticError 500 "mls-invalid-removal-key" "Could not parse MLS backend removal key"
 
 type instance MapError 'MLSNonEmptyMemberList = 'StaticError 400 "non-empty-member-list" "Attempting to add group members outside MLS"
 

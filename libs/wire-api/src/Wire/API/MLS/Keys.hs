@@ -27,9 +27,6 @@ import Data.OpenApi qualified as S
 import Data.Proxy
 import Data.Schema hiding (HasField)
 import Imports hiding (First, getFirst)
-import Polysemy
-import Wire.API.Error
-import Wire.API.Error.Galley
 import Wire.API.MLS.CipherSuite
 
 data MLSKeysByPurpose a = MLSKeysByPurpose
@@ -106,10 +103,8 @@ instance ToSchema JWK where
 type MLSPublicKeysJWK = MLSKeys JWK
 
 mlsKeysToPublicJWK ::
-  ( Member (ErrorS 'MLSInvalidRemovalKey) r
-  ) =>
   MLSPrivateKeys ->
-  Sem r MLSPublicKeysJWK
+  Maybe MLSPublicKeysJWK
 mlsKeysToPublicJWK (MLSPrivateKeys (_, ed) (_, ec256) (_, ec384) (_, ec521)) =
   -- The kty parameter for ECDSA is "EC", for Ed25519 it's "OKP" (octet key
   -- pair).
@@ -132,9 +127,9 @@ mlsKeysToPublicJWK (MLSPrivateKeys (_, ed) (_, ec256) (_, ec384) (_, ec521)) =
     -- is true for ECDSA.encodePublic.
     -- https://www.rfc-editor.org/rfc/rfc8422#section-5.4.1
     splitXY mxy = do
-      (m, xy) <- noteS @'MLSInvalidRemovalKey $ BA.uncons mxy
+      (m, xy) <- BA.uncons mxy
       -- The first Byte m is 4 for the uncompressed representation of curve points.
-      unless (m == 4) $ throwS @'MLSInvalidRemovalKey
+      guard (m == 4)
       -- The first half of the following Bytes belong to X and the second half
       -- to Y.
       let size = BA.length xy `div` 2

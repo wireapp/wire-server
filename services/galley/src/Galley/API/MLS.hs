@@ -28,11 +28,13 @@ where
 
 import Data.Id
 import Data.Qualified
+import Galley.API.Error
 import Galley.API.MLS.Enabled
 import Galley.API.MLS.Message
 import Galley.Env
 import Imports
 import Polysemy
+import Polysemy.Error
 import Polysemy.Input
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -48,9 +50,9 @@ getMLSPublicKeys _ = mlsKeysToPublic <$$> getMLSPrivateKeys
 
 getMLSPublicKeysJWK ::
   ( Member (Input Env) r,
-    Member (ErrorS 'MLSInvalidRemovalKey) r,
+    Member (Error InternalError) r,
     Member (ErrorS 'MLSNotEnabled) r
   ) =>
   Local UserId ->
   Sem r (MLSKeysByPurpose MLSPublicKeysJWK)
-getMLSPublicKeysJWK _ = mapM mlsKeysToPublicJWK =<< getMLSPrivateKeys
+getMLSPublicKeysJWK _ = mapM (note (InternalErrorWithDescription "malformed MLS removal keys") . mlsKeysToPublicJWK) =<< getMLSPrivateKeys
