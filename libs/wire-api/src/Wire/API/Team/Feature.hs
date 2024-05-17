@@ -80,6 +80,7 @@ module Wire.API.Team.Feature
     MLSConfig (..),
     OutlookCalIntegrationConfig (..),
     MlsE2EIdConfig (..),
+    MlsE2EIdConfigV5Symbol,
     MlsMigrationConfig (..),
     EnforceFileDownloadLocationConfig (..),
     LimitedEventFanoutConfig (..),
@@ -1015,6 +1016,10 @@ data MlsE2EIdConfig = MlsE2EIdConfig
   }
   deriving stock (Eq, Show, Generic)
 
+data MlsE2EIdConfigV5Symbol
+
+instance RenderableSymbol MlsE2EIdConfigV5Symbol where
+  renderSymbol = "MlsE2EIdConfig@v5"
 
 instance RenderableSymbol MlsE2EIdConfig where
   renderSymbol = "MlsE2EIdConfig"
