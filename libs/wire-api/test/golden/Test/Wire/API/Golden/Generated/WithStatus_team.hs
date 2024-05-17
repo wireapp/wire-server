@@ -83,6 +83,8 @@ testObject_WithStatus_team_18 =
     ( MlsE2EIdConfig
         (fromIntegral @Int (60 * 60 * 24))
         Nothing
+        Nothing
+        False
     )
 
 withStatus :: FeatureStatus -> LockStatus -> cfg -> WithStatus cfg
