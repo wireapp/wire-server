@@ -26,7 +26,6 @@ module Brig.API.User
     changeSelfEmail,
     changeEmail,
     changePhone,
-    changeHandle,
     CheckHandleResp (..),
     checkHandle,
     lookupHandle,
@@ -90,7 +89,7 @@ module Brig.API.User
 where
 
 import Brig.API.Error qualified as Error
-import Brig.API.Handler qualified as API (Handler, UserNotAllowedToJoinTeam (..))
+import Brig.API.Handler qualified as API (UserNotAllowedToJoinTeam (..))
 import Brig.API.Types
 import Brig.API.Util
 import Brig.App
@@ -124,8 +123,6 @@ import Brig.Types.Connection
 import Brig.Types.Intra
 import Brig.User.Auth.Cookie (listCookies, revokeAllCookies)
 import Brig.User.Email
-import Brig.User.Handle
-import Brig.User.Handle.Blacklist
 import Brig.User.Phone
 import Brig.User.Search.Index (reindex)
 import Brig.User.Search.TeamSize qualified as TeamSize
@@ -136,7 +133,9 @@ import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Code
 import Data.Currency qualified as Currency
-import Data.Handle (Handle (fromHandle), parseHandle)
+import Data.Default
+import Data.Handle (Handle (fromHandle))
+import Data.Handle qualified as Handle
 import Data.Id as Id
 import Data.Json.Util
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
@@ -180,8 +179,9 @@ import Wire.GalleyAPIAccess as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.UserStore
 import Wire.UserSubsystem
-import Wire.UserStore (AllowSCIMUpdates(..))
+import Wire.UserSubsystem.HandleBlacklist
 
 -------------------------------------------------------------------------------
 -- Create User
@@ -223,6 +223,7 @@ createUserSpar ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
+    Member UserSubsystem r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   NewUserSpar ->
@@ -253,19 +254,21 @@ createUserSpar new = do
   userTeam <- withExceptT CreateUserSparRegistrationError $ addUserToTeamSSO account tid (SSOIdentity ident Nothing Nothing) (newUserSparRole new)
 
   -- Set up feature flags
-  let uid = userId (accountUser account)
-  lift $ initAccountFeatureConfig uid
+  luid <- lift $ ensureLocal (userQualifiedId (accountUser account))
+  lift $ initAccountFeatureConfig (tUnqualified luid)
 
   -- Set handle
-  updateHandle' uid handle'
+  updateHandle' luid handle'
 
   pure $! CreateUserResult account Nothing Nothing (Just userTeam)
   where
-    updateHandle' :: UserId -> Maybe Handle -> ExceptT CreateUserSparError (AppT r) ()
+    updateHandle' :: Local UserId -> Maybe Handle -> ExceptT CreateUserSparError (AppT r) ()
     updateHandle' _ Nothing = pure ()
-    updateHandle' uid (Just h) = do
-      case parseHandle . fromHandle $ h of
-        Just handl -> withExceptT CreateUserSparHandleError $ changeHandle uid Nothing handl AllowSCIMUpdates
+    updateHandle' luid (Just h) = do
+      case Handle.parseHandle . fromHandle $ h of
+        Just handl ->
+          lift . liftSem $
+            updateUserProfile luid Nothing def {handle = Just (allowScimUpdate handl)}
         Nothing -> throwE $ CreateUserSparHandleError ChangeHandleInvalid
 
     addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> Role -> ExceptT RegisterError (AppT r) CreateUserTeam
@@ -635,93 +638,6 @@ changeSupportedProtocols ::
 changeSupportedProtocols uid conn prots = do
   wrapClient $ Data.updateSupportedProtocols uid prots
   liftSem $ Intra.onUserEvent uid (Just conn) (supportedProtocolUpdate uid prots)
-
---------------------------------------------------------------------------------
--- Change Handle
-
-changeHandle ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member GalleyAPIAccess r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
-  ) =>
-  UserId ->
-  Maybe ConnId ->
-  Handle ->
-  AllowSCIMUpdates ->
-  ExceptT ChangeHandleError (AppT r) ()
-changeHandle uid mconn hdl allowScim = do
-  when (isBlacklistedHandle hdl) $
-    throwE ChangeHandleInvalid
-  usr <- lift $ wrapClient $ Data.lookupUser WithPendingInvitations uid
-  case usr of
-    Nothing -> throwE ChangeHandleNoIdentity
-    Just u -> do
-      unless
-        ( userManagedBy u /= ManagedByScim
-            || Just hdl == userHandle u
-            || allowScim == AllowSCIMUpdates
-        )
-        $ throwE ChangeHandleManagedByScim
-      hasE2EId <- lift . liftSem . userUnderE2EId . userId $ u
-      when (hasE2EId && userHandle u `notElem` [Nothing, Just hdl]) $
-        throwE ChangeHandleManagedByScim
-      claim u
-  where
-    claim u = do
-      unless (isJust (userIdentity u)) $
-        throwE ChangeHandleNoIdentity
-      claimed <- lift . wrapClient $ claimHandle (userId u) (userHandle u) hdl
-      unless claimed $
-        throwE ChangeHandleExists
-      lift $ liftSem $ Intra.onUserEvent uid mconn (handleUpdated uid hdl)
-
---------------------------------------------------------------------------------
--- Check Handle
-
-data CheckHandleResp
-  = CheckHandleInvalid
-  | CheckHandleFound
-  | CheckHandleNotFound
-
-checkHandle :: Text -> API.Handler r CheckHandleResp
-checkHandle uhandle = do
-  xhandle <- validateHandle uhandle
-  owner <- lift . wrapClient $ lookupHandle xhandle
-  if
-      | isJust owner ->
-          -- Handle is taken (=> getHandleInfo will return 200)
-          pure CheckHandleFound
-      | isBlacklistedHandle xhandle ->
-          -- Handle is free but cannot be taken
-          --
-          -- FUTUREWORK: i wonder if this is correct?  isn't this the error for malformed
-          -- handles?  shouldn't we throw not-found here?  or should there be a fourth case
-          -- 'CheckHandleBlacklisted'?
-          pure CheckHandleInvalid
-      | otherwise ->
-          -- Handle is free and can be taken
-          pure CheckHandleNotFound
-
---------------------------------------------------------------------------------
--- Check Handles
-
-checkHandles :: MonadClient m => [Handle] -> Word -> m [Handle]
-checkHandles check num = reverse <$> collectFree [] check num
-  where
-    collectFree free _ 0 = pure free
-    collectFree free [] _ = pure free
-    collectFree free (h : hs) n =
-      if isBlacklistedHandle h
-        then collectFree free hs n
-        else do
-          owner <- glimpseHandle h
-          case owner of
-            Nothing -> collectFree (h : free) hs (n - 1)
-            Just _ -> collectFree free hs n
 
 -------------------------------------------------------------------------------
 -- Change Email
@@ -1258,6 +1174,9 @@ mkPasswordResetKey ident = case ident of
 -- delete them in the team settings.  This protects teams against orphanhood.
 --
 -- TODO: communicate deletions of SSO users to SSO service.
+--
+-- FUTUREWORK(mangoiv): this uses 'UserStore', hence it must be moved to 'UserSubsystem'
+-- as an effet operation
 deleteSelfUser ::
   forall r.
   ( Member GalleyAPIAccess r,
@@ -1265,6 +1184,7 @@ deleteSelfUser ::
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
+    Member UserStore r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r
   ) =>
@@ -1344,11 +1264,15 @@ deleteSelfUser uid pwd = do
 
 -- | Conclude validation and scheduling of user's deletion request that was initiated in
 -- 'deleteUser'.  Called via @post /delete@.
+--
+-- FUTUREWORK(mangoiv): this uses 'UserStore', hence it must be moved to 'UserSubsystem'
+-- as an effet operation
 verifyDeleteUser ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Input (Local ())) r,
+    Member UserStore r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r
   ) =>
@@ -1365,13 +1289,17 @@ verifyDeleteUser d = do
 
 -- | Check if `deleteAccount` succeeded and run it again if needed.
 -- Called via @delete /i/user/:uid@.
+--
+-- FUTUREWORK(mangoiv): this uses 'UserStore', hence it must be moved to 'UserSubsystem'
+-- as an effet operation
 ensureAccountDeleted ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserStore r
   ) =>
   UserId ->
   AppT r DeleteUserResult
@@ -1408,11 +1336,15 @@ ensureAccountDeleted uid = do
 -- N.B.: As Cassandra doesn't support transactions, the order of database
 -- statements matters! Other functions reason upon some states to imply other
 -- states. Please change this order only with care!
+--
+-- FUTUREWORK(mangoiv): this uses 'UserStore', hence it must be moved to 'UserSubsystem'
+-- as an effet operation
 deleteAccount ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Input (Local ())) r,
+    Member UserStore r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r
   ) =>
@@ -1421,27 +1353,27 @@ deleteAccount ::
 deleteAccount account@(accountUser -> user) = do
   let uid = userId user
   Log.info $ field "user" (toByteString uid) . msg (val "Deleting account")
-  embed $ do
+  do
     -- Free unique keys
-    for_ (userEmail user) $ deleteKeyForUser uid . userEmailKey
-    for_ (userPhone user) $ deleteKeyForUser uid . userPhoneKey
+    for_ (userEmail user) $ embed . deleteKeyForUser uid . userEmailKey
+    for_ (userPhone user) $ embed . deleteKeyForUser uid . userPhoneKey
     for_ (userHandle user) $ freeHandle (userId user)
     -- Wipe data
-    Data.clearProperties uid
+    embed $ Data.clearProperties uid
     tombstone <- mkTombstone
-    Data.insertAccount tombstone Nothing Nothing False
+    embed $ Data.insertAccount tombstone Nothing Nothing False
   Intra.rmUser uid (userAssets user)
   embed $ Data.lookupClients uid >>= mapM_ (Data.rmClient uid . clientId)
   luid <- embed $ qualifyLocal uid
   Intra.onUserEvent uid Nothing (UserDeleted (tUntagged luid))
-  embed $ do
+  embed do
     -- Note: Connections can only be deleted afterwards, since
     --       they need to be notified.
     Data.deleteConnections uid
     revokeAllCookies uid
   where
     mkTombstone = do
-      defLoc <- setDefaultUserLocale <$> view settings
+      defLoc <- embed $ setDefaultUserLocale <$> view settings
       pure $
         account
           { accountStatus = Deleted,
@@ -1532,7 +1464,7 @@ getLegalHoldStatus' user =
 
 -- | Find user accounts for a given identity, both activated and those
 -- currently pending activation.
-lookupAccountsByIdentity :: Either Email Phone -> Bool -> (AppT r) [UserAccount]
+lookupAccountsByIdentity :: Either Email Phone -> Bool -> AppT r [UserAccount]
 lookupAccountsByIdentity emailOrPhone includePendingInvitations = do
   let uk = either userEmailKey userPhoneKey emailOrPhone
   activeUid <- wrapClient $ Data.lookupKey uk

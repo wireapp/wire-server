@@ -209,8 +209,9 @@ spec = describe "UserSubsystem.Interpreter" do
                 Nothing
                 update
               getUserProfile lusr (tUntagged lusr)
-         in profile.profileQualifiedId === tUntagged lusr
-              -- if the name/ pict/ assets/ accent id are not set, the original
+         in -- TODO: check locale update?
+            profile.profileQualifiedId === tUntagged lusr
+              -- if the name / pict / etc... is not set, the original
               -- value should be preserved
               .&&. profile.profileName === maybe profile.profileName (.value) update.name
               .&&. profile.profilePict === fromMaybe profile.profilePict update.pict

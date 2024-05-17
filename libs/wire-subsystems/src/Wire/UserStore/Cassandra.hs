@@ -1,6 +1,7 @@
 module Wire.UserStore.Cassandra where
 
 import Cassandra
+import Data.Handle
 import Data.Id
 import Database.CQL.Protocol
 import Imports
@@ -9,27 +10,77 @@ import Polysemy.Embed
 import Wire.API.User
 import Wire.StoredUser
 import Wire.UserStore
+import Wire.UserStore.Unique
 
 interpretUserStoreCassandra :: Member (Embed IO) r => ClientState -> InterpreterFor UserStore r
 interpretUserStoreCassandra casClient =
   interpret $
     runEmbedded (runClient casClient) . \case
       GetUser uid -> getUserImpl uid
-      UpdateUser uid update -> updateUserImpl uid update
+      UpdateUser uid update -> embed $ updateUserImpl uid update
+      ClaimHandle uid old new -> embed $ claimHandleImpl uid old new
+      FreeHandle uid h -> embed $ freeHandleImpl uid h
+      LookupHandle hdl -> embed $ lookupHandleImpl LocalQuorum hdl
+      GlimpseHandle hdl -> embed $ lookupHandleImpl One hdl
 
 getUserImpl :: Member (Embed Client) r => UserId -> Sem r (Maybe StoredUser)
 getUserImpl uid = embed $ do
   mUserTuple <- retry x1 $ query1 selectUser (params LocalQuorum (Identity uid))
   pure $ asRecord <$> mUserTuple
 
-updateUserImpl :: Member (Embed Client) r => UserId -> UserProfileUpdate -> Sem r ()
-updateUserImpl uid update = embed . retry x5 . batch $ do
+updateUserImpl :: UserId -> UserProfileUpdate -> Client ()
+updateUserImpl uid update = retry x5 . batch $ do
   setType BatchLogged
   setConsistency LocalQuorum
   for_ update.name $ \n -> addPrepQuery userDisplayNameUpdate (n.value, uid)
   for_ update.pict $ \p -> addPrepQuery userPictUpdate (p, uid)
   for_ update.assets $ \a -> addPrepQuery userAssetsUpdate (a, uid)
   for_ update.accentId $ \c -> addPrepQuery userAccentIdUpdate (c, uid)
+
+claimHandleImpl :: UserId -> Maybe Handle -> Handle -> Client Bool
+claimHandleImpl uid oldHandle newHandle =
+  isJust <$> do
+    owner <- lookupHandleImpl LocalQuorum newHandle
+    case owner of
+      Just uid' | uid /= uid' -> pure Nothing
+      _ -> do
+        let key = "@" <> fromHandle newHandle
+        withClaim uid key (30 # Minute) $
+          do
+            -- Record ownership
+            retry x5 $ write handleInsert (params LocalQuorum (newHandle, uid))
+            -- Update profile
+            result <- updateHandle uid newHandle
+            -- Free old handle (if it changed)
+            for_ (mfilter (/= newHandle) oldHandle) $
+              freeHandleImpl uid
+            pure result
+
+freeHandleImpl :: UserId -> Handle -> Client ()
+freeHandleImpl uid h = do
+  mbHandleUid <- lookupHandleImpl LocalQuorum h
+  case mbHandleUid of
+    Just handleUid | handleUid == uid -> do
+      retry x5 $ write handleDelete (params LocalQuorum (Identity h))
+      let key = "@" <> fromHandle h
+      deleteClaim uid key (30 # Minute)
+    _ -> pure () -- this shouldn't happen, the call side should always check that `h` and `uid` belong to the same account.
+
+-- | Sending an empty 'Handle' here causes C* to throw "Key may not be empty"
+-- error.
+--
+-- FUTUREWORK: This should ideally be tackled by hiding constructor for 'Handle'
+-- and only allowing it to be parsed.
+lookupHandleImpl :: Consistency -> Handle -> Client (Maybe UserId)
+lookupHandleImpl consistencyLevel h = do
+  (runIdentity =<<)
+    <$> retry x1 (query1 handleSelect (params consistencyLevel (Identity h)))
+
+updateHandle :: UserId -> Handle -> Client ()
+updateHandle u h = retry x5 $ write userHandleUpdate (params LocalQuorum (h, u))
+
+--------------------------------------------------------------------------------
+-- Queries
 
 selectUser :: PrepQuery R (Identity UserId) (TupleType StoredUser)
 selectUser =
@@ -49,3 +100,15 @@ userAssetsUpdate = "UPDATE user SET assets = ? WHERE id = ?"
 
 userAccentIdUpdate :: PrepQuery W (ColourId, UserId) ()
 userAccentIdUpdate = "UPDATE user SET accent_id = ? WHERE id = ?"
+
+handleInsert :: PrepQuery W (Handle, UserId) ()
+handleInsert = "INSERT INTO user_handle (handle, user) VALUES (?, ?)"
+
+handleSelect :: PrepQuery R (Identity Handle) (Identity (Maybe UserId))
+handleSelect = "SELECT user FROM user_handle WHERE handle = ?"
+
+handleDelete :: PrepQuery W (Identity Handle) ()
+handleDelete = "DELETE FROM user_handle WHERE handle = ?"
+
+userHandleUpdate :: PrepQuery W (Handle, UserId) ()
+userHandleUpdate = "UPDATE user SET handle = ? WHERE id = ?"

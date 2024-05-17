@@ -2,15 +2,17 @@
 
 module Wire.UserSubsystem where
 
+-- FUTUREWORK(mangoiv): this should probably be renamed such that it doesn't
+-- associate with the name "brig" anymore
+
+import Data.Handle (Handle)
 import Data.Id
 import Data.Qualified
 import Imports
 import Network.Wai.Utilities qualified as Wai
 import Polysemy
 import Wire.API.Error
--- FUTUREWORK(mangoiv): this should probably be renamed such that it doesn't
--- associate with the name "brig" anymore
-import Wire.API.Error.Brig (BrigError (..))
+import Wire.API.Error.Brig qualified as E
 import Wire.API.Federation.Error
 import Wire.API.User
 import Wire.UserStore
@@ -20,14 +22,22 @@ data UserSubsystemError
   = -- | user is managed by scim or e2ei is enabled
     --   FUTUREWORK(mangoiv): the name should probably resemble that
     UserSubsystemDisplayNameManagedByScim
+  | UserSubsystemHandleManagedByScim
+  | UserSubsystemNoIdentity
+  | UserSubsystemHandleExists
+  | UserSubsystemInvalidHandle
   | UserSubsystemProfileNotFound
   deriving (Eq, Show)
 
 userSubsystemErrorToWai :: UserSubsystemError -> Wai.Error
 userSubsystemErrorToWai =
   dynErrorToWai . \case
-    UserSubsystemProfileNotFound -> dynError @(MapError UserNotFound)
-    UserSubsystemDisplayNameManagedByScim -> dynError @(MapError NameManagedByScim)
+    UserSubsystemProfileNotFound -> dynError @(MapError E.UserNotFound)
+    UserSubsystemDisplayNameManagedByScim -> dynError @(MapError E.NameManagedByScim)
+    UserSubsystemNoIdentity -> dynError @(MapError E.NoIdentity)
+    UserSubsystemHandleExists -> dynError @(MapError E.HandleExists)
+    UserSubsystemInvalidHandle -> dynError @(MapError E.InvalidHandle)
+    UserSubsystemHandleManagedByScim -> dynError @(MapError E.HandleManagedByScim)
 
 instance Exception UserSubsystemError
 
@@ -40,6 +50,18 @@ data UserSubsystem m a where
   -- FUTUREWORK: it would be better to return errors as `Map Domain FederationError`, but would clients like that?
   GetUserProfilesWithErrors :: Local UserId -> [Qualified UserId] -> UserSubsystem m ([(Qualified UserId, FederationError)], [UserProfile])
   UpdateUserProfile :: Local UserId -> Maybe ConnId -> UserProfileUpdate -> UserSubsystem m ()
+  -- | parse and lookup a handle, return what the operation has found
+  CheckHandle :: Text -> UserSubsystem m CheckHandleResp
+  -- | checks a number of 'Handle's for availability and returns at most 'Word' amount of them
+  CheckHandles :: [Handle] -> Word -> UserSubsystem m [Handle]
+  -- | parses a handle, this may fail so it's effectful
+  ParseHandle :: Text -> UserSubsystem m Handle
+
+-- | the return type of 'CheckHandle'
+data CheckHandleResp
+  = CheckHandleFound
+  | CheckHandleNotFound
+  deriving stock (Eq, Ord, Show)
 
 makeSem ''UserSubsystem
 

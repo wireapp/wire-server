@@ -53,7 +53,6 @@ import Brig.Options qualified as Opt
 import Brig.Phone
 import Brig.Types.Intra
 import Brig.User.Auth.Cookie
-import Brig.User.Handle
 import Brig.User.Phone
 import Brig.ZAuth qualified as ZAuth
 import Cassandra
@@ -87,6 +86,7 @@ import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.UserStore.Cassandra (lookupHandleImpl)
 
 sendLoginCode ::
   (Member TinyLog r) =>
@@ -128,6 +128,8 @@ lookupLoginCode phone =
       liftSem $ Log.debug $ field "user" (toByteString u) . field "action" (val "User.lookupLoginCode")
       wrapHttpClient $ Data.lookupLoginCode u
 
+-- FUTUREWORK(mangoiv): we have to think about what to do with this, it should not
+-- access the UserStore directly, perhaps some more fitting "AuthenticationSubsystem"?
 login ::
   forall r.
   ( Member GalleyAPIAccess r,
@@ -163,7 +165,7 @@ login (PasswordLogin (PasswordLoginData li pw label code)) typ = do
           VerificationCodeRequired -> wrapHttpClientE $ loginFailedWith LoginCodeRequired uid
           VerificationCodeNoEmail -> wrapHttpClientE $ loginFailed uid
 login (SmsLogin (SmsLoginData phone code label)) typ = do
-  uid <- wrapHttpClientE $ resolveLoginId (LoginByPhone phone)
+  uid <- wrapClientE $ resolveLoginId (LoginByPhone phone)
   lift . liftSem . Log.debug $ field "user" (toByteString uid) . field "action" (val "User.login")
   wrapHttpClientE $ checkRetryLimit uid
   ok <- wrapHttpClientE $ Data.verifyLoginCode uid code
@@ -329,9 +331,12 @@ newAccess uid cid ct cl = do
       t <- lift $ newAccessToken @u @a ck Nothing
       pure $ Access t (Just ck)
 
+-- FUTUREWORK(mangoiv): unfortunately this uses lookupHandleImple explicity, in future, this
+-- should use lookuHandle but should be moved into some place where this resolveLoginId is done
+-- abstractly, perhaps some authentication subsystem
 resolveLoginId :: (MonadClient m, MonadReader Env m) => LoginId -> ExceptT LoginError m UserId
 resolveLoginId li = do
-  usr <- validateLoginId li >>= lift . either lookupKey lookupHandle
+  usr <- validateLoginId li >>= lift . either lookupKey (liftClient . lookupHandleImpl LocalQuorum)
   case usr of
     Nothing -> do
       pending <- lift $ isPendingActivation li

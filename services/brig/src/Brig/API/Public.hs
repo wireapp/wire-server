@@ -70,7 +70,7 @@ import Brig.User.Email
 import Brig.User.Phone
 import Cassandra qualified as C
 import Cassandra qualified as Data
-import Control.Error hiding (bool)
+import Control.Error hiding (bool, note)
 import Control.Lens (view, (.~), (?~), (^.))
 import Control.Monad.Catch (throwM)
 import Control.Monad.Except
@@ -84,7 +84,8 @@ import Data.CommaSeparatedList
 import Data.Default
 import Data.Domain
 import Data.FileEmbed
-import Data.Handle (Handle, parseHandle)
+import Data.Handle (Handle)
+import Data.Handle qualified as Handle
 import Data.Id
 import Data.Id qualified as Id
 import Data.List.NonEmpty (nonEmpty)
@@ -165,8 +166,9 @@ import Wire.Sem.Concurrency
 import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
-import Wire.UserStore (UserProfileUpdate (..), forbidScimUpdate)
-import Wire.UserSubsystem
+import Wire.UserStore (UserProfileUpdate (..), UserStore, forbidScimUpdate)
+import Wire.UserSubsystem hiding (checkHandle, checkHandles)
+import Wire.UserSubsystem qualified as UserSubsystem
 
 -- User API -----------------------------------------------------------
 
@@ -294,6 +296,7 @@ servantSitemap ::
     Member JwtTools r,
     Member NotificationSubsystem r,
     Member UserSubsystem r,
+    Member UserStore r,
     Member Now r,
     Member PasswordResetStore r,
     Member PublicKeyBundle r,
@@ -834,7 +837,7 @@ getUserUnqualifiedH self uid = do
 
 -- FUTUREWORK: Make servant understand that at least one of these is required
 listUsersByUnqualifiedIdsOrHandles ::
-  (Member UserSubsystem r) =>
+  (Member UserSubsystem r, Member UserStore r) =>
   UserId ->
   Maybe (CommaSeparatedList UserId) ->
   Maybe (Range 1 4 (CommaSeparatedList Handle)) ->
@@ -854,20 +857,27 @@ listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
        in listUsersByIdsOrHandlesV3 self (Public.ListUsersByHandles qualifiedRangedList)
     (Nothing, Nothing) -> throwStd $ badRequest "at least one ids or handles must be provided"
 
-listUsersByIdsOrHandlesGetIds :: [Handle] -> (Handler r) [Qualified UserId]
+listUsersByIdsOrHandlesGetIds ::
+  Member UserStore r =>
+  [Handle] ->
+  Handler r [Qualified UserId]
 listUsersByIdsOrHandlesGetIds localHandles = do
-  localUsers <- catMaybes <$> traverse (lift . wrapClient . API.lookupHandle) localHandles
+  localUsers <- catMaybes <$> traverse (lift . liftSem . API.lookupHandle) localHandles
   domain <- viewFederationDomain
   pure $ map (`Qualified` domain) localUsers
 
-listUsersByIdsOrHandlesGetUsers :: Local x -> Range n m [Qualified Handle] -> Handler r [Qualified UserId]
+listUsersByIdsOrHandlesGetUsers ::
+  Member UserStore r =>
+  Local x ->
+  Range n m [Qualified Handle] ->
+  Handler r [Qualified UserId]
 listUsersByIdsOrHandlesGetUsers lself hs = do
   let (localHandles, _) = partitionQualified lself (fromRange hs)
   listUsersByIdsOrHandlesGetIds localHandles
 
 listUsersByIdsOrHandlesV3 ::
   forall r.
-  (Member UserSubsystem r) =>
+  (Member UserSubsystem r, Member UserStore r) =>
   UserId ->
   Public.ListUsersQuery ->
   (Handler r) [Public.UserProfile]
@@ -890,7 +900,7 @@ listUsersByIdsOrHandlesV3 self q = do
 -- using a new return type
 listUsersByIdsOrHandles ::
   forall r.
-  (Member UserSubsystem r) =>
+  (Member UserSubsystem r, Member UserStore r) =>
   UserId ->
   Public.ListUsersQuery ->
   Handler r ListUsersById
@@ -1013,26 +1023,26 @@ changeSupportedProtocols (tUnqualified -> u) conn (Public.SupportedProtocolUpdat
 
 -- | (zusr is ignored by this handler, ie. checking handles is allowed as long as you have
 -- *any* account.)
-checkHandle :: UserId -> Text -> Handler r ()
+checkHandle :: Member UserSubsystem r => UserId -> Text -> Handler r ()
 checkHandle _uid hndl =
-  API.checkHandle hndl >>= \case
-    API.CheckHandleInvalid -> throwStd (errorToWai @'E.InvalidHandle)
+  lift (liftSem $ UserSubsystem.checkHandle hndl) >>= \case
     API.CheckHandleFound -> pure ()
     API.CheckHandleNotFound -> throwStd (errorToWai @'E.HandleNotFound)
 
 -- | (zusr is ignored by this handler, ie. checking handles is allowed as long as you have
 -- *any* account.)
-checkHandles :: UserId -> Public.CheckHandles -> Handler r [Handle]
+checkHandles :: Member UserSubsystem r => UserId -> Public.CheckHandles -> Handler r [Handle]
 checkHandles _ (Public.CheckHandles hs num) = do
-  let handles = mapMaybe parseHandle (fromRange hs)
-  lift $ wrapHttpClient $ API.checkHandles handles (fromRange num)
+  let handles = mapMaybe Handle.parseHandle (fromRange hs)
+  lift $ liftSem $ API.checkHandles handles (fromRange num)
 
 -- | This endpoint returns UserHandleInfo instead of UserProfile for backwards
 -- compatibility, whereas the corresponding qualified endpoint (implemented by
 -- 'Handle.getHandleInfo') returns UserProfile to reduce traffic between backends
 -- in a federated scenario.
 getHandleInfoUnqualifiedH ::
-  ( Member UserSubsystem r
+  ( Member UserSubsystem r,
+    Member UserStore r
   ) =>
   UserId ->
   Handle ->
@@ -1042,27 +1052,15 @@ getHandleInfoUnqualifiedH self handle = do
   Public.UserHandleInfo . Public.profileQualifiedId
     <$$> Handle.getHandleInfo self (Qualified handle domain)
 
-changeHandle ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member GalleyAPIAccess r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
-  ) =>
-  UserId ->
-  ConnId ->
-  Public.HandleUpdate ->
-  (Handler r) (Maybe Public.ChangeHandleError)
-changeHandle u conn (Public.HandleUpdate h) = lift . exceptTToMaybe $ do
-  handle <- maybe (throwError Public.ChangeHandleInvalid) pure $ parseHandle h
-  API.changeHandle u (Just conn) handle API.ForbidSCIMUpdates
+changeHandle :: (Member UserSubsystem r) => Local UserId -> ConnId -> Public.HandleUpdate -> Handler r ()
+changeHandle u conn (Public.HandleUpdate h) = lift $ liftSem do
+  handle <- UserSubsystem.parseHandle h
+  UserSubsystem.updateUserProfile u (Just conn) def {handle = Just (forbidScimUpdate handle)}
 
 beginPasswordReset ::
   (Member PasswordResetStore r, Member TinyLog r) =>
   Public.NewPasswordReset ->
-  (Handler r) ()
+  Handler r ()
 beginPasswordReset (Public.NewPasswordReset target) = do
   checkAllowlist target
   (u, pair) <- API.beginPasswordReset target !>> pwResetError
@@ -1238,6 +1236,7 @@ deleteSelfUser ::
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
+    Member UserStore r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r
@@ -1251,6 +1250,7 @@ deleteSelfUser u body = do
 verifyDeleteUser ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
+    Member UserStore r,
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,

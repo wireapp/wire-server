@@ -77,7 +77,7 @@ fetchUserIdentity uid =
       (pure . userIdentity . selfUser)
 
 -- | Obtain a profile for a user as he can see himself.
-lookupSelfProfile :: UserId -> (AppT r) (Maybe SelfProfile)
+lookupSelfProfile :: UserId -> AppT r (Maybe SelfProfile)
 lookupSelfProfile = fmap (fmap mk) . wrapClient . Data.lookupAccount
   where
     mk a = SelfProfile (accountUser a)

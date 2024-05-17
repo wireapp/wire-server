@@ -45,11 +45,7 @@ import Wire.API.User (fromEmail)
 data UserKey
   = UserEmailKey !EmailKey
   | UserPhoneKey !PhoneKey
-
-instance Eq UserKey where
-  (UserEmailKey k) == (UserEmailKey k') = k == k'
-  (UserPhoneKey k) == (UserPhoneKey k') = k == k'
-  _ == _ = False
+  deriving stock (Eq, Show)
 
 userEmailKey :: Email -> UserKey
 userEmailKey = UserEmailKey . mkEmailKey

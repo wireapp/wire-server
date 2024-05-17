@@ -414,19 +414,19 @@ type SelfAPI =
                :> "self"
                :> "locale"
                :> ReqBody '[JSON] LocaleUpdate
-               :> MultiVerb 'PUT '[JSON] '[RespondEmpty 200 "Local Changed"] ()
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "Local Changed")
            )
     :<|> Named
            "change-handle"
            ( Summary "Change your handle."
                :> MakesFederatedCall 'Brig "send-connection-action"
                :> MakesFederatedCall 'Brig "send-connection-action"
-               :> ZUser
+               :> ZLocalUser
                :> ZConn
                :> "self"
                :> "handle"
                :> ReqBody '[JSON] HandleUpdate
-               :> MultiVerb 'PUT '[JSON] ChangeHandleResponses (Maybe ChangeHandleError)
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "Handle Changed")
            )
     :<|> Named
            "change-supported-protocols"

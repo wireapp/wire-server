@@ -86,7 +86,9 @@ library
     Wire.UserEvents
     Wire.UserStore
     Wire.UserStore.Cassandra
+    Wire.UserStore.Unique
     Wire.UserSubsystem
+    Wire.UserSubsystem.HandleBlacklist
     Wire.UserSubsystem.Interpreter
 
   hs-source-dirs:   src
@@ -106,6 +108,7 @@ library
     , cql
     , currency-codes
     , data-default
+    , data-timeout
     , errors
     , exceptions
     , extended
@@ -139,6 +142,7 @@ library
     , transitive-anns
     , types-common
     , unliftio
+    , unordered-containers
     , uuid
     , wai-utilities
     , wire-api

@@ -355,6 +355,11 @@ staticUserStoreInterpreter = interpret $ \case
               . maybe Imports.id (setStoredUserName . (.value)) update.name
               $ u
       doUpdate u = u
+  -- TODO
+  ClaimHandle {} -> pure False
+  FreeHandle {} -> pure ()
+  LookupHandle {} -> undefined -- TODO(mangoiv): not yet implemented
+  GlimpseHandle {} -> undefined -- TODO(mangoiv): not yet implemented
 
 -- | interprets galley by statically returning the values passed
 miniGalleyAPIAccess ::

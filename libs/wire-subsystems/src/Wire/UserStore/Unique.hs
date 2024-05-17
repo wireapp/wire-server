@@ -17,7 +17,7 @@
 
 -- | Temporary exclusive claims on 'Text'ual values which may be subject
 -- to contention, i.e. where strong guarantees on uniqueness are desired.
-module Brig.Unique
+module Wire.UserStore.Unique
   ( withClaim,
     deleteClaim,
     lookupClaims,
@@ -43,7 +43,6 @@ import Imports
 -- and is responsible for turning the temporary claim into permanent
 -- ownership, if desired.
 withClaim ::
-  MonadClient m =>
   -- | The 'Id' associated with the claim.
   Id a ->
   -- | The value on which to acquire the claim.
@@ -51,11 +50,11 @@ withClaim ::
   -- | The minimum timeout (i.e. duration) of the claim.
   Timeout ->
   -- | The computation to run with a successful claim.
-  IO b ->
+  Client b ->
   -- | 'Just b' if the claim was successful and the 'IO'
   --   computation completed within the given timeout.
-  m (Maybe b)
-withClaim u v t io = do
+  Client (Maybe b)
+withClaim u v t act = do
   claims <- lookupClaims v
   case claims of
     [] -> claim -- Free
@@ -68,13 +67,14 @@ withClaim u v t io = do
       retry x5 $ write upsertQuery $ params LocalQuorum (ttl * 2, C.Set [u], v)
       claimed <- (== [u]) <$> lookupClaims v
       if claimed
-        then liftIO $ timeout (fromIntegral ttl # Second) io
+        then do
+          act' <- clientToIO act
+          liftIO $ timeout (fromIntegral ttl # Second) act'
         else pure Nothing
     upsertQuery :: PrepQuery W (Int32, C.Set (Id a), Text) ()
     upsertQuery = "UPDATE unique_claims USING TTL ? SET claims = claims + ? WHERE value = ?"
 
 deleteClaim ::
-  MonadClient m =>
   -- | The 'Id' associated with the claim.
   Id a ->
   -- | The value on which to acquire the claim.
@@ -84,13 +84,13 @@ deleteClaim ::
   --   never use), so removing a claim is an update operation on the database.
   --   Therefore, we reset the TTL the same way we reset it in 'withClaim'.)
   Timeout ->
-  m ()
+  Client ()
 deleteClaim u v t = do
   let ttl = max minTtl (fromIntegral (t #> Second))
   retry x5 $ write cql $ params LocalQuorum (ttl * 2, C.Set [u], v)
   where
     cql :: PrepQuery W (Int32, C.Set (Id a), Text) ()
-    cql = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE unique_claims USING TTL ? SET claims = claims - ? WHERE value = ?"
+    cql = "UPDATE unique_claims USING TTL ? SET claims = claims - ? WHERE value = ?"
 
 -- | Lookup the current claims on a value.
 lookupClaims :: MonadClient m => Text -> m [Id a]
@@ -102,6 +102,11 @@ lookupClaims v =
   where
     cql :: PrepQuery R (Identity Text) (Identity (C.Set (Id a)))
     cql = "SELECT claims FROM unique_claims WHERE value = ?"
+
+clientToIO :: Client a -> Client (IO a)
+clientToIO act = do
+  s <- ask
+  pure $ runClient s act
 
 minTtl :: Int32
 minTtl = 60 -- Seconds

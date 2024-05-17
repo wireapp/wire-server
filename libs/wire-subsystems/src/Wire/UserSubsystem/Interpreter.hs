@@ -1,3 +1,6 @@
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
+
 module Wire.UserSubsystem.Interpreter
   ( runUserSubsystem,
     UserSubsystemConfig (..),
@@ -8,6 +11,8 @@ where
 import Control.Lens (view)
 import Control.Monad.Trans.Maybe
 import Data.Either.Extra
+import Data.Handle (Handle)
+import Data.Handle qualified as Handle
 import Data.Id
 import Data.Json.Util
 import Data.LegalHold
@@ -35,6 +40,7 @@ import Wire.StoredUser
 import Wire.UserEvents
 import Wire.UserStore
 import Wire.UserSubsystem
+import Wire.UserSubsystem.HandleBlacklist
 
 data UserSubsystemConfig = UserSubsystemConfig
   { emailVisibilityConfig :: EmailVisibilityConfig,
@@ -79,11 +85,14 @@ interpretUserSubsystem ::
     Typeable fedM
   ) =>
   InterpreterFor UserSubsystem r
-interpretUserSubsystem = interpret $ \case
+interpretUserSubsystem = interpret \case
   GetUserProfiles self others -> getUserProfilesImpl self others
   GetLocalUserProfiles others -> getLocalUserProfilesImpl others
   GetUserProfilesWithErrors self others -> getUserProfilesWithErrorsImpl self others
   UpdateUserProfile self mconn update -> updateUserProfileImpl self mconn update
+  ParseHandle uhandle -> parseHandleImpl uhandle
+  CheckHandle uhandle -> checkHandleImpl uhandle
+  CheckHandles hdls cnt -> checkHandlesImpl hdls cnt
 
 -- | Obtain user profiles for a list of users as they can be seen by
 -- a given user 'self'. If 'self' is an unknown 'UserId', return '[]'.
@@ -282,8 +291,7 @@ updateUserProfileImpl ::
 updateUserProfileImpl (tUnqualified -> uid) mconn update = do
   -- check if name updates are allowed
   for_ update.name $ \nameUpdate -> do
-    mbUser <- getUser uid
-    user <- maybe (throw UserSubsystemProfileNotFound) pure mbUser
+    user <- getUser uid >>= note UserSubsystemProfileNotFound
     unless
       ( user.managedBy /= Just ManagedByScim
           || user.name == nameUpdate.value
@@ -297,6 +305,29 @@ updateUserProfileImpl (tUnqualified -> uid) mconn update = do
     when (hasE2EId && nameUpdate.value /= user.name) $
       throw UserSubsystemDisplayNameManagedByScim
 
+  -- check if handle updates are allowed
+  for_ update.handle $ \handleUpdate -> do
+    when (isBlacklistedHandle handleUpdate.value) $
+      throw UserSubsystemInvalidHandle
+    user <- getUser uid >>= note UserSubsystemNoIdentity
+    unless
+      ( user.managedBy /= Just ManagedByScim
+          || user.handle == Just handleUpdate.value
+          || AllowSCIMUpdates == handleUpdate.allowScim
+      )
+      $ throw UserSubsystemHandleManagedByScim
+    hasE2EId <-
+      wsStatus . afcMlsE2EId <$> getAllFeatureConfigsForUser (Just uid) <&> \case
+        FeatureStatusEnabled -> True
+        FeatureStatusDisabled -> False
+    when (hasE2EId && user.handle `notElem` [Nothing, Just handleUpdate.value]) $
+      throw UserSubsystemHandleManagedByScim
+    when (isJust user.identity) $
+      throw UserSubsystemNoIdentity
+    claimed <- claimHandle user.id user.handle handleUpdate.value
+    unless claimed $
+      throw UserSubsystemHandleExists
+
   updateUser uid update
   generateUserEvent uid mconn (mkProfileUpdateEvent uid update)
 
@@ -309,3 +340,47 @@ mkProfileUpdateEvent uid update =
         eupAccentId = update.accentId,
         eupAssets = update.assets
       }
+
+--------------------------------------------------------------------------------
+-- Check Handle
+
+parseHandleImpl :: (Member (Error UserSubsystemError) r) => Text -> Sem r Handle
+parseHandleImpl = note UserSubsystemInvalidHandle . Handle.parseHandle
+
+checkHandleImpl :: (Member (Error UserSubsystemError) r, Member UserStore r) => Text -> Sem r CheckHandleResp
+checkHandleImpl uhandle = do
+  xhandle :: Handle <- parseHandleImpl uhandle
+  owner <- lookupHandle xhandle
+  if
+      | isJust owner ->
+          -- Handle is taken (=> getHandleInfo will return 200)
+          pure CheckHandleFound
+      | isBlacklistedHandle xhandle ->
+          -- Handle is free but cannot be taken
+          --
+          -- FUTUREWORK: i wonder if this is correct?  isn't this the error for malformed
+          -- handles?  shouldn't we throw not-found here?  or should there be a fourth case
+          -- 'CheckHandleBlacklisted'?
+          throw UserSubsystemInvalidHandle
+      | otherwise ->
+          -- Handle is free and can be taken
+          pure CheckHandleNotFound
+
+--------------------------------------------------------------------------------
+-- Check Handles
+
+-- | checks for handles @check@ to be available and returns
+--   at maximum @num@ of them
+checkHandlesImpl :: _ => [Handle] -> Word -> Sem r [Handle]
+checkHandlesImpl check num = reverse <$> collectFree [] check num
+  where
+    collectFree free _ 0 = pure free
+    collectFree free [] _ = pure free
+    collectFree free (h : hs) n =
+      if isBlacklistedHandle h
+        then collectFree free hs n
+        else do
+          owner <- glimpseHandle h
+          case owner of
+            Nothing -> collectFree (h : free) hs (n - 1)
+            Just _ -> collectFree free hs n

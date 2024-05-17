@@ -8,6 +8,7 @@ import Data.Id
 import Data.Json.Util
 import Data.Qualified
 import Database.CQL.Protocol (Record (..), TupleType, recordInstance)
+import GHC.Records
 import Imports
 import Wire.API.Provider.Service
 import Wire.API.User
@@ -56,14 +57,13 @@ hasPendingInvitation u = u.status == Just PendingInvitation
 
 mkUserFromStored :: Domain -> Locale -> StoredUser -> User
 mkUserFromStored domain defaultLocale storedUser =
-  let ident = toIdentity storedUser.activated storedUser.email storedUser.phone storedUser.ssoId
-      deleted = Just Deleted == storedUser.status
+  let deleted = Just Deleted == storedUser.status
       expiration = if storedUser.status == Just Ephemeral then storedUser.expires else Nothing
       loc = toLocale defaultLocale (storedUser.language, storedUser.country)
       svc = newServiceRef <$> storedUser.serviceId <*> storedUser.providerId
    in User
         { userQualifiedId = (Qualified storedUser.id domain),
-          userIdentity = ident,
+          userIdentity = storedUser.identity,
           userDisplayName = storedUser.name,
           userPict = (fromMaybe noPict storedUser.pict),
           userAssets = (fromMaybe [] storedUser.assets),
@@ -101,3 +101,6 @@ toIdentity True Nothing (Just p) Nothing = Just $! PhoneIdentity p
 toIdentity True email phone (Just ssoid) = Just $! SSOIdentity ssoid email phone
 toIdentity True Nothing Nothing Nothing = Nothing
 toIdentity False _ _ _ = Nothing
+
+instance HasField "identity" StoredUser (Maybe UserIdentity) where
+  getField user = toIdentity user.activated user.email user.phone user.ssoId
