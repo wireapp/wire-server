@@ -177,8 +177,7 @@ getFeatureConfig FeatureSingletonMlsE2EIdConfig tid = do
           fs
           ( -- FUTUREWORK: this block is duplicated in
             -- "Galley.Cassandra.GetAllTeamFeatureConfigs"; make sure the two don't diverge!
-            -- TODO(leif): implement the missing fields
-            MlsE2EIdConfig (toGracePeriodOrDefault mGracePeriod) mUrl Nothing False
+            MlsE2EIdConfig (toGracePeriodOrDefault mGracePeriod) mUrl
           )
           FeatureTTLUnlimited
   where

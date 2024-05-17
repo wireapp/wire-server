@@ -1,7 +1,6 @@
 {
     "config": {
-        "verificationExpiration": 86400,
-        "useProxyOnMobile": false
+        "verificationExpiration": 86400
     },
     "lockStatus": "locked",
     "status": "enabled",
