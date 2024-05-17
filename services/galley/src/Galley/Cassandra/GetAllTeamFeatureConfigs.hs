@@ -295,6 +295,8 @@ allFeatureConfigsFromRow ourteam allowListForExposeInvitationURLs featureLH hasT
         MlsE2EIdConfig
           (toGracePeriodOrDefault row.mlsE2eidGracePeriod)
           row.mlsE2eidAcmeDiscoverUrl
+          (error "TODO:(leif)")
+          (error "TODO:(leif)")
       where
         toGracePeriodOrDefault :: Maybe Int32 -> NominalDiffTime
         toGracePeriodOrDefault = maybe (verificationExpiration $ wsConfig defFeatureStatus) fromIntegral

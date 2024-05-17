@@ -142,6 +142,8 @@ namedClient = clientIn (Proxy @endpoint) (Proxy @m)
 
 type family x ::> api
 
+infixr 4 ::>
+
 type instance
   x ::> (Named name api) =
     Named name (x :> api)

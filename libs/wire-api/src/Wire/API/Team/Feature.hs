@@ -80,6 +80,7 @@ module Wire.API.Team.Feature
     MLSConfig (..),
     OutlookCalIntegrationConfig (..),
     MlsE2EIdConfig (..),
+    MlsE2EIdConfigV5Symbol,
     MlsMigrationConfig (..),
     EnforceFileDownloadLocationConfig (..),
     LimitedEventFanoutConfig (..),
@@ -1009,9 +1010,16 @@ instance FeatureTrivialConfig OutlookCalIntegrationConfig where
 
 data MlsE2EIdConfig = MlsE2EIdConfig
   { verificationExpiration :: NominalDiffTime,
-    acmeDiscoveryUrl :: Maybe HttpsUrl
+    acmeDiscoveryUrl :: Maybe HttpsUrl,
+    crlProxy :: Maybe HttpsUrl,
+    useProxyOnMobile :: Bool
   }
   deriving stock (Eq, Show, Generic)
+
+data MlsE2EIdConfigV5Symbol
+
+instance RenderableSymbol MlsE2EIdConfigV5Symbol where
+  renderSymbol = "MlsE2EIdConfig@v5"
 
 instance RenderableSymbol MlsE2EIdConfig where
   renderSymbol = "MlsE2EIdConfig"
@@ -1021,6 +1029,8 @@ instance Arbitrary MlsE2EIdConfig where
     MlsE2EIdConfig
       <$> (fromIntegral <$> (arbitrary @Word32))
       <*> arbitrary
+      <*> fmap Just arbitrary
+      <*> arbitrary
 
 instance ToSchema MlsE2EIdConfig where
   schema :: ValueSchema NamedSwaggerDoc MlsE2EIdConfig
@@ -1029,6 +1039,8 @@ instance ToSchema MlsE2EIdConfig where
       MlsE2EIdConfig
         <$> (toSeconds . verificationExpiration) .= fieldWithDocModifier "verificationExpiration" veDesc (fromSeconds <$> schema)
         <*> acmeDiscoveryUrl .= maybe_ (optField "acmeDiscoveryUrl" schema)
+        <*> crlProxy .= maybe_ (optField "crlProxy" schema)
+        <*> useProxyOnMobile .= (fromMaybe False <$> optField "useProxyOnMobile" schema)
     where
       fromSeconds :: Int -> NominalDiffTime
       fromSeconds = fromIntegral
@@ -1055,7 +1067,7 @@ instance IsFeatureConfig MlsE2EIdConfig where
   type FeatureSymbol MlsE2EIdConfig = "mlsE2EId"
   defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked defValue FeatureTTLUnlimited
     where
-      defValue = MlsE2EIdConfig (fromIntegral @Int (60 * 60 * 24)) Nothing
+      defValue = MlsE2EIdConfig (fromIntegral @Int (60 * 60 * 24)) Nothing Nothing False
   featureSingleton = FeatureSingletonMlsE2EIdConfig
   objectSchema = field "config" schema
 
