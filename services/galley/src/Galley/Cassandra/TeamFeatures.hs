@@ -170,7 +170,7 @@ getFeatureConfig FeatureSingletonMlsE2EIdConfig tid = do
   let q = query1 select (params LocalQuorum (Identity tid))
   retry x1 q <&> \case
     Nothing -> Nothing
-    Just (Nothing, _, _,_,_) -> Nothing
+    Just (Nothing, _, _, _, _) -> Nothing
     Just (Just fs, mGracePeriod, mUrl, mCrlProxy, mUseProxyOnMobile) ->
       Just $
         WithStatusNoLock

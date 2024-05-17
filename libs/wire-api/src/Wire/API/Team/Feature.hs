@@ -1015,7 +1015,6 @@ data MlsE2EIdConfig = MlsE2EIdConfig
   }
   deriving stock (Eq, Show, Generic)
 
-
 instance RenderableSymbol MlsE2EIdConfig where
   renderSymbol = "MlsE2EIdConfig"
 
