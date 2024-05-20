@@ -45,9 +45,10 @@ module Spar.API
   )
 where
 
+import Bilge (requestIdName)
 import Brig.Types.Intra
 import Cassandra as Cas
-import Control.Lens
+import Control.Lens hiding ((.=))
 import Control.Monad.Except
 import qualified Data.ByteString as SBS
 import Data.ByteString.Builder (toLazyByteString)
@@ -59,7 +60,10 @@ import Data.Text.Encoding.Error
 import qualified Data.Text.Lazy as T
 import Data.Text.Lazy.Encoding
 import Data.Time
+import qualified Data.UUID as UUID
+import Data.UUID.V4 as UUID
 import Imports
+import qualified Network.Wai as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -99,7 +103,8 @@ import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
 import qualified Spar.Sem.ScimUserTimesStore as ScimUserTimesStore
 import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
 import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
-import System.Logger (Msg)
+import System.Logger (Msg, (.=), (~~))
+import qualified System.Logger as Log
 import qualified URI.ByteString as URI
 import Wire.API.Routes.Internal.Spar
 import Wire.API.Routes.Public.Spar
@@ -114,9 +119,27 @@ import Wire.Sem.Random (Random)
 import qualified Wire.Sem.Random as Random
 
 app :: Env -> Application
-app ctx =
-  SAML.setHttpCachePolicy $
-    serve (Proxy @SparAPI) (hoistServer (Proxy @SparAPI) (runSparToHandler ctx) (api $ sparCtxOpts ctx) :: Server SparAPI)
+app ctx0 req cont = do
+  rid <- lookupRequestId (ctx0.sparCtxLogger) req
+  let ctx = ctx0 {sparCtxRequestId = rid}
+  SAML.setHttpCachePolicy
+    ( serve
+        (Proxy @SparAPI)
+        (hoistServer (Proxy @SparAPI) (runSparToHandler ctx) (api $ sparCtxOpts ctx) :: Server SparAPI)
+    )
+    req
+    cont
+
+lookupRequestId :: Log.Logger -> Wai.Request -> IO RequestId
+lookupRequestId logger req = case lookup requestIdName $ Wai.requestHeaders req of
+  Just rid -> pure (RequestId rid)
+  Nothing -> do
+    localRid <- RequestId . UUID.toASCIIBytes <$> UUID.nextRandom
+    Log.info logger $
+      "request-id" .= localRid
+        ~~ "request" .= (show req)
+        ~~ Log.msg (Log.val "generated a new request id for local request")
+    pure localRid
 
 api ::
   ( Member GalleyAccess r,
