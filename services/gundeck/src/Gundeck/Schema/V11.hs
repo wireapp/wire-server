@@ -15,17 +15,21 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.Public.MLS where
+module Gundeck.Schema.V11 (migration) where
 
-import Galley.API.MLS
-import Galley.App
-import Wire.API.MakesFederatedCall
-import Wire.API.Routes.API
-import Wire.API.Routes.Public.Galley.MLS
+import Cassandra.Schema
+import Imports
+import Text.RawString.QQ
 
-mlsAPI :: API MLSAPI GalleyEffects
-mlsAPI =
-  mkNamedAPI @"mls-message" (callsFed (exposeAnnotations postMLSMessageFromLocalUser))
-    <@> mkNamedAPI @"mls-commit-bundle" (callsFed (exposeAnnotations postMLSCommitBundleFromLocalUser))
-    <@> mkNamedAPI @"mls-public-keys-v5" getMLSPublicKeys
-    <@> mkNamedAPI @"mls-public-keys" getMLSPublicKeysJWK
+migration :: Migration
+migration = Migration 11 "Create table `data_migration`" $ do
+  schema'
+    [r|
+        CREATE TABLE data_migration (
+            id      int,
+            version int,
+            descr   text,
+            date    timestamp,
+            PRIMARY KEY (id, version)
+        );
+        |]

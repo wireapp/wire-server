@@ -1720,19 +1720,17 @@ CREATE TABLE galley_test.mls_proposal_refs (
     AND speculative_retry = '99PERCENTILE';
 CREATE KEYSPACE gundeck_test WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}  AND durable_writes = true;
 
-CREATE TABLE gundeck_test.push (
-    ptoken text,
-    app text,
-    transport int,
-    client text,
-    connection blob,
-    usr uuid,
-    PRIMARY KEY (ptoken, app, transport)
-) WITH CLUSTERING ORDER BY (app ASC, transport ASC)
-    AND bloom_filter_fp_chance = 0.1
+CREATE TABLE gundeck_test.data_migration (
+    id int,
+    version int,
+    date timestamp,
+    descr text,
+    PRIMARY KEY (id, version)
+) WITH CLUSTERING ORDER BY (version ASC)
+    AND bloom_filter_fp_chance = 0.01
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
-    AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
+    AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}
     AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
     AND crc_check_chance = 1.0
     AND dclocal_read_repair_chance = 0.1
@@ -1790,10 +1788,16 @@ CREATE TABLE gundeck_test.meta (
     AND read_repair_chance = 0.0
     AND speculative_retry = '99PERCENTILE';
 
-CREATE TABLE gundeck_test.notification_payload (
-    id uuid PRIMARY KEY,
-    payload blob
-) WITH bloom_filter_fp_chance = 0.1
+CREATE TABLE gundeck_test.push (
+    ptoken text,
+    app text,
+    transport int,
+    client text,
+    connection blob,
+    usr uuid,
+    PRIMARY KEY (ptoken, app, transport)
+) WITH CLUSTERING ORDER BY (app ASC, transport ASC)
+    AND bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
     AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
@@ -1819,6 +1823,24 @@ CREATE TABLE gundeck_test.user_push (
     PRIMARY KEY (usr, ptoken, app, transport)
 ) WITH CLUSTERING ORDER BY (ptoken ASC, app ASC, transport ASC)
     AND bloom_filter_fp_chance = 0.1
+    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
+    AND comment = ''
+    AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
+    AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
+    AND crc_check_chance = 1.0
+    AND dclocal_read_repair_chance = 0.1
+    AND default_time_to_live = 0
+    AND gc_grace_seconds = 864000
+    AND max_index_interval = 2048
+    AND memtable_flush_period_in_ms = 0
+    AND min_index_interval = 128
+    AND read_repair_chance = 0.0
+    AND speculative_retry = '99PERCENTILE';
+
+CREATE TABLE gundeck_test.notification_payload (
+    id uuid PRIMARY KEY,
+    payload blob
+) WITH bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
     AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}

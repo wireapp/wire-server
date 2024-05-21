@@ -22,6 +22,8 @@ import API.Galley
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.Set as Set
+import qualified Data.Text as T
+import qualified Data.Text.Read as T
 import MLS.Util
 import Notifications
 import SetupHelpers
@@ -257,3 +259,11 @@ testMLSOne2One suite scenario = do
     let isMessage n = nPayload n %. "type" `isEqual` "conversation.mls-message-add"
     n <- awaitMatch isMessage ws
     nPayload n %. "data" `shouldMatch` B8.unpack (Base64.encode mp.message)
+
+  -- Send another commit. This verifies that the backend has correctly updated
+  -- the cipersuite of this conversation.
+  void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
+
+  conv' <- getMLSOne2OneConversation alice bob >>= getJSON 200
+  (suiteCode, _) <- assertOne $ T.hexadecimal (T.pack suite.code)
+  conv' %. "cipher_suite" `shouldMatchInt` suiteCode
