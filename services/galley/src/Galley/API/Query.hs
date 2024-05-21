@@ -332,8 +332,6 @@ conversationIdsPageFromV2 listGlobalSelf lusr Public.GetMultiTablePageRequest {.
   case gmtprState of
     Just (Public.ConversationPagingState Public.PagingRemotes stateBS) ->
       remotesOnly (mkState <$> stateBS) gmtprSize
-    Just (Public.ConversationPagingState Public.PagingLocals stateBS) ->
-      localsOnly localDomain (mkState <$> stateBS) gmtprSize
     _ -> localsAndRemotes localDomain (fmap mkState . Public.mtpsState =<< gmtprState) gmtprSize
   where
     mkState :: ByteString -> C.PagingState
