@@ -629,8 +629,10 @@ instance HasRequestId (AppT r) where
 viewFederationDomain :: (MonadReader Env m) => m Domain
 viewFederationDomain = view (settings . Opt.federationDomain)
 
+-- FUTUREWORK: rename to 'qualifyLocalMtl'
 qualifyLocal :: (MonadReader Env m) => a -> m (Local a)
 qualifyLocal a = toLocalUnsafe <$> viewFederationDomain <*> pure a
 
+-- FUTUREWORK: rename to 'qualifyLocalPoly'
 qualifyLocal' :: (Member (Input (Local ()))) r => a -> Sem r (Local a)
 qualifyLocal' a = flip toLocalUnsafe a . tDomain <$> input

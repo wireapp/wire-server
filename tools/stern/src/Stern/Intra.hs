@@ -277,7 +277,7 @@ getEjpdInfo handles includeContacts = do
   let bdy :: Value
       bdy =
         object
-          [ "ejpd_request"
+          [ "EJPDRequest"
               .= (decodeUtf8With lenientDecode . toByteString' <$> handles)
           ]
   r <-
