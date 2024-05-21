@@ -155,7 +155,17 @@ setupEJPD =
               "Contacts"
                 .= let f (item, relation) = object ["contact_item" .= item, "contact_relation" .= relation]
                     in (map (f . trimContact _1) <$> contacts),
-              "TeamContacts" .= (teamContacts & _Just . _1 %~ map (trimContact id)),
+              "TeamContacts"
+                .= ( teamContacts
+                       & maybe
+                         Null
+                         ( \(tcs, ltyp) ->
+                             object
+                               [ "TeamContacts" .= (trimContact id <$> tcs),
+                                 "ListType" .= ltyp
+                               ]
+                         )
+                   ),
               "Conversations" .= convs,
               "Assets" .= assets
             ]
@@ -168,9 +178,9 @@ setupEJPD =
 
     trimItem :: A.Value -> A.Value
     trimItem =
-      (key (fromString "ejpd_response_contacts") .~ A.Null)
-        . (key (fromString "ejpd_response_team_contacts") .~ A.Null)
-        . (key (fromString "ejpd_response_conversations") .~ A.Null)
+      (key (fromString "Contacts") .~ A.Null)
+        . (key (fromString "TeamContacts") .~ A.Null)
+        . (key (fromString "Conversations") .~ A.Null)
 
 testEJPDRequest :: HasCallStack => App ()
 testEJPDRequest = do
