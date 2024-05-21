@@ -233,9 +233,9 @@ testLHClaimKeys testmode = do
             val <- getJSON 200 res
             cls <- asList val
             objId `mapM` cls
-      getCls lmem <&> \case
-        [d] -> d
-        bad -> error $ show bad
+      getCls lmem >>= \case
+        [d] -> pure d
+        bad -> assertFailure (show bad)
 
     let assertResp :: HasCallStack => Response -> App ()
         assertResp resp = case testmode of
