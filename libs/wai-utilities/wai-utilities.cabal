@@ -96,6 +96,7 @@ library
     , tinylog                >=0.8
     , types-common           >=0.12
     , unix                   >=2.7
+    , uuid
     , wai                    >=3.0
     , wai-predicates         >=0.8
     , wai-routing            >=0.12

@@ -22,7 +22,6 @@ module Brig.Run
 where
 
 import AWS.Util (readAuthExpiration)
-import Bilge (requestIdName)
 import Brig.API.Federation
 import Brig.API.Handler
 import Brig.API.Internal qualified as IAPI
@@ -47,27 +46,23 @@ import Control.Monad.Catch (MonadCatch, finally)
 import Control.Monad.Random (randomRIO)
 import Data.Aeson qualified as Aeson
 import Data.ByteString.UTF8 qualified as UTF8
-import Data.Id (RequestId (..))
 import Data.Metrics.AWS (gaugeTokenRemaing)
 import Data.Metrics.Servant qualified as Metrics
 import Data.Proxy (Proxy (Proxy))
 import Data.Text (unpack)
-import Data.Text.Encoding
-import Data.UUID as UUID
-import Data.UUID.V4 as UUID
 import Imports hiding (head)
 import Network.HTTP.Media qualified as HTTPMedia
 import Network.HTTP.Types qualified as HTTP
 import Network.Wai qualified as Wai
 import Network.Wai.Middleware.Gunzip qualified as GZip
 import Network.Wai.Middleware.Gzip qualified as GZip
+import Network.Wai.Utilities.Request
 import Network.Wai.Utilities.Server
 import Network.Wai.Utilities.Server qualified as Server
 import Polysemy (Member)
 import Servant (Context ((:.)), (:<|>) (..))
 import Servant qualified
-import System.Logger (Logger, msg, val, (.=), (~~))
-import System.Logger qualified as Log
+import System.Logger (msg, val, (.=), (~~))
 import System.Logger.Class (MonadLogger, err)
 import Util.Options
 import Wire.API.Routes.API
@@ -132,7 +127,7 @@ mkApp o = do
     -- the servant API wraps the one defined using wai-routing
     servantApp :: Env -> Wai.Application
     servantApp e0 req cont = do
-      rid <- lookupRequestId (e0 ^. applog) req
+      rid <- getRequestId (e0 ^. applog) req
       let e = requestId .~ rid $ e0
       let localDomain = view (settings . federationDomain) e
       Servant.serveWithContext
@@ -156,19 +151,6 @@ type ServantCombinedAPI =
   )
 
 -- Middleware :: Wai.Application -> Wai.Application
-
-lookupRequestId :: Logger -> Wai.Request -> IO RequestId
-lookupRequestId logger req = do
-  case lookup requestIdName $ Wai.requestHeaders req of
-    Just rid -> pure (RequestId rid)
-    Nothing -> do
-      localRid <- RequestId . encodeUtf8 . UUID.toText <$> UUID.nextRandom
-      Log.info logger $
-        "request-id" .= localRid
-          ~~ "method" .= Wai.requestMethod req
-          ~~ "path" .= Wai.rawPathInfo req
-          ~~ msg (val "generated a new request id for local request")
-      pure localRid
 
 customFormatters :: Servant.ErrorFormatters
 customFormatters =

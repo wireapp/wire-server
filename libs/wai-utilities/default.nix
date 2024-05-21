@@ -28,6 +28,7 @@
 , tinylog
 , types-common
 , unix
+, uuid
 , wai
 , wai-predicates
 , wai-routing
@@ -62,6 +63,7 @@ mkDerivation {
     tinylog
     types-common
     unix
+    uuid
     wai
     wai-predicates
     wai-routing
