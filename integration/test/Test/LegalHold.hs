@@ -218,13 +218,13 @@ testLHClaimKeys testmode = do
               lastPrekey = Just $ head someLastPrekeysRendered,
               acapabilities = caps
             }
-     in case testmode of
-          TCKConsentMissing ->
-            addc $ Just ["legalhold-implicit-consent"]
-          TCKConsentAndNewClients -> do
-            addc $ Just ["legalhold-implicit-consent"]
-            legalholdWhitelistTeam ptid powner >>= assertSuccess
-            legalholdIsTeamInWhitelist ptid powner >>= assertSuccess
+     in addc $ Just ["legalhold-implicit-consent"]
+
+    case testmode of
+      TCKConsentMissing -> pure ()
+      TCKConsentAndNewClients -> do
+        legalholdWhitelistTeam ptid powner >>= assertSuccess
+        legalholdIsTeamInWhitelist ptid powner >>= assertSuccess
 
     llhdev :: String <- do
       let getCls :: Value -> App [String]
