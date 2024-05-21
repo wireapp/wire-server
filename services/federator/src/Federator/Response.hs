@@ -28,6 +28,7 @@ where
 import Control.Lens
 import Control.Monad.Codensity
 import Data.ByteString.Builder
+import Data.Id
 import Data.Kind
 import Data.Text qualified as T
 import Federator.Discovery
@@ -151,11 +152,11 @@ type AllEffects =
 
 -- | Run Sem action containing HTTP handlers. All errors have to been handled
 -- already by this point.
-runFederator :: Env -> Sem AllEffects Wai.Response -> Codensity IO Wai.Response
-runFederator env =
+runFederator :: Env -> RequestId -> Sem AllEffects Wai.Response -> Codensity IO Wai.Response
+runFederator env rid =
   runM
     . runEmbedded @IO @(Codensity IO) liftIO
-    . loggerToTinyLogReqId (view requestId env) (view applog env)
+    . loggerToTinyLogReqId rid (view applog env)
     . runWaiErrors
       @'[ ValidationError,
           RemoteError,

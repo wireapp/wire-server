@@ -23,6 +23,7 @@ import Control.Monad.Codensity
 import Data.ByteString qualified as BS
 import Data.Default
 import Data.Domain
+import Data.Id
 import Data.Sequence as Seq
 import Data.String.Conversions
 import Data.Text.Encoding qualified as Text
@@ -147,7 +148,7 @@ requestBrigSuccess =
         . mockDiscoveryTrivial
         . runInputConst noClientCertSettings
         . runInputConst scaffoldingFederationDomainConfigs
-        $ callInward Brig (RPC "get-user-by-handle") Nothing aValidDomain (CertHeader cert) request
+        $ callInward Brig (RPC "get-user-by-handle") (RequestId "test") aValidDomain (CertHeader cert) request
     let expectedCall = Call Brig "/federation/get-user-by-handle" [("X-Wire-API-Version", "v0")] "\"foo\"" aValidDomain
     assertEqual "one call to brig should be made" [expectedCall] actualCalls
     Wai.responseStatus res @?= HTTP.status200
@@ -175,7 +176,7 @@ requestBrigFailure =
         . mockDiscoveryTrivial
         . runInputConst noClientCertSettings
         . runInputConst scaffoldingFederationDomainConfigs
-        $ callInward Brig (RPC "get-user-by-handle") Nothing aValidDomain (CertHeader cert) request
+        $ callInward Brig (RPC "get-user-by-handle") (RequestId "test") aValidDomain (CertHeader cert) request
 
     let expectedCall = Call Brig "/federation/get-user-by-handle" [] "\"foo\"" aValidDomain
     assertEqual "one call to brig should be made" [expectedCall] actualCalls
@@ -205,7 +206,7 @@ requestGalleySuccess =
           . mockDiscoveryTrivial
           . runInputConst noClientCertSettings
           . runInputConst scaffoldingFederationDomainConfigs
-          $ callInward Galley (RPC "get-conversations") Nothing aValidDomain (CertHeader cert) request
+          $ callInward Galley (RPC "get-conversations") (RequestId "test") aValidDomain (CertHeader cert) request
       let expectedCall = Call Galley "/federation/get-conversations" [] "\"foo\"" aValidDomain
       embed $ assertEqual "one call to galley should be made" [expectedCall] actualCalls
       embed $ Wai.responseStatus res @?= HTTP.status200
@@ -338,6 +339,7 @@ testMethod =
 
 testInterpretter ::
   IORef [Call] ->
+  RequestId ->
   Sem
     '[ Metrics,
        Input FederationDomainConfigs,
@@ -353,7 +355,7 @@ testInterpretter ::
      ]
     Wai.Response ->
   Codensity IO Wai.Response
-testInterpretter serviceCallsRef =
+testInterpretter serviceCallsRef _ =
   liftIO
     . runM @IO
     . runOutputMonoidIORef @Call serviceCallsRef (: [])

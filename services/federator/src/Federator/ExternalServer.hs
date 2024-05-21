@@ -62,13 +62,11 @@ import Servant.API.Extended.Endpath
 import Servant.Client.Core
 import Servant.Server (Tagged (..))
 import Servant.Server.Generic
-import System.Logger (msg, val, (.=), (~~))
 import System.Logger.Message qualified as Log
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.VersionInfo
-import Wire.Sem.Logger (info)
 
 -- | Used to get PEM encoded certificate out of an HTTP header
 newtype CertHeader = CertHeader X509.Certificate
@@ -116,13 +114,16 @@ server ::
   ) =>
   Manager ->
   Word16 ->
-  (Sem r Wai.Response -> Codensity IO Wai.Response) ->
+  (RequestId -> Sem r Wai.Response -> Codensity IO Wai.Response) ->
   API AsServer
 server mgr intPort interpreter =
   API
     { status = Health.status mgr "internal server" intPort,
       externalRequest = \component rpc mReqId remoteDomain remoteCert ->
-        Tagged $ \req respond -> runCodensity (interpreter (callInward component rpc mReqId remoteDomain remoteCert req)) respond
+        Tagged $ \req respond -> do
+          -- TODO: Log generated request ID
+          rid <- maybe (RequestId . Text.encodeUtf8 . UUID.toText <$> UUID.nextRandom) pure mReqId
+          runCodensity (interpreter rid (callInward component rpc rid remoteDomain remoteCert req)) respond
     }
 
 -- FUTUREWORK(federation): Versioning of the federation API.
@@ -139,22 +140,22 @@ callInward ::
   ) =>
   Component ->
   RPC ->
-  Maybe RequestId ->
+  RequestId ->
   Domain ->
   CertHeader ->
   Wai.Request ->
   Sem r Wai.Response
-callInward component (RPC rpc) mReqId originDomain (CertHeader cert) wreq = do
-  rid <- case mReqId of
-    Just r -> pure r
-    Nothing -> do
-      localRid <- liftIO $ RequestId . Text.encodeUtf8 . UUID.toText <$> UUID.nextRandom
-      info $
-        "request-id" .= localRid
-          ~~ "method" .= Wai.requestMethod wreq
-          ~~ "path" .= Wai.rawPathInfo wreq
-          ~~ msg (val "generated a new request id for local request")
-      pure localRid
+callInward component (RPC rpc) rid originDomain (CertHeader cert) wreq = do
+  -- rid <- case mReqId of
+  --   Just r -> pure r
+  --   Nothing -> do
+  --     localRid <- liftIO $ RequestId . Text.encodeUtf8 . UUID.toText <$> UUID.nextRandom
+  --     info $
+  --       "request-id" .= localRid
+  --         ~~ "method" .= Wai.requestMethod wreq
+  --         ~~ "path" .= Wai.rawPathInfo wreq
+  --         ~~ msg (val "generated a new request id for local request")
+  --     pure localRid
   incomingCounterIncr originDomain
   -- only POST is supported
   when (Wai.requestMethod wreq /= HTTP.methodPost) $
