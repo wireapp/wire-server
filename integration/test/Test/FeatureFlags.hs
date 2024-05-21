@@ -195,7 +195,7 @@ testMlsE2EConfigCrlProxyRequired = do
                 ],
             "status" .= "enabled"
           ]
-  bindResponse (Internal.setMlsE2EIdTeamFeatureConfig owner tid configWithoutCrlProxy) $ \resp -> do
+  bindResponse (Internal.setTeamFeatureConfig owner tid "mlsE2EId" configWithoutCrlProxy) $ \resp -> do
     resp.status `shouldMatchInt` 400
     resp.json %. "label" `shouldMatch` "mls-e2eid-missing-crl-proxy"
 
@@ -205,7 +205,7 @@ testMlsE2EConfigCrlProxyRequired = do
       & setField "config.crlProxy" "https://crl-proxy.example.com"
       & setField "status" "enabled"
 
-  bindResponse (Internal.setMlsE2EIdTeamFeatureConfig owner tid configWithCrlProxy) $ \resp -> do
+  bindResponse (Internal.setTeamFeatureConfig owner tid "mlsE2EId" configWithCrlProxy) $ \resp -> do
     resp.status `shouldMatchInt` 200
 
   expectedResponse <- configWithCrlProxy & setField "lockStatus" "unlocked" & setField "ttl" "unlimited"
