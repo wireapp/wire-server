@@ -16,9 +16,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.API.Clients
-  ( getClientsH,
-    addClientH,
-    rmClientH,
+  ( getClients,
+    rmClient,
   )
 where
 
@@ -33,16 +32,12 @@ import Galley.API.Query qualified as Query
 import Galley.API.Util
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
-import Galley.Effects.BrigAccess qualified as E
 import Galley.Effects.ClientStore qualified as E
 import Galley.Effects.ConversationStore (getConversation)
 import Galley.Env
-import Galley.Types.Clients (clientIds, fromUserClients)
+import Galley.Types.Clients (clientIds)
 import Imports
 import Network.AMQP qualified as Q
-import Network.Wai
-import Network.Wai.Predicate hiding (Error, setStatus)
-import Network.Wai.Utilities hiding (Error)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -56,41 +51,18 @@ import Wire.API.Routes.MultiTablePaging
 import Wire.NotificationSubsystem
 import Wire.Sem.Paging.Cassandra (CassandraPaging)
 
-getClientsH ::
-  ( Member BrigAccess r,
-    Member ClientStore r
-  ) =>
-  UserId ->
-  Sem r Response
-getClientsH usr = do
-  json <$> getClients usr
-
 getClients ::
   ( Member BrigAccess r,
     Member ClientStore r
   ) =>
   UserId ->
   Sem r [ClientId]
-getClients usr = do
-  isInternal <- E.useIntraClientListing
-  clts <-
-    if isInternal
-      then fromUserClients <$> E.lookupClients [usr]
-      else E.getClients [usr]
-  pure (clientIds usr clts)
-
-addClientH ::
-  Member ClientStore r =>
-  UserId ::: ClientId ->
-  Sem r Response
-addClientH (usr ::: clt) = do
-  E.createClient usr clt
-  pure empty
+getClients usr = clientIds usr <$> getBrigClients [usr]
 
 -- | Remove a client from conversations it is part of according to the
 -- conversation protocol (Proteus or MLS). In addition, remove the client from
 -- the "clients" table in Galley.
-rmClientH ::
+rmClient ::
   forall p1 r.
   ( p1 ~ CassandraPaging,
     Member ClientStore r,
@@ -111,9 +83,10 @@ rmClientH ::
     Member SubConversationStore r,
     Member P.TinyLog r
   ) =>
-  UserId ::: ClientId ->
-  Sem r Response
-rmClientH (usr ::: cid) = do
+  UserId ->
+  ClientId ->
+  Sem r ()
+rmClient usr cid = do
   clients <- E.getClients [usr]
   if (cid `elem` clientIds usr clients)
     then do
@@ -128,7 +101,6 @@ rmClientH (usr ::: cid) = do
             . field "client" (clientToText cid)
             . msg (val "rmClientH: client already gone")
         )
-  pure empty
   where
     goConvs :: Range 1 1000 Int32 -> ConvIdsPage -> Local UserId -> Sem r ()
     goConvs range page lusr = do

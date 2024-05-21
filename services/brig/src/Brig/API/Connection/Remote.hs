@@ -29,7 +29,6 @@ import Brig.App
 import Brig.Data.Connection qualified as Data
 import Brig.Data.User qualified as Data
 import Brig.Effects.FederationConfigStore
-import Brig.Effects.GalleyProvider
 import Brig.Federation.Client as Federation
 import Brig.IO.Intra qualified as Intra
 import Brig.Options
@@ -52,6 +51,7 @@ import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 import Wire.API.User
 import Wire.API.UserEvent
+import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
 
 data LocalConnectionAction
@@ -152,7 +152,7 @@ desiredMembership a r =
 --
 -- Returns the connection, and whether it was updated or not.
 transitionTo ::
-  (Member GalleyProvider r, Member NotificationSubsystem r) =>
+  (Member GalleyAPIAccess r, Member NotificationSubsystem r) =>
   Local UserId ->
   Maybe ConnId ->
   Remote UserId ->
@@ -224,7 +224,7 @@ pushEvent self mzcon connection = do
   liftSem $ Intra.onConnectionEvent (tUnqualified self) mzcon event
 
 performLocalAction ::
-  (Member GalleyProvider r, Member NotificationSubsystem r) =>
+  (Member GalleyAPIAccess r, Member NotificationSubsystem r) =>
   Local UserId ->
   Maybe ConnId ->
   Remote UserId ->
@@ -280,7 +280,7 @@ performLocalAction self mzcon other mconnection action = do
 -- B connects & A reacts:  Accepted  Accepted
 -- @
 performRemoteAction ::
-  (Member GalleyProvider r, Member NotificationSubsystem r) =>
+  (Member GalleyAPIAccess r, Member NotificationSubsystem r) =>
   Local UserId ->
   Remote UserId ->
   Maybe UserConnection ->
@@ -298,7 +298,7 @@ performRemoteAction self other mconnection action = do
     reaction _ = Nothing
 
 createConnectionToRemoteUser ::
-  ( Member GalleyProvider r,
+  ( Member GalleyAPIAccess r,
     Member FederationConfigStore r,
     Member NotificationSubsystem r
   ) =>
@@ -313,7 +313,7 @@ createConnectionToRemoteUser self zcon other = do
   fst <$> performLocalAction self (Just zcon) other mconnection LocalConnect
 
 updateConnectionToRemoteUser ::
-  ( Member GalleyProvider r,
+  ( Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member FederationConfigStore r
   ) =>

@@ -17,7 +17,7 @@
 
 module Test.Wire.API.Golden.Generated.Push_2eToken_2eTransport_user where
 
-import Wire.API.Push.Token (Transport (APNS, APNSSandbox, GCM))
+import Wire.API.Push.Token (Transport (APNS, APNSSandbox, APNSVoIP, APNSVoIPSandbox, GCM))
 import Wire.API.Push.Token qualified as Push.Token (Transport)
 
 testObject_Push_2eToken_2eTransport_user_1 :: Push.Token.Transport
@@ -28,3 +28,9 @@ testObject_Push_2eToken_2eTransport_user_2 = APNS
 
 testObject_Push_2eToken_2eTransport_user_3 :: Push.Token.Transport
 testObject_Push_2eToken_2eTransport_user_3 = APNSSandbox
+
+testObject_Push_2eToken_2eTransport_user_4 :: Push.Token.Transport
+testObject_Push_2eToken_2eTransport_user_4 = APNSVoIP
+
+testObject_Push_2eToken_2eTransport_user_5 :: Push.Token.Transport
+testObject_Push_2eToken_2eTransport_user_5 = APNSVoIPSandbox

@@ -107,12 +107,11 @@ federatedRequestSuccess =
     body <- Wai.lazyResponseBody res
     body @?= "\"bar\""
 
--- @SF.Federation @TSFI.Federate @TSFI.DNS @S2 @S3 @S7
 --
 -- Refuse to send outgoing request to non-included domain when AllowDynamic is configured.
 federatedRequestFailureAllowList :: TestTree
 federatedRequestFailureAllowList =
-  testCase "should not make a call when target domain not in the allow list" $ do
+  testCase "federatedRequestFailureAllowList - should not make a call when target domain not in the allow list" $ do
     let settings = noClientCertSettings
     let targetDomain = Domain "target.example.com"
         headers = [(originDomainHeaderName, "origin.example.com")]
@@ -150,5 +149,3 @@ federatedRequestFailureAllowList =
         . interpretMetricsEmpty
         $ callOutward Nothing targetDomain Brig (RPC "get-user-by-handle") request
     eith @?= Left (FederationDenied targetDomain)
-
--- @END

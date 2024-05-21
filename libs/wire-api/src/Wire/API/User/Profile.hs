@@ -109,7 +109,7 @@ data Asset = ImageAsset
   { assetKey :: AssetKey,
     assetSize :: Maybe AssetSize
   }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Asset)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema Asset
 
@@ -166,7 +166,7 @@ instance C.Cql Asset where
       ]
 
 data AssetSize = AssetComplete | AssetPreview
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform AssetSize)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema AssetSize
 
@@ -292,7 +292,7 @@ data ManagedBy
     -- There are some other things that SCIM can't do yet, like setting accent IDs, but they
     -- are not essential, unlike e.g. passwords.
     ManagedByScim
-  deriving stock (Eq, Bounded, Enum, Show, Generic)
+  deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ManagedBy)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema ManagedBy)
 
@@ -333,7 +333,7 @@ defaultManagedBy = ManagedByWire
 
 -- | DEPRECATED
 newtype Pict = Pict {fromPict :: [A.Object]}
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema Pict
 
 instance ToSchema Pict where

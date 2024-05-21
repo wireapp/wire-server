@@ -33,7 +33,6 @@ import Galley.Effects.ExternalAccess (ExternalAccess (..))
 import Galley.Env
 import Galley.Intra.User
 import Galley.Monad
-import Galley.Types.Bot.Service (Service, serviceEnabled, serviceFingerprints, serviceToken, serviceUrl)
 import Imports
 import Network.HTTP.Client qualified as Http
 import Network.HTTP.Types.Method
@@ -46,6 +45,7 @@ import System.Logger.Class qualified as Log
 import System.Logger.Message (field, msg, val, (~~))
 import URI.ByteString
 import UnliftIO (Async, async, waitCatch)
+import Wire.API.Bot.Service
 import Wire.API.Event.Conversation (Event)
 import Wire.API.Provider.Service (serviceRefId, serviceRefProvider)
 

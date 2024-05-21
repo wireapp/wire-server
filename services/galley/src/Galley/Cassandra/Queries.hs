@@ -240,8 +240,8 @@ selectReceiptMode = "select receipt_mode from conversation where conv = ?"
 isConvDeleted :: PrepQuery R (Identity ConvId) (Identity (Maybe Bool))
 isConvDeleted = "select deleted from conversation where conv = ?"
 
-insertConv :: PrepQuery W (ConvId, ConvType, Maybe UserId, C.Set Access, C.Set AccessRole, Maybe Text, Maybe TeamId, Maybe Milliseconds, Maybe ReceiptMode, ProtocolTag, Maybe GroupId, Maybe Epoch, Maybe CipherSuiteTag) ()
-insertConv = "insert into conversation (conv, type, creator, access, access_roles_v2, name, team, message_timer, receipt_mode, protocol, group_id, epoch, cipher_suite) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+insertConv :: PrepQuery W (ConvId, ConvType, Maybe UserId, C.Set Access, C.Set AccessRole, Maybe Text, Maybe TeamId, Maybe Milliseconds, Maybe ReceiptMode, ProtocolTag, Maybe GroupId) ()
+insertConv = "insert into conversation (conv, type, creator, access, access_roles_v2, name, team, message_timer, receipt_mode, protocol, group_id) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 insertMLSSelfConv ::
   PrepQuery
@@ -255,22 +255,21 @@ insertMLSSelfConv ::
       Maybe TeamId,
       Maybe Milliseconds,
       Maybe ReceiptMode,
-      Maybe GroupId,
-      Maybe CipherSuiteTag
+      Maybe GroupId
     )
     ()
 insertMLSSelfConv =
   fromString $
     "insert into conversation (conv, type, creator, access, \
     \ access_roles_v2, name, team, message_timer, receipt_mode,\
-    \ protocol, group_id, cipher_suite) values \
+    \ protocol, group_id) values \
     \ (?, ?, ?, ?, ?, ?, ?, ?, ?, "
       <> show (fromEnum ProtocolMLSTag)
-      <> ", ?, ?)"
+      <> ", ?)"
 
-updateToMixedConv :: PrepQuery W (ConvId, ProtocolTag, GroupId, Epoch, CipherSuiteTag) ()
+updateToMixedConv :: PrepQuery W (ConvId, ProtocolTag, GroupId, Epoch) ()
 updateToMixedConv =
-  "insert into conversation (conv, protocol, group_id, epoch, cipher_suite) values (?, ?, ?, ?, ?)"
+  "insert into conversation (conv, protocol, group_id, epoch) values (?, ?, ?, ?)"
 
 updateToMLSConv :: PrepQuery W (ConvId, ProtocolTag) ()
 updateToMLSConv = "insert into conversation (conv, protocol) values (?, ?)"
@@ -344,8 +343,8 @@ deleteUserConv = "delete from user where user = ? and conv = ?"
 selectSubConversation :: PrepQuery R (ConvId, SubConvId) (Maybe CipherSuiteTag, Maybe Epoch, Maybe (Writetime Epoch), Maybe GroupId)
 selectSubConversation = "SELECT cipher_suite, epoch, WRITETIME(epoch), group_id FROM subconversation WHERE conv_id = ? and subconv_id = ?"
 
-insertSubConversation :: PrepQuery W (ConvId, SubConvId, CipherSuiteTag, Epoch, GroupId, Maybe GroupInfoData) ()
-insertSubConversation = "INSERT INTO subconversation (conv_id, subconv_id, cipher_suite, epoch, group_id, public_group_state) VALUES (?, ?, ?, ?, ?, ?)"
+insertSubConversation :: PrepQuery W (ConvId, SubConvId, Epoch, GroupId, Maybe GroupInfoData) ()
+insertSubConversation = "INSERT INTO subconversation (conv_id, subconv_id, epoch, group_id, public_group_state) VALUES (?, ?, ?, ?, ?)"
 
 updateSubConvGroupInfo :: PrepQuery W (ConvId, SubConvId, Maybe GroupInfoData) ()
 updateSubConvGroupInfo = "INSERT INTO subconversation (conv_id, subconv_id, public_group_state) VALUES (?, ?, ?)"

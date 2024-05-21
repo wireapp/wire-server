@@ -4,14 +4,16 @@ module Test.MLS where
 
 import API.Brig (claimKeyPackages, deleteClient)
 import API.Galley
-import qualified Data.Aeson.KeyMap as KM
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.Set as Set
+import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
+import qualified Data.Text.Read as T
 import MLS.Util
 import Notifications
 import SetupHelpers
+import Test.Version
 import Testlib.Prelude
 
 testSendMessageNoReturnToSender :: HasCallStack => App ()
@@ -100,6 +102,7 @@ testMixedProtocolUpgrade secondDomain = do
   bindResponse (getConversation alice qcnv) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "protocol" `shouldMatch` "mixed"
+    resp.json %. "epoch" `shouldMatchInt` 0
 
   bindResponse (putConversationProtocol alice qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 204
@@ -120,8 +123,9 @@ testMixedProtocolNonTeam secondDomain = do
   bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 403
 
-testMixedProtocolAddUsers :: HasCallStack => Domain -> App ()
-testMixedProtocolAddUsers secondDomain = do
+testMixedProtocolAddUsers :: HasCallStack => Domain -> Ciphersuite -> App ()
+testMixedProtocolAddUsers secondDomain suite = do
+  setMLSCiphersuite suite
   (alice, tid, _) <- createTeam OwnDomain 1
   [bob, charlie] <- replicateM 2 (randomUser secondDomain def)
   connectUsers [alice, bob, charlie]
@@ -138,6 +142,7 @@ testMixedProtocolAddUsers secondDomain = do
 
   bindResponse (getConversation alice qcnv) $ \resp -> do
     resp.status `shouldMatchInt` 200
+    resp.json %. "epoch" `shouldMatchInt` 0
     createGroup alice1 resp.json
 
   traverse_ uploadNewKeyPackage [bob1]
@@ -148,6 +153,12 @@ testMixedProtocolAddUsers secondDomain = do
     void $ sendAndConsumeCommitBundle mp
     n <- awaitMatch (\n -> nPayload n %. "type" `isEqual` "conversation.mls-welcome") ws
     nPayload n %. "data" `shouldMatch` T.decodeUtf8 (Base64.encode welcome)
+
+  bindResponse (getConversation alice qcnv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "epoch" `shouldMatchInt` 1
+    (suiteCode, _) <- assertOne $ T.hexadecimal (T.pack suite.code)
+    resp.json %. "cipher_suite" `shouldMatchInt` suiteCode
 
 testMixedProtocolUserLeaves :: HasCallStack => Domain -> App ()
 testMixedProtocolUserLeaves secondDomain = do
@@ -331,7 +342,14 @@ testAddUserSimple suite ctype = do
   [alice1, bob2] <- traverse (createMLSClient def {credType = ctype}) [alice, bob]
 
   traverse_ uploadNewKeyPackage [bob2]
-  (_, qcnv) <- createNewGroup alice1
+  qcnv <- withWebSocket alice $ \ws -> do
+    (_, qcnv) <- createNewGroup alice1
+    -- check that the conversation inside the ConvCreated event contains
+    -- epoch and ciphersuite, regardless of the API version
+    n <- awaitMatch isConvCreateNotif ws
+    n %. "payload.0.data.epoch" `shouldMatchInt` 0
+    n %. "payload.0.data.cipher_suite" `shouldMatchInt` 1
+    pure qcnv
 
   resp <- createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
   events <- resp %. "events" & asList
@@ -412,12 +430,17 @@ testCreateSubConvProteus = do
   bindResponse (getSubConversation alice conv "conference") $ \resp ->
     resp.status `shouldMatchInt` 404
 
-testSelfConversation :: App ()
-testSelfConversation = do
+testSelfConversation :: Version5 -> App ()
+testSelfConversation v = withVersion5 v $ do
   alice <- randomUser OwnDomain def
   creator : others <- traverse (createMLSClient def) (replicate 3 alice)
   traverse_ uploadNewKeyPackage others
-  void $ createSelfGroup creator
+  (_, conv) <- createSelfGroup creator
+  conv %. "epoch" `shouldMatchInt` 0
+  case v of
+    Version5 -> conv %. "cipher_suite" `shouldMatchInt` 1
+    NoVersion5 -> assertFieldMissing conv "cipher_suite"
+
   void $ createAddCommit creator [alice] >>= sendAndConsumeCommitBundle
 
   newClient <- createMLSClient def alice
@@ -723,27 +746,3 @@ testBackendRemoveProposal suite domain = do
   -- alice commits the external proposals
   r <- createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
   shouldBeEmpty $ r %. "events"
-
-testPublicKeys :: HasCallStack => App ()
-testPublicKeys = do
-  alice <- randomUserId OwnDomain
-  let expectedKeys =
-        [ "ed25519",
-          "ecdsa_secp256r1_sha256",
-          "ecdsa_secp384r1_sha384",
-          "ecdsa_secp521r1_sha512"
-        ]
-  bindResponse (getMLSPublicKeys alice) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    (KM.keys <$> asObject (resp.json %. "removal")) `shouldMatchSet` expectedKeys
-
-testPublicKeysMLSNotEnabled :: HasCallStack => App ()
-testPublicKeysMLSNotEnabled = withModifiedBackend
-  def
-    { galleyCfg = removeField "settings.mlsPrivateKeyPaths"
-    }
-  $ \domain -> do
-    alice <- randomUserId domain
-    bindResponse (getMLSPublicKeys alice) $ \resp -> do
-      resp.status `shouldMatchInt` 400
-      resp.json %. "label" `shouldMatch` "mls-not-enabled"

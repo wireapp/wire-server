@@ -42,6 +42,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.Error
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Credential
 import Wire.API.MLS.LeafNode
@@ -70,8 +71,11 @@ getExternalCommitData ::
   Sem r ExternalCommitAction
 getExternalCommitData senderIdentity lConvOrSub epoch commit = do
   let convOrSub = tUnqualified lConvOrSub
-      curEpoch = cnvmlsEpoch convOrSub.mlsMeta
       groupId = cnvmlsGroupId convOrSub.mlsMeta
+  activeData <-
+    note (mlsProtocolError "The first commit in a group cannot be external") $
+      cnvmlsActiveData convOrSub.mlsMeta
+  let curEpoch = activeData.epoch
   when (epoch /= curEpoch) $ throwS @'MLSStaleMessage
   when (epoch == Epoch 0) $
     throw $
@@ -95,7 +99,7 @@ getExternalCommitData senderIdentity lConvOrSub epoch commit = do
 
   evalState convOrSub.indexMap $ do
     -- process optional removal
-    propAction <- applyProposals convOrSub.mlsMeta groupId proposals
+    propAction <- applyProposals activeData.ciphersuite groupId proposals
     removedIndex <- case cmAssocs (paRemove propAction) of
       [(cid, idx)]
         | cid /= senderIdentity ->
@@ -130,11 +134,12 @@ processExternalCommit ::
   ) =>
   ClientIdentity ->
   Local ConvOrSubConv ->
+  CipherSuiteTag ->
   Epoch ->
   ExternalCommitAction ->
   Maybe UpdatePath ->
   Sem r ()
-processExternalCommit senderIdentity lConvOrSub epoch action updatePath = do
+processExternalCommit senderIdentity lConvOrSub ciphersuite epoch action updatePath = do
   let convOrSub = tUnqualified lConvOrSub
 
   -- only members can join a subconversation
@@ -148,10 +153,9 @@ processExternalCommit senderIdentity lConvOrSub epoch action updatePath = do
       <$> note
         (mlsProtocolError "External commits need an update path")
         updatePath
-  let cs = cnvmlsCipherSuite (tUnqualified lConvOrSub).mlsMeta
   let groupId = cnvmlsGroupId convOrSub.mlsMeta
   let extra = LeafNodeTBSExtraCommit groupId action.add
-  case validateLeafNode cs (Just senderIdentity) extra leafNode.value of
+  case validateLeafNode ciphersuite (Just senderIdentity) extra leafNode.value of
     Left errMsg ->
       throw $
         mlsProtocolError ("Tried to add invalid LeafNode: " <> errMsg)

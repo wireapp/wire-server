@@ -43,6 +43,7 @@ import Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
 import Test.Wire.API.Golden.Manual.SearchResultContact
 import Test.Wire.API.Golden.Manual.SubConversation
 import Test.Wire.API.Golden.Manual.TeamSize
+import Test.Wire.API.Golden.Manual.Token
 import Test.Wire.API.Golden.Manual.UserClientPrekeyMap
 import Test.Wire.API.Golden.Manual.UserEvent
 import Test.Wire.API.Golden.Manual.UserIdList
@@ -123,6 +124,8 @@ tests =
           [(testObject_ListConversations_1, "testObject_ListConversations_1.json")],
       testGroup "ConversationsResponse V2" $
         testObjects [(Versioned @'V2 testObject_ConversationsResponse_1, "testObject_ConversationsResponse_v2_1.json")],
+      testGroup "ConversationsResponse V5" $
+        testObjects [(Versioned @'V5 testObject_ConversationsResponse_1, "testObject_ConversationsResponse_v5_1.json")],
       testGroup "ConversationsResponse" $
         testObjects [(testObject_ConversationsResponse_1, "testObject_ConversationsResponse_1.json")],
       testGroup "CreateScimToken" $
@@ -145,11 +148,23 @@ tests =
       testGroup "GroupId" $
         testObjects
           [(testObject_GroupId_1, "testObject_GroupId_1.json")],
+      testGroup "PushToken" $
+        testObjects
+          [(testObject_Token_1, "testObject_Token_1.json")],
       testGroup "TeamSize" $
         testObjects
           [ (testObject_TeamSize_1, "testObject_TeamSize_1.json"),
             (testObject_TeamSize_2, "testObject_TeamSize_2.json"),
             (testObject_TeamSize_3, "testObject_TeamSize_3.json")
+          ],
+      testGroup "PublicSubConversationV5" $
+        testObjects
+          [ ( Versioned @'V5 testObject_PublicSubConversation_1,
+              "testObject_PublicSubConversation_v5_1.json"
+            ),
+            ( Versioned @'V5 testObject_PublicSubConversation_2,
+              "testObject_PublicSubConversation_v5_2.json"
+            )
           ],
       testGroup "PublicSubConversation" $
         testObjects

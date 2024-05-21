@@ -1,3 +1,47 @@
+# [2024-05-21] (Chart Release 5.3.0)
+
+## API changes
+
+
+* /mls/keys use JWK instead of bare keys as MLS removal keys (#3548)
+
+* The `cipher_suite` field is not present anymore in objects corresponding to newly created conversations (#4009)
+
+
+## Features
+
+
+* Upgrade `rusty-jwt-tools` to support `ecdsa_secp256r1_sha256` (#4035)
+
+* gundeck: Delete all APNS_VOIP and APNS_VOIP_SANDBOX push tokens (#4044)
+
+
+## Bug fixes and other updates
+
+
+* gundeck: Fix parsing errors for SNS ARN for VOIP Tokens (#4040)
+
+* Fix hardcoded ciphersuite when switching to mixed (#4048)
+
+
+## Internal changes
+
+
+* Add tool to determine number of phone-only users (#4024)
+
+* Log federator request ID on exceptions (#4037)
+
+* Update mls-test-cli to version 0.12 (#4039)
+
+* Remove inbucket helm chart. (#4032)
+
+* Finish servantifying galley and remove wai-routing dependency (#4018)
+
+* New subsystem for user management. (#3977)
+
+* Clean up syntax of test cases that occur in BSI audit. (#4041)
+
+
 # [2024-04-26] (Chart Release 4.43.0)
 
 ## Bug fixes and other updates

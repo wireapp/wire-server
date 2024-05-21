@@ -69,6 +69,8 @@ library
   exposed-modules:
     Wire.API.ApplyMods
     Wire.API.Asset
+    Wire.API.Bot
+    Wire.API.Bot.Service
     Wire.API.Call.Config
     Wire.API.Connection
     Wire.API.ConverProtoLens
@@ -591,6 +593,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.SearchResultContact
     Test.Wire.API.Golden.Manual.SubConversation
     Test.Wire.API.Golden.Manual.TeamSize
+    Test.Wire.API.Golden.Manual.Token
     Test.Wire.API.Golden.Manual.UserClientPrekeyMap
     Test.Wire.API.Golden.Manual.UserEvent
     Test.Wire.API.Golden.Manual.UserIdList

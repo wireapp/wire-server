@@ -37,15 +37,12 @@ import Brig.Data.UserKey qualified as Data
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.BlacklistStore qualified as BlacklistStore
 import Brig.Effects.ConnectionStore (ConnectionStore)
-import Brig.Effects.GalleyProvider (GalleyProvider)
-import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Email qualified as Email
 import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
 import Brig.Phone qualified as Phone
 import Brig.Team.DB qualified as DB
 import Brig.Team.Email
-import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 import Brig.Team.Util (ensurePermissionToAddUser, ensurePermissions)
 import Brig.Types.Team (TeamSize)
 import Brig.User.Search.TeamSize qualified as TeamSize
@@ -83,13 +80,15 @@ import Wire.API.Team.Role
 import Wire.API.Team.Role qualified as Public
 import Wire.API.User hiding (fromEmail)
 import Wire.API.User qualified as Public
+import Wire.GalleyAPIAccess (GalleyAPIAccess, ShowOrHideInvitationUrl (..))
+import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 servantAPI ::
   ( Member BlacklistStore r,
-    Member GalleyProvider r
+    Member GalleyAPIAccess r
   ) =>
   ServerT TeamsAPI (Handler r)
 servantAPI =
@@ -101,7 +100,7 @@ servantAPI =
     :<|> Named @"head-team-invitations" headInvitationByEmail
     :<|> Named @"get-team-size" teamSizePublic
 
-teamSizePublic :: Member GalleyProvider r => UserId -> TeamId -> (Handler r) TeamSize
+teamSizePublic :: Member GalleyAPIAccess r => UserId -> TeamId -> (Handler r) TeamSize
 teamSizePublic uid tid = do
   ensurePermissions uid tid [AddTeamMember] -- limit this to team admins to reduce risk of involuntary DOS attacks
   teamSize tid
@@ -116,7 +115,7 @@ getInvitationCode t r = do
 
 createInvitationPublicH ::
   ( Member BlacklistStore r,
-    Member GalleyProvider r
+    Member GalleyAPIAccess r
   ) =>
   UserId ->
   TeamId ->
@@ -138,7 +137,7 @@ data CreateInvitationInviter = CreateInvitationInviter
 
 createInvitationPublic ::
   ( Member BlacklistStore r,
-    Member GalleyProvider r
+    Member GalleyAPIAccess r
   ) =>
   UserId ->
   TeamId ->
@@ -165,7 +164,7 @@ createInvitationPublic uid tid body = do
 
 createInvitationViaScim ::
   ( Member BlacklistStore r,
-    Member GalleyProvider r,
+    Member GalleyAPIAccess r,
     Member (UserPendingActivationStore p) r,
     Member TinyLog r
   ) =>
@@ -215,7 +214,7 @@ logInvitationRequest context action =
 
 createInvitation' ::
   ( Member BlacklistStore r,
-    Member GalleyProvider r
+    Member GalleyAPIAccess r
   ) =>
   TeamId ->
   Maybe UserId ->
@@ -256,7 +255,7 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail body = do
 
   let locale = irLocale body
   let inviteeName = irInviteeName body
-  showInvitationUrl <- lift $ liftSem $ GalleyProvider.getExposeInvitationURLsToTeamAdmin tid
+  showInvitationUrl <- lift $ liftSem $ GalleyAPIAccess.getExposeInvitationURLsToTeamAdmin tid
 
   lift $ do
     iid <- maybe (liftIO DB.mkInvitationId) (pure . Id . toUUID) mUid
@@ -277,22 +276,22 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail body = do
           timeout
     (newInv, code) <$ sendInvitationMail inviteeEmail tid fromEmail code locale
 
-deleteInvitation :: Member GalleyProvider r => UserId -> TeamId -> InvitationId -> (Handler r) ()
+deleteInvitation :: Member GalleyAPIAccess r => UserId -> TeamId -> InvitationId -> (Handler r) ()
 deleteInvitation uid tid iid = do
   ensurePermissions uid tid [AddTeamMember]
   lift $ wrapClient $ DB.deleteInvitation tid iid
 
-listInvitations :: Member GalleyProvider r => UserId -> TeamId -> Maybe InvitationId -> Maybe (Range 1 500 Int32) -> (Handler r) Public.InvitationList
+listInvitations :: Member GalleyAPIAccess r => UserId -> TeamId -> Maybe InvitationId -> Maybe (Range 1 500 Int32) -> (Handler r) Public.InvitationList
 listInvitations uid tid start mSize = do
   ensurePermissions uid tid [AddTeamMember]
-  showInvitationUrl <- lift $ liftSem $ GalleyProvider.getExposeInvitationURLsToTeamAdmin tid
+  showInvitationUrl <- lift $ liftSem $ GalleyAPIAccess.getExposeInvitationURLsToTeamAdmin tid
   rs <- lift $ wrapClient $ DB.lookupInvitations showInvitationUrl tid start (fromMaybe (unsafeRange 100) mSize)
   pure $! Public.InvitationList (DB.resultList rs) (DB.resultHasMore rs)
 
-getInvitation :: Member GalleyProvider r => UserId -> TeamId -> InvitationId -> (Handler r) (Maybe Public.Invitation)
+getInvitation :: Member GalleyAPIAccess r => UserId -> TeamId -> InvitationId -> (Handler r) (Maybe Public.Invitation)
 getInvitation uid tid iid = do
   ensurePermissions uid tid [AddTeamMember]
-  showInvitationUrl <- lift $ liftSem $ GalleyProvider.getExposeInvitationURLsToTeamAdmin tid
+  showInvitationUrl <- lift $ liftSem $ GalleyAPIAccess.getExposeInvitationURLsToTeamAdmin tid
   lift $ wrapClient $ DB.lookupInvitation showInvitationUrl tid iid
 
 getInvitationByCode :: Public.InvitationCode -> (Handler r) Public.Invitation
@@ -321,7 +320,7 @@ suspendTeam ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member (Concurrency 'Unsafe) r,
-    Member GalleyProvider r,
+    Member GalleyAPIAccess r,
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
@@ -333,14 +332,14 @@ suspendTeam tid = do
   Log.info $ Log.msg (Log.val "Team suspended") ~~ Log.field "team" (toByteString tid)
   changeTeamAccountStatuses tid Suspended
   lift $ wrapClient $ DB.deleteInvitations tid
-  lift $ liftSem $ GalleyProvider.changeTeamStatus tid Team.Suspended Nothing
+  lift $ liftSem $ GalleyAPIAccess.changeTeamStatus tid Team.Suspended Nothing
   pure NoContent
 
 unsuspendTeam ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member (Concurrency 'Unsafe) r,
-    Member GalleyProvider r,
+    Member GalleyAPIAccess r,
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
@@ -350,7 +349,7 @@ unsuspendTeam ::
   (Handler r) NoContent
 unsuspendTeam tid = do
   changeTeamAccountStatuses tid Active
-  lift $ liftSem $ GalleyProvider.changeTeamStatus tid Team.Active Nothing
+  lift $ liftSem $ GalleyAPIAccess.changeTeamStatus tid Team.Active Nothing
   pure NoContent
 
 -------------------------------------------------------------------------------
@@ -360,7 +359,7 @@ changeTeamAccountStatuses ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member (Concurrency 'Unsafe) r,
-    Member GalleyProvider r,
+    Member GalleyAPIAccess r,
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
@@ -370,10 +369,10 @@ changeTeamAccountStatuses ::
   AccountStatus ->
   (Handler r) ()
 changeTeamAccountStatuses tid s = do
-  team <- Team.tdTeam <$> lift (liftSem $ GalleyProvider.getTeam tid)
+  team <- Team.tdTeam <$> lift (liftSem $ GalleyAPIAccess.getTeam tid)
   unless (team ^. teamBinding == Binding) $
     throwStd noBindingTeam
-  uids <- toList1 =<< lift (fmap (view Teams.userId) . view teamMembers <$> liftSem (GalleyProvider.getTeamMembers tid))
+  uids <- toList1 =<< lift (fmap (view Teams.userId) . view teamMembers <$> liftSem (GalleyAPIAccess.getTeamMembers tid))
   API.changeAccountStatus uids s !>> accountStatusError
   where
     toList1 (x : xs) = pure $ List1.list1 x xs

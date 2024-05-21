@@ -141,7 +141,7 @@ instance ToSchema Asset where
 -- Note: Can be turned into a sum type with additional constructors
 -- for future versions.
 data AssetKey = AssetKeyV3 AssetId AssetRetention
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform AssetKey)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AssetKey)
 
@@ -321,7 +321,7 @@ data AssetRetention
   | -- | The asset is retained for an extended period of time,
     -- but not indefinitely.
     AssetExpiring
-  deriving stock (Eq, Show, Enum, Bounded, Generic)
+  deriving stock (Eq, Ord, Show, Enum, Bounded, Generic)
   deriving (Arbitrary) via (GenericUniform AssetRetention)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AssetRetention)
 

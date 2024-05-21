@@ -5,6 +5,7 @@ images:
   galley: quay.io/wire/galley-schema
   spar: quay.io/wire/spar-schema
   galleyMigrateData: quay.io/wire/galley-migrate-data
+  gundeckMigrateData: quay.io/wire/gundeck-migrate-data
   sparMigrateData: quay.io/wire/spar-migrate-data
 
 # Setting cassandra host name and replication is mandatory to specify.

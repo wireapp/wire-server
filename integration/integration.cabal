@@ -129,6 +129,7 @@ library
     Test.MessageTimer
     Test.MLS
     Test.MLS.KeyPackage
+    Test.MLS.Keys
     Test.MLS.Message
     Test.MLS.Notifications
     Test.MLS.One2One
@@ -136,6 +137,7 @@ library
     Test.MLS.Unreachable
     Test.Notifications
     Test.Presence
+    Test.PushToken
     Test.Roles
     Test.Search
     Test.Services
@@ -174,6 +176,7 @@ library
     , async
     , attoparsec
     , base
+    , base16-bytestring
     , base64-bytestring
     , bytestring
     , bytestring-conversion

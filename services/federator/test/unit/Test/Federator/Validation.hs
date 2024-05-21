@@ -115,12 +115,11 @@ federateWithAllowListFail =
         $ ensureCanFederateWith (Domain "hello.world")
     assertBool "federating should not be allowed" (isLeft eith)
 
--- @SF.Federation @TSFI.Federate @TSFI.DNS @S2 @S3 @S7
 --
 -- Refuse to send outgoing request to non-included domain when AllowDynamic is configured.
 validateDomainAllowListFail :: TestTree
 validateDomainAllowListFail =
-  testCase "allow list validation" $ do
+  testCase "validateDomainAllowListFail - allow list validation" $ do
     Right exampleCert <- decodeCertificate <$> BS.readFile "test/resources/unit/localhost.example.com.pem"
     let settings = noClientCertSettings
     res <-
@@ -132,8 +131,6 @@ validateDomainAllowListFail =
         . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig (Domain "only.other.domain") FullSearch FederationRestrictionAllowAll] 0)
         $ validateDomain exampleCert (Domain "localhost.example.com")
     res @?= Left (FederationDenied (Domain "localhost.example.com"))
-
--- @END
 
 validateDomainAllowListSuccess :: TestTree
 validateDomainAllowListSuccess =
@@ -151,13 +148,12 @@ validateDomainAllowListSuccess =
         $ validateDomain exampleCert domain
     assertEqual "validateDomain should give 'localhost.example.com' as domain" domain res
 
--- @SF.Federation @TSFI.Federate @TSFI.DNS @S3 @S7
 --
 -- Reject request if the infrastructure domain in the client cert does not match the backend
 -- domain in the `Wire-origin-domain` header.
 validateDomainCertWrongDomain :: TestTree
 validateDomainCertWrongDomain =
-  testCase "should fail if the client certificate has a wrong domain" $ do
+  testCase "validateDomainCertWrongDomain - should fail if the client certificate has a wrong domain" $ do
     Right exampleCert <- decodeCertificate <$> BS.readFile "test/resources/unit/localhost.example.com.pem"
     res <-
       runM
@@ -168,8 +164,6 @@ validateDomainCertWrongDomain =
         . runInputConst scaffoldingFederationDomainConfigs
         $ validateDomain exampleCert (Domain "foo.example.com")
     res @?= Left (AuthenticationFailure (pure [X509.NameMismatch "foo.example.com"]))
-
--- @END
 
 validateDomainCertCN :: TestTree
 validateDomainCertCN =
@@ -253,12 +247,9 @@ validateDomainNonIdentitySRV =
         $ validateDomain exampleCert domain
     res @?= domain
 
--- @SF.Federation @TSFI.Federate @TSFI.DNS @S2 @S3 @S7
 -- Reject request if the client certificate for federator is invalid
 validateDomainCertInvalid :: TestTree
 validateDomainCertInvalid =
-  testCase "should fail if the client certificate is invalid" $ do
+  testCase "validateDomainCertInvalid - should fail if the client certificate is invalid" $ do
     let res = decodeCertificate "not a certificate"
     res @?= Left "no certificate found"
-
--- @END

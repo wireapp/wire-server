@@ -30,14 +30,11 @@ import Wire.API.MLS.Epoch (Epoch (..))
 class FromUTC a where
   fromUTCTime :: UTCTime -> a
 
--- An orphan instance
 instance FromUTC UTCTime where
   fromUTCTime = id
 
--- An orphan instance
 instance FromUTC SAML.Time where
   fromUTCTime = SAML.Time
 
--- An orphan instance
 instance FromUTC Epoch where
   fromUTCTime = Epoch . floor . utcTimeToPOSIXSeconds

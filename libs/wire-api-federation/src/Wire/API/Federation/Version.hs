@@ -24,6 +24,7 @@ module Wire.API.Federation.Version
     V1Sym0,
     intToVersion,
     versionInt,
+    versionText,
     supportedVersions,
     VersionInfo (..),
     versionInfo,
@@ -47,6 +48,7 @@ import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Set qualified as Set
 import Data.Singletons.Base.TH
+import Data.Text qualified as Text
 import Imports
 
 data Version = V0 | V1
@@ -56,6 +58,9 @@ data Version = V0 | V1
 versionInt :: Version -> Int
 versionInt V0 = 0
 versionInt V1 = 1
+
+versionText :: Version -> Text
+versionText = ("v" <>) . Text.pack . show . versionInt
 
 intToVersion :: Int -> Maybe Version
 intToVersion intV = find (\v -> versionInt v == intV) [minBound ..]

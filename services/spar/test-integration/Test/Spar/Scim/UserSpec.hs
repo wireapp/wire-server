@@ -490,7 +490,7 @@ specCreateUser = describe "POST /Users" $ do
     it "set locale to hr and update to default" $ testCreateUserWithSamlIdPWithPreferredLanguage (Just (Locale (Language HR) Nothing)) Nothing
     it "set locale to default and update to default" $ testCreateUserWithSamlIdPWithPreferredLanguage Nothing Nothing
   it "requires externalId to be present" $ testExternalIdIsRequired
-  it "rejects invalid handle" $ testCreateRejectsInvalidHandle
+  it "testCreateRejectsInvalidHandle - rejects invalid handle" $ testCreateRejectsInvalidHandle
   it "rejects occupied handle" $ testCreateRejectsTakenHandle
   it "rejects occupied externalId (uref)" $ testCreateRejectsTakenExternalId True
   it "rejects occupied externalId (email)" $ testCreateRejectsTakenExternalId False
@@ -840,9 +840,6 @@ testExternalIdIsRequired = do
   createUser_ (Just tok) user' (env ^. teSpar)
     !!! const 400 === statusCode
 
--- The next line contains a mapping from this test to the following test standards:
--- @SF.Provisioning @TSFI.RESTfulAPI @S2
---
 -- Test that user creation fails if handle is invalid
 testCreateRejectsInvalidHandle :: TestSpar ()
 testCreateRejectsInvalidHandle = do
@@ -852,8 +849,6 @@ testCreateRejectsInvalidHandle = do
   (tok, _) <- registerIdPAndScimToken
   createUser_ (Just tok) (user {Scim.User.userName = "#invalid name"}) (env ^. teSpar)
     !!! const 400 === statusCode
-
--- @END
 
 -- | Test that user creation fails if handle is already in use (even on different team).
 testCreateRejectsTakenHandle :: TestSpar ()

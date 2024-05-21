@@ -54,8 +54,6 @@ import Brig.Data.Client qualified as Data
 import Brig.Data.Nonce as Nonce
 import Brig.Data.User qualified as Data
 import Brig.Effects.ConnectionStore (ConnectionStore)
-import Brig.Effects.GalleyProvider (GalleyProvider)
-import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.Effects.JwtTools (JwtTools)
 import Brig.Effects.JwtTools qualified as JwtTools
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
@@ -64,9 +62,7 @@ import Brig.Federation.Client (getUserClients)
 import Brig.Federation.Client qualified as Federation
 import Brig.IO.Intra (guardLegalhold)
 import Brig.IO.Intra qualified as Intra
-import Brig.InternalEvent.Types qualified as Internal
 import Brig.Options qualified as Opt
-import Brig.Queue qualified as Queue
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.User.Auth qualified as UserAuth
@@ -112,6 +108,9 @@ import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey
 import Wire.API.UserEvent
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap, qualifiedUserMap), UserMap (userMap))
+import Wire.DeleteQueue
+import Wire.GalleyAPIAccess (GalleyAPIAccess)
+import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.FromUTC (FromUTC (fromUTCTime))
@@ -162,10 +161,11 @@ lookupLocalPubClientsBulk :: [UserId] -> ExceptT ClientError (AppT r) (UserMap (
 lookupLocalPubClientsBulk = lift . wrapClient . Data.lookupPubClientsBulk
 
 addClient ::
-  ( Member GalleyProvider r,
+  ( Member GalleyAPIAccess r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member TinyLog r,
+    Member DeleteQueue r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r
@@ -180,12 +180,13 @@ addClient = addClientWithReAuthPolicy Data.reAuthForNewClients
 -- a superset of the clients known to galley.
 addClientWithReAuthPolicy ::
   forall r.
-  ( Member GalleyProvider r,
+  ( Member GalleyAPIAccess r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
+    Member DeleteQueue r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   Data.ReAuthPolicy ->
@@ -213,7 +214,7 @@ addClientWithReAuthPolicy policy u con new = do
   let usr = accountUser acc
   lift $ do
     for_ old $ execDelete u con
-    liftSem $ GalleyProvider.newClient u (clientId clt)
+    liftSem $ GalleyAPIAccess.newClient u (clientId clt)
     liftSem $ Intra.onClientEvent u con (ClientAdded clt)
     when (clientType clt == LegalHoldClientType) $ liftSem $ Intra.onUserEvent u con (UserLegalHoldEnabled u)
     when (count > 1) $
@@ -251,7 +252,13 @@ updateClient u c r = do
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
-rmClient :: UserId -> ConnId -> ClientId -> Maybe PlainTextPassword6 -> ExceptT ClientError (AppT r) ()
+rmClient ::
+  Member DeleteQueue r =>
+  UserId ->
+  ConnId ->
+  ClientId ->
+  Maybe PlainTextPassword6 ->
+  ExceptT ClientError (AppT r) ()
 rmClient u con clt pw =
   maybe (throwE ClientNotFound) fn =<< lift (wrapClient $ Data.lookupClient u clt)
   where
@@ -266,6 +273,7 @@ rmClient u con clt pw =
       lift $ execDelete u (Just con) client
 
 claimPrekey ::
+  Member DeleteQueue r =>
   LegalholdProtectee ->
   UserId ->
   Domain ->
@@ -278,6 +286,7 @@ claimPrekey protectee u d c = do
     else wrapClientE $ claimRemotePrekey (Qualified u d) c
 
 claimLocalPrekey ::
+  Member DeleteQueue r =>
   LegalholdProtectee ->
   UserId ->
   ClientId ->
@@ -317,7 +326,9 @@ claimRemotePrekeyBundle quser = do
   Federation.claimPrekeyBundle quser !>> ClientFederationError
 
 claimMultiPrekeyBundlesInternal ::
-  Member (Concurrency 'Unsafe) r =>
+  ( Member (Concurrency 'Unsafe) r,
+    Member DeleteQueue r
+  ) =>
   LegalholdProtectee ->
   QualifiedUserClients ->
   ExceptT
@@ -337,7 +348,9 @@ claimMultiPrekeyBundlesInternal protectee quc = do
   pure (localPrekeys, remotes)
   where
     claimLocal ::
-      Member (Concurrency 'Unsafe) r =>
+      ( Member (Concurrency 'Unsafe) r,
+        Member DeleteQueue r
+      ) =>
       Local UserClients ->
       ExceptT ClientError (AppT r) (Qualified UserClientPrekeyMap)
     claimLocal luc =
@@ -345,7 +358,9 @@ claimMultiPrekeyBundlesInternal protectee quc = do
         <$> claimLocalMultiPrekeyBundles protectee (tUnqualified luc)
 
 claimMultiPrekeyBundlesV3 ::
-  Member (Concurrency 'Unsafe) r =>
+  ( Member (Concurrency 'Unsafe) r,
+    Member DeleteQueue r
+  ) =>
   LegalholdProtectee ->
   QualifiedUserClients ->
   ExceptT ClientError (AppT r) QualifiedUserClientPrekeyMap
@@ -378,7 +393,9 @@ claimMultiPrekeyBundlesV3 protectee quc = do
 --    to fail, allowing partial results to be returned.
 claimMultiPrekeyBundles ::
   forall r.
-  Member (Concurrency 'Unsafe) r =>
+  ( Member (Concurrency 'Unsafe) r,
+    Member DeleteQueue r
+  ) =>
   LegalholdProtectee ->
   QualifiedUserClients ->
   ExceptT ClientError (AppT r) QualifiedUserClientPrekeyMapV4
@@ -405,7 +422,9 @@ claimMultiPrekeyBundles protectee quc = do
 
 claimLocalMultiPrekeyBundles ::
   forall r.
-  Member (Concurrency 'Unsafe) r =>
+  ( Member (Concurrency 'Unsafe) r,
+    Member DeleteQueue r
+  ) =>
   LegalholdProtectee ->
   UserClients ->
   ExceptT ClientError (AppT r) UserClientPrekeyMap
@@ -447,11 +466,15 @@ claimLocalMultiPrekeyBundles protectee userClients = do
 -- Utilities
 
 -- | Enqueue an orderly deletion of an existing client.
-execDelete :: UserId -> Maybe ConnId -> Client -> (AppT r) ()
+execDelete ::
+  Member DeleteQueue r =>
+  UserId ->
+  Maybe ConnId ->
+  Client ->
+  AppT r ()
 execDelete u con c = do
   for_ (clientCookie c) $ \l -> wrapClient $ Auth.revokeCookies u [] [l]
-  queue <- view internalEvents
-  Queue.enqueue queue (Internal.DeleteClient (clientId c) u con)
+  liftSem $ enqueueClientDeletion c.clientId u con
   wrapClient $ Data.rmClient u (clientId c)
 
 -- | Defensive measure when no prekey is found for a
@@ -460,6 +483,7 @@ execDelete u con c = do
 -- thus repairing any inconsistencies related to distributed
 -- (and possibly duplicated) client data.
 noPrekeys ::
+  Member DeleteQueue r =>
   UserId ->
   ClientId ->
   (AppT r) ()
@@ -511,6 +535,7 @@ removeLegalHoldClient ::
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Input (Local ())) r,
+    Member DeleteQueue r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r
   ) =>

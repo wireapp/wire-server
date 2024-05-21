@@ -20,8 +20,6 @@ module Brig.Team.Util where -- TODO: remove this module and move contents to Bri
 import Brig.API.Error
 import Brig.App
 import Brig.Data.User qualified as Data
-import Brig.Effects.GalleyProvider (GalleyProvider)
-import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.Types.User (HavePendingInvitations (NoPendingInvitations))
 import Control.Error
 import Control.Lens
@@ -32,18 +30,20 @@ import Polysemy (Member)
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
 import Wire.API.User (User (userTeam))
+import Wire.GalleyAPIAccess (GalleyAPIAccess)
+import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 
 -- | If the user is in a team, it has to have these permissions.  If not, it is a personal
 -- user with account validation and thus given the permission implicitly.  (Used for
 -- `SearchContactcs`.)
-ensurePermissionsOrPersonalUser :: (Member GalleyProvider r, IsPerm perm) => UserId -> [perm] -> ExceptT Error (AppT r) ()
+ensurePermissionsOrPersonalUser :: (Member GalleyAPIAccess r, IsPerm perm) => UserId -> [perm] -> ExceptT Error (AppT r) ()
 ensurePermissionsOrPersonalUser u perms = do
   mbUser <- lift $ wrapHttp $ Data.lookupUser NoPendingInvitations u
   maybe (pure ()) (\tid -> ensurePermissions u tid perms) (userTeam =<< mbUser :: Maybe TeamId)
 
-ensurePermissions :: (Member GalleyProvider r, IsPerm perm) => UserId -> TeamId -> [perm] -> ExceptT Error (AppT r) ()
+ensurePermissions :: (Member GalleyAPIAccess r, IsPerm perm) => UserId -> TeamId -> [perm] -> ExceptT Error (AppT r) ()
 ensurePermissions u t perms = do
-  m <- lift $ liftSem $ GalleyProvider.getTeamMember u t
+  m <- lift $ liftSem $ GalleyAPIAccess.getTeamMember u t
   unless (check m) $
     throwStd insufficientTeamPermissions
   where
@@ -54,9 +54,9 @@ ensurePermissions u t perms = do
 -- | Privilege escalation detection (make sure no `RoleMember` user creates a `RoleOwner`).
 --
 -- There is some code duplication with 'Galley.API.Teams.ensureNotElevated'.
-ensurePermissionToAddUser :: Member GalleyProvider r => UserId -> TeamId -> Permissions -> ExceptT Error (AppT r) ()
+ensurePermissionToAddUser :: Member GalleyAPIAccess r => UserId -> TeamId -> Permissions -> ExceptT Error (AppT r) ()
 ensurePermissionToAddUser u t inviteePerms = do
-  minviter <- lift $ liftSem $ GalleyProvider.getTeamMember u t
+  minviter <- lift $ liftSem $ GalleyAPIAccess.getTeamMember u t
   unless (check minviter) $
     throwStd insufficientTeamPermissions
   where

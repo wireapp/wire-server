@@ -76,10 +76,10 @@ self: super: {
   };
 
   nginz = (super.nginx.overrideAttrs rec {
-    version = "1.22.1";
+    version = "1.26.0";
     src = super.fetchurl {
       url = "https://nginx.org/download/nginx-${version}.tar.gz";
-      hash = "sha256-nrszOp6CuVKs0+K0rrHU/2QG9ySRurbNn+afDepzfzE=";
+      hash = "sha256-0ubIQ51sbbUBXY6qskcKtSrvhae/NjGCh5l34IQ3BJc=";
     };
   }).override {
     modules = [

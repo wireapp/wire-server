@@ -102,17 +102,17 @@ tests _ at opts p b c ch g aws userJournalWatcher =
   testGroup
     "account"
     [ test p "post /register - 201 (with preverified)" $ testCreateUserWithPreverified opts b userJournalWatcher,
-      test p "post /register - 400 (with preverified)" $ testCreateUserWithInvalidVerificationCode b,
+      test p "testCreateUserWithInvalidVerificationCode - post /register - 400 (with preverified)" $ testCreateUserWithInvalidVerificationCode b,
       test p "post /register - 201" $ testCreateUser b g,
       test p "post /register - 201 + no email" $ testCreateUserNoEmailNoPassword b,
       test p "post /register - 201 anonymous" $ testCreateUserAnon b g,
-      test p "post /register - 400 empty name" $ testCreateUserEmptyName b,
-      test p "post /register - 400 name too long" $ testCreateUserLongName b,
+      test p "testCreateUserEmptyName - post /register - 400 empty name" $ testCreateUserEmptyName b,
+      test p "testCreateUserLongName - post /register - 400 name too long" $ testCreateUserLongName b,
       test p "post /register - 201 anonymous expiry" $ testCreateUserAnonExpiry b,
       test p "post /register - 201 pending" $ testCreateUserPending opts b,
       test p "post /register - 201 existing activation" $ testCreateAccountPendingActivationKey opts b,
-      test p "post /register - 409 conflict" $ testCreateUserConflict opts b,
-      test p "post /register - 400 invalid input" $ testCreateUserInvalidEmailOrPhone opts b,
+      test p "testCreateUserConflict - post /register - 409 conflict" $ testCreateUserConflict opts b,
+      test p "testCreateUserInvalidEmailOrPhone - post /register - 400 invalid input" $ testCreateUserInvalidEmailOrPhone opts b,
       test p "post /register - 403 blacklist" $ testCreateUserBlacklist opts b aws,
       test p "post /register - 400 external-SSO" $ testCreateUserExternalSSO b,
       test p "post /register - 403 restricted user creation" $ testRestrictedUserCreation opts b,
@@ -172,7 +172,6 @@ tests _ at opts p b c ch g aws userJournalWatcher =
     ]
 
 -- The testCreateUserWithInvalidVerificationCode test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
 -- Registering with an invalid verification code and valid account details should fail.
 testCreateUserWithInvalidVerificationCode :: Brig -> Http ()
@@ -196,8 +195,6 @@ testCreateUserWithInvalidVerificationCode brig = do
             "email_code" .= code
           ]
   postUserRegister' regEmail brig !!! const 404 === statusCode
-
--- @END
 
 testUpdateUserEmailByTeamOwner :: Opt.Opts -> Brig -> Http ()
 testUpdateUserEmailByTeamOwner opts brig = do
@@ -336,7 +333,6 @@ assertOnlySelfConversations galley uid = do
     liftIO $ cnvType conv @?= SelfConv
 
 -- The testCreateUserEmptyName test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
 -- An empty name is not allowed on registration
 testCreateUserEmptyName :: Brig -> Http ()
@@ -348,10 +344,7 @@ testCreateUserEmptyName brig = do
   post (brig . path "/register" . contentJson . body p)
     !!! const 400 === statusCode
 
--- @END
-
 -- The testCreateUserLongName test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
 -- a name with > 128 characters is not allowed.
 testCreateUserLongName :: Brig -> Http ()
@@ -363,8 +356,6 @@ testCreateUserLongName brig = do
             ["name" .= (nameTooLong :: Text)]
   post (brig . path "/register" . contentJson . body p)
     !!! const 400 === statusCode
-
--- @END
 
 testCreateUserAnon :: Brig -> Galley -> Http ()
 testCreateUserAnon brig galley = do
@@ -443,7 +434,6 @@ testCreateUserNoEmailNoPassword brig = do
     !!! (const 202 === statusCode)
 
 -- The testCreateUserConflict test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
 -- email address must not be taken on @/register@.
 testCreateUserConflict :: Opt.Opts -> Brig -> Http ()
@@ -475,10 +465,7 @@ testCreateUserConflict _ brig = do
     const 409 === statusCode
     const (Just "key-exists") === fmap Error.label . responseJsonMaybe
 
--- @END
-
 -- The testCreateUserInvalidEmailOrPhone test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
 -- Test to make sure a new user cannot be created with an invalid email address or invalid phone number.
 testCreateUserInvalidEmailOrPhone :: Opt.Opts -> Brig -> Http ()
@@ -507,8 +494,6 @@ testCreateUserInvalidEmailOrPhone _ brig = do
             ]
   post (brig . path "/register" . contentJson . body reqPhone)
     !!! const 400 === statusCode
-
--- @END
 
 testCreateUserBlacklist :: Opt.Opts -> Brig -> AWS.Env -> Http ()
 testCreateUserBlacklist (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ _ = pure ()
@@ -861,17 +846,16 @@ testCreateUserAnonExpiry :: Brig -> Http ()
 testCreateUserAnonExpiry b = do
   u1 <- randomUser b
   alice <- randomUser b
-  now <- liftIO getCurrentTime
   bob <- createAnonUserExpiry (Just 2) "bob" b
   liftIO $ assertBool "expiry not set on regular creation" (isNothing (userExpire alice))
-  ensureExpiry now (fromUTCTimeMillis <$> userExpire bob) "bob/register"
+  ensureExpiry (fromUTCTimeMillis <$> userExpire bob) "bob/register"
   resAlice <- getProfile (userId u1) (userId alice)
   resBob <- getProfile (userId u1) (userId bob)
   selfBob <- get (b . zUser (userId bob) . path "self") <!! const 200 === statusCode
   liftIO $ assertBool "Bob must not be in a deleted state initially" (maybe True not (deleted selfBob))
   liftIO $ assertBool "Regular user should not have any expiry" (null $ expire resAlice)
-  ensureExpiry now (expire resBob) "bob/public"
-  ensureExpiry now (expire selfBob) "bob/self"
+  ensureExpiry (expire resBob) "bob/public"
+  ensureExpiry (expire selfBob) "bob/self"
   awaitExpiry 5 (userId u1) (userId bob)
   resBob' <- getProfile (userId u1) (userId bob)
   liftIO $ assertBool "Bob must be in deleted state" (fromMaybe False $ deleted resBob')
@@ -885,15 +869,17 @@ testCreateUserAnonExpiry b = do
       when (statusCode r == 200 && isNothing (deleted r) && n > 0) $ do
         liftIO $ threadDelay 1000000
         awaitExpiry (n - 1) zusr uid
-    ensureExpiry :: UTCTime -> Maybe UTCTime -> String -> Http ()
-    ensureExpiry now expiry s = case expiry of
-      Nothing -> liftIO $ assertFailure ("user must have an expiry" <> s)
-      Just a -> do
-        let diff = diffUTCTime a now
-            minExp = 1 :: Integer -- 1 second
-            maxExp = 60 * 60 * 24 * 10 :: Integer -- 10 days
-        liftIO $ assertBool "expiry must in be the future" (diff >= fromIntegral minExp)
-        liftIO $ assertBool "expiry must be less than 10 days" (diff < fromIntegral maxExp)
+    ensureExpiry :: Maybe UTCTime -> String -> Http ()
+    ensureExpiry expiry s = do
+      now <- liftIO getCurrentTime
+      case expiry of
+        Nothing -> liftIO $ assertFailure ("user must have an expiry" <> s)
+        Just a -> do
+          let diff = diffUTCTime a now
+              minExp = 1 :: Integer -- 1 second
+              maxExp = 60 * 60 * 24 * 10 :: Integer -- 10 days
+          liftIO $ assertBool "expiry must be in the future" (diff >= fromIntegral minExp)
+          liftIO $ assertBool "expiry must be less than 10 days" (diff < fromIntegral maxExp)
     expire :: ResponseLBS -> Maybe UTCTime
     expire r = field "expires_at" =<< responseJsonMaybe r
     deleted :: ResponseLBS -> Maybe Bool

@@ -32,6 +32,7 @@ for suffix in "" "2" "3" "4" "5" "-federation-v0"; do
     # Create SNS resources for gundeck's notifications
     exec_until_ready "aws --endpoint-url=http://sns:4575 sns create-platform-application --name integration-test$suffix --platform GCM --attributes PlatformCredential=testkey"
     exec_until_ready "aws --endpoint-url=http://sns:4575 sns create-platform-application --name integration-test$suffix --platform APNS_SANDBOX --attributes PlatformCredential=testprivatekey"
+    exec_until_ready "aws --endpoint-url=http://sns:4575 sns create-platform-application --name integration-test$suffix --platform APNS_VOIP_SANDBOX --attributes PlatformCredential=testprivatekey"
     exec_until_ready "aws --endpoint-url=http://sns:4575 sns create-platform-application --name integration-com.wire.ent$suffix --platform APNS_SANDBOX --attributes PlatformCredential=testprivatekey"
 
     # Cargohold's bucket; creating a bucket is not idempotent so we just try once and wait until it is ready

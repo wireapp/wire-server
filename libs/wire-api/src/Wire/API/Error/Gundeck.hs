@@ -26,6 +26,7 @@ data GundeckError
   | AddTokenErrorInvalid
   | AddTokenErrorTooLong
   | AddTokenErrorMetadataTooLong
+  | AddTokenErrorApnsVoipNotSupported
   | TokenNotFound
   | NotificationNotFound
 
@@ -41,6 +42,8 @@ type instance MapError 'AddTokenErrorInvalid = 'StaticError 404 "invalid-token" 
 type instance MapError 'AddTokenErrorTooLong = 'StaticError 413 "token-too-long" "Push token length must be < 8192 for GCM or 400 for APNS"
 
 type instance MapError 'AddTokenErrorMetadataTooLong = 'StaticError 413 "metadata-too-long" "Tried to add token to endpoint resulting in metadata length > 2048"
+
+type instance MapError 'AddTokenErrorApnsVoipNotSupported = 'StaticError 400 "apns-voip-not-supported" "Adding APNS_VOIP tokens is not supported"
 
 type instance MapError 'TokenNotFound = 'StaticError 404 "not-found" "Push token not found"
 

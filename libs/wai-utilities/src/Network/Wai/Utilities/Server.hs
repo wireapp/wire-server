@@ -31,6 +31,7 @@ module Network.Wai.Utilities.Server
 
     -- * Middlewares
     catchErrors,
+    catchErrorsWithRequestId,
     OnErrorMetrics,
     heavyDebugLogging,
     rethrow5xx,
@@ -184,6 +185,9 @@ route rt rq k = Route.routeWith (Route.Config $ errorRs' noEndpoint) rt rq (lift
 --------------------------------------------------------------------------------
 -- Middlewares
 
+catchErrors :: Logger -> OnErrorMetrics -> Middleware
+catchErrors l m = catchErrorsWithRequestId lookupRequestId l m
+
 -- | Create a middleware that catches exceptions and turns
 -- them into appropriate 'Error' responses, thereby logging
 -- as well as counting server errors (i.e. exceptions that
@@ -191,14 +195,21 @@ route rt rq k = Route.routeWith (Route.Config $ errorRs' noEndpoint) rt rq (lift
 --
 -- This does not log any 'Response' values with error status.
 -- See 'catchErrors'.
-catchErrors :: Logger -> OnErrorMetrics -> Middleware
-catchErrors l m app req k =
-  rethrow5xx l app req k `catch` errorResponse
+catchErrorsWithRequestId ::
+  (Request -> Maybe ByteString) ->
+  Logger ->
+  OnErrorMetrics ->
+  Middleware
+catchErrorsWithRequestId getRequestId l m app req k =
+  rethrow5xx getRequestId l app req k `catch` errorResponse
   where
+    mReqId = getRequestId req
+
     errorResponse :: SomeException -> IO ResponseReceived
     errorResponse ex = do
       er <- runHandlers ex errorHandlers
-      onError l m req k er
+      onError l mReqId m req k er
+
 {-# INLINEABLE catchErrors #-}
 
 -- | Standard handlers for turning exceptions into appropriate
@@ -298,15 +309,15 @@ emitLByteString lbs = do
 
 -- | Run the 'Application'; check the response status; if >=500, throw a 'Wai.Error' with
 -- label @"server-error"@ and the body as the error message.
-rethrow5xx :: Logger -> Middleware
-rethrow5xx logger app req k = app req k'
+rethrow5xx :: (Request -> Maybe ByteString) -> Logger -> Middleware
+rethrow5xx getRequestId logger app req k = app req k'
   where
     k' resp@WaiInt.ResponseRaw {} = do
       -- See Note [Raw Response]
       let logMsg =
             field "canoncalpath" (show $ pathInfo req)
               . field "rawpath" (rawPathInfo req)
-              . field "request" (fromMaybe "N/A" $ lookupRequestId req)
+              . field "request" (fromMaybe "N/A" $ getRequestId req)
               . msg (val "ResponseRaw - cannot collect metrics or log info on errors")
       Log.log logger Log.Debug logMsg
       k resp
@@ -349,15 +360,16 @@ type OnErrorMetrics = [Either Prm.Counter Metrics]
 onError ::
   MonadIO m =>
   Logger ->
+  Maybe ByteString ->
   OnErrorMetrics ->
   Request ->
   Continue IO ->
   Either Wai.Error JSONResponse ->
   m ResponseReceived
-onError g m r k e = liftIO $ do
+onError g mReqId m r k e = liftIO $ do
   case e of
-    Left we -> logError g (Just r) we
-    Right jr -> logJSONResponse g (Just r) jr
+    Left we -> logError' g mReqId we
+    Right jr -> logJSONResponse g mReqId jr
   let resp = either waiErrorToJSONResponse id e
   let code = statusCode (resp.status)
   when (code >= 500) $
@@ -379,9 +391,9 @@ logError' g mr e = liftIO $ doLog g (logErrorMsgWithRequest mr e)
       | statusCode (Error.code e) >= 500 = Log.err
       | otherwise = Log.debug
 
-logJSONResponse :: (MonadIO m, HasRequest r) => Logger -> Maybe r -> JSONResponse -> m ()
-logJSONResponse g mr e = do
-  let r = fromMaybe "N/A" (mr >>= lookupRequestId)
+logJSONResponse :: MonadIO m => Logger -> Maybe ByteString -> JSONResponse -> m ()
+logJSONResponse g mReqId e = do
+  let r = fromMaybe "N/A" mReqId
   liftIO $
     doLog g $
       field "request" r

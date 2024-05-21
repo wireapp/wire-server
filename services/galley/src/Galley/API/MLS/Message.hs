@@ -204,39 +204,40 @@ postMLSCommitBundleToLocalConv ::
   Local ConvOrSubConvId ->
   Sem r [LocalConversationUpdate]
 postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
-  lConvOrSub <- do
-    lConvOrSub <- fetchConvOrSub qusr bundle.groupId ctype lConvOrSubId
-    let convOrSub = tUnqualified lConvOrSub
-    giCipherSuite <-
-      note (mlsProtocolError "Unsupported ciphersuite") $
-        cipherSuiteTag bundle.groupInfo.value.groupContext.cipherSuite
-    let convCipherSuite = convOrSub.mlsMeta.cnvmlsCipherSuite
+  lConvOrSub <- fetchConvOrSub qusr bundle.groupId ctype lConvOrSubId
+  let convOrSub = tUnqualified lConvOrSub
+
+  ciphersuite <-
+    note (mlsProtocolError "Unsupported ciphersuite") $
+      cipherSuiteTag bundle.groupInfo.value.groupContext.cipherSuite
+
+  case convOrSub.mlsMeta.cnvmlsActiveData of
     -- if this is the first commit of the conversation, update ciphersuite
-    if (giCipherSuite == convCipherSuite)
-      then pure lConvOrSub
-      else do
-        unless (convOrSub.mlsMeta.cnvmlsEpoch == Epoch 0) $
-          throw $
-            mlsProtocolError "GroupInfo ciphersuite does not match conversation"
-        -- save to cassandra
-        case convOrSub.id of
-          Conv cid -> setConversationCipherSuite cid giCipherSuite
-          SubConv cid sub ->
-            setSubConversationCipherSuite cid sub giCipherSuite
-        pure $ fmap (convOrSubConvSetCipherSuite giCipherSuite) lConvOrSub
+    Nothing -> do
+      case convOrSub.id of
+        Conv cid -> setConversationCipherSuite cid ciphersuite
+        SubConv cid sub -> setSubConversationCipherSuite cid sub ciphersuite
+    -- otherwise, make sure the ciphersuite matches
+    Just activeData -> do
+      unless (ciphersuite == activeData.ciphersuite) $
+        throw $
+          mlsProtocolError "GroupInfo ciphersuite does not match conversation"
+      unless (bundle.epoch == activeData.epoch) $ throwS @'MLSStaleMessage
 
   senderIdentity <- getSenderIdentity qusr c bundle.sender lConvOrSub
 
   (events, newClients) <- case bundle.sender of
     SenderMember _index -> do
       -- extract added/removed clients from bundle
-      action <- getCommitData senderIdentity lConvOrSub bundle.epoch bundle.commit.value
+      action <- getCommitData senderIdentity lConvOrSub bundle.epoch ciphersuite bundle
+
       -- process additions and removals
       events <-
         processInternalCommit
           senderIdentity
           conn
           lConvOrSub
+          ciphersuite
           bundle.epoch
           action
           bundle.commit.value
@@ -251,6 +252,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
       processExternalCommit
         senderIdentity
         lConvOrSub
+        ciphersuite
         bundle.epoch
         action
         bundle.commit.value.path
@@ -405,11 +407,15 @@ postMLSMessageToLocalConv qusr c con msg ctype convOrSubId = do
         throwS @'MLSUnsupportedMessage
 
       -- reject application messages older than 2 epochs
+      -- FUTUREWORK: consider rejecting this message if the conversation epoch is 0
       let epochInt :: Epoch -> Integer
           epochInt = fromIntegral . epochNumber
-      when
-        (epochInt msg.epoch < epochInt convOrSub.mlsMeta.cnvmlsEpoch - 2)
-        $ throwS @'MLSStaleMessage
+      case convOrSub.mlsMeta.cnvmlsActiveData of
+        Nothing -> throw $ mlsProtocolError "Application messages at epoch 0 are not supported"
+        Just activeData ->
+          when
+            (epochInt msg.epoch < epochInt activeData.epoch - 2)
+            $ throwS @'MLSStaleMessage
 
   propagateMessage qusr (Just c) lConvOrSub con msg.rawMessage (tUnqualified lConvOrSub).members
   pure []
@@ -489,7 +495,7 @@ fetchConvOrSub qusr groupId ctype convOrSubId = for convOrSubId $ \case
     c <- getMLSConv qusr Nothing ctype lconv
     msubconv <- getSubConversation convId sconvId
     subconv <- case msubconv of
-      Nothing -> pure $ newSubConversationFromParent lconv sconvId (mcMLSData c)
+      Nothing -> pure $ newSubConversationFromParent lconv sconvId
       Just subconv -> do
         when (groupId /= subconv.scMLSData.cnvmlsGroupId) $
           throw (mlsProtocolError "The message group ID does not match the subconversation")

@@ -30,8 +30,8 @@ import Data.ByteString.Lazy qualified as LBS
 import Data.Either.Combinators hiding (fromRight)
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
-import Galley.Types.Bot ()
 import Imports
+import Wire.API.Bot ()
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite

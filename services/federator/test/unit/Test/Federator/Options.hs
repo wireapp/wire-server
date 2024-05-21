@@ -139,29 +139,7 @@ testSettings =
                 <> show e
           Right _ ->
             assertFailure "expected failure for non-existing client certificate, got success",
-      -- @SF.Federation @TSFI.Federate @S3 @S7
-      testCase "failToStartWithInvalidServerCredentials" $ do
-        let settings =
-              defRunSettings
-                "test/resources/unit/invalid.pem"
-                "test/resources/unit/localhost-key.pem"
-        assertParsesAs settings . B8.pack $
-          [QQ.i|
-          useSystemCAStore: true
-          tcpConnectionTimeout: 1000
-          federationStrategy:
-            allowAll: null
-          clientCertificate: test/resources/unit/invalid.pem
-          clientPrivateKey: test/resources/unit/localhost-key.pem|]
-        try @FederationSetupError (mkTLSSettingsOrThrow settings) >>= \case
-          Left (InvalidClientCertificate _) -> pure ()
-          Left e ->
-            assertFailure $
-              "expected invalid client certificate exception, got: "
-                <> show e
-          Right _ ->
-            assertFailure "expected failure for invalid client certificate, got success",
-      -- @END
+      testCase "failToStartWithInvalidServerCredentials" failToStartWithInvalidServerCredentials,
       testCase "fail on invalid private key" $ do
         let settings =
               defRunSettings
@@ -184,6 +162,29 @@ testSettings =
           Right _ ->
             assertFailure "expected failure for invalid private key, got success"
     ]
+
+failToStartWithInvalidServerCredentials :: IO ()
+failToStartWithInvalidServerCredentials = do
+  let settings =
+        defRunSettings
+          "test/resources/unit/invalid.pem"
+          "test/resources/unit/localhost-key.pem"
+  assertParsesAs settings . B8.pack $
+    [QQ.i|
+          useSystemCAStore: true
+          tcpConnectionTimeout: 1000
+          federationStrategy:
+            allowAll: null
+          clientCertificate: test/resources/unit/invalid.pem
+          clientPrivateKey: test/resources/unit/localhost-key.pem|]
+  try @FederationSetupError (mkTLSSettingsOrThrow settings) >>= \case
+    Left (InvalidClientCertificate _) -> pure ()
+    Left e ->
+      assertFailure $
+        "expected invalid client certificate exception, got: "
+          <> show e
+    Right _ ->
+      assertFailure "expected failure for invalid client certificate, got success"
 
 assertParsesAs :: (HasCallStack, Eq a, FromJSON a, Show a) => a -> ByteString -> Assertion
 assertParsesAs v bs =

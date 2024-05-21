@@ -36,7 +36,6 @@ import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Federation.API.Galley
-import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Group.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.User
@@ -92,9 +91,7 @@ localMLSOne2OneConversationMetadata convId =
       mlsData =
         ConversationMLSData
           { cnvmlsGroupId = groupId,
-            cnvmlsEpoch = Epoch 0,
-            cnvmlsEpochTimestamp = Nothing,
-            cnvmlsCipherSuite = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+            cnvmlsActiveData = Nothing
           }
    in (metadata, mlsData)
 

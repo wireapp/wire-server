@@ -26,10 +26,14 @@ import Imports
 import Test.QuickCheck
 
 data UserLegalHoldStatus
-  = UserLegalHoldDisabled
-  | UserLegalHoldPending
-  | UserLegalHoldEnabled
-  | UserLegalHoldNoConsent
+  = -- | consent is given, but no device creation request has come in yet.
+    UserLegalHoldDisabled
+  | -- | device creation request has come in, waiting for 2nd round of ok from user before creating client device
+    UserLegalHoldPending
+  | -- | lh client ok'ed, requested, and created.
+    UserLegalHoldEnabled
+  | -- | no consent given (not even implicit)
+    UserLegalHoldNoConsent
   deriving stock (Show, Eq, Ord, Bounded, Enum, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema UserLegalHoldStatus
 

@@ -18,7 +18,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.API.Query
-  ( getBotConversationH,
+  ( getBotConversation,
     getUnqualifiedConversation,
     getConversation,
     getConversationRoles,
@@ -79,9 +79,6 @@ import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.Teams
 import Imports
-import Network.Wai
-import Network.Wai.Predicate hiding (Error, result, setStatus)
-import Network.Wai.Utilities hiding (Error)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -105,25 +102,16 @@ import Wire.API.Team.Feature as Public hiding (setStatus)
 import Wire.API.User
 import Wire.Sem.Paging.Cassandra
 
-getBotConversationH ::
+getBotConversation ::
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member (Input (Local ())) r
   ) =>
-  BotId ::: ConvId ::: JSON ->
-  Sem r Response
-getBotConversationH (zbot ::: zcnv ::: _) = do
-  lcnv <- qualifyLocal zcnv
-  json <$> getBotConversation zbot lcnv
-
-getBotConversation ::
-  ( Member ConversationStore r,
-    Member (ErrorS 'ConvNotFound) r
-  ) =>
   BotId ->
-  Local ConvId ->
+  ConvId ->
   Sem r Public.BotConvView
-getBotConversation zbot lcnv = do
+getBotConversation zbot cnv = do
+  lcnv <- qualifyLocal cnv
   (c, _) <- getConversationAndMemberWithError @'ConvNotFound (botUserId zbot) lcnv
   let domain = tDomain lcnv
       cmems = mapMaybe (mkMember domain) (toList (Data.convLocalMembers c))

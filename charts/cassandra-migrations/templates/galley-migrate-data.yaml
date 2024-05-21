@@ -21,7 +21,6 @@ spec:
       name: "{{.Release.Name}}"
       labels:
         app: galley-migrate-data
-        app: galley-migrate-data
         heritage: {{.Release.Service | quote }}
         release: {{.Release.Name | quote }}
         chart: "{{.Chart.Name}}-{{.Chart.Version}}"

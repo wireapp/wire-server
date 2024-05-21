@@ -76,7 +76,7 @@ let
     cargohold = [ "cargohold" "cargohold-integration" ];
     federator = [ "federator" "federator-integration" ];
     galley = [ "galley" "galley-integration" "galley-schema" "galley-migrate-data" ];
-    gundeck = [ "gundeck" "gundeck-integration" "gundeck-schema" ];
+    gundeck = [ "gundeck" "gundeck-integration" "gundeck-schema" "gundeck-migrate-data" ];
     proxy = [ "proxy" ];
     spar = [ "spar" "spar-integration" "spar-schema" "spar-migrate-data" ];
     stern = [ "stern" "stern-integration" ];

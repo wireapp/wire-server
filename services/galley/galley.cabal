@@ -72,7 +72,6 @@ library
 
   -- cabal-fmt: expand src
   exposed-modules:
-    Galley.API
     Galley.API.Action
     Galley.API.Clients
     Galley.API.Create
@@ -106,7 +105,6 @@ library
     Galley.API.MLS.Util
     Galley.API.MLS.Welcome
     Galley.API.One2One
-    Galley.API.Public
     Galley.API.Public.Bot
     Galley.API.Public.Conversation
     Galley.API.Public.CustomBackend
@@ -181,8 +179,6 @@ library
     Galley.Effects.TeamMemberStore
     Galley.Effects.TeamNotificationStore
     Galley.Effects.TeamStore
-    Galley.Effects.WaiRoutes
-    Galley.Effects.WaiRoutes.IO
     Galley.Env
     Galley.External
     Galley.External.LegalHoldService
@@ -300,7 +296,6 @@ library
     , case-insensitive
     , cassandra-util         >=0.16.2
     , cassava                >=0.5.2
-    , cereal                 >=0.4
     , comonad
     , containers             >=0.5
     , cql
@@ -333,7 +328,6 @@ library
     , polysemy
     , polysemy-wire-zoo
     , proto-lens             >=0.2
-    , protobuf               >=0.2
     , raw-strings-qq         >=1.0
     , resourcet              >=1.1
     , retry                  >=0.5
@@ -364,8 +358,6 @@ library
     , wai                    >=3.0
     , wai-extra              >=3.0
     , wai-middleware-gunzip  >=0.0.2
-    , wai-predicates         >=0.8
-    , wai-routing            >=0.12
     , wai-utilities          >=0.16
     , wire-api
     , wire-api-federation
@@ -508,7 +500,6 @@ executable galley-integration
     , lens
     , lens-aeson
     , memory
-    , metrics-wai
     , mtl
     , network
     , network-uri

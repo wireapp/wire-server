@@ -214,30 +214,9 @@ specInitiateLogin = do
 specFinalizeLogin :: SpecWith TestEnv
 specFinalizeLogin = do
   describe "POST /sso/finalize-login" $ do
-    -- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
-    -- Send authentication error and no cookie if response from SSO IdP was rejected
-    context "rejectsSAMLResponseSayingAccessNotGranted" $ do
-      it "responds with a very peculiar 'forbidden' HTTP response" $ do
-        (user, tid) <- callCreateUserWithTeam
-        (idp, (_, privcreds)) <- registerTestIdPWithMeta user
-        authnreq <- negotiateAuthnRequest idp
-        spmeta <- getTestSPMetadata tid
-        authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq False
-        sparresp <- submitAuthnResponse tid authnresp
-        liftIO $ do
-          statusCode sparresp `shouldBe` 200
-          let bdy = maybe "" (cs @LByteString @String) (responseBody sparresp)
-          bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-          bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
-          bdy `shouldContain` "<title>wire:sso:error:forbidden</title>"
-          bdy `shouldContain` "window.opener.postMessage({"
-          bdy `shouldContain` "\"type\":\"AUTH_ERROR\""
-          bdy `shouldContain` "\"payload\":{"
-          bdy `shouldContain` "\"label\":\"forbidden\""
-          bdy `shouldContain` "}, receiverOrigin)"
-          hasPersistentCookieHeader sparresp `shouldBe` Left "no set-cookie header"
-
-    -- @END
+    context "not granted" $ do
+      it "testRejectsSAMLResponseSayingAccessNotGranted - responds with a very peculiar 'forbidden' HTTP response" $
+        testRejectsSAMLResponseSayingAccessNotGranted
 
     context "access granted" $ do
       let loginSuccess :: HasCallStack => ResponseLBS -> TestSpar ()
@@ -314,7 +293,6 @@ specFinalizeLogin = do
             authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp3 spmeta authnreq True
             loginSuccess =<< submitAuthnResponse tid3 authnresp
 
-      -- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
       -- Do not authenticate if SSO IdP response is for different team
       context "rejectsSAMLResponseInWrongTeam" $ do
         it "fails" $ do
@@ -340,8 +318,6 @@ specFinalizeLogin = do
             authnreq <- negotiateAuthnRequest idp2
             authnresp <- runSimpleSP $ mkAuthnResponseWithSubj subj privcreds idp2 spmeta authnreq True
             loginFailure =<< submitAuthnResponse tid2 authnresp
-
-      -- @END
 
       context "user is created once, then deleted in team settings, then can login again." $ do
         it "responds with 'allowed'" $ do
@@ -406,115 +382,10 @@ specFinalizeLogin = do
           pending
 
     context "bad AuthnResponse" $ do
-      let check ::
-            (IdP -> TestSpar SAML.AuthnRequest) ->
-            (SignPrivCreds -> IdP -> SAML.SPMetadata -> SAML.AuthnRequest -> SimpleSP SignedAuthnResponse) ->
-            (TeamId -> SignedAuthnResponse -> TestSpar (Response (Maybe LByteString))) ->
-            (ResponseLBS -> IO ()) ->
-            TestSpar ()
-          check mkareq mkaresp submitaresp checkresp = do
-            (ownerid, teamid) <- callCreateUserWithTeam
-            (idp, (_, privcreds)) <- registerTestIdPWithMeta ownerid
-            authnreq <- mkareq idp
-            spmeta <- getTestSPMetadata teamid
-            authnresp <-
-              runSimpleSP $
-                mkaresp
-                  privcreds
-                  idp
-                  spmeta
-                  authnreq
-            sparresp <- submitaresp teamid authnresp
-            liftIO $ checkresp sparresp
-
-          shouldContainInBase64 :: String -> String -> Expectation
-          shouldContainInBase64 hay needle = cs hay'' `shouldContain` needle
-            where
-              Right (Just hay'') = decodeBase64 <$> validateBase64 hay'
-              hay' = cs $ f hay
-                where
-                  -- exercise to the reader: do this more idiomatically!
-                  f (splitAt 5 -> ("<pre>", s)) = g s
-                  f (_ : s) = f s
-                  f "" = ""
-                  g (splitAt 6 -> ("</pre>", _)) = ""
-                  g (c : s) = c : g s
-                  g "" = ""
-
-      -- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
-      -- Do not authenticate if SSO IdP response is for unknown issuer
-      it "rejectsSAMLResponseFromWrongIssuer" $ do
-        let mkareq = negotiateAuthnRequest
-            mkaresp privcreds idp spmeta authnreq =
-              mkAuthnResponse
-                privcreds
-                (idp & idpMetadata . edIssuer .~ Issuer [uri|http://unknown-issuer/|])
-                spmeta
-                authnreq
-                True
-            submitaresp = submitAuthnResponse
-            checkresp sparresp = do
-              statusCode sparresp `shouldBe` 404
-              -- body should contain the error label in the title, the verbatim haskell error, and the request:
-              (cs . fromJust . responseBody $ sparresp) `shouldContain` "<title>wire:sso:error:not-found</title>"
-              (cs . fromJust . responseBody $ sparresp) `shouldContainInBase64` "(CustomError (IdpDbError IdpNotFound)"
-              (cs . fromJust . responseBody $ sparresp) `shouldContainInBase64` "Input {iName = \"SAMLResponse\""
-        check mkareq mkaresp submitaresp checkresp
-
-      -- @END
-
-      -- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
-      -- Do not authenticate if SSO IdP response is signed with wrong key
-      it "rejectsSAMLResponseSignedWithWrongKey" $ do
-        (ownerid, _teamid) <- callCreateUserWithTeam
-        (_, (_, badprivcreds)) <- registerTestIdPWithMeta ownerid
-        let mkareq = negotiateAuthnRequest
-            mkaresp _ idp spmeta authnreq =
-              mkAuthnResponse
-                badprivcreds
-                idp
-                spmeta
-                authnreq
-                True
-            submitaresp = submitAuthnResponse
-            checkresp sparresp = statusCode sparresp `shouldBe` 400
-        check mkareq mkaresp submitaresp checkresp
-
-      -- @END
-
-      -- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
-      -- Do not authenticate if SSO IdP response has no corresponding request anymore
-      it "rejectsSAMLResponseIfRequestIsStale" $ do
-        let mkareq idp = do
-              req <- negotiateAuthnRequest idp
-              runSpar $ AReqIDStore.unStore (req ^. SAML.rqID)
-              pure req
-            mkaresp privcreds idp spmeta authnreq = mkAuthnResponse privcreds idp spmeta authnreq True
-            submitaresp = submitAuthnResponse
-            checkresp sparresp = do
-              statusCode sparresp `shouldBe` 200
-              (cs . fromJust . responseBody $ sparresp) `shouldContain` "<title>wire:sso:error:forbidden</title>"
-              (cs . fromJust . responseBody $ sparresp) `shouldContain` "bad InResponseTo attribute(s)"
-        check mkareq mkaresp submitaresp checkresp
-
-      -- @END
-
-      -- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
-      -- Do not authenticate if SSO IdP response is gone missing
-      it "rejectsSAMLResponseIfResponseIsStale" $ do
-        let mkareq = negotiateAuthnRequest
-            mkaresp privcreds idp spmeta authnreq = mkAuthnResponse privcreds idp spmeta authnreq True
-            submitaresp teamid authnresp = do
-              _ <- submitAuthnResponse teamid authnresp
-              submitAuthnResponse teamid authnresp
-            checkresp sparresp = do
-              statusCode sparresp `shouldBe` 200
-              (cs . fromJust . responseBody $ sparresp) `shouldContain` "<title>wire:sso:error:forbidden</title>"
-        check mkareq mkaresp submitaresp checkresp
-
-    -- {- ORMOLU_DISABLE -} -- FUTUREWORK: try a newer release of ormolu?
-    -- @END
-    -- {- ORMOLU_ENABLE -}
+      it "testRejectsSAMLResponseFromWrongIssuer" testRejectsSAMLResponseFromWrongIssuer
+      it "testRejectsSAMLResponseSignedWithWrongKey" testRejectsSAMLResponseSignedWithWrongKey
+      it "testRejectsSAMLResponseIfRequestIsStale" testRejectsSAMLResponseIfRequestIsStale
+      it "testRejectsSAMLResponseIfResponseIsStale" testRejectsSAMLResponseIfResponseIsStale
 
     context "IdP changes response format" $ do
       it "treats NameId case-insensitively" $ do
@@ -1787,3 +1658,134 @@ specReAuthSsoUserWithPassword =
         payload =
           RequestBodyLBS . encode . object . maybeToList $
             fmap ("password" .=) pw
+
+----------------------------------------------------------------------
+-- tests for bsi audit
+
+testRejectsSAMLResponseSayingAccessNotGranted :: TestSpar ()
+testRejectsSAMLResponseSayingAccessNotGranted = do
+  (user, tid) <- callCreateUserWithTeam
+  (idp, (_, privcreds)) <- registerTestIdPWithMeta user
+  authnreq <- negotiateAuthnRequest idp
+  spmeta <- getTestSPMetadata tid
+  authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq False
+  sparresp <- submitAuthnResponse tid authnresp
+  liftIO $ do
+    statusCode sparresp `shouldBe` 200
+    let bdy = maybe "" (cs @LByteString @String) (responseBody sparresp)
+    bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+    bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
+    bdy `shouldContain` "<title>wire:sso:error:forbidden</title>"
+    bdy `shouldContain` "window.opener.postMessage({"
+    bdy `shouldContain` "\"type\":\"AUTH_ERROR\""
+    bdy `shouldContain` "\"payload\":{"
+    bdy `shouldContain` "\"label\":\"forbidden\""
+    bdy `shouldContain` "}, receiverOrigin)"
+    hasPersistentCookieHeader sparresp `shouldBe` Left "no set-cookie header"
+
+-- Do not authenticate if SSO IdP response is for unknown issuer
+testRejectsSAMLResponseFromWrongIssuer :: TestSpar ()
+testRejectsSAMLResponseFromWrongIssuer = do
+  let mkareq = negotiateAuthnRequest
+      mkaresp privcreds idp spmeta authnreq =
+        mkAuthnResponse
+          privcreds
+          (idp & idpMetadata . edIssuer .~ Issuer [uri|http://unknown-issuer/|])
+          spmeta
+          authnreq
+          True
+      submitaresp = submitAuthnResponse
+      checkresp sparresp = do
+        statusCode sparresp `shouldBe` 404
+        -- body should contain the error label in the title, the verbatim haskell error, and the request:
+        (cs . fromJust . responseBody $ sparresp) `shouldContain` "<title>wire:sso:error:not-found</title>"
+        (cs . fromJust . responseBody $ sparresp) `shouldContainInBase64` "(CustomError (IdpDbError IdpNotFound)"
+        (cs . fromJust . responseBody $ sparresp) `shouldContainInBase64` "Input {iName = \"SAMLResponse\""
+  checkSamlFlow
+    mkareq
+    mkaresp
+    submitaresp
+    checkresp
+
+-- Do not authenticate if SSO IdP response is signed with wrong key
+testRejectsSAMLResponseSignedWithWrongKey :: TestSpar ()
+testRejectsSAMLResponseSignedWithWrongKey = do
+  (ownerid, _teamid) <- callCreateUserWithTeam
+  (_, (_, badprivcreds)) <- registerTestIdPWithMeta ownerid
+  let mkareq = negotiateAuthnRequest
+      mkaresp _ idp spmeta authnreq =
+        mkAuthnResponse
+          badprivcreds
+          idp
+          spmeta
+          authnreq
+          True
+      submitaresp = submitAuthnResponse
+      checkresp sparresp = statusCode sparresp `shouldBe` 400
+  checkSamlFlow mkareq mkaresp submitaresp checkresp
+
+-- Do not authenticate if SSO IdP response has no corresponding request anymore
+testRejectsSAMLResponseIfRequestIsStale :: TestSpar ()
+testRejectsSAMLResponseIfRequestIsStale = do
+  let mkareq idp = do
+        req <- negotiateAuthnRequest idp
+        runSpar $ AReqIDStore.unStore (req ^. SAML.rqID)
+        pure req
+      mkaresp privcreds idp spmeta authnreq = mkAuthnResponse privcreds idp spmeta authnreq True
+      submitaresp = submitAuthnResponse
+      checkresp sparresp = do
+        statusCode sparresp `shouldBe` 200
+        (cs . fromJust . responseBody $ sparresp) `shouldContain` "<title>wire:sso:error:forbidden</title>"
+        (cs . fromJust . responseBody $ sparresp) `shouldContain` "bad InResponseTo attribute(s)"
+  checkSamlFlow mkareq mkaresp submitaresp checkresp
+
+-- Do not authenticate if SSO IdP response is gone missing
+testRejectsSAMLResponseIfResponseIsStale :: TestSpar ()
+testRejectsSAMLResponseIfResponseIsStale = do
+  let mkareq = negotiateAuthnRequest
+      mkaresp privcreds idp spmeta authnreq = mkAuthnResponse privcreds idp spmeta authnreq True
+      submitaresp teamid authnresp = do
+        _ <- submitAuthnResponse teamid authnresp
+        submitAuthnResponse teamid authnresp
+      checkresp sparresp = do
+        statusCode sparresp `shouldBe` 200
+        (cs . fromJust . responseBody $ sparresp) `shouldContain` "<title>wire:sso:error:forbidden</title>"
+  checkSamlFlow mkareq mkaresp submitaresp checkresp
+
+----------------------------------------------------------------------
+-- Helpers
+
+shouldContainInBase64 :: String -> String -> Expectation
+shouldContainInBase64 hay needle = cs hay'' `shouldContain` needle
+  where
+    Right (Just hay'') = decodeBase64 <$> validateBase64 hay'
+    hay' = cs $ f hay
+      where
+        -- exercise to the reader: do this more idiomatically!
+        f (splitAt 5 -> ("<pre>", s)) = g s
+        f (_ : s) = f s
+        f "" = ""
+        g (splitAt 6 -> ("</pre>", _)) = ""
+        g (c : s) = c : g s
+        g "" = ""
+
+checkSamlFlow ::
+  (IdP -> TestSpar SAML.AuthnRequest) ->
+  (SignPrivCreds -> IdP -> SAML.SPMetadata -> SAML.AuthnRequest -> SimpleSP SignedAuthnResponse) ->
+  (TeamId -> SignedAuthnResponse -> TestSpar (Response (Maybe LByteString))) ->
+  (ResponseLBS -> IO ()) ->
+  TestSpar ()
+checkSamlFlow mkareq mkaresp submitaresp checkresp = do
+  (ownerid, teamid) <- callCreateUserWithTeam
+  (idp, (_, privcreds)) <- registerTestIdPWithMeta ownerid
+  authnreq <- mkareq idp
+  spmeta <- getTestSPMetadata teamid
+  authnresp <-
+    runSimpleSP $
+      mkaresp
+        privcreds
+        idp
+        spmeta
+        authnreq
+  sparresp <- submitaresp teamid authnresp
+  liftIO $ checkresp sparresp

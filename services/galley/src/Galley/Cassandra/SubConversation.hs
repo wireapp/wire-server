@@ -26,7 +26,6 @@ import Control.Error.Util
 import Control.Monad.Trans.Maybe
 import Data.Id
 import Data.Map qualified as Map
-import Data.Time.Clock
 import Galley.API.MLS.Types
 import Galley.Cassandra.Conversation.MLS
 import Galley.Cassandra.Queries qualified as Cql
@@ -48,9 +47,11 @@ selectSubConversation convId subConvId = runMaybeT $ do
   (mSuite, mEpoch, mEpochWritetime, mGroupId) <-
     MaybeT $
       retry x5 (query1 Cql.selectSubConversation (params LocalQuorum (convId, subConvId)))
-  suite <- hoistMaybe mSuite
-  epoch <- hoistMaybe mEpoch
-  epochWritetime <- hoistMaybe mEpochWritetime
+  let activeData =
+        ActiveMLSConversationData
+          <$> mEpoch
+          <*> fmap writetimeToUTC mEpochWritetime
+          <*> mSuite
   groupId <- hoistMaybe mGroupId
   (cm, im) <- lift $ lookupMLSClientLeafIndices groupId
   pure $
@@ -60,9 +61,7 @@ selectSubConversation convId subConvId = runMaybeT $ do
         scMLSData =
           ConversationMLSData
             { cnvmlsGroupId = groupId,
-              cnvmlsEpoch = epoch,
-              cnvmlsEpochTimestamp = epochTimestamp epoch epochWritetime,
-              cnvmlsCipherSuite = suite
+              cnvmlsActiveData = activeData
             },
         scMembers = cm,
         scIndexMap = im
@@ -71,20 +70,19 @@ selectSubConversation convId subConvId = runMaybeT $ do
 insertSubConversation ::
   ConvId ->
   SubConvId ->
-  CipherSuiteTag ->
   GroupId ->
   Client SubConversation
-insertSubConversation convId subConvId suite groupId = do
+insertSubConversation convId subConvId groupId = do
   retry
     x5
     ( write
         Cql.insertSubConversation
         ( params
             LocalQuorum
-            (convId, subConvId, suite, Epoch 0, groupId, Nothing)
+            (convId, subConvId, Epoch 0, groupId, Nothing)
         )
     )
-  pure (newSubConversation convId subConvId suite groupId)
+  pure (newSubConversation convId subConvId groupId)
 
 updateSubConvGroupInfo :: ConvId -> SubConvId -> Maybe GroupInfoData -> Client ()
 updateSubConvGroupInfo convId subConvId mGroupInfo =
@@ -115,13 +113,21 @@ listSubConversations cid = do
   subs <- retry x1 (query Cql.listSubConversations (params LocalQuorum (Identity cid)))
   pure . Map.fromList $ do
     (subId, cs, epoch, ts, gid) <- subs
+    let activeData = case (epoch, ts) of
+          (Epoch 0, _) -> Nothing
+          (_, Writetime t) ->
+            Just
+              ActiveMLSConversationData
+                { epoch = epoch,
+                  epochTimestamp = t,
+                  ciphersuite = cs
+                }
+
     pure
       ( subId,
         ConversationMLSData
           { cnvmlsGroupId = gid,
-            cnvmlsEpoch = epoch,
-            cnvmlsEpochTimestamp = epochTimestamp epoch ts,
-            cnvmlsCipherSuite = cs
+            cnvmlsActiveData = activeData
           }
       )
 
@@ -133,9 +139,9 @@ interpretSubConversationStoreToCassandra ::
   Sem (SubConversationStore ': r) a ->
   Sem r a
 interpretSubConversationStoreToCassandra = interpret $ \case
-  CreateSubConversation convId subConvId suite groupId -> do
+  CreateSubConversation convId subConvId groupId -> do
     logEffect "SubConversationStore.CreateSubConversation"
-    embedClient (insertSubConversation convId subConvId suite groupId)
+    embedClient (insertSubConversation convId subConvId groupId)
   GetSubConversation convId subConvId -> do
     logEffect "SubConversationStore.GetSubConversation"
     embedClient (selectSubConversation convId subConvId)
@@ -160,10 +166,3 @@ interpretSubConversationStoreToCassandra = interpret $ \case
   DeleteSubConversation convId subConvId -> do
     logEffect "SubConversationStore.DeleteSubConversation"
     embedClient (deleteSubConversation convId subConvId)
-
---------------------------------------------------------------------------------
--- Utilities
-
-epochTimestamp :: Epoch -> Writetime Epoch -> Maybe UTCTime
-epochTimestamp (Epoch 0) _ = Nothing
-epochTimestamp _ (Writetime t) = Just t

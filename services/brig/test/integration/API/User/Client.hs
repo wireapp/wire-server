@@ -108,27 +108,27 @@ tests _cl _at opts p db n b c g =
       testGroup
         "post /clients - verification code"
         [ test p "success" $ testAddGetClientVerificationCode db b g,
-          test p "missing code" $ testAddGetClientMissingCode b g,
-          test p "wrong code" $ testAddGetClientWrongCode b g,
-          test p "expired code" $ testAddGetClientCodeExpired db opts b g
+          test p "testAddGetClientMissingCode - missing code" $ testAddGetClientMissingCode b g,
+          test p "testAddGetClientWrongCode - wrong code" $ testAddGetClientWrongCode b g,
+          test p "testAddGetClientCodeExpired - expired code" $ testAddGetClientCodeExpired db opts b g
         ],
       test p "post /clients - 201 (with mls keys)" $ testAddGetClient def {addWithMLSKeys = True} b c,
       test p "post /clients - 403" $ testClientReauthentication b,
       test p "get /clients - 200" $ testListClients b,
       test p "get /clients/:client/prekeys - 200" $ testListPrekeyIds b,
-      test p "post /clients - 400" $ testTooManyClients opts b,
-      test p "client/prekeys not empty" $ testPrekeysNotEmptyRandomPrekeys opts b,
-      test p "lastprekeys not bogus" $ testRegularPrekeysCannotBeSentAsLastPrekeys b,
-      test p "lastprekeys not bogus during update" $ testRegularPrekeysCannotBeSentAsLastPrekeysDuringUpdate b,
-      test p "delete /clients/:client - 200 (pwd)" $ testRemoveClient True b c,
-      test p "delete /clients/:client - 200 (no pwd)" $ testRemoveClient False b c,
-      test p "delete /clients/:client - 400 (short pwd)" $ testRemoveClientShortPwd b,
-      test p "delete /clients/:client - 403 (incorrect pwd)" $ testRemoveClientIncorrectPwd b,
+      test p "testTooManyClients - post /clients - 400" $ testTooManyClients opts b,
+      test p "testPrekeysNotEmptyRandomPrekeys - client/prekeys not empty" $ testPrekeysNotEmptyRandomPrekeys opts b,
+      test p "testRegularPrekeysCannotBeSentAsLastPrekeys - lastprekeys not bogus" $ testRegularPrekeysCannotBeSentAsLastPrekeys b,
+      test p "testRegularPrekeysCannotBeSentAsLastPrekeysDuringUpdate - lastprekeys not bogus during update" $ testRegularPrekeysCannotBeSentAsLastPrekeysDuringUpdate b,
+      test p "testRemoveClient - delete /clients/:client - 200 (pwd)" $ testRemoveClient True b c,
+      test p "testRemoveClient - delete /clients/:client - 200 (no pwd)" $ testRemoveClient False b c,
+      test p "testRemoveClientShortPwd - delete /clients/:client - 400 (short pwd)" $ testRemoveClientShortPwd b,
+      test p "testRemoveClientIncorrectPwd - delete /clients/:client - 403 (incorrect pwd)" $ testRemoveClientIncorrectPwd b,
       test p "put /clients/:client - 200" $ testUpdateClient opts b,
       test p "put /clients/:client - 200 (mls keys)" $ testMLSPublicKeyUpdate b,
       test p "get /clients/:client - 404" $ testMissingClient b,
       test p "get /clients/:client - 200" $ testMLSClient b,
-      test p "post /clients - 200 multiple temporary" $ testAddMultipleTemporary b g c,
+      test p "testAddMultipleTemporary - post /clients - 200 multiple temporary" $ testAddMultipleTemporary b g c,
       test p "client/prekeys/race" $ testPreKeyRace b,
       test p "get/head nonce/clients" $ testNewNonce b,
       testGroup
@@ -161,7 +161,6 @@ testAddGetClientVerificationCode db brig galley = do
     const 200 === statusCode
     const (Just c) === responseJsonMaybe
 
--- @SF.Channel @TSFI.RESTfulAPI @S2
 --
 -- Test that device cannot be added with missing second factor email verification code when this feature is enabled
 testAddGetClientMissingCode :: Brig -> Galley -> Http ()
@@ -178,9 +177,6 @@ testAddGetClientMissingCode brig galley = do
     const 403 === statusCode
     const (Just "code-authentication-required") === fmap Error.label . responseJsonMaybe
 
--- @END
-
--- @SF.Channel @TSFI.RESTfulAPI @S2
 --
 -- Test that device cannot be added with wrong second factor email verification code when this feature is enabled
 testAddGetClientWrongCode :: Brig -> Galley -> Http ()
@@ -198,9 +194,6 @@ testAddGetClientWrongCode brig galley = do
     const 403 === statusCode
     const (Just "code-authentication-failed") === fmap Error.label . responseJsonMaybe
 
--- @END
-
--- @SF.Channel @TSFI.RESTfulAPI @S2
 --
 -- Test that device cannot be added with expired second factor email verification code when this feature is enabled
 testAddGetClientCodeExpired :: DB.ClientState -> Opt.Opts -> Brig -> Galley -> Http ()
@@ -224,8 +217,6 @@ testAddGetClientCodeExpired db opts brig galley = do
   addClient' codeValue !!! do
     const 403 === statusCode
     const (Just "code-authentication-failed") === fmap Error.label . responseJsonMaybe
-
--- @END
 
 data AddGetClient = AddGetClient
   { addWithPassword :: Bool,
@@ -904,7 +895,6 @@ testMultiUserGetPrekeysQualifiedV4 brig opts = do
       const (Right $ expectedUserClientMap) === responseJsonEither
 
 -- The testTooManyClients test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
 -- The test validates the upper bound on the number of permanent clients per
 -- user. It does so by trying to create one permanent client more than allowed.
@@ -937,25 +927,25 @@ testPrekeysNotEmptyRandomPrekeys :: Opt.Opts -> Brig -> Http ()
 testPrekeysNotEmptyRandomPrekeys opts brig = do
   -- Run the test for randomPrekeys (not dynamoDB locking)
   let newOpts = opts {Opt.randomPrekeys = Just True}
-  ensurePrekeysNotEmpty newOpts brig
-
-ensurePrekeysNotEmpty :: Opt.Opts -> Brig -> Http ()
-ensurePrekeysNotEmpty opts brig = withSettingsOverrides opts $ do
-  lgr <- Log.new Log.defSettings
-  uid <- userId <$> randomUser brig
-  -- Create a client with 1 regular prekey and 1 last resort prekey
-  c <- responseJsonError =<< addClient brig uid (defNewClient PermanentClientType [somePrekeys !! 10] (someLastPrekeys !! 10))
-  -- Claim the first regular one
-  _rs1 <- getPreKey brig uid uid (clientId c) <!! const 200 === statusCode
-  -- Claim again; this should give the last resort one
-  rs2 <- getPreKey brig uid uid (clientId c) <!! const 200 === statusCode
-  let pId2 = prekeyId . prekeyData <$> responseJsonMaybe rs2
-  liftIO $ assertEqual "last prekey rs2" (Just lastPrekeyId) pId2
-  liftIO $ Log.warn lgr (Log.msg (Log.val "First claim of last resort successful, claim again..."))
-  -- Claim again; this should (again) give the last resort one
-  rs3 <- getPreKey brig uid uid (clientId c) <!! const 200 === statusCode
-  let pId3 = prekeyId . prekeyData <$> responseJsonMaybe rs3
-  liftIO $ assertEqual "last prekey rs3" (Just lastPrekeyId) pId3
+  ensurePrekeysNotEmpty newOpts
+  where
+    ensurePrekeysNotEmpty :: Opt.Opts -> Http ()
+    ensurePrekeysNotEmpty newOpts = withSettingsOverrides newOpts $ do
+      lgr <- Log.new Log.defSettings
+      uid <- userId <$> randomUser brig
+      -- Create a client with 1 regular prekey and 1 last resort prekey
+      c <- responseJsonError =<< addClient brig uid (defNewClient PermanentClientType [somePrekeys !! 10] (someLastPrekeys !! 10))
+      -- Claim the first regular one
+      _rs1 <- getPreKey brig uid uid (clientId c) <!! const 200 === statusCode
+      -- Claim again; this should give the last resort one
+      rs2 <- getPreKey brig uid uid (clientId c) <!! const 200 === statusCode
+      let pId2 = prekeyId . prekeyData <$> responseJsonMaybe rs2
+      liftIO $ assertEqual "last prekey rs2" (Just lastPrekeyId) pId2
+      liftIO $ Log.warn lgr (Log.msg (Log.val "First claim of last resort successful, claim again..."))
+      -- Claim again; this should (again) give the last resort one
+      rs3 <- getPreKey brig uid uid (clientId c) <!! const 200 === statusCode
+      let pId3 = prekeyId . prekeyData <$> responseJsonMaybe rs3
+      liftIO $ assertEqual "last prekey rs3" (Just lastPrekeyId) pId3
 
 testRegularPrekeysCannotBeSentAsLastPrekeys :: Brig -> Http ()
 testRegularPrekeysCannotBeSentAsLastPrekeys brig = do
@@ -985,10 +975,7 @@ testRegularPrekeysCannotBeSentAsLastPrekeysDuringUpdate brig = do
     !!! const 400
       === statusCode
 
--- @END
-
 -- The testRemoveClient test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
 -- This test validates creating and deleting a client. A client is created and
 -- consequently deleted. Deleting a second time yields response 404 not found.
@@ -1034,10 +1021,7 @@ testRemoveClient hasPwd brig cannon = do
           newClientCookie = Just defCookieLabel
         }
 
--- @END
-
 -- The testRemoveClientShortPwd test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
 -- The test checks if a client can be deleted by providing a too short password.
 -- This is done by using a single-character password, whereas the minimum is 6
@@ -1070,10 +1054,7 @@ testRemoveClientShortPwd brig = do
           newClientCookie = Just defCookieLabel
         }
 
--- @END
-
 -- The testRemoveClientIncorrectPwd test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
 -- The test checks if a client can be deleted by providing a syntax-valid, but
 -- incorrect password. The client deletion attempt fails with a 403 error
@@ -1105,8 +1086,6 @@ testRemoveClientIncorrectPwd brig = do
         { newClientLabel = Just "Nexus 5x",
           newClientCookie = Just defCookieLabel
         }
-
--- @END
 
 testUpdateClient :: Opt.Opts -> Brig -> Http ()
 testUpdateClient opts brig = do
@@ -1300,7 +1279,6 @@ testMissingClient brig = do
         . responseHeaders
 
 -- The testAddMultipleTemporary test conforms to the following testing standards:
--- @SF.Provisioning @TSFI.RESTfulAPI @S2
 -- Legacy (galley)
 --
 -- Add temporary client, check that all services (both galley and
@@ -1357,8 +1335,6 @@ testAddMultipleTemporary brig galley cannon = do
             . path "i/test/clients"
             . zUser u
       pure $ Vec.length <$> (preview _Array =<< responseJsonMaybe @Value r)
-
--- @END
 
 testPreKeyRace :: Brig -> Http ()
 testPreKeyRace brig = do
@@ -1472,7 +1448,7 @@ testCreateAccessToken opts n brig = do
           handle
           (fromName u.userDisplayName)
           (UUID.toText (toUUID tid))
-  signedOrError <- fmap encodeCompact <$> liftIO (signAccessToken dpopClaims)
+  signedOrError <- fmap encodeCompact <$> liftIO (signProofEcdsaP256 dpopClaims)
   case signedOrError of
     Left err -> liftIO $ assertFailure $ "failed to sign claims: " <> show err
     Right signed -> do
@@ -1483,14 +1459,24 @@ testCreateAccessToken opts n brig = do
       let accessToken = fromRight (error $ "failed to create token: " <> show response) $ responseJsonEither response
       liftIO $ datrType accessToken @?= DPoP
   where
-    signAccessToken :: DPoPClaimsSet -> IO (Either JWTError SignedJWT)
-    signAccessToken claims = runJOSE $ do
+    -- FUTUREWORK: parameterize the signing algorithm
+    _signProof :: DPoPClaimsSet -> IO (Either JWTError SignedJWT)
+    _signProof claims = runJOSE $ do
       algo <- bestJWSAlg jwkKey
       let h =
             newJWSHeader ((), algo)
               & (jwk ?~ HeaderParam () jwkPubKey)
               & (typ ?~ HeaderParam () "dpop+jwt")
       signJWT jwkKey h claims
+
+    signProofEcdsaP256 :: DPoPClaimsSet -> IO (Either JWTError SignedJWT)
+    signProofEcdsaP256 claims = runJOSE $ do
+      algo <- bestJWSAlg jwkKeyBundleEcdsaP256
+      let h =
+            newJWSHeader ((), algo)
+              & (jwk ?~ HeaderParam () jwkPublicKeyEcdsaP256)
+              & (typ ?~ HeaderParam () "dpop+jwt")
+      signJWT jwkKeyBundleEcdsaP256 h claims
 
     jwkKey :: JWK
     jwkKey = do
@@ -1501,6 +1487,16 @@ testCreateAccessToken opts n brig = do
     jwkPubKey = do
       fromMaybe (error "invalid jwk") . A.decode $
         "{\"kty\":\"OKP\",\"crv\":\"Ed25519\",\"x\":\"nLJGN-Oa6Jsq3KclZggLl7UvAVdmB0Q6C3N5BCgphHw\"}"
+
+    jwkKeyBundleEcdsaP256 :: JWK
+    jwkKeyBundleEcdsaP256 = do
+      fromMaybe (error "invalid jwk") . A.decode $
+        "{\"kty\":\"EC\",\"alg\":\"ES256\",\"crv\":\"P-256\",\"x\":\"hcYjloNodyCLF_rQd_HIszSpa2J-vzrgntneAJW5pA8\",\"y\":\"6MXxnHq1FmAWCc6A7YValxvekicBv53ARTQO35mRKJ8\",\"d\":\"yz1weEXJbJao6wLiml8fahLt3BnJxdHWfbpUB0i8GLo\"}"
+
+    jwkPublicKeyEcdsaP256 :: JWK
+    jwkPublicKeyEcdsaP256 = do
+      fromMaybe (error "invalid jwk") . A.decode $
+        "{\"kty\":\"EC\",\"alg\":\"ES256\",\"crv\":\"P-256\",\"x\":\"hcYjloNodyCLF_rQd_HIszSpa2J-vzrgntneAJW5pA8\",\"y\":\"6MXxnHq1FmAWCc6A7YValxvekicBv53ARTQO35mRKJ8\"}"
 
 testCreateAccessTokenMissingProof :: Brig -> Http ()
 testCreateAccessTokenMissingProof brig = do

@@ -1,0 +1,59 @@
+# This jobs runs migrations on the gundeck DB using the gundeck-migrate-data tool.
+# The source for the tool can be found at services/gundeck in the wire-server
+# repository.
+{{- if .Values.enableGundeckMigrations }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: gundeck-migrate-data
+  labels:
+    app: "cassandra-migrations"
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "10"
+    "helm.sh/hook-delete-policy": "before-hook-creation"
+spec:
+  template:
+    metadata:
+      name: "{{.Release.Name}}"
+      labels:
+        app: gundeck-migrate-data
+        heritage: {{.Release.Service | quote }}
+        release: {{.Release.Name | quote }}
+        chart: "{{.Chart.Name}}-{{.Chart.Version}}"
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: gundeck-migrate-data
+          image: "{{ .Values.images.gundeckMigrateData }}:{{ .Values.images.tag }}"
+          imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
+        {{- if eq (include "includeSecurityContext" .) "true" }}
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
+        {{- end }}
+          args:
+           - --cassandra-host
+           - "{{ template "cassandraGundeckHost" . }}"
+           - --cassandra-port
+           - "9042"
+           - --cassandra-keyspace
+           - gundeck
+           {{- if eq (include "useTlsGundeck" .) "true" }}
+           - --tls-ca-certificate-file
+           - /certs/gundeck/{{- (include "tlsSecretRefGundeck" . | fromYaml).key }}
+           {{- end }}
+          {{- if eq (include "useTlsGundeck" .) "true" }}
+          volumeMounts:
+            - name: gundeck-cassandra-cert
+              mountPath: "/certs/gundeck"
+          {{- end }}
+      {{- if eq (include "useTlsGundeck" .) "true" }}
+      volumes:
+        - name: gundeck-cassandra-cert
+          secret:
+            secretName: {{ (include "tlsSecretRefGundeck" . | fromYaml).name }}
+      {{- end }}
+{{- end }}

@@ -25,7 +25,6 @@ import Brig.App
 import Brig.Data.User qualified as User
 import Brig.Effects.BlacklistStore
 import Brig.Effects.ConnectionStore (ConnectionStore)
-import Brig.Effects.GalleyProvider
 import Brig.Options
 import Brig.User.Auth qualified as Auth
 import Brig.ZAuth hiding (Env, settings)
@@ -52,6 +51,7 @@ import Wire.API.User.Auth hiding (access)
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
+import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 
@@ -97,7 +97,7 @@ sendLoginCode (SendLoginCode phone call force) = do
   pure $ LoginCodeTimeout (pendingLoginTimeout c)
 
 login ::
-  ( Member GalleyProvider r,
+  ( Member GalleyAPIAccess r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
@@ -160,7 +160,7 @@ removeCookies lusr (RemoveCookies pw lls ids) =
   Auth.revokeAccess (tUnqualified lusr) pw ids lls !>> authError
 
 legalHoldLogin ::
-  ( Member GalleyProvider r,
+  ( Member GalleyAPIAccess r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member TinyLog r,
@@ -196,7 +196,7 @@ getLoginCode phone = do
   code <- lift $ Auth.lookupLoginCode phone
   maybe (throwStd loginCodeNotFound) pure code
 
-reauthenticate :: Member GalleyProvider r => UserId -> ReAuthUser -> Handler r ()
+reauthenticate :: Member GalleyAPIAccess r => UserId -> ReAuthUser -> Handler r ()
 reauthenticate uid body = do
   wrapClientE (User.reauthenticate uid (reAuthPassword body)) !>> reauthError
   case reAuthCodeAction body of

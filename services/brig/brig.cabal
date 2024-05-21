@@ -117,6 +117,7 @@ library
     Brig.Data.Types
     Brig.Data.User
     Brig.Data.UserKey
+    Brig.DeleteQueue.Interpreter
     Brig.Effects.BlacklistPhonePrefixStore
     Brig.Effects.BlacklistPhonePrefixStore.Cassandra
     Brig.Effects.BlacklistStore
@@ -127,8 +128,6 @@ library
     Brig.Effects.ConnectionStore.Cassandra
     Brig.Effects.FederationConfigStore
     Brig.Effects.FederationConfigStore.Cassandra
-    Brig.Effects.GalleyProvider
-    Brig.Effects.GalleyProvider.RPC
     Brig.Effects.JwtTools
     Brig.Effects.PasswordResetStore
     Brig.Effects.PasswordResetStore.CodeStore
@@ -207,7 +206,6 @@ library
     Brig.Team.DB
     Brig.Team.Email
     Brig.Team.Template
-    Brig.Team.Types
     Brig.Team.Util
     Brig.Template
     Brig.Unique
@@ -585,3 +583,4 @@ test-suite brig-tests
     , uri-bytestring
     , uuid
     , wire-api
+    , wire-subsystems
