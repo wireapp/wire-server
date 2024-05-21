@@ -21,6 +21,7 @@ import qualified API.Galley as Public
 import qualified API.GalleyInternal as Internal
 import Control.Monad.Codensity (Codensity (runCodensity))
 import Control.Monad.Reader
+import qualified Data.Aeson as A
 import SetupHelpers
 import Testlib.Prelude
 import Testlib.ResourcePool (acquireResources)
@@ -181,3 +182,32 @@ checkFeature feature user tid expected = do
   bindResponse (Public.getFeatureConfigs user) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. feature `shouldMatch` expected
+
+testMlsE2EConfigCrlProxyRequired :: HasCallStack => App ()
+testMlsE2EConfigCrlProxyRequired = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  let configWithoutCrlProxy =
+        object
+          [ "config"
+              .= object
+                [ "useProxyOnMobile" .= False,
+                  "verificationExpiration" .= A.Number 86400
+                ],
+            "status" .= "enabled"
+          ]
+  bindResponse (Internal.setMlsE2EIdTeamFeatureConfig owner tid configWithoutCrlProxy) $ \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.json %. "label" `shouldMatch` "mls-e2eid-missing-crl-proxy"
+
+  configWithCrlProxy <-
+    configWithoutCrlProxy
+      & setField "config.useProxyOnMobile" True
+      & setField "config.crlProxy" "https://crl-proxy.example.com"
+      & setField "status" "enabled"
+
+  bindResponse (Internal.setMlsE2EIdTeamFeatureConfig owner tid configWithCrlProxy) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  expectedResponse <- configWithCrlProxy & setField "lockStatus" "unlocked" & setField "ttl" "unlimited"
+
+  checkFeature "mlsE2EId" owner tid expectedResponse

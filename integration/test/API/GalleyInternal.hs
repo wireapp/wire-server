@@ -101,3 +101,9 @@ generateVerificationCode' domain email = do
   req <- baseRequest domain Brig Versioned "/verification-code/send"
   emailStr <- asString email
   submit "POST" $ req & addJSONObject ["email" .= emailStr, "action" .= "login"]
+
+setMlsE2EIdTeamFeatureConfig :: (HasCallStack, MakesValue domain, MakesValue team) => domain -> team -> Value -> App Response
+setMlsE2EIdTeamFeatureConfig domain team payload = do
+  tid <- asString team
+  req <- baseRequest domain Galley Versioned $ joinHttpPath ["teams", tid, "features", "mlsE2EId"]
+  submit "PUT" $ req & addJSON payload
