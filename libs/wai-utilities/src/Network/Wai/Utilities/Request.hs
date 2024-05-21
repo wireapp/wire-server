@@ -83,10 +83,11 @@ getRequestId logger req = case lookupRequestId req of
   Just rid -> pure (RequestId rid)
   Nothing -> do
     localRid <- RequestId . UUID.toASCIIBytes <$> UUID.nextRandom
-    Log.info logger $
-      "request-id" .= localRid
-        ~~ "request" .= (show req)
-        ~~ Log.msg (Log.val "generated a new request id for local request")
+    unless (rawPathInfo (getRequest req) `elem` ["/i/status", "/i/metrics"]) $
+      Log.info logger $
+        "request-id" .= localRid
+          ~~ "request" .= (show req)
+          ~~ Log.msg (Log.val "generated a new request id for local request")
     pure localRid
 
 ----------------------------------------------------------------------------
