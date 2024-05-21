@@ -195,7 +195,8 @@ testMlsE2EConfigCrlProxyRequired = do
                 ],
             "status" .= "enabled"
           ]
-  bindResponse (Internal.setTeamFeatureConfig owner tid "mlsE2EId" configWithoutCrlProxy) $ \resp -> do
+
+  bindResponse (Internal.setTeamFeatureConfig Versioned owner tid "mlsE2EId" configWithoutCrlProxy) $ \resp -> do
     resp.status `shouldMatchInt` 400
     resp.json %. "label" `shouldMatch` "mls-e2eid-missing-crl-proxy"
 
@@ -205,9 +206,29 @@ testMlsE2EConfigCrlProxyRequired = do
       & setField "config.crlProxy" "https://crl-proxy.example.com"
       & setField "status" "enabled"
 
-  bindResponse (Internal.setTeamFeatureConfig owner tid "mlsE2EId" configWithCrlProxy) $ \resp -> do
+  bindResponse (Internal.setTeamFeatureConfig Versioned owner tid "mlsE2EId" configWithCrlProxy) $ \resp -> do
     resp.status `shouldMatchInt` 200
 
   expectedResponse <- configWithCrlProxy & setField "lockStatus" "unlocked" & setField "ttl" "unlimited"
+
+  checkFeature "mlsE2EId" owner tid expectedResponse
+
+testMlsE2EConfigCrlProxyNotRequiredInV5 :: HasCallStack => App ()
+testMlsE2EConfigCrlProxyNotRequiredInV5 = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  let configWithoutCrlProxy =
+        object
+          [ "config"
+              .= object
+                [ "useProxyOnMobile" .= False,
+                  "verificationExpiration" .= A.Number 86400
+                ],
+            "status" .= "enabled"
+          ]
+
+  bindResponse (Internal.setTeamFeatureConfig (ExplicitVersion 5) owner tid "mlsE2EId" configWithoutCrlProxy) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  expectedResponse <- configWithoutCrlProxy & setField "lockStatus" "unlocked" & setField "ttl" "unlimited"
 
   checkFeature "mlsE2EId" owner tid expectedResponse
