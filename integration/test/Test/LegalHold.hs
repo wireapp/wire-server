@@ -912,3 +912,28 @@ testLHCannotCreateGroupWithUsersInConflict = do
 
     postConversation bob defProteus {qualifiedUsers = [debora, alice], newUsersRole = "wire_member", team = Just tidAlice}
       >>= assertLabel 403 "missing-legalhold-consent"
+
+testNoConsentCannotBeInvited :: HasCallStack => App ()
+testNoConsentCannotBeInvited = do
+  -- team that is legalhold whitelisted
+  (legalholder, tidLH, userLHNotActivated : _) <- createTeam OwnDomain 2
+  legalholdWhitelistTeam tidLH legalholder >>= assertStatus 200
+
+  -- team without legalhold
+  (peer, _tidPeer, peer2 : _) <- createTeam OwnDomain 2
+
+  connectUsers =<< forM [peer, userLHNotActivated] make
+  connectUsers =<< forM [peer2, userLHNotActivated] make
+
+  withMockServer lhMockApp \lhDomAndPort _chan -> do
+    postLegalHoldSettings tidLH legalholder (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
+    cid <- postConversation userLHNotActivated defProteus {qualifiedUsers = [legalholder], newUsersRole = "wire_admin", team = Just tidLH} >>= getJSON 201
+    addMembers userLHNotActivated cid (def {users = [peer], role = Just "wire_admin"}) >>= assertSuccess
+    -- activate legalhold for legalholder
+    requestLegalHoldDevice tidLH legalholder legalholder >>= assertSuccess
+    approveLegalHoldDevice tidLH (legalholder %. "qualified_id") defPassword >>= assertSuccess
+    legalholdUserStatus tidLH legalholder legalholder `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "status" `shouldMatch` "enabled"
+
+      addMembers userLHNotActivated cid (def {users = [peer2]}) >>= assertLabel 403 "missing-legalhold-consent"
