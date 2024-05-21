@@ -297,13 +297,16 @@ db-reset: c
 	./dist/brig-index reset \
 		--elasticsearch-index-prefix directory \
 		--elasticsearch-server https://localhost:9200 \
+	  --elasticsearch-ca-cert ./services/brig/test/resources/elasticsearch-ca.pem \
 		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
 	./dist/brig-index reset \
 		--elasticsearch-index-prefix directory2 \
 		--elasticsearch-server https://localhost:9200 \
+	  --elasticsearch-ca-cert ./services/brig/test/resources/elasticsearch-ca.pem \
 		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
 	./integration/scripts/integration-dynamic-backends-brig-index.sh \
 		--elasticsearch-server https://localhost:9200 \
+	  --elasticsearch-ca-cert ./services/brig/test/resources/elasticsearch-ca.pem \
 		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
 
 
@@ -565,8 +568,8 @@ helm-template-%: clean-charts charts-integration
 	./hack/bin/helm-template.sh $(*)
 
 # Ask the security team for the `DEPENDENCY_TRACK_API_KEY` (if you need it)
-# changing the directory is necessary because of some quirkiness of how 
-# runhaskell / ghci behaves (it doesn't find modules that aren't in the same 
+# changing the directory is necessary because of some quirkiness of how
+# runhaskell / ghci behaves (it doesn't find modules that aren't in the same
 # directory as the script that is being executed)
 .PHONY: upload-bombon
 upload-bombon:
