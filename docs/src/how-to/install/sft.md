@@ -8,7 +8,7 @@ Please refer to the following {ref}`section to better understand SFT and how it 
 
 ### As part of the wire-server umbrella chart
 
-The `sftd` is packaged as it's own Helm chart.
+The `sftd` is packaged as its own Helm chart.
 
 In your `./values/sftd/values.yaml` file you should set the following settings:
 
