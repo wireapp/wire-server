@@ -306,7 +306,7 @@ updateUserProfileImpl (tUnqualified -> uid) mconn update = do
       throw UserSubsystemDisplayNameManagedByScim
 
   -- check if handle updates are allowed
-  for_ update.handle $ \handleUpdate -> do
+  oldHandle <- fmap join . for update.handle $ \handleUpdate -> do
     when (isBlacklistedHandle handleUpdate.value) $
       throw UserSubsystemInvalidHandle
     user <- getUser uid >>= note UserSubsystemNoIdentity
@@ -324,12 +324,22 @@ updateUserProfileImpl (tUnqualified -> uid) mconn update = do
       throw UserSubsystemHandleManagedByScim
     when (isNothing user.identity) $
       throw UserSubsystemNoIdentity
-    claimed <- claimHandle user.id user.handle handleUpdate.value
-    unless claimed $
-      throw UserSubsystemHandleExists
+    pure user.handle
 
-  updateUser uid update
+  mapError (\StoredUserUpdateHandleExists -> UserSubsystemHandleExists) $
+    updateUser uid (storedUserUpdate oldHandle update)
   generateUserEvent uid mconn (mkProfileUpdateEvent uid update)
+
+storedUserUpdate :: Maybe Handle -> UserProfileUpdate -> StoredUserUpdate
+storedUserUpdate oldHandle update =
+  MkStoredUserUpdate
+    { name = fmap (.value) update.name,
+      pict = update.pict,
+      assets = update.assets,
+      accentId = update.accentId,
+      locale = update.locale,
+      handle = fmap (MkStoredHandleUpdate oldHandle . (.value)) update.handle
+    }
 
 mkProfileUpdateEvent :: UserId -> UserProfileUpdate -> UserEvent
 mkProfileUpdateEvent uid update =

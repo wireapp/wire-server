@@ -335,29 +335,39 @@ getLocalUsers = gets (.users)
 
 modifyLocalUsers ::
   Member (State MiniBackend) r =>
-  ([StoredUser] -> [StoredUser]) ->
+  ([StoredUser] -> Sem r [StoredUser]) ->
   Sem r ()
-modifyLocalUsers f = modify $ \b -> b {users = f b.users}
+modifyLocalUsers f = do
+  us <- gets (.users)
+  us' <- f us
+  modify $ \b -> b {users = us'}
 
 staticUserStoreInterpreter ::
+  forall r.
   Member (State MiniBackend) r =>
   InterpreterFor UserStore r
 staticUserStoreInterpreter = interpret $ \case
   GetUser uid -> find (\user -> user.id == uid) <$> getLocalUsers
-  UpdateUser uid update -> modifyLocalUsers (map doUpdate)
+  UpdateUserEither uid update -> runError $ modifyLocalUsers (traverse doUpdate)
     where
-      doUpdate :: StoredUser -> StoredUser
       doUpdate u
-        | u.id == uid =
-            maybe Imports.id setStoredUserAccentId update.accentId
+        | u.id == uid = do
+            -- check that handle isn't taken
+            for_ update.handle $ \hUpdate -> do
+              handles <- mapMaybe (.handle) <$> gets (.users)
+              when
+                ( hUpdate.old /= Just hUpdate.new
+                    && elem hUpdate.new handles
+                )
+                $ throw StoredUserUpdateHandleExists
+            pure
+              . maybe Imports.id setStoredUserAccentId update.accentId
               . maybe Imports.id setStoredUserAssets update.assets
               . maybe Imports.id setStoredUserPict update.pict
-              . maybe Imports.id (setStoredUserName . (.value)) update.name
+              . maybe Imports.id setStoredUserName update.name
               $ u
-      doUpdate u = u
+      doUpdate u = pure u
   -- TODO
-  ClaimHandle {} -> pure True
-  FreeHandle {} -> pure ()
   LookupHandle {} -> pure Nothing
   GlimpseHandle {} -> pure Nothing
 

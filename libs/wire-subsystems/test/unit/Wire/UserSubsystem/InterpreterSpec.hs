@@ -25,7 +25,6 @@ import Wire.API.Team.Permission
 import Wire.API.User hiding (DeleteUser)
 import Wire.MiniBackend
 import Wire.StoredUser
-import Wire.UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Interpreter
 

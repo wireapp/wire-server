@@ -7,6 +7,7 @@ import Database.CQL.Protocol
 import Imports
 import Polysemy
 import Polysemy.Embed
+import Polysemy.Error
 import Wire.API.User
 import Wire.StoredUser
 import Wire.UserStore
@@ -17,9 +18,7 @@ interpretUserStoreCassandra casClient =
   interpret $
     runEmbedded (runClient casClient) . \case
       GetUser uid -> getUserImpl uid
-      UpdateUser uid update -> embed $ updateUserImpl uid update
-      ClaimHandle uid old new -> embed $ claimHandleImpl uid old new
-      FreeHandle uid h -> embed $ freeHandleImpl uid h
+      UpdateUserEither uid update -> embed $ updateUserImpl uid update
       LookupHandle hdl -> embed $ lookupHandleImpl LocalQuorum hdl
       GlimpseHandle hdl -> embed $ lookupHandleImpl One hdl
 
@@ -28,15 +27,20 @@ getUserImpl uid = embed $ do
   mUserTuple <- retry x1 $ query1 selectUser (params LocalQuorum (Identity uid))
   pure $ asRecord <$> mUserTuple
 
-updateUserImpl :: UserId -> UserProfileUpdate -> Client ()
-updateUserImpl uid update = retry x5 . batch $ do
-  setType BatchLogged
-  setConsistency LocalQuorum
-  for_ update.name $ \n -> addPrepQuery userDisplayNameUpdate (n.value, uid)
-  for_ update.pict $ \p -> addPrepQuery userPictUpdate (p, uid)
-  for_ update.assets $ \a -> addPrepQuery userAssetsUpdate (a, uid)
-  for_ update.accentId $ \c -> addPrepQuery userAccentIdUpdate (c, uid)
+updateUserImpl :: UserId -> StoredUserUpdate -> Client (Either StoredUserUpdateError ())
+updateUserImpl uid update = runM $ runError do
+  for_ update.handle $ \handleUpdate -> do
+    claimed <- embed $ claimHandleImpl uid handleUpdate.old handleUpdate.new
+    unless claimed $ throw StoredUserUpdateHandleExists
+  embed . retry x5 $ batch do
+    setType BatchLogged
+    setConsistency LocalQuorum
+    for_ update.name \n -> addPrepQuery userDisplayNameUpdate (n, uid)
+    for_ update.pict \p -> addPrepQuery userPictUpdate (p, uid)
+    for_ update.assets \a -> addPrepQuery userAssetsUpdate (a, uid)
+    for_ update.accentId \c -> addPrepQuery userAccentIdUpdate (c, uid)
 
+-- | Claim a new handle for an existing 'User'.
 claimHandleImpl :: UserId -> Maybe Handle -> Handle -> Client Bool
 claimHandleImpl uid oldHandle newHandle =
   isJust <$> do
@@ -56,6 +60,7 @@ claimHandleImpl uid oldHandle newHandle =
               freeHandleImpl uid
             pure result
 
+-- | Free a 'Handle', making it available to be claimed again.
 freeHandleImpl :: UserId -> Handle -> Client ()
 freeHandleImpl uid h = do
   mbHandleUid <- lookupHandleImpl LocalQuorum h

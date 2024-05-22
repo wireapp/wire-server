@@ -2,70 +2,38 @@
 
 module Wire.UserStore where
 
-import Data.Default
 import Data.Handle
 import Data.Id
 import Imports
 import Polysemy
+import Polysemy.Error
 import Wire.API.User
 import Wire.Arbitrary
 import Wire.StoredUser
 
-data AllowSCIMUpdates
-  = AllowSCIMUpdates
-  | ForbidSCIMUpdates
-  deriving (Show, Eq, Ord, Generic)
-  deriving (Arbitrary) via GenericUniform AllowSCIMUpdates
-
--- | Wrapper around an updated field which can potentially be managed by SCIM.
-data ScimUpdate a = MkScimUpdate
-  { -- | whether changes to SCIM-managed users should be allowed
-    allowScim :: AllowSCIMUpdates,
-    value :: a
+data StoredHandleUpdate = MkStoredHandleUpdate
+  { old :: Maybe Handle,
+    new :: Handle
   }
-  deriving stock (Eq, Ord, Show)
-  deriving (Functor, Foldable, Traversable)
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via GenericUniform StoredHandleUpdate
 
-forbidScimUpdate :: a -> ScimUpdate a
-forbidScimUpdate = MkScimUpdate ForbidSCIMUpdates
-
-allowScimUpdate :: a -> ScimUpdate a
-allowScimUpdate = MkScimUpdate AllowSCIMUpdates
-
-instance Arbitrary a => Arbitrary (ScimUpdate a) where
-  arbitrary = MkScimUpdate <$> arbitrary <*> arbitrary
-
--- this is similar to `UserUpdate` in `Wire.API.User`, but supports updates to
--- all profile fields rather than just four.
-data UserProfileUpdate = MkUserProfileUpdate
-  { name :: Maybe (ScimUpdate Name),
+data StoredUserUpdate = MkStoredUserUpdate
+  { name :: Maybe Name,
     pict :: Maybe Pict,
     assets :: Maybe [Asset],
     accentId :: Maybe ColourId,
     locale :: Maybe Locale,
-    handle :: Maybe (ScimUpdate Handle)
+    handle :: Maybe StoredHandleUpdate
   }
   deriving stock (Eq, Ord, Show, Generic)
-  deriving (Arbitrary) via GenericUniform UserProfileUpdate
+  deriving (Arbitrary) via GenericUniform StoredUserUpdate
 
-instance Default UserProfileUpdate where
-  def =
-    MkUserProfileUpdate
-      { name = Nothing,
-        pict = Nothing,
-        assets = Nothing,
-        accentId = Nothing,
-        locale = Nothing,
-        handle = Nothing
-      }
+data StoredUserUpdateError = StoredUserUpdateHandleExists
 
 data UserStore m a where
   GetUser :: UserId -> UserStore m (Maybe StoredUser)
-  UpdateUser :: UserId -> UserProfileUpdate -> UserStore m ()
-  -- | Claim a new handle for an existing 'User'.
-  ClaimHandle :: UserId -> Maybe Handle -> Handle -> UserStore m Bool
-  -- | Free a 'Handle', making it available to be claimed again.
-  FreeHandle :: UserId -> Handle -> UserStore m ()
+  UpdateUserEither :: UserId -> StoredUserUpdate -> UserStore m (Either StoredUserUpdateError ())
   -- | this operation looks up a handle but may not give you stale data
   --   it is potentially slower and less resilient than 'GlimpseHandle'
   LookupHandle :: Handle -> UserStore m (Maybe UserId)
@@ -76,3 +44,10 @@ data UserStore m a where
   GlimpseHandle :: Handle -> UserStore m (Maybe UserId)
 
 makeSem ''UserStore
+
+updateUser ::
+  (Member UserStore r, Member (Error StoredUserUpdateError) r) =>
+  UserId ->
+  StoredUserUpdate ->
+  Sem r ()
+updateUser uid update = either throw pure =<< updateUserEither uid update
