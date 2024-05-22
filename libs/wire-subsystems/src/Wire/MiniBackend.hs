@@ -74,7 +74,7 @@ newtype NotPendingStoredUser = NotPendingStoredUser StoredUser
 
 instance Arbitrary NotPendingStoredUser where
   arbitrary = do
-    user <- arbitrary
+    user <- arbitrary `suchThat` \user -> isJust user.identity
     notPendingStatus <- elements (Nothing : map Just [Active, Suspended, Deleted, Ephemeral])
     pure $ NotPendingStoredUser (user {status = notPendingStatus})
 
@@ -356,10 +356,10 @@ staticUserStoreInterpreter = interpret $ \case
               $ u
       doUpdate u = u
   -- TODO
-  ClaimHandle {} -> pure False
+  ClaimHandle {} -> pure True
   FreeHandle {} -> pure ()
-  LookupHandle {} -> undefined -- TODO(mangoiv): not yet implemented
-  GlimpseHandle {} -> undefined -- TODO(mangoiv): not yet implemented
+  LookupHandle {} -> pure Nothing
+  GlimpseHandle {} -> pure Nothing
 
 -- | interprets galley by statically returning the values passed
 miniGalleyAPIAccess ::

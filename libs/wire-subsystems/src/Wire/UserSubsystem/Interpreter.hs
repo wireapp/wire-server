@@ -322,7 +322,7 @@ updateUserProfileImpl (tUnqualified -> uid) mconn update = do
         FeatureStatusDisabled -> False
     when (hasE2EId && user.handle `notElem` [Nothing, Just handleUpdate.value]) $
       throw UserSubsystemHandleManagedByScim
-    when (isJust user.identity) $
+    when (isNothing user.identity) $
       throw UserSubsystemNoIdentity
     claimed <- claimHandle user.id user.handle handleUpdate.value
     unless claimed $
