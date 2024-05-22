@@ -288,7 +288,7 @@ removeSettings' tid =
       luid <- qualifyLocal (member ^. userId)
       removeLegalHoldClientFromUser (tUnqualified luid)
       LHService.removeLegalHold tid (tUnqualified luid)
-      changeLegalholdStatusAndKick tid luid (member ^. legalHoldStatus) UserLegalHoldDisabled -- (support for withdrawing consent is not planned yet.)
+      changeLegalholdStatusAndHandlePolicyConflicts tid luid (member ^. legalHoldStatus) UserLegalHoldDisabled -- (support for withdrawing consent is not planned yet.)
 
 -- | Learn whether a user has LH enabled and fetch pre-keys.
 -- Note that this is accessible to ANY authenticated user, even ones outside the team
@@ -364,7 +364,7 @@ grantConsent lusr tid = do
       =<< fmap (view legalHoldStatus) <$> getTeamMember tid (tUnqualified lusr)
   case userLHStatus of
     lhs@UserLegalHoldNoConsent ->
-      changeLegalholdStatusAndKick tid lusr lhs UserLegalHoldDisabled $> GrantConsentSuccess
+      changeLegalholdStatusAndHandlePolicyConflicts tid lusr lhs UserLegalHoldDisabled $> GrantConsentSuccess
     UserLegalHoldEnabled -> pure GrantConsentAlreadyGranted
     UserLegalHoldPending -> pure GrantConsentAlreadyGranted
     UserLegalHoldDisabled -> pure GrantConsentAlreadyGranted
@@ -441,7 +441,7 @@ requestDevice lzusr tid uid = do
       (lastPrekey', prekeys) <- requestDeviceFromService luid
       -- We don't distinguish the last key here; brig will do so when the device is added
       LegalHoldData.insertPendingPrekeys (tUnqualified luid) (unpackLastPrekey lastPrekey' : prekeys)
-      changeLegalholdStatusAndKick tid luid userLHStatus UserLegalHoldPending
+      changeLegalholdStatusAndHandlePolicyConflicts tid luid userLHStatus UserLegalHoldPending
       notifyClientsAboutLegalHoldRequest zusr (tUnqualified luid) lastPrekey'
 
     requestDeviceFromService :: Local UserId -> Sem r (LastPrekey, [Prekey])
@@ -525,7 +525,7 @@ approveDevice lzusr connId tid uid (Public.ApproveLegalHoldForUserRequest mPassw
   LHService.confirmLegalHold clientId tid (tUnqualified luid) legalHoldAuthToken
   -- TODO: send event at this point (see also:
   -- https://github.com/wireapp/wire-server/pull/802#pullrequestreview-262280386)
-  changeLegalholdStatusAndKick tid luid userLHStatus UserLegalHoldEnabled
+  changeLegalholdStatusAndHandlePolicyConflicts tid luid userLHStatus UserLegalHoldEnabled
   where
     assertUserLHPending ::
       UserLegalHoldStatus ->
@@ -593,7 +593,7 @@ disableForUser lzusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) =
       -- TODO: send event at this point (see also: related TODO in this module in
       -- 'approveDevice' and
       -- https://github.com/wireapp/wire-server/pull/802#pullrequestreview-262280386)
-      changeLegalholdStatusAndKick tid luid userLHStatus UserLegalHoldDisabled
+      changeLegalholdStatusAndHandlePolicyConflicts tid luid userLHStatus UserLegalHoldDisabled
 
 -- | Allow no-consent or requested => consent without further changes.  If LH device is
 -- enabled, or disabled, make sure the affected connections are screened for policy conflict
