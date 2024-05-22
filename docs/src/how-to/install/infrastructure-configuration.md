@@ -581,16 +581,13 @@ In case of a demo install, replace `prod` with `demo`.
 First set the option under the `team-settings` section, `envVars` sub-section:
 
 ```yaml
-# NOTE: Only relevant if you want team-settings
-team-settings:
-  envVars:
-    IS_SELF_HOSTED: "true"
+envVars:
+  IS_SELF_HOSTED: "true"
 ```
 
 Second, also set the option for `account-pages` helm chart:
 
 ```yaml
-account-pages:
 envVars:
   IS_SELF_HOSTED: "true"
 ```
