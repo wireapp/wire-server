@@ -202,12 +202,12 @@ serveInward env = do
     (server env._httpManager env._internalPort $ runFederator env)
     env
 
+-- TODO(md): reuse the version from the wai-utilities library
 requestIdMiddleware :: Wai.Middleware
 requestIdMiddleware origApp req responder =
-  -- TODO: extract constant
-  case lookup "Wire-Origin-Request-Id" req.requestHeaders of
+  case lookup federationRequestIdHeaderName req.requestHeaders of
     Just _ -> origApp req responder
     Nothing -> do
       reqId <- Text.encodeUtf8 . UUID.toText <$> UUID.nextRandom
-      let reqWithId = req {Wai.requestHeaders = ("Wire-Origin-Request-Id", reqId) : req.requestHeaders}
+      let reqWithId = req {Wai.requestHeaders = (federationRequestIdHeaderName, reqId) : req.requestHeaders}
       origApp reqWithId responder
