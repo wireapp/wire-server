@@ -40,6 +40,7 @@ import Network.HTTP2.Client qualified as HTTP2
 import Network.Wai qualified as Wai
 import Network.Wai.Utilities.Error qualified as Wai
 import Network.Wai.Utilities.MockServer
+import Network.Wai.Utilities.Server
 import Servant.API
 import Servant.Client hiding ((//))
 import Servant.Client.Core
@@ -221,7 +222,7 @@ testResponseHeaders = do
             HTTP2.requestBuilder
               HTTP.methodPost
               "/rpc/target.example.com/brig/test"
-              [("Wire-Origin-Domain", "origin.example.com")]
+              [("Wire-Origin-Domain", "origin.example.com"), (federationRequestIdHeaderName, "rid")]
               "body"
       mgr <- defaultHttp2Manager
       performHTTP2Request mgr (False, "127.0.0.1", port) req

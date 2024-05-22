@@ -91,7 +91,7 @@ data API mode = API
         :- "federation"
           :> Capture "component" Component
           :> Capture "rpc" RPC
-          :> Header' '[Required, Strict] "Wire-Origin-Request-Id" RequestId
+          :> Header' '[Optional, Strict] "Wire-Origin-Request-Id" RequestId
           :> Header' '[Required, Strict] OriginDomainHeaderName Domain
           :> Header' '[Required, Strict] "X-SSL-Certificate" CertHeader
           :> Endpath
@@ -120,10 +120,18 @@ server ::
 server mgr intPort interpreter =
   API
     { status = Health.status mgr "internal server" intPort,
-      externalRequest = \component rpc rid remoteDomain remoteCert ->
+      externalRequest = \component rpc mRid remoteDomain remoteCert ->
         Tagged $ \req respond -> do
-          -- TODO: Log generated request ID
-          -- rid <- maybe (RequestId . Text.encodeUtf8 . UUID.toText <$> UUID.nextRandom) pure mReqId
+          rid <- case mRid of
+            Just r -> pure r
+            Nothing -> do
+              liftIO $ RequestId . Text.encodeUtf8 . UUID.toText <$> UUID.nextRandom
+          -- TODO: log if generated a new request id
+          -- info $
+          --   "request-id" .= localRid
+          --     ~~ "method" .= Wai.requestMethod wreq
+          --     ~~ "path" .= Wai.rawPathInfo wreq
+          --     ~~ msg (val "generated a new request id for local request")
           runCodensity (interpreter rid (callInward component rpc rid remoteDomain remoteCert req)) respond
     }
 
@@ -147,16 +155,6 @@ callInward ::
   Wai.Request ->
   Sem r Wai.Response
 callInward component (RPC rpc) rid originDomain (CertHeader cert) wreq = do
-  -- rid <- case mReqId of
-  --   Just r -> pure r
-  --   Nothing -> do
-  --     localRid <- liftIO $ RequestId . Text.encodeUtf8 . UUID.toText <$> UUID.nextRandom
-  --     info $
-  --       "request-id" .= localRid
-  --         ~~ "method" .= Wai.requestMethod wreq
-  --         ~~ "path" .= Wai.rawPathInfo wreq
-  --         ~~ msg (val "generated a new request id for local request")
-  --     pure localRid
   incomingCounterIncr originDomain
   -- only POST is supported
   when (Wai.requestMethod wreq /= HTTP.methodPost) $
