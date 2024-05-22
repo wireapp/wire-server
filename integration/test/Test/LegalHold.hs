@@ -97,7 +97,7 @@ testLHMessageExchange ::
   TaggedBool "consentFrom1" ->
   TaggedBool "consentFrom2" ->
   App ()
-testLHMessageExchange (TaggedBool clients1New) (TaggedBool clients2New) (TaggedBool consentFrom1) (TaggedBool consentFrom2) = do
+testLHMessageExchange (TaggedBool clients1New) (TaggedBool clients2New) (TaggedBool approvalFrom1) (TaggedBool approvalFrom2) = do
   withMockServer lhMockApp $ \lhDomAndPort _chan -> do
     (owner, tid, [mem1, mem2]) <- createTeam OwnDomain 3
 
@@ -117,9 +117,9 @@ testLHMessageExchange (TaggedBool clients1New) (TaggedBool clients2New) (TaggedB
 
     requestLegalHoldDevice tid owner mem1 >>= assertSuccess
     requestLegalHoldDevice tid owner mem2 >>= assertSuccess
-    when consentFrom1 $ do
+    when approvalFrom1 $ do
       approveLegalHoldDevice tid (mem1 %. "qualified_id") defPassword >>= assertSuccess
-    when consentFrom2 $ do
+    when approvalFrom2 $ do
       approveLegalHoldDevice tid (mem2 %. "qualified_id") defPassword >>= assertSuccess
 
     let getCls :: Value -> App [String]
@@ -131,8 +131,8 @@ testLHMessageExchange (TaggedBool clients1New) (TaggedBool clients2New) (TaggedB
     cs1 :: [String] <- getCls mem1 -- it's ok to include the sender, backend will filter it out.
     cs2 :: [String] <- getCls mem2
 
-    length cs1 `shouldMatchInt` if consentFrom1 then 2 else 1
-    length cs2 `shouldMatchInt` if consentFrom2 then 2 else 1
+    length cs1 `shouldMatchInt` if approvalFrom1 then 2 else 1
+    length cs2 `shouldMatchInt` if approvalFrom2 then 2 else 1
 
     do
       successfulMsgForOtherUsers <- mkProteusRecipients mem1 [(mem1, cs1), (mem2, cs2)] "hey there"
@@ -150,12 +150,12 @@ testLHMessageExchange (TaggedBool clients1New) (TaggedBool clients2New) (TaggedB
               resp.json %. "label" `shouldMatch` label
 
         let -- there are two equally valid ways to write this down (feel free to remove one if it gets in your way):
-            _oneWay = case (clients1New, clients2New, consentFrom1, consentFrom2) of
+            _oneWay = case (clients1New, clients2New, approvalFrom1, approvalFrom2) of
               (_, _, False, False) ->
                 -- no LH in the picture
                 check 201 Nothing
               (True, True, _, _) ->
-                if consentFrom1 /= consentFrom2
+                if approvalFrom1 /= approvalFrom2
                   then -- no old clients, but users disagree on LH
                     check 403 (Just "missing-legalhold-consent")
                   else -- everybody likes LH
@@ -164,8 +164,7 @@ testLHMessageExchange (TaggedBool clients1New) (TaggedBool clients2New) (TaggedB
                 -- everything else
                 check 403 (Just "missing-legalhold-consent-old-clients")
 
-            theOtherWay = case (clients1New, clients2New, consentFrom1, consentFrom2) of
-              -- NB: "consent" always implies "has an active LH device"
+            theOtherWay = case (clients1New, clients2New, approvalFrom1, approvalFrom2) of
               (False, False, False, False) ->
                 -- no LH in the picture
                 check 201 Nothing
@@ -179,10 +178,10 @@ testLHMessageExchange (TaggedBool clients1New) (TaggedBool clients2New) (TaggedB
                 -- no LH in the picture
                 check 201 Nothing
               (True, True, False, True) ->
-                -- all clients new, no consent from sender, recipient has LH device
+                -- all clients new, no approval from sender, recipient has LH device
                 check 403 (Just "missing-legalhold-consent")
               (True, True, True, False) ->
-                -- all clients new, no consent from recipient, sender has LH device
+                -- all clients new, no approval from recipient, sender has LH device
                 check 403 (Just "missing-legalhold-consent")
               (True, True, True, True) ->
                 -- everybody happy with LH
