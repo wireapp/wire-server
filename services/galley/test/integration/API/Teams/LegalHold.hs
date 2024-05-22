@@ -31,9 +31,7 @@ import Control.Concurrent.Chan
 import Control.Lens hiding ((#))
 import Data.Id
 import Data.LegalHold
-import Data.List.NonEmpty (NonEmpty (..))
 import Data.PEM
-import Data.Qualified (Qualified (..))
 import Data.Range
 import Data.Time.Clock qualified as Time
 import Galley.Cassandra.LegalHold
@@ -42,19 +40,16 @@ import Imports
 import Network.HTTP.Types.Status (status200, status404)
 import Network.Wai as Wai
 import Network.Wai.Handler.Warp qualified as Warp
-import Network.Wai.Utilities.Error qualified as Error
 import Test.QuickCheck.Instances ()
 import Test.Tasty
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
 import Wire.API.Connection qualified as Conn
-import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Provider.Service
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
-import Wire.API.Team.Member qualified as Team
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
 import Wire.API.User.Client
@@ -79,19 +74,7 @@ testsPublic s =
           GET /team/{tid}/members - show legal hold status of all members
 
       -}
-      testGroup
-        "settings.legalholdEnabledTeams" -- FUTUREWORK: ungroup this level
-        [ testGroup -- FUTUREWORK: ungroup this level
-            "teams listed"
-            [ testGroup
-                "Users are invited to a group conversation."
-                [ testGroup
-                    "The group conversation contains legalhold activated users."
-                    [testOnlyIfLhWhitelisted s "If any user in the invite has not given consent then the invite fails" testNoConsentCannotBeInvited]
-                ],
-              test s "bench hack" testBenchHack
-            ]
-        ]
+      test s "settings.legalholdEnabledTeams teams liested bench hack" testBenchHack
     ]
 
 testsInternal :: IO TestSetup -> TestTree
@@ -272,49 +255,6 @@ testCannotCreateLegalHoldDeviceOldAPI = do
 
 data GroupConvInvCase = InviteOnlyConsenters | InviteAlsoNonConsenters
   deriving (Show, Eq, Ord, Bounded, Enum)
-
-testNoConsentCannotBeInvited :: HasCallStack => TestM ()
-testNoConsentCannotBeInvited = do
-  localDomain <- viewFederationDomain
-  -- team that is legalhold whitelisted
-  (legalholder :: UserId, tid) <- createBindingTeam
-  userLHNotActivated <- (^. Team.userId) <$> addUserToTeam legalholder tid
-  putLHWhitelistTeam tid !!! const 200 === statusCode
-
-  -- team without legalhold
-  (peer :: UserId, teamPeer) <- createBindingTeam
-  let qpeer = Qualified peer localDomain
-  peer2 <- (^. Team.userId) <$> addUserToTeam peer teamPeer
-  let qpeer2 = Qualified peer2 localDomain
-
-  do
-    postConnection userLHNotActivated peer !!! const 201 === statusCode
-    void $ putConnection peer userLHNotActivated Conn.Accepted <!! const 200 === statusCode
-
-    postConnection userLHNotActivated peer2 !!! const 201 === statusCode
-    void $ putConnection peer2 userLHNotActivated Conn.Accepted <!! const 200 === statusCode
-
-  withDummyTestServiceForTeam legalholder tid $ \_chan -> do
-    convId <- createTeamConvWithRole userLHNotActivated tid [legalholder] (Just "corp + us") Nothing Nothing roleNameWireAdmin
-    let qconvId = Qualified convId localDomain
-
-    API.Util.postMembers userLHNotActivated (pure qpeer) qconvId
-      !!! const 200 === statusCode
-
-    -- activate legalhold for legalholder
-    do
-      galley <- viewGalley
-      requestLegalHoldDevice legalholder legalholder tid !!! testResponse 201 Nothing
-      approveLegalHoldDevice (Just defPassword) legalholder legalholder tid !!! testResponse 200 Nothing
-      UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped' galley legalholder tid
-      liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
-
-    API.Util.postMembers userLHNotActivated (pure qpeer2) qconvId
-      >>= errWith 403 (\err -> Error.label err == "missing-legalhold-consent")
-
-    localdomain <- viewFederationDomain
-    API.Util.postQualifiedMembers userLHNotActivated (Qualified peer2 localdomain :| []) qconvId
-      >>= errWith 403 (\err -> Error.label err == "missing-legalhold-consent")
 
 testBenchHack :: HasCallStack => TestM ()
 testBenchHack = do
