@@ -23,9 +23,10 @@ import API.Common
 import API.Galley
 import API.GalleyInternal
 import Control.Error (MaybeT (MaybeT), runMaybeT)
-import Control.Lens ((.~), (^?!))
+import Control.Lens ((.~), (^?), (^?!))
 import Control.Monad.Reader (asks, local)
 import Control.Monad.Trans.Class (lift)
+import Data.Aeson.Lens
 import qualified Data.ByteString.Char8 as BS8
 import Data.ByteString.Lazy (LazyByteString)
 import qualified Data.Map as Map
@@ -107,8 +108,8 @@ testLHMessageExchange (TaggedBool clients1New) (TaggedBool clients2New) = do
           if allnew
             then def {acapabilities = Just ["legalhold-implicit-consent"]} -- (is should be the default)
             else def {acapabilities = Nothing}
-    client1 <- objId $ addClient (mem1 %. "qualified_id") (clientSettings clients1New) >>= getJSON 201
-    _client2 <- objId $ addClient (mem2 %. "qualified_id") (clientSettings clients2New) >>= getJSON 201
+    void $ addClient (mem1 %. "qualified_id") (clientSettings clients1New) >>= getJSON 201
+    void $ addClient (mem2 %. "qualified_id") (clientSettings clients2New) >>= getJSON 201
 
     legalholdWhitelistTeam tid owner >>= assertSuccess
     legalholdIsTeamInWhitelist tid owner >>= assertSuccess
@@ -116,28 +117,33 @@ testLHMessageExchange (TaggedBool clients1New) (TaggedBool clients2New) = do
 
     conv <- postConversation mem1 (defProteus {qualifiedUsers = [mem2], team = Just tid}) >>= getJSON 201
 
-    let getClientIds :: Value -> App [String]
-        getClientIds mem = do
+    let getClients :: Value -> App [Value]
+        getClients mem = do
           res <- getClientsQualified mem OwnDomain mem
           val <- getJSON 200 res
-          cls <- asList val
-          mapM objId cls
+          asList val
 
         assertMessageSendingWorks :: HasCallStack => App ()
         assertMessageSendingWorks = do
-          clients1 <- getClientIds mem1
-          clients2 <- getClientIds mem2
+          clients1 <- getClients mem1
+          clients2 <- getClients mem2
 
-          proteusRecipients <- mkProteusRecipients mem1 [(mem1, clients1), (mem2, clients2)] "hey there"
+          clientIds1 <- traverse objId clients1
+          clientIds2 <- traverse objId clients2
 
-          let proteusMsg =
+          proteusRecipients <- mkProteusRecipients mem1 [(mem1, clientIds1), (mem2, clientIds2)] "hey there"
+
+          let proteusMsg senderClient =
                 Proto.defMessage @Proto.QualifiedNewOtrMessage
-                  & #sender . Proto.client .~ (client1 ^?! hex)
+                  & #sender . Proto.client .~ (senderClient ^?! hex)
                   & #recipients .~ [proteusRecipients]
                   & #reportAll .~ Proto.defMessage
 
-          postProteusMessage mem1 (conv %. "qualified_id") proteusMsg >>= assertSuccess
-          postProteusMessage mem2 (conv %. "qualified_id") proteusMsg >>= assertSuccess
+              sender clients =
+                let senderClient = head $ filter (\c -> c ^? key (fromString "type") /= Just (toJSON "legalhold")) clients
+                 in T.unpack . fromJust $ senderClient ^? key (fromString "id") . _String
+          postProteusMessage mem1 (conv %. "qualified_id") (proteusMsg (sender clients1)) >>= assertSuccess
+          postProteusMessage mem2 (conv %. "qualified_id") (proteusMsg (sender clients2)) >>= assertSuccess
 
     assertMessageSendingWorks
 
@@ -148,11 +154,11 @@ testLHMessageExchange (TaggedBool clients1New) (TaggedBool clients2New) = do
     assertMessageSendingWorks
 
     approveLegalHoldDevice tid (mem1 %. "qualified_id") defPassword >>= assertSuccess
-    fmap length (getClientIds mem1) `shouldMatchInt` 2
+    fmap length (getClients mem1) `shouldMatchInt` 2
     assertMessageSendingWorks
 
     approveLegalHoldDevice tid (mem2 %. "qualified_id") defPassword >>= assertSuccess
-    fmap length (getClientIds mem2) `shouldMatchInt` 2
+    fmap length (getClients mem2) `shouldMatchInt` 2
     assertMessageSendingWorks
 
 data TestClaimKeys
