@@ -631,19 +631,19 @@ changeLegalholdStatusAndHandlePolicyConflicts tid luid old new = do
     UserLegalHoldEnabled -> case new of
       UserLegalHoldEnabled -> noop
       UserLegalHoldPending -> illegal
-      UserLegalHoldDisabled -> update >> removeblocks
+      UserLegalHoldDisabled -> update >> removeBlocks
       UserLegalHoldNoConsent -> illegal
     --
     UserLegalHoldPending -> case new of
-      UserLegalHoldEnabled -> addblocks >> update
+      UserLegalHoldEnabled -> addBlocks >> update
       UserLegalHoldPending -> noop
-      UserLegalHoldDisabled -> update >> removeblocks
+      UserLegalHoldDisabled -> update >> removeBlocks
       UserLegalHoldNoConsent -> illegal
     --
     UserLegalHoldDisabled -> case new of
       UserLegalHoldEnabled -> illegal
       UserLegalHoldPending -> update
-      UserLegalHoldDisabled -> {- in case the last attempt crashed -} removeblocks
+      UserLegalHoldDisabled -> {- in case the last attempt crashed -} removeBlocks
       UserLegalHoldNoConsent -> {- withdrawing consent is not (yet?) implemented -} illegal
     --
     UserLegalHoldNoConsent -> case new of
@@ -653,8 +653,8 @@ changeLegalholdStatusAndHandlePolicyConflicts tid luid old new = do
       UserLegalHoldNoConsent -> noop
   where
     update = LegalHoldData.setUserLegalHoldStatus tid (tUnqualified luid) new
-    removeblocks = void $ putConnectionInternal (RemoveLHBlocksInvolving (tUnqualified luid))
-    addblocks = do
+    removeBlocks = void $ putConnectionInternal (RemoveLHBlocksInvolving (tUnqualified luid))
+    addBlocks = do
       blockNonConsentingConnections (tUnqualified luid)
       handleGroupConvPolicyConflicts luid new
     noop = pure ()
