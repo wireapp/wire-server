@@ -24,6 +24,7 @@ module Federator.ExternalServer
   )
 where
 
+import Control.Lens ((^.))
 import Control.Monad.Codensity
 import Data.Bifunctor
 import Data.ByteString qualified as BS
@@ -52,7 +53,7 @@ import Imports
 import Network.HTTP.Client (Manager)
 import Network.HTTP.Types qualified as HTTP
 import Network.Wai qualified as Wai
-import Network.Wai.Utilities.Server (federationRequestIdHeaderName)
+import Network.Wai.Utilities.Server (federationRequestIdHeaderName, requestIdMiddleware)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -194,19 +195,9 @@ callInward component (RPC rpc) rid originDomain (CertHeader cert) wreq = do
 serveInward :: Env -> Int -> IO ()
 serveInward env = do
   let middleware =
-        requestIdMiddleware
-          . Metrics.servantPrometheusMiddleware (Proxy :: Proxy (ToServantApi API))
+        Metrics.servantPrometheusMiddleware (Proxy :: Proxy (ToServantApi API))
+          . requestIdMiddleware (env ^. applog) federationRequestIdHeaderName
   serveServant
     middleware
     (server env._httpManager env._internalPort $ runFederator env)
     env
-
--- TODO(md): reuse the version from the wai-utilities library
-requestIdMiddleware :: Wai.Middleware
-requestIdMiddleware origApp req responder =
-  case lookup federationRequestIdHeaderName req.requestHeaders of
-    Just _ -> origApp req responder
-    Nothing -> do
-      reqId <- Text.encodeUtf8 . UUID.toText <$> UUID.nextRandom
-      let reqWithId = req {Wai.requestHeaders = (federationRequestIdHeaderName, reqId) : req.requestHeaders}
-      origApp reqWithId responder
