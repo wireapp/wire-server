@@ -21,6 +21,7 @@ where
 
 import Data.Default (Default (def))
 import Data.Domain
+import Data.Handle (Handle)
 import Data.Id
 import Data.LanguageCodes (ISO639_1 (EN))
 import Data.LegalHold (defUserLegalHoldStatus)
@@ -367,9 +368,16 @@ staticUserStoreInterpreter = interpret $ \case
               . maybe Imports.id setStoredUserName update.name
               $ u
       doUpdate u = pure u
-  -- TODO
-  LookupHandle {} -> pure Nothing
-  GlimpseHandle {} -> pure Nothing
+  LookupHandle h -> miniBackendLookupHandle h
+  GlimpseHandle h -> miniBackendLookupHandle h
+
+miniBackendLookupHandle ::
+  Member (State MiniBackend) r =>
+  Handle ->
+  Sem r (Maybe UserId)
+miniBackendLookupHandle h = do
+  users <- gets (.users)
+  pure $ fmap (.id) . listToMaybe $ filter ((== Just h) . (.handle)) users
 
 -- | interprets galley by statically returning the values passed
 miniGalleyAPIAccess ::
