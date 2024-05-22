@@ -197,9 +197,14 @@ data TestClaimKeys
   | TCKConsentAndNewClients
   deriving (Show, Generic)
 
+data LHApprovedOrPending
+  = LHApproved
+  | LHPending
+  deriving (Show, Generic)
+
 -- | Cannot fetch prekeys of LH users if requester has not given consent or has old clients.
-testLHClaimKeys :: TestClaimKeys -> App ()
-testLHClaimKeys testmode = do
+testLHClaimKeys :: LHApprovedOrPending -> TestClaimKeys -> App ()
+testLHClaimKeys approvedOrPending testmode = do
   withMockServer lhMockApp $ \lhDomAndPort _chan -> do
     (lowner, ltid, [lmem]) <- createTeam OwnDomain 2
     (powner, ptid, [pmem]) <- createTeam OwnDomain 2
@@ -209,7 +214,9 @@ testLHClaimKeys testmode = do
     postLegalHoldSettings ltid lowner (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
 
     requestLegalHoldDevice ltid lowner lmem >>= assertSuccess
-    -- approveLegalHoldDevice ltid (lmem %. "qualified_id") defPassword >>= assertSuccess -- TODO: this test should pass both with and without this line!
+    case approvedOrPending of
+      LHApproved -> approveLegalHoldDevice ltid (lmem %. "qualified_id") defPassword >>= assertSuccess
+      LHPending -> pure ()
 
     let addc caps = addClient pmem (settings caps) >>= assertSuccess
         settings caps =
@@ -243,13 +250,20 @@ testLHClaimKeys testmode = do
           (TCKConsentAndNewClients, (_ : _)) -> do
             resp.status `shouldMatchInt` 200
           (_, []) -> do
+            -- no lh devices: no reason to be shy!
             resp.status `shouldMatchInt` 200
 
-    case llhdevs of
-      [llhdev] -> bindResponse (getUsersPrekeysClient pmem (lmem %. "qualified_id") llhdev) assertResp
-      [] -> pure ()
-      bad@(_ : _ : _) -> assertFailure ("impossible -- more than one LH device: " <> show bad)
     bindResponse (getUsersPrekeyBundle pmem (lmem %. "qualified_id")) assertResp
+    case llhdevs of
+      [llhdev] ->
+        -- retrieve lh client if /a
+        bindResponse (getUsersPrekeysClient pmem (lmem %. "qualified_id") llhdev) assertResp
+      [] ->
+        -- we're probably doing the LHPending thing right now
+        pure ()
+      bad@(_ : _ : _) ->
+        -- fail if there is more than one.
+        assertFailure ("impossible -- more than one LH device: " <> show bad)
 
     slmemdom <- asString $ lmem %. "qualified_id.domain"
     slmemid <- asString $ lmem %. "qualified_id.id"
@@ -777,8 +791,8 @@ data GroupConvAdmin
 -- As to who gets to stay:
 -- - admins will stay over members
 -- - local members will stay over remote members.
-testLHNoConsentRemoveFromGroup :: GroupConvAdmin -> App ()
-testLHNoConsentRemoveFromGroup admin = do
+testLHNoConsentRemoveFromGroup :: LHApprovedOrPending -> GroupConvAdmin -> App ()
+testLHNoConsentRemoveFromGroup approvedOrPending admin = do
   (alice, tidAlice, []) <- createTeam OwnDomain 1
   (bob, tidBob, []) <- createTeam OwnDomain 1
   legalholdWhitelistTeam tidAlice alice >>= assertStatus 200
@@ -807,24 +821,35 @@ testLHNoConsentRemoveFromGroup admin = do
         getConversation user qConvId >>= assertStatus 200
 
       requestLegalHoldDevice tidAlice alice alice >>= assertStatus 201
-      -- approveLegalHoldDevice tidAlice alice defPassword >>= assertStatus 200 -- TODO: this test should pass both with and without this line!
+      case approvedOrPending of
+        LHApproved -> approveLegalHoldDevice tidAlice alice defPassword >>= assertStatus 200
+        LHPending -> pure ()
+
       legalholdUserStatus tidAlice alice alice `bindResponse` \resp -> do
-        resp.json %. "status" `shouldMatch` "pending"
         resp.status `shouldMatchInt` 200
+        resp.json %. "status" `shouldMatch` case approvedOrPending of
+          LHApproved -> "enabled"
+          LHPending -> "pending"
 
       case admin of
         LegalholderIsAdmin -> do
           for_ [aws, bws] do awaitMatch (isConvLeaveNotifWithLeaver bob)
           getConversation alice qConvId >>= assertStatus 200
-          getConversation bob qConvId >>= assertStatus 200 -- assertLabel 403 "access-denied"
+          getConversation bob qConvId >>= case approvedOrPending of
+            LHApproved -> assertLabel 403 "access-denied"
+            LHPending -> assertStatus 200
         PeerIsAdmin -> do
           for_ [aws, bws] do awaitMatch (isConvLeaveNotifWithLeaver alice)
           getConversation bob qConvId >>= assertStatus 200
-          getConversation alice qConvId >>= assertStatus 200 -- assertLabel 403 "access-denied"
+          getConversation alice qConvId >>= case approvedOrPending of
+            LHApproved -> assertLabel 403 "access-denied"
+            LHPending -> assertStatus 200
         BothAreAdmins -> do
           for_ [aws, bws] do awaitMatch (isConvLeaveNotifWithLeaver bob)
           getConversation alice qConvId >>= assertStatus 200
-          getConversation bob qConvId >>= assertStatus 200 -- assertLabel 403 "access-denied"
+          getConversation bob qConvId >>= case approvedOrPending of
+            LHApproved -> assertLabel 403 "access-denied"
+            LHPending -> assertStatus 200
 
 testLHHappyFlow :: App ()
 testLHHappyFlow = do
