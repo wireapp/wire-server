@@ -96,8 +96,8 @@ testLHMessageExchange ::
   TaggedBool "clients2New" ->
   App ()
 testLHMessageExchange (TaggedBool clients1New) (TaggedBool clients2New) = do
-  -- We don't throw LegalholdConflictsOldClients if clients didn't have LH capability, but we
-  -- don't any more because that broke things.
+  -- We used to throw LegalholdConflictsOldClients if clients didn't have LH capability, but we
+  -- don't do that any more because that broke things.
   -- Related: https://github.com/wireapp/wire-server/pull/4056
   withMockServer lhMockApp $ \lhDomAndPort _chan -> do
     (owner, tid, [mem1, mem2]) <- createTeam OwnDomain 3
