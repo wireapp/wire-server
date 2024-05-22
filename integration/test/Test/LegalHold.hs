@@ -94,10 +94,11 @@ testLHMessageExchange ::
   HasCallStack =>
   TaggedBool "clients1New" ->
   TaggedBool "clients2New" ->
-  TaggedBool "consentFrom1" ->
-  TaggedBool "consentFrom2" ->
   App ()
-testLHMessageExchange (TaggedBool clients1New) (TaggedBool clients2New) (TaggedBool approvalFrom1) (TaggedBool approvalFrom2) = do
+testLHMessageExchange (TaggedBool clients1New) (TaggedBool clients2New) = do
+  -- We don't throw LegalholdConflictsOldClients if clients didn't have LH capability, but we
+  -- don't any more because that broke things.
+  -- Related: https://github.com/wireapp/wire-server/pull/4056
   withMockServer lhMockApp $ \lhDomAndPort _chan -> do
     (owner, tid, [mem1, mem2]) <- createTeam OwnDomain 3
 
@@ -115,81 +116,44 @@ testLHMessageExchange (TaggedBool clients1New) (TaggedBool clients2New) (TaggedB
 
     conv <- postConversation mem1 (defProteus {qualifiedUsers = [mem2], team = Just tid}) >>= getJSON 201
 
-    requestLegalHoldDevice tid owner mem1 >>= assertSuccess
-    requestLegalHoldDevice tid owner mem2 >>= assertSuccess
-    when approvalFrom1 $ do
-      approveLegalHoldDevice tid (mem1 %. "qualified_id") defPassword >>= assertSuccess
-    when approvalFrom2 $ do
-      approveLegalHoldDevice tid (mem2 %. "qualified_id") defPassword >>= assertSuccess
-
-    let getCls :: Value -> App [String]
-        getCls mem = do
+    let getClientIds :: Value -> App [String]
+        getClientIds mem = do
           res <- getClientsQualified mem OwnDomain mem
           val <- getJSON 200 res
           cls <- asList val
-          objId `mapM` cls
-    cs1 :: [String] <- getCls mem1 -- it's ok to include the sender, backend will filter it out.
-    cs2 :: [String] <- getCls mem2
+          mapM objId cls
 
-    length cs1 `shouldMatchInt` if approvalFrom1 then 2 else 1
-    length cs2 `shouldMatchInt` if approvalFrom2 then 2 else 1
+        assertMessageSendingWorks :: HasCallStack => App ()
+        assertMessageSendingWorks = do
+          clients1 <- getClientIds mem1
+          clients2 <- getClientIds mem2
 
-    do
-      successfulMsgForOtherUsers <- mkProteusRecipients mem1 [(mem1, cs1), (mem2, cs2)] "hey there"
-      let successfulMsg =
-            Proto.defMessage @Proto.QualifiedNewOtrMessage
-              & #sender . Proto.client .~ (client1 ^?! hex)
-              & #recipients .~ [successfulMsgForOtherUsers]
-              & #reportAll .~ Proto.defMessage
-      bindResponse (postProteusMessage mem1 (conv %. "qualified_id") successfulMsg) $ \resp -> do
-        let check :: HasCallStack => Int -> Maybe String -> App ()
-            check status Nothing = do
-              resp.status `shouldMatchInt` status
-            check status (Just label) = do
-              resp.status `shouldMatchInt` status
-              resp.json %. "label" `shouldMatch` label
+          proteusRecipients <- mkProteusRecipients mem1 [(mem1, clients1), (mem2, clients2)] "hey there"
 
-        let -- there are two equally valid ways to write this down (feel free to remove one if it gets in your way):
-            _oneWay = case (clients1New, clients2New, approvalFrom1, approvalFrom2) of
-              (_, _, False, False) ->
-                -- no LH in the picture
-                check 201 Nothing
-              (True, True, _, _) ->
-                if approvalFrom1 /= approvalFrom2
-                  then -- no old clients, but users disagree on LH
-                    check 403 (Just "missing-legalhold-consent")
-                  else -- everybody likes LH
-                    check 201 Nothing
-              _ ->
-                -- everything else
-                check 403 (Just "missing-legalhold-consent-old-clients")
+          let proteusMsg =
+                Proto.defMessage @Proto.QualifiedNewOtrMessage
+                  & #sender . Proto.client .~ (client1 ^?! hex)
+                  & #recipients .~ [proteusRecipients]
+                  & #reportAll .~ Proto.defMessage
 
-            theOtherWay = case (clients1New, clients2New, approvalFrom1, approvalFrom2) of
-              (False, False, False, False) ->
-                -- no LH in the picture
-                check 201 Nothing
-              (False, True, False, False) ->
-                -- no LH in the picture
-                check 201 Nothing
-              (True, False, False, False) ->
-                -- no LH in the picture
-                check 201 Nothing
-              (True, True, False, False) ->
-                -- no LH in the picture
-                check 201 Nothing
-              (True, True, False, True) ->
-                -- all clients new, no approval from sender, recipient has LH device
-                check 403 (Just "missing-legalhold-consent")
-              (True, True, True, False) ->
-                -- all clients new, no approval from recipient, sender has LH device
-                check 403 (Just "missing-legalhold-consent")
-              (True, True, True, True) ->
-                -- everybody happy with LH
-                check 201 Nothing
-              _ -> pure ()
+          postProteusMessage mem1 (conv %. "qualified_id") proteusMsg >>= assertSuccess
+          postProteusMessage mem2 (conv %. "qualified_id") proteusMsg >>= assertSuccess
 
-        -- _oneWay -- run this if you want to make sure both ways are equivalent, but please don't commit!
-        theOtherWay
+    assertMessageSendingWorks
+
+    requestLegalHoldDevice tid owner mem1 >>= assertSuccess
+    assertMessageSendingWorks
+
+    requestLegalHoldDevice tid owner mem2 >>= assertSuccess
+    assertMessageSendingWorks
+
+    approveLegalHoldDevice tid (mem1 %. "qualified_id") defPassword >>= assertSuccess
+    fmap length (getClientIds mem1) `shouldMatchInt` 2
+    assertMessageSendingWorks
+
+    approveLegalHoldDevice tid (mem2 %. "qualified_id") defPassword >>= assertSuccess
+    fmap length (getClientIds mem2) `shouldMatchInt` 2
+    assertMessageSendingWorks
 
 data TestClaimKeys
   = TCKConsentMissing -- (team not whitelisted, that is)
