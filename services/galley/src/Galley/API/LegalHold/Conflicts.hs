@@ -107,7 +107,6 @@ guardLegalholdPolicyConflictsUid ::
   forall r.
   ( Member BrigAccess r,
     Member (Error LegalholdConflicts) r,
-    Member (Error LegalholdConflictsOldClients) r,
     Member TeamStore r,
     Member P.TinyLog r
   ) =>
@@ -127,15 +126,6 @@ guardLegalholdPolicyConflictsUid self (Map.keys . userClients -> otherUids) = do
 
       anyClientHasLH :: Bool
       anyClientHasLH = Client.LegalHoldClientType `elem` (Client.clientType <$> allClientsMetadata)
-
-      anyClientIsOld :: Bool
-      anyClientIsOld = any isOld allClientsMetadata
-        where
-          isOld :: Client.Client -> Bool
-          isOld =
-            (Client.ClientSupportsLegalholdImplicitConsent `Set.notMember`)
-              . Client.fromClientCapabilityList
-              . Client.clientCapabilities
 
       checkAnyConsentMissing :: Sem r Bool
       checkAnyConsentMissing = do
@@ -161,22 +151,12 @@ guardLegalholdPolicyConflictsUid self (Map.keys . userClients -> otherUids) = do
     Log.field "self" (toByteString' self)
       Log.~~ Log.field "allClients" (toByteString' $ show allClients)
       Log.~~ Log.field "allClientsMetadata" (toByteString' $ show allClientsMetadata)
-      Log.~~ Log.field "anyClientIsOld" (toByteString' anyClientIsOld)
       Log.~~ Log.field "anyClientHasLH" (toByteString' anyClientHasLH)
       Log.~~ Log.msg ("guardLegalholdPolicyConflicts[1]" :: Text)
 
   -- when no other client is under LH, then we're good and can leave this function.  but...
   when anyClientHasLH $ do
     P.debug $ Log.msg ("guardLegalholdPolicyConflicts[5]: anyClientHasLH" :: Text)
-    if anyClientIsOld && False -- https://wearezeta.atlassian.net/browse/WPB-6392
-      then do
-        -- you can't effectively give consent as long as you have old clients: when using the
-        -- old clients, you still would not be exposed to the popups and red dot where
-        -- required.
-        P.debug $ Log.msg ("guardLegalholdPolicyConflicts[2]: anyClientIsOld" :: Text)
-        throw LegalholdConflictsOldClients
-      else do
-        P.debug $ Log.msg ("guardLegalholdPolicyConflicts[3]: checkConsentMissing?" :: Text)
-        whenM checkAnyConsentMissing $ do
-          P.debug $ Log.msg ("guardLegalholdPolicyConflicts[4]: checkConsentMissing!" :: Text)
-          throw LegalholdConflicts
+    whenM checkAnyConsentMissing $ do
+      P.debug $ Log.msg ("guardLegalholdPolicyConflicts[4]: checkConsentMissing!" :: Text)
+      throw LegalholdConflicts
