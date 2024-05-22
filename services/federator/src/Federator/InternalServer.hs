@@ -27,9 +27,6 @@ import Data.Domain
 import Data.Id
 import Data.Metrics.Servant qualified as Metrics
 import Data.Proxy
-import Data.Text.Encoding qualified as T
-import Data.UUID as UUID
-import Data.UUID.V4 as UUID
 import Federator.Env
 import Federator.Error.ServerError
 import Federator.Health qualified as Health
@@ -42,6 +39,7 @@ import Imports
 import Network.HTTP.Client (Manager)
 import Network.HTTP.Types qualified as HTTP
 import Network.Wai qualified as Wai
+import Network.Wai.Utilities.Server
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -67,7 +65,7 @@ data API mode = API
     internalRequest ::
       mode
         :- "rpc"
-          :> Header "Wire-Origin-Request-Id" RequestId
+          :> Header' '[Required, Strict] "Wire-Origin-Request-Id" RequestId
           :> Capture "domain" Domain
           :> Capture "component" Component
           :> Capture "rpc" RPC
@@ -95,10 +93,10 @@ server ::
 server mgr extPort interpreter =
   API
     { status = Health.status mgr "external server" extPort,
-      internalRequest = \mReqId remoteDomain component rpc ->
+      internalRequest = \rid remoteDomain component rpc ->
         Tagged $ \req respond -> do
           -- TODO: Log generated request ID
-          rid <- maybe (RequestId . T.encodeUtf8 . UUID.toText <$> UUID.nextRandom) pure mReqId
+          -- rid <- maybe (RequestId . T.encodeUtf8 . UUID.toText <$> UUID.nextRandom) pure mReqId
           -- rid <- case
           -- rid <- case mReqId of
           --   Just r -> pure r
@@ -156,8 +154,12 @@ callOutward rid targetDomain component (RPC path) req = do
   pure $ streamingResponseToWai resp
 
 serveOutward :: Env -> Int -> IO ()
-serveOutward env =
+serveOutward env = do
+  let middleware =
+        -- TODO: extract constant
+        requestIdMiddleware env._applog federationRequestIdHeaderName
+          . Metrics.servantPrometheusMiddleware (Proxy :: Proxy (ToServantApi API))
   serveServant
-    (Metrics.servantPrometheusMiddleware $ Proxy @(ToServantApi API))
+    middleware
     (server env._httpManager env._externalPort $ runFederator env)
     env

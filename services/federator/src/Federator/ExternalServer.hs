@@ -90,7 +90,7 @@ data API mode = API
         :- "federation"
           :> Capture "component" Component
           :> Capture "rpc" RPC
-          :> Header "Wire-Origin-Request-Id" RequestId
+          :> Header' '[Required, Strict] "Wire-Origin-Request-Id" RequestId
           :> Header' '[Required, Strict] OriginDomainHeaderName Domain
           :> Header' '[Required, Strict] "X-SSL-Certificate" CertHeader
           :> Endpath
@@ -119,10 +119,10 @@ server ::
 server mgr intPort interpreter =
   API
     { status = Health.status mgr "internal server" intPort,
-      externalRequest = \component rpc mReqId remoteDomain remoteCert ->
+      externalRequest = \component rpc rid remoteDomain remoteCert ->
         Tagged $ \req respond -> do
           -- TODO: Log generated request ID
-          rid <- maybe (RequestId . Text.encodeUtf8 . UUID.toText <$> UUID.nextRandom) pure mReqId
+          -- rid <- maybe (RequestId . Text.encodeUtf8 . UUID.toText <$> UUID.nextRandom) pure mReqId
           runCodensity (interpreter rid (callInward component rpc rid remoteDomain remoteCert req)) respond
     }
 
@@ -193,8 +193,21 @@ callInward component (RPC rpc) rid originDomain (CertHeader cert) wreq = do
         }
 
 serveInward :: Env -> Int -> IO ()
-serveInward env =
+serveInward env = do
+  let middleware =
+        requestIdMiddleware
+          . Metrics.servantPrometheusMiddleware (Proxy :: Proxy (ToServantApi API))
   serveServant
-    (Metrics.servantPrometheusMiddleware $ Proxy @(ToServantApi API))
+    middleware
     (server env._httpManager env._internalPort $ runFederator env)
     env
+
+requestIdMiddleware :: Wai.Middleware
+requestIdMiddleware origApp req responder =
+  -- TODO: extract constant
+  case lookup "Wire-Origin-Request-Id" req.requestHeaders of
+    Just _ -> origApp req responder
+    Nothing -> do
+      reqId <- Text.encodeUtf8 . UUID.toText <$> UUID.nextRandom
+      let reqWithId = req {Wai.requestHeaders = ("Wire-Origin-Request-Id", reqId) : req.requestHeaders}
+      origApp reqWithId responder

@@ -61,6 +61,7 @@ import Data.Text.Lazy.Encoding
 import Data.Time
 import Imports
 import Network.Wai.Utilities.Request
+import Network.Wai.Utilities.Server (defaultRequestIdHeaderName)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -116,7 +117,7 @@ import qualified Wire.Sem.Random as Random
 
 app :: Env -> Application
 app ctx0 req cont = do
-  rid <- getRequestId (ctx0.sparCtxLogger) req
+  let rid = getRequestId defaultRequestIdHeaderName req
   let ctx = ctx0 {sparCtxRequestId = rid}
   SAML.setHttpCachePolicy
     ( serve

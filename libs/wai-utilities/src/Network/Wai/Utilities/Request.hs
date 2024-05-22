@@ -29,10 +29,8 @@ import Data.ByteString qualified as B
 import Data.ByteString.Lazy qualified as Lazy
 import Data.Id
 import Data.Text.Lazy qualified as Text
-import Data.UUID qualified as UUID
-import Data.UUID.V4 as UUID
 import Imports
-import Network.HTTP.Types.Status (status400)
+import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate
 import Network.Wai.Predicate.Request
@@ -40,8 +38,6 @@ import Network.Wai.Utilities.Error qualified as Wai
 import Network.Wai.Utilities.ZAuth ((.&>))
 import Pipes
 import Pipes.Prelude qualified as P
-import System.Logger ((.=), (~~))
-import System.Logger qualified as Log
 
 readBody :: (MonadIO m, HasRequest r) => r -> m LByteString
 readBody r = liftIO $ Lazy.fromChunks <$> P.toListM chunks
@@ -73,22 +69,13 @@ parseOptionalBody r =
     nonEmptyBody "" = Nothing
     nonEmptyBody ne = Just ne
 
-lookupRequestId :: HasRequest r => r -> Maybe ByteString
-lookupRequestId = lookup "Request-Id" . requestHeaders . getRequest
+lookupRequestId :: HeaderName -> Request -> Maybe ByteString
+lookupRequestId reqIdHeaderName =
+  lookup reqIdHeaderName . requestHeaders
 
--- | Like 'lookupRequestId' it looks up the request ID in the request's headers.
--- In case there is no such header, a fresh ID is returned.
-getRequestId :: (HasRequest r, Show r) => Log.Logger -> r -> IO RequestId
-getRequestId logger req = case lookupRequestId req of
-  Just rid -> pure (RequestId rid)
-  Nothing -> do
-    localRid <- RequestId . UUID.toASCIIBytes <$> UUID.nextRandom
-    unless (rawPathInfo (getRequest req) `elem` ["/i/status", "/i/metrics"]) $
-      Log.info logger $
-        "request-id" .= localRid
-          ~~ "request" .= (show req)
-          ~~ Log.msg (Log.val "generated a new request id for local request")
-    pure localRid
+getRequestId :: HeaderName -> Request -> RequestId
+getRequestId reqIdHeaderName req =
+  RequestId $ fromMaybe "N/A" $ lookupRequestId reqIdHeaderName req
 
 ----------------------------------------------------------------------------
 -- Typed JSON 'Request'

@@ -80,11 +80,12 @@ mkApp o = Codensity $ \k ->
       versionMiddleware (foldMap expandVersionExp (o ^. settings . disabledAPIVersions))
         . servantPrometheusMiddleware (Proxy @CombinedAPI)
         . GZip.gzip GZip.def
-        . catchErrors (e ^. appLogger) [Right $ e ^. metrics]
+        . catchErrors (e ^. appLogger) defaultRequestIdHeaderName [Right $ e ^. metrics]
+        . requestIdMiddleware (e ^. appLogger) defaultRequestIdHeaderName
     servantApp :: Env -> Application
     servantApp e0 r cont = do
-      rid <- getRequestId (e0 ^. appLogger) r
-      let e = requestId .~ rid $ e0
+      let rid = getRequestId defaultRequestIdHeaderName r
+          e = requestId .~ rid $ e0
       Servant.serveWithContext
         (Proxy @CombinedAPI)
         ((o ^. settings . federationDomain) :. Servant.EmptyContext)

@@ -45,5 +45,6 @@ run o = do
         versionMiddleware (foldMap expandVersionExp (o ^. disabledAPIVersions))
           . waiPrometheusMiddleware (sitemap e)
           . GZip.gunzip
-          . catchErrors (e ^. applog) [Right m]
+          . catchErrors (e ^. applog) defaultRequestIdHeaderName [Right m]
+          . requestIdMiddleware (e ^. applog) defaultRequestIdHeaderName
   runSettingsWithShutdown s (middleware app) Nothing `finally` destroyEnv e

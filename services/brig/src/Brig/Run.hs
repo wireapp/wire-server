@@ -122,12 +122,13 @@ mkApp o = do
         . Metrics.servantPrometheusMiddleware (Proxy @ServantCombinedAPI)
         . GZip.gunzip
         . GZip.gzip GZip.def
-        . catchErrors (e ^. applog) [Right $ e ^. metrics]
+        . catchErrors (e ^. applog) defaultRequestIdHeaderName [Right $ e ^. metrics]
+        . requestIdMiddleware (e ^. applog) defaultRequestIdHeaderName
 
     -- the servant API wraps the one defined using wai-routing
     servantApp :: Env -> Wai.Application
     servantApp e0 req cont = do
-      rid <- getRequestId (e0 ^. applog) req
+      let rid = getRequestId defaultRequestIdHeaderName req
       let e = requestId .~ rid $ e0
       let localDomain = view (settings . federationDomain) e
       Servant.serveWithContext

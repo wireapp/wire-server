@@ -30,6 +30,7 @@ module Network.Wai.Utilities.Server
     route,
 
     -- * Middlewares
+    requestIdMiddleware,
     catchErrors,
     catchErrorsWithRequestId,
     OnErrorMetrics,
@@ -42,10 +43,13 @@ module Network.Wai.Utilities.Server
     logError,
     logError',
     logErrorMsg,
-    logIO,
     runHandlers,
     restrict,
     flushRequestBody,
+
+    -- * Constants
+    defaultRequestIdHeaderName,
+    federationRequestIdHeaderName,
   )
 where
 
@@ -62,18 +66,20 @@ import Data.Domain (domainText)
 import Data.Metrics.GC (spawnGCMetricsCollector)
 import Data.Metrics.Middleware
 import Data.Streaming.Zlib (ZlibException (..))
+import Data.Text.Encoding qualified as Text
 import Data.Text.Encoding.Error (lenientDecode)
 import Data.Text.Lazy qualified as LT
 import Data.Text.Lazy.Encoding qualified as LT
+import Data.UUID qualified as UUID
+import Data.UUID.V4 qualified as UUID
 import Imports
-import Network.HTTP.Types.Status
+import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Handler.Warp
 import Network.Wai.Handler.Warp.Internal (TimeoutThread)
 import Network.Wai.Internal qualified as WaiInt
 import Network.Wai.Predicate hiding (Error, err, status)
 import Network.Wai.Predicate qualified as P
-import Network.Wai.Predicate.Request (HasRequest)
 import Network.Wai.Routing.Route (App, Continue, Routes, Tree)
 import Network.Wai.Routing.Route qualified as Route
 import Network.Wai.Utilities.Error qualified as Error
@@ -185,8 +191,22 @@ route rt rq k = Route.routeWith (Route.Config $ errorRs' noEndpoint) rt rq (lift
 --------------------------------------------------------------------------------
 -- Middlewares
 
-catchErrors :: Logger -> OnErrorMetrics -> Middleware
-catchErrors l m = catchErrorsWithRequestId lookupRequestId l m
+requestIdMiddleware :: Logger -> HeaderName -> Middleware
+requestIdMiddleware logger reqIdHeaderName origApp req responder =
+  case lookup reqIdHeaderName req.requestHeaders of
+    Just _ -> origApp req responder
+    Nothing -> do
+      reqId <- Text.encodeUtf8 . UUID.toText <$> UUID.nextRandom
+      Log.info logger $
+        msg ("generated a new request id for local request" :: ByteString)
+          . field "request" reqId
+          . field "method" (requestMethod req)
+          . field "path" (rawPathInfo req)
+      let reqWithId = req {requestHeaders = (reqIdHeaderName, reqId) : req.requestHeaders}
+      origApp reqWithId responder
+
+catchErrors :: Logger -> HeaderName -> OnErrorMetrics -> Middleware
+catchErrors l reqIdHeaderName m = catchErrorsWithRequestId (lookupRequestId reqIdHeaderName) l m
 
 -- | Create a middleware that catches exceptions and turns
 -- them into appropriate 'Error' responses, thereby logging
@@ -258,8 +278,9 @@ heavyDebugLogging ::
   ((Request, LByteString) -> Maybe (Request, LByteString)) ->
   Level ->
   Logger ->
+  HeaderName ->
   Middleware
-heavyDebugLogging sanitizeReq lvl lgr app = \req cont -> do
+heavyDebugLogging sanitizeReq lvl lgr reqIdHeaderName app = \req cont -> do
   (bdy, req') <-
     if lvl `elem` [Trace, Debug]
       then cloneBody req
@@ -278,7 +299,7 @@ heavyDebugLogging sanitizeReq lvl lgr app = \req cont -> do
     logMostlyEverything req bdy resp = Log.debug lgr logMsg
       where
         logMsg =
-          field "request" (fromMaybe "N/A" $ lookupRequestId req)
+          field "request" (fromMaybe "N/A" $ lookupRequestId reqIdHeaderName req)
             . field "request_details" (show req)
             . field "request_body" bdy
             . field "response_status" (show $ responseStatus resp)
@@ -377,12 +398,18 @@ onError g mReqId m r k e = liftIO $ do
   flushRequestBody r
   k (jsonResponseToWai resp)
 
+defaultRequestIdHeaderName :: HeaderName
+defaultRequestIdHeaderName = "Request-Id"
+
+federationRequestIdHeaderName :: HeaderName
+federationRequestIdHeaderName = "Wire-Origin-Request-Id"
+
 -- | Log an 'Error' response for debugging purposes.
 --
 -- It would be nice to have access to the request body here, but that's already streamed away
 -- by the handler in all likelyhood.  See 'heavyDebugLogging'.
-logError :: (MonadIO m, HasRequest r) => Logger -> Maybe r -> Wai.Error -> m ()
-logError g mr = logError' g (lookupRequestId =<< mr)
+logError :: (MonadIO m) => Logger -> Maybe Request -> Wai.Error -> m ()
+logError g mr = logError' g (lookupRequestId defaultRequestIdHeaderName =<< mr)
 
 logError' :: (MonadIO m) => Logger -> Maybe ByteString -> Wai.Error -> m ()
 logError' g mr e = liftIO $ doLog g (logErrorMsgWithRequest mr e)
@@ -420,12 +447,6 @@ logErrorMsg (Wai.Error c l m md inner) =
 logErrorMsgWithRequest :: Maybe ByteString -> Wai.Error -> Msg -> Msg
 logErrorMsgWithRequest mr e =
   field "request" (fromMaybe "N/A" mr) . logErrorMsg e
-
-logIO :: (ToBytes msg, HasRequest r) => Logger -> Level -> Maybe r -> msg -> IO ()
-logIO lg lv r a =
-  let reqId = field "request" . fromMaybe "N/A" . lookupRequestId <$> r
-      mesg = fromMaybe id reqId . msg a
-   in Log.log lg lv mesg
 
 runHandlers :: SomeException -> [Handler m a] -> m a
 runHandlers e [] = throw e

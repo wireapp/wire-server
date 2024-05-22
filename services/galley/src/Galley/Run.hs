@@ -98,7 +98,8 @@ mkApp opts =
             . servantPrometheusMiddleware (Proxy @CombinedAPI)
             . GZip.gunzip
             . GZip.gzip GZip.def
-            . catchErrors logger [Right metrics]
+            . catchErrors logger defaultRequestIdHeaderName [Right metrics]
+            . requestIdMiddleware logger defaultRequestIdHeaderName
     Codensity $ \k -> finally (k ()) $ do
       Log.info logger $ Log.msg @Text "Galley application finished."
       Log.flush logger
@@ -129,8 +130,8 @@ mkApp opts =
 
     servantApp :: Env -> Application
     servantApp e0 r cont = do
-      rid <- getRequestId (e0 ^. applog) r
-      let e = reqId .~ rid $ e0
+      let rid = getRequestId defaultRequestIdHeaderName r
+          e = reqId .~ rid $ e0
       Servant.serveWithContext
         (Proxy @CombinedAPI)
         ( view (options . settings . federationDomain) e

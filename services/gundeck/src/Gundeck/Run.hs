@@ -89,14 +89,15 @@ run o = do
         . waiPrometheusMiddleware sitemap
         . GZip.gunzip
         . GZip.gzip GZip.def
-        . catchErrors (e ^. applog) [Right $ e ^. monitor]
+        . catchErrors (e ^. applog) defaultRequestIdHeaderName [Right $ e ^. monitor]
+        . requestIdMiddleware (e ^. applog) defaultRequestIdHeaderName
 
 type CombinedAPI = GundeckAPI :<|> Servant.Raw
 
 mkApp :: Env -> Wai.Application
 mkApp env0 req cont = do
-  rid <- getRequestId (env0 ^. applog) req
-  let env = reqId .~ rid $ env0
+  let rid = getRequestId defaultRequestIdHeaderName req
+      env = reqId .~ rid $ env0
   Servant.serve
     (Proxy @CombinedAPI)
     (servantSitemap' env :<|> Servant.Tagged (runGundeckWithRoutes env))

@@ -41,6 +41,7 @@ import Network.Wai (Application)
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Middleware.Gunzip as GZip
+import Network.Wai.Utilities.Server
 import qualified Network.Wai.Utilities.Server as WU
 import qualified SAML2.WebSSO as SAML
 import Spar.API (SparAPI, app)
@@ -107,14 +108,15 @@ mkApp sparCtxOpts = do
           else Nothing
   let middleware =
         versionMiddleware (foldMap expandVersionExp (disabledAPIVersions sparCtxOpts))
-          . WU.heavyDebugLogging heavyLogOnly logLevel sparCtxLogger
+          . WU.heavyDebugLogging heavyLogOnly logLevel sparCtxLogger defaultRequestIdHeaderName
           . servantPrometheusMiddleware (Proxy @SparAPI)
           . GZip.gunzip
-          . WU.catchErrors sparCtxLogger []
+          . WU.catchErrors sparCtxLogger defaultRequestIdHeaderName []
           -- Error 'Response's are usually not thrown as exceptions, but logged in
           -- 'renderSparErrorWithLogging' before the 'Application' can construct a 'Response'
           -- value, when there is still all the type information around.  'WU.catchErrors' is
           -- still here for errors outside the power of the 'Application', like network
           -- outages.
           . SAML.setHttpCachePolicy
+          . requestIdMiddleware (ctx0.sparCtxLogger) defaultRequestIdHeaderName
   pure (middleware $ app ctx0, ctx0)

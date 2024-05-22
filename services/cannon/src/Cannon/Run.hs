@@ -84,7 +84,8 @@ run o = do
         versionMiddleware (foldMap expandVersionExp (o ^. disabledAPIVersions))
           . servantPrometheusMiddleware (Proxy @CombinedAPI)
           . Gzip.gzip Gzip.def
-          . catchErrors g [Right m]
+          . catchErrors g defaultRequestIdHeaderName [Right m]
+          . requestIdMiddleware g defaultRequestIdHeaderName
       app :: Application
       app = middleware (serve (Proxy @CombinedAPI) server)
       server :: Servant.Server CombinedAPI

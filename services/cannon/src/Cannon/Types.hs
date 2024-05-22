@@ -52,6 +52,7 @@ import Data.Text.Encoding
 import Imports
 import Network.Wai
 import Network.Wai.Utilities.Request qualified as Wai
+import Network.Wai.Utilities.Server
 import Servant qualified
 import System.Logger qualified as Logger
 import System.Logger.Class hiding (info)
@@ -113,8 +114,8 @@ mkEnv m external o l d p g t =
 
 runCannon :: Env -> Cannon a -> Request -> IO a
 runCannon e c r = do
-  rid <- Wai.getRequestId e.applog r
-  let e' = e {reqId = rid}
+  let rid = Wai.getRequestId defaultRequestIdHeaderName r
+      e' = e {reqId = rid}
   runCannon' e' c
 
 runCannon' :: Env -> Cannon a -> IO a
