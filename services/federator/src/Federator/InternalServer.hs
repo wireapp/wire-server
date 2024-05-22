@@ -48,7 +48,6 @@ import Servant.API
 import Servant.API.Extended.Endpath
 import Servant.Server (Tagged (..))
 import Servant.Server.Generic
-import System.Logger (field, msg)
 import System.Logger.Class qualified as Log
 import Wire.API.Federation.Component
 import Wire.API.Routes.FederationDomainConfig

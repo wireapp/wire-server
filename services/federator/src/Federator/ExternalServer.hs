@@ -52,6 +52,7 @@ import Imports
 import Network.HTTP.Client (Manager)
 import Network.HTTP.Types qualified as HTTP
 import Network.Wai qualified as Wai
+import Network.Wai.Utilities.Server (federationRequestIdHeaderName)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
