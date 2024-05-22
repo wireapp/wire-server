@@ -104,7 +104,7 @@ testLHMessageExchange (TaggedBool clients1New) (TaggedBool clients2New) (TaggedB
     let clientSettings :: Bool -> AddClient
         clientSettings allnew =
           if allnew
-            then def -- (`{acapabilities = Just ["legalhold-implicit-consent"]}` is the default)
+            then def {acapabilities = Just ["legalhold-implicit-consent"]} -- (is should be the default)
             else def {acapabilities = Nothing}
     client1 <- objId $ addClient (mem1 %. "qualified_id") (clientSettings clients1New) >>= getJSON 201
     _client2 <- objId $ addClient (mem2 %. "qualified_id") (clientSettings clients2New) >>= getJSON 201
