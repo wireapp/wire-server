@@ -56,7 +56,6 @@ data LegalholdConflictsOldClients = LegalholdConflictsOldClients
 guardQualifiedLegalholdPolicyConflicts ::
   ( Member BrigAccess r,
     Member (Error LegalholdConflicts) r,
-    Member (Error LegalholdConflictsOldClients) r,
     Member (Input (Local ())) r,
     Member (Input Opts) r,
     Member TeamStore r,
@@ -82,7 +81,6 @@ guardQualifiedLegalholdPolicyConflicts protectee qclients = do
 guardLegalholdPolicyConflicts ::
   ( Member BrigAccess r,
     Member (Error LegalholdConflicts) r,
-    Member (Error LegalholdConflictsOldClients) r,
     Member (Input Opts) r,
     Member TeamStore r,
     Member P.TinyLog r
