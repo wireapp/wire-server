@@ -96,18 +96,6 @@ server mgr extPort interpreter =
       internalRequest = \rid remoteDomain component rpc ->
         Tagged $ \req respond -> do
           -- TODO: Log generated request ID
-          -- rid <- maybe (RequestId . T.encodeUtf8 . UUID.toText <$> UUID.nextRandom) pure mReqId
-          -- rid <- case
-          -- rid <- case mReqId of
-          --   Just r -> pure r
-          --   Nothing -> do
-          --     localRid <- liftIO $ RequestId . T.encodeUtf8 . UUID.toText <$> UUID.nextRandom
-          --     info $
-          --       "request-id" .= localRid
-          --         ~~ "method" .= Wai.requestMethod req
-          --         ~~ "path" .= Wai.rawPathInfo req
-          --         ~~ msg (val "generated a new request id for local request")
-          --     pure localRid
           runCodensity (interpreter rid (callOutward rid remoteDomain component rpc req)) respond
     }
 
@@ -127,7 +115,6 @@ callOutward ::
   Wai.Request ->
   Sem r Wai.Response
 callOutward rid targetDomain component (RPC path) req = do
-  warn $ msg ("request id for new request" :: String) . field "req-id" rid
   -- only POST is supported
   when (Wai.requestMethod req /= HTTP.methodPost) $
     throw InvalidRoute
@@ -156,9 +143,8 @@ callOutward rid targetDomain component (RPC path) req = do
 serveOutward :: Env -> Int -> IO ()
 serveOutward env = do
   let middleware =
-        -- TODO: extract constant
-        requestIdMiddleware env._applog federationRequestIdHeaderName
-          . Metrics.servantPrometheusMiddleware (Proxy :: Proxy (ToServantApi API))
+        Metrics.servantPrometheusMiddleware (Proxy :: Proxy (ToServantApi API))
+          . requestIdMiddleware env._applog federationRequestIdHeaderName
   serveServant
     middleware
     (server env._httpManager env._externalPort $ runFederator env)
