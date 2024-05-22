@@ -832,19 +832,25 @@ testLHNoConsentRemoveFromGroup approvedOrPending admin = do
 
       case admin of
         LegalholderIsAdmin -> do
-          for_ [aws, bws] do awaitMatch (isConvLeaveNotifWithLeaver bob)
+          case approvedOrPending of
+            LHApproved -> for_ [aws, bws] do awaitMatch (isConvLeaveNotifWithLeaver bob)
+            LHPending -> pure ()
           getConversation alice qConvId >>= assertStatus 200
           getConversation bob qConvId >>= case approvedOrPending of
             LHApproved -> assertLabel 403 "access-denied"
             LHPending -> assertStatus 200
         PeerIsAdmin -> do
-          for_ [aws, bws] do awaitMatch (isConvLeaveNotifWithLeaver alice)
+          case approvedOrPending of
+            LHApproved -> for_ [aws, bws] do awaitMatch (isConvLeaveNotifWithLeaver alice)
+            LHPending -> pure ()
           getConversation bob qConvId >>= assertStatus 200
           getConversation alice qConvId >>= case approvedOrPending of
             LHApproved -> assertLabel 403 "access-denied"
             LHPending -> assertStatus 200
         BothAreAdmins -> do
-          for_ [aws, bws] do awaitMatch (isConvLeaveNotifWithLeaver bob)
+          case approvedOrPending of
+            LHApproved -> for_ [aws, bws] do awaitMatch (isConvLeaveNotifWithLeaver bob)
+            LHPending -> pure ()
           getConversation alice qConvId >>= assertStatus 200
           getConversation bob qConvId >>= case approvedOrPending of
             LHApproved -> assertLabel 403 "access-denied"
