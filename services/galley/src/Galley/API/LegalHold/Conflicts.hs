@@ -148,7 +148,11 @@ guardLegalholdPolicyConflictsUid self (Map.keys . userClients -> otherUids) = do
                   mbMem <- getTeamMember tid (Wire.API.User.userId user)
                   case mbMem of
                     Nothing -> pure True -- it's weird that there is a member id but no member, we better bail
-                    Just mem -> pure $ mem ^. legalHoldStatus `notElem` [UserLegalHoldDisabled, UserLegalHoldEnabled]
+                    Just mem -> pure $ case mem ^. legalHoldStatus of
+                      UserLegalHoldDisabled -> False
+                      UserLegalHoldPending -> False
+                      UserLegalHoldEnabled -> False
+                      UserLegalHoldNoConsent -> True
                 Nothing -> do
                   pure True -- personal users can not give consent
         or <$> checkUserConsentMissing `mapM` users
