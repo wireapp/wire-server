@@ -420,7 +420,12 @@ requestDevice lzusr tid uid = do
   member <- noteS @'TeamMemberNotFound =<< getTeamMember tid uid
   case member ^. legalHoldStatus of
     UserLegalHoldEnabled -> throwS @'UserLegalHoldAlreadyEnabled
-    lhs@UserLegalHoldPending -> RequestDeviceAlreadyPending <$ provisionLHDevice zusr luid lhs
+    lhs@UserLegalHoldPending ->
+      -- FUTUREWORK: we create a new device if a pending one is found.  this helps with
+      -- recovering from lost credentials (but where would that happen?).  on the other
+      -- hand. do we properly gc the old pending device?  maybe we should just throw an error
+      -- here?
+      RequestDeviceAlreadyPending <$ provisionLHDevice zusr luid lhs
     lhs@UserLegalHoldDisabled -> RequestDeviceSuccess <$ provisionLHDevice zusr luid lhs
     UserLegalHoldNoConsent -> throwS @'NoUserLegalHoldConsent
   where
