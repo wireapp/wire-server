@@ -287,7 +287,7 @@ spec = describe "UserSubsystem.Interpreter" do
 
     prop
       "CheckHandles returns available handles from a list of handles, up to X"
-      \((storedUsersAndHandles :: [(StoredUser, Handle)], (handles :: Set Handle)), maxCount :: Word, config) ->
+      \((storedUsersAndHandles :: [(StoredUser, Handle)], handles :: Set Handle), maxCount :: Word, config) ->
         let availables = runNoFederationStack localBackend Nothing config do
               checkHandles (S.toList handles) maxCount
             notAvailables = runNoFederationStack localBackend Nothing config do
@@ -298,10 +298,50 @@ spec = describe "UserSubsystem.Interpreter" do
               .&&. (length availables <= fromIntegral maxCount) === True -- TODO: add a better assertion here
               .&&. ((S.fromList availables) `S.isSubsetOf` handles) === True
 
--- length of output is at most maxCount
--- output must be a subset of input
+    describe "Scim+UpdateProfileUpdate" do
+      prop
+        "Updating handles fails when ForbidSCIMUpdates"
+        \(alice, newHandle, domain, config) ->
+          let update =
+                (def :: UserProfileUpdate)
+                  { handle =
+                      Just $
+                        MkScimUpdate {allowScim = ForbidSCIMUpdates, value = newHandle}
+                  }
+              res :: Either UserSubsystemError () = run
+                . runErrorUnsafe
+                . runError
+                $ interpretNoFederationStack localBackend Nothing def config do
+                  updateUserProfile (toLocalUnsafe domain alice.id) Nothing update
+              localBackend = def {users = [alice {managedBy = Just ManagedByScim}]}
+           in res === Left UserSubsystemHandleManagedByScim
 
--- TODO: test scim updates for handle
+      prop
+        "Updating handles succeeds when AllowSCIMUpdates"
+        \(alice, ssoId, email :: Maybe Email, newHandle, domain, config) ->
+          let update =
+                (def :: UserProfileUpdate)
+                  { handle =
+                      Just $
+                        MkScimUpdate {allowScim = AllowSCIMUpdates, value = newHandle}
+                  }
+              res :: Either UserSubsystemError () = run
+                . runErrorUnsafe
+                . runError
+                $ interpretNoFederationStack localBackend Nothing def config do
+                  updateUserProfile (toLocalUnsafe domain alice.id) Nothing update
+              localBackend =
+                def
+                  { users =
+                      [ alice
+                          { managedBy = Just ManagedByScim,
+                            email = email,
+                            ssoId = Just ssoId,
+                            activated = True
+                          }
+                      ]
+                  }
+           in res === Right ()
 
 -- We create a new type here so we can add a custom Arbitrary instance.
 -- Otherwise using a Text generator will give us 99.99…9% chance of an invalid handle,
