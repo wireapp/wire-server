@@ -52,6 +52,7 @@ import Federator.Validation
 import Imports
 import Network.HTTP.Client (Manager)
 import Network.HTTP.Types qualified as HTTP
+import Network.Wai (ResponseReceived)
 import Network.Wai qualified as Wai
 import Network.Wai.Utilities.Request
 import Network.Wai.Utilities.Server (federationRequestIdHeaderName, requestIdMiddleware)
@@ -60,11 +61,15 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
+import Servant (HasServer (..))
 import Servant.API
 import Servant.API.Extended.Endpath
 import Servant.Client.Core
-import Servant.Server (Tagged (..))
+import Servant.Server (Context, Server, Tagged (..))
 import Servant.Server.Generic
+import Servant.Server.Internal.Delayed (Delayed, runDelayed)
+import Servant.Server.Internal.RouteResult
+import Servant.Server.Internal.Router (Router, Router' (..))
 import System.Logger.Message qualified as Log
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain
@@ -99,9 +104,30 @@ data API mode = API
           -- We need to use 'Raw' so we can stream request body regardless of
           -- content-type and send a response with arbitrary content-type. Not
           -- sure if this is the right approach.
-          :> Raw
+          :> RawRequestAccess
   }
   deriving (Generic)
+
+data RawRequestAccess
+
+instance HasServer RawRequestAccess context where
+  type ServerT RawRequestAccess m = Request -> (Response -> m ResponseReceived) -> m ResponseReceived
+
+  route :: Proxy RawRequestAccess -> Context context -> Delayed env (Server RawRequestAccess) -> Router env
+  route _ _ rawApplication = RawRouter $ \env request respond -> runResourceT $ do
+    -- note: a Raw application doesn't register any cleanup
+    -- but for the sake of consistency, we nonetheless run
+    -- the cleanup once its done
+    r <- runDelayed rawApplication env request
+    liftIO $ go r request respond
+    where
+      go r request respond = case r of
+        Route app -> app request (respond . Route)
+        Fail a -> respond $ Fail a
+        FailFatal e -> respond $ FailFatal e
+
+  hoistServerWithContext :: Proxy RawRequestAccess -> Proxy context -> (forall x. m x -> n x) -> ServerT RawRequestAccess m -> ServerT RawRequestAccess n
+  hoistServerWithContext = _
 
 server ::
   ( Member ServiceStreaming r,
@@ -116,11 +142,11 @@ server ::
   ) =>
   Manager ->
   Word16 ->
-  (Sem r Wai.Response -> Codensity IO Wai.Response) ->
-  API AsServer
+  (forall a. Sem r a -> Codensity IO a) ->
+  API (AsServerT (Sem r))
 server mgr intPort interpreter =
   API
-    { status = Health.status mgr "internal server" intPort,
+    { status = \x -> liftIO . lowerCodensity . interpreter $ Health.status mgr "internal server" intPort x,
       externalRequest = \component rpc remoteDomain remoteCert ->
         Tagged $ \req respond -> do
           runCodensity (interpreter (callInward component rpc remoteDomain remoteCert req)) respond
