@@ -94,7 +94,7 @@ deleteUserImpl user = do
       insertUserTombstone
       ( params
           LocalQuorum
-          (userId user, Deleted, defaultAccentId, noPict, [])
+          (Deleted, Name "default", defaultAccentId, noPict, [], userId user)
       )
 
 --------------------------------------------------------------------------------
@@ -131,8 +131,8 @@ handleDelete = "DELETE FROM user_handle WHERE handle = ?"
 userHandleUpdate :: PrepQuery W (Handle, UserId) ()
 userHandleUpdate = "UPDATE user SET handle = ? WHERE id = ?"
 
-insertUserTombstone :: PrepQuery W (UserId, AccountStatus, ColourId, Pict, [Asset]) ()
+insertUserTombstone :: PrepQuery W (AccountStatus, Name, ColourId, Pict, [Asset], UserId) ()
 insertUserTombstone =
-  "UPDATE user WHERE id = ? SET status = ?, name = \"default\",\
+  "UPDATE user SET status = ?, name = ?,\
   \ accent_id = ?, picture = ?, assets = ?, handle = null, country = null,\
-  \ language = null, email = null, phone = null, sso_id = null"
+  \ language = null, email = null, phone = null, sso_id = null WHERE id = ?"
