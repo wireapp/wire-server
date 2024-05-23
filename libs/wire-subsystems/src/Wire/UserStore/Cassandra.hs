@@ -133,6 +133,6 @@ userHandleUpdate = "UPDATE user SET handle = ? WHERE id = ?"
 
 insertUserTombstone :: PrepQuery W (UserId, AccountStatus, ColourId, Pict, [Asset]) ()
 insertUserTombstone =
-  "UPDATE user SET status = ?, name = \"default\",\
+  "UPDATE user WHERE id = ? SET status = ?, name = \"default\",\
   \ accent_id = ?, picture = ?, assets = ?, handle = null, country = null,\
   \ language = null, email = null, phone = null, sso_id = null"
