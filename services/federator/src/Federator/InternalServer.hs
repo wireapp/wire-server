@@ -94,7 +94,6 @@ server mgr extPort interpreter =
     { status = Health.status mgr "external server" extPort,
       internalRequest = \rid remoteDomain component rpc ->
         Tagged $ \req respond -> do
-          -- TODO: Log generated request ID
           runCodensity (interpreter rid (callOutward rid remoteDomain component rpc req)) respond
     }
 

@@ -197,8 +197,7 @@ requestIdMiddleware logger reqIdHeaderName origApp req responder =
     Just _ -> origApp req responder
     Nothing -> do
       reqId <- Text.encodeUtf8 . UUID.toText <$> UUID.nextRandom
-      -- TODO(md): Check if these are correct endpoint paths to filter out
-      unless (req.rawPathInfo `elem` ["/i/status", "/i/metrics"]) $
+      unless (req.rawPathInfo `elem` ["/i/status", "/i/metrics", "/api-version"]) $
         Log.info logger $
           msg ("generated a new request id for local request" :: ByteString)
             . field "request" reqId
