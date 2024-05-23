@@ -93,8 +93,8 @@ connectTwoUsers ::
   bob ->
   App ()
 connectTwoUsers alice bob = do
-  bindResponse (postConnection alice bob) (\resp -> resp.status `shouldMatchInt` 201)
-  bindResponse (putConnection bob alice "accepted") (\resp -> resp.status `shouldMatchInt` 200)
+  postConnection alice bob >>= assertSuccess
+  putConnection bob alice "accepted" >>= assertSuccess
 
 connectUsers :: (HasCallStack, MakesValue usr) => [usr] -> App ()
 connectUsers users = traverse_ (uncurry connectTwoUsers) $ do
