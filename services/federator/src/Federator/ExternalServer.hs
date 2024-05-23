@@ -26,6 +26,7 @@ where
 
 import Control.Lens ((^.))
 import Control.Monad.Codensity
+import Control.Monad.Trans.Resource (runResourceT)
 import Data.Bifunctor
 import Data.ByteString qualified as BS
 import Data.ByteString.Builder
@@ -65,9 +66,9 @@ import Servant (HasServer (..))
 import Servant.API
 import Servant.API.Extended.Endpath
 import Servant.Client.Core
-import Servant.Server (Context, Server, Tagged (..))
+import Servant.Server (Context, Server, Tagged (..), runHandler)
 import Servant.Server.Generic
-import Servant.Server.Internal.Delayed (Delayed, runDelayed)
+import Servant.Server.Internal.Delayed (Delayed, passToServer, runDelayed)
 import Servant.Server.Internal.RouteResult
 import Servant.Server.Internal.Router (Router, Router' (..))
 import System.Logger.Message qualified as Log
@@ -104,30 +105,36 @@ data API mode = API
           -- We need to use 'Raw' so we can stream request body regardless of
           -- content-type and send a response with arbitrary content-type. Not
           -- sure if this is the right approach.
-          :> RawRequestAccess
+          :> RawRequest
+          :> RawResponse
   }
   deriving (Generic)
 
-data RawRequestAccess
+data RawRequest
 
-instance HasServer RawRequestAccess context where
-  type ServerT RawRequestAccess m = Request -> (Response -> m ResponseReceived) -> m ResponseReceived
+data RawResponse
 
-  route :: Proxy RawRequestAccess -> Context context -> Delayed env (Server RawRequestAccess) -> Router env
+instance HasServer api context => HasServer (RawRequest :> api) context where
+  type ServerT (RawRequest :> api) m = Wai.Request -> ServerT api m
+
+  route :: Proxy (RawRequest :> api) -> Context context -> Delayed env (Server (RawRequest :> api)) -> Router env
+  route _ context subserver = route (Proxy @api) context (passToServer subserver id)
+  hoistServerWithContext :: Proxy (RawRequest :> api) -> Proxy context -> (forall x. m x -> n x) -> ServerT (RawRequest :> api) m -> ServerT (RawRequest :> api) n
+  hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
+
+instance HasServer RawResponse context where
+  type ServerT RawResponse m = m Wai.Response
+
+  route :: Proxy RawResponse -> Context context -> Delayed env (Server RawResponse) -> Router env
   route _ _ rawApplication = RawRouter $ \env request respond -> runResourceT $ do
-    -- note: a Raw application doesn't register any cleanup
-    -- but for the sake of consistency, we nonetheless run
-    -- the cleanup once its done
     r <- runDelayed rawApplication env request
-    liftIO $ go r request respond
-    where
-      go r request respond = case r of
-        Route app -> app request (respond . Route)
-        Fail a -> respond $ Fail a
-        FailFatal e -> respond $ FailFatal e
+    liftIO $
+      runHandler (sequence r) >>= \case
+        Left e -> respond $ Fail e
+        Right rr -> respond rr
 
-  hoistServerWithContext :: Proxy RawRequestAccess -> Proxy context -> (forall x. m x -> n x) -> ServerT RawRequestAccess m -> ServerT RawRequestAccess n
-  hoistServerWithContext = _
+  hoistServerWithContext :: Proxy RawResponse -> Proxy context -> (forall x. m x -> n x) -> ServerT RawResponse m -> ServerT RawResponse n
+  hoistServerWithContext _ _ nt x = nt x
 
 server ::
   ( Member ServiceStreaming r,
@@ -142,14 +149,14 @@ server ::
   ) =>
   Manager ->
   Word16 ->
-  (forall a. Sem r a -> Codensity IO a) ->
   API (AsServerT (Sem r))
-server mgr intPort interpreter =
+server mgr intPort =
   API
-    { status = \x -> liftIO . lowerCodensity . interpreter $ Health.status mgr "internal server" intPort x,
-      externalRequest = \component rpc remoteDomain remoteCert ->
-        Tagged $ \req respond -> do
-          runCodensity (interpreter (callInward component rpc remoteDomain remoteCert req)) respond
+    { status = Health.status mgr "internal server" intPort,
+      externalRequest = callInward
+      -- externalRequest = \component rpc remoteDomain remoteCert ->
+      --   Tagged $ \req respond -> do
+      --     runCodensity (interpreter (callInward component rpc remoteDomain remoteCert req)) respond
     }
 
 -- FUTUREWORK(federation): Versioning of the federation API.
@@ -215,5 +222,5 @@ serveInward env = do
           . requestIdMiddleware (env ^. applog) federationRequestIdHeaderName
   serveServant
     middleware
-    (server env._httpManager env._internalPort $ runFederator env)
+    (hoistServerWithContext (Proxy @API) (Proxy @'()) (runFederator env) $ server env._httpManager env._internalPort)
     env

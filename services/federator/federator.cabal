@@ -138,6 +138,7 @@ library
     , polysemy
     , polysemy-wire-zoo
     , prometheus-client
+    , resourcet
     , servant
     , servant-client
     , servant-client-core
