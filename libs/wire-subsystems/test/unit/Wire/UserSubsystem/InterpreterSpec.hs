@@ -8,6 +8,7 @@ import Data.Bifunctor (first)
 import Data.Coerce
 import Data.Default (Default (def))
 import Data.Domain
+import Data.Handle (Handle)
 import Data.Handle qualified as Handle
 import Data.Id
 import Data.LegalHold (defUserLegalHoldStatus)
@@ -259,7 +260,7 @@ spec = describe "UserSubsystem.Interpreter" do
     prop
       "handles need to conform to valid characters"
       \(rawHandle :: HandleText, config) ->
-        let parsedHandle :: Either UserSubsystemError Handle.Handle = run
+        let parsedHandle :: Either UserSubsystemError Handle = run
               . runErrorUnsafe
               . runError
               $ interpretNoFederationStack def Nothing def config do
@@ -267,9 +268,34 @@ spec = describe "UserSubsystem.Interpreter" do
             rawParsedHandle = (Handle.parseHandle $ unHandle rawHandle)
          in (hush parsedHandle) === rawParsedHandle
 
+    prop
+      "CheckHandle succeeds if there is a user with that handle"
+      \((NotPendingStoredUser alice, fallbackHandle :: Handle), config) ->
+        let isHandle :: CheckHandleResp = runNoFederationStack localBackend Nothing config do
+              let handle = Handle.fromHandle . fromMaybe fallbackHandle $ alice.handle
+              checkHandle handle
+            localBackend = def {users = [alice {managedBy = Just ManagedByWire}]}
+         in if isJust alice.handle
+              then isHandle === CheckHandleFound
+              else isHandle === CheckHandleNotFound
+
+    prop
+      "CheckHandles returns available handles from a list of handles, up to X"
+      \((storedUsersAndHandles :: [(StoredUser, Handle)], (handles :: Set Handle)), maxCount :: Word, config) ->
+        let availables = runNoFederationStack localBackend Nothing config do
+              checkHandles (S.toList handles) maxCount
+            notAvailables = runNoFederationStack localBackend Nothing config do
+              checkHandles (catMaybes $ (.handle) <$> users) maxCount
+            localBackend = def {users = users}
+            users = (\(u, h) -> u {handle = Just h, managedBy = Just ManagedByWire}) <$> storedUsersAndHandles
+         in notAvailables === []
+              .&&. (length availables <= fromIntegral maxCount) === True -- TODO: add a better assertion here
+              .&&. ((S.fromList availables) `S.isSubsetOf` handles) === True
+
+-- length of output is at most maxCount
+-- output must be a subset of input
+
 -- TODO: test scim updates for handle
---
--- TODO: test checkHandle and checkHandles
 
 -- We create a new type here so we can add a custom Arbitrary instance.
 -- Otherwise using a Text generator will give us 99.99…9% chance of an invalid handle,
@@ -288,5 +314,5 @@ instance Arbitrary HandleText where
         a <- arbitrary :: Gen Text
         pure (HandleText a)
       False -> do
-        a <- arbitrary :: Gen Handle.Handle
+        a <- arbitrary :: Gen Handle
         pure (HandleText $ Handle.fromHandle a)
