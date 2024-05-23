@@ -103,6 +103,12 @@ connectUsers users = traverse_ (uncurry connectTwoUsers) $ do
   b <- others
   pure (a, b)
 
+assertConnection :: (HasCallStack, MakesValue alice, MakesValue bob) => alice -> bob -> String -> App ()
+assertConnection alice bob status =
+  getConnection alice bob `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "status" `shouldMatch` status
+
 createAndConnectUsers :: (HasCallStack, MakesValue domain) => [domain] -> App [Value]
 createAndConnectUsers domains = do
   users <- for domains (flip randomUser def)
