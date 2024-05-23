@@ -3,10 +3,12 @@
 
 module Wire.UserSubsystem.InterpreterSpec (spec) where
 
+import Control.Error.Util (hush)
 import Data.Bifunctor (first)
 import Data.Coerce
 import Data.Default (Default (def))
 import Data.Domain
+import Data.Handle qualified as Handle
 import Data.Id
 import Data.LegalHold (defUserLegalHoldStatus)
 import Data.Qualified
@@ -254,6 +256,38 @@ spec = describe "UserSubsystem.Interpreter" do
                     getUserProfile lusr (tUntagged lusr)
            in Left UserSubsystemDisplayNameManagedByScim === profileErr
 
+    prop
+      "handles need to conform to valid characters"
+      \(rawHandle :: HandleText, config) ->
+        let parsedHandle :: Either UserSubsystemError Handle.Handle = run
+              . runErrorUnsafe
+              . runError
+              $ interpretNoFederationStack def Nothing def config do
+                parseHandle $ unHandle rawHandle
+            rawParsedHandle = (Handle.parseHandle $ unHandle rawHandle)
+         in (hush parsedHandle) === rawParsedHandle
+
 -- TODO: test scim updates for handle
 --
 -- TODO: test checkHandle and checkHandles
+
+-- We create a new type here so we can add a custom Arbitrary instance.
+-- Otherwise using a Text generator will give us 99.99…9% chance of an invalid handle,
+-- but using a Handle generator will give us 100% chance of a valid handle.
+-- Instead we use a coin toss to generate either a guarateed valid or a 99.99…9% invalid.
+-- It doesn't quite add up to 50/50 but it's close enough for our goals.
+-- We could always guarantee an invalid text arbitrary case by inserting an 
+-- invalid character every time.
+newtype HandleText = HandleText { unHandle :: Text }
+  deriving  newtype (Eq, Show)
+
+instance Arbitrary HandleText where
+  arbitrary = (arbitrary :: Gen Bool) >>= \case
+    True -> do 
+        a <- arbitrary :: Gen Text
+        pure (HandleText a)
+    False -> do 
+      a <- arbitrary :: Gen Handle.Handle
+      pure (HandleText $ Handle.fromHandle a)
+
+
