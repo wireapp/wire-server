@@ -203,12 +203,10 @@ spec = describe "UserSubsystem.Interpreter" do
         let lusr = toLocalUnsafe localDomain alice.id
             localBackend = def {users = [alice {managedBy = Just ManagedByWire}]}
             profile = fromJust $ runNoFederationStack localBackend Nothing config do
-              updateUserProfile
-                lusr
-                Nothing
-                update
+              updateUserProfile lusr Nothing update
               getUserProfile lusr (tUntagged lusr)
          in -- TODO: check locale update?
+            -- TODO: more assertions
             profile.profileQualifiedId === tUntagged lusr
               -- if the name / pict / etc... is not set, the original
               -- value should be preserved
@@ -255,3 +253,7 @@ spec = describe "UserSubsystem.Interpreter" do
                     updateUserProfile lusr Nothing update {name = Just (allowScimUpdate name)}
                     getUserProfile lusr (tUntagged lusr)
            in Left UserSubsystemDisplayNameManagedByScim === profileErr
+
+-- TODO: test scim updates for handle
+--
+-- TODO: test checkHandle and checkHandles
