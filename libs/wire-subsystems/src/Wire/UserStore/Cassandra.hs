@@ -91,7 +91,7 @@ deleteUserImpl user = do
     freeHandleImpl (userId user) h
   retry x5 $
     write
-      insertUserTombstone
+      updateUserToTombstone
       ( params
           LocalQuorum
           (Deleted, Name "default", defaultAccentId, noPict, [], userId user)
@@ -131,8 +131,8 @@ handleDelete = "DELETE FROM user_handle WHERE handle = ?"
 userHandleUpdate :: PrepQuery W (Handle, UserId) ()
 userHandleUpdate = "UPDATE user SET handle = ? WHERE id = ?"
 
-insertUserTombstone :: PrepQuery W (AccountStatus, Name, ColourId, Pict, [Asset], UserId) ()
-insertUserTombstone =
+updateUserToTombstone :: PrepQuery W (AccountStatus, Name, ColourId, Pict, [Asset], UserId) ()
+updateUserToTombstone =
   "UPDATE user SET status = ?, name = ?,\
   \ accent_id = ?, picture = ?, assets = ?, handle = null, country = null,\
   \ language = null, email = null, phone = null, sso_id = null WHERE id = ?"
