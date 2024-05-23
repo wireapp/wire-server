@@ -18,6 +18,7 @@
 , cql
 , currency-codes
 , data-default
+, data-timeout
 , errors
 , exceptions
 , extended
@@ -56,6 +57,7 @@
 , transitive-anns
 , types-common
 , unliftio
+, unordered-containers
 , uuid
 , wai-utilities
 , wire-api
@@ -81,6 +83,7 @@ mkDerivation {
     cql
     currency-codes
     data-default
+    data-timeout
     errors
     exceptions
     extended
@@ -114,6 +117,7 @@ mkDerivation {
     transitive-anns
     types-common
     unliftio
+    unordered-containers
     uuid
     wai-utilities
     wire-api

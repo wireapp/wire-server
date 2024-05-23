@@ -379,7 +379,7 @@ miniBackendLookupHandle ::
   Sem r (Maybe UserId)
 miniBackendLookupHandle h = do
   users <- gets (.users)
-  pure $ fmap (.id) . listToMaybe $ filter ((== Just h) . (.handle)) users
+  pure $ fmap (.id) (find ((== Just h) . (.handle)) users)
 
 -- | interprets galley by statically returning the values passed
 miniGalleyAPIAccess ::
