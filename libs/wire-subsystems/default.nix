@@ -131,6 +131,7 @@ mkDerivation {
     bytestring
     containers
     data-default
+    errors
     extended
     gundeck-types
     hspec

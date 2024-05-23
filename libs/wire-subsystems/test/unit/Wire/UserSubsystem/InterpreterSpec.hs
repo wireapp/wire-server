@@ -89,6 +89,12 @@ spec = describe "UserSubsystem.Interpreter" do
 
         localDomain /= offlineDomain && not (null offlineTargetUsers) ==>
           -- The FederationError doesn't have an instance
+          -- The FederationError doesn't have an instance
+          -- The FederationError doesn't have an instance
+          -- The FederationError doesn't have an instance
+          -- for Eq because of dependency on HTTP2Error
+          -- for Eq because of dependency on HTTP2Error
+          -- for Eq because of dependency on HTTP2Error
           -- for Eq because of dependency on HTTP2Error
           first displayException result
             === Left (displayException (FederationUnexpectedError "RunFederatedEither"))
@@ -285,7 +291,7 @@ spec = describe "UserSubsystem.Interpreter" do
         let availables = runNoFederationStack localBackend Nothing config do
               checkHandles (S.toList handles) maxCount
             notAvailables = runNoFederationStack localBackend Nothing config do
-              checkHandles (catMaybes $ (.handle) <$> users) maxCount
+              checkHandles (mapMaybe ((.handle)) users) maxCount
             localBackend = def {users = users}
             users = (\(u, h) -> u {handle = Just h, managedBy = Just ManagedByWire}) <$> storedUsersAndHandles
          in notAvailables === []
