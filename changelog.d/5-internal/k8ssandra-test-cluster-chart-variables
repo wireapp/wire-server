@@ -1,0 +1,1 @@
+Added prometheus enable and datacenter size variables for k8ssandra-test-cluster helm chart.

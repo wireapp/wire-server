@@ -30,3 +30,11 @@ syncCACertToSecret: false
 # Limit syncing to this namespace. Otherwise, the secret is synced to all
 # namespaces.
 # syncCACertNamespace: <namespace-name>
+
+# For telemetry data
+prometheus:
+  enabled: true
+
+# Size of the datacenter
+datacenter:
+  size: 1

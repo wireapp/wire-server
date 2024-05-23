@@ -9,7 +9,7 @@ spec:
     serverVersion: "3.11.11"
     telemetry:
       prometheus:
-        enabled: true
+        enabled: {{ .Values.prometheus.enabled }}
     resources:
       requests:
         cpu: 1
@@ -33,7 +33,7 @@ spec:
     datacenters:
         - metadata:
             name: datacenter-1
-          size: 1
+          size: {{ .Values.datacenter.size }}
           storageConfig:
             cassandraDataVolumeClaimSpec:
               storageClassName: {{ .Values.storageClassName }}
