@@ -196,6 +196,7 @@ testMlsE2EConfigCrlProxyRequired = do
             "status" .= "enabled"
           ]
 
+  -- From API version 6 onwards, the CRL proxy is required, so the request should fail when it's not provided
   bindResponse (Internal.setTeamFeatureConfig Versioned owner tid "mlsE2EId" configWithoutCrlProxy) $ \resp -> do
     resp.status `shouldMatchInt` 400
     resp.json %. "label" `shouldMatch` "mls-e2eid-missing-crl-proxy"
@@ -206,11 +207,12 @@ testMlsE2EConfigCrlProxyRequired = do
       & setField "config.crlProxy" "https://crl-proxy.example.com"
       & setField "status" "enabled"
 
+  -- The request should succeed when the CRL proxy is provided
   bindResponse (Internal.setTeamFeatureConfig Versioned owner tid "mlsE2EId" configWithCrlProxy) $ \resp -> do
     resp.status `shouldMatchInt` 200
 
+  -- Assert that the feature config got updated correctly
   expectedResponse <- configWithCrlProxy & setField "lockStatus" "unlocked" & setField "ttl" "unlimited"
-
   checkFeature "mlsE2EId" owner tid expectedResponse
 
 testMlsE2EConfigCrlProxyNotRequiredInV5 :: HasCallStack => App ()
@@ -226,9 +228,10 @@ testMlsE2EConfigCrlProxyNotRequiredInV5 = do
             "status" .= "enabled"
           ]
 
+  -- In API version 5, the CRL proxy is not required, so the request should succeed
   bindResponse (Internal.setTeamFeatureConfig (ExplicitVersion 5) owner tid "mlsE2EId" configWithoutCrlProxy) $ \resp -> do
     resp.status `shouldMatchInt` 200
 
+  -- Assert that the feature config got updated correctly
   expectedResponse <- configWithoutCrlProxy & setField "lockStatus" "unlocked" & setField "ttl" "unlimited"
-
   checkFeature "mlsE2EId" owner tid expectedResponse
