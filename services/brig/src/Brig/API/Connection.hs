@@ -205,10 +205,10 @@ checkLegalholdPolicyConflict uid1 uid2 = do
   status2 <- lift (getLegalHoldStatus uid2) >>= catchProfileNotFound
 
   let oneway s1 s2 = case (s1, s2) of
+        (LH.UserLegalHoldNoConsent, LH.UserLegalHoldEnabled) -> throwE ConnectMissingLegalholdConsent
         (LH.UserLegalHoldNoConsent, LH.UserLegalHoldNoConsent) -> pure ()
         (LH.UserLegalHoldNoConsent, LH.UserLegalHoldDisabled) -> pure ()
-        (LH.UserLegalHoldNoConsent, LH.UserLegalHoldPending) -> throwE ConnectMissingLegalholdConsent
-        (LH.UserLegalHoldNoConsent, LH.UserLegalHoldEnabled) -> throwE ConnectMissingLegalholdConsent
+        (LH.UserLegalHoldNoConsent, LH.UserLegalHoldPending) -> pure ()
         (LH.UserLegalHoldDisabled, _) -> pure ()
         (LH.UserLegalHoldPending, _) -> pure ()
         (LH.UserLegalHoldEnabled, _) -> pure ()
