@@ -72,6 +72,10 @@ testLHPreventAddingNonConsentingUsers = do
     -- now request legalhold for alex (but not alice)
     requestLegalHoldDevice tid owner alex >>= assertSuccess
 
+    -- the guest should not be removed from the conversation before approving
+    checkConvHasOtherMembers conv alice [alex, george]
+
+    approveLegalHoldDevice tid alex defPassword >>= assertSuccess
     -- the guest should be removed from the conversation
     checkConvHasOtherMembers conv alice [alex]
 
