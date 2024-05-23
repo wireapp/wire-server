@@ -145,7 +145,7 @@ testLHMessageExchange (TaggedBool clients1New) (TaggedBool clients2New) = do
 
               sender clients =
                 let senderClient = head $ filter (\c -> c ^? key (fromString "type") /= Just (toJSON "legalhold")) clients
-                 in T.unpack . fromJust $ senderClient ^? key (fromString "id") . _String
+                 in T.unpack $ senderClient ^?! key (fromString "id") . _String
           postProteusMessage mem1 (conv %. "qualified_id") (proteusMsg (sender clients1)) >>= assertSuccess
           postProteusMessage mem2 (conv %. "qualified_id") (proteusMsg (sender clients2)) >>= assertSuccess
 
