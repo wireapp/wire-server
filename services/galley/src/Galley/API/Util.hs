@@ -924,7 +924,7 @@ registerRemoteConversationMemberships now lusr lc = deleteOnUnreachable $ do
 userLHEnabled :: UserLegalHoldStatus -> Bool
 userLHEnabled = \case
   UserLegalHoldEnabled -> True
-  UserLegalHoldPending -> True
+  UserLegalHoldPending -> False
   UserLegalHoldDisabled -> False
   UserLegalHoldNoConsent -> False
 

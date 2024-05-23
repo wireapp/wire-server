@@ -56,9 +56,12 @@ testLHPreventAddingNonConsentingUsers = do
     postLegalHoldSettings tid owner (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
 
     george <- randomUser OwnDomain def
-    georgeQId <- george %. "qualified_id"
-    connectUsers =<< forM [alice, george] make
-    connectUsers =<< forM [alex, george] make
+    georgeQId <- objQidObject george
+    hannes <- randomUser OwnDomain def
+    hannesQId <- objQidObject hannes
+
+    connectUsers [alice, george, hannes]
+    connectUsers [alex, george, hannes]
     conv <- postConversation alice (defProteus {qualifiedUsers = [alex], team = Just tid}) >>= getJSON 201
 
     -- the guest should be added to the conversation
@@ -74,6 +77,12 @@ testLHPreventAddingNonConsentingUsers = do
 
     -- the guest should not be removed from the conversation before approving
     checkConvHasOtherMembers conv alice [alex, george]
+
+    -- it should be possible to add the another guest while the LH device is not approved
+    addMembers alex conv def {users = [hannesQId]} `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "type" `shouldMatch` "conversation.member-join"
+    checkConvHasOtherMembers conv alice [alex, george, hannes]
 
     approveLegalHoldDevice tid alex defPassword >>= assertSuccess
     -- the guest should be removed from the conversation
