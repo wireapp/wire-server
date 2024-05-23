@@ -44,15 +44,15 @@ import Wire.API.Federation.API
 import Wire.API.Federation.Component
 import Wire.API.Federation.Error
 import Wire.API.Team.Feature
-import Wire.API.Team.Member
-import Wire.API.User hiding (DeleteUser)
+import Wire.API.Team.Member hiding (userId)
+import Wire.API.User as User hiding (DeleteUser)
 import Wire.API.UserEvent
 import Wire.DeleteQueue
 import Wire.DeleteQueue.InMemory
 import Wire.FederationAPIAccess
 import Wire.FederationAPIAccess.Interpreter as FI
 import Wire.GalleyAPIAccess
-import Wire.InternalEvent
+import Wire.InternalEvent hiding (DeleteUser)
 import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.Sequential
 import Wire.Sem.Now hiding (get)
@@ -368,6 +368,8 @@ staticUserStoreInterpreter = interpret $ \case
               . maybe Imports.id setStoredUserName update.name
               $ u
       doUpdate u = pure u
+  DeleteUser user -> modifyLocalUsers $ \us ->
+    pure $ filter (\u -> u.id /= User.userId user) us
   LookupHandle h -> miniBackendLookupHandle h
   GlimpseHandle h -> miniBackendLookupHandle h
 

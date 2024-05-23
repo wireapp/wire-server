@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -538,7 +540,7 @@ initAccountFeatureConfig uid = do
   mbCciDefNew <- view (settings . getAfcConferenceCallingDefNewMaybe)
   forM_ (forgetLock <$> mbCciDefNew) $ wrapClient . Data.updateFeatureConferenceCalling uid . Just
 
--- | 'createUser' is becoming hard to maintian, and instead of adding more case distinctions
+-- | 'createUser' is becoming hard to maintain, and instead of adding more case distinctions
 -- all over the place there, we add a new function that handles just the one new flow where
 -- users are invited to the team via scim.
 createUserInviteViaScim ::
@@ -1339,6 +1341,7 @@ ensureAccountDeleted uid = do
 --
 -- FUTUREWORK(mangoiv): this uses 'UserStore', hence it must be moved to 'UserSubsystem'
 -- as an effet operation
+-- FUTUREWORK: this does not need the whole UserAccount structure, only the User.
 deleteAccount ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
@@ -1350,18 +1353,18 @@ deleteAccount ::
   ) =>
   UserAccount ->
   Sem r ()
-deleteAccount account@(accountUser -> user) = do
+deleteAccount (accountUser -> user) = do
   let uid = userId user
   Log.info $ field "user" (toByteString uid) . msg (val "Deleting account")
   do
     -- Free unique keys
     for_ (userEmail user) $ embed . deleteKeyForUser uid . userEmailKey
     for_ (userPhone user) $ embed . deleteKeyForUser uid . userPhoneKey
-    for_ (userHandle user) $ freeHandle (userId user)
-    -- Wipe data
+
     embed $ Data.clearProperties uid
-    tombstone <- mkTombstone
-    embed $ Data.insertAccount tombstone Nothing Nothing False
+
+    deleteUser user
+
   Intra.rmUser uid (userAssets user)
   embed $ Data.lookupClients uid >>= mapM_ (Data.rmClient uid . clientId)
   luid <- embed $ qualifyLocal uid
@@ -1371,23 +1374,6 @@ deleteAccount account@(accountUser -> user) = do
     --       they need to be notified.
     Data.deleteConnections uid
     revokeAllCookies uid
-  where
-    mkTombstone = do
-      defLoc <- embed $ setDefaultUserLocale <$> view settings
-      pure $
-        account
-          { accountStatus = Deleted,
-            accountUser =
-              user
-                { userDisplayName = Name "default",
-                  userAccentId = defaultAccentId,
-                  userPict = noPict,
-                  userAssets = [],
-                  userHandle = Nothing,
-                  userLocale = defLoc,
-                  userIdentity = Nothing
-                }
-          }
 
 -------------------------------------------------------------------------------
 -- Lookups

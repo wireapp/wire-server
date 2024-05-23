@@ -562,6 +562,7 @@ listActivatedAccountsH
       u4 <- (\phone -> API.lookupAccountsByIdentity (Right phone) includePendingInvitations) `mapM` phones
       pure $ u1 <> u2 <> join u3 <> join u4
 
+-- FUTUREWORK: this should use UserStore only through UserSubsystem.
 listActivatedAccounts ::
   (Member DeleteQueue r, Member UserStore r) =>
   Either [UserId] [Handle] ->

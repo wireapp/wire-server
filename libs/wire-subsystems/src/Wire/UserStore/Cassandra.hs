@@ -8,7 +8,7 @@ import Imports
 import Polysemy
 import Polysemy.Embed
 import Polysemy.Error
-import Wire.API.User
+import Wire.API.User hiding (DeleteUser)
 import Wire.StoredUser
 import Wire.UserStore
 import Wire.UserStore.Unique
@@ -19,6 +19,7 @@ interpretUserStoreCassandra casClient =
     runEmbedded (runClient casClient) . \case
       GetUser uid -> getUserImpl uid
       UpdateUserEither uid update -> embed $ updateUserImpl uid update
+      DeleteUser user -> embed $ deleteUserImpl user
       LookupHandle hdl -> embed $ lookupHandleImpl LocalQuorum hdl
       GlimpseHandle hdl -> embed $ lookupHandleImpl One hdl
 
@@ -84,6 +85,18 @@ lookupHandleImpl consistencyLevel h = do
 updateHandle :: UserId -> Handle -> Client ()
 updateHandle u h = retry x5 $ write userHandleUpdate (params LocalQuorum (h, u))
 
+deleteUserImpl :: User -> Client ()
+deleteUserImpl user = do
+  for_ (userHandle user) \h ->
+    freeHandleImpl (userId user) h
+  retry x5 $
+    write
+      insertUserTombstone
+      ( params
+          LocalQuorum
+          (userId user, Deleted, defaultAccentId, noPict, [])
+      )
+
 --------------------------------------------------------------------------------
 -- Queries
 
@@ -117,3 +130,9 @@ handleDelete = "DELETE FROM user_handle WHERE handle = ?"
 
 userHandleUpdate :: PrepQuery W (Handle, UserId) ()
 userHandleUpdate = "UPDATE user SET handle = ? WHERE id = ?"
+
+insertUserTombstone :: PrepQuery W (UserId, AccountStatus, ColourId, Pict, [Asset]) ()
+insertUserTombstone =
+  "UPDATE user SET status = ?, name = \"default\",\
+  \ accent_id = ?, picture = ?, assets = ?, handle = null, country = null,\
+  \ language = null, email = null, phone = null, sso_id = null"
