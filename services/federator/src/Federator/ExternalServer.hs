@@ -53,6 +53,7 @@ import Imports
 import Network.HTTP.Client (Manager)
 import Network.HTTP.Types qualified as HTTP
 import Network.Wai qualified as Wai
+import Network.Wai.Utilities.Request
 import Network.Wai.Utilities.Server (federationRequestIdHeaderName, requestIdMiddleware)
 import Polysemy
 import Polysemy.Error
@@ -92,7 +93,6 @@ data API mode = API
         :- "federation"
           :> Capture "component" Component
           :> Capture "rpc" RPC
-          :> Header' '[Optional, Strict] "Wire-Origin-Request-Id" RequestId
           :> Header' '[Required, Strict] OriginDomainHeaderName Domain
           :> Header' '[Required, Strict] "X-SSL-Certificate" CertHeader
           :> Endpath
@@ -116,24 +116,14 @@ server ::
   ) =>
   Manager ->
   Word16 ->
-  (RequestId -> Sem r Wai.Response -> Codensity IO Wai.Response) ->
+  (Sem r Wai.Response -> Codensity IO Wai.Response) ->
   API AsServer
 server mgr intPort interpreter =
   API
     { status = Health.status mgr "internal server" intPort,
-      externalRequest = \component rpc mRid remoteDomain remoteCert ->
+      externalRequest = \component rpc remoteDomain remoteCert ->
         Tagged $ \req respond -> do
-          rid <- case mRid of
-            Just r -> pure r
-            Nothing -> do
-              liftIO $ RequestId . Text.encodeUtf8 . UUID.toText <$> UUID.nextRandom
-          -- TODO: log if generated a new request id
-          -- info $
-          --   "request-id" .= localRid
-          --     ~~ "method" .= Wai.requestMethod wreq
-          --     ~~ "path" .= Wai.rawPathInfo wreq
-          --     ~~ msg (val "generated a new request id for local request")
-          runCodensity (interpreter rid (callInward component rpc rid remoteDomain remoteCert req)) respond
+          runCodensity (interpreter (callInward component rpc remoteDomain remoteCert req)) respond
     }
 
 -- FUTUREWORK(federation): Versioning of the federation API.
@@ -150,12 +140,12 @@ callInward ::
   ) =>
   Component ->
   RPC ->
-  RequestId ->
   Domain ->
   CertHeader ->
   Wai.Request ->
   Sem r Wai.Response
-callInward component (RPC rpc) rid originDomain (CertHeader cert) wreq = do
+callInward component (RPC rpc) originDomain (CertHeader cert) wreq = do
+  let rid = getRequestId federationRequestIdHeaderName wreq
   incomingCounterIncr originDomain
   -- only POST is supported
   when (Wai.requestMethod wreq /= HTTP.methodPost) $
