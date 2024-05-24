@@ -317,6 +317,15 @@ _testSimpleFlag featureName featureEnabledByDefault = do
 testConversationGuestLinks :: HasCallStack => App ()
 testConversationGuestLinks = _testSimpleFlagWithLockStatus "conversationGuestLinks" True True
 
+testFileSharing :: HasCallStack => App ()
+testFileSharing = _testSimpleFlagWithLockStatus "fileSharing" True True
+
+testSndFactorPasswordChallenge :: HasCallStack => App ()
+testSndFactorPasswordChallenge = _testSimpleFlagWithLockStatus "sndFactorPasswordChallenge" False False
+
+testOutlookCalIntegration :: HasCallStack => App ()
+testOutlookCalIntegration = _testSimpleFlagWithLockStatus "outlookCalIntegration" False False
+
 _testSimpleFlagWithLockStatus :: HasCallStack => String -> Bool -> Bool -> App ()
 _testSimpleFlagWithLockStatus featureName featureEnabledByDefault featureUnlockedByDefault = do
   -- let defaultStatus = if featureEnabledByDefault then "enabled" else "disabled"

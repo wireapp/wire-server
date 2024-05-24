@@ -64,18 +64,15 @@ tests :: IO TestSetup -> TestTree
 tests s =
   testGroup
     "Feature Config API and Team Features API"
-    [ test s "FileSharing with lock status" $ testSimpleFlagWithLockStatus @FileSharingConfig FeatureStatusEnabled LockStatusUnlocked,
-      test s "Classified Domains (enabled)" testClassifiedDomainsEnabled,
+    [ test s "Classified Domains (enabled)" testClassifiedDomainsEnabled,
       test s "Classified Domains (disabled)" testClassifiedDomainsDisabled,
       test s "All features" testAllFeatures,
       test s "Feature Configs / Team Features Consistency" testFeatureConfigConsistency,
       test s "SelfDeletingMessages" testSelfDeletingMessages,
       test s "ConversationGuestLinks - public API" testGuestLinksPublic,
       test s "ConversationGuestLinks - internal API" testGuestLinksInternal,
-      test s "SndFactorPasswordChallenge - lock status" $ testSimpleFlagWithLockStatus @SndFactorPasswordChallengeConfig FeatureStatusDisabled LockStatusLocked,
       test s "SearchVisibilityInbound - internal API" testSearchVisibilityInbound,
       test s "SearchVisibilityInbound - internal multi team API" testFeatureNoConfigMultiSearchVisibilityInbound,
-      test s "OutlookCalIntegration" $ testSimpleFlagWithLockStatus @OutlookCalIntegrationConfig FeatureStatusDisabled LockStatusLocked,
       testGroup
         "TTL / Conference calling"
         [ test s "ConferenceCalling unlimited TTL" $ testSimpleFlagTTL @ConferenceCallingConfig FeatureStatusEnabled FeatureTTLUnlimited,
@@ -486,103 +483,6 @@ testSimpleFlagTTL defaultValue ttl = do
   -- Clean up
   setFlagInternal defaultValue FeatureTTLUnlimited
   getFlag defaultValue
-
-testSimpleFlagWithLockStatus ::
-  forall cfg.
-  ( HasCallStack,
-    Typeable cfg,
-    Eq cfg,
-    Show cfg,
-    FeatureTrivialConfig cfg,
-    IsFeatureConfig cfg,
-    KnownSymbol (FeatureSymbol cfg),
-    ToSchema cfg,
-    ToJSON (WithStatusNoLock cfg)
-  ) =>
-  FeatureStatus ->
-  LockStatus ->
-  TestM ()
-testSimpleFlagWithLockStatus defaultStatus defaultLockStatus = do
-  galley <- viewGalley
-  (owner, tid, member : _) <- createBindingTeamWithNMembers 1
-  nonMember <- randomUser
-
-  let getFlag :: HasCallStack => FeatureStatus -> LockStatus -> TestM ()
-      getFlag expectedStatus expectedLockStatus = do
-        let flag = getTeamFeature @cfg member tid
-        assertFlagNoConfigWithLockStatus @cfg flag expectedStatus expectedLockStatus
-
-      getFeatureConfig :: HasCallStack => FeatureStatus -> LockStatus -> TestM ()
-      getFeatureConfig expectedStatus expectedLockStatus = do
-        actual <- Util.getFeatureConfig @cfg member
-        liftIO $ wsStatus actual @?= expectedStatus
-        liftIO $ wsLockStatus actual @?= expectedLockStatus
-
-      getFlagInternal :: HasCallStack => FeatureStatus -> LockStatus -> TestM ()
-      getFlagInternal expectedStatus expectedLockStatus = do
-        let flag = getTeamFeatureInternal @cfg tid
-        assertFlagNoConfigWithLockStatus @cfg flag expectedStatus expectedLockStatus
-
-      getFlags expectedStatus expectedLockStatus = do
-        getFlag expectedStatus expectedLockStatus
-        getFeatureConfig expectedStatus expectedLockStatus
-        getFlagInternal expectedStatus expectedLockStatus
-
-      setFlagWithGalley :: FeatureStatus -> TestM ()
-      setFlagWithGalley statusValue =
-        putTeamFeature @cfg owner tid (WithStatusNoLock statusValue (trivialConfig @cfg) FeatureTTLUnlimited)
-          !!! statusCode
-            === const 200
-
-      assertSetStatusForbidden :: FeatureStatus -> TestM ()
-      assertSetStatusForbidden statusValue =
-        putTeamFeature @cfg owner tid (WithStatusNoLock statusValue (trivialConfig @cfg) FeatureTTLUnlimited)
-          !!! statusCode
-            === const 409
-
-      setLockStatus :: LockStatus -> TestM ()
-      setLockStatus lockStatus =
-        Util.setLockStatusInternal @cfg galley tid lockStatus
-          !!! statusCode
-            === const 200
-
-  assertFlagForbidden $ getTeamFeature @cfg nonMember tid
-
-  let otherStatus = case defaultStatus of
-        FeatureStatusDisabled -> FeatureStatusEnabled
-        FeatureStatusEnabled -> FeatureStatusDisabled
-
-  -- Initial status and lock status should be the defaults
-  getFlags defaultStatus defaultLockStatus
-
-  -- unlock feature if it is locked
-  when (defaultLockStatus == LockStatusLocked) $ setLockStatus LockStatusUnlocked
-
-  -- setting should work
-  cannon <- view tsCannon
-  -- should receive an event
-  WS.bracketR cannon member $ \ws -> do
-    setFlagWithGalley otherStatus
-    void . liftIO $
-      WS.assertMatch (5 # Second) ws $
-        wsAssertFeatureConfigWithLockStatusUpdate @cfg otherStatus LockStatusUnlocked
-
-  getFlags otherStatus LockStatusUnlocked
-
-  -- lock feature
-  setLockStatus LockStatusLocked
-  -- feature status should now be the default again
-  getFlags defaultStatus LockStatusLocked
-  assertSetStatusForbidden defaultStatus
-  -- unlock feature
-  setLockStatus LockStatusUnlocked
-  -- feature status should be the previously set value
-  getFlags otherStatus LockStatusUnlocked
-
-  -- clean up
-  setFlagWithGalley defaultStatus
-  setLockStatus defaultLockStatus
-  getFlags defaultStatus defaultLockStatus
 
 testSelfDeletingMessages :: TestM ()
 testSelfDeletingMessages = do
@@ -1169,25 +1069,6 @@ assertFlagNoConfig res expected = do
       )
       === const (Right expected)
 
-assertFlagNoConfigWithLockStatus ::
-  forall cfg.
-  ( HasCallStack,
-    Typeable cfg,
-    FeatureTrivialConfig cfg,
-    FromJSON (WithStatus cfg),
-    Eq cfg,
-    Show cfg
-  ) =>
-  TestM ResponseLBS ->
-  FeatureStatus ->
-  LockStatus ->
-  TestM ()
-assertFlagNoConfigWithLockStatus res expectedStatus expectedLockStatus = do
-  res !!! do
-    statusCode === const 200
-    responseJsonEither @(WithStatus cfg)
-      === const (Right (withStatus expectedStatus expectedLockStatus (trivialConfig @cfg) FeatureTTLUnlimited))
-
 assertFlagWithConfig ::
   forall cfg m.
   ( HasCallStack,
@@ -1228,23 +1109,6 @@ wsAssertFeatureTrivialConfigUpdate status ttl notification = do
   FeatureConfig._eventData e
     @?= Aeson.toJSON
       (withStatus status (wsLockStatus (defFeatureStatus @cfg)) (trivialConfig @cfg) ttl)
-
-wsAssertFeatureConfigWithLockStatusUpdate ::
-  forall cfg.
-  ( IsFeatureConfig cfg,
-    ToSchema cfg,
-    KnownSymbol (FeatureSymbol cfg),
-    FeatureTrivialConfig cfg
-  ) =>
-  FeatureStatus ->
-  LockStatus ->
-  Notification ->
-  IO ()
-wsAssertFeatureConfigWithLockStatusUpdate status lockStatus notification = do
-  let e :: FeatureConfig.Event = List1.head (WS.unpackPayload notification)
-  FeatureConfig._eventType e @?= FeatureConfig.Update
-  FeatureConfig._eventFeatureName e @?= (featureName @cfg)
-  FeatureConfig._eventData e @?= Aeson.toJSON (withStatus status lockStatus (trivialConfig @cfg) FeatureTTLUnlimited)
 
 wsAssertFeatureConfigUpdate ::
   forall cfg.
