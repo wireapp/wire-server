@@ -23,6 +23,7 @@ import Control.Monad.Codensity (Codensity (runCodensity))
 import Control.Monad.Reader
 import qualified Data.Aeson as A
 import SetupHelpers
+import Test.FeatureFlags.Util
 import Testlib.Prelude
 import Testlib.ResourcePool (acquireResources)
 
@@ -38,15 +39,6 @@ testLimitedEventFanout = do
   bindResponse (Internal.getTeamFeature OwnDomain team featureName) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "enabled"
-
-disabled :: Value
-disabled = object ["lockStatus" .= "unlocked", "status" .= "disabled", "ttl" .= "unlimited"]
-
-disabledLocked :: Value
-disabledLocked = object ["lockStatus" .= "locked", "status" .= "disabled", "ttl" .= "unlimited"]
-
-enabled :: Value
-enabled = object ["lockStatus" .= "unlocked", "status" .= "enabled", "ttl" .= "unlimited"]
 
 -- always disabled
 testLegalholdDisabledPermanently :: HasCallStack => App ()
@@ -166,23 +158,6 @@ testExposeInvitationURLsToTeamAdminConfig = do
     -- Interesting case: The team had the feature enabled but is not in allow list
     void testNoAllowlistEntry
 
-checkFeature :: (HasCallStack, MakesValue user, MakesValue tid) => String -> user -> tid -> Value -> App ()
-checkFeature feature user tid expected = do
-  tidStr <- asString tid
-  domain <- objDomain user
-  bindResponse (Internal.getTeamFeature domain tidStr feature) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json `shouldMatch` expected
-  bindResponse (Public.getTeamFeatures user tid) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json %. feature `shouldMatch` expected
-  bindResponse (Public.getTeamFeature user tid feature) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json `shouldMatch` expected
-  bindResponse (Public.getFeatureConfigs user) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json %. feature `shouldMatch` expected
-
 testMlsE2EConfigCrlProxyRequired :: HasCallStack => App ()
 testMlsE2EConfigCrlProxyRequired = do
   (owner, tid, _) <- createTeam OwnDomain 1
@@ -197,7 +172,7 @@ testMlsE2EConfigCrlProxyRequired = do
           ]
 
   -- From API version 6 onwards, the CRL proxy is required, so the request should fail when it's not provided
-  bindResponse (Internal.setTeamFeatureConfig Versioned owner tid "mlsE2EId" configWithoutCrlProxy) $ \resp -> do
+  bindResponse (Public.setTeamFeatureConfig owner tid "mlsE2EId" configWithoutCrlProxy) $ \resp -> do
     resp.status `shouldMatchInt` 400
     resp.json %. "label" `shouldMatch` "mls-e2eid-missing-crl-proxy"
 
@@ -208,7 +183,7 @@ testMlsE2EConfigCrlProxyRequired = do
       & setField "status" "enabled"
 
   -- The request should succeed when the CRL proxy is provided
-  bindResponse (Internal.setTeamFeatureConfig Versioned owner tid "mlsE2EId" configWithCrlProxy) $ \resp -> do
+  bindResponse (Public.setTeamFeatureConfig owner tid "mlsE2EId" configWithCrlProxy) $ \resp -> do
     resp.status `shouldMatchInt` 200
 
   -- Assert that the feature config got updated correctly
@@ -229,9 +204,38 @@ testMlsE2EConfigCrlProxyNotRequiredInV5 = do
           ]
 
   -- In API version 5, the CRL proxy is not required, so the request should succeed
-  bindResponse (Internal.setTeamFeatureConfig (ExplicitVersion 5) owner tid "mlsE2EId" configWithoutCrlProxy) $ \resp -> do
+  bindResponse (Public.setTeamFeatureConfigVersioned (ExplicitVersion 5) owner tid "mlsE2EId" configWithoutCrlProxy) $ \resp -> do
     resp.status `shouldMatchInt` 200
 
   -- Assert that the feature config got updated correctly
   expectedResponse <- configWithoutCrlProxy & setField "lockStatus" "unlocked" & setField "ttl" "unlimited"
   checkFeature "mlsE2EId" owner tid expectedResponse
+
+testSSODisabledByDefault :: HasCallStack => App ()
+testSSODisabledByDefault = do
+  let put uid tid = Internal.setTeamFeatureConfig uid tid "sso" (object ["status" .= "enabled"]) >>= assertSuccess
+  let patch uid tid = Internal.setTeamFeatureStatus uid tid "sso" "enabled"
+  forM_ [put, patch] $ \enableFeature -> do
+    withModifiedBackend
+      def {galleyCfg = setField "settings.featureFlags.sso" "disabled-by-default"}
+      $ \domain -> do
+        (owner, tid, m : _) <- createTeam domain 2
+        nonMember <- randomUser domain def
+        assertForbidden =<< Public.getTeamFeature nonMember tid "sso"
+        -- Test default
+        checkFeature "sso" m tid disabled
+        -- Test override
+        enableFeature owner tid
+        checkFeature "sso" owner tid enabled
+
+testSSOEnabledByDefault :: HasCallStack => App ()
+testSSOEnabledByDefault = do
+  withModifiedBackend
+    def {galleyCfg = setField "settings.featureFlags.sso" "enabled-by-default"}
+    $ \domain -> do
+      (owner, tid, _m : _) <- createTeam domain 2
+      nonMember <- randomUser domain def
+      assertForbidden =<< Public.getTeamFeature nonMember tid "sso"
+      checkFeature "sso" owner tid enabled
+      -- check that the feature cannot be disabled
+      assertLabel 403 "not-implemented" =<< Internal.setTeamFeatureConfig owner tid "sso" (object ["status" .= "disabled"])

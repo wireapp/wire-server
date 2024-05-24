@@ -64,9 +64,7 @@ tests :: IO TestSetup -> TestTree
 tests s =
   testGroup
     "Feature Config API and Team Features API"
-    [ test s "SSO - set with HTTP PUT" (testSSO putSSOInternal),
-      test s "SSO - set with HTTP PATCH" (testSSO patchSSOInternal),
-      test s "LegalHold - set with HTTP PUT" (testLegalHold putLegalHoldInternal),
+    [ test s "LegalHold - set with HTTP PUT" (testLegalHold putLegalHoldInternal),
       test s "LegalHold - set with HTTP PATCH" (testLegalHold patchLegalHoldInternal),
       test s "SearchVisibility" testSearchVisibility,
       test s "DigitalSignatures" $ testSimpleFlag @DigitalSignaturesConfig FeatureStatusDisabled,
@@ -282,36 +280,6 @@ testPatch' testLockStatusChange rndFeatureConfig defStatus defConfig = do
           wsLockStatus actual @?= fromMaybe (wsLockStatus original) (wspLockStatus rndFeatureConfig)
         wsConfig actual @?= fromMaybe (wsConfig original) (wspConfig rndFeatureConfig)
   checkTeamFeatureAllEndpoints uid tid actual
-
-testSSO :: (TeamId -> FeatureStatus -> TestM ()) -> TestM ()
-testSSO setSSOFeature = do
-  (_owner, tid, member : _) <- createBindingTeamWithNMembers 1
-  nonMember <- randomUser
-
-  assertFlagForbidden $ getTeamFeature @SSOConfig nonMember tid
-
-  featureSSO <- view (tsGConf . settings . featureFlags . flagSSO)
-  case featureSSO of
-    FeatureSSODisabledByDefault -> do
-      -- Test default
-      checkTeamFeatureAllEndpoints member tid (withStatus FeatureStatusDisabled LockStatusUnlocked SSOConfig FeatureTTLUnlimited)
-
-      -- Test override
-      setSSOFeature tid FeatureStatusEnabled
-      checkTeamFeatureAllEndpoints member tid (withStatus FeatureStatusEnabled LockStatusUnlocked SSOConfig FeatureTTLUnlimited)
-    FeatureSSOEnabledByDefault -> do
-      -- since we don't allow to disable (see 'disableSsoNotImplemented'), we can't test
-      -- much here.  (disable failure is covered in "enable/disable SSO" above.)
-      checkTeamFeatureAllEndpoints member tid (withStatus FeatureStatusEnabled LockStatusUnlocked SSOConfig FeatureTTLUnlimited)
-
-putSSOInternal :: HasCallStack => TeamId -> FeatureStatus -> TestM ()
-putSSOInternal tid =
-  void
-    . putTeamFeatureInternal @SSOConfig expect2xx tid
-    . (\st -> WithStatusNoLock st SSOConfig FeatureTTLUnlimited)
-
-patchSSOInternal :: HasCallStack => TeamId -> FeatureStatus -> TestM ()
-patchSSOInternal tid status = void $ patchTeamFeatureInternalWithMod @SSOConfig expect2xx tid (withStatus' (Just status) Nothing Nothing (Just FeatureTTLUnlimited))
 
 testLegalHold :: ((Request -> Request) -> TeamId -> FeatureStatus -> TestM ()) -> TestM ()
 testLegalHold setLegalHoldInternal = do
