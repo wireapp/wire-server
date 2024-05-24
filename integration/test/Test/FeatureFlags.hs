@@ -313,3 +313,45 @@ _testSimpleFlag featureName featureEnabledByDefault = do
       notif %. "payload.0.name" `shouldMatch` featureName
       notif %. "payload.0.data" `shouldMatch` defaultValue
     checkFeature featureName m tid defaultValue
+
+testConversationGuestLinks :: HasCallStack => App ()
+testConversationGuestLinks = _testSimpleFlagWithLockStatus "conversationGuestLinks" True True
+
+_testSimpleFlagWithLockStatus :: HasCallStack => String -> Bool -> Bool -> App ()
+_testSimpleFlagWithLockStatus featureName featureEnabledByDefault featureUnlockedByDefault = do
+  -- let defaultStatus = if featureEnabledByDefault then "enabled" else "disabled"
+  defaultValue <- (if featureEnabledByDefault then enabled else disabled) & setField "lockStatus" (if featureUnlockedByDefault then "unlocked" else "locked")
+  let otherStatus = if featureEnabledByDefault then "disabled" else "enabled"
+
+  (owner, tid, m : _) <- createTeam OwnDomain 2
+  nonTeamMember <- randomUser OwnDomain def
+  assertForbidden =<< Public.getTeamFeature nonTeamMember tid featureName
+
+  checkFeature featureName m tid defaultValue
+
+  -- unlock feature if it is locked
+  unless featureUnlockedByDefault $ Internal.setTeamFeatureLockStatus OwnDomain tid featureName "unlocked"
+
+  -- change the status
+  let otherValue = if featureEnabledByDefault then disabled else enabled
+  void $ withWebSockets [m] $ \wss -> do
+    assertSuccess =<< Public.setTeamFeatureConfig owner tid featureName (object ["status" .= otherStatus])
+    for_ wss $ \ws -> do
+      notif <- awaitMatch isFeatureConfigUpdateNotif ws
+      notif %. "payload.0.name" `shouldMatch` featureName
+      notif %. "payload.0.data" `shouldMatch` otherValue
+
+  checkFeature featureName m tid otherValue
+
+  -- lock feature
+  Internal.setTeamFeatureLockStatus OwnDomain tid featureName "locked"
+
+  -- feature status should be the default again
+  checkFeature featureName m tid =<< setField "lockStatus" "locked" defaultValue
+  assertStatus 409 =<< Public.setTeamFeatureConfig owner tid featureName (object ["status" .= otherStatus])
+
+  -- unlock again
+  Internal.setTeamFeatureLockStatus OwnDomain tid featureName "unlocked"
+
+  -- feature status should be the previously set status again
+  checkFeature featureName m tid =<< setField "lockStatus" "unlocked" otherValue

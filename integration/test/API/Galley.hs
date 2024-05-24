@@ -702,13 +702,13 @@ getTeamFeature user tid featureName = do
   req <- baseRequest user Galley Versioned (joinHttpPath ["teams", tidStr, "features", featureName])
   submit "GET" req
 
-setTeamFeatureConfig :: (HasCallStack, MakesValue domain, MakesValue team, MakesValue featureName, MakesValue payload) => domain -> team -> featureName -> payload -> App Response
+setTeamFeatureConfig :: (HasCallStack, MakesValue user, MakesValue team, MakesValue featureName, MakesValue payload) => user -> team -> featureName -> payload -> App Response
 setTeamFeatureConfig = setTeamFeatureConfigVersioned Versioned
 
-setTeamFeatureConfigVersioned :: (HasCallStack, MakesValue domain, MakesValue team, MakesValue featureName, MakesValue payload) => Versioned -> domain -> team -> featureName -> payload -> App Response
-setTeamFeatureConfigVersioned versioned domain team featureName payload = do
+setTeamFeatureConfigVersioned :: (HasCallStack, MakesValue user, MakesValue team, MakesValue featureName, MakesValue payload) => Versioned -> user -> team -> featureName -> payload -> App Response
+setTeamFeatureConfigVersioned versioned user team featureName payload = do
   tid <- asString team
   fn <- asString featureName
   p <- make payload
-  req <- baseRequest domain Galley versioned $ joinHttpPath ["teams", tid, "features", fn]
+  req <- baseRequest user Galley versioned $ joinHttpPath ["teams", tid, "features", fn]
   submit "PUT" $ req & addJSON p
