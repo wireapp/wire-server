@@ -22,6 +22,7 @@ import qualified API.GalleyInternal as Internal
 import Control.Monad.Codensity (Codensity (runCodensity))
 import Control.Monad.Reader
 import qualified Data.Aeson as A
+import Notifications
 import SetupHelpers
 import Test.FeatureFlags.Util
 import Testlib.Prelude
@@ -273,3 +274,33 @@ testSearchVisibilityEnabledByDefault = do
     checkFeature "searchVisibility" owner tid disabled
     assertSuccess =<< Internal.setTeamFeatureStatus owner tid "searchVisibility" "enabled"
     checkFeature "searchVisibility" owner tid enabled
+
+testDigitalSignatures :: HasCallStack => App ()
+testDigitalSignatures = _testSimpleFlag "digitalSignatures" False
+
+_testSimpleFlag :: HasCallStack => String -> Bool -> App ()
+_testSimpleFlag featureName featureEnabledByDefault = do
+  let defaultStatus = if featureEnabledByDefault then "enabled" else "disabled"
+  let defaultValue = if featureEnabledByDefault then enabled else disabled
+  let otherStatus = if featureEnabledByDefault then "disabled" else "enabled"
+  let otherValue = if featureEnabledByDefault then disabled else enabled
+
+  (_, tid, m : _) <- createTeam OwnDomain 2
+  nonTeamMember <- randomUser OwnDomain def
+  assertForbidden =<< Public.getTeamFeature nonTeamMember tid featureName
+  checkFeature featureName m tid defaultValue
+  -- should receive an event
+  void $ withWebSockets [m] $ \wss -> do
+    assertSuccess =<< Internal.setTeamFeatureStatus OwnDomain tid featureName otherStatus
+    for_ wss $ \ws -> do
+      notif <- awaitMatch isFeatureConfigUpdateNotif ws
+      notif %. "payload.0.name" `shouldMatch` featureName
+      notif %. "payload.0.data" `shouldMatch` otherValue
+
+    checkFeature featureName m tid otherValue
+    assertSuccess =<< Internal.setTeamFeatureStatus OwnDomain tid featureName defaultStatus
+    for_ wss $ \ws -> do
+      notif <- awaitMatch isFeatureConfigUpdateNotif ws
+      notif %. "payload.0.name" `shouldMatch` featureName
+      notif %. "payload.0.data" `shouldMatch` defaultValue
+    checkFeature featureName m tid defaultValue
