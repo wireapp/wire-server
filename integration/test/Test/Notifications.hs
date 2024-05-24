@@ -108,3 +108,13 @@ testAddClientNotification = do
     nPayload n
 
   void $ e %. "client.capabilities.capabilities" & asList
+
+testRedisOutage :: HasCallStack => App ()
+testRedisOutage = do
+  withModifiedBackend
+    (def {gundeckCfg = setField "redis.port" (12345 :: Int)})
+    $ \domain -> do
+      alice <- randomUser domain def
+      push <- examplePush alice
+      void $ postPush alice [push] >>= getBody 200
+      void $ getLastNotification alice def {client = Just "c"} >>= getJSON 200
