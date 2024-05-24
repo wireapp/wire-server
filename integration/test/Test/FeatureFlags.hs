@@ -278,6 +278,15 @@ testSearchVisibilityEnabledByDefault = do
 testDigitalSignatures :: HasCallStack => App ()
 testDigitalSignatures = _testSimpleFlag "digitalSignatures" False
 
+testValidateSAMLEmails :: HasCallStack => App ()
+testValidateSAMLEmails = _testSimpleFlag "validateSAMLemails" True
+
+testConferenceCalling :: HasCallStack => App ()
+testConferenceCalling = _testSimpleFlag "conferenceCalling" True
+
+testSearchVisibilityInbound :: HasCallStack => App ()
+testSearchVisibilityInbound = _testSimpleFlag "searchVisibilityInbound" False
+
 _testSimpleFlag :: HasCallStack => String -> Bool -> App ()
 _testSimpleFlag featureName featureEnabledByDefault = do
   let defaultStatus = if featureEnabledByDefault then "enabled" else "disabled"

@@ -64,13 +64,11 @@ tests :: IO TestSetup -> TestTree
 tests s =
   testGroup
     "Feature Config API and Team Features API"
-    [ test s "ValidateSAMLEmails" $ testSimpleFlag @ValidateSAMLEmailsConfig FeatureStatusEnabled,
-      test s "FileSharing with lock status" $ testSimpleFlagWithLockStatus @FileSharingConfig FeatureStatusEnabled LockStatusUnlocked,
+    [ test s "FileSharing with lock status" $ testSimpleFlagWithLockStatus @FileSharingConfig FeatureStatusEnabled LockStatusUnlocked,
       test s "Classified Domains (enabled)" testClassifiedDomainsEnabled,
       test s "Classified Domains (disabled)" testClassifiedDomainsDisabled,
       test s "All features" testAllFeatures,
       test s "Feature Configs / Team Features Consistency" testFeatureConfigConsistency,
-      test s "ConferenceCalling" $ testSimpleFlag @ConferenceCallingConfig FeatureStatusEnabled,
       test s "SelfDeletingMessages" testSelfDeletingMessages,
       test s "ConversationGuestLinks - public API" testGuestLinksPublic,
       test s "ConversationGuestLinks - internal API" testGuestLinksInternal,
@@ -93,7 +91,6 @@ tests s =
           test s "Unlimited to unlimited" $ testSimpleFlagTTLOverride @ConferenceCallingConfig FeatureStatusEnabled FeatureTTLUnlimited FeatureTTLUnlimited
         ],
       test s "MLS feature config" testMLS,
-      test s "SearchVisibilityInbound" $ testSimpleFlag @SearchVisibilityInboundConfig FeatureStatusDisabled,
       test s "MlsE2EId feature config" $
         testNonTrivialConfigNoTTL
           ( withStatus
@@ -299,20 +296,6 @@ testClassifiedDomainsDisabled = do
 
   withSettingsOverrides classifiedDomainsDisabled $
     checkTeamFeatureAllEndpoints member tid expected
-
-testSimpleFlag ::
-  forall cfg.
-  ( HasCallStack,
-    Typeable cfg,
-    IsFeatureConfig cfg,
-    KnownSymbol (FeatureSymbol cfg),
-    FeatureTrivialConfig cfg,
-    ToSchema cfg,
-    FromJSON (WithStatusNoLock cfg)
-  ) =>
-  FeatureStatus ->
-  TestM ()
-testSimpleFlag defaultValue = testSimpleFlagTTL @cfg defaultValue FeatureTTLUnlimited
 
 testSimpleFlagTTLOverride ::
   forall cfg.
