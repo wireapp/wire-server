@@ -247,3 +247,29 @@ testSSOEnabledByDefault = do
       checkFeature "sso" owner tid enabled
       -- check that the feature cannot be disabled
       assertLabel 403 "not-implemented" =<< Internal.setTeamFeatureConfig owner tid "sso" (object ["status" .= "disabled"])
+
+testSearchVisibilityDisabledByDefault :: HasCallStack => App ()
+testSearchVisibilityDisabledByDefault = do
+  withModifiedBackend def {galleyCfg = setField "settings.featureFlags.teamSearchVisibility" "disabled-by-default"} $ \domain -> do
+    (owner, tid, m : _) <- createTeam domain 2
+    nonMember <- randomUser domain def
+    assertForbidden =<< Public.getTeamFeature nonMember tid "searchVisibility"
+    -- Test default
+    checkFeature "searchVisibility" m tid disabled
+    assertSuccess =<< Internal.setTeamFeatureStatus owner tid "searchVisibility" "enabled"
+    checkFeature "searchVisibility" owner tid enabled
+    assertSuccess =<< Internal.setTeamFeatureStatus owner tid "searchVisibility" "disabled"
+    checkFeature "searchVisibility" owner tid disabled
+
+testSearchVisibilityEnabledByDefault :: HasCallStack => App ()
+testSearchVisibilityEnabledByDefault = do
+  withModifiedBackend def {galleyCfg = setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default"} $ \domain -> do
+    (owner, tid, m : _) <- createTeam domain 2
+    nonMember <- randomUser domain def
+    assertForbidden =<< Public.getTeamFeature nonMember tid "searchVisibility"
+    -- Test default
+    checkFeature "searchVisibility" m tid enabled
+    assertSuccess =<< Internal.setTeamFeatureStatus owner tid "searchVisibility" "disabled"
+    checkFeature "searchVisibility" owner tid disabled
+    assertSuccess =<< Internal.setTeamFeatureStatus owner tid "searchVisibility" "enabled"
+    checkFeature "searchVisibility" owner tid enabled

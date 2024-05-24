@@ -64,8 +64,7 @@ tests :: IO TestSetup -> TestTree
 tests s =
   testGroup
     "Feature Config API and Team Features API"
-    [ test s "SearchVisibility" testSearchVisibility,
-      test s "DigitalSignatures" $ testSimpleFlag @DigitalSignaturesConfig FeatureStatusDisabled,
+    [ test s "DigitalSignatures" $ testSimpleFlag @DigitalSignaturesConfig FeatureStatusDisabled,
       test s "ValidateSAMLEmails" $ testSimpleFlag @ValidateSAMLEmailsConfig FeatureStatusEnabled,
       test s "FileSharing with lock status" $ testSimpleFlagWithLockStatus @FileSharingConfig FeatureStatusEnabled LockStatusUnlocked,
       test s "Classified Domains (enabled)" testClassifiedDomainsEnabled,
@@ -278,37 +277,6 @@ testPatch' testLockStatusChange rndFeatureConfig defStatus defConfig = do
           wsLockStatus actual @?= fromMaybe (wsLockStatus original) (wspLockStatus rndFeatureConfig)
         wsConfig actual @?= fromMaybe (wsConfig original) (wspConfig rndFeatureConfig)
   checkTeamFeatureAllEndpoints uid tid actual
-
-testSearchVisibility :: TestM ()
-testSearchVisibility = do
-  let setTeamSearchVisibilityInternal :: TeamId -> FeatureStatus -> TestM ()
-      setTeamSearchVisibilityInternal teamid val = do
-        putTeamSearchVisibilityAvailableInternal teamid val
-
-  (_, tid, [member]) <- createBindingTeamWithNMembers 1
-  nonMember <- randomUser
-
-  assertFlagForbidden $ getTeamFeature @SearchVisibilityAvailableConfig nonMember tid
-
-  withCustomSearchFeature FeatureTeamSearchVisibilityUnavailableByDefault $ do
-    checkTeamFeatureAllEndpoints member tid (withStatus FeatureStatusDisabled LockStatusUnlocked SearchVisibilityAvailableConfig FeatureTTLUnlimited)
-
-    setTeamSearchVisibilityInternal tid FeatureStatusEnabled
-    checkTeamFeatureAllEndpoints member tid (withStatus FeatureStatusEnabled LockStatusUnlocked SearchVisibilityAvailableConfig FeatureTTLUnlimited)
-
-    setTeamSearchVisibilityInternal tid FeatureStatusDisabled
-    checkTeamFeatureAllEndpoints member tid (withStatus FeatureStatusDisabled LockStatusUnlocked SearchVisibilityAvailableConfig FeatureTTLUnlimited)
-
-  (_, tid2, team2member : _) <- createBindingTeamWithNMembers 1
-
-  withCustomSearchFeature FeatureTeamSearchVisibilityAvailableByDefault $ do
-    checkTeamFeatureAllEndpoints team2member tid2 (withStatus FeatureStatusEnabled LockStatusUnlocked SearchVisibilityAvailableConfig FeatureTTLUnlimited)
-
-    setTeamSearchVisibilityInternal tid2 FeatureStatusDisabled
-    checkTeamFeatureAllEndpoints team2member tid2 (withStatus FeatureStatusDisabled LockStatusUnlocked SearchVisibilityAvailableConfig FeatureTTLUnlimited)
-
-    setTeamSearchVisibilityInternal tid2 FeatureStatusEnabled
-    checkTeamFeatureAllEndpoints team2member tid2 (withStatus FeatureStatusEnabled LockStatusUnlocked SearchVisibilityAvailableConfig FeatureTTLUnlimited)
 
 testClassifiedDomainsEnabled :: TestM ()
 testClassifiedDomainsEnabled = do
