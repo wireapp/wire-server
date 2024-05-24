@@ -64,9 +64,7 @@ tests :: IO TestSetup -> TestTree
 tests s =
   testGroup
     "Feature Config API and Team Features API"
-    [ test s "LegalHold - set with HTTP PUT" (testLegalHold putLegalHoldInternal),
-      test s "LegalHold - set with HTTP PATCH" (testLegalHold patchLegalHoldInternal),
-      test s "SearchVisibility" testSearchVisibility,
+    [ test s "SearchVisibility" testSearchVisibility,
       test s "DigitalSignatures" $ testSimpleFlag @DigitalSignaturesConfig FeatureStatusDisabled,
       test s "ValidateSAMLEmails" $ testSimpleFlag @ValidateSAMLEmailsConfig FeatureStatusEnabled,
       test s "FileSharing with lock status" $ testSimpleFlagWithLockStatus @FileSharingConfig FeatureStatusEnabled LockStatusUnlocked,
@@ -280,41 +278,6 @@ testPatch' testLockStatusChange rndFeatureConfig defStatus defConfig = do
           wsLockStatus actual @?= fromMaybe (wsLockStatus original) (wspLockStatus rndFeatureConfig)
         wsConfig actual @?= fromMaybe (wsConfig original) (wspConfig rndFeatureConfig)
   checkTeamFeatureAllEndpoints uid tid actual
-
-testLegalHold :: ((Request -> Request) -> TeamId -> FeatureStatus -> TestM ()) -> TestM ()
-testLegalHold setLegalHoldInternal = do
-  (_owner, tid, member : _) <- createBindingTeamWithNMembers 1
-  nonMember <- randomUser
-  checkTeamFeatureAllEndpoints member tid (withStatus FeatureStatusDisabled LockStatusUnlocked LegalholdConfig FeatureTTLUnlimited)
-  assertFlagForbidden $ getTeamFeature @LegalholdConfig nonMember tid
-
-  -- FUTUREWORK: run two galleys, like below for custom search visibility.
-  featureLegalHold <- view (tsGConf . settings . featureFlags . flagLegalHold)
-  case featureLegalHold of
-    FeatureLegalHoldDisabledByDefault -> do
-      -- Test default
-      checkTeamFeatureAllEndpoints member tid (withStatus FeatureStatusDisabled LockStatusUnlocked LegalholdConfig FeatureTTLUnlimited)
-
-      -- Test override
-      setLegalHoldInternal expect2xx tid FeatureStatusEnabled
-      checkTeamFeatureAllEndpoints member tid (withStatus FeatureStatusEnabled LockStatusUnlocked LegalholdConfig FeatureTTLUnlimited)
-
-    -- turned off for instance
-    FeatureLegalHoldDisabledPermanently -> do
-      setLegalHoldInternal expect4xx tid FeatureStatusEnabled
-
-    -- turned off but for whitelisted teams with implicit consent
-    FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
-      setLegalHoldInternal expect4xx tid FeatureStatusEnabled
-
-putLegalHoldInternal :: HasCallStack => (Request -> Request) -> TeamId -> FeatureStatus -> TestM ()
-putLegalHoldInternal expectation tid =
-  void
-    . putTeamFeatureInternal @LegalholdConfig expectation tid
-    . (\st -> WithStatusNoLock st LegalholdConfig FeatureTTLUnlimited)
-
-patchLegalHoldInternal :: HasCallStack => (Request -> Request) -> TeamId -> FeatureStatus -> TestM ()
-patchLegalHoldInternal expectation tid status = void $ patchTeamFeatureInternalWithMod @LegalholdConfig expectation tid (withStatus' (Just status) Nothing Nothing (Just FeatureTTLUnlimited))
 
 testSearchVisibility :: TestM ()
 testSearchVisibility = do

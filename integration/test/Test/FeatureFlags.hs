@@ -35,10 +35,29 @@ testLimitedEventFanout = do
   bindResponse (Internal.getTeamFeature OwnDomain team featureName) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "disabled"
-  Internal.setTeamFeatureStatus OwnDomain team featureName "enabled"
+  assertSuccess =<< Internal.setTeamFeatureStatus OwnDomain team featureName "enabled"
   bindResponse (Internal.getTeamFeature OwnDomain team featureName) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "enabled"
+
+testLegalholdDisabledByDefault :: HasCallStack => App ()
+testLegalholdDisabledByDefault = do
+  let put uid tid st = Internal.setTeamFeatureConfig uid tid "legalhold" (object ["status" .= st]) >>= assertSuccess
+  let patch uid tid st = Internal.setTeamFeatureStatus uid tid "legalhold" st >>= assertSuccess
+  forM_ [put, patch] $ \setFeatureStatus -> do
+    withModifiedBackend
+      def {galleyCfg = setField "settings.featureFlags.legalhold" "disabled-by-default"}
+      $ \domain -> do
+        (owner, tid, m : _) <- createTeam domain 2
+        nonMember <- randomUser domain def
+        assertForbidden =<< Public.getTeamFeature nonMember tid "legalhold"
+        -- Test default
+        checkFeature "legalhold" m tid disabled
+        -- Test override
+        setFeatureStatus owner tid "enabled"
+        checkFeature "legalhold" owner tid enabled
+        setFeatureStatus owner tid "disabled"
+        checkFeature "legalhold" owner tid disabled
 
 -- always disabled
 testLegalholdDisabledPermanently :: HasCallStack => App ()
@@ -59,31 +78,19 @@ testLegalholdDisabledPermanently = do
     runCodensity (startDynamicBackend testBackend cfgLhDisabledPermanently) $ \_ -> do
       (owner, tid, _) <- createTeam domain 1
       checkFeature "legalhold" owner tid disabled
-      Internal.setTeamFeatureStatusExpectHttpStatus domain tid "legalhold" "enabled" 403
+      assertStatus 403 =<< Internal.setTeamFeatureStatus domain tid "legalhold" "enabled"
+      assertStatus 403 =<< Internal.setTeamFeatureConfig domain tid "legalhold" (object ["status" .= "enabled"])
 
-    -- Inteteresting case: The team had LH enabled before backend config was
+    -- Interesting case: The team had LH enabled before backend config was
     -- changed to disabled-permanently
     (owner, tid) <- runCodensity (startDynamicBackend testBackend cfgLhDisabledByDefault) $ \_ -> do
       (owner, tid, _) <- createTeam domain 1
       checkFeature "legalhold" owner tid disabled
-      Internal.setTeamFeatureStatusExpectHttpStatus domain tid "legalhold" "enabled" 200
+      assertSuccess =<< Internal.setTeamFeatureStatus domain tid "legalhold" "enabled"
       checkFeature "legalhold" owner tid enabled
       pure (owner, tid)
 
     runCodensity (startDynamicBackend testBackend cfgLhDisabledPermanently) $ \_ -> do
-      checkFeature "legalhold" owner tid disabled
-
--- can be enabled for a team, disabled if unset
-testLegalholdDisabledByDefault :: HasCallStack => App ()
-testLegalholdDisabledByDefault = do
-  withModifiedBackend
-    (def {galleyCfg = setField "settings.featureFlags.legalhold" "disabled-by-default"})
-    $ \domain -> do
-      (owner, tid, _) <- createTeam domain 1
-      checkFeature "legalhold" owner tid disabled
-      Internal.setTeamFeatureStatus domain tid "legalhold" "enabled"
-      checkFeature "legalhold" owner tid enabled
-      Internal.setTeamFeatureStatus domain tid "legalhold" "disabled"
       checkFeature "legalhold" owner tid disabled
 
 -- enabled if team is allow listed, disabled in any other case
@@ -109,7 +116,8 @@ testLegalholdWhitelistTeamsAndImplicitConsent = do
       checkFeature "legalhold" owner tid enabled
 
       -- Disabling it doesn't work
-      Internal.setTeamFeatureStatusExpectHttpStatus domain tid "legalhold" "disabled" 403
+      assertStatus 403 =<< Internal.setTeamFeatureStatus domain tid "legalhold" "disabled"
+      assertStatus 403 =<< Internal.setTeamFeatureConfig domain tid "legalhold" (object ["status" .= "disabled"])
       checkFeature "legalhold" owner tid enabled
       pure (owner, tid)
 
@@ -118,7 +126,7 @@ testLegalholdWhitelistTeamsAndImplicitConsent = do
     -- enabled when the config gets changed.
     runCodensity (startDynamicBackend testBackend cfgLhDisabledByDefault) $ \_ -> do
       checkFeature "legalhold" owner tid disabled
-      Internal.setTeamFeatureStatusExpectHttpStatus domain tid "legalhold" "disabled" 200
+      assertSuccess =<< Internal.setTeamFeatureStatus domain tid "legalhold" "disabled"
       checkFeature "legalhold" owner tid disabled
 
     runCodensity (startDynamicBackend testBackend cfgLhWhitelistTeamsAndImplicitConsent) $ \_ -> do
@@ -138,8 +146,8 @@ testExposeInvitationURLsToTeamAdminConfig = do
           (owner, tid, _) <- createTeam domain 1
           checkFeature "exposeInvitationURLsToTeamAdmin" owner tid disabledLocked
           -- here we get a response with HTTP status 200 and feature status unchanged (disabled), which we find weird, but we're just testing the current behavior
-          Internal.setTeamFeatureStatusExpectHttpStatus domain tid "exposeInvitationURLsToTeamAdmin" "enabled" 200
-          Internal.setTeamFeatureStatusExpectHttpStatus domain tid "exposeInvitationURLsToTeamAdmin" "disabled" 200
+          assertSuccess =<< Internal.setTeamFeatureStatus domain tid "exposeInvitationURLsToTeamAdmin" "enabled"
+          assertSuccess =<< Internal.setTeamFeatureStatus domain tid "exposeInvitationURLsToTeamAdmin" "disabled"
           pure (owner, tid)
 
     -- Happy case: DB has no config for the team
@@ -148,11 +156,11 @@ testExposeInvitationURLsToTeamAdminConfig = do
     -- Interesting case: The team is in the allow list
     runCodensity (startDynamicBackend testBackend $ cfgExposeInvitationURLsTeamAllowlist [tid]) $ \_ -> do
       checkFeature "exposeInvitationURLsToTeamAdmin" owner tid disabled
-      Internal.setTeamFeatureStatusExpectHttpStatus domain tid "exposeInvitationURLsToTeamAdmin" "enabled" 200
+      assertSuccess =<< Internal.setTeamFeatureStatus domain tid "exposeInvitationURLsToTeamAdmin" "enabled"
       checkFeature "exposeInvitationURLsToTeamAdmin" owner tid enabled
-      Internal.setTeamFeatureStatusExpectHttpStatus domain tid "exposeInvitationURLsToTeamAdmin" "disabled" 200
+      assertSuccess =<< Internal.setTeamFeatureStatus domain tid "exposeInvitationURLsToTeamAdmin" "disabled"
       checkFeature "exposeInvitationURLsToTeamAdmin" owner tid disabled
-      Internal.setTeamFeatureStatusExpectHttpStatus domain tid "exposeInvitationURLsToTeamAdmin" "enabled" 200
+      assertSuccess =<< Internal.setTeamFeatureStatus domain tid "exposeInvitationURLsToTeamAdmin" "enabled"
       checkFeature "exposeInvitationURLsToTeamAdmin" owner tid enabled
 
     -- Interesting case: The team had the feature enabled but is not in allow list
@@ -214,7 +222,7 @@ testMlsE2EConfigCrlProxyNotRequiredInV5 = do
 testSSODisabledByDefault :: HasCallStack => App ()
 testSSODisabledByDefault = do
   let put uid tid = Internal.setTeamFeatureConfig uid tid "sso" (object ["status" .= "enabled"]) >>= assertSuccess
-  let patch uid tid = Internal.setTeamFeatureStatus uid tid "sso" "enabled"
+  let patch uid tid = Internal.setTeamFeatureStatus uid tid "sso" "enabled" >>= assertSuccess
   forM_ [put, patch] $ \enableFeature -> do
     withModifiedBackend
       def {galleyCfg = setField "settings.featureFlags.sso" "disabled-by-default"}
