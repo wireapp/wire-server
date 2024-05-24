@@ -894,4 +894,4 @@ testNoConsentCannotBeInvited = do
       resp.status `shouldMatchInt` 200
       resp.json %. "status" `shouldMatch` "enabled"
 
-    addMembers userLHNotActivated cid (def {users = [peer3]}) >>= assertLabel 403 "missing-legalhold-consent"
+    addMembers userLHNotActivated cid (def {users = [peer3]}) >>= assertLabel 403 "not-connected"
