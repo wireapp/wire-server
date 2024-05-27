@@ -318,21 +318,40 @@ _testSimpleFlag featureName featureEnabledByDefault = do
     checkFeature featureName m tid defaultValue
 
 testConversationGuestLinks :: HasCallStack => App ()
-testConversationGuestLinks = _testSimpleFlagWithLockStatus "conversationGuestLinks" True True
+testConversationGuestLinks = _testSimpleFlagWithLockStatus "conversationGuestLinks" Public.setTeamFeatureConfig True True
 
 testFileSharing :: HasCallStack => App ()
-testFileSharing = _testSimpleFlagWithLockStatus "fileSharing" True True
+testFileSharing = _testSimpleFlagWithLockStatus "fileSharing" Public.setTeamFeatureConfig True True
 
 testSndFactorPasswordChallenge :: HasCallStack => App ()
-testSndFactorPasswordChallenge = _testSimpleFlagWithLockStatus "sndFactorPasswordChallenge" False False
+testSndFactorPasswordChallenge = _testSimpleFlagWithLockStatus "sndFactorPasswordChallenge" Public.setTeamFeatureConfig False False
 
 testOutlookCalIntegration :: HasCallStack => App ()
-testOutlookCalIntegration = _testSimpleFlagWithLockStatus "outlookCalIntegration" False False
+testOutlookCalIntegration = _testSimpleFlagWithLockStatus "outlookCalIntegration" Public.setTeamFeatureConfig False False
 
-_testSimpleFlagWithLockStatus :: HasCallStack => String -> Bool -> Bool -> App ()
-_testSimpleFlagWithLockStatus featureName featureEnabledByDefault featureUnlockedByDefault = do
+testConversationGuestLinksInternal :: HasCallStack => App ()
+testConversationGuestLinksInternal = _testSimpleFlagWithLockStatus "conversationGuestLinks" Internal.setTeamFeatureConfig True True
+
+testFileSharingInternal :: HasCallStack => App ()
+testFileSharingInternal = _testSimpleFlagWithLockStatus "fileSharing" Internal.setTeamFeatureConfig True True
+
+testSndFactorPasswordChallengeInternal :: HasCallStack => App ()
+testSndFactorPasswordChallengeInternal = _testSimpleFlagWithLockStatus "sndFactorPasswordChallenge" Internal.setTeamFeatureConfig False False
+
+testOutlookCalIntegrationInternal :: HasCallStack => App ()
+testOutlookCalIntegrationInternal = _testSimpleFlagWithLockStatus "outlookCalIntegration" Internal.setTeamFeatureConfig False False
+
+_testSimpleFlagWithLockStatus ::
+  HasCallStack =>
+  String ->
+  (Value -> String -> String -> Value -> App Response) ->
+  Bool ->
+  Bool ->
+  App ()
+_testSimpleFlagWithLockStatus featureName setFeatureConfig featureEnabledByDefault featureUnlockedByDefault = do
   -- let defaultStatus = if featureEnabledByDefault then "enabled" else "disabled"
   defaultValue <- (if featureEnabledByDefault then enabled else disabled) & setField "lockStatus" (if featureUnlockedByDefault then "unlocked" else "locked")
+  let thisStatus = if featureEnabledByDefault then "enabled" else "disabled"
   let otherStatus = if featureEnabledByDefault then "disabled" else "enabled"
 
   (owner, tid, m : _) <- createTeam OwnDomain 2
@@ -347,7 +366,7 @@ _testSimpleFlagWithLockStatus featureName featureEnabledByDefault featureUnlocke
   -- change the status
   let otherValue = if featureEnabledByDefault then disabled else enabled
   void $ withWebSockets [m] $ \wss -> do
-    assertSuccess =<< Public.setTeamFeatureConfig owner tid featureName (object ["status" .= otherStatus])
+    assertSuccess =<< setFeatureConfig owner tid featureName (object ["status" .= otherStatus])
     for_ wss $ \ws -> do
       notif <- awaitMatch isFeatureConfigUpdateNotif ws
       notif %. "payload.0.name" `shouldMatch` featureName
@@ -355,12 +374,20 @@ _testSimpleFlagWithLockStatus featureName featureEnabledByDefault featureUnlocke
 
   checkFeature featureName m tid otherValue
 
+  bindResponse (setFeatureConfig owner tid featureName (object ["status" .= thisStatus])) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    checkFeature featureName m tid (object ["status" .= thisStatus, "lockStatus" .= "unlocked", "ttl" .= "unlimited"])
+
+  bindResponse (setFeatureConfig owner tid featureName (object ["status" .= otherStatus])) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    checkFeature featureName m tid (object ["status" .= otherStatus, "lockStatus" .= "unlocked", "ttl" .= "unlimited"])
+
   -- lock feature
   Internal.setTeamFeatureLockStatus OwnDomain tid featureName "locked"
 
   -- feature status should be the default again
   checkFeature featureName m tid =<< setField "lockStatus" "locked" defaultValue
-  assertStatus 409 =<< Public.setTeamFeatureConfig owner tid featureName (object ["status" .= otherStatus])
+  assertStatus 409 =<< setFeatureConfig owner tid featureName (object ["status" .= otherStatus])
 
   -- unlock again
   Internal.setTeamFeatureLockStatus OwnDomain tid featureName "unlocked"
