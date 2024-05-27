@@ -140,7 +140,6 @@ callInward ::
   Wai.Request ->
   Sem r Wai.Response
 callInward component (RPC rpc) originDomain (CertHeader cert) wreq = do
-  -- let rid = getRequestId federationRequestIdHeaderName wreq
   incomingCounterIncr originDomain
   -- only POST is supported
   when (Wai.requestMethod wreq /= HTTP.methodPost) $
