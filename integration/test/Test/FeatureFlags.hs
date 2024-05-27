@@ -377,3 +377,87 @@ testClassifiedDomainsDisabled = do
     (_, tid, m : _) <- createTeam domain 2
     expected <- disabled & setField "config.domains" ["d1.example.com"]
     checkFeature "classifiedDomains" m tid expected
+
+-- | Call 'GET /teams/:tid/features' and 'GET /feature-configs', and check if all
+-- features are there.
+testAllFeatures :: HasCallStack => App ()
+testAllFeatures = do
+  (_, tid, m : _) <- createTeam OwnDomain 2
+  let expected =
+        object $
+          [ "legalhold" .= disabled,
+            "sso" .= disabled,
+            "searchVisibility" .= disabled,
+            "validateSAMLemails" .= enabled,
+            "digitalSignatures" .= disabled,
+            "appLock" .= object ["lockStatus" .= "unlocked", "status" .= "enabled", "ttl" .= "unlimited", "config" .= object ["enforceAppLock" .= False, "inactivityTimeoutSecs" .= A.Number 60]],
+            "fileSharing" .= enabled,
+            "classifiedDomains" .= object ["lockStatus" .= "unlocked", "status" .= "enabled", "ttl" .= "unlimited", "config" .= object ["domains" .= ["example.com"]]],
+            "conferenceCalling" .= enabled,
+            "selfDeletingMessages" .= object ["lockStatus" .= "unlocked", "status" .= "enabled", "ttl" .= "unlimited", "config" .= object ["enforcedTimeoutSeconds" .= A.Number 0]],
+            "conversationGuestLinks" .= enabled,
+            "sndFactorPasswordChallenge" .= disabledLocked,
+            "mls"
+              .= object
+                [ "lockStatus" .= "unlocked",
+                  "status" .= "disabled",
+                  "ttl" .= "unlimited",
+                  "config"
+                    .= object
+                      [ "protocolToggleUsers" .= ([] :: [String]),
+                        "defaultProtocol" .= "proteus",
+                        "supportedProtocols" .= ["proteus", "mls"],
+                        "allowedCipherSuites" .= ([1] :: [Int]),
+                        "defaultCipherSuite" .= A.Number 1
+                      ]
+                ],
+            "searchVisibilityInbound" .= disabled,
+            "exposeInvitationURLsToTeamAdmin" .= disabledLocked,
+            "outlookCalIntegration" .= disabledLocked,
+            "mlsE2EId"
+              .= object
+                [ "lockStatus" .= "unlocked",
+                  "status" .= "disabled",
+                  "ttl" .= "unlimited",
+                  "config"
+                    .= object
+                      [ "verificationExpiration" .= A.Number 86400,
+                        "useProxyOnMobile" .= False
+                      ]
+                ],
+            "mlsMigration"
+              .= object
+                [ "lockStatus" .= "locked",
+                  "status" .= "enabled",
+                  "ttl" .= "unlimited",
+                  "config"
+                    .= object
+                      [ "startTime" .= "2029-05-16T10:11:12.123Z",
+                        "finaliseRegardlessAfter" .= "2029-10-17T00:00:00Z"
+                      ]
+                ],
+            "enforceFileDownloadLocation" .= object ["lockStatus" .= "locked", "status" .= "disabled", "ttl" .= "unlimited", "config" .= object []],
+            "limitedEventFanout" .= disabled
+          ]
+  bindResponse (Public.getTeamFeatures m tid) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    expected `shouldMatch` resp.json
+
+  -- This block catches potential errors in the logic that reverts to default if there is a distinction made between
+  -- 1. there is no row for a team_id in galley.team_features
+  -- 2. there is a row for team_id in galley.team_features but the feature has a no entry (null value)
+  Internal.setTeamFeatureConfig OwnDomain tid "conversationGuestLinks" enabled >>= assertSuccess
+
+  bindResponse (Public.getTeamFeatures m tid) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    expected `shouldMatch` resp.json
+
+  bindResponse (Public.getFeatureConfigs m) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    expected `shouldMatch` resp.json
+
+  randomPersonalUser <- randomUser OwnDomain def
+
+  bindResponse (Public.getFeatureConfigs randomPersonalUser) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    expected `shouldMatch` resp.json
