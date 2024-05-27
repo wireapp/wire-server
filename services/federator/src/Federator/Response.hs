@@ -18,11 +18,13 @@
 module Federator.Response
   ( defaultHeaders,
     serveServant,
+    serveServant1,
     runFederator,
     runFederatorIO,
     runWaiError,
     runWaiErrors,
     streamingResponseToWai,
+    AllEffects1,
   )
 where
 
@@ -49,7 +51,9 @@ import Network.HTTP.Types qualified as HTTP
 import Network.Wai (Middleware)
 import Network.Wai qualified as Wai
 import Network.Wai.Handler.Warp qualified as Warp
+import Network.Wai.Utilities (getRequestId)
 import Network.Wai.Utilities.Error qualified as Wai
+import Network.Wai.Utilities.Server (federationRequestIdHeaderName)
 import Network.Wai.Utilities.Server qualified as Wai
 import Polysemy
 import Polysemy.Embed
@@ -57,7 +61,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Internal
 import Polysemy.TinyLog
-import Servant (ServerError (..))
+import Servant (ServerError (..), serve)
 import Servant hiding (ServerError, respond, serve)
 import Servant.Client (mkClientEnv)
 import Servant.Client.Core
@@ -160,7 +164,7 @@ serveServant ::
   IO ()
 serveServant middleware server env port =
   Warp.run port
-    . Wai.catchErrorsWithRequestId getRequestId (view applog env) []
+    . Wai.catchErrorsWithRequestId getRequestId' (view applog env) []
     . middleware
     $ app
   where
@@ -168,8 +172,27 @@ serveServant middleware server env port =
     app =
       genericServe server
 
-    getRequestId :: Wai.Request -> Maybe ByteString
-    getRequestId = lookup "Wire-Origin-Request-Id" . Wai.requestHeaders
+    getRequestId' :: Wai.Request -> Maybe ByteString
+    getRequestId' = lookup "Wire-Origin-Request-Id" . Wai.requestHeaders
+
+serveServant1 ::
+  forall (api :: Type).
+  (HasServer api '[]) =>
+  Middleware ->
+  (RequestId -> Server api) ->
+  Env ->
+  Int ->
+  IO ()
+serveServant1 middleware mkServer env port =
+  Warp.run port
+    . Wai.catchErrors (view applog env) federationRequestIdHeaderName []
+    . middleware
+    $ app
+  where
+    app :: Wai.Application
+    app req cont = do
+      let rid = getRequestId federationRequestIdHeaderName req
+      serve (Proxy @api) (mkServer rid) req cont
 
 type AllEffects =
   '[ Metrics,

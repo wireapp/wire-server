@@ -33,6 +33,7 @@ import Data.ByteString.Builder
 import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
 import Data.Id (RequestId (..))
+import Data.Metrics.Servant (RoutesToPaths, getRoutes)
 import Data.Metrics.Servant qualified as Metrics
 import Data.Proxy (Proxy (Proxy))
 import Data.Sequence qualified as Seq
@@ -62,7 +63,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
-import Servant (HasServer (..))
+import Servant (DefaultErrorFormatters, HasServer (..))
 import Servant.API
 import Servant.API.Extended.Endpath
 import Servant.Client.Core
@@ -113,6 +114,12 @@ data API mode = API
 data RawRequest
 
 data RawResponse
+
+instance RoutesToPaths api => RoutesToPaths (RawRequest :> api) where
+  getRoutes = getRoutes @api
+
+instance RoutesToPaths RawResponse where
+  getRoutes = mempty
 
 instance HasServer api context => HasServer (RawRequest :> api) context where
   type ServerT (RawRequest :> api) m = Wai.Request -> ServerT api m
@@ -220,7 +227,6 @@ serveInward env = do
   let middleware =
         Metrics.servantPrometheusMiddleware (Proxy :: Proxy (ToServantApi API))
           . requestIdMiddleware (env ^. applog) federationRequestIdHeaderName
-  serveServant
-    middleware
-    (hoistServerWithContext (Proxy @API) (Proxy @'()) (runFederator env) $ server env._httpManager env._internalPort)
-    env
+      hoistedApp :: RequestId -> Server (ToServantApi API)
+      hoistedApp rid = hoistServerWithContext (Proxy @(ToServantApi API)) (Proxy @'[]) (runFederatorIO env rid) $ toServant $ server env._httpManager env._internalPort
+  serveServant1 @(ToServantApi API) middleware hoistedApp env
