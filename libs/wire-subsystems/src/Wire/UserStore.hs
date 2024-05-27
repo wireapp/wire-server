@@ -1,7 +1,9 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 module Wire.UserStore where
 
+import Data.Default
 import Data.Handle
 import Data.Id
 import Imports
@@ -10,6 +12,8 @@ import Polysemy.Error
 import Wire.API.User
 import Wire.Arbitrary
 import Wire.StoredUser
+
+-- TODO: 'StoredUserHandleUpdate'
 
 data StoredHandleUpdate = MkStoredHandleUpdate
   { old :: Maybe Handle,
@@ -31,6 +35,9 @@ data StoredUserUpdate = MkStoredUserUpdate
   }
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via GenericUniform StoredUserUpdate
+
+instance Default StoredUserUpdate where
+  def = MkStoredUserUpdate Nothing Nothing Nothing Nothing Nothing Nothing
 
 data StoredUserUpdateError = StoredUserUpdateHandleExists
 
@@ -55,3 +62,10 @@ updateUser ::
   StoredUserUpdate ->
   Sem r ()
 updateUser uid update = either throw pure =<< updateUserEither uid update
+
+updateUserHandle ::
+  (Member UserStore r, Member (Error StoredUserUpdateError) r) =>
+  UserId ->
+  StoredHandleUpdate ->
+  Sem r ()
+updateUserHandle uid upd = updateUser uid (def {handle = Just upd})

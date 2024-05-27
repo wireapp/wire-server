@@ -3,7 +3,6 @@
 
 module Wire.UserSubsystem.InterpreterSpec (spec) where
 
-import Control.Error.Util (hush)
 import Data.Bifunctor (first)
 import Data.Coerce
 import Data.Default (Default (def))
@@ -29,7 +28,7 @@ import Wire.API.User hiding (DeleteUser)
 import Wire.MiniBackend
 import Wire.StoredUser
 import Wire.UserSubsystem
-import Wire.UserSubsystem.Interpreter
+import Wire.UserSubsystem.Interpreter -- TODO: only import UserSubsystemConfig(..)
 
 spec :: Spec
 spec = describe "UserSubsystem.Interpreter" do
@@ -212,14 +211,14 @@ spec = describe "UserSubsystem.Interpreter" do
         let lusr = toLocalUnsafe localDomain alice.id
             localBackend = def {users = [alice {managedBy = Just ManagedByWire}]}
             profile = fromJust $ runNoFederationStack localBackend Nothing config do
-              updateUserProfile lusr Nothing update
+              updateUserProfile lusr Nothing AllowSCIMUpdates update
               getUserProfile lusr (tUntagged lusr)
          in -- TODO: check locale update?
             -- TODO: more assertions
             profile.profileQualifiedId === tUntagged lusr
               -- if the name / pict / etc... is not set, the original
               -- value should be preserved
-              .&&. profile.profileName === maybe profile.profileName (.value) update.name
+              .&&. profile.profileName === fromMaybe profile.profileName update.name
               .&&. profile.profilePict === fromMaybe profile.profilePict update.pict
               .&&. profile.profileAssets === fromMaybe profile.profileAssets update.assets
               .&&. profile.profileAccentId === fromMaybe profile.profileAccentId update.accentId
@@ -229,7 +228,7 @@ spec = describe "UserSubsystem.Interpreter" do
         let lusr = toLocalUnsafe localDomain alice.id
             localBackend = def {users = [alice {managedBy = Just ManagedByWire}]}
             events = runNoFederationStack localBackend Nothing config do
-              updateUserProfile lusr Nothing update
+              updateUserProfile lusr Nothing AllowSCIMUpdates update
               get @[MiniEvent]
          in events === [MkMiniEvent alice.id (mkProfileUpdateEvent alice.id update)]
 
@@ -244,7 +243,7 @@ spec = describe "UserSubsystem.Interpreter" do
                   . runErrorUnsafe
                   . runError
                   $ interpretNoFederationStack localBackend Nothing def config do
-                    updateUserProfile lusr Nothing update {name = Just (forbidScimUpdate name)}
+                    updateUserProfile lusr Nothing ForbidSCIMUpdates update {name = Just name}
                     getUserProfile lusr (tUntagged lusr)
            in Left UserSubsystemDisplayNameManagedByScim === profileErr
 
@@ -259,20 +258,9 @@ spec = describe "UserSubsystem.Interpreter" do
                   . runErrorUnsafe
                   . runError
                   $ interpretNoFederationStack localBackend Nothing def {afcMlsE2EId = setStatus FeatureStatusEnabled defFeatureStatus} config do
-                    updateUserProfile lusr Nothing update {name = Just (allowScimUpdate name)}
+                    updateUserProfile lusr Nothing AllowSCIMUpdates update
                     getUserProfile lusr (tUntagged lusr)
            in Left UserSubsystemDisplayNameManagedByScim === profileErr
-
-    prop
-      "handles need to conform to valid characters"
-      \(rawHandle :: HandleText, config) ->
-        let parsedHandle :: Either UserSubsystemError Handle = run
-              . runErrorUnsafe
-              . runError
-              $ interpretNoFederationStack def Nothing def config do
-                parseHandle $ unHandle rawHandle
-            rawParsedHandle = (Handle.parseHandle $ unHandle rawHandle)
-         in (hush parsedHandle) === rawParsedHandle
 
     prop
       "CheckHandle succeeds if there is a user with that handle"
@@ -302,34 +290,24 @@ spec = describe "UserSubsystem.Interpreter" do
       prop
         "Updating handles fails when ForbidSCIMUpdates"
         \(alice, newHandle, domain, config) ->
-          let update =
-                (def :: UserProfileUpdate)
-                  { handle =
-                      Just $
-                        MkScimUpdate {allowScim = ForbidSCIMUpdates, value = newHandle}
-                  }
-              res :: Either UserSubsystemError () = run
+          let res :: Either UserSubsystemError ()
+              res = run
                 . runErrorUnsafe
                 . runError
                 $ interpretNoFederationStack localBackend Nothing def config do
-                  updateUserProfile (toLocalUnsafe domain alice.id) Nothing update
+                  updateHandle (toLocalUnsafe domain alice.id) ForbidSCIMUpdates newHandle
+
               localBackend = def {users = [alice {managedBy = Just ManagedByScim}]}
            in res === Left UserSubsystemHandleManagedByScim
 
       prop
         "Updating handles succeeds when AllowSCIMUpdates"
         \(alice, ssoId, email :: Maybe Email, newHandle, domain, config) ->
-          let update =
-                (def :: UserProfileUpdate)
-                  { handle =
-                      Just $
-                        MkScimUpdate {allowScim = AllowSCIMUpdates, value = newHandle}
-                  }
-              res :: Either UserSubsystemError () = run
+          let res :: Either UserSubsystemError () = run
                 . runErrorUnsafe
                 . runError
                 $ interpretNoFederationStack localBackend Nothing def config do
-                  updateUserProfile (toLocalUnsafe domain alice.id) Nothing update
+                  updateHandle (toLocalUnsafe domain alice.id) AllowSCIMUpdates newHandle
               localBackend =
                 def
                   { users =
@@ -342,6 +320,16 @@ spec = describe "UserSubsystem.Interpreter" do
                       ]
                   }
            in res === Right ()
+
+    prop
+      "handles need to conform to valid characters"
+      \(luid, rawHandle :: HandleText, config) ->
+        let updateResult :: Either UserSubsystemError () = run
+              . runErrorUnsafe
+              . runError
+              $ interpretNoFederationStack def Nothing def config do
+                updateHandle luid AllowSCIMUpdates (unHandle rawHandle)
+         in updateResult === Right ()
 
 -- We create a new type here so we can add a custom Arbitrary instance.
 -- Otherwise using a Text generator will give us 99.99…9% chance of an invalid handle,

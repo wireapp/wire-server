@@ -44,6 +44,8 @@ userSubsystemErrorToWai =
 
 instance Exception UserSubsystemError
 
+-- TODO: data HasE2EId = HasE2EId | DoesNotHaveE2EId
+
 -- TODO: rename to data UpdateOriginScim = UpdateOriginScim | UpdateOriginWireClient
 data AllowSCIMUpdates
   = AllowSCIMUpdates
@@ -76,6 +78,9 @@ instance Default UserProfileUpdate where
         supportedProtocols = Nothing
       }
 
+-- TODO: decouple federation from profile: no operation in this effect should fold over
+-- Qualified anythings, but only get Local anythings.
+
 data UserSubsystem m a where
   -- | First arg is for authorization only.
   GetUserProfiles :: Local UserId -> [Qualified UserId] -> UserSubsystem m [UserProfile]
@@ -91,7 +96,7 @@ data UserSubsystem m a where
   -- | checks a number of 'Handle's for availability and returns at most 'Word' amount of them
   CheckHandles :: [Handle] -> Word -> UserSubsystem m [Handle]
   -- | parses a handle, this may fail so it's effectful
-  UpdateHandle :: AllowSCIMUpdates -> Text -> UserSubsystem m ()
+  UpdateHandle :: Local UserId -> AllowSCIMUpdates -> Text -> UserSubsystem m ()
 
 -- | the return type of 'CheckHandle'
 data CheckHandleResp
