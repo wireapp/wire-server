@@ -43,8 +43,8 @@ run o = do
   let app r k = runProxy e r (route rtree r k)
   let middleware =
         versionMiddleware (foldMap expandVersionExp (o ^. disabledAPIVersions))
+          . requestIdMiddleware (e ^. applog) defaultRequestIdHeaderName
           . waiPrometheusMiddleware (sitemap e)
           . GZip.gunzip
           . catchErrors (e ^. applog) defaultRequestIdHeaderName [Right m]
-          . requestIdMiddleware (e ^. applog) defaultRequestIdHeaderName
   runSettingsWithShutdown s (middleware app) Nothing `finally` destroyEnv e

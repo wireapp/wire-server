@@ -119,11 +119,12 @@ mkApp o = do
     middleware e =
       -- this rewrites the request, so it must be at the top (i.e. applied last)
       versionMiddleware (e ^. disabledVersions)
+        -- this also rewrites the request
+        . requestIdMiddleware (e ^. applog) defaultRequestIdHeaderName
         . Metrics.servantPrometheusMiddleware (Proxy @ServantCombinedAPI)
         . GZip.gunzip
         . GZip.gzip GZip.def
         . catchErrors (e ^. applog) defaultRequestIdHeaderName [Right $ e ^. metrics]
-        . requestIdMiddleware (e ^. applog) defaultRequestIdHeaderName
 
     -- the servant API wraps the one defined using wai-routing
     servantApp :: Env -> Wai.Application

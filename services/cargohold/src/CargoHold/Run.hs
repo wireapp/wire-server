@@ -78,10 +78,10 @@ mkApp o = Codensity $ \k ->
     middleware :: Env -> Wai.Middleware
     middleware e =
       versionMiddleware (foldMap expandVersionExp (o ^. settings . disabledAPIVersions))
+        . requestIdMiddleware (e ^. appLogger) defaultRequestIdHeaderName
         . servantPrometheusMiddleware (Proxy @CombinedAPI)
         . GZip.gzip GZip.def
         . catchErrors (e ^. appLogger) defaultRequestIdHeaderName [Right $ e ^. metrics]
-        . requestIdMiddleware (e ^. appLogger) defaultRequestIdHeaderName
     servantApp :: Env -> Application
     servantApp e0 r cont = do
       let rid = getRequestId defaultRequestIdHeaderName r

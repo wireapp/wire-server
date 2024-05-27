@@ -108,6 +108,7 @@ mkApp sparCtxOpts = do
           else Nothing
   let middleware =
         versionMiddleware (foldMap expandVersionExp (disabledAPIVersions sparCtxOpts))
+          . requestIdMiddleware (ctx0.sparCtxLogger) defaultRequestIdHeaderName
           . WU.heavyDebugLogging heavyLogOnly logLevel sparCtxLogger defaultRequestIdHeaderName
           . servantPrometheusMiddleware (Proxy @SparAPI)
           . GZip.gunzip
@@ -118,5 +119,4 @@ mkApp sparCtxOpts = do
           -- still here for errors outside the power of the 'Application', like network
           -- outages.
           . SAML.setHttpCachePolicy
-          . requestIdMiddleware (ctx0.sparCtxLogger) defaultRequestIdHeaderName
   pure (middleware $ app ctx0, ctx0)

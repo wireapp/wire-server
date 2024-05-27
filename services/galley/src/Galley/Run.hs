@@ -95,11 +95,11 @@ mkApp opts =
     lift $ runClient (env ^. cstate) $ versionCheck schemaVersion
     let middlewares =
           versionMiddleware (foldMap expandVersionExp (opts ^. settings . disabledAPIVersions))
+            . requestIdMiddleware logger defaultRequestIdHeaderName
             . servantPrometheusMiddleware (Proxy @CombinedAPI)
             . GZip.gunzip
             . GZip.gzip GZip.def
             . catchErrors logger defaultRequestIdHeaderName [Right metrics]
-            . requestIdMiddleware logger defaultRequestIdHeaderName
     Codensity $ \k -> finally (k ()) $ do
       Log.info logger $ Log.msg @Text "Galley application finished."
       Log.flush logger

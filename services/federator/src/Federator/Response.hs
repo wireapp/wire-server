@@ -158,9 +158,9 @@ serveServant ::
   IO ()
 serveServant mkServer env port =
   Warp.run port
+    . requestIdMiddleware env._applog federationRequestIdHeaderName
     . Wai.catchErrors (view applog env) federationRequestIdHeaderName []
     . Metrics.servantPrometheusMiddleware (Proxy @api)
-    . requestIdMiddleware env._applog federationRequestIdHeaderName
     $ app
   where
     app :: Wai.Application

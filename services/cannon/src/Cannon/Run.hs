@@ -82,10 +82,10 @@ run o = do
   let middleware :: Wai.Middleware
       middleware =
         versionMiddleware (foldMap expandVersionExp (o ^. disabledAPIVersions))
+          . requestIdMiddleware g defaultRequestIdHeaderName
           . servantPrometheusMiddleware (Proxy @CombinedAPI)
           . Gzip.gzip Gzip.def
           . catchErrors g defaultRequestIdHeaderName [Right m]
-          . requestIdMiddleware g defaultRequestIdHeaderName
       app :: Application
       app = middleware (serve (Proxy @CombinedAPI) server)
       server :: Servant.Server CombinedAPI

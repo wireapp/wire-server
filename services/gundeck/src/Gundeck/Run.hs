@@ -86,11 +86,11 @@ run o = do
     middleware :: Env -> Middleware
     middleware e =
       versionMiddleware (foldMap expandVersionExp (o ^. settings . disabledAPIVersions))
+        . requestIdMiddleware (e ^. applog) defaultRequestIdHeaderName
         . waiPrometheusMiddleware sitemap
         . GZip.gunzip
         . GZip.gzip GZip.def
         . catchErrors (e ^. applog) defaultRequestIdHeaderName [Right $ e ^. monitor]
-        . requestIdMiddleware (e ^. applog) defaultRequestIdHeaderName
 
 type CombinedAPI = GundeckAPI :<|> Servant.Raw
 
