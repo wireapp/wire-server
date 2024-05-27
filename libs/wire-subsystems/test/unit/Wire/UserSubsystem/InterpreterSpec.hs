@@ -327,24 +327,29 @@ spec = describe "UserSubsystem.Interpreter" do
 
     prop
       "update valid handles succeeds"
-      \(luid, Handle rawHandle, config) ->
-        _ <- _ -- TODO: luid needs to come from a valid user
-        let updateResult :: Either UserSubsystemError () = run
-              . runErrorUnsafe
-              . runError
-              $ interpretNoFederationStack def Nothing def config do
-                updateHandle luid AllowSCIMUpdates rawHandle
-         in updateResult === Right ()
+      \(storedUser :: StoredUser, Handle rawHandle, config) ->
+        isJust storedUser.identity ==>
+          let updateResult :: Either UserSubsystemError () = run
+                . runErrorUnsafe
+                . runError
+                $ interpretNoFederationStack (def {users = [storedUser]}) Nothing def config do
+                  let luid = toLocalUnsafe dom storedUser.id
+                      dom = Domain "localdomain"
+                  updateHandle luid AllowSCIMUpdates rawHandle
+           in updateResult === Right ()
 
     prop
       "update invalid handles fails"
-      \(luid, BadHandle badHandle, config) ->
-        let updateResult :: Either UserSubsystemError () = run
-              . runErrorUnsafe
-              . runError
-              $ interpretNoFederationStack def Nothing def config do
-                updateHandle luid AllowSCIMUpdates badHandle
-         in updateResult === Left UserSubsystemInvalidHandle
+      \(storedUser :: StoredUser, BadHandle badHandle, config) ->
+        isJust storedUser.identity ==>
+          let updateResult :: Either UserSubsystemError () = run
+                . runErrorUnsafe
+                . runError
+                $ interpretNoFederationStack def Nothing def config do
+                  let luid = toLocalUnsafe dom storedUser.id
+                      dom = Domain "localdomain"
+                  updateHandle luid AllowSCIMUpdates badHandle
+           in updateResult === Left UserSubsystemInvalidHandle
 
 newtype BadHandle = BadHandle {_unBadHandle :: Text}
   deriving newtype (Eq, Show)
