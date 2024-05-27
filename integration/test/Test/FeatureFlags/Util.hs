@@ -19,6 +19,7 @@ module Test.FeatureFlags.Util where
 
 import qualified API.Galley as Public
 import qualified API.GalleyInternal as Internal
+import qualified Data.Aeson as A
 import Testlib.Prelude
 
 disabled :: Value
@@ -31,21 +32,55 @@ enabled :: Value
 enabled = object ["lockStatus" .= "unlocked", "status" .= "enabled", "ttl" .= "unlimited"]
 
 checkFeature :: (HasCallStack, MakesValue user, MakesValue tid) => String -> user -> tid -> Value -> App ()
-checkFeature feature user tid expected = do
+checkFeature = checkFeatureWith shouldMatch
+
+checkFeatureWith :: (HasCallStack, MakesValue user, MakesValue tid, MakesValue expected) => (App Value -> expected -> App ()) -> String -> user -> tid -> expected -> App ()
+checkFeatureWith shouldMatchStatus feature user tid expected = do
   tidStr <- asString tid
   domain <- objDomain user
   bindResponse (Internal.getTeamFeature domain tidStr feature) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    resp.json `shouldMatch` expected
+    resp.json `shouldMatchStatus` expected
   bindResponse (Public.getTeamFeatures user tid) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    resp.json %. feature `shouldMatch` expected
+    resp.json %. feature `shouldMatchStatus` expected
   bindResponse (Public.getTeamFeature user tid feature) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    resp.json `shouldMatch` expected
+    resp.json `shouldMatchStatus` expected
   bindResponse (Public.getFeatureConfigs user) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    resp.json %. feature `shouldMatch` expected
+    resp.json %. feature `shouldMatchStatus` expected
+
+checkFeatureLenientTtl :: (HasCallStack, MakesValue user, MakesValue tid) => String -> user -> tid -> Value -> App ()
+checkFeatureLenientTtl = checkFeatureWith shouldMatchLenientTtl
+  where
+    shouldMatchLenientTtl :: App Value -> Value -> App ()
+    shouldMatchLenientTtl actual expected = do
+      expectedLockStatus <- expected %. "lockStatus"
+      actual %. "lockStatus" `shouldMatch` expectedLockStatus
+      expectedStatus <- expected %. "status"
+      actual %. "status" `shouldMatch` expectedStatus
+      mExpectedConfig <- lookupField expected "config"
+      mActualConfig <- lookupField actual "config"
+      mActualConfig `shouldMatch` mExpectedConfig
+      expectedTtl <- expected %. "ttl"
+      actualTtl <- actual %. "ttl"
+      checkTtl actualTtl expectedTtl
+
+    checkTtl :: Value -> Value -> App ()
+    checkTtl (A.String a) (A.String b) = do
+      a `shouldMatch` "unlimited"
+      b `shouldMatch` "unlimited"
+    checkTtl _ (A.String _) = assertFailure "expected the actual ttl to be unlimited, but it was limited"
+    checkTtl (A.String _) _ = assertFailure "expected the actual ttl to be limited, but it was unlimited"
+    checkTtl (A.Number actualTtl) (A.Number expectedTtl) = do
+      assertBool
+        ("expected the actual TTL to be greater than 0 and equal to or no more than 2 seconds less than " <> show expectedTtl <> ", but it was " <> show actualTtl)
+        ( actualTtl > 0
+            && actualTtl <= expectedTtl
+            && abs (actualTtl - expectedTtl) <= 2
+        )
+    checkTtl _ _ = assertFailure "unexpected ttl value(s)"
 
 assertForbidden :: HasCallStack => Response -> App ()
 assertForbidden = assertLabel 403 "no-team-member"

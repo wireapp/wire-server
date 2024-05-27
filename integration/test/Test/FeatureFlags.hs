@@ -19,12 +19,14 @@ module Test.FeatureFlags where
 
 import qualified API.Galley as Public
 import qualified API.GalleyInternal as Internal
+import Control.Concurrent (threadDelay)
 import Control.Monad.Codensity (Codensity (runCodensity))
 import Control.Monad.Reader
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Key as A
 import qualified Data.Aeson.KeyMap as KM
 import qualified Data.Set as Set
+import Data.String.Conversions (cs)
 import Notifications
 import SetupHelpers
 import Test.FeatureFlags.Util
@@ -595,3 +597,61 @@ testFeatureNoConfigMultiSearchVisibilityInbound = do
   statuses <- response.json %. "default_status" >>= asList
   length statuses `shouldMatchInt` 2
   statuses `shouldMatchSet` [object ["team" .= team1, "status" .= "disabled"], object ["team" .= team2, "status" .= "enabled"]]
+
+testConferenceCallingTTLIncreaseToUnlimited :: HasCallStack => App ()
+testConferenceCallingTTLIncreaseToUnlimited = _testSimpleFlagTTLOverride "conferenceCalling" True (Just 2) Nothing
+
+testConferenceCallingTTLIncrease :: HasCallStack => App ()
+testConferenceCallingTTLIncrease = _testSimpleFlagTTLOverride "conferenceCalling" True (Just 2) (Just 4)
+
+testConferenceCallingTTLReduceFromUnlimited :: HasCallStack => App ()
+testConferenceCallingTTLReduceFromUnlimited = _testSimpleFlagTTLOverride "conferenceCalling" True Nothing (Just 2)
+
+testConferenceCallingTTLReduce :: HasCallStack => App ()
+testConferenceCallingTTLReduce = _testSimpleFlagTTLOverride "conferenceCalling" True (Just 5) (Just 2)
+
+testConferenceCallingTTLUnlimitedToUnlimited :: HasCallStack => App ()
+testConferenceCallingTTLUnlimitedToUnlimited = _testSimpleFlagTTLOverride "conferenceCalling" True Nothing Nothing
+
+_testSimpleFlagTTLOverride :: HasCallStack => String -> Bool -> Maybe Int -> Maybe Int -> App ()
+_testSimpleFlagTTLOverride featureName enabledByDefault mTtl mTtlAfter = do
+  let ttl = maybe (A.String . cs $ "unlimited") (A.Number . fromIntegral) mTtl
+  let ttlAfter = maybe (A.String . cs $ "unlimited") (A.Number . fromIntegral) mTtlAfter
+  (owner, tid, _) <- createTeam OwnDomain 0
+  let (defaultValue, otherValue) = if enabledByDefault then ("enabled", "disabled") else ("disabled", "enabled")
+
+  -- Initial value should be the default value
+  let defFeatureStatus = object ["status" .= defaultValue, "ttl" .= "unlimited", "lockStatus" .= "unlocked"]
+  checkFeature featureName owner tid defFeatureStatus
+
+  -- Setting should work
+  assertSuccess =<< Internal.setTeamFeatureConfig OwnDomain tid featureName (object ["status" .= otherValue, "ttl" .= ttl])
+  checkFeatureLenientTtl featureName owner tid (object ["status" .= otherValue, "ttl" .= ttl, "lockStatus" .= "unlocked"])
+
+  case (mTtl, mTtlAfter) of
+    (Just d, Just d') -> do
+      -- wait less than expiration, override and recheck.
+      liftIO $ threadDelay (d * 1000000 `div` 2) -- waiting half of TTL
+      --       setFlagInternal otherValue ttlAfter
+      assertSuccess =<< Internal.setTeamFeatureConfig OwnDomain tid featureName (object ["status" .= otherValue, "ttl" .= ttlAfter])
+      -- value is still correct
+      checkFeatureLenientTtl featureName owner tid (object ["status" .= otherValue, "ttl" .= ttlAfter, "lockStatus" .= "unlocked"])
+
+      liftIO $ threadDelay (d' * 1000000) -- waiting for new TTL
+      checkFeatureLenientTtl featureName owner tid defFeatureStatus
+    (Just d, Nothing) -> do
+      -- wait less than expiration, override and recheck.
+      liftIO $ threadDelay (d * 1000000 `div` 2) -- waiting half of TTL
+      assertSuccess =<< Internal.setTeamFeatureConfig OwnDomain tid featureName (object ["status" .= otherValue, "ttl" .= ttlAfter])
+      -- value is still correct
+      checkFeatureLenientTtl featureName owner tid (object ["status" .= otherValue, "ttl" .= ttlAfter, "lockStatus" .= "unlocked"])
+    (Nothing, Nothing) -> do
+      -- overriding in this case should have no effect.
+      assertSuccess =<< Internal.setTeamFeatureConfig OwnDomain tid featureName (object ["status" .= otherValue, "ttl" .= ttl])
+      checkFeatureLenientTtl featureName owner tid (object ["status" .= otherValue, "ttl" .= ttl, "lockStatus" .= "unlocked"])
+    (Nothing, Just d) -> do
+      assertSuccess =<< Internal.setTeamFeatureConfig OwnDomain tid featureName (object ["status" .= otherValue, "ttl" .= ttlAfter])
+      checkFeatureLenientTtl featureName owner tid (object ["status" .= otherValue, "ttl" .= ttlAfter, "lockStatus" .= "unlocked"])
+      liftIO $ threadDelay (d * 1000000) -- waiting it out
+      -- value reverts back
+      checkFeatureLenientTtl featureName owner tid defFeatureStatus

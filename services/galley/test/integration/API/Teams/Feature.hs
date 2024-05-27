@@ -62,14 +62,6 @@ tests s =
         [ test s "ConferenceCalling unlimited TTL" $ testSimpleFlagTTL @ConferenceCallingConfig FeatureStatusEnabled FeatureTTLUnlimited,
           test s "ConferenceCalling 2s TTL" $ testSimpleFlagTTL @ConferenceCallingConfig FeatureStatusEnabled (FeatureTTLSeconds 2)
         ],
-      testGroup
-        "TTL / Overrides"
-        [ test s "increase to unlimited" $ testSimpleFlagTTLOverride @ConferenceCallingConfig FeatureStatusEnabled (FeatureTTLSeconds 2) FeatureTTLUnlimited,
-          test s "increase" $ testSimpleFlagTTLOverride @ConferenceCallingConfig FeatureStatusEnabled (FeatureTTLSeconds 2) (FeatureTTLSeconds 4),
-          test s "reduce from unlimited" $ testSimpleFlagTTLOverride @ConferenceCallingConfig FeatureStatusEnabled FeatureTTLUnlimited (FeatureTTLSeconds 2),
-          test s "reduce" $ testSimpleFlagTTLOverride @ConferenceCallingConfig FeatureStatusEnabled (FeatureTTLSeconds 5) (FeatureTTLSeconds 2),
-          test s "Unlimited to unlimited" $ testSimpleFlagTTLOverride @ConferenceCallingConfig FeatureStatusEnabled FeatureTTLUnlimited FeatureTTLUnlimited
-        ],
       test s "MLS feature config" testMLS,
       test s "MlsE2EId feature config" $
         testNonTrivialConfigNoTTL
@@ -253,102 +245,6 @@ testPatch' testLockStatusChange rndFeatureConfig defStatus defConfig = do
           wsLockStatus actual @?= fromMaybe (wsLockStatus original) (wspLockStatus rndFeatureConfig)
         wsConfig actual @?= fromMaybe (wsConfig original) (wspConfig rndFeatureConfig)
   checkTeamFeatureAllEndpoints uid tid actual
-
-testSimpleFlagTTLOverride ::
-  forall cfg.
-  ( HasCallStack,
-    Typeable cfg,
-    IsFeatureConfig cfg,
-    KnownSymbol (FeatureSymbol cfg),
-    FeatureTrivialConfig cfg,
-    ToSchema cfg,
-    Eq cfg,
-    Show cfg
-  ) =>
-  FeatureStatus ->
-  FeatureTTL ->
-  FeatureTTL ->
-  TestM ()
-testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
-  (_owner, tid, member : _) <- createBindingTeamWithNMembers 1
-  nonMember <- randomUser
-
-  let setFlagInternal :: FeatureStatus -> FeatureTTL -> TestM ()
-      setFlagInternal statusValue ttl' =
-        void $ putTeamFeatureInternal @cfg expect2xx tid (WithStatusNoLock statusValue (trivialConfig @cfg) ttl')
-
-      select :: PrepQuery R (Identity TeamId) (Identity (Maybe FeatureTTL))
-      select = fromString "select ttl(conference_calling) from team_features where team_id = ?"
-
-      assertUnlimited :: TestM ()
-      assertUnlimited = do
-        -- TTL should be NULL inside cassandra
-        cassState <- view tsCass
-        liftIO $ do
-          storedTTL <- maybe Nothing runIdentity <$> Cql.runClient cassState (Cql.query1 select $ params LocalQuorum (Identity tid))
-          storedTTL @?= Nothing
-
-      assertLimited :: Word -> TestM ()
-      assertLimited upper = do
-        -- TTL should NOT be NULL inside cassandra
-        cassState <- view tsCass
-        liftIO $ do
-          storedTTL <- maybe Nothing runIdentity <$> Cql.runClient cassState (Cql.query1 select $ params LocalQuorum (Identity tid))
-          let check = case storedTTL of
-                Nothing -> False
-                Just FeatureTTLUnlimited -> False
-                Just (FeatureTTLSeconds i) -> i <= upper
-          unless check $ error ("expected ttl <= " <> show upper <> ", got " <> show storedTTL)
-
-      toMicros :: Word -> Int
-      toMicros secs = fromIntegral secs * 1000000
-
-  assertFlagForbidden $ getTeamFeature @cfg nonMember tid
-
-  let otherValue = case defaultValue of
-        FeatureStatusDisabled -> FeatureStatusEnabled
-        FeatureStatusEnabled -> FeatureStatusDisabled
-
-  -- Initial value should be the default value
-  checkTeamFeatureAllEndpoints member tid (defFeatureStatus @cfg & setStatus defaultValue)
-
-  -- Setting should work
-  setFlagInternal otherValue ttl
-  checkTeamFeatureAllEndpoints member tid (defFeatureStatus @cfg & setStatus otherValue & setTTL ttl)
-
-  case (ttl, ttlAfter) of
-    (FeatureTTLSeconds d, FeatureTTLSeconds d') -> do
-      assertLimited d -- TTL should be NULL after expiration.
-      -- wait less than expiration, override and recheck.
-      liftIO $ threadDelay (toMicros d `div` 2) -- waiting half of TTL
-      setFlagInternal otherValue ttlAfter
-      -- value is still correct
-      checkTeamFeatureAllEndpoints member tid (defFeatureStatus @cfg & setStatus otherValue & setTTL ttlAfter)
-
-      liftIO $ threadDelay (toMicros d') -- waiting for new TTL
-      checkTeamFeatureAllEndpoints member tid (defFeatureStatus @cfg & setStatus defaultValue)
-    (FeatureTTLSeconds d, FeatureTTLUnlimited) -> do
-      assertLimited d -- TTL should be NULL after expiration.
-      -- wait less than expiration, override and recheck.
-      liftIO $ threadDelay (fromIntegral d `div` 2) -- waiting half of TTL
-      setFlagInternal otherValue ttlAfter
-      -- value is still correct
-      checkTeamFeatureAllEndpoints member tid (defFeatureStatus @cfg & setStatus otherValue & setTTL ttlAfter)
-    (FeatureTTLUnlimited, FeatureTTLUnlimited) -> do
-      assertUnlimited
-
-      -- overriding in this case should have no effect.
-      setFlagInternal otherValue ttl
-      checkTeamFeatureAllEndpoints member tid (defFeatureStatus @cfg & setStatus otherValue & setTTL ttl)
-    (FeatureTTLUnlimited, FeatureTTLSeconds d) -> do
-      assertUnlimited
-
-      setFlagInternal otherValue ttlAfter
-      checkTeamFeatureAllEndpoints member tid (defFeatureStatus @cfg & setStatus otherValue & setTTL ttlAfter)
-
-      liftIO $ threadDelay (toMicros d) -- waiting it out
-      -- value reverts back
-      checkTeamFeatureAllEndpoints member tid (defFeatureStatus @cfg & setStatus defaultValue & setTTL ttl)
 
 testSimpleFlagTTL ::
   forall cfg.
