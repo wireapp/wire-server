@@ -63,7 +63,6 @@ data API mode = API
     internalRequest ::
       mode
         :- "rpc"
-          :> Header' '[Required, Strict] "Wire-Origin-Request-Id" RequestId
           :> Capture "domain" Domain
           :> Capture "component" Component
           :> Capture "rpc" RPC
@@ -104,13 +103,12 @@ callOutward ::
     Member Metrics r,
     Member (Logger (Log.Msg -> Log.Msg)) r
   ) =>
-  RequestId ->
   Domain ->
   Component ->
   RPC ->
   Wai.Request ->
   Sem r Wai.Response
-callOutward rid targetDomain component (RPC path) req = do
+callOutward targetDomain component (RPC path) req = do
   -- only POST is supported
   when (Wai.requestMethod req /= HTTP.methodPost) $
     throw InvalidRoute
@@ -128,7 +126,6 @@ callOutward rid targetDomain component (RPC path) req = do
       . Log.field "body" body
   resp <-
     discoverAndCall
-      rid
       targetDomain
       component
       path

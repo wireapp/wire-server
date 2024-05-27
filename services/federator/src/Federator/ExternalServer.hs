@@ -89,7 +89,6 @@ data API mode = API
         :- "federation"
           :> Capture "component" Component
           :> Capture "rpc" RPC
-          :> Header' '[Required, Strict] "Wire-Origin-Request-Id" RequestId
           :> Header' '[Required, Strict] OriginDomainHeaderName Domain
           :> Header' '[Required, Strict] "X-SSL-Certificate" CertHeader
           :> Endpath
@@ -136,12 +135,11 @@ callInward ::
   ) =>
   Component ->
   RPC ->
-  RequestId ->
   Domain ->
   CertHeader ->
   Wai.Request ->
   Sem r Wai.Response
-callInward component (RPC rpc) rid originDomain (CertHeader cert) wreq = do
+callInward component (RPC rpc) originDomain (CertHeader cert) wreq = do
   -- let rid = getRequestId federationRequestIdHeaderName wreq
   incomingCounterIncr originDomain
   -- only POST is supported
@@ -157,7 +155,6 @@ callInward component (RPC rpc) rid originDomain (CertHeader cert) wreq = do
       . Log.field "originDomain" (domainText originDomain)
       . Log.field "component" (show component)
       . Log.field "rpc" rpc
-      . Log.field "request" rid
 
   validatedDomain <- validateDomain cert originDomain
 
@@ -165,11 +162,10 @@ callInward component (RPC rpc) rid originDomain (CertHeader cert) wreq = do
 
   body <- embed $ Wai.lazyRequestBody wreq
   let headers = filter ((== versionHeader) . fst) (Wai.requestHeaders wreq)
-  resp <- serviceCall component path headers body rid validatedDomain
+  resp <- serviceCall component path headers body validatedDomain
   Log.debug $
     Log.msg ("Inward Request response" :: ByteString)
       . Log.field "status" (show (responseStatusCode resp))
-      . Log.field "request" rid
   pure $
     streamingResponseToWai
       resp

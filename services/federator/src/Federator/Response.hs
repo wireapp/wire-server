@@ -178,6 +178,7 @@ type AllEffects =
      Input Http2Manager, -- needed by Remote
      Input FedUp.FederationDomainConfigs, -- needed for the domain list and federation policy.
      Input Env, -- needed by Service
+     Input RequestId,
      Error ValidationError,
      Error RemoteError,
      Error Federator.Error.ServerError.ServerError,
@@ -202,6 +203,7 @@ runFederator env rid =
           Federator.Error.ServerError.ServerError,
           DiscoveryFailure
         ]
+    . runInputConst rid
     . runInputConst env
     . runInputSem (embed @IO (getFederationDomainConfigs env))
     . runInputSem (embed @IO (readIORef (view http2Manager env)))

@@ -47,7 +47,6 @@ import Control.Monad.Trans.Maybe
 import Data.Aeson qualified as Aeson
 import Data.Default
 import Data.Domain
-import Data.Id
 import Data.Text qualified as Text
 import Data.Text.Lazy qualified as LText
 import Federator.Error
@@ -124,13 +123,12 @@ mockInternalRequest ::
   ) =>
   IORef [FederatedRequest] ->
   MockFederator ->
-  RequestId ->
   Domain ->
   Component ->
   RPC ->
   Wai.Request ->
   Sem r Wai.Response
-mockInternalRequest remoteCalls mock _ targetDomain component (RPC path) req = do
+mockInternalRequest remoteCalls mock targetDomain component (RPC path) req = do
   domainTxt <- note NoOriginDomain $ lookup originDomainHeaderName (Wai.requestHeaders req)
   originDomain <- parseDomain domainTxt
   reqBody <- embed $ Wai.lazyRequestBody req
