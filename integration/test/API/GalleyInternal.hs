@@ -104,3 +104,10 @@ setTeamFeatureConfig domain team featureName payload = do
   p <- make payload
   req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", fn]
   submit "PUT" $ req & addJSON p
+
+-- https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/galley/#/galley/post_i_features_multi_teams_searchVisibilityInbound
+getFeatureStatusMulti :: (HasCallStack, MakesValue domain, MakesValue featureName) => domain -> featureName -> [String] -> App Response
+getFeatureStatusMulti domain featureName tids = do
+  fn <- asString featureName
+  req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "features-multi-teams", fn]
+  submit "POST" $ req & addJSONObject ["teams" .= tids]

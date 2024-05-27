@@ -582,3 +582,16 @@ _testLockStatusWithConfig featureName defaultSetting configUpdate = do
   -- after locking once again it should be the default again
   Internal.setTeamFeatureLockStatus OwnDomain tid featureName "locked"
   checkFeature featureName m tid =<< setField "lockStatus" "locked" defaultSetting
+
+testFeatureNoConfigMultiSearchVisibilityInbound :: HasCallStack => App ()
+testFeatureNoConfigMultiSearchVisibilityInbound = do
+  (_owner1, team1, _) <- createTeam OwnDomain 0
+  (_owner2, team2, _) <- createTeam OwnDomain 0
+
+  assertSuccess =<< Internal.setTeamFeatureStatus OwnDomain team2 "searchVisibilityInbound" "enabled"
+
+  response <- Internal.getFeatureStatusMulti OwnDomain "searchVisibilityInbound" [team1, team2]
+
+  statuses <- response.json %. "default_status" >>= asList
+  length statuses `shouldMatchInt` 2
+  statuses `shouldMatchSet` [object ["team" .= team1, "status" .= "disabled"], object ["team" .= team2, "status" .= "enabled"]]
