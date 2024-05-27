@@ -19,7 +19,7 @@
 
 module Test.Federator.ExternalServer where
 
-import Control.Monad.Codensity
+import Control.Monad.Except
 import Data.ByteString qualified as BS
 import Data.Default
 import Data.Domain
@@ -47,6 +47,7 @@ import Polysemy.Input
 import Polysemy.Output
 import Polysemy.TinyLog
 import Servant.Client.Core qualified as Servant
+import Servant.Server qualified as Servant
 import Servant.Server.Generic
 import Servant.Types.SourceT
 import System.Logger (Msg)
@@ -224,7 +225,7 @@ requestNoDomain =
             trPath = "/federation/brig/get-users"
           }
     serviceCallsRef <- newIORef []
-    let serverApp = genericServe $ server undefined undefined (testInterpretter serviceCallsRef)
+    let serverApp = genericServeT (testInterpreter serviceCallsRef) $ server undefined undefined
     void . serverApp request $ \res -> do
       serviceCalls <- readIORef serviceCallsRef
       assertEqual "Expected response to have status 400" status400 (Wai.responseStatus res)
@@ -241,7 +242,7 @@ requestNoCertificate =
             trPath = "/federation/brig/get-users"
           }
     serviceCallsRef <- newIORef []
-    let serverApp = genericServe $ server undefined undefined (testInterpretter serviceCallsRef)
+    let serverApp = genericServeT (testInterpreter serviceCallsRef) $ server undefined undefined
     void . serverApp request $ \res -> do
       serviceCalls <- readIORef serviceCallsRef
       assertEqual "Expected response to have status 400" status400 (Wai.responseStatus res)
@@ -259,7 +260,7 @@ requestInvalidCertificate =
             trCertificateHeader = Just "not a certificate"
           }
     serviceCallsRef <- newIORef []
-    let serverApp = genericServe $ server undefined undefined (testInterpretter serviceCallsRef)
+    let serverApp = genericServeT (testInterpreter serviceCallsRef) $ server undefined undefined
     void . serverApp request $ \res -> do
       serviceCalls <- readIORef serviceCallsRef
       assertEqual "Expected response to have status 400" status400 (Wai.responseStatus res)
@@ -308,7 +309,7 @@ testInvalidPaths = do
             invalidPath
 
         serviceCallsRef <- newIORef []
-        let serverApp = genericServe $ server undefined undefined (testInterpretter serviceCallsRef)
+        let serverApp = genericServeT (testInterpreter serviceCallsRef) $ server undefined undefined
         void . serverApp request $ \res -> do
           serviceCalls <- readIORef serviceCallsRef
           assertEqual "Unexpected status" expectedStatus (Wai.responseStatus res)
@@ -329,7 +330,7 @@ testMethod =
                   }
           request <- testRequest tr {trMethod = method}
           serviceCallsRef <- newIORef []
-          let serverApp = genericServe $ server undefined undefined (testInterpretter serviceCallsRef)
+          let serverApp = genericServeT (testInterpreter serviceCallsRef) $ server undefined undefined
           void . serverApp request $ \res -> do
             serviceCalls <- readIORef serviceCallsRef
             assertEqual "Expected response to have status 403" status403 (Wai.responseStatus res)
@@ -337,9 +338,8 @@ testMethod =
             pure Wai.ResponseReceived
      in map invalidMethodTest [HTTP.methodGet, HTTP.methodDelete, HTTP.methodPut, HTTP.methodPatch]
 
-testInterpretter ::
+testInterpreter ::
   IORef [Call] ->
-  RequestId ->
   Sem
     '[ Metrics,
        Input FederationDomainConfigs,
@@ -348,19 +348,22 @@ testInterpretter ::
        Error DiscoveryFailure,
        Error ValidationError,
        Error ServerError,
+       Error Servant.ServerError,
        Logger (Msg -> Msg),
        ServiceStreaming,
        Output Call,
        Embed IO
      ]
-    Wai.Response ->
-  Codensity IO Wai.Response
-testInterpretter serviceCallsRef _ =
-  liftIO
+    a ->
+  Servant.Handler a
+testInterpreter serviceCallsRef =
+  Servant.Handler
+    . ExceptT
     . runM @IO
     . runOutputMonoidIORef @Call serviceCallsRef (: [])
     . mockService HTTP.ok200
     . discardLogs
+    . runError
     . runWaiErrors @'[DiscoveryFailure, ValidationError, ServerError]
     . mockDiscoveryTrivial
     . runInputConst noClientCertSettings

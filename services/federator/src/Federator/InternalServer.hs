@@ -20,12 +20,10 @@
 
 module Federator.InternalServer where
 
-import Control.Monad.Codensity
 import Data.Binary.Builder
 import Data.ByteString qualified as BS
 import Data.Domain
 import Data.Id
-import Data.Metrics.Servant qualified as Metrics
 import Data.Proxy
 import Federator.Env
 import Federator.Error.ServerError
@@ -39,14 +37,15 @@ import Imports
 import Network.HTTP.Client (Manager)
 import Network.HTTP.Types qualified as HTTP
 import Network.Wai qualified as Wai
-import Network.Wai.Utilities.Server
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
+import Servant qualified
 import Servant.API
 import Servant.API.Extended.Endpath
-import Servant.Server (Tagged (..))
+import Servant.API.Extended.Raw
+import Servant.Server (hoistServerWithContext)
 import Servant.Server.Generic
 import System.Logger.Class qualified as Log
 import Wire.API.Federation.Component
@@ -72,7 +71,8 @@ data API mode = API
           -- We need to use 'Raw' so we can stream request body regardless of
           -- content-type and send a response with arbitrary content-type. Not
           -- sure if this is the right approach.
-          :> Raw
+          :> RawRequest
+          :> RawResponse
   }
   deriving (Generic)
 
@@ -83,18 +83,16 @@ server ::
     Member (Error ServerError) r,
     Member (Input FederationDomainConfigs) r,
     Member Metrics r,
-    Member (Logger (Log.Msg -> Log.Msg)) r
+    Member (Logger (Log.Msg -> Log.Msg)) r,
+    Member (Error Servant.ServerError) r
   ) =>
   Manager ->
   Word16 ->
-  (RequestId -> Sem r Wai.Response -> Codensity IO Wai.Response) ->
-  API AsServer
-server mgr extPort interpreter =
+  API (AsServerT (Sem r))
+server mgr extPort =
   API
     { status = Health.status mgr "external server" extPort,
-      internalRequest = \rid remoteDomain component rpc ->
-        Tagged $ \req respond -> do
-          runCodensity (interpreter rid (callOutward rid remoteDomain component rpc req)) respond
+      internalRequest = callOutward
     }
 
 callOutward ::
@@ -140,10 +138,6 @@ callOutward rid targetDomain component (RPC path) req = do
 
 serveOutward :: Env -> Int -> IO ()
 serveOutward env = do
-  let middleware =
-        Metrics.servantPrometheusMiddleware (Proxy :: Proxy (ToServantApi API))
-          . requestIdMiddleware env._applog federationRequestIdHeaderName
-  serveServant
-    middleware
-    (server env._httpManager env._externalPort $ runFederator env)
-    env
+  let hoistedApp :: RequestId -> Servant.Server (ToServantApi API)
+      hoistedApp rid = hoistServerWithContext (Proxy @(ToServantApi API)) (Proxy @'[]) (runFederator env rid) $ toServant $ server env._httpManager env._internalPort
+  serveServant @(ToServantApi API) hoistedApp env

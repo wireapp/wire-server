@@ -47,6 +47,7 @@ import Control.Monad.Trans.Maybe
 import Data.Aeson qualified as Aeson
 import Data.Default
 import Data.Domain
+import Data.Id
 import Data.Text qualified as Text
 import Data.Text.Lazy qualified as LText
 import Federator.Error
@@ -65,7 +66,7 @@ import Network.Wai.Utilities.MockServer
 import Polysemy
 import Polysemy.Error hiding (throw)
 import Servant.API
-import Servant.Server (Tagged (..))
+import Servant.Server qualified as Servant
 import Servant.Server.Generic
 import Wire.API.Federation.API (Component)
 import Wire.API.Federation.API.Common
@@ -108,14 +109,11 @@ mockServer ::
   ) =>
   IORef [FederatedRequest] ->
   MockFederator ->
-  (Sem r Wai.Response -> IO Wai.Response) ->
-  API AsServer
-mockServer remoteCalls mock interpreter =
+  API (AsServerT (Sem r))
+mockServer remoteCalls mock =
   Federator.InternalServer.API
     { status = const $ pure NoContent,
-      internalRequest = \_mReqId targetDomain component rpc ->
-        Tagged $ \req respond ->
-          respond =<< interpreter (mockInternalRequest remoteCalls mock targetDomain component rpc req)
+      internalRequest = mockInternalRequest remoteCalls mock
     }
 
 mockInternalRequest ::
@@ -126,12 +124,13 @@ mockInternalRequest ::
   ) =>
   IORef [FederatedRequest] ->
   MockFederator ->
+  RequestId ->
   Domain ->
   Component ->
   RPC ->
   Wai.Request ->
   Sem r Wai.Response
-mockInternalRequest remoteCalls mock targetDomain component (RPC path) req = do
+mockInternalRequest remoteCalls mock _ targetDomain component (RPC path) req = do
   domainTxt <- note NoOriginDomain $ lookup originDomainHeaderName (Wai.requestHeaders req)
   originDomain <- parseDomain domainTxt
   reqBody <- embed $ Wai.lazyRequestBody req
@@ -187,14 +186,17 @@ withTempMockFederator ::
 withTempMockFederator mock action = do
   remoteCalls <- newIORef []
   let interpreter =
-        runM
+        Servant.Handler
+          . ExceptT
+          . runM
           . discardTinyLogs
+          . runError
           . runWaiErrors
             @'[ ValidationError,
                 ServerError,
                 MockException
               ]
-      app = genericServe (mockServer remoteCalls mock interpreter)
+      app = genericServeT interpreter (mockServer remoteCalls mock)
   result <-
     bracket
       (liftIO (startMockServer Nothing app))

@@ -138,7 +138,6 @@ library
     , polysemy
     , polysemy-wire-zoo
     , prometheus-client
-    , resourcet
     , servant
     , servant-client
     , servant-client-core
@@ -149,7 +148,6 @@ library
     , types-common
     , unix
     , utf8-string
-    , uuid
     , wai
     , wai-utilities
     , warp

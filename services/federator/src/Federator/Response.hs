@@ -18,22 +18,21 @@
 module Federator.Response
   ( defaultHeaders,
     serveServant,
-    serveServant1,
     runFederator,
-    runFederatorIO,
     runWaiError,
     runWaiErrors,
     streamingResponseToWai,
-    AllEffects1,
   )
 where
 
 import Control.Lens
 import Control.Monad.Codensity
+import Control.Monad.Except
 import Data.Aeson (encode)
 import Data.ByteString.Builder
 import Data.Id
 import Data.Kind
+import Data.Metrics.Servant qualified as Metrics
 import Data.Text qualified as T
 import Data.Text.Lazy qualified as LText
 import Federator.Discovery
@@ -48,12 +47,11 @@ import Federator.Validation
 import HTTP2.Client.Manager (Http2Manager)
 import Imports
 import Network.HTTP.Types qualified as HTTP
-import Network.Wai (Middleware)
 import Network.Wai qualified as Wai
 import Network.Wai.Handler.Warp qualified as Warp
 import Network.Wai.Utilities (getRequestId)
 import Network.Wai.Utilities.Error qualified as Wai
-import Network.Wai.Utilities.Server (federationRequestIdHeaderName)
+import Network.Wai.Utilities.Server (federationRequestIdHeaderName, requestIdMiddleware)
 import Network.Wai.Utilities.Server qualified as Wai
 import Polysemy
 import Polysemy.Embed
@@ -65,7 +63,6 @@ import Servant (ServerError (..), serve)
 import Servant hiding (ServerError, respond, serve)
 import Servant.Client (mkClientEnv)
 import Servant.Client.Core
-import Servant.Server.Generic
 import Servant.Types.SourceT
 import Util.Options (Endpoint (..))
 import Wire.API.FederationUpdate qualified as FedUp (getFederationDomainConfigs)
@@ -79,25 +76,24 @@ defaultHeaders = [("Content-Type", "application/json")]
 
 class ErrorEffects (ee :: [Type]) r where
   type Row ee :: EffectRow
-  runWaiErrors ::
-    Sem (Append (Row ee) r) Wai.Response ->
-    Sem r Wai.Response
-
   runWaiErrorsEither ::
     Sem (Append (Row ee) r) (Either Wai.Error a) ->
     Sem r (Either Wai.Error a)
 
 -- TODO: Rename
-runWaiErrorsEitherTheGreat ::
+runWaiErrors ::
   forall ee r a.
-  ErrorEffects ee r =>
+  (ErrorEffects ee r, Member (Error Servant.ServerError) r) =>
   Sem (Append (Row ee) r) a ->
-  Sem r (Either Wai.Error a)
-runWaiErrorsEitherTheGreat = runWaiErrorsEither @ee . fmap Right
+  Sem r a
+runWaiErrors action = do
+  x <- runWaiErrorsEither @ee . fmap Right $ action
+  case x of
+    Left e -> throw $ waiToServant e
+    Right a -> pure a
 
 instance ErrorEffects '[] r where
   type Row '[] = '[]
-  runWaiErrors = id
   runWaiErrorsEither = id
 
 instance
@@ -108,7 +104,6 @@ instance
   ErrorEffects (e ': ee) r
   where
   type Row (e ': ee) = (Error e ': Row ee)
-  runWaiErrors = runWaiErrors @ee . runWaiError @e
   runWaiErrorsEither action = do
     runWaiErrorsEither @ee $ runWaiErrorEither @e action
 
@@ -155,38 +150,17 @@ runWaiErrorEither =
       throw e
 
 serveServant ::
-  forall routes.
-  (HasServer (ToServantApi routes) '[], GenericServant routes AsServer, Server (ToServantApi routes) ~ ToServant routes AsServer) =>
-  Middleware ->
-  routes AsServer ->
-  Env ->
-  Int ->
-  IO ()
-serveServant middleware server env port =
-  Warp.run port
-    . Wai.catchErrorsWithRequestId getRequestId' (view applog env) []
-    . middleware
-    $ app
-  where
-    app :: Wai.Application
-    app =
-      genericServe server
-
-    getRequestId' :: Wai.Request -> Maybe ByteString
-    getRequestId' = lookup "Wire-Origin-Request-Id" . Wai.requestHeaders
-
-serveServant1 ::
   forall (api :: Type).
-  (HasServer api '[]) =>
-  Middleware ->
+  (HasServer api '[], Metrics.RoutesToPaths api) =>
   (RequestId -> Server api) ->
   Env ->
   Int ->
   IO ()
-serveServant1 middleware mkServer env port =
+serveServant mkServer env port =
   Warp.run port
     . Wai.catchErrors (view applog env) federationRequestIdHeaderName []
-    . middleware
+    . Metrics.servantPrometheusMiddleware (Proxy @api)
+    . requestIdMiddleware env._applog federationRequestIdHeaderName
     $ app
   where
     app :: Wai.Application
@@ -208,37 +182,20 @@ type AllEffects =
      Error RemoteError,
      Error Federator.Error.ServerError.ServerError,
      Error DiscoveryFailure,
-     TinyLog,
-     Embed IO,
-     Embed (Codensity IO)
-   ]
-
-type AllEffects1 =
-  '[ Metrics,
-     Remote,
-     DiscoverFederator,
-     DNSLookup, -- needed by DiscoverFederator
-     ServiceStreaming,
-     Input RunSettings,
-     Input Http2Manager, -- needed by Remote
-     Input FedUp.FederationDomainConfigs, -- needed for the domain list and federation policy.
-     Input Env, -- needed by Service
-     Error ValidationError,
-     Error RemoteError,
-     Error Federator.Error.ServerError.ServerError,
-     Error DiscoveryFailure,
+     Error Servant.ServerError,
      TinyLog,
      Embed (Codensity IO),
      Embed IO
    ]
 
--- | Run Sem action containing HTTP handlers. All errors have to been handled
--- already by this point.
-runFederator :: Env -> RequestId -> Sem AllEffects Wai.Response -> Codensity IO Wai.Response
+runFederator :: Env -> RequestId -> Sem AllEffects a -> Handler a
 runFederator env rid =
-  runM
-    . runEmbedded @IO @(Codensity IO) liftIO
+  Handler
+    . ExceptT
+    . runM
+    . runEmbedded (lowerCodensity)
     . loggerToTinyLogReqId rid (view applog env)
+    . runError
     . runWaiErrors
       @'[ ValidationError,
           RemoteError,
@@ -255,12 +212,6 @@ runFederator env rid =
     . interpretRemote
     . interpretMetrics
 
-toHandler :: IO (Either Wai.Error a) -> Handler a
-toHandler action = do
-  liftIO action >>= \case
-    Left e -> throwError $ waiToServant e
-    Right a -> pure a
-
 waiToServant :: Wai.Error -> Servant.ServerError
 waiToServant waierr =
   ServerError
@@ -269,28 +220,6 @@ waiToServant waierr =
       errBody = encode waierr,
       errHeaders = []
     }
-
-runFederatorIO :: Env -> RequestId -> Sem AllEffects1 a -> Handler a
-runFederatorIO env rid =
-  toHandler
-    . runM
-    . runEmbedded (lowerCodensity)
-    . loggerToTinyLogReqId rid (view applog env)
-    . runWaiErrorsEitherTheGreat
-      @'[ ValidationError,
-          RemoteError,
-          Federator.Error.ServerError.ServerError,
-          DiscoveryFailure
-        ]
-    . runInputConst env
-    . runInputSem (embed @IO (getFederationDomainConfigs env))
-    . runInputSem (embed @IO (readIORef (view http2Manager env)))
-    . runInputConst (view runSettings env)
-    . interpretServiceHTTP
-    . runDNSLookupWithResolver (view dnsResolver env)
-    . runFederatorDiscovery
-    . interpretRemote
-    . interpretMetrics
 
 getFederationDomainConfigs :: Env -> IO FedUp.FederationDomainConfigs
 getFederationDomainConfigs env = do

@@ -24,23 +24,16 @@ module Federator.ExternalServer
   )
 where
 
-import Control.Lens ((^.))
-import Control.Monad.Codensity
-import Control.Monad.Trans.Resource (runResourceT)
 import Data.Bifunctor
 import Data.ByteString qualified as BS
 import Data.ByteString.Builder
 import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
 import Data.Id (RequestId (..))
-import Data.Metrics.Servant (RoutesToPaths, getRoutes)
-import Data.Metrics.Servant qualified as Metrics
 import Data.Proxy (Proxy (Proxy))
 import Data.Sequence qualified as Seq
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
-import Data.UUID as UUID
-import Data.UUID.V4 as UUID
 import Data.X509 qualified as X509
 import Federator.Discovery
 import Federator.Env
@@ -54,24 +47,20 @@ import Federator.Validation
 import Imports
 import Network.HTTP.Client (Manager)
 import Network.HTTP.Types qualified as HTTP
-import Network.Wai (ResponseReceived)
 import Network.Wai qualified as Wai
-import Network.Wai.Utilities.Request
-import Network.Wai.Utilities.Server (federationRequestIdHeaderName, requestIdMiddleware)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
-import Servant (DefaultErrorFormatters, HasServer (..))
+import Servant (HasServer (..))
+import Servant qualified
 import Servant.API
 import Servant.API.Extended.Endpath
+import Servant.API.Extended.Raw
 import Servant.Client.Core
-import Servant.Server (Context, Server, Tagged (..), runHandler)
+import Servant.Server (Server)
 import Servant.Server.Generic
-import Servant.Server.Internal.Delayed (Delayed, passToServer, runDelayed)
-import Servant.Server.Internal.RouteResult
-import Servant.Server.Internal.Router (Router, Router' (..))
 import System.Logger.Message qualified as Log
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain
@@ -100,48 +89,17 @@ data API mode = API
         :- "federation"
           :> Capture "component" Component
           :> Capture "rpc" RPC
+          :> Header' '[Required, Strict] "Wire-Origin-Request-Id" RequestId
           :> Header' '[Required, Strict] OriginDomainHeaderName Domain
           :> Header' '[Required, Strict] "X-SSL-Certificate" CertHeader
           :> Endpath
-          -- We need to use 'Raw' so we can stream request body regardless of
-          -- content-type and send a response with arbitrary content-type. Not
-          -- sure if this is the right approach.
+          -- We need to use 'RawRequest' and 'RawResponse' so we can stream
+          -- request body regardless of content-type and send a response with
+          -- arbitrary content-type.
           :> RawRequest
           :> RawResponse
   }
   deriving (Generic)
-
-data RawRequest
-
-data RawResponse
-
-instance RoutesToPaths api => RoutesToPaths (RawRequest :> api) where
-  getRoutes = getRoutes @api
-
-instance RoutesToPaths RawResponse where
-  getRoutes = mempty
-
-instance HasServer api context => HasServer (RawRequest :> api) context where
-  type ServerT (RawRequest :> api) m = Wai.Request -> ServerT api m
-
-  route :: Proxy (RawRequest :> api) -> Context context -> Delayed env (Server (RawRequest :> api)) -> Router env
-  route _ context subserver = route (Proxy @api) context (passToServer subserver id)
-  hoistServerWithContext :: Proxy (RawRequest :> api) -> Proxy context -> (forall x. m x -> n x) -> ServerT (RawRequest :> api) m -> ServerT (RawRequest :> api) n
-  hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
-
-instance HasServer RawResponse context where
-  type ServerT RawResponse m = m Wai.Response
-
-  route :: Proxy RawResponse -> Context context -> Delayed env (Server RawResponse) -> Router env
-  route _ _ rawApplication = RawRouter $ \env request respond -> runResourceT $ do
-    r <- runDelayed rawApplication env request
-    liftIO $
-      runHandler (sequence r) >>= \case
-        Left e -> respond $ Fail e
-        Right rr -> respond rr
-
-  hoistServerWithContext :: Proxy RawResponse -> Proxy context -> (forall x. m x -> n x) -> ServerT RawResponse m -> ServerT RawResponse n
-  hoistServerWithContext _ _ nt x = nt x
 
 server ::
   ( Member ServiceStreaming r,
@@ -151,6 +109,7 @@ server ::
     Member (Error ValidationError) r,
     Member (Error DiscoveryFailure) r,
     Member (Error ServerError) r,
+    Member (Error Servant.ServerError) r,
     Member (Input FederationDomainConfigs) r,
     Member Metrics r
   ) =>
@@ -161,9 +120,6 @@ server mgr intPort =
   API
     { status = Health.status mgr "internal server" intPort,
       externalRequest = callInward
-      -- externalRequest = \component rpc remoteDomain remoteCert ->
-      --   Tagged $ \req respond -> do
-      --     runCodensity (interpreter (callInward component rpc remoteDomain remoteCert req)) respond
     }
 
 -- FUTUREWORK(federation): Versioning of the federation API.
@@ -180,12 +136,13 @@ callInward ::
   ) =>
   Component ->
   RPC ->
+  RequestId ->
   Domain ->
   CertHeader ->
   Wai.Request ->
   Sem r Wai.Response
-callInward component (RPC rpc) originDomain (CertHeader cert) wreq = do
-  let rid = getRequestId federationRequestIdHeaderName wreq
+callInward component (RPC rpc) rid originDomain (CertHeader cert) wreq = do
+  -- let rid = getRequestId federationRequestIdHeaderName wreq
   incomingCounterIncr originDomain
   -- only POST is supported
   when (Wai.requestMethod wreq /= HTTP.methodPost) $
@@ -224,9 +181,6 @@ callInward component (RPC rpc) originDomain (CertHeader cert) wreq = do
 
 serveInward :: Env -> Int -> IO ()
 serveInward env = do
-  let middleware =
-        Metrics.servantPrometheusMiddleware (Proxy :: Proxy (ToServantApi API))
-          . requestIdMiddleware (env ^. applog) federationRequestIdHeaderName
-      hoistedApp :: RequestId -> Server (ToServantApi API)
-      hoistedApp rid = hoistServerWithContext (Proxy @(ToServantApi API)) (Proxy @'[]) (runFederatorIO env rid) $ toServant $ server env._httpManager env._internalPort
-  serveServant1 @(ToServantApi API) middleware hoistedApp env
+  let hoistedApp :: RequestId -> Server (ToServantApi API)
+      hoistedApp rid = hoistServerWithContext (Proxy @(ToServantApi API)) (Proxy @'[]) (runFederator env rid) $ toServant $ server env._httpManager env._internalPort
+  serveServant @(ToServantApi API) hoistedApp env

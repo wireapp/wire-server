@@ -25,6 +25,7 @@ library
     Options.Applicative.Extended
     Servant.API.Extended
     Servant.API.Extended.Endpath
+    Servant.API.Extended.Raw
     Servant.API.Extended.RawM
     System.Logger.Extended
 
