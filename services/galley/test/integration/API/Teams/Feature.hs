@@ -26,7 +26,7 @@ import Bilge
 import Bilge.Assert
 import Brig.Types.Test.Arbitrary (Arbitrary (arbitrary))
 import Cassandra as Cql
-import Control.Lens (over, to, view, (.~), (?~))
+import Control.Lens (to, view, (.~), (?~))
 import Control.Lens.Operators ()
 import Control.Monad.Catch (MonadCatch)
 import Data.Aeson (FromJSON, ToJSON)
@@ -64,9 +64,7 @@ tests :: IO TestSetup -> TestTree
 tests s =
   testGroup
     "Feature Config API and Team Features API"
-    [ test s "Classified Domains (enabled)" testClassifiedDomainsEnabled,
-      test s "Classified Domains (disabled)" testClassifiedDomainsDisabled,
-      test s "All features" testAllFeatures,
+    [ test s "All features" testAllFeatures,
       test s "Feature Configs / Team Features Consistency" testFeatureConfigConsistency,
       test s "SelfDeletingMessages" testSelfDeletingMessages,
       test s "ConversationGuestLinks - public API" testGuestLinksPublic,
@@ -269,29 +267,6 @@ testPatch' testLockStatusChange rndFeatureConfig defStatus defConfig = do
           wsLockStatus actual @?= fromMaybe (wsLockStatus original) (wspLockStatus rndFeatureConfig)
         wsConfig actual @?= fromMaybe (wsConfig original) (wspConfig rndFeatureConfig)
   checkTeamFeatureAllEndpoints uid tid actual
-
-testClassifiedDomainsEnabled :: TestM ()
-testClassifiedDomainsEnabled = do
-  (_, tid, member : _) <- createBindingTeamWithNMembers 1
-  let expected =
-        withStatus FeatureStatusEnabled LockStatusUnlocked (ClassifiedDomainsConfig [Domain "example.com"]) FeatureTTLUnlimited
-
-  checkTeamFeatureAllEndpoints member tid expected
-
-testClassifiedDomainsDisabled :: TestM ()
-testClassifiedDomainsDisabled = do
-  (_owner, tid, member : _) <- createBindingTeamWithNMembers 1
-  let expected =
-        withStatus FeatureStatusDisabled LockStatusUnlocked (ClassifiedDomainsConfig []) FeatureTTLUnlimited
-
-  let classifiedDomainsDisabled opts =
-        opts
-          & over
-            (settings . featureFlags . flagClassifiedDomains)
-            (\(ImplicitLockStatus s) -> ImplicitLockStatus (s & setStatus FeatureStatusDisabled & setConfig (ClassifiedDomainsConfig [])))
-
-  withSettingsOverrides classifiedDomainsDisabled $
-    checkTeamFeatureAllEndpoints member tid expected
 
 testSimpleFlagTTLOverride ::
   forall cfg.

@@ -364,3 +364,16 @@ _testSimpleFlagWithLockStatus featureName featureEnabledByDefault featureUnlocke
 
   -- feature status should be the previously set status again
   checkFeature featureName m tid =<< setField "lockStatus" "unlocked" otherValue
+
+testClassifiedDomainsEnabled :: HasCallStack => App ()
+testClassifiedDomainsEnabled = do
+  (_, tid, m : _) <- createTeam OwnDomain 2
+  expected <- enabled & setField "config.domains" ["example.com"]
+  checkFeature "classifiedDomains" m tid expected
+
+testClassifiedDomainsDisabled :: HasCallStack => App ()
+testClassifiedDomainsDisabled = do
+  withModifiedBackend def {galleyCfg = setField "settings.featureFlags.classifiedDomains.status" "disabled"} $ \domain -> do
+    (_, tid, m : _) <- createTeam domain 2
+    expected <- disabled & setField "config.domains" ["d1.example.com"]
+    checkFeature "classifiedDomains" m tid expected
