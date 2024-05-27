@@ -67,9 +67,9 @@ data API mode = API
           :> Capture "component" Component
           :> Capture "rpc" RPC
           :> Endpath
-          -- We need to use 'Raw' so we can stream request body regardless of
-          -- content-type and send a response with arbitrary content-type. Not
-          -- sure if this is the right approach.
+          -- We need to use 'RawRequest' and 'RawResponse' so we can stream
+          -- request body regardless of content-type and send a response with
+          -- arbitrary content-type.
           :> RawRequest
           :> RawResponse
   }
