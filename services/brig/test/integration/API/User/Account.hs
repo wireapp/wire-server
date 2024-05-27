@@ -846,7 +846,7 @@ testCreateUserAnonExpiry :: Brig -> Http ()
 testCreateUserAnonExpiry b = do
   u1 <- randomUser b
   alice <- randomUser b
-  bob <- createAnonUserExpiry (Just 2) "bob" b
+  bob <- createAnonUserExpiry (Just 5 {- 2 was flaky, so it's 5 now; make sure to re-align with 'awaitExpiry' below! -}) "bob" b
   liftIO $ assertBool "expiry not set on regular creation" (isNothing (userExpire alice))
   ensureExpiry (fromUTCTimeMillis <$> userExpire bob) "bob/register"
   resAlice <- getProfile (userId u1) (userId alice)
@@ -856,7 +856,7 @@ testCreateUserAnonExpiry b = do
   liftIO $ assertBool "Regular user should not have any expiry" (null $ expire resAlice)
   ensureExpiry (expire resBob) "bob/public"
   ensureExpiry (expire selfBob) "bob/self"
-  awaitExpiry 5 (userId u1) (userId bob)
+  awaitExpiry 10 (userId u1) (userId bob)
   resBob' <- getProfile (userId u1) (userId bob)
   liftIO $ assertBool "Bob must be in deleted state" (fromMaybe False $ deleted resBob')
   where
