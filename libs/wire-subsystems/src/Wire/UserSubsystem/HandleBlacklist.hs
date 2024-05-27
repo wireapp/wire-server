@@ -7,6 +7,8 @@ import Data.Handle (Handle (Handle))
 import Data.HashSet qualified as HashSet
 import Imports
 
+-- TODO: s/black/block/g;
+
 -- | A blacklisted handle cannot be chosen by a (regular) user.
 isBlacklistedHandle :: Handle -> Bool
 isBlacklistedHandle = (`HashSet.member` blacklist)
