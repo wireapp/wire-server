@@ -482,3 +482,73 @@ testFeatureConfigConsistency = do
       case val of
         (A.Object hm) -> pure (Set.fromList . map (show . A.toText) . KM.keys $ hm)
         x -> assertFailure ("JSON was not an object, but " <> show x)
+
+testSelfDeletingMessages :: HasCallStack => App ()
+testSelfDeletingMessages =
+  _testLockStatusWithConfig
+    "selfDeletingMessages"
+    (object ["lockStatus" .= "unlocked", "status" .= "enabled", "ttl" .= "unlimited", "config" .= object ["enforcedTimeoutSeconds" .= A.Number 0]])
+    (object ["status" .= "enabled", "config" .= object ["enforcedTimeoutSeconds" .= A.Number 30]])
+
+_testLockStatusWithConfig :: HasCallStack => String -> Value -> Value -> App ()
+_testLockStatusWithConfig featureName defaultSetting configUpdate = do
+  -- personal user
+  randomPersonalUser <- randomUser OwnDomain def
+
+  bindResponse (Public.getFeatureConfigs randomPersonalUser) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. featureName `shouldMatch` defaultSetting
+
+  -- team user
+  defaultConfig <- defaultSetting %. "config"
+
+  featureUnlockedByDefault <- do
+    ls <- defaultSetting %. "lockStatus" >>= asString
+    pure $ ls == "unlocked"
+
+  featureEnabledByDefault <- do
+    s <- defaultSetting %. "status" >>= asString
+    pure $ s == "enabled"
+
+  (owner, tid, m : _) <- createTeam OwnDomain 2
+  nonTeamMember <- randomUser OwnDomain def
+  assertForbidden =<< Public.getTeamFeature nonTeamMember tid featureName
+
+  checkFeature featureName m tid defaultSetting
+
+  -- unlock feature if it is locked
+  unless featureUnlockedByDefault $ Internal.setTeamFeatureLockStatus OwnDomain tid featureName "unlocked"
+
+  -- change the status
+  let otherStatus = if featureEnabledByDefault then "disabled" else "enabled"
+  defaultSettingWithOtherStatus <- defaultSetting & setField "status" otherStatus
+
+  void $ withWebSockets [m] $ \wss -> do
+    assertSuccess =<< Public.setTeamFeatureConfig owner tid featureName (object ["status" .= otherStatus, "config" .= defaultConfig])
+    for_ wss $ \ws -> do
+      notif <- awaitMatch isFeatureConfigUpdateNotif ws
+      notif %. "payload.0.name" `shouldMatch` featureName
+      notif %. "payload.0.data" `shouldMatch` defaultSettingWithOtherStatus
+
+  checkFeature featureName m tid defaultSettingWithOtherStatus
+
+  -- lock feature
+  Internal.setTeamFeatureLockStatus OwnDomain tid featureName "locked"
+
+  -- feature status should be the default again
+  checkFeature featureName m tid =<< setField "lockStatus" "locked" defaultSetting
+  assertStatus 409 =<< Public.setTeamFeatureConfig owner tid featureName (object ["status" .= otherStatus, "config" .= defaultConfig])
+
+  -- unlock again
+  Internal.setTeamFeatureLockStatus OwnDomain tid featureName "unlocked"
+
+  -- feature status should be the previously set status again
+  checkFeature featureName m tid defaultSettingWithOtherStatus
+
+  bindResponse (Public.setTeamFeatureConfig owner tid featureName configUpdate) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+  checkFeature featureName m tid =<< (configUpdate & setField "lockStatus" "unlocked" & setField "ttl" "unlimited")
+
+  -- after locking once again it should be the default again
+  Internal.setTeamFeatureLockStatus OwnDomain tid featureName "locked"
+  checkFeature featureName m tid =<< setField "lockStatus" "locked" defaultSetting

@@ -26,7 +26,7 @@ import Bilge
 import Bilge.Assert
 import Brig.Types.Test.Arbitrary (Arbitrary (arbitrary))
 import Cassandra as Cql
-import Control.Lens (to, view, (.~), (?~))
+import Control.Lens (view, (.~), (?~))
 import Control.Lens.Operators ()
 import Control.Monad.Catch (MonadCatch)
 import Data.Aeson (FromJSON, ToJSON)
@@ -38,8 +38,7 @@ import Data.List1 qualified as List1
 import Data.Schema (ToSchema)
 import Data.Timeout (TimeoutUnit (Second), (#))
 import GHC.TypeLits (KnownSymbol)
-import Galley.Options (exposeInvitationURLsTeamAllowlist, featureFlags, settings)
-import Galley.Types.Teams
+import Galley.Options (exposeInvitationURLsTeamAllowlist, settings)
 import Imports
 import Network.Wai.Utilities (label)
 import Test.QuickCheck (Gen, generate, suchThat)
@@ -59,8 +58,7 @@ tests :: IO TestSetup -> TestTree
 tests s =
   testGroup
     "Feature Config API and Team Features API"
-    [ test s "SelfDeletingMessages" testSelfDeletingMessages,
-      test s "ConversationGuestLinks - public API" testGuestLinksPublic,
+    [ test s "ConversationGuestLinks - public API" testGuestLinksPublic,
       test s "ConversationGuestLinks - internal API" testGuestLinksInternal,
       test s "SearchVisibilityInbound - internal API" testSearchVisibilityInbound,
       test s "SearchVisibilityInbound - internal multi team API" testFeatureNoConfigMultiSearchVisibilityInbound,
@@ -451,106 +449,6 @@ testSimpleFlagTTL defaultValue ttl = do
   -- Clean up
   setFlagInternal defaultValue FeatureTTLUnlimited
   getFlag defaultValue
-
-testSelfDeletingMessages :: TestM ()
-testSelfDeletingMessages = do
-  defLockStatus :: LockStatus <-
-    view
-      ( tsGConf
-          . settings
-          . featureFlags
-          . flagSelfDeletingMessages
-          . unDefaults
-          . to wsLockStatus
-      )
-
-  -- personal users
-  let settingWithoutLockStatus :: FeatureStatus -> Int32 -> WithStatusNoLock SelfDeletingMessagesConfig
-      settingWithoutLockStatus stat tout =
-        WithStatusNoLock
-          stat
-          (SelfDeletingMessagesConfig tout)
-          FeatureTTLUnlimited
-      settingWithLockStatus :: FeatureStatus -> Int32 -> LockStatus -> WithStatus SelfDeletingMessagesConfig
-      settingWithLockStatus stat tout lockStatus =
-        withStatus
-          stat
-          lockStatus
-          (SelfDeletingMessagesConfig tout)
-          FeatureTTLUnlimited
-
-  personalUser <- randomUser
-  do
-    result <- Util.getFeatureConfig @SelfDeletingMessagesConfig personalUser
-    liftIO $ result @?= settingWithLockStatus FeatureStatusEnabled 0 defLockStatus
-
-  -- team users
-  galley <- viewGalley
-  (owner, tid, []) <- createBindingTeamWithNMembers 0
-
-  let checkSet :: FeatureStatus -> Int32 -> Int -> TestM ()
-      checkSet stat tout expectedStatusCode =
-        do
-          putTeamFeatureInternal @SelfDeletingMessagesConfig
-            galley
-            tid
-            (settingWithoutLockStatus stat tout)
-          !!! statusCode
-            === const expectedStatusCode
-
-      -- internal, public (/team/:tid/features), and team-agnostic (/feature-configs).
-      checkGet :: HasCallStack => FeatureStatus -> Int32 -> LockStatus -> TestM ()
-      checkGet stat tout lockStatus = do
-        let expected = settingWithLockStatus stat tout lockStatus
-        forM_
-          [ getTeamFeatureInternal @SelfDeletingMessagesConfig tid,
-            getTeamFeature @SelfDeletingMessagesConfig owner tid
-          ]
-          (!!! responseJsonEither === const (Right expected))
-        result <- Util.getFeatureConfig @SelfDeletingMessagesConfig owner
-        liftIO $ result @?= expected
-
-      checkSetLockStatus :: HasCallStack => LockStatus -> TestM ()
-      checkSetLockStatus status =
-        do
-          Util.setLockStatusInternal @SelfDeletingMessagesConfig galley tid status
-          !!! statusCode
-            === const 200
-
-  -- test that the default lock status comes from `galley.yaml`.
-  -- use this to change `galley.integration.yaml` locally and manually test that conf file
-  -- parsing works as expected.
-  checkGet FeatureStatusEnabled 0 defLockStatus
-
-  case defLockStatus of
-    LockStatusLocked -> do
-      checkSet FeatureStatusDisabled 0 409
-    LockStatusUnlocked -> do
-      checkSet FeatureStatusDisabled 0 200
-      checkGet FeatureStatusDisabled 0 LockStatusUnlocked
-      checkSet FeatureStatusEnabled 0 200
-      checkGet FeatureStatusEnabled 0 LockStatusUnlocked
-
-  -- now don't worry about what's in the config, write something to cassandra, and test with that.
-  checkSetLockStatus LockStatusLocked
-  checkGet FeatureStatusEnabled 0 LockStatusLocked
-  checkSet FeatureStatusDisabled 0 409
-  checkGet FeatureStatusEnabled 0 LockStatusLocked
-  checkSet FeatureStatusEnabled 30 409
-  checkGet FeatureStatusEnabled 0 LockStatusLocked
-  checkSetLockStatus LockStatusUnlocked
-  checkGet FeatureStatusEnabled 0 LockStatusUnlocked
-  checkSet FeatureStatusDisabled 0 200
-  checkGet FeatureStatusDisabled 0 LockStatusUnlocked
-  checkSet FeatureStatusEnabled 30 200
-  checkGet FeatureStatusEnabled 30 LockStatusUnlocked
-  checkSet FeatureStatusDisabled 30 200
-  checkGet FeatureStatusDisabled 30 LockStatusUnlocked
-  checkSetLockStatus LockStatusLocked
-  checkGet FeatureStatusEnabled 0 LockStatusLocked
-  checkSet FeatureStatusEnabled 50 409
-  checkSetLockStatus LockStatusUnlocked
-  checkGet FeatureStatusDisabled 30 LockStatusUnlocked
 
 testGuestLinksInternal :: TestM ()
 testGuestLinksInternal = do
