@@ -105,6 +105,8 @@ data UserSubsystem m a where
   CheckHandles :: [Handle] -> Word -> UserSubsystem m [Handle]
   -- | parses a handle, this may fail so it's effectful
   ParseHandle :: Text -> UserSubsystem m Handle
+  -- | Overwrites the set of supported protocols
+  UpdateSupportedProtocol :: Local UserId -> Set BaseProtocolTag -> UserSubsystem m ()
 
 -- | the return type of 'CheckHandle'
 data CheckHandleResp
