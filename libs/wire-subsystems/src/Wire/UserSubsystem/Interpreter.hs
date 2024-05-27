@@ -318,7 +318,7 @@ updateUserProfileImpl ::
   AllowSCIMUpdates ->
   UserProfileUpdate ->
   Sem r ()
-updateUserProfileImpl luid@(tUnqualified -> uid) mconn updateOrigin update = do
+updateUserProfileImpl (tUnqualified -> uid) mconn updateOrigin update = do
   user <- getUser uid >>= note UserSubsystemProfileNotFound
   hasE2EId <-
     wsStatus . afcMlsE2EId <$> getAllFeatureConfigsForUser (Just uid) <&> \case
@@ -336,7 +336,8 @@ storedUserUpdate update =
       pict = update.pict,
       assets = update.assets,
       accentId = update.accentId,
-      locale = update.locale
+      locale = update.locale,
+      handle = Nothing
     }
 
 mkProfileUpdateEvent :: UserId -> UserProfileUpdate -> UserEvent

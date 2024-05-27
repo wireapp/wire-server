@@ -258,7 +258,7 @@ spec = describe "UserSubsystem.Interpreter" do
                   . runErrorUnsafe
                   . runError
                   $ interpretNoFederationStack localBackend Nothing def {afcMlsE2EId = setStatus FeatureStatusEnabled defFeatureStatus} config do
-                    updateUserProfile lusr Nothing AllowSCIMUpdates update
+                    updateUserProfile lusr Nothing AllowSCIMUpdates (update {name = Just name})
                     getUserProfile lusr (tUntagged lusr)
            in Left UserSubsystemDisplayNameManagedByScim === profileErr
 
@@ -289,25 +289,25 @@ spec = describe "UserSubsystem.Interpreter" do
     describe "Scim+UpdateProfileUpdate" do
       prop
         "Updating handles fails when ForbidSCIMUpdates"
-        \(alice, newHandle, domain, config) ->
+        \(alice, newHandle :: HandleText, domain, config) ->
           let res :: Either UserSubsystemError ()
               res = run
                 . runErrorUnsafe
                 . runError
                 $ interpretNoFederationStack localBackend Nothing def config do
-                  updateHandle (toLocalUnsafe domain alice.id) ForbidSCIMUpdates newHandle
+                  updateHandle (toLocalUnsafe domain alice.id) ForbidSCIMUpdates (unHandle newHandle)
 
               localBackend = def {users = [alice {managedBy = Just ManagedByScim}]}
            in res === Left UserSubsystemHandleManagedByScim
 
       prop
         "Updating handles succeeds when AllowSCIMUpdates"
-        \(alice, ssoId, email :: Maybe Email, newHandle, domain, config) ->
+        \(alice, ssoId, email :: Maybe Email, newHandle :: HandleText, domain, config) ->
           let res :: Either UserSubsystemError () = run
                 . runErrorUnsafe
                 . runError
                 $ interpretNoFederationStack localBackend Nothing def config do
-                  updateHandle (toLocalUnsafe domain alice.id) AllowSCIMUpdates newHandle
+                  updateHandle (toLocalUnsafe domain alice.id) AllowSCIMUpdates (unHandle newHandle)
               localBackend =
                 def
                   { users =
@@ -331,13 +331,16 @@ spec = describe "UserSubsystem.Interpreter" do
                 updateHandle luid AllowSCIMUpdates (unHandle rawHandle)
          in updateResult === Right ()
 
--- We create a new type here so we can add a custom Arbitrary instance.
+-- | We create a new type here so we can add a custom Arbitrary instance.
 -- Otherwise using a Text generator will give us 99.99…9% chance of an invalid handle,
 -- but using a Handle generator will give us 100% chance of a valid handle.
 -- Instead we use a coin toss to generate either a guarateed valid or a 99.99…9% invalid.
 -- It doesn't quite add up to 50/50 but it's close enough for our goals.
 -- We could always guarantee an invalid text arbitrary case by inserting an
 -- invalid character every time.
+--
+-- TODO: isn't there something for `Data.Handle.Handle` already somewhere?  If not: shouldn't
+-- there be?
 newtype HandleText = HandleText {unHandle :: Text}
   deriving newtype (Eq, Show)
 
