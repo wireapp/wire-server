@@ -1,0 +1,3 @@
+Twój kod logowania ${brand} to ${code}.
+
+Otwórz ${url} aby się zalogować.
