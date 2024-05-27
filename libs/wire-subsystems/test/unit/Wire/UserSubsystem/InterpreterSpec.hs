@@ -353,7 +353,7 @@ instance Arbitrary BadHandle where
   arbitrary = oneof [tooShort, tooLong, badBytes]
     where
       tooShort = (BadHandle . Text.pack . (: [])) <$> elements validChar
-      tooLong = (BadHandle . Text.pack) <$> elements (replicate 256 validChar)
+      tooLong = (BadHandle . Text.pack) <$> replicateM 256 (elements validChar)
       badBytes =
         BadHandle <$> do
           totalLen :: Int <- choose (2, 256)
