@@ -87,7 +87,9 @@ start o = do
     server e = Server.defaultServer (unpack $ stern o ^. host) (stern o ^. port) (e ^. applog) (e ^. metrics)
 
     servantApp :: Env -> Application
-    servantApp e =
+    servantApp e0 req cont = do
+      let rid = getRequestId defaultRequestIdHeaderName req
+      let e = requestId .~ rid $ e0
       Servant.serve
         ( Proxy
             @( SwaggerDocsAPI
