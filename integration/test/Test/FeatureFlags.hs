@@ -22,6 +22,9 @@ import qualified API.GalleyInternal as Internal
 import Control.Monad.Codensity (Codensity (runCodensity))
 import Control.Monad.Reader
 import qualified Data.Aeson as A
+import qualified Data.Aeson.Key as A
+import qualified Data.Aeson.KeyMap as KM
+import qualified Data.Set as Set
 import Notifications
 import SetupHelpers
 import Test.FeatureFlags.Util
@@ -461,3 +464,21 @@ testAllFeatures = do
   bindResponse (Public.getFeatureConfigs randomPersonalUser) $ \resp -> do
     resp.status `shouldMatchInt` 200
     expected `shouldMatch` resp.json
+
+testFeatureConfigConsistency :: HasCallStack => App ()
+testFeatureConfigConsistency = do
+  (_, tid, m : _) <- createTeam OwnDomain 2
+
+  allFeaturesRes <- Public.getFeatureConfigs m >>= parseObjectKeys
+
+  allTeamFeaturesRes <- Public.getTeamFeatures m tid >>= parseObjectKeys
+
+  unless (allTeamFeaturesRes `Set.isSubsetOf` allFeaturesRes) $
+    assertFailure (show allTeamFeaturesRes <> " is not a subset of " <> show allFeaturesRes)
+  where
+    parseObjectKeys :: Response -> App (Set.Set String)
+    parseObjectKeys res = do
+      val <- res.json
+      case val of
+        (A.Object hm) -> pure (Set.fromList . map (show . A.toText) . KM.keys $ hm)
+        x -> assertFailure ("JSON was not an object, but " <> show x)

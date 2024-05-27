@@ -31,25 +31,21 @@ import Control.Lens.Operators ()
 import Control.Monad.Catch (MonadCatch)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Aeson qualified as Aeson
-import Data.Aeson.Key qualified as AesonKey
-import Data.Aeson.KeyMap qualified as KeyMap
 import Data.ByteString.Char8 (unpack)
 import Data.Id
 import Data.Json.Util (fromUTCTimeMillis, readUTCTimeMillis)
 import Data.List1 qualified as List1
 import Data.Schema (ToSchema)
-import Data.Set qualified as Set
 import Data.Timeout (TimeoutUnit (Second), (#))
 import GHC.TypeLits (KnownSymbol)
 import Galley.Options (exposeInvitationURLsTeamAllowlist, featureFlags, settings)
 import Galley.Types.Teams
 import Imports
 import Network.Wai.Utilities (label)
-import Test.Hspec (expectationFailure)
 import Test.QuickCheck (Gen, generate, suchThat)
 import Test.Tasty
 import Test.Tasty.Cannon qualified as WS
-import Test.Tasty.HUnit (assertFailure, (@?=))
+import Test.Tasty.HUnit ((@?=))
 import TestHelpers (test)
 import TestSetup
 import Wire.API.Conversation.Protocol
@@ -63,8 +59,7 @@ tests :: IO TestSetup -> TestTree
 tests s =
   testGroup
     "Feature Config API and Team Features API"
-    [ test s "Feature Configs / Team Features Consistency" testFeatureConfigConsistency,
-      test s "SelfDeletingMessages" testSelfDeletingMessages,
+    [ test s "SelfDeletingMessages" testSelfDeletingMessages,
       test s "ConversationGuestLinks - public API" testGuestLinksPublic,
       test s "ConversationGuestLinks - internal API" testGuestLinksInternal,
       test s "SearchVisibilityInbound - internal API" testSearchVisibilityInbound,
@@ -609,27 +604,6 @@ testGuestLinks getStatus putStatus setLockStatusInternal = do
   -- when lock status is unlocked again the previously set feature status is restored
   checkSetLockStatusInternal LockStatusUnlocked
   checkGet FeatureStatusDisabled LockStatusUnlocked
-
-testFeatureConfigConsistency :: TestM ()
-testFeatureConfigConsistency = do
-  (_owner, tid, member : _) <- createBindingTeamWithNMembers 1
-
-  allFeaturesRes <- getAllFeatureConfigs member >>= parseObjectKeys
-
-  allTeamFeaturesRes <- getAllTeamFeatures member tid >>= parseObjectKeys
-
-  unless (allTeamFeaturesRes `Set.isSubsetOf` allFeaturesRes) $
-    liftIO $
-      expectationFailure (show allTeamFeaturesRes <> " is not a subset of " <> show allFeaturesRes)
-  where
-    parseObjectKeys :: ResponseLBS -> TestM (Set.Set Text)
-    parseObjectKeys res = do
-      case responseJsonEither res of
-        Left err -> liftIO $ assertFailure ("Did not parse as an object" <> err)
-        Right (val :: Aeson.Value) ->
-          case val of
-            (Aeson.Object hm) -> pure (Set.fromList . map AesonKey.toText . KeyMap.keys $ hm)
-            x -> liftIO $ assertFailure ("JSON was not an object, but " <> show x)
 
 testSearchVisibilityInbound :: TestM ()
 testSearchVisibilityInbound = do
