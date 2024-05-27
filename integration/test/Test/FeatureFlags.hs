@@ -278,39 +278,42 @@ testSearchVisibilityEnabledByDefault = do
     assertSuccess =<< Internal.setTeamFeatureStatus owner tid "searchVisibility" "enabled"
     checkFeature "searchVisibility" owner tid enabled
 
-testDigitalSignatures :: HasCallStack => App ()
-testDigitalSignatures = _testSimpleFlag "digitalSignatures" False
-
-testValidateSAMLEmails :: HasCallStack => App ()
-testValidateSAMLEmails = _testSimpleFlag "validateSAMLemails" True
-
-testConferenceCalling :: HasCallStack => App ()
-testConferenceCalling = _testSimpleFlag "conferenceCalling" True
-
 testSearchVisibilityInbound :: HasCallStack => App ()
-testSearchVisibilityInbound = _testSimpleFlag "searchVisibilityInbound" False
+testSearchVisibilityInbound = _testSimpleFlag "searchVisibilityInbound" Public.setTeamFeatureConfig False
 
-_testSimpleFlag :: HasCallStack => String -> Bool -> App ()
-_testSimpleFlag featureName featureEnabledByDefault = do
+testDigitalSignaturesInternal :: HasCallStack => App ()
+testDigitalSignaturesInternal = _testSimpleFlag "digitalSignatures" Internal.setTeamFeatureConfig False
+
+testValidateSAMLEmailsInternal :: HasCallStack => App ()
+testValidateSAMLEmailsInternal = _testSimpleFlag "validateSAMLemails" Internal.setTeamFeatureConfig True
+
+testConferenceCallingInternal :: HasCallStack => App ()
+testConferenceCallingInternal = _testSimpleFlag "conferenceCalling" Internal.setTeamFeatureConfig True
+
+testSearchVisibilityInboundInternal :: HasCallStack => App ()
+testSearchVisibilityInboundInternal = _testSimpleFlag "searchVisibilityInbound" Internal.setTeamFeatureConfig False
+
+_testSimpleFlag :: HasCallStack => String -> (Value -> String -> String -> Value -> App Response) -> Bool -> App ()
+_testSimpleFlag featureName setFeatureConfig featureEnabledByDefault = do
   let defaultStatus = if featureEnabledByDefault then "enabled" else "disabled"
   let defaultValue = if featureEnabledByDefault then enabled else disabled
   let otherStatus = if featureEnabledByDefault then "disabled" else "enabled"
   let otherValue = if featureEnabledByDefault then disabled else enabled
 
-  (_, tid, m : _) <- createTeam OwnDomain 2
+  (owner, tid, m : _) <- createTeam OwnDomain 2
   nonTeamMember <- randomUser OwnDomain def
   assertForbidden =<< Public.getTeamFeature nonTeamMember tid featureName
   checkFeature featureName m tid defaultValue
   -- should receive an event
   void $ withWebSockets [m] $ \wss -> do
-    assertSuccess =<< Internal.setTeamFeatureStatus OwnDomain tid featureName otherStatus
+    assertSuccess =<< setFeatureConfig owner tid featureName (object ["status" .= otherStatus])
     for_ wss $ \ws -> do
       notif <- awaitMatch isFeatureConfigUpdateNotif ws
       notif %. "payload.0.name" `shouldMatch` featureName
       notif %. "payload.0.data" `shouldMatch` otherValue
 
     checkFeature featureName m tid otherValue
-    assertSuccess =<< Internal.setTeamFeatureStatus OwnDomain tid featureName defaultStatus
+    assertSuccess =<< setFeatureConfig owner tid featureName (object ["status" .= defaultStatus])
     for_ wss $ \ws -> do
       notif <- awaitMatch isFeatureConfigUpdateNotif ws
       notif %. "payload.0.name" `shouldMatch` featureName

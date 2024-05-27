@@ -58,8 +58,7 @@ tests :: IO TestSetup -> TestTree
 tests s =
   testGroup
     "Feature Config API and Team Features API"
-    [ test s "SearchVisibilityInbound - internal API" testSearchVisibilityInbound,
-      test s "SearchVisibilityInbound - internal multi team API" testFeatureNoConfigMultiSearchVisibilityInbound,
+    [ test s "SearchVisibilityInbound - internal multi team API" testFeatureNoConfigMultiSearchVisibilityInbound,
       testGroup
         "TTL / Conference calling"
         [ test s "ConferenceCalling unlimited TTL" $ testSimpleFlagTTL @ConferenceCallingConfig FeatureStatusEnabled FeatureTTLUnlimited,
@@ -447,28 +446,6 @@ testSimpleFlagTTL defaultValue ttl = do
   -- Clean up
   setFlagInternal defaultValue FeatureTTLUnlimited
   getFlag defaultValue
-
-testSearchVisibilityInbound :: TestM ()
-testSearchVisibilityInbound = do
-  let defaultValue = FeatureStatusDisabled
-  (_owner, tid, _) <- createBindingTeamWithNMembers 1
-
-  let getFlagInternal :: HasCallStack => FeatureStatus -> TestM ()
-      getFlagInternal expected =
-        flip (assertFlagNoConfig @SearchVisibilityInboundConfig) expected $ getTeamFeatureInternal @SearchVisibilityInboundConfig tid
-
-      setFlagInternal :: FeatureStatus -> TestM ()
-      setFlagInternal statusValue =
-        void $ putTeamFeatureInternal @SearchVisibilityInboundConfig expect2xx tid (WithStatusNoLock statusValue SearchVisibilityInboundConfig FeatureTTLUnlimited)
-
-  let otherValue = case defaultValue of
-        FeatureStatusDisabled -> FeatureStatusEnabled
-        FeatureStatusEnabled -> FeatureStatusDisabled
-
-  -- Initial value should be the default value
-  getFlagInternal defaultValue
-  setFlagInternal otherValue
-  getFlagInternal otherValue
 
 testFeatureNoConfigMultiSearchVisibilityInbound :: TestM ()
 testFeatureNoConfigMultiSearchVisibilityInbound = do
