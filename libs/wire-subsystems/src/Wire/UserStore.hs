@@ -18,6 +18,9 @@ data StoredHandleUpdate = MkStoredHandleUpdate
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via GenericUniform StoredHandleUpdate
 
+-- TODO: remove handle from this record; add operation UpdateHandle; make everything
+-- symmetrical to the UserSubsystem operation.  nowait: replace StoredUserUpdate with
+-- UserProfileUpdate.  and maybe that type should reside here, not in UserSubsystem.
 data StoredUserUpdate = MkStoredUserUpdate
   { name :: Maybe Name,
     pict :: Maybe Pict,

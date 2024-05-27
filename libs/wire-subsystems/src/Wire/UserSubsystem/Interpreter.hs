@@ -1,4 +1,5 @@
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
 module Wire.UserSubsystem.Interpreter
@@ -89,10 +90,10 @@ interpretUserSubsystem = interpret \case
   GetUserProfiles self others -> getUserProfilesImpl self others
   GetLocalUserProfiles others -> getLocalUserProfilesImpl others
   GetUserProfilesWithErrors self others -> getUserProfilesWithErrorsImpl self others
-  UpdateUserProfile self mconn update -> updateUserProfileImpl self mconn update
-  ParseHandle uhandle -> parseHandleImpl uhandle
+  UpdateUserProfile self mconn mb update -> updateUserProfileImpl self mconn mb update
   CheckHandle uhandle -> checkHandleImpl uhandle
   CheckHandles hdls cnt -> checkHandlesImpl hdls cnt
+  UpdateHandle mb uhandle -> updateHandleImpl mb uhandle
 
 -- | Obtain user profiles for a list of users as they can be seen by
 -- a given user 'self'. If 'self' is an unknown 'UserId', return '[]'.
@@ -278,6 +279,21 @@ getUserProfilesWithErrorsImpl self others = do
     renderBucketError :: (FederationError, Qualified [UserId]) -> [(Qualified UserId, FederationError)]
     renderBucketError (err, qlist) = (,err) . (flip Qualified (qDomain qlist)) <$> qUnqualified qlist
 
+-- | Some fields cannot be overwritten by clients for scim-managed users; some others if e2eid
+-- is used.  If a client attempts to overwrite any of these, throw `UserSubsystem*ManagedByScim`.
+guardLockedFields ::
+  User ->
+  AllowSCIMUpdates ->
+  -- | hasE2EId
+  Bool ->
+  UserProfileUpdate ->
+  Sem r ()
+guardLockedFields user updateOriginScim hasE2EId (MkUserProfileUpdate {..})
+  | (updateOriginScim == ForbidSCIMUpdates || hasE2EId) && isJust name && name /= Just user.name = throw UserSubsystemDisplayNameManagedByScim
+  -- TODO: | updateOriginScim && isJust locale && locale /= Just user.locale = throw UserSubsystemLocaleManagedByScim
+  -- pict, assets, accentId, supportedProtocols are not managed by scim, so no errors there.
+  | otherwise = pure ()
+
 updateUserProfileImpl ::
   ( Member UserStore r,
     Member (Error UserSubsystemError) r,
@@ -286,59 +302,27 @@ updateUserProfileImpl ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
+  AllowSCIMUpdates ->
   UserProfileUpdate ->
   Sem r ()
-updateUserProfileImpl (tUnqualified -> uid) mconn update = do
-  -- check if name updates are allowed
-  for_ update.name $ \nameUpdate -> do
-    user <- getUser uid >>= note UserSubsystemProfileNotFound
-    unless
-      ( user.managedBy /= Just ManagedByScim
-          || user.name == nameUpdate.value
-          || AllowSCIMUpdates == nameUpdate.allowScim
-      )
-      $ throw UserSubsystemDisplayNameManagedByScim
-    hasE2EId <-
-      wsStatus . afcMlsE2EId <$> getAllFeatureConfigsForUser (Just uid) <&> \case
-        FeatureStatusEnabled -> True
-        FeatureStatusDisabled -> False
-    when (hasE2EId && nameUpdate.value /= user.name) $
-      throw UserSubsystemDisplayNameManagedByScim
-
-  -- check if handle updates are allowed
-  oldHandle <- fmap join . for update.handle $ \handleUpdate -> do
-    when (isBlacklistedHandle handleUpdate.value) $
-      throw UserSubsystemInvalidHandle
-    user <- getUser uid >>= note UserSubsystemNoIdentity
-    unless
-      ( user.managedBy /= Just ManagedByScim
-          || user.handle == Just handleUpdate.value
-          || AllowSCIMUpdates == handleUpdate.allowScim
-      )
-      $ throw UserSubsystemHandleManagedByScim
-    hasE2EId <-
-      wsStatus . afcMlsE2EId <$> getAllFeatureConfigsForUser (Just uid) <&> \case
-        FeatureStatusEnabled -> True
-        FeatureStatusDisabled -> False
-    when (hasE2EId && user.handle `notElem` [Nothing, Just handleUpdate.value]) $
-      throw UserSubsystemHandleManagedByScim
-    when (isNothing user.identity) $
-      throw UserSubsystemNoIdentity
-    pure user.handle
-
-  mapError (\StoredUserUpdateHandleExists -> UserSubsystemHandleExists) $
-    updateUser uid (storedUserUpdate oldHandle update)
+updateUserProfileImpl (tUnqualified -> uid) mconn updateOriginScim update = do
+  user <- getUser uid >>= note UserSubsystemProfileNotFound
+  hasE2EId <-
+    wsStatus . afcMlsE2EId <$> getAllFeatureConfigsForUser (Just uid) <&> \case
+      FeatureStatusEnabled -> True
+      FeatureStatusDisabled -> False
+  guardLockedFields updateOriginScim hasE2EId update
+  updateUser uid (storedUserUpdate update)
   generateUserEvent uid mconn (mkProfileUpdateEvent uid update)
 
-storedUserUpdate :: Maybe Handle -> UserProfileUpdate -> StoredUserUpdate
-storedUserUpdate oldHandle update =
+storedUserUpdate :: UserProfileUpdate -> StoredUserUpdate
+storedUserUpdate update =
   MkStoredUserUpdate
-    { name = fmap (.value) update.name,
+    { name = update.name,
       pict = update.pict,
       assets = update.assets,
       accentId = update.accentId,
-      locale = update.locale,
-      handle = fmap (MkStoredHandleUpdate oldHandle . (.value)) update.handle
+      locale = update.locale
     }
 
 mkProfileUpdateEvent :: UserId -> UserProfileUpdate -> UserEvent
@@ -354,8 +338,27 @@ mkProfileUpdateEvent uid update =
 --------------------------------------------------------------------------------
 -- Check Handle
 
-parseHandleImpl :: (Member (Error UserSubsystemError) r) => Text -> Sem r Handle
-parseHandleImpl = note UserSubsystemInvalidHandle . Handle.parseHandle
+updateHandleImpl :: (Member (Error UserSubsystemError) r) => AllowSCIMUpdates -> Text -> Sem r ()
+updateHandleImpl managedBy uhandle = do
+  newHandle <- note UserSubsystemInvalidHandle $ Handle.parseHandle uhandle
+  when (isBlacklistedHandle newHandle) $
+    throw UserSubsystemInvalidHandle
+  user <- getUser uid >>= note UserSubsystemNoIdentity
+  unless
+    ( user.managedBy /= Just ManagedByScim
+        || user.handle == Just newHandle
+        || AllowSCIMUpdates == handleUpdate.allowScim
+    )
+    $ throw UserSubsystemHandleManagedByScim
+  hasE2EId <-
+    wsStatus . afcMlsE2EId <$> getAllFeatureConfigsForUser (Just uid) <&> \case
+      FeatureStatusEnabled -> True
+      FeatureStatusDisabled -> False
+  when (hasE2EId && user.handle `notElem` [Nothing, Just handleUpdate.value]) $
+    throw UserSubsystemHandleManagedByScim
+  when (isNothing user.identity) $
+    throw UserSubsystemNoIdentity
+  pure user.handle
 
 checkHandleImpl :: (Member (Error UserSubsystemError) r, Member UserStore r) => Text -> Sem r CheckHandleResp
 checkHandleImpl uhandle = do

@@ -23,7 +23,8 @@ data UserSubsystemError
   = -- | user is managed by scim or e2ei is enabled
     --   FUTUREWORK(mangoiv): the name should probably resemble that
     UserSubsystemDisplayNameManagedByScim
-  | UserSubsystemHandleManagedByScim
+  | -- TODO: UserSubsystemLocaleManagedByScim
+    UserSubsystemHandleManagedByScim
   | UserSubsystemNoIdentity
   | UserSubsystemHandleExists
   | UserSubsystemInvalidHandle
@@ -35,6 +36,7 @@ userSubsystemErrorToWai =
   dynErrorToWai . \case
     UserSubsystemProfileNotFound -> dynError @(MapError E.UserNotFound)
     UserSubsystemDisplayNameManagedByScim -> dynError @(MapError E.NameManagedByScim)
+    -- TODO: UserSubsystemLocaleManagedByScim -> dynError @(MapError E.NameManagedByScim)
     UserSubsystemNoIdentity -> dynError @(MapError E.NoIdentity)
     UserSubsystemHandleExists -> dynError @(MapError E.HandleExists)
     UserSubsystemInvalidHandle -> dynError @(MapError E.InvalidHandle)
@@ -42,39 +44,23 @@ userSubsystemErrorToWai =
 
 instance Exception UserSubsystemError
 
+-- TODO: rename to data UpdateOriginScim = UpdateOriginScim | UpdateOriginWireClient
 data AllowSCIMUpdates
   = AllowSCIMUpdates
   | ForbidSCIMUpdates
   deriving (Show, Eq, Ord, Generic)
   deriving (Arbitrary) via GenericUniform AllowSCIMUpdates
 
--- | Wrapper around an updated field which can potentially be managed by SCIM.
-data ScimUpdate a = MkScimUpdate
-  { -- | whether changes to SCIM-managed users should be allowed
-    allowScim :: AllowSCIMUpdates,
-    value :: a
-  }
-  deriving stock (Eq, Ord, Show)
-  deriving (Functor, Foldable, Traversable)
+-- TODO: is UserUpdate redundant now?
 
-instance Arbitrary a => Arbitrary (ScimUpdate a) where
-  arbitrary = MkScimUpdate <$> arbitrary <*> arbitrary
-
-forbidScimUpdate :: a -> ScimUpdate a
-forbidScimUpdate = MkScimUpdate ForbidSCIMUpdates
-
-allowScimUpdate :: a -> ScimUpdate a
-allowScimUpdate = MkScimUpdate AllowSCIMUpdates
-
--- this is similar to `UserUpdate` in `Wire.API.User`, but supports updates to
--- all profile fields rather than just four.
+-- | Simple updates (as opposed to, eg., handle, where we need to manage locks).
 data UserProfileUpdate = MkUserProfileUpdate
-  { name :: Maybe (ScimUpdate Name),
-    pict :: Maybe Pict,
+  { name :: Maybe Name,
+    pict :: Maybe Pict, -- DEPRECATED
     assets :: Maybe [Asset],
     accentId :: Maybe ColourId,
     locale :: Maybe Locale,
-    handle :: Maybe (ScimUpdate Handle)
+    supportedProtocols :: Maybe (Set BaseProtocolTag)
   }
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via GenericUniform UserProfileUpdate
@@ -83,11 +69,11 @@ instance Default UserProfileUpdate where
   def =
     MkUserProfileUpdate
       { name = Nothing,
-        pict = Nothing,
+        pict = Nothing, -- DEPRECATED
         assets = Nothing,
         accentId = Nothing,
         locale = Nothing,
-        handle = Nothing
+        supportedProtocols = Nothing
       }
 
 data UserSubsystem m a where
@@ -98,15 +84,14 @@ data UserSubsystem m a where
   -- | These give us partial success and hide concurrency in the interpreter.
   -- FUTUREWORK: it would be better to return errors as `Map Domain FederationError`, but would clients like that?
   GetUserProfilesWithErrors :: Local UserId -> [Qualified UserId] -> UserSubsystem m ([(Qualified UserId, FederationError)], [UserProfile])
-  UpdateUserProfile :: Local UserId -> Maybe ConnId -> UserProfileUpdate -> UserSubsystem m ()
+  -- | Simple updates (as opposed to, eg., handle, where we need to manage locks).  Empty fields are ignored (not deleted).
+  UpdateUserProfile :: Local UserId -> Maybe ConnId -> AllowSCIMUpdates -> UserProfileUpdate -> UserSubsystem m ()
   -- | parse and lookup a handle, return what the operation has found
   CheckHandle :: Text -> UserSubsystem m CheckHandleResp
   -- | checks a number of 'Handle's for availability and returns at most 'Word' amount of them
   CheckHandles :: [Handle] -> Word -> UserSubsystem m [Handle]
   -- | parses a handle, this may fail so it's effectful
-  ParseHandle :: Text -> UserSubsystem m Handle
-  -- | Overwrites the set of supported protocols
-  UpdateSupportedProtocol :: Local UserId -> Set BaseProtocolTag -> UserSubsystem m ()
+  UpdateHandle :: AllowSCIMUpdates -> Text -> UserSubsystem m ()
 
 -- | the return type of 'CheckHandle'
 data CheckHandleResp
@@ -123,3 +108,6 @@ getUserProfile luid targetUser =
 getLocalUserProfile :: Member UserSubsystem r => Local UserId -> Sem r (Maybe UserProfile)
 getLocalUserProfile targetUser =
   listToMaybe <$> getLocalUserProfiles ((: []) <$> targetUser)
+
+updateSupportedProtocols :: Member UserSubsystem r => Local UserId -> AllowSCIMUpdates -> Set BaseProtocolTag -> Sem r ()
+updateSupportedProtocols uid mb prots = updateUserProfile uid Nothing mb (def {supportedProtocols = Just prots})
