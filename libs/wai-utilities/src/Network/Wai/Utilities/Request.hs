@@ -24,7 +24,7 @@ module Network.Wai.Utilities.Request where
 
 import Control.Error
 import Control.Monad.Catch (MonadThrow, throwM)
-import Data.Aeson hiding ((.=))
+import Data.Aeson
 import Data.ByteString qualified as B
 import Data.ByteString.Lazy qualified as Lazy
 import Data.Id
