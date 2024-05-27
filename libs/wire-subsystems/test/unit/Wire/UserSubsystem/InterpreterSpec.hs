@@ -3,16 +3,20 @@
 
 module Wire.UserSubsystem.InterpreterSpec (spec) where
 
+import Control.Lens (ix, (.~))
+import Control.Lens.At ()
 import Data.Bifunctor (first)
 import Data.Coerce
 import Data.Default (Default (def))
 import Data.Domain
-import Data.Handle (Handle)
+import Data.Handle (Handle (Handle))
 import Data.Handle qualified as Handle
 import Data.Id
 import Data.LegalHold (defUserLegalHoldStatus)
 import Data.Qualified
 import Data.Set qualified as S
+import Data.String.Conversions (cs)
+import Data.Text qualified as Text
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -289,25 +293,25 @@ spec = describe "UserSubsystem.Interpreter" do
     describe "Scim+UpdateProfileUpdate" do
       prop
         "Updating handles fails when ForbidSCIMUpdates"
-        \(alice, newHandle :: HandleText, domain, config) ->
+        \(alice, Handle newHandle, domain, config) ->
           let res :: Either UserSubsystemError ()
               res = run
                 . runErrorUnsafe
                 . runError
                 $ interpretNoFederationStack localBackend Nothing def config do
-                  updateHandle (toLocalUnsafe domain alice.id) ForbidSCIMUpdates (unHandle newHandle)
+                  updateHandle (toLocalUnsafe domain alice.id) ForbidSCIMUpdates newHandle
 
               localBackend = def {users = [alice {managedBy = Just ManagedByScim}]}
            in res === Left UserSubsystemHandleManagedByScim
 
       prop
         "Updating handles succeeds when AllowSCIMUpdates"
-        \(alice, ssoId, email :: Maybe Email, newHandle :: HandleText, domain, config) ->
+        \(alice, ssoId, email :: Maybe Email, Handle newHandle, domain, config) ->
           let res :: Either UserSubsystemError () = run
                 . runErrorUnsafe
                 . runError
                 $ interpretNoFederationStack localBackend Nothing def config do
-                  updateHandle (toLocalUnsafe domain alice.id) AllowSCIMUpdates (unHandle newHandle)
+                  updateHandle (toLocalUnsafe domain alice.id) AllowSCIMUpdates newHandle
               localBackend =
                 def
                   { users =
@@ -322,34 +326,42 @@ spec = describe "UserSubsystem.Interpreter" do
            in res === Right ()
 
     prop
-      "handles need to conform to valid characters"
-      \(luid, rawHandle :: HandleText, config) ->
+      "update valid handles succeeds"
+      \(luid, Handle rawHandle, config) ->
+        _ <- _ -- TODO: luid needs to come from a valid user
         let updateResult :: Either UserSubsystemError () = run
               . runErrorUnsafe
               . runError
               $ interpretNoFederationStack def Nothing def config do
-                updateHandle luid AllowSCIMUpdates (unHandle rawHandle)
+                updateHandle luid AllowSCIMUpdates rawHandle
          in updateResult === Right ()
 
--- | We create a new type here so we can add a custom Arbitrary instance.
--- Otherwise using a Text generator will give us 99.99…9% chance of an invalid handle,
--- but using a Handle generator will give us 100% chance of a valid handle.
--- Instead we use a coin toss to generate either a guarateed valid or a 99.99…9% invalid.
--- It doesn't quite add up to 50/50 but it's close enough for our goals.
--- We could always guarantee an invalid text arbitrary case by inserting an
--- invalid character every time.
---
--- TODO: isn't there something for `Data.Handle.Handle` already somewhere?  If not: shouldn't
--- there be?
-newtype HandleText = HandleText {unHandle :: Text}
+    prop
+      "update invalid handles fails"
+      \(luid, BadHandle badHandle, config) ->
+        let updateResult :: Either UserSubsystemError () = run
+              . runErrorUnsafe
+              . runError
+              $ interpretNoFederationStack def Nothing def config do
+                updateHandle luid AllowSCIMUpdates badHandle
+         in updateResult === Left UserSubsystemInvalidHandle
+
+newtype BadHandle = BadHandle {_unBadHandle :: Text}
   deriving newtype (Eq, Show)
 
-instance Arbitrary HandleText where
-  arbitrary =
-    (arbitrary :: Gen Bool) >>= \case
-      True -> do
-        a <- arbitrary :: Gen Text
-        pure (HandleText a)
-      False -> do
-        a <- arbitrary :: Gen Handle
-        pure (HandleText $ Handle.fromHandle a)
+instance Arbitrary BadHandle where
+  arbitrary = oneof [tooShort, tooLong, badBytes]
+    where
+      tooShort = (BadHandle . Text.pack . (: [])) <$> elements validChar
+      tooLong = (BadHandle . Text.pack) <$> elements (replicate 256 validChar)
+      badBytes =
+        BadHandle <$> do
+          totalLen :: Int <- choose (2, 256)
+          invalidCharPos :: Int <- choose (0, totalLen - 1)
+          invalidCharContent <- elements invalidChar
+          good :: Text <- cs <$> replicateM totalLen (elements validChar)
+          let bad :: Text = good & ix invalidCharPos .~ invalidCharContent
+          pure bad
+
+      validChar :: [Char] = ['a' .. 'z'] <> ['0' .. '9'] <> "_-."
+      invalidChar :: [Char] = [minBound ..] \\ validChar

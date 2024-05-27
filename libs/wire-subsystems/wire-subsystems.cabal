@@ -180,6 +180,7 @@ test-suite wire-subsystems-tests
     , hspec
     , imports
     , iso639
+    , lens
     , polysemy
     , polysemy-plugin
     , polysemy-time
@@ -188,6 +189,7 @@ test-suite wire-subsystems-tests
     , quickcheck-instances
     , servant-client-core
     , string-conversions
+    , text
     , time
     , transformers
     , types-common

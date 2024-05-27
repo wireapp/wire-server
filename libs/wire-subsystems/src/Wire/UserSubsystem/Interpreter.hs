@@ -363,7 +363,7 @@ updateHandleImpl ::
   Text ->
   Sem r ()
 updateHandleImpl (tUnqualified -> uid) updateOrigin uhandle = do
-  newHandle <- note UserSubsystemInvalidHandle $ Handle.parseHandle uhandle
+  newHandle :: Handle <- note UserSubsystemInvalidHandle $ Handle.parseHandle uhandle
   when (isBlacklistedHandle newHandle) $
     throw UserSubsystemInvalidHandle
   user <- getUser uid >>= note UserSubsystemNoIdentity
