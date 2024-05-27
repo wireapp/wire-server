@@ -44,3 +44,5 @@ data:
       host: redis-ephemeral-2-master
       port: 6379
       connectionMode: master
+      enableTls: false
+      insecureSkipVerifyTls: false

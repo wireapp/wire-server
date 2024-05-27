@@ -122,6 +122,8 @@ redis2:
   host: 127.0.0.1
   port: 6379
   connectionMode: master
+  enableTls: false
+  insecureSkipVerifyTls: false
 
 dynamicBackends:
   dynamic-backend-1:

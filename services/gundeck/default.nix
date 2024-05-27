@@ -21,6 +21,7 @@
 , conduit
 , containers
 , criterion
+, crypton-x509-store
 , errors
 , exceptions
 , extended
@@ -104,6 +105,7 @@ mkDerivation {
     bytestring-conversion
     cassandra-util
     containers
+    crypton-x509-store
     errors
     exceptions
     extended

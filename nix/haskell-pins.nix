@@ -99,6 +99,18 @@ let
       };
     };
 
+    # PR: https://github.com/kazu-yamamoto/crypton-certificate/pull/8
+    crypton-certificates = {
+      src = fetchgit {
+        url = "https://github.com/akshaymankar/hs-certificate";
+        rev = "9e293695d8ca5efc513ee0082ae955ff9b32eb6b";
+        sha256 = "sha256-mD5Dvuzol3K9CNNSfa2L9ir9AbrQ8HJc0QNmkK3qBWk=";
+      };
+      packages = {
+        "crypton-x509-validation" = "x509-validation";
+      };
+    };
+
     # PR: https://github.com/dpwright/HaskellNet-SSL/pull/33
     HaskellNet-SSL = {
       src = fetchgit {
@@ -117,11 +129,12 @@ let
     };
 
     # PR: https://github.com/informatikr/hedis/pull/224
+    # PR: https://github.com/informatikr/hedis/pull/226
     hedis = {
       src = fetchgit {
         url = "https://github.com/wireapp/hedis";
-        rev = "81cdd8a2350b96168a06662c2601a41141a19f2d";
-        sha256 = "sha256-0g6x9UOUq7s5ClnxMXvjYR2AsWNA6ymv1tYlQC44hGs=";
+        rev = "c45975e4b5f42b9d0c853e2d59ed55582f6b1482";
+        sha256 = "sha256-oB7Z7ErYFguLiWPaFzCsD3Q+7UPfAkvdkc8aKSePmbQ=";
       };
     };
 

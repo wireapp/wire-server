@@ -410,12 +410,18 @@ storeNotificationsEvenWhenRedisIsDown = do
   origRedisEndpoint <- view $ tsOpts . redis
   let proxyPort = 10112
   redisProxyServer <- liftIO . async $ runRedisProxy (origRedisEndpoint ^. O.host) (origRedisEndpoint ^. O.port) proxyPort
-  withSettingsOverrides (redis .~ RedisEndpoint "localhost" proxyPort (origRedisEndpoint ^. connectionMode)) $ do
-    let pload = textPayload "hello"
-        push = buildPush ally [(ally, RecipientClientsAll)] pload
-    gu <- view tsGundeck
-    liftIO $ Async.cancel redisProxyServer
-    post (runGundeckR gu . path "i/push/v2" . json [push]) !!! const 200 === statusCode
+  withSettingsOverrides
+    ( \gundeckSettings ->
+        gundeckSettings
+          & redis . Gundeck.Options.host .~ "localhost"
+          & redis . Gundeck.Options.port .~ proxyPort
+    )
+    $ do
+      let pload = textPayload "hello"
+          push = buildPush ally [(ally, RecipientClientsAll)] pload
+      gu <- view tsGundeck
+      liftIO $ Async.cancel redisProxyServer
+      post (runGundeckR gu . path "i/push/v2" . json [push]) !!! const 200 === statusCode
 
   ns <- listNotifications ally Nothing
   liftIO $ assertEqual ("Expected 1 notification, got: " <> show ns) 1 (length ns)

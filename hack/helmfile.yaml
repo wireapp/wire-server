@@ -71,11 +71,11 @@ releases:
     values:
       - './helm_vars/fake-aws/values.yaml'
 
-  - name: 'elasticsearch-certs'
+  - name: 'certs'
     namespace: '{{ .Values.namespace1 }}'
     chart: bedag/raw
     values:
-      - './helm_vars/elasticsearch-certs/es-cert-issuer.yaml.gotmpl'
+      - './helm_vars/certs/values.yaml.gotmpl'
 
   - name: 'databases-ephemeral'
     namespace: '{{ .Values.namespace1 }}'
@@ -85,6 +85,13 @@ releases:
           redis-ephemeral:
             usePassword: true
             password: very-secure-redis-master-password
+            tls:
+              enabled: true
+              certificatesSecret: redis-certificate
+              certFilename: "tls.crt"
+              certKeyFilename: "tls.key"
+              certCAFilename: "ca.crt"
+              authClients: false
         elasticsearch-ephemeral:
           tls:
             enabled: true
@@ -92,7 +99,7 @@ releases:
               name: elasticsearch
               kind: Issuer
     needs:
-      - elasticsearch-certs
+      - certs
 
   # Required for testing redis migration
   - name: 'redis-ephemeral-2'
@@ -104,11 +111,11 @@ releases:
           usePassword: true
           password: very-secure-redis-master-password-2
 
-  - name: 'elasticsearch-certs'
+  - name: 'certs'
     namespace: '{{ .Values.namespace2 }}'
     chart: bedag/raw
     values:
-      - './helm_vars/elasticsearch-certs/es-cert-issuer.yaml.gotmpl'
+      - './helm_vars/certs/values.yaml.gotmpl'
 
   - name: 'databases-ephemeral'
     namespace: '{{ .Values.namespace2 }}'
@@ -118,6 +125,13 @@ releases:
           redis-ephemeral:
             usePassword: true
             password: very-secure-redis-master-password
+            tls:
+              enabled: true
+              certificatesSecret: redis-certificate
+              certFilename: "tls.crt"
+              certKeyFilename: "tls.key"
+              certCAFilename: "ca.crt"
+              authClients: false
         elasticsearch-ephemeral:
           tls:
             enabled: true
@@ -125,7 +139,7 @@ releases:
               name: elasticsearch
               kind: Issuer
     needs:
-      - elasticsearch-certs
+      - certs
 
   - name: k8ssandra-test-cluster
     chart: '../.local/charts/k8ssandra-test-cluster'

@@ -80,6 +80,10 @@ spec:
       secret:
         secretName: {{ .Values.config.elasticsearch.tlsCaSecretRef.name }}
 
+    - name: redis-ca
+      secret:
+        secretName: {{ .Values.config.redis.tlsCaSecretRef.name }}
+
     {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
     - name: integration-cassandra
       secret:
@@ -238,6 +242,9 @@ spec:
 
     - name: elasticsearch-ca
       mountPath: /etc/wire/brig/elasticsearch-ca
+
+    - name: redis-ca
+      mountPath: /etc/wire/gundeck/redis-ca
 
     {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
     - name: "integration-cassandra"
