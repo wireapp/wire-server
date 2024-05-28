@@ -21,11 +21,56 @@ import Testlib.MockIntegrationService
 import Testlib.Prelude
 import UnliftIO
 
-testBot :: App ()
-testBot = do
+testBotCustomCA :: App ()
+testBotCustomCA = do
+  cert <- readFile "/tmp/ca/Example-RootCA/Example-RootCA.crt"
+  privkey <- readFile "/tmp/ca/Example-RootCA/Example-RootCA.key"
+  pubkey <- readFile "/tmp/ca/Example-RootCA/Example-RootCA.pub"
+
+  let settings = MkMockServerSettings cert privkey pubkey
+  withBotWithSettings settings \resp' -> withResponse resp' \resp -> do
+    resp.status `shouldMatchInt` 502
+    resp.json %. "label" `shouldMatch` "bad-gateway"
+    resp.json %. "message" `shouldMatch` "The upstream service returned an invalid response: PinFingerprintMismatch"
+
+testBotSelfSigned :: App ()
+testBotSelfSigned = do
+  withBotWithSettings def \resp' -> do
+    resp <- withResponse resp' \resp -> do
+      resp.status `shouldMatchInt` 201
+      pure resp
+
+    -- If self signed, we should be able to exchange messages
+    -- with the bot conversation.
+    botClient <- resp.json %. "client"
+    botId <- resp.json %. "id"
+    aliceQid <- resp.json %. "event.qualified_from"
+    conv <- resp.json %. "event.qualified_conversation"
+
+    aliceC <- getJSON 201 =<< addClient aliceQid def
+    aliceCid <- objId aliceC
+
+    msg <-
+      mkProteusRecipients
+        aliceQid
+        [(botId, [botClient])]
+        "hi bot"
+    let aliceBotMessage =
+          Proto.defMessage @Proto.QualifiedNewOtrMessage
+            & #sender . Proto.client .~ (aliceCid ^?! hex)
+            & #recipients .~ [msg]
+            & #reportAll .~ Proto.defMessage
+    assertStatus 201
+      =<< postProteusMessage aliceQid conv aliceBotMessage
+
+withBotWithSettings ::
+  MockServerSettings ->
+  (Response -> App ()) ->
+  App ()
+withBotWithSettings settings k = do
   alice <- randomUser OwnDomain def
-  alicec <- getJSON 201 =<< addClient alice def
-  withMockServer mkBotService \(host, port) _chan -> do
+
+  withMockServer settings mkBotService \(host, port) _chan -> do
     email <- randomEmail
     provider <- setupProvider alice def {newProviderEmail = email, newProviderPassword = Just defPassword}
     providerId <- provider %. "id" & asString
@@ -37,23 +82,7 @@ testBot = do
     convId <- conv %. "id" & asString
     assertStatus 200 =<< updateServiceConn providerId serviceId do
       object ["enabled" .= True, "password" .= defPassword]
-    resp <- getJSON 201 =<< addBot alice providerId serviceId convId
-
-    botid <- resp %. "id"
-    botcid <- resp %. "client"
-    aliceid :: String <- objId alicec
-    msg <-
-      mkProteusRecipients
-        alice
-        [(botid, [botcid])]
-        "hi bot"
-    let aliceBotMessage =
-          Proto.defMessage @Proto.QualifiedNewOtrMessage
-            & #sender . Proto.client .~ (aliceid ^?! hex)
-            & #recipients .~ [msg]
-            & #reportAll .~ Proto.defMessage
-    assertStatus 201
-      =<< postProteusMessage alice conv aliceBotMessage
+    addBot alice providerId serviceId convId >>= k
 
 data BotEvent
   = BotCreated
