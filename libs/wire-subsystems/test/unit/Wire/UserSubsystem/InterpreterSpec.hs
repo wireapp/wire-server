@@ -17,6 +17,7 @@ import Data.Qualified
 import Data.Set qualified as S
 import Data.String.Conversions (cs)
 import Data.Text qualified as Text
+-- TODO: only import UserSubsystemConfig(..)
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -32,7 +33,7 @@ import Wire.API.User hiding (DeleteUser)
 import Wire.MiniBackend
 import Wire.StoredUser
 import Wire.UserSubsystem
-import Wire.UserSubsystem.Interpreter -- TODO: only import UserSubsystemConfig(..)
+import Wire.UserSubsystem.Interpreter
 
 spec :: Spec
 spec = describe "UserSubsystem.Interpreter" do
@@ -345,10 +346,11 @@ spec = describe "UserSubsystem.Interpreter" do
           let updateResult :: Either UserSubsystemError () = run
                 . runErrorUnsafe
                 . runError
-                $ interpretNoFederationStack def Nothing def config do
+                $ interpretNoFederationStack localBackend Nothing def config do
                   let luid = toLocalUnsafe dom storedUser.id
                       dom = Domain "localdomain"
                   updateHandle luid AllowSCIMUpdates badHandle
+              localBackend = def {users = [storedUser]}
            in updateResult === Left UserSubsystemInvalidHandle
 
 newtype BadHandle = BadHandle {_unBadHandle :: Text}
@@ -358,7 +360,7 @@ instance Arbitrary BadHandle where
   arbitrary = oneof [tooShort, tooLong, badBytes]
     where
       tooShort = (BadHandle . Text.pack . (: [])) <$> elements validChar
-      tooLong = (BadHandle . Text.pack) <$> replicateM 256 (elements validChar)
+      tooLong = (BadHandle . Text.pack) <$> replicateM 258 (elements validChar)
       badBytes =
         BadHandle <$> do
           totalLen :: Int <- choose (2, 256)
