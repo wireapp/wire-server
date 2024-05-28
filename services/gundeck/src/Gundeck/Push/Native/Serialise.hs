@@ -61,13 +61,14 @@ renderText t prio x = case t of
       --   [ "data" .= x,
       --     "priority" .= gcmPriority prio
       --   ]
-      object [
-        "fcmV1Message" .= object [
-          "message" .= [
-            "data" .= x
-          ]
+      object
+        [ "fcmV1Message"
+            .= object
+              [ "message"
+                  .= [ "data" .= x
+                     ]
+              ]
         ]
-      ]
     stdApnsJson =
       object
         [ "aps" .= apsDict,
