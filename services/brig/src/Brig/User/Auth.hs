@@ -329,7 +329,7 @@ newAccess uid cid ct cl = do
       t <- lift $ newAccessToken @u @a ck Nothing
       pure $ Access t (Just ck)
 
--- FUTUREWORK(mangoiv): unfortunately this uses lookupHandleImple explicity, in future, this
+-- FUTUREWORK(mangoiv): unfortunately this uses lookupHandleImpl explicity, in future, this
 -- should use lookuHandle but should be moved into some place where this resolveLoginId is done
 -- abstractly, perhaps some authentication subsystem
 resolveLoginId :: (MonadClient m, MonadReader Env m) => LoginId -> ExceptT LoginError m UserId
