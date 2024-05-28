@@ -93,7 +93,7 @@ interpretUserSubsystem = interpret \case
   UpdateUserProfile self mconn mb update -> updateUserProfileImpl self mconn mb update
   CheckHandle uhandle -> checkHandleImpl uhandle
   CheckHandles hdls cnt -> checkHandlesImpl hdls cnt
-  UpdateHandle uid mb uhandle -> updateHandleImpl uid mb uhandle
+  UpdateHandle uid mconn mb uhandle -> updateHandleImpl uid mconn mb uhandle
 
 -- | Obtain user profiles for a list of users as they can be seen by
 -- a given user 'self'. If 'self' is an unknown 'UserId', return '[]'.
@@ -359,10 +359,11 @@ updateHandleImpl ::
     Member UserStore r
   ) =>
   Local UserId ->
+  Maybe ConnId ->
   AllowSCIMUpdates ->
   Text ->
   Sem r ()
-updateHandleImpl (tUnqualified -> uid) updateOrigin uhandle = do
+updateHandleImpl (tUnqualified -> uid) mconn updateOrigin uhandle = do
   newHandle :: Handle <- note UserSubsystemInvalidHandle $ Handle.parseHandle uhandle
   when (isBlacklistedHandle newHandle) $
     throw UserSubsystemInvalidHandle

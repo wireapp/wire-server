@@ -96,7 +96,7 @@ data UserSubsystem m a where
   -- | checks a number of 'Handle's for availability and returns at most 'Word' amount of them
   CheckHandles :: [Handle] -> Word -> UserSubsystem m [Handle]
   -- | parses a handle, this may fail so it's effectful
-  UpdateHandle :: Local UserId -> AllowSCIMUpdates -> Text -> UserSubsystem m ()
+  UpdateHandle :: Local UserId -> Maybe ConnId -> AllowSCIMUpdates -> Text -> UserSubsystem m ()
 
 -- | the return type of 'CheckHandle'
 data CheckHandleResp

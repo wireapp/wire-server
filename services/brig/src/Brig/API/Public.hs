@@ -1055,7 +1055,7 @@ getHandleInfoUnqualifiedH self handle = do
 
 changeHandle :: (Member UserSubsystem r) => Local UserId -> ConnId -> Public.HandleUpdate -> Handler r ()
 changeHandle u conn (Public.HandleUpdate h) = lift $ liftSem do
-  UserSubsystem.updateHandle u AllowSCIMUpdates h
+  UserSubsystem.updateHandle u (Just conn) AllowSCIMUpdates h
 
 beginPasswordReset ::
   (Member PasswordResetStore r, Member TinyLog r) =>

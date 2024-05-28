@@ -304,7 +304,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 . runErrorUnsafe
                 . runError
                 $ interpretNoFederationStack localBackend Nothing def config do
-                  updateHandle (toLocalUnsafe domain alice.id) ForbidSCIMUpdates newHandle
+                  updateHandle (toLocalUnsafe domain alice.id) Nothing ForbidSCIMUpdates newHandle
 
               localBackend = def {users = [alice {managedBy = Just ManagedByScim}]}
            in res === Left UserSubsystemHandleManagedByScim
@@ -316,7 +316,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 . runErrorUnsafe
                 . runError
                 $ interpretNoFederationStack localBackend Nothing def config do
-                  updateHandle (toLocalUnsafe domain alice.id) AllowSCIMUpdates newHandle
+                  updateHandle (toLocalUnsafe domain alice.id) Nothing AllowSCIMUpdates newHandle
               localBackend =
                 def
                   { users =
@@ -340,7 +340,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 $ interpretNoFederationStack (def {users = [storedUser]}) Nothing def config do
                   let luid = toLocalUnsafe dom storedUser.id
                       dom = Domain "localdomain"
-                  updateHandle luid AllowSCIMUpdates rawHandle
+                  updateHandle luid Nothing AllowSCIMUpdates rawHandle
            in updateResult === Right ()
 
     prop
@@ -353,7 +353,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 $ interpretNoFederationStack localBackend Nothing def config do
                   let luid = toLocalUnsafe dom storedUser.id
                       dom = Domain "localdomain"
-                  updateHandle luid AllowSCIMUpdates badHandle
+                  updateHandle luid Nothing AllowSCIMUpdates badHandle
               localBackend = def {users = [storedUser]}
            in updateResult === Left UserSubsystemInvalidHandle
 

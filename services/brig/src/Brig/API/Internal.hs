@@ -862,7 +862,7 @@ updateHandleH ::
 updateHandleH uid (HandleUpdate handleUpd) =
   NoContent <$ do
     quid <- qualifyLocal uid
-    lift . liftSem $ UserSubsystem.updateHandle quid AllowSCIMUpdates handleUpd
+    lift . liftSem $ UserSubsystem.updateHandle quid Nothing AllowSCIMUpdates handleUpd
 
 updateUserNameH ::
   Member UserSubsystem r =>
