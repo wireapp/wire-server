@@ -170,7 +170,7 @@ publish m a = flip catches pushException $ do
       ~~ field "arn" (toText (a ^. addrEndpoint))
       ~~ field "notificationId" (toText (npNotificationid m))
       ~~ field "prio" (show (npPriority m))
-      ~~ Log.msg (val "Native push")
+      ~~ Log.msg (val ("Native push ") <> val (cs (show txt)))
   case txt of
     Left f -> pure $! Failure f a
     Right v -> toResult <$> Aws.publish ept v mempty
