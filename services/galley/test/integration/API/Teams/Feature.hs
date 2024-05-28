@@ -25,11 +25,10 @@ import API.Util.TeamFeature qualified as Util
 import Bilge
 import Bilge.Assert
 import Brig.Types.Test.Arbitrary (Arbitrary (arbitrary))
-import Cassandra as Cql
 import Control.Lens (view, (.~), (?~))
 import Control.Lens.Operators ()
 import Control.Monad.Catch (MonadCatch)
-import Data.Aeson (FromJSON, ToJSON)
+import Data.Aeson (ToJSON)
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Char8 (unpack)
 import Data.Id
@@ -57,12 +56,7 @@ tests :: IO TestSetup -> TestTree
 tests s =
   testGroup
     "Feature Config API and Team Features API"
-    [ testGroup
-        "TTL / Conference calling"
-        [ test s "ConferenceCalling unlimited TTL" $ testSimpleFlagTTL @ConferenceCallingConfig FeatureStatusEnabled FeatureTTLUnlimited,
-          test s "ConferenceCalling 2s TTL" $ testSimpleFlagTTL @ConferenceCallingConfig FeatureStatusEnabled (FeatureTTLSeconds 2)
-        ],
-      test s "MLS feature config" testMLS,
+    [ test s "MLS feature config" testMLS,
       test s "MlsE2EId feature config" $
         testNonTrivialConfigNoTTL
           ( withStatus
@@ -245,101 +239,6 @@ testPatch' testLockStatusChange rndFeatureConfig defStatus defConfig = do
           wsLockStatus actual @?= fromMaybe (wsLockStatus original) (wspLockStatus rndFeatureConfig)
         wsConfig actual @?= fromMaybe (wsConfig original) (wspConfig rndFeatureConfig)
   checkTeamFeatureAllEndpoints uid tid actual
-
-testSimpleFlagTTL ::
-  forall cfg.
-  ( HasCallStack,
-    Typeable cfg,
-    IsFeatureConfig cfg,
-    KnownSymbol (FeatureSymbol cfg),
-    FeatureTrivialConfig cfg,
-    ToSchema cfg,
-    FromJSON (WithStatusNoLock cfg)
-  ) =>
-  FeatureStatus ->
-  FeatureTTL ->
-  TestM ()
-testSimpleFlagTTL defaultValue ttl = do
-  (_owner, tid, member : _) <- createBindingTeamWithNMembers 1
-  nonMember <- randomUser
-
-  let getFlag :: HasCallStack => FeatureStatus -> TestM ()
-      getFlag expected =
-        flip (assertFlagNoConfig @cfg) expected $ getTeamFeature @cfg member tid
-
-      getFeatureConfig :: HasCallStack => FeatureStatus -> TestM ()
-      getFeatureConfig expected = do
-        actual <- Util.getFeatureConfig @cfg member
-        liftIO $ wsStatus actual @?= expected
-
-      getFlagInternal :: HasCallStack => FeatureStatus -> TestM ()
-      getFlagInternal expected =
-        flip (assertFlagNoConfig @cfg) expected $ getTeamFeatureInternal @cfg tid
-
-      setFlagInternal :: FeatureStatus -> FeatureTTL -> TestM ()
-      setFlagInternal statusValue ttl' =
-        void $ putTeamFeatureInternal @cfg expect2xx tid (WithStatusNoLock statusValue (trivialConfig @cfg) ttl')
-
-      select :: PrepQuery R (Identity TeamId) (Identity (Maybe FeatureTTL))
-      select = fromString "select ttl(conference_calling) from team_features where team_id = ?"
-
-      assertUnlimited :: TestM ()
-      assertUnlimited = do
-        -- TTL should be NULL inside cassandra
-        cassState <- view tsCass
-        liftIO $ do
-          storedTTL <- maybe Nothing runIdentity <$> Cql.runClient cassState (Cql.query1 select $ params LocalQuorum (Identity tid))
-          storedTTL @?= Nothing
-
-      assertLimited :: Word -> TestM ()
-      assertLimited upper = do
-        -- TTL should NOT be NULL inside cassandra
-        cassState <- view tsCass
-        liftIO $ do
-          storedTTL <- maybe Nothing runIdentity <$> Cql.runClient cassState (Cql.query1 select $ params LocalQuorum (Identity tid))
-          let check = case storedTTL of
-                Nothing -> False
-                Just FeatureTTLUnlimited -> False
-                Just (FeatureTTLSeconds i) -> i <= upper
-          unless check $ error ("expected ttl <= " <> show upper <> ", got " <> show storedTTL)
-
-  assertFlagForbidden $ getTeamFeature @cfg nonMember tid
-
-  let otherValue = case defaultValue of
-        FeatureStatusDisabled -> FeatureStatusEnabled
-        FeatureStatusEnabled -> FeatureStatusDisabled
-
-  -- Initial value should be the default value
-  getFlag defaultValue
-  getFlagInternal defaultValue
-  getFeatureConfig defaultValue
-
-  -- Setting should work
-  cannon <- view tsCannon
-  -- should receive an event
-  WS.bracketR cannon member $ \ws -> do
-    setFlagInternal otherValue ttl
-    void . liftIO $
-      WS.assertMatch (5 # Second) ws $
-        wsAssertFeatureTrivialConfigUpdate @cfg otherValue ttl
-  getFlag otherValue
-  getFeatureConfig otherValue
-  getFlagInternal otherValue
-
-  case ttl of
-    FeatureTTLSeconds d -> do
-      -- should revert back after TTL expires
-      assertLimited d
-      liftIO $ threadDelay (fromIntegral d * 1000000)
-      assertUnlimited
-      getFlag defaultValue
-    FeatureTTLUnlimited -> do
-      -- TTL should be NULL inside cassandra
-      assertUnlimited
-
-  -- Clean up
-  setFlagInternal defaultValue FeatureTTLUnlimited
-  getFlag defaultValue
 
 testNonTrivialConfigNoTTL ::
   forall cfg.
@@ -621,23 +520,6 @@ assertFlagForbidden res = do
     statusCode === const 403
     fmap label . responseJsonMaybe === const (Just "no-team-member")
 
-assertFlagNoConfig ::
-  forall cfg.
-  ( HasCallStack,
-    Typeable cfg,
-    FromJSON (WithStatusNoLock cfg)
-  ) =>
-  TestM ResponseLBS ->
-  FeatureStatus ->
-  TestM ()
-assertFlagNoConfig res expected = do
-  res !!! do
-    statusCode === const 200
-    ( fmap wssStatus
-        . responseJsonEither @(WithStatusNoLock cfg)
-      )
-      === const (Right expected)
-
 assertFlagWithConfig ::
   forall cfg m.
   ( HasCallStack,
@@ -659,25 +541,6 @@ assertFlagWithConfig response expected = do
   liftIO $ do
     fmap wssStatus rJson @?= (Right . wssStatus $ expected)
     fmap wssConfig rJson @?= (Right . wssConfig $ expected)
-
-wsAssertFeatureTrivialConfigUpdate ::
-  forall cfg.
-  ( IsFeatureConfig cfg,
-    KnownSymbol (FeatureSymbol cfg),
-    FeatureTrivialConfig cfg,
-    ToSchema cfg
-  ) =>
-  FeatureStatus ->
-  FeatureTTL ->
-  Notification ->
-  IO ()
-wsAssertFeatureTrivialConfigUpdate status ttl notification = do
-  let e :: FeatureConfig.Event = List1.head (WS.unpackPayload notification)
-  FeatureConfig._eventType e @?= FeatureConfig.Update
-  FeatureConfig._eventFeatureName e @?= featureName @cfg
-  FeatureConfig._eventData e
-    @?= Aeson.toJSON
-      (withStatus status (wsLockStatus (defFeatureStatus @cfg)) (trivialConfig @cfg) ttl)
 
 wsAssertFeatureConfigUpdate ::
   forall cfg.
