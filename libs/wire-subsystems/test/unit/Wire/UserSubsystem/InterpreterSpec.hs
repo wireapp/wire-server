@@ -386,12 +386,14 @@ spec = describe "UserSubsystem.Interpreter" do
 
       beforeProtocols `shouldNotBe` afterProtocols
 
-      [beforeOp] <- operation $ getUserProfiles luid [tUntagged luid]
-      () <- operation $ updateUserProfile luid Nothing ForbidSCIMUpdates (def {supportedProtocols = Just afterProtocols})
-      [afterOp] <- operation $ getUserProfiles luid [tUntagged luid]
+      (beforeOp, afterOp) <- operation do
+        beforeOp <- getUserProfile luid (tUntagged luid)
+        () <- updateUserProfile luid Nothing ForbidSCIMUpdates (def {supportedProtocols = Just afterProtocols})
+        afterOp <- getUserProfile luid (tUntagged luid)
+        pure (beforeOp, afterOp)
 
-      (profileSupportedProtocols beforeOp, profileSupportedProtocols afterOp)
-        `shouldBe` (beforeProtocols, afterProtocols)
+      (profileSupportedProtocols <$> beforeOp, profileSupportedProtocols <$> afterOp)
+        `shouldBe` (Just beforeProtocols, Just afterProtocols)
 
 newtype BadHandle = BadHandle {_unBadHandle :: Text}
   deriving newtype (Eq, Show)
