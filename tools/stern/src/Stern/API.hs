@@ -29,7 +29,7 @@ where
 
 import Brig.Types.Intra
 import Control.Error
-import Control.Lens ((^.))
+import Control.Lens ((.~), (^.))
 import Control.Monad.Except
 import Data.Aeson hiding (Error, json)
 import Data.Aeson.KeyMap qualified as KeyMap
@@ -103,6 +103,8 @@ start o = do
             :<|> sitemap e
             :<|> sitemapRedirectToSwaggerDocs
         )
+        req
+        cont
 
 -------------------------------------------------------------------------------
 -- servant API
