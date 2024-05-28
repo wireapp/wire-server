@@ -56,10 +56,18 @@ renderText t prio x = case t of
   APNSSandbox -> trim "APNS_SANDBOX" (jsonString stdApnsJson)
   where
     gcmJson =
-      object
-        [ "data" .= x,
-          "priority" .= gcmPriority prio
+      -- NOTE: Here is the object that is nested after GCM
+      -- object
+      --   [ "data" .= x,
+      --     "priority" .= gcmPriority prio
+      --   ]
+      object [
+        "fcmV1Message" .= object [
+          "message" .= [
+            "data" .= x
+          ]
         ]
+      ]
     stdApnsJson =
       object
         [ "aps" .= apsDict,
