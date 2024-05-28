@@ -1,6 +1,8 @@
 module Wire.MiniBackend
   ( -- * Mini backends
     MiniBackend (..),
+    AllErrors,
+    GetUserProfileEffects,
     interpretFederationStack,
     runFederationStack,
     interpretNoFederationStack,

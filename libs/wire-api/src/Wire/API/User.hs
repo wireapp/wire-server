@@ -2045,7 +2045,7 @@ instance ToSchema SendVerificationCode where
 -- Unlike 'ProtocolTag', this does not include any transitional protocols used
 -- for migration.
 data BaseProtocolTag = BaseProtocolProteusTag | BaseProtocolMLSTag
-  deriving stock (Eq, Ord, Show, Generic)
+  deriving stock (Eq, Ord, Enum, Bounded, Show, Generic)
   deriving (Arbitrary) via (GenericUniform BaseProtocolTag)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema BaseProtocolTag)
 

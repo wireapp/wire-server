@@ -20,6 +20,7 @@ import Data.Text qualified as Text
 import Imports
 import Polysemy
 import Polysemy.Error
+import Polysemy.Internal
 import Polysemy.State
 import Test.Hspec
 import Test.Hspec.QuickCheck
@@ -357,6 +358,36 @@ spec = describe "UserSubsystem.Interpreter" do
                   updateHandle luid Nothing AllowSCIMUpdates badHandle
               localBackend = def {users = [storedUser]}
            in updateResult === Left UserSubsystemInvalidHandle
+
+    it "read / update supported-protocols" $ do
+      -- TODO: use prop after all and scale down the reruns?
+      storedUser <- generate arbitrary
+      config <- generate arbitrary
+
+      let luid :: Local UserId
+          luid = toLocalUnsafe dom storedUser.id
+            where
+              dom = Domain "localdomain"
+
+          beforeProtocols :: Maybe (Set BaseProtocolTag)
+          beforeProtocols = storedUser.supportedProtocols
+
+          afterProtocols :: Set BaseProtocolTag
+          afterProtocols = (S.fromList . ([minBound ..] \\) . S.toList) $ fromMaybe [minBound ..] beforeProtocols
+
+          operation :: Sem (GetUserProfileEffects `Append` AllErrors) a -> a
+          operation op = runNoFederationStack localBackend Nothing config op
+            where
+              localBackend = def {users = [storedUser]}
+
+      beforeProtocols `shouldNotBe` Just afterProtocols
+
+      let [before] = operation $ getUserProfiles luid [tUntagged luid]
+          () = operation $ updateUserProfile luid Nothing ForbidSCIMUpdates (def {supportedProtocols = Just afterProtocols})
+          [after] = operation $ getUserProfiles luid [tUntagged luid]
+
+      before.supportedProtocols `shouldBe` beforeProtocols
+      after.supportedProtocols `shouldBe` afterProtocols
 
 newtype BadHandle = BadHandle {_unBadHandle :: Text}
   deriving newtype (Eq, Show)
