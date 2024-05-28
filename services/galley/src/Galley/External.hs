@@ -21,7 +21,6 @@ import Bilge.Request
 import Bilge.Retry (httpHandlers)
 import Control.Lens
 import Control.Retry
-import Data.Aeson (ToJSON)
 import Data.ByteString.Conversion.To
 import Data.Id
 import Data.Misc
