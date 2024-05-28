@@ -18,25 +18,22 @@
 
 module API.Teams.Feature (tests) where
 
-import API.SQS (assertTeamActivate)
 import API.Util
 import API.Util.TeamFeature hiding (getFeatureConfig, setLockStatusInternal)
 import API.Util.TeamFeature qualified as Util
 import Bilge
 import Bilge.Assert
 import Brig.Types.Test.Arbitrary (Arbitrary (arbitrary))
-import Control.Lens (view, (.~), (?~))
+import Control.Lens (view)
 import Control.Lens.Operators ()
 import Control.Monad.Catch (MonadCatch)
 import Data.Aeson (ToJSON)
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Char8 (unpack)
-import Data.Id
 import Data.List1 qualified as List1
 import Data.Schema (ToSchema)
 import Data.Timeout (TimeoutUnit (Second), (#))
 import GHC.TypeLits (KnownSymbol)
-import Galley.Options (exposeInvitationURLsTeamAllowlist, settings)
 import Imports
 import Network.Wai.Utilities (label)
 import Test.QuickCheck (Gen, generate, suchThat)
@@ -107,12 +104,6 @@ tests s =
             testPatchWithArbitrary AssertLockStatusChange FeatureStatusDisabled (wsConfig (defFeatureStatus @MlsE2EIdConfig)),
           test s (unpack $ featureNameBS @EnforceFileDownloadLocationConfig) $
             testPatchWithArbitrary AssertLockStatusChange FeatureStatusDisabled (wsConfig (defFeatureStatus @EnforceFileDownloadLocationConfig))
-        ],
-      testGroup
-        "ExposeInvitationURLsToTeamAdmin"
-        [ test s "can be set when TeamId is in allow list" testExposeInvitationURLsToTeamAdminTeamIdInAllowList,
-          test s "can not be set when allow list is empty" testExposeInvitationURLsToTeamAdminEmptyAllowList,
-          test s "server config takes precendece over team feature config" testExposeInvitationURLsToTeamAdminServerConfigTakesPrecedence
         ]
     ]
 
@@ -338,68 +329,6 @@ testNonTrivialConfigNoTTL defaultCfg = do
   setLockStatus LockStatusUnlocked
   -- feature status should be the previously set value
   getViaEndpoints config3
-
-testExposeInvitationURLsToTeamAdminTeamIdInAllowList :: TestM ()
-testExposeInvitationURLsToTeamAdminTeamIdInAllowList = do
-  owner <- randomUser
-  tid <- createBindingTeamInternal "foo" owner
-  assertTeamActivate "create team" tid
-  void $
-    withSettingsOverrides (\opts -> opts & settings . exposeInvitationURLsTeamAllowlist ?~ [tid]) $ do
-      assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusDisabled LockStatusUnlocked
-      let enabled = WithStatusNoLock FeatureStatusEnabled ExposeInvitationURLsToTeamAdminConfig FeatureTTLUnlimited
-      void $
-        putTeamFeature @ExposeInvitationURLsToTeamAdminConfig owner tid enabled !!! do
-          const 200 === statusCode
-      assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusEnabled LockStatusUnlocked
-
-testExposeInvitationURLsToTeamAdminEmptyAllowList :: TestM ()
-testExposeInvitationURLsToTeamAdminEmptyAllowList = do
-  owner <- randomUser
-  tid <- createBindingTeamInternal "foo" owner
-  assertTeamActivate "create team" tid
-  void $
-    withSettingsOverrides (\opts -> opts & settings . exposeInvitationURLsTeamAllowlist .~ Nothing) $ do
-      assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusDisabled LockStatusLocked
-      let enabled = WithStatusNoLock FeatureStatusEnabled ExposeInvitationURLsToTeamAdminConfig FeatureTTLUnlimited
-      void $
-        putTeamFeature @ExposeInvitationURLsToTeamAdminConfig owner tid enabled !!! do
-          const 409 === statusCode
-      assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusDisabled LockStatusLocked
-
--- | Ensure that the server config takes precedence over a saved team config.
---
--- In other words: When a team id is no longer in the
--- `exposeInvitationURLsTeamAllowlist` the
--- `ExposeInvitationURLsToTeamAdminConfig` is always disabled (even tough it
--- might have been enabled before).
-testExposeInvitationURLsToTeamAdminServerConfigTakesPrecedence :: TestM ()
-testExposeInvitationURLsToTeamAdminServerConfigTakesPrecedence = do
-  owner <- randomUser
-  tid <- createBindingTeamInternal "foo" owner
-  assertTeamActivate "create team" tid
-  void $
-    withSettingsOverrides (\opts -> opts & settings . exposeInvitationURLsTeamAllowlist ?~ [tid]) $ do
-      assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusDisabled LockStatusUnlocked
-      let enabled = WithStatusNoLock FeatureStatusEnabled ExposeInvitationURLsToTeamAdminConfig FeatureTTLUnlimited
-      void $
-        putTeamFeature @ExposeInvitationURLsToTeamAdminConfig owner tid enabled !!! do
-          const 200 === statusCode
-      assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusEnabled LockStatusUnlocked
-  void $
-    withSettingsOverrides (\opts -> opts & settings . exposeInvitationURLsTeamAllowlist .~ Nothing) $ do
-      assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusDisabled LockStatusLocked
-      let enabled = WithStatusNoLock FeatureStatusEnabled ExposeInvitationURLsToTeamAdminConfig FeatureTTLUnlimited
-      void $
-        putTeamFeature @ExposeInvitationURLsToTeamAdminConfig owner tid enabled !!! do
-          const 409 === statusCode
-      assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusDisabled LockStatusLocked
-
-assertExposeInvitationURLsToTeamAdminConfigStatus :: UserId -> TeamId -> FeatureStatus -> LockStatus -> TestM ()
-assertExposeInvitationURLsToTeamAdminConfigStatus owner tid fStatus lStatus = do
-  getTeamFeature @ExposeInvitationURLsToTeamAdminConfig owner tid !!! do
-    const 200 === statusCode
-    const (Right (withStatus fStatus lStatus ExposeInvitationURLsToTeamAdminConfig FeatureTTLUnlimited)) === responseJsonEither
 
 assertFlagForbidden :: HasCallStack => TestM ResponseLBS -> TestM ()
 assertFlagForbidden res = do

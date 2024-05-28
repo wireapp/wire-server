@@ -152,7 +152,12 @@ testExposeInvitationURLsToTeamAdminConfig = do
           (owner, tid, _) <- createTeam domain 1
           checkFeature "exposeInvitationURLsToTeamAdmin" owner tid disabledLocked
           -- here we get a response with HTTP status 200 and feature status unchanged (disabled), which we find weird, but we're just testing the current behavior
+          -- a team that is not in the allow list cannot enable the feature, it will always be disabled and locked
+          -- even though the internal API request to enable it succeeds
           assertSuccess =<< Internal.setTeamFeatureStatus domain tid "exposeInvitationURLsToTeamAdmin" "enabled"
+          checkFeature "exposeInvitationURLsToTeamAdmin" owner tid disabledLocked
+          -- however, a request to the public API will fail
+          assertStatus 409 =<< Public.setTeamFeatureConfig owner tid "exposeInvitationURLsToTeamAdmin" (object ["status" .= "enabled"])
           assertSuccess =<< Internal.setTeamFeatureStatus domain tid "exposeInvitationURLsToTeamAdmin" "disabled"
           pure (owner, tid)
 
@@ -161,6 +166,7 @@ testExposeInvitationURLsToTeamAdminConfig = do
 
     -- Interesting case: The team is in the allow list
     runCodensity (startDynamicBackend testBackend $ cfgExposeInvitationURLsTeamAllowlist [tid]) $ \_ -> do
+      -- when the team is in the allow list the lock status is implicitly unlocked
       checkFeature "exposeInvitationURLsToTeamAdmin" owner tid disabled
       assertSuccess =<< Internal.setTeamFeatureStatus domain tid "exposeInvitationURLsToTeamAdmin" "enabled"
       checkFeature "exposeInvitationURLsToTeamAdmin" owner tid enabled
