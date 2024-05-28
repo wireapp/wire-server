@@ -47,8 +47,6 @@ tests s =
           -- (depending on prior state or configuration). Thus, they cannot be
           -- tested here (setting random values), but are tested with separate
           -- tests.
-          test s (unpack $ featureNameBS @AppLockConfig) $
-            testPatchWithCustomGen IgnoreLockStatusChange FeatureStatusEnabled (AppLockConfig (EnforceAppLock False) 60) validAppLockConfigGen,
           test s (unpack $ featureNameBS @ConferenceCallingConfig) $
             testPatch IgnoreLockStatusChange FeatureStatusEnabled ConferenceCallingConfig,
           test s (unpack $ featureNameBS @SearchVisibilityAvailableConfig) $
@@ -100,14 +98,6 @@ validMLSConfigGen =
                )
   where
     sortedAndNoDuplicates xs = (sort . nub) xs == xs
-
-validAppLockConfigGen :: Gen (WithStatusPatch AppLockConfig)
-validAppLockConfigGen =
-  arbitrary
-    `suchThat` ( \cfg -> case wspConfig cfg of
-                   Just (AppLockConfig _ secs) -> secs >= 30
-                   Nothing -> True
-               )
 
 -- | Binary type to prevent "boolean blindness"
 data AssertLockStatusChange = AssertLockStatusChange | IgnoreLockStatusChange

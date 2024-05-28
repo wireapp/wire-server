@@ -946,6 +946,21 @@ testPatchValidateSAMLEmails = _testPatch "validateSAMLemails" False enabled disa
 testPatchDigitalSignatures :: HasCallStack => App ()
 testPatchDigitalSignatures = _testPatch "digitalSignatures" False disabled enabled
 
+testPatchAppLock :: HasCallStack => App ()
+testPatchAppLock = do
+  let defCfg =
+        object
+          [ "lockStatus" .= "unlocked",
+            "status" .= "enabled",
+            "ttl" .= "unlimited",
+            "config" .= object ["enforceAppLock" .= False, "inactivityTimeoutSecs" .= A.Number 60]
+          ]
+  _testPatch "appLock" True defCfg (object ["lockStatus" .= "locked"])
+  _testPatch "appLock" True defCfg (object ["status" .= "disabled"])
+  _testPatch "appLock" True defCfg (object ["lockStatus" .= "locked", "status" .= "disabled"])
+  _testPatch "appLock" True defCfg (object ["lockStatus" .= "unlocked", "config" .= object ["enforceAppLock" .= True, "inactivityTimeoutSecs" .= A.Number 120]])
+  _testPatch "appLock" True defCfg (object ["config" .= object ["enforceAppLock" .= True, "inactivityTimeoutSecs" .= A.Number 240]])
+
 _testPatch :: HasCallStack => String -> Bool -> Value -> Value -> App ()
 _testPatch featureName _assertLockStatusChange defaultFeatureConfig patch = do
   (owner, tid, _) <- createTeam OwnDomain 0
