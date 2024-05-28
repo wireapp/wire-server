@@ -20,31 +20,20 @@ module API.Teams.Feature (tests) where
 
 import API.Util
 import API.Util.TeamFeature hiding (getFeatureConfig, setLockStatusInternal)
-import API.Util.TeamFeature qualified as Util
 import Bilge
 import Bilge.Assert
 import Brig.Types.Test.Arbitrary (Arbitrary (arbitrary))
-import Control.Lens (view)
 import Control.Lens.Operators ()
-import Control.Monad.Catch (MonadCatch)
-import Data.Aeson (ToJSON)
-import Data.Aeson qualified as Aeson
 import Data.ByteString.Char8 (unpack)
-import Data.List1 qualified as List1
 import Data.Schema (ToSchema)
-import Data.Timeout (TimeoutUnit (Second), (#))
 import GHC.TypeLits (KnownSymbol)
 import Imports
-import Network.Wai.Utilities (label)
 import Test.QuickCheck (Gen, generate, suchThat)
 import Test.Tasty
-import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit ((@?=))
 import TestHelpers (test)
 import TestSetup
 import Wire.API.Conversation.Protocol
-import Wire.API.Event.FeatureConfig qualified as FeatureConfig
-import Wire.API.Internal.Notification (Notification)
 import Wire.API.MLS.CipherSuite
 import Wire.API.Team.Feature hiding (setLockStatus)
 
@@ -52,15 +41,7 @@ tests :: IO TestSetup -> TestTree
 tests s =
   testGroup
     "Feature Config API and Team Features API"
-    [ test s "MlsE2EId feature config" $
-        testNonTrivialConfigNoTTL
-          ( withStatus
-              FeatureStatusDisabled
-              LockStatusUnlocked
-              (wsConfig (defFeatureStatus @MlsE2EIdConfig))
-              FeatureTTLUnlimited
-          ),
-      testGroup
+    [ testGroup
         "Patch"
         [ -- Note: `SSOConfig` and `LegalHoldConfig` may not be able to be reset
           -- (depending on prior state or configuration). Thus, they cannot be
@@ -224,151 +205,3 @@ testPatch' testLockStatusChange rndFeatureConfig defStatus defConfig = do
           wsLockStatus actual @?= fromMaybe (wsLockStatus original) (wspLockStatus rndFeatureConfig)
         wsConfig actual @?= fromMaybe (wsConfig original) (wspConfig rndFeatureConfig)
   checkTeamFeatureAllEndpoints uid tid actual
-
-testNonTrivialConfigNoTTL ::
-  forall cfg.
-  ( Typeable cfg,
-    Eq cfg,
-    Show cfg,
-    ToSchema cfg,
-    IsFeatureConfig cfg,
-    KnownSymbol (FeatureSymbol cfg),
-    Arbitrary (WithStatus cfg)
-  ) =>
-  WithStatus cfg ->
-  TestM ()
-testNonTrivialConfigNoTTL defaultCfg = do
-  (owner, tid, member : _) <- createBindingTeamWithNMembers 1
-  nonMember <- randomUser
-
-  galley <- viewGalley
-  cannon <- view tsCannon
-
-  let getForTeam :: HasCallStack => WithStatusNoLock cfg -> TestM ()
-      getForTeam expected =
-        flip assertFlagWithConfig expected $ getTeamFeature @cfg member tid
-
-      getForTeamInternal :: HasCallStack => WithStatusNoLock cfg -> TestM ()
-      getForTeamInternal expected =
-        flip assertFlagWithConfig expected $ getTeamFeatureInternal @cfg tid
-
-      getForUser :: HasCallStack => WithStatusNoLock cfg -> TestM ()
-      getForUser expected = do
-        result <- Util.getFeatureConfig @cfg member
-        liftIO $ wsStatus result @?= wssStatus expected
-        liftIO $ wsConfig result @?= wssConfig expected
-
-      getViaEndpoints :: HasCallStack => WithStatusNoLock cfg -> TestM ()
-      getViaEndpoints expected = do
-        getForTeam expected
-        getForTeamInternal expected
-        getForUser expected
-
-      setForTeam :: HasCallStack => WithStatusNoLock cfg -> TestM ()
-      setForTeam wsnl =
-        putTeamFeature @cfg owner tid wsnl
-          !!! statusCode
-            === const 200
-
-      setForTeamInternal :: HasCallStack => WithStatusNoLock cfg -> TestM ()
-      setForTeamInternal wsnl =
-        void $ putTeamFeatureInternal @cfg expect2xx tid wsnl
-      setLockStatus :: LockStatus -> TestM ()
-      setLockStatus lockStatus =
-        Util.setLockStatusInternal @cfg galley tid lockStatus
-          !!! statusCode
-            === const 200
-
-  assertFlagForbidden $ getTeamFeature @cfg nonMember tid
-
-  getViaEndpoints (forgetLock defaultCfg)
-
-  -- unlock feature
-  setLockStatus LockStatusUnlocked
-
-  let defaultMLSConfig =
-        WithStatusNoLock
-          { wssStatus = FeatureStatusEnabled,
-            wssConfig =
-              MLSConfig
-                { mlsProtocolToggleUsers = [],
-                  mlsDefaultProtocol = ProtocolMLSTag,
-                  mlsAllowedCipherSuites = [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519],
-                  mlsDefaultCipherSuite = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519,
-                  mlsSupportedProtocols = [ProtocolProteusTag, ProtocolMLSTag]
-                },
-            wssTTL = FeatureTTLUnlimited
-          }
-
-  config2 <- liftIO $ generate arbitrary <&> (forgetLock . setTTL FeatureTTLUnlimited)
-  config3 <- liftIO $ generate arbitrary <&> (forgetLock . setTTL FeatureTTLUnlimited)
-
-  putTeamFeature @MLSConfig owner tid defaultMLSConfig
-    !!! statusCode
-      === const 200
-
-  WS.bracketR cannon member $ \ws -> do
-    setForTeam config2
-    void . liftIO $
-      WS.assertMatch (5 # Second) ws $
-        wsAssertFeatureConfigUpdate @cfg config2 LockStatusUnlocked
-  getViaEndpoints config2
-
-  WS.bracketR cannon member $ \ws -> do
-    setForTeamInternal config3
-    void . liftIO $
-      WS.assertMatch (5 # Second) ws $
-        wsAssertFeatureConfigUpdate @cfg config3 LockStatusUnlocked
-  getViaEndpoints config3
-
-  -- lock the feature
-  setLockStatus LockStatusLocked
-  -- feature status should now be the default again
-  getViaEndpoints (forgetLock defaultCfg)
-  -- unlock feature
-  setLockStatus LockStatusUnlocked
-  -- feature status should be the previously set value
-  getViaEndpoints config3
-
-assertFlagForbidden :: HasCallStack => TestM ResponseLBS -> TestM ()
-assertFlagForbidden res = do
-  res !!! do
-    statusCode === const 403
-    fmap label . responseJsonMaybe === const (Just "no-team-member")
-
-assertFlagWithConfig ::
-  forall cfg m.
-  ( HasCallStack,
-    Eq cfg,
-    ToSchema cfg,
-    Show cfg,
-    Typeable cfg,
-    IsFeatureConfig cfg,
-    MonadIO m,
-    MonadCatch m
-  ) =>
-  m ResponseLBS ->
-  WithStatusNoLock cfg ->
-  m ()
-assertFlagWithConfig response expected = do
-  r <- response
-  let rJson = responseJsonEither @(WithStatusNoLock cfg) r
-  pure r !!! statusCode === const 200
-  liftIO $ do
-    fmap wssStatus rJson @?= (Right . wssStatus $ expected)
-    fmap wssConfig rJson @?= (Right . wssConfig $ expected)
-
-wsAssertFeatureConfigUpdate ::
-  forall cfg.
-  ( KnownSymbol (FeatureSymbol cfg),
-    ToJSON (WithStatus cfg)
-  ) =>
-  WithStatusNoLock cfg ->
-  LockStatus ->
-  Notification ->
-  IO ()
-wsAssertFeatureConfigUpdate config lockStatus notification = do
-  let e :: FeatureConfig.Event = List1.head (WS.unpackPayload notification)
-  FeatureConfig._eventType e @?= FeatureConfig.Update
-  FeatureConfig._eventFeatureName e @?= featureName @cfg
-  FeatureConfig._eventData e @?= Aeson.toJSON (withLockStatus lockStatus config)

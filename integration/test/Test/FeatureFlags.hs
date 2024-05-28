@@ -736,7 +736,7 @@ mlsE2EIdConfig = do
     mlsE2EIdConfig1
       & setField "config.verificationExpiration" (A.Number 86401)
       & setField "config.useProxyOnMobile" True
-  invalidConfig <- mlsE2EIdConfig2 & removeField "config.crlProxy"
+  invalidConfig <- cfg2 & removeField "config.crlProxy"
   pure (mlsE2EIdDefConfig, mlsE2EIdConfig1, cfg2, invalidConfig)
   where
     mlsE2EIdDefConfig :: Value
@@ -777,13 +777,15 @@ testMLSE2EId = do
 testMLSE2EIdInternal :: HasCallStack => App ()
 testMLSE2EIdInternal = do
   (defCfg, cfg1, cfg2, invalidCfg) <- mlsE2EIdConfig
+  -- the internal API is not as strict as the public one, so we need to tweak the invalid config some more
+  invalidCfg' <- invalidCfg & setField "config.crlProxy" (object [])
   _testLockStatusWithConfig
     "mlsE2EId"
     Internal.setTeamFeatureConfig
     defCfg
     cfg1
     cfg2
-    invalidCfg
+    invalidCfg'
 
 _testLockStatusWithConfig ::
   HasCallStack =>
