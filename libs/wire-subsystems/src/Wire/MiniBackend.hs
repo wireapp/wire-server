@@ -1,5 +1,3 @@
-{-# OPTIONS -Wwarn #-}
-
 module Wire.MiniBackend
   ( -- * Mini backends
     MiniBackend (..),
