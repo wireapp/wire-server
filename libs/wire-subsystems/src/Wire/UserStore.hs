@@ -31,13 +31,14 @@ data StoredUserUpdate = MkStoredUserUpdate
     assets :: Maybe [Asset],
     accentId :: Maybe ColourId,
     locale :: Maybe Locale,
-    handle :: Maybe StoredHandleUpdate
+    handle :: Maybe StoredHandleUpdate,
+    supportedProtocols :: Maybe (Set BaseProtocolTag)
   }
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via GenericUniform StoredUserUpdate
 
 instance Default StoredUserUpdate where
-  def = MkStoredUserUpdate Nothing Nothing Nothing Nothing Nothing Nothing
+  def = MkStoredUserUpdate Nothing Nothing Nothing Nothing Nothing Nothing Nothing
 
 data StoredUserUpdateError = StoredUserUpdateHandleExists
 

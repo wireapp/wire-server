@@ -278,6 +278,8 @@ runNoFederationStack ::
 runNoFederationStack localBackend teamMember cfg =
   runAllErrorsUnsafe . interpretNoFederationStack localBackend teamMember def cfg
 
+-- TODO: runNoFederationStackEither
+
 interpretNoFederationStack ::
   (Members AllErrors r) =>
   MiniBackend ->
@@ -351,6 +353,7 @@ staticUserStoreInterpreter = interpret $ \case
   GetUser uid -> find (\user -> user.id == uid) <$> getLocalUsers
   UpdateUserEither uid update -> runError $ modifyLocalUsers (traverse doUpdate)
     where
+      doUpdate :: StoredUser -> Sem (Error StoredUserUpdateError : r) StoredUser
       doUpdate u
         | u.id == uid = do
             -- check that handle isn't taken
@@ -366,6 +369,7 @@ staticUserStoreInterpreter = interpret $ \case
               . maybe Imports.id setStoredUserAssets update.assets
               . maybe Imports.id setStoredUserPict update.pict
               . maybe Imports.id setStoredUserName update.name
+              . maybe Imports.id setStoredSupportedProtocols update.supportedProtocols
               $ u
       doUpdate u = pure u
   DeleteUser user -> modifyLocalUsers $ \us ->

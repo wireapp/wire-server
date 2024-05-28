@@ -7,6 +7,7 @@ import Data.Handle
 import Data.Id
 import Data.Json.Util
 import Data.Qualified
+import Data.Set qualified as S
 import Database.CQL.Protocol (Record (..), TupleType, recordInstance)
 import GHC.Records
 import Imports
@@ -41,6 +42,9 @@ data StoredUser = StoredUser
 setStoredUserName :: Name -> StoredUser -> StoredUser
 setStoredUserName n u = u {name = n}
 
+setStoredSupportedProtocols :: Set BaseProtocolTag -> StoredUser -> StoredUser
+setStoredSupportedProtocols ps u = u {supportedProtocols = Just ps}
+
 setStoredUserPict :: Pict -> StoredUser -> StoredUser
 setStoredUserPict p u = u {pict = Just p}
 
@@ -74,8 +78,10 @@ mkUserFromStored domain defaultLocale storedUser =
           userHandle = storedUser.handle,
           userExpire = expiration,
           userTeam = storedUser.teamId,
-          userManagedBy = (fromMaybe ManagedByWire storedUser.managedBy),
-          userSupportedProtocols = (fromMaybe defSupportedProtocols storedUser.supportedProtocols)
+          userManagedBy = fromMaybe ManagedByWire storedUser.managedBy,
+          userSupportedProtocols = case storedUser.supportedProtocols of
+            Nothing -> defSupportedProtocols
+            Just ps -> if S.null ps then defSupportedProtocols else ps
         }
 
 toLocale :: Locale -> (Maybe Language, Maybe Country) -> Locale

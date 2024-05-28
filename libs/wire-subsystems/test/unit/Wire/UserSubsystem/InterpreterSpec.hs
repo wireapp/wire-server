@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedLists #-}
-{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
+{-# OPTIONS_GHC -Wno-ambiguous-fields -Wno-incomplete-uni-patterns #-}
 
 module Wire.UserSubsystem.InterpreterSpec (spec) where
 
@@ -32,8 +32,8 @@ import Wire.API.Team.Permission
 import Wire.API.User hiding (DeleteUser)
 import Wire.API.UserEvent
 import Wire.MiniBackend
-import Wire.StoredUser
-import Wire.UserSubsystem
+import Wire.StoredUser as SU
+import Wire.UserSubsystem as US
 import Wire.UserSubsystem.Interpreter (UserSubsystemConfig (..))
 
 spec :: Spec
@@ -333,6 +333,7 @@ spec = describe "UserSubsystem.Interpreter" do
            in res === Right ()
 
     prop
+      -- TODO: failure with --match "/Wire.UserSubsystem.Interpreter/UserSubsystem.Interpreter/getUserProfilesWithErrors/update valid handles succeeds/"
       "update valid handles succeeds"
       \(storedUser :: StoredUser, Handle rawHandle, config) ->
         isJust storedUser.identity ==>
@@ -369,25 +370,28 @@ spec = describe "UserSubsystem.Interpreter" do
             where
               dom = Domain "localdomain"
 
-          beforeProtocols :: Maybe (Set BaseProtocolTag)
-          beforeProtocols = storedUser.supportedProtocols
+          beforeProtocols :: Set BaseProtocolTag
+          beforeProtocols = case storedUser.supportedProtocols of
+            Nothing -> defSupportedProtocols
+            Just ps -> if S.null ps then defSupportedProtocols else ps
 
           afterProtocols :: Set BaseProtocolTag
-          afterProtocols = (S.fromList . ([minBound ..] \\) . S.toList) $ fromMaybe [minBound ..] beforeProtocols
+          afterProtocols = (S.fromList . ([minBound ..] \\) . S.toList) beforeProtocols
 
-          operation :: Sem (GetUserProfileEffects `Append` AllErrors) a -> a
-          operation op = runNoFederationStack localBackend Nothing config op
+          operation :: Monad m => Sem (GetUserProfileEffects `Append` AllErrors) a -> m a
+          operation op = result `seq` pure result
             where
+              result = runNoFederationStack localBackend Nothing config op
               localBackend = def {users = [storedUser]}
 
-      beforeProtocols `shouldNotBe` Just afterProtocols
+      beforeProtocols `shouldNotBe` afterProtocols
 
-      let [before] = operation $ getUserProfiles luid [tUntagged luid]
-          () = operation $ updateUserProfile luid Nothing ForbidSCIMUpdates (def {supportedProtocols = Just afterProtocols})
-          [after] = operation $ getUserProfiles luid [tUntagged luid]
+      [beforeOp] <- operation $ getUserProfiles luid [tUntagged luid]
+      () <- operation $ updateUserProfile luid Nothing ForbidSCIMUpdates (def {supportedProtocols = Just afterProtocols})
+      [afterOp] <- operation $ getUserProfiles luid [tUntagged luid]
 
-      before.supportedProtocols `shouldBe` beforeProtocols
-      after.supportedProtocols `shouldBe` afterProtocols
+      (profileSupportedProtocols beforeOp, profileSupportedProtocols afterOp)
+        `shouldBe` (beforeProtocols, afterProtocols)
 
 newtype BadHandle = BadHandle {_unBadHandle :: Text}
   deriving newtype (Eq, Show)
