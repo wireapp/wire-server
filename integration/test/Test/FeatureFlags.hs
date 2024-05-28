@@ -617,6 +617,26 @@ mlsInvalidConfig =
           ]
     ]
 
+testEnforceDownloadLocation :: HasCallStack => App ()
+testEnforceDownloadLocation =
+  _testLockStatusWithConfig
+    "enforceFileDownloadLocation"
+    Public.setTeamFeatureConfig
+    (object ["lockStatus" .= "locked", "status" .= "disabled", "ttl" .= "unlimited", "config" .= object []])
+    (object ["status" .= "enabled", "config" .= object ["enforcedDownloadLocation" .= "/tmp"]])
+    (object ["status" .= "disabled", "config" .= object []])
+    (object ["status" .= "enabled", "config" .= object ["enforcedDownloadLocation" .= object []]])
+
+testEnforceDownloadLocationInternal :: HasCallStack => App ()
+testEnforceDownloadLocationInternal =
+  _testLockStatusWithConfig
+    "enforceFileDownloadLocation"
+    Internal.setTeamFeatureConfig
+    (object ["lockStatus" .= "locked", "status" .= "disabled", "ttl" .= "unlimited", "config" .= object []])
+    (object ["status" .= "enabled", "config" .= object ["enforcedDownloadLocation" .= "/tmp"]])
+    (object ["status" .= "disabled", "config" .= object []])
+    (object ["status" .= "enabled", "config" .= object ["enforcedDownloadLocation" .= object []]])
+
 _testLockStatusWithConfig ::
   HasCallStack =>
   String ->

@@ -66,8 +66,6 @@ tests s =
           ),
       test s "MlsMigration feature config" $
         testNonTrivialConfigNoTTL defaultMlsMigrationConfig,
-      test s "EnforceFileDownloadLocation feature config" $
-        testNonTrivialConfigNoTTL (defFeatureStatus @EnforceFileDownloadLocationConfig),
       testGroup
         "Patch"
         [ -- Note: `SSOConfig` and `LegalHoldConfig` may not be able to be reset
