@@ -350,12 +350,17 @@ mkProfileUpdateEvent uid update =
         eupAssets = update.assets
       }
 
+mkProfileUpdateHandleEvent :: UserId -> Handle -> UserEvent
+mkProfileUpdateHandleEvent uid handle =
+  UserUpdated $ (emptyUserUpdatedData uid) {eupHandle = Just handle}
+
 --------------------------------------------------------------------------------
 -- Check Handle
 
 updateHandleImpl ::
   ( Member (Error UserSubsystemError) r,
     Member GalleyAPIAccess r,
+    Member UserEvents r,
     Member UserStore r
   ) =>
   Local UserId ->
@@ -377,6 +382,7 @@ updateHandleImpl (tUnqualified -> uid) mconn updateOrigin uhandle = do
     throw UserSubsystemNoIdentity
   mapError (\StoredUserUpdateHandleExists -> UserSubsystemHandleExists) $
     US.updateUserHandle uid (MkStoredHandleUpdate user.handle newHandle)
+  generateUserEvent uid mconn (mkProfileUpdateHandleEvent uid newHandle)
 
 checkHandleImpl :: (Member (Error UserSubsystemError) r, Member UserStore r) => Text -> Sem r CheckHandleResp
 checkHandleImpl uhandle = do
