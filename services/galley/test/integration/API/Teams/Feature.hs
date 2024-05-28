@@ -56,8 +56,7 @@ tests :: IO TestSetup -> TestTree
 tests s =
   testGroup
     "Feature Config API and Team Features API"
-    [ test s "MLS feature config" testMLS,
-      test s "MlsE2EId feature config" $
+    [ test s "MlsE2EId feature config" $
         testNonTrivialConfigNoTTL
           ( withStatus
               FeatureStatusDisabled
@@ -343,113 +342,6 @@ testNonTrivialConfigNoTTL defaultCfg = do
   -- unlock feature
   setLockStatus LockStatusUnlocked
   -- feature status should be the previously set value
-  getViaEndpoints config3
-
-testMLS :: TestM ()
-testMLS = do
-  (owner, tid, member : _) <- createBindingTeamWithNMembers 1
-
-  galley <- viewGalley
-  cannon <- view tsCannon
-
-  let getForTeam :: HasCallStack => WithStatusNoLock MLSConfig -> TestM ()
-      getForTeam expected =
-        flip assertFlagWithConfig expected $ getTeamFeature @MLSConfig member tid
-
-      getForTeamInternal :: HasCallStack => WithStatusNoLock MLSConfig -> TestM ()
-      getForTeamInternal expected =
-        flip assertFlagWithConfig expected $ getTeamFeatureInternal @MLSConfig tid
-
-      getForUser :: HasCallStack => WithStatusNoLock MLSConfig -> TestM ()
-      getForUser expected = do
-        result <- Util.getFeatureConfig @MLSConfig member
-        liftIO $ wsStatus result @?= wssStatus expected
-        liftIO $ wsConfig result @?= wssConfig expected
-
-      getViaEndpoints :: HasCallStack => WithStatusNoLock MLSConfig -> TestM ()
-      getViaEndpoints expected = do
-        getForTeam expected
-        getForTeamInternal expected
-        getForUser expected
-
-      setForTeamWithStatusCode :: HasCallStack => Int -> WithStatusNoLock MLSConfig -> TestM ()
-      setForTeamWithStatusCode resStatusCode wsnl =
-        putTeamFeature @MLSConfig owner tid wsnl
-          !!! statusCode
-            === const resStatusCode
-
-      setForTeam :: HasCallStack => WithStatusNoLock MLSConfig -> TestM ()
-      setForTeam = setForTeamWithStatusCode 200
-
-      setForTeamInternalWithStatusCode :: HasCallStack => (Request -> Request) -> WithStatusNoLock MLSConfig -> TestM ()
-      setForTeamInternalWithStatusCode expect wsnl =
-        void $ putTeamFeatureInternal @MLSConfig expect tid wsnl
-
-      setForTeamInternal :: HasCallStack => WithStatusNoLock MLSConfig -> TestM ()
-      setForTeamInternal = setForTeamInternalWithStatusCode expect2xx
-
-      setLockStatus :: HasCallStack => LockStatus -> TestM ()
-      setLockStatus lockStatus =
-        Util.setLockStatusInternal @MLSConfig galley tid lockStatus !!! statusCode === const 200
-
-  let cipherSuite = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
-      defaultConfig =
-        WithStatusNoLock
-          FeatureStatusDisabled
-          (MLSConfig [] ProtocolProteusTag [cipherSuite] cipherSuite [ProtocolProteusTag, ProtocolMLSTag])
-          FeatureTTLUnlimited
-      config2 =
-        WithStatusNoLock
-          FeatureStatusEnabled
-          (MLSConfig [member] ProtocolMLSTag [] cipherSuite [ProtocolProteusTag, ProtocolMLSTag])
-          FeatureTTLUnlimited
-      config3 =
-        WithStatusNoLock
-          FeatureStatusEnabled
-          (MLSConfig [] ProtocolMLSTag [cipherSuite] cipherSuite [ProtocolMLSTag])
-          FeatureTTLUnlimited
-      invalidConfig =
-        WithStatusNoLock
-          FeatureStatusEnabled
-          (MLSConfig [] ProtocolMLSTag [cipherSuite] cipherSuite [ProtocolProteusTag])
-          FeatureTTLUnlimited
-
-  getViaEndpoints defaultConfig
-
-  -- when the feature is locked it cannot be changed
-  setLockStatus LockStatusLocked
-  setForTeamWithStatusCode 409 config2
-  setLockStatus LockStatusUnlocked
-
-  WS.bracketR cannon member $ \ws -> do
-    setForTeam config2
-    void . liftIO $
-      WS.assertMatch (5 # Second) ws $
-        wsAssertFeatureConfigUpdate @MLSConfig config2 LockStatusUnlocked
-  getViaEndpoints config2
-
-  -- when the feature is locked the default config is returned
-  setLockStatus LockStatusLocked
-  getViaEndpoints defaultConfig
-  setLockStatus LockStatusUnlocked
-
-  WS.bracketR cannon member $ \ws -> do
-    setForTeamWithStatusCode 400 invalidConfig
-    void . liftIO $
-      WS.assertNoEvent (2 # Second) [ws]
-  getViaEndpoints config2
-
-  WS.bracketR cannon member $ \ws -> do
-    setForTeamInternal config3
-    void . liftIO $
-      WS.assertMatch (5 # Second) ws $
-        wsAssertFeatureConfigUpdate @MLSConfig config3 LockStatusUnlocked
-  getViaEndpoints config3
-
-  WS.bracketR cannon member $ \ws -> do
-    setForTeamInternalWithStatusCode expect4xx invalidConfig
-    void . liftIO $
-      WS.assertNoEvent (2 # Second) [ws]
   getViaEndpoints config3
 
 testExposeInvitationURLsToTeamAdminTeamIdInAllowList :: TestM ()
