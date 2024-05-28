@@ -80,7 +80,6 @@ class ErrorEffects (ee :: [Type]) r where
     Sem (Append (Row ee) r) (Either Wai.Error a) ->
     Sem r (Either Wai.Error a)
 
--- TODO: Rename
 runWaiErrors ::
   forall ee r a.
   (ErrorEffects ee r, Member (Error Servant.ServerError) r) =>
