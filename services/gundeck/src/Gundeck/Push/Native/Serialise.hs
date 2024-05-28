@@ -50,7 +50,7 @@ serialise (NativePush nid prio _aps) uid transport = do
 
 -- | Assemble a final SNS JSON string for transmission.
 renderText :: Transport -> Priority -> Value -> Maybe LT.Text
-renderText t prio x = case t of
+renderText t _prio x = case t of
   GCM -> trim "GCM" (jsonString gcmJson)
   APNS -> trim "APNS" (jsonString stdApnsJson)
   APNSSandbox -> trim "APNS_SANDBOX" (jsonString stdApnsJson)
@@ -65,8 +65,9 @@ renderText t prio x = case t of
         [ "fcmV1Message"
             .= object
               [ "message"
-                  .= [ "data" .= x
-                     ]
+                  .= object
+                    [ "data" .= x
+                    ]
               ]
         ]
     stdApnsJson =
@@ -97,9 +98,9 @@ maxPayloadSize GCM = 4096
 maxPayloadSize APNS = 4096
 maxPayloadSize APNSSandbox = 4096
 
-gcmPriority :: Priority -> Text
-gcmPriority LowPriority = "normal"
-gcmPriority HighPriority = "high"
+-- gcmPriority :: Priority -> Text
+-- gcmPriority LowPriority = "normal"
+-- gcmPriority HighPriority = "high"
 
 jsonString :: Value -> LT.Text
 jsonString = LTB.toLazyTextWith 512 . encodeToTextBuilder
