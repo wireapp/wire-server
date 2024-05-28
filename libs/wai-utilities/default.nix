@@ -11,6 +11,8 @@
 , errors
 , exceptions
 , gitignoreSource
+, hspec
+, hspec-discover
 , http-types
 , http2
 , imports
@@ -24,6 +26,7 @@
 , schema-profunctor
 , servant-server
 , streaming-commons
+, temporary
 , text
 , tinylog
 , types-common
@@ -70,6 +73,16 @@ mkDerivation {
     warp
     warp-tls
   ];
+  testHaskellDepends = [
+    bytestring
+    hspec
+    http-types
+    imports
+    temporary
+    tinylog
+    wai
+  ];
+  testToolDepends = [ hspec-discover ];
   description = "Various helpers for WAI";
   license = lib.licenses.agpl3Only;
 }
