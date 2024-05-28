@@ -152,21 +152,24 @@ runWaiErrorEither =
 serveServant ::
   forall (api :: Type).
   (HasServer api '[], Metrics.RoutesToPaths api) =>
-  (RequestId -> Server api) ->
   Env ->
   Int ->
+  ServerT api (Sem AllEffects) ->
   IO ()
-serveServant mkServer env port =
+serveServant env port server = do
+  let hoistApp :: RequestId -> Server api
+      hoistApp rid =
+        hoistServerWithContext (Proxy @api) (Proxy @'[]) (runFederator env rid) server
   Warp.run port
     . requestIdMiddleware env._applog federationRequestIdHeaderName
     . Wai.catchErrors (view applog env) federationRequestIdHeaderName []
     . Metrics.servantPrometheusMiddleware (Proxy @api)
-    $ app
+    $ app hoistApp
   where
-    app :: Wai.Application
-    app req cont = do
+    app :: (RequestId -> Server api) -> Wai.Application
+    app mkServerFromReqId req cont = do
       let rid = getRequestId federationRequestIdHeaderName req
-      serve (Proxy @api) (mkServer rid) req cont
+      serve (Proxy @api) (mkServerFromReqId rid) req cont
 
 type AllEffects =
   '[ Metrics,

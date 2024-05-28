@@ -23,8 +23,6 @@ module Federator.InternalServer where
 import Data.Binary.Builder
 import Data.ByteString qualified as BS
 import Data.Domain
-import Data.Id
-import Data.Proxy
 import Federator.Env
 import Federator.Error.ServerError
 import Federator.Health qualified as Health
@@ -45,7 +43,6 @@ import Servant qualified
 import Servant.API
 import Servant.API.Extended.Endpath
 import Servant.API.Extended.Raw
-import Servant.Server (hoistServerWithContext)
 import Servant.Server.Generic
 import System.Logger.Class qualified as Log
 import Wire.API.Federation.Component
@@ -134,7 +131,5 @@ callOutward targetDomain component (RPC path) req = do
   pure $ streamingResponseToWai resp
 
 serveOutward :: Env -> Int -> IO ()
-serveOutward env = do
-  let hoistedApp :: RequestId -> Servant.Server (ToServantApi API)
-      hoistedApp rid = hoistServerWithContext (Proxy @(ToServantApi API)) (Proxy @'[]) (runFederator env rid) $ toServant $ server env._httpManager env._internalPort
-  serveServant @(ToServantApi API) hoistedApp env
+serveOutward env port = do
+  serveServant @(ToServantApi API) env port (toServant $ server env._httpManager env._internalPort)

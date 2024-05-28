@@ -29,8 +29,6 @@ import Data.ByteString qualified as BS
 import Data.ByteString.Builder
 import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
-import Data.Id (RequestId (..))
-import Data.Proxy (Proxy (Proxy))
 import Data.Sequence qualified as Seq
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
@@ -53,14 +51,12 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
-import Servant (HasServer (..))
 import Servant qualified
 import Servant.API
 import Servant.API.Extended.Endpath
 import Servant.API.Extended.Raw
 import Servant.Client.Core
-import Servant.Server (Server)
-import Servant.Server.Generic
+import Servant.Server.Generic (AsServerT)
 import System.Logger.Message qualified as Log
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain
@@ -175,7 +171,5 @@ callInward component (RPC rpc) originDomain (CertHeader cert) wreq = do
         }
 
 serveInward :: Env -> Int -> IO ()
-serveInward env = do
-  let hoistedApp :: RequestId -> Server (ToServantApi API)
-      hoistedApp rid = hoistServerWithContext (Proxy @(ToServantApi API)) (Proxy @'[]) (runFederator env rid) $ toServant $ server env._httpManager env._internalPort
-  serveServant @(ToServantApi API) hoistedApp env
+serveInward env port =
+  serveServant @(ToServantApi API) env port $ toServant $ server env._httpManager env._internalPort
