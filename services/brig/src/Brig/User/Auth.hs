@@ -86,7 +86,8 @@ import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Paging.Cassandra (InternalPaging)
-import Wire.UserStore.Cassandra (lookupHandleImpl)
+import Wire.UserStore
+import Wire.UserStore.Cassandra (interpretUserStoreCassandra)
 
 sendLoginCode ::
   (Member TinyLog r) =>
@@ -332,9 +333,14 @@ newAccess uid cid ct cl = do
 -- FUTUREWORK(mangoiv): unfortunately this uses lookupHandleImpl explicity, in future, this
 -- should use lookuHandle but should be moved into some place where this resolveLoginId is done
 -- abstractly, perhaps some authentication subsystem
-resolveLoginId :: (MonadClient m, MonadReader Env m) => LoginId -> ExceptT LoginError m UserId
+resolveLoginId :: forall m. (MonadClient m, MonadReader Env m) => LoginId -> ExceptT LoginError m UserId
 resolveLoginId li = do
-  usr <- validateLoginId li >>= lift . either lookupKey (liftClient . lookupHandleImpl LocalQuorum)
+  let adhocInterpreter :: Sem '[UserStore, Embed IO] a -> m a
+      adhocInterpreter action = do
+        clientState <- asks (view casClient)
+        liftIO (runM (interpretUserStoreCassandra clientState action))
+
+  usr <- validateLoginId li >>= lift . either lookupKey (adhocInterpreter . lookupHandle)
   case usr of
     Nothing -> do
       pending <- lift $ isPendingActivation li
