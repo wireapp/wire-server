@@ -29,6 +29,7 @@ import Wire.API.Team.Feature (AllFeatureConfigs (afcMlsE2EId), FeatureStatus (..
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
 import Wire.API.User hiding (DeleteUser)
+import Wire.API.UserEvent
 import Wire.MiniBackend
 import Wire.StoredUser
 import Wire.UserSubsystem
@@ -232,7 +233,7 @@ spec = describe "UserSubsystem.Interpreter" do
               === [ MkMiniEvent
                       alice.id
                       ( UserUpdated $
-                          (emptyUserUpdatedData uid)
+                          (emptyUserUpdatedData alice.id)
                             { eupName = update.name,
                               eupPict = update.pict,
                               eupAccentId = update.accentId,
