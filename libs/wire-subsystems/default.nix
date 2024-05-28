@@ -137,6 +137,7 @@ mkDerivation {
     hspec
     imports
     iso639
+    lens
     polysemy
     polysemy-plugin
     polysemy-time
@@ -145,6 +146,7 @@ mkDerivation {
     quickcheck-instances
     servant-client-core
     string-conversions
+    text
     time
     transformers
     types-common

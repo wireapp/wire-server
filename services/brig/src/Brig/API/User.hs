@@ -270,7 +270,8 @@ createUserSpar new = do
       case Handle.parseHandle . fromHandle $ h of
         Just handl ->
           lift . liftSem $
-            updateUserProfile luid Nothing def {handle = Just (allowScimUpdate handl)}
+            -- TODO: elland: Feels a bit dumb to have a valid handle and revalidate it.
+            updateHandle luid AllowSCIMUpdates (fromHandle handl)
         Nothing -> throwE $ CreateUserSparHandleError ChangeHandleInvalid
 
     addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> Role -> ExceptT RegisterError (AppT r) CreateUserTeam
