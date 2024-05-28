@@ -47,12 +47,6 @@ tests s =
           -- (depending on prior state or configuration). Thus, they cannot be
           -- tested here (setting random values), but are tested with separate
           -- tests.
-          test s (unpack $ featureNameBS @SearchVisibilityAvailableConfig) $
-            testPatch IgnoreLockStatusChange FeatureStatusEnabled SearchVisibilityAvailableConfig,
-          test s (unpack $ featureNameBS @ValidateSAMLEmailsConfig) $
-            testPatch IgnoreLockStatusChange FeatureStatusEnabled ValidateSAMLEmailsConfig,
-          test s (unpack $ featureNameBS @DigitalSignaturesConfig) $
-            testPatch IgnoreLockStatusChange FeatureStatusEnabled DigitalSignaturesConfig,
           test s (unpack $ featureNameBS @AppLockConfig) $
             testPatchWithCustomGen IgnoreLockStatusChange FeatureStatusEnabled (AppLockConfig (EnforceAppLock False) 60) validAppLockConfigGen,
           test s (unpack $ featureNameBS @ConferenceCallingConfig) $

@@ -936,3 +936,37 @@ _testSimpleFlagTTLOverride featureName enabledByDefault mTtl mTtlAfter = do
       liftIO $ threadDelay (d * 1000000) -- waiting it out
       -- value reverts back
       checkFeatureLenientTtl featureName owner tid defFeatureStatus
+
+testPatchSearchVisibility :: HasCallStack => App ()
+testPatchSearchVisibility = _testPatch "searchVisibility" False disabled enabled
+
+testPatchValidateSAMLEmails :: HasCallStack => App ()
+testPatchValidateSAMLEmails = _testPatch "validateSAMLemails" False enabled disabled
+
+testPatchDigitalSignatures :: HasCallStack => App ()
+testPatchDigitalSignatures = _testPatch "digitalSignatures" False disabled enabled
+
+_testPatch :: HasCallStack => String -> Bool -> Value -> Value -> App ()
+_testPatch featureName _assertLockStatusChange defaultFeatureConfig patch = do
+  (owner, tid, _) <- createTeam OwnDomain 0
+  checkFeature featureName owner tid defaultFeatureConfig
+  assertSuccess =<< Internal.patchTeamFeature OwnDomain tid featureName patch
+  patched <- (.json) =<< Internal.getTeamFeature OwnDomain tid featureName
+  checkFeature featureName owner tid patched
+  lockStatus <- patched %. "lockStatus" >>= asString
+  if lockStatus == "locked"
+    then do
+      patched `shouldMatch` (defaultFeatureConfig & setField "lockStatus" "locked")
+    else do
+      patched %. "status" `shouldMatch` valueOrDefault "status"
+      mPatchedConfig <- lookupField patched "config"
+      case mPatchedConfig of
+        Just patchedConfig -> patchedConfig `shouldMatch` valueOrDefault "config"
+        Nothing -> do
+          mDefConfig <- lookupField defaultFeatureConfig "config"
+          assertBool "patch had an unexpected config field" (isNothing mDefConfig)
+  where
+    valueOrDefault :: String -> App Value
+    valueOrDefault key = do
+      mValue <- lookupField patch key
+      maybe (defaultFeatureConfig %. key) pure mValue

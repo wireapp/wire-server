@@ -111,3 +111,9 @@ getFeatureStatusMulti domain featureName tids = do
   fn <- asString featureName
   req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "features-multi-teams", fn]
   submit "POST" $ req & addJSONObject ["teams" .= tids]
+
+patchTeamFeature :: (HasCallStack, MakesValue domain, MakesValue team) => domain -> team -> String -> Value -> App Response
+patchTeamFeature domain team featureName payload = do
+  tid <- asString team
+  req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", featureName]
+  submit "PATCH" $ req & addJSON payload
