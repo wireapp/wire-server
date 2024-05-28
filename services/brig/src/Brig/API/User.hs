@@ -135,7 +135,6 @@ import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Code
 import Data.Currency qualified as Currency
-import Data.Default
 import Data.Handle (Handle (fromHandle))
 import Data.Handle qualified as Handle
 import Data.Id as Id
@@ -182,7 +181,7 @@ import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserStore
-import Wire.UserSubsystem
+import Wire.UserSubsystem as User
 import Wire.UserSubsystem.HandleBlacklist
 
 -------------------------------------------------------------------------------
@@ -271,7 +270,7 @@ createUserSpar new = do
         Just handl ->
           lift . liftSem $
             -- TODO: elland: Feels a bit dumb to have a valid handle and revalidate it.
-            updateHandle luid AllowSCIMUpdates (fromHandle handl)
+            User.updateHandle luid AllowSCIMUpdates (fromHandle handl)
         Nothing -> throwE $ CreateUserSparHandleError ChangeHandleInvalid
 
     addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> Role -> ExceptT RegisterError (AppT r) CreateUserTeam
