@@ -128,8 +128,6 @@ lookupLoginCode phone =
       liftSem $ Log.debug $ field "user" (toByteString u) . field "action" (val "User.lookupLoginCode")
       wrapHttpClient $ Data.lookupLoginCode u
 
--- FUTUREWORK(mangoiv): we have to think about what to do with this, it should not
--- access the UserStore directly, perhaps some more fitting "AuthenticationSubsystem"?
 login ::
   forall r.
   ( Member GalleyAPIAccess r,
