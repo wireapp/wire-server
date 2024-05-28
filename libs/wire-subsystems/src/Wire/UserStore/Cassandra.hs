@@ -1,4 +1,4 @@
-module Wire.UserStore.Cassandra where
+module Wire.UserStore.Cassandra (interpretUserStoreCassandra) where
 
 import Cassandra
 import Data.Handle

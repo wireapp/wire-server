@@ -17,7 +17,6 @@ import Data.Qualified
 import Data.Set qualified as S
 import Data.String.Conversions (cs)
 import Data.Text qualified as Text
--- TODO: only import UserSubsystemConfig(..)
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -33,7 +32,7 @@ import Wire.API.User hiding (DeleteUser)
 import Wire.MiniBackend
 import Wire.StoredUser
 import Wire.UserSubsystem
-import Wire.UserSubsystem.Interpreter
+import Wire.UserSubsystem.Interpreter (UserSubsystemConfig (..))
 
 spec :: Spec
 spec = describe "UserSubsystem.Interpreter" do
@@ -229,7 +228,18 @@ spec = describe "UserSubsystem.Interpreter" do
             events = runNoFederationStack localBackend Nothing config do
               updateUserProfile lusr Nothing AllowSCIMUpdates update
               get @[MiniEvent]
-         in events === [MkMiniEvent alice.id (mkProfileUpdateEvent alice.id update)]
+         in events
+              === [ MkMiniEvent
+                      alice.id
+                      ( UserUpdated $
+                          (emptyUserUpdatedData uid)
+                            { eupName = update.name,
+                              eupPict = update.pict,
+                              eupAccentId = update.accentId,
+                              eupAssets = update.assets
+                            }
+                      )
+                  ]
 
     prop
       "user managed by scim doesn't allow update"
