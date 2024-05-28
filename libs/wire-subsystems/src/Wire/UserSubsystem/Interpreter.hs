@@ -5,7 +5,6 @@
 module Wire.UserSubsystem.Interpreter
   ( runUserSubsystem,
     UserSubsystemConfig (..),
-    mkProfileUpdateEvent,
   )
 where
 
