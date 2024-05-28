@@ -32,7 +32,6 @@ import Data.Aeson (ToJSON)
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Char8 (unpack)
 import Data.Id
-import Data.Json.Util (fromUTCTimeMillis, readUTCTimeMillis)
 import Data.List1 qualified as List1
 import Data.Schema (ToSchema)
 import Data.Timeout (TimeoutUnit (Second), (#))
@@ -64,8 +63,6 @@ tests s =
               (wsConfig (defFeatureStatus @MlsE2EIdConfig))
               FeatureTTLUnlimited
           ),
-      test s "MlsMigration feature config" $
-        testNonTrivialConfigNoTTL defaultMlsMigrationConfig,
       testGroup
         "Patch"
         [ -- Note: `SSOConfig` and `LegalHoldConfig` may not be able to be reset
@@ -446,14 +443,3 @@ wsAssertFeatureConfigUpdate config lockStatus notification = do
   FeatureConfig._eventType e @?= FeatureConfig.Update
   FeatureConfig._eventFeatureName e @?= featureName @cfg
   FeatureConfig._eventData e @?= Aeson.toJSON (withLockStatus lockStatus config)
-
-defaultMlsMigrationConfig :: WithStatus MlsMigrationConfig
-defaultMlsMigrationConfig =
-  withStatus
-    FeatureStatusEnabled
-    LockStatusLocked
-    MlsMigrationConfig
-      { startTime = fmap fromUTCTimeMillis (readUTCTimeMillis "2029-05-16T10:11:12.123Z"),
-        finaliseRegardlessAfter = fmap fromUTCTimeMillis (readUTCTimeMillis "2029-10-17T00:00:00.000Z")
-      }
-    FeatureTTLUnlimited

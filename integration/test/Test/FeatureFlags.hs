@@ -637,6 +637,93 @@ testEnforceDownloadLocationInternal =
     (object ["status" .= "disabled", "config" .= object []])
     (object ["status" .= "enabled", "config" .= object ["enforcedDownloadLocation" .= object []]])
 
+testMlsMigration :: HasCallStack => App ()
+testMlsMigration = do
+  -- first we have to enable mls
+  (owner, tid, m : _) <- createTeam OwnDomain 2
+  assertSuccess =<< Public.setTeamFeatureConfig owner tid "mls" mlsEnableConfig
+  _testLockStatusWithConfigWithTeam
+    (owner, tid, m)
+    "mlsMigration"
+    Public.setTeamFeatureConfig
+    mlsMigrationDefaultConfig
+    mlsMigrationConfig1
+    mlsMigrationConfig2
+    mlsMigrationInvalidConfig
+
+testMlsMigrationInternal :: HasCallStack => App ()
+testMlsMigrationInternal = do
+  -- first we have to enable mls
+  (owner, tid, m : _) <- createTeam OwnDomain 2
+  assertSuccess =<< Public.setTeamFeatureConfig owner tid "mls" mlsEnableConfig
+  _testLockStatusWithConfigWithTeam
+    (owner, tid, m)
+    "mlsMigration"
+    Internal.setTeamFeatureConfig
+    mlsMigrationDefaultConfig
+    mlsMigrationConfig1
+    mlsMigrationConfig2
+    mlsMigrationInvalidConfig
+
+mlsEnableConfig :: Value
+mlsEnableConfig =
+  object
+    [ "status" .= "enabled",
+      "config"
+        .= object
+          [ "protocolToggleUsers" .= ([] :: [String]),
+            "defaultProtocol" .= "mls",
+            "supportedProtocols" .= ["mls"],
+            "allowedCipherSuites" .= ([1] :: [Int]),
+            "defaultCipherSuite" .= A.Number 1
+          ]
+    ]
+
+mlsMigrationDefaultConfig :: Value
+mlsMigrationDefaultConfig =
+  object
+    [ "lockStatus" .= "locked",
+      "status" .= "enabled",
+      "ttl" .= "unlimited",
+      "config"
+        .= object
+          [ "startTime" .= "2029-05-16T10:11:12.123Z",
+            "finaliseRegardlessAfter" .= "2029-10-17T00:00:00Z"
+          ]
+    ]
+
+mlsMigrationConfig1 :: Value
+mlsMigrationConfig1 =
+  object
+    [ "status" .= "enabled",
+      "config"
+        .= object
+          [ "startTime" .= "2029-05-16T10:11:12.123Z",
+            "finaliseRegardlessAfter" .= "2030-10-17T00:00:00Z"
+          ]
+    ]
+
+mlsMigrationConfig2 :: Value
+mlsMigrationConfig2 =
+  object
+    [ "status" .= "enabled",
+      "config"
+        .= object
+          [ "startTime" .= "2030-05-16T10:11:12.123Z",
+            "finaliseRegardlessAfter" .= "2031-10-17T00:00:00Z"
+          ]
+    ]
+
+mlsMigrationInvalidConfig :: Value
+mlsMigrationInvalidConfig =
+  object
+    [ "status" .= "enabled",
+      "config"
+        .= object
+          [ "startTime" .= A.Number 1
+          ]
+    ]
+
 _testLockStatusWithConfig ::
   HasCallStack =>
   String ->
@@ -651,6 +738,25 @@ _testLockStatusWithConfig ::
   Value ->
   App ()
 _testLockStatusWithConfig featureName setTeamFeatureConfig defaultFeatureConfig config1 config2 invalidConfig = do
+  (owner, tid, m : _) <- createTeam OwnDomain 2
+  _testLockStatusWithConfigWithTeam (owner, tid, m) featureName setTeamFeatureConfig defaultFeatureConfig config1 config2 invalidConfig
+
+_testLockStatusWithConfigWithTeam ::
+  HasCallStack =>
+  -- | (owner, tid, member)
+  (Value, String, Value) ->
+  String ->
+  (Value -> String -> String -> Value -> App Response) ->
+  -- | the default feature config (should include the lock status and ttl, as it is returned by the API)
+  Value ->
+  -- | a valid config used to update the feature setting (should not include the lock status and ttl, as these are not part of the request payload)
+  Value ->
+  -- | another valid config
+  Value ->
+  -- | an invalid config
+  Value ->
+  App ()
+_testLockStatusWithConfigWithTeam (owner, tid, m) featureName setTeamFeatureConfig defaultFeatureConfig config1 config2 invalidConfig = do
   -- personal user
   randomPersonalUser <- randomUser OwnDomain def
 
@@ -659,7 +765,6 @@ _testLockStatusWithConfig featureName setTeamFeatureConfig defaultFeatureConfig 
     resp.json %. featureName `shouldMatch` defaultFeatureConfig
 
   -- team user
-  (owner, tid, m : _) <- createTeam OwnDomain 2
   nonTeamMember <- randomUser OwnDomain def
   assertForbidden =<< Public.getTeamFeature nonTeamMember tid featureName
 
