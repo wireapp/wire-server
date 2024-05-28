@@ -108,13 +108,11 @@ testLHMessageExchange ::
   HasCallStack =>
   TaggedBool "clients1New" ->
   TaggedBool "clients2New" ->
-  TaggedBool "consentFrom1" ->
-  TaggedBool "consetnFrom2" ->
   App ()
-  -- We used to throw LegalholdConflictsOldClients if clients didn't have LH capability, but we
-  -- don't do that any more because that broke things.
-  -- Related: https://github.com/wireapp/wire-server/pull/4056
-testLHMessageExchange (TaggedBool clients1New) (TaggedBool clients2New) (TaggedBool consentFrom1) (TaggedBool consentFrom2) = do
+-- We used to throw LegalholdConflictsOldClients if clients didn't have LH capability, but we
+-- don't do that any more because that broke things.
+-- Related: https://github.com/wireapp/wire-server/pull/4056
+testLHMessageExchange (TaggedBool clients1New) (TaggedBool clients2New) = do
   withMockServer def lhMockApp $ \lhDomAndPort _chan -> do
     (owner, tid, [mem1, mem2]) <- createTeam OwnDomain 3
 
@@ -189,7 +187,7 @@ data LHApprovedOrPending
 -- | Cannot fetch prekeys of LH users if requester has not given consent or has old clients.
 testLHClaimKeys :: LHApprovedOrPending -> TestClaimKeys -> App ()
 testLHClaimKeys approvedOrPending testmode = do
-  withMockServer lhMockApp $ \lhDomAndPort _chan -> do
+  withMockServer def lhMockApp $ \lhDomAndPort _chan -> do
     (lowner, ltid, [lmem]) <- createTeam OwnDomain 2
     (powner, ptid, [pmem]) <- createTeam OwnDomain 2
 
@@ -616,7 +614,7 @@ testLHConnectionsWithNonConsentingUsers = do
   legalholdWhitelistTeam tid alice
     >>= assertStatus 200
 
-  withMockServer lhMockApp \lhDomAndPort _chan -> do
+  withMockServer def lhMockApp \lhDomAndPort _chan -> do
     postLegalHoldSettings tid alice (mkLegalHoldSettings lhDomAndPort)
       >>= assertStatus 201
 
@@ -677,7 +675,7 @@ testLHConnectionsWithConsentingUsers = do
   legalholdWhitelistTeam teamB bob
     >>= assertStatus 200
 
-  withMockServer lhMockApp \lhDomAndPort _chan -> do
+  withMockServer def lhMockApp \lhDomAndPort _chan -> do
     postLegalHoldSettings teamA alice (mkLegalHoldSettings lhDomAndPort)
       >>= assertStatus 201
 
@@ -879,7 +877,7 @@ testNoConsentCannotBeInvited = do
   connectUsers [peer, userLHNotActivated]
   connectUsers [peer2, userLHNotActivated]
 
-  withMockServer lhMockApp \lhDomAndPort _chan -> do
+  withMockServer def lhMockApp \lhDomAndPort _chan -> do
     postLegalHoldSettings tidLH legalholder (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
     cid <- postConversation userLHNotActivated defProteus {qualifiedUsers = [legalholder], newUsersRole = "wire_admin", team = Just tidLH} >>= getJSON 201
     addMembers userLHNotActivated cid (def {users = [peer], role = Just "wire_admin"}) >>= assertSuccess

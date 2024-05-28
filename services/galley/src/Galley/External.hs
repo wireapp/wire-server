@@ -128,7 +128,7 @@ deliver pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
 
 -- Internal -------------------------------------------------------------------
 
-deliver1 :: ToJSON Event => Service -> BotMember -> Event -> App ()
+deliver1 :: Service -> BotMember -> Event -> App ()
 deliver1 s bm e
   | s ^. serviceEnabled = do
       let t = toByteString' (s ^. serviceToken)
