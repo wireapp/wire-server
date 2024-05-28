@@ -93,12 +93,6 @@ spec = describe "UserSubsystem.Interpreter" do
 
         localDomain /= offlineDomain && not (null offlineTargetUsers) ==>
           -- The FederationError doesn't have an instance
-          -- The FederationError doesn't have an instance
-          -- The FederationError doesn't have an instance
-          -- The FederationError doesn't have an instance
-          -- for Eq because of dependency on HTTP2Error
-          -- for Eq because of dependency on HTTP2Error
-          -- for Eq because of dependency on HTTP2Error
           -- for Eq because of dependency on HTTP2Error
           first displayException result
             === Left (displayException (FederationUnexpectedError "RunFederatedEither"))
