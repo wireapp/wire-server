@@ -41,7 +41,7 @@ These flag are set on the backend and the clients do not need to be aware of the
 
 The flags will influence the behavior of the search API endpoint; clients will only need to parse the results, that are already filtered for them by the backend.
 
-Some configuration values superseed others. The table below clarifies how the various values interact with each other, highlighting the outcome of each search for the various combinations of values.
+Some configuration values supersede others. The table below clarifies how the various values interact with each other, highlighting the outcome of each search for the various combinations of values.
 
 ### Table of possible outcomes
 
