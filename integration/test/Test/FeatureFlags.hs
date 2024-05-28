@@ -730,6 +730,61 @@ mlsMigrationInvalidConfig =
           ]
     ]
 
+mlsE2EIdConfig :: App (Value, Value, Value, Value)
+mlsE2EIdConfig = do
+  cfg2 <-
+    mlsE2EIdConfig1
+      & setField "config.verificationExpiration" (A.Number 86401)
+      & setField "config.useProxyOnMobile" True
+  invalidConfig <- mlsE2EIdConfig2 & removeField "config.crlProxy"
+  pure (mlsE2EIdDefConfig, mlsE2EIdConfig1, cfg2, invalidConfig)
+  where
+    mlsE2EIdDefConfig :: Value
+    mlsE2EIdDefConfig =
+      object
+        [ "lockStatus" .= "unlocked",
+          "status" .= "disabled",
+          "ttl" .= "unlimited",
+          "config"
+            .= object
+              [ "verificationExpiration" .= A.Number 86400,
+                "useProxyOnMobile" .= False
+              ]
+        ]
+    mlsE2EIdConfig1 :: Value
+    mlsE2EIdConfig1 =
+      object
+        [ "status" .= "enabled",
+          "config"
+            .= object
+              [ "crlProxy" .= "https://example.com",
+                "verificationExpiration" .= A.Number 86400,
+                "useProxyOnMobile" .= False
+              ]
+        ]
+
+testMLSE2EId :: HasCallStack => App ()
+testMLSE2EId = do
+  (defCfg, cfg1, cfg2, invalidCfg) <- mlsE2EIdConfig
+  _testLockStatusWithConfig
+    "mlsE2EId"
+    Public.setTeamFeatureConfig
+    defCfg
+    cfg1
+    cfg2
+    invalidCfg
+
+testMLSE2EIdInternal :: HasCallStack => App ()
+testMLSE2EIdInternal = do
+  (defCfg, cfg1, cfg2, invalidCfg) <- mlsE2EIdConfig
+  _testLockStatusWithConfig
+    "mlsE2EId"
+    Internal.setTeamFeatureConfig
+    defCfg
+    cfg1
+    cfg2
+    invalidCfg
+
 _testLockStatusWithConfig ::
   HasCallStack =>
   String ->
