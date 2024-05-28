@@ -31,7 +31,6 @@ import Brig.API.MLS.KeyPackages.Validation
 import Brig.API.OAuth (internalOauthAPI)
 import Brig.API.Types
 import Brig.API.User qualified as API
-import Brig.API.Util
 import Brig.App
 import Brig.Code qualified as Code
 import Brig.Data.Activation
@@ -862,9 +861,8 @@ updateHandleH ::
   Handler r NoContent
 updateHandleH uid (HandleUpdate handleUpd) =
   NoContent <$ do
-    handle <- validateHandle handleUpd
     quid <- qualifyLocal uid
-    lift (liftSem $ UserSubsystem.updateUserProfile quid Nothing def {handle = Just $ allowScimUpdate handle}) !>> changeHandleError
+    lift . liftSem $ UserSubsystem.updateHandle quid AllowSCIMUpdates handleUpd
 
 updateUserNameH ::
   Member UserSubsystem r =>
@@ -875,9 +873,8 @@ updateUserNameH uid (NameUpdate nameUpd) =
   NoContent <$ do
     luid <- qualifyLocal uid
     name <- either (const $ throwStd (errorToWai @'E.InvalidUser)) pure $ mkName nameUpd
-    let uu = (def :: UserProfileUpdate) {name = Just (allowScimUpdate name)}
     lift (wrapClient $ Data.lookupUser WithPendingInvitations uid) >>= \case
-      Just _ -> lift . liftSem $ updateUserProfile luid Nothing uu
+      Just _ -> lift . liftSem $ updateUserProfile luid Nothing AllowSCIMUpdates (def {name = Just name})
       Nothing -> throwStd (errorToWai @'E.InvalidUser)
 
 checkHandleInternalH :: Member UserSubsystem r => Handle -> Handler r CheckHandleResponse

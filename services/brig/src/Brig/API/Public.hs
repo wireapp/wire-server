@@ -937,13 +937,13 @@ updateUser ::
 updateUser uid conn uu = do
   let update =
         def
-          { name = fmap forbidScimUpdate uu.uupName,
+          { name = uu.uupName,
             pict = uu.uupPict,
             assets = uu.uupAssets,
             accentId = uu.uupAccentId
           }
   lift . liftSem $
-    updateUserProfile uid (Just conn) update
+    updateUserProfile uid (Just conn) ForbidSCIMUpdates update
 
 changePhone ::
   ( Member BlacklistStore r,
@@ -1004,6 +1004,7 @@ changeLocale lusr conn l =
     updateUserProfile
       lusr
       (Just conn)
+      AllowSCIMUpdates
       def {locale = Just l.luLocale}
 
 changeSupportedProtocols ::
@@ -1054,8 +1055,7 @@ getHandleInfoUnqualifiedH self handle = do
 
 changeHandle :: (Member UserSubsystem r) => Local UserId -> ConnId -> Public.HandleUpdate -> Handler r ()
 changeHandle u conn (Public.HandleUpdate h) = lift $ liftSem do
-  handle <- UserSubsystem.parseHandle h
-  UserSubsystem.updateUserProfile u (Just conn) def {handle = Just (forbidScimUpdate handle)}
+  UserSubsystem.updateHandle u AllowSCIMUpdates h
 
 beginPasswordReset ::
   (Member PasswordResetStore r, Member TinyLog r) =>
