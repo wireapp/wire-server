@@ -37,16 +37,11 @@ getTeamFeature domain_ tid featureName = do
   req <- baseRequest domain_ Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", featureName]
   submit "GET" $ req
 
-setTeamFeatureStatus :: (HasCallStack, MakesValue domain, MakesValue team) => domain -> team -> String -> String -> App ()
+setTeamFeatureStatus :: (HasCallStack, MakesValue domain, MakesValue team) => domain -> team -> String -> String -> App Response
 setTeamFeatureStatus domain team featureName status = do
-  setTeamFeatureStatusExpectHttpStatus domain team featureName status 200
-
-setTeamFeatureStatusExpectHttpStatus :: (HasCallStack, MakesValue domain, MakesValue team) => domain -> team -> String -> String -> Int -> App ()
-setTeamFeatureStatusExpectHttpStatus domain team featureName status httpStatus = do
   tid <- asString team
   req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", featureName]
-  bindResponse (submit "PATCH" $ req & addJSONObject ["status" .= status]) $ \res -> do
-    res.status `shouldMatchInt` httpStatus
+  submit "PATCH" $ req & addJSONObject ["status" .= status]
 
 setTeamFeatureLockStatus :: (HasCallStack, MakesValue domain, MakesValue team) => domain -> team -> String -> String -> App ()
 setTeamFeatureLockStatus domain team featureName status = do
@@ -102,10 +97,23 @@ generateVerificationCode' domain email = do
   emailStr <- asString email
   submit "POST" $ req & addJSONObject ["email" .= emailStr, "action" .= "login"]
 
-setTeamFeatureConfig :: (HasCallStack, MakesValue domain, MakesValue team, MakesValue featureName, MakesValue payload) => Versioned -> domain -> team -> featureName -> payload -> App Response
-setTeamFeatureConfig versioned domain team featureName payload = do
+setTeamFeatureConfig :: (HasCallStack, MakesValue domain, MakesValue team, MakesValue featureName, MakesValue payload) => domain -> team -> featureName -> payload -> App Response
+setTeamFeatureConfig domain team featureName payload = do
   tid <- asString team
   fn <- asString featureName
   p <- make payload
-  req <- baseRequest domain Galley versioned $ joinHttpPath ["teams", tid, "features", fn]
+  req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", fn]
   submit "PUT" $ req & addJSON p
+
+-- https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/galley/#/galley/post_i_features_multi_teams_searchVisibilityInbound
+getFeatureStatusMulti :: (HasCallStack, MakesValue domain, MakesValue featureName) => domain -> featureName -> [String] -> App Response
+getFeatureStatusMulti domain featureName tids = do
+  fn <- asString featureName
+  req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "features-multi-teams", fn]
+  submit "POST" $ req & addJSONObject ["teams" .= tids]
+
+patchTeamFeature :: (HasCallStack, MakesValue domain, MakesValue team) => domain -> team -> String -> Value -> App Response
+patchTeamFeature domain team featureName payload = do
+  tid <- asString team
+  req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", featureName]
+  submit "PATCH" $ req & addJSON payload

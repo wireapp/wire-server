@@ -32,7 +32,6 @@ import API.MessageTimer qualified as MessageTimer
 import API.Roles qualified as Roles
 import API.SQS
 import API.Teams qualified as Teams
-import API.Teams.Feature qualified as TeamFeature
 import API.Teams.LegalHold qualified as Teams.LegalHold
 import API.Teams.LegalHold.DisabledByDefault qualified
 import API.Util
@@ -120,7 +119,6 @@ tests s =
       MessageTimer.tests s,
       Roles.tests s,
       CustomBackend.tests s,
-      TeamFeature.tests s,
       Federation.tests s,
       API.MLS.tests s
     ]

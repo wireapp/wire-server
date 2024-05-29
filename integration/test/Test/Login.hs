@@ -17,7 +17,7 @@ testLoginVerify6DigitEmailCodeSuccess = do
   (owner, team, []) <- createTeam OwnDomain 0
   email <- owner %. "email"
   setTeamFeatureLockStatus owner team "sndFactorPasswordChallenge" "unlocked"
-  setTeamFeatureStatus owner team "sndFactorPasswordChallenge" "enabled"
+  assertSuccess =<< setTeamFeatureStatus owner team "sndFactorPasswordChallenge" "enabled"
   generateVerificationCode owner email
   code <- getVerificationCode owner "login" >>= getJSON 200 >>= asString
   bindResponse (loginWith2ndFactor owner email defPassword code) $ \resp -> do
@@ -30,7 +30,7 @@ testLoginVerify6DigitWrongCodeFails = do
   (owner, team, []) <- createTeam OwnDomain 0
   email <- owner %. "email"
   setTeamFeatureLockStatus owner team "sndFactorPasswordChallenge" "unlocked"
-  setTeamFeatureStatus owner team "sndFactorPasswordChallenge" "enabled"
+  assertSuccess =<< setTeamFeatureStatus owner team "sndFactorPasswordChallenge" "enabled"
   generateVerificationCode owner email
   correctCode <- getVerificationCode owner "login" >>= getJSON 200 >>= asString
   let wrongCode :: String = printf "%06d" $ (read @Int correctCode) + 1 `mod` 1000000
@@ -45,7 +45,7 @@ testLoginVerify6DigitMissingCodeFails = do
   (owner, team, []) <- createTeam OwnDomain 0
   email <- owner %. "email"
   setTeamFeatureLockStatus owner team "sndFactorPasswordChallenge" "unlocked"
-  setTeamFeatureStatus owner team "sndFactorPasswordChallenge" "enabled"
+  assertSuccess =<< setTeamFeatureStatus owner team "sndFactorPasswordChallenge" "enabled"
   bindResponse (login owner email defPassword) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "code-authentication-required"
@@ -60,7 +60,7 @@ testLoginVerify6DigitExpiredCodeFails = do
       (owner, team, []) <- createTeam domain 0
       email <- owner %. "email"
       setTeamFeatureLockStatus owner team "sndFactorPasswordChallenge" "unlocked"
-      setTeamFeatureStatus owner team "sndFactorPasswordChallenge" "enabled"
+      assertSuccess =<< setTeamFeatureStatus owner team "sndFactorPasswordChallenge" "enabled"
       bindResponse (getTeamFeature owner team "sndFactorPasswordChallenge") $ \resp -> do
         resp.status `shouldMatchInt` 200
         resp.json %. "status" `shouldMatch` "enabled"
@@ -78,7 +78,7 @@ testLoginVerify6DigitResendCodeSuccessAndRateLimiting = do
   (owner, team, []) <- createTeam OwnDomain 0
   email <- owner %. "email"
   setTeamFeatureLockStatus owner team "sndFactorPasswordChallenge" "unlocked"
-  setTeamFeatureStatus owner team "sndFactorPasswordChallenge" "enabled"
+  assertSuccess =<< setTeamFeatureStatus owner team "sndFactorPasswordChallenge" "enabled"
   generateVerificationCode owner email
   fstCode <- getVerificationCode owner "login" >>= getJSON 200 >>= asString
   bindResponse (generateVerificationCode' owner email) $ \resp -> do
@@ -100,7 +100,7 @@ testLoginVerify6DigitLimitRetries = do
   (owner, team, []) <- createTeam OwnDomain 0
   email <- owner %. "email"
   setTeamFeatureLockStatus owner team "sndFactorPasswordChallenge" "unlocked"
-  setTeamFeatureStatus owner team "sndFactorPasswordChallenge" "enabled"
+  assertSuccess =<< setTeamFeatureStatus owner team "sndFactorPasswordChallenge" "enabled"
   generateVerificationCode owner email
   correctCode <- getVerificationCode owner "login" >>= getJSON 200 >>= asString
   let wrongCode :: String = printf "%06d" $ (read @Int correctCode) + 1 `mod` 1000000

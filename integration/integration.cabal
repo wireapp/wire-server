@@ -122,6 +122,7 @@ library
     Test.Errors
     Test.ExternalPartner
     Test.FeatureFlags
+    Test.FeatureFlags.Util
     Test.Federation
     Test.Federator
     Test.LegalHold
