@@ -357,37 +357,25 @@ spec = describe "UserSubsystem.Interpreter" do
               localBackend = def {users = [storedUser]}
            in updateResult === Left UserSubsystemInvalidHandle
 
-    it "read / update supported-protocols" $ do
-      -- TODO: use prop after all and scale down the reruns?
-      storedUser <- generate arbitrary
-      config <- generate arbitrary
+    prop "update / read supported-protocols" \(storedUser, config, newSupportedProtocols) ->
+      not (hasPendingInvitation storedUser) ==>
+        let luid :: Local UserId
+            luid = toLocalUnsafe dom storedUser.id
+              where
+                dom = Domain "localdomain"
 
-      let luid :: Local UserId
-          luid = toLocalUnsafe dom storedUser.id
-            where
-              dom = Domain "localdomain"
+            operation :: Monad m => Sem (GetUserProfileEffects `Append` AllErrors) a -> m a
+            operation op = result `seq` pure result
+              where
+                result = runNoFederationStack localBackend Nothing config op
+                localBackend = def {users = [storedUser]}
 
-          beforeProtocols :: Set BaseProtocolTag
-          beforeProtocols = case storedUser.supportedProtocols of
-            Nothing -> defSupportedProtocols
-            Just ps -> if S.null ps then defSupportedProtocols else ps
+            actualSupportedProtocols = runIdentity $ operation do
+              () <- updateUserProfile luid Nothing ForbidSCIMUpdates (def {supportedProtocols = Just newSupportedProtocols})
+              profileSupportedProtocols . fromJust <$> getUserProfile luid (tUntagged luid)
 
-          afterProtocols :: Set BaseProtocolTag
-          afterProtocols = (S.fromList . ([minBound ..] \\) . S.toList) beforeProtocols
-
-          operation :: Monad m => Sem (GetUserProfileEffects `Append` AllErrors) a -> m a
-          operation op = result `seq` pure result
-            where
-              result = runNoFederationStack localBackend Nothing config op
-              localBackend = def {users = [storedUser]}
-
-      beforeProtocols `shouldNotBe` afterProtocols
-
-      (beforeOp, afterOp) <- operation do
-        beforeOp <- getUserProfile luid (tUntagged luid)
-        () <- updateUserProfile luid Nothing ForbidSCIMUpdates (def {supportedProtocols = Just afterProtocols})
-        afterOp <- getUserProfile luid (tUntagged luid)
-        pure (beforeOp, afterOp)
-
-      (profileSupportedProtocols <$> beforeOp, profileSupportedProtocols <$> afterOp)
-        `shouldBe` (Just beforeProtocols, Just afterProtocols)
+            expectedSupportedProtocols =
+              if S.null newSupportedProtocols
+                then defSupportedProtocols
+                else newSupportedProtocols
+         in actualSupportedProtocols === expectedSupportedProtocols
