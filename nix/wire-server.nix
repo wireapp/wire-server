@@ -128,19 +128,19 @@ let
       bench = _: drv:
         hlib.doBenchmark drv;
 
-      maintainer = _: drv: 
-      drv.overrideAttrs (old: {
+      maintainer = _: drv:
+        drv.overrideAttrs (old: {
 
-        meta = old.meta or {} // {
-          homepage = "https://github.com/wireapp";
-          maintainers = [{
-            name = "wireapp";
-            email = "backend@wire.com";
-            github = "wireapp";
-            githubId = 16047324;
-          }];
-        }; 
-      });
+          meta = old.meta or { } // {
+            homepage = "https://github.com/wireapp";
+            maintainers = [{
+              name = "wireapp";
+              email = "backend@wire.com";
+              github = "wireapp";
+              githubId = 16047324;
+            }];
+          };
+        });
 
       overrideAll = fn: overrides:
         attrsets.mapAttrs fn overrides;
