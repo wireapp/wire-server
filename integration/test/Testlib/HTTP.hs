@@ -103,6 +103,10 @@ getJSON status resp = withResponse resp $ \r -> do
 assertSuccess :: HasCallStack => Response -> App ()
 assertSuccess resp = withResponse resp $ \r -> r.status `shouldMatchRange` (200, 299)
 
+-- | assert a response status code
+assertStatus :: HasCallStack => Int -> Response -> App ()
+assertStatus status = flip withResponse \resp -> resp.status `shouldMatchInt` status
+
 onFailureAddResponse :: HasCallStack => Response -> App a -> App a
 onFailureAddResponse r m = App $ do
   e <- ask
