@@ -22,7 +22,7 @@ import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
 import Wire.API.Federation.Error
-import Wire.API.Team.Feature (AllFeatureConfigs (afcMlsE2EId), FeatureStatus (..), defFeatureStatus, setStatus)
+import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
 import Wire.API.User hiding (DeleteUser)
@@ -217,6 +217,19 @@ spec = describe "UserSubsystem.Interpreter" do
             runNoFederationStack localBackend Nothing config $
               getSelfProfile (toLocalUnsafe domain selfId)
        in retrievedProfile === Nothing
+
+    prop "should mark user as managed by scim if E2EId is enabled for the user and they have a handle" \storedSelf domain susbsystemConfig mlsE2EIdConfig ->
+      let localBackend = def {users = [storedSelf]}
+          allFeatureConfigs = def {afcMlsE2EId = withStatus FeatureStatusEnabled LockStatusUnlocked mlsE2EIdConfig FeatureTTLUnlimited}
+          SelfProfile retrievedUser =
+            fromJust
+              . runAllErrorsUnsafe
+              . interpretNoFederationStack localBackend Nothing allFeatureConfigs susbsystemConfig
+              $ getSelfProfile (toLocalUnsafe domain storedSelf.id)
+          expectedManagedBy = case storedSelf.handle of
+            Nothing -> fromMaybe ManagedByWire storedSelf.managedBy
+            Just _ -> ManagedByScim
+       in retrievedUser.userManagedBy === expectedManagedBy
 
   describe "updateUserProfile" $ do
     prop "Update user" $

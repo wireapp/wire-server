@@ -26,7 +26,7 @@ import Servant.Client.Core
 import Wire.API.Federation.API
 import Wire.API.Federation.Error
 import Wire.API.Team.Feature
-import Wire.API.Team.Member
+import Wire.API.Team.Member hiding (userId)
 import Wire.API.User
 import Wire.API.UserEvent
 import Wire.Arbitrary
@@ -232,13 +232,38 @@ getLocalUserProfileImpl emailVisibilityConfigWithViewer luid = do
 
 getSelfProfileImpl ::
   ( Member (Input UserSubsystemConfig) r,
-    Member UserStore r
+    Member UserStore r,
+    Member GalleyAPIAccess r
   ) =>
   Local UserId ->
   Sem r (Maybe SelfProfile)
 getSelfProfileImpl self = do
   defLocale <- inputs defaultLocale
-  SelfProfile . mkUserFromStored (tDomain self) defLocale <$$> getUser (tUnqualified self)
+  mStoredUser <- getUser (tUnqualified self)
+  let mUser = mkUserFromStored (tDomain self) defLocale <$> mStoredUser
+  mHackedUser <- traverse hackForBlockingHandleChangeForE2EIdTeams mUser
+  pure (SelfProfile <$> mHackedUser)
+  where
+    userUnderE2EId :: Member GalleyAPIAccess r => UserId -> Sem r Bool
+    userUnderE2EId uid = do
+      wsStatus . afcMlsE2EId <$> getAllFeatureConfigsForUser (Just uid) <&> \case
+        FeatureStatusEnabled -> True
+        FeatureStatusDisabled -> False
+
+    -- \| This is a hack!
+    --
+    -- Background:
+    -- - https://wearezeta.atlassian.net/browse/WPB-6189.
+    -- - comments in `testUpdateHandle` in `/integration`.
+    --
+    -- FUTUREWORK: figure out a better way for clients to detect E2EId (V6?)
+    hackForBlockingHandleChangeForE2EIdTeams :: Member GalleyAPIAccess r => User -> Sem r User
+    hackForBlockingHandleChangeForE2EIdTeams user = do
+      hasE2EId <- userUnderE2EId (userId user)
+      pure $
+        if (hasE2EId && isJust (userHandle user))
+          then user {userManagedBy = ManagedByScim}
+          else user
 
 -- | ephemeral users past their expiry date are queued for deletion
 deleteLocalIfExpired :: forall r. (Member DeleteQueue r, Member Now r) => User -> Sem r ()

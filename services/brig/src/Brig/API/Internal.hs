@@ -691,7 +691,8 @@ revokeIdentityH ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSubsystem r
   ) =>
   Maybe Email ->
   Maybe Phone ->

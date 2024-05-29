@@ -85,10 +85,12 @@ import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.UserSubsystem
 
 servantAPI ::
   ( Member BlacklistStore r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member UserSubsystem r
   ) =>
   ServerT TeamsAPI (Handler r)
 servantAPI =
@@ -115,7 +117,8 @@ getInvitationCode t r = do
 
 createInvitationPublicH ::
   ( Member BlacklistStore r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member UserSubsystem r
   ) =>
   UserId ->
   TeamId ->
@@ -137,7 +140,8 @@ data CreateInvitationInviter = CreateInvitationInviter
 
 createInvitationPublic ::
   ( Member BlacklistStore r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member UserSubsystem r
   ) =>
   UserId ->
   TeamId ->

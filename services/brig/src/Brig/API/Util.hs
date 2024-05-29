@@ -18,7 +18,6 @@
 module Brig.API.Util
   ( fetchUserIdentity,
     lookupProfilesMaybeFilterSameTeamOnly,
-    lookupSelfProfile,
     logInvitationCode,
     validateHandle,
     logEmail,
@@ -61,6 +60,7 @@ import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.User
 import Wire.Sem.Concurrency qualified as C
+import Wire.UserSubsystem
 
 lookupProfilesMaybeFilterSameTeamOnly :: UserId -> [UserProfile] -> (Handler r) [UserProfile]
 lookupProfilesMaybeFilterSameTeamOnly self us = do
@@ -69,18 +69,13 @@ lookupProfilesMaybeFilterSameTeamOnly self us = do
     Just team -> filter (\x -> profileTeam x == Just team) us
     Nothing -> us
 
-fetchUserIdentity :: UserId -> (AppT r) (Maybe UserIdentity)
-fetchUserIdentity uid =
-  lookupSelfProfile uid
+fetchUserIdentity :: Member UserSubsystem r => UserId -> AppT r (Maybe UserIdentity)
+fetchUserIdentity uid = do
+  luid <- qualifyLocal uid
+  liftSem (getSelfProfile luid)
     >>= maybe
       (throwM $ UserProfileNotFound uid)
       (pure . userIdentity . selfUser)
-
--- | Obtain a profile for a user as he can see himself.
-lookupSelfProfile :: UserId -> AppT r (Maybe SelfProfile)
-lookupSelfProfile = fmap (fmap mk) . wrapClient . Data.lookupAccount
-  where
-    mk a = SelfProfile (accountUser a)
 
 validateHandle :: Text -> (Handler r) Handle
 validateHandle = maybe (throwStd (errorToWai @'InvalidHandle)) pure . parseHandle

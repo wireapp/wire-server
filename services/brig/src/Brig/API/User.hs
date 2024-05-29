@@ -86,7 +86,6 @@ module Brig.API.User
 
     -- * Utilities
     fetchUserIdentity,
-    hackForBlockingHandleChangeForE2EIdTeams,
   )
 where
 
@@ -735,7 +734,8 @@ removeEmail ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSubsystem r
   ) =>
   UserId ->
   ConnId ->
@@ -759,7 +759,8 @@ removePhone ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSubsystem r
   ) =>
   UserId ->
   ConnId ->
@@ -788,7 +789,8 @@ revokeIdentity ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSubsystem r
   ) =>
   Either Email Phone ->
   AppT r ()
@@ -1483,24 +1485,3 @@ phonePrefixDelete = liftSem . BlacklistPhonePrefixStore.delete
 
 phonePrefixInsert :: Member BlacklistPhonePrefixStore r => ExcludedPrefix -> (AppT r) ()
 phonePrefixInsert = liftSem . BlacklistPhonePrefixStore.insert
-
-userUnderE2EId :: Member GalleyAPIAccess r => UserId -> Sem r Bool
-userUnderE2EId uid = do
-  wsStatus . afcMlsE2EId <$> getAllFeatureConfigsForUser (Just uid) <&> \case
-    FeatureStatusEnabled -> True
-    FeatureStatusDisabled -> False
-
--- | This is a hack!
---
--- Background:
--- - https://wearezeta.atlassian.net/browse/WPB-6189.
--- - comments in `testUpdateHandle` in `/integration`.
---
--- FUTUREWORK: figure out a better way for clients to detect E2EId (V6?)
-hackForBlockingHandleChangeForE2EIdTeams :: Member GalleyAPIAccess r => SelfProfile -> Sem r SelfProfile
-hackForBlockingHandleChangeForE2EIdTeams (SelfProfile user) = do
-  hasE2EId <- userUnderE2EId . userId $ user
-  pure . SelfProfile $
-    if (hasE2EId && isJust (userHandle user))
-      then user {userManagedBy = ManagedByScim}
-      else user

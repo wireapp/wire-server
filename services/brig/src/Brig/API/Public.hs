@@ -37,7 +37,6 @@ import Brig.API.Public.Swagger
 import Brig.API.Types
 import Brig.API.User qualified as API
 import Brig.API.Util
-import Brig.API.Util qualified as API
 import Brig.App
 import Brig.Calling.API qualified as Calling
 import Brig.Code qualified as Code
@@ -813,11 +812,10 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
       Public.NewTeamMemberSSO _ ->
         Team.sendMemberWelcomeMail e t n l
 
-getSelf :: Member GalleyAPIAccess r => UserId -> (Handler r) Public.SelfProfile
+getSelf :: Member UserSubsystem r => Local UserId -> Handler r Public.SelfProfile
 getSelf self =
-  lift (API.lookupSelfProfile self)
+  lift (liftSem (getSelfProfile self))
     >>= ifNothing (errorToWai @'E.UserNotFound)
-    >>= lift . liftSem . API.hackForBlockingHandleChangeForE2EIdTeams
 
 getUserProfileH ::
   (Member UserSubsystem r) =>
@@ -965,7 +963,8 @@ removePhone ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSubsystem r
   ) =>
   UserId ->
   ConnId ->
@@ -979,7 +978,8 @@ removeEmail ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSubsystem r
   ) =>
   UserId ->
   ConnId ->

@@ -297,7 +297,7 @@ type SelfAPI =
     "get-self"
     ( Summary "Get your own profile"
         :> DescriptionOAuthScope 'ReadSelf
-        :> ZUser
+        :> ZLocalUser
         :> "self"
         :> Get '[JSON] SelfProfile
     )

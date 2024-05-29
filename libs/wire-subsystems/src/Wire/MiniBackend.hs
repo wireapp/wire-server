@@ -7,6 +7,7 @@ module Wire.MiniBackend
     runFederationStack,
     interpretNoFederationStack,
     runNoFederationStack,
+    runAllErrorsUnsafe,
     runErrorUnsafe,
     miniLocale,
 
