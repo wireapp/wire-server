@@ -127,8 +127,9 @@ mockInternalRequest ::
   Component ->
   RPC ->
   Wai.Request ->
-  Sem r Wai.Response
-mockInternalRequest remoteCalls mock targetDomain component (RPC path) req = do
+  (Wai.Response -> IO Wai.ResponseReceived) ->
+  Sem r Wai.ResponseReceived
+mockInternalRequest remoteCalls mock targetDomain component (RPC path) req cont = do
   domainTxt <- note NoOriginDomain $ lookup originDomainHeaderName (Wai.requestHeaders req)
   originDomain <- parseDomain domainTxt
   reqBody <- embed $ Wai.lazyRequestBody req
@@ -150,7 +151,7 @@ mockInternalRequest remoteCalls mock targetDomain component (RPC path) req = do
           . handle (throw . handleException)
           $ mock.handler fedRequest
   let headers = ("Content-Type", HTTP.renderHeader ct) : mock.headers
-  pure $ Wai.responseLBS HTTP.status200 headers resBody
+  embed . cont $ Wai.responseLBS HTTP.status200 headers resBody
   where
     handleException :: SomeException -> MockException
     handleException e = case Exception.fromException e of

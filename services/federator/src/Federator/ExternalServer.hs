@@ -54,7 +54,7 @@ import Polysemy.TinyLog qualified as Log
 import Servant qualified
 import Servant.API
 import Servant.API.Extended.Endpath
-import Servant.API.Extended.Raw
+import Servant.API.Extended.RawM
 import Servant.Client.Core
 import Servant.Server.Generic (AsServerT)
 import System.Logger.Message qualified as Log
@@ -88,11 +88,9 @@ data API mode = API
           :> Header' '[Required, Strict] OriginDomainHeaderName Domain
           :> Header' '[Required, Strict] "X-SSL-Certificate" CertHeader
           :> Endpath
-          -- We need to use 'RawRequest' and 'RawResponse' so we can stream
-          -- request body regardless of content-type and send a response with
-          -- arbitrary content-type.
-          :> RawRequest
-          :> RawResponse
+          -- We need to use 'RawM' so we can stream request body regardless of
+          -- content-type and send a response with arbitrary content-type.
+          :> RawM
   }
   deriving (Generic)
 
@@ -134,8 +132,9 @@ callInward ::
   Domain ->
   CertHeader ->
   Wai.Request ->
-  Sem r Wai.Response
-callInward component (RPC rpc) originDomain (CertHeader cert) wreq = do
+  (Wai.Response -> IO Wai.ResponseReceived) ->
+  Sem r Wai.ResponseReceived
+callInward component (RPC rpc) originDomain (CertHeader cert) wreq cont = do
   incomingCounterIncr originDomain
   -- only POST is supported
   when (Wai.requestMethod wreq /= HTTP.methodPost) $
@@ -161,7 +160,7 @@ callInward component (RPC rpc) originDomain (CertHeader cert) wreq = do
   Log.debug $
     Log.msg ("Inward Request response" :: ByteString)
       . Log.field "status" (show (responseStatusCode resp))
-  pure $
+  embed . cont $
     streamingResponseToWai
       resp
         { responseHeaders =

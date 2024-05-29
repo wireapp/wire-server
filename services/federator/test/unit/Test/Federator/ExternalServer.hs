@@ -136,7 +136,8 @@ requestBrigSuccess =
           OutgoingCounterIncr _ -> embed @IO $ assertFailure "Should not increment outgoing counter"
           IncomingCounterIncr od -> embed @IO $ od @?= aValidDomain
 
-    (actualCalls, res) <-
+    resRef <- newIORef Nothing
+    (actualCalls, _) <-
       runM
         . assertMetrics
         . runOutputList
@@ -148,7 +149,9 @@ requestBrigSuccess =
         . mockDiscoveryTrivial
         . runInputConst noClientCertSettings
         . runInputConst scaffoldingFederationDomainConfigs
-        $ callInward Brig (RPC "get-user-by-handle") aValidDomain (CertHeader cert) request
+        $ callInward Brig (RPC "get-user-by-handle") aValidDomain (CertHeader cert) request (saveResponse resRef)
+
+    Just res <- readIORef resRef
     let expectedCall = Call Brig "/federation/get-user-by-handle" [("X-Wire-API-Version", "v0")] "\"foo\"" aValidDomain
     assertEqual "one call to brig should be made" [expectedCall] actualCalls
     Wai.responseStatus res @?= HTTP.status200
@@ -164,7 +167,8 @@ requestBrigFailure =
         "/federation/brig/get-user-by-handle"
     Right cert <- decodeCertificate <$> BS.readFile "test/resources/unit/localhost.example.com.pem"
 
-    (actualCalls, res) <-
+    resRef <- newIORef Nothing
+    (actualCalls, _) <-
       runM
         . interpretMetricsEmpty
         . runOutputList
@@ -176,8 +180,9 @@ requestBrigFailure =
         . mockDiscoveryTrivial
         . runInputConst noClientCertSettings
         . runInputConst scaffoldingFederationDomainConfigs
-        $ callInward Brig (RPC "get-user-by-handle") aValidDomain (CertHeader cert) request
+        $ callInward Brig (RPC "get-user-by-handle") aValidDomain (CertHeader cert) request (saveResponse resRef)
 
+    Just res <- readIORef resRef
     let expectedCall = Call Brig "/federation/get-user-by-handle" [] "\"foo\"" aValidDomain
     assertEqual "one call to brig should be made" [expectedCall] actualCalls
     Wai.responseStatus res @?= HTTP.notFound404
@@ -194,24 +199,27 @@ requestGalleySuccess =
 
     Right cert <- decodeCertificate <$> BS.readFile "test/resources/unit/localhost.example.com.pem"
 
-    runM $ do
-      (actualCalls, res) <-
-        runOutputList
-          . interpretMetricsEmpty
-          . mockService HTTP.ok200
-          . assertNoError @ValidationError
-          . assertNoError @DiscoveryFailure
-          . assertNoError @ServerError
-          . discardTinyLogs
-          . mockDiscoveryTrivial
-          . runInputConst noClientCertSettings
-          . runInputConst scaffoldingFederationDomainConfigs
-          $ callInward Galley (RPC "get-conversations") aValidDomain (CertHeader cert) request
-      let expectedCall = Call Galley "/federation/get-conversations" [] "\"foo\"" aValidDomain
-      embed $ assertEqual "one call to galley should be made" [expectedCall] actualCalls
-      embed $ Wai.responseStatus res @?= HTTP.status200
-      body <- embed $ Wai.lazyResponseBody res
-      embed $ body @?= "\"bar\""
+    resRef <- newIORef Nothing
+    (actualCalls, _) <-
+      runM
+        . runOutputList
+        . interpretMetricsEmpty
+        . mockService HTTP.ok200
+        . assertNoError @ValidationError
+        . assertNoError @DiscoveryFailure
+        . assertNoError @ServerError
+        . discardTinyLogs
+        . mockDiscoveryTrivial
+        . runInputConst noClientCertSettings
+        . runInputConst scaffoldingFederationDomainConfigs
+        $ callInward Galley (RPC "get-conversations") aValidDomain (CertHeader cert) request (saveResponse resRef)
+
+    Just res <- readIORef resRef
+    let expectedCall = Call Galley "/federation/get-conversations" [] "\"foo\"" aValidDomain
+    assertEqual "one call to galley should be made" [expectedCall] actualCalls
+    Wai.responseStatus res @?= HTTP.status200
+    body <- Wai.lazyResponseBody res
+    body @?= "\"bar\""
 
 requestNoDomain :: TestTree
 requestNoDomain =
@@ -368,6 +376,9 @@ testInterpreter serviceCallsRef =
     . runInputConst noClientCertSettings
     . runInputConst scaffoldingFederationDomainConfigs
     . interpretMetricsEmpty
+
+saveResponse :: IORef (Maybe Wai.Response) -> Wai.Response -> IO Wai.ResponseReceived
+saveResponse ref res = writeIORef ref (Just res) $> Wai.ResponseReceived
 
 exampleDomain :: Text
 exampleDomain = "localhost.example.com"

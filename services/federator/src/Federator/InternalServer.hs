@@ -42,7 +42,7 @@ import Polysemy.TinyLog
 import Servant qualified
 import Servant.API
 import Servant.API.Extended.Endpath
-import Servant.API.Extended.Raw
+import Servant.API.Extended.RawM
 import Servant.Server.Generic
 import System.Logger.Class qualified as Log
 import Wire.API.Federation.Component
@@ -64,11 +64,9 @@ data API mode = API
           :> Capture "component" Component
           :> Capture "rpc" RPC
           :> Endpath
-          -- We need to use 'RawRequest' and 'RawResponse' so we can stream
-          -- request body regardless of content-type and send a response with
-          -- arbitrary content-type.
-          :> RawRequest
-          :> RawResponse
+          -- We need to use 'RawM' so we can stream request body regardless of
+          -- content-type and send a response with arbitrary content-type.
+          :> RawM
   }
   deriving (Generic)
 
@@ -104,8 +102,9 @@ callOutward ::
   Component ->
   RPC ->
   Wai.Request ->
-  Sem r Wai.Response
-callOutward targetDomain component (RPC path) req = do
+  (Wai.Response -> IO Wai.ResponseReceived) ->
+  Sem r Wai.ResponseReceived
+callOutward targetDomain component (RPC path) req cont = do
   -- only POST is supported
   when (Wai.requestMethod req /= HTTP.methodPost) $
     throw InvalidRoute
@@ -128,7 +127,7 @@ callOutward targetDomain component (RPC path) req = do
       path
       (Wai.requestHeaders req)
       (fromLazyByteString body)
-  pure $ streamingResponseToWai resp
+  embed . cont $ streamingResponseToWai resp
 
 serveOutward :: Env -> Int -> IO ()
 serveOutward env port = do

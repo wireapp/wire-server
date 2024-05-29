@@ -32,6 +32,7 @@ import Federator.Validation
 import Imports
 import Network.HTTP.Types qualified as HTTP
 import Network.Wai qualified as Wai
+import Network.Wai.Internal qualified as Wai
 import Network.Wai.Utilities.Server (federationRequestIdHeaderName)
 import Network.Wai.Utilities.Server qualified as Wai
 import Polysemy
@@ -94,7 +95,9 @@ federatedRequestSuccess =
           OutgoingCounterIncr td -> embed @IO $ td @?= targetDomain
           IncomingCounterIncr _ -> embed @IO $ assertFailure "Should not increment incoming counter"
 
-    res <-
+    resRef <- newIORef Nothing
+    let saveResponse res = writeIORef resRef (Just res) $> Wai.ResponseReceived
+    _ <-
       runM
         . verifyCallAndRespond
         . assertNoError @ValidationError
@@ -103,7 +106,8 @@ federatedRequestSuccess =
         . runInputConst settings
         . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig (Domain "target.example.com") FullSearch FederationRestrictionAllowAll] 10)
         . assertMetrics
-        $ callOutward targetDomain Brig (RPC "get-user-by-handle") request
+        $ callOutward targetDomain Brig (RPC "get-user-by-handle") request saveResponse
+    Just res <- readIORef resRef
     Wai.responseStatus res @?= HTTP.status200
     body <- Wai.lazyResponseBody res
     body @?= "\"bar\""
@@ -148,5 +152,5 @@ federatedRequestFailureAllowList =
         . runInputConst settings
         . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig (Domain "hello.world") FullSearch FederationRestrictionAllowAll] 10)
         . interpretMetricsEmpty
-        $ callOutward targetDomain Brig (RPC "get-user-by-handle") request
+        $ callOutward targetDomain Brig (RPC "get-user-by-handle") request undefined
     eith @?= Left (FederationDenied targetDomain)
