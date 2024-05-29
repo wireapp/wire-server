@@ -284,51 +284,57 @@ spec = describe "UserSubsystem.Interpreter" do
 
     prop
       "CheckHandles returns available handles from a list of handles, up to X"
-      \((storedUsersAndHandles :: [(StoredUser, Handle)], handles :: Set Handle), maxCount :: Word, config) ->
-        let availables = runNoFederationStack localBackend Nothing config do
-              checkHandles (S.toList handles) maxCount
-            notAvailables = runNoFederationStack localBackend Nothing config do
-              checkHandles (mapMaybe ((.handle)) users) maxCount
+      \((storedUsersAndHandles :: [(StoredUser, Handle)], randomHandles :: Set Handle), maxCount :: Word, config) ->
+        let users = (\(u, h) -> u {handle = Just h, managedBy = Just ManagedByWire}) <$> storedUsersAndHandles
             localBackend = def {users = users}
-            users = (\(u, h) -> u {handle = Just h, managedBy = Just ManagedByWire}) <$> storedUsersAndHandles
-         in notAvailables === []
-              .&&. (length availables <= fromIntegral maxCount) === True -- TODO: add a better assertion here
-              .&&. ((S.fromList availables) `S.isSubsetOf` handles) === True
+
+            runCheckHandles :: [Handle] -> [Handle]
+            runCheckHandles handles = runNoFederationStack localBackend Nothing config do
+              checkHandles handles maxCount
+
+            takenHandles = snd <$> storedUsersAndHandles
+            freeHandles = runCheckHandles (S.toList randomHandles)
+         in runCheckHandles takenHandles === []
+              .&&. freeHandles `intersect` takenHandles === mempty
+              .&&. counterexample (show (freeHandles, maxCount)) (length freeHandles <= fromIntegral maxCount)
+              .&&. counterexample (show (freeHandles, randomHandles)) ((S.fromList freeHandles) `S.isSubsetOf` randomHandles)
 
     describe "Scim+UpdateProfileUpdate" do
       prop
         "Updating handles fails when ForbidSCIMUpdates"
         \(alice, Handle newHandle, domain, config) ->
-          let res :: Either UserSubsystemError ()
-              res = run
-                . runErrorUnsafe
-                . runError
-                $ interpretNoFederationStack localBackend Nothing def config do
-                  updateHandle (toLocalUnsafe domain alice.id) Nothing ForbidSCIMUpdates newHandle
+          not (isBlacklistedHandle (Handle newHandle)) ==>
+            let res :: Either UserSubsystemError ()
+                res = run
+                  . runErrorUnsafe
+                  . runError
+                  $ interpretNoFederationStack localBackend Nothing def config do
+                    updateHandle (toLocalUnsafe domain alice.id) Nothing ForbidSCIMUpdates newHandle
 
-              localBackend = def {users = [alice {managedBy = Just ManagedByScim}]}
-           in res === Left UserSubsystemHandleManagedByScim
+                localBackend = def {users = [alice {managedBy = Just ManagedByScim}]}
+             in res === Left UserSubsystemHandleManagedByScim
 
       prop
         "Updating handles succeeds when AllowSCIMUpdates"
         \(alice, ssoId, email :: Maybe Email, Handle newHandle, domain, config) ->
-          let res :: Either UserSubsystemError () = run
-                . runErrorUnsafe
-                . runError
-                $ interpretNoFederationStack localBackend Nothing def config do
-                  updateHandle (toLocalUnsafe domain alice.id) Nothing AllowSCIMUpdates newHandle
-              localBackend =
-                def
-                  { users =
-                      [ alice
-                          { managedBy = Just ManagedByScim,
-                            email = email,
-                            ssoId = Just ssoId,
-                            activated = True
-                          }
-                      ]
-                  }
-           in res === Right ()
+          not (isBlacklistedHandle (Handle newHandle)) ==>
+            let res :: Either UserSubsystemError () = run
+                  . runErrorUnsafe
+                  . runError
+                  $ interpretNoFederationStack localBackend Nothing def config do
+                    updateHandle (toLocalUnsafe domain alice.id) Nothing AllowSCIMUpdates newHandle
+                localBackend =
+                  def
+                    { users =
+                        [ alice
+                            { managedBy = Just ManagedByScim,
+                              email = email,
+                              ssoId = Just ssoId,
+                              activated = True
+                            }
+                        ]
+                    }
+             in res === Right ()
 
     prop
       "update valid handles succeeds"
