@@ -35,21 +35,21 @@ checkFeature :: (HasCallStack, MakesValue user, MakesValue tid) => String -> use
 checkFeature = checkFeatureWith shouldMatch
 
 checkFeatureWith :: (HasCallStack, MakesValue user, MakesValue tid, MakesValue expected) => (App Value -> expected -> App ()) -> String -> user -> tid -> expected -> App ()
-checkFeatureWith shouldMatchStatus feature user tid expected = do
+checkFeatureWith shouldMatch' feature user tid expected = do
   tidStr <- asString tid
   domain <- objDomain user
   bindResponse (Internal.getTeamFeature domain tidStr feature) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    resp.json `shouldMatchStatus` expected
+    resp.json `shouldMatch'` expected
   bindResponse (Public.getTeamFeatures user tid) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    resp.json %. feature `shouldMatchStatus` expected
+    resp.json %. feature `shouldMatch'` expected
   bindResponse (Public.getTeamFeature user tid feature) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    resp.json `shouldMatchStatus` expected
+    resp.json `shouldMatch'` expected
   bindResponse (Public.getFeatureConfigs user) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    resp.json %. feature `shouldMatchStatus` expected
+    resp.json %. feature `shouldMatch'` expected
 
 checkFeatureLenientTtl :: (HasCallStack, MakesValue user, MakesValue tid) => String -> user -> tid -> Value -> App ()
 checkFeatureLenientTtl = checkFeatureWith shouldMatchLenientTtl

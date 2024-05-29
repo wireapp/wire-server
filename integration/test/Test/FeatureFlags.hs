@@ -937,6 +937,9 @@ _testSimpleFlagTTLOverride featureName enabledByDefault mTtl mTtlAfter = do
       -- value reverts back
       checkFeatureLenientTtl featureName owner tid defFeatureStatus
 
+--------------------------------------------------------------------------------
+-- Simple flags with implicit lock status
+
 testPatchSearchVisibility :: HasCallStack => App ()
 testPatchSearchVisibility = _testPatch "searchVisibility" False disabled enabled
 
@@ -945,6 +948,27 @@ testPatchValidateSAMLEmails = _testPatch "validateSAMLemails" False enabled disa
 
 testPatchDigitalSignatures :: HasCallStack => App ()
 testPatchDigitalSignatures = _testPatch "digitalSignatures" False disabled enabled
+
+testPatchConferenceCalling :: HasCallStack => App ()
+testPatchConferenceCalling = _testPatch "conferenceCalling" False enabled disabled
+
+--------------------------------------------------------------------------------
+-- Simple flags with explicit lock status
+
+testPatchFileSharing :: HasCallStack => App ()
+testPatchFileSharing = _testPatch "fileSharing" True enabled disabled
+
+testPatchGuestLinks :: HasCallStack => App ()
+testPatchGuestLinks = _testPatch "conversationGuestLinks" True enabled disabled
+
+testPatchSndFactorPasswordChallenge :: HasCallStack => App ()
+testPatchSndFactorPasswordChallenge = _testPatch "sndFactorPasswordChallenge" True disabledLocked enabled
+
+testPatchOutlookCalIntegration :: HasCallStack => App ()
+testPatchOutlookCalIntegration = _testPatch "outlookCalIntegration" True disabledLocked enabled
+
+--------------------------------------------------------------------------------
+-- Flags with config & implicit lock status
 
 testPatchAppLock :: HasCallStack => App ()
 testPatchAppLock = do
@@ -955,14 +979,47 @@ testPatchAppLock = do
             "ttl" .= "unlimited",
             "config" .= object ["enforceAppLock" .= False, "inactivityTimeoutSecs" .= A.Number 60]
           ]
-  _testPatch "appLock" True defCfg (object ["lockStatus" .= "locked"])
-  _testPatch "appLock" True defCfg (object ["status" .= "disabled"])
-  _testPatch "appLock" True defCfg (object ["lockStatus" .= "locked", "status" .= "disabled"])
-  _testPatch "appLock" True defCfg (object ["lockStatus" .= "unlocked", "config" .= object ["enforceAppLock" .= True, "inactivityTimeoutSecs" .= A.Number 120]])
-  _testPatch "appLock" True defCfg (object ["config" .= object ["enforceAppLock" .= True, "inactivityTimeoutSecs" .= A.Number 240]])
+  _testPatch "appLock" False defCfg (object ["lockStatus" .= "locked"])
+  _testPatch "appLock" False defCfg (object ["status" .= "disabled"])
+  _testPatch "appLock" False defCfg (object ["lockStatus" .= "locked", "status" .= "disabled"])
+  _testPatch "appLock" False defCfg (object ["lockStatus" .= "unlocked", "config" .= object ["enforceAppLock" .= True, "inactivityTimeoutSecs" .= A.Number 120]])
+  _testPatch "appLock" False defCfg (object ["config" .= object ["enforceAppLock" .= True, "inactivityTimeoutSecs" .= A.Number 240]])
+
+--------------------------------------------------------------------------------
+-- Flags with config & explicit lock status
+
+testPatchSelfDeletingMessages :: HasCallStack => App ()
+testPatchSelfDeletingMessages = do
+  let defCfg =
+        object
+          [ "lockStatus" .= "unlocked",
+            "status" .= "enabled",
+            "ttl" .= "unlimited",
+            "config" .= object ["enforcedTimeoutSeconds" .= A.Number 0]
+          ]
+  _testPatch "selfDeletingMessages" True defCfg (object ["lockStatus" .= "locked"])
+  _testPatch "selfDeletingMessages" True defCfg (object ["status" .= "disabled"])
+  _testPatch "selfDeletingMessages" True defCfg (object ["lockStatus" .= "locked", "status" .= "disabled"])
+  _testPatch "selfDeletingMessages" True defCfg (object ["lockStatus" .= "unlocked", "config" .= object ["enforcedTimeoutSeconds" .= A.Number 30]])
+  _testPatch "selfDeletingMessages" True defCfg (object ["config" .= object ["enforcedTimeoutSeconds" .= A.Number 60]])
+
+testPatchEnforceFileDownloadLocation :: HasCallStack => App ()
+testPatchEnforceFileDownloadLocation = do
+  let defCfg =
+        object
+          [ "lockStatus" .= "locked",
+            "status" .= "disabled",
+            "ttl" .= "unlimited",
+            "config" .= object []
+          ]
+  _testPatch "enforceFileDownloadLocation" True defCfg (object ["lockStatus" .= "unlocked"])
+  _testPatch "enforceFileDownloadLocation" True defCfg (object ["status" .= "enabled"])
+  _testPatch "enforceFileDownloadLocation" True defCfg (object ["lockStatus" .= "unlocked", "status" .= "enabled"])
+  _testPatch "enforceFileDownloadLocation" True defCfg (object ["lockStatus" .= "locked", "config" .= object []])
+  _testPatch "enforceFileDownloadLocation" True defCfg (object ["config" .= object ["enforcedDownloadLocation" .= "/tmp"]])
 
 _testPatch :: HasCallStack => String -> Bool -> Value -> Value -> App ()
-_testPatch featureName _assertLockStatusChange defaultFeatureConfig patch = do
+_testPatch featureName hasExplicitLockStatus defaultFeatureConfig patch = do
   (owner, tid, _) <- createTeam OwnDomain 0
   checkFeature featureName owner tid defaultFeatureConfig
   assertSuccess =<< Internal.patchTeamFeature OwnDomain tid featureName patch
@@ -971,7 +1028,13 @@ _testPatch featureName _assertLockStatusChange defaultFeatureConfig patch = do
   lockStatus <- patched %. "lockStatus" >>= asString
   if lockStatus == "locked"
     then do
+      -- if lock status is locked the feature status should fall back to the default
       patched `shouldMatch` (defaultFeatureConfig & setField "lockStatus" "locked")
+      -- if lock status is locked, it was either locked before or changed by the patch
+      mPatchedLockStatus <- lookupField patch "lockStatus"
+      case mPatchedLockStatus of
+        Just ls -> ls `shouldMatch` "locked"
+        Nothing -> defaultFeatureConfig %. "lockStatus" `shouldMatch` "locked"
     else do
       patched %. "status" `shouldMatch` valueOrDefault "status"
       mPatchedConfig <- lookupField patched "config"
@@ -980,8 +1043,45 @@ _testPatch featureName _assertLockStatusChange defaultFeatureConfig patch = do
         Nothing -> do
           mDefConfig <- lookupField defaultFeatureConfig "config"
           assertBool "patch had an unexpected config field" (isNothing mDefConfig)
+
+      when hasExplicitLockStatus $ do
+        -- if lock status is unlocked, it was either unlocked before or changed by the patch
+        mPatchedLockStatus <- lookupField patch "lockStatus"
+        case mPatchedLockStatus of
+          Just ls -> ls `shouldMatch` "unlocked"
+          Nothing -> defaultFeatureConfig %. "lockStatus" `shouldMatch` "unlocked"
   where
     valueOrDefault :: String -> App Value
     valueOrDefault key = do
       mValue <- lookupField patch key
       maybe (defaultFeatureConfig %. key) pure mValue
+
+-- _testPatch' :: HasCallStack => String -> Bool -> Value -> [Value] -> App ()
+-- _testPatch' featureName _assertLockStatusChange defaultFeatureConfig patches = do
+--   (owner, tid, _) <- createTeam OwnDomain 0
+--   checkFeature featureName owner tid defaultFeatureConfig
+--   forM_ patches $ \patch -> foo owner tid patch
+--   where
+--     foo :: Value -> String -> Value -> App ()
+--     foo owner tid patch = do
+--       beforePatched <- (.json) =<< Internal.getTeamFeature OwnDomain tid featureName
+--       assertSuccess =<< Internal.patchTeamFeature OwnDomain tid featureName patch
+--       patched <- (.json) =<< Internal.getTeamFeature OwnDomain tid featureName
+--       checkFeature featureName owner tid patched
+--       lockStatus <- patched %. "lockStatus" >>= asString
+--       if lockStatus == "locked"
+--         then do
+--           patched `shouldMatch` (defaultFeatureConfig & setField "lockStatus" "locked")
+--         else do
+--           patched %. "status" `shouldMatch` patchedOrOld beforePatched patch "status"
+--           mPatchedConfig <- lookupField patched "config"
+--           case mPatchedConfig of
+--             Just patchedConfig -> patchedConfig `shouldMatch` patchedOrOld beforePatched patch "config"
+--             Nothing -> do
+--               mDefConfig <- lookupField defaultFeatureConfig "config"
+--               assertBool "patch had an unexpected config field" (isNothing mDefConfig)
+
+--     patchedOrOld :: Value -> Value -> String -> App Value
+--     patchedOrOld old patch key = do
+--       mValue <- lookupField patch key
+--       maybe (old %. key) pure mValue

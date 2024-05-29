@@ -47,10 +47,6 @@ tests s =
           -- (depending on prior state or configuration). Thus, they cannot be
           -- tested here (setting random values), but are tested with separate
           -- tests.
-          test s (unpack $ featureNameBS @ConferenceCallingConfig) $
-            testPatch IgnoreLockStatusChange FeatureStatusEnabled ConferenceCallingConfig,
-          test s (unpack $ featureNameBS @SearchVisibilityAvailableConfig) $
-            testPatch IgnoreLockStatusChange FeatureStatusEnabled SearchVisibilityAvailableConfig,
           test s (unpack $ featureNameBS @MLSConfig) $
             testPatchWithCustomGen
               AssertLockStatusChange
@@ -63,20 +59,8 @@ tests s =
                   [ProtocolProteusTag, ProtocolMLSTag]
               )
               validMLSConfigGen,
-          test s (unpack $ featureNameBS @FileSharingConfig) $
-            testPatch AssertLockStatusChange FeatureStatusEnabled FileSharingConfig,
-          test s (unpack $ featureNameBS @GuestLinksConfig) $
-            testPatch AssertLockStatusChange FeatureStatusEnabled GuestLinksConfig,
-          test s (unpack $ featureNameBS @SndFactorPasswordChallengeConfig) $
-            testPatch AssertLockStatusChange FeatureStatusDisabled SndFactorPasswordChallengeConfig,
-          test s (unpack $ featureNameBS @SelfDeletingMessagesConfig) $
-            testPatch AssertLockStatusChange FeatureStatusEnabled (SelfDeletingMessagesConfig 0),
-          test s (unpack $ featureNameBS @OutlookCalIntegrationConfig) $
-            testPatch AssertLockStatusChange FeatureStatusDisabled OutlookCalIntegrationConfig,
           test s (unpack $ featureNameBS @MlsE2EIdConfig) $
-            testPatchWithArbitrary AssertLockStatusChange FeatureStatusDisabled (wsConfig (defFeatureStatus @MlsE2EIdConfig)),
-          test s (unpack $ featureNameBS @EnforceFileDownloadLocationConfig) $
-            testPatchWithArbitrary AssertLockStatusChange FeatureStatusDisabled (wsConfig (defFeatureStatus @EnforceFileDownloadLocationConfig))
+            testPatchWithArbitrary AssertLockStatusChange FeatureStatusDisabled (wsConfig (defFeatureStatus @MlsE2EIdConfig))
         ]
     ]
 
@@ -100,7 +84,7 @@ validMLSConfigGen =
     sortedAndNoDuplicates xs = (sort . nub) xs == xs
 
 -- | Binary type to prevent "boolean blindness"
-data AssertLockStatusChange = AssertLockStatusChange | IgnoreLockStatusChange
+data AssertLockStatusChange = AssertLockStatusChange
   deriving (Eq)
 
 testPatchWithArbitrary ::
@@ -140,23 +124,6 @@ testPatchWithCustomGen ::
 testPatchWithCustomGen assertLockStatusChange featureStatus cfg gen = do
   generatedConfig <- liftIO $ generate gen
   testPatch' assertLockStatusChange generatedConfig featureStatus cfg
-
-testPatch ::
-  forall cfg.
-  ( HasCallStack,
-    IsFeatureConfig cfg,
-    Typeable cfg,
-    ToSchema cfg,
-    Eq cfg,
-    Show cfg,
-    KnownSymbol (FeatureSymbol cfg),
-    Arbitrary (WithStatusPatch cfg)
-  ) =>
-  AssertLockStatusChange ->
-  FeatureStatus ->
-  cfg ->
-  TestM ()
-testPatch assertLockStatusChange status cfg = testPatchWithCustomGen assertLockStatusChange status cfg arbitrary
 
 testPatch' ::
   forall cfg.
