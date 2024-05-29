@@ -8,8 +8,7 @@ import Data.Bifunctor (first)
 import Data.Coerce
 import Data.Default (Default (def))
 import Data.Domain
-import Data.Handle (BadHandle (BadHandle), Handle (Handle))
-import Data.Handle qualified as Handle
+import Data.Handle
 import Data.Id
 import Data.LegalHold (defUserLegalHoldStatus)
 import Data.Qualified
@@ -273,14 +272,19 @@ spec = describe "UserSubsystem.Interpreter" do
 
     prop
       "CheckHandle succeeds if there is a user with that handle"
-      \((NotPendingStoredUser alice, fallbackHandle :: Handle), config) ->
-        let isHandle :: CheckHandleResp = runNoFederationStack localBackend Nothing config do
-              let handle = Handle.fromHandle . fromMaybe fallbackHandle $ alice.handle
-              checkHandle handle
-            localBackend = def {users = [alice {managedBy = Just ManagedByWire}]}
-         in if isJust alice.handle
-              then isHandle === CheckHandleFound
-              else isHandle === CheckHandleNotFound
+      \((NotPendingStoredUser alice, handle :: Handle), config) ->
+        let localBackend = def {users = [alice {managedBy = Just ManagedByWire, handle = Just handle}]}
+            checkHandleResp =
+              runNoFederationStack localBackend Nothing config $ checkHandle (fromHandle handle)
+         in checkHandleResp === CheckHandleFound
+
+    prop
+      "CheckHandle fails if there is no user with that handle"
+      \(Handle handle, config) ->
+        let localBackend = def {users = []}
+            checkHandleResp =
+              runNoFederationStack localBackend Nothing config $ checkHandle handle
+         in checkHandleResp === CheckHandleNotFound
 
     prop
       "CheckHandles returns available handles from a list of handles, up to X"
