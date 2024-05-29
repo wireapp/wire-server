@@ -88,6 +88,7 @@ interpretUserSubsystem ::
 interpretUserSubsystem = interpret \case
   GetUserProfiles self others -> getUserProfilesImpl self others
   GetLocalUserProfiles others -> getLocalUserProfilesImpl others
+  GetSelfProfile self -> getSelfProfileImpl self
   GetUserProfilesWithErrors self others -> getUserProfilesWithErrorsImpl self others
   UpdateUserProfile self mconn mb update -> updateUserProfileImpl self mconn mb update
   CheckHandle uhandle -> checkHandleImpl uhandle
@@ -228,6 +229,16 @@ getLocalUserProfileImpl emailVisibilityConfigWithViewer luid = do
         usrProfile = mkUserProfile emailVisibilityConfigWithViewer user lhs
     lift $ deleteLocalIfExpired user
     pure usrProfile
+
+getSelfProfileImpl ::
+  ( Member (Input UserSubsystemConfig) r,
+    Member UserStore r
+  ) =>
+  Local UserId ->
+  Sem r (Maybe SelfProfile)
+getSelfProfileImpl self = do
+  defLocale <- inputs defaultLocale
+  SelfProfile . mkUserFromStored (tDomain self) defLocale <$$> getUser (tUnqualified self)
 
 -- | ephemeral users past their expiry date are queued for deletion
 deleteLocalIfExpired :: forall r. (Member DeleteQueue r, Member Now r) => User -> Sem r ()

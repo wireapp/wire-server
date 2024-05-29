@@ -86,6 +86,8 @@ data UserSubsystem m a where
   GetUserProfiles :: Local UserId -> [Qualified UserId] -> UserSubsystem m [UserProfile]
   -- | Sometimes we don't have any identity of a requesting user, and local profiles are public.
   GetLocalUserProfiles :: Local [UserId] -> UserSubsystem m [UserProfile]
+  -- | Self profile contains things not present in Profile.
+  GetSelfProfile :: Local UserId -> UserSubsystem m (Maybe SelfProfile)
   -- | These give us partial success and hide concurrency in the interpreter.
   -- FUTUREWORK: it would be better to return errors as `Map Domain FederationError`, but would clients like that?
   GetUserProfilesWithErrors :: Local UserId -> [Qualified UserId] -> UserSubsystem m ([(Qualified UserId, FederationError)], [UserProfile])

@@ -203,6 +203,22 @@ spec = describe "UserSubsystem.Interpreter" do
           length (fst retrievedProfilesWithErrors) === length remoteBUsers
             .&&. length (snd retrievedProfilesWithErrors) === length remoteAUsers
 
+  describe "getSelfProfile" $ do
+    prop "should retrieve a user which exists in the DB" \storedSelf otherStoredUsers domain config ->
+      let localBackend = def {users = storedSelf : filter (\u -> u.id /= storedSelf.id) otherStoredUsers}
+          retrievedProfile =
+            runNoFederationStack localBackend Nothing config $
+              getSelfProfile (toLocalUnsafe domain storedSelf.id)
+       in retrievedProfile === Just (SelfProfile $ mkUserFromStored domain config.defaultLocale storedSelf)
+
+    prop "should fail when the user does not exist in the DB" \selfId otherStoredUsers domain config ->
+      let localBackend = def {users = filter (\u -> u.id /= selfId) otherStoredUsers}
+          retrievedProfile =
+            runNoFederationStack localBackend Nothing config $
+              getSelfProfile (toLocalUnsafe domain selfId)
+       in retrievedProfile === Nothing
+
+  describe "updateUserProfile" $ do
     prop "Update user" $
       \(NotPendingStoredUser alice) localDomain update config -> do
         let lusr = toLocalUnsafe localDomain alice.id
