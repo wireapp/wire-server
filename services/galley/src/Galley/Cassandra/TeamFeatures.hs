@@ -170,24 +170,24 @@ getFeatureConfig FeatureSingletonMlsE2EIdConfig tid = do
   let q = query1 select (params LocalQuorum (Identity tid))
   retry x1 q <&> \case
     Nothing -> Nothing
-    Just (Nothing, _, _) -> Nothing
-    Just (Just fs, mGracePeriod, mUrl) ->
+    Just (Nothing, _, _, _, _) -> Nothing
+    Just (Just fs, mGracePeriod, mUrl, mCrlProxy, mUseProxyOnMobile) ->
       Just $
         WithStatusNoLock
           fs
           ( -- FUTUREWORK: this block is duplicated in
             -- "Galley.Cassandra.GetAllTeamFeatureConfigs"; make sure the two don't diverge!
-            MlsE2EIdConfig (toGracePeriodOrDefault mGracePeriod) mUrl
+            MlsE2EIdConfig (toGracePeriodOrDefault mGracePeriod) mUrl mCrlProxy (fromMaybe (useProxyOnMobile . wsConfig $ defFeatureStatus @MlsE2EIdConfig) mUseProxyOnMobile)
           )
           FeatureTTLUnlimited
   where
     toGracePeriodOrDefault :: Maybe Int32 -> NominalDiffTime
     toGracePeriodOrDefault = maybe (verificationExpiration $ wsConfig defFeatureStatus) fromIntegral
 
-    select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe Int32, Maybe HttpsUrl)
+    select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe Int32, Maybe HttpsUrl, Maybe HttpsUrl, Maybe Bool)
     select =
       fromString $
-        "select mls_e2eid_status, mls_e2eid_grace_period, mls_e2eid_acme_discovery_url from team_features where team_id = ?"
+        "select mls_e2eid_status, mls_e2eid_grace_period, mls_e2eid_acme_discovery_url, mls_e2eid_crl_proxy, mls_e2eid_use_proxy_on_mobile from team_features where team_id = ?"
 getFeatureConfig FeatureSingletonMlsMigration tid = do
   let q = query1 select (params LocalQuorum (Identity tid))
   retry x1 q <&> \case
@@ -292,11 +292,13 @@ setFeatureConfig FeatureSingletonMlsE2EIdConfig tid status = do
   let statusValue = wssStatus status
       vex = verificationExpiration . wssConfig $ status
       mUrl = acmeDiscoveryUrl . wssConfig $ status
-  retry x5 $ write insert (params LocalQuorum (tid, statusValue, truncate vex, mUrl))
+      mCrlProxy = crlProxy . wssConfig $ status
+      useProxy = useProxyOnMobile . wssConfig $ status
+  retry x5 $ write insert (params LocalQuorum (tid, statusValue, truncate vex, mUrl, mCrlProxy, useProxy))
   where
-    insert :: PrepQuery W (TeamId, FeatureStatus, Int32, Maybe HttpsUrl) ()
+    insert :: PrepQuery W (TeamId, FeatureStatus, Int32, Maybe HttpsUrl, Maybe HttpsUrl, Bool) ()
     insert =
-      "insert into team_features (team_id, mls_e2eid_status, mls_e2eid_grace_period, mls_e2eid_acme_discovery_url) values (?, ?, ?, ?)"
+      "insert into team_features (team_id, mls_e2eid_status, mls_e2eid_grace_period, mls_e2eid_acme_discovery_url, mls_e2eid_crl_proxy, mls_e2eid_use_proxy_on_mobile) values (?, ?, ?, ?, ?, ?)"
 setFeatureConfig FeatureSingletonMlsMigration tid status = do
   let statusValue = wssStatus status
       config = wssConfig status

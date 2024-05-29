@@ -21,6 +21,7 @@ import qualified API.Galley as Public
 import qualified API.GalleyInternal as Internal
 import Control.Monad.Codensity (Codensity (runCodensity))
 import Control.Monad.Reader
+import qualified Data.Aeson as A
 import SetupHelpers
 import Testlib.Prelude
 import Testlib.ResourcePool (acquireResources)
@@ -181,3 +182,56 @@ checkFeature feature user tid expected = do
   bindResponse (Public.getFeatureConfigs user) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. feature `shouldMatch` expected
+
+testMlsE2EConfigCrlProxyRequired :: HasCallStack => App ()
+testMlsE2EConfigCrlProxyRequired = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  let configWithoutCrlProxy =
+        object
+          [ "config"
+              .= object
+                [ "useProxyOnMobile" .= False,
+                  "verificationExpiration" .= A.Number 86400
+                ],
+            "status" .= "enabled"
+          ]
+
+  -- From API version 6 onwards, the CRL proxy is required, so the request should fail when it's not provided
+  bindResponse (Internal.setTeamFeatureConfig Versioned owner tid "mlsE2EId" configWithoutCrlProxy) $ \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.json %. "label" `shouldMatch` "mls-e2eid-missing-crl-proxy"
+
+  configWithCrlProxy <-
+    configWithoutCrlProxy
+      & setField "config.useProxyOnMobile" True
+      & setField "config.crlProxy" "https://crl-proxy.example.com"
+      & setField "status" "enabled"
+
+  -- The request should succeed when the CRL proxy is provided
+  bindResponse (Internal.setTeamFeatureConfig Versioned owner tid "mlsE2EId" configWithCrlProxy) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  -- Assert that the feature config got updated correctly
+  expectedResponse <- configWithCrlProxy & setField "lockStatus" "unlocked" & setField "ttl" "unlimited"
+  checkFeature "mlsE2EId" owner tid expectedResponse
+
+testMlsE2EConfigCrlProxyNotRequiredInV5 :: HasCallStack => App ()
+testMlsE2EConfigCrlProxyNotRequiredInV5 = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  let configWithoutCrlProxy =
+        object
+          [ "config"
+              .= object
+                [ "useProxyOnMobile" .= False,
+                  "verificationExpiration" .= A.Number 86400
+                ],
+            "status" .= "enabled"
+          ]
+
+  -- In API version 5, the CRL proxy is not required, so the request should succeed
+  bindResponse (Internal.setTeamFeatureConfig (ExplicitVersion 5) owner tid "mlsE2EId" configWithoutCrlProxy) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  -- Assert that the feature config got updated correctly
+  expectedResponse <- configWithoutCrlProxy & setField "lockStatus" "unlocked" & setField "ttl" "unlimited"
+  checkFeature "mlsE2EId" owner tid expectedResponse

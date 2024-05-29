@@ -19,7 +19,9 @@
 
 module Test.Wire.API.Golden.Generated.WithStatus_team where
 
+import Data.ByteString.Conversion (parser, runParser)
 import Data.Domain
+import Data.Misc
 import Imports
 import Wire.API.Team.Feature hiding (withStatus)
 import Wire.API.Team.Feature qualified as F
@@ -83,6 +85,23 @@ testObject_WithStatus_team_18 =
     ( MlsE2EIdConfig
         (fromIntegral @Int (60 * 60 * 24))
         Nothing
+        (either (\e -> error (show e)) Just $ parseHttpsUrl "https://example.com")
+        False
+    )
+
+parseHttpsUrl :: ByteString -> Either String HttpsUrl
+parseHttpsUrl url = runParser parser url
+
+testObject_WithStatus_team_19 :: WithStatus MlsE2EIdConfig
+testObject_WithStatus_team_19 =
+  withStatus
+    FeatureStatusEnabled
+    LockStatusLocked
+    ( MlsE2EIdConfig
+        (fromIntegral @Int (60 * 60 * 24))
+        (either (\e -> error (show e)) Just $ parseHttpsUrl "https://example.com")
+        Nothing
+        True
     )
 
 withStatus :: FeatureStatus -> LockStatus -> cfg -> WithStatus cfg
