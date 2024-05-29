@@ -1062,12 +1062,106 @@ testPatchE2EId = do
         ]
     )
 
+testPatchMLS :: HasCallStack => App ()
+testPatchMLS = do
+  dom <- asString OwnDomain
+  (_, tid, _) <- createTeam dom 0
+  assertSuccess
+    =<< Internal.patchTeamFeature
+      dom
+      tid
+      "mlsMigration"
+      (object ["status" .= "disabled", "lockStatus" .= "unlocked"])
+  let defCfg =
+        object
+          [ "lockStatus" .= "unlocked",
+            "status" .= "disabled",
+            "ttl" .= "unlimited",
+            "config"
+              .= object
+                [ "protocolToggleUsers" .= ([] :: [String]),
+                  "defaultProtocol" .= "proteus",
+                  "supportedProtocols" .= ["proteus", "mls"],
+                  "allowedCipherSuites" .= ([1] :: [Int]),
+                  "defaultCipherSuite" .= A.Number 1
+                ]
+          ]
+  _testPatchWithSetup mlsMigrationSetup dom "mls" True defCfg (object ["lockStatus" .= "locked"])
+  _testPatchWithSetup mlsMigrationSetup dom "mls" True defCfg (object ["status" .= "enabled"])
+  _testPatchWithSetup mlsMigrationSetup dom "mls" True defCfg (object ["lockStatus" .= "locked", "status" .= "enabled"])
+  _testPatchWithSetup
+    mlsMigrationSetup
+    dom
+    "mls"
+    True
+    defCfg
+    ( object
+        [ "status" .= "enabled",
+          "config"
+            .= object
+              [ "protocolToggleUsers" .= ([] :: [String]),
+                "defaultProtocol" .= "mls",
+                "supportedProtocols" .= ["proteus", "mls"],
+                "allowedCipherSuites" .= ([1] :: [Int]),
+                "defaultCipherSuite" .= A.Number 1
+              ]
+        ]
+    )
+  _testPatchWithSetup
+    mlsMigrationSetup
+    dom
+    "mls"
+    True
+    defCfg
+    ( object
+        [ "config"
+            .= object
+              [ "protocolToggleUsers" .= ([] :: [String]),
+                "defaultProtocol" .= "mls",
+                "supportedProtocols" .= ["proteus", "mls"],
+                "allowedCipherSuites" .= ([1] :: [Int]),
+                "defaultCipherSuite" .= A.Number 1
+              ]
+        ]
+    )
+  where
+    mlsMigrationSetup :: HasCallStack => String -> String -> App ()
+    mlsMigrationSetup dom tid =
+      assertSuccess
+        =<< Internal.patchTeamFeature
+          dom
+          tid
+          "mlsMigration"
+          (object ["status" .= "disabled", "lockStatus" .= "unlocked"])
+
 _testPatch :: HasCallStack => String -> Bool -> Value -> Value -> App ()
 _testPatch featureName hasExplicitLockStatus defaultFeatureConfig patch = do
-  (owner, tid, _) <- createTeam OwnDomain 0
+  dom <- asString OwnDomain
+  _testPatchWithSetup
+    (\_ _ -> pure ())
+    dom
+    featureName
+    hasExplicitLockStatus
+    defaultFeatureConfig
+    patch
+
+_testPatchWithSetup ::
+  HasCallStack =>
+  (String -> String -> App ()) ->
+  String ->
+  String ->
+  Bool ->
+  Value ->
+  Value ->
+  App ()
+_testPatchWithSetup setup domain featureName hasExplicitLockStatus defaultFeatureConfig patch = do
+  (owner, tid, _) <- createTeam domain 0
+  -- run a feature-specific setup. For most features this is a no-op.
+  setup domain tid
+
   checkFeature featureName owner tid defaultFeatureConfig
-  assertSuccess =<< Internal.patchTeamFeature OwnDomain tid featureName patch
-  patched <- (.json) =<< Internal.getTeamFeature OwnDomain tid featureName
+  assertSuccess =<< Internal.patchTeamFeature domain tid featureName patch
+  patched <- (.json) =<< Internal.getTeamFeature domain tid featureName
   checkFeature featureName owner tid patched
   lockStatus <- patched %. "lockStatus" >>= asString
   if lockStatus == "locked"

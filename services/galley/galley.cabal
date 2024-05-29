@@ -397,7 +397,6 @@ executable galley-integration
     API.Roles
     API.SQS
     API.Teams
-    API.Teams.Feature
     API.Teams.LegalHold
     API.Teams.LegalHold.DisabledByDefault
     API.Teams.LegalHold.Util
