@@ -223,18 +223,16 @@ spec = describe "UserSubsystem.Interpreter" do
       \(NotPendingStoredUser alice) localDomain update config -> do
         let lusr = toLocalUnsafe localDomain alice.id
             localBackend = def {users = [alice {managedBy = Just ManagedByWire}]}
-            profile = fromJust $ runNoFederationStack localBackend Nothing config do
+            userBeforeUpdate = mkUserFromStored localDomain config.defaultLocale alice
+            (SelfProfile userAfterUpdate) = fromJust $ runNoFederationStack localBackend Nothing config do
               updateUserProfile lusr Nothing AllowSCIMUpdates update
-              getUserProfile lusr (tUntagged lusr)
-         in -- TODO: check locale update?
-            -- TODO: more assertions
-            profile.profileQualifiedId === tUntagged lusr
-              -- if the name / pict / etc... is not set, the original
-              -- value should be preserved
-              .&&. profile.profileName === fromMaybe profile.profileName update.name
-              .&&. profile.profilePict === fromMaybe profile.profilePict update.pict
-              .&&. profile.profileAssets === fromMaybe profile.profileAssets update.assets
-              .&&. profile.profileAccentId === fromMaybe profile.profileAccentId update.accentId
+              getSelfProfile lusr
+         in userAfterUpdate.userQualifiedId === tUntagged lusr
+              .&&. userAfterUpdate.userDisplayName === fromMaybe userBeforeUpdate.userDisplayName update.name
+              .&&. userAfterUpdate.userPict === fromMaybe userBeforeUpdate.userPict update.pict
+              .&&. userAfterUpdate.userAssets === fromMaybe userBeforeUpdate.userAssets update.assets
+              .&&. userAfterUpdate.userAccentId === fromMaybe userBeforeUpdate.userAccentId update.accentId
+              .&&. userAfterUpdate.userLocale === fromMaybe userBeforeUpdate.userLocale update.locale
 
     prop "Update user events" $
       \(NotPendingStoredUser alice) localDomain update config -> do

@@ -369,6 +369,7 @@ staticUserStoreInterpreter = interpret $ \case
               . maybe Imports.id setStoredUserAssets update.assets
               . maybe Imports.id setStoredUserPict update.pict
               . maybe Imports.id setStoredUserName update.name
+              . maybe Imports.id setStoredUserLocale update.locale
               . maybe Imports.id setStoredSupportedProtocols update.supportedProtocols
               $ u
       doUpdate u = pure u

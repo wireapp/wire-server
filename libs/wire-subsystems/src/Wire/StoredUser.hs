@@ -39,22 +39,29 @@ data StoredUser = StoredUser
   deriving (Show, Eq, Ord, Generic)
   deriving (Arbitrary) via (GenericUniform StoredUser)
 
+recordInstance ''StoredUser
+
 setStoredUserName :: Name -> StoredUser -> StoredUser
-setStoredUserName n u = u {name = n}
+setStoredUserName newName user = user {name = newName}
 
 setStoredSupportedProtocols :: Set BaseProtocolTag -> StoredUser -> StoredUser
-setStoredSupportedProtocols ps u = u {supportedProtocols = Just ps}
+setStoredSupportedProtocols newProtocols user = user {supportedProtocols = Just newProtocols}
 
 setStoredUserPict :: Pict -> StoredUser -> StoredUser
-setStoredUserPict p u = u {pict = Just p}
+setStoredUserPict newPict user = user {pict = Just newPict}
 
 setStoredUserAssets :: [Asset] -> StoredUser -> StoredUser
-setStoredUserAssets a u = u {assets = Just a}
+setStoredUserAssets newAssets user = user {assets = Just newAssets}
 
 setStoredUserAccentId :: ColourId -> StoredUser -> StoredUser
-setStoredUserAccentId a u = u {accentId = a}
+setStoredUserAccentId newAccentId user = user {accentId = newAccentId}
 
-recordInstance ''StoredUser
+setStoredUserLocale :: Locale -> StoredUser -> StoredUser
+setStoredUserLocale newLocale user =
+  user
+    { language = Just newLocale.lLanguage,
+      country = newLocale.lCountry
+    }
 
 hasPendingInvitation :: StoredUser -> Bool
 hasPendingInvitation u = u.status == Just PendingInvitation
