@@ -101,9 +101,7 @@ let
     # on.
     let
       defaultPkgs = import ./local-haskell-packages.nix
-        {
-          inherit gitignoreSource;
-        }
+        { inherit gitignoreSource; }
         hsuper
         hself;
 
@@ -130,16 +128,32 @@ let
       bench = _: drv:
         hlib.doBenchmark drv;
 
+      maintainer = _: drv: 
+      drv.overrideAttrs (old: {
+
+        meta = old.meta or {} // {
+          homepage = "https://github.com/wireapp";
+          maintainers = [{
+            name = "wireapp";
+            email = "backend@wire.com";
+            github = "wireapp";
+            githubId = 16047324;
+          }];
+        }; 
+      });
+
       overrideAll = fn: overrides:
-        attrsets.mapAttrs fn (overrides);
+        attrsets.mapAttrs fn overrides;
     in
     lib.lists.foldr overrideAll defaultPkgs [
+      maintainer
       werror
       opt
       docs
       tests
       bench
     ];
+
   manualOverrides = import ./manual-overrides.nix (with pkgs; {
     inherit hlib libsodium protobuf mls-test-cli fetchpatch pkgs;
   });
