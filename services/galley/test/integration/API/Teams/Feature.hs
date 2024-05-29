@@ -58,9 +58,7 @@ tests s =
                   MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
                   [ProtocolProteusTag, ProtocolMLSTag]
               )
-              validMLSConfigGen,
-          test s (unpack $ featureNameBS @MlsE2EIdConfig) $
-            testPatchWithArbitrary AssertLockStatusChange FeatureStatusDisabled (wsConfig (defFeatureStatus @MlsE2EIdConfig))
+              validMLSConfigGen
         ]
     ]
 
@@ -86,25 +84,6 @@ validMLSConfigGen =
 -- | Binary type to prevent "boolean blindness"
 data AssertLockStatusChange = AssertLockStatusChange
   deriving (Eq)
-
-testPatchWithArbitrary ::
-  forall cfg.
-  ( HasCallStack,
-    IsFeatureConfig cfg,
-    Typeable cfg,
-    ToSchema cfg,
-    Eq cfg,
-    Show cfg,
-    KnownSymbol (FeatureSymbol cfg),
-    Arbitrary (WithStatusPatch cfg)
-  ) =>
-  AssertLockStatusChange ->
-  FeatureStatus ->
-  cfg ->
-  TestM ()
-testPatchWithArbitrary assertLockStatusChange featureStatus cfg = do
-  generatedConfig <- liftIO $ generate arbitrary
-  testPatch' assertLockStatusChange generatedConfig featureStatus cfg
 
 testPatchWithCustomGen ::
   forall cfg.

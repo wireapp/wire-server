@@ -1018,6 +1018,50 @@ testPatchEnforceFileDownloadLocation = do
   _testPatch "enforceFileDownloadLocation" True defCfg (object ["lockStatus" .= "locked", "config" .= object []])
   _testPatch "enforceFileDownloadLocation" True defCfg (object ["config" .= object ["enforcedDownloadLocation" .= "/tmp"]])
 
+testPatchE2EId :: HasCallStack => App ()
+testPatchE2EId = do
+  let defCfg =
+        object
+          [ "lockStatus" .= "unlocked",
+            "status" .= "disabled",
+            "ttl" .= "unlimited",
+            "config"
+              .= object
+                [ "verificationExpiration" .= A.Number 86400,
+                  "useProxyOnMobile" .= False
+                ]
+          ]
+  _testPatch "mlsE2EId" True defCfg (object ["lockStatus" .= "locked"])
+  _testPatch "mlsE2EId" True defCfg (object ["status" .= "enabled"])
+  _testPatch "mlsE2EId" True defCfg (object ["lockStatus" .= "locked", "status" .= "enabled"])
+  _testPatch
+    "mlsE2EId"
+    True
+    defCfg
+    ( object
+        [ "lockStatus" .= "unlocked",
+          "config"
+            .= object
+              [ "crlProxy" .= "https://example.com",
+                "verificationExpiration" .= A.Number 86401,
+                "useProxyOnMobile" .= True
+              ]
+        ]
+    )
+  _testPatch
+    "mlsE2EId"
+    True
+    defCfg
+    ( object
+        [ "config"
+            .= object
+              [ "crlProxy" .= "https://example.com",
+                "verificationExpiration" .= A.Number 86401,
+                "useProxyOnMobile" .= True
+              ]
+        ]
+    )
+
 _testPatch :: HasCallStack => String -> Bool -> Value -> Value -> App ()
 _testPatch featureName hasExplicitLockStatus defaultFeatureConfig patch = do
   (owner, tid, _) <- createTeam OwnDomain 0
@@ -1055,33 +1099,3 @@ _testPatch featureName hasExplicitLockStatus defaultFeatureConfig patch = do
     valueOrDefault key = do
       mValue <- lookupField patch key
       maybe (defaultFeatureConfig %. key) pure mValue
-
--- _testPatch' :: HasCallStack => String -> Bool -> Value -> [Value] -> App ()
--- _testPatch' featureName _assertLockStatusChange defaultFeatureConfig patches = do
---   (owner, tid, _) <- createTeam OwnDomain 0
---   checkFeature featureName owner tid defaultFeatureConfig
---   forM_ patches $ \patch -> foo owner tid patch
---   where
---     foo :: Value -> String -> Value -> App ()
---     foo owner tid patch = do
---       beforePatched <- (.json) =<< Internal.getTeamFeature OwnDomain tid featureName
---       assertSuccess =<< Internal.patchTeamFeature OwnDomain tid featureName patch
---       patched <- (.json) =<< Internal.getTeamFeature OwnDomain tid featureName
---       checkFeature featureName owner tid patched
---       lockStatus <- patched %. "lockStatus" >>= asString
---       if lockStatus == "locked"
---         then do
---           patched `shouldMatch` (defaultFeatureConfig & setField "lockStatus" "locked")
---         else do
---           patched %. "status" `shouldMatch` patchedOrOld beforePatched patch "status"
---           mPatchedConfig <- lookupField patched "config"
---           case mPatchedConfig of
---             Just patchedConfig -> patchedConfig `shouldMatch` patchedOrOld beforePatched patch "config"
---             Nothing -> do
---               mDefConfig <- lookupField defaultFeatureConfig "config"
---               assertBool "patch had an unexpected config field" (isNothing mDefConfig)
-
---     patchedOrOld :: Value -> Value -> String -> App Value
---     patchedOrOld old patch key = do
---       mValue <- lookupField patch key
---       maybe (old %. key) pure mValue
