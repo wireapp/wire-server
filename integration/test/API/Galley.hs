@@ -637,3 +637,14 @@ putLegalholdStatus tid usr status = do
   baseRequest usr Galley Versioned (joinHttpPath ["teams", tidStr, "features", "legalhold"])
     >>= submit "PUT"
       . addJSONObject ["status" .= status, "ttl" .= "unlimited"]
+
+setTeamFeatureConfig :: (HasCallStack, MakesValue user, MakesValue team, MakesValue featureName, MakesValue payload) => user -> team -> featureName -> payload -> App Response
+setTeamFeatureConfig = setTeamFeatureConfigVersioned Versioned
+
+setTeamFeatureConfigVersioned :: (HasCallStack, MakesValue user, MakesValue team, MakesValue featureName, MakesValue payload) => Versioned -> user -> team -> featureName -> payload -> App Response
+setTeamFeatureConfigVersioned versioned user team featureName payload = do
+  tid <- asString team
+  fn <- asString featureName
+  p <- make payload
+  req <- baseRequest user Galley versioned $ joinHttpPath ["teams", tid, "features", fn]
+  submit "PUT" $ req & addJSON p
