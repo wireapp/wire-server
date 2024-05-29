@@ -35,7 +35,6 @@ extra-source-files:
 library
   -- cabal-fmt: expand src
   exposed-modules:
-    Federator.App
     Federator.Discovery
     Federator.Env
     Federator.Error
