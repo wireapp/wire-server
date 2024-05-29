@@ -92,11 +92,11 @@ data UserSubsystem m a where
   -- | Simple updates (as opposed to, eg., handle, where we need to manage locks).  Empty fields are ignored (not deleted).
   UpdateUserProfile :: Local UserId -> Maybe ConnId -> AllowSCIMUpdates -> UserProfileUpdate -> UserSubsystem m ()
   -- | parse and lookup a handle, return what the operation has found
-  CheckHandle :: Text -> UserSubsystem m CheckHandleResp
+  CheckHandle :: Text {- use Handle here? -} -> UserSubsystem m CheckHandleResp
   -- | checks a number of 'Handle's for availability and returns at most 'Word' amount of them
   CheckHandles :: [Handle] -> Word -> UserSubsystem m [Handle]
   -- | parses a handle, this may fail so it's effectful
-  UpdateHandle :: Local UserId -> Maybe ConnId -> AllowSCIMUpdates -> Text -> UserSubsystem m ()
+  UpdateHandle :: Local UserId -> Maybe ConnId -> AllowSCIMUpdates -> Text {- use Handle here? -} -> UserSubsystem m ()
 
 -- | the return type of 'CheckHandle'
 data CheckHandleResp

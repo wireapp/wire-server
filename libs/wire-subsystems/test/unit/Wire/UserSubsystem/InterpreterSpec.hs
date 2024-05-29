@@ -31,6 +31,7 @@ import Wire.API.UserEvent
 import Wire.MiniBackend
 import Wire.StoredUser as SU
 import Wire.UserSubsystem as US
+import Wire.UserSubsystem.HandleBlacklist
 import Wire.UserSubsystem.Interpreter (UserSubsystemConfig (..))
 
 spec :: Spec
@@ -329,19 +330,17 @@ spec = describe "UserSubsystem.Interpreter" do
                   }
            in res === Right ()
 
-    focus $ prop
-      -- TODO: make -C ~/src/wire-server c package=wire-subsystems test=1 testargs='--qc-max-success=10000 --seed=1636860002'
-      -- handle is valid ("hr"), but the update causes a UserSubsystemInvalidHandle response anyway.
+    prop
       "update valid handles succeeds"
-      \(storedUser :: StoredUser, Handle rawHandle, config) ->
-        isJust storedUser.identity ==>
+      \(storedUser :: StoredUser, newHandle@(Handle rawNewHandle), config) ->
+        (isJust storedUser.identity && not (isBlacklistedHandle newHandle)) ==>
           let updateResult :: Either UserSubsystemError () = run
                 . runErrorUnsafe
                 . runError
                 $ interpretNoFederationStack (def {users = [storedUser]}) Nothing def config do
                   let luid = toLocalUnsafe dom storedUser.id
                       dom = Domain "localdomain"
-                  updateHandle luid Nothing AllowSCIMUpdates rawHandle
+                  updateHandle luid Nothing AllowSCIMUpdates rawNewHandle
            in updateResult === Right ()
 
     prop
