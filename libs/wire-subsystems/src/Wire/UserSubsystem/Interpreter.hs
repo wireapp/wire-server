@@ -289,7 +289,10 @@ guardLockedFields ::
   UserProfileUpdate ->
   Sem r ()
 guardLockedFields user updateOrigin hasE2EId (MkUserProfileUpdate {..})
-  | (updateOrigin == ForbidSCIMUpdates || hasE2EId) && isJust name && name /= Just user.name = throw UserSubsystemDisplayNameManagedByScim
+  | ((updateOrigin == ForbidSCIMUpdates && user.managedBy == Just ManagedByScim) || hasE2EId)
+      && isJust name
+      && name /= Just user.name =
+      throw UserSubsystemDisplayNameManagedByScim
   -- TODO: | updateOriginScim && isJust locale && locale /= Just user.locale = throw UserSubsystemLocaleManagedByScim
   -- pict, assets, accentId, supportedProtocols are not managed by scim, so no errors there.
   | otherwise = pure ()
@@ -303,7 +306,9 @@ guardHandleLockedFields ::
   Handle ->
   Sem r ()
 guardHandleLockedFields user updateOrigin hasE2EId handle
-  | (updateOrigin == ForbidSCIMUpdates || hasE2EId) && Just handle /= user.handle = throw UserSubsystemHandleManagedByScim
+  | ((updateOrigin == ForbidSCIMUpdates && user.managedBy == Just ManagedByScim) || hasE2EId)
+      && Just handle /= user.handle =
+      throw UserSubsystemHandleManagedByScim
   | otherwise = pure ()
 
 updateUserProfileImpl ::
