@@ -159,8 +159,8 @@ createTestSetup optsPath configPath = do
   opts <- decodeFileThrow optsPath
   endpoint <- optOrEnv @IntegrationConfig (.cargohold) iConf (localEndpoint . read) "CARGOHOLD_WEB_PORT"
   brigEndpoint <- optOrEnv @IntegrationConfig (.brig) iConf (localEndpoint . read) "BRIG_WEB_PORT"
-  pure $
-    TestSetup
+  pure
+    $ TestSetup
       { _tsManager = m,
         _tsEndpoint = endpoint,
         _tsBrig = brigEndpoint,
@@ -175,17 +175,15 @@ runFederationClient action = do
   let base = BaseUrl Http (T.unpack cHost) (fromIntegral cPort) "/federation"
   let env =
         (mkClientEnv man base)
-          { makeClientRequest = \burl req ->
-              let req' = defaultMakeClientRequest burl req
-               in req'
-                    { requestHeaders =
-                        (originDomainHeaderName, toByteString' domain)
-                          : requestHeaders req'
-                    }
+          { makeClientRequest = \burl req -> do
+              req' <- defaultMakeClientRequest burl req
+              pure req' {requestHeaders = (originDomainHeaderName, toByteString' domain) : requestHeaders req'}
           }
 
-  r <- lift . lift $
-    Codensity $ \k ->
+  r <- lift
+    . lift
+    $ Codensity
+    $ \k ->
       -- Servant's streaming client throws exceptions in IO for some reason
       catch (withClientM action env k) (k . Left)
 
@@ -200,15 +198,17 @@ withFederationClient :: ReaderT TestSetup (ExceptT ClientError (Codensity IO)) a
 withFederationClient action =
   runExceptT (hoistFederation action) >>= \case
     Left err ->
-      liftIO . assertFailure $
-        "Unexpected federation client error: "
-          <> displayException err
+      liftIO
+        . assertFailure
+        $ "Unexpected federation client error: "
+        <> displayException err
     Right x -> pure x
 
 withFederationError :: ReaderT TestSetup (ExceptT ClientError (Codensity IO)) a -> TestM Wai.Error
 withFederationError action =
   runExceptT (hoistFederation action)
-    >>= liftIO . \case
+    >>= liftIO
+    . \case
       Left (FailureResponse _ resp) -> case Aeson.eitherDecode (responseBody resp) of
         Left err -> assertFailure $ "Error while parsing error response: " <> err
         Right e -> (Wai.code e @?= responseStatusCode resp) $> e

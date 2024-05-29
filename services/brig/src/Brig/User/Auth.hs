@@ -58,7 +58,6 @@ import Brig.ZAuth qualified as ZAuth
 import Cassandra
 import Control.Error hiding (bool)
 import Control.Lens (to, view)
-import Control.Monad.Except
 import Data.ByteString.Conversion (toByteString)
 import Data.Handle (Handle)
 import Data.Id

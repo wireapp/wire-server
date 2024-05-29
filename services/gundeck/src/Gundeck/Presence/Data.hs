@@ -24,7 +24,6 @@ module Gundeck.Presence.Data
 where
 
 import Control.Monad.Catch
-import Control.Monad.Except
 import Data.Aeson as Aeson
 import Data.ByteString qualified as Strict
 import Data.ByteString.Builder (byteString)
@@ -122,9 +121,13 @@ instance ToJSON PresenceData where
 instance FromJSON PresenceData where
   parseJSON = withObject "PresenceData" $ \o ->
     PresenceData
-      <$> o .: "r"
-      <*> o .:? "c"
-      <*> o .:? "t" .!= 0
+      <$> o
+      .: "r"
+      <*> o
+      .:? "c"
+      <*> o
+      .:? "t"
+      .!= 0
 
 toKey :: UserId -> ByteString
 toKey u = Lazy.toStrict $ runBuilder (byteString "user:" <> builder u)

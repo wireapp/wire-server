@@ -21,7 +21,6 @@ module Wire.API.User.IdentityProvider where
 
 import Cassandra qualified as Cql
 import Control.Lens (makeLenses, (.~), (?~))
-import Control.Monad.Except
 import Data.Aeson
 import Data.Aeson.TH
 import Data.Aeson.Types (parseMaybe)
@@ -103,8 +102,8 @@ instance BSC.FromByteString WireIdPAPIVersion where
 
 instance FromHttpApiData WireIdPAPIVersion where
   parseQueryParam txt =
-    maybe err Right $
-      (BSC.fromByteString' . fromStrict . encodeUtf8) txt
+    maybe err Right
+      $ (BSC.fromByteString' . fromStrict . encodeUtf8) txt
     where
       err = Left $ "FromHttpApiData WireIdPAPIVersion: " <> txt
 
@@ -208,13 +207,17 @@ instance ToSchema RawIdPMetadata where
 
 instance ToSchema IdPMetadataInfo where
   declareNamedSchema _ =
-    pure $
-      NamedSchema (Just "IdPMetadataInfo") $
-        mempty
-          & properties .~ properties_
-          & minProperties ?~ 1
-          & maxProperties ?~ 1
-          & type_ ?~ OpenApiObject
+    pure
+      $ NamedSchema (Just "IdPMetadataInfo")
+      $ mempty
+      & properties
+      .~ properties_
+        & minProperties
+      ?~ 1
+        & maxProperties
+      ?~ 1
+        & type_
+      ?~ OpenApiObject
     where
       properties_ :: InsOrdHashMap Text (Referenced Schema)
       properties_ =

@@ -68,7 +68,7 @@ import Data.Text.Encoding as Text
 import GHC.TypeLits
 import Imports hiding ((\\))
 import Servant
-import Servant.API.Extended.RawM
+import Servant.API.Extended.RawM qualified as RawM
 import Wire.API.Deprecated
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named hiding (unnamed)
@@ -94,7 +94,7 @@ data Version = V0 | V1 | V2 | V3 | V4 | V5 | V6
 -- which will cause `<n>` and `fromEnum V<n>` to diverge.  `Enum` should not be understood as
 -- a bijection between meaningful integers and versions, but merely as a convenient way to say
 -- `allVersions = [minBound..]`.
-versionInt :: Integral i => Version -> i
+versionInt :: (Integral i) => Version -> i
 versionInt V0 = 0
 versionInt V1 = 1
 versionInt V2 = 2
@@ -121,10 +121,11 @@ instance ToSchema Version where
   schema = enum @Text "Version" . mconcat $ (\v -> element (versionText v) v) <$> [minBound ..]
 
 instance FromHttpApiData Version where
-  parseQueryParam v = note ("Unknown version: " <> v) $
-    getAlt $
-      flip foldMap [minBound ..] $ \s ->
-        guard (versionText s == v) $> s
+  parseQueryParam v = note ("Unknown version: " <> v)
+    $ getAlt
+    $ flip foldMap [minBound ..]
+    $ \s ->
+      guard (versionText s == v) $> s
 
 instance ToHttpApiData Version where
   toHeader = versionByteString
@@ -173,12 +174,13 @@ data VersionInfo = VersionInfo
 
 instance ToSchema VersionInfo where
   schema =
-    objectWithDocModifier "VersionInfo" (S.schema . S.example ?~ toJSON example) $
-      VersionInfo
-        <$> vinfoSupported .= vinfoObjectSchema schema
-        <*> vinfoDevelopment .= field "development" (array schema)
-        <*> vinfoFederation .= field "federation" schema
-        <*> vinfoDomain .= field "domain" schema
+    objectWithDocModifier "VersionInfo" (S.schema . S.example ?~ toJSON example)
+      $ VersionInfo
+      <$> vinfoSupported
+      .= vinfoObjectSchema schema
+      <*> vinfoDevelopment .= field "development" (array schema)
+      <*> vinfoFederation .= field "federation" schema
+      <*> vinfoDomain .= field "domain" schema
     where
       example :: VersionInfo
       example =
@@ -229,14 +231,14 @@ $(makePrisms ''VersionExp)
 
 instance ToSchema VersionExp where
   schema =
-    named "VersionExp" $
-      tag _VersionExpConst (unnamed schema)
-        <> tag
-          _VersionExpDevelopment
-          ( unnamed
-              ( enum @Text "VersionExpDevelopment" (element "development" ())
-              )
-          )
+    named "VersionExp"
+      $ tag _VersionExpConst (unnamed schema)
+      <> tag
+        _VersionExpDevelopment
+        ( unnamed
+            ( enum @Text "VersionExpDevelopment" (element "development" ())
+            )
+        )
 
 deriving via Schema VersionExp instance (FromJSON VersionExp)
 
@@ -289,7 +291,7 @@ type instance
   SpecialiseToVersion v (MultiVerb m t r x) =
     MultiVerb m t r x
 
-type instance SpecialiseToVersion v RawM = RawM
+type instance SpecialiseToVersion v RawM.RawM = RawM.RawM
 
 type instance
   SpecialiseToVersion v (ReqBody t x :> api) =

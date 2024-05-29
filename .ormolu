@@ -1,5 +1,14 @@
-infixr 10 .=
+infixl 9 .=
+infixl 9 .:
+infixr 4 ?~
+infixr 4 .~
 infix 4 ===
 infix 4 =/=
 infixr 3 !!!
 infixr 3 <!!
+infixr 3 &&~
+infixr 2 ||~
+infix 4 <$$>
+infix 4 <$$$>
+infixl 1 `bindResponse`
+module Imports exports Prelude

@@ -40,7 +40,6 @@ import Bilge
 import qualified Cassandra as Cas
 import Control.Exception (assert)
 import Control.Lens hiding ((.=))
-import Control.Monad.Except
 import Data.Aeson as Aeson (encode, object, (.=))
 import Data.Aeson.Text as Aeson (encodeToLazyText)
 import Data.ByteString (toStrict)
@@ -104,7 +103,7 @@ import qualified Wire.Sem.Logger as Logger
 import Wire.Sem.Random (Random)
 import qualified Wire.Sem.Random as Random
 
-throwSparSem :: Member (Error SparError) r => SparCustomError -> Sem r a
+throwSparSem :: (Member (Error SparError) r) => SparCustomError -> Sem r a
 throwSparSem = throw . SAML.CustomError
 
 data Env = Env
@@ -189,8 +188,8 @@ createSamlUserWithId ::
   Sem r ()
 createSamlUserWithId teamid buid suid role = do
   uname <-
-    either (throwSparSem . SparBadUserName . LText.pack) pure $
-      Intra.mkUserName Nothing (UrefOnly suid)
+    either (throwSparSem . SparBadUserName . LText.pack) pure
+      $ Intra.mkUserName Nothing (UrefOnly suid)
   buid' <- BrigAccess.createSAML suid buid teamid uname ManagedByWire Nothing Nothing Nothing role
   assert (buid == buid') $ pure ()
   SAMLUserStore.insert suid buid
@@ -270,7 +269,7 @@ validateEmail mbTid uid email = do
 -- 'SAML.Response', and fills in the response id in the header if missing, we can just go for the
 -- latter.
 verdictHandler ::
-  HasCallStack =>
+  (HasCallStack) =>
   ( Member Random r,
     Member (Logger String) r,
     Member GalleyAccess r,
@@ -312,7 +311,7 @@ data VerdictHandlerResult
   deriving (Eq, Show)
 
 verdictHandlerResult ::
-  HasCallStack =>
+  (HasCallStack) =>
   ( Member Random r,
     Member (Logger String) r,
     Member GalleyAccess r,
@@ -395,7 +394,7 @@ moveUserToNewIssuer oldUserRef newUserRef uid = do
   SAMLUserStore.delete uid oldUserRef
 
 verdictHandlerResultCore ::
-  HasCallStack =>
+  (HasCallStack) =>
   ( Member Random r,
     Member (Logger String) r,
     Member GalleyAccess r,
@@ -444,7 +443,7 @@ verdictHandlerResultCore idp = \case
 -- - A title element with contents @wire:sso:<outcome>@.  This is chosen to be easily parseable and
 --   not be the title of any page sent by the IdP while it negotiates with the user.
 -- - The page broadcasts a message to '*', to be picked up by the app.
-verdictHandlerWeb :: HasCallStack => VerdictHandlerResult -> Sem r SAML.ResponseVerdict
+verdictHandlerWeb :: (HasCallStack) => VerdictHandlerResult -> Sem r SAML.ResponseVerdict
 verdictHandlerWeb =
   pure . \case
     VerifyHandlerGranted cky _uid -> successPage cky
@@ -457,18 +456,18 @@ verdictHandlerWeb =
         { errHTTPCode = 200,
           errReasonPhrase = Text.unpack errlbl, -- (not sure what this is used for)
           errBody =
-            easyHtml $
-              "<head>"
-                <> "  <title>wire:sso:error:"
-                <> LText.fromStrict errlbl
-                <> "</title>"
-                <> "   <script type=\"text/javascript\">"
-                <> "       const receiverOrigin = '*';"
-                <> "       window.opener.postMessage("
-                <> Aeson.encodeToLazyText errval
-                <> ", receiverOrigin);"
-                <> "   </script>"
-                <> "</head>",
+            easyHtml
+              $ "<head>"
+              <> "  <title>wire:sso:error:"
+              <> LText.fromStrict errlbl
+              <> "</title>"
+              <> "   <script type=\"text/javascript\">"
+              <> "       const receiverOrigin = '*';"
+              <> "       window.opener.postMessage("
+              <> Aeson.encodeToLazyText errval
+              <> ", receiverOrigin);"
+              <> "   </script>"
+              <> "</head>",
           errHeaders =
             [ ("Content-Type", "text/html;charset=utf-8")
             ]
@@ -489,14 +488,14 @@ verdictHandlerWeb =
         { errHTTPCode = 200,
           errReasonPhrase = "success",
           errBody =
-            easyHtml $
-              "<head>"
-                <> "  <title>wire:sso:success</title>"
-                <> "   <script type=\"text/javascript\">"
-                <> "       const receiverOrigin = '*';"
-                <> "       window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin);"
-                <> "   </script>"
-                <> "</head>",
+            easyHtml
+              $ "<head>"
+              <> "  <title>wire:sso:success</title>"
+              <> "   <script type=\"text/javascript\">"
+              <> "       const receiverOrigin = '*';"
+              <> "       window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin);"
+              <> "   </script>"
+              <> "</head>",
           errHeaders =
             [ ("Content-Type", "text/html;charset=utf-8"),
               ("Set-Cookie", toStrict . Builder.toLazyByteString . renderSetCookie $ cky)
@@ -505,12 +504,12 @@ verdictHandlerWeb =
 
 easyHtml :: LText -> LByteString
 easyHtml doc =
-  LText.encodeUtf8 $
-    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-      <> "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
-      <> "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">"
-      <> doc
-      <> "</html>"
+  LText.encodeUtf8
+    $ "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+    <> "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
+    <> "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">"
+    <> doc
+    <> "</html>"
 
 -- | If the client is mobile, it has picked error and success redirect urls (see
 -- 'mkVerdictGrantedFormatMobile', 'mkVerdictDeniedFormatMobile'); variables in these URLs are here
@@ -610,13 +609,13 @@ deleteTeam team' = do
     SAMLUserStore.deleteByIssuer issuer
     IdPConfigStore.deleteConfig idp
 
-sparToServerErrorWithLogging :: Member Reporter r => SparError -> Sem r ServerError
+sparToServerErrorWithLogging :: (Member Reporter r) => SparError -> Sem r ServerError
 sparToServerErrorWithLogging err = do
   let errServant = sparToServerError err
   Reporter.report Nothing (servantToWaiError errServant)
   pure errServant
 
-renderSparErrorWithLogging :: Member Reporter r => SparError -> Sem r (Either ServerError Wai.Error)
+renderSparErrorWithLogging :: (Member Reporter r) => SparError -> Sem r (Either ServerError Wai.Error)
 renderSparErrorWithLogging err = do
   let errPossiblyWai = renderSparError err
   Reporter.report Nothing (either servantToWaiError id $ errPossiblyWai)

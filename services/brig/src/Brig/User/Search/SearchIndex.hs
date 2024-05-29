@@ -29,7 +29,6 @@ import Brig.Types.Search
 import Brig.User.Search.Index
 import Control.Lens hiding (setting, (#), (.=))
 import Control.Monad.Catch (MonadThrow, throwM)
-import Control.Monad.Except
 import Data.Domain (Domain)
 import Data.Handle (Handle (fromHandle))
 import Data.Id
@@ -91,7 +90,7 @@ queryIndex (IndexQuery q f _) s = do
               searchHasMore = Nothing
             }
 
-userDocToContact :: MonadThrow m => Domain -> UserDoc -> m Contact
+userDocToContact :: (MonadThrow m) => Domain -> UserDoc -> m Contact
 userDocToContact localDomain UserDoc {..} = do
   let contactQualifiedId = Qualified udId localDomain
   contactName <- maybe (throwM $ IndexError "Name not found") (pure . fromName) udName
@@ -109,14 +108,14 @@ userDocToContact localDomain UserDoc {..} = do
 defaultUserQuery :: SearchSetting -> Text -> IndexQuery Contact
 defaultUserQuery setting (normalized -> term') =
   let matchPhraseOrPrefix =
-        ES.QueryMultiMatchQuery $
-          ( ES.mkMultiMatchQuery
-              [ ES.FieldName "handle.prefix^2",
-                ES.FieldName "normalized.prefix",
-                ES.FieldName "normalized^3"
-              ]
-              (ES.QueryString term')
-          )
+        ES.QueryMultiMatchQuery
+          $ ( ES.mkMultiMatchQuery
+                [ ES.FieldName "handle.prefix^2",
+                  ES.FieldName "normalized.prefix",
+                  ES.FieldName "normalized^3"
+                ]
+                (ES.QueryString term')
+            )
             { ES.multiMatchQueryType = Just ES.MultiMatchMostFields,
               ES.multiMatchQueryOperator = ES.And
             }
@@ -149,8 +148,9 @@ mkUserQuery :: SearchSetting -> ES.Query -> IndexQuery Contact
 mkUserQuery setting q =
   IndexQuery
     q
-    ( ES.Filter . ES.QueryBoolQuery $
-        boolQuery
+    ( ES.Filter
+        . ES.QueryBoolQuery
+        $ boolQuery
           { ES.boolQueryMustNotMatch = maybeToList $ matchSelf setting,
             ES.boolQueryMustMatch =
               [ restrictSearchSpace setting,

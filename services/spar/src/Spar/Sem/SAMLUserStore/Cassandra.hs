@@ -27,7 +27,6 @@ where
 
 import Cassandra as Cas
 import Control.Lens
-import Control.Monad.Except
 import Data.Id
 import Imports
 import Polysemy
@@ -42,8 +41,9 @@ samlUserStoreToCassandra ::
   Sem (SAMLUserStore ': r) a ->
   Sem r a
 samlUserStoreToCassandra =
-  interpret $
-    embed . \case
+  interpret
+    $ embed
+    . \case
       Insert ur uid -> insertSAMLUser ur uid
       Get ur -> getSAMLUser ur
       DeleteByIssuer is -> deleteSAMLUsersByIssuer is

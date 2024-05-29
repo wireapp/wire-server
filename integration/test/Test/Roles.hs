@@ -18,13 +18,12 @@
 module Test.Roles where
 
 import API.Galley
-import Control.Monad.Reader
 import GHC.Stack
 import Notifications
 import SetupHelpers
 import Testlib.Prelude
 
-testRoleUpdateWithRemotesOk :: HasCallStack => App ()
+testRoleUpdateWithRemotesOk :: (HasCallStack) => App ()
 testRoleUpdateWithRemotesOk = do
   [bob, charlie, alice] <- createUsers [OwnDomain, OwnDomain, OtherDomain]
   connectTwoUsers bob charlie
@@ -45,7 +44,7 @@ testRoleUpdateWithRemotesOk = do
       notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
       notif %. "payload.0.qualified_from" `shouldMatch` objQidObject bob
 
-testRoleUpdateWithRemotesUnreachable :: HasCallStack => App ()
+testRoleUpdateWithRemotesUnreachable :: (HasCallStack) => App ()
 testRoleUpdateWithRemotesUnreachable = do
   [bob, charlie] <- createUsers [OwnDomain, OwnDomain]
   startDynamicBackends [mempty] $ \[dynBackend] -> do

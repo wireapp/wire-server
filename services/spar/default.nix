@@ -54,6 +54,7 @@
 , raw-strings-qq
 , retry
 , saml2-web-sso
+, semigroupoids
 , servant
 , servant-multipart
 , servant-openapi3
@@ -119,6 +120,7 @@ mkDerivation {
     QuickCheck
     raw-strings-qq
     saml2-web-sso
+    semigroupoids
     servant-multipart
     servant-server
     text

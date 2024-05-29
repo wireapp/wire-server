@@ -287,12 +287,12 @@ allocServerConfig (Right ssl) = do
         chunk <- SSL.read ssl n `catch` \(_ :: SSL.ConnectionAbruptlyTerminated) -> pure mempty
         let chunkLen = BS.length chunk
         if
-            | chunkLen == 0 || chunkLen == n ->
-                pure (prevChunk <> chunk)
-            | chunkLen > n ->
-                error "openssl: SSL.read returned more bytes than asked for, this is probably a bug"
-            | otherwise ->
-                readData (prevChunk <> chunk) (n - chunkLen)
+          | chunkLen == 0 || chunkLen == n ->
+              pure (prevChunk <> chunk)
+          | chunkLen > n ->
+              error "openssl: SSL.read returned more bytes than asked for, this is probably a bug"
+          | otherwise ->
+              readData (prevChunk <> chunk) (n - chunkLen)
   pure
     Server.Config
       { Server.confWriteBuffer = buf,

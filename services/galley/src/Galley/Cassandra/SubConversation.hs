@@ -15,14 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra.SubConversation
-  ( interpretSubConversationStoreToCassandra,
-  )
-where
+module Galley.Cassandra.SubConversation (interpretSubConversationStoreToCassandra) where
 
 import Cassandra
 import Cassandra.Util
-import Control.Error.Util
 import Control.Monad.Trans.Maybe
 import Data.Id
 import Data.Map qualified as Map
@@ -45,8 +41,8 @@ import Wire.API.MLS.SubConversation
 selectSubConversation :: ConvId -> SubConvId -> Client (Maybe SubConversation)
 selectSubConversation convId subConvId = runMaybeT $ do
   (mSuite, mEpoch, mEpochWritetime, mGroupId) <-
-    MaybeT $
-      retry x5 (query1 Cql.selectSubConversation (params LocalQuorum (convId, subConvId)))
+    MaybeT
+      $ retry x5 (query1 Cql.selectSubConversation (params LocalQuorum (convId, subConvId)))
   let activeData =
         ActiveMLSConversationData
           <$> mEpoch
@@ -54,8 +50,8 @@ selectSubConversation convId subConvId = runMaybeT $ do
           <*> mSuite
   groupId <- hoistMaybe mGroupId
   (cm, im) <- lift $ lookupMLSClientLeafIndices groupId
-  pure $
-    SubConversation
+  pure
+    $ SubConversation
       { scParentConvId = convId,
         scSubConvId = subConvId,
         scMLSData =

@@ -24,7 +24,6 @@ import Bilge.RPC
 import Cassandra
 import Control.Lens
 import Control.Monad.Catch
-import Control.Monad.Except
 import Galley.Env
 import Imports hiding (log)
 import Polysemy

@@ -48,7 +48,6 @@ where
 import Brig.Types.Intra
 import Cassandra as Cas
 import Control.Lens hiding ((.=))
-import Control.Monad.Except
 import qualified Data.ByteString as SBS
 import Data.ByteString.Builder (toLazyByteString)
 import Data.Id
@@ -278,7 +277,7 @@ authreq authreqttl msucc merr idpid = do
 redirectURLMaxLength :: Int
 redirectURLMaxLength = 140
 
-validateAuthreqParams :: Member (Error SparError) r => Maybe URI.URI -> Maybe URI.URI -> Sem r VerdictFormat
+validateAuthreqParams :: (Member (Error SparError) r) => Maybe URI.URI -> Maybe URI.URI -> Sem r VerdictFormat
 validateAuthreqParams msucc merr = case (msucc, merr) of
   (Nothing, Nothing) -> pure VerdictFormatWeb
   (Just ok, Just err) -> do
@@ -286,7 +285,7 @@ validateAuthreqParams msucc merr = case (msucc, merr) of
     pure $ VerdictFormatMobile ok err
   _ -> throwSparSem $ SparBadInitiateLoginQueryParams "need-both-redirect-urls"
 
-validateRedirectURL :: Member (Error SparError) r => URI.URI -> Sem r ()
+validateRedirectURL :: (Member (Error SparError) r) => URI.URI -> Sem r ()
 validateRedirectURL uri = do
   unless ((SBS.take 4 . URI.schemeBS . URI.uriScheme $ uri) == "wire") $ do
     throwSparSem $ SparBadInitiateLoginQueryParams "invalid-schema"
@@ -325,12 +324,13 @@ authresp mbtid arbody = logErrors $ SAML2.authResp mbtid (SamlProtocolSettings.s
     logErrors action = catch @SparError action $ \case
       e@(SAML.CustomServant _) -> throw e
       e -> do
-        throw @SparError . SAML.CustomServant $
-          errorPage
+        throw @SparError
+          . SAML.CustomServant
+          $ errorPage
             e
             (Multipart.inputs (SAML.authnResponseBodyRaw arbody))
 
-ssoSettings :: Member DefaultSsoCode r => Sem r SsoSettings
+ssoSettings :: (Member DefaultSsoCode r) => Sem r SsoSettings
 ssoSettings =
   SsoSettings <$> DefaultSsoCode.get
 
@@ -441,8 +441,9 @@ idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (co
               void $ BrigAccess.deleteUser uid
             else do
               throwSparSem SparIdPHasBoundUsers
-      when (Cas.hasMore page) $
-        SAMLUserStore.nextPage page >>= assertEmptyOrPurge teamId
+      when (Cas.hasMore page)
+        $ SAMLUserStore.nextPage page
+        >>= assertEmptyOrPurge teamId
 
     updateOldIssuers :: IdP -> Sem r ()
     updateOldIssuers _ = pure ()
@@ -544,9 +545,9 @@ assertNoScimOrNoIdP ::
 assertNoScimOrNoIdP teamid = do
   numTokens <- length <$> ScimTokenStore.lookupByTeam teamid
   numIdps <- length <$> IdPConfigStore.getConfigsByTeam teamid
-  when (numTokens > 0 && numIdps > 0) $
-    throwSparSem $
-      SparProvisioningMoreThanOneIdP ScimTokenAndSecondIdpForbidden
+  when (numTokens > 0 && numIdps > 0)
+    $ throwSparSem
+    $ SparProvisioningMoreThanOneIdP ScimTokenAndSecondIdpForbidden
 
 -- | Check that issuer is not used anywhere in the system ('WireIdPAPIV1', here it is a
 -- database key for finding IdPs), or anywhere in this team ('WireIdPAPIV2'), that request
@@ -684,8 +685,8 @@ validateIdPUpdate ::
 validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateIdPUpdate" (Just . show . (_2 %~ (^. SAML.idpId))) $ do
   previousIdP <- IdPConfigStore.getConfig _idpId
   (_, teamId) <- authorizeIdP zusr previousIdP
-  unless (previousIdP ^. SAML.idpExtraInfo . team == teamId) $
-    throw errUnknownIdP
+  unless (previousIdP ^. SAML.idpExtraInfo . team == teamId)
+    $ throw errUnknownIdP
   _idpExtraInfo <- do
     let previousIssuer = previousIdP ^. SAML.idpMetadata . SAML.edIssuer
         newIssuer = _idpMetadata ^. SAML.edIssuer
@@ -719,7 +720,7 @@ validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateIdPUpdate" (J
             . URI.serializeURIRef
         uri = _idpMetadata ^. SAML.edIssuer . SAML.fromIssuer
 
-withDebugLog :: Member (Logger String) r => String -> (a -> Maybe String) -> Sem r a -> Sem r a
+withDebugLog :: (Member (Logger String) r) => String -> (a -> Maybe String) -> Sem r a -> Sem r a
 withDebugLog msg showval action = do
   Logger.log Logger.Debug $ "entering " ++ msg
   val <- action
@@ -739,15 +740,15 @@ authorizeIdP ::
   Sem r (UserId, TeamId)
 authorizeIdP Nothing _ =
   throw
-    ( SAML.CustomError $
-        SparNoPermission (T.pack $ show CreateUpdateDeleteIdp)
+    ( SAML.CustomError
+        $ SparNoPermission (T.pack $ show CreateUpdateDeleteIdp)
     )
 authorizeIdP (Just zusr) idp = do
   let teamid = idp ^. SAML.idpExtraInfo . team
   GalleyAccess.assertHasPermission teamid CreateUpdateDeleteIdp zusr
   pure (zusr, teamid)
 
-enforceHttps :: Member (Error SparError) r => URI.URI -> Sem r ()
+enforceHttps :: (Member (Error SparError) r) => URI.URI -> Sem r ()
 enforceHttps uri =
   unless ((uri ^. URI.uriSchemeL . URI.schemeBSL) == "https") $ do
     throwSparSem . SparNewIdPWantHttps . T.fromStrict . SAML.renderURI $ uri
@@ -789,7 +790,7 @@ internalPutSsoSettings SsoSettings {defaultSsoCode = Just code} =
     *> DefaultSsoCode.store code
     $> NoContent
 
-internalGetScimUserInfo :: Member ScimUserTimesStore r => UserSet -> Sem r ScimUserInfos
+internalGetScimUserInfo :: (Member ScimUserTimesStore r) => UserSet -> Sem r ScimUserInfos
 internalGetScimUserInfo (UserSet uids) = do
   results <- ScimUserTimesStore.readMulti (Set.toList uids)
   let scimUserInfos = results <&> (\(uid, t, _) -> ScimUserInfo uid (Just t))

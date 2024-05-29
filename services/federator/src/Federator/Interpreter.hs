@@ -6,7 +6,7 @@ where
 
 import Control.Lens
 import Control.Monad.Codensity
-import Control.Monad.Except
+import Control.Monad.Except (ExceptT (..))
 import Data.Aeson (encode)
 import Data.Id
 import Data.Kind

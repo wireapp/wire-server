@@ -88,7 +88,7 @@ let
     test-stats = [ "test-stats" ];
   };
 
-  attrsets = lib.attrsets;
+  inherit (lib) attrsets;
 
   pinnedPackages = import ./haskell-pins.nix {
     inherit pkgs;
@@ -155,7 +155,8 @@ let
     ];
 
   manualOverrides = import ./manual-overrides.nix (with pkgs; {
-    inherit hlib libsodium protobuf mls-test-cli fetchpatch pkgs;
+    inherit (pkgs) libsodium protobuf fetchpatch fetchurl curl;
+    inherit hlib mls-test-cli;
   });
 
   executables = hself: hsuper:
@@ -168,7 +169,7 @@ let
       )
       executablesMap;
 
-  hPkgs = localMods@{ enableOptimization, enableDocs, enableTests }: pkgs.haskell.packages.ghc94.override {
+  hPkgs = localMods@{ enableOptimization, enableDocs, enableTests }: pkgs.haskellPackages.override {
     overrides = lib.composeManyExtensions [
       pinnedPackages
       (localPackages localMods)
@@ -396,8 +397,6 @@ let
     };
   };
 
-  ormolu = pkgs.haskell.packages.ghc94.ormolu_0_5_2_0;
-
   # Tools common between CI and developers
   commonTools = [
     pkgs.cabal2nix
@@ -413,7 +412,7 @@ let
     pkgs.kubelogin-oidc
     pkgs.nixpkgs-fmt
     pkgs.openssl
-    (hlib.justStaticExecutables ormolu)
+    pkgs.ormolu
     pkgs.shellcheck
     pkgs.treefmt
     pkgs.gawk
@@ -449,14 +448,6 @@ let
   };
   ghcWithPackages = shell.nativeBuildInputs ++ shell.buildInputs;
 
-  inherit (pkgs.haskellPackages.override {
-    overrides = _hfinal: hprev: {
-      base-compat = hprev.base-compat_0_13_1;
-      base-compat-batteries = hprev.base-compat-batteries_0_13_1;
-      cabal-plan = hlib.markUnbroken (hlib.doJailbreak hprev.cabal-plan);
-    };
-  }) cabal-plan;
-
   profileEnv = pkgs.writeTextFile {
     name = "profile-env";
     destination = "/.profile";
@@ -472,11 +463,6 @@ let
   };
 
   allImages = pkgs.linkFarm "all-images" (images localModsEnableAll);
-
-  # BOM is an acronym for bill of materials
-  allLocalPackagesBom = lib.buildBom allLocalPackages {
-    includeBuildtimeDependencies = true;
-  };
 
   haskellPackages = hPkgs localModsEnableAll;
   haskellPackagesUnoptimizedNoDocs = hPkgs localModsOnlyTests;
@@ -506,7 +492,7 @@ let
     pkgs.writeText "all-toplevel.jsonl" (builtins.concatStringsSep "\n" out);
 in
 {
-  inherit ciImage hoogleImage allImages allLocalPackages allLocalPackagesBom
+  inherit ciImage hoogleImage allImages allLocalPackages
     toplevel-derivations haskellPackages haskellPackagesUnoptimizedNoDocs imagesList;
 
   images = images localModsEnableAll;
@@ -526,7 +512,7 @@ in
       pkgs.bash
       pkgs.crate2nix
       pkgs.dash
-      (pkgs.haskell-language-server.override { supportedGhcVersions = [ "94" ]; })
+      (pkgs.haskell-language-server.override { supportedGhcVersions = [ "96" ]; })
       pkgs.ghcid
       pkgs.kind
       pkgs.netcat
@@ -554,7 +540,7 @@ in
 
       pkgs.cabal-install
       pkgs.nix-prefetch-git
-      cabal-plan
+      pkgs.haskellPackages.cabal-plan
       profileEnv
     ]
     ++ ghcWithPackages

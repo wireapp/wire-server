@@ -25,7 +25,6 @@ where
 
 import Cassandra
 import Control.Lens
-import Control.Monad.Except
 import Data.Kind (Type)
 import Imports
 import Polysemy
@@ -251,8 +250,8 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
   do
     mbUser1 <- case veidFromUserSSOId ssoid1 of
       Right veid ->
-        runSpar $
-          runValidExternalIdEither
+        runSpar
+          $ runValidExternalIdEither
             SAMLUserStore.get
             undefined -- could be @Data.lookupScimExternalId@, but we don't hit that path.
             veid
@@ -261,8 +260,8 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
   do
     mbUser2 <- case veidFromUserSSOId ssoid2 of
       Right veid ->
-        runSpar $
-          runValidExternalIdEither
+        runSpar
+          $ runValidExternalIdEither
             SAMLUserStore.get
             undefined
             veid

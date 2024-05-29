@@ -54,6 +54,7 @@ where
 
 import Cassandra qualified as C
 import Control.Applicative (optional)
+import Control.Error (hush)
 import Control.Lens (dimap, over, (.~), (?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Aeson qualified as A
@@ -115,9 +116,12 @@ type UserIdentityComponents = (Maybe Email, Maybe Phone, Maybe UserSSOId)
 userIdentityComponentsObjectSchema :: ObjectSchema SwaggerDoc UserIdentityComponents
 userIdentityComponentsObjectSchema =
   (,,)
-    <$> fst3 .= maybe_ (optField "email" schema)
-    <*> snd3 .= maybe_ (optField "phone" schema)
-    <*> thd3 .= maybe_ (optField "sso_id" genericToSchema)
+    <$> fst3
+    .= maybe_ (optField "email" schema)
+      <*> snd3
+    .= maybe_ (optField "phone" schema)
+      <*> thd3
+    .= maybe_ (optField "sso_id" genericToSchema)
 
 maybeUserIdentityFromComponents :: UserIdentityComponents -> Maybe UserIdentity
 maybeUserIdentityFromComponents = \case
@@ -237,10 +241,12 @@ parseEmail t = case Text.split (== '@') t of
 --   is the dependency worth it just for validating the local part?
 validateEmail :: Email -> Either String Email
 validateEmail =
-  pure . uncurry Email
+  pure
+    . uncurry Email
     <=< validateDomain
     <=< validateExternalLib
-    <=< validateLength . fromEmail
+    <=< validateLength
+    . fromEmail
   where
     validateLength e
       | len <= 100 = Right e
@@ -276,8 +282,9 @@ instance ToParamSchema Phone where
 
 instance ToSchema Phone where
   schema =
-    over doc (S.description ?~ "E.164 phone number") $
-      fromPhone .= parsedText "PhoneNumber" (maybe (Left "Invalid phone number. Expected E.164 format.") Right . parsePhone)
+    over doc (S.description ?~ "E.164 phone number")
+      $ fromPhone
+      .= parsedText "PhoneNumber" (maybe (Left "Invalid phone number. Expected E.164 format.") Right . parsePhone)
 
 instance ToByteString Phone where
   builder = builder . fromPhone
@@ -363,15 +370,16 @@ instance S.ToSchema UserSSOId where
     tenantSchema <- S.declareSchemaRef (Proxy @Text) -- FUTUREWORK: 'Issuer'
     subjectSchema <- S.declareSchemaRef (Proxy @Text) -- FUTUREWORK: 'NameID'
     scimSchema <- S.declareSchemaRef (Proxy @Text)
-    pure $
-      S.NamedSchema (Just "UserSSOId") $
-        mempty
-          & S.type_ ?~ S.OpenApiObject
-          & S.properties
-            .~ [ ("tenant", tenantSchema),
-                 ("subject", subjectSchema),
-                 ("scim_external_id", scimSchema)
-               ]
+    pure
+      $ S.NamedSchema (Just "UserSSOId")
+      $ mempty
+      & S.type_
+      ?~ S.OpenApiObject
+        & S.properties
+      .~ [ ("tenant", tenantSchema),
+           ("subject", subjectSchema),
+           ("scim_external_id", scimSchema)
+         ]
 
 instance ToJSON UserSSOId where
   toJSON = \case
@@ -410,13 +418,13 @@ lenientlyParseSAMLIssuer mbtxt = forM mbtxt $ \txt -> do
 
       asurl :: Either String SAML.Issuer
       asurl =
-        bimap show SAML.Issuer $
-          URI.parseURI URI.laxURIParserOptions (encodeUtf8 . LT.toStrict $ txt)
+        bimap show SAML.Issuer
+          $ URI.parseURI URI.laxURIParserOptions (encodeUtf8 . LT.toStrict $ txt)
 
       err :: String
       err = "lenientlyParseSAMLIssuer: " <> show (asxml, asurl, mbtxt)
 
-  either (const $ fail err) pure $ asxml <|> asurl
+  maybe (fail err) pure $ hush asxml <|> hush asurl
 
 lenientlyParseSAMLNameID :: Maybe LText -> A.Parser (Maybe SAML.NameID)
 lenientlyParseSAMLNameID Nothing = pure Nothing
@@ -439,23 +447,23 @@ lenientlyParseSAMLNameID (Just txt) = do
       err :: String
       err = "lenientlyParseSAMLNameID: " <> show (asxml, asemail, astxt, txt)
 
-  either
-    (const $ fail err)
+  maybe
+    (fail err)
     (pure . Just)
-    (asxml <|> asemail <|> astxt)
+    (hush asxml <|> hush asemail <|> hush astxt)
 
-emailFromSAML :: HasCallStack => SAMLEmail.Email -> Email
+emailFromSAML :: (HasCallStack) => SAMLEmail.Email -> Email
 emailFromSAML = fromJust . parseEmail . SAMLEmail.render
 
-emailToSAML :: HasCallStack => Email -> SAMLEmail.Email
+emailToSAML :: (HasCallStack) => Email -> SAMLEmail.Email
 emailToSAML = CI.original . fromRight (error "emailToSAML") . SAMLEmail.validate . toByteString
 
 -- | FUTUREWORK(fisx): if saml2-web-sso exported the 'NameID' constructor, we could make this
 -- function total without all that praying and hoping.
-emailToSAMLNameID :: HasCallStack => Email -> SAML.NameID
+emailToSAMLNameID :: (HasCallStack) => Email -> SAML.NameID
 emailToSAMLNameID = fromRight (error "impossible") . SAML.emailNameID . fromEmail
 
-emailFromSAMLNameID :: HasCallStack => SAML.NameID -> Maybe Email
+emailFromSAMLNameID :: (HasCallStack) => SAML.NameID -> Maybe Email
 emailFromSAMLNameID nid = case nid ^. SAML.nameID of
   SAML.UNameIDEmail email -> Just . emailFromSAML . CI.original $ email
   _ -> Nothing
@@ -470,7 +478,7 @@ mkSampleUref iseed nseed = SAML.UserRef issuer nameid
       SAML.Issuer
         ( [uri|http://example.com/|]
             & URI.pathL
-              .~ UTF8.fromString ("/" </> Text.unpack iseed)
+            .~ UTF8.fromString ("/" </> Text.unpack iseed)
         )
 
     nameid :: SAML.NameID

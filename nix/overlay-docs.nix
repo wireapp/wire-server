@@ -9,7 +9,5 @@ self: super: rec {
     };
   };
 
-  mls-test-cli = self.callPackage ./pkgs/mls-test-cli { };
-
   python3Packages = python3.pkgs;
 }

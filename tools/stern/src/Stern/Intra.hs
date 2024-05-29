@@ -76,7 +76,6 @@ import Bilge.RPC
 import Brig.Types.Intra
 import Control.Error
 import Control.Lens (view, (^.))
-import Control.Monad.Reader
 import Data.Aeson hiding (Error)
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Aeson.Types (emptyArray)
@@ -146,35 +145,35 @@ putUser :: UserId -> UserUpdate -> Handler ()
 putUser uid upd = do
   info $ userMsg uid . msg "Changing user state"
   b <- view brig
-  void $
-    catchRpcErrors $
-      rpc'
-        "brig"
-        b
-        ( method PUT
-            . versionedPath "self"
-            . header "Z-User" (toByteString' uid)
-            . header "Z-Connection" (toByteString' "")
-            . lbytes (encode upd)
-            . contentJson
-            . expect2xx
-        )
+  void
+    $ catchRpcErrors
+    $ rpc'
+      "brig"
+      b
+      ( method PUT
+          . versionedPath "self"
+          . header "Z-User" (toByteString' uid)
+          . header "Z-Connection" (toByteString' "")
+          . lbytes (encode upd)
+          . contentJson
+          . expect2xx
+      )
 
 putUserStatus :: AccountStatus -> UserId -> Handler ()
 putUserStatus status uid = do
   info $ userMsg uid . msg "Changing user status"
   b <- view brig
-  void $
-    catchRpcErrors $
-      rpc'
-        "brig"
-        b
-        ( method PUT
-            . Bilge.paths ["i", "users", toByteString' uid, "status"]
-            . lbytes (encode payload)
-            . contentJson
-            . expect2xx
-        )
+  void
+    $ catchRpcErrors
+    $ rpc'
+      "brig"
+      b
+      ( method PUT
+          . Bilge.paths ["i", "users", toByteString' uid, "status"]
+          . lbytes (encode payload)
+          . contentJson
+          . expect2xx
+      )
   where
     payload = AccountStatusUpdate status
 
@@ -195,8 +194,8 @@ getUserConnections uid = do
     fetchBatch start = do
       b <- view brig
       r <-
-        catchRpcErrors $
-          rpc'
+        catchRpcErrors
+          $ rpc'
             "brig"
             b
             ( method GET
@@ -215,8 +214,8 @@ getUsersConnections uids = do
   b <- view brig
   let reqBody = ConnectionsStatusRequest (fromList uids) Nothing
   r <-
-    catchRpcErrors $
-      rpc'
+    catchRpcErrors
+      $ rpc'
         "brig"
         b
         ( method POST
@@ -236,8 +235,8 @@ getUserProfiles uidsOrHandles = do
     doRequest :: Request -> (Request -> Request) -> Handler [UserAccount]
     doRequest b qry = do
       r <-
-        catchRpcErrors $
-          rpc'
+        catchRpcErrors
+          $ rpc'
             "brig"
             b
             ( method GET
@@ -249,7 +248,7 @@ getUserProfiles uidsOrHandles = do
     prepareQS :: Either [UserId] [Handle] -> [Request -> Request]
     prepareQS (Left uids) = fmap (queryItem "ids") (toQS uids)
     prepareQS (Right handles) = fmap (queryItem "handles") (toQS handles)
-    toQS :: ToByteString a => [a] -> [ByteString]
+    toQS :: (ToByteString a) => [a] -> [ByteString]
     toQS =
       fmap (BS.intercalate "," . map toByteString')
         . chunksOf 50
@@ -259,8 +258,8 @@ getUserProfilesByIdentity emailOrPhone = do
   info $ msg "Getting user accounts by identity"
   b <- view brig
   r <-
-    catchRpcErrors $
-      rpc'
+    catchRpcErrors
+      $ rpc'
         "brig"
         b
         ( method GET
@@ -281,8 +280,8 @@ getEjpdInfo handles includeContacts = do
               .= (decodeUtf8With lenientDecode . toByteString' <$> handles)
           ]
   r <-
-    catchRpcErrors $
-      rpc'
+    catchRpcErrors
+      $ rpc'
         "brig"
         b
         ( method POST
@@ -298,8 +297,8 @@ getContacts u q s = do
   info $ msg "Getting user contacts"
   b <- view brig
   r <-
-    catchRpcErrors $
-      rpc'
+    catchRpcErrors
+      $ rpc'
         "brig"
         b
         ( method GET
@@ -315,8 +314,9 @@ revokeIdentity :: Either Email Phone -> Handler ()
 revokeIdentity emailOrPhone = do
   info $ msg "Revoking user identity"
   b <- view brig
-  void . catchRpcErrors $
-    rpc'
+  void
+    . catchRpcErrors
+    $ rpc'
       "brig"
       b
       ( method POST
@@ -329,8 +329,9 @@ deleteAccount :: UserId -> Handler ()
 deleteAccount uid = do
   info $ msg "Deleting account"
   b <- view brig
-  void . catchRpcErrors $
-    rpc'
+  void
+    . catchRpcErrors
+    $ rpc'
       "brig"
       b
       ( method DELETE
@@ -340,14 +341,15 @@ deleteAccount uid = do
 
 setStatusBindingTeam :: TeamId -> Team.TeamStatus -> Handler ()
 setStatusBindingTeam tid status = do
-  info $
-    msg
+  info
+    $ msg
       ( "Setting team status to "
           <> UTF8.toString (BS.toStrict . encode $ status)
       )
   g <- view galley
-  void . catchRpcErrors $
-    rpc'
+  void
+    . catchRpcErrors
+    $ rpc'
       "galley"
       g
       ( method PUT
@@ -360,8 +362,9 @@ deleteBindingTeam :: TeamId -> Handler ()
 deleteBindingTeam tid = do
   info $ msg "Deleting team"
   g <- view galley
-  void . catchRpcErrors $
-    rpc'
+  void
+    . catchRpcErrors
+    $ rpc'
       "galley"
       g
       ( method DELETE
@@ -374,8 +377,9 @@ deleteBindingTeamForce :: TeamId -> Handler ()
 deleteBindingTeamForce tid = do
   info $ msg "Deleting team with force flag"
   g <- view galley
-  void . catchRpcErrors $
-    rpc'
+  void
+    . catchRpcErrors
+    $ rpc'
       "galley"
       g
       ( method DELETE
@@ -388,8 +392,9 @@ changeEmail :: UserId -> EmailUpdate -> Handler ()
 changeEmail u upd = do
   info $ msg "Updating email address"
   b <- view brig
-  void . catchRpcErrors $
-    rpc'
+  void
+    . catchRpcErrors
+    $ rpc'
       "brig"
       b
       ( method PUT
@@ -406,8 +411,9 @@ changePhone :: UserId -> PhoneUpdate -> Handler ()
 changePhone u upd = do
   info $ msg "Updating phone number"
   b <- view brig
-  void . catchRpcErrors $
-    rpc'
+  void
+    . catchRpcErrors
+    $ rpc'
       "brig"
       b
       ( method PUT
@@ -430,8 +436,8 @@ getUserBindingTeam u = do
   info $ msg "Getting user binding team"
   g <- view galley
   r <-
-    catchRpcErrors $
-      rpc'
+    catchRpcErrors
+      $ rpc'
         "galley"
         g
         ( method GET
@@ -441,19 +447,20 @@ getUserBindingTeam u = do
             . expect2xx
         )
   teams <- parseResponse (mkError status502 "bad-upstream") r
-  pure $
-    listToMaybe $
-      fmap (view teamId) $
-        filter ((== Binding) . view teamBinding) $
-          teams ^. teamListTeams
+  pure
+    $ listToMaybe
+    $ fmap (view teamId)
+    $ filter ((== Binding) . view teamBinding)
+    $ teams
+    ^. teamListTeams
 
 getInvoiceUrl :: TeamId -> InvoiceId -> Handler ByteString
 getInvoiceUrl tid iid = do
   info $ msg "Getting invoice"
   i <- view ibis
   r <-
-    catchRpcErrors $
-      rpc'
+    catchRpcErrors
+      $ rpc'
         "ibis"
         i
         ( method GET
@@ -468,8 +475,8 @@ getTeamBillingInfo tid = do
   info $ msg "Getting team billing info"
   i <- view ibis
   resp <-
-    catchRpcErrors $
-      rpc'
+    catchRpcErrors
+      $ rpc'
         "ibis"
         i
         ( method GET
@@ -484,8 +491,9 @@ setTeamBillingInfo :: TeamId -> TeamBillingInfo -> Handler ()
 setTeamBillingInfo tid tbu = do
   info $ msg "Setting team billing info"
   i <- view ibis
-  void . catchRpcErrors $
-    rpc'
+  void
+    . catchRpcErrors
+    $ rpc'
       "ibis"
       i
       ( method PUT
@@ -500,8 +508,8 @@ isBlacklisted emailOrPhone = do
   info $ msg "Checking blacklist"
   b <- view brig
   resp <-
-    catchRpcErrors $
-      rpc'
+    catchRpcErrors
+      $ rpc'
         "brig"
         b
         ( method GET
@@ -517,8 +525,9 @@ setBlacklistStatus :: Bool -> Either Email Phone -> Handler ()
 setBlacklistStatus status emailOrPhone = do
   info $ msg "Changing blacklist status"
   b <- view brig
-  void . catchRpcErrors $
-    rpc'
+  void
+    . catchRpcErrors
+    $ rpc'
       "brig"
       b
       ( method (statusToMethod status)
@@ -583,12 +592,12 @@ setTeamFeatureFlag tid status = do
             ( mkError
                 status400
                 "bad-data"
-                ( LT.pack $
-                    "ttl limit is "
-                      <> show daysLimit
-                      <> " days; I got "
-                      <> show days
-                      <> "."
+                ( LT.pack
+                    $ "ttl limit is "
+                    <> show daysLimit
+                    <> " days; I got "
+                    <> show days
+                    <> "."
                 )
             )
       where
@@ -604,8 +613,9 @@ setTeamFeatureLockStatus ::
 setTeamFeatureLockStatus tid lstat = do
   info $ msg ("Setting lock status: " <> show (symbolVal (Proxy @(Public.FeatureSymbol cfg)), lstat))
   gly <- view galley
-  fromResponseBody <=< catchRpcErrors $
-    rpc'
+  fromResponseBody
+    <=< catchRpcErrors
+    $ rpc'
       "galley"
       gly
       ( method PUT
@@ -626,8 +636,9 @@ getSearchVisibility :: TeamId -> Handler TeamSearchVisibilityView
 getSearchVisibility tid = do
   info $ msg "Getting TeamSearchVisibilityView value"
   gly <- view galley
-  fromResponseBody <=< catchRpcErrors $
-    rpc'
+  fromResponseBody
+    <=< catchRpcErrors
+    $ rpc'
       "galley"
       gly
       ( method GET
@@ -643,8 +654,8 @@ setSearchVisibility tid typ = do
   info $ msg "Setting TeamSearchVisibility value"
   gly <- view galley
   resp <-
-    catchRpcErrors $
-      rpc'
+    catchRpcErrors
+      $ rpc'
         "galley"
         gly
         ( method PUT
@@ -656,8 +667,8 @@ setSearchVisibility tid typ = do
     200 -> pure ()
     204 -> pure ()
     403 ->
-      throwE $
-        mkError
+      throwE
+        $ mkError
           status403
           "team-search-visibility-unset"
           "This team does not have TeamSearchVisibility enabled. Ensure this is the correct TeamID or first enable the feature"
@@ -691,8 +702,8 @@ getTeamData tid = do
   info $ msg "Getting team information"
   g <- view galley
   r <-
-    catchRpcErrors $
-      rpc'
+    catchRpcErrors
+      $ rpc'
         "galley"
         g
         ( method GET
@@ -708,8 +719,8 @@ getTeamMembers tid = do
   info $ msg "Getting team members"
   g <- view galley
   r <-
-    catchRpcErrors $
-      rpc'
+    catchRpcErrors
+      $ rpc'
         "galley"
         g
         ( method GET
@@ -723,8 +734,8 @@ getEmailConsentLog email = do
   info $ msg "Getting email consent log"
   g <- view galeb
   r <-
-    catchRpcErrors $
-      rpc'
+    catchRpcErrors
+      $ rpc'
         "galeb"
         g
         ( method GET
@@ -741,8 +752,8 @@ getUserConsentValue uid = do
   info $ msg "Getting user consent value"
   g <- view galeb
   r <-
-    catchRpcErrors $
-      rpc'
+    catchRpcErrors
+      $ rpc'
         "galeb"
         g
         ( method GET
@@ -757,8 +768,8 @@ getMarketoResult email = do
   info $ msg "Getting marketo results"
   g <- view galeb
   r <-
-    catchRpcErrors $
-      rpc'
+    catchRpcErrors
+      $ rpc'
         "galeb"
         g
         ( method GET
@@ -778,8 +789,8 @@ getUserConsentLog uid = do
   info $ msg "Getting user consent log"
   g <- view galeb
   r <-
-    catchRpcErrors $
-      rpc'
+    catchRpcErrors
+      $ rpc'
         "galeb"
         g
         ( method GET
@@ -793,8 +804,8 @@ getUserCookies uid = do
   info $ msg "Getting user cookies"
   g <- view brig
   r <-
-    catchRpcErrors $
-      rpc'
+    catchRpcErrors
+      $ rpc'
         "brig"
         g
         ( method GET
@@ -821,8 +832,8 @@ getUserConversations uid maxConvs = do
     fetchBatch start batchSize = do
       baseReq <- view galley
       r <-
-        catchRpcErrors $
-          rpc'
+        catchRpcErrors
+          $ rpc'
             "galley"
             baseReq
             ( method GET
@@ -839,8 +850,8 @@ getUserClients uid = do
   info $ msg "Getting user clients"
   b <- view brig
   r <-
-    catchRpcErrors $
-      rpc'
+    catchRpcErrors
+      $ rpc'
         "brig"
         b
         ( method GET
@@ -856,8 +867,8 @@ getUserProperties uid = do
   info $ msg "Getting user properties"
   b <- view brig
   r <-
-    catchRpcErrors $
-      rpc'
+    catchRpcErrors
+      $ rpc'
         "brig"
         b
         ( method GET
@@ -872,8 +883,8 @@ getUserProperties uid = do
     fetchProperty _ [] acc = pure acc
     fetchProperty b (x : xs) acc = do
       r <-
-        catchRpcErrors $
-          rpc'
+        catchRpcErrors
+          $ rpc'
             "brig"
             b
             ( method GET
@@ -902,8 +913,8 @@ getUserNotifications uid maxNotifs = do
     fetchBatch start batchSize = do
       baseReq <- view gundeck
       r <-
-        catchRpcErrors $
-          rpc'
+        catchRpcErrors
+          $ rpc'
             "gundeck"
             baseReq
             ( method GET
@@ -926,8 +937,8 @@ getSsoDomainRedirect domain = do
   -- curl  -XGET ${CLOUD_BACKEND}/custom-backend/by-domain/${DOMAIN_EXAMPLE}
   g <- view galley
   r <-
-    catchRpcErrors $
-      rpc'
+    catchRpcErrors
+      $ rpc'
         "galley"
         g
         ( method GET
@@ -948,8 +959,9 @@ putSsoDomainRedirect domain config welcome = do
   -- }'
   -- curl -XPUT http://localhost/i/custom-backend/by-domain/${DOMAIN_EXAMPLE} -d "${DOMAIN_ENTRY}"
   g <- view galley
-  void . catchRpcErrors $
-    rpc'
+  void
+    . catchRpcErrors
+    $ rpc'
       "galley"
       g
       ( method PUT
@@ -968,8 +980,9 @@ deleteSsoDomainRedirect domain = do
   info $ msg "deleteSsoDomainRedirect"
   -- curl -XDELETE http://localhost/i/custom-backend/by-domain/${DOMAIN_EXAMPLE}
   g <- view galley
-  void . catchRpcErrors $
-    rpc'
+  void
+    . catchRpcErrors
+    $ rpc'
       "galley"
       g
       ( method DELETE
@@ -986,8 +999,8 @@ registerOAuthClient :: OAuthClientConfig -> Handler OAuthClientCredentials
 registerOAuthClient conf = do
   b <- view brig
   r <-
-    catchRpcErrors $
-      rpc'
+    catchRpcErrors
+      $ rpc'
         "brig"
         b
         ( method POST
@@ -1017,8 +1030,8 @@ updateOAuthClient :: OAuthClientId -> OAuthClientConfig -> Handler OAuthClient
 updateOAuthClient cid conf = do
   b <- view brig
   r <-
-    catchRpcErrors $
-      rpc'
+    catchRpcErrors
+      $ rpc'
         "brig"
         b
         ( method PUT
@@ -1033,8 +1046,8 @@ deleteOAuthClient :: OAuthClientId -> Handler ()
 deleteOAuthClient cid = do
   b <- view brig
   r <-
-    catchRpcErrors $
-      rpc'
+    catchRpcErrors
+      $ rpc'
         "brig"
         b
         ( method DELETE
