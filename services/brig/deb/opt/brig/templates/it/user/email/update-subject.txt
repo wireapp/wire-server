@@ -1,1 +1,1 @@
-Il tuo nuovo indirizzo email su Wire
+Il tuo nuovo indirizzo email su ${brand}

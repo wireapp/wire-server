@@ -1,0 +1,1 @@
+Witaj, Twój kod weryfikacyjny Wire to: ${code}. Jeszcze raz twój kod to: ${code}
