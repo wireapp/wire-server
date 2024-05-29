@@ -42,6 +42,7 @@ library
     Federator.ExternalServer
     Federator.Health
     Federator.InternalServer
+    Federator.Interpreter
     Federator.Metrics
     Federator.MockServer
     Federator.Monitor
@@ -324,7 +325,6 @@ test-suite federator-tests
     Test.Federator.Monitor
     Test.Federator.Options
     Test.Federator.Remote
-    Test.Federator.Response
     Test.Federator.Util
     Test.Federator.Validation
 

@@ -29,9 +29,9 @@ import Data.Text.Encoding qualified as Text
 import Federator.Discovery
 import Federator.Error.ServerError (ServerError (..))
 import Federator.ExternalServer
+import Federator.Interpreter
 import Federator.Metrics
 import Federator.Options
-import Federator.Response
 import Federator.Service (Service (..), ServiceStreaming)
 import Federator.Validation
 import Imports

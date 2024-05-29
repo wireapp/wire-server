@@ -26,6 +26,7 @@ import Data.Domain
 import Federator.Env
 import Federator.Error.ServerError
 import Federator.Health qualified as Health
+import Federator.Interpreter
 import Federator.Metrics (Metrics, outgoingCounterIncr)
 import Federator.RPC
 import Federator.Remote

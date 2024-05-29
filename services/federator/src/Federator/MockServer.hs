@@ -52,8 +52,8 @@ import Data.Text.Lazy qualified as LText
 import Federator.Error
 import Federator.Error.ServerError
 import Federator.InternalServer
+import Federator.Interpreter
 import Federator.RPC
-import Federator.Response
 import Federator.Validation
 import Imports hiding (fromException)
 import Network.HTTP.Media qualified as HTTP

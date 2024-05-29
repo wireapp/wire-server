@@ -37,6 +37,7 @@ import Federator.Discovery
 import Federator.Env
 import Federator.Error.ServerError
 import Federator.Health qualified as Health
+import Federator.Interpreter
 import Federator.Metrics
 import Federator.RPC
 import Federator.Response
