@@ -152,8 +152,6 @@ type ServantCombinedAPI =
       :<|> VersionAPI
   )
 
--- Middleware :: Wai.Application -> Wai.Application
-
 customFormatters :: Servant.ErrorFormatters
 customFormatters =
   Servant.defaultErrorFormatters
