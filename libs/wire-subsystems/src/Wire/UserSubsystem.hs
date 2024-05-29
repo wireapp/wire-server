@@ -78,9 +78,6 @@ instance Default UserProfileUpdate where
         supportedProtocols = Nothing
       }
 
--- TODO: decouple federation from profile: no operation in this effect should fold over
--- Qualified anythings, but only get Local anythings.
-
 data UserSubsystem m a where
   -- | First arg is for authorization only.
   GetUserProfiles :: Local UserId -> [Qualified UserId] -> UserSubsystem m [UserProfile]
