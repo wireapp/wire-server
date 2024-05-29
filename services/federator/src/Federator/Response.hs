@@ -187,16 +187,17 @@ type AllEffects =
      Error DiscoveryFailure,
      Error Servant.ServerError,
      TinyLog,
-     Embed (Codensity IO),
-     Embed IO
+     Embed IO,
+     Embed (Codensity IO)
    ]
 
 runFederator :: Env -> RequestId -> Sem AllEffects a -> Handler a
 runFederator env rid =
   Handler
     . ExceptT
+    . lowerCodensity
     . runM
-    . runEmbedded (lowerCodensity)
+    . runEmbedded (liftIO @(Codensity IO))
     . loggerToTinyLogReqId rid (view applog env)
     . runError
     . runWaiErrors
