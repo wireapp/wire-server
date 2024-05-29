@@ -67,7 +67,7 @@ testUpdateHandle = do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "disabled"
   assertSuccess =<< setTeamFeatureStatus owner team featureName "enabled"
-  bindResponse (getTeamFeature owner featureName team) $ \resp -> do
+  bindResponse (getTeamFeature owner team featureName) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "enabled"
 
