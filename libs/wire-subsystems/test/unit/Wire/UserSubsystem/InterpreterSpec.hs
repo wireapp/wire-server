@@ -3,20 +3,17 @@
 
 module Wire.UserSubsystem.InterpreterSpec (spec) where
 
-import Control.Lens (ix, (.~))
 import Control.Lens.At ()
 import Data.Bifunctor (first)
 import Data.Coerce
 import Data.Default (Default (def))
 import Data.Domain
-import Data.Handle (Handle (Handle))
+import Data.Handle (BadHandle (BadHandle), Handle (Handle))
 import Data.Handle qualified as Handle
 import Data.Id
 import Data.LegalHold (defUserLegalHoldStatus)
 import Data.Qualified
 import Data.Set qualified as S
-import Data.String.Conversions (cs)
-import Data.Text qualified as Text
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -332,8 +329,9 @@ spec = describe "UserSubsystem.Interpreter" do
                   }
            in res === Right ()
 
-    prop
-      -- TODO: failure with --match "/Wire.UserSubsystem.Interpreter/UserSubsystem.Interpreter/getUserProfilesWithErrors/update valid handles succeeds/"
+    focus $ prop
+      -- TODO: make -C ~/src/wire-server c package=wire-subsystems test=1 testargs='--qc-max-success=10000 --seed=1636860002'
+      -- handle is valid ("hr"), but the update causes a UserSubsystemInvalidHandle response anyway.
       "update valid handles succeeds"
       \(storedUser :: StoredUser, Handle rawHandle, config) ->
         isJust storedUser.identity ==>
@@ -394,23 +392,3 @@ spec = describe "UserSubsystem.Interpreter" do
 
       (profileSupportedProtocols <$> beforeOp, profileSupportedProtocols <$> afterOp)
         `shouldBe` (Just beforeProtocols, Just afterProtocols)
-
-newtype BadHandle = BadHandle {_unBadHandle :: Text}
-  deriving newtype (Eq, Show)
-
-instance Arbitrary BadHandle where
-  arbitrary = oneof [tooShort, tooLong, badBytes]
-    where
-      tooShort = (BadHandle . Text.pack . (: [])) <$> elements validChar
-      tooLong = (BadHandle . Text.pack) <$> replicateM 258 (elements validChar)
-      badBytes =
-        BadHandle <$> do
-          totalLen :: Int <- choose (2, 256)
-          invalidCharPos :: Int <- choose (0, totalLen - 1)
-          invalidCharContent <- elements invalidChar
-          good :: Text <- cs <$> replicateM totalLen (elements validChar)
-          let bad :: Text = good & ix invalidCharPos .~ invalidCharContent
-          pure bad
-
-      validChar :: [Char] = ['a' .. 'z'] <> ['0' .. '9'] <> "_-."
-      invalidChar :: [Char] = [minBound ..] \\ validChar
