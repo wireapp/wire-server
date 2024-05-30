@@ -1130,7 +1130,7 @@ updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
   whenM (not <$> assertHasPerm maybeZuserTeamId) $ throwStd insufficientTeamPermissions
   maybeEmailOwnerTeamId <- lift $ wrapClient $ Data.lookupUserTeam emailOwnerId
   checkSameTeam maybeZuserTeamId maybeEmailOwnerTeamId
-  void $ API.changeSelfEmail emailOwnerId email API.AllowSCIMUpdates
+  void $ API.changeSelfEmail emailOwnerId email API.ForbidSCIMUpdates
   where
     checkSameTeam :: Maybe TeamId -> Maybe TeamId -> (Handler r) ()
     checkSameTeam (Just zuserTeamId) maybeEmailOwnerTeamId =
