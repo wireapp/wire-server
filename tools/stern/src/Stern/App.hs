@@ -43,6 +43,7 @@ import Network.Wai (Request, Response, ResponseReceived)
 import Network.Wai.Utilities (Error (..), lookupRequestId)
 import Network.Wai.Utilities.Error qualified as WaiError
 import Network.Wai.Utilities.Response (json, setStatus)
+import Network.Wai.Utilities.Server (defaultRequestIdHeaderName)
 import Network.Wai.Utilities.Server qualified as Server
 import Stern.Options as O
 import System.Logger qualified as Log
@@ -128,7 +129,7 @@ type Continue m = Response -> m ResponseReceived
 
 runHandler :: Env -> Request -> Handler ResponseReceived -> Continue IO -> IO ResponseReceived
 runHandler e r h k = do
-  i <- reqId (lookupRequestId r)
+  i <- reqId (lookupRequestId defaultRequestIdHeaderName r)
   let e' = set requestId (Bilge.RequestId i) e
   a <- runAppT e' (runExceptT h)
   either (onError (view applog e) r k) pure a

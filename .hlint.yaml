@@ -24,7 +24,7 @@
 - error: { name: Use shutdown, lhs: runSettings, rhs: runSettingsWithShutdown }
 - ignore: { name: Use shutdown, within: [
     Network.Wai.Utilities.Server,  # this is the implementation 'runSettingsWithShutdown'
-    Federator.Response,            # this is just a naming conincidence
+    Federator.Interpreter,         # this is just a naming coincidence
     Cannon.Run                     # we do something similar, but not identical here by hand
   ] }
 

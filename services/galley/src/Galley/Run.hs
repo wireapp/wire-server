@@ -24,7 +24,6 @@ where
 
 import AWS.Util (readAuthExpiration)
 import Amazonka qualified as AWS
-import Bilge.Request (requestIdName)
 import Cassandra (runClient, shutdown)
 import Cassandra.Schema (versionCheck)
 import Control.Concurrent.Async qualified as Async
@@ -33,7 +32,6 @@ import Control.Lens (view, (.~), (^.))
 import Control.Monad.Codensity
 import Data.Aeson qualified as Aeson
 import Data.ByteString.UTF8 qualified as UTF8
-import Data.Id
 import Data.Metrics (Metrics)
 import Data.Metrics.AWS (gaugeTokenRemaing)
 import Data.Metrics.Middleware qualified as M
@@ -41,8 +39,6 @@ import Data.Metrics.Servant
 import Data.Misc (portNumber)
 import Data.Singletons
 import Data.Text (unpack)
-import Data.UUID as UUID
-import Data.UUID.V4 as UUID
 import Galley.API.Federation
 import Galley.API.Internal
 import Galley.API.Public.Servant
@@ -60,9 +56,9 @@ import Network.Wai
 import Network.Wai.Middleware.Gunzip qualified as GZip
 import Network.Wai.Middleware.Gzip qualified as GZip
 import Network.Wai.Utilities.Error
+import Network.Wai.Utilities.Request
 import Network.Wai.Utilities.Server
 import Servant hiding (route)
-import System.Logger (Logger, msg, val, (.=), (~~))
 import System.Logger qualified as Log
 import System.Logger.Extended (mkLogger)
 import Util.Options
@@ -99,10 +95,11 @@ mkApp opts =
     lift $ runClient (env ^. cstate) $ versionCheck schemaVersion
     let middlewares =
           versionMiddleware (foldMap expandVersionExp (opts ^. settings . disabledAPIVersions))
+            . requestIdMiddleware logger defaultRequestIdHeaderName
             . servantPrometheusMiddleware (Proxy @CombinedAPI)
             . GZip.gunzip
             . GZip.gzip GZip.def
-            . catchErrors logger [Right metrics]
+            . catchErrors logger defaultRequestIdHeaderName [Right metrics]
     Codensity $ \k -> finally (k ()) $ do
       Log.info logger $ Log.msg @Text "Galley application finished."
       Log.flush logger
@@ -133,8 +130,8 @@ mkApp opts =
 
     servantApp :: Env -> Application
     servantApp e0 r cont = do
-      rid <- lookupReqId (e0 ^. applog) r
-      let e = reqId .~ rid $ e0
+      let rid = getRequestId defaultRequestIdHeaderName r
+          e = reqId .~ rid $ e0
       Servant.serveWithContext
         (Proxy @CombinedAPI)
         ( view (options . settings . federationDomain) e
@@ -148,18 +145,6 @@ mkApp opts =
         )
         r
         cont
-
-    lookupReqId :: Logger -> Request -> IO RequestId
-    lookupReqId l r = case lookup requestIdName $ requestHeaders r of
-      Just rid -> pure $ RequestId rid
-      Nothing -> do
-        localRid <- RequestId . UUID.toASCIIBytes <$> UUID.nextRandom
-        Log.info l $
-          "request-id" .= localRid
-            ~~ "method" .= requestMethod r
-            ~~ "path" .= rawPathInfo r
-            ~~ msg (val "generated a new request id for local request")
-        pure localRid
 
 closeApp :: Env -> IO ()
 closeApp env = do
