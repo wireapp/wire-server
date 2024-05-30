@@ -1,0 +1,21 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+TÀI KHOẢN MỚI CỦA BẠN TRÊN ${BRAND}
+Một nhóm ${brand} đã được tại với ${email}. Vui lòng xác minh địa chỉ email của
+bạn.
+
+Xác minh [${url}]Nếu bạn không thể nhấp vào nút, sao chép và gán đường dẫn này
+vào trình duyệt của bạn:
+
+${url}
+
+Nếu bạn có bất kỳ thắc mắc nào, xin vui lòng liên hệ với chúng tôi [${support}].
+
+
+--------------------------------------------------------------------------------
+
+Chính sách riêng tư và điều khoản sử dụng [${legal}] · Báo cáo Lạm dụng
+[${misuse}]
+${copyright}. ĐÃ ĐƯỢC ĐĂNG KÝ BẢN QUYỀN.

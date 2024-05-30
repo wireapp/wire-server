@@ -38,6 +38,7 @@ module Testlib.Cannon
     printAwaitResult,
     printAwaitAtLeastResult,
     waitForResponse,
+    assertNoEvent,
   )
 where
 
@@ -462,6 +463,17 @@ awaitMatch ::
   WebSocket ->
   App Value
 awaitMatch checkMatch ws = head <$> awaitNMatches 1 checkMatch ws
+
+assertNoEvent ::
+  HasCallStack =>
+  Int ->
+  WebSocket ->
+  App ()
+assertNoEvent to ws = do
+  mEvent <- awaitAnyEvent to ws
+  case mEvent of
+    Just event -> assertFailure $ "Expected no event, but got: " <> show event
+    Nothing -> pure ()
 
 nPayload :: MakesValue a => a -> App Value
 nPayload event = do

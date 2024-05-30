@@ -271,6 +271,7 @@ library
     Galley.Schema.V89_MlsLockStatus
     Galley.Schema.V90_EnforceFileDownloadLocationConfig
     Galley.Schema.V91_TeamMemberDeletedLimitedEventFanout
+    Galley.Schema.V92_MlsE2EIdConfig
     Galley.Types.Clients
     Galley.Types.ToUserRole
     Galley.Types.UserList
@@ -396,7 +397,6 @@ executable galley-integration
     API.Roles
     API.SQS
     API.Teams
-    API.Teams.Feature
     API.Teams.LegalHold
     API.Teams.LegalHold.DisabledByDefault
     API.Teams.LegalHold.Util
@@ -488,7 +488,6 @@ executable galley-integration
     , galley
     , galley-types
     , HsOpenSSL
-    , hspec
     , http-api-data
     , http-client
     , http-client-openssl

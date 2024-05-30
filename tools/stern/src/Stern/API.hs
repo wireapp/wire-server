@@ -29,7 +29,7 @@ where
 
 import Brig.Types.Intra
 import Control.Error
-import Control.Lens ((^.))
+import Control.Lens ((.~), (^.))
 import Control.Monad.Except
 import Data.Aeson hiding (Error, json)
 import Data.Aeson.KeyMap qualified as KeyMap
@@ -52,6 +52,7 @@ import Imports hiding (head)
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Utilities as Wai
+import Network.Wai.Utilities.Server
 import Network.Wai.Utilities.Server qualified as Server
 import Servant (NoContent (NoContent), ServerT, (:<|>) (..))
 import Servant qualified
@@ -80,13 +81,15 @@ start :: Opts -> IO ()
 start o = do
   e <- newEnv o
   s <- Server.newSettings (server e)
-  Server.runSettingsWithShutdown s (servantApp e) Nothing
+  Server.runSettingsWithShutdown s (requestIdMiddleware (e ^. applog) defaultRequestIdHeaderName $ servantApp e) Nothing
   where
     server :: Env -> Server.Server
     server e = Server.defaultServer (unpack $ stern o ^. host) (stern o ^. port) (e ^. applog) (e ^. metrics)
 
     servantApp :: Env -> Application
-    servantApp e =
+    servantApp e0 req cont = do
+      let rid = getRequestId defaultRequestIdHeaderName req
+      let e = requestId .~ rid $ e0
       Servant.serve
         ( Proxy
             @( SwaggerDocsAPI
@@ -100,6 +103,8 @@ start o = do
             :<|> sitemap e
             :<|> sitemapRedirectToSwaggerDocs
         )
+        req
+        cont
 
 -------------------------------------------------------------------------------
 -- servant API

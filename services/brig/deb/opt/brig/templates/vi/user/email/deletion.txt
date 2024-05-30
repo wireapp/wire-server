@@ -1,0 +1,24 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+XOÁ TÀI KHOẢN CỦA BẠN
+Chúng tôi nhận được một yêu cầu xoá tài khoản ${brand} của bạn. Nhấp vào nút
+phía bên dưới trong vòng 10 phút để xoá toàn bộ cuộc hội thoại, nội dung và mọi
+kết nối của bạn.
+
+Xoá tài khoản [${url}]Nếu bạn không thể nhấp vào nút, sao chép và gán đường dẫn
+này vào trình duyệt của bạn:
+
+${url}
+
+Nếu bạn không thực hiện yêu cầu này, thay đổi mật khẩu của bạn ngay [${forgot}].
+
+Nếu bạn có bất kỳ thắc mắc nào, xin vui lòng liên hệ với chúng tôi [${support}].
+
+
+--------------------------------------------------------------------------------
+
+Chính sách riêng tư và điều khoản sử dụng [${legal}] · Báo cáo Lạm dụng
+[${misuse}]
+${copyright}. ĐÃ ĐƯỢC ĐĂNG KÝ BẢN QUYỀN.

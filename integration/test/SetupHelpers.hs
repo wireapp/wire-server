@@ -93,8 +93,8 @@ connectTwoUsers ::
   bob ->
   App ()
 connectTwoUsers alice bob = do
-  bindResponse (postConnection alice bob) (\resp -> resp.status `shouldMatchInt` 201)
-  bindResponse (putConnection bob alice "accepted") (\resp -> resp.status `shouldMatchInt` 200)
+  postConnection alice bob >>= assertSuccess
+  putConnection bob alice "accepted" >>= assertSuccess
 
 connectUsers :: (HasCallStack, MakesValue usr) => [usr] -> App ()
 connectUsers users = traverse_ (uncurry connectTwoUsers) $ do
@@ -102,6 +102,12 @@ connectUsers users = traverse_ (uncurry connectTwoUsers) $ do
   (a, others) <- maybeToList (uncons t)
   b <- others
   pure (a, b)
+
+assertConnection :: (HasCallStack, MakesValue alice, MakesValue bob) => alice -> bob -> String -> App ()
+assertConnection alice bob status =
+  getConnection alice bob `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "status" `shouldMatch` status
 
 createAndConnectUsers :: (HasCallStack, MakesValue domain) => [domain] -> App [Value]
 createAndConnectUsers domains = do

@@ -1,1 +1,1 @@
-Il tuo account su Wire
+Profilo di ${brand}

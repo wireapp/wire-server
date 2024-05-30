@@ -1,0 +1,2 @@
+Chạm để xoá tài khoản ${brand} của bạn.
+${url}

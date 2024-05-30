@@ -240,9 +240,18 @@ shouldContainString ::
   -- | The expected value
   String ->
   App ()
-super `shouldContainString` sub = do
+shouldContainString = shouldContain
+
+shouldContain ::
+  (Eq a, Show a, HasCallStack) =>
+  -- | The actual value
+  [a] ->
+  -- | The expected value
+  [a] ->
+  App ()
+super `shouldContain` sub = do
   unless (sub `isInfixOf` super) $ do
-    assertFailure $ "String:\n" <> show super <> "\nDoes not contain:\n" <> show sub
+    assertFailure $ "String or List:\n" <> show super <> "\nDoes not contain:\n" <> show sub
 
 printFailureDetails :: AssertionFailure -> IO String
 printFailureDetails (AssertionFailure stack mbResponse msg) = do

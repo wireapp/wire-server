@@ -1,0 +1,3 @@
+federator: Simplify polysemy setup to make it similar to other services so the
+interpreter is only used for hoisting the servant application and not explicitly
+inside handler of an endpoint

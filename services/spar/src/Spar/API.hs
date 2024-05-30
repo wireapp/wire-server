@@ -47,7 +47,7 @@ where
 
 import Brig.Types.Intra
 import Cassandra as Cas
-import Control.Lens
+import Control.Lens hiding ((.=))
 import Control.Monad.Except
 import qualified Data.ByteString as SBS
 import Data.ByteString.Builder (toLazyByteString)
@@ -60,6 +60,8 @@ import qualified Data.Text.Lazy as T
 import Data.Text.Lazy.Encoding
 import Data.Time
 import Imports
+import Network.Wai.Utilities.Request
+import Network.Wai.Utilities.Server (defaultRequestIdHeaderName)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -114,9 +116,16 @@ import Wire.Sem.Random (Random)
 import qualified Wire.Sem.Random as Random
 
 app :: Env -> Application
-app ctx =
-  SAML.setHttpCachePolicy $
-    serve (Proxy @SparAPI) (hoistServer (Proxy @SparAPI) (runSparToHandler ctx) (api $ sparCtxOpts ctx) :: Server SparAPI)
+app ctx0 req cont = do
+  let rid = getRequestId defaultRequestIdHeaderName req
+  let ctx = ctx0 {sparCtxRequestId = rid}
+  SAML.setHttpCachePolicy
+    ( serve
+        (Proxy @SparAPI)
+        (hoistServer (Proxy @SparAPI) (runSparToHandler ctx) (api $ sparCtxOpts ctx) :: Server SparAPI)
+    )
+    req
+    cont
 
 api ::
   ( Member GalleyAccess r,

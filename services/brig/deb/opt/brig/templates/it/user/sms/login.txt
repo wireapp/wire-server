@@ -1,3 +1,3 @@
-Il tuo codice di accesso Wire è ${code}.
+Il tuo codice di accesso di ${brand} è ${code}.
 
-Apri ${url} per effettuare l'accesso, oppure inserisci questo codice nell'applicazione Wire: ${code}.
+Apri ${url} per accedere.

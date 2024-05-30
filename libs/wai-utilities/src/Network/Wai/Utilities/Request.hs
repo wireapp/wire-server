@@ -27,9 +27,10 @@ import Control.Monad.Catch (MonadThrow, throwM)
 import Data.Aeson
 import Data.ByteString qualified as B
 import Data.ByteString.Lazy qualified as Lazy
+import Data.Id
 import Data.Text.Lazy qualified as Text
 import Imports
-import Network.HTTP.Types.Status (status400)
+import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate
 import Network.Wai.Predicate.Request
@@ -68,8 +69,13 @@ parseOptionalBody r =
     nonEmptyBody "" = Nothing
     nonEmptyBody ne = Just ne
 
-lookupRequestId :: HasRequest r => r -> Maybe ByteString
-lookupRequestId = lookup "Request-Id" . requestHeaders . getRequest
+lookupRequestId :: HeaderName -> Request -> Maybe ByteString
+lookupRequestId reqIdHeaderName =
+  lookup reqIdHeaderName . requestHeaders
+
+getRequestId :: HeaderName -> Request -> RequestId
+getRequestId reqIdHeaderName req =
+  RequestId $ fromMaybe "N/A" $ lookupRequestId reqIdHeaderName req
 
 ----------------------------------------------------------------------------
 -- Typed JSON 'Request'

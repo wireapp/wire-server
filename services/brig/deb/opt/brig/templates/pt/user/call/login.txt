@@ -1,0 +1,1 @@
+Olá, seu código de login do Wire é: ${code}. Novamente, seu código é: ${code}
