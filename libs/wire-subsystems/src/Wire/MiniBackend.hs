@@ -277,9 +277,11 @@ runNoFederationStack ::
   Sem (GetUserProfileEffects `Append` AllErrors) a ->
   a
 runNoFederationStack localBackend teamMember cfg =
+  -- (A 'runNoFederationStackEither' variant of this that returns 'AllErrors' in an 'Either'
+  -- would be nice, but is complicated by the fact that we not only have 'UserSubsystemErrors',
+  -- but other errors as well.  Maybe just wait with this until we have a better idea how we
+  -- want to do errors?)
   runAllErrorsUnsafe . interpretNoFederationStack localBackend teamMember def cfg
-
--- TODO: runNoFederationStackEither
 
 interpretNoFederationStack ::
   (Members AllErrors r) =>
