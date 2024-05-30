@@ -29,6 +29,7 @@ getUserImpl uid = embed $ do
   mUserTuple <- retry x1 $ query1 selectUser (params LocalQuorum (Identity uid))
   pure $ asRecord <$> mUserTuple
 
+-- TODO: error message needs more info!
 updateUserImpl :: UserId -> StoredUserUpdate -> Client (Either StoredUserUpdateError ())
 updateUserImpl uid update = runM $ runError do
   embed . retry x5 $ batch do
@@ -38,6 +39,9 @@ updateUserImpl uid update = runM $ runError do
     for_ update.pict \p -> addPrepQuery userPictUpdate (p, uid)
     for_ update.assets \a -> addPrepQuery userAssetsUpdate (a, uid)
     for_ update.accentId \c -> addPrepQuery userAccentIdUpdate (c, uid)
+
+-- TODO: error message should say: user not found?  handle invalid?  handle claimed or taken?  any other bad thing happened?  (look at the API)
+-- TODO: why is this only calling claim?  what is the difference between update and claim?
 
 updateUserHandleImpl :: UserId -> StoredUserHandleUpdate -> Client (Either StoredUserUpdateError ())
 updateUserHandleImpl uid update =
