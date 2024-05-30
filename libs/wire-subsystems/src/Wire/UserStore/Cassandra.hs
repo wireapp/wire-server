@@ -19,6 +19,7 @@ interpretUserStoreCassandra casClient =
     runEmbedded (runClient casClient) . \case
       GetUser uid -> getUserImpl uid
       UpdateUserEither uid update -> embed $ updateUserImpl uid update
+      UpdateUserHandleEither uid update -> embed $ updateUserHandleImpl uid update
       DeleteUser user -> embed $ deleteUserImpl user
       LookupHandle hdl -> embed $ lookupHandleImpl LocalQuorum hdl
       GlimpseHandle hdl -> embed $ lookupHandleImpl One hdl
@@ -30,9 +31,6 @@ getUserImpl uid = embed $ do
 
 updateUserImpl :: UserId -> StoredUserUpdate -> Client (Either StoredUserUpdateError ())
 updateUserImpl uid update = runM $ runError do
-  for_ update.handle $ \handleUpdate -> do
-    claimed <- embed $ claimHandleImpl uid handleUpdate.old handleUpdate.new
-    unless claimed $ throw StoredUserUpdateHandleExists
   embed . retry x5 $ batch do
     setType BatchLogged
     setConsistency LocalQuorum
@@ -40,6 +38,12 @@ updateUserImpl uid update = runM $ runError do
     for_ update.pict \p -> addPrepQuery userPictUpdate (p, uid)
     for_ update.assets \a -> addPrepQuery userAssetsUpdate (a, uid)
     for_ update.accentId \c -> addPrepQuery userAccentIdUpdate (c, uid)
+
+updateUserHandleImpl :: UserId -> StoredUserHandleUpdate -> Client (Either StoredUserUpdateError ())
+updateUserHandleImpl uid update =
+  runM $ runError do
+    claimed <- embed $ claimHandleImpl uid update.old update.new
+    unless claimed $ throw StoredUserUpdateHandleExists
 
 -- | Claim a new handle for an existing 'User'.
 claimHandleImpl :: UserId -> Maybe Handle -> Handle -> Client Bool

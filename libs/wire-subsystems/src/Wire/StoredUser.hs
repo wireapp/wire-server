@@ -44,8 +44,8 @@ recordInstance ''StoredUser
 setStoredUserName :: Name -> StoredUser -> StoredUser
 setStoredUserName newName user = user {name = newName}
 
-setStoredSupportedProtocols :: Set BaseProtocolTag -> StoredUser -> StoredUser
-setStoredSupportedProtocols newProtocols user = user {supportedProtocols = Just newProtocols}
+setStoredUserSupportedProtocols :: Set BaseProtocolTag -> StoredUser -> StoredUser
+setStoredUserSupportedProtocols newProtocols user = user {supportedProtocols = Just newProtocols}
 
 setStoredUserPict :: Pict -> StoredUser -> StoredUser
 setStoredUserPict newPict user = user {pict = Just newPict}
@@ -62,6 +62,9 @@ setStoredUserLocale newLocale user =
     { language = Just newLocale.lLanguage,
       country = newLocale.lCountry
     }
+
+setStoredUserHandle :: Handle -> StoredUser -> StoredUser
+setStoredUserHandle newHandle user = user {handle = Just newHandle}
 
 hasPendingInvitation :: StoredUser -> Bool
 hasPendingInvitation u = u.status == Just PendingInvitation

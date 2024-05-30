@@ -56,6 +56,11 @@ data AllowSCIMUpdates
 -- TODO: is UserUpdate redundant now?
 
 -- | Simple updates (as opposed to, eg., handle, where we need to manage locks).
+--
+-- This is isomorphic to 'StoredUserUpdate', but we keep the two types separate because they
+-- belong to different abstractions / levels (UserSubsystem vs. UserStore), and they may
+-- change independently in the future ('UserStoreUpdate' may grow more fields for other
+-- operations).
 data UserProfileUpdate = MkUserProfileUpdate
   { name :: Maybe Name,
     pict :: Maybe Pict, -- DEPRECATED

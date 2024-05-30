@@ -377,7 +377,6 @@ storedUserUpdate update =
       assets = update.assets,
       accentId = update.accentId,
       locale = update.locale,
-      handle = Nothing,
       supportedProtocols = update.supportedProtocols
     }
 

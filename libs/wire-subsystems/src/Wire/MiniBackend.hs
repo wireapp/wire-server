@@ -357,22 +357,27 @@ staticUserStoreInterpreter = interpret $ \case
       doUpdate :: StoredUser -> Sem (Error StoredUserUpdateError : r) StoredUser
       doUpdate u
         | u.id == uid = do
-            -- check that handle isn't taken
-            for_ update.handle $ \hUpdate -> do
-              handles <- mapMaybe (.handle) <$> gets (.users)
-              when
-                ( hUpdate.old /= Just hUpdate.new
-                    && elem hUpdate.new handles
-                )
-                $ throw StoredUserUpdateHandleExists
             pure
               . maybe Imports.id setStoredUserAccentId update.accentId
               . maybe Imports.id setStoredUserAssets update.assets
               . maybe Imports.id setStoredUserPict update.pict
               . maybe Imports.id setStoredUserName update.name
               . maybe Imports.id setStoredUserLocale update.locale
-              . maybe Imports.id setStoredSupportedProtocols update.supportedProtocols
+              . maybe Imports.id setStoredUserSupportedProtocols update.supportedProtocols
               $ u
+      doUpdate u = pure u
+  UpdateUserHandleEither uid hUpdate -> runError $ modifyLocalUsers (traverse doUpdate)
+    where
+      doUpdate :: StoredUser -> Sem (Error StoredUserUpdateError : r) StoredUser
+      doUpdate u
+        | u.id == uid = do
+            handles <- mapMaybe (.handle) <$> gets (.users)
+            when
+              ( hUpdate.old /= Just hUpdate.new
+                  && elem hUpdate.new handles
+              )
+              $ throw StoredUserUpdateHandleExists
+            pure $ setStoredUserHandle hUpdate.new u
       doUpdate u = pure u
   DeleteUser user -> modifyLocalUsers $ \us ->
     pure $ filter (\u -> u.id /= User.userId user) us
