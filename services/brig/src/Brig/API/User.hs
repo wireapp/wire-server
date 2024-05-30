@@ -267,7 +267,7 @@ createUserSpar new = do
       case Handle.parseHandle . fromHandle $ h of
         Just handl ->
           lift . liftSem $
-            -- TODO: elland: Feels a bit dumb to have a valid handle and revalidate it.
+            -- TODO(elland): Feels a bit dumb to have a valid handle and revalidate it.
             User.updateHandle luid Nothing UpdateOriginScim (fromHandle handl)
         Nothing -> throwE $ CreateUserSparHandleError ChangeHandleInvalid
 
