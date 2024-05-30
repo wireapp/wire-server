@@ -422,7 +422,7 @@ updateHandleImpl (tUnqualified -> uid) mconn updateOrigin uhandle = do
   when (isNothing user.identity) $
     throw UserSubsystemNoIdentity
   mapError (\StoredUserUpdateHandleExists -> UserSubsystemHandleExists) $
-    US.updateUserHandle uid (MkStoredHandleUpdate user.handle newHandle)
+    US.updateUserHandle uid (MkStoredUserHandleUpdate user.handle newHandle)
   generateUserEvent uid mconn (mkProfileUpdateHandleEvent uid newHandle)
 
 checkHandleImpl :: (Member (Error UserSubsystemError) r, Member UserStore r) => Text -> Sem r CheckHandleResp

@@ -13,14 +13,12 @@ import Wire.API.User
 import Wire.Arbitrary
 import Wire.StoredUser
 
--- TODO: 'StoredUserHandleUpdate'
-
-data StoredHandleUpdate = MkStoredHandleUpdate
+data StoredUserHandleUpdate = MkStoredUserHandleUpdate
   { old :: Maybe Handle,
     new :: Handle
   }
   deriving stock (Eq, Ord, Show, Generic)
-  deriving (Arbitrary) via GenericUniform StoredHandleUpdate
+  deriving (Arbitrary) via GenericUniform StoredUserHandleUpdate
 
 -- TODO: remove handle from this record; add operation UpdateHandle; make everything
 -- symmetrical to the UserSubsystem operation.  nowait: replace StoredUserUpdate with
@@ -31,7 +29,7 @@ data StoredUserUpdate = MkStoredUserUpdate
     assets :: Maybe [Asset],
     accentId :: Maybe ColourId,
     locale :: Maybe Locale,
-    handle :: Maybe StoredHandleUpdate,
+    handle :: Maybe StoredUserHandleUpdate,
     supportedProtocols :: Maybe (Set BaseProtocolTag)
   }
   deriving stock (Eq, Ord, Show, Generic)
@@ -67,6 +65,6 @@ updateUser uid update = either throw pure =<< updateUserEither uid update
 updateUserHandle ::
   (Member UserStore r, Member (Error StoredUserUpdateError) r) =>
   UserId ->
-  StoredHandleUpdate ->
+  StoredUserHandleUpdate ->
   Sem r ()
 updateUserHandle uid upd = updateUser uid (def {handle = Just upd})
