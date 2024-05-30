@@ -244,12 +244,6 @@ getSelfProfileImpl self = do
   mHackedUser <- traverse hackForBlockingHandleChangeForE2EIdTeams mUser
   pure (SelfProfile <$> mHackedUser)
   where
-    userUnderE2EId :: Member GalleyAPIAccess r => UserId -> Sem r Bool
-    userUnderE2EId uid = do
-      wsStatus . afcMlsE2EId <$> getAllFeatureConfigsForUser (Just uid) <&> \case
-        FeatureStatusEnabled -> True
-        FeatureStatusDisabled -> False
-
     -- \| This is a hack!
     --
     -- Background:
@@ -259,9 +253,9 @@ getSelfProfileImpl self = do
     -- FUTUREWORK: figure out a better way for clients to detect E2EId (V6?)
     hackForBlockingHandleChangeForE2EIdTeams :: Member GalleyAPIAccess r => User -> Sem r User
     hackForBlockingHandleChangeForE2EIdTeams user = do
-      hasE2EId <- userUnderE2EId (userId user)
+      hasE2EId <- checkE2EId (userId user)
       pure $
-        if (hasE2EId && isJust (userHandle user))
+        if (hasE2EId == HasE2EId && isJust (userHandle user))
           then user {userManagedBy = ManagedByScim}
           else user
 
@@ -320,12 +314,11 @@ guardLockedFields ::
   (Member (Error UserSubsystemError) r) =>
   StoredUser ->
   AllowSCIMUpdates ->
-  -- | hasE2EId
-  Bool ->
+  HasE2EId ->
   UserProfileUpdate ->
   Sem r ()
 guardLockedFields user updateOrigin hasE2EId (MkUserProfileUpdate {..})
-  | ((updateOrigin == ForbidSCIMUpdates && user.managedBy == Just ManagedByScim) || hasE2EId)
+  | ((updateOrigin == ForbidSCIMUpdates && user.managedBy == Just ManagedByScim) || hasE2EId == HasE2EId)
       && isJust name
       && name /= Just user.name =
       throw UserSubsystemDisplayNameManagedByScim
@@ -337,12 +330,11 @@ guardHandleLockedFields ::
   (Member (Error UserSubsystemError) r) =>
   StoredUser ->
   AllowSCIMUpdates ->
-  -- | hasE2EId
-  Bool ->
+  HasE2EId ->
   Handle ->
   Sem r ()
 guardHandleLockedFields user updateOrigin hasE2EId handle
-  | ((updateOrigin == ForbidSCIMUpdates && user.managedBy == Just ManagedByScim) || hasE2EId)
+  | ((updateOrigin == ForbidSCIMUpdates && user.managedBy == Just ManagedByScim) || hasE2EId == HasE2EId)
       && Just handle /= user.handle =
       throw UserSubsystemHandleManagedByScim
   | otherwise = pure ()
@@ -360,10 +352,7 @@ updateUserProfileImpl ::
   Sem r ()
 updateUserProfileImpl (tUnqualified -> uid) mconn updateOrigin update = do
   user <- getUser uid >>= note UserSubsystemProfileNotFound
-  hasE2EId <-
-    wsStatus . afcMlsE2EId <$> getAllFeatureConfigsForUser (Just uid) <&> \case
-      FeatureStatusEnabled -> True
-      FeatureStatusDisabled -> False
+  hasE2EId <- checkE2EId uid
   guardLockedFields user updateOrigin hasE2EId update
   mapError (\StoredUserUpdateHandleExists -> UserSubsystemHandleExists) $
     updateUser uid (storedUserUpdate update)
@@ -413,10 +402,7 @@ updateHandleImpl (tUnqualified -> uid) mconn updateOrigin uhandle = do
   when (isBlacklistedHandle newHandle) $
     throw UserSubsystemInvalidHandle
   user <- getUser uid >>= note UserSubsystemNoIdentity
-  hasE2EId <-
-    wsStatus . afcMlsE2EId <$> getAllFeatureConfigsForUser (Just uid) <&> \case
-      FeatureStatusEnabled -> True
-      FeatureStatusDisabled -> False
+  hasE2EId <- checkE2EId uid
   guardHandleLockedFields user updateOrigin hasE2EId newHandle
   when (isNothing user.identity) $
     throw UserSubsystemNoIdentity
@@ -442,6 +428,12 @@ checkHandleImpl uhandle = do
       | otherwise ->
           -- Handle is free and can be taken
           pure CheckHandleNotFound
+
+checkE2EId :: Member GalleyAPIAccess r => UserId -> Sem r HasE2EId
+checkE2EId uid =
+  wsStatus . afcMlsE2EId <$> getAllFeatureConfigsForUser (Just uid) <&> \case
+    FeatureStatusEnabled -> HasE2EId
+    FeatureStatusDisabled -> DoesNotHaveE2EId
 
 --------------------------------------------------------------------------------
 -- Check Handles

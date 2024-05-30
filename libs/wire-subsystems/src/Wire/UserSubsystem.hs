@@ -44,7 +44,9 @@ userSubsystemErrorToWai =
 
 instance Exception UserSubsystemError
 
--- TODO: data HasE2EId = HasE2EId | DoesNotHaveE2EId
+data HasE2EId = HasE2EId | DoesNotHaveE2EId
+  deriving (Show, Eq, Ord, Generic)
+  deriving (Arbitrary) via GenericUniform HasE2EId
 
 -- TODO: rename to data UpdateOriginScim = UpdateOriginScim | UpdateOriginWireClient
 data AllowSCIMUpdates
