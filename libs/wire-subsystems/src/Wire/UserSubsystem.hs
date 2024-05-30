@@ -48,12 +48,15 @@ data HasE2EId = HasE2EId | DoesNotHaveE2EId
   deriving (Show, Eq, Ord, Generic)
   deriving (Arbitrary) via GenericUniform HasE2EId
 
--- TODO: rename to data UpdateOriginScim = UpdateOriginScim | UpdateOriginWireClient
-data AllowSCIMUpdates
-  = AllowSCIMUpdates
-  | ForbidSCIMUpdates
+-- | Who is performing this update operation?  (Single source of truth: users managed by SCIM
+-- can't be updated by clients and vice versa.)
+data UpdateOriginType
+  = -- | Call originates from the SCIM api in spar.
+    UpdateOriginScim
+  | -- | Call originates from wire client (mobile, web, or team-management).
+    UpdateOriginWireClient
   deriving (Show, Eq, Ord, Generic)
-  deriving (Arbitrary) via GenericUniform AllowSCIMUpdates
+  deriving (Arbitrary) via GenericUniform UpdateOriginType
 
 -- TODO: is UserUpdate redundant now?
 
@@ -96,13 +99,13 @@ data UserSubsystem m a where
   -- FUTUREWORK: it would be better to return errors as `Map Domain FederationError`, but would clients like that?
   GetUserProfilesWithErrors :: Local UserId -> [Qualified UserId] -> UserSubsystem m ([(Qualified UserId, FederationError)], [UserProfile])
   -- | Simple updates (as opposed to, eg., handle, where we need to manage locks).  Empty fields are ignored (not deleted).
-  UpdateUserProfile :: Local UserId -> Maybe ConnId -> AllowSCIMUpdates -> UserProfileUpdate -> UserSubsystem m ()
+  UpdateUserProfile :: Local UserId -> Maybe ConnId -> UpdateOriginType -> UserProfileUpdate -> UserSubsystem m ()
   -- | parse and lookup a handle, return what the operation has found
   CheckHandle :: Text {- use Handle here? -} -> UserSubsystem m CheckHandleResp
   -- | checks a number of 'Handle's for availability and returns at most 'Word' amount of them
   CheckHandles :: [Handle] -> Word -> UserSubsystem m [Handle]
   -- | parses a handle, this may fail so it's effectful
-  UpdateHandle :: Local UserId -> Maybe ConnId -> AllowSCIMUpdates -> Text {- use Handle here? -} -> UserSubsystem m ()
+  UpdateHandle :: Local UserId -> Maybe ConnId -> UpdateOriginType -> Text {- use Handle here? -} -> UserSubsystem m ()
 
 -- | the return type of 'CheckHandle'
 data CheckHandleResp
@@ -120,5 +123,5 @@ getLocalUserProfile :: Member UserSubsystem r => Local UserId -> Sem r (Maybe Us
 getLocalUserProfile targetUser =
   listToMaybe <$> getLocalUserProfiles ((: []) <$> targetUser)
 
-updateSupportedProtocols :: Member UserSubsystem r => Local UserId -> AllowSCIMUpdates -> Set BaseProtocolTag -> Sem r ()
+updateSupportedProtocols :: Member UserSubsystem r => Local UserId -> UpdateOriginType -> Set BaseProtocolTag -> Sem r ()
 updateSupportedProtocols uid mb prots = updateUserProfile uid Nothing mb (def {supportedProtocols = Just prots})

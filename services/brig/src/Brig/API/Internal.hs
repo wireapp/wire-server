@@ -522,11 +522,11 @@ deleteUserNoAuthH uid = do
 changeSelfEmailMaybeSendH :: (Member BlacklistStore r) => UserId -> EmailUpdate -> Maybe Bool -> (Handler r) ChangeEmailResponse
 changeSelfEmailMaybeSendH u body (fromMaybe False -> validate) = do
   let email = euEmail body
-  changeSelfEmailMaybeSend u (if validate then ActuallySendEmail else DoNotSendEmail) email API.AllowSCIMUpdates
+  changeSelfEmailMaybeSend u (if validate then ActuallySendEmail else DoNotSendEmail) email UpdateOriginScim
 
 data MaybeSendEmail = ActuallySendEmail | DoNotSendEmail
 
-changeSelfEmailMaybeSend :: (Member BlacklistStore r) => UserId -> MaybeSendEmail -> Email -> API.AllowSCIMUpdates -> (Handler r) ChangeEmailResponse
+changeSelfEmailMaybeSend :: (Member BlacklistStore r) => UserId -> MaybeSendEmail -> Email -> UpdateOriginType -> (Handler r) ChangeEmailResponse
 changeSelfEmailMaybeSend u ActuallySendEmail email allowScim = do
   API.changeSelfEmail u email allowScim
 changeSelfEmailMaybeSend u DoNotSendEmail email allowScim = do
@@ -863,7 +863,7 @@ updateHandleH ::
 updateHandleH uid (HandleUpdate handleUpd) =
   NoContent <$ do
     quid <- qualifyLocal uid
-    lift . liftSem $ UserSubsystem.updateHandle quid Nothing AllowSCIMUpdates handleUpd
+    lift . liftSem $ UserSubsystem.updateHandle quid Nothing UpdateOriginScim handleUpd
 
 updateUserNameH ::
   Member UserSubsystem r =>
@@ -875,7 +875,7 @@ updateUserNameH uid (NameUpdate nameUpd) =
     luid <- qualifyLocal uid
     name <- either (const $ throwStd (errorToWai @'E.InvalidUser)) pure $ mkName nameUpd
     lift (wrapClient $ Data.lookupUser WithPendingInvitations uid) >>= \case
-      Just _ -> lift . liftSem $ updateUserProfile luid Nothing AllowSCIMUpdates (def {name = Just name})
+      Just _ -> lift . liftSem $ updateUserProfile luid Nothing UpdateOriginScim (def {name = Just name})
       Nothing -> throwStd (errorToWai @'E.InvalidUser)
 
 checkHandleInternalH :: Member UserSubsystem r => Handle -> Handler r CheckHandleResponse

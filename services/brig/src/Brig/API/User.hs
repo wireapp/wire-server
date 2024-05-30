@@ -58,7 +58,6 @@ module Brig.API.User
     checkHandles,
     isBlacklistedHandle,
     Data.reauthenticate,
-    AllowSCIMUpdates (..),
 
     -- * Activation
     sendActivationCode,
@@ -269,7 +268,7 @@ createUserSpar new = do
         Just handl ->
           lift . liftSem $
             -- TODO: elland: Feels a bit dumb to have a valid handle and revalidate it.
-            User.updateHandle luid Nothing AllowSCIMUpdates (fromHandle handl)
+            User.updateHandle luid Nothing UpdateOriginScim (fromHandle handl)
         Nothing -> throwE $ CreateUserSparHandleError ChangeHandleInvalid
 
     addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> Role -> ExceptT RegisterError (AppT r) CreateUserTeam
@@ -645,7 +644,7 @@ changeSupportedProtocols uid conn prots = do
 
 -- | Call 'changeEmail' and process result: if email changes to itself, succeed, if not, send
 -- validation email.
-changeSelfEmail :: Member BlacklistStore r => UserId -> Email -> AllowSCIMUpdates -> ExceptT Error.Error (AppT r) ChangeEmailResponse
+changeSelfEmail :: Member BlacklistStore r => UserId -> Email -> UpdateOriginType -> ExceptT Error.Error (AppT r) ChangeEmailResponse
 changeSelfEmail u email allowScim = do
   changeEmail u email allowScim !>> Error.changeEmailError >>= \case
     ChangeEmailIdempotent ->
@@ -665,8 +664,8 @@ changeSelfEmail u email allowScim = do
         (userIdentity usr)
 
 -- | Prepare changing the email (checking a number of invariants).
-changeEmail :: Member BlacklistStore r => UserId -> Email -> AllowSCIMUpdates -> ExceptT ChangeEmailError (AppT r) ChangeEmailResult
-changeEmail u email allowScim = do
+changeEmail :: Member BlacklistStore r => UserId -> Email -> UpdateOriginType -> ExceptT ChangeEmailError (AppT r) ChangeEmailResult
+changeEmail u email updateOrigin = do
   em <-
     either
       (throwE . InvalidNewEmail email)
@@ -685,11 +684,8 @@ changeEmail u email allowScim = do
     -- The user already has an email address and the new one is exactly the same
     Just current | current == em -> pure ChangeEmailIdempotent
     _ -> do
-      unless
-        ( userManagedBy usr /= ManagedByScim
-            || allowScim == AllowSCIMUpdates
-        )
-        $ throwE EmailManagedByScim
+      unless (userManagedBy usr /= ManagedByScim || updateOrigin == UpdateOriginScim) $
+        throwE EmailManagedByScim
       timeout <- setActivationTimeout <$> view settings
       act <- lift . wrapClient $ Data.newActivation ek timeout (Just u)
       pure $ ChangeEmailNeedsActivation (usr, act, em)

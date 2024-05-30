@@ -238,7 +238,7 @@ spec = describe "UserSubsystem.Interpreter" do
             localBackend = def {users = [alice {managedBy = Just ManagedByWire}]}
             userBeforeUpdate = mkUserFromStored localDomain config.defaultLocale alice
             (SelfProfile userAfterUpdate) = fromJust $ runNoFederationStack localBackend Nothing config do
-              updateUserProfile lusr Nothing AllowSCIMUpdates update
+              updateUserProfile lusr Nothing UpdateOriginScim update
               getSelfProfile lusr
          in userAfterUpdate.userQualifiedId === tUntagged lusr
               .&&. userAfterUpdate.userDisplayName === fromMaybe userBeforeUpdate.userDisplayName update.name
@@ -252,7 +252,7 @@ spec = describe "UserSubsystem.Interpreter" do
         let lusr = toLocalUnsafe localDomain alice.id
             localBackend = def {users = [alice {managedBy = Just ManagedByWire}]}
             events = runNoFederationStack localBackend Nothing config do
-              updateUserProfile lusr Nothing AllowSCIMUpdates update
+              updateUserProfile lusr Nothing UpdateOriginScim update
               get @[MiniEvent]
          in events
               === [ MkMiniEvent
@@ -278,7 +278,7 @@ spec = describe "UserSubsystem.Interpreter" do
                   . runErrorUnsafe
                   . runError
                   $ interpretNoFederationStack localBackend Nothing def config do
-                    updateUserProfile lusr Nothing ForbidSCIMUpdates update {name = Just name}
+                    updateUserProfile lusr Nothing UpdateOriginWireClient update {name = Just name}
                     getUserProfile lusr (tUntagged lusr)
            in Left UserSubsystemDisplayNameManagedByScim === profileErr
 
@@ -293,7 +293,7 @@ spec = describe "UserSubsystem.Interpreter" do
                   . runErrorUnsafe
                   . runError
                   $ interpretNoFederationStack localBackend Nothing def {afcMlsE2EId = setStatus FeatureStatusEnabled defFeatureStatus} config do
-                    updateUserProfile lusr Nothing AllowSCIMUpdates (update {name = Just name})
+                    updateUserProfile lusr Nothing UpdateOriginScim (update {name = Just name})
                     getUserProfile lusr (tUntagged lusr)
            in Left UserSubsystemDisplayNameManagedByScim === profileErr
 
@@ -332,7 +332,7 @@ spec = describe "UserSubsystem.Interpreter" do
 
     describe "Scim+UpdateProfileUpdate" do
       prop
-        "Updating handles fails when ForbidSCIMUpdates"
+        "Updating handles fails when UpdateOriginWireClient"
         \(alice, Handle newHandle, domain, config) ->
           not (isBlacklistedHandle (Handle newHandle)) ==>
             let res :: Either UserSubsystemError ()
@@ -340,20 +340,20 @@ spec = describe "UserSubsystem.Interpreter" do
                   . runErrorUnsafe
                   . runError
                   $ interpretNoFederationStack localBackend Nothing def config do
-                    updateHandle (toLocalUnsafe domain alice.id) Nothing ForbidSCIMUpdates newHandle
+                    updateHandle (toLocalUnsafe domain alice.id) Nothing UpdateOriginWireClient newHandle
 
                 localBackend = def {users = [alice {managedBy = Just ManagedByScim}]}
              in res === Left UserSubsystemHandleManagedByScim
 
       prop
-        "Updating handles succeeds when AllowSCIMUpdates"
+        "Updating handles succeeds when UpdateOriginScim"
         \(alice, ssoId, email :: Maybe Email, Handle newHandle, domain, config) ->
           not (isBlacklistedHandle (Handle newHandle)) ==>
             let res :: Either UserSubsystemError () = run
                   . runErrorUnsafe
                   . runError
                   $ interpretNoFederationStack localBackend Nothing def config do
-                    updateHandle (toLocalUnsafe domain alice.id) Nothing AllowSCIMUpdates newHandle
+                    updateHandle (toLocalUnsafe domain alice.id) Nothing UpdateOriginScim newHandle
                 localBackend =
                   def
                     { users =
@@ -377,7 +377,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 $ interpretNoFederationStack (def {users = [storedUser]}) Nothing def config do
                   let luid = toLocalUnsafe dom storedUser.id
                       dom = Domain "localdomain"
-                  updateHandle luid Nothing AllowSCIMUpdates rawNewHandle
+                  updateHandle luid Nothing UpdateOriginScim rawNewHandle
            in updateResult === Right ()
 
     prop
@@ -390,7 +390,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 $ interpretNoFederationStack localBackend Nothing def config do
                   let luid = toLocalUnsafe dom storedUser.id
                       dom = Domain "localdomain"
-                  updateHandle luid Nothing AllowSCIMUpdates badHandle
+                  updateHandle luid Nothing UpdateOriginScim badHandle
               localBackend = def {users = [storedUser]}
            in updateResult === Left UserSubsystemInvalidHandle
 
@@ -408,7 +408,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 localBackend = def {users = [storedUser]}
 
             actualSupportedProtocols = runIdentity $ operation do
-              () <- updateUserProfile luid Nothing ForbidSCIMUpdates (def {supportedProtocols = Just newSupportedProtocols})
+              () <- updateUserProfile luid Nothing UpdateOriginWireClient (def {supportedProtocols = Just newSupportedProtocols})
               profileSupportedProtocols . fromJust <$> getUserProfile luid (tUntagged luid)
 
             expectedSupportedProtocols =

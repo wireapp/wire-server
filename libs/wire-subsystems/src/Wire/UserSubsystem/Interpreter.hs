@@ -313,12 +313,12 @@ getUserProfilesWithErrorsImpl self others = do
 guardLockedFields ::
   (Member (Error UserSubsystemError) r) =>
   StoredUser ->
-  AllowSCIMUpdates ->
+  UpdateOriginType ->
   HasE2EId ->
   UserProfileUpdate ->
   Sem r ()
 guardLockedFields user updateOrigin hasE2EId (MkUserProfileUpdate {..})
-  | ((updateOrigin == ForbidSCIMUpdates && user.managedBy == Just ManagedByScim) || hasE2EId == HasE2EId)
+  | ((updateOrigin == UpdateOriginWireClient && user.managedBy == Just ManagedByScim) || hasE2EId == HasE2EId)
       && isJust name
       && name /= Just user.name =
       throw UserSubsystemDisplayNameManagedByScim
@@ -329,12 +329,12 @@ guardLockedFields user updateOrigin hasE2EId (MkUserProfileUpdate {..})
 guardHandleLockedFields ::
   (Member (Error UserSubsystemError) r) =>
   StoredUser ->
-  AllowSCIMUpdates ->
+  UpdateOriginType ->
   HasE2EId ->
   Handle ->
   Sem r ()
 guardHandleLockedFields user updateOrigin hasE2EId handle
-  | ((updateOrigin == ForbidSCIMUpdates && user.managedBy == Just ManagedByScim) || hasE2EId == HasE2EId)
+  | ((updateOrigin == UpdateOriginWireClient && user.managedBy == Just ManagedByScim) || hasE2EId == HasE2EId)
       && Just handle /= user.handle =
       throw UserSubsystemHandleManagedByScim
   | otherwise = pure ()
@@ -347,7 +347,7 @@ updateUserProfileImpl ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
-  AllowSCIMUpdates ->
+  UpdateOriginType ->
   UserProfileUpdate ->
   Sem r ()
 updateUserProfileImpl (tUnqualified -> uid) mconn updateOrigin update = do
@@ -394,7 +394,7 @@ updateHandleImpl ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
-  AllowSCIMUpdates ->
+  UpdateOriginType ->
   Text ->
   Sem r ()
 updateHandleImpl (tUnqualified -> uid) mconn updateOrigin uhandle = do
