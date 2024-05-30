@@ -1004,7 +1004,7 @@ changeLocale lusr conn l =
     updateUserProfile
       lusr
       (Just conn)
-      UserSubsystem.UpdateOriginScim
+      UserSubsystem.UpdateOriginWireClient
       def {locale = Just l.luLocale}
 
 changeSupportedProtocols ::
@@ -1055,7 +1055,7 @@ getHandleInfoUnqualifiedH self handle = do
 
 changeHandle :: (Member UserSubsystem r) => Local UserId -> ConnId -> Public.HandleUpdate -> Handler r ()
 changeHandle u conn (Public.HandleUpdate h) = lift $ liftSem do
-  UserSubsystem.updateHandle u (Just conn) UpdateOriginScim h
+  UserSubsystem.updateHandle u (Just conn) UpdateOriginWireClient h
 
 beginPasswordReset ::
   (Member PasswordResetStore r, Member TinyLog r) =>
@@ -1274,7 +1274,7 @@ updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
   whenM (not <$> assertHasPerm maybeZuserTeamId) $ throwStd insufficientTeamPermissions
   maybeEmailOwnerTeamId <- lift $ wrapClient $ Data.lookupUserTeam emailOwnerId
   checkSameTeam maybeZuserTeamId maybeEmailOwnerTeamId
-  void $ API.changeSelfEmail emailOwnerId email UpdateOriginScim
+  void $ API.changeSelfEmail emailOwnerId email UpdateOriginWireClient
   where
     checkSameTeam :: Maybe TeamId -> Maybe TeamId -> (Handler r) ()
     checkSameTeam (Just zuserTeamId) maybeEmailOwnerTeamId =
