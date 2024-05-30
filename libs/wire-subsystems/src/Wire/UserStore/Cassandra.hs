@@ -42,14 +42,14 @@ updateUserImpl uid update = runM $ runError do
 
 -- TODO: error message should say: user not found?  handle invalid?  handle claimed or taken?  any other bad thing happened?  (look at the API)
 -- TODO: why is this only calling claim?  what is the difference between update and claim?
-
 updateUserHandleImpl :: UserId -> StoredUserHandleUpdate -> Client (Either StoredUserUpdateError ())
 updateUserHandleImpl uid update =
   runM $ runError do
     claimed <- embed $ claimHandleImpl uid update.old update.new
     unless claimed $ throw StoredUserUpdateHandleExists
 
--- | Claim a new handle for an existing 'User'.
+-- | Claim a new handle for an existing 'User': validate it, and in case of success, assign it
+-- to user and mark it as taken.
 claimHandleImpl :: UserId -> Maybe Handle -> Handle -> Client Bool
 claimHandleImpl uid oldHandle newHandle =
   isJust <$> do
