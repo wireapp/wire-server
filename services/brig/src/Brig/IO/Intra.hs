@@ -126,8 +126,6 @@ onUserEvent orig conn e =
     *> dispatchNotifications orig conn e
     *> embed (journalEvent orig e)
 
--- TODO(mangoiv): should this be in another module?
-
 runUserEvents ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
@@ -138,6 +136,7 @@ runUserEvents ::
   ) =>
   InterpreterFor UserEvents r
 runUserEvents = interpret \case
+  -- FUTUREWORK(mangoiv): should this be in another module?
   GenerateUserEvent uid mconnid event -> onUserEvent uid mconnid event
 
 onConnectionEvent ::
