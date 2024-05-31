@@ -264,12 +264,7 @@ createUserSpar new = do
     updateHandle' :: Local UserId -> Maybe Handle -> ExceptT CreateUserSparError (AppT r) ()
     updateHandle' _ Nothing = pure ()
     updateHandle' luid (Just h) = do
-      case Handle.parseHandle . fromHandle $ h of
-        Just handl ->
-          lift . liftSem $
-            -- TODO(elland): Feels a bit dumb to have a valid handle and revalidate it.
-            User.updateHandle luid Nothing UpdateOriginScim (fromHandle handl)
-        Nothing -> throwE $ CreateUserSparHandleError ChangeHandleInvalid
+      User.updateHandle luid Nothing UpdateOriginScim (fromHandle h)
 
     addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> Role -> ExceptT RegisterError (AppT r) CreateUserTeam
     addUserToTeamSSO account tid ident role = do
