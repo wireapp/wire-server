@@ -172,7 +172,7 @@ type instance MapError 'NoIdentity = 'StaticError 403 "no-identity" "The user ha
 
 type instance MapError 'HandleExists = 'StaticError 409 "handle-exists" "The given handle is already taken"
 
-type instance MapError 'InvalidHandle = 'StaticError 400 "invalid-handle" "The given handle is invalid"
+type instance MapError 'InvalidHandle = 'StaticError 400 "invalid-handle" "The given handle is invalid (less than 2 or more than 256 characters; chars not in \"a-z0-9_.-\"; or on the blocklist)"
 
 type instance MapError 'HandleNotFound = 'StaticError 404 "not-found" "Handle not found"
 

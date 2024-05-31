@@ -413,21 +413,14 @@ updateHandleImpl (tUnqualified -> uid) mconn updateOrigin uhandle = do
 checkHandleImpl :: (Member (Error UserSubsystemError) r, Member UserStore r) => Text -> Sem r CheckHandleResp
 checkHandleImpl uhandle = do
   xhandle :: Handle <- Handle.parseHandle uhandle & maybe (throw UserSubsystemInvalidHandle) pure
+  when (isBlacklistedHandle xhandle) $
+    throw UserSubsystemInvalidHandle
   owner <- lookupHandle xhandle
-  if
-      | isJust owner ->
-          -- Handle is taken (=> getHandleInfo will return 200)
-          pure CheckHandleFound
-      | isBlacklistedHandle xhandle ->
-          -- Handle is free but cannot be taken
-          --
-          -- FUTUREWORK: i wonder if this is correct?  isn't this the error for malformed
-          -- handles?  shouldn't we throw not-found here?  or should there be a fourth case
-          -- 'CheckHandleBlacklisted'?
-          throw UserSubsystemInvalidHandle
-      | otherwise ->
-          -- Handle is free and can be taken
-          pure CheckHandleNotFound
+  if isJust owner
+    then -- Handle is taken (=> getHandleInfo will return 200)
+      pure CheckHandleFound
+    else -- Handle is free and can be taken
+      pure CheckHandleNotFound
 
 checkE2EId :: Member GalleyAPIAccess r => UserId -> Sem r HasE2EId
 checkE2EId uid =
