@@ -133,8 +133,8 @@ userAccentIdUpdate = "UPDATE user SET accent_id = ? WHERE id = ?"
 userLocaleUpdate :: PrepQuery W (Language, Maybe Country, UserId) ()
 userLocaleUpdate = "UPDATE user SET language = ?, country = ? WHERE id = ?"
 
-userSupportedProtocolUpdate :: PrepQuery W (Cassandra.Set BaseProtocolTag, UserId) ()
-userSupportedProtocolUpdate = "UPDATE user SET supported_protocols = ? WHERE id = ?"
+userSupportedProtocolsUpdate :: PrepQuery W (Cassandra.Set BaseProtocolTag, UserId) ()
+userSupportedProtocolsUpdate = "UPDATE user SET supported_protocols = ? WHERE id = ?"
 
 handleInsert :: PrepQuery W (Handle, UserId) ()
 handleInsert = "INSERT INTO user_handle (handle, user) VALUES (?, ?)"
