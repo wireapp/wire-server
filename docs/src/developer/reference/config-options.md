@@ -336,7 +336,7 @@ The client enrolls using the Automatic Certificate Management Environment (ACME)
 
 `useProxyOnMobile` is an optional field. If `true`, mobile clients should use the CRL proxy. If missing, null or false, mobile clients should not use the CRL proxy.
 
-`crlProxy` contains the URL to the CRL proxy. (Not that this field is optional in the server config, but mandatory when the team feature is updated via the team feature API.)
+`crlProxy` contains the URL to the CRL proxy. (Note that this field is optional in the server config, but mandatory when the team feature is updated via the team feature API.)
 
 ```yaml
 # galley.yaml
