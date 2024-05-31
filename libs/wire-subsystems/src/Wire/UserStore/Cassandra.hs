@@ -18,8 +18,8 @@ interpretUserStoreCassandra casClient =
   interpret $
     runEmbedded (runClient casClient) . \case
       GetUser uid -> getUserImpl uid
-      UpdateUserEither uid update -> embed $ updateUserImpl uid update
-      UpdateUserHandleEither uid update -> embed $ updateUserHandleImpl uid update
+      UpdateUserEither uid update -> embed $ updateUserEitherImpl uid update
+      UpdateUserHandleEither uid update -> embed $ updateUserHandleEitherImpl uid update
       DeleteUser user -> embed $ deleteUserImpl user
       LookupHandle hdl -> embed $ lookupHandleImpl LocalQuorum hdl
       GlimpseHandle hdl -> embed $ lookupHandleImpl One hdl
@@ -30,8 +30,8 @@ getUserImpl uid = embed $ do
   pure $ asRecord <$> mUserTuple
 
 -- TODO: error message needs more info!
-updateUserImpl :: UserId -> StoredUserUpdate -> Client (Either StoredUserUpdateError ())
-updateUserImpl uid update = runM $ runError do
+updateUserEitherImpl :: UserId -> StoredUserUpdate -> Client (Either StoredUserUpdateError ())
+updateUserEitherImpl uid update = runM $ runError do
   embed . retry x5 $ batch do
     setType BatchLogged
     setConsistency LocalQuorum
@@ -42,8 +42,8 @@ updateUserImpl uid update = runM $ runError do
 
 -- TODO: error message should say: user not found?  handle invalid?  handle claimed or taken?  any other bad thing happened?  (look at the API)
 -- TODO: why is this only calling claim?  what is the difference between update and claim?
-updateUserHandleImpl :: UserId -> StoredUserHandleUpdate -> Client (Either StoredUserUpdateError ())
-updateUserHandleImpl uid update =
+updateUserHandleEitherImpl :: UserId -> StoredUserHandleUpdate -> Client (Either StoredUserUpdateError ())
+updateUserHandleEitherImpl uid update =
   runM $ runError do
     claimed <- embed $ claimHandleImpl uid update.old update.new
     unless claimed $ throw StoredUserUpdateHandleExists
