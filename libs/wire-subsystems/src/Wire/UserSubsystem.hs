@@ -58,8 +58,6 @@ data UpdateOriginType
   deriving (Show, Eq, Ord, Generic)
   deriving (Arbitrary) via GenericUniform UpdateOriginType
 
--- TODO: is UserUpdate redundant now?
-
 -- | Simple updates (as opposed to, eg., handle, where we need to manage locks).
 --
 -- This is isomorphic to 'StoredUserUpdate', but we keep the two types separate because they
