@@ -33,6 +33,10 @@ getUserImpl uid = embed $ do
 updateUserEitherImpl :: UserId -> StoredUserUpdate -> Client (Either StoredUserUpdateError ())
 updateUserEitherImpl uid update = runM $ runError do
   embed . retry x5 $ batch do
+    -- PERFORMANCE(fisx): if a user changes 4 attributes with one request, the database will
+    -- be hit with 4 requests (one for each attribute).  this is probably fine as this
+    -- operation is not heavily used.  (also, the four operations are batched, which may or
+    -- may not help.)
     setType BatchLogged
     setConsistency LocalQuorum
     for_ update.name \n -> addPrepQuery userDisplayNameUpdate (n, uid)
