@@ -131,7 +131,7 @@ responseJsonUnsafe ::
   (HasCallStack, Typeable a, FromJSON a) =>
   ResponseLBS ->
   a
-responseJsonUnsafe = responseJsonUnsafeWithMsg ""
+responseJsonUnsafe resp = responseJsonUnsafeWithMsg (show resp) resp
 
 {-# INLINE responseJsonUnsafeWithMsg #-}
 responseJsonUnsafeWithMsg ::
