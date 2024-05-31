@@ -41,6 +41,8 @@ data StoredUserHandleUpdate = MkStoredUserHandleUpdate
 
 data StoredUserUpdateError = StoredUserUpdateHandleExists
 
+-- | Effect containing database logic around 'StoredUser'.  (Example: claim handle lock is
+-- database logic; validate handle is application logic.)
 data UserStore m a where
   GetUser :: UserId -> UserStore m (Maybe StoredUser)
   UpdateUserEither :: UserId -> StoredUserUpdate -> UserStore m (Either StoredUserUpdateError ())
