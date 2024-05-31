@@ -288,7 +288,9 @@ setupProvider ::
 setupProvider u np@(NewProvider {..}) = do
   dom <- objDomain u
   provider <- newProvider u np
-  pass <- provider %. "password" & asString
+  pass <- case newProviderPassword of
+    Nothing -> provider %. "password" & asString
+    Just pass -> pure pass
   (key, code) <- do
     pair <-
       getProviderActivationCodeInternal dom newProviderEmail `bindResponse` \resp -> do
