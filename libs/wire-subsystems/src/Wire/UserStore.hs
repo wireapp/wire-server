@@ -45,8 +45,8 @@ data StoredUserUpdateError = StoredUserUpdateHandleExists
 -- database logic; validate handle is application logic.)
 data UserStore m a where
   GetUser :: UserId -> UserStore m (Maybe StoredUser)
-  UpdateUserEither :: UserId -> StoredUserUpdate -> UserStore m (Either StoredUserUpdateError ())
-  UpdateUserHandle :: UserId -> StoredUserHandleUpdate -> UserStore m ()
+  UpdateUser :: UserId -> StoredUserUpdate -> UserStore m ()
+  UpdateUserHandleEither :: UserId -> StoredUserHandleUpdate -> UserStore m (Either StoredUserUpdateError ())
   DeleteUser :: User -> UserStore m ()
   -- | this operation looks up a handle but may not give you stale data
   --   it is potentially slower and less resilient than 'GlimpseHandle'
@@ -59,9 +59,9 @@ data UserStore m a where
 
 makeSem ''UserStore
 
-updateUser ::
+updateUserHandle ::
   (Member UserStore r, Member (Error StoredUserUpdateError) r) =>
   UserId ->
-  StoredUserUpdate ->
+  StoredUserHandleUpdate ->
   Sem r ()
-updateUser uid update = either throw pure =<< updateUserEither uid update
+updateUserHandle uid update = either throw pure =<< updateUserHandleEither uid update

@@ -18,8 +18,8 @@ interpretUserStoreCassandra casClient =
   interpret $
     runEmbedded (runClient casClient) . \case
       GetUser uid -> getUserImpl uid
-      UpdateUserEither uid update -> embed $ updateUserEitherImpl uid update
-      UpdateUserHandle uid update -> embed $ updateUserHandleImpl uid update
+      UpdateUser uid update -> embed $ updateUserImpl uid update
+      UpdateUserHandleEither uid update -> embed $ updateUserHandleEitherImpl uid update
       DeleteUser user -> embed $ deleteUserImpl user
       LookupHandle hdl -> embed $ lookupHandleImpl LocalQuorum hdl
       GlimpseHandle hdl -> embed $ lookupHandleImpl One hdl
@@ -30,8 +30,8 @@ getUserImpl uid = embed $ do
   pure $ asRecord <$> mUserTuple
 
 updateUserImpl :: UserId -> StoredUserUpdate -> Client ()
-updateUserImpl uid update = runM $ runError do
-  embed . retry x5 $ batch do
+updateUserImpl uid update =
+  retry x5 $ batch do
     -- PERFORMANCE(fisx): if a user changes 4 attributes with one request, the database will
     -- be hit with 4 requests (one for each attribute).  this is probably fine as this
     -- operation is not heavily used.  (also, the four operations are batched, which may or
