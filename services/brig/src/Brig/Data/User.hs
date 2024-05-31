@@ -283,18 +283,6 @@ insertAccount (UserAccount u status) mbConv password activated = retry x5 . batc
       "INSERT INTO service_team (provider, service, user, conv, team) \
       \VALUES (?, ?, ?, ?, ?)"
 
-updateLocale :: MonadClient m => UserId -> Locale -> m ()
-updateLocale u (Locale l c) = write userLocaleUpdate (params LocalQuorum (l, c, u))
-
-updateUser :: MonadClient m => UserId -> UserUpdate -> m ()
-updateUser u UserUpdate {..} = retry x5 . batch $ do
-  setType BatchLogged
-  setConsistency LocalQuorum
-  for_ uupName $ \n -> addPrepQuery userDisplayNameUpdate (n, u)
-  for_ uupPict $ \p -> addPrepQuery userPictUpdate (p, u)
-  for_ uupAssets $ \a -> addPrepQuery userAssetsUpdate (a, u)
-  for_ uupAccentId $ \c -> addPrepQuery userAccentIdUpdate (c, u)
-
 updateEmail :: MonadClient m => UserId -> Email -> m ()
 updateEmail u e = retry x5 $ write userEmailUpdate (params LocalQuorum (e, u))
 
@@ -653,12 +641,6 @@ userSSOIdUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user
 
 userManagedByUpdate :: PrepQuery W (ManagedBy, UserId) ()
 userManagedByUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET managed_by = ? WHERE id = ?"
-
-userHandleUpdate :: PrepQuery W (Handle, UserId) ()
-userHandleUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET handle = ? WHERE id = ?"
-
-userSupportedProtocolUpdate :: PrepQuery W (Set BaseProtocolTag, UserId) ()
-userSupportedProtocolUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET supported_protocols = ? WHERE id = ?"
 
 userPasswordUpdate :: PrepQuery W (Password, UserId) ()
 userPasswordUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET password = ? WHERE id = ?"
