@@ -51,7 +51,6 @@ module Brig.Data.User
     userExists,
 
     -- * Updates
-    updateUser,
     updateEmail,
     updateEmailUnvalidated,
     updatePhone,
@@ -59,11 +58,8 @@ module Brig.Data.User
     updateManagedBy,
     activateUser,
     deactivateUser,
-    updateLocale,
     updatePassword,
     updateStatus,
-    updateHandle,
-    updateSupportedProtocols,
     updateRichInfo,
     updateFeatureConferenceCalling,
 
@@ -303,14 +299,6 @@ updateSSOId u ssoid = do
 
 updateManagedBy :: MonadClient m => UserId -> ManagedBy -> m ()
 updateManagedBy u h = retry x5 $ write userManagedByUpdate (params LocalQuorum (h, u))
-
-updateHandle :: MonadClient m => UserId -> Handle -> m ()
-updateHandle u h = retry x5 $ write userHandleUpdate (params LocalQuorum (h, u))
-
-updateSupportedProtocols :: MonadClient m => UserId -> Set BaseProtocolTag -> m ()
-updateSupportedProtocols u prots =
-  retry x5 $
-    write userSupportedProtocolUpdate (params LocalQuorum (prots, u))
 
 updatePassword :: MonadClient m => UserId -> PlainTextPassword8 -> m ()
 updatePassword u t = do
@@ -612,18 +600,6 @@ userInsert =
   \country, provider, service, handle, team, managed_by, supported_protocols) \
   \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
-userDisplayNameUpdate :: PrepQuery W (Name, UserId) ()
-userDisplayNameUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET name = ? WHERE id = ?"
-
-userPictUpdate :: PrepQuery W (Pict, UserId) ()
-userPictUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET picture = ? WHERE id = ?"
-
-userAssetsUpdate :: PrepQuery W ([Asset], UserId) ()
-userAssetsUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET assets = ? WHERE id = ?"
-
-userAccentIdUpdate :: PrepQuery W (ColourId, UserId) ()
-userAccentIdUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET accent_id = ? WHERE id = ?"
-
 userEmailUpdate :: PrepQuery W (Email, UserId) ()
 userEmailUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET email = ? WHERE id = ?"
 
@@ -653,9 +629,6 @@ userDeactivatedUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDAT
 
 userActivatedUpdate :: PrepQuery W (Maybe Email, Maybe Phone, UserId) ()
 userActivatedUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET activated = true, email = ?, phone = ? WHERE id = ?"
-
-userLocaleUpdate :: PrepQuery W (Language, Maybe Country, UserId) ()
-userLocaleUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET language = ?, country = ? WHERE id = ?"
 
 userEmailDelete :: PrepQuery W (Identity UserId) ()
 userEmailDelete = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET email = null WHERE id = ?"

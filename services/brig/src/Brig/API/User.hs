@@ -24,7 +24,6 @@ module Brig.API.User
     createUserSpar,
     createUserInviteViaScim,
     checkRestrictedUserCreation,
-    changeLocale,
     changeSelfEmail,
     changeEmail,
     changePhone,
@@ -32,7 +31,6 @@ module Brig.API.User
     checkHandle,
     lookupHandle,
     changeManagedBy,
-    changeSupportedProtocols,
     changeAccountStatus,
     changeSingleAccountStatus,
     Data.lookupAccounts,
@@ -577,25 +575,6 @@ checkRestrictedUserCreation new = do
     $ throwE RegisterErrorUserCreationRestricted
 
 -------------------------------------------------------------------------------
--- Update Locale
-
-changeLocale ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
-  ) =>
-  UserId ->
-  ConnId ->
-  LocaleUpdate ->
-  (AppT r) ()
-changeLocale uid conn (LocaleUpdate loc) = do
-  wrapClient $ Data.updateLocale uid loc
-  liftSem $ Intra.onUserEvent uid (Just conn) (localeUpdate uid loc)
-
--------------------------------------------------------------------------------
 -- Update ManagedBy
 
 changeManagedBy ::
@@ -613,25 +592,6 @@ changeManagedBy ::
 changeManagedBy uid conn (ManagedByUpdate mb) = do
   wrapClient $ Data.updateManagedBy uid mb
   liftSem $ Intra.onUserEvent uid (Just conn) (managedByUpdate uid mb)
-
--------------------------------------------------------------------------------
--- Update supported protocols
-
-changeSupportedProtocols ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
-  ) =>
-  UserId ->
-  ConnId ->
-  Set BaseProtocolTag ->
-  AppT r ()
-changeSupportedProtocols uid conn prots = do
-  wrapClient $ Data.updateSupportedProtocols uid prots
-  liftSem $ Intra.onUserEvent uid (Just conn) (supportedProtocolUpdate uid prots)
 
 -------------------------------------------------------------------------------
 -- Change Email

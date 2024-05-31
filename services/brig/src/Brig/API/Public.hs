@@ -1008,19 +1008,15 @@ changeLocale lusr conn l =
       def {locale = Just l.luLocale}
 
 changeSupportedProtocols ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
-  ) =>
+  (Member UserSubsystem r) =>
   Local UserId ->
   ConnId ->
   Public.SupportedProtocolUpdate ->
   Handler r ()
-changeSupportedProtocols (tUnqualified -> u) conn (Public.SupportedProtocolUpdate prots) =
-  lift $ API.changeSupportedProtocols u conn prots
+changeSupportedProtocols u conn (Public.SupportedProtocolUpdate prots) =
+  lift . liftSem $ UserSubsystem.updateUserProfile u (Just conn) UpdateOriginWireClient upd
+  where
+    upd = def {supportedProtocols = Just prots}
 
 -- | (zusr is ignored by this handler, ie. checking handles is allowed as long as you have
 -- *any* account.)

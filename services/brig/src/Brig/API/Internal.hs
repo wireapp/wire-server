@@ -245,7 +245,7 @@ teamsAPI =
     :<|> Named @"team-size" Team.teamSize
     :<|> Named @"create-invitations-via-scim" Team.createInvitationViaScim
 
-userAPI :: ServerT BrigIRoutes.UserAPI (Handler r)
+userAPI :: Member UserSubsystem r => ServerT BrigIRoutes.UserAPI (Handler r)
 userAPI =
   updateLocale
     :<|> deleteLocale
@@ -820,15 +820,18 @@ updateRichInfoH uid rup =
     -- Intra.onUserEvent uid (Just conn) (richInfoUpdate uid ri)
     lift $ wrapClient $ Data.updateRichInfo uid (mkRichInfoAssocList richInfo)
 
-updateLocale :: UserId -> LocaleUpdate -> (Handler r) LocaleUpdate
-updateLocale uid locale = do
-  lift $ wrapClient $ Data.updateLocale uid (luLocale locale)
-  pure locale
+updateLocale :: Member UserSubsystem r => UserId -> LocaleUpdate -> (Handler r) LocaleUpdate
+updateLocale uid upd@(LocaleUpdate locale) = do
+  qUid <- qualifyLocal uid
+  lift . liftSem $ updateUserProfile qUid Nothing UpdateOriginScim def {locale = Just locale}
+  pure upd
 
-deleteLocale :: UserId -> (Handler r) NoContent
+deleteLocale :: Member UserSubsystem r => UserId -> (Handler r) NoContent
 deleteLocale uid = do
   defLoc <- setDefaultUserLocale <$> view settings
-  lift $ wrapClient $ Data.updateLocale uid defLoc $> NoContent
+  qUid <- qualifyLocal uid
+  lift . liftSem $ updateUserProfile qUid Nothing UpdateOriginScim def {locale = Just defLoc}
+  pure NoContent
 
 getDefaultUserLocale :: (Handler r) LocaleUpdate
 getDefaultUserLocale = do
