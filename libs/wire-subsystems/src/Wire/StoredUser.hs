@@ -120,3 +120,6 @@ toIdentity False _ _ _ = Nothing
 
 instance HasField "identity" StoredUser (Maybe UserIdentity) where
   getField user = toIdentity user.activated user.email user.phone user.ssoId
+
+instance HasField "locale" StoredUser (Maybe Locale) where
+  getField user = Locale <$> user.language <*> pure user.country

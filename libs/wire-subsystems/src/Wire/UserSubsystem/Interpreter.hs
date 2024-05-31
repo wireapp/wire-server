@@ -322,8 +322,11 @@ guardLockedFields user updateOrigin hasE2EId (MkUserProfileUpdate {..})
       && isJust name
       && name /= Just user.name =
       throw UserSubsystemDisplayNameManagedByScim
-  -- TODO: | updateOriginScim && isJust locale && locale /= Just user.locale = throw UserSubsystemLocaleManagedByScim
-  -- pict, assets, accentId, supportedProtocols are not managed by scim, so no errors there.
+  | (updateOrigin == UpdateOriginWireClient && user.managedBy == Just ManagedByScim)
+      && isJust locale
+      && locale /= user.locale =
+      throw UserSubsystemLocaleManagedByScim
+  -- NOT MANAGED BY SCIM (so no errors there): pict, assets, accentId, supportedProtocols.
   | otherwise = pure ()
 
 guardHandleLockedFields ::

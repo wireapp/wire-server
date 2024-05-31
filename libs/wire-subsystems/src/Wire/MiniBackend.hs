@@ -354,20 +354,20 @@ staticUserStoreInterpreter ::
   InterpreterFor UserStore r
 staticUserStoreInterpreter = interpret $ \case
   GetUser uid -> find (\user -> user.id == uid) <$> getLocalUsers
-  UpdateUserEither uid update -> runError $ modifyLocalUsers (traverse doUpdate)
+  UpdateUser uid update -> modifyLocalUsers (pure . fmap doUpdate)
     where
-      doUpdate :: StoredUser -> Sem (Error StoredUserUpdateError : r) StoredUser
-      doUpdate u
-        | u.id == uid = do
-            pure
-              . maybe Imports.id setStoredUserAccentId update.accentId
+      doUpdate :: StoredUser -> StoredUser
+      doUpdate u =
+        if u.id == uid
+          then
+            maybe Imports.id setStoredUserAccentId update.accentId
               . maybe Imports.id setStoredUserAssets update.assets
               . maybe Imports.id setStoredUserPict update.pict
               . maybe Imports.id setStoredUserName update.name
               . maybe Imports.id setStoredUserLocale update.locale
               . maybe Imports.id setStoredUserSupportedProtocols update.supportedProtocols
               $ u
-      doUpdate u = pure u
+          else u
   UpdateUserHandleEither uid hUpdate -> runError $ modifyLocalUsers (traverse doUpdate)
     where
       doUpdate :: StoredUser -> Sem (Error StoredUserUpdateError : r) StoredUser

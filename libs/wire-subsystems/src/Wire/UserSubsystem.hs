@@ -23,8 +23,8 @@ data UserSubsystemError
   = -- | user is managed by scim or e2ei is enabled
     --   FUTUREWORK(mangoiv): the name should probably resemble that
     UserSubsystemDisplayNameManagedByScim
-  | -- TODO: UserSubsystemLocaleManagedByScim
-    UserSubsystemHandleManagedByScim
+  | UserSubsystemHandleManagedByScim
+  | UserSubsystemLocaleManagedByScim
   | UserSubsystemNoIdentity
   | UserSubsystemHandleExists
   | UserSubsystemInvalidHandle
@@ -36,7 +36,7 @@ userSubsystemErrorToWai =
   dynErrorToWai . \case
     UserSubsystemProfileNotFound -> dynError @(MapError E.UserNotFound)
     UserSubsystemDisplayNameManagedByScim -> dynError @(MapError E.NameManagedByScim)
-    -- TODO: UserSubsystemLocaleManagedByScim -> dynError @(MapError E.NameManagedByScim)
+    UserSubsystemLocaleManagedByScim -> dynError @(MapError E.LocaleManagedByScim)
     UserSubsystemNoIdentity -> dynError @(MapError E.NoIdentity)
     UserSubsystemHandleExists -> dynError @(MapError E.HandleExists)
     UserSubsystemInvalidHandle -> dynError @(MapError E.InvalidHandle)
