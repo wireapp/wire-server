@@ -267,20 +267,34 @@ spec = describe "UserSubsystem.Interpreter" do
                       )
                   ]
 
-    prop
-      "user managed by scim doesn't allow update"
-      \(NotPendingStoredUser alice) localDomain (update :: UserProfileUpdate) name config ->
-        alice.name /= name ==>
-          let lusr = toLocalUnsafe localDomain alice.id
-              localBackend = def {users = [alice {managedBy = Just ManagedByScim}]}
-              profileErr :: Either UserSubsystemError (Maybe UserProfile) =
-                run
-                  . runErrorUnsafe
-                  . runError
-                  $ interpretNoFederationStack localBackend Nothing def config do
-                    updateUserProfile lusr Nothing UpdateOriginWireClient update {name = Just name}
-                    getUserProfile lusr (tUntagged lusr)
-           in Left UserSubsystemDisplayNameManagedByScim === profileErr
+    describe "user managed by scim doesn't allow certain update operations" $ do
+      prop "name" $
+        \(NotPendingStoredUser alice) localDomain name config ->
+          alice.name /= name ==>
+            let lusr = toLocalUnsafe localDomain alice.id
+                localBackend = def {users = [alice {managedBy = Just ManagedByScim}]}
+                profileErr :: Either UserSubsystemError (Maybe UserProfile) =
+                  run
+                    . runErrorUnsafe
+                    . runError
+                    $ interpretNoFederationStack localBackend Nothing def config do
+                      updateUserProfile lusr Nothing UpdateOriginWireClient def {name = Just name}
+                      getUserProfile lusr (tUntagged lusr)
+             in Left UserSubsystemDisplayNameManagedByScim === profileErr
+
+      prop "locale" $
+        \(NotPendingStoredUser alice) localDomain locale config ->
+          alice.locale /= Just locale ==>
+            let lusr = toLocalUnsafe localDomain alice.id
+                localBackend = def {users = [alice {managedBy = Just ManagedByScim}]}
+                profileErr :: Either UserSubsystemError (Maybe UserProfile) =
+                  run
+                    . runErrorUnsafe
+                    . runError
+                    $ interpretNoFederationStack localBackend Nothing def config do
+                      updateUserProfile lusr Nothing UpdateOriginWireClient def {locale = Just locale}
+                      getUserProfile lusr (tUntagged lusr)
+             in Left UserSubsystemLocaleManagedByScim === profileErr
 
     prop
       "if e2e identity is activated, the user name cannot be updated"
