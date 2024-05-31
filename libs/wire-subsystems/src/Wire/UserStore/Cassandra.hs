@@ -43,8 +43,6 @@ updateUserImpl uid update = runM $ runError do
     for_ update.assets \a -> addPrepQuery userAssetsUpdate (a, uid)
     for_ update.accentId \c -> addPrepQuery userAccentIdUpdate (c, uid)
 
--- TODO: error message should say: user not found?  handle invalid?  handle claimed or taken?  any other bad thing happened?  (look at the API)
--- TODO: why is this only calling claim?  what is the difference between update and claim?
 updateUserHandleEitherImpl :: UserId -> StoredUserHandleUpdate -> Client (Either StoredUserUpdateError ())
 updateUserHandleEitherImpl uid update =
   runM $ runError do
