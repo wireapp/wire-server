@@ -55,7 +55,6 @@ common common-all
     OverloadedLabels
     OverloadedRecordDot
     PackageImports
-    PartialTypeSignatures
     PatternSynonyms
     PolyKinds
     QuasiQuotes
