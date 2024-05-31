@@ -267,7 +267,20 @@ spec = describe "UserSubsystem.Interpreter" do
                       )
                   ]
 
-    describe "user managed by scim doesn't allow certain update operations" $ do
+    describe "user managed by scim doesn't allow certain update operations, but allows others" $ do
+      prop "happy" $
+        \(NotPendingStoredUser alice) localDomain update config ->
+          let lusr = toLocalUnsafe localDomain alice.id
+              localBackend = def {users = [alice {managedBy = Just ManagedByScim}]}
+              profileErr :: Either UserSubsystemError (Maybe UserProfile) =
+                run
+                  . runErrorUnsafe
+                  . runError
+                  $ interpretNoFederationStack localBackend Nothing def config do
+                    updateUserProfile lusr Nothing UpdateOriginWireClient update {name = Nothing, locale = Nothing}
+                    getUserProfile lusr (tUntagged lusr)
+           in counterexample (show profileErr) $ isRight profileErr === True
+
       prop "name" $
         \(NotPendingStoredUser alice) localDomain name config ->
           alice.name /= name ==>
@@ -280,7 +293,7 @@ spec = describe "UserSubsystem.Interpreter" do
                     $ interpretNoFederationStack localBackend Nothing def config do
                       updateUserProfile lusr Nothing UpdateOriginWireClient def {name = Just name}
                       getUserProfile lusr (tUntagged lusr)
-             in Left UserSubsystemDisplayNameManagedByScim === profileErr
+             in profileErr === Left UserSubsystemDisplayNameManagedByScim
 
       prop "locale" $
         \(NotPendingStoredUser alice) localDomain locale config ->
@@ -294,7 +307,7 @@ spec = describe "UserSubsystem.Interpreter" do
                     $ interpretNoFederationStack localBackend Nothing def config do
                       updateUserProfile lusr Nothing UpdateOriginWireClient def {locale = Just locale}
                       getUserProfile lusr (tUntagged lusr)
-             in Left UserSubsystemLocaleManagedByScim === profileErr
+             in profileErr === Left UserSubsystemLocaleManagedByScim
 
     prop
       "if e2e identity is activated, the user name cannot be updated"
