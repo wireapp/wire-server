@@ -44,7 +44,7 @@ data StoredUserUpdateError = StoredUserUpdateHandleExists
 data UserStore m a where
   GetUser :: UserId -> UserStore m (Maybe StoredUser)
   UpdateUserEither :: UserId -> StoredUserUpdate -> UserStore m (Either StoredUserUpdateError ())
-  UpdateUserHandleEither :: UserId -> StoredUserHandleUpdate -> UserStore m (Either StoredUserUpdateError ())
+  UpdateUserHandle :: UserId -> StoredUserHandleUpdate -> UserStore m ()
   DeleteUser :: User -> UserStore m ()
   -- | this operation looks up a handle but may not give you stale data
   --   it is potentially slower and less resilient than 'GlimpseHandle'
@@ -63,10 +63,3 @@ updateUser ::
   StoredUserUpdate ->
   Sem r ()
 updateUser uid update = either throw pure =<< updateUserEither uid update
-
-updateUserHandle ::
-  (Member UserStore r, Member (Error StoredUserUpdateError) r) =>
-  UserId ->
-  StoredUserHandleUpdate ->
-  Sem r ()
-updateUserHandle uid update = either throw pure =<< updateUserHandleEither uid update
