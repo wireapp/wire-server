@@ -314,10 +314,11 @@ spec = describe "UserSubsystem.Interpreter" do
     prop
       "CheckHandle succeeds if there is a user with that handle"
       \((NotPendingStoredUser alice, handle :: Handle), config) ->
-        let localBackend = def {users = [alice {managedBy = Just ManagedByWire, handle = Just handle}]}
-            checkHandleResp =
-              runNoFederationStack localBackend Nothing config $ checkHandle (fromHandle handle)
-         in checkHandleResp === CheckHandleFound
+        not (isBlacklistedHandle handle) ==>
+          let localBackend = def {users = [alice {managedBy = Just ManagedByWire, handle = Just handle}]}
+              checkHandleResp =
+                runNoFederationStack localBackend Nothing config $ checkHandle (fromHandle handle)
+           in checkHandleResp === CheckHandleFound
 
     prop
       "CheckHandle fails if there is no user with that handle"
