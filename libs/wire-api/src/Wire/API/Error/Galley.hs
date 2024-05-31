@@ -366,6 +366,7 @@ data TeamFeatureError
   | DisableSsoNotImplemented
   | FeatureLocked
   | MLSProtocolMismatch
+  | MLSE2EIDMissingCrlProxy
 
 instance IsSwaggerError TeamFeatureError where
   -- Do not display in Swagger
@@ -397,6 +398,8 @@ type instance MapError 'FeatureLocked = 'StaticError 409 "feature-locked" "Featu
 
 type instance MapError 'MLSProtocolMismatch = 'StaticError 400 "mls-protocol-mismatch" "The default protocol needs to be part of the supported protocols"
 
+type instance MapError 'MLSE2EIDMissingCrlProxy = 'StaticError 400 "mls-e2eid-missing-crl-proxy" "The field 'crlProxy' is missing in the request payload"
+
 type instance ErrorEffect TeamFeatureError = Error TeamFeatureError
 
 instance Member (Error DynError) r => ServerEffect (Error TeamFeatureError) r where
@@ -407,6 +410,7 @@ instance Member (Error DynError) r => ServerEffect (Error TeamFeatureError) r wh
     DisableSsoNotImplemented -> dynError @(MapError 'DisableSsoNotImplemented)
     FeatureLocked -> dynError @(MapError 'FeatureLocked)
     MLSProtocolMismatch -> dynError @(MapError 'MLSProtocolMismatch)
+    MLSE2EIDMissingCrlProxy -> dynError @(MapError 'MLSE2EIDMissingCrlProxy)
 
 --------------------------------------------------------------------------------
 -- Proposal failure
