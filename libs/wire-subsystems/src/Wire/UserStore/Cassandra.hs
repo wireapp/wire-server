@@ -41,7 +41,7 @@ updateUserImpl uid update =
     for_ update.name \n -> addPrepQuery userDisplayNameUpdate (n, uid)
     for_ update.pict \p -> addPrepQuery userPictUpdate (p, uid)
     for_ update.assets \a -> addPrepQuery userAssetsUpdate (a, uid)
-    for_ update.locale \a -> addPrepQuery userLocaleUpdate (a, uid)
+    for_ update.locale \a -> addPrepQuery userLocaleUpdate (a.lLanguage, a.lCountry, uid)
     for_ update.accentId \c -> addPrepQuery userAccentIdUpdate (c, uid)
     for_ update.supportedProtocols \a -> addPrepQuery userSupportedProtocolsUpdate (a, uid)
 
@@ -133,7 +133,7 @@ userAccentIdUpdate = "UPDATE user SET accent_id = ? WHERE id = ?"
 userLocaleUpdate :: PrepQuery W (Language, Maybe Country, UserId) ()
 userLocaleUpdate = "UPDATE user SET language = ?, country = ? WHERE id = ?"
 
-userSupportedProtocolsUpdate :: PrepQuery W (Cassandra.Set BaseProtocolTag, UserId) ()
+userSupportedProtocolsUpdate :: PrepQuery W (Imports.Set BaseProtocolTag, UserId) ()
 userSupportedProtocolsUpdate = "UPDATE user SET supported_protocols = ? WHERE id = ?"
 
 handleInsert :: PrepQuery W (Handle, UserId) ()
