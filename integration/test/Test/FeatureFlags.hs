@@ -50,7 +50,7 @@ checkFeature :: (HasCallStack, MakesValue user, MakesValue tid) => String -> use
 checkFeature feature user tid expected = do
   tidStr <- asString tid
   domain <- objDomain user
-  bindResponse (Internal.getTeamFeature domain tidStr feature) $ \resp -> do
+  bindResponse (Internal.getTeamFeature domain feature tidStr) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json `shouldMatch` expected
   bindResponse (Public.getTeamFeatures user tid) $ \resp -> do
