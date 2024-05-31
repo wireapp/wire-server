@@ -846,7 +846,7 @@ testCreateUserAnonExpiry :: Brig -> Http ()
 testCreateUserAnonExpiry b = do
   u1 <- randomUser b
   alice <- randomUser b
-  bob <- createAnonUserExpiry (Just 2) "bob" b
+  bob <- createAnonUserExpiry (Just 5 {- 2 was flaky, so it's 5 now; make sure to re-align with 'awaitExpiry' below! -}) "bob" b
   liftIO $ assertBool "expiry not set on regular creation" (isNothing (userExpire alice))
   ensureExpiry (fromUTCTimeMillis <$> userExpire bob) "bob/register"
   resAlice <- getProfile (userId u1) (userId alice)
@@ -856,12 +856,13 @@ testCreateUserAnonExpiry b = do
   liftIO $ assertBool "Regular user should not have any expiry" (null $ expire resAlice)
   ensureExpiry (expire resBob) "bob/public"
   ensureExpiry (expire selfBob) "bob/self"
-  awaitExpiry 5 (userId u1) (userId bob)
+  awaitExpiry 10 (userId u1) (userId bob)
   resBob' <- getProfile (userId u1) (userId bob)
   liftIO $ assertBool "Bob must be in deleted state" (fromMaybe False $ deleted resBob')
   where
     getProfile :: UserId -> UserId -> Http ResponseLBS
     getProfile zusr uid = get (apiVersion "v1" . b . zUser zusr . paths ["users", toByteString' uid]) <!! const 200 === statusCode
+
     awaitExpiry :: Int -> UserId -> UserId -> Http ()
     awaitExpiry n zusr uid = do
       -- after expiration, a profile lookup should trigger garbage collection of ephemeral users
@@ -869,6 +870,7 @@ testCreateUserAnonExpiry b = do
       when (statusCode r == 200 && isNothing (deleted r) && n > 0) $ do
         liftIO $ threadDelay 1000000
         awaitExpiry (n - 1) zusr uid
+
     ensureExpiry :: Maybe UTCTime -> String -> Http ()
     ensureExpiry expiry s = do
       now <- liftIO getCurrentTime
@@ -880,10 +882,13 @@ testCreateUserAnonExpiry b = do
               maxExp = 60 * 60 * 24 * 10 :: Integer -- 10 days
           liftIO $ assertBool "expiry must be in the future" (diff >= fromIntegral minExp)
           liftIO $ assertBool "expiry must be less than 10 days" (diff < fromIntegral maxExp)
+
     expire :: ResponseLBS -> Maybe UTCTime
     expire r = field "expires_at" =<< responseJsonMaybe r
+
     deleted :: ResponseLBS -> Maybe Bool
     deleted r = field "deleted" =<< responseJsonMaybe r
+
     field :: FromJSON a => Key -> Value -> Maybe a
     field f u = u ^? key f >>= maybeFromJSON
 
