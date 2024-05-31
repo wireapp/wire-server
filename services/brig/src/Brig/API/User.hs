@@ -134,7 +134,6 @@ import Data.ByteString.Conversion
 import Data.Code
 import Data.Currency qualified as Currency
 import Data.Handle (Handle (fromHandle))
-import Data.Handle qualified as Handle
 import Data.Id as Id
 import Data.Json.Util
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
@@ -257,14 +256,14 @@ createUserSpar new = do
   lift $ initAccountFeatureConfig (tUnqualified luid)
 
   -- Set handle
-  updateHandle' luid handle'
+  lift $ updateHandle' luid handle'
 
   pure $! CreateUserResult account Nothing Nothing (Just userTeam)
   where
-    updateHandle' :: Local UserId -> Maybe Handle -> ExceptT CreateUserSparError (AppT r) ()
+    updateHandle' :: Local UserId -> Maybe Handle -> AppT r ()
     updateHandle' _ Nothing = pure ()
-    updateHandle' luid (Just h) = do
-      User.updateHandle luid Nothing UpdateOriginScim (fromHandle h)
+    updateHandle' luid (Just h) =
+      liftSem $ User.updateHandle luid Nothing UpdateOriginScim (fromHandle h)
 
     addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> Role -> ExceptT RegisterError (AppT r) CreateUserTeam
     addUserToTeamSSO account tid ident role = do
