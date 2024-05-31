@@ -137,7 +137,7 @@ extLogError scon e =
 -- Internal RPC
 
 -- | Set service connection information in galley.
-setServiceConn :: ServiceConn -> (AppT r) ()
+setServiceConn :: ServiceConn -> AppT r ()
 setServiceConn scon = do
   Log.debug $
     remote "galley"

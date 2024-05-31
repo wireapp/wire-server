@@ -113,10 +113,6 @@ type instance MapError 'ServiceDisabled = 'StaticError 403 "service-disabled" "T
 
 type instance MapError 'InvalidBot = 'StaticError 403 "invalid-bot" "The targeted user is not a bot."
 
-type instance MapError 'ServiceDisabled = 'StaticError 403 "service-disabled" "The desired service is currently disabled."
-
-type instance MapError 'InvalidBot = 'StaticError 403 "invalid-bot" "The targeted user is not a bot."
-
 type instance MapError 'UserNotFound = 'StaticError 404 "not-found" "User not found"
 
 type instance MapError 'InvalidConversation = 'StaticError 403 "invalid-conversation" "The operation is not allowed in this conversation."
