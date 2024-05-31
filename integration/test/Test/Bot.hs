@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wwarn #-}
-
 module Test.Bot where
 
 import API.Brig
