@@ -379,7 +379,9 @@ mkProfileUpdateEvent uid update =
       { eupName = update.name,
         eupPict = update.pict,
         eupAccentId = update.accentId,
-        eupAssets = update.assets
+        eupAssets = update.assets,
+        eupLocale = update.locale,
+        eupSupportedProtocols = update.supportedProtocols
       }
 
 mkProfileUpdateHandleEvent :: UserId -> Handle -> UserEvent
