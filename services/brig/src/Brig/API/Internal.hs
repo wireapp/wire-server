@@ -212,7 +212,6 @@ accountAPI =
     :<|> Named @"iPutManagedBy" updateManagedByH
     :<|> Named @"iPutRichInfo" updateRichInfoH
     :<|> Named @"iPutHandle" updateHandleH
-    :<|> Named @"iPutUserName" updateUserNameH
     :<|> Named @"iGetRichInfo" getRichInfoH
     :<|> Named @"iGetRichInfoMulti" getRichInfoMultiH
     :<|> Named @"iHeadHandle" checkHandleInternalH
