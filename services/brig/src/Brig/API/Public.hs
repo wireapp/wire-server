@@ -53,6 +53,7 @@ import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
 import Brig.Effects.SFT
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
+import Brig.Email (mkEmailKey)
 import Brig.Options hiding (internalEvents, sesQueue)
 import Brig.Provider.API
 import Brig.Team.API qualified as Team
@@ -65,7 +66,6 @@ import Brig.User.API.Search (teamUserSearch)
 import Brig.User.API.Search qualified as Search
 import Brig.User.Auth.Cookie qualified as Auth
 import Brig.User.Email
-import Brig.User.Phone
 import Cassandra qualified as C
 import Cassandra qualified as Data
 import Control.Error hiding (bool, note)
@@ -740,11 +740,16 @@ createUser ::
     Member (ConnectionStore InternalPaging) r
   ) =>
   Public.NewUserPublic ->
-  (Handler r) (Either Public.RegisterError Public.RegisterSuccess)
+  Handler r (Either Public.RegisterError Public.RegisterSuccess)
 createUser (Public.NewUserPublic new) = lift . runExceptT $ do
   API.checkRestrictedUserCreation new
-  for_ (Public.newUserEmail new) $ mapExceptT wrapHttp . checkAllowlistWithError RegisterErrorAllowlistError . Left
-  for_ (Public.newUserPhone new) $ mapExceptT wrapHttp . checkAllowlistWithError RegisterErrorAllowlistError . Right
+  for_ (Public.newUserEmail new) $
+    mapExceptT wrapHttp . checkAllowlistWithError RegisterErrorAllowlistError
+
+  -- prevent registration with a phone number
+  when (isJust (Public.newUserPhone new)) $
+    throwE Public.RegisterErrorInvalidPhone
+
   result <- API.createUser new
   let acc = createdAccount result
 
@@ -945,20 +950,9 @@ changePhone ::
   (Handler r) (Maybe Public.ChangePhoneError)
 changePhone _ _ _ = pure . Just $ Public.InvalidNewPhone
 
-removePhone ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
-    Member UserSubsystem r
-  ) =>
-  UserId ->
-  ConnId ->
-  (Handler r) (Maybe Public.RemoveIdentityError)
-removePhone self conn =
-  lift . exceptTToMaybe $ API.removePhone self conn
+-- TODO: remove
+removePhone :: UserId -> ConnId -> Handler r (Maybe Public.RemoveIdentityError)
+removePhone self conn = lift . exceptTToMaybe $ API.removePhone self conn
 
 removeEmail ::
   ( Member (Embed HttpClientIO) r,
@@ -1045,13 +1039,13 @@ beginPasswordReset ::
   (Member PasswordResetStore r, Member TinyLog r) =>
   Public.NewPasswordReset ->
   Handler r ()
+beginPasswordReset Public.NewPasswordResetUnsupportedPhone =
+  throwStd (errorToWai @'E.InvalidPhone)
 beginPasswordReset (Public.NewPasswordReset target) = do
   checkAllowlist target
   (u, pair) <- API.beginPasswordReset target !>> pwResetError
   loc <- lift $ wrapClient $ API.lookupLocale u
-  lift $ case target of
-    Left email -> sendPasswordResetMail email pair loc
-    Right phone -> wrapClient $ sendPasswordResetSms phone pair loc
+  lift $ sendPasswordResetMail target pair loc
 
 completePasswordReset ::
   ( Member CodeStore r,
@@ -1059,7 +1053,7 @@ completePasswordReset ::
     Member TinyLog r
   ) =>
   Public.CompletePasswordReset ->
-  (Handler r) ()
+  Handler r ()
 completePasswordReset req = do
   API.completePasswordReset (Public.cpwrIdent req) (Public.cpwrCode req) (Public.cpwrPassword req) !>> pwResetError
 
@@ -1070,10 +1064,10 @@ sendActivationCode ::
     Member GalleyAPIAccess r
   ) =>
   Public.SendActivationCode ->
-  (Handler r) ()
+  Handler r ()
 sendActivationCode Public.SendActivationCode {..} = do
   customerExtensionCheckBlockedDomains saUserKey
-  checkAllowlist . Left $ saUserKey
+  checkAllowlist saUserKey
   API.sendActivationCode saUserKey saLocale !>> sendActCodeError
 
 -- | If the user presents an email address from a blocked domain, throw an error.
@@ -1342,7 +1336,7 @@ sendVerificationCode req = do
   where
     getAccount :: Public.Email -> (Handler r) (Maybe UserAccount)
     getAccount email = lift $ do
-      mbUserId <- wrapClient . UserKey.lookupKey $ UserKey.userEmailKey email
+      mbUserId <- wrapClient . UserKey.lookupKey $ mkEmailKey email
       join <$> wrapClient (Data.lookupAccount `traverse` mbUserId)
 
     sendMail :: Public.Email -> Code.Value -> Maybe Public.Locale -> Public.VerificationAction -> (Handler r) ()

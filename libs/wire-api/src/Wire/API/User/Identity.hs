@@ -22,6 +22,7 @@
 module Wire.API.User.Identity
   ( -- * UserIdentity
     UserIdentity (..),
+    isSSOIdentity,
     newIdentity,
     emailIdentity,
     phoneIdentity,
@@ -100,6 +101,10 @@ data UserIdentity
   | PhoneIdentity Phone
   | SSOIdentity UserSSOId (Maybe Email) (Maybe Phone)
   deriving stock (Eq, Show, Generic)
+
+isSSOIdentity :: UserIdentity -> Bool
+isSSOIdentity (SSOIdentity _ _ _) = True
+isSSOIdentity _ = False
 
 -- | A tag for the 'UserIdentity' type. The tags for the 'PhoneIdentity' and
 -- 'FullIdentity' cases are omitted because the 'Arbitrary' instance should not

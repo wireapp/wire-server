@@ -18,19 +18,12 @@ interpretBlacklistPhonePrefixStoreToCassandra ::
 interpretBlacklistPhonePrefixStoreToCassandra =
   interpret $
     embed @m . \case
-      Insert ep -> insertPrefix ep
       Delete pp -> deletePrefix pp
       ExistsAny uk -> existsAnyPrefix uk
       GetAll pp -> getAllPrefixes pp
 
 --------------------------------------------------------------------------------
 -- Excluded phone prefixes
-
-insertPrefix :: MonadClient m => ExcludedPrefix -> m ()
-insertPrefix prefix = retry x5 $ write ins (params LocalQuorum (phonePrefix prefix, comment prefix))
-  where
-    ins :: PrepQuery W (PhonePrefix, Text) ()
-    ins = "INSERT INTO excluded_phones (prefix, comment) VALUES (?, ?)"
 
 deletePrefix :: MonadClient m => PhonePrefix -> m ()
 deletePrefix prefix = retry x5 $ write del (params LocalQuorum (Identity prefix))

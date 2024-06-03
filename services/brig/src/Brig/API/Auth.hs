@@ -46,6 +46,8 @@ import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Polysemy.Input (Input)
 import Polysemy.TinyLog (TinyLog)
+import Wire.API.Error
+import Wire.API.Error.Brig qualified as E
 import Wire.API.User
 import Wire.API.User.Auth hiding (access)
 import Wire.API.User.Auth.LegalHold
@@ -91,11 +93,10 @@ access mcid t mt =
   traverse mkUserTokenCookie
     =<< Auth.renewAccess (List1 t) mt mcid !>> zauthError
 
-sendLoginCode :: (Member TinyLog r) => SendLoginCode -> Handler r LoginCodeTimeout
-sendLoginCode (SendLoginCode phone call force) = do
-  checkAllowlist (Right phone)
-  c <- Auth.sendLoginCode phone call force !>> sendLoginCodeError
-  pure $ LoginCodeTimeout (pendingLoginTimeout c)
+sendLoginCode :: SendLoginCode -> Handler r LoginCodeTimeout
+sendLoginCode _ =
+  -- Login by phone is unsupported
+  throwStd (errorToWai @'E.InvalidPhone)
 
 login ::
   ( Member GalleyAPIAccess r,
@@ -192,10 +193,8 @@ ssoLogin l (fromMaybe False -> persist) = do
   c <- Auth.ssoLogin l typ !>> loginError
   traverse mkUserTokenCookie c
 
-getLoginCode :: (Member TinyLog r) => Phone -> Handler r PendingLoginCode
-getLoginCode phone = do
-  code <- lift $ Auth.lookupLoginCode phone
-  maybe (throwStd loginCodeNotFound) pure code
+getLoginCode :: Phone -> Handler r PendingLoginCode
+getLoginCode _ = throwStd loginCodeNotFound
 
 reauthenticate :: Member GalleyAPIAccess r => UserId -> ReAuthUser -> Handler r ()
 reauthenticate uid body = do

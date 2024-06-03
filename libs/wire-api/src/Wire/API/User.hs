@@ -873,10 +873,6 @@ validateNewUserPublic nu
       Left "it is not allowed to provide a UUID for the users here."
   | newUserManagedBy nu `notElem` [Nothing, Just ManagedByWire] =
       Left "only managed-by-Wire users can be created here."
-  | isJust (newUserPhone nu) =
-      Left "A new user cannot be registered with a phone number"
-  | isJust (newUserPhoneCode nu) =
-      Left "A new user cannot be activated via a phone number"
   | otherwise =
       Right (NewUserPublic nu)
 

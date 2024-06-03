@@ -28,7 +28,6 @@ module Brig.API.Types
     LegalHoldLoginError (..),
     RetryAfter (..),
     ListUsersById (..),
-    foldKey,
   )
 where
 
@@ -36,7 +35,7 @@ import Brig.Data.Activation (Activation (..), ActivationError (..))
 import Brig.Data.Client (ClientDataError (..))
 import Brig.Data.Properties (PropertiesDataError (..))
 import Brig.Data.User (AuthError (..), ReAuthError (..))
-import Brig.Data.UserKey (UserKey, foldKey)
+import Brig.Email
 import Brig.Types.Intra
 import Data.Code
 import Data.Id
@@ -90,8 +89,8 @@ data CreateUserError
   | PhoneActivationError ActivationError
   | InvalidEmail Email String
   | InvalidPhone Phone
-  | DuplicateUserKey UserKey
-  | BlacklistedUserKey UserKey
+  | DuplicateUserKey EmailKey
+  | BlacklistedUserKey EmailKey
   | TooManyTeamMembers
   | UserCreationRestricted
   | -- | Some precondition on another Wire service failed. We propagate this error.
@@ -116,7 +115,7 @@ data ConnectionError
     -- no verified user identity.
     ConnectNoIdentity
   | -- | An attempt at creating an invitation to a blacklisted user key.
-    ConnectBlacklistedUserKey UserKey
+    ConnectBlacklistedUserKey EmailKey
   | -- | An attempt at creating an invitation to an invalid email address.
     ConnectInvalidEmail Email String
   | -- | An attempt at creating an invitation to an invalid phone nbumber.
@@ -167,13 +166,9 @@ data ChangeEmailError
   | EmailManagedByScim
 
 data SendActivationCodeError
-  = InvalidRecipient UserKey
-  | UserKeyInUse UserKey
-  | ActivationBlacklistedUserKey UserKey
-
-data SendLoginCodeError
-  = SendLoginInvalidPhone Phone
-  | SendLoginPasswordExists
+  = InvalidRecipient EmailKey
+  | UserKeyInUse EmailKey
+  | ActivationBlacklistedUserKey EmailKey
 
 data ClientError
   = ClientNotFound

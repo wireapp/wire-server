@@ -18,7 +18,6 @@
 -- | High-level user authentication and access control.
 module Brig.User.Auth
   ( Access,
-    sendLoginCode,
     login,
     logout,
     renewAccess,
@@ -27,7 +26,6 @@ module Brig.User.Auth
     verifyCode,
 
     -- * Internal
-    lookupLoginCode,
     ssoLogin,
     legalHoldLogin,
 
@@ -43,17 +41,13 @@ import Brig.Budget
 import Brig.Code qualified as Code
 import Brig.Data.Activation qualified as Data
 import Brig.Data.Client
-import Brig.Data.LoginCode qualified as Data
 import Brig.Data.User qualified as Data
 import Brig.Data.UserKey
-import Brig.Data.UserKey qualified as Data
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Email
 import Brig.Options qualified as Opt
-import Brig.Phone
 import Brig.Types.Intra
 import Brig.User.Auth.Cookie
-import Brig.User.Phone
 import Brig.ZAuth qualified as ZAuth
 import Cassandra
 import Control.Error hiding (bool)
@@ -89,46 +83,6 @@ import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserStore
 import Wire.UserStore.Cassandra (interpretUserStoreCassandra)
 
-sendLoginCode ::
-  (Member TinyLog r) =>
-  Phone ->
-  Bool ->
-  Bool ->
-  ExceptT SendLoginCodeError (AppT r) PendingLoginCode
-sendLoginCode phone call force = do
-  pk <-
-    maybe
-      (throwE $ SendLoginInvalidPhone phone)
-      (pure . userPhoneKey)
-      =<< lift (wrapHttpClient $ validatePhone phone)
-  user <- lift $ wrapHttpClient $ Data.lookupKey pk
-  case user of
-    Nothing -> throwE $ SendLoginInvalidPhone phone
-    Just u -> do
-      lift . liftSem . Log.debug $ field "user" (toByteString u) . field "action" (val "User.sendLoginCode")
-      pw <- lift $ wrapClient $ Data.lookupPassword u
-      unless (isNothing pw || force) $
-        throwE SendLoginPasswordExists
-      lift $ wrapHttpClient $ do
-        l <- Data.lookupLocale u
-        c <- Data.createLoginCode u
-        void . forPhoneKey pk $ \ph ->
-          if call
-            then sendLoginCall ph (pendingLoginCode c) l
-            else sendLoginSms ph (pendingLoginCode c) l
-        pure c
-
-lookupLoginCode ::
-  Member TinyLog r =>
-  Phone ->
-  AppT r (Maybe PendingLoginCode)
-lookupLoginCode phone =
-  wrapClient (Data.lookupKey (userPhoneKey phone)) >>= \case
-    Nothing -> pure Nothing
-    Just u -> do
-      liftSem $ Log.debug $ field "user" (toByteString u) . field "action" (val "User.lookupLoginCode")
-      wrapHttpClient $ Data.lookupLoginCode u
-
 login ::
   forall r.
   ( Member GalleyAPIAccess r,
@@ -163,15 +117,9 @@ login (PasswordLogin (PasswordLoginData li pw label code)) typ = do
           VerificationCodeNoPendingCode -> wrapHttpClientE $ loginFailedWith LoginCodeInvalid uid
           VerificationCodeRequired -> wrapHttpClientE $ loginFailedWith LoginCodeRequired uid
           VerificationCodeNoEmail -> wrapHttpClientE $ loginFailed uid
-login (SmsLogin (SmsLoginData phone code label)) typ = do
-  uid <- wrapClientE $ resolveLoginId (LoginByPhone phone)
-  lift . liftSem . Log.debug $ field "user" (toByteString uid) . field "action" (val "User.login")
-  wrapHttpClientE $ checkRetryLimit uid
-  ok <- wrapHttpClientE $ Data.verifyLoginCode uid code
-  unless ok $
-    wrapHttpClientE $
-      loginFailed uid
-  newAccess @ZAuth.User @ZAuth.Access uid Nothing typ label
+login (SmsLogin _) _ = do
+  -- sms login not supported
+  throwE LoginFailed
 
 verifyCode ::
   forall r.
@@ -347,25 +295,23 @@ resolveLoginId li = do
           else LoginFailed
     Just uid -> pure uid
 
-validateLoginId :: (MonadClient m, MonadReader Env m) => LoginId -> ExceptT LoginError m (Either UserKey Handle)
+validateLoginId :: MonadReader Env m => LoginId -> ExceptT LoginError m (Either EmailKey Handle)
 validateLoginId (LoginByEmail email) =
   either
     (const $ throwE LoginFailed)
-    (pure . Left . userEmailKey)
+    (pure . Left . mkEmailKey)
     (validateEmail email)
-validateLoginId (LoginByPhone phone) =
-  maybe
-    (throwE LoginFailed)
-    (pure . Left . userPhoneKey)
-    =<< lift (validatePhone phone)
+validateLoginId (LoginByPhone _) = do
+  -- phone logins are not supported
+  throwE LoginFailed
 validateLoginId (LoginByHandle h) =
   pure (Right h)
 
 isPendingActivation :: (MonadClient m, MonadReader Env m) => LoginId -> m Bool
 isPendingActivation ident = case ident of
   (LoginByHandle _) -> pure False
-  (LoginByEmail e) -> checkKey (userEmailKey e)
-  (LoginByPhone p) -> checkKey (userPhoneKey p)
+  (LoginByEmail e) -> checkKey (mkEmailKey e)
+  (LoginByPhone _) -> pure False
   where
     checkKey k = do
       usr <- (>>= fst) <$> Data.lookupActivationCode k
@@ -381,9 +327,9 @@ isPendingActivation ident = case ident of
             Ephemeral -> False
             PendingInvitation -> True
        in statusAdmitsPending && case i of
-            Just (EmailIdentity e) -> userEmailKey e /= k
-            Just (PhoneIdentity p) -> userPhoneKey p /= k
-            Just (FullIdentity e p) -> userEmailKey e /= k && userPhoneKey p /= k
+            Just (EmailIdentity e) -> mkEmailKey e /= k
+            Just (PhoneIdentity _) -> True
+            Just (FullIdentity e _) -> mkEmailKey e /= k
             Just SSOIdentity {} -> False -- sso-created users are activated immediately.
             Nothing -> True
 

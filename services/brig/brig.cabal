@@ -110,7 +110,6 @@ library
     Brig.Data.Activation
     Brig.Data.Client
     Brig.Data.Connection
-    Brig.Data.LoginCode
     Brig.Data.MLS.KeyPackage
     Brig.Data.Nonce
     Brig.Data.Properties

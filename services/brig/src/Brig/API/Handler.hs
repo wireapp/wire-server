@@ -36,8 +36,7 @@ import Brig.Allowlists qualified as Allowlists
 import Brig.App
 import Brig.CanonicalInterpreter (BrigCanonicalEffects, runBrigToIO)
 import Brig.Email (Email)
-import Brig.Options (setAllowlistEmailDomains, setAllowlistPhonePrefixes)
-import Brig.Phone (Phone)
+import Brig.Options (setAllowlistEmailDomains)
 import Control.Error
 import Control.Exception (throwIO)
 import Control.Lens (view)
@@ -126,16 +125,15 @@ parseJsonBody :: (FromJSON a, MonadIO m) => JsonRequest a -> ExceptT Error m a
 parseJsonBody req = parseBody req !>> StdError . badRequest
 
 -- | If an Allowlist is configured, consult it, otherwise a no-op. {#RefActivationAllowlist}
-checkAllowlist :: Either Email Phone -> (Handler r) ()
+checkAllowlist :: Email -> Handler r ()
 checkAllowlist = wrapHttpClientE . checkAllowlistWithError (StdError allowlistError)
 
--- checkAllowlistWithError :: (MonadReader Env m, MonadIO m, Catch.MonadMask m, MonadHttp m, MonadError e m) => e -> Either Email Phone -> m ()
-checkAllowlistWithError :: (MonadReader Env m, MonadError e m) => e -> Either Email Phone -> m ()
+checkAllowlistWithError :: (MonadReader Env m, MonadError e m) => e -> Email -> m ()
 checkAllowlistWithError e key = do
   ok <- isAllowlisted key
   unless ok (throwError e)
 
-isAllowlisted :: (MonadReader Env m) => Either Email Phone -> m Bool
+isAllowlisted :: MonadReader Env m => Email -> m Bool
 isAllowlisted key = do
   env <- view settings
-  pure $ Allowlists.verify (setAllowlistEmailDomains env) (setAllowlistPhonePrefixes env) key
+  pure $ Allowlists.verify (setAllowlistEmailDomains env) key

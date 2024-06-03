@@ -2,13 +2,13 @@
 
 module Brig.Effects.BlacklistStore where
 
-import Brig.Data.UserKey
+import Brig.Email
 import Imports
 import Polysemy
 
 data BlacklistStore m a where
-  Insert :: UserKey -> BlacklistStore m ()
-  Exists :: UserKey -> BlacklistStore m Bool
-  Delete :: UserKey -> BlacklistStore m ()
+  Insert :: EmailKey -> BlacklistStore m ()
+  Exists :: EmailKey -> BlacklistStore m Bool
+  Delete :: EmailKey -> BlacklistStore m ()
 
 makeSem ''BlacklistStore

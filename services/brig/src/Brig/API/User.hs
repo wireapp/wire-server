@@ -78,7 +78,6 @@ module Brig.API.User
     -- * Phone Prefix blocking
     phonePrefixGet,
     phonePrefixDelete,
-    phonePrefixInsert,
 
     -- * Utilities
     fetchUserIdentity,
@@ -112,6 +111,7 @@ import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.PasswordResetStore qualified as E
 import Brig.Effects.UserPendingActivationStore (UserPendingActivation (..), UserPendingActivationStore)
 import Brig.Effects.UserPendingActivationStore qualified as UserPendingActivationStore
+import Brig.Email
 import Brig.IO.Intra qualified as Intra
 import Brig.Options hiding (Timeout, internalEvents)
 import Brig.Team.DB qualified as Team
@@ -198,12 +198,12 @@ identityErrorToBrigError = \case
   IdentityErrorBlacklistedPhone -> Error.StdError $ errorToWai @'E.BlacklistedPhone
   IdentityErrorUserKeyExists -> Error.StdError $ errorToWai @'E.UserKeyExists
 
-verifyUniquenessAndCheckBlacklist :: Member BlacklistStore r => UserKey -> ExceptT IdentityError (AppT r) ()
+verifyUniquenessAndCheckBlacklist ::
+  Member BlacklistStore r => EmailKey -> ExceptT IdentityError (AppT r) ()
 verifyUniquenessAndCheckBlacklist uk = do
   wrapClientE $ checkKey Nothing uk
   blacklisted <- lift $ liftSem $ BlacklistStore.exists uk
-  when blacklisted $
-    throwE (foldKey (const IdentityErrorBlacklistedEmail) (const IdentityErrorBlacklistedPhone) uk)
+  when blacklisted $ throwE IdentityErrorBlacklistedEmail
   where
     checkKey u k = do
       av <- lift $ Data.keyAvailable k u
@@ -301,7 +301,7 @@ createUser new = do
   (mNewTeamUser, teamInvitation, tid) <-
     case newUserTeam new of
       Just (NewTeamMember i) -> do
-        mbTeamInv <- findTeamInvitation (userEmailKey <$> email) i
+        mbTeamInv <- findTeamInvitation (mkEmailKey <$> email) i
         case mbTeamInv of
           Just (inv, info, tid) ->
             pure (Nothing, Just (inv, info), Just tid)
@@ -370,7 +370,7 @@ createUser new = do
     joinedTeamInvite <- case teamInvitation of
       Just (inv, invInfo) -> do
         let em = Team.inInviteeEmail inv
-        acceptTeamInvitation account inv invInfo (userEmailKey em) (EmailIdentity em)
+        acceptTeamInvitation account inv invInfo (mkEmailKey em) (EmailIdentity em)
         Team.TeamName nm <- lift $ liftSem $ GalleyAPIAccess.getTeamName (Team.inTeam inv)
         pure (Just $ CreateUserTeam (Team.inTeam inv) nm)
       Nothing -> pure Nothing
@@ -405,12 +405,12 @@ createUser new = do
       when (isJust (newUserPhone newUser)) $
         throwE RegisterErrorInvalidPhone
 
-      for_ (userEmailKey <$> email) $ \k ->
+      for_ (mkEmailKey <$> email) $ \k ->
         verifyUniquenessAndCheckBlacklist k !>> identityErrorToRegisterError
 
       pure email
 
-    findTeamInvitation :: Maybe UserKey -> InvitationCode -> ExceptT RegisterError (AppT r) (Maybe (Team.Invitation, Team.InvitationInfo, TeamId))
+    findTeamInvitation :: Maybe EmailKey -> InvitationCode -> ExceptT RegisterError (AppT r) (Maybe (Team.Invitation, Team.InvitationInfo, TeamId))
     findTeamInvitation Nothing _ = throwE RegisterErrorMissingIdentity
     findTeamInvitation (Just e) c =
       lift (wrapClient $ Team.lookupInvitationInfo c) >>= \case
@@ -418,7 +418,7 @@ createUser new = do
           inv <- lift . wrapClient $ Team.lookupInvitation HideInvitationUrl (Team.iiTeam ii) (Team.iiInvId ii)
           case (inv, Team.inInviteeEmail <$> inv) of
             (Just invite, Just em)
-              | e == userEmailKey em -> do
+              | e == mkEmailKey em -> do
                   _ <- ensureMemberCanJoin (Team.iiTeam ii)
                   pure $ Just (invite, ii, Team.iiTeam ii)
             _ -> throwE RegisterErrorInvalidInvitationCode
@@ -441,7 +441,7 @@ createUser new = do
       UserAccount ->
       Team.Invitation ->
       Team.InvitationInfo ->
-      UserKey ->
+      EmailKey ->
       UserIdentity ->
       ExceptT RegisterError (AppT r) ()
     acceptTeamInvitation account inv ii uk ident = do
@@ -486,7 +486,7 @@ createUser new = do
     -- Handle e-mail activation (deprecated, see #RefRegistrationNoPreverification in /docs/reference/user/registration.md)
     handleEmailActivation :: Maybe Email -> UserId -> Maybe BindingNewTeamUser -> ExceptT RegisterError (AppT r) (Maybe Activation)
     handleEmailActivation email uid newTeam = do
-      fmap join . for (userEmailKey <$> email) $ \ek -> case newUserEmailCode new of
+      fmap join . for (mkEmailKey <$> email) $ \ek -> case newUserEmailCode new of
         Nothing -> do
           timeout <- setActivationTimeout <$> view settings
           edata <- lift . wrapClient $ Data.newActivation ek timeout (Just uid)
@@ -519,7 +519,7 @@ createUserInviteViaScim ::
   ExceptT Error.Error (AppT r) UserAccount
 createUserInviteViaScim (NewUserScimInvitation tid uid loc name rawEmail _) = do
   email <- either (const . throwE . Error.StdError $ errorToWai @'E.InvalidEmail) pure (validateEmail rawEmail)
-  let emKey = userEmailKey email
+  let emKey = mkEmailKey email
   verifyUniquenessAndCheckBlacklist emKey !>> identityErrorToBrigError
   account <- lift . wrapClient $ newAccountInviteViaScim uid tid loc name email
   lift . liftSem . Log.debug $ field "user" (toByteString . userId . accountUser $ account) . field "action" (val "User.createUserInviteViaScim")
@@ -602,7 +602,7 @@ changeEmail u email updateOrigin = do
       (throwE . InvalidNewEmail email)
       pure
       (validateEmail email)
-  let ek = userEmailKey em
+  let ek = mkEmailKey em
   blacklisted <- lift . liftSem $ BlacklistStore.exists ek
   when blacklisted $
     throwE (ChangeBlacklistedEmail email)
@@ -640,7 +640,7 @@ removeEmail uid conn = do
   ident <- lift $ fetchUserIdentity uid
   case ident of
     Just (FullIdentity e _) -> lift $ do
-      wrapClient . deleteKey $ userEmailKey e
+      wrapClient . deleteKey $ mkEmailKey e
       wrapClient $ Data.deleteEmail uid
       liftSem $ Intra.onUserEvent uid (Just conn) (emailRemoved uid e)
     Just _ -> throwE LastIdentity
@@ -649,77 +649,24 @@ removeEmail uid conn = do
 -------------------------------------------------------------------------------
 -- Remove Phone
 
-removePhone ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
-    Member UserSubsystem r
-  ) =>
-  UserId ->
-  ConnId ->
-  ExceptT RemoveIdentityError (AppT r) ()
-removePhone uid conn = do
-  ident <- lift $ fetchUserIdentity uid
-  case ident of
-    Just (FullIdentity _ p) -> do
-      pw <- lift . wrapClient $ Data.lookupPassword uid
-      unless (isJust pw) $
-        throwE NoPassword
-      lift $ do
-        wrapClient . deleteKey $ userPhoneKey p
-        wrapClient $ Data.deletePhone uid
-        liftSem $ Intra.onUserEvent uid (Just conn) (phoneRemoved uid p)
-    Just _ -> throwE LastIdentity
-    Nothing -> throwE NoIdentity
+-- | Phones are not supported any longer.
+removePhone :: UserId -> ConnId -> ExceptT RemoveIdentityError (AppT r) ()
+removePhone _uid _conn = pure ()
 
 -------------------------------------------------------------------------------
 -- Forcefully revoke a verified identity
 
+-- | Now that a user can only have an email-based identity, revoking an identity
+-- boils down to deactivating the user.
 revokeIdentity ::
-  forall r.
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
-    Member UserSubsystem r
-  ) =>
-  Either Email Phone ->
+  Member UserSubsystem r =>
+  Email ->
   AppT r ()
 revokeIdentity key = do
-  let uk = either userEmailKey userPhoneKey key
-  mu <- wrapClient $ Data.lookupKey uk
-  case mu of
-    Nothing -> pure ()
-    Just u ->
-      fetchUserIdentity u >>= \case
-        Just (FullIdentity _ _) -> revokeKey u uk
-        Just (EmailIdentity e) | Left e == key -> do
-          revokeKey u uk
-          wrapClient $ Data.deactivateUser u
-        Just (PhoneIdentity p) | Right p == key -> do
-          revokeKey u uk
-          wrapClient $ Data.deactivateUser u
-        _ -> pure ()
-  where
-    revokeKey :: UserId -> UserKey -> AppT r ()
-    revokeKey u uk = do
-      wrapClient $ deleteKey uk
-      wrapClient $
-        foldKey
-          (\(_ :: Email) -> Data.deleteEmail u)
-          (\(_ :: Phone) -> Data.deletePhone u)
-          uk
-      liftSem $
-        Intra.onUserEvent u Nothing $
-          foldKey
-            (emailRemoved u)
-            (phoneRemoved u)
-            uk
+  mu <- wrapClient . Data.lookupKey . mkEmailKey $ key
+  for_ mu $ \u -> do
+    deactivate <- maybe False (not . isSSOIdentity) <$> fetchUserIdentity u
+    when deactivate . wrapClient . Data.deactivateUser $ u
 
 -------------------------------------------------------------------------------
 -- Change Account Status
@@ -880,8 +827,8 @@ sendActivationCode ::
 sendActivationCode email loc = do
   ek <-
     either
-      (const . throwE . InvalidRecipient $ userEmailKey email)
-      (pure . userEmailKey)
+      (const . throwE . InvalidRecipient $ mkEmailKey email)
+      (pure . mkEmailKey)
       (validateEmail email)
   exists <- lift $ isJust <$> wrapClient (Data.lookupKey ek)
   when exists $
@@ -906,9 +853,8 @@ sendActivationCode email loc = do
           pure (activationKey dat, activationCode dat)
     sendVerificationEmail ek uc = do
       p <- wrapClientE $ mkPair ek uc Nothing
-      void . forEmailKey ek $ \em ->
-        lift $
-          sendVerificationMail em p loc
+      let em = emailKeyOrig ek
+      lift $ sendVerificationMail em p loc
     sendActivationEmail ek uc uid = do
       -- FUTUREWORK(fisx): we allow for 'PendingInvitations' here, but I'm not sure this
       -- top-level function isn't another piece of a deprecated onboarding flow?
@@ -917,7 +863,8 @@ sendActivationCode email loc = do
       let ident = userIdentity u
           name = userDisplayName u
           loc' = loc <|> Just (userLocale u)
-      void . forEmailKey ek $ \em -> lift $ do
+          em = emailKeyOrig ek
+      lift $ do
         -- Get user's team, if any.
         mbTeam <- mapM (fmap Team.tdTeam . liftSem . GalleyAPIAccess.getTeam) (userTeam u)
         -- Depending on whether the user is a team creator, send either
@@ -937,16 +884,10 @@ mkActivationKey (ActivateEmail e) = do
   ek <-
     either
       (throwE . InvalidActivationEmail e)
-      (pure . userEmailKey)
+      (pure . mkEmailKey)
       (validateEmail e)
   liftIO $ Data.mkActivationKey ek
-mkActivationKey (ActivatePhone p) = do
-  pk <-
-    maybe
-      (throwE $ InvalidActivationPhone p)
-      (pure . userPhoneKey)
-      =<< lift (validatePhone p)
-  liftIO $ Data.mkActivationKey pk
+mkActivationKey (ActivatePhone p) = throwE $ InvalidActivationPhone p
 
 -------------------------------------------------------------------------------
 -- Password Management
@@ -973,10 +914,10 @@ beginPasswordReset ::
   ( Member TinyLog r,
     Member PasswordResetStore r
   ) =>
-  Either Email Phone ->
+  Email ->
   ExceptT PasswordResetError (AppT r) (UserId, PasswordResetPair)
 beginPasswordReset target = do
-  let key = either userEmailKey userPhoneKey target
+  let key = mkEmailKey target
   user <- lift (wrapClient $ Data.lookupKey key) >>= maybe (throwE InvalidPasswordResetKey) pure
   lift . liftSem . Log.debug $ field "user" (toByteString user) . field "action" (val "User.beginPasswordReset")
   status <- lift . wrapClient $ Data.lookupStatus user
@@ -985,7 +926,7 @@ beginPasswordReset target = do
   code <- lift . liftSem $ E.lookupPasswordResetCode user
   when (isJust code) $
     throwE (PasswordResetInProgress Nothing)
-  (user,) <$> lift (liftSem $ E.createPasswordResetCode user target)
+  (user,) <$> lift (liftSem $ E.createPasswordResetCode user (Left target))
 
 completePasswordReset ::
   ( Member CodeStore r,
@@ -1026,11 +967,9 @@ mkPasswordResetKey ::
 mkPasswordResetKey ident = case ident of
   PasswordResetIdentityKey k -> pure k
   PasswordResetEmailIdentity e ->
-    wrapClientE (user (userEmailKey e))
+    wrapClientE (user (mkEmailKey e))
       >>= lift . liftSem . E.mkPasswordResetKey
-  PasswordResetPhoneIdentity p ->
-    wrapClientE (user (userPhoneKey p))
-      >>= lift . liftSem . E.mkPasswordResetKey
+  PasswordResetPhoneIdentity _ -> throwE InvalidPasswordResetCode
   where
     user uk = lift (Data.lookupKey uk) >>= maybe (throwE InvalidPasswordResetKey) pure
 
@@ -1227,8 +1166,7 @@ deleteAccount (accountUser -> user) = do
   Log.info $ field "user" (toByteString uid) . msg (val "Deleting account")
   do
     -- Free unique keys
-    for_ (userEmail user) $ embed . deleteKeyForUser uid . userEmailKey
-    for_ (userPhone user) $ embed . deleteKeyForUser uid . userPhoneKey
+    for_ (userEmail user) $ embed . deleteKeyForUser uid . mkEmailKey
 
     embed $ Data.clearProperties uid
 
@@ -1249,10 +1187,10 @@ deleteAccount (accountUser -> user) = do
 
 lookupActivationCode ::
   MonadClient m =>
-  Either Email Phone ->
+  Email ->
   m (Maybe ActivationPair)
-lookupActivationCode emailOrPhone = do
-  let uk = either userEmailKey userPhoneKey emailOrPhone
+lookupActivationCode email = do
+  let uk = mkEmailKey email
   k <- liftIO $ Data.mkActivationKey uk
   c <- fmap snd <$> Data.lookupActivationCode uk
   pure $ (k,) <$> c
@@ -1261,10 +1199,10 @@ lookupPasswordResetCode ::
   ( Member CodeStore r,
     Member PasswordResetStore r
   ) =>
-  Either Email Phone ->
+  Email ->
   (AppT r) (Maybe PasswordResetPair)
-lookupPasswordResetCode emailOrPhone = do
-  let uk = either userEmailKey userPhoneKey emailOrPhone
+lookupPasswordResetCode email = do
+  let uk = mkEmailKey email
   usr <- wrapClient $ Data.lookupKey uk
   liftSem $ case usr of
     Nothing -> pure Nothing
@@ -1319,9 +1257,9 @@ getLegalHoldStatus' user =
 
 -- | Find user accounts for a given identity, both activated and those
 -- currently pending activation.
-lookupAccountsByIdentity :: Either Email Phone -> Bool -> AppT r [UserAccount]
-lookupAccountsByIdentity emailOrPhone includePendingInvitations = do
-  let uk = either userEmailKey userPhoneKey emailOrPhone
+lookupAccountsByIdentity :: Email -> Bool -> AppT r [UserAccount]
+lookupAccountsByIdentity email includePendingInvitations = do
+  let uk = mkEmailKey email
   activeUid <- wrapClient $ Data.lookupKey uk
   uidFromKey <- (>>= fst) <$> wrapClient (Data.lookupActivationCode uk)
   result <- wrapClient $ Data.lookupAccounts (nub $ catMaybes [activeUid, uidFromKey])
@@ -1329,19 +1267,19 @@ lookupAccountsByIdentity emailOrPhone includePendingInvitations = do
     then pure result
     else pure $ filter ((/= PendingInvitation) . accountStatus) result
 
-isBlacklisted :: Member BlacklistStore r => Either Email Phone -> AppT r Bool
-isBlacklisted emailOrPhone = do
-  let uk = either userEmailKey userPhoneKey emailOrPhone
+isBlacklisted :: Member BlacklistStore r => Email -> AppT r Bool
+isBlacklisted email = do
+  let uk = mkEmailKey email
   liftSem $ BlacklistStore.exists uk
 
-blacklistInsert :: Member BlacklistStore r => Either Email Phone -> AppT r ()
-blacklistInsert emailOrPhone = do
-  let uk = either userEmailKey userPhoneKey emailOrPhone
+blacklistInsert :: Member BlacklistStore r => Email -> AppT r ()
+blacklistInsert email = do
+  let uk = mkEmailKey email
   liftSem $ BlacklistStore.insert uk
 
-blacklistDelete :: Member BlacklistStore r => Either Email Phone -> AppT r ()
-blacklistDelete emailOrPhone = do
-  let uk = either userEmailKey userPhoneKey emailOrPhone
+blacklistDelete :: Member BlacklistStore r => Email -> AppT r ()
+blacklistDelete email = do
+  let uk = mkEmailKey email
   liftSem $ BlacklistStore.delete uk
 
 phonePrefixGet :: Member BlacklistPhonePrefixStore r => PhonePrefix -> (AppT r) [ExcludedPrefix]
@@ -1349,6 +1287,3 @@ phonePrefixGet = liftSem . BlacklistPhonePrefixStore.getAll
 
 phonePrefixDelete :: Member BlacklistPhonePrefixStore r => PhonePrefix -> (AppT r) ()
 phonePrefixDelete = liftSem . BlacklistPhonePrefixStore.delete
-
-phonePrefixInsert :: Member BlacklistPhonePrefixStore r => ExcludedPrefix -> (AppT r) ()
-phonePrefixInsert = liftSem . BlacklistPhonePrefixStore.insert

@@ -241,7 +241,6 @@ type AccountAPI =
                :> QueryParam' [Optional, Strict] "ids" (CommaSeparatedList UserId)
                :> QueryParam' [Optional, Strict] "handles" (CommaSeparatedList Handle)
                :> QueryParam' [Optional, Strict] "email" (CommaSeparatedList Email) -- don't rename to `emails`, for backwards compat!
-               :> QueryParam' [Optional, Strict] "phone" (CommaSeparatedList Phone) -- don't rename to `phones`, for backwards compat!
                :> QueryParam'
                     [ Optional,
                       Strict,
@@ -262,16 +261,14 @@ type AccountAPI =
            "iGetUserActivationCode"
            ( "users"
                :> "activation-code"
-               :> QueryParam' [Optional, Strict] "email" Email
-               :> QueryParam' [Optional, Strict] "phone" Phone
+               :> QueryParam' [Required, Strict] "email" Email
                :> Get '[Servant.JSON] GetActivationCodeResp
            )
     :<|> Named
            "iGetUserPasswordResetCode"
            ( "users"
                :> "password-reset-code"
-               :> QueryParam' [Optional, Strict] "email" Email
-               :> QueryParam' [Optional, Strict] "phone" Phone
+               :> QueryParam' [Required, Strict] "email" Email
                :> Get '[Servant.JSON] GetPasswordResetCodeResp
            )
     :<|> Named
@@ -279,16 +276,14 @@ type AccountAPI =
            ( Summary "This endpoint can lead to the following events being sent: UserIdentityRemoved event to target user"
                :> "users"
                :> "revoke-identity"
-               :> QueryParam' [Optional, Strict] "email" Email
-               :> QueryParam' [Optional, Strict] "phone" Phone
+               :> QueryParam' [Required, Strict] "email" Email
                :> Post '[Servant.JSON] NoContent
            )
     :<|> Named
            "iHeadBlacklist"
            ( "users"
                :> "blacklist"
-               :> QueryParam' [Optional, Strict] "email" Email
-               :> QueryParam' [Optional, Strict] "phone" Phone
+               :> QueryParam' [Required, Strict] "email" Email
                :> MultiVerb
                     'GET
                     '[Servant.JSON]
@@ -301,16 +296,14 @@ type AccountAPI =
            "iDeleteBlacklist"
            ( "users"
                :> "blacklist"
-               :> QueryParam' [Optional, Strict] "email" Email
-               :> QueryParam' [Optional, Strict] "phone" Phone
+               :> QueryParam' [Required, Strict] "email" Email
                :> Delete '[Servant.JSON] NoContent
            )
     :<|> Named
            "iPostBlacklist"
            ( "users"
                :> "blacklist"
-               :> QueryParam' [Optional, Strict] "email" Email
-               :> QueryParam' [Optional, Strict] "phone" Phone
+               :> QueryParam' [Required, Strict] "email" Email
                :> Post '[Servant.JSON] NoContent
            )
     :<|> Named
@@ -335,13 +328,6 @@ type AccountAPI =
                :> "phone-prefixes"
                :> Capture "prefix" PhonePrefix
                :> Delete '[Servant.JSON] NoContent
-           )
-    :<|> Named
-           "iPostPhonePrefix"
-           ( "users"
-               :> "phone-prefixes"
-               :> ReqBody '[Servant.JSON] ExcludedPrefix
-               :> Post '[Servant.JSON] NoContent
            )
     :<|> Named
            "iPutUserSsoId"

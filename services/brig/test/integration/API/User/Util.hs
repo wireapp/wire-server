@@ -162,7 +162,7 @@ initiatePasswordReset brig email =
     ( brig
         . path "/password-reset"
         . contentJson
-        . body (RequestBodyLBS . encode $ NewPasswordReset (Left email))
+        . body (RequestBodyLBS . encode $ NewPasswordReset email)
     )
 
 activateEmail :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> Email -> m ()

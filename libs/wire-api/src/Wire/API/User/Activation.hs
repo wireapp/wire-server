@@ -191,6 +191,8 @@ instance ToSchema ActivationResponse where
 --------------------------------------------------------------------------------
 -- SendActivationCode
 
+-- TODO(md): update the comment
+
 -- | Payload for a request to (re-)send an activation code
 -- for a phone number or e-mail address. If a phone is used,
 -- one can also request a call instead of SMS.
