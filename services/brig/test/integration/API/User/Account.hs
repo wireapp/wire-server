@@ -1151,12 +1151,12 @@ testPasswordSet brig = do
 
 testPasswordSetInvalidPasswordLength :: Brig -> Http ()
 testPasswordSetInvalidPasswordLength brig = do
-  p <- randomPhone
+  e <- randomEmail
   let newUser =
         RequestBodyLBS . encode $
           object
             [ "name" .= ("Alice" :: Text),
-              "phone" .= fromPhone p
+              "email" .= fromEmail e
             ]
   rs <-
     post (brig . path "/i/users" . contentJson . body newUser)
