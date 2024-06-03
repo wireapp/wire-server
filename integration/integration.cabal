@@ -104,7 +104,14 @@ library
     Notifications
     RunAllTests
     SetupHelpers
+    Test.AccessUpdate
+    Test.AssetDownload
+    Test.AssetUpload
+    Test.B2B
     Test.Bot
+    Test.Brig
+    Test.Cargohold.API
+    Test.Cargohold.API.Federation
     Test.Cargohold.API.Util
     Test.Cargohold.API.V3
     Test.Cargohold.Metrics
