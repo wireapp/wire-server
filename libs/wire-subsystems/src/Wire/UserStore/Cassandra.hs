@@ -33,7 +33,7 @@ updateUserImpl :: UserId -> StoredUserUpdate -> Client ()
 updateUserImpl uid update =
   retry x5 $ batch do
     -- PERFORMANCE(fisx): if a user changes 4 attributes with one request, the database will
-    -- be hit with 4 requests (one for each attribute).  this is probably fine as this
+    -- be hit with one request for each attribute.  this is probably fine, since this
     -- operation is not heavily used.  (also, the four operations are batched, which may or
     -- may not help.)
     setType BatchLogged

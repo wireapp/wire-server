@@ -32,6 +32,7 @@ instance Default StoredUserUpdate where
   def = MkStoredUserUpdate Nothing Nothing Nothing Nothing Nothing Nothing
 
 -- | Update user handle (this involves several http requests for locking the required handle).
+-- The old/previous handle (for deciding idempotency).
 data StoredUserHandleUpdate = MkStoredUserHandleUpdate
   { old :: Maybe Handle,
     new :: Handle
@@ -48,13 +49,13 @@ data UserStore m a where
   UpdateUser :: UserId -> StoredUserUpdate -> UserStore m ()
   UpdateUserHandleEither :: UserId -> StoredUserHandleUpdate -> UserStore m (Either StoredUserUpdateError ())
   DeleteUser :: User -> UserStore m ()
-  -- | this operation looks up a handle but may not give you stale data
-  --   it is potentially slower and less resilient than 'GlimpseHandle'
+  -- | This operation looks up a handle but is guaranteed to not give you stale locks.
+  --   It is potentially slower and less resilient than 'GlimpseHandle'.
   LookupHandle :: Handle -> UserStore m (Maybe UserId)
-  -- | the interpretation for 'LookupHandle' and 'GlimpseHandle'
-  --   may differ in terms of how consistent they are, if that
-  --   matters for the interpretation, this operation may give you stale data
-  --   but is faster and more resilient
+  -- | The interpretation for 'LookupHandle' and 'GlimpseHandle'
+  --   may differ in terms of how consistent they are.  If that
+  --   matters for the interpretation, this operation may give you stale locks,
+  --   but is faster and more resilient.
   GlimpseHandle :: Handle -> UserStore m (Maybe UserId)
 
 makeSem ''UserStore
