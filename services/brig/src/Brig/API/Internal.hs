@@ -73,7 +73,6 @@ import Data.Map.Strict qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Text qualified as T
-import Data.Text.Lazy qualified as LT
 import Data.Time.Clock (UTCTime)
 import Data.Time.Clock.System
 import Imports hiding (head)
@@ -206,12 +205,11 @@ accountAPI =
     :<|> Named @"iGetUserActivationCode" getActivationCodeH
     :<|> Named @"iGetUserPasswordResetCode" getPasswordResetCodeH
     :<|> Named @"iRevokeIdentity" revokeIdentityH
-    :<|> Named @"iHeadBlacklist" checkBlacklistH
-    :<|> Named @"iDeleteBlacklist" deleteFromBlacklistH
-    :<|> Named @"iPostBlacklist" addBlacklistH
+    :<|> Named @"iHeadBlacklist" checkBlacklist
+    :<|> Named @"iDeleteBlacklist" deleteFromBlacklist
+    :<|> Named @"iPostBlacklist" addBlacklist
     :<|> Named @"iGetPhonePrefix" (callsFed (exposeAnnotations getPhonePrefixesH))
     :<|> Named @"iDeletePhonePrefix" deleteFromPhonePrefixH
-    :<|> Named @"iPostPhonePrefix" addPhonePrefixH
     :<|> Named @"iPutUserSsoId" updateSSOIdH
     :<|> Named @"iDeleteUserSsoId" deleteSSOIdH
     :<|> Named @"iPutManagedBy" updateManagedByH
@@ -268,7 +266,6 @@ authAPI ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member UserKeyStore r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   ServerT BrigIRoutes.AuthAPI (Handler r)
@@ -555,23 +552,20 @@ listActivatedAccountsH ::
   Maybe (CommaSeparatedList UserId) ->
   Maybe (CommaSeparatedList Handle) ->
   Maybe (CommaSeparatedList Email) ->
-  Maybe (CommaSeparatedList Phone) ->
   Maybe Bool ->
-  (Handler r) [UserAccount]
+  Handler r [UserAccount]
 listActivatedAccountsH
   (maybe [] fromCommaSeparatedList -> uids)
   (maybe [] fromCommaSeparatedList -> handles)
   (maybe [] fromCommaSeparatedList -> emails)
-  (maybe [] fromCommaSeparatedList -> phones)
   (fromMaybe False -> includePendingInvitations) = do
-    when (length uids + length handles + length emails + length phones == 0) $ do
+    when (length uids + length handles + length emails == 0) $ do
       throwStd (notFound "no user keys")
     lift $ do
       u1 <- listActivatedAccounts (Left uids) includePendingInvitations
       u2 <- listActivatedAccounts (Right handles) includePendingInvitations
-      u3 <- (\email -> API.lookupAccountsByIdentity (Left email) includePendingInvitations) `mapM` emails
-      u4 <- (\phone -> API.lookupAccountsByIdentity (Right phone) includePendingInvitations) `mapM` phones
-      pure $ u1 <> u2 <> join u3 <> join u4
+      u3 <- (\email -> API.lookupAccountsByIdentity email includePendingInvitations) `mapM` emails
+      pure $ u1 <> u2 <> join u3
 
 -- FUTUREWORK: this should use UserStore only through UserSubsystem.
 listActivatedAccounts ::
@@ -609,43 +603,29 @@ listActivatedAccounts elh includePendingInvitations = do
           (Deleted, _, _) -> pure True
           (Ephemeral, _, _) -> pure True
 
-getActivationCodeH :: Maybe Email -> Maybe Phone -> (Handler r) GetActivationCodeResp
-getActivationCodeH (Just email) Nothing = getActivationCode (Left email)
-getActivationCodeH Nothing (Just phone) = getActivationCode (Right phone)
-getActivationCodeH bade badp =
-  throwStd
-    ( badRequest
-        ( "need exactly one of email, phone: "
-            <> LT.pack (show (bade, badp))
-        )
-    )
+getActivationCodeH :: Email -> Handler r GetActivationCodeResp
+getActivationCodeH email = getActivationCode email
 
-getActivationCode :: Either Email Phone -> (Handler r) GetActivationCodeResp
-getActivationCode emailOrPhone = do
-  apair <- lift . wrapClient $ API.lookupActivationCode emailOrPhone
+getActivationCode :: Email -> Handler r GetActivationCodeResp
+getActivationCode email = do
+  apair <- lift . wrapClient $ API.lookupActivationCode email
   maybe (throwStd activationKeyNotFound) (pure . GetActivationCodeResp) apair
 
 getPasswordResetCodeH ::
   ( Member AuthenticationSubsystem r
   ) =>
-  Maybe Email ->
-  Maybe Phone ->
-  (Handler r) GetPasswordResetCodeResp
-getPasswordResetCodeH (Just email) Nothing = getPasswordResetCode (Left email)
-getPasswordResetCodeH Nothing (Just phone) = getPasswordResetCode (Right phone)
-getPasswordResetCodeH bade badp =
-  throwStd
-    ( badRequest
-        ("need exactly one of email, phone: " <> LT.pack (show (bade, badp)))
-    )
+  Email ->
+  Handler r GetPasswordResetCodeResp
+getPasswordResetCodeH email = getPasswordResetCode email
 
 getPasswordResetCode ::
   ( Member AuthenticationSubsystem r
   ) =>
-  Either Email Phone ->
-  (Handler r) GetPasswordResetCodeResp
-getPasswordResetCode emailOrPhone =
-  (GetPasswordResetCodeResp <$$> lift (API.lookupPasswordResetCode emailOrPhone)) >>= maybe (throwStd (errorToWai @'E.InvalidPasswordResetKey)) pure
+  Email ->
+  Handler r GetPasswordResetCodeResp
+getPasswordResetCode email =
+  (GetPasswordResetCodeResp <$$> lift (API.lookupPasswordResetCode email))
+    >>= maybe (throwStd (errorToWai @'E.InvalidPasswordResetKey)) pure
 
 changeAccountStatusH ::
   ( Member (Embed HttpClientIO) r,
@@ -696,25 +676,12 @@ getConnectionsStatus (ConnectionsStatusRequestV2 froms mtos mrel) = do
     filterByRelation l rel = filter ((== rel) . csv2Status) l
 
 revokeIdentityH ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member UserKeyStore r,
-    Member (ConnectionStore InternalPaging) r,
-    Member UserSubsystem r
+  ( Member UserSubsystem r,
+    Member UserKeyStore r
   ) =>
-  Maybe Email ->
-  Maybe Phone ->
-  (Handler r) NoContent
-revokeIdentityH (Just email) Nothing = lift $ NoContent <$ API.revokeIdentity (Left email)
-revokeIdentityH Nothing (Just phone) = lift $ NoContent <$ API.revokeIdentity (Right phone)
-revokeIdentityH bade badp =
-  throwStd
-    ( badRequest
-        ("need exactly one of email, phone: " <> LT.pack (show (bade, badp)))
-    )
+  Email ->
+  Handler r NoContent
+revokeIdentityH email = lift $ NoContent <$ API.revokeIdentity email
 
 updateConnectionInternalH ::
   ( Member GalleyAPIAccess r,
@@ -728,41 +695,14 @@ updateConnectionInternalH updateConn = do
   API.updateConnectionInternal updateConn !>> connError
   pure NoContent
 
-checkBlacklistH :: (Member BlacklistStore r) => Maybe Email -> Maybe Phone -> (Handler r) CheckBlacklistResponse
-checkBlacklistH (Just email) Nothing = checkBlacklist (Left email)
-checkBlacklistH Nothing (Just phone) = checkBlacklist (Right phone)
-checkBlacklistH bade badp =
-  throwStd
-    ( badRequest
-        ("need exactly one of email, phone: " <> LT.pack (show (bade, badp)))
-    )
+checkBlacklist :: (Member BlacklistStore r) => Email -> Handler r CheckBlacklistResponse
+checkBlacklist email = lift $ bool NotBlacklisted YesBlacklisted <$> API.isBlacklisted email
 
-checkBlacklist :: (Member BlacklistStore r) => Either Email Phone -> (Handler r) CheckBlacklistResponse
-checkBlacklist emailOrPhone = lift $ bool NotBlacklisted YesBlacklisted <$> API.isBlacklisted emailOrPhone
+deleteFromBlacklist :: (Member BlacklistStore r) => Email -> Handler r NoContent
+deleteFromBlacklist email = lift $ NoContent <$ API.blacklistDelete email
 
-deleteFromBlacklistH :: (Member BlacklistStore r) => Maybe Email -> Maybe Phone -> (Handler r) NoContent
-deleteFromBlacklistH (Just email) Nothing = deleteFromBlacklist (Left email)
-deleteFromBlacklistH Nothing (Just phone) = deleteFromBlacklist (Right phone)
-deleteFromBlacklistH bade badp =
-  throwStd
-    ( badRequest
-        ("need exactly one of email, phone: " <> LT.pack (show (bade, badp)))
-    )
-
-deleteFromBlacklist :: (Member BlacklistStore r) => Either Email Phone -> (Handler r) NoContent
-deleteFromBlacklist emailOrPhone = lift $ NoContent <$ API.blacklistDelete emailOrPhone
-
-addBlacklistH :: (Member BlacklistStore r) => Maybe Email -> Maybe Phone -> (Handler r) NoContent
-addBlacklistH (Just email) Nothing = addBlacklist (Left email)
-addBlacklistH Nothing (Just phone) = addBlacklist (Right phone)
-addBlacklistH bade badp =
-  throwStd
-    ( badRequest
-        ("need exactly one of email, phone: " <> LT.pack (show (bade, badp)))
-    )
-
-addBlacklist :: (Member BlacklistStore r) => Either Email Phone -> (Handler r) NoContent
-addBlacklist emailOrPhone = lift $ NoContent <$ API.blacklistInsert emailOrPhone
+addBlacklist :: (Member BlacklistStore r) => Email -> Handler r NoContent
+addBlacklist email = lift $ NoContent <$ API.blacklistInsert email
 
 -- | Get any matching prefixes. Also try for shorter prefix matches,
 -- i.e. checking for +123456 also checks for +12345, +1234, ...
@@ -776,9 +716,6 @@ getPhonePrefixesH prefix = lift $ do
 -- | Delete a phone prefix entry (must be an exact match)
 deleteFromPhonePrefixH :: (Member BlacklistPhonePrefixStore r) => PhonePrefix -> (Handler r) NoContent
 deleteFromPhonePrefixH prefix = lift $ NoContent <$ API.phonePrefixDelete prefix
-
-addPhonePrefixH :: (Member BlacklistPhonePrefixStore r) => ExcludedPrefix -> (Handler r) NoContent
-addPhonePrefixH prefix = lift $ NoContent <$ API.phonePrefixInsert prefix
 
 updateSSOIdH ::
   ( Member (Embed HttpClientIO) r,

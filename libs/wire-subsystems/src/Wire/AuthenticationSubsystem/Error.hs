@@ -29,6 +29,8 @@ data AuthenticationSubsystemError
   = AuthenticationSubsystemInvalidPasswordResetKey
   | AuthenticationSubsystemResetPasswordMustDiffer
   | AuthenticationSubsystemInvalidPasswordResetCode
+  | AuthenticationSubsystemInvalidPhone
+  | AuthenticationSubsystemAllowListError
   deriving (Eq, Show)
 
 instance Exception AuthenticationSubsystemError
@@ -39,3 +41,5 @@ authenticationSubsystemErrorToWai =
     AuthenticationSubsystemInvalidPasswordResetKey -> dynError @(MapError E.InvalidPasswordResetKey)
     AuthenticationSubsystemInvalidPasswordResetCode -> dynError @(MapError E.InvalidPasswordResetCode)
     AuthenticationSubsystemResetPasswordMustDiffer -> dynError @(MapError E.ResetPasswordMustDiffer)
+    AuthenticationSubsystemInvalidPhone -> dynError @(MapError E.InvalidPhone)
+    AuthenticationSubsystemAllowListError -> dynError @(MapError E.AllowlistError)

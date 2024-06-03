@@ -26,9 +26,9 @@ import Wire.API.User.Password
 import Wire.UserKeyStore
 
 data AuthenticationSubsystem m a where
-  CreatePasswordResetCode :: UserKey -> AuthenticationSubsystem m ()
+  CreatePasswordResetCode :: EmailKey -> AuthenticationSubsystem m ()
   ResetPassword :: PasswordResetIdentity -> PasswordResetCode -> PlainTextPassword8 -> AuthenticationSubsystem m ()
   -- For testing
-  InternalLookupPasswordResetCode :: UserKey -> AuthenticationSubsystem m (Maybe PasswordResetPair)
+  InternalLookupPasswordResetCode :: EmailKey -> AuthenticationSubsystem m (Maybe PasswordResetPair)
 
 makeSem ''AuthenticationSubsystem

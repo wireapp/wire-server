@@ -26,12 +26,6 @@ module Brig.Phone
     -- * Validation
     validatePhone,
 
-    -- * Unique Keys
-    PhoneKey,
-    mkPhoneKey,
-    phoneKeyUniq,
-    phoneKeyOrig,
-
     -- * Re-exports
     Phone (..),
   )
@@ -56,7 +50,6 @@ import Ropes.Twilio qualified as Twilio
 import System.Logger.Class qualified as Log
 import System.Logger.Message (field, msg, val, (~~))
 import Wire.API.User
-import Wire.UserKeyStore
 
 -------------------------------------------------------------------------------
 -- Sending SMS and Voice Calls

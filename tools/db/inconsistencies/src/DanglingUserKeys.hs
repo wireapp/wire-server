@@ -77,7 +77,7 @@ pageSize = 1000
 
 data Inconsistency = Inconsistency
   { -- | Key in the user_keys table
-    key :: UserKey,
+    key :: EmailKey,
     userId :: UserId,
     time :: Writetime UserId,
     status :: Maybe (WithWritetime AccountStatus),
@@ -100,22 +100,22 @@ instance (Aeson.ToJSON a) => Aeson.ToJSON (WithWritetime a)
 ----------------------------------------------------------------------------
 -- Queries
 
-getKey :: UserKey -> Client (Maybe (UserId, Writetime UserId))
+getKey :: EmailKey -> Client (Maybe (UserId, Writetime UserId))
 getKey key = retry x5 $ query1 cql (params LocalQuorum (Identity key))
   where
-    cql :: PrepQuery R (Identity UserKey) (UserId, Writetime UserId)
+    cql :: PrepQuery R (Identity EmailKey) (UserId, Writetime UserId)
     cql = "SELECT user, writetime(user) from user_keys where key = ?"
 
-getKeys :: ConduitM () [(UserKey, UserId, Writetime UserId)] Client ()
+getKeys :: ConduitM () [(EmailKey, UserId, Writetime UserId)] Client ()
 getKeys = paginateC cql (paramsP LocalQuorum () pageSize) x5
   where
-    cql :: PrepQuery R () (UserKey, UserId, Writetime UserId)
+    cql :: PrepQuery R () (EmailKey, UserId, Writetime UserId)
     cql = "SELECT key, user, writetime(user) from user_keys"
 
-parseKey :: Text -> Maybe UserKey
-parseKey t = (userEmailKey <$> parseEmail t) <|> (userPhoneKey <$> parsePhone t)
+parseKey :: Text -> Maybe EmailKey
+parseKey t = mkEmailKey <$> parseEmail t
 
-instance Cql UserKey where
+instance Cql EmailKey where
   ctype = Tagged TextColumn
 
   fromCql (CqlText t) =
@@ -125,10 +125,10 @@ instance Cql UserKey where
       (parseKey t)
   fromCql _ = Left "userkey: expected text"
 
-  toCql k = toCql $ keyText k
+  toCql k = toCql $ emailKeyUniq k
 
-instance Aeson.ToJSON UserKey where
-  toJSON = Aeson.toJSON . keyText
+instance Aeson.ToJSON EmailKey where
+  toJSON = Aeson.toJSON . emailKeyUniq
 
 type UserDetailsRow = (Maybe AccountStatus, Maybe (Writetime AccountStatus), Maybe Email, Maybe (Writetime Email), Maybe Phone, Maybe (Writetime Phone))
 
@@ -138,28 +138,28 @@ getUserDetails uid = retry x5 $ query1 cql (params LocalQuorum (Identity uid))
     cql :: PrepQuery R (Identity UserId) UserDetailsRow
     cql = "SELECT status, writetime(status), email, writetime(email), phone, writetime(phone) from user where id = ?"
 
-checkKey :: Logger -> ClientState -> UserKey -> Bool -> IO (Maybe Inconsistency)
+checkKey :: Logger -> ClientState -> EmailKey -> Bool -> IO (Maybe Inconsistency)
 checkKey l brig key repairData = do
   mUser <- runClient brig $ getKey key
   case mUser of
     Nothing -> do
-      Log.warn l (Log.msg (Log.val "No user found for key") . Log.field "key" (keyText key))
+      Log.warn l (Log.msg (Log.val "No user found for key") . Log.field "key" (emailKeyUniq key))
       pure Nothing
     Just (uid, writeTime) -> checkUser l brig key uid writeTime repairData
 
 -- mostly copied from Brig to not need a Brig Env/ReaderT
-freeUserKey :: Logger -> UserKey -> Client ()
-freeUserKey l k = do
-  Log.info l $ Log.msg (Log.val "Freeing key") . Log.field "key" (keyText k)
-  retry x5 $ write keyDelete (params LocalQuorum (Identity $ keyText k))
+freeEmailKey :: Logger -> EmailKey -> Client ()
+freeEmailKey l k = do
+  Log.info l $ Log.msg (Log.val "Freeing key") . Log.field "key" (emailKeyUniq k)
+  retry x5 $ write keyDelete (params LocalQuorum (Identity $ emailKeyUniq k))
   where
     keyDelete :: PrepQuery W (Identity Text) ()
     keyDelete = "DELETE FROM user_keys WHERE key = ?"
 
-insertKey :: Logger -> UserId -> UserKey -> Client ()
+insertKey :: Logger -> UserId -> EmailKey -> Client ()
 insertKey l u k = do
-  Log.info l $ Log.msg (Log.val "Inserting key") . Log.field "key" (keyText k) . Log.field "userId" (show u)
-  retry x5 $ write keyInsert (params LocalQuorum (keyText k, u))
+  Log.info l $ Log.msg (Log.val "Inserting key") . Log.field "key" (emailKeyUniq k) . Log.field "userId" (show u)
+  retry x5 $ write keyInsert (params LocalQuorum (emailKeyUniq k, u))
   where
     keyInsert :: PrepQuery W (Text, UserId) ()
     keyInsert = "INSERT INTO user_keys (key, user) VALUES (?, ?)"
@@ -172,7 +172,7 @@ insertKey l u k = do
 --     3.b. this user's email, when searched for points to another user -> do nothing; log this issue
 --     3.c  this user's email, when searched for does not exist in user_keys. Do nothing, let this be handled by the other module EmailLessUsers.hs
 --   4. user has an email in user_keys but no email inside user table -> do nothing. How to resolve?
-checkUser :: Logger -> ClientState -> UserKey -> UserId -> Writetime UserId -> Bool -> IO (Maybe Inconsistency)
+checkUser :: Logger -> ClientState -> EmailKey -> UserId -> Writetime UserId -> Bool -> IO (Maybe Inconsistency)
 checkUser l brig key uid time repairData = do
   maybeDetails <- runClient brig $ getUserDetails uid
   case maybeDetails of
@@ -183,7 +183,7 @@ checkUser l brig key uid time repairData = do
           inconsistencyCase = "2."
       when repairData $ -- case 2.
         runClient brig $
-          freeUserKey l key
+          freeEmailKey l key
       pure . Just $ Inconsistency {userId = uid, ..}
     Just (mStatus, mStatusWriteTime, mEmail, mEmailWriteTime, mPhone, mPhoneWriteTime) -> do
       let status = WithWritetime <$> mStatus <*> mStatusWriteTime
@@ -194,12 +194,11 @@ checkUser l brig key uid time repairData = do
             Just Deleted -> True
             _ -> False
           compareEmail e = (emailKeyUniq . mkEmailKey <$> mEmail) /= Just (fromEmail e)
-          comparePhone p = (phoneKeyUniq . mkPhoneKey <$> mPhone) /= Just (fromPhone p)
-          keyError = foldKey compareEmail comparePhone key
+          keyError = compareEmail (emailKeyOrig key)
       if statusError
         then do
           let inconsistencyCase = "1."
-          when repairData $ runClient brig (freeUserKey l key)
+          when repairData $ runClient brig (freeEmailKey l key)
           pure . Just $ Inconsistency {userId = uid, ..}
         else
           if keyError
@@ -210,17 +209,17 @@ checkUser l brig key uid time repairData = do
                   let inconsistencyCase = "4."
                   pure . Just $ Inconsistency {userId = uid, ..}
                 Just email -> do
-                  validKeysEntry <- runClient brig $ getKey (userEmailKey email)
+                  validKeysEntry <- runClient brig $ getKey (mkEmailKey email)
                   case validKeysEntry of
                     Just (keyEntryUserId, _) ->
                       if keyEntryUserId == uid
                         then do
                           -- there is a valid matching user_key entry for a user in the user table; just *also* an extra entry that can be cleaned up (case 3.a.)
-                          Log.warn l (Log.msg (Log.val "Subcase 3a: entry can be repaired by removing entry") . Log.field "key" (keyText key))
+                          Log.warn l (Log.msg (Log.val "Subcase 3a: entry can be repaired by removing entry") . Log.field "key" (emailKeyUniq key))
                           let inconsistencyCase = "3.a."
                           when repairData $
                             runClient brig $
-                              freeUserKey l key
+                              freeEmailKey l key
                           pure . Just $ Inconsistency {userId = uid, ..}
                         else do
                           let inconsistencyCase = "3.b."

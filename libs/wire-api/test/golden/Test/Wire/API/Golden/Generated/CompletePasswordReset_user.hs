@@ -17,20 +17,11 @@
 
 module Test.Wire.API.Golden.Generated.CompletePasswordReset_user where
 
-import Data.Misc (plainTextPassword8Unsafe)
-import Data.Text.Ascii (AsciiChars (validate))
-import Imports (fromRight, undefined)
-import Wire.API.User (Email (Email, emailDomain, emailLocal), Phone (Phone, fromPhone))
+import Data.Misc
+import Data.Text.Ascii
+import Imports
+import Wire.API.User
 import Wire.API.User.Password
-  ( CompletePasswordReset (..),
-    PasswordResetCode (PasswordResetCode, fromPasswordResetCode),
-    PasswordResetIdentity
-      ( PasswordResetEmailIdentity,
-        PasswordResetIdentityKey,
-        PasswordResetPhoneIdentity
-      ),
-    PasswordResetKey (PasswordResetKey, fromPasswordResetKey),
-  )
 
 testObject_CompletePasswordReset_user_1 :: CompletePasswordReset
 testObject_CompletePasswordReset_user_1 =

@@ -398,7 +398,13 @@ mkProfileUpdateHandleEvent :: UserId -> Handle -> UserEvent
 mkProfileUpdateHandleEvent uid handle =
   UserUpdated $ (emptyUserUpdatedData uid) {eupHandle = Just handle}
 
-getLocalUserAccountByUserKeyImpl :: (Member UserStore r, Member UserKeyStore r, Member (Input UserSubsystemConfig) r) => Local UserKey -> Sem r (Maybe UserAccount)
+getLocalUserAccountByUserKeyImpl ::
+  ( Member UserStore r,
+    Member UserKeyStore r,
+    Member (Input UserSubsystemConfig) r
+  ) =>
+  Local EmailKey ->
+  Sem r (Maybe UserAccount)
 getLocalUserAccountByUserKeyImpl target = runMaybeT $ do
   config <- lift input
   uid <- MaybeT $ lookupKey (tUnqualified target)

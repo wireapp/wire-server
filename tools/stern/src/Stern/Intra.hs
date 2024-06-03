@@ -310,6 +310,7 @@ getContacts u q s = do
         )
   parseResponse (mkError status502 "bad-upstream") r
 
+-- TODO(md): drop phone option
 revokeIdentity :: Either Email Phone -> Handler ()
 revokeIdentity emailOrPhone = do
   info $ msg "Revoking user identity"
