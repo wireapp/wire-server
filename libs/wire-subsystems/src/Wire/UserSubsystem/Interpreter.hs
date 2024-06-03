@@ -329,14 +329,14 @@ guardLockedFields user updateOrigin hasE2EId (MkUserProfileUpdate {..})
   -- NOT MANAGED BY SCIM (so no errors there): pict, assets, accentId, supportedProtocols.
   | otherwise = pure ()
 
-guardHandleLockedFields ::
+guardLockedHandleField ::
   (Member (Error UserSubsystemError) r) =>
   StoredUser ->
   UpdateOriginType ->
   HasE2EId ->
   Handle ->
   Sem r ()
-guardHandleLockedFields user updateOrigin hasE2EId handle
+guardLockedHandleField user updateOrigin hasE2EId handle
   | ((updateOrigin == UpdateOriginWireClient && user.managedBy == Just ManagedByScim) || hasE2EId == HasE2EId)
       && Just handle /= user.handle =
       throw UserSubsystemHandleManagedByScim
@@ -408,7 +408,7 @@ updateHandleImpl (tUnqualified -> uid) mconn updateOrigin uhandle = do
     throw UserSubsystemInvalidHandle
   user <- getUser uid >>= note UserSubsystemNoIdentity
   hasE2EId <- checkE2EId uid
-  guardHandleLockedFields user updateOrigin hasE2EId newHandle
+  guardLockedHandleField user updateOrigin hasE2EId newHandle
   when (isNothing user.identity) $
     throw UserSubsystemNoIdentity
   mapError (\StoredUserUpdateHandleExists -> UserSubsystemHandleExists) $
