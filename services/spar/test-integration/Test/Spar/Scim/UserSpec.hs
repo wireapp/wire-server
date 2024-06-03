@@ -45,7 +45,7 @@ import Data.Aeson.Types (fromJSON, toJSON)
 import Data.ByteString.Conversion
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Csv as Csv
-import Data.Handle (Handle (Handle), fromHandle, parseHandleEither)
+import Data.Handle (Handle, fromHandle, parseHandle, parseHandleEither)
 import Data.Id (TeamId, UserId, randomId)
 import Data.Ix (inRange)
 import Data.LanguageCodes (ISO639_1 (..))
@@ -385,11 +385,11 @@ specSuspend = do
           member <- loginSsoUserFirstTime idp privCreds
           -- NOTE: once SCIM is enabled, SSO Auto-provisioning is disabled
           tok <- registerScimToken teamid (Just (idp ^. SAML.idpId))
-          handle'@(Handle handle) <- nextHandle
-          runSpar $ BrigAccess.setHandle member handle'
+          handle <- nextHandle
+          runSpar $ BrigAccess.setHandle member handle
           unless isActive $ do
             runSpar $ BrigAccess.setStatus member Suspended
-          [user] <- listUsers tok (Just (filterBy "userName" handle))
+          [user] <- listUsers tok (Just (filterBy "userName" (fromHandle handle)))
           lift $ (fmap Scim.unScimBool . Scim.User.active . Scim.value . Scim.thing $ user) `shouldBe` Just isActive
     it "pre-existing suspended users are inactive" $ do
       checkPreExistingUser False
@@ -640,7 +640,7 @@ testCreateUserNoIdP = do
   scimStoredUser <- createUser tok scimUser
   liftIO $ (fmap Scim.unScimBool . Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just False
   let userid = scimUserId scimStoredUser
-      handle = Handle $ Scim.User.userName scimUser
+      handle = fromJust . parseHandle $ Scim.User.userName scimUser
       userName = Name . fromJust . Scim.User.displayName $ scimUser
 
   -- get account from brig, status should be PendingInvitation
@@ -1129,7 +1129,7 @@ testCreateUserTimeout = do
 
     searchUser :: HasCallStack => Spar.Types.ScimToken -> Scim.User.User tag -> Email -> Bool -> TestSpar ()
     searchUser tok scimUser email shouldSucceed = do
-      let handle = Handle . Scim.User.userName $ scimUser
+      let handle = fromJust . parseHandle . Scim.User.userName $ scimUser
           tryquery qry =
             aFewTimesAssert
               (length <$> listUsers tok (Just qry))

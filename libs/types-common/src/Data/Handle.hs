@@ -18,7 +18,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Data.Handle
-  ( Handle (..),
+  ( Handle (fromHandle),
     parseHandle,
     parseHandleEither,
     isValidHandle,

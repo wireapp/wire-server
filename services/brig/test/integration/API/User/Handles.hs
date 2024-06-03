@@ -32,7 +32,7 @@ import Control.Monad.Catch (MonadCatch)
 import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
-import Data.Handle (Handle (Handle))
+import Data.Handle (parseHandle)
 import Data.Id
 import Data.List1 qualified as List1
 import Data.Qualified (Qualified (..))
@@ -151,7 +151,7 @@ testHandleRace brig = do
     void . flip mapConcurrently us $ \u ->
       put (brig . path "/self/handle" . contentJson . zUser u . zConn "c" . body update)
     ps <- forM us $ \u -> responseJsonMaybe <$> get (brig . path "/self" . zUser u)
-    let owners = catMaybes $ filter (maybe False ((== Just (Handle hdl)) . userHandle)) ps
+    let owners = catMaybes $ filter (maybe False ((== Just (fromJust (parseHandle hdl))) . userHandle)) ps
     liftIO $ assertBool "More than one owner of a handle" (length owners <= 1)
 
 testHandleQuery :: Opt.Opts -> Brig -> Http ()
@@ -168,14 +168,14 @@ testHandleQuery opts brig = do
   -- Query the updated profile
   get (brig . path "/self" . zUser uid) !!! do
     const 200 === statusCode
-    const (Just (Handle hdl)) === (userHandle <=< responseJsonMaybe)
+    const (Just (fromJust $ parseHandle hdl)) === (userHandle <=< responseJsonMaybe)
   -- Query for the handle availability (must be taken)
   Bilge.head (brig . paths ["users", "handles", toByteString' hdl] . zUser uid)
     !!! const 200 === statusCode
   -- Query user profiles by handles
   get (apiVersion "v1" . brig . path "/users" . queryItem "handles" (toByteString' hdl) . zUser uid) !!! do
     const 200 === statusCode
-    const (Just (Handle hdl)) === (profileHandle <=< listToMaybe <=< responseJsonMaybe)
+    const (Just (fromJust $ parseHandle hdl)) === (profileHandle <=< listToMaybe <=< responseJsonMaybe)
   -- Bulk availability check
   hdl2 <- randomHandle
   hdl3 <- randomHandle
