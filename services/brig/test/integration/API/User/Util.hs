@@ -40,7 +40,7 @@ import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as LB
 import Data.Domain
-import Data.Handle (Handle (Handle))
+import Data.Handle (parseHandle)
 import Data.Id
 import Data.Kind
 import Data.List1 qualified as List1
@@ -120,7 +120,7 @@ setRandomHandle brig user = do
     )
     !!! const 200
       === statusCode
-  pure user {userHandle = Just (Handle h)}
+  pure user {userHandle = Just . fromJust . parseHandle $ h}
 
 -- Note: This actually _will_ send out an email, so we ensure that the email
 --       used here has a domain 'simulator.amazonses.com'.

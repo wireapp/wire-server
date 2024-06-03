@@ -337,11 +337,11 @@ spec = describe "UserSubsystem.Interpreter" do
 
     prop
       "CheckHandle fails if there is no user with that handle"
-      \(Handle handle, config) ->
-        not (isBlacklistedHandle (Handle handle)) ==>
+      \(handle :: Handle, config) ->
+        not (isBlacklistedHandle handle) ==>
           let localBackend = def {users = []}
               checkHandleResp =
-                runNoFederationStack localBackend Nothing config $ checkHandle handle
+                runNoFederationStack localBackend Nothing config $ checkHandle (fromHandle handle)
            in checkHandleResp === CheckHandleNotFound
 
     prop
@@ -365,8 +365,8 @@ spec = describe "UserSubsystem.Interpreter" do
     describe "Scim+UpdateProfileUpdate" do
       prop
         "Updating handles fails when UpdateOriginWireClient"
-        \(alice, Handle newHandle, domain, config) ->
-          not (isBlacklistedHandle (Handle newHandle)) ==>
+        \(alice, fromHandle -> newHandle, domain, config) ->
+          not (isBlacklistedHandle (fromJust (parseHandle newHandle))) ==>
             let res :: Either UserSubsystemError ()
                 res = run
                   . runErrorUnsafe
@@ -379,8 +379,8 @@ spec = describe "UserSubsystem.Interpreter" do
 
       prop
         "Updating handles succeeds when UpdateOriginScim"
-        \(alice, ssoId, email :: Maybe Email, Handle newHandle, domain, config) ->
-          not (isBlacklistedHandle (Handle newHandle)) ==>
+        \(alice, ssoId, email :: Maybe Email, fromHandle -> newHandle, domain, config) ->
+          not (isBlacklistedHandle (fromJust (parseHandle newHandle))) ==>
             let res :: Either UserSubsystemError () = run
                   . runErrorUnsafe
                   . runError
@@ -401,7 +401,7 @@ spec = describe "UserSubsystem.Interpreter" do
 
     prop
       "update valid handles succeeds"
-      \(storedUser :: StoredUser, newHandle@(Handle rawNewHandle), config) ->
+      \(storedUser :: StoredUser, newHandle@(fromHandle -> rawNewHandle), config) ->
         (isJust storedUser.identity && not (isBlacklistedHandle newHandle)) ==>
           let updateResult :: Either UserSubsystemError () = run
                 . runErrorUnsafe
