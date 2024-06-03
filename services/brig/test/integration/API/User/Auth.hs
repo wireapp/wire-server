@@ -42,7 +42,7 @@ import Data.Aeson as Aeson hiding (json)
 import Data.ByteString qualified as BS
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as Lazy
-import Data.Handle (parseHandle)
+import Data.Handle (Handle (Handle))
 import Data.Id
 import Data.Misc (PlainTextPassword6, plainTextPassword6, plainTextPassword6Unsafe)
 import Data.Proxy
@@ -379,7 +379,7 @@ testHandleLogin brig = do
   let update = RequestBodyLBS . encode $ HandleUpdate hdl
   put (brig . path "/self/handle" . contentJson . zUser usr . zConn "c" . Http.body update)
     !!! const 200 === statusCode
-  let l = PasswordLogin (PasswordLoginData (LoginByHandle (fromJust $ parseHandle hdl)) defPassword Nothing Nothing)
+  let l = PasswordLogin (PasswordLoginData (LoginByHandle (Handle hdl)) defPassword Nothing Nothing)
   login brig l PersistentCookie !!! const 200 === statusCode
 
 -- | Check that local part after @+@ is ignored by equality on email addresses if the domain is

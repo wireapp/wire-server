@@ -3,8 +3,7 @@ module Wire.UserSubsystem.HandleBlacklist
   )
 where
 
-import Control.Exception (assert)
-import Data.Handle (Handle, parseHandle)
+import Data.Handle (Handle (Handle))
 import Data.HashSet qualified as HashSet
 import Imports
 
@@ -13,11 +12,10 @@ isBlacklistedHandle :: Handle -> Bool
 isBlacklistedHandle = (`HashSet.member` blacklist)
 
 blacklist :: HashSet Handle
-blacklist = assert good (HashSet.fromList (fromJust <$> parsed))
-  where
-    good = all isJust parsed
-    parsed = parseHandle <$> raw
-    raw =
+blacklist =
+  HashSet.fromList $
+    map
+      Handle
       [ "account",
         "admin",
         "administrator",

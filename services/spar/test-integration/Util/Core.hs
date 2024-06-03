@@ -156,7 +156,7 @@ import Data.Aeson as Aeson hiding (json)
 import Data.Aeson.Lens as Aeson
 import qualified Data.ByteString.Base64.Lazy as EL
 import Data.ByteString.Conversion
-import Data.Handle (Handle, parseHandle)
+import Data.Handle (Handle (Handle))
 import Data.Id
 import Data.Misc (PlainTextPassword6, plainTextPassword6Unsafe)
 import Data.Proxy
@@ -569,7 +569,7 @@ nextSAMLID :: MonadIO m => m (ID a)
 nextSAMLID = mkID . UUID.toText <$> liftIO UUID.nextRandom
 
 nextHandle :: MonadIO m => m Handle
-nextHandle = liftIO $ fromJust . parseHandle . cs . show <$> randomRIO (0 :: Int, 13371137)
+nextHandle = liftIO $ Handle . cs . show <$> randomRIO (0 :: Int, 13371137)
 
 -- | Generate a 'SAML.UserRef' subject.
 nextSubject :: (HasCallStack, MonadIO m) => m NameID

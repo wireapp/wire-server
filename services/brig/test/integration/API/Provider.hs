@@ -41,7 +41,7 @@ import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.Domain
-import Data.Handle (Handle, parseHandle)
+import Data.Handle (Handle (Handle))
 import Data.HashMap.Strict qualified as HashMap
 import Data.Id
 import Data.Json.Util (toBase64Text)
@@ -2233,7 +2233,7 @@ testAddRemoveBotUtil localDomain pid sid cid u1 u2 h sref buf brig galley cannon
   -- Check that the preferred locale defaults to the locale of the
   -- user who requsted the bot.
   liftIO $ assertEqual "locale" (userLocale u1) (testBotLocale bot)
-  liftIO $ assertEqual "handle" (Just (fromJust $ parseHandle h)) u1Handle
+  liftIO $ assertEqual "handle" (Just (Handle h)) u1Handle
   -- Check that the bot has access to the conversation
   getBotConv galley bid cid !!! const 200 === statusCode
   -- Check that the bot user exists and can be identified as a bot

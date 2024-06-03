@@ -17,8 +17,7 @@
 
 module Test.Wire.API.Golden.Generated.LoginId_user where
 
-import Data.Handle (parseHandle)
-import Data.Maybe
+import Data.Handle (Handle (Handle, fromHandle))
 import Wire.API.User (Email (Email, emailDomain, emailLocal), Phone (Phone, fromPhone))
 import Wire.API.User.Auth (LoginId (..))
 
@@ -40,7 +39,7 @@ testObject_LoginId_user_3 =
     )
 
 testObject_LoginId_user_4 :: LoginId
-testObject_LoginId_user_4 = LoginByHandle (fromJust (parseHandle "7a8gg3v98"))
+testObject_LoginId_user_4 = LoginByHandle (Handle {fromHandle = "7a8gg3v98"})
 
 testObject_LoginId_user_5 :: LoginId
 testObject_LoginId_user_5 = LoginByPhone (Phone {fromPhone = "+041157889572"})
@@ -49,7 +48,7 @@ testObject_LoginId_user_6 :: LoginId
 testObject_LoginId_user_6 = LoginByPhone (Phone {fromPhone = "+2351341820189"})
 
 testObject_LoginId_user_7 :: LoginId
-testObject_LoginId_user_7 = LoginByHandle (fromJust (parseHandle "lb"))
+testObject_LoginId_user_7 = LoginByHandle (Handle {fromHandle = "lb"})
 
 testObject_LoginId_user_8 :: LoginId
 testObject_LoginId_user_8 = LoginByPhone (Phone {fromPhone = "+2831673805093"})
@@ -59,7 +58,12 @@ testObject_LoginId_user_9 = LoginByPhone (Phone {fromPhone = "+1091378734554"})
 
 testObject_LoginId_user_10 :: LoginId
 testObject_LoginId_user_10 =
-  LoginByHandle (fromJust (parseHandle "z58-6fbjhtx11d8t6oplyijpkc2.fp_lf3kpk3_.qle4iecjun2xd0tpcordlg2bwv636v3cthpgwah3undqmuofgzp8ry6gc6g-n-kxnj7sl6771hxou7-t_ps_lu_t3.4ukz6dh6fkjq2i3aggtkbpzbd1162.qv.rbtb6e.90-xpayg65z9t9lk2aur452zcs9a"))
+  LoginByHandle
+    ( Handle
+        { fromHandle =
+            "z58-6fbjhtx11d8t6oplyijpkc2.fp_lf3kpk3_.qle4iecjun2xd0tpcordlg2bwv636v3cthpgwah3undqmuofgzp8ry6gc6g-n-kxnj7sl6771hxou7-t_ps_lu_t3.4ukz6dh6fkjq2i3aggtkbpzbd1162.qv.rbtb6e.90-xpayg65z9t9lk2aur452zcs9a"
+        }
+    )
 
 testObject_LoginId_user_11 :: LoginId
 testObject_LoginId_user_11 =
@@ -106,14 +110,14 @@ testObject_LoginId_user_16 =
     )
 
 testObject_LoginId_user_17 :: LoginId
-testObject_LoginId_user_17 = LoginByHandle (fromJust (parseHandle "e3iusdy"))
+testObject_LoginId_user_17 = LoginByHandle (Handle {fromHandle = "e3iusdy"})
 
 testObject_LoginId_user_18 :: LoginId
 testObject_LoginId_user_18 =
-  LoginByHandle (fromJust (parseHandle "8vpices3usz1dfs4u2lf_e3jendod_szl1z111_eoj4b7k7ajj-xo.qzbw4espf3smnz_"))
+  LoginByHandle (Handle {fromHandle = "8vpices3usz1dfs4u2lf_e3jendod_szl1z111_eoj4b7k7ajj-xo.qzbw4espf3smnz_"})
 
 testObject_LoginId_user_19 :: LoginId
-testObject_LoginId_user_19 = LoginByHandle (fromJust (parseHandle "3jzpp2bo8"))
+testObject_LoginId_user_19 = LoginByHandle (Handle {fromHandle = "3jzpp2bo8"})
 
 testObject_LoginId_user_20 :: LoginId
 testObject_LoginId_user_20 = LoginByEmail (Email {emailLocal = "", emailDomain = "\155899"})

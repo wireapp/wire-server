@@ -26,7 +26,7 @@ import Control.Arrow (Arrow (first), (&&&))
 import Control.Lens ((?~))
 import Data.Aeson
 import Data.Domain (Domain (Domain))
-import Data.Handle (Handle (fromHandle), parseHandle)
+import Data.Handle (Handle (..))
 import Data.Id
 import Data.Map qualified as Map
 import Data.Qualified
@@ -264,7 +264,7 @@ testGetUserByHandleNotFound opts = do
   maybeProfile <- withSettingsOverrides (allowFullSearch domain opts) $ do
     runWaiTestFedClient domain $
       createWaiTestFedClient @"get-user-by-handle" @'Brig $
-        fromJust (parseHandle hdl)
+        Handle hdl
 
   liftIO $ assertEqual "should not return any UserProfile" Nothing maybeProfile
 
