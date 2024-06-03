@@ -40,7 +40,7 @@ keyPairToString = bimap publicKeyToString privateKeyToString
 --
 -- TODO(mangoiv): key generation takes an (actually multiple) eternities
 mkKeyPair :: HasCallStack => App RSAKeyPair
-mkKeyPair = liftIO do RSA.generate 2048 65537
+mkKeyPair = liftIO do RSA.generate 256 65537
 
 -- | create a root certificate authority CertificateBundle
 createRootCA ::
