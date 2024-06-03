@@ -1436,11 +1436,9 @@ testUpdateSSOId brig galley = do
       ssoids2 = [UserSSOId (mkSampleUref "2" "1"), UserSSOId (mkSampleUref "2" "2")]
   users <-
     sequence
-      [ mkMember True False,
-        mkMember True True
-        -- the following two could be implemented by creating the user implicitly via SSO login.
-        -- , mkMember False  False
-        -- , mkMember False  True
+      [ mkMember True False
+      -- the following two could be implemented by creating the user implicitly via SSO login.
+      -- , mkMember False  False
       ]
   zipWithM_ go users ssoids1
   zipWithM_ go users ssoids2
