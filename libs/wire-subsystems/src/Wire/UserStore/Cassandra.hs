@@ -71,6 +71,9 @@ claimHandleImpl uid oldHandle newHandle =
             for_ (mfilter (/= newHandle) oldHandle) $
               freeHandleImpl uid
             pure result
+  where
+    updateHandle :: UserId -> Handle -> Client ()
+    updateHandle u h = retry x5 $ write userHandleUpdate (params LocalQuorum (h, u))
 
 -- | Free a 'Handle', making it available to be claimed again.
 freeHandleImpl :: UserId -> Handle -> Client ()
@@ -92,9 +95,6 @@ lookupHandleImpl :: Consistency -> Handle -> Client (Maybe UserId)
 lookupHandleImpl consistencyLevel h = do
   (runIdentity =<<)
     <$> retry x1 (query1 handleSelect (params consistencyLevel (Identity h)))
-
-updateHandle :: UserId -> Handle -> Client ()
-updateHandle u h = retry x5 $ write userHandleUpdate (params LocalQuorum (h, u))
 
 deleteUserImpl :: User -> Client ()
 deleteUserImpl user = do
