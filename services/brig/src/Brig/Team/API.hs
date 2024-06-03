@@ -37,7 +37,6 @@ import Brig.Effects.BlacklistStore qualified as BlacklistStore
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
-import Brig.Phone qualified as Phone
 import Brig.Team.DB qualified as DB
 import Brig.Team.Email
 import Brig.Team.Util (ensurePermissionToAddUser, ensurePermissions)
@@ -243,7 +242,7 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail body = do
 
   -- Validate e-mail
   inviteeEmail <- either (const $ throwStd (errorToWai @'E.InvalidEmail)) pure (Email.validateEmail (irInviteeEmail body))
-  let uke = userEmailKey inviteeEmail
+  let uke = mkEmailKey inviteeEmail
   blacklistedEm <- lift $ liftSem $ BlacklistStore.exists uke
   when blacklistedEm $
     throwStd blacklistedEmail
@@ -251,17 +250,6 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail body = do
   when emailTaken $
     throwStd emailExists
 
-  -- Validate phone
-  inviteePhone <- for (irInviteePhone body) $ \p -> do
-    validatedPhone <- maybe (throwStd (errorToWai @'E.InvalidPhone)) pure =<< lift (wrapClient $ Phone.validatePhone p)
-    let ukp = userPhoneKey validatedPhone
-    blacklistedPh <- lift $ liftSem $ BlacklistStore.exists ukp
-    when blacklistedPh $
-      throwStd (errorToWai @'E.BlacklistedPhone)
-    phoneTaken <- lift $ liftSem $ isJust <$> lookupKey ukp
-    when phoneTaken $
-      throwStd phoneExists
-    pure validatedPhone
   maxSize <- setMaxTeamSize <$> view settings
   pending <- lift $ wrapClient $ DB.countInvitations tid
   when (fromIntegral pending >= maxSize) $
@@ -286,7 +274,7 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail body = do
           mbInviterUid
           inviteeEmail
           inviteeName
-          inviteePhone
+          Nothing -- ignore phone
           timeout
     (newInv, code) <$ sendInvitationMail inviteeEmail tid fromEmail code locale
 

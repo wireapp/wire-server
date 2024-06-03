@@ -163,7 +163,7 @@ import Wire.Sem.Concurrency
 import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
-import Wire.UserKeyStore hiding (keyText)
+import Wire.UserKeyStore
 import Wire.UserStore (UserStore)
 import Wire.UserSubsystem hiding (checkHandle, checkHandles)
 import Wire.UserSubsystem qualified as UserSubsystem
@@ -747,11 +747,16 @@ createUser ::
     Member EmailSending r
   ) =>
   Public.NewUserPublic ->
-  (Handler r) (Either Public.RegisterError Public.RegisterSuccess)
+  Handler r (Either Public.RegisterError Public.RegisterSuccess)
 createUser (Public.NewUserPublic new) = lift . runExceptT $ do
   API.checkRestrictedUserCreation new
-  for_ (Public.newUserEmail new) $ mapExceptT wrapHttp . checkAllowlistWithError RegisterErrorAllowlistError . Left
-  for_ (Public.newUserPhone new) $ mapExceptT wrapHttp . checkAllowlistWithError RegisterErrorAllowlistError . Right
+  for_ (Public.newUserEmail new) $
+    mapExceptT wrapHttp . checkAllowlistWithError RegisterErrorAllowlistError
+
+  -- prevent registration with a phone number
+  when (isJust (Public.newUserPhone new)) $
+    throwE Public.RegisterErrorInvalidPhone
+
   result <- API.createUser new
   let acc = createdAccount result
 
@@ -952,22 +957,9 @@ changePhone ::
   (Handler r) (Maybe Public.ChangePhoneError)
 changePhone _ _ _ = pure . Just $ Public.InvalidNewPhone
 
-removePhone ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member UserKeyStore r,
-    Member TinyLog r,
-    Member PasswordStore r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
-    Member UserSubsystem r
-  ) =>
-  UserId ->
-  ConnId ->
-  (Handler r) (Maybe Public.RemoveIdentityError)
-removePhone self conn =
-  lift . exceptTToMaybe $ API.removePhone self conn
+-- TODO: remove
+removePhone :: UserId -> ConnId -> Handler r (Maybe Public.RemoveIdentityError)
+removePhone self conn = lift . exceptTToMaybe $ API.removePhone self conn
 
 removeEmail ::
   ( Member (Embed HttpClientIO) r,
@@ -1055,14 +1047,16 @@ beginPasswordReset ::
   (Member AuthenticationSubsystem r) =>
   Public.NewPasswordReset ->
   Handler r ()
+beginPasswordReset Public.NewPasswordResetUnsupportedPhone =
+  throwStd (errorToWai @'E.InvalidPhone)
 beginPasswordReset (Public.NewPasswordReset target) =
-  lift (liftSem $ createPasswordResetCode (fromEither target))
+  lift (liftSem $ createPasswordResetCode $ mkEmailKey target)
 
 completePasswordReset ::
   ( Member AuthenticationSubsystem r
   ) =>
   Public.CompletePasswordReset ->
-  (Handler r) ()
+  Handler r ()
 completePasswordReset req = do
   lift . liftSem $
     resetPassword
@@ -1079,10 +1073,10 @@ sendActivationCode ::
     Member UserKeyStore r
   ) =>
   Public.SendActivationCode ->
-  (Handler r) ()
+  Handler r ()
 sendActivationCode Public.SendActivationCode {..} = do
   customerExtensionCheckBlockedDomains saUserKey
-  checkAllowlist . Left $ saUserKey
+  checkAllowlist saUserKey
   API.sendActivationCode saUserKey saLocale !>> sendActCodeError
 
 -- | If the user presents an email address from a blocked domain, throw an error.
@@ -1362,7 +1356,7 @@ sendVerificationCode req = do
   where
     getAccount :: Public.Email -> (Handler r) (Maybe UserAccount)
     getAccount email = lift $ do
-      mbUserId <- liftSem $ lookupKey $ userEmailKey email
+      mbUserId <- liftSem $ lookupKey $ mkEmailKey email
       join <$> wrapClient (Data.lookupAccount `traverse` mbUserId)
 
     sendMail :: Public.Email -> Code.Value -> Maybe Public.Locale -> Public.VerificationAction -> (Handler r) ()

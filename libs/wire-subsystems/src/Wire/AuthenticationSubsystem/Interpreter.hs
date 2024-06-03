@@ -34,7 +34,7 @@ import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import System.Logger
-import Wire.API.Allowlists (AllowlistEmailDomains, AllowlistPhonePrefixes)
+import Wire.API.Allowlists (AllowlistEmailDomains)
 import Wire.API.Allowlists qualified as AllowLists
 import Wire.API.Password
 import Wire.API.User
@@ -61,7 +61,6 @@ interpretAuthenticationSubsystem ::
     Member SessionStore r,
     Member (Input (Local ())) r,
     Member (Input (Maybe AllowlistEmailDomains)) r,
-    Member (Input (Maybe AllowlistPhonePrefixes)) r,
     Member UserSubsystem r,
     Member PasswordStore r,
     Member EmailSmsSubsystem r
@@ -96,16 +95,15 @@ createPasswordResetCodeImpl ::
     Member Now r,
     Member (Input (Local ())) r,
     Member (Input (Maybe AllowlistEmailDomains)) r,
-    Member (Input (Maybe AllowlistPhonePrefixes)) r,
     Member TinyLog r,
     Member UserSubsystem r,
     Member EmailSmsSubsystem r
   ) =>
-  UserKey ->
+  EmailKey ->
   Sem r ()
 createPasswordResetCodeImpl target =
   logPasswordResetError =<< runError do
-    allowListOk <- (\e p -> AllowLists.verify e p (toEither target)) <$> input <*> input
+    allowListOk <- (\e -> AllowLists.verify e (emailKeyOrig target)) <$> input
     unless allowListOk $ throw AllowListError
     user <- lookupActiveUserByUserKey target >>= maybe (throw InvalidResetKey) pure
     let uid = userId user
@@ -117,15 +115,12 @@ createPasswordResetCodeImpl target =
 
     let key = mkPasswordResetKey uid
     now <- Now.get
-    code <- foldKey (const generateEmailCode) (const generatePhoneCode) target
+    code <- generateEmailCode
     codeInsert
       key
       (PRQueryData code uid (Identity maxAttempts) (Identity (passwordResetCodeTtl `addUTCTime` now)))
       (round passwordResetCodeTtl)
-    foldKey
-      (\email -> sendPasswordResetMail email (key, code) (Just user.userLocale))
-      (\phone -> sendPasswordResetSms phone (key, code) (Just user.userLocale))
-      target
+    sendPasswordResetMail (emailKeyOrig target) (key, code) (Just user.userLocale)
     pure ()
   where
     -- `PasswordResetError` are errors that we don't want to leak to the caller.
@@ -138,10 +133,17 @@ createPasswordResetCodeImpl target =
             . field "error" (displayException e)
       Right v -> pure v
 
-lookupActiveUserIdByUserKey :: (Member UserSubsystem r, Member (Input (Local ())) r) => UserKey -> Sem r (Maybe UserId)
-lookupActiveUserIdByUserKey target = userId <$$> lookupActiveUserByUserKey target
+lookupActiveUserIdByUserKey ::
+  (Member UserSubsystem r, Member (Input (Local ())) r) =>
+  EmailKey ->
+  Sem r (Maybe UserId)
+lookupActiveUserIdByUserKey target =
+  userId <$$> lookupActiveUserByUserKey target
 
-lookupActiveUserByUserKey :: (Member UserSubsystem r, Member (Input (Local ())) r) => UserKey -> Sem r (Maybe User)
+lookupActiveUserByUserKey ::
+  (Member UserSubsystem r, Member (Input (Local ())) r) =>
+  EmailKey ->
+  Sem r (Maybe User)
 lookupActiveUserByUserKey target = do
   localUnit <- input
   let ltarget = qualifyAs localUnit target
@@ -160,7 +162,7 @@ internalLookupPasswordResetCodeImpl ::
     Member (Input (Local ())) r,
     Member UserSubsystem r
   ) =>
-  UserKey ->
+  EmailKey ->
   Sem r (Maybe PasswordResetPair)
 internalLookupPasswordResetCodeImpl key = do
   mUser <- lookupActiveUserIdByUserKey key
@@ -219,13 +221,11 @@ resetPasswordImpl ident code pw = do
     passwordResetKeyFromIdentity = case ident of
       PasswordResetIdentityKey k -> pure k
       PasswordResetEmailIdentity e -> do
-        mUserId <- lookupActiveUserIdByUserKey (userEmailKey e)
+        mUserId <- lookupActiveUserIdByUserKey (mkEmailKey e)
         let mResetKey = mkPasswordResetKey <$> mUserId
         maybe (throw AuthenticationSubsystemInvalidPasswordResetKey) pure mResetKey
-      PasswordResetPhoneIdentity p -> do
-        mUserId <- lookupActiveUserIdByUserKey (userPhoneKey p)
-        let mResetKey = mkPasswordResetKey <$> mUserId
-        maybe (throw AuthenticationSubsystemInvalidPasswordResetKey) pure mResetKey
+      PasswordResetPhoneIdentity _ -> do
+        throw AuthenticationSubsystemInvalidPhone
 
     checkNewIsDifferent :: UserId -> PlainTextPassword' t -> Sem r ()
     checkNewIsDifferent uid newPassword = do

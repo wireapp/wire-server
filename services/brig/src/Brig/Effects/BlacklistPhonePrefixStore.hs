@@ -8,7 +8,6 @@ import Imports
 import Polysemy
 
 data BlacklistPhonePrefixStore m a where
-  Insert :: ExcludedPrefix -> BlacklistPhonePrefixStore m ()
   Delete :: PhonePrefix -> BlacklistPhonePrefixStore m ()
   ExistsAny :: Phone -> BlacklistPhonePrefixStore m Bool
   GetAll :: PhonePrefix -> BlacklistPhonePrefixStore m [ExcludedPrefix]

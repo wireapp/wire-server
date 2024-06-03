@@ -20,7 +20,7 @@ users.
 ## Standard registration flow
 (RefRegistrationStandard)=
 
-During the standard registration flow, the user first calls [`POST /activate/send`](RefActivationRequest) to pre-verify their email address. 
+During the standard registration flow, the user first calls [`POST /activate/send`](RefActivationRequest) to pre-verify their email address.
 
 After receiving a six-digit activation code via email message, it can be submitted with the registration request via `POST /register`. If the code is correct, the account will be activated immediately. Here is a sample request and response:
 
@@ -37,7 +37,7 @@ POST /register
     // The password is optional
     "password": "secret",
 
-    // 6-digit 'email_code' 
+    // 6-digit 'email_code'
     "email_code": "123456"
 }
 ```

@@ -11,6 +11,5 @@ userSubsystemTestInterpreter :: [UserAccount] -> InterpreterFor UserSubsystem r
 userSubsystemTestInterpreter initialUsers =
   interpret \case
     GetLocalUserAccountByUserKey localUserKey -> case (tUnqualified localUserKey) of
-      UserEmailKey (EmailKey _ email) -> pure $ find (\u -> userEmail u.accountUser == Just email) initialUsers
-      UserPhoneKey _ -> pure Nothing -- Phone stuff is deprecated and soon to be deleted anyway
+      EmailKey _ email -> pure $ find (\u -> userEmail u.accountUser == Just email) initialUsers
     _ -> error $ "userSubsystemTestInterpreter: implement on demand"

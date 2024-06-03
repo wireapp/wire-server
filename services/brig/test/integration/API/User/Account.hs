@@ -31,7 +31,6 @@ import Brig.AWS qualified as AWS
 import Brig.AWS.Types
 import Brig.Options qualified as Opt
 import Brig.Types.Activation
-import Brig.Types.Common
 import Brig.Types.Intra
 import Control.Arrow ((&&&))
 import Control.Exception (throw)
@@ -137,7 +136,6 @@ tests _ at opts p b c ch g aws userJournalWatcher =
       test p "put /self/locale - 200" $ testUserLocaleUpdate b userJournalWatcher,
       test p "post /activate/send - 200" $ testSendActivationCode opts b,
       test p "post /activate/send - 400 invalid input" $ testSendActivationCodeInvalidEmailOrPhone b,
-      test p "post /i/users/phone-prefix" $ testInternalPhonePrefixes b,
       test p "put /i/users/:uid/status (suspend)" $ testSuspendUser b,
       test p "get /i/users?:email - 200" $ testGetByIdentity b,
       -- "get /i/users?:ids=...&includePendingInvitations=..." is tested in 'testCreateUserNoIdP', 'testCreateUserTimeout'
@@ -1184,39 +1182,6 @@ testSendActivationCodeInvalidEmailOrPhone brig = do
   requestActivationCode brig 400 (Right invalidPhone)
   -- Code for email pre-verification
   requestActivationCode brig 400 (Left invalidEmail)
-
-testInternalPhonePrefixes :: Brig -> Http ()
-testInternalPhonePrefixes brig = do
-  -- prefix1 is a prefix of prefix2
-  let prefix1 = mkPrefix "+5678"
-      prefix2 = mkPrefix "+56789"
-  insertPrefix brig prefix1
-  insertPrefix brig prefix2
-  -- test getting prefixs
-  res <- getPrefixes prefix1
-  liftIO $ assertEqual "prefix match prefix" res [prefix1]
-  -- we expect both prefixes returned when searching for the longer one
-  res2 <- getPrefixes prefix2
-  liftIO $ assertEqual "prefix match phone number" res2 [prefix1, prefix2]
-  deletePrefix brig (phonePrefix prefix1)
-  deletePrefix brig (phonePrefix prefix2)
-  getPrefix (phonePrefix prefix1) !!! const 404 === statusCode
-  where
-    getPrefixes :: ExcludedPrefix -> Http [ExcludedPrefix]
-    getPrefixes prefix = responseJsonError =<< getPrefix (phonePrefix prefix)
-    getPrefix :: PhonePrefix -> Http ResponseLBS
-    getPrefix prefix = get (brig . paths ["/i/users/phone-prefixes", toByteString' prefix])
-
-mkPrefix :: Text -> ExcludedPrefix
-mkPrefix t = ExcludedPrefix (PhonePrefix t) "comment"
-
-insertPrefix :: Brig -> ExcludedPrefix -> Http ()
-insertPrefix brig prefix = do
-  let payload = body $ RequestBodyLBS (encode prefix)
-  post (brig . path "/i/users/phone-prefixes" . contentJson . payload) !!! const 200 === statusCode
-
-deletePrefix :: Brig -> PhonePrefix -> Http ()
-deletePrefix brig prefix = delete (brig . paths ["/i/users/phone-prefixes", toByteString' prefix]) !!! const 200 === statusCode
 
 testDeleteUserByPassword :: Brig -> Cannon -> UserJournalWatcher -> Http ()
 testDeleteUserByPassword brig cannon userJournalWatcher = do
