@@ -11,7 +11,7 @@ cassandra:
 
 elasticsearch:
   # FUTUREWORK: use separate ES v0 instance
-  url: http://127.0.0.1:9201/
+  url: http://nginz-federation-v0:9201
   index: directory_test
 
 rabbitmq:
