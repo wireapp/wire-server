@@ -130,16 +130,13 @@ tests _ at opts p b c ch g aws userJournalWatcher =
       test p "post /list-users - 200" $ testMultipleUsers opts b,
       test p "put /self - 200" $ testUserUpdate b c userJournalWatcher,
       test p "put /access/self/email - 2xx" $ testEmailUpdate b userJournalWatcher,
-      test p "put /self/phone - 202" $ testPhoneUpdate b,
-      test p "put /self/phone - 403" $ testPhoneUpdateBlacklisted b,
-      test p "put /self/phone - 409" $ testPhoneUpdateConflict b,
+      test p "put /self/phone - 400" $ testPhoneUpdate b,
       test p "head /self/password - 200/404" $ testPasswordSet b,
       test p "put /self/password - 400" $ testPasswordSetInvalidPasswordLength b,
       test p "put /self/password - 200" $ testPasswordChange b,
       test p "put /self/locale - 200" $ testUserLocaleUpdate b userJournalWatcher,
       test p "post /activate/send - 200" $ testSendActivationCode opts b,
       test p "post /activate/send - 400 invalid input" $ testSendActivationCodeInvalidEmailOrPhone b,
-      test p "post /activate/send - 403 prefix excluded" $ testSendActivationCodePrefixExcluded b,
       test p "post /i/users/phone-prefix" $ testInternalPhonePrefixes b,
       test p "put /i/users/:uid/status (suspend)" $ testSuspendUser b,
       test p "get /i/users?:email - 200" $ testGetByIdentity b,
@@ -182,7 +179,10 @@ testCreateUserWithInvalidVerificationCode brig = do
             "phone" .= fromPhone p,
             "phone_code" .= code
           ]
-  postUserRegister' regPhone brig !!! const 404 === statusCode
+  postUserRegister' regPhone brig !!! do
+    const 400 === statusCode
+    const (Just "invalid-phone") === fmap Wai.label . responseJsonMaybe
+
   -- Attempt to register (pre verified) user with email
   e <- randomEmail
   let Object regEmail =
@@ -244,29 +244,10 @@ testCreateUserWithPreverified opts brig userJournalWatcher = do
   p <- randomPhone
   let phoneReq = RequestBodyLBS . encode $ object ["phone" .= fromPhone p]
   post (brig . path "/activate/send" . contentJson . body phoneReq)
-    !!! (const 200 === statusCode)
-  getActivationCode brig (Right p) >>= \case
-    Nothing -> liftIO $ assertFailure "missing activation key/code"
-    Just (_, c) -> do
-      let Object reg =
-            object
-              [ "name" .= Name "Alice",
-                "phone" .= fromPhone p,
-                "phone_code" .= c
-              ]
-      if Opt.setRestrictUserCreation (Opt.optSettings opts) == Just True
-        then do
-          postUserRegister' reg brig !!! const 403 === statusCode
-        else do
-          usr <- postUserRegister reg brig
-          let uid = userId usr
-          let domain = Opt.setFederationDomain $ Opt.optSettings opts
-          get (brig . path "/self" . zUser uid) !!! do
-            const 200 === statusCode
-            const (Just p) === (userPhone <=< responseJsonMaybe)
-            -- check /self returns the qualified_id field in the response
-            const (Just (Qualified uid domain)) === (fmap userQualifiedId . responseJsonMaybe)
-          Util.assertUserActivateJournaled userJournalWatcher usr "user activate"
+    !!! do
+      const 400 === statusCode
+      const (Just "invalid-phone") === fmap Wai.label . responseJsonMaybe
+
   -- Register (pre verified) user with email
   e <- randomEmail
   let emailReq = RequestBodyLBS . encode $ object ["email" .= fromEmail e]
@@ -992,37 +973,7 @@ testPhoneUpdate brig = do
   -- check new phone
   get (brig . path "/self" . zUser uid) !!! do
     const 200 === statusCode
-    const (Just phn) === (userPhone <=< responseJsonMaybe)
-
-testPhoneUpdateBlacklisted :: Brig -> Http ()
-testPhoneUpdateBlacklisted brig = do
-  uid <- userId <$> randomUser brig
-  phn <- randomPhone
-  let prefix = mkPrefix $ T.take 5 (fromPhone phn)
-
-  insertPrefix brig prefix
-  let phoneUpdate = RequestBodyLBS . encode $ PhoneUpdate phn
-  put (brig . path "/self/phone" . contentJson . zUser uid . zConn "c" . body phoneUpdate)
-    !!! (const 403 === statusCode)
-
-  -- check that phone is not updated
-  get (brig . path "/self" . zUser uid) !!! do
-    const 200 === statusCode
-    const (Right Nothing) === fmap userPhone . responseJsonEither
-
-  -- cleanup to avoid other tests failing sporadically
-  deletePrefix brig (phonePrefix prefix)
-
-testPhoneUpdateConflict :: Brig -> Http ()
-testPhoneUpdateConflict brig = do
-  uid1 <- userId <$> randomUser brig
-  phn <- randomPhone
-  updatePhone brig uid1 phn
-
-  uid2 <- userId <$> randomUser brig
-  let phoneUpdate = RequestBodyLBS . encode $ PhoneUpdate phn
-  put (brig . path "/self/phone" . contentJson . zUser uid2 . zConn "c" . body phoneUpdate)
-    !!! (const 409 === statusCode)
+    const Nothing === (userPhone <=< responseJsonMaybe)
 
 testCreateAccountPendingActivationKey :: Opt.Opts -> Brig -> Http ()
 testCreateAccountPendingActivationKey (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ = pure ()
@@ -1122,12 +1073,12 @@ testGetByIdentity brig = do
 
 testPasswordSet :: Brig -> Http ()
 testPasswordSet brig = do
-  p <- randomPhone
+  e <- randomEmail
   let newUser =
         RequestBodyLBS . encode $
           object
             [ "name" .= ("Alice" :: Text),
-              "phone" .= fromPhone p
+              "email" .= fromEmail e
             ]
   rs <-
     post (brig . path "/i/users" . contentJson . body newUser)
@@ -1212,7 +1163,7 @@ testPasswordChange brig = do
 testSendActivationCode :: Opt.Opts -> Brig -> Http ()
 testSendActivationCode opts brig = do
   -- Code for phone pre-verification
-  requestActivationCode brig 200 . Right =<< randomPhone
+  requestActivationCode brig 400 . Right =<< randomPhone
   -- Code for email pre-verification
   requestActivationCode brig 200 . Left =<< randomEmail
   -- Standard email registration flow
@@ -1233,17 +1184,6 @@ testSendActivationCodeInvalidEmailOrPhone brig = do
   requestActivationCode brig 400 (Right invalidPhone)
   -- Code for email pre-verification
   requestActivationCode brig 400 (Left invalidEmail)
-
-testSendActivationCodePrefixExcluded :: Brig -> Http ()
-testSendActivationCodePrefixExcluded brig = do
-  p <- randomPhone
-  let prefix = mkPrefix $ T.take 5 (fromPhone p)
-  -- expect activation to fail after it was excluded
-  insertPrefix brig prefix
-  requestActivationCode brig 403 (Right p)
-  -- expect activation to work again after removing block
-  deletePrefix brig (phonePrefix prefix)
-  requestActivationCode brig 200 (Right p)
 
 testInternalPhonePrefixes :: Brig -> Http ()
 testInternalPhonePrefixes brig = do
