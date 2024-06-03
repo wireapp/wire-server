@@ -2,9 +2,6 @@
 
 module Wire.UserSubsystem where
 
--- FUTUREWORK(mangoiv): this should probably be renamed such that it doesn't
--- associate with the name "brig" anymore
-
 import Data.Default
 import Data.Handle (Handle)
 import Data.Id
