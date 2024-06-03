@@ -367,15 +367,11 @@ testPhoneLogin brig = do
             [ "name" .= ("Alice" :: Text),
               "phone" .= fromPhone p
             ]
+  -- phone logins are not supported anymore
   post (brig . path "/i/users" . contentJson . Http.body newUser)
-    !!! const 201 === statusCode
-  sendLoginCode brig p LoginCodeSMS False !!! const 200 === statusCode
-  code <- getPhoneLoginCode brig p
-  case code of
-    Nothing -> liftIO $ assertFailure "missing login code"
-    Just c ->
-      login brig (SmsLogin (SmsLoginData p c Nothing)) PersistentCookie
-        !!! const 200 === statusCode
+    !!! do
+      const 400 === statusCode
+      const (Just "invalid-phone") === errorLabel
 
 testHandleLogin :: Brig -> Http ()
 testHandleLogin brig = do

@@ -84,6 +84,7 @@ import Network.Wai qualified as Wai
 import Network.Wai.Handler.Warp qualified as Warp
 import Network.Wai.Test (Session)
 import Network.Wai.Test qualified as WaiTest
+import Network.Wai.Utilities.Error qualified as Wai
 import OpenSSL.BN (randIntegerZeroToNMinusOne)
 import Servant.Client (ClientError (FailureResponse))
 import Servant.Client qualified as Servant
@@ -924,18 +925,9 @@ updatePhone :: (HasCallStack) => Brig -> UserId -> Phone -> Http ()
 updatePhone brig uid phn = do
   -- update phone
   let phoneUpdate = RequestBodyLBS . encode $ PhoneUpdate phn
-      failMsg = "updatePhone (PUT /self/phone): failed to update to " <> show phn <> " - might be a flaky test tracked in https://wearezeta.atlassian.net/browse/BE-526"
   put (brig . path "/self/phone" . contentJson . zUser uid . zConn "c" . body phoneUpdate) !!! do
-    const 202 === statusCode
-    assertTrue failMsg ((== 202) . statusCode)
-  -- activate
-  act <- getActivationCode brig (Right phn)
-  case act of
-    Nothing -> liftIO $ assertFailure "missing activation key/code"
-    Just kc ->
-      activate brig kc !!! do
-        const 200 === statusCode
-        const (Just False) === fmap activatedFirst . responseJsonMaybe
+    const 400 === statusCode
+    const (Just "invalid-phone") === fmap Wai.label . responseJsonMaybe
 
 defEmailLogin :: Email -> Login
 defEmailLogin e = emailLogin e defPassword (Just defCookieLabel)
