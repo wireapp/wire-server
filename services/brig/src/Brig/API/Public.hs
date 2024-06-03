@@ -993,7 +993,7 @@ changeLocale ::
   ConnId ->
   Public.LocaleUpdate ->
   (Handler r) ()
-changeLocale u conn l = lift $ API.changeLocale u conn l
+changeLocale u conn l = lift $ API.changeLocale u conn l API.ForbidSCIMUpdates
 
 changeSupportedProtocols ::
   ( Member (Embed HttpClientIO) r,
