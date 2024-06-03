@@ -262,7 +262,9 @@ spec = describe "UserSubsystem.Interpreter" do
                             { eupName = update.name,
                               eupPict = update.pict,
                               eupAccentId = update.accentId,
-                              eupAssets = update.assets
+                              eupAssets = update.assets,
+                              eupLocale = update.locale,
+                              eupSupportedProtocols = update.supportedProtocols
                             }
                       )
                   ]
