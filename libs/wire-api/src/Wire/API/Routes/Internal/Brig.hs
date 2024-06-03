@@ -395,6 +395,14 @@ type AccountAPI =
                :> Put '[Servant.JSON] NoContent
            )
     :<|> Named
+           "iPutUserName"
+           ( "users"
+               :> Capture "uid" UserId
+               :> "name"
+               :> ReqBody '[Servant.JSON] NameUpdate
+               :> Put '[Servant.JSON] NoContent
+           )
+    :<|> Named
            "iGetRichInfo"
            ( "users"
                :> Capture "uid" UserId
