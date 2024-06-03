@@ -32,7 +32,7 @@ import qualified Database.CQL.Protocol as CQL
 import Imports
 import Options.Applicative
 import qualified System.Logger as Log
-import System.Logger.Message ((.=))
+import System.Logger.Message ((.=), (~~))
 import Wire.API.Properties
 import Wire.API.User (AccountStatus (Active))
 
@@ -52,25 +52,33 @@ lookupProperty client uid = do
     propertySelect :: PrepQuery R (Identity UserId) (PropertyKey, RawPropertyValue)
     propertySelect = "SELECT key, value FROM properties where user = ?"
 
-lookupDataUsageSettings :: ClientState -> UserId -> IO (Maybe WebApp, Bool)
-lookupDataUsageSettings client uid = do
+lookupDataUsageSettings :: Log.Logger -> ClientState -> UserId -> IO (Maybe WebApp, Bool)
+lookupDataUsageSettings logger client uid = do
   props <- lookupProperty client uid
   let propsMap = Map.fromList props
-  let webAppKey = PropertyKey "webapp"
-  let marketingConsentKey = PropertyKey "WIRE_MARKETING_CONSENT"
-  let mWebapp = Map.lookup webAppKey propsMap >>= A.decode . rawPropertyBytes
-  let mMarketingConsent :: Maybe A.Value = Map.lookup marketingConsentKey propsMap >>= A.decode . rawPropertyBytes
+  mWebapp <- case Map.lookup (PropertyKey "webapp") propsMap of
+    Just v -> case A.eitherDecode $ rawPropertyBytes v of
+      Right wa -> pure $ Just wa
+      Left e -> do
+        Log.warn logger $
+          Log.msg (Log.val "Failed to decode webapp property for user")
+            ~~ "uid" .= show uid
+            ~~ "error" .= e
+            ~~ "property" .= rawPropertyBytes v
+        pure Nothing
+    Nothing -> pure Nothing
+  let mMarketingConsent = Map.lookup (PropertyKey "WIRE_MARKETING_CONSENT") propsMap >>= A.decode . rawPropertyBytes
   let marketingConsent = case mMarketingConsent of
         Just (A.Number 1) -> True
         _ -> False
   pure (mWebapp, marketingConsent)
 
 getUserInfo :: Log.Logger -> ClientState -> UserRow -> IO UserDataPermissionInfo
-getUserInfo _logger brigClient ur = do
+getUserInfo logger brigClient ur = do
   if not $ isActive
     then pure InactiveUser
     else do
-      webAppUser <- toWebAppUser <$> lookupDataUsageSettings brigClient ur.id
+      webAppUser <- toWebAppUser <$> lookupDataUsageSettings logger brigClient ur.id
       if isJust ur.team
         then pure $ Team webAppUser
         else pure $ Personal webAppUser
@@ -80,18 +88,23 @@ getUserInfo _logger brigClient ur = do
       ur.activated && ur.status == Just Active
 
     toWebAppUser :: (Maybe WebApp, Bool) -> WebAppUser
-    toWebAppUser (Just wa, nlConsent) = WebAppUser (ConsentToNewsLetter nlConsent) (UserConsentInfo wa.settings.privacy.improveWire wa.settings.privacy.telemetrySharing)
+    toWebAppUser (Just wa, nlConsent) =
+      WebAppUser
+      (ConsentToNewsLetter nlConsent)
+      (UserConsentInfo
+        (fromMaybe False $ wa.settings.privacy >>= (.improveWire))
+        (fromMaybe False $ wa.settings.privacy >>= (.telemetrySharing))
+      )
     toWebAppUser (Nothing, nlConsent) = NoWebUser (ConsentToNewsLetter nlConsent)
 
 process :: Log.Logger -> Maybe Int -> ClientState -> IO ConsentResult
 process logger limit brigClient =
   runConduit $
     readUsers brigClient
-      -- .| Conduit.mapM (\chunk -> SIO.hPutStr stderr "." $> chunk)
       .| Conduit.concat
       .| (maybe (Conduit.filter (const True)) Conduit.take limit)
       .| Conduit.mapM (getUserInfo logger brigClient)
-      .| forever (CL.isolate 500 .| (Conduit.foldMap userToConsentResult >>= yield))
+      .| forever (CL.isolate 10000 .| (Conduit.foldMap userToConsentResult >>= yield))
       .| Conduit.takeWhile ((> 0) . entriesSearched)
       .| CL.scan (<>) mempty
         `fuseUpstream` Conduit.mapM_ (\r -> Log.info logger $ "intermediate_result" .= show r)

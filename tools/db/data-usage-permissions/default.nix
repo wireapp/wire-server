@@ -16,7 +16,6 @@
 , lens
 , lib
 , optparse-applicative
-, time
 , tinylog
 , types-common
 , wire-api
@@ -39,7 +38,6 @@ mkDerivation {
     imports
     lens
     optparse-applicative
-    time
     tinylog
     types-common
     wire-api

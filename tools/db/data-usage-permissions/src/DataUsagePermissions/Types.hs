@@ -121,6 +121,7 @@ data UserDataPermissionInfo = InactiveUser | Personal WebAppUser | Team WebAppUs
 
 data ConsentTotals = ConsentTotals
   { usersTotal :: Int,
+    webUsersTotal :: Int,
     consentToCrashReports :: Int,
     consentToUsageData :: Int,
     consentToNewsLetter :: Int
@@ -128,32 +129,28 @@ data ConsentTotals = ConsentTotals
   deriving (Generic, Show)
 
 instance Semigroup ConsentTotals where
-  ConsentTotals t1 c1 u1 n1 <> ConsentTotals t2 c2 u2 n2 =
-    ConsentTotals (t1 + t2) (c1 + c2) (u1 + u2) (n1 + n2)
+  ConsentTotals t1 w1 c1 u1 n1 <> ConsentTotals t2 w2 c2 u2 n2 =
+    ConsentTotals (t1 + t2) (w1 + w2) (c1 + c2) (u1 + u2) (n1 + n2)
 
 instance Monoid ConsentTotals where
-  mempty = ConsentTotals 0 0 0 0
+  mempty = ConsentTotals 0 0 0 0 0
 
 data ConsentResult = ConsentResult
   { entriesSearched :: Int,
-    personalUsersTotal :: Int,
     personalUsersConsent :: ConsentTotals,
-    teamUsersTotal :: Int,
     teamUsersConsent :: ConsentTotals
   }
   deriving (Generic, Show)
 
 instance Semigroup ConsentResult where
-  ConsentResult e1 p1 pc1 t1 tc1 <> ConsentResult e2 p2 pc2 t2 tc2 =
+  ConsentResult e1 pc1 tc1 <> ConsentResult e2 pc2 tc2 =
     ConsentResult
       (e1 + e2)
-      (p1 + p2)
       (pc1 <> pc2)
-      (t1 + t2)
       (tc1 <> tc2)
 
 instance Monoid ConsentResult where
-  mempty = ConsentResult 0 0 mempty 0 mempty
+  mempty = ConsentResult 0 mempty mempty
 
 userToConsentResult :: UserDataPermissionInfo -> ConsentResult
 userToConsentResult = \case
@@ -161,10 +158,10 @@ userToConsentResult = \case
   Personal (NoWebUser (ConsentToNewsLetter nlConsent)) ->
     mempty
       { entriesSearched = 1,
-        personalUsersTotal = 1,
         personalUsersConsent =
           ConsentTotals
             { usersTotal = 1,
+              webUsersTotal = 0,
               consentToCrashReports = 0,
               consentToUsageData = 0,
               consentToNewsLetter = if nlConsent then 1 else 0
@@ -173,24 +170,23 @@ userToConsentResult = \case
   Personal (WebAppUser (ConsentToNewsLetter nlConsent) consents) ->
     ConsentResult
       { entriesSearched = 1,
-        personalUsersTotal = 1,
         personalUsersConsent =
           ConsentTotals
             { usersTotal = 1,
+              webUsersTotal = 1,
               consentToCrashReports = if consents.consentToCrashReports then 1 else 0,
               consentToUsageData = if consents.consentToUsageData then 1 else 0,
               consentToNewsLetter = if nlConsent then 1 else 0
             },
-        teamUsersTotal = 0,
         teamUsersConsent = mempty
       }
   Team (NoWebUser (ConsentToNewsLetter nlConsent)) ->
     mempty
       { entriesSearched = 1,
-        teamUsersTotal = 1,
         teamUsersConsent =
           ConsentTotals
             { usersTotal = 1,
+              webUsersTotal = 0,
               consentToCrashReports = 0,
               consentToUsageData = 0,
               consentToNewsLetter = if nlConsent then 1 else 0
@@ -199,12 +195,11 @@ userToConsentResult = \case
   Team (WebAppUser (ConsentToNewsLetter nlConsent) consents) ->
     ConsentResult
       { entriesSearched = 1,
-        personalUsersTotal = 0,
         personalUsersConsent = mempty,
-        teamUsersTotal = 1,
         teamUsersConsent =
           ConsentTotals
             { usersTotal = 1,
+              webUsersTotal = 1,
               consentToCrashReports = if consents.consentToCrashReports then 1 else 0,
               consentToUsageData = if consents.consentToUsageData then 1 else 0,
               consentToNewsLetter = if nlConsent then 1 else 0
@@ -212,8 +207,8 @@ userToConsentResult = \case
       }
 
 data Privacy = Privacy
-  { improveWire :: Bool,
-    telemetrySharing :: Bool
+  { improveWire :: Maybe Bool,
+    telemetrySharing :: Maybe Bool
   }
   deriving Generic
 
@@ -221,7 +216,7 @@ instance A.FromJSON Privacy where
   parseJSON = A.genericParseJSON A.defaultOptions {A.fieldLabelModifier = A.camelTo2 '_'}
 
 data Settings = Settings
-  { privacy :: Privacy
+  { privacy :: Maybe Privacy
   }
   deriving (Generic)
 
