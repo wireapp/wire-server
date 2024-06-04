@@ -1577,6 +1577,26 @@ newtype LocaleUpdate = LocaleUpdate {luLocale :: Locale}
   deriving newtype (Arbitrary)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema LocaleUpdate)
 
+data ChangeLocaleError
+  = ChangeLocaleErrorManagedByScim
+  deriving (Show, Generic)
+
+-- already has an instance in Wire.API.Routes.MultiVerb: deriving (AsUnion ChangeLocaleErrorResponses) via GenericAsUnion ChangeLocaleErrorResponses ChangeLocaleError
+
+instance GSOP.Generic ChangeLocaleError
+
+type ChangeLocaleErrorResponses =
+  '[ ErrorResponse '(),
+     ErrorResponse 'E.LocaleManagedByScim
+   ]
+
+type ChangeLocaleResponses =
+  ChangeLocaleErrorResponses .++ '[RespondEmpty 200 "Locale Changed"]
+
+instance (res ~ ChangeLocaleResponses) => AsUnion res (Maybe ChangeLocaleError) where
+  toUnion = maybeToUnion (toUnion @ChangeLocaleResponses)
+  fromUnion = maybeFromUnion (fromUnion @ChangeLocaleResponses)
+
 instance ToSchema LocaleUpdate where
   schema =
     object "LocaleUpdate" $

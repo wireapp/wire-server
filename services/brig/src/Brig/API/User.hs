@@ -634,7 +634,7 @@ changeLocale ::
   ConnId ->
   LocaleUpdate ->
   AllowSCIMUpdates ->
-  (AppT r) ()
+  ExceptT BrigError (AppT r) ()
 changeLocale uid conn (LocaleUpdate loc) allowScim = do
   usr <-
     wrapClient (Data.lookupUser WithPendingInvitations uid)
@@ -644,7 +644,7 @@ changeLocale uid conn (LocaleUpdate loc) allowScim = do
         || loc == userLocale usr
         || allowScim == AllowSCIMUpdates
     )
-    $ throwE ChangeHandleManagedByScim
+    $ throwM LocaleManagedByScim
 
   wrapClient $ Data.updateLocale uid loc
   liftSem $ Intra.onUserEvent uid (Just conn) (localeUpdate uid loc)

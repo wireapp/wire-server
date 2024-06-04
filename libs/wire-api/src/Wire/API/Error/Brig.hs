@@ -65,6 +65,7 @@ data BrigError
   | UserKeyExists
   | NameManagedByScim
   | HandleManagedByScim
+  | LocaleManagedByScim
   | LastIdentity
   | NoPassword
   | ChangePasswordMustDiffer
