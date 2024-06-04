@@ -338,27 +338,29 @@ spec = describe "UserSubsystem.Interpreter" do
     prop
       "CheckHandle fails if there is no user with that handle"
       \(Handle handle, config) ->
-        let localBackend = def {users = []}
-            checkHandleResp =
-              runNoFederationStack localBackend Nothing config $ checkHandle handle
-         in checkHandleResp === CheckHandleNotFound
+        not (isBlacklistedHandle handle) ==>
+          let localBackend = def {users = []}
+              checkHandleResp =
+                runNoFederationStack localBackend Nothing config $ checkHandle handle
+           in checkHandleResp === CheckHandleNotFound
 
     prop
       "CheckHandles returns available handles from a list of handles, up to X"
       \((storedUsersAndHandles :: [(StoredUser, Handle)], randomHandles :: Set Handle), maxCount :: Word, config) ->
-        let users = (\(u, h) -> u {handle = Just h, managedBy = Just ManagedByWire}) <$> storedUsersAndHandles
-            localBackend = def {users = users}
+        not (any isBlacklistedHandle ((snd <$> storedUsersAndHandles) <> randomHandles)) ==>
+          let users = (\(u, h) -> u {handle = Just h, managedBy = Just ManagedByWire}) <$> storedUsersAndHandles
+              localBackend = def {users = users}
 
-            runCheckHandles :: [Handle] -> [Handle]
-            runCheckHandles handles = runNoFederationStack localBackend Nothing config do
-              checkHandles handles maxCount
+              runCheckHandles :: [Handle] -> [Handle]
+              runCheckHandles handles = runNoFederationStack localBackend Nothing config do
+                checkHandles handles maxCount
 
-            takenHandles = snd <$> storedUsersAndHandles
-            freeHandles = runCheckHandles (S.toList randomHandles)
-         in runCheckHandles takenHandles === []
-              .&&. freeHandles `intersect` takenHandles === mempty
-              .&&. counterexample (show (freeHandles, maxCount)) (length freeHandles <= fromIntegral maxCount)
-              .&&. counterexample (show (freeHandles, randomHandles)) ((S.fromList freeHandles) `S.isSubsetOf` randomHandles)
+              takenHandles = snd <$> storedUsersAndHandles
+              freeHandles = runCheckHandles (S.toList randomHandles)
+           in runCheckHandles takenHandles === []
+                .&&. freeHandles `intersect` takenHandles === mempty
+                .&&. counterexample (show (freeHandles, maxCount)) (length freeHandles <= fromIntegral maxCount)
+                .&&. counterexample (show (freeHandles, randomHandles)) ((S.fromList freeHandles) `S.isSubsetOf` randomHandles)
 
     describe "Scim+UpdateProfileUpdate" do
       prop
