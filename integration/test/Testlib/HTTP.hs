@@ -160,6 +160,9 @@ baseRequest user service versioned path = do
 zUser :: String -> HTTP.Request -> HTTP.Request
 zUser = addHeader "Z-User"
 
+zProvider :: String -> HTTP.Request -> HTTP.Request
+zProvider = addHeader "Z-Provider"
+
 zConnection :: String -> HTTP.Request -> HTTP.Request
 zConnection = addHeader "Z-Connection"
 

@@ -43,6 +43,7 @@ excludes = [
   "hack/bin/create_test_team_members.sh",
   "hack/bin/create_test_team_scim.sh",
   "hack/bin/create_test_user.sh",
+  "hack/bin/provider_test.sh",
   "hack/bin/create_team_members.sh",
   "hack/bin/register_idp_internal.sh",
   "hack/bin/create_test_team_admins.sh",
