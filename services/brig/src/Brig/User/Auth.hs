@@ -330,9 +330,6 @@ newAccess uid cid ct cl = do
       t <- lift $ newAccessToken @u @a ck Nothing
       pure $ Access t (Just ck)
 
--- FUTUREWORK(mangoiv): unfortunately this uses lookupHandleImpl explicity, in future, this
--- should use lookuHandle but should be moved into some place where this resolveLoginId is done
--- abstractly, perhaps some authentication subsystem
 resolveLoginId :: forall m. (MonadClient m, MonadReader Env m) => LoginId -> ExceptT LoginError m UserId
 resolveLoginId li = do
   let adhocInterpreter :: Sem '[UserStore, Embed IO] a -> m a
