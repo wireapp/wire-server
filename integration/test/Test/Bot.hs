@@ -4,9 +4,11 @@ import API.Brig
 import API.Common
 import API.Galley
 import Control.Lens hiding ((.=))
+import Crypto.PubKey.RSA
 import qualified Data.Aeson as Aeson
 import qualified Data.ProtoLens as Proto
 import Data.String.Conversions (cs)
+import Debug.Trace (traceM)
 import Network.HTTP.Types (status200, status201)
 import Network.Wai (responseLBS)
 import qualified Network.Wai as Wai
@@ -50,8 +52,8 @@ import UnliftIO
  - -}
 testBotUnknownSignatory :: App ()
 testBotUnknownSignatory = do
-  (_, rootPrivKey) <- mkKeyPair
-  (ownerPubKey, privateKeyToString -> ownerPrivKey) <- mkKeyPair
+  (_, rootPrivKey) <- mkKeyPair primesA
+  (ownerPubKey, privateKeyToString -> ownerPrivKey) <- mkKeyPair primesB
   let rootSignedLeaf = signedCertToString $ intermediateCert "Kabel" ownerPubKey "Example-Root" rootPrivKey
       settings = MkMockServerSettings rootSignedLeaf ownerPrivKey (publicKeyToString ownerPubKey)
   withBotWithSettings settings \resp' -> withResponse resp' \resp -> do
@@ -61,7 +63,7 @@ testBotUnknownSignatory = do
 
 testBotSelfSigned :: App ()
 testBotSelfSigned = do
-  keys@(publicKeyToString -> pub, privateKeyToString -> priv) <- mkKeyPair
+  keys@(publicKeyToString -> pub, privateKeyToString -> priv) <- mkKeyPair primesA
   let cert = signedCertToString $ selfSignedCert "Kabel" keys
   withBotWithSettings MkMockServerSettings {certificate = cert, privateKey = priv, publicKey = pub} \resp' -> do
     resp <- withResponse resp' \resp -> do
