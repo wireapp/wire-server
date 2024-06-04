@@ -239,11 +239,11 @@ type instance MapError 'AccountPending = 'StaticError 403 "pending-activation" "
 
 type instance MapError 'UserKeyExists = 'StaticError 409 "key-exists" "The given e-mail address or phone number is in use."
 
-type instance MapError 'NameManagedByScim = 'StaticError 403 "managed-by-scim" "Updating name is not allowed, because it is managed by SCIM"
+type instance MapError 'NameManagedByScim = 'StaticError 403 "managed-by-scim" "Updating name is not allowed, because it is managed by SCIM, or E2EId is enabled"
 
-type instance MapError 'HandleManagedByScim = 'StaticError 403 "managed-by-scim" "Updating handle is not allowed, because it is managed by SCIM"
+type instance MapError 'HandleManagedByScim = 'StaticError 403 "managed-by-scim" "Updating handle is not allowed, because it is managed by SCIM, or E2EId is enabled"
 
-type instance MapError 'LocaleManagedByScim = 'StaticError 403 "managed-by-scim" "Updating locale is not allowed, because it is managed by SCIM"
+type instance MapError 'LocaleManagedByScim = 'StaticError 403 "managed-by-scim" "Updating locale is not allowed, because it is managed by SCIM, or E2EId is enabled"
 
 type instance MapError 'LastIdentity = 'StaticError 403 "last-identity" "The last user identity (email or phone number) cannot be removed."
 
