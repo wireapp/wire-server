@@ -2,7 +2,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
-module Wire.UserSubsystem.Interpreter
+module Wire.Subsystem.User.Interpreter
   ( runUserSubsystem,
     UserSubsystemConfig (..),
   )
@@ -37,10 +37,10 @@ import Wire.Sem.Concurrency
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredUser
+import Wire.Subsystem.User
+import Wire.Subsystem.User.HandleBlacklist
 import Wire.UserEvents
 import Wire.UserStore as US
-import Wire.UserSubsystem
-import Wire.UserSubsystem.HandleBlacklist
 
 data UserSubsystemConfig = UserSubsystemConfig
   { emailVisibilityConfig :: EmailVisibilityConfig,

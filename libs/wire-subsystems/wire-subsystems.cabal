@@ -78,18 +78,18 @@ library
     Wire.GundeckAPIAccess
     Wire.InternalEvent
     Wire.MiniBackend
-    Wire.NotificationSubsystem
-    Wire.NotificationSubsystem.Interpreter
     Wire.ParseException
     Wire.Rpc
     Wire.StoredUser
+    Wire.Subsystem.Notification
+    Wire.Subsystem.Notification.Interpreter
+    Wire.Subsystem.User
+    Wire.Subsystem.User.HandleBlacklist
+    Wire.Subsystem.User.Interpreter
     Wire.UserEvents
     Wire.UserStore
     Wire.UserStore.Cassandra
     Wire.UserStore.Unique
-    Wire.UserSubsystem
-    Wire.UserSubsystem.HandleBlacklist
-    Wire.UserSubsystem.Interpreter
 
   hs-source-dirs:   src
   build-depends:
@@ -161,9 +161,9 @@ test-suite wire-subsystems-tests
   -- cabal-fmt: expand test/unit
   other-modules:
     Spec
-    Wire.NotificationSubsystem.InterpreterSpec
+    Wire.Subsystem.Notification.InterpreterSpec
+    Wire.Subsystem.User.InterpreterSpec
     Wire.UserStoreSpec
-    Wire.UserSubsystem.InterpreterSpec
 
   build-tool-depends: hspec-discover:hspec-discover
   build-depends:

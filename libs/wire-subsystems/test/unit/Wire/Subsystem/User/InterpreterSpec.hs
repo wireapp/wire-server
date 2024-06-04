@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# OPTIONS_GHC -Wno-ambiguous-fields -Wno-incomplete-uni-patterns #-}
 
-module Wire.UserSubsystem.InterpreterSpec (spec) where
+module Wire.Subsystem.User.InterpreterSpec (spec) where
 
 import Control.Lens.At ()
 import Data.Bifunctor (first)
@@ -29,9 +29,9 @@ import Wire.API.User hiding (DeleteUser)
 import Wire.API.UserEvent
 import Wire.MiniBackend
 import Wire.StoredUser as SU
-import Wire.UserSubsystem as US
-import Wire.UserSubsystem.HandleBlacklist
-import Wire.UserSubsystem.Interpreter (UserSubsystemConfig (..))
+import Wire.Subsystem.User as US
+import Wire.Subsystem.User.HandleBlacklist
+import Wire.Subsystem.User.Interpreter (UserSubsystemConfig (..))
 
 spec :: Spec
 spec = describe "UserSubsystem.Interpreter" do

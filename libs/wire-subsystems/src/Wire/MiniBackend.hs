@@ -58,10 +58,10 @@ import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.Sequential
 import Wire.Sem.Now hiding (get)
 import Wire.StoredUser
+import Wire.Subsystem.User
+import Wire.Subsystem.User.Interpreter
 import Wire.UserEvents
 import Wire.UserStore
-import Wire.UserSubsystem
-import Wire.UserSubsystem.Interpreter
 
 newtype PendingStoredUser = PendingStoredUser StoredUser
   deriving (Show, Eq)

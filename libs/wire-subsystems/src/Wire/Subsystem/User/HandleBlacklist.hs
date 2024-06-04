@@ -1,4 +1,4 @@
-module Wire.UserSubsystem.HandleBlacklist
+module Wire.Subsystem.User.HandleBlacklist
   ( isBlacklistedHandle,
   )
 where

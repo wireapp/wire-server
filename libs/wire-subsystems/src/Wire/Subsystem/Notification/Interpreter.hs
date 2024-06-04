@@ -1,4 +1,4 @@
-module Wire.NotificationSubsystem.Interpreter where
+module Wire.Subsystem.Notification.Interpreter where
 
 import Bilge (RequestId)
 import Control.Concurrent.Async (Async)
@@ -25,8 +25,8 @@ import System.Logger.Class as Log
 import Wire.API.Team.Member
 import Wire.GundeckAPIAccess (GundeckAPIAccess)
 import Wire.GundeckAPIAccess qualified as GundeckAPIAccess
-import Wire.NotificationSubsystem
 import Wire.Sem.Delay
+import Wire.Subsystem.Notification
 
 -- | We interpret this using 'GundeckAPIAccess' so we can mock it out for testing.
 runNotificationSubsystemGundeck ::

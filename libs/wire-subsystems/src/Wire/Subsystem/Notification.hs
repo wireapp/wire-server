@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Wire.NotificationSubsystem where
+module Wire.Subsystem.Notification where
 
 import Control.Concurrent.Async (Async)
 import Control.Lens (makeLenses)
