@@ -338,7 +338,7 @@ spec = describe "UserSubsystem.Interpreter" do
     prop
       "CheckHandle fails if there is no user with that handle"
       \(Handle handle, config) ->
-        not (isBlacklistedHandle handle) ==>
+        not (isBlacklistedHandle (Handle handle)) ==>
           let localBackend = def {users = []}
               checkHandleResp =
                 runNoFederationStack localBackend Nothing config $ checkHandle handle
@@ -347,7 +347,7 @@ spec = describe "UserSubsystem.Interpreter" do
     prop
       "CheckHandles returns available handles from a list of handles, up to X"
       \((storedUsersAndHandles :: [(StoredUser, Handle)], randomHandles :: Set Handle), maxCount :: Word, config) ->
-        not (any isBlacklistedHandle ((snd <$> storedUsersAndHandles) <> randomHandles)) ==>
+        not (any isBlacklistedHandle ((snd <$> storedUsersAndHandles) <> (S.toList randomHandles))) ==>
           let users = (\(u, h) -> u {handle = Just h, managedBy = Just ManagedByWire}) <$> storedUsersAndHandles
               localBackend = def {users = users}
 
