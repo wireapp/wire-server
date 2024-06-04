@@ -50,8 +50,8 @@ import UnliftIO
  - -}
 testBotUnknownSignatory :: App ()
 testBotUnknownSignatory = do
-  (_, rootPrivKey) <- mkKeyPair
-  (ownerPubKey, privateKeyToString -> ownerPrivKey) <- mkKeyPair
+  (_, rootPrivKey) <- mkKeyPair primesA
+  (ownerPubKey, privateKeyToString -> ownerPrivKey) <- mkKeyPair primesB
   let rootSignedLeaf = signedCertToString $ intermediateCert "Kabel" ownerPubKey "Example-Root" rootPrivKey
       settings = MkMockServerSettings rootSignedLeaf ownerPrivKey (publicKeyToString ownerPubKey)
   withBotWithSettings settings \resp' -> withResponse resp' \resp -> do
@@ -61,7 +61,7 @@ testBotUnknownSignatory = do
 
 testBotSelfSigned :: App ()
 testBotSelfSigned = do
-  keys@(publicKeyToString -> pub, privateKeyToString -> priv) <- mkKeyPair
+  keys@(publicKeyToString -> pub, privateKeyToString -> priv) <- mkKeyPair primesA
   let cert = signedCertToString $ selfSignedCert "Kabel" keys
   withBotWithSettings MkMockServerSettings {certificate = cert, privateKey = priv, publicKey = pub} \resp' -> do
     resp <- withResponse resp' \resp -> do
