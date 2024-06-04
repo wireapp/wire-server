@@ -10,7 +10,6 @@ cassandra:
   # filterNodesByDatacentre: datacenter1
 
 elasticsearch:
-  # FUTUREWORK: use separate ES v0 instance
   url: http://nginz-federation-v0:9201
   index: directory_test
 
