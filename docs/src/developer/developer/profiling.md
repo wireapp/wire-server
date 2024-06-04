@@ -6,7 +6,6 @@ For that we are using `cabal.project.local` to define that we want to build with
 
 ```haskell
 profiling: True
-benchmarks: True
 ```
 
 We can then recompile.
