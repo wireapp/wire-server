@@ -74,12 +74,12 @@ testUpdateHandle = do
   -- all as expected here.  (see the second time we check this at the end of the test for an
   -- explanation why we care.)
   bindResponse (getSelf mem1) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json %. "managed_by" `shouldMatch` "wire"
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "managed-by-scim"
   bindResponse (getUsersId owner [mem1id]) $ \resp -> do
-    resp.status `shouldMatchInt` 200
+    resp.status `shouldMatchInt` 403
     mb <- (assertOne =<< asList resp.json) %. "managed_by"
-    mb `shouldMatch` "wire"
+    mb `shouldMatch` "scim"
 
   -- mem1 attempts to update handle for the first time => success
   --
