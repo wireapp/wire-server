@@ -195,8 +195,9 @@ mkPurl meta =
       maybe "" ("@" <>) meta.version
     ]
   where
+    checks = meta.homepage : meta.urls
     repo
-      | any (maybe False (T.isInfixOf "hackage.haskell.org")) meta.urls = "hackage"
+      | any (maybe False (T.isInfixOf "hackage.haskell.org")) checks = "hackage"
       | otherwise = "nixpkgs"
 
 -- | serializes an SBom to JSON format
@@ -209,11 +210,7 @@ serializeSBom settings bom = do
   -- FUTUREWORK(mangoiv): "tools" (the tools used in the creation of the bom)
   let mkDependencies :: SBomMeta Identity -> Array
       mkDependencies meta =
-        [ object
-            [ "ref" .= meta.outPath,
-              "dependsOn" .= runIdentity meta.directDeps
-            ]
-        ]
+        [object ["ref" .= meta.outPath, "dependsOn" .= runIdentity meta.directDeps]]
 
       serializeLicense :: Maybe License -> Maybe Value
       serializeLicense ml = do
