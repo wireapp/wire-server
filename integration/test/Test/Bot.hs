@@ -4,11 +4,9 @@ import API.Brig
 import API.Common
 import API.Galley
 import Control.Lens hiding ((.=))
-import Crypto.PubKey.RSA
 import qualified Data.Aeson as Aeson
 import qualified Data.ProtoLens as Proto
 import Data.String.Conversions (cs)
-import Debug.Trace (traceM)
 import Network.HTTP.Types (status200, status201)
 import Network.Wai (responseLBS)
 import qualified Network.Wai as Wai
