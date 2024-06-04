@@ -71,8 +71,6 @@ testUpdateHandle = do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "enabled"
 
-  -- all as expected here.  (see the second time we check this at the end of the test for an
-  -- explanation why we care.)
   bindResponse (getSelf mem1) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "managed_by" `shouldMatch` "wire"
