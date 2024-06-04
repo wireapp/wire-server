@@ -636,10 +636,12 @@ changeLocale ::
   AllowSCIMUpdates ->
   (AppT r) ()
 changeLocale uid conn (LocaleUpdate loc) allowScim = do
-  usr <- lift $ wrapClient $ Data.lookupUser WithPendingInvitations uid
+  usr <-
+    wrapClient (Data.lookupUser WithPendingInvitations uid)
+      >>= maybe (throwM (UserProfileNotFound uid)) pure
   unless
     ( userManagedBy usr /= ManagedByScim
-        || Just loc == userLocale usr
+        || loc == userLocale usr
         || allowScim == AllowSCIMUpdates
     )
     $ throwE ChangeHandleManagedByScim
