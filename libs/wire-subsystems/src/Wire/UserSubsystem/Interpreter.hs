@@ -327,8 +327,6 @@ guardLockedFields user updateOrigin (MkUserProfileUpdate {..}) = do
     throw UserSubsystemDisplayNameManagedByScim
   when (scim {- e2eid does not matter, it's not part of the e2eid cert! -} && not idempLocale) do
     throw UserSubsystemLocaleManagedByScim
-  -- NOT MANAGED BY SCIM / E2EId (so no errors there): pict, assets, accentId, supportedProtocols.
-  pure ()
 
 guardLockedHandleField ::
   ( Member GalleyAPIAccess r,
