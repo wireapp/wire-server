@@ -101,7 +101,7 @@ tests _ at opts p b c ch g aws userJournalWatcher =
     [ test p "post /register - 201 (with preverified)" $ testCreateUserWithPreverified opts b userJournalWatcher,
       test p "testCreateUserWithInvalidVerificationCode - post /register - 400 (with preverified)" $ testCreateUserWithInvalidVerificationCode b,
       test p "post /register - 201" $ testCreateUser b g,
-      test p "post /register - 201 + no email" $ testCreateUserNoEmailNoPassword b,
+      test p "post /register - 400 + no email" $ testCreateUserNoEmailNoPassword b,
       test p "post /register - 201 anonymous" $ testCreateUserAnon b g,
       test p "testCreateUserEmptyName - post /register - 400 empty name" $ testCreateUserEmptyName b,
       test p "testCreateUserLongName - post /register - 400 name too long" $ testCreateUserLongName b,
@@ -398,16 +398,11 @@ testCreateUserNoEmailNoPassword brig = do
             [ "name" .= ("Alice" :: Text),
               "phone" .= fromPhone p
             ]
-  rs <-
-    post (brig . path "/i/users" . contentJson . body newUser)
-      <!! const 201 === statusCode
-  let Just uid = userId <$> responseJsonMaybe rs
-  e <- randomEmail
-  Just code <- do
-    sendLoginCode brig p LoginCodeSMS False !!! const 200 === statusCode
-    getPhoneLoginCode brig p
-  initiateEmailUpdateLogin brig e (SmsLogin (SmsLoginData p code Nothing)) uid
-    !!! (const 202 === statusCode)
+  post
+    (brig . path "/i/users" . contentJson . body newUser)
+    !!! do
+      const 400 === statusCode
+      (const (Just "invalid-phone") === fmap Error.label . responseJsonMaybe)
 
 -- The testCreateUserConflict test conforms to the following testing standards:
 --
