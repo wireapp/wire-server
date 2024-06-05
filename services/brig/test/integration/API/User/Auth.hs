@@ -28,7 +28,6 @@ import API.Team.Util
 import Bilge hiding (body)
 import Bilge qualified as Http
 import Bilge.Assert hiding (assert)
-import Brig.Code qualified as Code
 import Brig.Options qualified as Opts
 import Brig.User.Auth.Cookie (revokeAllCookies)
 import Brig.ZAuth (ZAuth, runZAuth)
@@ -399,24 +398,9 @@ testSendLoginCode brig = do
               "password" .= ("topsecretdefaultpassword" :: Text)
             ]
   post (brig . path "/i/users" . contentJson . Http.body newUser)
-    !!! const 201 === statusCode
-  -- Unless forcing it, SMS/voice code login is not permitted if
-  -- the user has a password.
-  sendLoginCode brig p LoginCodeSMS False !!! do
-    const 403 === statusCode
-    const (Just "password-exists") === errorLabel
-  rsp1 <-
-    sendLoginCode brig p LoginCodeSMS True
-      <!! const 200 === statusCode
-  let _timeout = fromLoginCodeTimeout <$> responseJsonMaybe rsp1
-  liftIO $ assertEqual "timeout" (Just (Code.Timeout 600)) _timeout
-  -- Retry with a voice call
-  rsp2 <-
-    sendLoginCode brig p LoginCodeVoice True
-      <!! const 200 === statusCode
-  -- Timeout is reset
-  let _timeout = fromLoginCodeTimeout <$> responseJsonMaybe rsp2
-  liftIO $ assertEqual "timeout" (Just (Code.Timeout 600)) _timeout
+    !!! do
+      const 400 === statusCode
+      const (Just "invalid-phone") === errorLabel
 
 -- The testLoginFailure test conforms to the following testing standards:
 --
