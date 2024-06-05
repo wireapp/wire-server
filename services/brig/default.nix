@@ -100,7 +100,6 @@
 , raw-strings-qq
 , resourcet
 , retry
-, ropes
 , safe
 , safe-exceptions
 , saml2-web-sso
@@ -243,7 +242,6 @@ mkDerivation {
     raw-strings-qq
     resourcet
     retry
-    ropes
     safe-exceptions
     saml2-web-sso
     schema-profunctor
