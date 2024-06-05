@@ -100,6 +100,10 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+            - name: HOST_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
           volumeMounts:
             - name: external-ip
               mountPath: /external-ip
@@ -132,7 +136,7 @@ spec:
             - |
               set -e
               EXTERNAL_IP=$(cat /external-ip/ip)
-              sed -Ee "s;__COTURN_EXT_IP__;$EXTERNAL_IP;g" -e "s;__COTURN_POD_IP__;$POD_IP;g" /coturn-template/coturn.conf.template > /coturn-config/turnserver.conf
+              sed -Ee "s;__COTURN_EXT_IP__;$EXTERNAL_IP;g" -e "s;__COTURN_POD_IP__;$POD_IP;g" -e "s;__COTURN_HOST_IP__;$HOST_IP;g" /coturn-template/coturn.conf.template > /coturn-config/turnserver.conf
               sed -Ee 's/^/static-auth-secret=/' /secrets/zrest_secret.txt >> /coturn-config/turnserver.conf
               exec /usr/bin/turnserver -c /coturn-config/turnserver.conf
           {{- if .Values.coturnGracefulTermination }}
