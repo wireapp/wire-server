@@ -37,8 +37,6 @@ keyPairToString :: RSAKeyPair -> (String, String)
 keyPairToString = bimap publicKeyToString privateKeyToString
 
 -- | the minimum key size is hard coded to be 256 bytes (= 2048 bits)
---
--- TODO(mangoiv): key generation takes an (actually multiple) eternities
 mkKeyPair :: HasCallStack => (Integer, Integer) -> App RSAKeyPair
 mkKeyPair primes =
   assertJust "key generation failed" $
