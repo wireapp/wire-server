@@ -69,10 +69,6 @@ module Brig.API.User
     blacklistDelete,
     blacklistInsert,
 
-    -- * Phone Prefix blocking
-    phonePrefixGet,
-    phonePrefixDelete,
-
     -- * Utilities
     fetchUserIdentity,
   )
@@ -92,8 +88,6 @@ import Brig.Data.Connection qualified as Data
 import Brig.Data.Properties qualified as Data
 import Brig.Data.User
 import Brig.Data.User qualified as Data
-import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
-import Brig.Effects.BlacklistPhonePrefixStore qualified as BlacklistPhonePrefixStore
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.BlacklistStore qualified as BlacklistStore
 import Brig.Effects.ConnectionStore (ConnectionStore)
@@ -103,7 +97,6 @@ import Brig.IO.Intra qualified as Intra
 import Brig.Options hiding (Timeout, internalEvents)
 import Brig.Team.DB qualified as Team
 import Brig.Types.Activation (ActivationPair)
-import Brig.Types.Connection
 import Brig.Types.Intra
 import Brig.User.Auth.Cookie qualified as Auth
 import Brig.User.Search.Index (reindex)
@@ -1235,9 +1228,3 @@ blacklistDelete :: (Member BlacklistStore r) => Email -> AppT r ()
 blacklistDelete email = do
   let uk = mkEmailKey email
   liftSem $ BlacklistStore.delete uk
-
-phonePrefixGet :: (Member BlacklistPhonePrefixStore r) => PhonePrefix -> (AppT r) [ExcludedPrefix]
-phonePrefixGet = liftSem . BlacklistPhonePrefixStore.getAll
-
-phonePrefixDelete :: (Member BlacklistPhonePrefixStore r) => PhonePrefix -> (AppT r) ()
-phonePrefixDelete = liftSem . BlacklistPhonePrefixStore.delete
