@@ -1165,9 +1165,7 @@ newUserRawObjectSchema =
     <*> newUserRawEmail
       .= maybe_ (optField "email" schema)
     <*> newUserRawPhone
-      .= withParser
-        (maybe_ (optFieldWithDocModifier "phone" phoneDesc schema))
-        (either fail pure . validateNewUserRawPhoneEntity)
+      .= maybe_ (optField "phone" schema)
     <*> newUserRawSSOId
       .= maybe_ (optField "sso_id" genericToSchema)
     <*> newUserRawPict
@@ -1179,9 +1177,7 @@ newUserRawObjectSchema =
     <*> newUserRawEmailCode
       .= maybe_ (optField "email_code" schema)
     <*> newUserRawPhoneCode
-      .= withParser
-        (maybe_ (optFieldWithDocModifier "phone_code" phoneDesc schema))
-        (either fail pure . validateNewUserRawPhoneEntity)
+      .= maybe_ (optField "phone_code" schema)
     <*> newUserRawInvitationCode
       .= maybe_ (optField "invitation_code" schema)
     <*> newUserRawTeamCode
@@ -1202,14 +1198,6 @@ newUserRawObjectSchema =
       .= maybe_ (optField "managed_by" schema)
     <*> newUserRawSupportedProtocols
       .= maybe_ (optField "supported_protocols" (set schema))
-  where
-    phoneDesc v =
-      v
-        & description ?~ "Deprecated, please ignore."
-        & S.deprecated ?~ True
-    validateNewUserRawPhoneEntity :: Maybe a -> Either String (Maybe a)
-    validateNewUserRawPhoneEntity Nothing = Right Nothing
-    validateNewUserRawPhoneEntity (Just _) = Left "invalid-phone"
 
 instance ToSchema NewUser where
   schema =
@@ -1252,16 +1240,10 @@ newUserFromRaw NewUserRaw {..} = do
   let identity =
         maybeUserIdentityFromComponents
           (newUserRawEmail, newUserRawPhone, newUserRawSSOId)
-  case identity of
-    Just (FullIdentity _ _) -> fail "New users cannot be registered with a phone number"
-    Just (PhoneIdentity _) -> fail "New users cannot be registered with a phone number"
-    _ -> pure ()
   expiresIn <-
     case (newUserRawExpiresIn, identity) of
       (Just _, Just _) -> fail "Only users without an identity can expire"
       _ -> pure newUserRawExpiresIn
-  when (isJust newUserRawPhoneCode) $
-    fail "The account cannot be activated via a phone number any more"
   pure $
     NewUser
       { newUserDisplayName = newUserRawDisplayName,
@@ -1292,7 +1274,7 @@ instance Arbitrary NewUser where
     newUserAssets <- arbitrary
     newUserAccentId <- arbitrary
     newUserEmailCode <- arbitrary
-    let newUserPhoneCode = Nothing
+    newUserPhoneCode <- arbitrary
     newUserLabel <- arbitrary
     newUserLocale <- arbitrary
     newUserPassword <- genUserPassword newUserIdentity newUserOrigin
