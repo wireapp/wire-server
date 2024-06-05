@@ -1075,9 +1075,12 @@ sendActivationCode ::
   Public.SendActivationCode ->
   Handler r ()
 sendActivationCode Public.SendActivationCode {..} = do
-  customerExtensionCheckBlockedDomains saUserKey
-  checkAllowlist saUserKey
-  API.sendActivationCode saUserKey saLocale !>> sendActCodeError
+  email <- case saUserKey of
+    Left email -> pure email
+    Right _ -> throwStd (errorToWai @'E.InvalidPhone)
+  customerExtensionCheckBlockedDomains email
+  checkAllowlist email
+  API.sendActivationCode email saLocale !>> sendActCodeError
 
 -- | If the user presents an email address from a blocked domain, throw an error.
 --
