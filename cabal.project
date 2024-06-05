@@ -19,7 +19,6 @@ packages:
   , libs/metrics-core/
   , libs/metrics-wai/
   , libs/polysemy-wire-zoo/
-  , libs/ropes/
   , libs/schema-profunctor/
   , libs/sodium-crypto-sign/
   , libs/ssl-util/
@@ -135,8 +134,6 @@ package rabbitmq-consumer
 package repair-handles
     ghc-options: -Werror
 package rex
-    ghc-options: -Werror
-package ropes
     ghc-options: -Werror
 package schema-profunctor
     ghc-options: -Werror

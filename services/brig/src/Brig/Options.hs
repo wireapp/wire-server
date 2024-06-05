@@ -457,10 +457,6 @@ data Settings = Settings
     setTeamInvitationTimeout :: !Timeout,
     -- | Check for expired users every so often, in seconds
     setExpiredUserCleanupTimeout :: !(Maybe Timeout),
-    -- | Twilio credentials
-    setTwilio :: !FilePathSecrets,
-    -- | Nexmo credentials
-    setNexmo :: !FilePathSecrets,
     -- | STOMP broker credentials
     setStomp :: !(Maybe FilePathSecrets),
     -- | Whitelist of allowed emails/phones
