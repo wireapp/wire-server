@@ -28,7 +28,6 @@
 module Brig.Code
   ( -- * Code
     Code,
-    CodeFor (..),
     Key (..),
     Scope (..),
     Value (..),
@@ -36,8 +35,6 @@ module Brig.Code
     Timeout (..),
     Retries (..),
     codeFor,
-    codeForEmail,
-    codeForPhone,
     codeKey,
     codeValue,
     codeToKeyValuePair,
@@ -61,7 +58,6 @@ module Brig.Code
 where
 
 import Brig.Email (emailKeyUniq, mkEmailKey)
-import Brig.Phone (mkPhoneKey, phoneKeyUniq)
 import Cassandra hiding (Value)
 import Data.ByteString qualified as BS
 import Data.Code
@@ -88,25 +84,10 @@ data Code = Code
     codeValue :: !Value,
     codeRetries :: !Retries,
     codeTTL :: !Timeout,
-    codeFor :: !CodeFor,
+    codeFor :: !Email,
     codeAccount :: !(Maybe UUID)
   }
   deriving (Eq, Show)
-
-data CodeFor
-  = ForEmail !Email
-  | ForPhone !Phone
-  deriving (Eq, Show)
-
-codeForEmail :: Code -> Maybe Email
-codeForEmail c
-  | ForEmail e <- codeFor c = Just e
-  | otherwise = Nothing
-
-codeForPhone :: Code -> Maybe Phone
-codeForPhone c
-  | ForPhone p <- codeFor c = Just p
-  | otherwise = Nothing
 
 scopeFromAction :: User.VerificationAction -> Scope
 scopeFromAction = \case
@@ -162,42 +143,35 @@ instance Cql Retries where
 -- Generation
 
 -- | A contextual string that is hashed into the key to yield distinct keys in
--- different contexts for the same email address or phone number.
+-- different contexts for the same email address.
 -- TODO: newtype KeyContext = KeyContext ByteString
 data Gen = Gen
-  { genFor :: !CodeFor,
+  { genFor :: !Email,
     genKey :: !Key, -- Note [Unique keys]
     genValue :: IO Value
   }
 
-mkKey :: MonadIO m => CodeFor -> m Key
+mkKey :: MonadIO m => Email -> m Key
 mkKey cfor = liftIO $ do
   Just sha256 <- getDigestByName "SHA256"
-  let uniqueK = case cfor of
-        ForEmail e -> emailKeyUniq (mkEmailKey e)
-        ForPhone p -> phoneKeyUniq (mkPhoneKey p)
+  let uniqueK = emailKeyUniq (mkEmailKey cfor)
   pure $ mkKey' sha256 (Text.encodeUtf8 uniqueK)
 
 -- | Initialise a 'Code' 'Gen'erator for a given natural key.  This generates a link for emails and a 6-digit code for phone.  See also: `mk6DigitGen`.
-mkGen :: MonadIO m => CodeFor -> m Gen
+mkGen :: MonadIO m => Email -> m Gen
 mkGen cfor = liftIO $ do
   Just sha256 <- getDigestByName "SHA256"
-  pure (initGen sha256 cfor)
-  where
-    initGen d (ForEmail e) = mkEmailLinkGen e d
-    initGen d _ = mk6DigitGen' cfor d
+  pure (mkEmailLinkGen cfor sha256)
 
 -- | Initialise a 'Code' 'Gen'erator for a given natural key.  This generates a 6-digit code, matter whether it is sent to a phone or to an email address.  See also: `mkGen`.
-mk6DigitGen :: MonadIO m => CodeFor -> m Gen
+mk6DigitGen :: MonadIO m => Email -> m Gen
 mk6DigitGen cfor = liftIO $ do
   Just sha256 <- getDigestByName "SHA256"
   pure $ mk6DigitGen' cfor sha256
 
-mk6DigitGen' :: CodeFor -> Digest -> Gen
+mk6DigitGen' :: Email -> Digest -> Gen
 mk6DigitGen' cfor d =
-  let uniqueK = case cfor of
-        ForEmail e -> emailKeyUniq (mkEmailKey e)
-        ForPhone p -> phoneKeyUniq (mkPhoneKey p)
+  let uniqueK = emailKeyUniq (mkEmailKey cfor)
       key = mkKey' d $ Text.encodeUtf8 uniqueK
       val = Value . unsafeRange . Ascii.unsafeFromText . Text.pack . printf "%06d" <$> randIntegerZeroToNMinusOne (10 ^ (6 :: Int))
    in Gen cfor key val
@@ -206,7 +180,7 @@ mkEmailLinkGen :: Email -> Digest -> Gen
 mkEmailLinkGen e d =
   let key = mkKey' d (Text.encodeUtf8 (emailKeyUniq (mkEmailKey e)))
       val = Value . unsafeRange . Ascii.encodeBase64Url <$> randBytes 15
-   in Gen (ForEmail e) key val
+   in Gen e key val
 
 mkKey' :: Digest -> ByteString -> Key
 mkKey' d = Key . unsafeRange . Ascii.encodeBase64Url . BS.take 15 . digestBS d
@@ -300,15 +274,14 @@ insertInternal c = do
   let v = codeValue c
   let r = fromIntegral (codeRetries c)
   let a = codeAccount c
-  let e = codeForEmail c
-  let p = codeForPhone c
+  let e = codeFor c
   let t = round (codeTTL c)
-  retry x5 (write cql (params LocalQuorum (k, s, v, r, e, p, a, t)))
+  retry x5 (write cql (params LocalQuorum (k, s, v, r, e, a, t)))
   where
-    cql :: PrepQuery W (Key, Scope, Value, Retries, Maybe Email, Maybe Phone, Maybe UUID, Int32) ()
+    cql :: PrepQuery W (Key, Scope, Value, Retries, Email, Maybe UUID, Int32) ()
     cql =
-      "INSERT INTO vcodes (key, scope, value, retries, email, phone, account) \
-      \VALUES (?, ?, ?, ?, ?, ?, ?) USING TTL ?"
+      "INSERT INTO vcodes (key, scope, value, retries, email, account) \
+      \VALUES (?, ?, ?, ?, ?, ?) USING TTL ?"
 
 -- | Check if code generation should be throttled.
 lookupThrottle :: MonadClient m => Key -> Scope -> m (Maybe RetryAfter)
@@ -324,9 +297,9 @@ lookupThrottle k s = do
 lookup :: MonadClient m => Key -> Scope -> m (Maybe Code)
 lookup k s = fmap (toCode k s) <$> retry x1 (query1 cql (params LocalQuorum (k, s)))
   where
-    cql :: PrepQuery R (Key, Scope) (Value, Int32, Retries, Maybe Email, Maybe Phone, Maybe UUID)
+    cql :: PrepQuery R (Key, Scope) (Value, Int32, Retries, Maybe Email, Maybe UUID)
     cql =
-      "SELECT value, ttl(value), retries, email, phone, account \
+      "SELECT value, ttl(value), retries, email, account \
       \FROM vcodes WHERE key = ? AND scope = ?"
 
 -- | Lookup and verify the code for the given key and scope
@@ -351,20 +324,16 @@ delete k s = retry x5 $ write cql (params LocalQuorum (k, s))
 --------------------------------------------------------------------------------
 -- Internal
 
-toCode :: Key -> Scope -> (Value, Int32, Retries, Maybe Email, Maybe Phone, Maybe UUID) -> Code
-toCode k s (val, ttl, retries, email, phone, account) =
-  let ek = ForEmail <$> email
-      pk = ForPhone <$> phone
-      to = Timeout (fromIntegral ttl)
-   in case ek <|> pk of
-        Nothing -> error "toCode: email or phone must be present"
-        Just cf ->
-          Code
-            { codeKey = k,
-              codeScope = s,
-              codeValue = val,
-              codeTTL = to,
-              codeRetries = retries,
-              codeFor = cf,
-              codeAccount = account
-            }
+toCode :: Key -> Scope -> (Value, Int32, Retries, Maybe Email, Maybe UUID) -> Code
+toCode k s (val, ttl, retries, email, account) = case email of
+  Nothing -> error "toCode: email or phone must be present"
+  Just e ->
+    Code
+      { codeKey = k,
+        codeScope = s,
+        codeValue = val,
+        codeTTL = Timeout (fromIntegral ttl),
+        codeRetries = retries,
+        codeFor = e,
+        codeAccount = account
+      }

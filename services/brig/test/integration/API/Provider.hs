@@ -263,7 +263,7 @@ testPasswordResetProvider db brig = do
     resetPw :: PlainTextPassword6 -> Email -> Http ResponseLBS
     resetPw newPw email = do
       -- Get the code directly from the DB
-      gen <- Code.mkGen (Code.ForEmail email)
+      gen <- Code.mkGen email
       Just vcode <- lookupCode db gen Code.PasswordReset
       let passwordResetData =
             CompletePasswordReset
@@ -281,7 +281,7 @@ testPasswordResetAfterEmailUpdateProvider db brig = do
   initiateEmailUpdateProvider brig pid (EmailUpdate newEmail) !!! const 202 === statusCode
   initiatePasswordResetProvider brig (PasswordReset origEmail) !!! const 201 === statusCode
   -- Get password reset code directly from the DB
-  genOrig <- Code.mkGen (Code.ForEmail origEmail)
+  genOrig <- Code.mkGen origEmail
   Just vcodePw <- lookupCode db genOrig Code.PasswordReset
   let passwordResetData =
         CompletePasswordReset
@@ -289,7 +289,7 @@ testPasswordResetAfterEmailUpdateProvider db brig = do
           (Code.codeValue vcodePw)
           (plainTextPassword6Unsafe "doesnotmatter")
   -- Activate the new email
-  genNew <- Code.mkGen (Code.ForEmail newEmail)
+  genNew <- Code.mkGen newEmail
   Just vcodeEm <- lookupCode db genNew Code.IdentityVerification
   activateProvider brig (Code.codeKey vcodeEm) (Code.codeValue vcodeEm)
     !!! const 200 === statusCode
@@ -1675,7 +1675,7 @@ testRegisterProvider db' brig = do
   case db' of
     Just db -> do
       -- Activate email
-      gen <- Code.mkGen (Code.ForEmail email)
+      gen <- Code.mkGen email
       Just vcode <- lookupCode db gen Code.IdentityVerification
       activateProvider brig (Code.codeKey vcode) (Code.codeValue vcode)
         !!! const 200 === statusCode
@@ -1713,7 +1713,7 @@ testRegisterProvider db' brig = do
 randomProvider :: HasCallStack => DB.ClientState -> Brig -> Http Provider
 randomProvider db brig = do
   email <- randomEmail
-  gen <- Code.mkGen (Code.ForEmail email)
+  gen <- Code.mkGen email
   -- Register
   let new = defNewProvider email
   _rs <-

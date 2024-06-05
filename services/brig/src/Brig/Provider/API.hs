@@ -199,7 +199,7 @@ newAccount new = do
       safePass <- mkSafePassword newPass
       pure (safePass, Just newPass)
   pid <- wrapClientE $ DB.insertAccount name safePass url descr
-  gen <- Code.mkGen (Code.ForEmail email)
+  gen <- Code.mkGen email
   code <-
     Code.generate
       gen
@@ -217,7 +217,7 @@ activateAccountKey :: Member GalleyAPIAccess r => Code.Key -> Code.Value -> (Han
 activateAccountKey key val = do
   guardSecondFactorDisabled Nothing
   c <- wrapClientE (Code.verify key Code.IdentityVerification val) >>= maybeInvalidCode
-  (pid, email) <- case (Code.codeAccount c, Code.codeForEmail c) of
+  (pid, email) <- case (Code.codeAccount c, Just (Code.codeFor c)) of
     (Just p, Just e) -> pure (Id p, e)
     _ -> throwStd (errorToWai @'E.InvalidCode)
   (name, memail, _url, _descr) <- wrapClientE (DB.lookupAccountData pid) >>= maybeInvalidCode
@@ -225,7 +225,7 @@ activateAccountKey key val = do
     Just email' | email == email' -> pure Nothing
     Just email' -> do
       -- Ensure we remove any pending password reset
-      gen <- Code.mkGen (Code.ForEmail email')
+      gen <- Code.mkGen email'
       lift $ wrapClient $ Code.delete (Code.genKey gen) Code.PasswordReset
       -- Activate the new and remove the old key
       activate pid (Just email') email
@@ -242,7 +242,7 @@ getActivationCodeH e = do
   email <- case validateEmail e of
     Right em -> pure em
     Left _ -> throwStd (errorToWai @'E.InvalidEmail)
-  gen <- Code.mkGen (Code.ForEmail email)
+  gen <- Code.mkGen email
   code <- wrapClientE $ Code.lookup (Code.genKey gen) Code.IdentityVerification
   maybe (throwStd activationKeyNotFound) (pure . Code.codeToKeyValuePair) code
 
@@ -261,7 +261,7 @@ beginPasswordReset :: Member GalleyAPIAccess r => Public.PasswordReset -> (Handl
 beginPasswordReset (Public.PasswordReset target) = do
   guardSecondFactorDisabled Nothing
   pid <- wrapClientE (DB.lookupKey (mkEmailKey target)) >>= maybeBadCredentials
-  gen <- Code.mkGen (Code.ForEmail target)
+  gen <- Code.mkGen target
   pending <- lift . wrapClient $ Code.lookup (Code.genKey gen) Code.PasswordReset
   code <- case pending of
     Just p -> throwE $ pwResetError (PasswordResetInProgress . Just $ Code.codeTTL p)
@@ -316,7 +316,7 @@ updateAccountEmail pid (Public.EmailUpdate new) = do
     Left _ -> throwStd (errorToWai @'E.InvalidEmail)
   let emailKey = mkEmailKey email
   wrapClientE (DB.lookupKey emailKey) >>= mapM_ (const $ throwStd emailExists)
-  gen <- Code.mkGen (Code.ForEmail email)
+  gen <- Code.mkGen email
   code <-
     Code.generate
       gen

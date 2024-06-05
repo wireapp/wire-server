@@ -151,7 +151,7 @@ testAddGetClientVerificationCode db brig galley = do
   Util.setTeamFeatureLockStatus @Public.SndFactorPasswordChallengeConfig galley tid Public.LockStatusUnlocked
   Util.setTeamSndFactorPasswordChallenge galley tid Public.FeatureStatusEnabled
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
-  k <- Code.mkKey (Code.ForEmail email)
+  k <- Code.mkKey email
   codeValue <- Code.codeValue <$$> lookupCode db k Code.AccountLogin
   checkLoginSucceeds $
     PasswordLogin $
@@ -207,7 +207,7 @@ testAddGetClientCodeExpired db opts brig galley = do
   Util.setTeamFeatureLockStatus @Public.SndFactorPasswordChallengeConfig galley tid Public.LockStatusUnlocked
   Util.setTeamSndFactorPasswordChallenge galley tid Public.FeatureStatusEnabled
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
-  k <- Code.mkKey (Code.ForEmail email)
+  k <- Code.mkKey email
   codeValue <- Code.codeValue <$$> lookupCode db k Code.AccountLogin
   checkLoginSucceeds $
     PasswordLogin $

@@ -137,7 +137,7 @@ verifyCode mbCode action uid = do
   when (featureEnabled && not isSsoUser) $ do
     case (mbCode, mbEmail) of
       (Just code, Just email) -> do
-        key <- Code.mkKey $ Code.ForEmail email
+        key <- Code.mkKey email
         codeValid <- isJust <$> wrapHttpClientE (Code.verify key (Code.scopeFromAction action) code)
         unless codeValid $ throwE VerificationCodeNoPendingCode
       (Nothing, _) -> throwE VerificationCodeRequired

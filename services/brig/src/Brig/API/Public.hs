@@ -1321,7 +1321,7 @@ sendVerificationCode req = do
   featureEnabled <- getFeatureStatus mbAccount
   case (mbAccount, featureEnabled) of
     (Just account, True) -> do
-      gen <- Code.mk6DigitGen $ Code.ForEmail email
+      gen <- Code.mk6DigitGen email
       timeout <- setVerificationTimeout <$> view settings
       code <-
         Code.generate
