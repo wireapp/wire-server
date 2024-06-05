@@ -34,27 +34,19 @@ import Control.Lens hiding ((.=))
 import Control.Monad.Catch (MonadCatch)
 import Data.Aeson
 import Data.ByteString.Conversion
-import Data.ByteString.Lazy (toStrict)
-import Data.Either.Extra (eitherToMaybe)
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
-import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldDisabled))
-import Data.Text qualified as Text
 import Data.Text.Ascii qualified as Ascii
-import Data.Text.Encoding (encodeUtf8)
 import Data.Time (addUTCTime, getCurrentTime)
 import Data.UUID qualified as UUID (fromString)
 import Data.UUID.V4 qualified as UUID
 import Imports
-import Network.HTTP.Types qualified as HTTP
-import Network.Wai qualified as Wai
 import Network.Wai.Test qualified as WaiTest
 import Network.Wai.Utilities.Error qualified as Error
 import Numeric.Natural (Natural)
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
-import URI.ByteString
 import UnliftIO.Async (mapConcurrently_, pooledForConcurrentlyN_, replicateConcurrently)
 import Util
 import Util.AWS as Util
@@ -63,7 +55,6 @@ import Wire.API.Asset
 import Wire.API.Connection
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Team hiding (newTeam)
-import Wire.API.Team.Feature
 import Wire.API.Team.Feature qualified as Public
 import Wire.API.Team.Invitation
 import Wire.API.Team.Member hiding (invitation, userId)
@@ -88,8 +79,6 @@ tests conf m n b c g aws = do
           [ test m "post /teams/:tid/invitations - 201" $ testInvitationEmail b,
             test m "get /teams/:tid/invitations/:iid - 200" $ testGetInvitation b,
             test m "delete /teams/:tid/invitations/:iid - 200" $ testDeleteInvitation b,
-            test m "post /teams/:tid/invitations - invitation url" $ testInvitationUrl conf b,
-            test m "post /teams/:tid/invitations - no invitation url" $ testNoInvitationUrl conf b,
             test m "post /teams/:tid/invitations - email lookup" $ testInvitationEmailLookup b,
             test m "post /teams/:tid/invitations - email lookup nginz" $ testInvitationEmailLookupNginz b n,
             test m "post /teams/:tid/invitations - email lookup register" $ testInvitationEmailLookupRegister b,
@@ -232,80 +221,6 @@ testDeleteInvitation brig = do
   iid <- inInvitation <$> (responseJsonError =<< postInvitation brig tid inviter invite <!! do const 201 === statusCode)
   deleteInvitation brig tid iid inviter
   getInvitation brig tid iid inviter !!! do const 404 === statusCode
-
--- FUTUREWORK: This test should be rewritten to be free of mocks once Galley is
--- inlined into Brig.
-testInvitationUrl :: Opt.Opts -> Brig -> Http ()
-testInvitationUrl opts brig = do
-  (inviter, tid) <- createUserWithTeam brig
-  invite <- stdInvitationRequest <$> randomEmail
-
-  void . withMockedGalley opts (invitationUrlGalleyMock FeatureStatusEnabled tid inviter) $ do
-    resp <-
-      postInvitation brig tid inviter invite
-        <!! (const 201 === statusCode)
-
-    inv :: Invitation <- responseJsonError resp
-    invCode <- getInvitationCode brig tid (inInvitation inv)
-    liftIO $ do
-      assertInvitationResponseInvariants invite inv
-      isJust invCode @? "Expect an invitation code in the backend"
-      Just inviter @=? inCreatedBy inv
-      tid @=? inTeam inv
-      getQueryParam "team_code" resp @=? (invCode <&> (toStrict . toByteString))
-      getQueryParam "team" resp @=? (pure . encodeUtf8 . idToText) tid
-
-getQueryParam :: ByteString -> ResponseLBS -> Maybe ByteString
-getQueryParam name r = do
-  inv <- (eitherToMaybe . responseJsonEither) r
-  url <- inInviteeUrl inv
-  (lookup name . queryPairs . uriQuery) url
-
--- | Mock the feature API because exposeInvitationURLsToTeamAdmin depends on
--- static configuration that cannot be changed at runtime.
-invitationUrlGalleyMock ::
-  FeatureStatus ->
-  TeamId ->
-  UserId ->
-  ReceivedRequest ->
-  MockT IO Wai.Response
-invitationUrlGalleyMock featureStatus tid inviter (ReceivedRequest mth pth _body)
-  | mth == "GET"
-      && pth == ["i", "teams", Text.pack (show tid), "features", "exposeInvitationURLsToTeamAdmin"] =
-      pure . Wai.responseLBS HTTP.status200 mempty $
-        encode
-          ( withStatus
-              featureStatus
-              LockStatusUnlocked
-              ExposeInvitationURLsToTeamAdminConfig
-              FeatureTTLUnlimited
-          )
-  | mth == "GET"
-      && pth == ["i", "teams", Text.pack (show tid), "members", Text.pack (show inviter)] =
-      pure . Wai.responseLBS HTTP.status200 mempty $
-        encode (mkTeamMember inviter fullPermissions Nothing UserLegalHoldDisabled)
-  | otherwise = pure $ Wai.responseLBS HTTP.status500 mempty "Unexpected request to mocked galley"
-
--- FUTUREWORK: This test should be rewritten to be free of mocks once Galley is
--- inlined into Brig.
-testNoInvitationUrl :: Opt.Opts -> Brig -> Http ()
-testNoInvitationUrl opts brig = do
-  (inviter, tid) <- createUserWithTeam brig
-  invite <- stdInvitationRequest <$> randomEmail
-
-  void . withMockedGalley opts (invitationUrlGalleyMock FeatureStatusDisabled tid inviter) $ do
-    resp <-
-      postInvitation brig tid inviter invite
-        <!! (const 201 === statusCode)
-
-    inv :: Invitation <- responseJsonError resp
-    invCode <- getInvitationCode brig tid (inInvitation inv)
-    liftIO $ do
-      assertInvitationResponseInvariants invite inv
-      isJust invCode @? "Expect an invitation code in the backend"
-      Just inviter @=? inCreatedBy inv
-      tid @=? inTeam inv
-      (isNothing . inInviteeUrl) inv @? "No invitation url expected"
 
 testInvitationEmailLookup :: Brig -> Http ()
 testInvitationEmailLookup brig = do

@@ -28,6 +28,7 @@ instance Default CreateUser where
         supportedProtocols = Nothing
       }
 
+-- | TODO: use public onboarding flows here.  all of them!!
 createUser :: (HasCallStack, MakesValue domain) => domain -> CreateUser -> App Response
 createUser domain cu = do
   re <- randomEmail

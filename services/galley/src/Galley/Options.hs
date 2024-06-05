@@ -99,6 +99,7 @@ data Settings = Settings
     -- | List of teams for which the invitation URL can be added to the list of all
     -- invitations retrievable by team admins.  See also:
     -- 'ExposeInvitationURLsToTeamAdminConfig'.
+    -- FUTUREWORK: this should be part of featureFlags (it's implemented the same way as all the other "flags").
     _exposeInvitationURLsTeamAllowlist :: !(Maybe [TeamId]),
     -- | Max number of members in a conversation. NOTE: This must be in sync with Brig
     _maxConvSize :: !Word16,

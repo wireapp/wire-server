@@ -97,6 +97,7 @@ data FeatureFlags = FeatureFlags
     _flagMlsMigration :: !(Defaults (WithStatus MlsMigrationConfig)),
     _flagEnforceFileDownloadLocation :: !(Defaults (WithStatus EnforceFileDownloadLocationConfig)),
     _flagLimitedEventFanout :: !(Defaults (ImplicitLockStatus LimitedEventFanoutConfig))
+    -- TODO: ExposeInvitationURLsToTeamAdminConfig?
   }
   deriving (Eq, Show, Generic)
 
