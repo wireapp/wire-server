@@ -41,10 +41,6 @@ userSubsystemErrorToWai =
 
 instance Exception UserSubsystemError
 
-data HasE2EId = HasE2EId | DoesNotHaveE2EId
-  deriving (Show, Eq, Ord, Generic)
-  deriving (Arbitrary) via GenericUniform HasE2EId
-
 -- | Who is performing this update operation?  (Single source of truth: users managed by SCIM
 -- can't be updated by clients and vice versa.)
 data UpdateOriginType

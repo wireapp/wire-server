@@ -313,8 +313,8 @@ spec = describe "UserSubsystem.Interpreter" do
 
     prop
       "if e2e identity is activated, the user name cannot be updated"
-      \(NotPendingStoredUser alice) localDomain update name config ->
-        alice.name /= name ==>
+      \(NotPendingStoredUser alice) localDomain (newName :: Name) config ->
+        (alice.name /= newName) ==>
           let lusr = toLocalUnsafe localDomain alice.id
               localBackend = def {users = [alice]}
               profileErr :: Either UserSubsystemError (Maybe UserProfile) =
@@ -322,9 +322,9 @@ spec = describe "UserSubsystem.Interpreter" do
                   . runErrorUnsafe
                   . runError
                   $ interpretNoFederationStack localBackend Nothing def {afcMlsE2EId = setStatus FeatureStatusEnabled defFeatureStatus} config do
-                    updateUserProfile lusr Nothing UpdateOriginScim (update {name = Just name})
+                    updateUserProfile lusr Nothing UpdateOriginScim (def {name = Just newName})
                     getUserProfile lusr (tUntagged lusr)
-           in Left UserSubsystemDisplayNameManagedByScim === profileErr
+           in profileErr === Left UserSubsystemDisplayNameManagedByScim
 
     prop
       "CheckHandle succeeds if there is a user with that handle"

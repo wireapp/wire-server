@@ -240,9 +240,9 @@ getSelfProfileImpl ::
 getSelfProfileImpl self = do
   defLocale <- inputs defaultLocale
   mStoredUser <- getUser (tUnqualified self)
-  let mUser = mkUserFromStored (tDomain self) defLocale <$> mStoredUser
-  mHackedUser <- traverse hackForBlockingHandleChangeForE2EIdTeams mUser
-  pure (SelfProfile <$> mHackedUser)
+  mHackedUser <- traverse hackForBlockingHandleChangeForE2EIdTeams mStoredUser
+  let mUser = mkUserFromStored (tDomain self) defLocale <$> mHackedUser
+  pure (SelfProfile <$> mUser)
   where
     -- \| This is a hack!
     --
@@ -251,12 +251,12 @@ getSelfProfileImpl self = do
     -- - comments in `testUpdateHandle` in `/integration`.
     --
     -- FUTUREWORK: figure out a better way for clients to detect E2EId (V6?)
-    hackForBlockingHandleChangeForE2EIdTeams :: Member GalleyAPIAccess r => User -> Sem r User
+    hackForBlockingHandleChangeForE2EIdTeams :: Member GalleyAPIAccess r => StoredUser -> Sem r StoredUser
     hackForBlockingHandleChangeForE2EIdTeams user = do
-      hasE2EId <- checkE2EId (userId user)
+      e2eid <- hasE2EId user
       pure $
-        if (hasE2EId == HasE2EId && isJust (userHandle user))
-          then user {userManagedBy = ManagedByScim}
+        if e2eid && isJust user.handle
+          then user {managedBy = Just ManagedByScim}
           else user
 
 -- | ephemeral users past their expiry date are queued for deletion
@@ -311,36 +311,40 @@ getUserProfilesWithErrorsImpl self others = do
 -- | Some fields cannot be overwritten by clients for scim-managed users; some others if e2eid
 -- is used.  If a client attempts to overwrite any of these, throw `UserSubsystem*ManagedByScim`.
 guardLockedFields ::
-  (Member (Error UserSubsystemError) r) =>
+  ( Member (Error UserSubsystemError) r,
+    Member GalleyAPIAccess r
+  ) =>
   StoredUser ->
   UpdateOriginType ->
-  HasE2EId ->
   UserProfileUpdate ->
   Sem r ()
-guardLockedFields user updateOrigin hasE2EId (MkUserProfileUpdate {..})
-  | ((updateOrigin == UpdateOriginWireClient && user.managedBy == Just ManagedByScim) || hasE2EId == HasE2EId)
-      && isJust name
-      && name /= Just user.name =
-      throw UserSubsystemDisplayNameManagedByScim
-  | (updateOrigin == UpdateOriginWireClient && user.managedBy == Just ManagedByScim)
-      && isJust locale
-      && locale /= user.locale =
-      throw UserSubsystemLocaleManagedByScim
-  -- NOT MANAGED BY SCIM (so no errors there): pict, assets, accentId, supportedProtocols.
-  | otherwise = pure ()
+guardLockedFields user updateOrigin (MkUserProfileUpdate {..}) = do
+  let idempName = isNothing name || name == Just user.name
+      idempLocale = isNothing locale || locale == user.locale
+      scim = updateOrigin == UpdateOriginWireClient && user.managedBy == Just ManagedByScim
+  e2eid <- hasE2EId user
+  when ((scim || e2eid) && not idempName) do
+    throw UserSubsystemDisplayNameManagedByScim
+  when (scim {- e2eid does not matter, it's not part of the e2eid cert! -} && not idempLocale) do
+    throw UserSubsystemLocaleManagedByScim
+  -- NOT MANAGED BY SCIM / E2EId (so no errors there): pict, assets, accentId, supportedProtocols.
+  pure ()
 
 guardLockedHandleField ::
-  (Member (Error UserSubsystemError) r) =>
+  ( Member GalleyAPIAccess r,
+    Member (Error UserSubsystemError) r
+  ) =>
   StoredUser ->
   UpdateOriginType ->
-  HasE2EId ->
   Handle ->
   Sem r ()
-guardLockedHandleField user updateOrigin hasE2EId handle
-  | ((updateOrigin == UpdateOriginWireClient && user.managedBy == Just ManagedByScim) || hasE2EId == HasE2EId)
-      && Just handle /= user.handle =
-      throw UserSubsystemHandleManagedByScim
-  | otherwise = pure ()
+guardLockedHandleField user updateOrigin handle = do
+  let idemp = Just handle == user.handle
+      scim = updateOrigin == UpdateOriginWireClient && user.managedBy == Just ManagedByScim
+      hasHandle = isJust user.handle
+  e2eid <- hasE2EId user
+  when ((scim || (e2eid && hasHandle)) && not idemp) do
+    throw UserSubsystemHandleManagedByScim
 
 updateUserProfileImpl ::
   ( Member UserStore r,
@@ -355,8 +359,7 @@ updateUserProfileImpl ::
   Sem r ()
 updateUserProfileImpl (tUnqualified -> uid) mconn updateOrigin update = do
   user <- getUser uid >>= note UserSubsystemProfileNotFound
-  hasE2EId <- checkE2EId uid
-  guardLockedFields user updateOrigin hasE2EId update
+  guardLockedFields user updateOrigin update
   mapError (\StoredUserUpdateHandleExists -> UserSubsystemHandleExists) $
     updateUser uid (storedUserUpdate update)
   generateUserEvent uid mconn (mkProfileUpdateEvent uid update)
@@ -407,8 +410,7 @@ updateHandleImpl (tUnqualified -> uid) mconn updateOrigin uhandle = do
   when (isBlacklistedHandle newHandle) $
     throw UserSubsystemInvalidHandle
   user <- getUser uid >>= note UserSubsystemNoIdentity
-  hasE2EId <- checkE2EId uid
-  guardLockedHandleField user updateOrigin hasE2EId newHandle
+  guardLockedHandleField user updateOrigin newHandle
   when (isNothing user.identity) $
     throw UserSubsystemNoIdentity
   mapError (\StoredUserUpdateHandleExists -> UserSubsystemHandleExists) $
@@ -427,11 +429,11 @@ checkHandleImpl uhandle = do
     else -- Handle is free and can be taken
       pure CheckHandleNotFound
 
-checkE2EId :: Member GalleyAPIAccess r => UserId -> Sem r HasE2EId
-checkE2EId uid =
-  wsStatus . afcMlsE2EId <$> getAllFeatureConfigsForUser (Just uid) <&> \case
-    FeatureStatusEnabled -> HasE2EId
-    FeatureStatusDisabled -> DoesNotHaveE2EId
+hasE2EId :: Member GalleyAPIAccess r => StoredUser -> Sem r Bool
+hasE2EId user =
+  wsStatus . afcMlsE2EId <$> getAllFeatureConfigsForUser (Just user.id) <&> \case
+    FeatureStatusEnabled -> True
+    FeatureStatusDisabled -> False
 
 --------------------------------------------------------------------------------
 -- Check Handles
