@@ -981,23 +981,9 @@ testCreateAccountPendingActivationKey _ brig = do
   -- update phone
   let phoneUpdate = RequestBodyLBS . encode $ PhoneUpdate phn
   put (brig . path "/self/phone" . contentJson . zUser uid . zConn "c" . body phoneUpdate)
-    !!! (const 202 === statusCode)
-  -- create a new user with that phone/code
-  act <- getActivationCode brig (Right phn)
-  case act of
-    Nothing -> liftIO $ assertFailure "missing activation key/code"
-    Just kc@(_, c) -> do
-      let p =
-            RequestBodyLBS . encode $
-              object
-                [ "name" .= ("foo" :: Text),
-                  "phone" .= phn,
-                  "phone_code" .= c
-                ]
-      post (brig . path "/register" . contentJson . body p)
-        !!! const 201 === statusCode
-      -- try to activate already active phone
-      activate brig kc !!! const 409 === statusCode
+    !!! do
+      const 400 === statusCode
+      const (Just "invalid-phone") === fmap Error.label . responseJsonMaybe
 
 testUserLocaleUpdate :: Brig -> UserJournalWatcher -> Http ()
 testUserLocaleUpdate brig userJournalWatcher = do
