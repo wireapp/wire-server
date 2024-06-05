@@ -92,14 +92,6 @@ type SternAPI =
                :> Get '[JSON] [UserAccount]
            )
     :<|> Named
-           "get-users-by-phone"
-           ( Summary "Displays user's info given a phone number"
-               :> "users"
-               :> "by-phone"
-               :> QueryParam' [Required, Strict, Description "Phone number"] "phone" Phone
-               :> Get '[JSON] [UserAccount]
-           )
-    :<|> Named
            "get-users-by-ids"
            ( Summary "Displays active users info given a list of ids"
                :> "users"
@@ -144,7 +136,7 @@ type SternAPI =
            )
     :<|> Named
            "revoke-identity"
-           ( Summary "Revoke a verified user identity.  Specify exactly one of phone, email."
+           ( Summary "Revoke a verified user identity.  Specify email."
                :> Description
                     "Forcefully revokes a verified user identity. \
                     \WARNING: If the given identity is the only verified \
@@ -153,8 +145,7 @@ type SternAPI =
                     \If the given identity is not taken / verified, this is a no-op."
                :> "users"
                :> "revoke-identity"
-               :> QueryParam' [Optional, Strict, Description "A verified email address"] "email" Email
-               :> QueryParam' [Optional, Strict, Description "A verified phone number (E.164 format)."] "phone" Phone
+               :> QueryParam' [Required, Strict, Description "A verified email address"] "email" Email
                :> Post '[JSON] NoContent
            )
     :<|> Named
@@ -168,24 +159,13 @@ type SternAPI =
                :> Put '[JSON] NoContent
            )
     :<|> Named
-           "put-phone"
-           ( Summary "Change a user's phone number."
-               :> Description "The new phone number must be verified before the change takes effect."
-               :> "users"
-               :> Capture "uid" UserId
-               :> "phone"
-               :> Servant.ReqBody '[JSON] PhoneUpdate
-               :> Put '[JSON] NoContent
-           )
-    :<|> Named
            "delete-user"
            ( Summary "Delete a user (irrevocable!)"
                :> Description
-                    "Email or Phone must match UserId's (to prevent copy/paste mistakes).  Use exactly one of the two query params."
+                    "Email must match UserId's (to prevent copy/paste mistakes)."
                :> "users"
                :> Capture "uid" UserId
-               :> QueryParam' [Optional, Strict, Description "A verified email address"] "email" Email
-               :> QueryParam' [Optional, Strict, Description "A verified phone number (E.164 format)."] "phone" Phone
+               :> QueryParam' [Required, Strict, Description "A verified email address"] "email" Email
                :> Delete '[JSON] NoContent
            )
     :<|> Named
@@ -228,29 +208,26 @@ type SternAPI =
            )
     :<|> Named
            "head-user-blacklist"
-           ( Summary "Fetch blacklist information on a email/phone (200: blacklisted; 404: not blacklisted)"
+           ( Summary "Fetch blacklist information on a email (200: blacklisted; 404: not blacklisted)"
                :> "users"
                :> "blacklist"
-               :> QueryParam' [Optional, Strict, Description "A verified email address"] "email" Email
-               :> QueryParam' [Optional, Strict, Description "A verified phone number (E.164 format)."] "phone" Phone
+               :> QueryParam' [Required, Strict, Description "A verified email address"] "email" Email
                :> Verb 'GET 200 '[JSON] NoContent
            )
     :<|> Named
            "post-user-blacklist"
-           ( Summary "Add the email/phone to our blacklist"
+           ( Summary "Add the email to our blacklist"
                :> "users"
                :> "blacklist"
-               :> QueryParam' [Optional, Strict, Description "A verified email address"] "email" Email
-               :> QueryParam' [Optional, Strict, Description "A verified phone number (E.164 format)."] "phone" Phone
+               :> QueryParam' [Required, Strict, Description "A verified email address"] "email" Email
                :> Post '[JSON] NoContent
            )
     :<|> Named
            "delete-user-blacklist"
-           ( Summary "Remove the email/phone from our blacklist"
+           ( Summary "Remove the email from our blacklist"
                :> "users"
                :> "blacklist"
-               :> QueryParam' [Optional, Strict, Description "A verified email address"] "email" Email
-               :> QueryParam' [Optional, Strict, Description "A verified phone number (E.164 format)."] "phone" Phone
+               :> QueryParam' [Required, Strict, Description "A verified email address"] "email" Email
                :> Delete '[JSON] NoContent
            )
     :<|> Named

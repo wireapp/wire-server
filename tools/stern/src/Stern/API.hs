@@ -129,7 +129,6 @@ sitemap' =
   Named @"suspend-user" suspendUser
     :<|> Named @"unsuspend-user" unsuspendUser
     :<|> Named @"get-users-by-email" usersByEmail
-    :<|> Named @"get-users-by-phone" usersByPhone
     :<|> Named @"get-users-by-ids" usersByIds
     :<|> Named @"get-users-by-handles" usersByHandles
     :<|> Named @"get-user-connections" userConnections
@@ -137,7 +136,6 @@ sitemap' =
     :<|> Named @"search-users" searchOnBehalf
     :<|> Named @"revoke-identity" revokeIdentity
     :<|> Named @"put-email" changeEmail
-    :<|> Named @"put-phone" changePhone
     :<|> Named @"delete-user" deleteUser
     :<|> Named @"suspend-team" (setTeamStatusH Team.Suspended)
     :<|> Named @"unsuspend-team" (setTeamStatusH Team.Active)
@@ -210,10 +208,7 @@ unsuspendUser :: UserId -> Handler NoContent
 unsuspendUser uid = NoContent <$ Intra.putUserStatus Active uid
 
 usersByEmail :: Email -> Handler [UserAccount]
-usersByEmail = Intra.getUserProfilesByIdentity . Left
-
-usersByPhone :: Phone -> Handler [UserAccount]
-usersByPhone _ = throwE invalidPhoneError
+usersByEmail = Intra.getUserProfilesByIdentity
 
 usersByIds :: [UserId] -> Handler [UserAccount]
 usersByIds = Intra.getUserProfiles . Left
@@ -237,19 +232,15 @@ searchOnBehalf
   (fromMaybe (unsafeRange 10) . checked @1 @100 @Int32 . fromMaybe 10 -> s) =
     Intra.getContacts uid q (fromRange s)
 
-revokeIdentity :: Maybe Email -> Maybe Phone -> Handler NoContent
-revokeIdentity mbe mbp = NoContent <$ (Intra.revokeIdentity =<< doubleMaybeToEither "email, phone" mbe mbp)
+revokeIdentity :: Email -> Handler NoContent
+revokeIdentity e = NoContent <$ Intra.revokeIdentity e
 
 changeEmail :: UserId -> EmailUpdate -> Handler NoContent
 changeEmail uid upd = NoContent <$ Intra.changeEmail uid upd
 
-changePhone :: UserId -> PhoneUpdate -> Handler NoContent
-changePhone _ _ = throwE invalidPhoneError
-
-deleteUser :: UserId -> Maybe Email -> Maybe Phone -> Handler NoContent
-deleteUser uid mbEmail mbPhone = do
-  emailOrPhone <- doubleMaybeToEither "email, phone" mbEmail mbPhone
-  usrs <- Intra.getUserProfilesByIdentity emailOrPhone
+deleteUser :: UserId -> Email -> Handler NoContent
+deleteUser uid email = do
+  usrs <- Intra.getUserProfilesByIdentity email
   case usrs of
     [accountUser -> u] ->
       if userId u == uid
@@ -257,7 +248,7 @@ deleteUser uid mbEmail mbPhone = do
           info $ userMsg uid . msg (val "Deleting account")
           void $ Intra.deleteAccount uid
           pure NoContent
-        else throwE $ mkError status400 "match-error" "email or phone did not match UserId"
+        else throwE $ mkError status400 "match-error" "email did not match UserId"
     (_ : _ : _) -> error "impossible"
     _ -> throwE $ mkError status404 "not-found" "not found"
 
@@ -266,7 +257,7 @@ setTeamStatusH status tid = NoContent <$ Intra.setStatusBindingTeam tid status
 
 deleteTeam :: TeamId -> Maybe Bool -> Maybe Email -> Handler NoContent
 deleteTeam givenTid (fromMaybe False -> False) (Just email) = do
-  acc <- Intra.getUserProfilesByIdentity (Left email) >>= handleNoUser . listToMaybe
+  acc <- Intra.getUserProfilesByIdentity email >>= handleNoUser . listToMaybe
   userTid <- (Intra.getUserBindingTeam . userId . accountUser $ acc) >>= handleNoTeam
   when (givenTid /= userTid) $
     throwE bindingTeamMismatch
@@ -285,27 +276,24 @@ deleteTeam tid (fromMaybe False -> True) _ = do
 deleteTeam _ _ _ =
   throwE $ mkError status400 "Bad Request" "either email or 'force=true' parameter is required"
 
-isUserKeyBlacklisted :: Maybe Email -> Maybe Phone -> Handler NoContent
-isUserKeyBlacklisted mbemail mbphone = do
-  emailOrPhone <- doubleMaybeToEither "email, phone" mbemail mbphone
-  bl <- Intra.isBlacklisted emailOrPhone
+isUserKeyBlacklisted :: Email -> Handler NoContent
+isUserKeyBlacklisted email = do
+  bl <- Intra.isBlacklisted email
   if bl
     then throwE $ mkError status200 "blacklisted" "The given user key IS blacklisted"
     else throwE $ mkError status404 "not-blacklisted" "The given user key is NOT blacklisted"
 
-addBlacklist :: Maybe Email -> Maybe Phone -> Handler NoContent
-addBlacklist mbemail mbphone = do
-  emailOrPhone <- doubleMaybeToEither "email, phone" mbemail mbphone
-  NoContent <$ Intra.setBlacklistStatus True emailOrPhone
+addBlacklist :: Email -> Handler NoContent
+addBlacklist email = do
+  NoContent <$ Intra.setBlacklistStatus True email
 
-deleteFromBlacklist :: Maybe Email -> Maybe Phone -> Handler NoContent
-deleteFromBlacklist mbemail mbphone = do
-  emailOrPhone <- doubleMaybeToEither "email, phone" mbemail mbphone
-  NoContent <$ Intra.setBlacklistStatus False emailOrPhone
+deleteFromBlacklist :: Email -> Handler NoContent
+deleteFromBlacklist email = do
+  NoContent <$ Intra.setBlacklistStatus False email
 
 getTeamInfoByMemberEmail :: Email -> Handler TeamInfo
 getTeamInfoByMemberEmail e = do
-  acc <- Intra.getUserProfilesByIdentity (Left e) >>= handleUser . listToMaybe
+  acc <- Intra.getUserProfilesByIdentity e >>= handleUser . listToMaybe
   tid <- (Intra.getUserBindingTeam . userId . accountUser $ acc) >>= handleTeam
   Intra.getTeamInfo tid
   where
@@ -416,7 +404,7 @@ setTeamBillingInfo tid billingInfo = do
 
 getConsentLog :: Email -> Handler ConsentLogAndMarketo
 getConsentLog e = do
-  acc <- listToMaybe <$> Intra.getUserProfilesByIdentity (Left e)
+  acc <- listToMaybe <$> Intra.getUserProfilesByIdentity e
   when (isJust acc) $
     throwE $
       mkError status403 "user-exists" "Trying to access consent log of existing user!"
@@ -502,6 +490,3 @@ ifNothing e = maybe (throwE e) pure
 
 noSuchUser :: Maybe a -> Handler a
 noSuchUser = ifNothing (mkError status404 "no-user" "No such user")
-
-invalidPhoneError :: Error
-invalidPhoneError = mkError status400 "invalid-phone" "Phone numbers are no longer supported"

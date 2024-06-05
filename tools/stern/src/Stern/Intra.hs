@@ -253,8 +253,8 @@ getUserProfiles uidsOrHandles = do
       fmap (BS.intercalate "," . map toByteString')
         . chunksOf 50
 
-getUserProfilesByIdentity :: Either Email Phone -> Handler [UserAccount]
-getUserProfilesByIdentity emailOrPhone = do
+getUserProfilesByIdentity :: Email -> Handler [UserAccount]
+getUserProfilesByIdentity email = do
   info $ msg "Getting user accounts by identity"
   b <- view brig
   r <-
@@ -264,7 +264,7 @@ getUserProfilesByIdentity emailOrPhone = do
         b
         ( method GET
             . Bilge.path "i/users"
-            . userKeyToParam emailOrPhone
+            . userKeyToParam email
             . expect2xx
         )
   parseResponse (mkError status502 "bad-upstream") r
@@ -311,8 +311,8 @@ getContacts u q s = do
   parseResponse (mkError status502 "bad-upstream") r
 
 -- TODO(md): drop phone option
-revokeIdentity :: Either Email Phone -> Handler ()
-revokeIdentity emailOrPhone = do
+revokeIdentity :: Email -> Handler ()
+revokeIdentity email = do
   info $ msg "Revoking user identity"
   b <- view brig
   void
@@ -322,7 +322,7 @@ revokeIdentity emailOrPhone = do
       b
       ( method POST
           . Bilge.path "i/users/revoke-identity"
-          . userKeyToParam emailOrPhone
+          . userKeyToParam email
           . expect2xx
       )
 
@@ -504,8 +504,8 @@ setTeamBillingInfo tid tbu = do
           . expect2xx
       )
 
-isBlacklisted :: Either Email Phone -> Handler Bool
-isBlacklisted emailOrPhone = do
+isBlacklisted :: Email -> Handler Bool
+isBlacklisted email = do
   info $ msg "Checking blacklist"
   b <- view brig
   resp <-
@@ -515,15 +515,15 @@ isBlacklisted emailOrPhone = do
         b
         ( method GET
             . Bilge.path "i/users/blacklist"
-            . userKeyToParam emailOrPhone
+            . userKeyToParam email
         )
   case Bilge.statusCode resp of
     200 -> pure True
     404 -> pure False
     _ -> throwE (mkError status502 "bad-upstream" (errorMessage resp))
 
-setBlacklistStatus :: Bool -> Either Email Phone -> Handler ()
-setBlacklistStatus status emailOrPhone = do
+setBlacklistStatus :: Bool -> Email -> Handler ()
+setBlacklistStatus status email = do
   info $ msg "Changing blacklist status"
   b <- view brig
   void
@@ -533,7 +533,7 @@ setBlacklistStatus status emailOrPhone = do
       b
       ( method (statusToMethod status)
           . Bilge.path "i/users/blacklist"
-          . userKeyToParam emailOrPhone
+          . userKeyToParam email
           . expect2xx
       )
   where
@@ -680,9 +680,8 @@ setSearchVisibility tid typ = do
 stripBS :: ByteString -> ByteString
 stripBS = encodeUtf8 . strip . decodeUtf8
 
-userKeyToParam :: Either Email Phone -> Request -> Request
-userKeyToParam (Left e) = queryItem "email" (stripBS $ toByteString' e)
-userKeyToParam (Right p) = queryItem "phone" (stripBS $ toByteString' p)
+userKeyToParam :: Email -> Request -> Request
+userKeyToParam e = queryItem "email" (stripBS $ toByteString' e)
 
 errorMessage :: Response (Maybe LByteString) -> LText
 errorMessage = maybe "" TL.decodeUtf8 . responseBody
