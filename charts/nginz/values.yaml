@@ -232,6 +232,10 @@ nginx_conf:
     - path: /properties
       envs:
       - all
+    - path: /provider$
+      envs:
+      - all
+      allow_credentials: true
     - path: /provider/register
       envs:
       - all
@@ -253,16 +257,28 @@ nginx_conf:
       envs:
       - all
       disable_zauth: true
+    - path: /provider/email
+      envs:
+      - all
+      allow_credentials: true
+    - path: /provider/password
+      envs:
+      - all
+      allow_credentials: true
+    - path: /provider/pid
+      envs:
+      - all
+      allow_credentials: true
+    - path: /provider/services
+      envs:
+      - all
+      allow_credentials: true
     - path: /providers
       envs:
       - all
     - path: /services
       envs:
       - all
-    - path: /provider
-      envs:
-      - all
-      allow_credentials: true
     - path: /bot/self
       envs:
       - all
