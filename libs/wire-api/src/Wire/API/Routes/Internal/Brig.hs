@@ -307,29 +307,6 @@ type AccountAPI =
                :> Post '[Servant.JSON] NoContent
            )
     :<|> Named
-           "iGetPhonePrefix"
-           ( Summary
-               "given a phone number (or phone number prefix), see whether it is blocked \
-               \via a prefix (and if so, via which specific prefix)"
-               :> "users"
-               :> "phone-prefixes"
-               :> Capture "prefix" PhonePrefix
-               :> MultiVerb
-                    'GET
-                    '[Servant.JSON]
-                    '[ RespondEmpty 404 "PhonePrefixNotFound",
-                       Respond 200 "PhonePrefixesFound" [ExcludedPrefix]
-                     ]
-                    GetPhonePrefixResponse
-           )
-    :<|> Named
-           "iDeletePhonePrefix"
-           ( "users"
-               :> "phone-prefixes"
-               :> Capture "prefix" PhonePrefix
-               :> Delete '[Servant.JSON] NoContent
-           )
-    :<|> Named
            "iPutUserSsoId"
            ( "users"
                :> Capture "uid" UserId

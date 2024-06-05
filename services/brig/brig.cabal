@@ -117,8 +117,6 @@ library
     Brig.Data.User
     Brig.Data.UserKey
     Brig.DeleteQueue.Interpreter
-    Brig.Effects.BlacklistPhonePrefixStore
-    Brig.Effects.BlacklistPhonePrefixStore.Cassandra
     Brig.Effects.BlacklistStore
     Brig.Effects.BlacklistStore.Cassandra
     Brig.Effects.CodeStore
@@ -148,7 +146,6 @@ library
     Brig.IO.Logging
     Brig.Locale
     Brig.Options
-    Brig.Phone
     Brig.Provider.API
     Brig.Provider.DB
     Brig.Provider.Email
@@ -216,7 +213,6 @@ library
     Brig.User.Auth.DB.Instances
     Brig.User.EJPD
     Brig.User.Email
-    Brig.User.Phone
     Brig.User.Search.Index
     Brig.User.Search.Index.Types
     Brig.User.Search.SearchIndex

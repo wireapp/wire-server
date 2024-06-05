@@ -38,7 +38,6 @@ import Brig.Data.Client qualified as Data
 import Brig.Data.Connection qualified as Data
 import Brig.Data.MLS.KeyPackage qualified as Data
 import Brig.Data.User qualified as Data
-import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.CodeStore (CodeStore)
 import Brig.Effects.ConnectionStore (ConnectionStore)
@@ -114,8 +113,7 @@ import Wire.UserSubsystem qualified as UserSubsystem
 
 servantSitemap ::
   forall r p.
-  ( Member BlacklistPhonePrefixStore r,
-    Member BlacklistStore r,
+  ( Member BlacklistStore r,
     Member DeleteQueue r,
     Member CodeStore r,
     Member (Concurrency 'Unsafe) r,
@@ -168,7 +166,6 @@ mlsAPI = getMLSClients
 accountAPI ::
   ( Member BlacklistStore r,
     Member CodeStore r,
-    Member BlacklistPhonePrefixStore r,
     Member PasswordResetStore r,
     Member GalleyAPIAccess r,
     Member DeleteQueue r,
@@ -203,8 +200,6 @@ accountAPI =
     :<|> Named @"iHeadBlacklist" checkBlacklist
     :<|> Named @"iDeleteBlacklist" deleteFromBlacklist
     :<|> Named @"iPostBlacklist" addBlacklist
-    :<|> Named @"iGetPhonePrefix" (callsFed (exposeAnnotations getPhonePrefixesH))
-    :<|> Named @"iDeletePhonePrefix" deleteFromPhonePrefixH
     :<|> Named @"iPutUserSsoId" updateSSOIdH
     :<|> Named @"iDeleteUserSsoId" deleteSSOIdH
     :<|> Named @"iPutManagedBy" updateManagedByH
@@ -687,19 +682,6 @@ deleteFromBlacklist email = lift $ NoContent <$ API.blacklistDelete email
 
 addBlacklist :: Member BlacklistStore r => Email -> Handler r NoContent
 addBlacklist email = lift $ NoContent <$ API.blacklistInsert email
-
--- | Get any matching prefixes. Also try for shorter prefix matches,
--- i.e. checking for +123456 also checks for +12345, +1234, ...
-getPhonePrefixesH :: Member BlacklistPhonePrefixStore r => PhonePrefix -> (Handler r) GetPhonePrefixResponse
-getPhonePrefixesH prefix = lift $ do
-  results <- API.phonePrefixGet prefix
-  pure $ case results of
-    [] -> PhonePrefixNotFound
-    (_ : _) -> PhonePrefixesFound results
-
--- | Delete a phone prefix entry (must be an exact match)
-deleteFromPhonePrefixH :: Member BlacklistPhonePrefixStore r => PhonePrefix -> (Handler r) NoContent
-deleteFromPhonePrefixH prefix = lift $ NoContent <$ API.phonePrefixDelete prefix
 
 updateSSOIdH ::
   ( Member (Embed HttpClientIO) r,

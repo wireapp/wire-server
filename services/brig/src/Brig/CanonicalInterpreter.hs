@@ -2,8 +2,6 @@ module Brig.CanonicalInterpreter where
 
 import Brig.App as App
 import Brig.DeleteQueue.Interpreter as DQ
-import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
-import Brig.Effects.BlacklistPhonePrefixStore.Cassandra (interpretBlacklistPhonePrefixStoreToCassandra)
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.BlacklistStore.Cassandra (interpretBlacklistStoreToCassandra)
 import Brig.Effects.CodeStore (CodeStore)
@@ -82,7 +80,6 @@ type BrigCanonicalEffects =
      Jwk,
      PublicKeyBundle,
      JwtTools,
-     BlacklistPhonePrefixStore,
      BlacklistStore,
      PasswordResetStore,
      UserPendingActivationStore InternalPaging,
@@ -138,7 +135,6 @@ runBrigToIO e (AppT ma) = do
               . userPendingActivationStoreToCassandra
               . passwordResetStoreToCodeStore
               . interpretBlacklistStoreToCassandra @Cas.Client
-              . interpretBlacklistPhonePrefixStoreToCassandra @Cas.Client
               . interpretJwtTools
               . interpretPublicKeyBundle
               . interpretJwk
