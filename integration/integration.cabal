@@ -138,6 +138,7 @@ library
     Test.MLS.Unreachable
     Test.Notifications
     Test.Presence
+    Test.Provider
     Test.PushToken
     Test.Roles
     Test.Search

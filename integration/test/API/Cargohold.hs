@@ -32,38 +32,45 @@ uploadAssetV3 user isPublic retention mimeType bdy = do
     req
       & zUser uid
       & addBody body multipartMixedMime
-  where
-    multipartMixedMime :: String
-    multipartMixedMime = "multipart/mixed; boundary=" <> multipartBoundary
 
 uploadAsset :: (HasCallStack, MakesValue user) => user -> App Response
 uploadAsset = flip uploadFreshAsset "Hello World!"
+
+uploadProviderAsset :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
+uploadProviderAsset domain pid payload = do
+  req <- rawBaseRequest domain Cargohold Versioned $ joinHttpPath ["provider", "assets"]
+  bdy <- txtAsset payload
+  submit "POST" $
+    req
+      & zProvider pid
+      & zType "provider"
+      & addBody bdy multipartMixedMime
 
 uploadFreshAsset :: (HasCallStack, MakesValue user) => user -> String -> App Response
 uploadFreshAsset user payload = do
   uid <- user & objId
   req <- baseRequest user Cargohold Versioned "/assets"
-  bdy <- txtAsset
+  bdy <- txtAsset payload
   submit "POST" $
     req
       & zUser uid
       & addBody bdy multipartMixedMime
-  where
-    txtAsset :: HasCallStack => App HTTP.RequestBody
-    txtAsset =
-      buildUploadAssetRequestBody
-        True
-        (Nothing :: Maybe String)
-        (LBSC.pack payload)
-        textPlainMime
 
-    textPlainMime :: MIME.MIMEType
-    textPlainMime = MIME.Text $ T.pack "plain"
+txtAsset :: HasCallStack => String -> App HTTP.RequestBody
+txtAsset payload =
+  buildUploadAssetRequestBody
+    True
+    (Nothing :: Maybe String)
+    (LBSC.pack payload)
+    textPlainMime
 
-    -- This case is a bit special and doesn't fit to MIMEType: We need to define
-    -- the boundary.
-    multipartMixedMime :: String
-    multipartMixedMime = "multipart/mixed; boundary=" <> multipartBoundary
+textPlainMime :: MIME.MIMEType
+textPlainMime = MIME.Text $ T.pack "plain"
+
+-- This case is a bit special and doesn't fit to MIMEType: We need to define
+-- the boundary.
+multipartMixedMime :: String
+multipartMixedMime = "multipart/mixed; boundary=" <> multipartBoundary
 
 mimeTypeToString :: MIME.MIMEType -> String
 mimeTypeToString = T.unpack . MIME.showMIMEType
