@@ -38,7 +38,7 @@ uploadAsset = flip uploadFreshAsset "Hello World!"
 
 uploadProviderAsset :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
 uploadProviderAsset domain pid payload = do
-  req <- rawBaseRequest domain Cargohold Versioned $ joinHttpPath ["providerx", "assets"]
+  req <- rawBaseRequest domain Cargohold Versioned $ joinHttpPath ["provider", "assets"]
   bdy <- txtAsset payload
   submit "POST" $
     req
