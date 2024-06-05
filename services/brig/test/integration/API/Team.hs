@@ -242,6 +242,7 @@ testInvitationUrl opts brig = do
 
   void . withMockedGalley opts (invitationUrlGalleyMock FeatureStatusEnabled tid inviter) $ do
     resp <-
+      -- TODO: postInvitation reaches brig, but since this PR, brig doesn't reach the mock galley any more, but the real galley.  need to make GalleyAPIAccess mock-aware!
       postInvitation brig tid inviter invite
         <!! (const 201 === statusCode)
 
