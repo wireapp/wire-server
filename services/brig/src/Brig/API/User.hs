@@ -106,7 +106,6 @@ import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Connection
 import Brig.Types.Intra
 import Brig.User.Auth.Cookie qualified as Auth
-import Brig.User.Phone
 import Brig.User.Search.Index (reindex)
 import Brig.User.Search.TeamSize qualified as TeamSize
 import Cassandra hiding (Set)
@@ -961,13 +960,12 @@ deleteSelfUser uid pwd = do
           isOwner <- lift $ liftSem $ GalleyAPIAccess.memberIsTeamOwner tid uid
           when isOwner $ throwE DeleteUserOwnerDeletingSelf
     go a = maybe (byIdentity a) (byPassword a) pwd
-    getEmailOrPhone :: UserIdentity -> Maybe (Either Email Phone)
-    getEmailOrPhone (FullIdentity e _) = Just $ Left e
-    getEmailOrPhone (EmailIdentity e) = Just $ Left e
-    getEmailOrPhone (SSOIdentity _ (Just e) _) = Just $ Left e
-    getEmailOrPhone (PhoneIdentity p) = Just $ Right p
-    getEmailOrPhone (SSOIdentity _ _ (Just p)) = Just $ Right p
-    getEmailOrPhone (SSOIdentity _ Nothing Nothing) = Nothing
+    getEmailOrPhone :: UserIdentity -> Maybe Email
+    getEmailOrPhone (FullIdentity e _) = Just e
+    getEmailOrPhone (EmailIdentity e) = Just e
+    getEmailOrPhone (SSOIdentity _ (Just e) _) = Just e
+    getEmailOrPhone (PhoneIdentity _) = Nothing
+    getEmailOrPhone (SSOIdentity _ _ _) = Nothing
     byIdentity a = case getEmailOrPhone =<< userIdentity (accountUser a) of
       Just emailOrPhone -> sendCode a emailOrPhone
       Nothing -> case pwd of
@@ -986,7 +984,7 @@ deleteSelfUser uid pwd = do
             throwE DeleteUserInvalidPassword
           lift . liftSem $ deleteAccount a >> pure Nothing
     sendCode a target = do
-      gen <- Code.mkGen (either Code.ForEmail Code.ForPhone target)
+      gen <- Code.mkGen target
       pending <- lift . wrapClient $ Code.lookup (Code.genKey gen) Code.AccountDeletion
       case pending of
         Just c -> throwE $! DeleteUserPendingCode (Code.codeTTL c)
@@ -1006,10 +1004,7 @@ deleteSelfUser uid pwd = do
           let v = Code.codeValue c
           let l = userLocale (accountUser a)
           let n = userDisplayName (accountUser a)
-          either
-            (\e -> lift $ liftSem $ sendAccountDeletionEmail e n k v l)
-            (\p -> lift $ wrapHttp $ sendDeletionSms p k v l)
-            target
+          lift (liftSem $ sendAccountDeletionEmail target n k v l)
             `onException` wrapClientE (Code.delete k Code.AccountDeletion)
           pure $! Just $! Code.codeTTL c
 
