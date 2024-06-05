@@ -382,7 +382,7 @@ getVerificationCode uid action = do
   where
     lookupCode :: VerificationAction -> Email -> (Handler r) (Maybe Code.Value)
     lookupCode a e = do
-      key <- Code.mkKey (Code.ForEmail e)
+      key <- Code.mkKey e
       code <- wrapClientE $ Code.lookup key (Code.scopeFromAction a)
       pure $ Code.codeValue <$> code
 
