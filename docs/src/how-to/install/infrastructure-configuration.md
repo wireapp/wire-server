@@ -527,23 +527,6 @@ Additionally, you may wish to build, sign, and host your own docker
 images to have increased confidence in those images. We haved "signed
 container images" on our roadmap.
 
-## Sign up with a phone number (Sending SMS)
-
-**Provides**:
-
-- Registering accounts with a phone number
-
-**You need**:
-
-- a [Nexmo](https://www.nexmo.com/) account
-- a [Twilio](https://www.twilio.com/) account
-
-**How to configure**:
-
-See the `brig` chart for configuration.
-
-(rd-party-proxying)=
-
 ## 3rd-party proxying
 
 You need Giphy/Google/Spotify/Soundcloud API keys (if you want to

@@ -103,7 +103,6 @@
 , resource-pool
 , resourcet
 , retry
-, ropes
 , safe
 , safe-exceptions
 , saml2-web-sso
@@ -249,7 +248,6 @@ mkDerivation {
     resource-pool
     resourcet
     retry
-    ropes
     safe-exceptions
     saml2-web-sso
     schema-profunctor

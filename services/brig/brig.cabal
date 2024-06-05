@@ -311,7 +311,6 @@ library
     , resource-pool              >=0.2
     , resourcet                  >=1.1
     , retry                      >=0.7
-    , ropes                      >=0.4.20
     , safe-exceptions            >=0.1
     , saml2-web-sso
     , schema-profunctor

@@ -47,8 +47,6 @@ module Brig.App
     httpManager,
     http2Manager,
     extGetManager,
-    nexmoCreds,
-    twilioCreds,
     settings,
     currentTime,
     zauthEnv,
@@ -144,8 +142,6 @@ import OpenSSL.Session qualified as SSL
 import Polysemy
 import Polysemy.Final
 import Polysemy.Input (Input, input)
-import Ropes.Nexmo qualified as Nexmo
-import Ropes.Twilio qualified as Twilio
 import Ssl.Util
 import System.FSNotify qualified as FS
 import System.Logger.Class hiding (Settings, settings)
@@ -186,8 +182,6 @@ data Env = Env
     _http2Manager :: Http2Manager,
     _extGetManager :: (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ()),
     _settings :: Settings,
-    _nexmoCreds :: Nexmo.Credentials,
-    _twilioCreds :: Twilio.Credentials,
     _fsWatcher :: FS.WatchManager,
     _turnEnv :: Calling.TurnEnv,
     _sftEnv :: Maybe Calling.SFTEnv,
@@ -239,8 +233,6 @@ newEnv o = do
   turnSecret <- Text.encodeUtf8 . Text.strip <$> Text.readFile (Opt.secret turnOpts)
   turn <- Calling.mkTurnEnv (Opt.serversSource turnOpts) (Opt.tokenTTL turnOpts) (Opt.configTTL turnOpts) turnSecret sha512
   let sett = Opt.optSettings o
-  nxm <- initCredentials (Opt.setNexmo sett)
-  twl <- initCredentials (Opt.setTwilio sett)
   eventsQueue :: QueueEnv <- case Opt.internalEventsQueue (Opt.internalEvents o) of
     StompQueueOpts q -> do
       stomp :: Stomp.Env <- case (Opt.stomp o, Opt.setStomp sett) of
@@ -288,8 +280,6 @@ newEnv o = do
         _http2Manager = h2Mgr,
         _extGetManager = ext,
         _settings = sett,
-        _nexmoCreds = nxm,
-        _twilioCreds = twl,
         _turnEnv = turn,
         _sftEnv = mSFTEnv,
         _fsWatcher = w,
