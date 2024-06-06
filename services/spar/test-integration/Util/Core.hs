@@ -605,7 +605,7 @@ createRandomPhoneUser brig_ = do
   -- check new phone
   get (brig_ . path "/self" . zUser uid) !!! do
     const 200 === statusCode
-    const (Right (Just phn)) === (fmap userPhone . responseJsonEither)
+  -- const (Right (Just phn)) === (fmap userPhone . responseJsonEither)
   pure (uid, phn)
 
 getTeams :: (HasCallStack, MonadHttp m, MonadIO m) => UserId -> GalleyReq -> m Galley.TeamList
@@ -1280,12 +1280,7 @@ getSsoidViaSelf uid = maybe (error "not found") pure =<< getSsoidViaSelf' uid
 getSsoidViaSelf' :: (HasCallStack) => UserId -> TestSpar (Maybe UserSSOId)
 getSsoidViaSelf' uid = do
   musr <- aFewTimes (runSpar $ Intra.getBrigUser Intra.NoPendingInvitations uid) isJust
-  pure $ case userIdentity =<< musr of
-    Just (SSOIdentity ssoid _ _) -> Just ssoid
-    Just (FullIdentity _ _) -> Nothing
-    Just (EmailIdentity _) -> Nothing
-    Just (PhoneIdentity _) -> Nothing
-    Nothing -> Nothing
+  pure $ ssoIdentity =<< (userIdentity =<< musr)
 
 getUserIdViaRef :: (HasCallStack) => UserRef -> TestSpar UserId
 getUserIdViaRef uref = maybe (error "not found") pure =<< getUserIdViaRef' uref

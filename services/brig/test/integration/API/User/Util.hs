@@ -133,26 +133,6 @@ registerUser name brig = do
             ]
   post (brig . path "/register" . contentJson . body p)
 
-createRandomPhoneUser :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> m (UserId, Phone)
-createRandomPhoneUser brig = do
-  usr <- randomUser brig
-  let uid = userId usr
-  phn <- liftIO randomPhone
-  -- update phone
-  let phoneUpdate = RequestBodyLBS . encode $ PhoneUpdate phn
-  put (brig . path "/self/phone" . contentJson . zUser uid . zConn "c" . body phoneUpdate)
-    !!! (const 202 === statusCode)
-  -- activate
-  act <- getActivationCode brig (Right phn)
-  case act of
-    Nothing -> liftIO $ assertFailure "missing activation key/code"
-    Just kc -> activate brig kc !!! const 200 === statusCode
-  -- check new phone
-  get (brig . path "/self" . zUser uid) !!! do
-    const 200 === statusCode
-    const (Just phn) === (userPhone <=< responseJsonMaybe)
-  pure (uid, phn)
-
 initiatePasswordReset :: Brig -> Email -> (MonadHttp m) => m ResponseLBS
 initiatePasswordReset brig email =
   post

@@ -323,8 +323,6 @@ isPendingActivation ident = case ident of
             PendingInvitation -> True
        in statusAdmitsPending && case i of
             Just (EmailIdentity e) -> mkEmailKey e /= k
-            Just (PhoneIdentity _) -> True
-            Just (FullIdentity e _) -> mkEmailKey e /= k
             Just SSOIdentity {} -> False -- sso-created users are activated immediately.
             Nothing -> True
 

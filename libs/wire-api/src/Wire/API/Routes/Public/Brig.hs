@@ -361,7 +361,6 @@ type SelfAPI =
                \email address and a password."
           :> MakesFederatedCall 'Brig "send-connection-action"
           :> ZUser
-          :> ZConn
           :> "self"
           :> "phone"
           :> MultiVerb 'DELETE '[JSON] RemoveIdentityResponses (Maybe RemoveIdentityError)
@@ -377,7 +376,6 @@ type SelfAPI =
                \phone number."
           :> MakesFederatedCall 'Brig "send-connection-action"
           :> ZUser
-          :> ZConn
           :> "self"
           :> "email"
           :> MultiVerb 'DELETE '[JSON] RemoveIdentityResponses (Maybe RemoveIdentityError)

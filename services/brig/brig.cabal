@@ -499,7 +499,6 @@ executable brig-integration
     , warp-tls               >=3.2
     , wire-api
     , wire-api-federation
-    , wire-subsystems
     , yaml
     , zauth
 
