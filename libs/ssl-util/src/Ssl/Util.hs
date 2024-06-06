@@ -138,8 +138,12 @@ verifyFingerprint hash fprs ssl = do
         throwIO PinFingerprintMismatch
       vok <- SSL.getVerifyResult ssl
       unless vok $ do
-        -- Check if the certificate is self-signed.
-        self <- verifyX509 cert pkey
+        -- Check if the certificate is self-signed. Exceptions can be thrown if
+        -- the signature could not be checked at all because it was ill-formed,
+        -- the certificate or the request was not complete or some other error
+        -- occurred. See -1 as return value in
+        -- https://www.openssl.org/docs/man3.1/man3/X509_verify.html.
+        self <- verifyX509 cert pkey `catch` \(SomeException _) -> pure VerifyFailure
         unless (self == VerifySuccess) $
           throwIO PinInvalidCert
         -- For completeness, perform a date check as well.
