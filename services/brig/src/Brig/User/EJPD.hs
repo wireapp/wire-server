@@ -48,11 +48,14 @@ import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Rpc
+import Wire.UserStore (UserStore)
 
+-- FUTUREWORK(mangoiv): this uses 'UserStore' and should hence go to 'UserSubSystem'
 ejpdRequest ::
   forall r.
   ( Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
+    Member UserStore r,
     Member Rpc r
   ) =>
   Maybe Bool ->
@@ -62,9 +65,9 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
   ExceptT $ Right . EJPDResponseBody . catMaybes <$> forM handles responseItemForHandle
   where
     -- find uid given handle
-    responseItemForHandle :: Handle -> (AppT r) (Maybe EJPDResponseItemRoot)
+    responseItemForHandle :: Handle -> AppT r (Maybe EJPDResponseItemRoot)
     responseItemForHandle hdl = do
-      mbUid <- wrapClient $ lookupHandle hdl
+      mbUid <- liftSem $ lookupHandle hdl
       mbUsr <- maybe (pure Nothing) (wrapClient . lookupUser NoPendingInvitations) mbUid
       maybe (pure Nothing) (fmap Just . responseItemForExistingUser includeContacts) mbUsr
 

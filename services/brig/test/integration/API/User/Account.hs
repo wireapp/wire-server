@@ -1062,6 +1062,10 @@ testUserLocaleUpdate brig userJournalWatcher = do
   let locEN = fromMaybe (error "Failed to parse locale") $ parseLocale "en-US"
   put (brig . path "/self/locale" . contentJson . zUser uid . zConn "c" . locale locEN)
     !!! const 200 === statusCode
+  get (brig . path "/self" . contentJson . zUser uid . zConn "c")
+    !!! do
+      const 200 === statusCode
+      const (Just locEN) === (Just . userLocale . selfUser <=< responseJsonMaybe)
   Util.assertLocaleUpdateJournaled userJournalWatcher uid locEN "user update"
   -- update locale info with locale NOT supported in templates
   let locPT = fromMaybe (error "Failed to parse locale") $ parseLocale "pt-PT"

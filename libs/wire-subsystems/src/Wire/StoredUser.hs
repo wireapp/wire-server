@@ -7,7 +7,9 @@ import Data.Handle
 import Data.Id
 import Data.Json.Util
 import Data.Qualified
+import Data.Set qualified as S
 import Database.CQL.Protocol (Record (..), TupleType, recordInstance)
+import GHC.Records
 import Imports
 import Wire.API.Provider.Service
 import Wire.API.User
@@ -39,19 +41,43 @@ data StoredUser = StoredUser
 
 recordInstance ''StoredUser
 
+setStoredUserName :: Name -> StoredUser -> StoredUser
+setStoredUserName newName user = user {name = newName}
+
+setStoredUserSupportedProtocols :: Set BaseProtocolTag -> StoredUser -> StoredUser
+setStoredUserSupportedProtocols newProtocols user = user {supportedProtocols = Just newProtocols}
+
+setStoredUserPict :: Pict -> StoredUser -> StoredUser
+setStoredUserPict newPict user = user {pict = Just newPict}
+
+setStoredUserAssets :: [Asset] -> StoredUser -> StoredUser
+setStoredUserAssets newAssets user = user {assets = Just newAssets}
+
+setStoredUserAccentId :: ColourId -> StoredUser -> StoredUser
+setStoredUserAccentId newAccentId user = user {accentId = newAccentId}
+
+setStoredUserLocale :: Locale -> StoredUser -> StoredUser
+setStoredUserLocale newLocale user =
+  user
+    { language = Just newLocale.lLanguage,
+      country = newLocale.lCountry
+    }
+
+setStoredUserHandle :: Handle -> StoredUser -> StoredUser
+setStoredUserHandle newHandle user = user {handle = Just newHandle}
+
 hasPendingInvitation :: StoredUser -> Bool
 hasPendingInvitation u = u.status == Just PendingInvitation
 
 mkUserFromStored :: Domain -> Locale -> StoredUser -> User
 mkUserFromStored domain defaultLocale storedUser =
-  let ident = toIdentity storedUser.activated storedUser.email storedUser.phone storedUser.ssoId
-      deleted = Just Deleted == storedUser.status
+  let deleted = Just Deleted == storedUser.status
       expiration = if storedUser.status == Just Ephemeral then storedUser.expires else Nothing
       loc = toLocale defaultLocale (storedUser.language, storedUser.country)
       svc = newServiceRef <$> storedUser.serviceId <*> storedUser.providerId
    in User
         { userQualifiedId = (Qualified storedUser.id domain),
-          userIdentity = ident,
+          userIdentity = storedUser.identity,
           userDisplayName = storedUser.name,
           userPict = (fromMaybe noPict storedUser.pict),
           userAssets = (fromMaybe [] storedUser.assets),
@@ -62,8 +88,10 @@ mkUserFromStored domain defaultLocale storedUser =
           userHandle = storedUser.handle,
           userExpire = expiration,
           userTeam = storedUser.teamId,
-          userManagedBy = (fromMaybe ManagedByWire storedUser.managedBy),
-          userSupportedProtocols = (fromMaybe defSupportedProtocols storedUser.supportedProtocols)
+          userManagedBy = fromMaybe ManagedByWire storedUser.managedBy,
+          userSupportedProtocols = case storedUser.supportedProtocols of
+            Nothing -> defSupportedProtocols
+            Just ps -> if S.null ps then defSupportedProtocols else ps
         }
 
 toLocale :: Locale -> (Maybe Language, Maybe Country) -> Locale
@@ -89,3 +117,9 @@ toIdentity True Nothing (Just p) Nothing = Just $! PhoneIdentity p
 toIdentity True email phone (Just ssoid) = Just $! SSOIdentity ssoid email phone
 toIdentity True Nothing Nothing Nothing = Nothing
 toIdentity False _ _ _ = Nothing
+
+instance HasField "identity" StoredUser (Maybe UserIdentity) where
+  getField user = toIdentity user.activated user.email user.phone user.ssoId
+
+instance HasField "locale" StoredUser (Maybe Locale) where
+  getField user = Locale <$> user.language <*> pure user.country

@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -29,7 +31,6 @@ import Brig.API.MLS.KeyPackages.Validation
 import Brig.API.OAuth (internalOauthAPI)
 import Brig.API.Types
 import Brig.API.User qualified as API
-import Brig.API.Util
 import Brig.App
 import Brig.Code qualified as Code
 import Brig.Data.Activation
@@ -41,7 +42,12 @@ import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.CodeStore (CodeStore)
 import Brig.Effects.ConnectionStore (ConnectionStore)
-import Brig.Effects.FederationConfigStore (AddFederationRemoteResult (..), AddFederationRemoteTeamResult (..), FederationConfigStore, UpdateFederationResult (..))
+import Brig.Effects.FederationConfigStore
+  ( AddFederationRemoteResult (..),
+    AddFederationRemoteTeamResult (..),
+    FederationConfigStore,
+    UpdateFederationResult (..),
+  )
 import Brig.Effects.FederationConfigStore qualified as E
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
@@ -61,6 +67,7 @@ import Control.Error hiding (bool)
 import Control.Lens (view)
 import Data.ByteString.Conversion (toByteString)
 import Data.CommaSeparatedList
+import Data.Default
 import Data.Domain (Domain)
 import Data.Handle
 import Data.Id as Id
@@ -102,6 +109,9 @@ import Wire.NotificationSubsystem
 import Wire.Rpc
 import Wire.Sem.Concurrency
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.UserStore
+import Wire.UserSubsystem
+import Wire.UserSubsystem qualified as UserSubsystem
 
 servantSitemap ::
   forall r p.
@@ -117,6 +127,8 @@ servantSitemap ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member NotificationSubsystem r,
+    Member UserSubsystem r,
+    Member UserStore r,
     Member PasswordResetStore r,
     Member Rpc r,
     Member TinyLog r,
@@ -144,6 +156,7 @@ istatusAPI = Named @"get-status" (pure NoContent)
 ejpdAPI ::
   ( Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
+    Member UserStore r,
     Member Rpc r
   ) =>
   ServerT BrigIRoutes.EJPDRequest (Handler r)
@@ -163,6 +176,8 @@ accountAPI ::
     Member (UserPendingActivationStore p) r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
+    Member UserSubsystem r,
+    Member UserStore r,
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
@@ -197,7 +212,7 @@ accountAPI =
     :<|> Named @"iPutManagedBy" updateManagedByH
     :<|> Named @"iPutRichInfo" updateRichInfoH
     :<|> Named @"iPutHandle" updateHandleH
-    :<|> Named @"iPutHandle" updateUserNameH
+    :<|> Named @"iPutUserName" updateUserNameH
     :<|> Named @"iGetRichInfo" getRichInfoH
     :<|> Named @"iGetRichInfoMulti" getRichInfoMultiH
     :<|> Named @"iHeadHandle" checkHandleInternalH
@@ -230,7 +245,7 @@ teamsAPI =
     :<|> Named @"team-size" Team.teamSize
     :<|> Named @"create-invitations-via-scim" Team.createInvitationViaScim
 
-userAPI :: ServerT BrigIRoutes.UserAPI (Handler r)
+userAPI :: Member UserSubsystem r => ServerT BrigIRoutes.UserAPI (Handler r)
 userAPI =
   updateLocale
     :<|> deleteLocale
@@ -464,6 +479,7 @@ createUserNoVerifySpar ::
   ( Member GalleyAPIAccess r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
+    Member UserSubsystem r,
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
@@ -488,6 +504,7 @@ createUserNoVerifySpar uData =
 deleteUserNoAuthH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
+    Member UserStore r,
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
@@ -505,11 +522,11 @@ deleteUserNoAuthH uid = do
 changeSelfEmailMaybeSendH :: (Member BlacklistStore r) => UserId -> EmailUpdate -> Maybe Bool -> (Handler r) ChangeEmailResponse
 changeSelfEmailMaybeSendH u body (fromMaybe False -> validate) = do
   let email = euEmail body
-  changeSelfEmailMaybeSend u (if validate then ActuallySendEmail else DoNotSendEmail) email API.AllowSCIMUpdates
+  changeSelfEmailMaybeSend u (if validate then ActuallySendEmail else DoNotSendEmail) email UpdateOriginScim
 
 data MaybeSendEmail = ActuallySendEmail | DoNotSendEmail
 
-changeSelfEmailMaybeSend :: (Member BlacklistStore r) => UserId -> MaybeSendEmail -> Email -> API.AllowSCIMUpdates -> (Handler r) ChangeEmailResponse
+changeSelfEmailMaybeSend :: (Member BlacklistStore r) => UserId -> MaybeSendEmail -> Email -> UpdateOriginType -> (Handler r) ChangeEmailResponse
 changeSelfEmailMaybeSend u ActuallySendEmail email allowScim = do
   API.changeSelfEmail u email allowScim
 changeSelfEmailMaybeSend u DoNotSendEmail email allowScim = do
@@ -522,7 +539,7 @@ changeSelfEmailMaybeSend u DoNotSendEmail email allowScim = do
 -- handler allows up to 4 lists of various user keys, and returns the union of the lookups.
 -- Empty list is forbidden for backwards compatibility.
 listActivatedAccountsH ::
-  Member DeleteQueue r =>
+  (Member DeleteQueue r, Member UserStore r) =>
   Maybe (CommaSeparatedList UserId) ->
   Maybe (CommaSeparatedList Handle) ->
   Maybe (CommaSeparatedList Email) ->
@@ -544,17 +561,18 @@ listActivatedAccountsH
       u4 <- (\phone -> API.lookupAccountsByIdentity (Right phone) includePendingInvitations) `mapM` phones
       pure $ u1 <> u2 <> join u3 <> join u4
 
+-- FUTUREWORK: this should use UserStore only through UserSubsystem.
 listActivatedAccounts ::
-  Member DeleteQueue r =>
+  (Member DeleteQueue r, Member UserStore r) =>
   Either [UserId] [Handle] ->
   Bool ->
-  (AppT r) [UserAccount]
+  AppT r [UserAccount]
 listActivatedAccounts elh includePendingInvitations = do
   Log.debug (Log.msg $ "listActivatedAccounts: " <> show (elh, includePendingInvitations))
   case elh of
     Left us -> byIds us
     Right hs -> do
-      us <- mapM (wrapClient . API.lookupHandle) hs
+      us <- liftSem $ mapM API.lookupHandle hs
       byIds (catMaybes us)
   where
     byIds :: Member DeleteQueue r => [UserId] -> (AppT r) [UserAccount]
@@ -673,7 +691,8 @@ revokeIdentityH ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSubsystem r
   ) =>
   Maybe Email ->
   Maybe Phone ->
@@ -801,15 +820,18 @@ updateRichInfoH uid rup =
     -- Intra.onUserEvent uid (Just conn) (richInfoUpdate uid ri)
     lift $ wrapClient $ Data.updateRichInfo uid (mkRichInfoAssocList richInfo)
 
-updateLocale :: UserId -> LocaleUpdate -> (Handler r) LocaleUpdate
-updateLocale uid locale = do
-  lift $ wrapClient $ Data.updateLocale uid (luLocale locale)
-  pure locale
+updateLocale :: Member UserSubsystem r => UserId -> LocaleUpdate -> (Handler r) LocaleUpdate
+updateLocale uid upd@(LocaleUpdate locale) = do
+  qUid <- qualifyLocal uid
+  lift . liftSem $ updateUserProfile qUid Nothing UpdateOriginScim def {locale = Just locale}
+  pure upd
 
-deleteLocale :: UserId -> (Handler r) NoContent
+deleteLocale :: Member UserSubsystem r => UserId -> (Handler r) NoContent
 deleteLocale uid = do
   defLoc <- setDefaultUserLocale <$> view settings
-  lift $ wrapClient $ Data.updateLocale uid defLoc $> NoContent
+  qUid <- qualifyLocal uid
+  lift . liftSem $ updateUserProfile qUid Nothing UpdateOriginScim def {locale = Just defLoc}
+  pure NoContent
 
 getDefaultUserLocale :: (Handler r) LocaleUpdate
 getDefaultUserLocale = do
@@ -837,54 +859,33 @@ getRichInfoMultiH (maybe [] fromCommaSeparatedList -> uids) =
   lift $ wrapClient $ API.lookupRichInfoMultiUsers uids
 
 updateHandleH ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member GalleyAPIAccess r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
-  ) =>
+  Member UserSubsystem r =>
   UserId ->
   HandleUpdate ->
-  (Handler r) NoContent
+  Handler r NoContent
 updateHandleH uid (HandleUpdate handleUpd) =
   NoContent <$ do
-    handle <- validateHandle handleUpd
-    API.changeHandle uid Nothing handle API.AllowSCIMUpdates !>> changeHandleError
+    quid <- qualifyLocal uid
+    lift . liftSem $ UserSubsystem.updateHandle quid Nothing UpdateOriginScim handleUpd
 
 updateUserNameH ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member GalleyAPIAccess r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
-  ) =>
+  Member UserSubsystem r =>
   UserId ->
   NameUpdate ->
   (Handler r) NoContent
 updateUserNameH uid (NameUpdate nameUpd) =
   NoContent <$ do
+    luid <- qualifyLocal uid
     name <- either (const $ throwStd (errorToWai @'E.InvalidUser)) pure $ mkName nameUpd
-    let uu =
-          UserUpdate
-            { uupName = Just name,
-              uupPict = Nothing,
-              uupAssets = Nothing,
-              uupAccentId = Nothing
-            }
     lift (wrapClient $ Data.lookupUser WithPendingInvitations uid) >>= \case
-      Just _ -> API.updateUser uid Nothing uu API.AllowSCIMUpdates !>> updateProfileError
+      Just _ -> lift . liftSem $ updateUserProfile luid Nothing UpdateOriginScim (def {name = Just name})
       Nothing -> throwStd (errorToWai @'E.InvalidUser)
 
-checkHandleInternalH :: Handle -> (Handler r) CheckHandleResponse
-checkHandleInternalH (Handle h) =
-  API.checkHandle h >>= \case
-    API.CheckHandleInvalid -> throwE (StdError (errorToWai @'E.InvalidHandle))
-    API.CheckHandleFound -> pure CheckHandleResponseFound
-    API.CheckHandleNotFound -> pure CheckHandleResponseNotFound
+checkHandleInternalH :: Member UserSubsystem r => Handle -> Handler r CheckHandleResponse
+checkHandleInternalH (Handle h) = lift $ liftSem do
+  API.checkHandle h <&> \case
+    API.CheckHandleFound -> CheckHandleResponseFound
+    API.CheckHandleNotFound -> CheckHandleResponseNotFound
 
 getContactListH :: UserId -> (Handler r) UserIds
 getContactListH uid = lift . wrapClient $ UserIds <$> API.lookupContactList uid

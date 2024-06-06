@@ -15,10 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.InternalEvent.Process
-  ( onEvent,
-  )
-where
+module Brig.InternalEvent.Process (onEvent) where
 
 import Brig.API.User qualified as API
 import Brig.App
@@ -44,6 +41,7 @@ import Wire.API.UserEvent
 import Wire.NotificationSubsystem
 import Wire.Sem.Delay
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.UserStore (UserStore)
 
 -- | Handle an internal event.
 --
@@ -56,6 +54,7 @@ onEvent ::
     Member Race r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
+    Member UserStore r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   InternalNotification ->

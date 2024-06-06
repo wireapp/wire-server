@@ -37,7 +37,6 @@ import Brig.API.Public.Swagger
 import Brig.API.Types
 import Brig.API.User qualified as API
 import Brig.API.Util
-import Brig.API.Util qualified as API
 import Brig.App
 import Brig.Calling.API qualified as Calling
 import Brig.Code qualified as Code
@@ -70,7 +69,7 @@ import Brig.User.Email
 import Brig.User.Phone
 import Cassandra qualified as C
 import Cassandra qualified as Data
-import Control.Error hiding (bool)
+import Control.Error hiding (bool, note)
 import Control.Lens (view, (.~), (?~), (^.))
 import Control.Monad.Catch (throwM)
 import Control.Monad.Except
@@ -81,9 +80,11 @@ import Data.ByteString.Lazy qualified as Lazy
 import Data.ByteString.Lazy.Char8 qualified as LBS
 import Data.ByteString.UTF8 qualified as UTF8
 import Data.CommaSeparatedList
+import Data.Default
 import Data.Domain
 import Data.FileEmbed
-import Data.Handle (Handle, parseHandle)
+import Data.Handle (Handle)
+import Data.Handle qualified as Handle
 import Data.Id
 import Data.Id qualified as Id
 import Data.List.NonEmpty (nonEmpty)
@@ -164,7 +165,9 @@ import Wire.Sem.Concurrency
 import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
-import Wire.UserSubsystem
+import Wire.UserStore (UserStore)
+import Wire.UserSubsystem hiding (checkHandle, checkHandles)
+import Wire.UserSubsystem qualified as UserSubsystem
 
 -- User API -----------------------------------------------------------
 
@@ -292,6 +295,7 @@ servantSitemap ::
     Member JwtTools r,
     Member NotificationSubsystem r,
     Member UserSubsystem r,
+    Member UserStore r,
     Member Now r,
     Member PasswordResetStore r,
     Member PublicKeyBundle r,
@@ -808,11 +812,10 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
       Public.NewTeamMemberSSO _ ->
         Team.sendMemberWelcomeMail e t n l
 
-getSelf :: Member GalleyAPIAccess r => UserId -> (Handler r) Public.SelfProfile
+getSelf :: Member UserSubsystem r => Local UserId -> Handler r Public.SelfProfile
 getSelf self =
-  lift (API.lookupSelfProfile self)
+  lift (liftSem (getSelfProfile self))
     >>= ifNothing (errorToWai @'E.UserNotFound)
-    >>= lift . liftSem . API.hackForBlockingHandleChangeForE2EIdTeams
 
 getUserProfileH ::
   (Member UserSubsystem r) =>
@@ -832,7 +835,7 @@ getUserUnqualifiedH self uid = do
 
 -- FUTUREWORK: Make servant understand that at least one of these is required
 listUsersByUnqualifiedIdsOrHandles ::
-  (Member UserSubsystem r) =>
+  (Member UserSubsystem r, Member UserStore r) =>
   UserId ->
   Maybe (CommaSeparatedList UserId) ->
   Maybe (Range 1 4 (CommaSeparatedList Handle)) ->
@@ -852,20 +855,27 @@ listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
        in listUsersByIdsOrHandlesV3 self (Public.ListUsersByHandles qualifiedRangedList)
     (Nothing, Nothing) -> throwStd $ badRequest "at least one ids or handles must be provided"
 
-listUsersByIdsOrHandlesGetIds :: [Handle] -> (Handler r) [Qualified UserId]
+listUsersByIdsOrHandlesGetIds ::
+  Member UserStore r =>
+  [Handle] ->
+  Handler r [Qualified UserId]
 listUsersByIdsOrHandlesGetIds localHandles = do
-  localUsers <- catMaybes <$> traverse (lift . wrapClient . API.lookupHandle) localHandles
+  localUsers <- catMaybes <$> traverse (lift . liftSem . API.lookupHandle) localHandles
   domain <- viewFederationDomain
   pure $ map (`Qualified` domain) localUsers
 
-listUsersByIdsOrHandlesGetUsers :: Local x -> Range n m [Qualified Handle] -> Handler r [Qualified UserId]
+listUsersByIdsOrHandlesGetUsers ::
+  Member UserStore r =>
+  Local x ->
+  Range n m [Qualified Handle] ->
+  Handler r [Qualified UserId]
 listUsersByIdsOrHandlesGetUsers lself hs = do
   let (localHandles, _) = partitionQualified lself (fromRange hs)
   listUsersByIdsOrHandlesGetIds localHandles
 
 listUsersByIdsOrHandlesV3 ::
   forall r.
-  (Member UserSubsystem r) =>
+  (Member UserSubsystem r, Member UserStore r) =>
   UserId ->
   Public.ListUsersQuery ->
   (Handler r) [Public.UserProfile]
@@ -888,7 +898,7 @@ listUsersByIdsOrHandlesV3 self q = do
 -- using a new return type
 listUsersByIdsOrHandles ::
   forall r.
-  (Member UserSubsystem r) =>
+  (Member UserSubsystem r, Member UserStore r) =>
   UserId ->
   Public.ListUsersQuery ->
   Handler r ListUsersById
@@ -917,21 +927,21 @@ instance ToJSON GetActivationCodeResp where
   toJSON (GetActivationCodeResp (k, c)) = object ["key" .= k, "code" .= c]
 
 updateUser ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member GalleyAPIAccess r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
-  ) =>
-  UserId ->
+  Member UserSubsystem r =>
+  Local UserId ->
   ConnId ->
   Public.UserUpdate ->
-  (Handler r) (Maybe Public.UpdateProfileError)
+  Handler r ()
 updateUser uid conn uu = do
-  eithErr <- lift $ runExceptT $ API.updateUser uid (Just conn) uu API.ForbidSCIMUpdates
-  pure $ either Just (const Nothing) eithErr
+  let update =
+        def
+          { name = uu.uupName,
+            pict = uu.uupPict,
+            assets = uu.uupAssets,
+            accentId = uu.uupAccentId
+          }
+  lift . liftSem $
+    updateUserProfile uid (Just conn) UpdateOriginWireClient update
 
 changePhone ::
   ( Member BlacklistStore r,
@@ -953,7 +963,8 @@ removePhone ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSubsystem r
   ) =>
   UserId ->
   ConnId ->
@@ -967,7 +978,8 @@ removeEmail ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSubsystem r
   ) =>
   UserId ->
   ConnId ->
@@ -982,56 +994,52 @@ changePassword :: UserId -> Public.PasswordChange -> (Handler r) (Maybe Public.C
 changePassword u cp = lift . exceptTToMaybe $ API.changePassword u cp
 
 changeLocale ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
-  ) =>
-  UserId ->
+  Member UserSubsystem r =>
+  Local UserId ->
   ConnId ->
   Public.LocaleUpdate ->
   (Handler r) ()
-changeLocale u conn l = lift $ API.changeLocale u conn l
+changeLocale lusr conn l =
+  lift . liftSem $
+    updateUserProfile
+      lusr
+      (Just conn)
+      UserSubsystem.UpdateOriginWireClient
+      def {locale = Just l.luLocale}
 
 changeSupportedProtocols ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
-  ) =>
+  (Member UserSubsystem r) =>
   Local UserId ->
   ConnId ->
   Public.SupportedProtocolUpdate ->
   Handler r ()
-changeSupportedProtocols (tUnqualified -> u) conn (Public.SupportedProtocolUpdate prots) =
-  lift $ API.changeSupportedProtocols u conn prots
+changeSupportedProtocols u conn (Public.SupportedProtocolUpdate prots) =
+  lift . liftSem $ UserSubsystem.updateUserProfile u (Just conn) UpdateOriginWireClient upd
+  where
+    upd = def {supportedProtocols = Just prots}
 
 -- | (zusr is ignored by this handler, ie. checking handles is allowed as long as you have
 -- *any* account.)
-checkHandle :: UserId -> Text -> Handler r ()
+checkHandle :: Member UserSubsystem r => UserId -> Text -> Handler r ()
 checkHandle _uid hndl =
-  API.checkHandle hndl >>= \case
-    API.CheckHandleInvalid -> throwStd (errorToWai @'E.InvalidHandle)
+  lift (liftSem $ UserSubsystem.checkHandle hndl) >>= \case
     API.CheckHandleFound -> pure ()
     API.CheckHandleNotFound -> throwStd (errorToWai @'E.HandleNotFound)
 
 -- | (zusr is ignored by this handler, ie. checking handles is allowed as long as you have
 -- *any* account.)
-checkHandles :: UserId -> Public.CheckHandles -> Handler r [Handle]
+checkHandles :: Member UserSubsystem r => UserId -> Public.CheckHandles -> Handler r [Handle]
 checkHandles _ (Public.CheckHandles hs num) = do
-  let handles = mapMaybe parseHandle (fromRange hs)
-  lift $ wrapHttpClient $ API.checkHandles handles (fromRange num)
+  let handles = mapMaybe Handle.parseHandle (fromRange hs)
+  lift $ liftSem $ API.checkHandles handles (fromRange num)
 
 -- | This endpoint returns UserHandleInfo instead of UserProfile for backwards
 -- compatibility, whereas the corresponding qualified endpoint (implemented by
 -- 'Handle.getHandleInfo') returns UserProfile to reduce traffic between backends
 -- in a federated scenario.
 getHandleInfoUnqualifiedH ::
-  ( Member UserSubsystem r
+  ( Member UserSubsystem r,
+    Member UserStore r
   ) =>
   UserId ->
   Handle ->
@@ -1041,27 +1049,14 @@ getHandleInfoUnqualifiedH self handle = do
   Public.UserHandleInfo . Public.profileQualifiedId
     <$$> Handle.getHandleInfo self (Qualified handle domain)
 
-changeHandle ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member GalleyAPIAccess r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
-  ) =>
-  UserId ->
-  ConnId ->
-  Public.HandleUpdate ->
-  (Handler r) (Maybe Public.ChangeHandleError)
-changeHandle u conn (Public.HandleUpdate h) = lift . exceptTToMaybe $ do
-  handle <- maybe (throwError Public.ChangeHandleInvalid) pure $ parseHandle h
-  API.changeHandle u (Just conn) handle API.ForbidSCIMUpdates
+changeHandle :: (Member UserSubsystem r) => Local UserId -> ConnId -> Public.HandleUpdate -> Handler r ()
+changeHandle u conn (Public.HandleUpdate h) = lift $ liftSem do
+  UserSubsystem.updateHandle u (Just conn) UpdateOriginWireClient h
 
 beginPasswordReset ::
   (Member PasswordResetStore r, Member TinyLog r) =>
   Public.NewPasswordReset ->
-  (Handler r) ()
+  Handler r ()
 beginPasswordReset (Public.NewPasswordReset target) = do
   checkAllowlist target
   (u, pair) <- API.beginPasswordReset target !>> pwResetError
@@ -1237,6 +1232,7 @@ deleteSelfUser ::
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
+    Member UserStore r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r
@@ -1250,6 +1246,7 @@ deleteSelfUser u body = do
 verifyDeleteUser ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
+    Member UserStore r,
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
@@ -1273,7 +1270,7 @@ updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
   whenM (not <$> assertHasPerm maybeZuserTeamId) $ throwStd insufficientTeamPermissions
   maybeEmailOwnerTeamId <- lift $ wrapClient $ Data.lookupUserTeam emailOwnerId
   checkSameTeam maybeZuserTeamId maybeEmailOwnerTeamId
-  void $ API.changeSelfEmail emailOwnerId email API.ForbidSCIMUpdates
+  void $ API.changeSelfEmail emailOwnerId email UpdateOriginWireClient
   where
     checkSameTeam :: Maybe TeamId -> Maybe TeamId -> (Handler r) ()
     checkSameTeam (Just zuserTeamId) maybeEmailOwnerTeamId =

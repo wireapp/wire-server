@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -22,17 +24,13 @@ module Brig.API.User
     createUserSpar,
     createUserInviteViaScim,
     checkRestrictedUserCreation,
-    Brig.API.User.updateUser,
-    changeLocale,
     changeSelfEmail,
     changeEmail,
     changePhone,
-    changeHandle,
     CheckHandleResp (..),
     checkHandle,
     lookupHandle,
     changeManagedBy,
-    changeSupportedProtocols,
     changeAccountStatus,
     changeSingleAccountStatus,
     Data.lookupAccounts,
@@ -58,7 +56,6 @@ module Brig.API.User
     checkHandles,
     isBlacklistedHandle,
     Data.reauthenticate,
-    AllowSCIMUpdates (..),
 
     -- * Activation
     sendActivationCode,
@@ -86,12 +83,11 @@ module Brig.API.User
 
     -- * Utilities
     fetchUserIdentity,
-    hackForBlockingHandleChangeForE2EIdTeams,
   )
 where
 
 import Brig.API.Error qualified as Error
-import Brig.API.Handler qualified as API (Handler, UserNotAllowedToJoinTeam (..))
+import Brig.API.Handler qualified as API (UserNotAllowedToJoinTeam (..))
 import Brig.API.Types
 import Brig.API.Util
 import Brig.App
@@ -125,8 +121,6 @@ import Brig.Types.Connection
 import Brig.Types.Intra
 import Brig.User.Auth.Cookie (listCookies, revokeAllCookies)
 import Brig.User.Email
-import Brig.User.Handle
-import Brig.User.Handle.Blacklist
 import Brig.User.Phone
 import Brig.User.Search.Index (reindex)
 import Brig.User.Search.TeamSize qualified as TeamSize
@@ -137,7 +131,7 @@ import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Code
 import Data.Currency qualified as Currency
-import Data.Handle (Handle (fromHandle), parseHandle)
+import Data.Handle (Handle (fromHandle))
 import Data.Id as Id
 import Data.Json.Util
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
@@ -181,12 +175,9 @@ import Wire.GalleyAPIAccess as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.Paging.Cassandra (InternalPaging)
-import Wire.UserSubsystem
-
-data AllowSCIMUpdates
-  = AllowSCIMUpdates
-  | ForbidSCIMUpdates
-  deriving (Show, Eq, Ord)
+import Wire.UserStore
+import Wire.UserSubsystem as User
+import Wire.UserSubsystem.HandleBlacklist
 
 -------------------------------------------------------------------------------
 -- Create User
@@ -228,6 +219,7 @@ createUserSpar ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
+    Member UserSubsystem r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   NewUserSpar ->
@@ -258,20 +250,18 @@ createUserSpar new = do
   userTeam <- withExceptT CreateUserSparRegistrationError $ addUserToTeamSSO account tid (SSOIdentity ident Nothing Nothing) (newUserSparRole new)
 
   -- Set up feature flags
-  let uid = userId (accountUser account)
-  lift $ initAccountFeatureConfig uid
+  luid <- lift $ ensureLocal (userQualifiedId (accountUser account))
+  lift $ initAccountFeatureConfig (tUnqualified luid)
 
   -- Set handle
-  updateHandle' uid handle'
+  lift $ updateHandle' luid handle'
 
   pure $! CreateUserResult account Nothing Nothing (Just userTeam)
   where
-    updateHandle' :: UserId -> Maybe Handle -> ExceptT CreateUserSparError (AppT r) ()
+    updateHandle' :: Local UserId -> Maybe Handle -> AppT r ()
     updateHandle' _ Nothing = pure ()
-    updateHandle' uid (Just h) = do
-      case parseHandle . fromHandle $ h of
-        Just handl -> withExceptT CreateUserSparHandleError $ changeHandle uid Nothing handl AllowSCIMUpdates
-        Nothing -> throwE $ CreateUserSparHandleError ChangeHandleInvalid
+    updateHandle' luid (Just h) =
+      liftSem $ User.updateHandle luid Nothing UpdateOriginScim (fromHandle h)
 
     addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> Role -> ExceptT RegisterError (AppT r) CreateUserTeam
     addUserToTeamSSO account tid ident role = do
@@ -540,7 +530,7 @@ initAccountFeatureConfig uid = do
   mbCciDefNew <- view (settings . getAfcConferenceCallingDefNewMaybe)
   forM_ (forgetLock <$> mbCciDefNew) $ wrapClient . Data.updateFeatureConferenceCalling uid . Just
 
--- | 'createUser' is becoming hard to maintian, and instead of adding more case distinctions
+-- | 'createUser' is becoming hard to maintain, and instead of adding more case distinctions
 -- all over the place there, we add a new function that handles just the one new flow where
 -- users are invited to the team via scim.
 createUserInviteViaScim ::
@@ -585,60 +575,6 @@ checkRestrictedUserCreation new = do
     $ throwE RegisterErrorUserCreationRestricted
 
 -------------------------------------------------------------------------------
--- Update Profile
-
-updateUser ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member GalleyAPIAccess r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
-  ) =>
-  UserId ->
-  Maybe ConnId ->
-  UserUpdate ->
-  AllowSCIMUpdates ->
-  ExceptT UpdateProfileError (AppT r) ()
-updateUser uid mconn uu allowScim = do
-  for_ (uupName uu) $ \newName -> do
-    mbUser <- lift . wrapClient $ Data.lookupUser WithPendingInvitations uid
-    user <- maybe (throwE ProfileNotFound) pure mbUser
-    unless
-      ( userManagedBy user /= ManagedByScim
-          || userDisplayName user == newName
-          || allowScim == AllowSCIMUpdates
-      )
-      $ throwE DisplayNameManagedByScim
-    hasE2EId <- lift . liftSem . userUnderE2EId $ uid
-    when (hasE2EId && newName /= userDisplayName user) $
-      throwE DisplayNameManagedByScim
-
-  lift $ do
-    wrapClient $ Data.updateUser uid uu
-    liftSem $ Intra.onUserEvent uid mconn (profileUpdated uid uu)
-
--------------------------------------------------------------------------------
--- Update Locale
-
-changeLocale ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
-  ) =>
-  UserId ->
-  ConnId ->
-  LocaleUpdate ->
-  (AppT r) ()
-changeLocale uid conn (LocaleUpdate loc) = do
-  wrapClient $ Data.updateLocale uid loc
-  liftSem $ Intra.onUserEvent uid (Just conn) (localeUpdate uid loc)
-
--------------------------------------------------------------------------------
 -- Update ManagedBy
 
 changeManagedBy ::
@@ -658,117 +594,11 @@ changeManagedBy uid conn (ManagedByUpdate mb) = do
   liftSem $ Intra.onUserEvent uid (Just conn) (managedByUpdate uid mb)
 
 -------------------------------------------------------------------------------
--- Update supported protocols
-
-changeSupportedProtocols ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
-  ) =>
-  UserId ->
-  ConnId ->
-  Set BaseProtocolTag ->
-  AppT r ()
-changeSupportedProtocols uid conn prots = do
-  wrapClient $ Data.updateSupportedProtocols uid prots
-  liftSem $ Intra.onUserEvent uid (Just conn) (supportedProtocolUpdate uid prots)
-
---------------------------------------------------------------------------------
--- Change Handle
-
-changeHandle ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member GalleyAPIAccess r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
-  ) =>
-  UserId ->
-  Maybe ConnId ->
-  Handle ->
-  AllowSCIMUpdates ->
-  ExceptT ChangeHandleError (AppT r) ()
-changeHandle uid mconn hdl allowScim = do
-  when (isBlacklistedHandle hdl) $
-    throwE ChangeHandleInvalid
-  usr <- lift $ wrapClient $ Data.lookupUser WithPendingInvitations uid
-  case usr of
-    Nothing -> throwE ChangeHandleNoIdentity
-    Just u -> do
-      unless
-        ( userManagedBy u /= ManagedByScim
-            || Just hdl == userHandle u
-            || allowScim == AllowSCIMUpdates
-        )
-        $ throwE ChangeHandleManagedByScim
-      hasE2EId <- lift . liftSem . userUnderE2EId . userId $ u
-      when (hasE2EId && userHandle u `notElem` [Nothing, Just hdl]) $
-        throwE ChangeHandleManagedByScim
-      claim u
-  where
-    claim u = do
-      unless (isJust (userIdentity u)) $
-        throwE ChangeHandleNoIdentity
-      claimed <- lift . wrapClient $ claimHandle (userId u) (userHandle u) hdl
-      unless claimed $
-        throwE ChangeHandleExists
-      lift $ liftSem $ Intra.onUserEvent uid mconn (handleUpdated uid hdl)
-
---------------------------------------------------------------------------------
--- Check Handle
-
-data CheckHandleResp
-  = CheckHandleInvalid
-  | CheckHandleFound
-  | CheckHandleNotFound
-
-checkHandle :: Text -> API.Handler r CheckHandleResp
-checkHandle uhandle = do
-  xhandle <- validateHandle uhandle
-  owner <- lift . wrapClient $ lookupHandle xhandle
-  if
-      | isJust owner ->
-          -- Handle is taken (=> getHandleInfo will return 200)
-          pure CheckHandleFound
-      | isBlacklistedHandle xhandle ->
-          -- Handle is free but cannot be taken
-          --
-          -- FUTUREWORK: i wonder if this is correct?  isn't this the error for malformed
-          -- handles?  shouldn't we throw not-found here?  or should there be a fourth case
-          -- 'CheckHandleBlacklisted'?
-          pure CheckHandleInvalid
-      | otherwise ->
-          -- Handle is free and can be taken
-          pure CheckHandleNotFound
-
---------------------------------------------------------------------------------
--- Check Handles
-
-checkHandles :: MonadClient m => [Handle] -> Word -> m [Handle]
-checkHandles check num = reverse <$> collectFree [] check num
-  where
-    collectFree free _ 0 = pure free
-    collectFree free [] _ = pure free
-    collectFree free (h : hs) n =
-      if isBlacklistedHandle h
-        then collectFree free hs n
-        else do
-          owner <- glimpseHandle h
-          case owner of
-            Nothing -> collectFree (h : free) hs (n - 1)
-            Just _ -> collectFree free hs n
-
--------------------------------------------------------------------------------
 -- Change Email
 
 -- | Call 'changeEmail' and process result: if email changes to itself, succeed, if not, send
 -- validation email.
-changeSelfEmail :: Member BlacklistStore r => UserId -> Email -> AllowSCIMUpdates -> ExceptT Error.Error (AppT r) ChangeEmailResponse
+changeSelfEmail :: Member BlacklistStore r => UserId -> Email -> UpdateOriginType -> ExceptT Error.Error (AppT r) ChangeEmailResponse
 changeSelfEmail u email allowScim = do
   changeEmail u email allowScim !>> Error.changeEmailError >>= \case
     ChangeEmailIdempotent ->
@@ -788,8 +618,8 @@ changeSelfEmail u email allowScim = do
         (userIdentity usr)
 
 -- | Prepare changing the email (checking a number of invariants).
-changeEmail :: Member BlacklistStore r => UserId -> Email -> AllowSCIMUpdates -> ExceptT ChangeEmailError (AppT r) ChangeEmailResult
-changeEmail u email allowScim = do
+changeEmail :: Member BlacklistStore r => UserId -> Email -> UpdateOriginType -> ExceptT ChangeEmailError (AppT r) ChangeEmailResult
+changeEmail u email updateOrigin = do
   em <-
     either
       (throwE . InvalidNewEmail email)
@@ -808,11 +638,8 @@ changeEmail u email allowScim = do
     -- The user already has an email address and the new one is exactly the same
     Just current | current == em -> pure ChangeEmailIdempotent
     _ -> do
-      unless
-        ( userManagedBy usr /= ManagedByScim
-            || allowScim == AllowSCIMUpdates
-        )
-        $ throwE EmailManagedByScim
+      unless (userManagedBy usr /= ManagedByScim || updateOrigin == UpdateOriginScim) $
+        throwE EmailManagedByScim
       timeout <- setActivationTimeout <$> view settings
       act <- lift . wrapClient $ Data.newActivation ek timeout (Just u)
       pure $ ChangeEmailNeedsActivation (usr, act, em)
@@ -857,7 +684,8 @@ removeEmail ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSubsystem r
   ) =>
   UserId ->
   ConnId ->
@@ -881,7 +709,8 @@ removePhone ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSubsystem r
   ) =>
   UserId ->
   ConnId ->
@@ -910,7 +739,8 @@ revokeIdentity ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSubsystem r
   ) =>
   Either Email Phone ->
   AppT r ()
@@ -1298,6 +1128,9 @@ mkPasswordResetKey ident = case ident of
 -- delete them in the team settings.  This protects teams against orphanhood.
 --
 -- TODO: communicate deletions of SSO users to SSO service.
+--
+-- FUTUREWORK(mangoiv): this uses 'UserStore', hence it must be moved to 'UserSubsystem'
+-- as an effet operation
 deleteSelfUser ::
   forall r.
   ( Member GalleyAPIAccess r,
@@ -1305,6 +1138,7 @@ deleteSelfUser ::
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
+    Member UserStore r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r
   ) =>
@@ -1384,11 +1218,15 @@ deleteSelfUser uid pwd = do
 
 -- | Conclude validation and scheduling of user's deletion request that was initiated in
 -- 'deleteUser'.  Called via @post /delete@.
+--
+-- FUTUREWORK(mangoiv): this uses 'UserStore', hence it must be moved to 'UserSubsystem'
+-- as an effet operation
 verifyDeleteUser ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Input (Local ())) r,
+    Member UserStore r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r
   ) =>
@@ -1405,13 +1243,17 @@ verifyDeleteUser d = do
 
 -- | Check if `deleteAccount` succeeded and run it again if needed.
 -- Called via @delete /i/user/:uid@.
+--
+-- FUTUREWORK(mangoiv): this uses 'UserStore', hence it must be moved to 'UserSubsystem'
+-- as an effet operation
 ensureAccountDeleted ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserStore r
   ) =>
   UserId ->
   AppT r DeleteUserResult
@@ -1448,54 +1290,42 @@ ensureAccountDeleted uid = do
 -- N.B.: As Cassandra doesn't support transactions, the order of database
 -- statements matters! Other functions reason upon some states to imply other
 -- states. Please change this order only with care!
+--
+-- FUTUREWORK(mangoiv): this uses 'UserStore', hence it must be moved to 'UserSubsystem'
+-- as an effet operation
+-- FUTUREWORK: this does not need the whole UserAccount structure, only the User.
 deleteAccount ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Input (Local ())) r,
+    Member UserStore r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   UserAccount ->
   Sem r ()
-deleteAccount account@(accountUser -> user) = do
+deleteAccount (accountUser -> user) = do
   let uid = userId user
   Log.info $ field "user" (toByteString uid) . msg (val "Deleting account")
-  embed $ do
+  do
     -- Free unique keys
-    for_ (userEmail user) $ deleteKeyForUser uid . userEmailKey
-    for_ (userPhone user) $ deleteKeyForUser uid . userPhoneKey
-    for_ (userHandle user) $ freeHandle (userId user)
-    -- Wipe data
-    Data.clearProperties uid
-    tombstone <- mkTombstone
-    Data.insertAccount tombstone Nothing Nothing False
+    for_ (userEmail user) $ embed . deleteKeyForUser uid . userEmailKey
+    for_ (userPhone user) $ embed . deleteKeyForUser uid . userPhoneKey
+
+    embed $ Data.clearProperties uid
+
+    deleteUser user
+
   Intra.rmUser uid (userAssets user)
   embed $ Data.lookupClients uid >>= mapM_ (Data.rmClient uid . clientId)
   luid <- embed $ qualifyLocal uid
   Intra.onUserEvent uid Nothing (UserDeleted (tUntagged luid))
-  embed $ do
+  embed do
     -- Note: Connections can only be deleted afterwards, since
     --       they need to be notified.
     Data.deleteConnections uid
     revokeAllCookies uid
-  where
-    mkTombstone = do
-      defLoc <- setDefaultUserLocale <$> view settings
-      pure $
-        account
-          { accountStatus = Deleted,
-            accountUser =
-              user
-                { userDisplayName = Name "default",
-                  userAccentId = defaultAccentId,
-                  userPict = noPict,
-                  userAssets = [],
-                  userHandle = Nothing,
-                  userLocale = defLoc,
-                  userIdentity = Nothing
-                }
-          }
 
 -------------------------------------------------------------------------------
 -- Lookups
@@ -1572,7 +1402,7 @@ getLegalHoldStatus' user =
 
 -- | Find user accounts for a given identity, both activated and those
 -- currently pending activation.
-lookupAccountsByIdentity :: Either Email Phone -> Bool -> (AppT r) [UserAccount]
+lookupAccountsByIdentity :: Either Email Phone -> Bool -> AppT r [UserAccount]
 lookupAccountsByIdentity emailOrPhone includePendingInvitations = do
   let uk = either userEmailKey userPhoneKey emailOrPhone
   activeUid <- wrapClient $ Data.lookupKey uk
@@ -1605,24 +1435,3 @@ phonePrefixDelete = liftSem . BlacklistPhonePrefixStore.delete
 
 phonePrefixInsert :: Member BlacklistPhonePrefixStore r => ExcludedPrefix -> (AppT r) ()
 phonePrefixInsert = liftSem . BlacklistPhonePrefixStore.insert
-
-userUnderE2EId :: Member GalleyAPIAccess r => UserId -> Sem r Bool
-userUnderE2EId uid = do
-  wsStatus . afcMlsE2EId <$> getAllFeatureConfigsForUser (Just uid) <&> \case
-    FeatureStatusEnabled -> True
-    FeatureStatusDisabled -> False
-
--- | This is a hack!
---
--- Background:
--- - https://wearezeta.atlassian.net/browse/WPB-6189.
--- - comments in `testUpdateHandle` in `/integration`.
---
--- FUTUREWORK: figure out a better way for clients to detect E2EId (V6?)
-hackForBlockingHandleChangeForE2EIdTeams :: Member GalleyAPIAccess r => SelfProfile -> Sem r SelfProfile
-hackForBlockingHandleChangeForE2EIdTeams (SelfProfile user) = do
-  hasE2EId <- userUnderE2EId . userId $ user
-  pure . SelfProfile $
-    if (hasE2EId && isJust (userHandle user))
-      then user {userManagedBy = ManagedByScim}
-      else user

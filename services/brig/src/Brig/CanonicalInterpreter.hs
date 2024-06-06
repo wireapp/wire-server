@@ -19,6 +19,7 @@ import Brig.Effects.PublicKeyBundle
 import Brig.Effects.SFT (SFT, interpretSFT)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Effects.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
+import Brig.IO.Intra (runUserEvents)
 import Brig.Options (ImplicitNoFederationRestriction (federationDomainConfig), federationDomainConfigs, federationStrategy)
 import Brig.Options qualified as Opt
 import Cassandra qualified as Cas
@@ -28,6 +29,7 @@ import Control.Monad.Catch (throwM)
 import Data.Qualified (Local, toLocalUnsafe)
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Imports
+import Network.Wai.Utilities qualified as Wai
 import Polysemy
 import Polysemy.Async
 import Polysemy.Conc
@@ -55,6 +57,7 @@ import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIOAction)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.UserEvents
 import Wire.UserStore
 import Wire.UserStore.Cassandra
 import Wire.UserSubsystem
@@ -63,7 +66,10 @@ import Wire.UserSubsystem.Interpreter
 type BrigCanonicalEffects =
   '[ UserSubsystem,
      DeleteQueue,
+     UserEvents,
+     Error UserSubsystemError,
      Error Wire.API.Federation.Error.FederationError,
+     Error Wai.Error,
      Wire.FederationAPIAccess.FederationAPIAccess Wire.API.Federation.Client.FederatorClient,
      UserStore,
      SFT,
@@ -145,16 +151,19 @@ runBrigToIO e (AppT ma) = do
               . interpretSFT (e ^. httpManager)
               . interpretUserStoreCassandra (e ^. casClient)
               . interpretFederationAPIAccess federationApiAccessConfig
-              . throwFederationErrorAsWaiError
+              . rethrowWaiErrorIO
+              . mapError federationErrorToWai
+              . mapError userSubsystemErrorToWai
+              . runUserEvents
               . runDeleteQueue (e ^. internalEvents)
               . runUserSubsystem userSubsystemConfig
           )
     )
     $ runReaderT ma e
 
-throwFederationErrorAsWaiError :: Member (Final IO) r => InterpreterFor (Error FederationError) r
-throwFederationErrorAsWaiError action = do
-  eithError <- errorToIOFinal action
+rethrowWaiErrorIO :: Member (Final IO) r => InterpreterFor (Error Wai.Error) r
+rethrowWaiErrorIO act = do
+  eithError <- errorToIOFinal act
   case eithError of
-    Left err -> embedToFinal $ throwM $ federationErrorToWai err
+    Left err -> embedToFinal $ throwM $ err
     Right a -> pure a

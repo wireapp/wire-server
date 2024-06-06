@@ -53,7 +53,6 @@ import Brig.Options qualified as Opt
 import Brig.Phone
 import Brig.Types.Intra
 import Brig.User.Auth.Cookie
-import Brig.User.Handle
 import Brig.User.Phone
 import Brig.ZAuth qualified as ZAuth
 import Cassandra
@@ -87,6 +86,8 @@ import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.UserStore
+import Wire.UserStore.Cassandra (interpretUserStoreCassandra)
 
 sendLoginCode ::
   (Member TinyLog r) =>
@@ -163,7 +164,7 @@ login (PasswordLogin (PasswordLoginData li pw label code)) typ = do
           VerificationCodeRequired -> wrapHttpClientE $ loginFailedWith LoginCodeRequired uid
           VerificationCodeNoEmail -> wrapHttpClientE $ loginFailed uid
 login (SmsLogin (SmsLoginData phone code label)) typ = do
-  uid <- wrapHttpClientE $ resolveLoginId (LoginByPhone phone)
+  uid <- wrapClientE $ resolveLoginId (LoginByPhone phone)
   lift . liftSem . Log.debug $ field "user" (toByteString uid) . field "action" (val "User.login")
   wrapHttpClientE $ checkRetryLimit uid
   ok <- wrapHttpClientE $ Data.verifyLoginCode uid code
@@ -329,9 +330,14 @@ newAccess uid cid ct cl = do
       t <- lift $ newAccessToken @u @a ck Nothing
       pure $ Access t (Just ck)
 
-resolveLoginId :: (MonadClient m, MonadReader Env m) => LoginId -> ExceptT LoginError m UserId
+resolveLoginId :: forall m. (MonadClient m, MonadReader Env m) => LoginId -> ExceptT LoginError m UserId
 resolveLoginId li = do
-  usr <- validateLoginId li >>= lift . either lookupKey lookupHandle
+  let adhocInterpreter :: Sem '[UserStore, Embed IO] a -> m a
+      adhocInterpreter action = do
+        clientState <- asks (view casClient)
+        liftIO (runM (interpretUserStoreCassandra clientState action))
+
+  usr <- validateLoginId li >>= lift . either lookupKey (adhocInterpreter . lookupHandle)
   case usr of
     Nothing -> do
       pending <- lift $ isPendingActivation li

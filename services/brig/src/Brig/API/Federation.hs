@@ -41,7 +41,8 @@ import Control.Error.Util
 import Control.Lens ((^.))
 import Control.Monad.Trans.Except
 import Data.Domain
-import Data.Handle (Handle (..), parseHandle)
+import Data.Handle (Handle (..))
+import Data.Handle qualified as Handle
 import Data.Id (ClientId, TeamId, UserId)
 import Data.List.NonEmpty (nonEmpty)
 import Data.Qualified
@@ -73,6 +74,7 @@ import Wire.DeleteQueue
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
+import Wire.UserStore
 import Wire.UserSubsystem
 
 type FederationAPI = "federation" :> BrigApi
@@ -83,6 +85,7 @@ federationSitemap ::
     Member FederationConfigStore r,
     Member NotificationSubsystem r,
     Member UserSubsystem r,
+    Member UserStore r,
     Member DeleteQueue r
   ) =>
   ServerT FederationAPI (Handler r)
@@ -139,7 +142,8 @@ sendConnectionAction originDomain NewConnectionRequest {..} = do
 
 getUserByHandle ::
   ( Member FederationConfigStore r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member UserStore r
   ) =>
   Domain ->
   Handle ->
@@ -155,7 +159,7 @@ getUserByHandle domain handle = do
   if not performHandleLookup
     then pure Nothing
     else lift $ do
-      maybeOwnerId <- wrapClient $ API.lookupHandle handle
+      maybeOwnerId <- liftSem $ API.lookupHandle handle
       case maybeOwnerId of
         Nothing ->
           pure Nothing
@@ -202,7 +206,8 @@ fedClaimKeyPackages domain ckpr =
 searchUsers ::
   forall r.
   ( Member FederationConfigStore r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member UserStore r
   ) =>
   Domain ->
   SearchRequest ->
@@ -237,8 +242,8 @@ searchUsers domain (SearchRequest searchTerm mTeam mOnlyInTeams) = do
     exactHandleSearch :: Int -> ExceptT Error (AppT r) [Contact]
     exactHandleSearch n
       | n > 0 = do
-          let maybeHandle = parseHandle searchTerm
-          maybeOwnerId <- maybe (pure Nothing) (wrapHttpClientE . API.lookupHandle) maybeHandle
+          let maybeHandle = Handle.parseHandle searchTerm
+          maybeOwnerId <- maybe (pure Nothing) (lift . liftSem . API.lookupHandle) maybeHandle
           case maybeOwnerId of
             Nothing -> pure []
             Just foundUser -> do

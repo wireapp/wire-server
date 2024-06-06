@@ -395,7 +395,7 @@ type AccountAPI =
                :> Put '[Servant.JSON] NoContent
            )
     :<|> Named
-           "iPutHandle"
+           "iPutUserName"
            ( "users"
                :> Capture "uid" UserId
                :> "name"

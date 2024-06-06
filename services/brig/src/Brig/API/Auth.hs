@@ -54,6 +54,7 @@ import Wire.API.User.Auth.Sso
 import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.UserSubsystem
 
 accessH ::
   ( Member TinyLog r,
@@ -139,7 +140,7 @@ changeSelfEmailH uts' mat' up = do
   toks <- partitionTokens uts mat
   usr <- either (uncurry validateCredentials) (uncurry validateCredentials) toks
   let email = euEmail up
-  changeSelfEmail usr email ForbidSCIMUpdates
+  changeSelfEmail usr email UpdateOriginWireClient
 
 validateCredentials ::
   TokenPair u a =>

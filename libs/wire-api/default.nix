@@ -29,6 +29,7 @@
 , crypton
 , crypton-x509
 , currency-codes
+, data-default
 , deriving-aeson
 , deriving-swagger2
 , either
@@ -139,6 +140,7 @@ mkDerivation {
     crypton
     crypton-x509
     currency-codes
+    data-default
     deriving-aeson
     deriving-swagger2
     either

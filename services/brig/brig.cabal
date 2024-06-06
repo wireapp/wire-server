@@ -208,7 +208,6 @@ library
     Brig.Team.Template
     Brig.Team.Util
     Brig.Template
-    Brig.Unique
     Brig.User.API.Handle
     Brig.User.API.Search
     Brig.User.Auth
@@ -218,8 +217,6 @@ library
     Brig.User.Auth.DB.Instances
     Brig.User.EJPD
     Brig.User.Email
-    Brig.User.Handle
-    Brig.User.Handle.Blacklist
     Brig.User.Phone
     Brig.User.Search.Index
     Brig.User.Search.Index.Types
@@ -264,7 +261,7 @@ library
     , cql
     , cryptobox-haskell          >=0.1.1
     , currency-codes             >=2.0
-    , data-timeout               >=0.3
+    , data-default
     , dns
     , dns-util
     , enclosed-exceptions        >=1.0

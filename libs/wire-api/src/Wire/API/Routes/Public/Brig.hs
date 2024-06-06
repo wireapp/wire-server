@@ -297,7 +297,7 @@ type SelfAPI =
     "get-self"
     ( Summary "Get your own profile"
         :> DescriptionOAuthScope 'ReadSelf
-        :> ZUser
+        :> ZLocalUser
         :> "self"
         :> Get '[JSON] SelfProfile
     )
@@ -334,11 +334,11 @@ type SelfAPI =
       "put-self"
       ( Summary "Update your profile."
           :> MakesFederatedCall 'Brig "send-connection-action"
-          :> ZUser
+          :> ZLocalUser
           :> ZConn
           :> "self"
           :> ReqBody '[JSON] UserUpdate
-          :> MultiVerb 'PUT '[JSON] PutSelfResponses (Maybe UpdateProfileError)
+          :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "User updated")
       )
     :<|> Named
            "change-phone"
@@ -409,24 +409,24 @@ type SelfAPI =
            "change-locale"
            ( Summary "Change your locale."
                :> MakesFederatedCall 'Brig "send-connection-action"
-               :> ZUser
+               :> ZLocalUser
                :> ZConn
                :> "self"
                :> "locale"
                :> ReqBody '[JSON] LocaleUpdate
-               :> MultiVerb 'PUT '[JSON] '[RespondEmpty 200 "Local Changed"] ()
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "Local Changed")
            )
     :<|> Named
            "change-handle"
            ( Summary "Change your handle."
                :> MakesFederatedCall 'Brig "send-connection-action"
                :> MakesFederatedCall 'Brig "send-connection-action"
-               :> ZUser
+               :> ZLocalUser
                :> ZConn
                :> "self"
                :> "handle"
                :> ReqBody '[JSON] HandleUpdate
-               :> MultiVerb 'PUT '[JSON] ChangeHandleResponses (Maybe ChangeHandleError)
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "Handle Changed")
            )
     :<|> Named
            "change-supported-protocols"
