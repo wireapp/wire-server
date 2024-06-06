@@ -1071,7 +1071,7 @@ sendActivationCode Public.SendActivationCode {..} = do
     Right _ -> throwStd (errorToWai @'E.InvalidPhone)
   customerExtensionCheckBlockedDomains email
   checkAllowlist email
-  API.sendActivationCode email saLocale !>> sendActCodeError
+  API.sendActivationCode email saLocale saCall !>> sendActCodeError
 
 -- | If the user presents an email address from a blocked domain, throw an error.
 --
