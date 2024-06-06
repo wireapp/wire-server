@@ -11,6 +11,7 @@
 , http-client
 , imports
 , lib
+, safe-exceptions
 , time
 }:
 mkDerivation {
@@ -24,6 +25,7 @@ mkDerivation {
     HsOpenSSL
     http-client
     imports
+    safe-exceptions
     time
   ];
   description = "SSL-related utilities";

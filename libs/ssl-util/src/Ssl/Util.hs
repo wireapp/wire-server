@@ -33,7 +33,8 @@ module Ssl.Util
   )
 where
 
-import Control.Exception
+import Control.Exception hiding (catch)
+import Control.Exception.Safe (catch)
 import Data.ByteString.Builder
 import Data.Byteable (constEqBytes)
 import Data.Dynamic (fromDynamic)
