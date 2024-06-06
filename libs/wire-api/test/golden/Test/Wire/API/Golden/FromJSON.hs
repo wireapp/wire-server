@@ -24,12 +24,10 @@ import Test.Wire.API.Golden.Generated.Invite_user (testObject_Invite_user_2)
 import Test.Wire.API.Golden.Generated.MemberUpdateData_user
 import Test.Wire.API.Golden.Generated.NewOtrMessage_user
 import Test.Wire.API.Golden.Generated.RmClient_user
-import Test.Wire.API.Golden.Generated.SendActivationCode_user
 import Test.Wire.API.Golden.Generated.SimpleMember_user
 import Test.Wire.API.Golden.Runner
 import Wire.API.Conversation (Conversation, MemberUpdate, OtherMemberUpdate)
 import Wire.API.User (NewUser, NewUserPublic)
-import Wire.API.User.Activation
 import Wire.API.User.Client (RmClient)
 
 tests :: TestTree
@@ -102,29 +100,5 @@ tests =
             testFromJSONFailureWithMsg @NewUserPublic
               (Just "only managed-by-Wire users can be created here.")
               "testObject_NewUserPublic_user_1-3.json"
-        ],
-      testGroup
-        "SendActivationCode"
-        [ testGroup "failure" $
-            [ testCase "testObject_SendActivationCode_user_1.json" $
-                testFromJSONFailureWithMsg @SendActivationCode
-                  (Just "invalid-phone")
-                  "testObject_SendActivationCode_user_1.json",
-              testCase "testObject_SendActivationCode_user_2.json" $
-                testFromJSONFailureWithMsg @SendActivationCode
-                  (Just "Only 'email' allowed. The phone option is not supported any more.")
-                  "testObject_SendActivationCode_user_2.json",
-              testCase "testObject_SendActivationCode_user_3.json" $
-                testFromJSONFailureWithMsg @SendActivationCode
-                  (Just "The 'email' field is required.")
-                  "testObject_SendActivationCode_user_3.json"
-            ],
-          testGroup
-            "success"
-            [ testCase
-                "with voice_call ignored"
-                $ testFromJSONObjects
-                  [(testObject_SendActivationCode_user_20, "testObject_SendActivationCode_user_20_2.json")]
-            ]
         ]
     ]

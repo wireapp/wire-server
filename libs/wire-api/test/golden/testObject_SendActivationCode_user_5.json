@@ -1,3 +1,4 @@
 {
-    "email": "test@example.com"
+    "email": "test@example.com",
+    "voice_call": false
 }
