@@ -26,7 +26,6 @@ where
 import Brig.API.Types
 import Brig.App
 import Brig.Data.Connection qualified as Data
-import Brig.Data.User qualified as Data
 import Brig.Options (Settings (setUserMaxConnections))
 import Control.Error (MaybeT, noteT)
 import Control.Lens (view)
@@ -34,7 +33,9 @@ import Control.Monad.Trans.Except
 import Data.Id (UserId)
 import Data.Qualified
 import Imports
+import Polysemy
 import Wire.API.Connection (Relation (..))
+import Wire.UserStore
 
 type ConnectionM r = ExceptT ConnectionError (AppT r)
 
@@ -46,14 +47,14 @@ checkLimit u = noteT (TooManyConnections (tUnqualified u)) $ do
   l <- setUserMaxConnections <$> view settings
   guard (n < l)
 
-ensureNotSameAndActivated :: Local UserId -> Qualified UserId -> ConnectionM r ()
+ensureNotSameAndActivated :: (Member UserStore r) => Local UserId -> Qualified UserId -> ConnectionM r ()
 ensureNotSameAndActivated self target = do
   when (tUntagged self == target) $
     throwE (InvalidUser target)
   noteT ConnectNoIdentity $
     ensureIsActivated self
 
-ensureIsActivated :: Local UserId -> MaybeT (AppT r) ()
+ensureIsActivated :: (Member UserStore r) => Local UserId -> MaybeT (AppT r) ()
 ensureIsActivated lusr = do
-  active <- lift . wrapClient $ Data.isActivated (tUnqualified lusr)
+  active <- lift . liftSem $ isActivated (tUnqualified lusr)
   guard active

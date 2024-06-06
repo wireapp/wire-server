@@ -29,7 +29,6 @@ module Brig.Data.User
     authenticate,
     reauthenticate,
     filterActive,
-    isActivated,
     isSamlUser,
 
     -- * Lookups
@@ -39,8 +38,6 @@ module Brig.Data.User
     lookupUsers,
     lookupName,
     lookupLocale,
-    lookupPassword,
-    lookupStatus,
     lookupRichInfo,
     lookupRichInfoMultiUsers,
     lookupUserTeam,
@@ -70,7 +67,7 @@ module Brig.Data.User
   )
 where
 
-import Brig.App (Env, currentTime, settings, viewFederationDomain, zauthEnv)
+import Brig.App (Env, adhocUserStoreInterpreter, currentTime, settings, viewFederationDomain, zauthEnv)
 import Brig.Options
 import Brig.Types.Intra
 import Brig.ZAuth qualified as ZAuth
@@ -93,6 +90,7 @@ import Wire.API.Provider.Service
 import Wire.API.Team.Feature qualified as ApiFt
 import Wire.API.User
 import Wire.API.User.RichInfo
+import Wire.UserStore
 
 -- | Authentication errors.
 data AuthError
@@ -128,7 +126,7 @@ newAccount u inv tid mbHandle = do
         (Just (toUUID -> uuid), _) -> pure uuid
         (_, Just uuid) -> pure uuid
         (Nothing, Nothing) -> liftIO nextRandom
-  passwd <- maybe (pure Nothing) (fmap Just . liftIO . mkSafePassword) pass
+  passwd <- maybe (pure Nothing) (fmap Just . liftIO . mkSafePasswordArgon2id) pass
   expiry <- case status of
     Ephemeral -> do
       -- Ephemeral users' expiry time is in expires_in (default sessionTokenTimeout) seconds
@@ -180,7 +178,7 @@ newAccountInviteViaScim uid tid locale name email = do
         defSupportedProtocols
 
 -- | Mandatory password authentication.
-authenticate :: (MonadClient m) => UserId -> PlainTextPassword6 -> ExceptT AuthError m ()
+authenticate :: (MonadClient m, MonadReader Env m) => UserId -> PlainTextPassword6 -> ExceptT AuthError m ()
 authenticate u pw =
   lift (lookupAuth u) >>= \case
     Nothing -> throwE AuthInvalidUser
@@ -195,8 +193,13 @@ authenticate u pw =
         (True, PasswordStatusNeedsUpdate) -> do
           -- FUTUREWORK(elland): 6char pwd allowed for now
           -- throwE AuthStalePassword in the future
-          for_ (plainTextPassword8 . fromPlainTextPassword $ pw) (updatePassword u)
+          for_ (plainTextPassword8 . fromPlainTextPassword $ pw) (lift . hashAndUpdatePwd u)
         (True, _) -> pure ()
+  where
+    hashAndUpdatePwd :: (MonadClient m, MonadReader Env m) => UserId -> PlainTextPassword8 -> m ()
+    hashAndUpdatePwd uid pwd = do
+      hashed <- mkSafePasswordArgon2id pwd
+      adhocUserStoreInterpreter $ updatePassword uid hashed
 
 -- | Password reauthentication. If the account has a password, reauthentication
 -- is mandatory. If the account has no password, or is an SSO user, and no password is given,
@@ -299,11 +302,6 @@ updateSSOId u ssoid = do
 updateManagedBy :: (MonadClient m) => UserId -> ManagedBy -> m ()
 updateManagedBy u h = retry x5 $ write userManagedByUpdate (params LocalQuorum (h, u))
 
-updatePassword :: (MonadClient m) => UserId -> PlainTextPassword8 -> m ()
-updatePassword u t = do
-  p <- liftIO $ mkSafePassword t
-  retry x5 $ write userPasswordUpdate (params LocalQuorum (p, u))
-
 updateRichInfo :: (MonadClient m) => UserId -> RichInfoAssocList -> m ()
 updateRichInfo u ri = retry x5 $ write userRichInfoUpdate (params LocalQuorum (ri, u))
 
@@ -352,13 +350,6 @@ updateStatus u s =
 userExists :: (MonadClient m) => UserId -> m Bool
 userExists uid = isJust <$> retry x1 (query1 idSelect (params LocalQuorum (Identity uid)))
 
--- | Whether the account has been activated by verifying
--- an email address or phone number.
-isActivated :: (MonadClient m) => UserId -> m Bool
-isActivated u =
-  (== Just (Identity True))
-    <$> retry x1 (query1 activatedSelect (params LocalQuorum (Identity u)))
-
 filterActive :: (MonadClient m) => [UserId] -> m [UserId]
 filterActive us =
   map (view _1) . filter isActiveUser
@@ -390,16 +381,6 @@ lookupName :: (MonadClient m) => UserId -> m (Maybe Name)
 lookupName u =
   fmap runIdentity
     <$> retry x1 (query1 nameSelect (params LocalQuorum (Identity u)))
-
-lookupPassword :: (MonadClient m) => UserId -> m (Maybe Password)
-lookupPassword u =
-  (runIdentity =<<)
-    <$> retry x1 (query1 passwordSelect (params LocalQuorum (Identity u)))
-
-lookupStatus :: (MonadClient m) => UserId -> m (Maybe AccountStatus)
-lookupStatus u =
-  (runIdentity =<<)
-    <$> retry x1 (query1 statusSelect (params LocalQuorum (Identity u)))
 
 lookupRichInfo :: (MonadClient m) => UserId -> m (Maybe RichInfoAssocList)
 lookupRichInfo u =
@@ -564,17 +545,8 @@ localeSelect = "SELECT language, country FROM user WHERE id = ?"
 authSelect :: PrepQuery R (Identity UserId) (Maybe Password, Maybe AccountStatus)
 authSelect = "SELECT password, status FROM user WHERE id = ?"
 
-passwordSelect :: PrepQuery R (Identity UserId) (Identity (Maybe Password))
-passwordSelect = "SELECT password FROM user WHERE id = ?"
-
-activatedSelect :: PrepQuery R (Identity UserId) (Identity Bool)
-activatedSelect = "SELECT activated FROM user WHERE id = ?"
-
 accountStateSelectAll :: PrepQuery R (Identity [UserId]) (UserId, Bool, Maybe AccountStatus)
 accountStateSelectAll = "SELECT id, activated, status FROM user WHERE id IN ?"
-
-statusSelect :: PrepQuery R (Identity UserId) (Identity (Maybe AccountStatus))
-statusSelect = "SELECT status FROM user WHERE id = ?"
 
 richInfoSelect :: PrepQuery R (Identity UserId) (Identity RichInfoAssocList)
 richInfoSelect = "SELECT json FROM rich_info WHERE user = ?"
@@ -616,9 +588,6 @@ userSSOIdUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user
 
 userManagedByUpdate :: PrepQuery W (ManagedBy, UserId) ()
 userManagedByUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET managed_by = ? WHERE id = ?"
-
-userPasswordUpdate :: PrepQuery W (Password, UserId) ()
-userPasswordUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET password = ? WHERE id = ?"
 
 userStatusUpdate :: PrepQuery W (AccountStatus, UserId) ()
 userStatusUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET status = ? WHERE id = ?"

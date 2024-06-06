@@ -3,11 +3,11 @@ module Brig.Effects.BlacklistStore.Cassandra
   )
 where
 
-import Brig.Data.UserKey
 import Brig.Effects.BlacklistStore (BlacklistStore (..))
 import Cassandra
 import Imports
 import Polysemy
+import Wire.UserKeyStore
 
 interpretBlacklistStoreToCassandra ::
   forall m r a.

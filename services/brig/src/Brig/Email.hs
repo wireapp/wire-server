@@ -47,6 +47,7 @@ import Data.Text qualified as Text
 import Imports
 import Network.Mail.Mime
 import Wire.API.User
+import Wire.UserKeyStore
 
 -------------------------------------------------------------------------------
 sendMail :: (MonadIO m, MonadReader Env m) => Mail -> m ()
@@ -54,39 +55,6 @@ sendMail m =
   view smtpEnv >>= \case
     Just smtp -> view applog >>= \logger -> SMTP.sendMail logger smtp m
     Nothing -> view awsEnv >>= \e -> AWS.execute e $ AWS.sendMail m
-
--------------------------------------------------------------------------------
--- Unique Keys
-
--- | An 'EmailKey' is an 'Email' in a form that serves as a unique lookup key.
-data EmailKey = EmailKey
-  { emailKeyUniq :: !Text,
-    emailKeyOrig :: !Email
-  }
-
-instance Show EmailKey where
-  showsPrec _ = shows . emailKeyUniq
-
-instance Eq EmailKey where
-  (EmailKey k _) == (EmailKey k' _) = k == k'
-
--- | Turn an 'Email' into an 'EmailKey'.
---
--- The following transformations are performed:
---
---   * Both local and domain parts are forced to lowercase to make
---     e-mail addresses fully case-insensitive.
---   * "+" suffixes on the local part are stripped unless the domain
---     part is contained in a trusted whitelist.
-mkEmailKey :: Email -> EmailKey
-mkEmailKey orig@(Email localPart domain) =
-  let uniq = Text.toLower localPart' <> "@" <> Text.toLower domain
-   in EmailKey uniq orig
-  where
-    localPart'
-      | domain `notElem` trusted = Text.takeWhile (/= '+') localPart
-      | otherwise = localPart
-    trusted = ["wearezeta.com", "wire.com", "simulator.amazonses.com"]
 
 -------------------------------------------------------------------------------
 -- MIME Conversions

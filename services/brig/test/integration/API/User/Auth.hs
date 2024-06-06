@@ -30,7 +30,6 @@ import Bilge qualified as Http
 import Bilge.Assert hiding (assert)
 import Brig.Code qualified as Code
 import Brig.Options qualified as Opts
-import Brig.User.Auth.Cookie (revokeAllCookies)
 import Brig.ZAuth (ZAuth, runZAuth)
 import Brig.ZAuth qualified as ZAuth
 import Cassandra hiding (Value)
@@ -62,7 +61,7 @@ import Test.Tasty.HUnit qualified as HUnit
 import UnliftIO.Async hiding (wait)
 import Util
 import Wire.API.Conversation (Conversation (..))
-import Wire.API.Password (Password, mkSafePassword)
+import Wire.API.Password (Password, mkSafePasswordArgon2id)
 import Wire.API.User as Public
 import Wire.API.User.Auth as Auth
 import Wire.API.User.Auth.LegalHold
@@ -191,15 +190,21 @@ testLoginWith6CharPassword brig db = do
     -- we need to write this directly to the db, to be able to test this
     writeDirectlyToDB :: UserId -> PlainTextPassword6 -> Http ()
     writeDirectlyToDB uid pw =
-      liftIO (runClient db (updatePassword uid pw >> revokeAllCookies uid))
+      liftIO (runClient db (updatePassword uid pw >> deleteAllCookies uid))
 
     updatePassword :: (MonadClient m) => UserId -> PlainTextPassword6 -> m ()
     updatePassword u t = do
-      p <- liftIO $ mkSafePassword t
+      p <- liftIO $ mkSafePasswordArgon2id t
       retry x5 $ write userPasswordUpdate (params LocalQuorum (p, u))
 
     userPasswordUpdate :: PrepQuery W (Password, UserId) ()
     userPasswordUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET password = ? WHERE id = ?"
+
+    deleteAllCookies :: (MonadClient m) => UserId -> m ()
+    deleteAllCookies u = retry x5 (write cql (params LocalQuorum (Identity u)))
+      where
+        cql :: PrepQuery W (Identity UserId) ()
+        cql = "DELETE FROM user_cookies WHERE user = ?"
 
 --------------------------------------------------------------------------------
 -- ZAuth test environment for generating arbitrary tokens.

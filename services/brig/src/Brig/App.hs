@@ -87,6 +87,9 @@ module Brig.App
     lowerAppT,
     temporaryGetEnv,
     initHttpManagerWithTLSConfig,
+    adhocUserKeyStoreInterpreter,
+    adhocUserStoreInterpreter,
+    adhocSessionStoreInterpreter,
   )
 where
 
@@ -110,7 +113,7 @@ import Brig.User.Search.Index (IndexEnv (..), MonadIndexIO (..), runIndexIO)
 import Brig.User.Template
 import Brig.ZAuth (MonadZAuth (..), runZAuth)
 import Brig.ZAuth qualified as ZAuth
-import Cassandra (runClient)
+import Cassandra (MonadClient, runClient)
 import Cassandra qualified as Cas
 import Cassandra.Util (initCassandraForService)
 import Control.AutoUpdate
@@ -154,6 +157,12 @@ import Wire.API.Federation.Error (federationNotImplemented)
 import Wire.API.Routes.Version
 import Wire.API.User.Identity (Email)
 import Wire.API.User.Profile (Locale)
+import Wire.SessionStore
+import Wire.SessionStore.Cassandra
+import Wire.UserKeyStore
+import Wire.UserKeyStore.Cassandra
+import Wire.UserStore
+import Wire.UserStore.Cassandra
 
 schemaVersion :: Int32
 schemaVersion = Migrations.lastSchemaVersion
@@ -624,6 +633,27 @@ instance (MonadIndexIO (AppT r)) => MonadIndexIO (ExceptT err (AppT r)) where
 
 instance HasRequestId (AppT r) where
   getRequestId = view requestId
+
+-------------------------------------------------------------------------------
+-- Ad hoc interpreters
+
+-- | similarly to `wrapClient`, this function serves as a crutch while Brig is being polysemised.
+adhocUserStoreInterpreter :: (MonadClient m, MonadReader Env m) => Sem '[UserStore, Embed IO] a -> m a
+adhocUserStoreInterpreter action = do
+  clientState <- asks (view casClient)
+  liftIO (runM (interpretUserStoreCassandra clientState action))
+
+-- | similarly to `wrapClient`, this function serves as a crutch while Brig is being polysemised.
+adhocUserKeyStoreInterpreter :: (MonadClient m, MonadReader Env m) => Sem '[UserKeyStore, UserStore, Embed IO] a -> m a
+adhocUserKeyStoreInterpreter action = do
+  clientState <- asks (view casClient)
+  liftIO $ runM . interpretUserStoreCassandra clientState . interpretUserKeyStoreCassandra clientState $ action
+
+-- | similarly to `wrapClient`, this function serves as a crutch while Brig is being polysemised.
+adhocSessionStoreInterpreter :: (MonadClient m, MonadReader Env m) => Sem '[SessionStore, Embed IO] a -> m a
+adhocSessionStoreInterpreter action = do
+  clientState <- asks (view casClient)
+  liftIO $ runM . interpretSessionStoreCassandra clientState $ action
 
 --------------------------------------------------------------------------------
 -- Federation

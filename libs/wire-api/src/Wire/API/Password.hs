@@ -22,11 +22,13 @@ module Wire.API.Password
   ( Password,
     PasswordStatus (..),
     genPassword,
-    mkSafePassword,
+    mkSafePasswordScrypt,
     mkSafePasswordArgon2id,
     verifyPassword,
     verifyPasswordWithStatus,
     unsafeMkPassword,
+    hashPasswordScryptWithSalt,
+    hashPasswordArgon2idWithSalt,
   )
 where
 
@@ -130,8 +132,8 @@ genPassword =
     randBytes 12
 
 -- | Stretch a plaintext password so that it can be safely stored.
-mkSafePassword :: (MonadIO m) => PlainTextPassword' t -> m Password
-mkSafePassword = fmap Password . hashPasswordScrypt . Text.encodeUtf8 . fromPlainTextPassword
+mkSafePasswordScrypt :: (MonadIO m) => PlainTextPassword' t -> m Password
+mkSafePasswordScrypt = fmap Password . hashPasswordScrypt . Text.encodeUtf8 . fromPlainTextPassword
 
 mkSafePasswordArgon2id :: (MonadIO m) => PlainTextPassword' t -> m Password
 mkSafePasswordArgon2id = fmap Password . hashPasswordArgon2id . Text.encodeUtf8 . fromPlainTextPassword
@@ -150,6 +152,10 @@ verifyPasswordWithStatus plain opaque =
 hashPasswordArgon2id :: (MonadIO m) => ByteString -> m Text
 hashPasswordArgon2id pwd = do
   salt <- newSalt $ fromIntegral defaultParams.saltLength
+  pure $ hashPasswordArgon2idWithSalt salt pwd
+
+hashPasswordArgon2idWithSalt :: ByteString -> ByteString -> Text
+hashPasswordArgon2idWithSalt salt pwd = do
   let key = hashPasswordWithOptions defaultOptions pwd salt
       opts =
         Text.intercalate
@@ -158,32 +164,34 @@ hashPasswordArgon2id pwd = do
             "t=" <> showT defaultOptions.iterations,
             "p=" <> showT defaultOptions.parallelism
           ]
-  pure $
-    "$argon2"
-      <> Text.intercalate
-        "$"
-        [ variantToCode defaultOptions.variant,
-          "v=" <> versionToNum defaultOptions.version,
-          opts,
-          encodeWithoutPadding salt,
-          encodeWithoutPadding key
-        ]
+   in "$argon2"
+        <> Text.intercalate
+          "$"
+          [ variantToCode defaultOptions.variant,
+            "v=" <> versionToNum defaultOptions.version,
+            opts,
+            encodeWithoutPadding salt,
+            encodeWithoutPadding key
+          ]
   where
     encodeWithoutPadding = Text.dropWhileEnd (== '=') . Text.decodeUtf8 . B64.encode
 
 hashPasswordScrypt :: (MonadIO m) => ByteString -> m Text
 hashPasswordScrypt password = do
   salt <- newSalt $ fromIntegral defaultParams.saltLength
+  pure $ hashPasswordScryptWithSalt salt password
+
+hashPasswordScryptWithSalt :: ByteString -> ByteString -> Text
+hashPasswordScryptWithSalt salt password =
   let key = hashPasswordWithParams defaultParams password salt
-  pure $
-    Text.intercalate
-      "|"
-      [ showT defaultParams.rounds,
-        showT defaultParams.blockSize,
-        showT defaultParams.parallelism,
-        Text.decodeUtf8 . B64.encode $ salt,
-        Text.decodeUtf8 . B64.encode $ key
-      ]
+   in Text.intercalate
+        "|"
+        [ showT defaultParams.rounds,
+          showT defaultParams.blockSize,
+          showT defaultParams.parallelism,
+          Text.decodeUtf8 . B64.encode $ salt,
+          Text.decodeUtf8 . B64.encode $ key
+        ]
 
 checkPassword :: Text -> Text -> (Bool, PasswordStatus)
 checkPassword actual expected =
