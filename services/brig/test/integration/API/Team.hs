@@ -35,10 +35,12 @@ import Control.Monad.Catch (MonadCatch)
 import Data.Aeson
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
+import Data.Default (def)
 import Data.Either.Extra (eitherToMaybe)
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldDisabled))
+import Data.String.Conversions (cs)
 import Data.Text qualified as Text
 import Data.Text.Ascii qualified as Ascii
 import Data.Text.Encoding (encodeUtf8)
@@ -242,7 +244,6 @@ testInvitationUrl opts brig = do
 
   void . withMockedGalley opts (invitationUrlGalleyMock FeatureStatusEnabled tid inviter) $ do
     resp <-
-      -- TODO: postInvitation reaches brig, but since this PR, brig doesn't reach the mock galley any more, but the real galley.  need to make GalleyAPIAccess mock-aware!
       postInvitation brig tid inviter invite
         <!! (const 201 === statusCode)
 
@@ -270,7 +271,7 @@ invitationUrlGalleyMock ::
   UserId ->
   ReceivedRequest ->
   MockT IO Wai.Response
-invitationUrlGalleyMock featureStatus tid inviter (ReceivedRequest mth pth _body)
+invitationUrlGalleyMock featureStatus tid inviter (ReceivedRequest mth pth body_)
   | mth == "GET"
       && pth == ["i", "teams", Text.pack (show tid), "features", "exposeInvitationURLsToTeamAdmin"] =
       pure . Wai.responseLBS HTTP.status200 mempty $
@@ -285,7 +286,18 @@ invitationUrlGalleyMock featureStatus tid inviter (ReceivedRequest mth pth _body
       && pth == ["i", "teams", Text.pack (show tid), "members", Text.pack (show inviter)] =
       pure . Wai.responseLBS HTTP.status200 mempty $
         encode (mkTeamMember inviter fullPermissions Nothing UserLegalHoldDisabled)
-  | otherwise = pure $ Wai.responseLBS HTTP.status500 mempty "Unexpected request to mocked galley"
+  | mth == "GET"
+      && pth == ["i", "feature-configs"] =
+      pure $ Wai.responseLBS HTTP.status200 mempty (encode (def @AllFeatureConfigs))
+  | otherwise =
+      let errBody =
+            encode . object $
+              [ "msg" .= ("unexpecUnexpected request to mocked galley" :: Text),
+                "method" .= show mth,
+                "path" .= pth,
+                "body" .= (cs @_ @Text body_)
+              ]
+       in pure $ Wai.responseLBS HTTP.status500 mempty errBody
 
 -- FUTUREWORK: This test should be rewritten to be free of mocks once Galley is
 -- inlined into Brig.
