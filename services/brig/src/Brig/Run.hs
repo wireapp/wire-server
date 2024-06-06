@@ -124,7 +124,7 @@ mkApp o = do
         . Metrics.servantPrometheusMiddleware (Proxy @ServantCombinedAPI)
         . GZip.gunzip
         . GZip.gzip GZip.def
-        . catchErrors (e ^. applog) defaultRequestIdHeaderName [Right $ e ^. metrics]
+        . catchErrors (e ^. applog) defaultRequestIdHeaderName
 
     -- the servant API wraps the one defined using wai-routing
     servantApp :: Env -> Wai.Application

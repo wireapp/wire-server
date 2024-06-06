@@ -33,7 +33,6 @@ module Network.Wai.Utilities.Server
     requestIdMiddleware,
     catchErrors,
     catchErrorsWithRequestId,
-    OnErrorMetrics,
     heavyDebugLogging,
     rethrow5xx,
     lazyResponseBody,
@@ -64,7 +63,6 @@ import Data.ByteString.Char8 qualified as C
 import Data.ByteString.Lazy qualified as LBS
 import Data.Domain (domainText)
 import Data.Metrics.GC (spawnGCMetricsCollector)
-import Data.Metrics.Middleware
 import Data.Streaming.Zlib (ZlibException (..))
 import Data.Text.Encoding qualified as Text
 import Data.Text.Encoding.Error (lenientDecode)
@@ -87,7 +85,7 @@ import Network.Wai.Utilities.Error qualified as Wai
 import Network.Wai.Utilities.JSONResponse
 import Network.Wai.Utilities.Request (lookupRequestId)
 import Network.Wai.Utilities.Response
-import Prometheus qualified as Prm
+import Prometheus qualified as Prom
 import System.Logger qualified as Log
 import System.Logger.Class hiding (Error, Settings, format)
 import System.Posix.Signals (installHandler, sigINT, sigTERM)
@@ -100,18 +98,14 @@ data Server = Server
   { serverHost :: String,
     serverPort :: Word16,
     serverLogger :: Logger,
-    serverMetrics :: Metrics,
     serverTimeout :: Maybe Int
   }
 
-defaultServer :: String -> Word16 -> Logger -> Metrics -> Server
-defaultServer h p l m = Server h p l m Nothing
+defaultServer :: String -> Word16 -> Logger -> Server
+defaultServer h p l = Server h p l Nothing
 
 newSettings :: MonadIO m => Server -> m Settings
-newSettings (Server h p l m t) = do
-  -- (Atomically) initialise the standard metrics, to avoid races.
-  void $ gaugeGet (path "net.connections") m
-  void $ counterGet (path "net.errors") m
+newSettings (Server h p l t) = do
   pure
     $ setHost (fromString h)
       . setPort (fromIntegral p)
@@ -121,11 +115,21 @@ newSettings (Server h p l m t) = do
       . setTimeout (fromMaybe 300 t)
     $ defaultSettings
   where
-    connStart = gaugeIncr (path "net.connections") m
-    connEnd = gaugeDecr (path "net.connections") m
+    connStart = Prom.incGauge netConnections
+    connEnd = Prom.decGauge netConnections
     logStart =
       Log.info l . msg $
         val "Listening on " +++ h +++ ':' +++ p
+
+{-# NOINLINE netConnections #-}
+netConnections :: Prom.Gauge
+netConnections =
+  Prom.unsafeRegister $
+    Prom.gauge
+      Prom.Info
+        { Prom.metricName = "net.connections",
+          Prom.metricHelp = "Number of active connections"
+        }
 
 -- Run a WAI 'Application', initiating Warp's graceful shutdown
 -- on receiving either the INT or TERM signals. After closing
@@ -206,8 +210,8 @@ requestIdMiddleware logger reqIdHeaderName origApp req responder =
       let reqWithId = req {requestHeaders = (reqIdHeaderName, reqId) : req.requestHeaders}
       origApp reqWithId responder
 
-catchErrors :: Logger -> HeaderName -> OnErrorMetrics -> Middleware
-catchErrors l reqIdHeaderName m = catchErrorsWithRequestId (lookupRequestId reqIdHeaderName) l m
+catchErrors :: Logger -> HeaderName -> Middleware
+catchErrors l reqIdHeaderName = catchErrorsWithRequestId (lookupRequestId reqIdHeaderName) l
 
 -- | Create a middleware that catches exceptions and turns
 -- them into appropriate 'Error' responses, thereby logging
@@ -219,9 +223,8 @@ catchErrors l reqIdHeaderName m = catchErrorsWithRequestId (lookupRequestId reqI
 catchErrorsWithRequestId ::
   (Request -> Maybe ByteString) ->
   Logger ->
-  OnErrorMetrics ->
   Middleware
-catchErrorsWithRequestId getRequestId l m app req k =
+catchErrorsWithRequestId getRequestId l app req k =
   rethrow5xx getRequestId l app req k `catch` errorResponse
   where
     mReqId = getRequestId req
@@ -229,7 +232,7 @@ catchErrorsWithRequestId getRequestId l m app req k =
     errorResponse :: SomeException -> IO ResponseReceived
     errorResponse ex = do
       er <- runHandlers ex errorHandlers
-      onError l mReqId m req k er
+      onError l mReqId req k er
 
 {-# INLINEABLE catchErrors #-}
 
@@ -374,30 +377,34 @@ lazyResponseBody rs = case responseToStream rs of
 --------------------------------------------------------------------------------
 -- Utilities
 
--- | 'onError' and 'catchErrors' support both the metrics-core ('Right') and the prometheus
--- package introduced for spar ('Left').
-type OnErrorMetrics = [Either Prm.Counter Metrics]
-
 -- | Send an 'Error' response.
 onError ::
   MonadIO m =>
   Logger ->
   Maybe ByteString ->
-  OnErrorMetrics ->
   Request ->
   Continue IO ->
   Either Wai.Error JSONResponse ->
   m ResponseReceived
-onError g mReqId m r k e = liftIO $ do
+onError g mReqId r k e = liftIO $ do
   case e of
     Left we -> logError' g mReqId we
     Right jr -> logJSONResponse g mReqId jr
   let resp = either waiErrorToJSONResponse id e
   let code = statusCode (resp.status)
-  when (code >= 500) $
-    either Prm.incCounter (counterIncr (path "net.errors")) `mapM_` m
+  when (code >= 500) $ Prom.incCounter netErrors
   flushRequestBody r
   k (jsonResponseToWai resp)
+
+{-# NOINLINE netErrors #-}
+netErrors :: Prom.Counter
+netErrors =
+  Prom.unsafeRegister $
+    Prom.counter
+      Prom.Info
+        { Prom.metricName = "net.errors",
+          Prom.metricHelp = "Number of exceptions caught by catchErrors middleware"
+        }
 
 defaultRequestIdHeaderName :: HeaderName
 defaultRequestIdHeaderName = "Request-Id"

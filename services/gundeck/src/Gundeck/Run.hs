@@ -90,7 +90,7 @@ run o = do
         . waiPrometheusMiddleware sitemap
         . GZip.gunzip
         . GZip.gzip GZip.def
-        . catchErrors (e ^. applog) defaultRequestIdHeaderName [Right $ e ^. monitor]
+        . catchErrors (e ^. applog) defaultRequestIdHeaderName
 
 type CombinedAPI = GundeckAPI :<|> Servant.Raw
 

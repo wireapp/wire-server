@@ -81,7 +81,7 @@ mkApp o = Codensity $ \k ->
         . requestIdMiddleware (e ^. appLogger) defaultRequestIdHeaderName
         . servantPrometheusMiddleware (Proxy @CombinedAPI)
         . GZip.gzip GZip.def
-        . catchErrors (e ^. appLogger) defaultRequestIdHeaderName [Right $ e ^. metrics]
+        . catchErrors (e ^. appLogger) defaultRequestIdHeaderName
     servantApp :: Env -> Application
     servantApp e0 r cont = do
       let rid = getRequestId defaultRequestIdHeaderName r

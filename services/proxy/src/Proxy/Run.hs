@@ -46,5 +46,5 @@ run o = do
           . requestIdMiddleware (e ^. applog) defaultRequestIdHeaderName
           . waiPrometheusMiddleware (sitemap e)
           . GZip.gunzip
-          . catchErrors (e ^. applog) defaultRequestIdHeaderName [Right m]
+          . catchErrors (e ^. applog) defaultRequestIdHeaderName
   runSettingsWithShutdown s (middleware app) Nothing `finally` destroyEnv e

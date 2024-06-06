@@ -99,7 +99,7 @@ mkApp opts =
             . servantPrometheusMiddleware (Proxy @CombinedAPI)
             . GZip.gunzip
             . GZip.gzip GZip.def
-            . catchErrors logger defaultRequestIdHeaderName [Right metrics]
+            . catchErrors logger defaultRequestIdHeaderName
     Codensity $ \k -> finally (k ()) $ do
       Log.info logger $ Log.msg @Text "Galley application finished."
       Log.flush logger

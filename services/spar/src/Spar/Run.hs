@@ -112,7 +112,7 @@ mkApp sparCtxOpts = do
           . WU.heavyDebugLogging heavyLogOnly logLevel sparCtxLogger defaultRequestIdHeaderName
           . servantPrometheusMiddleware (Proxy @SparAPI)
           . GZip.gunzip
-          . WU.catchErrors sparCtxLogger defaultRequestIdHeaderName []
+          . WU.catchErrors sparCtxLogger defaultRequestIdHeaderName
           -- Error 'Response's are usually not thrown as exceptions, but logged in
           -- 'renderSparErrorWithLogging' before the 'Application' can construct a 'Response'
           -- value, when there is still all the type information around.  'WU.catchErrors' is
