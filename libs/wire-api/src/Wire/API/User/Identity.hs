@@ -25,7 +25,6 @@ module Wire.API.User.Identity
     isSSOIdentity,
     newIdentity,
     emailIdentity,
-    phoneIdentity,
     ssoIdentity,
     userIdentityObjectSchema,
     maybeUserIdentityObjectSchema,
@@ -74,7 +73,6 @@ import Data.Text.Encoding
 import Data.Text.Encoding.Error
 import Data.Text.Lazy qualified as LT
 import Data.Time.Clock
-import Data.Tuple.Extra (fst3, snd3, thd3)
 import Imports
 import SAML2.WebSSO (UserRef (..))
 import SAML2.WebSSO.Test.Arbitrary ()
@@ -97,15 +95,13 @@ import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 -- | The private unique user identity that is used for login and
 -- account recovery.
 data UserIdentity
-  = FullIdentity Email Phone
-  | EmailIdentity Email
-  | PhoneIdentity Phone
-  | SSOIdentity UserSSOId (Maybe Email) (Maybe Phone)
+  = EmailIdentity Email
+  | SSOIdentity UserSSOId (Maybe Email)
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserIdentity)
 
 isSSOIdentity :: UserIdentity -> Bool
-isSSOIdentity (SSOIdentity _ _ _) = True
+isSSOIdentity (SSOIdentity _ _) = True
 isSSOIdentity _ = False
 
 userIdentityObjectSchema :: ObjectSchema SwaggerDoc UserIdentity
@@ -116,56 +112,37 @@ maybeUserIdentityObjectSchema :: ObjectSchema SwaggerDoc (Maybe UserIdentity)
 maybeUserIdentityObjectSchema =
   dimap maybeUserIdentityToComponents maybeUserIdentityFromComponents userIdentityComponentsObjectSchema
 
-type UserIdentityComponents = (Maybe Email, Maybe Phone, Maybe UserSSOId)
+type UserIdentityComponents = (Maybe Email, Maybe UserSSOId)
 
 userIdentityComponentsObjectSchema :: ObjectSchema SwaggerDoc UserIdentityComponents
 userIdentityComponentsObjectSchema =
-  (,,)
-    <$> fst3
-      .= maybe_ (optField "email" schema)
-    <*> snd3
-      .= maybe_ (optField "phone" schema)
-    <*> thd3
-      .= maybe_ (optField "sso_id" genericToSchema)
+  (,)
+    <$> fst .= maybe_ (optField "email" schema)
+    <*> snd .= maybe_ (optField "sso_id" genericToSchema)
 
 maybeUserIdentityFromComponents :: UserIdentityComponents -> Maybe UserIdentity
 maybeUserIdentityFromComponents = \case
-  (maybeEmail, maybePhone, Just ssoid) -> Just $ SSOIdentity ssoid maybeEmail maybePhone
-  (Just email, Just phone, Nothing) -> Just $ FullIdentity email phone
-  (Just email, Nothing, Nothing) -> Just $ EmailIdentity email
-  (Nothing, Just phone, Nothing) -> Just $ PhoneIdentity phone
-  (Nothing, Nothing, Nothing) -> Nothing
+  (maybeEmail, Just ssoid) -> Just $ SSOIdentity ssoid maybeEmail
+  (Just email, Nothing) -> Just $ EmailIdentity email
+  (Nothing, Nothing) -> Nothing
 
 maybeUserIdentityToComponents :: Maybe UserIdentity -> UserIdentityComponents
-maybeUserIdentityToComponents Nothing = (Nothing, Nothing, Nothing)
-maybeUserIdentityToComponents (Just (FullIdentity email phone)) = (Just email, Just phone, Nothing)
-maybeUserIdentityToComponents (Just (EmailIdentity email)) = (Just email, Nothing, Nothing)
-maybeUserIdentityToComponents (Just (PhoneIdentity phone)) = (Nothing, Just phone, Nothing)
-maybeUserIdentityToComponents (Just (SSOIdentity ssoid m_email m_phone)) = (m_email, m_phone, Just ssoid)
+maybeUserIdentityToComponents Nothing = (Nothing, Nothing)
+maybeUserIdentityToComponents (Just (EmailIdentity email)) = (Just email, Nothing)
+maybeUserIdentityToComponents (Just (SSOIdentity ssoid m_email)) = (m_email, Just ssoid)
 
-newIdentity :: Maybe Email -> Maybe Phone -> Maybe UserSSOId -> Maybe UserIdentity
-newIdentity email phone (Just sso) = Just $! SSOIdentity sso email phone
-newIdentity Nothing Nothing Nothing = Nothing
-newIdentity (Just e) Nothing Nothing = Just $! EmailIdentity e
-newIdentity Nothing (Just p) Nothing = Just $! PhoneIdentity p
-newIdentity (Just e) (Just p) Nothing = Just $! FullIdentity e p
+newIdentity :: Maybe Email -> Maybe UserSSOId -> Maybe UserIdentity
+newIdentity email (Just sso) = Just $! SSOIdentity sso email
+newIdentity (Just e) Nothing = Just $! EmailIdentity e
+newIdentity Nothing Nothing = Nothing
 
 emailIdentity :: UserIdentity -> Maybe Email
-emailIdentity (FullIdentity email _) = Just email
 emailIdentity (EmailIdentity email) = Just email
-emailIdentity (PhoneIdentity _) = Nothing
-emailIdentity (SSOIdentity _ (Just email) _) = Just email
-emailIdentity (SSOIdentity _ Nothing _) = Nothing
-
-phoneIdentity :: UserIdentity -> Maybe Phone
-phoneIdentity (FullIdentity _ phone) = Just phone
-phoneIdentity (PhoneIdentity phone) = Just phone
-phoneIdentity (EmailIdentity _) = Nothing
-phoneIdentity (SSOIdentity _ _ (Just phone)) = Just phone
-phoneIdentity (SSOIdentity _ _ Nothing) = Nothing
+emailIdentity (SSOIdentity _ (Just email)) = Just email
+emailIdentity (SSOIdentity _ _) = Nothing
 
 ssoIdentity :: UserIdentity -> Maybe UserSSOId
-ssoIdentity (SSOIdentity ssoid _ _) = Just ssoid
+ssoIdentity (SSOIdentity ssoid _) = Just ssoid
 ssoIdentity _ = Nothing
 
 --------------------------------------------------------------------------------

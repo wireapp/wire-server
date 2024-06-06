@@ -16,7 +16,6 @@ spec = do
             then user.userIdentity === Nothing
             else
               (emailIdentity =<< user.userIdentity) === storedUser.email
-                .&&. (phoneIdentity =<< user.userIdentity) === storedUser.phone
                 .&&. (ssoIdentity =<< user.userIdentity) === storedUser.ssoId
 
     prop "user deleted" $ \domain defaultLocale storedUser ->

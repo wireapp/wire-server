@@ -39,27 +39,8 @@ import Imports (Maybe (Just, Nothing), fromJust, fromRight, undefined, (.))
 import Wire.API.Asset
 import Wire.API.Team (BindingNewTeam (..), Icon (..), NewTeam (..))
 import Wire.API.User
-  ( Asset (ImageAsset),
-    AssetSize (..),
-    BindingNewTeamUser (..),
-    ColourId (ColourId, fromColourId),
-    Country (Country, fromCountry),
-    Email (Email, emailDomain, emailLocal),
-    InvitationCode (InvitationCode, fromInvitationCode),
-    Language (Language),
-    Locale (Locale, lCountry, lLanguage),
-    ManagedBy (ManagedByWire),
-    Name (Name, fromName),
-    NewTeamUser (..),
-    NewUser (..),
-    NewUserOrigin (..),
-    Pict (Pict, fromPict),
-    UserIdentity (..),
-    emptyNewUser,
-  )
 import Wire.API.User.Activation (ActivationCode (ActivationCode, fromActivationCode))
 import Wire.API.User.Auth (CookieLabel (CookieLabel, cookieLabelText))
-import Wire.API.User.Identity (Phone (..), UserSSOId (UserSSOId), mkSimpleSampleUref)
 
 testObject_NewUser_user_1 :: NewUser
 testObject_NewUser_user_1 =
@@ -71,6 +52,7 @@ testObject_NewUser_user_1 =
           },
       newUserUUID = (Just . toUUID) (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))),
       newUserIdentity = Just (EmailIdentity (Email {emailLocal = "S\ENQX\1076723$\STX\"\1110507e\1015716\24831\1031964L\ETB", emailDomain = "P.b"})),
+      newUserPhone = Nothing,
       newUserPict = Just (Pict {fromPict = []}),
       newUserAssets =
         [ ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview),
@@ -139,7 +121,7 @@ testObject_NewUser_user_6 =
       (Name {fromName = "test name"})
   )
     { newUserOrigin = Just (NewUserOriginTeamUser (NewTeamMemberSSO tid)),
-      newUserIdentity = Just (SSOIdentity (UserSSOId mkSimpleSampleUref) Nothing Nothing)
+      newUserIdentity = Just (SSOIdentity (UserSSOId mkSimpleSampleUref) Nothing)
     }
   where
     tid = Id (fromJust (UUID.fromString "00007b0e-0000-3489-0000-075c00005be7"))
@@ -150,7 +132,7 @@ testObject_NewUser_user_7 =
       (Name {fromName = "test name"})
   )
     { newUserOrigin = Just (NewUserOriginTeamUser (NewTeamCreator user)),
-      newUserIdentity = Just (PhoneIdentity (Phone "+12345678")),
+      newUserIdentity = Just (EmailIdentity (Email "12345678" "example.com")),
       newUserPassword = Just (plainTextPassword8Unsafe "12345678")
     }
   where
@@ -182,13 +164,12 @@ testObject_NewUser_user_8 =
     { newUserOrigin = Just (NewUserOriginTeamUser (NewTeamMember invCode)),
       newUserIdentity =
         Just
-          ( FullIdentity
+          ( EmailIdentity
               ( Email
                   { emailLocal = "S\ENQX\1076723$\STX\"\1110507e\1015716\24831\1031964L\ETB",
                     emailDomain = "P.b"
                   }
               )
-              (Phone "+12345678")
           ),
       newUserPassword = Just (plainTextPassword8Unsafe "12345678")
     }

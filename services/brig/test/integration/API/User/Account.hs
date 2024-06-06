@@ -966,7 +966,6 @@ testPhoneUpdate brig = do
   -- check new phone
   get (brig . path "/self" . zUser uid) !!! do
     const 200 === statusCode
-    const Nothing === (userPhone <=< responseJsonMaybe)
 
 testCreateAccountPendingActivationKey :: Opt.Opts -> Brig -> Http ()
 testCreateAccountPendingActivationKey (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ = pure ()
@@ -1304,11 +1303,10 @@ testUpdateSSOId brig galley = do
           )
           !!! const 200 === statusCode
         profile :: SelfProfile <- responseJsonError =<< get (brig . path "/self" . zUser uid)
-        let Just (SSOIdentity ssoid' mEmail mPhone) = userIdentity . selfUser $ profile
+        let Just (SSOIdentity ssoid' mEmail) = userIdentity . selfUser $ profile
         liftIO $ do
           assertEqual "updateSSOId/ssoid" ssoid ssoid'
           assertEqual "updateSSOId/email" (userEmail user) mEmail
-          assertEqual "updateSSOId/phone" (userPhone user) mPhone
   (owner, teamid) <- createUserWithTeam brig
   let mkMember :: Bool -> Bool -> Http User
       mkMember hasEmail hasPhone = do

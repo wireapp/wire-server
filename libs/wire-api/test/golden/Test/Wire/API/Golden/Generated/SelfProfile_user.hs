@@ -42,7 +42,7 @@ testObject_SelfProfile_user_1 =
                   qDomain = Domain {_domainText = "n0-994.m-226.f91.vg9p-mj-j2"}
                 },
             userIdentity =
-              Just (FullIdentity (Email {emailLocal = "\a", emailDomain = ""}) (Phone {fromPhone = "+6171884202"})),
+              Just (EmailIdentity (Email {emailLocal = "\a", emailDomain = ""})),
             userDisplayName = Name {fromName = "@\1457\2598\66242\US\1104967l+\137302\&6\996495^\162211Mu\t"},
             userPict = Pict {fromPict = []},
             userAssets = [],

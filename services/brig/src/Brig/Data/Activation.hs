@@ -79,7 +79,6 @@ activationErrorToRegisterError = \case
 data ActivationEvent
   = AccountActivated !UserAccount
   | EmailActivated !UserId !Email
-  | PhoneActivated !UserId !Phone
 
 -- | Max. number of activation attempts per 'ActivationKey'.
 maxAttempts :: Int32

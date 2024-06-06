@@ -129,17 +129,11 @@ parseIdentityTests =
       (=#=) _ bad = error $ "=#=: impossible: " <> show bad
    in testGroup
         "parseIdentity"
-        [ testCase "FullIdentity" $
-            Right (Just (FullIdentity hemail hphone)) =#= [email, phone],
-          testCase "EmailIdentity" $
+        [ testCase "EmailIdentity" $
             Right (Just (EmailIdentity hemail)) =#= [email],
-          testCase "PhoneIdentity" $
-            Right (Just (PhoneIdentity hphone)) =#= [phone],
           testCase "SSOIdentity" $ do
-            Right (Just (SSOIdentity hssoid Nothing Nothing)) =#= [ssoid]
-            Right (Just (SSOIdentity hssoid Nothing (Just hphone))) =#= [ssoid, phone]
-            Right (Just (SSOIdentity hssoid (Just hemail) Nothing)) =#= [ssoid, email]
-            Right (Just (SSOIdentity hssoid (Just hemail) (Just hphone))) =#= [ssoid, email, phone],
+            Right (Just (SSOIdentity hssoid Nothing)) =#= [ssoid]
+            Right (Just (SSOIdentity hssoid (Just hemail))) =#= [ssoid, email],
           testCase "Bad phone" $
             Left "Error in $.phone: Invalid phone number. Expected E.164 format." =#= [badphone],
           testCase "Bad email" $
@@ -151,8 +145,6 @@ parseIdentityTests =
     hemail = Email "me" "example.com"
     email = ("email", "me@example.com")
     bademail = ("email", "justme")
-    hphone = Phone "+493012345678"
-    phone = ("phone", "+493012345678")
     badphone = ("phone", "__@@")
     hssoid = UserSSOId mkSimpleSampleUref
     ssoid = ("sso_id", toJSON hssoid)

@@ -19,18 +19,7 @@ module Test.Wire.API.Golden.Generated.ActivationResponse_user where
 
 import Imports (Bool (False, True), Maybe (Just, Nothing))
 import Wire.API.User
-  ( Email (Email, emailDomain, emailLocal),
-    Phone (Phone, fromPhone),
-    UserIdentity
-      ( EmailIdentity,
-        FullIdentity,
-        PhoneIdentity,
-        SSOIdentity
-      ),
-    UserSSOId (UserSSOId, UserScimExternalId),
-  )
 import Wire.API.User.Activation (ActivationResponse (..))
-import Wire.API.User.Identity (mkSimpleSampleUref)
 
 testObject_ActivationResponse_user_1 :: ActivationResponse
 testObject_ActivationResponse_user_1 =
@@ -38,14 +27,13 @@ testObject_ActivationResponse_user_1 =
     { activatedIdentity =
         SSOIdentity
           (UserSSOId mkSimpleSampleUref)
-          (Just (Email {emailLocal = "\165918\rZ\a\ESC", emailDomain = "p\131777\62344"}))
-          Nothing,
+          (Just (Email {emailLocal = "\165918\rZ\a\ESC", emailDomain = "p\131777\62344"})),
       activatedFirst = False
     }
 
 testObject_ActivationResponse_user_2 :: ActivationResponse
 testObject_ActivationResponse_user_2 =
-  ActivationResponse {activatedIdentity = PhoneIdentity (Phone {fromPhone = "+7397347696479"}), activatedFirst = False}
+  ActivationResponse {activatedIdentity = EmailIdentity (Email "foo" "example.com"), activatedFirst = False}
 
 testObject_ActivationResponse_user_3 :: ActivationResponse
 testObject_ActivationResponse_user_3 =
@@ -59,7 +47,7 @@ testObject_ActivationResponse_user_4 :: ActivationResponse
 testObject_ActivationResponse_user_4 =
   ActivationResponse
     { activatedIdentity =
-        FullIdentity (Email {emailLocal = "h\nPr3", emailDomain = ""}) (Phone {fromPhone = "+82309287"}),
+        EmailIdentity (Email {emailLocal = "h\nPr3", emailDomain = ""}),
       activatedFirst = True
     }
 
@@ -74,7 +62,7 @@ testObject_ActivationResponse_user_5 =
 testObject_ActivationResponse_user_6 :: ActivationResponse
 testObject_ActivationResponse_user_6 =
   ActivationResponse
-    { activatedIdentity = SSOIdentity (UserScimExternalId "\an|") Nothing Nothing,
+    { activatedIdentity = SSOIdentity (UserScimExternalId "\an|") Nothing,
       activatedFirst = False
     }
 
@@ -87,13 +75,13 @@ testObject_ActivationResponse_user_7 =
 
 testObject_ActivationResponse_user_8 :: ActivationResponse
 testObject_ActivationResponse_user_8 =
-  ActivationResponse {activatedIdentity = PhoneIdentity (Phone {fromPhone = "+0023160115015"}), activatedFirst = True}
+  ActivationResponse {activatedIdentity = EmailIdentity (Email "bar" "example.com"), activatedFirst = True}
 
 testObject_ActivationResponse_user_9 :: ActivationResponse
 testObject_ActivationResponse_user_9 =
   ActivationResponse
     { activatedIdentity =
-        FullIdentity (Email {emailLocal = "\ENQ?", emailDomain = ""}) (Phone {fromPhone = "+208573659013"}),
+        EmailIdentity (Email {emailLocal = "\ENQ?", emailDomain = ""}),
       activatedFirst = False
     }
 
@@ -102,81 +90,5 @@ testObject_ActivationResponse_user_10 =
   ActivationResponse
     { activatedIdentity =
         EmailIdentity (Email {emailLocal = "\ACK3", emailDomain = "\f\1040847\1071035\EOT\1003280P\DEL"}),
-      activatedFirst = False
-    }
-
-testObject_ActivationResponse_user_11 :: ActivationResponse
-testObject_ActivationResponse_user_11 =
-  ActivationResponse
-    { activatedIdentity =
-        EmailIdentity (Email {emailLocal = "z\126214m\146009<\1046292\a\DC31+*", emailDomain = "S\SO\125114"}),
-      activatedFirst = True
-    }
-
-testObject_ActivationResponse_user_12 :: ActivationResponse
-testObject_ActivationResponse_user_12 =
-  ActivationResponse
-    { activatedIdentity =
-        EmailIdentity (Email {emailLocal = "d4p\r:\STXI5\167701\158743\GS\v", emailDomain = "\51121\100929"}),
-      activatedFirst = False
-    }
-
-testObject_ActivationResponse_user_13 :: ActivationResponse
-testObject_ActivationResponse_user_13 =
-  ActivationResponse
-    { activatedIdentity = SSOIdentity (UserScimExternalId "#") Nothing (Just (Phone {fromPhone = "+6124426658"})),
-      activatedFirst = False
-    }
-
-testObject_ActivationResponse_user_14 :: ActivationResponse
-testObject_ActivationResponse_user_14 =
-  ActivationResponse
-    { activatedIdentity =
-        SSOIdentity
-          (UserScimExternalId "\NUL\US\ETBY")
-          (Just (Email {emailLocal = "\66022", emailDomain = "\a\1081391"}))
-          Nothing,
-      activatedFirst = False
-    }
-
-testObject_ActivationResponse_user_15 :: ActivationResponse
-testObject_ActivationResponse_user_15 =
-  ActivationResponse {activatedIdentity = PhoneIdentity (Phone {fromPhone = "+594453349310"}), activatedFirst = False}
-
-testObject_ActivationResponse_user_16 :: ActivationResponse
-testObject_ActivationResponse_user_16 =
-  ActivationResponse
-    { activatedIdentity =
-        FullIdentity (Email {emailLocal = "r\FS,\"", emailDomain = "%R\n\164677^"}) (Phone {fromPhone = "+144713467"}),
-      activatedFirst = False
-    }
-
-testObject_ActivationResponse_user_17 :: ActivationResponse
-testObject_ActivationResponse_user_17 =
-  ActivationResponse
-    { activatedIdentity =
-        SSOIdentity
-          (UserScimExternalId "")
-          (Just (Email {emailLocal = "\155143", emailDomain = "+)"}))
-          (Just (Phone {fromPhone = "+703448141"})),
-      activatedFirst = True
-    }
-
-testObject_ActivationResponse_user_18 :: ActivationResponse
-testObject_ActivationResponse_user_18 =
-  ActivationResponse {activatedIdentity = PhoneIdentity (Phone {fromPhone = "+974462685543005"}), activatedFirst = True}
-
-testObject_ActivationResponse_user_19 :: ActivationResponse
-testObject_ActivationResponse_user_19 =
-  ActivationResponse
-    { activatedIdentity = SSOIdentity (UserSSOId mkSimpleSampleUref) (Just (Email {emailLocal = "R", emailDomain = "K"})) Nothing,
-      activatedFirst = False
-    }
-
-testObject_ActivationResponse_user_20 :: ActivationResponse
-testObject_ActivationResponse_user_20 =
-  ActivationResponse
-    { activatedIdentity =
-        FullIdentity (Email {emailLocal = "", emailDomain = "E"}) (Phone {fromPhone = "+73148778831190"}),
       activatedFirst = False
     }
