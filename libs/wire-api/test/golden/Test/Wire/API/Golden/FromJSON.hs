@@ -77,19 +77,7 @@ tests =
           testCase "testObject_NewUser_user_6-3.json" $
             testFromJSONFailureWithMsg @NewUser
               (Just "sso_id, team_id must be either both present or both absent.")
-              "testObject_NewUser_user_6-3.json",
-          testCase "testObject_NewUser_user_7.json" $
-            testFromJSONFailureWithMsg @NewUser
-              (Just "invalid-phone")
-              "testObject_NewUser_user_7.json",
-          testCase "testObject_NewUser_user_8.json" $
-            testFromJSONFailureWithMsg @NewUser
-              (Just "invalid-phone")
-              "testObject_NewUser_user_8.json",
-          testCase "testObject_NewUser_user_9.json" $
-            testFromJSONFailureWithMsg @NewUser
-              (Just "invalid-phone")
-              "testObject_NewUser_user_9.json"
+              "testObject_NewUser_user_6-3.json"
         ],
       testGroup "NewUserPublic: failure" $
         [ testCase "testObject_NewUserPublic_user_1-2.json" $
