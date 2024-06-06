@@ -108,10 +108,9 @@ instance MonadPushAll Gundeck where
 -- | Another layer of wrap around 'runWithBudget'.
 runWithBudget'' :: Int -> a -> Gundeck a -> Gundeck a
 runWithBudget'' budget fallback action = do
-  metrics <- view monitor
   view threadBudgetState >>= \case
     Nothing -> action
-    Just tbs -> runWithBudget' metrics tbs budget fallback action
+    Just tbs -> runWithBudget' tbs budget fallback action
 
 -- | Abstract over all effects in 'nativeTargets' (for unit testing).
 class Monad m => MonadNativeTargets m where

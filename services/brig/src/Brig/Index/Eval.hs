@@ -37,7 +37,6 @@ import Data.Aeson (FromJSON)
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy.UTF8 qualified as UTF8
 import Data.Credentials (Credentials (..))
-import Data.Metrics qualified as Metrics
 import Database.Bloodhound qualified as ES
 import Imports
 import System.Logger qualified as Log
@@ -111,8 +110,7 @@ runCommand l = \case
                 additionalCaCert = Nothing
               }
 
-      metricsStorage <- Metrics.metrics
-      mkIndexEnv esOpts l metricsStorage gly mgr
+      mkIndexEnv esOpts l gly mgr
 
     initES esURI mgr mCreds =
       let env = ES.mkBHEnv (toESServer esURI) mgr

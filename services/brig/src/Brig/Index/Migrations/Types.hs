@@ -25,7 +25,6 @@ import Cassandra qualified as C
 import Control.Monad.Catch (MonadThrow)
 import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.=))
 import Data.Credentials (Credentials)
-import Data.Metrics (Metrics)
 import Database.Bloodhound qualified as ES
 import Imports
 import Network.HTTP.Client (Manager)
@@ -71,7 +70,7 @@ instance MonadIO m => MonadLogger (MigrationActionT m) where
 instance MonadIO m => Search.MonadIndexIO (MigrationActionT m) where
   liftIndexIO m = do
     Env {..} <- ask
-    let indexEnv = Search.IndexEnv metrics logger bhEnv Nothing searchIndex Nothing Nothing galleyEndpoint httpManager searchIndexCredentials
+    let indexEnv = Search.IndexEnv logger bhEnv Nothing searchIndex Nothing Nothing galleyEndpoint httpManager searchIndexCredentials
     Search.runIndexIO indexEnv m
 
 instance MonadIO m => ES.MonadBH (MigrationActionT m) where
@@ -81,7 +80,6 @@ data Env = Env
   { bhEnv :: ES.BHEnv,
     cassandraClientState :: C.ClientState,
     logger :: Logger.Logger,
-    metrics :: Metrics,
     searchIndex :: ES.IndexName,
     searchIndexCredentials :: Maybe Credentials,
     httpManager :: Manager,

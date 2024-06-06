@@ -24,7 +24,6 @@ import Cassandra
 import Control.Lens hiding ((.=))
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
-import Data.Metrics.Middleware
 import Data.Misc (Fingerprint, HttpsUrl, Rsa)
 import Data.Range
 import Data.Time.Clock.DiffTime (millisecondsToDiffTime)
@@ -52,7 +51,6 @@ data DeleteItem = TeamItem TeamId UserId (Maybe ConnId)
 -- | Main application environment.
 data Env = Env
   { _reqId :: RequestId,
-    _monitor :: Metrics,
     _options :: Opts,
     _applog :: Logger,
     _manager :: Manager,

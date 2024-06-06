@@ -19,7 +19,6 @@
 
 module Cannon.Types
   ( Env,
-    mon,
     opts,
     applog,
     dict,
@@ -32,7 +31,6 @@ module Cannon.Types
     runCannon',
     options,
     clients,
-    monitor,
     wsenv,
     runCannonToServant,
   )
@@ -47,12 +45,12 @@ import Cannon.WS qualified as WS
 import Control.Concurrent.Async (mapConcurrently)
 import Control.Lens ((^.))
 import Control.Monad.Catch
-import Data.Metrics.Middleware
 import Data.Text.Encoding
 import Imports
 import Network.Wai
 import Network.Wai.Utilities.Request qualified as Wai
 import Network.Wai.Utilities.Server
+import Prometheus
 import Servant qualified
 import System.Logger qualified as Logger
 import System.Logger.Class hiding (info)
@@ -62,8 +60,7 @@ import System.Random.MWC (GenIO)
 -- Cannon monad
 
 data Env = Env
-  { mon :: !Metrics,
-    opts :: !Opts,
+  { opts :: !Opts,
     applog :: !Logger,
     dict :: !(Dict Key Websocket),
     reqId :: !RequestId,
@@ -80,7 +77,8 @@ newtype Cannon a = Cannon
       MonadIO,
       MonadThrow,
       MonadCatch,
-      MonadMask
+      MonadMask,
+      MonadMonitor
     )
 
 mapConcurrentlyCannon :: Traversable t => (a -> Cannon b) -> t a -> Cannon (t b)
@@ -99,7 +97,6 @@ instance HasRequestId Cannon where
   getRequestId = Cannon $ asks reqId
 
 mkEnv ::
-  Metrics ->
   ByteString ->
   Opts ->
   Logger ->
@@ -108,8 +105,8 @@ mkEnv ::
   GenIO ->
   Clock ->
   Env
-mkEnv m external o l d p g t =
-  Env m o l d (RequestId "N/A") $
+mkEnv external o l d p g t =
+  Env o l d (RequestId "N/A") $
     WS.env external (o ^. cannon . port) (encodeUtf8 $ o ^. gundeck . host) (o ^. gundeck . port) l p d g t (o ^. drainOpts)
 
 runCannon :: Env -> Cannon a -> Request -> IO a
@@ -126,9 +123,6 @@ options = Cannon $ asks opts
 
 clients :: Cannon (Dict Key Websocket)
 clients = Cannon $ asks dict
-
-monitor :: Cannon Metrics
-monitor = Cannon $ asks mon
 
 wsenv :: Cannon WS.Env
 wsenv = Cannon $ do

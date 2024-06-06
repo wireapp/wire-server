@@ -88,7 +88,6 @@ library
     , imports
     , kan-extensions
     , metrics-core           >=0.1
-    , metrics-wai            >=0.5.7
     , openapi3
     , pipes                  >=4.1
     , prometheus-client

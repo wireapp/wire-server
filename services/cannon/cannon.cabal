@@ -97,6 +97,7 @@ library
     , lens-family-core       >=1.1
     , metrics-wai            >=0.4
     , mwc-random             >=0.13
+    , prometheus-client
     , retry                  >=0.7
     , safe-exceptions
     , servant-conduit

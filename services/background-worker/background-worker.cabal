@@ -37,7 +37,6 @@ library
     , http-client
     , http2-manager
     , imports
-    , metrics-core
     , metrics-wai
     , monad-control
     , prometheus-client

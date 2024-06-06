@@ -131,7 +131,6 @@ library
     , imports
     , kan-extensions
     , lens
-    , metrics-core
     , metrics-wai
     , mtl
     , pem

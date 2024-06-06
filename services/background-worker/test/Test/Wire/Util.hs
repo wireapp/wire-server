@@ -21,7 +21,6 @@ testEnv = do
   let federatorInternal = Endpoint "localhost" 0
       rabbitmqAdminClient = undefined
       rabbitmqVHost = undefined
-      metrics = undefined
       defederationTimeout = responseTimeoutNone
       backendNotificationsConfig = BackendNotificationsConfig 1000 500000 1000
   pure Env {..}

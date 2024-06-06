@@ -328,6 +328,7 @@ library
     , pem
     , polysemy
     , polysemy-wire-zoo
+    , prometheus-client
     , proto-lens             >=0.2
     , raw-strings-qq         >=1.0
     , resourcet              >=1.1

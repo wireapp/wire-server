@@ -12,7 +12,6 @@ build-type:    Simple
 
 library
   exposed-modules:
-    Data.Metrics
     Data.Metrics.AWS
     Data.Metrics.GC
 
@@ -66,14 +65,10 @@ library
     -Wredundant-constraints -Wunused-packages
 
   build-depends:
-      base                  >=4.9
-    , containers
-    , hashable              >=1.2
+      base               >=4.9
     , immortal
     , imports
     , prometheus-client
-    , text                  >=0.11
     , time
-    , unordered-containers  >=0.2
 
   default-language:   GHC2021

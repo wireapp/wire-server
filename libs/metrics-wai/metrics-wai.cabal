@@ -12,7 +12,6 @@ build-type:    Simple
 
 library
   exposed-modules:
-    Data.Metrics.Middleware
     Data.Metrics.Middleware.Prometheus
     Data.Metrics.Servant
     Data.Metrics.Test
@@ -73,9 +72,7 @@ library
       base                       >=4    && <5
     , bytestring                 >=0.10
     , containers
-    , http-types                 >=0.8
     , imports
-    , metrics-core               >=0.3
     , servant
     , servant-multipart
     , text                       >=0.11

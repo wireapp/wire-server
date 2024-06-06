@@ -22,7 +22,6 @@ module Proxy.Env
     createEnv,
     destroyEnv,
     reqId,
-    monitor,
     options,
     applog,
     manager,
@@ -34,7 +33,6 @@ import Control.Lens (makeLenses, (^.))
 import Data.Configurator
 import Data.Configurator.Types
 import Data.Id (RequestId (..))
-import Data.Metrics.Middleware (Metrics)
 import Imports
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS (tlsManagerSettings)
@@ -43,7 +41,6 @@ import System.Logger.Extended qualified as Logger
 
 data Env = Env
   { _reqId :: !RequestId,
-    _monitor :: !Metrics,
     _options :: !Opts,
     _applog :: !Logger.Logger,
     _manager :: !Manager,
@@ -53,8 +50,8 @@ data Env = Env
 
 makeLenses ''Env
 
-createEnv :: Metrics -> Opts -> IO Env
-createEnv m o = do
+createEnv :: Opts -> IO Env
+createEnv o = do
   g <- Logger.mkLogger (o ^. logLevel) (o ^. logNetStrings) (o ^. logFormat)
   n <-
     newManager
@@ -66,7 +63,7 @@ createEnv m o = do
   let ac = AutoConfig 60 (reloadError g)
   (c, t) <- autoReload ac [Required $ o ^. secretsConfig]
   let rid = RequestId "N/A"
-  pure $! Env rid m o g n c t
+  pure $! Env rid o g n c t
   where
     reloadError g x =
       Logger.err g (Logger.msg $ Logger.val "Failed reloading config: " Logger.+++ show x)

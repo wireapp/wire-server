@@ -29,7 +29,6 @@ module ThreadBudget where
 import Control.Concurrent.Async
 import Control.Lens
 import Control.Monad.Catch (MonadCatch, catch)
-import Data.Metrics.Middleware (metrics)
 import Data.String.Conversions
 import Data.Time
 import GHC.Generics
@@ -127,17 +126,15 @@ burstActions ::
   NumberOfThreads ->
   (MonadIO m) => m ()
 burstActions tbs logHistory howlong (NumberOfThreads howmany) = do
-  mtr <- metrics
-  let budgeted = runWithBudget mtr tbs 1 (delayms howlong)
+  let budgeted = runWithBudget tbs 1 (delayms howlong)
   liftIO . replicateM_ howmany . forkIO $ runReaderT budgeted logHistory
 
 -- | Start a watcher with given params and a frequency of 10 milliseconds, so we are more
 -- likely to find weird race conditions.
 mkWatcher :: ThreadBudgetState -> LogHistory -> IO (Async ())
 mkWatcher tbs logHistory = do
-  mtr <- metrics
   async $
-    runReaderT (watchThreadBudgetState mtr tbs 0.01) logHistory
+    runReaderT (watchThreadBudgetState tbs 0.01) logHistory
       `catch` \AsyncCancelled -> pure ()
 
 ----------------------------------------------------------------------

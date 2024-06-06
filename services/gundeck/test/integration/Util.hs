@@ -8,7 +8,6 @@ import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.Codensity
 import Data.ByteString qualified as S
-import Data.Metrics.Middleware (metrics)
 import Data.Text qualified as Text
 import Gundeck.Env (createEnv)
 import Gundeck.Options
@@ -23,8 +22,7 @@ withSettingsOverrides :: (Opts -> Opts) -> TestM a -> TestM a
 withSettingsOverrides f action = do
   ts <- ask
   let opts = f (view tsOpts ts)
-  m <- metrics
-  (_rThreads, env) <- liftIO $ createEnv m opts
+  (_rThreads, env) <- liftIO $ createEnv opts
   liftIO . lowerCodensity $ do
     let app = mkApp env
     p <- withMockServer app

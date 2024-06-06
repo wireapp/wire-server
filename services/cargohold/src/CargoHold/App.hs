@@ -29,7 +29,6 @@ module CargoHold.App
     multiIngress,
     httpManager,
     http2Manager,
-    metrics,
     appLogger,
     requestId,
     localUnit,
@@ -62,8 +61,6 @@ import Control.Lens (Lens', makeLenses, non, view, (?~), (^.))
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Control.Monad.Trans.Resource (ResourceT, runResourceT, transResourceT)
 import qualified Data.Map as Map
-import Data.Metrics.Middleware (Metrics)
-import qualified Data.Metrics.Middleware as Metrics
 import Data.Qualified
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Imports hiding (log)
@@ -72,6 +69,7 @@ import Network.HTTP.Client.OpenSSL
 import Network.Wai.Utilities (Error (..))
 import OpenSSL.Session (SSLContext, SSLOption (..))
 import qualified OpenSSL.Session as SSL
+import Prometheus
 import qualified Servant.Client as Servant
 import System.Logger.Class hiding (settings)
 import qualified System.Logger.Extended as Log
@@ -84,7 +82,6 @@ import qualified Wire.API.Routes.Internal.Brig as IBrig
 
 data Env = Env
   { _aws :: AWS.Env,
-    _metrics :: Metrics,
     _appLogger :: Logger,
     _httpManager :: Manager,
     _http2Manager :: Http2Manager,
@@ -101,7 +98,6 @@ settings = options . Opt.settings
 
 newEnv :: Opts -> IO Env
 newEnv opts = do
-  metricsStorage <- Metrics.metrics
   logger <- Log.mkLogger (opts ^. Opt.logLevel) (opts ^. Opt.logNetStrings) (opts ^. Opt.logFormat)
   checkOpts opts logger
   httpMgr <- initHttpManager (opts ^. Opt.aws . Opt.s3Compatibility)
@@ -109,7 +105,7 @@ newEnv opts = do
   awsEnv <- initAws (opts ^. Opt.aws) logger httpMgr
   multiIngressAWS <- initMultiIngressAWS logger httpMgr
   let localDomain = toLocalUnsafe (opts ^. Opt.settings . Opt.federationDomain) ()
-  pure $ Env awsEnv metricsStorage logger httpMgr http2Mgr (RequestId "N/A") opts localDomain multiIngressAWS
+  pure $ Env awsEnv logger httpMgr http2Mgr (RequestId "N/A") opts localDomain multiIngressAWS
   where
     initMultiIngressAWS :: Logger -> Manager -> IO (Map String AWS.Env)
     initMultiIngressAWS logger httpMgr =
@@ -205,7 +201,8 @@ newtype AppT m a = AppT (ReaderT Env m a)
       MonadThrow,
       MonadCatch,
       MonadMask,
-      MonadReader Env
+      MonadReader Env,
+      MonadMonitor
     )
 
 type App = AppT IO

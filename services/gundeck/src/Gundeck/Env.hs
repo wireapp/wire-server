@@ -27,7 +27,6 @@ import Control.Concurrent.Async (Async)
 import Control.Lens (makeLenses, (^.))
 import Control.Retry (capDelay, exponentialBackoff)
 import Data.ByteString.Char8 qualified as BSChar8
-import Data.Metrics.Middleware (Metrics)
 import Data.Misc (Milliseconds (..))
 import Data.Text qualified as Text
 import Data.Time.Clock
@@ -50,7 +49,6 @@ import System.Logger.Extended qualified as Logger
 
 data Env = Env
   { _reqId :: !RequestId,
-    _monitor :: !Metrics,
     _options :: !Opts,
     _applog :: !Logger.Logger,
     _manager :: !Manager,
@@ -67,8 +65,8 @@ makeLenses ''Env
 schemaVersion :: Int32
 schemaVersion = 7
 
-createEnv :: Metrics -> Opts -> IO ([Async ()], Env)
-createEnv m o = do
+createEnv :: Opts -> IO ([Async ()], Env)
+createEnv o = do
   l <- Logger.mkLogger (o ^. logLevel) (o ^. logNetStrings) (o ^. logFormat)
   n <-
     newManager
@@ -105,7 +103,7 @@ createEnv m o = do
         { updateAction = Ms . round . (* 1000) <$> getPOSIXTime
         }
   mtbs <- mkThreadBudgetState `mapM` (o ^. settings . maxConcurrentNativePushes)
-  pure $! (rThread : rAdditionalThreads,) $! Env (RequestId "N/A") m o l n p r rAdditional a io mtbs
+  pure $! (rThread : rAdditionalThreads,) $! Env (RequestId "N/A") o l n p r rAdditional a io mtbs
 
 reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg
 reqIdMsg = ("request" Logger..=) . unRequestId

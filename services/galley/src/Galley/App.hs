@@ -22,7 +22,6 @@ module Galley.App
     Env,
     reqId,
     options,
-    monitor,
     applog,
     manager,
     federator,
@@ -50,7 +49,6 @@ import Cassandra.Util (initCassandraForService)
 import Control.Error hiding (err)
 import Control.Lens hiding ((.=))
 import Data.Id
-import Data.Metrics.Middleware
 import Data.Misc
 import Data.Qualified
 import Data.Range
@@ -162,13 +160,13 @@ validateOptions o = do
     (Just uri, Nothing) -> pure (Left uri)
     (Just _, Just _) -> error errMsg
 
-createEnv :: Metrics -> Opts -> Logger -> IO Env
-createEnv m o l = do
+createEnv :: Opts -> Logger -> IO Env
+createEnv o l = do
   cass <- initCassandra o l
   mgr <- initHttpManager o
   h2mgr <- initHttp2Manager
   codeURIcfg <- validateOptions o
-  Env (RequestId "N/A") m o l mgr h2mgr (o ^. O.federator) (o ^. O.brig) cass
+  Env (RequestId "N/A") o l mgr h2mgr (o ^. O.federator) (o ^. O.brig) cass
     <$> Q.new 16000
     <*> initExtEnv
     <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. journal)

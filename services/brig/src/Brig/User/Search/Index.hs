@@ -78,19 +78,19 @@ import Data.Credentials
 import Data.Handle (Handle)
 import Data.Id
 import Data.Map qualified as Map
-import Data.Metrics
 import Data.Text qualified as T
 import Data.Text qualified as Text
 import Data.Text.Encoding
 import Data.Text.Encoding.Error
 import Data.Text.Lazy qualified as LT
-import Data.Text.Lazy.Builder.Int (decimal)
 import Data.Text.Lens hiding (text)
 import Data.UUID qualified as UUID
 import Database.Bloodhound qualified as ES
 import Imports hiding (log, searchable)
 import Network.HTTP.Client hiding (host, path, port)
 import Network.HTTP.Types (StdMethod (POST), hContentType, statusCode)
+import Prometheus (MonadMonitor)
+import Prometheus qualified as Prom
 import SAML2.WebSSO.Types qualified as SAML
 import System.Logger qualified as Log
 import System.Logger.Class (Logger, MonadLogger (..), field, info, msg, val, (+++), (~~))
@@ -106,8 +106,7 @@ import Wire.API.User.Search (Sso (..))
 -- IndexIO Monad
 
 data IndexEnv = IndexEnv
-  { idxMetrics :: Metrics,
-    idxLogger :: Logger,
+  { idxLogger :: Logger,
     idxElastic :: ES.BHEnv,
     idxRequest :: Maybe RequestId,
     idxName :: ES.IndexName,
@@ -129,7 +128,8 @@ newtype IndexIO a = IndexIO (ReaderT IndexEnv IO a)
       MonadReader IndexEnv,
       MonadThrow,
       MonadCatch,
-      MonadMask
+      MonadMask,
+      MonadMonitor
     )
 
 runIndexIO :: MonadIO m => IndexEnv -> IndexIO a -> m a
@@ -173,15 +173,14 @@ withAdditionalESUrl action = do
 --------------------------------------------------------------------------------
 -- Updates
 
-reindex :: (MonadLogger m, MonadIndexIO m, C.MonadClient m) => UserId -> m ()
+reindex :: (MonadLogger m, MonadIndexIO m, C.MonadClient m, Prom.MonadMonitor IndexIO) => UserId -> m ()
 reindex u = do
   ixu <- lookupIndexUser u
   updateIndex (maybe (IndexDeleteUser u) (IndexUpdateUser IndexUpdateIfNewerVersion) ixu)
 
-updateIndex :: MonadIndexIO m => IndexUpdate -> m ()
+updateIndex :: (MonadIndexIO m, Prom.MonadMonitor IndexIO) => IndexUpdate -> m ()
 updateIndex (IndexUpdateUser updateType iu) = liftIndexIO $ do
-  m <- asks idxMetrics
-  counterIncr (path "user.index.update.count") m
+  Prom.incCounter indexUpdateCounter
   info $
     field "user" (Bytes.toByteString (view iuUserId iu))
       . msg (val "Indexing user")
@@ -191,20 +190,18 @@ updateIndex (IndexUpdateUser updateType iu) = liftIndexIO $ do
   where
     indexDoc :: (MonadIndexIO m, MonadThrow m) => ES.IndexName -> ES.BH m ()
     indexDoc idx = do
-      m <- lift . liftIndexIO $ asks idxMetrics
       r <- ES.indexDocument idx mappingName versioning (indexToDoc iu) docId
       unless (ES.isSuccess r || ES.isVersionConflict r) $ do
-        counterIncr (path "user.index.update.err") m
+        liftIO $ Prom.incCounter indexUpdateErrorCounter
         ES.parseEsResponse r >>= throwM . IndexUpdateError . either id id
-      counterIncr (path "user.index.update.ok") m
+      liftIO $ Prom.incCounter indexUpdateSuccessCounter
     versioning =
       ES.defaultIndexDocumentSettings
         { ES.idsVersionControl = indexUpdateToVersionControl updateType (ES.ExternalDocVersion (docVersion (_iuVersion iu)))
         }
     docId = ES.DocId (view (iuUserId . re _TextId) iu)
 updateIndex (IndexUpdateUsers updateType ius) = liftIndexIO $ do
-  m <- asks idxMetrics
-  counterIncr (path "user.index.update.bulk.count") m
+  Prom.incCounter indexBulkUpdateCounter
   info $
     field "num_users" (length ius)
       . msg (val "Bulk indexing users")
@@ -226,14 +223,11 @@ updateIndex (IndexUpdateUsers updateType ius) = liftIndexIO $ do
           }
         (ES.bhManager bhe)
   unless (ES.isSuccess res) $ do
-    counterIncr (path "user.index.update.bulk.err") m
+    Prom.incCounter indexBulkUpdateErrorCounter
     ES.parseEsResponse res >>= throwM . IndexUpdateError . either id id
-  counterIncr (path "user.index.update.bulk.ok") m
+  Prom.incCounter indexBulkUpdateSuccessCounter
   for_ (statuses res) $ \(s, f) ->
-    counterAdd
-      (fromIntegral f)
-      (path ("user.index.update.bulk.status." <> review builder (decimal s)))
-      m
+    Prom.withLabel indexBulkUpdateResponseCounter (Text.pack $ show s) $ (void . flip Prom.addCounter (fromIntegral f))
   where
     mkAuthHeaders = do
       creds <- asks idxCredentials
@@ -261,7 +255,7 @@ updateIndex (IndexUpdateUsers updateType ius) = liftIndexIO $ do
         . toListOf (key "items" . values . key "index" . key "status" . _Integral)
         . responseBody
 updateIndex (IndexDeleteUser u) = liftIndexIO $ do
-  counterIncr (path "user.index.delete.count") =<< asks idxMetrics
+  Prom.incCounter indexDeleteCounter
   info $
     field "user" (Bytes.toByteString u)
       . msg (val "(Soft) deleting user from index")
@@ -972,3 +966,87 @@ instance Show ParseException where
       ++ m
 
 instance Exception ParseException
+
+---------------------------------------------------------------------------------
+-- Metrics
+
+{-# NOINLINE indexUpdateCounter #-}
+indexUpdateCounter :: Prom.Counter
+indexUpdateCounter =
+  Prom.unsafeRegister $
+    Prom.counter
+      Prom.Info
+        { Prom.metricName = "user.index.update.count",
+          Prom.metricHelp = "Number of updates on user index"
+        }
+
+{-# NOINLINE indexUpdateErrorCounter #-}
+indexUpdateErrorCounter :: Prom.Counter
+indexUpdateErrorCounter =
+  Prom.unsafeRegister $
+    Prom.counter
+      Prom.Info
+        { Prom.metricName = "user.index.update.err",
+          Prom.metricHelp = "Number of errors during user index update"
+        }
+
+{-# NOINLINE indexUpdateSuccessCounter #-}
+indexUpdateSuccessCounter :: Prom.Counter
+indexUpdateSuccessCounter =
+  Prom.unsafeRegister $
+    Prom.counter
+      Prom.Info
+        { Prom.metricName = "user.index.update.ok",
+          Prom.metricHelp = "Number of successful user index updates"
+        }
+
+{-# NOINLINE indexBulkUpdateCounter #-}
+indexBulkUpdateCounter :: Prom.Counter
+indexBulkUpdateCounter =
+  Prom.unsafeRegister $
+    Prom.counter
+      Prom.Info
+        { Prom.metricName = "user.index.update.bulk.count",
+          Prom.metricHelp = "Number of bulk updates on user index"
+        }
+
+{-# NOINLINE indexBulkUpdateErrorCounter #-}
+indexBulkUpdateErrorCounter :: Prom.Counter
+indexBulkUpdateErrorCounter =
+  Prom.unsafeRegister $
+    Prom.counter
+      Prom.Info
+        { Prom.metricName = "user.index.update.bulk.err",
+          Prom.metricHelp = "Number of errors during bulk updates on user index"
+        }
+
+{-# NOINLINE indexBulkUpdateSuccessCounter #-}
+indexBulkUpdateSuccessCounter :: Prom.Counter
+indexBulkUpdateSuccessCounter =
+  Prom.unsafeRegister $
+    Prom.counter
+      Prom.Info
+        { Prom.metricName = "user.index.update.bulk.ok",
+          Prom.metricHelp = "Number of successful bulk updates on user index"
+        }
+
+{-# NOINLINE indexBulkUpdateResponseCounter #-}
+indexBulkUpdateResponseCounter :: Prom.Vector Prom.Label1 Prom.Counter
+indexBulkUpdateResponseCounter =
+  Prom.unsafeRegister $
+    Prom.vector ("status") $
+      Prom.counter
+        Prom.Info
+          { Prom.metricName = "user.index.update.bulk.response",
+            Prom.metricHelp = "Number of successful bulk updates on user index"
+          }
+
+{-# NOINLINE indexDeleteCounter #-}
+indexDeleteCounter :: Prom.Counter
+indexDeleteCounter =
+  Prom.unsafeRegister $
+    Prom.counter
+      Prom.Info
+        { Prom.metricName = "user.index.delete.count",
+          Prom.metricHelp = "Number of deletes on user index"
+        }

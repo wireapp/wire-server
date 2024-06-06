@@ -28,7 +28,6 @@ import Control.Monad.Catch
 import Data.ByteString.Conversion.To
 import Data.Id
 import Data.List1
-import Data.Metrics (counterIncr, path)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.UUID qualified as UUID
@@ -43,6 +42,7 @@ import Gundeck.Push.Native.Types as Types
 import Gundeck.Types
 import Gundeck.Util
 import Imports
+import Prometheus qualified as Prom
 import System.Logger.Class (MonadLogger, field, msg, val, (.=), (~~))
 import System.Logger.Class qualified as Log
 import UnliftIO (handleAny, mapConcurrently, pooledMapConcurrentlyN_)
@@ -59,6 +59,66 @@ push m addrs = do
     -- avoid high amounts of fresh parallel network requests by
     -- parallelizing only chunkSize native pushes at a time
     Just chunkSize -> pooledMapConcurrentlyN_ chunkSize (push1 m) addrs
+
+{-# NOINLINE nativePushSuccessCounter #-}
+nativePushSuccessCounter :: Prom.Counter
+nativePushSuccessCounter =
+  Prom.unsafeRegister $
+    Prom.counter
+      Prom.Info
+        { Prom.metricName = "push.native.success",
+          Prom.metricHelp = "Number of times native pushes were successfully pushed"
+        }
+
+{-# NOINLINE nativePushDisabledCounter #-}
+nativePushDisabledCounter :: Prom.Counter
+nativePushDisabledCounter =
+  Prom.unsafeRegister $
+    Prom.counter
+      Prom.Info
+        { Prom.metricName = "push.native.disabled",
+          Prom.metricHelp = "Number of times native pushes were not pushed due to a disabled endpoint"
+        }
+
+{-# NOINLINE nativePushInvalidCounter #-}
+nativePushInvalidCounter :: Prom.Counter
+nativePushInvalidCounter =
+  Prom.unsafeRegister $
+    Prom.counter
+      Prom.Info
+        { Prom.metricName = "push.native.invalid",
+          Prom.metricHelp = "Number of times native pushes were not pushed due to an invalid endpoint"
+        }
+
+{-# NOINLINE nativePushTooLargeCounter #-}
+nativePushTooLargeCounter :: Prom.Counter
+nativePushTooLargeCounter =
+  Prom.unsafeRegister $
+    Prom.counter
+      Prom.Info
+        { Prom.metricName = "push.native.too_large",
+          Prom.metricHelp = "Number of times native pushes were not pushed due to payload being too large"
+        }
+
+{-# NOINLINE nativePushUnauthorizedCounter #-}
+nativePushUnauthorizedCounter :: Prom.Counter
+nativePushUnauthorizedCounter =
+  Prom.unsafeRegister $
+    Prom.counter
+      Prom.Info
+        { Prom.metricName = "push.native.unauthorized",
+          Prom.metricHelp = "Number of times native pushes were not pushed due to an unauthorized endpoint"
+        }
+
+{-# NOINLINE nativePushErrorCounter #-}
+nativePushErrorCounter :: Prom.Counter
+nativePushErrorCounter =
+  Prom.unsafeRegister $
+    Prom.counter
+      Prom.Info
+        { Prom.metricName = "push.native.errors",
+          Prom.metricHelp = "Number of times native pushes were not pushed due to an unexpected error"
+        }
 
 push1 :: NativePush -> Address -> Gundeck ()
 push1 = push1' 0
@@ -86,7 +146,7 @@ push1 = push1' 0
             field "user" (toByteString (a ^. addrUser))
               ~~ field "notificationId" (toText (npNotificationid m))
               ~~ Log.msg (val "Native push success")
-          view monitor >>= counterIncr (path "push.native.success")
+          Prom.incCounter nativePushSuccessCounter
         onDisabled =
           handleAny (logError a "Failed to cleanup disabled endpoint") $ do
             Log.info $
@@ -94,13 +154,13 @@ push1 = push1' 0
                 ~~ field "arn" (toText (a ^. addrEndpoint))
                 ~~ field "cause" ("EndpointDisabled" :: Text)
                 ~~ msg (val "Removing disabled endpoint and token")
-            view monitor >>= counterIncr (path "push.native.disabled")
+            Prom.incCounter nativePushDisabledCounter
             Data.delete (a ^. addrUser) (a ^. addrTransport) (a ^. addrApp) (a ^. addrToken)
             onTokenRemoved
             e <- view awsEnv
             Aws.execute e (Aws.deleteEndpoint (a ^. addrEndpoint))
         onPayloadTooLarge = do
-          view monitor >>= counterIncr (path "push.native.too_large")
+          Prom.incCounter nativePushTooLargeCounter
           Log.warn $
             field "user" (toByteString (a ^. addrUser))
               ~~ field "arn" (toText (a ^. addrEndpoint))
@@ -112,7 +172,7 @@ push1 = push1' 0
                 ~~ field "arn" (toText (a ^. addrEndpoint))
                 ~~ field "cause" ("InvalidEndpoint" :: Text)
                 ~~ msg (val "Invalid ARN. Deleting orphaned push token")
-            view monitor >>= counterIncr (path "push.native.invalid")
+            Prom.incCounter nativePushInvalidCounter
             Data.delete (a ^. addrUser) (a ^. addrTransport) (a ^. addrApp) (a ^. addrToken)
             onTokenRemoved
         retryUnauthorisedThreshold = 1
@@ -147,10 +207,10 @@ push1 = push1' 0
               ~~ field "arn" (toText (a ^. addrEndpoint))
               ~~ field "cause" ("UnauthorisedEndpoint" :: Text)
               ~~ msg (val "Invalid ARN. Dropping push message.")
-          view monitor >>= counterIncr (path "push.native.unauthorized")
+          Prom.incCounter nativePushUnauthorizedCounter
         onPushException ex = do
           logError a "Native push failed" ex
-          view monitor >>= counterIncr (path "push.native.errors")
+          Prom.incCounter nativePushErrorCounter
         onTokenRemoved = do
           i <- mkNotificationId
           let c = a ^. addrClient
