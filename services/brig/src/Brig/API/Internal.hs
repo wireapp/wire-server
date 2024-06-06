@@ -882,8 +882,8 @@ updateUserNameH uid (NameUpdate nameUpd) =
       Nothing -> throwStd (errorToWai @'E.InvalidUser)
 
 checkHandleInternalH :: Member UserSubsystem r => Handle -> Handler r CheckHandleResponse
-checkHandleInternalH (Handle h) = lift $ liftSem do
-  API.checkHandle h <&> \case
+checkHandleInternalH h = lift $ liftSem do
+  API.checkHandle (fromHandle h) <&> \case
     API.CheckHandleFound -> CheckHandleResponseFound
     API.CheckHandleNotFound -> CheckHandleResponseNotFound
 

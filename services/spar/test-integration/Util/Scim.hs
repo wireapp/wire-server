@@ -27,7 +27,7 @@ import Control.Lens
 import Control.Monad.Random
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
-import Data.Handle (Handle (Handle))
+import Data.Handle (Handle, parseHandle)
 import Data.Id
 import Data.LanguageCodes (ISO639_1 (EN))
 import Data.String.Conversions
@@ -646,7 +646,7 @@ _wrappedStoredUserToWrappedUser f = f . WrappedScimUser . Scim.value . Scim.thin
 
 instance IsUser (WrappedScimUser SparTag) where
   maybeUserId = Nothing
-  maybeHandle = Just (Just . Handle . Scim.User.userName . fromWrappedScimUser)
+  maybeHandle = Just (parseHandle . Scim.User.userName . fromWrappedScimUser)
   maybeName = Just (fmap Name . Scim.User.displayName . fromWrappedScimUser)
   maybeTenant = Nothing
   maybeSubject = Nothing

@@ -1711,7 +1711,7 @@ testDeleteUserWithDanglingProperty brig cannon userJournalWatcher = do
     const 200 === statusCode
     const (Just objectProp) === responseJsonMaybe
 
-  execAndAssertUserDeletion brig cannon u (Handle hdl) [] userJournalWatcher $ \uid' -> do
+  execAndAssertUserDeletion brig cannon u (fromJust (parseHandle hdl)) [] userJournalWatcher $ \uid' -> do
     deleteUserInternal uid' brig
       !!! do
         const 202 === statusCode
@@ -1736,7 +1736,7 @@ setHandleAndDeleteUser brig cannon u others userJournalWatcher execDelete = do
   put (brig . path "/self/handle" . contentJson . zUser uid . zConn "c" . body update)
     !!! const 200 === statusCode
 
-  execAndAssertUserDeletion brig cannon u (Handle hdl) others userJournalWatcher execDelete
+  execAndAssertUserDeletion brig cannon u (fromJust (parseHandle hdl)) others userJournalWatcher execDelete
 
 execAndAssertUserDeletion :: Brig -> Cannon -> User -> Handle -> [UserId] -> UserJournalWatcher -> (UserId -> HttpT IO ()) -> Http ()
 execAndAssertUserDeletion brig cannon u hdl others userJournalWatcher execDelete = do

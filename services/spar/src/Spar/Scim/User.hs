@@ -54,7 +54,7 @@ import qualified Data.Aeson.Text as Aeson
 import Data.ByteString (toStrict)
 import Data.ByteString.Conversion (fromByteString, toByteString, toByteString')
 import qualified Data.ByteString.UTF8 as UTF8
-import Data.Handle (Handle (Handle), parseHandle)
+import Data.Handle (Handle, fromHandle, parseHandle)
 import Data.Id (Id (..), TeamId, UserId, idToText)
 import Data.Json.Util (UTCTimeMillis, fromUTCTimeMillis, toUTCTimeMillis)
 import qualified Data.Text as Text
@@ -1039,7 +1039,7 @@ synthesizeStoredUser' uid veid dname handle richInfo accStatus createdAt lastUpd
 
 synthesizeScimUser :: ST.ValidScimUser -> Scim.User ST.SparTag
 synthesizeScimUser info =
-  let Handle userName = info ^. ST.vsuHandle
+  let userName = info ^. ST.vsuHandle . to fromHandle
    in (Scim.empty ST.userSchemas userName (ST.ScimUserExtra (info ^. ST.vsuRichInfo)))
         { Scim.externalId = Brig.renderValidExternalId $ info ^. ST.vsuExternalId,
           Scim.displayName = Just $ fromName (info ^. ST.vsuName),

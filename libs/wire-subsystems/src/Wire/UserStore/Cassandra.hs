@@ -88,9 +88,6 @@ freeHandleImpl uid h = do
 
 -- | Sending an empty 'Handle' here causes C* to throw "Key may not be empty"
 -- error.
---
--- FUTUREWORK: This should ideally be tackled by hiding constructor for 'Handle'
--- and only allowing it to be parsed.
 lookupHandleImpl :: Consistency -> Handle -> Client (Maybe UserId)
 lookupHandleImpl consistencyLevel h = do
   (runIdentity =<<)
