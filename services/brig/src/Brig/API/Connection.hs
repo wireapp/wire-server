@@ -71,6 +71,7 @@ import Wire.API.UserEvent
 import Wire.GalleyAPIAccess
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
+import Wire.UserStore
 
 ensureNotSameTeam :: (Member GalleyAPIAccess r) => Local UserId -> Local UserId -> (ConnectionM r) ()
 ensureNotSameTeam self target = do
@@ -84,6 +85,7 @@ createConnection ::
     Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member TinyLog r,
+    Member UserStore r,
     Member (Embed HttpClientIO) r
   ) =>
   Local UserId ->
@@ -103,6 +105,7 @@ createConnectionToLocalUser ::
   ( Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member TinyLog r,
+    Member UserStore r,
     Member (Embed HttpClientIO) r
   ) =>
   Local UserId ->

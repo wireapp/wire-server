@@ -24,6 +24,7 @@ module Wire.API.User.Password
     CompletePasswordReset (..),
     PasswordResetIdentity (..),
     PasswordResetKey (..),
+    mkPasswordResetKey,
     PasswordResetCode (..),
 
     -- * deprecated
@@ -33,9 +34,13 @@ where
 
 import Cassandra qualified as C
 import Control.Lens ((?~))
+import Crypto.Hash
 import Data.Aeson qualified as A
 import Data.Aeson.Types (Parser)
+import Data.ByteArray qualified as ByteArray
+import Data.ByteString qualified as BS
 import Data.ByteString.Conversion
+import Data.Id
 import Data.Misc (PlainTextPassword8)
 import Data.OpenApi qualified as S
 import Data.OpenApi.ParamSchema
@@ -172,8 +177,16 @@ data PasswordResetIdentity
 -- | Opaque identifier per user (SHA256 of the user ID).
 newtype PasswordResetKey = PasswordResetKey
   {fromPasswordResetKey :: AsciiBase64Url}
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Ord)
   deriving newtype (ToSchema, FromByteString, ToByteString, A.FromJSON, A.ToJSON, Arbitrary)
+
+mkPasswordResetKey :: UserId -> PasswordResetKey
+mkPasswordResetKey userId =
+  PasswordResetKey
+    . encodeBase64Url
+    . BS.pack
+    . ByteArray.unpack
+    $ hashWith SHA256 (toByteString' userId)
 
 instance ToParamSchema PasswordResetKey where
   toParamSchema _ = toParamSchema (Proxy @Text)

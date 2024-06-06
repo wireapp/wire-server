@@ -69,6 +69,9 @@ library
 
   -- cabal-fmt: expand src
   exposed-modules:
+    Wire.AuthenticationSubsystem
+    Wire.AuthenticationSubsystem.Error
+    Wire.AuthenticationSubsystem.Interpreter
     Wire.DeleteQueue
     Wire.DeleteQueue.InMemory
     Wire.FederationAPIAccess
@@ -76,18 +79,26 @@ library
     Wire.GalleyAPIAccess
     Wire.GalleyAPIAccess.Rpc
     Wire.GundeckAPIAccess
+    Wire.HashPassword
     Wire.InternalEvent
     Wire.MiniBackend
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
     Wire.ParseException
+    Wire.PasswordResetCodeStore
+    Wire.PasswordResetCodeStore.Cassandra
     Wire.Rpc
+    Wire.SessionStore
+    Wire.SessionStore.Cassandra
     Wire.StoredUser
     Wire.UserEvents
+    Wire.UserKeyStore
+    Wire.UserKeyStore.Cassandra
     Wire.UserStore
     Wire.UserStore.Cassandra
     Wire.UserStore.Unique
     Wire.UserSubsystem
+    Wire.UserSubsystem.Error
     Wire.UserSubsystem.HandleBlacklist
     Wire.UserSubsystem.Interpreter
 
@@ -161,6 +172,7 @@ test-suite wire-subsystems-tests
   -- cabal-fmt: expand test/unit
   other-modules:
     Spec
+    Wire.AuthenticationSubsystem.InterpreterSpec
     Wire.NotificationSubsystem.InterpreterSpec
     Wire.UserStoreSpec
     Wire.UserSubsystem.InterpreterSpec

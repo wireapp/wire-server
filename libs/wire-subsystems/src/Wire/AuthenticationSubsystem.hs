@@ -16,35 +16,20 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE TemplateHaskell #-}
 
-module Brig.Effects.CodeStore where
+module Wire.AuthenticationSubsystem where
 
 import Data.Id
-import Data.Time.Clock
+import Data.Misc
 import Imports
 import Polysemy
+import Wire.API.User
 import Wire.API.User.Password
+import Wire.UserKeyStore
 
--- | Parameters used in password reset queries. The f type constructor is used
--- either as 'Identity' or 'Maybe'.
-data PRQueryData f = PRQueryData
-  { prqdCode :: PasswordResetCode,
-    prqdUser :: UserId,
-    prqdRetries :: f Int32,
-    prqdTimeout :: f UTCTime
-  }
+data AuthenticationSubsystem m a where
+  CreatePasswordResetCode :: UserKey -> AuthenticationSubsystem m (UserId, PasswordResetPair)
+  ResetPassword :: PasswordResetIdentity -> PasswordResetCode -> PlainTextPassword8 -> AuthenticationSubsystem m ()
+  -- For testing
+  InternalLookupPasswordResetCode :: UserKey -> AuthenticationSubsystem m (Maybe PasswordResetPair)
 
-data CodeStore m a where
-  MkPasswordResetKey :: UserId -> CodeStore m PasswordResetKey
-  GenerateEmailCode :: CodeStore m PasswordResetCode
-  GeneratePhoneCode :: CodeStore m PasswordResetCode
-  CodeSelect ::
-    PasswordResetKey ->
-    CodeStore m (Maybe (PRQueryData Maybe))
-  CodeInsert ::
-    PasswordResetKey ->
-    PRQueryData Identity ->
-    Int32 ->
-    CodeStore m ()
-  CodeDelete :: PasswordResetKey -> CodeStore m ()
-
-makeSem ''CodeStore
+makeSem ''AuthenticationSubsystem

@@ -27,7 +27,7 @@ import API.Internal.Util
 import API.MLS.Util
 import Bilge
 import Bilge.Assert
-import Brig.Data.User (lookupFeatureConferenceCalling, lookupStatus, userExists)
+import Brig.Data.User (lookupFeatureConferenceCalling, userExists)
 import Brig.Options qualified as Opt
 import Cassandra qualified as C
 import Cassandra qualified as Cass
@@ -222,3 +222,11 @@ testWritetimeRepresentation _ _mgr db brig _brigep _galley = do
 
     q2 :: C.PrepQuery C.R (Identity UserId) (Identity (Writetime ()))
     q2 = "SELECT WRITETIME(status) from user where id = ?"
+
+lookupStatus :: UserId -> C.Client (Maybe AccountStatus)
+lookupStatus u =
+  (runIdentity =<<)
+    <$> C.retry C.x1 (C.query1 statusSelect (C.params C.LocalQuorum (Identity u)))
+  where
+    statusSelect :: C.PrepQuery C.R (Identity UserId) (Identity (Maybe AccountStatus))
+    statusSelect = "SELECT status FROM user WHERE id = ?"

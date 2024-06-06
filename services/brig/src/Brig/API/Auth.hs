@@ -54,6 +54,8 @@ import Wire.API.User.Auth.Sso
 import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.UserKeyStore
+import Wire.UserStore
 import Wire.UserSubsystem
 
 accessH ::
@@ -91,7 +93,7 @@ access mcid t mt =
   traverse mkUserTokenCookie
     =<< Auth.renewAccess (List1 t) mt mcid !>> zauthError
 
-sendLoginCode :: (Member TinyLog r) => SendLoginCode -> Handler r LoginCodeTimeout
+sendLoginCode :: (Member TinyLog r, Member UserKeyStore r, Member UserStore r) => SendLoginCode -> Handler r LoginCodeTimeout
 sendLoginCode (SendLoginCode phone call force) = do
   checkAllowlist (Right phone)
   c <- Auth.sendLoginCode phone call force !>> sendLoginCodeError
@@ -129,7 +131,9 @@ logout _ Nothing = throwStd authMissingToken
 logout uts (Just at) = Auth.logout (List1 uts) at !>> zauthError
 
 changeSelfEmailH ::
-  (Member BlacklistStore r) =>
+  ( Member BlacklistStore r,
+    Member UserKeyStore r
+  ) =>
   [Either Text SomeUserToken] ->
   Maybe (Either Text SomeAccessToken) ->
   EmailUpdate ->
@@ -192,7 +196,7 @@ ssoLogin l (fromMaybe False -> persist) = do
   c <- Auth.ssoLogin l typ !>> loginError
   traverse mkUserTokenCookie c
 
-getLoginCode :: (Member TinyLog r) => Phone -> Handler r PendingLoginCode
+getLoginCode :: (Member TinyLog r, Member UserKeyStore r) => Phone -> Handler r PendingLoginCode
 getLoginCode phone = do
   code <- lift $ Auth.lookupLoginCode phone
   maybe (throwStd loginCodeNotFound) pure code

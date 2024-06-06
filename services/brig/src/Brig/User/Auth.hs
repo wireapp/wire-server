@@ -45,8 +45,6 @@ import Brig.Data.Activation qualified as Data
 import Brig.Data.Client
 import Brig.Data.LoginCode qualified as Data
 import Brig.Data.User qualified as Data
-import Brig.Data.UserKey
-import Brig.Data.UserKey qualified as Data
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Email
 import Brig.Options qualified as Opt
@@ -85,11 +83,14 @@ import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.UserKeyStore
 import Wire.UserStore
-import Wire.UserStore.Cassandra (interpretUserStoreCassandra)
 
 sendLoginCode ::
-  (Member TinyLog r) =>
+  ( Member TinyLog r,
+    Member UserKeyStore r,
+    Member UserStore r
+  ) =>
   Phone ->
   Bool ->
   Bool ->
@@ -100,12 +101,12 @@ sendLoginCode phone call force = do
       (throwE $ SendLoginInvalidPhone phone)
       (pure . userPhoneKey)
       =<< lift (wrapHttpClient $ validatePhone phone)
-  user <- lift $ wrapHttpClient $ Data.lookupKey pk
+  user <- lift $ liftSem $ lookupKey pk
   case user of
     Nothing -> throwE $ SendLoginInvalidPhone phone
     Just u -> do
       lift . liftSem . Log.debug $ field "user" (toByteString u) . field "action" (val "User.sendLoginCode")
-      pw <- lift $ wrapClient $ Data.lookupPassword u
+      pw <- lift $ liftSem $ lookupPassword u
       unless (isNothing pw || force) $
         throwE SendLoginPasswordExists
       lift $ wrapHttpClient $ do
@@ -118,11 +119,11 @@ sendLoginCode phone call force = do
         pure c
 
 lookupLoginCode ::
-  (Member TinyLog r) =>
+  (Member TinyLog r, Member UserKeyStore r) =>
   Phone ->
   AppT r (Maybe PendingLoginCode)
 lookupLoginCode phone =
-  wrapClient (Data.lookupKey (userPhoneKey phone)) >>= \case
+  liftSem (lookupKey (userPhoneKey phone)) >>= \case
     Nothing -> pure Nothing
     Just u -> do
       liftSem $ Log.debug $ field "user" (toByteString u) . field "action" (val "User.lookupLoginCode")
@@ -329,14 +330,9 @@ newAccess uid cid ct cl = do
       t <- lift $ newAccessToken @u @a ck Nothing
       pure $ Access t (Just ck)
 
-resolveLoginId :: forall m. (MonadClient m, MonadReader Env m) => LoginId -> ExceptT LoginError m UserId
+resolveLoginId :: (MonadClient m, MonadReader Env m) => LoginId -> ExceptT LoginError m UserId
 resolveLoginId li = do
-  let adhocInterpreter :: Sem '[UserStore, Embed IO] a -> m a
-      adhocInterpreter action = do
-        clientState <- asks (view casClient)
-        liftIO (runM (interpretUserStoreCassandra clientState action))
-
-  usr <- validateLoginId li >>= lift . either lookupKey (adhocInterpreter . lookupHandle)
+  usr <- validateLoginId li >>= lift . either (adhocUserKeyStoreInterpreter . lookupKey) (adhocUserStoreInterpreter . lookupHandle)
   case usr of
     Nothing -> do
       pending <- lift $ isPendingActivation li

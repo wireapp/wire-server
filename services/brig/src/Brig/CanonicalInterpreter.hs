@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
 module Brig.CanonicalInterpreter where
 
 import Brig.App as App
@@ -6,15 +8,11 @@ import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistPhonePrefixStore.Cassandra (interpretBlacklistPhonePrefixStoreToCassandra)
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.BlacklistStore.Cassandra (interpretBlacklistStoreToCassandra)
-import Brig.Effects.CodeStore (CodeStore)
-import Brig.Effects.CodeStore.Cassandra (codeStoreToCassandra, interpretClientToIO)
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.ConnectionStore.Cassandra (connectionStoreToCassandra)
 import Brig.Effects.FederationConfigStore (FederationConfigStore)
 import Brig.Effects.FederationConfigStore.Cassandra (interpretFederationDomainConfig, remotesMapFromCfgFile)
 import Brig.Effects.JwtTools
-import Brig.Effects.PasswordResetStore (PasswordResetStore)
-import Brig.Effects.PasswordResetStore.CodeStore (passwordResetStoreToCodeStore)
 import Brig.Effects.PublicKeyBundle
 import Brig.Effects.SFT (SFT, interpretSFT)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
@@ -39,15 +37,20 @@ import Polysemy.Input (Input, runInputConst, runInputSem)
 import Polysemy.TinyLog (TinyLog)
 import Wire.API.Federation.Client qualified
 import Wire.API.Federation.Error
+import Wire.AuthenticationSubsystem
+import Wire.AuthenticationSubsystem.Interpreter
 import Wire.DeleteQueue
 import Wire.FederationAPIAccess qualified
 import Wire.FederationAPIAccess.Interpreter (FederationAPIAccessConfig (..), interpretFederationAPIAccess)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess.Rpc
 import Wire.GundeckAPIAccess
+import Wire.HashPassword
 import Wire.NotificationSubsystem
 import Wire.NotificationSubsystem.Interpreter (defaultNotificationSubsystemConfig, runNotificationSubsystemGundeck)
 import Wire.ParseException
+import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
+import Wire.PasswordResetCodeStore.Cassandra (interpretClientToIO, passwordResetCodeStoreToCassandra)
 import Wire.Rpc
 import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.IO
@@ -57,21 +60,30 @@ import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIOAction)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.SessionStore
+import Wire.SessionStore.Cassandra (interpretSessionStoreCassandra)
 import Wire.UserEvents
+import Wire.UserKeyStore
+import Wire.UserKeyStore.Cassandra
 import Wire.UserStore
 import Wire.UserStore.Cassandra
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Interpreter
 
 type BrigCanonicalEffects =
-  '[ UserSubsystem,
+  '[ AuthenticationSubsystem,
+     UserSubsystem,
      DeleteQueue,
      UserEvents,
      Error UserSubsystemError,
+     Error AuthenticationSubsystemError,
      Error Wire.API.Federation.Error.FederationError,
      Error Wai.Error,
      Wire.FederationAPIAccess.FederationAPIAccess Wire.API.Federation.Client.FederatorClient,
+     HashPassword,
+     UserKeyStore,
      UserStore,
+     SessionStore,
      SFT,
      ConnectionStore InternalPaging,
      Input UTCTime,
@@ -84,11 +96,10 @@ type BrigCanonicalEffects =
      JwtTools,
      BlacklistPhonePrefixStore,
      BlacklistStore,
-     PasswordResetStore,
      UserPendingActivationStore InternalPaging,
      Now,
      Delay,
-     CodeStore,
+     PasswordResetCodeStore,
      GalleyAPIAccess,
      Rpc,
      Embed Cas.Client,
@@ -132,11 +143,10 @@ runBrigToIO e (AppT ma) = do
               . interpretClientToIO (e ^. casClient)
               . runRpcWithHttp (e ^. httpManager) (e ^. App.requestId)
               . interpretGalleyAPIAccessToRpc (e ^. disabledVersions) (e ^. galleyEndpoint)
-              . codeStoreToCassandra @Cas.Client
+              . passwordResetCodeStoreToCassandra @Cas.Client
               . runDelay
               . nowToIOAction (e ^. currentTime)
               . userPendingActivationStoreToCassandra
-              . passwordResetStoreToCodeStore
               . interpretBlacklistStoreToCassandra @Cas.Client
               . interpretBlacklistPhonePrefixStoreToCassandra @Cas.Client
               . interpretJwtTools
@@ -149,14 +159,19 @@ runBrigToIO e (AppT ma) = do
               . runInputSem (embed getCurrentTime)
               . connectionStoreToCassandra
               . interpretSFT (e ^. httpManager)
+              . interpretSessionStoreCassandra (e ^. casClient)
               . interpretUserStoreCassandra (e ^. casClient)
+              . interpretUserKeyStoreCassandra (e ^. casClient)
+              . runHashPassword
               . interpretFederationAPIAccess federationApiAccessConfig
               . rethrowWaiErrorIO
               . mapError federationErrorToWai
+              . mapError authenticationSubsystemErrorToWai
               . mapError userSubsystemErrorToWai
               . runUserEvents
               . runDeleteQueue (e ^. internalEvents)
               . runUserSubsystem userSubsystemConfig
+              . interpretAuthenticationSubsystem
           )
     )
     $ runReaderT ma e

@@ -36,7 +36,6 @@ import Brig.Data.Activation (Activation (..), ActivationError (..))
 import Brig.Data.Client (ClientDataError (..))
 import Brig.Data.Properties (PropertiesDataError (..))
 import Brig.Data.User (AuthError (..), ReAuthError (..))
-import Brig.Data.UserKey (UserKey, foldKey)
 import Brig.Types.Intra
 import Data.Code
 import Data.Id
@@ -47,6 +46,7 @@ import Imports
 import Network.Wai.Utilities.Error qualified as Wai
 import Wire.API.Federation.Error
 import Wire.API.User
+import Wire.UserKeyStore (UserKey, foldKey)
 
 -------------------------------------------------------------------------------
 -- Successes

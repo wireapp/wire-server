@@ -31,6 +31,7 @@ import Data.Aeson as A
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Misc
 import Imports
+import Network.Wai.Utilities (Error (label))
 import Test.Tasty hiding (Timeout)
 import Util
 import Wire.API.User
@@ -46,16 +47,16 @@ tests ::
   Cannon ->
   Galley ->
   TestTree
-tests cs _cl _at _conf p b _c _g =
+tests _cs _cl _at _conf p b _c _g =
   testGroup
     "password-reset"
-    [ test p "post /password-reset[/complete] - 201[/200]" $ testPasswordReset b cs,
-      test p "post /password-reset after put /access/self/email - 400" $ testPasswordResetAfterEmailUpdate b cs,
-      test p "post /password-reset/complete - password too short - 400" $ testPasswordResetInvalidPasswordLength b cs
+    [ test p "post /password-reset[/complete] - 201[/200]" $ testPasswordReset b,
+      test p "post /password-reset after put /access/self/email - 400" $ testPasswordResetAfterEmailUpdate b,
+      test p "post /password-reset/complete - password too short - 400" $ testPasswordResetInvalidPasswordLength b
     ]
 
-testPasswordReset :: Brig -> DB.ClientState -> Http ()
-testPasswordReset brig cs = do
+testPasswordReset :: Brig -> Http ()
+testPasswordReset brig = do
   u <- randomUser brig
   let Just email = userEmail u
   let uid = userId u
@@ -63,7 +64,12 @@ testPasswordReset brig cs = do
   let newpw = plainTextPassword8Unsafe "newsecret"
   do
     initiatePasswordReset brig email !!! const 201 === statusCode
-    passwordResetData <- preparePasswordReset brig cs email uid newpw
+    initiatePasswordReset brig email !!! do
+      const 409 === statusCode
+      const (Just "code-exists") === fmap label . responseJsonMaybe
+      const Nothing {- the "retry-after" header is only added for provider, not user, at the time of writing this test -} === getHeader "Retry-After"
+
+    passwordResetData <- preparePasswordReset brig email uid newpw
     completePasswordReset brig passwordResetData !!! const 200 === statusCode
   -- try login
   login brig (defEmailLogin email) PersistentCookie
@@ -76,33 +82,33 @@ testPasswordReset brig cs = do
   -- reset password again to the same new password, get 400 "must be different"
   do
     initiatePasswordReset brig email !!! const 201 === statusCode
-    passwordResetData <- preparePasswordReset brig cs email uid newpw
+    passwordResetData <- preparePasswordReset brig email uid newpw
     completePasswordReset brig passwordResetData !!! const 409 === statusCode
 
-testPasswordResetAfterEmailUpdate :: Brig -> DB.ClientState -> Http ()
-testPasswordResetAfterEmailUpdate brig cs = do
+testPasswordResetAfterEmailUpdate :: Brig -> Http ()
+testPasswordResetAfterEmailUpdate brig = do
   u <- randomUser brig
   let uid = userId u
   let Just email = userEmail u
   eml <- randomEmail
   initiateEmailUpdateLogin brig eml (emailLogin email defPassword Nothing) uid !!! const 202 === statusCode
   initiatePasswordReset brig email !!! const 201 === statusCode
-  passwordResetData <- preparePasswordReset brig cs email uid (plainTextPassword8Unsafe "newsecret")
+  passwordResetData <- preparePasswordReset brig email uid (plainTextPassword8Unsafe "newsecret")
   -- activate new email
   activateEmail brig eml
   checkEmail brig uid eml
   -- attempting to complete password reset should fail
   completePasswordReset brig passwordResetData !!! const 400 === statusCode
 
-testPasswordResetInvalidPasswordLength :: Brig -> DB.ClientState -> Http ()
-testPasswordResetInvalidPasswordLength brig cs = do
+testPasswordResetInvalidPasswordLength :: Brig -> Http ()
+testPasswordResetInvalidPasswordLength brig = do
   u <- randomUser brig
   let Just email = userEmail u
   let uid = userId u
   -- for convenience, we create a valid password first that we replace with an invalid one in the JSON later
   let newpw = plainTextPassword8Unsafe "newsecret"
   initiatePasswordReset brig email !!! const 201 === statusCode
-  passwordResetData <- preparePasswordReset brig cs email uid newpw
+  passwordResetData <- preparePasswordReset brig email uid newpw
   let shortPassword = String "123456"
   let reqBody = toJSON passwordResetData & addJsonKey "password" shortPassword
   postCompletePasswordReset reqBody !!! const 400 === statusCode

@@ -8,6 +8,7 @@ import Imports
 import Polysemy
 import Polysemy.Embed
 import Polysemy.Error
+import Wire.API.Password (Password)
 import Wire.API.User hiding (DeleteUser)
 import Wire.StoredUser
 import Wire.UserStore
@@ -23,6 +24,10 @@ interpretUserStoreCassandra casClient =
       DeleteUser user -> embed $ deleteUserImpl user
       LookupHandle hdl -> embed $ lookupHandleImpl LocalQuorum hdl
       GlimpseHandle hdl -> embed $ lookupHandleImpl One hdl
+      LookupStatus uid -> embed $ lookupStatusImpl uid
+      IsActivated uid -> embed $ isActivatedImpl uid
+      LookupPassword uid -> embed $ lookupPasswordImpl uid
+      UpdatePassword uid pwd -> embed $ updatePasswordImpl uid pwd
 
 getUserImpl :: (Member (Embed Client) r) => UserId -> Sem r (Maybe StoredUser)
 getUserImpl uid = embed $ do
@@ -105,6 +110,25 @@ deleteUserImpl user = do
           (Deleted, Name "default", defaultAccentId, noPict, [], userId user)
       )
 
+lookupStatusImpl :: UserId -> Client (Maybe AccountStatus)
+lookupStatusImpl u =
+  (runIdentity =<<)
+    <$> retry x1 (query1 statusSelect (params LocalQuorum (Identity u)))
+
+isActivatedImpl :: UserId -> Client Bool
+isActivatedImpl uid =
+  (== Just (Identity True))
+    <$> retry x1 (query1 activatedSelect (params LocalQuorum (Identity uid)))
+
+lookupPasswordImpl :: (MonadClient m) => UserId -> m (Maybe Password)
+lookupPasswordImpl u =
+  (runIdentity =<<)
+    <$> retry x1 (query1 passwordSelect (params LocalQuorum (Identity u)))
+
+updatePasswordImpl :: (MonadClient m) => UserId -> Password -> m ()
+updatePasswordImpl u p = do
+  retry x5 $ write userPasswordUpdate (params LocalQuorum (p, u))
+
 --------------------------------------------------------------------------------
 -- Queries
 
@@ -150,3 +174,15 @@ updateUserToTombstone =
   "UPDATE user SET status = ?, name = ?,\
   \ accent_id = ?, picture = ?, assets = ?, handle = null, country = null,\
   \ language = null, email = null, phone = null, sso_id = null WHERE id = ?"
+
+statusSelect :: PrepQuery R (Identity UserId) (Identity (Maybe AccountStatus))
+statusSelect = "SELECT status FROM user WHERE id = ?"
+
+activatedSelect :: PrepQuery R (Identity UserId) (Identity Bool)
+activatedSelect = "SELECT activated FROM user WHERE id = ?"
+
+passwordSelect :: PrepQuery R (Identity UserId) (Identity (Maybe Password))
+passwordSelect = "SELECT password FROM user WHERE id = ?"
+
+userPasswordUpdate :: PrepQuery W (Password, UserId) ()
+userPasswordUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET password = ? WHERE id = ?"
