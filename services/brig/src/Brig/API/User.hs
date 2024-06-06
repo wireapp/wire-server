@@ -238,7 +238,7 @@ createUserSpar new = do
     pure account
 
   -- Add to team
-  userTeam <- withExceptT CreateUserSparRegistrationError $ addUserToTeamSSO account tid (SSOIdentity ident Nothing Nothing) (newUserSparRole new)
+  userTeam <- withExceptT CreateUserSparRegistrationError $ addUserToTeamSSO account tid (SSOIdentity ident Nothing) (newUserSparRole new)
 
   -- Set up feature flags
   luid <- lift $ ensureLocal (userQualifiedId (accountUser account))
@@ -310,7 +310,7 @@ createUser new = do
 
   let (new', mbHandle) = case mbExistingAccount of
         Nothing ->
-          ( new {newUserIdentity = newIdentity email Nothing (newUserSSOId new)},
+          ( new {newUserIdentity = newIdentity email (newUserSSOId new)},
             Nothing
           )
         Just existingAccount ->
@@ -324,7 +324,7 @@ createUser new = do
                   _ -> newUserSSOId new
            in ( new
                   { newUserManagedBy = Just (userManagedBy existingUser),
-                    newUserIdentity = newIdentity email Nothing mbSSOid
+                    newUserIdentity = newIdentity email mbSSOid
                   },
                 userHandle existingUser
               )
@@ -368,7 +368,7 @@ createUser new = do
       Nothing -> pure Nothing
 
     joinedTeamSSO <- case (newUserIdentity new', tid) of
-      (Just ident@(SSOIdentity (UserSSOId _) _ _), Just tid') -> Just <$> addUserToTeamSSO account tid' ident
+      (Just ident@(SSOIdentity (UserSSOId _) _), Just tid') -> Just <$> addUserToTeamSSO account tid' ident
       _ -> pure Nothing
 
     pure (activatedTeam <|> joinedTeamInvite <|> joinedTeamSSO)
@@ -617,24 +617,12 @@ changeEmail u email updateOrigin = do
 -- Remove Email
 
 removeEmail ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
-    Member UserSubsystem r
-  ) =>
+  Member UserSubsystem r =>
   UserId ->
-  ConnId ->
   ExceptT RemoveIdentityError (AppT r) ()
-removeEmail uid conn = do
+removeEmail uid = do
   ident <- lift $ fetchUserIdentity uid
   case ident of
-    Just (FullIdentity e _) -> lift $ do
-      wrapClient . deleteKey $ mkEmailKey e
-      wrapClient $ Data.deleteEmail uid
-      liftSem $ Intra.onUserEvent uid (Just conn) (emailRemoved uid e)
     Just _ -> throwE LastIdentity
     Nothing -> throwE NoIdentity
 
@@ -642,8 +630,8 @@ removeEmail uid conn = do
 -- Remove Phone
 
 -- | Phones are not supported any longer.
-removePhone :: UserId -> ConnId -> ExceptT RemoveIdentityError (AppT r) ()
-removePhone _uid _conn = pure ()
+removePhone :: UserId -> ExceptT RemoveIdentityError (AppT r) ()
+removePhone _uid = pure ()
 
 -------------------------------------------------------------------------------
 -- Forcefully revoke a verified identity
@@ -793,7 +781,7 @@ onActivated ::
     Member (ConnectionStore InternalPaging) r
   ) =>
   ActivationEvent ->
-  (AppT r) (UserId, Maybe UserIdentity, Bool)
+  AppT r (UserId, Maybe UserIdentity, Bool)
 onActivated (AccountActivated account) = liftSem $ do
   let uid = userId (accountUser account)
   Log.debug $ field "user" (toByteString uid) . field "action" (val "User.onActivated")
@@ -804,9 +792,6 @@ onActivated (EmailActivated uid email) = do
   liftSem $ Intra.onUserEvent uid Nothing (emailUpdated uid email)
   wrapHttpClient $ Data.deleteEmailUnvalidated uid
   pure (uid, Just (EmailIdentity email), False)
-onActivated (PhoneActivated uid phone) = do
-  liftSem $ Intra.onUserEvent uid Nothing (phoneUpdated uid phone)
-  pure (uid, Just (PhoneIdentity phone), False)
 
 -- docs/reference/user/activation.md {#RefActivationRequest}
 sendActivationCode ::
@@ -1013,13 +998,7 @@ deleteSelfUser uid pwd = do
           isOwner <- lift $ liftSem $ GalleyAPIAccess.memberIsTeamOwner tid uid
           when isOwner $ throwE DeleteUserOwnerDeletingSelf
     go a = maybe (byIdentity a) (byPassword a) pwd
-    getEmailOrPhone :: UserIdentity -> Maybe Email
-    getEmailOrPhone (FullIdentity e _) = Just e
-    getEmailOrPhone (EmailIdentity e) = Just e
-    getEmailOrPhone (SSOIdentity _ (Just e) _) = Just e
-    getEmailOrPhone (PhoneIdentity _) = Nothing
-    getEmailOrPhone (SSOIdentity _ _ _) = Nothing
-    byIdentity a = case getEmailOrPhone =<< userIdentity (accountUser a) of
+    byIdentity a = case emailIdentity =<< userIdentity (accountUser a) of
       Just emailOrPhone -> sendCode a emailOrPhone
       Nothing -> case pwd of
         Just _ -> throwE DeleteUserMissingPassword

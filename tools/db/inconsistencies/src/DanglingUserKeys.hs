@@ -37,7 +37,7 @@ import Imports
 import System.Logger
 import System.Logger qualified as Log
 import UnliftIO.Async
-import Wire.API.User hiding (userEmail, userPhone)
+import Wire.API.User hiding (userEmail)
 
 runCommand :: Logger -> ClientState -> FilePath -> IO ()
 runCommand l brig inconsistenciesFile = do

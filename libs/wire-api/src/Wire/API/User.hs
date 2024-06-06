@@ -37,7 +37,6 @@ module Wire.API.User
     User (..),
     userId,
     userEmail,
-    userPhone,
     userSSOId,
     userIssuer,
     userSCIMExternalId,
@@ -66,7 +65,6 @@ module Wire.API.User
     newUserInvitationCode,
     newUserTeam,
     newUserEmail,
-    newUserPhone,
     newUserSSOId,
     isNewUserEphemeral,
     isNewUserTeamMember,
@@ -750,9 +748,6 @@ userObjectSchema =
 userEmail :: User -> Maybe Email
 userEmail = emailIdentity <=< userIdentity
 
-userPhone :: User -> Maybe Phone
-userPhone = phoneIdentity <=< userIdentity
-
 userSSOId :: User -> Maybe UserSSOId
 userSSOId = ssoIdentity <=< userIdentity
 
@@ -1066,7 +1061,8 @@ newUserFromSpar new =
   NewUser
     { newUserDisplayName = newUserSparDisplayName new,
       newUserUUID = Just $ newUserSparUUID new,
-      newUserIdentity = Just $ SSOIdentity (newUserSparSSOId new) Nothing Nothing,
+      newUserIdentity = Just $ SSOIdentity (newUserSparSSOId new) Nothing,
+      newUserPhone = Nothing,
       newUserPict = Nothing,
       newUserAssets = [],
       newUserAccentId = Nothing,
@@ -1086,6 +1082,7 @@ data NewUser = NewUser
     -- | use this as 'UserId' (if 'Nothing', call 'Data.UUID.nextRandom').
     newUserUUID :: Maybe UUID,
     newUserIdentity :: Maybe UserIdentity,
+    newUserPhone :: Maybe Phone,
     -- | DEPRECATED
     newUserPict :: Maybe Pict,
     newUserAssets :: [Asset],
@@ -1109,6 +1106,7 @@ emptyNewUser name =
     { newUserDisplayName = name,
       newUserUUID = Nothing,
       newUserIdentity = Nothing,
+      newUserPhone = Nothing,
       newUserPict = Nothing,
       newUserAssets = [],
       newUserAccentId = Nothing,
@@ -1208,7 +1206,7 @@ newUserToRaw NewUser {..} =
         { newUserRawDisplayName = newUserDisplayName,
           newUserRawUUID = newUserUUID,
           newUserRawEmail = emailIdentity =<< newUserIdentity,
-          newUserRawPhone = phoneIdentity =<< newUserIdentity,
+          newUserRawPhone = newUserPhone,
           newUserRawSSOId = ssoIdentity =<< newUserIdentity,
           newUserRawPict = newUserPict,
           newUserRawAssets = newUserAssets,
@@ -1237,7 +1235,7 @@ newUserFromRaw NewUserRaw {..} = do
         (newUserRawInvitationCode, newUserRawTeamCode, newUserRawTeam, newUserRawTeamId)
   let identity =
         maybeUserIdentityFromComponents
-          (newUserRawEmail, newUserRawPhone, newUserRawSSOId)
+          (newUserRawEmail, newUserRawSSOId)
   expiresIn <-
     case (newUserRawExpiresIn, identity) of
       (Just _, Just _) -> fail "Only users without an identity can expire"
@@ -1247,6 +1245,7 @@ newUserFromRaw NewUserRaw {..} = do
       { newUserDisplayName = newUserRawDisplayName,
         newUserUUID = newUserRawUUID,
         newUserIdentity = identity,
+        newUserPhone = newUserRawPhone,
         newUserPict = newUserRawPict,
         newUserAssets = newUserRawAssets,
         newUserAccentId = newUserRawAccentId,
@@ -1265,6 +1264,7 @@ newUserFromRaw NewUserRaw {..} = do
 instance Arbitrary NewUser where
   arbitrary = do
     newUserIdentity <- arbitrary
+    newUserPhone <- arbitrary
     newUserOrigin <- genUserOrigin newUserIdentity
     newUserDisplayName <- arbitrary
     newUserUUID <- QC.elements [Just nil, Nothing]
@@ -1315,9 +1315,6 @@ newUserTeam nu = case newUserOrigin nu of
 
 newUserEmail :: NewUser -> Maybe Email
 newUserEmail = emailIdentity <=< newUserIdentity
-
-newUserPhone :: NewUser -> Maybe Phone
-newUserPhone = phoneIdentity <=< newUserIdentity
 
 newUserSSOId :: NewUser -> Maybe UserSSOId
 newUserSSOId = ssoIdentity <=< newUserIdentity

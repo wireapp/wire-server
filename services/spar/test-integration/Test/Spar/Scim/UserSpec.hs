@@ -372,7 +372,7 @@ assertBrigCassandra uid uref usr (valemail, emailValidated) managedBy = do
     userManagedBy (accountUser acc) `shouldBe` managedBy
 
     userIdentity (accountUser acc)
-      `shouldBe` Just (SSOIdentity (UserSSOId uref) email Nothing)
+      `shouldBe` Just (SSOIdentity (UserSSOId uref) email)
 
 specSuspend :: SpecWith TestEnv
 specSuspend = do

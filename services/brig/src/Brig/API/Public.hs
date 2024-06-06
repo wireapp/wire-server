@@ -950,24 +950,14 @@ changePhone ::
   (Handler r) (Maybe Public.ChangePhoneError)
 changePhone _ _ _ = pure . Just $ Public.InvalidNewPhone
 
--- TODO: remove
-removePhone :: UserId -> ConnId -> Handler r (Maybe Public.RemoveIdentityError)
-removePhone self conn = lift . exceptTToMaybe $ API.removePhone self conn
+removePhone :: UserId -> Handler r (Maybe Public.RemoveIdentityError)
+removePhone self = lift . exceptTToMaybe $ API.removePhone self
 
 removeEmail ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
-    Member UserSubsystem r
-  ) =>
+  Member UserSubsystem r =>
   UserId ->
-  ConnId ->
-  (Handler r) (Maybe Public.RemoveIdentityError)
-removeEmail self conn =
-  lift . exceptTToMaybe $ API.removeEmail self conn
+  Handler r (Maybe Public.RemoveIdentityError)
+removeEmail self = lift . exceptTToMaybe $ API.removeEmail self
 
 checkPasswordExists :: UserId -> (Handler r) Bool
 checkPasswordExists = fmap isJust . lift . wrapClient . API.lookupPassword
