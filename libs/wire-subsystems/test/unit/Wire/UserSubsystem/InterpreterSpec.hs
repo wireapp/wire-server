@@ -365,14 +365,14 @@ spec = describe "UserSubsystem.Interpreter" do
     describe "Scim+UpdateProfileUpdate" do
       prop
         "Updating handles fails when UpdateOriginWireClient"
-        \(alice, fromHandle -> newHandle, domain, config) ->
-          not (isBlacklistedHandle (fromJust (parseHandle newHandle))) ==>
+        \(alice, newHandle :: Handle, domain, config) ->
+          not (isBlacklistedHandle newHandle) ==>
             let res :: Either UserSubsystemError ()
                 res = run
                   . runErrorUnsafe
                   . runError
                   $ interpretNoFederationStack localBackend Nothing def config do
-                    updateHandle (toLocalUnsafe domain alice.id) Nothing UpdateOriginWireClient newHandle
+                    updateHandle (toLocalUnsafe domain alice.id) Nothing UpdateOriginWireClient (fromHandle newHandle)
 
                 localBackend = def {users = [alice {managedBy = Just ManagedByScim}]}
              in res === Left UserSubsystemHandleManagedByScim
