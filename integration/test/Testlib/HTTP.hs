@@ -175,9 +175,6 @@ zType = addHeader "Z-Type"
 zHost :: String -> HTTP.Request -> HTTP.Request
 zHost = addHeader "Z-Host"
 
-zProvider :: String -> HTTP.Request -> HTTP.Request
-zProvider = addHeader "Z-Provider"
-
 submit :: String -> HTTP.Request -> App Response
 submit method req0 = do
   let req = req0 {HTTP.method = T.encodeUtf8 (T.pack method)}
