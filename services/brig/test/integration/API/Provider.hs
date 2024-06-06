@@ -41,7 +41,7 @@ import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.Domain
-import Data.Handle (Handle, parseHandle)
+import Data.Handle (parseHandle)
 import Data.HashMap.Strict qualified as HashMap
 import Data.Id
 import Data.Json.Util (toBase64Text)
