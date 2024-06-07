@@ -144,7 +144,9 @@ verifyFingerprint hash fprs ssl = do
         -- the certificate or the request was not complete or some other error
         -- occurred. See -1 as return value in
         -- https://www.openssl.org/docs/man3.1/man3/X509_verify.html.
-        self <- verifyX509 cert pkey `catch` \(SomeException _) -> pure VerifyFailure
+        selfMV <- newEmptyMVar
+        void . forkOS $ putMVar selfMV =<< verifyX509 cert pkey `catch` \(_ :: SomeException) -> pure VerifyFailure
+        self <- takeMVar selfMV
         unless (self == VerifySuccess) $
           throwIO PinInvalidCert
         -- For completeness, perform a date check as well.
