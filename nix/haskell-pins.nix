@@ -266,6 +266,16 @@ let
         "warp" = "warp";
       };
     };
+
+    # https://github.com/ocharles/weeder/pull/165
+    weeder = {
+      src = pkgs.fetchFromGitHub {
+        owner = "fisx";
+        repo = "weeder";
+        rev = "027571e39a25aa0cfa6a7c7effcb868757527a2c";
+        hash = "sha256-E35PVxi/4iJFfWts3td52KKZKQt4dj9KFP3SvWG77Cc=";
+      };
+    };
   };
   hackagePins = {
     # Major re-write upstream, we should get rid of this dependency rather than
