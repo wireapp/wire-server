@@ -71,7 +71,6 @@ import Data.Text qualified as Text
 import Data.Text.Encoding
 import Data.Text.Encoding.Error
 import Data.Text.Lazy qualified as LT
-import Data.Time.Clock
 import Imports
 import SAML2.WebSSO (UserRef (..))
 import SAML2.WebSSO.Test.Arbitrary ()
@@ -372,21 +371,6 @@ instance FromJSON UserSSOId where
       (Just tenant, Just subject, Nothing) -> pure $ UserSSOId (SAML.UserRef tenant subject)
       (Nothing, Nothing, Just eid) -> pure $ UserScimExternalId eid
       _ -> fail "either need tenant and subject, or scim_external_id, but not both"
-
--- | If the budget for SMS and voice calls for a phone number
--- has been exhausted within a certain time frame, this timeout
--- indicates in seconds when another attempt may be made.
-newtype PhoneBudgetTimeout = PhoneBudgetTimeout
-  {phoneBudgetTimeout :: NominalDiffTime}
-  deriving stock (Eq, Show, Generic)
-  deriving newtype (Arbitrary)
-
-instance FromJSON PhoneBudgetTimeout where
-  parseJSON = A.withObject "PhoneBudgetTimeout" $ \o ->
-    PhoneBudgetTimeout <$> o A..: "expires_in"
-
-instance ToJSON PhoneBudgetTimeout where
-  toJSON (PhoneBudgetTimeout t) = A.object ["expires_in" A..= t]
 
 lenientlyParseSAMLIssuer :: Maybe LText -> A.Parser (Maybe SAML.Issuer)
 lenientlyParseSAMLIssuer mbtxt = forM mbtxt $ \txt -> do

@@ -122,7 +122,6 @@ module Wire.API.User
     GetActivationCodeResp (..),
     GetPasswordResetCodeResp (..),
     CheckBlacklistResponse (..),
-    PhoneBudgetTimeout (..),
     ManagedByUpdate (..),
     HavePendingInvitations (..),
     RichInfoUpdate (..),
@@ -187,7 +186,6 @@ import Data.Text qualified as T
 import Data.Text.Ascii
 import Data.Text.Encoding qualified as T
 import Data.Text.Encoding.Error
-import Data.Time.Clock (NominalDiffTime)
 import Data.UUID (UUID, nil)
 import Data.UUID qualified as UUID
 import Deriving.Swagger
@@ -298,28 +296,6 @@ instance
   fromUnion (Z (I ())) = NotBlacklisted
   fromUnion (S (Z (I ()))) = YesBlacklisted
   fromUnion (S (S x)) = case x of {}
-
--- | If the budget for SMS and voice calls for a phone number
--- has been exhausted within a certain time frame, this timeout
--- indicates in seconds when another attempt may be made.
-newtype PhoneBudgetTimeout = PhoneBudgetTimeout
-  {phoneBudgetTimeout :: NominalDiffTime}
-  deriving (Eq, Show, Generic)
-  deriving newtype (Arbitrary)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema PhoneBudgetTimeout
-
-instance ToSchema PhoneBudgetTimeout where
-  schema =
-    object "PhoneBudgetTimeout" $
-      PhoneBudgetTimeout
-        <$> phoneBudgetTimeout .= field "expires_in" nominalDiffTimeSchema
-
--- | (32bit precision)
-nominalDiffTimeSchema :: ValueSchema NamedSwaggerDoc NominalDiffTime
-nominalDiffTimeSchema = fromIntegral <$> roundDiffTime .= schema
-  where
-    roundDiffTime :: NominalDiffTime -> Int32
-    roundDiffTime = round
 
 newtype ManagedByUpdate = ManagedByUpdate {mbuManagedBy :: ManagedBy}
   deriving (Eq, Show, Generic)
