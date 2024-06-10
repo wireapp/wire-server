@@ -19,11 +19,9 @@
 --
 -- Types for connections between users.
 module Brig.Types.Connection
-  ( module C,
-    UserIds (..),
+  ( UserIds (..),
     UpdateConnectionsInternal (..),
   )
 where
 
-import Brig.Types.Common as C
 import Wire.API.User
