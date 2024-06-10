@@ -781,7 +781,6 @@ data RegisterError
   | RegisterErrorInvalidActivationCodeWrongCode
   | RegisterErrorInvalidEmail
   | RegisterErrorInvalidPhone
-  | RegisterErrorBlacklistedPhone
   | RegisterErrorBlacklistedEmail
   | RegisterErrorTooManyTeamMembers
   | RegisterErrorUserCreationRestricted
@@ -799,7 +798,6 @@ type RegisterErrorResponses =
      ErrorResponse 'InvalidActivationCodeWrongCode,
      ErrorResponse 'InvalidEmail,
      ErrorResponse 'InvalidPhone,
-     ErrorResponse 'BlacklistedPhone,
      ErrorResponse 'BlacklistedEmail,
      ErrorResponse 'TooManyTeamMembers,
      ErrorResponse 'UserCreationRestricted
@@ -1498,7 +1496,6 @@ instance ToSchema PhoneUpdate where
 data ChangePhoneError
   = PhoneExists
   | InvalidNewPhone
-  | BlacklistedNewPhone
   deriving (Generic)
   deriving (AsUnion ChangePhoneErrorResponses) via GenericAsUnion ChangePhoneErrorResponses ChangePhoneError
 
@@ -1506,8 +1503,7 @@ instance GSOP.Generic ChangePhoneError
 
 type ChangePhoneErrorResponses =
   [ ErrorResponse 'UserKeyExists,
-    ErrorResponse 'InvalidPhone,
-    ErrorResponse 'BlacklistedPhone
+    ErrorResponse 'InvalidPhone
   ]
 
 type ChangePhoneResponses =

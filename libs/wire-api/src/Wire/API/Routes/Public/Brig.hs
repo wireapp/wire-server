@@ -553,7 +553,6 @@ type AccountAPI =
                :> CanThrow 'InvalidEmail
                :> CanThrow 'InvalidPhone
                :> CanThrow 'BlacklistedEmail
-               :> CanThrow 'BlacklistedPhone
                :> CanThrow 'CustomerExtensionBlockedDomain
                :> "activate"
                :> "send"
@@ -1482,7 +1481,6 @@ type AuthAPI =
                :> CanThrow 'InvalidEmail
                :> CanThrow 'UserKeyExists
                :> CanThrow 'BlacklistedEmail
-               :> CanThrow 'BlacklistedPhone
                :> CanThrow 'BadCredentials
                :> MultiVerb
                     'PUT
