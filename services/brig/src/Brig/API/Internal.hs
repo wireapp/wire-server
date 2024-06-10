@@ -194,7 +194,7 @@ accountAPI =
     :<|> Named @"iGetUserStatus" getAccountStatusH
     :<|> Named @"iGetUsersByVariousKeys" listActivatedAccountsH
     :<|> Named @"iGetUserContacts" getContactListH
-    :<|> Named @"iGetUserActivationCode" getActivationCodeH
+    :<|> Named @"iGetUserActivationCode" getActivationCode
     :<|> Named @"iGetUserPasswordResetCode" getPasswordResetCodeH
     :<|> Named @"iRevokeIdentity" revokeIdentityH
     :<|> Named @"iHeadBlacklist" checkBlacklist
@@ -584,10 +584,6 @@ listActivatedAccounts elh includePendingInvitations = do
           (Suspended, _, _) -> pure True
           (Deleted, _, _) -> pure True
           (Ephemeral, _, _) -> pure True
-
--- TODO(md): drop this wrapper
-getActivationCodeH :: Email -> Handler r GetActivationCodeResp
-getActivationCodeH email = getActivationCode email
 
 getActivationCode :: Email -> Handler r GetActivationCodeResp
 getActivationCode email = do
