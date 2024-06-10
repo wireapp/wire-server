@@ -30,11 +30,11 @@ import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.Id
 import qualified Data.Misc as Misc
-import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.ZAuth.Token as ZAuth
 import Imports
 import Test.Tasty.HUnit
+import Util.Activation
 import Util.Core
 import Util.Types
 import qualified Wire.API.Team.Feature as Feature
@@ -108,7 +108,7 @@ activateEmail ::
   Email ->
   (MonadHttp m) => m ()
 activateEmail brig email = do
-  act <- getActivationCode brig (Left email)
+  act <- getActivationCode brig email
   case act of
     Nothing -> liftIO $ assertFailure "missing activation key/code"
     Just kc ->
@@ -122,7 +122,7 @@ failActivatingEmail ::
   Email ->
   (MonadHttp m) => m ()
 failActivatingEmail brig email = do
-  act <- getActivationCode brig (Left email)
+  act <- getActivationCode brig email
   liftIO $ assertEqual "there should be no pending activation" act Nothing
 
 checkEmail ::
@@ -148,19 +148,6 @@ activate brig (k, c) =
       . path "activate"
       . queryItem "key" (toByteString' k)
       . queryItem "code" (toByteString' c)
-
-getActivationCode ::
-  (MonadCatch m, MonadHttp m, HasCallStack) =>
-  BrigReq ->
-  Either Email Phone ->
-  m (Maybe (ActivationKey, ActivationCode))
-getActivationCode brig ep = do
-  let qry = either (queryItem "email" . toByteString') (queryItem "phone" . toByteString') ep
-  r <- get $ brig . path "/i/users/activation-code" . qry
-  let lbs = fromMaybe "" $ responseBody r
-  let akey = ActivationKey . Ascii.unsafeFromText <$> (lbs ^? key "key" . _String)
-  let acode = ActivationCode . Ascii.unsafeFromText <$> (lbs ^? key "code" . _String)
-  pure $ (,) <$> akey <*> acode
 
 setSamlEmailValidation :: (HasCallStack) => TeamId -> Feature.FeatureStatus -> TestSpar ()
 setSamlEmailValidation tid status = do

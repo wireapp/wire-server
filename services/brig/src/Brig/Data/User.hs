@@ -567,6 +567,7 @@ userEmailUnvalidatedUpdate = {- `IF EXISTS`, but that requires benchmarking -} "
 userEmailUnvalidatedDelete :: PrepQuery W (Identity UserId) ()
 userEmailUnvalidatedDelete = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET email_unvalidated = null WHERE id = ?"
 
+-- TODO: remove
 userPhoneUpdate :: PrepQuery W (Phone, UserId) ()
 userPhoneUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET phone = ? WHERE id = ?"
 
@@ -588,6 +589,7 @@ userActivatedUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE 
 userEmailDelete :: PrepQuery W (Identity UserId) ()
 userEmailDelete = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET email = null WHERE id = ?"
 
+-- TODO: remove
 userPhoneDelete :: PrepQuery W (Identity UserId) ()
 userPhoneDelete = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET phone = null WHERE id = ?"
 
