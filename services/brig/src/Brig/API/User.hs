@@ -164,19 +164,16 @@ import Wire.UserSubsystem.HandleBlacklist
 
 data IdentityError
   = IdentityErrorBlacklistedEmail
-  | IdentityErrorBlacklistedPhone
   | IdentityErrorUserKeyExists
 
 identityErrorToRegisterError :: IdentityError -> RegisterError
 identityErrorToRegisterError = \case
   IdentityErrorBlacklistedEmail -> RegisterErrorBlacklistedEmail
-  IdentityErrorBlacklistedPhone -> RegisterErrorBlacklistedPhone
   IdentityErrorUserKeyExists -> RegisterErrorUserKeyExists
 
 identityErrorToBrigError :: IdentityError -> Error.Error
 identityErrorToBrigError = \case
   IdentityErrorBlacklistedEmail -> Error.StdError $ errorToWai @'E.BlacklistedEmail
-  IdentityErrorBlacklistedPhone -> Error.StdError $ errorToWai @'E.BlacklistedPhone
   IdentityErrorUserKeyExists -> Error.StdError $ errorToWai @'E.UserKeyExists
 
 verifyUniquenessAndCheckBlacklist ::
