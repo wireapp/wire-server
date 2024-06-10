@@ -150,6 +150,9 @@ http {
     {{- range $origin := .Values.nginx_conf.allowlisted_fqdn_origins }}
       "https://{{ $origin }}" "$http_origin";
     {{- end }}
+    {{- if and .Values.nginx_conf.allowlisted_fqdn_origins (not (eq .Values.nginx_conf.env  "staging")) -}}
+    {{ fail "allowlisted_fqdn_origins is only cleared for usage in staging."}}
+    {{- end }}
   }
 
 
