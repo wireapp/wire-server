@@ -53,7 +53,7 @@ tests opts mgr _galley brig = do
   where
     testWithNewIndex name f = test mgr name $ withSettingsOverrides opts f
 
-testSearchByEmail :: (TestConstraints m) => Brig -> m (TeamId, UserId, User) -> Bool -> m ()
+testSearchByEmail :: (HasCallStack, TestConstraints m) => Brig -> m (TeamId, UserId, User) -> Bool -> m ()
 testSearchByEmail brig mkSearcherAndSearchee canFind = do
   (tid, searcher, searchee) <- mkSearcherAndSearchee
   eml <- randomEmail
@@ -63,7 +63,7 @@ testSearchByEmail brig mkSearcherAndSearchee canFind = do
   let check = if canFind then assertTeamUserSearchCanFind else assertTeamUserSearchCannotFind
   check brig tid searcher (userId searchee) (fromEmail eml)
 
-testSearchByEmailSameTeam :: (TestConstraints m) => Brig -> m ()
+testSearchByEmailSameTeam :: (HasCallStack, TestConstraints m) => Brig -> m ()
 testSearchByEmailSameTeam brig = do
   let mkSearcherAndSearchee = do
         (tid, userId -> ownerId, [u1]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
