@@ -144,10 +144,10 @@ X-Zeta-Key: ...
 X-Zeta-Code: 123456
 ```
 
-## Phone/email whitelist
+## Email whitelist
 (RefActivationAllowlist)=
 
-The backend can be configured to only allow specific phone number prefixes and email address domains to register. The following options have to be set in `brig.yaml`:
+The backend can be configured to only allow specific email address domains to register. The following option has to be set in `brig.yaml`:
 
 ```yaml
 optSettings:
@@ -155,19 +155,16 @@ optSettings:
     - wire.com
     - example.com
     - notagoodexample.com
-  setAllowlistPhonePrefixes:
-    - "+49"
-    - "+1555555"
 ```
 
 When those options are present, the backend will match every activation request against these lists.
 
-If an email address or phone number are rejected by the whitelist, `POST /activate/send` or `POST /register` will return `403 Forbidden`:
+If an email address is rejected by the whitelist, `POST /activate/send` or `POST /register` will return `403 Forbidden`:
 
 ```json
 {
     "code": 403,
     "label": "unauthorized",
-    "message": "Unauthorized e-mail address or phone number."
+    "message": "Unauthorized e-mail address"
 }
 ```

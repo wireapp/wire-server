@@ -317,7 +317,7 @@ deletionCodePending :: Wai.Error
 deletionCodePending = Wai.mkError status403 "pending-delete" "A verification code for account deletion is still pending."
 
 allowlistError :: Wai.Error
-allowlistError = Wai.mkError status403 "unauthorized" "Unauthorized e-mail address or phone number."
+allowlistError = Wai.mkError status403 "unauthorized" "Unauthorized e-mail address"
 
 blacklistedEmail :: Wai.Error
 blacklistedEmail =

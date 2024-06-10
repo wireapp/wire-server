@@ -23,7 +23,7 @@
 
 module Brig.Options where
 
-import Brig.Allowlists (AllowlistEmailDomains (..), AllowlistPhonePrefixes (..))
+import Brig.Allowlists (AllowlistEmailDomains (..))
 import Brig.Queue.Types (QueueOpts (..))
 import Brig.SMTP (SMTPConnType (..))
 import Brig.User.Auth.Cookie.Limit
@@ -461,7 +461,6 @@ data Settings = Settings
     setStomp :: !(Maybe FilePathSecrets),
     -- | Whitelist of allowed emails/phones
     setAllowlistEmailDomains :: !(Maybe AllowlistEmailDomains),
-    setAllowlistPhonePrefixes :: !(Maybe AllowlistPhonePrefixes),
     -- | Max. number of sent/accepted
     --   connections per user
     setUserMaxConnections :: !Int64,

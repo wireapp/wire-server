@@ -351,8 +351,7 @@ updateStatus u s =
 userExists :: MonadClient m => UserId -> m Bool
 userExists uid = isJust <$> retry x1 (query1 idSelect (params LocalQuorum (Identity uid)))
 
--- | Whether the account has been activated by verifying
--- an email address or phone number.
+-- | Whether the account has been activated by verifying an email address
 isActivated :: MonadClient m => UserId -> m Bool
 isActivated u =
   (== Just (Identity True))

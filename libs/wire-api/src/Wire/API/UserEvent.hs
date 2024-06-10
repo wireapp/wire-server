@@ -107,7 +107,7 @@ instance ToSchema EventType where
 
 data UserEvent
   = UserCreated !User
-  | -- | A user is activated when the first user identity (email address or phone number)
+  | -- | A user is activated when the first user identity (email address)
     -- is verified. {#RefActivationEvent}
     UserActivated !User
   | -- | Account & API access of a user has been suspended.

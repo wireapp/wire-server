@@ -122,12 +122,6 @@ module Wire.API.User
     GetActivationCodeResp (..),
     GetPasswordResetCodeResp (..),
     CheckBlacklistResponse (..),
-    GetPhonePrefixResponse (..),
-    PhonePrefix (..),
-    parsePhonePrefix,
-    isValidPhonePrefix,
-    allPrefixes,
-    ExcludedPrefix (..),
     PhoneBudgetTimeout (..),
     ManagedByUpdate (..),
     HavePendingInvitations (..),
@@ -166,8 +160,6 @@ import Control.Lens (makePrisms, over, view, (.~), (?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..), withText)
 import Data.Aeson.Types qualified as A
 import Data.Attoparsec.ByteString qualified as Parser
-import Data.Attoparsec.Text qualified as TParser
-import Data.Bifunctor qualified as Bifunctor
 import Data.Bits
 import Data.ByteString (toStrict)
 import Data.ByteString.Builder (toLazyByteString)
@@ -306,95 +298,6 @@ instance
   fromUnion (Z (I ())) = NotBlacklisted
   fromUnion (S (Z (I ()))) = YesBlacklisted
   fromUnion (S (S x)) = case x of {}
-
-data GetPhonePrefixResponse = PhonePrefixNotFound | PhonePrefixesFound [ExcludedPrefix]
-
-instance
-  AsUnion
-    '[ RespondEmpty 404 "PhonePrefixNotFound",
-       Respond 200 "PhonePrefixesFound" [ExcludedPrefix]
-     ]
-    GetPhonePrefixResponse
-  where
-  toUnion PhonePrefixNotFound = Z (I ())
-  toUnion (PhonePrefixesFound pfxs) = S (Z (I pfxs))
-  fromUnion (Z (I ())) = PhonePrefixNotFound
-  fromUnion (S (Z (I pfxs))) = PhonePrefixesFound pfxs
-  fromUnion (S (S x)) = case x of {}
-
--- | PhonePrefix (for excluding from SMS/calling)
-newtype PhonePrefix = PhonePrefix {fromPhonePrefix :: Text}
-  deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema PhonePrefix
-
-instance Arbitrary PhonePrefix where
-  arbitrary = do
-    digits <- take 8 <$> QC.listOf1 (QC.elements ['0' .. '9'])
-    pure . PhonePrefix . T.pack $ "+" <> digits
-
-instance ToSchema PhonePrefix where
-  schema = fromPhonePrefix .= parsedText "PhonePrefix" phonePrefixParser
-
-instance S.ToParamSchema PhonePrefix where
-  toParamSchema _ = S.toParamSchema (Proxy @String)
-
-instance FromByteString PhonePrefix where
-  parser = parser >>= maybe (fail "Invalid phone") pure . parsePhonePrefix
-
-instance ToByteString PhonePrefix where
-  builder = builder . fromPhonePrefix
-
-instance FromHttpApiData PhonePrefix where
-  parseUrlPiece = Bifunctor.first T.pack . phonePrefixParser
-
-deriving instance C.Cql PhonePrefix
-
-phonePrefixParser :: Text -> Either String PhonePrefix
-phonePrefixParser p = maybe err pure (parsePhonePrefix p)
-  where
-    err =
-      Left $
-        "Invalid phone number prefix: ["
-          ++ show p
-          ++ "]. Expected format similar to E.164 (with 1-15 digits after the +)."
-
--- | Parses a phone number prefix with a mandatory leading '+'.
-parsePhonePrefix :: Text -> Maybe PhonePrefix
-parsePhonePrefix p
-  | isValidPhonePrefix p = Just $ PhonePrefix p
-  | otherwise = Nothing
-
--- | Checks whether a phone number prefix is valid,
--- i.e. it is like a E.164 format phone number, but shorter
--- (with a mandatory leading '+', followed by 1-15 digits.)
-isValidPhonePrefix :: Text -> Bool
-isValidPhonePrefix = isRight . TParser.parseOnly e164Prefix
-  where
-    e164Prefix :: TParser.Parser ()
-    e164Prefix =
-      TParser.char '+'
-        *> TParser.count 1 TParser.digit
-        *> TParser.count 14 (optional TParser.digit)
-        *> TParser.endOfInput
-
--- | get all valid prefixes of a phone number or phone number prefix
--- e.g. from +123456789 get prefixes ["+1", "+12", "+123", ..., "+123456789" ]
-allPrefixes :: Text -> [PhonePrefix]
-allPrefixes t = mapMaybe parsePhonePrefix (T.inits t)
-
-data ExcludedPrefix = ExcludedPrefix
-  { phonePrefix :: PhonePrefix,
-    comment :: Text
-  }
-  deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ExcludedPrefix
-
-instance ToSchema ExcludedPrefix where
-  schema =
-    object "ExcludedPrefix" $
-      ExcludedPrefix
-        <$> phonePrefix .= field "phone_prefix" schema
-        <*> comment .= field "comment" schema
 
 -- | If the budget for SMS and voice calls for a phone number
 -- has been exhausted within a certain time frame, this timeout
