@@ -585,6 +585,7 @@ listActivatedAccounts elh includePendingInvitations = do
           (Deleted, _, _) -> pure True
           (Ephemeral, _, _) -> pure True
 
+-- TODO(md): drop this wrapper
 getActivationCodeH :: Email -> Handler r GetActivationCodeResp
 getActivationCodeH email = getActivationCode email
 

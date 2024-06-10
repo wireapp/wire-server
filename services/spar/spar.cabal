@@ -276,6 +276,7 @@ executable spar-integration
     Test.Spar.Scim.AuthSpec
     Test.Spar.Scim.UserSpec
     Util
+    Util.Activation
     Util.Core
     Util.Email
     Util.Invitation
