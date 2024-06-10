@@ -54,7 +54,7 @@ import Network.AMQP.Extended
 import Network.DNS qualified as DNS
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
-import Wire.API.Allowlists (AllowlistEmailDomains (..), AllowlistPhonePrefixes (..))
+import Wire.API.Allowlists (AllowlistEmailDomains (..))
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Version
 import Wire.API.Team.Feature qualified as Public
@@ -461,7 +461,6 @@ data Settings = Settings
     setStomp :: !(Maybe FilePathSecrets),
     -- | Whitelist of allowed emails/phones
     setAllowlistEmailDomains :: !(Maybe AllowlistEmailDomains),
-    setAllowlistPhonePrefixes :: !(Maybe AllowlistPhonePrefixes),
     -- | Max. number of sent/accepted
     --   connections per user
     setUserMaxConnections :: !Int64,
