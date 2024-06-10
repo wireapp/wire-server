@@ -1,1 +1,1 @@
-nginz: Added extra_allowlisted_origins to `nginx_conf` value
+nginz: Added `allowlisted_fqdn_origins` to `nginx_conf` value

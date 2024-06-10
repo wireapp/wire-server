@@ -146,9 +146,9 @@ http {
     {{ range $origin := .Values.nginx_conf.randomport_allowlisted_origins }}
       "~^https?://{{ $origin }}(:[0-9]{2,5})?$" "$http_origin";
     {{ end }}
-    {{/* Allow additional specific origins, if present */}}
-    {{- range $origin := .Values.nginx_conf.extra_allowlisted_origins }}
-      "https://{{ $origin }} "$http_origin";
+    {{/* Allow additional origin FQDNs, if present */}}
+    {{- range $origin := .Values.nginx_conf.allowlisted_fqdn_origins }}
+      "https://{{ $origin }}" "$http_origin";
     {{- end }}
   }
 

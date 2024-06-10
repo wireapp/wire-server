@@ -78,6 +78,9 @@ nginx_conf:
     - webapp
     - teams
     - account
+  # Fully-qualified domain names from which to allow Cross-Origin Requests
+  # (they are **not** combined with 'external_env_domain')
+  allowlisted_fqdn_origins: []
 
   # The origins from which we allow CORS requests at random ports. This is
   # useful for testing with HTTP proxies and should not be used in production.
