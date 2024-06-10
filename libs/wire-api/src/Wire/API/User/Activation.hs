@@ -57,7 +57,7 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 -- | The target of an activation request.
 data ActivationTarget
-  = -- | An opaque key for some email or phone number awaiting activation.
+  = -- | An opaque key for some email awaiting activation.
     ActivateKey ActivationKey
   | -- | A known phone number awaiting activation.
     ActivatePhone Phone

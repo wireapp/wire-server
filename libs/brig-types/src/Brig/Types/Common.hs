@@ -19,13 +19,6 @@
 module Brig.Types.Common
   ( -- * PhoneBudgetTimeout
     PhoneBudgetTimeout (..),
-
-    -- * PhonePrefix
-    PhonePrefix (..),
-    parsePhonePrefix,
-    isValidPhonePrefix,
-    allPrefixes,
-    ExcludedPrefix (..),
   )
 where
 
