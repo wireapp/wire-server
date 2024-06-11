@@ -104,7 +104,7 @@ isSSOIdentity _ = False
 
 userIdentityObjectSchema :: ObjectSchema SwaggerDoc UserIdentity
 userIdentityObjectSchema =
-  Just .= withParser maybeUserIdentityObjectSchema (maybe (fail "Missing 'email' or 'phone' or 'sso_id'.") pure)
+  Just .= withParser maybeUserIdentityObjectSchema (maybe (fail "Missing 'email' or 'sso_id'.") pure)
 
 maybeUserIdentityObjectSchema :: ObjectSchema SwaggerDoc (Maybe UserIdentity)
 maybeUserIdentityObjectSchema =
