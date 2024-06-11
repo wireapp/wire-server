@@ -17,12 +17,12 @@
         }
     ],
     "deleted": true,
+    "email": "foo@example.com",
     "expires_at": "1864-05-11T17:06:58.936Z",
     "id": "00000000-0000-0001-0000-000200000001",
     "locale": "da-TN",
     "managed_by": "wire",
     "name": "4􄢻7\u0006\u0012\u0012\u0017bp\u0001麙0Yr\\󰘣vKRg󿽓)󽼺S󰇌􂏦:3B\u0006\u0013\u0003T",
-    "phone": "+837934954",
     "picture": [],
     "qualified_id": {
         "domain": "k.vbg.p",
