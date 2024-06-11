@@ -1,8 +1,8 @@
 {
     "assets": [],
+    "email": "12345678@example.com",
     "name": "test name",
     "password": "12345678",
-    "phone": "+12345678",
     "team": {
         "currency": "XUA",
         "icon": "default",
