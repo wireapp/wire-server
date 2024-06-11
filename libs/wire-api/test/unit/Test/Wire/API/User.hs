@@ -134,8 +134,8 @@ parseIdentityTests =
           testCase "SSOIdentity" $ do
             Right (Just (SSOIdentity hssoid Nothing)) =#= [ssoid]
             Right (Just (SSOIdentity hssoid (Just hemail))) =#= [ssoid, email],
-          testCase "Bad phone" $
-            Left "Error in $.phone: Invalid phone number. Expected E.164 format." =#= [badphone],
+          testCase "Phone not part of identity any more" $
+            Right Nothing =#= [badphone],
           testCase "Bad email" $
             Left "Error in $.email: Invalid email. Expected '<local>@<domain>'." =#= [bademail],
           testCase "Nothing" $
