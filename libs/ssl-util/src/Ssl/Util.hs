@@ -1,5 +1,3 @@
-{-# LANGUAGE TypeApplications #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -34,7 +32,6 @@ module Ssl.Util
 where
 
 import Control.Exception hiding (catch)
-import Control.Exception.Safe (catch)
 import Data.ByteString.Builder
 import Data.Byteable (constEqBytes)
 import Data.Dynamic (fromDynamic)
@@ -42,8 +39,9 @@ import Data.Time.Clock (getCurrentTime)
 import Imports
 import Network.HTTP.Client.Internal
 import OpenSSL.BN (integerToMPI)
-import OpenSSL.EVP.Digest (Digest, digestLBS)
-import OpenSSL.EVP.PKey (SomePublicKey, toPublicKey)
+import OpenSSL.EVP.Digest (digestLBS)
+import OpenSSL.EVP.Internal
+import OpenSSL.EVP.PKey
 import OpenSSL.EVP.Verify (VerifyStatus (..))
 import OpenSSL.RSA
 import OpenSSL.Session as SSL
@@ -144,9 +142,7 @@ verifyFingerprint hash fprs ssl = do
         -- the certificate or the request was not complete or some other error
         -- occurred. See -1 as return value in
         -- https://www.openssl.org/docs/man3.1/man3/X509_verify.html.
-        selfMV <- newEmptyMVar
-        void . forkOS $ putMVar selfMV =<< verifyX509 cert pkey `catch` \(_ :: SomeException) -> pure VerifyFailure
-        self <- takeMVar selfMV
+        self <- verifyX509 cert pkey
         unless (self == VerifySuccess) $
           throwIO PinInvalidCert
         -- For completeness, perform a date check as well.

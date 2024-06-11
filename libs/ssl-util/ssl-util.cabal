@@ -63,13 +63,12 @@ library
     -Wredundant-constraints -Wunused-packages
 
   build-depends:
-      base             >=4.7  && <5
-    , byteable         >=0.1
-    , bytestring       >=0.10
-    , HsOpenSSL        >=0.11
-    , http-client      >=0.7
+      base         >=4.7  && <5
+    , byteable     >=0.1
+    , bytestring   >=0.10
+    , HsOpenSSL    >=0.11
+    , http-client  >=0.7
     , imports
-    , safe-exceptions
-    , time             >=1.5
+    , time         >=1.5
 
   default-language:   GHC2021

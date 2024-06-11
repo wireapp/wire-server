@@ -266,6 +266,15 @@ let
         "warp" = "warp";
       };
     };
+
+    HsOpenSSL = {
+      src = fetchgit {
+        url = "https://github.com/wireapp/HsOpenSSL";
+        rev = "2d7afef71ecdc2edd579dde072b75674da1fb730";
+        sha256 = "sha256-wLjDOMokKELVH30bYNyDAYT3ux3pdMq4sIeMZLQOSG8=";
+      };
+    };
+
   };
   hackagePins = {
     # Major re-write upstream, we should get rid of this dependency rather than
