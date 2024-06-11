@@ -87,33 +87,20 @@ randomUser'' isCreator hasPassword hasEmail = selfUser <$> randomUserProfile' is
 randomUserProfile' :: (HasCallStack) => Bool -> Bool -> Bool -> TestM SelfProfile
 randomUserProfile' isCreator hasPassword hasEmail = randomUserProfile'' isCreator hasPassword hasEmail <&> fst
 
-randomUserProfile'' :: (HasCallStack) => Bool -> Bool -> Bool -> TestM (SelfProfile, (Email, Phone))
+randomUserProfile'' :: (HasCallStack) => Bool -> Bool -> Bool -> TestM (SelfProfile, Email)
 randomUserProfile'' isCreator hasPassword hasEmail = do
   b <- view tsBrig
   e <- liftIO randomEmail
-  p <- liftIO randomPhone
   let pl =
         object $
           ["name" .= fromEmail e]
             <> ["password" .= defPassword | hasPassword]
             <> ["email" .= fromEmail e | hasEmail]
             <> ["team" .= BindingNewTeam (newNewTeam (unsafeRange "teamName") DefaultIcon) | isCreator]
-  (,(e, p)) . responseJsonUnsafe <$> (post (b . path "/i/users" . Bilge.json pl) <!! const 201 === statusCode)
-
-randomPhone :: (MonadIO m) => m Phone
-randomPhone = liftIO $ do
-  nrs <- map show <$> replicateM 14 (randomRIO (0, 9) :: IO Int)
-  let phone = parsePhone . Text.pack $ "+0" ++ concat nrs
-  pure $ fromMaybe (error "Invalid random phone#") phone
+  (,e) . responseJsonUnsafe <$> (post (b . path "/i/users" . Bilge.json pl) <!! const 201 === statusCode)
 
 randomEmailUser :: (HasCallStack) => TestM (UserId, Email)
-randomEmailUser = randomUserProfile'' False False True <&> bimap (User.userId . selfUser) fst
-
-randomPhoneUser :: (HasCallStack) => TestM (UserId, Phone)
-randomPhoneUser = randomUserProfile'' False False True <&> bimap (User.userId . selfUser) snd
-
-randomEmailPhoneUser :: (HasCallStack) => TestM (UserId, (Email, Phone))
-randomEmailPhoneUser = randomUserProfile'' False False True <&> first (User.userId . selfUser)
+randomEmailUser = randomUserProfile'' False False True <&> first (User.userId . selfUser)
 
 defPassword :: PlainTextPassword8
 defPassword = plainTextPassword8Unsafe "topsecretdefaultpassword"

@@ -65,7 +65,6 @@ tests s =
       test s "POST /users/:uid/suspend" testSuspendUser,
       test s "POST /users/:uid/unsuspend" testUnsuspendUser,
       test s "GET /users/by-email" testGetUsersByEmail,
-      test s "GET /users/by-phone" testGetUsersByPhone,
       test s "GET /users/by-ids" testGetUsersByIds,
       test s "GET /users/by-handles" testGetUsersByHandles,
       test s "GET /users/:id/connections" testGetConnections,
@@ -73,7 +72,6 @@ tests s =
       test s "GET /users/:uid/search" testSearchUsers,
       test s "POST /users/revoke-identity?email=..." testRevokeIdentity,
       test s "PUT /users/:uid/email" testPutEmail,
-      test s "PUT /users/:uid/phone" testPutPhone,
       test s "DELETE /users/:uid" testDeleteUser,
       test s "PUT /teams/:tid/suspend" testSuspendTeam,
       test s "PUT /teams/:tid/unsuspend" testUnsuspendTeam,
@@ -174,15 +172,6 @@ testGetUserMetaInfo = do
   putUserProperty uid k "bar"
   -- Just make sure this returns a 200
   void $ getUserMetaInfo uid
-
-testPutPhone :: TestM ()
-testPutPhone = do
-  uid <- randomUser
-  phone <- randomPhone
-  resp <- putPhone uid (PhoneUpdate phone)
-  liftIO $ do
-    statusCode resp @?= 400
-    statusMessage resp @?= "invalid-phone"
 
 testDeleteUser :: TestM ()
 testDeleteUser = do
@@ -407,14 +396,6 @@ testGetUsersByHandles = do
   [ua] <- getUsersByHandles h
   liftIO $ userId ua.accountUser @?= uid
 
-testGetUsersByPhone :: TestM ()
-testGetUsersByPhone = do
-  (_uid, phone) <- randomPhoneUser
-  resp <- getUsersByPhone phone
-  liftIO $ do
-    statusCode resp @?= 400
-    statusMessage resp @?= "invalid-phone"
-
 testGetUsersByEmail :: TestM ()
 testGetUsersByEmail = do
   (uid, email) <- randomEmailUser
@@ -470,14 +451,13 @@ testSearchUsers = do
 
 testRevokeIdentity :: TestM ()
 testRevokeIdentity = do
-  (_, (email, phone)) <- randomEmailPhoneUser
+  (_, email) <- randomEmailUser
   do
     [ua] <- getUsersByEmail email
     liftIO $ do
       ua.accountStatus @?= Active
       isJust ua.accountUser.userIdentity @?= True
   void $ revokeIdentity (Left email)
-  void $ revokeIdentity (Right phone)
   do
     [ua] <- getUsersByEmail email
     liftIO $ do
@@ -514,11 +494,6 @@ getUsersByHandles h = do
   stern <- view tsStern
   r <- get (stern . paths ["users", "by-handles"] . queryItem "handles" (cs h) . expect2xx)
   pure $ responseJsonUnsafe r
-
-getUsersByPhone :: Phone -> TestM ResponseLBS
-getUsersByPhone phone = do
-  stern <- view tsStern
-  get (stern . paths ["users", "by-phone"] . queryItem "phone" (toByteString' phone))
 
 getUsersByEmail :: Email -> TestM [UserAccount]
 getUsersByEmail email = do
@@ -573,11 +548,6 @@ putEmail :: UserId -> EmailUpdate -> TestM ()
 putEmail uid emailUpdate = do
   s <- view tsStern
   void $ put (s . paths ["users", toByteString' uid, "email"] . json emailUpdate . expect2xx)
-
-putPhone :: UserId -> PhoneUpdate -> TestM ResponseLBS
-putPhone uid phoneUpdate = do
-  s <- view tsStern
-  put (s . paths ["users", toByteString' uid, "phone"] . json phoneUpdate)
 
 deleteUser :: UserId -> Either Email Phone -> TestM ()
 deleteUser uid emailOrPhone = do
