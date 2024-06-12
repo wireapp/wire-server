@@ -18,6 +18,11 @@ extra-source-files:
   docs/swagger-v5.json
   docs/swagger.md
 
+flag static
+  description: Enable static linking
+  manual:      True
+  default:     False
+
 common common-all
   default-language:   GHC2021
   ghc-options:
@@ -189,6 +194,7 @@ library
     Brig.Schema.V79_ConnectionRemoteIndex
     Brig.Schema.V80_KeyPackageCiphersuite
     Brig.Schema.V81_AddFederationRemoteTeams
+    Brig.Schema.V82_CreateTableDataMigration
     Brig.Schema.V_FUTUREWORK
     Brig.Team.API
     Brig.Team.DB
@@ -502,6 +508,38 @@ executable brig-integration
     , wire-subsystems
     , yaml
     , zauth
+
+executable brig-migrate-data
+  import:         common-all
+  main-is:        ../Main.hs
+  ghc-options:    -threaded
+
+  -- cabal-fmt: expand migrate-data/src
+  other-modules:
+    Brig.DataMigration
+    Brig.DataMigration.Types
+    Run
+    V1_DropPhone
+
+  hs-source-dirs: migrate-data/src
+  build-depends:
+    , base
+    , cassandra-util
+    , conduit
+    , containers
+    , exceptions
+    , extended
+    , imports
+    , lens
+    , optparse-applicative
+    , text
+    , time
+    , tinylog
+    , types-common
+    , wire-api
+
+  if flag(static)
+    ld-options: -static
 
 executable brig-schema
   import:             common-all
