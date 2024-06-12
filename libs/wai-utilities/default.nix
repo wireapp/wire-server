@@ -19,7 +19,6 @@
 , kan-extensions
 , lib
 , metrics-core
-, metrics-wai
 , openapi3
 , pipes
 , prometheus-client
@@ -55,7 +54,6 @@ mkDerivation {
     imports
     kan-extensions
     metrics-core
-    metrics-wai
     openapi3
     pipes
     prometheus-client

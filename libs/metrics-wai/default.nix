@@ -9,10 +9,8 @@
 , gitignoreSource
 , hspec
 , hspec-discover
-, http-types
 , imports
 , lib
-, metrics-core
 , servant
 , servant-multipart
 , text
@@ -30,9 +28,7 @@ mkDerivation {
     base
     bytestring
     containers
-    http-types
     imports
-    metrics-core
     servant
     servant-multipart
     text

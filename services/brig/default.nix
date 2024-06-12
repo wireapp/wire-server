@@ -95,6 +95,7 @@
 , polysemy-wire-zoo
 , postie
 , process
+, prometheus-client
 , proto-lens
 , QuickCheck
 , random
@@ -243,6 +244,7 @@ mkDerivation {
     polysemy-plugin
     polysemy-time
     polysemy-wire-zoo
+    prometheus-client
     proto-lens
     random-shuffle
     raw-strings-qq
