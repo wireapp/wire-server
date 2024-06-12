@@ -267,14 +267,6 @@ let
       };
     };
 
-    HsOpenSSL = {
-      src = fetchgit {
-        url = "https://github.com/wireapp/HsOpenSSL";
-        rev = "2d7afef71ecdc2edd579dde072b75674da1fb730";
-        sha256 = "sha256-wLjDOMokKELVH30bYNyDAYT3ux3pdMq4sIeMZLQOSG8=";
-      };
-    };
-
   };
   hackagePins = {
     # Major re-write upstream, we should get rid of this dependency rather than
@@ -298,6 +290,12 @@ let
       version = "0.3.20";
       sha256 = "sha256-PGwjhrRnkH8cLhd7fHTZFd6ts9abp0w5sLlV8ke1yXU=";
     };
+    # PR: https://github.com/wireapp/wire-server/pull/4027
+    HsOpenSSL = {
+      version = "0.11.7.7";
+      sha256 = "sha256-45qWTqfY4fwCjTQsQg/f0EPkC5KZ8CFZYH4cwcw3Y18=";
+    };
+
   };
   # Name -> Source -> Maybe Subpath -> Drv
   mkGitDrv = name: src: subpath:
