@@ -100,6 +100,7 @@ Short running jobs that run during installation/upgrade (these should usually be
 
 - `cassandra-migrations`: Used to initialize or upgrade the database schema in cassandra (for example when the software is upgraded to a new version).
 - `galley-migrate-data`: Used to upgrade data in `cassandra` when the data model changes (for example when the software is upgraded to a new version).
+- `brig-migrate-data`: Used to upgrade data in `cassandra` when the data model changes in brig (for example when the software is upgraded to a new version)
 - `brig-index-migrate-data`: Used to upgrade data in `cassandra` when the data model changes in brig (for example when the software is upgraded to a new version)
 - `elastisearch-index-create`: [Creates](https://github.com/wireapp/wire-server/blob/develop/charts/elasticsearch-index/templates/create-index.yaml#L29) an Elastisearch index for brig.
 - `spar-migrate-data`: [Used to update spar data](https://github.com/wireapp/wire-server/blob/develop/charts/cassandra-migrations/templates/spar-migrate-data.yaml) in cassandra when schema changes occur.
