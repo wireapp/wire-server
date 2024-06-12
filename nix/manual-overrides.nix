@@ -38,6 +38,7 @@ hself: hsuper: {
   proto-lens-protoc = hlib.doJailbreak hsuper.proto-lens-protoc;
   proto-lens-setup = hlib.doJailbreak hsuper.proto-lens-setup;
   th-desugar = hlib.doJailbreak hsuper.th-desugar;
+  weeder = hlib.doJailbreak hsuper.weeder;
 
   # ------------------------------------
   # okay but marked broken (nixpkgs bug)
