@@ -38,6 +38,7 @@ import Control.Concurrent.Async
 import Control.Exception (bracket)
 import Control.Lens ((^.))
 import Data.Id
+import Data.Metrics.GC
 import Federator.Env
 import Federator.ExternalServer (serveInward)
 import Federator.InternalServer (serveOutward)
@@ -59,6 +60,7 @@ import Wire.Network.DNS.Helper qualified as DNS
 -- FUTUREWORK(federation): Add metrics and status endpoints
 run :: Opts -> IO ()
 run opts = do
+  spawnGCMetricsCollector
   let resolvConf = mkResolvConf (optSettings opts) DNS.defaultResolvConf
   DNS.withCachingResolver resolvConf $ \res -> do
     logger <- LogExt.mkLogger (Opt.logLevel opts) (Opt.logNetStrings opts) (Opt.logFormat opts)
