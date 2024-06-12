@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeApplications #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -31,7 +33,7 @@ module Ssl.Util
   )
 where
 
-import Control.Exception hiding (catch)
+import Control.Exception
 import Data.ByteString.Builder
 import Data.Byteable (constEqBytes)
 import Data.Dynamic (fromDynamic)
@@ -39,9 +41,8 @@ import Data.Time.Clock (getCurrentTime)
 import Imports
 import Network.HTTP.Client.Internal
 import OpenSSL.BN (integerToMPI)
-import OpenSSL.EVP.Digest (digestLBS)
-import OpenSSL.EVP.Internal
-import OpenSSL.EVP.PKey
+import OpenSSL.EVP.Digest (Digest, digestLBS)
+import OpenSSL.EVP.PKey (SomePublicKey, toPublicKey)
 import OpenSSL.EVP.Verify (VerifyStatus (..))
 import OpenSSL.RSA
 import OpenSSL.Session as SSL
@@ -137,11 +138,7 @@ verifyFingerprint hash fprs ssl = do
         throwIO PinFingerprintMismatch
       vok <- SSL.getVerifyResult ssl
       unless vok $ do
-        -- Check if the certificate is self-signed. Exceptions can be thrown if
-        -- the signature could not be checked at all because it was ill-formed,
-        -- the certificate or the request was not complete or some other error
-        -- occurred. See -1 as return value in
-        -- https://www.openssl.org/docs/man3.1/man3/X509_verify.html.
+        -- Check if the certificate is self-signed.
         self <- verifyX509 cert pkey
         unless (self == VerifySuccess) $
           throwIO PinInvalidCert
