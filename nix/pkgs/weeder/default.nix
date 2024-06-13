@@ -1,8 +1,31 @@
-{ mkDerivation, aeson, algebraic-graphs, async, base, bytestring
-, containers, directory, fetchgit, filepath, generic-lens, ghc
-, Glob, hspec-discover, hspec-expectations, lens, lib, mtl
-, optparse-applicative, parallel, process, regex-tdfa, tasty
-, tasty-golden, tasty-hunit-compat, text, toml-reader, transformers
+{ mkDerivation
+, aeson
+, algebraic-graphs
+, async
+, base
+, bytestring
+, containers
+, directory
+, fetchgit
+, filepath
+, generic-lens
+, ghc
+, Glob
+, hspec-discover
+, hspec-expectations
+, lens
+, lib
+, mtl
+, optparse-applicative
+, parallel
+, process
+, regex-tdfa
+, tasty
+, tasty-golden
+, tasty-hunit-compat
+, text
+, toml-reader
+, transformers
 }:
 mkDerivation {
   pname = "weeder";
@@ -16,15 +39,42 @@ mkDerivation {
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [
-    algebraic-graphs async base bytestring containers directory
-    filepath generic-lens ghc Glob lens mtl optparse-applicative
-    parallel regex-tdfa text toml-reader transformers
+    algebraic-graphs
+    async
+    base
+    bytestring
+    containers
+    directory
+    filepath
+    generic-lens
+    ghc
+    Glob
+    lens
+    mtl
+    optparse-applicative
+    parallel
+    regex-tdfa
+    text
+    toml-reader
+    transformers
   ];
   executableHaskellDepends = [ base ];
   testHaskellDepends = [
-    aeson algebraic-graphs base bytestring containers directory
-    filepath ghc hspec-expectations process tasty tasty-golden
-    tasty-hunit-compat text toml-reader
+    aeson
+    algebraic-graphs
+    base
+    bytestring
+    containers
+    directory
+    filepath
+    ghc
+    hspec-expectations
+    process
+    tasty
+    tasty-golden
+    tasty-hunit-compat
+    text
+    toml-reader
   ];
   testToolDepends = [ hspec-discover ];
   homepage = "https://github.com/ocharles/weeder#readme";

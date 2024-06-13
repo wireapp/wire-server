@@ -91,7 +91,7 @@ self: super: {
 
   haskellPackages = super.haskellPackages.override {
     overrides = hself: hsuper: {
-      weeder = self.haskell.lib.dontCheck (hself.callPackage ./pkgs/weeder {});
+      weeder = self.haskell.lib.dontCheck (hself.callPackage ./pkgs/weeder { });
     };
   };
 
