@@ -420,7 +420,7 @@ let
     pkgs.cfssl
     pkgs.awscli2
     (hlib.justStaticExecutables pkgs.haskellPackages.cabal-fmt)
-    (hlib.justStaticExecutables (hPkgs localModsEnableAll).weeder)
+    (hlib.justStaticExecutables pkgs.haskellPackages.weeder)
   ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
     pkgs.skopeo
   ];
