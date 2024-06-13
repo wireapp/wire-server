@@ -1,0 +1,3 @@
+federator: Expect a client certificate to be the certificate chain
+
+Without this openssl doesn't forward to whole chain causing mTLS to not succeed.
