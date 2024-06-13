@@ -369,7 +369,7 @@ executable galley
   import:        common-all
   main-is:       exec/Main.hs
   other-modules: Paths_galley
-  ghc-options:   -threaded -with-rtsopts=-T -rtsopts
+  ghc-options:   -threaded -with-rtsopts=-T -with-rtsopts=-hT -rtsopts
   build-depends:
     , base
     , galley
