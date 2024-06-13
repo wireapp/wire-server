@@ -28,9 +28,9 @@ coturnTurnTlsListenPort: 5349
 
 # coturnTurnListenIP: "1.2.3.4" # can also be __COTURN_EXT_IP__, __COTURN_POD_IP__,__COTURN_HOST_IP__
 coturnTurnExternalIP: null
-# coturnTurnRelayIP: 
-# coturnPrometheusIP: 
-# coturnFederationListeningIP: 
+# coturnTurnRelayIP:
+# coturnPrometheusIP:
+# coturnFederationListeningIP:
 
 tls:
   enabled: false
