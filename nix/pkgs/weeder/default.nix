@@ -9,8 +9,8 @@ mkDerivation {
   version = "2.8.0";
   src = fetchgit {
     url = "https://github.com/fisx/weeder";
-    sha256 = "1m92pxr8l45v0zck1lm2lwps2gakd574vcaxzgw63gfhs09kg5iq";
-    rev = "c5d1b26f33b8e219d99a57fd1a6c0d0bb15184cf";
+    sha256 = "sha256-Cv1H4m5X1iM26svGFdfCVfMO6E/ueaKxCRjrfwsoV7M=";
+    rev = "0dae376b4a41d67bdaa4ec55e902df0b3cc58fba"; # https://github.com/ocharles/weeder/pull/165
     fetchSubmodules = true;
   };
   isLibrary = true;
