@@ -61,6 +61,7 @@ packages:
 
 tests: True
 benchmarks: True
+profiling: True
 
 package assets
     ghc-options: -Werror
