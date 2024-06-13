@@ -273,7 +273,7 @@ let
         owner = "fisx";
         repo = "weeder";
         rev = "027571e39a25aa0cfa6a7c7effcb868757527a2c";
-        hash = "sha256-E35PVxi/4iJFfWts3td52KKZKQt4dj9KFP3SvWG77Cc=";
+        hash = "sha256-nkTWStvPG+4uukieIx6GRH/EcEN2i67nolqNpQjnJHE=";
       };
     };
   };
