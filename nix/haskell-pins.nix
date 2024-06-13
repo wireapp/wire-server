@@ -266,6 +266,7 @@ let
         "warp" = "warp";
       };
     };
+
   };
   hackagePins = {
     # Major re-write upstream, we should get rid of this dependency rather than
@@ -289,6 +290,12 @@ let
       version = "0.3.20";
       sha256 = "sha256-PGwjhrRnkH8cLhd7fHTZFd6ts9abp0w5sLlV8ke1yXU=";
     };
+    # PR: https://github.com/wireapp/wire-server/pull/4027
+    HsOpenSSL = {
+      version = "0.11.7.7";
+      sha256 = "sha256-45qWTqfY4fwCjTQsQg/f0EPkC5KZ8CFZYH4cwcw3Y18=";
+    };
+
   };
   # Name -> Source -> Maybe Subpath -> Drv
   mkGitDrv = name: src: subpath:

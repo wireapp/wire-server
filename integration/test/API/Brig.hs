@@ -601,12 +601,31 @@ updateService dom providerId serviceId mAcceptHeader newName = do
     rawBaseRequest domain Brig Versioned $
       joinHttpPath ["provider", "services", sId]
   let addHdrs =
-        addHeader "Z-Type" "provider"
-          . addHeader "Z-Provider" providerId
+        zType "provider"
+          . zProvider providerId
           . maybe id (addHeader "Accept") mAcceptHeader
   submit "PUT"
     . addHdrs
     . addJSONObject ["name" .= n | n <- maybeToList newName]
+    $ req
+
+updateServiceConn ::
+  MakesValue conn =>
+  -- | providerId
+  String ->
+  -- | serviceId
+  String ->
+  -- | connection update as a Json object, with an obligatory "password" field
+  conn ->
+  App Response
+updateServiceConn providerId serviceId connectionUpdate = do
+  req <- baseRequest OwnDomain Brig Versioned do
+    joinHttpPath ["provider", "services", serviceId, "connection"]
+  upd <- make connectionUpdate
+  submit "PUT"
+    . zType "provider"
+    . zProvider providerId
+    . addJSON upd
     $ req
 
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/get_users__uid_domain___uid__prekeys__client_
@@ -642,3 +661,11 @@ getCallsConfigV2 :: (HasCallStack, MakesValue user) => user -> App Response
 getCallsConfigV2 user = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["calls", "config", "v2"]
   submit "GET" req
+
+addBot :: MakesValue user => user -> String -> String -> String -> App Response
+addBot user providerId serviceId convId = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["conversations", convId, "bots"]
+  submit "POST" $
+    req
+      & zType "access"
+      & addJSONObject ["provider" .= providerId, "service" .= serviceId]

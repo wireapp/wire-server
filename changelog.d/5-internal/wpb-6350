@@ -1,0 +1,1 @@
+add tests for bots that use self-signed certs and add documentation on why we cannot test the bots to work with PKI
