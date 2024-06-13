@@ -14,7 +14,7 @@ spec:
   selector:
     app: webapp
 {{- end }}
-{{- if not .Values.service.useFakeS3 }}
+{{- if .Values.service.useFakeS3 }}
 ---
 apiVersion: v1
 kind: Service
