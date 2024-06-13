@@ -100,7 +100,7 @@ service:
   s3:
     externalPort: 9000
     serviceName: fake-aws-s3
-    externallyCreated: false # See note below
+  useFakeS3: true # See note below
   teamSettings:
     externalPort: 8080
   accountPages:
@@ -142,14 +142,13 @@ config:
 #
 # For Services:
 # service:
-#   s3:
-#     externallyCreated: true
-#     ^ externallyCreated might be useful if S3 access is provided by
-#       an external service such as `minio-external`: in such cases
-#       we do not want to create yet another service here but rather
-#       use that service instead in the ingress
-#     serviceName: minio-external
-
+#   useFakeS3: true
+#     ^ useFakeS3 should be enabled if S3 access is to be
+#       provided by fake-aws-s3, inside of the kubernetes cluster.
+#       when it is something outside of the cluster (like minio-external),
+#       we should leave this setting off. this setting creates a
+#       fake-aws-s3 service inside of the cluster, which should be
+#       what is referred to in the brig configuration.
 # Configure CSP headers directly in the ingress.
 #
 # This is only suggested / needed in setups with multiple backend domains
