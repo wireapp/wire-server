@@ -264,11 +264,13 @@ services:
     container_name: rabbitmq
     image: rabbitmq:3.11-management-alpine
     environment:
-      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USERNAME}
-      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD}
+      - RABBITMQ_USERNAME
+      - RABBITMQ_PASSWORD
     ports:
       - '127.0.0.1:5672:5672'
       - '127.0.0.1:15672:15672'
+    volumes:
+      - ./rabbitmq-config:/etc/rabbitmq/
     networks:
       - demo_wire
 
