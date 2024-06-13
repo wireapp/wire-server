@@ -38,6 +38,7 @@ import Network.Socket
 import qualified OpenSSL.Session as SSL
 import System.Random (randomRIO)
 import qualified System.TimeManager
+import System.Timeout
 import Test.Hspec
 
 echoTest :: Http2Manager -> TLSEnabled -> Int -> Expectation
@@ -135,7 +136,7 @@ specTemplate mCtx = do
 
       readIORef acceptedConns `shouldReturn` 1
 
-  it "should re-use the connection even if one of the requests is stuck forever" $ do
+  it "should re-use the connection even if one of the request consumers is stuck forever" $ do
     withTestServer mCtx $ \TestServer {..} -> do
       mgr <- mkTestManager
       infiniteRespHeaderRecieved <- newEmptyMVar
@@ -158,6 +159,29 @@ specTemplate mCtx = do
       -- We wait on the thread here to ensure that any expectation failures in
       -- the thread are caught.
       wait infiniteRespThread
+
+      readIORef acceptedConns `shouldReturn` 1
+
+  it "should re-use the connection even if three of the requests are stuck forever in the server" $ do
+    withTestServer mCtx $ \TestServer {..} -> do
+      mgr <- mkTestManager
+      -- The 4th one always gets stuck, so using 3
+      stuckRequestsThread <- async $ replicateConcurrently_ 3 $ withHTTP2Request mgr (isJust mCtx, "localhost", serverPort) (Client.requestBuilder "GET" "/stuck" [] "some body") $ \_ -> do
+        expectationFailure "Expected this request to never return"
+      let waitForStuckThings = do
+            stuckMVars <- readIORef stuckThings
+            putStrLn $ "StuckMVars: " <> show (length stuckMVars)
+            if length stuckMVars >= 3
+              then pure stuckMVars
+              else threadDelay 10000 >> waitForStuckThings
+      timeout 5_000_000 (waitForStuckThings) >>= \case
+        Nothing -> expectationFailure "Expected 5 stuck MVars"
+        Just stuckMVars -> do
+          timeout 5_000_000 (echoTest mgr (isJust mCtx) serverPort) >>= \case
+            Nothing -> expectationFailure "The 4th request is stuck, it shouldn't be"
+            Just _ -> pure ()
+          forM_ stuckMVars $ \x -> putMVar x ()
+          wait stuckRequestsThread
 
       readIORef acceptedConns `shouldReturn` 1
 
@@ -219,6 +243,7 @@ data TestServer = TestServer
   { serverThread :: Async (),
     acceptedConns :: IORef Int,
     liveConns :: IORef (Map Unique (Async ())),
+    stuckThings :: IORef [MVar ()],
     serverPort :: Int
   }
 
@@ -264,10 +289,11 @@ withTestServerOnSocket :: Maybe SSL.SSLContext -> (TestServer -> IO a) -> (Int, 
 withTestServerOnSocket mCtx action (serverPort, listenSock) = do
   acceptedConns <- newIORef 0
   liveConns <- newIORef mempty
+  stuckThings <- newIORef []
   let cleanupServer serverThread = do
         cancel serverThread
         mapM_ cancel =<< readIORef liveConns
-  bracket (async $ testServerOnSocket mCtx listenSock acceptedConns liveConns) cleanupServer $ \serverThread ->
+  bracket (async $ testServerOnSocket mCtx listenSock acceptedConns liveConns stuckThings) cleanupServer $ \serverThread ->
     action TestServer {..}
 
 allocServerConfig :: Either Socket SSL.SSL -> IO Server.Config
@@ -303,8 +329,8 @@ allocServerConfig (Right ssl) = do
         Server.confTimeoutManager = timmgr
       }
 
-testServerOnSocket :: Maybe SSL.SSLContext -> Socket -> IORef Int -> IORef (Map Unique (Async ())) -> IO ()
-testServerOnSocket mCtx listenSock connsCounter conns = do
+testServerOnSocket :: Maybe SSL.SSLContext -> Socket -> IORef Int -> IORef (Map Unique (Async ())) -> IORef [MVar ()] -> IO ()
+testServerOnSocket mCtx listenSock connsCounter conns stuckThings = do
   listen listenSock 1024
   forever $ do
     (sock, _) <- accept listenSock
@@ -322,11 +348,11 @@ testServerOnSocket mCtx listenSock connsCounter conns = do
         cleanup cfg = do
           Server.freeSimpleConfig cfg `finally` (shutdownSSL `finally` close sock)
     thread <- async $ bracket (allocServerConfig serverCfgParam) cleanup $ \cfg -> do
-      Server.run cfg testServer `finally` modifyIORef conns (Map.delete connKey)
+      Server.run cfg (testServer stuckThings) `finally` modifyIORef conns (Map.delete connKey)
     modifyIORef conns $ Map.insert connKey thread
 
-testServer :: Server.Request -> Server.Aux -> (Server.Response -> [Server.PushPromise] -> IO ()) -> IO ()
-testServer req _ respWriter = do
+testServer :: IORef [MVar ()] -> Server.Request -> Server.Aux -> (Server.Response -> [Server.PushPromise] -> IO ()) -> IO ()
+testServer stuckThings req _ respWriter = do
   case Server.requestPath req of
     Just "/echo" -> do
       reqBody <- readRequestBody req
@@ -339,6 +365,10 @@ testServer req _ respWriter = do
             infiniteBSWriter bsWriter flush
           infiniteResponse = Server.responseStreaming status200 [] infiniteBSWriter
       respWriter infiniteResponse []
+    Just "/stuck" -> do
+      stuck <- newEmptyMVar
+      modifyIORef stuckThings (stuck :)
+      takeMVar stuck
     Just "/multiline" -> do
       reqBodyLines <- LBS.lines <$> readRequestBody req
       let delayedBSWriter :: [LBS.ByteString] -> (Builder.Builder -> IO ()) -> IO () -> IO ()
