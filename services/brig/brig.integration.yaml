@@ -20,9 +20,11 @@ elasticsearch:
   additionalInsecureSkipVerifyTls: false
 
 rabbitmq:
-  host: 127.0.0.1
-  port: 5672
+  host: localhost
+  port: 5671
   vHost: /
+  caCert: test/resources/rabbitmq-ca.pem
+  insecureSkipVerifyTls: false
 
 cargohold:
   host: 127.0.0.1

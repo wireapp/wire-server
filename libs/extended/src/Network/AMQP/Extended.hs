@@ -7,13 +7,18 @@ import Control.Monad.Catch
 import Control.Monad.Trans.Control
 import Control.Retry
 import Data.Aeson
+import Data.Default
 import Data.Proxy
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
+import Data.X509.CertificateStore qualified as X509
 import Imports
 import Network.AMQP qualified as Q
+import Network.Connection as Conn
 import Network.HTTP.Client qualified as HTTP
 import Network.RabbitMqAdmin
+import Network.TLS
+import Network.TLS.Extra.Cipher
 import Servant
 import Servant.Client
 import Servant.Client qualified as Servant
@@ -37,11 +42,21 @@ data RabbitMqAdminOpts = RabbitMqAdminOpts
   { host :: !String,
     port :: !Int,
     vHost :: !Text,
+    caCert :: !(Maybe FilePath),
+    insecureSkipVerifyTls :: Bool,
     adminPort :: !Int
   }
   deriving (Show, Generic)
 
-instance FromJSON RabbitMqAdminOpts
+instance FromJSON RabbitMqAdminOpts where
+  parseJSON = withObject "RabbitMqAdminOpts" $ \v ->
+    RabbitMqAdminOpts
+      <$> v .: "host"
+      <*> v .: "port"
+      <*> v .: "vHost"
+      <*> v .:? "caCert"
+      <*> v .:? "insecureSkipVerifyTls" .!= False
+      <*> v .: "adminPort"
 
 mkRabbitMqAdminClientEnv :: RabbitMqAdminOpts -> IO (AdminAPI (AsClientT IO))
 mkRabbitMqAdminClientEnv opts = do
@@ -60,11 +75,20 @@ mkRabbitMqAdminClientEnv opts = do
 data RabbitMqOpts = RabbitMqOpts
   { host :: !String,
     port :: !Int,
-    vHost :: !Text
+    vHost :: !Text,
+    caCert :: !(Maybe FilePath),
+    insecureSkipVerifyTls :: Bool
   }
   deriving (Show, Generic)
 
-instance FromJSON RabbitMqOpts
+instance FromJSON RabbitMqOpts where
+  parseJSON = withObject "RabbitMqAdminOpts" $ \v ->
+    RabbitMqOpts
+      <$> v .: "host"
+      <*> v .: "port"
+      <*> v .: "vHost"
+      <*> v .:? "caCert"
+      <*> v .:? "insecureSkipVerifyTls" .!= False
 
 demoteOpts :: RabbitMqAdminOpts -> RabbitMqOpts
 demoteOpts RabbitMqAdminOpts {..} = RabbitMqOpts {..}
@@ -123,7 +147,15 @@ openConnectionWithRetries l RabbitMqOpts {..} hooks = do
               )
               ( const $ do
                   Log.info l $ Log.msg (Log.val "Trying to connect to RabbitMQ")
-                  liftIO $ Q.openConnection' host (fromIntegral port) vHost username password
+                  mTlsSettings <- traverse (liftIO . mkTLSSettings) caCert
+                  liftIO $
+                    Q.openConnection'' $
+                      Q.defaultConnectionOpts
+                        { Q.coServers = [(host, fromIntegral port)],
+                          Q.coVHost = vHost,
+                          Q.coAuth = [Q.plain username password],
+                          Q.coTLSSettings = fmap Q.TLSCustom mTlsSettings
+                        }
               )
       bracket getConn (liftIO . Q.closeConnection) $ \conn -> do
         liftBaseWith $ \runInIO ->
@@ -132,6 +164,24 @@ openConnectionWithRetries l RabbitMqOpts {..} hooks = do
               `catch` logException l "onConnectionClose hook threw an exception, reconnecting to RabbitMQ anyway"
             connectWithRetries username password
         openChan conn
+
+    mkTLSSettings :: FilePath -> IO TLSSettings
+    mkTLSSettings path = do
+      -- TODO: throw better exception here
+      caStore <- fromJust <$> X509.readCertificateStore path
+      pure $
+        TLSSettings
+          (defaultParamsClient host "rabbitmq")
+            { clientShared =
+                def
+                  { sharedCAStore = caStore
+                  },
+              clientSupported =
+                def
+                  { supportedVersions = [TLS13, TLS12],
+                    supportedCiphers = ciphersuite_strong
+                  }
+            }
 
     openChan :: Q.Connection -> m ()
     openChan conn = do

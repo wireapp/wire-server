@@ -267,6 +267,7 @@ services:
       - RABBITMQ_USERNAME
       - RABBITMQ_PASSWORD
     ports:
+      - '127.0.0.1:5671:5671'
       - '127.0.0.1:5672:5672'
       - '127.0.0.1:15672:15672'
     volumes:
