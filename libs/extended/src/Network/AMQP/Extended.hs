@@ -1,12 +1,23 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Network.AMQP.Extended where
+module Network.AMQP.Extended
+  ( RabbitMqHooks (..),
+    RabbitMqAdminOpts (..),
+    RabbitMqOpts (..),
+    openConnectionWithRetries,
+    mkRabbitMqAdminClientEnv,
+    mkRabbitMqChannelMVar,
+    demoteOpts,
+  )
+where
 
 import Control.Exception (throwIO)
 import Control.Monad.Catch
 import Control.Monad.Trans.Control
+import Control.Monad.Trans.Maybe
 import Control.Retry
 import Data.Aeson
+import Data.Aeson.Types
 import Data.Default
 import Data.Proxy
 import Data.Text qualified as Text
@@ -38,15 +49,32 @@ data RabbitMqHooks m = RabbitMqHooks
     onChannelException :: SomeException -> m ()
   }
 
+data RabbitMqTlsOpts = RabbitMqTlsOpts
+  { caCert :: !(Maybe FilePath),
+    insecureSkipVerifyTls :: Bool
+  }
+  deriving (Show)
+
+parseTlsJson :: Object -> Parser (Maybe RabbitMqTlsOpts)
+parseTlsJson v = do
+  enabled <- v .:? "enableTls" .!= False
+  if enabled
+    then
+      Just
+        <$> ( RabbitMqTlsOpts
+                <$> v .:? "caCert"
+                <*> v .:? "insecureSkipVerifyTls" .!= False
+            )
+    else pure Nothing
+
 data RabbitMqAdminOpts = RabbitMqAdminOpts
   { host :: !String,
     port :: !Int,
     vHost :: !Text,
-    caCert :: !(Maybe FilePath),
-    insecureSkipVerifyTls :: Bool,
+    tls :: Maybe RabbitMqTlsOpts,
     adminPort :: !Int
   }
-  deriving (Show, Generic)
+  deriving (Show)
 
 instance FromJSON RabbitMqAdminOpts where
   parseJSON = withObject "RabbitMqAdminOpts" $ \v ->
@@ -54,8 +82,7 @@ instance FromJSON RabbitMqAdminOpts where
       <$> v .: "host"
       <*> v .: "port"
       <*> v .: "vHost"
-      <*> v .:? "caCert"
-      <*> v .:? "insecureSkipVerifyTls" .!= False
+      <*> parseTlsJson v
       <*> v .: "adminPort"
 
 mkRabbitMqAdminClientEnv :: RabbitMqAdminOpts -> IO (AdminAPI (AsClientT IO))
@@ -76,10 +103,9 @@ data RabbitMqOpts = RabbitMqOpts
   { host :: !String,
     port :: !Int,
     vHost :: !Text,
-    caCert :: !(Maybe FilePath),
-    insecureSkipVerifyTls :: Bool
+    tls :: !(Maybe RabbitMqTlsOpts)
   }
-  deriving (Show, Generic)
+  deriving (Show)
 
 instance FromJSON RabbitMqOpts where
   parseJSON = withObject "RabbitMqAdminOpts" $ \v ->
@@ -87,8 +113,7 @@ instance FromJSON RabbitMqOpts where
       <$> v .: "host"
       <*> v .: "port"
       <*> v .: "vHost"
-      <*> v .:? "caCert"
-      <*> v .:? "insecureSkipVerifyTls" .!= False
+      <*> parseTlsJson v
 
 demoteOpts :: RabbitMqAdminOpts -> RabbitMqOpts
 demoteOpts RabbitMqAdminOpts {..} = RabbitMqOpts {..}
@@ -147,7 +172,7 @@ openConnectionWithRetries l RabbitMqOpts {..} hooks = do
               )
               ( const $ do
                   Log.info l $ Log.msg (Log.val "Trying to connect to RabbitMQ")
-                  mTlsSettings <- traverse (liftIO . mkTLSSettings) caCert
+                  mTlsSettings <- traverse (liftIO . mkTLSSettings) tls
                   liftIO $
                     Q.openConnection'' $
                       Q.defaultConnectionOpts
@@ -165,17 +190,17 @@ openConnectionWithRetries l RabbitMqOpts {..} hooks = do
             connectWithRetries username password
         openChan conn
 
-    mkTLSSettings :: FilePath -> IO TLSSettings
-    mkTLSSettings path = do
+    mkTLSSettings :: RabbitMqTlsOpts -> IO TLSSettings
+    mkTLSSettings opts = do
       -- TODO: throw better exception here
-      caStore <- fromJust <$> X509.readCertificateStore path
+      setCAStore <- runMaybeT $ do
+        path <- maybe mzero pure opts.caCert
+        store <- MaybeT $ X509.readCertificateStore path
+        pure $ \shared -> shared {sharedCAStore = store}
       pure $
         TLSSettings
           (defaultParamsClient host "rabbitmq")
-            { clientShared =
-                def
-                  { sharedCAStore = caStore
-                  },
+            { clientShared = fromMaybe id setCAStore def,
               clientSupported =
                 def
                   { supportedVersions = [TLS13, TLS12],

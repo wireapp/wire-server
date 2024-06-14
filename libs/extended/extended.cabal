@@ -108,6 +108,7 @@ library
     , time
     , tinylog
     , tls
+    , transformers
     , unliftio
     , wai
 

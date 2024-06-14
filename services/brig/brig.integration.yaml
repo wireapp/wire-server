@@ -23,6 +23,7 @@ rabbitmq:
   host: localhost
   port: 5671
   vHost: /
+  enableTls: true
   caCert: test/resources/rabbitmq-ca.pem
   insecureSkipVerifyTls: false
 
