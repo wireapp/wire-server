@@ -26,7 +26,6 @@ import qualified Data.Map as Map
 import Data.Maybe (isJust)
 import Data.Streaming.Network (bindPortTCP, bindRandomPortTCP)
 import Data.Unique
-import Foreign.Marshal.Alloc (mallocBytes)
 import GHC.IO.Exception
 import HTTP2.Client.Manager
 import HTTP2.Client.Manager.Internal
@@ -37,7 +36,6 @@ import qualified Network.HTTP2.Server as Server
 import Network.Socket
 import qualified OpenSSL.Session as SSL
 import System.Random (randomRIO)
-import qualified System.TimeManager
 import Test.Hspec
 
 echoTest :: Http2Manager -> TLSEnabled -> Int -> Expectation
@@ -270,59 +268,50 @@ withTestServerOnSocket mCtx action (serverPort, listenSock) = do
   bracket (async $ testServerOnSocket mCtx listenSock acceptedConns liveConns) cleanupServer $ \serverThread ->
     action TestServer {..}
 
-allocServerConfig :: Either Socket SSL.SSL -> IO Server.Config
-allocServerConfig (Left sock) = HTTP2.allocSimpleConfig sock 4096
-allocServerConfig (Right ssl) = do
-  buf <- mallocBytes bufsize
-  timmgr <- System.TimeManager.initialize $ 30 * 1000000
-  -- Sometimes the frame header says that the payload length is 0. Reading 0
-  -- bytes multiple times seems to be causing errors in openssl. I cannot figure
-  -- out why. The previous implementation didn't try to read from the socket
-  -- when trying to read 0 bytes, so special handling for 0 maintains that
-  -- behaviour.
-  let readData prevChunk 0 = pure prevChunk
-      readData prevChunk n = do
-        -- Handling SSL.ConnectionAbruptlyTerminated as a stream end
-        -- (some sites terminate SSL connection right after returning the data).
-        chunk <- SSL.read ssl n `catch` \(_ :: SSL.ConnectionAbruptlyTerminated) -> pure mempty
-        let chunkLen = BS.length chunk
-        if
-            | chunkLen == 0 || chunkLen == n ->
-                pure (prevChunk <> chunk)
-            | chunkLen > n ->
-                error "openssl: SSL.read returned more bytes than asked for, this is probably a bug"
-            | otherwise ->
-                readData (prevChunk <> chunk) (n - chunkLen)
-  pure
-    Server.Config
-      { Server.confWriteBuffer = buf,
-        Server.confBufferSize = bufsize,
-        Server.confSendAll = SSL.write ssl,
-        Server.confReadN = readData mempty,
-        Server.confPositionReadMaker = Server.defaultPositionReadMaker,
-        Server.confTimeoutManager = timmgr
+allocServerConfig :: Socket -> Maybe SSL.SSL -> IO Server.Config
+allocServerConfig sock Nothing = HTTP2.allocSimpleConfig sock 4096
+allocServerConfig sock (Just ssl) = do
+  config <- HTTP2.allocSimpleConfig sock 4096
+  pure $
+    config
+      { Server.confReadN = readData mempty,
+        Server.confSendAll = SSL.write ssl
       }
+  where
+    readData prevChunk 0 = pure prevChunk
+    readData prevChunk n = do
+      -- Handling SSL.ConnectionAbruptlyTerminated as a stream end
+      -- (some sites terminate SSL connection right after returning the data).
+      chunk <- SSL.read ssl n `catch` \(_ :: SSL.ConnectionAbruptlyTerminated) -> pure mempty
+      let chunkLen = BS.length chunk
+      if
+          | chunkLen == 0 || chunkLen == n ->
+              pure (prevChunk <> chunk)
+          | chunkLen > n ->
+              error "openssl: SSL.read returned more bytes than asked for, this is probably a bug"
+          | otherwise ->
+              readData (prevChunk <> chunk) (n - chunkLen)
 
 testServerOnSocket :: Maybe SSL.SSLContext -> Socket -> IORef Int -> IORef (Map Unique (Async ())) -> IO ()
 testServerOnSocket mCtx listenSock connsCounter conns = do
   listen listenSock 1024
   forever $ do
     (sock, _) <- accept listenSock
-    serverCfgParam <- case mCtx of
-      Nothing -> pure $ Left sock
+    sslMaybe <- case mCtx of
+      Nothing -> pure Nothing
       Just ctx -> do
         ssl <- SSL.connection ctx sock
         SSL.accept ssl
-        pure (Right ssl)
+        pure $ Just ssl
     connKey <- newUnique
     modifyIORef connsCounter (+ 1)
-    let shutdownSSL = case serverCfgParam of
-          Left _ -> pure ()
-          Right ssl -> SSL.shutdown ssl SSL.Bidirectional
+    let shutdownSSL = case sslMaybe of
+          Nothing -> pure ()
+          Just ssl -> SSL.shutdown ssl SSL.Bidirectional
         cleanup cfg = do
           Server.freeSimpleConfig cfg `finally` (shutdownSSL `finally` close sock)
-    thread <- async $ bracket (allocServerConfig serverCfgParam) cleanup $ \cfg -> do
-      Server.run cfg testServer `finally` modifyIORef conns (Map.delete connKey)
+    thread <- async $ bracket (allocServerConfig sock sslMaybe) cleanup $ \cfg -> do
+      Server.run Server.defaultServerConfig cfg testServer `finally` modifyIORef conns (Map.delete connKey)
     modifyIORef conns $ Map.insert connKey thread
 
 testServer :: Server.Request -> Server.Aux -> (Server.Response -> [Server.PushPromise] -> IO ()) -> IO ()

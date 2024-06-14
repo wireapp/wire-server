@@ -20,6 +20,7 @@
 , streaming-commons
 , text
 , time-manager
+, utf8-string
 }:
 mkDerivation {
   pname = "http2-manager";
@@ -36,7 +37,7 @@ mkDerivation {
     stm
     streaming-commons
     text
-    time-manager
+    utf8-string
   ];
   testHaskellDepends = [
     async
