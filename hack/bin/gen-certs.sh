@@ -82,5 +82,5 @@ done
 # rabbitmq
 RABBITMQ="$ROOT_DIR/deploy/dockerephemeral/rabbitmq-config/certificates"
 gen_ca "$RABBITMQ" rabbitmq.ca.example.com
-gen_cert "$RABBITMQ" "DNS:localhost" localhost
+gen_cert "$RABBITMQ" "DNS:localhost, DNS:rabbitmq, IP:127.0.0.1" localhost
 chmod a+r "$RABBITMQ/key.pem"

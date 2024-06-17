@@ -196,10 +196,15 @@ openConnectionWithRetries l RabbitMqOpts {..} hooks = do
         path <- maybe mzero pure opts.caCert
         store <- MaybeT $ X509.readCertificateStore path
         pure $ \shared -> shared {sharedCAStore = store}
+      let setHooks =
+            if opts.insecureSkipVerifyTls
+              then \h -> h {onServerCertificate = \_ _ _ _ -> pure []}
+              else id
       pure $
         TLSSettings
           (defaultParamsClient host "rabbitmq")
             { clientShared = fromMaybe id setCAStore def,
+              clientHooks = setHooks def,
               clientSupported =
                 def
                   { supportedVersions = [TLS13, TLS12],

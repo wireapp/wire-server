@@ -10,9 +10,12 @@ federatorInternal:
 
 rabbitmq:
   host: 127.0.0.1
-  port: 5672
+  port: 5671
   vHost: /
   adminPort: 15672
+  enableTls: true
+  caCert: test/resources/rabbitmq-ca.pem
+  insecureSkipVerifyTls: false
 
 backendNotificationPusher:
   pushBackoffMinWait: 1000 # 1ms

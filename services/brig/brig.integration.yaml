@@ -20,7 +20,7 @@ elasticsearch:
   additionalInsecureSkipVerifyTls: false
 
 rabbitmq:
-  host: localhost
+  host: 127.0.0.1
   port: 5671
   vHost: /
   enableTls: true

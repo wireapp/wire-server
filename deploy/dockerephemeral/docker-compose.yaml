@@ -271,7 +271,8 @@ services:
       - '127.0.0.1:5672:5672'
       - '127.0.0.1:15672:15672'
     volumes:
-      - ./rabbitmq-config:/etc/rabbitmq/
+      - ./rabbitmq-config/rabbitmq.conf:/etc/rabbitmq/conf.d/20-wire.conf
+      - ./rabbitmq-config/certificates:/etc/rabbitmq/certificates
     networks:
       - demo_wire
 
@@ -285,6 +286,7 @@ services:
     entrypoint: /scripts/init_vhosts.sh
     volumes:
       - ./:/scripts
+      - ./rabbitmq-config/certificates/ca.pem:/etc/rabbitmq-ca.pem
     networks:
       - demo_wire
 

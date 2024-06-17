@@ -268,7 +268,7 @@ getRemoteDomains = do
   let policy = limitRetriesByCumulativeDelay 60_000_000 $ fullJitterBackoff 10000
       logErrr willRetry (SomeException e) rs =
         Log.err $
-          Log.msg (Log.val "Exception occurred while refreshig domains")
+          Log.msg (Log.val "Exception occurred while refreshing domains")
             . Log.field "error" (displayException e)
             . Log.field "willRetry" willRetry
             . Log.field "retryCount" rs.rsIterNumber
