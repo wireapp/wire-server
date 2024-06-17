@@ -155,7 +155,7 @@ lint-all: formatc hlint-check-all check-local-nix-derivations treefmt-check # we
 
 .PHONY: weeder
 weeder:
-	time weeder -N || echo -e '\n\n*** make sure you have added this to your cabal.project.local and make clean before building wire-server:\n\npackage *\n  ghc-options: -fwrite-ide-info\n\n'
+	weeder -N
 
 .PHONY: hlint-check-all
 hlint-check-all:
