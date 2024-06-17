@@ -108,7 +108,7 @@ run o = do
     closeEnv e
   where
     endpoint' = brig o
-    server e = defaultServer (unpack $ endpoint' ^. host) (endpoint' ^. port) (e ^. applog) (e ^. metrics)
+    server e = defaultServer (unpack $ endpoint' ^. host) (endpoint' ^. port) (e ^. applog)
 
 mkApp :: Opts -> IO (Wai.Application, Env)
 mkApp o = do
@@ -124,7 +124,7 @@ mkApp o = do
         . Metrics.servantPrometheusMiddleware (Proxy @ServantCombinedAPI)
         . GZip.gunzip
         . GZip.gzip GZip.def
-        . catchErrors (e ^. applog) defaultRequestIdHeaderName [Right $ e ^. metrics]
+        . catchErrors (e ^. applog) defaultRequestIdHeaderName
 
     -- the servant API wraps the one defined using wai-routing
     servantApp :: Env -> Wai.Application
@@ -242,10 +242,9 @@ pendingActivationCleanup = do
 
 collectAuthMetrics :: forall r. AppT r ()
 collectAuthMetrics = do
-  m <- view metrics
   env <- view (awsEnv . amazonkaEnv)
   liftIO $
     forever $ do
       mbRemaining <- readAuthExpiration env
-      gaugeTokenRemaing m mbRemaining
+      gaugeTokenRemaing mbRemaining
       threadDelay 1_000_000

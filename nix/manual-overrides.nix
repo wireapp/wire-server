@@ -63,6 +63,8 @@ hself: hsuper: {
   # flags and patches
   # (these are fine)
   # -----------------
+  cryptostore = hlib.addBuildDepends (hlib.dontCheck (hlib.appendConfigureFlags hsuper.cryptostore [ "-fuse_crypton" ]))
+    [ hself.crypton hself.crypton-x509 hself.crypton-x509-validation ];
   # Make hoogle static to reduce size of the hoogle image
   hoogle = hlib.justStaticExecutables hsuper.hoogle;
   http2-manager = hlib.enableCabalFlag hsuper.http2-manager "-f-test-trailing-dot";

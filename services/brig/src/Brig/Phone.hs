@@ -45,11 +45,11 @@ import Control.Lens (view)
 import Control.Monad.Catch
 import Control.Retry
 import Data.LanguageCodes
-import Data.Metrics qualified as Metrics
 import Data.Text qualified as Text
 import Data.Time.Clock
 import Imports
 import Network.HTTP.Client (HttpException, Manager)
+import Prometheus qualified as Prom
 import Ropes.Nexmo qualified as Nexmo
 import Ropes.Twilio (LookupDetail (..))
 import Ropes.Twilio qualified as Twilio
@@ -75,7 +75,7 @@ data PhoneException
 instance Exception PhoneException
 
 sendCall ::
-  (MonadClient m, MonadReader Env m, Log.MonadLogger m) =>
+  (MonadClient m, MonadReader Env m, Log.MonadLogger m, Prom.MonadMonitor m) =>
   Nexmo.Call ->
   m ()
 sendCall call = unless (isTestPhone $ Nexmo.callTo call) $ do
@@ -115,7 +115,8 @@ sendSms ::
   ( MonadClient m,
     MonadCatch m,
     Log.MonadLogger m,
-    MonadReader Env m
+    MonadReader Env m,
+    Prom.MonadMonitor m
   ) =>
   Locale ->
   SMSMessage ->
@@ -234,7 +235,7 @@ smsBudget =
 withSmsBudget ::
   ( MonadClient m,
     Log.MonadLogger m,
-    MonadReader Env m
+    Prom.MonadMonitor m
   ) =>
   Text ->
   m a ->
@@ -247,7 +248,7 @@ withSmsBudget phone go = do
       Log.info $
         msg (val "SMS budget exhausted.")
           ~~ field "phone" phone
-      Metrics.counterIncr (Metrics.path "budget.sms.exhausted") =<< view metrics
+      Prom.incCounter smsBudgetExhaustedCounter
       throwM (PhoneBudgetExhausted t)
     BudgetedValue a b -> do
       Log.debug $
@@ -269,7 +270,7 @@ callBudget =
 withCallBudget ::
   ( MonadClient m,
     Log.MonadLogger m,
-    MonadReader Env m
+    Prom.MonadMonitor m
   ) =>
   Text ->
   m a ->
@@ -282,7 +283,7 @@ withCallBudget phone go = do
       Log.info $
         msg (val "Voice call budget exhausted.")
           ~~ field "phone" phone
-      Metrics.counterIncr (Metrics.path "budget.call.exhausted") =<< view metrics
+      Prom.incCounter callBudgetExhaustedCounter
       throwM (PhoneBudgetExhausted t)
     BudgetedValue a b -> do
       Log.debug $
@@ -317,3 +318,26 @@ mkPhoneKey orig =
 
 x3 :: RetryPolicy
 x3 = limitRetries 3 <> exponentialBackoff 100000
+
+-------------------------------------------------------------------------------
+-- Metrics
+
+{-# NOINLINE callBudgetExhaustedCounter #-}
+callBudgetExhaustedCounter :: Prom.Counter
+callBudgetExhaustedCounter =
+  Prom.unsafeRegister $
+    Prom.counter
+      Prom.Info
+        { Prom.metricName = "budget.call.exhausted",
+          Prom.metricHelp = "Number of times budget for calls got exhausted"
+        }
+
+{-# NOINLINE smsBudgetExhaustedCounter #-}
+smsBudgetExhaustedCounter :: Prom.Counter
+smsBudgetExhaustedCounter =
+  Prom.unsafeRegister $
+    Prom.counter
+      Prom.Info
+        { Prom.metricName = "budget.sms.exhausted",
+          Prom.metricHelp = "Number of times budget for sending SMS got exhausted"
+        }

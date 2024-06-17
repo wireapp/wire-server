@@ -24,7 +24,6 @@
 , lens
 , lens-aeson
 , lib
-, metrics-wai
 , mtl
 , openapi3
 , optparse-applicative
@@ -74,7 +73,6 @@ mkDerivation {
     http-types
     imports
     lens
-    metrics-wai
     mtl
     openapi3
     schema-profunctor

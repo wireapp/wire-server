@@ -4,16 +4,12 @@
 # dependencies are added or removed.
 { mkDerivation
 , base
-, containers
 , gitignoreSource
-, hashable
 , immortal
 , imports
 , lib
 , prometheus-client
-, text
 , time
-, unordered-containers
 }:
 mkDerivation {
   pname = "metrics-core";
@@ -21,14 +17,10 @@ mkDerivation {
   src = gitignoreSource ./.;
   libraryHaskellDepends = [
     base
-    containers
-    hashable
     immortal
     imports
     prometheus-client
-    text
     time
-    unordered-containers
   ];
   description = "Metrics core";
   license = lib.licenses.agpl3Only;

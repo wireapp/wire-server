@@ -344,7 +344,7 @@ mkSSLContext settings = do
   ctx <- mkSSLContextWithoutCert settings
 
   Polysemy.fromExceptionVia @SomeException (InvalidClientCertificate . displayException) $
-    SSL.contextSetCertificateFile ctx (clientCertificate settings)
+    SSL.contextSetCertificateChainFile ctx (clientCertificate settings)
 
   Polysemy.fromExceptionVia @SomeException (InvalidClientPrivateKey . displayException) $
     SSL.contextSetPrivateKeyFile ctx (clientPrivateKey settings)

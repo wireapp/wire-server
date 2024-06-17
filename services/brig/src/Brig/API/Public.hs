@@ -779,7 +779,7 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
     for_ (liftM2 (,) userEmail epair) $ \(e, p) ->
       sendActivationEmail e userDisplayName p (Just userLocale) newUserTeam
     for_ (liftM2 (,) userPhone ppair) $ \(p, c) ->
-      wrapClient $ sendActivationSms p c (Just userLocale)
+      wrapHttp $ sendActivationSms p c (Just userLocale)
     for_ (liftM3 (,,) userEmail (createdUserTeam result) newUserTeam) $ \(e, ct, ut) ->
       sendWelcomeEmail e ct ut (Just userLocale)
   cok <-
@@ -955,7 +955,7 @@ changePhone u _ (Public.puPhone -> phone) = lift . exceptTToMaybe $ do
   (adata, pn) <- API.changePhone u phone
   loc <- lift $ wrapClient $ API.lookupLocale u
   let apair = (activationKey adata, activationCode adata)
-  lift . wrapClient $ sendActivationSms pn apair loc
+  lift . wrapHttp $ sendActivationSms pn apair loc
 
 removePhone ::
   ( Member (Embed HttpClientIO) r,
@@ -1063,7 +1063,7 @@ beginPasswordReset (Public.NewPasswordReset target) = do
   loc <- lift $ wrapClient $ API.lookupLocale u
   lift $ case target of
     Left email -> sendPasswordResetMail email pair loc
-    Right phone -> wrapClient $ sendPasswordResetSms phone pair loc
+    Right phone -> wrapHttp $ sendPasswordResetSms phone pair loc
 
 completePasswordReset ::
   ( Member CodeStore r,

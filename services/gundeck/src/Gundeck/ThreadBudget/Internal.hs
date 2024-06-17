@@ -25,14 +25,14 @@ import Control.Exception.Safe (catchAny)
 import Control.Lens
 import Control.Monad.Catch (MonadCatch)
 import Data.HashMap.Strict qualified as HM
-import Data.Metrics (Metrics, counterIncr)
-import Data.Metrics.Middleware (gaugeSet, path)
 import Data.Set qualified as Set
 import Data.Time
 import Data.UUID (UUID, toText)
 import Data.UUID.V4 (nextRandom)
 import Gundeck.Options
 import Imports
+import Prometheus (MonadMonitor)
+import Prometheus qualified as Prom
 import System.Logger.Class qualified as LC
 import UnliftIO.Async
 import UnliftIO.Exception (finally)
@@ -112,26 +112,24 @@ unregister ref key =
 -- update the budget.
 runWithBudget ::
   forall m.
-  (LC.MonadLogger m, MonadUnliftIO m) =>
-  Metrics ->
+  (LC.MonadLogger m, MonadUnliftIO m, MonadMonitor m) =>
   ThreadBudgetState ->
   Int ->
   m () ->
   m ()
-runWithBudget metrics tbs spent = runWithBudget' metrics tbs spent ()
+runWithBudget tbs spent = runWithBudget' tbs spent ()
 
 -- | More flexible variant of 'runWithBudget' that allows the action to return a value.  With
 -- a default in case of budget exhaustion.
 runWithBudget' ::
   forall m a.
-  (MonadIO m, LC.MonadLogger m, MonadUnliftIO m) =>
-  Metrics ->
+  (MonadIO m, LC.MonadLogger m, MonadUnliftIO m, MonadMonitor m) =>
   ThreadBudgetState ->
   Int ->
   a ->
   m a ->
   m a
-runWithBudget' metrics (ThreadBudgetState limits ref) spent fallback action = do
+runWithBudget' (ThreadBudgetState limits ref) spent fallback action = do
   key <- liftIO nextRandom
   (`finally` unregister ref key) $ do
     oldsize <- allocate ref key spent
@@ -155,9 +153,12 @@ runWithBudget' metrics (ThreadBudgetState limits ref) spent fallback action = do
     warnNoBudget :: Bool -> Bool -> Int -> m ()
     warnNoBudget False False _ = pure ()
     warnNoBudget soft' hard' oldsize = do
-      let limit = if hard' then "hard" else "soft"
-          metric = "net.nativepush." <> limit <> "_limit_breached"
-      counterIncr (path metric) metrics
+      let limit :: ByteString = if hard' then "hard" else "soft"
+          counter =
+            if hard'
+              then threadBudgetHardLimitBreachedCounter
+              else threadBudgetSoftLimitBreachedCounter
+      Prom.incCounter counter
       LC.warn $
         "spent" LC..= show oldsize
           LC.~~ "soft-breach" LC..= soft'
@@ -174,30 +175,78 @@ runWithBudget' metrics (ThreadBudgetState limits ref) spent fallback action = do
 -- Also, issue some metrics.
 watchThreadBudgetState ::
   forall m.
-  (MonadIO m, LC.MonadLogger m, MonadCatch m) =>
-  Metrics ->
+  (MonadIO m, LC.MonadLogger m, MonadCatch m, MonadMonitor m) =>
   ThreadBudgetState ->
   NominalDiffTime ->
   m ()
-watchThreadBudgetState metrics (ThreadBudgetState limits ref) freq = safeForever $ do
-  recordMetrics metrics limits ref
+watchThreadBudgetState (ThreadBudgetState limits ref) freq = safeForever $ do
+  recordMetrics limits ref
   removeStaleHandles ref
   threadDelayNominalDiffTime freq
 
 recordMetrics ::
   forall m.
-  MonadIO m =>
-  Metrics ->
+  (MonadIO m, MonadMonitor m) =>
   MaxConcurrentNativePushes ->
   IORef BudgetMap ->
   m ()
-recordMetrics metrics limits ref = do
+recordMetrics limits ref = do
   (BudgetMap spent _) <- readIORef ref
-  gaugeSet (fromIntegral spent) (path "net.nativepush.thread_budget_allocated") metrics
+  Prom.setGauge threadBudgetAllocatedGauge (fromIntegral spent)
   forM_ (limits ^. hard) $ \lim ->
-    gaugeSet (fromIntegral lim) (path "net.nativepush.thread_budget_hard_limit") metrics
+    Prom.setGauge threadBudgetHardLimitGauge (fromIntegral lim)
   forM_ (limits ^. soft) $ \lim ->
-    gaugeSet (fromIntegral lim) (path "net.nativepush.thread_budget_soft_limit") metrics
+    Prom.setGauge threadBudgetSoftLimitGauge (fromIntegral lim)
+
+{-# NOINLINE threadBudgetAllocatedGauge #-}
+threadBudgetAllocatedGauge :: Prom.Gauge
+threadBudgetAllocatedGauge =
+  Prom.unsafeRegister $
+    Prom.gauge
+      Prom.Info
+        { Prom.metricName = "net.nativepush.thread_budget_allocated",
+          Prom.metricHelp = "Number of allocated threads for native pushes"
+        }
+
+{-# NOINLINE threadBudgetHardLimitGauge #-}
+threadBudgetHardLimitGauge :: Prom.Gauge
+threadBudgetHardLimitGauge =
+  Prom.unsafeRegister $
+    Prom.gauge
+      Prom.Info
+        { Prom.metricName = "net.nativepush.thread_budget_hard_limit",
+          Prom.metricHelp = "Hard limit for threads for native pushes"
+        }
+
+{-# NOINLINE threadBudgetSoftLimitGauge #-}
+threadBudgetSoftLimitGauge :: Prom.Gauge
+threadBudgetSoftLimitGauge =
+  Prom.unsafeRegister $
+    Prom.gauge
+      Prom.Info
+        { Prom.metricName = "net.nativepush.thread_budget_soft_limit",
+          Prom.metricHelp = "Soft limit for threads for native pushes"
+        }
+
+{-# NOINLINE threadBudgetHardLimitBreachedCounter #-}
+threadBudgetHardLimitBreachedCounter :: Prom.Counter
+threadBudgetHardLimitBreachedCounter =
+  Prom.unsafeRegister $
+    Prom.counter
+      Prom.Info
+        { Prom.metricName = "net.nativepush.thread_budget_hard_limit_breached",
+          Prom.metricHelp = "Number of times hard limit for threads for native pushes was breached"
+        }
+
+{-# NOINLINE threadBudgetSoftLimitBreachedCounter #-}
+threadBudgetSoftLimitBreachedCounter :: Prom.Counter
+threadBudgetSoftLimitBreachedCounter =
+  Prom.unsafeRegister $
+    Prom.counter
+      Prom.Info
+        { Prom.metricName = "net.nativepush.thread_budget_soft_limit_breached",
+          Prom.metricHelp = "Number of times soft limit for threads for native pushes was breached"
+        }
 
 threadDelayNominalDiffTime :: NominalDiffTime -> MonadIO m => m ()
 threadDelayNominalDiffTime = threadDelay . round . (* 1000000) . toRational

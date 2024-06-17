@@ -32,9 +32,7 @@ import Control.Lens (view, (.~), (^.))
 import Control.Monad.Codensity
 import Data.Aeson qualified as Aeson
 import Data.ByteString.UTF8 qualified as UTF8
-import Data.Metrics (Metrics)
 import Data.Metrics.AWS (gaugeTokenRemaing)
-import Data.Metrics.Middleware qualified as M
 import Data.Metrics.Servant
 import Data.Misc (portNumber)
 import Data.Singletons
@@ -58,6 +56,7 @@ import Network.Wai.Middleware.Gzip qualified as GZip
 import Network.Wai.Utilities.Error
 import Network.Wai.Utilities.Request
 import Network.Wai.Utilities.Server
+import Prometheus qualified as Prom
 import Servant hiding (route)
 import System.Logger qualified as Log
 import System.Logger.Extended (mkLogger)
@@ -77,10 +76,9 @@ run opts = lowerCodensity $ do
           (unpack $ opts ^. galley . host)
           (portNumber $ fromIntegral $ opts ^. galley . port)
           (env ^. App.applog)
-          (env ^. monitor)
 
   forM_ (env ^. aEnv) $ \aws ->
-    void $ Codensity $ Async.withAsync $ collectAuthMetrics (env ^. monitor) (aws ^. awsEnv)
+    void $ Codensity $ Async.withAsync $ collectAuthMetrics (aws ^. awsEnv)
 
   void $ Codensity $ Async.withAsync $ runApp env deleteLoop
   void $ Codensity $ Async.withAsync $ runApp env refreshMetrics
@@ -90,8 +88,7 @@ mkApp :: Opts -> Codensity IO (Application, Env)
 mkApp opts =
   do
     logger <- lift $ mkLogger (opts ^. logLevel) (opts ^. logNetStrings) (opts ^. logFormat)
-    metrics <- lift $ M.metrics
-    env <- lift $ App.createEnv metrics opts logger
+    env <- lift $ App.createEnv opts logger
     lift $ runClient (env ^. cstate) $ versionCheck schemaVersion
     let middlewares =
           versionMiddleware (foldMap expandVersionExp (opts ^. settings . disabledAPIVersions))
@@ -99,7 +96,7 @@ mkApp opts =
             . servantPrometheusMiddleware (Proxy @CombinedAPI)
             . GZip.gunzip
             . GZip.gzip GZip.def
-            . catchErrors logger defaultRequestIdHeaderName [Right metrics]
+            . catchErrors logger defaultRequestIdHeaderName
     Codensity $ \k -> finally (k ()) $ do
       Log.info logger $ Log.msg @Text "Galley application finished."
       Log.flush logger
@@ -179,17 +176,26 @@ type CombinedAPI =
 
 refreshMetrics :: App ()
 refreshMetrics = do
-  m <- view monitor
   q <- view deleteQueue
   safeForever "refreshMetrics" $ do
     n <- Q.len q
-    M.gaugeSet (fromIntegral n) (M.path "galley.deletequeue.len") m
+    Prom.setGauge deleteQueueLengthGauge (fromIntegral n)
     threadDelay 1000000
 
-collectAuthMetrics :: (MonadIO m) => Metrics -> AWS.Env -> m ()
-collectAuthMetrics m env = do
+{-# NOINLINE deleteQueueLengthGauge #-}
+deleteQueueLengthGauge :: Prom.Gauge
+deleteQueueLengthGauge =
+  Prom.unsafeRegister $
+    Prom.gauge
+      Prom.Info
+        { Prom.metricName = "galley.deletequeue.len",
+          Prom.metricHelp = "Length of the galley delete queue"
+        }
+
+collectAuthMetrics :: (MonadIO m) => AWS.Env -> m ()
+collectAuthMetrics env = do
   liftIO $
     forever $ do
       mbRemaining <- readAuthExpiration env
-      gaugeTokenRemaing m mbRemaining
+      gaugeTokenRemaing mbRemaining
       threadDelay 1_000_000

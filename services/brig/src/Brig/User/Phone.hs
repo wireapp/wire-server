@@ -51,6 +51,7 @@ import Data.Text qualified as Text
 import Data.Text.Ascii qualified as Ascii
 import Data.Text.Lazy (toStrict)
 import Imports
+import Prometheus (MonadMonitor)
 import Ropes.Nexmo qualified as Nexmo
 import System.Logger.Class qualified as Log
 import Wire.API.User
@@ -62,7 +63,8 @@ sendActivationSms ::
   ( MonadClient m,
     MonadReader Env m,
     MonadCatch m,
-    Log.MonadLogger m
+    Log.MonadLogger m,
+    MonadMonitor m
   ) =>
   Phone ->
   ActivationPair ->
@@ -77,7 +79,8 @@ sendPasswordResetSms ::
   ( MonadClient m,
     MonadReader Env m,
     MonadCatch m,
-    Log.MonadLogger m
+    Log.MonadLogger m,
+    MonadMonitor m
   ) =>
   Phone ->
   PasswordResetPair ->
@@ -92,7 +95,8 @@ sendLoginSms ::
   ( MonadClient m,
     MonadReader Env m,
     MonadCatch m,
-    Log.MonadLogger m
+    Log.MonadLogger m,
+    MonadMonitor m
   ) =>
   Phone ->
   LoginCode ->
@@ -107,7 +111,8 @@ sendDeletionSms ::
   ( MonadClient m,
     MonadReader Env m,
     MonadCatch m,
-    Log.MonadLogger m
+    Log.MonadLogger m,
+    MonadMonitor m
   ) =>
   Phone ->
   Code.Key ->
@@ -122,7 +127,8 @@ sendDeletionSms to key code loc = do
 sendActivationCall ::
   ( MonadClient m,
     MonadReader Env m,
-    Log.MonadLogger m
+    Log.MonadLogger m,
+    MonadMonitor m
   ) =>
   Phone ->
   ActivationPair ->
@@ -136,7 +142,8 @@ sendActivationCall to (_, c) loc = do
 sendLoginCall ::
   ( MonadClient m,
     MonadReader Env m,
-    Log.MonadLogger m
+    Log.MonadLogger m,
+    MonadMonitor m
   ) =>
   Phone ->
   LoginCode ->
