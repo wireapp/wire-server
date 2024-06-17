@@ -89,6 +89,13 @@ self: super: {
     ];
   };
 
+  haskellPackages = super.haskellPackages.override {
+    overrides = hself: hsuper: {
+      # https://github.com/ocharles/weeder/pull/165
+      weeder = self.haskell.lib.dontCheck (hself.callPackage ./pkgs/weeder { });
+    };
+  };
+
   stack = staticBinaryInTarball rec {
     pname = "stack";
     version = "2.7.3";

@@ -32,14 +32,14 @@
 # giving us the latest version.
 #
 # 3.3: External dependencies: cabal2nix sometimes fails to provide the external
-# dependencies like adding protobuf and mls-test-cli as a buld tools. So, we
+# dependencies like adding protobuf and mls-test-cli as buld tools. We
 # need to write overrides to ensure these are present during build.
 #
 # 3.4: Other overrides: We may need to override haskell package derivations for
 # some other reasons, like ensuring hoogle derivation produces just the
 # executable. We can use nix/manual-overrides.nix for this.
 #
-# Using thse tweaks we can get a haskell package set which has wire-server
+# Using these tweaks we can get a haskell package set which has wire-server
 # components and the required dependencies. We then use this package set along
 # with nixpkgs' dockerTools to make derivations for docker images that we need.
 pkgs:
@@ -420,6 +420,7 @@ let
     pkgs.cfssl
     pkgs.awscli2
     (hlib.justStaticExecutables pkgs.haskellPackages.cabal-fmt)
+    (hlib.justStaticExecutables pkgs.haskellPackages.weeder)
   ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
     pkgs.skopeo
   ];
