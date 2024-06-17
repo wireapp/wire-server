@@ -192,7 +192,6 @@ openConnectionWithRetries l RabbitMqOpts {..} hooks = do
 
     mkTLSSettings :: RabbitMqTlsOpts -> IO TLSSettings
     mkTLSSettings opts = do
-      -- TODO: throw better exception here
       setCAStore <- runMaybeT $ do
         path <- maybe mzero pure opts.caCert
         store <- MaybeT $ X509.readCertificateStore path
