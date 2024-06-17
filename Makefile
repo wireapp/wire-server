@@ -207,10 +207,10 @@ formatf:
 formatf-all:
 	./tools/ormolu.sh -f all
 
-# checks that all Haskell files are formatted; fail if a `make format` run is needed.
+# checks that all Haskell files changed in this PR are formatted; fail if a `make format` run is needed.
 .PHONY: formatc
 formatc:
-	./tools/ormolu.sh -c
+	./tools/ormolu.sh -c pr
 
 # For any Haskell or Rust file, update or add a license header if necessary.
 # Headers should be added according to Ormolu's formatting rules, but please check just in case.
