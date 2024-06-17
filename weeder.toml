@@ -2,5 +2,5 @@
 roots = ["^Main.main$", "^Paths_.*", "^Testlib.RunServices.main$", "^Testlib.Run.main$", "^Test.Wire.API.Golden.Run.main$"]
 type-class-roots = true  # `root-instances` is more precise, but requires more config maintenance.
 
-# TODO: unused-types = true
-# TODO: type-class-roots = false, and see how bad it gets
+# FUTUREWORK: unused-types = true
+# FUTUREWORK: type-class-roots = false, and see how bad it gets
