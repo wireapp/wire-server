@@ -27,6 +27,7 @@ import Imports
 import Network.AMQP qualified as Q
 import Network.Connection as Conn
 import Network.HTTP.Client qualified as HTTP
+import Network.HTTP.Client.TLS qualified as HTTP
 import Network.RabbitMqAdmin
 import Network.TLS
 import Network.TLS.Extra.Cipher
@@ -88,9 +89,13 @@ instance FromJSON RabbitMqAdminOpts where
 mkRabbitMqAdminClientEnv :: RabbitMqAdminOpts -> IO (AdminAPI (AsClientT IO))
 mkRabbitMqAdminClientEnv opts = do
   (username, password) <- readCredsFromEnv
-  manager <- HTTP.newManager HTTP.defaultManagerSettings
+  mTlsSettings <- traverse (mkTLSSettings opts.host) opts.tls
+  let (protocol, managerSettings) = case mTlsSettings of
+        Nothing -> (Servant.Http, HTTP.defaultManagerSettings)
+        Just tlsSettings -> (Servant.Https, HTTP.mkManagerSettings tlsSettings Nothing)
+  manager <- HTTP.newManager managerSettings
   let basicAuthData = Servant.BasicAuthData (Text.encodeUtf8 username) (Text.encodeUtf8 password)
-      clientEnv = Servant.mkClientEnv manager (Servant.BaseUrl Servant.Http opts.host opts.adminPort "")
+      clientEnv = Servant.mkClientEnv manager (Servant.BaseUrl protocol opts.host opts.adminPort "")
   pure . fromServant $
     hoistClient
       (Proxy @(ToServant AdminAPI AsApi))
@@ -172,7 +177,7 @@ openConnectionWithRetries l RabbitMqOpts {..} hooks = do
               )
               ( const $ do
                   Log.info l $ Log.msg (Log.val "Trying to connect to RabbitMQ")
-                  mTlsSettings <- traverse (liftIO . mkTLSSettings) tls
+                  mTlsSettings <- traverse (liftIO . (mkTLSSettings host)) tls
                   liftIO $
                     Q.openConnection'' $
                       Q.defaultConnectionOpts
@@ -189,28 +194,6 @@ openConnectionWithRetries l RabbitMqOpts {..} hooks = do
               `catch` logException l "onConnectionClose hook threw an exception, reconnecting to RabbitMQ anyway"
             connectWithRetries username password
         openChan conn
-
-    mkTLSSettings :: RabbitMqTlsOpts -> IO TLSSettings
-    mkTLSSettings opts = do
-      setCAStore <- runMaybeT $ do
-        path <- maybe mzero pure opts.caCert
-        store <- MaybeT $ X509.readCertificateStore path
-        pure $ \shared -> shared {sharedCAStore = store}
-      let setHooks =
-            if opts.insecureSkipVerifyTls
-              then \h -> h {onServerCertificate = \_ _ _ _ -> pure []}
-              else id
-      pure $
-        TLSSettings
-          (defaultParamsClient host "rabbitmq")
-            { clientShared = fromMaybe id setCAStore def,
-              clientHooks = setHooks def,
-              clientSupported =
-                def
-                  { supportedVersions = [TLS13, TLS12],
-                    supportedCiphers = ciphersuite_strong
-                  }
-            }
 
     openChan :: Q.Connection -> m ()
     openChan conn = do
@@ -234,6 +217,28 @@ openConnectionWithRetries l RabbitMqOpts {..} hooks = do
         _ -> do
           logException l "RabbitMQ channel closed" e
           openChan conn
+
+mkTLSSettings :: HostName -> RabbitMqTlsOpts -> IO TLSSettings
+mkTLSSettings host opts = do
+  setCAStore <- runMaybeT $ do
+    path <- maybe mzero pure opts.caCert
+    store <- MaybeT $ X509.readCertificateStore path
+    pure $ \shared -> shared {sharedCAStore = store}
+  let setHooks =
+        if opts.insecureSkipVerifyTls
+          then \h -> h {onServerCertificate = \_ _ _ _ -> pure []}
+          else id
+  pure $
+    TLSSettings
+      (defaultParamsClient host "rabbitmq")
+        { clientShared = fromMaybe id setCAStore def,
+          clientHooks = setHooks def,
+          clientSupported =
+            def
+              { supportedVersions = [TLS13, TLS12],
+                supportedCiphers = ciphersuite_strong
+              }
+        }
 
 logException :: (MonadIO m) => Logger -> String -> SomeException -> m ()
 logException l m (SomeException e) = do

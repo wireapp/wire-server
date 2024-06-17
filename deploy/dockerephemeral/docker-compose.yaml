@@ -268,8 +268,7 @@ services:
       - RABBITMQ_PASSWORD
     ports:
       - '127.0.0.1:5671:5671'
-      - '127.0.0.1:5672:5672'
-      - '127.0.0.1:15672:15672'
+      - '127.0.0.1:15671:15671'
     volumes:
       - ./rabbitmq-config/rabbitmq.conf:/etc/rabbitmq/conf.d/20-wire.conf
       - ./rabbitmq-config/certificates:/etc/rabbitmq/certificates
