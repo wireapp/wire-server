@@ -1,5 +1,5 @@
 # weeder intro and further reading: https://github.com/ocharles/weeder?tab=readme-ov-file#weeder
-roots = ["^Main.main$", "^Paths_.*\\..*"]
+roots = ["^Main.main$", "^Paths_.*\\..*", "Testlib.RunServices.main", "Testlib.Run.main", "Test.Wire.API.Golden.Run.main"]
 type-class-roots = true  # `root-instances` is more precise, but requires more config maintenance.
 
 # TODO: unused-types = true
