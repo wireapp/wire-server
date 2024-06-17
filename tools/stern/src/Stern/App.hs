@@ -33,7 +33,6 @@ import Control.Monad.Reader.Class
 import Control.Monad.Trans.Class
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
-import Data.Metrics.Middleware qualified as Metrics
 import Data.Text.Encoding (encodeUtf8)
 import Data.UUID (toString)
 import Data.UUID.V4 qualified as UUID
@@ -59,7 +58,6 @@ data Env = Env
     _ibis :: !Bilge.Request,
     _galeb :: !Bilge.Request,
     _applog :: !Logger,
-    _metrics :: !Metrics.Metrics,
     _requestId :: !Bilge.RequestId,
     _httpManager :: !Bilge.Manager
   }
@@ -68,9 +66,8 @@ makeLenses ''Env
 
 newEnv :: Opts -> IO Env
 newEnv o = do
-  mt <- Metrics.metrics
   l <- Log.mkLogger (O.logLevel o) (O.logNetStrings o) (O.logFormat o)
-  Env (mkRequest $ O.brig o) (mkRequest $ O.galley o) (mkRequest $ O.gundeck o) (mkRequest $ O.ibis o) (mkRequest $ O.galeb o) l mt (RequestId "N/A")
+  Env (mkRequest $ O.brig o) (mkRequest $ O.galley o) (mkRequest $ O.gundeck o) (mkRequest $ O.ibis o) (mkRequest $ O.galeb o) l (RequestId "N/A")
     <$> newManager
   where
     mkRequest s = Bilge.host (encodeUtf8 (s ^. host)) . Bilge.port (s ^. port) $ Bilge.empty

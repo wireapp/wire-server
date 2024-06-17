@@ -54,7 +54,6 @@ module Brig.App
     zauthEnv,
     digestSHA256,
     digestMD5,
-    metrics,
     applog,
     turnEnv,
     sftEnv,
@@ -122,8 +121,6 @@ import Control.Monad.Trans.Resource
 import Data.ByteString.Conversion
 import Data.Credentials (Credentials (..))
 import Data.Domain
-import Data.Metrics (Metrics)
-import Data.Metrics.Middleware qualified as Metrics
 import Data.Misc
 import Data.Qualified
 import Data.Text qualified as Text
@@ -144,6 +141,7 @@ import OpenSSL.Session qualified as SSL
 import Polysemy
 import Polysemy.Final
 import Polysemy.Input (Input, input)
+import Prometheus
 import Ropes.Nexmo qualified as Nexmo
 import Ropes.Twilio qualified as Twilio
 import Ssl.Util
@@ -174,7 +172,6 @@ data Env = Env
     _smtpEnv :: Maybe SMTP.SMTP,
     _emailSender :: Email,
     _awsEnv :: AWS.Env,
-    _metrics :: Metrics,
     _applog :: Logger,
     _internalEvents :: QueueEnv,
     _requestId :: RequestId,
@@ -218,7 +215,6 @@ newEnv o = do
   Just md5 <- getDigestByName "MD5"
   Just sha256 <- getDigestByName "SHA256"
   Just sha512 <- getDigestByName "SHA512"
-  mtr <- Metrics.metrics
   lgr <- Log.mkLogger (Opt.logLevel o) (Opt.logNetStrings o) (Opt.logFormat o)
   cas <- initCassandra o lgr
   mgr <- initHttpManager
@@ -263,7 +259,7 @@ newEnv o = do
   kpLock <- newMVar ()
   rabbitChan <- traverse (Q.mkRabbitMqChannelMVar lgr) o.rabbitmq
   let allDisabledVersions = foldMap expandVersionExp (Opt.setDisabledAPIVersions sett)
-  idxEnv <- mkIndexEnv o.elasticsearch lgr mtr (Opt.galley o) mgr
+  idxEnv <- mkIndexEnv o.elasticsearch lgr (Opt.galley o) mgr
   pure $!
     Env
       { _cargohold = mkEndpoint $ Opt.cargohold o,
@@ -276,7 +272,6 @@ newEnv o = do
         _smtpEnv = emailSMTP,
         _emailSender = Opt.emailSender . Opt.general . Opt.emailSMS $ o,
         _awsEnv = aws, -- used by `journalEvent` directly
-        _metrics = mtr,
         _applog = lgr,
         _internalEvents = (eventsQueue :: QueueEnv),
         _requestId = RequestId "N/A",
@@ -317,8 +312,8 @@ newEnv o = do
       pure (Nothing, Just smtp)
     mkEndpoint service = RPC.host (encodeUtf8 (service ^. host)) . RPC.port (service ^. port) $ RPC.empty
 
-mkIndexEnv :: ElasticSearchOpts -> Logger -> Metrics -> Endpoint -> Manager -> IO IndexEnv
-mkIndexEnv esOpts logger metricsStorage galleyEp rpcHttpManager = do
+mkIndexEnv :: ElasticSearchOpts -> Logger -> Endpoint -> Manager -> IO IndexEnv
+mkIndexEnv esOpts logger galleyEp rpcHttpManager = do
   mEsCreds :: Maybe Credentials <- for esOpts.credentials initCredentials
   mEsAddCreds :: Maybe Credentials <- for esOpts.additionalCredentials initCredentials
 
@@ -333,8 +328,7 @@ mkIndexEnv esOpts logger metricsStorage galleyEp rpcHttpManager = do
       mkBhEnv esOpts.additionalInsecureSkipVerifyTls esOpts.additionalCaCert mEsAddCreds
   pure $
     IndexEnv
-      { idxMetrics = metricsStorage,
-        idxLogger = esLogger,
+      { idxLogger = esLogger,
         idxElastic = bhEnv,
         idxRequest = Nothing,
         idxName = esOpts.index,
@@ -490,6 +484,9 @@ instance Monad (AppT r) where
 instance MonadIO (AppT r) where
   liftIO io = AppT $ lift $ embedFinal io
 
+instance MonadMonitor (AppT r) where
+  doIO = liftIO
+
 instance MonadThrow (AppT r) where
   throwM = liftIO . throwM
 
@@ -603,6 +600,9 @@ instance Cas.MonadClient HttpClientIO where
     env <- ask
     liftIO $ runClient (view casClient env) cl
   localState f = local (casClient %~ f)
+
+instance MonadMonitor HttpClientIO where
+  doIO = liftIO
 
 wrapHttpClient ::
   HttpClientIO a ->

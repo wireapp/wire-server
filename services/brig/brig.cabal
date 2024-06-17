@@ -310,6 +310,7 @@ library
     , polysemy-plugin
     , polysemy-time
     , polysemy-wire-zoo
+    , prometheus-client
     , proto-lens                 >=0.1
     , random-shuffle             >=0.0.3
     , raw-strings-qq

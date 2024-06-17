@@ -16,14 +16,24 @@
 
 module Data.Metrics.AWS (gaugeTokenRemaing) where
 
-import Data.Metrics (Metrics, gaugeSet, path)
 import Data.Time
 import Imports
+import Prometheus qualified as Prom
 
-gaugeTokenRemaing :: Metrics -> Maybe NominalDiffTime -> IO ()
-gaugeTokenRemaing m mbRemaining = do
+gaugeTokenRemaing :: Maybe NominalDiffTime -> IO ()
+gaugeTokenRemaing mbRemaining = do
   let t = toSeconds (fromMaybe 0 mbRemaining)
-  gaugeSet t (path "aws_auth.token_secs_remaining") m
+  Prom.setGauge awsAuthTokenSecsRemaining t
   where
     toSeconds :: NominalDiffTime -> Double
     toSeconds = fromRational . toRational
+
+{-# NOINLINE awsAuthTokenSecsRemaining #-}
+awsAuthTokenSecsRemaining :: Prom.Gauge
+awsAuthTokenSecsRemaining =
+  Prom.unsafeRegister $
+    Prom.gauge
+      Prom.Info
+        { Prom.metricName = "aws_auth.token_secs_remaining",
+          Prom.metricHelp = "Number of seconds left before AWS Auth expires"
+        }

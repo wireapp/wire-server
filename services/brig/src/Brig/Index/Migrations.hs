@@ -29,7 +29,6 @@ import Control.Lens (to, view, (^.))
 import Control.Monad.Catch (MonadThrow, catchAll, finally, throwM)
 import Data.Aeson (Value, object, (.=))
 import Data.Credentials (Credentials (..))
-import Data.Metrics qualified as Metrics
 import Data.Text qualified as Text
 import Database.Bloodhound qualified as ES
 import Imports
@@ -87,7 +86,6 @@ mkEnv l es cas galleyEndpoint = do
   Env envWithAuth
     <$> initCassandra
     <*> initLogger
-    <*> Metrics.metrics
     <*> pure (view (Opts.esConnection . to Opts.esIndex) es)
     <*> pure mCreds
     <*> pure rpcMgr

@@ -75,12 +75,12 @@ import Data.HashMap.Strict qualified as HashMap
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Map qualified as Map
-import Data.Metrics qualified as Metrics
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Time.Clock
 import Data.UUID qualified as UUID
 import Imports
+import Prometheus qualified as Prom
 import System.CryptoBox (Result (Success))
 import System.CryptoBox qualified as CryptoBox
 import System.Logger.Class (field, msg, val)
@@ -289,7 +289,8 @@ claimPrekey ::
   ( Log.MonadLogger m,
     MonadMask m,
     MonadClient m,
-    MonadReader Brig.App.Env m
+    MonadReader Brig.App.Env m,
+    Prom.MonadMonitor m
   ) =>
   UserId ->
   ClientId ->
@@ -498,7 +499,8 @@ withOptLock ::
   forall a m.
   ( MonadIO m,
     MonadReader Brig.App.Env m,
-    Log.MonadLogger m
+    Log.MonadLogger m,
+    Prom.MonadMonitor m
   ) =>
   UserId ->
   ClientId ->
@@ -545,15 +547,14 @@ withOptLock u c ma = go (10 :: Int)
     toAttributeValue :: Word32 -> AWS.AttributeValue
     toAttributeValue w = AWS.N $ AWS.toText (fromIntegral w :: Int)
     reportAttemptFailure :: m ()
-    reportAttemptFailure =
-      Metrics.counterIncr (Metrics.path "client.opt_lock.optimistic_lock_grab_attempt_failed") =<< view metrics
+    reportAttemptFailure = Prom.incCounter optimisticLockGrabAttemptFailedCounter
     reportFailureAndLogError :: m ()
     reportFailureAndLogError = do
       Log.err $
         Log.field "user" (toByteString' u)
           . Log.field "client" (toByteString' c)
           . msg (val "PreKeys: Optimistic lock failed")
-      Metrics.counterIncr (Metrics.path "client.opt_lock.optimistic_lock_failed") =<< view metrics
+      Prom.incCounter optimisticLockFailedCounter
     execDyn ::
       forall r x.
       (AWS.AWSRequest r, Typeable r, Typeable (AWS.AWSResponse r)) =>
@@ -563,27 +564,55 @@ withOptLock u c ma = go (10 :: Int)
     execDyn cnv mkCmd = do
       cmd <- mkCmd <$> view (awsEnv . prekeyTable)
       e <- view (awsEnv . amazonkaEnv)
-      m <- view metrics
-      liftIO $ execDyn' e m cnv cmd
+      liftIO $ execDyn' e cnv cmd
       where
         execDyn' ::
           forall y p.
           (AWS.AWSRequest p, Typeable (AWS.AWSResponse p), Typeable p) =>
           AWS.Env ->
-          Metrics.Metrics ->
           (AWS.AWSResponse p -> Maybe y) ->
           p ->
           IO (Maybe y)
-        execDyn' e m conv cmd = recovering policy handlers (const run)
+        execDyn' e conv cmd = recovering policy handlers (const run)
           where
             run = execCatch e cmd >>= either handleErr (pure . conv)
             handlers = httpHandlers ++ [const $ EL.handler_ AWS._ConditionalCheckFailedException (pure True)]
             policy = limitRetries 3 <> exponentialBackoff 100000
             handleErr (AWS.ServiceError se) | se ^. AWS.serviceError_code == AWS.ErrorCode "ProvisionedThroughputExceeded" = do
-              Metrics.counterIncr (Metrics.path "client.opt_lock.provisioned_throughput_exceeded") m
+              Prom.incCounter dynProvisionedThroughputExceededCounter
               pure Nothing
             handleErr _ = pure Nothing
 
 withLocalLock :: (MonadMask m, MonadIO m) => MVar () -> m a -> m a
 withLocalLock l ma = do
   (takeMVar l *> ma) `finally` putMVar l ()
+
+{-# NOINLINE optimisticLockGrabAttemptFailedCounter #-}
+optimisticLockGrabAttemptFailedCounter :: Prom.Counter
+optimisticLockGrabAttemptFailedCounter =
+  Prom.unsafeRegister $
+    Prom.counter
+      Prom.Info
+        { Prom.metricName = "client.opt_lock.optimistic_lock_grab_attempt_failed",
+          Prom.metricHelp = "Number of times grab attempts for optimisitic lock on prekeys failed"
+        }
+
+{-# NOINLINE optimisticLockFailedCounter #-}
+optimisticLockFailedCounter :: Prom.Counter
+optimisticLockFailedCounter =
+  Prom.unsafeRegister $
+    Prom.counter
+      Prom.Info
+        { Prom.metricName = "client.opt_lock.optimistic_lock_failed",
+          Prom.metricHelp = "Number of time optimisitic lock on prekeys failed"
+        }
+
+{-# NOINLINE dynProvisionedThroughputExceededCounter #-}
+dynProvisionedThroughputExceededCounter :: Prom.Counter
+dynProvisionedThroughputExceededCounter =
+  Prom.unsafeRegister $
+    Prom.counter
+      Prom.Info
+        { Prom.metricName = "client.opt_lock.provisioned_throughput_exceeded",
+          Prom.metricHelp = "Number of times provisioned throughput on DynamoDB was exceeded"
+        }

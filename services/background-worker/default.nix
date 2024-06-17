@@ -21,7 +21,6 @@
 , http2-manager
 , imports
 , lib
-, metrics-core
 , metrics-wai
 , monad-control
 , prometheus-client
@@ -60,7 +59,6 @@ mkDerivation {
     http-client
     http2-manager
     imports
-    metrics-core
     metrics-wai
     monad-control
     prometheus-client

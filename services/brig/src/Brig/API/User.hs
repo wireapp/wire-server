@@ -137,7 +137,6 @@ import Data.Json.Util
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Extra
 import Data.List1 as List1 (List1, singleton)
-import Data.Metrics qualified as Metrics
 import Data.Misc
 import Data.Qualified
 import Data.Range
@@ -149,6 +148,7 @@ import Polysemy
 import Polysemy.Input (Input)
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
+import Prometheus qualified as Prom
 import System.Logger.Message
 import UnliftIO.Async (mapConcurrently_)
 import Wire.API.Connection
@@ -973,11 +973,10 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
       throwE (ActivationBlacklistedUserKey pk)
     c <- lift . wrapClient $ fmap snd <$> Data.lookupActivationCode pk
     p <- wrapClientE $ mkPair pk c Nothing
-    void . forPhoneKey pk $ \ph ->
-      lift $
-        if call
-          then wrapClient $ sendActivationCall ph p loc
-          else wrapClient $ sendActivationSms ph p loc
+    void . lift . wrapHttp $ forPhoneKey pk $ \ph ->
+      if call
+        then sendActivationCall ph p loc
+        else sendActivationSms ph p loc
   where
     notFound = throwM . UserDisplayNameNotFound
     mkPair k c u = do
@@ -1211,7 +1210,7 @@ deleteSelfUser uid pwd = do
           let n = userDisplayName (accountUser a)
           either
             (\e -> lift $ sendDeletionEmail n e k v l)
-            (\p -> lift $ wrapClient $ sendDeletionSms p k v l)
+            (\p -> lift $ wrapHttp $ sendDeletionSms p k v l)
             target
             `onException` wrapClientE (Code.delete k Code.AccountDeletion)
           pure $! Just $! Code.codeTTL c
@@ -1369,9 +1368,28 @@ deleteUsersNoVerify ::
   AppT r ()
 deleteUsersNoVerify uids = do
   liftSem $ for_ uids deleteUserNoVerify
-  m <- view metrics
-  Metrics.counterAdd (fromIntegral . length $ uids) (Metrics.path "user.enqueue_multi_delete_total") m
-  Metrics.counterIncr (Metrics.path "user.enqueue_multi_delete_calls_total") m
+  void $ Prom.addCounter enqueueMultiDeleteCounter (fromIntegral $ length uids)
+  Prom.incCounter enqueueMultiDeleteCallsCounter
+
+{-# NOINLINE enqueueMultiDeleteCounter #-}
+enqueueMultiDeleteCounter :: Prom.Counter
+enqueueMultiDeleteCounter =
+  Prom.unsafeRegister $
+    Prom.counter
+      Prom.Info
+        { Prom.metricName = "user.enqueue_multi_delete_total",
+          Prom.metricHelp = "Number of users enqueued to be deleted"
+        }
+
+{-# NOINLINE enqueueMultiDeleteCallsCounter #-}
+enqueueMultiDeleteCallsCounter :: Prom.Counter
+enqueueMultiDeleteCallsCounter =
+  Prom.unsafeRegister $
+    Prom.counter
+      Prom.Info
+        { Prom.metricName = "user.enqueue_multi_delete_calls_total",
+          Prom.metricHelp = "Number of users enqueued to be deleted"
+        }
 
 -- | Similar to lookupProfiles except it returns all results and all errors
 -- allowing for partial success.

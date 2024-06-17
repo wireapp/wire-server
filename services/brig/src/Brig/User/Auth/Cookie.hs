@@ -52,13 +52,13 @@ import Control.Monad.Except
 import Data.ByteString.Conversion
 import Data.Id
 import Data.List qualified as List
-import Data.Metrics qualified as Metrics
 import Data.Proxy
 import Data.RetryAfter
 import Data.Time.Clock
 import Imports
 import Network.Wai (Response)
 import Network.Wai.Utilities.Response (addHeader)
+import Prometheus qualified as Prom
 import System.Logger.Class (field, msg, val, (~~))
 import System.Logger.Class qualified as Log
 import Web.Cookie qualified as WebCookie
@@ -104,7 +104,8 @@ nextCookie ::
     MonadReader Env m,
     Log.MonadLogger m,
     ZAuth.MonadZAuth m,
-    MonadClient m
+    MonadClient m,
+    Prom.MonadMonitor m
   ) =>
   Cookie (ZAuth.Token u) ->
   Maybe ClientId ->
@@ -291,11 +292,20 @@ toWebCookie c = do
 --------------------------------------------------------------------------------
 -- Tracking
 
-trackSuperseded :: (MonadReader Env m, MonadIO m, Log.MonadLogger m) => UserId -> CookieId -> m ()
+trackSuperseded :: (MonadIO m, Log.MonadLogger m, Prom.MonadMonitor m) => UserId -> CookieId -> m ()
 trackSuperseded u c = do
-  m <- view metrics
-  Metrics.counterIncr (Metrics.path "user.auth.cookie.superseded") m
+  Prom.incCounter cookieSupersededCounter
   Log.warn $
     msg (val "Superseded cookie used")
       ~~ field "user" (toByteString u)
       ~~ field "cookie" (cookieIdNum c)
+
+{-# NOINLINE cookieSupersededCounter #-}
+cookieSupersededCounter :: Prom.Counter
+cookieSupersededCounter =
+  Prom.unsafeRegister $
+    Prom.counter
+      Prom.Info
+        { Prom.metricName = "user.auth.cookie.superseded",
+          Prom.metricHelp = "Number of times user's cookie got superseded"
+        }

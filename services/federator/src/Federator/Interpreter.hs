@@ -114,7 +114,7 @@ serveServant env port server = do
         hoistServerWithContext (Proxy @api) (Proxy @'[]) (runFederator env rid) server
   Warp.run port
     . requestIdMiddleware env._applog federationRequestIdHeaderName
-    . Wai.catchErrors (view applog env) federationRequestIdHeaderName []
+    . Wai.catchErrors (view applog env) federationRequestIdHeaderName
     . Metrics.servantPrometheusMiddleware (Proxy @api)
     $ app hoistApp
   where

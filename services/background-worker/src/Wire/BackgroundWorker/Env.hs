@@ -7,7 +7,6 @@ import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Trans.Control
 import Data.Map.Strict qualified as Map
-import Data.Metrics qualified as Metrics
 import HTTP2.Client.Manager
 import Imports
 import Network.AMQP.Extended
@@ -35,7 +34,6 @@ data Env = Env
     rabbitmqAdminClient :: RabbitMqAdmin.AdminAPI (Servant.AsClientT IO),
     rabbitmqVHost :: Text,
     logger :: Logger,
-    metrics :: Metrics.Metrics,
     federatorInternal :: Endpoint,
     httpManager :: Manager,
     defederationTimeout :: ResponseTimeout,
@@ -75,7 +73,6 @@ mkEnv opts = do
       Map.fromList
         [ (BackendNotificationPusher, False)
         ]
-  metrics <- Metrics.metrics
   backendNotificationMetrics <- mkBackendNotificationMetrics
   let backendNotificationsConfig = opts.backendNotificationPusher
   pure Env {..}

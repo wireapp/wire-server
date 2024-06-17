@@ -115,6 +115,7 @@ library
     , metrics-core
     , metrics-wai            >=0.4
     , mime                   >=0.4
+    , prometheus-client
     , resourcet              >=1.1
     , retry                  >=0.5
     , servant

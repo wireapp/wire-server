@@ -68,6 +68,7 @@
 , polysemy
 , polysemy-wire-zoo
 , process
+, prometheus-client
 , proto-lens
 , protobuf
 , QuickCheck
@@ -179,6 +180,7 @@ mkDerivation {
     pem
     polysemy
     polysemy-wire-zoo
+    prometheus-client
     proto-lens
     raw-strings-qq
     resourcet

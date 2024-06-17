@@ -21,7 +21,6 @@ module Gundeck.Monad
   ( -- * Environment
     Env,
     reqId,
-    monitor,
     options,
     applog,
     manager,
@@ -61,6 +60,7 @@ import Imports
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Utilities
+import Prometheus
 import System.Logger qualified as Log
 import System.Logger qualified as Logger
 import System.Logger.Class
@@ -83,6 +83,10 @@ newtype Gundeck a = Gundeck
       MonadClient,
       MonadUnliftIO
     )
+
+-- This can be derived if we resolve the TODO above.
+instance MonadMonitor Gundeck where
+  doIO = liftIO
 
 -- | 'Gundeck' doesn't have an instance for 'MonadRedis' because it contains two
 -- connections to two redis instances. When using 'WithDefaultRedis', any redis
