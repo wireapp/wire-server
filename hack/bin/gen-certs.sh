@@ -11,7 +11,7 @@ TEMP=$(mktemp -d wire-server-self-signed-XXXXXX --tmpdir)
 cleanup() {
   rm -fr "$TEMP"
 }
-# trap cleanup EXIT
+trap cleanup EXIT
 
 # usage: gen_ca root name
 #
