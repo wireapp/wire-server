@@ -75,6 +75,13 @@ brig:
       additionalTlsCaSecretRef:
         name: "elasticsearch-ephemeral-certificate"
         key: "ca.crt"
+    rabbitmq:
+      port: 5671
+      enableTls: true
+      insecureSkipVerifyTls: false
+      tlsCaSecretRef:
+        name: rabbitmq-certificate
+        key: "ca.crt"
     authSettings:
       userTokenTimeout: 120
       sessionTokenTimeout: 20
@@ -233,6 +240,13 @@ galley:
           name: "cassandra-jks-keystore"
           key: "ca.crt"
     {{- end }}
+    rabbitmq:
+      port: 5671
+      enableTls: true
+      insecureSkipVerifyTls: false
+      tlsCaSecretRef:
+        name: rabbitmq-certificate
+        key: "ca.crt"
     enableFederation: true # keep in sync with brig.config.enableFederation, cargohold.config.enableFederation and tags.federator!
     settings:
       maxConvAndTeamSize: 16
@@ -471,6 +485,14 @@ background-worker:
       pushBackoffMinWait: 1000 # 1ms
       pushBackoffMaxWait: 500000 # 0.5s
       remotesRefreshInterval: 1000000 # 1s
+    rabbitmq:
+      port: 5671
+      adminPort: 15671
+      enableTls: true
+      insecureSkipVerifyTls: false
+      tlsCaSecretRef:
+        name: rabbitmq-certificate
+        key: "ca.crt"
   secrets:
     rabbitmq:
       username: {{ .Values.rabbitmqUsername }}

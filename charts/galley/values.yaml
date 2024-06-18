@@ -35,6 +35,11 @@ config:
     host: rabbitmq
     port: 5672
     vHost: /
+    enableTls: false
+    insecureSkipVerifyTls: false
+    # tlsCaSecretRef:
+    #   name: <secret-name>
+    #   key: <ca-attribute>
   settings:
     httpPoolSize: 128
     maxTeamSize: 10000

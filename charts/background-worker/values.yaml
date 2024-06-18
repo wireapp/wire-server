@@ -23,6 +23,12 @@ config:
     port: 5672
     vHost: /
     adminPort: 15672
+    enableTls: false
+    insecureSkipVerifyTls: false
+    # tlsCaSecretRef:
+    #   name: <secret-name>
+    #   key: <ca-attribute>
+
   backendNotificationPusher:
     pushBackoffMinWait: 10000 # in microseconds, so 10ms
     pushBackoffMaxWait: 300000000 # microseconds, so 300s
