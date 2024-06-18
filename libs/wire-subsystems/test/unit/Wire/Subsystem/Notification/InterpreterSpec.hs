@@ -1,4 +1,4 @@
-module Wire.NotificationSubsystem.InterpreterSpec (spec) where
+module Wire.Subsystem.Notification.InterpreterSpec (spec) where
 
 import Bilge (RequestId (..))
 import Control.Concurrent.Async (async, wait)
@@ -23,10 +23,10 @@ import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 import Wire.GundeckAPIAccess
 import Wire.GundeckAPIAccess qualified as GundeckAPIAccess
-import Wire.NotificationSubsystem
-import Wire.NotificationSubsystem.Interpreter
 import Wire.Sem.Delay
 import Wire.Sem.Logger.TinyLog
+import Wire.Subsystem.Notification
+import Wire.Subsystem.Notification.Interpreter
 
 spec :: Spec
 spec = describe "NotificationSubsystem.Interpreter" do

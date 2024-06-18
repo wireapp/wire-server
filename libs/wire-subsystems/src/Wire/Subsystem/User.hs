@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Wire.UserSubsystem where
+module Wire.Subsystem.User where
 
 import Data.Default
 import Data.Handle (Handle)
