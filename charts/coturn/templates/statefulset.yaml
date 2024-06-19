@@ -142,7 +142,7 @@ spec:
                 command:
                   - /bin/sh
                   - -c
-                  - exec /usr/local/bin/pre-stop-hook "$POD_IP" {{ .Values.coturnMetricsListenPort }}
+                  - "kill -s SIGUSR1 1; exec /usr/local/bin/pre-stop-hook \"$POD_IP\" {{ .Values.coturnMetricsListenPort }}"
           {{- end }}
 
           ports:
