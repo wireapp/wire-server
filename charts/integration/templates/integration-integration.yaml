@@ -84,6 +84,10 @@ spec:
       secret:
         secretName: {{ .Values.config.redis.tlsCaSecretRef.name }}
 
+    - name: rabbitmq-ca
+      secret:
+        secretName: {{ .Values.config.rabbitmq.tlsCaSecretRef.name }}
+
     {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
     - name: integration-cassandra
       secret:
@@ -245,6 +249,15 @@ spec:
 
     - name: redis-ca
       mountPath: /etc/wire/gundeck/redis-ca
+
+    - name: rabbitmq-ca
+      mountPath: /etc/wire/brig/rabbitmq-ca
+
+    - name: rabbitmq-ca
+      mountPath: /etc/wire/galley/rabbitmq-ca
+
+    - name: rabbitmq-ca
+      mountPath: /etc/wire/background-worker/rabbitmq-ca
 
     {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
     - name: "integration-cassandra"

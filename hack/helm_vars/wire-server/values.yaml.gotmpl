@@ -519,6 +519,10 @@ integration:
       tlsCaSecretRef:
         name: "redis-certificate"
         key: "ca.crt"
+    rabbitmq:
+      tlsCaSecretRef:
+        name: "rabbitmq-certificate"
+        key: "ca.crt"
     {{- if .Values.uploadXml }}
     uploadXml:
       baseUrl: {{ .Values.uploadXml.baseUrl }}
