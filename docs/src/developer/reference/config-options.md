@@ -1085,7 +1085,7 @@ gundeck:
 
 **WARNING:** Please do this only if you know what you're doing.
 
-In case it is not possible to verify TLS certificate of the elasticsearch
+In case it is not possible to verify TLS certificate of the redis
 server, it can be turned off without tuning off TLS like this:
 
 ```yaml
@@ -1096,3 +1096,32 @@ gundeck:
     redisAdditionalWrite:
       insecureSkipVerifyTls: true
 ```
+
+## Configure RabbitMQ
+
+RabbitMQ authentication must be configured on brig, galley and background-worker. For example:
+
+```yaml
+rabbitmq:
+  host: localhost
+  port: 5672
+  vHost: /
+  adminPort: 15672 # for background-worker
+```
+
+the `adminPort` setting is only needed by background-worker.
+
+In order to enable TLS when connecting to RabbitMQ, the following settings need to be added:
+
+```yaml
+rabbitmq:
+  enableTls: true
+  caCert: test/resources/rabbitmq-ca.pem
+  insecureSkipVerifyTls: false
+```
+
+**WARNING:** Please do this only if you know what you're doing.
+
+In case it is not possible to verify the TLS certificate of the RabbitMQ
+server, verification can be turned off by settings `insecureSkipVerifyTls` to
+`true`.
