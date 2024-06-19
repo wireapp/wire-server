@@ -22,7 +22,7 @@ tests =
         ]
     ]
 
-realWorldArnTest :: HasCallStack => (String -> IO ()) -> Assertion
+realWorldArnTest :: (HasCallStack) => (String -> IO ()) -> Assertion
 realWorldArnTest step = do
   step "Given an ARN from a test environment"
   let arnText :: Text = "arn:aws:sns:eu-central-1:091205192927:endpoint/GCM/sven-test-782078216207/ded226c7-45b8-3f6c-9e89-f253340bbb60"
@@ -39,7 +39,7 @@ realWorldArnTest step = do
   step "Expect values to be de-serialized correctly"
   (toText arnData) @?= arnText
 
-madeUpArnTest :: HasCallStack => (String -> IO ()) -> Assertion
+madeUpArnTest :: (HasCallStack) => (String -> IO ()) -> Assertion
 madeUpArnTest step = do
   step "Given an ARN with data to cover untested cases"
   let arnText :: Text = "arn:aws:sns:us-east-2:000000000001:endpoint/APNS/nodash-000000000002/8ffd8d14-db06-4f3a-a3bb-08264b9dbfb0"

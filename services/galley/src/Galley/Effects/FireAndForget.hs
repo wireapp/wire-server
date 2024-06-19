@@ -36,14 +36,14 @@ data FireAndForget m a where
 
 makeSem ''FireAndForget
 
-fireAndForget :: Member FireAndForget r => Sem r () -> Sem r ()
+fireAndForget :: (Member FireAndForget r) => Sem r () -> Sem r ()
 fireAndForget = fireAndForgetOne
 
 -- | Run actions in separate threads and ignore results.
 --
 -- /Note/: this will also ignore any state and error effects contained in the
 -- 'FireAndForget' action. Use with care.
-interpretFireAndForget :: Member (Final IO) r => Sem (FireAndForget ': r) a -> Sem r a
+interpretFireAndForget :: (Member (Final IO) r) => Sem (FireAndForget ': r) a -> Sem r a
 interpretFireAndForget = interpretFinal @IO $ \case
   FireAndForgetOne action -> do
     action' <- runS action

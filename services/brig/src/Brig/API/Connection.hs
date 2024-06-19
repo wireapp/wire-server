@@ -72,7 +72,7 @@ import Wire.GalleyAPIAccess
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
 
-ensureNotSameTeam :: Member GalleyAPIAccess r => Local UserId -> Local UserId -> (ConnectionM r) ()
+ensureNotSameTeam :: (Member GalleyAPIAccess r) => Local UserId -> Local UserId -> (ConnectionM r) ()
 ensureNotSameTeam self target = do
   selfTeam <- lift $ liftSem $ GalleyAPIAccess.getTeamId (tUnqualified self)
   targetTeam <- lift $ liftSem $ GalleyAPIAccess.getTeamId (tUnqualified target)
@@ -191,7 +191,7 @@ createConnectionToLocalUser self conn target = do
 -- FUTUREWORK: we may want to move this to the LH application logic, so we can recycle it for
 -- group conv creation and possibly other situations.
 checkLegalholdPolicyConflict ::
-  Member GalleyAPIAccess r =>
+  (Member GalleyAPIAccess r) =>
   UserId ->
   UserId ->
   ExceptT ConnectionError (AppT r) ()
@@ -397,7 +397,7 @@ localConnection la lb = do
   lift (wrapClient $ Data.lookupConnection la (tUntagged lb))
     >>= tryJust (NotConnected (tUnqualified la) (tUntagged lb))
 
-mkRelationWithHistory :: HasCallStack => Relation -> Relation -> RelationWithHistory
+mkRelationWithHistory :: (HasCallStack) => Relation -> Relation -> RelationWithHistory
 mkRelationWithHistory oldRel = \case
   Accepted -> AcceptedWithHistory
   Blocked -> BlockedWithHistory

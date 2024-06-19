@@ -108,7 +108,7 @@ deriving newtype instance (MonadBase b m) => MonadBase b (AppT m)
 deriving newtype instance (MonadBaseControl b m) => MonadBaseControl b (AppT m)
 
 -- Coppied from Federator.
-instance MonadUnliftIO m => MonadUnliftIO (AppT m) where
+instance (MonadUnliftIO m) => MonadUnliftIO (AppT m) where
   withRunInIO inner =
     AppT . ReaderT $ \r ->
       withRunInIO $ \runner ->

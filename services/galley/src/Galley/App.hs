@@ -212,7 +212,7 @@ initHttp2Manager = do
   http2ManagerWithSSLCtx ctx
 
 interpretTinyLog ::
-  Member (Embed IO) r =>
+  (Member (Embed IO) r) =>
   Env ->
   Sem (P.TinyLog ': r) a ->
   Sem r a

@@ -74,21 +74,21 @@ codeStoreToCassandra =
     toRecord (prqdCode, prqdUser, prqdRetries, prqdTimeout) =
       PRQueryData {..}
 
-genEmailCode :: MonadIO m => m PasswordResetCode
+genEmailCode :: (MonadIO m) => m PasswordResetCode
 genEmailCode = PasswordResetCode . encodeBase64Url <$> liftIO (randBytes 24)
 
-genPhoneCode :: MonadIO m => m PasswordResetCode
+genPhoneCode :: (MonadIO m) => m PasswordResetCode
 genPhoneCode =
   PasswordResetCode . unsafeFromText . pack . printf "%06d"
     <$> liftIO (randIntegerZeroToNMinusOne 1000000)
 
-mkPwdResetKey :: MonadIO m => UserId -> m PasswordResetKey
+mkPwdResetKey :: (MonadIO m) => UserId -> m PasswordResetKey
 mkPwdResetKey u = do
   d <- liftIO $ getDigestByName "SHA256" >>= maybe (error "SHA256 not found") pure
   pure . PasswordResetKey . encodeBase64Url . digestBS d $ toByteString' u
 
 interpretClientToIO ::
-  Member (Final IO) r =>
+  (Member (Final IO) r) =>
   ClientState ->
   Sem (Embed Cassandra.Client ': r) a ->
   Sem r a

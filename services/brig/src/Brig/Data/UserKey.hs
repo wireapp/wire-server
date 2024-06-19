@@ -58,10 +58,10 @@ foldKey f g k = case k of
   UserEmailKey ek -> f (emailKeyOrig ek)
   UserPhoneKey pk -> g (phoneKeyOrig pk)
 
-forEmailKey :: Applicative f => UserKey -> (Email -> f a) -> f (Maybe a)
+forEmailKey :: (Applicative f) => UserKey -> (Email -> f a) -> f (Maybe a)
 forEmailKey k f = foldKey (fmap Just . f) (const (pure Nothing)) k
 
-forPhoneKey :: Applicative f => UserKey -> (Phone -> f a) -> f (Maybe a)
+forPhoneKey :: (Applicative f) => UserKey -> (Phone -> f a) -> f (Maybe a)
 forPhoneKey k f = foldKey (const (pure Nothing)) (fmap Just . f) k
 
 -- | Get the normalised text of a 'UserKey'.
@@ -77,7 +77,7 @@ keyTextOriginal (UserPhoneKey k) = fromPhone (phoneKeyOrig k)
 
 -- | Claim a 'UserKey' for a user.
 claimKey ::
-  MonadClient m =>
+  (MonadClient m) =>
   -- | The key to claim.
   UserKey ->
   -- | The user claiming the key.
@@ -92,7 +92,7 @@ claimKey k u = do
 -- A key is available if it is not already actived for another user or
 -- if the other user and the user looking to claim the key are the same.
 keyAvailable ::
-  MonadClient m =>
+  (MonadClient m) =>
   -- | The key to check.
   UserKey ->
   -- | The user looking to claim the key, if any.
@@ -105,16 +105,16 @@ keyAvailable k u = do
     (Just x, Just y) | x == y -> pure True
     (Just x, _) -> not <$> User.isActivated x
 
-lookupKey :: MonadClient m => UserKey -> m (Maybe UserId)
+lookupKey :: (MonadClient m) => UserKey -> m (Maybe UserId)
 lookupKey k =
   fmap runIdentity
     <$> retry x1 (query1 keySelect (params LocalQuorum (Identity $ keyText k)))
 
-insertKey :: MonadClient m => UserId -> UserKey -> m ()
+insertKey :: (MonadClient m) => UserId -> UserKey -> m ()
 insertKey u k = do
   retry x5 $ write keyInsert (params LocalQuorum (keyText k, u))
 
-deleteKey :: MonadClient m => UserKey -> m ()
+deleteKey :: (MonadClient m) => UserKey -> m ()
 deleteKey k = do
   retry x5 $ write keyDelete (params LocalQuorum (Identity $ keyText k))
 
@@ -126,7 +126,7 @@ deleteKey k = do
 -- executed several times due to cassandra not supporting transactions)
 -- `deleteKeyForUser` does not fail for missing keys or keys that belong to
 -- another user: It always returns `()` as result.
-deleteKeyForUser :: MonadClient m => UserId -> UserKey -> m ()
+deleteKeyForUser :: (MonadClient m) => UserId -> UserKey -> m ()
 deleteKeyForUser uid k = do
   mbKeyUid <- lookupKey k
   case mbKeyUid of

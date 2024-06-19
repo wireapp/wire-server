@@ -30,7 +30,7 @@ import Wire.API.MLS.Serialisation
 -- | Decode an ECDSA signature.
 decodeSignature ::
   forall curve.
-  EllipticCurveECDSA curve =>
+  (EllipticCurveECDSA curve) =>
   Proxy curve ->
   ByteString ->
   Maybe (Signature curve)
@@ -43,7 +43,7 @@ decodeSignature curve bs = do
 -- Encode an ECDSA signature.
 encodeSignature ::
   forall curve.
-  EllipticCurveECDSA curve =>
+  (EllipticCurveECDSA curve) =>
   Proxy curve ->
   Signature curve ->
   ByteString

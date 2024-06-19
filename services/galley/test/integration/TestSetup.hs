@@ -150,8 +150,8 @@ runFedClient ::
   Domain ->
   Servant.Client m api
 runFedClient (FedClient mgr ep) domain =
-  Servant.hoistClient (Proxy @api) (servantClientMToHttp domain)
-    $ Servant.clientIn (Proxy @api) (Proxy @Servant.ClientM)
+  Servant.hoistClient (Proxy @api) (servantClientMToHttp domain) $
+    Servant.clientIn (Proxy @api) (Proxy @Servant.ClientM)
   where
     servantClientMToHttp :: Domain -> Servant.ClientM a -> m a
     servantClientMToHttp originDomain action = liftIO $ do

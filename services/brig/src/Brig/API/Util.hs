@@ -69,7 +69,7 @@ lookupProfilesMaybeFilterSameTeamOnly self us = do
     Just team -> filter (\x -> profileTeam x == Just team) us
     Nothing -> us
 
-fetchUserIdentity :: Member UserSubsystem r => UserId -> AppT r (Maybe UserIdentity)
+fetchUserIdentity :: (Member UserSubsystem r) => UserId -> AppT r (Maybe UserIdentity)
 fetchUserIdentity uid = do
   luid <- qualifyLocal uid
   liftSem (getSelfProfile luid)
@@ -153,7 +153,7 @@ traverseConcurrentlyWithErrorsAppT f t = do
             (mapExceptT (lowerAppT env) . f)
             t
 
-exceptTToMaybe :: Monad m => ExceptT e m () -> m (Maybe e)
+exceptTToMaybe :: (Monad m) => ExceptT e m () -> m (Maybe e)
 exceptTToMaybe = (pure . either Just (const Nothing)) <=< runExceptT
 
 tryInsertVerificationCode :: Code.Code -> (RetryAfter -> e) -> ExceptT e (AppT r) ()

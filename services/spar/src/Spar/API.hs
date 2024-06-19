@@ -243,7 +243,7 @@ authreqPrecheck ::
 authreqPrecheck msucc merr idpid =
   validateAuthreqParams msucc merr
     *> IdPConfigStore.getConfig idpid
-    $> NoContent
+      $> NoContent
 
 authreq ::
   ( Member Random r,
@@ -441,9 +441,9 @@ idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (co
               void $ BrigAccess.deleteUser uid
             else do
               throwSparSem SparIdPHasBoundUsers
-      when (Cas.hasMore page)
-        $ SAMLUserStore.nextPage page
-        >>= assertEmptyOrPurge teamId
+      when (Cas.hasMore page) $
+        SAMLUserStore.nextPage page
+          >>= assertEmptyOrPurge teamId
 
     updateOldIssuers :: IdP -> Sem r ()
     updateOldIssuers _ = pure ()
@@ -545,9 +545,9 @@ assertNoScimOrNoIdP ::
 assertNoScimOrNoIdP teamid = do
   numTokens <- length <$> ScimTokenStore.lookupByTeam teamid
   numIdps <- length <$> IdPConfigStore.getConfigsByTeam teamid
-  when (numTokens > 0 && numIdps > 0)
-    $ throwSparSem
-    $ SparProvisioningMoreThanOneIdP ScimTokenAndSecondIdpForbidden
+  when (numTokens > 0 && numIdps > 0) $
+    throwSparSem $
+      SparProvisioningMoreThanOneIdP ScimTokenAndSecondIdpForbidden
 
 -- | Check that issuer is not used anywhere in the system ('WireIdPAPIV1', here it is a
 -- database key for finding IdPs), or anywhere in this team ('WireIdPAPIV2'), that request
@@ -685,8 +685,8 @@ validateIdPUpdate ::
 validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateIdPUpdate" (Just . show . (_2 %~ (^. SAML.idpId))) $ do
   previousIdP <- IdPConfigStore.getConfig _idpId
   (_, teamId) <- authorizeIdP zusr previousIdP
-  unless (previousIdP ^. SAML.idpExtraInfo . team == teamId)
-    $ throw errUnknownIdP
+  unless (previousIdP ^. SAML.idpExtraInfo . team == teamId) $
+    throw errUnknownIdP
   _idpExtraInfo <- do
     let previousIssuer = previousIdP ^. SAML.idpMetadata . SAML.edIssuer
         newIssuer = _idpMetadata ^. SAML.edIssuer
@@ -740,8 +740,8 @@ authorizeIdP ::
   Sem r (UserId, TeamId)
 authorizeIdP Nothing _ =
   throw
-    ( SAML.CustomError
-        $ SparNoPermission (T.pack $ show CreateUpdateDeleteIdp)
+    ( SAML.CustomError $
+        SparNoPermission (T.pack $ show CreateUpdateDeleteIdp)
     )
 authorizeIdP (Just zusr) idp = do
   let teamid = idp ^. SAML.idpExtraInfo . team
@@ -788,7 +788,7 @@ internalPutSsoSettings SsoSettings {defaultSsoCode = Just code} =
   -- "Could not find IdP".
   IdPConfigStore.getConfig code
     *> DefaultSsoCode.store code
-    $> NoContent
+      $> NoContent
 
 internalGetScimUserInfo :: (Member ScimUserTimesStore r) => UserSet -> Sem r ScimUserInfos
 internalGetScimUserInfo (UserSet uids) = do

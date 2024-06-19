@@ -67,8 +67,8 @@ paginate uid since mclt size = do
 
     validateNotificationId :: NotificationId -> Gundeck ()
     validateNotificationId n =
-      unless (isValidNotificationId n)
-        $ throwM (mkError status400 "bad-request" "Invalid Notification ID")
+      unless (isValidNotificationId n) $
+        throwM (mkError status400 "bad-request" "Invalid Notification ID")
 
 -- | Update last_active property of the given client by making a request to brig.
 updateActivity :: UserId -> ClientId -> Gundeck ()
@@ -81,9 +81,9 @@ updateActivity uid clt = do
           . paths ["i", "clients", toByteString' uid, toByteString' clt, "activity"]
       )
   when (statusCode r /= 200) $ do
-    Log.warn
-      $ Log.msg ("Could not update client activity" :: ByteString)
-      ~~ "user"
-      .= UUID.toASCIIBytes (toUUID uid)
+    Log.warn $
+      Log.msg ("Could not update client activity" :: ByteString)
+        ~~ "user"
+        .= UUID.toASCIIBytes (toUUID uid)
         ~~ "client"
-      .= clientToText clt
+        .= clientToText clt

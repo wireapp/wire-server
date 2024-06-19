@@ -140,7 +140,7 @@ sendNotification env component path body = case someComponent component of
     withoutFirstSlash (Text.stripPrefix "/" -> Just t) = t
     withoutFirstSlash t = t
 
-    go :: forall c. KnownComponent c => Proxy c -> IO (Either FederatorClientError ())
+    go :: forall c. (KnownComponent c) => Proxy c -> IO (Either FederatorClientError ())
     go _ =
       lowerCodensity
         . runExceptT

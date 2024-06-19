@@ -103,7 +103,7 @@ getFederationConfigs' mFedStrategy cfgs = do
 maxKnownNodes :: Int
 maxKnownNodes = 10000
 
-getFederationConfig' :: MonadClient m => Map Domain FederationDomainConfig -> Domain -> m (Maybe FederationDomainConfig)
+getFederationConfig' :: (MonadClient m) => Map Domain FederationDomainConfig -> Domain -> m (Maybe FederationDomainConfig)
 getFederationConfig' cfgs rDomain = case find ((== rDomain) . domain) cfgs of
   Just cfg -> pure . Just $ cfg -- the configuration from the file has precedence (if exists there should not be a db entry at all)
   Nothing -> do
@@ -115,7 +115,7 @@ getFederationConfig' cfgs rDomain = case find ((== rDomain) . domain) cfgs of
     q :: PrepQuery R (Identity Domain) (FederatedUserSearchPolicy, Maybe Int32)
     q = "SELECT search_policy, restriction FROM federation_remotes WHERE domain = ?"
 
-getFederationRemotesFromDb :: forall m. MonadClient m => m [FederationDomainConfig]
+getFederationRemotesFromDb :: forall m. (MonadClient m) => m [FederationDomainConfig]
 getFederationRemotesFromDb = (\(d, p, r) -> FederationDomainConfig d p r) <$$> qry
   where
     qry :: m [(Domain, FederatedUserSearchPolicy, FederationRestriction)]
@@ -127,7 +127,7 @@ getFederationRemotesFromDb = (\(d, p, r) -> FederationDomainConfig d p r) <$$> q
     get :: PrepQuery R () (Domain, FederatedUserSearchPolicy, Maybe Int32)
     get = fromString $ "SELECT domain, search_policy, restriction FROM federation_remotes LIMIT " <> show maxKnownNodes
 
-addFederationConfig' :: MonadClient m => Map Domain FederationDomainConfig -> FederationDomainConfig -> m AddFederationRemoteResult
+addFederationConfig' :: (MonadClient m) => Map Domain FederationDomainConfig -> FederationDomainConfig -> m AddFederationRemoteResult
 addFederationConfig' cfg (FederationDomainConfig rDomain searchPolicy restriction) = do
   -- if a domain already exists in a config, we do not allow to add it to the database
   conflict <- domainExistsInConfig (FederationDomainConfig rDomain searchPolicy restriction)
@@ -159,7 +159,7 @@ addFederationConfig' cfg (FederationDomainConfig rDomain searchPolicy restrictio
     addTeams :: PrepQuery W (Domain, TeamId) ()
     addTeams = "INSERT INTO federation_remote_teams (domain, team) VALUES (?, ?)"
 
-updateFederationConfig' :: MonadClient m => Map Domain FederationDomainConfig -> FederationDomainConfig -> m UpdateFederationResult
+updateFederationConfig' :: (MonadClient m) => Map Domain FederationDomainConfig -> FederationDomainConfig -> m UpdateFederationResult
 updateFederationConfig' cfgs (FederationDomainConfig rDomain searchPolicy restriction) = do
   -- if a domain already exists in a config, we do not allow update it
   if rDomain `elem` (domain <$> cfgs)
@@ -182,7 +182,7 @@ updateFederationConfig' cfgs (FederationDomainConfig rDomain searchPolicy restri
     updateConfig :: PrepQuery W (FederatedUserSearchPolicy, Int32, Domain) x
     updateConfig = "UPDATE federation_remotes SET search_policy = ?, restriction = ? WHERE domain = ? IF EXISTS"
 
-    updateTeams :: MonadClient m => m ()
+    updateTeams :: (MonadClient m) => m ()
     updateTeams = retry x5 $ do
       write dropTeams (params LocalQuorum (Identity rDomain))
       case restriction of
@@ -196,7 +196,7 @@ updateFederationConfig' cfgs (FederationDomainConfig rDomain searchPolicy restri
     insertTeam :: PrepQuery W (Domain, TeamId) ()
     insertTeam = "INSERT INTO federation_remote_teams (domain, team) VALUES (?, ?)"
 
-addFederationRemoteTeam' :: MonadClient m => Map Domain FederationDomainConfig -> Domain -> TeamId -> m AddFederationRemoteTeamResult
+addFederationRemoteTeam' :: (MonadClient m) => Map Domain FederationDomainConfig -> Domain -> TeamId -> m AddFederationRemoteTeamResult
 addFederationRemoteTeam' cfgs rDomain tid = do
   mDom <- getFederationConfig' cfgs rDomain
   case mDom of
@@ -211,14 +211,14 @@ addFederationRemoteTeam' cfgs rDomain tid = do
     add :: PrepQuery W (Domain, TeamId) ()
     add = "INSERT INTO federation_remote_teams (domain, team) VALUES (?, ?)"
 
-getFederationRemoteTeams' :: MonadClient m => Domain -> m [FederationRemoteTeam]
+getFederationRemoteTeams' :: (MonadClient m) => Domain -> m [FederationRemoteTeam]
 getFederationRemoteTeams' rDomain = do
   fmap (FederationRemoteTeam . runIdentity) <$> retry x1 (query get (params LocalQuorum (Identity rDomain)))
   where
     get :: PrepQuery R (Identity Domain) (Identity TeamId)
     get = "SELECT team FROM federation_remote_teams WHERE domain = ?"
 
-removeFederationRemoteTeam' :: MonadClient m => Domain -> TeamId -> m ()
+removeFederationRemoteTeam' :: (MonadClient m) => Domain -> TeamId -> m ()
 removeFederationRemoteTeam' rDomain rteam =
   retry x1 $ write delete (params LocalQuorum (rDomain, rteam))
   where
@@ -226,7 +226,7 @@ removeFederationRemoteTeam' rDomain rteam =
     delete = "DELETE FROM federation_remote_teams WHERE domain = ? AND team = ?"
 
 backendFederatesWithImpl ::
-  MonadClient m =>
+  (MonadClient m) =>
   Remote (Maybe TeamId) ->
   Map Domain FederationDomainConfig ->
   Maybe FederationStrategy ->
@@ -258,7 +258,7 @@ instance Show RestrictionException where
 
 instance Exception RestrictionException
 
-toRestriction :: MonadClient m => Domain -> Int32 -> m FederationRestriction
+toRestriction :: (MonadClient m) => Domain -> Int32 -> m FederationRestriction
 toRestriction _ 0 = pure FederationRestrictionAllowAll
 toRestriction dom 1 =
   fmap FederationRestrictionByTeam $

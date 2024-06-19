@@ -238,7 +238,7 @@ getRichInfoMultiUser = chunkify $ \uids -> do
         . expect2xx
   parseResponse (mkError status502 "server-error: could not parse response to `GET brig:/i/users/rich-info`") resp
 
-getAccountConferenceCallingConfigClient :: HasCallStack => UserId -> App (WithStatusNoLock ConferenceCallingConfig)
+getAccountConferenceCallingConfigClient :: (HasCallStack) => UserId -> App (WithStatusNoLock ConferenceCallingConfig)
 getAccountConferenceCallingConfigClient uid =
   runHereClientM (namedClient @IAPI.API @"get-account-conference-calling-config" uid)
     >>= handleServantResp
@@ -247,9 +247,9 @@ updateSearchVisibilityInbound :: Multi.TeamStatus SearchVisibilityInboundConfig 
 updateSearchVisibilityInbound =
   handleServantResp
     <=< runHereClientM
-      . namedClient @IAPI.API @"updateSearchVisibilityInbound"
+    . namedClient @IAPI.API @"updateSearchVisibilityInbound"
 
-runHereClientM :: HasCallStack => Client.ClientM a -> App (Either Client.ClientError a)
+runHereClientM :: (HasCallStack) => Client.ClientM a -> App (Either Client.ClientError a)
 runHereClientM action = do
   mgr <- view manager
   brigep <- view brig

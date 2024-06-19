@@ -38,5 +38,5 @@ instance ParseMLS Epoch where
 instance SerialiseMLS Epoch where
   serialiseMLS (Epoch n) = put n
 
-addToEpoch :: Integral a => a -> Epoch -> Epoch
+addToEpoch :: (Integral a) => a -> Epoch -> Epoch
 addToEpoch n (Epoch e) = Epoch (e + fromIntegral n)

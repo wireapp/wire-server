@@ -39,10 +39,10 @@ newtype Dict a b = Dict
   { _map :: Vector (IORef (SizedHashMap a b))
   }
 
-size :: MonadIO m => Dict a b -> m Int
+size :: (MonadIO m) => Dict a b -> m Int
 size d = liftIO $ sum <$> mapM (fmap SHM.size . readIORef) (_map d)
 
-empty :: MonadIO m => Int -> m (Dict a b)
+empty :: (MonadIO m) => Int -> m (Dict a b)
 empty w =
   liftIO $
     if w > 0 && w < 8192
@@ -70,7 +70,7 @@ removeIf f k d = liftIO . atomicModifyIORef' (getSlice k d) $ \m ->
 lookup :: (Hashable a, MonadIO m) => a -> Dict a b -> m (Maybe b)
 lookup k = liftIO . fmap (SHM.lookup k) . readIORef . getSlice k
 
-toList :: MonadIO m => Dict a b -> m [(a, b)]
+toList :: (MonadIO m) => Dict a b -> m [(a, b)]
 toList =
   fmap (mconcat . V.toList)
     . V.mapM (fmap SHM.toList . readIORef)
@@ -80,11 +80,11 @@ toList =
 -- Internal
 
 mutDict ::
-  MonadIO m =>
+  (MonadIO m) =>
   (SizedHashMap a b -> SizedHashMap a b) ->
   IORef (SizedHashMap a b) ->
   m ()
 mutDict f d = liftIO . atomicModifyIORef' d $ \m -> (f m, ())
 
-getSlice :: Hashable a => a -> Dict a b -> IORef (SizedHashMap a b)
+getSlice :: (Hashable a) => a -> Dict a b -> IORef (SizedHashMap a b)
 getSlice k (Dict m) = m ! (hash k `mod` V.length m)

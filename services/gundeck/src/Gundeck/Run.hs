@@ -110,7 +110,7 @@ servantSitemap' env = Servant.hoistServer (Proxy @GundeckAPI) toServantHandler s
     toServantHandler :: Gundeck a -> Handler a
     toServantHandler m = Handler . ExceptT $ Right <$> runDirect env m
 
-collectAuthMetrics :: MonadIO m => AWS.Env -> m ()
+collectAuthMetrics :: (MonadIO m) => AWS.Env -> m ()
 collectAuthMetrics env = do
   liftIO $
     forever $ do

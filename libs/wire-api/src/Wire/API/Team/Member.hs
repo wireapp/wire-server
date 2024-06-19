@@ -117,11 +117,11 @@ data TeamMember' (tag :: PermissionTag) = TeamMember
 ntmNewTeamMember :: NewTeamMember' tag -> TeamMember' tag
 ntmNewTeamMember ntm = TeamMember ntm defUserLegalHoldStatus
 
-deriving instance Eq (PermissionType tag) => Eq (TeamMember' tag)
+deriving instance (Eq (PermissionType tag)) => Eq (TeamMember' tag)
 
-deriving instance Ord (PermissionType tag) => Ord (TeamMember' tag)
+deriving instance (Ord (PermissionType tag)) => Ord (TeamMember' tag)
 
-deriving instance Show (PermissionType tag) => Show (TeamMember' tag)
+deriving instance (Show (PermissionType tag)) => Show (TeamMember' tag)
 
 deriving via (GenericUniform TeamMember) instance Arbitrary TeamMember
 
@@ -243,9 +243,9 @@ data TeamMemberList' (tag :: PermissionTag) = TeamMemberList
   }
   deriving stock (Generic)
 
-deriving instance Eq (PermissionType tag) => Eq (TeamMemberList' tag)
+deriving instance (Eq (PermissionType tag)) => Eq (TeamMemberList' tag)
 
-deriving instance Show (PermissionType tag) => Show (TeamMemberList' tag)
+deriving instance (Show (PermissionType tag)) => Show (TeamMemberList' tag)
 
 deriving via (GenericUniform (TeamMemberList' 'Optional)) instance Arbitrary (TeamMemberList' 'Optional)
 
@@ -254,13 +254,13 @@ deriving via (GenericUniform TeamMemberList) instance Arbitrary TeamMemberList
 deriving via
   (Schema (TeamMemberList' tag))
   instance
-    ToSchema (TeamMemberList' tag) =>
+    (ToSchema (TeamMemberList' tag)) =>
     FromJSON (TeamMemberList' tag)
 
 deriving via
   (Schema (TeamMemberList' tag))
   instance
-    ToSchema (TeamMemberList' tag) =>
+    (ToSchema (TeamMemberList' tag)) =>
     ToJSON (TeamMemberList' tag)
 
 deriving via
@@ -272,7 +272,7 @@ deriving via
 newTeamMemberList :: [TeamMember] -> ListType -> TeamMemberList
 newTeamMemberList = TeamMemberList
 
-instance ToSchema (TeamMember' tag) => ToSchema (TeamMemberList' tag) where
+instance (ToSchema (TeamMember' tag)) => ToSchema (TeamMemberList' tag) where
   schema =
     objectWithDocModifier "TeamMemberList" (description ?~ "list of team member") $
       TeamMemberList

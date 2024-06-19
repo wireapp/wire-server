@@ -582,7 +582,7 @@ newtype HttpClientIO a = HttpClientIO
       MonadIndexIO
     )
 
-runHttpClientIO :: MonadIO m => Env -> HttpClientIO a -> m a
+runHttpClientIO :: (MonadIO m) => Env -> HttpClientIO a -> m a
 runHttpClientIO env =
   runClient (env ^. casClient)
     . runHttpT (env ^. httpManager)
@@ -636,7 +636,7 @@ qualifyLocal :: (MonadReader Env m) => a -> m (Local a)
 qualifyLocal a = toLocalUnsafe <$> viewFederationDomain <*> pure a
 
 -- FUTUREWORK: rename to 'qualifyLocalPoly'
-qualifyLocal' :: (Member (Input (Local ()))) r => a -> Sem r (Local a)
+qualifyLocal' :: ((Member (Input (Local ()))) r) => a -> Sem r (Local a)
 qualifyLocal' a = flip toLocalUnsafe a . tDomain <$> input
 
 -- | Convert a qualified value into a local one. Throw if the value is not actually local.

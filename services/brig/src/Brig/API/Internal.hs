@@ -245,7 +245,7 @@ teamsAPI =
     :<|> Named @"team-size" Team.teamSize
     :<|> Named @"create-invitations-via-scim" Team.createInvitationViaScim
 
-userAPI :: Member UserSubsystem r => ServerT BrigIRoutes.UserAPI (Handler r)
+userAPI :: (Member UserSubsystem r) => ServerT BrigIRoutes.UserAPI (Handler r)
 userAPI =
   updateLocale
     :<|> deleteLocale
@@ -575,10 +575,10 @@ listActivatedAccounts elh includePendingInvitations = do
       us <- liftSem $ mapM API.lookupHandle hs
       byIds (catMaybes us)
   where
-    byIds :: Member DeleteQueue r => [UserId] -> (AppT r) [UserAccount]
+    byIds :: (Member DeleteQueue r) => [UserId] -> (AppT r) [UserAccount]
     byIds uids = wrapClient (API.lookupAccounts uids) >>= filterM accountValid
 
-    accountValid :: Member DeleteQueue r => UserAccount -> (AppT r) Bool
+    accountValid :: (Member DeleteQueue r) => UserAccount -> (AppT r) Bool
     accountValid account = case userIdentity . accountUser $ account of
       Nothing -> pure False
       Just ident ->
@@ -717,7 +717,7 @@ updateConnectionInternalH updateConn = do
   API.updateConnectionInternal updateConn !>> connError
   pure NoContent
 
-checkBlacklistH :: Member BlacklistStore r => Maybe Email -> Maybe Phone -> (Handler r) CheckBlacklistResponse
+checkBlacklistH :: (Member BlacklistStore r) => Maybe Email -> Maybe Phone -> (Handler r) CheckBlacklistResponse
 checkBlacklistH (Just email) Nothing = checkBlacklist (Left email)
 checkBlacklistH Nothing (Just phone) = checkBlacklist (Right phone)
 checkBlacklistH bade badp =
@@ -726,10 +726,10 @@ checkBlacklistH bade badp =
         ("need exactly one of email, phone: " <> LT.pack (show (bade, badp)))
     )
 
-checkBlacklist :: Member BlacklistStore r => Either Email Phone -> (Handler r) CheckBlacklistResponse
+checkBlacklist :: (Member BlacklistStore r) => Either Email Phone -> (Handler r) CheckBlacklistResponse
 checkBlacklist emailOrPhone = lift $ bool NotBlacklisted YesBlacklisted <$> API.isBlacklisted emailOrPhone
 
-deleteFromBlacklistH :: Member BlacklistStore r => Maybe Email -> Maybe Phone -> (Handler r) NoContent
+deleteFromBlacklistH :: (Member BlacklistStore r) => Maybe Email -> Maybe Phone -> (Handler r) NoContent
 deleteFromBlacklistH (Just email) Nothing = deleteFromBlacklist (Left email)
 deleteFromBlacklistH Nothing (Just phone) = deleteFromBlacklist (Right phone)
 deleteFromBlacklistH bade badp =
@@ -738,10 +738,10 @@ deleteFromBlacklistH bade badp =
         ("need exactly one of email, phone: " <> LT.pack (show (bade, badp)))
     )
 
-deleteFromBlacklist :: Member BlacklistStore r => Either Email Phone -> (Handler r) NoContent
+deleteFromBlacklist :: (Member BlacklistStore r) => Either Email Phone -> (Handler r) NoContent
 deleteFromBlacklist emailOrPhone = lift $ NoContent <$ API.blacklistDelete emailOrPhone
 
-addBlacklistH :: Member BlacklistStore r => Maybe Email -> Maybe Phone -> (Handler r) NoContent
+addBlacklistH :: (Member BlacklistStore r) => Maybe Email -> Maybe Phone -> (Handler r) NoContent
 addBlacklistH (Just email) Nothing = addBlacklist (Left email)
 addBlacklistH Nothing (Just phone) = addBlacklist (Right phone)
 addBlacklistH bade badp =
@@ -750,12 +750,12 @@ addBlacklistH bade badp =
         ("need exactly one of email, phone: " <> LT.pack (show (bade, badp)))
     )
 
-addBlacklist :: Member BlacklistStore r => Either Email Phone -> (Handler r) NoContent
+addBlacklist :: (Member BlacklistStore r) => Either Email Phone -> (Handler r) NoContent
 addBlacklist emailOrPhone = lift $ NoContent <$ API.blacklistInsert emailOrPhone
 
 -- | Get any matching prefixes. Also try for shorter prefix matches,
 -- i.e. checking for +123456 also checks for +12345, +1234, ...
-getPhonePrefixesH :: Member BlacklistPhonePrefixStore r => PhonePrefix -> (Handler r) GetPhonePrefixResponse
+getPhonePrefixesH :: (Member BlacklistPhonePrefixStore r) => PhonePrefix -> (Handler r) GetPhonePrefixResponse
 getPhonePrefixesH prefix = lift $ do
   results <- API.phonePrefixGet prefix
   pure $ case results of
@@ -763,10 +763,10 @@ getPhonePrefixesH prefix = lift $ do
     (_ : _) -> PhonePrefixesFound results
 
 -- | Delete a phone prefix entry (must be an exact match)
-deleteFromPhonePrefixH :: Member BlacklistPhonePrefixStore r => PhonePrefix -> (Handler r) NoContent
+deleteFromPhonePrefixH :: (Member BlacklistPhonePrefixStore r) => PhonePrefix -> (Handler r) NoContent
 deleteFromPhonePrefixH prefix = lift $ NoContent <$ API.phonePrefixDelete prefix
 
-addPhonePrefixH :: Member BlacklistPhonePrefixStore r => ExcludedPrefix -> (Handler r) NoContent
+addPhonePrefixH :: (Member BlacklistPhonePrefixStore r) => ExcludedPrefix -> (Handler r) NoContent
 addPhonePrefixH prefix = lift $ NoContent <$ API.phonePrefixInsert prefix
 
 updateSSOIdH ::
@@ -820,13 +820,13 @@ updateRichInfoH uid rup =
     -- Intra.onUserEvent uid (Just conn) (richInfoUpdate uid ri)
     lift $ wrapClient $ Data.updateRichInfo uid (mkRichInfoAssocList richInfo)
 
-updateLocale :: Member UserSubsystem r => UserId -> LocaleUpdate -> (Handler r) LocaleUpdate
+updateLocale :: (Member UserSubsystem r) => UserId -> LocaleUpdate -> (Handler r) LocaleUpdate
 updateLocale uid upd@(LocaleUpdate locale) = do
   qUid <- qualifyLocal uid
   lift . liftSem $ updateUserProfile qUid Nothing UpdateOriginScim def {locale = Just locale}
   pure upd
 
-deleteLocale :: Member UserSubsystem r => UserId -> (Handler r) NoContent
+deleteLocale :: (Member UserSubsystem r) => UserId -> (Handler r) NoContent
 deleteLocale uid = do
   defLoc <- setDefaultUserLocale <$> view settings
   qUid <- qualifyLocal uid
@@ -859,7 +859,7 @@ getRichInfoMultiH (maybe [] fromCommaSeparatedList -> uids) =
   lift $ wrapClient $ API.lookupRichInfoMultiUsers uids
 
 updateHandleH ::
-  Member UserSubsystem r =>
+  (Member UserSubsystem r) =>
   UserId ->
   HandleUpdate ->
   Handler r NoContent
@@ -869,7 +869,7 @@ updateHandleH uid (HandleUpdate handleUpd) =
     lift . liftSem $ UserSubsystem.updateHandle quid Nothing UpdateOriginScim handleUpd
 
 updateUserNameH ::
-  Member UserSubsystem r =>
+  (Member UserSubsystem r) =>
   UserId ->
   NameUpdate ->
   (Handler r) NoContent
@@ -881,7 +881,7 @@ updateUserNameH uid (NameUpdate nameUpd) =
       Just _ -> lift . liftSem $ updateUserProfile luid Nothing UpdateOriginScim (def {name = Just name})
       Nothing -> throwStd (errorToWai @'E.InvalidUser)
 
-checkHandleInternalH :: Member UserSubsystem r => Handle -> Handler r CheckHandleResponse
+checkHandleInternalH :: (Member UserSubsystem r) => Handle -> Handler r CheckHandleResponse
 checkHandleInternalH h = lift $ liftSem do
   API.checkHandle (fromHandle h) <&> \case
     API.CheckHandleFound -> CheckHandleResponseFound

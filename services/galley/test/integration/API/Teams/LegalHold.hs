@@ -85,12 +85,12 @@ testsInternal s =
 
 testWhitelistingTeams :: TestM ()
 testWhitelistingTeams = do
-  let testTeamWhitelisted :: HasCallStack => TeamId -> TestM Bool
+  let testTeamWhitelisted :: (HasCallStack) => TeamId -> TestM Bool
       testTeamWhitelisted tid = do
         res <- getLHWhitelistedTeam tid
         pure (Bilge.responseStatus res == status200)
 
-  let expectWhitelisted :: HasCallStack => Bool -> TeamId -> TestM ()
+  let expectWhitelisted :: (HasCallStack) => Bool -> TeamId -> TestM ()
       expectWhitelisted yes tid = do
         let msg = if yes then "team should be whitelisted" else "team should not be whitelisted"
         aFewTimesAssertBool msg (== yes) (testTeamWhitelisted tid)
@@ -124,18 +124,18 @@ testCreateLegalHoldTeamSettings = withTeam $ \owner tid -> do
   postSettings owner tid brokenService !!! testResponse 412 (Just "legalhold-unavailable")
   -- checks /status of legal hold service (boolean argument says whether the service is
   -- behaving or not)
-  let lhapp :: HasCallStack => IsWorking -> Chan Void -> Application
+  let lhapp :: (HasCallStack) => IsWorking -> Chan Void -> Application
       lhapp NotWorking _ _ cont = cont respondBad
       lhapp Working _ req cont = do
         if
-            | pathInfo req /= ["legalhold", "status"] -> cont respondBad
-            | requestMethod req /= "GET" -> cont respondBad
-            | otherwise -> cont respondOk
+          | pathInfo req /= ["legalhold", "status"] -> cont respondBad
+          | requestMethod req /= "GET" -> cont respondBad
+          | otherwise -> cont respondOk
       respondOk :: Wai.Response
       respondOk = responseLBS status200 mempty mempty
       respondBad :: Wai.Response
       respondBad = responseLBS status404 mempty mempty
-      lhtest :: HasCallStack => IsWorking -> Warp.Port -> Chan Void -> TestM ()
+      lhtest :: (HasCallStack) => IsWorking -> Warp.Port -> Chan Void -> TestM ()
       lhtest NotWorking _ _ = do
         postSettings owner tid brokenService !!! testResponse 412 (Just "legalhold-unavailable")
       lhtest Working lhPort _ = do
@@ -217,7 +217,7 @@ testRemoveLegalHoldFromTeam = do
   -- fails if LH for team is disabled
   deleteSettings (Just defPassword) owner tid !!! testResponse 403 (Just "legalhold-disable-unimplemented")
 
-testAddTeamUserTooLargeWithLegalholdWhitelisted :: HasCallStack => TestM ()
+testAddTeamUserTooLargeWithLegalholdWhitelisted :: (HasCallStack) => TestM ()
 testAddTeamUserTooLargeWithLegalholdWhitelisted = withTeam $ \owner tid -> do
   o <- view tsGConf
   let fanoutLimit = fromIntegral @_ @Integer . fromRange $ Galley.currentFanoutLimit o
@@ -256,7 +256,7 @@ testCannotCreateLegalHoldDeviceOldAPI = do
 data GroupConvInvCase = InviteOnlyConsenters | InviteAlsoNonConsenters
   deriving (Show, Eq, Ord, Bounded, Enum)
 
-testBenchHack :: HasCallStack => TestM ()
+testBenchHack :: (HasCallStack) => TestM ()
 testBenchHack = do
   {- representative sample run on an old laptop:
 
@@ -299,13 +299,13 @@ testBenchHack = do
     print =<< testBenchHack' 300
     print =<< testBenchHack' 600
 
-testBenchHack' :: HasCallStack => Int -> TestM (Int, Time.NominalDiffTime)
+testBenchHack' :: (HasCallStack) => Int -> TestM (Int, Time.NominalDiffTime)
 testBenchHack' numPeers = do
   (legalholder :: UserId, tid) <- createBindingTeam
   peers :: [UserId] <- replicateM numPeers randomUser
   galley <- viewGalley
 
-  let doEnableLH :: HasCallStack => TestM ()
+  let doEnableLH :: (HasCallStack) => TestM ()
       doEnableLH = do
         withLHWhitelist tid (requestLegalHoldDevice' galley legalholder legalholder tid) !!! testResponse 201 Nothing
         withLHWhitelist tid (approveLegalHoldDevice' galley (Just defPassword) legalholder legalholder tid) !!! testResponse 200 Nothing

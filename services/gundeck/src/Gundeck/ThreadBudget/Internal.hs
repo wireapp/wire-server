@@ -66,12 +66,12 @@ cancelAllThreads (ThreadBudgetState _ ref) =
   readIORef ref
     >>= mapM_ cancel . mapMaybe snd . HM.elems . bmap
 
-mkThreadBudgetState :: HasCallStack => MaxConcurrentNativePushes -> IO ThreadBudgetState
+mkThreadBudgetState :: (HasCallStack) => MaxConcurrentNativePushes -> IO ThreadBudgetState
 mkThreadBudgetState limits = ThreadBudgetState limits <$> newIORef (BudgetMap 0 HM.empty)
 
 -- | Allocate the resources for a new action to be called (but don't call the action yet).
 allocate ::
-  IORef BudgetMap -> UUID -> Int -> MonadIO m => m Int
+  IORef BudgetMap -> UUID -> Int -> (MonadIO m) => m Int
 allocate ref key newspent =
   atomicModifyIORef' ref $
     \(BudgetMap spent hm) ->
@@ -81,7 +81,7 @@ allocate ref key newspent =
 
 -- | Register an already-allocated action with its 'Async'.
 register ::
-  IORef BudgetMap -> UUID -> Async () -> MonadIO m => m Int
+  IORef BudgetMap -> UUID -> Async () -> (MonadIO m) => m Int
 register ref key handle =
   atomicModifyIORef' ref $
     \(BudgetMap spent hm) ->
@@ -91,7 +91,7 @@ register ref key handle =
 
 -- | Remove an registered and/or allocated action from a 'BudgetMap'.
 unregister ::
-  IORef BudgetMap -> UUID -> MonadIO m => m ()
+  IORef BudgetMap -> UUID -> (MonadIO m) => m ()
 unregister ref key =
   atomicModifyIORef' ref $
     \bhm@(BudgetMap spent hm) ->
@@ -143,8 +143,10 @@ runWithBudget' (ThreadBudgetState limits ref) spent fallback action = do
     go :: UUID -> Int -> m a
     go key oldsize = do
       LC.debug $
-        "key" LC..= toText key
-          LC.~~ "spent" LC..= oldsize
+        "key"
+          LC..= toText key
+          LC.~~ "spent"
+          LC..= oldsize
           LC.~~ LC.msg (LC.val "runWithBudget: go")
       handle <- async action
       _ <- register ref key (void handle)
@@ -160,9 +162,12 @@ runWithBudget' (ThreadBudgetState limits ref) spent fallback action = do
               else threadBudgetSoftLimitBreachedCounter
       Prom.incCounter counter
       LC.warn $
-        "spent" LC..= show oldsize
-          LC.~~ "soft-breach" LC..= soft'
-          LC.~~ "hard-breach" LC..= hard'
+        "spent"
+          LC..= show oldsize
+          LC.~~ "soft-breach"
+          LC..= soft'
+          LC.~~ "hard-breach"
+          LC..= hard'
           LC.~~ LC.msg ("runWithBudget: " <> limit <> " limit reached")
 
 -- | Fork a thread that checks with the given frequency if any async handles stored in the
@@ -248,7 +253,7 @@ threadBudgetSoftLimitBreachedCounter =
           Prom.metricHelp = "Number of times soft limit for threads for native pushes was breached"
         }
 
-threadDelayNominalDiffTime :: NominalDiffTime -> MonadIO m => m ()
+threadDelayNominalDiffTime :: NominalDiffTime -> (MonadIO m) => m ()
 threadDelayNominalDiffTime = threadDelay . round . (* 1000000) . toRational
 
 staleTolerance :: NominalDiffTime
@@ -291,7 +296,8 @@ removeStaleHandles ref = do
     warnStaleHandles :: Int -> BudgetMap -> m ()
     warnStaleHandles num (BudgetMap spent _) =
       LC.warn $
-        "spent" LC..= show spent
+        "spent"
+          LC..= show spent
           LC.~~ LC.msg ("watchThreadBudgetState: removed " <> show num <> " stale handles.")
 
 safeForever ::

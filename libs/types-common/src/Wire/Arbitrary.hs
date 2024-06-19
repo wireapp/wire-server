@@ -88,10 +88,10 @@ customSizedOpts =
 nonEmptyListOf' :: Gen a -> Gen (NonEmpty a)
 nonEmptyListOf' g = (:|) <$> g <*> listOf' g
 
-setOf' :: Ord a => Gen a -> Gen (Set a)
+setOf' :: (Ord a) => Gen a -> Gen (Set a)
 setOf' g = Set.fromList <$> Generic.listOf' g
 
-mapOf' :: Ord k => Gen k -> Gen v -> Gen (Map k v)
+mapOf' :: (Ord k) => Gen k -> Gen v -> Gen (Map k v)
 mapOf' genK genV = Map.fromList <$> Generic.listOf' (liftA2 (,) genK genV)
 
 --------------------------------------------------------------------------------
@@ -116,7 +116,7 @@ deriving via (GenericUniform CountryCode) instance Arbitrary CountryCode
 -- we cannot rely on swagger-ui to generate nice examples. So far, this is only
 -- required for maps as swagger2 doesn't have a good way to specify the type of
 -- keys.
-generateExample :: Arbitrary a => a
+generateExample :: (Arbitrary a) => a
 generateExample =
   let (MkGen f) = arbitrary
    in f (mkQCGen 42) 42

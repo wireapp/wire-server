@@ -114,7 +114,7 @@ instance ToText EndpointTopic where
 instance FromText EndpointTopic where
   fromText = parseOnly endpointTopicParser
 
-mkSnsArn :: ToText topic => Region -> Account -> topic -> SnsArn topic
+mkSnsArn :: (ToText topic) => Region -> Account -> topic -> SnsArn topic
 mkSnsArn r a t =
   let txt = Text.intercalate ":" ["arn:aws:sns", toText r, toText a, toText t]
    in SnsArn txt r a t
@@ -164,8 +164,13 @@ endpointTopicParser = do
 
 transportParser :: Parser Transport
 transportParser =
-  string "GCM" $> GCM
-    <|> string "APNS_VOIP_SANDBOX" $> APNSVoIPSandbox
-    <|> string "APNS_VOIP" $> APNSVoIP
-    <|> string "APNS_SANDBOX" $> APNSSandbox
-    <|> string "APNS" $> APNS
+  string "GCM"
+    $> GCM
+    <|> string "APNS_VOIP_SANDBOX"
+    $> APNSVoIPSandbox
+    <|> string "APNS_VOIP"
+    $> APNSVoIP
+    <|> string "APNS_SANDBOX"
+    $> APNSSandbox
+    <|> string "APNS"
+    $> APNS

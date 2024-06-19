@@ -32,13 +32,13 @@ data DNSLookup m a where
 
 makeSem ''DNSLookup
 
-runDNSLookupDefault :: Member (Embed IO) r => Sem (DNSLookup ': r) a -> Sem r a
+runDNSLookupDefault :: (Member (Embed IO) r) => Sem (DNSLookup ': r) a -> Sem r a
 runDNSLookupDefault =
   interpret $ \action -> embed $ do
     rs <- DNS.makeResolvSeed DNS.defaultResolvConf
     DNS.withResolver rs $ flip runLookupIO action
 
-runDNSLookupWithResolver :: Member (Embed IO) r => Resolver -> Sem (DNSLookup ': r) a -> Sem r a
+runDNSLookupWithResolver :: (Member (Embed IO) r) => Resolver -> Sem (DNSLookup ': r) a -> Sem r a
 runDNSLookupWithResolver resolver = interpret $ embed . runLookupIO resolver
 
 runLookupIO :: Resolver -> DNSLookup m a -> IO a

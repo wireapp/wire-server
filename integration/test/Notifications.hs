@@ -27,8 +27,8 @@ assertNoNotifications u uc since0 p = do
         notifs <-
           getNotifications u def {client = Just ucid, since = since}
             `bindResponse` asList
-            . (%. "notifications")
-            . (.json)
+              . (%. "notifications")
+              . (.json)
         partitionM p notifs >>= \case
           ([], nonMatching) ->
             threadDelay 1_000 *> case nonMatching of
@@ -36,8 +36,8 @@ assertNoNotifications u uc since0 p = do
               _ -> go Nothing
           (matching, _) -> do
             pj <- prettyJSON matching
-            assertFailure $
-              unlines
+            assertFailure
+              $ unlines
                 [ "Expected no matching events  but got:",
                   pj
                 ]
@@ -96,27 +96,27 @@ awaitNotification user client lastNotifId selector = do
   since0 <- mapM objId lastNotifId
   head <$> awaitNotifications user client since0 1 selector
 
-isDeleteUserNotif :: MakesValue a => a -> App Bool
+isDeleteUserNotif :: (MakesValue a) => a -> App Bool
 isDeleteUserNotif n =
   nPayload n %. "type" `isEqual` "user.delete"
 
-isFeatureConfigUpdateNotif :: MakesValue a => a -> App Bool
+isFeatureConfigUpdateNotif :: (MakesValue a) => a -> App Bool
 isFeatureConfigUpdateNotif n =
   nPayload n %. "type" `isEqual` "feature-config.update"
 
-isNewMessageNotif :: MakesValue a => a -> App Bool
+isNewMessageNotif :: (MakesValue a) => a -> App Bool
 isNewMessageNotif n = fieldEquals n "payload.0.type" "conversation.otr-message-add"
 
-isNewMLSMessageNotif :: MakesValue a => a -> App Bool
+isNewMLSMessageNotif :: (MakesValue a) => a -> App Bool
 isNewMLSMessageNotif n = fieldEquals n "payload.0.type" "conversation.mls-message-add"
 
-isWelcomeNotif :: MakesValue a => a -> App Bool
+isWelcomeNotif :: (MakesValue a) => a -> App Bool
 isWelcomeNotif n = fieldEquals n "payload.0.type" "conversation.mls-welcome"
 
-isMemberJoinNotif :: MakesValue a => a -> App Bool
+isMemberJoinNotif :: (MakesValue a) => a -> App Bool
 isMemberJoinNotif n = fieldEquals n "payload.0.type" "conversation.member-join"
 
-isConvLeaveNotif :: MakesValue a => a -> App Bool
+isConvLeaveNotif :: (MakesValue a) => a -> App Bool
 isConvLeaveNotif n = fieldEquals n "payload.0.type" "conversation.member-leave"
 
 isConvLeaveNotifWithLeaver :: (MakesValue user, MakesValue a) => user -> a -> App Bool
@@ -151,46 +151,46 @@ isConvAccessUpdateNotif :: (HasCallStack, MakesValue n) => n -> App Bool
 isConvAccessUpdateNotif n =
   fieldEquals n "payload.0.type" "conversation.access-update"
 
-isConvCreateNotif :: MakesValue a => a -> App Bool
+isConvCreateNotif :: (MakesValue a) => a -> App Bool
 isConvCreateNotif n = fieldEquals n "payload.0.type" "conversation.create"
 
 -- | like 'isConvCreateNotif' but excludes self conversations
-isConvCreateNotifNotSelf :: MakesValue a => a -> App Bool
+isConvCreateNotifNotSelf :: (MakesValue a) => a -> App Bool
 isConvCreateNotifNotSelf n =
   fieldEquals n "payload.0.type" "conversation.create"
     &&~ do not <$> fieldEquals n "payload.0.data.access" ["private"]
 
-isConvDeleteNotif :: MakesValue a => a -> App Bool
+isConvDeleteNotif :: (MakesValue a) => a -> App Bool
 isConvDeleteNotif n = fieldEquals n "payload.0.type" "conversation.delete"
 
-notifTypeIsEqual :: MakesValue a => String -> a -> App Bool
+notifTypeIsEqual :: (MakesValue a) => String -> a -> App Bool
 notifTypeIsEqual typ n = nPayload n %. "type" `isEqual` typ
 
-isTeamMemberLeaveNotif :: MakesValue a => a -> App Bool
+isTeamMemberLeaveNotif :: (MakesValue a) => a -> App Bool
 isTeamMemberLeaveNotif = notifTypeIsEqual "team.member-leave"
 
-isUserActivateNotif :: MakesValue a => a -> App Bool
+isUserActivateNotif :: (MakesValue a) => a -> App Bool
 isUserActivateNotif = notifTypeIsEqual "user.activate"
 
-isUserClientAddNotif :: MakesValue a => a -> App Bool
+isUserClientAddNotif :: (MakesValue a) => a -> App Bool
 isUserClientAddNotif = notifTypeIsEqual "user.client-add"
 
-isUserClientRemoveNotif :: MakesValue a => a -> App Bool
+isUserClientRemoveNotif :: (MakesValue a) => a -> App Bool
 isUserClientRemoveNotif = notifTypeIsEqual "user.client-remove"
 
-isUserLegalholdRequestNotif :: MakesValue a => a -> App Bool
+isUserLegalholdRequestNotif :: (MakesValue a) => a -> App Bool
 isUserLegalholdRequestNotif = notifTypeIsEqual "user.legalhold-request"
 
-isUserLegalholdEnabledNotif :: MakesValue a => a -> App Bool
+isUserLegalholdEnabledNotif :: (MakesValue a) => a -> App Bool
 isUserLegalholdEnabledNotif = notifTypeIsEqual "user.legalhold-enable"
 
-isUserLegalholdDisabledNotif :: MakesValue a => a -> App Bool
+isUserLegalholdDisabledNotif :: (MakesValue a) => a -> App Bool
 isUserLegalholdDisabledNotif = notifTypeIsEqual "user.legalhold-disable"
 
-isUserConnectionNotif :: MakesValue a => a -> App Bool
+isUserConnectionNotif :: (MakesValue a) => a -> App Bool
 isUserConnectionNotif = notifTypeIsEqual "user.connection"
 
-isConnectionNotif :: MakesValue a => String -> a -> App Bool
+isConnectionNotif :: (MakesValue a) => String -> a -> App Bool
 isConnectionNotif status n =
   -- NB:
   -- (&&) <$> (print "hello" *> pure False) <*> fail "bla" === _|_
@@ -212,8 +212,8 @@ assertLeaveNotification ::
   kickedUser ->
   App ()
 assertLeaveNotification fromUser conv user client leaver =
-  void $
-    awaitNotification
+  void
+    $ awaitNotification
       user
       client
       noValue
@@ -225,7 +225,7 @@ assertLeaveNotification fromUser conv user client leaver =
           ]
       )
 
-assertConvUserDeletedNotif :: MakesValue leaverId => WebSocket -> leaverId -> App ()
+assertConvUserDeletedNotif :: (MakesValue leaverId) => WebSocket -> leaverId -> App ()
 assertConvUserDeletedNotif ws leaverId = do
   n <- awaitMatch isConvLeaveNotif ws
   nPayload n %. "data.qualified_user_ids.0" `shouldMatch` leaverId

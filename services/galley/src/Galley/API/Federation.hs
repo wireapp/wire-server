@@ -664,14 +664,15 @@ sendMLSMessage remoteDomain msr = handleMLSMessageErrors $ do
       msg
 
 getSubConversationForRemoteUser ::
-  Members
-    '[ SubConversationStore,
-       ConversationStore,
-       Input (Local ()),
-       Error InternalError,
-       P.TinyLog
-     ]
-    r =>
+  ( Members
+      '[ SubConversationStore,
+         ConversationStore,
+         Input (Local ()),
+         Error InternalError,
+         P.TinyLog
+       ]
+      r
+  ) =>
   Domain ->
   GetSubConversationsRequest ->
   Sem r GetSubConversationsResponse
@@ -769,7 +770,7 @@ getOne2OneConversation domain (GetOne2OneConversationRequest self other) =
 
 class ToGalleyRuntimeError (effs :: EffectRow) r where
   mapToGalleyError ::
-    Member (Error GalleyError) r =>
+    (Member (Error GalleyError) r) =>
     Sem (Append effs r) a ->
     Sem r a
 
@@ -835,7 +836,7 @@ onMLSMessageSent domain rmm =
       runMessagePush loc (Just (tUntagged rcnv)) $
         newMessagePush mempty Nothing rmm.metadata recipients e
   where
-    logError :: Member P.TinyLog r => Either (Tagged 'MLSNotEnabled ()) () -> Sem r ()
+    logError :: (Member P.TinyLog r) => Either (Tagged 'MLSNotEnabled ()) () -> Sem r ()
     logError (Left _) =
       P.warn $
         Log.field "conversation" (toByteString' rmm.conversation)
@@ -937,7 +938,7 @@ onTypingIndicatorUpdated origDomain TypingDataUpdated {..} = do
 -- | Log a federation error that is impossible in processing a remote request
 -- for a local conversation.
 logFederationError ::
-  Member P.TinyLog r =>
+  (Member P.TinyLog r) =>
   Local ConvId ->
   FederationError ->
   Sem r ()

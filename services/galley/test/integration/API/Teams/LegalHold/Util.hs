@@ -65,7 +65,7 @@ import Wire.API.UserEvent qualified as Ev
 
 -- | Create a new legal hold service creation request with the URL from the integration test
 -- config.
-newLegalHoldService :: HasCallStack => Warp.Port -> TestM NewLegalHoldService
+newLegalHoldService :: (HasCallStack) => Warp.Port -> TestM NewLegalHoldService
 newLegalHoldService lhPort = do
   config <- view (tsIConf . to provider)
   key' <- liftIO $ readServiceKey (publicKey config)
@@ -88,7 +88,7 @@ readServiceKey fp = liftIO $ do
 
 withDummyTestServiceForTeam ::
   forall a.
-  HasCallStack =>
+  (HasCallStack) =>
   UserId ->
   TeamId ->
   -- | the test
@@ -104,7 +104,7 @@ withDummyTestServiceForTeam owner tid go =
 -- the config file), and see if it works as well as with our mock service.
 withDummyTestServiceForTeamNoService ::
   forall a.
-  HasCallStack =>
+  (HasCallStack) =>
   -- | the test
   (Warp.Port -> Chan (Wai.Request, LByteString) -> TestM a) ->
   TestM a
@@ -151,7 +151,7 @@ withDummyTestServiceForTeamNoService go = do
 -- it's here for historical reason because we did this in galley.yaml
 -- at some point in the past rather than in an internal end-point, and that required spawning
 -- another galley 'Application' with 'withSettingsOverrides'.
-withLHWhitelist :: forall a. HasCallStack => TeamId -> TestM a -> TestM a
+withLHWhitelist :: forall a. (HasCallStack) => TeamId -> TestM a -> TestM a
 withLHWhitelist tid action = do
   void $ putLHWhitelistTeam tid
   opts <- view tsGConf
@@ -159,7 +159,7 @@ withLHWhitelist tid action = do
 
 -- | If you play with whitelists, you should use this one.  Every whitelisted team that does
 -- not get fully deleted will blow up the whitelist that is cached in every warp handler.
-withTeam :: forall a. HasCallStack => (HasCallStack => UserId -> TeamId -> TestM a) -> TestM a
+withTeam :: forall a. (HasCallStack) => ((HasCallStack) => UserId -> TeamId -> TestM a) -> TestM a
 withTeam action =
   bracket
     createBindingTeam
@@ -173,7 +173,7 @@ withTeam action =
 withFreePortAnyAddr :: (MonadMask m, MonadIO m) => ((Warp.Port, Socket) -> m a) -> m a
 withFreePortAnyAddr = bracket openFreePortAnyAddr (liftIO . Socket.close . snd)
 
-openFreePortAnyAddr :: MonadIO m => m (Warp.Port, Socket)
+openFreePortAnyAddr :: (MonadIO m) => m (Warp.Port, Socket)
 openFreePortAnyAddr = liftIO $ bindRandomPortTCP "*"
 
 -- | Run a test with an mock legal hold service application.  The mock service is also binding
@@ -184,7 +184,7 @@ openFreePortAnyAddr = liftIO $ bindRandomPortTCP "*"
 -- they can be run several times if they fail the first time.  this is the allow for the ssl
 -- service to have some time to propagate through the test system (needed on k8s).
 withTestService ::
-  HasCallStack =>
+  (HasCallStack) =>
   -- | the mock service
   (Chan e -> Application) ->
   -- | the test
@@ -222,14 +222,14 @@ publicKeyNotMatchingService =
 ----------------------------------------------------------------------
 -- API helpers
 
-getEnabled :: HasCallStack => TeamId -> TestM ResponseLBS
+getEnabled :: (HasCallStack) => TeamId -> TestM ResponseLBS
 getEnabled tid = do
   g <- viewGalley
   get $
     g
       . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
 
-renewToken :: HasCallStack => Text -> TestM ()
+renewToken :: (HasCallStack) => Text -> TestM ()
 renewToken tok = do
   b <- viewBrig
   void . post $
@@ -238,7 +238,7 @@ renewToken tok = do
       . cookieRaw "zuid" (toByteString' tok)
       . expect2xx
 
-putEnabled :: HasCallStack => TeamId -> Public.FeatureStatus -> TestM ()
+putEnabled :: (HasCallStack) => TeamId -> Public.FeatureStatus -> TestM ()
 putEnabled tid enabled = do
   g <- viewGalley
   putEnabledM g tid enabled
@@ -246,7 +246,7 @@ putEnabled tid enabled = do
 putEnabledM :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> TeamId -> Public.FeatureStatus -> m ()
 putEnabledM g tid enabled = void $ putEnabledM' g expect2xx tid enabled
 
-putEnabled' :: HasCallStack => (Bilge.Request -> Bilge.Request) -> TeamId -> Public.FeatureStatus -> TestM ResponseLBS
+putEnabled' :: (HasCallStack) => (Bilge.Request -> Bilge.Request) -> TeamId -> Public.FeatureStatus -> TestM ResponseLBS
 putEnabled' extra tid enabled = do
   g <- viewGalley
   putEnabledM' g extra tid enabled
@@ -259,7 +259,7 @@ putEnabledM' g extra tid enabled = do
       . json (Public.WithStatusNoLock enabled Public.LegalholdConfig Public.FeatureTTLUnlimited)
       . extra
 
-postSettings :: HasCallStack => UserId -> TeamId -> NewLegalHoldService -> TestM ResponseLBS
+postSettings :: (HasCallStack) => UserId -> TeamId -> NewLegalHoldService -> TestM ResponseLBS
 postSettings uid tid new =
   -- Retry calls to this endpoint, on k8s it sometimes takes a while to establish a working
   -- connection.
@@ -278,10 +278,10 @@ postSettings uid tid new =
     only412 :: RetryStatus -> ResponseLBS -> TestM Bool
     only412 _ resp = pure $ statusCode resp == 412
 
-getSettingsTyped :: HasCallStack => UserId -> TeamId -> TestM ViewLegalHoldService
+getSettingsTyped :: (HasCallStack) => UserId -> TeamId -> TestM ViewLegalHoldService
 getSettingsTyped uid tid = responseJsonUnsafe <$> (getSettings uid tid <!! testResponse 200 Nothing)
 
-getSettings :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
+getSettings :: (HasCallStack) => UserId -> TeamId -> TestM ResponseLBS
 getSettings uid tid = do
   g <- viewGalley
   get $
@@ -291,7 +291,7 @@ getSettings uid tid = do
       . zConn "conn"
       . zType "access"
 
-deleteSettings :: HasCallStack => Maybe PlainTextPassword6 -> UserId -> TeamId -> TestM ResponseLBS
+deleteSettings :: (HasCallStack) => Maybe PlainTextPassword6 -> UserId -> TeamId -> TestM ResponseLBS
 deleteSettings mPassword uid tid = do
   g <- viewGalley
   delete $
@@ -302,7 +302,7 @@ deleteSettings mPassword uid tid = do
       . zType "access"
       . json (RemoveLegalHoldSettingsRequest mPassword)
 
-getUserStatusTyped :: HasCallStack => UserId -> TeamId -> TestM UserLegalHoldStatusResponse
+getUserStatusTyped :: (HasCallStack) => UserId -> TeamId -> TestM UserLegalHoldStatusResponse
 getUserStatusTyped uid tid = do
   g <- viewGalley
   getUserStatusTyped' g uid tid
@@ -321,7 +321,7 @@ getUserStatus' g uid tid = do
       . zConn "conn"
       . zType "access"
 
-approveLegalHoldDevice :: HasCallStack => Maybe PlainTextPassword6 -> UserId -> UserId -> TeamId -> TestM ResponseLBS
+approveLegalHoldDevice :: (HasCallStack) => Maybe PlainTextPassword6 -> UserId -> UserId -> TeamId -> TestM ResponseLBS
 approveLegalHoldDevice mPassword zusr uid tid = do
   g <- viewGalley
   approveLegalHoldDevice' g mPassword zusr uid tid
@@ -344,7 +344,7 @@ approveLegalHoldDevice' g mPassword zusr uid tid = do
       . json (ApproveLegalHoldForUserRequest mPassword)
 
 disableLegalHoldForUser ::
-  HasCallStack =>
+  (HasCallStack) =>
   Maybe PlainTextPassword6 ->
   TeamId ->
   UserId ->
@@ -370,7 +370,7 @@ disableLegalHoldForUser' g mPassword tid zusr uid = do
       . zType "access"
       . json (DisableLegalHoldForUserRequest mPassword)
 
-assertExactlyOneLegalHoldDevice :: HasCallStack => UserId -> TestM ()
+assertExactlyOneLegalHoldDevice :: (HasCallStack) => UserId -> TestM ()
 assertExactlyOneLegalHoldDevice uid = do
   clients :: [Client] <-
     getClients uid >>= responseJsonError
@@ -378,7 +378,7 @@ assertExactlyOneLegalHoldDevice uid = do
     let numdevs = length $ clientType <$> clients
     assertEqual ("expected exactly one legal hold device for user: " <> show uid) numdevs 1
 
-assertZeroLegalHoldDevices :: HasCallStack => UserId -> TestM ()
+assertZeroLegalHoldDevices :: (HasCallStack) => UserId -> TestM ()
 assertZeroLegalHoldDevices uid = do
   clients :: [Client] <-
     getClients uid >>= responseJsonError
@@ -396,7 +396,7 @@ assertZeroLegalHoldDevices uid = do
 ----------------------------------------------------------------------
 ---- Device helpers
 
-grantConsent :: HasCallStack => TeamId -> UserId -> TestM ()
+grantConsent :: (HasCallStack) => TeamId -> UserId -> TestM ()
 grantConsent tid zusr = do
   g <- viewGalley
   grantConsent' g tid zusr
@@ -414,7 +414,7 @@ grantConsent'' expectation g tid zusr = do
       . zType "access"
       . expectation
 
-requestLegalHoldDevice :: HasCallStack => UserId -> UserId -> TeamId -> TestM ResponseLBS
+requestLegalHoldDevice :: (HasCallStack) => UserId -> UserId -> TeamId -> TestM ResponseLBS
 requestLegalHoldDevice zusr uid tid = do
   g <- viewGalley
   requestLegalHoldDevice' g zusr uid tid
@@ -505,7 +505,7 @@ assertMatchChan c match = go []
           refill buf
           error "Timeout"
 
-getLHWhitelistedTeam :: HasCallStack => TeamId -> TestM ResponseLBS
+getLHWhitelistedTeam :: (HasCallStack) => TeamId -> TestM ResponseLBS
 getLHWhitelistedTeam tid = do
   galleyCall <- viewGalley
   getLHWhitelistedTeam' galleyCall tid
@@ -517,7 +517,7 @@ getLHWhitelistedTeam' g tid = do
         . paths ["i", "legalhold", "whitelisted-teams", toByteString' tid]
     )
 
-putLHWhitelistTeam :: HasCallStack => TeamId -> TestM ResponseLBS
+putLHWhitelistTeam :: (HasCallStack) => TeamId -> TestM ResponseLBS
 putLHWhitelistTeam tid = do
   galleyCall <- viewGalley
   putLHWhitelistTeam' galleyCall tid
@@ -529,7 +529,7 @@ putLHWhitelistTeam' g tid = do
         . paths ["i", "legalhold", "whitelisted-teams", toByteString' tid]
     )
 
-_deleteLHWhitelistTeam :: HasCallStack => TeamId -> TestM ResponseLBS
+_deleteLHWhitelistTeam :: (HasCallStack) => TeamId -> TestM ResponseLBS
 _deleteLHWhitelistTeam tid = do
   galleyCall <- viewGalley
   deleteLHWhitelistTeam' galleyCall tid

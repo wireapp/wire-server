@@ -41,7 +41,7 @@ getTeamNotifications uid since size = do
     (fromMaybe defaultSize size)
   where
     checkSince ::
-      Member (ErrorS 'InvalidTeamNotificationId) r =>
+      (Member (ErrorS 'InvalidTeamNotificationId) r) =>
       Maybe NotificationId ->
       Sem r (Maybe NotificationId)
     checkSince Nothing = pure Nothing

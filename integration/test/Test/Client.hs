@@ -17,7 +17,7 @@ import SetupHelpers
 import Testlib.Prelude
 import Testlib.ResourcePool
 
-testClientLastActive :: HasCallStack => App ()
+testClientLastActive :: (HasCallStack) => App ()
 testClientLastActive = do
   alice <- randomUser OwnDomain def
   c0 <- addClient alice def >>= getJSON 201
@@ -41,7 +41,7 @@ testClientLastActive = do
       <$> parseTimeM False defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" tm1
   assertBool "last_active is earlier than expected" $ ts1 >= now
 
-testListClientsIfBackendIsOffline :: HasCallStack => App ()
+testListClientsIfBackendIsOffline :: (HasCallStack) => App ()
 testListClientsIfBackendIsOffline = do
   resourcePool <- asks (.resourcePool)
   ownDomain <- asString OwnDomain

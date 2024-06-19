@@ -151,7 +151,7 @@ getQueueUrl ::
   m Text
 getQueueUrl e q = view SQS.getQueueUrlResponse_queueUrl <$> exec e (SQS.newGetQueueUrl q)
 
-execute :: MonadIO m => Env -> Amazon a -> m a
+execute :: (MonadIO m) => Env -> Amazon a -> m a
 execute e m = liftIO $ runResourceT (runReaderT (unAmazon m) e)
 
 data Error where
@@ -276,7 +276,7 @@ exec ::
   m (AWSResponse a)
 exec e cmd = liftIO (execCatch e cmd) >>= either (throwM . GeneralError) pure
 
-canRetry :: MonadIO m => Either AWS.Error a -> m Bool
+canRetry :: (MonadIO m) => Either AWS.Error a -> m Bool
 canRetry (Right _) = pure False
 canRetry (Left e) = case e of
   AWS.TransportError (HttpExceptionRequest _ ResponseTimeout) -> pure True

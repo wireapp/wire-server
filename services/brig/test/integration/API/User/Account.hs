@@ -570,11 +570,11 @@ testActivateWithExpiry _ brig timeout = do
       awaitExpiry (round timeout + 5) kc
       activate brig kc !!! const 404 === statusCode
   where
-    actualBody :: HasCallStack => ResponseLBS -> Maybe (Maybe UserIdentity, Bool)
+    actualBody :: (HasCallStack) => ResponseLBS -> Maybe (Maybe UserIdentity, Bool)
     actualBody rs = do
       a <- responseJsonMaybe rs
       Just (Just (activatedIdentity a), activatedFirst a)
-    awaitExpiry :: HasCallStack => Int -> ActivationPair -> Http ()
+    awaitExpiry :: (HasCallStack) => Int -> ActivationPair -> Http ()
     awaitExpiry n kc = do
       liftIO $ threadDelay 1000000
       r <- activate brig kc
@@ -739,7 +739,7 @@ testMultipleUsersUnqualified brig = do
       Set.fromList
         . map (field "name" &&& field "email")
         <$> responseJsonMaybe r
-    field :: FromJSON a => Key -> Value -> Maybe a
+    field :: (FromJSON a) => Key -> Value -> Maybe a
     field f u = u ^? key f >>= maybeFromJSON
 
 testMultipleUsersV3 :: Brig -> Http ()
@@ -771,7 +771,7 @@ testMultipleUsersV3 brig = do
       Set.fromList
         . map (field "name" &&& field "email")
         <$> responseJsonMaybe r
-    field :: FromJSON a => Key -> Value -> Maybe a
+    field :: (FromJSON a) => Key -> Value -> Maybe a
     field f u = u ^? key f >>= maybeFromJSON
 
 testMultipleUsers :: Opt.Opts -> Brig -> Http ()
@@ -889,10 +889,10 @@ testCreateUserAnonExpiry b = do
     deleted :: ResponseLBS -> Maybe Bool
     deleted r = field "deleted" =<< responseJsonMaybe r
 
-    field :: FromJSON a => Key -> Value -> Maybe a
+    field :: (FromJSON a) => Key -> Value -> Maybe a
     field f u = u ^? key f >>= maybeFromJSON
 
-testUserUpdate :: HasCallStack => Brig -> Cannon -> UserJournalWatcher -> Http ()
+testUserUpdate :: (HasCallStack) => Brig -> Cannon -> UserJournalWatcher -> Http ()
 testUserUpdate brig cannon userJournalWatcher = do
   aliceUser <- randomUser brig
   Util.assertUserActivateJournaled userJournalWatcher aliceUser "user create alice"
@@ -1480,7 +1480,7 @@ testUpdateSSOId brig galley = do
         . Bilge.json (UserSSOId (mkSampleUref "1" "1"))
     )
     !!! const 404 === statusCode
-  let go :: HasCallStack => User -> UserSSOId -> Http ()
+  let go :: (HasCallStack) => User -> UserSSOId -> Http ()
       go user ssoid = do
         let uid = userId user
         put
@@ -1678,7 +1678,7 @@ testDeleteUserWithNoUser brig = do
     !!! do
       const 404 === statusCode
 
-testDeleteUserWithNotDeletedUser :: HasCallStack => Brig -> Cannon -> UserJournalWatcher -> Http ()
+testDeleteUserWithNotDeletedUser :: (HasCallStack) => Brig -> Cannon -> UserJournalWatcher -> Http ()
 testDeleteUserWithNotDeletedUser brig cannon userJournalWatcher = do
   u <- randomUser brig
   Util.assertUserActivateJournaled userJournalWatcher u "user activate testDeleteUserWithNotDeletedUser"

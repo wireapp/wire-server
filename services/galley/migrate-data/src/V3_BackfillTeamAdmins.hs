@@ -56,13 +56,13 @@ pageSize = 1000
 -- Queries
 
 -- | Get team members from Galley
-getTeamMembers :: MonadClient m => ConduitM () [(TeamId, UserId, Maybe Permissions)] m ()
+getTeamMembers :: (MonadClient m) => ConduitM () [(TeamId, UserId, Maybe Permissions)] m ()
 getTeamMembers = paginateC cql (paramsP LocalQuorum () pageSize) x5
   where
     cql :: PrepQuery R () (TeamId, UserId, Maybe Permissions)
     cql = "SELECT team, user, perms FROM team_member"
 
-createTeamAdmins :: MonadClient m => (TeamId, UserId) -> m ()
+createTeamAdmins :: (MonadClient m) => (TeamId, UserId) -> m ()
 createTeamAdmins pair =
   retry x5 $ write cql (params LocalQuorum pair)
   where

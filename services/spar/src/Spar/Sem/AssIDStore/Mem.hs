@@ -32,7 +32,7 @@ import Wire.API.User.Saml (AssId)
 import Wire.Sem.Now
 
 assIdStoreToMem ::
-  Member Now r =>
+  (Member Now r) =>
   Sem (AssIDStore ': r) a ->
   Sem r (Map AssId SAML.Time, a)
 assIdStoreToMem = (runState mempty .) $

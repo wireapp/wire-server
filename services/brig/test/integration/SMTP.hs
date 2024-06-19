@@ -224,10 +224,10 @@ delayingApp delay =
         $> Postie.Accepted
     )
 
-everDelayingTCPServer :: HasCallStack => Socket -> IO a -> IO a
+everDelayingTCPServer :: (HasCallStack) => Socket -> IO a -> IO a
 everDelayingTCPServer sock action = listen sock 1024 >> action
 
-withRandomPortAndSocket :: MonadIO m => ((PortNumber, Socket) -> IO a) -> m a
+withRandomPortAndSocket :: (MonadIO m) => ((PortNumber, Socket) -> IO a) -> m a
 withRandomPortAndSocket action =
   liftIO $
     bracket

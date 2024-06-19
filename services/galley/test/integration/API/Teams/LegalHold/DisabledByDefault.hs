@@ -361,18 +361,18 @@ testCreateLegalHoldTeamSettings = do
   postSettings owner tid brokenService !!! testResponse 412 (Just "legalhold-unavailable")
   -- checks /status of legal hold service (boolean argument says whether the service is
   -- behaving or not)
-  let lhapp :: HasCallStack => IsWorking -> Chan Void -> Application
+  let lhapp :: (HasCallStack) => IsWorking -> Chan Void -> Application
       lhapp NotWorking _ _ cont = cont respondBad
       lhapp Working _ req cont = do
         if
-            | pathInfo req /= ["legalhold", "status"] -> cont respondBad
-            | requestMethod req /= "GET" -> cont respondBad
-            | otherwise -> cont respondOk
+          | pathInfo req /= ["legalhold", "status"] -> cont respondBad
+          | requestMethod req /= "GET" -> cont respondBad
+          | otherwise -> cont respondOk
       respondOk :: Wai.Response
       respondOk = responseLBS status200 mempty mempty
       respondBad :: Wai.Response
       respondBad = responseLBS status404 mempty mempty
-      lhtest :: HasCallStack => IsWorking -> Warp.Port -> Chan Void -> TestM ()
+      lhtest :: (HasCallStack) => IsWorking -> Warp.Port -> Chan Void -> TestM ()
       lhtest NotWorking _ _ = do
         postSettings owner tid brokenService !!! testResponse 412 (Just "legalhold-unavailable")
       lhtest Working lhPort _ = do
@@ -601,7 +601,7 @@ testGetTeamMembersIncludesLHStatus = do
       findMemberStatus ms =
         ms ^? traversed . filtered (has $ Team.userId . only member) . legalHoldStatus
 
-  let check :: HasCallStack => UserLegalHoldStatus -> String -> TestM ()
+  let check :: (HasCallStack) => UserLegalHoldStatus -> String -> TestM ()
       check status msg = do
         members' <- view teamMembers <$> getTeamMembers owner tid
         liftIO $
@@ -640,7 +640,7 @@ testOldClientsBlockDeviceHandshake = do
     -- has to be a team member, granting LH consent for personal users is not supported.
     createBindingTeam
 
-  let doEnableLH :: HasCallStack => UserId -> UserId -> TestM ClientId
+  let doEnableLH :: (HasCallStack) => UserId -> UserId -> TestM ClientId
       doEnableLH owner uid = do
         requestLegalHoldDevice owner uid tid !!! testResponse 201 Nothing
         approveLegalHoldDevice (Just defPassword) uid uid tid !!! testResponse 200 Nothing
@@ -683,7 +683,7 @@ testOldClientsBlockDeviceHandshake = do
                 <!! const 201 === statusCode
             )
 
-    let runit :: HasCallStack => UserId -> ClientId -> TestM ResponseLBS
+    let runit :: (HasCallStack) => UserId -> ClientId -> TestM ResponseLBS
         runit sender senderClient = do
           postOtrMessage id sender senderClient convId rcps
           where
@@ -718,7 +718,7 @@ testClaimKeys testcase = do
   (legalholder, tid) <- createBindingTeam
   (peer, teamPeer) <- createBindingTeam
 
-  let doEnableLH :: HasCallStack => TeamId -> UserId -> UserId -> TestM ClientId
+  let doEnableLH :: (HasCallStack) => TeamId -> UserId -> UserId -> TestM ClientId
       doEnableLH team owner uid = do
         requestLegalHoldDevice owner uid team !!! testResponse 201 Nothing
         approveLegalHoldDevice (Just defPassword) uid uid team !!! testResponse 200 Nothing
@@ -772,7 +772,7 @@ testClaimKeys testcase = do
 --------------------------------------------------------------------
 -- setup helpers
 
-withDummyTestServiceForTeam' :: HasCallStack => UserId -> TeamId -> (Warp.Port -> Chan (Wai.Request, LByteString) -> TestM a) -> TestM a
+withDummyTestServiceForTeam' :: (HasCallStack) => UserId -> TeamId -> (Warp.Port -> Chan (Wai.Request, LByteString) -> TestM a) -> TestM a
 withDummyTestServiceForTeam' owner tid go = do
   withDummyTestServiceForTeamNoService $ \lhPort chan -> do
     newService <- newLegalHoldService lhPort

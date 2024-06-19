@@ -12,7 +12,7 @@ import SetupHelpers
 import Testlib.Prelude
 import Text.Printf (printf)
 
-testLoginVerify6DigitEmailCodeSuccess :: HasCallStack => App ()
+testLoginVerify6DigitEmailCodeSuccess :: (HasCallStack) => App ()
 testLoginVerify6DigitEmailCodeSuccess = do
   (owner, team, []) <- createTeam OwnDomain 0
   email <- owner %. "email"
@@ -25,7 +25,7 @@ testLoginVerify6DigitEmailCodeSuccess = do
 
 --
 -- Test that login fails with wrong second factor email verification code
-testLoginVerify6DigitWrongCodeFails :: HasCallStack => App ()
+testLoginVerify6DigitWrongCodeFails :: (HasCallStack) => App ()
 testLoginVerify6DigitWrongCodeFails = do
   (owner, team, []) <- createTeam OwnDomain 0
   email <- owner %. "email"
@@ -40,7 +40,7 @@ testLoginVerify6DigitWrongCodeFails = do
 
 --
 -- Test that login without verification code fails if SndFactorPasswordChallenge feature is enabled in team
-testLoginVerify6DigitMissingCodeFails :: HasCallStack => App ()
+testLoginVerify6DigitMissingCodeFails :: (HasCallStack) => App ()
 testLoginVerify6DigitMissingCodeFails = do
   (owner, team, []) <- createTeam OwnDomain 0
   email <- owner %. "email"
@@ -52,7 +52,7 @@ testLoginVerify6DigitMissingCodeFails = do
 
 --
 -- Test that login fails with expired second factor email verification code
-testLoginVerify6DigitExpiredCodeFails :: HasCallStack => App ()
+testLoginVerify6DigitExpiredCodeFails :: (HasCallStack) => App ()
 testLoginVerify6DigitExpiredCodeFails = do
   withModifiedBackend
     (def {brigCfg = setField "optSettings.setVerificationTimeout" (Aeson.Number 2)})
@@ -73,7 +73,7 @@ testLoginVerify6DigitExpiredCodeFails = do
         resp.status `shouldMatchInt` 403
         resp.json %. "label" `shouldMatch` "code-authentication-failed"
 
-testLoginVerify6DigitResendCodeSuccessAndRateLimiting :: HasCallStack => App ()
+testLoginVerify6DigitResendCodeSuccessAndRateLimiting :: (HasCallStack) => App ()
 testLoginVerify6DigitResendCodeSuccessAndRateLimiting = do
   (owner, team, []) <- createTeam OwnDomain 0
   email <- owner %. "email"
@@ -95,7 +95,7 @@ testLoginVerify6DigitResendCodeSuccessAndRateLimiting = do
   bindResponse (loginWith2ndFactor owner email defPassword mostRecentCode) \resp -> do
     resp.status `shouldMatchInt` 200
 
-testLoginVerify6DigitLimitRetries :: HasCallStack => App ()
+testLoginVerify6DigitLimitRetries :: (HasCallStack) => App ()
 testLoginVerify6DigitLimitRetries = do
   (owner, team, []) <- createTeam OwnDomain 0
   email <- owner %. "email"

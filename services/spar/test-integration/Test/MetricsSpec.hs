@@ -29,7 +29,7 @@ import Data.String.Conversions
 import Imports
 import Util
 
-spec :: HasCallStack => SpecWith TestEnv
+spec :: (HasCallStack) => SpecWith TestEnv
 spec = describe "metrics" . it "works" $ do
   spar <- asks (^. teSpar)
   let p1 = "/sso/metadata"

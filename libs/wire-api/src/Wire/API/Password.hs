@@ -124,16 +124,16 @@ fromScrypt scryptParams =
 
 -- | Generate a strong, random plaintext password of length 16
 -- containing only alphanumeric characters, '+' and '/'.
-genPassword :: MonadIO m => m PlainTextPassword8
+genPassword :: (MonadIO m) => m PlainTextPassword8
 genPassword =
   liftIO . fmap (plainTextPassword8Unsafe . Text.decodeUtf8 . B64.encode) $
     randBytes 12
 
 -- | Stretch a plaintext password so that it can be safely stored.
-mkSafePassword :: MonadIO m => PlainTextPassword' t -> m Password
+mkSafePassword :: (MonadIO m) => PlainTextPassword' t -> m Password
 mkSafePassword = fmap Password . hashPasswordScrypt . Text.encodeUtf8 . fromPlainTextPassword
 
-mkSafePasswordArgon2id :: MonadIO m => PlainTextPassword' t -> m Password
+mkSafePasswordArgon2id :: (MonadIO m) => PlainTextPassword' t -> m Password
 mkSafePasswordArgon2id = fmap Password . hashPasswordArgon2id . Text.encodeUtf8 . fromPlainTextPassword
 
 -- | Verify a plaintext password from user input against a stretched
@@ -147,7 +147,7 @@ verifyPasswordWithStatus plain opaque =
       expected = fromPassword opaque
    in checkPassword actual expected
 
-hashPasswordArgon2id :: MonadIO m => ByteString -> m Text
+hashPasswordArgon2id :: (MonadIO m) => ByteString -> m Text
 hashPasswordArgon2id pwd = do
   salt <- newSalt $ fromIntegral defaultParams.saltLength
   let key = hashPasswordWithOptions defaultOptions pwd salt
@@ -171,7 +171,7 @@ hashPasswordArgon2id pwd = do
   where
     encodeWithoutPadding = Text.dropWhileEnd (== '=') . Text.decodeUtf8 . B64.encode
 
-hashPasswordScrypt :: MonadIO m => ByteString -> m Text
+hashPasswordScrypt :: (MonadIO m) => ByteString -> m Text
 hashPasswordScrypt password = do
   salt <- newSalt $ fromIntegral defaultParams.saltLength
   let key = hashPasswordWithParams defaultParams password salt
@@ -198,7 +198,7 @@ checkPassword actual expected =
            in (hashedKeyS `constEq` producedKeyS, PasswordStatusNeedsUpdate)
         Nothing -> (False, PasswordStatusNeedsUpdate)
 
-newSalt :: MonadIO m => Int -> m ByteString
+newSalt :: (MonadIO m) => Int -> m ByteString
 newSalt i = liftIO $ getRandomBytes i
 {-# INLINE newSalt #-}
 

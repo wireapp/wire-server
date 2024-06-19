@@ -67,8 +67,8 @@ import Wire.API.User.Scim (CreateScimToken (..), ScimToken, ScimUserExtra (ScimU
 
 tests :: Opts -> Manager -> ClientState -> Brig -> Galley -> Spar -> IO TestTree
 tests opts m db brig galley spar = do
-  pure
-    $ testGroup
+  pure $
+    testGroup
       "cleanExpiredPendingInvitations"
       [ test m "expired users get cleaned" (testCleanExpiredPendingInvitations opts db brig galley spar),
         test m "users that register dont get cleaned" (testRegisteredUsersNotCleaned opts db brig galley spar)
@@ -103,8 +103,8 @@ testRegisteredUsersNotCleaned opts db brig galley spar = do
 createScimToken :: Spar -> UserId -> HttpT IO ScimToken
 createScimToken spar' owner = do
   CreateScimTokenResponse tok _ <-
-    createToken spar' owner
-      $ CreateScimToken
+    createToken spar' owner $
+      CreateScimToken
         { createScimTokenDescr = "testCreateToken",
           createScimTokenPassword = Just defPassword,
           createScimTokenCode = Nothing
@@ -132,8 +132,8 @@ waitUserExpiration opts' = do
 userExists :: (MonadClient m) => UserId -> m Bool
 userExists uid = do
   x <- retry x1 (query1 usersSelect (params LocalQuorum (Identity uid)))
-  pure
-    $ case x of
+  pure $
+    case x of
       Nothing -> False
       Just (_, mbStatus) ->
         Just Deleted /= mbStatus
@@ -168,12 +168,12 @@ createUserWithTeamDisableSSO brg gly = do
   let (uid, Just tid) = (userId bdy, userTeam bdy)
   team <- Team.tdTeam <$> getTeam gly tid
   () <-
-    Control.Exception.assert {- "Team ID in registration and team table do not match" -} (tid == team ^. teamId)
-      $ pure ()
+    Control.Exception.assert {- "Team ID in registration and team table do not match" -} (tid == team ^. teamId) $
+      pure ()
   selfTeam <- userTeam . selfUser <$> getSelfProfile brg uid
   () <-
-    Control.Exception.assert {- "Team ID in self profile and team table do not match" -} (selfTeam == Just tid)
-      $ pure ()
+    Control.Exception.assert {- "Team ID in self profile and team table do not match" -} (selfTeam == Just tid) $
+      pure ()
   pure (uid, tid)
 
 randomScimUser :: (HasCallStack, MonadRandom m, MonadIO m) => m (Scim.User.User SparTag)
@@ -201,8 +201,8 @@ randomScimUserWithSubjectAndRichInfo richInfo = do
     getRandomR (0, 1 :: Int) <&> \case
       0 ->
         ( "scimuser_extid_" <> suffix <> "@example.com",
-          either (error . show) id
-            $ SAML.mkUNameIDEmail ("scimuser_extid_" <> suffix <> "@example.com")
+          either (error . show) id $
+            SAML.mkUNameIDEmail ("scimuser_extid_" <> suffix <> "@example.com")
         )
       1 ->
         ( "scimuser_extid_" <> suffix,
@@ -271,14 +271,14 @@ createUser_ spar auth user = do
   -- still some confusion here about the distinction between *validated*
   -- emails and *scim-provided* emails, which are two entirely
   -- different things.
-  post
-    $ ( spar
-          . paths ["scim", "v2", "Users"]
-          . scimAuth auth
-          . contentScim
-          . json user
-          . acceptScim
-      )
+  post $
+    ( spar
+        . paths ["scim", "v2", "Users"]
+        . scimAuth auth
+        . contentScim
+        . json user
+        . acceptScim
+    )
 
 -- | Add SCIM authentication to a request.
 scimAuth :: Maybe ScimToken -> Request -> Request
@@ -319,14 +319,14 @@ createToken_ ::
   -- | Spar endpoint
   Http ResponseLBS
 createToken_ spar userid payload = do
-  post
-    $ ( spar
-          . paths ["scim", "auth-tokens"]
-          . zUser userid
-          . contentJson
-          . json payload
-          . acceptJson
-      )
+  post $
+    ( spar
+        . paths ["scim", "auth-tokens"]
+        . zUser userid
+        . contentJson
+        . json payload
+        . acceptJson
+    )
 
 -- | Create a SCIM token.
 createToken ::
@@ -346,14 +346,14 @@ createToken spar zusr payload = do
 
 registerInvitation :: Brig -> Email -> Name -> InvitationCode -> Bool -> Http ()
 registerInvitation brig email name inviteeCode shouldSucceed = do
-  void
-    $ post
+  void $
+    post
       ( brig
           . path "/register"
           . contentJson
           . json (acceptWithName name email inviteeCode)
       )
-    <!! const (if shouldSucceed then 201 else 400) === statusCode
+      <!! const (if shouldSucceed then 201 else 400) === statusCode
 
 acceptWithName :: Name -> Email -> InvitationCode -> Aeson.Value
 acceptWithName name email code =

@@ -72,7 +72,7 @@ instance ToNamedRecord TeamExportUser where
         ("num_devices", secureCsvFieldToByteString (tExportNumDevices row))
       ]
 
-secureCsvFieldToByteString :: forall a. ToByteString a => a -> ByteString
+secureCsvFieldToByteString :: forall a. (ToByteString a) => a -> ByteString
 secureCsvFieldToByteString = quoted . toByteString'
 
 instance DefaultOrdered TeamExportUser where
@@ -98,7 +98,7 @@ allowEmpty :: (ByteString -> Parser a) -> ByteString -> Parser (Maybe a)
 allowEmpty _ "" = pure Nothing
 allowEmpty p str = Just <$> p str
 
-parseByteString :: forall a. FromByteString a => ByteString -> Parser a
+parseByteString :: forall a. (FromByteString a) => ByteString -> Parser a
 parseByteString bstr =
   case parseOnly (parser @a) (C.fromStrict (unquoted bstr)) of
     Left err -> fail err

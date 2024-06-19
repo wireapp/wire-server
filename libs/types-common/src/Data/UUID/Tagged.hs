@@ -58,7 +58,7 @@ data V5
 instance Version V5 where
   versionValue = 5
 
-mk :: forall v. Version v => D.UUID -> UUID v
+mk :: forall v. (Version v) => D.UUID -> UUID v
 mk u = UUID $
   case D.toWords u of
     (x0, x1, x2, x3) ->

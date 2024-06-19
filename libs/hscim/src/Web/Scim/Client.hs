@@ -74,28 +74,28 @@ type HasScimClient tag =
     ToHttpApiData (GroupId tag)
   )
 
-scimClients :: HasScimClient tag => ClientEnv -> Site tag (AsClientT IO)
+scimClients :: (HasScimClient tag) => ClientEnv -> Site tag (AsClientT IO)
 scimClients env = genericClientHoist $ \x -> runClientM x env >>= either throwIO pure
 
 -- config
 
 spConfig ::
   forall tag.
-  HasScimClient tag =>
+  (HasScimClient tag) =>
   ClientEnv ->
   IO MetaSchema.Configuration
 spConfig env = case config @tag (scimClients env) of ((r :<|> _) :<|> (_ :<|> _)) -> r
 
 getSchemas ::
   forall tag.
-  HasScimClient tag =>
+  (HasScimClient tag) =>
   ClientEnv ->
   IO (ListResponse Value)
 getSchemas env = case config @tag (scimClients env) of ((_ :<|> r) :<|> (_ :<|> _)) -> r
 
 schema ::
   forall tag.
-  HasScimClient tag =>
+  (HasScimClient tag) =>
   ClientEnv ->
   Text ->
   IO Value
@@ -103,7 +103,7 @@ schema env = case config @tag (scimClients env) of ((_ :<|> _) :<|> (r :<|> _)) 
 
 resourceTypes ::
   forall tag.
-  HasScimClient tag =>
+  (HasScimClient tag) =>
   ClientEnv ->
   IO (ListResponse ResourceType.Resource)
 resourceTypes env = case config @tag (scimClients env) of ((_ :<|> _) :<|> (_ :<|> r)) -> r
@@ -111,7 +111,7 @@ resourceTypes env = case config @tag (scimClients env) of ((_ :<|> _) :<|> (_ :<
 -- users
 
 getUsers ::
-  HasScimClient tag =>
+  (HasScimClient tag) =>
   ClientEnv ->
   Maybe (AuthData tag) ->
   Maybe Filter ->
@@ -119,7 +119,7 @@ getUsers ::
 getUsers env tok = case users (scimClients env) tok of ((r :<|> (_ :<|> _)) :<|> (_ :<|> (_ :<|> _))) -> r
 
 getUser ::
-  HasScimClient tag =>
+  (HasScimClient tag) =>
   ClientEnv ->
   Maybe (AuthData tag) ->
   UserId tag ->
@@ -127,7 +127,7 @@ getUser ::
 getUser env tok = case users (scimClients env) tok of ((_ :<|> (r :<|> _)) :<|> (_ :<|> (_ :<|> _))) -> r
 
 postUser ::
-  HasScimClient tag =>
+  (HasScimClient tag) =>
   ClientEnv ->
   Maybe (AuthData tag) ->
   User tag ->
@@ -135,7 +135,7 @@ postUser ::
 postUser env tok = case users (scimClients env) tok of ((_ :<|> (_ :<|> r)) :<|> (_ :<|> (_ :<|> _))) -> r
 
 putUser ::
-  HasScimClient tag =>
+  (HasScimClient tag) =>
   ClientEnv ->
   Maybe (AuthData tag) ->
   UserId tag ->
@@ -144,7 +144,7 @@ putUser ::
 putUser env tok = case users (scimClients env) tok of ((_ :<|> (_ :<|> _)) :<|> (r :<|> (_ :<|> _))) -> r
 
 patchUser ::
-  HasScimClient tag =>
+  (HasScimClient tag) =>
   ClientEnv ->
   Maybe (AuthData tag) ->
   UserId tag ->
@@ -154,7 +154,7 @@ patchUser env tok = case users (scimClients env) tok of ((_ :<|> (_ :<|> _)) :<|
 
 deleteUser ::
   forall tag.
-  HasScimClient tag =>
+  (HasScimClient tag) =>
   ClientEnv ->
   Maybe (AuthData tag) ->
   UserId tag ->

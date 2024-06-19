@@ -29,7 +29,7 @@ import Wire.API.User.Auth
 newtype TTL = TTL {ttlSeconds :: Int32}
   deriving (Cql)
 
-insertCookie :: MonadClient m => UserId -> Cookie a -> Maybe TTL -> m ()
+insertCookie :: (MonadClient m) => UserId -> Cookie a -> Maybe TTL -> m ()
 insertCookie u ck ttl =
   let i = cookieId ck
       x = cookieExpires ck
@@ -45,7 +45,7 @@ insertCookie u ck ttl =
       "INSERT INTO user_cookies (user, expires, id, type, created, label, succ_id) \
       \VALUES (?, ?, ?, ?, ?, ?, ?) USING TTL ?"
 
-lookupCookie :: MonadClient m => UserId -> UTCTime -> CookieId -> m (Maybe (Cookie ()))
+lookupCookie :: (MonadClient m) => UserId -> UTCTime -> CookieId -> m (Maybe (Cookie ()))
 lookupCookie u t c =
   fmap mkCookie <$> retry x1 (query1 cql (params LocalQuorum (u, t, c)))
   where
@@ -65,7 +65,7 @@ lookupCookie u t c =
       \FROM user_cookies \
       \WHERE user = ? AND expires = ? AND id = ?"
 
-listCookies :: MonadClient m => UserId -> m [Cookie ()]
+listCookies :: (MonadClient m) => UserId -> m [Cookie ()]
 listCookies u =
   map toCookie <$> retry x1 (query cql (params LocalQuorum (Identity u)))
   where
@@ -87,7 +87,7 @@ listCookies u =
           cookieValue = ()
         }
 
-deleteCookies :: MonadClient m => UserId -> [Cookie a] -> m ()
+deleteCookies :: (MonadClient m) => UserId -> [Cookie a] -> m ()
 deleteCookies u cs = retry x5 . batch $ do
   setType BatchUnLogged
   setConsistency LocalQuorum
@@ -96,7 +96,7 @@ deleteCookies u cs = retry x5 . batch $ do
     cql :: PrepQuery W (UserId, UTCTime, CookieId) ()
     cql = "DELETE FROM user_cookies WHERE user = ? AND expires = ? AND id = ?"
 
-deleteAllCookies :: MonadClient m => UserId -> m ()
+deleteAllCookies :: (MonadClient m) => UserId -> m ()
 deleteAllCookies u = retry x5 (write cql (params LocalQuorum (Identity u)))
   where
     cql :: PrepQuery W (Identity UserId) ()

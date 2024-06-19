@@ -233,17 +233,17 @@ instance SerialiseMLS Word32 where serialiseMLS = put
 instance SerialiseMLS Word64 where serialiseMLS = put
 
 -- | Encode an MLS value to a lazy bytestring.
-encodeMLS :: SerialiseMLS a => a -> LByteString
+encodeMLS :: (SerialiseMLS a) => a -> LByteString
 encodeMLS = runPut . serialiseMLS
 
-encodeMLS' :: SerialiseMLS a => a -> ByteString
+encodeMLS' :: (SerialiseMLS a) => a -> ByteString
 encodeMLS' = LBS.toStrict . encodeMLS
 
 -- | Decode an MLS value from a lazy bytestring. Return an error message in case of failure.
-decodeMLS :: ParseMLS a => LByteString -> Either Text a
+decodeMLS :: (ParseMLS a) => LByteString -> Either Text a
 decodeMLS = decodeMLSWith parseMLS
 
-decodeMLS' :: ParseMLS a => ByteString -> Either Text a
+decodeMLS' :: (ParseMLS a) => ByteString -> Either Text a
 decodeMLS' = decodeMLS . LBS.fromStrict
 
 -- | Decode an MLS value from a lazy bytestring given a custom parser.
@@ -298,10 +298,10 @@ rawMLSFromText p txt = do
   value <- first Text.unpack (p mlsData)
   pure $ RawMLS mlsData value
 
-instance S.ToSchema a => S.ToSchema (RawMLS a) where
+instance (S.ToSchema a) => S.ToSchema (RawMLS a) where
   declareNamedSchema _ = S.declareNamedSchema (Proxy @a)
 
-instance ParseMLS a => FromJSON (RawMLS a) where
+instance (ParseMLS a) => FromJSON (RawMLS a) where
   parseJSON =
     Aeson.withText "Base64 MLS object" $
       either fail pure . rawMLSFromText decodeMLS'
@@ -318,16 +318,16 @@ parseRawMLS p = do
   -- construct RawMLS value
   pure $ RawMLS raw x
 
-instance ParseMLS a => ParseMLS (RawMLS a) where
+instance (ParseMLS a) => ParseMLS (RawMLS a) where
   parseMLS = parseRawMLS parseMLS
 
 instance SerialiseMLS (RawMLS a) where
   serialiseMLS = putByteString . raw
 
-mkRawMLS :: SerialiseMLS a => a -> RawMLS a
+mkRawMLS :: (SerialiseMLS a) => a -> RawMLS a
 mkRawMLS x = RawMLS (LBS.toStrict (runPut (serialiseMLS x))) x
 
-traceMLS :: Show a => String -> Get a -> Get a
+traceMLS :: (Show a) => String -> Get a -> Get a
 traceMLS l g = do
   begin <- bytesRead
   r <- g

@@ -278,7 +278,7 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
   ensureConnectedToLocals (tUnqualified lusr) (notTeamMember (ulLocals allUsers) (catMaybes convLocalMemberships))
   ensureConnectedToRemotes lusr (ulRemotes allUsers)
 
-getTeamMember :: Member TeamStore r => UserId -> Maybe TeamId -> Sem r (Maybe TeamMember)
+getTeamMember :: (Member TeamStore r) => UserId -> Maybe TeamId -> Sem r (Maybe TeamMember)
 getTeamMember uid (Just tid) = E.getTeamMember tid uid
 getTeamMember uid Nothing = E.getUserTeams uid >>= maybe (pure Nothing) (flip E.getTeamMember uid) . headMay
 
@@ -495,7 +495,7 @@ createOne2OneConversationLocally lcnv self zcon name mtid other = do
       conversationCreated self c
 
 createOne2OneConversationRemotely ::
-  Member (Error FederationError) r =>
+  (Member (Error FederationError) r) =>
   Remote ConvId ->
   Local UserId ->
   ConnId ->
@@ -695,7 +695,7 @@ notifyCreatedConversation lusr conn c = do
           & pushRoute .~ route
 
 localOne2OneConvId ::
-  Member (Error InvalidInput) r =>
+  (Member (Error InvalidInput) r) =>
   Local UserId ->
   Local UserId ->
   Sem r (Local ConvId)
@@ -704,7 +704,7 @@ localOne2OneConvId self other = do
   pure . qualifyAs self $ Data.localOne2OneConvId x y
 
 toUUIDs ::
-  Member (Error InvalidInput) r =>
+  (Member (Error InvalidInput) r) =>
   UserId ->
   UserId ->
   Sem r (U.UUID U.V4, U.UUID U.V4)
@@ -726,6 +726,6 @@ newConvMembers loc body =
   UserList (newConvUsers body) []
     <> toUserList loc (newConvQualifiedUsers body)
 
-ensureOne :: Member (Error InvalidInput) r => [a] -> Sem r a
+ensureOne :: (Member (Error InvalidInput) r) => [a] -> Sem r a
 ensureOne [x] = pure x
 ensureOne _ = throw (InvalidRange "One-to-one conversations can only have a single invited member")

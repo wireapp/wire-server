@@ -26,11 +26,11 @@ testJoinSubConv = do
     assertBool "Epoch timestamp should not be null" (tm /= Null)
 
   -- now alice joins with her own client
-  void $
-    createExternalCommit alice1 Nothing
-      >>= sendAndConsumeCommitBundle
+  void
+    $ createExternalCommit alice1 Nothing
+    >>= sendAndConsumeCommitBundle
 
-testDeleteParentOfSubConv :: HasCallStack => Domain -> App ()
+testDeleteParentOfSubConv :: (HasCallStack) => Domain -> App ()
 testDeleteParentOfSubConv secondDomain = do
   (alice, tid, _) <- createTeam OwnDomain 1
   bob <- randomUser secondDomain def
@@ -81,7 +81,7 @@ testDeleteParentOfSubConv secondDomain = do
       resp.status `shouldMatchInt` 404
       resp.json %. "label" `shouldMatch` "no-conversation"
 
-testDeleteSubConversation :: HasCallStack => Domain -> App ()
+testDeleteSubConversation :: (HasCallStack) => Domain -> App ()
 testDeleteSubConversation otherDomain = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, otherDomain]
   charlie <- randomUser OwnDomain def
@@ -105,7 +105,7 @@ testDeleteSubConversation otherDomain = do
 data Leaver = Alice | Bob
   deriving stock (Generic)
 
-testLeaveSubConv :: HasCallStack => Leaver -> App ()
+testLeaveSubConv :: (HasCallStack) => Leaver -> App ()
 testLeaveSubConv leaver = do
   [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OtherDomain]
   clients@[alice1, bob1, bob2, charlie1] <- traverse (createMLSClient def) [alice, bob, bob, charlie]
@@ -224,7 +224,7 @@ testCreatorRemovesUserFromParent = do
           ws
       msg %. "payload.0.data"
         & asByteString
-        >>= mlsCliConsume consumer
+          >>= mlsCliConsume consumer
 
     -- remove bob from the child state
     modifyMLSState $ \s -> s {members = s.members Set.\\ Set.fromList [bob1, bob2]}

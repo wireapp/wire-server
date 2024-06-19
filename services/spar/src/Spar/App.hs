@@ -188,8 +188,8 @@ createSamlUserWithId ::
   Sem r ()
 createSamlUserWithId teamid buid suid role = do
   uname <-
-    either (throwSparSem . SparBadUserName . LText.pack) pure
-      $ Intra.mkUserName Nothing (UrefOnly suid)
+    either (throwSparSem . SparBadUserName . LText.pack) pure $
+      Intra.mkUserName Nothing (UrefOnly suid)
   buid' <- BrigAccess.createSAML suid buid teamid uname ManagedByWire Nothing Nothing Nothing role
   assert (buid == buid') $ pure ()
   SAMLUserStore.insert suid buid
@@ -456,18 +456,18 @@ verdictHandlerWeb =
         { errHTTPCode = 200,
           errReasonPhrase = Text.unpack errlbl, -- (not sure what this is used for)
           errBody =
-            easyHtml
-              $ "<head>"
-              <> "  <title>wire:sso:error:"
-              <> LText.fromStrict errlbl
-              <> "</title>"
-              <> "   <script type=\"text/javascript\">"
-              <> "       const receiverOrigin = '*';"
-              <> "       window.opener.postMessage("
-              <> Aeson.encodeToLazyText errval
-              <> ", receiverOrigin);"
-              <> "   </script>"
-              <> "</head>",
+            easyHtml $
+              "<head>"
+                <> "  <title>wire:sso:error:"
+                <> LText.fromStrict errlbl
+                <> "</title>"
+                <> "   <script type=\"text/javascript\">"
+                <> "       const receiverOrigin = '*';"
+                <> "       window.opener.postMessage("
+                <> Aeson.encodeToLazyText errval
+                <> ", receiverOrigin);"
+                <> "   </script>"
+                <> "</head>",
           errHeaders =
             [ ("Content-Type", "text/html;charset=utf-8")
             ]
@@ -488,14 +488,14 @@ verdictHandlerWeb =
         { errHTTPCode = 200,
           errReasonPhrase = "success",
           errBody =
-            easyHtml
-              $ "<head>"
-              <> "  <title>wire:sso:success</title>"
-              <> "   <script type=\"text/javascript\">"
-              <> "       const receiverOrigin = '*';"
-              <> "       window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin);"
-              <> "   </script>"
-              <> "</head>",
+            easyHtml $
+              "<head>"
+                <> "  <title>wire:sso:success</title>"
+                <> "   <script type=\"text/javascript\">"
+                <> "       const receiverOrigin = '*';"
+                <> "       window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin);"
+                <> "   </script>"
+                <> "</head>",
           errHeaders =
             [ ("Content-Type", "text/html;charset=utf-8"),
               ("Set-Cookie", toStrict . Builder.toLazyByteString . renderSetCookie $ cky)
@@ -504,12 +504,12 @@ verdictHandlerWeb =
 
 easyHtml :: LText -> LByteString
 easyHtml doc =
-  LText.encodeUtf8
-    $ "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-    <> "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
-    <> "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">"
-    <> doc
-    <> "</html>"
+  LText.encodeUtf8 $
+    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+      <> "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
+      <> "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">"
+      <> doc
+      <> "</html>"
 
 -- | If the client is mobile, it has picked error and success redirect urls (see
 -- 'mkVerdictGrantedFormatMobile', 'mkVerdictDeniedFormatMobile'); variables in these URLs are here

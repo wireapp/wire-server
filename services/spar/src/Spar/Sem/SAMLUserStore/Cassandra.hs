@@ -41,15 +41,15 @@ samlUserStoreToCassandra ::
   Sem (SAMLUserStore ': r) a ->
   Sem r a
 samlUserStoreToCassandra =
-  interpret
-    $ embed
-    . \case
-      Insert ur uid -> insertSAMLUser ur uid
-      Get ur -> getSAMLUser ur
-      DeleteByIssuer is -> deleteSAMLUsersByIssuer is
-      Delete uid ur -> deleteSAMLUser uid ur
-      GetAllByIssuerPaginated is -> getAllSAMLUsersByIssuerPaginated is
-      NextPage page -> nextPage' page
+  interpret $
+    embed
+      . \case
+        Insert ur uid -> insertSAMLUser ur uid
+        Get ur -> getSAMLUser ur
+        DeleteByIssuer is -> deleteSAMLUsersByIssuer is
+        Delete uid ur -> deleteSAMLUser uid ur
+        GetAllByIssuerPaginated is -> getAllSAMLUsersByIssuerPaginated is
+        NextPage page -> nextPage' page
 
 nextPage' :: (HasCallStack, MonadClient m) => Cas.Page a -> m (Cas.Page a)
 nextPage' = Cas.liftClient . Cas.nextPage

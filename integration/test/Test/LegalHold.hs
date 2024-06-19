@@ -95,17 +95,18 @@ testLHPreventAddingNonConsentingUsers = do
     addMembers alice conv def {users = [georgeQId]}
       >>= assertLabel 403 "missing-legalhold-consent"
   where
-    checkConvHasOtherMembers :: HasCallStack => Value -> Value -> [Value] -> App ()
+    checkConvHasOtherMembers :: (HasCallStack) => Value -> Value -> [Value] -> App ()
     checkConvHasOtherMembers conv u us =
       bindResponse (getConversation u conv) $ \resp -> do
         resp.status `shouldMatchInt` 200
         mems <-
-          resp.json %. "members.others" & asList >>= traverse \m -> do
-            m %. "qualified_id"
+          resp.json %. "members.others"
+            & asList >>= traverse \m -> do
+              m %. "qualified_id"
         mems `shouldMatchSet` forM us (\m -> m %. "qualified_id")
 
 testLHMessageExchange ::
-  HasCallStack =>
+  (HasCallStack) =>
   TaggedBool "clients1New" ->
   TaggedBool "clients2New" ->
   App ()
@@ -136,7 +137,7 @@ testLHMessageExchange (TaggedBool clients1New) (TaggedBool clients2New) = do
           val <- getJSON 200 res
           asList val
 
-        assertMessageSendingWorks :: HasCallStack => App ()
+        assertMessageSendingWorks :: (HasCallStack) => App ()
         assertMessageSendingWorks = do
           clients1 <- getClients mem1
           clients2 <- getClients mem2
@@ -224,7 +225,7 @@ testLHClaimKeys approvedOrPending testmode = do
             objId `mapM` cls
       getCls lmem
 
-    let assertResp :: HasCallStack => Response -> App ()
+    let assertResp :: (HasCallStack) => Response -> App ()
         assertResp resp = case (testmode, llhdevs) of
           (TCKConsentMissing, (_ : _)) -> do
             resp.status `shouldMatchInt` 403
@@ -323,7 +324,7 @@ testLHRequestDevice = do
 
 -- | pops a channel until it finds an event that returns a 'Just'
 --   upon running the matcher function
-checkChan :: HasCallStack => Chan t -> (t -> App (Maybe a)) -> App a
+checkChan :: (HasCallStack) => Chan t -> (t -> App (Maybe a)) -> App a
 checkChan chan match = do
   tSecs <- asks ((* 1_000_000) . timeOutSeconds)
 
@@ -332,7 +333,7 @@ checkChan chan match = do
     go
 
 -- | like 'checkChan' but throws away the request and decodes the body
-checkChanVal :: HasCallStack => Chan (t, LazyByteString) -> (Value -> MaybeT App a) -> App a
+checkChanVal :: (HasCallStack) => Chan (t, LazyByteString) -> (Value -> MaybeT App a) -> App a
 checkChanVal chan match = checkChan chan \(_, bs) -> runMaybeT do
   MaybeT (pure (decode bs)) >>= match
 
@@ -366,10 +367,12 @@ testLHApproveDevice = do
     let uidsAndTidMatch val = do
           actualTid <-
             lookupFieldM val "team_id"
-              >>= lift . asString
+              >>= lift
+              . asString
           actualUid <-
             lookupFieldM val "user_id"
-              >>= lift . asString
+              >>= lift
+              . asString
           bobUid <- lift $ objId bob
 
           -- we pass the check on equality
@@ -390,7 +393,8 @@ testLHApproveDevice = do
 
     let matchAuthToken val =
           lookupFieldM val "refresh_token"
-            >>= lift . asString
+            >>= lift
+            . asString
 
     checkChanVal chan matchAuthToken
       >>= renewToken bob
@@ -503,8 +507,10 @@ testLHDisableForUser = do
     checkChan chan \(req, _) -> runMaybeT do
       unless
         do
-          BS8.unpack req.requestMethod == "POST"
-            && req.pathInfo == (T.pack <$> ["legalhold", "remove"])
+          BS8.unpack req.requestMethod
+            == "POST"
+            && req.pathInfo
+            == (T.pack <$> ["legalhold", "remove"])
         mzero
 
     void $ local (setTimeoutTo 90) do
@@ -516,7 +522,7 @@ testLHDisableForUser = do
       BrigI.getClientsFull bob [bobId] `bindResponse` \resp -> do
         resp.json %. bobId
           & asList
-          >>= filterM \val -> (== "legalhold") <$> (val %. "type" & asString)
+            >>= filterM \val -> (== "legalhold") <$> (val %. "type" & asString)
 
     shouldBeEmpty lhClients
 
@@ -556,8 +562,9 @@ testLHGetMembersIncludesStatus = do
         getTeamMembers alice tid `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 200
           [bobMember] <-
-            resp.json %. "members" & asList >>= filterM \u -> do
-              (==) <$> asString (u %. "user") <*> objId bob
+            resp.json %. "members"
+              & asList >>= filterM \u -> do
+                (==) <$> asString (u %. "user") <*> objId bob
           bobMember %. "legalhold_status" `shouldMatch` status
 
   statusShouldBe "no_consent"
@@ -815,7 +822,8 @@ testLHHappyFlow = do
       resp.status `shouldMatchInt` 200
       resp.json %. "status" `shouldMatch` "enabled"
       _ <-
-        resp.json `lookupField` "client.id"
+        resp.json
+          `lookupField` "client.id"
           >>= assertJust "client id is present"
       resp.json %. "last_prekey" `shouldMatch` lpk
 
@@ -825,7 +833,7 @@ testLHGetStatus = do
   (charlie, _tidCharlie, [debora]) <- createTeam OwnDomain 2
   emil <- randomUser OwnDomain def
 
-  let check :: HasCallStack => (MakesValue getter, MakesValue target) => getter -> target -> String -> App ()
+  let check :: (HasCallStack) => (MakesValue getter, MakesValue target) => getter -> target -> String -> App ()
       check getter target status = do
         profile <- getUser getter target >>= getJSON 200
         pStatus <- profile %. "legalhold_status" & asString
@@ -865,7 +873,7 @@ testLHCannotCreateGroupWithUsersInConflict = do
     postConversation bob defProteus {qualifiedUsers = [debora, alice], newUsersRole = "wire_member", team = Just tidAlice}
       >>= assertLabel 403 "missing-legalhold-consent"
 
-testNoConsentCannotBeInvited :: HasCallStack => App ()
+testNoConsentCannotBeInvited :: (HasCallStack) => App ()
 testNoConsentCannotBeInvited = do
   -- team that is legalhold whitelisted
   (legalholder, tidLH, userLHNotActivated : _) <- createTeam OwnDomain 2

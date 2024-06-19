@@ -147,9 +147,12 @@ instance FromJSON Recipient where
 instance ToJSON Recipient where
   toJSON (Recipient u r c) =
     object $
-      "user_id" .= u
-        # "route" .= r
-        # "clients" .= c
+      "user_id"
+        .= u
+        # "route"
+        .= r
+        # "clients"
+        .= c
         # []
 
 -- "All clients" is encoded in the API as an empty list.
@@ -191,10 +194,14 @@ apsData lk la = ApsData lk la Nothing True
 instance ToJSON ApsData where
   toJSON (ApsData k a s b) =
     object $
-      "loc_key" .= k
-        # "loc_args" .= a
-        # "sound" .= s
-        # "badge" .= b
+      "loc_key"
+        .= k
+        # "loc_args"
+        .= a
+        # "sound"
+        .= s
+        # "badge"
+        .= b
         # []
 
 instance FromJSON ApsData where
@@ -269,7 +276,7 @@ newPush from to pload =
 singletonRecipient :: Recipient -> Range 1 1024 (Set Recipient)
 singletonRecipient = Range.unsafeRange . Set.singleton
 
-singletonPayload :: ToJSONObject a => a -> List1 Object
+singletonPayload :: (ToJSONObject a) => a -> List1 Object
 singletonPayload = List1.singleton . toJSONObject
 
 instance FromJSON Push where
@@ -289,16 +296,26 @@ instance FromJSON Push where
 instance ToJSON Push where
   toJSON p =
     object $
-      "recipients" .= _pushRecipients p
-        # "origin" .= _pushOrigin p
-        # "connections" .= ifNot Set.null (_pushConnections p)
-        # "origin_connection" .= _pushOriginConnection p
-        # "transient" .= ifNot not (_pushTransient p)
-        # "native_include_origin" .= ifNot id (_pushNativeIncludeOrigin p)
-        # "native_encrypt" .= ifNot id (_pushNativeEncrypt p)
-        # "native_aps" .= _pushNativeAps p
-        # "native_priority" .= ifNot (== HighPriority) (_pushNativePriority p)
-        # "payload" .= _pushPayload p
+      "recipients"
+        .= _pushRecipients p
+        # "origin"
+        .= _pushOrigin p
+        # "connections"
+        .= ifNot Set.null (_pushConnections p)
+        # "origin_connection"
+        .= _pushOriginConnection p
+        # "transient"
+        .= ifNot not (_pushTransient p)
+        # "native_include_origin"
+        .= ifNot id (_pushNativeIncludeOrigin p)
+        # "native_encrypt"
+        .= ifNot id (_pushNativeEncrypt p)
+        # "native_aps"
+        .= _pushNativeAps p
+        # "native_priority"
+        .= ifNot (== HighPriority) (_pushNativePriority p)
+        # "payload"
+        .= _pushPayload p
         # []
     where
       ifNot f a = if f a then Nothing else Just a

@@ -124,9 +124,12 @@ spotifyToken rq = do
   when (isError (Client.responseStatus res)) $
     debug $
       msg (val "unexpected upstream response")
-        ~~ "upstream" .= val "spotify::token"
-        ~~ "status" .= S (Client.responseStatus res)
-        ~~ "body" .= B.take 256 (Client.responseBody res)
+        ~~ "upstream"
+        .= val "spotify::token"
+        ~~ "status"
+        .= S (Client.responseStatus res)
+        ~~ "body"
+        .= B.take 256 (Client.responseBody res)
   pure $
     plain (Client.responseBody res)
       & setStatus (Client.responseStatus res)
@@ -149,9 +152,12 @@ soundcloudResolve url = do
   when (isError (Client.responseStatus res)) $
     debug $
       msg (val "unexpected upstream response")
-        ~~ "upstream" .= val "soundcloud::resolve"
-        ~~ "status" .= S (Client.responseStatus res)
-        ~~ "body" .= B.take 256 (Client.responseBody res)
+        ~~ "upstream"
+        .= val "soundcloud::resolve"
+        ~~ "status"
+        .= S (Client.responseStatus res)
+        ~~ "body"
+        .= B.take 256 (Client.responseBody res)
   pure $
     plain (Client.responseBody res)
       & setStatus (Client.responseStatus res)
@@ -176,9 +182,12 @@ soundcloudStream url = do
   unless (status302 == Client.responseStatus res) $ do
     debug $
       msg (val "unexpected upstream response")
-        ~~ "upstream" .= val "soundcloud::stream"
-        ~~ "status" .= S (Client.responseStatus res)
-        ~~ "body" .= B.take 256 (Client.responseBody res)
+        ~~ "upstream"
+        .= val "soundcloud::stream"
+        ~~ "status"
+        .= S (Client.responseStatus res)
+        ~~ "body"
+        .= B.take 256 (Client.responseBody res)
     failWith "unexpected upstream response"
   case Res.getHeader hLocation res of
     Nothing -> failWith "missing location header"
@@ -187,7 +196,7 @@ soundcloudStream url = do
 x2 :: RetryPolicy
 x2 = exponentialBackoff 5000 <> limitRetries 2
 
-handler :: MonadIO m => RetryStatus -> Handler m Bool
+handler :: (MonadIO m) => RetryStatus -> Handler m Bool
 handler = const . Handler $ \case
   Client.HttpExceptionRequest _ Client.NoResponseDataReceived -> pure True
   Client.HttpExceptionRequest _ Client.IncompleteHeaders -> pure True

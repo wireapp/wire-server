@@ -132,10 +132,10 @@ newtype IndexIO a = IndexIO (ReaderT IndexEnv IO a)
       MonadMonitor
     )
 
-runIndexIO :: MonadIO m => IndexEnv -> IndexIO a -> m a
+runIndexIO :: (MonadIO m) => IndexEnv -> IndexIO a -> m a
 runIndexIO e (IndexIO m) = liftIO $ runReaderT m e
 
-class MonadIO m => MonadIndexIO m where
+class (MonadIO m) => MonadIndexIO m where
   liftIndexIO :: IndexIO a -> m a
 
 instance MonadIndexIO IndexIO where
@@ -233,7 +233,7 @@ updateIndex (IndexUpdateUsers updateType ius) = liftIndexIO $ do
       creds <- asks idxCredentials
       pure $ maybe [] ((: []) . mkBasicAuthHeader) creds
 
-    encodeJSONToString :: ToJSON a => a -> Builder
+    encodeJSONToString :: (ToJSON a) => a -> Builder
     encodeJSONToString = fromEncoding . toEncoding
     bulkEncode iu =
       bulkMeta (view (iuUserId . re _TextId) iu) (docVersion (_iuVersion iu))
@@ -296,25 +296,25 @@ updateSearchVisibilityInbound status = liftIndexIO $ do
 --------------------------------------------------------------------------------
 -- Administrative
 
-refreshIndex :: MonadIndexIO m => m ()
+refreshIndex :: (MonadIndexIO m) => m ()
 refreshIndex = liftIndexIO $ do
   idx <- asks idxName
   void $ ES.refreshIndex idx
 
 createIndexIfNotPresent ::
-  MonadIndexIO m =>
+  (MonadIndexIO m) =>
   CreateIndexSettings ->
   m ()
 createIndexIfNotPresent = createIndex' False
 
 createIndex ::
-  MonadIndexIO m =>
+  (MonadIndexIO m) =>
   CreateIndexSettings ->
   m ()
 createIndex = createIndex' True
 
 createIndex' ::
-  MonadIndexIO m =>
+  (MonadIndexIO m) =>
   -- | Fail if index alredy exists
   Bool ->
   CreateIndexSettings ->
@@ -368,7 +368,7 @@ analysisSettings =
           ]
    in ES.Analysis analyzerDef mempty filterDef mempty
 
-updateMapping :: MonadIndexIO m => m ()
+updateMapping :: (MonadIndexIO m) => m ()
 updateMapping = liftIndexIO $ do
   idx <- asks idxName
   ex <- ES.indexExists idx
@@ -382,7 +382,7 @@ updateMapping = liftIndexIO $ do
       ES.putMapping idx (ES.MappingName "user") indexMapping
 
 resetIndex ::
-  MonadIndexIO m =>
+  (MonadIndexIO m) =>
   CreateIndexSettings ->
   m ()
 resetIndex ciSettings = liftIndexIO $ do
@@ -433,7 +433,7 @@ indexUpdateToVersionControl :: IndexDocUpdateType -> (ES.ExternalDocVersion -> E
 indexUpdateToVersionControl IndexUpdateIfNewerVersion = ES.ExternalGT
 indexUpdateToVersionControl IndexUpdateIfSameOrNewerVersion = ES.ExternalGTE
 
-traceES :: MonadIndexIO m => ByteString -> IndexIO ES.Reply -> m ES.Reply
+traceES :: (MonadIndexIO m) => ByteString -> IndexIO ES.Reply -> m ES.Reply
 traceES descr act = liftIndexIO $ do
   info (msg descr)
   r <- act
@@ -810,7 +810,7 @@ type ReindexRow =
 teamInReindexRow :: ReindexRow -> Maybe TeamId
 teamInReindexRow (_f1, f2, _f3, _f4, _f5, _f6, _f7, _f8, _f9, _f10, _f11, _f12, _f13, _f14, _f15, _f16, _f17, _f18, _f19, _f20, _f21, _f22) = f2
 
-reindexRowToIndexUser :: forall m. MonadThrow m => ReindexRow -> SearchVisibilityInbound -> m IndexUser
+reindexRowToIndexUser :: forall m. (MonadThrow m) => ReindexRow -> SearchVisibilityInbound -> m IndexUser
 reindexRowToIndexUser
   ( u,
     mteam,

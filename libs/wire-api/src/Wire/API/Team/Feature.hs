@@ -223,10 +223,10 @@ class FeatureTrivialConfig cfg where
 class HasDeprecatedFeatureName cfg where
   type DeprecatedFeatureName cfg :: Symbol
 
-featureName :: forall cfg. KnownSymbol (FeatureSymbol cfg) => Text
+featureName :: forall cfg. (KnownSymbol (FeatureSymbol cfg)) => Text
 featureName = T.pack $ symbolVal (Proxy @(FeatureSymbol cfg))
 
-featureNameBS :: forall cfg. KnownSymbol (FeatureSymbol cfg) => ByteString
+featureNameBS :: forall cfg. (KnownSymbol (FeatureSymbol cfg)) => ByteString
 featureNameBS = UTF8.fromString $ symbolVal (Proxy @(FeatureSymbol cfg))
 
 ----------------------------------------------------------------------
@@ -268,10 +268,10 @@ setLockStatus ls (WithStatusBase s _ c ttl) = WithStatusBase s (Identity ls) c t
 setConfig :: cfg -> WithStatus cfg -> WithStatus cfg
 setConfig = setConfig'
 
-setConfig' :: forall (m :: Type -> Type) (cfg :: Type). Applicative m => cfg -> WithStatusBase m cfg -> WithStatusBase m cfg
+setConfig' :: forall (m :: Type -> Type) (cfg :: Type). (Applicative m) => cfg -> WithStatusBase m cfg -> WithStatusBase m cfg
 setConfig' c (WithStatusBase s ls _ ttl) = WithStatusBase s ls (pure c) ttl
 
-setTTL :: forall (m :: Type -> Type) (cfg :: Type). Applicative m => FeatureTTL -> WithStatusBase m cfg -> WithStatusBase m cfg
+setTTL :: forall (m :: Type -> Type) (cfg :: Type). (Applicative m) => FeatureTTL -> WithStatusBase m cfg -> WithStatusBase m cfg
 setTTL ttl (WithStatusBase s ls c _) = WithStatusBase s ls c (pure ttl)
 
 setWsTTL :: FeatureTTL -> WithStatus cfg -> WithStatus cfg
@@ -339,7 +339,7 @@ withStatus' = WithStatusBase
 
 -- | The ToJSON implementation of `WithStatusPatch` will encode the trivial config as `"config": {}`
 -- when the value is a `Just`, if it's `Nothing` it will be omitted, which is the important part.
-instance ToSchema cfg => ToSchema (WithStatusPatch cfg) where
+instance (ToSchema cfg) => ToSchema (WithStatusPatch cfg) where
   schema =
     object name $
       WithStatusBase
@@ -373,7 +373,7 @@ data WithStatusNoLock (cfg :: Type) = WithStatusNoLock
   deriving stock (Eq, Show, Generic, Typeable, Functor)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema (WithStatusNoLock cfg))
 
-instance Arbitrary cfg => Arbitrary (WithStatusNoLock cfg) where
+instance (Arbitrary cfg) => Arbitrary (WithStatusNoLock cfg) where
   arbitrary = WithStatusNoLock <$> arbitrary <*> arbitrary <*> arbitrary
 
 forgetLock :: WithStatus a -> WithStatusNoLock a
@@ -1215,7 +1215,7 @@ instance Cass.Cql FeatureStatus where
   toCql FeatureStatusDisabled = Cass.CqlInt 0
   toCql FeatureStatusEnabled = Cass.CqlInt 1
 
-defFeatureStatusNoLock :: IsFeatureConfig cfg => WithStatusNoLock cfg
+defFeatureStatusNoLock :: (IsFeatureConfig cfg) => WithStatusNoLock cfg
 defFeatureStatusNoLock = forgetLock defFeatureStatus
 
 data AllFeatureConfigs = AllFeatureConfigs

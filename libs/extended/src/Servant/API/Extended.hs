@@ -109,10 +109,10 @@ instance
             Right v -> pure v
 
 instance
-  HasOpenApi (ReqBody' '[Required, Strict] cts a :> api) =>
+  (HasOpenApi (ReqBody' '[Required, Strict] cts a :> api)) =>
   HasOpenApi (ReqBodyCustomError cts tag a :> api)
   where
   toOpenApi Proxy = toOpenApi (Proxy @(ReqBody' '[Required, Strict] cts a :> api))
 
-instance RoutesToPaths rest => RoutesToPaths (ReqBodyCustomError' mods list tag a :> rest) where
+instance (RoutesToPaths rest) => RoutesToPaths (ReqBodyCustomError' mods list tag a :> rest) where
   getRoutes = getRoutes @rest

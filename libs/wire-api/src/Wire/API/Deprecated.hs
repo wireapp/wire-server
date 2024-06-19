@@ -35,23 +35,23 @@ data Deprecated deriving (Typeable)
 -- All of these instances are very similar to the instances
 -- for Summary. These don't impact the API directly, but are
 -- for marking the deprecated flag in the openapi output.
-instance HasLink sub => HasLink (Deprecated :> sub :: Type) where
+instance (HasLink sub) => HasLink (Deprecated :> sub :: Type) where
   type MkLink (Deprecated :> sub) a = MkLink sub a
   toLink =
     let simpleToLink toA _ = toLink toA (Proxy :: Proxy sub)
      in simpleToLink
 
-instance HasOpenApi api => HasOpenApi (Deprecated :> api :: Type) where
+instance (HasOpenApi api) => HasOpenApi (Deprecated :> api :: Type) where
   toOpenApi _ =
     toOpenApi (Proxy @api)
       & allOperations . deprecated ?~ True
 
-instance HasServer api ctx => HasServer (Deprecated :> api) ctx where
+instance (HasServer api ctx) => HasServer (Deprecated :> api) ctx where
   type ServerT (Deprecated :> api) m = ServerT api m
   route _ = route $ Proxy @api
   hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy @api) pc nt s
 
-instance HasClient m api => HasClient m (Deprecated :> api) where
+instance (HasClient m api) => HasClient m (Deprecated :> api) where
   type Client m (Deprecated :> api) = Client m api
   clientWithRoute pm _ = clientWithRoute pm (Proxy :: Proxy api)
   hoistClientMonad pm _ f cl = hoistClientMonad pm (Proxy :: Proxy api) f cl

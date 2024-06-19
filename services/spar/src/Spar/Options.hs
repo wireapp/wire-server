@@ -122,12 +122,12 @@ instance SAML.HasConfig WithConfig where
 -- error that explains the cli options if it doesn't succeed.
 cliOptsParser :: Parser FilePath
 cliOptsParser =
-  strOption
-    $ long "config-file"
-    <> short 'c'
-    <> help "Spar application config to load"
-    <> showDefault
-    <> value defaultSparPath
+  strOption $
+    long "config-file"
+      <> short 'c'
+      <> help "Spar application config to load"
+      <> showDefault
+      <> value defaultSparPath
   where
     defaultSparPath = "/etc/wire/spar/conf/spar.yaml"
 

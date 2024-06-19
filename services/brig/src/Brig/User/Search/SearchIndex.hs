@@ -108,14 +108,14 @@ userDocToContact localDomain UserDoc {..} = do
 defaultUserQuery :: SearchSetting -> Text -> IndexQuery Contact
 defaultUserQuery setting (normalized -> term') =
   let matchPhraseOrPrefix =
-        ES.QueryMultiMatchQuery
-          $ ( ES.mkMultiMatchQuery
-                [ ES.FieldName "handle.prefix^2",
-                  ES.FieldName "normalized.prefix",
-                  ES.FieldName "normalized^3"
-                ]
-                (ES.QueryString term')
-            )
+        ES.QueryMultiMatchQuery $
+          ( ES.mkMultiMatchQuery
+              [ ES.FieldName "handle.prefix^2",
+                ES.FieldName "normalized.prefix",
+                ES.FieldName "normalized^3"
+              ]
+              (ES.QueryString term')
+          )
             { ES.multiMatchQueryType = Just ES.MultiMatchMostFields,
               ES.multiMatchQueryOperator = ES.And
             }

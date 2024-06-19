@@ -106,13 +106,13 @@ data CheckHandleResp
 
 makeSem ''UserSubsystem
 
-getUserProfile :: Member UserSubsystem r => Local UserId -> Qualified UserId -> Sem r (Maybe UserProfile)
+getUserProfile :: (Member UserSubsystem r) => Local UserId -> Qualified UserId -> Sem r (Maybe UserProfile)
 getUserProfile luid targetUser =
   listToMaybe <$> getUserProfiles luid [targetUser]
 
-getLocalUserProfile :: Member UserSubsystem r => Local UserId -> Sem r (Maybe UserProfile)
+getLocalUserProfile :: (Member UserSubsystem r) => Local UserId -> Sem r (Maybe UserProfile)
 getLocalUserProfile targetUser =
   listToMaybe <$> getLocalUserProfiles ((: []) <$> targetUser)
 
-updateSupportedProtocols :: Member UserSubsystem r => Local UserId -> UpdateOriginType -> Set BaseProtocolTag -> Sem r ()
+updateSupportedProtocols :: (Member UserSubsystem r) => Local UserId -> UpdateOriginType -> Set BaseProtocolTag -> Sem r ()
 updateSupportedProtocols uid mb prots = updateUserProfile uid Nothing mb (def {supportedProtocols = Just prots})

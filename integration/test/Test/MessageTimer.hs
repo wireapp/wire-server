@@ -26,7 +26,7 @@ import SetupHelpers
 import Testlib.Prelude
 import Testlib.ResourcePool
 
-testMessageTimerChangeWithRemotes :: HasCallStack => App ()
+testMessageTimerChangeWithRemotes :: (HasCallStack) => App ()
 testMessageTimerChangeWithRemotes = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
   conv <- postConversation alice defProteus {qualifiedUsers = [bob]} >>= getJSON 201
@@ -37,7 +37,7 @@ testMessageTimerChangeWithRemotes = do
       notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
       notif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
 
-testMessageTimerChangeWithUnreachableRemotes :: HasCallStack => App ()
+testMessageTimerChangeWithUnreachableRemotes :: (HasCallStack) => App ()
 testMessageTimerChangeWithUnreachableRemotes = do
   resourcePool <- asks resourcePool
   alice <- randomUser OwnDomain def

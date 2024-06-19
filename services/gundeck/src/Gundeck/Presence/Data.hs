@@ -122,12 +122,12 @@ instance FromJSON PresenceData where
   parseJSON = withObject "PresenceData" $ \o ->
     PresenceData
       <$> o
-      .: "r"
+        .: "r"
       <*> o
-      .:? "c"
+        .:? "c"
       <*> o
-      .:? "t"
-      .!= 0
+        .:? "t"
+        .!= 0
 
 toKey :: UserId -> ByteString
 toKey u = Lazy.toStrict $ runBuilder (byteString "user:" <> builder u)

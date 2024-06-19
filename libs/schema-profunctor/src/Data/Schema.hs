@@ -138,7 +138,7 @@ newtype SchemaOut v a b = SchemaOut (a -> Maybe v)
 
 -- The following instance is correct because `Ap Maybe v` is a
 -- near-semiring when v is a monoid
-instance Monoid v => Alternative (SchemaOut v a) where
+instance (Monoid v) => Alternative (SchemaOut v a) where
   empty = mempty
   (<|>) = (<>)
 
@@ -153,7 +153,7 @@ instance Monoid (SchemaOut v a b) where
 --
 -- This is used for schema documentation types, to support different behaviours
 -- for composing schemas sequentially vs alternatively.
-class Monoid m => NearSemiRing m where
+class (Monoid m) => NearSemiRing m where
   zero :: m
   add :: m -> m -> m
 
@@ -162,7 +162,7 @@ newtype SchemaDoc doc a b = SchemaDoc {getDoc :: doc}
   deriving (Applicative) via (Const doc)
   deriving (Profunctor, Choice) via Joker (Const doc)
 
-instance NearSemiRing doc => Alternative (SchemaDoc doc a) where
+instance (NearSemiRing doc) => Alternative (SchemaDoc doc a) where
   empty = zero
   (<|>) = add
 
@@ -240,11 +240,11 @@ instance (NearSemiRing doc, Monoid v') => Alternative (SchemaP doc v v' a) where
 
 -- /Note/: this is a more general instance than the 'Alternative' one,
 -- since it works for arbitrary v'
-instance Semigroup doc => Semigroup (SchemaP doc v v' a b) where
+instance (Semigroup doc) => Semigroup (SchemaP doc v v' a b) where
   SchemaP d1 i1 o1 <> SchemaP d2 i2 o2 =
     SchemaP (d1 <> d2) (i1 <> i2) (o1 <> o2)
 
-instance Monoid doc => Monoid (SchemaP doc v v' a b) where
+instance (Monoid doc) => Monoid (SchemaP doc v v' a b) where
   mempty = SchemaP mempty mempty mempty
 
 instance Profunctor (SchemaP doc v v') where
@@ -282,7 +282,7 @@ schemaIn (SchemaP _ (SchemaIn i) _) = i
 schemaOut :: SchemaP ss v m a b -> a -> Maybe m
 schemaOut (SchemaP _ _ (SchemaOut o)) = o
 
-class Functor f => FieldFunctor doc f where
+class (Functor f) => FieldFunctor doc f where
   parseFieldF :: (A.Value -> A.Parser a) -> A.Object -> Text -> A.Parser (f a)
   mkDocF :: doc -> doc
 
@@ -290,14 +290,14 @@ instance FieldFunctor doc Identity where
   parseFieldF f obj key = Identity <$> A.explicitParseField f obj (Key.fromText key)
   mkDocF = id
 
-instance HasOpt doc => FieldFunctor doc Maybe where
+instance (HasOpt doc) => FieldFunctor doc Maybe where
   parseFieldF f obj key = A.explicitParseFieldMaybe f obj (Key.fromText key)
   mkDocF = mkOpt
 
 -- | A schema for a one-field JSON object.
 field ::
   forall doc' doc a b.
-  HasField doc' doc =>
+  (HasField doc' doc) =>
   Text ->
   SchemaP doc' A.Value A.Value a b ->
   SchemaP doc A.Object [A.Pair] a b
@@ -366,7 +366,7 @@ fieldOver l name = fmap runIdentity . fieldOverF l name
 -- documentation of the field.
 fieldWithDocModifier ::
   forall doc' doc a b.
-  HasField doc' doc =>
+  (HasField doc' doc) =>
   Text ->
   (doc' -> doc') ->
   SchemaP doc' A.Value A.Value a b ->
@@ -396,7 +396,7 @@ fieldWithDocModifierF ::
 fieldWithDocModifierF name modify sch = fieldF @doc' @doc name (over doc modify sch)
 
 -- | Change the input type of a schema.
-(.=) :: Profunctor p => (a -> a') -> p a' b -> p a b
+(.=) :: (Profunctor p) => (a -> a') -> p a' b -> p a b
 (.=) = lmap
 
 -- | Change the input and output types of a schema via a prism.
@@ -408,7 +408,7 @@ tag f = rmap runIdentity . f . rmap Identity
 -- This can be used to convert a combination of schemas obtained using
 -- 'field' into a single schema for a JSON object.
 object ::
-  HasObject doc doc' =>
+  (HasObject doc doc') =>
   Text ->
   SchemaP doc A.Object [A.Pair] a b ->
   SchemaP doc' A.Value A.Value a b
@@ -418,7 +418,7 @@ object = objectOver id
 --
 -- Just like 'fieldOver', but for 'object'.
 objectOver ::
-  HasObject doc doc' =>
+  (HasObject doc doc') =>
   Lens v v' A.Value A.Object ->
   Text ->
   SchemaP doc v' [A.Pair] a b ->
@@ -433,7 +433,7 @@ objectOver l name sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
 -- | Like 'object', but apply an arbitrary function to the
 -- documentation of the resulting object.
 objectWithDocModifier ::
-  HasObject doc doc' =>
+  (HasObject doc doc') =>
   Text ->
   (doc' -> doc') ->
   ObjectSchema doc a ->
@@ -446,14 +446,14 @@ objectWithDocModifier name modify sch = over doc modify (object name sch)
 -- schema. If the inner schema is unnamed, it gets "inlined" in the
 -- larger scheme definition, and otherwise it gets "referenced". This
 -- combinator makes it possible to choose one of the two options.
-unnamed :: HasObject doc doc' => SchemaP doc' v m a b -> SchemaP doc v m a b
+unnamed :: (HasObject doc doc') => SchemaP doc' v m a b -> SchemaP doc v m a b
 unnamed = over doc unmkObject
 
 -- | Attach a name to a schema.
 --
 -- This only affects the documentation portion of a schema, and not
 -- the parsing or serialisation.
-named :: HasObject doc doc' => Text -> SchemaP doc v m a b -> SchemaP doc' v m a b
+named :: (HasObject doc doc') => Text -> SchemaP doc v m a b -> SchemaP doc' v m a b
 named name = over doc (mkObject name)
 
 -- | A schema for a JSON array.
@@ -524,7 +524,7 @@ setMinItems :: (HasMinItems doc (Maybe Integer)) => Integer -> ValueSchema doc a
 setMinItems m = doc . minItems ?~ m
 
 -- | Ad-hoc class for types corresponding to JSON primitive types.
-class A.ToJSON a => With a where
+class (A.ToJSON a) => With a where
   with :: String -> (a -> A.Parser b) -> A.Value -> A.Parser b
 
 instance With Text where
@@ -574,7 +574,7 @@ enum name sch = SchemaP (SchemaDoc d) (SchemaIn i) (SchemaOut o)
 --
 -- This is most commonly used for optional fields, and it will cause the field
 -- to be omitted from the output of the serialiser.
-maybe_ :: Monoid w => SchemaP d v w a b -> SchemaP d v w (Maybe a) b
+maybe_ :: (Monoid w) => SchemaP d v w a b -> SchemaP d v w (Maybe a) b
 maybe_ = maybeWithDefault mempty
 
 -- | A schema for 'Maybe', producing the given default value on serialisation.
@@ -649,7 +649,7 @@ jsonValue :: ValueSchema SwaggerDoc A.Value
 jsonValue = mkSchema mempty pure Just
 
 -- | A schema for a null value.
-null_ :: Monoid d => ValueSchemaP d () ()
+null_ :: (Monoid d) => ValueSchemaP d () ()
 null_ = mkSchema mempty i o
   where
     i x = guard (x == A.Null)
@@ -662,7 +662,7 @@ null_ = mkSchema mempty i o
 --
 -- The serialiser behaves similarly, but in the other direction.
 nullable ::
-  Monoid d =>
+  (Monoid d) =>
   ValueSchema d a ->
   ValueSchema d (Maybe a)
 nullable s =
@@ -687,14 +687,14 @@ instance Applicative WithDeclare where
   WithDeclare d1 s1 <*> WithDeclare d2 s2 =
     WithDeclare (d1 >> d2) (s1 s2)
 
-instance Semigroup s => Semigroup (WithDeclare s) where
+instance (Semigroup s) => Semigroup (WithDeclare s) where
   WithDeclare d1 s1 <> WithDeclare d2 s2 =
     WithDeclare (d1 >> d2) (s1 <> s2)
 
-instance Monoid s => Monoid (WithDeclare s) where
+instance (Monoid s) => Monoid (WithDeclare s) where
   mempty = WithDeclare (pure ()) mempty
 
-instance NearSemiRing s => NearSemiRing (WithDeclare s) where
+instance (NearSemiRing s) => NearSemiRing (WithDeclare s) where
   zero = WithDeclare (pure ()) zero
   add (WithDeclare d1 s1) (WithDeclare d2 s2) =
     WithDeclare (d1 >> d2) (add s1 s2)
@@ -745,17 +745,17 @@ instance HasName SwaggerDoc where
 instance HasName NamedSwaggerDoc where
   getName = S._namedSchemaName . extract
 
-class Monoid doc => HasField ndoc doc | ndoc -> doc where
+class (Monoid doc) => HasField ndoc doc | ndoc -> doc where
   mkField :: Text -> ndoc -> doc
 
-class Monoid doc => HasObject doc ndoc | doc -> ndoc, ndoc -> doc where
+class (Monoid doc) => HasObject doc ndoc | doc -> ndoc, ndoc -> doc where
   mkObject :: Text -> doc -> ndoc
   unmkObject :: ndoc -> doc
 
-class Monoid doc => HasArray ndoc doc | ndoc -> doc where
+class (Monoid doc) => HasArray ndoc doc | ndoc -> doc where
   mkArray :: ndoc -> doc
 
-class Monoid doc => HasMap ndoc doc | ndoc -> doc where
+class (Monoid doc) => HasMap ndoc doc | ndoc -> doc where
   mkMap :: ndoc -> doc
 
 class HasOpt doc where
@@ -764,7 +764,7 @@ class HasOpt doc where
 class HasEnum a doc where
   mkEnum :: Text -> [A.Value] -> doc
 
-instance HasSchemaRef doc => HasField doc SwaggerDoc where
+instance (HasSchemaRef doc) => HasField doc SwaggerDoc where
   mkField name = fmap f . schemaRef
     where
       f ref =
@@ -779,7 +779,7 @@ instance HasObject SwaggerDoc NamedSwaggerDoc where
   unmkObject (WithDeclare d (S.NamedSchema (Just n) s)) =
     WithDeclare (d *> S.declare [(n, s)]) s
 
-instance HasSchemaRef ndoc => HasArray ndoc SwaggerDoc where
+instance (HasSchemaRef ndoc) => HasArray ndoc SwaggerDoc where
   mkArray = fmap f . schemaRef
     where
       f :: S.Referenced S.Schema -> S.Schema
@@ -788,7 +788,7 @@ instance HasSchemaRef ndoc => HasArray ndoc SwaggerDoc where
           & S.type_ ?~ S.OpenApiArray
           & S.items ?~ S.OpenApiItemsObject ref
 
-instance HasSchemaRef ndoc => HasMap ndoc SwaggerDoc where
+instance (HasSchemaRef ndoc) => HasMap ndoc SwaggerDoc where
   mkMap = fmap f . schemaRef
     where
       f :: S.Referenced S.Schema -> S.Schema
@@ -846,24 +846,24 @@ class ToSchema a where
 newtype Schema a = Schema {getSchema :: a}
   deriving (Generic)
 
-schemaToSwagger :: forall a. ToSchema a => Proxy a -> Declare S.NamedSchema
+schemaToSwagger :: forall a. (ToSchema a) => Proxy a -> Declare S.NamedSchema
 schemaToSwagger _ = runDeclare (schemaDoc (schema @a))
 
 instance (Typeable a, ToSchema a) => S.ToSchema (Schema a) where
   declareNamedSchema _ = schemaToSwagger (Proxy @a)
 
 -- | JSON serialiser for an instance of 'ToSchema'.
-schemaToJSON :: forall a. ToSchema a => a -> A.Value
+schemaToJSON :: forall a. (ToSchema a) => a -> A.Value
 schemaToJSON = fromMaybe A.Null . schemaOut (schema @a)
 
-instance ToSchema a => A.ToJSON (Schema a) where
+instance (ToSchema a) => A.ToJSON (Schema a) where
   toJSON = schemaToJSON . getSchema
 
 -- | JSON parser for an instance of 'ToSchema'.
-schemaParseJSON :: forall a. ToSchema a => A.Value -> A.Parser a
+schemaParseJSON :: forall a. (ToSchema a) => A.Value -> A.Parser a
 schemaParseJSON = schemaIn schema
 
-instance ToSchema a => A.FromJSON (Schema a) where
+instance (ToSchema a) => A.FromJSON (Schema a) where
   parseJSON = fmap Schema . schemaParseJSON
 
 instance ToSchema Text where schema = genericToSchema
@@ -899,7 +899,7 @@ instance ToSchema Natural where schema = genericToSchema
 declareSwaggerSchema :: SchemaP (WithDeclare d) v w a b -> Declare d
 declareSwaggerSchema = runDeclare . schemaDoc
 
-swaggerDoc :: forall a. S.ToSchema a => NamedSwaggerDoc
+swaggerDoc :: forall a. (S.ToSchema a) => NamedSwaggerDoc
 swaggerDoc = unrunDeclare (S.declareNamedSchema (Proxy @a))
 
 genericToSchema :: forall a. (S.ToSchema a, A.ToJSON a, A.FromJSON a) => ValueSchema NamedSwaggerDoc a
@@ -920,7 +920,7 @@ instance S.HasSchema SwaggerDoc S.Schema where
 instance S.HasSchema NamedSwaggerDoc S.Schema where
   schema = declared . S.schema
 
-instance S.HasSchema d S.Schema => S.HasSchema (SchemaP d v w a b) S.Schema where
+instance (S.HasSchema d S.Schema) => S.HasSchema (SchemaP d v w a b) S.Schema where
   schema = doc . S.schema
 
 instance S.HasDescription NamedSwaggerDoc (Maybe Text) where
@@ -929,11 +929,11 @@ instance S.HasDescription NamedSwaggerDoc (Maybe Text) where
 instance S.HasDeprecated NamedSwaggerDoc (Maybe Bool) where
   deprecated = declared . S.schema . S.deprecated
 
-instance {-# OVERLAPPABLE #-} S.HasDescription s a => S.HasDescription (WithDeclare s) a where
+instance {-# OVERLAPPABLE #-} (S.HasDescription s a) => S.HasDescription (WithDeclare s) a where
   description = declared . S.description
 
-instance {-# OVERLAPPABLE #-} S.HasDeprecated s a => S.HasDeprecated (WithDeclare s) a where
+instance {-# OVERLAPPABLE #-} (S.HasDeprecated s a) => S.HasDeprecated (WithDeclare s) a where
   deprecated = declared . S.deprecated
 
-instance {-# OVERLAPPABLE #-} S.HasExample s a => S.HasExample (WithDeclare s) a where
+instance {-# OVERLAPPABLE #-} (S.HasExample s a) => S.HasExample (WithDeclare s) a where
   example = declared . S.example

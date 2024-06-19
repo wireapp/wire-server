@@ -527,7 +527,7 @@ listPropertyKeysAndValues u = do
   Public.PropertyKeysAndValues <$> traverse parseStoredPropertyValue keysAndVals
 
 getPrekeyUnqualifiedH ::
-  Member DeleteQueue r =>
+  (Member DeleteQueue r) =>
   UserId ->
   UserId ->
   ClientId ->
@@ -537,7 +537,7 @@ getPrekeyUnqualifiedH zusr user client = do
   getPrekeyH zusr (Qualified user domain) client
 
 getPrekeyH ::
-  Member DeleteQueue r =>
+  (Member DeleteQueue r) =>
   UserId ->
   Qualified UserId ->
   ClientId ->
@@ -625,7 +625,7 @@ addClient usr con new = do
     !>> clientError
 
 deleteClient ::
-  Member DeleteQueue r =>
+  (Member DeleteQueue r) =>
   UserId ->
   ConnId ->
   ClientId ->
@@ -812,7 +812,7 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
       Public.NewTeamMemberSSO _ ->
         Team.sendMemberWelcomeMail e t n l
 
-getSelf :: Member UserSubsystem r => Local UserId -> Handler r Public.SelfProfile
+getSelf :: (Member UserSubsystem r) => Local UserId -> Handler r Public.SelfProfile
 getSelf self =
   lift (liftSem (getSelfProfile self))
     >>= ifNothing (errorToWai @'E.UserNotFound)
@@ -856,7 +856,7 @@ listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
     (Nothing, Nothing) -> throwStd $ badRequest "at least one ids or handles must be provided"
 
 listUsersByIdsOrHandlesGetIds ::
-  Member UserStore r =>
+  (Member UserStore r) =>
   [Handle] ->
   Handler r [Qualified UserId]
 listUsersByIdsOrHandlesGetIds localHandles = do
@@ -865,7 +865,7 @@ listUsersByIdsOrHandlesGetIds localHandles = do
   pure $ map (`Qualified` domain) localUsers
 
 listUsersByIdsOrHandlesGetUsers ::
-  Member UserStore r =>
+  (Member UserStore r) =>
   Local x ->
   Range n m [Qualified Handle] ->
   Handler r [Qualified UserId]
@@ -927,7 +927,7 @@ instance ToJSON GetActivationCodeResp where
   toJSON (GetActivationCodeResp (k, c)) = object ["key" .= k, "code" .= c]
 
 updateUser ::
-  Member UserSubsystem r =>
+  (Member UserSubsystem r) =>
   Local UserId ->
   ConnId ->
   Public.UserUpdate ->
@@ -994,7 +994,7 @@ changePassword :: UserId -> Public.PasswordChange -> (Handler r) (Maybe Public.C
 changePassword u cp = lift . exceptTToMaybe $ API.changePassword u cp
 
 changeLocale ::
-  Member UserSubsystem r =>
+  (Member UserSubsystem r) =>
   Local UserId ->
   ConnId ->
   Public.LocaleUpdate ->
@@ -1020,7 +1020,7 @@ changeSupportedProtocols u conn (Public.SupportedProtocolUpdate prots) =
 
 -- | (zusr is ignored by this handler, ie. checking handles is allowed as long as you have
 -- *any* account.)
-checkHandle :: Member UserSubsystem r => UserId -> Text -> Handler r ()
+checkHandle :: (Member UserSubsystem r) => UserId -> Text -> Handler r ()
 checkHandle _uid hndl =
   lift (liftSem $ UserSubsystem.checkHandle hndl) >>= \case
     API.CheckHandleFound -> pure ()
@@ -1028,7 +1028,7 @@ checkHandle _uid hndl =
 
 -- | (zusr is ignored by this handler, ie. checking handles is allowed as long as you have
 -- *any* account.)
-checkHandles :: Member UserSubsystem r => UserId -> Public.CheckHandles -> Handler r [Handle]
+checkHandles :: (Member UserSubsystem r) => UserId -> Public.CheckHandles -> Handler r [Handle]
 checkHandles _ (Public.CheckHandles hs num) = do
   let handles = mapMaybe Handle.parseHandle (fromRange hs)
   lift $ liftSem $ API.checkHandles handles (fromRange num)
@@ -1330,7 +1330,7 @@ activateKey (Public.Activate tgt code dryrun)
 
 sendVerificationCode ::
   forall r.
-  Member GalleyAPIAccess r =>
+  (Member GalleyAPIAccess r) =>
   Public.SendVerificationCode ->
   (Handler r) ()
 sendVerificationCode req = do

@@ -59,12 +59,12 @@ interpretClientToIO ctx = interpret $ \case
     action' <- liftS $ runClient ctx action
     st <- getInitialStateS
     handler' <-
-      bindS
-        $ throw @SparError
-        . SAML.CustomError
-        . SparCassandraError
-        . LText.pack
-        . show @SomeException
+      bindS $
+        throw @SparError
+          . SAML.CustomError
+          . SparCassandraError
+          . LText.pack
+          . show @SomeException
     pure $ action' `Catch.catch` \e -> handler' $ e <$ st
 
 ttlErrorToSparError :: (Member (Error SparError) r) => Sem (Error TTLError ': r) a -> Sem r a
@@ -88,10 +88,10 @@ instance (Member (Embed IO) r) => MonadIO (RunHttp r) where
 
 instance (Member (Embed IO) r) => MonadHttp (RunHttp r) where
   handleRequestWithCont r fribia =
-    RunHttp
-      $ lift
-      $ lift
-      $ handleRequestWithCont r fribia
+    RunHttp $
+      lift $
+        lift $
+          handleRequestWithCont r fribia
 
 semToRunHttp :: Sem r a -> RunHttp r a
 semToRunHttp = RunHttp . lift . lift . lift

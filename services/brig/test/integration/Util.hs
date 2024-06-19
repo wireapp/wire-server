@@ -181,8 +181,8 @@ runFedClient ::
   Domain ->
   Servant.Client Http api
 runFedClient (FedClient mgr ep) domain =
-  Servant.hoistClient (Proxy @api) (servantClientMToHttp domain)
-    $ Servant.clientIn (Proxy @api) (Proxy @Servant.ClientM)
+  Servant.hoistClient (Proxy @api) (servantClientMToHttp domain) $
+    Servant.clientIn (Proxy @api) (Proxy @Servant.ClientM)
   where
     servantClientMToHttp :: Domain -> Servant.ClientM a -> Http a
     servantClientMToHttp originDomain action = liftIO $ do
@@ -373,12 +373,12 @@ assertUpdateNotification ws uid upd = WS.assertMatch (5 # Second) ws $ \n -> do
 
 getConnection :: Brig -> UserId -> UserId -> Http ResponseLBS
 getConnection brig from to =
-  get
-    $ apiVersion "v1"
-    . brig
-    . paths ["/connections", toByteString' to]
-    . zUser from
-    . zConn "conn"
+  get $
+    apiVersion "v1"
+      . brig
+      . paths ["/connections", toByteString' to]
+      . zUser from
+      . zConn "conn"
 
 -- | More flexible variant of 'createUser' (see above).
 postUser :: Text -> Bool -> Bool -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
@@ -422,15 +422,15 @@ postUserWithEmail hasPassword validateBody name email havePhone ssoid teamid bri
       then Just <$> randomPhone
       else pure Nothing
   let o =
-        object
-          $ [ "name" .= name,
-              "email" .= (fromEmail <$> email),
-              "phone" .= phone,
-              "cookie" .= defCookieLabel,
-              "sso_id" .= ssoid,
-              "team_id" .= teamid
-            ]
-          <> ["password" .= defPassword | hasPassword]
+        object $
+          [ "name" .= name,
+            "email" .= (fromEmail <$> email),
+            "phone" .= phone,
+            "cookie" .= defCookieLabel,
+            "sso_id" .= ssoid,
+            "team_id" .= teamid
+          ]
+            <> ["password" .= defPassword | hasPassword]
       p = case Aeson.parse parseJSON o of
         Aeson.Success (p_ :: NewUser) -> p_
         bad -> error $ show (bad, o)
@@ -453,26 +453,26 @@ postUserRegister' payload brig = do
 
 deleteUser :: (MonadHttp m, HasCallStack) => UserId -> Maybe PlainTextPassword6 -> Brig -> m ResponseLBS
 deleteUser u p brig =
-  delete
-    $ brig
-    . path "/self"
-    . contentJson
-    . zUser u
-    . body (RequestBodyLBS (encode (mkDeleteUser p)))
+  delete $
+    brig
+      . path "/self"
+      . contentJson
+      . zUser u
+      . body (RequestBodyLBS (encode (mkDeleteUser p)))
 
 deleteUserInternal :: UserId -> Brig -> Http ResponseLBS
 deleteUserInternal u brig =
-  delete
-    $ brig
-    . paths ["/i/users", toByteString' u]
+  delete $
+    brig
+      . paths ["/i/users", toByteString' u]
 
 activate :: Brig -> ActivationPair -> (MonadHttp m) => m ResponseLBS
 activate brig (k, c) =
-  get
-    $ brig
-    . path "activate"
-    . queryItem "key" (toByteString' k)
-    . queryItem "code" (toByteString' c)
+  get $
+    brig
+      . path "activate"
+      . queryItem "key" (toByteString' k)
+      . queryItem "code" (toByteString' c)
 
 getSelfProfile :: (MonadIO m, MonadCatch m, MonadHttp m, HasCallStack) => Brig -> UserId -> m SelfProfile
 getSelfProfile brig usr = do
@@ -480,11 +480,11 @@ getSelfProfile brig usr = do
 
 getUser :: Brig -> UserId -> UserId -> Http ResponseLBS
 getUser brig zusr usr =
-  get
-    $ apiVersion "v1"
-    . brig
-    . paths ["users", toByteString' usr]
-    . zUser zusr
+  get $
+    apiVersion "v1"
+      . brig
+      . paths ["users", toByteString' usr]
+      . zUser zusr
 
 -- | NB: you can also use nginz as the first argument here.  The type aliases are compatible,
 -- and so are the end-points.  This is important in tests where the cookie must come from the
@@ -492,33 +492,33 @@ getUser brig zusr usr =
 login :: Brig -> Login -> CookieType -> (MonadHttp m) => m ResponseLBS
 login b l t =
   let js = RequestBodyLBS (encode l)
-   in post
-        $ unversioned
-        . b
-        . path "/login"
-        . contentJson
-        . (if t == PersistentCookie then queryItem "persist" "true" else id)
-        . body js
+   in post $
+        unversioned
+          . b
+          . path "/login"
+          . contentJson
+          . (if t == PersistentCookie then queryItem "persist" "true" else id)
+          . body js
 
 ssoLogin :: Brig -> SsoLogin -> CookieType -> Http ResponseLBS
 ssoLogin b l t =
   let js = RequestBodyLBS (encode l)
-   in post
-        $ b
-        . path "/i/sso-login"
-        . contentJson
-        . (if t == PersistentCookie then queryItem "persist" "true" else id)
-        . body js
+   in post $
+        b
+          . path "/i/sso-login"
+          . contentJson
+          . (if t == PersistentCookie then queryItem "persist" "true" else id)
+          . body js
 
 legalHoldLogin :: Brig -> LegalHoldLogin -> CookieType -> Http ResponseLBS
 legalHoldLogin b l t =
   let js = RequestBodyLBS (encode l)
-   in post
-        $ b
-        . path "/i/legalhold-login"
-        . contentJson
-        . (if t == PersistentCookie then queryItem "persist" "true" else id)
-        . body js
+   in post $
+        b
+          . path "/i/legalhold-login"
+          . contentJson
+          . (if t == PersistentCookie then queryItem "persist" "true" else id)
+          . body js
 
 decodeCookie :: (HasCallStack) => Response a -> Bilge.Cookie
 decodeCookie = fromMaybe (error "missing zuid cookie") . getCookie "zuid"
@@ -537,11 +537,11 @@ data LoginCodeType = LoginCodeSMS | LoginCodeVoice
 
 sendLoginCode :: Brig -> Phone -> LoginCodeType -> Bool -> Http ResponseLBS
 sendLoginCode b p typ force =
-  post
-    $ b
-    . path "/login/send"
-    . contentJson
-    . body js
+  post $
+    b
+      . path "/login/send"
+      . contentJson
+      . body js
   where
     js =
       RequestBodyLBS
@@ -554,14 +554,14 @@ sendLoginCode b p typ force =
 
 postConnection :: Brig -> UserId -> UserId -> (MonadHttp m) => m ResponseLBS
 postConnection brig from to =
-  post
-    $ apiVersion "v1"
-    . brig
-    . path "/connections"
-    . contentJson
-    . body payload
-    . zUser from
-    . zConn "conn"
+  post $
+    apiVersion "v1"
+      . brig
+      . path "/connections"
+      . contentJson
+      . body payload
+      . zUser from
+      . zConn "conn"
   where
     payload =
       RequestBodyLBS
@@ -570,35 +570,35 @@ postConnection brig from to =
 
 postConnectionQualified :: (MonadHttp m) => Brig -> UserId -> Qualified UserId -> m ResponseLBS
 postConnectionQualified brig from (Qualified toUser toDomain) =
-  post
-    $ brig
-    . paths ["/connections", toByteString' toDomain, toByteString' toUser]
-    . contentJson
-    . zUser from
-    . zConn "conn"
+  post $
+    brig
+      . paths ["/connections", toByteString' toDomain, toByteString' toUser]
+      . contentJson
+      . zUser from
+      . zConn "conn"
 
 putConnection :: Brig -> UserId -> UserId -> Relation -> (MonadHttp m) => m ResponseLBS
 putConnection brig from to r =
-  put
-    $ apiVersion "v1"
-    . brig
-    . paths ["/connections", toByteString' to]
-    . contentJson
-    . body payload
-    . zUser from
-    . zConn "conn"
+  put $
+    apiVersion "v1"
+      . brig
+      . paths ["/connections", toByteString' to]
+      . contentJson
+      . body payload
+      . zUser from
+      . zConn "conn"
   where
     payload = RequestBodyLBS . encode $ object ["status" .= r]
 
 putConnectionQualified :: Brig -> UserId -> Qualified UserId -> Relation -> (MonadHttp m) => m ResponseLBS
 putConnectionQualified brig from (Qualified to toDomain) r =
-  put
-    $ brig
-    . paths ["/connections", toByteString' toDomain, toByteString' to]
-    . contentJson
-    . body payload
-    . zUser from
-    . zConn "conn"
+  put $
+    brig
+      . paths ["/connections", toByteString' toDomain, toByteString' to]
+      . contentJson
+      . body payload
+      . zUser from
+      . zConn "conn"
   where
     payload = RequestBodyLBS . encode $ object ["status" .= r]
 
@@ -616,13 +616,13 @@ putHandle ::
   Text ->
   m ResponseLBS
 putHandle brig usr h =
-  put
-    $ brig
-    . path "/self/handle"
-    . contentJson
-    . body payload
-    . zUser usr
-    . zConn "conn"
+  put $
+    brig
+      . path "/self/handle"
+      . contentJson
+      . body payload
+      . zUser usr
+      . zConn "conn"
   where
     payload = RequestBodyLBS . encode $ object ["handle" .= h]
 
@@ -667,11 +667,11 @@ addClient brig uid new = post (addClientReq brig uid new)
 
 addClientInternal :: Brig -> UserId -> NewClient -> Http ResponseLBS
 addClientInternal brig uid new =
-  post
-    $ brig
-    . paths ["i", "clients", toByteString' uid]
-    . contentJson
-    . body (RequestBodyLBS $ encode new)
+  post $
+    brig
+      . paths ["i", "clients", toByteString' uid]
+      . contentJson
+      . body (RequestBodyLBS $ encode new)
 
 addClientReq :: Brig -> UserId -> NewClient -> (Request -> Request)
 addClientReq brig uid new =
@@ -703,11 +703,11 @@ getPreKey ::
   ClientId ->
   m ResponseLBS
 getPreKey brig zusr u c =
-  get
-    $ apiVersion "v1"
-    . brig
-    . paths ["users", toByteString' u, "prekeys", toByteString' c]
-    . zUser zusr
+  get $
+    apiVersion "v1"
+      . brig
+      . paths ["users", toByteString' u, "prekeys", toByteString' c]
+      . zUser zusr
 
 getTeamMember ::
   (MonadIO m, MonadCatch m, MonadHttp m, HasCallStack) =>
@@ -726,10 +726,10 @@ getTeamMember u tid galley =
 
 getConversationQualified :: (MonadHttp m) => Galley -> UserId -> Qualified ConvId -> m ResponseLBS
 getConversationQualified galley usr cnv =
-  get
-    $ galley
-    . paths ["conversations", toByteString' (qDomain cnv), toByteString' (qUnqualified cnv)]
-    . zAuthAccess usr "conn"
+  get $
+    galley
+      . paths ["conversations", toByteString' (qDomain cnv), toByteString' (qUnqualified cnv)]
+      . zAuthAccess usr "conn"
 
 createMLSConversation :: (MonadHttp m) => Galley -> UserId -> ClientId -> m ResponseLBS
 createMLSConversation galley zusr c = do
@@ -745,13 +745,13 @@ createMLSConversation galley zusr c = do
           Nothing
           roleNameWireAdmin
           BaseProtocolMLSTag
-  post
-    $ galley
-    . path "/conversations"
-    . zUser zusr
-    . zConn "conn"
-    . zClient c
-    . json conv
+  post $
+    galley
+      . path "/conversations"
+      . zUser zusr
+      . zConn "conn"
+      . zClient c
+      . json conv
 
 createMLSSubConversation ::
   (MonadIO m, MonadHttp m) =>
@@ -761,16 +761,16 @@ createMLSSubConversation ::
   SubConvId ->
   m ResponseLBS
 createMLSSubConversation galley zusr qcnv sconv =
-  get
-    $ galley
-    . paths
-      [ "conversations",
-        toByteString' (qDomain qcnv),
-        toByteString' (qUnqualified qcnv),
-        "subconversations",
-        toHeader sconv
-      ]
-    . zUser zusr
+  get $
+    galley
+      . paths
+        [ "conversations",
+          toByteString' (qDomain qcnv),
+          toByteString' (qUnqualified qcnv),
+          "subconversations",
+          toHeader sconv
+        ]
+      . zUser zusr
 
 createConversation :: (MonadHttp m) => Galley -> UserId -> [Qualified UserId] -> m ResponseLBS
 createConversation galley zusr usersToAdd = do
@@ -786,22 +786,22 @@ createConversation galley zusr usersToAdd = do
           Nothing
           roleNameWireAdmin
           BaseProtocolProteusTag
-  post
-    $ galley
-    . path "/conversations"
-    . zUser zusr
-    . zConn "conn"
-    . json conv
+  post $
+    galley
+      . path "/conversations"
+      . zUser zusr
+      . zConn "conn"
+      . json conv
 
 listConvIdsFirstPage :: (MonadHttp m) => Galley -> UserId -> m ResponseLBS
 listConvIdsFirstPage galley zusr = do
   let req = GetMultiTablePageRequest (toRange (Proxy @1000)) Nothing :: GetPaginatedConversationIds
-  post
-    $ galley
-    . path "/conversations/list-ids"
-    . zUser zusr
-    . zConn "conn"
-    . json req
+  post $
+    galley
+      . path "/conversations/list-ids"
+      . zUser zusr
+      . zConn "conn"
+      . json req
 
 listConvs ::
   (MonadHttp m) =>
@@ -810,21 +810,21 @@ listConvs ::
   Range 1 1000 [Qualified ConvId] ->
   m ResponseLBS
 listConvs galley zusr convs = do
-  post
-    $ apiVersion "v1"
-    . galley
-    . path "/conversations/list/v2"
-    . zUser zusr
-    . zConn "conn"
-    . json (ListConversations convs)
+  post $
+    apiVersion "v1"
+      . galley
+      . path "/conversations/list/v2"
+      . zUser zusr
+      . zConn "conn"
+      . json (ListConversations convs)
 
 isMember :: Galley -> Local UserId -> ConvId -> (MonadIO m, MonadHttp m) => m Bool
 isMember g usr cnv = do
   res <-
-    get
-      $ g
-      . paths ["i", "conversations", toByteString' cnv, "members", toByteString' (tUnqualified usr)]
-      . expect2xx
+    get $
+      g
+        . paths ["i", "conversations", toByteString' cnv, "members", toByteString' (tUnqualified usr)]
+        . expect2xx
   case responseJsonMaybe res of
     Nothing -> pure False
     Just m -> pure (tUntagged usr == memId m)
@@ -913,12 +913,12 @@ randomPhone = liftIO $ do
 
 randomActivationCode :: (HasCallStack, MonadIO m) => m ActivationCode
 randomActivationCode =
-  liftIO
-    $ ActivationCode
-    . Ascii.unsafeFromText
-    . T.pack
-    . printf "%06d"
-    <$> randIntegerZeroToNMinusOne 1000000
+  liftIO $
+    ActivationCode
+      . Ascii.unsafeFromText
+      . T.pack
+      . printf "%06d"
+      <$> randIntegerZeroToNMinusOne 1000000
 
 updatePhone :: (HasCallStack) => Brig -> UserId -> Phone -> Http ()
 updatePhone brig uid phn = do
@@ -1271,9 +1271,9 @@ instance Servant.RunClient WaiTestFedClient where
           case expectedStatuses of
             Nothing -> HTTP.statusIsSuccessful status
             Just ex -> status `elem` ex
-    unless statusIsSuccess
-      $ unWaiTestFedClient
-      $ throwClientError (FailureResponse (bimap (const ()) (\x -> (Servant.BaseUrl Servant.Http "" 80 "", cs (toLazyByteString x))) servantRequest) servantResponse)
+    unless statusIsSuccess $
+      unWaiTestFedClient $
+        throwClientError (FailureResponse (bimap (const ()) (\x -> (Servant.BaseUrl Servant.Http "" 80 "", cs (toLazyByteString x))) servantRequest) servantResponse)
     pure servantResponse
   throwClientError = liftIO . throw
 
@@ -1292,9 +1292,9 @@ fromServantRequest domain r =
 
       -- Content-Type and Accept are specified by requestBody and requestAccept
       headers =
-        filter (\(h, _) -> h /= "Accept" && h /= "Content-Type")
-          $ toList
-          $ Servant.requestHeaders r
+        filter (\(h, _) -> h /= "Accept" && h /= "Content-Type") $
+          toList $
+            Servant.requestHeaders r
       acceptHdr
         | null hs = Nothing
         | otherwise = Just ("Accept", renderHeader hs)
@@ -1372,5 +1372,5 @@ assertJust Nothing = liftIO $ error "Expected Just, got Nothing"
 
 assertElem :: (HasCallStack, Eq a, Show a) => String -> a -> [a] -> Assertion
 assertElem msg x xs =
-  unless (x `elem` xs)
-    $ assertFailure (msg <> "\nExpected to find: \n" <> show x <> "\nin:\n" <> show xs)
+  unless (x `elem` xs) $
+    assertFailure (msg <> "\nExpected to find: \n" <> show x <> "\nin:\n" <> show xs)

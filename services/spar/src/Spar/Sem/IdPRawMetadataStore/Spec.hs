@@ -30,15 +30,15 @@ import Test.Hspec.QuickCheck
 import Test.QuickCheck
 
 class
-  (Arbitrary IdPId, CoArbitrary IdPId, Arbitrary Text, CoArbitrary Text, Functor f, Member E.IdPRawMetadataStore r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z)) =>
+  (Arbitrary IdPId, CoArbitrary IdPId, Arbitrary Text, CoArbitrary Text, Functor f, Member E.IdPRawMetadataStore r, forall z. (Show z) => Show (f z), forall z. (Eq z) => Eq (f z)) =>
   PropConstraints r f
 
 instance
-  (Arbitrary IdPId, CoArbitrary IdPId, Arbitrary Text, CoArbitrary Text, Functor f, Member E.IdPRawMetadataStore r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z)) =>
+  (Arbitrary IdPId, CoArbitrary IdPId, Arbitrary Text, CoArbitrary Text, Functor f, Member E.IdPRawMetadataStore r, forall z. (Show z) => Show (f z), forall z. (Eq z) => Eq (f z)) =>
   PropConstraints r f
 
 prop_storeGetRaw ::
-  PropConstraints r f =>
+  (PropConstraints r f) =>
   Maybe (f (Maybe Text) -> String) ->
   (forall a. Sem r a -> IO (f a)) ->
   Property
@@ -60,7 +60,7 @@ prop_storeGetRaw =
     )
 
 prop_storeStoreRaw ::
-  PropConstraints r f =>
+  (PropConstraints r f) =>
   Maybe (f (Maybe Text) -> String) ->
   (forall a. Sem r a -> IO (f a)) ->
   Property
@@ -84,7 +84,7 @@ prop_storeStoreRaw =
     )
 
 prop_storeDeleteRaw ::
-  PropConstraints r f =>
+  (PropConstraints r f) =>
   Maybe (f (Maybe Text) -> String) ->
   (forall a. Sem r a -> IO (f a)) ->
   Property
@@ -106,7 +106,7 @@ prop_storeDeleteRaw =
           )
 
 prop_deleteGetRaw ::
-  PropConstraints r f =>
+  (PropConstraints r f) =>
   Maybe (f (Maybe Text) -> String) ->
   (forall a. Sem r a -> IO (f a)) ->
   Property
@@ -131,7 +131,7 @@ prop_deleteGetRaw =
     )
 
 propsForInterpreter ::
-  PropConstraints r f =>
+  (PropConstraints r f) =>
   (forall x. f x -> x) ->
   (forall a. Sem r a -> IO (f a)) ->
   Spec

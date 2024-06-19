@@ -107,7 +107,7 @@ instance
       clientWithRoute pm (Proxy @api) req
   hoistClientMonad pm _ f = hoistClientMonad pm (Proxy @api) f
 
-instance RoutesToPaths api => RoutesToPaths (Until v :> api) where
+instance (RoutesToPaths api) => RoutesToPaths (Until v :> api) where
   getRoutes = getRoutes @api
 
 instance
@@ -155,5 +155,5 @@ instance
       clientWithRoute pm (Proxy @api) req
   hoistClientMonad pm _ f = hoistClientMonad pm (Proxy @api) f
 
-instance RoutesToPaths api => RoutesToPaths (From v :> api) where
+instance (RoutesToPaths api) => RoutesToPaths (From v :> api) where
   getRoutes = getRoutes @api

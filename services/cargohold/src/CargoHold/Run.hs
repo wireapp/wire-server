@@ -97,7 +97,7 @@ mkApp o = Codensity $ \k ->
 toServantHandler :: Env -> Handler a -> Servant.Handler a
 toServantHandler env = liftIO . runHandler env
 
-collectAuthMetrics :: MonadIO m => AWS.Env -> m ()
+collectAuthMetrics :: (MonadIO m) => AWS.Env -> m ()
 collectAuthMetrics env = do
   liftIO $
     forever $ do

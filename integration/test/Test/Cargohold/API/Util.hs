@@ -143,10 +143,10 @@ downloadAssetWithQualifiedAssetKey r user key tok = do
   dom <- key %. "domain" & asString
   keyId <- key %. "id" & asString
   req <- baseRequest user Cargohold (ExplicitVersion 2) $ "assets/" <> dom <> "/" <> keyId
-  submit "GET" $
-    req
-      & tokenParam tok
-      & r
+  submit "GET"
+    $ req
+    & tokenParam tok
+    & r
 
 postToken :: (MakesValue user, HasCallStack) => user -> String -> App Response
 postToken user key = do

@@ -469,7 +469,7 @@ getUserData uid mMaxConvs mMaxNotifs = do
 
 -- Utilities
 
-instance FromByteString a => Servant.FromHttpApiData [a] where
+instance (FromByteString a) => Servant.FromHttpApiData [a] where
   parseUrlPiece =
     maybe (Left "not a list of a's") (Right . fromList)
       . fromByteString'

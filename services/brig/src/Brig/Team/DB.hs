@@ -148,7 +148,7 @@ lookupInvitationByCode showUrl i =
     Just InvitationInfo {..} -> lookupInvitation showUrl iiTeam iiInvId
     _ -> pure Nothing
 
-lookupInvitationCode :: MonadClient m => TeamId -> InvitationId -> m (Maybe InvitationCode)
+lookupInvitationCode :: (MonadClient m) => TeamId -> InvitationId -> m (Maybe InvitationCode)
 lookupInvitationCode t r =
   fmap runIdentity
     <$> retry x1 (query1 cqlInvitationCode (params LocalQuorum (t, r)))
@@ -156,7 +156,7 @@ lookupInvitationCode t r =
     cqlInvitationCode :: PrepQuery R (TeamId, InvitationId) (Identity InvitationCode)
     cqlInvitationCode = "SELECT code FROM team_invitation WHERE team = ? AND id = ?"
 
-lookupInvitationCodeEmail :: MonadClient m => TeamId -> InvitationId -> m (Maybe (InvitationCode, Email))
+lookupInvitationCodeEmail :: (MonadClient m) => TeamId -> InvitationId -> m (Maybe (InvitationCode, Email))
 lookupInvitationCodeEmail t r = retry x1 (query1 cqlInvitationCodeEmail (params LocalQuorum (t, r)))
   where
     cqlInvitationCodeEmail :: PrepQuery R (TeamId, InvitationId) (InvitationCode, Email)
@@ -190,7 +190,7 @@ lookupInvitations showUrl team start (fromRange -> size) = do
     cqlSelectFrom :: PrepQuery R (TeamId, InvitationId) (TeamId, Maybe Role, InvitationId, UTCTimeMillis, Maybe UserId, Email, Maybe Name, Maybe Phone, InvitationCode)
     cqlSelectFrom = "SELECT team, role, id, created_at, created_by, email, name, phone, code FROM team_invitation WHERE team = ? AND id > ? ORDER BY id ASC"
 
-deleteInvitation :: MonadClient m => TeamId -> InvitationId -> m ()
+deleteInvitation :: (MonadClient m) => TeamId -> InvitationId -> m ()
 deleteInvitation t i = do
   codeEmail <- lookupInvitationCodeEmail t i
   case codeEmail of
@@ -220,7 +220,7 @@ deleteInvitations t =
     cqlSelect :: PrepQuery R (Identity TeamId) (Identity InvitationId)
     cqlSelect = "SELECT id FROM team_invitation WHERE team = ? ORDER BY id ASC"
 
-lookupInvitationInfo :: MonadClient m => InvitationCode -> m (Maybe InvitationInfo)
+lookupInvitationInfo :: (MonadClient m) => InvitationCode -> m (Maybe InvitationInfo)
 lookupInvitationInfo ic@(InvitationCode c)
   | c == mempty = pure Nothing
   | otherwise =
@@ -262,7 +262,7 @@ lookupInvitationInfoByEmail email = do
     cqlInvitationEmail :: PrepQuery R (Identity Email) (TeamId, InvitationId, InvitationCode)
     cqlInvitationEmail = "SELECT team, invitation, code FROM team_invitation_email WHERE email = ?"
 
-countInvitations :: MonadClient m => TeamId -> m Int64
+countInvitations :: (MonadClient m) => TeamId -> m Int64
 countInvitations t =
   maybe 0 runIdentity
     <$> retry x1 (query1 cqlSelect (params LocalQuorum (Identity t)))
@@ -311,7 +311,7 @@ mkInviteUrl ShowInvitationUrl team (InvitationCode c) = do
     replace "code" = toText c
     replace x = x
 
-    parseHttpsUrl :: Log.MonadLogger m => Text -> m (Maybe (URIRef Absolute))
+    parseHttpsUrl :: (Log.MonadLogger m) => Text -> m (Maybe (URIRef Absolute))
     parseHttpsUrl url =
       either (\e -> logError url e >> pure Nothing) (pure . Just) $
         parseURI laxURIParserOptions (encodeUtf8 url)

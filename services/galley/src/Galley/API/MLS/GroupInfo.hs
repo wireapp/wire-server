@@ -52,7 +52,7 @@ getGroupInfo ::
     Member (Input Env) r,
     Member MemberStore r
   ) =>
-  Members MLSGroupInfoStaticErrors r =>
+  (Members MLSGroupInfoStaticErrors r) =>
   Local UserId ->
   Qualified ConvId ->
   Sem r GroupInfoData
@@ -68,7 +68,7 @@ getGroupInfoFromLocalConv ::
   ( Member ConversationStore r,
     Member MemberStore r
   ) =>
-  Members MLSGroupInfoStaticErrors r =>
+  (Members MLSGroupInfoStaticErrors r) =>
   Qualified UserId ->
   Local ConvId ->
   Sem r GroupInfoData
@@ -81,7 +81,7 @@ getGroupInfoFromRemoteConv ::
   ( Member (Error FederationError) r,
     Member FederatorAccess r
   ) =>
-  Members MLSGroupInfoStaticErrors r =>
+  (Members MLSGroupInfoStaticErrors r) =>
   Local UserId ->
   Remote ConvOrSubConvId ->
   Sem r GroupInfoData

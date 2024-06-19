@@ -98,5 +98,5 @@ instance FromJSON Error where
 -- FIXME: This should not live here.
 infixl 5 !>>
 
-(!>>) :: Monad m => ExceptT a m r -> (a -> b) -> ExceptT b m r
+(!>>) :: (Monad m) => ExceptT a m r -> (a -> b) -> ExceptT b m r
 (!>>) = flip fmapLT

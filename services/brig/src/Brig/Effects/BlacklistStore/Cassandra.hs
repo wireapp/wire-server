@@ -24,15 +24,15 @@ interpretBlacklistStoreToCassandra =
 --------------------------------------------------------------------------------
 -- UserKey blacklisting
 
-insert :: MonadClient m => UserKey -> m ()
+insert :: (MonadClient m) => UserKey -> m ()
 insert uk = retry x5 $ write keyInsert (params LocalQuorum (Identity $ keyText uk))
 
-exists :: MonadClient m => UserKey -> m Bool
+exists :: (MonadClient m) => UserKey -> m Bool
 exists uk =
   (pure . isJust) . fmap runIdentity
     =<< retry x1 (query1 keySelect (params LocalQuorum (Identity $ keyText uk)))
 
-delete :: MonadClient m => UserKey -> m ()
+delete :: (MonadClient m) => UserKey -> m ()
 delete uk = retry x5 $ write keyDelete (params LocalQuorum (Identity $ keyText uk))
 
 keyInsert :: PrepQuery W (Identity Text) ()

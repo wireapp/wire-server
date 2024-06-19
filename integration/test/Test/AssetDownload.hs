@@ -5,7 +5,7 @@ import GHC.Stack
 import SetupHelpers
 import Testlib.Prelude
 
-testDownloadAsset :: HasCallStack => App ()
+testDownloadAsset :: (HasCallStack) => App ()
 testDownloadAsset = do
   user <- randomUser OwnDomain def
 
@@ -19,7 +19,7 @@ testDownloadAsset = do
       ("Expect 'Hello World!' as text asset content. Got: " ++ show resp.body)
       (resp.body == fromString "Hello World!")
 
-testDownloadAssetMultiIngressS3DownloadUrl :: HasCallStack => App ()
+testDownloadAssetMultiIngressS3DownloadUrl :: (HasCallStack) => App ()
 testDownloadAssetMultiIngressS3DownloadUrl = do
   user <- randomUser OwnDomain def
 
@@ -63,14 +63,14 @@ testDownloadAssetMultiIngressS3DownloadUrl = do
     modifyConfig =
       def
         { cargoholdCfg =
-            setField "aws.multiIngress" $
-              object
+            setField "aws.multiIngress"
+              $ object
                 [ "red.example.com" .= "http://s3-download.red.example.com",
                   "green.example.com" .= "http://s3-download.green.example.com"
                 ]
         }
 
-    doUploadAsset :: HasCallStack => Value -> App Value
+    doUploadAsset :: (HasCallStack) => Value -> App Value
     doUploadAsset user = bindResponse (uploadAsset user) $ \resp -> do
       resp.status `shouldMatchInt` 201
       resp.json %. "key"

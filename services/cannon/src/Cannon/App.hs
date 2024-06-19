@@ -46,11 +46,11 @@ data State = State !Int !Timeout
 -- | The lifetime of a websocket.
 newtype TTL = TTL Word64
 
-counter :: Functor f => LensLike' f State Int
+counter :: (Functor f) => LensLike' f State Int
 counter f (State c p) = (\x -> State x p) `fmap` f c
 {-# INLINE counter #-}
 
-pingFreq :: Functor f => LensLike' f State Timeout
+pingFreq :: (Functor f) => LensLike' f State Timeout
 pingFreq f (State c p) = (\x -> State c x) `fmap` f p
 {-# INLINE pingFreq #-}
 
@@ -107,16 +107,16 @@ writeLoop ws clock (TTL ttl) st = loop
     loop = do
       s <- readIORef st
       if
-          | s ^. counter == 0 -> do
-              set counter st succ
-              threadDelay $ s ^. pingFreq
-              keepAlive
-          | s ^. counter < 3 -> do
-              set counter st succ
-              send (connection ws) ping
-              threadDelay $ (10 # Second) `min` (s ^. pingFreq)
-              keepAlive
-          | otherwise -> pure ()
+        | s ^. counter == 0 -> do
+            set counter st succ
+            threadDelay $ s ^. pingFreq
+            keepAlive
+        | s ^. counter < 3 -> do
+            set counter st succ
+            send (connection ws) ping
+            threadDelay $ (10 # Second) `min` (s ^. pingFreq)
+            keepAlive
+        | otherwise -> pure ()
     keepAlive = do
       time <- getTime clock
       unless (time > ttl) loop
@@ -161,7 +161,7 @@ rejectOnError p x = do
     _ -> pure ()
   throwM x
 
-ioErrors :: MonadLogger m => Key -> [Handler m ()]
+ioErrors :: (MonadLogger m) => Key -> [Handler m ()]
 ioErrors k =
   let f s = Logger.err $ client (key2bytes k) . msg s
    in [ Handler $ \(x :: HandshakeException) -> f (show x),

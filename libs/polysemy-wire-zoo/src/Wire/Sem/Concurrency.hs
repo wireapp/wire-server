@@ -40,13 +40,13 @@ data ConcurrencySafety = Safe | Unsafe
 type Concurrency :: ConcurrencySafety -> (Type -> Type) -> Type -> Type
 data Concurrency (safe :: ConcurrencySafety) m a where
   UnsafePooledMapConcurrentlyN ::
-    Foldable t =>
+    (Foldable t) =>
     Int ->
     (a -> m b) ->
     t a ->
     Concurrency safe m [b]
   UnsafePooledMapConcurrentlyN_ ::
-    Foldable t =>
+    (Foldable t) =>
     Int ->
     (a -> m b) ->
     t a ->
@@ -108,7 +108,7 @@ unsafePooledForConcurrentlyN_ n as f =
 
 pooledMapConcurrentlyN ::
   forall r' r t a b.
-  r' ~ '[Final IO] =>
+  (r' ~ '[Final IO]) =>
   (Member (Concurrency 'Safe) r, Subsume r' r, Foldable t) =>
   -- | Max. number of threads. Should not be less than 1.
   Int ->
@@ -124,7 +124,7 @@ pooledMapConcurrentlyN n f as =
 
 pooledMapConcurrentlyN_ ::
   forall r' r t a b.
-  r' ~ '[Final IO] =>
+  (r' ~ '[Final IO]) =>
   (Member (Concurrency 'Safe) r, Subsume r' r, Foldable t) =>
   -- | Max. number of threads. Should not be less than 1.
   Int ->
@@ -140,7 +140,7 @@ pooledMapConcurrentlyN_ n f as =
 
 pooledForConcurrentlyN ::
   forall r' r t a b.
-  r' ~ '[Final IO] =>
+  (r' ~ '[Final IO]) =>
   (Member (Concurrency 'Safe) r, Subsume r' r, Foldable t) =>
   -- | Max. number of threads. Should not be less than 1.
   Int ->
@@ -156,7 +156,7 @@ pooledForConcurrentlyN n as f =
 
 pooledForConcurrentlyN_ ::
   forall r' r t a b.
-  r' ~ '[Final IO] =>
+  (r' ~ '[Final IO]) =>
   (Member (Concurrency 'Safe) r, Subsume r' r, Foldable t) =>
   -- | Max. number of threads. Should not be less than 1.
   Int ->

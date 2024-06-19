@@ -27,13 +27,13 @@ import SetupHelpers
 import Test.Cargohold.API.Util
 import Testlib.Prelude
 
-testGetAssetAvailablePublic :: HasCallStack => App ()
+testGetAssetAvailablePublic :: (HasCallStack) => App ()
 testGetAssetAvailablePublic = getAssetAvailable True
 
-testGetAssetAvailablePrivate :: HasCallStack => App ()
+testGetAssetAvailablePrivate :: (HasCallStack) => App ()
 testGetAssetAvailablePrivate = getAssetAvailable False
 
-getAssetAvailable :: HasCallStack => Bool -> App ()
+getAssetAvailable :: (HasCallStack) => Bool -> App ()
 getAssetAvailable isPublicAsset = do
   -- Initial upload
   let bdy = (applicationOctetStream, cs "Hello World")
@@ -53,7 +53,7 @@ getAssetAvailable isPublicAsset = do
   res <- downloadAsset' uid2 r1.jsonBody tok
   res.status `shouldMatchInt` 200
 
-testGetAssetNotAvailable :: HasCallStack => App ()
+testGetAssetNotAvailable :: (HasCallStack) => App ()
 testGetAssetNotAvailable = do
   uid <- randomUser OwnDomain def
   userId <- uid %. "id" & asString
@@ -68,7 +68,7 @@ testGetAssetNotAvailable = do
   r.status `shouldMatchInt` 404
   r.jsonBody %. "message" `shouldMatch` "Asset not found"
 
-testGetAssetWrongToken :: HasCallStack => App ()
+testGetAssetWrongToken :: (HasCallStack) => App ()
 testGetAssetWrongToken = do
   -- Initial upload
   let bdy = (applicationOctetStream, cs "Hello World")
@@ -95,7 +95,7 @@ testGetAssetWrongToken = do
   r2.status `shouldMatchInt` 404
   r2.jsonBody %. "message" `shouldMatch` "Asset not found"
 
-testLargeAsset :: HasCallStack => App ()
+testLargeAsset :: (HasCallStack) => App ()
 testLargeAsset = do
   -- Initial upload
   let settings = object ["public" .= False, "retention" .= "volatile"]
@@ -122,7 +122,7 @@ testLargeAsset = do
   r2 <- downloadAsset' uid2 ga ga
   r2.status `shouldMatchInt` 200
 
-testStreamAsset :: HasCallStack => App ()
+testStreamAsset :: (HasCallStack) => App ()
 testStreamAsset = do
   -- Initial upload
   uid <- randomUser OwnDomain def
@@ -140,11 +140,11 @@ testStreamAsset = do
   r2.status `shouldMatchInt` 200
   cs @_ @String r2.body `shouldMatch` (snd bdy :: String)
   where
-    bdy :: ConvertibleStrings String a => (MIME.MIMEType, a)
+    bdy :: (ConvertibleStrings String a) => (MIME.MIMEType, a)
     bdy = (applicationOctetStream, cs "Hello World")
     settings = object ["public" .= False, "retention" .= "volatile"]
 
-testStreamAssetNotAvailable :: HasCallStack => App ()
+testStreamAssetNotAvailable :: (HasCallStack) => App ()
 testStreamAssetNotAvailable = do
   uid <- randomUser OwnDomain def
   uid2 <- randomUser OtherDomain def
@@ -158,7 +158,7 @@ testStreamAssetNotAvailable = do
   r.status `shouldMatchInt` 404
   r.jsonBody %. "message" `shouldMatch` "Asset not found"
 
-testStreamAssetWrongToken :: HasCallStack => App ()
+testStreamAssetWrongToken :: (HasCallStack) => App ()
 testStreamAssetWrongToken = do
   -- Initial upload
   uid <- randomUser OwnDomain def
@@ -176,6 +176,6 @@ testStreamAssetWrongToken = do
   r2.status `shouldMatchInt` 404
   r2.jsonBody %. "message" `shouldMatch` "Asset not found"
   where
-    bdy :: ConvertibleStrings String a => (MIME.MIMEType, a)
+    bdy :: (ConvertibleStrings String a) => (MIME.MIMEType, a)
     bdy = (applicationOctetStream, cs "Hello World")
     settings = object ["public" .= False, "retention" .= "volatile"]

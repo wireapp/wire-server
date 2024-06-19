@@ -56,7 +56,7 @@ import Wire.API.Team.Feature
 data DoAuth = DoAuth UserId | DontDoAuth
 
 -- | Don't export methods of this typeclass
-class IsFeatureConfig cfg => GetFeatureConfig cfg where
+class (IsFeatureConfig cfg) => GetFeatureConfig cfg where
   type GetConfigForTeamConstraints cfg (r :: EffectRow) :: Constraint
   type
     GetConfigForTeamConstraints cfg (r :: EffectRow) =
@@ -76,7 +76,7 @@ class IsFeatureConfig cfg => GetFeatureConfig cfg where
       )
 
   getConfigForServer ::
-    Member (Input Opts) r =>
+    (Member (Input Opts) r) =>
     Sem r (WithStatus cfg)
   -- only override if there is additional business logic for getting the feature config
   -- and/or if the feature flag is configured for the backend in 'FeatureFlags' for galley in 'Galley.Types.Teams'
@@ -85,7 +85,7 @@ class IsFeatureConfig cfg => GetFeatureConfig cfg where
   getConfigForServer = pure defFeatureStatus
 
   getConfigForTeam ::
-    GetConfigForTeamConstraints cfg r =>
+    (GetConfigForTeamConstraints cfg r) =>
     TeamId ->
     Sem r (WithStatus cfg)
   default getConfigForTeam ::
@@ -97,7 +97,7 @@ class IsFeatureConfig cfg => GetFeatureConfig cfg where
   getConfigForTeam = genericGetConfigForTeam
 
   getConfigForUser ::
-    GetConfigForUserConstraints cfg r =>
+    (GetConfigForUserConstraints cfg r) =>
     UserId ->
     Sem r (WithStatus cfg)
   default getConfigForUser ::
@@ -213,7 +213,7 @@ getAllFeatureConfigsForTeam luid tid = do
 
 getAllFeatureConfigsForServer ::
   forall r.
-  Member (Input Opts) r =>
+  (Member (Input Opts) r) =>
   Sem r AllFeatureConfigs
 getAllFeatureConfigsForServer =
   AllFeatureConfigs
@@ -277,9 +277,9 @@ getAllFeatureConfigsUser uid =
 -- | Note: this is an internal function which doesn't cover all features, e.g. LegalholdConfig
 genericGetConfigForTeam ::
   forall cfg r.
-  GetFeatureConfig cfg =>
-  Member TeamFeatureStore r =>
-  Member (Input Opts) r =>
+  (GetFeatureConfig cfg) =>
+  (Member TeamFeatureStore r) =>
+  (Member (Input Opts) r) =>
   TeamId ->
   Sem r (WithStatus cfg)
 genericGetConfigForTeam tid = do
@@ -291,9 +291,9 @@ genericGetConfigForTeam tid = do
 -- Note: this function assumes the feature cannot be locked
 genericGetConfigForMultiTeam ::
   forall cfg r.
-  GetFeatureConfig cfg =>
-  Member TeamFeatureStore r =>
-  Member (Input Opts) r =>
+  (GetFeatureConfig cfg) =>
+  (Member TeamFeatureStore r) =>
+  (Member (Input Opts) r) =>
   [TeamId] ->
   Sem r [(TeamId, WithStatus cfg)]
 genericGetConfigForMultiTeam tids = do

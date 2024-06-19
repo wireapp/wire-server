@@ -99,7 +99,7 @@ parseOptions =
 --
 -- (FUTUREWORK: The "recursively" part is a bit of a waste and could be dropped, but we would
 -- have to spend more effort in making sure it is always called manually in nested parsers.)
-jsonLower :: forall m. m ~ Either [Text] => Value -> m Value
+jsonLower :: forall m. (m ~ Either [Text]) => Value -> m Value
 jsonLower (Object (KeyMap.toList -> olist)) =
   Object . KeyMap.fromList <$> (nubCI >> mapM lowerPair olist)
   where

@@ -96,7 +96,7 @@ data WithWritetime a = WithWritetime
   }
   deriving (Generic)
 
-instance Aeson.ToJSON a => Aeson.ToJSON (WithWritetime a)
+instance (Aeson.ToJSON a) => Aeson.ToJSON (WithWritetime a)
 
 ----------------------------------------------------------------------------
 -- Queries

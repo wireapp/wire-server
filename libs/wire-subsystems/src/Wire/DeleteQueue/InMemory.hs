@@ -6,7 +6,7 @@ import Polysemy.State
 import Wire.DeleteQueue
 import Wire.InternalEvent
 
-inMemoryDeleteQueueInterpreter :: Member (State [InternalNotification]) r => InterpreterFor DeleteQueue r
+inMemoryDeleteQueueInterpreter :: (Member (State [InternalNotification]) r) => InterpreterFor DeleteQueue r
 inMemoryDeleteQueueInterpreter = interpret $ \case
   EnqueueUserDeletion uid -> modify (\l -> DeleteUser uid : l)
   EnqueueClientDeletion cid uid mConnId -> modify (\l -> DeleteClient cid uid mConnId : l)

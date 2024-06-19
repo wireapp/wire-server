@@ -26,29 +26,29 @@ interpretBlacklistPhonePrefixStoreToCassandra =
 --------------------------------------------------------------------------------
 -- Excluded phone prefixes
 
-insertPrefix :: MonadClient m => ExcludedPrefix -> m ()
+insertPrefix :: (MonadClient m) => ExcludedPrefix -> m ()
 insertPrefix prefix = retry x5 $ write ins (params LocalQuorum (phonePrefix prefix, comment prefix))
   where
     ins :: PrepQuery W (PhonePrefix, Text) ()
     ins = "INSERT INTO excluded_phones (prefix, comment) VALUES (?, ?)"
 
-deletePrefix :: MonadClient m => PhonePrefix -> m ()
+deletePrefix :: (MonadClient m) => PhonePrefix -> m ()
 deletePrefix prefix = retry x5 $ write del (params LocalQuorum (Identity prefix))
   where
     del :: PrepQuery W (Identity PhonePrefix) ()
     del = "DELETE FROM excluded_phones WHERE prefix = ?"
 
-getAllPrefixes :: MonadClient m => PhonePrefix -> m [ExcludedPrefix]
+getAllPrefixes :: (MonadClient m) => PhonePrefix -> m [ExcludedPrefix]
 getAllPrefixes prefix = do
   let prefixes = fromPhonePrefix <$> allPrefixes (fromPhonePrefix prefix)
   selectPrefixes prefixes
 
-existsAnyPrefix :: MonadClient m => Phone -> m Bool
+existsAnyPrefix :: (MonadClient m) => Phone -> m Bool
 existsAnyPrefix phone = do
   let prefixes = fromPhonePrefix <$> allPrefixes (fromPhone phone)
   not . null <$> selectPrefixes prefixes
 
-selectPrefixes :: MonadClient m => [Text] -> m [ExcludedPrefix]
+selectPrefixes :: (MonadClient m) => [Text] -> m [ExcludedPrefix]
 selectPrefixes prefixes = do
   results <- retry x1 (query sel (params LocalQuorum (Identity $ prefixes)))
   pure $ uncurry ExcludedPrefix <$> results

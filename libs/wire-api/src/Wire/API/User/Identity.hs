@@ -117,11 +117,11 @@ userIdentityComponentsObjectSchema :: ObjectSchema SwaggerDoc UserIdentityCompon
 userIdentityComponentsObjectSchema =
   (,,)
     <$> fst3
-    .= maybe_ (optField "email" schema)
-      <*> snd3
-    .= maybe_ (optField "phone" schema)
-      <*> thd3
-    .= maybe_ (optField "sso_id" genericToSchema)
+      .= maybe_ (optField "email" schema)
+    <*> snd3
+      .= maybe_ (optField "phone" schema)
+    <*> thd3
+      .= maybe_ (optField "sso_id" genericToSchema)
 
 maybeUserIdentityFromComponents :: UserIdentityComponents -> Maybe UserIdentity
 maybeUserIdentityFromComponents = \case
@@ -282,9 +282,9 @@ instance ToParamSchema Phone where
 
 instance ToSchema Phone where
   schema =
-    over doc (S.description ?~ "E.164 phone number")
-      $ fromPhone
-      .= parsedText "PhoneNumber" (maybe (Left "Invalid phone number. Expected E.164 format.") Right . parsePhone)
+    over doc (S.description ?~ "E.164 phone number") $
+      fromPhone
+        .= parsedText "PhoneNumber" (maybe (Left "Invalid phone number. Expected E.164 format.") Right . parsePhone)
 
 instance ToByteString Phone where
   builder = builder . fromPhone
@@ -370,16 +370,16 @@ instance S.ToSchema UserSSOId where
     tenantSchema <- S.declareSchemaRef (Proxy @Text) -- FUTUREWORK: 'Issuer'
     subjectSchema <- S.declareSchemaRef (Proxy @Text) -- FUTUREWORK: 'NameID'
     scimSchema <- S.declareSchemaRef (Proxy @Text)
-    pure
-      $ S.NamedSchema (Just "UserSSOId")
-      $ mempty
-      & S.type_
-      ?~ S.OpenApiObject
-        & S.properties
-      .~ [ ("tenant", tenantSchema),
-           ("subject", subjectSchema),
-           ("scim_external_id", scimSchema)
-         ]
+    pure $
+      S.NamedSchema (Just "UserSSOId") $
+        mempty
+          & S.type_
+            ?~ S.OpenApiObject
+          & S.properties
+            .~ [ ("tenant", tenantSchema),
+                 ("subject", subjectSchema),
+                 ("scim_external_id", scimSchema)
+               ]
 
 instance ToJSON UserSSOId where
   toJSON = \case
@@ -418,8 +418,8 @@ lenientlyParseSAMLIssuer mbtxt = forM mbtxt $ \txt -> do
 
       asurl :: Either String SAML.Issuer
       asurl =
-        bimap show SAML.Issuer
-          $ URI.parseURI URI.laxURIParserOptions (encodeUtf8 . LT.toStrict $ txt)
+        bimap show SAML.Issuer $
+          URI.parseURI URI.laxURIParserOptions (encodeUtf8 . LT.toStrict $ txt)
 
       err :: String
       err = "lenientlyParseSAMLIssuer: " <> show (asxml, asurl, mbtxt)
@@ -478,7 +478,7 @@ mkSampleUref iseed nseed = SAML.UserRef issuer nameid
       SAML.Issuer
         ( [uri|http://example.com/|]
             & URI.pathL
-            .~ UTF8.fromString ("/" </> Text.unpack iseed)
+              .~ UTF8.fromString ("/" </> Text.unpack iseed)
         )
 
     nameid :: SAML.NameID

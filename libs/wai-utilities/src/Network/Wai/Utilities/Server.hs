@@ -104,7 +104,7 @@ data Server = Server
 defaultServer :: String -> Word16 -> Logger -> Server
 defaultServer h p l = Server h p l Nothing
 
-newSettings :: MonadIO m => Server -> m Settings
+newSettings :: (MonadIO m) => Server -> m Settings
 newSettings (Server h p l t) = do
   pure
     $ setHost (fromString h)
@@ -160,7 +160,7 @@ runSettingsWithCleanup cleanup s app (fromMaybe defaultShutdownTime -> secs) = d
 defaultShutdownTime :: Int
 defaultShutdownTime = 30
 
-compile :: Monad m => Routes a m b -> Tree (App m)
+compile :: (Monad m) => Routes a m b -> Tree (App m)
 compile routes = Route.prepare (Route.renderer predicateError >> routes)
   where
     predicateError e = pure (encode $ Wai.mkError (P.status e) "client-error" (format e), [jsonContent])
@@ -186,7 +186,7 @@ compile routes = Route.prepare (Route.renderer predicateError >> routes)
     messageStr (Just t) = char7 ':' <> char7 ' ' <> byteString t
     messageStr Nothing = mempty
 
-route :: MonadIO m => Tree (App m) -> Request -> Continue IO -> m ResponseReceived
+route :: (MonadIO m) => Tree (App m) -> Request -> Continue IO -> m ResponseReceived
 route rt rq k = Route.routeWith (Route.Config $ errorRs' noEndpoint) rt rq (liftIO . k)
   where
     noEndpoint = Wai.mkError status404 "no-endpoint" "The requested endpoint does not exist"
@@ -238,7 +238,7 @@ catchErrorsWithRequestId getRequestId l app req k =
 
 -- | Standard handlers for turning exceptions into appropriate
 -- 'Error' responses.
-errorHandlers :: Applicative m => [Handler m (Either Wai.Error JSONResponse)]
+errorHandlers :: (Applicative m) => [Handler m (Either Wai.Error JSONResponse)]
 errorHandlers =
   -- a Wai.Error can be converted to a JSONResponse, but doing so here would
   -- prevent us from logging the error cleanly later
@@ -379,7 +379,7 @@ lazyResponseBody rs = case responseToStream rs of
 
 -- | Send an 'Error' response.
 onError ::
-  MonadIO m =>
+  (MonadIO m) =>
   Logger ->
   Maybe ByteString ->
   Request ->
@@ -426,7 +426,7 @@ logError' g mr e = liftIO $ doLog g (logErrorMsgWithRequest mr e)
       | statusCode (Error.code e) >= 500 = Log.err
       | otherwise = Log.debug
 
-logJSONResponse :: MonadIO m => Logger -> Maybe ByteString -> JSONResponse -> m ()
+logJSONResponse :: (MonadIO m) => Logger -> Maybe ByteString -> JSONResponse -> m ()
 logJSONResponse g mReqId e = do
   let r = fromMaybe "N/A" mReqId
   liftIO $

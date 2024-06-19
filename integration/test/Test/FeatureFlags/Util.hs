@@ -76,11 +76,14 @@ checkFeatureLenientTtl = checkFeatureWith shouldMatchLenientTtl
     checkTtl (A.Number actualTtl) (A.Number expectedTtl) = do
       assertBool
         ("expected the actual TTL to be greater than 0 and equal to or no more than 2 seconds less than " <> show expectedTtl <> ", but it was " <> show actualTtl)
-        ( actualTtl > 0
-            && actualTtl <= expectedTtl
-            && abs (actualTtl - expectedTtl) <= 2
+        ( actualTtl
+            > 0
+            && actualTtl
+            <= expectedTtl
+            && abs (actualTtl - expectedTtl)
+            <= 2
         )
     checkTtl _ _ = assertFailure "unexpected ttl value(s)"
 
-assertForbidden :: HasCallStack => Response -> App ()
+assertForbidden :: (HasCallStack) => Response -> App ()
 assertForbidden = assertLabel 403 "no-team-member"

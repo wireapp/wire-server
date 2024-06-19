@@ -78,9 +78,9 @@ onUpdated ev = withEndpoint ev $ \e as ->
         logUserEvent (a ^. addrUser) ev $ msg (val "Removing superseded token")
         deleteToken (a ^. addrUser) ev (a ^. addrToken) (a ^. addrClient)
       if
-          | null sup -> pure ()
-          | null cur -> deleteEndpoint ev
-          | otherwise -> updateEndpoint ev e (map (view addrUser) cur)
+        | null sup -> pure ()
+        | null cur -> deleteEndpoint ev
+        | otherwise -> updateEndpoint ev e (map (view addrUser) cur)
 
 onFailure :: Event -> Gundeck ()
 onFailure ev = withEndpoint ev $ \e as ->
@@ -100,22 +100,28 @@ onPermFailure ev = withEndpoint ev $ \_ as -> do
 onTTLExpired :: Event -> Gundeck ()
 onTTLExpired ev =
   Log.warn $
-    "arn" .= toText (ev ^. evEndpoint)
-      ~~ "cause" .= toText (ev ^. evType)
+    "arn"
+      .= toText (ev ^. evEndpoint)
+      ~~ "cause"
+      .= toText (ev ^. evType)
       ~~ msg (val "Notification TTL expired")
 
 onUnknownFailure :: Event -> Text -> Gundeck ()
 onUnknownFailure ev r =
   Log.warn $
-    "arn" .= toText (ev ^. evEndpoint)
-      ~~ "cause" .= toText (ev ^. evType)
+    "arn"
+      .= toText (ev ^. evEndpoint)
+      ~~ "cause"
+      .= toText (ev ^. evType)
       ~~ msg (val "Unknown failure, reason: " +++ r)
 
 onUnhandledEventType :: Event -> Gundeck ()
 onUnhandledEventType ev =
   Log.warn $
-    "arn" .= toText (ev ^. evEndpoint)
-      ~~ "cause" .= toText (ev ^. evType)
+    "arn"
+      .= toText (ev ^. evEndpoint)
+      ~~ "cause"
+      .= toText (ev ^. evType)
       ~~ msg (val "Unhandled event type")
 
 -------------------------------------------------------------------------------
@@ -134,7 +140,8 @@ withEndpoint ev f = do
     case filter ((== (ev ^. evEndpoint)) . view addrEndpoint) as of
       [] -> do
         logEvent ev $
-          "token" .= Text.take 16 (tokenText (ep ^. endpointToken))
+          "token"
+            .= Text.take 16 (tokenText (ep ^. endpointToken))
             ~~ msg (val "Deleting orphaned SNS endpoint")
         Aws.execute v (Aws.deleteEndpoint (ev ^. evEndpoint))
       as' -> f ep as'
@@ -154,7 +161,8 @@ updateEndpoint ev ep us = do
 deleteToken :: UserId -> Event -> Token -> ClientId -> Gundeck ()
 deleteToken u ev tk cl = do
   logUserEvent u ev $
-    "token" .= Text.take 16 (tokenText tk)
+    "token"
+      .= Text.take 16 (tokenText tk)
       ~~ msg (val "Deleting push token")
   i <- mkNotificationId
   let t = mkPushToken ev tk cl
@@ -173,12 +181,15 @@ mkPushToken ev tk cl =
 logEvent :: Event -> (Msg -> Msg) -> Gundeck ()
 logEvent ev f =
   Log.info $
-    "arn" .= toText (ev ^. evEndpoint)
-      ~~ "cause" .= toText (ev ^. evType)
+    "arn"
+      .= toText (ev ^. evEndpoint)
+      ~~ "cause"
+      .= toText (ev ^. evType)
       ~~ f
 
 logUserEvent :: UserId -> Event -> (Msg -> Msg) -> Gundeck ()
 logUserEvent u ev f =
   logEvent ev $
-    "user" .= toByteString u
+    "user"
+      .= toByteString u
       ~~ f

@@ -35,7 +35,7 @@ data Rpc m a where
 
 makeSem ''Rpc
 
-runRpcWithHttp :: Member (Embed IO) r => Manager -> RequestId -> Sem (Rpc : r) a -> Sem r a
+runRpcWithHttp :: (Member (Embed IO) r) => Manager -> RequestId -> Sem (Rpc : r) a -> Sem r a
 runRpcWithHttp mgr reqId = interpret $ \case
   Rpc serviceName ep req ->
     embed $ runHttpRpc mgr reqId $ rpcImpl serviceName ep req

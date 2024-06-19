@@ -261,8 +261,8 @@ withHTTP2StreamingRequest successfulStatus req handleResponse = do
     else do
       -- in case of an error status code, read the whole body to construct the error
       bdy <- liftIO $ streamingResponseStrictBody resp
-      throwError
-        $ FederatorClientError
+      throwError $
+        FederatorClientError
           ( mkFailureResponse
               (responseStatusCode resp)
               (ceTargetDomain env)

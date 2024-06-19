@@ -33,7 +33,7 @@ import Wire.API.Routes.Named
 
 data Versioned v name
 
-instance {-# OVERLAPPING #-} RenderableSymbol a => RenderableSymbol (Versioned v a) where
+instance {-# OVERLAPPING #-} (RenderableSymbol a) => RenderableSymbol (Versioned v a) where
   renderSymbol = renderSymbol @a
 
 type family FedPath (name :: k) :: Symbol

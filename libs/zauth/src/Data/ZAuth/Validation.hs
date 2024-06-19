@@ -73,7 +73,7 @@ newtype Validate a = Validate
 mkEnv :: PublicKey -> [PublicKey] -> Env
 mkEnv k kk = Env $ Vec.fromList (map verifyWith (k : kk))
 
-runValidate :: MonadIO m => Env -> Validate a -> m (Either Failure a)
+runValidate :: (MonadIO m) => Env -> Validate a -> m (Either Failure a)
 runValidate v m = liftIO $ runReaderT (runExceptT (valid m)) v
 
 validateUser :: ByteString -> Validate (Token User)
@@ -112,7 +112,7 @@ validate (Just c) (Just t) = do
     throwError Invalid
   pure a
 
-check :: ToByteString a => Token a -> Validate (Token a)
+check :: (ToByteString a) => Token a -> Validate (Token a)
 check t = do
   ff <- Validate $ lift $ asks verifyFns
   let dat = toByteString' $ writeData (t ^. header) (t ^. body)
@@ -130,5 +130,5 @@ check t = do
     throwError Expired
   pure t
 
-now :: MonadIO m => m Integer
+now :: (MonadIO m) => m Integer
 now = floor <$> liftIO getPOSIXTime

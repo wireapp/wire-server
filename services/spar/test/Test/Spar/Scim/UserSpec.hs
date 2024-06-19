@@ -64,16 +64,17 @@ spec = describe "deleteScimUser" $ do
 
 deleteUserAndAssertDeletionInSpar ::
   forall (r :: EffectRow).
-  Members
-    '[ Logger (Msg -> Msg),
-       BrigAccess,
-       ScimExternalIdStore.ScimExternalIdStore,
-       ScimUserTimesStore,
-       SAMLUserStore,
-       IdPConfigStore,
-       Embed IO
-     ]
-    r =>
+  ( Members
+      '[ Logger (Msg -> Msg),
+         BrigAccess,
+         ScimExternalIdStore.ScimExternalIdStore,
+         ScimUserTimesStore,
+         SAMLUserStore,
+         IdPConfigStore,
+         Embed IO
+       ]
+      r
+  ) =>
   UserAccount ->
   ScimTokenInfo ->
   Sem r (Either ScimError ())
@@ -113,12 +114,12 @@ interpretWithBrigAccessMock mock =
     . ignoringState idPToMem
     . mock
 
-ignoringState :: Functor f => (a -> f (c, b)) -> a -> f b
+ignoringState :: (Functor f) => (a -> f (c, b)) -> a -> f b
 ignoringState f = fmap snd . f
 
 mockBrig ::
   forall (r :: EffectRow) a.
-  Member (Embed IO) r =>
+  (Member (Embed IO) r) =>
   (UserId -> Maybe UserAccount) ->
   DeleteUserResult ->
   Sem (BrigAccess ': r) a ->

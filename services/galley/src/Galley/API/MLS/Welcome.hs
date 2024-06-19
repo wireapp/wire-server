@@ -124,7 +124,7 @@ sendRemoteWelcomes qcnv qusr welcome clients = do
         }
   where
     handleError ::
-      Member P.TinyLog r =>
+      (Member P.TinyLog r) =>
       Either (Remote [a], FederationError) (Remote MLSWelcomeResponse) ->
       Sem r ()
     handleError (Right x) = case tUnqualified x of
@@ -132,7 +132,7 @@ sendRemoteWelcomes qcnv qusr welcome clients = do
       MLSWelcomeMLSNotEnabled -> logFedError x (errorToResponse @'MLSNotEnabled)
     handleError (Left (r, e)) = logFedError r (toResponse e)
 
-    logFedError :: Member P.TinyLog r => Remote x -> JSONResponse -> Sem r ()
+    logFedError :: (Member P.TinyLog r) => Remote x -> JSONResponse -> Sem r ()
     logFedError r e =
       P.warn $
         Logger.msg ("A welcome message could not be delivered to a remote backend" :: ByteString)

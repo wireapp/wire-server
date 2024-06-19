@@ -263,7 +263,7 @@ getRemoteConversationsWithFailures lusr convs = do
     <$> traverse handleFailure resp
   where
     handleFailure ::
-      Member P.TinyLog r =>
+      (Member P.TinyLog r) =>
       Either (Remote [ConvId], FederationError) (Remote GetConversationsResponse) ->
       Sem r (Either FailedGetConversation [Remote RemoteConversation])
     handleFailure (Left (rcids, e)) = do
@@ -288,7 +288,7 @@ getConversationRoles lusr cnv = do
   pure $ Public.ConversationRolesList wireConvRoles
 
 conversationIdsPageFromUnqualified ::
-  Member (ListItems LegacyPaging ConvId) r =>
+  (Member (ListItems LegacyPaging ConvId) r) =>
   Local UserId ->
   Maybe ConvId ->
   Maybe (Range 1 1000 Int32) ->
@@ -488,7 +488,7 @@ getConversationsInternal luser mids mstart msize = do
       pure (hasMore, resultSetResult r)
 
     removeDeleted ::
-      Member ConversationStore r =>
+      (Member ConversationStore r) =>
       Data.Conversation ->
       Sem r Bool
     removeDeleted c
@@ -540,7 +540,7 @@ listConversations luser (Public.ListConversations ids) = do
       }
   where
     removeDeleted ::
-      Member ConversationStore r =>
+      (Member ConversationStore r) =>
       Data.Conversation ->
       Sem r Bool
     removeDeleted c
@@ -832,7 +832,7 @@ isMLSOne2OneEstablished lself qother = do
     convId
 
 isLocalMLSOne2OneEstablished ::
-  Member ConversationStore r =>
+  (Member ConversationStore r) =>
   Local ConvId ->
   Sem r Bool
 isLocalMLSOne2OneEstablished lconv = do

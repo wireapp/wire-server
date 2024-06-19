@@ -173,7 +173,7 @@ addUserToTeam u = do
 
 -- | Create a user on the given domain, such that the 1-1 conversation with
 -- 'other' resides on 'convDomain'. This connects the two users as a side-effect.
-createMLSOne2OnePartner :: MakesValue user => Domain -> user -> Domain -> App Value
+createMLSOne2OnePartner :: (MakesValue user) => Domain -> user -> Domain -> App Value
 createMLSOne2OnePartner domain other convDomain = loop
   where
     loop = do
@@ -189,22 +189,22 @@ createMLSOne2OnePartner domain other convDomain = loop
         else loop
 
 -- Copied from `src/CargoHold/API/V3.hs` and inlined to avoid pulling in `types-common`
-randomToken :: HasCallStack => App String
+randomToken :: (HasCallStack) => App String
 randomToken = unpack . B64Url.encode <$> liftIO (getRandomBytes 16)
 
 data TokenLength = GCM | APNS
 
-randomSnsToken :: HasCallStack => TokenLength -> App String
+randomSnsToken :: (HasCallStack) => TokenLength -> App String
 randomSnsToken = \case
   GCM -> mkTok 16
   APNS -> mkTok 32
   where
     mkTok = fmap (Text.unpack . decodeUtf8 . Base16.encode) . randomBytes
 
-randomId :: HasCallStack => App String
+randomId :: (HasCallStack) => App String
 randomId = liftIO (show <$> nextRandom)
 
-randomUUIDv1 :: HasCallStack => App String
+randomUUIDv1 :: (HasCallStack) => App String
 randomUUIDv1 = liftIO (show . fromJust <$> nextUUID)
 
 randomUserId :: (HasCallStack, MakesValue domain) => domain -> App Value
@@ -213,7 +213,7 @@ randomUserId domain = do
   uid <- randomId
   pure $ object ["id" .= uid, "domain" .= d]
 
-withFederatingBackendsAllowDynamic :: HasCallStack => ((String, String, String) -> App a) -> App a
+withFederatingBackendsAllowDynamic :: (HasCallStack) => ((String, String, String) -> App a) -> App a
 withFederatingBackendsAllowDynamic k = do
   let setFederationConfig =
         setField "optSettings.setFederationStrategy" "allowDynamic"
@@ -228,7 +228,7 @@ withFederatingBackendsAllowDynamic k = do
 -- | Create two users on different domains such that the one-to-one
 -- conversation, once finalised, will be hosted on the backend given by the
 -- input domain.
-createOne2OneConversation :: HasCallStack => Domain -> App (Value, Value, Value)
+createOne2OneConversation :: (HasCallStack) => Domain -> App (Value, Value, Value)
 createOne2OneConversation owningDomain = do
   owningUser <- randomUser owningDomain def
   domainName <- owningUser %. "qualified_id.domain"
@@ -263,7 +263,7 @@ toConvType = \case
 
 -- | Fetch the one-to-one conversation between the two users that is in one of
 -- two possible states.
-getOne2OneConversation :: HasCallStack => Value -> Value -> One2OneConvState -> App Value
+getOne2OneConversation :: (HasCallStack) => Value -> Value -> One2OneConvState -> App Value
 getOne2OneConversation user1 user2 cnvState = do
   l <- getAllConvs user1
   let isWith users c = do
@@ -326,14 +326,14 @@ setUpLHDevice tid alice bob lhPort = do
   approveLegalHoldDevice tid bob defPassword
     >>= assertStatus 200
 
-lhDeviceIdOf :: MakesValue user => user -> App String
+lhDeviceIdOf :: (MakesValue user) => user -> App String
 lhDeviceIdOf bob = do
   bobId <- objId bob
   getClientsFull bob [bobId] `bindResponse` \resp ->
     do
       resp.json %. bobId
         & asList
-        >>= filterM \val -> (== "legalhold") <$> (val %. "type" & asString)
+          >>= filterM \val -> (== "legalhold") <$> (val %. "type" & asString)
       >>= assertOne
       >>= (%. "id")
       >>= asString

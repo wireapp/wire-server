@@ -111,7 +111,7 @@ testPasswordResetInvalidPasswordLength brig cs = do
     addJsonKey key val (Object xs) = KeyMap.insert key val xs
     addJsonKey _ _ _ = error "invalid JSON object"
 
-    postCompletePasswordReset :: Object -> MonadHttp m => m ResponseLBS
+    postCompletePasswordReset :: Object -> (MonadHttp m) => m ResponseLBS
     postCompletePasswordReset bdy =
       post
         ( brig

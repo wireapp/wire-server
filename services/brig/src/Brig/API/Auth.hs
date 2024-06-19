@@ -124,12 +124,12 @@ logoutH uts' mat' = do
   partitionTokens uts mat
     >>= either (uncurry logout) (uncurry logout)
 
-logout :: TokenPair u a => NonEmpty (Token u) -> Maybe (Token a) -> Handler r ()
+logout :: (TokenPair u a) => NonEmpty (Token u) -> Maybe (Token a) -> Handler r ()
 logout _ Nothing = throwStd authMissingToken
 logout uts (Just at) = Auth.logout (List1 uts) at !>> zauthError
 
 changeSelfEmailH ::
-  Member BlacklistStore r =>
+  (Member BlacklistStore r) =>
   [Either Text SomeUserToken] ->
   Maybe (Either Text SomeAccessToken) ->
   EmailUpdate ->
@@ -143,7 +143,7 @@ changeSelfEmailH uts' mat' up = do
   changeSelfEmail usr email UpdateOriginWireClient
 
 validateCredentials ::
-  TokenPair u a =>
+  (TokenPair u a) =>
   NonEmpty (Token u) ->
   Maybe (Token a) ->
   Handler r UserId
@@ -197,7 +197,7 @@ getLoginCode phone = do
   code <- lift $ Auth.lookupLoginCode phone
   maybe (throwStd loginCodeNotFound) pure code
 
-reauthenticate :: Member GalleyAPIAccess r => UserId -> ReAuthUser -> Handler r ()
+reauthenticate :: (Member GalleyAPIAccess r) => UserId -> ReAuthUser -> Handler r ()
 reauthenticate uid body = do
   wrapClientE (User.reauthenticate uid (reAuthPassword body)) !>> reauthError
   case reAuthCodeAction body of

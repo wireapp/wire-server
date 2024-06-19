@@ -156,7 +156,7 @@ mkEnv lgr mgr opts = do
         (pure . QueueUrl . view SQS.getQueueUrlResponse_queueUrl)
         x
 
-execute :: MonadIO m => Env -> Amazon a -> m a
+execute :: (MonadIO m) => Env -> Amazon a -> m a
 execute e m = liftIO $ runResourceT (runReaderT (unAmazon m) e)
 
 enqueue :: E.TeamEvent -> Amazon ()
@@ -186,7 +186,7 @@ sendCatch ::
   Amazon (Either AWS.Error (AWS.AWSResponse r))
 sendCatch e = AWS.trying AWS._Error . AWS.send e
 
-canRetry :: MonadIO m => Either AWS.Error a -> m Bool
+canRetry :: (MonadIO m) => Either AWS.Error a -> m Bool
 canRetry (Right _) = pure False
 canRetry (Left e) = case e of
   AWS.TransportError (HttpExceptionRequest _ ResponseTimeout) -> pure True

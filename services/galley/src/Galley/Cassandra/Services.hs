@@ -67,7 +67,7 @@ interpretServiceStoreToCassandra = interpret $ \case
     logEffect "ServiceStore.DeleteService"
     embedClient $ deleteService sr
 
-insertService :: MonadClient m => Bot.Service -> m ()
+insertService :: (MonadClient m) => Bot.Service -> m ()
 insertService s = do
   let sid = s ^. Bot.serviceRef . serviceRefId
   let pid = s ^. Bot.serviceRef . serviceRefProvider
@@ -77,7 +77,7 @@ insertService s = do
   let ena = s ^. Bot.serviceEnabled
   retry x5 $ write insertSrv (params LocalQuorum (pid, sid, url, tok, fps, ena))
 
-lookupService :: MonadClient m => ServiceRef -> m (Maybe Bot.Service)
+lookupService :: (MonadClient m) => ServiceRef -> m (Maybe Bot.Service)
 lookupService s =
   fmap toService
     <$> retry x1 (query1 selectSrv (params LocalQuorum (s ^. serviceRefProvider, s ^. serviceRefId)))
@@ -85,5 +85,5 @@ lookupService s =
     toService (url, tok, Set fps, ena) =
       Bot.newService s url tok fps & set Bot.serviceEnabled ena
 
-deleteService :: MonadClient m => ServiceRef -> m ()
+deleteService :: (MonadClient m) => ServiceRef -> m ()
 deleteService s = retry x5 (write rmSrv (params LocalQuorum (s ^. serviceRefProvider, s ^. serviceRefId)))

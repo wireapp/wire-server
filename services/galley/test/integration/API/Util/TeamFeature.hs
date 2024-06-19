@@ -46,7 +46,7 @@ withCustomSearchFeature flag action = do
   Util.withSettingsOverrides (\opts -> opts & settings . featureFlags . flagTeamSearchVisibility .~ flag) action
 
 putTeamSearchVisibilityAvailableInternal ::
-  HasCallStack =>
+  (HasCallStack) =>
   TeamId ->
   Public.FeatureStatus ->
   (MonadIO m, MonadHttp m, HasGalley m) => m ()
@@ -232,7 +232,7 @@ patchTeamFeatureInternalWithMod reqmod tid reqBody = do
       . reqmod
 
 getGuestLinkStatus ::
-  HasCallStack =>
+  (HasCallStack) =>
   (Request -> Request) ->
   UserId ->
   ConvId ->

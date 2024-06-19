@@ -170,7 +170,7 @@ data Gen = Gen
     genValue :: IO Value
   }
 
-mkKey :: MonadIO m => CodeFor -> m Key
+mkKey :: (MonadIO m) => CodeFor -> m Key
 mkKey cfor = liftIO $ do
   Just sha256 <- getDigestByName "SHA256"
   let uniqueK = case cfor of
@@ -179,7 +179,7 @@ mkKey cfor = liftIO $ do
   pure $ mkKey' sha256 (Text.encodeUtf8 uniqueK)
 
 -- | Initialise a 'Code' 'Gen'erator for a given natural key.  This generates a link for emails and a 6-digit code for phone.  See also: `mk6DigitGen`.
-mkGen :: MonadIO m => CodeFor -> m Gen
+mkGen :: (MonadIO m) => CodeFor -> m Gen
 mkGen cfor = liftIO $ do
   Just sha256 <- getDigestByName "SHA256"
   pure (initGen sha256 cfor)
@@ -188,7 +188,7 @@ mkGen cfor = liftIO $ do
     initGen d _ = mk6DigitGen' cfor d
 
 -- | Initialise a 'Code' 'Gen'erator for a given natural key.  This generates a 6-digit code, matter whether it is sent to a phone or to an email address.  See also: `mkGen`.
-mk6DigitGen :: MonadIO m => CodeFor -> m Gen
+mk6DigitGen :: (MonadIO m) => CodeFor -> m Gen
 mk6DigitGen cfor = liftIO $ do
   Just sha256 <- getDigestByName "SHA256"
   pure $ mk6DigitGen' cfor sha256
@@ -213,7 +213,7 @@ mkKey' d = Key . unsafeRange . Ascii.encodeBase64Url . BS.take 15 . digestBS d
 
 -- | Generate a new 'Code'.
 generate ::
-  MonadIO m =>
+  (MonadIO m) =>
   -- | The 'Gen'erator to use.
   Gen ->
   -- | The scope of the generated code.
@@ -272,7 +272,7 @@ generate gen scope retries ttl account = do
 --------------------------------------------------------------------------------
 -- Storage
 
-insert :: MonadClient m => Code -> Int -> m (Maybe RetryAfter)
+insert :: (MonadClient m) => Code -> Int -> m (Maybe RetryAfter)
 insert code ttl = do
   mRetryAfter <- lookupThrottle (codeKey code) (codeScope code)
   case mRetryAfter of
@@ -282,7 +282,7 @@ insert code ttl = do
       insertInternal code
       pure Nothing
   where
-    insertThrottle :: MonadClient m => Code -> Int -> m ()
+    insertThrottle :: (MonadClient m) => Code -> Int -> m ()
     insertThrottle c t = do
       let k = codeKey c
       let s = codeScope c
@@ -293,7 +293,7 @@ insert code ttl = do
           "INSERT INTO vcodes_throttle (key, scope, initial_delay) \
           \VALUES (?, ?, ?) USING TTL ?"
 
-insertInternal :: MonadClient m => Code -> m ()
+insertInternal :: (MonadClient m) => Code -> m ()
 insertInternal c = do
   let k = codeKey c
   let s = codeScope c
@@ -311,7 +311,7 @@ insertInternal c = do
       \VALUES (?, ?, ?, ?, ?, ?, ?) USING TTL ?"
 
 -- | Check if code generation should be throttled.
-lookupThrottle :: MonadClient m => Key -> Scope -> m (Maybe RetryAfter)
+lookupThrottle :: (MonadClient m) => Key -> Scope -> m (Maybe RetryAfter)
 lookupThrottle k s = do
   fmap (RetryAfter . fromIntegral . runIdentity) <$> retry x1 (query1 cql (params LocalQuorum (k, s)))
   where
@@ -321,7 +321,7 @@ lookupThrottle k s = do
       \FROM vcodes_throttle WHERE key = ? AND scope = ?"
 
 -- | Lookup a pending code.
-lookup :: MonadClient m => Key -> Scope -> m (Maybe Code)
+lookup :: (MonadClient m) => Key -> Scope -> m (Maybe Code)
 lookup k s = fmap (toCode k s) <$> retry x1 (query1 cql (params LocalQuorum (k, s)))
   where
     cql :: PrepQuery R (Key, Scope) (Value, Int32, Retries, Maybe Email, Maybe Phone, Maybe UUID)
@@ -331,7 +331,7 @@ lookup k s = fmap (toCode k s) <$> retry x1 (query1 cql (params LocalQuorum (k, 
 
 -- | Lookup and verify the code for the given key and scope
 -- against the given value.
-verify :: MonadClient m => Key -> Scope -> Value -> m (Maybe Code)
+verify :: (MonadClient m) => Key -> Scope -> Value -> m (Maybe Code)
 verify k s v = lookup k s >>= maybe (pure Nothing) continue
   where
     continue c
@@ -342,7 +342,7 @@ verify k s v = lookup k s >>= maybe (pure Nothing) continue
       | otherwise = pure Nothing
 
 -- | Delete a code associated with the given key and scope.
-delete :: MonadClient m => Key -> Scope -> m ()
+delete :: (MonadClient m) => Key -> Scope -> m ()
 delete k s = retry x5 $ write cql (params LocalQuorum (k, s))
   where
     cql :: PrepQuery W (Key, Scope) ()

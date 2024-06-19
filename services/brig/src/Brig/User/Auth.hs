@@ -118,7 +118,7 @@ sendLoginCode phone call force = do
         pure c
 
 lookupLoginCode ::
-  Member TinyLog r =>
+  (Member TinyLog r) =>
   Phone ->
   AppT r (Maybe PendingLoginCode)
 lookupLoginCode phone =
@@ -174,7 +174,7 @@ login (SmsLogin (SmsLoginData phone code label)) typ = do
 
 verifyCode ::
   forall r.
-  Member GalleyAPIAccess r =>
+  (Member GalleyAPIAccess r) =>
   Maybe Code.Value ->
   VerificationAction ->
   UserId ->
@@ -214,7 +214,7 @@ checkRetryLimit :: (MonadClient m, MonadReader Env m) => UserId -> ExceptT Login
 checkRetryLimit = withRetryLimit checkBudget
 
 withRetryLimit ::
-  MonadReader Env m =>
+  (MonadReader Env m) =>
   (BudgetKey -> Budget -> ExceptT LoginError m (Budgeted ())) ->
   UserId ->
   ExceptT LoginError m ()
@@ -299,7 +299,7 @@ catchSuspendInactiveUser uid errval = do
     lift $ runExceptT (changeSingleAccountStatus uid Suspended) >>= explicitlyIgnoreErrors
     throwE errval
   where
-    explicitlyIgnoreErrors :: Monad m => Either AccountStatusError () -> m ()
+    explicitlyIgnoreErrors :: (Monad m) => Either AccountStatusError () -> m ()
     explicitlyIgnoreErrors = \case
       Left InvalidAccountStatus -> pure ()
       Left AccountNotFound -> pure ()
@@ -401,7 +401,7 @@ validateTokens uts at = do
   where
     -- FUTUREWORK: There is surely a better way to do this
     getFirstSuccessOrFirstFail ::
-      Monad m =>
+      (Monad m) =>
       List1 (Either ZAuth.Failure (UserId, Cookie (ZAuth.Token u))) ->
       ExceptT ZAuth.Failure m (UserId, Cookie (ZAuth.Token u))
     getFirstSuccessOrFirstFail tks = case (lefts $ NE.toList $ List1.toNonEmpty tks, rights $ NE.toList $ List1.toNonEmpty tks) of
@@ -478,7 +478,7 @@ legalHoldLogin (LegalHoldLogin uid pw label) typ = do
     !>> LegalHoldLoginError
 
 assertLegalHoldEnabled ::
-  Member GalleyAPIAccess r =>
+  (Member GalleyAPIAccess r) =>
   TeamId ->
   ExceptT LegalHoldLoginError (AppT r) ()
 assertLegalHoldEnabled tid = do
@@ -487,6 +487,6 @@ assertLegalHoldEnabled tid = do
     FeatureStatusDisabled -> throwE LegalHoldLoginLegalHoldNotEnabled
     FeatureStatusEnabled -> pure ()
 
-checkClientId :: MonadClient m => UserId -> ClientId -> ExceptT ZAuth.Failure m ()
+checkClientId :: (MonadClient m) => UserId -> ClientId -> ExceptT ZAuth.Failure m ()
 checkClientId uid cid =
   lookupClient uid cid >>= maybe (throwE ZAuth.Invalid) (const (pure ()))

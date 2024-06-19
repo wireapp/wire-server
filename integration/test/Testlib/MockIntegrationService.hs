@@ -32,7 +32,7 @@ import UnliftIO.Timeout (timeout)
 withFreePortAnyAddr :: (MonadMask m, MonadIO m) => ((Warp.Port, Socket) -> m a) -> m a
 withFreePortAnyAddr = bracket openFreePortAnyAddr (liftIO . Socket.close . snd)
 
-openFreePortAnyAddr :: MonadIO m => m (Warp.Port, Socket)
+openFreePortAnyAddr :: (MonadIO m) => m (Warp.Port, Socket)
 openFreePortAnyAddr = liftIO $ bindRandomPortTCP (fromString "*6")
 
 type LiftedApplication = Request -> (Wai.Response -> App ResponseReceived) -> App ResponseReceived
@@ -119,10 +119,12 @@ lhMockAppWithPrekeys mks ch req cont = withRunInIO \inIO -> do
   where
     initiateResp :: Value -> [Value] -> Wai.Response
     initiateResp npk pks =
-      responseLBS status200 [(hContentType, cs "application/json")] . encode . Data.Aeson.object $
-        [ "prekeys" .= pks,
-          "last_prekey" .= npk
-        ]
+      responseLBS status200 [(hContentType, cs "application/json")]
+        . encode
+        . Data.Aeson.object
+        $ [ "prekeys" .= pks,
+            "last_prekey" .= npk
+          ]
 
     respondOk :: Wai.Response
     respondOk = responseLBS status200 mempty mempty

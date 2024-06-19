@@ -63,7 +63,7 @@ changeEmailBrig brig usr newEmail = do
       Auth.PasswordLogin $
         Auth.PasswordLoginData (Auth.LoginByEmail e) pw cl Nothing
 
-    login :: Auth.Login -> Auth.CookieType -> MonadHttp m => m ResponseLBS
+    login :: Auth.Login -> Auth.CookieType -> (MonadHttp m) => m ResponseLBS
     login l t =
       post $
         brig
@@ -71,10 +71,10 @@ changeEmailBrig brig usr newEmail = do
           . (if t == Auth.PersistentCookie then queryItem "persist" "true" else id)
           . json l
 
-    decodeCookie :: HasCallStack => Response a -> Bilge.Cookie
+    decodeCookie :: (HasCallStack) => Response a -> Bilge.Cookie
     decodeCookie = fromMaybe (error "missing zuid cookie") . Bilge.getCookie "zuid"
 
-    decodeToken :: HasCallStack => Response (Maybe LByteString) -> ZAuth.Token ZAuth.Access
+    decodeToken :: (HasCallStack) => Response (Maybe LByteString) -> ZAuth.Token ZAuth.Access
     decodeToken r = fromMaybe (error "invalid access_token") $ do
       x <- responseBody r
       t <- x ^? key "access_token" . _String
@@ -106,7 +106,7 @@ activateEmail ::
   (MonadCatch m, MonadIO m, HasCallStack) =>
   BrigReq ->
   Email ->
-  MonadHttp m => m ()
+  (MonadHttp m) => m ()
 activateEmail brig email = do
   act <- getActivationCode brig (Left email)
   case act of
@@ -120,13 +120,13 @@ failActivatingEmail ::
   (MonadCatch m, MonadIO m, HasCallStack) =>
   BrigReq ->
   Email ->
-  MonadHttp m => m ()
+  (MonadHttp m) => m ()
 failActivatingEmail brig email = do
   act <- getActivationCode brig (Left email)
   liftIO $ assertEqual "there should be no pending activation" act Nothing
 
 checkEmail ::
-  HasCallStack =>
+  (HasCallStack) =>
   UserId ->
   Maybe Email ->
   TestSpar ()
@@ -162,7 +162,7 @@ getActivationCode brig ep = do
   let acode = ActivationCode . Ascii.unsafeFromText <$> (lbs ^? key "code" . _String)
   pure $ (,) <$> akey <*> acode
 
-setSamlEmailValidation :: HasCallStack => TeamId -> Feature.FeatureStatus -> TestSpar ()
+setSamlEmailValidation :: (HasCallStack) => TeamId -> Feature.FeatureStatus -> TestSpar ()
 setSamlEmailValidation tid status = do
   galley <- view teGalley
   let req = put $ galley . paths p . json (Feature.WithStatusNoLock @Feature.ValidateSAMLEmailsConfig status Feature.trivialConfig Feature.FeatureTTLUnlimited)

@@ -85,7 +85,7 @@ ensureNotTooLargeToActivateLegalHold tid = do
   unlessM (teamSizeBelowLimit (fromIntegral teamSize)) $
     throwS @'CannotEnableLegalHoldServiceLargeTeam
 
-teamSizeBelowLimit :: Member TeamStore r => Int -> Sem r Bool
+teamSizeBelowLimit :: (Member TeamStore r) => Int -> Sem r Bool
 teamSizeBelowLimit teamSize = do
   limit <- fromIntegral . fromRange <$> fanoutLimit
   let withinLimit = teamSize <= limit

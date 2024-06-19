@@ -106,8 +106,8 @@ data Component
 
 instance ToSchema Component where
   schema =
-    enum @Text "Component"
-      $ mconcat
+    enum @Text "Component" $
+      mconcat
         [ element "brig" Brig,
           element "galley" Galley,
           element "cargohold" Cargohold
@@ -186,8 +186,8 @@ instance (HasOpenApi api, KnownSymbol name, KnownSymbol (ShowComponent comp)) =>
       -- Append federated call line to the description of routes
       -- that perform calls to federation members.
       & S.allOperations
-      . S.description
-      %~ pure . maybe call (\d -> d <> "<br>" <> call)
+        . S.description
+        %~ pure . maybe call (\d -> d <> "<br>" <> call)
     where
       call :: Text
       call =

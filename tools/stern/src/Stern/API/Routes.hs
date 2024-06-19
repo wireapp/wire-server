@@ -505,7 +505,7 @@ instance Schema.ToSchema UserConnectionGroups where
         <*> ucgMissingLegalholdConsent Schema..= Schema.field "ucgMissingLegalholdConsent" Schema.schema
         <*> ucgTotal Schema..= Schema.field "ucgTotal" Schema.schema
 
-doubleMaybeToEither :: Monad m => LText -> Maybe a -> Maybe b -> ExceptT Error m (Either a b)
+doubleMaybeToEither :: (Monad m) => LText -> Maybe a -> Maybe b -> ExceptT Error m (Either a b)
 doubleMaybeToEither _ (Just a) Nothing = pure $ Left a
 doubleMaybeToEither _ Nothing (Just b) = pure $ Right b
 doubleMaybeToEither msg _ _ = throwE $ mkError status400 "either-params" ("Must use exactly one of two query params: " <> msg)

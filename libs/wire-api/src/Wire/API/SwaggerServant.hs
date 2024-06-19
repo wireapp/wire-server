@@ -37,12 +37,12 @@ data OmitDocs
 instance HasOpenApi (OmitDocs :> a) where
   toOpenApi _ = mempty
 
-instance HasServer api ctx => HasServer (OmitDocs :> api) ctx where
+instance (HasServer api ctx) => HasServer (OmitDocs :> api) ctx where
   type ServerT (OmitDocs :> api) m = ServerT api m
 
   route _ = route (Proxy :: Proxy api)
   hoistServerWithContext _ pc nt s =
     hoistServerWithContext (Proxy :: Proxy api) pc nt s
 
-instance RoutesToPaths api => RoutesToPaths (OmitDocs :> api) where
+instance (RoutesToPaths api) => RoutesToPaths (OmitDocs :> api) where
   getRoutes = getRoutes @api

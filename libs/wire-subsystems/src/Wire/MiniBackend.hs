@@ -137,12 +137,12 @@ instance RunClient (MiniFederationMonad comp) where
 
 data SubsystemOperationList where
   TNil :: SubsystemOperationList
-  (:::) :: Typeable a => (Component, Text, a) -> SubsystemOperationList -> SubsystemOperationList
+  (:::) :: (Typeable a) => (Component, Text, a) -> SubsystemOperationList -> SubsystemOperationList
 
 infixr 5 :::
 
 lookupSubsystemOperation ::
-  Typeable a =>
+  (Typeable a) =>
   -- | The type to compare to
   (Component, Text, Proxy a) ->
   -- | what to return when none of the types match
@@ -305,7 +305,7 @@ interpretNoFederationStack localBackend teamMember galleyConfigs cfg =
     . miniGalleyAPIAccess teamMember galleyConfigs
     . runUserSubsystem cfg
 
-runErrorUnsafe :: Exception e => InterpreterFor (Error e) r
+runErrorUnsafe :: (Exception e) => InterpreterFor (Error e) r
 runErrorUnsafe action = do
   res <- runError action
   case res of
@@ -336,11 +336,11 @@ miniFederationAPIAccess online = do
     RunFederatedBucketed _domain _rpc -> error "unimplemented: RunFederatedBucketed"
     IsFederationConfigured -> pure True
 
-getLocalUsers :: Member (State MiniBackend) r => Sem r [StoredUser]
+getLocalUsers :: (Member (State MiniBackend) r) => Sem r [StoredUser]
 getLocalUsers = gets (.users)
 
 modifyLocalUsers ::
-  Member (State MiniBackend) r =>
+  (Member (State MiniBackend) r) =>
   ([StoredUser] -> Sem r [StoredUser]) ->
   Sem r ()
 modifyLocalUsers f = do
@@ -350,7 +350,7 @@ modifyLocalUsers f = do
 
 staticUserStoreInterpreter ::
   forall r.
-  Member (State MiniBackend) r =>
+  (Member (State MiniBackend) r) =>
   InterpreterFor UserStore r
 staticUserStoreInterpreter = interpret $ \case
   GetUser uid -> find (\user -> user.id == uid) <$> getLocalUsers
@@ -387,7 +387,7 @@ staticUserStoreInterpreter = interpret $ \case
   GlimpseHandle h -> miniBackendLookupHandle h
 
 miniBackendLookupHandle ::
-  Member (State MiniBackend) r =>
+  (Member (State MiniBackend) r) =>
   Handle ->
   Sem r (Maybe UserId)
 miniBackendLookupHandle h = do
@@ -407,7 +407,7 @@ miniGalleyAPIAccess member configs = interpret $ \case
   _ -> error "uninterpreted effect: GalleyAPIAccess"
 
 miniEventInterpreter ::
-  Member (State [MiniEvent]) r =>
+  (Member (State [MiniEvent]) r) =>
   InterpreterFor UserEvents r
 miniEventInterpreter = interpret \case
   GenerateUserEvent uid _mconn e -> modify (MkMiniEvent uid e :)

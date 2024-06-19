@@ -41,8 +41,8 @@ import Wire.API.MLS.SubConversation
 selectSubConversation :: ConvId -> SubConvId -> Client (Maybe SubConversation)
 selectSubConversation convId subConvId = runMaybeT $ do
   (mSuite, mEpoch, mEpochWritetime, mGroupId) <-
-    MaybeT
-      $ retry x5 (query1 Cql.selectSubConversation (params LocalQuorum (convId, subConvId)))
+    MaybeT $
+      retry x5 (query1 Cql.selectSubConversation (params LocalQuorum (convId, subConvId)))
   let activeData =
         ActiveMLSConversationData
           <$> mEpoch
@@ -50,8 +50,8 @@ selectSubConversation convId subConvId = runMaybeT $ do
           <*> mSuite
   groupId <- hoistMaybe mGroupId
   (cm, im) <- lift $ lookupMLSClientLeafIndices groupId
-  pure
-    $ SubConversation
+  pure $
+    SubConversation
       { scParentConvId = convId,
         scSubConvId = subConvId,
         scMLSData =

@@ -308,7 +308,7 @@ runMiniStackWithControlledDelay mockConfig delayControl actualPushesRef = do
     . runControlledDelay delayControl
     . runInputConst mockConfig
 
-runGundeckAPIAccessFailure :: Member (Embed IO) r => IORef [[V2.Push]] -> Sem (GundeckAPIAccess : r) a -> Sem r a
+runGundeckAPIAccessFailure :: (Member (Embed IO) r) => IORef [[V2.Push]] -> Sem (GundeckAPIAccess : r) a -> Sem r a
 runGundeckAPIAccessFailure pushesRef =
   interpret $ \action -> do
     case action of
@@ -328,7 +328,7 @@ data TestException = TestException
 
 instance Exception TestException
 
-runGundeckAPIAccessIORef :: Member (Embed IO) r => IORef [[V2.Push]] -> Sem (GundeckAPIAccess : r) a -> Sem r a
+runGundeckAPIAccessIORef :: (Member (Embed IO) r) => IORef [[V2.Push]] -> Sem (GundeckAPIAccess : r) a -> Sem r a
 runGundeckAPIAccessIORef pushesRef =
   interpret \case
     PushV2 pushes -> modifyIORef pushesRef (<> [pushes])

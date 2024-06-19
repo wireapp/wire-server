@@ -42,7 +42,7 @@ type RangedServiceTags = Range 0 3 (Set.Set ServiceTag)
 -- Providers
 
 insertAccount ::
-  MonadClient m =>
+  (MonadClient m) =>
   Name ->
   Password ->
   HttpsUrl ->
@@ -57,7 +57,7 @@ insertAccount name pass url descr = do
     cql = "INSERT INTO provider (id, name, password, url, descr) VALUES (?, ?, ?, ?, ?)"
 
 updateAccountProfile ::
-  MonadClient m =>
+  (MonadClient m) =>
   ProviderId ->
   Maybe Name ->
   Maybe HttpsUrl ->
@@ -79,7 +79,7 @@ updateAccountProfile p name url descr = retry x5 . batch $ do
 
 -- | Lookup the raw account data of a (possibly unverified) provider.
 lookupAccountData ::
-  MonadClient m =>
+  (MonadClient m) =>
   ProviderId ->
   m (Maybe (Name, Maybe Email, HttpsUrl, Text))
 lookupAccountData p = retry x1 $ query1 cql $ params LocalQuorum (Identity p)
@@ -88,7 +88,7 @@ lookupAccountData p = retry x1 $ query1 cql $ params LocalQuorum (Identity p)
     cql = "SELECT name, email, url, descr FROM provider WHERE id = ?"
 
 lookupAccount ::
-  MonadClient m =>
+  (MonadClient m) =>
   ProviderId ->
   m (Maybe Provider)
 lookupAccount p = (>>= mk) <$> lookupAccountData p
@@ -98,13 +98,13 @@ lookupAccount p = (>>= mk) <$> lookupAccountData p
     mk (n, Just e, u, d) = Just $! Provider p n e u d
 
 lookupAccountProfile ::
-  MonadClient m =>
+  (MonadClient m) =>
   ProviderId ->
   m (Maybe ProviderProfile)
 lookupAccountProfile p = fmap ProviderProfile <$> lookupAccount p
 
 lookupPassword ::
-  MonadClient m =>
+  (MonadClient m) =>
   ProviderId ->
   m (Maybe Password)
 lookupPassword p =
@@ -117,7 +117,7 @@ lookupPassword p =
     cql = "SELECT password FROM provider WHERE id = ?"
 
 deleteAccount ::
-  MonadClient m =>
+  (MonadClient m) =>
   ProviderId ->
   m ()
 deleteAccount pid = retry x5 $ write cql $ params LocalQuorum (Identity pid)
@@ -126,7 +126,7 @@ deleteAccount pid = retry x5 $ write cql $ params LocalQuorum (Identity pid)
     cql = "DELETE FROM provider WHERE id = ?"
 
 updateAccountPassword ::
-  MonadClient m =>
+  (MonadClient m) =>
   ProviderId ->
   PlainTextPassword6 ->
   m ()
@@ -141,7 +141,7 @@ updateAccountPassword pid pwd = do
 -- Unique (Natural) Keys
 
 insertKey ::
-  MonadClient m =>
+  (MonadClient m) =>
   ProviderId ->
   Maybe EmailKey ->
   EmailKey ->
@@ -163,7 +163,7 @@ insertKey p old new = retry x5 . batch $ do
     cqlEmail = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE provider SET email = ? WHERE id = ?"
 
 lookupKey ::
-  MonadClient m =>
+  (MonadClient m) =>
   EmailKey ->
   m (Maybe ProviderId)
 lookupKey k =
@@ -175,7 +175,7 @@ lookupKey k =
     cql :: PrepQuery R (Identity Text) (Identity ProviderId)
     cql = "SELECT provider FROM provider_keys WHERE key = ?"
 
-deleteKey :: MonadClient m => EmailKey -> m ()
+deleteKey :: (MonadClient m) => EmailKey -> m ()
 deleteKey k = retry x5 $ write cql $ params LocalQuorum (Identity (emailKeyUniq k))
   where
     cql :: PrepQuery W (Identity Text) ()
@@ -185,7 +185,7 @@ deleteKey k = retry x5 $ write cql $ params LocalQuorum (Identity (emailKeyUniq 
 -- Services
 
 insertService ::
-  MonadClient m =>
+  (MonadClient m) =>
   ProviderId ->
   Name ->
   Text ->
@@ -230,7 +230,7 @@ insertService pid name summary descr url token key fprint assets tags = do
       \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 lookupService ::
-  MonadClient m =>
+  (MonadClient m) =>
   ProviderId ->
   ServiceId ->
   m (Maybe Service)
@@ -252,7 +252,7 @@ lookupService pid sid =
       Service sid name (fromMaybe mempty summary) descr url toks keys assets (Set.fromList (fromSet tags)) enabled
 
 listServices ::
-  MonadClient m =>
+  (MonadClient m) =>
   ProviderId ->
   m [Service]
 listServices p =
@@ -274,7 +274,7 @@ listServices p =
        in Service sid name (fromMaybe mempty summary) descr url toks keys assets tags' enabled
 
 updateService ::
-  MonadClient m =>
+  (MonadClient m) =>
   ProviderId ->
   ServiceId ->
   Name ->
@@ -319,7 +319,7 @@ updateService pid sid svcName svcTags nameChange summary descr assets tagsChange
 
 -- NB: can take a significant amount of time if many teams were using the service
 deleteService ::
-  MonadClient m =>
+  (MonadClient m) =>
   ProviderId ->
   ServiceId ->
   Name ->
@@ -346,7 +346,7 @@ deleteService pid sid name tags = do
 
 -- | Note: Consistency = One
 lookupServiceProfile ::
-  MonadClient m =>
+  (MonadClient m) =>
   ProviderId ->
   ServiceId ->
   m (Maybe ServiceProfile)
@@ -366,7 +366,7 @@ lookupServiceProfile p s =
 
 -- | Note: Consistency = One
 listServiceProfiles ::
-  MonadClient m =>
+  (MonadClient m) =>
   ProviderId ->
   m [ServiceProfile]
 listServiceProfiles p =
@@ -401,7 +401,7 @@ data ServiceConn = ServiceConn
 
 -- | Lookup the connection information of a service.
 lookupServiceConn ::
-  MonadClient m =>
+  (MonadClient m) =>
   ProviderId ->
   ServiceId ->
   m (Maybe ServiceConn)
@@ -419,7 +419,7 @@ lookupServiceConn pid sid =
 
 -- | Update connection information of a service.
 updateServiceConn ::
-  MonadClient m =>
+  (MonadClient m) =>
   ProviderId ->
   ServiceId ->
   Maybe HttpsUrl ->
@@ -453,7 +453,7 @@ updateServiceConn pid sid url tokens keys enabled = retry x5 . batch $ do
 -- Service "Indexes" (tag and prefix); contain only enabled services
 
 insertServiceIndexes ::
-  MonadClient m =>
+  (MonadClient m) =>
   ProviderId ->
   ServiceId ->
   Name ->
@@ -467,7 +467,7 @@ insertServiceIndexes pid sid name tags =
     insertServiceTags pid sid name tags
 
 deleteServiceIndexes ::
-  MonadClient m =>
+  (MonadClient m) =>
   ProviderId ->
   ServiceId ->
   Name ->
@@ -572,7 +572,7 @@ type IndexRow = (Name, ProviderId, ServiceId)
 
 -- | Note: Consistency = One
 paginateServiceTags ::
-  MonadClient m =>
+  (MonadClient m) =>
   QueryAnyTags 1 3 ->
   Maybe Text ->
   Int32 ->
@@ -657,7 +657,7 @@ updateServicePrefix pid sid oldName newName = do
   insertServicePrefix pid sid newName
 
 paginateServiceNames ::
-  MonadClient m =>
+  (MonadClient m) =>
   Maybe (Range 1 128 Text) ->
   Int32 ->
   Maybe ProviderId ->
@@ -713,13 +713,13 @@ filterPrefix prefix p = do
       more = allValid && hasMore p
    in p {hasMore = more, result = prefixed}
 
-resolveRow :: MonadClient m => IndexRow -> m (Maybe ServiceProfile)
+resolveRow :: (MonadClient m) => IndexRow -> m (Maybe ServiceProfile)
 resolveRow (_, pid, sid) = lookupServiceProfile pid sid
 
 --------------------------------------------------------------------------------
 -- Service whitelist
 
-insertServiceWhitelist :: MonadClient m => TeamId -> ProviderId -> ServiceId -> m ()
+insertServiceWhitelist :: (MonadClient m) => TeamId -> ProviderId -> ServiceId -> m ()
 insertServiceWhitelist tid pid sid =
   retry x5 . batch $ do
     addPrepQuery insert1 (tid, pid, sid)
@@ -739,7 +739,7 @@ insertServiceWhitelist tid pid sid =
 --
 
 -- NB: Can take a significant amount of time if many teams were using the service
-deleteServiceWhitelist :: MonadClient m => Maybe TeamId -> ProviderId -> ServiceId -> m ()
+deleteServiceWhitelist :: (MonadClient m) => Maybe TeamId -> ProviderId -> ServiceId -> m ()
 deleteServiceWhitelist mbTid pid sid = case mbTid of
   Nothing -> do
     teams <- retry x5 $ query lookupRev $ params LocalQuorum (pid, sid)
@@ -775,7 +775,7 @@ deleteServiceWhitelist mbTid pid sid = case mbTid of
 --
 
 paginateServiceWhitelist ::
-  MonadClient m =>
+  (MonadClient m) =>
   -- | Team for which to list the services
   TeamId ->
   -- | Prefix
@@ -817,7 +817,7 @@ paginateServiceWhitelist tid mbPrefix filterDisabled size = liftClient $ do
       | otherwise = id
 
 getServiceWhitelistStatus ::
-  MonadClient m =>
+  (MonadClient m) =>
   TeamId ->
   ProviderId ->
   ServiceId ->

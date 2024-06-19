@@ -141,7 +141,7 @@ activateKey k c u = verifyCode k c >>= pickUser >>= activate
 
 -- | Create a new pending activation for a given 'UserKey'.
 newActivation ::
-  MonadClient m =>
+  (MonadClient m) =>
   UserKey ->
   -- | The timeout for the activation code.
   Timeout ->
@@ -166,14 +166,14 @@ newActivation uk timeout u = do
         <$> randIntegerZeroToNMinusOne 1000000
 
 -- | Lookup an activation code and it's associated owner (if any) for a 'UserKey'.
-lookupActivationCode :: MonadClient m => UserKey -> m (Maybe (Maybe UserId, ActivationCode))
+lookupActivationCode :: (MonadClient m) => UserKey -> m (Maybe (Maybe UserId, ActivationCode))
 lookupActivationCode k =
   liftIO (mkActivationKey k)
     >>= retry x1 . query1 codeSelect . params LocalQuorum . Identity
 
 -- | Verify an activation code.
 verifyCode ::
-  MonadClient m =>
+  (MonadClient m) =>
   ActivationKey ->
   ActivationCode ->
   ExceptT ActivationError m (UserKey, Maybe UserId)
@@ -182,9 +182,9 @@ verifyCode key code = do
   case s of
     Just (ttl, Ascii t, k, c, u, r) ->
       if
-          | c == code -> mkScope t k u
-          | r >= 1 -> countdown (key, t, k, c, u, r - 1, ttl) >> throwE invalidCode
-          | otherwise -> revoke >> throwE invalidCode
+        | c == code -> mkScope t k u
+        | r >= 1 -> countdown (key, t, k, c, u, r - 1, ttl) >> throwE invalidCode
+        | otherwise -> revoke >> throwE invalidCode
     Nothing -> throwE invalidCode
   where
     mkScope "email" k u = case parseEmail k of
@@ -204,7 +204,7 @@ mkActivationKey k = do
   let bs = digestBS d' (T.encodeUtf8 $ keyText k)
   pure . ActivationKey $ Ascii.encodeBase64Url bs
 
-deleteActivationPair :: MonadClient m => ActivationKey -> m ()
+deleteActivationPair :: (MonadClient m) => ActivationKey -> m ()
 deleteActivationPair = write keyDelete . params LocalQuorum . Identity
 
 invalidUser :: ActivationError

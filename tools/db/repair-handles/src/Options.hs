@@ -35,7 +35,7 @@ settingsParser =
     <*> option auto (short 's' <> long "page-size" <> value 1000)
     <*> (Id . parseUUID <$> strArgument (metavar "TEAM-UUID"))
 
-parseUUID :: HasCallStack => String -> UUID
+parseUUID :: (HasCallStack) => String -> UUID
 parseUUID = fromJust . Data.UUID.fromString
 
 cassandraSettingsParser :: String -> Parser CassandraSettings

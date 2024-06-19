@@ -897,19 +897,19 @@ testRedisMigration = do
 
 -- * Helpers
 
-ensurePresent :: HasCallStack => UserId -> Int -> TestM ()
+ensurePresent :: (HasCallStack) => UserId -> Int -> TestM ()
 ensurePresent u n = do
   gu <- view tsGundeck
   retryWhile ((n /=) . length . decodePresence) (getPresence gu (showUser u))
     !!! (const n === length . decodePresence)
 
-connectUser :: HasCallStack => CannonR -> UserId -> ConnId -> TestM (TChan ByteString)
+connectUser :: (HasCallStack) => CannonR -> UserId -> ConnId -> TestM (TChan ByteString)
 connectUser ca uid con = do
   [(_, [ch])] <- connectUsersAndDevices ca [(uid, [con])]
   pure ch
 
 connectUsersAndDevices ::
-  HasCallStack =>
+  (HasCallStack) =>
   CannonR ->
   [(UserId, [ConnId])] ->
   TestM [(UserId, [TChan ByteString])]
@@ -919,7 +919,7 @@ connectUsersAndDevices ca uidsAndConnIds = do
     strip = fmap (_2 %~ fmap fst)
 
 connectUsersAndDevicesWithSendingClients ::
-  HasCallStack =>
+  (HasCallStack) =>
   CannonR ->
   [(UserId, [ConnId])] ->
   TestM [(UserId, [(TChan ByteString, TChan ByteString)])]
@@ -939,7 +939,7 @@ connectUsersAndDevicesWithSendingClients ca uidsAndConnIds = do
 -- in a Ping Writer and gives access to 'WS.Message's
 -- this can be used to test Ping/Pong behaviour on the control channel
 connectUsersAndDevicesWithSendingClientsRaw ::
-  HasCallStack =>
+  (HasCallStack) =>
   CannonR ->
   [(UserId, [ConnId])] ->
   TestM [(UserId, [(TChan WS.Message, TChan ByteString)])]
@@ -958,7 +958,7 @@ connectUsersAndDevicesWithSendingClientsRaw ca uidsAndConnIds = do
 assertPresences :: (UserId, [ConnId]) -> TestM ()
 assertPresences (uid, conns) = wsAssertPresences uid (length conns)
 
-wsRun :: HasCallStack => CannonR -> UserId -> ConnId -> WS.ClientApp () -> TestM (Async ())
+wsRun :: (HasCallStack) => CannonR -> UserId -> ConnId -> WS.ClientApp () -> TestM (Async ())
 wsRun ca uid (ConnId con) app = do
   liftIO $ async $ WS.runClientWith caHost caPort caPath caOpts caHdrs app
   where
@@ -969,7 +969,7 @@ wsRun ca uid (ConnId con) app = do
     caOpts = WS.defaultConnectionOptions
     caHdrs = [("Z-User", showUser uid), ("Z-Connection", con)]
 
-wsAssertPresences :: HasCallStack => UserId -> Int -> TestM ()
+wsAssertPresences :: (HasCallStack) => UserId -> Int -> TestM ()
 wsAssertPresences uid numPres = do
   gu <- view tsGundeck
   retryWhile ((numPres /=) . length . decodePresence) (getPresence gu $ showUser uid)
@@ -1003,10 +1003,10 @@ retryWhileN n f m =
 waitForMessageRaw :: TChan WS.Message -> IO (Maybe WS.Message)
 waitForMessageRaw = System.Timeout.timeout 3000000 . liftIO . atomically . readTChan
 
-waitForMessage :: ToByteString a => TChan a -> IO (Maybe a)
+waitForMessage :: (ToByteString a) => TChan a -> IO (Maybe a)
 waitForMessage = waitForMessage' 1000000
 
-waitForMessage' :: ToByteString a => Int -> TChan a -> IO (Maybe a)
+waitForMessage' :: (ToByteString a) => Int -> TChan a -> IO (Maybe a)
 waitForMessage' musecs = System.Timeout.timeout musecs . liftIO . atomically . readTChan
 
 unregisterClient :: GundeckR -> UserId -> ClientId -> TestM (Response (Maybe BL.ByteString))
@@ -1062,7 +1062,7 @@ listPushTokens u = do
     (pure . pushTokens)
     (responseBody rs >>= decode)
 
-listNotifications :: HasCallStack => UserId -> Maybe ClientId -> TestM [QueuedNotification]
+listNotifications :: (HasCallStack) => UserId -> Maybe ClientId -> TestM [QueuedNotification]
 listNotifications u c = do
   rs <- getNotifications u c <!! const 200 === statusCode
   case responseBody rs >>= decode of
@@ -1091,16 +1091,16 @@ getLastNotification u c =
         . paths ["notifications", "last"]
         . maybe id (queryItem "client" . toByteString') c
 
-sendPush :: HasCallStack => Push -> TestM ()
+sendPush :: (HasCallStack) => Push -> TestM ()
 sendPush push = sendPushes [push]
 
-sendPushes :: HasCallStack => [Push] -> TestM ()
+sendPushes :: (HasCallStack) => [Push] -> TestM ()
 sendPushes push = do
   gu <- view tsGundeck
   post (runGundeckR gu . path "i/push/v2" . json push) !!! const 200 === statusCode
 
 buildPush ::
-  HasCallStack =>
+  (HasCallStack) =>
   UserId ->
   [(UserId, RecipientClients)] ->
   List1 Object ->
@@ -1122,7 +1122,7 @@ gcmToken = TokenSpec GCM 16 appName
 apnsToken :: TokenSpec
 apnsToken = TokenSpec APNSSandbox 32 appName
 
-randomToken :: MonadIO m => ClientId -> TokenSpec -> m PushToken
+randomToken :: (MonadIO m) => ClientId -> TokenSpec -> m PushToken
 randomToken c ts = liftIO $ do
   tok <- (Token . T.decodeUtf8) Prelude.. B16.encode Prelude.<$> randomBytes (tSize ts)
   pure $ pushToken (trans ts) (tName ts) tok c
@@ -1168,17 +1168,17 @@ randomUser = do
 toRecipients :: [UserId] -> Range 1 1024 (Set Recipient)
 toRecipients = unsafeRange . Set.fromList . map (`recipient` RouteAny)
 
-randomConnId :: MonadIO m => m ConnId
+randomConnId :: (MonadIO m) => m ConnId
 randomConnId =
   liftIO $
     ConnId <$> do
       r <- randomIO :: IO Word32
       pure $ C.pack $ show r
 
-randomClientId :: MonadIO m => m ClientId
+randomClientId :: (MonadIO m) => m ClientId
 randomClientId = liftIO $ ClientId <$> (randomIO :: IO Word64)
 
-randomBytes :: MonadIO m => Int -> m ByteString
+randomBytes :: (MonadIO m) => Int -> m ByteString
 randomBytes n = liftIO $ BS.pack <$> replicateM n (randomIO :: IO Word8)
 
 textPayload :: Text -> List1 Object
@@ -1193,7 +1193,7 @@ parseNotifications = responseBody >=> (^? key "notifications") >=> fromJSON'
 parseNotificationIds :: Response (Maybe BL.ByteString) -> Maybe [NotificationId]
 parseNotificationIds r = map (view queuedNotificationId) <$> parseNotifications r
 
-fromJSON' :: FromJSON a => Value -> Maybe a
+fromJSON' :: (FromJSON a) => Value -> Maybe a
 fromJSON' v = case fromJSON v of
   Success a -> Just a
   _ -> Nothing

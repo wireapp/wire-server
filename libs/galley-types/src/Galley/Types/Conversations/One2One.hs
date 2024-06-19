@@ -44,7 +44,7 @@ namespace :: BaseProtocolTag -> UUID
 namespace BaseProtocolProteusTag = UUID.fromWords 0x9a51edb8 0x060c0d9a 0x0c2950a8 0x5d152982
 namespace BaseProtocolMLSTag = UUID.fromWords 0x95589dd5 0xb04540dc 0xa6aadd9c 0x4fad1c2f
 
-compareDomains :: Ord a => Qualified a -> Qualified a -> Ordering
+compareDomains :: (Ord a) => Qualified a -> Qualified a -> Ordering
 compareDomains (Qualified a1 dom1) (Qualified a2 dom2) =
   compare (dom1, a1) (dom2, a2)
 

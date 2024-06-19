@@ -49,11 +49,16 @@ data LegalHoldService = LegalHoldService
 instance ToJSON LegalHoldService where
   toJSON s =
     object $
-      "team_id" .= legalHoldServiceTeam s
-        # "base_url" .= legalHoldServiceUrl s
-        # "fingerprint" .= legalHoldServiceFingerprint s
-        # "auth_token" .= legalHoldServiceToken s
-        # "public_key" .= legalHoldServiceKey s
+      "team_id"
+        .= legalHoldServiceTeam s
+        # "base_url"
+        .= legalHoldServiceUrl s
+        # "fingerprint"
+        .= legalHoldServiceFingerprint s
+        # "auth_token"
+        .= legalHoldServiceToken s
+        # "public_key"
+        .= legalHoldServiceKey s
         # []
 
 instance FromJSON LegalHoldService where

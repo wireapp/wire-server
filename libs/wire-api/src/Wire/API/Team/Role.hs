@@ -102,7 +102,7 @@ instance FromHttpApiData Role where
       flip foldMap [minBound .. maxBound] $ \s ->
         guard (T.pack (show s) == name) $> s
 
-roleName :: IsString a => Role -> a
+roleName :: (IsString a) => Role -> a
 roleName RoleOwner = "owner"
 roleName RoleAdmin = "admin"
 roleName RoleMember = "member"

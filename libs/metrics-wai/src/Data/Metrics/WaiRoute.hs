@@ -25,5 +25,5 @@ import Data.Metrics.Types
 import Imports
 import Network.Wai.Route.Tree as Tree
 
-treeToPaths :: HasCallStack => Tree a -> Paths
+treeToPaths :: (HasCallStack) => Tree a -> Paths
 treeToPaths = either error id . mkTree . fmap (Tree.segments . path) . Tree.toList

@@ -47,8 +47,8 @@ startMockServer config app = do
   let closeSocket sock = catch (Socket.close sock) (\(_ :: SomeException) -> pure ())
   (port, sock) <- Codensity $ \k -> do
     action <- appToIOKleisli k
-    liftIO $
-      bracket
+    liftIO
+      $ bracket
         ( case config.port of
             Nothing -> bindRandomPortTCP (fromString "*6")
             Just n -> (n,) <$> bindPortTCP n (fromString "*6")

@@ -51,11 +51,11 @@ instance FromJSON LegalHoldLogin where
   parseJSON = withObject "LegalHoldLogin" $ \o ->
     LegalHoldLogin
       <$> o
-      .: "user"
+        .: "user"
       <*> o
-      .:? "password"
+        .:? "password"
       <*> o
-      .:? "label"
+        .:? "label"
 
 instance ToJSON LegalHoldLogin where
   toJSON (LegalHoldLogin uid password label) =

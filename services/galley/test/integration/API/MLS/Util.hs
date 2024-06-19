@@ -177,7 +177,7 @@ remotePostCommitBundle rsender qcs bundle = do
       MLSMessageResponseUpdates _ -> pure []
 
 postCommitBundle ::
-  HasCallStack =>
+  (HasCallStack) =>
   ClientIdentity ->
   Qualified ConvOrSubConvId ->
   ByteString ->
@@ -270,7 +270,7 @@ data MessagePackage = MessagePackage
   }
   deriving (Show)
 
-takeLastPrekeyNG :: HasCallStack => MLSTest LastPrekey
+takeLastPrekeyNG :: (HasCallStack) => MLSTest LastPrekey
 takeLastPrekeyNG = do
   s <- State.get
   case mlsUnusedPrekeys s of
@@ -290,7 +290,7 @@ randomFileName = do
   bd <- State.gets mlsBaseDir
   (bd </>) . UUID.toString <$> liftIO UUIDV4.nextRandom
 
-mlscli :: HasCallStack => ClientIdentity -> [String] -> Maybe ByteString -> MLSTest ByteString
+mlscli :: (HasCallStack) => ClientIdentity -> [String] -> Maybe ByteString -> MLSTest ByteString
 mlscli qcid args mbstdin = do
   bd <- State.gets mlsBaseDir
   let cdir = bd </> cid2Str qcid
@@ -328,13 +328,13 @@ argSubst :: String -> String -> String -> String
 argSubst from to_ s =
   if s == from then to_ else s
 
-createWireClient :: HasCallStack => Qualified UserId -> MLSTest ClientIdentity
+createWireClient :: (HasCallStack) => Qualified UserId -> MLSTest ClientIdentity
 createWireClient qusr = do
   lpk <- takeLastPrekeyNG
   clientId <- liftTest $ randomClient (qUnqualified qusr) lpk
   pure $ mkClientIdentity qusr clientId
 
-initMLSClient :: HasCallStack => ClientIdentity -> MLSTest ()
+initMLSClient :: (HasCallStack) => ClientIdentity -> MLSTest ()
 initMLSClient cid = do
   bd <- State.gets mlsBaseDir
   createDirectory $ bd </> cid2Str cid
@@ -360,13 +360,13 @@ createLocalMLSClient (tUntagged -> qusr) = do
 
 -- | Create new mls client and register with backend. If the user is remote,
 -- this only creates a fake client (see 'createFakeMLSClient').
-createMLSClient :: HasCallStack => Qualified UserId -> MLSTest ClientIdentity
+createMLSClient :: (HasCallStack) => Qualified UserId -> MLSTest ClientIdentity
 createMLSClient qusr = do
   loc <- liftTest $ qualifyLocal ()
   foldQualified loc createLocalMLSClient (createFakeMLSClient . tUntagged) qusr
 
 -- | Like 'createMLSClient', but do not actually register client with backend.
-createFakeMLSClient :: HasCallStack => Qualified UserId -> MLSTest ClientIdentity
+createFakeMLSClient :: (HasCallStack) => Qualified UserId -> MLSTest ClientIdentity
 createFakeMLSClient qusr = do
   c <- liftIO $ generate arbitrary
   let cid = mkClientIdentity qusr c
@@ -374,7 +374,7 @@ createFakeMLSClient qusr = do
   pure cid
 
 -- | create and upload to backend
-uploadNewKeyPackage :: HasCallStack => ClientIdentity -> MLSTest (RawMLS KeyPackage)
+uploadNewKeyPackage :: (HasCallStack) => ClientIdentity -> MLSTest (RawMLS KeyPackage)
 uploadNewKeyPackage qcid = do
   (kp, _) <- generateKeyPackage qcid
 
@@ -389,33 +389,33 @@ uploadNewKeyPackage qcid = do
     !!! const 201 === statusCode
   pure kp
 
-generateKeyPackage :: HasCallStack => ClientIdentity -> MLSTest (RawMLS KeyPackage, KeyPackageRef)
+generateKeyPackage :: (HasCallStack) => ClientIdentity -> MLSTest (RawMLS KeyPackage, KeyPackageRef)
 generateKeyPackage qcid = do
   kpData <- mlscli qcid ["key-package", "create"] Nothing
   kp <- liftIO $ decodeMLSError kpData
   let ref = fromJust (kpRef' kp)
   pure (kp, ref)
 
-setClientGroupState :: HasCallStack => ClientIdentity -> ByteString -> MLSTest ()
+setClientGroupState :: (HasCallStack) => ClientIdentity -> ByteString -> MLSTest ()
 setClientGroupState cid g =
   State.modify $ \s ->
     s {mlsClientGroupState = Map.insert cid g (mlsClientGroupState s)}
 
-getClientGroupState :: HasCallStack => ClientIdentity -> MLSTest ByteString
+getClientGroupState :: (HasCallStack) => ClientIdentity -> MLSTest ByteString
 getClientGroupState cid = do
   mgs <- State.gets (Map.lookup cid . mlsClientGroupState)
   case mgs of
     Nothing -> liftIO $ assertFailure ("Attempted to get non-existing group state for client " <> show cid)
     Just g -> pure g
 
-hasClientGroupState :: HasCallStack => ClientIdentity -> MLSTest Bool
+hasClientGroupState :: (HasCallStack) => ClientIdentity -> MLSTest Bool
 hasClientGroupState cid =
   State.gets (isJust . Map.lookup cid . mlsClientGroupState)
 
 -- | Create a conversation from a provided action and then create a
 -- corresponding group.
 setupMLSGroupWithConv ::
-  HasCallStack =>
+  (HasCallStack) =>
   MLSTest Conversation ->
   ClientIdentity ->
   MLSTest (GroupId, Qualified ConvId)
@@ -435,7 +435,7 @@ setupMLSGroupWithConv convAction creator = do
   pure (groupId, qcnv)
 
 -- | Create conversation and corresponding group.
-setupMLSGroup :: HasCallStack => ClientIdentity -> MLSTest (GroupId, Qualified ConvId)
+setupMLSGroup :: (HasCallStack) => ClientIdentity -> MLSTest (GroupId, Qualified ConvId)
 setupMLSGroup creator = setupMLSGroupWithConv action creator
   where
     action =
@@ -449,7 +449,7 @@ setupMLSGroup creator = setupMLSGroupWithConv action creator
           <!! const 201 === statusCode
 
 -- | Create self-conversation and corresponding group.
-setupMLSSelfGroup :: HasCallStack => ClientIdentity -> MLSTest (GroupId, Qualified ConvId)
+setupMLSSelfGroup :: (HasCallStack) => ClientIdentity -> MLSTest (GroupId, Qualified ConvId)
 setupMLSSelfGroup creator = setupMLSGroupWithConv action creator
   where
     action =
@@ -498,7 +498,7 @@ getConvId =
     >>= maybe (liftIO (assertFailure "Uninitialised test conversation")) pure
 
 createSubConv ::
-  HasCallStack =>
+  (HasCallStack) =>
   Qualified ConvId ->
   ClientIdentity ->
   SubConvId ->
@@ -517,7 +517,7 @@ createSubConv qcnv creator subId = do
 -- | Create a local group only without a conversation. This simulates creating
 -- an MLS conversation on a remote backend.
 setupFakeMLSGroup ::
-  HasCallStack =>
+  (HasCallStack) =>
   ClientIdentity ->
   Maybe SubConvId ->
   MLSTest (GroupId, Qualified ConvId)
@@ -527,7 +527,7 @@ setupFakeMLSGroup creator mSubId = do
   createGroup creator (fmap Conv qcnv) groupId
   pure (groupId, qcnv)
 
-claimLocalKeyPackages :: HasCallStack => ClientIdentity -> Local UserId -> MLSTest KeyPackageBundle
+claimLocalKeyPackages :: (HasCallStack) => ClientIdentity -> Local UserId -> MLSTest KeyPackageBundle
 claimLocalKeyPackages qcid lusr = do
   brigCall <- viewBrig
   responseJsonError
@@ -539,7 +539,7 @@ claimLocalKeyPackages qcid lusr = do
       <!! const 200 === statusCode
 
 -- | Get all test clients of a user by listing the temporary MLS directory.
-getUserClients :: HasCallStack => Qualified UserId -> MLSTest [ClientIdentity]
+getUserClients :: (HasCallStack) => Qualified UserId -> MLSTest [ClientIdentity]
 getUserClients qusr = do
   bd <- State.gets mlsBaseDir
   files <- getDirectoryContents bd
@@ -550,7 +550,7 @@ getUserClients qusr = do
   pure . mapMaybe toClient $ files
 
 -- | Generate one key package for each client of a remote user
-claimRemoteKeyPackages :: HasCallStack => Remote UserId -> MLSTest KeyPackageBundle
+claimRemoteKeyPackages :: (HasCallStack) => Remote UserId -> MLSTest KeyPackageBundle
 claimRemoteKeyPackages (tUntagged -> qusr) = do
   clients <- getUserClients qusr
   fmap (KeyPackageBundle . Set.fromList) $
@@ -566,7 +566,7 @@ claimRemoteKeyPackages (tUntagged -> qusr) = do
 
 -- | Claim key package for a local user, or generate and map key packages for remote ones.
 claimKeyPackages ::
-  HasCallStack =>
+  (HasCallStack) =>
   ClientIdentity ->
   Qualified UserId ->
   MLSTest KeyPackageBundle
@@ -586,14 +586,14 @@ bundleKeyPackages bundle =
 -- Note that this alters the state of the group immediately. If we want to test
 -- a scenario where the commit is rejected by the backend, we can restore the
 -- group to the previous state by using an older version of the group file.
-createAddCommit :: HasCallStack => ClientIdentity -> [Qualified UserId] -> MLSTest MessagePackage
+createAddCommit :: (HasCallStack) => ClientIdentity -> [Qualified UserId] -> MLSTest MessagePackage
 createAddCommit cid users = do
   kps <- fmap (concatMap bundleKeyPackages) . traverse (claimKeyPackages cid) $ users
   liftIO $ assertBool "no key packages could be claimed" (not (null kps))
   createAddCommitWithKeyPackages cid kps
 
 createExternalCommit ::
-  HasCallStack =>
+  (HasCallStack) =>
   ClientIdentity ->
   Maybe ByteString ->
   Qualified ConvOrSubConvId ->
@@ -633,14 +633,14 @@ createExternalCommit qcid mpgs qcs = do
         mpGroupInfo = Just newPgs
       }
 
-createAddProposals :: HasCallStack => ClientIdentity -> [Qualified UserId] -> MLSTest [MessagePackage]
+createAddProposals :: (HasCallStack) => ClientIdentity -> [Qualified UserId] -> MLSTest [MessagePackage]
 createAddProposals cid users = do
   kps <- fmap (concatMap bundleKeyPackages) . traverse (claimKeyPackages cid) $ users
   traverse (createAddProposalWithKeyPackage cid) kps
 
 -- | Create an application message.
 createApplicationMessage ::
-  HasCallStack =>
+  (HasCallStack) =>
   ClientIdentity ->
   String ->
   MLSTest MessagePackage
@@ -660,7 +660,7 @@ createApplicationMessage cid messageContent = do
       }
 
 createAddCommitWithKeyPackages ::
-  HasCallStack =>
+  (HasCallStack) =>
   ClientIdentity ->
   [(ClientIdentity, ByteString)] ->
   MLSTest MessagePackage
@@ -720,7 +720,7 @@ createAddProposalWithKeyPackage cid (_, kp) = do
         mpGroupInfo = Nothing
       }
 
-createPendingProposalCommit :: HasCallStack => ClientIdentity -> MLSTest MessagePackage
+createPendingProposalCommit :: (HasCallStack) => ClientIdentity -> MLSTest MessagePackage
 createPendingProposalCommit qcid = do
   bd <- State.gets mlsBaseDir
   welcomeFile <- liftIO $ emptyTempFile bd "welcome"
@@ -757,7 +757,7 @@ readWelcome fp = runMaybeT $ do
   guard $ fileSize stat > 0
   liftIO $ BS.readFile fp
 
-createRemoveCommit :: HasCallStack => ClientIdentity -> [ClientIdentity] -> MLSTest MessagePackage
+createRemoveCommit :: (HasCallStack) => ClientIdentity -> [ClientIdentity] -> MLSTest MessagePackage
 createRemoveCommit cid targets = do
   bd <- State.gets mlsBaseDir
   welcomeFile <- liftIO $ emptyTempFile bd "welcome"
@@ -794,7 +794,7 @@ createRemoveCommit cid targets = do
         mpGroupInfo = Just pgs
       }
 
-createExternalAddProposal :: HasCallStack => ClientIdentity -> MLSTest MessagePackage
+createExternalAddProposal :: (HasCallStack) => ClientIdentity -> MLSTest MessagePackage
 createExternalAddProposal joiner = do
   groupId <-
     State.gets mlsGroupId >>= \case
@@ -825,7 +825,7 @@ createExternalAddProposal joiner = do
         mpGroupInfo = Nothing
       }
 
-consumeWelcome :: HasCallStack => ByteString -> MLSTest ()
+consumeWelcome :: (HasCallStack) => ByteString -> MLSTest ()
 consumeWelcome welcome = do
   qcids <- State.gets mlsNewMembers
   for_ qcids $ \qcid -> do
@@ -843,13 +843,13 @@ consumeWelcome welcome = do
         (Just welcome)
 
 -- | Make all member clients consume a given message.
-consumeMessage :: HasCallStack => MessagePackage -> MLSTest ()
+consumeMessage :: (HasCallStack) => MessagePackage -> MLSTest ()
 consumeMessage msg = do
   mems <- State.gets mlsMembers
   for_ (Set.delete (mpSender msg) mems) $ \cid ->
     consumeMessage1 cid (mpMessage msg)
 
-consumeMessage1 :: HasCallStack => ClientIdentity -> ByteString -> MLSTest ()
+consumeMessage1 :: (HasCallStack) => ClientIdentity -> ByteString -> MLSTest ()
 consumeMessage1 cid msg =
   void $
     mlscli
@@ -865,7 +865,7 @@ consumeMessage1 cid msg =
 
 -- | Send an MLS message and simulate clients receiving it. If the message is a
 -- commit, the 'sendAndConsumeCommitBundle' function should be used instead.
-sendAndConsumeMessage :: HasCallStack => MessagePackage -> MLSTest [Event]
+sendAndConsumeMessage :: (HasCallStack) => MessagePackage -> MLSTest [Event]
 sendAndConsumeMessage mp = do
   for_ mp.mpWelcome $ \_ -> liftIO $ assertFailure "use sendAndConsumeCommitBundle"
   res <-
@@ -895,7 +895,7 @@ createBundle mp = do
       mkBundle mp
   pure (encodeMLS' bundle)
 
-sendAndConsumeCommitBundle :: HasCallStack => MessagePackage -> MLSTest [Event]
+sendAndConsumeCommitBundle :: (HasCallStack) => MessagePackage -> MLSTest [Event]
 sendAndConsumeCommitBundle mp = do
   qcs <- getConvId
   bundle <- createBundle mp
@@ -914,7 +914,7 @@ sendAndConsumeCommitBundle mp = do
   pure resp
 
 mlsBracket ::
-  HasCallStack =>
+  (HasCallStack) =>
   [ClientIdentity] ->
   ([WS.WebSocket] -> MLSTest a) ->
   MLSTest a
@@ -985,7 +985,7 @@ receiveOnConvUpdated conv origUser joiner = do
       (qDomain conv)
       cu
 
-getGroupInfo :: HasCallStack => Qualified UserId -> Qualified ConvOrSubConvId -> TestM ByteString
+getGroupInfo :: (HasCallStack) => Qualified UserId -> Qualified ConvOrSubConvId -> TestM ByteString
 getGroupInfo qusr qcs = do
   loc <- qualifyLocal ()
   foldQualified
@@ -1068,7 +1068,7 @@ getSelfConv u = do
       . zConn "conn"
       . zType "access"
 
-withMLSDisabled :: HasSettingsOverrides m => m a -> m a
+withMLSDisabled :: (HasSettingsOverrides m) => m a -> m a
 withMLSDisabled = withSettingsOverrides noMLS
   where
     noMLS = Opts.settings . Opts.mlsPrivateKeyPaths .~ Nothing
@@ -1162,7 +1162,7 @@ remoteLeaveCurrentConv rcid qcnv subId = do
       LeaveSubConversationResponseOk -> pure ()
 
 leaveCurrentConv ::
-  HasCallStack =>
+  (HasCallStack) =>
   ClientIdentity ->
   Qualified ConvOrSubConvId ->
   MLSTest ()

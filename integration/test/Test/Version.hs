@@ -47,12 +47,12 @@ testVersion (Versioned' v) = withModifiedBackend
       domain `shouldMatch` dom
       federation `shouldMatch` True
 
-      unless (null (Set.intersection supported dev)) $
-        assertFailure "development and supported versions should not overlap"
+      unless (null (Set.intersection supported dev))
+        $ assertFailure "development and supported versions should not overlap"
 
 testVersionUnsupported :: App ()
-testVersionUnsupported = bindResponse (baseRequest OwnDomain Brig (ExplicitVersion 500) "/api-version" >>= submit "GET") $
-  \resp -> do
+testVersionUnsupported = bindResponse (baseRequest OwnDomain Brig (ExplicitVersion 500) "/api-version" >>= submit "GET")
+  $ \resp -> do
     resp.status `shouldMatchInt` 404
     resp.json %. "label" `shouldMatch` "unsupported-version"
 

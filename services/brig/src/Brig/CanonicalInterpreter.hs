@@ -161,7 +161,7 @@ runBrigToIO e (AppT ma) = do
     )
     $ runReaderT ma e
 
-rethrowWaiErrorIO :: Member (Final IO) r => InterpreterFor (Error Wai.Error) r
+rethrowWaiErrorIO :: (Member (Final IO) r) => InterpreterFor (Error Wai.Error) r
 rethrowWaiErrorIO act = do
   eithError <- errorToIOFinal act
   case eithError of

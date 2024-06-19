@@ -241,37 +241,37 @@ type LByteString = Data.ByteString.Lazy.ByteString
 ----------------------------------------------------------------------------
 -- Lifted functions from Prelude
 
-putChar :: MonadIO m => Char -> m ()
+putChar :: (MonadIO m) => Char -> m ()
 putChar = liftIO . P.putChar
 
-putStr :: MonadIO m => String -> m ()
+putStr :: (MonadIO m) => String -> m ()
 putStr = liftIO . P.putStr
 
-putStrLn :: MonadIO m => String -> m ()
+putStrLn :: (MonadIO m) => String -> m ()
 putStrLn = liftIO . P.putStrLn
 
 print :: (Show a, MonadIO m) => a -> m ()
 print = liftIO . P.print
 
-getChar :: MonadIO m => m Char
+getChar :: (MonadIO m) => m Char
 getChar = liftIO P.getChar
 
-getLine :: MonadIO m => m String
+getLine :: (MonadIO m) => m String
 getLine = liftIO P.getLine
 
-getContents :: MonadIO m => m String
+getContents :: (MonadIO m) => m String
 getContents = liftIO P.getContents
 
-interact :: MonadIO m => (String -> String) -> m ()
+interact :: (MonadIO m) => (String -> String) -> m ()
 interact = liftIO . P.interact
 
-readFile :: MonadIO m => FilePath -> m String
+readFile :: (MonadIO m) => FilePath -> m String
 readFile = liftIO . P.readFile
 
-writeFile :: MonadIO m => FilePath -> String -> m ()
+writeFile :: (MonadIO m) => FilePath -> String -> m ()
 writeFile = fmap liftIO . P.writeFile
 
-appendFile :: MonadIO m => FilePath -> String -> m ()
+appendFile :: (MonadIO m) => FilePath -> String -> m ()
 appendFile = fmap liftIO . P.appendFile
 
 readIO :: (Read a, MonadIO m) => String -> m a

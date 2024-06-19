@@ -149,5 +149,5 @@ cassandraSettingsParser ks =
               )
         )
 
-parseUUID :: HasCallStack => String -> UUID
+parseUUID :: (HasCallStack) => String -> UUID
 parseUUID = fromJust . Data.UUID.fromString

@@ -45,25 +45,25 @@ data MultiTablePagingState (name :: Symbol) tables = MultiTablePagingState
   deriving stock (Show, Eq)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema (MultiTablePagingState name tables)
 
-encodePagingState :: PagingTable tables => MultiTablePagingState name tables -> ByteString
+encodePagingState :: (PagingTable tables) => MultiTablePagingState name tables -> ByteString
 encodePagingState (MultiTablePagingState table state) =
   let encodedTable = encodePagingTable table
       encodedState = fromMaybe "" state
    in BS.cons encodedTable encodedState
 
-parsePagingState :: PagingTable tables => ByteString -> Either String (MultiTablePagingState name tables)
+parsePagingState :: (PagingTable tables) => ByteString -> Either String (MultiTablePagingState name tables)
 parsePagingState = AB.parseOnly pagingStateParser
 
-pagingStateParser :: PagingTable tables => AB.Parser (MultiTablePagingState name tables)
+pagingStateParser :: (PagingTable tables) => AB.Parser (MultiTablePagingState name tables)
 pagingStateParser = do
   table <- AB.anyWord8 >>= decodePagingTable
   state <- (AB.endOfInput $> Nothing) <|> (Just <$> AB.takeByteString <* AB.endOfInput)
   pure $ MultiTablePagingState table state
 
-instance PagingTable tables => ToHttpApiData (MultiTablePagingState name tables) where
+instance (PagingTable tables) => ToHttpApiData (MultiTablePagingState name tables) where
   toQueryParam = (Text.decodeUtf8 . Base64Url.encode) . encodePagingState
 
-instance PagingTable tables => FromHttpApiData (MultiTablePagingState name tables) where
+instance (PagingTable tables) => FromHttpApiData (MultiTablePagingState name tables) where
   parseQueryParam =
     mapLeft Text.pack
       . (parsePagingState <=< (Base64Url.decode . Text.encodeUtf8))
@@ -74,7 +74,7 @@ instance PagingTable tables => FromHttpApiData (MultiTablePagingState name table
 class PagingTable t where
   -- Using 'Word8' because 256 tables ought to be enough.
   encodePagingTable :: t -> Word8
-  decodePagingTable :: MonadFail m => Word8 -> m t
+  decodePagingTable :: (MonadFail m) => Word8 -> m t
 
 instance (PagingTable tables, KnownSymbol name) => ToSchema (MultiTablePagingState name tables) where
   schema =

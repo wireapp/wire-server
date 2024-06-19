@@ -29,10 +29,10 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Keys
 
 data SomeKeyPair where
-  SomeKeyPair :: forall ss. IsSignatureScheme ss => Proxy ss -> KeyPair ss -> SomeKeyPair
+  SomeKeyPair :: forall ss. (IsSignatureScheme ss) => Proxy ss -> KeyPair ss -> SomeKeyPair
 
 getMLSRemovalKey ::
-  Member (Input Env) r =>
+  (Member (Input Env) r) =>
   SignatureSchemeTag ->
   Sem r (Maybe SomeKeyPair)
 getMLSRemovalKey ss = fmap hush . runError @() $ do

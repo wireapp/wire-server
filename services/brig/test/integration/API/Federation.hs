@@ -182,7 +182,7 @@ testSearchRestrictions opts brig = do
                  Opt.ImplicitNoFederationRestriction $ FD.FederationDomainConfig domainFullSearch FullSearch FederationRestrictionAllowAll
                ]
 
-  let expectSearch :: HasCallStack => Domain -> Either Handle Name -> Maybe (Qualified UserId) -> FederatedUserSearchPolicy -> WaiTest.Session ()
+  let expectSearch :: (HasCallStack) => Domain -> Either Handle Name -> Maybe (Qualified UserId) -> FederatedUserSearchPolicy -> WaiTest.Session ()
       expectSearch domain handleOrName mExpectedUser expectedSearchPolicy = do
         let squery = either fromHandle fromName handleOrName
         searchResponse <-

@@ -27,7 +27,7 @@ import Polysemy.Input
 import Wire.Sem.Now
 
 nowToInput ::
-  Member (Input UTCTime) r =>
+  (Member (Input UTCTime) r) =>
   Sem (Now ': r) a ->
   Sem r a
 nowToInput = interpret $ \case

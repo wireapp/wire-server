@@ -347,7 +347,7 @@ checkLimitForLocalAction u oldRel action =
 -- | Check if the local backend federates with the remote user's team. Throw an
 -- exception if it does not federate.
 ensureFederatesWith ::
-  Member FederationConfigStore r =>
+  (Member FederationConfigStore r) =>
   Remote UserId ->
   ConnectionM r ()
 ensureFederatesWith remote = do

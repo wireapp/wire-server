@@ -193,7 +193,7 @@ specInitiateLogin = do
         let uuid = cs $ UUID.toText UUID.nil
         get ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ uuid))
           `shouldRespondWith` ((== 404) . statusCode)
-    let checkRespBody :: HasCallStack => ResponseLBS -> Bool
+    let checkRespBody :: (HasCallStack) => ResponseLBS -> Bool
         checkRespBody (responseBody -> Just (cs -> bdy)) =
           all
             (`isInfixOf` bdy)
@@ -219,7 +219,7 @@ specFinalizeLogin = do
         testRejectsSAMLResponseSayingAccessNotGranted
 
     context "access granted" $ do
-      let loginSuccess :: HasCallStack => ResponseLBS -> TestSpar ()
+      let loginSuccess :: (HasCallStack) => ResponseLBS -> TestSpar ()
           loginSuccess sparresp = liftIO $ do
             statusCode sparresp `shouldBe` 200
             let bdy = maybe "" (cs @LByteString @String) (responseBody sparresp)
@@ -229,7 +229,7 @@ specFinalizeLogin = do
             bdy `shouldContain` "window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin)"
             hasPersistentCookieHeader sparresp `shouldBe` Right ()
 
-      let loginFailure :: HasCallStack => ResponseLBS -> TestSpar ()
+      let loginFailure :: (HasCallStack) => ResponseLBS -> TestSpar ()
           loginFailure sparresp = liftIO $ do
             statusCode sparresp `shouldBe` 200
             let bdy = maybe "" (cs @LByteString @String) (responseBody sparresp)
@@ -393,7 +393,7 @@ specFinalizeLogin = do
         (idp, (_, privcreds)) <- registerTestIdPWithMeta ownerid
         spmeta <- getTestSPMetadata tid
 
-        let loginSuccess :: HasCallStack => ResponseLBS -> TestSpar ()
+        let loginSuccess :: (HasCallStack) => ResponseLBS -> TestSpar ()
             loginSuccess sparresp = liftIO $ do
               statusCode sparresp `shouldBe` 200
 
@@ -423,7 +423,7 @@ specFinalizeLogin = do
           mbId2 `shouldSatisfy` isJust
           mbId1 `shouldBe` mbId2
 
-testGetPutDelete :: HasCallStack => (SparReq -> Maybe UserId -> IdPId -> IdPMetadataInfo -> Http ResponseLBS) -> SpecWith TestEnv
+testGetPutDelete :: (HasCallStack) => (SparReq -> Maybe UserId -> IdPId -> IdPMetadataInfo -> Http ResponseLBS) -> SpecWith TestEnv
 testGetPutDelete whichone = do
   context "unknown IdP" $ do
     it "responds with 'not found'" $ do
@@ -816,7 +816,7 @@ specCRUDIdentityProvider = do
         liftIO $ requri `shouldBe` idpmeta' ^. edRequestURI
     describe "new certs" $ do
       let -- Create a team, idp, and update idp with 'sampleIdPCert2'.
-          initidp :: HasCallStack => TestSpar (IdP, SignPrivCreds, SignPrivCreds)
+          initidp :: (HasCallStack) => TestSpar (IdP, SignPrivCreds, SignPrivCreds)
           initidp = do
             env <- ask
             (owner, _tid) <- callCreateUserWithTeam
@@ -828,7 +828,7 @@ specCRUDIdentityProvider = do
             pure (idp, oldPrivKey, newPrivKey)
           -- Sign authn response with a given private key (which may be the one matching
           -- 'sampleIdPCert2' or not), and check the status of spars response.
-          check :: HasCallStack => Bool -> Int -> String -> Either String () -> TestSpar ()
+          check :: (HasCallStack) => Bool -> Int -> String -> Either String () -> TestSpar ()
           check useNewPrivKey expectedStatus expectedHtmlTitle expectedCookie = do
             (idp, oldPrivKey, newPrivKey) <- initidp
             let tid = idp ^. idpExtraInfo . team
@@ -1043,7 +1043,7 @@ specCRUDIdentityProvider = do
           scimStoredUser <- createUser tok scimUser
 
           let checkScimSearch ::
-                HasCallStack =>
+                (HasCallStack) =>
                 Scim.StoredUser SparTag ->
                 Scim.User SparTag ->
                 ReaderT TestEnv IO ()
@@ -1223,12 +1223,12 @@ specDeleteCornerCases = describe "delete corner cases" $ do
     (Just _) <- createViaSaml idp privcreds uref
     samlUserShouldSatisfy uref isJust
   where
-    samlUserShouldSatisfy :: HasCallStack => SAML.UserRef -> (Maybe UserId -> Bool) -> TestSpar ()
+    samlUserShouldSatisfy :: (HasCallStack) => SAML.UserRef -> (Maybe UserId -> Bool) -> TestSpar ()
     samlUserShouldSatisfy uref property = do
       muid <- getUserIdViaRef' uref
       liftIO $ muid `shouldSatisfy` property
 
-    createViaSamlResp :: HasCallStack => IdP -> SignPrivCreds -> SAML.UserRef -> TestSpar ResponseLBS
+    createViaSamlResp :: (HasCallStack) => IdP -> SignPrivCreds -> SAML.UserRef -> TestSpar ResponseLBS
     createViaSamlResp idp privCreds (SAML.UserRef _ subj) = do
       let tid = idp ^. idpExtraInfo . team
       authnReq <- negotiateAuthnRequest idp
@@ -1238,7 +1238,7 @@ specDeleteCornerCases = describe "delete corner cases" $ do
       liftIO $ responseStatus createResp `shouldBe` status200
       pure createResp
 
-    createViaSaml :: HasCallStack => IdP -> SignPrivCreds -> SAML.UserRef -> TestSpar (Maybe UserId)
+    createViaSaml :: (HasCallStack) => IdP -> SignPrivCreds -> SAML.UserRef -> TestSpar (Maybe UserId)
     createViaSaml idp privcreds uref = do
       resp <- createViaSamlResp idp privcreds uref
       liftIO $ do
@@ -1398,7 +1398,7 @@ specAux :: SpecWith TestEnv
 specAux = do
   describe "test helper functions" $ do
     describe "createTeamMember" $ do
-      let check :: HasCallStack => Bool -> Int -> SpecWith TestEnv
+      let check :: (HasCallStack) => Bool -> Int -> SpecWith TestEnv
           check tryowner permsix =
             it ("works: tryowner == " <> show (tryowner, permsix)) $ do
               env <- ask
@@ -1509,7 +1509,7 @@ specSsoSettings = do
 -- TODO: what else needs to be tested, beyond the pending tests listed here?
 -- TODO: what tests can go to saml2-web-sso package?
 
-getSsoidViaAuthResp :: HasCallStack => SignedAuthnResponse -> TestSpar UserSSOId
+getSsoidViaAuthResp :: (HasCallStack) => SignedAuthnResponse -> TestSpar UserSSOId
 getSsoidViaAuthResp aresp = do
   parsed :: AuthnResponse <-
     either error pure . parseFromDocument $ fromSignedAuthnResponse aresp

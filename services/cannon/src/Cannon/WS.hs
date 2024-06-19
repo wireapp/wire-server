@@ -194,7 +194,7 @@ env ::
   Env
 env leh lp gh gp = Env leh lp (host gh . port gp $ empty) (RequestId "N/A")
 
-runWS :: MonadIO m => Env -> WS a -> m a
+runWS :: (MonadIO m) => Env -> WS a -> m a
 runWS e m = liftIO $ runReaderT (_conn m) e
 
 registerLocal :: Key -> Websocket -> WS ()

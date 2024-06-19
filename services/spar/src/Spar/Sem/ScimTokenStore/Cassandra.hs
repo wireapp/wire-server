@@ -42,14 +42,14 @@ scimTokenStoreToCassandra ::
   Sem (ScimTokenStore ': r) a ->
   Sem r a
 scimTokenStoreToCassandra =
-  interpret
-    $ embed @m
-    . \case
-      Insert st sti -> insertScimToken st sti
-      Lookup st -> lookupScimToken st
-      LookupByTeam tid -> getScimTokens tid
-      Delete tid ur -> deleteScimToken tid ur
-      DeleteByTeam tid -> deleteTeamScimTokens tid
+  interpret $
+    embed @m
+      . \case
+        Insert st sti -> insertScimToken st sti
+        Lookup st -> lookupScimToken st
+        LookupByTeam tid -> getScimTokens tid
+        Delete tid ur -> deleteScimToken tid ur
+        DeleteByTeam tid -> deleteTeamScimTokens tid
 
 ----------------------------------------------------------------------
 -- SCIM auth

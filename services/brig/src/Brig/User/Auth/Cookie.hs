@@ -214,16 +214,16 @@ lookupCookie t = do
   where
     setToken c = c {cookieValue = t}
 
-listCookies :: MonadClient m => UserId -> [CookieLabel] -> m [Cookie ()]
+listCookies :: (MonadClient m) => UserId -> [CookieLabel] -> m [Cookie ()]
 listCookies u [] = DB.listCookies u
 listCookies u ll = filter byLabel <$> DB.listCookies u
   where
     byLabel c = maybe False (`elem` ll) (cookieLabel c)
 
-revokeAllCookies :: MonadClient m => UserId -> m ()
+revokeAllCookies :: (MonadClient m) => UserId -> m ()
 revokeAllCookies u = revokeCookies u [] []
 
-revokeCookies :: MonadClient m => UserId -> [CookieId] -> [CookieLabel] -> m ()
+revokeCookies :: (MonadClient m) => UserId -> [CookieId] -> [CookieLabel] -> m ()
 revokeCookies u [] [] = DB.deleteAllCookies u
 revokeCookies u ids labels = do
   cc <- filter matching <$> DB.listCookies u

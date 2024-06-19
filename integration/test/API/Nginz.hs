@@ -53,12 +53,12 @@ uploadProviderAsset :: (HasCallStack, MakesValue domain) => domain -> String -> 
 uploadProviderAsset domain cookie payload = do
   req <- rawBaseRequest domain Nginz Versioned $ joinHttpPath ["provider", "assets"]
   bdy <- txtAsset payload
-  submit "POST" $
-    req
-      & setCookie cookie
-      & addBody bdy multipartMixedMime
+  submit "POST"
+    $ req
+    & setCookie cookie
+    & addBody bdy multipartMixedMime
 
-txtAsset :: HasCallStack => String -> App HTTP.RequestBody
+txtAsset :: (HasCallStack) => String -> App HTTP.RequestBody
 txtAsset payload =
   buildUploadAssetRequestBody
     True

@@ -101,8 +101,8 @@ registerScimToken teamid midpid = do
       pure $ "scim-test-token/team=" <> idToText teamid <> "/code=" <> UUID.toText code
   scimTokenId <- randomId
   now <- liftIO getCurrentTime
-  runSpar
-    $ ScimTokenStore.insert
+  runSpar $
+    ScimTokenStore.insert
       tok
       ScimTokenInfo
         { stiTeam = teamid,
@@ -143,8 +143,8 @@ randomScimUserWithSubjectAndRichInfo richInfo = do
     getRandomR (0, 1 :: Int) <&> \case
       0 ->
         ( "scimuser_extid_" <> suffix <> "@example.com",
-          either (error . show) id
-            $ SAML.mkUNameIDEmail ("scimuser_extid_" <> suffix <> "@example.com")
+          either (error . show) id $
+            SAML.mkUNameIDEmail ("scimuser_extid_" <> suffix <> "@example.com")
         )
       1 ->
         ( "scimuser_extid_" <> suffix,
@@ -317,8 +317,8 @@ listUsers tok mbFilter = do
       (env ^. teSpar)
       <!! const 200 === statusCode
   let r' = responseJsonUnsafe r
-  when (Scim.totalResults r' /= length (Scim.resources r'))
-    $ error
+  when (Scim.totalResults r' /= length (Scim.resources r')) $
+    error
       "listUsers: got a paginated result, but pagination \
       \is not supported yet"
   pure (Scim.resources r')
@@ -364,11 +364,11 @@ createTokenFailsWith ::
   TestSpar ()
 createTokenFailsWith zusr payload expectedStatus expectedLabel = do
   env <- ask
-  void
-    $ createToken_ zusr payload (env ^. teSpar)
-    <!! do
-      const expectedStatus === statusCode
-      const (Just expectedLabel) === errorLabel
+  void $
+    createToken_ zusr payload (env ^. teSpar)
+      <!! do
+        const expectedStatus === statusCode
+        const (Just expectedLabel) === errorLabel
 
 -- | Get error label from the response (for use in assertions).
 errorLabel :: Response (Maybe Lazy.ByteString) -> Maybe Lazy.Text

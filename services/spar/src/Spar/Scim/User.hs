@@ -228,8 +228,8 @@ validateHandle :: (Member (Error Scim.ScimError) r) => Text -> Sem r Handle
 validateHandle txt = case parseHandle txt of
   Just h -> pure h
   Nothing ->
-    throw
-      $ Scim.badRequest
+    throw $
+      Scim.badRequest
         Scim.InvalidValue
         (Just (txt <> "is not a valid Wire handle"))
 
@@ -283,9 +283,9 @@ validateScimUser' errloc midp richInfoLimit user = do
             . Scim.badRequest Scim.InvalidValue
             . Just
             $ Text.pack msg
-            <> " ("
-            <> errloc
-            <> ")"
+              <> " ("
+              <> errloc
+              <> ")"
     either err pure $ Brig.mkUserName (Scim.displayName user) veid
   richInfo <- validateRichInfo (Scim.extra user ^. ST.sueRichInfo)
   let active = Scim.active user
@@ -295,11 +295,11 @@ validateScimUser' errloc midp richInfoLimit user = do
   where
     validRoleNames :: Text
     validRoleNames =
-      Text.pack
-        $ intercalate ", "
-        $ map
-          (UTF8.toString . toByteString')
-          [minBound @Role .. maxBound]
+      Text.pack $
+        intercalate ", " $
+          map
+            (UTF8.toString . toByteString')
+            [minBound @Role .. maxBound]
 
     validateRole =
       Scim.roles <&> \case
@@ -321,24 +321,24 @@ validateScimUser' errloc midp richInfoLimit user = do
     validateRichInfo :: RI.RichInfo -> Sem r RI.RichInfo
     validateRichInfo richInfo = do
       let sze = RI.richInfoSize richInfo
-      when (sze > richInfoLimit)
-        $ throw
-        $ ( Scim.badRequest
+      when (sze > richInfoLimit) $
+        throw $
+          ( Scim.badRequest
               Scim.InvalidValue
               ( Just
                   . Text.pack
                   $ show [RI.richInfoMapURN @Text, RI.richInfoAssocListURN @Text]
-                  <> " together exceed the size limit: max "
-                  <> show richInfoLimit
-                  <> " characters, but got "
-                  <> show sze
-                  <> " ("
-                  <> Text.unpack errloc
-                  <> ")"
+                    <> " together exceed the size limit: max "
+                    <> show richInfoLimit
+                    <> " characters, but got "
+                    <> show sze
+                    <> " ("
+                    <> Text.unpack errloc
+                    <> ")"
               )
           )
-          { Scim.status = Scim.Status 413
-          }
+            { Scim.status = Scim.Status 413
+            }
       pure richInfo
 
 -- | Given an 'externalId' and an 'IdP', construct a 'ST.ValidExternalId'.
@@ -355,8 +355,8 @@ mkValidExternalId ::
   Maybe Text ->
   Sem r ST.ValidExternalId
 mkValidExternalId _ Nothing =
-  throw
-    $ Scim.badRequest
+  throw $
+    Scim.badRequest
       Scim.InvalidValue
       (Just "externalId is required")
 mkValidExternalId Nothing (Just extid) = do
@@ -396,8 +396,8 @@ mkValidExternalId (Just idp) (Just extid) = do
       case SAML.mkNameID unameId Nothing Nothing Nothing of
         Right nameId -> pure nameId
         Left err ->
-          throw
-            $ Scim.badRequest
+          throw $
+            Scim.badRequest
               Scim.InvalidValue
               (Just $ "Can't construct a subject ID from externalId: " <> Text.pack err)
 
@@ -658,17 +658,17 @@ updateValidScimUser tokinfo@ScimTokenInfo {stiTeam} uid nvsu =
             newScimStoredUser :: Scim.StoredUser ST.SparTag <-
               updScimStoredUser (synthesizeScimUser newValidScimUser) oldScimStoredUser
 
-            when (oldValidScimUser ^. ST.vsuExternalId /= newValidScimUser ^. ST.vsuExternalId)
-              $ updateVsuUref stiTeam uid (oldValidScimUser ^. ST.vsuExternalId) (newValidScimUser ^. ST.vsuExternalId)
+            when (oldValidScimUser ^. ST.vsuExternalId /= newValidScimUser ^. ST.vsuExternalId) $
+              updateVsuUref stiTeam uid (oldValidScimUser ^. ST.vsuExternalId) (newValidScimUser ^. ST.vsuExternalId)
 
-            when (newValidScimUser ^. ST.vsuName /= oldValidScimUser ^. ST.vsuName)
-              $ BrigAccess.setName uid (newValidScimUser ^. ST.vsuName)
+            when (newValidScimUser ^. ST.vsuName /= oldValidScimUser ^. ST.vsuName) $
+              BrigAccess.setName uid (newValidScimUser ^. ST.vsuName)
 
-            when (oldValidScimUser ^. ST.vsuHandle /= newValidScimUser ^. ST.vsuHandle)
-              $ BrigAccess.setHandle uid (newValidScimUser ^. ST.vsuHandle)
+            when (oldValidScimUser ^. ST.vsuHandle /= newValidScimUser ^. ST.vsuHandle) $
+              BrigAccess.setHandle uid (newValidScimUser ^. ST.vsuHandle)
 
-            when (oldValidScimUser ^. ST.vsuRichInfo /= newValidScimUser ^. ST.vsuRichInfo)
-              $ BrigAccess.setRichInfo uid (newValidScimUser ^. ST.vsuRichInfo)
+            when (oldValidScimUser ^. ST.vsuRichInfo /= newValidScimUser ^. ST.vsuRichInfo) $
+              BrigAccess.setRichInfo uid (newValidScimUser ^. ST.vsuRichInfo)
 
             when (oldValidScimUser ^. ST.vsuLocale /= newValidScimUser ^. ST.vsuLocale) $ do
               BrigAccess.setLocale uid (newValidScimUser ^. ST.vsuLocale)
@@ -716,9 +716,9 @@ toScimStoredUser' ::
   Scim.User ST.SparTag ->
   Scim.StoredUser ST.SparTag
 toScimStoredUser' createdAt lastChangedAt baseuri uid usr =
-  Scim.WithMeta meta
-    $ Scim.WithId uid
-    $ usr {Scim.User.schemas = ST.userSchemas}
+  Scim.WithMeta meta $
+    Scim.WithId uid $
+      usr {Scim.User.schemas = ST.userSchemas}
   where
     mkLocation :: String -> URI
     mkLocation pathSuffix = convURI $ baseuri SAML.=/ Text.pack pathSuffix
@@ -798,11 +798,10 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
           -- FUTUREWORK: currently it's impossible to delete the last available team owner via SCIM
           -- (because that owner won't be managed by SCIM in the first place), but if it ever becomes
           -- possible, we should do a check here and prohibit it.
-          unless (userTeam brigUser == Just stiTeam)
-            $
+          unless (userTeam brigUser == Just stiTeam) $
             -- users from other teams get you a 404.
-            throwError
-            $ Scim.notFound "user" (idToText uid)
+            throwError $
+              Scim.notFound "user" (idToText uid)
 
           -- This deletion needs data from the non-deleted User in brig. So,
           -- execute it first, then delete the user in brig. Unfortunately, this
@@ -814,11 +813,11 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
           lift $ BrigAccess.deleteUser uid
       case deletionStatus of
         NoUser ->
-          throwError
-            $ Scim.notFound "user" (idToText uid)
+          throwError $
+            Scim.notFound "user" (idToText uid)
         AccountAlreadyDeleted ->
-          throwError
-            $ Scim.notFound "user" (idToText uid)
+          throwError $
+            Scim.notFound "user" (idToText uid)
         AccountDeleted ->
           pure ()
   where
@@ -836,8 +835,8 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
       case Brig.veidFromBrigUser brigUser ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig) of
         Left _ -> pure ()
         Right veid ->
-          lift
-            $ ST.runValidExternalIdBoth
+          lift $
+            ST.runValidExternalIdBoth
               (>>)
               (SAMLUserStore.delete uid)
               (ScimExternalIdStore.delete stiTeam)
@@ -916,14 +915,14 @@ assertExternalIdInAllowedValues ::
   Scim.ScimHandler (Sem r) ()
 assertExternalIdInAllowedValues allowedValues errmsg tid veid = do
   isGood <-
-    lift
-      $ ST.runValidExternalIdBoth
+    lift $
+      ST.runValidExternalIdBoth
         (\ma mb -> (&&) <$> ma <*> mb)
         (fmap ((`elem` allowedValues) . fmap userId) . getUserByUrefUnsafe)
         (fmap (`elem` allowedValues) . getUserIdByScimExternalId tid)
         veid
-  unless isGood
-    $ throwError Scim.conflict {Scim.detail = Just errmsg}
+  unless isGood $
+    throwError Scim.conflict {Scim.detail = Just errmsg}
 
 assertHandleUnused :: (Member BrigAccess r) => Handle -> Scim.ScimHandler (Sem r) ()
 assertHandleUnused = assertHandleUnused' "userName is already taken"
@@ -937,8 +936,8 @@ assertHandleUnused' msg hndl =
 assertHandleNotUsedElsewhere :: (Member BrigAccess r) => UserId -> Handle -> Scim.ScimHandler (Sem r) ()
 assertHandleNotUsedElsewhere uid hndl = do
   musr <- lift $ Brig.getBrigUser Brig.WithPendingInvitations uid
-  unless ((userHandle =<< musr) == Just hndl)
-    $ assertHandleUnused' "userName already in use by another wire user" hndl
+  unless ((userHandle =<< musr) == Just hndl) $
+    assertHandleUnused' "userName already in use by another wire user" hndl
 
 -- | Helper function that translates a given brig user into a 'Scim.StoredUser', with some
 -- effects like updating the 'ManagedBy' field in brig and storing creation and update time
@@ -978,13 +977,13 @@ synthesizeStoredUser usr veid =
 
       let writeState :: Maybe (UTCTimeMillis, UTCTimeMillis) -> ManagedBy -> RI.RichInfo -> Scim.StoredUser ST.SparTag -> Sem r ()
           writeState oldAccessTimes oldManagedBy oldRichInfo storedUser = do
-            when (isNothing oldAccessTimes)
-              $ ScimUserTimesStore.write storedUser
-            when (oldManagedBy /= ManagedByScim)
-              $ BrigAccess.setManagedBy uid ManagedByScim
+            when (isNothing oldAccessTimes) $
+              ScimUserTimesStore.write storedUser
+            when (oldManagedBy /= ManagedByScim) $
+              BrigAccess.setManagedBy uid ManagedByScim
             let newRichInfo = view ST.sueRichInfo . Scim.extra . Scim.value . Scim.thing $ storedUser
-            when (oldRichInfo /= newRichInfo)
-              $ BrigAccess.setRichInfo uid newRichInfo
+            when (oldRichInfo /= newRichInfo) $
+              BrigAccess.setRichInfo uid newRichInfo
 
       (richInfo, accessTimes, baseuri, role) <- lift readState
       now <- toUTCTimeMillis <$> lift Now.get
@@ -1094,10 +1093,10 @@ getUserById midp stiTeam uid = do
       assertExternalIdNotUsedElsewhere stiTeam veid uid
       createValidScimUserSpar stiTeam uid storedUser veid
       lift $ do
-        when (veidChanged (accountUser brigUser) veid)
-          $ BrigAccess.setVeid uid veid
-        when (managedByChanged (accountUser brigUser))
-          $ BrigAccess.setManagedBy uid ManagedByScim
+        when (veidChanged (accountUser brigUser) veid) $
+          BrigAccess.setVeid uid veid
+        when (managedByChanged (accountUser brigUser)) $
+          BrigAccess.setManagedBy uid ManagedByScim
       pure storedUser
     _ -> Applicative.empty
   where

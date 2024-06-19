@@ -22,8 +22,9 @@ getPresence ::
 getPresence u = do
   uid <- u %. "id" & asString
   req <-
-    baseRequest u Gundeck Unversioned $
-      "/i/presences/" <> uid
+    baseRequest u Gundeck Unversioned
+      $ "/i/presences/"
+      <> uid
   submit "GET" req
 
 unregisterUser ::

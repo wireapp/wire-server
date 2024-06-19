@@ -242,7 +242,8 @@ getClientsFull :: (HasCallStack, MakesValue users, MakesValue uid) => uid -> use
 getClientsFull user users = do
   val <- make users
   baseRequest user Brig Unversioned do joinHttpPath ["i", "clients", "full"]
-    >>= submit "POST" . addJSONObject ["users" .= val]
+    >>= submit "POST"
+    . addJSONObject ["users" .= val]
 
 -- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/post_i_ejpd_request
 getEJPDInfo :: (HasCallStack, MakesValue dom) => dom -> [String] -> String -> App Response

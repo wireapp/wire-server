@@ -76,7 +76,7 @@ toCode k s (val, ttl, cnv, mPw) =
 -- The 'key' is a stable, truncated, base64 encoded sha256 hash of the conversation ID
 -- The 'value' is a base64 encoded, 120-bit random value (changing on each generation)
 
-generate :: MonadIO m => ConvId -> Scope -> Timeout -> m Code
+generate :: (MonadIO m) => ConvId -> Scope -> Timeout -> m Code
 generate cnv s t = do
   key <- mkKey cnv
   val <- liftIO $ Value . unsafeRange . Ascii.encodeBase64Url <$> randBytes 15
@@ -90,7 +90,7 @@ generate cnv s t = do
         codeHasPassword = False
       }
 
-mkKey :: MonadIO m => ConvId -> m Key
+mkKey :: (MonadIO m) => ConvId -> m Key
 mkKey cnv = do
   sha256 <- liftIO $ fromJust <$> getDigestByName "SHA256"
   pure $ Key . unsafeRange . Ascii.encodeBase64Url . BS.take 15 $ digestBS sha256 (toByteString' cnv)

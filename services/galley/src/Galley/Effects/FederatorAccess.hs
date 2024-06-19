@@ -39,12 +39,12 @@ import Wire.API.Federation.Error
 
 data FederatorAccess m a where
   RunFederated ::
-    KnownComponent c =>
+    (KnownComponent c) =>
     Remote x ->
     FederatorClient c a ->
     FederatorAccess m a
   RunFederatedEither ::
-    KnownComponent c =>
+    (KnownComponent c) =>
     Remote x ->
     FederatorClient c a ->
     FederatorAccess m (Either FederationError a)

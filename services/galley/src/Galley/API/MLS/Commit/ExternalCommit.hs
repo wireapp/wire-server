@@ -182,7 +182,7 @@ processExternalCommit senderIdentity lConvOrSub ciphersuite epoch action updateP
 
 executeExternalCommitAction ::
   forall r.
-  HasProposalActionEffects r =>
+  (HasProposalActionEffects r) =>
   Local ConvOrSubConv ->
   ClientIdentity ->
   ExternalCommitAction ->

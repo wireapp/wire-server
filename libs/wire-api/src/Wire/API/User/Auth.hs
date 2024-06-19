@@ -125,10 +125,10 @@ loginObjectSchema =
         <*> thd3 .= maybe_ (optField "handle" schema)
     validate :: (Maybe Email, Maybe Phone, Maybe Handle) -> A.Parser LoginId
     validate (mEmail, mPhone, mHandle) =
-      maybe (fail "'email', 'phone' or 'handle' required") pure
-        $ (LoginByEmail <$> mEmail)
-        <|> (LoginByPhone <$> mPhone)
-        <|> (LoginByHandle <$> mHandle)
+      maybe (fail "'email', 'phone' or 'handle' required") pure $
+        (LoginByEmail <$> mEmail)
+          <|> (LoginByPhone <$> mPhone)
+          <|> (LoginByHandle <$> mHandle)
 
 --------------------------------------------------------------------------------
 -- LoginCode
@@ -154,10 +154,10 @@ data PendingLoginCode = PendingLoginCode
 
 instance ToSchema PendingLoginCode where
   schema =
-    object "PendingLoginCode"
-      $ PendingLoginCode
-      <$> pendingLoginCode .= field "code" schema
-      <*> pendingLoginTimeout .= field "expires_in" schema
+    object "PendingLoginCode" $
+      PendingLoginCode
+        <$> pendingLoginCode .= field "code" schema
+        <*> pendingLoginTimeout .= field "expires_in" schema
 
 --------------------------------------------------------------------------------
 -- SendLoginCode
@@ -178,20 +178,20 @@ instance ToSchema SendLoginCode where
       "SendLoginCode"
       (description ?~ "Payload for requesting a login code to be sent")
       $ SendLoginCode
-      <$> lcPhone
-        .= fieldWithDocModifier
-          "phone"
-          (description ?~ "E.164 phone number to send the code to")
-          (unnamed schema)
-      <*> lcCall
-        .= fmap
-          (fromMaybe False)
-          ( optFieldWithDocModifier
-              "voice_call"
-              (description ?~ "Request the code with a call instead (default is SMS)")
-              schema
-          )
-      <*> lcForce .= fmap (fromMaybe True) (optField "force" schema)
+        <$> lcPhone
+          .= fieldWithDocModifier
+            "phone"
+            (description ?~ "E.164 phone number to send the code to")
+            (unnamed schema)
+        <*> lcCall
+          .= fmap
+            (fromMaybe False)
+            ( optFieldWithDocModifier
+                "voice_call"
+                (description ?~ "Request the code with a call instead (default is SMS)")
+                schema
+            )
+        <*> lcForce .= fmap (fromMaybe True) (optField "force" schema)
 
 --------------------------------------------------------------------------------
 -- LoginCodeTimeout
@@ -209,11 +209,11 @@ instance ToSchema LoginCodeTimeout where
       "LoginCodeTimeout"
       (description ?~ "A response for a successfully sent login code")
       $ LoginCodeTimeout
-      <$> fromLoginCodeTimeout
-        .= fieldWithDocModifier
-          "expires_in"
-          (description ?~ "Number of seconds before the login code expires")
-          (unnamed schema)
+        <$> fromLoginCodeTimeout
+          .= fieldWithDocModifier
+            "expires_in"
+            (description ?~ "Number of seconds before the login code expires")
+            (unnamed schema)
 
 --------------------------------------------------------------------------------
 -- Cookie
@@ -231,7 +231,7 @@ instance ToSchema CookieList where
       "CookieList"
       (description ?~ "List of cookie information")
       $ CookieList
-      <$> cookieList .= field "cookies" (array schema)
+        <$> cookieList .= field "cookies" (array schema)
 
 -- | A (long-lived) cookie scoped to a specific user for obtaining new
 -- 'AccessToken's.
@@ -249,15 +249,15 @@ data Cookie a = Cookie
 
 instance ToSchema (Cookie ()) where
   schema =
-    object "Cookie"
-      $ Cookie
-      <$> cookieId .= field "id" schema
-      <*> cookieType .= field "type" schema
-      <*> cookieCreated .= field "created" utcTimeSchema
-      <*> cookieExpires .= field "expires" utcTimeSchema
-      <*> cookieLabel .= optField "label" (maybeWithDefault A.Null schema)
-      <*> cookieSucc .= optField "successor" (maybeWithDefault A.Null schema)
-      <*> cookieValue .= pure ()
+    object "Cookie" $
+      Cookie
+        <$> cookieId .= field "id" schema
+        <*> cookieType .= field "type" schema
+        <*> cookieCreated .= field "created" utcTimeSchema
+        <*> cookieExpires .= field "expires" utcTimeSchema
+        <*> cookieLabel .= optField "label" (maybeWithDefault A.Null schema)
+        <*> cookieSucc .= optField "successor" (maybeWithDefault A.Null schema)
+        <*> cookieValue .= pure ()
 
 deriving via Schema (Cookie ()) instance FromJSON (Cookie ())
 
@@ -303,9 +303,9 @@ data CookieType
 
 instance ToSchema CookieType where
   schema =
-    enum @Text "CookieType"
-      $ element "session" SessionCookie
-      <> element "persistent" PersistentCookie
+    enum @Text "CookieType" $
+      element "session" SessionCookie
+        <> element "persistent" PersistentCookie
 
 --------------------------------------------------------------------------------
 -- Login
@@ -360,9 +360,9 @@ $(makePrisms ''Login)
 
 instance ToSchema Login where
   schema =
-    object "Login"
-      $ tag _PasswordLogin passwordLoginSchema
-      <> tag _SmsLogin smsLoginSchema
+    object "Login" $
+      tag _PasswordLogin passwordLoginSchema
+        <> tag _SmsLogin smsLoginSchema
 
 deriving via Schema Login instance FromJSON Login
 
@@ -392,27 +392,27 @@ instance ToSchema RemoveCookies where
       "RemoveCookies"
       (description ?~ "Data required to remove cookies")
       $ RemoveCookies
-      <$> rmCookiesPassword
-        .= fieldWithDocModifier
-          "password"
-          (description ?~ "The user's password")
-          schema
-      <*> rmCookiesLabels
-        .= fmap
-          fold
-          ( optFieldWithDocModifier
-              "labels"
-              (description ?~ "A list of cookie labels for which to revoke the cookies")
-              (array schema)
-          )
-      <*> rmCookiesIdents
-        .= fmap
-          fold
-          ( optFieldWithDocModifier
-              "ids"
-              (description ?~ "A list of cookie IDs to revoke")
-              (array schema)
-          )
+        <$> rmCookiesPassword
+          .= fieldWithDocModifier
+            "password"
+            (description ?~ "The user's password")
+            schema
+        <*> rmCookiesLabels
+          .= fmap
+            fold
+            ( optFieldWithDocModifier
+                "labels"
+                (description ?~ "A list of cookie labels for which to revoke the cookies")
+                (array schema)
+            )
+        <*> rmCookiesIdents
+          .= fmap
+            fold
+            ( optFieldWithDocModifier
+                "ids"
+                (description ?~ "A list of cookie IDs to revoke")
+                (array schema)
+            )
 
 --------------------------------------------------------------------------------
 -- Cookies & Access Tokens
@@ -430,25 +430,25 @@ data AccessToken = AccessToken
 
 instance ToSchema AccessToken where
   schema =
-    object "AccessToken"
-      $ AccessToken
-      <$> user .= field "user" schema
-      <*>
-      -- FUTUREWORK: if we assume it's valid UTF-8, why not make it 'Text'?
-      access
-        .= fieldWithDocModifier
-          "access_token"
-          (description ?~ "The opaque access token string")
-          ( LBS.fromStrict . T.encodeUtf8
-              <$> (T.decodeUtf8 . LBS.toStrict)
-                .= schema
-          )
-      <*> tokenType .= field "token_type" schema
-      <*> expiresIn
-        .= fieldWithDocModifier
-          "expires_in"
-          (description ?~ "The number of seconds this token is valid")
-          schema
+    object "AccessToken" $
+      AccessToken
+        <$> user .= field "user" schema
+        <*>
+        -- FUTUREWORK: if we assume it's valid UTF-8, why not make it 'Text'?
+        access
+          .= fieldWithDocModifier
+            "access_token"
+            (description ?~ "The opaque access token string")
+            ( LBS.fromStrict . T.encodeUtf8
+                <$> (T.decodeUtf8 . LBS.toStrict)
+                  .= schema
+            )
+        <*> tokenType .= field "token_type" schema
+        <*> expiresIn
+          .= fieldWithDocModifier
+            "expires_in"
+            (description ?~ "The number of seconds this token is valid")
+            schema
 
 bearerToken :: UserId -> LByteString -> Integer -> AccessToken
 bearerToken u a = AccessToken u a Bearer
@@ -505,9 +505,9 @@ data SomeUserToken
 
 instance FromHttpApiData SomeUserToken where
   parseHeader h =
-    first T.pack
-      $ fmap PlainUserToken (runParser parser h)
-      <!> fmap LHUserToken (runParser parser h)
+    first T.pack $
+      fmap PlainUserToken (runParser parser h)
+        <!> fmap LHUserToken (runParser parser h)
   parseUrlPiece = parseHeader . T.encodeUtf8
 
 instance FromByteString SomeUserToken where
@@ -526,9 +526,9 @@ data SomeAccessToken
 
 instance FromHttpApiData SomeAccessToken where
   parseHeader h =
-    first T.pack
-      $ fmap PlainAccessToken (runParser parser h)
-      <!> fmap LHAccessToken (runParser parser h)
+    first T.pack $
+      fmap PlainAccessToken (runParser parser h)
+        <!> fmap LHAccessToken (runParser parser h)
   parseUrlPiece = parseHeader . T.encodeUtf8
 
 -- | Data that is returned to the client in the form of a cookie containing a

@@ -251,7 +251,7 @@ getSelfProfileImpl self = do
     -- - comments in `testUpdateHandle` in `/integration`.
     --
     -- FUTUREWORK: figure out a better way for clients to detect E2EId (V6?)
-    hackForBlockingHandleChangeForE2EIdTeams :: Member GalleyAPIAccess r => StoredUser -> Sem r StoredUser
+    hackForBlockingHandleChangeForE2EIdTeams :: (Member GalleyAPIAccess r) => StoredUser -> Sem r StoredUser
     hackForBlockingHandleChangeForE2EIdTeams user = do
       e2eid <- hasE2EId user
       pure $
@@ -427,18 +427,19 @@ checkHandleImpl uhandle = do
     else -- Handle is free and can be taken
       pure CheckHandleNotFound
 
-hasE2EId :: Member GalleyAPIAccess r => StoredUser -> Sem r Bool
+hasE2EId :: (Member GalleyAPIAccess r) => StoredUser -> Sem r Bool
 hasE2EId user =
-  wsStatus . afcMlsE2EId <$> getAllFeatureConfigsForUser (Just user.id) <&> \case
-    FeatureStatusEnabled -> True
-    FeatureStatusDisabled -> False
+  wsStatus . afcMlsE2EId
+    <$> getAllFeatureConfigsForUser (Just user.id) <&> \case
+      FeatureStatusEnabled -> True
+      FeatureStatusDisabled -> False
 
 --------------------------------------------------------------------------------
 -- Check Handles
 
 -- | checks for handles @check@ to be available and returns
 --   at maximum @num@ of them
-checkHandlesImpl :: _ => [Handle] -> Word -> Sem r [Handle]
+checkHandlesImpl :: (_) => [Handle] -> Word -> Sem r [Handle]
 checkHandlesImpl check num = reverse <$> collectFree [] check num
   where
     collectFree free _ 0 = pure free

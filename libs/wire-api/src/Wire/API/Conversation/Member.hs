@@ -131,7 +131,7 @@ instance ToSchema Member where
         <*> memHiddenRef .= optField "hidden_ref" (maybeWithDefault A.Null schema)
         <*> memConvRoleName .= (fromMaybe roleNameWireAdmin <$> optField "conversation_role" schema)
     where
-      c :: ToJSON a => a -> ValueSchema SwaggerDoc ()
+      c :: (ToJSON a) => a -> ValueSchema SwaggerDoc ()
       c val = mkSchema mempty (const (pure ())) (const (pure (toJSON val)))
 
 -- | The semantics of the possible different values is entirely up to clients,

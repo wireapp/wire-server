@@ -14,7 +14,7 @@ import Testlib.Prelude
 --------------------------------------------------------------------------------
 -- LOCAL SEARCH
 
-testSearchContactForExternalUsers :: HasCallStack => App ()
+testSearchContactForExternalUsers :: (HasCallStack) => App ()
 testSearchContactForExternalUsers = do
   owner <- randomUser OwnDomain def {BrigI.team = True}
   tid <- owner %. "team" & asString
@@ -74,7 +74,7 @@ data FedUserSearchTestCase = FedUserSearchTestCase
   }
   deriving (Eq, Ord, Show)
 
-testFederatedUserSearch :: HasCallStack => App ()
+testFederatedUserSearch :: (HasCallStack) => App ()
 testFederatedUserSearch = do
   let tcs =
         [ -- no search
@@ -102,7 +102,7 @@ testFederatedUserSearch = do
     void $ BrigI.createFedConn d1 (BrigI.FedConn d2 "full_search" Nothing)
     forM_ tcs (federatedUserSearch d1 d2)
 
-federatedUserSearch :: HasCallStack => String -> String -> FedUserSearchTestCase -> App ()
+federatedUserSearch :: (HasCallStack) => String -> String -> FedUserSearchTestCase -> App ()
 federatedUserSearch d1 d2 test = do
   void $ BrigI.updateFedConn d2 d1 (BrigI.FedConn d1 test.searchPolicy (restriction test.restrictionD2D1))
   void $ BrigI.updateFedConn d1 d2 (BrigI.FedConn d2 test.searchPolicy (restriction test.restrictionD1D2))
@@ -158,7 +158,7 @@ federatedUserSearch d1 d2 test = do
       TeamAllowed -> do
         BrigI.addFederationRemoteTeam ownDomain remoteDomain remoteTeam
 
-testFederatedUserSearchNonTeamSearcher :: HasCallStack => App ()
+testFederatedUserSearchNonTeamSearcher :: (HasCallStack) => App ()
 testFederatedUserSearchNonTeamSearcher = do
   startDynamicBackends [def, def] $ \[d1, d2] -> do
     void $ BrigI.createFedConn d2 (BrigI.FedConn d1 "full_search" (Just []))
@@ -189,7 +189,7 @@ testFederatedUserSearchNonTeamSearcher = do
         doc : _ ->
           assertFailure $ "Expected an empty result, but got " <> show doc <> " for test case "
 
-testFederatedUserSearchForNonTeamUser :: HasCallStack => App ()
+testFederatedUserSearchForNonTeamUser :: (HasCallStack) => App ()
 testFederatedUserSearchForNonTeamUser = do
   startDynamicBackends [def, def] $ \[d1, d2] -> do
     void $ BrigI.createFedConn d2 (BrigI.FedConn d1 "full_search" Nothing)

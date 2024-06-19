@@ -184,7 +184,7 @@ addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients cps = do
             clientLastActive = Nothing
           }
 
-lookupClient :: MonadClient m => UserId -> ClientId -> m (Maybe Client)
+lookupClient :: (MonadClient m) => UserId -> ClientId -> m (Maybe Client)
 lookupClient u c = do
   keys <- retry x1 (query selectMLSPublicKeys (params LocalQuorum (u, c)))
   fmap (toClient keys)
@@ -195,7 +195,7 @@ lookupClientsBulk uids = liftClient $ do
   userClientTuples <- pooledMapConcurrentlyN 50 getClientSetWithUser uids
   pure $ Map.fromList userClientTuples
   where
-    getClientSetWithUser :: MonadClient m => UserId -> m (UserId, Imports.Set Client)
+    getClientSetWithUser :: (MonadClient m) => UserId -> m (UserId, Imports.Set Client)
     getClientSetWithUser u = fmap ((u,) . Set.fromList) . lookupClients $ u
 
 lookupPubClientsBulk :: (MonadClient m) => [UserId] -> m (UserMap (Imports.Set PubClient))
@@ -203,13 +203,13 @@ lookupPubClientsBulk uids = liftClient $ do
   userClientTuples <- pooledMapConcurrentlyN 50 getClientSetWithUser uids
   pure $ UserMap $ Map.fromList userClientTuples
   where
-    getClientSetWithUser :: MonadClient m => UserId -> m (UserId, Imports.Set PubClient)
+    getClientSetWithUser :: (MonadClient m) => UserId -> m (UserId, Imports.Set PubClient)
     getClientSetWithUser u = (u,) . Set.fromList . map toPubClient <$> executeQuery u
 
-    executeQuery :: MonadClient m => UserId -> m [(ClientId, Maybe ClientClass)]
+    executeQuery :: (MonadClient m) => UserId -> m [(ClientId, Maybe ClientClass)]
     executeQuery u = retry x1 (query selectPubClients (params LocalQuorum (Identity u)))
 
-lookupClients :: MonadClient m => UserId -> m [Client]
+lookupClients :: (MonadClient m) => UserId -> m [Client]
 lookupClients u = do
   keys <-
     (\(cid, ss, Blob b) -> (cid, [(ss, LBS.toStrict b)]))
@@ -223,23 +223,23 @@ lookupClients u = do
   updateKeys . toClient []
     <$$> retry x1 (query selectClients (params LocalQuorum (Identity u)))
 
-lookupClientIds :: MonadClient m => UserId -> m [ClientId]
+lookupClientIds :: (MonadClient m) => UserId -> m [ClientId]
 lookupClientIds u =
   map runIdentity
     <$> retry x1 (query selectClientIds (params LocalQuorum (Identity u)))
 
-lookupUsersClientIds :: MonadClient m => [UserId] -> m [(UserId, Set.Set ClientId)]
+lookupUsersClientIds :: (MonadClient m) => [UserId] -> m [(UserId, Set.Set ClientId)]
 lookupUsersClientIds us =
   liftClient $ pooledMapConcurrentlyN 16 getClientIds us
   where
     getClientIds u = (u,) <$> fmap Set.fromList (lookupClientIds u)
 
-lookupPrekeyIds :: MonadClient m => UserId -> ClientId -> m [PrekeyId]
+lookupPrekeyIds :: (MonadClient m) => UserId -> ClientId -> m [PrekeyId]
 lookupPrekeyIds u c =
   map runIdentity
     <$> retry x1 (query selectPrekeyIds (params LocalQuorum (u, c)))
 
-hasClient :: MonadClient m => UserId -> ClientId -> m Bool
+hasClient :: (MonadClient m) => UserId -> ClientId -> m Bool
 hasClient u d = isJust <$> retry x1 (query1 checkClient (params LocalQuorum (u, d)))
 
 rmClient ::
@@ -255,21 +255,21 @@ rmClient u c = do
   retry x5 $ write removeClientKeys (params LocalQuorum (u, c))
   unlessM (isJust <$> view randomPrekeyLocalLock) $ deleteOptLock u c
 
-updateClientLabel :: MonadClient m => UserId -> ClientId -> Maybe Text -> m ()
+updateClientLabel :: (MonadClient m) => UserId -> ClientId -> Maybe Text -> m ()
 updateClientLabel u c l = retry x5 $ write updateClientLabelQuery (params LocalQuorum (l, u, c))
 
-updateClientCapabilities :: MonadClient m => UserId -> ClientId -> Maybe (Imports.Set ClientCapability) -> m ()
+updateClientCapabilities :: (MonadClient m) => UserId -> ClientId -> Maybe (Imports.Set ClientCapability) -> m ()
 updateClientCapabilities u c fs = retry x5 $ write updateClientCapabilitiesQuery (params LocalQuorum (C.Set . Set.toList <$> fs, u, c))
 
 -- | If the update fails, which can happen if device does not exist, then ignore the error silently.
-updateClientLastActive :: MonadClient m => UserId -> ClientId -> UTCTime -> m ()
+updateClientLastActive :: (MonadClient m) => UserId -> ClientId -> UTCTime -> m ()
 updateClientLastActive u c t =
   void . retry x5 $
     trans
       updateClientLastActiveQuery
       (params LocalQuorum (t, u, c))
 
-updatePrekeys :: MonadClient m => UserId -> ClientId -> [Prekey] -> ExceptT ClientDataError m ()
+updatePrekeys :: (MonadClient m) => UserId -> ClientId -> [Prekey] -> ExceptT ClientDataError m ()
 updatePrekeys u c pks = do
   plain <- mapM (hoistEither . fmapL (const MalformedPrekeys) . B64.decode . toByteString' . prekeyKey) pks
   binary <- liftIO $ zipWithM check pks plain
@@ -319,7 +319,7 @@ claimPrekey u c =
       pure $ Just (ClientPrekey c (Prekey i k))
     removeAndReturnPreKey Nothing = pure Nothing
 
-    pickRandomPrekey :: MonadIO f => [(PrekeyId, Text)] -> f (Maybe (PrekeyId, Text))
+    pickRandomPrekey :: (MonadIO f) => [(PrekeyId, Text)] -> f (Maybe (PrekeyId, Text))
     pickRandomPrekey [] = pure Nothing
     -- unless we only have one key left
     pickRandomPrekey [pk] = pure $ Just pk
@@ -330,7 +330,7 @@ claimPrekey u c =
       pure $ atMay pks' ind
 
 lookupMLSPublicKey ::
-  MonadClient m =>
+  (MonadClient m) =>
   UserId ->
   ClientId ->
   SignatureSchemeTag ->
@@ -339,7 +339,7 @@ lookupMLSPublicKey u c ss =
   (fromBlob . runIdentity) <$$> retry x1 (query1 selectMLSPublicKey (params LocalQuorum (u, c, ss)))
 
 addMLSPublicKeys ::
-  MonadClient m =>
+  (MonadClient m) =>
   UserId ->
   ClientId ->
   [(SignatureSchemeTag, ByteString)] ->
@@ -347,7 +347,7 @@ addMLSPublicKeys ::
 addMLSPublicKeys u c = traverse_ (uncurry (addMLSPublicKey u c))
 
 addMLSPublicKey ::
-  MonadClient m =>
+  (MonadClient m) =>
   UserId ->
   ClientId ->
   SignatureSchemeTag ->
