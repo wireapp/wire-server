@@ -346,7 +346,6 @@ let
               "LOCALE_ARCHIVE=${pkgs.glibcLocales}/lib/locale/locale-archive"
               "LANG=en_GB.UTF-8"
             ];
-            User = "65534";
           };
         }
       )
