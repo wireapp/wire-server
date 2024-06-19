@@ -23,7 +23,7 @@ import Testlib.JSON
 import Testlib.Prelude
 
 -- | Create some teams & users, and return their expected ejpd response values.
-setupEJPD :: HasCallStack => App (A.Value, A.Value, A.Value, A.Value, A.Value)
+setupEJPD :: (HasCallStack) => App (A.Value, A.Value, A.Value, A.Value, A.Value)
 setupEJPD =
   do
     (owner1, tid1, [usr1, usr2]) <- createTeam OwnDomain 3
@@ -128,7 +128,7 @@ setupEJPD =
   where
     -- Return value is a 'EJPDResponseItem'.
     mkUsr ::
-      HasCallStack =>
+      (HasCallStack) =>
       A.Value {- user -} ->
       Maybe String {- handle (in case usr is not up to date, we pass this separately) -} ->
       [String {- push tokens -}] ->
@@ -182,11 +182,11 @@ setupEJPD =
         . (key (fromString "TeamContacts") .~ A.Null)
         . (key (fromString "Conversations") .~ A.Null)
 
-testEJPDRequest :: HasCallStack => App ()
+testEJPDRequest :: (HasCallStack) => App ()
 testEJPDRequest = do
   (usr1, usr2, usr3, usr4, usr5) <- setupEJPD
 
-  let check :: HasCallStack => [A.Value] -> App ()
+  let check :: (HasCallStack) => [A.Value] -> App ()
       check want = do
         let handle = cs . (^?! (key (fromString "Handle") . _String))
         have <- BI.getEJPDInfo OwnDomain (handle <$> want) "include_contacts"
@@ -214,7 +214,7 @@ testEJPDRequest = do
   check [usr3]
   check [usr4, usr5]
 
-testEJPDRequestRemote :: HasCallStack => App ()
+testEJPDRequestRemote :: (HasCallStack) => App ()
 testEJPDRequestRemote = do
   usrRemote <- randomUser OtherDomain def {BI.email = Nothing, BI.name = Just "usrRemote"}
   handleRemote <- liftIO $ UUID.nextRandom <&> UUID.toString

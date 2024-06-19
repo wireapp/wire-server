@@ -45,7 +45,7 @@ import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Serialisation
 
 insertKeyPackages ::
-  MonadClient m =>
+  (MonadClient m) =>
   UserId ->
   ClientId ->
   [(KeyPackageRef, CipherSuiteTag, KeyPackageData)] ->
@@ -134,7 +134,7 @@ countKeyPackages ::
   m Int64
 countKeyPackages u c suite = fromIntegral . length <$> getNonClaimedKeyPackages u c suite
 
-deleteKeyPackages :: MonadClient m => UserId -> ClientId -> CipherSuiteTag -> [KeyPackageRef] -> m ()
+deleteKeyPackages :: (MonadClient m) => UserId -> ClientId -> CipherSuiteTag -> [KeyPackageRef] -> m ()
 deleteKeyPackages u c suite refs =
   retry x5 $
     write

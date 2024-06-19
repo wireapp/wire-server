@@ -267,7 +267,7 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite epoch action com
     pure events
 
 addMembers ::
-  HasProposalActionEffects r =>
+  (HasProposalActionEffects r) =>
   Qualified UserId ->
   Maybe ConnId ->
   Local ConvOrSubConv ->
@@ -291,7 +291,7 @@ addMembers qusr con lConvOrSub users = case tUnqualified lConvOrSub of
   SubConv _ _ -> pure []
 
 removeMembers ::
-  HasProposalActionEffects r =>
+  (HasProposalActionEffects r) =>
   Qualified UserId ->
   Maybe ConnId ->
   Local ConvOrSubConv ->
@@ -313,7 +313,7 @@ removeMembers qusr con lConvOrSub users = case tUnqualified lConvOrSub of
       $ users
   SubConv _ _ -> pure []
 
-handleNoChanges :: Monoid a => Sem (Error NoChanges ': r) a -> Sem r a
+handleNoChanges :: (Monoid a) => Sem (Error NoChanges ': r) a -> Sem r a
 handleNoChanges = fmap fold . runError
 
 existingLocalMembers :: Local Data.Conversation -> Set (Qualified UserId)

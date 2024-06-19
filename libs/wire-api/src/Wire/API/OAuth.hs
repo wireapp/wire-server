@@ -19,7 +19,6 @@ module Wire.API.OAuth where
 
 import Cassandra hiding (Set)
 import Control.Lens (preview, view, (%~), (?~))
-import Control.Monad.Except
 import Crypto.Hash as Crypto
 import Crypto.JWT hiding (Context, params, uri, verify)
 import Data.Aeson.KeyMap qualified as M
@@ -110,8 +109,10 @@ instance ToSchema OAuthClientConfig where
   schema =
     object "OAuthClientConfig" $
       OAuthClientConfig
-        <$> applicationName .= fieldWithDocModifier "application_name" applicationNameDescription schema
-        <*> (.redirectUrl) .= fieldWithDocModifier "redirect_url" redirectUrlDescription schema
+        <$> applicationName
+          .= fieldWithDocModifier "application_name" applicationNameDescription schema
+        <*> (.redirectUrl)
+          .= fieldWithDocModifier "redirect_url" redirectUrlDescription schema
     where
       applicationNameDescription = description ?~ "The name of the application. This will be shown to the user when they are asked to authorize the application. The name must be between " <> minL <> " and " <> maxL <> " characters long."
       redirectUrlDescription = description ?~ "The URL to redirect to after the user has authorized the application."
@@ -147,8 +148,10 @@ instance ToSchema OAuthClientCredentials where
   schema =
     object "OAuthClientCredentials" $
       OAuthClientCredentials
-        <$> (.clientId) .= fieldWithDocModifier "client_id" clientIdDescription schema
-        <*> (.clientSecret) .= fieldWithDocModifier "client_secret" clientSecretDescription schema
+        <$> (.clientId)
+          .= fieldWithDocModifier "client_id" clientIdDescription schema
+        <*> (.clientSecret)
+          .= fieldWithDocModifier "client_secret" clientSecretDescription schema
     where
       clientIdDescription = description ?~ "The ID of the application."
       clientSecretDescription = description ?~ "The secret of the application."
@@ -166,9 +169,12 @@ instance ToSchema OAuthClient where
   schema =
     object "OAuthClient" $
       OAuthClient
-        <$> (.clientId) .= field "client_id" schema
-        <*> (.name) .= field "application_name" schema
-        <*> (.redirectUrl) .= field "redirect_url" schema
+        <$> (.clientId)
+          .= field "client_id" schema
+        <*> (.name)
+          .= field "application_name" schema
+        <*> (.redirectUrl)
+          .= field "redirect_url" schema
 
 data OAuthResponseType = OAuthResponseTypeCode
   deriving (Eq, Show, Generic)
@@ -244,7 +250,8 @@ instance ToSchema OAuthScopes where
       oauthScopeParser :: Text -> A.Parser (Set OAuthScope)
       oauthScopeParser scope =
         pure $
-          (not . T.null) `filter` T.splitOn " " scope
+          (not . T.null)
+            `filter` T.splitOn " " scope
             & maybe Set.empty Set.fromList
               . mapM (fromByteString' . fromStrict . TE.encodeUtf8)
 
@@ -321,13 +328,20 @@ instance ToSchema CreateOAuthAuthorizationCodeRequest where
   schema =
     object "CreateOAuthAuthorizationCodeRequest" $
       CreateOAuthAuthorizationCodeRequest
-        <$> (.clientId) .= fieldWithDocModifier "client_id" clientIdDescription schema
-        <*> (.scope) .= fieldWithDocModifier "scope" scopeDescription schema
-        <*> (.responseType) .= fieldWithDocModifier "response_type" responseTypeDescription schema
-        <*> (.redirectUri) .= fieldWithDocModifier "redirect_uri" redirectUriDescription schema
-        <*> (.state) .= fieldWithDocModifier "state" stateDescription schema
-        <*> (.codeChallengeMethod) .= fieldWithDocModifier "code_challenge_method" codeChallengeMethodDescription schema
-        <*> (.codeChallenge) .= fieldWithDocModifier "code_challenge" codeChallengeDescription schema
+        <$> (.clientId)
+          .= fieldWithDocModifier "client_id" clientIdDescription schema
+        <*> (.scope)
+          .= fieldWithDocModifier "scope" scopeDescription schema
+        <*> (.responseType)
+          .= fieldWithDocModifier "response_type" responseTypeDescription schema
+        <*> (.redirectUri)
+          .= fieldWithDocModifier "redirect_uri" redirectUriDescription schema
+        <*> (.state)
+          .= fieldWithDocModifier "state" stateDescription schema
+        <*> (.codeChallengeMethod)
+          .= fieldWithDocModifier "code_challenge_method" codeChallengeMethodDescription schema
+        <*> (.codeChallenge)
+          .= fieldWithDocModifier "code_challenge" codeChallengeDescription schema
     where
       clientIdDescription = description ?~ "The ID of the OAuth client"
       scopeDescription = description ?~ "The scopes which are requested to get authorization for, separated by a space"
@@ -405,11 +419,16 @@ instance ToSchema OAuthAccessTokenRequest where
   schema =
     object "OAuthAccessTokenRequest" $
       OAuthAccessTokenRequest
-        <$> (.grantType) .= fieldWithDocModifier "grant_type" grantTypeDescription schema
-        <*> (.clientId) .= fieldWithDocModifier "client_id" clientIdDescription schema
-        <*> (.codeVerifier) .= fieldWithDocModifier "code_verifier" codeVerifierDescription schema
-        <*> (.code) .= fieldWithDocModifier "code" codeDescription schema
-        <*> (.redirectUri) .= fieldWithDocModifier "redirect_uri" redirectUrlDescription schema
+        <$> (.grantType)
+          .= fieldWithDocModifier "grant_type" grantTypeDescription schema
+        <*> (.clientId)
+          .= fieldWithDocModifier "client_id" clientIdDescription schema
+        <*> (.codeVerifier)
+          .= fieldWithDocModifier "code_verifier" codeVerifierDescription schema
+        <*> (.code)
+          .= fieldWithDocModifier "code" codeDescription schema
+        <*> (.redirectUri)
+          .= fieldWithDocModifier "redirect_uri" redirectUrlDescription schema
     where
       grantTypeDescription = description ?~ "Indicates which authorization flow to use. Use `authorization_code` for authorization code flow."
       clientIdDescription = description ?~ "The ID of the OAuth client"
@@ -499,10 +518,14 @@ instance ToSchema OAuthAccessTokenResponse where
   schema =
     object "OAuthAccessTokenResponse" $
       OAuthAccessTokenResponse
-        <$> accessToken .= fieldWithDocModifier "access_token" accessTokenDescription schema
-        <*> tokenType .= fieldWithDocModifier "token_type" tokenTypeDescription schema
-        <*> expiresIn .= fieldWithDocModifier "expires_in" expiresInDescription (fromIntegral <$> roundDiffTime .= schema)
-        <*> (.refreshToken) .= fieldWithDocModifier "refresh_token" refreshTokenDescription schema
+        <$> accessToken
+          .= fieldWithDocModifier "access_token" accessTokenDescription schema
+        <*> tokenType
+          .= fieldWithDocModifier "token_type" tokenTypeDescription schema
+        <*> expiresIn
+          .= fieldWithDocModifier "expires_in" expiresInDescription (fromIntegral <$> roundDiffTime .= schema)
+        <*> (.refreshToken)
+          .= fieldWithDocModifier "refresh_token" refreshTokenDescription schema
     where
       roundDiffTime :: NominalDiffTime -> Int32
       roundDiffTime = round
@@ -521,7 +544,8 @@ instance A.FromJSON OAuthClaimsSet where
   parseJSON = A.withObject "OAuthClaimsSet" $ \o ->
     OAuthClaimsSet
       <$> A.parseJSON (A.Object o)
-      <*> o A..: "scope"
+      <*> o
+        A..: "scope"
 
 instance A.ToJSON OAuthClaimsSet where
   toJSON s =
@@ -530,11 +554,12 @@ instance A.ToJSON OAuthClaimsSet where
       ins k v (A.Object o) = A.Object $ M.insert k (A.toJSON v) o
       ins _ _ a = a
 
-hcsSub :: HasClaimsSet hcs => hcs -> Maybe (Id a)
+hcsSub :: (HasClaimsSet hcs) => hcs -> Maybe (Id a)
 hcsSub =
   view claimSub
     >=> preview string
-    >=> either (const Nothing) pure . parseIdFromText
+    >=> either (const Nothing) pure
+    . parseIdFromText
 
 -- | Verify a JWT and return the claims set. Use this function if you have a custom claims set.
 verify :: JWK -> SignedJWT -> IO (Either JWTError OAuthClaimsSet)
@@ -570,9 +595,12 @@ instance ToSchema OAuthRefreshAccessTokenRequest where
   schema =
     object "OAuthRefreshAccessTokenRequest" $
       OAuthRefreshAccessTokenRequest
-        <$> (.grantType) .= fieldWithDocModifier "grant_type" grantTypeDescription schema
-        <*> (.clientId) .= fieldWithDocModifier "client_id" clientIdDescription schema
-        <*> (.refreshToken) .= fieldWithDocModifier "refresh_token" refreshTokenDescription schema
+        <$> (.grantType)
+          .= fieldWithDocModifier "grant_type" grantTypeDescription schema
+        <*> (.clientId)
+          .= fieldWithDocModifier "client_id" clientIdDescription schema
+        <*> (.refreshToken)
+          .= fieldWithDocModifier "refresh_token" refreshTokenDescription schema
     where
       grantTypeDescription = description ?~ "The grant type. Must be `refresh_token`"
       clientIdDescription = description ?~ "The OAuth client's ID"
@@ -614,8 +642,10 @@ instance ToSchema OAuthRevokeRefreshTokenRequest where
   schema =
     object "OAuthRevokeRefreshTokenRequest" $
       OAuthRevokeRefreshTokenRequest
-        <$> (.clientId) .= fieldWithDocModifier "client_id" clientIdDescription schema
-        <*> (.refreshToken) .= fieldWithDocModifier "refresh_token" refreshTokenDescription schema
+        <$> (.clientId)
+          .= fieldWithDocModifier "client_id" clientIdDescription schema
+        <*> (.refreshToken)
+          .= fieldWithDocModifier "refresh_token" refreshTokenDescription schema
     where
       clientIdDescription = description ?~ "The OAuth client's ID"
       refreshTokenDescription = description ?~ "The refresh token"
@@ -632,8 +662,10 @@ instance ToSchema OAuthApplication where
   schema =
     object "OAuthApplication" $
       OAuthApplication
-        <$> applicationId .= fieldWithDocModifier "id" idDescription schema
-        <*> (.name) .= fieldWithDocModifier "name" nameDescription schema
+        <$> applicationId
+          .= fieldWithDocModifier "id" idDescription schema
+        <*> (.name)
+          .= fieldWithDocModifier "name" nameDescription schema
     where
       idDescription = description ?~ "The OAuth client's ID"
       nameDescription = description ?~ "The OAuth client's name"
@@ -701,9 +733,11 @@ instance Cql OAuthScope where
   ctype = Tagged TextColumn
   toCql = CqlText . TE.decodeUtf8With lenientDecode . toByteString'
   fromCql (CqlText t) =
-    maybe (Left "invalid oauth scope") Right $
-      fromByteString' . fromStrict . TE.encodeUtf8 $
-        t
+    maybe (Left "invalid oauth scope") Right
+      $ fromByteString'
+        . fromStrict
+        . TE.encodeUtf8
+      $ t
   fromCql _ = Left "OAuthScope: Text expected"
 
 instance Cql OAuthCodeChallenge where

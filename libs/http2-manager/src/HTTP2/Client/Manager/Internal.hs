@@ -445,12 +445,13 @@ allocHTTP2Config (SecureTransport ssl) = do
         chunk <- SSL.read ssl n `catch` \(_ :: SSL.ConnectionAbruptlyTerminated) -> pure mempty
         let chunkLen = BS.length chunk
         if
-            | chunkLen == 0 || chunkLen == n ->
-                pure (acc <> chunk)
-            | chunkLen > n ->
-                error "openssl: SSL.read returned more bytes than asked for, this is probably a bug"
-            | otherwise ->
-                readData (acc <> chunk) (n - chunkLen)
+          | chunkLen == 0 || chunkLen == n ->
+              pure (acc <> chunk)
+          | chunkLen > n ->
+              error "openssl: SSL.read returned more bytes than asked for, this is probably a bug"
+          | otherwise ->
+              readData (acc <> chunk) (n - chunkLen)
+
   pure
     HTTP2.Config
       { HTTP2.confWriteBuffer = buf,

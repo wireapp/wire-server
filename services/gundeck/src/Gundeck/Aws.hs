@@ -216,7 +216,7 @@ mkEnv lgr opts mgr = do
         (pure . QueueUrl . view SQS.getQueueUrlResponse_queueUrl)
         x
 
-execute :: MonadIO m => Env -> Amazon a -> m a
+execute :: (MonadIO m) => Env -> Amazon a -> m a
 execute e m = liftIO $ runResourceT (runReaderT (unAmazon m) e)
 
 --------------------------------------------------------------------------------
@@ -479,8 +479,10 @@ listen throttleMillis callback = do
           err . msg $ val "Failed to parse SQS event notification"
         Just e -> do
           info $
-            "sqs-event" .= toText (e ^. evType)
-              ~~ "arn" .= toText (e ^. evEndpoint)
+            "sqs-event"
+              .= toText (e ^. evType)
+              ~~ "arn"
+              .= toText (e ^. evEndpoint)
               ~~ msg (val "Received SQS event")
           liftIO $ callback e
           for_ (m ^. message_receiptHandle) (void . send awsE . SQS.newDeleteMessage url)

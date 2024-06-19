@@ -38,10 +38,10 @@ data Queue a = Queue
     _queue :: Stm.TBQueue a
   }
 
-new :: MonadIO m => Natural -> m (Queue a)
+new :: (MonadIO m) => Natural -> m (Queue a)
 new n = liftIO $ Queue <$> Stm.newTVarIO 0 <*> Stm.newTBQueueIO n
 
-tryPush :: MonadIO m => Queue a -> a -> m Bool
+tryPush :: (MonadIO m) => Queue a -> a -> m Bool
 tryPush q a = liftIO . atomically $ do
   isFull <- Stm.isFullTBQueue (_queue q)
   unless isFull $ do
@@ -49,16 +49,16 @@ tryPush q a = liftIO . atomically $ do
     Stm.writeTBQueue (_queue q) a
   pure (not isFull)
 
-pop :: MonadIO m => Queue a -> m a
+pop :: (MonadIO m) => Queue a -> m a
 pop q = liftIO . atomically $ do
   Stm.modifyTVar' (_len q) (pred . max 1)
   Stm.readTBQueue (_queue q)
 
-len :: MonadIO m => Queue a -> m Word
+len :: (MonadIO m) => Queue a -> m Word
 len q = liftIO $ Stm.readTVarIO (_len q)
 
 interpretQueue ::
-  Member (Embed IO) r =>
+  (Member (Embed IO) r) =>
   Queue a ->
   Sem (E.Queue a ': r) x ->
   Sem r x

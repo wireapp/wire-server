@@ -34,7 +34,7 @@ import Wire.Sem.Now (Now, boolTTL)
 import qualified Wire.Sem.Now as Now
 
 verdictFormatStoreToMem ::
-  Member Now r =>
+  (Member Now r) =>
   Sem (VerdictFormatStore ': r) a ->
   Sem r (Map AReqId (SAML.Time, VerdictFormat), a)
 verdictFormatStoreToMem =

@@ -37,10 +37,10 @@ keyPairToString :: RSAKeyPair -> (String, String)
 keyPairToString = bimap publicKeyToString privateKeyToString
 
 -- | the minimum key size is hard coded to be 256 bytes (= 2048 bits)
-mkKeyPair :: HasCallStack => (Integer, Integer) -> App RSAKeyPair
+mkKeyPair :: (HasCallStack) => (Integer, Integer) -> App RSAKeyPair
 mkKeyPair primes =
-  assertJust "key generation failed" $
-    RSA.generateWith
+  assertJust "key generation failed"
+    $ RSA.generateWith
       primes
       2048
       65537
@@ -59,7 +59,7 @@ primesB =
 
 -- | create a root certificate authority CertificateBundle
 createRootCA ::
-  HasCallStack =>
+  (HasCallStack) =>
   -- | the root CA's name
   String ->
   -- | the root CA's keymaterial
@@ -74,7 +74,7 @@ createRootCA caName (pubKey, privKey) =
 
 -- | sign an intermediate/ leaf certificate by signing with an intermediate/ root CA's key
 intermediateCert ::
-  HasCallStack =>
+  (HasCallStack) =>
   -- | name of the owner of the certificate
   String ->
   -- | the public key of the owner
@@ -93,7 +93,7 @@ intermediateCert intermediateCaName pubKey rootCaName rootKey =
 
 -- | self sign a certificate
 selfSignedCert ::
-  HasCallStack =>
+  (HasCallStack) =>
   -- | name of the owner
   String ->
   -- | key material of the owner
@@ -106,12 +106,12 @@ selfSignedCert ownerName (pubKey, privKey) =
     ownerName
     ownerName
 
-signMsgWithPrivateKey :: HasCallStack => RSA.PrivateKey -> ByteString -> ByteString
+signMsgWithPrivateKey :: (HasCallStack) => RSA.PrivateKey -> ByteString -> ByteString
 signMsgWithPrivateKey privKey = fromRight (error "signing unsuccessful") . PKCS15.sign Nothing (Just SHA256) privKey
 
 -- | create a signed certificate
 mkSignedCert ::
-  HasCallStack =>
+  (HasCallStack) =>
   -- | public key of the *owner*
   RSA.PublicKey ->
   -- | private key of *signatory*
@@ -127,8 +127,8 @@ mkSignedCert pubKey privKey caName ownerName =
           [ (getObjectID DnCommonName, fromString $ name),
             (getObjectID DnCountry, fromString "DE")
           ]
-   in fst $
-        objectToSignedExact
+   in fst
+        $ objectToSignedExact
           (\msg -> (signMsgWithPrivateKey privKey msg, SignatureALG HashSHA256 PubKeyALG_RSA, ()))
           Certificate
             { certVersion = 3,

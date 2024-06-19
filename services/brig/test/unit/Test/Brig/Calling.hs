@@ -64,7 +64,7 @@ newFakeDNSEnv :: (Domain -> SrvResponse) -> IO FakeDNSEnv
 newFakeDNSEnv lookupSrvFn =
   FakeDNSEnv lookupSrvFn <$> newIORef []
 
-runFakeDNSLookup :: Member (Embed IO) r => FakeDNSEnv -> Sem (DNSLookup ': r) a -> Sem r a
+runFakeDNSLookup :: (Member (Embed IO) r) => FakeDNSEnv -> Sem (DNSLookup ': r) a -> Sem r a
 runFakeDNSLookup FakeDNSEnv {..} = interpret $
   \(LookupSRV domain) -> do
     modifyIORef' fakeLookupSrvCalls (++ [domain])

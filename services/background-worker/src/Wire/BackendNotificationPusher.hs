@@ -40,7 +40,7 @@ startPushingNotifications runningFlag chan domain = do
   lift $ ensureQueue chan domain._domainText
   QL.consumeMsgs chan (routingKey domain._domainText) Q.Ack (void . pushNotification runningFlag domain)
 
-pushNotification :: RabbitMQEnvelope e => MVar () -> Domain -> (Q.Message, e) -> AppT IO (Async ())
+pushNotification :: (RabbitMQEnvelope e) => MVar () -> Domain -> (Q.Message, e) -> AppT IO (Async ())
 pushNotification runningFlag targetDomain (msg, envelope) = do
   cfg <- asks (.backendNotificationsConfig)
   -- Jittered exponential backoff with 10ms as starting delay and 300s as max
@@ -191,7 +191,7 @@ sendNotificationIgnoringVersionMismatch env comp path body =
     Right () -> pure ()
 
 -- | Find the pair that maximises b.
-pairedMaximumOn :: Ord b => (a -> b) -> [a] -> (a, b)
+pairedMaximumOn :: (Ord b) => (a -> b) -> [a] -> (a, b)
 pairedMaximumOn f = maximumBy (compare `on` snd) . map (id &&& f)
 
 -- FUTUREWORK: Recosider using 1 channel for many consumers. It shouldn't matter

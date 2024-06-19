@@ -58,7 +58,7 @@ newtype BudgetKey = BudgetKey Text
 --
 -- FUTUREWORK: exceptions are not handled very nicely, but it's not clear what it would mean
 -- to improve this.
-withBudget :: MonadClient m => BudgetKey -> Budget -> m a -> m (Budgeted a)
+withBudget :: (MonadClient m) => BudgetKey -> Budget -> m a -> m (Budgeted a)
 withBudget k b ma = do
   Budget ttl val <- fromMaybe b <$> lookupBudget k
   let remaining = val - 1
@@ -70,7 +70,7 @@ withBudget k b ma = do
       pure (BudgetedValue a remaining)
 
 -- | Like 'withBudget', but does not decrease budget, only takes a look.
-checkBudget :: MonadClient m => BudgetKey -> Budget -> m (Budgeted ())
+checkBudget :: (MonadClient m) => BudgetKey -> Budget -> m (Budgeted ())
 checkBudget k b = do
   Budget ttl val <- fromMaybe b <$> lookupBudget k
   let remaining = val - 1
@@ -79,12 +79,12 @@ checkBudget k b = do
       then BudgetExhausted ttl
       else BudgetedValue () remaining
 
-lookupBudget :: MonadClient m => BudgetKey -> m (Maybe Budget)
+lookupBudget :: (MonadClient m) => BudgetKey -> m (Maybe Budget)
 lookupBudget k = fmap mk <$> query1 budgetSelect (params One (Identity k))
   where
     mk (val, ttl) = Budget (fromIntegral ttl) val
 
-insertBudget :: MonadClient m => BudgetKey -> Budget -> m ()
+insertBudget :: (MonadClient m) => BudgetKey -> Budget -> m ()
 insertBudget k (Budget ttl val) =
   retry x5 $ write budgetInsert (params One (k, val, round ttl))
 

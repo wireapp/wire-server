@@ -130,7 +130,7 @@ data BrigAccess m a where
 
 makeSem ''BrigAccess
 
-getUser :: Member BrigAccess r => UserId -> Sem r (Maybe UserAccount)
+getUser :: (Member BrigAccess r) => UserId -> Sem r (Maybe UserAccount)
 getUser = fmap listToMaybe . getUsers . pure
 
 addLegalHoldClientToUser ::

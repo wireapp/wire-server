@@ -168,11 +168,16 @@ instance FromJSON ScimTokenInfo where
 instance ToJSON ScimTokenInfo where
   toJSON s =
     A.object $
-      "team" A..= stiTeam s
-        # "id" A..= stiId s
-        # "created_at" A..= stiCreatedAt s
-        # "idp" A..= stiIdP s
-        # "description" A..= stiDescr s
+      "team"
+        A..= stiTeam s
+        # "id"
+        A..= stiId s
+        # "created_at"
+        A..= stiCreatedAt s
+        # "idp"
+        A..= stiIdP s
+        # "description"
+        A..= stiDescr s
         # []
 
 ----------------------------------------------------------------------------

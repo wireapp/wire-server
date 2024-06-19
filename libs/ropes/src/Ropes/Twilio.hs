@@ -153,7 +153,7 @@ instance FromJSON PhoneType where
 
 -- * Functions
 
-tryTwilio :: MonadIO m => IO a -> ExceptT ErrorResponse m a
+tryTwilio :: (MonadIO m) => IO a -> ExceptT ErrorResponse m a
 tryTwilio = ExceptT . liftIO . try
 
 sendMessage :: Credentials -> Manager -> Message -> IO MessageId

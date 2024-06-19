@@ -103,7 +103,7 @@ filterCalls fedCall =
     <*> fmap pure (method fedCall)
     <*> pure (fedCalls fedCall)
 
-parse :: HasFeds api => Proxy api -> [MakesCallTo]
+parse :: (HasFeds api) => Proxy api -> [MakesCallTo]
 parse p = do
   fedCallM <- evalState (getFedCalls p) mempty
   fedCallI <- maybeToList $ filterCalls fedCallM

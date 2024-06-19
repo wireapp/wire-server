@@ -89,7 +89,7 @@ deriving instance MonadUnliftIO App
 
 type App = AppT IO
 
-instance MonadIO m => MonadLogger (AppT m) where
+instance (MonadIO m) => MonadLogger (AppT m) where
   log l m = do
     g <- view applog
     r <- view requestId
@@ -98,12 +98,12 @@ instance MonadIO m => MonadLogger (AppT m) where
 instance MonadLogger (ExceptT e App) where
   log l m = lift (LC.log l m)
 
-instance MonadIO m => Bilge.MonadHttp (AppT m) where
+instance (MonadIO m) => Bilge.MonadHttp (AppT m) where
   handleRequestWithCont req h = do
     m <- view httpManager
     liftIO $ Bilge.withResponse req m h
 
-instance Monad m => HasRequestId (AppT m) where
+instance (Monad m) => HasRequestId (AppT m) where
   getRequestId = view requestId
 
 instance HasRequestId (ExceptT e App) where

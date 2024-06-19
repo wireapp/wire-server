@@ -13,7 +13,7 @@ import Wire.StoredUser
 import Wire.UserStore
 import Wire.UserStore.Unique
 
-interpretUserStoreCassandra :: Member (Embed IO) r => ClientState -> InterpreterFor UserStore r
+interpretUserStoreCassandra :: (Member (Embed IO) r) => ClientState -> InterpreterFor UserStore r
 interpretUserStoreCassandra casClient =
   interpret $
     runEmbedded (runClient casClient) . \case
@@ -24,7 +24,7 @@ interpretUserStoreCassandra casClient =
       LookupHandle hdl -> embed $ lookupHandleImpl LocalQuorum hdl
       GlimpseHandle hdl -> embed $ lookupHandleImpl One hdl
 
-getUserImpl :: Member (Embed Client) r => UserId -> Sem r (Maybe StoredUser)
+getUserImpl :: (Member (Embed Client) r) => UserId -> Sem r (Maybe StoredUser)
 getUserImpl uid = embed $ do
   mUserTuple <- retry x1 $ query1 selectUser (params LocalQuorum (Identity uid))
   pure $ asRecord <$> mUserTuple

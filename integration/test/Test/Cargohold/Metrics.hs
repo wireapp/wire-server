@@ -20,7 +20,7 @@ module Test.Cargohold.Metrics where
 import Data.String.Conversions
 import Testlib.Prelude
 
-testPrometheusMetrics :: HasCallStack => App ()
+testPrometheusMetrics :: (HasCallStack) => App ()
 testPrometheusMetrics = do
   req <- baseRequest OwnDomain Cargohold Unversioned "i/metrics"
   resp <- submit "GET" req

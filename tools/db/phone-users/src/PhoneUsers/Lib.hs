@@ -62,16 +62,16 @@ getConferenceCalling client tid = do
 
 process :: Log.Logger -> Maybe Int -> ClientState -> ClientState -> IO Result
 process logger limit brigClient galleyClient =
-  runConduit $
-    readUsers brigClient
-      -- .| Conduit.mapM (\chunk -> SIO.hPutStr stderr "." $> chunk)
-      .| Conduit.concat
-      .| (maybe (Conduit.filter (const True)) Conduit.take limit)
-      .| Conduit.mapM (getUserInfo logger brigClient galleyClient)
-      .| forever (CL.isolate 10000 .| (Conduit.foldMap infoToResult >>= yield))
-      .| Conduit.takeWhile ((> 0) . usersSearched)
-      .| CL.scan (<>) mempty
-        `fuseUpstream` Conduit.mapM_ (\r -> Log.info logger $ "intermediate_result" .= show r)
+  runConduit
+    $ readUsers brigClient
+    -- .| Conduit.mapM (\chunk -> SIO.hPutStr stderr "." $> chunk)
+    .| Conduit.concat
+    .| (maybe (Conduit.filter (const True)) Conduit.take limit)
+    .| Conduit.mapM (getUserInfo logger brigClient galleyClient)
+    .| forever (CL.isolate 10000 .| (Conduit.foldMap infoToResult >>= yield))
+    .| Conduit.takeWhile ((> 0) . usersSearched)
+    .| CL.scan (<>) mempty
+      `fuseUpstream` Conduit.mapM_ (\r -> Log.info logger $ "intermediate_result" .= show r)
 
 getUserInfo :: Log.Logger -> ClientState -> ClientState -> UserRow -> IO UserInfo
 getUserInfo logger brigClient galleyClient ur = do
@@ -95,15 +95,16 @@ getUserInfo logger brigClient galleyClient ur = do
               Nothing -> pure ActivePersonalUser
               Just tid -> do
                 isPaying <- isPayingTeam galleyClient tid
-                pure $
-                  if isPaying
+                pure
+                  $ if isPaying
                     then ActiveTeamUser Free
                     else ActiveTeamUser Paid
-            Log.info logger $
-              "active_phone_user" .= show apu
-                ~~ "user_record" .= show ur
-                ~~ "last_active_timestamps" .= show lastActiveTimeStamps
-                ~~ Log.msg (Log.val "active phone user found")
+            Log.info logger
+              $ "active_phone_user"
+              .= show apu
+              ~~ "user_record" .= show ur
+              ~~ "last_active_timestamps" .= show lastActiveTimeStamps
+              ~~ Log.msg (Log.val "active phone user found")
             pure apu
           else pure InactiveLast90Days
       pure $ PhoneUser userInfo

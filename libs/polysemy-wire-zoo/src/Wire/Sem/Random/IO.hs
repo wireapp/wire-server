@@ -28,7 +28,7 @@ import Polysemy
 import Wire.Sem.Random (Random (..))
 
 randomToIO ::
-  Member (Embed IO) r =>
+  (Member (Embed IO) r) =>
   Sem (Random ': r) a ->
   Sem r a
 randomToIO = interpret $ \case

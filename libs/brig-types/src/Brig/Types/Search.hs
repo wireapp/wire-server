@@ -75,8 +75,10 @@ instance ToByteString SearchVisibilityInbound where
 
 instance FromByteString SearchVisibilityInbound where
   parser =
-    SearchableByOwnTeam <$ string "searchable-by-own-team"
-      <|> SearchableByAllTeams <$ string "searchable-by-all-teams"
+    SearchableByOwnTeam
+      <$ string "searchable-by-own-team"
+        <|> SearchableByAllTeams
+      <$ string "searchable-by-all-teams"
 
 instance C.Cql SearchVisibilityInbound where
   ctype = C.Tagged C.IntColumn

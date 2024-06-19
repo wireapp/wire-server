@@ -118,7 +118,7 @@ remoteMLSOne2OneConversation lself rother rc =
 -- | Create a new record for an MLS 1-1 conversation in the database and add
 -- the two members to it.
 createMLSOne2OneConversation ::
-  Member ConversationStore r =>
+  (Member ConversationStore r) =>
   Qualified UserId ->
   Qualified UserId ->
   Local MLSConversation ->

@@ -233,7 +233,7 @@ instance FromByteString (Token LegalHoldUser) where
         Nothing -> fail "Invalid user token"
         Just t -> pure t
 
-instance ToByteString a => ToByteString (Token a) where
+instance (ToByteString a) => ToByteString (Token a) where
   builder = writeToken
 
 -----------------------------------------------------------------------------
@@ -331,13 +331,13 @@ readLegalHoldUserBody t = LegalHoldUser <$> readUserBody t
 -----------------------------------------------------------------------------
 -- Writing
 
-writeToken :: ToByteString a => Token a -> Builder
+writeToken :: (ToByteString a) => Token a -> Builder
 writeToken t =
   byteString (encode (sigBytes (t ^. signature)))
     <> dot
     <> writeData (t ^. header) (t ^. body)
 
-writeData :: ToByteString a => Header -> a -> Builder
+writeData :: (ToByteString a) => Header -> a -> Builder
 writeData h a = writeHeader h <> dot <> builder a
 
 writeHeader :: Header -> Builder
@@ -402,7 +402,7 @@ instance ToByteString Type where
 instance ToByteString Tag where
   builder S = char8 's'
 
-field :: ToByteString a => LByteString -> a -> Builder
+field :: (ToByteString a) => LByteString -> a -> Builder
 field k v = builder k <> eq <> builder v
 
 dot, eq :: Builder

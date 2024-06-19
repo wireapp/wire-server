@@ -32,7 +32,7 @@ import Web.Scim.Schema.User (NoUserExtra)
 import Web.Scim.Schema.UserTypes (UserTypes (supportedSchemas))
 import Web.Scim.Test.Util (TestTag)
 
-prop_roundtrip :: forall tag. UserTypes tag => Property
+prop_roundtrip :: forall tag. (UserTypes tag) => Property
 prop_roundtrip = property $ do
   x <- forAll $ genFilter @tag
   tripping x renderFilter $ parseFilter (supportedSchemas @tag)
@@ -45,7 +45,7 @@ spec = do
 ----------------------------------------------------------------------------
 -- Generators
 
-genValuePath :: forall tag. UserTypes tag => Gen ValuePath
+genValuePath :: forall tag. (UserTypes tag) => Gen ValuePath
 genValuePath = ValuePath <$> genAttrPath @tag <*> genFilter @tag
 
 genCompValue :: Gen CompValue
@@ -72,16 +72,16 @@ genSubAttr = SubAttr <$> genAttrName
 -- FUTUREWORK: we also may want to factor a bounded enum type out of the 'Schema' type for
 -- this: @data Schema = Buitin BuitinSchema | Custom Text; data BuiltinSchema = ... deriving
 -- (Bounded, Enum, ...)@
-genSchema :: forall tag. UserTypes tag => Gen Schema
+genSchema :: forall tag. (UserTypes tag) => Gen Schema
 genSchema = Gen.element (supportedSchemas @tag)
 
-genAttrPath :: forall tag. UserTypes tag => Gen AttrPath
+genAttrPath :: forall tag. (UserTypes tag) => Gen AttrPath
 genAttrPath = AttrPath <$> Gen.maybe (genSchema @tag) <*> genAttrName <*> Gen.maybe genSubAttr
 
 genAttrName :: Gen AttrName
 genAttrName = AttrName <$> (cons <$> Gen.alpha <*> Gen.text (Range.constant 0 50) (Gen.choice [Gen.alphaNum, Gen.constant '-', Gen.constant '_']))
 
-genFilter :: forall tag. UserTypes tag => Gen Filter
+genFilter :: forall tag. (UserTypes tag) => Gen Filter
 genFilter =
   Gen.choice
     [ FilterAttrCompare <$> (genAttrPath @tag) <*> genCompareOp <*> genCompValue

@@ -77,6 +77,7 @@
 , saml2-web-sso
 , schema-profunctor
 , scientific
+, semigroupoids
 , servant
 , servant-client
 , servant-client-core
@@ -182,6 +183,7 @@ mkDerivation {
     saml2-web-sso
     schema-profunctor
     scientific
+    semigroupoids
     servant
     servant-client
     servant-client-core

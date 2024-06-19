@@ -46,8 +46,8 @@ instance Accept SCIM where
            "application" // "json"
          ]
 
-instance ToJSON a => MimeRender SCIM a where
+instance (ToJSON a) => MimeRender SCIM a where
   mimeRender _ = mimeRender (Proxy @JSON)
 
-instance FromJSON a => MimeUnrender SCIM a where
+instance (FromJSON a) => MimeUnrender SCIM a where
   mimeUnrender _ = mimeUnrender (Proxy @JSON)

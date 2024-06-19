@@ -123,7 +123,7 @@ tkn xs f = fromMaybe (error "Failed to read token") . f $ headDef "missing token
 uuid :: ByteString -> UUID
 uuid s = fromMaybe (error $ "Invalid UUID: " ++ show s) $ fromASCIIBytes s
 
-check' :: ToByteString a => ByteString -> Token a -> IO ()
+check' :: (ToByteString a) => ByteString -> Token a -> IO ()
 check' k t = exceptT (\e -> putStrLn e >> exitFailure) (const $ pure ()) $ do
   p <- hoistEither $ PublicKey <$> decode k
   e <- liftIO $ runValidate (V.mkEnv p (replicate (t ^. header . key) p)) (check t)

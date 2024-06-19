@@ -33,7 +33,7 @@ newtype SessionT m a = SessionT {unSessionT :: ReaderT Wai.Application (StateT W
 instance MonadTrans SessionT where
   lift = SessionT . lift . lift
 
-liftSession :: MonadIO m => WaiTest.Session a -> SessionT m a
+liftSession :: (MonadIO m) => WaiTest.Session a -> SessionT m a
 liftSession session = SessionT $ do
   app <- ask
   clientState <- lift ST.get
@@ -41,5 +41,5 @@ liftSession session = SessionT $ do
   let resultInIO = ST.evalStateT resultInState clientState
   liftIO resultInIO
 
-runSessionT :: Monad m => SessionT m a -> Wai.Application -> m a
+runSessionT :: (Monad m) => SessionT m a -> Wai.Application -> m a
 runSessionT session app = ST.evalStateT (runReaderT (unSessionT session) app) WaiTest.initState

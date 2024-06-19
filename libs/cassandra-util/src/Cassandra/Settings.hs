@@ -43,7 +43,7 @@ import System.Logger qualified as Log
 -- Given a server name and a url returning a wire-custom "disco" json (AWS describe-instances-like json), e.g.
 -- { "roles" : { "server_name": [ {"privateIpAddress": "...", ...}, {...} ] } },
 -- return a list of IP addresses.
-initialContactsDisco :: MonadIO m => String -> String -> m (NonEmpty String)
+initialContactsDisco :: (MonadIO m) => String -> String -> m (NonEmpty String)
 initialContactsDisco (pack -> srv) url = liftIO $ do
   rs <- asValue =<< get url
   let srvs = map Key.fromText $
@@ -65,7 +65,7 @@ initialContactsDisco (pack -> srv) url = liftIO $ do
     _ -> error "initial-contacts: no IP addresses found."
 
 -- | Puts the address into a list using the same signature as the other initialContacts
-initialContactsPlain :: MonadIO m => Text -> m (NonEmpty String)
+initialContactsPlain :: (MonadIO m) => Text -> m (NonEmpty String)
 initialContactsPlain address = pure $ unpack address :| []
 
 -- | Use dcAwareRandomPolicy if config option filterNodesByDatacentre is set,

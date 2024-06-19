@@ -6,6 +6,7 @@ import Control.Applicative ((<|>))
 import Control.Exception as E
 import Control.Lens ((^?))
 import qualified Control.Lens.Plated as LP
+import Control.Monad
 import Control.Monad.Reader
 import Data.Aeson (Value)
 import qualified Data.Aeson as Aeson
@@ -33,7 +34,7 @@ import Testlib.Printing
 import Testlib.Types
 import Prelude
 
-assertBool :: HasCallStack => String -> Bool -> App ()
+assertBool :: (HasCallStack) => String -> Bool -> App ()
 assertBool _ True = pure ()
 assertBool msg False = assertFailure msg
 
@@ -42,7 +43,7 @@ assertOne xs = case toList xs of
   [x] -> pure x
   other -> assertFailure ("Expected one, but got " <> show (length other))
 
-expectFailure :: HasCallStack => (AssertionFailure -> App ()) -> App a -> App ()
+expectFailure :: (HasCallStack) => (AssertionFailure -> App ()) -> App a -> App ()
 expectFailure checkFailure action = do
   env <- ask
   res :: Either AssertionFailure x <-
@@ -234,7 +235,7 @@ shouldMatchOneOf a b = do
     assertFailure $ "Expected:\n" <> pa <> "\n to match at least one of:\n" <> pb
 
 shouldContainString ::
-  HasCallStack =>
+  (HasCallStack) =>
   -- | The actual value
   String ->
   -- | The expected value

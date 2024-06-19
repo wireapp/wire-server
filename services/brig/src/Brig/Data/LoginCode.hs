@@ -76,10 +76,10 @@ lookupLoginCode u = do
     pending c now t = PendingLoginCode c (timeout now t)
     timeout now t = Timeout (t `diffUTCTime` now)
 
-deleteLoginCode :: MonadClient m => UserId -> m ()
+deleteLoginCode :: (MonadClient m) => UserId -> m ()
 deleteLoginCode u = retry x5 . write codeDelete $ params LocalQuorum (Identity u)
 
-insertLoginCode :: MonadClient m => UserId -> LoginCode -> Int32 -> UTCTime -> m ()
+insertLoginCode :: (MonadClient m) => UserId -> LoginCode -> Int32 -> UTCTime -> m ()
 insertLoginCode u c n t = retry x5 . write codeInsert $ params LocalQuorum (u, c, n, t, round ttl)
 
 -- Queries

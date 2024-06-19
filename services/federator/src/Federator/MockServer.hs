@@ -234,7 +234,7 @@ getRequestRPC :: Mock Text
 getRequestRPC = frRPC <$> getRequest
 
 -- | Retrieve and deserialise the body of the current request.
-getRequestBody :: Aeson.FromJSON a => Mock a
+getRequestBody :: (Aeson.FromJSON a) => Mock a
 getRequestBody = do
   b <- frBody <$> getRequest
   case Aeson.eitherDecode b of
@@ -257,7 +257,7 @@ guardComponent c = do
   guard (c == c')
 
 -- | Serialise and return a response.
-mockReply :: Aeson.ToJSON a => a -> Mock LByteString
+mockReply :: (Aeson.ToJSON a) => a -> Mock LByteString
 mockReply = pure . Aeson.encode
 
 -- | Provide a mock reply simulating an unreachable backend.
@@ -275,5 +275,5 @@ infixl 5 ~>
 
 -- | Expect a given RPC and simply return a pure response when the current
 -- request matches.
-(~>) :: Aeson.ToJSON a => Text -> a -> Mock LByteString
+(~>) :: (Aeson.ToJSON a) => Text -> a -> Mock LByteString
 (~>) rpc x = guardRPC rpc *> mockReply x

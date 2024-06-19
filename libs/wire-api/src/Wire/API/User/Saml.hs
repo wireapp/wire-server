@@ -66,7 +66,7 @@ makeLenses ''VerdictFormat
 
 deriveJSON deriveJSONOptions ''VerdictFormat
 
-mkVerdictGrantedFormatMobile :: MonadError String m => URI -> SetCookie -> UserId -> m URI
+mkVerdictGrantedFormatMobile :: (MonadError String m) => URI -> SetCookie -> UserId -> m URI
 mkVerdictGrantedFormatMobile before cky uid =
   parseURI'
     . substituteVar
@@ -80,7 +80,7 @@ mkVerdictGrantedFormatMobile before cky uid =
     . substituteVar "userid" (T.pack . show $ uid)
     $ renderURI before
 
-mkVerdictDeniedFormatMobile :: MonadError String m => URI -> Text -> m URI
+mkVerdictDeniedFormatMobile :: (MonadError String m) => URI -> Text -> m URI
 mkVerdictDeniedFormatMobile before lbl =
   parseURI'
     . substituteVar "label" lbl
@@ -96,7 +96,7 @@ substituteVar' var val = T.intercalate val . T.splitOn var
 newtype TTL (tablename :: Symbol) = TTL {fromTTL :: Int32}
   deriving (Eq, Ord, Show, Num)
 
-showTTL :: KnownSymbol a => TTL a -> String
+showTTL :: (KnownSymbol a) => TTL a -> String
 showTTL (TTL i :: TTL a) = "TTL:" <> symbolVal (Proxy @a) <> ":" <> show i
 
 instance FromJSON (TTL a) where

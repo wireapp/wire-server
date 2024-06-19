@@ -73,7 +73,7 @@ getTeamNotifications zusr since size = do
       (DataTeamQueue.resultHasMore page)
       Nothing
 
-pushTeamEvent :: Member TeamNotificationStore r => TeamId -> Event -> Sem r ()
+pushTeamEvent :: (Member TeamNotificationStore r) => TeamId -> Event -> Sem r ()
 pushTeamEvent tid evt = do
   nid <- E.mkNotificationId
   E.createTeamNotification tid nid (List1.singleton $ toJSONObject evt)

@@ -50,7 +50,7 @@ import GHC.TypeLits
 import Imports
 import Servant.API
 import Servant.API.Extended (ReqBodyCustomError')
-import Servant.API.Extended.RawM (RawM)
+import Servant.API.Extended.RawM qualified as RawM
 import Servant.Client
 import Servant.Multipart
 import Servant.OpenApi
@@ -93,7 +93,7 @@ import Wire.Arbitrary (GenericUniform (..))
 -- The @x@ parameter here is intentionally ambiguous, existing as a unique
 -- skolem to prevent GHC from caching the results of solving
 -- 'ToHasAnnotations'. Callers needn't worry about it.
-exposeAnnotations :: ToHasAnnotations x => a -> a
+exposeAnnotations :: (ToHasAnnotations x) => a -> a
 exposeAnnotations = id
 
 data Component
@@ -161,11 +161,11 @@ instance (HasServer api ctx) => HasServer (MakesFederatedCall comp name :> api :
   route _ ctx f = route (Proxy @api) ctx $ fmap ($ synthesizeCallsFed @comp @name) f
   hoistServerWithContext _ ctx f s = hoistServerWithContext (Proxy @api) ctx f . s
 
-instance HasLink api => HasLink (MakesFederatedCall comp name :> api :: Type) where
+instance (HasLink api) => HasLink (MakesFederatedCall comp name :> api :: Type) where
   type MkLink (MakesFederatedCall comp name :> api) x = MkLink api x
   toLink f _ l = toLink f (Proxy @api) l
 
-instance RoutesToPaths api => RoutesToPaths (MakesFederatedCall comp name :> api :: Type) where
+instance (RoutesToPaths api) => RoutesToPaths (MakesFederatedCall comp name :> api :: Type) where
   getRoutes = getRoutes @api
 
 -- | Get a symbol representation of our component.
@@ -185,7 +185,9 @@ instance (HasOpenApi api, KnownSymbol name, KnownSymbol (ShowComponent comp)) =>
     toOpenApi (Proxy @api)
       -- Append federated call line to the description of routes
       -- that perform calls to federation members.
-      & S.allOperations . S.description %~ pure . maybe call (\d -> d <> "<br>" <> call)
+      & S.allOperations
+        . S.description
+        %~ pure . maybe call (\d -> d <> "<br>" <> call)
     where
       call :: Text
       call =
@@ -194,7 +196,7 @@ instance (HasOpenApi api, KnownSymbol name, KnownSymbol (ShowComponent comp)) =>
           <> T.pack " on "
           <> T.pack (symbolVal $ Proxy @name)
 
-instance HasClient m api => HasClient m (MakesFederatedCall comp name :> api :: Type) where
+instance (HasClient m api) => HasClient m (MakesFederatedCall comp name :> api :: Type) where
   type Client m (MakesFederatedCall comp name :> api) = Client m api
   clientWithRoute p _ = clientWithRoute p $ Proxy @api
   hoistClientMonad p _ f c = hoistClientMonad p (Proxy @api) f c
@@ -208,7 +210,7 @@ class SolveCallsFed c r a where
   -- This function should always be called with an argument of
   -- 'exposeAnnotations'. See the documentation there for more information on
   -- why.
-  callsFed :: (c => r) -> a
+  callsFed :: ((c) => r) -> a
 
 instance (c ~ ((k, d) :: Constraint), SolveCallsFed d r a) => SolveCallsFed c r (Dict k -> a) where
   callsFed f Dict = callsFed @d @r @a f
@@ -221,7 +223,7 @@ instance {-# OVERLAPPABLE #-} (c ~ (() :: Constraint), r ~ a) => SolveCallsFed c
 --
 -- This is unsafe in the sense that it will drop the 'CallsFed' constraint, and
 -- thus might mean a federated call gets forgotten in the documentation.
-unsafeCallsFed :: forall (comp :: Component) (name :: Symbol) r. (CallsFed comp name => r) -> r
+unsafeCallsFed :: forall (comp :: Component) (name :: Symbol) r. ((CallsFed comp name) => r) -> r
 unsafeCallsFed f = withDict (synthesizeCallsFed @comp @name) f
 
 data FedCallFrom' f = FedCallFrom
@@ -298,22 +300,22 @@ instance (HasFeds rest, KnownSymbol (ShowComponent comp), KnownSymbol name) => H
     modify $ \s -> s {fedCalls = fedCalls s <> Calls call}
     getFedCalls $ Proxy @rest
 
-instance ReflectMethod method => HasFeds (MultiVerb method cs as r) where
+instance (ReflectMethod method) => HasFeds (MultiVerb method cs as r) where
   getFedCalls _ = do
     modify $ \s -> s {method = getMethod @method}
     gets pure
 
-instance ReflectMethod method => HasFeds (Verb method status cts a) where
+instance (ReflectMethod method) => HasFeds (Verb method status cts a) where
   getFedCalls _ = do
     modify $ \s -> s {method = getMethod @method}
     gets pure
 
-instance ReflectMethod method => HasFeds (NoContentVerb method) where
+instance (ReflectMethod method) => HasFeds (NoContentVerb method) where
   getFedCalls _ = do
     modify $ \s -> s {method = getMethod @method}
     gets pure
 
-instance ReflectMethod method => HasFeds (Stream method status framing ct a) where
+instance (ReflectMethod method) => HasFeds (Stream method status framing ct a) where
   getFedCalls _ = do
     modify $ \s -> s {method = getMethod @method}
     gets pure
@@ -339,10 +341,10 @@ instance HasFeds EmptyAPI where
 instance HasFeds Raw where
   getFedCalls _ = gets pure
 
-instance HasFeds RawM where
+instance HasFeds RawM.RawM where
   getFedCalls _ = gets pure
 
-getMethod :: forall method. ReflectMethod method => Maybe String
+getMethod :: forall method. (ReflectMethod method) => Maybe String
 getMethod = pure . fmap toLower . unpack . reflectMethod $ Proxy @method
 
 appendName :: String -> FedCallFrom -> FedCallFrom
@@ -352,59 +354,59 @@ appendName toAppend s = s {name = pure $ maybe toAppend (<> toAppend) $ name s}
 instance (RenderableSymbol name, HasFeds rest) => HasFeds (Named name rest) where
   getFedCalls _ = getFedCalls $ Proxy @rest
 
-instance HasFeds rest => HasFeds (Header' mods name a :> rest) where
+instance (HasFeds rest) => HasFeds (Header' mods name a :> rest) where
   getFedCalls _ = getFedCalls $ Proxy @rest
 
-instance HasFeds rest => HasFeds (ReqBody' mods cts a :> rest) where
+instance (HasFeds rest) => HasFeds (ReqBody' mods cts a :> rest) where
   getFedCalls _ = getFedCalls $ Proxy @rest
 
-instance HasFeds rest => HasFeds (StreamBody' opts framing ct a :> rest) where
+instance (HasFeds rest) => HasFeds (StreamBody' opts framing ct a :> rest) where
   getFedCalls _ = getFedCalls $ Proxy @rest
 
-instance HasFeds rest => HasFeds (Summary summary :> rest) where
+instance (HasFeds rest) => HasFeds (Summary summary :> rest) where
   getFedCalls _ = getFedCalls $ Proxy @rest
 
-instance HasFeds rest => HasFeds (QueryParam' mods name a :> rest) where
+instance (HasFeds rest) => HasFeds (QueryParam' mods name a :> rest) where
   getFedCalls _ = getFedCalls $ Proxy @rest
 
-instance HasFeds rest => HasFeds (MultipartForm tag a :> rest) where
+instance (HasFeds rest) => HasFeds (MultipartForm tag a :> rest) where
   getFedCalls _ = getFedCalls $ Proxy @rest
 
-instance HasFeds rest => HasFeds (QueryFlag a :> rest) where
+instance (HasFeds rest) => HasFeds (QueryFlag a :> rest) where
   getFedCalls _ = getFedCalls $ Proxy @rest
 
-instance HasFeds rest => HasFeds (Description desc :> rest) where
+instance (HasFeds rest) => HasFeds (Description desc :> rest) where
   getFedCalls _ = getFedCalls $ Proxy @rest
 
-instance HasFeds rest => HasFeds (Deprecated :> rest) where
+instance (HasFeds rest) => HasFeds (Deprecated :> rest) where
   getFedCalls _ = getFedCalls $ Proxy @rest
 
-instance HasFeds rest => HasFeds (CanThrow e :> rest) where
+instance (HasFeds rest) => HasFeds (CanThrow e :> rest) where
   getFedCalls _ = getFedCalls $ Proxy @rest
 
-instance HasFeds rest => HasFeds (CanThrowMany es :> rest) where
+instance (HasFeds rest) => HasFeds (CanThrowMany es :> rest) where
   getFedCalls _ = getFedCalls $ Proxy @rest
 
-instance HasFeds rest => HasFeds (Bearer a :> rest) where
+instance (HasFeds rest) => HasFeds (Bearer a :> rest) where
   getFedCalls _ = getFedCalls $ Proxy @rest
 
-instance HasFeds rest => HasFeds (Cookies cs :> rest) where
+instance (HasFeds rest) => HasFeds (Cookies cs :> rest) where
   getFedCalls _ = getFedCalls $ Proxy @rest
 
-instance HasFeds rest => HasFeds (ZHostOpt :> rest) where
+instance (HasFeds rest) => HasFeds (ZHostOpt :> rest) where
   getFedCalls _ = getFedCalls $ Proxy @rest
 
-instance HasFeds rest => HasFeds (ZAuthServant ztype opts :> rest) where
+instance (HasFeds rest) => HasFeds (ZAuthServant ztype opts :> rest) where
   getFedCalls _ = getFedCalls $ Proxy @rest
 
-instance HasFeds rest => HasFeds (ReqBodyCustomError' mods cts tag a :> rest) where
+instance (HasFeds rest) => HasFeds (ReqBodyCustomError' mods cts tag a :> rest) where
   getFedCalls _ = getFedCalls $ Proxy @rest
 
-instance HasFeds rest => HasFeds (DescriptionOAuthScope scope :> rest) where
+instance (HasFeds rest) => HasFeds (DescriptionOAuthScope scope :> rest) where
   getFedCalls _ = getFedCalls $ Proxy @rest
 
-instance HasFeds rest => HasFeds (OmitDocs :> rest) where
+instance (HasFeds rest) => HasFeds (OmitDocs :> rest) where
   getFedCalls _ = getFedCalls $ Proxy @rest
 
-instance HasFeds rest => HasFeds (VersionedReqBody v cts a :> rest) where
+instance (HasFeds rest) => HasFeds (VersionedReqBody v cts a :> rest) where
   getFedCalls _ = getFedCalls $ Proxy @rest

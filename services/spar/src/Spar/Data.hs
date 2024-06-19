@@ -72,13 +72,13 @@ mkEnv opts now =
       dataEnvMaxTTLAssertions = maxttlAuthresp opts
     }
 
-mkTTLAuthnRequests :: MonadError TTLError m => Env -> UTCTime -> m (TTL "authreq")
+mkTTLAuthnRequests :: (MonadError TTLError m) => Env -> UTCTime -> m (TTL "authreq")
 mkTTLAuthnRequests (Env now maxttl _) = mkTTL now maxttl
 
-mkTTLAuthnRequestsNDT :: MonadError TTLError m => Env -> NominalDiffTime -> m (TTL "authreq")
+mkTTLAuthnRequestsNDT :: (MonadError TTLError m) => Env -> NominalDiffTime -> m (TTL "authreq")
 mkTTLAuthnRequestsNDT (Env _ maxttl _) = mkTTLNDT maxttl
 
-mkTTLAssertions :: MonadError TTLError m => Env -> UTCTime -> m (TTL "authresp")
+mkTTLAssertions :: (MonadError TTLError m) => Env -> UTCTime -> m (TTL "authresp")
 mkTTLAssertions (Env now _ maxttl) = mkTTL now maxttl
 
 mkTTL :: (MonadError TTLError m, KnownSymbol a) => UTCTime -> TTL a -> UTCTime -> m (TTL a)
@@ -87,9 +87,9 @@ mkTTL now maxttl endOfLife = mkTTLNDT maxttl $ endOfLife `diffUTCTime` now
 mkTTLNDT :: (MonadError TTLError m, KnownSymbol a) => TTL a -> NominalDiffTime -> m (TTL a)
 mkTTLNDT maxttl ttlNDT =
   if
-      | actualttl > maxttl -> throwError $ TTLTooLong (showTTL actualttl) (showTTL maxttl)
-      | actualttl <= 0 -> throwError $ TTLNegative (showTTL actualttl)
-      | otherwise -> pure actualttl
+    | actualttl > maxttl -> throwError $ TTLTooLong (showTTL actualttl) (showTTL maxttl)
+    | actualttl <= 0 -> throwError $ TTLNegative (showTTL actualttl)
+    | otherwise -> pure actualttl
   where
     actualttl = TTL . nominalDiffToSeconds $ ttlNDT
 

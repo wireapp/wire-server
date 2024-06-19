@@ -81,7 +81,7 @@ newtype Cannon a = Cannon
       MonadMonitor
     )
 
-mapConcurrentlyCannon :: Traversable t => (a -> Cannon b) -> t a -> Cannon (t b)
+mapConcurrentlyCannon :: (Traversable t) => (a -> Cannon b) -> t a -> Cannon (t b)
 mapConcurrentlyCannon action inputs =
   Cannon $
     ask >>= \e ->

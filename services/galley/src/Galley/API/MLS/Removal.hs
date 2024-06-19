@@ -263,7 +263,7 @@ removeUser lc includeMain qusr = do
 
 -- | Convert cassandra subconv maps into SubConversations
 listSubConversations' ::
-  Member SubConversationStore r =>
+  (Member SubConversationStore r) =>
   ConvId ->
   Sem r [SubConversation]
 listSubConversations' cid = do

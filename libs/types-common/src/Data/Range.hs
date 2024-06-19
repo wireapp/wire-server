@@ -109,7 +109,7 @@ instance (Show a, Num a, Within a n m, KnownNat n, KnownNat m) => Bounded (Range
 
 instance NFData (Range n m a) where rnf (Range a) = seq a ()
 
-instance ToJSON a => ToJSON (Range n m a) where
+instance (ToJSON a) => ToJSON (Range n m a) where
   toJSON = toJSON . fromRange
 
 instance forall a n m. (KnownNat n, KnownNat m, Within a n m, FromJSON a) => FromJSON (Range n m a) where
@@ -135,47 +135,48 @@ untypedRangedSchema ::
 untypedRangedSchema n m sch = (sch `withParser` check) & doc %~ rangedSchemaDocModifier (Proxy @b) n m
   where
     check x =
-      x <$ guard (within x n m)
-        <|> fail (errorMsg n m "")
+      x
+        <$ guard (within x n m)
+          <|> fail (errorMsg n m "")
 
-class Bounds a => HasRangedSchemaDocModifier d a where
+class (Bounds a) => HasRangedSchemaDocModifier d a where
   rangedSchemaDocModifier :: Proxy a -> Integer -> Integer -> d -> d
 
-listRangedSchemaDocModifier :: S.HasSchema d S.Schema => Integer -> Integer -> d -> d
+listRangedSchemaDocModifier :: (S.HasSchema d S.Schema) => Integer -> Integer -> d -> d
 listRangedSchemaDocModifier n m = S.schema %~ ((S.minItems ?~ n) . (S.maxItems ?~ m))
 
-stringRangedSchemaDocModifier :: S.HasSchema d S.Schema => Integer -> Integer -> d -> d
+stringRangedSchemaDocModifier :: (S.HasSchema d S.Schema) => Integer -> Integer -> d -> d
 stringRangedSchemaDocModifier n m = S.schema %~ ((S.minLength ?~ n) . (S.maxLength ?~ m))
 
-numRangedSchemaDocModifier :: S.HasSchema d S.Schema => Integer -> Integer -> d -> d
+numRangedSchemaDocModifier :: (S.HasSchema d S.Schema) => Integer -> Integer -> d -> d
 numRangedSchemaDocModifier n m = S.schema %~ ((S.minimum_ ?~ fromIntegral n) . (S.maximum_ ?~ fromIntegral m))
 
-instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d [a] where rangedSchemaDocModifier _ = listRangedSchemaDocModifier
+instance (S.HasSchema d S.Schema) => HasRangedSchemaDocModifier d [a] where rangedSchemaDocModifier _ = listRangedSchemaDocModifier
 
 -- Sets are similar to lists, so use that as our defininition
-instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d (Set a) where rangedSchemaDocModifier _ = listRangedSchemaDocModifier
+instance (S.HasSchema d S.Schema) => HasRangedSchemaDocModifier d (Set a) where rangedSchemaDocModifier _ = listRangedSchemaDocModifier
 
-instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d Text where rangedSchemaDocModifier _ = stringRangedSchemaDocModifier
+instance (S.HasSchema d S.Schema) => HasRangedSchemaDocModifier d Text where rangedSchemaDocModifier _ = stringRangedSchemaDocModifier
 
-instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d String where rangedSchemaDocModifier _ = stringRangedSchemaDocModifier
+instance (S.HasSchema d S.Schema) => HasRangedSchemaDocModifier d String where rangedSchemaDocModifier _ = stringRangedSchemaDocModifier
 
-instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d (AsciiText c) where rangedSchemaDocModifier _ = stringRangedSchemaDocModifier
+instance (S.HasSchema d S.Schema) => HasRangedSchemaDocModifier d (AsciiText c) where rangedSchemaDocModifier _ = stringRangedSchemaDocModifier
 
-instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d Int where rangedSchemaDocModifier _ = numRangedSchemaDocModifier
+instance (S.HasSchema d S.Schema) => HasRangedSchemaDocModifier d Int where rangedSchemaDocModifier _ = numRangedSchemaDocModifier
 
-instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d Int32 where rangedSchemaDocModifier _ = numRangedSchemaDocModifier
+instance (S.HasSchema d S.Schema) => HasRangedSchemaDocModifier d Int32 where rangedSchemaDocModifier _ = numRangedSchemaDocModifier
 
-instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d Integer where rangedSchemaDocModifier _ = numRangedSchemaDocModifier
+instance (S.HasSchema d S.Schema) => HasRangedSchemaDocModifier d Integer where rangedSchemaDocModifier _ = numRangedSchemaDocModifier
 
-instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d Word where rangedSchemaDocModifier _ = numRangedSchemaDocModifier
+instance (S.HasSchema d S.Schema) => HasRangedSchemaDocModifier d Word where rangedSchemaDocModifier _ = numRangedSchemaDocModifier
 
-instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d Word8 where rangedSchemaDocModifier _ = numRangedSchemaDocModifier
+instance (S.HasSchema d S.Schema) => HasRangedSchemaDocModifier d Word8 where rangedSchemaDocModifier _ = numRangedSchemaDocModifier
 
-instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d Word16 where rangedSchemaDocModifier _ = numRangedSchemaDocModifier
+instance (S.HasSchema d S.Schema) => HasRangedSchemaDocModifier d Word16 where rangedSchemaDocModifier _ = numRangedSchemaDocModifier
 
-instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d Word32 where rangedSchemaDocModifier _ = numRangedSchemaDocModifier
+instance (S.HasSchema d S.Schema) => HasRangedSchemaDocModifier d Word32 where rangedSchemaDocModifier _ = numRangedSchemaDocModifier
 
-instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d Word64 where rangedSchemaDocModifier _ = numRangedSchemaDocModifier
+instance (S.HasSchema d S.Schema) => HasRangedSchemaDocModifier d Word64 where rangedSchemaDocModifier _ = numRangedSchemaDocModifier
 
 instance (KnownNat n, KnownNat m, Within a n m, ToSchema a, HasRangedSchemaDocModifier NamedSwaggerDoc a) => ToSchema (Range n m a) where
   schema = fromRange .= rangedSchema schema
@@ -246,7 +247,7 @@ instance (KnownNat n, KnownNat m, Within a n m, FromHttpApiData a) => FromHttpAp
 
 type Within a (n :: Nat) (m :: Nat) = (Bounds a, n <= m)
 
-mk :: Bounds a => a -> Nat -> Nat -> Maybe (Range n m a)
+mk :: (Bounds a) => a -> Nat -> Nat -> Maybe (Range n m a)
 mk a n m =
   if within a (toInteger n) (toInteger m)
     then Just (Range a)
@@ -263,7 +264,7 @@ errorMsg n m =
     . shows m
     . showString "]"
 
-checkedEitherMsg :: forall a n m. (KnownNat n, KnownNat m) => Within a n m => String -> a -> Either String (Range n m a)
+checkedEitherMsg :: forall a n m. (KnownNat n, KnownNat m) => (Within a n m) => String -> a -> Either String (Range n m a)
 checkedEitherMsg msg x = do
   let sn = natVal (Proxy @n)
       sm = natVal (Proxy @m)
@@ -271,7 +272,7 @@ checkedEitherMsg msg x = do
     Nothing -> Left $ showString msg . showString ": " . errorMsg sn sm $ ""
     Just r -> Right r
 
-checkedEither :: forall a n m. (KnownNat n, KnownNat m) => Within a n m => a -> Either String (Range n m a)
+checkedEither :: forall a n m. (KnownNat n, KnownNat m) => (Within a n m) => a -> Either String (Range n m a)
 checkedEither x = do
   let sn = natVal (Proxy @n)
       sm = natVal (Proxy @m)
@@ -300,10 +301,10 @@ unsafeRange x = fromMaybe msg (checked x)
 rcast :: (n <= m, m <= m', n >= n') => Range n m a -> Range n' m' a
 rcast (Range a) = Range a
 
-rnil :: Monoid a => Range 0 0 a
+rnil :: (Monoid a) => Range 0 0 a
 rnil = Range mempty
 
-rcons, (<|) :: n <= m => a -> Range n m [a] -> Range n (m + 1) [a]
+rcons, (<|) :: (n <= m) => a -> Range n m [a] -> Range n (m + 1) [a]
 rcons a (Range aa) = Range (a : aa)
 
 infixr 5 <|
@@ -397,7 +398,7 @@ instance Bounds (HashMap k a) where
 instance Bounds (HashSet a) where
   within x y z = rangeCheck (length (take (fromIntegral z + 1) (HashSet.toList x))) y z
 
-instance Bounds a => Bounds (Maybe a) where
+instance (Bounds a) => Bounds (Maybe a) where
   within Nothing _ _ = True
   within (Just x) y z = within x y z
 
@@ -420,7 +421,7 @@ instance (KnownNat n, KnownNat m, Within a n m, FromByteString a) => FromByteStr
     where
       msg = fail (errorMsg (natVal (Proxy @n)) (natVal (Proxy @m)) "")
 
-instance ToByteString a => ToByteString (Range n m a) where
+instance (ToByteString a) => ToByteString (Range n m a) where
   builder = builder . fromRange
 
 ----------------------------------------------------------------------------
@@ -430,7 +431,7 @@ instance ToByteString a => ToByteString (Range n m a) where
 newtype Ranged m n a = Ranged {fromRanged :: a}
   deriving stock (Show)
 
-instance Arbitrary (Range m n a) => Arbitrary (Ranged m n a) where
+instance (Arbitrary (Range m n a)) => Arbitrary (Ranged m n a) where
   arbitrary = Ranged . fromRange <$> arbitrary @(Range m n a)
 
 instance

@@ -138,36 +138,36 @@ class AsciiChars c where
 -- | Note: Assumes UTF8 encoding. If the bytestring is known to
 -- be in a different encoding, 'validate' the text after decoding it with
 -- the correct encoding instead of using this instance.
-instance AsciiChars c => FromByteString (AsciiText c) where
+instance (AsciiChars c) => FromByteString (AsciiText c) where
   parser = parseBytes validate
 
 -- | Note: 'fromString' is a partial function that will 'error' when given
 -- a string containing characters not in the set @c@. It is only intended to be used
 -- via the @OverloadedStrings@ extension, i.e. for known ASCII string literals.
-instance AsciiChars c => IsString (AsciiText c) where
+instance (AsciiChars c) => IsString (AsciiText c) where
   fromString = unsafeString validate
 
-instance AsciiChars c => ToSchema (AsciiText c) where
+instance (AsciiChars c) => ToSchema (AsciiText c) where
   schema = toText .= parsedText "ASCII" validate
 
-instance AsciiChars c => ToJSON (AsciiText c) where
+instance (AsciiChars c) => ToJSON (AsciiText c) where
   toJSON = schemaToJSON
 
-instance AsciiChars c => FromJSON (AsciiText c) where
+instance (AsciiChars c) => FromJSON (AsciiText c) where
   parseJSON = schemaParseJSON
 
 instance (Typeable c, AsciiChars c) => S.ToSchema (AsciiText c) where
   declareNamedSchema = schemaToSwagger
 
-instance AsciiChars c => Cql (AsciiText c) where
+instance (AsciiChars c) => Cql (AsciiText c) where
   ctype = Tagged AsciiColumn
   toCql = CqlAscii . toText
   fromCql = fmap (unsafeFromText . fromAscii) . fromCql
 
-fromAsciiChars :: AsciiChars c => [AsciiChar c] -> AsciiText c
+fromAsciiChars :: (AsciiChars c) => [AsciiChar c] -> AsciiText c
 fromAsciiChars = fromString . map toChar
 
-fromChar :: AsciiChars c => c -> Char -> Maybe (AsciiChar c)
+fromChar :: (AsciiChars c) => c -> Char -> Maybe (AsciiChar c)
 fromChar c char
   | contains c char = Just (AsciiChar char)
   | otherwise = Nothing
@@ -379,13 +379,13 @@ widenChar (AsciiChar t) = AsciiChar t
 -- | Construct 'AsciiText' from a known ASCII 'Text'.
 -- This is a total function but unsafe because the text is not checked
 -- for non-ASCII characters.
-unsafeFromText :: AsciiChars c => Text -> AsciiText c
+unsafeFromText :: (AsciiChars c) => Text -> AsciiText c
 unsafeFromText = AsciiText
 
 -- | Construct 'AsciiText' from a known ASCII 'ByteString'.
 -- This is a total function but unsafe because the bytestring is not checked
 -- for non-ASCII characters.
-unsafeFromByteString :: AsciiChars c => ByteString -> AsciiText c
+unsafeFromByteString :: (AsciiChars c) => ByteString -> AsciiText c
 unsafeFromByteString = AsciiText . decodeLatin1
 
 --------------------------------------------------------------------------------

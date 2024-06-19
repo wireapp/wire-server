@@ -19,7 +19,7 @@ module Brig.API.Error where
 
 import Brig.API.Types
 import Brig.Phone (PhoneException (..))
-import Control.Monad.Error.Class hiding (Error)
+import Control.Monad.Error.Class (MonadError (..))
 import Data.Aeson
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.ByteString.Conversion
@@ -38,7 +38,7 @@ import Wire.API.User
 
 data Error where
   StdError :: !Wai.Error -> Error
-  RichError :: ToJSON a => !Wai.Error -> !a -> [Header] -> Error
+  RichError :: (ToJSON a) => !Wai.Error -> !a -> [Header] -> Error
 
 errorLabel :: Error -> LText
 errorLabel (StdError e) = Wai.label e
@@ -48,7 +48,7 @@ errorStatus :: Error -> Status
 errorStatus (StdError e) = Wai.code e
 errorStatus (RichError e _ _) = Wai.code e
 
-throwStd :: MonadError Error m => Wai.Error -> m a
+throwStd :: (MonadError Error m) => Wai.Error -> m a
 throwStd = throwError . StdError
 
 throwRich :: (MonadError Error m, ToJSON x) => Wai.Error -> x -> [Header] -> m a

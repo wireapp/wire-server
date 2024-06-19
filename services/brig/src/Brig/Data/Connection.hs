@@ -272,7 +272,7 @@ lookupRemoteConnectedUsersC u maxResults =
   paginateC remoteConnectionSelect (paramsP LocalQuorum (Identity (tUnqualified u)) maxResults) x1
     .| C.map (\xs -> map (\x@(d, _, _, _, _, _) -> toRemoteUnsafe d (toRemoteUserConnection u x)) xs)
 
-lookupRemoteConnectedUsersPaginated :: MonadClient m => Local UserId -> Int32 -> m (Page (Remote UserConnection))
+lookupRemoteConnectedUsersPaginated :: (MonadClient m) => Local UserId -> Int32 -> m (Page (Remote UserConnection))
 lookupRemoteConnectedUsersPaginated u maxResults = do
   (\x@(d, _, _, _, _, _) -> toRemoteUnsafe d (toRemoteUserConnection u x)) <$$> retry x1 (paginate remoteConnectionSelect (paramsP LocalQuorum (Identity (tUnqualified u)) maxResults))
 

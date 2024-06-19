@@ -14,7 +14,7 @@ internalApis :: Set String
 internalApis = Set.fromList ["brig", "cannon", "cargohold", "cannon", "spar"]
 
 -- | See https://docs.wire.com/understand/api-client-perspective/swagger.html
-testSwagger :: HasCallStack => App ()
+testSwagger :: (HasCallStack) => App ()
 testSwagger = do
   bindResponse BrigP.getApiVersions $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -22,11 +22,13 @@ testSwagger = do
       sup <- resp.json %. "supported" & asSetOf asIntegral
       dev <- resp.json %. "development" & asSetOf asIntegral
       pure $ sup <> dev
-    assertBool ("unexpected actually existing versions: " <> show actualVersions) $
+    assertBool ("unexpected actually existing versions: " <> show actualVersions)
+      $
       -- make sure nobody has added a new version without adding it to `existingVersions`.
       -- ("subset" because blocked versions like v3 are not actually existing, but still
       -- documented.)
-      actualVersions `Set.isSubsetOf` existingVersions
+      actualVersions
+      `Set.isSubsetOf` existingVersions
 
   bindResponse BrigP.getSwaggerPublicTOC $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -52,7 +54,7 @@ testSwagger = do
       resp.status `shouldMatchInt` 200
       void resp.json
 
-testSwaggerInternalVersionedNotFound :: HasCallStack => App ()
+testSwaggerInternalVersionedNotFound :: (HasCallStack) => App ()
 testSwaggerInternalVersionedNotFound = do
   forM_ internalApis $ \api -> do
     bindResponse (getSwaggerInternalUI api) $ \resp -> do
@@ -63,7 +65,7 @@ testSwaggerInternalVersionedNotFound = do
       rawBaseRequest OwnDomain Brig (ExplicitVersion 2) (joinHttpPath ["api-internal", "swagger-ui", srv])
         >>= submit "GET"
 
-testSwaggerToc :: HasCallStack => App ()
+testSwaggerToc :: (HasCallStack) => App ()
 testSwaggerToc = do
   forM_ ["/api/swagger-ui", "/api/swagger-ui/index.html", "/api/swagger.json"] $ \path ->
     bindResponse (get path) $ \resp -> do

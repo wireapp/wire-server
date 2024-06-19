@@ -175,7 +175,6 @@ mkDerivation {
     lens
     metrics-core
     metrics-wai
-    mtl
     optparse-applicative
     pem
     polysemy

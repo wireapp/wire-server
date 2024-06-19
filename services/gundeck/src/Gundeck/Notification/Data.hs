@@ -106,7 +106,7 @@ add n tgts (JSON.encode -> payload) (notificationTTLSeconds -> t) = do
       \(?   , ?) \
       \USING TTL ?"
 
-fetchId :: MonadClient m => UserId -> NotificationId -> Maybe ClientId -> m (Maybe QueuedNotification)
+fetchId :: (MonadClient m) => UserId -> NotificationId -> Maybe ClientId -> m (Maybe QueuedNotification)
 fetchId u n c = runMaybeT $ do
   row <- MaybeT $ retry x1 $ query1 cqlById (params LocalQuorum (u, n))
   MaybeT $ fetchPayload c row
@@ -158,7 +158,7 @@ fetchLast u c = do
       \WHERE user = ? AND id < ? \
       \ORDER BY id DESC"
 
-fetchPayload :: MonadClient m => Maybe ClientId -> NotifRow -> m (Maybe QueuedNotification)
+fetchPayload :: (MonadClient m) => Maybe ClientId -> NotifRow -> m (Maybe QueuedNotification)
 fetchPayload c (id_, mbPayload, mbPayloadRef, _mbPayloadRefSize, mbClients) =
   case (mbPayload, mbPayloadRef) of
     (Just payload, _) -> pure $ toNotifSingle c (id_, payload, mbClients)
@@ -261,7 +261,7 @@ fetch u c (Just since) (fromIntegral . fromRange -> size) = do
       \WHERE user = ? AND id >= ? \
       \ORDER BY id ASC"
 
-deleteAll :: MonadClient m => UserId -> m ()
+deleteAll :: (MonadClient m) => UserId -> m ()
 deleteAll u = write cql (params LocalQuorum (Identity u)) & retry x5
   where
     cql :: PrepQuery W (Identity UserId) ()

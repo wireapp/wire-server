@@ -1808,7 +1808,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
 -- to go, when this is 0, it is assumed that this chunk is last and the response
 -- must set @has_more@ to 'False' and the number of conv ids returned should
 -- match @lastSize@.
-getChunkedConvs :: HasCallStack => Int32 -> Int -> UserId -> Maybe ConversationPagingState -> Int -> TestM (Maybe ConversationPagingState)
+getChunkedConvs :: (HasCallStack) => Int32 -> Int -> UserId -> Maybe ConversationPagingState -> Int -> TestM (Maybe ConversationPagingState)
 getChunkedConvs size lastSize alice pagingState n = do
   resp <- getConvPage alice pagingState (Just size) <!! const 200 === statusCode
   let c = responseJsonUnsafeWithMsg @ConvIdsPage "failed to parse ConvIdsPage" resp
@@ -1833,7 +1833,7 @@ getConvsPagingOk = do
   walk bill [3, 3, 3, 3, 1] -- 10 (group) + 1 (1:1) + 2 (self)
   walk carl [3, 3, 3, 3, 1] -- 10 (group) + 1 (1:1) + 2 (self)
   where
-    walk :: Foldable t => UserId -> t Int -> TestM ()
+    walk :: (Foldable t) => UserId -> t Int -> TestM ()
     walk u = foldM_ (next u 3) Nothing
 
     next ::
@@ -2006,7 +2006,7 @@ postConvQualifiedFederationNotEnabled = do
 
 -- like postConvQualified
 -- FUTUREWORK: figure out how to use functions in the TestM monad inside withSettingsOverrides and remove this duplication
-postConvHelper :: MonadHttp m => (Request -> Request) -> UserId -> [Qualified UserId] -> m ResponseLBS
+postConvHelper :: (MonadHttp m) => (Request -> Request) -> UserId -> [Qualified UserId] -> m ResponseLBS
 postConvHelper g zusr newUsers = do
   let conv = NewConv [] newUsers (checked "gossip") (Set.fromList []) Nothing Nothing Nothing Nothing roleNameWireAdmin BaseProtocolProteusTag
   post $ g . path "/conversations" . zUser zusr . zConn "conn" . zType "access" . json conv

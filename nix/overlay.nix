@@ -50,7 +50,6 @@ let
     };
 
   sources = import ./sources.nix;
-  pkgsCargo = import sources.nixpkgs-cargo { };
 in
 
 self: super: {
@@ -60,9 +59,7 @@ self: super: {
   mls-test-cli = self.callPackage ./pkgs/mls-test-cli { };
 
   # Named like this so cabal2nix can find it
-  rusty_jwt_tools_ffi = self.callPackage ./pkgs/rusty_jwt_tools_ffi {
-    inherit (pkgsCargo) rustPlatform;
-  };
+  rusty_jwt_tools_ffi = self.callPackage ./pkgs/rusty_jwt_tools_ffi { };
 
   nginxModules = super.nginxModules // {
     zauth = {

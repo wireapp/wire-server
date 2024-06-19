@@ -103,8 +103,8 @@ withBotWithSettings settings k = do
     provider <- setupProvider alice def {newProviderEmail = email, newProviderPassword = Just defPassword}
     providerId <- provider %. "id" & asString
     service <-
-      newService OwnDomain providerId $
-        def {newServiceUrl = "https://" <> host <> ":" <> show port, newServiceKey = cs settings.publicKey}
+      newService OwnDomain providerId
+        $ def {newServiceUrl = "https://" <> host <> ":" <> show port, newServiceKey = cs settings.publicKey}
     serviceId <- asString $ service %. "id"
     conv <- getJSON 201 =<< postConversation alice defProteus
     convId <- conv %. "id" & asString
@@ -138,8 +138,8 @@ onBotCreate chan _headers _req k = do
   writeChan chan BotCreated
   lpk <- getLastPrekey
   k $ responseLBS status201 mempty do
-    Aeson.encode $
-      object
+    Aeson.encode
+      $ object
         [ "prekeys" .= pks,
           "last_prekey" .= lpk
         ]

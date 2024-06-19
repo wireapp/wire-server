@@ -20,7 +20,7 @@ module CargoHold.Metrics where
 import Imports
 import qualified Prometheus as Prom
 
-s3UploadOk :: Prom.MonadMonitor m => m ()
+s3UploadOk :: (Prom.MonadMonitor m) => m ()
 s3UploadOk = Prom.incCounter netS3UploadOk
 
 {-# NOINLINE netS3UploadOk #-}

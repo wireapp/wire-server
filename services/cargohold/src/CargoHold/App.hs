@@ -233,7 +233,7 @@ instance HasRequestId (ExceptT e App) where
 runAppT :: Env -> AppT m a -> m a
 runAppT e (AppT a) = runReaderT a e
 
-runAppResourceT :: MonadIO m => Env -> ResourceT App a -> m a
+runAppResourceT :: (MonadIO m) => Env -> ResourceT App a -> m a
 runAppResourceT e rma = liftIO . runResourceT $ transResourceT (runAppT e) rma
 
 executeBrigInteral :: BrigInternalClient a -> App (Either Servant.ClientError a)

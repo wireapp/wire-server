@@ -137,7 +137,7 @@ mkDynError c l msg =
     (Text.pack (symbolVal l))
     (Text.pack (symbolVal msg))
 
-dynError :: forall e. KnownError e => DynError
+dynError :: forall e. (KnownError e) => DynError
 dynError = dynError' $ seSing @e
 
 staticErrorSchema :: SStaticError e -> ValueSchema NamedSwaggerDoc (SStaticError e)
@@ -159,17 +159,17 @@ staticErrorSchema e@(SStaticError c l m) =
     codeSchema :: ValueSchema SwaggerDoc Natural
     codeSchema = unnamed $ enum @Natural "Status" (element code code)
 
-instance KnownError e => ToSchema (SStaticError e) where
+instance (KnownError e) => ToSchema (SStaticError e) where
   schema = staticErrorSchema seSing
 
 data CanThrow e
 
 data CanThrowMany e
 
-instance RoutesToPaths api => RoutesToPaths (CanThrow err :> api) where
+instance (RoutesToPaths api) => RoutesToPaths (CanThrow err :> api) where
   getRoutes = getRoutes @api
 
-instance RoutesToPaths api => RoutesToPaths (CanThrowMany errs :> api) where
+instance (RoutesToPaths api) => RoutesToPaths (CanThrowMany errs :> api) where
   getRoutes = getRoutes @api
 
 type instance
@@ -194,7 +194,7 @@ instance
   where
   toOpenApi _ = addToOpenApi @e (toOpenApi (Proxy @api))
 
-instance HasClient m api => HasClient m (CanThrow e :> api) where
+instance (HasClient m api) => HasClient m (CanThrow e :> api) where
   type Client m (CanThrow e :> api) = Client m api
   clientWithRoute pm _ = clientWithRoute pm $ Proxy @api
   hoistClientMonad pm _ = hoistClientMonad pm (Proxy @api)
@@ -203,7 +203,7 @@ type instance
   SpecialiseToVersion v (CanThrowMany es :> api) =
     CanThrowMany es :> SpecialiseToVersion v api
 
-instance HasOpenApi api => HasOpenApi (CanThrowMany '() :> api) where
+instance (HasOpenApi api) => HasOpenApi (CanThrowMany '() :> api) where
   toOpenApi _ = toOpenApi (Proxy @api)
 
 instance
@@ -243,7 +243,7 @@ addErrorResponseToSwagger code resp =
     . S.responses
     . at code
     %~ Just
-    . addRef
+      . addRef
   where
     addRef :: Maybe (S.Referenced S.Response) -> S.Referenced S.Response
     addRef Nothing = S.Inline resp
@@ -280,7 +280,7 @@ mapErrorS ::
 mapErrorS = mapError (Tagged @e' . unTagged)
 
 mapToRuntimeError ::
-  forall e e' r a. Member (Error e') r => e' -> Sem (ErrorS e ': r) a -> Sem r a
+  forall e e' r a. (Member (Error e') r) => e' -> Sem (ErrorS e ': r) a -> Sem r a
 mapToRuntimeError e' = mapError (const e')
 
 mapToDynamicError ::
@@ -290,10 +290,10 @@ mapToDynamicError ::
   Sem r a
 mapToDynamicError = mapToRuntimeError (dynError @(MapError e))
 
-errorToWai :: forall e. KnownError (MapError e) => Wai.Error
+errorToWai :: forall e. (KnownError (MapError e)) => Wai.Error
 errorToWai = dynErrorToWai (dynError @(MapError e))
 
-errorToResponse :: forall e. KnownError (MapError e) => JSONResponse
+errorToResponse :: forall e. (KnownError (MapError e)) => JSONResponse
 errorToResponse = toResponse (dynError @(MapError e))
 
 class APIError e where
@@ -336,7 +336,7 @@ instance
   responseRender = responseRender @cs @(RespondWithStaticError (MapError e))
   responseUnrender = responseUnrender @cs @(RespondWithStaticError (MapError e))
 
-instance KnownError (MapError e) => AsConstructor '[] (ErrorResponse e) where
+instance (KnownError (MapError e)) => AsConstructor '[] (ErrorResponse e) where
   toConstructor _ = Nil
   fromConstructor _ = dynError @(MapError e)
 

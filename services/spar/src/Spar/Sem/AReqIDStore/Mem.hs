@@ -32,7 +32,7 @@ import Wire.API.User.Saml (AReqId)
 import Wire.Sem.Now
 
 aReqIDStoreToMem ::
-  Member Now r =>
+  (Member Now r) =>
   Sem (AReqIDStore ': r) a ->
   Sem r (Map AReqId SAML.Time, a)
 aReqIDStoreToMem = (runState mempty .) $

@@ -355,7 +355,7 @@ mkSSLContext settings = do
 
   pure ctx
 
-mkSSLContextWithoutCert :: Members '[Embed IO, Polysemy.Error FederationSetupError] r => RunSettings -> Sem r SSLContext
+mkSSLContextWithoutCert :: (Members '[Embed IO, Polysemy.Error FederationSetupError] r) => RunSettings -> Sem r SSLContext
 mkSSLContextWithoutCert settings = do
   ctx <- embed $ SSL.context
   embed $ do

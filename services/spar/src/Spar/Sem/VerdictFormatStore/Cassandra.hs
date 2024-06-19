@@ -25,7 +25,6 @@ where
 
 import Cassandra as Cas
 import Control.Lens
-import Control.Monad.Except
 import Data.Time
 import Imports
 import Polysemy

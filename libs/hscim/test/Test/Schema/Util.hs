@@ -60,5 +60,5 @@ mk_prop_caseInsensitive gen = property $ do
       same@(Bool _) -> same
       same@Null -> same
 
-keyTextL :: Functor f => (Text -> f Text) -> Key -> f Key
+keyTextL :: (Functor f) => (Text -> f Text) -> Key -> f Key
 keyTextL f key = fmap Key.fromText (f (Key.toText key))

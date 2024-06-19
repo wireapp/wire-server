@@ -74,7 +74,6 @@ where
 
 import Control.Error.Util (hush)
 import Control.Lens
-import Control.Monad.State
 import Data.Code
 import Data.Id
 import Data.Json.Util

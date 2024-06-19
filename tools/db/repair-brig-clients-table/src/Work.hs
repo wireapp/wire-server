@@ -75,7 +75,7 @@ filterReportRemove dryRun l row@(user, client, Nothing, Nothing, Nothing, Nothin
       rm user client
       Log.info l (Log.msg @Text "removed!")
   where
-    rm :: MonadClient m => UserId -> Text -> m ()
+    rm :: (MonadClient m) => UserId -> Text -> m ()
     rm uid cid =
       retry x5 $ write rmq (params LocalQuorum (uid, cid))
 

@@ -49,7 +49,7 @@ interpretSearchVisibilityStoreToCassandra = interpret $ \case
     embedClient $ resetSearchVisibility tid
 
 -- | Return whether a given team is allowed to enable/disable sso
-getSearchVisibility :: MonadClient m => TeamId -> m TeamSearchVisibility
+getSearchVisibility :: (MonadClient m) => TeamId -> m TeamSearchVisibility
 getSearchVisibility tid =
   toSearchVisibility <$> do
     retry x1 $ query1 selectSearchVisibility (params LocalQuorum (Identity tid))
@@ -60,10 +60,10 @@ getSearchVisibility tid =
     toSearchVisibility _ = SearchVisibilityStandard
 
 -- | Determines whether a given team is allowed to enable/disable sso
-setSearchVisibility :: MonadClient m => TeamId -> TeamSearchVisibility -> m ()
+setSearchVisibility :: (MonadClient m) => TeamId -> TeamSearchVisibility -> m ()
 setSearchVisibility tid visibilityType = do
   retry x5 $ write updateSearchVisibility (params LocalQuorum (visibilityType, tid))
 
-resetSearchVisibility :: MonadClient m => TeamId -> m ()
+resetSearchVisibility :: (MonadClient m) => TeamId -> m ()
 resetSearchVisibility tid = do
   retry x5 $ write updateSearchVisibility (params LocalQuorum (SearchVisibilityStandard, tid))

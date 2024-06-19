@@ -51,9 +51,9 @@ rangeCheckedMaybe (Just a) = Just <$> rangeChecked a
 newtype ConvSizeChecked f a = ConvSizeChecked {fromConvSize :: f a}
   deriving (Functor, Foldable, Traversable)
 
-deriving newtype instance Semigroup (f a) => Semigroup (ConvSizeChecked f a)
+deriving newtype instance (Semigroup (f a)) => Semigroup (ConvSizeChecked f a)
 
-deriving newtype instance Monoid (f a) => Monoid (ConvSizeChecked f a)
+deriving newtype instance (Monoid (f a)) => Monoid (ConvSizeChecked f a)
 
 checkedConvSize ::
   (Member (Error InvalidInput) r, Foldable f) =>
@@ -67,5 +67,5 @@ checkedConvSize o x = do
     then pure (ConvSizeChecked x)
     else throwErr (errorMsg minV limit "")
 
-throwErr :: Member (Error InvalidInput) r => String -> Sem r a
+throwErr :: (Member (Error InvalidInput) r) => String -> Sem r a
 throwErr = throw . InvalidRange . fromString

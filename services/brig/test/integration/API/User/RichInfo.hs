@@ -114,7 +114,7 @@ testDedupeDuplicateFieldNames brig = do
   ri <- getRichInfo brig owner owner
   liftIO $ assertEqual "duplicate rich info fields" (Right deduped) ri
 
-testRichInfoSizeLimit :: HasCallStack => Brig -> Opt.Opts -> Http ()
+testRichInfoSizeLimit :: (HasCallStack) => Brig -> Opt.Opts -> Http ()
 testRichInfoSizeLimit brig conf = do
   let maxSize :: Int = setRichInfoLimit $ optSettings conf
   (owner, _) <- createUserWithTeam brig

@@ -15,14 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra.SubConversation
-  ( interpretSubConversationStoreToCassandra,
-  )
-where
+module Galley.Cassandra.SubConversation (interpretSubConversationStoreToCassandra) where
 
 import Cassandra
 import Cassandra.Util
-import Control.Error.Util
 import Control.Monad.Trans.Maybe
 import Data.Id
 import Data.Map qualified as Map

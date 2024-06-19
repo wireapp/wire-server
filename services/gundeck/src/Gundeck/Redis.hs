@@ -85,7 +85,7 @@ connectRobust l retryStrategy connectLowLevel = do
           const $ Catch.Handler (\(e :: IOException) -> logEx (Log.err l) e "network error when connecting to Redis" >> pure True)
         ]
         . const -- ignore RetryStatus
-    logEx :: Show e => ((Msg -> Msg) -> IO ()) -> e -> ByteString -> IO ()
+    logEx :: (Show e) => ((Msg -> Msg) -> IO ()) -> e -> ByteString -> IO ()
     logEx lLevel e description = lLevel $ Log.msg (Log.val description) . Log.field "error" (show e)
 
 -- | Run a 'Redis' action through a 'RobustConnection'.

@@ -356,7 +356,7 @@ getPeerConnectivityStats lgr seed dom = do
       Log.warn lgr . msg $
         "Peer " <> show addr <> ":" <> show port <> " unreachable: " <> show e
 
-serveIO :: MonadIO m => Opts -> IO RegistrySample -> m ()
+serveIO :: (MonadIO m) => Opts -> IO RegistrySample -> m ()
 serveIO opts runSample =
   liftIO $
     runSettings

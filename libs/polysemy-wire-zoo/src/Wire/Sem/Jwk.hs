@@ -15,7 +15,7 @@ data Jwk m a where
 
 makeSem ''Jwk
 
-interpretJwk :: Members '[Embed IO] r => Sem (Jwk ': r) a -> Sem r a
+interpretJwk :: (Members '[Embed IO] r) => Sem (Jwk ': r) a -> Sem r a
 interpretJwk = interpret $ \(Get fp) -> liftIO $ readJwk fp
 
 readJwk :: FilePath -> IO (Maybe JWK)

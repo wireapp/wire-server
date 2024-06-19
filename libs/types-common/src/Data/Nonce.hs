@@ -84,7 +84,7 @@ instance FromHttpApiData Nonce where
       . fromStrict
       . encodeUtf8
 
-randomNonce :: MonadIO m => m Nonce
+randomNonce :: (MonadIO m) => m Nonce
 randomNonce = Nonce <$> liftIO nextRandom
 
 isValidBase64UrlEncodedUUID :: ByteString -> Bool

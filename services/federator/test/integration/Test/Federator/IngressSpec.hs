@@ -94,8 +94,8 @@ testRejectRequestsWithoutClientCertIngress env = runTestFederator env $ do
   sslCtxWithoutCert <-
     either (throwM @_ @FederationSetupError) pure
       <=< runM
-        . runEmbedded (liftIO @(TestFederator IO))
-        . runError
+      . runEmbedded (liftIO @(TestFederator IO))
+      . runError
       $ mkSSLContextWithoutCert settings
   runTestSem $ do
     r <-
@@ -110,7 +110,7 @@ testRejectRequestsWithoutClientCertIngress env = runTestFederator env $ do
         expectationFailure "Expected client certificate error, got remote error"
       Left (RemoteErrorResponse _ _ status _) -> status `shouldBe` HTTP.status400
 
-liftToCodensity :: Member (Embed (Codensity IO)) r => Sem (Embed IO ': r) a -> Sem r a
+liftToCodensity :: (Member (Embed (Codensity IO)) r) => Sem (Embed IO ': r) a -> Sem r a
 liftToCodensity = runEmbedded @IO @(Codensity IO) lift
 
 runTestSem :: Sem '[Input TestEnv, Embed (Codensity IO)] a -> TestFederator IO a
@@ -124,7 +124,7 @@ discoverConst target = interpret $ \case
   DiscoverAllFederators _ -> pure (Right (pure target))
 
 inwardBrigCallViaIngress ::
-  Members [Input TestEnv, Embed (Codensity IO), Error RemoteError] r =>
+  (Members [Input TestEnv, Embed (Codensity IO), Error RemoteError] r) =>
   Text ->
   Builder ->
   Sem r StreamingResponse
@@ -133,7 +133,7 @@ inwardBrigCallViaIngress path payload = do
   inwardBrigCallViaIngressWithSettings sslCtx path payload
 
 inwardBrigCallViaIngressWithSettings ::
-  Members [Input TestEnv, Embed (Codensity IO), Error RemoteError] r =>
+  (Members [Input TestEnv, Embed (Codensity IO), Error RemoteError] r) =>
   SSLContext ->
   Text ->
   Builder ->

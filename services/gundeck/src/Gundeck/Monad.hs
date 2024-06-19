@@ -114,7 +114,7 @@ instance Redis.MonadRedis WithDefaultRedis where
     Redis.runRobust defaultConn action
 
 instance Redis.RedisCtx WithDefaultRedis (Either Redis.Reply) where
-  returnDecode :: Redis.RedisResult a => Redis.Reply -> WithDefaultRedis (Either Redis.Reply a)
+  returnDecode :: (Redis.RedisResult a) => Redis.Reply -> WithDefaultRedis (Either Redis.Reply a)
   returnDecode = Redis.liftRedis . Redis.returnDecode
 
 -- | 'Gundeck' doesn't have an instance for 'MonadRedis' because it contains two
@@ -151,7 +151,7 @@ instance Redis.MonadRedis WithAdditionalRedis where
     pure ret
 
 instance Redis.RedisCtx WithAdditionalRedis (Either Redis.Reply) where
-  returnDecode :: Redis.RedisResult a => Redis.Reply -> WithAdditionalRedis (Either Redis.Reply a)
+  returnDecode :: (Redis.RedisResult a) => Redis.Reply -> WithAdditionalRedis (Either Redis.Reply a)
   returnDecode = Redis.liftRedis . Redis.returnDecode
 
 instance MonadLogger Gundeck where
@@ -193,13 +193,16 @@ lookupReqId l r = case lookup requestIdName (requestHeaders r) of
   Nothing -> do
     localRid <- RequestId . UUID.toASCIIBytes <$> UUID.nextRandom
     Log.info l $
-      "request-id" .= localRid
-        ~~ "method" .= requestMethod r
-        ~~ "path" .= rawPathInfo r
+      "request-id"
+        .= localRid
+        ~~ "method"
+        .= requestMethod r
+        ~~ "path"
+        .= rawPathInfo r
         ~~ msg (val "generated a new request id for local request")
     pure localRid
 
-fromJsonBody :: FromJSON a => JsonRequest a -> Gundeck a
+fromJsonBody :: (FromJSON a) => JsonRequest a -> Gundeck a
 fromJsonBody r = exceptT (throwM . mkError status400 "bad-request") pure (parseBody r)
 {-# INLINE fromJsonBody #-}
 

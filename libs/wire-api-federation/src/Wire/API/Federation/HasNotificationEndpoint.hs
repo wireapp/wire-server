@@ -59,7 +59,7 @@ type HasFedPath t = KnownSymbol (NotificationPath t)
 
 type HasVersionRange t = MkVersionRange (NotificationMods t)
 
-fedPath :: forall t. HasFedPath t => String
+fedPath :: forall t. (HasFedPath t) => String
 fedPath = symbolVal (Proxy @(NotificationPath t))
 
 -- | Build a version range using any 'Until' and 'From' combinators present in
@@ -84,9 +84,9 @@ instance
   where
   mkVersionRange = mkVersionRange @mods <> rangeUntilVersion (demote @v)
 
-instance {-# OVERLAPPABLE #-} MkVersionRange mods => MkVersionRange (m ': mods) where
+instance {-# OVERLAPPABLE #-} (MkVersionRange mods) => MkVersionRange (m ': mods) where
   mkVersionRange = mkVersionRange @mods
 
 -- | The federation API version range this endpoint is supported in.
-versionRange :: forall t. HasVersionRange t => VersionRange
+versionRange :: forall t. (HasVersionRange t) => VersionRange
 versionRange = mkVersionRange @(NotificationMods t)

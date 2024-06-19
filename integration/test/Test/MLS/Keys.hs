@@ -6,7 +6,7 @@ import qualified Data.ByteString.Char8 as B8
 import SetupHelpers
 import Testlib.Prelude
 
-testPublicKeys :: HasCallStack => App ()
+testPublicKeys :: (HasCallStack) => App ()
 testPublicKeys = do
   u <- randomUserId OwnDomain
   keys <- getMLSPublicKeys u >>= getJSON 200
@@ -48,7 +48,7 @@ testPublicKeys = do
     pubkeyY <- assertOne . toList . B64U.decodeUnpadded $ B8.pack pubkeyYS
     B8.length pubkeyY `shouldMatchInt` 66
 
-testPublicKeysMLSNotEnabled :: HasCallStack => App ()
+testPublicKeysMLSNotEnabled :: (HasCallStack) => App ()
 testPublicKeysMLSNotEnabled = withModifiedBackend
   def
     { galleyCfg = removeField "settings.mlsPrivateKeyPaths"

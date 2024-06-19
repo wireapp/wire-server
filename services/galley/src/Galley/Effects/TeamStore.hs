@@ -141,7 +141,7 @@ data TeamStore m a where
 makeSem ''TeamStore
 
 listTeams ::
-  Member (ListItems p TeamId) r =>
+  (Member (ListItems p TeamId) r) =>
   UserId ->
   Maybe (PagingState p TeamId) ->
   PagingBounds p TeamId ->

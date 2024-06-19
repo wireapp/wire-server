@@ -142,7 +142,7 @@ mkEnv lgr s3End s3AddrStyle s3Download bucket cfOpts mgr = do
     -- they are still revealed on debug level.
     mapLevel AWS.Error = Logger.Debug
 
-execute :: MonadIO m => Env -> Amazon a -> m a
+execute :: (MonadIO m) => Env -> Amazon a -> m a
 execute e m = liftIO $ runResourceT (runReaderT (unAmazon m) e)
 
 data Error where
@@ -246,7 +246,7 @@ execCatch env request = do
       pure Nothing
     Right r -> pure $ Just r
 
-canRetry :: MonadIO m => Either AWS.Error a -> m Bool
+canRetry :: (MonadIO m) => Either AWS.Error a -> m Bool
 canRetry (Right _) = pure False
 canRetry (Left e) = case e of
   AWS.TransportError (HttpExceptionRequest _ ResponseTimeout) -> pure True

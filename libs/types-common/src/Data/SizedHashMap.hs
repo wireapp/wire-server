@@ -44,7 +44,7 @@ size (SizedHashMap s _) = s
 empty :: forall k v. SizedHashMap k v
 empty = SizedHashMap 0 M.empty
 
-insert :: forall k v. Hashable k => k -> v -> SizedHashMap k v -> SizedHashMap k v
+insert :: forall k v. (Hashable k) => k -> v -> SizedHashMap k v -> SizedHashMap k v
 insert k v (SizedHashMap n hm) = SizedHashMap n' hm'
   where
     n' = if M.member k hm then n else n + 1
@@ -59,10 +59,10 @@ elems (SizedHashMap _ hm) = M.elems hm
 toList :: forall k v. SizedHashMap k v -> [(k, v)]
 toList (SizedHashMap _ hm) = M.toList hm
 
-lookup :: forall k v. Hashable k => k -> SizedHashMap k v -> Maybe v
+lookup :: forall k v. (Hashable k) => k -> SizedHashMap k v -> Maybe v
 lookup k (SizedHashMap _ hm) = M.lookup k hm
 
-delete :: forall k v. Hashable k => k -> SizedHashMap k v -> SizedHashMap k v
+delete :: forall k v. (Hashable k) => k -> SizedHashMap k v -> SizedHashMap k v
 delete k (SizedHashMap n hm) = SizedHashMap n' hm'
   where
     n' = if M.member k hm then n - 1 else n

@@ -42,25 +42,25 @@ lookup u c = foldM mk [] =<< retry x1 (query q (params c (Identity u)))
     q = "select usr, transport, app, ptoken, arn, connection, client from user_push where usr = ?"
     mk as r = maybe as (: as) <$> mkAddr r
 
-insert :: MonadClient m => UserId -> Transport -> AppName -> Token -> EndpointArn -> ConnId -> ClientId -> m ()
+insert :: (MonadClient m) => UserId -> Transport -> AppName -> Token -> EndpointArn -> ConnId -> ClientId -> m ()
 insert u t a p e o c = retry x5 $ write q (params LocalQuorum (u, t, a, p, e, o, c))
   where
     q :: PrepQuery W (UserId, Transport, AppName, Token, EndpointArn, ConnId, ClientId) ()
     q = "insert into user_push (usr, transport, app, ptoken, arn, connection, client) values (?, ?, ?, ?, ?, ?, ?)"
 
-updateArn :: MonadClient m => UserId -> Transport -> AppName -> Token -> EndpointArn -> m ()
+updateArn :: (MonadClient m) => UserId -> Transport -> AppName -> Token -> EndpointArn -> m ()
 updateArn uid transport app token arn = retry x5 $ write q (params LocalQuorum (arn, uid, transport, app, token))
   where
     q :: PrepQuery W (EndpointArn, UserId, Transport, AppName, Token) ()
     q = {- `IF EXISTS`, but that requires benchmarking -} "update user_push set arn = ? where usr = ? and transport = ? and app = ? and ptoken = ?"
 
-delete :: MonadClient m => UserId -> Transport -> AppName -> Token -> m ()
+delete :: (MonadClient m) => UserId -> Transport -> AppName -> Token -> m ()
 delete u t a p = retry x5 $ write q (params LocalQuorum (u, t, a, p))
   where
     q :: PrepQuery W (UserId, Transport, AppName, Token) ()
     q = "delete from user_push where usr = ? and transport = ? and app = ? and ptoken = ?"
 
-erase :: MonadClient m => UserId -> m ()
+erase :: (MonadClient m) => UserId -> m ()
 erase u = retry x5 $ write q (params LocalQuorum (Identity u))
   where
     q :: PrepQuery W (Identity UserId) ()

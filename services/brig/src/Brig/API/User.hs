@@ -199,7 +199,7 @@ identityErrorToBrigError = \case
   IdentityErrorBlacklistedPhone -> Error.StdError $ errorToWai @'E.BlacklistedPhone
   IdentityErrorUserKeyExists -> Error.StdError $ errorToWai @'E.UserKeyExists
 
-verifyUniquenessAndCheckBlacklist :: Member BlacklistStore r => UserKey -> ExceptT IdentityError (AppT r) ()
+verifyUniquenessAndCheckBlacklist :: (Member BlacklistStore r) => UserKey -> ExceptT IdentityError (AppT r) ()
 verifyUniquenessAndCheckBlacklist uk = do
   wrapClientE $ checkKey Nothing uk
   blacklisted <- lift $ liftSem $ BlacklistStore.exists uk
@@ -598,7 +598,7 @@ changeManagedBy uid conn (ManagedByUpdate mb) = do
 
 -- | Call 'changeEmail' and process result: if email changes to itself, succeed, if not, send
 -- validation email.
-changeSelfEmail :: Member BlacklistStore r => UserId -> Email -> UpdateOriginType -> ExceptT Error.Error (AppT r) ChangeEmailResponse
+changeSelfEmail :: (Member BlacklistStore r) => UserId -> Email -> UpdateOriginType -> ExceptT Error.Error (AppT r) ChangeEmailResponse
 changeSelfEmail u email allowScim = do
   changeEmail u email allowScim !>> Error.changeEmailError >>= \case
     ChangeEmailIdempotent ->
@@ -618,7 +618,7 @@ changeSelfEmail u email allowScim = do
         (userIdentity usr)
 
 -- | Prepare changing the email (checking a number of invariants).
-changeEmail :: Member BlacklistStore r => UserId -> Email -> UpdateOriginType -> ExceptT ChangeEmailError (AppT r) ChangeEmailResult
+changeEmail :: (Member BlacklistStore r) => UserId -> Email -> UpdateOriginType -> ExceptT ChangeEmailError (AppT r) ChangeEmailResult
 changeEmail u email updateOrigin = do
   em <-
     either
@@ -1102,7 +1102,7 @@ checkNewIsDifferent uid pw = do
     _ -> pure ()
 
 mkPasswordResetKey ::
-  Member CodeStore r =>
+  (Member CodeStore r) =>
   PasswordResetIdentity ->
   ExceptT PasswordResetError (AppT r) PasswordResetKey
 mkPasswordResetKey ident = case ident of
@@ -1330,7 +1330,7 @@ deleteAccount (accountUser -> user) = do
 -- Lookups
 
 lookupActivationCode ::
-  MonadClient m =>
+  (MonadClient m) =>
   Either Email Phone ->
   m (Maybe ActivationPair)
 lookupActivationCode emailOrPhone = do
@@ -1356,7 +1356,7 @@ lookupPasswordResetCode emailOrPhone = do
       pure $ (k,) <$> c
 
 deleteUserNoVerify ::
-  Member DeleteQueue r =>
+  (Member DeleteQueue r) =>
   UserId ->
   Sem r ()
 deleteUserNoVerify uid = do
@@ -1402,13 +1402,13 @@ lookupProfilesV3 ::
 lookupProfilesV3 self others = getUserProfilesWithErrors self others
 
 getLegalHoldStatus ::
-  Member GalleyAPIAccess r =>
+  (Member GalleyAPIAccess r) =>
   UserId ->
   AppT r (Maybe UserLegalHoldStatus)
 getLegalHoldStatus uid = traverse (liftSem . getLegalHoldStatus' . accountUser) =<< wrapHttpClient (lookupAccount uid)
 
 getLegalHoldStatus' ::
-  Member GalleyAPIAccess r =>
+  (Member GalleyAPIAccess r) =>
   User ->
   Sem r UserLegalHoldStatus
 getLegalHoldStatus' user =
@@ -1430,26 +1430,26 @@ lookupAccountsByIdentity emailOrPhone includePendingInvitations = do
     then pure result
     else pure $ filter ((/= PendingInvitation) . accountStatus) result
 
-isBlacklisted :: Member BlacklistStore r => Either Email Phone -> AppT r Bool
+isBlacklisted :: (Member BlacklistStore r) => Either Email Phone -> AppT r Bool
 isBlacklisted emailOrPhone = do
   let uk = either userEmailKey userPhoneKey emailOrPhone
   liftSem $ BlacklistStore.exists uk
 
-blacklistInsert :: Member BlacklistStore r => Either Email Phone -> AppT r ()
+blacklistInsert :: (Member BlacklistStore r) => Either Email Phone -> AppT r ()
 blacklistInsert emailOrPhone = do
   let uk = either userEmailKey userPhoneKey emailOrPhone
   liftSem $ BlacklistStore.insert uk
 
-blacklistDelete :: Member BlacklistStore r => Either Email Phone -> AppT r ()
+blacklistDelete :: (Member BlacklistStore r) => Either Email Phone -> AppT r ()
 blacklistDelete emailOrPhone = do
   let uk = either userEmailKey userPhoneKey emailOrPhone
   liftSem $ BlacklistStore.delete uk
 
-phonePrefixGet :: Member BlacklistPhonePrefixStore r => PhonePrefix -> (AppT r) [ExcludedPrefix]
+phonePrefixGet :: (Member BlacklistPhonePrefixStore r) => PhonePrefix -> (AppT r) [ExcludedPrefix]
 phonePrefixGet = liftSem . BlacklistPhonePrefixStore.getAll
 
-phonePrefixDelete :: Member BlacklistPhonePrefixStore r => PhonePrefix -> (AppT r) ()
+phonePrefixDelete :: (Member BlacklistPhonePrefixStore r) => PhonePrefix -> (AppT r) ()
 phonePrefixDelete = liftSem . BlacklistPhonePrefixStore.delete
 
-phonePrefixInsert :: Member BlacklistPhonePrefixStore r => ExcludedPrefix -> (AppT r) ()
+phonePrefixInsert :: (Member BlacklistPhonePrefixStore r) => ExcludedPrefix -> (AppT r) ()
 phonePrefixInsert = liftSem . BlacklistPhonePrefixStore.insert

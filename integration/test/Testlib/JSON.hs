@@ -54,42 +54,42 @@ import Prelude
 -- 2. has no "user" field
 -- 3. the nested update fails
 class MakesValue a where
-  make :: HasCallStack => a -> App Value
+  make :: (HasCallStack) => a -> App Value
 
-instance {-# OVERLAPPABLE #-} ToJSON a => MakesValue a where
+instance {-# OVERLAPPABLE #-} (ToJSON a) => MakesValue a where
   make = pure . toJSON
 
-instance {-# OVERLAPPING #-} ToJSON a => MakesValue (App a) where
+instance {-# OVERLAPPING #-} (ToJSON a) => MakesValue (App a) where
   make m = m <&> toJSON
 
 -- use this to provide Nothing for MakesValue a => (Maybe a) values.
 noValue :: Maybe Value
 noValue = Nothing
 
-(.=) :: ToJSON a => String -> a -> Aeson.Pair
+(.=) :: (ToJSON a) => String -> a -> Aeson.Pair
 (.=) k v = fromString k Aeson..= v
 
-(.=?) :: ToJSON a => String -> Maybe a -> Maybe Aeson.Pair
+(.=?) :: (ToJSON a) => String -> Maybe a -> Maybe Aeson.Pair
 (.=?) k v = (Aeson..=) (fromString k) <$> v
 
 -- | Convert JSON null to Nothing.
-asOptional :: HasCallStack => MakesValue a => a -> App (Maybe Value)
+asOptional :: (HasCallStack) => (MakesValue a) => a -> App (Maybe Value)
 asOptional x = do
   v <- make x
   pure $ case v of
     Null -> Nothing
     _ -> Just v
 
-asString :: HasCallStack => MakesValue a => a -> App String
+asString :: (HasCallStack) => (MakesValue a) => a -> App String
 asString x =
   make x >>= \case
     (String s) -> pure (T.unpack s)
     v -> assertFailureWithJSON x ("String" `typeWasExpectedButGot` v)
 
-asText :: HasCallStack => MakesValue a => a -> App T.Text
+asText :: (HasCallStack) => (MakesValue a) => a -> App T.Text
 asText = (fmap T.pack) . asString
 
-asStringM :: HasCallStack => MakesValue a => a -> App (Maybe String)
+asStringM :: (HasCallStack) => (MakesValue a) => a -> App (Maybe String)
 asStringM x =
   make x >>= \case
     (String s) -> pure (Just (T.unpack s))
@@ -103,16 +103,16 @@ asByteString x = do
     Left _ -> assertFailure "Could not base64 decode"
     Right a -> pure a
 
-asObject :: HasCallStack => MakesValue a => a -> App Object
+asObject :: (HasCallStack) => (MakesValue a) => a -> App Object
 asObject x =
   make x >>= \case
     (Object o) -> pure o
     v -> assertFailureWithJSON x ("Object" `typeWasExpectedButGot` v)
 
-asInt :: HasCallStack => MakesValue a => a -> App Int
+asInt :: (HasCallStack) => (MakesValue a) => a -> App Int
 asInt = asIntegral
 
-asIntegral :: (Integral i, HasCallStack) => MakesValue a => a -> App i
+asIntegral :: (Integral i, HasCallStack) => (MakesValue a) => a -> App i
 asIntegral x =
   make x >>= \case
     (Number n) ->
@@ -121,23 +121,23 @@ asIntegral x =
         Right i -> pure i
     v -> assertFailureWithJSON x ("Number" `typeWasExpectedButGot` v)
 
-asList :: HasCallStack => MakesValue a => a -> App [Value]
+asList :: (HasCallStack) => (MakesValue a) => a -> App [Value]
 asList x =
   make x >>= \case
     (Array arr) -> pure (toList arr)
     v -> assertFailureWithJSON x ("Array" `typeWasExpectedButGot` v)
 
-asListOf :: HasCallStack => (Value -> App b) -> MakesValue a => a -> App [b]
+asListOf :: (HasCallStack) => (Value -> App b) -> (MakesValue a) => a -> App [b]
 asListOf makeElem x =
   asList x >>= mapM makeElem
 
-asSet :: HasCallStack => MakesValue a => a -> App (Set.Set Value)
+asSet :: (HasCallStack) => (MakesValue a) => a -> App (Set.Set Value)
 asSet = fmap Set.fromList . asList
 
-asSetOf :: (HasCallStack, Ord b) => (Value -> App b) -> MakesValue a => a -> App (Set.Set b)
+asSetOf :: (HasCallStack, Ord b) => (Value -> App b) -> (MakesValue a) => a -> App (Set.Set b)
 asSetOf makeElem x = Set.fromList <$> asListOf makeElem x
 
-asBool :: HasCallStack => MakesValue a => a -> App Bool
+asBool :: (HasCallStack) => (MakesValue a) => a -> App Bool
 asBool x =
   make x >>= \case
     (Bool b) -> pure b
@@ -301,20 +301,20 @@ removeField selector x = do
       ob <- asObject v
       pure $ Object $ KM.insert (KM.fromString k) newValue ob
 
-assertFailureWithJSON :: HasCallStack => MakesValue a => a -> String -> App b
+assertFailureWithJSON :: (HasCallStack) => (MakesValue a) => a -> String -> App b
 assertFailureWithJSON v msg = do
   msg' <- ((msg <> "\n") <>) <$> prettyJSON v
   assertFailure msg'
 
 -- | Useful for debugging
-printJSON :: MakesValue a => a -> App ()
+printJSON :: (MakesValue a) => a -> App ()
 printJSON = prettyJSON >=> liftIO . putStrLn
 
 -- | useful for debugging, same as 'printJSON' but returns input JSON
-traceJSON :: MakesValue a => a -> App a
+traceJSON :: (MakesValue a) => a -> App a
 traceJSON a = printJSON a $> a
 
-prettyJSON :: MakesValue a => a -> App String
+prettyJSON :: (MakesValue a) => a -> App String
 prettyJSON x =
   make x <&> LC8.unpack . Aeson.encodePretty
 
@@ -330,7 +330,7 @@ typeWasExpectedButGot :: String -> Value -> String
 typeWasExpectedButGot expectedType x = "Expected " <> expectedType <> " but got " <> jsonType x <> ":"
 
 -- Get "id" field or - if already string-like return String
-objId :: HasCallStack => MakesValue a => a -> App String
+objId :: (HasCallStack) => (MakesValue a) => a -> App String
 objId x = do
   v <- make x
   case v of
@@ -339,7 +339,7 @@ objId x = do
     other -> assertFailureWithJSON other (typeWasExpectedButGot "Object or String" other)
 
 -- Get "qualified_id" field as (domain, id) or - if already is a qualified id object - return that
-objQid :: HasCallStack => MakesValue a => a -> App (String, String)
+objQid :: (HasCallStack) => (MakesValue a) => a -> App (String, String)
 objQid ob = do
   m <- firstSuccess [select ob, inField]
   case m of
@@ -360,7 +360,7 @@ objQid ob = do
         Nothing -> pure Nothing
         Just x -> select x
 
-    firstSuccess :: Monad m => [m (Maybe a)] -> m (Maybe a)
+    firstSuccess :: (Monad m) => [m (Maybe a)] -> m (Maybe a)
     firstSuccess [] = pure Nothing
     firstSuccess (x : xs) =
       x >>= \case
@@ -368,7 +368,7 @@ objQid ob = do
         Just y -> pure (Just y)
 
 -- | Get "qualified_id" field as {"id": _, "domain": _} object or - if already is a qualified id object - return that.
-objQidObject :: HasCallStack => MakesValue a => a -> App Value
+objQidObject :: (HasCallStack) => (MakesValue a) => a -> App Value
 objQidObject o = do
   (domain, id_) <- objQid o
   pure $ object ["domain" .= domain, "id" .= id_]

@@ -21,7 +21,6 @@ module Wire.API.User.IdentityProvider where
 
 import Cassandra qualified as Cql
 import Control.Lens (makeLenses, (.~), (?~))
-import Control.Monad.Except
 import Data.Aeson
 import Data.Aeson.TH
 import Data.Aeson.Types (parseMaybe)
@@ -211,10 +210,14 @@ instance ToSchema IdPMetadataInfo where
     pure $
       NamedSchema (Just "IdPMetadataInfo") $
         mempty
-          & properties .~ properties_
-          & minProperties ?~ 1
-          & maxProperties ?~ 1
-          & type_ ?~ OpenApiObject
+          & properties
+            .~ properties_
+          & minProperties
+            ?~ 1
+          & maxProperties
+            ?~ 1
+          & type_
+            ?~ OpenApiObject
     where
       properties_ :: InsOrdHashMap Text (Referenced Schema)
       properties_ =

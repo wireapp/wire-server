@@ -54,7 +54,7 @@ new c d l = do
   queue <- newIORef PSQ.empty
   pure $! DelayQueue queue c d l
 
-enqueue :: Ord k => DelayQueue k v -> k -> v -> IO Bool
+enqueue :: (Ord k) => DelayQueue k v -> k -> v -> IO Bool
 enqueue (DelayQueue queue clock d l) k v = do
   time <- getTime clock
   let !p = time + delayTime d
@@ -71,7 +71,7 @@ enqueue (DelayQueue queue clock d l) k v = do
             k
             q
 
-dequeue :: Ord k => DelayQueue k v -> IO (Maybe (Either Delay v))
+dequeue :: (Ord k) => DelayQueue k v -> IO (Maybe (Either Delay v))
 dequeue (DelayQueue queue clock _ _) = do
   time <- getTime clock
   atomicModifyIORef' queue $ \q ->
@@ -80,7 +80,7 @@ dequeue (DelayQueue queue clock _ _) = do
       Just (_, p, v, q') | p <= time -> (q', Just (Right v))
       Just (_, p, _, _) -> (q, Just (Left (Delay (p - time))))
 
-cancel :: Ord k => DelayQueue k v -> k -> IO Bool
+cancel :: (Ord k) => DelayQueue k v -> k -> IO Bool
 cancel (DelayQueue queue _ _ _) k =
   atomicModifyIORef' queue $
     swap . PSQ.alter (\pv -> (isJust pv, Nothing)) k

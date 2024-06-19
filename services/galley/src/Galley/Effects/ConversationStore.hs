@@ -106,5 +106,5 @@ data ConversationStore m a where
 
 makeSem ''ConversationStore
 
-acceptConnectConversation :: Member ConversationStore r => ConvId -> Sem r ()
+acceptConnectConversation :: (Member ConversationStore r) => ConvId -> Sem r ()
 acceptConnectConversation cid = setConversationType cid One2OneConv

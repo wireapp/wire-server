@@ -167,8 +167,10 @@ instance ToJSON EventData where
   toJSON (EdMemberJoin usr) = A.object ["user" A..= usr]
   toJSON (EdMemberUpdate usr mPerm) =
     A.object $
-      "user" A..= usr
-        # "permissions" A..= mPerm
+      "user"
+        A..= usr
+        # "permissions"
+        A..= mPerm
         # []
   toJSON (EdMemberLeave usr) = A.object ["user" A..= usr]
   toJSON (EdConvCreate cnv) = A.object ["conv" A..= cnv]

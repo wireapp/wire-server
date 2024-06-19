@@ -497,7 +497,7 @@ instance BC.ToByteString SFTUsername where
       <> shortByteString ".r="
       <> byteString (view (re utf8) (_suRandom su))
     where
-      boolToWord :: Num a => Bool -> a
+      boolToWord :: (Num a) => Bool -> a
       boolToWord False = 0
       boolToWord True = 1
 

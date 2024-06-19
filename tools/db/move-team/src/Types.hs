@@ -71,10 +71,10 @@ instance Cql AssetIgnoreData where
   toCql _ = error "AssetIgnoreData: you should not have any data of this"
   fromCql _ = pure AssetIgnoreData
 
-instance ToJSON a => ToJSON (Cassandra.Set a) where
+instance (ToJSON a) => ToJSON (Cassandra.Set a) where
   toJSON = toJSON . Cassandra.fromSet
 
-instance FromJSON a => FromJSON (Cassandra.Set a) where
+instance (FromJSON a) => FromJSON (Cassandra.Set a) where
   parseJSON = fmap Cassandra.Set . parseJSON
 
 instance ToJSON Blob where

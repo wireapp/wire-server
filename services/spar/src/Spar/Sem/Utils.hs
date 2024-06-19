@@ -29,7 +29,7 @@ where
 import Bilge
 import Cassandra as Cas
 import qualified Control.Monad.Catch as Catch
-import Control.Monad.Except
+import Control.Monad.Except (ExceptT (..), MonadError, runExceptT)
 import qualified Data.Text.Lazy as LText
 import Imports hiding (log)
 import Polysemy
@@ -67,10 +67,10 @@ interpretClientToIO ctx = interpret $ \case
           . show @SomeException
     pure $ action' `Catch.catch` \e -> handler' $ e <$ st
 
-ttlErrorToSparError :: Member (Error SparError) r => Sem (Error TTLError ': r) a -> Sem r a
+ttlErrorToSparError :: (Member (Error SparError) r) => Sem (Error TTLError ': r) a -> Sem r a
 ttlErrorToSparError = mapError (SAML.CustomError . SparCassandraTTLError)
 
-idpDbErrorToSparError :: Member (Error SparError) r => Sem (Error IdpDbError ': r) a -> Sem r a
+idpDbErrorToSparError :: (Member (Error SparError) r) => Sem (Error IdpDbError ': r) a -> Sem r a
 idpDbErrorToSparError = mapError (SAML.CustomError . IdpDbError)
 
 data RunHttpEnv r = RunHttpEnv
@@ -83,10 +83,10 @@ newtype RunHttp r a = RunHttp
   }
   deriving newtype (Functor, Applicative, Monad, MonadError SparError, MonadReader (RunHttpEnv r))
 
-instance Member (Embed IO) r => MonadIO (RunHttp r) where
+instance (Member (Embed IO) r) => MonadIO (RunHttp r) where
   liftIO = semToRunHttp . embed
 
-instance Member (Embed IO) r => MonadHttp (RunHttp r) where
+instance (Member (Embed IO) r) => MonadHttp (RunHttp r) where
   handleRequestWithCont r fribia =
     RunHttp $
       lift $
@@ -97,7 +97,7 @@ semToRunHttp :: Sem r a -> RunHttp r a
 semToRunHttp = RunHttp . lift . lift . lift
 
 viaRunHttp ::
-  Member (Error SparError) r =>
+  (Member (Error SparError) r) =>
   RunHttpEnv r ->
   RunHttp r a ->
   Sem r a
@@ -107,7 +107,7 @@ viaRunHttp env m = do
     Left err -> throw err
     Right a -> pure a
 
-instance Member (Logger (TinyLog.Msg -> TinyLog.Msg)) r => TinyLog.MonadLogger (RunHttp r) where
+instance (Member (Logger (TinyLog.Msg -> TinyLog.Msg)) r) => TinyLog.MonadLogger (RunHttp r) where
   log lvl msg = semToRunHttp $ Logger.log (Logger.fromLevel lvl) msg
 
 instance

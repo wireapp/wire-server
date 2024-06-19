@@ -99,7 +99,7 @@ badConvState cid =
     "Connect conversation with more than 2 members: "
       <> LT.pack (show cid)
 
-legalHoldServiceUnavailable :: Show a => a -> Wai.Error
+legalHoldServiceUnavailable :: (Show a) => a -> Wai.Error
 legalHoldServiceUnavailable e = Wai.mkError status412 "legalhold-unavailable" ("legal hold service unavailable with underlying error: " <> (LT.pack . show $ e))
 
 invalidTeamNotificationId :: Wai.Error

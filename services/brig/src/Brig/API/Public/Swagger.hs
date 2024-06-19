@@ -164,7 +164,7 @@ eventNotificationSchemas = fst . (`S.runDeclare` mempty) <$> renderAll
         render @Wire.API.Event.Team.Event "Wire.API.Event.Team.Event"
       ]
 
-    render :: forall a. S.ToSchema a => Text -> S.Declare (S.Definitions S.Schema) ()
+    render :: forall a. (S.ToSchema a) => Text -> S.Declare (S.Definitions S.Schema) ()
     render eventTypeName = do
       eventSchema <- S.declareNamedSchema (Proxy @a) <&> view S.schema
       S.declare (HM.singleton eventTypeName eventSchema)

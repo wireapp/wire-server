@@ -6,6 +6,7 @@ module Testlib.Types where
 
 import Control.Concurrent (QSemN)
 import Control.Exception as E
+import Control.Monad
 import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Reader
@@ -67,7 +68,7 @@ data BackendResource = BackendResource
     berVHost :: String,
     berNginzSslPort :: Word16,
     berNginzHttp2Port :: Word16,
-    berInternalServicePorts :: forall a. Num a => Service -> a
+    berInternalServicePorts :: forall a. (Num a) => Service -> a
   }
 
 instance Eq BackendResource where
@@ -341,7 +342,7 @@ appToIOKleisli k = do
   env <- ask
   pure $ \a -> runAppWithEnv env (k a)
 
-getServiceMap :: HasCallStack => String -> App ServiceMap
+getServiceMap :: (HasCallStack) => String -> App ServiceMap
 getServiceMap fedDomain = do
   env <- ask
   assertJust ("Could not find service map for federation domain: " <> fedDomain) (Map.lookup fedDomain env.serviceMap)
@@ -375,7 +376,7 @@ instance Exception AppFailure where
 instance MonadFail App where
   fail msg = assertFailure ("Pattern matching failure: " <> msg)
 
-assertFailure :: HasCallStack => String -> App a
+assertFailure :: (HasCallStack) => String -> App a
 assertFailure msg =
   forceList msg $
     liftIO $
@@ -384,7 +385,7 @@ assertFailure msg =
     forceList [] y = y
     forceList (x : xs) y = seq x (forceList xs y)
 
-assertJust :: HasCallStack => String -> Maybe a -> App a
+assertJust :: (HasCallStack) => String -> Maybe a -> App a
 assertJust _ (Just x) = pure x
 assertJust msg Nothing = assertFailure msg
 

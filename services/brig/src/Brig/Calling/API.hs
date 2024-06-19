@@ -203,10 +203,10 @@ newConfig env discoveredServers sftStaticUrl mSftEnv limit listAllServers versio
     genTurnUsername = (fmap (uncurry Public.turnUsername) .) . genUsername
     genSFTUsername :: Word32 -> MWC.GenIO -> IO Public.SFTUsername
     genSFTUsername = (fmap (uncurry Public.mkSFTUsername) .) . genUsername
-    computeCred :: ToByteString a => Digest -> ByteString -> a -> AsciiBase64
+    computeCred :: (ToByteString a) => Digest -> ByteString -> a -> AsciiBase64
     computeCred dig secret = encodeBase64 . hmacBS dig secret . toByteString'
     authenticate ::
-      Member (Embed IO) r =>
+      (Member (Embed IO) r) =>
       Public.SFTServer ->
       Sem r Public.AuthSFTServer
     authenticate =

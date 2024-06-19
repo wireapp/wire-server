@@ -32,7 +32,6 @@ where
 
 import Control.Exception
 import Control.Lens
-import Control.Monad.Except
 import Data.Aeson hiding (fieldLabelModifier)
 import qualified Data.ByteString as SBS
 import Data.Time

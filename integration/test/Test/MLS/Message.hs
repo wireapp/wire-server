@@ -27,7 +27,7 @@ import SetupHelpers
 import Testlib.Prelude
 
 -- | Test happy case of federated MLS message sending in both directions.
-testApplicationMessage :: HasCallStack => App ()
+testApplicationMessage :: (HasCallStack) => App ()
 testApplicationMessage = do
   -- local alice and alex, remote bob
   [alice, alex, bob, betty] <-
@@ -55,7 +55,7 @@ testApplicationMessage = do
     void $ createApplicationMessage bob1 "hey" >>= sendAndConsumeMessage
     traverse_ (awaitMatch isNewMLSMessageNotif) wss
 
-testAppMessageSomeReachable :: HasCallStack => App ()
+testAppMessageSomeReachable :: (HasCallStack) => App ()
 testAppMessageSomeReachable = do
   alice1 <- startDynamicBackends [mempty] $ \[thirdDomain] -> do
     ownDomain <- make OwnDomain & asString
@@ -75,7 +75,7 @@ testAppMessageSomeReachable = do
   mp <- createApplicationMessage alice1 "hi, bob!"
   void $ postMLSMessage mp.sender mp.message >>= getJSON 201
 
-testMessageNotifications :: HasCallStack => Domain -> App ()
+testMessageNotifications :: (HasCallStack) => Domain -> App ()
 testMessageNotifications bobDomain = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, bobDomain]
 
@@ -105,7 +105,7 @@ testMessageNotifications bobDomain = do
   get def `shouldMatchInt` (numNotifs + 1)
   get def {client = Just bobClient} `shouldMatchInt` (numNotifsClient + 1)
 
-testMultipleMessages :: HasCallStack => App ()
+testMultipleMessages :: (HasCallStack) => App ()
 testMultipleMessages = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
   [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]

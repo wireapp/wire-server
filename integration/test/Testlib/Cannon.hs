@@ -93,12 +93,12 @@ data WSConnect = WSConnect
   }
 
 class ToWSConnect a where
-  toWSConnect :: HasCallStack => a -> App WSConnect
+  toWSConnect :: (HasCallStack) => a -> App WSConnect
 
 instance {-# OVERLAPPING #-} ToWSConnect WSConnect where
   toWSConnect = pure
 
-instance {-# OVERLAPPABLE #-} MakesValue user => ToWSConnect user where
+instance {-# OVERLAPPABLE #-} (MakesValue user) => ToWSConnect user where
   toWSConnect u = do
     (domain, uid) <- objQid u
     mc <- lookupField u "client_id"
@@ -118,14 +118,14 @@ instance (MakesValue user, MakesValue conn, MakesValue client) => ToWSConnect (u
     conn <- make c & asString
     pure (WSConnect uid domain (Just client) (Just conn))
 
-connect :: HasCallStack => WSConnect -> App WebSocket
+connect :: (HasCallStack) => WSConnect -> App WebSocket
 connect wsConnect = do
   nchan <- liftIO newTChanIO
   latch <- liftIO newEmptyMVar
   wsapp <- run wsConnect (clientApp nchan latch)
   pure $ WebSocket nchan latch wsapp
 
-clientApp :: HasCallStack => TChan Value -> MVar () -> WS.ClientApp ()
+clientApp :: (HasCallStack) => TChan Value -> MVar () -> WS.ClientApp ()
 clientApp wsChan latch conn = do
   r <- async wsRead
   w <- async wsWrite
@@ -143,7 +143,7 @@ clientApp wsChan latch conn = do
 -- | Start a client thread in 'Async' that opens a web socket to a Cannon, wait
 --   for the connection to register with Gundeck, and return the 'Async' thread.
 run ::
-  HasCallStack =>
+  (HasCallStack) =>
   WSConnect ->
   WS.ClientApp () ->
   App (Async ())
@@ -212,7 +212,7 @@ run wsConnect app = do
   liftIO $ race_ waitForPresence waitForException
   pure wsapp
 
-close :: MonadIO m => WebSocket -> m ()
+close :: (MonadIO m) => WebSocket -> m ()
 close ws = liftIO $ do
   putMVar (wsCloseLatch ws) ()
   void $ waitCatch (wsAppThread ws)
@@ -227,7 +227,7 @@ withWebSockets twcs k = do
   wcs <- for twcs toWSConnect
   go wcs []
   where
-    go :: HasCallStack => [WSConnect] -> [WebSocket] -> App a
+    go :: (HasCallStack) => [WSConnect] -> [WebSocket] -> App a
     go [] wss = k (reverse wss)
     go (wc : wcs) wss = withWebSocket wc (\ws -> go wcs (ws : wss))
 
@@ -294,7 +294,7 @@ awaitAnyEvent tSecs = liftIO . timeout (tSecs * 1000 * 1000) . atomically . read
 -- received. When this functions returns it will push any non-matching
 -- events back to the websocket.
 awaitNMatchesResult ::
-  HasCallStack =>
+  (HasCallStack) =>
   -- | Number of matches
   Int ->
   -- | Selection function. Exceptions are *not* caught.
@@ -334,7 +334,7 @@ awaitNMatchesResult nExpected checkMatch ws = go nExpected [] []
     refill = mapM_ (liftIO . atomically . writeTChan (wsChan ws))
 
 awaitAtLeastNMatchesResult ::
-  HasCallStack =>
+  (HasCallStack) =>
   -- | Minimum number of matches
   Int ->
   -- | Selection function. Exceptions are *not* caught.
@@ -366,7 +366,7 @@ awaitAtLeastNMatchesResult nExpected checkMatch ws = go 0 [] []
     refill = mapM_ (liftIO . atomically . writeTChan (wsChan ws))
 
 awaitNToMMatchesResult ::
-  HasCallStack =>
+  (HasCallStack) =>
   -- | Minimum number of matches
   Int ->
   -- | Maximum number of matches
@@ -400,7 +400,7 @@ awaitNToMMatchesResult nMin nMax checkMatch ws = go 0 [] []
     refill = mapM_ (liftIO . atomically . writeTChan (wsChan ws))
 
 awaitNMatches ::
-  HasCallStack =>
+  (HasCallStack) =>
   -- | Number of matches
   Int ->
   -- | Selection function. Should not throw any exceptions
@@ -411,7 +411,7 @@ awaitNMatches nExpected checkMatch ws = do
   res <- awaitNMatchesResult nExpected checkMatch ws
   assertAwaitResult res
 
-assertAwaitResult :: HasCallStack => AwaitResult -> App [Value]
+assertAwaitResult :: (HasCallStack) => AwaitResult -> App [Value]
 assertAwaitResult res = do
   if res.success
     then pure res.matches
@@ -421,7 +421,7 @@ assertAwaitResult res = do
       assertFailure $ unlines [msgHeader, details]
 
 awaitAtLeastNMatches ::
-  HasCallStack =>
+  (HasCallStack) =>
   -- | Minumum number of matches
   Int ->
   -- | Selection function. Should not throw any exceptions
@@ -438,7 +438,7 @@ awaitAtLeastNMatches nExpected checkMatch ws = do
       assertFailure $ unlines [msgHeader, details]
 
 awaitNToMMatches ::
-  HasCallStack =>
+  (HasCallStack) =>
   -- | Minimum Number of matches
   Int ->
   -- | Maximum Number of matches
@@ -457,7 +457,7 @@ awaitNToMMatches nMin nMax checkMatch ws = do
       assertFailure $ unlines [msgHeader, details]
 
 awaitMatch ::
-  HasCallStack =>
+  (HasCallStack) =>
   -- | Selection function. Should not throw any exceptions
   (Value -> App Bool) ->
   WebSocket ->
@@ -465,7 +465,7 @@ awaitMatch ::
 awaitMatch checkMatch ws = head <$> awaitNMatches 1 checkMatch ws
 
 assertNoEvent ::
-  HasCallStack =>
+  (HasCallStack) =>
   Int ->
   WebSocket ->
   App ()
@@ -475,13 +475,13 @@ assertNoEvent to ws = do
     Just event -> assertFailure $ "Expected no event, but got: " <> show event
     Nothing -> pure ()
 
-nPayload :: MakesValue a => a -> App Value
+nPayload :: (MakesValue a) => a -> App Value
 nPayload event = do
   payloads <- event %. "payload" & asList
   assertOne payloads
 
 -- | waits for an http response to satisfy a predicate
-waitForResponse :: HasCallStack => App Response -> (Response -> App r) -> App r
+waitForResponse :: (HasCallStack) => App Response -> (Response -> App r) -> App r
 waitForResponse act p = do
   tSecs <- asks timeOutSeconds
   r <- withRunInIO \inIO ->

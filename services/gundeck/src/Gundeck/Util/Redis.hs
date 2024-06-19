@@ -35,7 +35,7 @@ x1 = limitRetries 1 <> exponentialBackoff 100000
 x3 :: RetryPolicy
 x3 = limitRetries 3 <> exponentialBackoff 100000
 
-handlers :: MonadLogger m => [a -> Handler m Bool]
+handlers :: (MonadLogger m) => [a -> Handler m Bool]
 handlers =
   [ const . Handler $ \case
       RedisSimpleError (Error err) -> pure $ "READONLY" `BS.isPrefixOf` err
@@ -57,7 +57,7 @@ data RedisError
 
 instance Exception RedisError
 
-fromTxResult :: MonadThrow m => TxResult a -> m a
+fromTxResult :: (MonadThrow m) => TxResult a -> m a
 fromTxResult = \case
   TxSuccess a -> pure a
   TxAborted -> throwM RedisTxAborted

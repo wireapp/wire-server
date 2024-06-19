@@ -36,6 +36,6 @@ data Random m a where
   Bytes :: Int -> Random m ByteString
   Uuid :: Random m UUID
   ScimTokenId :: Random m ScimTokenId
-  LiftRandom :: (forall mr. MonadRandom mr => mr a) -> Random m a
+  LiftRandom :: (forall mr. (MonadRandom mr) => mr a) -> Random m a
 
 makeSem ''Random

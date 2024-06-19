@@ -210,12 +210,12 @@ specImportToScimFromInvitation =
     check False
     check True
   where
-    createTeam :: HasCallStack => TestSpar (UserId, TeamId)
+    createTeam :: (HasCallStack) => TestSpar (UserId, TeamId)
     createTeam = do
       env <- ask
       call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
 
-    invite :: HasCallStack => UserId -> TeamId -> TestSpar (UserId, Email)
+    invite :: (HasCallStack) => UserId -> TeamId -> TestSpar (UserId, Email)
     invite owner teamid = do
       env <- ask
       email <- randomEmail
@@ -224,7 +224,7 @@ specImportToScimFromInvitation =
           emailInvited = fromMaybe (error "must have email") (userEmail memberInvited)
       pure (memberIdInvited, emailInvited)
 
-    addSamlIdP :: HasCallStack => UserId -> TestSpar (SAML.IdPConfig User.WireIdP, SAML.SignPrivCreds)
+    addSamlIdP :: (HasCallStack) => UserId -> TestSpar (SAML.IdPConfig User.WireIdP, SAML.SignPrivCreds)
     addSamlIdP userid = do
       env <- ask
       apiVersion <- view teWireIdPAPIVersion
@@ -233,7 +233,7 @@ specImportToScimFromInvitation =
       pure (idp, privkey)
 
     reProvisionWithScim ::
-      HasCallStack =>
+      (HasCallStack) =>
       Bool ->
       Maybe (SAML.IdPConfig User.WireIdP) ->
       TeamId ->
@@ -267,7 +267,7 @@ specImportToScimFromInvitation =
           <!! const 200 === statusCode
       pure $ responseJsonUnsafe resp
 
-    signInWithSaml :: HasCallStack => (SAML.IdPConfig User.WireIdP, SAML.SignPrivCreds) -> Email -> UserId -> TestSpar ()
+    signInWithSaml :: (HasCallStack) => (SAML.IdPConfig User.WireIdP, SAML.SignPrivCreds) -> Email -> UserId -> TestSpar ()
     signInWithSaml (idp, privCreds) email userid = do
       let uref = SAML.UserRef tenant subj
           subj = emailToSAMLNameID email
@@ -276,7 +276,7 @@ specImportToScimFromInvitation =
       liftIO $ mbUid `shouldBe` Just userid
 
     checkCsvDownload ::
-      HasCallStack =>
+      (HasCallStack) =>
       UserId ->
       TeamId ->
       SAML.IdPConfig User.WireIdP ->
@@ -333,18 +333,18 @@ findUserByEmail tok email = do
     [fstUser] -> pure fstUser
     _ -> error "expected exactly one user"
 
-assertSparCassandraUref :: HasCallStack => (SAML.UserRef, Maybe UserId) -> TestSpar ()
+assertSparCassandraUref :: (HasCallStack) => (SAML.UserRef, Maybe UserId) -> TestSpar ()
 assertSparCassandraUref (uref, urefAnswer) = do
   liftIO . (`shouldBe` urefAnswer)
     =<< runSpar (SAMLUserStore.get uref)
 
-assertSparCassandraScim :: HasCallStack => ((TeamId, Email), Maybe UserId) -> TestSpar ()
+assertSparCassandraScim :: (HasCallStack) => ((TeamId, Email), Maybe UserId) -> TestSpar ()
 assertSparCassandraScim ((teamid, email), scimAnswer) = do
   liftIO . (`shouldBe` scimAnswer)
     =<< runSpar (ScimExternalIdStore.lookup teamid email)
 
 assertBrigCassandra ::
-  HasCallStack =>
+  (HasCallStack) =>
   UserId ->
   SAML.UserRef ->
   Scim.User.User SparTag ->
@@ -504,7 +504,7 @@ specCreateUser = describe "POST /Users" $ do
     pendingWith "factor this out of the PUT tests we already wrote."
 
 testCsvData ::
-  HasCallStack =>
+  (HasCallStack) =>
   TeamId ->
   UserId ->
   UserId ->
@@ -544,7 +544,7 @@ testCsvData tid owner uid mbeid mbsaml hasissuer = do
             Nothing -> ""
       ('n', CsvExport.tExportSAMLNamedId export) `shouldBe` ('n', haveSubject)
 
-decodeCSV :: Csv.FromNamedRecord a => LByteString -> [a]
+decodeCSV :: (Csv.FromNamedRecord a) => LByteString -> [a]
 decodeCSV bstr =
   either (error "could not decode csv") (V.toList . snd) (Csv.decodeByName bstr)
 
@@ -715,7 +715,7 @@ testCreateUserNoIdP = do
   where
     -- cloned from brig's integration tests
 
-    searchUser :: HasCallStack => BrigReq -> UserId -> Name -> Bool -> TestSpar ()
+    searchUser :: (HasCallStack) => BrigReq -> UserId -> Name -> Bool -> TestSpar ()
     searchUser brig searcherId searchTarget shouldSucceed = do
       refreshIndex brig
       aFewTimesAssert
@@ -779,7 +779,7 @@ testCreateUserWithSamlIdP = do
 
   let uid = userId brigUser
       eid = Scim.User.externalId user
-      sml :: HasCallStack => UserSSOId
+      sml :: (HasCallStack) => UserSSOId
       sml = fromJust $ ssoIdentity =<< userIdentity brigUser
    in testCsvData tid owner uid eid (Just sml) True
 
@@ -958,7 +958,7 @@ testRichInfo = do
   (tok, (owner, _, _)) <- registerIdPAndScimToken
   let -- validate response
       checkStoredUser ::
-        HasCallStack =>
+        (HasCallStack) =>
         Scim.UserC.StoredUser SparTag ->
         RichInfo ->
         TestSpar ()
@@ -967,7 +967,7 @@ testRichInfo = do
           `shouldBe` ScimUserExtra rinf
       -- validate server state after the fact
       probeUser ::
-        HasCallStack =>
+        (HasCallStack) =>
         UserId ->
         RichInfo ->
         TestSpar ()
@@ -1053,12 +1053,12 @@ testScimCreateVsUserRef = do
       tenant' = idp ^. SAML.idpMetadata . SAML.edIssuer
   createViaSamlFails idp privCreds uref'
 
-samlUserShouldSatisfy :: HasCallStack => SAML.UserRef -> (Maybe UserId -> Bool) -> TestSpar ()
+samlUserShouldSatisfy :: (HasCallStack) => SAML.UserRef -> (Maybe UserId -> Bool) -> TestSpar ()
 samlUserShouldSatisfy uref property = do
   muid <- getUserIdViaRef' uref
   liftIO $ muid `shouldSatisfy` property
 
-createViaSamlResp :: HasCallStack => IdP -> SAML.SignPrivCreds -> SAML.UserRef -> TestSpar ResponseLBS
+createViaSamlResp :: (HasCallStack) => IdP -> SAML.SignPrivCreds -> SAML.UserRef -> TestSpar ResponseLBS
 createViaSamlResp idp privCreds (SAML.UserRef _ subj) = do
   authnReq <- negotiateAuthnRequest idp
   let tid = idp ^. SAML.idpExtraInfo . User.team
@@ -1068,14 +1068,14 @@ createViaSamlResp idp privCreds (SAML.UserRef _ subj) = do
       SAML.mkAuthnResponseWithSubj subj privCreds idp spmeta authnReq True
   submitAuthnResponse tid authnResp <!! const 200 === statusCode
 
-createViaSamlFails :: HasCallStack => IdP -> SAML.SignPrivCreds -> SAML.UserRef -> TestSpar ()
+createViaSamlFails :: (HasCallStack) => IdP -> SAML.SignPrivCreds -> SAML.UserRef -> TestSpar ()
 createViaSamlFails idp privCreds uref = do
   resp <- createViaSamlResp idp privCreds uref
   liftIO $ do
     maybe (error "no body") cs (responseBody resp)
       `shouldNotContain` "<title>wire:sso:error:success</title>"
 
-createViaSaml :: HasCallStack => IdP -> SAML.SignPrivCreds -> SAML.UserRef -> TestSpar (Maybe UserId)
+createViaSaml :: (HasCallStack) => IdP -> SAML.SignPrivCreds -> SAML.UserRef -> TestSpar (Maybe UserId)
 createViaSaml idp privCreds uref = do
   resp <- createViaSamlResp idp privCreds uref
   liftIO $ do
@@ -1127,7 +1127,7 @@ testCreateUserTimeout = do
       Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
       pure (scimStoredUser, inv, inviteeCode)
 
-    searchUser :: HasCallStack => Spar.Types.ScimToken -> Scim.User.User tag -> Email -> Bool -> TestSpar ()
+    searchUser :: (HasCallStack) => Spar.Types.ScimToken -> Scim.User.User tag -> Email -> Bool -> TestSpar ()
     searchUser tok scimUser email shouldSucceed = do
       let handle = fromJust . parseHandle . Scim.User.userName $ scimUser
           tryquery qry =
@@ -1214,7 +1214,7 @@ testFindSamlAutoProvisionedUserMigratedWithEmailInTeamWithSSO = do
   Just brigUser' <- runSpar $ Intra.getBrigUser Intra.NoPendingInvitations memberIdWithSSO
   liftIO $ userManagedBy brigUser' `shouldBe` ManagedByScim
   where
-    veidToText :: MonadError String m => ValidExternalId -> m Text
+    veidToText :: (MonadError String m) => ValidExternalId -> m Text
     veidToText veid =
       runValidExternalIdEither
         (\(SAML.UserRef _ subj) -> maybe (throwError "bad uref from brig") (pure . CI.original) $ SAML.shortShowNameID subj)
@@ -1318,7 +1318,7 @@ testFindNoDeletedUsers = do
   liftIO $ users'' `shouldSatisfy` all ((/= userid) . scimUserId)
 
 -- | Test that users are not listed if not in the team associated with the token.
-testUserListFailsWithNotFoundIfOutsideTeam :: HasCallStack => TestSpar ()
+testUserListFailsWithNotFoundIfOutsideTeam :: (HasCallStack) => TestSpar ()
 testUserListFailsWithNotFoundIfOutsideTeam = do
   user <- randomScimUser
   (tokTeamA, _) <- registerIdPAndScimToken
@@ -1366,7 +1366,7 @@ testGetUser = do
   storedUser' <- getUser tok (scimUserId storedUser)
   liftIO $ storedUser' `shouldBe` storedUser
 
-shouldBeManagedBy :: HasCallStack => UserId -> ManagedBy -> TestSpar ()
+shouldBeManagedBy :: (HasCallStack) => UserId -> ManagedBy -> TestSpar ()
 shouldBeManagedBy uid flag = do
   managedBy <- maybe (error "user not found") userManagedBy <$> runSpar (Intra.getBrigUser Intra.WithPendingInvitations uid)
   liftIO $ managedBy `shouldBe` flag
@@ -1678,7 +1678,7 @@ testUpdateExternalId withidp = do
         (_owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
         (,Nothing,tid) <$> registerScimToken tid Nothing
 
-  let checkUpdate :: HasCallStack => Bool -> TestSpar ()
+  let checkUpdate :: (HasCallStack) => Bool -> TestSpar ()
       checkUpdate hasChanged {- is externalId updated with a different value, or with itself? -} = do
         -- Create a user via SCIM
         email <- randomEmail
@@ -2243,7 +2243,7 @@ specAzureQuirks = do
 specEmailValidation :: SpecWith TestEnv
 specEmailValidation = do
   describe "email validation" $ do
-    let setup :: HasCallStack => Bool -> TestSpar (UserId, Email)
+    let setup :: (HasCallStack) => Bool -> TestSpar (UserId, Email)
         setup enabled = do
           (tok, (_ownerid, teamid, idp)) <- registerIdPAndScimToken
           if enabled
@@ -2321,7 +2321,7 @@ specSCIMManaged = do
       let Right nameid = SAML.emailNameID $ fromEmail oldEmail
       (_, cky) <- loginCreatedSsoUser nameid idp privCreds
       sessiontok <- do
-        let decodeToken :: HasCallStack => ResponseLBS -> ZAuth.Token ZAuth.Access
+        let decodeToken :: (HasCallStack) => ResponseLBS -> ZAuth.Token ZAuth.Access
             decodeToken r = fromMaybe (error "invalid access_token") $ do
               x <- responseBody r
               t <- x ^? key "access_token" . _String
@@ -2372,7 +2372,7 @@ specSCIMManaged = do
         CsvExport.tExportManagedBy member @?= ManagedByScim
         CsvExport.tExportCreatedOn member `shouldSatisfy` isJust
   where
-    randomAlphaNum :: MonadIO m => m Text
+    randomAlphaNum :: (MonadIO m) => m Text
     randomAlphaNum = liftIO $ do
       nrs <- replicateM 21 (randomRIO (97, 122)) -- a-z
       pure (cs (map chr nrs))

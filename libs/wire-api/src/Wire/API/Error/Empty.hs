@@ -33,7 +33,7 @@ data EmptyErrorForLegacyReasons s desc
 type instance ResponseType (EmptyErrorForLegacyReasons s desc) = ()
 
 instance
-  KnownStatus s =>
+  (KnownStatus s) =>
   IsResponse cs (EmptyErrorForLegacyReasons s desc)
   where
   type ResponseStatus (EmptyErrorForLegacyReasons s desc) = s
@@ -52,7 +52,7 @@ instance
   responseUnrender _ output = guard (responseStatusCode output == statusVal (Proxy @s))
 
 instance
-  KnownSymbol desc =>
+  (KnownSymbol desc) =>
   IsSwaggerResponse (EmptyErrorForLegacyReasons s desc)
   where
   responseSwagger =

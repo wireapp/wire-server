@@ -58,10 +58,10 @@ fromList list =
   where
     len = length list
 
-instance FromJSON a => FromJSON (ListResponse a) where
+instance (FromJSON a) => FromJSON (ListResponse a) where
   parseJSON = either (fail . show) (genericParseJSON parseOptions) . jsonLower
 
-instance ToJSON a => ToJSON (ListResponse a) where
+instance (ToJSON a) => ToJSON (ListResponse a) where
   toJSON ListResponse {..} =
     object
       [ "Resources" .= resources,

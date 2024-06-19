@@ -68,7 +68,7 @@ type SparError = SAML.Error SparCustomError
 -- FUTUREWORK: This instance should probably be inside saml2-web-sso instead.
 instance Exception SparError
 
-throwSpar :: MonadError SparError m => SparCustomError -> m a
+throwSpar :: (MonadError SparError m) => SparCustomError -> m a
 throwSpar = throwError . SAML.CustomError
 
 data SparCustomError
@@ -130,7 +130,7 @@ data IdpDbError
   | IdpNotFound -- like 'SparIdPNotFound', but a database consistency error.  (should we consolidate something anyway?)
   deriving (Eq, Show)
 
-sparToServerErrorWithLogging :: MonadIO m => Log.Logger -> SparError -> m ServerError
+sparToServerErrorWithLogging :: (MonadIO m) => Log.Logger -> SparError -> m ServerError
 sparToServerErrorWithLogging logger err = do
   let errServant = sparToServerError err
   liftIO $ Wai.logError logger (Nothing :: Maybe Wai.Request) (servantToWaiError errServant)

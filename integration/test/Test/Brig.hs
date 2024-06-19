@@ -15,17 +15,17 @@ import Testlib.Assertions
 import Testlib.Prelude
 import UnliftIO.Temporary
 
-testCrudFederationRemotes :: HasCallStack => App ()
+testCrudFederationRemotes :: (HasCallStack) => App ()
 testCrudFederationRemotes = do
   otherDomain <- asString OtherDomain
   withModifiedBackend def $ \ownDomain -> do
-    let parseFedConns :: HasCallStack => Response -> App [Value]
+    let parseFedConns :: (HasCallStack) => Response -> App [Value]
         parseFedConns resp =
           -- Pick out the list of federation domain configs
           getJSON 200 resp %. "remotes"
             & asList
-            -- Enforce that the values are objects and not something else
-            >>= traverse (fmap Object . asObject)
+              -- Enforce that the values are objects and not something else
+              >>= traverse (fmap Object . asObject)
 
         addTest :: (MakesValue fedConn, Ord fedConn2, ToJSON fedConn2, MakesValue fedConn2, HasCallStack) => fedConn -> [fedConn2] -> App ()
         addTest fedConn want = do
@@ -61,7 +61,7 @@ testCrudFederationRemotes = do
     -- update
     updateTest (BrigI.domain remote1) remote1' [cfgRemotesExpect, remote1']
 
-testCrudOAuthClient :: HasCallStack => App ()
+testCrudOAuthClient :: (HasCallStack) => App ()
 testCrudOAuthClient = do
   user <- randomUser OwnDomain def
   let appName = "foobar"
@@ -84,7 +84,7 @@ testCrudOAuthClient = do
   bindResponse (BrigI.getOAuthClient user clientId) $ \resp -> do
     resp.status `shouldMatchInt` 404
 
-testCrudFederationRemoteTeams :: HasCallStack => App ()
+testCrudFederationRemoteTeams :: (HasCallStack) => App ()
 testCrudFederationRemoteTeams = do
   (_, tid, _) <- createTeam OwnDomain 1
   (_, tid2, _) <- createTeam OwnDomain 1
@@ -129,7 +129,7 @@ testCrudFederationRemoteTeams = do
       remoteTeams <- forM l (\e -> e %. "team_id" & asString)
       when (any (\t -> t `notElem` remoteTeams) tids) $ assertFailure "Expected response to contain all of the teams"
 
-testSFTCredentials :: HasCallStack => App ()
+testSFTCredentials :: (HasCallStack) => App ()
 testSFTCredentials = do
   let ttl = (60 :: Int)
   withSystemTempFile "sft-secret" $ \secretFile secretHandle -> do
@@ -164,7 +164,7 @@ testSFTCredentials = do
             when (take 2 (parts !! 4) /= "r=") $ assertFailure "missing random data identifier"
             for_ parts $ \part -> when (length part < 3) $ assertFailure ("value missing for " <> part)
 
-testSFTNoCredentials :: HasCallStack => App ()
+testSFTNoCredentials :: (HasCallStack) => App ()
 testSFTNoCredentials = withModifiedBackend
   ( def
       { brigCfg =
@@ -184,7 +184,7 @@ testSFTNoCredentials = withModifiedBackend
         usrM <- lookupField s "username"
         when (isJust usrM) $ assertFailure "should not generate username"
 
-testSFTFederation :: HasCallStack => App ()
+testSFTFederation :: (HasCallStack) => App ()
 testSFTFederation = do
   withModifiedBackend
     ( def

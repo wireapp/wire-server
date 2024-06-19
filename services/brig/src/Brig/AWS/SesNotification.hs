@@ -31,13 +31,13 @@ import System.Logger.Class (field, msg, (~~))
 import System.Logger.Class qualified as Log
 import Wire.API.User.Identity
 
-onEvent :: Member BlacklistStore r => SESNotification -> AppT r ()
+onEvent :: (Member BlacklistStore r) => SESNotification -> AppT r ()
 onEvent (MailBounce BouncePermanent es) = onPermanentBounce es
 onEvent (MailBounce BounceTransient es) = onTransientBounce es
 onEvent (MailBounce BounceUndetermined es) = onUndeterminedBounce es
 onEvent (MailComplaint es) = onComplaint es
 
-onPermanentBounce :: Member BlacklistStore r => [Email] -> AppT r ()
+onPermanentBounce :: (Member BlacklistStore r) => [Email] -> AppT r ()
 onPermanentBounce = mapM_ $ \e -> do
   logEmailEvent "Permanent bounce" e
   liftSem $ BlacklistStore.insert (userEmailKey e)
@@ -48,7 +48,7 @@ onTransientBounce = mapM_ (logEmailEvent "Transient bounce")
 onUndeterminedBounce :: [Email] -> AppT r ()
 onUndeterminedBounce = mapM_ (logEmailEvent "Undetermined bounce")
 
-onComplaint :: Member BlacklistStore r => [Email] -> AppT r ()
+onComplaint :: (Member BlacklistStore r) => [Email] -> AppT r ()
 onComplaint = mapM_ $ \e -> do
   logEmailEvent "Complaint" e
   liftSem $ BlacklistStore.insert (userEmailKey e)

@@ -79,13 +79,13 @@ type HasFedEndpoint comp api name = (HasUnsafeFedEndpoint comp api name)
 -- you to forget about some federated calls.
 type HasUnsafeFedEndpoint comp api name = 'Just api ~ LookupEndpoint (FedApi comp) name
 
-nameVal :: forall {k} (name :: k). IsNamed name => Text
+nameVal :: forall {k} (name :: k). (IsNamed name) => Text
 nameVal = nameVal' @k @name
 
 class IsNamed (name :: k) where
   nameVal' :: Text
 
-instance KnownSymbol name => IsNamed (name :: Symbol) where
+instance (KnownSymbol name) => IsNamed (name :: Symbol) where
   nameVal' = Text.pack (symbolVal (Proxy @name))
 
 instance (IsNamed name, SingI v) => IsNamed (Versioned (v :: Version) name) where
@@ -136,7 +136,7 @@ fedClientIn ::
 fedClientIn = clientIn (Proxy @api) (Proxy @m)
 
 sendBundle ::
-  KnownComponent c =>
+  (KnownComponent c) =>
   PayloadBundle c ->
   FedQueueClient c ()
 sendBundle bundle = do

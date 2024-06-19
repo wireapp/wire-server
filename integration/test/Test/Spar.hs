@@ -7,7 +7,7 @@ import Control.Concurrent (threadDelay)
 import SetupHelpers
 import Testlib.Prelude
 
-testSparUserCreationInvitationTimeout :: HasCallStack => App ()
+testSparUserCreationInvitationTimeout :: (HasCallStack) => App ()
 testSparUserCreationInvitationTimeout = do
   (owner, _tid, _) <- createTeam OwnDomain 1
   tok <- createScimToken owner >>= \resp -> resp.json %. "token" >>= asString

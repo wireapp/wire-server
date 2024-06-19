@@ -105,14 +105,14 @@ data Asset' key = Asset
   }
   deriving stock (Eq, Show, Generic, Functor)
 
-deriving via Schema (Asset' key) instance ToSchema (Asset' key) => (ToJSON (Asset' key))
+deriving via Schema (Asset' key) instance (ToSchema (Asset' key)) => (ToJSON (Asset' key))
 
-deriving via Schema (Asset' key) instance ToSchema (Asset' key) => (FromJSON (Asset' key))
+deriving via Schema (Asset' key) instance (ToSchema (Asset' key)) => (FromJSON (Asset' key))
 
 deriving via Schema (Asset' key) instance (Typeable key, ToSchema (Asset' key)) => (S.ToSchema (Asset' key))
 
 -- Generate expiry time with millisecond precision
-instance Arbitrary key => Arbitrary (Asset' key) where
+instance (Arbitrary key) => Arbitrary (Asset' key) where
   arbitrary = Asset <$> arbitrary <*> (fmap milli <$> arbitrary) <*> arbitrary
     where
       milli = fromUTCTimeMillis . toUTCTimeMillis

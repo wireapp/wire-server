@@ -43,7 +43,7 @@ class ToProto a where
 instance Accept Proto where
   contentTypes _ = ("application" // "x-protobuf") :| []
 
-instance FromProto a => MimeUnrender Proto a where
+instance (FromProto a) => MimeUnrender Proto a where
   mimeUnrender _ bs = fromProto (LBS.toStrict bs)
 
 -- | This wrapper can be used to get the raw protobuf representation of a type.
@@ -54,8 +54,8 @@ data RawProto a = RawProto
     rpValue :: a
   }
 
-instance FromProto a => FromProto (RawProto a) where
+instance (FromProto a) => FromProto (RawProto a) where
   fromProto x = fmap (RawProto x) (fromProto x)
 
-instance ToSchema a => ToSchema (RawProto a) where
+instance (ToSchema a) => ToSchema (RawProto a) where
   declareNamedSchema _ = declareNamedSchema (Proxy @a)

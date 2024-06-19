@@ -109,23 +109,23 @@ interpretLegalHoldStoreToCassandra lh = interpret $ \case
 
 -- | Returns 'False' if legal hold is not enabled for this team
 -- The Caller is responsible for checking whether legal hold is enabled for this team
-createSettings :: MonadClient m => LegalHoldService -> m ()
+createSettings :: (MonadClient m) => LegalHoldService -> m ()
 createSettings (LegalHoldService tid url fpr tok key) = do
   retry x1 $ write Q.insertLegalHoldSettings (params LocalQuorum (url, fpr, tok, key, tid))
 
 -- | Returns 'Nothing' if no settings are saved
 -- The Caller is responsible for checking whether legal hold is enabled for this team
-getSettings :: MonadClient m => TeamId -> m (Maybe LegalHoldService)
+getSettings :: (MonadClient m) => TeamId -> m (Maybe LegalHoldService)
 getSettings tid =
   fmap toLegalHoldService <$> do
     retry x1 $ query1 Q.selectLegalHoldSettings (params LocalQuorum (Identity tid))
   where
     toLegalHoldService (httpsUrl, fingerprint, tok, key) = LegalHoldService tid httpsUrl fingerprint tok key
 
-removeSettings :: MonadClient m => TeamId -> m ()
+removeSettings :: (MonadClient m) => TeamId -> m ()
 removeSettings tid = retry x5 (write Q.removeLegalHoldSettings (params LocalQuorum (Identity tid)))
 
-insertPendingPrekeys :: MonadClient m => UserId -> [Prekey] -> m ()
+insertPendingPrekeys :: (MonadClient m) => UserId -> [Prekey] -> m ()
 insertPendingPrekeys uid keys = retry x5 . batch $
   forM_ keys $
     \key ->
@@ -133,7 +133,7 @@ insertPendingPrekeys uid keys = retry x5 . batch $
   where
     toTuple (Prekey keyId key) = (uid, keyId, key)
 
-selectPendingPrekeys :: MonadClient m => UserId -> m (Maybe ([Prekey], LastPrekey))
+selectPendingPrekeys :: (MonadClient m) => UserId -> m (Maybe ([Prekey], LastPrekey))
 selectPendingPrekeys uid =
   pickLastKey . fmap fromTuple
     <$> retry x1 (query Q.selectPendingPrekeys (params LocalQuorum (Identity uid)))
@@ -144,18 +144,18 @@ selectPendingPrekeys uid =
         Nothing -> Nothing
         Just (keys, lst) -> pure (keys, lastPrekey . prekeyKey $ lst)
 
-dropPendingPrekeys :: MonadClient m => UserId -> m ()
+dropPendingPrekeys :: (MonadClient m) => UserId -> m ()
 dropPendingPrekeys uid = retry x5 (write Q.dropPendingPrekeys (params LocalQuorum (Identity uid)))
 
-setUserLegalHoldStatus :: MonadClient m => TeamId -> UserId -> UserLegalHoldStatus -> m ()
+setUserLegalHoldStatus :: (MonadClient m) => TeamId -> UserId -> UserLegalHoldStatus -> m ()
 setUserLegalHoldStatus tid uid status =
   retry x5 (write Q.updateUserLegalHoldStatus (params LocalQuorum (status, tid, uid)))
 
-setTeamLegalholdWhitelisted :: MonadClient m => TeamId -> m ()
+setTeamLegalholdWhitelisted :: (MonadClient m) => TeamId -> m ()
 setTeamLegalholdWhitelisted tid =
   retry x5 (write Q.insertLegalHoldWhitelistedTeam (params LocalQuorum (Identity tid)))
 
-unsetTeamLegalholdWhitelisted :: MonadClient m => TeamId -> m ()
+unsetTeamLegalholdWhitelisted :: (MonadClient m) => TeamId -> m ()
 unsetTeamLegalholdWhitelisted tid =
   retry x5 (write Q.removeLegalHoldWhitelistedTeam (params LocalQuorum (Identity tid)))
 
@@ -171,7 +171,7 @@ isTeamLegalholdWhitelisted FeatureLegalHoldWhitelistTeamsAndImplicitConsent tid 
 --
 -- FUTUREWORK: It would be nice to move (part of) this to ssl-util, but it has types from
 -- brig-types and types-common.
-validateServiceKey :: MonadIO m => ServiceKeyPEM -> m (Maybe (ServiceKey, Fingerprint Rsa))
+validateServiceKey :: (MonadIO m) => ServiceKeyPEM -> m (Maybe (ServiceKey, Fingerprint Rsa))
 validateServiceKey pem =
   liftIO $
     readPublicKey >>= \pk ->

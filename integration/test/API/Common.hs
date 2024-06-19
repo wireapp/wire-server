@@ -66,11 +66,11 @@ randomClientId = do
 mkArray :: [a] -> Array.Array Int a
 mkArray l = Array.listArray (0, length l - 1) l
 
-recipient :: MakesValue u => u -> App Value
+recipient :: (MakesValue u) => u -> App Value
 recipient u = do
   uid <- u %. "id"
-  pure $
-    object
+  pure
+    $ object
       [ "user_id" .= uid,
         "route" .= "any",
         "clients" .= ([] :: [String])

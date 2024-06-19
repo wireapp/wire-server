@@ -433,7 +433,7 @@ spec = describe "UserSubsystem.Interpreter" do
               where
                 dom = Domain "localdomain"
 
-            operation :: Monad m => Sem (GetUserProfileEffects `Append` AllErrors) a -> m a
+            operation :: (Monad m) => Sem (GetUserProfileEffects `Append` AllErrors) a -> m a
             operation op = result `seq` pure result
               where
                 result = runNoFederationStack localBackend Nothing config op

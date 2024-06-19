@@ -155,7 +155,7 @@ runFullScans env@Env {..} users = do
     readSparUserAll env
       .| mapC (filter (haveId . view _3))
 
-appendJsonLines :: ToJSON a => FilePath -> ConduitM () [a] IO () -> IO ()
+appendJsonLines :: (ToJSON a) => FilePath -> ConduitM () [a] IO () -> IO ()
 appendJsonLines path conduit =
   IO.withBinaryFile path IO.AppendMode $ \outH ->
     runConduit $ conduit .| sinkJsonLines outH

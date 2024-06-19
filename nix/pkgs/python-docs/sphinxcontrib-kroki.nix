@@ -2,6 +2,7 @@
 , buildPythonPackage
 , sphinx
 , requests
+, setuptools
 , pyyaml
 }:
 buildPythonPackage rec {
@@ -17,6 +18,6 @@ buildPythonPackage rec {
     sphinx
     requests
     pyyaml
+    setuptools
   ];
-
 }

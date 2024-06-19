@@ -182,7 +182,7 @@ getTeamNameInternalH ::
 getTeamNameInternalH tid =
   getTeamNameInternal tid >>= noteS @'TeamNotFound
 
-getTeamNameInternal :: Member TeamStore r => TeamId -> Sem r (Maybe TeamName)
+getTeamNameInternal :: (Member TeamStore r) => TeamId -> Sem r (Maybe TeamName)
 getTeamNameInternal = fmap (fmap TeamName) . E.getTeamName
 
 -- | DEPRECATED.
@@ -310,7 +310,7 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
               else possiblyStaleSize
       Journal.teamActivate tid size c teamCreationTime
     runJournal _ _ = throwS @'InvalidTeamStatusUpdate
-    validateTransition :: Member (ErrorS 'InvalidTeamStatusUpdate) r => (TeamStatus, TeamStatus) -> Sem r Bool
+    validateTransition :: (Member (ErrorS 'InvalidTeamStatusUpdate) r) => (TeamStatus, TeamStatus) -> Sem r Bool
     validateTransition = \case
       (PendingActive, Active) -> pure True
       (Active, Active) -> pure False
@@ -519,7 +519,7 @@ getTeamMembers lzusr tid mbMaxResults mbPagingState = do
               (pwsHasMore p)
               (teamMemberPagingState p)
 
-outputToStreamingBody :: Member (Final IO) r => Sem (Output LByteString ': r) () -> Sem r StreamingBody
+outputToStreamingBody :: (Member (Final IO) r) => Sem (Output LByteString ': r) () -> Sem r StreamingBody
 outputToStreamingBody action = withWeavingToFinal @IO $ \state weave _inspect ->
   pure . (<$ state) $ \write flush -> do
     let writeChunk c = embedFinal $ do
@@ -605,7 +605,7 @@ getTeamMembersCSV lusr tid = do
             tExportNumDevices = numClients uid
           }
 
-    lookupInviterHandle :: Member BrigAccess r => [TeamMember] -> Sem r (UserId -> Maybe Handle.Handle)
+    lookupInviterHandle :: (Member BrigAccess r) => [TeamMember] -> Sem r (UserId -> Maybe Handle.Handle)
     lookupInviterHandle members = do
       let inviterIds :: [UserId]
           inviterIds = nub $ mapMaybe (fmap fst . view invitation) members
@@ -691,7 +691,7 @@ uncheckedGetTeamMember tid uid =
   E.getTeamMember tid uid >>= noteS @'TeamMemberNotFound
 
 uncheckedGetTeamMembersH ::
-  Member TeamStore r =>
+  (Member TeamStore r) =>
   TeamId ->
   Maybe (Range 1 HardTruncationLimit Int32) ->
   Sem r TeamMemberList
@@ -699,7 +699,7 @@ uncheckedGetTeamMembersH tid mMaxResults =
   uncheckedGetTeamMembers tid (fromMaybe (unsafeRange hardTruncationLimit) mMaxResults)
 
 uncheckedGetTeamMembers ::
-  Member TeamStore r =>
+  (Member TeamStore r) =>
   TeamId ->
   Range 1 HardTruncationLimit Int32 ->
   Sem r TeamMemberList
@@ -1253,7 +1253,7 @@ ensureNonBindingTeam tid = do
 
 -- ensure that the permissions are not "greater" than the user's copy permissions
 -- this is used to ensure users cannot "elevate" permissions
-ensureNotElevated :: Member (ErrorS 'InvalidPermissions) r => Permissions -> TeamMember -> Sem r ()
+ensureNotElevated :: (Member (ErrorS 'InvalidPermissions) r) => Permissions -> TeamMember -> Sem r ()
 ensureNotElevated targetPermissions member =
   unless
     ( (targetPermissions ^. self)
@@ -1405,7 +1405,7 @@ canUserJoinTeam tid = do
 
 -- | Modify and get visibility type for a team (internal, no user permission checks)
 getSearchVisibilityInternal ::
-  Member SearchVisibilityStore r =>
+  (Member SearchVisibilityStore r) =>
   TeamId ->
   Sem r TeamSearchVisibilityView
 getSearchVisibilityInternal =
@@ -1454,7 +1454,7 @@ queueTeamDeletion tid zusr zcon = do
   ok <- E.tryPush (TeamItem tid zusr zcon)
   unless ok $ throwS @'DeleteQueueFull
 
-checkAdminLimit :: Member (ErrorS 'TooManyTeamAdmins) r => Int -> Sem r ()
+checkAdminLimit :: (Member (ErrorS 'TooManyTeamAdmins) r) => Int -> Sem r ()
 checkAdminLimit adminCount =
   when (adminCount > 2000) $
     throwS @'TooManyTeamAdmins

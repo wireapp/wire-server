@@ -14,7 +14,7 @@ data PublicKeyBundle m a where
 
 makeSem ''PublicKeyBundle
 
-interpretPublicKeyBundle :: Member (Embed IO) r => Sem (PublicKeyBundle ': r) a -> Sem r a
+interpretPublicKeyBundle :: (Member (Embed IO) r) => Sem (PublicKeyBundle ': r) a -> Sem r a
 interpretPublicKeyBundle = interpret $ \(Get fp) -> do
   contents :: Either IOException ByteString <- liftIO $ try $ BS.readFile fp
   pure $ either (const Nothing) fromByteString contents

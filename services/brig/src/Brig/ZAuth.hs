@@ -110,13 +110,13 @@ import Wire.API.User.Auth qualified as Auth
 newtype ZAuth a = ZAuth {unZAuth :: ReaderT Env IO a}
   deriving (Functor, Applicative, Monad, MonadIO, MonadReader Env)
 
-class MonadIO m => MonadZAuth m where
+class (MonadIO m) => MonadZAuth m where
   liftZAuth :: ZAuth a -> m a
 
 instance MonadZAuth ZAuth where
   liftZAuth = id
 
-runZAuth :: MonadIO m => Env -> ZAuth a -> m a
+runZAuth :: (MonadIO m) => Env -> ZAuth a -> m a
 runZAuth e za = liftIO $ runReaderT (unZAuth za) e
 
 data Settings = Settings
@@ -217,7 +217,7 @@ makeLenses ''Env
 localSettings :: (Settings -> Settings) -> ZAuth a -> ZAuth a
 localSettings f za = ZAuth (local (over settings f) (unZAuth za))
 
-readKeys :: Read k => FilePath -> IO (Maybe (NonEmpty k))
+readKeys :: (Read k) => FilePath -> IO (Maybe (NonEmpty k))
 readKeys fp = nonEmpty . map read . filter (not . null) . lines <$> readFile fp
 
 mkEnv :: NonEmpty SecretKey -> NonEmpty PublicKey -> Settings -> IO Env
@@ -227,7 +227,7 @@ mkEnv sk pk sets = do
   pure $! Env zc zv sets
 
 class (UserTokenLike u, AccessTokenLike a) => TokenPair u a where
-  newAccessToken :: MonadZAuth m => Token u -> m (Token a)
+  newAccessToken :: (MonadZAuth m) => Token u -> m (Token a)
 
 instance TokenPair User Access where
   newAccessToken = newAccessToken'
@@ -238,7 +238,7 @@ instance TokenPair LegalHoldUser LegalHoldAccess where
 class (FromByteString (Token a), ToByteString a) => AccessTokenLike a where
   accessTokenOf :: Token a -> UserId
   accessTokenClient :: Token a -> Maybe ClientId
-  renewAccessToken :: MonadZAuth m => Maybe ClientId -> Token a -> m (Token a)
+  renewAccessToken :: (MonadZAuth m) => Maybe ClientId -> Token a -> m (Token a)
   settingsTTL :: Proxy a -> Lens' Settings Integer
 
 instance AccessTokenLike Access where
@@ -257,9 +257,9 @@ class (FromByteString (Token u), ToByteString u) => UserTokenLike u where
   userTokenOf :: Token u -> UserId
   userTokenClient :: Token u -> Maybe ClientId
   mkSomeToken :: Token u -> Auth.SomeUserToken
-  mkUserToken :: MonadZAuth m => UserId -> Maybe ClientId -> Word32 -> UTCTime -> m (Token u)
+  mkUserToken :: (MonadZAuth m) => UserId -> Maybe ClientId -> Word32 -> UTCTime -> m (Token u)
   userTokenRand :: Token u -> Word32
-  newUserToken :: MonadZAuth m => UserId -> Maybe ClientId -> m (Token u)
+  newUserToken :: (MonadZAuth m) => UserId -> Maybe ClientId -> m (Token u)
   newSessionToken :: (MonadThrow m, MonadZAuth m) => UserId -> Maybe ClientId -> m (Token u)
   userTTL :: Proxy u -> Lens' Settings Integer
   zauthType :: Type -- see libs/zauth/src/Token.hs
@@ -286,14 +286,14 @@ instance UserTokenLike LegalHoldUser where
   userTTL _ = legalHoldUserTokenTimeout . legalHoldUserTokenTimeoutSeconds
   zauthType = LU
 
-mkUserToken' :: MonadZAuth m => UserId -> Maybe ClientId -> Word32 -> UTCTime -> m (Token User)
+mkUserToken' :: (MonadZAuth m) => UserId -> Maybe ClientId -> Word32 -> UTCTime -> m (Token User)
 mkUserToken' u cid r t = liftZAuth $ do
   z <- ask
   liftIO $
     ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
       ZC.newToken (utcTimeToPOSIXSeconds t) U Nothing (mkUser (toUUID u) (fmap clientToText cid) r)
 
-newUserToken' :: MonadZAuth m => UserId -> Maybe ClientId -> m (Token User)
+newUserToken' :: (MonadZAuth m) => UserId -> Maybe ClientId -> m (Token User)
 newUserToken' u c = liftZAuth $ do
   z <- ask
   r <- liftIO randomValue
@@ -302,7 +302,7 @@ newUserToken' u c = liftZAuth $ do
       let UserTokenTimeout ttl = z ^. settings . userTokenTimeout
        in ZC.userToken ttl (toUUID u) (fmap clientToText c) r
 
-newSessionToken' :: MonadZAuth m => UserId -> Maybe ClientId -> m (Token User)
+newSessionToken' :: (MonadZAuth m) => UserId -> Maybe ClientId -> m (Token User)
 newSessionToken' u c = liftZAuth $ do
   z <- ask
   r <- liftIO randomValue
@@ -311,7 +311,7 @@ newSessionToken' u c = liftZAuth $ do
       let SessionTokenTimeout ttl = z ^. settings . sessionTokenTimeout
        in ZC.sessionToken ttl (toUUID u) (fmap clientToText c) r
 
-newAccessToken' :: MonadZAuth m => Token User -> m (Token Access)
+newAccessToken' :: (MonadZAuth m) => Token User -> m (Token Access)
 newAccessToken' xt = liftZAuth $ do
   z <- ask
   liftIO $
@@ -319,7 +319,7 @@ newAccessToken' xt = liftZAuth $ do
       let AccessTokenTimeout ttl = z ^. settings . accessTokenTimeout
        in ZC.accessToken1 ttl (xt ^. body . user) (xt ^. body . client)
 
-renewAccessToken' :: MonadZAuth m => Maybe ClientId -> Token Access -> m (Token Access)
+renewAccessToken' :: (MonadZAuth m) => Maybe ClientId -> Token Access -> m (Token Access)
 renewAccessToken' mcid old = liftZAuth $ do
   z <- ask
   liftIO $
@@ -333,14 +333,14 @@ renewAccessToken' mcid old = liftZAuth $ do
                 $ (old ^. body)
             )
 
-newBotToken :: MonadZAuth m => ProviderId -> BotId -> ConvId -> m (Token Bot)
+newBotToken :: (MonadZAuth m) => ProviderId -> BotId -> ConvId -> m (Token Bot)
 newBotToken pid bid cid = liftZAuth $ do
   z <- ask
   liftIO $
     ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
       ZC.botToken (toUUID pid) (toUUID (botUserId bid)) (toUUID cid)
 
-newProviderToken :: MonadZAuth m => ProviderId -> m (Token Provider)
+newProviderToken :: (MonadZAuth m) => ProviderId -> m (Token Provider)
 newProviderToken pid = liftZAuth $ do
   z <- ask
   liftIO $
@@ -355,7 +355,7 @@ newProviderToken pid = liftZAuth $ do
 -- Possibly some duplication could be removed.
 -- See https://github.com/wireapp/wire-server/pull/761/files#r318612423
 mkLegalHoldUserToken ::
-  MonadZAuth m =>
+  (MonadZAuth m) =>
   UserId ->
   Maybe ClientId ->
   Word32 ->
@@ -371,7 +371,7 @@ mkLegalHoldUserToken u c r t = liftZAuth $ do
         Nothing
         (mkLegalHoldUser (toUUID u) (fmap clientToText c) r)
 
-newLegalHoldUserToken :: MonadZAuth m => UserId -> Maybe ClientId -> m (Token LegalHoldUser)
+newLegalHoldUserToken :: (MonadZAuth m) => UserId -> Maybe ClientId -> m (Token LegalHoldUser)
 newLegalHoldUserToken u c = liftZAuth $ do
   z <- ask
   r <- liftIO randomValue
@@ -380,7 +380,7 @@ newLegalHoldUserToken u c = liftZAuth $ do
       let LegalHoldUserTokenTimeout ttl = z ^. settings . legalHoldUserTokenTimeout
        in ZC.legalHoldUserToken ttl (toUUID u) (fmap clientToText c) r
 
-newLegalHoldAccessToken :: MonadZAuth m => Token LegalHoldUser -> m (Token LegalHoldAccess)
+newLegalHoldAccessToken :: (MonadZAuth m) => Token LegalHoldUser -> m (Token LegalHoldAccess)
 newLegalHoldAccessToken xt = liftZAuth $ do
   z <- ask
   liftIO $
@@ -392,7 +392,7 @@ newLegalHoldAccessToken xt = liftZAuth $ do
             (xt ^. body . legalHoldUser . client)
 
 renewLegalHoldAccessToken ::
-  MonadZAuth m =>
+  (MonadZAuth m) =>
   Maybe ClientId ->
   Token LegalHoldAccess ->
   m (Token LegalHoldAccess)

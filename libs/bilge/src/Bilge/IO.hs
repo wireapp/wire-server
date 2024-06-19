@@ -113,10 +113,10 @@ class MonadHttp m where
   handleRequestWithCont :: Request -> (Response BodyReader -> IO a) -> m a
   {-# MINIMAL handleRequestWithCont #-}
 
-handleRequest :: MonadHttp m => Request -> m (Response (Maybe LByteString))
+handleRequest :: (MonadHttp m) => Request -> m (Response (Maybe LByteString))
 handleRequest req = handleRequestWithCont req consumeBody
 
-instance MonadIO m => MonadHttp (HttpT m) where
+instance (MonadIO m) => MonadHttp (HttpT m) where
   handleRequestWithCont :: Request -> (Response BodyReader -> IO a) -> HttpT m a
   handleRequestWithCont req h = do
     m <- ask
@@ -138,7 +138,7 @@ trivialBodyReader bodyBytes = do
 instance MonadHttp WaiTest.Session where
   handleRequestWithCont req cont = unSessionT $ handleRequestWithCont req cont
 
-instance MonadIO m => MonadHttp (SessionT m) where
+instance (MonadIO m) => MonadHttp (SessionT m) where
   handleRequestWithCont req cont = do
     reqBody <- liftIO $ getHttpClientRequestBody (Client.requestBody req)
     -- `srequest` sets the requestBody for us
@@ -180,7 +180,7 @@ instance MonadIO m => MonadHttp (SessionT m) where
 
 -- | Does not support all constructors, but so far we only use 'RequestBodyLBS'.
 -- The other ones are slightly less straight-forward, so we can implement them later if needed.
-getHttpClientRequestBody :: HasCallStack => Client.RequestBody -> IO LByteString
+getHttpClientRequestBody :: (HasCallStack) => Client.RequestBody -> IO LByteString
 getHttpClientRequestBody = \case
   Client.RequestBodyLBS lbs -> pure lbs
   Client.RequestBodyBS bs -> pure (LBS.fromStrict bs)
@@ -207,7 +207,7 @@ instance MonadBaseControl IO (HttpT IO) where
   liftBaseWith = defaultLiftBaseWith
   restoreM = defaultRestoreM
 
-instance MonadUnliftIO m => MonadUnliftIO (HttpT m) where
+instance (MonadUnliftIO m) => MonadUnliftIO (HttpT m) where
   withRunInIO inner =
     HttpT . ReaderT $ \r ->
       withRunInIO $ \run ->
@@ -227,7 +227,7 @@ get,
   options,
   trace,
   patch ::
-    MonadHttp m =>
+    (MonadHttp m) =>
     (Request -> Request) ->
     m (Response (Maybe LByteString))
 get f = httpLbs empty (method GET . f)
@@ -247,7 +247,7 @@ get',
   options',
   trace',
   patch' ::
-    MonadHttp m =>
+    (MonadHttp m) =>
     Request ->
     (Request -> Request) ->
     m (Response (Maybe LByteString))
@@ -261,14 +261,14 @@ trace' r f = httpLbs r (method TRACE . f)
 patch' r f = httpLbs r (method PATCH . f)
 
 httpLbs ::
-  MonadHttp m =>
+  (MonadHttp m) =>
   Request ->
   (Request -> Request) ->
   m (Response (Maybe LByteString))
 httpLbs r f = http r f consumeBody
 
 http ::
-  MonadHttp m =>
+  (MonadHttp m) =>
   Request ->
   (Request -> Request) ->
   (Response BodyReader -> IO a) ->

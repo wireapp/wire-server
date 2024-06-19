@@ -69,6 +69,7 @@ import Data.ByteString.Builder
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as LBS
 import Data.Code as Code
+import Data.Functor.Alt
 import Data.Handle (Handle)
 import Data.Id
 import Data.Json.Util
@@ -125,7 +126,9 @@ loginObjectSchema =
     validate :: (Maybe Email, Maybe Phone, Maybe Handle) -> A.Parser LoginId
     validate (mEmail, mPhone, mHandle) =
       maybe (fail "'email', 'phone' or 'handle' required") pure $
-        (LoginByEmail <$> mEmail) <|> (LoginByPhone <$> mPhone) <|> (LoginByHandle <$> mHandle)
+        (LoginByEmail <$> mEmail)
+          <|> (LoginByPhone <$> mPhone)
+          <|> (LoginByHandle <$> mHandle)
 
 --------------------------------------------------------------------------------
 -- LoginCode
@@ -504,7 +507,7 @@ instance FromHttpApiData SomeUserToken where
   parseHeader h =
     first T.pack $
       fmap PlainUserToken (runParser parser h)
-        <|> fmap LHUserToken (runParser parser h)
+        <!> fmap LHUserToken (runParser parser h)
   parseUrlPiece = parseHeader . T.encodeUtf8
 
 instance FromByteString SomeUserToken where
@@ -525,7 +528,7 @@ instance FromHttpApiData SomeAccessToken where
   parseHeader h =
     first T.pack $
       fmap PlainAccessToken (runParser parser h)
-        <|> fmap LHAccessToken (runParser parser h)
+        <!> fmap LHAccessToken (runParser parser h)
   parseUrlPiece = parseHeader . T.encodeUtf8
 
 -- | Data that is returned to the client in the form of a cookie containing a

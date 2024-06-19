@@ -76,7 +76,6 @@ import Bilge.RPC
 import Brig.Types.Intra
 import Control.Error
 import Control.Lens (view, (^.))
-import Control.Monad.Reader
 import Data.Aeson hiding (Error)
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Aeson.Types (emptyArray)
@@ -249,7 +248,7 @@ getUserProfiles uidsOrHandles = do
     prepareQS :: Either [UserId] [Handle] -> [Request -> Request]
     prepareQS (Left uids) = fmap (queryItem "ids") (toQS uids)
     prepareQS (Right handles) = fmap (queryItem "handles") (toQS handles)
-    toQS :: ToByteString a => [a] -> [ByteString]
+    toQS :: (ToByteString a) => [a] -> [ByteString]
     toQS =
       fmap (BS.intercalate "," . map toByteString')
         . chunksOf 50
@@ -315,8 +314,9 @@ revokeIdentity :: Either Email Phone -> Handler ()
 revokeIdentity emailOrPhone = do
   info $ msg "Revoking user identity"
   b <- view brig
-  void . catchRpcErrors $
-    rpc'
+  void
+    . catchRpcErrors
+    $ rpc'
       "brig"
       b
       ( method POST
@@ -329,8 +329,9 @@ deleteAccount :: UserId -> Handler ()
 deleteAccount uid = do
   info $ msg "Deleting account"
   b <- view brig
-  void . catchRpcErrors $
-    rpc'
+  void
+    . catchRpcErrors
+    $ rpc'
       "brig"
       b
       ( method DELETE
@@ -346,8 +347,9 @@ setStatusBindingTeam tid status = do
           <> UTF8.toString (BS.toStrict . encode $ status)
       )
   g <- view galley
-  void . catchRpcErrors $
-    rpc'
+  void
+    . catchRpcErrors
+    $ rpc'
       "galley"
       g
       ( method PUT
@@ -360,8 +362,9 @@ deleteBindingTeam :: TeamId -> Handler ()
 deleteBindingTeam tid = do
   info $ msg "Deleting team"
   g <- view galley
-  void . catchRpcErrors $
-    rpc'
+  void
+    . catchRpcErrors
+    $ rpc'
       "galley"
       g
       ( method DELETE
@@ -374,8 +377,9 @@ deleteBindingTeamForce :: TeamId -> Handler ()
 deleteBindingTeamForce tid = do
   info $ msg "Deleting team with force flag"
   g <- view galley
-  void . catchRpcErrors $
-    rpc'
+  void
+    . catchRpcErrors
+    $ rpc'
       "galley"
       g
       ( method DELETE
@@ -388,8 +392,9 @@ changeEmail :: UserId -> EmailUpdate -> Handler ()
 changeEmail u upd = do
   info $ msg "Updating email address"
   b <- view brig
-  void . catchRpcErrors $
-    rpc'
+  void
+    . catchRpcErrors
+    $ rpc'
       "brig"
       b
       ( method PUT
@@ -406,8 +411,9 @@ changePhone :: UserId -> PhoneUpdate -> Handler ()
 changePhone u upd = do
   info $ msg "Updating phone number"
   b <- view brig
-  void . catchRpcErrors $
-    rpc'
+  void
+    . catchRpcErrors
+    $ rpc'
       "brig"
       b
       ( method PUT
@@ -445,7 +451,8 @@ getUserBindingTeam u = do
     listToMaybe $
       fmap (view teamId) $
         filter ((== Binding) . view teamBinding) $
-          teams ^. teamListTeams
+          teams
+            ^. teamListTeams
 
 getInvoiceUrl :: TeamId -> InvoiceId -> Handler ByteString
 getInvoiceUrl tid iid = do
@@ -484,8 +491,9 @@ setTeamBillingInfo :: TeamId -> TeamBillingInfo -> Handler ()
 setTeamBillingInfo tid tbu = do
   info $ msg "Setting team billing info"
   i <- view ibis
-  void . catchRpcErrors $
-    rpc'
+  void
+    . catchRpcErrors
+    $ rpc'
       "ibis"
       i
       ( method PUT
@@ -517,8 +525,9 @@ setBlacklistStatus :: Bool -> Either Email Phone -> Handler ()
 setBlacklistStatus status emailOrPhone = do
   info $ msg "Changing blacklist status"
   b <- view brig
-  void . catchRpcErrors $
-    rpc'
+  void
+    . catchRpcErrors
+    $ rpc'
       "brig"
       b
       ( method (statusToMethod status)
@@ -604,8 +613,9 @@ setTeamFeatureLockStatus ::
 setTeamFeatureLockStatus tid lstat = do
   info $ msg ("Setting lock status: " <> show (symbolVal (Proxy @(Public.FeatureSymbol cfg)), lstat))
   gly <- view galley
-  fromResponseBody <=< catchRpcErrors $
-    rpc'
+  fromResponseBody
+    <=< catchRpcErrors
+    $ rpc'
       "galley"
       gly
       ( method PUT
@@ -626,8 +636,9 @@ getSearchVisibility :: TeamId -> Handler TeamSearchVisibilityView
 getSearchVisibility tid = do
   info $ msg "Getting TeamSearchVisibilityView value"
   gly <- view galley
-  fromResponseBody <=< catchRpcErrors $
-    rpc'
+  fromResponseBody
+    <=< catchRpcErrors
+    $ rpc'
       "galley"
       gly
       ( method GET
@@ -948,8 +959,9 @@ putSsoDomainRedirect domain config welcome = do
   -- }'
   -- curl -XPUT http://localhost/i/custom-backend/by-domain/${DOMAIN_EXAMPLE} -d "${DOMAIN_ENTRY}"
   g <- view galley
-  void . catchRpcErrors $
-    rpc'
+  void
+    . catchRpcErrors
+    $ rpc'
       "galley"
       g
       ( method PUT
@@ -968,8 +980,9 @@ deleteSsoDomainRedirect domain = do
   info $ msg "deleteSsoDomainRedirect"
   -- curl -XDELETE http://localhost/i/custom-backend/by-domain/${DOMAIN_EXAMPLE}
   g <- view galley
-  void . catchRpcErrors $
-    rpc'
+  void
+    . catchRpcErrors
+    $ rpc'
       "galley"
       g
       ( method DELETE

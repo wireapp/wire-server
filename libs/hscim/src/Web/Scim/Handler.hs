@@ -22,6 +22,7 @@ module Web.Scim.Handler
   )
 where
 
+import Control.Monad ((<=<))
 import Control.Monad.Except
 import Web.Scim.Schema.Error
 
@@ -29,7 +30,7 @@ import Web.Scim.Schema.Error
 type ScimHandler m = ExceptT ScimError m
 
 -- | Throw a 'ScimError'.
-throwScim :: Monad m => ScimError -> ScimHandler m a
+throwScim :: (Monad m) => ScimError -> ScimHandler m a
 throwScim = throwError
 
 -- | A natural transformation for Servant handlers. To use it, you need to
@@ -42,7 +43,7 @@ throwScim = throwError
 -- You can either do something custom for 'ScimError', or use
 -- 'scimToServantErr'.
 fromScimHandler ::
-  Monad m =>
+  (Monad m) =>
   (forall a. ScimError -> m a) ->
   (forall a. ScimHandler m a -> m a)
 fromScimHandler fromError = either fromError pure <=< runExceptT

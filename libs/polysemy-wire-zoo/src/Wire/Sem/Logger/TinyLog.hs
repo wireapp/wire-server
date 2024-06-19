@@ -38,7 +38,7 @@ import Wire.Sem.Logger
 import Wire.Sem.Logger.Level
 
 loggerToTinyLog ::
-  Member (Embed IO) r =>
+  (Member (Embed IO) r) =>
   Log.Logger ->
   Sem (Logger (Log.Msg -> Log.Msg) ': r) a ->
   Sem r a
@@ -48,7 +48,7 @@ loggerToTinyLog tinylog = interpret $ \case
 
 -- | Log the request ID along with the message
 loggerToTinyLogReqId ::
-  Member (Embed IO) r =>
+  (Member (Embed IO) r) =>
   RequestId ->
   Log.Logger ->
   Sem (TinyLog ': r) a ->
@@ -58,7 +58,7 @@ loggerToTinyLogReqId r tinylog =
     . mapLogger (Log.field "request" (unRequestId r) .)
     . raiseUnder @TinyLog
 
-stringLoggerToTinyLog :: Member (Logger (Log.Msg -> Log.Msg)) r => Sem (Logger String ': r) a -> Sem r a
+stringLoggerToTinyLog :: (Member (Logger (Log.Msg -> Log.Msg)) r) => Sem (Logger String ': r) a -> Sem r a
 stringLoggerToTinyLog = mapLogger @String Log.msg
 
 discardTinyLogs :: Sem (Logger (Log.Msg -> Log.Msg) ': r) a -> Sem r a
@@ -69,6 +69,6 @@ newtype LogRecorder = LogRecorder {recordedLogs :: IORef [(Level, LByteString)]}
 newLogRecorder :: IO LogRecorder
 newLogRecorder = LogRecorder <$> newIORef []
 
-recordLogs :: Member (Embed IO) r => LogRecorder -> Sem (TinyLog ': r) a -> Sem r a
+recordLogs :: (Member (Embed IO) r) => LogRecorder -> Sem (TinyLog ': r) a -> Sem r a
 recordLogs LogRecorder {..} = interpret $ \(Log lvl msg) ->
   modifyIORef' recordedLogs (++ [(lvl, Log.render (Log.renderDefault ", ") msg)])

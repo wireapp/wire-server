@@ -341,7 +341,7 @@ getAmzMetaToken h =
   V3.AssetToken . Ascii.unsafeFromText
     <$> lookupCI hAmzMetaToken h
 
-parseAmzMeta :: FromByteString a => Text -> [(Text, Text)] -> Maybe a
+parseAmzMeta :: (FromByteString a) => Text -> [(Text, Text)] -> Maybe a
 parseAmzMeta k h = lookupCI k h >>= fromByteString . encodeUtf8
 
 -------------------------------------------------------------------------------

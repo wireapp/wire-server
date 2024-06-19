@@ -114,13 +114,13 @@ instance ToSchema SAML.SPMetadata where
 instance ToSchema Void where
   declareNamedSchema _ = declareNamedSchema (Proxy @String)
 
-instance HasOpenApi route => HasOpenApi (SM.MultipartForm SM.Mem resp :> route) where
+instance (HasOpenApi route) => HasOpenApi (SM.MultipartForm SM.Mem resp :> route) where
   toOpenApi _proxy = toOpenApi (Proxy @route)
 
 instance ToSchema SAML.IdPId where
   declareNamedSchema _ = declareNamedSchema (Proxy @UUID)
 
-instance ToSchema a => ToSchema (SAML.IdPConfig a) where
+instance (ToSchema a) => ToSchema (SAML.IdPConfig a) where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
 instance ToSchema SAML.Issuer where

@@ -323,7 +323,6 @@ library
     , lens                   >=4.4
     , metrics-core
     , metrics-wai            >=0.4
-    , mtl                    >=2.2
     , optparse-applicative
     , pem
     , polysemy

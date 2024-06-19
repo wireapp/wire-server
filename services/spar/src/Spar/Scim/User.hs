@@ -219,12 +219,12 @@ validateScimUser errloc tokinfo user = do
     Left err -> throwError err
     Right validatedUser -> pure validatedUser
 
-tokenInfoToIdP :: Member IdPConfigStore r => ScimTokenInfo -> Scim.ScimHandler (Sem r) (Maybe IdP)
+tokenInfoToIdP :: (Member IdPConfigStore r) => ScimTokenInfo -> Scim.ScimHandler (Sem r) (Maybe IdP)
 tokenInfoToIdP ScimTokenInfo {stiIdP} =
   mapM (lift . IdPConfigStore.getConfig) stiIdP
 
 -- | Validate a handle (@userName@).
-validateHandle :: Member (Error Scim.ScimError) r => Text -> Sem r Handle
+validateHandle :: (Member (Error Scim.ScimError) r) => Text -> Sem r Handle
 validateHandle txt = case parseHandle txt of
   Just h -> pure h
   Nothing ->
@@ -279,8 +279,13 @@ validateScimUser' errloc midp richInfoLimit user = do
   -- be a little less brittle.
   uname <- do
     let err msg =
-          throw . Scim.badRequest Scim.InvalidValue . Just $
-            Text.pack msg <> " (" <> errloc <> ")"
+          throw
+            . Scim.badRequest Scim.InvalidValue
+            . Just
+            $ Text.pack msg
+              <> " ("
+              <> errloc
+              <> ")"
     either err pure $ Brig.mkUserName (Scim.displayName user) veid
   richInfo <- validateRichInfo (Scim.extra user ^. ST.sueRichInfo)
   let active = Scim.active user
@@ -320,8 +325,9 @@ validateScimUser' errloc midp richInfoLimit user = do
         throw $
           ( Scim.badRequest
               Scim.InvalidValue
-              ( Just . Text.pack $
-                  show [RI.richInfoMapURN @Text, RI.richInfoAssocListURN @Text]
+              ( Just
+                  . Text.pack
+                  $ show [RI.richInfoMapURN @Text, RI.richInfoAssocListURN @Text]
                     <> " together exceed the size limit: max "
                     <> show richInfoLimit
                     <> " characters, but got "
@@ -702,7 +708,7 @@ updateVsuUref team uid old new = do
   BrigAccess.setVeid uid new
 
 toScimStoredUser' ::
-  HasCallStack =>
+  (HasCallStack) =>
   UTCTimeMillis ->
   UTCTimeMillis ->
   URIBS.URI ->
@@ -733,7 +739,7 @@ toScimStoredUser' createdAt lastChangedAt baseuri uid usr =
 
 updScimStoredUser ::
   forall r.
-  Member Now r =>
+  (Member Now r) =>
   Scim.User ST.SparTag ->
   Scim.StoredUser ST.SparTag ->
   Sem r (Scim.StoredUser ST.SparTag)
@@ -918,16 +924,16 @@ assertExternalIdInAllowedValues allowedValues errmsg tid veid = do
   unless isGood $
     throwError Scim.conflict {Scim.detail = Just errmsg}
 
-assertHandleUnused :: Member BrigAccess r => Handle -> Scim.ScimHandler (Sem r) ()
+assertHandleUnused :: (Member BrigAccess r) => Handle -> Scim.ScimHandler (Sem r) ()
 assertHandleUnused = assertHandleUnused' "userName is already taken"
 
-assertHandleUnused' :: Member BrigAccess r => Text -> Handle -> Scim.ScimHandler (Sem r) ()
+assertHandleUnused' :: (Member BrigAccess r) => Text -> Handle -> Scim.ScimHandler (Sem r) ()
 assertHandleUnused' msg hndl =
   lift (BrigAccess.checkHandleAvailable hndl) >>= \case
     True -> pure ()
     False -> throwError Scim.conflict {Scim.detail = Just msg}
 
-assertHandleNotUsedElsewhere :: Member BrigAccess r => UserId -> Handle -> Scim.ScimHandler (Sem r) ()
+assertHandleNotUsedElsewhere :: (Member BrigAccess r) => UserId -> Handle -> Scim.ScimHandler (Sem r) ()
 assertHandleNotUsedElsewhere uid hndl = do
   musr <- lift $ Brig.getBrigUser Brig.WithPendingInvitations uid
   unless ((userHandle =<< musr) == Just hndl) $
@@ -1018,7 +1024,7 @@ synthesizeStoredUser' ::
   URIBS.URI ->
   Locale ->
   Maybe Role ->
-  MonadError Scim.ScimError m => m (Scim.StoredUser ST.SparTag)
+  (MonadError Scim.ScimError m) => m (Scim.StoredUser ST.SparTag)
 synthesizeStoredUser' uid veid dname handle richInfo accStatus createdAt lastUpdatedAt baseuri locale mbRole = do
   let scimUser :: Scim.User ST.SparTag
       scimUser =
@@ -1040,7 +1046,7 @@ synthesizeStoredUser' uid veid dname handle richInfo accStatus createdAt lastUpd
 synthesizeScimUser :: ST.ValidScimUser -> Scim.User ST.SparTag
 synthesizeScimUser info =
   let userName = info ^. ST.vsuHandle . to fromHandle
-   in (Scim.empty ST.userSchemas userName (ST.ScimUserExtra (info ^. ST.vsuRichInfo)))
+   in (Scim.empty @ST.SparTag ST.userSchemas userName (ST.ScimUserExtra (info ^. ST.vsuRichInfo)))
         { Scim.externalId = Brig.renderValidExternalId $ info ^. ST.vsuExternalId,
           Scim.displayName = Just $ fromName (info ^. ST.vsuName),
           Scim.active = Just . Scim.ScimBool $ info ^. ST.vsuActive,

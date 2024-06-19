@@ -9,11 +9,11 @@ import Notifications
 import SetupHelpers
 import Testlib.Prelude
 
-examplePush :: MakesValue u => u -> App Value
+examplePush :: (MakesValue u) => u -> App Value
 examplePush u = do
   r <- recipient u
-  pure $
-    object
+  pure
+    $ object
       [ "recipients" .= [r],
         "payload" .= [object ["hello" .= "world"]]
       ]
@@ -24,8 +24,9 @@ testFetchAllNotifications = do
   push <- examplePush user
 
   let n = 10
-  replicateM_ n $
-    bindResponse (postPush user [push]) $ \res ->
+  replicateM_ n
+    $ bindResponse (postPush user [push])
+    $ \res ->
       res.status `shouldMatchInt` 200
 
   let c :: Maybe String = Just "deadbeef"
@@ -74,23 +75,23 @@ testLastNotification = do
   lastNotif <- getLastNotification user def {client = Just "c"} >>= getJSON 200
   lastNotif %. "payload" `shouldMatch` [object ["client" .= "c"]]
 
-testInvalidNotification :: HasCallStack => App ()
+testInvalidNotification :: (HasCallStack) => App ()
 testInvalidNotification = do
   user <- randomUserId OwnDomain
 
   -- test uuid v4 as "since"
   do
     notifId <- randomId
-    void $
-      getNotifications user def {since = Just notifId}
-        >>= getJSON 400
+    void
+      $ getNotifications user def {since = Just notifId}
+      >>= getJSON 400
 
   -- test arbitrary uuid v1 as "since"
   do
     notifId <- randomUUIDv1
-    void $
-      getNotifications user def {since = Just notifId}
-        >>= getJSON 404
+    void
+      $ getNotifications user def {since = Just notifId}
+      >>= getJSON 404
 
 -- | Check that client-add notifications use the V5 format:
 -- @
@@ -98,7 +99,7 @@ testInvalidNotification = do
 -- @
 --
 -- Migration plan: clients must be able to parse both old and new schema starting from V6.  Once V5 is deprecated, the backend can start sending notifications in the new form.
-testAddClientNotification :: HasCallStack => App ()
+testAddClientNotification :: (HasCallStack) => App ()
 testAddClientNotification = do
   alice <- randomUser OwnDomain def
 

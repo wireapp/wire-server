@@ -85,7 +85,7 @@ push ps = do
       throwM (mkError status500 "server-error" "Server Error")
 
 -- | Abstract over all effects in 'pushAll' (for unit testing).
-class MonadThrow m => MonadPushAll m where
+class (MonadThrow m) => MonadPushAll m where
   mpaNotificationTTL :: m NotificationTTL
   mpaMkNotificationId :: m NotificationId
   mpaListAllPresences :: [UserId] -> m [[Presence]]
@@ -113,7 +113,7 @@ runWithBudget'' budget fallback action = do
     Just tbs -> runWithBudget' tbs budget fallback action
 
 -- | Abstract over all effects in 'nativeTargets' (for unit testing).
-class Monad m => MonadNativeTargets m where
+class (Monad m) => MonadNativeTargets m where
   mntgtLogErr :: SomeException -> m ()
   mntgtLookupAddresses :: UserId -> m [Address]
 
@@ -121,7 +121,7 @@ instance MonadNativeTargets Gundeck where
   mntgtLogErr e = Log.err (msg (val "Failed to get native push address: " +++ show e))
   mntgtLookupAddresses rcp = Data.lookup rcp Data.One
 
-class Monad m => MonadMapAsync m where
+class (Monad m) => MonadMapAsync m where
   mntgtMapAsync :: (a -> m b) -> [a] -> m [Either SomeException b]
   mntgtPerPushConcurrency :: m (Maybe Int)
 
@@ -223,7 +223,7 @@ data NewNotification = NewNotification
     nnRecipients :: List1 Recipient
   }
 
-mkNewNotification :: forall m. MonadPushAll m => Push -> m NewNotification
+mkNewNotification :: forall m. (MonadPushAll m) => Push -> m NewNotification
 mkNewNotification psh = NewNotification psh <$> mkNotif <*> rcps
   where
     mkNotif :: m Notification
@@ -266,12 +266,12 @@ data WSTargets = WSTargets
     wstPresences :: List1 (Recipient, [Presence])
   }
 
-mkWSTargets :: MonadPushAll m => NewNotification -> m WSTargets
+mkWSTargets :: (MonadPushAll m) => NewNotification -> m WSTargets
 mkWSTargets NewNotification {..} = do
   withPresences <- addPresences nnRecipients
   pure $ WSTargets nnPush nnNotification withPresences
   where
-    addPresences :: forall m. MonadPushAll m => List1 Recipient -> m (List1 (Recipient, [Presence]))
+    addPresences :: forall m. (MonadPushAll m) => List1 Recipient -> m (List1 (Recipient, [Presence]))
     addPresences (toList -> rcps) = do
       presences <- mpaListAllPresences $ fmap (view recipientId) rcps
       zip1 rcps presences
@@ -388,7 +388,7 @@ addToken uid cid newtok = mpaRunWithBudget 1 (Left Public.AddTokenErrorNoBudget)
       "user"
         .= UUID.toASCIIBytes (toUUID uid)
         ~~ "token"
-          .= Text.take 16 (tokenText (newtok ^. token))
+        .= Text.take 16 (tokenText (newtok ^. token))
         ~~ msg (val "Registering push token")
   addr <- continue newtok cur
   lift $ Native.deleteTokens old (Just addr)
@@ -514,19 +514,19 @@ updateEndpoint uid t arn e = do
       "user"
         .= UUID.toASCIIBytes (toUUID uid)
         ~~ "token"
-          .= Text.take 16 (t ^. token . to tokenText)
+        .= Text.take 16 (t ^. token . to tokenText)
         ~~ "tokenTransport"
-          .= show (t ^. tokenTransport)
+        .= show (t ^. tokenTransport)
         ~~ "tokenApp"
-          .= (t ^. tokenApp . to appNameText)
+        .= (t ^. tokenApp . to appNameText)
         ~~ "arn"
-          .= toText arn
+        .= toText arn
         ~~ "endpointTransport"
-          .= show (arn ^. snsTopic . endpointTransport)
+        .= show (arn ^. snsTopic . endpointTransport)
         ~~ "endpointAppName"
-          .= (arn ^. snsTopic . endpointAppName . to appNameText)
+        .= (arn ^. snsTopic . endpointAppName . to appNameText)
         ~~ "request"
-          .= unRequestId requestId
+        .= unRequestId requestId
         ~~ msg (val m)
 
 deleteToken :: UserId -> Token -> Gundeck (Maybe ())

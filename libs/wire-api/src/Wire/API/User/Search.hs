@@ -107,7 +107,7 @@ instance Traversable SearchResult where
     newResults <- traverse f (searchResults r)
     pure $ r {searchResults = newResults}
 
-instance ToSchema a => ToSchema (SearchResult a) where
+instance (ToSchema a) => ToSchema (SearchResult a) where
   schema =
     object "SearchResult" $
       SearchResult
@@ -247,7 +247,7 @@ instance FromHttpApiData TeamUserSearchSortBy where
       flip foldMap [minBound .. maxBound] $ \s ->
         guard (teamUserSearchSortByName s == name) $> s
 
-teamUserSearchSortByName :: IsString a => TeamUserSearchSortBy -> a
+teamUserSearchSortByName :: (IsString a) => TeamUserSearchSortBy -> a
 teamUserSearchSortByName SortByName = "name"
 teamUserSearchSortByName SortByHandle = "handle"
 teamUserSearchSortByName SortByEmail = "email"
@@ -283,7 +283,7 @@ instance FromHttpApiData TeamUserSearchSortOrder where
       flip foldMap [minBound .. maxBound] $ \s ->
         guard (teamUserSearchSortOrderName s == name) $> s
 
-teamUserSearchSortOrderName :: IsString a => TeamUserSearchSortOrder -> a
+teamUserSearchSortOrderName :: (IsString a) => TeamUserSearchSortOrder -> a
 teamUserSearchSortOrderName SortOrderAsc = "asc"
 teamUserSearchSortOrderName SortOrderDesc = "desc"
 

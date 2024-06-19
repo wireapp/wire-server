@@ -167,7 +167,7 @@ consumeStreamingResponseWith k resp = do
             responseBody = result
           }
 
-instance KnownComponent c => RunClient (FederatorClient c) where
+instance (KnownComponent c) => RunClient (FederatorClient c) where
   runRequestAcceptStatus expectedStatuses req = do
     let successfulStatus status =
           maybe
@@ -198,7 +198,7 @@ instance KnownComponent c => RunClient (FederatorClient c) where
 
   throwClientError = throwError . FederatorClientServantError
 
-instance KnownComponent c => RunStreamingClient (FederatorClient c) where
+instance (KnownComponent c) => RunStreamingClient (FederatorClient c) where
   withStreamingRequest = withHTTP2StreamingRequest HTTP.statusIsSuccessful
 
 streamingResponseStrictBody :: StreamingResponse -> IO Builder
@@ -211,7 +211,7 @@ streamingResponseStrictBody =
 -- Perform a streaming request to the local federator.
 withHTTP2StreamingRequest ::
   forall c a.
-  KnownComponent c =>
+  (KnownComponent c) =>
   (HTTP.Status -> Bool) ->
   Request ->
   (StreamingResponse -> IO a) ->
@@ -245,8 +245,10 @@ withHTTP2StreamingRequest successfulStatus req handleResponse = do
           (lazyByteString body)
   let Endpoint (Text.encodeUtf8 -> hostname) (fromIntegral -> port) = ceFederator env
   resp <-
-    either throwError pure <=< liftCodensity $
-      Codensity $ \k ->
+    either throwError pure
+      <=< liftCodensity
+      $ Codensity
+      $ \k ->
         E.catches
           (withNewHttpRequest (False, hostname, port) req' (consumeStreamingResponseWith (k . Right)))
           [ E.Handler $ k . Left . FederatorClientHTTP2Error,
@@ -365,7 +367,8 @@ versionNegotiation localVersions =
         case Set.lookupMax (Set.intersection remoteVersions localVersions) of
           Just v -> pure v
           Nothing ->
-            E.throw . FederatorClientVersionNegotiationError $
-              if Set.lookupMax localVersions > Set.lookupMax remoteVersions
+            E.throw
+              . FederatorClientVersionNegotiationError
+              $ if Set.lookupMax localVersions > Set.lookupMax remoteVersions
                 then RemoteTooOld
                 else RemoteTooNew

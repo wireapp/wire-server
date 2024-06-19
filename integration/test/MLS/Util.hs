@@ -122,7 +122,7 @@ mlscli cid args mbstdin = do
 
   pure out
 
-runCli :: HasCallStack => FilePath -> [String] -> Maybe ByteString -> App ByteString
+runCli :: (HasCallStack) => FilePath -> [String] -> Maybe ByteString -> App ByteString
 runCli store args mStdin =
   spawn
     ( proc
@@ -180,7 +180,7 @@ uploadNewKeyPackage cid = do
 
   pure ref
 
-generateKeyPackage :: HasCallStack => ClientIdentity -> App (ByteString, String)
+generateKeyPackage :: (HasCallStack) => ClientIdentity -> App (ByteString, String)
 generateKeyPackage cid = do
   suite <- (.ciphersuite) <$> getMLSState
   kp <- mlscli cid ["key-package", "create", "--ciphersuite", suite.code] Nothing
@@ -757,7 +757,7 @@ createApplicationMessage cid messageContent = do
 setMLSCiphersuite :: Ciphersuite -> App ()
 setMLSCiphersuite suite = modifyMLSState $ \mls -> mls {ciphersuite = suite}
 
-withCiphersuite :: HasCallStack => Ciphersuite -> App a -> App a
+withCiphersuite :: (HasCallStack) => Ciphersuite -> App a -> App a
 withCiphersuite suite action = do
   suite0 <- (.ciphersuite) <$> getMLSState
   setMLSCiphersuiteIO <- appToIOKleisli setMLSCiphersuite
@@ -785,7 +785,7 @@ leaveCurrentConv cid = do
           { members = Set.difference mls.members (Set.singleton cid)
           }
 
-getCurrentConv :: HasCallStack => ClientIdentity -> App Value
+getCurrentConv :: (HasCallStack) => ClientIdentity -> App Value
 getCurrentConv cid = do
   mls <- getMLSState
   (conv, mSubId) <- objSubConv mls.convId

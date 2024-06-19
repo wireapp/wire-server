@@ -101,7 +101,7 @@ runCommand s3 galleyTables brigTables queryPageSize = do
     upload "domain-user-client-group.csv" (domainUserClientGroup galleyTables queryPageSize)
     upload "user-conv.csv" (userConv galleyTables queryPageSize)
 
-userClient :: MonadIO m => ClientState -> Int32 -> ConduitT () ByteString m ()
+userClient :: (MonadIO m) => ClientState -> Int32 -> ConduitT () ByteString m ()
 userClient cassandra queryPageSize = do
   yield "user,client\r\n"
   ( transPipe
@@ -114,7 +114,7 @@ userClient cassandra queryPageSize = do
     userClientCql :: PrepQuery R () (UserId, ClientId)
     userClientCql = "SELECT user, client FROM clients"
 
-convGroupTeamProtocol :: MonadIO m => ClientState -> Int32 -> ConduitT () ByteString m ()
+convGroupTeamProtocol :: (MonadIO m) => ClientState -> Int32 -> ConduitT () ByteString m ()
 convGroupTeamProtocol cassandra queryPageSize = do
   yield "conversation,group,team,protocol\r\n"
   ( transPipe
@@ -143,7 +143,7 @@ convGroupTeamProtocol cassandra queryPageSize = do
       A.String s -> s
       _ -> "?"
 
-domainUserClientGroup :: MonadIO m => ClientState -> Int32 -> ConduitT () ByteString m ()
+domainUserClientGroup :: (MonadIO m) => ClientState -> Int32 -> ConduitT () ByteString m ()
 domainUserClientGroup cassandra queryPageSize = do
   yield "user_domain,user,client,group\r\n"
   ( transPipe
@@ -166,7 +166,7 @@ domainUserClientGroup cassandra queryPageSize = do
     domainUserClientGroupCql :: PrepQuery R () (Domain, UserId, ClientId, GroupId)
     domainUserClientGroupCql = "SELECT user_domain, user, client, group_id FROM mls_group_member_client"
 
-userConv :: MonadIO m => ClientState -> Int32 -> ConduitT () ByteString m ()
+userConv :: (MonadIO m) => ClientState -> Int32 -> ConduitT () ByteString m ()
 userConv cassandra queryPageSize = do
   yield "user,conversation\r\n"
   ( transPipe

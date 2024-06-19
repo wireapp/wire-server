@@ -465,7 +465,7 @@ testListServices config db brig = do
   -- This is how we're going to call our /services endpoint. Every time we
   -- would call it twice (with tags and without) and assert that results
   -- match.
-  let search :: HasCallStack => Name -> Http ServiceProfilePage
+  let search :: (HasCallStack) => Name -> Http ServiceProfilePage
       search name = do
         r1 <- searchServices brig 20 uid (Just name) Nothing
         r2 <- searchServices brig 20 uid (Just name) (Just (match1 SocialTag))
@@ -480,7 +480,7 @@ testListServices config db brig = do
         pure r1
   -- This function searches for a prefix and check that the results match
   -- our known list of services
-  let searchAndCheck :: HasCallStack => Name -> Http [ServiceProfile]
+  let searchAndCheck :: (HasCallStack) => Name -> Http [ServiceProfile]
       searchAndCheck name = do
         result <- search name
         assertServiceDetails ("name " <> show name) (select name services) result
@@ -923,7 +923,7 @@ testSearchWhitelist config db brig galley = do
   -- endpoint. Every time we call it twice (with filter_disabled=false and
   -- without) and assert that results match – which should always be the
   -- case since in this test we won't have any disabled services.
-  let search :: HasCallStack => Maybe Text -> Http ServiceProfilePage
+  let search :: (HasCallStack) => Maybe Text -> Http ServiceProfilePage
       search mbName = do
         r1 <- searchServiceWhitelist brig 20 uid tid mbName
         r2 <- searchServiceWhitelistAll brig 20 uid tid mbName
@@ -950,7 +950,7 @@ testSearchWhitelist config db brig galley = do
     liftIO $ assertEqual "has more" True (serviceProfilePageHasMore page)
   -- This function searches for a prefix and check that the results match
   -- our known list of services
-  let searchAndCheck :: HasCallStack => Name -> Http [ServiceProfile]
+  let searchAndCheck :: (HasCallStack) => Name -> Http [ServiceProfile]
       searchAndCheck (Name name) = do
         result <- search (Just name)
         assertServiceDetails ("name " <> show name) (select name services) result
@@ -1646,7 +1646,7 @@ getUserClients brig bid uid =
 --------------------------------------------------------------------------------
 -- DB Operations
 
-lookupCode :: MonadIO m => DB.ClientState -> Code.Gen -> Code.Scope -> m (Maybe Code.Code)
+lookupCode :: (MonadIO m) => DB.ClientState -> Code.Gen -> Code.Scope -> m (Maybe Code.Code)
 lookupCode db gen = liftIO . DB.runClient db . Code.lookup (Code.genKey gen)
 
 --------------------------------------------------------------------------------
@@ -1710,7 +1710,7 @@ testRegisterProvider db' brig = do
     assertEqual "description" defProviderDescr (providerDescr p)
     assertEqual "profile" (ProviderProfile p) pp
 
-randomProvider :: HasCallStack => DB.ClientState -> Brig -> Http Provider
+randomProvider :: (HasCallStack) => DB.ClientState -> Brig -> Http Provider
 randomProvider db brig = do
   email <- randomEmail
   gen <- Code.mkGen (Code.ForEmail email)
@@ -1729,7 +1729,7 @@ randomProvider db brig = do
   let Just prv = responseJsonMaybe _rs
   pure prv
 
-addGetService :: HasCallStack => Brig -> ProviderId -> NewService -> Http Service
+addGetService :: (HasCallStack) => Brig -> ProviderId -> NewService -> Http Service
 addGetService brig pid new = do
   _rs <- addService brig pid new <!! const 201 === statusCode
   let Just srs = responseJsonMaybe _rs
@@ -1738,7 +1738,7 @@ addGetService brig pid new = do
   let Just svc = responseJsonMaybe _rs
   pure svc
 
-enableService :: HasCallStack => Brig -> ProviderId -> ServiceId -> Http ()
+enableService :: (HasCallStack) => Brig -> ProviderId -> ServiceId -> Http ()
 enableService brig pid sid = do
   let upd =
         (mkUpdateServiceConn defProviderPassword)
@@ -1747,7 +1747,7 @@ enableService brig pid sid = do
   updateServiceConn brig pid sid upd
     !!! const 200 === statusCode
 
-disableService :: HasCallStack => Brig -> ProviderId -> ServiceId -> Http ()
+disableService :: (HasCallStack) => Brig -> ProviderId -> ServiceId -> Http ()
 disableService brig pid sid = do
   let upd =
         (mkUpdateServiceConn defProviderPassword)
@@ -1757,7 +1757,7 @@ disableService brig pid sid = do
     !!! const 200 === statusCode
 
 whitelistServiceNginz ::
-  HasCallStack =>
+  (HasCallStack) =>
   Nginz ->
   -- | Team owner
   User ->
@@ -1787,7 +1787,7 @@ updateServiceWhitelistNginz nginz user tid upd = do
       . body (RequestBodyLBS (encode upd))
 
 whitelistService ::
-  HasCallStack =>
+  (HasCallStack) =>
   Brig ->
   -- | Team owner
   UserId ->
@@ -1803,7 +1803,7 @@ whitelistService brig uid tid pid sid =
     const 200 === statusCode
 
 dewhitelistService ::
-  HasCallStack =>
+  (HasCallStack) =>
   Brig ->
   -- | Team owner
   UserId ->
@@ -1818,7 +1818,7 @@ dewhitelistService brig uid tid pid sid =
     -- TODO: allow both 200 and 204 here and use it in 'testWhitelistEvents'
     const 200 === statusCode
 
-defNewService :: MonadIO m => Config -> m NewService
+defNewService :: (MonadIO m) => Config -> m NewService
 defNewService config = liftIO $ do
   key <- readServiceKey (publicKey config)
   pure
@@ -1879,32 +1879,32 @@ defServiceAssets =
 
 -- TODO: defServiceToken :: ServiceToken
 
-readServiceKey :: MonadIO m => FilePath -> m ServiceKeyPEM
+readServiceKey :: (MonadIO m) => FilePath -> m ServiceKeyPEM
 readServiceKey fp = liftIO $ do
   bs <- BS.readFile fp
   let Right [k] = pemParseBS bs
   pure (ServiceKeyPEM k)
 
-randServiceKey :: MonadIO m => m ServiceKeyPEM
+randServiceKey :: (MonadIO m) => m ServiceKeyPEM
 randServiceKey = liftIO $ do
   kp <- generateRSAKey' 4096 65537
   Right [k] <- pemParseBS . C8.pack <$> writePublicKey kp
   pure (ServiceKeyPEM k)
 
-waitFor :: MonadIO m => Timeout -> (a -> Bool) -> m a -> m a
+waitFor :: (MonadIO m) => Timeout -> (a -> Bool) -> m a -> m a
 waitFor t f ma = do
   a <- ma
   if
-      | f a -> pure a
-      | t <= 0 -> liftIO $ throwM TimedOut
-      | otherwise -> do
-          liftIO $ threadDelay (1 # Second)
-          waitFor (t - 1 # Second) f ma
+    | f a -> pure a
+    | t <= 0 -> liftIO $ throwM TimedOut
+    | otherwise -> do
+        liftIO $ threadDelay (1 # Second)
+        waitFor (t - 1 # Second) f ma
 
 withFreePortAnyAddr :: (MonadMask m, MonadIO m) => ((Warp.Port, Socket) -> m a) -> m a
 withFreePortAnyAddr = bracket openFreePortAnyAddr (liftIO . Socket.close . snd)
 
-openFreePortAnyAddr :: MonadIO m => m (Warp.Port, Socket)
+openFreePortAnyAddr :: (MonadIO m) => m (Warp.Port, Socket)
 openFreePortAnyAddr = liftIO $ bindRandomPortTCP "*"
 
 -- | Run a test case with an external service application.
@@ -2145,7 +2145,7 @@ mkMessage fromc rcps =
     ]
   where
     mk (u, c, m) = (text u, HashMap.singleton (text c) m)
-    text :: ToByteString a => a -> Text
+    text :: (ToByteString a) => a -> Text
     text = fromJust . fromByteString . toByteString'
 
 -- | A list of 20 services, all having names that begin with the given prefix.
@@ -2322,7 +2322,7 @@ testMessageBotUtil quid uc cid pid sid sref buf brig galley cannon = do
     wsAssertMemberLeave ws qcid (tUntagged lbuid) [tUntagged lbuid]
 
 prepareBotUsersTeam ::
-  HasCallStack =>
+  (HasCallStack) =>
   Brig ->
   Galley ->
   ServiceRef ->
@@ -2352,7 +2352,7 @@ testWhitelistNginz config db brig nginz = withTestService config db brig defServ
   whitelistServiceNginz nginz adminUser tid pid sid
 
 addBotConv ::
-  HasCallStack =>
+  (HasCallStack) =>
   Domain ->
   Brig ->
   WS.Cannon ->
@@ -2389,7 +2389,7 @@ addBotConv localDomain brig cannon uid1 uid2 cid pid sid buf = do
 -- | Given some endpoint that can search for services by name prefix, check
 -- that it doesn't break when service name changes.
 searchAndAssertNameChange ::
-  HasCallStack =>
+  (HasCallStack) =>
   Brig ->
   -- | Service provider
   ProviderId ->
@@ -2455,7 +2455,7 @@ assertServiceDetails testName expected page = liftIO $ do
 
 -- | Call the endpoint that searches through all services.
 searchServices ::
-  HasCallStack =>
+  (HasCallStack) =>
   Brig ->
   Int ->
   UserId ->
@@ -2478,7 +2478,7 @@ searchServices brig size uid mbStart mbTags = case (mbStart, mbTags) of
 
 -- | Call the endpoint that searches through whitelisted services.
 searchServiceWhitelist ::
-  HasCallStack =>
+  (HasCallStack) =>
   Brig ->
   Int ->
   UserId ->
@@ -2494,7 +2494,7 @@ searchServiceWhitelist brig size uid tid mbStart =
 -- | Call the endpoint that searches through whitelisted services, and don't
 -- filter out disabled services.
 searchServiceWhitelistAll ::
-  HasCallStack =>
+  (HasCallStack) =>
   Brig ->
   Int ->
   UserId ->

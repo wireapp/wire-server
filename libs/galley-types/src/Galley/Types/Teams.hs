@@ -104,11 +104,11 @@ newtype Defaults a = Defaults {_unDefaults :: a}
   deriving (Eq, Ord, Show, Enum, Bounded, Generic, Functor)
   deriving newtype (Arbitrary)
 
-instance FromJSON a => FromJSON (Defaults a) where
+instance (FromJSON a) => FromJSON (Defaults a) where
   parseJSON = withObject "default object" $ \ob ->
     Defaults <$> (ob .: "defaults")
 
-instance ToJSON a => ToJSON (Defaults a) where
+instance (ToJSON a) => ToJSON (Defaults a) where
   toJSON (Defaults x) =
     object ["defaults" .= toJSON x]
 
@@ -236,10 +236,10 @@ notTeamMember uids tmms =
   Set.toList $
     Set.fromList uids `Set.difference` Set.fromList (map (view userId) tmms)
 
-isTeamMember :: Foldable m => UserId -> m TeamMember -> Bool
+isTeamMember :: (Foldable m) => UserId -> m TeamMember -> Bool
 isTeamMember u = isJust . findTeamMember u
 
-findTeamMember :: Foldable m => UserId -> m TeamMember -> Maybe TeamMember
+findTeamMember :: (Foldable m) => UserId -> m TeamMember -> Maybe TeamMember
 findTeamMember u = find ((u ==) . view userId)
 
 isTeamOwner :: TeamMemberOptPerms -> Bool

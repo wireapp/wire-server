@@ -119,7 +119,7 @@ delay' :: (MonadCatch m, MonadIO m) => Int -> m ()
 delay' microsecs = threadDelay microsecs `catch` \AsyncCancelled -> pure ()
 
 burstActions ::
-  HasCallStack =>
+  (HasCallStack) =>
   ThreadBudgetState ->
   LogHistory ->
   MilliSeconds ->
@@ -211,7 +211,7 @@ data Response r
   | MeasureResponse Int -- concrete running threads
   deriving (Show, Generic, Generic1, Rank2.Functor, Rank2.Foldable, Rank2.Traversable)
 
-generator :: HasCallStack => Model Symbolic -> Maybe (Gen (Command Symbolic))
+generator :: (HasCallStack) => Model Symbolic -> Maybe (Gen (Command Symbolic))
 generator (Model Nothing) = Just $ Init <$> arbitrary
 generator (Model (Just st)) =
   Just $
@@ -221,16 +221,16 @@ generator (Model (Just st)) =
         pure $ Measure st
       ]
 
-shrinker :: HasCallStack => Model Symbolic -> Command Symbolic -> [Command Symbolic]
+shrinker :: (HasCallStack) => Model Symbolic -> Command Symbolic -> [Command Symbolic]
 shrinker _ (Init _) = []
 shrinker _ (Run st n m) = Wait st (MilliSeconds 1) : (Run st <$> shrink n <*> shrink m)
 shrinker _ (Wait st n) = Wait st <$> shrink n
 shrinker _ (Measure _) = []
 
-initModel :: HasCallStack => Model r
+initModel :: (HasCallStack) => Model r
 initModel = Model Nothing
 
-semantics :: HasCallStack => Command Concrete -> IO (Response Concrete)
+semantics :: (HasCallStack) => Command Concrete -> IO (Response Concrete)
 semantics (Init (NumberOfThreads limit)) =
   do
     tbs <- mkThreadBudgetState (MaxConcurrentNativePushes (Just limit) (Just limit))
@@ -254,17 +254,17 @@ semantics (Measure (opaque -> (tbs, _, _))) =
     concreteRunning <- budgetSpent tbs
     pure (MeasureResponse concreteRunning)
 
-transition :: HasCallStack => Model r -> Command r -> Response r -> Model r
+transition :: (HasCallStack) => Model r -> Command r -> Response r -> Model r
 transition (Model Nothing) (Init _) (InitResponse st) = Model (Just st)
 transition (Model (Just st)) Run {} RunResponse = Model (Just st)
 transition (Model (Just st)) Wait {} WaitResponse = Model (Just st)
 transition (Model (Just st)) Measure {} MeasureResponse {} = Model (Just st)
 transition _ _ _ = error "impossible."
 
-precondition :: HasCallStack => Model Symbolic -> Command Symbolic -> Logic
+precondition :: (HasCallStack) => Model Symbolic -> Command Symbolic -> Logic
 precondition _ _ = Top
 
-postcondition :: HasCallStack => Model Concrete -> Command Concrete -> Response Concrete -> Logic
+postcondition :: (HasCallStack) => Model Concrete -> Command Concrete -> Response Concrete -> Logic
 postcondition (Model Nothing) Init {} InitResponse {} = Top
 postcondition (Model (Just _)) Run {} RunResponse {} = Top
 postcondition (Model (Just _)) Wait {} WaitResponse {} = Top
@@ -284,7 +284,7 @@ postcondition model@(Model (Just _)) cmd@Measure {} resp@(MeasureResponse concre
 
 postcondition m c r = error $ "impossible: " <> show (m, c, r)
 
-mock :: HasCallStack => Model Symbolic -> Command Symbolic -> GenSym (Response Symbolic)
+mock :: (HasCallStack) => Model Symbolic -> Command Symbolic -> GenSym (Response Symbolic)
 mock (Model Nothing) (Init _) =
   InitResponse <$> genSym
 mock (Model (Just _)) Run {} = pure RunResponse
@@ -316,7 +316,7 @@ sm =
 
 -- | Remove resources created by the concrete 'STM.Commands', namely watcher and budgeted
 -- async threads.
-shutdown :: Model Concrete -> MonadIO m => m ()
+shutdown :: Model Concrete -> (MonadIO m) => m ()
 shutdown (Model Nothing) = pure ()
 shutdown (Model (Just (opaque -> (tbs, watcher, _)))) = liftIO $ do
   cancelAllThreads tbs

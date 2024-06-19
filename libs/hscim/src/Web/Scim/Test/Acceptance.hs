@@ -46,7 +46,7 @@ import Web.Scim.Schema.Meta
 import Web.Scim.Schema.UserTypes
 import Web.Scim.Test.Util
 
-ignore :: Monad m => m a -> m ()
+ignore :: (Monad m) => m a -> m ()
 ignore _ = pure ()
 
 -- https://docs.microsoft.com/en-us/azure/active-directory/manage-apps/use-scim-to-provision-users-and-groups#step-2-understand-the-azure-ad-scim-implementation

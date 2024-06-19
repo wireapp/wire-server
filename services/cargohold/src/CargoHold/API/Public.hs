@@ -60,11 +60,11 @@ servantSitemap =
     :<|> legacyAPI
     :<|> mainAPI
   where
-    userAPI :: forall tag. tag ~ 'UserPrincipalTag => ServerT (BaseAPIv3 tag) Handler
+    userAPI :: forall tag. (tag ~ 'UserPrincipalTag) => ServerT (BaseAPIv3 tag) Handler
     userAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
-    botAPI :: forall tag. tag ~ 'BotPrincipalTag => ServerT (BaseAPIv3 tag) Handler
+    botAPI :: forall tag. (tag ~ 'BotPrincipalTag) => ServerT (BaseAPIv3 tag) Handler
     botAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
-    providerAPI :: forall tag. tag ~ 'ProviderPrincipalTag => ServerT (BaseAPIv3 tag) Handler
+    providerAPI :: forall tag. (tag ~ 'ProviderPrincipalTag) => ServerT (BaseAPIv3 tag) Handler
     providerAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
     legacyAPI = legacyDownloadPlain :<|> legacyDownloadPlain :<|> legacyDownloadOtr
     qualifiedAPI :: ServerT QualifiedAPI Handler
@@ -121,7 +121,7 @@ instance HasLocation 'ProviderPrincipalTag where
       assetKeyToText (tUnqualified key)
     ]
 
-class HasLocation tag => MakePrincipal (tag :: PrincipalTag) (id :: Type) | id -> tag, tag -> id where
+class (HasLocation tag) => MakePrincipal (tag :: PrincipalTag) (id :: Type) | id -> tag, tag -> id where
   mkPrincipal :: id -> V3.Principal
 
 instance MakePrincipal 'UserPrincipalTag (Local UserId) where
@@ -135,7 +135,7 @@ instance MakePrincipal 'ProviderPrincipalTag ProviderId where
 
 mkAssetLocation ::
   forall (tag :: PrincipalTag).
-  HasLocation tag =>
+  (HasLocation tag) =>
   Local AssetKey ->
   AssetLocation Relative
 mkAssetLocation key =
@@ -155,7 +155,7 @@ mkAssetLocation key =
 
 uploadAssetV3 ::
   forall tag id.
-  MakePrincipal tag id =>
+  (MakePrincipal tag id) =>
   id ->
   AssetSource ->
   Handler (Asset, AssetLocation Relative)
@@ -174,7 +174,7 @@ uploadAssetV3 pid req = do
   pure (fmap tUntagged asset, mkAssetLocation @tag (asset ^. assetKey))
 
 downloadAssetV3 ::
-  MakePrincipal tag id =>
+  (MakePrincipal tag id) =>
   id ->
   AssetKey ->
   Maybe AssetToken ->
@@ -206,7 +206,7 @@ downloadAssetV4 usr qkey tok1 tok2 mbHostHeader =
         )
         qkey
 
-deleteAssetV3 :: MakePrincipal tag id => id -> AssetKey -> Handler ()
+deleteAssetV3 :: (MakePrincipal tag id) => id -> AssetKey -> Handler ()
 deleteAssetV3 usr = V3.delete (mkPrincipal usr)
 
 deleteAssetV4 :: Local UserId -> Qualified AssetKey -> Handler ()

@@ -182,7 +182,7 @@ checkProposal ciphersuite im p = case p of
     void $ noteS @'MLSInvalidLeafNodeIndex $ imLookup im idx
   _ -> pure ()
 
-addProposedClient :: Member (State IndexMap) r => ClientIdentity -> Sem r ProposalAction
+addProposedClient :: (Member (State IndexMap) r) => ClientIdentity -> Sem r ProposalAction
 addProposedClient cid = do
   im <- get
   let (idx, im') = imAddClient im cid
@@ -233,7 +233,7 @@ applyProposal _ciphersuite _groupId (RemoveProposal idx) = do
 applyProposal _activeData _groupId _ = pure mempty
 
 processProposal ::
-  HasProposalEffects r =>
+  (HasProposalEffects r) =>
   ( Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MLSStaleMessage) r
   ) =>
@@ -265,7 +265,7 @@ processProposal qusr lConvOrSub groupId epoch pub prop = do
       storeProposal groupId epoch propRef ProposalOriginClient prop
 
 getKeyPackageIdentity ::
-  Member (ErrorS 'MLSUnsupportedProposal) r =>
+  (Member (ErrorS 'MLSUnsupportedProposal) r) =>
   KeyPackage ->
   Sem r ClientIdentity
 getKeyPackageIdentity =

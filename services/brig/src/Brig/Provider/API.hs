@@ -160,7 +160,7 @@ servicesAPI =
     :<|> Named @"get-whitelisted-services-by-team-id" searchTeamServiceProfiles
     :<|> Named @"post-team-whitelist-by-team-id" updateServiceWhitelist
 
-providerAPI :: Member GalleyAPIAccess r => ServerT ProviderAPI (Handler r)
+providerAPI :: (Member GalleyAPIAccess r) => ServerT ProviderAPI (Handler r)
 providerAPI =
   Named @"provider-register" newAccount
     :<|> Named @"provider-activate" activateAccountKey
@@ -174,13 +174,13 @@ providerAPI =
     :<|> Named @"provider-get-account" getAccount
     :<|> Named @"provider-get-profile" getProviderProfile
 
-internalProviderAPI :: Member GalleyAPIAccess r => ServerT BrigIRoutes.ProviderAPI (Handler r)
+internalProviderAPI :: (Member GalleyAPIAccess r) => ServerT BrigIRoutes.ProviderAPI (Handler r)
 internalProviderAPI = Named @"get-provider-activation-code" getActivationCodeH
 
 --------------------------------------------------------------------------------
 -- Public API (Unauthenticated)
 
-newAccount :: Member GalleyAPIAccess r => Public.NewProvider -> (Handler r) Public.NewProviderResponse
+newAccount :: (Member GalleyAPIAccess r) => Public.NewProvider -> (Handler r) Public.NewProviderResponse
 newAccount new = do
   guardSecondFactorDisabled Nothing
   email <- case validateEmail (Public.newProviderEmail new) of
@@ -213,7 +213,7 @@ newAccount new = do
   lift $ sendActivationMail name email key val False
   pure $ Public.NewProviderResponse pid newPass
 
-activateAccountKey :: Member GalleyAPIAccess r => Code.Key -> Code.Value -> (Handler r) (Maybe Public.ProviderActivationResponse)
+activateAccountKey :: (Member GalleyAPIAccess r) => Code.Key -> Code.Value -> (Handler r) (Maybe Public.ProviderActivationResponse)
 activateAccountKey key val = do
   guardSecondFactorDisabled Nothing
   c <- wrapClientE (Code.verify key Code.IdentityVerification val) >>= maybeInvalidCode
@@ -236,7 +236,7 @@ activateAccountKey key val = do
       lift $ sendApprovalConfirmMail name email
       pure . Just $ Public.ProviderActivationResponse email
 
-getActivationCodeH :: Member GalleyAPIAccess r => Public.Email -> (Handler r) Code.KeyValuePair
+getActivationCodeH :: (Member GalleyAPIAccess r) => Public.Email -> (Handler r) Code.KeyValuePair
 getActivationCodeH e = do
   guardSecondFactorDisabled Nothing
   email <- case validateEmail e of
@@ -246,7 +246,7 @@ getActivationCodeH e = do
   code <- wrapClientE $ Code.lookup (Code.genKey gen) Code.IdentityVerification
   maybe (throwStd activationKeyNotFound) (pure . Code.codeToKeyValuePair) code
 
-login :: Member GalleyAPIAccess r => ProviderLogin -> Handler r ProviderTokenCookie
+login :: (Member GalleyAPIAccess r) => ProviderLogin -> Handler r ProviderTokenCookie
 login l = do
   guardSecondFactorDisabled Nothing
   pid <- wrapClientE (DB.lookupKey (mkEmailKey (providerLoginEmail l))) >>= maybeBadCredentials
@@ -257,7 +257,7 @@ login l = do
   s <- view settings
   pure $ ProviderTokenCookie (ProviderToken token) (not (setCookieInsecure s))
 
-beginPasswordReset :: Member GalleyAPIAccess r => Public.PasswordReset -> (Handler r) ()
+beginPasswordReset :: (Member GalleyAPIAccess r) => Public.PasswordReset -> (Handler r) ()
 beginPasswordReset (Public.PasswordReset target) = do
   guardSecondFactorDisabled Nothing
   pid <- wrapClientE (DB.lookupKey (mkEmailKey target)) >>= maybeBadCredentials
@@ -275,7 +275,7 @@ beginPasswordReset (Public.PasswordReset target) = do
   tryInsertVerificationCode code $ verificationCodeThrottledError . VerificationCodeThrottled
   lift $ sendPasswordResetMail target (Code.codeKey code) (Code.codeValue code)
 
-completePasswordReset :: Member GalleyAPIAccess r => Public.CompletePasswordReset -> (Handler r) ()
+completePasswordReset :: (Member GalleyAPIAccess r) => Public.CompletePasswordReset -> (Handler r) ()
 completePasswordReset (Public.CompletePasswordReset key val newpwd) = do
   guardSecondFactorDisabled Nothing
   code <- wrapClientE (Code.verify key Code.PasswordReset val) >>= maybeInvalidCode
@@ -292,12 +292,12 @@ completePasswordReset (Public.CompletePasswordReset key val newpwd) = do
 --------------------------------------------------------------------------------
 -- Provider API
 
-getAccount :: Member GalleyAPIAccess r => ProviderId -> (Handler r) (Maybe Public.Provider)
+getAccount :: (Member GalleyAPIAccess r) => ProviderId -> (Handler r) (Maybe Public.Provider)
 getAccount pid = do
   guardSecondFactorDisabled Nothing
   wrapClientE $ DB.lookupAccount pid
 
-updateAccountProfile :: Member GalleyAPIAccess r => ProviderId -> Public.UpdateProvider -> (Handler r) ()
+updateAccountProfile :: (Member GalleyAPIAccess r) => ProviderId -> Public.UpdateProvider -> (Handler r) ()
 updateAccountProfile pid upd = do
   guardSecondFactorDisabled Nothing
   _ <- wrapClientE (DB.lookupAccount pid) >>= maybeInvalidProvider
@@ -308,7 +308,7 @@ updateAccountProfile pid upd = do
       (updateProviderUrl upd)
       (updateProviderDescr upd)
 
-updateAccountEmail :: Member GalleyAPIAccess r => ProviderId -> Public.EmailUpdate -> (Handler r) ()
+updateAccountEmail :: (Member GalleyAPIAccess r) => ProviderId -> Public.EmailUpdate -> (Handler r) ()
 updateAccountEmail pid (Public.EmailUpdate new) = do
   guardSecondFactorDisabled Nothing
   email <- case validateEmail new of
@@ -327,7 +327,7 @@ updateAccountEmail pid (Public.EmailUpdate new) = do
   tryInsertVerificationCode code $ verificationCodeThrottledError . VerificationCodeThrottled
   lift $ sendActivationMail (Name "name") email (Code.codeKey code) (Code.codeValue code) True
 
-updateAccountPassword :: Member GalleyAPIAccess r => ProviderId -> Public.PasswordChange -> (Handler r) ()
+updateAccountPassword :: (Member GalleyAPIAccess r) => ProviderId -> Public.PasswordChange -> (Handler r) ()
 updateAccountPassword pid upd = do
   guardSecondFactorDisabled Nothing
   pass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
@@ -338,7 +338,7 @@ updateAccountPassword pid upd = do
   wrapClientE $ DB.updateAccountPassword pid (newPassword upd)
 
 addService ::
-  Member GalleyAPIAccess r =>
+  (Member GalleyAPIAccess r) =>
   ProviderId ->
   Public.NewService ->
   (Handler r) Public.NewServiceResponse
@@ -358,13 +358,13 @@ addService pid new = do
   let rstoken = maybe (Just token) (const Nothing) (newServiceToken new)
   pure $ Public.NewServiceResponse sid rstoken
 
-listServices :: Member GalleyAPIAccess r => ProviderId -> (Handler r) [Public.Service]
+listServices :: (Member GalleyAPIAccess r) => ProviderId -> (Handler r) [Public.Service]
 listServices pid = do
   guardSecondFactorDisabled Nothing
   wrapClientE $ DB.listServices pid
 
 getService ::
-  Member GalleyAPIAccess r =>
+  (Member GalleyAPIAccess r) =>
   ProviderId ->
   ServiceId ->
   (Handler r) Public.Service
@@ -373,7 +373,7 @@ getService pid sid = do
   wrapClientE (DB.lookupService pid sid) >>= maybeServiceNotFound
 
 updateService ::
-  Member GalleyAPIAccess r =>
+  (Member GalleyAPIAccess r) =>
   ProviderId ->
   ServiceId ->
   Public.UpdateService ->
@@ -407,7 +407,7 @@ updateService pid sid upd = do
       (serviceEnabled svc)
 
 updateServiceConn ::
-  Member GalleyAPIAccess r =>
+  (Member GalleyAPIAccess r) =>
   ProviderId ->
   ServiceId ->
   Public.UpdateServiceConn ->
@@ -524,17 +524,17 @@ deleteAccount pid del = do
 --------------------------------------------------------------------------------
 -- User API
 
-getProviderProfile :: Member GalleyAPIAccess r => UserId -> ProviderId -> (Handler r) (Maybe Public.ProviderProfile)
+getProviderProfile :: (Member GalleyAPIAccess r) => UserId -> ProviderId -> (Handler r) (Maybe Public.ProviderProfile)
 getProviderProfile _ pid = do
   guardSecondFactorDisabled Nothing
   wrapClientE (DB.lookupAccountProfile pid)
 
-listServiceProfiles :: Member GalleyAPIAccess r => UserId -> ProviderId -> (Handler r) [Public.ServiceProfile]
+listServiceProfiles :: (Member GalleyAPIAccess r) => UserId -> ProviderId -> (Handler r) [Public.ServiceProfile]
 listServiceProfiles _ pid = do
   guardSecondFactorDisabled Nothing
   wrapClientE $ DB.listServiceProfiles pid
 
-getServiceProfile :: Member GalleyAPIAccess r => UserId -> ProviderId -> ServiceId -> (Handler r) Public.ServiceProfile
+getServiceProfile :: (Member GalleyAPIAccess r) => UserId -> ProviderId -> ServiceId -> (Handler r) Public.ServiceProfile
 getServiceProfile _ pid sid = do
   guardSecondFactorDisabled Nothing
   wrapClientE (DB.lookupServiceProfile pid sid) >>= maybeServiceNotFound
@@ -543,7 +543,7 @@ getServiceProfile _ pid sid = do
 -- pagination here, we need both 'start' and 'prefix'.
 --
 -- Also see Note [buggy pagination].
-searchServiceProfiles :: Member GalleyAPIAccess r => UserId -> Maybe (Public.QueryAnyTags 1 3) -> Maybe Text -> Maybe (Range 10 100 Int32) -> (Handler r) Public.ServiceProfilePage
+searchServiceProfiles :: (Member GalleyAPIAccess r) => UserId -> Maybe (Public.QueryAnyTags 1 3) -> Maybe Text -> Maybe (Range 10 100 Int32) -> (Handler r) Public.ServiceProfilePage
 searchServiceProfiles _ Nothing (Just start) mSize = do
   guardSecondFactorDisabled Nothing
   prefix :: Range 1 128 Text <- rangeChecked start
@@ -577,14 +577,14 @@ searchTeamServiceProfiles uid tid prefix mFilterDisabled mSize = do
   -- Get search results
   wrapClientE $ DB.paginateServiceWhitelist tid prefix filterDisabled (fromRange size)
 
-getServiceTagList :: Member GalleyAPIAccess r => UserId -> (Handler r) Public.ServiceTagList
+getServiceTagList :: (Member GalleyAPIAccess r) => UserId -> (Handler r) Public.ServiceTagList
 getServiceTagList _ = do
   guardSecondFactorDisabled Nothing
   pure (Public.ServiceTagList allTags)
   where
     allTags = [(minBound :: Public.ServiceTag) ..]
 
-updateServiceWhitelist :: Member GalleyAPIAccess r => UserId -> ConnId -> TeamId -> Public.UpdateServiceWhitelist -> (Handler r) UpdateServiceWhitelistResp
+updateServiceWhitelist :: (Member GalleyAPIAccess r) => UserId -> ConnId -> TeamId -> Public.UpdateServiceWhitelist -> (Handler r) UpdateServiceWhitelistResp
 updateServiceWhitelist uid con tid upd = do
   guardSecondFactorDisabled (Just uid)
   let pid = updateServiceWhitelistProvider upd
@@ -621,7 +621,7 @@ updateServiceWhitelist uid con tid upd = do
 --------------------------------------------------------------------------------
 -- Bot API
 
-addBot :: Member GalleyAPIAccess r => UserId -> ConnId -> ConvId -> Public.AddBot -> (Handler r) Public.AddBotResponse
+addBot :: (Member GalleyAPIAccess r) => UserId -> ConnId -> ConvId -> Public.AddBot -> (Handler r) Public.AddBotResponse
 addBot zuid zcon cid add = do
   guardSecondFactorDisabled (Just zuid)
   zusr <- lift (wrapClient $ User.lookupUser NoPendingInvitations zuid) >>= maybeInvalidUser
@@ -705,7 +705,7 @@ addBot zuid zcon cid add = do
         Public.rsAddBotEvent = ev
       }
 
-removeBot :: Member GalleyAPIAccess r => UserId -> ConnId -> ConvId -> BotId -> (Handler r) (Maybe Public.RemoveBotResponse)
+removeBot :: (Member GalleyAPIAccess r) => UserId -> ConnId -> ConvId -> BotId -> (Handler r) (Maybe Public.RemoveBotResponse)
 removeBot zusr zcon cid bid = do
   guardSecondFactorDisabled (Just zusr)
   -- Get the conversation and check preconditions
@@ -738,12 +738,12 @@ botGetSelf bot = do
   p <- lift $ wrapClient $ User.lookupUser NoPendingInvitations (botUserId bot)
   maybe (throwStd (errorToWai @'E.UserNotFound)) (\u -> pure $ Public.mkUserProfile EmailVisibleToSelf u UserLegalHoldNoConsent) p
 
-botGetClient :: Member GalleyAPIAccess r => BotId -> (Handler r) (Maybe Public.Client)
+botGetClient :: (Member GalleyAPIAccess r) => BotId -> (Handler r) (Maybe Public.Client)
 botGetClient bot = do
   guardSecondFactorDisabled (Just (botUserId bot))
   lift $ listToMaybe <$> wrapClient (User.lookupClients (botUserId bot))
 
-botListPrekeys :: Member GalleyAPIAccess r => BotId -> (Handler r) [Public.PrekeyId]
+botListPrekeys :: (Member GalleyAPIAccess r) => BotId -> (Handler r) [Public.PrekeyId]
 botListPrekeys bot = do
   guardSecondFactorDisabled (Just (botUserId bot))
   clt <- lift $ listToMaybe <$> wrapClient (User.lookupClients (botUserId bot))
@@ -751,7 +751,7 @@ botListPrekeys bot = do
     Nothing -> pure []
     Just ci -> lift (wrapClient $ User.lookupPrekeyIds (botUserId bot) ci)
 
-botUpdatePrekeys :: Member GalleyAPIAccess r => BotId -> Public.UpdateBotPrekeys -> (Handler r) ()
+botUpdatePrekeys :: (Member GalleyAPIAccess r) => BotId -> Public.UpdateBotPrekeys -> (Handler r) ()
 botUpdatePrekeys bot upd = do
   guardSecondFactorDisabled (Just (botUserId bot))
   clt <- lift $ listToMaybe <$> wrapClient (User.lookupClients (botUserId bot))
@@ -776,20 +776,20 @@ botClaimUsersPrekeys _ body = do
     throwStd (errorToWai @'E.TooManyClients)
   Client.claimLocalMultiPrekeyBundles UnprotectedBot body !>> clientError
 
-botListUserProfiles :: Member GalleyAPIAccess r => BotId -> (CommaSeparatedList UserId) -> (Handler r) [Public.BotUserView]
+botListUserProfiles :: (Member GalleyAPIAccess r) => BotId -> (CommaSeparatedList UserId) -> (Handler r) [Public.BotUserView]
 botListUserProfiles _ uids = do
   guardSecondFactorDisabled Nothing -- should we check all user ids?
   us <- lift . wrapClient $ User.lookupUsers NoPendingInvitations (fromCommaSeparatedList uids)
   pure (map mkBotUserView us)
 
-botGetUserClients :: Member GalleyAPIAccess r => BotId -> UserId -> (Handler r) [Public.PubClient]
+botGetUserClients :: (Member GalleyAPIAccess r) => BotId -> UserId -> (Handler r) [Public.PubClient]
 botGetUserClients _ uid = do
   guardSecondFactorDisabled (Just uid)
   lift $ pubClient <$$> wrapClient (User.lookupClients uid)
   where
     pubClient c = Public.PubClient (clientId c) (clientClass c)
 
-botDeleteSelf :: Member GalleyAPIAccess r => BotId -> ConvId -> (Handler r) ()
+botDeleteSelf :: (Member GalleyAPIAccess r) => BotId -> ConvId -> (Handler r) ()
 botDeleteSelf bid cid = do
   guardSecondFactorDisabled (Just (botUserId bid))
   bot <- lift . wrapClient $ User.lookupUser NoPendingInvitations (botUserId bid)
@@ -803,7 +803,7 @@ botDeleteSelf bid cid = do
 -- | If second factor auth is enabled, make sure that end-points that don't support it, but should, are blocked completely.
 -- (This is a workaround until we have 2FA for those end-points as well.)
 guardSecondFactorDisabled ::
-  Member GalleyAPIAccess r =>
+  (Member GalleyAPIAccess r) =>
   Maybe UserId ->
   ExceptT Error (AppT r) ()
 guardSecondFactorDisabled mbUserId = do
@@ -850,7 +850,7 @@ deleteBot zusr zcon bid cid = do
   void $ runExceptT $ User.updateStatus buid Deleted
   pure ev
 
-validateServiceKey :: MonadIO m => Public.ServiceKeyPEM -> m (Maybe (Public.ServiceKey, Fingerprint Rsa))
+validateServiceKey :: (MonadIO m) => Public.ServiceKeyPEM -> m (Maybe (Public.ServiceKey, Fingerprint Rsa))
 validateServiceKey pem =
   liftIO $
     readPublicKey >>= \pk ->
@@ -882,25 +882,25 @@ mkBotUserView u =
       Ext.botUserViewTeam = userTeam u
     }
 
-maybeInvalidProvider :: Monad m => Maybe a -> (ExceptT Error m) a
+maybeInvalidProvider :: (Monad m) => Maybe a -> (ExceptT Error m) a
 maybeInvalidProvider = maybe (throwStd (errorToWai @'E.ProviderNotFound)) pure
 
-maybeInvalidCode :: Monad m => Maybe a -> (ExceptT Error m) a
+maybeInvalidCode :: (Monad m) => Maybe a -> (ExceptT Error m) a
 maybeInvalidCode = maybe (throwStd (errorToWai @'E.InvalidCode)) pure
 
-maybeServiceNotFound :: Monad m => Maybe a -> (ExceptT Error m) a
+maybeServiceNotFound :: (Monad m) => Maybe a -> (ExceptT Error m) a
 maybeServiceNotFound = maybe (throwStd (errorToWai @'E.ServiceNotFound)) pure
 
-maybeConvNotFound :: Monad m => Maybe a -> (ExceptT Error m) a
+maybeConvNotFound :: (Monad m) => Maybe a -> (ExceptT Error m) a
 maybeConvNotFound = maybe (throwStd (notFound "Conversation not found")) pure
 
-maybeBadCredentials :: Monad m => Maybe a -> (ExceptT Error m) a
+maybeBadCredentials :: (Monad m) => Maybe a -> (ExceptT Error m) a
 maybeBadCredentials = maybe (throwStd (errorToWai @'E.BadCredentials)) pure
 
-maybeInvalidServiceKey :: Monad m => Maybe a -> (ExceptT Error m) a
+maybeInvalidServiceKey :: (Monad m) => Maybe a -> (ExceptT Error m) a
 maybeInvalidServiceKey = maybe (throwStd (errorToWai @'E.InvalidServiceKey)) pure
 
-maybeInvalidUser :: Monad m => Maybe a -> (ExceptT Error m) a
+maybeInvalidUser :: (Monad m) => Maybe a -> (ExceptT Error m) a
 maybeInvalidUser = maybe (throwStd (errorToWai @'E.InvalidUser)) pure
 
 rangeChecked :: (KnownNat n, KnownNat m, Within a n m, Monad monad) => a -> (ExceptT Error monad) (Range n m a)
@@ -919,5 +919,5 @@ serviceError :: RPC.ServiceError -> Wai.Error
 serviceError (RPC.ServiceUnavailableWith str) = badGatewayWith str
 serviceError RPC.ServiceBotConflict = tooManyBots
 
-randServiceToken :: MonadIO m => m Public.ServiceToken
+randServiceToken :: (MonadIO m) => m Public.ServiceToken
 randServiceToken = ServiceToken . Ascii.encodeBase64Url <$> liftIO (randBytes 18)

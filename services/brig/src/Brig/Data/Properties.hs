@@ -39,7 +39,7 @@ data PropertiesDataError
   = TooManyProperties
 
 insertProperty ::
-  MonadClient m =>
+  (MonadClient m) =>
   UserId ->
   PropertyKey ->
   RawPropertyValue ->
@@ -50,23 +50,23 @@ insertProperty u k v = do
     throwE TooManyProperties
   lift . retry x5 $ write propertyInsert (params LocalQuorum (u, k, v))
 
-deleteProperty :: MonadClient m => UserId -> PropertyKey -> m ()
+deleteProperty :: (MonadClient m) => UserId -> PropertyKey -> m ()
 deleteProperty u k = retry x5 $ write propertyDelete (params LocalQuorum (u, k))
 
-clearProperties :: MonadClient m => UserId -> m ()
+clearProperties :: (MonadClient m) => UserId -> m ()
 clearProperties u = retry x5 $ write propertyReset (params LocalQuorum (Identity u))
 
-lookupProperty :: MonadClient m => UserId -> PropertyKey -> m (Maybe RawPropertyValue)
+lookupProperty :: (MonadClient m) => UserId -> PropertyKey -> m (Maybe RawPropertyValue)
 lookupProperty u k =
   fmap runIdentity
     <$> retry x1 (query1 propertySelect (params LocalQuorum (u, k)))
 
-lookupPropertyKeys :: MonadClient m => UserId -> m [PropertyKey]
+lookupPropertyKeys :: (MonadClient m) => UserId -> m [PropertyKey]
 lookupPropertyKeys u =
   map runIdentity
     <$> retry x1 (query propertyKeysSelect (params LocalQuorum (Identity u)))
 
-lookupPropertyKeysAndValues :: MonadClient m => UserId -> m [(PropertyKey, RawPropertyValue)]
+lookupPropertyKeysAndValues :: (MonadClient m) => UserId -> m [(PropertyKey, RawPropertyValue)]
 lookupPropertyKeysAndValues u =
   retry x1 (query propertyKeysValuesSelect (params LocalQuorum (Identity u)))
 

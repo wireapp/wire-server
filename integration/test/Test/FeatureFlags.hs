@@ -33,7 +33,7 @@ import Test.FeatureFlags.Util
 import Testlib.Prelude
 import Testlib.ResourcePool (acquireResources)
 
-testLimitedEventFanout :: HasCallStack => App ()
+testLimitedEventFanout :: (HasCallStack) => App ()
 testLimitedEventFanout = do
   let featureName = "limitedEventFanout"
   (_alice, team, _) <- createTeam OwnDomain 1
@@ -46,7 +46,7 @@ testLimitedEventFanout = do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "enabled"
 
-testLegalholdDisabledByDefault :: HasCallStack => App ()
+testLegalholdDisabledByDefault :: (HasCallStack) => App ()
 testLegalholdDisabledByDefault = do
   let put uid tid st = Internal.setTeamFeatureConfig uid tid "legalhold" (object ["status" .= st]) >>= assertSuccess
   let patch uid tid st = Internal.setTeamFeatureStatus uid tid "legalhold" st >>= assertSuccess
@@ -66,7 +66,7 @@ testLegalholdDisabledByDefault = do
         checkFeature "legalhold" owner tid disabled
 
 -- always disabled
-testLegalholdDisabledPermanently :: HasCallStack => App ()
+testLegalholdDisabledPermanently :: (HasCallStack) => App ()
 testLegalholdDisabledPermanently = do
   let cfgLhDisabledPermanently =
         def
@@ -100,7 +100,7 @@ testLegalholdDisabledPermanently = do
       checkFeature "legalhold" owner tid disabled
 
 -- enabled if team is allow listed, disabled in any other case
-testLegalholdWhitelistTeamsAndImplicitConsent :: HasCallStack => App ()
+testLegalholdWhitelistTeamsAndImplicitConsent :: (HasCallStack) => App ()
 testLegalholdWhitelistTeamsAndImplicitConsent = do
   let cfgLhWhitelistTeamsAndImplicitConsent =
         def
@@ -138,7 +138,7 @@ testLegalholdWhitelistTeamsAndImplicitConsent = do
     runCodensity (startDynamicBackend testBackend cfgLhWhitelistTeamsAndImplicitConsent) $ \_ -> do
       checkFeature "legalhold" owner tid enabled
 
-testExposeInvitationURLsToTeamAdminConfig :: HasCallStack => App ()
+testExposeInvitationURLsToTeamAdminConfig :: (HasCallStack) => App ()
 testExposeInvitationURLsToTeamAdminConfig = do
   let cfgExposeInvitationURLsTeamAllowlist tids =
         def
@@ -178,7 +178,7 @@ testExposeInvitationURLsToTeamAdminConfig = do
     -- Interesting case: The team had the feature enabled but is not in allow list
     void testNoAllowlistEntry
 
-testMlsE2EConfigCrlProxyRequired :: HasCallStack => App ()
+testMlsE2EConfigCrlProxyRequired :: (HasCallStack) => App ()
 testMlsE2EConfigCrlProxyRequired = do
   (owner, tid, _) <- createTeam OwnDomain 1
   let configWithoutCrlProxy =
@@ -210,7 +210,7 @@ testMlsE2EConfigCrlProxyRequired = do
   expectedResponse <- configWithCrlProxy & setField "lockStatus" "unlocked" & setField "ttl" "unlimited"
   checkFeature "mlsE2EId" owner tid expectedResponse
 
-testMlsE2EConfigCrlProxyNotRequiredInV5 :: HasCallStack => App ()
+testMlsE2EConfigCrlProxyNotRequiredInV5 :: (HasCallStack) => App ()
 testMlsE2EConfigCrlProxyNotRequiredInV5 = do
   (owner, tid, _) <- createTeam OwnDomain 1
   let configWithoutCrlProxy =
@@ -231,7 +231,7 @@ testMlsE2EConfigCrlProxyNotRequiredInV5 = do
   expectedResponse <- configWithoutCrlProxy & setField "lockStatus" "unlocked" & setField "ttl" "unlimited"
   checkFeature "mlsE2EId" owner tid expectedResponse
 
-testSSODisabledByDefault :: HasCallStack => App ()
+testSSODisabledByDefault :: (HasCallStack) => App ()
 testSSODisabledByDefault = do
   let put uid tid = Internal.setTeamFeatureConfig uid tid "sso" (object ["status" .= "enabled"]) >>= assertSuccess
   let patch uid tid = Internal.setTeamFeatureStatus uid tid "sso" "enabled" >>= assertSuccess
@@ -248,7 +248,7 @@ testSSODisabledByDefault = do
         enableFeature owner tid
         checkFeature "sso" owner tid enabled
 
-testSSOEnabledByDefault :: HasCallStack => App ()
+testSSOEnabledByDefault :: (HasCallStack) => App ()
 testSSOEnabledByDefault = do
   withModifiedBackend
     def {galleyCfg = setField "settings.featureFlags.sso" "enabled-by-default"}
@@ -260,7 +260,7 @@ testSSOEnabledByDefault = do
       -- check that the feature cannot be disabled
       assertLabel 403 "not-implemented" =<< Internal.setTeamFeatureConfig owner tid "sso" (object ["status" .= "disabled"])
 
-testSearchVisibilityDisabledByDefault :: HasCallStack => App ()
+testSearchVisibilityDisabledByDefault :: (HasCallStack) => App ()
 testSearchVisibilityDisabledByDefault = do
   withModifiedBackend def {galleyCfg = setField "settings.featureFlags.teamSearchVisibility" "disabled-by-default"} $ \domain -> do
     (owner, tid, m : _) <- createTeam domain 2
@@ -273,7 +273,7 @@ testSearchVisibilityDisabledByDefault = do
     assertSuccess =<< Internal.setTeamFeatureStatus owner tid "searchVisibility" "disabled"
     checkFeature "searchVisibility" owner tid disabled
 
-testSearchVisibilityEnabledByDefault :: HasCallStack => App ()
+testSearchVisibilityEnabledByDefault :: (HasCallStack) => App ()
 testSearchVisibilityEnabledByDefault = do
   withModifiedBackend def {galleyCfg = setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default"} $ \domain -> do
     (owner, tid, m : _) <- createTeam domain 2
@@ -286,22 +286,22 @@ testSearchVisibilityEnabledByDefault = do
     assertSuccess =<< Internal.setTeamFeatureStatus owner tid "searchVisibility" "enabled"
     checkFeature "searchVisibility" owner tid enabled
 
-testSearchVisibilityInbound :: HasCallStack => App ()
+testSearchVisibilityInbound :: (HasCallStack) => App ()
 testSearchVisibilityInbound = _testSimpleFlag "searchVisibilityInbound" Public.setTeamFeatureConfig False
 
-testDigitalSignaturesInternal :: HasCallStack => App ()
+testDigitalSignaturesInternal :: (HasCallStack) => App ()
 testDigitalSignaturesInternal = _testSimpleFlag "digitalSignatures" Internal.setTeamFeatureConfig False
 
-testValidateSAMLEmailsInternal :: HasCallStack => App ()
+testValidateSAMLEmailsInternal :: (HasCallStack) => App ()
 testValidateSAMLEmailsInternal = _testSimpleFlag "validateSAMLemails" Internal.setTeamFeatureConfig True
 
-testConferenceCallingInternal :: HasCallStack => App ()
+testConferenceCallingInternal :: (HasCallStack) => App ()
 testConferenceCallingInternal = _testSimpleFlag "conferenceCalling" Internal.setTeamFeatureConfig True
 
-testSearchVisibilityInboundInternal :: HasCallStack => App ()
+testSearchVisibilityInboundInternal :: (HasCallStack) => App ()
 testSearchVisibilityInboundInternal = _testSimpleFlag "searchVisibilityInbound" Internal.setTeamFeatureConfig False
 
-_testSimpleFlag :: HasCallStack => String -> (Value -> String -> String -> Value -> App Response) -> Bool -> App ()
+_testSimpleFlag :: (HasCallStack) => String -> (Value -> String -> String -> Value -> App Response) -> Bool -> App ()
 _testSimpleFlag featureName setFeatureConfig featureEnabledByDefault = do
   let defaultStatus = if featureEnabledByDefault then "enabled" else "disabled"
   let defaultValue = if featureEnabledByDefault then enabled else disabled
@@ -328,32 +328,32 @@ _testSimpleFlag featureName setFeatureConfig featureEnabledByDefault = do
       notif %. "payload.0.data" `shouldMatch` defaultValue
     checkFeature featureName m tid defaultValue
 
-testConversationGuestLinks :: HasCallStack => App ()
+testConversationGuestLinks :: (HasCallStack) => App ()
 testConversationGuestLinks = _testSimpleFlagWithLockStatus "conversationGuestLinks" Public.setTeamFeatureConfig True True
 
-testFileSharing :: HasCallStack => App ()
+testFileSharing :: (HasCallStack) => App ()
 testFileSharing = _testSimpleFlagWithLockStatus "fileSharing" Public.setTeamFeatureConfig True True
 
-testSndFactorPasswordChallenge :: HasCallStack => App ()
+testSndFactorPasswordChallenge :: (HasCallStack) => App ()
 testSndFactorPasswordChallenge = _testSimpleFlagWithLockStatus "sndFactorPasswordChallenge" Public.setTeamFeatureConfig False False
 
-testOutlookCalIntegration :: HasCallStack => App ()
+testOutlookCalIntegration :: (HasCallStack) => App ()
 testOutlookCalIntegration = _testSimpleFlagWithLockStatus "outlookCalIntegration" Public.setTeamFeatureConfig False False
 
-testConversationGuestLinksInternal :: HasCallStack => App ()
+testConversationGuestLinksInternal :: (HasCallStack) => App ()
 testConversationGuestLinksInternal = _testSimpleFlagWithLockStatus "conversationGuestLinks" Internal.setTeamFeatureConfig True True
 
-testFileSharingInternal :: HasCallStack => App ()
+testFileSharingInternal :: (HasCallStack) => App ()
 testFileSharingInternal = _testSimpleFlagWithLockStatus "fileSharing" Internal.setTeamFeatureConfig True True
 
-testSndFactorPasswordChallengeInternal :: HasCallStack => App ()
+testSndFactorPasswordChallengeInternal :: (HasCallStack) => App ()
 testSndFactorPasswordChallengeInternal = _testSimpleFlagWithLockStatus "sndFactorPasswordChallenge" Internal.setTeamFeatureConfig False False
 
-testOutlookCalIntegrationInternal :: HasCallStack => App ()
+testOutlookCalIntegrationInternal :: (HasCallStack) => App ()
 testOutlookCalIntegrationInternal = _testSimpleFlagWithLockStatus "outlookCalIntegration" Internal.setTeamFeatureConfig False False
 
 _testSimpleFlagWithLockStatus ::
-  HasCallStack =>
+  (HasCallStack) =>
   String ->
   (Value -> String -> String -> Value -> App Response) ->
   Bool ->
@@ -406,13 +406,13 @@ _testSimpleFlagWithLockStatus featureName setFeatureConfig featureEnabledByDefau
   -- feature status should be the previously set status again
   checkFeature featureName m tid =<< setField "lockStatus" "unlocked" otherValue
 
-testClassifiedDomainsEnabled :: HasCallStack => App ()
+testClassifiedDomainsEnabled :: (HasCallStack) => App ()
 testClassifiedDomainsEnabled = do
   (_, tid, m : _) <- createTeam OwnDomain 2
   expected <- enabled & setField "config.domains" ["example.com"]
   checkFeature "classifiedDomains" m tid expected
 
-testClassifiedDomainsDisabled :: HasCallStack => App ()
+testClassifiedDomainsDisabled :: (HasCallStack) => App ()
 testClassifiedDomainsDisabled = do
   withModifiedBackend def {galleyCfg = setField "settings.featureFlags.classifiedDomains" (object ["status" .= "disabled", "config" .= object ["domains" .= ["example.com"]]])} $ \domain -> do
     (_, tid, m : _) <- createTeam domain 2
@@ -421,65 +421,65 @@ testClassifiedDomainsDisabled = do
 
 -- | Call 'GET /teams/:tid/features' and 'GET /feature-configs', and check if all
 -- features are there.
-testAllFeatures :: HasCallStack => App ()
+testAllFeatures :: (HasCallStack) => App ()
 testAllFeatures = do
   (_, tid, m : _) <- createTeam OwnDomain 2
   let expected =
-        object $
-          [ "legalhold" .= disabled,
-            "sso" .= disabled,
-            "searchVisibility" .= disabled,
-            "validateSAMLemails" .= enabled,
-            "digitalSignatures" .= disabled,
-            "appLock" .= object ["lockStatus" .= "unlocked", "status" .= "enabled", "ttl" .= "unlimited", "config" .= object ["enforceAppLock" .= False, "inactivityTimeoutSecs" .= A.Number 60]],
-            "fileSharing" .= enabled,
-            "classifiedDomains" .= object ["lockStatus" .= "unlocked", "status" .= "enabled", "ttl" .= "unlimited", "config" .= object ["domains" .= ["example.com"]]],
-            "conferenceCalling" .= enabled,
-            "selfDeletingMessages" .= object ["lockStatus" .= "unlocked", "status" .= "enabled", "ttl" .= "unlimited", "config" .= object ["enforcedTimeoutSeconds" .= A.Number 0]],
-            "conversationGuestLinks" .= enabled,
-            "sndFactorPasswordChallenge" .= disabledLocked,
-            "mls"
-              .= object
-                [ "lockStatus" .= "unlocked",
-                  "status" .= "disabled",
-                  "ttl" .= "unlimited",
-                  "config"
-                    .= object
-                      [ "protocolToggleUsers" .= ([] :: [String]),
-                        "defaultProtocol" .= "proteus",
-                        "supportedProtocols" .= ["proteus", "mls"],
-                        "allowedCipherSuites" .= ([1] :: [Int]),
-                        "defaultCipherSuite" .= A.Number 1
-                      ]
-                ],
-            "searchVisibilityInbound" .= disabled,
-            "exposeInvitationURLsToTeamAdmin" .= disabledLocked,
-            "outlookCalIntegration" .= disabledLocked,
-            "mlsE2EId"
-              .= object
-                [ "lockStatus" .= "unlocked",
-                  "status" .= "disabled",
-                  "ttl" .= "unlimited",
-                  "config"
-                    .= object
-                      [ "verificationExpiration" .= A.Number 86400,
-                        "useProxyOnMobile" .= False
-                      ]
-                ],
-            "mlsMigration"
-              .= object
-                [ "lockStatus" .= "locked",
-                  "status" .= "enabled",
-                  "ttl" .= "unlimited",
-                  "config"
-                    .= object
-                      [ "startTime" .= "2029-05-16T10:11:12.123Z",
-                        "finaliseRegardlessAfter" .= "2029-10-17T00:00:00Z"
-                      ]
-                ],
-            "enforceFileDownloadLocation" .= object ["lockStatus" .= "locked", "status" .= "disabled", "ttl" .= "unlimited", "config" .= object []],
-            "limitedEventFanout" .= disabled
-          ]
+        object
+          $ [ "legalhold" .= disabled,
+              "sso" .= disabled,
+              "searchVisibility" .= disabled,
+              "validateSAMLemails" .= enabled,
+              "digitalSignatures" .= disabled,
+              "appLock" .= object ["lockStatus" .= "unlocked", "status" .= "enabled", "ttl" .= "unlimited", "config" .= object ["enforceAppLock" .= False, "inactivityTimeoutSecs" .= A.Number 60]],
+              "fileSharing" .= enabled,
+              "classifiedDomains" .= object ["lockStatus" .= "unlocked", "status" .= "enabled", "ttl" .= "unlimited", "config" .= object ["domains" .= ["example.com"]]],
+              "conferenceCalling" .= enabled,
+              "selfDeletingMessages" .= object ["lockStatus" .= "unlocked", "status" .= "enabled", "ttl" .= "unlimited", "config" .= object ["enforcedTimeoutSeconds" .= A.Number 0]],
+              "conversationGuestLinks" .= enabled,
+              "sndFactorPasswordChallenge" .= disabledLocked,
+              "mls"
+                .= object
+                  [ "lockStatus" .= "unlocked",
+                    "status" .= "disabled",
+                    "ttl" .= "unlimited",
+                    "config"
+                      .= object
+                        [ "protocolToggleUsers" .= ([] :: [String]),
+                          "defaultProtocol" .= "proteus",
+                          "supportedProtocols" .= ["proteus", "mls"],
+                          "allowedCipherSuites" .= ([1] :: [Int]),
+                          "defaultCipherSuite" .= A.Number 1
+                        ]
+                  ],
+              "searchVisibilityInbound" .= disabled,
+              "exposeInvitationURLsToTeamAdmin" .= disabledLocked,
+              "outlookCalIntegration" .= disabledLocked,
+              "mlsE2EId"
+                .= object
+                  [ "lockStatus" .= "unlocked",
+                    "status" .= "disabled",
+                    "ttl" .= "unlimited",
+                    "config"
+                      .= object
+                        [ "verificationExpiration" .= A.Number 86400,
+                          "useProxyOnMobile" .= False
+                        ]
+                  ],
+              "mlsMigration"
+                .= object
+                  [ "lockStatus" .= "locked",
+                    "status" .= "enabled",
+                    "ttl" .= "unlimited",
+                    "config"
+                      .= object
+                        [ "startTime" .= "2029-05-16T10:11:12.123Z",
+                          "finaliseRegardlessAfter" .= "2029-10-17T00:00:00Z"
+                        ]
+                  ],
+              "enforceFileDownloadLocation" .= object ["lockStatus" .= "locked", "status" .= "disabled", "ttl" .= "unlimited", "config" .= object []],
+              "limitedEventFanout" .= disabled
+            ]
   bindResponse (Public.getTeamFeatures m tid) $ \resp -> do
     resp.status `shouldMatchInt` 200
     expected `shouldMatch` resp.json
@@ -503,7 +503,7 @@ testAllFeatures = do
     resp.status `shouldMatchInt` 200
     expected `shouldMatch` resp.json
 
-testFeatureConfigConsistency :: HasCallStack => App ()
+testFeatureConfigConsistency :: (HasCallStack) => App ()
 testFeatureConfigConsistency = do
   (_, tid, m : _) <- createTeam OwnDomain 2
 
@@ -511,8 +511,8 @@ testFeatureConfigConsistency = do
 
   allTeamFeaturesRes <- Public.getTeamFeatures m tid >>= parseObjectKeys
 
-  unless (allTeamFeaturesRes `Set.isSubsetOf` allFeaturesRes) $
-    assertFailure (show allTeamFeaturesRes <> " is not a subset of " <> show allFeaturesRes)
+  unless (allTeamFeaturesRes `Set.isSubsetOf` allFeaturesRes)
+    $ assertFailure (show allTeamFeaturesRes <> " is not a subset of " <> show allFeaturesRes)
   where
     parseObjectKeys :: Response -> App (Set.Set String)
     parseObjectKeys res = do
@@ -521,7 +521,7 @@ testFeatureConfigConsistency = do
         (A.Object hm) -> pure (Set.fromList . map (show . A.toText) . KM.keys $ hm)
         x -> assertFailure ("JSON was not an object, but " <> show x)
 
-testSelfDeletingMessages :: HasCallStack => App ()
+testSelfDeletingMessages :: (HasCallStack) => App ()
 testSelfDeletingMessages =
   _testLockStatusWithConfig
     "selfDeletingMessages"
@@ -531,7 +531,7 @@ testSelfDeletingMessages =
     (object ["status" .= "enabled", "config" .= object ["enforcedTimeoutSeconds" .= A.Number 30]])
     (object ["status" .= "enabled", "config" .= object ["enforcedTimeoutSeconds" .= ""]])
 
-testSelfDeletingMessagesInternal :: HasCallStack => App ()
+testSelfDeletingMessagesInternal :: (HasCallStack) => App ()
 testSelfDeletingMessagesInternal =
   _testLockStatusWithConfig
     "selfDeletingMessages"
@@ -541,7 +541,7 @@ testSelfDeletingMessagesInternal =
     (object ["status" .= "enabled", "config" .= object ["enforcedTimeoutSeconds" .= A.Number 30]])
     (object ["status" .= "enabled", "config" .= object ["enforcedTimeoutSeconds" .= ""]])
 
-testMls :: HasCallStack => App ()
+testMls :: (HasCallStack) => App ()
 testMls = do
   user <- randomUser OwnDomain def
   uid <- asString $ user %. "id"
@@ -553,7 +553,7 @@ testMls = do
     mlsConfig2
     mlsInvalidConfig
 
-testMlsInternal :: HasCallStack => App ()
+testMlsInternal :: (HasCallStack) => App ()
 testMlsInternal = do
   user <- randomUser OwnDomain def
   uid <- asString $ user %. "id"
@@ -623,7 +623,7 @@ mlsInvalidConfig =
           ]
     ]
 
-testEnforceDownloadLocation :: HasCallStack => App ()
+testEnforceDownloadLocation :: (HasCallStack) => App ()
 testEnforceDownloadLocation =
   _testLockStatusWithConfig
     "enforceFileDownloadLocation"
@@ -633,7 +633,7 @@ testEnforceDownloadLocation =
     (object ["status" .= "disabled", "config" .= object []])
     (object ["status" .= "enabled", "config" .= object ["enforcedDownloadLocation" .= object []]])
 
-testEnforceDownloadLocationInternal :: HasCallStack => App ()
+testEnforceDownloadLocationInternal :: (HasCallStack) => App ()
 testEnforceDownloadLocationInternal =
   _testLockStatusWithConfig
     "enforceFileDownloadLocation"
@@ -643,7 +643,7 @@ testEnforceDownloadLocationInternal =
     (object ["status" .= "disabled", "config" .= object []])
     (object ["status" .= "enabled", "config" .= object ["enforcedDownloadLocation" .= object []]])
 
-testMlsMigration :: HasCallStack => App ()
+testMlsMigration :: (HasCallStack) => App ()
 testMlsMigration = do
   -- first we have to enable mls
   (owner, tid, m : _) <- createTeam OwnDomain 2
@@ -657,7 +657,7 @@ testMlsMigration = do
     mlsMigrationConfig2
     mlsMigrationInvalidConfig
 
-testMlsMigrationInternal :: HasCallStack => App ()
+testMlsMigrationInternal :: (HasCallStack) => App ()
 testMlsMigrationInternal = do
   -- first we have to enable mls
   (owner, tid, m : _) <- createTeam OwnDomain 2
@@ -763,7 +763,7 @@ mlsE2EIdConfig = do
               ]
         ]
 
-testMLSE2EId :: HasCallStack => App ()
+testMLSE2EId :: (HasCallStack) => App ()
 testMLSE2EId = do
   (defCfg, cfg1, cfg2, invalidCfg) <- mlsE2EIdConfig
   _testLockStatusWithConfig
@@ -774,7 +774,7 @@ testMLSE2EId = do
     cfg2
     invalidCfg
 
-testMLSE2EIdInternal :: HasCallStack => App ()
+testMLSE2EIdInternal :: (HasCallStack) => App ()
 testMLSE2EIdInternal = do
   (defCfg, cfg1, cfg2, invalidCfg) <- mlsE2EIdConfig
   -- the internal API is not as strict as the public one, so we need to tweak the invalid config some more
@@ -788,7 +788,7 @@ testMLSE2EIdInternal = do
     invalidCfg'
 
 _testLockStatusWithConfig ::
-  HasCallStack =>
+  (HasCallStack) =>
   String ->
   (Value -> String -> String -> Value -> App Response) ->
   -- | the default feature config (should include the lock status and ttl, as it is returned by the API)
@@ -805,7 +805,7 @@ _testLockStatusWithConfig featureName setTeamFeatureConfig defaultFeatureConfig 
   _testLockStatusWithConfigWithTeam (owner, tid, m) featureName setTeamFeatureConfig defaultFeatureConfig config1 config2 invalidConfig
 
 _testLockStatusWithConfigWithTeam ::
-  HasCallStack =>
+  (HasCallStack) =>
   -- | (owner, tid, member)
   (Value, String, Value) ->
   String ->
@@ -866,7 +866,7 @@ _testLockStatusWithConfigWithTeam (owner, tid, m) featureName setTeamFeatureConf
 
   checkFeature featureName m tid =<< (config2 & setField "lockStatus" "unlocked" & setField "ttl" "unlimited")
 
-testFeatureNoConfigMultiSearchVisibilityInbound :: HasCallStack => App ()
+testFeatureNoConfigMultiSearchVisibilityInbound :: (HasCallStack) => App ()
 testFeatureNoConfigMultiSearchVisibilityInbound = do
   (_owner1, team1, _) <- createTeam OwnDomain 0
   (_owner2, team2, _) <- createTeam OwnDomain 0
@@ -879,22 +879,22 @@ testFeatureNoConfigMultiSearchVisibilityInbound = do
   length statuses `shouldMatchInt` 2
   statuses `shouldMatchSet` [object ["team" .= team1, "status" .= "disabled"], object ["team" .= team2, "status" .= "enabled"]]
 
-testConferenceCallingTTLIncreaseToUnlimited :: HasCallStack => App ()
+testConferenceCallingTTLIncreaseToUnlimited :: (HasCallStack) => App ()
 testConferenceCallingTTLIncreaseToUnlimited = _testSimpleFlagTTLOverride "conferenceCalling" True (Just 2) Nothing
 
-testConferenceCallingTTLIncrease :: HasCallStack => App ()
+testConferenceCallingTTLIncrease :: (HasCallStack) => App ()
 testConferenceCallingTTLIncrease = _testSimpleFlagTTLOverride "conferenceCalling" True (Just 2) (Just 4)
 
-testConferenceCallingTTLReduceFromUnlimited :: HasCallStack => App ()
+testConferenceCallingTTLReduceFromUnlimited :: (HasCallStack) => App ()
 testConferenceCallingTTLReduceFromUnlimited = _testSimpleFlagTTLOverride "conferenceCalling" True Nothing (Just 2)
 
-testConferenceCallingTTLReduce :: HasCallStack => App ()
+testConferenceCallingTTLReduce :: (HasCallStack) => App ()
 testConferenceCallingTTLReduce = _testSimpleFlagTTLOverride "conferenceCalling" True (Just 5) (Just 2)
 
-testConferenceCallingTTLUnlimitedToUnlimited :: HasCallStack => App ()
+testConferenceCallingTTLUnlimitedToUnlimited :: (HasCallStack) => App ()
 testConferenceCallingTTLUnlimitedToUnlimited = _testSimpleFlagTTLOverride "conferenceCalling" True Nothing Nothing
 
-_testSimpleFlagTTLOverride :: HasCallStack => String -> Bool -> Maybe Int -> Maybe Int -> App ()
+_testSimpleFlagTTLOverride :: (HasCallStack) => String -> Bool -> Maybe Int -> Maybe Int -> App ()
 _testSimpleFlagTTLOverride featureName enabledByDefault mTtl mTtlAfter = do
   let ttl = maybe (A.String . cs $ "unlimited") (A.Number . fromIntegral) mTtl
   let ttlAfter = maybe (A.String . cs $ "unlimited") (A.Number . fromIntegral) mTtlAfter
@@ -940,37 +940,37 @@ _testSimpleFlagTTLOverride featureName enabledByDefault mTtl mTtlAfter = do
 --------------------------------------------------------------------------------
 -- Simple flags with implicit lock status
 
-testPatchSearchVisibility :: HasCallStack => App ()
+testPatchSearchVisibility :: (HasCallStack) => App ()
 testPatchSearchVisibility = _testPatch "searchVisibility" False disabled enabled
 
-testPatchValidateSAMLEmails :: HasCallStack => App ()
+testPatchValidateSAMLEmails :: (HasCallStack) => App ()
 testPatchValidateSAMLEmails = _testPatch "validateSAMLemails" False enabled disabled
 
-testPatchDigitalSignatures :: HasCallStack => App ()
+testPatchDigitalSignatures :: (HasCallStack) => App ()
 testPatchDigitalSignatures = _testPatch "digitalSignatures" False disabled enabled
 
-testPatchConferenceCalling :: HasCallStack => App ()
+testPatchConferenceCalling :: (HasCallStack) => App ()
 testPatchConferenceCalling = _testPatch "conferenceCalling" False enabled disabled
 
 --------------------------------------------------------------------------------
 -- Simple flags with explicit lock status
 
-testPatchFileSharing :: HasCallStack => App ()
+testPatchFileSharing :: (HasCallStack) => App ()
 testPatchFileSharing = _testPatch "fileSharing" True enabled disabled
 
-testPatchGuestLinks :: HasCallStack => App ()
+testPatchGuestLinks :: (HasCallStack) => App ()
 testPatchGuestLinks = _testPatch "conversationGuestLinks" True enabled disabled
 
-testPatchSndFactorPasswordChallenge :: HasCallStack => App ()
+testPatchSndFactorPasswordChallenge :: (HasCallStack) => App ()
 testPatchSndFactorPasswordChallenge = _testPatch "sndFactorPasswordChallenge" True disabledLocked enabled
 
-testPatchOutlookCalIntegration :: HasCallStack => App ()
+testPatchOutlookCalIntegration :: (HasCallStack) => App ()
 testPatchOutlookCalIntegration = _testPatch "outlookCalIntegration" True disabledLocked enabled
 
 --------------------------------------------------------------------------------
 -- Flags with config & implicit lock status
 
-testPatchAppLock :: HasCallStack => App ()
+testPatchAppLock :: (HasCallStack) => App ()
 testPatchAppLock = do
   let defCfg =
         object
@@ -988,7 +988,7 @@ testPatchAppLock = do
 --------------------------------------------------------------------------------
 -- Flags with config & explicit lock status
 
-testPatchSelfDeletingMessages :: HasCallStack => App ()
+testPatchSelfDeletingMessages :: (HasCallStack) => App ()
 testPatchSelfDeletingMessages = do
   let defCfg =
         object
@@ -1003,7 +1003,7 @@ testPatchSelfDeletingMessages = do
   _testPatch "selfDeletingMessages" True defCfg (object ["lockStatus" .= "unlocked", "config" .= object ["enforcedTimeoutSeconds" .= A.Number 30]])
   _testPatch "selfDeletingMessages" True defCfg (object ["config" .= object ["enforcedTimeoutSeconds" .= A.Number 60]])
 
-testPatchEnforceFileDownloadLocation :: HasCallStack => App ()
+testPatchEnforceFileDownloadLocation :: (HasCallStack) => App ()
 testPatchEnforceFileDownloadLocation = do
   let defCfg =
         object
@@ -1018,7 +1018,7 @@ testPatchEnforceFileDownloadLocation = do
   _testPatch "enforceFileDownloadLocation" True defCfg (object ["lockStatus" .= "locked", "config" .= object []])
   _testPatch "enforceFileDownloadLocation" True defCfg (object ["config" .= object ["enforcedDownloadLocation" .= "/tmp"]])
 
-testPatchE2EId :: HasCallStack => App ()
+testPatchE2EId :: (HasCallStack) => App ()
 testPatchE2EId = do
   let defCfg =
         object
@@ -1062,7 +1062,7 @@ testPatchE2EId = do
         ]
     )
 
-testPatchMLS :: HasCallStack => App ()
+testPatchMLS :: (HasCallStack) => App ()
 testPatchMLS = do
   dom <- asString OwnDomain
   (_, tid, _) <- createTeam dom 0
@@ -1125,7 +1125,7 @@ testPatchMLS = do
         ]
     )
   where
-    mlsMigrationSetup :: HasCallStack => String -> String -> App ()
+    mlsMigrationSetup :: (HasCallStack) => String -> String -> App ()
     mlsMigrationSetup dom tid =
       assertSuccess
         =<< Internal.patchTeamFeature
@@ -1134,7 +1134,7 @@ testPatchMLS = do
           "mlsMigration"
           (object ["status" .= "disabled", "lockStatus" .= "unlocked"])
 
-_testPatch :: HasCallStack => String -> Bool -> Value -> Value -> App ()
+_testPatch :: (HasCallStack) => String -> Bool -> Value -> Value -> App ()
 _testPatch featureName hasExplicitLockStatus defaultFeatureConfig patch = do
   dom <- asString OwnDomain
   _testPatchWithSetup
@@ -1146,7 +1146,7 @@ _testPatch featureName hasExplicitLockStatus defaultFeatureConfig patch = do
     patch
 
 _testPatchWithSetup ::
-  HasCallStack =>
+  (HasCallStack) =>
   (String -> String -> App ()) ->
   String ->
   String ->
