@@ -341,11 +341,13 @@ let
           '';
           config = {
             Entrypoint = [ "${pkgs.dumb-init}/bin/dumb-init" "--" "${drv}/bin/${execName}" ];
+            WorkingDirectory = "/tmp";
             Env = [
               "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"
               "LOCALE_ARCHIVE=${pkgs.glibcLocales}/lib/locale/locale-archive"
               "LANG=en_GB.UTF-8"
             ];
+            User = "65534";
           };
         }
       )

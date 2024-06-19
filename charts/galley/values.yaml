@@ -159,7 +159,7 @@ podSecurityContext:
   capabilities:
     drop:
       - ALL
-  runAsNonRoot: false
+  runAsNonRoot: true
   seccompProfile:
     type: RuntimeDefault
 tests:
