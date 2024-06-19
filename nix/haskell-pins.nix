@@ -258,7 +258,30 @@ let
         hash = "sha256-E35PVxi/4iJFfWts3td52KKZKQt4dj9KFP3SvWG77Cc=";
       };
     };
+
+    # open PR https://github.com/yesodweb/wai/pull/958 for sending connection: close when closing connection
+    warp = {
+      packages.warp = "warp";
+      src = pkgs.fetchFromGitHub {
+        owner = "yesodweb";
+        repo = "wai";
+        rev = "8b20c9db265a202a2c7ba2a9ec8786a1ee59957b";
+        hash = "sha256-fKUSiRl38FKY1gFSmbksktoqoLfQrDxRRWEh4k+RRW4=";
+      };
+    };
+
+    # this contains an important fix to the initialization of the window size
+    # and should be switched to upstream as soon as we can
+    http2 = {
+      src = pkgs.fetchFromGitHub {
+        owner = "kazu-yamamoto";
+        repo = "http2";
+        rev = "80921ad15fac05715ede7063d57585d4e7049f99";
+        hash = "sha256-AQPZzx0SiIPbWG2AguGcDITTQLKW9OX1qxmiS+wrHN8=";
+      };
+    };
   };
+
   hackagePins = {
     # Major re-write upstream, we should get rid of this dependency rather than
     # adapt to upstream, this will go away when completing servantification.
@@ -267,16 +290,38 @@ let
       sha256 = "sha256-DSMckKIeVE/buSMg8Mq+mUm1bYPYB7veA11Ns7vTBbc=";
     };
 
-    http2 = {
-      version = "4.1.4";
-      sha256 = "sha256-r4Bu0vourKMkBO1cPeJVszSbAqHopmkv9EeTHcaTfuo=";
+    # start pinned dependencies for http2
+    http-semantics = {
+      version = "0.1.1";
+      sha256 = "sha256-znxplxXjPWNrGR7//7e6HS9CaS1ID/aXUhRYfWakTWU=";
     };
 
-    # warp is not compatible with 
-    warp = {
-      version = "3.3.30";
-      sha256 = "sha256-VrK27a2wFtezh9qabcXGe2tw9EwBmI8mKwmpCtXq9rc=";
+    network-run = {
+      version = "0.3.0";
+      sha256 = "sha256-FP2GZKwacC+TLLwEIVgKBtnKplYPf5xOIjDfvlbQV0o=";
     };
+    time-manager = {
+      version = "0.1.0";
+      sha256 = "sha256-WRe9LZrOIPJVBFk0vMN2IMoxgP0a0psQCiCiOFWJc74=";
+    };
+    auto-update = {
+      version = "0.2.0";
+      sha256 = "sha256-d/0IDjaaCLz8tlx88z8Ew8ol9PrSRPVWaUwTbim70yE=";
+    };
+
+    network-control = {
+      version = "0.1.0";
+      sha256 = "sha256-D6pKb6+0Pr08FnObGbXBVMv04ys3N731p7U+GYH1oEg=";
+    };
+    # end pinned dependencies for http2
+
+    # pinned for warp
+    warp-tls = {
+      version = "3.4.5";
+      sha256 = "sha256-3cDi/+n7wHfcWT/iFWAsGdLYXtKYXmvzolDt+ACJnaM=";
+    };
+    # end pinned for warp
+
     # PR: https://github.com/wireapp/wire-server/pull/4027
     HsOpenSSL = {
       version = "0.11.7.7";
@@ -311,11 +356,12 @@ let
     gitPins;
   # AttrSet
   hackagePackages = lib.attrsets.mapAttrs
-    (pkg: { version, sha256 }:
+    (pkg: args:
       hself.callHackageDirect
         {
-          ver = version;
-          inherit pkg sha256;
+          ver = args.version;
+          sha256 = args.sha256 or "";
+          inherit pkg;
         }
         { }
     )
