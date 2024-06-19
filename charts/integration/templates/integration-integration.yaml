@@ -109,6 +109,8 @@ spec:
       - name: "integration-cassandra"
         mountPath: "/certs/cassandra"
       {{- end }}
+      - name: rabbitmq-ca
+        mountPath: /certs/rabbitmq-ca
     env:
     - name: INTEGRATION_DYNAMIC_BACKENDS_POOLSIZE
       value: "{{ .Values.config.dynamicBackendsPoolsize }}"
