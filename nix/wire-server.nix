@@ -341,7 +341,7 @@ let
           '';
           config = {
             Entrypoint = [ "${pkgs.dumb-init}/bin/dumb-init" "--" "${drv}/bin/${execName}" ];
-            WorkingDirectory = "/tmp";
+            WorkingDir = "/tmp";
             Env = [
               "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"
               "LOCALE_ARCHIVE=${pkgs.glibcLocales}/lib/locale/locale-archive"
