@@ -173,12 +173,12 @@ withAdditionalESUrl action = do
 --------------------------------------------------------------------------------
 -- Updates
 
-reindex :: (MonadLogger m, MonadIndexIO m, C.MonadClient m, Prom.MonadMonitor IndexIO) => UserId -> m ()
+reindex :: (MonadLogger m, MonadIndexIO m, C.MonadClient m) => UserId -> m ()
 reindex u = do
   ixu <- lookupIndexUser u
   updateIndex (maybe (IndexDeleteUser u) (IndexUpdateUser IndexUpdateIfNewerVersion) ixu)
 
-updateIndex :: (MonadIndexIO m, Prom.MonadMonitor IndexIO) => IndexUpdate -> m ()
+updateIndex :: (MonadIndexIO m) => IndexUpdate -> m ()
 updateIndex (IndexUpdateUser updateType iu) = liftIndexIO $ do
   Prom.incCounter indexUpdateCounter
   info $
