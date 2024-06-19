@@ -70,8 +70,20 @@ hself: hsuper: {
   tls = hsuper.tls_2_0_5;
   tls-session-manager = hsuper.tls-session-manager_0_0_5;
 
-  # warp requires curl in its testsuite
-  warp = hlib.addTestToolDepends hsuper.warp [ curl ];
+  # for warp (and its transitive deps)
+  # we have a PR open https://github.com/yesodweb/wai/pull/958
+  # unfortunately, because of breakage in http2, our fork has moved beyond what 
+  # we can use in wire itself, hence the patch
+  # the version of warp is pinned in ./haskell-pins.nix
+  warp = hlib.addTestToolDepends
+    (hlib.appendPatches hsuper.warp [
+      (fetchpatch {
+        url = "https://github.com/yesodweb/wai/commit/ef993a357822d9bc2a2040afcb656b31c378491c.patch";
+        stripLen = 1;
+        sha256 = "sha256-rv/ujqyBmpsChQg2uS3/HUgQZCA3SzBiF8kUnZJN0xs=";
+      })
+    ]) [ curl ];
+  # end for warp
 
   # -----------------
   # flags and patches

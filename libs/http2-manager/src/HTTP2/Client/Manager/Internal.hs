@@ -15,7 +15,6 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Data.ByteString
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as C8
 import Data.IORef
 import Data.Map
 import qualified Data.Map as Map
@@ -292,9 +291,9 @@ startPersistentHTTP2Connection ::
 startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl removeTrailingDot tcpConnectTimeout sendReqMVar = do
   liveReqs <- newIORef mempty
   let clientConfig =
-        HTTP2.defaultClientConfig
+        HTTP2.ClientConfig
           { HTTP2.scheme = if tlsEnabled then "https" else "http",
-            HTTP2.authority = C8.unpack hostname,
+            HTTP2.authority = hostname,
             HTTP2.cacheLimit = cl
           }
       -- Sends error to requests which show up too late, i.e. after the
@@ -334,7 +333,7 @@ startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl removeTrailin
     bracket connectTCPWithTimeout NS.close $ \sock -> do
       bracket (mkTransport sock transportConfig) cleanupTransport $ \transport ->
         bracket (allocHTTP2Config transport) HTTP2.freeSimpleConfig $ \http2Cfg -> do
-          let runAction = HTTP2.run clientConfig http2Cfg $ \sendReq _aux -> do
+          let runAction = HTTP2.run clientConfig http2Cfg $ \sendReq -> do
                 handleRequests liveReqs sendReq
           -- Any request threads still hanging about after 'runAction' finishes
           -- are canceled with 'ConnectionAlreadyClosed'.
@@ -452,9 +451,6 @@ allocHTTP2Config (SecureTransport ssl) = do
               error "openssl: SSL.read returned more bytes than asked for, this is probably a bug"
           | otherwise ->
               readData (acc <> chunk) (n - chunkLen)
-  let s = fromMaybe (error "http2-manager: SSL without socket") $ SSL.sslSocket ssl
-  mysa <- NS.getSocketName s
-  peersa <- NS.getPeerName s
 
   pure
     HTTP2.Config
@@ -463,7 +459,5 @@ allocHTTP2Config (SecureTransport ssl) = do
         HTTP2.confSendAll = SSL.write ssl,
         HTTP2.confReadN = readData mempty,
         HTTP2.confPositionReadMaker = HTTP2.defaultPositionReadMaker,
-        HTTP2.confTimeoutManager = timmgr,
-        HTTP2.confMySockAddr = mysa,
-        HTTP2.confPeerSockAddr = peersa
+        HTTP2.confTimeoutManager = timmgr
       }
