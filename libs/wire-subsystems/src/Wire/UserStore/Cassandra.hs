@@ -26,8 +26,6 @@ interpretUserStoreCassandra casClient =
       GlimpseHandle hdl -> embed $ lookupHandleImpl One hdl
       LookupStatus uid -> embed $ lookupStatusImpl uid
       IsActivated uid -> embed $ isActivatedImpl uid
-      LookupPassword uid -> embed $ lookupPasswordImpl uid
-      UpdatePassword uid pwd -> embed $ updatePasswordImpl uid pwd
 
 getUserImpl :: (Member (Embed Client) r) => UserId -> Sem r (Maybe StoredUser)
 getUserImpl uid = embed $ do
@@ -120,13 +118,13 @@ isActivatedImpl uid =
   (== Just (Identity True))
     <$> retry x1 (query1 activatedSelect (params LocalQuorum (Identity uid)))
 
-lookupPasswordImpl :: (MonadClient m) => UserId -> m (Maybe Password)
-lookupPasswordImpl u =
+_lookupPasswordImpl :: (MonadClient m) => UserId -> m (Maybe Password)
+_lookupPasswordImpl u =
   (runIdentity =<<)
     <$> retry x1 (query1 passwordSelect (params LocalQuorum (Identity u)))
 
-updatePasswordImpl :: (MonadClient m) => UserId -> Password -> m ()
-updatePasswordImpl u p = do
+_updatePasswordImpl :: (MonadClient m) => UserId -> Password -> m ()
+_updatePasswordImpl u p = do
   retry x5 $ write userPasswordUpdate (params LocalQuorum (p, u))
 
 --------------------------------------------------------------------------------

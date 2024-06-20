@@ -87,6 +87,7 @@ library
     Wire.ParseException
     Wire.PasswordResetCodeStore
     Wire.PasswordResetCodeStore.Cassandra
+    Wire.PasswordStore
     Wire.Rpc
     Wire.SessionStore
     Wire.SessionStore.Cassandra

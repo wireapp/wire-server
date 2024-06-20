@@ -57,7 +57,6 @@ import Wire.API.Team.Member hiding (userId)
 import Wire.API.User as User hiding (DeleteUser)
 import Wire.API.User.Password
 import Wire.API.UserEvent
-import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Interpreter
 import Wire.DeleteQueue
 import Wire.DeleteQueue.InMemory
@@ -75,7 +74,6 @@ import Wire.StoredUser
 import Wire.UserEvents
 import Wire.UserKeyStore
 import Wire.UserStore
-import Wire.UserStore qualified as UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Interpreter
 
@@ -102,9 +100,9 @@ type AllErrors =
     Error FederationError
   ]
 
+-- TODO: This probably doesn't need password reset stuff
 type MiniBackendEffects =
-  [ AuthenticationSubsystem,
-    UserSubsystem,
+  [ UserSubsystem,
     GalleyAPIAccess,
     UserStore,
     UserKeyStore,
@@ -135,7 +133,6 @@ data MiniBackend = MkMiniBackend
   { -- | this is morally the same as the users stored in the actual backend
     --   invariant: for each key, the user.id and the key are the same
     users :: [StoredUser],
-    userPassword :: Map UserId Password,
     userKeys :: Map UserKey UserId,
     passwordResetCodes :: Map PasswordResetKey (PRQueryData Identity)
   }
@@ -145,8 +142,7 @@ instance Default MiniBackend where
     MkMiniBackend
       { users = mempty,
         userKeys = mempty,
-        passwordResetCodes = mempty,
-        userPassword = mempty
+        passwordResetCodes = mempty
       }
 
 -- | represents an entire federated, stateful world of backends
@@ -384,7 +380,6 @@ interpretMaybeFederationStackState maybeFederationAPIAccess localBackend teamMem
     . staticUserStoreInterpreter
     . miniGalleyAPIAccess teamMember galleyConfigs
     . runUserSubsystem cfg
-    . interpretAuthenticationSubsystem
 
 runErrorUnsafe :: (HasCallStack, Exception e) => InterpreterFor (Error e) r
 runErrorUnsafe action = do
@@ -485,9 +480,6 @@ staticUserStoreInterpreter = interpret $ \case
   GlimpseHandle h -> miniBackendLookupHandle h
   LookupStatus uid -> miniBackendLookupStatus uid
   IsActivated uid -> miniBackendIsActivated uid
-  LookupPassword uid -> M.lookup uid <$> gets (.userPassword)
-  UserStore.UpdatePassword uid pwd ->
-    modify $ \b -> b {userPassword = M.insert uid pwd (userPassword b)}
 
 miniBackendIsActivated :: (Member (State MiniBackend) r) => UserId -> Sem r Bool
 miniBackendIsActivated uid = do

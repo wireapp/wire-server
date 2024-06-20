@@ -9,7 +9,6 @@ import Data.Id
 import Imports
 import Polysemy
 import Polysemy.Error
-import Wire.API.Password
 import Wire.API.User
 import Wire.Arbitrary
 import Wire.StoredUser
@@ -62,8 +61,6 @@ data UserStore m a where
   -- \| Whether the account has been activated by verifying
   -- an email address or phone number.
   IsActivated :: UserId -> UserStore m Bool
-  LookupPassword :: UserId -> UserStore m (Maybe Password)
-  UpdatePassword :: UserId -> Password -> UserStore m ()
 
 makeSem ''UserStore
 

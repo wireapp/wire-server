@@ -40,12 +40,11 @@ import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Error
 import Wire.HashPassword
 import Wire.PasswordResetCodeStore
+import Wire.PasswordStore
 import Wire.Sem.Now
 import Wire.Sem.Now qualified as Now
 import Wire.SessionStore
 import Wire.UserKeyStore
-import Wire.UserStore
-import Wire.UserStore qualified as UserStore
 import Wire.UserSubsystem (UserSubsystem, getLocalUserAccountByUserKey)
 
 interpretAuthenticationSubsystem ::
@@ -57,8 +56,8 @@ interpretAuthenticationSubsystem ::
     Member HashPassword r,
     Member SessionStore r,
     Member (Input (Local ())) r,
-    Member UserStore r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member PasswordStore r
   ) =>
   InterpreterFor AuthenticationSubsystem r
 interpretAuthenticationSubsystem = interpret $ \case
@@ -151,10 +150,10 @@ resetPasswordImpl ::
     Member (Input (Local ())) r,
     Member (Error AuthenticationSubsystemError) r,
     Member TinyLog r,
-    Member UserStore r,
     Member UserSubsystem r,
     Member HashPassword r,
-    Member SessionStore r
+    Member SessionStore r,
+    Member PasswordStore r
   ) =>
   PasswordResetIdentity ->
   PasswordResetCode ->
@@ -170,7 +169,7 @@ resetPasswordImpl ident code pw = do
       Log.debug $ field "user" (toByteString uid) . field "action" (val "User.completePasswordReset")
       checkNewIsDifferent uid pw
       hashedPw <- hashPasswordArgon2id pw
-      UserStore.updatePassword uid hashedPw
+      upsertHashedPassword uid hashedPw
       codeDelete key
       deleteAllCookies uid
   where
@@ -188,7 +187,7 @@ resetPasswordImpl ident code pw = do
 
     checkNewIsDifferent :: UserId -> PlainTextPassword' t -> Sem r ()
     checkNewIsDifferent uid newPassword = do
-      mCurrentPassword <- lookupPassword uid
+      mCurrentPassword <- lookupHashedPassword uid
       case mCurrentPassword of
         Just currentPassword
           | (verifyPassword newPassword currentPassword) -> throw AuthenticationSubsystemResetPasswordMustDiffer
