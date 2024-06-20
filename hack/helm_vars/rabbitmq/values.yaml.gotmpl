@@ -10,6 +10,7 @@ rabbitmq:
       existingSecret: rabbitmq-certificate
   extraConfiguration: |-
     listeners.tcp = none
+    management.tcp.port = 15672
     management.ssl.port = 15671
     management.ssl.cacertfile = /opt/bitnami/rabbitmq/certs/ca_certificate.pem
     management.ssl.certfile = /opt/bitnami/rabbitmq/certs/server_certificate.pem
