@@ -1,18 +1,9 @@
 module Wire.UserSubsystem.Error where
 
-import Data.Default
-import Data.Handle (Handle)
-import Data.Id
-import Data.Qualified
 import Imports
 import Network.Wai.Utilities qualified as Wai
-import Polysemy
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
-import Wire.API.Federation.Error
-import Wire.API.User
-import Wire.Arbitrary
-import Wire.UserKeyStore
 
 -- | All errors that are thrown by the user subsystem are subsumed under this sum type.
 data UserSubsystemError
