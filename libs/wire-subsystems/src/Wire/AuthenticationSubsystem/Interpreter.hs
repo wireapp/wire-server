@@ -83,9 +83,7 @@ createPasswordResetCodeImpl ::
   UserKey ->
   Sem r (UserId, PasswordResetPair)
 createPasswordResetCodeImpl target = do
-  localUnit <- input
-  let ltarget = qualifyAs localUnit target
-  user <- lookupActiveUserIdByUserKey ltarget >>= maybe (throw AuthenticationSubsystemInvalidPasswordResetKey) pure
+  user <- lookupActiveUserIdByUserKey target >>= maybe (throw AuthenticationSubsystemInvalidPasswordResetKey) pure
   Log.debug $ field "user" (toByteString user) . field "action" (val "User.beginPasswordReset")
 
   mExistingCode <- lookupPasswordResetCode user
@@ -102,9 +100,11 @@ createPasswordResetCodeImpl target = do
   pure (user, (key, code))
 
 -- TODO: move the rest of this function to UserSubsystem?
-lookupActiveUserIdByUserKey :: (Member UserSubsystem r) => Local UserKey -> Sem r (Maybe UserId)
+lookupActiveUserIdByUserKey :: (Member UserSubsystem r, Member (Input (Local ())) r) => UserKey -> Sem r (Maybe UserId)
 lookupActiveUserIdByUserKey target = do
-  mUser <- getLocalUserAccountByUserKey target
+  localUnit <- input
+  let ltarget = qualifyAs localUnit target
+  mUser <- getLocalUserAccountByUserKey ltarget
   case mUser of
     Just user -> do
       pure $
@@ -122,9 +122,7 @@ internalLookupPasswordResetCodeImpl ::
   UserKey ->
   Sem r (Maybe PasswordResetPair)
 internalLookupPasswordResetCodeImpl key = do
-  localUnit <- input
-  let lkey = qualifyAs localUnit key
-  mUser <- lookupActiveUserIdByUserKey lkey
+  mUser <- lookupActiveUserIdByUserKey key
   case mUser of
     Just user -> do
       mCode <- lookupPasswordResetCode user
@@ -163,8 +161,7 @@ resetPasswordImpl ::
   PlainTextPassword8 ->
   Sem r ()
 resetPasswordImpl ident code pw = do
-  localUnit <- input
-  key <- passwordResetKeyFromIdentity localUnit
+  key <- passwordResetKeyFromIdentity
 
   muid :: Maybe UserId <- verify (key, code)
   case muid of
@@ -177,15 +174,15 @@ resetPasswordImpl ident code pw = do
       codeDelete key
       deleteAllCookies uid
   where
-    passwordResetKeyFromIdentity :: Local () -> Sem r PasswordResetKey
-    passwordResetKeyFromIdentity localUnit = case ident of
+    passwordResetKeyFromIdentity :: Sem r PasswordResetKey
+    passwordResetKeyFromIdentity = case ident of
       PasswordResetIdentityKey k -> pure k
       PasswordResetEmailIdentity e -> do
-        mUserId <- lookupActiveUserIdByUserKey (qualifyAs localUnit (userEmailKey e))
+        mUserId <- lookupActiveUserIdByUserKey (userEmailKey e)
         let mResetKey = mkPasswordResetKey <$> mUserId
         maybe (throw AuthenticationSubsystemInvalidPasswordResetKey) pure mResetKey
       PasswordResetPhoneIdentity p -> do
-        mUserId <- lookupActiveUserIdByUserKey (qualifyAs localUnit (userPhoneKey p))
+        mUserId <- lookupActiveUserIdByUserKey (userPhoneKey p)
         let mResetKey = mkPasswordResetKey <$> mUserId
         maybe (throw AuthenticationSubsystemInvalidPasswordResetKey) pure mResetKey
 
