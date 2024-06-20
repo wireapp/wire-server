@@ -37,7 +37,7 @@ interpretSessionStoreCassandra casClient =
       DeleteAllCookies uid -> embed $ deleteAllCookiesImpl uid
       DeleteCookies uid cc -> embed $ deleteCookiesImpl uid cc
 
-insertCookieImpl :: (MonadClient m) => UserId -> Cookie a -> Maybe TTL -> m ()
+insertCookieImpl :: (MonadClient m) => UserId -> Cookie () -> Maybe TTL -> m ()
 insertCookieImpl u ck ttl =
   let i = cookieId ck
       x = cookieExpires ck
@@ -95,7 +95,7 @@ listCookiesImpl u =
           cookieValue = ()
         }
 
-deleteCookiesImpl :: (MonadClient m) => UserId -> [Cookie a] -> m ()
+deleteCookiesImpl :: (MonadClient m) => UserId -> [Cookie ()] -> m ()
 deleteCookiesImpl u cs = retry x5 . batch $ do
   setType BatchUnLogged
   setConsistency LocalQuorum
