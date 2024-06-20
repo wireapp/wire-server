@@ -8,6 +8,12 @@ rabbitmq:
       enabled: true
       failIfNoPeerCert: false
       existingSecret: rabbitmq-certificate
+  service:
+    extraPorts:
+      - name: http-stats-ssl
+        port: 15671
+        protocol: TCP
+        targetPort: 15671
   extraConfiguration: |-
     listeners.tcp = none
     management.tcp.port = 15672
