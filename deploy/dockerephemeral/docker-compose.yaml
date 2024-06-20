@@ -21,7 +21,7 @@ services:
   fake_dynamodb:
     container_name: demo_wire_dynamodb
 #    image: cnadiminti/dynamodb-local:2018-04-11
-    image: julialongtin/dynamodb_local:0.0.9
+    image: quay.io/wire/dynamodb_local:0.0.9
     ulimits:
       nofile:
         soft: 65536
@@ -45,7 +45,7 @@ services:
   fake_localstack:
     container_name: demo_wire_localstack
 #    image: localstack/localstack:0.8.0  # NB: this is younger than 0.8.6!
-    image: julialongtin/localstack:0.0.9
+    image: quay.io/wire/localstack:0.0.9
     ports:
       - 127.0.0.1:4569:4579 # ses # needed for local integration tests
       - 127.0.0.1:4575:4575 # sns
@@ -209,7 +209,7 @@ services:
     build:
       context: .
       dockerfile_inline: |
-        FROM julialongtin/elasticsearch:0.0.9-amd64
+        FROM quay.io/wire/elasticsearch:0.0.9-amd64
         RUN /usr/share/elasticsearch/bin/elasticsearch-plugin install x-pack -b
         # this seems to be necessary to run X-Pack on Alpine (https://discuss.elastic.co/t/elasticsearch-failing-to-start-due-to-x-pack/85125/7)
         RUN rm -rf /usr/share/elasticsearch/plugins/x-pack/platform/linux-x86_64
@@ -238,7 +238,7 @@ services:
   cassandra:
     container_name: demo_wire_cassandra
     #image: cassandra:3.11.2
-    image: julialongtin/cassandra:0.0.9
+    image: quay.io/wire/cassandra:0.0.9
     ports:
       - "127.0.0.1:9042:9042"
     ulimits:
