@@ -93,17 +93,17 @@ metrics:
   serviceMonitor:
     enabled: false
 
-# This chart optionally supports waiting for traffic to drain from coturn
-# before pods are terminated. Warning: coturn does not have any way to steer
-# incoming client traffic away from itself on its own, so this functionality
-# relies on external traffic management (e.g. service discovery for active coturn
-# instances) to prevent clients from sending new requests to pods which are in a
-# terminating state.
+# This chart supports waiting for traffic to drain from coturn
+# before pods are actually terminated. Once in 'drain' mode, no new connections
+# are accepted, but old ones are kept alive.
+# If you have 2 or more replicas, it's recommended to set this to true,
+# and if you only have one coturn replica you may want this to be false, as
+# otherwise while the pod restarts, no new calls can be established.
 coturnGracefulTermination: false
 # Grace period for terminating coturn pods, after which they will be forcibly
 # terminated. This setting is only effective when coturnGracefulTermination is
 # set to true.
-coturnGracePeriodSeconds: 86400 # one day
+coturnGracePeriodSeconds: 43200 # 12 hours
 
 livenessProbe:
   timeoutSeconds: 5

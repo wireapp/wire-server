@@ -26,6 +26,8 @@ data:
     ## don't turn on coturn's cli.
     no-cli
 
+    pidfile="/var/tmp/turnserver.pid"
+
     ## turn, stun.
     listening-ip={{ default "__COTURN_EXT_IP__" .Values.coturnTurnListenIP }}
     listening-port={{ .Values.coturnTurnListenPort }}
