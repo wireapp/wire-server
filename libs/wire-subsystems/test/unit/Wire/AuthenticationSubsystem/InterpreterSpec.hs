@@ -17,9 +17,11 @@ import Polysemy.Input
 import Polysemy.State
 import Polysemy.TinyLog
 import Test.Hspec
+import Test.Hspec.QuickCheck
 import Test.QuickCheck
 import Wire.API.Password
 import Wire.API.User
+import Wire.API.User.Auth
 import Wire.API.User.Password
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Interpreter
@@ -64,13 +66,14 @@ inMemoryPasswordResetCodeStore =
       CodeDelete resetKey ->
         modify $ Map.delete resetKey
 
-inMemorySessionStoreInterpreter :: InterpreterFor SessionStore r
+-- TODO: unify with minibackend
+inMemorySessionStoreInterpreter :: (Member (State (Map UserId [Cookie ()])) r) => InterpreterFor SessionStore r
 inMemorySessionStoreInterpreter = interpret $ \case
-  InsertCookie uid cookie ttl -> (error "implement on demand") uid cookie ttl
-  LookupCookie uid time cid -> (error "implement on demand") uid time cid
-  ListCookies uid -> (error "implement on demand") uid
-  DeleteAllCookies _ -> pure ()
+  InsertCookie uid cookie _ttl -> modify $ Map.insertWith (<>) uid [cookie]
+  ListCookies uid -> gets (Map.findWithDefault [] uid)
+  DeleteAllCookies uid -> modify $ Map.delete uid
   DeleteCookies uid cc -> (error "implement on demand") uid cc
+  LookupCookie uid time cid -> (error "implement on demand") uid time cid
 
 -- TODO: unify with minibackend
 interpretNowConst ::
@@ -90,7 +93,7 @@ staticHashPasswordInterpreter = interpret $ \case
       let passwordBS = Text.encodeUtf8 (fromPlainTextPassword password)
       pure $ unsafeMkPassword $ alg "salt" passwordBS
 
--- TOOD: unify with mini backend
+-- TODO: unify with mini backend
 runErrorUnsafe :: (HasCallStack, Exception e) => InterpreterFor (Error e) r
 runErrorUnsafe action = do
   res <- runError action
@@ -99,11 +102,11 @@ runErrorUnsafe action = do
     Right x -> pure x
 
 type AllEffects =
-  [ AuthenticationSubsystem,
-    HashPassword,
+  [ HashPassword,
     Now,
     Input (Local ()),
     SessionStore,
+    State (Map UserId [Cookie ()]),
     PasswordStore,
     State (Map UserId Password),
     PasswordResetCodeStore,
@@ -113,8 +116,8 @@ type AllEffects =
     Error AuthenticationSubsystemError
   ]
 
-interpreterUnderTest :: Domain -> [UserAccount] -> Map UserId Password -> Sem AllEffects a -> a
-interpreterUnderTest localDomain preexistingUsers preexistingPasswords =
+interpretDependencies :: Domain -> [UserAccount] -> Map UserId Password -> Sem AllEffects a -> a
+interpretDependencies localDomain preexistingUsers preexistingPasswords =
   run
     . runErrorUnsafe
     . userSubsystemTestInterpreter preexistingUsers
@@ -123,36 +126,34 @@ interpreterUnderTest localDomain preexistingUsers preexistingPasswords =
     . inMemoryPasswordResetCodeStore
     . evalState preexistingPasswords
     . inMemoryPasswordStoreInterpreter
+    . evalState mempty
     . inMemorySessionStoreInterpreter
     . runInputConst (toLocalUnsafe localDomain ())
     . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
     . staticHashPasswordInterpreter
-    . interpretAuthenticationSubsystem
 
 spec :: Spec
 spec = describe "AuthenticationSubsystem.Interpreter" do
   describe "password reset" do
-    it "happy path" do
-      -- TODO: Also assert that the cookies are gone
-      -- config :: UserSubsystemConfig <- generate arbitrary
-      email <- generate arbitrary
-      userNoEmail <- generate arbitrary
-      let userAccount =
-            UserAccount
-              { accountUser = userNoEmail {userIdentity = Just $ EmailIdentity email},
-                accountStatus = Active
-              }
-          newPassword = plainTextPassword8Unsafe "newsecret"
-          pureInterpreter =
-            interpreterUnderTest
-              userNoEmail.userQualifiedId.qDomain
-              [userAccount]
-              mempty
-          newPasswordHash = pureInterpreter $ do
-            (_, (_, code)) <- createPasswordResetCode (userEmailKey email)
-            resetPassword (PasswordResetEmailIdentity email) code newPassword
-            lookupHashedPassword (userId userNoEmail)
-      verifyPassword newPassword <$> newPasswordHash `shouldBe` Just True
+    prop "happy path" $
+      \email userNoEmail (cookiesWithTTL :: [(Cookie (), Maybe TTL)]) mPreviousPassword newPassword ->
+        let user = userNoEmail {userIdentity = Just $ EmailIdentity email}
+            uid = userId user
+            localDomain = userNoEmail.userQualifiedId.qDomain
+            (newPasswordHash, cookiesAfterReset) =
+              interpretDependencies localDomain [UserAccount user Active] mempty
+                . interpretAuthenticationSubsystem
+                $ do
+                  forM_ mPreviousPassword (hashPasswordArgon2id >=> upsertHashedPassword uid)
+                  mapM_ (uncurry (insertCookie uid)) cookiesWithTTL
+
+                  (_, (_, code)) <- createPasswordResetCode (userEmailKey email)
+                  resetPassword (PasswordResetEmailIdentity email) code newPassword
+
+                  (,) <$> lookupHashedPassword uid <*> listCookies uid
+         in mPreviousPassword /= Just newPassword ==>
+              (fmap (verifyPassword newPassword) newPasswordHash === Just True)
+                .&&. (cookiesAfterReset === [])
 
     it "wrong password on init" do
       pending
