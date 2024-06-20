@@ -145,27 +145,6 @@ spec:
                   - /bin/sh
                   - -c
                   - "exec /usr/local/bin/pre-stop-hook \"$POD_IP\" {{ .Values.coturnMetricsListenPort }}"
-                  # - "
-                  #   (
-                  #     set -e
-                  #     echo \"prestop hook\"
-                  #     sleep 3
-                  #     pkill --signal SIGUSR1 -f \"/usr/bin/turnserver\"
-                  #     while pgrep -f \"/usr/bin/turnserver\" > /dev/null; do
-                  #         echo \"/usr/bin/turnserver is still running. Waiting...\"
-                  #         sleep 1
-                  #     done
-                  #     echo \"succces :)\"
-                  #   ) 2>&1 >> /tmp/prestop.txt
-                  #   sleep 3
-                  #   "
-                  # - "
-                  #   (
-                  #     echo \"prestop hook\"
-                  #     sleep 3
-                  #   ) 2>&1 >> /tmp/prestop.txt
-                  #   sleep 3
-                  #   "
           {{- end }}
 
           ports:
