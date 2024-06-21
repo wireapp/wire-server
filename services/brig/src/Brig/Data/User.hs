@@ -54,7 +54,6 @@ module Brig.Data.User
     updateManagedBy,
     activateUser,
     deactivateUser,
-    updatePassword,
     updateStatus,
     updateRichInfo,
     updateFeatureConferenceCalling,
@@ -67,7 +66,7 @@ module Brig.Data.User
   )
 where
 
-import Brig.App (Env, adhocUserStoreInterpreter, currentTime, settings, viewFederationDomain, zauthEnv)
+import Brig.App (Env, adhocPasswordStoreInterpreter, currentTime, settings, viewFederationDomain, zauthEnv)
 import Brig.Options
 import Brig.Types.Intra
 import Brig.ZAuth qualified as ZAuth
@@ -90,7 +89,7 @@ import Wire.API.Provider.Service
 import Wire.API.Team.Feature qualified as ApiFt
 import Wire.API.User
 import Wire.API.User.RichInfo
-import Wire.UserStore
+import Wire.PasswordStore (upsertHashedPassword)
 
 -- | Authentication errors.
 data AuthError
@@ -199,7 +198,7 @@ authenticate u pw =
     hashAndUpdatePwd :: (MonadClient m, MonadReader Env m) => UserId -> PlainTextPassword8 -> m ()
     hashAndUpdatePwd uid pwd = do
       hashed <- mkSafePasswordArgon2id pwd
-      adhocUserStoreInterpreter $ updatePassword uid hashed
+      adhocPasswordStoreInterpreter $ upsertHashedPassword uid hashed
 
 -- | Password reauthentication. If the account has a password, reauthentication
 -- is mandatory. If the account has no password, or is an SSO user, and no password is given,

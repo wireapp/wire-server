@@ -38,6 +38,7 @@ module Wire.API.User.Auth
     Cookie (..),
     CookieLabel (..),
     RemoveCookies (..),
+    toUnitCookie,
 
     -- * Token
     AccessToken (..),
@@ -306,6 +307,9 @@ instance ToSchema CookieType where
     enum @Text "CookieType" $
       element "session" SessionCookie
         <> element "persistent" PersistentCookie
+
+toUnitCookie :: Cookie a -> Cookie ()
+toUnitCookie c = c {cookieValue = ()}
 
 --------------------------------------------------------------------------------
 -- Login

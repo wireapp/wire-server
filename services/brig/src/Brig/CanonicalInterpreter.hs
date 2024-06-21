@@ -51,6 +51,8 @@ import Wire.NotificationSubsystem.Interpreter (defaultNotificationSubsystemConfi
 import Wire.ParseException
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PasswordResetCodeStore.Cassandra (interpretClientToIO, passwordResetCodeStoreToCassandra)
+import Wire.PasswordStore (PasswordStore)
+import Wire.PasswordStore.Cassandra (interpretPasswordStore)
 import Wire.Rpc
 import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.IO
@@ -84,6 +86,7 @@ type BrigCanonicalEffects =
      UserKeyStore,
      UserStore,
      SessionStore,
+     PasswordStore,
      SFT,
      ConnectionStore InternalPaging,
      Input UTCTime,
@@ -159,6 +162,7 @@ runBrigToIO e (AppT ma) = do
               . runInputSem (embed getCurrentTime)
               . connectionStoreToCassandra
               . interpretSFT (e ^. httpManager)
+              . interpretPasswordStore (e ^. casClient)
               . interpretSessionStoreCassandra (e ^. casClient)
               . interpretUserStoreCassandra (e ^. casClient)
               . interpretUserKeyStoreCassandra (e ^. casClient)

@@ -162,6 +162,7 @@ import Wire.AuthenticationSubsystem (AuthenticationSubsystem, internalLookupPass
 import Wire.DeleteQueue
 import Wire.GalleyAPIAccess as GalleyAPIAccess
 import Wire.NotificationSubsystem
+import Wire.PasswordStore (PasswordStore, lookupHashedPassword, upsertHashedPassword)
 import Wire.Sem.Concurrency
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserKeyStore
@@ -704,7 +705,7 @@ removePhone ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member UserKeyStore r,
-    Member UserStore r,
+    Member PasswordStore r,
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
@@ -718,7 +719,7 @@ removePhone uid conn = do
   ident <- lift $ fetchUserIdentity uid
   case ident of
     Just (FullIdentity _ p) -> do
-      pw <- lift $ liftSem $ lookupPassword uid
+      pw <- lift $ liftSem $ lookupHashedPassword uid
       unless (isJust pw) $
         throwE NoPassword
       lift $ do
@@ -1034,16 +1035,16 @@ mkActivationKey (ActivatePhone p) = do
 -------------------------------------------------------------------------------
 -- Password Management
 
-changePassword :: (Member UserStore r) => UserId -> PasswordChange -> ExceptT ChangePasswordError (AppT r) ()
+changePassword :: (Member PasswordStore r, Member UserStore r) => UserId -> PasswordChange -> ExceptT ChangePasswordError (AppT r) ()
 changePassword uid cp = do
   activated <- lift $ liftSem $ isActivated uid
   unless activated $
     throwE ChangePasswordNoIdentity
-  currpw <- lift $ liftSem $ lookupPassword uid
+  currpw <- lift $ liftSem $ lookupHashedPassword uid
   let newpw = cpNewPassword cp
   hashedNewPw <- mkSafePasswordArgon2id newpw
   case (currpw, cpOldPassword cp) of
-    (Nothing, _) -> lift . liftSem $ updatePassword uid hashedNewPw
+    (Nothing, _) -> lift . liftSem $ upsertHashedPassword uid hashedNewPw
     (Just _, Nothing) -> throwE InvalidCurrentPassword
     (Just pw, Just pw') -> do
       -- We are updating the pwd here anyway, so we don't care about the pwd status
@@ -1051,7 +1052,7 @@ changePassword uid cp = do
         throwE InvalidCurrentPassword
       when (verifyPassword newpw pw) $
         throwE ChangePasswordMustDiffer
-      lift $ liftSem (updatePassword uid hashedNewPw) >> wrapClient (Auth.revokeAllCookies uid)
+      lift $ liftSem (upsertHashedPassword uid hashedNewPw) >> wrapClient (Auth.revokeAllCookies uid)
 
 -------------------------------------------------------------------------------
 -- User Deletion
@@ -1075,6 +1076,7 @@ deleteSelfUser ::
     Member UserKeyStore r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
+    Member PasswordStore r,
     Member UserStore r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r
@@ -1117,7 +1119,7 @@ deleteSelfUser uid pwd = do
       lift . liftSem . Log.info $
         field "user" (toByteString uid)
           . msg (val "Attempting account deletion with a password")
-      actual <- lift $ liftSem $ lookupPassword uid
+      actual <- lift $ liftSem $ lookupHashedPassword uid
       case actual of
         Nothing -> throwE DeleteUserInvalidPassword
         Just p -> do

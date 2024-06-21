@@ -159,12 +159,13 @@ import Wire.DeleteQueue
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
+import Wire.PasswordStore (PasswordStore, lookupHashedPassword)
 import Wire.Sem.Concurrency
 import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserKeyStore hiding (keyText)
-import Wire.UserStore (UserStore, lookupPassword)
+import Wire.UserStore (UserStore)
 import Wire.UserSubsystem hiding (checkHandle, checkHandles)
 import Wire.UserSubsystem qualified as UserSubsystem
 
@@ -295,6 +296,7 @@ servantSitemap ::
     Member NotificationSubsystem r,
     Member UserSubsystem r,
     Member UserStore r,
+    Member PasswordStore r,
     Member UserKeyStore r,
     Member Now r,
     Member PublicKeyBundle r,
@@ -963,7 +965,7 @@ removePhone ::
     Member NotificationSubsystem r,
     Member UserKeyStore r,
     Member TinyLog r,
-    Member UserStore r,
+    Member PasswordStore r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
@@ -991,10 +993,10 @@ removeEmail ::
 removeEmail self conn =
   lift . exceptTToMaybe $ API.removeEmail self conn
 
-checkPasswordExists :: (Member UserStore r) => UserId -> (Handler r) Bool
-checkPasswordExists = fmap isJust . lift . liftSem . lookupPassword
+checkPasswordExists :: (Member PasswordStore r) => UserId -> (Handler r) Bool
+checkPasswordExists = fmap isJust . lift . liftSem . lookupHashedPassword
 
-changePassword :: (Member UserStore r) => UserId -> Public.PasswordChange -> (Handler r) (Maybe Public.ChangePasswordError)
+changePassword :: (Member PasswordStore r, Member UserStore r) => UserId -> Public.PasswordChange -> (Handler r) (Maybe Public.ChangePasswordError)
 changePassword u cp = lift . exceptTToMaybe $ API.changePassword u cp
 
 changeLocale ::
@@ -1247,6 +1249,7 @@ deleteSelfUser ::
     Member UserKeyStore r,
     Member NotificationSubsystem r,
     Member UserStore r,
+    Member PasswordStore r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r
