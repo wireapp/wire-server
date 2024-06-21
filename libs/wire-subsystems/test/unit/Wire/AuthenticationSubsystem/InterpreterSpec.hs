@@ -19,6 +19,7 @@ import Polysemy.TinyLog
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
+import Wire.API.Allowlists (AllowlistEmailDomains, AllowlistPhonePrefixes)
 import Wire.API.Password
 import Wire.API.User
 import Wire.API.User.Auth
@@ -105,6 +106,8 @@ type AllEffects =
   [ HashPassword,
     Now,
     Input (Local ()),
+    Input (Maybe AllowlistEmailDomains),
+    Input (Maybe AllowlistPhonePrefixes),
     SessionStore,
     State (Map UserId [Cookie ()]),
     PasswordStore,
@@ -116,8 +119,8 @@ type AllEffects =
     Error AuthenticationSubsystemError
   ]
 
-interpretDependencies :: Domain -> [UserAccount] -> Map UserId Password -> Sem AllEffects a -> a
-interpretDependencies localDomain preexistingUsers preexistingPasswords =
+interpretDependencies :: Domain -> [UserAccount] -> Map UserId Password -> Maybe AllowlistEmailDomains -> Sem AllEffects a -> a
+interpretDependencies localDomain preexistingUsers preexistingPasswords mAllowedEmailDomains =
   run
     . runErrorUnsafe
     . userSubsystemTestInterpreter preexistingUsers
@@ -128,6 +131,8 @@ interpretDependencies localDomain preexistingUsers preexistingPasswords =
     . inMemoryPasswordStoreInterpreter
     . evalState mempty
     . inMemorySessionStoreInterpreter
+    . runInputConst Nothing
+    . runInputConst mAllowedEmailDomains
     . runInputConst (toLocalUnsafe localDomain ())
     . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
     . staticHashPasswordInterpreter
@@ -141,7 +146,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
             uid = userId user
             localDomain = userNoEmail.userQualifiedId.qDomain
             (newPasswordHash, cookiesAfterReset) =
-              interpretDependencies localDomain [UserAccount user Active] mempty
+              interpretDependencies localDomain [UserAccount user Active] mempty Nothing
                 . interpretAuthenticationSubsystem
                 $ do
                   forM_ mPreviousPassword (hashPasswordArgon2id >=> upsertHashedPassword uid)
@@ -154,6 +159,9 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
          in mPreviousPassword /= Just newPassword ==>
               (fmap (verifyPassword newPassword) newPasswordHash === Just True)
                 .&&. (cookiesAfterReset === [])
+
+    it "email not in allow list" do
+      pending
 
     it "wrong password on init" do
       pending

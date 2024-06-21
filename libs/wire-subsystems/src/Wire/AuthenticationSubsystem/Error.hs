@@ -30,6 +30,7 @@ data AuthenticationSubsystemError
   | AuthenticationSubsystemPasswordResetInProgress
   | AuthenticationSubsystemResetPasswordMustDiffer
   | AuthenticationSubSystemInvalidPasswordResetCode
+  | AuthenticationSubsystemAllowListError
   deriving (Show)
 
 instance Exception AuthenticationSubsystemError
@@ -41,3 +42,4 @@ authenticationSubsystemErrorToWai =
     AuthenticationSubsystemPasswordResetInProgress -> dynError @(MapError E.PasswordResetInProgress)
     AuthenticationSubSystemInvalidPasswordResetCode -> dynError @(MapError E.InvalidPasswordResetCode)
     AuthenticationSubsystemResetPasswordMustDiffer -> dynError @(MapError E.ResetPasswordMustDiffer)
+    AuthenticationSubsystemAllowListError -> dynError @(MapError E.AllowlistError)

@@ -33,6 +33,8 @@ import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import System.Logger
+import Wire.API.Allowlists (AllowlistEmailDomains, AllowlistPhonePrefixes)
+import Wire.API.Allowlists qualified as AllowLists
 import Wire.API.Password
 import Wire.API.User
 import Wire.API.User.Password
@@ -56,6 +58,8 @@ interpretAuthenticationSubsystem ::
     Member HashPassword r,
     Member SessionStore r,
     Member (Input (Local ())) r,
+    Member (Input (Maybe AllowlistEmailDomains)) r,
+    Member (Input (Maybe AllowlistPhonePrefixes)) r,
     Member UserSubsystem r,
     Member PasswordStore r
   ) =>
@@ -75,6 +79,8 @@ createPasswordResetCodeImpl ::
   ( Member PasswordResetCodeStore r,
     Member Now r,
     Member (Input (Local ())) r,
+    Member (Input (Maybe AllowlistEmailDomains)) r,
+    Member (Input (Maybe AllowlistPhonePrefixes)) r,
     Member (Error AuthenticationSubsystemError) r,
     Member TinyLog r,
     Member UserSubsystem r
@@ -82,6 +88,8 @@ createPasswordResetCodeImpl ::
   UserKey ->
   Sem r (UserId, PasswordResetPair)
 createPasswordResetCodeImpl target = do
+  allowListOk <- (\e p -> AllowLists.verify e p (toEither target)) <$> input <*> input
+  unless allowListOk $ throw AuthenticationSubsystemAllowListError
   user <- lookupActiveUserIdByUserKey target >>= maybe (throw AuthenticationSubsystemInvalidPasswordResetKey) pure
   Log.debug $ field "user" (toByteString user) . field "action" (val "User.beginPasswordReset")
 
