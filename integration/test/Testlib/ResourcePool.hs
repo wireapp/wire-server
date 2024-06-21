@@ -84,7 +84,8 @@ deleteAllRabbitMQQueues rc resource = do
           { host = rc.host,
             port = 0,
             adminPort = fromIntegral rc.adminPort,
-            vHost = T.pack resource.berVHost
+            vHost = T.pack resource.berVHost,
+            tls = Nothing
           }
   client <- mkRabbitMqAdminClientEnv opts
   queues <- listQueuesByVHost client (T.pack resource.berVHost)

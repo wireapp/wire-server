@@ -69,6 +69,11 @@ config:
     host: rabbitmq
     port: 5672
     vHost: /
+    enableTls: false
+    insecureSkipVerifyTls: false
+    # tlsCaSecretRef:
+    #   name: <secret-name>
+    #   key: <ca-attribute>
   emailSMS:
     general:
       templateBranding:

@@ -15,6 +15,8 @@ resources:
     spec:
       ca:
         secretName: elasticsearch-ca
+
+  # redis CA and certificate
   - apiVersion: cert-manager.io/v1
     kind: Issuer
     metadata:
@@ -65,4 +67,57 @@ resources:
         size: 2048
       issuerRef:
         name: redis-issuer
+        kind: Issuer
+
+  # RabbitMQ CA and certificate
+  - apiVersion: cert-manager.io/v1
+    kind: Issuer
+    metadata:
+      name: rabbitmq-ca-issuer
+      namespace: '{{ .Release.Namespace }}'
+    spec:
+      selfSigned: {}
+  - apiVersion: cert-manager.io/v1
+    kind: Certificate
+    metadata:
+      name: rabbitmq-ca
+      namespace: '{{ .Release.Namespace }}'
+    spec:
+      secretName: rabbitmq-ca-certificate
+      isCA: true
+      duration: 2160h # 90d
+      renewBefore: 360h # 15d
+      commonName: rabbitmq.example.com
+      privateKey:
+        algorithm: RSA
+        encoding: PKCS1
+        size: 2048
+      issuerRef:
+        name: rabbitmq-ca-issuer
+        kind: Issuer
+  - apiVersion: cert-manager.io/v1
+    kind: Issuer
+    metadata:
+      name: rabbitmq-issuer
+      namespace: '{{ .Release.Namespace }}'
+    spec:
+      ca:
+        secretName: rabbitmq-ca-certificate
+  - apiVersion: cert-manager.io/v1
+    kind: Certificate
+    metadata:
+      name: rabbitmq
+      namespace: '{{ .Release.Namespace }}'
+    spec:
+      secretName: rabbitmq-certificate
+      isCA: false
+      duration: 2160h # 90d
+      renewBefore: 360h # 15d
+      commonName: rabbitmq
+      privateKey:
+        algorithm: RSA
+        encoding: PKCS1
+        size: 2048
+      issuerRef:
+        name: rabbitmq-issuer
         kind: Issuer

@@ -21,8 +21,11 @@ elasticsearch:
 
 rabbitmq:
   host: 127.0.0.1
-  port: 5672
+  port: 5671
   vHost: /
+  enableTls: true
+  caCert: test/resources/rabbitmq-ca.pem
+  insecureSkipVerifyTls: false
 
 cargohold:
   host: 127.0.0.1

@@ -4,3 +4,20 @@ rabbitmq:
   auth:
     username: {{ .Values.rabbitmqUsername }}
     password: {{ .Values.rabbitmqPassword }}
+    tls:
+      enabled: true
+      failIfNoPeerCert: false
+      existingSecret: rabbitmq-certificate
+  service:
+    extraPorts:
+      - name: http-stats-ssl
+        port: 15671
+        protocol: TCP
+        targetPort: 15671
+  extraConfiguration: |-
+    listeners.tcp = none
+    management.tcp.port = 15672
+    management.ssl.port = 15671
+    management.ssl.cacertfile = /opt/bitnami/rabbitmq/certs/ca_certificate.pem
+    management.ssl.certfile = /opt/bitnami/rabbitmq/certs/server_certificate.pem
+    management.ssl.keyfile = /opt/bitnami/rabbitmq/certs/server_key.pem
