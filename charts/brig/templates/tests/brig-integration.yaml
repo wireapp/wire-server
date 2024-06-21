@@ -54,6 +54,9 @@ spec:
       secret:
         secretName: {{ (include "tlsSecretRef" .Values.config | fromYaml).name }}
     {{- end}}
+    - name: "rabbitmq-ca"
+      secret:
+        secretName: {{ .Values.config.rabbitmq.tlsCaSecretRef.name }}
   containers:
   - name: integration
     image: "{{ .Values.image.repository }}-integration:{{ .Values.image.tag }}"
@@ -119,6 +122,8 @@ spec:
     - name: "brig-cassandra"
       mountPath: "/etc/wire/brig/cassandra"
     {{- end }}
+    - name: "rabbitmq-ca"
+      mountPath: "/etc/wire/brig/rabbitmq-ca/"
 
     env:
     # these dummy values are necessary for Amazonka's "Discover"
