@@ -102,6 +102,9 @@ forEmailKey k f = foldKey (fmap Just . f) (const (pure Nothing)) k
 forPhoneKey :: (Applicative f) => UserKey -> (Phone -> f a) -> f (Maybe a)
 forPhoneKey k f = foldKey (const (pure Nothing)) (fmap Just . f) k
 
+fromEither :: Either Email Phone -> UserKey
+fromEither = either userEmailKey userPhoneKey
+
 data UserKeyStore m a where
   LookupKey :: UserKey -> UserKeyStore m (Maybe UserId)
   InsertKey :: UserId -> UserKey -> UserKeyStore m ()

@@ -1065,8 +1065,7 @@ beginPasswordReset ::
   Handler r ()
 beginPasswordReset (Public.NewPasswordReset target) = do
   checkAllowlist target
-  let key = undefined target
-  (u, pair) <- lift (liftSem $ createPasswordResetCode key) !>> pwResetError
+  (u, pair) <- lift (liftSem $ createPasswordResetCode (fromEither target)) !>> pwResetError
   loc <- lift $ wrapClient $ API.lookupLocale u
   lift $ case target of
     Left email -> sendPasswordResetMail email pair loc
