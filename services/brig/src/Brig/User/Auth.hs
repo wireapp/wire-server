@@ -82,6 +82,7 @@ import Wire.API.User.Auth.Sso
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
+import Wire.PasswordStore (PasswordStore, lookupHashedPassword)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserKeyStore
 import Wire.UserStore
@@ -89,7 +90,7 @@ import Wire.UserStore
 sendLoginCode ::
   ( Member TinyLog r,
     Member UserKeyStore r,
-    Member UserStore r
+    Member PasswordStore r
   ) =>
   Phone ->
   Bool ->
@@ -106,7 +107,7 @@ sendLoginCode phone call force = do
     Nothing -> throwE $ SendLoginInvalidPhone phone
     Just u -> do
       lift . liftSem . Log.debug $ field "user" (toByteString u) . field "action" (val "User.sendLoginCode")
-      pw <- lift $ liftSem $ lookupPassword u
+      pw <- lift $ liftSem $ lookupHashedPassword u
       unless (isNothing pw || force) $
         throwE SendLoginPasswordExists
       lift $ wrapHttpClient $ do

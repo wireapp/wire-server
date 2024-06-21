@@ -94,7 +94,7 @@ newCookie uid cid typ label = do
             cookieSucc = Nothing,
             cookieValue = tok
           }
-  adhocSessionStoreInterpreter $ Store.insertCookie uid c Nothing
+  adhocSessionStoreInterpreter $ Store.insertCookie uid (toUnitCookie c) Nothing
   pure c
 
 -- | Renew the given cookie with a fresh token, if its age
@@ -161,7 +161,7 @@ renewCookie old mcid = do
   -- an ever growing chain of superseded cookies.
   let old' = old {cookieSucc = Just (cookieId new)}
   ttl <- setUserCookieRenewAge <$> view settings
-  adhocSessionStoreInterpreter $ Store.insertCookie uid old' (Just (Store.TTL (fromIntegral ttl)))
+  adhocSessionStoreInterpreter $ Store.insertCookie uid (toUnitCookie old') (Just (Store.TTL (fromIntegral ttl)))
   pure new
 
 -- | Whether a user has not renewed any of her cookies for longer than

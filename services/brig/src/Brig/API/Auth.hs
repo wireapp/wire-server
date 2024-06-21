@@ -53,9 +53,9 @@ import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
+import Wire.PasswordStore (PasswordStore)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserKeyStore
-import Wire.UserStore
 import Wire.UserSubsystem
 
 accessH ::
@@ -93,7 +93,7 @@ access mcid t mt =
   traverse mkUserTokenCookie
     =<< Auth.renewAccess (List1 t) mt mcid !>> zauthError
 
-sendLoginCode :: (Member TinyLog r, Member UserKeyStore r, Member UserStore r) => SendLoginCode -> Handler r LoginCodeTimeout
+sendLoginCode :: (Member TinyLog r, Member UserKeyStore r, Member PasswordStore r) => SendLoginCode -> Handler r LoginCodeTimeout
 sendLoginCode (SendLoginCode phone call force) = do
   checkAllowlist (Right phone)
   c <- Auth.sendLoginCode phone call force !>> sendLoginCodeError
