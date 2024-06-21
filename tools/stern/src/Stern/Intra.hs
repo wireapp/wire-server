@@ -778,9 +778,17 @@ getMarketoResult email = do
         )
   -- 404 is acceptable when marketo doesn't know about this user, return an empty result
   case statusCode r of
-    200 -> parseResponse (mkError status502 "bad-upstream") r
+    200 -> do
+      let responseOrError = responseJsonEither r
+      case responseOrError of
+        Left e -> do
+          Log.err $ msg ("Error parsing marketo response: " ++ e)
+          throwE (mkError status502 "bad-upstream" (pack e))
+        Right res -> pure res
     404 -> pure noEmail
-    _ -> throwE (mkError status502 "bad-upstream" "")
+    otherStatus -> do
+      Log.err $ msg ("Unexpected status code from marketo: " ++ show otherStatus)
+      throwE (mkError status502 "bad-upstream" "")
   where
     noEmail = MarketoResult $ KeyMap.singleton "results" emptyArray
 
@@ -860,7 +868,12 @@ getUserClients uid = do
             . expect2xx
         )
   info $ msg ("Response" ++ show r)
-  parseResponse (mkError status502 "bad-upstream") r
+  let resultOrError :: Either String [Versioned 'V5 Client] = responseJsonEither r
+  case resultOrError of
+    Left e -> do
+      Log.err $ msg ("Error parsing client response: " ++ e)
+      pure []
+    Right res -> pure $ fmap unVersioned res
 
 getUserProperties :: UserId -> Handler UserProperties
 getUserProperties uid = do
@@ -903,13 +916,17 @@ getUserNotifications uid maxNotifs = do
   where
     fetchAll :: [QueuedNotification] -> Maybe NotificationId -> Int -> ExceptT Error App [QueuedNotification]
     fetchAll xs start remaining = do
-      userNotificationList <- fetchBatch start (min 100 remaining)
-      let batch = view queuedNotifications userNotificationList
-          remaining' = remaining - length batch
-      if (not . null) batch && view queuedHasMore userNotificationList && remaining' > 0
-        then fetchAll (batch ++ xs) (Just . view queuedNotificationId $ last batch) remaining'
-        else pure (batch ++ xs)
-    fetchBatch :: Maybe NotificationId -> Int -> Handler QueuedNotificationList
+      -- size must be within 100-1000
+      mUserNotificationList <- fetchBatch start (max 100 (min 1000 remaining))
+      case mUserNotificationList of
+        Nothing -> pure xs
+        Just userNotificationList -> do
+          let batch = view queuedNotifications userNotificationList
+              remaining' = remaining - length batch
+          if (not . null) batch && view queuedHasMore userNotificationList && remaining' > 0
+            then fetchAll (batch ++ xs) (Just . view queuedNotificationId $ last batch) remaining'
+            else pure (batch ++ xs)
+    fetchBatch :: Maybe NotificationId -> Int -> Handler (Maybe QueuedNotificationList)
     fetchBatch start batchSize = do
       baseReq <- view gundeck
       r <-
@@ -927,9 +944,23 @@ getUserNotifications uid maxNotifs = do
       -- 404 is an acceptable response, in case, for some reason,
       -- "start" is not found we still return a QueuedNotificationList
       case statusCode r of
-        200 -> parseResponse (mkError status502 "bad-upstream") r
-        404 -> parseResponse (mkError status502 "bad-upstream") r
-        _ -> throwE (mkError status502 "bad-upstream" "")
+        200 -> do
+          let responseOrError = responseJsonEither r
+          case responseOrError of
+            Left e -> do
+              Log.err $ msg ("Error parsing notification response: " ++ e)
+              pure Nothing
+            Right res -> pure $ Just res
+        404 -> do
+          let resultOrError = responseJsonEither r
+          case resultOrError of
+            Left e -> do
+              Log.err $ msg ("Error parsing notification response: " ++ e)
+              pure Nothing
+            Right res -> pure $ Just res
+        otherStatus -> do
+          Log.err $ msg ("Unexpected status code from gundeck: " ++ show otherStatus)
+          pure Nothing
 
 getSsoDomainRedirect :: Text -> Handler (Maybe CustomBackend)
 getSsoDomainRedirect domain = do

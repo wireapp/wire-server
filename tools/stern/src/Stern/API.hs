@@ -426,24 +426,30 @@ getConsentLog e = do
 
 getUserData :: UserId -> Maybe Int -> Maybe Int -> Handler UserMetaInfo
 getUserData uid mMaxConvs mMaxNotifs = do
+  -- brig
   account <- Intra.getUserProfiles (Left [uid]) >>= noSuchUser . listToMaybe
   conns <- Intra.getUserConnections uid
-  convs <- Intra.getUserConversations uid (fromMaybe 1 mMaxConvs)
   clts <- Intra.getUserClients uid
+  cookies <- Intra.getUserCookies uid
+  properties <- Intra.getUserProperties uid
+
+  -- galley
+  convs <- Intra.getUserConversations uid (fromMaybe 1 mMaxConvs)
+
+  -- gundeck
   notfs <-
-    ( Intra.getUserNotifications uid (fromMaybe 10 mMaxNotifs)
+    ( Intra.getUserNotifications uid (fromMaybe 100 mMaxNotifs)
         <&> toJSON @[QueuedNotification]
       )
       `catchE` (pure . String . T.pack . show)
+
+  -- galeb
   consent <-
     (Intra.getUserConsentValue uid <&> toJSON @ConsentValue)
       `catchE` (pure . String . T.pack . show)
   consentLog <-
     (Intra.getUserConsentLog uid <&> toJSON @ConsentLog)
       `catchE` (pure . String . T.pack . show)
-  cookies <- Intra.getUserCookies uid
-  properties <- Intra.getUserProperties uid
-  -- Get all info from Marketo too
   let em = userEmail $ accountUser account
   marketo <- do
     let noEmail = MarketoResult $ KeyMap.singleton "results" emptyArray

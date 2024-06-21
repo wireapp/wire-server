@@ -399,7 +399,7 @@ type SternAPI =
                :> "meta-info"
                :> QueryParam' [Required, Strict, Description "A valid UserId"] "id" UserId
                :> QueryParam' [Optional, Strict, Description "Max number of conversation (default 1)"] "max_conversations" Int
-               :> QueryParam' [Optional, Strict, Description "Max number of notifications (default 10)"] "max_notifications" Int
+               :> QueryParam' [Optional, Strict, Description "Max number of notifications (min 100, default 100)"] "max_notifications" Int
                :> Post '[JSON] UserMetaInfo
            )
     :<|> Named
