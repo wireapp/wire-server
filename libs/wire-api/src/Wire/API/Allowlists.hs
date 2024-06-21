@@ -18,7 +18,7 @@
 -- | > docs/reference/user/activation.md {#RefActivationAllowlist}
 --
 -- Email/phone whitelist.
-module Brig.Allowlists
+module Wire.API.Allowlists
   ( AllowlistEmailDomains (..),
     AllowlistPhonePrefixes (..),
     verify,

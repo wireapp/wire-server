@@ -55,7 +55,7 @@ import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.PasswordStore (PasswordStore)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
-import Wire.UserKeyStore
+import Wire.UserKeyStore hiding (toEither)
 import Wire.UserSubsystem
 
 accessH ::
