@@ -26,6 +26,14 @@ coturnTurnListenPort: 3478
 coturnMetricsListenPort: 9641
 coturnTurnTlsListenPort: 5349
 
+# If you need to specify which IP Coturn should bind to.
+# This will typically be the IP of the kubenode.
+# coturnTurnListenIP: "182.168.22.133" # can also be __COTURN_EXT_IP__, __COTURN_POD_IP__,__COTURN_HOST_IP__
+coturnTurnExternalIP: null
+# coturnTurnRelayIP:
+# coturnPrometheusIP:
+# coturnFederationListeningIP:
+
 tls:
   enabled: false
   # compliant with BSI TR-02102-2
