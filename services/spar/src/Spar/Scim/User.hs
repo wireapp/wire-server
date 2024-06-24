@@ -498,10 +498,10 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
           -- If this is the case we can safely create the user again.
           -- Otherwise we return a conflict error.
           lift (BrigAccess.getStatusMaybe buid) >>= \case
-            Just Active -> throwError externalIdTakenError
-            Just Suspended -> throwError externalIdTakenError
-            Just Ephemeral -> throwError externalIdTakenError
-            Just PendingInvitation -> throwError externalIdTakenError
+            Just Active -> throwError (externalIdTakenError ("user with status Active exists: " <> Text.pack (show (veid, buid))))
+            Just Suspended -> throwError (externalIdTakenError ("user with status Suspended exists" <> Text.pack (show (veid, buid))))
+            Just Ephemeral -> throwError (externalIdTakenError ("user with status Ephemeral exists" <> Text.pack (show (veid, buid))))
+            Just PendingInvitation -> throwError (externalIdTakenError ("user with status PendingInvitation exists" <> Text.pack (show (veid, buid))))
             Just Deleted -> pure ()
             Nothing -> pure ()
         Just (buid, ScimUserCreating) ->
@@ -568,18 +568,18 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
       lift $ ScimExternalIdStore.insertStatus stiTeam veid buid ScimUserCreated
       pure storedUser
   where
-    incompleteUserCreationCleanUp :: UserId -> Scim.ScimError -> Scim.ScimHandler (Sem r) ()
+    incompleteUserCreationCleanUp :: UserId -> (Text -> Scim.ScimError) -> Scim.ScimHandler (Sem r) ()
     incompleteUserCreationCleanUp buid e = do
       -- something went wrong while storing the user in brig
       -- we can try clean up now, but if brig is down, we can't do much
       -- maybe retrying the user creation in brig is also an option?
       -- after clean up we rethrow the error so the handler returns the correct failure
       lift $ Logger.warn $ Log.msg @Text "An earlier attempt of creating a user with this external ID has failed and left some inconsistent data. Attempting to clean up."
-      withExceptT (const e) $ deleteScimUser tokeninfo buid
+      withExceptT (e . ("could not delete scim user: " <>) . Text.pack . show) $ deleteScimUser tokeninfo buid
       lift $ Logger.info $ Log.msg @Text "Clean up successful."
 
-    externalIdTakenError :: Scim.ScimError
-    externalIdTakenError = Scim.conflict {Scim.detail = Just "ExternalId is already taken"}
+    externalIdTakenError :: Text -> Scim.ScimError
+    externalIdTakenError msg = Scim.conflict {Scim.detail = Just ("ExternalId is already taken: " <> msg)}
 
 -- | Store scim timestamps, saml credentials, scim externalId locally in spar.  Table
 -- `spar.scim_external` gets an entry iff there is no `UserRef`: if there is, we don't do a
