@@ -31,7 +31,7 @@ data AuthenticationSubsystemError
   | AuthenticationSubsystemResetPasswordMustDiffer
   | AuthenticationSubSystemInvalidPasswordResetCode
   | AuthenticationSubsystemAllowListError
-  deriving (Show)
+  deriving (Eq, Show)
 
 instance Exception AuthenticationSubsystemError
 
