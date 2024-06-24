@@ -175,6 +175,7 @@ test-suite wire-subsystems-tests
   other-modules:
     Spec
     Wire.AuthenticationSubsystem.InterpreterSpec
+    Wire.MockInterpreters
     Wire.MockInterpreters.Error
     Wire.MockInterpreters.HashPassword
     Wire.MockInterpreters.Now
