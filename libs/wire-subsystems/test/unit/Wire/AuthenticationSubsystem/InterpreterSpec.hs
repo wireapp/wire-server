@@ -21,13 +21,7 @@ import Wire.API.User.Password
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Interpreter
 import Wire.HashPassword
-import Wire.MockInterpreters.Error
-import Wire.MockInterpreters.HashPassword
-import Wire.MockInterpreters.Now
-import Wire.MockInterpreters.PasswordResetCodeStore
-import Wire.MockInterpreters.PasswordStore
-import Wire.MockInterpreters.SessionStore
-import Wire.MockInterpreters.UserSubsystem
+import Wire.MockInterpreters
 import Wire.PasswordResetCodeStore
 import Wire.PasswordStore
 import Wire.Sem.Logger.TinyLog
