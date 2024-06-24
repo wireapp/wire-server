@@ -59,6 +59,7 @@ import Wire.FederationAPIAccess
 import Wire.FederationAPIAccess.Interpreter as FI
 import Wire.GalleyAPIAccess
 import Wire.InternalEvent hiding (DeleteUser)
+import Wire.MockInterpreters
 import Wire.PasswordResetCodeStore
 import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.Sequential
@@ -242,13 +243,6 @@ runMiniFederation ownDomain backends =
     . runInputConst MkMiniContext {ownDomain = ownDomain}
     . unMiniFederation
 
-interpretNowConst ::
-  UTCTime ->
-  Sem (Now : r) a ->
-  Sem r a
-interpretNowConst time = interpret \case
-  Wire.Sem.Now.Get -> pure time
-
 noOpLogger ::
   Sem (Logger (Log.Msg -> Log.Msg) ': r) a ->
   Sem r a
@@ -366,13 +360,6 @@ interpretMaybeFederationStackState maybeFederationAPIAccess localBackend teamMem
     . staticUserStoreInterpreter
     . miniGalleyAPIAccess teamMember galleyConfigs
     . runUserSubsystem cfg
-
-runErrorUnsafe :: (HasCallStack, Exception e) => InterpreterFor (Error e) r
-runErrorUnsafe action = do
-  res <- runError action
-  case res of
-    Left e -> error $ "Unexpected error: " <> displayException e
-    Right x -> pure x
 
 runAllErrorsUnsafe :: forall a. (HasCallStack) => Sem AllErrors a -> a
 runAllErrorsUnsafe = run . runErrorUnsafe . runErrorUnsafe
