@@ -24,7 +24,6 @@ where
 
 import Data.Default (Default (def))
 import Data.Domain
-import Data.Handle (Handle)
 import Data.Id
 import Data.LanguageCodes (ISO639_1 (EN))
 import Data.LegalHold (defUserLegalHoldStatus)
@@ -52,7 +51,6 @@ import Wire.API.Team.Feature
 import Wire.API.Team.Member hiding (userId)
 import Wire.API.User as User hiding (DeleteUser)
 import Wire.API.User.Password
-import Wire.API.UserEvent
 import Wire.DeleteQueue
 import Wire.DeleteQueue.InMemory
 import Wire.FederationAPIAccess
@@ -98,7 +96,9 @@ type MiniBackendEffects =
   [ UserSubsystem,
     GalleyAPIAccess,
     UserStore,
+    State [StoredUser],
     UserKeyStore,
+    State (Map UserKey UserId),
     DeleteQueue,
     UserEvents,
     State [InternalNotification],
@@ -111,12 +111,6 @@ type MiniBackendEffects =
     TinyLog,
     Concurrency 'Unsafe
   ]
-
-data MiniEvent = MkMiniEvent
-  { userId :: UserId,
-    event :: UserEvent
-  }
-  deriving stock (Eq, Show)
 
 -- | a type representing the state of a single backend
 data MiniBackend = MkMiniBackend
@@ -356,10 +350,22 @@ interpretMaybeFederationStackState maybeFederationAPIAccess localBackend teamMem
     . evalState []
     . miniEventInterpreter
     . inMemoryDeleteQueueInterpreter
+    . liftUserKeyStoreState
     . staticUserKeyStoreInterpreter
+    . liftUserStoreState
     . staticUserStoreInterpreter
     . miniGalleyAPIAccess teamMember galleyConfigs
     . runUserSubsystem cfg
+
+liftUserKeyStoreState :: (Member (State MiniBackend) r) => Sem (State (Map UserKey UserId) : r) a -> Sem r a
+liftUserKeyStoreState = interpret $ \case
+  Polysemy.State.Get -> gets (.userKeys)
+  Put newUserKeys -> modify $ \b -> b {userKeys = newUserKeys}
+
+liftUserStoreState :: (Member (State MiniBackend) r) => Sem (State [StoredUser] : r) a -> Sem r a
+liftUserStoreState = interpret $ \case
+  Polysemy.State.Get -> gets (.users)
+  Put newUsers -> modify $ \b -> b {users = newUsers}
 
 runAllErrorsUnsafe :: forall a. (HasCallStack) => Sem AllErrors a -> a
 runAllErrorsUnsafe = run . runErrorUnsafe . runErrorUnsafe
@@ -385,115 +391,3 @@ miniFederationAPIAccess online = do
     RunFederatedConcurrently _remotes _rpc -> error "unimplemented: RunFederatedConcurrently"
     RunFederatedBucketed _domain _rpc -> error "unimplemented: RunFederatedBucketed"
     IsFederationConfigured -> pure True
-
-getLocalUsers :: (Member (State MiniBackend) r) => Sem r [StoredUser]
-getLocalUsers = gets (.users)
-
-modifyLocalUsers ::
-  (Member (State MiniBackend) r) =>
-  ([StoredUser] -> Sem r [StoredUser]) ->
-  Sem r ()
-modifyLocalUsers f = do
-  us <- gets (.users)
-  us' <- f us
-  modify $ \b -> b {users = us'}
-
-staticUserStoreInterpreter ::
-  forall r.
-  (Member (State MiniBackend) r) =>
-  InterpreterFor UserStore r
-staticUserStoreInterpreter = interpret $ \case
-  GetUser uid -> find (\user -> user.id == uid) <$> getLocalUsers
-  UpdateUser uid update -> modifyLocalUsers (pure . fmap doUpdate)
-    where
-      doUpdate :: StoredUser -> StoredUser
-      doUpdate u =
-        if u.id == uid
-          then
-            maybe Imports.id setStoredUserAccentId update.accentId
-              . maybe Imports.id setStoredUserAssets update.assets
-              . maybe Imports.id setStoredUserPict update.pict
-              . maybe Imports.id setStoredUserName update.name
-              . maybe Imports.id setStoredUserLocale update.locale
-              . maybe Imports.id setStoredUserSupportedProtocols update.supportedProtocols
-              $ u
-          else u
-  UpdateUserHandleEither uid hUpdate -> runError $ modifyLocalUsers (traverse doUpdate)
-    where
-      doUpdate :: StoredUser -> Sem (Error StoredUserUpdateError : r) StoredUser
-      doUpdate u
-        | u.id == uid = do
-            handles <- mapMaybe (.handle) <$> gets (.users)
-            when
-              ( hUpdate.old /= Just hUpdate.new
-                  && elem hUpdate.new handles
-              )
-              $ throw StoredUserUpdateHandleExists
-            pure $ setStoredUserHandle hUpdate.new u
-      doUpdate u = pure u
-  DeleteUser user -> modifyLocalUsers $ \us ->
-    pure $ filter (\u -> u.id /= User.userId user) us
-  LookupHandle h -> miniBackendLookupHandle h
-  GlimpseHandle h -> miniBackendLookupHandle h
-  LookupStatus uid -> miniBackendLookupStatus uid
-  IsActivated uid -> miniBackendIsActivated uid
-
-miniBackendIsActivated :: (Member (State MiniBackend) r) => UserId -> Sem r Bool
-miniBackendIsActivated uid = do
-  users <- gets (.users)
-  pure $ maybe False (.activated) (find ((== uid) . (.id)) users)
-
-miniBackendLookupStatus :: (Member (State MiniBackend) r) => UserId -> Sem r (Maybe AccountStatus)
-miniBackendLookupStatus uid = do
-  users <- gets (.users)
-  pure $ (.status) =<< (find ((== uid) . (.id)) users)
-
-miniBackendLookupHandle ::
-  (Member (State MiniBackend) r) =>
-  Handle ->
-  Sem r (Maybe UserId)
-miniBackendLookupHandle h = do
-  users <- gets (.users)
-  pure $ fmap (.id) (find ((== Just h) . (.handle)) users)
-
--- | interprets galley by statically returning the values passed
-miniGalleyAPIAccess ::
-  -- | what to return when calling GetTeamMember
-  Maybe TeamMember ->
-  -- | what to return when calling GetAllFeatureConfigsForUser
-  AllFeatureConfigs ->
-  InterpreterFor GalleyAPIAccess r
-miniGalleyAPIAccess member configs = interpret $ \case
-  GetTeamMember _ _ -> pure member
-  GetAllFeatureConfigsForUser _ -> pure configs
-  _ -> error "uninterpreted effect: GalleyAPIAccess"
-
-miniEventInterpreter ::
-  (Member (State [MiniEvent]) r) =>
-  InterpreterFor UserEvents r
-miniEventInterpreter = interpret \case
-  GenerateUserEvent uid _mconn e -> modify (MkMiniEvent uid e :)
-
-staticUserKeyStoreInterpreter ::
-  (Member (State MiniBackend) r) =>
-  InterpreterFor UserKeyStore r
-staticUserKeyStoreInterpreter = interpret $ \case
-  LookupKey key -> do
-    keys <- gets (.userKeys)
-    pure $ M.lookup key keys
-  InsertKey uid key ->
-    modify $ \b -> b {userKeys = M.insert key uid (userKeys b)}
-  DeleteKey key ->
-    modify $ \b -> b {userKeys = M.delete key (userKeys b)}
-  DeleteKeyForUser uid key ->
-    modify $ \b -> b {userKeys = M.filterWithKey (\k u -> k /= key && u /= uid) (userKeys b)}
-  ClaimKey key uid -> do
-    keys <- gets (.userKeys)
-    let free = M.notMember key keys || M.lookup key keys == (Just uid)
-    when free $
-      modify $
-        \b -> b {userKeys = M.insert key uid (userKeys b)}
-    pure free
-  KeyAvailable key uid -> do
-    keys <- gets (.userKeys)
-    pure $ M.notMember key keys || M.lookup key keys == uid
