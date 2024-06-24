@@ -41,7 +41,6 @@ import Test.Federator.Options (defRunSettings)
 import Test.Federator.Util
 import Test.Tasty
 import Test.Tasty.HUnit
-import Test.Tasty.Pending (flakyTestCase)
 import Wire.API.Federation.Component
 import Wire.API.Federation.Error
 import Wire.Network.DNS.SRV (SrvTarget (SrvTarget))
@@ -106,13 +105,15 @@ testValidatesCertificateSuccess :: TestTree
 testValidatesCertificateSuccess =
   testGroup
     "can get response with valid certificate"
-    [ flakyTestCase "when hostname=localhost and certificate-for=localhost" $
+    [ testCase "when hostname=localhost and certificate-for=localhost" $
         withMockServer certForLocalhost $ \port -> do
           tlsSettings <- mkTLSSettingsOrThrow settings
           runCodensity (mkTestCall tlsSettings "localhost" port) assertNoRemoteError,
-      flakyTestCase "when hostname=localhost. and certificate-for=localhost" $
+      testCase "when hostname=localhost. and certificate-for=localhost" $
         withMockServer certForLocalhost $ \port -> do
           tlsSettings <- mkTLSSettingsOrThrow settings
+          res <- readFile "/etc/resolv.conf"
+          putStrLn res
           runCodensity (mkTestCall tlsSettings "localhost." port) assertNoRemoteError,
       -- It is not very clear how to handle this, this test just exists to
       -- document what we do.
