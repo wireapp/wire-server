@@ -20,6 +20,7 @@ module Galley.API.MLS.Util where
 import Control.Comonad
 import Data.Id
 import Data.Qualified
+import Data.Set qualified as Set
 import Data.Text qualified as T
 import Galley.Data.Conversation.Types hiding (Conversation)
 import Galley.Data.Conversation.Types qualified as Data
@@ -77,14 +78,14 @@ getPendingBackendRemoveProposals ::
   ) =>
   GroupId ->
   Epoch ->
-  Sem r [LeafIndex]
+  Sem r (Set LeafIndex)
 getPendingBackendRemoveProposals gid epoch = do
   proposals <- getAllPendingProposals gid epoch
-  catMaybes
+  Set.fromList . catMaybes
     <$> for
       proposals
       ( \case
-          (Just ProposalOriginBackend, proposal) -> case value proposal of
+          (Just ProposalOriginBackend, proposal) -> case proposal.value of
             RemoveProposal i -> pure (Just i)
             _ -> pure Nothing
           (Just ProposalOriginClient, _) -> pure Nothing
