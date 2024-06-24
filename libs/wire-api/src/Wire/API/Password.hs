@@ -29,6 +29,7 @@ module Wire.API.Password
     unsafeMkPassword,
     hashPasswordScryptWithSalt,
     hashPasswordArgon2idWithSalt,
+    hashPasswordArgon2idWithOptions,
   )
 where
 
@@ -155,21 +156,24 @@ hashPasswordArgon2id pwd = do
   pure $ hashPasswordArgon2idWithSalt salt pwd
 
 hashPasswordArgon2idWithSalt :: ByteString -> ByteString -> Text
-hashPasswordArgon2idWithSalt salt pwd = do
-  let key = hashPasswordWithOptions defaultOptions pwd salt
-      opts =
+hashPasswordArgon2idWithSalt = hashPasswordArgon2idWithOptions defaultOptions
+
+hashPasswordArgon2idWithOptions :: Argon2idOptions -> ByteString -> ByteString -> Text
+hashPasswordArgon2idWithOptions opts salt pwd = do
+  let key = hashPasswordWithOptions opts pwd salt
+      optsStr =
         Text.intercalate
           ","
-          [ "m=" <> showT defaultOptions.memory,
-            "t=" <> showT defaultOptions.iterations,
-            "p=" <> showT defaultOptions.parallelism
+          [ "m=" <> showT opts.memory,
+            "t=" <> showT opts.iterations,
+            "p=" <> showT opts.parallelism
           ]
    in "$argon2"
         <> Text.intercalate
           "$"
-          [ variantToCode defaultOptions.variant,
-            "v=" <> versionToNum defaultOptions.version,
-            opts,
+          [ variantToCode opts.variant,
+            "v=" <> versionToNum opts.version,
+            optsStr,
             encodeWithoutPadding salt,
             encodeWithoutPadding key
           ]
