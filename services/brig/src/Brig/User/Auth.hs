@@ -139,13 +139,15 @@ login ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
-    Member PasswordStore r
+    Member PasswordStore r,
+    Member UserKeyStore r,
+    Member UserStore r
   ) =>
   Login ->
   CookieType ->
   ExceptT LoginError (AppT r) (Access ZAuth.User)
 login (PasswordLogin (PasswordLoginData li pw label code)) typ = do
-  uid <- wrapHttpClientE $ resolveLoginId li
+  uid <- resolveLoginId li
   lift . liftSem . Log.debug $ field "user" (toByteString uid) . field "action" (val "User.login")
   wrapHttpClientE $ checkRetryLimit uid
   Data.authenticate uid pw `catchE` \case
@@ -165,7 +167,7 @@ login (PasswordLogin (PasswordLoginData li pw label code)) typ = do
           VerificationCodeRequired -> wrapHttpClientE $ loginFailedWith LoginCodeRequired uid
           VerificationCodeNoEmail -> wrapHttpClientE $ loginFailed uid
 login (SmsLogin (SmsLoginData phone code label)) typ = do
-  uid <- wrapClientE $ resolveLoginId (LoginByPhone phone)
+  uid <- resolveLoginId (LoginByPhone phone)
   lift . liftSem . Log.debug $ field "user" (toByteString uid) . field "action" (val "User.login")
   wrapHttpClientE $ checkRetryLimit uid
   ok <- wrapHttpClientE $ Data.verifyLoginCode uid code
@@ -331,12 +333,12 @@ newAccess uid cid ct cl = do
       t <- lift $ newAccessToken @u @a ck Nothing
       pure $ Access t (Just ck)
 
-resolveLoginId :: (MonadClient m, MonadReader Env m) => LoginId -> ExceptT LoginError m UserId
+resolveLoginId :: (Member UserKeyStore r, Member UserStore r) => LoginId -> ExceptT LoginError (AppT r) UserId
 resolveLoginId li = do
-  usr <- validateLoginId li >>= lift . either (adhocUserKeyStoreInterpreter . lookupKey) (adhocUserStoreInterpreter . lookupHandle)
+  usr <- wrapClientE (validateLoginId li) >>= lift . either (liftSem . lookupKey) (liftSem . lookupHandle)
   case usr of
     Nothing -> do
-      pending <- lift $ isPendingActivation li
+      pending <- wrapClientE $ isPendingActivation li
       throwE $
         if pending
           then LoginPendingActivation
