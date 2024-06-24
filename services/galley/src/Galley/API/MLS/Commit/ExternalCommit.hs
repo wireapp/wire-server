@@ -168,15 +168,15 @@ processExternalCommit senderIdentity lConvOrSub ciphersuite epoch action updateP
     lConvOrSub' <- for lConvOrSub incrementEpoch
 
     -- fetch backend remove proposals of the previous epoch
-    indicesInRemoveProposals <-
-      -- skip remove proposals of already removed by the external commit
-      (\\ toList action.remove)
-        <$> getPendingBackendRemoveProposals groupId epoch
+    indices0 <- getPendingBackendRemoveProposals groupId epoch
+
+    -- skip proposals for clients already removed by the external commit
+    let indices = maybe id Set.delete action.remove indices0
 
     -- requeue backend remove proposals for the current epoch
     createAndSendRemoveProposals
       lConvOrSub'
-      indicesInRemoveProposals
+      indices
       (cidQualifiedUser senderIdentity)
       (tUnqualified lConvOrSub').members
 
