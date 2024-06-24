@@ -7,6 +7,9 @@ import Polysemy
 import Wire.API.Password
 import Wire.HashPassword
 
+-- TODO: argond2id is really slow, we should perhaps move verify password here,
+-- and do something fast by either messing with the options of the argon2id
+-- algorithm or just not hashing things.
 staticHashPasswordInterpreter :: InterpreterFor HashPassword r
 staticHashPasswordInterpreter = interpret $ \case
   HashPasswordScrypt password -> go hashPasswordScryptWithSalt "salt" password
