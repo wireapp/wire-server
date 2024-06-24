@@ -88,7 +88,6 @@ module Brig.App
     temporaryGetEnv,
     initHttpManagerWithTLSConfig,
     adhocUserKeyStoreInterpreter,
-    adhocUserStoreInterpreter,
     adhocSessionStoreInterpreter,
   )
 where
@@ -636,12 +635,6 @@ instance HasRequestId (AppT r) where
 
 -------------------------------------------------------------------------------
 -- Ad hoc interpreters
-
--- | similarly to `wrapClient`, this function serves as a crutch while Brig is being polysemised.
-adhocUserStoreInterpreter :: (MonadClient m, MonadReader Env m) => Sem '[UserStore, Embed IO] a -> m a
-adhocUserStoreInterpreter action = do
-  clientState <- asks (view casClient)
-  liftIO (runM (interpretUserStoreCassandra clientState action))
 
 -- | similarly to `wrapClient`, this function serves as a crutch while Brig is being polysemised.
 adhocUserKeyStoreInterpreter :: (MonadClient m, MonadReader Env m) => Sem '[UserKeyStore, UserStore, Embed IO] a -> m a

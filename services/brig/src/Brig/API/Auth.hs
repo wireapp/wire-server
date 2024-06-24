@@ -56,6 +56,7 @@ import Wire.NotificationSubsystem
 import Wire.PasswordStore (PasswordStore)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserKeyStore hiding (toEither)
+import Wire.UserStore
 import Wire.UserSubsystem
 
 accessH ::
@@ -107,7 +108,9 @@ login ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
-    Member PasswordStore r
+    Member PasswordStore r,
+    Member UserKeyStore r,
+    Member UserStore r
   ) =>
   Login ->
   Maybe Bool ->
