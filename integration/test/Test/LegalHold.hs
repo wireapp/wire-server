@@ -919,7 +919,6 @@ testLHRequestDeletionHasUserEffect = do
     getBob'sStatus `shouldMatch` "pending"
 
     -- alice disables legalhold. the status for bob should now not be pending anymore
-    requestLegalHoldDevice tid alice bob >>= assertSuccess
     disableLegalHold tid alice bob defPassword
-      >>= assertStatus 204
+      >>= assertStatus 200
     getBob'sStatus `shouldMatch` "disabled"
