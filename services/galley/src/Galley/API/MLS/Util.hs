@@ -18,6 +18,7 @@
 module Galley.API.MLS.Util where
 
 import Control.Comonad
+import Data.Hex
 import Data.Id
 import Data.Qualified
 import Data.Set qualified as Set
@@ -81,18 +82,27 @@ getPendingBackendRemoveProposals ::
   Sem r (Set LeafIndex)
 getPendingBackendRemoveProposals gid epoch = do
   proposals <- getAllPendingProposals gid epoch
-  Set.fromList . catMaybes
-    <$> for
-      proposals
-      ( \case
-          (Just ProposalOriginBackend, proposal) -> case proposal.value of
-            RemoveProposal i -> pure (Just i)
-            _ -> pure Nothing
-          (Just ProposalOriginClient, _) -> pure Nothing
-          (Nothing, _) -> do
-            TinyLog.warn $ Log.msg ("found pending proposal without origin, ignoring" :: ByteString)
-            pure Nothing
-      )
+  indexList <-
+    catMaybes
+      <$> for
+        proposals
+        ( \case
+            (Just ProposalOriginBackend, proposal) -> case proposal.value of
+              RemoveProposal i -> pure (Just i)
+              _ -> pure Nothing
+            (Just ProposalOriginClient, _) -> pure Nothing
+            (Nothing, _) -> do
+              TinyLog.warn $ Log.msg ("found pending proposal without origin, ignoring" :: ByteString)
+              pure Nothing
+        )
+
+  let indexSet = Set.fromList indexList
+  when (length indexList /= length indexSet) $ do
+    TinyLog.warn $
+      Log.msg ("found duplicate proposals" :: ByteString)
+        . Log.field "groupId" ("0x" <> hex (unGroupId gid))
+        . Log.field "epoch" (epochNumber epoch)
+  pure indexSet
 
 withCommitLock ::
   forall r a.
