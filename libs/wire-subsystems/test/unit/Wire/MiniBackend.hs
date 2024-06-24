@@ -30,11 +30,8 @@ import Data.LanguageCodes (ISO639_1 (EN))
 import Data.LegalHold (defUserLegalHoldStatus)
 import Data.Map.Lazy qualified as LM
 import Data.Map.Strict qualified as M
-import Data.Misc
 import Data.Proxy
 import Data.Qualified
-import Data.Text.Ascii
-import Data.Text.Encoding qualified as Text
 import Data.Time
 import Data.Type.Equality
 import Imports
@@ -51,25 +48,21 @@ import Type.Reflection
 import Wire.API.Federation.API
 import Wire.API.Federation.Component
 import Wire.API.Federation.Error
-import Wire.API.Password
 import Wire.API.Team.Feature
 import Wire.API.Team.Member hiding (userId)
 import Wire.API.User as User hiding (DeleteUser)
 import Wire.API.User.Password
 import Wire.API.UserEvent
-import Wire.AuthenticationSubsystem.Interpreter
 import Wire.DeleteQueue
 import Wire.DeleteQueue.InMemory
 import Wire.FederationAPIAccess
 import Wire.FederationAPIAccess.Interpreter as FI
 import Wire.GalleyAPIAccess
-import Wire.HashPassword
 import Wire.InternalEvent hiding (DeleteUser)
 import Wire.PasswordResetCodeStore
 import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.Sequential
 import Wire.Sem.Now hiding (get)
-import Wire.SessionStore
 import Wire.StoredUser
 import Wire.UserEvents
 import Wire.UserKeyStore
@@ -96,7 +89,6 @@ instance Arbitrary NotPendingStoredUser where
 
 type AllErrors =
   [ Error UserSubsystemError,
-    Error AuthenticationSubsystemError,
     Error FederationError
   ]
 
@@ -106,9 +98,6 @@ type MiniBackendEffects =
     GalleyAPIAccess,
     UserStore,
     UserKeyStore,
-    PasswordResetCodeStore,
-    HashPassword,
-    SessionStore,
     DeleteQueue,
     UserEvents,
     State [InternalNotification],
@@ -373,9 +362,6 @@ interpretMaybeFederationStackState maybeFederationAPIAccess localBackend teamMem
     . evalState []
     . miniEventInterpreter
     . inMemoryDeleteQueueInterpreter
-    . staticSessionStoreInterpreter
-    . staticHashPasswordInterpreter
-    . staticPasswordResetCodeStore
     . staticUserKeyStoreInterpreter
     . staticUserStoreInterpreter
     . miniGalleyAPIAccess teamMember galleyConfigs
@@ -389,7 +375,7 @@ runErrorUnsafe action = do
     Right x -> pure x
 
 runAllErrorsUnsafe :: forall a. (HasCallStack) => Sem AllErrors a -> a
-runAllErrorsUnsafe = run . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe
+runAllErrorsUnsafe = run . runErrorUnsafe . runErrorUnsafe
 
 emptyFederationAPIAcesss :: InterpreterFor (FederationAPIAccess MiniFederationMonad) r
 emptyFederationAPIAcesss = interpret $ \case
@@ -424,22 +410,6 @@ modifyLocalUsers f = do
   us <- gets (.users)
   us' <- f us
   modify $ \b -> b {users = us'}
-
-staticPasswordResetCodeStore ::
-  forall r.
-  (Member (State MiniBackend) r) =>
-  InterpreterFor PasswordResetCodeStore r
-staticPasswordResetCodeStore = interpret \case
-  GenerateEmailCode ->
-    pure . PasswordResetCode . encodeBase64Url $ "email-code"
-  GeneratePhoneCode -> (error "deprecated")
-  CodeSelect resetKey -> do
-    codes <- gets (.passwordResetCodes)
-    pure $ mapPRQueryData (Just . runIdentity) <$> M.lookup resetKey codes
-  CodeInsert resetKey queryData _ttl ->
-    modify $ \b -> b {passwordResetCodes = M.insert resetKey queryData (passwordResetCodes b)}
-  CodeDelete resetKey ->
-    modify $ \b -> b {passwordResetCodes = M.delete resetKey (passwordResetCodes b)}
 
 staticUserStoreInterpreter ::
   forall r.
@@ -540,21 +510,3 @@ staticUserKeyStoreInterpreter = interpret $ \case
   KeyAvailable key uid -> do
     keys <- gets (.userKeys)
     pure $ M.notMember key keys || M.lookup key keys == uid
-
-staticSessionStoreInterpreter ::
-  InterpreterFor SessionStore r
-staticSessionStoreInterpreter = interpret $ \case
-  InsertCookie uid cookie ttl -> (error "implement on demand") uid cookie ttl
-  LookupCookie uid time cid -> (error "implement on demand") uid time cid
-  ListCookies uid -> (error "implement on demand") uid
-  DeleteAllCookies _ -> pure ()
-  DeleteCookies uid cc -> (error "implement on demand") uid cc
-
-staticHashPasswordInterpreter :: InterpreterFor HashPassword r
-staticHashPasswordInterpreter = interpret $ \case
-  HashPasswordScrypt password -> go hashPasswordScryptWithSalt password
-  HashPasswordArgon2id password -> go hashPasswordScryptWithSalt password
-  where
-    go alg password = do
-      let passwordBS = Text.encodeUtf8 (fromPlainTextPassword password)
-      pure $ unsafeMkPassword $ alg "salt" passwordBS

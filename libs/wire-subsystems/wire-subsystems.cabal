@@ -81,7 +81,6 @@ library
     Wire.GundeckAPIAccess
     Wire.HashPassword
     Wire.InternalEvent
-    Wire.MiniBackend
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
     Wire.ParseException
@@ -175,6 +174,7 @@ test-suite wire-subsystems-tests
   other-modules:
     Spec
     Wire.AuthenticationSubsystem.InterpreterSpec
+    Wire.MiniBackend
     Wire.MockInterpreters
     Wire.MockInterpreters.Error
     Wire.MockInterpreters.HashPassword
@@ -213,6 +213,7 @@ test-suite wire-subsystems-tests
     , string-conversions
     , text
     , time
+    , tinylog
     , transformers
     , types-common
     , wire-api
