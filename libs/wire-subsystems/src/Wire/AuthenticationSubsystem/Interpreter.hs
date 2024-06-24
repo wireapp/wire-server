@@ -17,6 +17,7 @@
 
 module Wire.AuthenticationSubsystem.Interpreter
   ( interpretAuthenticationSubsystem,
+    passwordResetCodeTtl,
     module Wire.AuthenticationSubsystem.Error,
   )
 where
@@ -72,8 +73,8 @@ interpretAuthenticationSubsystem = interpret $ \case
 maxAttempts :: Int32
 maxAttempts = 3
 
-ttl :: NominalDiffTime
-ttl = 3600 -- 60 minutes
+passwordResetCodeTtl :: NominalDiffTime
+passwordResetCodeTtl = 3600 -- 60 minutes
 
 createPasswordResetCodeImpl ::
   ( Member PasswordResetCodeStore r,
@@ -102,8 +103,8 @@ createPasswordResetCodeImpl target = do
   code <- foldKey (const generateEmailCode) (const generatePhoneCode) target
   codeInsert
     key
-    (PRQueryData code user (Identity maxAttempts) (Identity (ttl `addUTCTime` now)))
-    (round ttl)
+    (PRQueryData code user (Identity maxAttempts) (Identity (passwordResetCodeTtl `addUTCTime` now)))
+    (round passwordResetCodeTtl)
   pure (user, (key, code))
 
 lookupActiveUserIdByUserKey :: (Member UserSubsystem r, Member (Input (Local ())) r) => UserKey -> Sem r (Maybe UserId)
@@ -171,7 +172,7 @@ resetPasswordImpl ident code pw = do
 
   muid :: Maybe UserId <- verify (key, code)
   case muid of
-    Nothing -> throw AuthenticationSubSystemInvalidPasswordResetCode
+    Nothing -> throw AuthenticationSubsystemInvalidPasswordResetCode
     Just uid -> do
       Log.debug $ field "user" (toByteString uid) . field "action" (val "User.completePasswordReset")
       checkNewIsDifferent uid pw
@@ -204,13 +205,17 @@ resetPasswordImpl ident code pw = do
     verify (k, c) = do
       now <- Now.get
       passwordResetData <- codeSelect k
-      case passwordResetData of
+      -- traceM $ "Found data: " <> show passwordResetData
+      res <- case passwordResetData of
         Just (PRQueryData codeInDB u _ (Just t)) | c == codeInDB && t >= now -> pure (Just u)
         Just (PRQueryData codeInDB u (Just n) (Just t)) | n > 1 && t > now -> do
           -- If we only update retries, there is a chance that this races with
-          -- the TTL and we have a situation where only retries is non-null for
+          -- the PasswordResetCodeTtl and we have a situation where only retries is non-null for
           -- a given key. To avoid this, we insert the whole row again.
-          codeInsert k (PRQueryData codeInDB u (Identity (n - 1)) (Identity t)) (round ttl)
+          codeInsert k (PRQueryData codeInDB u (Identity (n - 1)) (Identity t)) (round passwordResetCodeTtl)
           pure Nothing
         Just PRQueryData {} -> codeDelete k $> Nothing
         Nothing -> pure Nothing
+      -- passwordResetData' <- codeSelect k
+      -- traceM $ "Found data, after: " <> show passwordResetData'
+      pure res

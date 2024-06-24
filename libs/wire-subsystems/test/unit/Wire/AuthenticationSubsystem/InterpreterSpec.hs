@@ -4,6 +4,7 @@ module Wire.AuthenticationSubsystem.InterpreterSpec (spec) where
 
 import Data.Domain
 import Data.Id
+import Data.Misc (PlainTextPassword8)
 import Data.Qualified
 import Data.Time
 import Imports
@@ -34,8 +35,10 @@ import Wire.UserKeyStore
 import Wire.UserSubsystem
 
 type AllEffects =
-  [ HashPassword,
+  [ Error AuthenticationSubsystemError,
+    HashPassword,
     Now,
+    State UTCTime,
     Input (Local ()),
     Input (Maybe AllowlistEmailDomains),
     Input (Maybe AllowlistPhonePrefixes),
@@ -46,14 +49,12 @@ type AllEffects =
     PasswordResetCodeStore,
     State (Map PasswordResetKey (PRQueryData Identity)),
     TinyLog,
-    UserSubsystem,
-    Error AuthenticationSubsystemError
+    UserSubsystem
   ]
 
 interpretDependencies :: Domain -> [UserAccount] -> Map UserId Password -> Maybe [Text] -> Sem AllEffects a -> Either AuthenticationSubsystemError a
 interpretDependencies localDomain preexistingUsers preexistingPasswords mAllowedEmailDomains =
   run
-    . runError
     . userSubsystemTestInterpreter preexistingUsers
     . discardTinyLogs
     . evalState mempty
@@ -65,13 +66,18 @@ interpretDependencies localDomain preexistingUsers preexistingPasswords mAllowed
     . runInputConst Nothing
     . runInputConst (AllowlistEmailDomains <$> mAllowedEmailDomains)
     . runInputConst (toLocalUnsafe localDomain ())
-    . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
+    . evalState defaultTime
+    . interpretNowAsState
     . staticHashPasswordInterpreter
+    . runError
+
+defaultTime :: UTCTime
+defaultTime = UTCTime (ModifiedJulianDay 0) 0
 
 spec :: Spec
 spec = describe "AuthenticationSubsystem.Interpreter" do
   describe "password reset" do
-    prop "happy path" $
+    prop "password reset should work with the email being used as password reset key" $
       \email userNoEmail (cookiesWithTTL :: [(Cookie (), Maybe TTL)]) mPreviousPassword newPassword ->
         let user = userNoEmail {userIdentity = Just $ EmailIdentity email}
             uid = User.userId user
@@ -85,6 +91,26 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
 
                   (_, (_, code)) <- createPasswordResetCode (userEmailKey email)
                   resetPassword (PasswordResetEmailIdentity email) code newPassword
+
+                  (,) <$> lookupHashedPassword uid <*> listCookies uid
+         in mPreviousPassword /= Just newPassword ==>
+              (fmap (verifyPassword newPassword) newPasswordHash === Just True)
+                .&&. (cookiesAfterReset === [])
+
+    prop "password reset should work with the returned password reset key" $
+      \email userNoEmail (cookiesWithTTL :: [(Cookie (), Maybe TTL)]) mPreviousPassword newPassword ->
+        let user = userNoEmail {userIdentity = Just $ EmailIdentity email}
+            uid = User.userId user
+            localDomain = userNoEmail.userQualifiedId.qDomain
+            Right (newPasswordHash, cookiesAfterReset) =
+              interpretDependencies localDomain [UserAccount user Active] mempty Nothing
+                . interpretAuthenticationSubsystem
+                $ do
+                  forM_ mPreviousPassword (hashPasswordArgon2id >=> upsertHashedPassword uid)
+                  mapM_ (uncurry (insertCookie uid)) cookiesWithTTL
+
+                  (_, (passwordResetKey, code)) <- createPasswordResetCode (userEmailKey email)
+                  resetPassword (PasswordResetIdentityKey passwordResetKey) code newPassword
 
                   (,) <$> lookupHashedPassword uid <*> listCookies uid
          in mPreviousPassword /= Just newPassword ==>
@@ -141,7 +167,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
                 $ do
                   (_, (_, code)) <- createPasswordResetCode (userEmailKey email)
 
-                  mCaughtExc <- (const Nothing <$> createPasswordResetCode (userEmailKey email)) `catch` (pure . Just)
+                  mCaughtExc <- catchExpectedError $ createPasswordResetCode (userEmailKey email)
 
                   -- Reset passwrod still works with previously generated reset code
                   resetPassword (PasswordResetEmailIdentity email) code newPassword
@@ -150,20 +176,102 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
          in (fmap (verifyPassword newPassword) newPasswordHash === Just True)
               .&&. (mCaughtException === Just AuthenticationSubsystemPasswordResetInProgress)
 
-    it "wrong password on init" do
-      pending
+    prop "reset code is not accepted after expiry" $
+      \email userNoEmail oldPassword newPassword ->
+        let user = userNoEmail {userIdentity = Just $ EmailIdentity email}
+            uid = User.userId user
+            localDomain = userNoEmail.userQualifiedId.qDomain
+            Right (passwordInDB, resetPasswordResult) =
+              interpretDependencies localDomain [UserAccount user Active] mempty Nothing
+                . interpretAuthenticationSubsystem
+                $ do
+                  upsertHashedPassword uid =<< hashPasswordArgon2id oldPassword
+                  (_, (_, code)) <- createPasswordResetCode (userEmailKey email)
 
-    it "no code on complete" do
-      pending
+                  passTime (passwordResetCodeTtl + 1)
 
-    it "wrong code on complete" do
-      pending
+                  mCaughtExc <- catchExpectedError $ resetPassword (PasswordResetEmailIdentity email) code newPassword
+                  (,mCaughtExc) <$> lookupHashedPassword uid
+         in resetPasswordResult === Just AuthenticationSubsystemInvalidPasswordResetCode
+              .&&. verifyPasswordProp oldPassword passwordInDB
 
-    it "too many retries" do
-      pending
+    prop "password reset is not allowed with arbitrary codes when no other codes exist" $
+      \email userNoEmail resetCode oldPassword newPassword ->
+        let user = userNoEmail {userIdentity = Just $ EmailIdentity email}
+            uid = User.userId user
+            localDomain = userNoEmail.userQualifiedId.qDomain
+            Right (passwordInDB, resetPasswordResult) =
+              interpretDependencies localDomain [UserAccount user Active] mempty Nothing
+                . interpretAuthenticationSubsystem
+                $ do
+                  upsertHashedPassword uid =<< hashPasswordArgon2id oldPassword
+                  mCaughtExc <- catchExpectedError $ resetPassword (PasswordResetEmailIdentity email) resetCode newPassword
+                  (,mCaughtExc) <$> lookupHashedPassword uid
+         in resetPasswordResult === Just AuthenticationSubsystemInvalidPasswordResetCode
+              .&&. verifyPasswordProp oldPassword passwordInDB
 
-    it "expired code" do
-      pending
+    prop "password reset doesn't work if email is wrong" $
+      \email wrongEmail userNoEmail resetCode oldPassword newPassword ->
+        let user = userNoEmail {userIdentity = Just $ EmailIdentity email}
+            uid = User.userId user
+            localDomain = userNoEmail.userQualifiedId.qDomain
+            Right (passwordInDB, resetPasswordResult) =
+              interpretDependencies localDomain [UserAccount user Active] mempty Nothing
+                . interpretAuthenticationSubsystem
+                $ do
+                  hashAndUpsertPassword uid oldPassword
+                  mCaughtExc <- catchExpectedError $ resetPassword (PasswordResetEmailIdentity wrongEmail) resetCode newPassword
+                  (,mCaughtExc) <$> lookupHashedPassword uid
+         in email /= wrongEmail ==>
+              resetPasswordResult === Just AuthenticationSubsystemInvalidPasswordResetKey
+                .&&. verifyPasswordProp oldPassword passwordInDB
+
+    prop "only 3 wrong password reset attempts are allowed" $
+      \email userNoEmail arbitraryResetCode oldPassword newPassword (Upto4 wrongResetAttempts) ->
+        let user = userNoEmail {userIdentity = Just $ EmailIdentity email}
+            uid = User.userId user
+            localDomain = userNoEmail.userQualifiedId.qDomain
+            Right (passwordHashInDB, correctResetCode, wrongResetErrors, resetPassworedWithCorectCodeResult) =
+              interpretDependencies localDomain [UserAccount user Active] mempty Nothing
+                . interpretAuthenticationSubsystem
+                $ do
+                  upsertHashedPassword uid =<< hashPasswordArgon2id oldPassword
+                  (_, (_, generatedResetCode)) <- createPasswordResetCode (userEmailKey email)
+
+                  wrongResetErrs <-
+                    replicateM wrongResetAttempts $
+                      catchExpectedError $
+                        resetPassword (PasswordResetEmailIdentity email) arbitraryResetCode newPassword
+
+                  mFinalResetErr <- catchExpectedError $ resetPassword (PasswordResetEmailIdentity email) generatedResetCode newPassword
+                  (,generatedResetCode,wrongResetErrs,mFinalResetErr) <$> lookupHashedPassword uid
+            expectedFinalResetResult =
+              if wrongResetAttempts >= 3
+                then Just AuthenticationSubsystemInvalidPasswordResetCode
+                else Nothing
+            expectedFinalPassword =
+              if wrongResetAttempts >= 3
+                then oldPassword
+                else newPassword
+         in correctResetCode /= arbitraryResetCode ==>
+              wrongResetErrors == replicate wrongResetAttempts (Just AuthenticationSubsystemInvalidPasswordResetCode)
+                .&&. resetPassworedWithCorectCodeResult === expectedFinalResetResult
+                .&&. verifyPasswordProp expectedFinalPassword passwordHashInDB
 
     it "wrong user" do
       pending
+
+newtype Upto4 = Upto4 Int
+  deriving newtype (Show, Eq)
+
+instance Arbitrary Upto4 where
+  arbitrary = Upto4 <$> elements [0 .. 4]
+
+verifyPasswordProp :: PlainTextPassword8 -> Maybe Password -> Property
+verifyPasswordProp plainTextPassword passwordHash =
+  counterexample ("Password doesn't match, plainText=" <> show plainTextPassword <> ", passwordHasH=" <> show passwordHash) $
+    fmap (verifyPassword plainTextPassword) passwordHash == Just True
+
+hashAndUpsertPassword :: (Member PasswordStore r, Member HashPassword r) => UserId -> PlainTextPassword8 -> Sem r ()
+hashAndUpsertPassword uid password =
+  upsertHashedPassword uid =<< hashPasswordArgon2id password

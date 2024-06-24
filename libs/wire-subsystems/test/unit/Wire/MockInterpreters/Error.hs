@@ -11,3 +11,6 @@ runErrorUnsafe action = do
   case res of
     Left e -> error $ "Unexpected error: " <> displayException e
     Right x -> pure x
+
+catchExpectedError :: (Member (Error e) r) => Sem r a -> Sem r (Maybe e)
+catchExpectedError action = (const Nothing <$> action) `catch` (pure . Just)
