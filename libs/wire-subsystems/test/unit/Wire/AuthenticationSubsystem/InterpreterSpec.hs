@@ -16,6 +16,7 @@ import Test.QuickCheck
 import Wire.API.Allowlists (AllowlistEmailDomains, AllowlistPhonePrefixes)
 import Wire.API.Password
 import Wire.API.User
+import Wire.API.User qualified as User
 import Wire.API.User.Auth
 import Wire.API.User.Password
 import Wire.AuthenticationSubsystem
@@ -71,7 +72,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
     prop "happy path" $
       \email userNoEmail (cookiesWithTTL :: [(Cookie (), Maybe TTL)]) mPreviousPassword newPassword ->
         let user = userNoEmail {userIdentity = Just $ EmailIdentity email}
-            uid = userId user
+            uid = User.userId user
             localDomain = userNoEmail.userQualifiedId.qDomain
             (newPasswordHash, cookiesAfterReset) =
               interpretDependencies localDomain [UserAccount user Active] mempty Nothing
