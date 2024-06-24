@@ -44,6 +44,7 @@
 , galley-types
 , gitignoreSource
 , gundeck-types
+, hex
 , HsOpenSSL
 , http-api-data
 , http-client
@@ -164,6 +165,7 @@ mkDerivation {
     extra
     galley-types
     gundeck-types
+    hex
     HsOpenSSL
     http-client
     http-client-openssl
