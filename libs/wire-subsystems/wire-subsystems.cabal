@@ -199,6 +199,7 @@ test-suite wire-subsystems-tests
     , bilge
     , bytestring
     , containers
+    , crypton
     , data-default
     , errors
     , extended
