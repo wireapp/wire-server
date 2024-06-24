@@ -239,3 +239,38 @@ testCreatorRemovesUserFromParent = do
       assertBool "alice and charlie should have access to the conversation" (resp.status == 200)
       mems <- resp.jsonBody %. "members" & asList
       mems `shouldMatchSet` ((renameField "id" "user_id" <=< make) `traverse` [alice1, charlie1, charlie2])
+
+testResendingProposals :: (HasCallStack) => App ()
+testResendingProposals = do
+  [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OtherDomain]
+  [alice1, alice2, bob1, bob2, bob3, charlie1] <-
+    traverse
+      (createMLSClient def)
+      [alice, alice, bob, bob, bob, charlie]
+  traverse_ uploadNewKeyPackage [alice2, bob1, bob2, bob3, charlie1]
+
+  void $ createNewGroup alice1
+  void $ createAddCommit alice1 [alice, bob, charlie] >>= sendAndConsumeCommitBundle
+
+  createSubConv alice1 "conference"
+
+  void $ createExternalCommit alice2 Nothing >>= sendAndConsumeCommitBundle
+  void $ createExternalCommit bob1 Nothing >>= sendAndConsumeCommitBundle
+  void $ createExternalCommit bob2 Nothing >>= sendAndConsumeCommitBundle
+  void $ createExternalCommit bob3 Nothing >>= sendAndConsumeCommitBundle
+
+  leaveCurrentConv bob1
+  leaveCurrentConv bob2
+  leaveCurrentConv bob3
+
+  mls <- getMLSState
+  withWebSockets (charlie1 : toList mls.members) \wss -> do
+    void $ createExternalCommit charlie1 Nothing >>= sendAndConsumeCommitBundle
+
+    -- consume proposals after backend resends them
+    for_ wss \ws -> do
+      replicateM 3 do
+        msg <- consumeMessage (fromJust ws.client) Nothing ws
+        msg %. "message.content.sender.External" `shouldMatchInt` 0
+
+  void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
