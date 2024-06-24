@@ -249,7 +249,7 @@ testResendingProposals = do
       [alice, alice, bob, bob, bob, charlie]
   traverse_ uploadNewKeyPackage [alice2, bob1, bob2, bob3, charlie1]
 
-  void $ createNewGroup alice1
+  (_, conv) <- createNewGroup alice1
   void $ createAddCommit alice1 [alice, bob, charlie] >>= sendAndConsumeCommitBundle
 
   createSubConv alice1 "conference"
@@ -274,3 +274,16 @@ testResendingProposals = do
         msg %. "message.content.sender.External" `shouldMatchInt` 0
 
   void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
+
+  sub <- getSubConversation alice1 conv "conference" >>= getJSON 200
+  let members =
+        map
+          ( \cid ->
+              object
+                [ "client_id" .= cid.client,
+                  "user_id" .= cid.user,
+                  "domain" .= cid.domain
+                ]
+          )
+          [alice1, alice2, charlie1]
+  sub %. "members" `shouldMatchSet` members
