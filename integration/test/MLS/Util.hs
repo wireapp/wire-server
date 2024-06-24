@@ -575,7 +575,7 @@ consumeMessageWithPredicate p cid mmp ws = do
 consumeMessage :: (HasCallStack) => ClientIdentity -> Maybe MessagePackage -> WebSocket -> App Value
 consumeMessage = consumeMessageWithPredicate isNewMLSMessageNotif
 
--- | like 'consumeMessage' but but will not consume a message where the sender is the backend
+-- | like 'consumeMessage' but will not consume a message where the sender is the backend
 consumeMessageNoExternal :: (HasCallStack) => ClientIdentity -> Maybe MessagePackage -> WebSocket -> App Value
 consumeMessageNoExternal cid = consumeMessageWithPredicate isNewMLSMessageNotifButNoProposal cid
   where
@@ -592,7 +592,7 @@ consumeMessageNoExternal cid = consumeMessageWithPredicate isNewMLSMessageNotifB
           pure $ sender /= Just backendSender
         else pure False
 
-mlsCliConsume :: ClientIdentity -> ByteString -> App ByteString
+mlsCliConsume :: (HasCallStack) => ClientIdentity -> ByteString -> App ByteString
 mlsCliConsume cid msgData =
   mlscli
     cid
