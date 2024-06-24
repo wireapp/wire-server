@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+
 module Wire.AuthenticationSubsystem.InterpreterSpec (spec) where
 
 import Data.Domain
@@ -13,7 +15,7 @@ import Polysemy.TinyLog
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
-import Wire.API.Allowlists (AllowlistEmailDomains, AllowlistPhonePrefixes)
+import Wire.API.Allowlists (AllowlistEmailDomains (AllowlistEmailDomains), AllowlistPhonePrefixes)
 import Wire.API.Password
 import Wire.API.User
 import Wire.API.User qualified as User
@@ -48,10 +50,10 @@ type AllEffects =
     Error AuthenticationSubsystemError
   ]
 
-interpretDependencies :: Domain -> [UserAccount] -> Map UserId Password -> Maybe AllowlistEmailDomains -> Sem AllEffects a -> a
+interpretDependencies :: Domain -> [UserAccount] -> Map UserId Password -> Maybe [Text] -> Sem AllEffects a -> Either AuthenticationSubsystemError a
 interpretDependencies localDomain preexistingUsers preexistingPasswords mAllowedEmailDomains =
   run
-    . runErrorUnsafe
+    . runError
     . userSubsystemTestInterpreter preexistingUsers
     . discardTinyLogs
     . evalState mempty
@@ -61,7 +63,7 @@ interpretDependencies localDomain preexistingUsers preexistingPasswords mAllowed
     . evalState mempty
     . inMemorySessionStoreInterpreter
     . runInputConst Nothing
-    . runInputConst mAllowedEmailDomains
+    . runInputConst (AllowlistEmailDomains <$> mAllowedEmailDomains)
     . runInputConst (toLocalUnsafe localDomain ())
     . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
     . staticHashPasswordInterpreter
@@ -74,7 +76,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
         let user = userNoEmail {userIdentity = Just $ EmailIdentity email}
             uid = User.userId user
             localDomain = userNoEmail.userQualifiedId.qDomain
-            (newPasswordHash, cookiesAfterReset) =
+            Right (newPasswordHash, cookiesAfterReset) =
               interpretDependencies localDomain [UserAccount user Active] mempty Nothing
                 . interpretAuthenticationSubsystem
                 $ do
@@ -89,8 +91,64 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               (fmap (verifyPassword newPassword) newPasswordHash === Just True)
                 .&&. (cookiesAfterReset === [])
 
-    it "email not in allow list" do
-      pending
+    prop "reset code is not generated when email is not in allow list" $
+      \email localDomain ->
+        let createPasswordResetCodeResult =
+              interpretDependencies localDomain [] mempty (Just ["example.com"])
+                . interpretAuthenticationSubsystem
+                $ createPasswordResetCode (userEmailKey email)
+         in emailDomain email /= "exmaple.com" ==>
+              createPasswordResetCodeResult === Left AuthenticationSubsystemAllowListError
+
+    prop "reset code is generated when email is in allow list" $
+      \email userNoEmail ->
+        let user = userNoEmail {userIdentity = Just $ EmailIdentity email}
+            localDomain = userNoEmail.userQualifiedId.qDomain
+            createPasswordResetCodeResult =
+              interpretDependencies localDomain [UserAccount user Active] mempty (Just [emailDomain email])
+                . interpretAuthenticationSubsystem
+                $ createPasswordResetCode (userEmailKey email)
+         in counterexample ("expected Right, got: " <> show createPasswordResetCodeResult) $
+              isRight createPasswordResetCodeResult
+
+    prop "reset code is not generated for when user's status is not Active" $
+      \email userNoEmail status ->
+        let user = userNoEmail {userIdentity = Just $ EmailIdentity email}
+            localDomain = userNoEmail.userQualifiedId.qDomain
+            createPasswordResetCodeResult =
+              interpretDependencies localDomain [UserAccount user status] mempty Nothing
+                . interpretAuthenticationSubsystem
+                $ createPasswordResetCode (userEmailKey email)
+         in status /= Active ==>
+              createPasswordResetCodeResult === Left AuthenticationSubsystemInvalidPasswordResetKey
+
+    prop "reset code is not generated for when there is no user for the email" $
+      \email localDomain ->
+        let createPasswordResetCodeResult =
+              interpretDependencies localDomain [] mempty Nothing
+                . interpretAuthenticationSubsystem
+                $ createPasswordResetCode (userEmailKey email)
+         in createPasswordResetCodeResult === Left AuthenticationSubsystemInvalidPasswordResetKey
+
+    prop "reset code is only generated once" $
+      \email userNoEmail newPassword ->
+        let user = userNoEmail {userIdentity = Just $ EmailIdentity email}
+            uid = User.userId user
+            localDomain = userNoEmail.userQualifiedId.qDomain
+            Right (newPasswordHash, mCaughtException) =
+              interpretDependencies localDomain [UserAccount user Active] mempty Nothing
+                . interpretAuthenticationSubsystem
+                $ do
+                  (_, (_, code)) <- createPasswordResetCode (userEmailKey email)
+
+                  mCaughtExc <- (const Nothing <$> createPasswordResetCode (userEmailKey email)) `catch` (pure . Just)
+
+                  -- Reset passwrod still works with previously generated reset code
+                  resetPassword (PasswordResetEmailIdentity email) code newPassword
+
+                  (,mCaughtExc) <$> lookupHashedPassword uid
+         in (fmap (verifyPassword newPassword) newPasswordHash === Just True)
+              .&&. (mCaughtException === Just AuthenticationSubsystemPasswordResetInProgress)
 
     it "wrong password on init" do
       pending

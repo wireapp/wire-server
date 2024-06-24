@@ -106,7 +106,6 @@ createPasswordResetCodeImpl target = do
     (round ttl)
   pure (user, (key, code))
 
--- TODO: move the rest of this function to UserSubsystem?
 lookupActiveUserIdByUserKey :: (Member UserSubsystem r, Member (Input (Local ())) r) => UserKey -> Sem r (Maybe UserId)
 lookupActiveUserIdByUserKey target = do
   localUnit <- input
