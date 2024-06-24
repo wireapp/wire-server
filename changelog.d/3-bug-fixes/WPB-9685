@@ -1,1 +1,1 @@
-don't react with "legalhold already disabled" when on pending state
+Disabling legalhold before user's approval doesn't result in an error 

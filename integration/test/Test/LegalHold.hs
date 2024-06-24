@@ -905,8 +905,8 @@ testLHNoConsentCannotBeInvited = do
 
     addMembers userLHNotActivated cid (def {users = [peer3]}) >>= assertLabel 403 "not-connected"
 
-testLHRequestDeletionHasUserEffect :: (HasCallStack) => App ()
-testLHRequestDeletionHasUserEffect = do
+testLHDisableBeforeApproval :: (HasCallStack) => App ()
+testLHDisableBeforeApproval = do
   (alice, tid, [bob]) <- createTeam OwnDomain 2
   legalholdWhitelistTeam tid alice >>= assertStatus 200
 
