@@ -29,7 +29,7 @@ data AuthenticationSubsystemError
   = AuthenticationSubsystemInvalidPasswordResetKey
   | AuthenticationSubsystemPasswordResetInProgress
   | AuthenticationSubsystemResetPasswordMustDiffer
-  | AuthenticationSubSystemInvalidPasswordResetCode
+  | AuthenticationSubsystemInvalidPasswordResetCode
   | AuthenticationSubsystemAllowListError
   deriving (Eq, Show)
 
@@ -40,6 +40,6 @@ authenticationSubsystemErrorToWai =
   dynErrorToWai . \case
     AuthenticationSubsystemInvalidPasswordResetKey -> dynError @(MapError E.InvalidPasswordResetKey)
     AuthenticationSubsystemPasswordResetInProgress -> dynError @(MapError E.PasswordResetInProgress)
-    AuthenticationSubSystemInvalidPasswordResetCode -> dynError @(MapError E.InvalidPasswordResetCode)
+    AuthenticationSubsystemInvalidPasswordResetCode -> dynError @(MapError E.InvalidPasswordResetCode)
     AuthenticationSubsystemResetPasswordMustDiffer -> dynError @(MapError E.ResetPasswordMustDiffer)
     AuthenticationSubsystemAllowListError -> dynError @(MapError E.AllowlistError)

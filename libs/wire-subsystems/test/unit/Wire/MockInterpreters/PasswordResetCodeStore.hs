@@ -18,11 +18,11 @@ inMemoryPasswordResetCodeStore =
       GenerateEmailCode ->
         pure . PasswordResetCode . encodeBase64Url $ "email-code"
       GeneratePhoneCode -> (error "deprecated")
-      CodeSelect resetKey ->
+      CodeSelect resetKey -> do
         gets $ \codes ->
           mapPRQueryData (Just . runIdentity)
             <$> Map.lookup resetKey codes
-      CodeInsert resetKey queryData _ttl ->
+      CodeInsert resetKey queryData _ttl -> do
         modify $ Map.insert resetKey queryData
-      CodeDelete resetKey ->
+      CodeDelete resetKey -> do
         modify $ Map.delete resetKey

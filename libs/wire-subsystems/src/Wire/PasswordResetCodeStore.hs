@@ -33,6 +33,12 @@ data PRQueryData f = PRQueryData
     prqdTimeout :: f UTCTime
   }
 
+deriving instance Show (PRQueryData Identity)
+
+deriving instance Eq (PRQueryData Maybe)
+
+deriving instance Show (PRQueryData Maybe)
+
 mapPRQueryData :: (forall a. (f1 a -> f2 a)) -> PRQueryData f1 -> PRQueryData f2
 mapPRQueryData f prqd = prqd {prqdRetries = f prqd.prqdRetries, prqdTimeout = f prqd.prqdTimeout}
 
