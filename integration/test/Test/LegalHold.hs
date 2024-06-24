@@ -873,8 +873,8 @@ testLHCannotCreateGroupWithUsersInConflict = do
     postConversation bob defProteus {qualifiedUsers = [debora, alice], newUsersRole = "wire_member", team = Just tidAlice}
       >>= assertLabel 403 "missing-legalhold-consent"
 
-testNoConsentCannotBeInvited :: (HasCallStack) => App ()
-testNoConsentCannotBeInvited = do
+testLHNoConsentCannotBeInvited :: (HasCallStack) => App ()
+testLHNoConsentCannotBeInvited = do
   -- team that is legalhold whitelisted
   (legalholder, tidLH, userLHNotActivated : _) <- createTeam OwnDomain 2
   legalholdWhitelistTeam tidLH legalholder >>= assertStatus 200
@@ -904,3 +904,21 @@ testNoConsentCannotBeInvited = do
       resp.json %. "status" `shouldMatch` "enabled"
 
     addMembers userLHNotActivated cid (def {users = [peer3]}) >>= assertLabel 403 "not-connected"
+
+testLHDisableBeforeApproval :: (HasCallStack) => App ()
+testLHDisableBeforeApproval = do
+  (alice, tid, [bob]) <- createTeam OwnDomain 2
+  legalholdWhitelistTeam tid alice >>= assertStatus 200
+
+  withMockServer def lhMockApp \lhDomAndPort _chan -> do
+    postLegalHoldSettings tid alice (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
+
+    -- alice requests a legalhold device for bob and sets his status to "pending"
+    requestLegalHoldDevice tid alice bob >>= assertSuccess
+    let getBob'sStatus = (getUser bob bob >>= getJSON 200) %. "legalhold_status" & asString
+    getBob'sStatus `shouldMatch` "pending"
+
+    -- alice disables legalhold. the status for bob should now not be pending anymore
+    disableLegalHold tid alice bob defPassword
+      >>= assertStatus 200
+    getBob'sStatus `shouldMatch` "disabled"
