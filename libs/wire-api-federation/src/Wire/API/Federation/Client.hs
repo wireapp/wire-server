@@ -120,7 +120,7 @@ instance VersionedMonad Version (FederatorClient c) where
 liftCodensity :: Codensity IO a -> FederatorClient c a
 liftCodensity = FederatorClient . lift . lift . lift
 
-headersFromTable :: HTTP2.HeaderTable -> [HTTP.Header]
+headersFromTable :: HTTP2.TokenHeaderTable -> [HTTP.Header]
 headersFromTable (headerList, _) = flip map headerList $ first HTTP2.tokenKey
 
 -- This opens a new http2 connection. Using a http2-manager leads to this problem https://wearezeta.atlassian.net/browse/WPB-4787

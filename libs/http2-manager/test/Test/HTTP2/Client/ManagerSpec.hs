@@ -23,7 +23,7 @@ import qualified Data.ByteString.Lazy.Char8 as LBS
 import Data.IORef
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Maybe (isJust)
+import Data.Maybe (fromMaybe, isJust)
 import Data.Streaming.Network (bindPortTCP, bindRandomPortTCP)
 import Data.Unique
 import Foreign.Marshal.Alloc (mallocBytes)
@@ -33,8 +33,10 @@ import HTTP2.Client.Manager.Internal
 import Network.HTTP.Types
 import qualified Network.HTTP2.Client as Client
 import qualified Network.HTTP2.Client as HTTP2
+import Network.HTTP2.Server (defaultServerConfig)
 import qualified Network.HTTP2.Server as Server
 import Network.Socket
+import qualified Network.Socket as NS
 import qualified OpenSSL.Session as SSL
 import System.Random (randomRIO)
 import qualified System.TimeManager
@@ -293,6 +295,10 @@ allocServerConfig (Right ssl) = do
               error "openssl: SSL.read returned more bytes than asked for, this is probably a bug"
           | otherwise ->
               readData (prevChunk <> chunk) (n - chunkLen)
+
+  let s = fromMaybe (error "http2-manager: SSL without socket") $ SSL.sslSocket ssl
+  mysa <- NS.getSocketName s
+  peersa <- NS.getPeerName s
   pure
     Server.Config
       { Server.confWriteBuffer = buf,
@@ -300,7 +306,9 @@ allocServerConfig (Right ssl) = do
         Server.confSendAll = SSL.write ssl,
         Server.confReadN = readData mempty,
         Server.confPositionReadMaker = Server.defaultPositionReadMaker,
-        Server.confTimeoutManager = timmgr
+        Server.confTimeoutManager = timmgr,
+        Server.confMySockAddr = mysa,
+        Server.confPeerSockAddr = peersa
       }
 
 testServerOnSocket :: Maybe SSL.SSLContext -> Socket -> IORef Int -> IORef (Map Unique (Async ())) -> IO ()
@@ -322,7 +330,7 @@ testServerOnSocket mCtx listenSock connsCounter conns = do
         cleanup cfg = do
           Server.freeSimpleConfig cfg `finally` (shutdownSSL `finally` close sock)
     thread <- async $ bracket (allocServerConfig serverCfgParam) cleanup $ \cfg -> do
-      Server.run cfg testServer `finally` modifyIORef conns (Map.delete connKey)
+      Server.run defaultServerConfig cfg testServer `finally` modifyIORef conns (Map.delete connKey)
     modifyIORef conns $ Map.insert connKey thread
 
 testServer :: Server.Request -> Server.Aux -> (Server.Response -> [Server.PushPromise] -> IO ()) -> IO ()
