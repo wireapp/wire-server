@@ -66,7 +66,7 @@ module Brig.Data.User
   )
 where
 
-import Brig.App (Env, adhocPasswordStoreInterpreter, currentTime, settings, viewFederationDomain, zauthEnv)
+import Brig.App
 import Brig.Options
 import Brig.Types.Intra
 import Brig.ZAuth qualified as ZAuth
@@ -84,12 +84,13 @@ import Data.Range (fromRange)
 import Data.Time (addUTCTime)
 import Data.UUID.V4
 import Imports
+import Polysemy
 import Wire.API.Password
 import Wire.API.Provider.Service
 import Wire.API.Team.Feature qualified as ApiFt
 import Wire.API.User
 import Wire.API.User.RichInfo
-import Wire.PasswordStore (upsertHashedPassword)
+import Wire.PasswordStore
 
 -- | Authentication errors.
 data AuthError
@@ -177,9 +178,9 @@ newAccountInviteViaScim uid tid locale name email = do
         defSupportedProtocols
 
 -- | Mandatory password authentication.
-authenticate :: (MonadClient m, MonadReader Env m) => UserId -> PlainTextPassword6 -> ExceptT AuthError m ()
+authenticate :: forall r. (Member PasswordStore r) => UserId -> PlainTextPassword6 -> ExceptT AuthError (AppT r) ()
 authenticate u pw =
-  lift (lookupAuth u) >>= \case
+  lift (wrapHttp $ lookupAuth u) >>= \case
     Nothing -> throwE AuthInvalidUser
     Just (_, Deleted) -> throwE AuthInvalidUser
     Just (_, Suspended) -> throwE AuthSuspended
@@ -195,10 +196,10 @@ authenticate u pw =
           for_ (plainTextPassword8 . fromPlainTextPassword $ pw) (lift . hashAndUpdatePwd u)
         (True, _) -> pure ()
   where
-    hashAndUpdatePwd :: (MonadClient m, MonadReader Env m) => UserId -> PlainTextPassword8 -> m ()
+    hashAndUpdatePwd :: UserId -> PlainTextPassword8 -> AppT r ()
     hashAndUpdatePwd uid pwd = do
       hashed <- mkSafePasswordArgon2id pwd
-      adhocPasswordStoreInterpreter $ upsertHashedPassword uid hashed
+      liftSem $ upsertHashedPassword uid hashed
 
 -- | Password reauthentication. If the account has a password, reauthentication
 -- is mandatory. If the account has no password, or is an SSO user, and no password is given,

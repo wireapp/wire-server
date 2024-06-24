@@ -90,7 +90,6 @@ module Brig.App
     adhocUserKeyStoreInterpreter,
     adhocUserStoreInterpreter,
     adhocSessionStoreInterpreter,
-    adhocPasswordStoreInterpreter,
   )
 where
 
@@ -158,8 +157,6 @@ import Wire.API.Federation.Error (federationNotImplemented)
 import Wire.API.Routes.Version
 import Wire.API.User.Identity (Email)
 import Wire.API.User.Profile (Locale)
-import Wire.PasswordStore (PasswordStore)
-import Wire.PasswordStore.Cassandra (interpretPasswordStore)
 import Wire.SessionStore
 import Wire.SessionStore.Cassandra
 import Wire.UserKeyStore
@@ -657,12 +654,6 @@ adhocSessionStoreInterpreter :: (MonadClient m, MonadReader Env m) => Sem '[Sess
 adhocSessionStoreInterpreter action = do
   clientState <- asks (view casClient)
   liftIO $ runM . interpretSessionStoreCassandra clientState $ action
-
--- | similarly to `wrapClient`, this function serves as a crutch while Brig is being polysemised.
-adhocPasswordStoreInterpreter :: (MonadClient m, MonadReader Env m) => Sem '[PasswordStore, Embed IO] a -> m a
-adhocPasswordStoreInterpreter action = do
-  clientState <- asks (view casClient)
-  liftIO $ runM . interpretPasswordStore clientState $ action
 
 --------------------------------------------------------------------------------
 -- Federation

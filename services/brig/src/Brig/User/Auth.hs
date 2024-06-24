@@ -138,7 +138,8 @@ login ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member PasswordStore r
   ) =>
   Login ->
   CookieType ->
@@ -147,13 +148,12 @@ login (PasswordLogin (PasswordLoginData li pw label code)) typ = do
   uid <- wrapHttpClientE $ resolveLoginId li
   lift . liftSem . Log.debug $ field "user" (toByteString uid) . field "action" (val "User.login")
   wrapHttpClientE $ checkRetryLimit uid
-  wrapHttpClientE $
-    Data.authenticate uid pw `catchE` \case
-      AuthInvalidUser -> loginFailed uid
-      AuthInvalidCredentials -> loginFailed uid
-      AuthSuspended -> throwE LoginSuspended
-      AuthEphemeral -> throwE LoginEphemeral
-      AuthPendingInvitation -> throwE LoginPendingActivation
+  Data.authenticate uid pw `catchE` \case
+    AuthInvalidUser -> wrapHttpClientE $ loginFailed uid
+    AuthInvalidCredentials -> wrapHttpClientE $ loginFailed uid
+    AuthSuspended -> throwE LoginSuspended
+    AuthEphemeral -> throwE LoginEphemeral
+    AuthPendingInvitation -> throwE LoginPendingActivation
   verifyLoginCode code uid
   newAccess @ZAuth.User @ZAuth.Access uid Nothing typ label
   where
@@ -266,7 +266,7 @@ renewAccess uts at mcid = do
   pure $ Access at' ck'
 
 revokeAccess ::
-  (Member TinyLog r) =>
+  (Member TinyLog r, Member PasswordStore r) =>
   UserId ->
   PlainTextPassword6 ->
   [CookieId] ->
@@ -274,7 +274,7 @@ revokeAccess ::
   ExceptT AuthError (AppT r) ()
 revokeAccess u pw cc ll = do
   lift . liftSem $ Log.debug $ field "user" (toByteString u) . field "action" (val "User.revokeAccess")
-  wrapHttpClientE $ unlessM (Data.isSamlUser u) $ Data.authenticate u pw
+  unlessM (lift . wrapHttpClient $ Data.isSamlUser u) $ Data.authenticate u pw
   lift $ wrapHttpClient $ revokeCookies u cc ll
 
 --------------------------------------------------------------------------------
