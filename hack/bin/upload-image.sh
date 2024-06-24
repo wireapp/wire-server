@@ -20,6 +20,7 @@ readonly IMAGE_ATTR=${1:?$usage}
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 ROOT_DIR=$(cd -- "$SCRIPT_DIR/../../" &>/dev/null && pwd)
 readonly SCRIPT_DIR ROOT_DIR
+IS_PR=${IS_PR:-"0"}
 
 credsArgs=""
 if [[ "${DOCKER_USER+x}" != "" ]]; then
@@ -67,7 +68,17 @@ image_stream_file="$tmp_link_store/image_stream"
 nix -v --show-trace -L build -f "$ROOT_DIR/nix" "$IMAGE_ATTR" -o "$image_stream_file"
 image_file="$tmp_link_store/image"
 "$image_stream_file" >"$image_file"
-repo=$(skopeo list-tags "docker-archive://$image_file" | jq -r '.Tags[0] | split(":") | .[0]')
+repo_base=$(skopeo list-tags "docker-archive://$image_file" | jq -r '.Tags[0] | split(":") | .[0]')
+
+# If we upload images on a PR on public CI, upload to quay.io/wire/pr-<name>
+if [[ "$IS_PR" == "1" ]]; then
+    # add a 'pr-' prefix
+    # shellcheck disable=SC2001
+    repo=$(echo "$repo_base" | sed 's|/\([^/]*\)$|/pr-\1|')
+else
+    repo=$repo_base
+fi
+
 printf "*** Uploading $image_file to %s:%s\n" "$repo" "$DOCKER_TAG"
 # shellcheck disable=SC2086
 retry 5 skopeo --insecure-policy copy --retry-times 5 $credsArgs "docker-archive://$image_file" "docker://$repo:$DOCKER_TAG"
