@@ -1,5 +1,4 @@
 {-# LANGUAGE TemplateHaskell #-}
-{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 module Wire.UserKeyStore where
 
