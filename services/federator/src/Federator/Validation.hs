@@ -18,7 +18,6 @@
 module Federator.Validation
   ( ensureCanFederateWith,
     parseDomain,
-    parseDomainText,
     decodeCertificate,
     validateDomain,
     validateDomainName,
@@ -126,13 +125,6 @@ parseDomain :: (Member (Error ValidationError) r) => ByteString -> Sem r Domain
 parseDomain domain =
   note (DomainParseError (Text.decodeUtf8With Text.lenientDecode domain)) $
     fromByteString domain
-
-parseDomainText :: (Member (Error ValidationError) r) => Text -> Sem r Domain
-parseDomainText domain =
-  mapError @String (const (DomainParseError domain))
-    . fromEither
-    . mkDomain
-    $ domain
 
 -- | Validates an unknown domain string against the allow list using the
 -- federator startup configuration and checks that it matches the names reported

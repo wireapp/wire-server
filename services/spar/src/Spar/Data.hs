@@ -23,7 +23,6 @@ module Spar.Data
     mkTTLAssertions,
     nominalDiffToSeconds,
     mkTTLAuthnRequests,
-    mkTTLAuthnRequestsNDT,
 
     -- * SAML Users
     NormalizedUNameID (..),
@@ -33,8 +32,8 @@ module Spar.Data
 where
 
 import Cassandra as Cas
-import Control.Lens
-import Control.Monad.Except
+import Control.Lens (view)
+import Control.Monad.Except (MonadError (throwError))
 import Data.CaseInsensitive (foldCase)
 import qualified Data.CaseInsensitive as CI
 import Data.Time
@@ -74,9 +73,6 @@ mkEnv opts now =
 
 mkTTLAuthnRequests :: (MonadError TTLError m) => Env -> UTCTime -> m (TTL "authreq")
 mkTTLAuthnRequests (Env now maxttl _) = mkTTL now maxttl
-
-mkTTLAuthnRequestsNDT :: (MonadError TTLError m) => Env -> NominalDiffTime -> m (TTL "authreq")
-mkTTLAuthnRequestsNDT (Env _ maxttl _) = mkTTLNDT maxttl
 
 mkTTLAssertions :: (MonadError TTLError m) => Env -> UTCTime -> m (TTL "authresp")
 mkTTLAssertions (Env now _ maxttl) = mkTTL now maxttl

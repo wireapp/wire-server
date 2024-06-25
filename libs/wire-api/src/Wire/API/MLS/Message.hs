@@ -41,25 +41,25 @@ where
 import Control.Lens ((?~))
 import Data.Aeson qualified as A
 import Data.Binary
-import Data.Json.Util
+import Data.Json.Util (UTCTimeMillis)
 import Data.OpenApi qualified as S
 import Data.Schema hiding (HasField)
-import GHC.Records
+import GHC.Records (HasField (..))
 import Imports
-import Test.QuickCheck hiding (label)
-import Wire.API.Event.Conversation
+import Test.QuickCheck (Arbitrary)
+import Wire.API.Event.Conversation (Event)
 import Wire.API.MLS.CipherSuite
-import Wire.API.MLS.Commit
-import Wire.API.MLS.Epoch
-import Wire.API.MLS.Group
-import Wire.API.MLS.GroupInfo
-import Wire.API.MLS.KeyPackage
-import Wire.API.MLS.LeafNode
-import Wire.API.MLS.Proposal
-import Wire.API.MLS.ProtocolVersion
+import Wire.API.MLS.Commit (Commit)
+import Wire.API.MLS.Epoch (Epoch)
+import Wire.API.MLS.Group (GroupId)
+import Wire.API.MLS.GroupInfo (GroupContext (cipherSuite), GroupInfo)
+import Wire.API.MLS.KeyPackage (KeyPackage)
+import Wire.API.MLS.LeafNode (LeafIndex)
+import Wire.API.MLS.Proposal (Proposal)
+import Wire.API.MLS.ProtocolVersion (ProtocolVersion, defaultProtocolVersion)
 import Wire.API.MLS.Serialisation
-import Wire.API.MLS.Welcome
-import Wire.Arbitrary
+import Wire.API.MLS.Welcome (Welcome)
+import Wire.Arbitrary (GenericUniform (GenericUniform))
 
 data WireFormatTag
   = WireFormatPublicTag

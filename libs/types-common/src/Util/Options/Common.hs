@@ -22,10 +22,7 @@ module Util.Options.Common
 where
 
 import Cassandra.Helpers (toOptionFieldName)
-import Data.ByteString.Char8 qualified as C
-import Data.Text qualified as T
 import Imports hiding (reader)
-import Options.Applicative
 import System.Posix.Env qualified as Posix
 
 optOrEnv :: (a -> b) -> Maybe a -> (String -> b) -> String -> IO b
@@ -37,9 +34,3 @@ optOrEnvSafe :: (a -> b) -> Maybe a -> (String -> b) -> String -> IO (Maybe b)
 optOrEnvSafe getter conf reader var = case conf of
   Nothing -> fmap reader <$> Posix.getEnv var
   Just c -> pure $ Just (getter c)
-
-bytesOption :: Mod OptionFields String -> Parser ByteString
-bytesOption = fmap C.pack . strOption
-
-textOption :: Mod OptionFields String -> Parser Text
-textOption = fmap T.pack . strOption

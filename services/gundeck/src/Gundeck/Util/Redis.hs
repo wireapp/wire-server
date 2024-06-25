@@ -24,13 +24,10 @@ import Database.Redis
 import Imports
 import System.Logger.Class (MonadLogger)
 import System.Logger.Class qualified as Log
-import System.Logger.Message
+import System.Logger.Message ((.=), (~~))
 
 retry :: (MonadIO m, MonadMask m, MonadLogger m) => RetryPolicyM m -> m a -> m a
 retry x = recovering x handlers . const
-
-x1 :: RetryPolicy
-x1 = limitRetries 1 <> exponentialBackoff 100000
 
 x3 :: RetryPolicy
 x3 = limitRetries 3 <> exponentialBackoff 100000

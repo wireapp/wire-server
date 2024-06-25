@@ -23,7 +23,6 @@
 
 module Stern.Intra
   ( backendApiVersion,
-    putUser,
     putUserStatus,
     getContacts,
     getUserConnections,
@@ -140,24 +139,6 @@ versionedPaths :: [ByteString] -> Request -> Request
 versionedPaths = Bilge.paths . (encodeUtf8 (toUrlPiece backendApiVersion) :)
 
 -------------------------------------------------------------------------------
-
-putUser :: UserId -> UserUpdate -> Handler ()
-putUser uid upd = do
-  info $ userMsg uid . msg "Changing user state"
-  b <- view brig
-  void $
-    catchRpcErrors $
-      rpc'
-        "brig"
-        b
-        ( method PUT
-            . versionedPath "self"
-            . header "Z-User" (toByteString' uid)
-            . header "Z-Connection" (toByteString' "")
-            . lbytes (encode upd)
-            . contentJson
-            . expect2xx
-        )
 
 putUserStatus :: AccountStatus -> UserId -> Handler ()
 putUserStatus status uid = do

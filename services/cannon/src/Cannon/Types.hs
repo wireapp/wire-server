@@ -23,13 +23,10 @@ module Cannon.Types
     applog,
     dict,
     env,
-    logger,
     Cannon,
     mapConcurrentlyCannon,
     mkEnv,
-    runCannon,
     runCannon',
-    options,
     clients,
     wsenv,
     runCannonToServant,
@@ -47,9 +44,6 @@ import Control.Lens ((^.))
 import Control.Monad.Catch
 import Data.Text.Encoding
 import Imports
-import Network.Wai
-import Network.Wai.Utilities.Request qualified as Wai
-import Network.Wai.Utilities.Server
 import Prometheus
 import Servant qualified
 import System.Logger qualified as Logger
@@ -109,17 +103,8 @@ mkEnv external o l d p g t =
   Env o l d (RequestId "N/A") $
     WS.env external (o ^. cannon . port) (encodeUtf8 $ o ^. gundeck . host) (o ^. gundeck . port) l p d g t (o ^. drainOpts)
 
-runCannon :: Env -> Cannon a -> Request -> IO a
-runCannon e c r = do
-  let rid = Wai.getRequestId defaultRequestIdHeaderName r
-      e' = e {reqId = rid}
-  runCannon' e' c
-
 runCannon' :: Env -> Cannon a -> IO a
 runCannon' e c = runReaderT (unCannon c) e
-
-options :: Cannon Opts
-options = Cannon $ asks opts
 
 clients :: Cannon (Dict Key Websocket)
 clients = Cannon $ asks dict
@@ -129,9 +114,6 @@ wsenv = Cannon $ do
   e <- asks env
   r <- asks reqId
   pure $ WS.setRequestId r e
-
-logger :: Cannon Logger
-logger = Cannon $ asks applog
 
 -- | Natural transformation from 'Cannon' to 'Handler' monad.
 -- Used to call 'Cannon' from servant.

@@ -23,7 +23,6 @@ module Bilge.RPC
     RPCException (..),
     rpc,
     rpc',
-    statusCheck,
     parseResponse,
     rpcExceptionMsg,
   )
@@ -34,7 +33,6 @@ import Bilge.Request
 import Bilge.Response
 import Control.Error hiding (err)
 import Control.Monad.Catch (MonadCatch, MonadThrow (..), try)
-import Control.Monad.Except
 import Data.Aeson (FromJSON, eitherDecode')
 import Data.CaseInsensitive (original)
 import Data.Text.Lazy (pack)
@@ -103,17 +101,6 @@ rpcExceptionMsg (RPCException sys req ex) =
   where
     headers = foldr hdr id (HTTP.requestHeaders req)
     hdr (k, v) x = x ~~ original k .= v
-
-statusCheck ::
-  (MonadError e m) =>
-  Int ->
-  (LText -> e) ->
-  Response (Maybe LByteString) ->
-  m ()
-statusCheck c f r =
-  unless (statusCode r == c) $
-    throwError $
-      f ("unexpected status code: " <> pack (show $ statusCode r))
 
 parseResponse ::
   (Exception e, MonadThrow m, FromJSON a) =>

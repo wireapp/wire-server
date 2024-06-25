@@ -26,7 +26,6 @@ module Galley.API.Action
     -- * Performing actions
     updateLocalConversation,
     updateLocalConversationUnchecked,
-    updateLocalConversationUserUnchecked,
     NoChanges (..),
     LocalConversationUpdate (..),
     notifyTypingIndicator,
@@ -791,28 +790,6 @@ updateLocalConversationUnchecked lconv qusr con action = do
     lconv
     (convBotsAndMembers conv <> extraTargets)
     action'
-
--- | Similar to 'updateLocalConversationUnchecked', but skips performing
--- user authorisation checks. This is written for use in de-federation code
--- where conversations for many users will be torn down at once and must work.
---
--- Additionally, this function doesn't make notification calls to clients.
-updateLocalConversationUserUnchecked ::
-  forall tag r.
-  ( SingI tag,
-    HasConversationActionEffects tag r,
-    Member BackendNotificationQueueAccess r,
-    Member (Error FederationError) r
-  ) =>
-  Local Conversation ->
-  Qualified UserId ->
-  ConversationAction tag ->
-  Sem r ()
-updateLocalConversationUserUnchecked lconv qusr action = do
-  let tag = sing @tag
-
-  -- perform action
-  void $ performAction tag qusr lconv action
 
 -- --------------------------------------------------------------------------------
 -- -- Utilities

@@ -25,9 +25,6 @@ module Galley.API.Error
     internalErrorWithDescription,
     internalErrorDescription,
     legalHoldServiceUnavailable,
-
-    -- * Errors thrown by wai-routing handlers
-    invalidTeamNotificationId,
   )
 where
 
@@ -101,6 +98,3 @@ badConvState cid =
 
 legalHoldServiceUnavailable :: (Show a) => a -> Wai.Error
 legalHoldServiceUnavailable e = Wai.mkError status412 "legalhold-unavailable" ("legal hold service unavailable with underlying error: " <> (LT.pack . show $ e))
-
-invalidTeamNotificationId :: Wai.Error
-invalidTeamNotificationId = Wai.mkError status400 "invalid-notification-id" "Could not parse notification id (must be UUIDv1)."

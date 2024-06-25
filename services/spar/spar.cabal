@@ -54,10 +54,8 @@ library
     Spar.Scim.User
     Spar.Sem.AReqIDStore
     Spar.Sem.AReqIDStore.Cassandra
-    Spar.Sem.AReqIDStore.Mem
     Spar.Sem.AssIDStore
     Spar.Sem.AssIDStore.Cassandra
-    Spar.Sem.AssIDStore.Mem
     Spar.Sem.BrigAccess
     Spar.Sem.BrigAccess.Http
     Spar.Sem.DefaultSsoCode
@@ -88,14 +86,12 @@ library
     Spar.Sem.ScimExternalIdStore.Spec
     Spar.Sem.ScimTokenStore
     Spar.Sem.ScimTokenStore.Cassandra
-    Spar.Sem.ScimTokenStore.Mem
     Spar.Sem.ScimUserTimesStore
     Spar.Sem.ScimUserTimesStore.Cassandra
     Spar.Sem.ScimUserTimesStore.Mem
     Spar.Sem.Utils
     Spar.Sem.VerdictFormatStore
     Spar.Sem.VerdictFormatStore.Cassandra
-    Spar.Sem.VerdictFormatStore.Mem
 
   other-modules:      Paths_spar
   hs-source-dirs:     src
@@ -405,7 +401,6 @@ executable spar-migrate-data
   other-modules:
     Paths_spar
     Spar.DataMigration.Options
-    Spar.DataMigration.RIO
     Spar.DataMigration.Run
     Spar.DataMigration.Types
     Spar.DataMigration.V2_UserV2

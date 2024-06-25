@@ -135,12 +135,6 @@ execute env = AWS.runResourceT . flip runReaderT env
 -----------------------------------------------------------------------------
 -- Internal. Most of these functions _can_ be used outside of this function
 -- but probably do not need to
-receive :: Int -> Text -> SQS.ReceiveMessage
-receive n url =
-  SQS.newReceiveMessage url
-    & set SQS.receiveMessage_waitTimeSeconds (Just 1)
-      . set SQS.receiveMessage_maxNumberOfMessages (Just n)
-      . set SQS.receiveMessage_visibilityTimeout (Just 1)
 
 deleteMessage :: (MonadReader AWS.Env m, MonadResource m) => Text -> SQS.Message -> m ()
 deleteMessage url m = do

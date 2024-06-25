@@ -17,44 +17,22 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Types
-  ( foldrOtrRecipients,
-    Accept (..),
-  )
-where
+module Galley.Types (Accept (..)) where
 
 import Data.Aeson
-import Data.Id (ClientId, UserId)
-import Data.Map.Strict qualified as Map
+import Data.Id (UserId)
 import Imports
-import Wire.API.Message
 
 --------------------------------------------------------------------------------
 -- Accept
 
 -- | Request payload for accepting a 1-1 conversation.
-newtype Accept = Accept
-  { aUser :: UserId
-  }
+newtype Accept = Accept {aUser :: UserId}
   deriving (Eq, Show, Generic)
 
 instance ToJSON Accept where
-  toJSON a =
-    object
-      [ "user" .= aUser a
-      ]
+  toJSON a = object ["user" .= aUser a]
 
 instance FromJSON Accept where
   parseJSON = withObject "accept" $ \o ->
     Accept <$> o .: "user"
-
---------------------------------------------------------------------------------
--- utility functions
-
-foldrOtrRecipients :: (UserId -> ClientId -> Text -> a -> a) -> a -> OtrRecipients -> a
-foldrOtrRecipients f a =
-  Map.foldrWithKey go a
-    . userClientMap
-    . otrRecipientsMap
-  where
-    go u cs acc = Map.foldrWithKey (f u) acc cs
