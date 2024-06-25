@@ -123,14 +123,6 @@ getUser user target = do
       joinHttpPath ["users", domain, uid]
   submit "GET" req
 
-getUserByHandle :: (HasCallStack, MakesValue user, MakesValue domain) => user -> domain -> String -> App Response
-getUserByHandle user domain handle = do
-  domainStr <- asString domain
-  req <-
-    baseRequest user Brig Versioned $
-      joinHttpPath ["users", "by-handle", domainStr, handle]
-  submit "GET" req
-
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/get_clients__client_
 getClient ::
   (HasCallStack, MakesValue user, MakesValue client) =>
@@ -475,9 +467,6 @@ getSwaggerPublicTOC = do
     rawBaseRequest OwnDomain Brig Unversioned $
       joinHttpPath ["api", "swagger-ui"]
   submit "GET" req
-
-getSwaggerInternalTOC :: (HasCallStack) => App Response
-getSwaggerInternalTOC = error "FUTUREWORK: this API end-point does not exist."
 
 getSwaggerPublicAllUI :: (HasCallStack) => Int -> App Response
 getSwaggerPublicAllUI version = do

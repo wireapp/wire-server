@@ -5,7 +5,6 @@ module Wire.Sem.Concurrency where
 import Data.Kind (Type)
 import Imports
 import Polysemy
-import Polysemy.Internal
 
 data ConcurrencySafety = Safe | Unsafe
 
@@ -105,67 +104,3 @@ unsafePooledForConcurrentlyN_ n as f =
   send
     (UnsafePooledMapConcurrentlyN_ n f as :: Concurrency 'Unsafe (Sem r) ())
 {-# INLINEABLE unsafePooledForConcurrentlyN_ #-}
-
-pooledMapConcurrentlyN ::
-  forall r' r t a b.
-  (r' ~ '[Final IO]) =>
-  (Member (Concurrency 'Safe) r, Subsume r' r, Foldable t) =>
-  -- | Max. number of threads. Should not be less than 1.
-  Int ->
-  (a -> Sem r' b) ->
-  t a ->
-  Sem r [b]
-pooledMapConcurrentlyN n f as =
-  send
-    ( UnsafePooledMapConcurrentlyN n (subsume_ @r' @r . f) as ::
-        Concurrency 'Safe (Sem r) [b]
-    )
-{-# INLINEABLE pooledMapConcurrentlyN #-}
-
-pooledMapConcurrentlyN_ ::
-  forall r' r t a b.
-  (r' ~ '[Final IO]) =>
-  (Member (Concurrency 'Safe) r, Subsume r' r, Foldable t) =>
-  -- | Max. number of threads. Should not be less than 1.
-  Int ->
-  (a -> Sem r' b) ->
-  t a ->
-  Sem r ()
-pooledMapConcurrentlyN_ n f as =
-  send
-    ( UnsafePooledMapConcurrentlyN_ n (subsume_ @r' @r . f) as ::
-        Concurrency 'Safe (Sem r) ()
-    )
-{-# INLINEABLE pooledMapConcurrentlyN_ #-}
-
-pooledForConcurrentlyN ::
-  forall r' r t a b.
-  (r' ~ '[Final IO]) =>
-  (Member (Concurrency 'Safe) r, Subsume r' r, Foldable t) =>
-  -- | Max. number of threads. Should not be less than 1.
-  Int ->
-  t a ->
-  (a -> Sem r' b) ->
-  Sem r [b]
-pooledForConcurrentlyN n as f =
-  send
-    ( UnsafePooledMapConcurrentlyN n (subsume_ @r' @r . f) as ::
-        Concurrency 'Safe (Sem r) [b]
-    )
-{-# INLINEABLE pooledForConcurrentlyN #-}
-
-pooledForConcurrentlyN_ ::
-  forall r' r t a b.
-  (r' ~ '[Final IO]) =>
-  (Member (Concurrency 'Safe) r, Subsume r' r, Foldable t) =>
-  -- | Max. number of threads. Should not be less than 1.
-  Int ->
-  t a ->
-  (a -> Sem r' b) ->
-  Sem r ()
-pooledForConcurrentlyN_ n as f =
-  send
-    ( UnsafePooledMapConcurrentlyN_ n (subsume_ @r' @r . f) as ::
-        Concurrency 'Safe (Sem r) ()
-    )
-{-# INLINEABLE pooledForConcurrentlyN_ #-}

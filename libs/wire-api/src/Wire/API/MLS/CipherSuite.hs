@@ -31,7 +31,6 @@ module Wire.API.MLS.CipherSuite
     SignatureSchemeTag (..),
     SignatureSchemeCurve,
     signatureSchemeName,
-    signatureSchemeTag,
     csSignatureScheme,
 
     -- * Key pairs
