@@ -186,7 +186,7 @@ spec:
             - name: CONFIG_DIR
               value: /secrets-tls
             - name: PROCESS_NAME
-              value: /usr/bin/turnserver
+              value: turnserver
             - name: RELOAD_SIGNAL
               value: SIGUSR2
           volumeMounts:
