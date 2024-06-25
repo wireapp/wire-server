@@ -67,7 +67,6 @@ runUserSubsystem ::
   ) =>
   UserSubsystemConfig ->
   InterpreterFor UserSubsystem r
--- TODO: can we settle for *either* this *or* interpretUserSubsystem?  they seem redundant.  (auth subsystem doesn't need run :)
 runUserSubsystem cfg = runInputConst cfg . interpretUserSubsystem . raiseUnder
 
 interpretUserSubsystem ::
