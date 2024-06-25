@@ -13,4 +13,4 @@ userSubsystemTestInterpreter initialUsers =
     GetLocalUserAccountByUserKey localUserKey -> case (tUnqualified localUserKey) of
       UserEmailKey (EmailKey _ email) -> pure $ find (\u -> userEmail u.accountUser == Just email) initialUsers
       UserPhoneKey _ -> pure Nothing -- Phone stuff is deprecated and soon to be deleted anyway
-    _ -> undefined
+    _ -> error $ "userSubsystemTestInterpreter: implement on demand"

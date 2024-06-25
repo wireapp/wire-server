@@ -4,7 +4,6 @@ import Imports
 import Polysemy
 import Polysemy.Error
 
--- TODO: unify with mini backend
 runErrorUnsafe :: (HasCallStack, Exception e) => InterpreterFor (Error e) r
 runErrorUnsafe action = do
   res <- runError action

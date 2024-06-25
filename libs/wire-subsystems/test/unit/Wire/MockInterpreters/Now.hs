@@ -6,7 +6,6 @@ import Polysemy
 import Polysemy.State
 import Wire.Sem.Now
 
--- TODO: unify with minibackend
 interpretNowConst ::
   UTCTime ->
   Sem (Now : r) a ->

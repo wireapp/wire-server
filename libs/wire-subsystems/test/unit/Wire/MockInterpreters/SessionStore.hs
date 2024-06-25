@@ -8,7 +8,6 @@ import Polysemy.State
 import Wire.API.User.Auth
 import Wire.SessionStore
 
--- TODO: unify with minibackend
 inMemorySessionStoreInterpreter :: (Member (State (Map UserId [Cookie ()])) r) => InterpreterFor SessionStore r
 inMemorySessionStoreInterpreter = interpret $ \case
   InsertCookie uid cookie _ttl -> modify $ Map.insertWith (<>) uid [cookie]
