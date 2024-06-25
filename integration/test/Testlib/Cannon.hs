@@ -61,6 +61,7 @@ import Data.Function
 import Data.Maybe
 import Data.Traversable
 import Data.Word
+import GHC.Records
 import GHC.Stack
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Client as Http
@@ -78,10 +79,21 @@ import UnliftIO (withRunInIO)
 import Prelude
 
 data WebSocket = WebSocket
-  { wsChan :: TChan Value,
+  { wsConnect :: WSConnect,
+    wsChan :: TChan Value,
     wsCloseLatch :: MVar (),
     wsAppThread :: Async ()
   }
+
+instance HasField "client" WebSocket (Maybe ClientIdentity) where
+  getField ws = do
+    c <- ws.wsConnect.client
+    pure
+      ClientIdentity
+        { domain = ws.wsConnect.domain,
+          user = ws.wsConnect.user,
+          client = c
+        }
 
 -- Specifies how a Websocket at cannon should be opened
 data WSConnect = WSConnect
@@ -123,7 +135,7 @@ connect wsConnect = do
   nchan <- liftIO newTChanIO
   latch <- liftIO newEmptyMVar
   wsapp <- run wsConnect (clientApp nchan latch)
-  pure $ WebSocket nchan latch wsapp
+  pure $ WebSocket wsConnect nchan latch wsapp
 
 clientApp :: (HasCallStack) => TChan Value -> MVar () -> WS.ClientApp ()
 clientApp wsChan latch conn = do
