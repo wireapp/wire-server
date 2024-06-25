@@ -91,7 +91,6 @@ type AllErrors =
     Error FederationError
   ]
 
--- TODO: This probably doesn't need password reset stuff
 type MiniBackendEffects =
   [ UserSubsystem,
     GalleyAPIAccess,
