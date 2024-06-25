@@ -1076,14 +1076,11 @@ completePasswordReset ::
   Public.CompletePasswordReset ->
   (Handler r) ()
 completePasswordReset req = do
-  lift
-    ( liftSem $
-        resetPassword
-          (Public.cpwrIdent req)
-          (Public.cpwrCode req)
-          (Public.cpwrPassword req)
-    )
-    !>> pwResetError
+  lift . liftSem $
+    resetPassword
+      (Public.cpwrIdent req)
+      (Public.cpwrCode req)
+      (Public.cpwrPassword req)
 
 -- docs/reference/user/activation.md {#RefActivationRequest}
 -- docs/reference/user/registration.md {#RefRegistration}
@@ -1413,15 +1410,11 @@ deprecatedCompletePasswordReset ::
   Public.PasswordReset ->
   (Handler r) ()
 deprecatedCompletePasswordReset k pwr = do
-  lift
-    ( liftSem
-        ( resetPassword
-            (Public.PasswordResetIdentityKey k)
-            (Public.pwrCode pwr)
-            (Public.pwrPassword pwr)
-        )
-    )
-    !>> pwResetError
+  lift . liftSem $
+    resetPassword
+      (Public.PasswordResetIdentityKey k)
+      (Public.pwrCode pwr)
+      (Public.pwrPassword pwr)
 
 -- Utilities
 
