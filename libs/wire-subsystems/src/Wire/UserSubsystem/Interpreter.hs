@@ -39,7 +39,7 @@ import Wire.UserEvents
 import Wire.UserKeyStore
 import Wire.UserStore as UserStore
 import Wire.UserSubsystem
-import Wire.UserSubsystem.HandleBlacklist
+import Wire.UserSubsystem.HandleBlocklist
 
 data UserSubsystemConfig = UserSubsystemConfig
   { emailVisibilityConfig :: EmailVisibilityConfig,
@@ -414,7 +414,7 @@ updateHandleImpl ::
   Sem r ()
 updateHandleImpl (tUnqualified -> uid) mconn updateOrigin uhandle = do
   newHandle :: Handle <- note UserSubsystemInvalidHandle $ Handle.parseHandle uhandle
-  when (isBlacklistedHandle newHandle) $
+  when (isBlocklistedHandle newHandle) $
     throw UserSubsystemInvalidHandle
   user <- getUser uid >>= note UserSubsystemNoIdentity
   guardLockedHandleField user updateOrigin newHandle
@@ -427,7 +427,7 @@ updateHandleImpl (tUnqualified -> uid) mconn updateOrigin uhandle = do
 checkHandleImpl :: (Member (Error UserSubsystemError) r, Member UserStore r) => Text -> Sem r CheckHandleResp
 checkHandleImpl uhandle = do
   xhandle :: Handle <- Handle.parseHandle uhandle & maybe (throw UserSubsystemInvalidHandle) pure
-  when (isBlacklistedHandle xhandle) $
+  when (isBlocklistedHandle xhandle) $
     throw UserSubsystemInvalidHandle
   owner <- lookupHandle xhandle
   if isJust owner
@@ -454,7 +454,7 @@ checkHandlesImpl check num = reverse <$> collectFree [] check num
     collectFree free _ 0 = pure free
     collectFree free [] _ = pure free
     collectFree free (h : hs) n =
-      if isBlacklistedHandle h
+      if isBlocklistedHandle h
         then collectFree free hs n
         else do
           owner <- glimpseHandle h

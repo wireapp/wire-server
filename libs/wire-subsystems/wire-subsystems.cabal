@@ -100,7 +100,7 @@ library
     Wire.UserStore.Unique
     Wire.UserSubsystem
     Wire.UserSubsystem.Error
-    Wire.UserSubsystem.HandleBlacklist
+    Wire.UserSubsystem.HandleBlocklist
     Wire.UserSubsystem.Interpreter
 
   hs-source-dirs:   src

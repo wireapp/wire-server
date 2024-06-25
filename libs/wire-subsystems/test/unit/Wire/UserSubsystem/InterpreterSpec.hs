@@ -32,7 +32,7 @@ import Wire.MiniBackend
 import Wire.StoredUser
 import Wire.UserKeyStore
 import Wire.UserSubsystem
-import Wire.UserSubsystem.HandleBlacklist
+import Wire.UserSubsystem.HandleBlocklist
 import Wire.UserSubsystem.Interpreter (UserSubsystemConfig (..))
 
 spec :: Spec
@@ -331,7 +331,7 @@ spec = describe "UserSubsystem.Interpreter" do
     prop
       "CheckHandle succeeds if there is a user with that handle"
       \((NotPendingStoredUser alice, handle :: Handle), config) ->
-        not (isBlacklistedHandle handle) ==>
+        not (isBlocklistedHandle handle) ==>
           let localBackend = def {users = [alice {managedBy = Just ManagedByWire, handle = Just handle}]}
               checkHandleResp =
                 runNoFederationStack localBackend Nothing config $ checkHandle (fromHandle handle)
@@ -340,7 +340,7 @@ spec = describe "UserSubsystem.Interpreter" do
     prop
       "CheckHandle fails if there is no user with that handle"
       \(handle :: Handle, config) ->
-        not (isBlacklistedHandle handle) ==>
+        not (isBlocklistedHandle handle) ==>
           let localBackend = def {users = []}
               checkHandleResp =
                 runNoFederationStack localBackend Nothing config $ checkHandle (fromHandle handle)
@@ -349,7 +349,7 @@ spec = describe "UserSubsystem.Interpreter" do
     prop
       "CheckHandles returns available handles from a list of handles, up to X"
       \((storedUsersAndHandles :: [(StoredUser, Handle)], randomHandles :: Set Handle), maxCount :: Word, config) ->
-        not (any isBlacklistedHandle ((snd <$> storedUsersAndHandles) <> (S.toList randomHandles))) ==>
+        not (any isBlocklistedHandle ((snd <$> storedUsersAndHandles) <> (S.toList randomHandles))) ==>
           let users = (\(u, h) -> u {handle = Just h, managedBy = Just ManagedByWire}) <$> storedUsersAndHandles
               localBackend = def {users = users}
 
@@ -368,7 +368,7 @@ spec = describe "UserSubsystem.Interpreter" do
       prop
         "Updating handles fails when UpdateOriginWireClient"
         \(alice, newHandle :: Handle, domain, config) ->
-          not (isBlacklistedHandle newHandle) ==>
+          not (isBlocklistedHandle newHandle) ==>
             let res :: Either UserSubsystemError ()
                 res = run
                   . runErrorUnsafe
@@ -382,7 +382,7 @@ spec = describe "UserSubsystem.Interpreter" do
       prop
         "Updating handles succeeds when UpdateOriginScim"
         \(alice, ssoId, email :: Maybe Email, fromHandle -> newHandle, domain, config) ->
-          not (isBlacklistedHandle (fromJust (parseHandle newHandle))) ==>
+          not (isBlocklistedHandle (fromJust (parseHandle newHandle))) ==>
             let res :: Either UserSubsystemError () = run
                   . runErrorUnsafe
                   . runError
@@ -404,7 +404,7 @@ spec = describe "UserSubsystem.Interpreter" do
     prop
       "update valid handles succeeds"
       \(storedUser :: StoredUser, newHandle@(fromHandle -> rawNewHandle), config) ->
-        (isJust storedUser.identity && not (isBlacklistedHandle newHandle)) ==>
+        (isJust storedUser.identity && not (isBlocklistedHandle newHandle)) ==>
           let updateResult :: Either UserSubsystemError () = run
                 . runErrorUnsafe
                 . runError

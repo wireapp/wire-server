@@ -1,5 +1,5 @@
-module Wire.UserSubsystem.HandleBlacklist
-  ( isBlacklistedHandle,
+module Wire.UserSubsystem.HandleBlocklist
+  ( isBlocklistedHandle,
   )
 where
 
@@ -8,12 +8,12 @@ import Data.Handle (Handle, parseHandle)
 import Data.HashSet qualified as HashSet
 import Imports
 
--- | A blacklisted handle cannot be chosen by a (regular) user.
-isBlacklistedHandle :: Handle -> Bool
-isBlacklistedHandle = (`HashSet.member` blacklist)
+-- | A blocklisted handle cannot be chosen by a (regular) user.
+isBlocklistedHandle :: Handle -> Bool
+isBlocklistedHandle = (`HashSet.member` blocklist)
 
-blacklist :: HashSet Handle
-blacklist = assert good (HashSet.fromList (fromJust <$> parsed))
+blocklist :: HashSet Handle
+blocklist = assert good (HashSet.fromList (fromJust <$> parsed))
   where
     good = all isJust parsed
     parsed = parseHandle <$> raw
