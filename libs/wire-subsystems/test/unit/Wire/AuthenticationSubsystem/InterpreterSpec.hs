@@ -258,8 +258,21 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
                 .&&. resetPassworedWithCorectCodeResult === expectedFinalResetResult
                 .&&. verifyPasswordProp expectedFinalPassword passwordHashInDB
 
-    it "wrong user" do
-      pending
+  describe "internalLookupPasswordResetCode" do
+    prop "should find password reset code by email" $
+      \email userNoEmail newPassword ->
+        let user = userNoEmail {userIdentity = Just $ EmailIdentity email}
+            uid = User.userId user
+            localDomain = userNoEmail.userQualifiedId.qDomain
+            Right passwordHashInDB =
+              interpretDependencies localDomain [UserAccount user Active] mempty Nothing
+                . interpretAuthenticationSubsystem
+                $ do
+                  void $ createPasswordResetCode (userEmailKey email)
+                  mLookupRes <- internalLookupPasswordResetCode (userEmailKey email)
+                  for_ mLookupRes $ \(_, code) -> resetPassword (PasswordResetEmailIdentity email) code newPassword
+                  lookupHashedPassword uid
+         in verifyPasswordProp newPassword passwordHashInDB
 
 newtype Upto4 = Upto4 Int
   deriving newtype (Show, Eq)
@@ -269,7 +282,7 @@ instance Arbitrary Upto4 where
 
 verifyPasswordProp :: PlainTextPassword8 -> Maybe Password -> Property
 verifyPasswordProp plainTextPassword passwordHash =
-  counterexample ("Password doesn't match, plainText=" <> show plainTextPassword <> ", passwordHasH=" <> show passwordHash) $
+  counterexample ("Password doesn't match, plainText=" <> show plainTextPassword <> ", passwordHash=" <> show passwordHash) $
     fmap (verifyPassword plainTextPassword) passwordHash == Just True
 
 hashAndUpsertPassword :: (Member PasswordStore r, Member HashPassword r) => UserId -> PlainTextPassword8 -> Sem r ()
