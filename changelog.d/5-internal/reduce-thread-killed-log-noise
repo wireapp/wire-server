@@ -1,0 +1,1 @@
+Do not log anything when warp kills a worker thread.
