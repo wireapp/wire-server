@@ -205,7 +205,6 @@ resetPasswordImpl ident code pw = do
     verify (k, c) = do
       now <- Now.get
       passwordResetData <- codeSelect k
-      -- traceM $ "Found data: " <> show passwordResetData
       res <- case passwordResetData of
         Just (PRQueryData codeInDB u _ (Just t)) | c == codeInDB && t >= now -> pure (Just u)
         Just (PRQueryData codeInDB u (Just n) (Just t)) | n > 1 && t > now -> do
@@ -216,6 +215,4 @@ resetPasswordImpl ident code pw = do
           pure Nothing
         Just PRQueryData {} -> codeDelete k $> Nothing
         Nothing -> pure Nothing
-      -- passwordResetData' <- codeSelect k
-      -- traceM $ "Found data, after: " <> show passwordResetData'
       pure res
