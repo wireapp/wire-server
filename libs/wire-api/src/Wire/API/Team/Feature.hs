@@ -39,7 +39,6 @@ module Wire.API.Team.Feature
     setTTL,
     setWsTTL,
     WithStatusPatch,
-    wsPatch,
     wspStatus,
     wspLockStatus,
     wspConfig,
@@ -53,7 +52,6 @@ module Wire.API.Team.Feature
     FeatureTTL' (..),
     FeatureTTLUnit (..),
     convertFeatureTTLDaysToSeconds,
-    convertFeatureTTLSecondsToDays,
     EnforceAppLock (..),
     defFeatureStatusNoLock,
     computeFeatureConfigForTeamUser,
@@ -319,9 +317,6 @@ deriving via (Schema (WithStatusPatch cfg)) instance (ToSchema (WithStatusPatch 
 
 deriving via (Schema (WithStatusPatch cfg)) instance (ToSchema (WithStatusPatch cfg), Typeable cfg) => S.ToSchema (WithStatusPatch cfg)
 
-wsPatch :: Maybe FeatureStatus -> Maybe LockStatus -> Maybe cfg -> Maybe FeatureTTL -> WithStatusPatch cfg
-wsPatch = WithStatusBase
-
 wspStatus :: WithStatusPatch cfg -> Maybe FeatureStatus
 wspStatus = wsbStatus
 
@@ -420,10 +415,6 @@ type FeatureTTLDays = FeatureTTL' 'FeatureTTLUnitDays
 convertFeatureTTLDaysToSeconds :: FeatureTTLDays -> FeatureTTL
 convertFeatureTTLDaysToSeconds FeatureTTLUnlimited = FeatureTTLUnlimited
 convertFeatureTTLDaysToSeconds (FeatureTTLSeconds d) = FeatureTTLSeconds (d * (60 * 60 * 24))
-
-convertFeatureTTLSecondsToDays :: FeatureTTL -> FeatureTTLDays
-convertFeatureTTLSecondsToDays FeatureTTLUnlimited = FeatureTTLUnlimited
-convertFeatureTTLSecondsToDays (FeatureTTLSeconds d) = FeatureTTLSeconds (d `div` (60 * 60 * 24))
 
 instance Arbitrary FeatureTTL where
   arbitrary =

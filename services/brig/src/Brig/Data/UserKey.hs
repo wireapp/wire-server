@@ -24,7 +24,6 @@ module Brig.Data.UserKey
     forPhoneKey,
     foldKey,
     keyText,
-    keyTextOriginal,
     claimKey,
     keyAvailable,
     lookupKey,
@@ -34,12 +33,11 @@ module Brig.Data.UserKey
 where
 
 import Brig.Data.User qualified as User
-import Brig.Email
-import Brig.Phone
+import Brig.Email (Email, EmailKey (..), mkEmailKey)
+import Brig.Phone (Phone, PhoneKey (..), mkPhoneKey)
 import Cassandra
-import Data.Id
+import Data.Id (UserId)
 import Imports
-import Wire.API.User (fromEmail)
 
 -- | A natural identifier (i.e. unique key) of a user.
 data UserKey
@@ -68,12 +66,6 @@ forPhoneKey k f = foldKey (const (pure Nothing)) (fmap Just . f) k
 keyText :: UserKey -> Text
 keyText (UserEmailKey k) = emailKeyUniq k
 keyText (UserPhoneKey k) = phoneKeyUniq k
-
--- | Get the original text of a 'UserKey', i.e. the original phone number
--- or email address.
-keyTextOriginal :: UserKey -> Text
-keyTextOriginal (UserEmailKey k) = fromEmail (emailKeyOrig k)
-keyTextOriginal (UserPhoneKey k) = fromPhone (phoneKeyOrig k)
 
 -- | Claim a 'UserKey' for a user.
 claimKey ::

@@ -23,17 +23,15 @@ module Network.Wai.Utilities.Error
     ErrorData (..),
     mkError,
     (!>>),
-    byteStringError,
   )
 where
 
 import Control.Error
 import Data.Aeson hiding (Error)
 import Data.Aeson.Types (Pair)
-import Data.Domain
-import Data.Text.Lazy.Encoding (decodeUtf8)
+import Data.Domain (Domain)
 import Imports
-import Network.HTTP.Types
+import Network.HTTP.Types (Status (statusCode))
 
 data Error = Error
   { code :: !Status,
@@ -68,10 +66,6 @@ instance FromJSON ErrorData where
     FederationErrorData
       <$> o .: "domain"
       <*> o .: "path"
-
--- | Assumes UTF-8 encoding.
-byteStringError :: Status -> LByteString -> LByteString -> Error
-byteStringError s l m = mkError s (decodeUtf8 l) (decodeUtf8 m)
 
 instance ToJSON Error where
   toJSON (Error c l m md inner) =

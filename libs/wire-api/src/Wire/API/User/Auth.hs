@@ -24,7 +24,6 @@ module Wire.API.User.Auth
     Login (..),
     PasswordLoginData (..),
     SmsLoginData (..),
-    loginLabel,
     LoginCode (..),
     LoginId (..),
     PendingLoginCode (..),
@@ -369,10 +368,6 @@ deriving via Schema Login instance FromJSON Login
 deriving via Schema Login instance ToJSON Login
 
 deriving via Schema Login instance S.ToSchema Login
-
-loginLabel :: Login -> Maybe CookieLabel
-loginLabel (PasswordLogin pl) = plLabel pl
-loginLabel (SmsLogin sl) = slLabel sl
 
 --------------------------------------------------------------------------------
 -- RemoveCookies

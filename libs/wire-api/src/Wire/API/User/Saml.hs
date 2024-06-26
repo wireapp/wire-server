@@ -24,7 +24,6 @@
 -- for them.
 module Wire.API.User.Saml where
 
-import Control.Lens (makeLenses)
 import Control.Monad.Except
 import Data.Aeson hiding (fieldLabelModifier)
 import Data.Aeson.TH hiding (fieldLabelModifier)
@@ -61,8 +60,6 @@ data VerdictFormat
   = VerdictFormatWeb
   | VerdictFormatMobile {_formatGrantedURI :: URI, _formatDeniedURI :: URI}
   deriving (Eq, Show, Generic)
-
-makeLenses ''VerdictFormat
 
 deriveJSON deriveJSONOptions ''VerdictFormat
 

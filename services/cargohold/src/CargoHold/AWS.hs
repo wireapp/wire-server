@@ -32,7 +32,6 @@ module CargoHold.AWS
     amazonkaDownloadEndpoint,
 
     -- * AWS
-    send,
     sendCatch,
     exec,
     execStream,
@@ -163,16 +162,6 @@ sendCatch ::
   r ->
   m (Either AWS.Error (AWSResponse r))
 sendCatch env = AWS.trying AWS._Error . AWS.send env
-
-send ::
-  (AWSRequest r, Typeable r, Typeable (AWSResponse r)) =>
-  AWS.Env ->
-  r ->
-  Amazon (AWSResponse r)
-send env r = throwA =<< sendCatch env r
-
-throwA :: Either AWS.Error a -> Amazon a
-throwA = either (throwM . GeneralError) pure
 
 exec ::
   ( AWSRequest r,

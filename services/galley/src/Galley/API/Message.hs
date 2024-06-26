@@ -225,7 +225,7 @@ getRemoteClients remoteMembers =
   -- concatenating maps is correct here, because their sets of keys are disjoint
   -- Use runFederatedConcurrentlyEither so we can catch federation errors and report to clients
   -- which domains and users aren't contactable at the moment.
-  tUnqualified <$$$> runFederatedConcurrentlyEither (map rmId remoteMembers) getRemoteClientsFromDomain
+  fmap tUnqualified <$$> runFederatedConcurrentlyEither (map rmId remoteMembers) getRemoteClientsFromDomain
   where
     getRemoteClientsFromDomain :: Remote [UserId] -> FederatorClient 'Brig (Map (Domain, UserId) (Set ClientId))
     getRemoteClientsFromDomain (tUntagged -> Qualified uids domain) =

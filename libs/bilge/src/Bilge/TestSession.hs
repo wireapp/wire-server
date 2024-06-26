@@ -40,6 +40,3 @@ liftSession session = SessionT $ do
   let resultInState = runReaderT session app
   let resultInIO = ST.evalStateT resultInState clientState
   liftIO resultInIO
-
-runSessionT :: (Monad m) => SessionT m a -> Wai.Application -> m a
-runSessionT session app = ST.evalStateT (runReaderT (unSessionT session) app) WaiTest.initState

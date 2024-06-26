@@ -74,7 +74,6 @@ library
     Wire.API.Bot.Service
     Wire.API.Call.Config
     Wire.API.Connection
-    Wire.API.ConverProtoLens
     Wire.API.Conversation
     Wire.API.Conversation.Action
     Wire.API.Conversation.Action.Tag
@@ -162,7 +161,6 @@ library
     Wire.API.Routes.Internal.Galley.ConversationsIntra
     Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti
     Wire.API.Routes.Internal.Galley.TeamsIntra
-    Wire.API.Routes.Internal.LegalHold
     Wire.API.Routes.Internal.Spar
     Wire.API.Routes.LowLevelStream
     Wire.API.Routes.MultiTablePaging

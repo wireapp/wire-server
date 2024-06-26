@@ -74,9 +74,7 @@ import Wire.API.Team.Member
 import Wire.API.Team.Permission
 
 -- This is the cassandra timestamp of writetime(binding)
-newtype TeamCreationTime = TeamCreationTime
-  { _tcTime :: Int64
-  }
+newtype TeamCreationTime = TeamCreationTime {_tcTime :: Int64}
 
 data FeatureFlags = FeatureFlags
   { _flagSSO :: !FeatureSSO,

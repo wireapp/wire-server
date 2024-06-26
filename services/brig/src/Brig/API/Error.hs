@@ -44,15 +44,8 @@ errorLabel :: Error -> LText
 errorLabel (StdError e) = Wai.label e
 errorLabel (RichError e _ _) = Wai.label e
 
-errorStatus :: Error -> Status
-errorStatus (StdError e) = Wai.code e
-errorStatus (RichError e _ _) = Wai.code e
-
 throwStd :: (MonadError Error m) => Wai.Error -> m a
 throwStd = throwError . StdError
-
-throwRich :: (MonadError Error m, ToJSON x) => Wai.Error -> x -> [Header] -> m a
-throwRich e x h = throwError (RichError e x h)
 
 instance ToJSON Error where
   toJSON (StdError e) = toJSON e
@@ -109,12 +102,6 @@ changeEmailError (InvalidNewEmail _ _) = StdError (errorToWai @'E.InvalidEmail)
 changeEmailError (EmailExists _) = StdError (errorToWai @'E.UserKeyExists)
 changeEmailError (ChangeBlacklistedEmail _) = StdError blacklistedEmail
 changeEmailError EmailManagedByScim = StdError $ propertyManagedByScim "email"
-
-changeHandleError :: ChangeHandleError -> Error
-changeHandleError ChangeHandleNoIdentity = StdError (errorToWai @'E.NoIdentity)
-changeHandleError ChangeHandleExists = StdError (errorToWai @'E.HandleExists)
-changeHandleError ChangeHandleInvalid = StdError (errorToWai @'E.InvalidHandle)
-changeHandleError ChangeHandleManagedByScim = StdError (errorToWai @'E.HandleManagedByScim)
 
 legalHoldLoginError :: LegalHoldLoginError -> Error
 legalHoldLoginError LegalHoldLoginNoBindingTeam = StdError noBindingTeam
@@ -268,10 +255,6 @@ phoneError PhoneNumberUnreachable = StdError (errorToWai @'E.InvalidPhone)
 phoneError PhoneNumberBarred = StdError (errorToWai @'E.BlacklistedPhone)
 phoneError (PhoneBudgetExhausted t) = RichError phoneBudgetExhausted (PhoneBudgetTimeout t) []
 
-updateProfileError :: UpdateProfileError -> Error
-updateProfileError DisplayNameManagedByScim = StdError (propertyManagedByScim "name")
-updateProfileError ProfileNotFound = StdError (errorToWai @'E.UserNotFound)
-
 verificationCodeThrottledError :: VerificationCodeThrottledError -> Error
 verificationCodeThrottledError (VerificationCodeThrottled t) =
   RichError
@@ -302,9 +285,6 @@ phoneExists = Wai.mkError status409 "phone-exists" "The given phone number is in
 badRequest :: LText -> Wai.Error
 badRequest = Wai.mkError status400 "bad-request"
 
-loginCodePending :: Wai.Error
-loginCodePending = Wai.mkError status403 "pending-login" "A login code is still pending."
-
 loginCodeNotFound :: Wai.Error
 loginCodeNotFound = Wai.mkError status404 "no-pending-login" "No login code was found."
 
@@ -316,12 +296,6 @@ invalidAccountStatus = Wai.mkError status400 "invalid-status" "The specified acc
 
 activationKeyNotFound :: Wai.Error
 activationKeyNotFound = notFound "Activation key not found."
-
-invalidActivationCode :: LText -> Wai.Error
-invalidActivationCode = Wai.mkError status404 "invalid-code"
-
-activationCodeNotFound :: Wai.Error
-activationCodeNotFound = invalidActivationCode "Activation key/code not found or invalid."
 
 deletionCodePending :: Wai.Error
 deletionCodePending = Wai.mkError status403 "pending-delete" "A verification code for account deletion is still pending."
@@ -337,13 +311,6 @@ blacklistedEmail =
     "The given e-mail address has been blacklisted due to a permanent bounce \
     \or a complaint."
 
-passwordExists :: Wai.Error
-passwordExists =
-  Wai.mkError
-    status403
-    "password-exists"
-    "The operation is not permitted because the user has a password set."
-
 phoneBudgetExhausted :: Wai.Error
 phoneBudgetExhausted =
   Wai.mkError
@@ -357,17 +324,11 @@ phoneBudgetExhausted =
 authMissingCookie :: Wai.Error
 authMissingCookie = Wai.mkError status403 "invalid-credentials" "Missing cookie"
 
-authInvalidCookie :: Wai.Error
-authInvalidCookie = Wai.mkError status403 "invalid-credentials" "Invalid cookie"
-
 authMissingToken :: Wai.Error
 authMissingToken = Wai.mkError status403 "invalid-credentials" "Missing token"
 
 authMissingCookieAndToken :: Wai.Error
 authMissingCookieAndToken = Wai.mkError status403 "invalid-credentials" "Missing cookie and token"
-
-invalidAccessToken :: Wai.Error
-invalidAccessToken = Wai.mkError status403 "invalid-credentials" "Invalid access token"
 
 missingAccessToken :: Wai.Error
 missingAccessToken = Wai.mkError status403 "invalid-credentials" "Missing access token"

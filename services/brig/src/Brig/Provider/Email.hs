@@ -19,7 +19,6 @@
 
 module Brig.Provider.Email
   ( sendActivationMail,
-    sendApprovalRequestMail,
     sendApprovalConfirmMail,
     sendPasswordResetMail,
   )
@@ -30,16 +29,13 @@ import Brig.Email
 import Brig.Provider.Template
 import Brig.Template
 import Control.Lens (view)
-import Data.ByteString.Conversion
 import Data.Code qualified as Code
-import Data.Range
+import Data.Range (fromRange)
 import Data.Text (pack)
 import Data.Text.Ascii qualified as Ascii
-import Data.Text.Encoding qualified as Text
 import Data.Text.Lazy qualified as LT
 import Imports
-import Wire.API.Provider
-import Wire.API.User
+import Wire.API.User (Name (fromName), fromEmail)
 
 -------------------------------------------------------------------------------
 -- Activation Email
@@ -87,57 +83,6 @@ renderActivationMail ActivationEmail {..} ActivationEmailTemplate {..} branding 
 
 renderActivationUrl :: Template -> Code.Key -> Code.Value -> TemplateBranding -> Text
 renderActivationUrl t (Code.Key k) (Code.Value v) branding =
-  LT.toStrict $ renderTextWithBranding t replace branding
-  where
-    replace "key" = Ascii.toText (fromRange k)
-    replace "code" = Ascii.toText (fromRange v)
-    replace x = x
-
---------------------------------------------------------------------------------
--- Approval Request Email
-
-sendApprovalRequestMail :: Name -> Email -> HttpsUrl -> Text -> Code.Key -> Code.Value -> (AppT r) ()
-sendApprovalRequestMail name email url descr key val = do
-  tpl <- approvalRequestEmail . snd <$> providerTemplates Nothing
-  branding <- view templateBranding
-  let mail = ApprovalRequestEmail email name url descr key val
-  sendMail $ renderApprovalRequestMail mail tpl branding
-
-data ApprovalRequestEmail = ApprovalRequestEmail
-  { aprTo :: !Email,
-    aprName :: !Name,
-    aprUrl :: !HttpsUrl,
-    aprDescr :: !Text,
-    aprKey :: !Code.Key,
-    aprCode :: !Code.Value
-  }
-
-renderApprovalRequestMail :: ApprovalRequestEmail -> ApprovalRequestEmailTemplate -> TemplateBranding -> Mail
-renderApprovalRequestMail ApprovalRequestEmail {..} ApprovalRequestEmailTemplate {..} branding =
-  (emptyMail from)
-    { mailTo = [to],
-      mailHeaders =
-        [ ("Subject", LT.toStrict subj),
-          ("X-Zeta-Purpose", "ProviderApprovalRequest")
-        ],
-      mailParts = [[plainPart txt, htmlPart html]]
-    }
-  where
-    from = Address (Just approvalRequestEmailSenderName) (fromEmail approvalRequestEmailSender)
-    to = Address (Just "Provider Approval Staff") (fromEmail approvalRequestEmailTo)
-    txt = renderTextWithBranding approvalRequestEmailBodyText replace branding
-    html = renderHtmlWithBranding approvalRequestEmailBodyHtml replace branding
-    subj = renderTextWithBranding approvalRequestEmailSubject replace branding
-    replace "email" = fromEmail aprTo
-    replace "name" = fromName aprName
-    replace "url" = Text.decodeUtf8 (toByteString' aprUrl)
-    replace "description" = aprDescr
-    replace "approvalUrl" = renderApprovalUrl approvalRequestEmailUrl aprKey aprCode branding
-    replace x = x
-
--- TODO: Unify with renderActivationUrl
-renderApprovalUrl :: Template -> Code.Key -> Code.Value -> TemplateBranding -> Text
-renderApprovalUrl t (Code.Key k) (Code.Value v) branding =
   LT.toStrict $ renderTextWithBranding t replace branding
   where
     replace "key" = Ascii.toText (fromRange k)

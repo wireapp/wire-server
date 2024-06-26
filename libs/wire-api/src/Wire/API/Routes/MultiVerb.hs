@@ -544,9 +544,6 @@ instance (ResponseType r ~ a) => AsUnion '[r] a where
   toUnion = Z . I
   fromUnion = unI . unZ
 
-_foo :: Union '[Int]
-_foo = toUnion @'[Respond 200 "test" Int] @Int 3
-
 class InjectAfter as bs where
   injectAfter :: Union bs -> Union (as .++ bs)
 

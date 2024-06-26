@@ -15,19 +15,9 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Federator.Error
-  ( AsWai (..),
-    errorResponse,
-  )
-where
+module Federator.Error (AsWai (..)) where
 
-import Data.Aeson qualified as A
-import Network.HTTP.Types.Header
-import Network.Wai qualified as Wai
 import Network.Wai.Utilities.Error qualified as Wai
 
 class AsWai e where
   toWai :: e -> Wai.Error
-
-errorResponse :: [Header] -> Wai.Error -> Wai.Response
-errorResponse hdrs e = Wai.responseLBS (Wai.code e) hdrs (A.encode e)

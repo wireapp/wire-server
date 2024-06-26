@@ -39,7 +39,6 @@ module Data.ZAuth.Creation
     legalHoldUserToken,
 
     -- * Generic
-    withIndex,
     newToken,
     renewToken,
   )
@@ -89,13 +88,6 @@ runCreate z k m = do
   when (k < 1 || k > Vec.length (zSign z)) $
     error "runCreate: Key index out of range."
   runReaderT (zauth m) (z {keyIdx = k})
-
-withIndex :: Int -> Create a -> Create a
-withIndex k m = Create $ do
-  e <- ask
-  when (k < 1 || k > Vec.length (zSign e)) $
-    error "withIndex: Key index out of range."
-  local (const (e {keyIdx = k})) (zauth m)
 
 userToken :: Integer -> UUID -> Maybe Text -> Word32 -> Create (Token User)
 userToken dur usr cli rnd = do
