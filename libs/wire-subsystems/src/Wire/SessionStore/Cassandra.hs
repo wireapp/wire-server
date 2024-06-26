@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -fno-warn-orphans #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -109,27 +107,3 @@ deleteAllCookiesImpl u = retry x5 (write cql (params LocalQuorum (Identity u)))
   where
     cql :: PrepQuery W (Identity UserId) ()
     cql = "DELETE FROM user_cookies WHERE user = ?"
-
---------------------------------------------------------------------------------
--- CQL Instances
-
-deriving instance Cql CookieLabel
-
-deriving instance Cql LoginCode
-
-instance Cql CookieId where
-  ctype = Tagged BigIntColumn
-  toCql = CqlBigInt . fromIntegral . cookieIdNum
-
-  fromCql (CqlBigInt i) = pure (CookieId (fromIntegral i))
-  fromCql _ = Left "fromCql: invalid cookie id"
-
-instance Cql CookieType where
-  ctype = Tagged IntColumn
-
-  toCql SessionCookie = CqlInt 0
-  toCql PersistentCookie = CqlInt 1
-
-  fromCql (CqlInt 0) = pure SessionCookie
-  fromCql (CqlInt 1) = pure PersistentCookie
-  fromCql _ = Left "fromCql: invalid cookie type"
