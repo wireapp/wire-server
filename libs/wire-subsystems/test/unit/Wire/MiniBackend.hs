@@ -350,9 +350,9 @@ interpretMaybeFederationStackState maybeFederationAPIAccess localBackend teamMem
     . miniEventInterpreter
     . inMemoryDeleteQueueInterpreter
     . liftUserKeyStoreState
-    . staticUserKeyStoreInterpreter
+    . inMemoryUserKeyStoreInterpreter
     . liftUserStoreState
-    . staticUserStoreInterpreter
+    . inMemoryUserStoreInterpreter
     . miniGalleyAPIAccess teamMember galleyConfigs
     . runUserSubsystem cfg
 

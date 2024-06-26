@@ -11,11 +11,11 @@ import Wire.API.User qualified as User
 import Wire.StoredUser
 import Wire.UserStore
 
-staticUserStoreInterpreter ::
+inMemoryUserStoreInterpreter ::
   forall r.
   (Member (State [StoredUser]) r) =>
   InterpreterFor UserStore r
-staticUserStoreInterpreter = interpret $ \case
+inMemoryUserStoreInterpreter = interpret $ \case
   GetUser uid -> gets $ find (\user -> user.id == uid)
   UpdateUser uid update -> modify (map doUpdate)
     where
