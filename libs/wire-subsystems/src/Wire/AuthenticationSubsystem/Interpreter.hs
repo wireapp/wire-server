@@ -205,7 +205,7 @@ resetPasswordImpl ident code pw = do
     verify (k, c) = do
       now <- Now.get
       passwordResetData <- codeSelect k
-      res <- case passwordResetData of
+      case passwordResetData of
         Just (PRQueryData codeInDB u _ (Just t)) | c == codeInDB && t >= now -> pure (Just u)
         Just (PRQueryData codeInDB u (Just n) (Just t)) | n > 1 && t > now -> do
           -- If we only update retries, there is a chance that this races with
@@ -215,4 +215,3 @@ resetPasswordImpl ident code pw = do
           pure Nothing
         Just PRQueryData {} -> codeDelete k $> Nothing
         Nothing -> pure Nothing
-      pure res
