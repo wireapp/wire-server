@@ -387,6 +387,4 @@ miniFederationAPIAccess online = do
       if isJust (M.lookup (qDomain $ tUntagged remote) online)
         then FI.runFederatedEither runner remote rpc
         else pure $ Left do FederationUnexpectedError "RunFederatedEither"
-    RunFederatedConcurrently _remotes _rpc -> error "unimplemented: RunFederatedConcurrently"
-    RunFederatedBucketed _domain _rpc -> error "unimplemented: RunFederatedBucketed"
     IsFederationConfigured -> pure True
