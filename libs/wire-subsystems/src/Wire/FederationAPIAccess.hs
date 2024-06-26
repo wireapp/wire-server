@@ -16,20 +16,6 @@ data FederationAPIAccess (fedM :: Component -> Type -> Type) m a where
     Remote x ->
     fedM c a ->
     FederationAPIAccess fedM m (Either FederationError a)
-  RunFederatedConcurrently ::
-    forall (c :: Component) f a m x fedM.
-    (KnownComponent c, Foldable f) =>
-    f (Remote x) ->
-    (Remote x -> fedM c a) ->
-    FederationAPIAccess fedM m [Either (Remote x, FederationError) (Remote a)]
-  -- | An action similar to 'RunFederatedConcurrently', but the input is
-  -- bucketed by domain before the RPCs are sent to the remote backends.
-  RunFederatedBucketed ::
-    forall (c :: Component) f a m x fedM.
-    (KnownComponent c, Foldable f, Functor f) =>
-    f (Remote x) ->
-    (Remote [x] -> fedM c a) ->
-    FederationAPIAccess fedM m [Either (Remote [x], FederationError) (Remote a)]
   IsFederationConfigured :: FederationAPIAccess fedM m Bool
 
 makeSem ''FederationAPIAccess

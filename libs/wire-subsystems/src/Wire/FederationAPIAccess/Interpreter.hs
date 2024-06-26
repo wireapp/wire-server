@@ -55,8 +55,6 @@ interpretFederationAPIAccessGeneral runFedM isFederationConfigured =
   interpret $
     \case
       RunFederatedEither remote rpc -> runFederatedEither runFedM remote rpc
-      RunFederatedConcurrently remotes rpc -> runFederatedConcurrently runFedM remotes rpc
-      RunFederatedBucketed remotes rpc -> runFederatedBucketed runFedM remotes rpc
       IsFederationConfigured -> isFederationConfigured
 
 runFederatedEither ::
