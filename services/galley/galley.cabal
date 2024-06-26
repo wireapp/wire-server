@@ -371,7 +371,7 @@ executable galley
   other-modules: Paths_galley
   ghc-options:
     -threaded -with-rtsopts=-T -with-rtsopts=-p -with-rtsopts=-l
-    -with-rtsopts=-pj -with-rtsopts=-h -rtsopts
+    -with-rtsopts=-pj -with-rtsopts=-hT -rtsopts
 
   build-depends:
     , base
