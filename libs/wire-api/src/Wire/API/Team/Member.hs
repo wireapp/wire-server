@@ -28,7 +28,6 @@ module Wire.API.Team.Member
     invitation,
     legalHoldStatus,
     ntmNewTeamMember,
-    teamMemberJson,
     setOptionalPerms,
     setOptionalPermsMany,
     teamMemberObjectSchema,
@@ -425,9 +424,6 @@ permissions = newTeamMember . nPermissions
 
 invitation :: Lens' TeamMember (Maybe (UserId, UTCTimeMillis))
 invitation = newTeamMember . nInvitation
-
-teamMemberJson :: (TeamMember -> Bool) -> TeamMember -> Value
-teamMemberJson withPerms = toJSON . setOptionalPerms withPerms
 
 setOptionalPerms :: (TeamMember -> Bool) -> TeamMember -> TeamMember' 'Optional
 setOptionalPerms withPerms m = m & permissions %~ setPerm (withPerms m)

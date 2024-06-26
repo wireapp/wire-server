@@ -757,17 +757,6 @@ createApplicationMessage cid messageContent = do
 setMLSCiphersuite :: Ciphersuite -> App ()
 setMLSCiphersuite suite = modifyMLSState $ \mls -> mls {ciphersuite = suite}
 
-withCiphersuite :: (HasCallStack) => Ciphersuite -> App a -> App a
-withCiphersuite suite action = do
-  suite0 <- (.ciphersuite) <$> getMLSState
-  setMLSCiphersuiteIO <- appToIOKleisli setMLSCiphersuite
-  actionIO <- appToIO action
-  liftIO $
-    bracket
-      (setMLSCiphersuiteIO suite)
-      (const (setMLSCiphersuiteIO suite0))
-      (const actionIO)
-
 leaveCurrentConv ::
   (HasCallStack) =>
   ClientIdentity ->

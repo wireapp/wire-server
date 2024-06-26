@@ -17,11 +17,7 @@
 
 module Test.Wire.API.Federation.Golden.MLSMessageSendingStatus where
 
-import Data.Domain
-import Data.Id
 import Data.Json.Util
-import Data.Qualified
-import Data.UUID qualified as UUID
 import Imports
 import Wire.API.MLS.Message
 
@@ -45,16 +41,3 @@ testObject_MLSMessageSendingStatus3 =
     { mmssEvents = [],
       mmssTime = toUTCTimeMillis (read "1999-04-12 12:22:43.673 UTC")
     }
-
-failed1 :: [Qualified UserId]
-failed1 =
-  let domain = Domain "offline.example.com"
-   in [Qualified (Id . fromJust . UUID.fromString $ "00000000-0000-0000-0000-000200000008") domain]
-
-failed2 :: [Qualified UserId]
-failed2 =
-  let domain = Domain "golden.example.com"
-   in flip Qualified domain . Id . fromJust . UUID.fromString
-        <$> [ "00000000-0000-0000-0000-000200000008",
-              "00000000-0000-0000-0000-000100000007"
-            ]
