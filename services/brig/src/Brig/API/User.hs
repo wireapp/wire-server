@@ -53,7 +53,7 @@ module Brig.API.User
     ensureAccountDeleted,
     deleteAccount,
     checkHandles,
-    isBlacklistedHandle,
+    isBlocklistedHandle,
     Data.reauthenticate,
 
     -- * Activation
@@ -168,7 +168,7 @@ import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserKeyStore
 import Wire.UserStore
 import Wire.UserSubsystem as User
-import Wire.UserSubsystem.HandleBlacklist
+import Wire.UserSubsystem.HandleBlocklist
 
 -------------------------------------------------------------------------------
 -- Create User
