@@ -142,7 +142,7 @@ runBrigToIO e (AppT ma) = do
               . interpretRace
               . embedToFinal
               . runEmbedded (runHttpClientIO e)
-              . loggerToTinyLog (e ^. applog)
+              . loggerToTinyLogReqId (e ^. App.requestId) (e ^. applog)
               . runError @SomeException
               . mapError @ErrorCall SomeException
               . mapError @ParseException SomeException
