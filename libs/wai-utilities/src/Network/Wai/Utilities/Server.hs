@@ -243,7 +243,7 @@ errorHandlers =
   -- prevent us from logging the error cleanly later
   [ Handler $ \(x :: JSONResponse) -> pure (Right x),
     Handler $ \(x :: Wai.Error) -> pure (Left x),
-    -- warp throws 'ThreadKilled' when the client is gone or when it thinks its
+    -- warp throws 'ThreadKilled' when the client is gone or when it thinks it's
     -- time to reap the worker thread. Here, there is no point trying to respond
     -- nicely and there is no point logging this as it happens regularly when a
     -- client just closes a long running connection without consuming the whole
