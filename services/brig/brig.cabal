@@ -366,8 +366,9 @@ executable brig
   other-modules: Paths_brig
   ghc-options:
     -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T
-    -with-rtsopts=-p -with-rtsopts=-l -with-rtsopts=-pj -with-rtsopts=-hT
-    -rtsopts -Wredundant-constraints -Wunused-packages
+    -with-rtsopts=-p -with-rtsopts=-l -with-rtsopts=-pj
+    -with-rtsopts=-hT -rtsopts -Wredundant-constraints
+    -Wunused-packages
 
   build-depends:
     , base
