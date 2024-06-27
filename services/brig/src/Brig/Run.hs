@@ -126,6 +126,7 @@ logSlowRequests lgr app req responder = do
         . field "method" (Wai.requestMethod req)
         . field "path" (T.intercalate "/" (Wai.pathInfo req))
         . field "request" (getRequestId defaultRequestIdHeaderName req)
+        . field "duration" (show duration)
   pure res
 
 mkApp :: Opts -> IO (Wai.Application, Env)
