@@ -22,6 +22,7 @@ module Wire.API.Password
   ( Password,
     PasswordStatus (..),
     genPassword,
+    mkSafePasswordScrypt,
     mkSafePasswordArgon2id,
     verifyPassword,
     verifyPasswordWithStatus,
@@ -91,6 +92,16 @@ data ScryptParameters = ScryptParameters
   }
   deriving (Eq, Show)
 
+defaultScryptParams :: ScryptParameters
+defaultScryptParams =
+  ScryptParameters
+    { saltLength = 32,
+      rounds = 14,
+      blockSize = 8,
+      parallelism = 1,
+      outputLength = 64
+    }
+
 -- | These are the default values suggested, as extracted from the crypton library.
 defaultOptions :: Argon2idOptions
 defaultOptions =
@@ -120,6 +131,9 @@ genPassword =
   liftIO . fmap (plainTextPassword8Unsafe . Text.decodeUtf8 . B64.encode) $
     randBytes 12
 
+mkSafePasswordScrypt :: (MonadIO m) => PlainTextPassword' t -> m Password
+mkSafePasswordScrypt = fmap Password . hashPasswordScrypt . Text.encodeUtf8 . fromPlainTextPassword
+
 mkSafePasswordArgon2id :: (MonadIO m) => PlainTextPassword' t -> m Password
 mkSafePasswordArgon2id = fmap Password . hashPasswordArgon2id . Text.encodeUtf8 . fromPlainTextPassword
 
@@ -133,6 +147,20 @@ verifyPasswordWithStatus plain opaque =
   let actual = fromPlainTextPassword plain
       expected = fromPassword opaque
    in checkPassword actual expected
+
+hashPasswordScrypt :: (MonadIO m) => ByteString -> m Text
+hashPasswordScrypt password = do
+  salt <- newSalt $ fromIntegral defaultScryptParams.saltLength
+  let key = hashPasswordWithParams defaultScryptParams password salt
+  pure $
+    Text.intercalate
+      "|"
+      [ showT defaultScryptParams.rounds,
+        showT defaultScryptParams.blockSize,
+        showT defaultScryptParams.parallelism,
+        Text.decodeUtf8 . B64.encode $ salt,
+        Text.decodeUtf8 . B64.encode $ key
+      ]
 
 hashPasswordArgon2id :: (MonadIO m) => ByteString -> m Text
 hashPasswordArgon2id pwd = do

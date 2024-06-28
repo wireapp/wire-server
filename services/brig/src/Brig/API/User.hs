@@ -1042,7 +1042,7 @@ changePassword uid cp = do
     throwE ChangePasswordNoIdentity
   currpw <- lift $ liftSem $ lookupHashedPassword uid
   let newpw = cpNewPassword cp
-  hashedNewPw <- mkSafePasswordArgon2id newpw
+  hashedNewPw <- mkSafePasswordScrypt newpw
   case (currpw, cpOldPassword cp) of
     (Nothing, _) -> lift . liftSem $ upsertHashedPassword uid hashedNewPw
     (Just _, Nothing) -> throwE InvalidCurrentPassword

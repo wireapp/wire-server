@@ -126,7 +126,7 @@ newAccount u inv tid mbHandle = do
         (Just (toUUID -> uuid), _) -> pure uuid
         (_, Just uuid) -> pure uuid
         (Nothing, Nothing) -> liftIO nextRandom
-  passwd <- maybe (pure Nothing) (fmap Just . liftIO . mkSafePasswordArgon2id) pass
+  passwd <- maybe (pure Nothing) (fmap Just . liftIO . mkSafePasswordScrypt) pass
   expiry <- case status of
     Ephemeral -> do
       -- Ephemeral users' expiry time is in expires_in (default sessionTokenTimeout) seconds
@@ -198,7 +198,7 @@ authenticate u pw =
   where
     hashAndUpdatePwd :: UserId -> PlainTextPassword8 -> AppT r ()
     hashAndUpdatePwd uid pwd = do
-      hashed <- mkSafePasswordArgon2id pwd
+      hashed <- mkSafePasswordScrypt pwd
       liftSem $ upsertHashedPassword uid hashed
 
 -- | Password reauthentication. If the account has a password, reauthentication

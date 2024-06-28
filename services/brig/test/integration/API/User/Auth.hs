@@ -61,7 +61,7 @@ import Test.Tasty.HUnit qualified as HUnit
 import UnliftIO.Async hiding (wait)
 import Util
 import Wire.API.Conversation (Conversation (..))
-import Wire.API.Password (Password, mkSafePasswordArgon2id)
+import Wire.API.Password (Password, mkSafePasswordScrypt)
 import Wire.API.User as Public
 import Wire.API.User.Auth as Auth
 import Wire.API.User.Auth.LegalHold
@@ -194,7 +194,7 @@ testLoginWith6CharPassword brig db = do
 
     updatePassword :: (MonadClient m) => UserId -> PlainTextPassword6 -> m ()
     updatePassword u t = do
-      p <- liftIO $ mkSafePasswordArgon2id t
+      p <- liftIO $ mkSafePasswordScrypt t
       retry x5 $ write userPasswordUpdate (params LocalQuorum (p, u))
 
     userPasswordUpdate :: PrepQuery W (Password, UserId) ()

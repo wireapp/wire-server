@@ -47,7 +47,7 @@ import Polysemy (Member)
 import Servant hiding (Handler, Tagged)
 import Wire.API.Error
 import Wire.API.OAuth as OAuth
-import Wire.API.Password (Password, mkSafePasswordArgon2id)
+import Wire.API.Password (Password, mkSafePasswordScrypt)
 import Wire.API.Routes.Internal.Brig.OAuth qualified as I
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig.OAuth
@@ -93,7 +93,7 @@ registerOAuthClient (OAuthClientConfig name uri) = do
     createSecret = OAuthClientPlainTextSecret <$> rand32Bytes
 
     hashClientSecret :: (MonadIO m) => OAuthClientPlainTextSecret -> m Password
-    hashClientSecret = mkSafePasswordArgon2id . plainTextPassword8Unsafe . toText . unOAuthClientPlainTextSecret
+    hashClientSecret = mkSafePasswordScrypt . plainTextPassword8Unsafe . toText . unOAuthClientPlainTextSecret
 
 rand32Bytes :: (MonadIO m) => m AsciiBase16
 rand32Bytes = liftIO . fmap encodeBase16 $ randBytes 32

@@ -86,7 +86,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               interpretDependencies localDomain [UserAccount user Active] mempty Nothing
                 . interpretAuthenticationSubsystem
                 $ do
-                  forM_ mPreviousPassword (hashPasswordArgon2id >=> upsertHashedPassword uid)
+                  forM_ mPreviousPassword (hashPassword >=> upsertHashedPassword uid)
                   mapM_ (uncurry (insertCookie uid)) cookiesWithTTL
 
                   (_, (_, code)) <- createPasswordResetCode (userEmailKey email)
@@ -106,7 +106,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               interpretDependencies localDomain [UserAccount user Active] mempty Nothing
                 . interpretAuthenticationSubsystem
                 $ do
-                  forM_ mPreviousPassword (hashPasswordArgon2id >=> upsertHashedPassword uid)
+                  forM_ mPreviousPassword (hashPassword >=> upsertHashedPassword uid)
                   mapM_ (uncurry (insertCookie uid)) cookiesWithTTL
 
                   (_, (passwordResetKey, code)) <- createPasswordResetCode (userEmailKey email)
@@ -185,7 +185,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               interpretDependencies localDomain [UserAccount user Active] mempty Nothing
                 . interpretAuthenticationSubsystem
                 $ do
-                  upsertHashedPassword uid =<< hashPasswordArgon2id oldPassword
+                  upsertHashedPassword uid =<< hashPassword oldPassword
                   (_, (_, code)) <- createPasswordResetCode (userEmailKey email)
 
                   passTime (passwordResetCodeTtl + 1)
@@ -204,7 +204,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               interpretDependencies localDomain [UserAccount user Active] mempty Nothing
                 . interpretAuthenticationSubsystem
                 $ do
-                  upsertHashedPassword uid =<< hashPasswordArgon2id oldPassword
+                  upsertHashedPassword uid =<< hashPassword oldPassword
                   mCaughtExc <- catchExpectedError $ resetPassword (PasswordResetEmailIdentity email) resetCode newPassword
                   (,mCaughtExc) <$> lookupHashedPassword uid
          in resetPasswordResult === Just AuthenticationSubsystemInvalidPasswordResetCode
@@ -235,7 +235,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               interpretDependencies localDomain [UserAccount user Active] mempty Nothing
                 . interpretAuthenticationSubsystem
                 $ do
-                  upsertHashedPassword uid =<< hashPasswordArgon2id oldPassword
+                  upsertHashedPassword uid =<< hashPassword oldPassword
                   (_, (_, generatedResetCode)) <- createPasswordResetCode (userEmailKey email)
 
                   wrongResetErrs <-
@@ -287,4 +287,4 @@ verifyPasswordProp plainTextPassword passwordHash =
 
 hashAndUpsertPassword :: (Member PasswordStore r, Member HashPassword r) => UserId -> PlainTextPassword8 -> Sem r ()
 hashAndUpsertPassword uid password =
-  upsertHashedPassword uid =<< hashPasswordArgon2id password
+  upsertHashedPassword uid =<< hashPassword password

@@ -176,7 +176,7 @@ resetPasswordImpl ident code pw = do
     Just uid -> do
       Log.debug $ field "user" (toByteString uid) . field "action" (val "User.completePasswordReset")
       checkNewIsDifferent uid pw
-      hashedPw <- hashPasswordArgon2id pw
+      hashedPw <- hashPassword pw
       upsertHashedPassword uid hashedPw
       codeDelete key
       deleteAllCookies uid

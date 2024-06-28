@@ -10,7 +10,7 @@ import Wire.HashPassword
 
 staticHashPasswordInterpreter :: InterpreterFor HashPassword r
 staticHashPasswordInterpreter = interpret $ \case
-  HashPasswordArgon2id password -> go (hashPasswordArgon2idWithOptions fastArgon2IdOptions) "9bytesalt" password
+  HashPassword password -> go (hashPasswordArgon2idWithOptions fastArgon2IdOptions) "9bytesalt" password
   where
     go alg salt password = do
       let passwordBS = Text.encodeUtf8 (fromPlainTextPassword password)
