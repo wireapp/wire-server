@@ -95,8 +95,8 @@ data ScryptParameters = ScryptParameters
 defaultOptions :: Argon2idOptions
 defaultOptions =
   Argon2.Options
-    { iterations = 5,
-      memory = 2 ^ (17 :: Int),
+    { iterations = 1,
+      memory = 32,
       parallelism = 4,
       variant = Argon2.Argon2id,
       version = Argon2.Version13
