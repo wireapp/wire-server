@@ -129,7 +129,7 @@ genPassword =
   liftIO . fmap (plainTextPassword8Unsafe . Text.decodeUtf8 . B64.encode) $
     randBytes 12
 
--- | Stretch a plaintext password so that it can be safely stored.
+-- | Salt & hash a plaintext password so that it can be safely stored.
 mkSafePassword :: (MonadIO m) => PlainTextPassword' t -> m Password
 mkSafePassword = fmap Password . hashPasswordScrypt . Text.encodeUtf8 . fromPlainTextPassword
 
