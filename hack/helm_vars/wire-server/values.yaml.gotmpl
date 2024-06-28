@@ -46,9 +46,6 @@ elasticsearch-index:
       password: "changeme"
 
 brig:
-  metrics:
-    serviceMonitor:
-      enabled: false
   replicaCount: 1
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   resources:
@@ -193,9 +190,6 @@ brig:
     {{- end }}
 
 cannon:
-  metrics:
-    serviceMonitor:
-      enabled: false
   replicaCount: 2
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   resources:
@@ -206,9 +200,6 @@ cannon:
   config:
     disabledAPIVersions: []
 cargohold:
-  metrics:
-    serviceMonitor:
-      enabled: false
   replicaCount: 1
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   resources:
@@ -238,9 +229,6 @@ cargohold:
     {{- end }}
 
 galley:
-  metrics:
-    serviceMonitor:
-      enabled: false
   replicaCount: 1
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   config:
@@ -338,9 +326,6 @@ galley:
     {{- end }}
 
 gundeck:
-  metrics:
-    serviceMonitor:
-      enabled: false
   replicaCount: 1
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   resources:
@@ -393,9 +378,6 @@ gundeck:
       redisAdditionalWritePassword: very-secure-redis-master-password-2
 
 nginz:
-  metrics:
-    serviceMonitor:
-      enabled: false
   replicaCount: 1
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   nginx_conf:
@@ -433,9 +415,6 @@ proxy:
   config:
     disabledAPIVersions: []
 spar:
-  metrics:
-    serviceMonitor:
-      enabled: false
   replicaCount: 1
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   resources:
@@ -474,9 +453,6 @@ spar:
     {{- end }}
 
 federator:
-  metrics:
-    serviceMonitor:
-      enabled: false
   replicaCount: 1
   resources:
     requests: {}
@@ -500,9 +476,6 @@ federator:
     {{- end }}
 
 background-worker:
-  metrics:
-    serviceMonitor:
-      enabled: false
   replicaCount: 1
   resources:
     requests: {}

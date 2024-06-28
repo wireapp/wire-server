@@ -50,8 +50,6 @@ import Data.Metrics.AWS (gaugeTokenRemaing)
 import Data.Metrics.Servant qualified as Metrics
 import Data.Proxy (Proxy (Proxy))
 import Data.Text (unpack)
-import Data.Text qualified as T
-import Data.Time
 import Imports hiding (head)
 import Network.HTTP.Media qualified as HTTPMedia
 import Network.HTTP.Types qualified as HTTP
@@ -64,8 +62,7 @@ import Network.Wai.Utilities.Server qualified as Server
 import Polysemy (Member)
 import Servant (Context ((:.)), (:<|>) (..))
 import Servant qualified
-import System.Logger (Logger, field, msg, val, (.=), (~~))
-import System.Logger qualified as Log
+import System.Logger (msg, val, (.=), (~~))
 import System.Logger.Class (MonadLogger, err)
 import Util.Options
 import Wire.API.Routes.API
@@ -114,21 +111,6 @@ run o = do
     endpoint' = brig o
     server e = defaultServer (unpack $ endpoint' ^. host) (endpoint' ^. port) (e ^. applog)
 
-logSlowRequests :: Logger -> Wai.Middleware
-logSlowRequests lgr app req responder = do
-  start <- getCurrentTime
-  res <- app req responder
-  end <- getCurrentTime
-  let duration = diffUTCTime end start
-  when (duration > 0.5) $
-    Log.warn lgr $
-      msg (val "Slow request")
-        . field "method" (Wai.requestMethod req)
-        . field "path" (T.intercalate "/" (Wai.pathInfo req))
-        . field "request" (getRequestId defaultRequestIdHeaderName req)
-        . field "duration" (show duration)
-  pure res
-
 mkApp :: Opts -> IO (Wai.Application, Env)
 mkApp o = do
   e <- newEnv o
@@ -140,7 +122,6 @@ mkApp o = do
       versionMiddleware (e ^. disabledVersions)
         -- this also rewrites the request
         . requestIdMiddleware (e ^. applog) defaultRequestIdHeaderName
-        . logSlowRequests (e ^. applog)
         . Metrics.servantPrometheusMiddleware (Proxy @ServantCombinedAPI)
         . GZip.gunzip
         . GZip.gzip GZip.def
