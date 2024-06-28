@@ -104,8 +104,8 @@ defaultParams =
 defaultOptions :: Argon2idOptions
 defaultOptions =
   Argon2.Options
-    { iterations = 1,
-      memory = 32,
+    { iterations = 5,
+      memory = 2 ^ (17 :: Int),
       parallelism = 4,
       variant = Argon2.Argon2id,
       version = Argon2.Version13
