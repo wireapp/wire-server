@@ -42,7 +42,6 @@ module Network.Wai.Utilities.Server
     logError,
     logError',
     logErrorMsg,
-    runHandlers,
     restrict,
     flushRequestBody,
 
@@ -53,7 +52,7 @@ module Network.Wai.Utilities.Server
 where
 
 import Control.Error.Util ((?:))
-import Control.Exception (throw)
+import Control.Exception (AsyncException (..), throwIO)
 import Control.Monad.Catch hiding (onError, onException)
 import Data.Aeson (decode, encode)
 import Data.ByteString (toStrict)
@@ -238,12 +237,23 @@ catchErrorsWithRequestId getRequestId l app req k =
 
 -- | Standard handlers for turning exceptions into appropriate
 -- 'Error' responses.
-errorHandlers :: (Applicative m) => [Handler m (Either Wai.Error JSONResponse)]
+errorHandlers :: [Handler IO (Either Wai.Error JSONResponse)]
 errorHandlers =
   -- a Wai.Error can be converted to a JSONResponse, but doing so here would
   -- prevent us from logging the error cleanly later
   [ Handler $ \(x :: JSONResponse) -> pure (Right x),
     Handler $ \(x :: Wai.Error) -> pure (Left x),
+    -- warp throws 'ThreadKilled' when the client is gone or when it thinks it's
+    -- time to reap the worker thread. Here, there is no point trying to respond
+    -- nicely and there is no point logging this as it happens regularly when a
+    -- client just closes a long running connection without consuming the whole
+    -- body.
+    Handler $ \(x :: AsyncException) ->
+      case x of
+        ThreadKilled -> throwIO x
+        _ ->
+          pure . Left $
+            Wai.mkError status500 "server-error" ("Server Error. " <> LT.pack (displayException x)),
     Handler $ \(_ :: InvalidRequest) ->
       pure . Left $
         Wai.mkError status400 "client-error" "Invalid Request",
@@ -456,8 +466,8 @@ logErrorMsgWithRequest :: Maybe ByteString -> Wai.Error -> Msg -> Msg
 logErrorMsgWithRequest mr e =
   field "request" (fromMaybe "N/A" mr) . logErrorMsg e
 
-runHandlers :: SomeException -> [Handler m a] -> m a
-runHandlers e [] = throw e
+runHandlers :: SomeException -> [Handler IO a] -> IO a
+runHandlers e [] = throwIO e
 runHandlers e (Handler h : hs) = maybe (runHandlers e hs) h (fromException e)
 
 restrict :: Int -> Int -> Predicate r P.Error Int -> Predicate r P.Error Int
