@@ -1,1 +1,1 @@
-Use argon2id as default over scrypt in all cases.
+Log request ids in brig.
