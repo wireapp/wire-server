@@ -35,7 +35,6 @@ import API.User qualified as User
 import API.UserPendingActivation qualified as UserPendingActivation
 import Bilge hiding (header, host, port)
 import Bilge qualified
-import Brig.AWS qualified as AWS
 import Brig.App (initHttpManagerWithTLSConfig)
 import Brig.Options qualified as Opts
 import Cassandra.Util (defInitCassandra)
@@ -63,6 +62,8 @@ import Util.Options
 import Util.Test
 import Util.Test.SQS qualified as SQS
 import Web.HttpApiData
+import Wire.API.AWS qualified as AWS
+import Wire.API.AWS.Options as Opts
 import Wire.API.Federation.API
 import Wire.API.Routes.Version
 

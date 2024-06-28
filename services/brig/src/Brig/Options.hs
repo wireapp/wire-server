@@ -24,7 +24,6 @@
 module Brig.Options where
 
 import Brig.Queue.Types (QueueOpts (..))
-import Brig.SMTP (SMTPConnType (..))
 import Brig.User.Auth.Cookie.Limit
 import Brig.ZAuth qualified as ZAuth
 import Control.Applicative
@@ -55,12 +54,14 @@ import Network.AMQP.Extended
 import Network.DNS qualified as DNS
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
+import Wire.API.AWS.Options
 import Wire.API.Allowlists (AllowlistEmailDomains (..), AllowlistPhonePrefixes (..))
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Version
 import Wire.API.Team.Feature qualified as Public
 import Wire.API.User
 import Wire.Arbitrary (Arbitrary, arbitrary)
+import Wire.EmailSending.SMTP (SMTPConnType (..))
 
 newtype Timeout = Timeout
   { timeoutDiff :: NominalDiffTime
@@ -104,32 +105,6 @@ data ElasticSearchOpts = ElasticSearchOpts
   deriving (Show, Generic)
 
 instance FromJSON ElasticSearchOpts
-
-data AWSOpts = AWSOpts
-  { -- | Event journal queue for user events
-    --   (e.g. user deletion)
-    userJournalQueue :: !(Maybe Text),
-    -- | Dynamo table for storing prekey data
-    prekeyTable :: !Text,
-    -- | AWS SQS endpoint
-    sqsEndpoint :: !AWSEndpoint,
-    -- | DynamoDB endpoint
-    dynamoDBEndpoint :: !(Maybe AWSEndpoint)
-  }
-  deriving (Show, Generic)
-
-instance FromJSON AWSOpts
-
-data EmailAWSOpts = EmailAWSOpts
-  { -- | Event feedback queue for SES
-    --   (e.g. for email bounces and complaints)
-    sesQueue :: !Text,
-    -- | AWS SES endpoint
-    sesEndpoint :: !AWSEndpoint
-  }
-  deriving (Show, Generic)
-
-instance FromJSON EmailAWSOpts
 
 data EmailSMTPCredentials = EmailSMTPCredentials
   { -- | Username to authenticate

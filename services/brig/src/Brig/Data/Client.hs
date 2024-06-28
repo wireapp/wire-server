@@ -54,7 +54,6 @@ import Amazonka.Data.Text qualified as AWS
 import Amazonka.DynamoDB qualified as AWS
 import Amazonka.DynamoDB.Lens qualified as AWS
 import Bilge.Retry (httpHandlers)
-import Brig.AWS
 import Brig.App
 import Brig.Data.User (AuthError (..), ReAuthError (..))
 import Brig.Data.User qualified as User
@@ -85,6 +84,7 @@ import System.CryptoBox qualified as CryptoBox
 import System.Logger.Class (field, msg, val)
 import System.Logger.Class qualified as Log
 import UnliftIO (pooledMapConcurrentlyN)
+import Wire.API.AWS
 import Wire.API.MLS.CipherSuite
 import Wire.API.User.Auth
 import Wire.API.User.Client hiding (UpdateClient (..))

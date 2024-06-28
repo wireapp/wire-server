@@ -38,7 +38,6 @@ import Brig.App
 import Brig.Code qualified as Code
 import Brig.Data.Client qualified as User
 import Brig.Data.User qualified as User
-import Brig.Email (mkEmailKey)
 import Brig.Options (Settings (..))
 import Brig.Options qualified as Opt
 import Brig.Provider.DB (ServiceConn (..))
@@ -120,9 +119,11 @@ import Wire.API.User.Client qualified as Public (Client, ClientCapability (Clien
 import Wire.API.User.Client.Prekey qualified as Public (PrekeyId)
 import Wire.API.User.Identity qualified as Public (Email)
 import Wire.DeleteQueue
+import Wire.EmailSending (EmailSending)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe))
+import Wire.UserKeyStore (mkEmailKey)
 
 botAPI ::
   ( Member GalleyAPIAccess r,
@@ -160,7 +161,7 @@ servicesAPI =
     :<|> Named @"get-whitelisted-services-by-team-id" searchTeamServiceProfiles
     :<|> Named @"post-team-whitelist-by-team-id" updateServiceWhitelist
 
-providerAPI :: (Member GalleyAPIAccess r) => ServerT ProviderAPI (Handler r)
+providerAPI :: (Member GalleyAPIAccess r, Member EmailSending r) => ServerT ProviderAPI (Handler r)
 providerAPI =
   Named @"provider-register" newAccount
     :<|> Named @"provider-activate" activateAccountKey
@@ -180,7 +181,7 @@ internalProviderAPI = Named @"get-provider-activation-code" getActivationCodeH
 --------------------------------------------------------------------------------
 -- Public API (Unauthenticated)
 
-newAccount :: (Member GalleyAPIAccess r) => Public.NewProvider -> (Handler r) Public.NewProviderResponse
+newAccount :: (Member GalleyAPIAccess r, Member EmailSending r) => Public.NewProvider -> (Handler r) Public.NewProviderResponse
 newAccount new = do
   guardSecondFactorDisabled Nothing
   email <- case validateEmail (Public.newProviderEmail new) of
@@ -213,7 +214,7 @@ newAccount new = do
   lift $ sendActivationMail name email key val False
   pure $ Public.NewProviderResponse pid newPass
 
-activateAccountKey :: (Member GalleyAPIAccess r) => Code.Key -> Code.Value -> (Handler r) (Maybe Public.ProviderActivationResponse)
+activateAccountKey :: (Member GalleyAPIAccess r, Member EmailSending r) => Code.Key -> Code.Value -> (Handler r) (Maybe Public.ProviderActivationResponse)
 activateAccountKey key val = do
   guardSecondFactorDisabled Nothing
   c <- wrapClientE (Code.verify key Code.IdentityVerification val) >>= maybeInvalidCode
@@ -257,7 +258,7 @@ login l = do
   s <- view settings
   pure $ ProviderTokenCookie (ProviderToken token) (not (setCookieInsecure s))
 
-beginPasswordReset :: (Member GalleyAPIAccess r) => Public.PasswordReset -> (Handler r) ()
+beginPasswordReset :: (Member GalleyAPIAccess r, Member EmailSending r) => Public.PasswordReset -> (Handler r) ()
 beginPasswordReset (Public.PasswordReset target) = do
   guardSecondFactorDisabled Nothing
   pid <- wrapClientE (DB.lookupKey (mkEmailKey target)) >>= maybeBadCredentials
@@ -308,7 +309,7 @@ updateAccountProfile pid upd = do
       (updateProviderUrl upd)
       (updateProviderDescr upd)
 
-updateAccountEmail :: (Member GalleyAPIAccess r) => ProviderId -> Public.EmailUpdate -> (Handler r) ()
+updateAccountEmail :: (Member GalleyAPIAccess r, Member EmailSending r) => ProviderId -> Public.EmailUpdate -> (Handler r) ()
 updateAccountEmail pid (Public.EmailUpdate new) = do
   guardSecondFactorDisabled Nothing
   email <- case validateEmail new of

@@ -4,9 +4,6 @@
 # dependencies are added or removed.
 { mkDerivation
 , aeson
-, amazonka
-, amazonka-core
-, amazonka-sqs
 , async
 , base
 , base16-bytestring
@@ -26,9 +23,12 @@
 , extra
 , gitignoreSource
 , gundeck-types
+, HaskellNet
+, HaskellNet-SSL
 , HsOpenSSL
 , hspec
 , hspec-discover
+, html-entities
 , http-client
 , http-types
 , http2-manager
@@ -38,6 +38,7 @@
 , lib
 , mime
 , mime-mail
+, network
 , network-conduit-tls
 , polysemy
 , polysemy-plugin
@@ -45,14 +46,18 @@
 , polysemy-wire-zoo
 , QuickCheck
 , quickcheck-instances
+, resource-pool
 , resourcet
 , retry
 , servant
 , servant-client-core
 , stomp-queue
 , string-conversions
+, template
 , text
 , time
+, time-out
+, time-units
 , tinylog
 , transformers
 , transitive-anns
@@ -70,9 +75,6 @@ mkDerivation {
   src = gitignoreSource ./.;
   libraryHaskellDepends = [
     aeson
-    amazonka
-    amazonka-core
-    amazonka-sqs
     async
     base
     base16-bytestring
@@ -90,8 +92,11 @@ mkDerivation {
     extended
     extra
     gundeck-types
+    HaskellNet
+    HaskellNet-SSL
     HsOpenSSL
     hspec
+    html-entities
     http-client
     http-types
     http2-manager
@@ -100,19 +105,24 @@ mkDerivation {
     lens
     mime
     mime-mail
+    network
     network-conduit-tls
     polysemy
     polysemy-plugin
     polysemy-time
     polysemy-wire-zoo
     QuickCheck
+    resource-pool
     resourcet
     retry
     servant
     servant-client-core
     stomp-queue
+    template
     text
     time
+    time-out
+    time-units
     tinylog
     transformers
     transitive-anns

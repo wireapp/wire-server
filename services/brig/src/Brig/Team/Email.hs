@@ -28,40 +28,41 @@ module Brig.Team.Email
 where
 
 import Brig.App
-import Brig.Email
-import Brig.Email qualified as Email
 import Brig.Team.Template
-import Brig.Template
 import Control.Lens (view)
 import Data.Id (TeamId, idToText)
 import Data.Text.Ascii qualified as Ascii
 import Data.Text.Lazy (toStrict)
 import Imports
+import Network.Mail.Mime
+import Polysemy
 import Wire.API.User
+import Wire.EmailSending
+import Wire.EmailSmsSubsystem.Template (TemplateBranding, renderHtmlWithBranding, renderTextWithBranding)
 
 -------------------------------------------------------------------------------
 -- Invitation Email
 
-sendInvitationMail :: Email -> TeamId -> Email -> InvitationCode -> Maybe Locale -> (AppT r) ()
+sendInvitationMail :: (Member EmailSending r) => Email -> TeamId -> Email -> InvitationCode -> Maybe Locale -> (AppT r) ()
 sendInvitationMail to tid from code loc = do
   tpl <- invitationEmail . snd <$> teamTemplates loc
   branding <- view templateBranding
   let mail = InvitationEmail to tid code from
-  Email.sendMail $ renderInvitationEmail mail tpl branding
+  liftSem $ sendMail $ renderInvitationEmail mail tpl branding
 
-sendCreatorWelcomeMail :: Email -> TeamId -> Text -> Maybe Locale -> (AppT r) ()
+sendCreatorWelcomeMail :: (Member EmailSending r) => Email -> TeamId -> Text -> Maybe Locale -> (AppT r) ()
 sendCreatorWelcomeMail to tid teamName loc = do
   tpl <- creatorWelcomeEmail . snd <$> teamTemplates loc
   branding <- view templateBranding
   let mail = CreatorWelcomeEmail to tid teamName
-  Email.sendMail $ renderCreatorWelcomeMail mail tpl branding
+  liftSem $ sendMail $ renderCreatorWelcomeMail mail tpl branding
 
-sendMemberWelcomeMail :: Email -> TeamId -> Text -> Maybe Locale -> (AppT r) ()
+sendMemberWelcomeMail :: (Member EmailSending r) => Email -> TeamId -> Text -> Maybe Locale -> (AppT r) ()
 sendMemberWelcomeMail to tid teamName loc = do
   tpl <- memberWelcomeEmail . snd <$> teamTemplates loc
   branding <- view templateBranding
   let mail = MemberWelcomeEmail to tid teamName
-  Email.sendMail $ renderMemberWelcomeMail mail tpl branding
+  liftSem $ sendMail $ renderMemberWelcomeMail mail tpl branding
 
 -------------------------------------------------------------------------------
 -- Invitation Email

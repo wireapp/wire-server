@@ -39,7 +39,6 @@ module Brig.API.User
     lookupProfilesV3,
     getLegalHoldStatus,
     Data.lookupName,
-    Data.lookupLocale,
     Data.lookupUser,
     Data.lookupRichInfo,
     Data.lookupRichInfoMultiUsers,
@@ -109,7 +108,6 @@ import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Connection
 import Brig.Types.Intra
 import Brig.User.Auth.Cookie qualified as Auth
-import Brig.User.Email
 import Brig.User.Phone
 import Brig.User.Search.Index (reindex)
 import Brig.User.Search.TeamSize qualified as TeamSize
@@ -160,6 +158,7 @@ import Wire.API.User.RichInfo
 import Wire.API.UserEvent
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem, internalLookupPasswordResetCode)
 import Wire.DeleteQueue
+import Wire.EmailSmsSubsystem
 import Wire.GalleyAPIAccess as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.PasswordStore (PasswordStore, lookupHashedPassword, upsertHashedPassword)
@@ -594,24 +593,24 @@ changeManagedBy uid conn (ManagedByUpdate mb) = do
 
 -- | Call 'changeEmail' and process result: if email changes to itself, succeed, if not, send
 -- validation email.
-changeSelfEmail :: (Member BlacklistStore r, Member UserKeyStore r) => UserId -> Email -> UpdateOriginType -> ExceptT Error.Error (AppT r) ChangeEmailResponse
+changeSelfEmail :: (Member BlacklistStore r, Member UserKeyStore r, Member EmailSmsSubsystem r) => UserId -> Email -> UpdateOriginType -> ExceptT Error.Error (AppT r) ChangeEmailResponse
 changeSelfEmail u email allowScim = do
   changeEmail u email allowScim !>> Error.changeEmailError >>= \case
     ChangeEmailIdempotent ->
       pure ChangeEmailResponseIdempotent
     ChangeEmailNeedsActivation (usr, adata, en) -> lift $ do
-      sendOutEmail usr adata en
+      liftSem $ sendOutEmail usr adata en
       wrapClient $ Data.updateEmailUnvalidated u email
       wrapClient $ reindex u
       pure ChangeEmailResponseNeedsActivation
   where
     sendOutEmail usr adata en = do
-      sendActivationMail
+      (maybe sendActivationMail (const sendActivationUpdateMail) usr.userIdentity)
         en
         (userDisplayName usr)
-        (activationKey adata, activationCode adata)
+        (activationKey adata)
+        (activationCode adata)
         (Just (userLocale usr))
-        (userIdentity usr)
 
 -- | Prepare changing the email (checking a number of invariants).
 changeEmail :: (Member BlacklistStore r, Member UserKeyStore r) => UserId -> Email -> UpdateOriginType -> ExceptT ChangeEmailError (AppT r) ChangeEmailResult
@@ -929,7 +928,8 @@ sendActivationCode ::
   ( Member BlacklistStore r,
     Member BlacklistPhonePrefixStore r,
     Member UserKeyStore r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member EmailSmsSubsystem r
   ) =>
   Either Email Phone ->
   Maybe Locale ->
@@ -989,15 +989,16 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
           dat <- Data.newActivation k timeout u
           pure (activationKey dat, activationCode dat)
     sendVerificationEmail ek uc = do
-      p <- wrapClientE $ mkPair ek uc Nothing
+      (key, code) <- wrapClientE $ mkPair ek uc Nothing
       void . forEmailKey ek $ \em ->
         lift $
-          sendVerificationMail em p loc
+          liftSem $
+            sendVerificationMail em key code loc
     sendActivationEmail ek uc uid = do
       -- FUTUREWORK(fisx): we allow for 'PendingInvitations' here, but I'm not sure this
       -- top-level function isn't another piece of a deprecated onboarding flow?
       u <- maybe (notFound uid) pure =<< lift (wrapClient $ Data.lookupUser WithPendingInvitations uid)
-      p <- wrapClientE $ mkPair ek (Just uc) (Just uid)
+      (aKey, aCode) <- wrapClientE $ mkPair ek (Just uc) (Just uid)
       let ident = userIdentity u
           name = userDisplayName u
           loc' = loc <|> Just (userLocale u)
@@ -1011,9 +1012,9 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
         case mbTeam of
           Just team
             | team ^. teamCreator == uid ->
-                sendTeamActivationMail em name p loc' (team ^. teamName)
+                liftSem $ sendTeamActivationMail em name aKey aCode loc' (team ^. teamName)
           _otherwise ->
-            sendActivationMail em name p loc' ident
+            liftSem $ (maybe sendActivationMail (const sendActivationUpdateMail) ident) em name aKey aCode loc'
 
 mkActivationKey :: (MonadClient m, MonadReader Env m) => ActivationTarget -> ExceptT ActivationError m ActivationKey
 mkActivationKey (ActivateKey k) = pure k
@@ -1079,7 +1080,8 @@ deleteSelfUser ::
     Member PasswordStore r,
     Member UserStore r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member EmailSmsSubsystem r
   ) =>
   UserId ->
   Maybe PlainTextPassword6 ->
@@ -1149,7 +1151,7 @@ deleteSelfUser uid pwd = do
           let l = userLocale (accountUser a)
           let n = userDisplayName (accountUser a)
           either
-            (\e -> lift $ sendDeletionEmail n e k v l)
+            (\e -> lift $ liftSem $ sendDeletionEmail e n k v l)
             (\p -> lift $ wrapHttp $ sendDeletionSms p k v l)
             target
             `onException` wrapClientE (Code.delete k Code.AccountDeletion)

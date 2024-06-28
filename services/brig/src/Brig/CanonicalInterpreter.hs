@@ -18,6 +18,7 @@ import Brig.Effects.UserPendingActivationStore.Cassandra (userPendingActivationS
 import Brig.IO.Intra (runUserEvents)
 import Brig.Options (ImplicitNoFederationRestriction (federationDomainConfig), federationDomainConfigs, federationStrategy)
 import Brig.Options qualified as Opt
+import Brig.User.Phone qualified as Brig
 import Cassandra qualified as Cas
 import Control.Exception (ErrorCall)
 import Control.Lens (to, (^.))
@@ -39,6 +40,11 @@ import Wire.API.Federation.Error
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Interpreter
 import Wire.DeleteQueue
+import Wire.EmailSending
+import Wire.EmailSending.Interpreter (emailToAWSInterpreter, emailToSMTPInterpreter)
+import Wire.EmailSmsSubsystem
+import Wire.EmailSmsSubsystem.Interpreter
+import Wire.EmailSmsSubsystem.Template (Localised, TemplateBranding, UserTemplates)
 import Wire.FederationAPIAccess qualified
 import Wire.FederationAPIAccess.Interpreter (FederationAPIAccessConfig (..), interpretFederationAPIAccess)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
@@ -74,6 +80,7 @@ import Wire.UserSubsystem.Interpreter
 type BrigCanonicalEffects =
   '[ AuthenticationSubsystem,
      UserSubsystem,
+     EmailSmsSubsystem,
      DeleteQueue,
      UserEvents,
      Error UserSubsystemError,
@@ -105,6 +112,7 @@ type BrigCanonicalEffects =
      Delay,
      PasswordResetCodeStore,
      GalleyAPIAccess,
+     EmailSending,
      Rpc,
      Embed Cas.Client,
      Error ParseException,
@@ -146,6 +154,7 @@ runBrigToIO e (AppT ma) = do
               . mapError @ParseException SomeException
               . interpretClientToIO (e ^. casClient)
               . runRpcWithHttp (e ^. httpManager) (e ^. App.requestId)
+              . emailSendingInterpreter e
               . interpretGalleyAPIAccessToRpc (e ^. disabledVersions) (e ^. galleyEndpoint)
               . passwordResetCodeStoreToCassandra @Cas.Client
               . runDelay
@@ -177,6 +186,7 @@ runBrigToIO e (AppT ma) = do
               . mapError userSubsystemErrorToWai
               . runUserEvents
               . runDeleteQueue (e ^. internalEvents)
+              . emailSmsSubsystemInterpreter e (e ^. usrTemplates) (e ^. templateBranding)
               . runUserSubsystem userSubsystemConfig
               . interpretAuthenticationSubsystem
           )
@@ -189,3 +199,25 @@ rethrowWaiErrorIO act = do
   case eithError of
     Left err -> embedToFinal $ throwM $ err
     Right a -> pure a
+
+emailSendingInterpreter :: (Member (Embed IO) r) => Env -> InterpreterFor EmailSending r
+emailSendingInterpreter e = do
+  case (e ^. smtpEnv) of
+    Just smtp -> emailToSMTPInterpreter (e ^. applog) smtp
+    Nothing -> emailToAWSInterpreter (e ^. awsEnv)
+
+-- FUTUREWORK: Env can be removed once phone users are removed, and then this interpreter should go to wire-subsystems
+emailSmsSubsystemInterpreter :: (Member (Final IO) r, Member EmailSending r) => Env -> Localised UserTemplates -> TemplateBranding -> InterpreterFor EmailSmsSubsystem r
+emailSmsSubsystemInterpreter e tpls branding = interpret \case
+  SendPasswordResetMail email (key, code) mLocale -> sendPasswordResetMailImpl tpls branding email key code mLocale
+  SendPasswordResetSms phone keyCodePair mLocale -> flip runReaderT e $ unAppT $ wrapHttp do
+    Brig.sendPasswordResetSms phone keyCodePair mLocale
+  SendVerificationMail email key code mLocale -> sendVerificationMailImpl tpls branding email key code mLocale
+  SendTeamDeletionVerificationMail email code mLocale -> sendTeamDeletionVerificationMailImpl tpls branding email code mLocale
+  SendCreateScimTokenVerificationMail email code mLocale -> sendCreateScimTokenVerificationMailImpl tpls branding email code mLocale
+  SendLoginVerificationMail email code mLocale -> sendLoginVerificationMailImpl tpls branding email code mLocale
+  SendActivationMail email name key code mLocale -> sendActivationMailImpl tpls branding email name key code mLocale
+  SendActivationUpdateMail email name key code mLocale -> sendActivationUpdateMailImpl tpls branding email name key code mLocale
+  SendTeamActivationMail email name key code mLocale teamName -> sendTeamActivationMailImpl tpls branding email name key code mLocale teamName
+  SendNewClientEmail email name client locale -> sendNewClientEmailImpl tpls branding email name client locale
+  SendDeletionEmail email name key code locale -> sendDeletionEmailImpl tpls branding email name key code locale

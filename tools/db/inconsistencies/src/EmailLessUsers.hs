@@ -21,7 +21,6 @@
 
 module EmailLessUsers where
 
-import Brig.Email
 import Cassandra
 import Cassandra.Util
 import Conduit

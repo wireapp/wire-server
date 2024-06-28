@@ -37,7 +37,6 @@ module Brig.Data.User
     lookupUser,
     lookupUsers,
     lookupName,
-    lookupLocale,
     lookupRichInfo,
     lookupRichInfoMultiUsers,
     lookupUserTeam,
@@ -372,11 +371,6 @@ deactivateUser :: (MonadClient m) => UserId -> m ()
 deactivateUser u =
   retry x5 $ write userDeactivatedUpdate (params LocalQuorum (Identity u))
 
-lookupLocale :: (MonadClient m, MonadReader Env m) => UserId -> m (Maybe Locale)
-lookupLocale u = do
-  defLoc <- setDefaultUserLocale <$> view settings
-  fmap (toLocale defLoc) <$> retry x1 (query1 localeSelect (params LocalQuorum (Identity u)))
-
 lookupName :: (MonadClient m) => UserId -> m (Maybe Name)
 lookupName u =
   fmap runIdentity
@@ -538,9 +532,6 @@ idSelect = "SELECT id FROM user WHERE id = ?"
 
 nameSelect :: PrepQuery R (Identity UserId) (Identity Name)
 nameSelect = "SELECT name FROM user WHERE id = ?"
-
-localeSelect :: PrepQuery R (Identity UserId) (Maybe Language, Maybe Country)
-localeSelect = "SELECT language, country FROM user WHERE id = ?"
 
 authSelect :: PrepQuery R (Identity UserId) (Maybe Password, Maybe AccountStatus)
 authSelect = "SELECT password, status FROM user WHERE id = ?"

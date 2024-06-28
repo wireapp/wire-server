@@ -25,6 +25,7 @@ interpretUserStoreCassandra casClient =
       GlimpseHandle hdl -> embed $ lookupHandleImpl One hdl
       LookupStatus uid -> embed $ lookupStatusImpl uid
       IsActivated uid -> embed $ isActivatedImpl uid
+      LookupLocale uid -> embed $ lookupLocaleImpl uid
 
 getUserImpl :: (Member (Embed Client) r) => UserId -> Sem r (Maybe StoredUser)
 getUserImpl uid = embed $ do
@@ -117,6 +118,10 @@ isActivatedImpl uid =
   (== Just (Identity True))
     <$> retry x1 (query1 activatedSelect (params LocalQuorum (Identity uid)))
 
+lookupLocaleImpl :: UserId -> Client (Maybe (Maybe Language, Maybe Country))
+lookupLocaleImpl u = do
+  retry x1 (query1 localeSelect (params LocalQuorum (Identity u)))
+
 --------------------------------------------------------------------------------
 -- Queries
 
@@ -168,3 +173,6 @@ statusSelect = "SELECT status FROM user WHERE id = ?"
 
 activatedSelect :: PrepQuery R (Identity UserId) (Identity Bool)
 activatedSelect = "SELECT activated FROM user WHERE id = ?"
+
+localeSelect :: PrepQuery R (Identity UserId) (Maybe Language, Maybe Country)
+localeSelect = "SELECT language, country FROM user WHERE id = ?"

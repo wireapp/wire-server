@@ -56,6 +56,13 @@ inMemoryUserStoreInterpreter = interpret $ \case
   GlimpseHandle h -> miniBackendLookupHandle h
   LookupStatus uid -> miniBackendLookupStatus uid
   IsActivated uid -> miniBackendIsActivated uid
+  LookupLocale uid -> miniBackendLookupLocale uid
+
+miniBackendLookupLocale :: (Member (State [StoredUser]) r) => UserId -> Sem r (Maybe ((Maybe Language, Maybe Country)))
+miniBackendLookupLocale uid = do
+  users <- get
+  let mUser = find ((== uid) . (.id)) users
+  pure $ (\u -> (u.language, u.country)) <$> mUser
 
 miniBackendIsActivated :: (Member (State [StoredUser]) r) => UserId -> Sem r Bool
 miniBackendIsActivated uid = do

@@ -1,4 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
@@ -18,7 +20,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.AWS
+module Wire.API.AWS
   ( -- * Monad
     Env,
     mkEnv,
@@ -53,7 +55,6 @@ import Amazonka.SES qualified as SES
 import Amazonka.SES.Lens qualified as SES
 import Amazonka.SQS qualified as SQS
 import Amazonka.SQS.Lens qualified as SQS
-import Brig.Options qualified as Opt
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
 import Control.Monad.Trans.Resource
@@ -73,6 +74,7 @@ import System.Logger.Class
 import UnliftIO.Async
 import UnliftIO.Exception
 import Util.Options
+import Wire.API.AWS.Options qualified as Opt
 
 data Env = Env
   { _logger :: !Logger,

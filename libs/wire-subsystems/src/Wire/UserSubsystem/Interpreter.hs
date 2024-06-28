@@ -96,6 +96,13 @@ interpretUserSubsystem = interpret \case
   CheckHandles hdls cnt -> checkHandlesImpl hdls cnt
   UpdateHandle uid mconn mb uhandle -> updateHandleImpl uid mconn mb uhandle
   GetLocalUserAccountByUserKey userKey -> getLocalUserAccountByUserKeyImpl userKey
+  LookupLocaleWithDefault luid -> getLocaleOrDefault luid
+
+getLocaleOrDefault :: (Member UserStore r, Member (Input UserSubsystemConfig) r) => Local UserId -> Sem r (Maybe Locale)
+getLocaleOrDefault luid = do
+  mLangCountry <- UserStore.lookupLocale (tUnqualified luid)
+  defLocale <- inputs defaultLocale
+  pure (toLocale defLocale <$> mLangCountry)
 
 -- | Obtain user profiles for a list of users as they can be seen by
 -- a given user 'self'. If 'self' is an unknown 'UserId', return '[]'.

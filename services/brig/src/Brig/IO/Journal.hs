@@ -25,7 +25,6 @@ module Brig.IO.Journal
   )
 where
 
-import Brig.AWS qualified as AWS
 import Brig.App
 import Control.Lens
 import Data.ByteString.Base64 qualified as B64
@@ -41,6 +40,7 @@ import Data.UUID.V4 (nextRandom)
 import Imports
 import Proto.UserEvents (UserEvent, UserEvent'EventType (..))
 import Proto.UserEvents_Fields qualified as U
+import Wire.API.AWS qualified as AWS
 import Wire.API.User
 
 -- [Note: journaling]

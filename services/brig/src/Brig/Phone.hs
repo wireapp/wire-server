@@ -46,7 +46,7 @@ import Control.Monad.Catch
 import Control.Retry
 import Data.LanguageCodes
 import Data.Text qualified as Text
-import Data.Time.Clock
+import Data.Time.Clock (NominalDiffTime)
 import Imports
 import Network.HTTP.Client (HttpException, Manager)
 import Prometheus qualified as Prom

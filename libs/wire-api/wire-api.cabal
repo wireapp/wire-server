@@ -71,6 +71,8 @@ library
     Wire.API.Allowlists
     Wire.API.ApplyMods
     Wire.API.Asset
+    Wire.API.AWS
+    Wire.API.AWS.Options
     Wire.API.Bot
     Wire.API.Bot.Service
     Wire.API.Call.Config
@@ -103,6 +105,7 @@ library
     Wire.API.FederationUpdate
     Wire.API.Internal.BulkPush
     Wire.API.Internal.Notification
+    Wire.API.Locale
     Wire.API.MakesFederatedCall
     Wire.API.Message
     Wire.API.Message.Proto
@@ -248,6 +251,11 @@ library
   hs-source-dirs:   src
   build-depends:
     , aeson                      >=2.0.1.0
+    , amazonka
+    , amazonka-core
+    , amazonka-dynamodb
+    , amazonka-ses
+    , amazonka-sqs
     , asn1-encoding
     , async
     , attoparsec                 >=0.10
@@ -275,6 +283,7 @@ library
     , either
     , email-validate             >=2.0
     , errors
+    , exceptions
     , extended
     , extra
     , filepath
@@ -298,6 +307,7 @@ library
     , memory
     , metrics-wai
     , mime                       >=0.4
+    , mime-mail
     , mtl
     , openapi3
     , pem                        >=0.2
@@ -308,6 +318,7 @@ library
     , quickcheck-instances       >=0.3.16
     , random                     >=1.2.0
     , resourcet
+    , retry
     , saml2-web-sso
     , schema-profunctor
     , scientific
@@ -329,6 +340,7 @@ library
     , tinylog
     , transitive-anns
     , types-common               >=0.16
+    , unliftio
     , unordered-containers       >=0.2
     , uri-bytestring             >=0.2
     , utf8-string

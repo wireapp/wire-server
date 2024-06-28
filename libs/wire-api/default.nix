@@ -7,6 +7,11 @@
 , aeson-diff
 , aeson-pretty
 , aeson-qq
+, amazonka
+, amazonka-core
+, amazonka-dynamodb
+, amazonka-ses
+, amazonka-sqs
 , asn1-encoding
 , async
 , attoparsec
@@ -35,6 +40,7 @@
 , either
 , email-validate
 , errors
+, exceptions
 , extended
 , extra
 , filepath
@@ -63,6 +69,7 @@
 , memory
 , metrics-wai
 , mime
+, mime-mail
 , mtl
 , openapi3
 , pem
@@ -74,6 +81,7 @@
 , quickcheck-instances
 , random
 , resourcet
+, retry
 , saml2-web-sso
 , schema-profunctor
 , scientific
@@ -120,6 +128,11 @@ mkDerivation {
   src = gitignoreSource ./.;
   libraryHaskellDepends = [
     aeson
+    amazonka
+    amazonka-core
+    amazonka-dynamodb
+    amazonka-ses
+    amazonka-sqs
     asn1-encoding
     async
     attoparsec
@@ -147,6 +160,7 @@ mkDerivation {
     either
     email-validate
     errors
+    exceptions
     extended
     extra
     filepath
@@ -170,6 +184,7 @@ mkDerivation {
     memory
     metrics-wai
     mime
+    mime-mail
     mtl
     openapi3
     pem
@@ -180,6 +195,7 @@ mkDerivation {
     quickcheck-instances
     random
     resourcet
+    retry
     saml2-web-sso
     schema-profunctor
     scientific
@@ -201,6 +217,7 @@ mkDerivation {
     tinylog
     transitive-anns
     types-common
+    unliftio
     unordered-containers
     uri-bytestring
     utf8-string

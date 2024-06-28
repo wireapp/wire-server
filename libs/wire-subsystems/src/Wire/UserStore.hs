@@ -61,6 +61,7 @@ data UserStore m a where
   -- | Whether the account has been activated by verifying
   --   an email address or phone number.
   IsActivated :: UserId -> UserStore m Bool
+  LookupLocale :: UserId -> UserStore m (Maybe (Maybe Language, Maybe Country))
 
 makeSem ''UserStore
 

@@ -58,6 +58,7 @@ import Wire.API.User
 import Wire.API.User.Activation
 import Wire.API.User.Auth
 import Wire.API.User.Password
+import Wire.EmailSmsSubsystem.Template (TemplateBranding, renderTextWithBranding)
 
 sendActivationSms ::
   ( MonadClient m,

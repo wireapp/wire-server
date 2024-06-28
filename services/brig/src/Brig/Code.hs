@@ -60,8 +60,6 @@ module Brig.Code
   )
 where
 
-import Brig.Email (emailKeyUniq, mkEmailKey)
-import Brig.Phone (mkPhoneKey, phoneKeyUniq)
 import Cassandra hiding (Value)
 import Data.ByteString qualified as BS
 import Data.Code
@@ -78,6 +76,7 @@ import OpenSSL.Random (randBytes)
 import Text.Printf (printf)
 import Wire.API.User qualified as User
 import Wire.API.User.Identity
+import Wire.UserKeyStore
 
 --------------------------------------------------------------------------------
 -- Code

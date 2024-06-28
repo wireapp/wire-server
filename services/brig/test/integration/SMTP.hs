@@ -5,7 +5,6 @@
 module SMTP where
 
 import Bilge qualified
-import Brig.SMTP
 import Control.Exception
 import Data.Bifunctor
 import Data.ByteString qualified as B
@@ -24,6 +23,7 @@ import System.Logger qualified as Logger
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
+import Wire.EmailSending.SMTP
 
 tests :: Bilge.Manager -> Logger.Logger -> TestTree
 tests m lg =
