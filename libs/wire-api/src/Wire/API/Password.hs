@@ -22,8 +22,8 @@ module Wire.API.Password
   ( Password,
     PasswordStatus (..),
     genPassword,
-    mkSafePassword,
-    mkSafePasswordArgon2id,
+    mkSafePasswordScrypt,
+    -- mkSafePasswordArgon2id,
     verifyPassword,
     verifyPasswordWithStatus,
     unsafeMkPassword,
@@ -130,8 +130,8 @@ genPassword =
     randBytes 12
 
 -- | Salt & hash a plaintext password so that it can be safely stored.
-mkSafePassword :: (MonadIO m) => PlainTextPassword' t -> m Password
-mkSafePassword = fmap Password . hashPasswordScrypt . Text.encodeUtf8 . fromPlainTextPassword
+mkSafePasswordScrypt :: (MonadIO m) => PlainTextPassword' t -> m Password
+mkSafePasswordScrypt = fmap Password . hashPasswordScrypt . Text.encodeUtf8 . fromPlainTextPassword
 
 mkSafePasswordArgon2id :: (MonadIO m) => PlainTextPassword' t -> m Password
 mkSafePasswordArgon2id = fmap Password . hashPasswordArgon2id . Text.encodeUtf8 . fromPlainTextPassword
