@@ -59,7 +59,7 @@ import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.IO
 import Wire.Sem.Delay
 import Wire.Sem.Jwk
-import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
+import Wire.Sem.Logger.TinyLog (loggerToTinyLogReqId)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIOAction)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
