@@ -56,6 +56,7 @@ import Ropes.Twilio qualified as Twilio
 import System.Logger.Class qualified as Log
 import System.Logger.Message (field, msg, val, (~~))
 import Wire.API.User
+import Wire.UserKeyStore
 
 -------------------------------------------------------------------------------
 -- Sending SMS and Voice Calls
@@ -291,27 +292,6 @@ withCallBudget phone go = do
           ~~ field "budget" b
           ~~ field "phone" phone
       pure a
-
---------------------------------------------------------------------------------
--- Unique Keys
-
-data PhoneKey = PhoneKey
-  { -- | canonical form of 'phoneKeyOrig', without whitespace.
-    phoneKeyUniq :: !Text,
-    -- | phone number with whitespace.
-    phoneKeyOrig :: !Phone
-  }
-
-instance Show PhoneKey where
-  showsPrec _ = shows . phoneKeyUniq
-
-instance Eq PhoneKey where
-  (PhoneKey k _) == (PhoneKey k' _) = k == k'
-
-mkPhoneKey :: Phone -> PhoneKey
-mkPhoneKey orig =
-  let uniq = Text.filter (not . isSpace) (fromPhone orig)
-   in PhoneKey uniq orig
 
 -------------------------------------------------------------------------------
 -- Retry Settings

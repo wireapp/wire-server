@@ -22,11 +22,13 @@ module Wire.API.Password
   ( Password,
     PasswordStatus (..),
     genPassword,
-    mkSafePassword,
+    mkSafePasswordScrypt,
     mkSafePasswordArgon2id,
     verifyPassword,
     verifyPasswordWithStatus,
     unsafeMkPassword,
+    hashPasswordArgon2idWithSalt,
+    hashPasswordArgon2idWithOptions,
   )
 where
 
@@ -90,8 +92,8 @@ data ScryptParameters = ScryptParameters
   }
   deriving (Eq, Show)
 
-defaultParams :: ScryptParameters
-defaultParams =
+defaultScryptParams :: ScryptParameters
+defaultScryptParams =
   ScryptParameters
     { saltLength = 32,
       rounds = 14,
@@ -129,9 +131,8 @@ genPassword =
   liftIO . fmap (plainTextPassword8Unsafe . Text.decodeUtf8 . B64.encode) $
     randBytes 12
 
--- | Stretch a plaintext password so that it can be safely stored.
-mkSafePassword :: (MonadIO m) => PlainTextPassword' t -> m Password
-mkSafePassword = fmap Password . hashPasswordScrypt . Text.encodeUtf8 . fromPlainTextPassword
+mkSafePasswordScrypt :: (MonadIO m) => PlainTextPassword' t -> m Password
+mkSafePasswordScrypt = fmap Password . hashPasswordScrypt . Text.encodeUtf8 . fromPlainTextPassword
 
 mkSafePasswordArgon2id :: (MonadIO m) => PlainTextPassword' t -> m Password
 mkSafePasswordArgon2id = fmap Password . hashPasswordArgon2id . Text.encodeUtf8 . fromPlainTextPassword
@@ -147,43 +148,49 @@ verifyPasswordWithStatus plain opaque =
       expected = fromPassword opaque
    in checkPassword actual expected
 
-hashPasswordArgon2id :: (MonadIO m) => ByteString -> m Text
-hashPasswordArgon2id pwd = do
-  salt <- newSalt $ fromIntegral defaultParams.saltLength
-  let key = hashPasswordWithOptions defaultOptions pwd salt
-      opts =
-        Text.intercalate
-          ","
-          [ "m=" <> showT defaultOptions.memory,
-            "t=" <> showT defaultOptions.iterations,
-            "p=" <> showT defaultOptions.parallelism
-          ]
-  pure $
-    "$argon2"
-      <> Text.intercalate
-        "$"
-        [ variantToCode defaultOptions.variant,
-          "v=" <> versionToNum defaultOptions.version,
-          opts,
-          encodeWithoutPadding salt,
-          encodeWithoutPadding key
-        ]
-  where
-    encodeWithoutPadding = Text.dropWhileEnd (== '=') . Text.decodeUtf8 . B64.encode
-
 hashPasswordScrypt :: (MonadIO m) => ByteString -> m Text
 hashPasswordScrypt password = do
-  salt <- newSalt $ fromIntegral defaultParams.saltLength
-  let key = hashPasswordWithParams defaultParams password salt
+  salt <- newSalt $ fromIntegral defaultScryptParams.saltLength
+  let key = hashPasswordWithParams defaultScryptParams password salt
   pure $
     Text.intercalate
       "|"
-      [ showT defaultParams.rounds,
-        showT defaultParams.blockSize,
-        showT defaultParams.parallelism,
+      [ showT defaultScryptParams.rounds,
+        showT defaultScryptParams.blockSize,
+        showT defaultScryptParams.parallelism,
         Text.decodeUtf8 . B64.encode $ salt,
         Text.decodeUtf8 . B64.encode $ key
       ]
+
+hashPasswordArgon2id :: (MonadIO m) => ByteString -> m Text
+hashPasswordArgon2id pwd = do
+  salt <- newSalt 32
+  pure $ hashPasswordArgon2idWithSalt salt pwd
+
+hashPasswordArgon2idWithSalt :: ByteString -> ByteString -> Text
+hashPasswordArgon2idWithSalt = hashPasswordArgon2idWithOptions defaultOptions
+
+hashPasswordArgon2idWithOptions :: Argon2idOptions -> ByteString -> ByteString -> Text
+hashPasswordArgon2idWithOptions opts salt pwd = do
+  let key = hashPasswordWithOptions opts pwd salt
+      optsStr =
+        Text.intercalate
+          ","
+          [ "m=" <> showT opts.memory,
+            "t=" <> showT opts.iterations,
+            "p=" <> showT opts.parallelism
+          ]
+   in "$argon2"
+        <> Text.intercalate
+          "$"
+          [ variantToCode opts.variant,
+            "v=" <> versionToNum opts.version,
+            optsStr,
+            encodeWithoutPadding salt,
+            encodeWithoutPadding key
+          ]
+  where
+    encodeWithoutPadding = Text.dropWhileEnd (== '=') . Text.decodeUtf8 . B64.encode
 
 checkPassword :: Text -> Text -> (Bool, PasswordStatus)
 checkPassword actual expected =

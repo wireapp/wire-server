@@ -16,37 +16,34 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE RecordWildCards #-}
 
-module Brig.Effects.CodeStore.Cassandra
-  ( codeStoreToCassandra,
+module Wire.PasswordResetCodeStore.Cassandra
+  ( passwordResetCodeStoreToCassandra,
     interpretClientToIO,
   )
 where
 
-import Brig.Effects.CodeStore
 import Cassandra
-import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.Text (pack)
 import Data.Text.Ascii
 import Data.Time.Clock
 import Imports
 import OpenSSL.BN (randIntegerZeroToNMinusOne)
-import OpenSSL.EVP.Digest (digestBS, getDigestByName)
 import OpenSSL.Random (randBytes)
 import Polysemy
 import Text.Printf
 import Wire.API.User.Password
+import Wire.PasswordResetCodeStore
 
-codeStoreToCassandra ::
+passwordResetCodeStoreToCassandra ::
   forall m r a.
   (MonadClient m, Member (Embed m) r) =>
-  Sem (CodeStore ': r) a ->
+  Sem (PasswordResetCodeStore ': r) a ->
   Sem r a
-codeStoreToCassandra =
+passwordResetCodeStoreToCassandra =
   interpret $
     embed @m
       . \case
-        MkPasswordResetKey uid -> mkPwdResetKey uid
         GenerateEmailCode -> genEmailCode
         GeneratePhoneCode -> genPhoneCode
         CodeSelect prk ->
@@ -81,11 +78,6 @@ genPhoneCode :: (MonadIO m) => m PasswordResetCode
 genPhoneCode =
   PasswordResetCode . unsafeFromText . pack . printf "%06d"
     <$> liftIO (randIntegerZeroToNMinusOne 1000000)
-
-mkPwdResetKey :: (MonadIO m) => UserId -> m PasswordResetKey
-mkPwdResetKey u = do
-  d <- liftIO $ getDigestByName "SHA256" >>= maybe (error "SHA256 not found") pure
-  pure . PasswordResetKey . encodeBase64Url . digestBS d $ toByteString' u
 
 interpretClientToIO ::
   (Member (Final IO) r) =>

@@ -76,7 +76,6 @@ library
 
   -- cabal-fmt: expand src
   exposed-modules:
-    Brig.Allowlists
     Brig.API.Auth
     Brig.API.Client
     Brig.API.Connection
@@ -116,21 +115,16 @@ library
     Brig.Data.Properties
     Brig.Data.Types
     Brig.Data.User
-    Brig.Data.UserKey
     Brig.DeleteQueue.Interpreter
     Brig.Effects.BlacklistPhonePrefixStore
     Brig.Effects.BlacklistPhonePrefixStore.Cassandra
     Brig.Effects.BlacklistStore
     Brig.Effects.BlacklistStore.Cassandra
-    Brig.Effects.CodeStore
-    Brig.Effects.CodeStore.Cassandra
     Brig.Effects.ConnectionStore
     Brig.Effects.ConnectionStore.Cassandra
     Brig.Effects.FederationConfigStore
     Brig.Effects.FederationConfigStore.Cassandra
     Brig.Effects.JwtTools
-    Brig.Effects.PasswordResetStore
-    Brig.Effects.PasswordResetStore.CodeStore
     Brig.Effects.PublicKeyBundle
     Brig.Effects.SFT
     Brig.Effects.UserPendingActivationStore
@@ -213,8 +207,6 @@ library
     Brig.User.Auth
     Brig.User.Auth.Cookie
     Brig.User.Auth.Cookie.Limit
-    Brig.User.Auth.DB.Cookie
-    Brig.User.Auth.DB.Instances
     Brig.User.EJPD
     Brig.User.Email
     Brig.User.Phone
@@ -520,6 +512,7 @@ executable brig-integration
     , warp-tls               >=3.2
     , wire-api
     , wire-api-federation
+    , wire-subsystems
     , yaml
     , zauth
 

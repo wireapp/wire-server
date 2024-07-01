@@ -69,6 +69,9 @@ library
 
   -- cabal-fmt: expand src
   exposed-modules:
+    Wire.AuthenticationSubsystem
+    Wire.AuthenticationSubsystem.Error
+    Wire.AuthenticationSubsystem.Interpreter
     Wire.DeleteQueue
     Wire.DeleteQueue.InMemory
     Wire.FederationAPIAccess
@@ -76,18 +79,27 @@ library
     Wire.GalleyAPIAccess
     Wire.GalleyAPIAccess.Rpc
     Wire.GundeckAPIAccess
+    Wire.HashPassword
     Wire.InternalEvent
-    Wire.MiniBackend
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
     Wire.ParseException
+    Wire.PasswordResetCodeStore
+    Wire.PasswordResetCodeStore.Cassandra
+    Wire.PasswordStore
+    Wire.PasswordStore.Cassandra
     Wire.Rpc
+    Wire.SessionStore
+    Wire.SessionStore.Cassandra
     Wire.StoredUser
     Wire.UserEvents
+    Wire.UserKeyStore
+    Wire.UserKeyStore.Cassandra
     Wire.UserStore
     Wire.UserStore.Cassandra
     Wire.UserStore.Unique
     Wire.UserSubsystem
+    Wire.UserSubsystem.Error
     Wire.UserSubsystem.HandleBlacklist
     Wire.UserSubsystem.Interpreter
 
@@ -161,6 +173,20 @@ test-suite wire-subsystems-tests
   -- cabal-fmt: expand test/unit
   other-modules:
     Spec
+    Wire.AuthenticationSubsystem.InterpreterSpec
+    Wire.MiniBackend
+    Wire.MockInterpreters
+    Wire.MockInterpreters.Error
+    Wire.MockInterpreters.GalleyAPIAccess
+    Wire.MockInterpreters.HashPassword
+    Wire.MockInterpreters.Now
+    Wire.MockInterpreters.PasswordResetCodeStore
+    Wire.MockInterpreters.PasswordStore
+    Wire.MockInterpreters.SessionStore
+    Wire.MockInterpreters.UserEvents
+    Wire.MockInterpreters.UserKeyStore
+    Wire.MockInterpreters.UserStore
+    Wire.MockInterpreters.UserSubsystem
     Wire.NotificationSubsystem.InterpreterSpec
     Wire.UserStoreSpec
     Wire.UserSubsystem.InterpreterSpec
@@ -173,6 +199,7 @@ test-suite wire-subsystems-tests
     , bilge
     , bytestring
     , containers
+    , crypton
     , data-default
     , errors
     , extended
@@ -191,6 +218,7 @@ test-suite wire-subsystems-tests
     , string-conversions
     , text
     , time
+    , tinylog
     , transformers
     , types-common
     , wire-api

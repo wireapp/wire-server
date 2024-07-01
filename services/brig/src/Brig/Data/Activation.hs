@@ -29,11 +29,8 @@ module Brig.Data.Activation
   )
 where
 
-import Brig.App (Env)
+import Brig.App (Env, adhocUserKeyStoreInterpreter)
 import Brig.Data.User
-import Brig.Data.UserKey
-import Brig.Effects.CodeStore qualified as E
-import Brig.Effects.CodeStore.Cassandra
 import Brig.Options
 import Brig.Types.Intra
 import Cassandra
@@ -50,6 +47,10 @@ import Polysemy
 import Text.Printf (printf)
 import Wire.API.User
 import Wire.API.User.Activation
+import Wire.API.User.Password
+import Wire.PasswordResetCodeStore qualified as E
+import Wire.PasswordResetCodeStore.Cassandra
+import Wire.UserKeyStore
 
 --  | The information associated with the pending activation of a 'UserKey'.
 data Activation = Activation
@@ -124,17 +125,17 @@ activateKey k c u = verifyCode k c >>= pickUser >>= activate
           pure . Just $ foldKey (EmailActivated uid) (PhoneActivated uid) key
       -- if the key is the same, we only want to update our profile
       | otherwise = do
-          lift (runM (codeStoreToCassandra @m @'[Embed m] (E.mkPasswordResetKey uid >>= E.codeDelete)))
+          lift (runM (passwordResetCodeStoreToCassandra @m @'[Embed m] (E.codeDelete (mkPasswordResetKey uid))))
           claim key uid
           lift $ foldKey (updateEmailAndDeleteEmailUnvalidated uid) (updatePhone uid) key
-          for_ oldKey $ lift . deleteKey
+          for_ oldKey $ lift . adhocUserKeyStoreInterpreter . deleteKey
           pure . Just $ foldKey (EmailActivated uid) (PhoneActivated uid) key
       where
         updateEmailAndDeleteEmailUnvalidated :: UserId -> Email -> m ()
         updateEmailAndDeleteEmailUnvalidated u' email =
           updateEmail u' email <* deleteEmailUnvalidated u'
     claim key uid = do
-      ok <- lift $ claimKey key uid
+      ok <- lift $ adhocUserKeyStoreInterpreter (claimKey key uid)
       unless ok $
         throwE . UserKeyExists . LT.fromStrict $
           foldKey fromEmail fromPhone key

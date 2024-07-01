@@ -73,6 +73,7 @@ import Wire.API.Routes.Version.Wai
 import Wire.API.User (AccountStatus (PendingInvitation))
 import Wire.DeleteQueue
 import Wire.Sem.Paging qualified as P
+import Wire.UserStore
 
 -- FUTUREWORK: If any of these async threads die, we will have no clue about it
 -- and brig could start misbehaving. We should ensure that brig dies whenever a
@@ -180,7 +181,8 @@ pendingActivationCleanup ::
   forall r p.
   ( P.Paging p,
     Member (UserPendingActivationStore p) r,
-    Member DeleteQueue r
+    Member DeleteQueue r,
+    Member UserStore r
   ) =>
   AppT r ()
 pendingActivationCleanup = do
@@ -189,7 +191,7 @@ pendingActivationCleanup = do
     forExpirationsPaged $ \exps -> do
       uids <-
         for exps $ \(UserPendingActivation uid expiresAt) -> do
-          isPendingInvitation <- (Just PendingInvitation ==) <$> wrapClient (API.lookupStatus uid)
+          isPendingInvitation <- (Just PendingInvitation ==) <$> liftSem (lookupStatus uid)
           pure
             ( expiresAt < now,
               isPendingInvitation,

@@ -59,7 +59,6 @@ import Brig.App
 import Brig.Data.User (AuthError (..), ReAuthError (..))
 import Brig.Data.User qualified as User
 import Brig.Types.Instances ()
-import Brig.User.Auth.DB.Instances ()
 import Cassandra as C hiding (Client)
 import Cassandra.Settings as C hiding (Client)
 import Control.Error

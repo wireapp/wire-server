@@ -20,6 +20,7 @@
 , types-common
 , unliftio
 , wire-api
+, wire-subsystems
 }:
 mkDerivation {
   pname = "inconsistencies";
@@ -43,6 +44,7 @@ mkDerivation {
     types-common
     unliftio
     wire-api
+    wire-subsystems
   ];
   description = "Find handles which belong to deleted users";
   license = lib.licenses.agpl3Only;

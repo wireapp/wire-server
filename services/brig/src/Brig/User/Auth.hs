@@ -45,8 +45,6 @@ import Brig.Data.Activation qualified as Data
 import Brig.Data.Client
 import Brig.Data.LoginCode qualified as Data
 import Brig.Data.User qualified as Data
-import Brig.Data.UserKey
-import Brig.Data.UserKey qualified as Data
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Email
 import Brig.Options qualified as Opt
@@ -84,12 +82,16 @@ import Wire.API.User.Auth.Sso
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
+import Wire.PasswordStore (PasswordStore, lookupHashedPassword)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.UserKeyStore
 import Wire.UserStore
-import Wire.UserStore.Cassandra (interpretUserStoreCassandra)
 
 sendLoginCode ::
-  (Member TinyLog r) =>
+  ( Member TinyLog r,
+    Member UserKeyStore r,
+    Member PasswordStore r
+  ) =>
   Phone ->
   Bool ->
   Bool ->
@@ -100,12 +102,12 @@ sendLoginCode phone call force = do
       (throwE $ SendLoginInvalidPhone phone)
       (pure . userPhoneKey)
       =<< lift (wrapHttpClient $ validatePhone phone)
-  user <- lift $ wrapHttpClient $ Data.lookupKey pk
+  user <- lift $ liftSem $ lookupKey pk
   case user of
     Nothing -> throwE $ SendLoginInvalidPhone phone
     Just u -> do
       lift . liftSem . Log.debug $ field "user" (toByteString u) . field "action" (val "User.sendLoginCode")
-      pw <- lift $ wrapClient $ Data.lookupPassword u
+      pw <- lift $ liftSem $ lookupHashedPassword u
       unless (isNothing pw || force) $
         throwE SendLoginPasswordExists
       lift $ wrapHttpClient $ do
@@ -118,11 +120,11 @@ sendLoginCode phone call force = do
         pure c
 
 lookupLoginCode ::
-  (Member TinyLog r) =>
+  (Member TinyLog r, Member UserKeyStore r) =>
   Phone ->
   AppT r (Maybe PendingLoginCode)
 lookupLoginCode phone =
-  wrapClient (Data.lookupKey (userPhoneKey phone)) >>= \case
+  liftSem (lookupKey (userPhoneKey phone)) >>= \case
     Nothing -> pure Nothing
     Just u -> do
       liftSem $ Log.debug $ field "user" (toByteString u) . field "action" (val "User.lookupLoginCode")
@@ -136,22 +138,24 @@ login ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member PasswordStore r,
+    Member UserKeyStore r,
+    Member UserStore r
   ) =>
   Login ->
   CookieType ->
   ExceptT LoginError (AppT r) (Access ZAuth.User)
 login (PasswordLogin (PasswordLoginData li pw label code)) typ = do
-  uid <- wrapHttpClientE $ resolveLoginId li
+  uid <- resolveLoginId li
   lift . liftSem . Log.debug $ field "user" (toByteString uid) . field "action" (val "User.login")
   wrapHttpClientE $ checkRetryLimit uid
-  wrapHttpClientE $
-    Data.authenticate uid pw `catchE` \case
-      AuthInvalidUser -> loginFailed uid
-      AuthInvalidCredentials -> loginFailed uid
-      AuthSuspended -> throwE LoginSuspended
-      AuthEphemeral -> throwE LoginEphemeral
-      AuthPendingInvitation -> throwE LoginPendingActivation
+  Data.authenticate uid pw `catchE` \case
+    AuthInvalidUser -> wrapHttpClientE $ loginFailed uid
+    AuthInvalidCredentials -> wrapHttpClientE $ loginFailed uid
+    AuthSuspended -> throwE LoginSuspended
+    AuthEphemeral -> throwE LoginEphemeral
+    AuthPendingInvitation -> throwE LoginPendingActivation
   verifyLoginCode code uid
   newAccess @ZAuth.User @ZAuth.Access uid Nothing typ label
   where
@@ -163,7 +167,7 @@ login (PasswordLogin (PasswordLoginData li pw label code)) typ = do
           VerificationCodeRequired -> wrapHttpClientE $ loginFailedWith LoginCodeRequired uid
           VerificationCodeNoEmail -> wrapHttpClientE $ loginFailed uid
 login (SmsLogin (SmsLoginData phone code label)) typ = do
-  uid <- wrapClientE $ resolveLoginId (LoginByPhone phone)
+  uid <- resolveLoginId (LoginByPhone phone)
   lift . liftSem . Log.debug $ field "user" (toByteString uid) . field "action" (val "User.login")
   wrapHttpClientE $ checkRetryLimit uid
   ok <- wrapHttpClientE $ Data.verifyLoginCode uid code
@@ -264,7 +268,7 @@ renewAccess uts at mcid = do
   pure $ Access at' ck'
 
 revokeAccess ::
-  (Member TinyLog r) =>
+  (Member TinyLog r, Member PasswordStore r) =>
   UserId ->
   PlainTextPassword6 ->
   [CookieId] ->
@@ -272,7 +276,7 @@ revokeAccess ::
   ExceptT AuthError (AppT r) ()
 revokeAccess u pw cc ll = do
   lift . liftSem $ Log.debug $ field "user" (toByteString u) . field "action" (val "User.revokeAccess")
-  wrapHttpClientE $ unlessM (Data.isSamlUser u) $ Data.authenticate u pw
+  unlessM (lift . wrapHttpClient $ Data.isSamlUser u) $ Data.authenticate u pw
   lift $ wrapHttpClient $ revokeCookies u cc ll
 
 --------------------------------------------------------------------------------
@@ -329,17 +333,12 @@ newAccess uid cid ct cl = do
       t <- lift $ newAccessToken @u @a ck Nothing
       pure $ Access t (Just ck)
 
-resolveLoginId :: forall m. (MonadClient m, MonadReader Env m) => LoginId -> ExceptT LoginError m UserId
+resolveLoginId :: (Member UserKeyStore r, Member UserStore r) => LoginId -> ExceptT LoginError (AppT r) UserId
 resolveLoginId li = do
-  let adhocInterpreter :: Sem '[UserStore, Embed IO] a -> m a
-      adhocInterpreter action = do
-        clientState <- asks (view casClient)
-        liftIO (runM (interpretUserStoreCassandra clientState action))
-
-  usr <- validateLoginId li >>= lift . either lookupKey (adhocInterpreter . lookupHandle)
+  usr <- wrapClientE (validateLoginId li) >>= lift . either (liftSem . lookupKey) (liftSem . lookupHandle)
   case usr of
     Nothing -> do
-      pending <- lift $ isPendingActivation li
+      pending <- wrapClientE $ isPendingActivation li
       throwE $
         if pending
           then LoginPendingActivation

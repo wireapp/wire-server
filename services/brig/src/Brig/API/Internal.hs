@@ -40,7 +40,6 @@ import Brig.Data.MLS.KeyPackage qualified as Data
 import Brig.Data.User qualified as Data
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
-import Brig.Effects.CodeStore (CodeStore)
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.FederationConfigStore
   ( AddFederationRemoteResult (..),
@@ -49,7 +48,6 @@ import Brig.Effects.FederationConfigStore
     UpdateFederationResult (..),
   )
 import Brig.Effects.FederationConfigStore qualified as E
-import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.IO.Intra qualified as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
@@ -103,12 +101,14 @@ import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.RichInfo
 import Wire.API.UserEvent
+import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 import Wire.DeleteQueue
 import Wire.GalleyAPIAccess (GalleyAPIAccess, ShowOrHideInvitationUrl (..))
 import Wire.NotificationSubsystem
 import Wire.Rpc
 import Wire.Sem.Concurrency
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.UserKeyStore
 import Wire.UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem qualified as UserSubsystem
@@ -118,18 +118,18 @@ servantSitemap ::
   ( Member BlacklistPhonePrefixStore r,
     Member BlacklistStore r,
     Member DeleteQueue r,
-    Member CodeStore r,
     Member (Concurrency 'Unsafe) r,
     Member (ConnectionStore InternalPaging) r,
     Member (Embed HttpClientIO) r,
     Member FederationConfigStore r,
+    Member AuthenticationSubsystem r,
     Member GalleyAPIAccess r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member NotificationSubsystem r,
     Member UserSubsystem r,
     Member UserStore r,
-    Member PasswordResetStore r,
+    Member UserKeyStore r,
     Member Rpc r,
     Member TinyLog r,
     Member (UserPendingActivationStore p) r
@@ -168,15 +168,15 @@ mlsAPI = getMLSClients
 
 accountAPI ::
   ( Member BlacklistStore r,
-    Member CodeStore r,
     Member BlacklistPhonePrefixStore r,
-    Member PasswordResetStore r,
     Member GalleyAPIAccess r,
+    Member AuthenticationSubsystem r,
     Member DeleteQueue r,
     Member (UserPendingActivationStore p) r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member UserSubsystem r,
+    Member UserKeyStore r,
     Member UserStore r,
     Member TinyLog r,
     Member (Input (Local ())) r,
@@ -229,6 +229,7 @@ teamsAPI ::
     Member BlacklistStore r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
+    Member UserKeyStore r,
     Member (Concurrency 'Unsafe) r,
     Member TinyLog r,
     Member (Input (Local ())) r,
@@ -261,6 +262,7 @@ authAPI ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
+    Member UserKeyStore r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   ServerT BrigIRoutes.AuthAPI (Handler r)
@@ -456,6 +458,7 @@ createUserNoVerify ::
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
+    Member UserKeyStore r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r
@@ -506,6 +509,7 @@ deleteUserNoAuthH ::
     Member NotificationSubsystem r,
     Member UserStore r,
     Member TinyLog r,
+    Member UserKeyStore r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r
@@ -519,14 +523,14 @@ deleteUserNoAuthH uid = do
     AccountAlreadyDeleted -> pure UserResponseAccountAlreadyDeleted
     AccountDeleted -> pure UserResponseAccountDeleted
 
-changeSelfEmailMaybeSendH :: (Member BlacklistStore r) => UserId -> EmailUpdate -> Maybe Bool -> (Handler r) ChangeEmailResponse
+changeSelfEmailMaybeSendH :: (Member BlacklistStore r, Member UserKeyStore r) => UserId -> EmailUpdate -> Maybe Bool -> (Handler r) ChangeEmailResponse
 changeSelfEmailMaybeSendH u body (fromMaybe False -> validate) = do
   let email = euEmail body
   changeSelfEmailMaybeSend u (if validate then ActuallySendEmail else DoNotSendEmail) email UpdateOriginScim
 
 data MaybeSendEmail = ActuallySendEmail | DoNotSendEmail
 
-changeSelfEmailMaybeSend :: (Member BlacklistStore r) => UserId -> MaybeSendEmail -> Email -> UpdateOriginType -> (Handler r) ChangeEmailResponse
+changeSelfEmailMaybeSend :: (Member BlacklistStore r, Member UserKeyStore r) => UserId -> MaybeSendEmail -> Email -> UpdateOriginType -> (Handler r) ChangeEmailResponse
 changeSelfEmailMaybeSend u ActuallySendEmail email allowScim = do
   API.changeSelfEmail u email allowScim
 changeSelfEmailMaybeSend u DoNotSendEmail email allowScim = do
@@ -539,7 +543,10 @@ changeSelfEmailMaybeSend u DoNotSendEmail email allowScim = do
 -- handler allows up to 4 lists of various user keys, and returns the union of the lookups.
 -- Empty list is forbidden for backwards compatibility.
 listActivatedAccountsH ::
-  (Member DeleteQueue r, Member UserStore r) =>
+  ( Member DeleteQueue r,
+    Member UserKeyStore r,
+    Member UserStore r
+  ) =>
   Maybe (CommaSeparatedList UserId) ->
   Maybe (CommaSeparatedList Handle) ->
   Maybe (CommaSeparatedList Email) ->
@@ -614,8 +621,7 @@ getActivationCode emailOrPhone = do
   maybe (throwStd activationKeyNotFound) (pure . GetActivationCodeResp) apair
 
 getPasswordResetCodeH ::
-  ( Member CodeStore r,
-    Member PasswordResetStore r
+  ( Member AuthenticationSubsystem r
   ) =>
   Maybe Email ->
   Maybe Phone ->
@@ -629,8 +635,7 @@ getPasswordResetCodeH bade badp =
     )
 
 getPasswordResetCode ::
-  ( Member CodeStore r,
-    Member PasswordResetStore r
+  ( Member AuthenticationSubsystem r
   ) =>
   Either Email Phone ->
   (Handler r) GetPasswordResetCodeResp
@@ -653,9 +658,9 @@ changeAccountStatusH usr (suStatus -> status) = do
   API.changeSingleAccountStatus usr status !>> accountStatusError -- FUTUREWORK: use CanThrow and related machinery
   pure NoContent
 
-getAccountStatusH :: UserId -> (Handler r) AccountStatusResp
+getAccountStatusH :: (Member UserStore r) => UserId -> (Handler r) AccountStatusResp
 getAccountStatusH uid = do
-  status <- lift $ wrapClient $ API.lookupStatus uid
+  status <- lift $ liftSem $ lookupStatus uid
   maybe
     (throwStd (errorToWai @'E.UserNotFound))
     (pure . AccountStatusResp)
@@ -691,6 +696,7 @@ revokeIdentityH ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
+    Member UserKeyStore r,
     Member (ConnectionStore InternalPaging) r,
     Member UserSubsystem r
   ) =>

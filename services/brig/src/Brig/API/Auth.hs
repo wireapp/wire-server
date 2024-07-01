@@ -53,7 +53,10 @@ import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
+import Wire.PasswordStore (PasswordStore)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.UserKeyStore hiding (toEither)
+import Wire.UserStore
 import Wire.UserSubsystem
 
 accessH ::
@@ -91,7 +94,7 @@ access mcid t mt =
   traverse mkUserTokenCookie
     =<< Auth.renewAccess (List1 t) mt mcid !>> zauthError
 
-sendLoginCode :: (Member TinyLog r) => SendLoginCode -> Handler r LoginCodeTimeout
+sendLoginCode :: (Member TinyLog r, Member UserKeyStore r, Member PasswordStore r) => SendLoginCode -> Handler r LoginCodeTimeout
 sendLoginCode (SendLoginCode phone call force) = do
   checkAllowlist (Right phone)
   c <- Auth.sendLoginCode phone call force !>> sendLoginCodeError
@@ -104,7 +107,10 @@ login ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member PasswordStore r,
+    Member UserKeyStore r,
+    Member UserStore r
   ) =>
   Login ->
   Maybe Bool ->
@@ -129,7 +135,9 @@ logout _ Nothing = throwStd authMissingToken
 logout uts (Just at) = Auth.logout (List1 uts) at !>> zauthError
 
 changeSelfEmailH ::
-  (Member BlacklistStore r) =>
+  ( Member BlacklistStore r,
+    Member UserKeyStore r
+  ) =>
   [Either Text SomeUserToken] ->
   Maybe (Either Text SomeAccessToken) ->
   EmailUpdate ->
@@ -156,7 +164,7 @@ listCookies lusr (fold -> labels) =
   CookieList
     <$> wrapClientE (Auth.listCookies (tUnqualified lusr) (toList labels))
 
-removeCookies :: (Member TinyLog r) => Local UserId -> RemoveCookies -> Handler r ()
+removeCookies :: (Member TinyLog r, Member PasswordStore r) => Local UserId -> RemoveCookies -> Handler r ()
 removeCookies lusr (RemoveCookies pw lls ids) =
   Auth.revokeAccess (tUnqualified lusr) pw ids lls !>> authError
 
@@ -192,7 +200,7 @@ ssoLogin l (fromMaybe False -> persist) = do
   c <- Auth.ssoLogin l typ !>> loginError
   traverse mkUserTokenCookie c
 
-getLoginCode :: (Member TinyLog r) => Phone -> Handler r PendingLoginCode
+getLoginCode :: (Member TinyLog r, Member UserKeyStore r) => Phone -> Handler r PendingLoginCode
 getLoginCode phone = do
   code <- lift $ Auth.lookupLoginCode phone
   maybe (throwStd loginCodeNotFound) pure code

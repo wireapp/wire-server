@@ -38,6 +38,7 @@ module Wire.API.User.Auth
     Cookie (..),
     CookieLabel (..),
     RemoveCookies (..),
+    toUnitCookie,
 
     -- * Token
     AccessToken (..),
@@ -59,6 +60,7 @@ module Wire.API.User.Auth
   )
 where
 
+import Cassandra
 import Control.Applicative
 import Control.Lens ((?~), (^.))
 import Control.Lens.TH
@@ -139,6 +141,8 @@ newtype LoginCode = LoginCode
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema LoginCode
+
+deriving instance Cql LoginCode
 
 instance ToSchema LoginCode where
   schema = LoginCode <$> fromLoginCode .= text "LoginCode"
@@ -281,10 +285,19 @@ newtype CookieLabel = CookieLabel
       ToSchema
     )
 
+deriving instance Cql CookieLabel
+
 newtype CookieId = CookieId
   {cookieIdNum :: Word32}
   deriving stock (Eq, Show, Generic)
   deriving newtype (ToSchema, FromJSON, ToJSON, Arbitrary)
+
+instance Cql CookieId where
+  ctype = Cassandra.Tagged BigIntColumn
+  toCql = CqlBigInt . fromIntegral . cookieIdNum
+
+  fromCql (CqlBigInt i) = pure (CookieId (fromIntegral i))
+  fromCql _ = Left "fromCql: invalid cookie id"
 
 data CookieType
   = -- | A session cookie. These are mainly intended for clients
@@ -301,11 +314,24 @@ data CookieType
   deriving (Arbitrary) via (GenericUniform CookieType)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema CookieType
 
+instance Cql CookieType where
+  ctype = Cassandra.Tagged IntColumn
+
+  toCql SessionCookie = CqlInt 0
+  toCql PersistentCookie = CqlInt 1
+
+  fromCql (CqlInt 0) = pure SessionCookie
+  fromCql (CqlInt 1) = pure PersistentCookie
+  fromCql _ = Left "fromCql: invalid cookie type"
+
 instance ToSchema CookieType where
   schema =
     enum @Text "CookieType" $
       element "session" SessionCookie
         <> element "persistent" PersistentCookie
+
+toUnitCookie :: Cookie a -> Cookie ()
+toUnitCookie c = c {cookieValue = ()}
 
 --------------------------------------------------------------------------------
 -- Login

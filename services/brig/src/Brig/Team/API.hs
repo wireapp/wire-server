@@ -32,8 +32,6 @@ import Brig.API.User (createUserInviteViaScim, fetchUserIdentity)
 import Brig.API.User qualified as API
 import Brig.API.Util (logEmail, logInvitationCode)
 import Brig.App
-import Brig.Data.UserKey
-import Brig.Data.UserKey qualified as Data
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.BlacklistStore qualified as BlacklistStore
 import Brig.Effects.ConnectionStore (ConnectionStore)
@@ -85,11 +83,13 @@ import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.UserKeyStore
 import Wire.UserSubsystem
 
 servantAPI ::
   ( Member BlacklistStore r,
     Member GalleyAPIAccess r,
+    Member UserKeyStore r,
     Member UserSubsystem r
   ) =>
   ServerT TeamsAPI (Handler r)
@@ -118,6 +118,7 @@ getInvitationCode t r = do
 createInvitationPublicH ::
   ( Member BlacklistStore r,
     Member GalleyAPIAccess r,
+    Member UserKeyStore r,
     Member UserSubsystem r
   ) =>
   UserId ->
@@ -141,6 +142,7 @@ data CreateInvitationInviter = CreateInvitationInviter
 createInvitationPublic ::
   ( Member BlacklistStore r,
     Member GalleyAPIAccess r,
+    Member UserKeyStore r,
     Member UserSubsystem r
   ) =>
   UserId ->
@@ -169,6 +171,7 @@ createInvitationPublic uid tid body = do
 createInvitationViaScim ::
   ( Member BlacklistStore r,
     Member GalleyAPIAccess r,
+    Member UserKeyStore r,
     Member (UserPendingActivationStore p) r,
     Member TinyLog r
   ) =>
@@ -218,7 +221,8 @@ logInvitationRequest context action =
 
 createInvitation' ::
   ( Member BlacklistStore r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member UserKeyStore r
   ) =>
   TeamId ->
   Maybe UserId ->
@@ -237,7 +241,7 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail body = do
   blacklistedEm <- lift $ liftSem $ BlacklistStore.exists uke
   when blacklistedEm $
     throwStd blacklistedEmail
-  emailTaken <- lift $ isJust <$> wrapClient (Data.lookupKey uke)
+  emailTaken <- lift $ liftSem $ isJust <$> lookupKey uke
   when emailTaken $
     throwStd emailExists
 
@@ -248,7 +252,7 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail body = do
     blacklistedPh <- lift $ liftSem $ BlacklistStore.exists ukp
     when blacklistedPh $
       throwStd (errorToWai @'E.BlacklistedPhone)
-    phoneTaken <- lift $ isJust <$> wrapClient (Data.lookupKey ukp)
+    phoneTaken <- lift $ liftSem $ isJust <$> lookupKey ukp
     when phoneTaken $
       throwStd phoneExists
     pure validatedPhone

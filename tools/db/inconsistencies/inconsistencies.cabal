@@ -84,5 +84,6 @@ executable inconsistencies
     , types-common
     , unliftio
     , wire-api
+    , wire-subsystems
 
   default-language:   GHC2021

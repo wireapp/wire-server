@@ -119,6 +119,7 @@ getFederationStatus _ request = do
 sendConnectionAction ::
   ( Member FederationConfigStore r,
     Member GalleyAPIAccess r,
+    Member UserStore r,
     Member NotificationSubsystem r
   ) =>
   Domain ->
@@ -129,7 +130,7 @@ sendConnectionAction originDomain NewConnectionRequest {..} = do
   federates <- lift . liftSem . E.backendFederatesWith $ rTeam
   if federates
     then do
-      active <- lift $ wrapClient $ Data.isActivated to
+      active <- lift . liftSem $ isActivated to
       if active
         then do
           self <- qualifyLocal to

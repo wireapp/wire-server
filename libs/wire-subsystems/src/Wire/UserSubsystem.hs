@@ -14,6 +14,7 @@ import Wire.API.Error.Brig qualified as E
 import Wire.API.Federation.Error
 import Wire.API.User
 import Wire.Arbitrary
+import Wire.UserKeyStore
 
 -- | All errors that are thrown by the user subsystem are subsumed under this sum type.
 data UserSubsystemError
@@ -97,6 +98,7 @@ data UserSubsystem m a where
   CheckHandles :: [Handle] -> Word -> UserSubsystem m [Handle]
   -- | parses a handle, this may fail so it's effectful
   UpdateHandle :: Local UserId -> Maybe ConnId -> UpdateOriginType -> Text {- use Handle here? -} -> UserSubsystem m ()
+  GetLocalUserAccountByUserKey :: Local UserKey -> UserSubsystem m (Maybe UserAccount)
 
 -- | the return type of 'CheckHandle'
 data CheckHandleResp
