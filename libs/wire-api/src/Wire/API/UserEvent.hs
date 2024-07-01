@@ -32,6 +32,7 @@ import Data.Schema
 import Imports
 import System.Logger.Message hiding (field, (.=))
 import Wire.API.Connection
+import Wire.API.Locale
 import Wire.API.Properties
 import Wire.API.Routes.Version
 import Wire.API.User

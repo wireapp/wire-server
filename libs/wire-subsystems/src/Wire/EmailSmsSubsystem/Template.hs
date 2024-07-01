@@ -52,6 +52,7 @@ import Data.Text.Lazy qualified as Lazy
 import Data.Text.Template
 import HTMLEntities.Text qualified as HTML
 import Imports
+import Wire.API.Locale
 import Wire.API.User
 
 -- | Lookup a localised item from a 'Localised' structure.

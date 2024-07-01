@@ -16,19 +16,39 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.Locale
-  ( timeLocale,
+  ( Locale (..),
+    Language (..),
+    Country (..),
+    timeLocale,
     formatDateTime,
     deDe,
     frFr,
+    locToText,
+    parseLocale,
+    lan2Text,
+    parseLanguage,
+    con2Text,
+    parseCountry,
   )
 where
 
+import Cassandra as C
+import Control.Applicative (optional)
+import Control.Error.Util (hush, note)
+import Data.Aeson (FromJSON, ToJSON)
+import Data.Attoparsec.Text
+import Data.ISO3166_CountryCodes (CountryCode)
 import Data.LanguageCodes (ISO639_1 (DE, FR))
+import Data.OpenApi qualified as S
+import Data.Schema
+import Data.Text qualified as Text
 import Data.Time.Clock (UTCTime)
 import Data.Time.Format
 import Data.Time.LocalTime (TimeZone (..), utc)
 import Imports
-import Wire.API.User
+import Test.QuickCheck
+import Wire.API.User.Orphans ()
+import Wire.Arbitrary
 
 timeLocale :: Locale -> TimeLocale
 timeLocale (Locale (Language DE) _) = deDe
@@ -113,3 +133,99 @@ frFr =
           TimeZone 120 True "HAEC"
         ]
     }
+
+--------------------------------------------------------------------------------
+-- Locale
+
+data Locale = Locale
+  { lLanguage :: Language,
+    lCountry :: Maybe Country
+  }
+  deriving stock (Eq, Ord, Generic)
+  deriving (Arbitrary) via (GenericUniform Locale)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema Locale
+
+instance ToSchema Locale where
+  schema = locToText .= parsedText "Locale" (note err . parseLocale)
+    where
+      err = "Invalid locale. Expected <ISO 639-1>(-<ISO 3166-1-alpha2>)? format"
+
+instance Show Locale where
+  show = Text.unpack . locToText
+
+locToText :: Locale -> Text
+locToText (Locale l c) = lan2Text l <> foldMap (("-" <>) . con2Text) c
+
+parseLocale :: Text -> Maybe Locale
+parseLocale = hush . parseOnly localeParser
+  where
+    localeParser :: Parser Locale
+    localeParser =
+      Locale
+        <$> (languageParser <?> "Language code")
+        <*> (optional (char '-' *> countryParser) <?> "Country code")
+
+--------------------------------------------------------------------------------
+-- Language
+
+newtype Language = Language {fromLanguage :: ISO639_1}
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving newtype (Arbitrary, S.ToSchema)
+
+instance C.Cql Language where
+  ctype = C.Tagged C.AsciiColumn
+  toCql = C.toCql . lan2Text
+
+  fromCql (C.CqlAscii l) = case parseLanguage l of
+    Just l' -> pure l'
+    Nothing -> Left "Language: ISO 639-1 expected."
+  fromCql _ = Left "Language: ASCII expected"
+
+languageParser :: Parser Language
+languageParser = codeParser "language" $ fmap Language . checkAndConvert isLower
+
+lan2Text :: Language -> Text
+lan2Text = Text.toLower . Text.pack . show . fromLanguage
+
+parseLanguage :: Text -> Maybe Language
+parseLanguage = hush . parseOnly languageParser
+
+--------------------------------------------------------------------------------
+-- Country
+
+newtype Country = Country {fromCountry :: CountryCode}
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving newtype (Arbitrary, S.ToSchema)
+
+instance C.Cql Country where
+  ctype = C.Tagged C.AsciiColumn
+  toCql = C.toCql . con2Text
+
+  fromCql (C.CqlAscii c) = case parseCountry c of
+    Just c' -> pure c'
+    Nothing -> Left "Country: ISO 3166-1-alpha2 expected."
+  fromCql _ = Left "Country: ASCII expected"
+
+countryParser :: Parser Country
+countryParser = codeParser "country" $ fmap Country . checkAndConvert isUpper
+
+con2Text :: Country -> Text
+con2Text = Text.pack . show . fromCountry
+
+parseCountry :: Text -> Maybe Country
+parseCountry = hush . parseOnly countryParser
+
+--------------------------------------------------------------------------------
+-- helpers
+
+-- Common language / country functions
+checkAndConvert :: (Read a) => (Char -> Bool) -> String -> Maybe a
+checkAndConvert f t =
+  if all f t
+    then readMaybe (map toUpper t)
+    else fail "Format not supported."
+
+codeParser :: String -> (String -> Maybe a) -> Parser a
+codeParser err conv = do
+  code <- count 2 anyChar
+  maybe (fail err) pure (conv code)

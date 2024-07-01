@@ -153,9 +153,9 @@ import System.Logger.Class qualified as LC
 import System.Logger.Extended qualified as Log
 import Util.Options
 import Wire.API.Federation.Error (federationNotImplemented)
+import Wire.API.Locale (Locale)
 import Wire.API.Routes.Version
 import Wire.API.User.Identity (Email)
-import Wire.API.User.Profile (Locale)
 import Wire.EmailSending.SMTP qualified as SMTP
 import Wire.EmailSmsSubsystem.Template (TemplateBranding, forLocale)
 import Wire.SessionStore

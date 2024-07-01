@@ -143,6 +143,7 @@ module Wire.API.User
     EmailVisibilityConfigWithViewer,
 
     -- * re-exports
+    module Wire.API.Locale,
     module Wire.API.User.Identity,
     module Wire.API.User.Profile,
 
@@ -214,6 +215,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Error.Brig qualified as E
+import Wire.API.Locale
 import Wire.API.Provider.Service (ServiceRef)
 import Wire.API.Routes.MultiVerb
 import Wire.API.Team (BindingNewTeam, bindingNewTeamObjectSchema)

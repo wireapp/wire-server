@@ -48,8 +48,8 @@ import Data.Text.Ascii
 import Data.Tuple.Extra (fst3, snd3, thd3)
 import Imports
 import Servant (FromHttpApiData (..))
+import Wire.API.Locale
 import Wire.API.User.Identity
-import Wire.API.User.Profile
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 --------------------------------------------------------------------------------

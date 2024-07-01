@@ -11,6 +11,7 @@ import Data.Set qualified as S
 import Database.CQL.Protocol (Record (..), TupleType, recordInstance)
 import GHC.Records
 import Imports
+import Wire.API.Locale
 import Wire.API.Provider.Service
 import Wire.API.User
 import Wire.Arbitrary

@@ -32,8 +32,9 @@ import Data.OpenApi qualified as S
 import Data.Schema
 import Imports
 import Wire.API.Event.Conversation (Event)
+import Wire.API.Locale (Locale)
 import Wire.API.User.Client.Prekey (Prekey)
-import Wire.API.User.Profile (Asset, ColourId, Locale, Name)
+import Wire.API.User.Profile (Asset, ColourId, Name)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 --------------------------------------------------------------------------------

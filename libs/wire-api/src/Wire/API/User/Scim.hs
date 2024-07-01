@@ -83,6 +83,7 @@ import Web.Scim.Schema.Schema (Schema (CustomSchema))
 import Web.Scim.Schema.Schema qualified as Scim
 import Web.Scim.Schema.User qualified as Scim
 import Web.Scim.Schema.User qualified as Scim.User
+import Wire.API.Locale
 import Wire.API.Team.Role (Role)
 import Wire.API.User (emailFromSAMLNameID, urefToExternalIdUnsafe)
 import Wire.API.User.Identity (Email, fromEmail)

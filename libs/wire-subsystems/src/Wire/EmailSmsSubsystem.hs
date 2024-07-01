@@ -5,6 +5,7 @@ module Wire.EmailSmsSubsystem where
 import Data.Code qualified as Code
 import Imports
 import Polysemy
+import Wire.API.Locale
 import Wire.API.User
 import Wire.API.User.Activation (ActivationCode, ActivationKey)
 import Wire.API.User.Client (Client (..))

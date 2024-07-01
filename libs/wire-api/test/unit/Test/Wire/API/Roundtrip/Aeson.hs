@@ -39,6 +39,7 @@ import Wire.API.CustomBackend qualified as CustomBackend
 import Wire.API.Event.Conversation qualified as Event.Conversation
 import Wire.API.Event.Team qualified as Event.Team
 import Wire.API.FederationStatus qualified as FederationStatus
+import Wire.API.Locale qualified as Locale
 import Wire.API.Message qualified as Message
 import Wire.API.OAuth qualified as OAuth
 import Wire.API.Properties qualified as Properties
@@ -151,6 +152,7 @@ tests =
       testRoundTrip @FederationDomainConfig.FederationStrategy,
       testRoundTrip @FederationStatus.FederationStatus,
       testRoundTrip @FederationStatus.RemoteDomains,
+      testRoundTrip @Locale.Locale,
       testRoundTrip @Message.Priority,
       testRoundTrip @Message.OtrRecipients,
       testRoundTrip @Message.NewOtrMessage,
@@ -325,7 +327,6 @@ tests =
       testRoundTrip @User.Profile.ColourId,
       testRoundTrip @User.Profile.AssetSize,
       testRoundTrip @User.Profile.Asset,
-      testRoundTrip @User.Profile.Locale,
       testRoundTrip @User.Profile.ManagedBy,
       testRoundTrip @User.RichInfo.RichField,
       testRoundTrip @User.RichInfo.RichInfoAssocList,
