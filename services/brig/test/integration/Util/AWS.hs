@@ -17,6 +17,7 @@
 
 module Util.AWS where
 
+import Brig.AWS qualified as AWS
 import Control.Lens
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as Lazy
@@ -29,7 +30,6 @@ import Proto.UserEvents qualified as PU
 import Proto.UserEvents_Fields qualified as PU
 import Test.Tasty.HUnit
 import Util.Test.SQS qualified as SQS
-import Wire.API.AWS qualified as AWS
 import Wire.API.User
 
 type UserJournalWatcher = Maybe (SQS.SQSWatcher PU.UserEvent)

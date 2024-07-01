@@ -8,6 +8,7 @@ import Amazonka.SES.Lens qualified as SES
 import Amazonka.Send as AWS
 import Amazonka.Types qualified as AWS
 import Control.Lens
+import Control.Monad.Catch
 import Control.Retry
 import Data.ByteString.Lazy qualified as BL
 import Data.Text qualified as Text
@@ -16,28 +17,26 @@ import Network.HTTP.Client
 import Network.HTTP.Types
 import Network.Mail.Mime (Mail, addressEmail, mailFrom, mailTo, renderMail')
 import Polysemy
-import Polysemy.Error
 import Polysemy.Input
 import System.Logger (Logger)
 import Wire.EmailSending
 import Wire.EmailSending.SMTP qualified as SMTP
 
 emailToAWSInterpreter ::
-  ( Member (Error EmailSendingAWSError) r,
-    Member (Input Amazonka.Env) r,
-    Member (Embed IO) r
-  ) =>
+  (Member (Embed IO) r) =>
+  Amazonka.Env ->
   InterpreterFor EmailSending r
-emailToAWSInterpreter = interpret \case
-  SendMail mail -> sendMailAWSImpl mail
+emailToAWSInterpreter env =
+  interpret $
+    runInputConst env . \case
+      SendMail mail -> sendMailAWSImpl mail
 
 emailToSMTPInterpreter :: (Member (Embed IO) r) => Logger -> SMTP.SMTP -> InterpreterFor EmailSending r
 emailToSMTPInterpreter logger smtp = interpret \case
   SendMail mail -> SMTP.sendMail logger smtp mail
 
 sendMailAWSImpl ::
-  ( Member (Error EmailSendingAWSError) r,
-    Member (Input Amazonka.Env) r,
+  ( Member (Input Amazonka.Env) r,
     Member (Embed IO) r
   ) =>
   Mail ->
@@ -49,7 +48,7 @@ sendMailAWSImpl m = do
           & SES.sendRawEmail_destinations ?~ fmap addressEmail (mailTo m)
           & SES.sendRawEmail_source ?~ addressEmail (mailFrom m)
   resp <- retrying retry5x (\_ -> pure . canRetry) $ const (sendCatch raw)
-  void $ either check pure resp
+  void . embed $ either check pure resp
   where
     check x = case x of
       -- To map rejected domain names by SES to 400 responses, in order
@@ -62,8 +61,8 @@ sendMailAWSImpl m = do
       AWS.ServiceError se
         | (se ^. AWS.serviceError_status == status400)
             && ("Invalid domain name" `Text.isPrefixOf` AWS.toText (se ^. AWS.serviceError_code)) ->
-            throw SESInvalidDomain
-      _ -> throw (EmailSendingAWSGeneralError x)
+            throwM SESInvalidDomain
+      _ -> throwM (EmailSendingAWSGeneralError x)
 
 data EmailSendingAWSError where
   SESInvalidDomain :: EmailSendingAWSError

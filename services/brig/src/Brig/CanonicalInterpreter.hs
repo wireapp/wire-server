@@ -1,6 +1,6 @@
 module Brig.CanonicalInterpreter where
 
-import Amazonka.Env qualified as AWS
+import Brig.AWS (amazonkaEnv)
 import Brig.App as App
 import Brig.DeleteQueue.Interpreter as DQ
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
@@ -33,7 +33,7 @@ import Polysemy.Async
 import Polysemy.Conc
 import Polysemy.Embed (runEmbedded)
 import Polysemy.Error (Error, errorToIOFinal, mapError, runError)
-import Polysemy.Input (Input, input, runInputConst, runInputSem)
+import Polysemy.Input (Input, runInputConst, runInputSem)
 import Polysemy.TinyLog (TinyLog)
 import Wire.API.Allowlists (AllowlistEmailDomains, AllowlistPhonePrefixes)
 import Wire.API.Federation.Client qualified
@@ -201,11 +201,11 @@ rethrowWaiErrorIO act = do
     Left err -> embedToFinal $ throwM $ err
     Right a -> pure a
 
-emailSendingInterpreter :: (Member (Input ()) r, Member (Embed IO) r) => Env -> InterpreterFor EmailSending r
+emailSendingInterpreter :: (Member (Embed IO) r) => Env -> InterpreterFor EmailSending r
 emailSendingInterpreter e = do
   case (e ^. smtpEnv) of
     Just smtp -> emailToSMTPInterpreter (e ^. applog) smtp
-    Nothing -> emailToAWSInterpreter
+    Nothing -> emailToAWSInterpreter (e ^. awsEnv . amazonkaEnv)
 
 -- FUTUREWORK: Env can be removed once phone users are removed, and then this interpreter should go to wire-subsystems
 emailSmsSubsystemInterpreter :: (Member (Final IO) r, Member EmailSending r) => Env -> Localised UserTemplates -> TemplateBranding -> InterpreterFor EmailSmsSubsystem r

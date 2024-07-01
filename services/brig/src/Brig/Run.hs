@@ -27,6 +27,8 @@ import Brig.API.Handler
 import Brig.API.Internal qualified as IAPI
 import Brig.API.Public
 import Brig.API.User qualified as API
+import Brig.AWS (amazonkaEnv, sesQueue)
+import Brig.AWS qualified as AWS
 import Brig.AWS.SesNotification qualified as SesNotification
 import Brig.App
 import Brig.Calling qualified as Calling
@@ -34,7 +36,7 @@ import Brig.CanonicalInterpreter
 import Brig.Effects.UserPendingActivationStore (UserPendingActivation (UserPendingActivation), UserPendingActivationStore)
 import Brig.Effects.UserPendingActivationStore qualified as UsersPendingActivationStore
 import Brig.InternalEvent.Process qualified as Internal
-import Brig.Options hiding (internalEvents)
+import Brig.Options hiding (internalEvents, sesQueue)
 import Brig.Queue qualified as Queue
 import Brig.Version
 import Control.Concurrent.Async qualified as Async
@@ -63,8 +65,6 @@ import Servant qualified
 import System.Logger (msg, val, (.=), (~~))
 import System.Logger.Class (MonadLogger, err)
 import Util.Options
-import Wire.API.AWS (amazonkaEnv, sesQueue)
-import Wire.API.AWS qualified as AWS
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Brig qualified as IAPI
 import Wire.API.Routes.Public.Brig

@@ -31,6 +31,7 @@ import API.User.Property qualified
 import API.User.RichInfo qualified
 import API.User.Util
 import Bilge hiding (accept, timeout)
+import Brig.AWS qualified as AWS
 import Brig.Options qualified as Opt
 import Brig.ZAuth qualified as ZAuth
 import Cassandra qualified as DB
@@ -40,7 +41,6 @@ import Test.Tasty hiding (Timeout)
 import Util
 import Util.AWS (UserJournalWatcher)
 import Util.Options.Common
-import Wire.API.AWS qualified as AWS
 import Wire.API.Federation.Component
 
 tests ::
