@@ -75,7 +75,7 @@ library
     Wire.DeleteQueue
     Wire.DeleteQueue.InMemory
     Wire.EmailSending
-    Wire.EmailSending.Interpreter
+    Wire.EmailSending.SES
     Wire.EmailSending.SMTP
     Wire.EmailSmsSubsystem
     Wire.EmailSmsSubsystem.Interpreter

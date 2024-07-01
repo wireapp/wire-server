@@ -42,7 +42,8 @@ import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Interpreter
 import Wire.DeleteQueue
 import Wire.EmailSending
-import Wire.EmailSending.Interpreter (emailToAWSInterpreter, emailToSMTPInterpreter)
+import Wire.EmailSending.SES
+import Wire.EmailSending.SMTP
 import Wire.EmailSmsSubsystem
 import Wire.EmailSmsSubsystem.Interpreter
 import Wire.EmailSmsSubsystem.Template (Localised, TemplateBranding, UserTemplates)
@@ -205,7 +206,7 @@ emailSendingInterpreter :: (Member (Embed IO) r) => Env -> InterpreterFor EmailS
 emailSendingInterpreter e = do
   case (e ^. smtpEnv) of
     Just smtp -> emailToSMTPInterpreter (e ^. applog) smtp
-    Nothing -> emailToAWSInterpreter (e ^. awsEnv . amazonkaEnv)
+    Nothing -> emailToSESInterpreter (e ^. awsEnv . amazonkaEnv)
 
 -- FUTUREWORK: Env can be removed once phone users are removed, and then this interpreter should go to wire-subsystems
 emailSmsSubsystemInterpreter :: (Member (Final IO) r, Member EmailSending r) => Env -> Localised UserTemplates -> TemplateBranding -> InterpreterFor EmailSmsSubsystem r

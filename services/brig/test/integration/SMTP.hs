@@ -19,10 +19,12 @@ import Network.Mail.Mime
 import Network.Mail.Postie qualified as Postie
 import Network.Socket
 import Pipes.Prelude qualified
+import Polysemy
 import System.Logger qualified as Logger
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
+import Wire.EmailSending
 import Wire.EmailSending.SMTP
 
 tests :: Bilge.Manager -> Logger.Logger -> TestTree
@@ -38,6 +40,7 @@ tests m lg =
       test m "should throw an error the initiation times out" $ testSendMailTimeoutOnStartup lg
     ]
 
+-- TODO: Move all these tests to unit tests for the emailToSMTPInterpreter
 testSendMail :: Logger.Logger -> Bilge.Http ()
 testSendMail lg = do
   receivedMailRef <- liftIO $ newIORef Nothing
@@ -47,7 +50,7 @@ testSendMail lg = do
       withMailServer sock (mailStoringApp receivedMailRef) $
         do
           conPool <- initSMTP lg "localhost" (Just port) Nothing Plain
-          sendMail lg conPool someTestMail
+          _ <- runM . emailToSMTPInterpreter lg conPool $ sendMail someTestMail
           mbMail <-
             retryWhileN 3 isJust $ do
               readIORef receivedMailRef
@@ -98,7 +101,7 @@ testSendMailTransactionFailed lg = do
           caughtException <-
             handle @SomeException
               (const (pure True))
-              (sendMail lg conPool someTestMail >> pure False)
+              (runM . emailToSMTPInterpreter lg conPool $ sendMail someTestMail >> pure False)
           caughtException @? "Expected exception due to missing mail receiver."
 
 testSendMailFailingConnectionOnStartup :: Logger.Logger -> Bilge.Http ()
@@ -127,7 +130,7 @@ testSendMailFailingConnectionOnSend lg = do
     liftIO $
       handle @SomeException
         (const (pure True))
-        (sendMail lg conPool someTestMail >> pure False)
+        (runM . emailToSMTPInterpreter lg conPool $ sendMail someTestMail >> pure False)
   liftIO $ caughtException @? "Expected exception (SMTP server unreachable.)"
   mbMail <- liftIO $ readIORef receivedMailRef
   liftIO $ isNothing mbMail @? "No mail expected (if there is one, the test setup is broken.)"

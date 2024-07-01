@@ -1,4 +1,4 @@
-module Wire.EmailSending.Interpreter where
+module Wire.EmailSending.SES where
 
 import Amazonka (Env, runResourceT)
 import Amazonka.Core.Lens.Internal qualified as AWS
@@ -18,22 +18,16 @@ import Network.HTTP.Types
 import Network.Mail.Mime (Mail, addressEmail, mailFrom, mailTo, renderMail')
 import Polysemy
 import Polysemy.Input
-import System.Logger (Logger)
 import Wire.EmailSending
-import Wire.EmailSending.SMTP qualified as SMTP
 
-emailToAWSInterpreter ::
+emailToSESInterpreter ::
   (Member (Embed IO) r) =>
   Amazonka.Env ->
   InterpreterFor EmailSending r
-emailToAWSInterpreter env =
+emailToSESInterpreter env =
   interpret $
     runInputConst env . \case
       SendMail mail -> sendMailAWSImpl mail
-
-emailToSMTPInterpreter :: (Member (Embed IO) r) => Logger -> SMTP.SMTP -> InterpreterFor EmailSending r
-emailToSMTPInterpreter logger smtp = interpret \case
-  SendMail mail -> SMTP.sendMail logger smtp mail
 
 sendMailAWSImpl ::
   ( Member (Input Amazonka.Env) r,
