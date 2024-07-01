@@ -1,5 +1,4 @@
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE StrictData #-}
 
 module Wire.EmailSmsSubsystem.Interpreter where
 
