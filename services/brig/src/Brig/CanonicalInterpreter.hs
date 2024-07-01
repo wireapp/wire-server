@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wno-redundant-constraints #-}
-
 module Brig.CanonicalInterpreter where
 
 import Brig.App as App
