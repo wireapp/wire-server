@@ -47,6 +47,7 @@
 , polysemy-plugin
 , polysemy-time
 , polysemy-wire-zoo
+, postie
 , QuickCheck
 , quickcheck-instances
 , resource-pool
@@ -156,10 +157,13 @@ mkDerivation {
     imports
     iso639
     lens
+    mime-mail
+    network
     polysemy
     polysemy-plugin
     polysemy-time
     polysemy-wire-zoo
+    postie
     QuickCheck
     quickcheck-instances
     servant-client-core

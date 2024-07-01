@@ -1,6 +1,4 @@
 {-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
--- Disabling to stop warnings on HasCallStack
-{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 module SMTP where
 
@@ -227,7 +225,7 @@ delayingApp delay =
         $> Postie.Accepted
     )
 
-everDelayingTCPServer :: (HasCallStack) => Socket -> IO a -> IO a
+everDelayingTCPServer :: Socket -> IO a -> IO a
 everDelayingTCPServer sock action = listen sock 1024 >> action
 
 withRandomPortAndSocket :: (MonadIO m) => ((PortNumber, Socket) -> IO a) -> m a

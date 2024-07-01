@@ -188,6 +188,7 @@ test-suite wire-subsystems-tests
   other-modules:
     Spec
     Wire.AuthenticationSubsystem.InterpreterSpec
+    Wire.EmailSending.SMTPSpec
     Wire.MiniBackend
     Wire.MockInterpreters
     Wire.MockInterpreters.EmailSmsSubsystem
@@ -223,13 +224,18 @@ test-suite wire-subsystems-tests
     , imports
     , iso639
     , lens
+    , mime-mail
+    , network
+    , pipes
     , polysemy
     , polysemy-plugin
     , polysemy-time
     , polysemy-wire-zoo
+    , postie
     , QuickCheck
     , quickcheck-instances
     , servant-client-core
+    , streaming-commons
     , string-conversions
     , text
     , time
