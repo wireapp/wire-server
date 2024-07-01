@@ -30,7 +30,7 @@ import Wire.MockInterpreters
 import Wire.PasswordResetCodeStore
 import Wire.PasswordStore
 import Wire.Sem.Logger.TinyLog
-import Wire.Sem.Now
+import Wire.Sem.Now (Now)
 import Wire.SessionStore
 import Wire.UserKeyStore
 import Wire.UserSubsystem
@@ -130,8 +130,9 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               interpretDependencies localDomain [] mempty (Just ["example.com"])
                 . interpretAuthenticationSubsystem
                 $ createPasswordResetCode (userEmailKey email)
-         in emailDomain email /= "exmaple.com" ==>
-              createPasswordResetCodeResult === Left AuthenticationSubsystemAllowListError
+                  <* expectNoEmailSent
+         in emailDomain email /= "example.com" ==>
+              createPasswordResetCodeResult === Right ()
 
     prop "reset code is generated when email is in allow list" $
       \email userNoEmail ->
@@ -152,8 +153,9 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               interpretDependencies localDomain [UserAccount user status] mempty Nothing
                 . interpretAuthenticationSubsystem
                 $ createPasswordResetCode (userEmailKey email)
+                  <* expectNoEmailSent
          in status /= Active ==>
-              createPasswordResetCodeResult === Left AuthenticationSubsystemInvalidPasswordResetKey
+              createPasswordResetCodeResult === Right ()
 
     prop "reset code is not generated for when there is no user for the email" $
       \email localDomain ->
@@ -161,7 +163,8 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               interpretDependencies localDomain [] mempty Nothing
                 . interpretAuthenticationSubsystem
                 $ createPasswordResetCode (userEmailKey email)
-         in createPasswordResetCodeResult === Left AuthenticationSubsystemInvalidPasswordResetKey
+                  <* expectNoEmailSent
+         in createPasswordResetCodeResult === Right ()
 
     prop "reset code is only generated once" $
       \email userNoEmail newPassword ->
@@ -182,7 +185,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
 
                   (,mCaughtExc) <$> lookupHashedPassword uid
          in (fmap (verifyPassword newPassword) newPasswordHash === Just True)
-              .&&. (mCaughtException === Just AuthenticationSubsystemPasswordResetInProgress)
+              .&&. (mCaughtException === Nothing)
 
     prop "reset code is not accepted after expiry" $
       \email userNoEmail oldPassword newPassword ->
@@ -306,3 +309,10 @@ expect1ResetPasswordEmail email =
       [] -> error "no emails sent"
       [SentMail _ (PasswordResetMail resetPair)] -> resetPair
       wrongEmails -> error $ "Wrong emails sent: " <> show wrongEmails
+
+expectNoEmailSent :: (Member (State (Map Email [SentMail])) r) => Sem r ()
+expectNoEmailSent = do
+  emails <- get
+  if null emails
+    then pure ()
+    else error $ "Expected no emails sent, got: " <> show emails

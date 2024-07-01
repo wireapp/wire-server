@@ -78,42 +78,65 @@ maxAttempts = 3
 passwordResetCodeTtl :: NominalDiffTime
 passwordResetCodeTtl = 3600 -- 60 minutes
 
+-- This type is not exported and used for internal control flow only
+data PasswordResetError
+  = AllowListError
+  | InvalidResetKey
+  | InProgress
+  deriving (Show)
+
+instance Exception PasswordResetError where
+  displayException AllowListError = "email domain is not allowed for password reset"
+  displayException InvalidResetKey = "invalid reset key for password reset"
+  displayException InProgress = "password reset already in progress"
+
 createPasswordResetCodeImpl ::
+  forall r.
   ( Member PasswordResetCodeStore r,
     Member Now r,
     Member (Input (Local ())) r,
     Member (Input (Maybe AllowlistEmailDomains)) r,
     Member (Input (Maybe AllowlistPhonePrefixes)) r,
-    Member (Error AuthenticationSubsystemError) r,
     Member TinyLog r,
     Member UserSubsystem r,
     Member EmailSmsSubsystem r
   ) =>
   UserKey ->
   Sem r ()
-createPasswordResetCodeImpl target = do
-  allowListOk <- (\e p -> AllowLists.verify e p (toEither target)) <$> input <*> input
-  unless allowListOk $ throw AuthenticationSubsystemAllowListError
-  user <- lookupActiveUserByUserKey target >>= maybe (throw AuthenticationSubsystemInvalidPasswordResetKey) pure
-  let uid = userId user
-  Log.debug $ field "user" (toByteString uid) . field "action" (val "User.beginPasswordReset")
+createPasswordResetCodeImpl target =
+  logPasswordResetError =<< runError do
+    allowListOk <- (\e p -> AllowLists.verify e p (toEither target)) <$> input <*> input
+    unless allowListOk $ throw AllowListError
+    user <- lookupActiveUserByUserKey target >>= maybe (throw InvalidResetKey) pure
+    let uid = userId user
+    Log.debug $ field "user" (toByteString uid) . field "action" (val "User.beginPasswordReset")
 
-  mExistingCode <- lookupPasswordResetCode uid
-  when (isJust mExistingCode) $
-    throw AuthenticationSubsystemPasswordResetInProgress
+    mExistingCode <- lookupPasswordResetCode uid
+    when (isJust mExistingCode) $
+      throw InProgress
 
-  let key = mkPasswordResetKey uid
-  now <- Now.get
-  code <- foldKey (const generateEmailCode) (const generatePhoneCode) target
-  codeInsert
-    key
-    (PRQueryData code uid (Identity maxAttempts) (Identity (passwordResetCodeTtl `addUTCTime` now)))
-    (round passwordResetCodeTtl)
-  foldKey
-    (\email -> sendPasswordResetMail email (key, code) (Just user.userLocale))
-    (\phone -> sendPasswordResetSms phone (key, code) (Just user.userLocale))
-    target
-  pure ()
+    let key = mkPasswordResetKey uid
+    now <- Now.get
+    code <- foldKey (const generateEmailCode) (const generatePhoneCode) target
+    codeInsert
+      key
+      (PRQueryData code uid (Identity maxAttempts) (Identity (passwordResetCodeTtl `addUTCTime` now)))
+      (round passwordResetCodeTtl)
+    foldKey
+      (\email -> sendPasswordResetMail email (key, code) (Just user.userLocale))
+      (\phone -> sendPasswordResetSms phone (key, code) (Just user.userLocale))
+      target
+    pure ()
+  where
+    -- `PasswordResetError` are errors that we don't want to leak to the caller.
+    -- Therefore we handle them here and only log without propagating them.
+    logPasswordResetError :: Either PasswordResetError () -> Sem r ()
+    logPasswordResetError = \case
+      Left e ->
+        Log.err $
+          field "action" (val "User.beginPasswordReset")
+            . field "error" (displayException e)
+      Right v -> pure v
 
 lookupActiveUserIdByUserKey :: (Member UserSubsystem r, Member (Input (Local ())) r) => UserKey -> Sem r (Maybe UserId)
 lookupActiveUserIdByUserKey target = userId <$$> lookupActiveUserByUserKey target
