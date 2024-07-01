@@ -90,7 +90,11 @@ testFutureStaleApplicationMessage = do
       }
 
   -- alice's application message is rejected
-  void . getJSON 409 =<< postMLSMessage alice1 . (.message) =<< createApplicationMessage alice1 "hi bob"
+  void
+    . getJSON 409
+    =<< postMLSMessage alice1
+    . (.message)
+    =<< createApplicationMessage alice1 "hi bob"
 
 testMixedProtocolUpgrade :: (HasCallStack) => Domain -> App ()
 testMixedProtocolUpgrade secondDomain = do
