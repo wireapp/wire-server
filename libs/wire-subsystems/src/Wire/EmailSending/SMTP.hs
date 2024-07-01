@@ -19,7 +19,7 @@
 
 module Wire.EmailSending.SMTP
   ( initSMTP,
-    emailToSMTPInterpreter,
+    emailViaSMTPInterpreter,
     sendMail',
     initSMTP',
     SMTPConnType (..),
@@ -49,8 +49,8 @@ import System.Logger qualified as Logger
 import System.Logger.Class hiding (create)
 import Wire.EmailSending
 
-emailToSMTPInterpreter :: (Member (Embed IO) r) => Logger -> SMTP -> InterpreterFor EmailSending r
-emailToSMTPInterpreter logger smtp = interpret \case
+emailViaSMTPInterpreter :: (Member (Embed IO) r) => Logger -> SMTP -> InterpreterFor EmailSending r
+emailViaSMTPInterpreter logger smtp = interpret \case
   SendMail mail -> sendMailImpl logger smtp mail
 
 newtype Username = Username Text

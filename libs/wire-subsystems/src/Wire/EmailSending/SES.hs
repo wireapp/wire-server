@@ -20,11 +20,11 @@ import Polysemy
 import Polysemy.Input
 import Wire.EmailSending
 
-emailToSESInterpreter ::
+emailViaSESInterpreter ::
   (Member (Embed IO) r) =>
   Amazonka.Env ->
   InterpreterFor EmailSending r
-emailToSESInterpreter env =
+emailViaSESInterpreter env =
   interpret $
     runInputConst env . \case
       SendMail mail -> sendMailAWSImpl mail

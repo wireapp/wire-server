@@ -40,7 +40,7 @@ tests m lg =
       test m "should throw an error the initiation times out" $ testSendMailTimeoutOnStartup lg
     ]
 
--- TODO: Move all these tests to unit tests for the emailToSMTPInterpreter
+-- TODO: Move all these tests to unit tests for the emailViaSMTPInterpreter
 testSendMail :: Logger.Logger -> Bilge.Http ()
 testSendMail lg = do
   receivedMailRef <- liftIO $ newIORef Nothing
@@ -50,7 +50,7 @@ testSendMail lg = do
       withMailServer sock (mailStoringApp receivedMailRef) $
         do
           conPool <- initSMTP lg "localhost" (Just port) Nothing Plain
-          _ <- runM . emailToSMTPInterpreter lg conPool $ sendMail someTestMail
+          _ <- runM . emailViaSMTPInterpreter lg conPool $ sendMail someTestMail
           mbMail <-
             retryWhileN 3 isJust $ do
               readIORef receivedMailRef
@@ -101,7 +101,7 @@ testSendMailTransactionFailed lg = do
           caughtException <-
             handle @SomeException
               (const (pure True))
-              (runM . emailToSMTPInterpreter lg conPool $ sendMail someTestMail >> pure False)
+              (runM . emailViaSMTPInterpreter lg conPool $ sendMail someTestMail >> pure False)
           caughtException @? "Expected exception due to missing mail receiver."
 
 testSendMailFailingConnectionOnStartup :: Logger.Logger -> Bilge.Http ()
@@ -130,7 +130,7 @@ testSendMailFailingConnectionOnSend lg = do
     liftIO $
       handle @SomeException
         (const (pure True))
-        (runM . emailToSMTPInterpreter lg conPool $ sendMail someTestMail >> pure False)
+        (runM . emailViaSMTPInterpreter lg conPool $ sendMail someTestMail >> pure False)
   liftIO $ caughtException @? "Expected exception (SMTP server unreachable.)"
   mbMail <- liftIO $ readIORef receivedMailRef
   liftIO $ isNothing mbMail @? "No mail expected (if there is one, the test setup is broken.)"
