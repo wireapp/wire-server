@@ -7,11 +7,6 @@
 , aeson-diff
 , aeson-pretty
 , aeson-qq
-, amazonka
-, amazonka-core
-, amazonka-dynamodb
-, amazonka-ses
-, amazonka-sqs
 , asn1-encoding
 , async
 , attoparsec
@@ -128,11 +123,6 @@ mkDerivation {
   src = gitignoreSource ./.;
   libraryHaskellDepends = [
     aeson
-    amazonka
-    amazonka-core
-    amazonka-dynamodb
-    amazonka-ses
-    amazonka-sqs
     asn1-encoding
     async
     attoparsec
