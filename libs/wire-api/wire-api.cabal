@@ -249,11 +249,6 @@ library
   hs-source-dirs:   src
   build-depends:
     , aeson                      >=2.0.1.0
-    , amazonka
-    , amazonka-core
-    , amazonka-dynamodb
-    , amazonka-ses
-    , amazonka-sqs
     , asn1-encoding
     , async
     , attoparsec                 >=0.10
