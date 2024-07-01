@@ -1,5 +1,6 @@
 module Brig.CanonicalInterpreter where
 
+import Amazonka.Env qualified as AWS
 import Brig.App as App
 import Brig.DeleteQueue.Interpreter as DQ
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
@@ -32,7 +33,7 @@ import Polysemy.Async
 import Polysemy.Conc
 import Polysemy.Embed (runEmbedded)
 import Polysemy.Error (Error, errorToIOFinal, mapError, runError)
-import Polysemy.Input (Input, runInputConst, runInputSem)
+import Polysemy.Input (Input, input, runInputConst, runInputSem)
 import Polysemy.TinyLog (TinyLog)
 import Wire.API.Allowlists (AllowlistEmailDomains, AllowlistPhonePrefixes)
 import Wire.API.Federation.Client qualified

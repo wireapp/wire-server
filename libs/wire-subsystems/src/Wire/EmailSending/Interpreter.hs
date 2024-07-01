@@ -8,7 +8,6 @@ import Amazonka.SES.Lens qualified as SES
 import Amazonka.Send as AWS
 import Amazonka.Types qualified as AWS
 import Control.Lens
-import Control.Monad.Catch
 import Control.Retry
 import Data.ByteString.Lazy qualified as BL
 import Data.Text qualified as Text
@@ -21,7 +20,6 @@ import Polysemy.Error
 import Polysemy.Input
 import System.Logger (Logger)
 import Wire.EmailSending
-import Wire.EmailSending.Error
 import Wire.EmailSending.SMTP qualified as SMTP
 
 emailToAWSInterpreter ::
@@ -66,6 +64,16 @@ sendMailAWSImpl m = do
             && ("Invalid domain name" `Text.isPrefixOf` AWS.toText (se ^. AWS.serviceError_code)) ->
             throw SESInvalidDomain
       _ -> throw (EmailSendingAWSGeneralError x)
+
+data EmailSendingAWSError where
+  SESInvalidDomain :: EmailSendingAWSError
+  EmailSendingAWSGeneralError :: (Show e, AWS.AsError e) => e -> EmailSendingAWSError
+
+deriving instance Show EmailSendingAWSError
+
+deriving instance Typeable EmailSendingAWSError
+
+instance Exception EmailSendingAWSError
 
 -- TODO: deduplicate in Brig.AWS.
 sendCatch ::
