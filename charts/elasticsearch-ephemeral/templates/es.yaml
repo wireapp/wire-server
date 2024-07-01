@@ -32,16 +32,16 @@ spec:
           value: "single-node"
         - name: "action.auto_create_index"
           value: ".watches,.triggered_watches,.watcher-history-*,pod-*,node-*"
-        - name: "xpack.security.enabled"
-          value: "true"
+        #- name: "xpack.security.enabled"
+        #  value: "true"
         - name: "ELASTIC_PASSWORD"
           value: {{ .Values.secrets.password }}
         {{- if .Values.tls.enabled }}
-        - name: "xpack.security.http.ssl.enabled"
+        - name: "plugins.security.ssl.http.enabled"
           value: "true"
-        - name: "xpack.security.http.ssl.certificate"
+        - name: "plugins.security.ssl.http.pemcert_filepath"
           value: "certs/tls.crt"
-        - name: "xpack.security.http.ssl.key"
+        - name: "plugins.security.ssl.http.pemkey_filepath"
           value: "certs/tls.key"
         {{- end }}
         ports:
