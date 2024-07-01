@@ -43,8 +43,8 @@ testSendMessageNoReturnToSender = do
         )
         wsSender
 
-testStaleApplicationMessage :: (HasCallStack) => Domain -> App ()
-testStaleApplicationMessage otherDomain = do
+testPastStaleApplicationMessage :: (HasCallStack) => Domain -> App ()
+testPastStaleApplicationMessage otherDomain = do
   [alice, bob, charlie, dave, eve] <-
     createAndConnectUsers [OwnDomain, otherDomain, OwnDomain, OwnDomain, OwnDomain]
   [alice1, bob1, charlie1] <- traverse (createMLSClient def) [alice, bob, charlie]
@@ -69,6 +69,28 @@ testStaleApplicationMessage otherDomain = do
 
   -- bob's application messages are now rejected
   void $ postMLSMessage bob1 msg2.message >>= getJSON 409
+
+testFutureStaleApplicationMessage :: (HasCallStack) => App ()
+testFutureStaleApplicationMessage = do
+  [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OwnDomain]
+  [alice1, bob1, charlie1] <- traverse (createMLSClient def) [alice, bob, charlie]
+  traverse_ uploadNewKeyPackage [bob1, charlie1]
+  void $ createNewGroup alice1
+
+  -- alice adds bob
+  void . sendAndConsumeCommitBundle =<< createAddCommit alice1 [bob]
+
+  -- alice adds charlie and consumes the commit without sending it
+  void $ createAddCommit alice1 [charlie]
+  modifyMLSState $ \mls ->
+    mls
+      { epoch = epoch mls + 1,
+        members = members mls <> Set.singleton charlie1,
+        newMembers = mempty
+      }
+
+  -- alice's application message is rejected
+  void . getJSON 409 =<< postMLSMessage alice1 . (.message) =<< createApplicationMessage alice1 "hi bob"
 
 testMixedProtocolUpgrade :: (HasCallStack) => Domain -> App ()
 testMixedProtocolUpgrade secondDomain = do
