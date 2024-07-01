@@ -200,11 +200,11 @@ rethrowWaiErrorIO act = do
     Left err -> embedToFinal $ throwM $ err
     Right a -> pure a
 
-emailSendingInterpreter :: (Member (Embed IO) r) => Env -> InterpreterFor EmailSending r
+emailSendingInterpreter :: (Member (Input ()) r, Member (Embed IO) r) => Env -> InterpreterFor EmailSending r
 emailSendingInterpreter e = do
   case (e ^. smtpEnv) of
     Just smtp -> emailToSMTPInterpreter (e ^. applog) smtp
-    Nothing -> emailToAWSInterpreter (e ^. awsEnv)
+    Nothing -> emailToAWSInterpreter
 
 -- FUTUREWORK: Env can be removed once phone users are removed, and then this interpreter should go to wire-subsystems
 emailSmsSubsystemInterpreter :: (Member (Final IO) r, Member EmailSending r) => Env -> Localised UserTemplates -> TemplateBranding -> InterpreterFor EmailSmsSubsystem r

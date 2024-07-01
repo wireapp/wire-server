@@ -97,6 +97,7 @@ library
     Brig.API.User
     Brig.API.Util
     Brig.App
+    Brig.AWS
     Brig.AWS.SesNotification
     Brig.AWS.Types
     Brig.Budget
@@ -226,6 +227,7 @@ library
     , amazonka                   >=2
     , amazonka-core              >=2
     , amazonka-dynamodb          >=2
+    , amazonka-ses               >=2
     , amazonka-sqs               >=2
     , amqp
     , async                      >=2.1

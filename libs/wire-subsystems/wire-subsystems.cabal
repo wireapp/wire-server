@@ -75,6 +75,7 @@ library
     Wire.DeleteQueue
     Wire.DeleteQueue.InMemory
     Wire.EmailSending
+    Wire.EmailSending.Error
     Wire.EmailSending.Interpreter
     Wire.EmailSending.SMTP
     Wire.EmailSmsSubsystem
@@ -112,6 +113,9 @@ library
   hs-source-dirs:   src
   build-depends:
     , aeson
+    , amazonka
+    , amazonka-core
+    , amazonka-ses
     , async
     , base
     , base16-bytestring

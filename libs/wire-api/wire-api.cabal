@@ -71,8 +71,6 @@ library
     Wire.API.Allowlists
     Wire.API.ApplyMods
     Wire.API.Asset
-    Wire.API.AWS
-    Wire.API.AWS.Options
     Wire.API.Bot
     Wire.API.Bot.Service
     Wire.API.Call.Config

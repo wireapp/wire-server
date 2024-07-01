@@ -97,6 +97,7 @@ import Bilge (RequestId (..))
 import Bilge qualified as RPC
 import Bilge.IO
 import Bilge.RPC (HasRequestId (..))
+import Brig.AWS qualified as AWS
 import Brig.Calling qualified as Calling
 import Brig.DeleteQueue.Interpreter
 import Brig.Options (ElasticSearchOpts, Opts, Settings (..))
@@ -151,7 +152,6 @@ import System.Logger.Class hiding (Settings, settings)
 import System.Logger.Class qualified as LC
 import System.Logger.Extended qualified as Log
 import Util.Options
-import Wire.API.AWS qualified as AWS
 import Wire.API.Federation.Error (federationNotImplemented)
 import Wire.API.Routes.Version
 import Wire.API.User.Identity (Email)

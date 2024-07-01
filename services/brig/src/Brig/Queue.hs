@@ -24,6 +24,7 @@ module Brig.Queue
 where
 
 import Amazonka.SQS.Lens (sendMessageResponse_mD5OfMessageBody)
+import Brig.AWS qualified as AWS
 import Brig.App
 import Brig.DeleteQueue.Interpreter (QueueEnv (..))
 import Brig.Queue.Stomp qualified as Stomp
@@ -38,7 +39,6 @@ import Data.Text.Encoding qualified as T
 import Imports
 import OpenSSL.EVP.Digest (Digest, digestLBS)
 import System.Logger.Class as Log hiding (settings)
-import Wire.API.AWS qualified as AWS
 
 -- Note [queue refactoring]
 -- ~~~~~~~~~~~~~~~~
