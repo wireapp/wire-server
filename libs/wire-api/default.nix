@@ -35,7 +35,6 @@
 , either
 , email-validate
 , errors
-, exceptions
 , extended
 , extra
 , filepath
@@ -64,7 +63,6 @@
 , memory
 , metrics-wai
 , mime
-, mime-mail
 , mtl
 , openapi3
 , pem
@@ -76,7 +74,6 @@
 , quickcheck-instances
 , random
 , resourcet
-, retry
 , saml2-web-sso
 , schema-profunctor
 , scientific
@@ -124,7 +121,6 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     asn1-encoding
-    async
     attoparsec
     base
     base64-bytestring
@@ -150,7 +146,6 @@ mkDerivation {
     either
     email-validate
     errors
-    exceptions
     extended
     extra
     filepath
@@ -174,7 +169,6 @@ mkDerivation {
     memory
     metrics-wai
     mime
-    mime-mail
     mtl
     openapi3
     pem
@@ -185,7 +179,6 @@ mkDerivation {
     quickcheck-instances
     random
     resourcet
-    retry
     saml2-web-sso
     schema-profunctor
     scientific
@@ -207,7 +200,6 @@ mkDerivation {
     tinylog
     transitive-anns
     types-common
-    unliftio
     unordered-containers
     uri-bytestring
     utf8-string
@@ -254,7 +246,6 @@ mkDerivation {
     proto-lens
     QuickCheck
     random
-    saml2-web-sso
     schema-profunctor
     servant
     servant-server

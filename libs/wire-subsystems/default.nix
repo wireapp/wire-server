@@ -43,6 +43,7 @@
 , mime-mail
 , network
 , network-conduit-tls
+, pipes
 , polysemy
 , polysemy-plugin
 , polysemy-time
@@ -56,6 +57,7 @@
 , servant
 , servant-client-core
 , stomp-queue
+, streaming-commons
 , string-conversions
 , template
 , text
@@ -159,6 +161,7 @@ mkDerivation {
     lens
     mime-mail
     network
+    pipes
     polysemy
     polysemy-plugin
     polysemy-time
@@ -167,6 +170,7 @@ mkDerivation {
     QuickCheck
     quickcheck-instances
     servant-client-core
+    streaming-commons
     string-conversions
     text
     time
