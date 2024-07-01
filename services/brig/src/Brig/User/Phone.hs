@@ -50,6 +50,7 @@ import Data.Range
 import Data.Text qualified as Text
 import Data.Text.Ascii qualified as Ascii
 import Data.Text.Lazy (toStrict)
+import Data.Text.Template (render)
 import Imports
 import Prometheus (MonadMonitor)
 import Ropes.Nexmo qualified as Nexmo
@@ -217,7 +218,7 @@ renderDeletionSms DeletionSms {..} (DeletionSmsTemplate url txt from) branding =
   SMSMessage from (fromPhone delSmsTo) (toStrict $ renderTextWithBranding txt replace1 branding)
   where
     replace1 "code" = Ascii.toText (fromRange (Code.asciiValue delSmsCode))
-    replace1 "url" = toStrict (renderText url replace2)
+    replace1 "url" = toStrict (render url replace2)
     replace1 x = x
     replace2 "key" = Ascii.toText (fromRange (Code.asciiKey delSmsKey))
     replace2 "code" = Ascii.toText (fromRange (Code.asciiValue delSmsCode))
@@ -272,7 +273,7 @@ toPinPrompt = Text.intercalate "<break time=\"750ms\"/>" . Text.chunksOf 1
 
 renderSmsActivationUrl :: Template -> Text -> Text
 renderSmsActivationUrl t c =
-  toStrict $ renderText t replace
+  toStrict $ render t replace
   where
     replace "code" = c
     replace x = x

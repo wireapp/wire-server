@@ -24,8 +24,6 @@ module Brig.Team.Template
 
     -- * Re-exports
     Template,
-    renderText,
-    renderHtml,
   )
 where
 
@@ -33,7 +31,6 @@ import Brig.Options
 import Brig.Template
 import Imports
 import Wire.API.User.Identity
-import Wire.EmailSmsSubsystem.Template
 
 data InvitationEmailTemplate = InvitationEmailTemplate
   { invitationEmailUrl :: !Template,

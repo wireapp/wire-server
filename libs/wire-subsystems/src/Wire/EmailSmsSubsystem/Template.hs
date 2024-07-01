@@ -21,8 +21,6 @@ module Wire.EmailSmsSubsystem.Template
   ( Localised (..),
     TemplateBranding,
     forLocale,
-    renderHtml,
-    renderText,
 
     -- * templates
     UserTemplates (..),
@@ -87,20 +85,12 @@ data Localised a = Localised
 -- | Uses a replace and a branding function, to replaces all placeholders from the
 -- given template to produce a Text. To be used on plain text templates
 renderTextWithBranding :: Template -> (Text -> Text) -> TemplateBranding -> Lazy.Text
-renderTextWithBranding tpl replace branding = renderText tpl (replace . branding)
+renderTextWithBranding tpl replace branding = render tpl (replace . branding)
 
 -- | Uses a replace and a branding function to replace all placeholders from the
 -- given template to produce a Text. To be used on HTML templates
 renderHtmlWithBranding :: Template -> (Text -> Text) -> TemplateBranding -> Lazy.Text
-renderHtmlWithBranding tpl replace branding = renderHtml tpl (replace . branding)
-
--- TODO: Do not export this function
-renderText :: Template -> (Text -> Text) -> Lazy.Text
-renderText = render
-
--- TODO: Do not export this function
-renderHtml :: Template -> (Text -> Text) -> Lazy.Text
-renderHtml tpl replace = renderText tpl (HTML.text . replace)
+renderHtmlWithBranding tpl replace branding = render tpl (HTML.text . replace . branding)
 
 data UserTemplates = UserTemplates
   { activationSms :: ActivationSmsTemplate,
