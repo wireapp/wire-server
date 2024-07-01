@@ -1,5 +1,5 @@
 image:
-  repository: opensearch
+  repository: opensearchproject/opensearch
   # Keep this aligned with the Elastic Search version in wire-server-deploy!
   tag: 1.0.0
 
