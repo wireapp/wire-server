@@ -71,6 +71,7 @@ import Data.UUID qualified as UUID (fromString)
 import Imports (Maybe (Just, Nothing), fromJust, (.))
 import Wire.API.Conversation.Member
 import Wire.API.Conversation.Role (parseRoleName)
+import Wire.API.Locale
 import Wire.API.Provider.Bot
   ( BotUserView
       ( BotUserView,
@@ -86,9 +87,6 @@ import Wire.API.Provider.External (NewBotRequest (..))
 import Wire.API.Provider.Service (ServiceRef (ServiceRef, _serviceRefId, _serviceRefProvider))
 import Wire.API.User.Profile
   ( ColourId (ColourId, fromColourId),
-    Country (Country, fromCountry),
-    Language (Language),
-    Locale (Locale, lCountry, lLanguage),
     Name (Name, fromName),
   )
 
