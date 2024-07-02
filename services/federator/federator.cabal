@@ -205,7 +205,7 @@ executable federator
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -threaded "-with-rtsopts=-N1 -T" -rtsopts -Wredundant-constraints
+    -threaded "-with-rtsopts=-N -T" -rtsopts -Wredundant-constraints
     -Wunused-packages
 
   build-depends:
