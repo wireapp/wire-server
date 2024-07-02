@@ -47,5 +47,5 @@ testObject_SFTServer_user_1 =
               }
         )
     )
-    (mkSFTUsername (secondsToNominalDiffTime 12) "username")
+    (mkSFTUsername True (secondsToNominalDiffTime 12) "username")
     "credential"
