@@ -96,10 +96,10 @@ interpretUserSubsystem = interpret \case
   CheckHandles hdls cnt -> checkHandlesImpl hdls cnt
   UpdateHandle uid mconn mb uhandle -> updateHandleImpl uid mconn mb uhandle
   GetLocalUserAccountByUserKey userKey -> getLocalUserAccountByUserKeyImpl userKey
-  LookupLocaleWithDefault luid -> getLocaleOrDefault luid
+  LookupLocaleWithDefault luid -> lookupLocaleOrDefaultImpl luid
 
-getLocaleOrDefault :: (Member UserStore r, Member (Input UserSubsystemConfig) r) => Local UserId -> Sem r (Maybe Locale)
-getLocaleOrDefault luid = do
+lookupLocaleOrDefaultImpl :: (Member UserStore r, Member (Input UserSubsystemConfig) r) => Local UserId -> Sem r (Maybe Locale)
+lookupLocaleOrDefaultImpl luid = do
   mLangCountry <- UserStore.lookupLocale (tUnqualified luid)
   defLocale <- inputs defaultLocale
   pure (toLocale defLocale <$> mLangCountry)
