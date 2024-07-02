@@ -166,9 +166,8 @@ executable cannon
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -threaded -rtsopts -with-rtsopts=-N -with-rtsopts=-T
-    -with-rtsopts=-M1g -with-rtsopts=-ki4k -Wredundant-constraints
-    -Wunused-packages
+    -threaded -rtsopts "-with-rtsopts=-N -T -M1g -ki4k"
+    -Wredundant-constraints -Wunused-packages
 
   build-depends:
       base

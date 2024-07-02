@@ -65,7 +65,7 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T
+    -funbox-strict-fields -threaded "-with-rtsopts=-N -T"
     -rtsopts -Wredundant-constraints -Wunused-packages
 
   build-depends:
@@ -144,7 +144,7 @@ executable move-team
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T
+    -funbox-strict-fields -threaded "-with-rtsopts=-N -T"
     -rtsopts -Wredundant-constraints -Wunused-packages
 
   build-depends:
@@ -210,7 +210,7 @@ executable move-team-generate
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T
+    -funbox-strict-fields -threaded "-with-rtsopts=-N -T"
     -rtsopts -Wredundant-constraints -Wunused-packages
 
   build-depends:
