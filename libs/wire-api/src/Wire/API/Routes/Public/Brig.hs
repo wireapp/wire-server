@@ -322,7 +322,7 @@ type SelfAPI =
           :> CanThrow 'MissingAuth
           :> CanThrow 'DeleteCodePending
           :> CanThrow 'OwnerDeletingSelf
-          :> ZUser
+          :> ZLocalUser
           :> "self"
           :> ReqBody '[JSON] DeleteUser
           :> MultiVerb 'DELETE '[JSON] DeleteSelfResponses (Maybe Timeout)
