@@ -27,10 +27,8 @@ import Wire.API.Error.Brig qualified as E
 
 data AuthenticationSubsystemError
   = AuthenticationSubsystemInvalidPasswordResetKey
-  | AuthenticationSubsystemPasswordResetInProgress
   | AuthenticationSubsystemResetPasswordMustDiffer
   | AuthenticationSubsystemInvalidPasswordResetCode
-  | AuthenticationSubsystemAllowListError
   deriving (Eq, Show)
 
 instance Exception AuthenticationSubsystemError
@@ -39,7 +37,5 @@ authenticationSubsystemErrorToWai :: AuthenticationSubsystemError -> Wai.Error
 authenticationSubsystemErrorToWai =
   dynErrorToWai . \case
     AuthenticationSubsystemInvalidPasswordResetKey -> dynError @(MapError E.InvalidPasswordResetKey)
-    AuthenticationSubsystemPasswordResetInProgress -> dynError @(MapError E.PasswordResetInProgress)
     AuthenticationSubsystemInvalidPasswordResetCode -> dynError @(MapError E.InvalidPasswordResetCode)
     AuthenticationSubsystemResetPasswordMustDiffer -> dynError @(MapError E.ResetPasswordMustDiffer)
-    AuthenticationSubsystemAllowListError -> dynError @(MapError E.AllowlistError)

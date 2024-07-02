@@ -31,7 +31,6 @@ import Data.Aeson as A
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Misc
 import Imports
-import Network.Wai.Utilities (Error (label))
 import Test.Tasty hiding (Timeout)
 import Util
 import Wire.API.User
@@ -64,10 +63,10 @@ testPasswordReset brig = do
   let newpw = plainTextPassword8Unsafe "newsecret"
   do
     initiatePasswordReset brig email !!! const 201 === statusCode
-    initiatePasswordReset brig email !!! do
-      const 409 === statusCode
-      const (Just "code-exists") === fmap label . responseJsonMaybe
-      const Nothing {- the "retry-after" header is only added for provider, not user, at the time of writing this test -} === getHeader "Retry-After"
+    -- even though a password reset is now in progress
+    -- we expect a successful response from a subsequent request to not leak any information
+    -- about the requested email
+    initiatePasswordReset brig email !!! const 201 === statusCode
 
     passwordResetData <- preparePasswordReset brig email uid newpw
     completePasswordReset brig passwordResetData !!! const 200 === statusCode
