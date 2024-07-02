@@ -20,7 +20,7 @@
 module Wire.EmailSending.SMTP
   ( initSMTP,
     emailViaSMTPInterpreter,
-    sendMail',
+    sendMailWithDuration,
     initSMTP',
     SMTPConnType (..),
     SMTP (..),
@@ -221,19 +221,17 @@ ensureSMTPConnectionTimeout timeoutDuration action =
 --
 -- `defaultTimeoutDuration` is used as timeout duration for all actions.
 sendMailImpl :: (MonadIO m) => Logger -> SMTP -> Mail -> m ()
-sendMailImpl = sendMail' defaultTimeoutDuration
-
--- TODO: Rename
+sendMailImpl = sendMailWithDuration defaultTimeoutDuration
 
 -- | `sendMail` with configurable timeout duration
 --
 -- This is mostly useful for testing. (We don't want to waste the amount of
 -- `defaultTimeoutDuration` in tests with waiting.)
-sendMail' :: forall t m. (MonadIO m, TimeUnit t) => t -> Logger -> SMTP -> Mail -> m ()
-sendMail' timeoutDuration lg smtp m = liftIO $ withResource smtp.pool sendMail''
+sendMailWithDuration :: forall t m. (MonadIO m, TimeUnit t) => t -> Logger -> SMTP -> Mail -> m ()
+sendMailWithDuration timeoutDuration lg smtp m = liftIO $ withResource smtp.pool sendMailWithConn
   where
-    sendMail'' :: SMTP.SMTPConnection -> IO ()
-    sendMail'' c =
+    sendMailWithConn :: SMTP.SMTPConnection -> IO ()
+    sendMailWithConn c =
       logExceptionOrResult lg "Sending mail via SMTP" $
         ensureSMTPConnectionTimeout timeoutDuration (SMTP.sendMail m c)
 

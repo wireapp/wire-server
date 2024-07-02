@@ -85,7 +85,7 @@ testSendMailNoReceiver lg = do
           caughtException <-
             handle @SomeException
               (const (pure True))
-              (sendMail' @Second 1 lg conPool (emptyMail (Address Nothing "foo@example.com")) >> pure False)
+              (sendMailWithDuration @Second 1 lg conPool (emptyMail (Address Nothing "foo@example.com")) >> pure False)
           caughtException @? "Expected exception due to missing mail receiver."
 
 testSendMailTransactionFailed :: Logger.Logger -> Bilge.Http ()
@@ -144,7 +144,7 @@ testSendMailTimeout lg = do
               conPool <- initSMTP lg "localhost" (Just port) Nothing Plain
               handle @SMTPPoolException
                 (\e -> pure (Just e))
-                (sendMail' (500 :: Millisecond) lg conPool someTestMail >> pure Nothing)
+                (sendMailWithDuration (500 :: Millisecond) lg conPool someTestMail >> pure Nothing)
   liftIO $ isJust mbException @? "Expected exception (SMTP server action timed out.)"
   liftIO $ mbException @?= Just SMTPConnectionTimeout
 
