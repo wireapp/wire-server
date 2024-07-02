@@ -49,7 +49,7 @@ module Wire.API.Call.Config
     isHostName,
 
     -- * SFTUsername
-    SFTUsername (SFTUsername),
+    SFTUsername,
     mkSFTUsername,
     suExpiresAt,
     suVersion,
@@ -465,13 +465,13 @@ data SFTUsername = SFTUsername
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema SFTUsername)
 
 -- note that the random value is not checked for well-formedness
-mkSFTUsername :: POSIXTime -> Text -> SFTUsername
-mkSFTUsername expires rnd =
+mkSFTUsername :: Bool -> POSIXTime -> Text -> SFTUsername
+mkSFTUsername shared expires rnd =
   SFTUsername
     { _suExpiresAt = expires,
       _suVersion = 1,
       _suKeyindex = 0,
-      _suShared = True,
+      _suShared = shared,
       _suRandom = rnd
     }
 
