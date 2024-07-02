@@ -27,7 +27,6 @@ where
 
 import Cassandra as Cas
 import Control.Lens
-import Control.Monad.Except
 import Data.Id
 import Imports
 import Polysemy
@@ -43,13 +42,14 @@ samlUserStoreToCassandra ::
   Sem r a
 samlUserStoreToCassandra =
   interpret $
-    embed . \case
-      Insert ur uid -> insertSAMLUser ur uid
-      Get ur -> getSAMLUser ur
-      DeleteByIssuer is -> deleteSAMLUsersByIssuer is
-      Delete uid ur -> deleteSAMLUser uid ur
-      GetAllByIssuerPaginated is -> getAllSAMLUsersByIssuerPaginated is
-      NextPage page -> nextPage' page
+    embed
+      . \case
+        Insert ur uid -> insertSAMLUser ur uid
+        Get ur -> getSAMLUser ur
+        DeleteByIssuer is -> deleteSAMLUsersByIssuer is
+        Delete uid ur -> deleteSAMLUser uid ur
+        GetAllByIssuerPaginated is -> getAllSAMLUsersByIssuerPaginated is
+        NextPage page -> nextPage' page
 
 nextPage' :: (HasCallStack, MonadClient m) => Cas.Page a -> m (Cas.Page a)
 nextPage' = Cas.liftClient . Cas.nextPage

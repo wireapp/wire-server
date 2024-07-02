@@ -41,8 +41,18 @@ data:
     federator:
       host: federator
       port: 8080
+
+    {{- with .rabbitmq }}
     rabbitmq:
-{{ toYaml .rabbitmq | indent 6}}
+      host: {{ .host }}
+      port: {{ .port }}
+      vHost: {{ .vHost }}
+      enableTls: {{ .enableTls }}
+      insecureSkipVerifyTls: {{ .insecureSkipVerifyTls }}
+      {{- if .tlsCaSecretRef }}
+      caCert: /etc/wire/galley/rabbitmq-ca/{{ .tlsCaSecretRef.key }}
+      {{- end }}
+    {{- end }}
     {{- end }}
 
     {{- if (.journal) }}

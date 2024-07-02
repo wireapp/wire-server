@@ -18,7 +18,6 @@
 module Galley.Intra.Federator (interpretFederatorAccess) where
 
 import Control.Lens
-import Control.Monad.Except
 import Data.Bifunctor
 import Data.Qualified
 import Galley.Cassandra.Util
@@ -113,7 +112,7 @@ runFederatedConcurrentlyEither xs rpc =
     bimap (r,) (qualifyAs r) <$> runFederatedEither r (rpc r)
 
 runFederatedConcurrentlyBucketsEither ::
-  Foldable f =>
+  (Foldable f) =>
   f (Remote x) ->
   (Remote x -> FederatorClient c b) ->
   App [Either (Remote x, FederationError) (Remote b)]

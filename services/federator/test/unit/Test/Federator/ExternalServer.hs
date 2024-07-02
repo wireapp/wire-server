@@ -100,7 +100,7 @@ data Call = Call
   deriving (Eq, Show)
 
 mockService ::
-  Members [Output Call, Embed IO] r =>
+  (Members [Output Call, Embed IO] r) =>
   HTTP.Status ->
   Sem (ServiceStreaming ': r) a ->
   Sem r a
@@ -131,7 +131,7 @@ requestBrigSuccess =
             }
     Right cert <- decodeCertificate <$> BS.readFile "test/resources/unit/localhost.example.com.pem"
 
-    let assertMetrics :: Member (Embed IO) r => Sem (Metrics ': r) a -> Sem r a
+    let assertMetrics :: (Member (Embed IO) r) => Sem (Metrics ': r) a -> Sem r a
         assertMetrics = interpret $ \case
           OutgoingCounterIncr _ -> embed @IO $ assertFailure "Should not increment outgoing counter"
           IncomingCounterIncr od -> embed @IO $ od @?= aValidDomain

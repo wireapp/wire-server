@@ -173,7 +173,7 @@ tagCipherSuite MLS_256_DHKEMP521_AES256GCM_SHA512_P521 = CipherSuite 0x5
 tagCipherSuite MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519 = CipherSuite 0xf031
 
 data SomeHashAlgorithm where
-  SomeHashAlgorithm :: HashAlgorithm a => a -> SomeHashAlgorithm
+  SomeHashAlgorithm :: (HashAlgorithm a) => a -> SomeHashAlgorithm
 
 csHashAlgorithm :: CipherSuiteTag -> SomeHashAlgorithm
 csHashAlgorithm MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = SomeHashAlgorithm SHA256
@@ -294,7 +294,7 @@ data SignatureSchemeTag
   deriving (Arbitrary) via GenericUniform SignatureSchemeTag
 
 class IsSignatureScheme (ss :: SignatureSchemeTag) where
-  sign :: MonadRandom m => KeyPair ss -> ByteString -> m ByteString
+  sign :: (MonadRandom m) => KeyPair ss -> ByteString -> m ByteString
 
 instance IsSignatureScheme 'Ed25519 where
   sign (priv, pub) = pure . BA.convert . Ed25519.sign priv pub
@@ -352,7 +352,7 @@ signatureSchemeFromName name = getAlt $
   flip foldMap [minBound .. maxBound] $ \s ->
     guard (signatureSchemeName s == name) $> s
 
-parseSignatureScheme :: MonadFail f => Text -> f SignatureSchemeTag
+parseSignatureScheme :: (MonadFail f) => Text -> f SignatureSchemeTag
 parseSignatureScheme name =
   maybe
     (fail ("Unsupported signature scheme " <> T.unpack name))

@@ -49,7 +49,7 @@ executeSearch' brig self q maybeDomain maybeSize = do
       <!! const 200 === statusCode
   responseJsonError r
 
-searchRequest :: MonadHttp m => Brig -> UserId -> Text -> Maybe Domain -> Maybe Int -> m ResponseLBS
+searchRequest :: (MonadHttp m) => Brig -> UserId -> Text -> Maybe Domain -> Maybe Int -> m ResponseLBS
 searchRequest brig self q maybeDomain maybeSize = do
   get
     ( brig

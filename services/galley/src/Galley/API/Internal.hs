@@ -485,11 +485,12 @@ guardLegalholdPolicyConflictsH glh = do
 -- | Get an MLS conversation client list
 iGetMLSClientListForConv ::
   forall r.
-  Members
-    '[ MemberStore,
-       ErrorS 'ConvNotFound
-     ]
-    r =>
+  ( Members
+      '[ MemberStore,
+         ErrorS 'ConvNotFound
+       ]
+      r
+  ) =>
   GroupId ->
   Sem r ClientList
 iGetMLSClientListForConv gid = do

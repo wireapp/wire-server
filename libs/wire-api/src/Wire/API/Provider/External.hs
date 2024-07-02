@@ -67,12 +67,18 @@ instance FromJSON NewBotRequest where
 instance ToJSON NewBotRequest where
   toJSON n =
     object $
-      "id" .= newBotId n
-        # "client" .= newBotClient n
-        # "origin" .= newBotOrigin n
-        # "conversation" .= newBotConv n
-        # "token" .= newBotToken n
-        # "locale" .= newBotLocale n
+      "id"
+        .= newBotId n
+        # "client"
+        .= newBotClient n
+        # "origin"
+        .= newBotOrigin n
+        # "conversation"
+        .= newBotConv n
+        # "token"
+        .= newBotToken n
+        # "locale"
+        .= newBotLocale n
         # []
 
 --------------------------------------------------------------------------------
@@ -103,9 +109,14 @@ instance FromJSON NewBotResponse where
 instance ToJSON NewBotResponse where
   toJSON r =
     object $
-      "prekeys" .= rsNewBotPrekeys r
-        # "last_prekey" .= rsNewBotLastPrekey r
-        # "name" .= rsNewBotName r
-        # "accent_id" .= rsNewBotColour r
-        # "assets" .= rsNewBotAssets r
+      "prekeys"
+        .= rsNewBotPrekeys r
+        # "last_prekey"
+        .= rsNewBotLastPrekey r
+        # "name"
+        .= rsNewBotName r
+        # "accent_id"
+        .= rsNewBotColour r
+        # "assets"
+        .= rsNewBotAssets r
         # []

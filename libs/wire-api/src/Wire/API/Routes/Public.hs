@@ -115,7 +115,7 @@ class
 
 instance HasTokenType 'ZLocalAuthUser
 
-instance HasContextEntry ctx Domain => IsZType 'ZLocalAuthUser ctx where
+instance (HasContextEntry ctx Domain) => IsZType 'ZLocalAuthUser ctx where
   type ZHeader 'ZLocalAuthUser = "Z-User"
   type ZParam 'ZLocalAuthUser = UserId
   type ZQualifiedParam 'ZLocalAuthUser = Local UserId
@@ -228,7 +228,7 @@ type ZHostValue = Text
 type ZOptHostHeader =
   Header' '[Servant.Optional, Strict] "Z-Host" ZHostValue
 
-instance HasOpenApi api => HasOpenApi (ZHostOpt :> api) where
+instance (HasOpenApi api) => HasOpenApi (ZHostOpt :> api) where
   toOpenApi _ = toOpenApi (Proxy @api)
 
 type instance SpecialiseToVersion v (ZHostOpt :> api) = ZHostOpt :> SpecialiseToVersion v api
@@ -249,19 +249,19 @@ type instance
   SpecialiseToVersion v (ZAuthServant t opts :> api) =
     ZAuthServant t opts :> SpecialiseToVersion v api
 
-instance HasOpenApi api => HasOpenApi (ZAuthServant 'ZAuthUser _opts :> api) where
+instance (HasOpenApi api) => HasOpenApi (ZAuthServant 'ZAuthUser _opts :> api) where
   toOpenApi _ = addZAuthSwagger (toOpenApi (Proxy @api))
 
-instance HasOpenApi api => HasOpenApi (ZAuthServant 'ZLocalAuthUser opts :> api) where
+instance (HasOpenApi api) => HasOpenApi (ZAuthServant 'ZLocalAuthUser opts :> api) where
   toOpenApi _ = addZAuthSwagger (toOpenApi (Proxy @api))
 
-instance HasLink endpoint => HasLink (ZAuthServant usr opts :> endpoint) where
+instance (HasLink endpoint) => HasLink (ZAuthServant usr opts :> endpoint) where
   type MkLink (ZAuthServant _ _ :> endpoint) a = MkLink endpoint a
   toLink toA _ = toLink toA (Proxy @endpoint)
 
 instance
   {-# OVERLAPPABLE #-}
-  HasOpenApi api =>
+  (HasOpenApi api) =>
   HasOpenApi (ZAuthServant ztype _opts :> api)
   where
   toOpenApi _ = toOpenApi (Proxy @api)
@@ -319,10 +319,10 @@ instance
 
   hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
 
-instance RoutesToPaths api => RoutesToPaths (ZAuthServant ztype opts :> api) where
+instance (RoutesToPaths api) => RoutesToPaths (ZAuthServant ztype opts :> api) where
   getRoutes = getRoutes @api
 
-instance RoutesToPaths api => RoutesToPaths (ZHostOpt :> api) where
+instance (RoutesToPaths api) => RoutesToPaths (ZHostOpt :> api) where
   getRoutes = getRoutes @api
 
 -- FUTUREWORK: Make a PR to the servant-swagger package with this instance
@@ -341,19 +341,19 @@ instance
   where
   toOpenApi _ = addScopeDescription @scope (toOpenApi (Proxy @api))
 
-addScopeDescription :: forall scope. OAuth.IsOAuthScope scope => OpenApi -> OpenApi
+addScopeDescription :: forall scope. (OAuth.IsOAuthScope scope) => OpenApi -> OpenApi
 addScopeDescription =
   allOperations
     . description
     %~ Just
-    . ( <>
-          "\nOAuth scope: `"
-            <> ( decodeUtf8With lenientDecode . toStrict . toByteString $
-                   OAuth.toOAuthScope @scope
-               )
-            <> "`"
-      )
-    . fold
+      . ( <>
+            "\nOAuth scope: `"
+              <> ( decodeUtf8With lenientDecode . toStrict . toByteString $
+                     OAuth.toOAuthScope @scope
+                 )
+              <> "`"
+        )
+      . fold
 
 instance (HasServer api ctx) => HasServer (DescriptionOAuthScope scope :> api) ctx where
   type ServerT (DescriptionOAuthScope scope :> api) m = ServerT api m
@@ -361,5 +361,5 @@ instance (HasServer api ctx) => HasServer (DescriptionOAuthScope scope :> api) c
   route _ = route (Proxy @api)
   hoistServerWithContext _ = hoistServerWithContext (Proxy @api)
 
-instance RoutesToPaths api => RoutesToPaths (DescriptionOAuthScope scope :> api) where
+instance (RoutesToPaths api) => RoutesToPaths (DescriptionOAuthScope scope :> api) where
   getRoutes = getRoutes @api

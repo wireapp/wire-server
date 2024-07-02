@@ -42,7 +42,7 @@ import Brig.Code qualified as Code
 import Brig.Data.Activation qualified as Data
 import Brig.Data.Client
 import Brig.Data.User qualified as Data
-import Brig.Data.UserKey
+import Brig.Data.UserKey as Data
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Email
 import Brig.Options qualified as Opt
@@ -52,7 +52,6 @@ import Brig.ZAuth qualified as ZAuth
 import Cassandra
 import Control.Error hiding (bool)
 import Control.Lens (to, view)
-import Control.Monad.Except
 import Data.ByteString.Conversion (toByteString)
 import Data.Handle (Handle)
 import Data.Id
@@ -79,9 +78,10 @@ import Wire.API.User.Auth.Sso
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
+import Wire.PasswordStore (PasswordStore, lookupHashedPassword)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.UserKeyStore
 import Wire.UserStore
-import Wire.UserStore.Cassandra (interpretUserStoreCassandra)
 
 login ::
   forall r.
@@ -91,22 +91,24 @@ login ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member PasswordStore r,
+    Member UserKeyStore r,
+    Member UserStore r
   ) =>
   Login ->
   CookieType ->
   ExceptT LoginError (AppT r) (Access ZAuth.User)
 login (PasswordLogin (PasswordLoginData li pw label code)) typ = do
-  uid <- wrapHttpClientE $ resolveLoginId li
+  uid <- resolveLoginId li
   lift . liftSem . Log.debug $ field "user" (toByteString uid) . field "action" (val "User.login")
   wrapHttpClientE $ checkRetryLimit uid
-  wrapHttpClientE $
-    Data.authenticate uid pw `catchE` \case
-      AuthInvalidUser -> loginFailed uid
-      AuthInvalidCredentials -> loginFailed uid
-      AuthSuspended -> throwE LoginSuspended
-      AuthEphemeral -> throwE LoginEphemeral
-      AuthPendingInvitation -> throwE LoginPendingActivation
+  Data.authenticate uid pw `catchE` \case
+    AuthInvalidUser -> wrapHttpClientE $ loginFailed uid
+    AuthInvalidCredentials -> wrapHttpClientE $ loginFailed uid
+    AuthSuspended -> throwE LoginSuspended
+    AuthEphemeral -> throwE LoginEphemeral
+    AuthPendingInvitation -> throwE LoginPendingActivation
   verifyLoginCode code uid
   newAccess @ZAuth.User @ZAuth.Access uid Nothing typ label
   where
@@ -117,13 +119,10 @@ login (PasswordLogin (PasswordLoginData li pw label code)) typ = do
           VerificationCodeNoPendingCode -> wrapHttpClientE $ loginFailedWith LoginCodeInvalid uid
           VerificationCodeRequired -> wrapHttpClientE $ loginFailedWith LoginCodeRequired uid
           VerificationCodeNoEmail -> wrapHttpClientE $ loginFailed uid
-login (SmsLogin _) _ = do
-  -- sms login not supported
-  throwE LoginFailed
 
 verifyCode ::
   forall r.
-  Member GalleyAPIAccess r =>
+  (Member GalleyAPIAccess r) =>
   Maybe Code.Value ->
   VerificationAction ->
   UserId ->
@@ -163,7 +162,7 @@ checkRetryLimit :: (MonadClient m, MonadReader Env m) => UserId -> ExceptT Login
 checkRetryLimit = withRetryLimit checkBudget
 
 withRetryLimit ::
-  MonadReader Env m =>
+  (MonadReader Env m) =>
   (BudgetKey -> Budget -> ExceptT LoginError m (Budgeted ())) ->
   UserId ->
   ExceptT LoginError m ()
@@ -213,7 +212,7 @@ renewAccess uts at mcid = do
   pure $ Access at' ck'
 
 revokeAccess ::
-  (Member TinyLog r) =>
+  (Member TinyLog r, Member PasswordStore r) =>
   UserId ->
   PlainTextPassword6 ->
   [CookieId] ->
@@ -221,7 +220,7 @@ revokeAccess ::
   ExceptT AuthError (AppT r) ()
 revokeAccess u pw cc ll = do
   lift . liftSem $ Log.debug $ field "user" (toByteString u) . field "action" (val "User.revokeAccess")
-  wrapHttpClientE $ unlessM (Data.isSamlUser u) $ Data.authenticate u pw
+  unlessM (lift . wrapHttpClient $ Data.isSamlUser u) $ Data.authenticate u pw
   lift $ wrapHttpClient $ revokeCookies u cc ll
 
 --------------------------------------------------------------------------------
@@ -248,7 +247,7 @@ catchSuspendInactiveUser uid errval = do
     lift $ runExceptT (changeSingleAccountStatus uid Suspended) >>= explicitlyIgnoreErrors
     throwE errval
   where
-    explicitlyIgnoreErrors :: Monad m => Either AccountStatusError () -> m ()
+    explicitlyIgnoreErrors :: (Monad m) => Either AccountStatusError () -> m ()
     explicitlyIgnoreErrors = \case
       Left InvalidAccountStatus -> pure ()
       Left AccountNotFound -> pure ()
@@ -278,24 +277,19 @@ newAccess uid cid ct cl = do
       t <- lift $ newAccessToken @u @a ck Nothing
       pure $ Access t (Just ck)
 
-resolveLoginId :: forall m. (MonadClient m, MonadReader Env m) => LoginId -> ExceptT LoginError m UserId
+resolveLoginId :: (Member UserKeyStore r, Member UserStore r) => LoginId -> ExceptT LoginError (AppT r) UserId
 resolveLoginId li = do
-  let adhocInterpreter :: Sem '[UserStore, Embed IO] a -> m a
-      adhocInterpreter action = do
-        clientState <- asks (view casClient)
-        liftIO (runM (interpretUserStoreCassandra clientState action))
-
-  usr <- validateLoginId li >>= lift . either lookupKey (adhocInterpreter . lookupHandle)
+  usr <- wrapClientE (validateLoginId li) >>= lift . either (liftSem . lookupKey) (liftSem . lookupHandle)
   case usr of
     Nothing -> do
-      pending <- lift $ isPendingActivation li
+      pending <- wrapClientE $ isPendingActivation li
       throwE $
         if pending
           then LoginPendingActivation
           else LoginFailed
     Just uid -> pure uid
 
-validateLoginId :: MonadReader Env m => LoginId -> ExceptT LoginError m (Either EmailKey Handle)
+validateLoginId :: (MonadReader Env m) => LoginId -> ExceptT LoginError m (Either EmailKey Handle)
 validateLoginId (LoginByEmail email) =
   either
     (const $ throwE LoginFailed)
@@ -346,7 +340,7 @@ validateTokens uts at = do
   where
     -- FUTUREWORK: There is surely a better way to do this
     getFirstSuccessOrFirstFail ::
-      Monad m =>
+      (Monad m) =>
       List1 (Either ZAuth.Failure (UserId, Cookie (ZAuth.Token u))) ->
       ExceptT ZAuth.Failure m (UserId, Cookie (ZAuth.Token u))
     getFirstSuccessOrFirstFail tks = case (lefts $ NE.toList $ List1.toNonEmpty tks, rights $ NE.toList $ List1.toNonEmpty tks) of
@@ -423,7 +417,7 @@ legalHoldLogin (LegalHoldLogin uid pw label) typ = do
     !>> LegalHoldLoginError
 
 assertLegalHoldEnabled ::
-  Member GalleyAPIAccess r =>
+  (Member GalleyAPIAccess r) =>
   TeamId ->
   ExceptT LegalHoldLoginError (AppT r) ()
 assertLegalHoldEnabled tid = do
@@ -432,6 +426,6 @@ assertLegalHoldEnabled tid = do
     FeatureStatusDisabled -> throwE LegalHoldLoginLegalHoldNotEnabled
     FeatureStatusEnabled -> pure ()
 
-checkClientId :: MonadClient m => UserId -> ClientId -> ExceptT ZAuth.Failure m ()
+checkClientId :: (MonadClient m) => UserId -> ClientId -> ExceptT ZAuth.Failure m ()
 checkClientId uid cid =
   lookupClient uid cid >>= maybe (throwE ZAuth.Invalid) (const (pure ()))

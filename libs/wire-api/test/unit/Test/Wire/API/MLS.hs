@@ -280,7 +280,7 @@ createGroup tmp store groupName removalKey gid = do
         Nothing
   liftIO $ BS.writeFile (tmp </> groupName) groupJSON
 
-decodeMLSError :: ParseMLS a => ByteString -> a
+decodeMLSError :: (ParseMLS a) => ByteString -> a
 decodeMLSError s = case decodeMLS' s of
   Left e -> error ("Could not parse MLS object: " <> Text.unpack e)
   Right x -> x
@@ -293,7 +293,7 @@ userClientQid usr c =
     <> "@"
     <> T.unpack (domainText (qDomain usr))
 
-spawn :: HasCallStack => CreateProcess -> Maybe ByteString -> IO ByteString
+spawn :: (HasCallStack) => CreateProcess -> Maybe ByteString -> IO ByteString
 spawn cp minput = do
   (mout, ex) <- withCreateProcess
     cp

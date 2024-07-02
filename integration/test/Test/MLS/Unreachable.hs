@@ -26,7 +26,7 @@ import SetupHelpers
 import Testlib.Prelude
 import Testlib.ResourcePool
 
-testAddUsersSomeReachable :: HasCallStack => App ()
+testAddUsersSomeReachable :: (HasCallStack) => App ()
 testAddUsersSomeReachable = do
   (addCommit, d) <- startDynamicBackends [mempty] $ \[thirdDomain] -> do
     ownDomain <- make OwnDomain & asString
@@ -48,7 +48,7 @@ testAddUsersSomeReachable = do
     (resp.json %. "unreachable_backends" & asList) `shouldMatch` [d]
 
 -- | There is analogous counterpart for Proteus in the 'Test.Conversation' module.
-testAddUserWithUnreachableRemoteUsers :: HasCallStack => App ()
+testAddUserWithUnreachableRemoteUsers :: (HasCallStack) => App ()
 testAddUserWithUnreachableRemoteUsers = do
   resourcePool <- asks resourcePool
   runCodensity (acquireResources 1 resourcePool) $ \[cDom] -> do
@@ -88,7 +88,7 @@ testAddUserWithUnreachableRemoteUsers = do
         resp.status `shouldMatchInt` 533
         resp.jsonBody %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
 
-testAddUnreachableUserFromFederatingBackend :: HasCallStack => App ()
+testAddUnreachableUserFromFederatingBackend :: (HasCallStack) => App ()
 testAddUnreachableUserFromFederatingBackend = do
   resourcePool <- asks resourcePool
   runCodensity (acquireResources 1 resourcePool) $ \[cDom] -> do

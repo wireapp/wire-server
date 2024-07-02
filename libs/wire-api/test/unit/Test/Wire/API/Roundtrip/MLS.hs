@@ -88,7 +88,7 @@ class ArbitraryFramedContent a where
 newtype MessageGenerator fc = MessageGenerator {unMessageGenerator :: Message}
   deriving newtype (ParseMLS, SerialiseMLS, Eq, Show)
 
-instance ArbitraryFramedContent fc => Arbitrary (MessageGenerator fc) where
+instance (ArbitraryFramedContent fc) => Arbitrary (MessageGenerator fc) where
   arbitrary =
     fmap MessageGenerator $ do
       fc <- arbitraryFramedContent @fc

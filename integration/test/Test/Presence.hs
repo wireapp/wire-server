@@ -12,7 +12,7 @@ ensurePresent u n = retryT $ do
   ps <- getPresence u >>= getJSON 200 >>= asList
   length ps `shouldMatchInt` n
 
-registerUser :: HasCallStack => App (Value, String)
+registerUser :: (HasCallStack) => App (Value, String)
 registerUser = do
   alice <- randomUserId OwnDomain
   c <- randomClientId
@@ -20,10 +20,10 @@ registerUser = do
     ensurePresent alice 1
   pure (alice, c)
 
-testAddUser :: HasCallStack => App ()
+testAddUser :: (HasCallStack) => App ()
 testAddUser = void registerUser
 
-testRemoveUser :: HasCallStack => App ()
+testRemoveUser :: (HasCallStack) => App ()
 testRemoveUser = do
   -- register alice and add a push token
   (alice, c) <- registerUser

@@ -103,20 +103,20 @@ data WebSocket = WebSocket
     wsAppThread :: Async ()
   }
 
-connect :: MonadIO m => Cannon -> UserId -> ConnId -> m WebSocket
+connect :: (MonadIO m) => Cannon -> UserId -> ConnId -> m WebSocket
 connect can uid = connectAsMaybeClient can uid Nothing
 
-connectAsClient :: MonadIO m => Cannon -> UserId -> ClientId -> ConnId -> m WebSocket
+connectAsClient :: (MonadIO m) => Cannon -> UserId -> ClientId -> ConnId -> m WebSocket
 connectAsClient can uid client = connectAsMaybeClient can uid (Just client)
 
-connectAsMaybeClient :: MonadIO m => Cannon -> UserId -> Maybe ClientId -> ConnId -> m WebSocket
+connectAsMaybeClient :: (MonadIO m) => Cannon -> UserId -> Maybe ClientId -> ConnId -> m WebSocket
 connectAsMaybeClient can uid client conn = liftIO $ do
   nchan <- newTChanIO
   latch <- newEmptyMVar
   wsapp <- run can uid client conn (clientApp nchan latch)
   pure $ WebSocket nchan latch wsapp
 
-close :: MonadIO m => WebSocket -> m ()
+close :: (MonadIO m) => WebSocket -> m ()
 close ws = liftIO $ do
   putMVar (wsCloseLatch ws) ()
   void $ waitCatch (wsAppThread ws)
@@ -166,10 +166,10 @@ bracketAsClientN c us f = go [] us
 
 -- Random Connection IDs
 
-connectR :: MonadIO m => Cannon -> UserId -> m WebSocket
+connectR :: (MonadIO m) => Cannon -> UserId -> m WebSocket
 connectR can uid = randomConnId >>= connect can uid
 
-connectAsClientR :: MonadIO m => Cannon -> UserId -> ClientId -> m WebSocket
+connectAsClientR :: (MonadIO m) => Cannon -> UserId -> ClientId -> m WebSocket
 connectAsClientR can uid clientId = randomConnId >>= connectAsClient can uid clientId
 
 bracketR :: (MonadIO m, MonadMask m) => Cannon -> UserId -> (WebSocket -> m a) -> m a
@@ -271,7 +271,7 @@ instance Show RegistrationTimeout where
   show (RegistrationTimeout s) =
     "Failed to find a registration after " ++ show s ++ " retries.\n"
 
-await :: MonadIO m => Timeout -> WebSocket -> m (Maybe Notification)
+await :: (MonadIO m) => Timeout -> WebSocket -> m (Maybe Notification)
 await t = liftIO . timeout t . atomically . readTChan . wsChan
 
 -- | 'await' a 'Notification' on the 'WebSocket'.  If it satisfies the 'Assertion', return it.
@@ -372,7 +372,7 @@ assertNoEvent t ww = do
 -----------------------------------------------------------------------------
 -- Unpacking Notifications
 
-unpackPayload :: FromJSON a => Notification -> List1 a
+unpackPayload :: (FromJSON a) => Notification -> List1 a
 unpackPayload = fmap decodeEvent . ntfPayload
   where
     decodeEvent o = case fromJSON (Object o) of
@@ -382,7 +382,7 @@ unpackPayload = fmap decodeEvent . ntfPayload
 -----------------------------------------------------------------------------
 -- Randomness
 
-randomConnId :: MonadIO m => m ConnId
+randomConnId :: (MonadIO m) => m ConnId
 randomConnId = liftIO $ do
   r <- randomIO :: IO Word32
   pure . ConnId $ C.pack $ show r
@@ -392,7 +392,7 @@ randomConnId = liftIO $ do
 
 -- | Start a client thread in 'Async' that opens a web socket to a Cannon, wait
 --   for the connection to register with Gundeck, and return the 'Async' thread.
-run :: MonadIO m => Cannon -> UserId -> Maybe ClientId -> ConnId -> WS.ClientApp () -> m (Async ())
+run :: (MonadIO m) => Cannon -> UserId -> Maybe ClientId -> ConnId -> WS.ClientApp () -> m (Async ())
 run cannon@(($ Http.defaultRequest) -> ca) uid client connId app = liftIO $ do
   latch <- newEmptyMVar
   wsapp <-

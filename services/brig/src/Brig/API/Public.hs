@@ -44,12 +44,13 @@ import Brig.Data.Connection qualified as Data
 import Brig.Data.Nonce as Nonce
 import Brig.Data.User qualified as Data
 import Brig.Data.UserKey qualified as UserKey
+import Brig.Data.UserKey qualified as UserKey
+import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
+import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
-import Brig.Effects.CodeStore (CodeStore)
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.FederationConfigStore (FederationConfigStore)
 import Brig.Effects.JwtTools (JwtTools)
-import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
 import Brig.Effects.SFT
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
@@ -156,14 +157,17 @@ import Wire.API.User.Password qualified as Public
 import Wire.API.User.RichInfo qualified as Public
 import Wire.API.UserMap qualified as Public
 import Wire.API.Wrapped qualified as Public
+import Wire.AuthenticationSubsystem (AuthenticationSubsystem, createPasswordResetCode, resetPassword)
 import Wire.DeleteQueue
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
+import Wire.PasswordStore (PasswordStore, lookupHashedPassword)
 import Wire.Sem.Concurrency
 import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.UserKeyStore hiding (keyText)
 import Wire.UserStore (UserStore)
 import Wire.UserSubsystem hiding (checkHandle, checkHandles)
 import Wire.UserSubsystem qualified as UserSubsystem
@@ -278,28 +282,30 @@ internalEndpointsSwaggerDocsAPI service examplePort swagger Nothing =
 
 servantSitemap ::
   forall r p.
-  ( Member BlacklistStore r,
+  (  Member AuthenticationSubsystem r,
+    Member BlacklistStore r,
     Member CodeStore r,
-    Member DeleteQueue r,
     Member (Concurrency 'Unsafe) r,
     Member (ConnectionStore InternalPaging) r,
+    Member DeleteQueue r,
     Member (Embed HttpClientIO) r,
     Member (Embed IO) r,
     Member FederationConfigStore r,
+    Member GalleyAPIAccess r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member Jwk r,
-    Member GalleyAPIAccess r,
     Member JwtTools r,
     Member NotificationSubsystem r,
-    Member UserSubsystem r,
-    Member UserStore r,
     Member Now r,
-    Member PasswordResetStore r,
+    Member PasswordStore r,
     Member PublicKeyBundle r,
     Member SFT r,
     Member TinyLog r,
+    Member UserKeyStore r,
     Member (UserPendingActivationStore p) r
+    Member UserStore r,
+    Member UserSubsystem r,
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -525,7 +531,7 @@ listPropertyKeysAndValues u = do
   Public.PropertyKeysAndValues <$> traverse parseStoredPropertyValue keysAndVals
 
 getPrekeyUnqualifiedH ::
-  Member DeleteQueue r =>
+  (Member DeleteQueue r) =>
   UserId ->
   UserId ->
   ClientId ->
@@ -535,7 +541,7 @@ getPrekeyUnqualifiedH zusr user client = do
   getPrekeyH zusr (Qualified user domain) client
 
 getPrekeyH ::
-  Member DeleteQueue r =>
+  (Member DeleteQueue r) =>
   UserId ->
   Qualified UserId ->
   ClientId ->
@@ -623,7 +629,7 @@ addClient usr con new = do
     !>> clientError
 
 deleteClient ::
-  Member DeleteQueue r =>
+  (Member DeleteQueue r) =>
   UserId ->
   ConnId ->
   ClientId ->
@@ -735,6 +741,7 @@ createUser ::
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
+    Member UserKeyStore r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r
@@ -810,7 +817,7 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
       Public.NewTeamMemberSSO _ ->
         Team.sendMemberWelcomeMail e t n l
 
-getSelf :: Member UserSubsystem r => Local UserId -> Handler r Public.SelfProfile
+getSelf :: (Member UserSubsystem r) => Local UserId -> Handler r Public.SelfProfile
 getSelf self =
   lift (liftSem (getSelfProfile self))
     >>= ifNothing (errorToWai @'E.UserNotFound)
@@ -854,7 +861,7 @@ listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
     (Nothing, Nothing) -> throwStd $ badRequest "at least one ids or handles must be provided"
 
 listUsersByIdsOrHandlesGetIds ::
-  Member UserStore r =>
+  (Member UserStore r) =>
   [Handle] ->
   Handler r [Qualified UserId]
 listUsersByIdsOrHandlesGetIds localHandles = do
@@ -863,7 +870,7 @@ listUsersByIdsOrHandlesGetIds localHandles = do
   pure $ map (`Qualified` domain) localUsers
 
 listUsersByIdsOrHandlesGetUsers ::
-  Member UserStore r =>
+  (Member UserStore r) =>
   Local x ->
   Range n m [Qualified Handle] ->
   Handler r [Qualified UserId]
@@ -925,7 +932,7 @@ instance ToJSON GetActivationCodeResp where
   toJSON (GetActivationCodeResp (k, c)) = object ["key" .= k, "code" .= c]
 
 updateUser ::
-  Member UserSubsystem r =>
+  (Member UserSubsystem r) =>
   Local UserId ->
   ConnId ->
   Public.UserUpdate ->
@@ -944,6 +951,9 @@ updateUser uid conn uu = do
 -- | Phone based functionality is not supported any more, but the handler is
 -- kept here so long as client API version 5 is supported.
 changePhone ::
+  ( Member BlacklistStore r,
+    Member BlacklistPhonePrefixStore r
+  ) =>
   UserId ->
   ConnId ->
   Public.PhoneUpdate ->
@@ -954,19 +964,27 @@ removePhone :: UserId -> Handler r (Maybe Public.RemoveIdentityError)
 removePhone self = lift . exceptTToMaybe $ API.removePhone self
 
 removeEmail ::
-  Member UserSubsystem r =>
+  ( Member (ConnectionStore InternalPaging) r,
+    Member (Embed HttpClientIO) r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member NotificationSubsystem r,
+    Member TinyLog r,
+    Member UserKeyStore r,
+    Member UserSubsystem r
+  ) =>
   UserId ->
   Handler r (Maybe Public.RemoveIdentityError)
 removeEmail self = lift . exceptTToMaybe $ API.removeEmail self
 
-checkPasswordExists :: UserId -> (Handler r) Bool
-checkPasswordExists = fmap isJust . lift . wrapClient . API.lookupPassword
+checkPasswordExists :: (Member PasswordStore r) => UserId -> (Handler r) Bool
+checkPasswordExists = fmap isJust . lift . liftSem . lookupHashedPassword
 
-changePassword :: UserId -> Public.PasswordChange -> (Handler r) (Maybe Public.ChangePasswordError)
+changePassword :: (Member PasswordStore r, Member UserStore r) => UserId -> Public.PasswordChange -> (Handler r) (Maybe Public.ChangePasswordError)
 changePassword u cp = lift . exceptTToMaybe $ API.changePassword u cp
 
 changeLocale ::
-  Member UserSubsystem r =>
+  (Member UserSubsystem r) =>
   Local UserId ->
   ConnId ->
   Public.LocaleUpdate ->
@@ -992,7 +1010,7 @@ changeSupportedProtocols u conn (Public.SupportedProtocolUpdate prots) =
 
 -- | (zusr is ignored by this handler, ie. checking handles is allowed as long as you have
 -- *any* account.)
-checkHandle :: Member UserSubsystem r => UserId -> Text -> Handler r ()
+checkHandle :: (Member UserSubsystem r) => UserId -> Text -> Handler r ()
 checkHandle _uid hndl =
   lift (liftSem $ UserSubsystem.checkHandle hndl) >>= \case
     API.CheckHandleFound -> pure ()
@@ -1000,7 +1018,7 @@ checkHandle _uid hndl =
 
 -- | (zusr is ignored by this handler, ie. checking handles is allowed as long as you have
 -- *any* account.)
-checkHandles :: Member UserSubsystem r => UserId -> Public.CheckHandles -> Handler r [Handle]
+checkHandles :: (Member UserSubsystem r) => UserId -> Public.CheckHandles -> Handler r [Handle]
 checkHandles _ (Public.CheckHandles hs num) = do
   let handles = mapMaybe Handle.parseHandle (fromRange hs)
   lift $ liftSem $ API.checkHandles handles (fromRange num)
@@ -1026,32 +1044,35 @@ changeHandle u conn (Public.HandleUpdate h) = lift $ liftSem do
   UserSubsystem.updateHandle u (Just conn) UpdateOriginWireClient h
 
 beginPasswordReset ::
-  (Member PasswordResetStore r, Member TinyLog r) =>
+  (Member AuthenticationSubsystem r) =>
   Public.NewPasswordReset ->
   Handler r ()
 beginPasswordReset Public.NewPasswordResetUnsupportedPhone =
   throwStd (errorToWai @'E.InvalidPhone)
 beginPasswordReset (Public.NewPasswordReset target) = do
-  checkAllowlist target
-  (u, pair) <- API.beginPasswordReset target !>> pwResetError
+  (u, pair) <- lift (liftSem $ createPasswordResetCode (fromEither target)) !>> pwResetError
   loc <- lift $ wrapClient $ API.lookupLocale u
   lift $ sendPasswordResetMail target pair loc
 
 completePasswordReset ::
-  ( Member CodeStore r,
-    Member PasswordResetStore r,
-    Member TinyLog r
+  ( Member AuthenticationSubsystem r
   ) =>
   Public.CompletePasswordReset ->
   Handler r ()
 completePasswordReset req = do
-  API.completePasswordReset (Public.cpwrIdent req) (Public.cpwrCode req) (Public.cpwrPassword req) !>> pwResetError
+  lift . liftSem $
+    resetPassword
+      (Public.cpwrIdent req)
+      (Public.cpwrCode req)
+      (Public.cpwrPassword req)
 
 -- docs/reference/user/activation.md {#RefActivationRequest}
 -- docs/reference/user/registration.md {#RefRegistration}
 sendActivationCode ::
-  ( Member BlacklistStore r,
+  ( Member BlacklistPhonePrefixStore r,
+    Member BlacklistStore r,
     Member GalleyAPIAccess r
+    Member UserKeyStore r,
   ) =>
   Public.SendActivationCode ->
   Handler r ()
@@ -1083,6 +1104,7 @@ createConnectionUnqualified ::
   ( Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member TinyLog r,
+    Member UserStore r,
     Member (Embed HttpClientIO) r
   ) =>
   UserId ->
@@ -1098,6 +1120,7 @@ createConnection ::
   ( Member FederationConfigStore r,
     Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
+    Member UserStore r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r
   ) =>
@@ -1205,8 +1228,10 @@ deleteSelfUser ::
   ( Member GalleyAPIAccess r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
+    Member UserKeyStore r,
     Member NotificationSubsystem r,
     Member UserStore r,
+    Member PasswordStore r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r
@@ -1223,6 +1248,7 @@ verifyDeleteUser ::
     Member UserStore r,
     Member TinyLog r,
     Member (Input (Local ())) r,
+    Member UserKeyStore r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r
   ) =>
@@ -1233,6 +1259,7 @@ verifyDeleteUser body = API.verifyDeleteUser body !>> deleteUserError
 updateUserEmail ::
   forall r.
   ( Member BlacklistStore r,
+    Member UserKeyStore r,
     Member GalleyAPIAccess r
   ) =>
   UserId ->
@@ -1304,7 +1331,7 @@ activateKey (Public.Activate tgt code dryrun)
 
 sendVerificationCode ::
   forall r.
-  Member GalleyAPIAccess r =>
+  (Member GalleyAPIAccess r, Member UserKeyStore r) =>
   Public.SendVerificationCode ->
   (Handler r) ()
 sendVerificationCode req = do
@@ -1329,7 +1356,7 @@ sendVerificationCode req = do
   where
     getAccount :: Public.Email -> (Handler r) (Maybe UserAccount)
     getAccount email = lift $ do
-      mbUserId <- wrapClient . UserKey.lookupKey $ mkEmailKey email
+      mbUserId <- liftSem $ lookupKey $ userEmailKey email
       join <$> wrapClient (Data.lookupAccount `traverse` mbUserId)
 
     sendMail :: Public.Email -> Code.Value -> Maybe Public.Locale -> Public.VerificationAction -> (Handler r) ()
@@ -1364,19 +1391,17 @@ deprecatedOnboarding :: UserId -> JsonValue -> (Handler r) DeprecatedMatchingRes
 deprecatedOnboarding _ _ = pure DeprecatedMatchingResult
 
 deprecatedCompletePasswordReset ::
-  ( Member CodeStore r,
-    Member PasswordResetStore r,
-    Member TinyLog r
+  ( Member AuthenticationSubsystem r
   ) =>
   Public.PasswordResetKey ->
   Public.PasswordReset ->
   (Handler r) ()
 deprecatedCompletePasswordReset k pwr = do
-  API.completePasswordReset
-    (Public.PasswordResetIdentityKey k)
-    (Public.pwrCode pwr)
-    (Public.pwrPassword pwr)
-    !>> pwResetError
+  lift . liftSem $
+    resetPassword
+      (Public.PasswordResetIdentityKey k)
+      (Public.pwrCode pwr)
+      (Public.pwrPassword pwr)
 
 -- Utilities
 

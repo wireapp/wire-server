@@ -85,7 +85,7 @@ data Site tag route = Site
 
 siteServer ::
   forall tag m.
-  DB tag m =>
+  (DB tag m) =>
   Configuration ->
   Site tag (AsServerT (ScimHandler m))
 siteServer conf =
@@ -117,7 +117,7 @@ mkapp proxy api nt =
 
 app ::
   forall tag m.
-  App tag m (SiteAPI tag) =>
+  (App tag m (SiteAPI tag)) =>
   Configuration ->
   (forall a. ScimHandler m a -> Handler a) ->
   Application

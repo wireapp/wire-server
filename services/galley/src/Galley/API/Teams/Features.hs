@@ -226,7 +226,7 @@ guardLockStatus = \case
 -- SetFeatureConfig instances
 
 -- | Don't export methods of this typeclass
-class GetFeatureConfig cfg => SetFeatureConfig cfg where
+class (GetFeatureConfig cfg) => SetFeatureConfig cfg where
   type SetConfigForTeamConstraints cfg (r :: EffectRow) :: Constraint
   type SetConfigForTeamConstraints cfg (r :: EffectRow) = ()
 

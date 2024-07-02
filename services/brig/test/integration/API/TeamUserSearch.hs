@@ -70,7 +70,7 @@ testSearchByEmailSameTeam brig = do
         pure (tid, ownerId, u1)
   testSearchByEmail brig mkSearcherAndSearchee True
 
-assertTeamUserSearchCanFind :: TestConstraints m => Brig -> TeamId -> UserId -> UserId -> Text -> m ()
+assertTeamUserSearchCanFind :: (TestConstraints m) => Brig -> TeamId -> UserId -> UserId -> Text -> m ()
 assertTeamUserSearchCanFind brig teamid self expected q = do
   r <- searchResults <$> executeTeamUserSearch brig teamid self (Just q) Nothing Nothing Nothing
   liftIO $ do
@@ -79,14 +79,14 @@ assertTeamUserSearchCanFind brig teamid self expected q = do
     assertBool ("User not in results for query: " <> show q) $
       expected `elem` map teamContactUserId r
 
-assertTeamUserSearchCannotFind :: TestConstraints m => Brig -> TeamId -> UserId -> UserId -> Text -> m ()
+assertTeamUserSearchCannotFind :: (TestConstraints m) => Brig -> TeamId -> UserId -> UserId -> Text -> m ()
 assertTeamUserSearchCannotFind brig teamid self expected q = do
   r <- searchResults <$> executeTeamUserSearch brig teamid self (Just q) Nothing Nothing Nothing
   liftIO $ do
     assertBool ("User shouldn't be present in results for query: " <> show q) $
       expected `notElem` map teamContactUserId r
 
-testEmptyQuerySorted :: TestConstraints m => Brig -> m ()
+testEmptyQuerySorted :: (TestConstraints m) => Brig -> m ()
 testEmptyQuerySorted brig = do
   (tid, userId -> ownerId, users) <- createPopulatedBindingTeamWithNamesAndHandles brig 4
   refreshIndex brig
@@ -99,7 +99,7 @@ testEmptyQuerySorted brig = do
       (sort (fmap teamContactUserId r))
   liftIO $ assertEqual "sorted team contacts" (sortOn Down creationDates) creationDates
 
-testSort :: TestConstraints m => Brig -> m ()
+testSort :: (TestConstraints m) => Brig -> m ()
 testSort brig = do
   (tid, userId -> ownerId, usersImplicitOrder) <- createPopulatedBindingTeamWithNamesAndHandles brig 4
   -- Shuffle here to guard against false positives in this test.
@@ -131,7 +131,7 @@ testSort brig = do
 
 -- Creating test users for these cases is hard, so we skip it.
 -- This test checks that the search query at least succeeds and returns the users of the team (without testing correct order).
-testSortCallSucceeds :: TestConstraints m => Brig -> m ()
+testSortCallSucceeds :: (TestConstraints m) => Brig -> m ()
 testSortCallSucceeds brig = do
   (tid, userId -> ownerId, users) <- createPopulatedBindingTeamWithNamesAndHandles brig 4
   refreshIndex brig
@@ -140,7 +140,7 @@ testSortCallSucceeds brig = do
     r <- searchResults <$> executeTeamUserSearch brig tid ownerId Nothing Nothing (Just tuSortBy) (Just SortOrderAsc)
     liftIO $ assertEqual ("length of users sorted by " <> cs (toByteString tuSortBy)) n (length r)
 
-testEmptyQuerySortedWithPagination :: TestConstraints m => Brig -> m ()
+testEmptyQuerySortedWithPagination :: (TestConstraints m) => Brig -> m ()
 testEmptyQuerySortedWithPagination brig = do
   (tid, userId -> ownerId, _) <- createPopulatedBindingTeamWithNamesAndHandles brig 20
   refreshIndex brig

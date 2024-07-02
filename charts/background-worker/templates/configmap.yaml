@@ -21,8 +21,19 @@ data:
       host: federator
       port: 8080
 
+    {{- with .rabbitmq }}
     rabbitmq:
-{{toYaml .rabbitmq | indent 6 }}
+      host: {{ .host }}
+      port: {{ .port }}
+      vHost: {{ .vHost }}
+      adminPort: {{ .adminPort }}
+      enableTls: {{ .enableTls }}
+      insecureSkipVerifyTls: {{ .insecureSkipVerifyTls }}
+      {{- if .tlsCaSecretRef }}
+      caCert: /etc/wire/background-worker/rabbitmq-ca/{{ .tlsCaSecretRef.key }}
+      {{- end }}
+    {{- end }}
+
     backendNotificationPusher:
 {{toYaml .backendNotificationPusher | indent 6 }}
   {{- end }}

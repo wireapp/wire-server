@@ -389,11 +389,12 @@ toConv cid ms remoteMems mconv = do
       }
 
 updateToMixedProtocol ::
-  Members
-    '[ Embed IO,
-       Input ClientState
-     ]
-    r =>
+  ( Members
+      '[ Embed IO,
+         Input ClientState
+       ]
+      r
+  ) =>
   Local ConvId ->
   ConvType ->
   Sem r ()
@@ -407,11 +408,12 @@ updateToMixedProtocol lcnv ct = do
   pure ()
 
 updateToMLSProtocol ::
-  Members
-    '[ Embed IO,
-       Input ClientState
-     ]
-    r =>
+  ( Members
+      '[ Embed IO,
+         Input ClientState
+       ]
+      r
+  ) =>
   Local ConvId ->
   Sem r ()
 updateToMLSProtocol lcnv =

@@ -36,6 +36,11 @@ spec:
         - name: "background-worker-secrets"
           secret:
             secretName: "background-worker"
+        {{- if .Values.config.rabbitmq.tlsCaSecretRef }}
+        - name: "rabbitmq-ca"
+          secret:
+            secretName: {{ .Values.config.rabbitmq.tlsCaSecretRef.name }}
+        {{- end }}
       containers:
         - name: background-worker
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -47,6 +52,10 @@ spec:
           volumeMounts:
           - name: "background-worker-config"
             mountPath: "/etc/wire/background-worker/conf"
+          {{- if .Values.config.rabbitmq.tlsCaSecretRef }}
+          - name: "rabbitmq-ca"
+            mountPath: "/etc/wire/background-worker/rabbitmq-ca/"
+          {{- end }}
           env:
           - name: RABBITMQ_USERNAME
             valueFrom:

@@ -17,17 +17,32 @@
 
 module CargoHold.Metrics where
 
-import CargoHold.App (Env, metrics)
-import Control.Lens (view)
-import Data.Metrics.Middleware (counterAdd, counterIncr, path)
 import Imports
+import qualified Prometheus as Prom
 
-s3UploadOk :: (MonadReader Env m, MonadIO m) => m ()
-s3UploadOk =
-  counterIncr (path "net.s3.upload_ok")
-    =<< view metrics
+s3UploadOk :: (Prom.MonadMonitor m) => m ()
+s3UploadOk = Prom.incCounter netS3UploadOk
 
-s3UploadSize :: (MonadReader Env m, MonadIO m, Integral n) => n -> m ()
+{-# NOINLINE netS3UploadOk #-}
+netS3UploadOk :: Prom.Counter
+netS3UploadOk =
+  Prom.unsafeRegister $
+    Prom.counter
+      Prom.Info
+        { Prom.metricName = "net.s3.upload_ok",
+          Prom.metricHelp = "Number of successful S3 Uploads"
+        }
+
+s3UploadSize :: (Prom.MonadMonitor m, Integral n) => n -> m ()
 s3UploadSize n =
-  counterAdd (fromIntegral n) (path "net.s3.upload_size")
-    =<< view metrics
+  void $ Prom.addCounter netS3UploadSize (fromIntegral n)
+
+{-# NOINLINE netS3UploadSize #-}
+netS3UploadSize :: Prom.Counter
+netS3UploadSize =
+  Prom.unsafeRegister $
+    Prom.counter
+      Prom.Info
+        { Prom.metricName = "net.s3.upload_size",
+          Prom.metricHelp = "Number of bytes uploaded successfully uploaded to S3"
+        }

@@ -36,7 +36,7 @@
 # and update the 'rev' field of the pin under 'gitPins'.
 #
 # 2. Update 'sha256' field under `fetchgit` to be an empty string.  (This step is optional:
-# since the hash has changed, the error will be the same if you remove it or if you leave the
+# since the sha256 has changed, the error will be the same if you remove it or if you leave the
 # old value in place.)
 #
 # 3. Run step 3. from how to add a git pin.
@@ -66,8 +66,8 @@ let
     transitive-anns = {
       src = fetchgit {
         url = "https://github.com/wireapp/transitive-anns";
-        rev = "95ee8b5f9c47fe04f8f0d1321f0ade261ab9af54";
-        sha256 = "sha256-8NEAHkCBlGO6xnG2K3Lllb2xiCHSYf/dSV1YrmBkOW8=";
+        rev = "5e0cad1f411a0c92e6445404c205ddd4a0229c4d";
+        hash = "sha256-/P4KJ4yZgqhZhzmg1GcE+Ti4kdsWUQX8q++RhgCUDKI=";
       };
     };
 
@@ -75,15 +75,16 @@ let
       src = fetchgit {
         url = "https://github.com/wireapp/cryptobox-haskell";
         rev = "7546a1a25635ef65183e3d44c1052285e8401608";
-        sha256 = "0dgizj1kc135yzzqdf5l7f5ax0qpvrr8mxvg7s1dbm01cf11aqzn";
+        hash = "sha256-9mMVgmMB1NWCPm/3inLeF4Ouiju0uIb/92UENoP88TU=";
       };
     };
 
+    # FIXME(mangoiv): should be merged https://github.com/wireapp/saml2-web-sso/pull/86
     saml2-web-sso = {
       src = fetchgit {
         url = "https://github.com/wireapp/saml2-web-sso";
-        rev = "0cf23a87b140ba5b960a848ecad3976e6fdaac88";
-        sha256 = "sha256-Gm58Yjt5ZGh74cfEjcZSx6jvwkpFC324xTPLhLS29r0=";
+        rev = "9474485e6ed45930b75524f97633f7e036fc0273";
+        hash = "sha256-TkULURVk7lDHXpbXREwowxFoiUp2VSVZWjr9KF48170=";
       };
     };
 
@@ -95,7 +96,7 @@ let
       src = fetchgit {
         url = "https://github.com/wireapp/bloodhound";
         rev = "abf819a4a6ec7601f1e58cb8da13b2fdad377d9e";
-        sha256 = "sha256-m1O+F/mOJN5z5WNChmeyHP4dtmLRkl2YnLlTuwzRelk=";
+        hash = "sha256-m1O+F/mOJN5z5WNChmeyHP4dtmLRkl2YnLlTuwzRelk=";
       };
     };
 
@@ -104,7 +105,7 @@ let
       src = fetchgit {
         url = "https://github.com/akshaymankar/hs-certificate";
         rev = "9e293695d8ca5efc513ee0082ae955ff9b32eb6b";
-        sha256 = "sha256-mD5Dvuzol3K9CNNSfa2L9ir9AbrQ8HJc0QNmkK3qBWk=";
+        hash = "sha256-mD5Dvuzol3K9CNNSfa2L9ir9AbrQ8HJc0QNmkK3qBWk=";
       };
       packages = {
         "crypton-x509-validation" = "x509-validation";
@@ -116,15 +117,16 @@ let
       src = fetchgit {
         url = "https://github.com/wireapp/HaskellNet-SSL";
         rev = "c2844b63a39f458ffbfe62f2ac824017f1f84453";
-        sha256 = "sha256-1mu/yEAWr3POY4MHRomum0DDvs5Qty1JvP3v5GS2u64=";
+        hash = "sha256-1mu/yEAWr3POY4MHRomum0DDvs5Qty1JvP3v5GS2u64=";
       };
     };
 
+    # PR https://github.com/dylex/hsaml2/pull/20
     hsaml2 = {
       src = fetchgit {
-        url = "https://github.com/dylex/hsaml2";
-        rev = "95d9dc7502c2533f7927de00cbc2bd20ad989ace";
-        sha256 = "sha256-z3s/ZkkCd2ThVBsu72pS/+XygHImuffz/HVy3hkQ6eo=";
+        url = "https://github.com/mangoiv/hsaml2";
+        rev = "d35f92a3253d146c92caf371b90eb4889841918a";
+        hash = "sha256-gufEAC7fFqafG8dXkGIOSfAcVv+ZWkawmBgUV+Ics2s=";
       };
     };
 
@@ -144,7 +146,7 @@ let
       src = fetchgit {
         url = "https://github.com/wireapp/http-client";
         rev = "37494bb9a89dd52f97a8dc582746c6ff52943934";
-        sha256 = "sha256-z47GlT+tHsSlRX4ApSGQIpOpaZiBeqr72/tWuvzw8tc=";
+        hash = "sha256-z47GlT+tHsSlRX4ApSGQIpOpaZiBeqr72/tWuvzw8tc=";
       };
       packages = {
         "http-client" = "http-client";
@@ -159,7 +161,7 @@ let
       src = fetchgit {
         url = "https://github.com/wireapp/hspec-wai";
         rev = "08176f07fa893922e2e78dcaf996c33d79d23ce2";
-        sha256 = "sha256-Nc5POjA+mJt7Vi3drczEivGsv9PXeVOCSwp21lLmz58=";
+        hash = "sha256-Nc5POjA+mJt7Vi3drczEivGsv9PXeVOCSwp21lLmz58=";
       };
     };
 
@@ -168,7 +170,7 @@ let
       src = fetchgit {
         url = "https://github.com/wireapp/cql";
         rev = "abbd2739969d17a909800f282d10d42a254c4e3b";
-        sha256 = "sha256-2MYwZKiTdwgjJdLNvECi7gtcIo+3H4z1nYzen5x0lgU=";
+        hash = "sha256-2MYwZKiTdwgjJdLNvECi7gtcIo+3H4z1nYzen5x0lgU=";
       };
     };
 
@@ -177,7 +179,7 @@ let
       src = fetchgit {
         url = "https://github.com/wireapp/cql-io";
         rev = "c2b6aa995b5817ed7c78c53f72d5aa586ef87c36";
-        sha256 = "sha256-DMRWUq4yorG5QFw2ZyF/DWnRjfnzGupx0njTiOyLzPI=";
+        hash = "sha256-DMRWUq4yorG5QFw2ZyF/DWnRjfnzGupx0njTiOyLzPI=";
       };
     };
 
@@ -187,7 +189,7 @@ let
       src = fetchgit {
         url = "https://github.com/wireapp/wai-predicates";
         rev = "ff95282a982ab45cced70656475eaf2cefaa26ea";
-        sha256 = "sha256-x2XSv2+/+DG9FXN8hfUWGNIO7V4iBhlzYz19WWKaLKQ=";
+        hash = "sha256-x2XSv2+/+DG9FXN8hfUWGNIO7V4iBhlzYz19WWKaLKQ=";
       };
     };
 
@@ -196,7 +198,7 @@ let
       src = fetchgit {
         url = "https://github.com/wireapp/wai-routing";
         rev = "7e996a93fec5901767f845a50316b3c18e51a61d";
-        sha256 = "18icwks9jc6sy42vcvj2ysaip2s0dsrpvm9sy608b6nq6kk1ahlk";
+        hash = "sha256-k0IV5jTYmoWA8TrVfbNuQIsblfZCbrYF8dowmfTkLKI=";
       };
     };
 
@@ -205,7 +207,7 @@ let
       src = fetchgit {
         url = "https://github.com/wireapp/tasty";
         rev = "97df5c1db305b626ffa0b80055361b7b28e69cec";
-        sha256 = "sha256-oACehxazeKgRr993gASRbQMf74heh5g0B+70ceAg17I=";
+        hash = "sha256-oACehxazeKgRr993gASRbQMf74heh5g0B+70ceAg17I=";
       };
       packages = {
         tasty-hunit = "hunit";
@@ -217,16 +219,17 @@ let
     servant-openapi3 = {
       src = fetchgit {
         url = "https://github.com/wireapp/servant-openapi3";
-        rev = "5cdb2783f15058f753c41b800415d4ba1149a78b";
-        sha256 = "sha256-8FM3IAA3ewCuv9Mar8aWmzbyfKK9eLXIJPMHzmYb1zE=";
+        rev = "0db0095040df2c469a48f5b8724595f82afbad0c";
+        hash = "sha256-iKMWd+qm8hHhKepa13VWXDPCpTMXxoOwWyoCk4lLlIY=";
       };
     };
 
+    # we need HEAD, the latest release is too old
     postie = {
       src = fetchgit {
         url = "https://github.com/alexbiehl/postie";
         rev = "7321b977a2b427e0be782b7239901e4edfbb027f";
-        sha256 = "sha256-DKugy4EpRsSgaGvybdh2tLa7HCtoxId+7RAAAw43llA=";
+        hash = "sha256-DKugy4EpRsSgaGvybdh2tLa7HCtoxId+7RAAAw43llA=";
       };
     };
 
@@ -234,7 +237,7 @@ let
       src = fetchgit {
         url = "https://github.com/wireapp/tinylog.git";
         rev = "9609104263e8cd2a631417c1c3ef23e090de0d09";
-        sha256 = "sha256-htEIJY+LmIMACVZrflU60+X42/g14NxUyFM7VJs4E6w=";
+        hash = "sha256-htEIJY+LmIMACVZrflU60+X42/g14NxUyFM7VJs4E6w=";
       };
     };
 
@@ -243,7 +246,7 @@ let
       src = fetchgit {
         url = "https://github.com/wireapp/tasty-ant-xml";
         rev = "34ff294d805e62e73678dccc0be9d3da13540fbe";
-        sha256 = "sha256-+rHcS+BwEFsXqPAHX/KZDIgv9zfk1dZl0LlZJ57Com4=";
+        hash = "sha256-+rHcS+BwEFsXqPAHX/KZDIgv9zfk1dZl0LlZJ57Com4=";
       };
     };
 
@@ -255,19 +258,20 @@ let
         hash = "sha256-E35PVxi/4iJFfWts3td52KKZKQt4dj9KFP3SvWG77Cc=";
       };
     };
-    # PR: https://github.com/yesodweb/wai/pull/958
+
+    # open PR https://github.com/yesodweb/wai/pull/958 for sending connection: close when closing connection
     warp = {
-      src = fetchgit {
-        url = "https://github.com/wireapp/wai";
-        rev = "bedd6a835f6d98128880465c30e8115fa986e3f6";
-        sha256 = "sha256-0r/d9YwcKZIZd10EhL2TP+W14Wjk0/S8Q4pVvZuZLaY=";
-      };
-      packages = {
-        "warp" = "warp";
+      packages.warp = "warp";
+      src = pkgs.fetchFromGitHub {
+        owner = "yesodweb";
+        repo = "wai";
+        rev = "8b20c9db265a202a2c7ba2a9ec8786a1ee59957b";
+        hash = "sha256-fKUSiRl38FKY1gFSmbksktoqoLfQrDxRRWEh4k+RRW4=";
       };
     };
 
   };
+
   hackagePins = {
     # Major re-write upstream, we should get rid of this dependency rather than
     # adapt to upstream, this will go away when completing servantification.
@@ -276,20 +280,46 @@ let
       sha256 = "sha256-DSMckKIeVE/buSMg8Mq+mUm1bYPYB7veA11Ns7vTBbc=";
     };
 
-    # these are not yet in nixpkgs
-    ghc-source-gen = {
-      version = "0.4.4.0";
-      sha256 = "sha256-ZSJGF4sdr7tOCv6IUCjIiTrFYL+5gF4W3U6adjBODrE=";
+    # start pinned dependencies for http2
+
+    # this contains an important fix to the initialization of the window size
+    # and should be switched to upstream as soon as we can
+    http2 = {
+      version = "5.2.5";
+      sha256 = "sha256-FCd4lPydwWqm2lrhgYtPW+BuXGqmmA8KFrB87SYEowY=";
     };
-    hoogle = {
-      version = "5.0.18.4";
-      sha256 = "sha256-gIc4hpdUfTS33rZPfzwLfVcXkQaglmsljqViyYdihdk=";
+
+    http-semantics = {
+      version = "0.1.2";
+      sha256 = "sha256-S4rGBCIKVPpLPumLcVzrPONrbWm8VBizqxI3dXNIfr0=";
     };
-    # dependency of hoogle
-    safe = {
-      version = "0.3.20";
-      sha256 = "sha256-PGwjhrRnkH8cLhd7fHTZFd6ts9abp0w5sLlV8ke1yXU=";
+
+    network-run = {
+      version = "0.3.0";
+      sha256 = "sha256-FP2GZKwacC+TLLwEIVgKBtnKplYPf5xOIjDfvlbQV0o=";
     };
+    time-manager = {
+      version = "0.1.0";
+      sha256 = "sha256-WRe9LZrOIPJVBFk0vMN2IMoxgP0a0psQCiCiOFWJc74=";
+    };
+    auto-update = {
+      version = "0.2.0";
+      sha256 = "sha256-d/0IDjaaCLz8tlx88z8Ew8ol9PrSRPVWaUwTbim70yE=";
+    };
+
+    network-control = {
+      version = "0.1.0";
+      sha256 = "sha256-D6pKb6+0Pr08FnObGbXBVMv04ys3N731p7U+GYH1oEg=";
+    };
+    # end pinned dependencies for http2
+
+    # pinned for warp
+    warp-tls = {
+      version = "3.4.5";
+      sha256 = "sha256-3cDi/+n7wHfcWT/iFWAsGdLYXtKYXmvzolDt+ACJnaM=";
+    };
+    # end pinned for warp
+
     # PR: https://github.com/wireapp/wire-server/pull/4027
     HsOpenSSL = {
       version = "0.11.7.7";
@@ -306,7 +336,7 @@ let
         else "--subpath='${subpath}'";
     in
     hself.callCabal2nixWithOptions name src "${subpathArg}" { };
-  # [[AtrrSet]]
+  # [[AttrSet]]
   gitPackages = lib.attrsets.mapAttrsToList
     (name: pin:
       let
@@ -324,11 +354,12 @@ let
     gitPins;
   # AttrSet
   hackagePackages = lib.attrsets.mapAttrs
-    (pkg: { version, sha256 }:
+    (pkg: args:
       hself.callHackageDirect
         {
-          ver = version;
-          inherit pkg sha256;
+          ver = args.version;
+          sha256 = args.sha256 or "";
+          inherit pkg;
         }
         { }
     )

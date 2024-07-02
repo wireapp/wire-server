@@ -16,6 +16,7 @@
 , cassandra-util
 , containers
 , cql
+, crypton
 , currency-codes
 , data-default
 , data-timeout
@@ -130,6 +131,7 @@ mkDerivation {
     bilge
     bytestring
     containers
+    crypton
     data-default
     errors
     extended
@@ -148,6 +150,7 @@ mkDerivation {
     string-conversions
     text
     time
+    tinylog
     transformers
     types-common
     wire-api

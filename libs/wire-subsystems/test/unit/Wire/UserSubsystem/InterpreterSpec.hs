@@ -11,6 +11,7 @@ import Data.Domain
 import Data.Handle
 import Data.Id
 import Data.LegalHold (defUserLegalHoldStatus)
+import Data.Map qualified as Map
 import Data.Qualified
 import Data.Set qualified as S
 import Imports
@@ -28,8 +29,9 @@ import Wire.API.Team.Permission
 import Wire.API.User hiding (DeleteUser)
 import Wire.API.UserEvent
 import Wire.MiniBackend
-import Wire.StoredUser as SU
-import Wire.UserSubsystem as US
+import Wire.StoredUser
+import Wire.UserKeyStore
+import Wire.UserSubsystem
 import Wire.UserSubsystem.HandleBlacklist
 import Wire.UserSubsystem.Interpreter (UserSubsystemConfig (..))
 
@@ -433,7 +435,7 @@ spec = describe "UserSubsystem.Interpreter" do
               where
                 dom = Domain "localdomain"
 
-            operation :: Monad m => Sem (GetUserProfileEffects `Append` AllErrors) a -> m a
+            operation :: (Monad m) => Sem (MiniBackendEffects `Append` AllErrors) a -> m a
             operation op = result `seq` pure result
               where
                 result = runNoFederationStack localBackend Nothing config op
@@ -448,3 +450,50 @@ spec = describe "UserSubsystem.Interpreter" do
                 then defSupportedProtocols
                 else newSupportedProtocols
          in actualSupportedProtocols === expectedSupportedProtocols
+
+  describe "getLocalUserAccountByUserKey" $ do
+    prop "gets users iff they are indexed by the UserKeyStore" $
+      \(config :: UserSubsystemConfig) (localDomain :: Domain) (storedUser :: StoredUser) (userKey :: EmailKey) ->
+        let localBackend =
+              def
+                { users = [storedUser],
+                  userKeys = Map.singleton userKey storedUser.id
+                }
+            retrievedUser =
+              run
+                . runErrorUnsafe
+                . runErrorUnsafe @UserSubsystemError
+                . interpretNoFederationStack localBackend Nothing def config
+                $ getLocalUserAccountByUserKey (toLocalUnsafe localDomain userKey)
+         in retrievedUser === Just (mkAccountFromStored localDomain config.defaultLocale storedUser)
+
+    prop "doesn't get users if they are not indexed by the UserKeyStore" $
+      \(config :: UserSubsystemConfig) (localDomain :: Domain) (storedUserNoEmail :: StoredUser) (email :: Email) ->
+        let localBackend =
+              def
+                { users = [storedUser],
+                  userKeys = mempty
+                }
+            storedUser = storedUserNoEmail {email = Just email}
+            retrievedUser =
+              run
+                . runErrorUnsafe
+                . runErrorUnsafe @UserSubsystemError
+                . interpretNoFederationStack localBackend Nothing def config
+                $ getLocalUserAccountByUserKey (toLocalUnsafe localDomain (mkEmailKey email))
+         in retrievedUser === Nothing
+
+    prop "doesn't get users if they are not present in the UserStore but somehow are still indexed in UserKeyStore" $
+      \(config :: UserSubsystemConfig) (localDomain :: Domain) (nonExistentUserId :: UserId) (userKey :: EmailKey) ->
+        let localBackend =
+              def
+                { users = [],
+                  userKeys = Map.singleton userKey nonExistentUserId
+                }
+            retrievedUser =
+              run
+                . runErrorUnsafe
+                . runErrorUnsafe @UserSubsystemError
+                . interpretNoFederationStack localBackend Nothing def config
+                $ getLocalUserAccountByUserKey (toLocalUnsafe localDomain userKey)
+         in retrievedUser === Nothing

@@ -87,7 +87,6 @@ library
     , http-types             >=0.8
     , imports
     , lens                   >=4.4
-    , metrics-wai            >=0.3
     , mtl                    >=2.1
     , openapi3
     , schema-profunctor

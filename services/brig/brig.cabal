@@ -76,7 +76,6 @@ library
 
   -- cabal-fmt: expand src
   exposed-modules:
-    Brig.Allowlists
     Brig.API.Auth
     Brig.API.Client
     Brig.API.Connection
@@ -110,6 +109,7 @@ library
     Brig.Data.Activation
     Brig.Data.Client
     Brig.Data.Connection
+    Brig.Data.LoginCode
     Brig.Data.MLS.KeyPackage
     Brig.Data.Nonce
     Brig.Data.Properties
@@ -119,15 +119,11 @@ library
     Brig.DeleteQueue.Interpreter
     Brig.Effects.BlacklistStore
     Brig.Effects.BlacklistStore.Cassandra
-    Brig.Effects.CodeStore
-    Brig.Effects.CodeStore.Cassandra
     Brig.Effects.ConnectionStore
     Brig.Effects.ConnectionStore.Cassandra
     Brig.Effects.FederationConfigStore
     Brig.Effects.FederationConfigStore.Cassandra
     Brig.Effects.JwtTools
-    Brig.Effects.PasswordResetStore
-    Brig.Effects.PasswordResetStore.CodeStore
     Brig.Effects.PublicKeyBundle
     Brig.Effects.SFT
     Brig.Effects.UserPendingActivationStore
@@ -209,8 +205,6 @@ library
     Brig.User.Auth
     Brig.User.Auth.Cookie
     Brig.User.Auth.Cookie.Limit
-    Brig.User.Auth.DB.Cookie
-    Brig.User.Auth.DB.Instances
     Brig.User.EJPD
     Brig.User.Email
     Brig.User.Search.Index
@@ -305,6 +299,7 @@ library
     , polysemy-plugin
     , polysemy-time
     , polysemy-wire-zoo
+    , prometheus-client
     , proto-lens                 >=0.1
     , random-shuffle             >=0.0.3
     , raw-strings-qq
@@ -513,6 +508,7 @@ executable brig-integration
     , warp-tls               >=3.2
     , wire-api
     , wire-api-federation
+    , wire-subsystems
     , yaml
     , zauth
 

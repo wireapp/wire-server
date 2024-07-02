@@ -118,18 +118,18 @@ createUserStep spar' brig' tok tid scimUser email = do
   Just inviteeCode <- getInvitationCode brig' tid (inInvitation inv)
   pure (scimStoredUser, inv, inviteeCode)
 
-assertUserExist :: HasCallStack => String -> ClientState -> UserId -> Bool -> HttpT IO ()
+assertUserExist :: (HasCallStack) => String -> ClientState -> UserId -> Bool -> HttpT IO ()
 assertUserExist msg db' uid shouldExist = liftIO $ do
   exists <- aFewTimes 12 (runClient db' (userExists uid)) (== shouldExist)
   assertEqual msg shouldExist exists
 
-waitUserExpiration :: MonadUnliftIO m => Opts -> m ()
+waitUserExpiration :: (MonadUnliftIO m) => Opts -> m ()
 waitUserExpiration opts' = do
   let timeoutSecs = round @Double . realToFrac . setTeamInvitationTimeout . optSettings $ opts'
   Control.Exception.assert (timeoutSecs < 30) $ do
     threadDelay $ (timeoutSecs + 3) * 1_000_000
 
-userExists :: MonadClient m => UserId -> m Bool
+userExists :: (MonadClient m) => UserId -> m Bool
 userExists uid = do
   x <- retry x1 (query1 usersSelect (params LocalQuorum (Identity uid)))
   pure $
@@ -156,8 +156,9 @@ createUserWithTeamDisableSSO brg gly = do
   e <- randomEmail
   n <- UUID.toString <$> liftIO UUID.nextRandom
   let p =
-        RequestBodyLBS . Aeson.encode $
-          object
+        RequestBodyLBS
+          . Aeson.encode
+          $ object
             [ "name" .= n,
               "email" .= fromEmail e,
               "password" .= defPassword,
@@ -209,7 +210,7 @@ randomScimUserWithSubjectAndRichInfo richInfo = do
         )
       _ -> error "randomScimUserWithSubject: impossible"
   pure
-    ( (Scim.User.empty userSchemas ("scimuser_" <> suffix) (ScimUserExtra richInfo))
+    ( (Scim.User.empty @SparTag userSchemas ("scimuser_" <> suffix) (ScimUserExtra richInfo))
         { Scim.User.displayName = Just ("ScimUser" <> suffix),
           Scim.User.externalId = Just externalId,
           Scim.User.emails = emails,
@@ -218,7 +219,7 @@ randomScimUserWithSubjectAndRichInfo richInfo = do
       subj
     )
 
-randomScimEmail :: MonadRandom m => m Email.Email
+randomScimEmail :: (MonadRandom m) => m Email.Email
 randomScimEmail = do
   let typ :: Maybe Text = Nothing
       -- TODO: where should we catch users with more than one
@@ -230,7 +231,7 @@ randomScimEmail = do
     pure . Email.EmailAddress2 $ Email.unsafeEmailAddress localpart domainpart
   pure Email.Email {..}
 
-randomScimPhone :: MonadRandom m => m Phone.Phone
+randomScimPhone :: (MonadRandom m) => m Phone.Phone
 randomScimPhone = do
   let typ :: Maybe Text = Nothing
   value :: Maybe Text <- do
@@ -242,7 +243,7 @@ randomScimPhone = do
 
 -- | Create a user.
 createUser ::
-  HasCallStack =>
+  (HasCallStack) =>
   Spar ->
   ScimToken ->
   Scim.User.User SparTag ->
@@ -329,7 +330,7 @@ createToken_ spar userid payload = do
 
 -- | Create a SCIM token.
 createToken ::
-  HasCallStack =>
+  (HasCallStack) =>
   Spar ->
   UserId ->
   CreateScimToken ->

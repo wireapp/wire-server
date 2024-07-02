@@ -52,10 +52,10 @@ newtype SFTGetResponse = SFTGetResponse
 data SFT m a where
   SFTGetAllServers :: HttpsUrl -> SFT m SFTGetResponse
 
-sftGetAllServers :: Member SFT r => HttpsUrl -> Sem r SFTGetResponse
+sftGetAllServers :: (Member SFT r) => HttpsUrl -> Sem r SFTGetResponse
 sftGetAllServers = send . SFTGetAllServers
 
-interpretSFT :: Members [Embed IO, TinyLog] r => Manager -> Sem (SFT ': r) a -> Sem r a
+interpretSFT :: (Members [Embed IO, TinyLog] r) => Manager -> Sem (SFT ': r) a -> Sem r a
 interpretSFT httpManager = interpret $ \(SFTGetAllServers url) -> do
   let urlWithPath = ensureHttpsUrl $ (httpsUrl url) {uriPath = "/sft_servers_all.json"}
   fmap SFTGetResponse . runSftError urlWithPath $ do
@@ -66,7 +66,7 @@ interpretSFT httpManager = interpret $ \(SFTGetAllServers url) -> do
     debug $ Log.field "URLs" (show res) . Log.msg ("Fetched the following server URLs" :: ByteString)
     pure res
 
-runSftError :: Member TinyLog r => HttpsUrl -> Sem (Error SFTError : r) a -> Sem r (Either SFTError a)
+runSftError :: (Member TinyLog r) => HttpsUrl -> Sem (Error SFTError : r) a -> Sem r (Either SFTError a)
 runSftError urlWithPath act =
   runError $
     act
@@ -85,7 +85,7 @@ instance ToSchema AllURLs where
         <$> unAllURLs .= field "sft_servers_all" (array schema)
 
 interpretSFTInMemory ::
-  Member TinyLog r =>
+  (Member TinyLog r) =>
   Map HttpsUrl SFTGetResponse ->
   Sem (SFT ': r) a ->
   Sem r a

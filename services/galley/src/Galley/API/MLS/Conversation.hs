@@ -33,7 +33,7 @@ import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Protocol
 
 mkMLSConversation ::
-  Member MemberStore r =>
+  (Member MemberStore r) =>
   Data.Conversation ->
   Sem r (Maybe MLSConversation)
 mkMLSConversation conv =

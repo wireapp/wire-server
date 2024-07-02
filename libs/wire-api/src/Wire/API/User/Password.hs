@@ -24,6 +24,7 @@ module Wire.API.User.Password
     CompletePasswordReset (..),
     PasswordResetIdentity (..),
     PasswordResetKey (..),
+    mkPasswordResetKey,
     PasswordResetCode (..),
 
     -- * deprecated
@@ -33,9 +34,13 @@ where
 
 import Cassandra qualified as C
 import Control.Lens ((?~))
+import Crypto.Hash
 import Data.Aeson qualified as A
 import Data.Aeson.Types (Parser)
+import Data.ByteArray qualified as ByteArray
+import Data.ByteString qualified as BS
 import Data.ByteString.Conversion
+import Data.Id
 import Data.Misc (PlainTextPassword8)
 import Data.OpenApi qualified as S
 import Data.OpenApi.ParamSchema
@@ -124,33 +129,29 @@ instance ToSchema CompletePasswordReset where
       pwDocs :: NamedSwaggerDoc -> NamedSwaggerDoc
       pwDocs = description ?~ "New password (6 - 1024 characters)"
 
-      maybePasswordResetIdentityObjectSchema :: ObjectSchemaP SwaggerDoc (Maybe PasswordResetKey, Maybe Email, Maybe Phone) PasswordResetIdentity
+      maybePasswordResetIdentityObjectSchema :: ObjectSchemaP SwaggerDoc (Maybe PasswordResetKey, Maybe Email) PasswordResetIdentity
       maybePasswordResetIdentityObjectSchema =
         withParser passwordResetIdentityTupleObjectSchema maybePasswordResetIdentityTargetFromTuple
         where
-          passwordResetIdentityTupleObjectSchema :: ObjectSchema SwaggerDoc (Maybe PasswordResetKey, Maybe Email, Maybe Phone)
+          passwordResetIdentityTupleObjectSchema :: ObjectSchema SwaggerDoc (Maybe PasswordResetKey, Maybe Email)
           passwordResetIdentityTupleObjectSchema =
-            (,,)
-              <$> fst3 .= maybe_ (optFieldWithDocModifier "key" keyDocs schema)
-              <*> snd3 .= maybe_ (optFieldWithDocModifier "email" emailDocs schema)
-              <*> thd3 .= maybe_ (optFieldWithDocModifier "phone" phoneDocs schema)
+            (,)
+              <$> fst .= maybe_ (optFieldWithDocModifier "key" keyDocs schema)
+              <*> snd .= maybe_ (optFieldWithDocModifier "email" emailDocs schema)
             where
               keyDocs = description ?~ "An opaque key for a pending password reset."
               emailDocs = description ?~ "A known email with a pending password reset."
-              phoneDocs = description ?~ "A known phone number with a pending password reset."
 
-          maybePasswordResetIdentityTargetFromTuple :: (Maybe PasswordResetKey, Maybe Email, Maybe Phone) -> Parser PasswordResetIdentity
+          maybePasswordResetIdentityTargetFromTuple :: (Maybe PasswordResetKey, Maybe Email) -> Parser PasswordResetIdentity
           maybePasswordResetIdentityTargetFromTuple = \case
-            (Just key, _, _) -> pure $ PasswordResetIdentityKey key
-            (_, Just email, _) -> pure $ PasswordResetEmailIdentity email
-            (_, _, Just phone) -> pure $ PasswordResetPhoneIdentity phone
-            _ -> fail "key, email or phone must be present"
+            (Just key, _) -> pure $ PasswordResetIdentityKey key
+            (_, Just email) -> pure $ PasswordResetEmailIdentity email
+            (Nothing, Nothing) -> fail "key or email must be present"
 
-      maybePasswordResetIdentityToTuple :: PasswordResetIdentity -> (Maybe PasswordResetKey, Maybe Email, Maybe Phone)
+      maybePasswordResetIdentityToTuple :: PasswordResetIdentity -> (Maybe PasswordResetKey, Maybe Email)
       maybePasswordResetIdentityToTuple = \case
-        PasswordResetIdentityKey key -> (Just key, Nothing, Nothing)
-        PasswordResetEmailIdentity email -> (Nothing, Just email, Nothing)
-        PasswordResetPhoneIdentity phone -> (Nothing, Nothing, Just phone)
+        PasswordResetIdentityKey key -> (Just key, Nothing)
+        PasswordResetEmailIdentity email -> (Nothing, Just email)
 
 --------------------------------------------------------------------------------
 -- PasswordResetIdentity
@@ -161,16 +162,22 @@ data PasswordResetIdentity
     PasswordResetIdentityKey PasswordResetKey
   | -- | A known email address with a pending password reset.
     PasswordResetEmailIdentity Email
-  | -- | A known phone number with a pending password reset.
-    PasswordResetPhoneIdentity Phone
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform PasswordResetIdentity)
 
 -- | Opaque identifier per user (SHA256 of the user ID).
 newtype PasswordResetKey = PasswordResetKey
   {fromPasswordResetKey :: AsciiBase64Url}
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Ord)
   deriving newtype (ToSchema, FromByteString, ToByteString, A.FromJSON, A.ToJSON, Arbitrary)
+
+mkPasswordResetKey :: UserId -> PasswordResetKey
+mkPasswordResetKey userId =
+  PasswordResetKey
+    . encodeBase64Url
+    . BS.pack
+    . ByteArray.unpack
+    $ hashWith SHA256 (toByteString' userId)
 
 instance ToParamSchema PasswordResetKey where
   toParamSchema _ = toParamSchema (Proxy @Text)

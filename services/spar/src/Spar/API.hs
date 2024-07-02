@@ -48,7 +48,6 @@ where
 import Brig.Types.Intra
 import Cassandra as Cas
 import Control.Lens hiding ((.=))
-import Control.Monad.Except
 import qualified Data.ByteString as SBS
 import Data.ByteString.Builder (toLazyByteString)
 import Data.Id
@@ -244,7 +243,7 @@ authreqPrecheck ::
 authreqPrecheck msucc merr idpid =
   validateAuthreqParams msucc merr
     *> IdPConfigStore.getConfig idpid
-    $> NoContent
+      $> NoContent
 
 authreq ::
   ( Member Random r,
@@ -278,7 +277,7 @@ authreq authreqttl msucc merr idpid = do
 redirectURLMaxLength :: Int
 redirectURLMaxLength = 140
 
-validateAuthreqParams :: Member (Error SparError) r => Maybe URI.URI -> Maybe URI.URI -> Sem r VerdictFormat
+validateAuthreqParams :: (Member (Error SparError) r) => Maybe URI.URI -> Maybe URI.URI -> Sem r VerdictFormat
 validateAuthreqParams msucc merr = case (msucc, merr) of
   (Nothing, Nothing) -> pure VerdictFormatWeb
   (Just ok, Just err) -> do
@@ -286,7 +285,7 @@ validateAuthreqParams msucc merr = case (msucc, merr) of
     pure $ VerdictFormatMobile ok err
   _ -> throwSparSem $ SparBadInitiateLoginQueryParams "need-both-redirect-urls"
 
-validateRedirectURL :: Member (Error SparError) r => URI.URI -> Sem r ()
+validateRedirectURL :: (Member (Error SparError) r) => URI.URI -> Sem r ()
 validateRedirectURL uri = do
   unless ((SBS.take 4 . URI.schemeBS . URI.uriScheme $ uri) == "wire") $ do
     throwSparSem $ SparBadInitiateLoginQueryParams "invalid-schema"
@@ -325,12 +324,13 @@ authresp mbtid arbody = logErrors $ SAML2.authResp mbtid (SamlProtocolSettings.s
     logErrors action = catch @SparError action $ \case
       e@(SAML.CustomServant _) -> throw e
       e -> do
-        throw @SparError . SAML.CustomServant $
-          errorPage
+        throw @SparError
+          . SAML.CustomServant
+          $ errorPage
             e
             (Multipart.inputs (SAML.authnResponseBodyRaw arbody))
 
-ssoSettings :: Member DefaultSsoCode r => Sem r SsoSettings
+ssoSettings :: (Member DefaultSsoCode r) => Sem r SsoSettings
 ssoSettings =
   SsoSettings <$> DefaultSsoCode.get
 
@@ -442,7 +442,8 @@ idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (co
             else do
               throwSparSem SparIdPHasBoundUsers
       when (Cas.hasMore page) $
-        SAMLUserStore.nextPage page >>= assertEmptyOrPurge teamId
+        SAMLUserStore.nextPage page
+          >>= assertEmptyOrPurge teamId
 
     updateOldIssuers :: IdP -> Sem r ()
     updateOldIssuers _ = pure ()
@@ -719,7 +720,7 @@ validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateIdPUpdate" (J
             . URI.serializeURIRef
         uri = _idpMetadata ^. SAML.edIssuer . SAML.fromIssuer
 
-withDebugLog :: Member (Logger String) r => String -> (a -> Maybe String) -> Sem r a -> Sem r a
+withDebugLog :: (Member (Logger String) r) => String -> (a -> Maybe String) -> Sem r a -> Sem r a
 withDebugLog msg showval action = do
   Logger.log Logger.Debug $ "entering " ++ msg
   val <- action
@@ -747,7 +748,7 @@ authorizeIdP (Just zusr) idp = do
   GalleyAccess.assertHasPermission teamid CreateUpdateDeleteIdp zusr
   pure (zusr, teamid)
 
-enforceHttps :: Member (Error SparError) r => URI.URI -> Sem r ()
+enforceHttps :: (Member (Error SparError) r) => URI.URI -> Sem r ()
 enforceHttps uri =
   unless ((uri ^. URI.uriSchemeL . URI.schemeBSL) == "https") $ do
     throwSparSem . SparNewIdPWantHttps . T.fromStrict . SAML.renderURI $ uri
@@ -787,9 +788,9 @@ internalPutSsoSettings SsoSettings {defaultSsoCode = Just code} =
   -- "Could not find IdP".
   IdPConfigStore.getConfig code
     *> DefaultSsoCode.store code
-    $> NoContent
+      $> NoContent
 
-internalGetScimUserInfo :: Member ScimUserTimesStore r => UserSet -> Sem r ScimUserInfos
+internalGetScimUserInfo :: (Member ScimUserTimesStore r) => UserSet -> Sem r ScimUserInfos
 internalGetScimUserInfo (UserSet uids) = do
   results <- ScimUserTimesStore.readMulti (Set.toList uids)
   let scimUserInfos = results <&> (\(uid, t, _) -> ScimUserInfo uid (Just t))

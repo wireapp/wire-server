@@ -236,7 +236,7 @@ testListTeamMembersDefaultLimit = do
 -- | for ad-hoc load-testing, set @numMembers@ to, say, 10k and see what
 -- happens.  but please don't give that number to our ci!  :)
 -- for additional tests of the CSV download particularly with SCIM users, please refer to 'Test.Spar.Scim.UserSpec'
-testListTeamMembersCsv :: HasCallStack => Int -> TestM ()
+testListTeamMembersCsv :: (HasCallStack) => Int -> TestM ()
 testListTeamMembersCsv numMembers = do
   let teamSize = numMembers + 1
 
@@ -257,7 +257,7 @@ testListTeamMembersCsv numMembers = do
     users <- Util.getUsersByHandle (catMaybes someHandles)
     mbrs <- view teamMembers <$> Util.bulkGetTeamMembers owner tid (U.userId <$> users)
 
-    let check :: Eq a => String -> (TeamExportUser -> Maybe a) -> UserId -> Maybe a -> IO ()
+    let check :: (Eq a) => String -> (TeamExportUser -> Maybe a) -> UserId -> Maybe a -> IO ()
         check msg getTeamExportUserAttr uid userAttr = do
           assertBool msg (isJust userAttr)
           assertEqual (msg <> ": " <> show uid) 1 (countOn getTeamExportUserAttr userAttr usersInCsv)
@@ -280,16 +280,16 @@ testListTeamMembersCsv numMembers = do
       assertEqual ("tExportUserId: " <> show (U.userId user)) (U.userId user) (tExportUserId export)
       assertEqual "tExportNumDevices: " (Map.findWithDefault (-1) (U.userId user) numClientMappings) (tExportNumDevices export)
   where
-    userToIdPIssuer :: HasCallStack => U.User -> Maybe HttpsUrl
+    userToIdPIssuer :: (HasCallStack) => U.User -> Maybe HttpsUrl
     userToIdPIssuer usr = case (U.userIdentity >=> U.ssoIdentity) usr of
       Just (U.UserSSOId (SAML.UserRef (SAML.Issuer issuer) _)) -> either (const $ error "shouldn't happen") Just $ mkHttpsUrl issuer
       Just _ -> Nothing
       Nothing -> Nothing
 
-    decodeCSV :: FromNamedRecord a => LByteString -> Either String [a]
+    decodeCSV :: (FromNamedRecord a) => LByteString -> Either String [a]
     decodeCSV bstr = decodeByName bstr <&> (snd >>> V.toList)
 
-    countOn :: Eq b => (a -> b) -> b -> [a] -> Int
+    countOn :: (Eq b) => (a -> b) -> b -> [a] -> Int
     countOn prop val xs = sum $ fmap (bool 0 1 . (== val) . prop) xs
 
     addClients :: Map.Map UserId Int -> TestM ()
@@ -357,7 +357,7 @@ testListTeamMembersDefaultLimitByIds = do
   check owner tid [phantom] []
   check owner tid [owner, alien, phantom] [owner]
   where
-    check :: HasCallStack => UserId -> TeamId -> [UserId] -> [UserId] -> TestM ()
+    check :: (HasCallStack) => UserId -> TeamId -> [UserId] -> [UserId] -> TestM ()
     check owner tid uidsIn uidsOut = do
       listFromServer <- Util.bulkGetTeamMembers owner tid uidsIn
       liftIO $
@@ -396,12 +396,12 @@ testEnableSSOPerTeam = do
   owner <- Util.randomUser
   tid <- Util.createBindingTeamInternal "foo" owner
   assertTeamActivate "create team" tid
-  let check :: HasCallStack => String -> Public.FeatureStatus -> TestM ()
+  let check :: (HasCallStack) => String -> Public.FeatureStatus -> TestM ()
       check msg enabledness = do
         status :: Public.WithStatusNoLock Public.SSOConfig <- responseJsonUnsafe <$> (getSSOEnabledInternal tid <!! testResponse 200 Nothing)
         let statusValue = Public.wssStatus status
         liftIO $ assertEqual msg enabledness statusValue
-  let putSSOEnabledInternalCheckNotImplemented :: HasCallStack => TestM ()
+  let putSSOEnabledInternalCheckNotImplemented :: (HasCallStack) => TestM ()
       putSSOEnabledInternalCheckNotImplemented = do
         g <- viewGalley
         waierr <-
@@ -489,7 +489,7 @@ testCreateOne2OneFailForNonTeamMembers = do
     const "non-binding-team-members" === (Error.label . responseJsonUnsafeWithMsg "error label")
 
 testCreateOne2OneWithMembers ::
-  HasCallStack =>
+  (HasCallStack) =>
   -- | Role of the user who creates the conversation
   Role ->
   TestM ()
@@ -709,7 +709,7 @@ testRemoveBindingTeamOwner = do
   Util.waitForMemberDeletion ownerB tid ownerWithoutEmail
   assertTeamUpdate "Remove ownerWithoutEmail" tid 2 [ownerB]
   where
-    check :: HasCallStack => TeamId -> UserId -> UserId -> Maybe PlainTextPassword6 -> Maybe LText -> TestM ()
+    check :: (HasCallStack) => TeamId -> UserId -> UserId -> Maybe PlainTextPassword6 -> Maybe LText -> TestM ()
     check tid deleter deletee pass maybeError = do
       g <- viewGalley
       delete
@@ -1728,21 +1728,21 @@ newTeamMember' perms uid = Member.mkTeamMember uid perms Nothing LH.defUserLegal
 -- 'putTeamFeatureInternal'.  Since these functions all work in slightly different monads
 -- and with different kinds of internal checks, it's quite tedious to do so.
 
-getSSOEnabledInternal :: HasCallStack => TeamId -> TestM ResponseLBS
+getSSOEnabledInternal :: (HasCallStack) => TeamId -> TestM ResponseLBS
 getSSOEnabledInternal = Util.getTeamFeatureInternal @Public.SSOConfig
 
-putSSOEnabledInternal :: HasCallStack => TeamId -> Public.FeatureStatus -> TestM ()
+putSSOEnabledInternal :: (HasCallStack) => TeamId -> Public.FeatureStatus -> TestM ()
 putSSOEnabledInternal tid statusValue =
   void $ Util.putTeamFeatureInternal @Public.SSOConfig expect2xx tid (Public.WithStatusNoLock statusValue Public.SSOConfig Public.FeatureTTLUnlimited)
 
-getSearchVisibility :: HasCallStack => (Request -> Request) -> UserId -> TeamId -> MonadHttp m => m ResponseLBS
+getSearchVisibility :: (HasCallStack) => (Request -> Request) -> UserId -> TeamId -> (MonadHttp m) => m ResponseLBS
 getSearchVisibility g uid tid = do
   get $
     g
       . paths ["teams", toByteString' tid, "search-visibility"]
       . zUser uid
 
-putSearchVisibility :: HasCallStack => (Request -> Request) -> UserId -> TeamId -> TeamSearchVisibility -> MonadHttp m => m ResponseLBS
+putSearchVisibility :: (HasCallStack) => (Request -> Request) -> UserId -> TeamId -> TeamSearchVisibility -> (MonadHttp m) => m ResponseLBS
 putSearchVisibility g uid tid vis = do
   put $
     g

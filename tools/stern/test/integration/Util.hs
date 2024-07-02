@@ -54,7 +54,7 @@ import Wire.API.User as User
 eventually :: (MonadIO m, MonadMask m, MonadUnliftIO m) => m a -> m a
 eventually = recoverAll (limitRetries 7 <> exponentialBackoff 50000) . const
 
-createTeamWithNMembers :: HasCallStack => Int -> TestM (UserId, TeamId, [UserId])
+createTeamWithNMembers :: (HasCallStack) => Int -> TestM (UserId, TeamId, [UserId])
 createTeamWithNMembers n = do
   (owner, tid) <- createBindingTeam
   mems <- replicateM n $ do
@@ -62,32 +62,33 @@ createTeamWithNMembers n = do
     pure (mem ^. Team.userId)
   pure (owner, tid, mems)
 
-createBindingTeam :: HasCallStack => TestM (UserId, TeamId)
+createBindingTeam :: (HasCallStack) => TestM (UserId, TeamId)
 createBindingTeam = do
   first User.userId <$> createBindingTeam'
 
-createBindingTeam' :: HasCallStack => TestM (User, TeamId)
+createBindingTeam' :: (HasCallStack) => TestM (User, TeamId)
 createBindingTeam' = do
   owner <- randomTeamCreator'
   refreshIndex
   pure (owner, fromMaybe (error "createBindingTeam: no team id") (owner.userTeam))
 
-randomTeamCreator' :: HasCallStack => TestM User
+randomTeamCreator' :: (HasCallStack) => TestM User
 randomTeamCreator' = randomUser'' True True True
 
-randomUser :: HasCallStack => TestM UserId
+randomUser :: (HasCallStack) => TestM UserId
 randomUser = qUnqualified <$> randomUser' False True True
 
-randomUser' :: HasCallStack => Bool -> Bool -> Bool -> TestM (Qualified UserId)
+randomUser' :: (HasCallStack) => Bool -> Bool -> Bool -> TestM (Qualified UserId)
 randomUser' isCreator hasPassword hasEmail = userQualifiedId <$> randomUser'' isCreator hasPassword hasEmail
 
-randomUser'' :: HasCallStack => Bool -> Bool -> Bool -> TestM User
+randomUser'' :: (HasCallStack) => Bool -> Bool -> Bool -> TestM User
 randomUser'' isCreator hasPassword hasEmail = selfUser <$> randomUserProfile' isCreator hasPassword hasEmail
 
-randomUserProfile' :: HasCallStack => Bool -> Bool -> Bool -> TestM SelfProfile
+randomUserProfile' :: (HasCallStack) => Bool -> Bool -> Bool -> TestM SelfProfile
 randomUserProfile' isCreator hasPassword hasEmail = randomUserProfile'' isCreator hasPassword hasEmail <&> fst
 
-randomUserProfile'' :: HasCallStack => Bool -> Bool -> Bool -> TestM (SelfProfile, Email)
+randomUserProfile'' :: (HasCallStack) => Bool -> Bool -> Bool -> TestM (SelfProfile, Email)
+randomUserProfile'' :: (HasCallStack) => Bool -> Bool -> Bool -> TestM (SelfProfile, (Email, Phone))
 randomUserProfile'' isCreator hasPassword hasEmail = do
   b <- view tsBrig
   e <- liftIO randomEmail
@@ -99,13 +100,13 @@ randomUserProfile'' isCreator hasPassword hasEmail = do
             <> ["team" .= BindingNewTeam (newNewTeam (unsafeRange "teamName") DefaultIcon) | isCreator]
   (,e) . responseJsonUnsafe <$> (post (b . path "/i/users" . Bilge.json pl) <!! const 201 === statusCode)
 
-randomEmailUser :: HasCallStack => TestM (UserId, Email)
-randomEmailUser = randomUserProfile'' False False True <&> first (User.userId . selfUser)
+randomEmailUser :: (HasCallStack) => TestM (UserId, Email)
+randomEmailUser = randomUserProfile'' False False True <&> bimap (User.userId . selfUser) fst
 
 defPassword :: PlainTextPassword8
 defPassword = plainTextPassword8Unsafe "topsecretdefaultpassword"
 
-randomEmail :: MonadIO m => m Email
+randomEmail :: (MonadIO m) => m Email
 randomEmail = do
   uid <- liftIO nextRandom
   pure $ Email ("success+" <> UUID.toText uid) "simulator.amazonses.com"
@@ -121,7 +122,7 @@ setHandle uid h = do
     !!! do
       const 200 === statusCode
 
-randomHandle :: MonadIO m => m Text
+randomHandle :: (MonadIO m) => m Text
 randomHandle = liftIO $ do
   nrs <- replicateM 21 (randomRIO (97, 122)) -- a-z
   pure (Text.pack (map chr nrs))
@@ -131,10 +132,10 @@ refreshIndex = do
   brig <- view tsBrig
   post (brig . path "/i/index/refresh") !!! const 200 === statusCode
 
-addUserToTeam :: HasCallStack => UserId -> TeamId -> TestM TeamMember
+addUserToTeam :: (HasCallStack) => UserId -> TeamId -> TestM TeamMember
 addUserToTeam = addUserToTeamWithRole Nothing
 
-addUserToTeamWithRole :: HasCallStack => Maybe Role -> UserId -> TeamId -> TestM TeamMember
+addUserToTeamWithRole :: (HasCallStack) => Maybe Role -> UserId -> TeamId -> TestM TeamMember
 addUserToTeamWithRole role inviter tid = do
   (inv, rsp2) <- addUserToTeamWithRole' role inviter tid
   let invitee :: User = responseJsonUnsafe rsp2
@@ -146,7 +147,7 @@ addUserToTeamWithRole role inviter tid = do
   liftIO $ assertEqual "Wrong cookie" (Just "zuid") (setCookieName <$> zuid)
   pure mem
 
-addUserToTeamWithRole' :: HasCallStack => Maybe Role -> UserId -> TeamId -> TestM (Invitation, ResponseLBS)
+addUserToTeamWithRole' :: (HasCallStack) => Maybe Role -> UserId -> TeamId -> TestM (Invitation, ResponseLBS)
 addUserToTeamWithRole' role inviter tid = do
   brig <- view tsBrig
   inviteeEmail <- randomEmail
@@ -173,7 +174,7 @@ acceptInviteBody email code =
         "team_code" .= code
       ]
 
-getInvitationCode :: HasCallStack => TeamId -> InvitationId -> TestM InvitationCode
+getInvitationCode :: (HasCallStack) => TeamId -> InvitationId -> TestM InvitationCode
 getInvitationCode t ref = do
   brig <- view tsBrig
   let getm :: TestM (Maybe InvitationCode)
@@ -219,7 +220,7 @@ zConn = header "Z-Connection"
 zType :: ByteString -> Request -> Request
 zType = header "Z-Type"
 
-getTeamMember :: HasCallStack => UserId -> TeamId -> UserId -> TestM TeamMember
+getTeamMember :: (HasCallStack) => UserId -> TeamId -> UserId -> TestM TeamMember
 getTeamMember getter tid gettee = do
   g <- view tsGalley
   getTeamMember' g getter tid gettee

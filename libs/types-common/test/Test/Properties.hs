@@ -137,7 +137,7 @@ tests =
               (BS.fromByteString' . cs . BS.toByteString') t === Just t,
           --
 
-          let toUTCTimeMillisSlow :: HasCallStack => UTCTime -> Maybe UTCTime
+          let toUTCTimeMillisSlow :: (HasCallStack) => UTCTime -> Maybe UTCTime
               toUTCTimeMillisSlow t = parseExact formatRounded
                 where
                   parseExact = parseTimeM True defaultTimeLocale "%FT%T%QZ"

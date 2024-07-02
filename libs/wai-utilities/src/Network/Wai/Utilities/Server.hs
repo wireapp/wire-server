@@ -33,7 +33,6 @@ module Network.Wai.Utilities.Server
     requestIdMiddleware,
     catchErrors,
     catchErrorsWithRequestId,
-    OnErrorMetrics,
     heavyDebugLogging,
     rethrow5xx,
     lazyResponseBody,
@@ -43,7 +42,6 @@ module Network.Wai.Utilities.Server
     logError,
     logError',
     logErrorMsg,
-    runHandlers,
     restrict,
     flushRequestBody,
 
@@ -54,7 +52,7 @@ module Network.Wai.Utilities.Server
 where
 
 import Control.Error.Util ((?:))
-import Control.Exception (throw)
+import Control.Exception (AsyncException (..), throwIO)
 import Control.Monad.Catch hiding (onError, onException)
 import Data.Aeson (decode, encode)
 import Data.ByteString (toStrict)
@@ -64,7 +62,6 @@ import Data.ByteString.Char8 qualified as C
 import Data.ByteString.Lazy qualified as LBS
 import Data.Domain (domainText)
 import Data.Metrics.GC (spawnGCMetricsCollector)
-import Data.Metrics.Middleware
 import Data.Streaming.Zlib (ZlibException (..))
 import Data.Text.Encoding qualified as Text
 import Data.Text.Encoding.Error (lenientDecode)
@@ -87,7 +84,7 @@ import Network.Wai.Utilities.Error qualified as Wai
 import Network.Wai.Utilities.JSONResponse
 import Network.Wai.Utilities.Request (lookupRequestId)
 import Network.Wai.Utilities.Response
-import Prometheus qualified as Prm
+import Prometheus qualified as Prom
 import System.Logger qualified as Log
 import System.Logger.Class hiding (Error, Settings, format)
 import System.Posix.Signals (installHandler, sigINT, sigTERM)
@@ -100,18 +97,14 @@ data Server = Server
   { serverHost :: String,
     serverPort :: Word16,
     serverLogger :: Logger,
-    serverMetrics :: Metrics,
     serverTimeout :: Maybe Int
   }
 
-defaultServer :: String -> Word16 -> Logger -> Metrics -> Server
-defaultServer h p l m = Server h p l m Nothing
+defaultServer :: String -> Word16 -> Logger -> Server
+defaultServer h p l = Server h p l Nothing
 
-newSettings :: MonadIO m => Server -> m Settings
-newSettings (Server h p l m t) = do
-  -- (Atomically) initialise the standard metrics, to avoid races.
-  void $ gaugeGet (path "net.connections") m
-  void $ counterGet (path "net.errors") m
+newSettings :: (MonadIO m) => Server -> m Settings
+newSettings (Server h p l t) = do
   pure
     $ setHost (fromString h)
       . setPort (fromIntegral p)
@@ -121,11 +114,21 @@ newSettings (Server h p l m t) = do
       . setTimeout (fromMaybe 300 t)
     $ defaultSettings
   where
-    connStart = gaugeIncr (path "net.connections") m
-    connEnd = gaugeDecr (path "net.connections") m
+    connStart = Prom.incGauge netConnections
+    connEnd = Prom.decGauge netConnections
     logStart =
       Log.info l . msg $
         val "Listening on " +++ h +++ ':' +++ p
+
+{-# NOINLINE netConnections #-}
+netConnections :: Prom.Gauge
+netConnections =
+  Prom.unsafeRegister $
+    Prom.gauge
+      Prom.Info
+        { Prom.metricName = "net.connections",
+          Prom.metricHelp = "Number of active connections"
+        }
 
 -- Run a WAI 'Application', initiating Warp's graceful shutdown
 -- on receiving either the INT or TERM signals. After closing
@@ -156,7 +159,7 @@ runSettingsWithCleanup cleanup s app (fromMaybe defaultShutdownTime -> secs) = d
 defaultShutdownTime :: Int
 defaultShutdownTime = 30
 
-compile :: Monad m => Routes a m b -> Tree (App m)
+compile :: (Monad m) => Routes a m b -> Tree (App m)
 compile routes = Route.prepare (Route.renderer predicateError >> routes)
   where
     predicateError e = pure (encode $ Wai.mkError (P.status e) "client-error" (format e), [jsonContent])
@@ -182,7 +185,7 @@ compile routes = Route.prepare (Route.renderer predicateError >> routes)
     messageStr (Just t) = char7 ':' <> char7 ' ' <> byteString t
     messageStr Nothing = mempty
 
-route :: MonadIO m => Tree (App m) -> Request -> Continue IO -> m ResponseReceived
+route :: (MonadIO m) => Tree (App m) -> Request -> Continue IO -> m ResponseReceived
 route rt rq k = Route.routeWith (Route.Config $ errorRs' noEndpoint) rt rq (liftIO . k)
   where
     noEndpoint = Wai.mkError status404 "no-endpoint" "The requested endpoint does not exist"
@@ -206,8 +209,8 @@ requestIdMiddleware logger reqIdHeaderName origApp req responder =
       let reqWithId = req {requestHeaders = (reqIdHeaderName, reqId) : req.requestHeaders}
       origApp reqWithId responder
 
-catchErrors :: Logger -> HeaderName -> OnErrorMetrics -> Middleware
-catchErrors l reqIdHeaderName m = catchErrorsWithRequestId (lookupRequestId reqIdHeaderName) l m
+catchErrors :: Logger -> HeaderName -> Middleware
+catchErrors l reqIdHeaderName = catchErrorsWithRequestId (lookupRequestId reqIdHeaderName) l
 
 -- | Create a middleware that catches exceptions and turns
 -- them into appropriate 'Error' responses, thereby logging
@@ -219,9 +222,8 @@ catchErrors l reqIdHeaderName m = catchErrorsWithRequestId (lookupRequestId reqI
 catchErrorsWithRequestId ::
   (Request -> Maybe ByteString) ->
   Logger ->
-  OnErrorMetrics ->
   Middleware
-catchErrorsWithRequestId getRequestId l m app req k =
+catchErrorsWithRequestId getRequestId l app req k =
   rethrow5xx getRequestId l app req k `catch` errorResponse
   where
     mReqId = getRequestId req
@@ -229,18 +231,29 @@ catchErrorsWithRequestId getRequestId l m app req k =
     errorResponse :: SomeException -> IO ResponseReceived
     errorResponse ex = do
       er <- runHandlers ex errorHandlers
-      onError l mReqId m req k er
+      onError l mReqId req k er
 
 {-# INLINEABLE catchErrors #-}
 
 -- | Standard handlers for turning exceptions into appropriate
 -- 'Error' responses.
-errorHandlers :: Applicative m => [Handler m (Either Wai.Error JSONResponse)]
+errorHandlers :: [Handler IO (Either Wai.Error JSONResponse)]
 errorHandlers =
   -- a Wai.Error can be converted to a JSONResponse, but doing so here would
   -- prevent us from logging the error cleanly later
   [ Handler $ \(x :: JSONResponse) -> pure (Right x),
     Handler $ \(x :: Wai.Error) -> pure (Left x),
+    -- warp throws 'ThreadKilled' when the client is gone or when it thinks it's
+    -- time to reap the worker thread. Here, there is no point trying to respond
+    -- nicely and there is no point logging this as it happens regularly when a
+    -- client just closes a long running connection without consuming the whole
+    -- body.
+    Handler $ \(x :: AsyncException) ->
+      case x of
+        ThreadKilled -> throwIO x
+        _ ->
+          pure . Left $
+            Wai.mkError status500 "server-error" ("Server Error. " <> LT.pack (displayException x)),
     Handler $ \(_ :: InvalidRequest) ->
       pure . Left $
         Wai.mkError status400 "client-error" "Invalid Request",
@@ -374,30 +387,34 @@ lazyResponseBody rs = case responseToStream rs of
 --------------------------------------------------------------------------------
 -- Utilities
 
--- | 'onError' and 'catchErrors' support both the metrics-core ('Right') and the prometheus
--- package introduced for spar ('Left').
-type OnErrorMetrics = [Either Prm.Counter Metrics]
-
 -- | Send an 'Error' response.
 onError ::
-  MonadIO m =>
+  (MonadIO m) =>
   Logger ->
   Maybe ByteString ->
-  OnErrorMetrics ->
   Request ->
   Continue IO ->
   Either Wai.Error JSONResponse ->
   m ResponseReceived
-onError g mReqId m r k e = liftIO $ do
+onError g mReqId r k e = liftIO $ do
   case e of
     Left we -> logError' g mReqId we
     Right jr -> logJSONResponse g mReqId jr
   let resp = either waiErrorToJSONResponse id e
   let code = statusCode (resp.status)
-  when (code >= 500) $
-    either Prm.incCounter (counterIncr (path "net.errors")) `mapM_` m
+  when (code >= 500) $ Prom.incCounter netErrors
   flushRequestBody r
   k (jsonResponseToWai resp)
+
+{-# NOINLINE netErrors #-}
+netErrors :: Prom.Counter
+netErrors =
+  Prom.unsafeRegister $
+    Prom.counter
+      Prom.Info
+        { Prom.metricName = "net.errors",
+          Prom.metricHelp = "Number of exceptions caught by catchErrors middleware"
+        }
 
 defaultRequestIdHeaderName :: HeaderName
 defaultRequestIdHeaderName = "Request-Id"
@@ -419,7 +436,7 @@ logError' g mr e = liftIO $ doLog g (logErrorMsgWithRequest mr e)
       | statusCode (Error.code e) >= 500 = Log.err
       | otherwise = Log.debug
 
-logJSONResponse :: MonadIO m => Logger -> Maybe ByteString -> JSONResponse -> m ()
+logJSONResponse :: (MonadIO m) => Logger -> Maybe ByteString -> JSONResponse -> m ()
 logJSONResponse g mReqId e = do
   let r = fromMaybe "N/A" mReqId
   liftIO $
@@ -449,8 +466,8 @@ logErrorMsgWithRequest :: Maybe ByteString -> Wai.Error -> Msg -> Msg
 logErrorMsgWithRequest mr e =
   field "request" (fromMaybe "N/A" mr) . logErrorMsg e
 
-runHandlers :: SomeException -> [Handler m a] -> m a
-runHandlers e [] = throw e
+runHandlers :: SomeException -> [Handler IO a] -> IO a
+runHandlers e [] = throwIO e
 runHandlers e (Handler h : hs) = maybe (runHandlers e hs) h (fromException e)
 
 restrict :: Int -> Int -> Predicate r P.Error Int -> Predicate r P.Error Int

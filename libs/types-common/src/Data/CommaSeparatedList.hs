@@ -37,11 +37,11 @@ newtype CommaSeparatedList a = CommaSeparatedList {fromCommaSeparatedList :: [a]
   deriving (Functor, Foldable, Traversable)
   deriving newtype (Bounds, Semigroup, Monoid)
 
-instance FromByteString (List a) => FromHttpApiData (CommaSeparatedList a) where
+instance (FromByteString (List a)) => FromHttpApiData (CommaSeparatedList a) where
   parseUrlPiece t =
     CommaSeparatedList . fromList <$> Bifunctor.first Text.pack (runParser parser $ encodeUtf8 t)
 
-instance ToByteString (List a) => ToHttpApiData (CommaSeparatedList a) where
+instance (ToByteString (List a)) => ToHttpApiData (CommaSeparatedList a) where
   toQueryParam (CommaSeparatedList l) = decodeUtf8With lenientDecode $ toStrict $ toByteString $ builder $ List l
 
 instance ToParamSchema (CommaSeparatedList a) where

@@ -199,11 +199,11 @@ mkFakeAddrEndpoint (epid, transport, app) = Aws.mkSnsArn Tokyo (Account "acc") e
 -- 2. web socket delivery will NOT work, native push token registered, push will succeed
 -- 3. web socket delivery will NOT work, native push token registered, push will fail
 -- 4. web socket delivery will NOT work, no native push token registered
-genMockEnv :: HasCallStack => Gen MockEnv
+genMockEnv :: (HasCallStack) => Gen MockEnv
 genMockEnv = do
   -- This function generates a 'ClientInfo' that corresponds to one of the
   -- four scenarios above
-  let genClientInfo :: HasCallStack => UserId -> ClientId -> Gen ClientInfo
+  let genClientInfo :: (HasCallStack) => UserId -> ClientId -> Gen ClientInfo
       genClientInfo uid cid = do
         _ciNativeAddress <-
           QC.oneof
@@ -250,12 +250,12 @@ genMockEnv = do
   validateMockEnv env & either error (const $ pure env)
 
 -- Try to shrink a 'MockEnv' by removing some users from '_meClientInfos'.
-shrinkMockEnv :: HasCallStack => MockEnv -> [MockEnv]
+shrinkMockEnv :: (HasCallStack) => MockEnv -> [MockEnv]
 shrinkMockEnv (MockEnv cis) =
   MockEnv . Map.fromList
     <$> filter (not . null) (shrinkList (const []) (Map.toList cis))
 
-validateMockEnv :: forall m. MonadError String m => MockEnv -> m ()
+validateMockEnv :: forall m. (MonadError String m) => MockEnv -> m ()
 validateMockEnv env = do
   checkIdsInNativeAddresses
   where
@@ -270,17 +270,17 @@ validateMockEnv env = do
             unless (uid == adr ^. addrUser && cid == adr ^. addrClient) $ do
               throwError (show (uid, cid, adr))
 
-genRecipients :: HasCallStack => Int -> MockEnv -> Gen [Recipient]
+genRecipients :: (HasCallStack) => Int -> MockEnv -> Gen [Recipient]
 genRecipients numrcp env = do
   uids <- take numrcp <$> shuffle (allUsers env)
   genRecipient' env `mapM` uids
 
-genRecipient :: HasCallStack => MockEnv -> Gen Recipient
+genRecipient :: (HasCallStack) => MockEnv -> Gen Recipient
 genRecipient env = do
   uid <- QC.elements (allUsers env)
   genRecipient' env uid
 
-genRecipient' :: HasCallStack => MockEnv -> UserId -> Gen Recipient
+genRecipient' :: (HasCallStack) => MockEnv -> UserId -> Gen Recipient
 genRecipient' env uid = do
   route <- genRoute
   cids <-
@@ -290,7 +290,7 @@ genRecipient' env uid = do
       ]
   pure $ Recipient uid route cids
 
-genRoute :: HasCallStack => Gen Route
+genRoute :: (HasCallStack) => Gen Route
 genRoute = QC.elements [minBound ..]
 
 genId :: Gen (Id a)
@@ -301,7 +301,7 @@ genId = do
 genClientId :: Gen ClientId
 genClientId = ClientId <$> arbitrary
 
-genProtoAddress :: HasCallStack => UserId -> ClientId -> Gen Address
+genProtoAddress :: (HasCallStack) => UserId -> ClientId -> Gen Address
 genProtoAddress _addrUser _addrClient = do
   _addrTransport :: Transport <- QC.elements [minBound ..]
   arnEpId :: Text <- arbitrary
@@ -314,7 +314,7 @@ genProtoAddress _addrUser _addrClient = do
 genPushes :: MockEnv -> Gen [Push]
 genPushes = listOf . genPush
 
-genPush :: HasCallStack => MockEnv -> Gen Push
+genPush :: (HasCallStack) => MockEnv -> Gen Push
 genPush env = do
   let alluids = allUsers env
   sender <- QC.elements alluids
@@ -373,14 +373,14 @@ dropSomeDevices =
       RecipientClientsSome . unsafeList1 . take numdevs
         <$> QC.shuffle (toList cids)
 
-shrinkPushes :: HasCallStack => [Push] -> [[Push]]
+shrinkPushes :: (HasCallStack) => [Push] -> [[Push]]
 shrinkPushes = shrinkList shrinkPush
   where
-    shrinkPush :: HasCallStack => Push -> [Push]
+    shrinkPush :: (HasCallStack) => Push -> [Push]
     shrinkPush psh = (\rcps -> psh & pushRecipients .~ rcps) <$> shrinkRecipients (psh ^. pushRecipients)
-    shrinkRecipients :: HasCallStack => Range 1 1024 (Set Recipient) -> [Range 1 1024 (Set Recipient)]
+    shrinkRecipients :: (HasCallStack) => Range 1 1024 (Set Recipient) -> [Range 1 1024 (Set Recipient)]
     shrinkRecipients = fmap unsafeRange . map Set.fromList . filter (not . null) . shrinkList shrinkRecipient . Set.toList . fromRange
-    shrinkRecipient :: HasCallStack => Recipient -> [Recipient]
+    shrinkRecipient :: (HasCallStack) => Recipient -> [Recipient]
     shrinkRecipient _ = []
 
 -- | See 'Payload'.
@@ -400,7 +400,7 @@ genNotifs env = fmap uniqNotifs . listOf $ do
   where
     uniqNotifs = nubBy ((==) `on` (ntfId . fst))
 
-shrinkNotifs :: HasCallStack => [(Notification, [Presence])] -> [[(Notification, [Presence])]]
+shrinkNotifs :: (HasCallStack) => [(Notification, [Presence])] -> [[(Notification, [Presence])]]
 shrinkNotifs = shrinkList (\(notif, prcs) -> (notif,) <$> shrinkList (const []) prcs)
 
 ----------------------------------------------------------------------
@@ -698,20 +698,20 @@ mockOldSimpleWebPush notif tgts _senderid mconnid connWhitelist = do
 newtype Pretty a = Pretty a
   deriving (Eq, Ord)
 
-instance Aeson.ToJSON a => Show (Pretty a) where
+instance (Aeson.ToJSON a) => Show (Pretty a) where
   show (Pretty a) = cs $ Aeson.encodePretty a
 
-shrinkPretty :: HasCallStack => (a -> [a]) -> Pretty a -> [Pretty a]
+shrinkPretty :: (HasCallStack) => (a -> [a]) -> Pretty a -> [Pretty a]
 shrinkPretty shrnk (Pretty xs) = Pretty <$> shrnk xs
 
-sublist1Of :: HasCallStack => [a] -> Gen (List1 a)
+sublist1Of :: (HasCallStack) => [a] -> Gen (List1 a)
 sublist1Of [] = error "sublist1Of: empty list"
 sublist1Of xs =
   sublistOf xs >>= \case
     [] -> sublist1Of xs
     c : cc -> pure (list1 c cc)
 
-unsafeList1 :: HasCallStack => [a] -> List1 a
+unsafeList1 :: (HasCallStack) => [a] -> List1 a
 unsafeList1 [] = error "unsafeList1: empty list"
 unsafeList1 (x : xs) = list1 x xs
 
@@ -754,7 +754,7 @@ allUsers = fmap fst . allRecipients
 allRecipients :: MockEnv -> [(UserId, [ClientId])]
 allRecipients (MockEnv mp) = (_2 %~ Map.keys) <$> Map.toList mp
 
-clientIdsOfUser :: HasCallStack => MockEnv -> UserId -> [ClientId]
+clientIdsOfUser :: (HasCallStack) => MockEnv -> UserId -> [ClientId]
 clientIdsOfUser (MockEnv mp) uid =
   maybe (error "unknown UserId") Map.keys $ Map.lookup uid mp
 

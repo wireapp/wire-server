@@ -54,7 +54,7 @@ data Supported a = Supported
   }
   deriving (Show, Eq, Generic)
 
-instance ToJSON a => ToJSON (Supported a) where
+instance (ToJSON a) => ToJSON (Supported a) where
   toJSON (Supported (ScimBool b) v) = case toJSON v of
     (Object o) -> Object $ KeyMap.insert "supported" (Bool b) o
     _ -> Object $ KeyMap.fromList [("supported", Bool b)]
@@ -134,7 +134,7 @@ empty =
     }
 
 configServer ::
-  Monad m =>
+  (Monad m) =>
   Configuration ->
   ConfigSite (AsServerT (ScimHandler m))
 configServer config =

@@ -21,7 +21,7 @@ module Wire.API.Routes.SpecialiseToVersion where
 import Data.Singletons.Base.TH
 import GHC.TypeLits
 import Servant
-import Servant.API.Extended.RawM
+import Servant.API.Extended.RawM qualified as RawM
 import Wire.API.Deprecated
 import Wire.API.MakesFederatedCall
 import Wire.API.Routes.MultiVerb
@@ -66,7 +66,7 @@ type instance
   SpecialiseToVersion v (MultiVerb m t r x) =
     MultiVerb m t r x
 
-type instance SpecialiseToVersion v RawM = RawM
+type instance SpecialiseToVersion v RawM.RawM = RawM.RawM
 
 type instance
   SpecialiseToVersion v (ReqBody t x :> api) =

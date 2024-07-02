@@ -74,7 +74,6 @@ where
 
 import Control.Error.Util (hush)
 import Control.Lens
-import Control.Monad.State
 import Data.Code
 import Data.Id
 import Data.Json.Util
@@ -126,7 +125,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Message
-import Wire.API.Password (mkSafePassword)
+import Wire.API.Password (mkSafePasswordScrypt)
 import Wire.API.Routes.Public (ZHostValue)
 import Wire.API.Routes.Public.Galley.Messaging
 import Wire.API.Routes.Public.Util (UpdateResult (..))
@@ -570,7 +569,7 @@ addCode lusr mbZHost mZcon lcnv mReq = do
     Nothing -> do
       ttl <- realToFrac . unGuestLinkTTLSeconds . fromMaybe defGuestLinkTTLSeconds . view (settings . guestLinkTTLSeconds) <$> input
       code <- E.generateCode (tUnqualified lcnv) ReusableCode (Timeout ttl)
-      mPw <- for (mReq >>= (.password)) mkSafePassword
+      mPw <- for (mReq >>= (.password)) mkSafePasswordScrypt
       E.createCode code mPw
       now <- input
       let event = Event (tUntagged lcnv) Nothing (tUntagged lusr) now (EdConvCodeUpdate (mkConversationCodeInfo (isJust mPw) (codeKey code) (codeValue code) convUri))

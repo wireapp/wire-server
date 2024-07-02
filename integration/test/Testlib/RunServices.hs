@@ -53,8 +53,9 @@ main = do
           exitWith =<< waitForProcess ph
 
   runCodensity (createGlobalEnv cfg >>= mkEnv) $ \env ->
-    runAppWithEnv env $
-      lowerCodensity $ do
+    runAppWithEnv env
+      $ lowerCodensity
+      $ do
         _modifyEnv <-
           traverseConcurrentlyCodensity
             (\r -> startDynamicBackend r mempty)

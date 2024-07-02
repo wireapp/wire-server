@@ -57,6 +57,10 @@ data UserStore m a where
   --   matters for the interpretation, this operation may give you stale locks,
   --   but is faster and more resilient.
   GlimpseHandle :: Handle -> UserStore m (Maybe UserId)
+  LookupStatus :: UserId -> UserStore m (Maybe AccountStatus)
+  -- | Whether the account has been activated by verifying
+  --   an email address or phone number.
+  IsActivated :: UserId -> UserStore m Bool
 
 makeSem ''UserStore
 

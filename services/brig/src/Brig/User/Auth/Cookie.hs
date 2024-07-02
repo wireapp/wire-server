@@ -43,7 +43,6 @@ where
 import Brig.App
 import Brig.Options hiding (user)
 import Brig.User.Auth.Cookie.Limit
-import Brig.User.Auth.DB.Cookie qualified as DB
 import Brig.ZAuth qualified as ZAuth
 import Cassandra
 import Control.Error
@@ -52,17 +51,18 @@ import Control.Monad.Except
 import Data.ByteString.Conversion
 import Data.Id
 import Data.List qualified as List
-import Data.Metrics qualified as Metrics
 import Data.Proxy
 import Data.RetryAfter
 import Data.Time.Clock
 import Imports
 import Network.Wai (Response)
 import Network.Wai.Utilities.Response (addHeader)
+import Prometheus qualified as Prom
 import System.Logger.Class (field, msg, val, (~~))
 import System.Logger.Class qualified as Log
 import Web.Cookie qualified as WebCookie
 import Wire.API.User.Auth
+import Wire.SessionStore qualified as Store
 
 --------------------------------------------------------------------------------
 -- Basic Cookie Management
@@ -94,7 +94,7 @@ newCookie uid cid typ label = do
             cookieSucc = Nothing,
             cookieValue = tok
           }
-  DB.insertCookie uid c Nothing
+  adhocSessionStoreInterpreter $ Store.insertCookie uid (toUnitCookie c) Nothing
   pure c
 
 -- | Renew the given cookie with a fresh token, if its age
@@ -104,7 +104,8 @@ nextCookie ::
     MonadReader Env m,
     Log.MonadLogger m,
     ZAuth.MonadZAuth m,
-    MonadClient m
+    MonadClient m,
+    Prom.MonadMonitor m
   ) =>
   Cookie (ZAuth.Token u) ->
   Maybe ClientId ->
@@ -132,7 +133,7 @@ nextCookie c mNewCid = runMaybeT $ do
       ck <- hoistMaybe $ cookieSucc c
       let uid = ZAuth.userTokenOf (cookieValue c)
       lift $ trackSuperseded uid (cookieId c)
-      cs <- lift $ DB.listCookies uid
+      cs <- lift $ adhocSessionStoreInterpreter $ Store.listCookies uid
       c' <-
         hoistMaybe $
           List.find (\x -> cookieId x == ck && cookieType x == PersistentCookie) cs
@@ -160,7 +161,7 @@ renewCookie old mcid = do
   -- an ever growing chain of superseded cookies.
   let old' = old {cookieSucc = Just (cookieId new)}
   ttl <- setUserCookieRenewAge <$> view settings
-  DB.insertCookie uid old' (Just (DB.TTL (fromIntegral ttl)))
+  adhocSessionStoreInterpreter $ Store.insertCookie uid (toUnitCookie old') (Just (Store.TTL (fromIntegral ttl)))
   pure new
 
 -- | Whether a user has not renewed any of her cookies for longer than
@@ -204,29 +205,29 @@ newAccessToken c mt = do
 
 -- | Lookup the stored cookie associated with a user token,
 -- if one exists.
-lookupCookie :: (ZAuth.UserTokenLike u, MonadClient m) => ZAuth.Token u -> m (Maybe (Cookie (ZAuth.Token u)))
+lookupCookie :: (ZAuth.UserTokenLike u, MonadClient m, MonadReader Env m) => ZAuth.Token u -> m (Maybe (Cookie (ZAuth.Token u)))
 lookupCookie t = do
   let user = ZAuth.userTokenOf t
   let rand = ZAuth.userTokenRand t
   let expi = ZAuth.tokenExpiresUTC t
-  fmap setToken <$> DB.lookupCookie user expi (CookieId rand)
+  adhocSessionStoreInterpreter $ fmap setToken <$> Store.lookupCookie user expi (CookieId rand)
   where
     setToken c = c {cookieValue = t}
 
-listCookies :: MonadClient m => UserId -> [CookieLabel] -> m [Cookie ()]
-listCookies u [] = DB.listCookies u
-listCookies u ll = filter byLabel <$> DB.listCookies u
+listCookies :: (MonadClient m, MonadReader Env m) => UserId -> [CookieLabel] -> m [Cookie ()]
+listCookies u [] = adhocSessionStoreInterpreter $ Store.listCookies u
+listCookies u ll = filter byLabel <$> adhocSessionStoreInterpreter (Store.listCookies u)
   where
     byLabel c = maybe False (`elem` ll) (cookieLabel c)
 
-revokeAllCookies :: MonadClient m => UserId -> m ()
+revokeAllCookies :: (MonadClient m, MonadReader Env m) => UserId -> m ()
 revokeAllCookies u = revokeCookies u [] []
 
-revokeCookies :: MonadClient m => UserId -> [CookieId] -> [CookieLabel] -> m ()
-revokeCookies u [] [] = DB.deleteAllCookies u
+revokeCookies :: (MonadClient m, MonadReader Env m) => UserId -> [CookieId] -> [CookieLabel] -> m ()
+revokeCookies u [] [] = adhocSessionStoreInterpreter $ Store.deleteAllCookies u
 revokeCookies u ids labels = do
-  cc <- filter matching <$> DB.listCookies u
-  DB.deleteCookies u cc
+  cc <- filter matching <$> adhocSessionStoreInterpreter (Store.listCookies u)
+  adhocSessionStoreInterpreter $ Store.deleteCookies u cc
   where
     matching c =
       cookieId c `elem` ids
@@ -247,7 +248,7 @@ newCookieLimited ::
   Maybe CookieLabel ->
   m (Either RetryAfter (Cookie (ZAuth.Token t)))
 newCookieLimited u c typ label = do
-  cs <- filter ((typ ==) . cookieType) <$> DB.listCookies u
+  cs <- filter ((typ ==) . cookieType) <$> adhocSessionStoreInterpreter (Store.listCookies u)
   now <- liftIO =<< view currentTime
   lim <- CookieLimit . setUserCookieLimit <$> view settings
   thr <- setUserCookieThrottle <$> view settings
@@ -291,11 +292,20 @@ toWebCookie c = do
 --------------------------------------------------------------------------------
 -- Tracking
 
-trackSuperseded :: (MonadReader Env m, MonadIO m, Log.MonadLogger m) => UserId -> CookieId -> m ()
+trackSuperseded :: (MonadIO m, Log.MonadLogger m, Prom.MonadMonitor m) => UserId -> CookieId -> m ()
 trackSuperseded u c = do
-  m <- view metrics
-  Metrics.counterIncr (Metrics.path "user.auth.cookie.superseded") m
+  Prom.incCounter cookieSupersededCounter
   Log.warn $
     msg (val "Superseded cookie used")
       ~~ field "user" (toByteString u)
       ~~ field "cookie" (cookieIdNum c)
+
+{-# NOINLINE cookieSupersededCounter #-}
+cookieSupersededCounter :: Prom.Counter
+cookieSupersededCounter =
+  Prom.unsafeRegister $
+    Prom.counter
+      Prom.Info
+        { Prom.metricName = "user.auth.cookie.superseded",
+          Prom.metricHelp = "Number of times user's cookie got superseded"
+        }

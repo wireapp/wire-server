@@ -196,16 +196,17 @@ runFedClient (FedClient mgr ep) domain =
         Right res -> pure res
         Left err -> assertFailure $ "Servant client failed with: " <> show err
 
-    makeClientRequest :: Domain -> Servant.BaseUrl -> Servant.Request -> HTTP.Request
-    makeClientRequest originDomain burl req =
-      let req' = Servant.defaultMakeClientRequest burl req
-       in req'
-            { HTTP.requestHeaders =
-                HTTP.requestHeaders req'
-                  <> [ (originDomainHeaderName, toByteString' originDomain),
-                       (versionHeader, toByteString' (versionInt (maxBound :: Version)))
-                     ]
-            }
+    makeClientRequest :: Domain -> Servant.BaseUrl -> Servant.Request -> IO HTTP.Request
+    makeClientRequest originDomain burl req = do
+      req' <- Servant.defaultMakeClientRequest burl req
+      pure
+        req'
+          { HTTP.requestHeaders =
+              HTTP.requestHeaders req'
+                <> [ (originDomainHeaderName, toByteString' originDomain),
+                     (versionHeader, toByteString' (versionInt (maxBound :: Version)))
+                   ]
+          }
 
 instance ToJSON SESBounceType where
   toJSON BounceUndetermined = String "Undetermined"
@@ -273,7 +274,7 @@ localAndRemoteUserWithConvId brig shouldBeLocal = do
 fakeRemoteUser :: (HasCallStack, MonadIO m) => m (Qualified UserId)
 fakeRemoteUser = Qualified <$> randomId <*> pure (Domain "far-away.example.com")
 
-randomClient :: MonadIO m => m ClientId
+randomClient :: (MonadIO m) => m ClientId
 randomClient = liftIO $ generate arbitrary
 
 randomUser ::
@@ -310,28 +311,28 @@ createUser' hasPwd name brig = do
       <!! const 201 === statusCode
   responseJsonError r
 
-createUserWithEmail :: HasCallStack => Text -> Email -> Brig -> Http User
+createUserWithEmail :: (HasCallStack) => Text -> Email -> Brig -> Http User
 createUserWithEmail name email brig = do
   r <-
     postUserWithEmail True True name (Just email) False Nothing Nothing brig
       <!! const 201 === statusCode
   responseJsonError r
 
-createUserUntrustedEmail :: HasCallStack => Text -> Brig -> Http User
+createUserUntrustedEmail :: (HasCallStack) => Text -> Brig -> Http User
 createUserUntrustedEmail name brig = do
   email <- randomUntrustedEmail
   createUserWithEmail name email brig
 
-createAnonUser :: HasCallStack => Text -> Brig -> Http User
+createAnonUser :: (HasCallStack) => Text -> Brig -> Http User
 createAnonUser = createAnonUserExpiry Nothing
 
-createAnonUserExpiry :: HasCallStack => Maybe Integer -> Text -> Brig -> Http User
+createAnonUserExpiry :: (HasCallStack) => Maybe Integer -> Text -> Brig -> Http User
 createAnonUserExpiry expires name brig = do
   let p = RequestBodyLBS . encode $ object ["name" .= name, "expires_in" .= expires]
   r <- post (brig . path "/register" . contentJson . body p) <!! const 201 === statusCode
   responseJsonError r
 
-requestActivationCode :: HasCallStack => Brig -> Int -> Either Email Phone -> Http ()
+requestActivationCode :: (HasCallStack) => Brig -> Int -> Either Email Phone -> Http ()
 requestActivationCode brig expectedStatus ep =
   post (brig . path "/activate/send" . contentJson . body (RequestBodyLBS . encode $ bdy ep))
     !!! const expectedStatus === statusCode
@@ -358,7 +359,7 @@ getPhoneLoginCode brig p = do
   let lbs = fromMaybe "" $ responseBody r
   pure (LoginCode <$> (lbs ^? key "code" . _String))
 
-assertUpdateNotification :: HasCallStack => WS.WebSocket -> UserId -> UserUpdate -> IO ()
+assertUpdateNotification :: (HasCallStack) => WS.WebSocket -> UserId -> UserUpdate -> IO ()
 assertUpdateNotification ws uid upd = WS.assertMatch (5 # Second) ws $ \n -> do
   let j = Object $ List1.head (ntfPayload n)
   j ^? key "type" . _String @?= Just "user.update"
@@ -447,7 +448,7 @@ postUserRegister payload brig = do
   rs <- postUserRegister' payload brig <!! const 201 === statusCode
   maybe (error $ "postUserRegister: Failed to decode user due to: " ++ show rs) pure (responseJsonMaybe rs)
 
-postUserRegister' :: MonadHttp m => Object -> Brig -> m ResponseLBS
+postUserRegister' :: (MonadHttp m) => Object -> Brig -> m ResponseLBS
 postUserRegister' payload brig = do
   post (brig . path "/register" . contentJson . body (RequestBodyLBS $ encode payload))
 
@@ -466,7 +467,7 @@ deleteUserInternal u brig =
     brig
       . paths ["/i/users", toByteString' u]
 
-activate :: Brig -> ActivationPair -> MonadHttp m => m ResponseLBS
+activate :: Brig -> ActivationPair -> (MonadHttp m) => m ResponseLBS
 activate brig (k, c) =
   get $
     brig
@@ -489,7 +490,7 @@ getUser brig zusr usr =
 -- | NB: you can also use nginz as the first argument here.  The type aliases are compatible,
 -- and so are the end-points.  This is important in tests where the cookie must come from the
 -- nginz domain, so it can be passed back to it.
-login :: Brig -> Login -> CookieType -> MonadHttp m => m ResponseLBS
+login :: Brig -> Login -> CookieType -> (MonadHttp m) => m ResponseLBS
 login b l t =
   let js = RequestBodyLBS (encode l)
    in post $
@@ -520,10 +521,10 @@ legalHoldLogin b l t =
           . (if t == PersistentCookie then queryItem "persist" "true" else id)
           . body js
 
-decodeCookie :: HasCallStack => Response a -> Bilge.Cookie
+decodeCookie :: (HasCallStack) => Response a -> Bilge.Cookie
 decodeCookie = fromMaybe (error "missing zuid cookie") . getCookie "zuid"
 
-decodeToken :: HasCallStack => Response (Maybe LByteString) -> ZAuth.Token ZAuth.Access
+decodeToken :: (HasCallStack) => Response (Maybe LByteString) -> ZAuth.Token ZAuth.Access
 decodeToken = decodeToken'
 
 decodeToken' :: (HasCallStack, ZAuth.AccessTokenLike a) => Response (Maybe LByteString) -> ZAuth.Token a
@@ -544,14 +545,15 @@ sendLoginCode b p typ force =
       . body js
   where
     js =
-      RequestBodyLBS . encode $
-        object
+      RequestBodyLBS
+        . encode
+        $ object
           [ "phone" .= fromPhone p,
             "voice_call" .= (typ == LoginCodeVoice),
             "force" .= force
           ]
 
-postConnection :: Brig -> UserId -> UserId -> MonadHttp m => m ResponseLBS
+postConnection :: Brig -> UserId -> UserId -> (MonadHttp m) => m ResponseLBS
 postConnection brig from to =
   post $
     apiVersion "v1"
@@ -563,10 +565,11 @@ postConnection brig from to =
       . zConn "conn"
   where
     payload =
-      RequestBodyLBS . encode $
-        ConnectionRequest to (unsafeRange "some conv name")
+      RequestBodyLBS
+        . encode
+        $ ConnectionRequest to (unsafeRange "some conv name")
 
-postConnectionQualified :: MonadHttp m => Brig -> UserId -> Qualified UserId -> m ResponseLBS
+postConnectionQualified :: (MonadHttp m) => Brig -> UserId -> Qualified UserId -> m ResponseLBS
 postConnectionQualified brig from (Qualified toUser toDomain) =
   post $
     brig
@@ -575,7 +578,7 @@ postConnectionQualified brig from (Qualified toUser toDomain) =
       . zUser from
       . zConn "conn"
 
-putConnection :: Brig -> UserId -> UserId -> Relation -> MonadHttp m => m ResponseLBS
+putConnection :: Brig -> UserId -> UserId -> Relation -> (MonadHttp m) => m ResponseLBS
 putConnection brig from to r =
   put $
     apiVersion "v1"
@@ -588,7 +591,7 @@ putConnection brig from to r =
   where
     payload = RequestBodyLBS . encode $ object ["status" .= r]
 
-putConnectionQualified :: Brig -> UserId -> Qualified UserId -> Relation -> MonadHttp m => m ResponseLBS
+putConnectionQualified :: Brig -> UserId -> Qualified UserId -> Relation -> (MonadHttp m) => m ResponseLBS
 putConnectionQualified brig from (Qualified to toDomain) r =
   put $
     brig
@@ -722,14 +725,14 @@ getTeamMember u tid galley =
           . expect2xx
       )
 
-getConversationQualified :: MonadHttp m => Galley -> UserId -> Qualified ConvId -> m ResponseLBS
+getConversationQualified :: (MonadHttp m) => Galley -> UserId -> Qualified ConvId -> m ResponseLBS
 getConversationQualified galley usr cnv =
   get $
     galley
       . paths ["conversations", toByteString' (qDomain cnv), toByteString' (qUnqualified cnv)]
       . zAuthAccess usr "conn"
 
-createMLSConversation :: MonadHttp m => Galley -> UserId -> ClientId -> m ResponseLBS
+createMLSConversation :: (MonadHttp m) => Galley -> UserId -> ClientId -> m ResponseLBS
 createMLSConversation galley zusr c = do
   let conv =
         NewConv
@@ -770,7 +773,7 @@ createMLSSubConversation galley zusr qcnv sconv =
         ]
       . zUser zusr
 
-createConversation :: MonadHttp m => Galley -> UserId -> [Qualified UserId] -> m ResponseLBS
+createConversation :: (MonadHttp m) => Galley -> UserId -> [Qualified UserId] -> m ResponseLBS
 createConversation galley zusr usersToAdd = do
   let conv =
         NewConv
@@ -791,7 +794,7 @@ createConversation galley zusr usersToAdd = do
       . zConn "conn"
       . json conv
 
-listConvIdsFirstPage :: MonadHttp m => Galley -> UserId -> m ResponseLBS
+listConvIdsFirstPage :: (MonadHttp m) => Galley -> UserId -> m ResponseLBS
 listConvIdsFirstPage galley zusr = do
   let req = GetMultiTablePageRequest (toRange (Proxy @1000)) Nothing :: GetPaginatedConversationIds
   post $
@@ -802,7 +805,7 @@ listConvIdsFirstPage galley zusr = do
       . json req
 
 listConvs ::
-  MonadHttp m =>
+  (MonadHttp m) =>
   Galley ->
   UserId ->
   Range 1 1000 [Qualified ConvId] ->
@@ -827,16 +830,17 @@ isMember g usr cnv = do
     Nothing -> pure False
     Just m -> pure (tUntagged usr == memId m)
 
-getStatus :: HasCallStack => Brig -> UserId -> (MonadIO m, MonadHttp m) => m WU.AccountStatus
+getStatus :: (HasCallStack) => Brig -> UserId -> (MonadIO m, MonadHttp m) => m WU.AccountStatus
 getStatus brig u =
-  (^?! key "status" . (_JSON @Value @WU.AccountStatus)) . (responseJsonUnsafe @Value)
+  (^?! key "status" . (_JSON @Value @WU.AccountStatus))
+    . (responseJsonUnsafe @Value)
     <$> get
       ( brig
           . paths ["i", "users", toByteString' u, "status"]
           . expect2xx
       )
 
-chkStatus :: HasCallStack => Brig -> UserId -> WU.AccountStatus -> (MonadIO m, MonadHttp m, MonadCatch m) => m ()
+chkStatus :: (HasCallStack) => Brig -> UserId -> WU.AccountStatus -> (MonadIO m, MonadHttp m, MonadCatch m) => m ()
 chkStatus brig u s =
   get (brig . paths ["i", "users", toByteString' u, "status"]) !!! do
     const 200 === statusCode
@@ -862,7 +866,7 @@ queryRange start size =
   maybe id (queryItem "size" . pack . show) size
     . maybe id (queryItem "start") start
 
-maybeFromJSON :: FromJSON a => Value -> Maybe a
+maybeFromJSON :: (FromJSON a) => Value -> Maybe a
 maybeFromJSON v = case fromJSON v of
   Success a -> Just a
   _ -> Nothing
@@ -879,7 +883,7 @@ zClient = header "Z-Client" . toByteString'
 zConn :: ByteString -> Request -> Request
 zConn = header "Z-Connection"
 
-mkEmailRandomLocalSuffix :: MonadIO m => Text -> m Email
+mkEmailRandomLocalSuffix :: (MonadIO m) => Text -> m Email
 mkEmailRandomLocalSuffix e = do
   uid <- liftIO UUID.nextRandom
   case parseEmail e of
@@ -888,21 +892,21 @@ mkEmailRandomLocalSuffix e = do
 
 -- | Generate emails that are in the trusted whitelist of domains whose @+@ suffices count for email
 -- disambiguation.  See also: 'Brig.Email.mkEmailKey'.
-randomEmail :: MonadIO m => m Email
+randomEmail :: (MonadIO m) => m Email
 randomEmail = mkSimulatorEmail "success"
 
 -- | To test the behavior of email addresses with untrusted domains (two emails are equal even if
 -- their local part after @+@ differs), we need to generate them.
-randomUntrustedEmail :: MonadIO m => m Email
+randomUntrustedEmail :: (MonadIO m) => m Email
 randomUntrustedEmail = do
   -- NOTE: local part cannot be longer than 64 octets
   rd <- liftIO (randomIO :: IO Integer)
   pure $ Email (Text.pack $ show rd) "zinfra.io"
 
-mkSimulatorEmail :: MonadIO m => Text -> m Email
+mkSimulatorEmail :: (MonadIO m) => Text -> m Email
 mkSimulatorEmail loc = mkEmailRandomLocalSuffix (loc <> "@simulator.amazonses.com")
 
-randomPhone :: MonadIO m => m Phone
+randomPhone :: (MonadIO m) => m Phone
 randomPhone = liftIO $ do
   nrs <- map show <$> replicateM 14 (randomRIO (0, 9) :: IO Int)
   let phone = parsePhone . Text.pack $ "+0" ++ concat nrs
@@ -911,10 +915,13 @@ randomPhone = liftIO $ do
 randomActivationCode :: (HasCallStack, MonadIO m) => m ActivationCode
 randomActivationCode =
   liftIO $
-    ActivationCode . Ascii.unsafeFromText . T.pack . printf "%06d"
+    ActivationCode
+      . Ascii.unsafeFromText
+      . T.pack
+      . printf "%06d"
       <$> randIntegerZeroToNMinusOne 1000000
 
-updatePhone :: HasCallStack => Brig -> UserId -> Phone -> Http ()
+updatePhone :: (HasCallStack) => Brig -> UserId -> Phone -> Http ()
 updatePhone brig uid phn = do
   -- update phone
   let phoneUpdate = RequestBodyLBS . encode $ PhoneUpdate phn
@@ -1007,12 +1014,12 @@ defCookieLabel = CookieLabel "auth"
 randomBytes :: Int -> IO ByteString
 randomBytes n = BS.pack <$> replicateM n randomIO
 
-randomHandle :: MonadIO m => m Text
+randomHandle :: (MonadIO m) => m Text
 randomHandle = liftIO $ do
   nrs <- replicateM 21 (randomRIO (97, 122)) -- a-z
   pure (Text.pack (map chr nrs))
 
-randomName :: MonadIO m => m Name
+randomName :: (MonadIO m) => m Name
 randomName = randomNameWithMaxLen 128
 
 -- | For testing purposes we restrict ourselves to code points in the
@@ -1024,7 +1031,7 @@ randomName = randomNameWithMaxLen 128
 -- the standard tokenizer considers as word boundaries (or which are
 -- simply unassigned code points), yielding no tokens to match and thus
 -- no results in search queries.
-randomNameWithMaxLen :: MonadIO m => Word -> m Name
+randomNameWithMaxLen :: (MonadIO m) => Word -> m Name
 randomNameWithMaxLen maxLen = liftIO $ do
   len <- randomRIO (2, maxLen)
   chars <- fill len []
@@ -1122,7 +1129,7 @@ assertOne xs = liftIO . assertFailure $ "Expected exactly one element, found " <
 newtype MockT m a = MockT {unMock :: ReaderT (IORef MockState) m a}
   deriving newtype (Functor, Applicative, Monad, MonadReader (IORef MockState), MonadIO)
 
-instance MonadIO m => MonadState MockState (MockT m) where
+instance (MonadIO m) => MonadState MockState (MockT m) where
   get = readIORef =<< ask
   put x = do
     ref <- ask
@@ -1154,7 +1161,7 @@ getReceivedRequest r =
 runMockT :: IORef MockState -> MockT m a -> m a
 runMockT ref mock = runReaderT (unMock mock) ref
 
-startMockService :: MonadIO m => IORef MockState -> ExceptT String m ()
+startMockService :: (MonadIO m) => IORef MockState -> ExceptT String m ()
 startMockService ref = ExceptT . liftIO $ do
   (sPort, sock) <- Warp.openFreePort
   serverStarted <- newEmptyMVar
@@ -1177,7 +1184,7 @@ startMockService ref = ExceptT . liftIO $ do
 initState :: MockState
 initState = MockState [] (error "server not started") (error "server not started") (error "No mock response provided")
 
-stopMockedService :: MonadIO m => IORef MockState -> m ()
+stopMockedService :: (MonadIO m) => IORef MockState -> m ()
 stopMockedService ref =
   liftIO $ Async.cancel . serverThread <=< readIORef $ ref
 
@@ -1206,8 +1213,10 @@ assertRight = \case
 
 withMockedGalley :: (MonadIO m, MonadMask m) => Opt.Opts -> (ReceivedRequest -> MockT IO Wai.Response) -> Session a -> m (a, [ReceivedRequest])
 withMockedGalley opts handler action =
-  assertRight <=< runExceptT $
-    withTempMockedService initState handler $ \st -> lift $ do
+  assertRight
+    <=< runExceptT
+    $ withTempMockedService initState handler
+    $ \st -> lift $ do
       let opts' =
             opts
               { Opt.galley = Endpoint "127.0.0.1" (fromIntegral (serverPort st))
@@ -1222,8 +1231,10 @@ withMockedFederatorAndGalley ::
   Session a ->
   IO (a, [Mock.FederatedRequest], [ReceivedRequest])
 withMockedFederatorAndGalley opts _domain fedResp galleyHandler action = do
-  result <- assertRight <=< runExceptT $
-    withTempMockedService initState galleyHandler $ \galleyMockState ->
+  result <- assertRight
+    <=< runExceptT
+    $ withTempMockedService initState galleyHandler
+    $ \galleyMockState ->
       Mock.withTempMockFederator
         def {Mock.handler = (\r -> pure ("application" // "json", r)) <=< fedResp}
         $ \fedMockPort -> do
@@ -1330,7 +1341,7 @@ runWaiTestFedClient ::
 runWaiTestFedClient domain action =
   runReaderT (unWaiTestFedClient action) domain
 
-spawn :: HasCallStack => CreateProcess -> Maybe ByteString -> IO ByteString
+spawn :: (HasCallStack) => CreateProcess -> Maybe ByteString -> IO ByteString
 spawn cp minput = do
   (mout, ex) <- withCreateProcess
     cp

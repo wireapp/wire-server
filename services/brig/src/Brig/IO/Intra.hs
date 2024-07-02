@@ -192,7 +192,7 @@ onClientEvent orig conn e = do
     ]
 
 updateSearchIndex ::
-  Member (Embed HttpClientIO) r =>
+  (Member (Embed HttpClientIO) r) =>
   UserId ->
   UserEvent ->
   Sem r ()

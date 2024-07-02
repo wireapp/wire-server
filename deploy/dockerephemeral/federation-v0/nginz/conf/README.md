@@ -3,5 +3,5 @@
 Run from this directory:
 
 ```bash
-../../../../../hack/bin/selfsigned.sh
+../../../../../hack/bin/gen-certs.sh
 ```

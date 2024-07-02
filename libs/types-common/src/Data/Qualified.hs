@@ -131,25 +131,25 @@ foldQualified loc f g q
 -- Note that the local values are returned as unqualified values, as a (probably
 -- insignificant) optimisation. Use 'partitionQualifiedAndTag' to get them as
 -- 'Local' values.
-partitionQualified :: Foldable f => Local x -> f (Qualified a) -> ([a], [Remote a])
+partitionQualified :: (Foldable f) => Local x -> f (Qualified a) -> ([a], [Remote a])
 partitionQualified loc =
   foldMap $
     foldQualified loc (\l -> ([tUnqualified l], mempty)) (\r -> (mempty, [r]))
 
-partitionQualifiedAndTag :: Foldable f => Local x -> f (Qualified a) -> ([Local a], [Remote a])
+partitionQualifiedAndTag :: (Foldable f) => Local x -> f (Qualified a) -> ([Local a], [Remote a])
 partitionQualifiedAndTag loc =
   first (map (qualifyAs loc))
     . partitionQualified loc
 
 -- | Index a list of qualified values by domain.
-indexQualified :: Foldable f => f (Qualified a) -> Map Domain [a]
+indexQualified :: (Foldable f) => f (Qualified a) -> Map Domain [a]
 indexQualified = foldr add mempty
   where
     add :: Qualified a -> Map Domain [a] -> Map Domain [a]
     add (Qualified x domain) = Map.insertWith (<>) domain [x]
 
 -- | Bucket a list of qualified values by domain.
-bucketQualified :: Foldable f => f (Qualified a) -> [Qualified [a]]
+bucketQualified :: (Foldable f) => f (Qualified a) -> [Qualified [a]]
 bucketQualified = map (\(d, a) -> Qualified a d) . Map.assocs . indexQualified
 
 bucketRemote :: (Functor f, Foldable f) => f (Remote a) -> [Remote [a]]
@@ -171,7 +171,7 @@ deprecatedSchema new =
       . (deprecated ?~ True)
 
 qualifiedSchema ::
-  HasSchemaRef doc =>
+  (HasSchemaRef doc) =>
   Text ->
   Text ->
   ValueSchema doc a ->
@@ -181,7 +181,7 @@ qualifiedSchema name fieldName sch =
     qualifiedObjectSchema fieldName sch
 
 qualifiedObjectSchema ::
-  HasSchemaRef d =>
+  (HasSchemaRef d) =>
   Text ->
   ValueSchema d a ->
   ObjectSchema SwaggerDoc (Qualified a)
@@ -190,16 +190,16 @@ qualifiedObjectSchema fieldName sch =
     <$> qDomain .= field "domain" schema
     <*> qUnqualified .= field fieldName sch
 
-instance KnownIdTag t => ToSchema (Qualified (Id t)) where
+instance (KnownIdTag t) => ToSchema (Qualified (Id t)) where
   schema = qualifiedSchema (idTagName (idTagValue @t) <> "Id") "id" schema
 
 instance ToSchema (Qualified Handle) where
   schema = qualifiedSchema "Handle" "handle" schema
 
-instance KnownIdTag t => ToJSON (Qualified (Id t)) where
+instance (KnownIdTag t) => ToJSON (Qualified (Id t)) where
   toJSON = schemaToJSON
 
-instance KnownIdTag t => FromJSON (Qualified (Id t)) where
+instance (KnownIdTag t) => FromJSON (Qualified (Id t)) where
   parseJSON = schemaParseJSON
 
 instance (Typeable t, KnownIdTag t) => S.ToSchema (Qualified (Id t)) where
@@ -217,5 +217,5 @@ instance S.ToSchema (Qualified Handle) where
 ----------------------------------------------------------------------
 -- ARBITRARY
 
-instance Arbitrary a => Arbitrary (Qualified a) where
+instance (Arbitrary a) => Arbitrary (Qualified a) where
   arbitrary = Qualified <$> arbitrary <*> arbitrary

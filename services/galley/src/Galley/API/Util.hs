@@ -222,7 +222,7 @@ ensureActionAllowed action self = case isActionAllowed (fromSing action) (convMe
   -- fact that there can be no custom roles at the moment
   Nothing -> throwS @('ActionDenied action)
 
-ensureGroupConversation :: Member (ErrorS 'InvalidOperation) r => Data.Conversation -> Sem r ()
+ensureGroupConversation :: (Member (ErrorS 'InvalidOperation) r) => Data.Conversation -> Sem r ()
 ensureGroupConversation conv = do
   let ty = Data.convType conv
   when (ty /= RegularConv) $ throwS @'InvalidOperation
@@ -378,7 +378,7 @@ memberJoinEvent lorig qconv t lmems rmems =
     remoteToSimple u = SimpleMember (tUntagged (rmId u)) (rmConvRoleName u)
 
 convDeleteMembers ::
-  Member MemberStore r =>
+  (Member MemberStore r) =>
   UserList UserId ->
   Data.Conversation ->
   Sem r Data.Conversation
@@ -395,13 +395,13 @@ convDeleteMembers ul conv = do
           filter (\rm -> Set.notMember (rmId rm) remotes) (Data.convRemoteMembers conv)
       }
 
-isMember :: Foldable m => UserId -> m LocalMember -> Bool
+isMember :: (Foldable m) => UserId -> m LocalMember -> Bool
 isMember u = isJust . find ((u ==) . lmId)
 
-isRemoteMember :: Foldable m => Remote UserId -> m RemoteMember -> Bool
+isRemoteMember :: (Foldable m) => Remote UserId -> m RemoteMember -> Bool
 isRemoteMember u = isJust . find ((u ==) . rmId)
 
-class IsConvMember mem => IsConvMemberId uid mem | uid -> mem where
+class (IsConvMember mem) => IsConvMemberId uid mem | uid -> mem where
   getConvMember :: Local x -> Data.Conversation -> uid -> Maybe mem
 
   isConvMember :: Local x -> Data.Conversation -> uid -> Bool
@@ -410,7 +410,7 @@ class IsConvMember mem => IsConvMemberId uid mem | uid -> mem where
   notIsConvMember :: Local x -> Data.Conversation -> uid -> Bool
   notIsConvMember loc conv = not . isConvMember loc conv
 
-isConvMemberL :: IsConvMemberId uid mem => Local Data.Conversation -> uid -> Bool
+isConvMemberL :: (IsConvMemberId uid mem) => Local Data.Conversation -> uid -> Bool
 isConvMemberL lconv = isConvMember lconv (tUnqualified lconv)
 
 instance IsConvMemberId UserId LocalMember where
@@ -512,7 +512,7 @@ bmFromMembers lmems rusers = case localBotsAndUsers lmems of
 convBotsAndMembers :: Data.Conversation -> BotsAndMembers
 convBotsAndMembers conv = bmFromMembers (Data.convLocalMembers conv) (Data.convRemoteMembers conv)
 
-localBotsAndUsers :: Foldable f => f LocalMember -> ([BotMember], [LocalMember])
+localBotsAndUsers :: (Foldable f) => f LocalMember -> ([BotMember], [LocalMember])
 localBotsAndUsers = foldMap botOrUser
   where
     botOrUser m = case lmService m of
@@ -520,7 +520,7 @@ localBotsAndUsers = foldMap botOrUser
       Just _ -> (toList (newBotMember m), [])
       Nothing -> ([], [m])
 
-location :: ToByteString a => a -> Response -> Response
+location :: (ToByteString a) => a -> Response -> Response
 location = Wai.addHeader hLocation . toByteString'
 
 nonTeamMembers :: [LocalMember] -> [TeamMember] -> [LocalMember]
@@ -544,15 +544,17 @@ getSelfMemberFromLocals = getMember @'ConvNotFound lmId
 -- | Throw 'ConvMemberNotFound' if the given user is not part of a
 -- conversation (either locally or remotely).
 ensureOtherMember ::
-  Member (ErrorS 'ConvMemberNotFound) r =>
+  (Member (ErrorS 'ConvMemberNotFound) r) =>
   Local a ->
   Qualified UserId ->
   Data.Conversation ->
   Sem r (Either LocalMember RemoteMember)
 ensureOtherMember loc quid conv =
   noteS @'ConvMemberNotFound $
-    Left <$> find ((== quid) . tUntagged . qualifyAs loc . lmId) (Data.convLocalMembers conv)
-      <|> Right <$> find ((== quid) . tUntagged . rmId) (Data.convRemoteMembers conv)
+    Left
+      <$> find ((== quid) . tUntagged . qualifyAs loc . lmId) (Data.convLocalMembers conv)
+        <|> Right
+      <$> find ((== quid) . tUntagged . rmId) (Data.convRemoteMembers conv)
 
 getMember ::
   forall e mem t userId r.
@@ -696,7 +698,7 @@ ensureConversationAccess zusr conv access = do
   ensureAccessRole (Data.convAccessRoles conv) [(zusr, zusrMembership)]
 
 ensureAccess ::
-  Member (ErrorS 'ConvAccessDenied) r =>
+  (Member (ErrorS 'ConvAccessDenied) r) =>
   Data.Conversation ->
   Access ->
   Sem r ()
@@ -704,13 +706,13 @@ ensureAccess conv access =
   unless (access `elem` Data.convAccess conv) $
     throwS @'ConvAccessDenied
 
-ensureLocal :: Member (Error FederationError) r => Local x -> Qualified a -> Sem r (Local a)
+ensureLocal :: (Member (Error FederationError) r) => Local x -> Qualified a -> Sem r (Local a)
 ensureLocal loc = foldQualified loc pure (\_ -> throw FederationNotImplemented)
 
 --------------------------------------------------------------------------------
 -- Federation
 
-qualifyLocal :: Member (Input (Local ())) r => a -> Sem r (Local a)
+qualifyLocal :: (Member (Input (Local ())) r) => a -> Sem r (Local a)
 qualifyLocal a = toLocalUnsafe <$> fmap getDomain input <*> pure a
   where
     getDomain :: Local () -> Domain
@@ -776,7 +778,7 @@ fromConversationCreated loc rc@ConversationCreated {..} =
   where
     inDomain :: OtherMember -> Bool
     inDomain = (== tDomain loc) . qDomain . Public.omQualifiedId
-    setHoles :: Ord a => Set a -> [(a, Set a)]
+    setHoles :: (Ord a) => Set a -> [(a, Set a)]
     setHoles s = foldMap (\x -> [(x, Set.delete x s)]) s
     -- Currently this function creates a Member with default conversation attributes
     -- FUTUREWORK(federation): retrieve member's conversation attributes (muted, archived, etc) here once supported by the database schema.
@@ -815,7 +817,7 @@ fromConversationCreated loc rc@ConversationCreated {..} =
         ProtocolProteus
 
 ensureNoUnreachableBackends ::
-  Member (Error UnreachableBackends) r =>
+  (Member (Error UnreachableBackends) r) =>
   [Either (Remote e, b) a] ->
   Sem r [a]
 ensureNoUnreachableBackends results = do
@@ -939,7 +941,7 @@ consentGiven = \case
   UserLegalHoldNoConsent -> ConsentNotGiven
 
 checkConsent ::
-  Member TeamStore r =>
+  (Member TeamStore r) =>
   Map UserId TeamId ->
   UserId ->
   Sem r ConsentGiven
@@ -949,7 +951,7 @@ checkConsent teamsOfUsers other = do
 -- Get legalhold status of user. Defaults to 'defUserLegalHoldStatus' if user
 -- doesn't belong to a team.
 getLHStatus ::
-  Member TeamStore r =>
+  (Member TeamStore r) =>
   Maybe TeamId ->
   UserId ->
   Sem r UserLegalHoldStatus
@@ -1006,7 +1008,7 @@ allLegalholdConsentGiven uids = do
 
 -- | Add to every uid the legalhold status
 getLHStatusForUsers ::
-  Member TeamStore r =>
+  (Member TeamStore r) =>
   [UserId] ->
   Sem r [(UserId, UserLegalHoldStatus)]
 getLHStatusForUsers uids =
@@ -1019,7 +1021,7 @@ getLHStatusForUsers uids =
             (uid,) <$> getLHStatus (Map.lookup uid teamsOfUsers) uid
       )
 
-getTeamMembersForFanout :: Member TeamStore r => TeamId -> Sem r TeamMemberList
+getTeamMembersForFanout :: (Member TeamStore r) => TeamId -> Sem r TeamMemberList
 getTeamMembersForFanout tid = do
   lim <- fanoutLimit
   getTeamMembersWithLimit tid lim

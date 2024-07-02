@@ -57,7 +57,7 @@ data Service body m a where
 
 makeSem ''Service
 
-bodyReaderToStreamT :: Monad m => m ByteString -> SourceT m ByteString
+bodyReaderToStreamT :: (Monad m) => m ByteString -> SourceT m ByteString
 bodyReaderToStreamT action = fromStepT go
   where
     go = Effect $ do

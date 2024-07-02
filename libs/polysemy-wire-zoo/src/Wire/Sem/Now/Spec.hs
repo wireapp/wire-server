@@ -30,7 +30,7 @@ import Test.QuickCheck
 import qualified Wire.Sem.Now as E
 
 propsForInterpreter ::
-  PropConstraints r f =>
+  (PropConstraints r f) =>
   String ->
   (forall a. Sem r a -> IO (f a)) ->
   Spec
@@ -42,15 +42,15 @@ propsForInterpreter interpreter lower = do
 -- A regular type synonym doesn't work due to dreaded impredicative
 -- polymorphism.
 class
-  (Functor f, Member E.Now r, Member (Input ()) r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z)) =>
+  (Functor f, Member E.Now r, Member (Input ()) r, forall z. (Show z) => Show (f z), forall z. (Eq z) => Eq (f z)) =>
   PropConstraints r f
 
 instance
-  (Functor f, Member E.Now r, Member (Input ()) r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z)) =>
+  (Functor f, Member E.Now r, Member (Input ()) r, forall z. (Show z) => Show (f z), forall z. (Eq z) => Eq (f z)) =>
   PropConstraints r f
 
 prop_nowNow ::
-  PropConstraints r f =>
+  (PropConstraints r f) =>
   Maybe (f Bool -> String) ->
   (forall a. Sem r a -> IO (f a)) ->
   Property

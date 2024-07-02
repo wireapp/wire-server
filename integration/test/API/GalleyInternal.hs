@@ -63,7 +63,8 @@ getFederationStatus user domains =
         req <- baseRequest user Galley Unversioned $ joinHttpPath ["i", "federation-status"]
         submit
           "GET"
-          $ req & addJSONObject ["domains" .= domainList]
+          $ req
+          & addJSONObject ["domains" .= domainList]
 
 -- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/galley/#/galley/put_i_legalhold_whitelisted_teams__tid_
 legalholdWhitelistTeam :: (HasCallStack, MakesValue uid, MakesValue tid) => tid -> uid -> App Response

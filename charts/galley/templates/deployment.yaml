@@ -41,6 +41,11 @@ spec:
           secret:
             secretName: {{ (include "tlsSecretRef" .Values.config | fromYaml).name }}
         {{- end }}
+        {{- if .Values.config.rabbitmq.tlsCaSecretRef }}
+        - name: "rabbitmq-ca"
+          secret:
+            secretName: {{ .Values.config.rabbitmq.tlsCaSecretRef.name }}
+        {{- end }}
       containers:
         - name: galley
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -57,6 +62,10 @@ spec:
           {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
           - name: "galley-cassandra"
             mountPath: "/etc/wire/galley/cassandra"
+          {{- end }}
+          {{- if .Values.config.rabbitmq.tlsCaSecretRef }}
+          - name: "rabbitmq-ca"
+            mountPath: "/etc/wire/galley/rabbitmq-ca/"
           {{- end }}
           env:
           {{- if hasKey .Values.secrets "awsKeyId" }}

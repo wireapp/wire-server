@@ -46,7 +46,7 @@ import Testlib.Types
 import Text.RawString.QQ
 import Prelude
 
-withModifiedBackend :: HasCallStack => ServiceOverrides -> (HasCallStack => String -> App a) -> App a
+withModifiedBackend :: (HasCallStack) => ServiceOverrides -> ((HasCallStack) => String -> App a) -> App a
 withModifiedBackend overrides k =
   startDynamicBackends [overrides] (\domains -> k (head domains))
 
@@ -64,8 +64,8 @@ copyDirectoryRecursively from to = do
 
 -- | Concurrent traverse in the 'Codensity App' monad.
 traverseConcurrentlyCodensity ::
-  (HasCallStack => a -> Codensity App ()) ->
-  (HasCallStack => [a] -> Codensity App ())
+  ((HasCallStack) => a -> Codensity App ()) ->
+  ((HasCallStack) => [a] -> Codensity App ())
 traverseConcurrentlyCodensity f args = do
   -- Create variables for synchronisation of the various threads:
   --  * @result@ is used to store a possible exception
@@ -242,7 +242,7 @@ updateServiceMapInConfig resource forSrv config =
     [(srv, berInternalServicePorts resource srv :: Int) | srv <- allServices]
 
 startBackend ::
-  HasCallStack =>
+  (HasCallStack) =>
   BackendResource ->
   ServiceOverrides ->
   Codensity App ()
@@ -382,7 +382,7 @@ logToConsole colorize prefix hdl = do
           `E.catch` (\(_ :: E.IOException) -> pure ())
   go
 
-retryRequestUntil :: HasCallStack => App Bool -> String -> App ()
+retryRequestUntil :: (HasCallStack) => App Bool -> String -> App ()
 retryRequestUntil reqAction err = do
   isUp <-
     retrying

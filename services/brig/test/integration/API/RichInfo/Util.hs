@@ -29,7 +29,7 @@ import Util
 import Wire.API.User.RichInfo
 
 getRichInfo ::
-  HasCallStack =>
+  (HasCallStack) =>
   Brig ->
   -- | The user who is performing the query
   UserId ->
@@ -44,16 +44,16 @@ getRichInfo brig self uid = do
           . zUser self
       )
   if
-      | statusCode r == 200 -> Right <$> responseJsonError r
-      | statusCode r `elem` [403, 404] -> pure . Left . statusCode $ r
-      | otherwise ->
-          error $
-            "expected status code 200, 403, or 404, got: " <> show (statusCode r)
+    | statusCode r == 200 -> Right <$> responseJsonError r
+    | statusCode r `elem` [403, 404] -> pure . Left . statusCode $ r
+    | otherwise ->
+        error $
+          "expected status code 200, 403, or 404, got: " <> show (statusCode r)
 
 -- | This contacts an internal end-point.  Note the asymmetry between this and the external
 -- GET end-point in the body: here we need to wrap the 'RichInfo' in a 'RichInfoUpdate'.
 putRichInfo ::
-  HasCallStack =>
+  (HasCallStack) =>
   Brig ->
   -- | The user whose rich info is being updated
   UserId ->

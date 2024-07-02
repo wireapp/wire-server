@@ -1,5 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -16,21 +14,29 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+module Wire.SessionStore.Cassandra (interpretSessionStoreCassandra) where
 
-module Brig.User.Auth.DB.Cookie where
-
-import Brig.User.Auth.DB.Instances ()
 import Cassandra
 import Data.Id
 import Data.Time.Clock
 import Imports
+import Polysemy
+import Polysemy.Embed
 import Wire.API.User.Auth
+import Wire.SessionStore
 
-newtype TTL = TTL {ttlSeconds :: Int32}
-  deriving (Cql)
+interpretSessionStoreCassandra :: (Member (Embed IO) r) => ClientState -> InterpreterFor SessionStore r
+interpretSessionStoreCassandra casClient =
+  interpret $
+    runEmbedded (runClient casClient) . \case
+      InsertCookie uid cookie ttl -> embed $ insertCookieImpl uid cookie ttl
+      LookupCookie uid utc cid -> embed $ lookupCookieImpl uid utc cid
+      ListCookies uid -> embed $ listCookiesImpl uid
+      DeleteAllCookies uid -> embed $ deleteAllCookiesImpl uid
+      DeleteCookies uid cc -> embed $ deleteCookiesImpl uid cc
 
-insertCookie :: MonadClient m => UserId -> Cookie a -> Maybe TTL -> m ()
-insertCookie u ck ttl =
+insertCookieImpl :: (MonadClient m) => UserId -> Cookie () -> Maybe TTL -> m ()
+insertCookieImpl u ck ttl =
   let i = cookieId ck
       x = cookieExpires ck
       c = cookieCreated ck
@@ -45,8 +51,8 @@ insertCookie u ck ttl =
       "INSERT INTO user_cookies (user, expires, id, type, created, label, succ_id) \
       \VALUES (?, ?, ?, ?, ?, ?, ?) USING TTL ?"
 
-lookupCookie :: MonadClient m => UserId -> UTCTime -> CookieId -> m (Maybe (Cookie ()))
-lookupCookie u t c =
+lookupCookieImpl :: (MonadClient m) => UserId -> UTCTime -> CookieId -> m (Maybe (Cookie ()))
+lookupCookieImpl u t c =
   fmap mkCookie <$> retry x1 (query1 cql (params LocalQuorum (u, t, c)))
   where
     mkCookie (typ, created, label, csucc) =
@@ -65,8 +71,8 @@ lookupCookie u t c =
       \FROM user_cookies \
       \WHERE user = ? AND expires = ? AND id = ?"
 
-listCookies :: MonadClient m => UserId -> m [Cookie ()]
-listCookies u =
+listCookiesImpl :: (MonadClient m) => UserId -> m [Cookie ()]
+listCookiesImpl u =
   map toCookie <$> retry x1 (query cql (params LocalQuorum (Identity u)))
   where
     cql :: PrepQuery R (Identity UserId) (CookieId, UTCTime, UTCTime, CookieType, Maybe CookieLabel, Maybe CookieId)
@@ -87,8 +93,8 @@ listCookies u =
           cookieValue = ()
         }
 
-deleteCookies :: MonadClient m => UserId -> [Cookie a] -> m ()
-deleteCookies u cs = retry x5 . batch $ do
+deleteCookiesImpl :: (MonadClient m) => UserId -> [Cookie ()] -> m ()
+deleteCookiesImpl u cs = retry x5 . batch $ do
   setType BatchUnLogged
   setConsistency LocalQuorum
   for_ cs $ \c -> addPrepQuery cql (u, cookieExpires c, cookieId c)
@@ -96,8 +102,8 @@ deleteCookies u cs = retry x5 . batch $ do
     cql :: PrepQuery W (UserId, UTCTime, CookieId) ()
     cql = "DELETE FROM user_cookies WHERE user = ? AND expires = ? AND id = ?"
 
-deleteAllCookies :: MonadClient m => UserId -> m ()
-deleteAllCookies u = retry x5 (write cql (params LocalQuorum (Identity u)))
+deleteAllCookiesImpl :: (MonadClient m) => UserId -> m ()
+deleteAllCookiesImpl u = retry x5 (write cql (params LocalQuorum (Identity u)))
   where
     cql :: PrepQuery W (Identity UserId) ()
     cql = "DELETE FROM user_cookies WHERE user = ?"

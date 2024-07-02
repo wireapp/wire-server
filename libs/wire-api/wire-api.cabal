@@ -68,6 +68,7 @@ library
 
   -- cabal-fmt: expand src
   exposed-modules:
+    Wire.API.Allowlists
     Wire.API.ApplyMods
     Wire.API.Asset
     Wire.API.Bot
@@ -310,6 +311,7 @@ library
     , saml2-web-sso
     , schema-profunctor
     , scientific
+    , semigroupoids
     , servant
     , servant-client
     , servant-client-core

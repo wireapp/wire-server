@@ -50,7 +50,7 @@ interpretCustomBackendStoreToCassandra = interpret $ \case
     logEffect "CustomBackendStore.DeleteCustomBackend"
     embedClient $ deleteCustomBackend dom
 
-getCustomBackend :: MonadClient m => Domain -> m (Maybe CustomBackend)
+getCustomBackend :: (MonadClient m) => Domain -> m (Maybe CustomBackend)
 getCustomBackend domain =
   fmap toCustomBackend <$> do
     retry x1 $ query1 Cql.selectCustomBackend (params LocalQuorum (Identity domain))
@@ -58,10 +58,10 @@ getCustomBackend domain =
     toCustomBackend (backendConfigJsonUrl, backendWebappWelcomeUrl) =
       CustomBackend {..}
 
-setCustomBackend :: MonadClient m => Domain -> CustomBackend -> m ()
+setCustomBackend :: (MonadClient m) => Domain -> CustomBackend -> m ()
 setCustomBackend domain CustomBackend {..} = do
   retry x5 $ write Cql.upsertCustomBackend (params LocalQuorum (backendConfigJsonUrl, backendWebappWelcomeUrl, domain))
 
-deleteCustomBackend :: MonadClient m => Domain -> m ()
+deleteCustomBackend :: (MonadClient m) => Domain -> m ()
 deleteCustomBackend domain = do
   retry x5 $ write Cql.deleteCustomBackend (params LocalQuorum (Identity domain))

@@ -36,7 +36,6 @@ import Data.ByteString.Lazy qualified as L
 import Data.Id
 import Data.List1
 import Data.Map qualified as Map
-import Data.Metrics qualified as Metrics
 import Data.Misc (Milliseconds (..))
 import Data.Set qualified as Set
 import Data.Time.Clock.POSIX
@@ -49,6 +48,7 @@ import Network.HTTP.Client (HttpExceptionContent (..))
 import Network.HTTP.Client.Internal qualified as Http
 import Network.HTTP.Types (StdMethod (POST), status200, status410)
 import Network.URI qualified as URI
+import Prometheus qualified as Prom
 import System.Logger.Class (val, (+++), (~~))
 import System.Logger.Class qualified as Log
 import UnliftIO (handleAny, mapConcurrently)
@@ -59,7 +59,7 @@ class (Monad m, MonadThrow m, Log.MonadLogger m) => MonadBulkPush m where
   mbpBulkSend :: URI -> BulkPushRequest -> m (URI, Either SomeException BulkPushResponse)
   mbpDeleteAllPresences :: [Presence] -> m ()
   mbpPosixTime :: m Milliseconds
-  mbpMapConcurrently :: Traversable t => (a -> m b) -> t a -> m (t b)
+  mbpMapConcurrently :: (Traversable t) => (a -> m b) -> t a -> m (t b)
   mbpMonitorBadCannons :: (URI, (SomeException, [Presence])) -> m ()
 
 instance MonadBulkPush Gundeck where
@@ -71,7 +71,7 @@ instance MonadBulkPush Gundeck where
 
 -- | Send a 'Notification's to associated 'Presence's.  Send at most one request to each Cannon.
 -- Return the lists of 'Presence's successfully reached for each resp. 'Notification'.
-bulkPush :: forall m. MonadBulkPush m => [(Notification, [Presence])] -> m [(NotificationId, [Presence])]
+bulkPush :: forall m. (MonadBulkPush m) => [(Notification, [Presence])] -> m [(NotificationId, [Presence])]
 -- REFACTOR: make presences lists (and notification list) non-empty where applicable?  are there
 -- better types to express more of our semantics / invariants?  (what about duplicates in presence
 -- lists?)
@@ -101,16 +101,23 @@ bulkPush notifs = do
 
 -- | log all cannons with response status @/= 200@.
 monitorBadCannons ::
-  (MonadIO m, MonadReader Env m) =>
+  (Prom.MonadMonitor m) =>
   (uri, (error, [Presence])) ->
   m ()
-monitorBadCannons (_uri, (_err, prcs)) = do
-  view monitor
-    >>= Metrics.counterAdd
-      (fromIntegral $ length prcs)
-      (Metrics.path "push.ws.unreachable")
+monitorBadCannons (_uri, (_err, prcs)) =
+  void $ Prom.addCounter pushWsUnreachableCounter (fromIntegral $ length prcs)
 
-logBadCannons :: Log.MonadLogger m => (URI, (SomeException, [Presence])) -> m ()
+{-# NOINLINE pushWsUnreachableCounter #-}
+pushWsUnreachableCounter :: Prom.Counter
+pushWsUnreachableCounter =
+  Prom.unsafeRegister $
+    Prom.counter
+      Prom.Info
+        { Prom.metricName = "push.ws.unreachable",
+          Prom.metricHelp = "Number of times websocket pushes were not pushed due cannon being unreachable"
+        }
+
+logBadCannons :: (Log.MonadLogger m) => (URI, (SomeException, [Presence])) -> m ()
 logBadCannons (uri, (err, prcs)) = do
   forM_ prcs $ \prc ->
     Log.warn $
@@ -121,10 +128,10 @@ logBadCannons (uri, (err, prcs)) = do
         ~~ Log.field "http_exception" (intercalate " | " . lines . show $ err)
         ~~ Log.msg (val "WebSocket presence unreachable: ")
 
-logPrcsGone :: Log.MonadLogger m => Presence -> m ()
+logPrcsGone :: (Log.MonadLogger m) => Presence -> m ()
 logPrcsGone prc = Log.debug $ logPresence prc ~~ Log.msg (val "WebSocket presence gone")
 
-logSuccesses :: Log.MonadLogger m => (a, Presence) -> m ()
+logSuccesses :: (Log.MonadLogger m) => (a, Presence) -> m ()
 logSuccesses (_, prc) = Log.debug $ logPresence prc ~~ Log.msg (val "WebSocket push success")
 
 fanOut :: [(Notification, [Presence])] -> [(URI, BulkPushRequest)]
@@ -249,7 +256,7 @@ flowBack rawresps = FlowBack broken gone delivered
     lefts' ((_, Right _) : xs) = lefts' xs
 
 {-# INLINE mkPresencesByCannon #-}
-mkPresencesByCannon :: MonadThrow m => [Presence] -> URI -> m [Presence]
+mkPresencesByCannon :: (MonadThrow m) => [Presence] -> URI -> m [Presence]
 mkPresencesByCannon prcs uri = maybe (throwM err) pure $ Map.lookup uri mp
   where
     err = ErrorCall "internal error in Gundeck: invalid URL in bulkpush result"
@@ -262,7 +269,7 @@ mkPresencesByCannon prcs uri = maybe (throwM err) pure $ Map.lookup uri mp
     go prc (Just prcs') = Just $ prc : prcs'
 
 {-# INLINE mkPresenceByPushTarget #-}
-mkPresenceByPushTarget :: MonadThrow m => [Presence] -> PushTarget -> m Presence
+mkPresenceByPushTarget :: (MonadThrow m) => [Presence] -> PushTarget -> m Presence
 mkPresenceByPushTarget prcs ptarget = maybe (throwM err) pure $ Map.lookup ptarget mp
   where
     err = ErrorCall "internal error in Cannon: invalid PushTarget in bulkpush response"
@@ -276,7 +283,7 @@ bulkresource = URI . (\x -> x {URI.uriPath = "/i/bulkpush"}) . fromURI . resourc
 -- TODO: a Map-based implementation would be faster for sufficiently large inputs.  do we want to
 -- take the time and benchmark the difference?  move it to types-common?
 {-# INLINE groupAssoc #-}
-groupAssoc :: Ord a => [(a, b)] -> [(a, [b])]
+groupAssoc :: (Ord a) => [(a, b)] -> [(a, [b])]
 groupAssoc = groupAssoc' compare
 
 -- TODO: Also should we give 'Notification' an 'Ord' instance?
@@ -343,7 +350,7 @@ push notif (toList -> tgts) originUser originConn conns = do
       Log.debug $ logPresence p ~~ Log.msg (val "WebSocket presence gone")
       pure (ok, p : gone)
     onResult (ok, gone) (PushFailure p _) = do
-      view monitor >>= Metrics.counterIncr (Metrics.path "push.ws.unreachable")
+      Prom.incCounter pushWsUnreachableCounter
       Log.info $
         logPresence p
           ~~ Log.field "created_at" (ms $ createdAt p)

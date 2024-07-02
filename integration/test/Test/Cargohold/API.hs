@@ -42,14 +42,14 @@ import UnliftIO.Concurrent
 --------------------------------------------------------------------------------
 -- Simple (single-step) uploads
 
-testSimpleRoundtrip :: HasCallStack => App ()
+testSimpleRoundtrip :: (HasCallStack) => App ()
 testSimpleRoundtrip = do
   let def' = ["public" .= False]
       rets = ["eternal", "persistent", "volatile", "eternal-infrequent_access", "expiring"]
       sets' = fmap object $ def' : fmap (\r -> "retention" .= r : def') rets
   mapM_ simpleRoundtrip sets'
   where
-    simpleRoundtrip :: HasCallStack => Value -> App ()
+    simpleRoundtrip :: (HasCallStack) => Value -> App ()
     simpleRoundtrip sets = do
       uid <- randomUser OwnDomain def
       userId1 <- uid %. "id" & asString
@@ -75,8 +75,8 @@ testSimpleRoundtrip = do
           Just r -> do
             r' <- asString r
             -- These retention policies never expire, so an expiration date isn't sent back
-            unless (r' == "eternal" || r' == "persistent" || r' == "eternal-infrequent_access") $
-              assertBool "invalid expiration" (Just utc < expires')
+            unless (r' == "eternal" || r' == "persistent" || r' == "eternal-infrequent_access")
+              $ assertBool "invalid expiration" (Just utc < expires')
         _ -> pure ()
       -- Lookup with token and download via redirect.
       r2 <- downloadAsset' uid loc tok
@@ -98,7 +98,7 @@ testSimpleRoundtrip = do
           utc' = parseTimeOrError False defaultTimeLocale rfc822DateFormat date' :: UTCTime
       assertBool "bad date" (utc' >= utc)
 
-testDownloadWithAcceptHeader :: HasCallStack => App ()
+testDownloadWithAcceptHeader :: (HasCallStack) => App ()
 testDownloadWithAcceptHeader = do
   assetId <- randomId
   uid <- randomUser OwnDomain def
@@ -117,7 +117,7 @@ queryItem k v r =
 get' :: HTTP.Request -> (HTTP.Request -> HTTP.Request) -> App Response
 get' r f = submit "GET" $ f r
 
-testSimpleTokens :: HasCallStack => App ()
+testSimpleTokens :: (HasCallStack) => App ()
 testSimpleTokens = do
   uid <- randomUser OwnDomain def
   uid2 <- randomUser OwnDomain def
@@ -134,7 +134,8 @@ testSimpleTokens = do
   (key, tok) <-
     (,)
       <$> asString (r1.json %. "key")
-      <*> r1.json %. "token"
+      <*> r1.json
+      %. "token"
   -- No access without token from other user (opaque 404)
   downloadAsset' uid2 loc () >>= \r -> r.status `shouldMatchInt` 404
   -- No access with empty token query parameter from other user (opaque 404)
@@ -199,7 +200,7 @@ defAssetSettings = object defAssetSettings'
 -- S3 closes idle connections after ~5 seconds, before the http-client 'Manager'
 -- does. If such a closed connection is reused for an upload, no problems should
 -- occur (i.e. the closed connection should be detected before sending any data).
-testSimpleS3ClosedConnectionReuse :: HasCallStack => App ()
+testSimpleS3ClosedConnectionReuse :: (HasCallStack) => App ()
 testSimpleS3ClosedConnectionReuse = go >> wait >> go
   where
     wait = liftIO $ putStrLn "Waiting for S3 idle timeout ..." >> threadDelay 7000000
@@ -209,7 +210,7 @@ testSimpleS3ClosedConnectionReuse = go >> wait >> go
       let part2 = (MIME.Text $ cs "plain", cs $ replicate 100000 'c')
       uploadSimple uid sets part2 >>= \r -> r.status `shouldMatchInt` 201
 
-testDownloadURLOverride :: HasCallStack => App ()
+testDownloadURLOverride :: (HasCallStack) => App ()
 testDownloadURLOverride = do
   -- This is a .example domain, it shouldn't resolve. But it is also not
   -- supposed to be used by cargohold to make connections.
@@ -227,7 +228,8 @@ testDownloadURLOverride = do
     let loc = decodeHeaderOrFail (mk $ cs "Location") uploadRes :: String
     (_key, tok, _expires) <-
       (,,)
-        <$> uploadRes.json %. "key"
+        <$> uploadRes.json
+        %. "key"
         <*> (uploadRes.json %. "token" & asString)
         <*> lookupField uploadRes.json "expires"
     -- Lookup with token and get download URL. Should return the
@@ -249,7 +251,7 @@ testDownloadURLOverride = do
 --
 -- The body is taken directly from a request made by the web app
 -- (just replaced the content with a shorter one and updated the MD5 header).
-testUploadCompatibility :: HasCallStack => App ()
+testUploadCompatibility :: (HasCallStack) => App ()
 testUploadCompatibility = do
   uid <- randomUser OwnDomain def
   -- Initial upload
@@ -287,7 +289,7 @@ testUploadCompatibility = do
 --------------------------------------------------------------------------------
 -- Federation behaviour
 
-testRemoteDownloadWrongDomain :: HasCallStack => App ()
+testRemoteDownloadWrongDomain :: (HasCallStack) => App ()
 testRemoteDownloadWrongDomain = do
   assetId <- randomId
   uid <- randomUser OwnDomain def
@@ -300,7 +302,7 @@ testRemoteDownloadWrongDomain = do
   res <- downloadAsset' uid qkey ()
   res.status `shouldMatchInt` 422
 
-testRemoteDownloadNoAsset :: HasCallStack => App ()
+testRemoteDownloadNoAsset :: (HasCallStack) => App ()
 testRemoteDownloadNoAsset = do
   assetId <- randomId
   uid <- randomUser OwnDomain def
@@ -314,10 +316,10 @@ testRemoteDownloadNoAsset = do
   res <- downloadAsset' uid qkey ()
   res.status `shouldMatchInt` 404
 
-testRemoteDownloadShort :: HasCallStack => App ()
+testRemoteDownloadShort :: (HasCallStack) => App ()
 testRemoteDownloadShort = remoteDownload "asset content"
 
-testRemoteDownloadLong :: HasCallStack => App ()
+testRemoteDownloadLong :: (HasCallStack) => App ()
 testRemoteDownloadLong = remoteDownload $ concat $ replicate 20000 $ "hello world\n"
 
 remoteDownload :: (HasCallStack, ConvertibleStrings a L8.ByteString, ConvertibleStrings a String) => a -> App ()

@@ -376,7 +376,7 @@ type SternAPI =
                :> "meta-info"
                :> QueryParam' [Required, Strict, Description "A valid UserId"] "id" UserId
                :> QueryParam' [Optional, Strict, Description "Max number of conversation (default 1)"] "max_conversations" Int
-               :> QueryParam' [Optional, Strict, Description "Max number of notifications (default 10)"] "max_notifications" Int
+               :> QueryParam' [Optional, Strict, Description "Max number of notifications (min 100, default 100)"] "max_notifications" Int
                :> Post '[JSON] UserMetaInfo
            )
     :<|> Named
@@ -482,7 +482,7 @@ instance Schema.ToSchema UserConnectionGroups where
         <*> ucgMissingLegalholdConsent Schema..= Schema.field "ucgMissingLegalholdConsent" Schema.schema
         <*> ucgTotal Schema..= Schema.field "ucgTotal" Schema.schema
 
-doubleMaybeToEither :: Monad m => LText -> Maybe a -> Maybe b -> ExceptT Error m (Either a b)
+doubleMaybeToEither :: (Monad m) => LText -> Maybe a -> Maybe b -> ExceptT Error m (Either a b)
 doubleMaybeToEither _ (Just a) Nothing = pure $ Left a
 doubleMaybeToEither _ Nothing (Just b) = pure $ Right b
 doubleMaybeToEither msg _ _ = throwE $ mkError status400 "either-params" ("Must use exactly one of two query params: " <> msg)

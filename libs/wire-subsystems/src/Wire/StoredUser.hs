@@ -94,6 +94,12 @@ mkUserFromStored domain defaultLocale storedUser =
             Just ps -> if S.null ps then defSupportedProtocols else ps
         }
 
+mkAccountFromStored :: Domain -> Locale -> StoredUser -> UserAccount
+mkAccountFromStored domain defaultLocale storedUser =
+  UserAccount
+    (mkUserFromStored domain defaultLocale storedUser)
+    (fromMaybe Active storedUser.status)
+
 toLocale :: Locale -> (Maybe Language, Maybe Country) -> Locale
 toLocale _ (Just l, c) = Locale l c
 toLocale l _ = l

@@ -261,7 +261,7 @@ instance Arbitrary RichInfoMapAndList where
   arbitrary = mkRichInfoMapAndList <$> arbitrary
 
 -- | Uniform Resource Names used for serialization of 'RichInfo'.
-richInfoMapURN, richInfoAssocListURN :: IsString s => s
+richInfoMapURN, richInfoAssocListURN :: (IsString s) => s
 richInfoMapURN = "urn:ietf:params:scim:schemas:extension:wire:1.0:User"
 richInfoAssocListURN = "urn:wire:scim:schemas:profile:1.0"
 

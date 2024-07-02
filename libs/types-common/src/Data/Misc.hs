@@ -341,9 +341,9 @@ newtype PlainTextPassword' (minLen :: Nat) = PlainTextPassword'
   {fromPlainTextPassword' :: Range minLen (1024 :: Nat) Text}
   deriving stock (Eq, Generic)
 
-deriving via (Schema (PlainTextPassword' tag)) instance ToSchema (PlainTextPassword' tag) => FromJSON (PlainTextPassword' tag)
+deriving via (Schema (PlainTextPassword' tag)) instance (ToSchema (PlainTextPassword' tag)) => FromJSON (PlainTextPassword' tag)
 
-deriving via (Schema (PlainTextPassword' tag)) instance ToSchema (PlainTextPassword' tag) => ToJSON (PlainTextPassword' tag)
+deriving via (Schema (PlainTextPassword' tag)) instance (ToSchema (PlainTextPassword' tag)) => ToJSON (PlainTextPassword' tag)
 
 deriving via (Schema (PlainTextPassword' tag)) instance (KnownNat tag, ToSchema (PlainTextPassword' tag)) => S.ToSchema (PlainTextPassword' tag)
 
@@ -368,12 +368,12 @@ newtype FutureWork label payload = FutureWork payload
 -------------------------------------------------------------------------------
 
 -- | Same as 'read' but works on 'Text'
-readT :: Read a => Text -> Maybe a
+readT :: (Read a) => Text -> Maybe a
 readT = readMaybe . Text.unpack
 {-# INLINE readT #-}
 
 -- | Same as 'show' but works on 'Text'
-showT :: Show a => a -> Text
+showT :: (Show a) => a -> Text
 showT = Text.pack . show
 {-# INLINE showT #-}
 

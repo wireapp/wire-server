@@ -30,7 +30,7 @@ import Test.Hspec.QuickCheck
 import Test.QuickCheck
 
 propsForInterpreter ::
-  PropConstraints r f =>
+  (PropConstraints r f) =>
   String ->
   (forall a. Sem r a -> IO (f a)) ->
   Spec
@@ -48,15 +48,15 @@ propsForInterpreter interpreter lower = do
 -- A regular type synonym doesn't work due to dreaded impredicative
 -- polymorphism.
 class
-  (Arbitrary IdPId, CoArbitrary IdPId, Functor f, Member E.DefaultSsoCode r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z)) =>
+  (Arbitrary IdPId, CoArbitrary IdPId, Functor f, Member E.DefaultSsoCode r, forall z. (Show z) => Show (f z), forall z. (Eq z) => Eq (f z)) =>
   PropConstraints r f
 
 instance
-  (Arbitrary IdPId, CoArbitrary IdPId, Functor f, Member E.DefaultSsoCode r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z)) =>
+  (Arbitrary IdPId, CoArbitrary IdPId, Functor f, Member E.DefaultSsoCode r, forall z. (Show z) => Show (f z), forall z. (Eq z) => Eq (f z)) =>
   PropConstraints r f
 
 prop_storeGet ::
-  PropConstraints r f =>
+  (PropConstraints r f) =>
   Maybe (f (Maybe IdPId) -> String) ->
   (forall a. Sem r a -> IO (f a)) ->
   Property
@@ -75,7 +75,7 @@ prop_storeGet =
         )
 
 prop_getStore ::
-  PropConstraints r f =>
+  (PropConstraints r f) =>
   Maybe (f () -> String) ->
   (forall a. Sem r a -> IO (f a)) ->
   Property
@@ -91,7 +91,7 @@ prop_getStore =
         )
 
 prop_storeDelete ::
-  PropConstraints r f =>
+  (PropConstraints r f) =>
   Maybe (f () -> String) ->
   (forall a. Sem r a -> IO (f a)) ->
   Property
@@ -109,7 +109,7 @@ prop_storeDelete =
         )
 
 prop_deleteStore ::
-  PropConstraints r f =>
+  (PropConstraints r f) =>
   Maybe (f () -> String) ->
   (forall a. Sem r a -> IO (f a)) ->
   Property
@@ -127,7 +127,7 @@ prop_deleteStore =
         )
 
 prop_storeStore ::
-  PropConstraints r f =>
+  (PropConstraints r f) =>
   Maybe (f () -> String) ->
   (forall a. Sem r a -> IO (f a)) ->
   Property
@@ -146,7 +146,7 @@ prop_storeStore =
         )
 
 prop_deleteDelete ::
-  PropConstraints r f =>
+  (PropConstraints r f) =>
   Maybe (f () -> String) ->
   (forall a. Sem r a -> IO (f a)) ->
   Property
@@ -163,7 +163,7 @@ prop_deleteDelete =
         )
 
 prop_deleteGet ::
-  PropConstraints r f =>
+  (PropConstraints r f) =>
   Maybe (f (Maybe IdPId) -> String) ->
   (forall a. Sem r a -> IO (f a)) ->
   Property

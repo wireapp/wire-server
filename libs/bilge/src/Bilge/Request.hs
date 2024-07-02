@@ -199,7 +199,7 @@ lbytes = body . RequestBodyLBS
 -- bytestring produced by JSON will get computed and stored as it is in memory
 -- in order to compute the @Content-Length@ header. For making a request with
 -- big JSON objects, please use @lbytesRefChunked@
-json :: ToJSON a => a -> Request -> Request
+json :: (ToJSON a) => a -> Request -> Request
 json a = contentJson . lbytes (encode a)
 
 -- | Like @lbytesChunkedIO@ but for sending a JSON body
@@ -227,7 +227,7 @@ jsonChunkedIO a = do
 -- This is because the closure for @lbytesPopper@ keeps the reference to @bs@
 -- alive. To avoid this, this function allocates an @IORef@ and passes that to
 -- @lbytesRefChunked@.
-lbytesChunkedIO :: MonadIO m => Lazy.ByteString -> m (Request -> Request)
+lbytesChunkedIO :: (MonadIO m) => Lazy.ByteString -> m (Request -> Request)
 lbytesChunkedIO bs = do
   chunksRef <- newIORef $ Lazy.toChunks bs
   pure $ lbytesRefChunked chunksRef

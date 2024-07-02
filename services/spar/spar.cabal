@@ -180,6 +180,7 @@ library
     , QuickCheck
     , raw-strings-qq
     , saml2-web-sso          >=0.20
+    , semigroupoids
     , servant-multipart
     , servant-server
     , text

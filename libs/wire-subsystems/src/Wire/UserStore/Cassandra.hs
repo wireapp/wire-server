@@ -13,7 +13,7 @@ import Wire.StoredUser
 import Wire.UserStore
 import Wire.UserStore.Unique
 
-interpretUserStoreCassandra :: Member (Embed IO) r => ClientState -> InterpreterFor UserStore r
+interpretUserStoreCassandra :: (Member (Embed IO) r) => ClientState -> InterpreterFor UserStore r
 interpretUserStoreCassandra casClient =
   interpret $
     runEmbedded (runClient casClient) . \case
@@ -23,8 +23,10 @@ interpretUserStoreCassandra casClient =
       DeleteUser user -> embed $ deleteUserImpl user
       LookupHandle hdl -> embed $ lookupHandleImpl LocalQuorum hdl
       GlimpseHandle hdl -> embed $ lookupHandleImpl One hdl
+      LookupStatus uid -> embed $ lookupStatusImpl uid
+      IsActivated uid -> embed $ isActivatedImpl uid
 
-getUserImpl :: Member (Embed Client) r => UserId -> Sem r (Maybe StoredUser)
+getUserImpl :: (Member (Embed Client) r) => UserId -> Sem r (Maybe StoredUser)
 getUserImpl uid = embed $ do
   mUserTuple <- retry x1 $ query1 selectUser (params LocalQuorum (Identity uid))
   pure $ asRecord <$> mUserTuple
@@ -105,6 +107,16 @@ deleteUserImpl user = do
           (Deleted, Name "default", defaultAccentId, noPict, [], userId user)
       )
 
+lookupStatusImpl :: UserId -> Client (Maybe AccountStatus)
+lookupStatusImpl u =
+  (runIdentity =<<)
+    <$> retry x1 (query1 statusSelect (params LocalQuorum (Identity u)))
+
+isActivatedImpl :: UserId -> Client Bool
+isActivatedImpl uid =
+  (== Just (Identity True))
+    <$> retry x1 (query1 activatedSelect (params LocalQuorum (Identity uid)))
+
 --------------------------------------------------------------------------------
 -- Queries
 
@@ -150,3 +162,9 @@ updateUserToTombstone =
   "UPDATE user SET status = ?, name = ?,\
   \ accent_id = ?, picture = ?, assets = ?, handle = null, country = null,\
   \ language = null, email = null, phone = null, sso_id = null WHERE id = ?"
+
+statusSelect :: PrepQuery R (Identity UserId) (Identity (Maybe AccountStatus))
+statusSelect = "SELECT status FROM user WHERE id = ?"
+
+activatedSelect :: PrepQuery R (Identity UserId) (Identity Bool)
+activatedSelect = "SELECT activated FROM user WHERE id = ?"

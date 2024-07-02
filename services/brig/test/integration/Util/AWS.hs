@@ -119,7 +119,7 @@ userDeleteMatcher uid ev =
 assertEventType :: String -> PU.UserEvent'EventType -> PU.UserEvent -> IO ()
 assertEventType l et ev = assertEqual (l <> "eventType") et (ev ^. PU.eventType)
 
-assertUserId :: HasCallStack => String -> UserId -> PU.UserEvent -> IO ()
+assertUserId :: (HasCallStack) => String -> UserId -> PU.UserEvent -> IO ()
 assertUserId l uid ev = assertEqual (l <> "userId") uid (decodeIdFromBS (ev ^. PU.userId))
 
 assertTeamId :: String -> Maybe TeamId -> PU.UserEvent -> IO ()

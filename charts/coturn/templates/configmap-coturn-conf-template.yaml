@@ -26,17 +26,22 @@ data:
     ## don't turn on coturn's cli.
     no-cli
 
+    pidfile="/var/tmp/turnserver.pid"
+
     ## turn, stun.
     listening-ip={{ default "__COTURN_EXT_IP__" .Values.coturnTurnListenIP }}
     listening-port={{ .Values.coturnTurnListenPort }}
-    relay-ip=__COTURN_EXT_IP__
+    relay-ip={{ default "__COTURN_EXT_IP__" .Values.coturnTurnRelayIP }}
+    {{- if .Values.coturnTurnExternalIP }}
+    external-ip={{ default "__COTURN_EXT_IP__" .Values.coturnTurnExternalIP }}
+    {{- end }}
     realm=dummy.io
     no-stun-backward-compatibility
     secure-stun
     no-rfc5780
 
     ## prometheus metrics
-    prometheus-ip=__COTURN_POD_IP__
+    prometheus-ip={{ default "__COTURN_POD_IP__" .Values.coturnPrometheusIP }}
     prometheus-port={{ .Values.coturnMetricsListenPort }}
 
     ## logs
@@ -87,7 +92,7 @@ data:
 
     {{- if .Values.federate.enabled }}
     ### federation setup
-    federation-listening-ip=__COTURN_EXT_IP__
+    federation-listening-ip={{ default "__COTURN_EXT_IP__" .Values.coturnFederationListeningIP }}
     federation-listening-port={{ .Values.federate.port }}
     federation-no-dtls={{ not .Values.federate.dtls.enabled }}
     {{- if .Values.federate.dtls.enabled }}

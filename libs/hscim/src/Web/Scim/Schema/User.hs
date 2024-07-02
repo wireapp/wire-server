@@ -71,6 +71,7 @@ module Web.Scim.Schema.User
   )
 where
 
+import Control.Monad
 import Control.Monad.Except
 import Data.Aeson
 import qualified Data.Aeson.Key as Key
@@ -139,9 +140,9 @@ data User tag = User
   }
   deriving (Generic)
 
-deriving instance Show (UserExtra tag) => Show (User tag)
+deriving instance (Show (UserExtra tag)) => Show (User tag)
 
-deriving instance Eq (UserExtra tag) => Eq (User tag)
+deriving instance (Eq (UserExtra tag)) => Eq (User tag)
 
 empty ::
   -- | Schemas
@@ -177,7 +178,7 @@ empty schemas userName extra =
       extra = extra
     }
 
-instance FromJSON (UserExtra tag) => FromJSON (User tag) where
+instance (FromJSON (UserExtra tag)) => FromJSON (User tag) where
   parseJSON = withObject "User" $ \obj -> do
     -- Lowercase all fields
     let o = KeyMap.fromList . map (over _1 lowerKey) . KeyMap.toList $ obj
@@ -208,7 +209,7 @@ instance FromJSON (UserExtra tag) => FromJSON (User tag) where
     extra <- parseJSON (Object obj)
     pure User {..}
 
-instance ToJSON (UserExtra tag) => ToJSON (User tag) where
+instance (ToJSON (UserExtra tag)) => ToJSON (User tag) where
   toJSON User {..} =
     let mainObject =
           KeyMap.fromList $

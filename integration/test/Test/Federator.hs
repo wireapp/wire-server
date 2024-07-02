@@ -18,8 +18,8 @@ runFederatorMetrics getService = do
   second <- bindResponse (getMetrics OwnDomain getService) handleRes
   assertBool "Two metric requests should never match" $ first.body /= second.body
   assertBool "Second metric response should never be 0 length (the first might be)" $ BS.length second.body /= 0
-  assertBool "The seconds metric response should have text indicating that it is returning metrics" $
-    BS.isInfixOf expectedString second.body
+  assertBool "The seconds metric response should have text indicating that it is returning metrics"
+    $ BS.isInfixOf expectedString second.body
   where
     expectedString = "# TYPE http_request_duration_seconds histogram"
 
@@ -31,7 +31,7 @@ testFederatorMetricsInternal = runFederatorMetrics federatorInternal
 testFederatorMetricsExternal :: App ()
 testFederatorMetricsExternal = runFederatorMetrics federatorExternal
 
-testFederatorNumRequestsMetrics :: HasCallStack => App ()
+testFederatorNumRequestsMetrics :: (HasCallStack) => App ()
 testFederatorNumRequestsMetrics = do
   u1 <- randomUser OwnDomain def
   u2 <- randomUser OtherDomain def

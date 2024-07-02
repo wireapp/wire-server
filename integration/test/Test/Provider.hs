@@ -10,7 +10,7 @@ import Data.String.Conversions (cs)
 import SetupHelpers
 import Testlib.Prelude
 
-testProviderUploadAsset :: HasCallStack => App ()
+testProviderUploadAsset :: (HasCallStack) => App ()
 testProviderUploadAsset = do
   email <- randomEmail
   alice <- randomUser OwnDomain def

@@ -180,7 +180,7 @@ listen b q callback =
 -------------------------------------------------------------------------------
 -- Utilities
 
-iconv :: FromJSON a => Text -> InBound a
+iconv :: (FromJSON a) => Text -> InBound a
 iconv queue _ _ _ bs =
   case Aeson.eitherDecode (BL.fromStrict bs) of
     Right x -> pure x
@@ -188,7 +188,7 @@ iconv queue _ _ _ bs =
       convertError $
         "Error when parsing message from STOMP queue " <> unpack queue <> ": " <> e
 
-oconv :: ToJSON a => OutBound a
+oconv :: (ToJSON a) => OutBound a
 oconv = pure . BL.toStrict . Aeson.encode
 
 jsonType :: MIME.Type

@@ -66,11 +66,11 @@ instance FromByteString ZAuthType where
       _ -> fail $ "Invalid ZAuth type: " ++ show t
 
 -- | A token type is present if the request was authenticated.
-zauthType :: HasHeaders r => Predicate r Error ZAuthType
+zauthType :: (HasHeaders r) => Predicate r Error ZAuthType
 zauthType = zheader "Z-Type"
 
 -- | Require a specific token type to be used.
-zauth :: HasHeaders r => ZAuthType -> Predicate r Error ()
+zauth :: (HasHeaders r) => ZAuthType -> Predicate r Error ()
 zauth t = do
   r <- zauthType
   pure $ case r of
@@ -79,24 +79,24 @@ zauth t = do
 
 -- | A zauth user ID is present if 'zauthType' is either 'ZAuthAccess'
 -- or 'ZAuthUser'.
-zauthUserId :: HasHeaders r => Predicate r Error UserId
+zauthUserId :: (HasHeaders r) => Predicate r Error UserId
 zauthUserId = zheader "Z-User"
 
 -- | A zauth connection ID is present if 'zauthType' is 'ZAuthAccess'.
-zauthConnId :: HasHeaders r => Predicate r Error ConnId
+zauthConnId :: (HasHeaders r) => Predicate r Error ConnId
 zauthConnId = zheader "Z-Connection"
 
 -- | A zauth bot ID is present if 'zauthType' is 'ZAuthBot'.
-zauthBotId :: HasHeaders r => Predicate r Error BotId
+zauthBotId :: (HasHeaders r) => Predicate r Error BotId
 zauthBotId = zheader "Z-Bot"
 
 -- | A zauth conversation ID is present if 'zauthType' is 'ZAuthBot'.
-zauthConvId :: HasHeaders r => Predicate r Error ConvId
+zauthConvId :: (HasHeaders r) => Predicate r Error ConvId
 zauthConvId = zheader "Z-Conversation"
 
 -- | A provider ID is present if 'zauthType' is either 'ZAuthBot'
 -- or 'ZAuthProvider'.
-zauthProviderId :: HasHeaders r => Predicate r Error ProviderId
+zauthProviderId :: (HasHeaders r) => Predicate r Error ProviderId
 zauthProviderId = zheader "Z-Provider"
 
 -- Extra Predicate Combinators ------------------------------------------------

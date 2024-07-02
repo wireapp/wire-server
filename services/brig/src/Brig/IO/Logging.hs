@@ -24,11 +24,16 @@ import System.Logger
 
 logConnection :: UserId -> Qualified UserId -> Msg -> Msg
 logConnection from (Qualified toUser toDomain) =
-  "connection.from" .= toByteString from
-    ~~ "connection.to" .= toByteString toUser
-    ~~ "connection.to_domain" .= toByteString toDomain
+  "connection.from"
+    .= toByteString from
+    ~~ "connection.to"
+    .= toByteString toUser
+    ~~ "connection.to_domain"
+    .= toByteString toDomain
 
 logLocalConnection :: UserId -> UserId -> Msg -> Msg
 logLocalConnection from to =
-  "connection.from" .= toByteString from
-    ~~ "connection.to" .= toByteString to
+  "connection.from"
+    .= toByteString from
+    ~~ "connection.to"
+    .= toByteString to

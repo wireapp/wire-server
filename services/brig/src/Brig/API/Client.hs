@@ -237,7 +237,7 @@ addClientWithReAuthPolicy policy u con new = do
         VerificationCodeNoPendingCode -> throwE ClientCodeAuthenticationFailed
         VerificationCodeNoEmail -> throwE ClientCodeAuthenticationFailed
 
-updateClient :: MonadClient m => UserId -> ClientId -> UpdateClient -> ExceptT ClientError m ()
+updateClient :: (MonadClient m) => UserId -> ClientId -> UpdateClient -> ExceptT ClientError m ()
 updateClient u c r = do
   client <- lift (Data.lookupClient u c) >>= maybe (throwE ClientNotFound) pure
   for_ (updateClientLabel r) $ lift . Data.updateClientLabel u c . Just
@@ -253,7 +253,7 @@ updateClient u c r = do
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
 rmClient ::
-  Member DeleteQueue r =>
+  (Member DeleteQueue r) =>
   UserId ->
   ConnId ->
   ClientId ->
@@ -273,7 +273,7 @@ rmClient u con clt pw =
       lift $ execDelete u (Just con) client
 
 claimPrekey ::
-  Member DeleteQueue r =>
+  (Member DeleteQueue r) =>
   LegalholdProtectee ->
   UserId ->
   Domain ->
@@ -286,7 +286,7 @@ claimPrekey protectee u d c = do
     else wrapClientE $ claimRemotePrekey (Qualified u d) c
 
 claimLocalPrekey ::
-  Member DeleteQueue r =>
+  (Member DeleteQueue r) =>
   LegalholdProtectee ->
   UserId ->
   ClientId ->
@@ -467,7 +467,7 @@ claimLocalMultiPrekeyBundles protectee userClients = do
 
 -- | Enqueue an orderly deletion of an existing client.
 execDelete ::
-  Member DeleteQueue r =>
+  (Member DeleteQueue r) =>
   UserId ->
   Maybe ConnId ->
   Client ->
@@ -483,7 +483,7 @@ execDelete u con c = do
 -- thus repairing any inconsistencies related to distributed
 -- (and possibly duplicated) client data.
 noPrekeys ::
-  Member DeleteQueue r =>
+  (Member DeleteQueue r) =>
   UserId ->
   ClientId ->
   (AppT r) ()

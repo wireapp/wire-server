@@ -47,7 +47,7 @@ import Polysemy (Member)
 import Servant hiding (Handler, Tagged)
 import Wire.API.Error
 import Wire.API.OAuth as OAuth
-import Wire.API.Password (Password, mkSafePassword)
+import Wire.API.Password (Password, mkSafePasswordScrypt)
 import Wire.API.Routes.Internal.Brig.OAuth qualified as I
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig.OAuth
@@ -89,13 +89,13 @@ registerOAuthClient (OAuthClientConfig name uri) = do
   lift $ wrapClient $ insertOAuthClient cid name uri safeSecret
   pure credentials
   where
-    createSecret :: MonadIO m => m OAuthClientPlainTextSecret
+    createSecret :: (MonadIO m) => m OAuthClientPlainTextSecret
     createSecret = OAuthClientPlainTextSecret <$> rand32Bytes
 
-    hashClientSecret :: MonadIO m => OAuthClientPlainTextSecret -> m Password
-    hashClientSecret = mkSafePassword . plainTextPassword8Unsafe . toText . unOAuthClientPlainTextSecret
+    hashClientSecret :: (MonadIO m) => OAuthClientPlainTextSecret -> m Password
+    hashClientSecret = mkSafePasswordScrypt . plainTextPassword8Unsafe . toText . unOAuthClientPlainTextSecret
 
-rand32Bytes :: MonadIO m => m AsciiBase16
+rand32Bytes :: (MonadIO m) => m AsciiBase16
 rand32Bytes = liftIO . fmap encodeBase16 $ randBytes 32
 
 getOAuthClientById :: OAuthClientId -> (Handler r) OAuthClient
@@ -205,7 +205,9 @@ createAccessTokenWithRefreshToken req = do
 lookupVerifyAndDeleteToken :: JWK -> OAuthRefreshToken -> (Handler r) OAuthRefreshTokenInfo
 lookupVerifyAndDeleteToken key =
   verifyRefreshToken key
-    >=> lift . wrapClient . lookupAndDeleteOAuthRefreshToken
+    >=> lift
+    . wrapClient
+    . lookupAndDeleteOAuthRefreshToken
     >=> maybe (throwStd $ errorToWai @'OAuthInvalidRefreshToken) pure
 
 verifyRefreshToken :: JWK -> OAuthRefreshToken -> (Handler r) OAuthRefreshTokenId
@@ -230,7 +232,7 @@ createAccessTokenWithAuthorizationCode req = do
   key <- signingKey
   createAccessToken key uid cid scope
 
-signingKey :: Member Jwk r => (Handler r) JWK
+signingKey :: (Member Jwk r) => (Handler r) JWK
 signingKey = do
   fp <- view settings >>= maybe (throwStd $ errorToWai @'OAuthJwtError) pure . Opt.setOAuthJwkKeyPair
   lift (liftSem $ Jwk.get fp) >>= maybe (throwStd $ errorToWai @'OAuthJwtError) pure
@@ -254,14 +256,14 @@ createAccessToken key uid cid scope = do
       let claims = emptyClaimsSet & claimSub ?~ sub
       (rid,) . OAuthToken <$> signRefreshToken claims
 
-    mkAccessToken :: Member Now r => (Handler r) OAuthAccessToken
+    mkAccessToken :: (Member Now r) => (Handler r) OAuthAccessToken
     mkAccessToken = do
       domain <- Opt.setFederationDomain <$> view settings
       exp <- fromIntegral . Opt.setOAuthAccessTokenExpirationTimeSecs <$> view settings
       claims <- mkAccessTokenClaims uid domain scope exp
       OAuthToken <$> signAccessToken claims
 
-    mkAccessTokenClaims :: Member Now r => UserId -> Domain -> OAuthScopes -> NominalDiffTime -> (Handler r) OAuthClaimsSet
+    mkAccessTokenClaims :: (Member Now r) => UserId -> Domain -> OAuthScopes -> NominalDiffTime -> (Handler r) OAuthClaimsSet
     mkAccessTokenClaims u domain scopes ttl = do
       iat <- lift (liftSem Now.get)
       uri <- maybe (throwStd $ errorToWai @'OAuthJwtError) pure $ domainText domain ^? stringOrUri
@@ -298,7 +300,7 @@ createAccessToken key uid cid scope = do
 
 --------------------------------------------------------------------------------
 
-revokeRefreshToken :: Member Jwk r => OAuthRevokeRefreshTokenRequest -> (Handler r) ()
+revokeRefreshToken :: (Member Jwk r) => OAuthRevokeRefreshTokenRequest -> (Handler r) ()
 revokeRefreshToken req = do
   key <- signingKey
   info <- lookupAndVerifyToken key req.refreshToken
@@ -308,7 +310,9 @@ revokeRefreshToken req = do
 lookupAndVerifyToken :: JWK -> OAuthRefreshToken -> (Handler r) OAuthRefreshTokenInfo
 lookupAndVerifyToken key =
   verifyRefreshToken key
-    >=> lift . wrapClient . lookupOAuthRefreshTokenInfo
+    >=> lift
+    . wrapClient
+    . lookupOAuthRefreshTokenInfo
     >=> maybe (throwStd $ errorToWai @'OAuthInvalidRefreshToken) pure
 
 --------------------------------------------------------------------------------

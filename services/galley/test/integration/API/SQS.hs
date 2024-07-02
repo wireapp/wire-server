@@ -42,13 +42,13 @@ import Test.Tasty.HUnit
 import TestSetup
 import Util.Test.SQS qualified as SQS
 
-withTeamEventWatcher :: HasCallStack => (SQS.SQSWatcher TeamEvent -> TestM ()) -> TestM ()
+withTeamEventWatcher :: (HasCallStack) => (SQS.SQSWatcher TeamEvent -> TestM ()) -> TestM ()
 withTeamEventWatcher action = do
   view tsTeamEventWatcher >>= \case
     Nothing -> pure ()
     Just w -> action w
 
-assertIfWatcher :: HasCallStack => String -> (TeamEvent -> Bool) -> (String -> Maybe TeamEvent -> TestM ()) -> TestM ()
+assertIfWatcher :: (HasCallStack) => String -> (TeamEvent -> Bool) -> (String -> Maybe TeamEvent -> TestM ()) -> TestM ()
 assertIfWatcher l matcher assertion =
   view tsTeamEventWatcher >>= \case
     Nothing -> pure ()
@@ -63,7 +63,7 @@ tActivateWithCurrency c l (Just e) = liftIO $ do
   assertEqual "currency" cur (e ^. eventData . maybe'currency)
 tActivateWithCurrency _ l Nothing = liftIO $ assertFailure $ l <> ": Expected 1 TeamActivate, got nothing"
 
-assertTeamActivateWithCurrency :: HasCallStack => String -> TeamId -> Maybe Currency.Alpha -> TestM ()
+assertTeamActivateWithCurrency :: (HasCallStack) => String -> TeamId -> Maybe Currency.Alpha -> TestM ()
 assertTeamActivateWithCurrency l tid c =
   assertIfWatcher l (teamActivateMatcher tid) (tActivateWithCurrency c)
 
@@ -73,7 +73,7 @@ tActivate l (Just e) = liftIO $ do
   assertEqual "count" 1 (e ^. eventData . memberCount)
 tActivate l Nothing = liftIO $ assertFailure $ l <> ": Expected 1 TeamActivate, got nothing"
 
-assertTeamActivate :: HasCallStack => String -> TeamId -> TestM ()
+assertTeamActivate :: (HasCallStack) => String -> TeamId -> TestM ()
 assertTeamActivate l tid =
   assertIfWatcher l (teamActivateMatcher tid) tActivate
 
@@ -84,7 +84,7 @@ tDelete :: (HasCallStack, MonadIO m) => String -> Maybe E.TeamEvent -> m ()
 tDelete l (Just e) = liftIO $ assertEqual (l <> ": eventType") E.TeamEvent'TEAM_DELETE (e ^. eventType)
 tDelete l Nothing = liftIO $ assertFailure $ l <> ": Expected 1 TeamDelete, got nothing"
 
-assertTeamDelete :: HasCallStack => Int -> String -> TeamId -> TestM ()
+assertTeamDelete :: (HasCallStack) => Int -> String -> TeamId -> TestM ()
 assertTeamDelete maxWaitSeconds l tid =
   withTeamEventWatcher $ \w -> do
     mEvent <- SQS.waitForMessage w maxWaitSeconds (\e -> e ^. eventType == E.TeamEvent'TEAM_DELETE && decodeIdFromBS (e ^. teamId) == tid)
@@ -94,7 +94,7 @@ tSuspend :: (HasCallStack, MonadIO m) => String -> Maybe E.TeamEvent -> m ()
 tSuspend l (Just e) = liftIO $ assertEqual (l <> "eventType") E.TeamEvent'TEAM_SUSPEND (e ^. eventType)
 tSuspend l Nothing = liftIO $ assertFailure $ l <> ": Expected 1 TeamSuspend, got nothing"
 
-assertTeamSuspend :: HasCallStack => String -> TeamId -> TestM ()
+assertTeamSuspend :: (HasCallStack) => String -> TeamId -> TestM ()
 assertTeamSuspend l tid =
   assertIfWatcher l (\e -> e ^. eventType == E.TeamEvent'TEAM_SUSPEND && decodeIdFromBS (e ^. teamId) == tid) tSuspend
 
@@ -114,7 +114,7 @@ tUpdate _ _ l Nothing = liftIO $ assertFailure $ l <> ": Expected 1 TeamUpdate, 
 updateMatcher :: TeamId -> TeamEvent -> Bool
 updateMatcher tid e = e ^. eventType == E.TeamEvent'TEAM_UPDATE && decodeIdFromBS (e ^. teamId) == tid
 
-assertTeamUpdate :: HasCallStack => String -> TeamId -> Int32 -> [UserId] -> TestM ()
+assertTeamUpdate :: (HasCallStack) => String -> TeamId -> Int32 -> [UserId] -> TestM ()
 assertTeamUpdate l tid c uids =
   assertIfWatcher l (\e -> e ^. eventType == E.TeamEvent'TEAM_UPDATE && decodeIdFromBS (e ^. teamId) == tid) $ tUpdate c uids
 

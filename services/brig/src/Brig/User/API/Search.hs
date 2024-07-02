@@ -175,7 +175,7 @@ searchLocally searcherId searchTerm maybeMaxResults = do
             <$$> HandleAPI.getLocalHandleInfo lsearcherId handle
 
 teamUserSearch ::
-  Member GalleyAPIAccess r =>
+  (Member GalleyAPIAccess r) =>
   UserId ->
   TeamId ->
   Maybe Text ->

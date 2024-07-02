@@ -52,7 +52,6 @@ module Brig.App
     zauthEnv,
     digestSHA256,
     digestMD5,
-    metrics,
     applog,
     turnEnv,
     sftEnv,
@@ -86,6 +85,8 @@ module Brig.App
     lowerAppT,
     temporaryGetEnv,
     initHttpManagerWithTLSConfig,
+    adhocUserKeyStoreInterpreter,
+    adhocSessionStoreInterpreter,
   )
 where
 
@@ -109,7 +110,7 @@ import Brig.User.Search.Index (IndexEnv (..), MonadIndexIO (..), runIndexIO)
 import Brig.User.Template
 import Brig.ZAuth (MonadZAuth (..), runZAuth)
 import Brig.ZAuth qualified as ZAuth
-import Cassandra (runClient)
+import Cassandra (MonadClient, runClient)
 import Cassandra qualified as Cas
 import Cassandra.Util (initCassandraForService)
 import Control.AutoUpdate
@@ -120,8 +121,6 @@ import Control.Monad.Trans.Resource
 import Data.ByteString.Conversion
 import Data.Credentials (Credentials (..))
 import Data.Domain
-import Data.Metrics (Metrics)
-import Data.Metrics.Middleware qualified as Metrics
 import Data.Misc
 import Data.Qualified
 import Data.Text qualified as Text
@@ -142,6 +141,7 @@ import OpenSSL.Session qualified as SSL
 import Polysemy
 import Polysemy.Final
 import Polysemy.Input (Input, input)
+import Prometheus
 import Ssl.Util
 import System.FSNotify qualified as FS
 import System.Logger.Class hiding (Settings, settings)
@@ -152,6 +152,12 @@ import Wire.API.Federation.Error (federationNotImplemented)
 import Wire.API.Routes.Version
 import Wire.API.User.Identity (Email)
 import Wire.API.User.Profile (Locale)
+import Wire.SessionStore
+import Wire.SessionStore.Cassandra
+import Wire.UserKeyStore
+import Wire.UserKeyStore.Cassandra
+import Wire.UserStore
+import Wire.UserStore.Cassandra
 
 schemaVersion :: Int32
 schemaVersion = Migrations.lastSchemaVersion
@@ -170,7 +176,6 @@ data Env = Env
     _smtpEnv :: Maybe SMTP.SMTP,
     _emailSender :: Email,
     _awsEnv :: AWS.Env,
-    _metrics :: Metrics,
     _applog :: Logger,
     _internalEvents :: QueueEnv,
     _requestId :: RequestId,
@@ -212,7 +217,6 @@ newEnv o = do
   Just md5 <- getDigestByName "MD5"
   Just sha256 <- getDigestByName "SHA256"
   Just sha512 <- getDigestByName "SHA512"
-  mtr <- Metrics.metrics
   lgr <- Log.mkLogger (Opt.logLevel o) (Opt.logNetStrings o) (Opt.logFormat o)
   cas <- initCassandra o lgr
   mgr <- initHttpManager
@@ -255,7 +259,7 @@ newEnv o = do
   kpLock <- newMVar ()
   rabbitChan <- traverse (Q.mkRabbitMqChannelMVar lgr) o.rabbitmq
   let allDisabledVersions = foldMap expandVersionExp (Opt.setDisabledAPIVersions sett)
-  idxEnv <- mkIndexEnv o.elasticsearch lgr mtr (Opt.galley o) mgr
+  idxEnv <- mkIndexEnv o.elasticsearch lgr (Opt.galley o) mgr
   pure $!
     Env
       { _cargohold = mkEndpoint $ Opt.cargohold o,
@@ -268,7 +272,6 @@ newEnv o = do
         _smtpEnv = emailSMTP,
         _emailSender = Opt.emailSender . Opt.general . Opt.emailSMS $ o,
         _awsEnv = aws, -- used by `journalEvent` directly
-        _metrics = mtr,
         _applog = lgr,
         _internalEvents = (eventsQueue :: QueueEnv),
         _requestId = RequestId "N/A",
@@ -307,8 +310,8 @@ newEnv o = do
       pure (Nothing, Just smtp)
     mkEndpoint service = RPC.host (encodeUtf8 (service ^. host)) . RPC.port (service ^. port) $ RPC.empty
 
-mkIndexEnv :: ElasticSearchOpts -> Logger -> Metrics -> Endpoint -> Manager -> IO IndexEnv
-mkIndexEnv esOpts logger metricsStorage galleyEp rpcHttpManager = do
+mkIndexEnv :: ElasticSearchOpts -> Logger -> Endpoint -> Manager -> IO IndexEnv
+mkIndexEnv esOpts logger galleyEp rpcHttpManager = do
   mEsCreds :: Maybe Credentials <- for esOpts.credentials initCredentials
   mEsAddCreds :: Maybe Credentials <- for esOpts.additionalCredentials initCredentials
 
@@ -323,8 +326,7 @@ mkIndexEnv esOpts logger metricsStorage galleyEp rpcHttpManager = do
       mkBhEnv esOpts.additionalInsecureSkipVerifyTls esOpts.additionalCaCert mEsAddCreds
   pure $
     IndexEnv
-      { idxMetrics = metricsStorage,
-        idxLogger = esLogger,
+      { idxLogger = esLogger,
         idxElastic = bhEnv,
         idxRequest = Nothing,
         idxName = esOpts.index,
@@ -480,6 +482,9 @@ instance Monad (AppT r) where
 instance MonadIO (AppT r) where
   liftIO io = AppT $ lift $ embedFinal io
 
+instance MonadMonitor (AppT r) where
+  doIO = liftIO
+
 instance MonadThrow (AppT r) where
   throwM = liftIO . throwM
 
@@ -575,7 +580,7 @@ newtype HttpClientIO a = HttpClientIO
       MonadIndexIO
     )
 
-runHttpClientIO :: MonadIO m => Env -> HttpClientIO a -> m a
+runHttpClientIO :: (MonadIO m) => Env -> HttpClientIO a -> m a
 runHttpClientIO env =
   runClient (env ^. casClient)
     . runHttpT (env ^. httpManager)
@@ -593,6 +598,9 @@ instance Cas.MonadClient HttpClientIO where
     env <- ask
     liftIO $ runClient (view casClient env) cl
   localState f = local (casClient %~ f)
+
+instance MonadMonitor HttpClientIO where
+  doIO = liftIO
 
 wrapHttpClient ::
   HttpClientIO a ->
@@ -615,6 +623,21 @@ instance (MonadIndexIO (AppT r)) => MonadIndexIO (ExceptT err (AppT r)) where
 instance HasRequestId (AppT r) where
   getRequestId = view requestId
 
+-------------------------------------------------------------------------------
+-- Ad hoc interpreters
+
+-- | similarly to `wrapClient`, this function serves as a crutch while Brig is being polysemised.
+adhocUserKeyStoreInterpreter :: (MonadClient m, MonadReader Env m) => Sem '[UserKeyStore, UserStore, Embed IO] a -> m a
+adhocUserKeyStoreInterpreter action = do
+  clientState <- asks (view casClient)
+  liftIO $ runM . interpretUserStoreCassandra clientState . interpretUserKeyStoreCassandra clientState $ action
+
+-- | similarly to `wrapClient`, this function serves as a crutch while Brig is being polysemised.
+adhocSessionStoreInterpreter :: (MonadClient m, MonadReader Env m) => Sem '[SessionStore, Embed IO] a -> m a
+adhocSessionStoreInterpreter action = do
+  clientState <- asks (view casClient)
+  liftIO $ runM . interpretSessionStoreCassandra clientState $ action
+
 --------------------------------------------------------------------------------
 -- Federation
 
@@ -626,7 +649,7 @@ qualifyLocal :: (MonadReader Env m) => a -> m (Local a)
 qualifyLocal a = toLocalUnsafe <$> viewFederationDomain <*> pure a
 
 -- FUTUREWORK: rename to 'qualifyLocalPoly'
-qualifyLocal' :: (Member (Input (Local ()))) r => a -> Sem r (Local a)
+qualifyLocal' :: ((Member (Input (Local ()))) r) => a -> Sem r (Local a)
 qualifyLocal' a = flip toLocalUnsafe a . tDomain <$> input
 
 -- | Convert a qualified value into a local one. Throw if the value is not actually local.

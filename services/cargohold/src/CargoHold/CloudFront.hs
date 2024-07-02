@@ -56,7 +56,7 @@ data CloudFront = CloudFront
     _func :: ByteString -> IO ByteString
   }
 
-initCloudFront :: MonadIO m => FilePath -> KeyPairId -> Word -> Domain -> m CloudFront
+initCloudFront :: (MonadIO m) => FilePath -> KeyPairId -> Word -> Domain -> m CloudFront
 initCloudFront kfp kid ttl (Domain dom) =
   liftIO $
     CloudFront baseUrl kid ttl <$> mkPOSIXClock <*> sha1Rsa kfp

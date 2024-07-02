@@ -166,6 +166,6 @@ pushToPostgresql opts (reports, failedRuns, successfulRuns) = do
               map (testCaseRunId,) report.failureDesc
     void $ MonoidalMap.traverseWithKey saveTestCaseRun reports
 
-extractId :: HasCallStack => [Only Int] -> IO Int
+extractId :: (HasCallStack) => [Only Int] -> IO Int
 extractId [] = error $ "No ID returned by query"
 extractId (Only x : _) = pure x

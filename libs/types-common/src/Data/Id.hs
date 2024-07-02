@@ -235,7 +235,7 @@ instance A.ToJSONKey (Id a) where
 instance A.FromJSONKey (Id a) where
   fromJSONKey = A.FromJSONKeyTextParser idFromText
 
-randomId :: MonadIO m => m (Id a)
+randomId :: (MonadIO m) => m (Id a)
 randomId = Id <$> liftIO nextRandom
 
 idFromText :: Text -> A.Parser (Id a)
@@ -444,7 +444,7 @@ newtype IdObject a = IdObject {fromIdObject :: a}
   deriving (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema (IdObject a)
 
-instance ToSchema a => ToSchema (IdObject a) where
+instance (ToSchema a) => ToSchema (IdObject a) where
   schema = idObjectSchema (IdObject <$> fromIdObject .= schema)
 
 idObjectSchema :: ValueSchemaP NamedSwaggerDoc a b -> ValueSchemaP NamedSwaggerDoc a b

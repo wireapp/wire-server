@@ -40,10 +40,10 @@ import Wire.API.User
 -- does not print anything.
 newtype ApAll f = ApAll {unApAll :: f Bool}
 
-instance Monad f => Semigroup (ApAll f) where
+instance (Monad f) => Semigroup (ApAll f) where
   ApAll a <> ApAll b = ApAll $ a >>= \x -> if x then b else pure False
 
-instance Monad f => Monoid (ApAll f) where
+instance (Monad f) => Monoid (ApAll f) where
   mempty = ApAll (pure True)
 
 checkMigrationCriteria ::

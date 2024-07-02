@@ -93,7 +93,7 @@ deleteClaim u v t = do
     cql = "UPDATE unique_claims USING TTL ? SET claims = claims - ? WHERE value = ?"
 
 -- | Lookup the current claims on a value.
-lookupClaims :: MonadClient m => Text -> m [Id a]
+lookupClaims :: (MonadClient m) => Text -> m [Id a]
 lookupClaims v =
   fmap (maybe [] (fromSet . runIdentity)) $
     retry x1 $

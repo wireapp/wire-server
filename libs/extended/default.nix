@@ -9,6 +9,9 @@
 , bytestring
 , cassandra-util
 , containers
+, crypton-connection
+, crypton-x509-store
+, data-default
 , errors
 , exceptions
 , extra
@@ -16,6 +19,7 @@
 , hspec
 , hspec-discover
 , http-client
+, http-client-tls
 , http-types
 , imports
 , lib
@@ -34,6 +38,8 @@
 , text
 , time
 , tinylog
+, tls
+, transformers
 , unliftio
 , wai
 }:
@@ -48,10 +54,14 @@ mkDerivation {
     bytestring
     cassandra-util
     containers
+    crypton-connection
+    crypton-x509-store
+    data-default
     errors
     exceptions
     extra
     http-client
+    http-client-tls
     http-types
     imports
     metrics-wai
@@ -67,6 +77,8 @@ mkDerivation {
     text
     time
     tinylog
+    tls
+    transformers
     unliftio
     wai
   ];

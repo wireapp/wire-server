@@ -56,6 +56,7 @@ import Network.AMQP.Extended
 import Network.DNS qualified as DNS
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
+import Wire.API.Allowlists (AllowlistEmailDomains (..), AllowlistPhonePrefixes (..))
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Version
 import Wire.API.Team.Feature qualified as Public
@@ -926,7 +927,9 @@ Lens.makeLensesFor
     ("setOAuthAccessTokenExpirationTimeSecsInternal", "oauthAccessTokenExpirationTimeSecsInternal"),
     ("setDisabledAPIVersions", "disabledAPIVersions"),
     ("setOAuthRefreshTokenExpirationTimeSecsInternal", "oauthRefreshTokenExpirationTimeSecsInternal"),
-    ("setOAuthMaxActiveRefreshTokensInternal", "oauthMaxActiveRefreshTokensInternal")
+    ("setOAuthMaxActiveRefreshTokensInternal", "oauthMaxActiveRefreshTokensInternal"),
+    ("setAllowlistEmailDomains", "allowlistEmailDomains"),
+    ("setAllowlistPhonePrefixes", "allowlistPhonePrefixes")
   ]
   ''Settings
 

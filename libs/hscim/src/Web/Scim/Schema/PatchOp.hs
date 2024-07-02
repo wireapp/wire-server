@@ -18,6 +18,7 @@
 module Web.Scim.Schema.PatchOp where
 
 import Control.Applicative
+import Control.Monad (guard)
 import Control.Monad.Except
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KeyMap
@@ -85,7 +86,7 @@ rPath (IntoValuePath valuePath subAttr) = rValuePath valuePath <> maybe "" rSubA
 -- TODO(arianvp): According to the SCIM spec we should throw an InvalidPath
 -- error when the path is invalid syntax. this is a bit hard to do though as we
 -- can't control what errors FromJSON throws :/
-instance UserTypes tag => FromJSON (PatchOp tag) where
+instance (UserTypes tag) => FromJSON (PatchOp tag) where
   parseJSON = withObject "PatchOp" $ \v -> do
     let o = KeyMap.fromList . map (first lowerKey) . KeyMap.toList $ v
     schemas' :: [Schema] <- o .: "schemas"

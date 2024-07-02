@@ -31,7 +31,7 @@ import Test.Hspec.QuickCheck
 import Test.QuickCheck
 
 propsForInterpreter ::
-  PropConstraints r f =>
+  (PropConstraints r f) =>
   String ->
   (forall a. f a -> a) ->
   (forall a. Sem r a -> IO (f a)) ->
@@ -52,15 +52,15 @@ propsForInterpreter interpreter extract lower = do
 -- A regular type synonym doesn't work due to dreaded impredicative
 -- polymorphism.
 class
-  (Arbitrary UserId, CoArbitrary UserId, Arbitrary ScimUserCreationStatus, CoArbitrary ScimUserCreationStatus, Functor f, Member E.ScimExternalIdStore r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z)) =>
+  (Arbitrary UserId, CoArbitrary UserId, Arbitrary ScimUserCreationStatus, CoArbitrary ScimUserCreationStatus, Functor f, Member E.ScimExternalIdStore r, forall z. (Show z) => Show (f z), forall z. (Eq z) => Eq (f z)) =>
   PropConstraints r f
 
 instance
-  (CoArbitrary UserId, CoArbitrary ScimUserCreationStatus, Functor f, Member E.ScimExternalIdStore r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z)) =>
+  (CoArbitrary UserId, CoArbitrary ScimUserCreationStatus, Functor f, Member E.ScimExternalIdStore r, forall z. (Show z) => Show (f z), forall z. (Eq z) => Eq (f z)) =>
   PropConstraints r f
 
 prop_insertLookup ::
-  PropConstraints r f =>
+  (PropConstraints r f) =>
   Maybe (f (Maybe UserId) -> String) ->
   (forall a. Sem r a -> IO (f a)) ->
   Property
@@ -81,7 +81,7 @@ prop_insertLookup =
         )
 
 prop_lookupInsert ::
-  PropConstraints r f =>
+  (PropConstraints r f) =>
   Maybe (f () -> String) ->
   (forall a. Sem r a -> IO (f a)) ->
   Property
@@ -99,7 +99,7 @@ prop_lookupInsert =
         )
 
 prop_insertDelete ::
-  PropConstraints r f =>
+  (PropConstraints r f) =>
   Maybe (f () -> String) ->
   (forall a. Sem r a -> IO (f a)) ->
   Property
@@ -119,7 +119,7 @@ prop_insertDelete =
         )
 
 prop_deleteInsert ::
-  PropConstraints r f =>
+  (PropConstraints r f) =>
   Maybe (f () -> String) ->
   (forall a. Sem r a -> IO (f a)) ->
   Property
@@ -139,7 +139,7 @@ prop_deleteInsert =
         )
 
 prop_insertInsert ::
-  PropConstraints r f =>
+  (PropConstraints r f) =>
   Maybe (f (Maybe UserId) -> String) ->
   (forall a. Sem r a -> IO (f a)) ->
   Property
@@ -162,7 +162,7 @@ prop_insertInsert =
         )
 
 prop_deleteDelete ::
-  PropConstraints r f =>
+  (PropConstraints r f) =>
   Maybe (f () -> String) ->
   (forall a. Sem r a -> IO (f a)) ->
   Property
@@ -181,7 +181,7 @@ prop_deleteDelete =
         )
 
 prop_deleteLookup ::
-  PropConstraints r f =>
+  (PropConstraints r f) =>
   Maybe (f (Maybe UserId) -> String) ->
   (forall a. Sem r a -> IO (f a)) ->
   Property

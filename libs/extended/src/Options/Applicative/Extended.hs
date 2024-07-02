@@ -32,7 +32,7 @@ import Options.Applicative
 
 -- | A reader that accepts either @N@ or @N..M@ (not necessarily just
 -- numbers).
-autoRange :: Read a => ReadM (a, a)
+autoRange :: (Read a) => ReadM (a, a)
 autoRange = eitherReader $ \arg -> case stripInfix ".." arg of
   Nothing -> (\a -> (a, a)) <$> readEither arg
   Just (l, r) -> case (readEither l, readEither r) of

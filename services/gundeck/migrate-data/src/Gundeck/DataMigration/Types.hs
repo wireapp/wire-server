@@ -53,7 +53,7 @@ instance (MonadIO m, MonadThrow m) => C.MonadClient (MigrationActionT m) where
   liftClient = liftCassandra
   localState f = local (\env -> env {cassandraClientState = f $ cassandraClientState env})
 
-instance MonadIO m => MonadLogger (MigrationActionT m) where
+instance (MonadIO m) => MonadLogger (MigrationActionT m) where
   log level f = do
     env <- ask
     Logger.log (logger env) level f
@@ -67,7 +67,7 @@ runMigrationAction :: Env -> MigrationActionT m a -> m a
 runMigrationAction env action =
   runReaderT (unMigrationAction action) env
 
-liftCassandra :: MonadIO m => C.Client a -> MigrationActionT m a
+liftCassandra :: (MonadIO m) => C.Client a -> MigrationActionT m a
 liftCassandra m = do
   env <- ask
   lift $ C.runClient (cassandraClientState env) m

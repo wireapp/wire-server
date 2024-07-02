@@ -25,7 +25,6 @@ import Cassandra qualified as C
 import Control.Monad.Catch (MonadThrow)
 import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.=))
 import Data.Credentials (Credentials)
-import Data.Metrics (Metrics)
 import Database.Bloodhound qualified as ES
 import Imports
 import Network.HTTP.Client (Manager)
@@ -63,25 +62,24 @@ instance (MonadIO m, MonadThrow m) => C.MonadClient (MigrationActionT m) where
   liftClient = liftCassandra
   localState f = local (\env -> env {cassandraClientState = f $ cassandraClientState env})
 
-instance MonadIO m => MonadLogger (MigrationActionT m) where
+instance (MonadIO m) => MonadLogger (MigrationActionT m) where
   log level f = do
     env <- ask
     Logger.log (logger env) level f
 
-instance MonadIO m => Search.MonadIndexIO (MigrationActionT m) where
+instance (MonadIO m) => Search.MonadIndexIO (MigrationActionT m) where
   liftIndexIO m = do
     Env {..} <- ask
-    let indexEnv = Search.IndexEnv metrics logger bhEnv Nothing searchIndex Nothing Nothing galleyEndpoint httpManager searchIndexCredentials
+    let indexEnv = Search.IndexEnv logger bhEnv Nothing searchIndex Nothing Nothing galleyEndpoint httpManager searchIndexCredentials
     Search.runIndexIO indexEnv m
 
-instance MonadIO m => ES.MonadBH (MigrationActionT m) where
+instance (MonadIO m) => ES.MonadBH (MigrationActionT m) where
   getBHEnv = bhEnv <$> ask
 
 data Env = Env
   { bhEnv :: ES.BHEnv,
     cassandraClientState :: C.ClientState,
     logger :: Logger.Logger,
-    metrics :: Metrics,
     searchIndex :: ES.IndexName,
     searchIndexCredentials :: Maybe Credentials,
     httpManager :: Manager,
@@ -92,11 +90,11 @@ runMigrationAction :: Env -> MigrationActionT m a -> m a
 runMigrationAction env action =
   runReaderT (unMigrationAction action) env
 
-liftCassandra :: MonadIO m => C.Client a -> MigrationActionT m a
+liftCassandra :: (MonadIO m) => C.Client a -> MigrationActionT m a
 liftCassandra m = do
   env <- ask
   lift $ C.runClient (cassandraClientState env) m
 
-cleanup :: MonadIO m => Env -> m ()
+cleanup :: (MonadIO m) => Env -> m ()
 cleanup env = do
   C.shutdown (cassandraClientState env)

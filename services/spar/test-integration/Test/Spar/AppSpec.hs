@@ -141,7 +141,7 @@ mkAuthnReqMobile idpid = do
 -- fresh, iff the verdict is "granted" the user will be created during the call to
 -- 'Spar.verdictHandler'.
 requestAccessVerdict ::
-  HasCallStack =>
+  (HasCallStack) =>
   IdP ->
   -- | is the verdict granted?
   Bool ->

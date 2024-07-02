@@ -8,6 +8,7 @@ import Brig.Email
 import Cassandra
 import Imports
 import Polysemy
+import Wire.UserKeyStore
 
 interpretBlacklistStoreToCassandra ::
   forall m r a.
@@ -24,15 +25,15 @@ interpretBlacklistStoreToCassandra =
 --------------------------------------------------------------------------------
 -- UserKey blacklisting
 
-insert :: MonadClient m => EmailKey -> m ()
+insert :: (MonadClient m) => EmailKey -> m ()
 insert uk = retry x5 $ write keyInsert (params LocalQuorum (Identity $ emailKeyUniq uk))
 
-exists :: MonadClient m => EmailKey -> m Bool
+exists :: (MonadClient m) => EmailKey -> m Bool
 exists uk =
   (pure . isJust) . fmap runIdentity
     =<< retry x1 (query1 keySelect (params LocalQuorum (Identity $ emailKeyUniq uk)))
 
-delete :: MonadClient m => EmailKey -> m ()
+delete :: (MonadClient m) => EmailKey -> m ()
 delete uk = retry x5 $ write keyDelete (params LocalQuorum (Identity $ emailKeyUniq uk))
 
 keyInsert :: PrepQuery W (Identity Text) ()

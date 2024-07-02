@@ -44,7 +44,7 @@ mockDiscoveryTrivial = Polysemy.interpret $ \case
   DiscoverFederator dom -> pure . Right $ SrvTarget (Text.encodeUtf8 (domainText dom)) 443
   DiscoverAllFederators dom -> pure . Right $ SrvTarget (Text.encodeUtf8 (domainText dom)) 443 :| []
 
-mockDiscoveryMapping :: HasCallStack => Domain -> NonEmpty ByteString -> Sem (DiscoverFederator ': r) x -> Sem r x
+mockDiscoveryMapping :: (HasCallStack) => Domain -> NonEmpty ByteString -> Sem (DiscoverFederator ': r) x -> Sem r x
 mockDiscoveryMapping origin targets = Polysemy.interpret $ \case
   DiscoverFederator _ -> error "Not mocked"
   DiscoverAllFederators dom ->
@@ -53,7 +53,7 @@ mockDiscoveryMapping origin targets = Polysemy.interpret $ \case
         then Right $ fmap (`SrvTarget` 443) targets
         else Left $ DiscoveryFailureSrvNotAvailable "invalid origin domain"
 
-mockDiscoveryFailure :: HasCallStack => Sem (DiscoverFederator ': r) x -> Sem r x
+mockDiscoveryFailure :: (HasCallStack) => Sem (DiscoverFederator ': r) x -> Sem r x
 mockDiscoveryFailure = Polysemy.interpret $ \case
   DiscoverFederator _ -> error "Not mocked"
   DiscoverAllFederators _ -> pure . Left $ DiscoveryFailureDNSError "mock DNS error"

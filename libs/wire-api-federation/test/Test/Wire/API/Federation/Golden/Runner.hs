@@ -79,7 +79,7 @@ testFromJSONFailure path = do
     Right x -> assertFailure $ show (typeRep @a) <> ": FromJSON of " <> path <> ": expected failure, got " <> show x
     Left _ -> pure ()
 
-assertRight :: Show a => Either a b -> IO b
+assertRight :: (Show a) => Either a b -> IO b
 assertRight =
   \case
     Left a -> assertFailure $ "Expected Right, got Left: " <> show a

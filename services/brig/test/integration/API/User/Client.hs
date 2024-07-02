@@ -1165,7 +1165,7 @@ testUpdateClient opts brig = do
     const (Just "label") === (clientLabel <=< responseJsonMaybe)
 
   -- update supported client capabilities work
-  let checkUpdate :: HasCallStack => Maybe [ClientCapability] -> Bool -> [ClientCapability] -> Http ()
+  let checkUpdate :: (HasCallStack) => Maybe [ClientCapability] -> Bool -> [ClientCapability] -> Http ()
       checkUpdate capsIn respStatusOk capsOut = do
         let update'' = defUpdateClient {updateClientCapabilities = Set.fromList <$> capsIn}
         put
@@ -1193,13 +1193,13 @@ testUpdateClient opts brig = do
 
   -- update supported client capabilities don't break prekeys or label
   do
-    let checkClientLabel :: HasCallStack => Http ()
+    let checkClientLabel :: (HasCallStack) => Http ()
         checkClientLabel = do
           getClient brig uid (clientId c) !!! do
             const 200 === statusCode
             const (Just label) === (clientLabel <=< responseJsonMaybe)
 
-        flushClientPrekey :: HasCallStack => Http (Maybe ClientPrekey)
+        flushClientPrekey :: (HasCallStack) => Http (Maybe ClientPrekey)
         flushClientPrekey = do
           responseJsonMaybe
             <$> ( get
@@ -1208,7 +1208,7 @@ testUpdateClient opts brig = do
                       === statusCode
                 )
 
-        checkClientPrekeys :: HasCallStack => Prekey -> Http ()
+        checkClientPrekeys :: (HasCallStack) => Prekey -> Http ()
         checkClientPrekeys expectedPrekey = do
           flushClientPrekey >>= \case
             Nothing -> error "unexpected."
@@ -1285,7 +1285,7 @@ testMissingClient brig = do
 -- brig) have registered it.  Add second temporary client, check
 -- again.  (NB: temp clients replace each other, there can always be
 -- at most one per account.)
-testAddMultipleTemporary :: HasCallStack => Brig -> Galley -> Cannon -> Http ()
+testAddMultipleTemporary :: (HasCallStack) => Brig -> Galley -> Cannon -> Http ()
 testAddMultipleTemporary brig galley cannon = do
   uid <- userId <$> randomUser brig
   let clt1 =

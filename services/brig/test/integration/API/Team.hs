@@ -152,7 +152,7 @@ testTeamSize brig req = do
   SearchUtil.refreshIndex brig
   assertSize tid owner expectedSize
   where
-    assertSize :: HasCallStack => TeamId -> UserId -> Natural -> Http ()
+    assertSize :: (HasCallStack) => TeamId -> UserId -> Natural -> Http ()
     assertSize tid uid expectedSize =
       void $
         get (req tid uid) <!! do
@@ -394,7 +394,7 @@ registerInvite brig tid inv invemail = do
   pure invitee
 
 -- | Admins can invite external partners, but not owners.
-testInvitationRoles :: HasCallStack => Brig -> Galley -> Http ()
+testInvitationRoles :: (HasCallStack) => Brig -> Galley -> Http ()
 testInvitationRoles brig galley = do
   (owner, tid) <- createUserWithTeam brig
   -- owner creates a member alice.
@@ -447,7 +447,7 @@ testInvitationEmailAcceptedInBlockedDomain opts brig galley = do
 -- | FUTUREWORK: this is an alternative helper to 'createPopulatedBindingTeam'.  it has been
 -- added concurrently, and the two should probably be consolidated.
 createAndVerifyInvitation ::
-  HasCallStack =>
+  (HasCallStack) =>
   (InvitationCode -> RequestBody) ->
   InvitationRequest ->
   Brig ->
@@ -710,7 +710,7 @@ testInvitationTooManyMembers brig galley (TeamSizeLimit limit) = do
       const 403 === statusCode
       const (Just "too-many-team-members") === fmap Error.label . responseJsonMaybe
 
-testInvitationPaging :: HasCallStack => Opt.Opts -> Brig -> Http ()
+testInvitationPaging :: (HasCallStack) => Opt.Opts -> Brig -> Http ()
 testInvitationPaging opts brig = do
   before <- liftIO $ toUTCTimeMillis . addUTCTime (-1) <$> getCurrentTime
   (uid, tid) <- createUserWithTeam brig
@@ -724,7 +724,7 @@ testInvitationPaging opts brig = do
         postInvitation brig tid uid (invite email) !!! const 201 === statusCode
         pure email
   after1ms <- liftIO $ toUTCTimeMillis . addUTCTime 1 <$> getCurrentTime
-  let getPages :: HasCallStack => Int -> Maybe InvitationId -> Int -> Http [[Invitation]]
+  let getPages :: (HasCallStack) => Int -> Maybe InvitationId -> Int -> Http [[Invitation]]
       getPages count start step = do
         let range = queryRange (toByteString' <$> start) (Just step)
         r <-
@@ -735,7 +735,7 @@ testInvitationPaging opts brig = do
         if more
           then (invs :) <$> getPages (count + step) (fmap inInvitation . listToMaybe . reverse $ invs) step
           else pure [invs]
-  let checkSize :: HasCallStack => Int -> [Int] -> Http ()
+  let checkSize :: (HasCallStack) => Int -> [Int] -> Http ()
       checkSize pageSize expectedSizes =
         getPages 0 Nothing pageSize >>= \invss -> liftIO $ do
           assertEqual "page sizes" expectedSizes (take (length expectedSizes) (map length invss))

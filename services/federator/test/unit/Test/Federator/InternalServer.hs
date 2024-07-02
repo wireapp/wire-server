@@ -74,7 +74,7 @@ federatedRequestSuccess =
             trBody = "\"foo\"",
             trExtraHeaders = requestHeaders
           }
-    let verifyCallAndRespond :: Member (Embed IO) r => Sem (Remote ': r) a -> Sem r a
+    let verifyCallAndRespond :: (Member (Embed IO) r) => Sem (Remote ': r) a -> Sem r a
         verifyCallAndRespond = interpret $ \case
           DiscoverAndCall domain component rpc headers body -> embed @IO $ do
             domain @?= targetDomain
@@ -90,7 +90,7 @@ federatedRequestSuccess =
                   responseBody = source ["\"bar\""]
                 }
 
-    let assertMetrics :: Member (Embed IO) r => Sem (Metrics ': r) a -> Sem r a
+    let assertMetrics :: (Member (Embed IO) r) => Sem (Metrics ': r) a -> Sem r a
         assertMetrics = interpret $ \case
           OutgoingCounterIncr td -> embed @IO $ td @?= targetDomain
           IncomingCounterIncr _ -> embed @IO $ assertFailure "Should not increment incoming counter"

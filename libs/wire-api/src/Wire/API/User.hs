@@ -465,7 +465,7 @@ instance (KnownNat max, 1 <= max) => FromJSON (LimitedQualifiedUserIdList max) w
   parseJSON = A.withObject "LimitedQualifiedUserIdList" $ \o ->
     LimitedQualifiedUserIdList <$> o A..: "qualified_users"
 
-instance 1 <= max => ToJSON (LimitedQualifiedUserIdList max) where
+instance (1 <= max) => ToJSON (LimitedQualifiedUserIdList max) where
   toJSON e = A.object ["qualified_users" A..= qualifiedUsers e]
 
 --------------------------------------------------------------------------------

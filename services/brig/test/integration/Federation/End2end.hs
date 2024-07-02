@@ -191,7 +191,7 @@ testClaimMultiPrekeyBundleSuccess brig1 brig2 = do
       mkClients = Set.fromList . map prekeyClient
       mkClientMap :: [ClientPrekey] -> Map ClientId (Maybe Prekey)
       mkClientMap = Map.fromList . map (prekeyClient &&& Just . prekeyData)
-      qmap :: Ord a => [(Qualified a, b)] -> Map Domain (Map a b)
+      qmap :: (Ord a) => [(Qualified a, b)] -> Map Domain (Map a b)
       qmap = fmap Map.fromList . indexQualified . map (sequenceAOf _1)
   c1 <- generateClientPrekeys brig1 prekeys1
   c2 <- generateClientPrekeys brig2 prekeys2
@@ -593,7 +593,7 @@ claimRemoteKeyPackages brig1 brig2 = do
       @?= Set.fromList [(bob, c) | c <- bobClients]
 
 testRemoteTypingIndicator ::
-  HasCallStack =>
+  (HasCallStack) =>
   Brig ->
   Brig ->
   Galley ->

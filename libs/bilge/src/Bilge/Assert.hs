@@ -57,10 +57,10 @@ instance Contains ByteString where
 instance Contains Lazy.ByteString where
   contains a b = contains (Lazy.toStrict a) (Lazy.toStrict b)
 
-instance Eq a => Contains [a] where
+instance (Eq a) => Contains [a] where
   contains = isInfixOf
 
-instance Contains a => Contains (Maybe a) where
+instance (Contains a) => Contains (Maybe a) where
   contains (Just a) (Just b) = contains a b
   contains Nothing _ = True
   contains _ Nothing = False
@@ -145,25 +145,25 @@ f =~= g = Assertions $ tell [\r -> test " not in " contains (f r) (g r)]
 
 -- | Most generic assertion on a request. If the test function evaluates to
 -- @(Just msg)@ then the assertion fails with the error message @msg@.
-assertResponse :: HasCallStack => (Response (Maybe Lazy.ByteString) -> Maybe String) -> Assertions ()
+assertResponse :: (HasCallStack) => (Response (Maybe Lazy.ByteString) -> Maybe String) -> Assertions ()
 assertResponse f = Assertions $ tell [f]
 
 -- | Generic assertion on a request. The 'String' argument will be printed
 -- in case the assertion fails.
-assertTrue :: HasCallStack => String -> (Response (Maybe Lazy.ByteString) -> Bool) -> Assertions ()
+assertTrue :: (HasCallStack) => String -> (Response (Maybe Lazy.ByteString) -> Bool) -> Assertions ()
 assertTrue e f = Assertions $ tell [\r -> if f r then Nothing else Just e]
 
 -- | Generic assertion on a request.
-assertTrue_ :: HasCallStack => (Response (Maybe Lazy.ByteString) -> Bool) -> Assertions ()
+assertTrue_ :: (HasCallStack) => (Response (Maybe Lazy.ByteString) -> Bool) -> Assertions ()
 assertTrue_ = assertTrue "false"
 
 -- | Generic assertion inside the 'Assertions' monad. The 'String' argument
 -- will be printed in case the assertion fails.
-assert :: HasCallStack => String -> Bool -> Assertions ()
+assert :: (HasCallStack) => String -> Bool -> Assertions ()
 assert m = assertTrue m . const
 
 -- | Generic assertion inside the 'Assertions' monad.
-assert_ :: HasCallStack => Bool -> Assertions ()
+assert_ :: (HasCallStack) => Bool -> Assertions ()
 assert_ = assertTrue_ . const
 
 -- Internal

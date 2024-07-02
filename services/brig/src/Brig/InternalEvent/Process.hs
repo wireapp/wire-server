@@ -41,6 +41,7 @@ import Wire.API.UserEvent
 import Wire.NotificationSubsystem
 import Wire.Sem.Delay
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.UserKeyStore
 import Wire.UserStore (UserStore)
 
 -- | Handle an internal event.
@@ -53,6 +54,7 @@ onEvent ::
     Member Delay r,
     Member Race r,
     Member (Input (Local ())) r,
+    Member UserKeyStore r,
     Member (Input UTCTime) r,
     Member UserStore r,
     Member (ConnectionStore InternalPaging) r

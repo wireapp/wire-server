@@ -94,8 +94,9 @@ instance ToSchema LastPrekey where
   schema = LastPrekey <$> unpackLastPrekey .= schema `withParser` check
     where
       check x =
-        x <$ guard (prekeyId x == lastPrekeyId)
-          <|> fail "Invalid last prekey ID"
+        x
+          <$ guard (prekeyId x == lastPrekeyId)
+            <|> fail "Invalid last prekey ID"
 
 instance Arbitrary LastPrekey where
   arbitrary = lastPrekey <$> arbitrary

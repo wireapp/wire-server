@@ -29,7 +29,7 @@ module Brig.Data.Activation
   )
 where
 
-import Brig.App (Env)
+import Brig.App (Env, adhocUserKeyStoreInterpreter)
 import Brig.Data.User
 import Brig.Data.UserKey
 import Brig.Effects.CodeStore qualified as E
@@ -51,6 +51,10 @@ import Polysemy
 import Text.Printf (printf)
 import Wire.API.User
 import Wire.API.User.Activation
+import Wire.API.User.Password
+import Wire.PasswordResetCodeStore qualified as E
+import Wire.PasswordResetCodeStore.Cassandra
+import Wire.UserKeyStore
 
 --  | The information associated with the pending activation of a 'UserKey'.
 data Activation = Activation
@@ -120,24 +124,24 @@ activateKey k c u = verifyCode k c >>= pickUser >>= activate
           pure . Just $ EmailActivated uid (emailKeyOrig key)
       -- if the key is the same, we only want to update our profile
       | otherwise = do
-          lift (runM (codeStoreToCassandra @m @'[Embed m] (E.mkPasswordResetKey uid >>= E.codeDelete)))
+          lift (runM (passwordResetCodeStoreToCassandra @m @'[Embed m] (E.codeDelete (mkPasswordResetKey uid))))
           claim key uid
           lift $ updateEmailAndDeleteEmailUnvalidated uid (emailKeyOrig key)
-          for_ oldKey $ lift . deleteKey
+          for_ oldKey $ lift . adhocUserKeyStoreInterpreter . deleteKey
           pure . Just $ EmailActivated uid (emailKeyOrig key)
       where
         updateEmailAndDeleteEmailUnvalidated :: UserId -> Email -> m ()
         updateEmailAndDeleteEmailUnvalidated u' email =
           updateEmail u' email <* deleteEmailUnvalidated u'
     claim key uid = do
-      ok <- lift $ claimKey key uid
+      ok <- lift $ adhocUserKeyStoreInterpreter (claimKey key uid)
       unless ok $
         throwE . UserKeyExists . LT.fromStrict $
           fromEmail (emailKeyOrig key)
 
 -- | Create a new pending activation for a given 'EmailKey'.
 newActivation ::
-  MonadClient m =>
+  (MonadClient m) =>
   EmailKey ->
   -- | The timeout for the activation code.
   Timeout ->
@@ -159,14 +163,14 @@ newActivation uk timeout u = do
         <$> randIntegerZeroToNMinusOne 1000000
 
 -- | Lookup an activation code and it's associated owner (if any) for a 'UserKey'.
-lookupActivationCode :: MonadClient m => EmailKey -> m (Maybe (Maybe UserId, ActivationCode))
+lookupActivationCode :: (MonadClient m) => EmailKey -> m (Maybe (Maybe UserId, ActivationCode))
 lookupActivationCode k =
   liftIO (mkActivationKey k)
     >>= retry x1 . query1 codeSelect . params LocalQuorum . Identity
 
 -- | Verify an activation code.
 verifyCode ::
-  MonadClient m =>
+  (MonadClient m) =>
   ActivationKey ->
   ActivationCode ->
   ExceptT ActivationError m (EmailKey, Maybe UserId)
@@ -175,9 +179,9 @@ verifyCode key code = do
   case s of
     Just (ttl, Ascii t, k, c, u, r) ->
       if
-          | c == code -> mkScope t k u
-          | r >= 1 -> countdown (key, t, k, c, u, r - 1, ttl) >> throwE invalidCode
-          | otherwise -> revoke >> throwE invalidCode
+        | c == code -> mkScope t k u
+        | r >= 1 -> countdown (key, t, k, c, u, r - 1, ttl) >> throwE invalidCode
+        | otherwise -> revoke >> throwE invalidCode
     Nothing -> throwE invalidCode
   where
     mkScope "email" k u = case parseEmail k of
@@ -194,7 +198,7 @@ mkActivationKey k = do
   let bs = digestBS d' (T.encodeUtf8 $ emailKeyUniq k)
   pure . ActivationKey $ Ascii.encodeBase64Url bs
 
-deleteActivationPair :: MonadClient m => ActivationKey -> m ()
+deleteActivationPair :: (MonadClient m) => ActivationKey -> m ()
 deleteActivationPair = write keyDelete . params LocalQuorum . Identity
 
 invalidUser :: ActivationError

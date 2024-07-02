@@ -32,7 +32,6 @@ import CargoHold.Options hiding (aws)
 import Control.Exception (bracket)
 import Control.Lens ((.~), (^.))
 import Control.Monad.Codensity
-import Data.Metrics (Metrics)
 import Data.Metrics.AWS (gaugeTokenRemaing)
 import Data.Metrics.Servant
 import Data.Proxy
@@ -59,7 +58,7 @@ type CombinedAPI = FederationAPI :<|> CargoholdAPI :<|> InternalAPI
 run :: Opts -> IO ()
 run o = lowerCodensity $ do
   (app, e) <- mkApp o
-  void $ Codensity $ Async.withAsync (collectAuthMetrics (e ^. metrics) (e ^. aws . amazonkaEnv))
+  void $ Codensity $ Async.withAsync (collectAuthMetrics (e ^. aws . amazonkaEnv))
   liftIO $ do
     s <-
       Server.newSettings $
@@ -67,7 +66,6 @@ run o = lowerCodensity $ do
           (unpack $ o ^. cargohold . host)
           (o ^. cargohold . port)
           (e ^. appLogger)
-          (e ^. metrics)
     runSettingsWithShutdown s app Nothing
 
 mkApp :: Opts -> Codensity IO (Application, Env)
@@ -81,7 +79,7 @@ mkApp o = Codensity $ \k ->
         . requestIdMiddleware (e ^. appLogger) defaultRequestIdHeaderName
         . servantPrometheusMiddleware (Proxy @CombinedAPI)
         . GZip.gzip GZip.def
-        . catchErrors (e ^. appLogger) defaultRequestIdHeaderName [Right $ e ^. metrics]
+        . catchErrors (e ^. appLogger) defaultRequestIdHeaderName
     servantApp :: Env -> Application
     servantApp e0 r cont = do
       let rid = getRequestId defaultRequestIdHeaderName r
@@ -99,10 +97,10 @@ mkApp o = Codensity $ \k ->
 toServantHandler :: Env -> Handler a -> Servant.Handler a
 toServantHandler env = liftIO . runHandler env
 
-collectAuthMetrics :: MonadIO m => Metrics -> AWS.Env -> m ()
-collectAuthMetrics m env = do
+collectAuthMetrics :: (MonadIO m) => AWS.Env -> m ()
+collectAuthMetrics env = do
   liftIO $
     forever $ do
       mbRemaining <- readAuthExpiration env
-      gaugeTokenRemaing m mbRemaining
+      gaugeTokenRemaing mbRemaining
       threadDelay 1_000_000

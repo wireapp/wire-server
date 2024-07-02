@@ -26,7 +26,7 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.MLS.Keys
 
-isMLSEnabled :: Member (Input Env) r => Sem r Bool
+isMLSEnabled :: (Member (Input Env) r) => Sem r Bool
 isMLSEnabled = inputs (isJust . view mlsKeys)
 
 -- | Fail if MLS is not enabled. Only use this function at the beginning of an

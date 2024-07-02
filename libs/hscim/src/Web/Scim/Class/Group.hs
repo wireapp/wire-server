@@ -171,7 +171,7 @@ class (Monad m, GroupTypes tag, AuthDB tag m) => GroupDB tag m where
 
 groupServer ::
   forall tag m.
-  GroupDB tag m =>
+  (GroupDB tag m) =>
   Maybe (AuthData tag) ->
   GroupSite tag (AsServerT (ScimHandler m))
 groupServer authData =

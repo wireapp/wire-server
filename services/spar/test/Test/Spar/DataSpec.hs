@@ -37,16 +37,16 @@ spec = do
       addTime (ttlToNominalDiffTime $ TTL 3) (Time $ parsetm "1924-07-14T08:30:00Z")
         `shouldBe` Time (parsetm "1924-07-14T08:30:03Z")
 
-check :: HasCallStack => Int -> Env -> String -> Either TTLError (TTL "authresp") -> Spec
+check :: (HasCallStack) => Int -> Env -> String -> Either TTLError (TTL "authresp") -> Spec
 check testnumber env (parsetm -> endOfLife) expectttl =
   it (show testnumber) $ mkTTLAssertions env endOfLife `shouldBe` expectttl
 
-parsetm :: HasCallStack => String -> UTCTime
+parsetm :: (HasCallStack) => String -> UTCTime
 parsetm = fromJust . parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%S%QZ"
 
 {-# HLINT ignore "Eta reduce" #-}
 -- For clarity
-mkDataEnv :: HasCallStack => String -> TTL "authresp" -> Env
+mkDataEnv :: (HasCallStack) => String -> TTL "authresp" -> Env
 mkDataEnv now maxttl =
   Env
     (parsetm now)

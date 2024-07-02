@@ -53,6 +53,7 @@ import Wire.API.User
 import Wire.API.UserEvent
 import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
+import Wire.UserStore
 
 data LocalConnectionAction
   = LocalConnect
@@ -300,6 +301,7 @@ performRemoteAction self other mconnection action = do
 createConnectionToRemoteUser ::
   ( Member GalleyAPIAccess r,
     Member FederationConfigStore r,
+    Member UserStore r,
     Member NotificationSubsystem r
   ) =>
   Local UserId ->
@@ -347,7 +349,7 @@ checkLimitForLocalAction u oldRel action =
 -- | Check if the local backend federates with the remote user's team. Throw an
 -- exception if it does not federate.
 ensureFederatesWith ::
-  Member FederationConfigStore r =>
+  (Member FederationConfigStore r) =>
   Remote UserId ->
   ConnectionM r ()
 ensureFederatesWith remote = do

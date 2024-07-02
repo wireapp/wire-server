@@ -39,6 +39,7 @@ import System.Logger
 import System.Logger qualified as Log
 import UnliftIO.Async
 import Wire.API.User hiding (userEmail)
+import Wire.UserKeyStore
 
 runCommand :: Logger -> ClientState -> FilePath -> IO ()
 runCommand l brig inconsistenciesFile = do
@@ -95,7 +96,7 @@ data WithWritetime a = WithWritetime
   }
   deriving (Generic)
 
-instance Aeson.ToJSON a => Aeson.ToJSON (WithWritetime a)
+instance (Aeson.ToJSON a) => Aeson.ToJSON (WithWritetime a)
 
 ----------------------------------------------------------------------------
 -- Queries

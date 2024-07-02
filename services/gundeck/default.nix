@@ -47,6 +47,7 @@
 , network
 , network-uri
 , optparse-applicative
+, prometheus-client
 , psqueues
 , QuickCheck
 , quickcheck-instances
@@ -123,6 +124,7 @@ mkDerivation {
     metrics-wai
     mtl
     network-uri
+    prometheus-client
     psqueues
     raw-strings-qq
     resourcet
@@ -168,7 +170,6 @@ mkDerivation {
     kan-extensions
     lens
     lens-aeson
-    metrics-wai
     network
     network-uri
     optparse-applicative

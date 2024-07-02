@@ -181,7 +181,7 @@ instance Default UpdateClient where
       }
 
 updateClient ::
-  HasCallStack =>
+  (HasCallStack) =>
   ClientIdentity ->
   UpdateClient ->
   App Response
@@ -368,7 +368,7 @@ getSelfWithVersion v user = baseRequest user Brig v "/self" >>= submit "GET"
 
 -- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/get_self
 -- this is a low-level version of `getSelf` for testing some error conditions.
-getSelf' :: HasCallStack => String -> String -> App Response
+getSelf' :: (HasCallStack) => String -> String -> App Response
 getSelf' domain uid = getSelfWithVersion Versioned $ object ["domain" .= domain, "id" .= uid]
 
 data PutSelf = PutSelf
@@ -462,45 +462,45 @@ postInvitation user inv = do
   submit "POST" $
     req & addJSONObject ["email" .= email]
 
-getApiVersions :: HasCallStack => App Response
+getApiVersions :: (HasCallStack) => App Response
 getApiVersions = do
   req <-
     rawBaseRequest OwnDomain Brig Unversioned $
       joinHttpPath ["api-version"]
   submit "GET" req
 
-getSwaggerPublicTOC :: HasCallStack => App Response
+getSwaggerPublicTOC :: (HasCallStack) => App Response
 getSwaggerPublicTOC = do
   req <-
     rawBaseRequest OwnDomain Brig Unversioned $
       joinHttpPath ["api", "swagger-ui"]
   submit "GET" req
 
-getSwaggerInternalTOC :: HasCallStack => App Response
+getSwaggerInternalTOC :: (HasCallStack) => App Response
 getSwaggerInternalTOC = error "FUTUREWORK: this API end-point does not exist."
 
-getSwaggerPublicAllUI :: HasCallStack => Int -> App Response
+getSwaggerPublicAllUI :: (HasCallStack) => Int -> App Response
 getSwaggerPublicAllUI version = do
   req <-
     rawBaseRequest OwnDomain Brig (ExplicitVersion version) $
       joinHttpPath ["api", "swagger-ui"]
   submit "GET" req
 
-getSwaggerPublicAllJson :: HasCallStack => Int -> App Response
+getSwaggerPublicAllJson :: (HasCallStack) => Int -> App Response
 getSwaggerPublicAllJson version = do
   req <-
     rawBaseRequest OwnDomain Brig (ExplicitVersion version) $
       joinHttpPath ["api", "swagger.json"]
   submit "GET" req
 
-getSwaggerInternalUI :: HasCallStack => String -> App Response
+getSwaggerInternalUI :: (HasCallStack) => String -> App Response
 getSwaggerInternalUI service = do
   req <-
     rawBaseRequest OwnDomain Brig Unversioned $
       joinHttpPath ["api-internal", "swagger-ui", service]
   submit "GET" req
 
-getSwaggerInternalJson :: HasCallStack => String -> App Response
+getSwaggerInternalJson :: (HasCallStack) => String -> App Response
 getSwaggerInternalJson service = do
   req <-
     rawBaseRequest OwnDomain Nginz Unversioned $
@@ -616,7 +616,7 @@ updateService dom providerId serviceId mAcceptHeader newName = do
     $ req
 
 updateServiceConn ::
-  MakesValue conn =>
+  (MakesValue conn) =>
   -- | providerId
   String ->
   -- | serviceId
@@ -668,7 +668,7 @@ getCallsConfigV2 user = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["calls", "config", "v2"]
   submit "GET" req
 
-addBot :: MakesValue user => user -> String -> String -> String -> App Response
+addBot :: (MakesValue user) => user -> String -> String -> String -> App Response
 addBot user providerId serviceId convId = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["conversations", convId, "bots"]
   submit "POST" $

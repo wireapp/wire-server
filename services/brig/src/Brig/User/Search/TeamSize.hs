@@ -29,7 +29,7 @@ import Data.Id
 import Database.Bloodhound qualified as ES
 import Imports hiding (log, searchable)
 
-teamSize :: MonadIndexIO m => TeamId -> m TeamSize
+teamSize :: (MonadIndexIO m) => TeamId -> m TeamSize
 teamSize t = liftIndexIO $ do
   indexName <- asks idxName
   countResEither <- ES.countByIndex indexName (ES.CountQuery query)

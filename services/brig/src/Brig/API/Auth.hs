@@ -55,7 +55,10 @@ import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
+import Wire.PasswordStore (PasswordStore)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.UserKeyStore hiding (toEither)
+import Wire.UserStore
 import Wire.UserSubsystem
 
 accessH ::
@@ -105,7 +108,10 @@ login ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member PasswordStore r,
+    Member UserKeyStore r,
+    Member UserStore r
   ) =>
   Login ->
   Maybe Bool ->
@@ -125,12 +131,14 @@ logoutH uts' mat' = do
   partitionTokens uts mat
     >>= either (uncurry logout) (uncurry logout)
 
-logout :: TokenPair u a => NonEmpty (Token u) -> Maybe (Token a) -> Handler r ()
+logout :: (TokenPair u a) => NonEmpty (Token u) -> Maybe (Token a) -> Handler r ()
 logout _ Nothing = throwStd authMissingToken
 logout uts (Just at) = Auth.logout (List1 uts) at !>> zauthError
 
 changeSelfEmailH ::
-  Member BlacklistStore r =>
+  ( Member BlacklistStore r,
+    Member UserKeyStore r
+  ) =>
   [Either Text SomeUserToken] ->
   Maybe (Either Text SomeAccessToken) ->
   EmailUpdate ->
@@ -144,7 +152,7 @@ changeSelfEmailH uts' mat' up = do
   changeSelfEmail usr email UpdateOriginWireClient
 
 validateCredentials ::
-  TokenPair u a =>
+  (TokenPair u a) =>
   NonEmpty (Token u) ->
   Maybe (Token a) ->
   Handler r UserId
@@ -157,7 +165,7 @@ listCookies lusr (fold -> labels) =
   CookieList
     <$> wrapClientE (Auth.listCookies (tUnqualified lusr) (toList labels))
 
-removeCookies :: (Member TinyLog r) => Local UserId -> RemoveCookies -> Handler r ()
+removeCookies :: (Member TinyLog r, Member PasswordStore r) => Local UserId -> RemoveCookies -> Handler r ()
 removeCookies lusr (RemoveCookies pw lls ids) =
   Auth.revokeAccess (tUnqualified lusr) pw ids lls !>> authError
 
@@ -196,7 +204,7 @@ ssoLogin l (fromMaybe False -> persist) = do
 getLoginCode :: Phone -> Handler r PendingLoginCode
 getLoginCode _ = throwStd loginCodeNotFound
 
-reauthenticate :: Member GalleyAPIAccess r => UserId -> ReAuthUser -> Handler r ()
+reauthenticate :: (Member GalleyAPIAccess r) => UserId -> ReAuthUser -> Handler r ()
 reauthenticate uid body = do
   wrapClientE (User.reauthenticate uid (reAuthPassword body)) !>> reauthError
   case reAuthCodeAction body of

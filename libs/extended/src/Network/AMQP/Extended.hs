@@ -1,19 +1,36 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Network.AMQP.Extended where
+module Network.AMQP.Extended
+  ( RabbitMqHooks (..),
+    RabbitMqAdminOpts (..),
+    RabbitMqOpts (..),
+    openConnectionWithRetries,
+    mkRabbitMqAdminClientEnv,
+    mkRabbitMqChannelMVar,
+    demoteOpts,
+  )
+where
 
 import Control.Exception (throwIO)
 import Control.Monad.Catch
 import Control.Monad.Trans.Control
+import Control.Monad.Trans.Maybe
 import Control.Retry
 import Data.Aeson
+import Data.Aeson.Types
+import Data.Default
 import Data.Proxy
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
+import Data.X509.CertificateStore qualified as X509
 import Imports
 import Network.AMQP qualified as Q
+import Network.Connection as Conn
 import Network.HTTP.Client qualified as HTTP
+import Network.HTTP.Client.TLS qualified as HTTP
 import Network.RabbitMqAdmin
+import Network.TLS
+import Network.TLS.Extra.Cipher
 import Servant
 import Servant.Client
 import Servant.Client qualified as Servant
@@ -33,22 +50,52 @@ data RabbitMqHooks m = RabbitMqHooks
     onChannelException :: SomeException -> m ()
   }
 
+data RabbitMqTlsOpts = RabbitMqTlsOpts
+  { caCert :: !(Maybe FilePath),
+    insecureSkipVerifyTls :: Bool
+  }
+  deriving (Show)
+
+parseTlsJson :: Object -> Parser (Maybe RabbitMqTlsOpts)
+parseTlsJson v = do
+  enabled <- v .:? "enableTls" .!= False
+  if enabled
+    then
+      Just
+        <$> ( RabbitMqTlsOpts
+                <$> v .:? "caCert"
+                <*> v .:? "insecureSkipVerifyTls" .!= False
+            )
+    else pure Nothing
+
 data RabbitMqAdminOpts = RabbitMqAdminOpts
   { host :: !String,
     port :: !Int,
     vHost :: !Text,
+    tls :: Maybe RabbitMqTlsOpts,
     adminPort :: !Int
   }
-  deriving (Show, Generic)
+  deriving (Show)
 
-instance FromJSON RabbitMqAdminOpts
+instance FromJSON RabbitMqAdminOpts where
+  parseJSON = withObject "RabbitMqAdminOpts" $ \v ->
+    RabbitMqAdminOpts
+      <$> v .: "host"
+      <*> v .: "port"
+      <*> v .: "vHost"
+      <*> parseTlsJson v
+      <*> v .: "adminPort"
 
 mkRabbitMqAdminClientEnv :: RabbitMqAdminOpts -> IO (AdminAPI (AsClientT IO))
 mkRabbitMqAdminClientEnv opts = do
   (username, password) <- readCredsFromEnv
-  manager <- HTTP.newManager HTTP.defaultManagerSettings
+  mTlsSettings <- traverse (mkTLSSettings opts.host) opts.tls
+  let (protocol, managerSettings) = case mTlsSettings of
+        Nothing -> (Servant.Http, HTTP.defaultManagerSettings)
+        Just tlsSettings -> (Servant.Https, HTTP.mkManagerSettings tlsSettings Nothing)
+  manager <- HTTP.newManager managerSettings
   let basicAuthData = Servant.BasicAuthData (Text.encodeUtf8 username) (Text.encodeUtf8 password)
-      clientEnv = Servant.mkClientEnv manager (Servant.BaseUrl Servant.Http opts.host opts.adminPort "")
+      clientEnv = Servant.mkClientEnv manager (Servant.BaseUrl protocol opts.host opts.adminPort "")
   pure . fromServant $
     hoistClient
       (Proxy @(ToServant AdminAPI AsApi))
@@ -60,11 +107,18 @@ mkRabbitMqAdminClientEnv opts = do
 data RabbitMqOpts = RabbitMqOpts
   { host :: !String,
     port :: !Int,
-    vHost :: !Text
+    vHost :: !Text,
+    tls :: !(Maybe RabbitMqTlsOpts)
   }
-  deriving (Show, Generic)
+  deriving (Show)
 
-instance FromJSON RabbitMqOpts
+instance FromJSON RabbitMqOpts where
+  parseJSON = withObject "RabbitMqAdminOpts" $ \v ->
+    RabbitMqOpts
+      <$> v .: "host"
+      <*> v .: "port"
+      <*> v .: "vHost"
+      <*> parseTlsJson v
 
 demoteOpts :: RabbitMqAdminOpts -> RabbitMqOpts
 demoteOpts RabbitMqAdminOpts {..} = RabbitMqOpts {..}
@@ -123,7 +177,15 @@ openConnectionWithRetries l RabbitMqOpts {..} hooks = do
               )
               ( const $ do
                   Log.info l $ Log.msg (Log.val "Trying to connect to RabbitMQ")
-                  liftIO $ Q.openConnection' host (fromIntegral port) vHost username password
+                  mTlsSettings <- traverse (liftIO . (mkTLSSettings host)) tls
+                  liftIO $
+                    Q.openConnection'' $
+                      Q.defaultConnectionOpts
+                        { Q.coServers = [(host, fromIntegral port)],
+                          Q.coVHost = vHost,
+                          Q.coAuth = [Q.plain username password],
+                          Q.coTLSSettings = fmap Q.TLSCustom mTlsSettings
+                        }
               )
       bracket getConn (liftIO . Q.closeConnection) $ \conn -> do
         liftBaseWith $ \runInIO ->
@@ -155,6 +217,28 @@ openConnectionWithRetries l RabbitMqOpts {..} hooks = do
         _ -> do
           logException l "RabbitMQ channel closed" e
           openChan conn
+
+mkTLSSettings :: HostName -> RabbitMqTlsOpts -> IO TLSSettings
+mkTLSSettings host opts = do
+  setCAStore <- runMaybeT $ do
+    path <- maybe mzero pure opts.caCert
+    store <- MaybeT $ X509.readCertificateStore path
+    pure $ \shared -> shared {sharedCAStore = store}
+  let setHooks =
+        if opts.insecureSkipVerifyTls
+          then \h -> h {onServerCertificate = \_ _ _ _ -> pure []}
+          else id
+  pure $
+    TLSSettings
+      (defaultParamsClient host "rabbitmq")
+        { clientShared = fromMaybe id setCAStore def,
+          clientHooks = setHooks def,
+          clientSupported =
+            def
+              { supportedVersions = [TLS13, TLS12],
+                supportedCiphers = ciphersuite_strong
+              }
+        }
 
 logException :: (MonadIO m) => Logger -> String -> SomeException -> m ()
 logException l m (SomeException e) = do

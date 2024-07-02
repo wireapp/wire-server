@@ -566,7 +566,7 @@ guardQualifiedLegalholdPolicyConflictsWrapper senderType sender localClients qua
 
 -- FUTUREWORK: This is just a workaround and would not be needed if we had a proper monoid/semigroup instance for Map where the values have a monoid instance.
 collectFailedToSend ::
-  Foldable f =>
+  (Foldable f) =>
   f (Map Domain (Map UserId (Set ClientId))) ->
   Map Domain (Map UserId (Set ClientId))
 collectFailedToSend = foldr (Map.unionWith (Map.unionWith Set.union)) mempty
@@ -766,6 +766,6 @@ instance Unqualify QualifiedUserClients UserClients where
       . Map.findWithDefault mempty domain
       . qualifiedUserClients
 
-instance Unqualify a b => Unqualify (PostOtrResponse a) (PostOtrResponse b) where
+instance (Unqualify a b) => Unqualify (PostOtrResponse a) (PostOtrResponse b) where
   unqualify domain (Left a) = Left (unqualify domain <$> a)
   unqualify domain (Right a) = Right (unqualify domain a)

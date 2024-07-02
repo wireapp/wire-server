@@ -107,7 +107,7 @@ genPushTarget = PushTarget <$> arbitrary <*> (ConnId <$> genAlphaNum)
 genObject :: Gen Object
 genObject = fromList <$> listOf ((,) <$> genAlphaNum <*> (String <$> genAlphaNum))
 
-genAlphaNum :: IsString s => Gen s
+genAlphaNum :: (IsString s) => Gen s
 genAlphaNum = fromString <$> listOf (elements (['a' .. 'z'] <> ['A' .. 'Z'] <> ['0' .. '9']))
 
 shortListOf :: Gen a -> Gen [a]

@@ -43,7 +43,7 @@ import Polysemy.TinyLog
 import Servant qualified
 import Servant.API
 import Servant.API.Extended.Endpath
-import Servant.API.Extended.RawM
+import Servant.API.Extended.RawM qualified as RawM
 import Servant.Server.Generic
 import System.Logger.Class qualified as Log
 import Wire.API.Federation.Component
@@ -67,7 +67,7 @@ data API mode = API
           :> Endpath
           -- We need to use 'RawM' so we can stream request body regardless of
           -- content-type and send a response with arbitrary content-type.
-          :> RawM
+          :> RawM.RawM
   }
   deriving (Generic)
 

@@ -55,7 +55,7 @@ runCommand l cas es indexStr mappingStr = do
 ----------------------------------------------------------------------------
 -- Queries
 
-logProgress :: MonadIO m => Logger -> [UUID] -> m ()
+logProgress :: (MonadIO m) => Logger -> [UUID] -> m ()
 logProgress l uuids = Log.info l $ Log.field "Progress" (show $ length uuids)
 
 logDifference :: Logger -> ([UUID], [(UUID, Maybe AccountStatus, Maybe (Writetime ()))]) -> ES.BH IO ()
@@ -67,7 +67,7 @@ logDifference l (uuidsFromES, fromCas) = do
   mapM_ (logUUID l "Deleted") deletedUuidsFromCas
   mapM_ (logUUID l "Extra" . (,Nothing,Nothing)) extraUuids
 
-logUUID :: MonadIO m => Logger -> ByteString -> (UUID, Maybe AccountStatus, Maybe (Writetime ())) -> m ()
+logUUID :: (MonadIO m) => Logger -> ByteString -> (UUID, Maybe AccountStatus, Maybe (Writetime ())) -> m ()
 logUUID l f (uuid, _, time) =
   Log.info l $
     Log.msg f
@@ -101,7 +101,7 @@ esSearch = (ES.mkSearch Nothing (Just esFilter)) {ES.size = ES.Size chunkSize}
 extractHits :: ES.SearchResult User -> [User]
 extractHits = mapMaybe ES.hitSource . ES.hits . ES.searchHits
 
-extractScrollId :: MonadThrow m => ES.SearchResult a -> m ES.ScrollId
+extractScrollId :: (MonadThrow m) => ES.SearchResult a -> m ES.ScrollId
 extractScrollId res = maybe (throwM NoScrollId) pure (ES.scrollId res)
 
 usersInCassandra :: [UUID] -> Client [(UUID, Maybe AccountStatus, Maybe (Writetime ()))]

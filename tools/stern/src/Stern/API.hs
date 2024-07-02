@@ -84,7 +84,7 @@ start o = do
   Server.runSettingsWithShutdown s (requestIdMiddleware (e ^. applog) defaultRequestIdHeaderName $ servantApp e) Nothing
   where
     server :: Env -> Server.Server
-    server e = Server.defaultServer (unpack $ stern o ^. host) (stern o ^. port) (e ^. applog) (e ^. metrics)
+    server e = Server.defaultServer (unpack $ stern o ^. host) (stern o ^. port) (e ^. applog)
 
     servantApp :: Env -> Application
     servantApp e0 req cont = do
@@ -414,24 +414,30 @@ getConsentLog e = do
 
 getUserData :: UserId -> Maybe Int -> Maybe Int -> Handler UserMetaInfo
 getUserData uid mMaxConvs mMaxNotifs = do
+  -- brig
   account <- Intra.getUserProfiles (Left [uid]) >>= noSuchUser . listToMaybe
   conns <- Intra.getUserConnections uid
-  convs <- Intra.getUserConversations uid (fromMaybe 1 mMaxConvs)
   clts <- Intra.getUserClients uid
+  cookies <- Intra.getUserCookies uid
+  properties <- Intra.getUserProperties uid
+
+  -- galley
+  convs <- Intra.getUserConversations uid (fromMaybe 1 mMaxConvs)
+
+  -- gundeck
   notfs <-
-    ( Intra.getUserNotifications uid (fromMaybe 10 mMaxNotifs)
+    ( Intra.getUserNotifications uid (fromMaybe 100 mMaxNotifs)
         <&> toJSON @[QueuedNotification]
       )
       `catchE` (pure . String . T.pack . show)
+
+  -- galeb
   consent <-
     (Intra.getUserConsentValue uid <&> toJSON @ConsentValue)
       `catchE` (pure . String . T.pack . show)
   consentLog <-
     (Intra.getUserConsentLog uid <&> toJSON @ConsentLog)
       `catchE` (pure . String . T.pack . show)
-  cookies <- Intra.getUserCookies uid
-  properties <- Intra.getUserProperties uid
-  -- Get all info from Marketo too
   let em = userEmail $ accountUser account
   marketo <- do
     let noEmail = MarketoResult $ KeyMap.singleton "results" emptyArray
@@ -457,7 +463,7 @@ getUserData uid mMaxConvs mMaxNotifs = do
 
 -- Utilities
 
-instance FromByteString a => Servant.FromHttpApiData [a] where
+instance (FromByteString a) => Servant.FromHttpApiData [a] where
   parseUrlPiece =
     maybe (Left "not a list of a's") (Right . fromList)
       . fromByteString'

@@ -44,6 +44,7 @@
 , galley-types
 , gitignoreSource
 , gundeck-types
+, hex
 , HsOpenSSL
 , http-api-data
 , http-client
@@ -68,6 +69,7 @@
 , polysemy
 , polysemy-wire-zoo
 , process
+, prometheus-client
 , proto-lens
 , protobuf
 , QuickCheck
@@ -163,6 +165,7 @@ mkDerivation {
     extra
     galley-types
     gundeck-types
+    hex
     HsOpenSSL
     http-client
     http-client-openssl
@@ -174,11 +177,11 @@ mkDerivation {
     lens
     metrics-core
     metrics-wai
-    mtl
     optparse-applicative
     pem
     polysemy
     polysemy-wire-zoo
+    prometheus-client
     proto-lens
     raw-strings-qq
     resourcet

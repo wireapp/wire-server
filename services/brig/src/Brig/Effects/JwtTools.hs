@@ -55,7 +55,7 @@ data JwtTools m a where
 
 makeSem ''JwtTools
 
-interpretJwtTools :: Member (Embed IO) r => Sem (JwtTools ': r) a -> Sem r a
+interpretJwtTools :: (Member (Embed IO) r) => Sem (JwtTools ': r) a -> Sem r a
 interpretJwtTools = interpret $ \case
   GenerateDPoPAccessToken proof cid handle displayName tid nonce uri method skew ex now pem ->
     mapLeft RustError

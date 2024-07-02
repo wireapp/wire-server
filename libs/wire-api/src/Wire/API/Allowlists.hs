@@ -1,6 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -18,36 +15,27 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.User.Auth.DB.Instances
-  (
+-- | > docs/reference/user/activation.md {#RefActivationAllowlist}
+--
+-- Email/phone whitelist.
+module Wire.API.Allowlists
+  ( AllowlistEmailDomains (..),
+    verify,
   )
 where
 
-import Cassandra.CQL
-import Data.Id ()
-import Data.Misc ()
-import Data.Range ()
-import Data.Text.Ascii ()
+import Data.Aeson
 import Imports
-import Wire.API.User.Auth
+import Wire.API.User.Identity
 
-deriving instance Cql CookieLabel
+-- | A service providing a whitelist of allowed email addresses and phone numbers
+data AllowlistEmailDomains = AllowlistEmailDomains [Text]
+  deriving (Show, Generic)
 
-deriving instance Cql LoginCode
+instance FromJSON AllowlistEmailDomains
 
-instance Cql CookieId where
-  ctype = Tagged BigIntColumn
-  toCql = CqlBigInt . fromIntegral . cookieIdNum
-
-  fromCql (CqlBigInt i) = pure (CookieId (fromIntegral i))
-  fromCql _ = Left "fromCql: invalid cookie id"
-
-instance Cql CookieType where
-  ctype = Tagged IntColumn
-
-  toCql SessionCookie = CqlInt 0
-  toCql PersistentCookie = CqlInt 1
-
-  fromCql (CqlInt 0) = pure SessionCookie
-  fromCql (CqlInt 1) = pure PersistentCookie
-  fromCql _ = Left "fromCql: invalid cookie type"
+-- | Consult the whitelist settings in brig's config file and verify that the provided
+-- email address is whitelisted.
+verify :: Maybe AllowlistEmailDomains -> Email -> Bool
+verify (Just (AllowlistEmailDomains allowed)) email = emailDomain email `elem` allowed
+verify Nothing (_) = True

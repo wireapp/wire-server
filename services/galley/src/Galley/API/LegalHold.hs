@@ -581,9 +581,18 @@ disableForUser lzusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) =
 
   userLHStatus <-
     maybe defUserLegalHoldStatus (view legalHoldStatus) <$> getTeamMember tid (tUnqualified luid)
-  if not $ userLHEnabled userLHStatus
-    then pure DisableLegalHoldWasNotEnabled
-    else disableLH (tUnqualified lzusr) luid userLHStatus $> DisableLegalHoldSuccess
+
+  let doDisable = disableLH (tUnqualified lzusr) luid userLHStatus $> DisableLegalHoldSuccess
+  case userLHStatus of
+    -- no state change necessary
+    UserLegalHoldDisabled -> pure DisableLegalHoldWasNotEnabled
+    UserLegalHoldNoConsent ->
+      -- no state change allowed
+      -- we cannot go to disabled because that would subsume consent
+      pure DisableLegalHoldWasNotEnabled
+    -- LH is enabled or pending, we can disable (change state) without issue
+    UserLegalHoldEnabled -> doDisable
+    UserLegalHoldPending -> doDisable
   where
     disableLH :: UserId -> Local UserId -> UserLegalHoldStatus -> Sem r ()
     disableLH zusr luid userLHStatus = do
@@ -695,7 +704,7 @@ blockNonConsentingConnections uid = do
       status <- putConnectionInternal (BlockForMissingLHConsent userLegalhold othersToBlock)
       pure $ ["blocking users failed: " <> show (status, othersToBlock) | status /= status200]
 
-unsetTeamLegalholdWhitelistedH :: Member LegalHoldStore r => TeamId -> Sem r ()
+unsetTeamLegalholdWhitelistedH :: (Member LegalHoldStore r) => TeamId -> Sem r ()
 unsetTeamLegalholdWhitelistedH tid = do
   () <-
     error

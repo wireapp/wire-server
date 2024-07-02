@@ -142,7 +142,7 @@ testObject_CompletePasswordReset_user_6 =
 testObject_CompletePasswordReset_user_7 :: CompletePasswordReset
 testObject_CompletePasswordReset_user_7 =
   CompletePasswordReset
-    { cpwrIdent = PasswordResetPhoneIdentity (Phone {fromPhone = "+742946612"}),
+    { cpwrIdent = PasswordResetEmailIdentity (Email {emailLocal = "me", emailDomain = "example.com"}),
       cpwrCode =
         PasswordResetCode
           { fromPasswordResetCode =
@@ -197,7 +197,7 @@ testObject_CompletePasswordReset_user_9 =
 testObject_CompletePasswordReset_user_10 :: CompletePasswordReset
 testObject_CompletePasswordReset_user_10 =
   CompletePasswordReset
-    { cpwrIdent = PasswordResetPhoneIdentity (Phone {fromPhone = "+9868360466"}),
+    { cpwrIdent = PasswordResetEmailIdentity (Email {emailLocal = "me", emailDomain = "example.com"}),
       cpwrCode =
         PasswordResetCode
           { fromPasswordResetCode =

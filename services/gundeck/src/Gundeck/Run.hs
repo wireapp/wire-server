@@ -26,9 +26,7 @@ import Control.Error (ExceptT (ExceptT))
 import Control.Exception (finally)
 import Control.Lens ((.~), (^.))
 import Control.Monad.Extra
-import Data.Metrics (Metrics)
 import Data.Metrics.AWS (gaugeTokenRemaing)
-import Data.Metrics.Middleware (metrics)
 import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
 import Data.Proxy (Proxy (Proxy))
 import Data.Text (unpack)
@@ -59,17 +57,16 @@ import Wire.API.Routes.Version.Wai
 
 run :: Opts -> IO ()
 run o = do
-  m <- metrics
-  (rThreads, e) <- createEnv m o
+  (rThreads, e) <- createEnv o
   runClient (e ^. cstate) $
     versionCheck schemaVersion
   let l = e ^. applog
-  s <- newSettings $ defaultServer (unpack $ o ^. gundeck . host) (o ^. gundeck . port) l m
+  s <- newSettings $ defaultServer (unpack $ o ^. gundeck . host) (o ^. gundeck . port) l
   let throttleMillis = fromMaybe defSqsThrottleMillis $ o ^. (settings . sqsThrottleMillis)
 
   lst <- Async.async $ Aws.execute (e ^. awsEnv) (Aws.listen throttleMillis (runDirect e . onEvent))
-  wtbs <- forM (e ^. threadBudgetState) $ \tbs -> Async.async $ runDirect e $ watchThreadBudgetState m tbs 10
-  wCollectAuth <- Async.async (collectAuthMetrics m (Aws._awsEnv (Env._awsEnv e)))
+  wtbs <- forM (e ^. threadBudgetState) $ \tbs -> Async.async $ runDirect e $ watchThreadBudgetState tbs 10
+  wCollectAuth <- Async.async (collectAuthMetrics (Aws._awsEnv (Env._awsEnv e)))
 
   let app = middleware e $ mkApp e
   runSettingsWithShutdown s app Nothing `finally` do
@@ -90,7 +87,7 @@ run o = do
         . waiPrometheusMiddleware sitemap
         . GZip.gunzip
         . GZip.gzip GZip.def
-        . catchErrors (e ^. applog) defaultRequestIdHeaderName [Right $ e ^. monitor]
+        . catchErrors (e ^. applog) defaultRequestIdHeaderName
 
 type CombinedAPI = GundeckAPI :<|> Servant.Raw
 
@@ -113,10 +110,10 @@ servantSitemap' env = Servant.hoistServer (Proxy @GundeckAPI) toServantHandler s
     toServantHandler :: Gundeck a -> Handler a
     toServantHandler m = Handler . ExceptT $ Right <$> runDirect env m
 
-collectAuthMetrics :: MonadIO m => Metrics -> AWS.Env -> m ()
-collectAuthMetrics m env = do
+collectAuthMetrics :: (MonadIO m) => AWS.Env -> m ()
+collectAuthMetrics env = do
   liftIO $
     forever $ do
       mbRemaining <- readAuthExpiration env
-      gaugeTokenRemaing m mbRemaining
+      gaugeTokenRemaing mbRemaining
       threadDelay 1_000_000

@@ -32,7 +32,6 @@ where
 import Bilge (RequestId (..))
 import Brig.API.Error
 import Brig.AWS qualified as AWS
-import Brig.Allowlists qualified as Allowlists
 import Brig.App
 import Brig.CanonicalInterpreter (BrigCanonicalEffects, runBrigToIO)
 import Brig.Email (Email)
@@ -57,6 +56,7 @@ import Network.Wai.Utilities.Server qualified as Server
 import Servant qualified
 import System.Logger qualified as Log
 import System.Logger.Class (Logger)
+import Wire.API.Allowlists qualified as Allowlists
 import Wire.API.Error
 import Wire.API.Error.Brig
 

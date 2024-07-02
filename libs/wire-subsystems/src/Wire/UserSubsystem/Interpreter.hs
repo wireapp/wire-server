@@ -1,6 +1,4 @@
-{-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
 module Wire.UserSubsystem.Interpreter
   ( runUserSubsystem,
@@ -38,7 +36,8 @@ import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredUser
 import Wire.UserEvents
-import Wire.UserStore as US
+import Wire.UserKeyStore
+import Wire.UserStore as UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.HandleBlacklist
 
@@ -54,6 +53,7 @@ instance Arbitrary UserSubsystemConfig where
 runUserSubsystem ::
   ( Member GalleyAPIAccess r,
     Member UserStore r,
+    Member UserKeyStore r,
     Member (Concurrency 'Unsafe) r, -- FUTUREWORK: subsystems should implement concurrency inside interpreters, not depend on this dangerous effect.
     Member (Error FederationError) r,
     Member (Error UserSubsystemError) r,
@@ -72,6 +72,7 @@ runUserSubsystem cfg = runInputConst cfg . interpretUserSubsystem . raiseUnder
 interpretUserSubsystem ::
   ( Member GalleyAPIAccess r,
     Member UserStore r,
+    Member UserKeyStore r,
     Member (Concurrency 'Unsafe) r,
     Member (Error FederationError) r,
     Member (Error UserSubsystemError) r,
@@ -94,6 +95,7 @@ interpretUserSubsystem = interpret \case
   CheckHandle uhandle -> checkHandleImpl uhandle
   CheckHandles hdls cnt -> checkHandlesImpl hdls cnt
   UpdateHandle uid mconn mb uhandle -> updateHandleImpl uid mconn mb uhandle
+  GetLocalUserAccountByUserKey userKey -> getLocalUserAccountByUserKeyImpl userKey
 
 -- | Obtain user profiles for a list of users as they can be seen by
 -- a given user 'self'. If 'self' is an unknown 'UserId', return '[]'.
@@ -251,7 +253,7 @@ getSelfProfileImpl self = do
     -- - comments in `testUpdateHandle` in `/integration`.
     --
     -- FUTUREWORK: figure out a better way for clients to detect E2EId (V6?)
-    hackForBlockingHandleChangeForE2EIdTeams :: Member GalleyAPIAccess r => StoredUser -> Sem r StoredUser
+    hackForBlockingHandleChangeForE2EIdTeams :: (Member GalleyAPIAccess r) => StoredUser -> Sem r StoredUser
     hackForBlockingHandleChangeForE2EIdTeams user = do
       e2eid <- hasE2EId user
       pure $
@@ -389,8 +391,15 @@ mkProfileUpdateHandleEvent :: UserId -> Handle -> UserEvent
 mkProfileUpdateHandleEvent uid handle =
   UserUpdated $ (emptyUserUpdatedData uid) {eupHandle = Just handle}
 
+getLocalUserAccountByUserKeyImpl :: (Member UserStore r, Member UserKeyStore r, Member (Input UserSubsystemConfig) r) => Local EmailKey -> Sem r (Maybe UserAccount)
+getLocalUserAccountByUserKeyImpl target = runMaybeT $ do
+  config <- lift input
+  uid <- MaybeT $ lookupKey (tUnqualified target)
+  user <- MaybeT $ getUser uid
+  pure $ mkAccountFromStored (tDomain target) config.defaultLocale user
+
 --------------------------------------------------------------------------------
--- Check Handle
+-- Update Handle
 
 updateHandleImpl ::
   ( Member (Error UserSubsystemError) r,
@@ -412,7 +421,7 @@ updateHandleImpl (tUnqualified -> uid) mconn updateOrigin uhandle = do
   when (isNothing user.identity) $
     throw UserSubsystemNoIdentity
   mapError (\StoredUserUpdateHandleExists -> UserSubsystemHandleExists) $
-    US.updateUserHandle uid (MkStoredUserHandleUpdate user.handle newHandle)
+    UserStore.updateUserHandle uid (MkStoredUserHandleUpdate user.handle newHandle)
   generateUserEvent uid mconn (mkProfileUpdateHandleEvent uid newHandle)
 
 checkHandleImpl :: (Member (Error UserSubsystemError) r, Member UserStore r) => Text -> Sem r CheckHandleResp
@@ -427,18 +436,19 @@ checkHandleImpl uhandle = do
     else -- Handle is free and can be taken
       pure CheckHandleNotFound
 
-hasE2EId :: Member GalleyAPIAccess r => StoredUser -> Sem r Bool
+hasE2EId :: (Member GalleyAPIAccess r) => StoredUser -> Sem r Bool
 hasE2EId user =
-  wsStatus . afcMlsE2EId <$> getAllFeatureConfigsForUser (Just user.id) <&> \case
-    FeatureStatusEnabled -> True
-    FeatureStatusDisabled -> False
+  wsStatus . afcMlsE2EId
+    <$> getAllFeatureConfigsForUser (Just user.id) <&> \case
+      FeatureStatusEnabled -> True
+      FeatureStatusDisabled -> False
 
 --------------------------------------------------------------------------------
 -- Check Handles
 
 -- | checks for handles @check@ to be available and returns
 --   at maximum @num@ of them
-checkHandlesImpl :: _ => [Handle] -> Word -> Sem r [Handle]
+checkHandlesImpl :: (Member UserStore r) => [Handle] -> Word -> Sem r [Handle]
 checkHandlesImpl check num = reverse <$> collectFree [] check num
   where
     collectFree free _ 0 = pure free

@@ -472,7 +472,7 @@ testRefreshTokenMaxActiveTokens opts db brig =
       tokens <- C.runClient db (lookupOAuthRefreshTokens uid)
       liftIO $ assertBool testMsg $ [rid3, rid] `hasSameElems` (refreshTokenId <$> tokens)
   where
-    extractRefreshTokenId :: MonadIO m => JWK -> OAuthRefreshToken -> m OAuthRefreshTokenId
+    extractRefreshTokenId :: (MonadIO m) => JWK -> OAuthRefreshToken -> m OAuthRefreshTokenId
     extractRefreshTokenId jwk rt = do
       fromMaybe (error "invalid sub") . hcsSub <$> liftIO (verifyRefreshToken jwk (unOAuthToken rt))
 
@@ -732,10 +732,10 @@ verifyRefreshToken jwk jwt =
   fromRight (error "invalid jwt or jwk")
     <$> runJOSE (verifyClaims (defaultJWTValidationSettings (const True)) jwk jwt :: JOSE JWTError IO ClaimsSet)
 
-authHeader :: ToHttpApiData a => a -> Request -> Request
+authHeader :: (ToHttpApiData a) => a -> Request -> Request
 authHeader = bearer "Authorization"
 
-bearer :: ToHttpApiData a => HeaderName -> a -> Request -> Request
+bearer :: (ToHttpApiData a) => HeaderName -> a -> Request -> Request
 bearer name = header name . toHeader . Bearer
 
 newOAuthClientRequestBody :: Text -> Text -> OAuthClientConfig
@@ -845,7 +845,7 @@ mkUrl = fromMaybe (error "invalid url") . fromByteString
 revokeOAuthRefreshToken :: (MonadHttp m) => Brig -> OAuthRevokeRefreshTokenRequest -> m ResponseLBS
 revokeOAuthRefreshToken brig req = post (brig . paths ["oauth", "revoke"] . json req)
 
-instance ToHttpApiData a => ToHttpApiData (Bearer a) where
+instance (ToHttpApiData a) => ToHttpApiData (Bearer a) where
   toHeader = (<>) "Bearer " . toHeader . unBearer
   toUrlPiece = T.decodeUtf8 . toHeader
 

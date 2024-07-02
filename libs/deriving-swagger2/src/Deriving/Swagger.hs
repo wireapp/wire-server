@@ -131,13 +131,13 @@ instance (StringModifier a, StringModifier b, StringModifier c, StringModifier d
 -- | Strips the given prefix, has no effect if the prefix doesn't exist
 data StripPrefix t
 
-instance KnownSymbol prefix => StringModifier (StripPrefix prefix) where
+instance (KnownSymbol prefix) => StringModifier (StripPrefix prefix) where
   getStringModifier = fromMaybe <*> stripPrefix (symbolVal (Proxy @prefix))
 
 -- | Strips the given suffix, has no effect if the suffix doesn't exist
 data StripSuffix t
 
-instance KnownSymbol suffix => StringModifier (StripSuffix suffix) where
+instance (KnownSymbol suffix) => StringModifier (StripSuffix suffix) where
   getStringModifier = fromMaybe <*> stripSuffix (symbolVal (Proxy @suffix))
 
 data CamelTo (separator :: Symbol)

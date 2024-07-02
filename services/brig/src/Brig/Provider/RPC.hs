@@ -111,7 +111,7 @@ extReq scon ps =
     url = httpsUrl (sconBaseUrl scon)
     tok = List1.head (sconAuthTokens scon)
 
-extHandleAll :: MonadCatch m => (SomeException -> m a) -> m a -> m a
+extHandleAll :: (MonadCatch m) => (SomeException -> m a) -> m a -> m a
 extHandleAll f ma =
   catches
     ma

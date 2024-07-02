@@ -340,7 +340,7 @@ allFeatureConfigsFromRow ourteam allowListForExposeInvitationURLs featureLH hasT
             FeatureLegalHoldDisabledByDefault -> maybe False ((==) FeatureStatusEnabled) mStatusValue
             FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> hasTeamImplicitLegalhold
 
-getAllFeatureConfigs :: MonadClient m => Maybe [TeamId] -> FeatureLegalHold -> Bool -> AllFeatureConfigs -> TeamId -> m AllFeatureConfigs
+getAllFeatureConfigs :: (MonadClient m) => Maybe [TeamId] -> FeatureLegalHold -> Bool -> AllFeatureConfigs -> TeamId -> m AllFeatureConfigs
 getAllFeatureConfigs allowListForExposeInvitationURLs featureLH hasTeamImplicitLegalhold serverConfigs tid = do
   mRow <- retry x1 $ query1 select (params LocalQuorum (Identity tid))
   pure

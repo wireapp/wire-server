@@ -14,6 +14,7 @@ import Wire.API.Error.Brig qualified as E
 import Wire.API.Federation.Error
 import Wire.API.User
 import Wire.Arbitrary
+import Wire.UserKeyStore
 
 -- | All errors that are thrown by the user subsystem are subsumed under this sum type.
 data UserSubsystemError
@@ -97,6 +98,7 @@ data UserSubsystem m a where
   CheckHandles :: [Handle] -> Word -> UserSubsystem m [Handle]
   -- | parses a handle, this may fail so it's effectful
   UpdateHandle :: Local UserId -> Maybe ConnId -> UpdateOriginType -> Text {- use Handle here? -} -> UserSubsystem m ()
+  GetLocalUserAccountByUserKey :: Local EmailKey -> UserSubsystem m (Maybe UserAccount)
 
 -- | the return type of 'CheckHandle'
 data CheckHandleResp
@@ -106,13 +108,13 @@ data CheckHandleResp
 
 makeSem ''UserSubsystem
 
-getUserProfile :: Member UserSubsystem r => Local UserId -> Qualified UserId -> Sem r (Maybe UserProfile)
+getUserProfile :: (Member UserSubsystem r) => Local UserId -> Qualified UserId -> Sem r (Maybe UserProfile)
 getUserProfile luid targetUser =
   listToMaybe <$> getUserProfiles luid [targetUser]
 
-getLocalUserProfile :: Member UserSubsystem r => Local UserId -> Sem r (Maybe UserProfile)
+getLocalUserProfile :: (Member UserSubsystem r) => Local UserId -> Sem r (Maybe UserProfile)
 getLocalUserProfile targetUser =
   listToMaybe <$> getLocalUserProfiles ((: []) <$> targetUser)
 
-updateSupportedProtocols :: Member UserSubsystem r => Local UserId -> UpdateOriginType -> Set BaseProtocolTag -> Sem r ()
+updateSupportedProtocols :: (Member UserSubsystem r) => Local UserId -> UpdateOriginType -> Set BaseProtocolTag -> Sem r ()
 updateSupportedProtocols uid mb prots = updateUserProfile uid Nothing mb (def {supportedProtocols = Just prots})

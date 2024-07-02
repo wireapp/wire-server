@@ -39,7 +39,7 @@ plain = responseLBS status200 [plainContent]
 plainContent :: Header
 plainContent = (hContentType, "text/plain; charset=UTF-8")
 
-json :: ToJSON a => a -> Response
+json :: (ToJSON a) => a -> Response
 json = responseLBS status200 [jsonContent] . encode
 
 jsonContent :: Header

@@ -110,7 +110,7 @@ instance CoArbitrary Time
 instance CoArbitrary Issuer where
   coarbitrary (Issuer ur) = coarbitrary $ show ur
 
-instance CoArbitrary a => CoArbitrary (URIRef a) where
+instance (CoArbitrary a) => CoArbitrary (URIRef a) where
   coarbitrary = coarbitrary . show
 
 instance CoArbitrary (IdPConfig WireIdP)

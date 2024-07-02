@@ -7,13 +7,12 @@ import qualified API.Brig as BrigP
 import qualified API.BrigInternal as BrigI
 import qualified API.GalleyInternal as GalleyI
 import qualified API.Nginz as Nginz
-import Control.Monad.Cont
 import GHC.Stack
 import SetupHelpers
 import Testlib.Prelude
 
 -- | Deleting unknown clients should fail with 404.
-testDeleteUnknownClient :: HasCallStack => App ()
+testDeleteUnknownClient :: (HasCallStack) => App ()
 testDeleteUnknownClient = do
   user <- randomUser OwnDomain def
   let fakeClientId = "deadbeefdeadbeef"
@@ -21,7 +20,7 @@ testDeleteUnknownClient = do
     resp.status `shouldMatchInt` 404
     resp.json %. "label" `shouldMatch` "client-not-found"
 
-testModifiedBrig :: HasCallStack => App ()
+testModifiedBrig :: (HasCallStack) => App ()
 testModifiedBrig = do
   withModifiedBackend
     (def {brigCfg = setField "optSettings.setFederationDomain" "overridden.example.com"})
@@ -31,7 +30,7 @@ testModifiedBrig = do
         resp.status `shouldMatchInt` 200
         (resp.json %. "domain") `shouldMatch` "overridden.example.com"
 
-testModifiedGalley :: HasCallStack => App ()
+testModifiedGalley :: (HasCallStack) => App ()
 testModifiedGalley = do
   (_user, tid, _) <- createTeam OwnDomain 1
 
@@ -49,23 +48,23 @@ testModifiedGalley = do
       (_user, tid', _) <- createTeam domain 1
       getFeatureStatus domain tid' `shouldMatch` "enabled"
 
-testModifiedCannon :: HasCallStack => App ()
+testModifiedCannon :: (HasCallStack) => App ()
 testModifiedCannon = do
   withModifiedBackend def $ \_ -> pure ()
 
-testModifiedGundeck :: HasCallStack => App ()
+testModifiedGundeck :: (HasCallStack) => App ()
 testModifiedGundeck = do
   withModifiedBackend def $ \_ -> pure ()
 
-testModifiedCargohold :: HasCallStack => App ()
+testModifiedCargohold :: (HasCallStack) => App ()
 testModifiedCargohold = do
   withModifiedBackend def $ \_ -> pure ()
 
-testModifiedSpar :: HasCallStack => App ()
+testModifiedSpar :: (HasCallStack) => App ()
 testModifiedSpar = do
   withModifiedBackend def $ \_ -> pure ()
 
-testModifiedServices :: HasCallStack => App ()
+testModifiedServices :: (HasCallStack) => App ()
 testModifiedServices = do
   let serviceMap =
         def
@@ -79,17 +78,17 @@ testModifiedServices = do
       res.status `shouldMatchInt` 200
       res.json %. "status" `shouldMatch` "enabled"
 
-    bindResponse (BrigP.getAPIVersion domain) $
-      \resp -> do
+    bindResponse (BrigP.getAPIVersion domain)
+      $ \resp -> do
         resp.status `shouldMatchInt` 200
         (resp.json %. "domain") `shouldMatch` "overridden.example.com"
 
-    bindResponse (Nginz.getSystemSettingsUnAuthorized domain) $
-      \resp -> do
+    bindResponse (Nginz.getSystemSettingsUnAuthorized domain)
+      $ \resp -> do
         resp.status `shouldMatchInt` 200
         resp.json %. "setRestrictUserCreation" `shouldMatch` False
 
-testDynamicBackend :: HasCallStack => App ()
+testDynamicBackend :: (HasCallStack) => App ()
 testDynamicBackend = do
   ownDomain <- objDomain OwnDomain
   user <- randomUser OwnDomain def
@@ -100,8 +99,8 @@ testDynamicBackend = do
 
   startDynamicBackends [def] $ \dynDomains -> do
     [dynDomain] <- pure dynDomains
-    bindResponse (Nginz.getSystemSettingsUnAuthorized dynDomain) $
-      \resp -> do
+    bindResponse (Nginz.getSystemSettingsUnAuthorized dynDomain)
+      $ \resp -> do
         resp.status `shouldMatchInt` 200
         resp.json %. "setRestrictUserCreation" `shouldMatch` False
 
@@ -120,16 +119,16 @@ testDynamicBackend = do
     bindResponse (BrigP.getSelf' ownDomain uidD1) $ \resp -> do
       resp.status `shouldMatchInt` 404
 
-testStartMultipleDynamicBackends :: HasCallStack => App ()
+testStartMultipleDynamicBackends :: (HasCallStack) => App ()
 testStartMultipleDynamicBackends = do
   let assertCorrectDomain domain =
-        bindResponse (BrigP.getAPIVersion domain) $
-          \resp -> do
+        bindResponse (BrigP.getAPIVersion domain)
+          $ \resp -> do
             resp.status `shouldMatchInt` 200
             (resp.json %. "domain") `shouldMatch` domain
   startDynamicBackends [def, def, def] $ mapM_ assertCorrectDomain
 
-testIndependentESIndices :: HasCallStack => App ()
+testIndependentESIndices :: (HasCallStack) => App ()
 testIndependentESIndices = do
   u1 <- randomUser OwnDomain def
   u2 <- randomUser OwnDomain def
@@ -162,14 +161,14 @@ testIndependentESIndices = do
         [] -> assertFailure "Expected a non empty result, but got an empty one"
         doc : _ -> doc %. "id" `shouldMatch` uidD2
 
-testDynamicBackendsFederation :: HasCallStack => App ()
+testDynamicBackendsFederation :: (HasCallStack) => App ()
 testDynamicBackendsFederation = do
   startDynamicBackends [def, def] $ \[aDynDomain, anotherDynDomain] -> do
     [u1, u2] <- createAndConnectUsers [aDynDomain, anotherDynDomain]
     bindResponse (BrigP.getConnection u1 u2) assertSuccess
     bindResponse (BrigP.getConnection u2 u1) assertSuccess
 
-testWebSockets :: HasCallStack => App ()
+testWebSockets :: (HasCallStack) => App ()
 testWebSockets = do
   user <- randomUser OwnDomain def
   withWebSocket user $ \ws -> do
@@ -195,12 +194,12 @@ testUnrace = do
   -}
   retryT $ True `shouldMatch` True
 
-testFedV0Instance :: HasCallStack => App ()
+testFedV0Instance :: (HasCallStack) => App ()
 testFedV0Instance = do
   res <- BrigP.getAPIVersion FedV0Domain >>= getJSON 200
   res %. "domain" `shouldMatch` FedV0Domain
 
-testFedV0Federation :: HasCallStack => App ()
+testFedV0Federation :: (HasCallStack) => App ()
 testFedV0Federation = do
   alice <- randomUser OwnDomain def
   bob <- randomUser FedV0Domain def

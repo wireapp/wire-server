@@ -54,7 +54,7 @@ ensurePermissions u t perms = do
 -- | Privilege escalation detection (make sure no `RoleMember` user creates a `RoleOwner`).
 --
 -- There is some code duplication with 'Galley.API.Teams.ensureNotElevated'.
-ensurePermissionToAddUser :: Member GalleyAPIAccess r => UserId -> TeamId -> Permissions -> ExceptT Error (AppT r) ()
+ensurePermissionToAddUser :: (Member GalleyAPIAccess r) => UserId -> TeamId -> Permissions -> ExceptT Error (AppT r) ()
 ensurePermissionToAddUser u t inviteePerms = do
   minviter <- lift $ liftSem $ GalleyAPIAccess.getTeamMember u t
   unless (check minviter) $

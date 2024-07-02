@@ -26,11 +26,11 @@ testJoinSubConv = do
     assertBool "Epoch timestamp should not be null" (tm /= Null)
 
   -- now alice joins with her own client
-  void $
-    createExternalCommit alice1 Nothing
-      >>= sendAndConsumeCommitBundle
+  void
+    $ createExternalCommit alice1 Nothing
+    >>= sendAndConsumeCommitBundle
 
-testDeleteParentOfSubConv :: HasCallStack => Domain -> App ()
+testDeleteParentOfSubConv :: (HasCallStack) => Domain -> App ()
 testDeleteParentOfSubConv secondDomain = do
   (alice, tid, _) <- createTeam OwnDomain 1
   bob <- randomUser secondDomain def
@@ -81,7 +81,7 @@ testDeleteParentOfSubConv secondDomain = do
       resp.status `shouldMatchInt` 404
       resp.json %. "label" `shouldMatch` "no-conversation"
 
-testDeleteSubConversation :: HasCallStack => Domain -> App ()
+testDeleteSubConversation :: (HasCallStack) => Domain -> App ()
 testDeleteSubConversation otherDomain = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, otherDomain]
   charlie <- randomUser OwnDomain def
@@ -105,7 +105,7 @@ testDeleteSubConversation otherDomain = do
 data Leaver = Alice | Bob
   deriving stock (Generic)
 
-testLeaveSubConv :: HasCallStack => Leaver -> App ()
+testLeaveSubConv :: (HasCallStack) => Leaver -> App ()
 testLeaveSubConv leaver = do
   [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OtherDomain]
   clients@[alice1, bob1, bob2, charlie1] <- traverse (createMLSClient def) [alice, bob, bob, charlie]
@@ -224,7 +224,7 @@ testCreatorRemovesUserFromParent = do
           ws
       msg %. "payload.0.data"
         & asByteString
-        >>= mlsCliConsume consumer
+          >>= mlsCliConsume consumer
 
     -- remove bob from the child state
     modifyMLSState $ \s -> s {members = s.members Set.\\ Set.fromList [bob1, bob2]}
@@ -239,3 +239,51 @@ testCreatorRemovesUserFromParent = do
       assertBool "alice and charlie should have access to the conversation" (resp.status == 200)
       mems <- resp.jsonBody %. "members" & asList
       mems `shouldMatchSet` ((renameField "id" "user_id" <=< make) `traverse` [alice1, charlie1, charlie2])
+
+testResendingProposals :: (HasCallStack) => App ()
+testResendingProposals = do
+  [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OtherDomain]
+  [alice1, alice2, bob1, bob2, bob3, charlie1] <-
+    traverse
+      (createMLSClient def)
+      [alice, alice, bob, bob, bob, charlie]
+  traverse_ uploadNewKeyPackage [alice2, bob1, bob2, bob3, charlie1]
+
+  (_, conv) <- createNewGroup alice1
+  void $ createAddCommit alice1 [alice, bob, charlie] >>= sendAndConsumeCommitBundle
+
+  createSubConv alice1 "conference"
+
+  void $ createExternalCommit alice2 Nothing >>= sendAndConsumeCommitBundle
+  void $ createExternalCommit bob1 Nothing >>= sendAndConsumeCommitBundle
+  void $ createExternalCommit bob2 Nothing >>= sendAndConsumeCommitBundle
+  void $ createExternalCommit bob3 Nothing >>= sendAndConsumeCommitBundle
+
+  leaveCurrentConv bob1
+  leaveCurrentConv bob2
+  leaveCurrentConv bob3
+
+  mls <- getMLSState
+  withWebSockets (charlie1 : toList mls.members) \wss -> do
+    void $ createExternalCommit charlie1 Nothing >>= sendAndConsumeCommitBundle
+
+    -- consume proposals after backend resends them
+    for_ wss \ws -> do
+      replicateM 3 do
+        msg <- consumeMessage (fromJust ws.client) Nothing ws
+        msg %. "message.content.sender.External" `shouldMatchInt` 0
+
+  void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
+
+  sub <- getSubConversation alice1 conv "conference" >>= getJSON 200
+  let members =
+        map
+          ( \cid ->
+              object
+                [ "client_id" .= cid.client,
+                  "user_id" .= cid.user,
+                  "domain" .= cid.domain
+                ]
+          )
+          [alice1, alice2, charlie1]
+  sub %. "members" `shouldMatchSet` members

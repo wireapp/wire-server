@@ -38,7 +38,7 @@ newtype UserMap a = UserMap {userMap :: Map UserId a}
   deriving stock (Eq, Show)
   deriving newtype (Semigroup, Monoid, ToJSON, FromJSON, Functor)
 
-instance Arbitrary a => Arbitrary (UserMap a) where
+instance (Arbitrary a) => Arbitrary (UserMap a) where
   arbitrary = UserMap <$> mapOf' arbitrary arbitrary
 
 type WrappedQualifiedUserMap a = Wrapped "qualified_user_map" (QualifiedUserMap a)
@@ -53,7 +53,7 @@ instance Functor QualifiedUserMap where
   fmap f (QualifiedUserMap qMap) =
     QualifiedUserMap $ f <$$> qMap
 
-instance Arbitrary a => Arbitrary (QualifiedUserMap a) where
+instance (Arbitrary a) => Arbitrary (QualifiedUserMap a) where
   arbitrary = QualifiedUserMap <$> mapOf' arbitrary arbitrary
 
 instance (ToSchema a, ToJSON a, Arbitrary a) => ToSchema (UserMap (Set a)) where
