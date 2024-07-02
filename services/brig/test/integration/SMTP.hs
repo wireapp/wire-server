@@ -25,6 +25,7 @@ import Util
 import Wire.EmailSending
 import Wire.EmailSending.SMTP
 
+-- FUTUREWORK: Move all these tests to unit tests for the emailViaSMTPInterpreter
 tests :: Bilge.Manager -> Logger.Logger -> TestTree
 tests m lg =
   testGroup
@@ -38,7 +39,6 @@ tests m lg =
       test m "should throw an error the initiation times out" $ testSendMailTimeoutOnStartup lg
     ]
 
--- TODO: Move all these tests to unit tests for the emailViaSMTPInterpreter
 testSendMail :: Logger.Logger -> Bilge.Http ()
 testSendMail lg = do
   receivedMailRef <- liftIO $ newIORef Nothing
