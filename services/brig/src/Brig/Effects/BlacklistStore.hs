@@ -2,11 +2,9 @@
 
 module Brig.Effects.BlacklistStore where
 
-import Brig.Data.UserKey
 import Brig.Email
 import Imports
 import Polysemy
-import Wire.UserKeyStore
 
 data BlacklistStore m a where
   Insert :: EmailKey -> BlacklistStore m ()

@@ -89,14 +89,6 @@ import Brig.Data.Connection qualified as Data
 import Brig.Data.Properties qualified as Data
 import Brig.Data.User
 import Brig.Data.User qualified as Data
-import Brig.Data.UserKey
-import Brig.Data.UserKey qualified as Data
-import Brig.Data.UserKey
-import Brig.Data.UserKey qualified as Data
-import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
-import Brig.Effects.BlacklistPhonePrefixStore qualified as BlacklistPhonePrefixStore
-import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
-import Brig.Effects.BlacklistPhonePrefixStore qualified as BlacklistPhonePrefixStore
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.BlacklistStore qualified as BlacklistStore
 import Brig.Effects.ConnectionStore (ConnectionStore)
@@ -614,21 +606,6 @@ changeEmail u email updateOrigin = do
       pure $ ChangeEmailNeedsActivation (usr, act, em)
 
 -------------------------------------------------------------------------------
--- Change Phone
-
-changePhone ::
-  ( Member BlacklistStore r,
-    Member UserKeyStore r,
-    Member BlacklistPhonePrefixStore r
-  ) =>
-  UserId ->
-  Phone ->
-  Public.PhoneUpdate -> 
-  ExceptT ChangePhoneError (AppT r) (Activation, Phone)
-changePhone u phone = do
-changePhone _ _ _ = pure . Just $ Public.InvalidNewPhone
-
--------------------------------------------------------------------------------
 -- Remove Email
 
 removeEmail ::
@@ -646,11 +623,15 @@ removeEmail ::
 removeEmail uid = do
   ident <- lift $ fetchUserIdentity uid
   case ident of
-    Just (FullIdentity e _) -> lift $ do
-      liftSem $ deleteKey $ userEmailKey e
-      wrapClient $ Data.deleteEmail uid
-      liftSem $ Intra.onUserEvent uid (Just conn) (emailRemoved uid e)
-    Just _ -> throwE LastIdentity
+    Just (SSOIdentity (UserSSOId _) (Just e)) ->
+      lift $ do
+        liftSem $ deleteKey $ mkEmailKey e
+        wrapClient $ Data.deleteEmail uid
+        liftSem $ Intra.onUserEvent uid Nothing (emailRemoved uid e)
+    Just (SSOIdentity _ _) ->
+      throwE LastIdentity
+    Just (EmailIdentity _) ->
+      throwE LastIdentity
     Nothing -> throwE NoIdentity
 
 -------------------------------------------------------------------------------
@@ -666,13 +647,7 @@ removePhone _uid = pure ()
 -- boils down to deactivating the user.
 revokeIdentity ::
   forall r.
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member TinyLog r,
-    Member UserKeyStore r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
+  ( Member UserKeyStore r,
     Member UserSubsystem r
   ) =>
   Email ->
@@ -836,13 +811,12 @@ sendActivationCode ::
   ) =>
   Email ->
   Maybe Locale ->
-  Bool ->
   ExceptT SendActivationCodeError (AppT r) ()
-sendActivationCode email loc call = do
+sendActivationCode email loc = do
   ek <-
     either
-      (const . throwE . InvalidRecipient $ userEmailKey email)
-      (pure . userEmailKey)
+      (const . throwE . InvalidRecipient $ mkEmailKey email)
+      (pure . mkEmailKey)
       (validateEmail email)
   exists <- lift $ liftSem $ isJust <$> lookupKey ek
   when exists $
@@ -924,56 +898,6 @@ changePassword uid cp = do
       when (verifyPassword newpw pw) $
         throwE ChangePasswordMustDiffer
       lift $ liftSem (upsertHashedPassword uid hashedNewPw) >> wrapClient (Auth.revokeAllCookies uid)
-
-beginPasswordReset ::
-  ( Member TinyLog r,
-    Member PasswordResetStore r
-  ) =>
-  Either Email Phone ->
-  ExceptT PasswordResetError (AppT r) (UserId, PasswordResetPair)
-beginPasswordReset target = do
-  let key = either userEmailKey userPhoneKey target
-  user <- lift (wrapClient $ Data.lookupKey key) >>= maybe (throwE InvalidPasswordResetKey) pure
-  lift . liftSem . Log.debug $ field "user" (toByteString user) . field "action" (val "User.beginPasswordReset")
-  status <- lift . wrapClient $ Data.lookupStatus user
-  unless (status == Just Active) $
-    throwE InvalidPasswordResetKey
-  code <- lift . liftSem $ E.lookupPasswordResetCode user
-  when (isJust code) $
-    throwE (PasswordResetInProgress Nothing)
-  (user,) <$> lift (liftSem $ E.createPasswordResetCode user target)
-
-completePasswordReset ::
-  ( Member CodeStore r,
-    Member PasswordResetStore r,
-    Member TinyLog r
-  ) =>
-  PasswordResetIdentity ->
-  PasswordResetCode ->
-  PlainTextPassword8 ->
-  ExceptT PasswordResetError (AppT r) ()
-completePasswordReset ident code pw = do
-  key <- mkPasswordResetKey ident
-  muid :: Maybe UserId <- lift . liftSem $ E.verifyPasswordResetCode (key, code)
-  case muid of
-    Nothing -> throwE InvalidPasswordResetCode
-    Just uid -> do
-      lift . liftSem . Log.debug $ field "user" (toByteString uid) . field "action" (val "User.completePasswordReset")
-      checkNewIsDifferent uid pw
-      lift $ do
-        wrapClient $ Data.updatePassword uid pw
-        liftSem $ E.codeDelete key
-        wrapClient $ revokeAllCookies uid
-
--- | Pull the current password of a user and compare it against the one about to be installed.
--- If the two are the same, throw an error.  If no current password can be found, do nothing.
-checkNewIsDifferent :: UserId -> PlainTextPassword' t -> ExceptT PasswordResetError (AppT r) ()
-checkNewIsDifferent uid pw = do
-  mcurrpw <- lift . wrapClient $ Data.lookupPassword uid
-  case mcurrpw of
-    Just currpw
-      | (verifyPassword pw currpw) -> throwE ResetPasswordMustDiffer
-    _ -> pure ()
 
 -------------------------------------------------------------------------------
 -- User Deletion
@@ -1163,7 +1087,7 @@ deleteAccount (accountUser -> user) = do
   Log.info $ field "user" (toByteString uid) . msg (val "Deleting account")
   do
     -- Free unique keys
-    for_ (userEmail user) $ embed . deleteKeyForUser uid . mkEmailKey
+    for_ (userEmail user) $ deleteKeyForUser uid . mkEmailKey
     embed $ Data.clearProperties uid
     deleteUser user
 
@@ -1181,7 +1105,7 @@ deleteAccount (accountUser -> user) = do
 -- Lookups
 
 lookupActivationCode ::
-  MonadClient m =>
+  (MonadClient m) =>
   Email ->
   m (Maybe ActivationPair)
 lookupActivationCode email = do
@@ -1196,7 +1120,7 @@ lookupPasswordResetCode ::
   Email ->
   (AppT r) (Maybe PasswordResetPair)
 lookupPasswordResetCode email = do
-  let uk = userEmailKey emailOrPhone
+  let uk = mkEmailKey email
   liftSem $ internalLookupPasswordResetCode uk
 
 deleteUserNoVerify ::
@@ -1274,17 +1198,17 @@ lookupAccountsByIdentity email includePendingInvitations = do
     then pure result
     else pure $ filter ((/= PendingInvitation) . accountStatus) result
 
-isBlacklisted :: Member BlacklistStore r => Email -> AppT r Bool
+isBlacklisted :: (Member BlacklistStore r) => Email -> AppT r Bool
 isBlacklisted email = do
   let uk = mkEmailKey email
   liftSem $ BlacklistStore.exists uk
 
-blacklistInsert :: Member BlacklistStore r => Email -> AppT r ()
+blacklistInsert :: (Member BlacklistStore r) => Email -> AppT r ()
 blacklistInsert email = do
   let uk = mkEmailKey email
   liftSem $ BlacklistStore.insert uk
 
-blacklistDelete :: Member BlacklistStore r => Email -> AppT r ()
+blacklistDelete :: (Member BlacklistStore r) => Email -> AppT r ()
 blacklistDelete email = do
   let uk = mkEmailKey email
   liftSem $ BlacklistStore.delete uk

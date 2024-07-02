@@ -315,7 +315,6 @@ deleteEmailUnvalidated :: (MonadClient m) => UserId -> m ()
 deleteEmailUnvalidated u = retry x5 $ write userEmailUnvalidatedDelete (params LocalQuorum (Identity u))
 
 deleteServiceUser :: (MonadClient m) => ProviderId -> ServiceId -> BotId -> m ()
-deleteServiceUser :: (MonadClient m) => ProviderId -> ServiceId -> BotId -> m ()
 deleteServiceUser pid sid bid = do
   lookupServiceUser pid sid bid >>= \case
     Nothing -> pure ()
@@ -341,12 +340,6 @@ updateStatus u s =
 
 userExists :: (MonadClient m) => UserId -> m Bool
 userExists uid = isJust <$> retry x1 (query1 idSelect (params LocalQuorum (Identity uid)))
-
--- | Whether the account has been activated by verifying an email address
-isActivated :: (MonadClient m) => UserId -> m Bool
-isActivated u =
-  (== Just (Identity True))
-    <$> retry x1 (query1 activatedSelect (params LocalQuorum (Identity u)))
 
 filterActive :: (MonadClient m) => [UserId] -> m [UserId]
 filterActive us =

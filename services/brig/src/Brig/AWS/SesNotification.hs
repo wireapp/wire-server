@@ -30,7 +30,6 @@ import Polysemy (Member)
 import System.Logger.Class (field, msg, (~~))
 import System.Logger.Class qualified as Log
 import Wire.API.User.Identity
-import Wire.UserKeyStore (userEmailKey)
 
 onEvent :: (Member BlacklistStore r) => SESNotification -> AppT r ()
 onEvent (MailBounce BouncePermanent es) = onPermanentBounce es

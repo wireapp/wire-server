@@ -32,7 +32,6 @@ import Brig.API.User (createUserInviteViaScim, fetchUserIdentity)
 import Brig.API.User qualified as API
 import Brig.API.Util (logEmail, logInvitationCode)
 import Brig.App
-import Brig.Data.UserKey as Data
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.BlacklistStore qualified as BlacklistStore
 import Brig.Effects.ConnectionStore (ConnectionStore)

@@ -115,7 +115,6 @@ library
     Brig.Data.Properties
     Brig.Data.Types
     Brig.Data.User
-    Brig.Data.UserKey
     Brig.DeleteQueue.Interpreter
     Brig.Effects.BlacklistStore
     Brig.Effects.BlacklistStore.Cassandra

@@ -43,10 +43,6 @@ import Brig.Code qualified as Code
 import Brig.Data.Connection qualified as Data
 import Brig.Data.Nonce as Nonce
 import Brig.Data.User qualified as Data
-import Brig.Data.UserKey qualified as UserKey
-import Brig.Data.UserKey qualified as UserKey
-import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
-import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.FederationConfigStore (FederationConfigStore)
@@ -54,7 +50,6 @@ import Brig.Effects.JwtTools (JwtTools)
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
 import Brig.Effects.SFT
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
-import Brig.Email (mkEmailKey)
 import Brig.Options hiding (internalEvents, sesQueue)
 import Brig.Provider.API
 import Brig.Team.API qualified as Team
@@ -145,7 +140,7 @@ import Wire.API.SystemSettings
 import Wire.API.Team qualified as Public
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.Team.Member (HiddenPerm (..), hasPermission)
-import Wire.API.User (RegisterError (RegisterErrorAllowlistError))
+import Wire.API.User (PhoneUpdate, RegisterError (RegisterErrorAllowlistError))
 import Wire.API.User qualified as Public
 import Wire.API.User.Activation qualified as Public
 import Wire.API.User.Auth qualified as Public
@@ -167,7 +162,7 @@ import Wire.Sem.Concurrency
 import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
-import Wire.UserKeyStore hiding (keyText)
+import Wire.UserKeyStore
 import Wire.UserStore (UserStore)
 import Wire.UserSubsystem hiding (checkHandle, checkHandles)
 import Wire.UserSubsystem qualified as UserSubsystem
@@ -282,9 +277,8 @@ internalEndpointsSwaggerDocsAPI service examplePort swagger Nothing =
 
 servantSitemap ::
   forall r p.
-  (  Member AuthenticationSubsystem r,
+  ( Member AuthenticationSubsystem r,
     Member BlacklistStore r,
-    Member CodeStore r,
     Member (Concurrency 'Unsafe) r,
     Member (ConnectionStore InternalPaging) r,
     Member DeleteQueue r,
@@ -303,9 +297,9 @@ servantSitemap ::
     Member SFT r,
     Member TinyLog r,
     Member UserKeyStore r,
-    Member (UserPendingActivationStore p) r
+    Member (UserPendingActivationStore p) r,
     Member UserStore r,
-    Member UserSubsystem r,
+    Member UserSubsystem r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -951,12 +945,9 @@ updateUser uid conn uu = do
 -- | Phone based functionality is not supported any more, but the handler is
 -- kept here so long as client API version 5 is supported.
 changePhone ::
-  ( Member BlacklistStore r,
-    Member BlacklistPhonePrefixStore r
-  ) =>
   UserId ->
   ConnId ->
-  Public.PhoneUpdate ->
+  PhoneUpdate ->
   (Handler r) (Maybe Public.ChangePhoneError)
 changePhone _ _ _ = pure . Just $ Public.InvalidNewPhone
 
@@ -1050,7 +1041,7 @@ beginPasswordReset ::
 beginPasswordReset Public.NewPasswordResetUnsupportedPhone =
   throwStd (errorToWai @'E.InvalidPhone)
 beginPasswordReset (Public.NewPasswordReset target) = do
-  (u, pair) <- lift (liftSem $ createPasswordResetCode (fromEither target)) !>> pwResetError
+  (u, pair) <- lift (liftSem $ createPasswordResetCode (mkEmailKey target)) !>> pwResetError
   loc <- lift $ wrapClient $ API.lookupLocale u
   lift $ sendPasswordResetMail target pair loc
 
@@ -1069,10 +1060,9 @@ completePasswordReset req = do
 -- docs/reference/user/activation.md {#RefActivationRequest}
 -- docs/reference/user/registration.md {#RefRegistration}
 sendActivationCode ::
-  ( Member BlacklistPhonePrefixStore r,
-    Member BlacklistStore r,
-    Member GalleyAPIAccess r
-    Member UserKeyStore r,
+  ( Member BlacklistStore r,
+    Member GalleyAPIAccess r,
+    Member UserKeyStore r
   ) =>
   Public.SendActivationCode ->
   Handler r ()
@@ -1082,7 +1072,7 @@ sendActivationCode Public.SendActivationCode {..} = do
     Right _ -> throwStd (errorToWai @'E.InvalidPhone)
   customerExtensionCheckBlockedDomains email
   checkAllowlist email
-  API.sendActivationCode email saLocale saCall !>> sendActCodeError
+  API.sendActivationCode email saLocale !>> sendActCodeError
 
 -- | If the user presents an email address from a blocked domain, throw an error.
 --
@@ -1356,7 +1346,7 @@ sendVerificationCode req = do
   where
     getAccount :: Public.Email -> (Handler r) (Maybe UserAccount)
     getAccount email = lift $ do
-      mbUserId <- liftSem $ lookupKey $ userEmailKey email
+      mbUserId <- liftSem $ lookupKey $ mkEmailKey email
       join <$> wrapClient (Data.lookupAccount `traverse` mbUserId)
 
     sendMail :: Public.Email -> Code.Value -> Maybe Public.Locale -> Public.VerificationAction -> (Handler r) ()

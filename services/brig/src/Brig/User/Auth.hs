@@ -42,7 +42,6 @@ import Brig.Code qualified as Code
 import Brig.Data.Activation qualified as Data
 import Brig.Data.Client
 import Brig.Data.User qualified as Data
-import Brig.Data.UserKey as Data
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Email
 import Brig.Options qualified as Opt
@@ -78,7 +77,7 @@ import Wire.API.User.Auth.Sso
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
-import Wire.PasswordStore (PasswordStore, lookupHashedPassword)
+import Wire.PasswordStore
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserKeyStore
 import Wire.UserStore
@@ -119,6 +118,9 @@ login (PasswordLogin (PasswordLoginData li pw label code)) typ = do
           VerificationCodeNoPendingCode -> wrapHttpClientE $ loginFailedWith LoginCodeInvalid uid
           VerificationCodeRequired -> wrapHttpClientE $ loginFailedWith LoginCodeRequired uid
           VerificationCodeNoEmail -> wrapHttpClientE $ loginFailed uid
+login (SmsLogin (SmsLoginData _ _ _)) _ = do
+  -- sms login not supported
+  throwE LoginFailed
 
 verifyCode ::
   forall r.

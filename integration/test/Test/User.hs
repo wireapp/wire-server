@@ -165,7 +165,7 @@ data TestUpdateSelfMode
   | TestUpdateLocale
   deriving (Eq, Show, Generic)
 
-testActivateAccountWithPhoneV5 :: HasCallStack => App ()
+testActivateAccountWithPhoneV5 :: (HasCallStack) => App ()
 testActivateAccountWithPhoneV5 = do
   let dom = OwnDomain
   let phone = "+4912345678"

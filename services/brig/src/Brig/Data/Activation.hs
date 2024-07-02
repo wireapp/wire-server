@@ -31,9 +31,6 @@ where
 
 import Brig.App (Env, adhocUserKeyStoreInterpreter)
 import Brig.Data.User
-import Brig.Data.UserKey
-import Brig.Effects.CodeStore qualified as E
-import Brig.Effects.CodeStore.Cassandra
 import Brig.Email
 import Brig.Options
 import Brig.Types.Intra

@@ -88,7 +88,6 @@ randomUserProfile' :: (HasCallStack) => Bool -> Bool -> Bool -> TestM SelfProfil
 randomUserProfile' isCreator hasPassword hasEmail = randomUserProfile'' isCreator hasPassword hasEmail <&> fst
 
 randomUserProfile'' :: (HasCallStack) => Bool -> Bool -> Bool -> TestM (SelfProfile, Email)
-randomUserProfile'' :: (HasCallStack) => Bool -> Bool -> Bool -> TestM (SelfProfile, (Email, Phone))
 randomUserProfile'' isCreator hasPassword hasEmail = do
   b <- view tsBrig
   e <- liftIO randomEmail
@@ -101,7 +100,7 @@ randomUserProfile'' isCreator hasPassword hasEmail = do
   (,e) . responseJsonUnsafe <$> (post (b . path "/i/users" . Bilge.json pl) <!! const 201 === statusCode)
 
 randomEmailUser :: (HasCallStack) => TestM (UserId, Email)
-randomEmailUser = randomUserProfile'' False False True <&> bimap (User.userId . selfUser) fst
+randomEmailUser = randomUserProfile'' False False True <&> bimap (User.userId . selfUser) id
 
 defPassword :: PlainTextPassword8
 defPassword = plainTextPassword8Unsafe "topsecretdefaultpassword"

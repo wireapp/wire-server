@@ -31,7 +31,7 @@ import Polysemy.Embed (runEmbedded)
 import Polysemy.Error (Error, errorToIOFinal, mapError, runError)
 import Polysemy.Input (Input, runInputConst, runInputSem)
 import Polysemy.TinyLog (TinyLog)
-import Wire.API.Allowlists (AllowlistEmailDomains, AllowlistPhonePrefixes)
+import Wire.API.Allowlists (AllowlistEmailDomains)
 import Wire.API.Federation.Client qualified
 import Wire.API.Federation.Error
 import Wire.AuthenticationSubsystem
@@ -89,7 +89,6 @@ type BrigCanonicalEffects =
      Input UTCTime,
      Input (Local ()),
      Input (Maybe AllowlistEmailDomains),
-     Input (Maybe AllowlistPhonePrefixes),
      NotificationSubsystem,
      GundeckAPIAccess,
      FederationConfigStore,
@@ -155,7 +154,6 @@ runBrigToIO e (AppT ma) = do
               . interpretFederationDomainConfig (e ^. settings . federationStrategy) (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) (e ^. settings . federationDomainConfigs))
               . runGundeckAPIAccess (e ^. gundeckEndpoint)
               . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig (e ^. App.requestId))
-              . runInputConst (e ^. settings . Opt.allowlistPhonePrefixes)
               . runInputConst (e ^. settings . Opt.allowlistEmailDomains)
               . runInputConst (toLocalUnsafe (e ^. settings . Opt.federationDomain) ())
               . runInputSem (embed getCurrentTime)

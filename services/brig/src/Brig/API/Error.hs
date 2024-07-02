@@ -18,9 +18,7 @@
 module Brig.API.Error where
 
 import Brig.API.Types
-import Brig.Phone (PhoneException (..))
 import Control.Monad.Error.Class (MonadError (..))
-import Control.Monad.Error.Class hiding (Error)
 import Data.Aeson
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.ByteString.Conversion

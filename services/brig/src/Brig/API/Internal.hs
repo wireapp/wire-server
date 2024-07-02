@@ -166,10 +166,7 @@ mlsAPI = getMLSClients
 accountAPI ::
   ( Member BlacklistStore r,
     Member AuthenticationSubsystem r,
-    Member BlacklistPhonePrefixStore r,
-    Member CodeStore r,
     Member GalleyAPIAccess r,
-    Member PasswordResetStore r,
     Member DeleteQueue r,
     Member (UserPendingActivationStore p) r,
     Member (Embed HttpClientIO) r,
@@ -258,7 +255,6 @@ authAPI ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member UserKeyStore r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   ServerT BrigIRoutes.AuthAPI (Handler r)
@@ -665,18 +661,10 @@ getConnectionsStatus (ConnectionsStatusRequestV2 froms mtos mrel) = do
     filterByRelation l rel = filter ((== rel) . csv2Status) l
 
 revokeIdentityH ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member UserKeyStore r,
-    Member (ConnectionStore InternalPaging) r,
-    Member UserSubsystem r
-  ) =>
+  (Member UserKeyStore r, Member UserSubsystem r) =>
   Email ->
   (Handler r) NoContent
-revokeIdentityH email = lift $ NoContent <$ API.revokeIdentity (Left email)
+revokeIdentityH email = lift $ NoContent <$ API.revokeIdentity email
 
 updateConnectionInternalH ::
   ( Member GalleyAPIAccess r,
@@ -693,41 +681,8 @@ updateConnectionInternalH updateConn = do
 checkBlacklist :: (Member BlacklistStore r) => Email -> Handler r CheckBlacklistResponse
 checkBlacklist email = lift $ bool NotBlacklisted YesBlacklisted <$> API.isBlacklisted email
 
-checkBlacklistH :: (Member BlacklistStore r) => Email -> (Handler r) CheckBlacklistResponse
-checkBlacklistH email = checkBlacklist (Left email)
-
 deleteFromBlacklist :: (Member BlacklistStore r) => Email -> Handler r NoContent
 deleteFromBlacklist email = lift $ NoContent <$ API.blacklistDelete email
-
-deleteFromBlacklistH :: (Member BlacklistStore r) => Maybe Email -> Maybe Phone -> (Handler r) NoContent
-deleteFromBlacklistH (Just email) Nothing = deleteFromBlacklist (Left email)
-deleteFromBlacklistH Nothing (Just phone) = deleteFromBlacklist (Right phone)
-deleteFromBlacklistH bade badp =
-  throwStd
-    ( badRequest
-        ("need exactly one of email, phone: " <> LT.pack (show (bade, badp)))
-    )
-
-deleteFromBlacklist :: (Member BlacklistStore r) => Either Email Phone -> (Handler r) NoContent
-deleteFromBlacklist emailOrPhone = lift $ NoContent <$ API.blacklistDelete emailOrPhone
-
-addBlacklistH :: (Member BlacklistStore r) => Maybe Email -> Maybe Phone -> (Handler r) NoContent
-addBlacklistH (Just email) Nothing = addBlacklist (Left email)
-addBlacklistH Nothing (Just phone) = addBlacklist (Right phone)
-addBlacklistH bade badp =
-  throwStd
-    ( badRequest
-        ("need exactly one of email, phone: " <> LT.pack (show (bade, badp)))
-    )
-
-deleteFromBlacklistH :: (Member BlacklistStore r) => Email -> (Handler r) NoContent
-deleteFromBlacklistH email = deleteFromBlacklist (Left email)
-
-deleteFromBlacklist :: (Member BlacklistStore r) => Email -> (Handler r) NoContent
-deleteFromBlacklist email = lift $ NoContent <$ API.blacklistDelete email
-
-addBlacklistH :: (Member BlacklistStore r) => Email -> (Handler r) NoContent
-addBlacklistH email = addBlacklist (Left email)
 
 addBlacklist :: (Member BlacklistStore r) => Email -> (Handler r) NoContent
 addBlacklist email = lift $ NoContent <$ API.blacklistInsert email

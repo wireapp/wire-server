@@ -8,7 +8,6 @@ import Brig.Email
 import Cassandra
 import Imports
 import Polysemy
-import Wire.UserKeyStore
 
 interpretBlacklistStoreToCassandra ::
   forall m r a.

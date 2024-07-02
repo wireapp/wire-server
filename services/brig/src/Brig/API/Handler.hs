@@ -133,7 +133,7 @@ checkAllowlistWithError e key = do
   ok <- isAllowlisted key
   unless ok (throwError e)
 
-isAllowlisted :: MonadReader Env m => Email -> m Bool
+isAllowlisted :: (MonadReader Env m) => Email -> m Bool
 isAllowlisted key = do
   env <- view settings
   pure $ Allowlists.verify (setAllowlistEmailDomains env) key

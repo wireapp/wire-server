@@ -22,8 +22,6 @@
 
 module DanglingUserKeys where
 
-import Brig.Data.UserKey
-import Brig.Email (EmailKey (..), mkEmailKey)
 import Cassandra
 import Cassandra.Util
 import Conduit
