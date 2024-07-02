@@ -335,7 +335,7 @@ renderNewClientEmail email name locale Client {..} NewClientEmailTemplate {..} b
 -------------------------------------------------------------------------------
 -- Deletion Email
 
-sendDeletionEmailImpl ::
+sendAccountDeletionEmailImpl ::
   (Member EmailSending r) =>
   Localised UserTemplates ->
   TemplateBranding ->
@@ -345,7 +345,7 @@ sendDeletionEmailImpl ::
   Code.Value ->
   Locale ->
   Sem r ()
-sendDeletionEmailImpl userTemplates branding email name key code locale = do
+sendAccountDeletionEmailImpl userTemplates branding email name key code locale = do
   let tpl = deletionEmail . snd $ forLocale (Just locale) userTemplates
   sendMail $ renderDeletionEmail email name key code tpl branding
 

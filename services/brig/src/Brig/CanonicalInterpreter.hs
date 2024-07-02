@@ -222,4 +222,4 @@ emailSmsSubsystemInterpreter e tpls branding = interpret \case
   SendEmailAddressUpdateMail email name key code mLocale -> sendEmailAddressUpdateMailImpl tpls branding email name key code mLocale
   SendTeamActivationMail email name key code mLocale teamName -> sendTeamActivationMailImpl tpls branding email name key code mLocale teamName
   SendNewClientEmail email name client locale -> sendNewClientEmailImpl tpls branding email name client locale
-  SendDeletionEmail email name key code locale -> sendDeletionEmailImpl tpls branding email name key code locale
+  SendAccountDeletionEmail email name key code locale -> sendAccountDeletionEmailImpl tpls branding email name key code locale

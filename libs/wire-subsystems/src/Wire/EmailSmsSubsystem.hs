@@ -19,7 +19,7 @@ data EmailSmsSubsystem m a where
   SendActivationMail :: Email -> Name -> ActivationKey -> ActivationCode -> Maybe Locale -> EmailSmsSubsystem m ()
   SendEmailAddressUpdateMail :: Email -> Name -> ActivationKey -> ActivationCode -> Maybe Locale -> EmailSmsSubsystem m ()
   SendNewClientEmail :: Email -> Name -> Client -> Locale -> EmailSmsSubsystem m ()
-  SendDeletionEmail :: Email -> Name -> Code.Key -> Code.Value -> Locale -> EmailSmsSubsystem m ()
+  SendAccountDeletionEmail :: Email -> Name -> Code.Key -> Code.Value -> Locale -> EmailSmsSubsystem m ()
   SendTeamActivationMail :: Email -> Name -> ActivationKey -> ActivationCode -> Maybe Locale -> Text -> EmailSmsSubsystem m ()
   SendTeamDeletionVerificationMail :: Email -> Code.Value -> Maybe Locale -> EmailSmsSubsystem m ()
 

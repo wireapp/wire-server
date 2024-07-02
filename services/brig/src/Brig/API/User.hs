@@ -1151,7 +1151,7 @@ deleteSelfUser uid pwd = do
           let l = userLocale (accountUser a)
           let n = userDisplayName (accountUser a)
           either
-            (\e -> lift $ liftSem $ sendDeletionEmail e n k v l)
+            (\e -> lift $ liftSem $ sendAccountDeletionEmail e n k v l)
             (\p -> lift $ wrapHttp $ sendDeletionSms p k v l)
             target
             `onException` wrapClientE (Code.delete k Code.AccountDeletion)
