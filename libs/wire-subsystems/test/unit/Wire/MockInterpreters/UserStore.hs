@@ -52,34 +52,34 @@ inMemoryUserStoreInterpreter = interpret $ \case
         us' <- f us
         put us'
   DeleteUser user -> modify $ filter (\u -> u.id /= User.userId user)
-  LookupHandle h -> miniBackendLookupHandle h
-  GlimpseHandle h -> miniBackendLookupHandle h
-  LookupStatus uid -> miniBackendLookupStatus uid
-  IsActivated uid -> miniBackendIsActivated uid
-  LookupLocale uid -> miniBackendLookupLocale uid
+  LookupHandle h -> lookupHandleImpl h
+  GlimpseHandle h -> lookupHandleImpl h
+  LookupStatus uid -> lookupStatusImpl uid
+  IsActivated uid -> isActivatedImpl uid
+  LookupLocale uid -> lookupLocaleImpl uid
 
-miniBackendLookupLocale :: (Member (State [StoredUser]) r) => UserId -> Sem r (Maybe ((Maybe Language, Maybe Country)))
-miniBackendLookupLocale uid = do
+lookupLocaleImpl :: (Member (State [StoredUser]) r) => UserId -> Sem r (Maybe ((Maybe Language, Maybe Country)))
+lookupLocaleImpl uid = do
   users <- get
   let mUser = find ((== uid) . (.id)) users
   pure $ (\u -> (u.language, u.country)) <$> mUser
 
-miniBackendIsActivated :: (Member (State [StoredUser]) r) => UserId -> Sem r Bool
-miniBackendIsActivated uid = do
+isActivatedImpl :: (Member (State [StoredUser]) r) => UserId -> Sem r Bool
+isActivatedImpl uid = do
   gets $
     maybe False (.activated)
       . find ((== uid) . (.id))
 
-miniBackendLookupStatus :: (Member (State [StoredUser]) r) => UserId -> Sem r (Maybe AccountStatus)
-miniBackendLookupStatus uid = do
+lookupStatusImpl :: (Member (State [StoredUser]) r) => UserId -> Sem r (Maybe AccountStatus)
+lookupStatusImpl uid = do
   users <- get
   pure $ (.status) =<< (find ((== uid) . (.id)) users)
 
-miniBackendLookupHandle ::
+lookupHandleImpl ::
   (Member (State [StoredUser]) r) =>
   Handle ->
   Sem r (Maybe UserId)
-miniBackendLookupHandle h = do
+lookupHandleImpl h = do
   gets $
     fmap (.id)
       . find ((== Just h) . (.handle))
