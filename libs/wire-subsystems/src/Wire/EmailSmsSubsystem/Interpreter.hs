@@ -106,7 +106,7 @@ sendActivationMailImpl userTemplates branding email name akey acode mLocale = do
   let tpl = activationEmail . snd $ forLocale mLocale userTemplates
   sendMail $ renderActivationMail email name akey acode tpl branding
 
-sendActivationUpdateMailImpl ::
+sendEmailAddressUpdateMailImpl ::
   (Member EmailSending r) =>
   Localised UserTemplates ->
   TemplateBranding ->
@@ -116,7 +116,7 @@ sendActivationUpdateMailImpl ::
   ActivationCode ->
   Maybe Locale ->
   Sem r ()
-sendActivationUpdateMailImpl userTemplates branding email name akey acode mLocale = do
+sendEmailAddressUpdateMailImpl userTemplates branding email name akey acode mLocale = do
   let tpl = activationEmailUpdate . snd $ forLocale mLocale userTemplates
   sendMail $ renderActivationMail email name akey acode tpl branding
 

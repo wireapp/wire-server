@@ -219,7 +219,7 @@ emailSmsSubsystemInterpreter e tpls branding = interpret \case
   SendCreateScimTokenVerificationMail email code mLocale -> sendCreateScimTokenVerificationMailImpl tpls branding email code mLocale
   SendLoginVerificationMail email code mLocale -> sendLoginVerificationMailImpl tpls branding email code mLocale
   SendActivationMail email name key code mLocale -> sendActivationMailImpl tpls branding email name key code mLocale
-  SendActivationUpdateMail email name key code mLocale -> sendActivationUpdateMailImpl tpls branding email name key code mLocale
+  SendEmailAddressUpdateMail email name key code mLocale -> sendEmailAddressUpdateMailImpl tpls branding email name key code mLocale
   SendTeamActivationMail email name key code mLocale teamName -> sendTeamActivationMailImpl tpls branding email name key code mLocale teamName
   SendNewClientEmail email name client locale -> sendNewClientEmailImpl tpls branding email name client locale
   SendDeletionEmail email name key code locale -> sendDeletionEmailImpl tpls branding email name key code locale

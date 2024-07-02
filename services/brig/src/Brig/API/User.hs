@@ -605,7 +605,7 @@ changeSelfEmail u email allowScim = do
       pure ChangeEmailResponseNeedsActivation
   where
     sendOutEmail usr adata en = do
-      (maybe sendActivationMail (const sendActivationUpdateMail) usr.userIdentity)
+      (maybe sendActivationMail (const sendEmailAddressUpdateMail) usr.userIdentity)
         en
         (userDisplayName usr)
         (activationKey adata)
@@ -1014,7 +1014,7 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
             | team ^. teamCreator == uid ->
                 liftSem $ sendTeamActivationMail em name aKey aCode loc' (team ^. teamName)
           _otherwise ->
-            liftSem $ (maybe sendActivationMail (const sendActivationUpdateMail) ident) em name aKey aCode loc'
+            liftSem $ (maybe sendActivationMail (const sendEmailAddressUpdateMail) ident) em name aKey aCode loc'
 
 mkActivationKey :: (MonadClient m, MonadReader Env m) => ActivationTarget -> ExceptT ActivationError m ActivationKey
 mkActivationKey (ActivateKey k) = pure k
