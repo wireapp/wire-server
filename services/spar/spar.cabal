@@ -252,8 +252,7 @@ executable spar
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -j
     -Wno-redundant-constraints -Werror -threaded -rtsopts
-    -with-rtsopts=-N -with-rtsopts=-T -Wredundant-constraints
-    -Wunused-packages
+    "-with-rtsopts=-N -T" -Wredundant-constraints -Wunused-packages
 
   build-depends:
       base
