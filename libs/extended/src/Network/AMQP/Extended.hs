@@ -8,6 +8,7 @@ module Network.AMQP.Extended
     mkRabbitMqAdminClientEnv,
     mkRabbitMqChannelMVar,
     demoteOpts,
+    RabbitMqTlsOpts (..),
   )
 where
 
