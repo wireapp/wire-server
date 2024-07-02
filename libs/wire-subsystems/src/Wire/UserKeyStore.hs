@@ -9,23 +9,6 @@ import Polysemy
 import Test.QuickCheck
 import Wire.API.User
 
-data PhoneKey = PhoneKey
-  { -- | canonical form of 'phoneKeyOrig', without whitespace.
-    phoneKeyUniq :: !Text,
-    -- | phone number with whitespace.
-    phoneKeyOrig :: !Phone
-  }
-  deriving (Ord)
-
-instance Show PhoneKey where
-  showsPrec _ = shows . phoneKeyUniq
-
-instance Eq PhoneKey where
-  (PhoneKey k _) == (PhoneKey k' _) = k == k'
-
-instance Arbitrary PhoneKey where
-  arbitrary = mkPhoneKey <$> arbitrary
-
 -- | An 'EmailKey' is an 'Email' in a form that serves as a unique lookup key.
 data EmailKey = EmailKey
   { emailKeyUniq :: !Text,
@@ -59,11 +42,6 @@ mkEmailKey orig@(Email localPart domain) =
       | domain `notElem` trusted = Text.takeWhile (/= '+') localPart
       | otherwise = localPart
     trusted = ["wearezeta.com", "wire.com", "simulator.amazonses.com"]
-
-mkPhoneKey :: Phone -> PhoneKey
-mkPhoneKey orig =
-  let uniq = Text.filter (not . isSpace) (fromPhone orig)
-   in PhoneKey uniq orig
 
 data UserKeyStore m a where
   LookupKey :: EmailKey -> UserKeyStore m (Maybe UserId)
