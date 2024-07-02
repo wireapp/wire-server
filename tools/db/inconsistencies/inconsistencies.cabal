@@ -71,7 +71,6 @@ executable inconsistencies
   build-depends:
       aeson
     , base
-    , brig
     , bytestring
     , cassandra-util
     , conduit

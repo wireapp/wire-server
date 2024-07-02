@@ -20,15 +20,11 @@ module Test.Wire.API.Golden.Generated.InvitationRequest_team where
 import Data.ISO3166_CountryCodes (CountryCode (BJ, FJ, GH, LB, ME, NL, OM, PA, TC, TZ))
 import Data.LanguageCodes qualified (ISO639_1 (AF, AR, DA, DV, KJ, KS, KU, LG, NN, NY, OM, SI))
 import Imports (Maybe (Just, Nothing))
+import Wire.API.Locale
 import Wire.API.Team.Invitation (InvitationRequest (..))
 import Wire.API.Team.Role (Role (RoleAdmin, RoleExternalPartner, RoleMember, RoleOwner))
 import Wire.API.User.Identity (Email (Email, emailDomain, emailLocal), Phone (Phone, fromPhone))
-import Wire.API.User.Profile
-  ( Country (Country, fromCountry),
-    Language (Language),
-    Locale (Locale, lCountry, lLanguage),
-    Name (Name, fromName),
-  )
+import Wire.API.User.Profile (Name (Name, fromName))
 
 testObject_InvitationRequest_team_1 :: InvitationRequest
 testObject_InvitationRequest_team_1 =

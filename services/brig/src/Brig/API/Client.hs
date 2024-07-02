@@ -67,7 +67,6 @@ import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.User.Auth qualified as UserAuth
 import Brig.User.Auth.Cookie qualified as Auth
-import Brig.User.Email
 import Cassandra (MonadClient)
 import Control.Error
 import Control.Lens (view)
@@ -109,6 +108,7 @@ import Wire.API.User.Client.Prekey
 import Wire.API.UserEvent
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap, qualifiedUserMap), UserMap (userMap))
 import Wire.DeleteQueue
+import Wire.EmailSmsSubsystem (EmailSmsSubsystem, sendNewClientEmail)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
@@ -168,7 +168,8 @@ addClient ::
     Member DeleteQueue r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member EmailSmsSubsystem r
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -187,7 +188,8 @@ addClientWithReAuthPolicy ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member DeleteQueue r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member EmailSmsSubsystem r
   ) =>
   Data.ReAuthPolicy ->
   UserId ->
@@ -220,7 +222,7 @@ addClientWithReAuthPolicy policy u con new = do
     when (count > 1) $
       for_ (userEmail usr) $
         \email ->
-          sendNewClientEmail (userDisplayName usr) email clt (userLocale usr)
+          liftSem $ sendNewClientEmail email (userDisplayName usr) clt (userLocale usr)
   pure clt
   where
     clientId' = clientIdFromPrekey (unpackLastPrekey $ newClientLastKey new)

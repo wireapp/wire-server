@@ -15,7 +15,7 @@ common common-all
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints
+    -Wredundant-constraints -Wunused-packages
 
   default-extensions:
     AllowAmbiguousTypes
@@ -103,6 +103,7 @@ library
     Wire.API.FederationUpdate
     Wire.API.Internal.BulkPush
     Wire.API.Internal.Notification
+    Wire.API.Locale
     Wire.API.MakesFederatedCall
     Wire.API.Message
     Wire.API.Message.Proto
@@ -249,7 +250,6 @@ library
   build-depends:
     , aeson                      >=2.0.1.0
     , asn1-encoding
-    , async
     , attoparsec                 >=0.10
     , base                       >=4       && <5
     , base64-bytestring          >=1.0
@@ -605,7 +605,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Run
     Test.Wire.API.Golden.Runner
 
-  ghc-options:      -threaded -with-rtsopts=-N
+  ghc-options:      -threaded -with-rtsopts=-N -Wunused-packages
   hs-source-dirs:   test/golden
   build-depends:
     , aeson                    >=2.0.1.0
@@ -615,7 +615,6 @@ test-suite wire-api-golden-tests
     , bytestring
     , bytestring-conversion
     , containers               >=0.5
-    , crypton
     , currency-codes
     , either
     , imports
@@ -672,18 +671,17 @@ test-suite wire-api-tests
 
   hs-source-dirs:   test/unit
   build-depends:
-    , aeson                    >=2.0.1.0
+    , aeson                  >=2.0.1.0
     , aeson-qq
     , async
     , base
     , binary
     , bytestring
-    , bytestring-arbitrary     >=0.1.3
+    , bytestring-arbitrary   >=0.1.3
     , bytestring-conversion
     , cassava
-    , containers               >=0.5
+    , containers             >=0.5
     , crypton
-    , either
     , filepath
     , hex
     , hspec
@@ -697,7 +695,6 @@ test-suite wire-api-tests
     , process
     , QuickCheck
     , random
-    , saml2-web-sso
     , schema-profunctor
     , servant
     , servant-server
@@ -707,13 +704,12 @@ test-suite wire-api-tests
     , tasty-hunit
     , tasty-quickcheck
     , text
-    , types-common             >=0.16
+    , types-common           >=0.16
     , unliftio
     , uuid
     , vector
     , wai
     , wire-api
-    , wire-message-proto-lens
 
-  ghc-options:      -threaded -with-rtsopts=-N
+  ghc-options:      -threaded -with-rtsopts=-N -Wunused-packages
   default-language: GHC2021

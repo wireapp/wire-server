@@ -50,7 +50,7 @@ import Brig.Effects.FederationConfigStore
 import Brig.Effects.FederationConfigStore qualified as E
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.IO.Intra qualified as Intra
-import Brig.Options hiding (internalEvents, sesQueue)
+import Brig.Options hiding (internalEvents)
 import Brig.Provider.API qualified as Provider
 import Brig.Team.API qualified as Team
 import Brig.Team.DB (lookupInvitationByEmail)
@@ -103,6 +103,8 @@ import Wire.API.User.RichInfo
 import Wire.API.UserEvent
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 import Wire.DeleteQueue
+import Wire.EmailSending (EmailSending)
+import Wire.EmailSmsSubsystem (EmailSmsSubsystem)
 import Wire.GalleyAPIAccess (GalleyAPIAccess, ShowOrHideInvitationUrl (..))
 import Wire.NotificationSubsystem
 import Wire.Rpc
@@ -132,7 +134,9 @@ servantSitemap ::
     Member UserKeyStore r,
     Member Rpc r,
     Member TinyLog r,
-    Member (UserPendingActivationStore p) r
+    Member (UserPendingActivationStore p) r,
+    Member EmailSending r,
+    Member EmailSmsSubsystem r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -181,7 +185,8 @@ accountAPI ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member EmailSmsSubsystem r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
@@ -234,7 +239,8 @@ teamsAPI ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member EmailSending r
   ) =>
   ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI =
@@ -401,7 +407,8 @@ addClientInternalH ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member EmailSmsSubsystem r
   ) =>
   UserId ->
   Maybe Bool ->
@@ -523,14 +530,14 @@ deleteUserNoAuthH uid = do
     AccountAlreadyDeleted -> pure UserResponseAccountAlreadyDeleted
     AccountDeleted -> pure UserResponseAccountDeleted
 
-changeSelfEmailMaybeSendH :: (Member BlacklistStore r, Member UserKeyStore r) => UserId -> EmailUpdate -> Maybe Bool -> (Handler r) ChangeEmailResponse
+changeSelfEmailMaybeSendH :: (Member BlacklistStore r, Member UserKeyStore r, Member EmailSmsSubsystem r) => UserId -> EmailUpdate -> Maybe Bool -> (Handler r) ChangeEmailResponse
 changeSelfEmailMaybeSendH u body (fromMaybe False -> validate) = do
   let email = euEmail body
   changeSelfEmailMaybeSend u (if validate then ActuallySendEmail else DoNotSendEmail) email UpdateOriginScim
 
 data MaybeSendEmail = ActuallySendEmail | DoNotSendEmail
 
-changeSelfEmailMaybeSend :: (Member BlacklistStore r, Member UserKeyStore r) => UserId -> MaybeSendEmail -> Email -> UpdateOriginType -> (Handler r) ChangeEmailResponse
+changeSelfEmailMaybeSend :: (Member BlacklistStore r, Member UserKeyStore r, Member EmailSmsSubsystem r) => UserId -> MaybeSendEmail -> Email -> UpdateOriginType -> (Handler r) ChangeEmailResponse
 changeSelfEmailMaybeSend u ActuallySendEmail email allowScim = do
   API.changeSelfEmail u email allowScim
 changeSelfEmailMaybeSend u DoNotSendEmail email allowScim = do

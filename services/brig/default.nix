@@ -51,11 +51,8 @@
 , gitignoreSource
 , gundeck-types
 , hashable
-, HaskellNet
-, HaskellNet-SSL
 , hscim
 , HsOpenSSL
-, html-entities
 , http-api-data
 , http-client
 , http-client-openssl
@@ -101,7 +98,6 @@
 , random
 , random-shuffle
 , raw-strings-qq
-, resource-pool
 , resourcet
 , retry
 , ropes
@@ -210,10 +206,7 @@ mkDerivation {
     galley-types
     gundeck-types
     hashable
-    HaskellNet
-    HaskellNet-SSL
     HsOpenSSL
-    html-entities
     http-client
     http-client-openssl
     http-media
@@ -248,7 +241,6 @@ mkDerivation {
     proto-lens
     random-shuffle
     raw-strings-qq
-    resource-pool
     resourcet
     retry
     ropes

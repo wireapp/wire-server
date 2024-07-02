@@ -30,9 +30,6 @@ module Brig.AWS
     prekeyTable,
     Error (..),
 
-    -- * SES
-    sendMail,
-
     -- * SQS
     listen,
     enqueueFIFO,
@@ -47,10 +44,8 @@ where
 
 import Amazonka (AWSRequest, AWSResponse)
 import Amazonka qualified as AWS
-import Amazonka.Data.Text qualified as AWS
 import Amazonka.DynamoDB qualified as DDB
 import Amazonka.SES qualified as SES
-import Amazonka.SES.Lens qualified as SES
 import Amazonka.SQS qualified as SQS
 import Amazonka.SQS.Lens qualified as SQS
 import Brig.Options qualified as Opt
@@ -61,18 +56,18 @@ import Control.Retry
 import Data.Aeson hiding ((.=))
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Lazy qualified as BL
-import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.UUID hiding (null)
 import Imports hiding (group)
-import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..), Manager)
-import Network.HTTP.Types.Status (status400)
-import Network.Mail.Mime
+import Network.HTTP.Client (Manager)
+import Polysemy (runM)
+import Polysemy.Input (runInputConst)
 import System.Logger qualified as Logger
 import System.Logger.Class
 import UnliftIO.Async
 import UnliftIO.Exception
 import Util.Options
+import Wire.AWS
 
 data Env = Env
   { _logger :: !Logger,
@@ -190,61 +185,33 @@ listen throttleMillis url callback = forever . handleAny unexpectedError $ do
       threadDelay 3000000
 
 enqueueStandard :: Text -> BL.ByteString -> Amazon SQS.SendMessageResponse
-enqueueStandard url m = retrying retry5x (const canRetry) (const (sendCatch req)) >>= throwA
+enqueueStandard url m = retrying retry5x (const $ pure . canRetry) (const (sendCatchAmazon req)) >>= throwA
   where
     req = SQS.newSendMessage url $ Text.decodeLatin1 (BL.toStrict m)
 
 enqueueFIFO :: Text -> Text -> UUID -> BL.ByteString -> Amazon SQS.SendMessageResponse
-enqueueFIFO url group dedup m = retrying retry5x (const canRetry) (const (sendCatch req)) >>= throwA
+enqueueFIFO url group dedup m = retrying retry5x (const $ pure . canRetry) (const (sendCatchAmazon req)) >>= throwA
   where
     req =
       SQS.newSendMessage url (Text.decodeLatin1 (BL.toStrict m))
         & SQS.sendMessage_messageGroupId ?~ group
         & SQS.sendMessage_messageDeduplicationId ?~ toText dedup
 
--------------------------------------------------------------------------------
--- SES
-
-sendMail :: Mail -> Amazon ()
-sendMail m = do
-  body <- liftIO $ BL.toStrict <$> renderMail' m
-  let raw =
-        SES.newSendRawEmail (SES.newRawMessage body)
-          & SES.sendRawEmail_destinations ?~ fmap addressEmail (mailTo m)
-          & SES.sendRawEmail_source ?~ addressEmail (mailFrom m)
-  resp <- retrying retry5x (const canRetry) $ const (sendCatch raw)
-  void $ either check pure resp
-  where
-    check x = case x of
-      -- To map rejected domain names by SES to 400 responses, in order
-      -- not to trigger false 5xx alerts. Upfront domain name validation
-      -- is only according to the syntax rules of RFC5322 but additional
-      -- constraints may be applied by email servers (in this case SES).
-      -- Since such additional constraints are neither standardised nor
-      -- documented in the cases of SES, we can only handle the errors
-      -- after the fact.
-      AWS.ServiceError se
-        | se
-            ^. AWS.serviceError_status
-            == status400
-            && "Invalid domain name"
-              `Text.isPrefixOf` AWS.toText (se ^. AWS.serviceError_code) ->
-            throwM SESInvalidDomain
-      _ -> throwM (GeneralError x)
-
 --------------------------------------------------------------------------------
 -- Utilities
-
-sendCatch :: (AWSRequest r, Typeable r, Typeable (AWSResponse r)) => r -> Amazon (Either AWS.Error (AWSResponse r))
-sendCatch req = do
-  env <- view amazonkaEnv
-  AWS.trying AWS._Error . AWS.send env $ req
 
 send ::
   (AWSRequest r, Typeable r, Typeable (AWSResponse r)) =>
   r ->
   Amazon (AWSResponse r)
-send r = throwA =<< sendCatch r
+send r = throwA =<< sendCatchAmazon r
+
+-- | Temporary helper to translate polysemy to Amazon monad, it should go away
+-- with more polysemisation
+sendCatchAmazon :: (AWSRequest req, Typeable req, Typeable (AWSResponse req)) => req -> Amazon (Either AWS.Error (AWS.AWSResponse req))
+sendCatchAmazon req = do
+  env <- view amazonkaEnv
+  liftIO . runM . runInputConst env $ sendCatch req
 
 throwA :: Either AWS.Error a -> Amazon a
 throwA = either (throwM . GeneralError) pure
@@ -275,13 +242,6 @@ exec ::
   a ->
   m (AWSResponse a)
 exec e cmd = liftIO (execCatch e cmd) >>= either (throwM . GeneralError) pure
-
-canRetry :: (MonadIO m) => Either AWS.Error a -> m Bool
-canRetry (Right _) = pure False
-canRetry (Left e) = case e of
-  AWS.TransportError (HttpExceptionRequest _ ResponseTimeout) -> pure True
-  AWS.ServiceError se | se ^. AWS.serviceError_code == AWS.ErrorCode "RequestThrottled" -> pure True
-  _ -> pure False
 
 retry5x :: (Monad m) => RetryPolicyM m
 retry5x = limitRetries 5 <> exponentialBackoff 100000

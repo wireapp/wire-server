@@ -34,7 +34,6 @@ import Brig.API.Error
 import Brig.AWS qualified as AWS
 import Brig.App
 import Brig.CanonicalInterpreter (BrigCanonicalEffects, runBrigToIO)
-import Brig.Email (Email)
 import Brig.Options (setAllowlistEmailDomains, setAllowlistPhonePrefixes)
 import Brig.Phone (Phone, PhoneException (..))
 import Control.Error
@@ -60,6 +59,7 @@ import System.Logger.Class (Logger)
 import Wire.API.Allowlists qualified as Allowlists
 import Wire.API.Error
 import Wire.API.Error.Brig
+import Wire.API.User (Email)
 
 -------------------------------------------------------------------------------
 -- HTTP Handler Monad

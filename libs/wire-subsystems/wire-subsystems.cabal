@@ -72,8 +72,15 @@ library
     Wire.AuthenticationSubsystem
     Wire.AuthenticationSubsystem.Error
     Wire.AuthenticationSubsystem.Interpreter
+    Wire.AWS
     Wire.DeleteQueue
     Wire.DeleteQueue.InMemory
+    Wire.EmailSending
+    Wire.EmailSending.SES
+    Wire.EmailSending.SMTP
+    Wire.EmailSmsSubsystem
+    Wire.EmailSmsSubsystem.Interpreter
+    Wire.EmailSmsSubsystem.Template
     Wire.FederationAPIAccess
     Wire.FederationAPIAccess.Interpreter
     Wire.GalleyAPIAccess
@@ -108,7 +115,7 @@ library
     , aeson
     , amazonka
     , amazonka-core
-    , amazonka-sqs
+    , amazonka-ses
     , async
     , base
     , base16-bytestring
@@ -126,8 +133,11 @@ library
     , extended
     , extra
     , gundeck-types
+    , HaskellNet
+    , HaskellNet-SSL
     , HsOpenSSL
     , hspec
+    , html-entities
     , http-client
     , http-types
     , http2-manager
@@ -136,19 +146,24 @@ library
     , lens
     , mime
     , mime-mail
+    , network
     , network-conduit-tls
     , polysemy
     , polysemy-plugin
     , polysemy-time
     , polysemy-wire-zoo
     , QuickCheck
+    , resource-pool
     , resourcet
     , retry
     , servant
     , servant-client-core
     , stomp-queue
+    , template
     , text
     , time
+    , time-out
+    , time-units
     , tinylog
     , transformers
     , transitive-anns
@@ -176,6 +191,7 @@ test-suite wire-subsystems-tests
     Wire.AuthenticationSubsystem.InterpreterSpec
     Wire.MiniBackend
     Wire.MockInterpreters
+    Wire.MockInterpreters.EmailSmsSubsystem
     Wire.MockInterpreters.Error
     Wire.MockInterpreters.GalleyAPIAccess
     Wire.MockInterpreters.HashPassword
@@ -208,13 +224,18 @@ test-suite wire-subsystems-tests
     , imports
     , iso639
     , lens
+    , mime-mail
+    , network
+    , pipes
     , polysemy
     , polysemy-plugin
     , polysemy-time
     , polysemy-wire-zoo
+    , postie
     , QuickCheck
     , quickcheck-instances
     , servant-client-core
+    , streaming-commons
     , string-conversions
     , text
     , time

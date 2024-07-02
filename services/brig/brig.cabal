@@ -129,7 +129,6 @@ library
     Brig.Effects.SFT
     Brig.Effects.UserPendingActivationStore
     Brig.Effects.UserPendingActivationStore.Cassandra
-    Brig.Email
     Brig.Federation.Client
     Brig.Index.Eval
     Brig.Index.Migrations
@@ -141,7 +140,6 @@ library
     Brig.IO.Intra
     Brig.IO.Journal
     Brig.IO.Logging
-    Brig.Locale
     Brig.Options
     Brig.Phone
     Brig.Provider.API
@@ -195,7 +193,6 @@ library
     Brig.Schema.V80_KeyPackageCiphersuite
     Brig.Schema.V81_AddFederationRemoteTeams
     Brig.Schema.V_FUTUREWORK
-    Brig.SMTP
     Brig.Team.API
     Brig.Team.DB
     Brig.Team.Email
@@ -208,7 +205,6 @@ library
     Brig.User.Auth.Cookie
     Brig.User.Auth.Cookie.Limit
     Brig.User.EJPD
-    Brig.User.Email
     Brig.User.Phone
     Brig.User.Search.Index
     Brig.User.Search.Index.Types
@@ -268,10 +264,7 @@ library
     , galley-types               >=0.75.3
     , gundeck-types              >=1.32.1
     , hashable                   >=1.2
-    , HaskellNet                 >=0.3
-    , HaskellNet-SSL
     , HsOpenSSL                  >=0.10
-    , html-entities              >=1.1
     , http-client                >=0.7
     , http-client-openssl        >=0.2
     , http-media
@@ -306,7 +299,6 @@ library
     , proto-lens                 >=0.1
     , random-shuffle             >=0.0.3
     , raw-strings-qq
-    , resource-pool              >=0.2
     , resourcet                  >=1.1
     , retry                      >=0.7
     , ropes                      >=0.4.20

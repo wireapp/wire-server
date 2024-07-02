@@ -62,6 +62,7 @@ import qualified SAML2.WebSSO as SAML
 import Spar.Error
 import qualified System.Logger.Class as Log
 import Web.Cookie
+import Wire.API.Locale
 import Wire.API.Team.Role (Role)
 import Wire.API.User
 import Wire.API.User.Auth.ReAuth

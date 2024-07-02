@@ -1,11 +1,8 @@
 {-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
--- Disabling to stop warnings on HasCallStack
-{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 module SMTP where
 
 import Bilge qualified
-import Brig.SMTP
 import Control.Exception
 import Data.Bifunctor
 import Data.ByteString qualified as B
@@ -20,11 +17,15 @@ import Network.Mail.Mime
 import Network.Mail.Postie qualified as Postie
 import Network.Socket
 import Pipes.Prelude qualified
+import Polysemy
 import System.Logger qualified as Logger
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
+import Wire.EmailSending
+import Wire.EmailSending.SMTP
 
+-- FUTUREWORK: Move all these tests to unit tests for the emailViaSMTPInterpreter
 tests :: Bilge.Manager -> Logger.Logger -> TestTree
 tests m lg =
   testGroup
@@ -47,7 +48,7 @@ testSendMail lg = do
       withMailServer sock (mailStoringApp receivedMailRef) $
         do
           conPool <- initSMTP lg "localhost" (Just port) Nothing Plain
-          sendMail lg conPool someTestMail
+          _ <- runM . emailViaSMTPInterpreter lg conPool $ sendMail someTestMail
           mbMail <-
             retryWhileN 3 isJust $ do
               readIORef receivedMailRef
@@ -84,7 +85,7 @@ testSendMailNoReceiver lg = do
           caughtException <-
             handle @SomeException
               (const (pure True))
-              (sendMail' @Second 1 lg conPool (emptyMail (Address Nothing "foo@example.com")) >> pure False)
+              (sendMailWithDuration @Second 1 lg conPool (emptyMail (Address Nothing "foo@example.com")) >> pure False)
           caughtException @? "Expected exception due to missing mail receiver."
 
 testSendMailTransactionFailed :: Logger.Logger -> Bilge.Http ()
@@ -98,7 +99,7 @@ testSendMailTransactionFailed lg = do
           caughtException <-
             handle @SomeException
               (const (pure True))
-              (sendMail lg conPool someTestMail >> pure False)
+              (runM . emailViaSMTPInterpreter lg conPool $ sendMail someTestMail >> pure False)
           caughtException @? "Expected exception due to missing mail receiver."
 
 testSendMailFailingConnectionOnStartup :: Logger.Logger -> Bilge.Http ()
@@ -127,7 +128,7 @@ testSendMailFailingConnectionOnSend lg = do
     liftIO $
       handle @SomeException
         (const (pure True))
-        (sendMail lg conPool someTestMail >> pure False)
+        (runM . emailViaSMTPInterpreter lg conPool $ sendMail someTestMail >> pure False)
   liftIO $ caughtException @? "Expected exception (SMTP server unreachable.)"
   mbMail <- liftIO $ readIORef receivedMailRef
   liftIO $ isNothing mbMail @? "No mail expected (if there is one, the test setup is broken.)"
@@ -143,7 +144,7 @@ testSendMailTimeout lg = do
               conPool <- initSMTP lg "localhost" (Just port) Nothing Plain
               handle @SMTPPoolException
                 (\e -> pure (Just e))
-                (sendMail' (500 :: Millisecond) lg conPool someTestMail >> pure Nothing)
+                (sendMailWithDuration (500 :: Millisecond) lg conPool someTestMail >> pure Nothing)
   liftIO $ isJust mbException @? "Expected exception (SMTP server action timed out.)"
   liftIO $ mbException @?= Just SMTPConnectionTimeout
 
@@ -224,7 +225,7 @@ delayingApp delay =
         $> Postie.Accepted
     )
 
-everDelayingTCPServer :: (HasCallStack) => Socket -> IO a -> IO a
+everDelayingTCPServer :: Socket -> IO a -> IO a
 everDelayingTCPServer sock action = listen sock 1024 >> action
 
 withRandomPortAndSocket :: (MonadIO m) => ((PortNumber, Socket) -> IO a) -> m a

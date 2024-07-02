@@ -40,6 +40,7 @@ module Brig.App
     federator,
     casClient,
     userTemplates,
+    usrTemplates,
     providerTemplates,
     teamTemplates,
     templateBranding,
@@ -104,10 +105,9 @@ import Brig.Options qualified as Opt
 import Brig.Provider.Template
 import Brig.Queue.Stomp qualified as Stomp
 import Brig.Queue.Types
-import Brig.SMTP qualified as SMTP
 import Brig.Schema.Run qualified as Migrations
 import Brig.Team.Template
-import Brig.Template (Localised, TemplateBranding, forLocale, genTemplateBranding)
+import Brig.Template (Localised, genTemplateBranding)
 import Brig.User.Search.Index (IndexEnv (..), MonadIndexIO (..), runIndexIO)
 import Brig.User.Template
 import Brig.ZAuth (MonadZAuth (..), runZAuth)
@@ -153,9 +153,11 @@ import System.Logger.Class qualified as LC
 import System.Logger.Extended qualified as Log
 import Util.Options
 import Wire.API.Federation.Error (federationNotImplemented)
+import Wire.API.Locale (Locale)
 import Wire.API.Routes.Version
 import Wire.API.User.Identity (Email)
-import Wire.API.User.Profile (Locale)
+import Wire.EmailSending.SMTP qualified as SMTP
+import Wire.EmailSmsSubsystem.Template (TemplateBranding, forLocale)
 import Wire.SessionStore
 import Wire.SessionStore.Cassandra
 import Wire.UserKeyStore

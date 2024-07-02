@@ -24,6 +24,7 @@ import Wire.API.User.Auth
 import Wire.API.User.Password
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Interpreter
+import Wire.EmailSmsSubsystem
 import Wire.HashPassword
 import Wire.MockInterpreters
 import Wire.PasswordResetCodeStore
@@ -49,6 +50,8 @@ type AllEffects =
     PasswordResetCodeStore,
     State (Map PasswordResetKey (PRQueryData Identity)),
     TinyLog,
+    EmailSmsSubsystem,
+    State (Map Email [SentMail]),
     UserSubsystem
   ]
 
@@ -56,6 +59,8 @@ interpretDependencies :: Domain -> [UserAccount] -> Map UserId Password -> Maybe
 interpretDependencies localDomain preexistingUsers preexistingPasswords mAllowedEmailDomains =
   run
     . userSubsystemTestInterpreter preexistingUsers
+    . evalState mempty
+    . emailSmsSubsystemInterpreter
     . discardTinyLogs
     . evalState mempty
     . inMemoryPasswordResetCodeStore
@@ -89,7 +94,8 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
                   forM_ mPreviousPassword (hashPassword >=> upsertHashedPassword uid)
                   mapM_ (uncurry (insertCookie uid)) cookiesWithTTL
 
-                  (_, (_, code)) <- createPasswordResetCode (userEmailKey email)
+                  createPasswordResetCode (userEmailKey email)
+                  (_, code) <- expect1ResetPasswordEmail email
                   resetPassword (PasswordResetEmailIdentity email) code newPassword
 
                   (,) <$> lookupHashedPassword uid <*> listCookies uid
@@ -109,7 +115,8 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
                   forM_ mPreviousPassword (hashPassword >=> upsertHashedPassword uid)
                   mapM_ (uncurry (insertCookie uid)) cookiesWithTTL
 
-                  (_, (passwordResetKey, code)) <- createPasswordResetCode (userEmailKey email)
+                  createPasswordResetCode (userEmailKey email)
+                  (passwordResetKey, code) <- expect1ResetPasswordEmail email
                   resetPassword (PasswordResetIdentityKey passwordResetKey) code newPassword
 
                   (,) <$> lookupHashedPassword uid <*> listCookies uid
@@ -165,11 +172,12 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               interpretDependencies localDomain [UserAccount user Active] mempty Nothing
                 . interpretAuthenticationSubsystem
                 $ do
-                  (_, (_, code)) <- createPasswordResetCode (userEmailKey email)
+                  createPasswordResetCode (userEmailKey email)
+                  (_, code) <- expect1ResetPasswordEmail email
 
                   mCaughtExc <- catchExpectedError $ createPasswordResetCode (userEmailKey email)
 
-                  -- Reset passwrod still works with previously generated reset code
+                  -- Reset password still works with previously generated reset code
                   resetPassword (PasswordResetEmailIdentity email) code newPassword
 
                   (,mCaughtExc) <$> lookupHashedPassword uid
@@ -186,7 +194,8 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
                 . interpretAuthenticationSubsystem
                 $ do
                   upsertHashedPassword uid =<< hashPassword oldPassword
-                  (_, (_, code)) <- createPasswordResetCode (userEmailKey email)
+                  createPasswordResetCode (userEmailKey email)
+                  (_, code) <- expect1ResetPasswordEmail email
 
                   passTime (passwordResetCodeTtl + 1)
 
@@ -236,7 +245,8 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
                 . interpretAuthenticationSubsystem
                 $ do
                   upsertHashedPassword uid =<< hashPassword oldPassword
-                  (_, (_, generatedResetCode)) <- createPasswordResetCode (userEmailKey email)
+                  createPasswordResetCode (userEmailKey email)
+                  (_, generatedResetCode) <- expect1ResetPasswordEmail email
 
                   wrongResetErrs <-
                     replicateM wrongResetAttempts $
@@ -288,3 +298,11 @@ verifyPasswordProp plainTextPassword passwordHash =
 hashAndUpsertPassword :: (Member PasswordStore r, Member HashPassword r) => UserId -> PlainTextPassword8 -> Sem r ()
 hashAndUpsertPassword uid password =
   upsertHashedPassword uid =<< hashPassword password
+
+expect1ResetPasswordEmail :: (Member (State (Map Email [SentMail])) r) => Email -> Sem r PasswordResetPair
+expect1ResetPasswordEmail email =
+  getEmailsSentTo email
+    <&> \case
+      [] -> error "no emails sent"
+      [SentMail _ (PasswordResetMail resetPair)] -> resetPair
+      wrongEmails -> error $ "Wrong emails sent: " <> show wrongEmails

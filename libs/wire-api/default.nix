@@ -121,7 +121,6 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     asn1-encoding
-    async
     attoparsec
     base
     base64-bytestring
@@ -247,7 +246,6 @@ mkDerivation {
     proto-lens
     QuickCheck
     random
-    saml2-web-sso
     schema-profunctor
     servant
     servant-server

@@ -17,7 +17,6 @@
 
 module Brig.Provider.DB where
 
-import Brig.Email (EmailKey, emailKeyOrig, emailKeyUniq)
 import Brig.Types.Instances ()
 import Brig.Types.Provider.Tag
 import Cassandra as C
@@ -35,6 +34,7 @@ import Wire.API.Provider
 import Wire.API.Provider.Service hiding (updateServiceTags)
 import Wire.API.Provider.Service.Tag
 import Wire.API.User
+import Wire.UserKeyStore
 
 type RangedServiceTags = Range 0 3 (Set.Set ServiceTag)
 

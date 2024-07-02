@@ -51,7 +51,7 @@ import Brig.Effects.JwtTools (JwtTools)
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
 import Brig.Effects.SFT
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
-import Brig.Options hiding (internalEvents, sesQueue)
+import Brig.Options hiding (internalEvents)
 import Brig.Provider.API
 import Brig.Team.API qualified as Team
 import Brig.Team.Email qualified as Team
@@ -62,7 +62,6 @@ import Brig.User.API.Handle qualified as Handle
 import Brig.User.API.Search (teamUserSearch)
 import Brig.User.API.Search qualified as Search
 import Brig.User.Auth.Cookie qualified as Auth
-import Brig.User.Email
 import Brig.User.Phone
 import Cassandra qualified as C
 import Cassandra qualified as Data
@@ -156,6 +155,8 @@ import Wire.API.UserMap qualified as Public
 import Wire.API.Wrapped qualified as Public
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem, createPasswordResetCode, resetPassword)
 import Wire.DeleteQueue
+import Wire.EmailSending (EmailSending)
+import Wire.EmailSmsSubsystem
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
@@ -302,7 +303,9 @@ servantSitemap ::
     Member PublicKeyBundle r,
     Member SFT r,
     Member TinyLog r,
-    Member (UserPendingActivationStore p) r
+    Member (UserPendingActivationStore p) r,
+    Member EmailSmsSubsystem r,
+    Member EmailSending r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -612,7 +615,8 @@ addClient ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member EmailSmsSubsystem r
   ) =>
   UserId ->
   ConnId ->
@@ -741,7 +745,9 @@ createUser ::
     Member UserKeyStore r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member EmailSmsSubsystem r,
+    Member EmailSending r
   ) =>
   Public.NewUserPublic ->
   (Handler r) (Either Public.RegisterError Public.RegisterSuccess)
@@ -795,16 +801,16 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
   -- pure $ CreateUserResponse cok userId (Public.SelfProfile usr)
   pure $ Public.RegisterSuccess cok (Public.SelfProfile usr)
   where
-    sendActivationEmail :: Public.Email -> Public.Name -> ActivationPair -> Maybe Public.Locale -> Maybe Public.NewTeamUser -> (AppT r) ()
-    sendActivationEmail e u p l mTeamUser
+    sendActivationEmail :: (Member EmailSmsSubsystem r) => Public.Email -> Public.Name -> ActivationPair -> Maybe Public.Locale -> Maybe Public.NewTeamUser -> (AppT r) ()
+    sendActivationEmail email name (key, code) locale mTeamUser
       | Just teamUser <- mTeamUser,
         Public.NewTeamCreator creator <- teamUser,
         let Public.BindingNewTeamUser (Public.BindingNewTeam team) _ = creator =
-          sendTeamActivationMail e u p l (fromRange $ team ^. Public.newTeamName)
+          liftSem $ sendTeamActivationMail email name key code locale (fromRange $ team ^. Public.newTeamName)
       | otherwise =
-          sendActivationMail e u p l Nothing
+          liftSem $ sendActivationMail email name key code locale
 
-    sendWelcomeEmail :: Public.Email -> CreateUserTeam -> Public.NewTeamUser -> Maybe Public.Locale -> (AppT r) ()
+    sendWelcomeEmail :: (Member EmailSending r) => Public.Email -> CreateUserTeam -> Public.NewTeamUser -> Maybe Public.Locale -> (AppT r) ()
     -- NOTE: Welcome e-mails for the team creator are not dealt by brig anymore
     sendWelcomeEmail e (CreateUserTeam t n) newUser l = case newUser of
       Public.NewTeamCreator _ ->
@@ -948,7 +954,9 @@ updateUser uid conn uu = do
 changePhone ::
   ( Member BlacklistStore r,
     Member UserKeyStore r,
-    Member BlacklistPhonePrefixStore r
+    Member BlacklistPhonePrefixStore r,
+    Member (Input (Local ())) r,
+    Member UserSubsystem r
   ) =>
   UserId ->
   ConnId ->
@@ -956,7 +964,7 @@ changePhone ::
   (Handler r) (Maybe Public.ChangePhoneError)
 changePhone u _ (Public.puPhone -> phone) = lift . exceptTToMaybe $ do
   (adata, pn) <- API.changePhone u phone
-  loc <- lift $ wrapClient $ API.lookupLocale u
+  loc <- lift $ liftSem $ qualifyLocal' u >>= lookupLocaleWithDefault
   let apair = (activationKey adata, activationCode adata)
   lift . wrapHttp $ sendActivationSms pn apair loc
 
@@ -1063,12 +1071,8 @@ beginPasswordReset ::
   (Member AuthenticationSubsystem r) =>
   Public.NewPasswordReset ->
   Handler r ()
-beginPasswordReset (Public.NewPasswordReset target) = do
-  (u, pair) <- lift (liftSem $ createPasswordResetCode (fromEither target)) !>> pwResetError
-  loc <- lift $ wrapClient $ API.lookupLocale u
-  lift $ case target of
-    Left email -> sendPasswordResetMail email pair loc
-    Right phone -> wrapHttp $ sendPasswordResetSms phone pair loc
+beginPasswordReset (Public.NewPasswordReset target) =
+  lift (liftSem $ createPasswordResetCode (fromEither target))
 
 completePasswordReset ::
   ( Member AuthenticationSubsystem r
@@ -1088,7 +1092,8 @@ sendActivationCode ::
   ( Member BlacklistStore r,
     Member BlacklistPhonePrefixStore r,
     Member UserKeyStore r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member EmailSmsSubsystem r
   ) =>
   Public.SendActivationCode ->
   (Handler r) ()
@@ -1247,7 +1252,8 @@ deleteSelfUser ::
     Member PasswordStore r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member EmailSmsSubsystem r
   ) =>
   UserId ->
   Public.DeleteUser ->
@@ -1273,7 +1279,8 @@ updateUserEmail ::
   forall r.
   ( Member BlacklistStore r,
     Member UserKeyStore r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member EmailSmsSubsystem r
   ) =>
   UserId ->
   UserId ->
@@ -1344,7 +1351,10 @@ activateKey (Public.Activate tgt code dryrun)
 
 sendVerificationCode ::
   forall r.
-  (Member GalleyAPIAccess r, Member UserKeyStore r) =>
+  ( Member GalleyAPIAccess r,
+    Member UserKeyStore r,
+    Member EmailSmsSubsystem r
+  ) =>
   Public.SendVerificationCode ->
   (Handler r) ()
 sendVerificationCode req = do
@@ -1374,7 +1384,7 @@ sendVerificationCode req = do
 
     sendMail :: Public.Email -> Code.Value -> Maybe Public.Locale -> Public.VerificationAction -> (Handler r) ()
     sendMail email value mbLocale =
-      lift . \case
+      lift . liftSem . \case
         Public.CreateScimToken -> sendCreateScimTokenVerificationMail email value mbLocale
         Public.Login -> sendLoginVerificationMail email value mbLocale
         Public.DeleteTeam -> sendTeamDeletionVerificationMail email value mbLocale

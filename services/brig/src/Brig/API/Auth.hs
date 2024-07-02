@@ -51,6 +51,7 @@ import Wire.API.User.Auth hiding (access)
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
+import Wire.EmailSmsSubsystem (EmailSmsSubsystem)
 import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.PasswordStore (PasswordStore)
@@ -94,7 +95,15 @@ access mcid t mt =
   traverse mkUserTokenCookie
     =<< Auth.renewAccess (List1 t) mt mcid !>> zauthError
 
-sendLoginCode :: (Member TinyLog r, Member UserKeyStore r, Member PasswordStore r) => SendLoginCode -> Handler r LoginCodeTimeout
+sendLoginCode ::
+  ( Member TinyLog r,
+    Member UserKeyStore r,
+    Member PasswordStore r,
+    Member (Input (Local ())) r,
+    Member UserSubsystem r
+  ) =>
+  SendLoginCode ->
+  Handler r LoginCodeTimeout
 sendLoginCode (SendLoginCode phone call force) = do
   checkAllowlist (Right phone)
   c <- Auth.sendLoginCode phone call force !>> sendLoginCodeError
@@ -136,7 +145,8 @@ logout uts (Just at) = Auth.logout (List1 uts) at !>> zauthError
 
 changeSelfEmailH ::
   ( Member BlacklistStore r,
-    Member UserKeyStore r
+    Member UserKeyStore r,
+    Member EmailSmsSubsystem r
   ) =>
   [Either Text SomeUserToken] ->
   Maybe (Either Text SomeAccessToken) ->

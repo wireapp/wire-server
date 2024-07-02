@@ -41,10 +41,11 @@ import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import URI.ByteString
 import Wire.API.Error
 import Wire.API.Error.Brig
+import Wire.API.Locale (Locale)
 import Wire.API.Routes.MultiVerb
 import Wire.API.Team.Role (Role, defaultRole)
 import Wire.API.User.Identity (Email, Phone)
-import Wire.API.User.Profile (Locale, Name)
+import Wire.API.User.Profile (Name)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 --------------------------------------------------------------------------------

@@ -5,7 +5,6 @@
 { mkDerivation
 , aeson
 , base
-, brig
 , bytestring
 , cassandra-util
 , conduit
@@ -31,7 +30,6 @@ mkDerivation {
   executableHaskellDepends = [
     aeson
     base
-    brig
     bytestring
     cassandra-util
     conduit

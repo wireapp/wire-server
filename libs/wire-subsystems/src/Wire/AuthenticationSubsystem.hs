@@ -18,7 +18,6 @@
 
 module Wire.AuthenticationSubsystem where
 
-import Data.Id
 import Data.Misc
 import Imports
 import Polysemy
@@ -27,7 +26,7 @@ import Wire.API.User.Password
 import Wire.UserKeyStore
 
 data AuthenticationSubsystem m a where
-  CreatePasswordResetCode :: UserKey -> AuthenticationSubsystem m (UserId, PasswordResetPair)
+  CreatePasswordResetCode :: UserKey -> AuthenticationSubsystem m ()
   ResetPassword :: PasswordResetIdentity -> PasswordResetCode -> PlainTextPassword8 -> AuthenticationSubsystem m ()
   -- For testing
   InternalLookupPasswordResetCode :: UserKey -> AuthenticationSubsystem m (Maybe PasswordResetPair)

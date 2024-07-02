@@ -36,7 +36,6 @@ import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.BlacklistStore qualified as BlacklistStore
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
-import Brig.Email qualified as Email
 import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
 import Brig.Phone qualified as Phone
 import Brig.Team.DB qualified as DB
@@ -78,6 +77,8 @@ import Wire.API.Team.Role
 import Wire.API.Team.Role qualified as Public
 import Wire.API.User hiding (fromEmail)
 import Wire.API.User qualified as Public
+import Wire.API.User.Identity qualified as Email
+import Wire.EmailSending (EmailSending)
 import Wire.GalleyAPIAccess (GalleyAPIAccess, ShowOrHideInvitationUrl (..))
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
@@ -90,7 +91,8 @@ servantAPI ::
   ( Member BlacklistStore r,
     Member GalleyAPIAccess r,
     Member UserKeyStore r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member EmailSending r
   ) =>
   ServerT TeamsAPI (Handler r)
 servantAPI =
@@ -119,7 +121,8 @@ createInvitationPublicH ::
   ( Member BlacklistStore r,
     Member GalleyAPIAccess r,
     Member UserKeyStore r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member EmailSending r
   ) =>
   UserId ->
   TeamId ->
@@ -143,7 +146,8 @@ createInvitationPublic ::
   ( Member BlacklistStore r,
     Member GalleyAPIAccess r,
     Member UserKeyStore r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member EmailSending r
   ) =>
   UserId ->
   TeamId ->
@@ -173,7 +177,8 @@ createInvitationViaScim ::
     Member GalleyAPIAccess r,
     Member UserKeyStore r,
     Member (UserPendingActivationStore p) r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member EmailSending r
   ) =>
   TeamId ->
   NewUserScimInvitation ->
@@ -222,7 +227,8 @@ logInvitationRequest context action =
 createInvitation' ::
   ( Member BlacklistStore r,
     Member GalleyAPIAccess r,
-    Member UserKeyStore r
+    Member UserKeyStore r,
+    Member EmailSending r
   ) =>
   TeamId ->
   Maybe UserId ->

@@ -24,7 +24,6 @@
 module Brig.Options where
 
 import Brig.Queue.Types (QueueOpts (..))
-import Brig.SMTP (SMTPConnType (..))
 import Brig.User.Auth.Cookie.Limit
 import Brig.ZAuth qualified as ZAuth
 import Control.Applicative
@@ -61,6 +60,7 @@ import Wire.API.Routes.Version
 import Wire.API.Team.Feature qualified as Public
 import Wire.API.User
 import Wire.Arbitrary (Arbitrary, arbitrary)
+import Wire.EmailSending.SMTP (SMTPConnType (..))
 
 newtype Timeout = Timeout
   { timeoutDiff :: NominalDiffTime

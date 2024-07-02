@@ -17,10 +17,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.SMTP
-  ( sendMail,
-    initSMTP,
-    sendMail',
+module Wire.EmailSending.SMTP
+  ( initSMTP,
+    emailViaSMTPInterpreter,
+    sendMailWithDuration,
     initSMTP',
     SMTPConnType (..),
     SMTP (..),
@@ -32,7 +32,6 @@ where
 
 import Control.Concurrent.Async (wait, withAsyncWithUnmask)
 import Control.Exception qualified as CE (throw)
-import Control.Lens
 import Control.Monad.Catch
 import Control.Timeout (timeout)
 import Data.Aeson
@@ -45,26 +44,26 @@ import Network.HaskellNet.SMTP qualified as SMTP
 import Network.HaskellNet.SMTP.SSL qualified as SMTP
 import Network.Mail.Mime
 import Network.Socket (PortNumber)
+import Polysemy
 import System.Logger qualified as Logger
 import System.Logger.Class hiding (create)
+import Wire.EmailSending
+
+emailViaSMTPInterpreter :: (Member (Embed IO) r) => Logger -> SMTP -> InterpreterFor EmailSending r
+emailViaSMTPInterpreter logger smtp = interpret \case
+  SendMail mail -> sendMailImpl logger smtp mail
 
 newtype Username = Username Text
 
 newtype Password = Password Text
 
-data SMTP = SMTP
-  { _pool :: !(Pool SMTP.SMTPConnection)
-  }
+data SMTP = SMTP {pool :: !(Pool SMTP.SMTPConnection)}
 
 data SMTPConnType
   = Plain
   | TLS
   | SSL
   deriving (Eq, Show)
-
-deriveJSON defaultOptions {constructorTagModifier = map toLower} ''SMTPConnType
-
-makeLenses ''SMTP
 
 data SMTPPoolException = SMTPUnauthorized | SMTPConnectionTimeout
   deriving (Eq, Show)
@@ -221,17 +220,19 @@ ensureSMTPConnectionTimeout timeoutDuration action =
 -- a timeout happens and on every other network failure.
 --
 -- `defaultTimeoutDuration` is used as timeout duration for all actions.
-sendMail :: (MonadIO m) => Logger -> SMTP -> Mail -> m ()
-sendMail = sendMail' defaultTimeoutDuration
+sendMailImpl :: (MonadIO m) => Logger -> SMTP -> Mail -> m ()
+sendMailImpl = sendMailWithDuration defaultTimeoutDuration
 
 -- | `sendMail` with configurable timeout duration
 --
 -- This is mostly useful for testing. (We don't want to waste the amount of
 -- `defaultTimeoutDuration` in tests with waiting.)
-sendMail' :: forall t m. (MonadIO m, TimeUnit t) => t -> Logger -> SMTP -> Mail -> m ()
-sendMail' timeoutDuration lg s m = liftIO $ withResource (s ^. pool) sendMail''
+sendMailWithDuration :: forall t m. (MonadIO m, TimeUnit t) => t -> Logger -> SMTP -> Mail -> m ()
+sendMailWithDuration timeoutDuration lg smtp m = liftIO $ withResource smtp.pool sendMailWithConn
   where
-    sendMail'' :: SMTP.SMTPConnection -> IO ()
-    sendMail'' c =
+    sendMailWithConn :: SMTP.SMTPConnection -> IO ()
+    sendMailWithConn c =
       logExceptionOrResult lg "Sending mail via SMTP" $
         ensureSMTPConnectionTimeout timeoutDuration (SMTP.sendMail m c)
+
+deriveJSON defaultOptions {constructorTagModifier = map toLower} ''SMTPConnType

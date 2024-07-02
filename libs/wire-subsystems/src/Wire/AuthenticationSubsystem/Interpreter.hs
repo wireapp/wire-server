@@ -41,6 +41,7 @@ import Wire.API.User
 import Wire.API.User.Password
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Error
+import Wire.EmailSmsSubsystem
 import Wire.HashPassword
 import Wire.PasswordResetCodeStore
 import Wire.PasswordStore
@@ -62,7 +63,8 @@ interpretAuthenticationSubsystem ::
     Member (Input (Maybe AllowlistEmailDomains)) r,
     Member (Input (Maybe AllowlistPhonePrefixes)) r,
     Member UserSubsystem r,
-    Member PasswordStore r
+    Member PasswordStore r,
+    Member EmailSmsSubsystem r
   ) =>
   InterpreterFor AuthenticationSubsystem r
 interpretAuthenticationSubsystem = interpret $ \case
@@ -84,31 +86,40 @@ createPasswordResetCodeImpl ::
     Member (Input (Maybe AllowlistPhonePrefixes)) r,
     Member (Error AuthenticationSubsystemError) r,
     Member TinyLog r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member EmailSmsSubsystem r
   ) =>
   UserKey ->
-  Sem r (UserId, PasswordResetPair)
+  Sem r ()
 createPasswordResetCodeImpl target = do
   allowListOk <- (\e p -> AllowLists.verify e p (toEither target)) <$> input <*> input
   unless allowListOk $ throw AuthenticationSubsystemAllowListError
-  user <- lookupActiveUserIdByUserKey target >>= maybe (throw AuthenticationSubsystemInvalidPasswordResetKey) pure
-  Log.debug $ field "user" (toByteString user) . field "action" (val "User.beginPasswordReset")
+  user <- lookupActiveUserByUserKey target >>= maybe (throw AuthenticationSubsystemInvalidPasswordResetKey) pure
+  let uid = userId user
+  Log.debug $ field "user" (toByteString uid) . field "action" (val "User.beginPasswordReset")
 
-  mExistingCode <- lookupPasswordResetCode user
+  mExistingCode <- lookupPasswordResetCode uid
   when (isJust mExistingCode) $
     throw AuthenticationSubsystemPasswordResetInProgress
 
-  let key = mkPasswordResetKey user
+  let key = mkPasswordResetKey uid
   now <- Now.get
   code <- foldKey (const generateEmailCode) (const generatePhoneCode) target
   codeInsert
     key
-    (PRQueryData code user (Identity maxAttempts) (Identity (passwordResetCodeTtl `addUTCTime` now)))
+    (PRQueryData code uid (Identity maxAttempts) (Identity (passwordResetCodeTtl `addUTCTime` now)))
     (round passwordResetCodeTtl)
-  pure (user, (key, code))
+  foldKey
+    (\email -> sendPasswordResetMail email (key, code) (Just user.userLocale))
+    (\phone -> sendPasswordResetSms phone (key, code) (Just user.userLocale))
+    target
+  pure ()
 
 lookupActiveUserIdByUserKey :: (Member UserSubsystem r, Member (Input (Local ())) r) => UserKey -> Sem r (Maybe UserId)
-lookupActiveUserIdByUserKey target = do
+lookupActiveUserIdByUserKey target = userId <$$> lookupActiveUserByUserKey target
+
+lookupActiveUserByUserKey :: (Member UserSubsystem r, Member (Input (Local ())) r) => UserKey -> Sem r (Maybe User)
+lookupActiveUserByUserKey target = do
   localUnit <- input
   let ltarget = qualifyAs localUnit target
   mUser <- getLocalUserAccountByUserKey ltarget
@@ -116,7 +127,7 @@ lookupActiveUserIdByUserKey target = do
     Just user -> do
       pure $
         if user.accountStatus == Active
-          then Just $ userId user.accountUser
+          then Just user.accountUser
           else Nothing
     Nothing -> pure Nothing
 

@@ -46,7 +46,6 @@ import Brig.Data.Client
 import Brig.Data.LoginCode qualified as Data
 import Brig.Data.User qualified as Data
 import Brig.Effects.ConnectionStore (ConnectionStore)
-import Brig.Email
 import Brig.Options qualified as Opt
 import Brig.Phone
 import Brig.Types.Intra
@@ -86,11 +85,14 @@ import Wire.PasswordStore (PasswordStore, lookupHashedPassword)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserKeyStore
 import Wire.UserStore
+import Wire.UserSubsystem (UserSubsystem, lookupLocaleWithDefault)
 
 sendLoginCode ::
   ( Member TinyLog r,
     Member UserKeyStore r,
-    Member PasswordStore r
+    Member PasswordStore r,
+    Member (Input (Local ())) r,
+    Member UserSubsystem r
   ) =>
   Phone ->
   Bool ->
@@ -110,8 +112,8 @@ sendLoginCode phone call force = do
       pw <- lift $ liftSem $ lookupHashedPassword u
       unless (isNothing pw || force) $
         throwE SendLoginPasswordExists
+      l <- lift $ liftSem $ qualifyLocal' u >>= lookupLocaleWithDefault
       lift $ wrapHttpClient $ do
-        l <- Data.lookupLocale u
         c <- Data.createLoginCode u
         void . forPhoneKey pk $ \ph ->
           if call
