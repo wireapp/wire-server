@@ -100,7 +100,7 @@ randomUserProfile'' isCreator hasPassword hasEmail = do
   (,e) . responseJsonUnsafe <$> (post (b . path "/i/users" . Bilge.json pl) <!! const 201 === statusCode)
 
 randomEmailUser :: (HasCallStack) => TestM (UserId, Email)
-randomEmailUser = randomUserProfile'' False False True <&> bimap (User.userId . selfUser) id
+randomEmailUser = randomUserProfile'' False False True <&> first (User.userId . selfUser)
 
 defPassword :: PlainTextPassword8
 defPassword = plainTextPassword8Unsafe "topsecretdefaultpassword"

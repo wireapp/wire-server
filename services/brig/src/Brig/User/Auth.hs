@@ -118,7 +118,7 @@ login (PasswordLogin (PasswordLoginData li pw label code)) typ = do
           VerificationCodeNoPendingCode -> wrapHttpClientE $ loginFailedWith LoginCodeInvalid uid
           VerificationCodeRequired -> wrapHttpClientE $ loginFailedWith LoginCodeRequired uid
           VerificationCodeNoEmail -> wrapHttpClientE $ loginFailed uid
-login (SmsLogin (SmsLoginData _ _ _)) _ = do
+login (SmsLogin (SmsLoginData {})) _ = do
   -- sms login not supported
   throwE LoginFailed
 
