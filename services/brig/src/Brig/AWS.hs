@@ -59,7 +59,7 @@ import Data.ByteString.Lazy qualified as BL
 import Data.Text.Encoding qualified as Text
 import Data.UUID hiding (null)
 import Imports hiding (group)
-import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..), Manager)
+import Network.HTTP.Client (Manager)
 import Polysemy (runM)
 import Polysemy.Input (runInputConst)
 import System.Logger qualified as Logger
