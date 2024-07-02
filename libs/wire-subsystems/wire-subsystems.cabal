@@ -72,6 +72,7 @@ library
     Wire.AuthenticationSubsystem
     Wire.AuthenticationSubsystem.Error
     Wire.AuthenticationSubsystem.Interpreter
+    Wire.AWS
     Wire.DeleteQueue
     Wire.DeleteQueue.InMemory
     Wire.EmailSending

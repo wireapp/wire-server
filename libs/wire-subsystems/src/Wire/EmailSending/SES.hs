@@ -1,11 +1,9 @@
 module Wire.EmailSending.SES where
 
-import Amazonka (Env, runResourceT)
-import Amazonka.Core.Lens.Internal qualified as AWS
+import Amazonka (Env)
 import Amazonka.Data.Text as AWS
 import Amazonka.SES qualified as SES
 import Amazonka.SES.Lens qualified as SES
-import Amazonka.Send as AWS
 import Amazonka.Types qualified as AWS
 import Control.Lens
 import Control.Monad.Catch
@@ -13,11 +11,11 @@ import Control.Retry
 import Data.ByteString.Lazy qualified as BL
 import Data.Text qualified as Text
 import Imports
-import Network.HTTP.Client
 import Network.HTTP.Types
 import Network.Mail.Mime (Mail, addressEmail, mailFrom, mailTo, renderMail')
 import Polysemy
 import Polysemy.Input
+import Wire.AWS
 import Wire.EmailSending
 
 emailViaSESInterpreter ::
@@ -67,28 +65,6 @@ deriving instance Show EmailSendingAWSError
 deriving instance Typeable EmailSendingAWSError
 
 instance Exception EmailSendingAWSError
-
--- TODO: deduplicate in Brig.AWS.
-sendCatch ::
-  ( Member (Input Amazonka.Env) r,
-    Member (Embed IO) r,
-    AWS.AWSRequest req,
-    Typeable req,
-    Typeable (AWS.AWSResponse req)
-  ) =>
-  req ->
-  Sem r (Either AWS.Error (AWS.AWSResponse req))
-sendCatch req = do
-  env <- input
-  embed . AWS.trying AWS._Error . runResourceT . AWS.send env $ req
-
--- TODO: deduplicate in Brig.AWS.
-canRetry :: Either AWS.Error a -> Bool
-canRetry (Right _) = False
-canRetry (Left e) = case e of
-  AWS.TransportError (HttpExceptionRequest _ ResponseTimeout) -> True
-  AWS.ServiceError se | se ^. AWS.serviceError_code == AWS.ErrorCode "RequestThrottled" -> True
-  _ -> False
 
 retry5x :: (Monad m) => RetryPolicyM m
 retry5x = limitRetries 5 <> exponentialBackoff 100000

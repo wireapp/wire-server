@@ -60,11 +60,14 @@ import Data.Text.Encoding qualified as Text
 import Data.UUID hiding (null)
 import Imports hiding (group)
 import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..), Manager)
+import Polysemy (runM)
+import Polysemy.Input (runInputConst)
 import System.Logger qualified as Logger
 import System.Logger.Class
 import UnliftIO.Async
 import UnliftIO.Exception
 import Util.Options
+import Wire.AWS
 
 data Env = Env
   { _logger :: !Logger,
@@ -182,12 +185,12 @@ listen throttleMillis url callback = forever . handleAny unexpectedError $ do
       threadDelay 3000000
 
 enqueueStandard :: Text -> BL.ByteString -> Amazon SQS.SendMessageResponse
-enqueueStandard url m = retrying retry5x (const canRetry) (const (sendCatch req)) >>= throwA
+enqueueStandard url m = retrying retry5x (const $ pure . canRetry) (const (sendCatchAmazon req)) >>= throwA
   where
     req = SQS.newSendMessage url $ Text.decodeLatin1 (BL.toStrict m)
 
 enqueueFIFO :: Text -> Text -> UUID -> BL.ByteString -> Amazon SQS.SendMessageResponse
-enqueueFIFO url group dedup m = retrying retry5x (const canRetry) (const (sendCatch req)) >>= throwA
+enqueueFIFO url group dedup m = retrying retry5x (const $ pure . canRetry) (const (sendCatchAmazon req)) >>= throwA
   where
     req =
       SQS.newSendMessage url (Text.decodeLatin1 (BL.toStrict m))
@@ -197,16 +200,18 @@ enqueueFIFO url group dedup m = retrying retry5x (const canRetry) (const (sendCa
 --------------------------------------------------------------------------------
 -- Utilities
 
-sendCatch :: (AWSRequest r, Typeable r, Typeable (AWSResponse r)) => r -> Amazon (Either AWS.Error (AWSResponse r))
-sendCatch req = do
-  env <- view amazonkaEnv
-  AWS.trying AWS._Error . AWS.send env $ req
-
 send ::
   (AWSRequest r, Typeable r, Typeable (AWSResponse r)) =>
   r ->
   Amazon (AWSResponse r)
-send r = throwA =<< sendCatch r
+send r = throwA =<< sendCatchAmazon r
+
+-- | Temporary helper to translate polysemy to Amazon monad, it should go away
+-- with more polysemisation
+sendCatchAmazon :: (AWSRequest req, Typeable req, Typeable (AWSResponse req)) => req -> Amazon (Either AWS.Error (AWS.AWSResponse req))
+sendCatchAmazon req = do
+  env <- view amazonkaEnv
+  liftIO . runM . runInputConst env $ sendCatch req
 
 throwA :: Either AWS.Error a -> Amazon a
 throwA = either (throwM . GeneralError) pure
@@ -237,13 +242,6 @@ exec ::
   a ->
   m (AWSResponse a)
 exec e cmd = liftIO (execCatch e cmd) >>= either (throwM . GeneralError) pure
-
-canRetry :: (MonadIO m) => Either AWS.Error a -> m Bool
-canRetry (Right _) = pure False
-canRetry (Left e) = case e of
-  AWS.TransportError (HttpExceptionRequest _ ResponseTimeout) -> pure True
-  AWS.ServiceError se | se ^. AWS.serviceError_code == AWS.ErrorCode "RequestThrottled" -> pure True
-  _ -> pure False
 
 retry5x :: (Monad m) => RetryPolicyM m
 retry5x = limitRetries 5 <> exponentialBackoff 100000
