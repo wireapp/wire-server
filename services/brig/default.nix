@@ -374,6 +374,7 @@ mkDerivation {
     warp-tls
     wire-api
     wire-api-federation
+    wire-subsystems
     yaml
     zauth
   ];
