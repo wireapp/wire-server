@@ -48,11 +48,10 @@ import Polysemy
 import System.Logger qualified as Logger
 import System.Logger.Class hiding (create)
 import Wire.EmailSending
-import Wire.Sem.Logger qualified as Log
 
-emailViaSMTPInterpreter :: (Member (Embed IO) r) => SMTP -> InterpreterFor EmailSending r
-emailViaSMTPInterpreter smtp = interpret \case
-  SendMail mail -> sendMailImpl smtp mail
+emailViaSMTPInterpreter :: (Member (Embed IO) r) => Logger -> SMTP -> InterpreterFor EmailSending r
+emailViaSMTPInterpreter logger smtp = interpret \case
+  SendMail mail -> sendMailImpl logger smtp mail
 
 newtype Username = Username Text
 
@@ -172,8 +171,8 @@ initSMTP' timeoutDuration lg host port credentials connType = do
                 ensureTimeout $ SMTP.gracefullyCloseSMTP c
         do wait
 
-logExceptionOrResult :: forall r a. (Member (Embed IO) r) => String -> Sem r a -> Sem r a
-logExceptionOrResult actionString action = do
+logExceptionOrResult :: (MonadIO m, MonadCatch m) => Logger -> String -> m a -> m a
+logExceptionOrResult lg actionString action = do
   res <-
     catches
       action
@@ -183,20 +182,20 @@ logExceptionOrResult actionString action = do
                   SMTPUnauthorized ->
                     ("Failed to establish connection, check your credentials." :: String)
                   SMTPConnectionTimeout -> ("Connection timeout." :: String)
-            doLog Log.Warn resultLog
+            doLog Logger.Warn resultLog
             CE.throw e,
         Handler
           \(e :: SomeException) -> do
-            doLog Log.Warn ("Caught exception : " ++ show e)
+            doLog Logger.Warn ("Caught exception : " ++ show e)
             CE.throw e
       ]
-  doLog Log.Debug ("Succeeded." :: String)
+  doLog Logger.Debug ("Succeeded." :: String)
   pure res
   where
-    doLog :: Log.Level -> String -> Sem r ()
+    doLog :: (MonadIO m) => Logger.Level -> String -> m ()
     doLog lvl result =
       let msg' = msg ("SMTP connection result" :: String)
-       in Log.log lvl (msg' . field "action" actionString . field "result" result)
+       in Logger.log lg lvl (msg' . field "action" actionString . field "result" result)
 
 -- | Default timeout for all actions
 --
@@ -221,7 +220,7 @@ ensureSMTPConnectionTimeout timeoutDuration action =
 -- a timeout happens and on every other network failure.
 --
 -- `defaultTimeoutDuration` is used as timeout duration for all actions.
-sendMailImpl :: (MonadIO m) => SMTP -> Mail -> m ()
+sendMailImpl :: (MonadIO m) => Logger -> SMTP -> Mail -> m ()
 sendMailImpl = sendMail' defaultTimeoutDuration
 
 -- TODO: Rename
@@ -230,12 +229,12 @@ sendMailImpl = sendMail' defaultTimeoutDuration
 --
 -- This is mostly useful for testing. (We don't want to waste the amount of
 -- `defaultTimeoutDuration` in tests with waiting.)
-sendMail' :: forall r t. (Member (Embed IO) r, TimeUnit t) => t -> SMTP -> Mail -> Sem r ()
-sendMail' timeoutDuration smtp m = withResource smtp.pool sendMail''
+sendMail' :: forall t m. (MonadIO m, TimeUnit t) => t -> Logger -> SMTP -> Mail -> m ()
+sendMail' timeoutDuration lg smtp m = liftIO $ withResource smtp.pool sendMail''
   where
-    sendMail'' :: SMTP.SMTPConnection -> Sem r ()
+    sendMail'' :: SMTP.SMTPConnection -> IO ()
     sendMail'' c =
-      logExceptionOrResult "Sending mail via SMTP" $
+      logExceptionOrResult lg "Sending mail via SMTP" $
         ensureSMTPConnectionTimeout timeoutDuration (SMTP.sendMail m c)
 
 deriveJSON defaultOptions {constructorTagModifier = map toLower} ''SMTPConnType

@@ -188,7 +188,6 @@ test-suite wire-subsystems-tests
   other-modules:
     Spec
     Wire.AuthenticationSubsystem.InterpreterSpec
-    Wire.EmailSending.SMTPSpec
     Wire.MiniBackend
     Wire.MockInterpreters
     Wire.MockInterpreters.EmailSmsSubsystem
