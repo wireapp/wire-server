@@ -19,7 +19,7 @@ interpretUserKeyStoreCassandra casClient =
       ClaimKey key uid -> claimKeyImpl casClient key uid
       KeyAvailable key uid -> keyAvailableImpl casClient key uid
 
--- | Claim a 'UserKey' for a user.
+-- | Claim an 'EmailKey' for a user.
 claimKeyImpl ::
   (Member (Embed IO) r, Member UserStore r) =>
   ClientState ->
@@ -33,7 +33,7 @@ claimKeyImpl client k u = do
   when free (runClient client $ insertKeyImpl u k)
   pure free
 
--- | Check whether a 'UserKey' is available.
+-- | Check whether an 'EmailKey' is available.
 -- A key is available if it is not already activated for another user or
 -- if the other user and the user looking to claim the key are the same.
 keyAvailableImpl ::
@@ -64,7 +64,7 @@ deleteKeyImpl :: (MonadClient m) => EmailKey -> m ()
 deleteKeyImpl k = do
   retry x5 $ write keyDelete (params LocalQuorum (Identity $ emailKeyUniq k))
 
--- | Delete `UserKey` for `UserId`
+-- | Delete `EmailKey` for `UserId`
 --
 -- This function ensures that keys of other users aren't accidentally deleted.
 -- E.g. the email address or phone number of a partially deleted user could

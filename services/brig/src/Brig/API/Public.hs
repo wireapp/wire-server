@@ -961,7 +961,15 @@ removePhone :: UserId -> Handler r (Maybe Public.RemoveIdentityError)
 removePhone self = lift . exceptTToMaybe $ API.removePhone self
 
 removeEmail ::
-  (Member UserSubsystem r) =>
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member UserKeyStore r,
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSubsystem r
+  ) =>
   UserId ->
   Handler r (Maybe Public.RemoveIdentityError)
 removeEmail self = lift . exceptTToMaybe $ API.removeEmail self

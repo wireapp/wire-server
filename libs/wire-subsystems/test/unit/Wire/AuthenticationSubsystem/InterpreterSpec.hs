@@ -16,7 +16,7 @@ import Polysemy.TinyLog
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
-import Wire.API.Allowlists (AllowlistEmailDomains (AllowlistEmailDomains), AllowlistPhonePrefixes)
+import Wire.API.Allowlists (AllowlistEmailDomains (AllowlistEmailDomains))
 import Wire.API.Password
 import Wire.API.User
 import Wire.API.User qualified as User
@@ -42,7 +42,6 @@ type AllEffects =
     State UTCTime,
     Input (Local ()),
     Input (Maybe AllowlistEmailDomains),
-    Input (Maybe AllowlistPhonePrefixes),
     SessionStore,
     State (Map UserId [Cookie ()]),
     PasswordStore,
@@ -68,7 +67,6 @@ interpretDependencies localDomain preexistingUsers preexistingPasswords mAllowed
     . inMemoryPasswordStoreInterpreter
     . evalState mempty
     . inMemorySessionStoreInterpreter
-    . runInputConst Nothing
     . runInputConst (AllowlistEmailDomains <$> mAllowedEmailDomains)
     . runInputConst (toLocalUnsafe localDomain ())
     . evalState defaultTime

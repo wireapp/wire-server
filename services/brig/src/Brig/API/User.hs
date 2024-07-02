@@ -609,12 +609,24 @@ changeEmail u email updateOrigin = do
 -- Remove Email
 
 removeEmail ::
-  (Member UserSubsystem r) =>
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member UserKeyStore r,
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSubsystem r
+  ) =>
   UserId ->
   ExceptT RemoveIdentityError (AppT r) ()
 removeEmail uid = do
   ident <- lift $ fetchUserIdentity uid
   case ident of
+    Just (SSOIdentity (UserSSOId _) (Just e)) -> lift $ do
+      liftSem $ deleteKey $ mkEmailKey e
+      wrapClient $ Data.deleteEmail uid
+      liftSem $ Intra.onUserEvent uid Nothing (emailRemoved uid e)
     Just _ -> throwE LastIdentity
     Nothing -> throwE NoIdentity
 

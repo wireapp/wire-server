@@ -20,7 +20,6 @@
 -- Email/phone whitelist.
 module Wire.API.Allowlists
   ( AllowlistEmailDomains (..),
-    AllowlistPhonePrefixes (..),
     verify,
   )
 where
@@ -34,11 +33,6 @@ data AllowlistEmailDomains = AllowlistEmailDomains [Text]
   deriving (Show, Generic)
 
 instance FromJSON AllowlistEmailDomains
-
-data AllowlistPhonePrefixes = AllowlistPhonePrefixes [Text]
-  deriving (Show, Generic)
-
-instance FromJSON AllowlistPhonePrefixes
 
 -- | Consult the whitelist settings in brig's config file and verify that the provided
 -- email address is whitelisted.
