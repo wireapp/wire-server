@@ -71,7 +71,11 @@ testObject_SendActivationCode_user_4 =
 
 testObject_SendActivationCode_user_5 :: SendActivationCode
 testObject_SendActivationCode_user_5 =
-  SendActivationCode {saUserKey = Right (Phone {fromPhone = "+883124214493"}), saLocale = Nothing, saCall = False}
+  SendActivationCode
+    { saUserKey = Left (Email {emailLocal = "test", emailDomain = "example.com"}),
+      saLocale = Nothing,
+      saCall = False
+    }
 
 testObject_SendActivationCode_user_6 :: SendActivationCode
 testObject_SendActivationCode_user_6 =

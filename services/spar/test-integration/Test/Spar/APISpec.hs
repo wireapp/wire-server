@@ -445,7 +445,7 @@ testGetPutDelete whichone = do
       env <- ask
       (ownerid, _tid) <- callCreateUserWithTeam
       ((^. idpId) -> idpid, (idpmeta, _)) <- registerTestIdPWithMeta ownerid
-      (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
+      uid <- call $ userId <$> randomUser (env ^. teBrig)
       whichone (env ^. teSpar) (Just uid) idpid idpmeta
         `shouldRespondWith` checkErrHspec 403 "insufficient-permissions"
   context "zuser is a team member, but not a team owner" $ do
@@ -877,7 +877,7 @@ specCRUDIdentityProvider = do
     context "zuser has no team" $ do
       it "responds with 'no team member'" $ do
         env <- ask
-        (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
+        uid <- call $ userId <$> randomUser (env ^. teBrig)
         (SampleIdP idpmeta _ _ _) <- makeSampleIdPMetadata
         callIdpCreate' (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just uid) idpmeta
           `shouldRespondWith` checkErrHspec 403 "no-team-member"

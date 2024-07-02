@@ -19,12 +19,12 @@ interpretUserKeyStoreCassandra casClient =
       ClaimKey key uid -> claimKeyImpl casClient key uid
       KeyAvailable key uid -> keyAvailableImpl casClient key uid
 
--- | Claim a 'UserKey' for a user.
+-- | Claim an 'EmailKey' for a user.
 claimKeyImpl ::
   (Member (Embed IO) r, Member UserStore r) =>
   ClientState ->
   -- | The key to claim.
-  UserKey ->
+  EmailKey ->
   -- | The user claiming the key.
   UserId ->
   Sem r Bool
@@ -33,14 +33,14 @@ claimKeyImpl client k u = do
   when free (runClient client $ insertKeyImpl u k)
   pure free
 
--- | Check whether a 'UserKey' is available.
+-- | Check whether an 'EmailKey' is available.
 -- A key is available if it is not already activated for another user or
 -- if the other user and the user looking to claim the key are the same.
 keyAvailableImpl ::
   (Member (Embed IO) r, Member UserStore r) =>
   ClientState ->
   -- | The key to check.
-  UserKey ->
+  EmailKey ->
   -- | The user looking to claim the key, if any.
   Maybe UserId ->
   Sem r Bool
@@ -51,20 +51,20 @@ keyAvailableImpl client k u = do
     (Just x, Just y) | x == y -> pure True
     (Just x, _) -> not <$> isActivated x
 
-lookupKeyImpl :: (MonadClient m) => UserKey -> m (Maybe UserId)
+lookupKeyImpl :: (MonadClient m) => EmailKey -> m (Maybe UserId)
 lookupKeyImpl k =
   fmap runIdentity
-    <$> retry x1 (query1 keySelect (params LocalQuorum (Identity $ keyText k)))
+    <$> retry x1 (query1 keySelect (params LocalQuorum (Identity $ emailKeyUniq k)))
 
-insertKeyImpl :: UserId -> UserKey -> Client ()
+insertKeyImpl :: UserId -> EmailKey -> Client ()
 insertKeyImpl u k = do
-  retry x5 $ write keyInsert (params LocalQuorum (keyText k, u))
+  retry x5 $ write keyInsert (params LocalQuorum (emailKeyUniq k, u))
 
-deleteKeyImpl :: (MonadClient m) => UserKey -> m ()
+deleteKeyImpl :: (MonadClient m) => EmailKey -> m ()
 deleteKeyImpl k = do
-  retry x5 $ write keyDelete (params LocalQuorum (Identity $ keyText k))
+  retry x5 $ write keyDelete (params LocalQuorum (Identity $ emailKeyUniq k))
 
--- | Delete `UserKey` for `UserId`
+-- | Delete `EmailKey` for `UserId`
 --
 -- This function ensures that keys of other users aren't accidentally deleted.
 -- E.g. the email address or phone number of a partially deleted user could
@@ -72,7 +72,7 @@ deleteKeyImpl k = do
 -- executed several times due to cassandra not supporting transactions)
 -- `deleteKeyImplForUser` does not fail for missing keys or keys that belong to
 -- another user: It always returns `()` as result.
-deleteKeyForUserImpl :: (MonadClient m) => UserId -> UserKey -> m ()
+deleteKeyForUserImpl :: (MonadClient m) => UserId -> EmailKey -> m ()
 deleteKeyForUserImpl uid k = do
   mbKeyUid <- lookupKeyImpl k
   case mbKeyUid of

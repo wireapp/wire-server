@@ -53,11 +53,10 @@ be removed in the future.
 
 ## Login - `POST /login`
 
-A login is the process of authenticating a user either through a known secret in
-a {ref}`password login <login-password>` or by proving ownership of a verified
-phone number associated with an account in an {ref}`SMS login <login-sms>`. The
-response to a successful login contains an access cookie in a `Set-Cookie`
-header and an access token in the JSON response body.
+A login is the process of authenticating a user either through a known
+secret in a {ref}`password login <login-password>`. The response to a
+successful login contains an access cookie in a `Set-Cookie` header and an
+access token in the JSON response body.
 
 (login-cookies)=
 
@@ -92,8 +91,8 @@ The corresponding backend configuration settings are described in:
 ### Password Login
 
 To perform a password login, send a `POST` request to the `/login`
-endpoint, providing either a verified email address or phone number and
-the corresponding password. For example:
+endpoint, providing either a verified email address and the corresponding
+password. For example:
 
 ```
 POST /login HTTP/1.1
@@ -105,11 +104,10 @@ POST /login HTTP/1.1
 }
 ```
 
-If a phone number is used, the `phone` field is used instead of
-`email`. If a @handle is used, the `handle` field is used instead of
-`email` (note that the handle value should be sent *without* the `@`
-symbol). Assuming the credentials are correct, the API will respond with
-a `200 OK` and an access token and cookie:
+If a @handle is used, the `handle` field is used instead of `email` (note
+that the handle value should be sent *without* the `@` symbol). Assuming
+the credentials are correct, the API will respond with a `200 OK` and an
+access token and cookie:
 
 ```
 HTTP/1.1 200 OK
@@ -133,39 +131,6 @@ The value of `expires_in` is the number of seconds that the
 
 As of yet, the `token_type` is always `Bearer`.
 
-(login-sms)=
-
-### SMS Login
-
-To perform an SMS login, first request an SMS code to be sent to a
-verified phone number:
-
-```
-POST /login/send HTTP/1.1
-[headers omitted]
-
-{
-    "phone": "+1234567890"
-}
-```
-
-An SMS with a short-lived login code will be sent. Upon receiving the
-SMS and extracting the code from it, the login can be performed using
-the `phone` and `code` as follows:
-
-```
-POST /login HTTP/1.1
-[headers omitted]
-
-{
-    "phone": "+1234567890",
-    "code": "123456"
-}
-```
-
-A successful response is identical to that of a {ref}`password
-login <login-password>`.
-
 (login-persistent)=
 
 ### Persistent Logins
@@ -182,7 +147,7 @@ POST /login?persist=true HTTP/1.1
 [headers omitted]
 
 {
-    "phone": "+1234567890",
+    "email": "alice@example.com",
     "code": "123456"
 }
 ```
@@ -282,7 +247,7 @@ POST /login?persist=true HTTP/1.1
 [headers omitted]
 
 {
-    "phone": "+1234567890",
+    "email": "alice@example.com",
     "code": "123456",
     "label": "Google Nexus 5"
 }
@@ -361,49 +326,42 @@ if you suspect your current password to be compromised.
 
 ### Initiate a Password Reset
 
-To initiate a password reset, send a `POST` request to
-`/password-reset`, specifying either a verified email address or phone
-number for the account in question:
+To initiate a password reset, send a `POST` request to `/password-reset`,
+specifying a verified email address for the account in question:
 
 ```
 POST /password-reset HTTP/1.1
 [headers omitted]
 
 {
-    "phone": "+1234567890"
+    "email": "alice@example.com"
 }
 ```
 
-For a phone number, the `phone` field would be used instead. As a
-result of a successful request, either a password reset key and code is
-sent via email or a password reset code is sent via SMS, depending on
-whether an email address or a phone number was provided. Password reset
-emails will contain a link to the [wire.com](https://www.wire.com/)
-website which will guide the user through the completion of the password
-reset, which means that the website will perform the necessary requests
-to complete the password reset. To complete a password reset initiated
-with a phone number, the completion of the password reset has to happen
-from the mobile client application itself.
+As a result of a successful request, a password reset key and code are sent
+via email. Password reset emails will contain a link to the
+[wire.com](https://www.wire.com/) website which will guide the user through
+the completion of the password reset, which means that the website will
+perform the necessary requests to complete the password reset.
 
-Once a password reset has been initiated for an email address or phone
-number, no further password reset can be initiated for the same email
-address or phone number before the prior reset is completed or times
-out. The current timeout for an initiated password reset is
-`10 minutes`.
+Once a password reset has been initiated for an email address, no further
+password reset can be initiated for the same email address before the prior
+reset is completed or times out. The current timeout for an initiated
+password reset is `10 minutes`.
 
 ### Complete a Password Reset
 
 To complete a password reset, the password reset code, together with the
-new password and the `email` or `phone` used when initiating the
-reset (or the opaque `key` sent by mail) are sent to
-`/password-reset/complete` in a `POST` request:
+new password and the `email` used when initiating the reset (or the opaque
+`key` sent by mail) are sent to `/password-reset/complete` in a `POST`
+request:
 
 ```
 POST /password-reset/complete HTTP/1.1
 [headers omitted]
 
 {
-    "phone": "+1234567890",
+    "email": "alice@example.com",
     "code": "123456",
     "password": "new-secret-password"
 }

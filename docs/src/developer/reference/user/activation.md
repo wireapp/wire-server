@@ -6,7 +6,8 @@ _Author: Artyom Kazak_
 
 ---
 
-A user is called _activated_ they have a verified identity -- e.g. a phone number that has been verified via a text message, or an email address that has been verified by sending an activation code to it.
+A user is called _activated_ when they have a verified identity -- an email
+address that has been verified by sending an activation code to it.
 
 A user that has been provisioned via single sign-on is always considered to be activated.
 
@@ -25,14 +26,17 @@ The only flow where it makes sense for non-activated users to exist is the [wire
 ### Requesting an activation code
 (RefActivationRequest)=
 
-During the [standard registration flow](RefRegistrationStandard), the user submits an email address or phone number by making a request to `POST /activate/send`. A six-digit activation code will be sent to that email address / phone number. Sample request and response:
+During the [standard registration flow](RefRegistrationStandard), the user
+submits an email address by making a request to `POST /activate/send`. A
+six-digit activation code will be sent to that email address. Sample request and
+response:
 
 ```
 POST /activate/send
 
 {
-    // Either 'email' or 'phone'
-    "phone": "+1234567890"
+    // the user's 'email' address
+    "email": "pink@example.com"
 }
 ```
 
@@ -40,9 +44,13 @@ POST /activate/send
 200 OK
 ```
 
-The user can submit the activation code during registration to prove that they own the email address / phone number.
+The user can submit the activation code during registration to prove that they
+own the email address.
 
-The same `POST /activate/send` endpoint can be used to re-request an activation code. Please use this ability sparingly! To avoid unnecessary activation code requests, users should be warned that it might take up to a few minutes for an email or text message to arrive.
+The same `POST /activate/send` endpoint can be used to re-request an activation
+code. Please use this ability sparingly! To avoid unnecessary activation code
+requests, users should be warned that it might take up to a few minutes for an
+email to arrive.
 
 ### Activating an existing account
 (RefActivationSubmit)=
@@ -53,8 +61,8 @@ If the account [has not been activated during verification](RefRegistrationNoPre
 POST /activate
 
 {
-    // One of 'phone', 'email', or 'key'
-    "phone": "+1234567890",
+    // One of 'email', 'key'
+    "email": "pink@example.com",
 
     // 6-digit activation code
     "code": "123456",
@@ -69,14 +77,16 @@ POST /activate
 200 OK
 
 {
-    "phone": "+1234567890",
+    "email": "pink@example.com",
 
     // Whether it is the first successful activation for the user
     "first": true
 }
 ```
 
-If the email or phone has been verified already, `POST /activate` will return status code `204 No Content`. If the code is invalid, `POST /activate` will return status code `404 Not Found` with `"label": "invalid-code"`.
+If the email has been verified already, `POST /activate` will return status code
+`204 No Content`. If the code is invalid, `POST /activate` will return status
+code `404 Not Found` with `"label": "invalid-code"`.
 
 There is a maximum of 3 activation attempts per activation code. On the third failed attempt the code is invalidated and a new one must be requested.
 
@@ -112,7 +122,7 @@ GET /self
 }
 ```
 
-If the profile includes `"email"` or `"phone"`, the account is activated.
+If the profile includes `"email"`, the account is activated.
 
 ## Automating activation via email
 (RefActivationEmailHeaders)=
@@ -134,10 +144,10 @@ X-Zeta-Key: ...
 X-Zeta-Code: 123456
 ```
 
-## Phone/email whitelist
+## Email whitelist
 (RefActivationAllowlist)=
 
-The backend can be configured to only allow specific phone number prefixes and email address domains to register. The following options have to be set in `brig.yaml`:
+The backend can be configured to only allow specific email address domains to register. The following option has to be set in `brig.yaml`:
 
 ```yaml
 optSettings:
@@ -145,19 +155,16 @@ optSettings:
     - wire.com
     - example.com
     - notagoodexample.com
-  setAllowlistPhonePrefixes:
-    - "+49"
-    - "+1555555"
 ```
 
 When those options are present, the backend will match every activation request against these lists.
 
-If an email address or phone number are rejected by the whitelist, `POST /activate/send` or `POST /register` will return `403 Forbidden`:
+If an email address is rejected by the whitelist, `POST /activate/send` or `POST /register` will return `403 Forbidden`:
 
 ```json
 {
     "code": 403,
     "label": "unauthorized",
-    "message": "Unauthorized e-mail address or phone number."
+    "message": "Unauthorized e-mail address"
 }
 ```

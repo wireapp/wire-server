@@ -13,7 +13,6 @@ build-type:    Simple
 library
   exposed-modules:
     Brig.Types.Activation
-    Brig.Types.Common
     Brig.Types.Connection
     Brig.Types.Instances
     Brig.Types.Intra

@@ -750,7 +750,7 @@ scimifyBrigUserHack :: User -> Email -> User
 scimifyBrigUserHack usr email =
   usr
     { userManagedBy = ManagedByScim,
-      userIdentity = Just (SSOIdentity (UserScimExternalId (fromEmail email)) (Just email) Nothing)
+      userIdentity = Just (SSOIdentity (UserScimExternalId (fromEmail email)) (Just email))
     }
 
 getDefaultUserLocale :: TestSpar Locale

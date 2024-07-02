@@ -18,8 +18,7 @@
 module Brig.API.Error where
 
 import Brig.API.Types
-import Brig.Phone (PhoneException (..))
-import Control.Monad.Error.Class (MonadError (..))
+import Control.Monad.Error.Class
 import Data.Aeson
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.ByteString.Conversion
@@ -68,7 +67,7 @@ connError InvalidTransition {} = StdError (errorToWai @'E.InvalidTransition)
 connError NotConnected {} = StdError (errorToWai @'E.NotConnected)
 connError InvalidUser {} = StdError (errorToWai @'E.InvalidUser)
 connError ConnectNoIdentity {} = StdError (errorToWai @'E.NoIdentity)
-connError (ConnectBlacklistedUserKey k) = StdError $ foldKey (const blacklistedEmail) (const (errorToWai @'E.BlacklistedPhone)) k
+connError (ConnectBlacklistedUserKey _) = StdError blacklistedEmail
 connError (ConnectInvalidEmail _ _) = StdError (errorToWai @'E.InvalidEmail)
 connError ConnectInvalidPhone {} = StdError (errorToWai @'E.InvalidPhone)
 connError ConnectSameBindingTeamUsers = StdError sameBindingTeamUsers
@@ -95,14 +94,10 @@ pwResetError (PasswordResetInProgress (Just t)) =
     [("Retry-After", toByteString' t)]
 pwResetError ResetPasswordMustDiffer = StdError (errorToWai @'E.ResetPasswordMustDiffer)
 
-sendLoginCodeError :: SendLoginCodeError -> Error
-sendLoginCodeError (SendLoginInvalidPhone _) = StdError (errorToWai @'E.InvalidPhone)
-sendLoginCodeError SendLoginPasswordExists = StdError (errorToWai @'E.PasswordExists)
-
 sendActCodeError :: SendActivationCodeError -> Error
-sendActCodeError (InvalidRecipient k) = StdError $ foldKey (const (errorToWai @'E.InvalidEmail)) (const (errorToWai @'E.InvalidPhone)) k
+sendActCodeError (InvalidRecipient _) = StdError $ errorToWai @'E.InvalidEmail
 sendActCodeError (UserKeyInUse _) = StdError (errorToWai @'E.UserKeyExists)
-sendActCodeError (ActivationBlacklistedUserKey k) = StdError $ foldKey (const blacklistedEmail) (const (errorToWai @'E.BlacklistedPhone)) k
+sendActCodeError (ActivationBlacklistedUserKey _) = StdError blacklistedEmail
 
 changeEmailError :: ChangeEmailError -> Error
 changeEmailError (InvalidNewEmail _ _) = StdError (errorToWai @'E.InvalidEmail)
@@ -263,11 +258,6 @@ accountStatusError :: AccountStatusError -> Error
 accountStatusError InvalidAccountStatus = StdError invalidAccountStatus
 accountStatusError AccountNotFound = StdError (notFound "Account not found")
 
-phoneError :: PhoneException -> Error
-phoneError PhoneNumberUnreachable = StdError (errorToWai @'E.InvalidPhone)
-phoneError PhoneNumberBarred = StdError (errorToWai @'E.BlacklistedPhone)
-phoneError (PhoneBudgetExhausted t) = RichError phoneBudgetExhausted (PhoneBudgetTimeout t) []
-
 updateProfileError :: UpdateProfileError -> Error
 updateProfileError DisplayNameManagedByScim = StdError (propertyManagedByScim "name")
 updateProfileError ProfileNotFound = StdError (errorToWai @'E.UserNotFound)
@@ -327,7 +317,7 @@ deletionCodePending :: Wai.Error
 deletionCodePending = Wai.mkError status403 "pending-delete" "A verification code for account deletion is still pending."
 
 allowlistError :: Wai.Error
-allowlistError = Wai.mkError status403 "unauthorized" "Unauthorized e-mail address or phone number."
+allowlistError = Wai.mkError status403 "unauthorized" "Unauthorized e-mail address"
 
 blacklistedEmail :: Wai.Error
 blacklistedEmail =

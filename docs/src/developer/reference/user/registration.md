@@ -12,16 +12,17 @@ This page describes the "normal" user registration flow. Autoprovisioning is cov
 
 The vast majority of our API is only available to Wire users. Unless a user is autoprovisioned, they have to register an account by calling the `POST /register` endpoint.
 
-Most users also go through [activation](activation.md) -- sharing and verifying an email address and/or phone number with Wire. This can happen either before or after registration. [Certain functionality](RefActivationBenefits) is only available to activated users.
+Most users also go through [activation](activation.md) -- sharing and verifying
+an email address with Wire. This can happen either before or after registration.
+[Certain functionality](RefActivationBenefits) is only available to activated
+users.
 
 ## Standard registration flow
 (RefRegistrationStandard)=
 
-During the standard registration flow, the user first calls [`POST /activate/send`](RefActivationRequest) to pre-verify their email address or phone number. Phone numbers must be in [E.164][] format.
+During the standard registration flow, the user first calls [`POST /activate/send`](RefActivationRequest) to pre-verify their email address.
 
-[E.164]: https://en.wikipedia.org/wiki/E.164
-
-After receiving a six-digit activation code via email/text message, it can be submitted with the registration request via `POST /register`. If the code is correct, the account will be activated immediately. Here is a sample request and response:
+After receiving a six-digit activation code via email message, it can be submitted with the registration request via `POST /register`. If the code is correct, the account will be activated immediately. Here is a sample request and response:
 
 ```
 POST /register
@@ -30,13 +31,13 @@ POST /register
     // The name is mandatory
     "name": "Pink",
 
-    // 'email', 'phone', or both have to be provided
+    // 'email' has to be provided
     "email": "pink@example.com",
 
     // The password is optional
     "password": "secret",
 
-    // 6-digit 'email_code' or 'phone_code'
+    // 6-digit 'email_code'
     "email_code": "123456"
 }
 ```
@@ -76,7 +77,9 @@ If the code is incorrect or if an incorrect code has been tried enough times, th
 
 _NOTE: This flow is currently not used by any clients. At least this was the state on 2020-05-28_
 
-It is also possible to call `POST /register` without verifying the email address or phone number, in which case the account will have to be activated later by calling [`POST /activate`](RefActivationSubmit). Sample API request and response:
+It is also possible to call `POST /register` without verifying the email
+address, in which case the account will have to be activated later by calling
+[`POST /activate`](RefActivationSubmit). Sample API request and response:
 
 ```
 POST /register
@@ -85,7 +88,7 @@ POST /register
     // The name is mandatory
     "name": "Pink",
 
-    // 'email', 'phone', or both have to be provided
+    // 'email'  has to be provided
     "email": "pink@example.com",
 
     // The password is optional
@@ -109,13 +112,15 @@ Set-Cookie: zuid=...
 }
 ```
 
-A verification email will be sent to the email address (if provided), and a verification text message will be sent to the phone number (also, if provided).
+A verification email will be sent to the email address (if provided).
 
 ## Anonymous registration, aka "Wireless"
 (RefRegistrationWireless)=
 
 
-A user can be created without either email or phone number, in which case only `"name"` is required. The `"name"` does not have to be unique. This feature is used for [guest rooms](https://wire.com/en/features/encrypted-guest-rooms/).
+A user can be created without email, in which case only `"name"` is required.
+The `"name"` does not have to be unique. This feature is used for [guest
+rooms](https://wire.com/en/features/encrypted-guest-rooms/).
 
 An anonymous, non-activated account is only usable for a period of time specified in `brig.yaml` at `zauth.authSettings.sessionTokenTimeout`, which is set to 1 day for Wire production. (The access cookie returned by `/register` can not be refreshed, and an anonymous user can not use `/login` to get a new cookie.)
 
@@ -172,7 +177,7 @@ These end-points support 5 flows:
 
 We need an option to block 1, 2, 5 on-prem; 3, 4 should remain available (no block option).  There are also provisioning flows via SAML or SCIM, which are not critical. In short, this could refactored into:
 
- * Allow team members to register (via email/phone or SSO)
+ * Allow team members to register (via email or SSO)
  * Allow ephemeral users
 
 During registration, we can take advantage of [NewUserOrigin](https://github.com/wireapp/wire-server/blob/a89b9cd818997e7837e5d0938ecfd90cf8dd9e52/libs/wire-api/src/Wire/API/User.hs#L625); we're particularly interested in `NewUserOriginTeamUser` --> only `NewTeamMember` or `NewTeamMemberSSO` should be accepted. In case this is a `Nothing`, we need to check if the user expires, i.e., if the user has no identity (and thus `Ephemeral`).

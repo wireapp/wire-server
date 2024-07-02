@@ -43,7 +43,6 @@ import Brig.Code qualified as Code
 import Brig.Data.Connection qualified as Data
 import Brig.Data.Nonce as Nonce
 import Brig.Data.User qualified as Data
-import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.FederationConfigStore (FederationConfigStore)
@@ -62,7 +61,6 @@ import Brig.User.API.Handle qualified as Handle
 import Brig.User.API.Search (teamUserSearch)
 import Brig.User.API.Search qualified as Search
 import Brig.User.Auth.Cookie qualified as Auth
-import Brig.User.Phone
 import Cassandra qualified as C
 import Cassandra qualified as Data
 import Control.Error hiding (bool, note)
@@ -165,7 +163,7 @@ import Wire.Sem.Concurrency
 import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
-import Wire.UserKeyStore hiding (keyText)
+import Wire.UserKeyStore
 import Wire.UserStore (UserStore)
 import Wire.UserSubsystem hiding (checkHandle, checkHandles)
 import Wire.UserSubsystem qualified as UserSubsystem
@@ -280,8 +278,7 @@ internalEndpointsSwaggerDocsAPI service examplePort swagger Nothing =
 
 servantSitemap ::
   forall r p.
-  ( Member BlacklistPhonePrefixStore r,
-    Member BlacklistStore r,
+  ( Member BlacklistStore r,
     Member DeleteQueue r,
     Member (Concurrency 'Unsafe) r,
     Member (ConnectionStore InternalPaging) r,
@@ -750,18 +747,21 @@ createUser ::
     Member EmailSending r
   ) =>
   Public.NewUserPublic ->
-  (Handler r) (Either Public.RegisterError Public.RegisterSuccess)
+  Handler r (Either Public.RegisterError Public.RegisterSuccess)
 createUser (Public.NewUserPublic new) = lift . runExceptT $ do
   API.checkRestrictedUserCreation new
-  for_ (Public.newUserEmail new) $ mapExceptT wrapHttp . checkAllowlistWithError RegisterErrorAllowlistError . Left
-  for_ (Public.newUserPhone new) $ mapExceptT wrapHttp . checkAllowlistWithError RegisterErrorAllowlistError . Right
+  for_ (Public.newUserEmail new) $
+    mapExceptT wrapHttp . checkAllowlistWithError RegisterErrorAllowlistError
+
+  -- prevent registration with a phone number
+  when (isJust (Public.newUserPhone new)) $
+    throwE Public.RegisterErrorInvalidPhone
+
   result <- API.createUser new
   let acc = createdAccount result
 
   let eac = createdEmailActivation result
-  let pac = createdPhoneActivation result
   let epair = (,) <$> (activationKey <$> eac) <*> (activationCode <$> eac)
-  let ppair = (,) <$> (activationKey <$> pac) <*> (activationCode <$> pac)
   let newUserLabel = Public.newUserLabel new
   let newUserTeam = Public.newUserTeam new
   let usr = accountUser acc
@@ -781,13 +781,10 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
 
   let Public.User {userLocale, userDisplayName} = usr
       userEmail = Public.userEmail usr
-      userPhone = Public.userPhone usr
       userId = Public.userId usr
   lift $ do
     for_ (liftM2 (,) userEmail epair) $ \(e, p) ->
       sendActivationEmail e userDisplayName p (Just userLocale) newUserTeam
-    for_ (liftM2 (,) userPhone ppair) $ \(p, c) ->
-      wrapHttp $ sendActivationSms p c (Just userLocale)
     for_ (liftM3 (,,) userEmail (createdUserTeam result) newUserTeam) $ \(e, ct, ut) ->
       sendWelcomeEmail e ct ut (Just userLocale)
   cok <-
@@ -951,55 +948,31 @@ updateUser uid conn uu = do
   lift . liftSem $
     updateUserProfile uid (Just conn) UpdateOriginWireClient update
 
+-- | Phone based functionality is not supported any more, but the handler is
+-- kept here so long as client API version 5 is supported.
 changePhone ::
-  ( Member BlacklistStore r,
-    Member UserKeyStore r,
-    Member BlacklistPhonePrefixStore r,
-    Member (Input (Local ())) r,
-    Member UserSubsystem r
-  ) =>
   UserId ->
   ConnId ->
   Public.PhoneUpdate ->
   (Handler r) (Maybe Public.ChangePhoneError)
-changePhone u _ (Public.puPhone -> phone) = lift . exceptTToMaybe $ do
-  (adata, pn) <- API.changePhone u phone
-  loc <- lift $ liftSem $ qualifyLocal' u >>= lookupLocaleWithDefault
-  let apair = (activationKey adata, activationCode adata)
-  lift . wrapHttp $ sendActivationSms pn apair loc
+changePhone _ _ _ = pure . Just $ Public.InvalidNewPhone
 
-removePhone ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member UserKeyStore r,
-    Member TinyLog r,
-    Member PasswordStore r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
-    Member UserSubsystem r
-  ) =>
-  UserId ->
-  ConnId ->
-  (Handler r) (Maybe Public.RemoveIdentityError)
-removePhone self conn =
-  lift . exceptTToMaybe $ API.removePhone self conn
+removePhone :: UserId -> Handler r (Maybe Public.RemoveIdentityError)
+removePhone self = lift . exceptTToMaybe $ API.removePhone self
 
 removeEmail ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
+    Member UserKeyStore r,
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member UserKeyStore r,
     Member (ConnectionStore InternalPaging) r,
     Member UserSubsystem r
   ) =>
   UserId ->
-  ConnId ->
-  (Handler r) (Maybe Public.RemoveIdentityError)
-removeEmail self conn =
-  lift . exceptTToMaybe $ API.removeEmail self conn
+  Handler r (Maybe Public.RemoveIdentityError)
+removeEmail self = lift . exceptTToMaybe $ API.removeEmail self
 
 checkPasswordExists :: (Member PasswordStore r) => UserId -> (Handler r) Bool
 checkPasswordExists = fmap isJust . lift . liftSem . lookupHashedPassword
@@ -1071,14 +1044,16 @@ beginPasswordReset ::
   (Member AuthenticationSubsystem r) =>
   Public.NewPasswordReset ->
   Handler r ()
+beginPasswordReset Public.NewPasswordResetUnsupportedPhone =
+  throwStd (errorToWai @'E.InvalidPhone)
 beginPasswordReset (Public.NewPasswordReset target) =
-  lift (liftSem $ createPasswordResetCode (fromEither target))
+  lift (liftSem $ createPasswordResetCode $ mkEmailKey target)
 
 completePasswordReset ::
   ( Member AuthenticationSubsystem r
   ) =>
   Public.CompletePasswordReset ->
-  (Handler r) ()
+  Handler r ()
 completePasswordReset req = do
   lift . liftSem $
     resetPassword
@@ -1090,17 +1065,19 @@ completePasswordReset req = do
 -- docs/reference/user/registration.md {#RefRegistration}
 sendActivationCode ::
   ( Member BlacklistStore r,
-    Member BlacklistPhonePrefixStore r,
-    Member UserKeyStore r,
+    Member EmailSmsSubsystem r,
     Member GalleyAPIAccess r,
-    Member EmailSmsSubsystem r
+    Member UserKeyStore r
   ) =>
   Public.SendActivationCode ->
-  (Handler r) ()
+  Handler r ()
 sendActivationCode Public.SendActivationCode {..} = do
-  either customerExtensionCheckBlockedDomains (const $ pure ()) saUserKey
-  checkAllowlist saUserKey
-  API.sendActivationCode saUserKey saLocale saCall !>> sendActCodeError
+  email <- case saUserKey of
+    Left email -> pure email
+    Right _ -> throwStd (errorToWai @'E.InvalidPhone)
+  customerExtensionCheckBlockedDomains email
+  checkAllowlist email
+  API.sendActivationCode email saLocale saCall !>> sendActCodeError
 
 -- | If the user presents an email address from a blocked domain, throw an error.
 --
@@ -1364,7 +1341,7 @@ sendVerificationCode req = do
   featureEnabled <- getFeatureStatus mbAccount
   case (mbAccount, featureEnabled) of
     (Just account, True) -> do
-      gen <- Code.mk6DigitGen $ Code.ForEmail email
+      gen <- Code.mk6DigitGen email
       timeout <- setVerificationTimeout <$> view settings
       code <-
         Code.generate
@@ -1379,7 +1356,7 @@ sendVerificationCode req = do
   where
     getAccount :: Public.Email -> (Handler r) (Maybe UserAccount)
     getAccount email = lift $ do
-      mbUserId <- liftSem $ lookupKey $ userEmailKey email
+      mbUserId <- liftSem $ lookupKey $ mkEmailKey email
       join <$> wrapClient (Data.lookupAccount `traverse` mbUserId)
 
     sendMail :: Public.Email -> Code.Value -> Maybe Public.Locale -> Public.VerificationAction -> (Handler r) ()

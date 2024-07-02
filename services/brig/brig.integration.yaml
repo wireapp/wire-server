@@ -158,8 +158,6 @@ optSettings:
   setVerificationTimeout: 10
   setTeamInvitationTimeout: 10
   setExpiredUserCleanupTimeout: 1
-  setTwilio: test/resources/twilio-credentials.yaml
-  setNexmo: test/resources/nexmo-credentials.yaml
   # setStomp: test/resources/stomp-credentials.yaml
   setUserMaxConnections: 16
   setCookieInsecure: true
@@ -217,9 +215,6 @@ optSettings:
   # To only allow specific email address domains to register, uncomment and update the setting below
   # setAllowlistEmailDomains:
   #   - wire.com
-  # To only allow specific phone number prefixes to register uncomment and update the settings below
-  # setAllowlistPhonePrefixes:
-  #   - "+1555555"
   # needs to be kept in sync with services/nginz/integration-test/resources/oauth/ed25519_public.jwk
   setOAuthJwkKeyPair: test/resources/oauth/ed25519.jwk
   setOAuthAuthCodeExpirationTimeSecs: 3 # 3 secs

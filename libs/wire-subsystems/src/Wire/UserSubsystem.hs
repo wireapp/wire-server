@@ -98,7 +98,7 @@ data UserSubsystem m a where
   CheckHandles :: [Handle] -> Word -> UserSubsystem m [Handle]
   -- | parses a handle, this may fail so it's effectful
   UpdateHandle :: Local UserId -> Maybe ConnId -> UpdateOriginType -> Text {- use Handle here? -} -> UserSubsystem m ()
-  GetLocalUserAccountByUserKey :: Local UserKey -> UserSubsystem m (Maybe UserAccount)
+  GetLocalUserAccountByUserKey :: Local EmailKey -> UserSubsystem m (Maybe UserAccount)
   -- | returns the user's locale or the default locale if the users exists
   LookupLocaleWithDefault :: Local UserId -> UserSubsystem m (Maybe Locale)
 

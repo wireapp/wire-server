@@ -44,7 +44,6 @@ data BrigError
   | InvalidHandle
   | HandleNotFound
   | UserCreationRestricted
-  | BlacklistedPhone
   | AllowlistError
   | InvalidInvitationCode
   | MissingIdentity
@@ -165,7 +164,7 @@ type instance MapError 'NotConnected = 'StaticError 403 "not-connected" "Users a
 
 type instance MapError 'InvalidTransition = 'StaticError 403 "bad-conn-update" "Invalid status transition"
 
-type instance MapError 'NoIdentity = 'StaticError 403 "no-identity" "The user has no verified identity (email or phone number)"
+type instance MapError 'NoIdentity = 'StaticError 403 "no-identity" "The user has no verified email"
 
 type instance MapError 'HandleExists = 'StaticError 409 "handle-exists" "The given handle is already taken"
 
@@ -175,13 +174,11 @@ type instance MapError 'HandleNotFound = 'StaticError 404 "not-found" "Handle no
 
 type instance MapError 'MLSDuplicatePublicKey = 'StaticError 400 "mls-duplicate-public-key" "MLS public key for the given signature scheme already exists"
 
-type instance MapError 'BlacklistedPhone = 'StaticError 403 "blacklisted-phone" "The given phone number has been blacklisted due to suspected abuse or a complaint"
-
-type instance MapError 'AllowlistError = 'StaticError 403 "unauthorized" "Unauthorized e-mail address or phone number."
+type instance MapError 'AllowlistError = 'StaticError 403 "unauthorized" "Unauthorized e-mail address"
 
 type instance MapError 'InvalidInvitationCode = 'StaticError 400 "invalid-invitation-code" "Invalid invitation code."
 
-type instance MapError 'MissingIdentity = 'StaticError 403 "missing-identity" "Using an invitation code requires registering the given email and/or phone."
+type instance MapError 'MissingIdentity = 'StaticError 403 "missing-identity" "Using an invitation code requires registering the given email."
 
 type instance
   MapError 'BlacklistedEmail =
@@ -233,7 +230,7 @@ type instance MapError 'AccountEphemeral = 'StaticError 403 "ephemeral" "Account
 
 type instance MapError 'AccountPending = 'StaticError 403 "pending-activation" "Account pending activation"
 
-type instance MapError 'UserKeyExists = 'StaticError 409 "key-exists" "The given e-mail address or phone number is in use."
+type instance MapError 'UserKeyExists = 'StaticError 409 "key-exists" "The given e-mail address is in use."
 
 type instance MapError 'NameManagedByScim = 'StaticError 403 "managed-by-scim" "Updating name is not allowed, because it is managed by SCIM, or E2EId is enabled"
 
@@ -241,7 +238,7 @@ type instance MapError 'HandleManagedByScim = 'StaticError 403 "managed-by-scim"
 
 type instance MapError 'LocaleManagedByScim = 'StaticError 403 "managed-by-scim" "Updating locale is not allowed, because it is managed by SCIM, or E2EId is enabled"
 
-type instance MapError 'LastIdentity = 'StaticError 403 "last-identity" "The last user identity (email or phone number) cannot be removed."
+type instance MapError 'LastIdentity = 'StaticError 403 "last-identity" "The last user identity cannot be removed."
 
 type instance MapError 'NoPassword = 'StaticError 403 "no-password" "The user has no password."
 

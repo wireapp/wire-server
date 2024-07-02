@@ -76,7 +76,6 @@ module Util.Core
     nextSAMLID,
     nextSubject,
     nextUserRef,
-    createRandomPhoneUser,
     zUser,
     zConn,
     ping,
@@ -138,13 +137,13 @@ module Util.Core
     eventually,
     getIdPByIssuer,
     retryNUntil,
+    randomUser,
   )
 where
 
 import Bilge hiding (getCookie, host, port) -- we use Web.Cookie instead of the http-client type
 import qualified Bilge
 import Bilge.Assert (Assertions, (!!!), (<!!), (===))
-import Brig.Types.Activation
 import Cassandra as Cas
 import Control.Exception
 import Control.Lens hiding ((.=))
@@ -163,7 +162,6 @@ import Data.Proxy
 import Data.Range
 import Data.String.Conversions
 import Data.Text (pack)
-import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Lazy.Encoding as LT
 import Data.UUID as UUID hiding (fromByteString, null)
@@ -215,7 +213,6 @@ import Wire.API.Team.Role
 import qualified Wire.API.Team.Role as Role
 import Wire.API.User
 import qualified Wire.API.User as User
-import Wire.API.User.Activation
 import Wire.API.User.Auth hiding (Cookie)
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Scim (runValidExternalIdEither)
@@ -588,26 +585,6 @@ nextUserRef = liftIO $ do
     (SAML.Issuer $ SAML.unsafeParseURI ("http://" <> tenant))
     <$> nextSubject
 
-createRandomPhoneUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => BrigReq -> m (UserId, Phone)
-createRandomPhoneUser brig_ = do
-  usr <- randomUser brig_
-  let uid = userId usr
-  phn <- liftIO randomPhone
-  -- update phone
-  let phoneUpdate = RequestBodyLBS . Aeson.encode $ PhoneUpdate phn
-  put (brig_ . path "/self/phone" . contentJson . zUser uid . zConn "c" . body phoneUpdate)
-    !!! (const 202 === statusCode)
-  -- activate
-  act <- getActivationCode brig_ (Right phn)
-  case act of
-    Nothing -> liftIO . throwIO $ ErrorCall "missing activation key/code"
-    Just kc -> activate brig_ kc !!! const 200 === statusCode
-  -- check new phone
-  get (brig_ . path "/self" . zUser uid) !!! do
-    const 200 === statusCode
-    const (Right (Just phn)) === (fmap userPhone . responseJsonEither)
-  pure (uid, phn)
-
 getTeams :: (HasCallStack, MonadHttp m, MonadIO m) => UserId -> GalleyReq -> m Galley.TeamList
 getTeams u gly = do
   r <-
@@ -658,12 +635,6 @@ randomEmail = do
   uid <- liftIO nextRandom
   pure $ Email ("success+" <> UUID.toText uid) "simulator.amazonses.com"
 
-randomPhone :: (MonadIO m) => m Phone
-randomPhone = liftIO $ do
-  nrs <- map show <$> replicateM 14 (randomRIO (0, 9) :: IO Int)
-  let phone = parsePhone . cs $ "+0" ++ concat nrs
-  pure $ fromMaybe (error "Invalid random phone#") phone
-
 randomUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => BrigReq -> m User
 randomUser brig_ = do
   n <- cs . UUID.toString <$> liftIO UUID.nextRandom
@@ -707,31 +678,6 @@ defPassword = plainTextPassword6Unsafe "topsecretdefaultpassword"
 
 defCookieLabel :: CookieLabel
 defCookieLabel = CookieLabel "auth"
-
-getActivationCode ::
-  (HasCallStack, MonadIO m, MonadHttp m) =>
-  BrigReq ->
-  Either Email Phone ->
-  m (Maybe (ActivationKey, ActivationCode))
-getActivationCode brig_ ep = do
-  let qry = either (queryItem "email" . toByteString') (queryItem "phone" . toByteString') ep
-  r <- get $ brig_ . path "/i/users/activation-code" . qry
-  let lbs = fromMaybe "" $ responseBody r
-  let akey = ActivationKey . Ascii.unsafeFromText <$> (lbs ^? Aeson.key "key" . Aeson._String)
-  let acode = ActivationCode . Ascii.unsafeFromText <$> (lbs ^? Aeson.key "code" . Aeson._String)
-  pure $ (,) <$> akey <*> acode
-
-activate ::
-  (HasCallStack, MonadHttp m) =>
-  BrigReq ->
-  ActivationPair ->
-  m ResponseLBS
-activate brig_ (k, c) =
-  get $
-    brig_
-      . path "activate"
-      . queryItem "key" (toByteString' k)
-      . queryItem "code" (toByteString' c)
 
 zUser :: UserId -> Request -> Request
 zUser = header "Z-User" . toByteString'
@@ -1280,12 +1226,7 @@ getSsoidViaSelf uid = maybe (error "not found") pure =<< getSsoidViaSelf' uid
 getSsoidViaSelf' :: (HasCallStack) => UserId -> TestSpar (Maybe UserSSOId)
 getSsoidViaSelf' uid = do
   musr <- aFewTimes (runSpar $ Intra.getBrigUser Intra.NoPendingInvitations uid) isJust
-  pure $ case userIdentity =<< musr of
-    Just (SSOIdentity ssoid _ _) -> Just ssoid
-    Just (FullIdentity _ _) -> Nothing
-    Just (EmailIdentity _) -> Nothing
-    Just (PhoneIdentity _) -> Nothing
-    Nothing -> Nothing
+  pure $ ssoIdentity =<< (userIdentity =<< musr)
 
 getUserIdViaRef :: (HasCallStack) => UserRef -> TestSpar UserId
 getUserIdViaRef uref = maybe (error "not found") pure =<< getUserIdViaRef' uref

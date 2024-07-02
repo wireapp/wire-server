@@ -48,7 +48,6 @@ module Brig.Data.User
     -- * Updates
     updateEmail,
     updateEmailUnvalidated,
-    updatePhone,
     updateSSOId,
     updateManagedBy,
     activateUser,
@@ -60,7 +59,6 @@ module Brig.Data.User
     -- * Deletions
     deleteEmail,
     deleteEmailUnvalidated,
-    deletePhone,
     deleteServiceUser,
   )
 where
@@ -224,7 +222,7 @@ isSamlUser :: (MonadClient m, MonadReader Env m) => UserId -> m Bool
 isSamlUser uid = do
   account <- lookupAccount uid
   case userIdentity . accountUser =<< account of
-    Just (SSOIdentity (UserSSOId _) _ _) -> pure True
+    Just (SSOIdentity (UserSSOId _) _) -> pure True
     _ -> pure False
 
 insertAccount ::
@@ -248,7 +246,6 @@ insertAccount (UserAccount u status) mbConv password activated = retry x5 . batc
       userPict u,
       userAssets u,
       userEmail u,
-      userPhone u,
       userSSOId u,
       userAccentId u,
       password,
@@ -286,9 +283,6 @@ updateEmail u e = retry x5 $ write userEmailUpdate (params LocalQuorum (e, u))
 updateEmailUnvalidated :: (MonadClient m) => UserId -> Email -> m ()
 updateEmailUnvalidated u e = retry x5 $ write userEmailUnvalidatedUpdate (params LocalQuorum (e, u))
 
-updatePhone :: (MonadClient m) => UserId -> Phone -> m ()
-updatePhone u p = retry x5 $ write userPhoneUpdate (params LocalQuorum (p, u))
-
 updateSSOId :: (MonadClient m) => UserId -> Maybe UserSSOId -> m Bool
 updateSSOId u ssoid = do
   mteamid <- lookupUserTeam u
@@ -318,9 +312,6 @@ deleteEmail u = retry x5 $ write userEmailDelete (params LocalQuorum (Identity u
 
 deleteEmailUnvalidated :: (MonadClient m) => UserId -> m ()
 deleteEmailUnvalidated u = retry x5 $ write userEmailUnvalidatedDelete (params LocalQuorum (Identity u))
-
-deletePhone :: (MonadClient m) => UserId -> m ()
-deletePhone u = retry x5 $ write userPhoneDelete (params LocalQuorum (Identity u))
 
 deleteServiceUser :: (MonadClient m) => ProviderId -> ServiceId -> BotId -> m ()
 deleteServiceUser pid sid bid = do
@@ -364,8 +355,7 @@ lookupUser hpi u = listToMaybe <$> lookupUsers hpi [u]
 activateUser :: (MonadClient m) => UserId -> UserIdentity -> m ()
 activateUser u ident = do
   let email = emailIdentity ident
-  let phone = phoneIdentity ident
-  retry x5 $ write userActivatedUpdate (params LocalQuorum (email, phone, u))
+  retry x5 $ write userActivatedUpdate (params LocalQuorum (email, u))
 
 deactivateUser :: (MonadClient m) => UserId -> m ()
 deactivateUser u =
@@ -475,7 +465,6 @@ type UserRow =
     Name,
     Maybe Pict,
     Maybe Email,
-    Maybe Phone,
     Maybe UserSSOId,
     ColourId,
     Maybe [Asset],
@@ -498,7 +487,6 @@ type UserRowInsert =
     Pict,
     [Asset],
     Maybe Email,
-    Maybe Phone,
     Maybe UserSSOId,
     ColourId,
     Maybe Password,
@@ -522,7 +510,7 @@ type AccountRow = UserRow
 
 usersSelect :: PrepQuery R (Identity [UserId]) UserRow
 usersSelect =
-  "SELECT id, name, picture, email, phone, sso_id, accent_id, assets, \
+  "SELECT id, name, picture, email, sso_id, accent_id, assets, \
   \activated, status, expires, language, country, provider, service, \
   \handle, team, managed_by, supported_protocols \
   \FROM user where id IN ?"
@@ -550,17 +538,17 @@ teamSelect = "SELECT team FROM user WHERE id = ?"
 
 accountsSelect :: PrepQuery R (Identity [UserId]) AccountRow
 accountsSelect =
-  "SELECT id, name, picture, email, phone, sso_id, accent_id, assets, \
+  "SELECT id, name, picture, email, sso_id, accent_id, assets, \
   \activated, status, expires, language, country, provider, \
   \service, handle, team, managed_by, supported_protocols \
   \FROM user WHERE id IN ?"
 
 userInsert :: PrepQuery W UserRowInsert ()
 userInsert =
-  "INSERT INTO user (id, name, picture, assets, email, phone, sso_id, \
+  "INSERT INTO user (id, name, picture, assets, email, sso_id, \
   \accent_id, password, activated, status, expires, language, \
   \country, provider, service, handle, team, managed_by, supported_protocols) \
-  \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 userEmailUpdate :: PrepQuery W (Email, UserId) ()
 userEmailUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET email = ? WHERE id = ?"
@@ -570,9 +558,6 @@ userEmailUnvalidatedUpdate = {- `IF EXISTS`, but that requires benchmarking -} "
 
 userEmailUnvalidatedDelete :: PrepQuery W (Identity UserId) ()
 userEmailUnvalidatedDelete = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET email_unvalidated = null WHERE id = ?"
-
-userPhoneUpdate :: PrepQuery W (Phone, UserId) ()
-userPhoneUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET phone = ? WHERE id = ?"
 
 userSSOIdUpdate :: PrepQuery W (Maybe UserSSOId, UserId) ()
 userSSOIdUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET sso_id = ? WHERE id = ?"
@@ -586,14 +571,11 @@ userStatusUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE use
 userDeactivatedUpdate :: PrepQuery W (Identity UserId) ()
 userDeactivatedUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET activated = false WHERE id = ?"
 
-userActivatedUpdate :: PrepQuery W (Maybe Email, Maybe Phone, UserId) ()
-userActivatedUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET activated = true, email = ?, phone = ? WHERE id = ?"
+userActivatedUpdate :: PrepQuery W (Maybe Email, UserId) ()
+userActivatedUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET activated = true, email = ? WHERE id = ?"
 
 userEmailDelete :: PrepQuery W (Identity UserId) ()
 userEmailDelete = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET email = null WHERE id = ?"
-
-userPhoneDelete :: PrepQuery W (Identity UserId) ()
-userPhoneDelete = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET phone = null WHERE id = ?"
 
 userRichInfoUpdate :: PrepQuery W (RichInfoAssocList, UserId) ()
 userRichInfoUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE rich_info SET json = ? WHERE user = ?"
@@ -610,7 +592,6 @@ toUserAccount
     name,
     pict,
     email,
-    phone,
     ssoid,
     accent,
     assets,
@@ -626,7 +607,7 @@ toUserAccount
     managed_by,
     prots
     ) =
-    let ident = toIdentity activated email phone ssoid
+    let ident = toIdentity activated email ssoid
         deleted = Just Deleted == status
         expiration = if status == Just Ephemeral then expires else Nothing
         loc = toLocale defaultLocale (lan, con)
@@ -662,7 +643,6 @@ toUsers domain defaultLocale havePendingInvitations = fmap mk . filter fp
                _name,
                _pict,
                _email,
-               _phone,
                _ssoid,
                _accent,
                _assets,
@@ -686,7 +666,6 @@ toUsers domain defaultLocale havePendingInvitations = fmap mk . filter fp
         name,
         pict,
         email,
-        phone,
         ssoid,
         accent,
         assets,
@@ -702,7 +681,7 @@ toUsers domain defaultLocale havePendingInvitations = fmap mk . filter fp
         managed_by,
         prots
         ) =
-        let ident = toIdentity activated email phone ssoid
+        let ident = toIdentity activated email ssoid
             deleted = Just Deleted == status
             expiration = if status == Just Ephemeral then expires else Nothing
             loc = toLocale defaultLocale (lan, con)
@@ -739,12 +718,9 @@ toIdentity ::
   -- | Whether the user is activated
   Bool ->
   Maybe Email ->
-  Maybe Phone ->
   Maybe UserSSOId ->
   Maybe UserIdentity
-toIdentity True (Just e) (Just p) Nothing = Just $! FullIdentity e p
-toIdentity True (Just e) Nothing Nothing = Just $! EmailIdentity e
-toIdentity True Nothing (Just p) Nothing = Just $! PhoneIdentity p
-toIdentity True email phone (Just ssoid) = Just $! SSOIdentity ssoid email phone
-toIdentity True Nothing Nothing Nothing = Nothing
-toIdentity False _ _ _ = Nothing
+toIdentity True (Just e) Nothing = Just $! EmailIdentity e
+toIdentity True email (Just ssoid) = Just $! SSOIdentity ssoid email
+toIdentity True Nothing Nothing = Nothing
+toIdentity False _ _ = Nothing

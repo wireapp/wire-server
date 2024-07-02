@@ -12,7 +12,6 @@ import Wire.API.User.Client (Client (..))
 
 data EmailSmsSubsystem m a where
   SendPasswordResetMail :: Email -> PasswordResetPair -> Maybe Locale -> EmailSmsSubsystem m ()
-  SendPasswordResetSms :: Phone -> PasswordResetPair -> Maybe Locale -> EmailSmsSubsystem m ()
   SendVerificationMail :: Email -> ActivationKey -> ActivationCode -> Maybe Locale -> EmailSmsSubsystem m ()
   SendCreateScimTokenVerificationMail :: Email -> Code.Value -> Maybe Locale -> EmailSmsSubsystem m ()
   SendLoginVerificationMail :: Email -> Code.Value -> Maybe Locale -> EmailSmsSubsystem m ()

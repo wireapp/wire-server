@@ -253,8 +253,6 @@ data:
       {{- if .setExpiredUserCleanupTimeout }}
       setExpiredUserCleanupTimeout: {{ .setExpiredUserCleanupTimeout }}
       {{- end }}
-      setTwilio: /etc/wire/brig/secrets/twilio-credentials.yaml
-      setNexmo: /etc/wire/brig/secrets/nexmo-credentials.yaml
       setUserMaxConnections: {{ .setUserMaxConnections }}
       setCookieInsecure: {{ .setCookieInsecure }}
       setUserCookieRenewAge: {{ .setUserCookieRenewAge }}

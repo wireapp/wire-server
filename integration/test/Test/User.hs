@@ -6,6 +6,7 @@ import API.Brig
 import API.BrigInternal
 import API.GalleyInternal
 import API.Spar
+import qualified Data.Aeson as Aeson
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
 import SetupHelpers
@@ -163,3 +164,12 @@ data TestUpdateSelfMode
   | TestUpdateEmailAddress
   | TestUpdateLocale
   deriving (Eq, Show, Generic)
+
+testActivateAccountWithPhoneV5 :: (HasCallStack) => App ()
+testActivateAccountWithPhoneV5 = do
+  let dom = OwnDomain
+  let phone = "+4912345678"
+  let reqBody = Aeson.object ["phone" .= phone]
+  activateUserV5 dom reqBody `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.json %. "label" `shouldMatch` "invalid-phone"
