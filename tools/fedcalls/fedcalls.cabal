@@ -59,8 +59,8 @@ executable fedcalls
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -funbox-strict-fields -threaded "-with-rtsopts=-N -T"
-    -rtsopts -Wredundant-constraints -Wunused-packages
+    -funbox-strict-fields -threaded "-with-rtsopts=-N -T" -rtsopts
+    -Wredundant-constraints -Wunused-packages
 
   build-depends:
       base
