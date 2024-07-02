@@ -53,6 +53,7 @@ import Wire.API.User as User hiding (DeleteUser)
 import Wire.API.User.Password
 import Wire.DeleteQueue
 import Wire.DeleteQueue.InMemory
+import Wire.EmailSmsSubsystem
 import Wire.FederationAPIAccess
 import Wire.FederationAPIAccess.Interpreter as FI
 import Wire.GalleyAPIAccess
@@ -104,6 +105,8 @@ type MiniBackendEffects =
     State [InternalNotification],
     State MiniBackend,
     State [MiniEvent],
+    EmailSmsSubsystem,
+    State (Map Email [SentMail]),
     Now,
     Input UserSubsystemConfig,
     Input (Local ()),
@@ -345,6 +348,8 @@ interpretMaybeFederationStackState maybeFederationAPIAccess localBackend teamMem
     . runInputConst (toLocalUnsafe (Domain "localdomain") ())
     . runInputConst cfg
     . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
+    . evalState mempty
+    . emailSmsSubsystemInterpreter
     . evalState []
     . runState localBackend
     . evalState []

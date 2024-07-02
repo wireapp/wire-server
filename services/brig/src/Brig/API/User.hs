@@ -46,7 +46,6 @@ module Brig.API.User
     revokeIdentity,
     deleteUserNoVerify,
     deleteUsersNoVerify,
-    deleteSelfUser,
     verifyDeleteUser,
     ensureAccountDeleted,
     deleteAccount,
@@ -105,7 +104,6 @@ import Control.Error
 import Control.Lens (view, (^.))
 import Control.Monad.Catch
 import Data.ByteString.Conversion
-import Data.Code
 import Data.Currency qualified as Currency
 import Data.Handle (Handle (fromHandle))
 import Data.Id as Id
@@ -113,7 +111,6 @@ import Data.Json.Util
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Extra
 import Data.List1 as List1 (List1, singleton)
-import Data.Misc
 import Data.Qualified
 import Data.Range
 import Data.Time.Clock (UTCTime, addUTCTime)
@@ -903,86 +900,86 @@ changePassword uid cp = do
 -------------------------------------------------------------------------------
 -- User Deletion
 
--- | Initiate validation of a user's delete request.  Called via @delete /self@.  Users with an
--- 'UserSSOId' can still do this if they also have an 'Email', 'Phone', and/or password.  Otherwise,
--- the team admin has to delete them via the team console on galley.
---
--- Owners are not allowed to delete themselves.  Instead, they must ask a fellow owner to
--- delete them in the team settings.  This protects teams against orphanhood.
---
--- TODO: communicate deletions of SSO users to SSO service.
---
--- FUTUREWORK(mangoiv): this uses 'UserStore', hence it must be moved to 'UserSubsystem'
--- as an effet operation
-deleteSelfUser ::
-  forall r.
-  ( Member GalleyAPIAccess r,
-    Member TinyLog r,
-    Member (Embed HttpClientIO) r,
-    Member UserKeyStore r,
-    Member NotificationSubsystem r,
-    Member (Input (Local ())) r,
-    Member PasswordStore r,
-    Member UserStore r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
-    Member EmailSmsSubsystem r,
-    Member VerificationCodeSubsystem r
-  ) =>
-  UserId ->
-  Maybe PlainTextPassword6 ->
-  ExceptT DeleteUserError (AppT r) (Maybe Timeout)
-deleteSelfUser uid pwd = do
-  account <- lift . wrapClient $ Data.lookupAccount uid
-  case account of
-    Nothing -> throwE DeleteUserInvalid
-    Just a -> case accountStatus a of
-      Deleted -> pure Nothing
-      Suspended -> ensureNotOwner a >> go a
-      Active -> ensureNotOwner a >> go a
-      Ephemeral -> go a
-      PendingInvitation -> go a
-  where
-    ensureNotOwner :: UserAccount -> ExceptT DeleteUserError (AppT r) ()
-    ensureNotOwner acc = do
-      case userTeam $ accountUser acc of
-        Nothing -> pure ()
-        Just tid -> do
-          isOwner <- lift $ liftSem $ GalleyAPIAccess.memberIsTeamOwner tid uid
-          when isOwner $ throwE DeleteUserOwnerDeletingSelf
-    go a = maybe (byIdentity a) (byPassword a) pwd
-    byIdentity a = case emailIdentity =<< userIdentity (accountUser a) of
-      Just emailOrPhone -> sendCode a emailOrPhone
-      Nothing -> case pwd of
-        Just _ -> throwE DeleteUserMissingPassword
-        Nothing -> lift . liftSem $ deleteAccount a >> pure Nothing
-    byPassword a pw = do
-      lift . liftSem . Log.info $
-        field "user" (toByteString uid)
-          . msg (val "Attempting account deletion with a password")
-      actual <- lift $ liftSem $ lookupHashedPassword uid
-      case actual of
-        Nothing -> throwE DeleteUserInvalidPassword
-        Just p -> do
-          -- We're deleting a user, no sense in updating their pwd, so we ignore pwd status
-          unless (verifyPassword pw p) $
-            throwE DeleteUserInvalidPassword
-          lift . liftSem $ deleteAccount a >> pure Nothing
-    sendCode a target = do
-      let gen = mkVerificationCodeGen target
-      (lift . liftSem $ createCode gen VerificationCode.AccountDeletion (VerificationCode.Retries 3) (VerificationCode.Timeout 600) (Just (toUUID uid))) >>= \case
-        Left (CodeAlreadyExists c) -> throwE $! DeleteUserPendingCode (VerificationCode.codeTTL c)
-        Right c -> do
-          lift . liftSem . Log.info $
-            field "user" (toByteString uid)
-              . msg (val "Sending verification code for account deletion")
-          let k = VerificationCode.codeKey c
-          let v = VerificationCode.codeValue c
-          let l = userLocale (accountUser a)
-          let n = userDisplayName (accountUser a)
-          lift (liftSem $ sendAccountDeletionEmail target n k v l)
-            `onException` lift (liftSem $ deleteCode k VerificationCode.AccountDeletion)
-          pure $! Just $! VerificationCode.codeTTL c
+-- -- | Initiate validation of a user's delete request.  Called via @delete /self@.  Users with an
+-- -- 'UserSSOId' can still do this if they also have an 'Email', 'Phone', and/or password.  Otherwise,
+-- -- the team admin has to delete them via the team console on galley.
+-- --
+-- -- Owners are not allowed to delete themselves.  Instead, they must ask a fellow owner to
+-- -- delete them in the team settings.  This protects teams against orphanhood.
+-- --
+-- -- TODO: communicate deletions of SSO users to SSO service.
+-- --
+-- -- FUTUREWORK(mangoiv): this uses 'UserStore', hence it must be moved to 'UserSubsystem'
+-- -- as an effet operation
+-- deleteSelfUser ::
+--   forall r.
+--   ( Member GalleyAPIAccess r,
+--     Member TinyLog r,
+--     Member (Embed HttpClientIO) r,
+--     Member UserKeyStore r,
+--     Member NotificationSubsystem r,
+--     Member (Input (Local ())) r,
+--     Member PasswordStore r,
+--     Member UserStore r,
+--     Member (Input UTCTime) r,
+--     Member (ConnectionStore InternalPaging) r,
+--     Member EmailSmsSubsystem r,
+--     Member VerificationCodeSubsystem r
+--   ) =>
+--   UserId ->
+--   Maybe PlainTextPassword6 ->
+--   ExceptT DeleteUserError (AppT r) (Maybe Timeout)
+-- deleteSelfUser uid pwd = do
+--   account <- lift . wrapClient $ Data.lookupAccount uid
+--   case account of
+--     Nothing -> throwE DeleteUserInvalid
+--     Just a -> case accountStatus a of
+--       Deleted -> pure Nothing
+--       Suspended -> ensureNotOwner a >> go a
+--       Active -> ensureNotOwner a >> go a
+--       Ephemeral -> go a
+--       PendingInvitation -> go a
+--   where
+--     ensureNotOwner :: UserAccount -> ExceptT DeleteUserError (AppT r) ()
+--     ensureNotOwner acc = do
+--       case userTeam $ accountUser acc of
+--         Nothing -> pure ()
+--         Just tid -> do
+--           isOwner <- lift $ liftSem $ GalleyAPIAccess.memberIsTeamOwner tid uid
+--           when isOwner $ throwE DeleteUserOwnerDeletingSelf
+--     go a = maybe (byIdentity a) (byPassword a) pwd
+--     byIdentity a = case emailIdentity =<< userIdentity (accountUser a) of
+--       Just emailOrPhone -> sendCode a emailOrPhone
+--       Nothing -> case pwd of
+--         Just _ -> throwE DeleteUserMissingPassword
+--         Nothing -> lift . liftSem $ deleteAccount a >> pure Nothing
+--     byPassword a pw = do
+--       lift . liftSem . Log.info $
+--         field "user" (toByteString uid)
+--           . msg (val "Attempting account deletion with a password")
+--       actual <- lift $ liftSem $ lookupHashedPassword uid
+--       case actual of
+--         Nothing -> throwE DeleteUserInvalidPassword
+--         Just p -> do
+--           -- We're deleting a user, no sense in updating their pwd, so we ignore pwd status
+--           unless (verifyPassword pw p) $
+--             throwE DeleteUserInvalidPassword
+--           lift . liftSem $ deleteAccount a >> pure Nothing
+--     sendCode a target = do
+--       let gen = mkVerificationCodeGen target
+--       (lift . liftSem $ createCode gen VerificationCode.AccountDeletion (VerificationCode.Retries 3) (VerificationCode.Timeout 600) (Just (toUUID uid))) >>= \case
+--         Left (CodeAlreadyExists c) -> throwE $! DeleteUserPendingCode (VerificationCode.codeTTL c)
+--         Right c -> do
+--           lift . liftSem . Log.info $
+--             field "user" (toByteString uid)
+--               . msg (val "Sending verification code for account deletion")
+--           let k = VerificationCode.codeKey c
+--           let v = VerificationCode.codeValue c
+--           let l = userLocale (accountUser a)
+--           let n = userDisplayName (accountUser a)
+--           lift (liftSem $ sendAccountDeletionEmail target n k v l)
+--             `onException` lift (liftSem $ deleteCode k VerificationCode.AccountDeletion)
+--           pure $! Just $! VerificationCode.codeTTL c
 
 -- | Conclude validation and scheduling of user's deletion request that was initiated in
 -- 'deleteUser'.  Called via @post /delete@.

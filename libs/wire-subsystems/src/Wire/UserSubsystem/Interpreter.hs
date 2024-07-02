@@ -8,12 +8,14 @@ where
 
 import Control.Lens (view)
 import Control.Monad.Trans.Maybe
+import Data.Code
 import Data.Either.Extra
 import Data.Handle (Handle)
 import Data.Handle qualified as Handle
 import Data.Id
 import Data.Json.Util
 import Data.LegalHold
+import Data.Misc
 import Data.Qualified
 import Data.Time.Clock
 import Imports hiding (local)
@@ -98,6 +100,14 @@ interpretUserSubsystem = interpret \case
   UpdateHandle uid mconn mb uhandle -> updateHandleImpl uid mconn mb uhandle
   GetLocalUserAccountByUserKey userKey -> getLocalUserAccountByUserKeyImpl userKey
   LookupLocaleWithDefault luid -> lookupLocaleOrDefaultImpl luid
+  RequestSelfDeletionCode uid mPassword -> requestSelfDeletionCodeImpl uid mPassword
+  DeleteSelfUser verification -> deleteSelfUserImpl verification
+
+requestSelfDeletionCodeImpl :: Local UserId -> Maybe PlainTextPassword6 -> Sem r (Maybe Timeout)
+requestSelfDeletionCodeImpl = undefined
+
+deleteSelfUserImpl :: VerifyDeleteUser -> Sem r ()
+deleteSelfUserImpl = undefined
 
 lookupLocaleOrDefaultImpl :: (Member UserStore r, Member (Input UserSubsystemConfig) r) => Local UserId -> Sem r (Maybe Locale)
 lookupLocaleOrDefaultImpl luid = do
