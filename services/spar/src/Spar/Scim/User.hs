@@ -495,15 +495,16 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
         Just (buid, ScimUserCreated) ->
           -- If the user has been created, but can't be found in brig anymore,
           -- the invitation has timed out and the user has been deleted on brig's side.
-          -- If this is the case we can safely create the user again.
+          -- If this is the case we can safely create the user again, AFTER THE
+          -- HALF-CREATED ACCOUNT HAS BEEN GARBAGE-COLLECTED.
           -- Otherwise we return a conflict error.
           lift (BrigAccess.getStatusMaybe buid) >>= \case
             Just Active -> throwError (externalIdTakenError ("user with status Active exists: " <> Text.pack (show (veid, buid))))
             Just Suspended -> throwError (externalIdTakenError ("user with status Suspended exists" <> Text.pack (show (veid, buid))))
             Just Ephemeral -> throwError (externalIdTakenError ("user with status Ephemeral exists" <> Text.pack (show (veid, buid))))
             Just PendingInvitation -> throwError (externalIdTakenError ("user with status PendingInvitation exists" <> Text.pack (show (veid, buid))))
-            Just Deleted -> pure ()
-            Nothing -> pure ()
+            Just Deleted -> incompleteUserCreationCleanUp buid externalIdTakenError
+            Nothing -> incompleteUserCreationCleanUp buid externalIdTakenError
         Just (buid, ScimUserCreating) ->
           incompleteUserCreationCleanUp buid externalIdTakenError
         Nothing -> pure ()
