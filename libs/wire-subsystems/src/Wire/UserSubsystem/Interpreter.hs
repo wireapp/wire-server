@@ -8,6 +8,7 @@ where
 
 import Control.Lens (view)
 import Control.Monad.Trans.Maybe
+import Data.ByteString.Conversion
 import Data.Code
 import Data.Either.Extra
 import Data.Handle (Handle)
@@ -22,9 +23,12 @@ import Imports hiding (local)
 import Polysemy
 import Polysemy.Error hiding (try)
 import Polysemy.Input
+import Polysemy.TinyLog qualified as Log
 import Servant.Client.Core
+import System.Logger.Message
 import Wire.API.Federation.API
 import Wire.API.Federation.Error
+import Wire.API.Password
 import Wire.API.Team.Feature
 import Wire.API.Team.Member hiding (userId)
 import Wire.API.User
@@ -33,6 +37,8 @@ import Wire.Arbitrary
 import Wire.DeleteQueue
 import Wire.FederationAPIAccess
 import Wire.GalleyAPIAccess
+import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
+import Wire.PasswordStore
 import Wire.Sem.Concurrency
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
@@ -102,12 +108,6 @@ interpretUserSubsystem = interpret \case
   LookupLocaleWithDefault luid -> lookupLocaleOrDefaultImpl luid
   RequestSelfDeletionCode uid mPassword -> requestSelfDeletionCodeImpl uid mPassword
   DeleteSelfUser verification -> deleteSelfUserImpl verification
-
-requestSelfDeletionCodeImpl :: Local UserId -> Maybe PlainTextPassword6 -> Sem r (Maybe Timeout)
-requestSelfDeletionCodeImpl = undefined
-
-deleteSelfUserImpl :: VerifyDeleteUser -> Sem r ()
-deleteSelfUserImpl = undefined
 
 lookupLocaleOrDefaultImpl :: (Member UserStore r, Member (Input UserSubsystemConfig) r) => Local UserId -> Sem r (Maybe Locale)
 lookupLocaleOrDefaultImpl luid = do
@@ -417,10 +417,14 @@ getLocalUserAccountByUserKeyImpl ::
   Local EmailKey ->
   Sem r (Maybe UserAccount)
 getLocalUserAccountByUserKeyImpl target = runMaybeT $ do
-  config <- lift input
   uid <- MaybeT $ lookupKey (tUnqualified target)
-  user <- MaybeT $ getUser uid
-  pure $ mkAccountFromStored (tDomain target) config.defaultLocale user
+  MaybeT $ getAccountByUserId $ qualifyAs target uid
+
+getAccountByUserId :: (Member UserStore r, Member (Input UserSubsystemConfig) r) => Local UserId -> Sem r (Maybe UserAccount)
+getAccountByUserId luid = runMaybeT do
+  config <- lift input
+  user <- MaybeT $ getUser $ tUnqualified luid
+  pure $ mkAccountFromStored (tDomain luid) config.defaultLocale user
 
 --------------------------------------------------------------------------------
 -- Update Handle
@@ -485,3 +489,83 @@ checkHandlesImpl check num = reverse <$> collectFree [] check num
           case owner of
             Nothing -> collectFree (h : free) hs (n - 1)
             Just _ -> collectFree free hs n
+
+--------------------------------------------------------------------------------
+-- Account Deletion
+
+_deleteAccountByPassword :: Local UserId -> PlainTextPassword6 -> Sem r ()
+_deleteAccountByPassword = undefined
+
+-- | Initiate validation of a user's delete request.  Called via @delete /self@.  Users with an
+-- 'UserSSOId' can still do this if they also have an 'Email', 'Phone', and/or password.  Otherwise,
+-- the team admin has to delete them via the team console on galley.
+--
+-- Owners are not allowed to delete themselves.  Instead, they must ask a fellow owner to
+-- delete them in the team settings.  This protects teams against orphanhood.
+--
+-- TODO: communicate deletions of SSO users to SSO service.
+requestSelfDeletionCodeImpl :: forall r. Local UserId -> Sem r (Maybe Timeout)
+requestSelfDeletionCodeImpl luid = do
+  account <- getAccountByUserId luid
+  case account of
+    Nothing -> throw DeleteUserInvalid
+    Just a -> case accountStatus a of
+      Deleted -> pure Nothing
+      Suspended -> ensureNotOwner a >> go a
+      Active -> ensureNotOwner a >> go a
+      Ephemeral -> go a
+      PendingInvitation -> go a
+  where
+    ensureNotOwner :: UserAccount -> Sem r ()
+    ensureNotOwner acc = do
+      case userTeam $ accountUser acc of
+        Nothing -> pure ()
+        Just tid -> do
+          isOwner <- GalleyAPIAccess.memberIsTeamOwner tid (tUnqualified luid)
+          when isOwner $ throw DeleteUserOwnerDeletingSelf
+
+    go :: UserAccount -> Sem r (Maybe Timeout)
+    go a = maybe (byIdentity a) (byPassword a) pwd
+    getEmailOrPhone :: UserIdentity -> Maybe (Either Email Phone)
+    getEmailOrPhone (FullIdentity e _) = Just $ Left e
+    getEmailOrPhone (EmailIdentity e) = Just $ Left e
+    getEmailOrPhone (SSOIdentity _ (Just e) _) = Just $ Left e
+    getEmailOrPhone (PhoneIdentity p) = Just $ Right p
+    getEmailOrPhone (SSOIdentity _ _ (Just p)) = Just $ Right p
+    getEmailOrPhone (SSOIdentity _ Nothing Nothing) = Nothing
+
+    byIdentity :: UserAccount -> Sem r (Maybe Timeout)
+    byIdentity a = case getEmailOrPhone =<< userIdentity (accountUser a) of
+      Just emailOrPhone -> sendCode a emailOrPhone
+      Nothing -> undefined -- TODO: lift . liftSem $ deleteAccount a >> pure Nothing
+    sendCode :: UserAccount -> Either Email Phone -> Sem r (Maybe Timeout)
+    sendCode a target = do
+      gen <- Code.mkGen (either Code.ForEmail Code.ForPhone target)
+      pending <- lift . wrapClient $ Code.lookup (Code.genKey gen) Code.AccountDeletion
+      case pending of
+        Just c -> throwE $! DeleteUserPendingCode (Code.codeTTL c)
+        Nothing -> do
+          lift . liftSem . Log.info $
+            field "user" (toByteString uid)
+              . msg (val "Sending verification code for account deletion")
+          c <-
+            Code.generate
+              gen
+              Code.AccountDeletion
+              (Code.Retries 3)
+              (Code.Timeout 600)
+              (Just (toUUID uid))
+          tryInsertVerificationCode c DeleteUserVerificationCodeThrottled
+          let k = Code.codeKey c
+          let v = Code.codeValue c
+          let l = userLocale (accountUser a)
+          let n = userDisplayName (accountUser a)
+          either
+            (\e -> lift $ liftSem $ sendAccountDeletionEmail e n k v l)
+            (\p -> lift $ wrapHttp $ sendDeletionSms p k v l)
+            target
+            `onException` wrapClientE (Code.delete k Code.AccountDeletion)
+          pure $! Just $! Code.codeTTL c
+
+deleteSelfUserImpl :: VerifyDeleteUser -> Sem r ()
+deleteSelfUserImpl = undefined

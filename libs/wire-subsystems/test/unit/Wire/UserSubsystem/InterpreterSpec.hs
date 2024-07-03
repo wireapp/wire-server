@@ -13,6 +13,7 @@ import Data.Handle
 import Data.Id
 import Data.LegalHold (defUserLegalHoldStatus)
 import Data.Map qualified as Map
+import Data.Misc (plainTextPassword8To6)
 import Data.Qualified
 import Data.Set qualified as S
 import Imports
@@ -29,8 +30,10 @@ import Wire.API.Team.Member
 import Wire.API.Team.Permission
 import Wire.API.User hiding (DeleteUser)
 import Wire.API.UserEvent
+import Wire.HashPassword
 import Wire.MiniBackend
 import Wire.MockInterpreters
+import Wire.PasswordStore
 import Wire.StoredUser
 import Wire.UserKeyStore
 import Wire.UserSubsystem
@@ -42,14 +45,16 @@ spec :: Spec
 spec = describe "UserSubsystem.Interpreter" do
   describe "deleteSelfUser" do
     prop "should delete user when deleted with requested code" $
-      \(NotPendingStoredUser user) password email localDomain config ->
-        let localBackend = def {users = [user]}
+      \(NotPendingStoredUser userNoEmail) password email localDomain config ->
+        let user = userNoEmail {email = Just email}
+            localBackend = def {users = [user]}
             luid = (toLocalUnsafe localDomain user.id)
             userAfterDeletion =
               runNoFederationStack localBackend Nothing config $ do
+                upsertHashedPassword user.id =<< hashPassword password
                 -- TODO: assert something about the expiry of the code
-                _ <- requestSelfDeletionCode luid (Just password)
-                (name, key, value) <- expect1AccountDeletionEmail email
+                _ <- requestSelfDeletionCode luid (Just $ plainTextPassword8To6 password)
+                (_name, key, value) <- expect1AccountDeletionEmail email
                 deleteSelfUser (VerifyDeleteUser key value)
                 getSelfProfile luid
          in userAfterDeletion === Nothing
