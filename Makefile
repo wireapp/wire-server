@@ -73,8 +73,7 @@ clean-hint:
 
 .PHONY: cabal.project.local
 cabal.project.local:
-	echo "optimization: False" > ./cabal.project.local
-	./hack/bin/cabal-project-local-template.sh "ghc-options: -O0" >> ./cabal.project.local
+	cp ./hack/bin/cabal.project.local.template ./cabal.project.local
 
 # Usage: make c package=brig test=1
 .PHONY: c
