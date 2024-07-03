@@ -1,0 +1,25 @@
+# Example yaml-formatted configuration for cannon used in integration tests
+
+# cannon can be started with a config file (e.g. ./dist/cannon -c cannon.yaml.example)
+
+cannon:
+  host: 0.0.0.0
+  port: 8080
+
+  # Each cannon instance advertises its own location (ip or dns name) to gundeck.
+  # Either externalHost or externalHostFile must be set (externalHost takes precedence if both are defined)
+  # externalHostFile expects a file with a single line containing the IP or dns name of this instance of cannon
+  externalHost: cannon-federation-v1
+  #externalHostFile: /etc/wire/cannon/cannon-host.txt
+
+gundeck:
+  host: gundeck-federation-v1
+  port: 8080
+
+drainOpts:
+  gracePeriodSeconds: 1
+  millisecondsBetweenBatches: 500
+  minBatchSize: 5
+
+logLevel: Warn
+logNetStrings: false

@@ -1,0 +1,28 @@
+cargohold:
+  host: 0.0.0.0
+  port: 8080
+
+federator:
+  host: federator-federation-v1
+  port: 8080
+
+aws:
+  s3Bucket: dummy-bucket-federation-v1 # <-- insert-bucket-name-here
+  s3Endpoint: http://fake_s3:4570 # https://s3-eu-west-1.amazonaws.com:443
+  # s3DownloadEndpoint: http://fake-s3:4570
+  # ^ When not using a real S3 service, we may need to use a different,
+  #   publicly accessible endpoint for downloading assets.
+  #
+  # If you want to use cloudfront for asset downloads
+  # cloudFront:
+  #   domain: <insert-cloudfront-domain-here>
+  #   keyPairId: <insert-keypair-id-here>
+  #   privateKey: cf-pk.pem
+
+settings:
+  maxTotalBytes: 27262976
+  downloadLinkTTL: 300    # Seconds
+  federationDomain: example.com
+
+logLevel: Warn
+logNetStrings: false
