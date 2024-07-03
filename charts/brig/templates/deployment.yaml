@@ -1,5 +1,5 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: brig
   labels:
@@ -8,12 +8,6 @@ metadata:
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
 spec:
-  storageClassName: hcloud-volumes
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 20Gi
   replicas: {{ .Values.replicaCount }}
   strategy:
     type: RollingUpdate
@@ -35,6 +29,13 @@ spec:
         checksum/secret: {{ include (print .Template.BasePath "/secret.yaml") . | sha256sum }}
         fluentbit.io/parser: json
     spec:
+      {{- if .Values.profLogs.enabled }}
+      securityContext:
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+      {{- end }}
+
       serviceAccountName: {{ .Values.serviceAccount.name }}
       volumes:
         - name: "brig-config"
@@ -68,7 +69,6 @@ spec:
           secret:
             secretName: {{ .Values.config.rabbitmq.tlsCaSecretRef.name }}
         {{- end }}
-
       containers:
         - name: brig
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -101,6 +101,11 @@ spec:
           {{- if .Values.config.rabbitmq.tlsCaSecretRef }}
           - name: "rabbitmq-ca"
             mountPath: "/etc/wire/brig/rabbitmq-ca/"
+          {{- end }}
+          {{- if .Values.profLogs.enabled }}
+          - name: prof-logs
+            mountPath: /tmp
+            readOnly: false
           {{- end }}
           env:
           - name: LOG_LEVEL
@@ -173,3 +178,14 @@ spec:
               port: {{ .Values.service.internalPort }}
           resources:
 {{ toYaml .Values.resources | indent 12 }}
+  {{- if .Values.profLogs.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: prof-logs
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        storageClassName: {{ .Values.profLogs.storageClassName }}
+        resources:
+          requests:
+            storage: "10Gi"
+  {{- end }}
