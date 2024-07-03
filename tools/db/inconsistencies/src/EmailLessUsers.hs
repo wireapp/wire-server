@@ -116,7 +116,7 @@ type UserDetailsRow = (UserId, Maybe AccountStatus, Maybe (Writetime AccountStat
 
 insertMissingEmail :: Logger -> ClientState -> Email -> UserId -> IO ()
 insertMissingEmail l brig email uid = do
-  runClient brig $ K.insertKey l uid (userEmailKey email)
+  runClient brig $ K.insertKey l uid (mkEmailKey email)
 
 userWithEmailAndStatus :: UserDetailsRow -> Maybe (UserId, AccountStatus, Writetime AccountStatus, Email, Writetime Email)
 userWithEmailAndStatus (uid, mStatus, mStatusWritetime, mEmail, mEmailWritetime, activated) = do
@@ -137,7 +137,7 @@ checkUser :: Logger -> ClientState -> Bool -> (UserId, AccountStatus, Writetime 
 checkUser l brig repairData (uid, statusValue, statusWritetime, userEmailValue, userEmailWriteTime) = do
   let status = WithWritetime statusValue statusWritetime
       userEmail = WithWritetime userEmailValue userEmailWriteTime
-  mKeyDetails <- runClient brig $ K.getKey (userEmailKey userEmailValue)
+  mKeyDetails <- runClient brig $ K.getKey (mkEmailKey userEmailValue)
   case mKeyDetails of
     Nothing -> do
       let emailKey = Nothing

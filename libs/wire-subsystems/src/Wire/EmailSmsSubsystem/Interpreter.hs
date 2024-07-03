@@ -1,6 +1,10 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Wire.EmailSmsSubsystem.Interpreter where
+module Wire.EmailSmsSubsystem.Interpreter
+  ( emailSmsSubsystemInterpreter,
+    mkMimeAddress,
+  )
+where
 
 import Data.Code qualified as Code
 import Data.Json.Util
@@ -17,7 +21,21 @@ import Wire.API.User.Activation
 import Wire.API.User.Client (Client (..))
 import Wire.API.User.Password
 import Wire.EmailSending (EmailSending, sendMail)
+import Wire.EmailSmsSubsystem
 import Wire.EmailSmsSubsystem.Template
+
+emailSmsSubsystemInterpreter :: (Member EmailSending r) => Localised UserTemplates -> TemplateBranding -> InterpreterFor EmailSmsSubsystem r
+emailSmsSubsystemInterpreter tpls branding = interpret \case
+  SendPasswordResetMail email (key, code) mLocale -> sendPasswordResetMailImpl tpls branding email key code mLocale
+  SendVerificationMail email key code mLocale -> sendVerificationMailImpl tpls branding email key code mLocale
+  SendTeamDeletionVerificationMail email code mLocale -> sendTeamDeletionVerificationMailImpl tpls branding email code mLocale
+  SendCreateScimTokenVerificationMail email code mLocale -> sendCreateScimTokenVerificationMailImpl tpls branding email code mLocale
+  SendLoginVerificationMail email code mLocale -> sendLoginVerificationMailImpl tpls branding email code mLocale
+  SendActivationMail email name key code mLocale -> sendActivationMailImpl tpls branding email name key code mLocale
+  SendEmailAddressUpdateMail email name key code mLocale -> sendEmailAddressUpdateMailImpl tpls branding email name key code mLocale
+  SendTeamActivationMail email name key code mLocale teamName -> sendTeamActivationMailImpl tpls branding email name key code mLocale teamName
+  SendNewClientEmail email name client locale -> sendNewClientEmailImpl tpls branding email name client locale
+  SendAccountDeletionEmail email name key code locale -> sendAccountDeletionEmailImpl tpls branding email name key code locale
 
 -------------------------------------------------------------------------------
 -- Verification Email for

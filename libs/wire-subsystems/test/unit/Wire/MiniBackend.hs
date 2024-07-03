@@ -97,7 +97,7 @@ type MiniBackendEffects =
     UserStore,
     State [StoredUser],
     UserKeyStore,
-    State (Map UserKey UserId),
+    State (Map EmailKey UserId),
     DeleteQueue,
     UserEvents,
     State [InternalNotification],
@@ -116,7 +116,7 @@ data MiniBackend = MkMiniBackend
   { -- | this is morally the same as the users stored in the actual backend
     --   invariant: for each key, the user.id and the key are the same
     users :: [StoredUser],
-    userKeys :: Map UserKey UserId,
+    userKeys :: Map EmailKey UserId,
     passwordResetCodes :: Map PasswordResetKey (PRQueryData Identity)
   }
 
@@ -356,7 +356,7 @@ interpretMaybeFederationStackState maybeFederationAPIAccess localBackend teamMem
     . miniGalleyAPIAccess teamMember galleyConfigs
     . runUserSubsystem cfg
 
-liftUserKeyStoreState :: (Member (State MiniBackend) r) => Sem (State (Map UserKey UserId) : r) a -> Sem r a
+liftUserKeyStoreState :: (Member (State MiniBackend) r) => Sem (State (Map EmailKey UserId) : r) a -> Sem r a
 liftUserKeyStoreState = interpret $ \case
   Polysemy.State.Get -> gets (.userKeys)
   Put newUserKeys -> modify $ \b -> b {userKeys = newUserKeys}

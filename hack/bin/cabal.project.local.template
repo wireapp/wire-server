@@ -1,0 +1,6 @@
+test-show-details: direct
+profiling: False
+profiling-detail: late
+optimization: False
+program-options
+    ghc-options: -O0

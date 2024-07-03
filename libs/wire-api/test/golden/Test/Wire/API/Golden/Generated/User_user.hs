@@ -77,7 +77,7 @@ testObject_User_user_2 =
           { qUnqualified = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000200000001")),
             qDomain = Domain {_domainText = "k.vbg.p"}
           },
-      userIdentity = Just (PhoneIdentity (Phone {fromPhone = "+837934954"})),
+      userIdentity = Just (EmailIdentity (Email "foo" "example.com")),
       userDisplayName =
         Name
           { fromName =
@@ -145,7 +145,7 @@ testObject_User_user_4 =
             qDomain = Domain {_domainText = "28b.cqb"}
           },
       userIdentity =
-        Just (SSOIdentity (UserScimExternalId "") (Just (Email {emailLocal = "", emailDomain = ""})) Nothing),
+        Just (SSOIdentity (UserScimExternalId "") (Just (Email {emailLocal = "", emailDomain = ""}))),
       userDisplayName =
         Name
           { fromName =
@@ -180,7 +180,7 @@ testObject_User_user_5 =
             qDomain = Domain {_domainText = "28b.cqb"}
           },
       userIdentity =
-        Just (FullIdentity (Email {emailLocal = "", emailDomain = ""}) (Phone {fromPhone = "+837934954"})),
+        Just (EmailIdentity (Email {emailLocal = "bar", emailDomain = "example.com"})),
       userDisplayName =
         Name
           { fromName =

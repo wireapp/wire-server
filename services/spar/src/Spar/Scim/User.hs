@@ -1104,10 +1104,8 @@ getUserById midp stiTeam uid = do
     veidChanged :: User -> ST.ValidExternalId -> Bool
     veidChanged usr veid = case userIdentity usr of
       Nothing -> True
-      Just (FullIdentity _ _) -> True
       Just (EmailIdentity _) -> True
-      Just (PhoneIdentity _) -> True
-      Just (SSOIdentity ssoid _ _) -> Brig.veidToUserSSOId veid /= ssoid
+      Just (SSOIdentity ssoid _) -> Brig.veidToUserSSOId veid /= ssoid
 
     managedByChanged :: User -> Bool
     managedByChanged usr = userManagedBy usr /= ManagedByScim

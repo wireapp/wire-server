@@ -115,18 +115,15 @@ toIdentity ::
   -- | Whether the user is activated
   Bool ->
   Maybe Email ->
-  Maybe Phone ->
   Maybe UserSSOId ->
   Maybe UserIdentity
-toIdentity True (Just e) (Just p) Nothing = Just $! FullIdentity e p
-toIdentity True (Just e) Nothing Nothing = Just $! EmailIdentity e
-toIdentity True Nothing (Just p) Nothing = Just $! PhoneIdentity p
-toIdentity True email phone (Just ssoid) = Just $! SSOIdentity ssoid email phone
-toIdentity True Nothing Nothing Nothing = Nothing
-toIdentity False _ _ _ = Nothing
+toIdentity True (Just e) Nothing = Just $! EmailIdentity e
+toIdentity True email (Just ssoid) = Just $! SSOIdentity ssoid email
+toIdentity True Nothing Nothing = Nothing
+toIdentity False _ _ = Nothing
 
 instance HasField "identity" StoredUser (Maybe UserIdentity) where
-  getField user = toIdentity user.activated user.email user.phone user.ssoId
+  getField user = toIdentity user.activated user.email user.ssoId
 
 instance HasField "locale" StoredUser (Maybe Locale) where
   getField user = Locale <$> user.language <*> pure user.country

@@ -3,8 +3,6 @@ module Brig.CanonicalInterpreter where
 import Brig.AWS (amazonkaEnv)
 import Brig.App as App
 import Brig.DeleteQueue.Interpreter as DQ
-import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
-import Brig.Effects.BlacklistPhonePrefixStore.Cassandra (interpretBlacklistPhonePrefixStoreToCassandra)
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.BlacklistStore.Cassandra (interpretBlacklistStoreToCassandra)
 import Brig.Effects.ConnectionStore (ConnectionStore)
@@ -19,7 +17,6 @@ import Brig.Effects.UserPendingActivationStore.Cassandra (userPendingActivationS
 import Brig.IO.Intra (runUserEvents)
 import Brig.Options (ImplicitNoFederationRestriction (federationDomainConfig), federationDomainConfigs, federationStrategy)
 import Brig.Options qualified as Opt
-import Brig.User.Phone qualified as Brig
 import Cassandra qualified as Cas
 import Control.Exception (ErrorCall)
 import Control.Lens (to, (^.))
@@ -35,7 +32,7 @@ import Polysemy.Embed (runEmbedded)
 import Polysemy.Error (Error, errorToIOFinal, mapError, runError)
 import Polysemy.Input (Input, runInputConst, runInputSem)
 import Polysemy.TinyLog (TinyLog)
-import Wire.API.Allowlists (AllowlistEmailDomains, AllowlistPhonePrefixes)
+import Wire.API.Allowlists (AllowlistEmailDomains)
 import Wire.API.Federation.Client qualified
 import Wire.API.Federation.Error
 import Wire.AuthenticationSubsystem
@@ -46,7 +43,6 @@ import Wire.EmailSending.SES
 import Wire.EmailSending.SMTP
 import Wire.EmailSmsSubsystem
 import Wire.EmailSmsSubsystem.Interpreter
-import Wire.EmailSmsSubsystem.Template (Localised, TemplateBranding, UserTemplates)
 import Wire.FederationAPIAccess qualified
 import Wire.FederationAPIAccess.Interpreter (FederationAPIAccessConfig (..), interpretFederationAPIAccess)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
@@ -100,14 +96,12 @@ type BrigCanonicalEffects =
      Input UTCTime,
      Input (Local ()),
      Input (Maybe AllowlistEmailDomains),
-     Input (Maybe AllowlistPhonePrefixes),
      NotificationSubsystem,
      GundeckAPIAccess,
      FederationConfigStore,
      Jwk,
      PublicKeyBundle,
      JwtTools,
-     BlacklistPhonePrefixStore,
      BlacklistStore,
      UserPendingActivationStore InternalPaging,
      Now,
@@ -163,14 +157,12 @@ runBrigToIO e (AppT ma) = do
               . nowToIOAction (e ^. currentTime)
               . userPendingActivationStoreToCassandra
               . interpretBlacklistStoreToCassandra @Cas.Client
-              . interpretBlacklistPhonePrefixStoreToCassandra @Cas.Client
               . interpretJwtTools
               . interpretPublicKeyBundle
               . interpretJwk
               . interpretFederationDomainConfig (e ^. settings . federationStrategy) (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) (e ^. settings . federationDomainConfigs))
               . runGundeckAPIAccess (e ^. gundeckEndpoint)
               . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig (e ^. App.requestId))
-              . runInputConst (e ^. settings . Opt.allowlistPhonePrefixes)
               . runInputConst (e ^. settings . Opt.allowlistEmailDomains)
               . runInputConst (toLocalUnsafe (e ^. settings . Opt.federationDomain) ())
               . runInputSem (embed getCurrentTime)
@@ -188,7 +180,7 @@ runBrigToIO e (AppT ma) = do
               . mapError userSubsystemErrorToWai
               . runUserEvents
               . runDeleteQueue (e ^. internalEvents)
-              . emailSmsSubsystemInterpreter e (e ^. usrTemplates) (e ^. templateBranding)
+              . emailSmsSubsystemInterpreter (e ^. usrTemplates) (e ^. templateBranding)
               . runUserSubsystem userSubsystemConfig
               . interpretAuthenticationSubsystem
           )
@@ -207,19 +199,3 @@ emailSendingInterpreter e = do
   case (e ^. smtpEnv) of
     Just smtp -> emailViaSMTPInterpreter (e ^. applog) smtp
     Nothing -> emailViaSESInterpreter (e ^. awsEnv . amazonkaEnv)
-
--- FUTUREWORK: Env can be removed once phone users are removed, and then this interpreter should go to wire-subsystems
-emailSmsSubsystemInterpreter :: (Member (Final IO) r, Member EmailSending r) => Env -> Localised UserTemplates -> TemplateBranding -> InterpreterFor EmailSmsSubsystem r
-emailSmsSubsystemInterpreter e tpls branding = interpret \case
-  SendPasswordResetMail email (key, code) mLocale -> sendPasswordResetMailImpl tpls branding email key code mLocale
-  SendPasswordResetSms phone keyCodePair mLocale -> flip runReaderT e $ unAppT $ wrapHttp do
-    Brig.sendPasswordResetSms phone keyCodePair mLocale
-  SendVerificationMail email key code mLocale -> sendVerificationMailImpl tpls branding email key code mLocale
-  SendTeamDeletionVerificationMail email code mLocale -> sendTeamDeletionVerificationMailImpl tpls branding email code mLocale
-  SendCreateScimTokenVerificationMail email code mLocale -> sendCreateScimTokenVerificationMailImpl tpls branding email code mLocale
-  SendLoginVerificationMail email code mLocale -> sendLoginVerificationMailImpl tpls branding email code mLocale
-  SendActivationMail email name key code mLocale -> sendActivationMailImpl tpls branding email name key code mLocale
-  SendEmailAddressUpdateMail email name key code mLocale -> sendEmailAddressUpdateMailImpl tpls branding email name key code mLocale
-  SendTeamActivationMail email name key code mLocale teamName -> sendTeamActivationMailImpl tpls branding email name key code mLocale teamName
-  SendNewClientEmail email name client locale -> sendNewClientEmailImpl tpls branding email name client locale
-  SendAccountDeletionEmail email name key code locale -> sendAccountDeletionEmailImpl tpls branding email name key code locale

@@ -20,13 +20,11 @@
 -- Email/phone whitelist.
 module Wire.API.Allowlists
   ( AllowlistEmailDomains (..),
-    AllowlistPhonePrefixes (..),
     verify,
   )
 where
 
 import Data.Aeson
-import Data.Text qualified as Text
 import Imports
 import Wire.API.User.Identity
 
@@ -36,15 +34,8 @@ data AllowlistEmailDomains = AllowlistEmailDomains [Text]
 
 instance FromJSON AllowlistEmailDomains
 
-data AllowlistPhonePrefixes = AllowlistPhonePrefixes [Text]
-  deriving (Show, Generic)
-
-instance FromJSON AllowlistPhonePrefixes
-
 -- | Consult the whitelist settings in brig's config file and verify that the provided
--- email/phone address is whitelisted.
-verify :: Maybe AllowlistEmailDomains -> Maybe AllowlistPhonePrefixes -> Either Email Phone -> Bool
-verify (Just (AllowlistEmailDomains allowed)) _ (Left email) = emailDomain email `elem` allowed
-verify _ (Just (AllowlistPhonePrefixes allowed)) (Right phone) = any (`Text.isPrefixOf` fromPhone phone) allowed
-verify Nothing _ (Left _) = True
-verify _ Nothing (Right _) = True
+-- email address is whitelisted.
+verify :: Maybe AllowlistEmailDomains -> Email -> Bool
+verify (Just (AllowlistEmailDomains allowed)) email = emailDomain email `elem` allowed
+verify Nothing (_) = True

@@ -26,7 +26,6 @@ module Brig.API.User
     checkRestrictedUserCreation,
     changeSelfEmail,
     changeEmail,
-    changePhone,
     CheckHandleResp (..),
     checkHandle,
     lookupHandle,
@@ -70,11 +69,6 @@ module Brig.API.User
     blacklistDelete,
     blacklistInsert,
 
-    -- * Phone Prefix blocking
-    phonePrefixGet,
-    phonePrefixDelete,
-    phonePrefixInsert,
-
     -- * Utilities
     fetchUserIdentity,
   )
@@ -94,8 +88,6 @@ import Brig.Data.Connection qualified as Data
 import Brig.Data.Properties qualified as Data
 import Brig.Data.User
 import Brig.Data.User qualified as Data
-import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
-import Brig.Effects.BlacklistPhonePrefixStore qualified as BlacklistPhonePrefixStore
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.BlacklistStore qualified as BlacklistStore
 import Brig.Effects.ConnectionStore (ConnectionStore)
@@ -105,10 +97,8 @@ import Brig.IO.Intra qualified as Intra
 import Brig.Options hiding (Timeout, internalEvents)
 import Brig.Team.DB qualified as Team
 import Brig.Types.Activation (ActivationPair)
-import Brig.Types.Connection
 import Brig.Types.Intra
 import Brig.User.Auth.Cookie qualified as Auth
-import Brig.User.Phone
 import Brig.User.Search.Index (reindex)
 import Brig.User.Search.TeamSize qualified as TeamSize
 import Cassandra hiding (Set)
@@ -174,30 +164,28 @@ import Wire.UserSubsystem.HandleBlacklist
 
 data IdentityError
   = IdentityErrorBlacklistedEmail
-  | IdentityErrorBlacklistedPhone
   | IdentityErrorUserKeyExists
 
 identityErrorToRegisterError :: IdentityError -> RegisterError
 identityErrorToRegisterError = \case
   IdentityErrorBlacklistedEmail -> RegisterErrorBlacklistedEmail
-  IdentityErrorBlacklistedPhone -> RegisterErrorBlacklistedPhone
   IdentityErrorUserKeyExists -> RegisterErrorUserKeyExists
 
 identityErrorToBrigError :: IdentityError -> Error.Error
 identityErrorToBrigError = \case
   IdentityErrorBlacklistedEmail -> Error.StdError $ errorToWai @'E.BlacklistedEmail
-  IdentityErrorBlacklistedPhone -> Error.StdError $ errorToWai @'E.BlacklistedPhone
   IdentityErrorUserKeyExists -> Error.StdError $ errorToWai @'E.UserKeyExists
 
 verifyUniquenessAndCheckBlacklist ::
-  (Member BlacklistStore r, Member UserKeyStore r) =>
-  UserKey ->
+  ( Member BlacklistStore r,
+    Member UserKeyStore r
+  ) =>
+  EmailKey ->
   ExceptT IdentityError (AppT r) ()
 verifyUniquenessAndCheckBlacklist uk = do
   checkKey Nothing uk
   blacklisted <- lift $ liftSem $ BlacklistStore.exists uk
-  when blacklisted $
-    throwE (foldKey (const IdentityErrorBlacklistedEmail) (const IdentityErrorBlacklistedPhone) uk)
+  when blacklisted $ throwE IdentityErrorBlacklistedEmail
   where
     checkKey u k = do
       av <- lift $ liftSem $ keyAvailable k u
@@ -240,7 +228,7 @@ createUserSpar new = do
     pure account
 
   -- Add to team
-  userTeam <- withExceptT CreateUserSparRegistrationError $ addUserToTeamSSO account tid (SSOIdentity ident Nothing Nothing) (newUserSparRole new)
+  userTeam <- withExceptT CreateUserSparRegistrationError $ addUserToTeamSSO account tid (SSOIdentity ident Nothing) (newUserSparRole new)
 
   -- Set up feature flags
   luid <- lift $ ensureLocal (userQualifiedId (accountUser account))
@@ -249,7 +237,7 @@ createUserSpar new = do
   -- Set handle
   lift $ updateHandle' luid handle'
 
-  pure $! CreateUserResult account Nothing Nothing (Just userTeam)
+  pure $! CreateUserResult account Nothing (Just userTeam)
   where
     updateHandle' :: Local UserId -> Maybe Handle -> AppT r ()
     updateHandle' _ Nothing = pure ()
@@ -290,13 +278,13 @@ createUser ::
   NewUser ->
   ExceptT RegisterError (AppT r) CreateUserResult
 createUser new = do
-  (email, phone) <- validateEmailAndPhone new
+  email <- validateEmailAndPhone new
 
   -- get invitation and existing account
   (mNewTeamUser, teamInvitation, tid) <-
     case newUserTeam new of
       Just (NewTeamMember i) -> do
-        mbTeamInv <- findTeamInvitation (userEmailKey <$> email) i
+        mbTeamInv <- findTeamInvitation (mkEmailKey <$> email) i
         case mbTeamInv of
           Just (inv, info, tid) ->
             pure (Nothing, Just (inv, info), Just tid)
@@ -313,7 +301,7 @@ createUser new = do
 
   let (new', mbHandle) = case mbExistingAccount of
         Nothing ->
-          ( new {newUserIdentity = newIdentity email phone (newUserSSOId new)},
+          ( new {newUserIdentity = newIdentity email (newUserSSOId new)},
             Nothing
           )
         Just existingAccount ->
@@ -327,7 +315,7 @@ createUser new = do
                   _ -> newUserSSOId new
            in ( new
                   { newUserManagedBy = Just (userManagedBy existingUser),
-                    newUserIdentity = newIdentity email phone mbSSOid
+                    newUserIdentity = newIdentity email mbSSOid
                   },
                 userHandle existingUser
               )
@@ -365,13 +353,13 @@ createUser new = do
     joinedTeamInvite <- case teamInvitation of
       Just (inv, invInfo) -> do
         let em = Team.inInviteeEmail inv
-        acceptTeamInvitation account inv invInfo (userEmailKey em) (EmailIdentity em)
+        acceptTeamInvitation account inv invInfo (mkEmailKey em) (EmailIdentity em)
         Team.TeamName nm <- lift $ liftSem $ GalleyAPIAccess.getTeamName (Team.inTeam inv)
         pure (Just $ CreateUserTeam (Team.inTeam inv) nm)
       Nothing -> pure Nothing
 
     joinedTeamSSO <- case (newUserIdentity new', tid) of
-      (Just ident@(SSOIdentity (UserSSOId _) _ _), Just tid') -> Just <$> addUserToTeamSSO account tid' ident
+      (Just ident@(SSOIdentity (UserSSOId _) _), Just tid') -> Just <$> addUserToTeamSSO account tid' ident
       _ -> pure Nothing
 
     pure (activatedTeam <|> joinedTeamInvite <|> joinedTeamSSO)
@@ -381,15 +369,13 @@ createUser new = do
       then pure Nothing
       else handleEmailActivation email uid mNewTeamUser
 
-  pdata <- handlePhoneActivation phone uid
-
   lift $ initAccountFeatureConfig uid
 
-  pure $! CreateUserResult account edata pdata createUserTeam
+  pure $! CreateUserResult account edata createUserTeam
   where
     -- NOTE: all functions in the where block don't use any arguments of createUser
 
-    validateEmailAndPhone :: NewUser -> ExceptT RegisterError (AppT r) (Maybe Email, Maybe Phone)
+    validateEmailAndPhone :: NewUser -> ExceptT RegisterError (AppT r) (Maybe Email)
     validateEmailAndPhone newUser = do
       -- Validate e-mail
       email <- for (newUserEmail newUser) $ \e ->
@@ -398,19 +384,16 @@ createUser new = do
           pure
           (validateEmail e)
 
-      -- Validate phone
-      phone <- for (newUserPhone newUser) $ \p ->
-        maybe
-          (throwE RegisterErrorInvalidPhone)
-          pure
-          =<< lift (wrapClient $ validatePhone p)
+      -- Disallow registering a user with a phone number
+      when (isJust (newUserPhone newUser)) $
+        throwE RegisterErrorInvalidPhone
 
-      for_ (catMaybes [userEmailKey <$> email, userPhoneKey <$> phone]) $ \k ->
+      for_ (mkEmailKey <$> email) $ \k ->
         verifyUniquenessAndCheckBlacklist k !>> identityErrorToRegisterError
 
-      pure (email, phone)
+      pure email
 
-    findTeamInvitation :: Maybe UserKey -> InvitationCode -> ExceptT RegisterError (AppT r) (Maybe (Team.Invitation, Team.InvitationInfo, TeamId))
+    findTeamInvitation :: Maybe EmailKey -> InvitationCode -> ExceptT RegisterError (AppT r) (Maybe (Team.Invitation, Team.InvitationInfo, TeamId))
     findTeamInvitation Nothing _ = throwE RegisterErrorMissingIdentity
     findTeamInvitation (Just e) c =
       lift (wrapClient $ Team.lookupInvitationInfo c) >>= \case
@@ -418,7 +401,7 @@ createUser new = do
           inv <- lift . wrapClient $ Team.lookupInvitation HideInvitationUrl (Team.iiTeam ii) (Team.iiInvId ii)
           case (inv, Team.inInviteeEmail <$> inv) of
             (Just invite, Just em)
-              | e == userEmailKey em -> do
+              | e == mkEmailKey em -> do
                   _ <- ensureMemberCanJoin (Team.iiTeam ii)
                   pure $ Just (invite, ii, Team.iiTeam ii)
             _ -> throwE RegisterErrorInvalidInvitationCode
@@ -441,7 +424,7 @@ createUser new = do
       UserAccount ->
       Team.Invitation ->
       Team.InvitationInfo ->
-      UserKey ->
+      EmailKey ->
       UserIdentity ->
       ExceptT RegisterError (AppT r) ()
     acceptTeamInvitation account inv ii uk ident = do
@@ -486,7 +469,7 @@ createUser new = do
     -- Handle e-mail activation (deprecated, see #RefRegistrationNoPreverification in /docs/reference/user/registration.md)
     handleEmailActivation :: Maybe Email -> UserId -> Maybe BindingNewTeamUser -> ExceptT RegisterError (AppT r) (Maybe Activation)
     handleEmailActivation email uid newTeam = do
-      fmap join . for (userEmailKey <$> email) $ \ek -> case newUserEmailCode new of
+      fmap join . for (mkEmailKey <$> email) $ \ek -> case newUserEmailCode new of
         Nothing -> do
           timeout <- setActivationTimeout <$> view settings
           edata <- lift . wrapClient $ Data.newActivation ek timeout (Just uid)
@@ -500,23 +483,6 @@ createUser new = do
           void $
             activateWithCurrency (ActivateKey ak) c (Just uid) (bnuCurrency =<< newTeam)
               !>> activationErrorToRegisterError
-          pure Nothing
-
-    -- Handle phone activation (deprecated, see #RefRegistrationNoPreverification in /docs/reference/user/registration.md)
-    handlePhoneActivation :: Maybe Phone -> UserId -> ExceptT RegisterError (AppT r) (Maybe Activation)
-    handlePhoneActivation phone uid = do
-      fmap join . for (userPhoneKey <$> phone) $ \pk -> case newUserPhoneCode new of
-        Nothing -> do
-          timeout <- setActivationTimeout <$> view settings
-          pdata <- lift . wrapClient $ Data.newActivation pk timeout (Just uid)
-          lift . liftSem . Log.info $
-            field "user" (toByteString uid)
-              . field "activation.key" (toByteString $ activationKey pdata)
-              . msg (val "Created phone activation key/code pair")
-          pure $ Just pdata
-        Just c -> do
-          ak <- liftIO $ Data.mkActivationKey pk
-          void $ activate (ActivateKey ak) c (Just uid) !>> activationErrorToRegisterError
           pure Nothing
 
 initAccountFeatureConfig :: UserId -> (AppT r) ()
@@ -537,7 +503,7 @@ createUserInviteViaScim ::
   ExceptT Error.Error (AppT r) UserAccount
 createUserInviteViaScim (NewUserScimInvitation tid uid loc name rawEmail _) = do
   email <- either (const . throwE . Error.StdError $ errorToWai @'E.InvalidEmail) pure (validateEmail rawEmail)
-  let emKey = userEmailKey email
+  let emKey = mkEmailKey email
   verifyUniquenessAndCheckBlacklist emKey !>> identityErrorToBrigError
   account <- lift . wrapClient $ newAccountInviteViaScim uid tid loc name email
   lift . liftSem . Log.debug $ field "user" (toByteString . userId . accountUser $ account) . field "action" (val "User.createUserInviteViaScim")
@@ -620,7 +586,7 @@ changeEmail u email updateOrigin = do
       (throwE . InvalidNewEmail email)
       pure
       (validateEmail email)
-  let ek = userEmailKey em
+  let ek = mkEmailKey em
   blacklisted <- lift . liftSem $ BlacklistStore.exists ek
   when blacklisted $
     throwE (ChangeBlacklistedEmail email)
@@ -640,38 +606,6 @@ changeEmail u email updateOrigin = do
       pure $ ChangeEmailNeedsActivation (usr, act, em)
 
 -------------------------------------------------------------------------------
--- Change Phone
-
-changePhone ::
-  ( Member BlacklistStore r,
-    Member UserKeyStore r,
-    Member BlacklistPhonePrefixStore r
-  ) =>
-  UserId ->
-  Phone ->
-  ExceptT ChangePhoneError (AppT r) (Activation, Phone)
-changePhone u phone = do
-  canonical <-
-    maybe
-      (throwE InvalidNewPhone)
-      pure
-      =<< lift (wrapClient $ validatePhone phone)
-  let pk = userPhoneKey canonical
-  available <- lift $ liftSem $ keyAvailable pk (Just u)
-  unless available $
-    throwE PhoneExists
-  timeout <- setActivationTimeout <$> view settings
-  blacklisted <- lift . liftSem $ BlacklistStore.exists pk
-  when blacklisted $
-    throwE BlacklistedNewPhone
-  -- check if any prefixes of this phone number are blocked
-  prefixExcluded <- lift . liftSem $ BlacklistPhonePrefixStore.existsAny canonical
-  when prefixExcluded $
-    throwE BlacklistedNewPhone
-  act <- lift . wrapClient $ Data.newActivation pk timeout (Just u)
-  pure (act, canonical)
-
--------------------------------------------------------------------------------
 -- Remove Email
 
 removeEmail ::
@@ -685,95 +619,40 @@ removeEmail ::
     Member UserSubsystem r
   ) =>
   UserId ->
-  ConnId ->
   ExceptT RemoveIdentityError (AppT r) ()
-removeEmail uid conn = do
+removeEmail uid = do
   ident <- lift $ fetchUserIdentity uid
   case ident of
-    Just (FullIdentity e _) -> lift $ do
-      liftSem $ deleteKey $ userEmailKey e
+    Just (SSOIdentity (UserSSOId _) (Just e)) -> lift $ do
+      liftSem $ deleteKey $ mkEmailKey e
       wrapClient $ Data.deleteEmail uid
-      liftSem $ Intra.onUserEvent uid (Just conn) (emailRemoved uid e)
+      liftSem $ Intra.onUserEvent uid Nothing (emailRemoved uid e)
     Just _ -> throwE LastIdentity
     Nothing -> throwE NoIdentity
 
 -------------------------------------------------------------------------------
 -- Remove Phone
 
-removePhone ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member UserKeyStore r,
-    Member PasswordStore r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
-    Member UserSubsystem r
-  ) =>
-  UserId ->
-  ConnId ->
-  ExceptT RemoveIdentityError (AppT r) ()
-removePhone uid conn = do
-  ident <- lift $ fetchUserIdentity uid
-  case ident of
-    Just (FullIdentity _ p) -> do
-      pw <- lift $ liftSem $ lookupHashedPassword uid
-      unless (isJust pw) $
-        throwE NoPassword
-      lift $ do
-        liftSem $ deleteKey $ userPhoneKey p
-        wrapClient $ Data.deletePhone uid
-        liftSem $ Intra.onUserEvent uid (Just conn) (phoneRemoved uid p)
-    Just _ -> throwE LastIdentity
-    Nothing -> throwE NoIdentity
+-- | Phones are not supported any longer.
+removePhone :: UserId -> ExceptT RemoveIdentityError (AppT r) ()
+removePhone _uid = pure ()
 
 -------------------------------------------------------------------------------
 -- Forcefully revoke a verified identity
 
+-- | Now that a user can only have an email-based identity, revoking an identity
+-- boils down to deactivating the user.
 revokeIdentity ::
-  forall r.
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member TinyLog r,
-    Member UserKeyStore r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
-    Member UserSubsystem r
+  ( Member UserSubsystem r,
+    Member UserKeyStore r
   ) =>
-  Either Email Phone ->
+  Email ->
   AppT r ()
 revokeIdentity key = do
-  let uk = either userEmailKey userPhoneKey key
-  mu <- liftSem $ lookupKey uk
-  case mu of
-    Nothing -> pure ()
-    Just u ->
-      fetchUserIdentity u >>= \case
-        Just (FullIdentity _ _) -> revokeKey u uk
-        Just (EmailIdentity e) | Left e == key -> do
-          revokeKey u uk
-          wrapClient $ Data.deactivateUser u
-        Just (PhoneIdentity p) | Right p == key -> do
-          revokeKey u uk
-          wrapClient $ Data.deactivateUser u
-        _ -> pure ()
-  where
-    revokeKey :: UserId -> UserKey -> AppT r ()
-    revokeKey u uk = do
-      liftSem $ deleteKey uk
-      wrapClient $
-        foldKey
-          (\(_ :: Email) -> Data.deleteEmail u)
-          (\(_ :: Phone) -> Data.deletePhone u)
-          uk
-      liftSem $
-        Intra.onUserEvent u Nothing $
-          foldKey
-            (emailRemoved u)
-            (phoneRemoved u)
-            uk
+  mu <- liftSem . lookupKey . mkEmailKey $ key
+  for_ mu $ \u -> do
+    deactivate <- maybe False (not . isSSOIdentity) <$> fetchUserIdentity u
+    when deactivate . wrapClient . Data.deactivateUser $ u
 
 -------------------------------------------------------------------------------
 -- Change Account Status
@@ -908,7 +787,7 @@ onActivated ::
     Member (ConnectionStore InternalPaging) r
   ) =>
   ActivationEvent ->
-  (AppT r) (UserId, Maybe UserIdentity, Bool)
+  AppT r (UserId, Maybe UserIdentity, Bool)
 onActivated (AccountActivated account) = liftSem $ do
   let uid = userId (accountUser account)
   Log.debug $ field "user" (toByteString uid) . field "action" (val "User.onActivated")
@@ -919,66 +798,36 @@ onActivated (EmailActivated uid email) = do
   liftSem $ Intra.onUserEvent uid Nothing (emailUpdated uid email)
   wrapHttpClient $ Data.deleteEmailUnvalidated uid
   pure (uid, Just (EmailIdentity email), False)
-onActivated (PhoneActivated uid phone) = do
-  liftSem $ Intra.onUserEvent uid Nothing (phoneUpdated uid phone)
-  pure (uid, Just (PhoneIdentity phone), False)
 
 -- docs/reference/user/activation.md {#RefActivationRequest}
 sendActivationCode ::
   ( Member BlacklistStore r,
-    Member BlacklistPhonePrefixStore r,
-    Member UserKeyStore r,
+    Member EmailSmsSubsystem r,
     Member GalleyAPIAccess r,
-    Member EmailSmsSubsystem r
+    Member UserKeyStore r
   ) =>
-  Either Email Phone ->
+  Email ->
   Maybe Locale ->
   Bool ->
   ExceptT SendActivationCodeError (AppT r) ()
-sendActivationCode emailOrPhone loc call = case emailOrPhone of
-  Left email -> do
-    ek <-
-      either
-        (const . throwE . InvalidRecipient $ userEmailKey email)
-        (pure . userEmailKey)
-        (validateEmail email)
-    exists <- lift $ liftSem $ isJust <$> lookupKey ek
-    when exists $
-      throwE $
-        UserKeyInUse ek
-    blacklisted <- lift . liftSem $ BlacklistStore.exists ek
-    when blacklisted $
-      throwE (ActivationBlacklistedUserKey ek)
-    uc <- lift . wrapClient $ Data.lookupActivationCode ek
-    case uc of
-      Nothing -> sendVerificationEmail ek Nothing -- Fresh code request, no user
-      Just (Nothing, c) -> sendVerificationEmail ek (Just c) -- Re-requesting existing code
-      Just (Just uid, c) -> sendActivationEmail ek c uid -- User re-requesting activation
-  Right phone -> do
-    -- validatePhone returns the canonical E.164 phone number format
-    canonical <-
-      maybe
-        (throwE $ InvalidRecipient (userPhoneKey phone))
-        pure
-        =<< lift (wrapClient $ validatePhone phone)
-    let pk = userPhoneKey canonical
-    exists <- lift $ liftSem $ isJust <$> lookupKey pk
-    when exists $
-      throwE $
-        UserKeyInUse pk
-    blacklisted <- lift . liftSem $ BlacklistStore.exists pk
-    when blacklisted $
-      throwE (ActivationBlacklistedUserKey pk)
-    -- check if any prefixes of this phone number are blocked
-    prefixExcluded <- lift . liftSem $ BlacklistPhonePrefixStore.existsAny canonical
-    when prefixExcluded $
-      throwE (ActivationBlacklistedUserKey pk)
-    c <- lift . wrapClient $ fmap snd <$> Data.lookupActivationCode pk
-    p <- wrapClientE $ mkPair pk c Nothing
-    void . lift . wrapHttp $ forPhoneKey pk $ \ph ->
-      if call
-        then sendActivationCall ph p loc
-        else sendActivationSms ph p loc
+sendActivationCode email loc _call = do
+  ek <-
+    either
+      (const . throwE . InvalidRecipient $ mkEmailKey email)
+      (pure . mkEmailKey)
+      (validateEmail email)
+  exists <- lift $ liftSem $ isJust <$> lookupKey ek
+  when exists $
+    throwE $
+      UserKeyInUse ek
+  blacklisted <- lift . liftSem $ BlacklistStore.exists ek
+  when blacklisted $
+    throwE (ActivationBlacklistedUserKey ek)
+  uc <- lift . wrapClient $ Data.lookupActivationCode ek
+  case uc of
+    Nothing -> sendVerificationEmail ek Nothing -- Fresh code request, no user
+    Just (Nothing, c) -> sendVerificationEmail ek (Just c) -- Re-requesting existing code
+    Just (Just uid, c) -> sendActivationEmail ek c uid -- User re-requesting activation
   where
     notFound = throwM . UserDisplayNameNotFound
     mkPair k c u = do
@@ -990,10 +839,8 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
           pure (activationKey dat, activationCode dat)
     sendVerificationEmail ek uc = do
       (key, code) <- wrapClientE $ mkPair ek uc Nothing
-      void . forEmailKey ek $ \em ->
-        lift $
-          liftSem $
-            sendVerificationMail em key code loc
+      let em = emailKeyOrig ek
+      lift $ liftSem $ sendVerificationMail em key code loc
     sendActivationEmail ek uc uid = do
       -- FUTUREWORK(fisx): we allow for 'PendingInvitations' here, but I'm not sure this
       -- top-level function isn't another piece of a deprecated onboarding flow?
@@ -1002,7 +849,8 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
       let ident = userIdentity u
           name = userDisplayName u
           loc' = loc <|> Just (userLocale u)
-      void . forEmailKey ek $ \em -> lift $ do
+          em = emailKeyOrig ek
+      lift $ do
         -- Get user's team, if any.
         mbTeam <- mapM (fmap Team.tdTeam . liftSem . GalleyAPIAccess.getTeam) (userTeam u)
         -- Depending on whether the user is a team creator, send either
@@ -1022,16 +870,10 @@ mkActivationKey (ActivateEmail e) = do
   ek <-
     either
       (throwE . InvalidActivationEmail e)
-      (pure . userEmailKey)
+      (pure . mkEmailKey)
       (validateEmail e)
   liftIO $ Data.mkActivationKey ek
-mkActivationKey (ActivatePhone p) = do
-  pk <-
-    maybe
-      (throwE $ InvalidActivationPhone p)
-      (pure . userPhoneKey)
-      =<< lift (validatePhone p)
-  liftIO $ Data.mkActivationKey pk
+mkActivationKey (ActivatePhone p) = throwE $ InvalidActivationPhone p
 
 -------------------------------------------------------------------------------
 -- Password Management
@@ -1105,14 +947,7 @@ deleteSelfUser uid pwd = do
           isOwner <- lift $ liftSem $ GalleyAPIAccess.memberIsTeamOwner tid uid
           when isOwner $ throwE DeleteUserOwnerDeletingSelf
     go a = maybe (byIdentity a) (byPassword a) pwd
-    getEmailOrPhone :: UserIdentity -> Maybe (Either Email Phone)
-    getEmailOrPhone (FullIdentity e _) = Just $ Left e
-    getEmailOrPhone (EmailIdentity e) = Just $ Left e
-    getEmailOrPhone (SSOIdentity _ (Just e) _) = Just $ Left e
-    getEmailOrPhone (PhoneIdentity p) = Just $ Right p
-    getEmailOrPhone (SSOIdentity _ _ (Just p)) = Just $ Right p
-    getEmailOrPhone (SSOIdentity _ Nothing Nothing) = Nothing
-    byIdentity a = case getEmailOrPhone =<< userIdentity (accountUser a) of
+    byIdentity a = case emailIdentity =<< userIdentity (accountUser a) of
       Just emailOrPhone -> sendCode a emailOrPhone
       Nothing -> case pwd of
         Just _ -> throwE DeleteUserMissingPassword
@@ -1130,7 +965,7 @@ deleteSelfUser uid pwd = do
             throwE DeleteUserInvalidPassword
           lift . liftSem $ deleteAccount a >> pure Nothing
     sendCode a target = do
-      gen <- Code.mkGen (either Code.ForEmail Code.ForPhone target)
+      gen <- Code.mkGen target
       pending <- lift . wrapClient $ Code.lookup (Code.genKey gen) Code.AccountDeletion
       case pending of
         Just c -> throwE $! DeleteUserPendingCode (Code.codeTTL c)
@@ -1150,10 +985,7 @@ deleteSelfUser uid pwd = do
           let v = Code.codeValue c
           let l = userLocale (accountUser a)
           let n = userDisplayName (accountUser a)
-          either
-            (\e -> lift $ liftSem $ sendAccountDeletionEmail e n k v l)
-            (\p -> lift $ wrapHttp $ sendDeletionSms p k v l)
-            target
+          lift (liftSem $ sendAccountDeletionEmail target n k v l)
             `onException` wrapClientE (Code.delete k Code.AccountDeletion)
           pure $! Just $! Code.codeTTL c
 
@@ -1254,8 +1086,7 @@ deleteAccount (accountUser -> user) = do
   Log.info $ field "user" (toByteString uid) . msg (val "Deleting account")
   do
     -- Free unique keys
-    for_ (userEmail user) $ deleteKeyForUser uid . userEmailKey
-    for_ (userPhone user) $ deleteKeyForUser uid . userPhoneKey
+    for_ (userEmail user) $ deleteKeyForUser uid . mkEmailKey
 
     embed $ Data.clearProperties uid
 
@@ -1276,10 +1107,10 @@ deleteAccount (accountUser -> user) = do
 
 lookupActivationCode ::
   (MonadClient m) =>
-  Either Email Phone ->
+  Email ->
   m (Maybe ActivationPair)
-lookupActivationCode emailOrPhone = do
-  let uk = either userEmailKey userPhoneKey emailOrPhone
+lookupActivationCode email = do
+  let uk = mkEmailKey email
   k <- liftIO $ Data.mkActivationKey uk
   c <- fmap snd <$> Data.lookupActivationCode uk
   pure $ (k,) <$> c
@@ -1287,11 +1118,10 @@ lookupActivationCode emailOrPhone = do
 lookupPasswordResetCode ::
   ( Member AuthenticationSubsystem r
   ) =>
-  Either Email Phone ->
+  Email ->
   (AppT r) (Maybe PasswordResetPair)
-lookupPasswordResetCode emailOrPhone = do
-  let uk = either userEmailKey userPhoneKey emailOrPhone
-  liftSem $ internalLookupPasswordResetCode uk
+lookupPasswordResetCode =
+  liftSem . internalLookupPasswordResetCode . mkEmailKey
 
 deleteUserNoVerify ::
   (Member DeleteQueue r) =>
@@ -1358,9 +1188,13 @@ getLegalHoldStatus' user =
 
 -- | Find user accounts for a given identity, both activated and those
 -- currently pending activation.
-lookupAccountsByIdentity :: (Member UserKeyStore r) => Either Email Phone -> Bool -> AppT r [UserAccount]
-lookupAccountsByIdentity emailOrPhone includePendingInvitations = do
-  let uk = either userEmailKey userPhoneKey emailOrPhone
+lookupAccountsByIdentity ::
+  (Member UserKeyStore r) =>
+  Email ->
+  Bool ->
+  AppT r [UserAccount]
+lookupAccountsByIdentity email includePendingInvitations = do
+  let uk = mkEmailKey email
   activeUid <- liftSem $ lookupKey uk
   uidFromKey <- (>>= fst) <$> wrapClient (Data.lookupActivationCode uk)
   result <- wrapClient $ Data.lookupAccounts (nub $ catMaybes [activeUid, uidFromKey])
@@ -1368,26 +1202,17 @@ lookupAccountsByIdentity emailOrPhone includePendingInvitations = do
     then pure result
     else pure $ filter ((/= PendingInvitation) . accountStatus) result
 
-isBlacklisted :: (Member BlacklistStore r) => Either Email Phone -> AppT r Bool
-isBlacklisted emailOrPhone = do
-  let uk = either userEmailKey userPhoneKey emailOrPhone
+isBlacklisted :: (Member BlacklistStore r) => Email -> AppT r Bool
+isBlacklisted email = do
+  let uk = mkEmailKey email
   liftSem $ BlacklistStore.exists uk
 
-blacklistInsert :: (Member BlacklistStore r) => Either Email Phone -> AppT r ()
-blacklistInsert emailOrPhone = do
-  let uk = either userEmailKey userPhoneKey emailOrPhone
+blacklistInsert :: (Member BlacklistStore r) => Email -> AppT r ()
+blacklistInsert email = do
+  let uk = mkEmailKey email
   liftSem $ BlacklistStore.insert uk
 
-blacklistDelete :: (Member BlacklistStore r) => Either Email Phone -> AppT r ()
-blacklistDelete emailOrPhone = do
-  let uk = either userEmailKey userPhoneKey emailOrPhone
+blacklistDelete :: (Member BlacklistStore r) => Email -> AppT r ()
+blacklistDelete email = do
+  let uk = mkEmailKey email
   liftSem $ BlacklistStore.delete uk
-
-phonePrefixGet :: (Member BlacklistPhonePrefixStore r) => PhonePrefix -> (AppT r) [ExcludedPrefix]
-phonePrefixGet = liftSem . BlacklistPhonePrefixStore.getAll
-
-phonePrefixDelete :: (Member BlacklistPhonePrefixStore r) => PhonePrefix -> (AppT r) ()
-phonePrefixDelete = liftSem . BlacklistPhonePrefixStore.delete
-
-phonePrefixInsert :: (Member BlacklistPhonePrefixStore r) => ExcludedPrefix -> (AppT r) ()
-phonePrefixInsert = liftSem . BlacklistPhonePrefixStore.insert

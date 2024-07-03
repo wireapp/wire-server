@@ -29,7 +29,7 @@ import Polysemy (Member)
 import System.Logger.Class (field, msg, (~~))
 import System.Logger.Class qualified as Log
 import Wire.API.User.Identity
-import Wire.UserKeyStore (userEmailKey)
+import Wire.UserKeyStore
 
 onEvent :: (Member BlacklistStore r) => SESNotification -> AppT r ()
 onEvent (MailBounce BouncePermanent es) = onPermanentBounce es
@@ -40,7 +40,7 @@ onEvent (MailComplaint es) = onComplaint es
 onPermanentBounce :: (Member BlacklistStore r) => [Email] -> AppT r ()
 onPermanentBounce = mapM_ $ \e -> do
   logEmailEvent "Permanent bounce" e
-  liftSem $ BlacklistStore.insert (userEmailKey e)
+  liftSem $ BlacklistStore.insert (mkEmailKey e)
 
 onTransientBounce :: [Email] -> AppT r ()
 onTransientBounce = mapM_ (logEmailEvent "Transient bounce")
@@ -51,7 +51,7 @@ onUndeterminedBounce = mapM_ (logEmailEvent "Undetermined bounce")
 onComplaint :: (Member BlacklistStore r) => [Email] -> AppT r ()
 onComplaint = mapM_ $ \e -> do
   logEmailEvent "Complaint" e
-  liftSem $ BlacklistStore.insert (userEmailKey e)
+  liftSem $ BlacklistStore.insert (mkEmailKey e)
 
 logEmailEvent :: Text -> Email -> AppT r ()
 logEmailEvent t e = Log.info $ field "email" (fromEmail e) ~~ msg t

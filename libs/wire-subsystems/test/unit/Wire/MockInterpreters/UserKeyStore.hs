@@ -8,7 +8,7 @@ import Polysemy.State
 import Wire.UserKeyStore
 
 inMemoryUserKeyStoreInterpreter ::
-  (Member (State (Map UserKey UserId)) r) =>
+  (Member (State (Map EmailKey UserId)) r) =>
   InterpreterFor UserKeyStore r
 inMemoryUserKeyStoreInterpreter = interpret $ \case
   LookupKey key -> do
