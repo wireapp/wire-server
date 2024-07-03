@@ -51,15 +51,15 @@ pageSize = 1000
 ----------------------------------------------------------------------------
 -- Queries
 
--- | Drop the 'excluded_phones' Brig table
-dropExcludedPhonesTable :: MonadClient m => m ()
+-- | Drop the data from the 'excluded_phones' Brig table
+dropExcludedPhonesTable :: (MonadClient m) => m ()
 dropExcludedPhonesTable = retry x1 . write cql $ paramsP LocalQuorum () pageSize
   where
     cql :: PrepQuery W () ()
     cql = "DELETE * FROM excluded_phones"
 
 -- | Get users
-getUsers :: MonadClient m => ConduitM () [(UserId, Maybe Text)] m ()
+getUsers :: (MonadClient m) => ConduitM () [(UserId, Maybe Text)] m ()
 getUsers = paginateC cql (paramsP LocalQuorum () pageSize) x5
   where
     cql :: PrepQuery R () (UserId, Maybe Text)
@@ -69,7 +69,7 @@ getUsers = paginateC cql (paramsP LocalQuorum () pageSize) x5
 --
 -- Drop the phone column in the user table. The rows for which this is done
 -- are selected by a filter on rows that have data in the column.
-dropPhoneFromUser :: MonadClient m => UserId -> m ()
+dropPhoneFromUser :: (MonadClient m) => UserId -> m ()
 dropPhoneFromUser =
   retry x5
     . write cql
