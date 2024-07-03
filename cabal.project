@@ -61,14 +61,8 @@ packages:
 tests: True
 benchmarks: True
 
-package *
+program-options
     ghc-options: -Werror
-
-package hspec-discover
-    ghc-options: -Wwarn
-
-package proto-lens-protoc
-    ghc-options: -Wwarn
 
 -- NOTE:
 -- - these packages are not provided by nix, reason being, that
