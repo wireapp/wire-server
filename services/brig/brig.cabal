@@ -523,10 +523,13 @@ executable brig-migrate-data
 
   hs-source-dirs: migrate-data/src
   build-depends:
+    , attoparsec
     , base
+    , bytestring-conversion
     , cassandra-util
     , conduit
     , containers
+    , cql
     , exceptions
     , extended
     , imports

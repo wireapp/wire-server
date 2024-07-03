@@ -17,13 +17,13 @@
 
 module Brig.DataMigration (cassandraSettingsParser, migrate) where
 
+import Brig.DataMigration.Types
 import Cassandra qualified as C
 import Cassandra.Options
 import Cassandra.Util (defInitCassandra)
 import Control.Monad.Catch (finally)
 import Data.Text qualified as Text
 import Data.Time (UTCTime, getCurrentTime)
-import Brig.DataMigration.Types
 import Imports
 import Options.Applicative (Parser)
 import Options.Applicative qualified as Opts
@@ -116,5 +116,5 @@ persistVersion (MigrationVersion v) desc time = C.write cql (C.params C.LocalQuo
     cql :: C.QueryString C.W (Int32, Text, UTCTime) ()
     cql = "insert into data_migration (id, version, descr, date) values (1,?,?,?)"
 
-info :: Log.MonadLogger m => String -> m ()
+info :: (Log.MonadLogger m) => String -> m ()
 info = Log.info . Log.msg
