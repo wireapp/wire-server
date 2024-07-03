@@ -59,11 +59,12 @@ import Wire.API.Allowlists qualified as Allowlists
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.User (Email)
+import Wire.Error
 
 -------------------------------------------------------------------------------
 -- HTTP Handler Monad
 
-type Handler r = ExceptT Error (AppT r)
+type Handler r = ExceptT HttpError (AppT r)
 
 toServantHandler :: Env -> (Handler BrigCanonicalEffects) a -> Servant.Handler a
 toServantHandler env action = do
@@ -71,7 +72,7 @@ toServantHandler env action = do
       reqId = unRequestId $ view requestId env
   a <-
     liftIO $
-      runBrigToIO env (runExceptT action)
+      (runBrigToIO env (runExceptT action))
         `catches` brigErrorHandlers logger reqId
   case a of
     Left werr -> handleWaiErrors logger reqId werr
@@ -84,7 +85,9 @@ toServantHandler env action = do
       \case
         -- throw in IO so that the `catchErrors` middleware can turn this error
         -- into a response and log accordingly
-        StdError werr -> liftIO $ throwIO werr
+        StdError werr -> do
+          Server.logError' logger (Just reqId) werr
+          liftIO $ throwIO werr
         RichError werr body headers -> do
           when (statusCode (WaiError.code werr) < 500) $
             -- 5xx are logged by the middleware, so we only log errors < 500 to avoid duplicated entries
@@ -97,7 +100,7 @@ newtype UserNotAllowedToJoinTeam = UserNotAllowedToJoinTeam WaiError.Error
 
 instance Exception UserNotAllowedToJoinTeam
 
-brigErrorHandlers :: Logger -> ByteString -> [Catch.Handler IO (Either Error a)]
+brigErrorHandlers :: Logger -> ByteString -> [Catch.Handler IO (Either HttpError a)]
 brigErrorHandlers logger reqId =
   [ Catch.Handler $ \(ex :: ZV.Failure) ->
       pure (Left (zauthError ex)),
@@ -106,6 +109,7 @@ brigErrorHandlers logger reqId =
         AWS.SESInvalidDomain ->
           pure (Left (StdError (errorToWai @'InvalidEmail)))
         _ -> throwM ex,
+    Catch.Handler $ \(e :: HttpError) -> pure $ Left e,
     Catch.Handler $ \(UserNotAllowedToJoinTeam e) -> pure (Left $ StdError e),
     Catch.Handler $ \(e :: SomeException) -> do
       Log.err logger $
@@ -121,7 +125,7 @@ brigErrorHandlers logger reqId =
 -- This could go to libs/wai-utilities.  There is a `parseJson'` in
 -- "Network.Wai.Utilities.Request", but adding `parseJsonBody` there would require to move
 -- more code out of brig.
-parseJsonBody :: (FromJSON a, MonadIO m) => JsonRequest a -> ExceptT Error m a
+parseJsonBody :: (FromJSON a, MonadIO m) => JsonRequest a -> ExceptT HttpError m a
 parseJsonBody req = parseBody req !>> StdError . badRequest
 
 -- | If an Allowlist is configured, consult it, otherwise a no-op. {#RefActivationAllowlist}

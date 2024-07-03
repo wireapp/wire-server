@@ -24,7 +24,6 @@ import Control.Monad.Catch (throwM)
 import Data.Qualified (Local, toLocalUnsafe)
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Imports
-import Network.Wai.Utilities qualified as Wai
 import Polysemy
 import Polysemy.Async
 import Polysemy.Conc
@@ -43,6 +42,7 @@ import Wire.EmailSending.SES
 import Wire.EmailSending.SMTP
 import Wire.EmailSmsSubsystem
 import Wire.EmailSmsSubsystem.Interpreter
+import Wire.Error
 import Wire.FederationAPIAccess qualified
 import Wire.FederationAPIAccess.Interpreter (FederationAPIAccessConfig (..), interpretFederationAPIAccess)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
@@ -65,6 +65,8 @@ import Wire.Sem.Logger.TinyLog (loggerToTinyLogReqId)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIOAction)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.Sem.Random
+import Wire.Sem.Random.IO
 import Wire.SessionStore
 import Wire.SessionStore.Cassandra (interpretSessionStoreCassandra)
 import Wire.UserEvents
@@ -73,26 +75,35 @@ import Wire.UserKeyStore.Cassandra
 import Wire.UserStore
 import Wire.UserStore.Cassandra
 import Wire.UserSubsystem
+import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.Interpreter
+import Wire.VerificationCodeStore
+import Wire.VerificationCodeStore.Cassandra
+import Wire.VerificationCodeSubsystem
+import Wire.VerificationCodeSubsystem.Interpreter
 
 type BrigCanonicalEffects =
   '[ AuthenticationSubsystem,
      UserSubsystem,
      EmailSmsSubsystem,
+     VerificationCodeSubsystem,
      DeleteQueue,
      UserEvents,
      Error UserSubsystemError,
      Error AuthenticationSubsystemError,
      Error Wire.API.Federation.Error.FederationError,
-     Error Wai.Error,
+     Error VerificationCodeSubsystemError,
+     Error HttpError,
      Wire.FederationAPIAccess.FederationAPIAccess Wire.API.Federation.Client.FederatorClient,
      HashPassword,
      UserKeyStore,
      UserStore,
      SessionStore,
      PasswordStore,
+     VerificationCodeStore,
      SFT,
      ConnectionStore InternalPaging,
+     Input VerificationCodeThrottleTTL,
      Input UTCTime,
      Input (Local ()),
      Input (Maybe AllowlistEmailDomains),
@@ -106,6 +117,7 @@ type BrigCanonicalEffects =
      UserPendingActivationStore InternalPaging,
      Now,
      Delay,
+     Random,
      PasswordResetCodeStore,
      GalleyAPIAccess,
      EmailSending,
@@ -153,6 +165,7 @@ runBrigToIO e (AppT ma) = do
               . emailSendingInterpreter e
               . interpretGalleyAPIAccessToRpc (e ^. disabledVersions) (e ^. galleyEndpoint)
               . passwordResetCodeStoreToCassandra @Cas.Client
+              . randomToIO
               . runDelay
               . nowToIOAction (e ^. currentTime)
               . userPendingActivationStoreToCassandra
@@ -166,20 +179,24 @@ runBrigToIO e (AppT ma) = do
               . runInputConst (e ^. settings . Opt.allowlistEmailDomains)
               . runInputConst (toLocalUnsafe (e ^. settings . Opt.federationDomain) ())
               . runInputSem (embed getCurrentTime)
+              . runInputConst (e ^. settings . to Opt.set2FACodeGenerationDelaySecs . to VerificationCodeThrottleTTL)
               . connectionStoreToCassandra
               . interpretSFT (e ^. httpManager)
+              . interpretVerificationCodeStoreCassandra (e ^. casClient)
               . interpretPasswordStore (e ^. casClient)
               . interpretSessionStoreCassandra (e ^. casClient)
               . interpretUserStoreCassandra (e ^. casClient)
               . interpretUserKeyStoreCassandra (e ^. casClient)
               . runHashPassword
               . interpretFederationAPIAccess federationApiAccessConfig
-              . rethrowWaiErrorIO
-              . mapError federationErrorToWai
-              . mapError authenticationSubsystemErrorToWai
-              . mapError userSubsystemErrorToWai
+              . rethrowHttpErrorIO
+              . mapError verificationCodeSubsystemErrorToHttpError
+              . mapError (StdError . federationErrorToWai)
+              . mapError authenticationSubsystemErrorToHttpError
+              . mapError userSubsystemErrorToHttpError
               . runUserEvents
               . runDeleteQueue (e ^. internalEvents)
+              . interpretVerificationCodeSubsystem
               . emailSmsSubsystemInterpreter (e ^. usrTemplates) (e ^. templateBranding)
               . runUserSubsystem userSubsystemConfig
               . interpretAuthenticationSubsystem
@@ -187,8 +204,8 @@ runBrigToIO e (AppT ma) = do
     )
     $ runReaderT ma e
 
-rethrowWaiErrorIO :: (Member (Final IO) r) => InterpreterFor (Error Wai.Error) r
-rethrowWaiErrorIO act = do
+rethrowHttpErrorIO :: (Member (Final IO) r) => InterpreterFor (Error HttpError) r
+rethrowHttpErrorIO act = do
   eithError <- errorToIOFinal act
   case eithError of
     Left err -> embedToFinal $ throwM $ err

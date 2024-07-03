@@ -81,6 +81,7 @@ library
     Wire.EmailSmsSubsystem
     Wire.EmailSmsSubsystem.Interpreter
     Wire.EmailSmsSubsystem.Template
+    Wire.Error
     Wire.FederationAPIAccess
     Wire.FederationAPIAccess.Interpreter
     Wire.GalleyAPIAccess
@@ -109,6 +110,12 @@ library
     Wire.UserSubsystem.Error
     Wire.UserSubsystem.HandleBlacklist
     Wire.UserSubsystem.Interpreter
+    Wire.VerificationCode
+    Wire.VerificationCodeGen
+    Wire.VerificationCodeStore
+    Wire.VerificationCodeStore.Cassandra
+    Wire.VerificationCodeSubsystem
+    Wire.VerificationCodeSubsystem.Interpreter
 
   hs-source-dirs:   src
   build-depends:
@@ -125,6 +132,7 @@ library
     , cassandra-util
     , containers
     , cql
+    , crypton
     , currency-codes
     , data-default
     , data-timeout
@@ -144,6 +152,7 @@ library
     , imports
     , iso639
     , lens
+    , memory
     , mime
     , mime-mail
     , network

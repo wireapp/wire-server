@@ -39,6 +39,7 @@
 , iso639
 , lens
 , lib
+, memory
 , mime
 , mime-mail
 , network
@@ -93,6 +94,7 @@ mkDerivation {
     cassandra-util
     containers
     cql
+    crypton
     currency-codes
     data-default
     data-timeout
@@ -112,6 +114,7 @@ mkDerivation {
     imports
     iso639
     lens
+    memory
     mime
     mime-mail
     network

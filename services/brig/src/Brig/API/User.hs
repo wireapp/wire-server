@@ -79,7 +79,6 @@ import Brig.API.Handler qualified as API (UserNotAllowedToJoinTeam (..))
 import Brig.API.Types
 import Brig.API.Util
 import Brig.App
-import Brig.Code qualified as Code
 import Brig.Data.Activation (ActivationEvent (..), activationErrorToRegisterError)
 import Brig.Data.Activation qualified as Data
 import Brig.Data.Client qualified as Data
@@ -149,6 +148,7 @@ import Wire.API.UserEvent
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem, internalLookupPasswordResetCode)
 import Wire.DeleteQueue
 import Wire.EmailSmsSubsystem
+import Wire.Error
 import Wire.GalleyAPIAccess as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.PasswordStore (PasswordStore, lookupHashedPassword, upsertHashedPassword)
@@ -158,6 +158,9 @@ import Wire.UserKeyStore
 import Wire.UserStore
 import Wire.UserSubsystem as User
 import Wire.UserSubsystem.HandleBlacklist
+import Wire.VerificationCode qualified as VerificationCode
+import Wire.VerificationCodeGen (mkVerificationCodeGen)
+import Wire.VerificationCodeSubsystem
 
 -------------------------------------------------------------------------------
 -- Create User
@@ -171,10 +174,10 @@ identityErrorToRegisterError = \case
   IdentityErrorBlacklistedEmail -> RegisterErrorBlacklistedEmail
   IdentityErrorUserKeyExists -> RegisterErrorUserKeyExists
 
-identityErrorToBrigError :: IdentityError -> Error.Error
+identityErrorToBrigError :: IdentityError -> HttpError
 identityErrorToBrigError = \case
-  IdentityErrorBlacklistedEmail -> Error.StdError $ errorToWai @'E.BlacklistedEmail
-  IdentityErrorUserKeyExists -> Error.StdError $ errorToWai @'E.UserKeyExists
+  IdentityErrorBlacklistedEmail -> StdError $ errorToWai @'E.BlacklistedEmail
+  IdentityErrorUserKeyExists -> StdError $ errorToWai @'E.UserKeyExists
 
 verifyUniquenessAndCheckBlacklist ::
   ( Member BlacklistStore r,
@@ -500,9 +503,9 @@ createUserInviteViaScim ::
     Member TinyLog r
   ) =>
   NewUserScimInvitation ->
-  ExceptT Error.Error (AppT r) UserAccount
+  ExceptT HttpError (AppT r) UserAccount
 createUserInviteViaScim (NewUserScimInvitation tid uid loc name rawEmail _) = do
-  email <- either (const . throwE . Error.StdError $ errorToWai @'E.InvalidEmail) pure (validateEmail rawEmail)
+  email <- either (const . throwE . StdError $ errorToWai @'E.InvalidEmail) pure (validateEmail rawEmail)
   let emKey = mkEmailKey email
   verifyUniquenessAndCheckBlacklist emKey !>> identityErrorToBrigError
   account <- lift . wrapClient $ newAccountInviteViaScim uid tid loc name email
@@ -559,7 +562,7 @@ changeManagedBy uid conn (ManagedByUpdate mb) = do
 
 -- | Call 'changeEmail' and process result: if email changes to itself, succeed, if not, send
 -- validation email.
-changeSelfEmail :: (Member BlacklistStore r, Member UserKeyStore r, Member EmailSmsSubsystem r) => UserId -> Email -> UpdateOriginType -> ExceptT Error.Error (AppT r) ChangeEmailResponse
+changeSelfEmail :: (Member BlacklistStore r, Member UserKeyStore r, Member EmailSmsSubsystem r) => UserId -> Email -> UpdateOriginType -> ExceptT HttpError (AppT r) ChangeEmailResponse
 changeSelfEmail u email allowScim = do
   changeEmail u email allowScim !>> Error.changeEmailError >>= \case
     ChangeEmailIdempotent ->
@@ -923,7 +926,8 @@ deleteSelfUser ::
     Member UserStore r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
-    Member EmailSmsSubsystem r
+    Member EmailSmsSubsystem r,
+    Member VerificationCodeSubsystem r
   ) =>
   UserId ->
   Maybe PlainTextPassword6 ->
@@ -965,29 +969,20 @@ deleteSelfUser uid pwd = do
             throwE DeleteUserInvalidPassword
           lift . liftSem $ deleteAccount a >> pure Nothing
     sendCode a target = do
-      gen <- Code.mkGen target
-      pending <- lift . wrapClient $ Code.lookup (Code.genKey gen) Code.AccountDeletion
-      case pending of
-        Just c -> throwE $! DeleteUserPendingCode (Code.codeTTL c)
-        Nothing -> do
+      let gen = mkVerificationCodeGen target
+      (lift . liftSem $ createCode gen VerificationCode.AccountDeletion (VerificationCode.Retries 3) (VerificationCode.Timeout 600) (Just (toUUID uid))) >>= \case
+        Left (CodeAlreadyExists c) -> throwE $! DeleteUserPendingCode (VerificationCode.codeTTL c)
+        Right c -> do
           lift . liftSem . Log.info $
             field "user" (toByteString uid)
               . msg (val "Sending verification code for account deletion")
-          c <-
-            Code.generate
-              gen
-              Code.AccountDeletion
-              (Code.Retries 3)
-              (Code.Timeout 600)
-              (Just (toUUID uid))
-          tryInsertVerificationCode c DeleteUserVerificationCodeThrottled
-          let k = Code.codeKey c
-          let v = Code.codeValue c
+          let k = VerificationCode.codeKey c
+          let v = VerificationCode.codeValue c
           let l = userLocale (accountUser a)
           let n = userDisplayName (accountUser a)
           lift (liftSem $ sendAccountDeletionEmail target n k v l)
-            `onException` wrapClientE (Code.delete k Code.AccountDeletion)
-          pure $! Just $! Code.codeTTL c
+            `onException` lift (liftSem $ deleteCode k VerificationCode.AccountDeletion)
+          pure $! Just $! VerificationCode.codeTTL c
 
 -- | Conclude validation and scheduling of user's deletion request that was initiated in
 -- 'deleteUser'.  Called via @post /delete@.
@@ -1002,18 +997,19 @@ verifyDeleteUser ::
     Member (Input (Local ())) r,
     Member UserStore r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member VerificationCodeSubsystem r
   ) =>
   VerifyDeleteUser ->
   ExceptT DeleteUserError (AppT r) ()
 verifyDeleteUser d = do
   let key = verifyDeleteUserKey d
   let code = verifyDeleteUserCode d
-  c <- lift . wrapClient $ Code.verify key Code.AccountDeletion code
-  a <- maybe (throwE DeleteUserInvalidCode) pure (Code.codeAccount =<< c)
+  c <- lift . liftSem $ verifyCode key VerificationCode.AccountDeletion code
+  a <- maybe (throwE DeleteUserInvalidCode) pure (VerificationCode.codeAccount =<< c)
   account <- lift . wrapClient $ Data.lookupAccount (Id a)
   for_ account $ lift . liftSem . deleteAccount
-  lift . wrapClient $ Code.delete key Code.AccountDeletion
+  lift . liftSem $ deleteCode key VerificationCode.AccountDeletion
 
 -- | Check if `deleteAccount` succeeded and run it again if needed.
 -- Called via @delete /i/user/:uid@.

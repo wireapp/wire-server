@@ -32,7 +32,6 @@ import Brig.API.OAuth (internalOauthAPI)
 import Brig.API.Types
 import Brig.API.User qualified as API
 import Brig.App
-import Brig.Code qualified as Code
 import Brig.Data.Activation
 import Brig.Data.Client qualified as Data
 import Brig.Data.Connection qualified as Data
@@ -63,6 +62,7 @@ import Brig.User.Search.Index qualified as Index
 import Control.Error hiding (bool)
 import Control.Lens (view)
 import Data.ByteString.Conversion (toByteString)
+import Data.Code qualified as Code
 import Data.CommaSeparatedList
 import Data.Default
 import Data.Domain (Domain)
@@ -112,6 +112,9 @@ import Wire.UserKeyStore
 import Wire.UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem qualified as UserSubsystem
+import Wire.VerificationCode
+import Wire.VerificationCodeGen
+import Wire.VerificationCodeSubsystem
 
 servantSitemap ::
   forall r p.
@@ -133,7 +136,8 @@ servantSitemap ::
     Member TinyLog r,
     Member (UserPendingActivationStore p) r,
     Member EmailSending r,
-    Member EmailSmsSubsystem r
+    Member EmailSmsSubsystem r,
+    Member VerificationCodeSubsystem r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -182,7 +186,8 @@ accountAPI ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
-    Member EmailSmsSubsystem r
+    Member EmailSmsSubsystem r,
+    Member VerificationCodeSubsystem r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
@@ -261,7 +266,8 @@ authAPI ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member VerificationCodeSubsystem r
   ) =>
   ServerT BrigIRoutes.AuthAPI (Handler r)
 authAPI =
@@ -370,16 +376,13 @@ getMLSClients usr suite = do
       (cid,) . (> 0)
         <$> Data.countKeyPackages lusr cid suiteTag
 
-getVerificationCode :: UserId -> VerificationAction -> Handler r (Maybe Code.Value)
-getVerificationCode uid action = do
-  user <- wrapClientE $ API.lookupUser NoPendingInvitations uid
-  maybe (pure Nothing) (lookupCode action) (userEmail =<< user)
-  where
-    lookupCode :: VerificationAction -> Email -> (Handler r) (Maybe Code.Value)
-    lookupCode a e = do
-      key <- Code.mkKey e
-      code <- wrapClientE $ Code.lookup key (Code.scopeFromAction a)
-      pure $ Code.codeValue <$> code
+getVerificationCode :: forall r. (Member VerificationCodeSubsystem r) => UserId -> VerificationAction -> Handler r (Maybe Code.Value)
+getVerificationCode uid action = runMaybeT do
+  user <- MaybeT . wrapClientE $ API.lookupUser NoPendingInvitations uid
+  email <- MaybeT . pure $ userEmail user
+  let key = mkKey email
+  code <- MaybeT . lift . liftSem $ internalLookupCode key (scopeFromAction action)
+  pure code.codeValue
 
 internalSearchIndexAPI :: forall r. ServerT BrigIRoutes.ISearchIndexAPI (Handler r)
 internalSearchIndexAPI =
@@ -400,7 +403,8 @@ addClientInternalH ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
-    Member EmailSmsSubsystem r
+    Member EmailSmsSubsystem r,
+    Member VerificationCodeSubsystem r
   ) =>
   UserId ->
   Maybe Bool ->

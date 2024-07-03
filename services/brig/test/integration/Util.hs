@@ -27,7 +27,6 @@ import Bilge.Assert
 import Brig.AWS.Types
 import Brig.App (applog, fsWatcher, sftEnv, turnEnv)
 import Brig.Calling as Calling
-import Brig.Code qualified as Code
 import Brig.Options qualified as Opt
 import Brig.Run qualified as Run
 import Brig.Types.Activation
@@ -50,6 +49,7 @@ import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Char8 qualified as B8
 import Data.ByteString.Conversion
+import Data.Code qualified as Code
 import Data.Default
 import Data.Domain (Domain (..), domainText, mkDomain)
 import Data.Handle (Handle (..))

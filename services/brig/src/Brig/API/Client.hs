@@ -116,6 +116,7 @@ import Wire.Sem.Concurrency
 import Wire.Sem.FromUTC (FromUTC (fromUTCTime))
 import Wire.Sem.Now as Now
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.VerificationCodeSubsystem (VerificationCodeSubsystem)
 
 lookupLocalClient :: UserId -> ClientId -> (AppT r) (Maybe Client)
 lookupLocalClient uid = wrapClient . Data.lookupClient uid
@@ -169,7 +170,8 @@ addClient ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
-    Member EmailSmsSubsystem r
+    Member EmailSmsSubsystem r,
+    Member VerificationCodeSubsystem r
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -189,7 +191,8 @@ addClientWithReAuthPolicy ::
     Member (Input UTCTime) r,
     Member DeleteQueue r,
     Member (ConnectionStore InternalPaging) r,
-    Member EmailSmsSubsystem r
+    Member EmailSmsSubsystem r,
+    Member VerificationCodeSubsystem r
   ) =>
   Data.ReAuthPolicy ->
   UserId ->

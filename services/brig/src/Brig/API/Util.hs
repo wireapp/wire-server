@@ -28,7 +28,6 @@ module Brig.API.Util
     traverseConcurrentlyWithErrorsAppT,
     exceptTToMaybe,
     ensureLocal,
-    tryInsertVerificationCode,
   )
 where
 
@@ -36,10 +35,7 @@ import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.Types
 import Brig.App
-import Brig.Code qualified as Code
 import Brig.Data.User qualified as Data
-import Brig.Options (set2FACodeGenerationDelaySecs)
-import Control.Lens (view)
 import Control.Monad.Catch (throwM)
 import Control.Monad.Trans.Except
 import Data.Bifunctor
@@ -155,9 +151,3 @@ traverseConcurrentlyWithErrorsAppT f t = do
 
 exceptTToMaybe :: (Monad m) => ExceptT e m () -> m (Maybe e)
 exceptTToMaybe = (pure . either Just (const Nothing)) <=< runExceptT
-
-tryInsertVerificationCode :: Code.Code -> (RetryAfter -> e) -> ExceptT e (AppT r) ()
-tryInsertVerificationCode code e = do
-  ttl <- set2FACodeGenerationDelaySecs <$> view settings
-  mRetryAfter <- wrapClientE $ Code.insert code ttl
-  mapM_ (throwE . e) mRetryAfter

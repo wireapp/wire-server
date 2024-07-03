@@ -39,7 +39,6 @@ import Brig.API.User qualified as API
 import Brig.API.Util
 import Brig.App
 import Brig.Calling.API qualified as Calling
-import Brig.Code qualified as Code
 import Brig.Data.Connection qualified as Data
 import Brig.Data.Nonce as Nonce
 import Brig.Data.User qualified as Data
@@ -73,6 +72,7 @@ import Data.ByteString (fromStrict, toStrict)
 import Data.ByteString.Lazy qualified as Lazy
 import Data.ByteString.Lazy.Char8 qualified as LBS
 import Data.ByteString.UTF8 qualified as UTF8
+import Data.Code qualified as Code
 import Data.CommaSeparatedList
 import Data.Default
 import Data.Domain
@@ -155,6 +155,7 @@ import Wire.AuthenticationSubsystem (AuthenticationSubsystem, createPasswordRese
 import Wire.DeleteQueue
 import Wire.EmailSending (EmailSending)
 import Wire.EmailSmsSubsystem
+import Wire.Error
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
@@ -167,6 +168,9 @@ import Wire.UserKeyStore
 import Wire.UserStore (UserStore)
 import Wire.UserSubsystem hiding (checkHandle, checkHandles)
 import Wire.UserSubsystem qualified as UserSubsystem
+import Wire.VerificationCode
+import Wire.VerificationCodeGen
+import Wire.VerificationCodeSubsystem
 
 -- User API -----------------------------------------------------------
 
@@ -302,7 +306,8 @@ servantSitemap ::
     Member TinyLog r,
     Member (UserPendingActivationStore p) r,
     Member EmailSmsSubsystem r,
-    Member EmailSending r
+    Member EmailSending r,
+    Member VerificationCodeSubsystem r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -570,7 +575,7 @@ getMultiUserPrekeyBundleUnqualifiedH zusr userClients = do
   API.claimLocalMultiPrekeyBundles (ProtectedUser zusr) userClients !>> clientError
 
 getMultiUserPrekeyBundleHInternal ::
-  (MonadReader Env m, MonadError Brig.API.Error.Error m) =>
+  (MonadReader Env m, MonadError HttpError m) =>
   Public.QualifiedUserClients ->
   m ()
 getMultiUserPrekeyBundleHInternal qualUserClients = do
@@ -613,7 +618,8 @@ addClient ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
-    Member EmailSmsSubsystem r
+    Member EmailSmsSubsystem r,
+    Member VerificationCodeSubsystem r
   ) =>
   UserId ->
   ConnId ->
@@ -1230,7 +1236,8 @@ deleteSelfUser ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
-    Member EmailSmsSubsystem r
+    Member EmailSmsSubsystem r,
+    Member VerificationCodeSubsystem r
   ) =>
   UserId ->
   Public.DeleteUser ->
@@ -1246,7 +1253,8 @@ verifyDeleteUser ::
     Member (Input (Local ())) r,
     Member UserKeyStore r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member VerificationCodeSubsystem r
   ) =>
   Public.VerifyDeleteUser ->
   Handler r ()
@@ -1330,7 +1338,8 @@ sendVerificationCode ::
   forall r.
   ( Member GalleyAPIAccess r,
     Member UserKeyStore r,
-    Member EmailSmsSubsystem r
+    Member EmailSmsSubsystem r,
+    Member VerificationCodeSubsystem r
   ) =>
   Public.SendVerificationCode ->
   (Handler r) ()
@@ -1341,17 +1350,17 @@ sendVerificationCode req = do
   featureEnabled <- getFeatureStatus mbAccount
   case (mbAccount, featureEnabled) of
     (Just account, True) -> do
-      gen <- Code.mk6DigitGen email
+      let gen = mk6DigitVerificationCodeGen email
       timeout <- setVerificationTimeout <$> view settings
       code <-
-        Code.generate
-          gen
-          (Code.scopeFromAction action)
-          (Code.Retries 3)
-          timeout
-          (Just $ toUUID $ Public.userId $ accountUser account)
-      tryInsertVerificationCode code $ verificationCodeThrottledError . VerificationCodeThrottled
-      sendMail email (Code.codeValue code) (Just $ Public.userLocale $ accountUser account) action
+        lift . liftSem $
+          createCodeOverwritePrevious
+            gen
+            (scopeFromAction action)
+            (Retries 3)
+            timeout
+            (Just $ toUUID $ Public.userId $ accountUser account)
+      sendMail email code.codeValue (Just $ Public.userLocale $ accountUser account) action
     _ -> pure ()
   where
     getAccount :: Public.Email -> (Handler r) (Maybe UserAccount)

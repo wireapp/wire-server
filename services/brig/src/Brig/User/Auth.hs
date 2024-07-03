@@ -38,7 +38,6 @@ import Brig.API.Types
 import Brig.API.User (changeSingleAccountStatus)
 import Brig.App
 import Brig.Budget
-import Brig.Code qualified as Code
 import Brig.Data.Activation qualified as Data
 import Brig.Data.Client
 import Brig.Data.User qualified as Data
@@ -51,6 +50,7 @@ import Cassandra
 import Control.Error hiding (bool)
 import Control.Lens (to, view)
 import Data.ByteString.Conversion (toByteString)
+import Data.Code qualified as Code
 import Data.Handle (Handle)
 import Data.Id
 import Data.List.NonEmpty qualified as NE
@@ -80,6 +80,10 @@ import Wire.PasswordStore (PasswordStore)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserKeyStore
 import Wire.UserStore
+import Wire.VerificationCode qualified as VerificationCode
+import Wire.VerificationCodeGen qualified as VerificationCodeGen
+import Wire.VerificationCodeSubsystem (VerificationCodeSubsystem)
+import Wire.VerificationCodeSubsystem qualified as VerificationCodeSubsystem
 
 login ::
   forall r.
@@ -92,7 +96,8 @@ login ::
     Member (ConnectionStore InternalPaging) r,
     Member PasswordStore r,
     Member UserKeyStore r,
-    Member UserStore r
+    Member UserStore r,
+    Member VerificationCodeSubsystem r
   ) =>
   Login ->
   CookieType ->
@@ -123,7 +128,7 @@ login (SmsLogin _) _ = do
 
 verifyCode ::
   forall r.
-  (Member GalleyAPIAccess r) =>
+  (Member GalleyAPIAccess r, Member VerificationCodeSubsystem r) =>
   Maybe Code.Value ->
   VerificationAction ->
   UserId ->
@@ -137,8 +142,9 @@ verifyCode mbCode action uid = do
   when (featureEnabled && not isSsoUser) $ do
     case (mbCode, mbEmail) of
       (Just code, Just email) -> do
-        key <- Code.mkKey email
-        codeValid <- isJust <$> wrapHttpClientE (Code.verify key (Code.scopeFromAction action) code)
+        let key = VerificationCodeGen.mkKey email
+            scope = VerificationCode.scopeFromAction action
+        codeValid <- isJust <$> lift (liftSem $ VerificationCodeSubsystem.verifyCode key scope code)
         unless codeValid $ throwE VerificationCodeNoPendingCode
       (Nothing, _) -> throwE VerificationCodeRequired
       (_, Nothing) -> throwE VerificationCodeNoEmail

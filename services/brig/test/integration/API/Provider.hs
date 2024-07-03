@@ -27,7 +27,6 @@ where
 import API.Team.Util qualified as Team
 import Bilge hiding (accept, head, timeout)
 import Bilge.Assert
-import Brig.Code qualified as Code
 import Cassandra qualified as DB
 import Control.Arrow ((&&&))
 import Control.Concurrent.Async qualified as Async
@@ -40,6 +39,7 @@ import Data.ByteString qualified as BS
 import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy.Char8 qualified as LC8
+import Data.Code qualified as Code
 import Data.Domain
 import Data.Handle (parseHandle)
 import Data.HashMap.Strict qualified as HashMap
@@ -100,6 +100,9 @@ import Wire.API.User as User hiding (EmailUpdate, PasswordChange, mkName)
 import Wire.API.User.Auth (CookieType (..))
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
+import Wire.VerificationCode qualified as Code
+import Wire.VerificationCodeGen
+import Wire.VerificationCodeStore.Cassandra qualified as VerificationCodeStore
 
 tests :: Domain -> Config -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> Nginz -> IO TestTree
 tests dom conf p db b c g n = do
@@ -263,7 +266,7 @@ testPasswordResetProvider db brig = do
     resetPw :: PlainTextPassword6 -> Email -> Http ResponseLBS
     resetPw newPw email = do
       -- Get the code directly from the DB
-      gen <- Code.mkGen email
+      let gen = mkVerificationCodeGen email
       Just vcode <- lookupCode db gen Code.PasswordReset
       let passwordResetData =
             CompletePasswordReset
@@ -281,7 +284,7 @@ testPasswordResetAfterEmailUpdateProvider db brig = do
   initiateEmailUpdateProvider brig pid (EmailUpdate newEmail) !!! const 202 === statusCode
   initiatePasswordResetProvider brig (PasswordReset origEmail) !!! const 201 === statusCode
   -- Get password reset code directly from the DB
-  genOrig <- Code.mkGen origEmail
+  let genOrig = mkVerificationCodeGen origEmail
   Just vcodePw <- lookupCode db genOrig Code.PasswordReset
   let passwordResetData =
         CompletePasswordReset
@@ -289,7 +292,7 @@ testPasswordResetAfterEmailUpdateProvider db brig = do
           (Code.codeValue vcodePw)
           (plainTextPassword6Unsafe "doesnotmatter")
   -- Activate the new email
-  genNew <- Code.mkGen newEmail
+  let genNew = mkVerificationCodeGen newEmail
   Just vcodeEm <- lookupCode db genNew Code.IdentityVerification
   activateProvider brig (Code.codeKey vcodeEm) (Code.codeValue vcodeEm)
     !!! const 200 === statusCode
@@ -1646,8 +1649,8 @@ getUserClients brig bid uid =
 --------------------------------------------------------------------------------
 -- DB Operations
 
-lookupCode :: (MonadIO m) => DB.ClientState -> Code.Gen -> Code.Scope -> m (Maybe Code.Code)
-lookupCode db gen = liftIO . DB.runClient db . Code.lookup (Code.genKey gen)
+lookupCode :: (MonadIO m) => DB.ClientState -> VerificationCodeGen -> Code.Scope -> m (Maybe Code.Code)
+lookupCode db gen = liftIO . DB.runClient db . VerificationCodeStore.lookupCodeImpl gen.genKey
 
 --------------------------------------------------------------------------------
 -- Utilities
@@ -1675,7 +1678,7 @@ testRegisterProvider db' brig = do
   case db' of
     Just db -> do
       -- Activate email
-      gen <- Code.mkGen email
+      let gen = mkVerificationCodeGen email
       Just vcode <- lookupCode db gen Code.IdentityVerification
       activateProvider brig (Code.codeKey vcode) (Code.codeValue vcode)
         !!! const 200 === statusCode
@@ -1713,7 +1716,7 @@ testRegisterProvider db' brig = do
 randomProvider :: (HasCallStack) => DB.ClientState -> Brig -> Http Provider
 randomProvider db brig = do
   email <- randomEmail
-  gen <- Code.mkGen email
+  let gen = mkVerificationCodeGen email
   -- Register
   let new = defNewProvider email
   _rs <-

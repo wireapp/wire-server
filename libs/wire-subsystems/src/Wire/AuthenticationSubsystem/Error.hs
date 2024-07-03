@@ -16,14 +16,14 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Wire.AuthenticationSubsystem.Error
   ( AuthenticationSubsystemError (..),
-    authenticationSubsystemErrorToWai,
+    authenticationSubsystemErrorToHttpError,
   )
 where
 
 import Imports
-import Network.Wai.Utilities.Error qualified as Wai
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
+import Wire.Error
 
 data AuthenticationSubsystemError
   = AuthenticationSubsystemInvalidPasswordResetKey
@@ -35,11 +35,11 @@ data AuthenticationSubsystemError
 
 instance Exception AuthenticationSubsystemError
 
-authenticationSubsystemErrorToWai :: AuthenticationSubsystemError -> Wai.Error
-authenticationSubsystemErrorToWai =
-  dynErrorToWai . \case
-    AuthenticationSubsystemInvalidPasswordResetKey -> dynError @(MapError E.InvalidPasswordResetKey)
-    AuthenticationSubsystemInvalidPasswordResetCode -> dynError @(MapError E.InvalidPasswordResetCode)
-    AuthenticationSubsystemResetPasswordMustDiffer -> dynError @(MapError E.ResetPasswordMustDiffer)
-    AuthenticationSubsystemInvalidPhone -> dynError @(MapError E.InvalidPhone)
-    AuthenticationSubsystemAllowListError -> dynError @(MapError E.AllowlistError)
+authenticationSubsystemErrorToHttpError :: AuthenticationSubsystemError -> HttpError
+authenticationSubsystemErrorToHttpError =
+  StdError . \case
+    AuthenticationSubsystemInvalidPasswordResetKey -> errorToWai @E.InvalidPasswordResetKey
+    AuthenticationSubsystemInvalidPasswordResetCode -> errorToWai @E.InvalidPasswordResetCode
+    AuthenticationSubsystemResetPasswordMustDiffer -> errorToWai @E.ResetPasswordMustDiffer
+    AuthenticationSubsystemInvalidPhone -> errorToWai @E.InvalidPhone
+    AuthenticationSubsystemAllowListError -> errorToWai @E.AllowlistError

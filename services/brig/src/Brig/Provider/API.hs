@@ -32,10 +32,8 @@ import Bilge.RPC (HasRequestId)
 import Brig.API.Client qualified as Client
 import Brig.API.Error
 import Brig.API.Handler
-import Brig.API.Types (PasswordResetError (..), VerificationCodeThrottledError (VerificationCodeThrottled))
-import Brig.API.Util
+import Brig.API.Types (PasswordResetError (..))
 import Brig.App
-import Brig.Code qualified as Code
 import Brig.Data.Client qualified as User
 import Brig.Data.User qualified as User
 import Brig.Options (Settings (..))
@@ -55,6 +53,7 @@ import Control.Monad.Catch (MonadMask)
 import Control.Monad.Except
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy.Char8 qualified as LC8
+import Data.Code qualified as Code
 import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
 import Data.Conduit (runConduit, (.|))
 import Data.Conduit.List qualified as C
@@ -120,10 +119,14 @@ import Wire.API.User.Client.Prekey qualified as Public (PrekeyId)
 import Wire.API.User.Identity qualified as Public (Email)
 import Wire.DeleteQueue
 import Wire.EmailSending (EmailSending)
+import Wire.Error
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe))
 import Wire.UserKeyStore (mkEmailKey)
+import Wire.VerificationCode as VerificationCode
+import Wire.VerificationCodeGen
+import Wire.VerificationCodeSubsystem
 
 botAPI ::
   ( Member GalleyAPIAccess r,
@@ -161,7 +164,7 @@ servicesAPI =
     :<|> Named @"get-whitelisted-services-by-team-id" searchTeamServiceProfiles
     :<|> Named @"post-team-whitelist-by-team-id" updateServiceWhitelist
 
-providerAPI :: (Member GalleyAPIAccess r, Member EmailSending r) => ServerT ProviderAPI (Handler r)
+providerAPI :: (Member GalleyAPIAccess r, Member EmailSending r, Member VerificationCodeSubsystem r) => ServerT ProviderAPI (Handler r)
 providerAPI =
   Named @"provider-register" newAccount
     :<|> Named @"provider-activate" activateAccountKey
@@ -175,13 +178,13 @@ providerAPI =
     :<|> Named @"provider-get-account" getAccount
     :<|> Named @"provider-get-profile" getProviderProfile
 
-internalProviderAPI :: (Member GalleyAPIAccess r) => ServerT BrigIRoutes.ProviderAPI (Handler r)
+internalProviderAPI :: (Member GalleyAPIAccess r, Member VerificationCodeSubsystem r) => ServerT BrigIRoutes.ProviderAPI (Handler r)
 internalProviderAPI = Named @"get-provider-activation-code" getActivationCodeH
 
 --------------------------------------------------------------------------------
 -- Public API (Unauthenticated)
 
-newAccount :: (Member GalleyAPIAccess r, Member EmailSending r) => Public.NewProvider -> (Handler r) Public.NewProviderResponse
+newAccount :: (Member GalleyAPIAccess r, Member EmailSending r, Member VerificationCodeSubsystem r) => Public.NewProvider -> (Handler r) Public.NewProviderResponse
 newAccount new = do
   guardSecondFactorDisabled Nothing
   email <- case validateEmail (Public.newProviderEmail new) of
@@ -200,25 +203,25 @@ newAccount new = do
       safePass <- mkSafePasswordScrypt newPass
       pure (safePass, Just newPass)
   pid <- wrapClientE $ DB.insertAccount name safePass url descr
-  gen <- Code.mkGen email
+  let gen = mkVerificationCodeGen email
   code <-
-    Code.generate
-      gen
-      Code.IdentityVerification
-      (Code.Retries 3)
-      (Code.Timeout (3600 * 24)) -- 24h
-      (Just (toUUID pid))
-  tryInsertVerificationCode code $ verificationCodeThrottledError . VerificationCodeThrottled
-  let key = Code.codeKey code
-  let val = Code.codeValue code
+    lift . liftSem $
+      createCodeOverwritePrevious
+        gen
+        IdentityVerification
+        (Retries 3)
+        (Timeout (3600 * 24)) -- 24h
+        (Just (toUUID pid))
+  let key = codeKey code
+  let val = codeValue code
   lift $ sendActivationMail name email key val False
   pure $ Public.NewProviderResponse pid newPass
 
-activateAccountKey :: (Member GalleyAPIAccess r, Member EmailSending r) => Code.Key -> Code.Value -> (Handler r) (Maybe Public.ProviderActivationResponse)
+activateAccountKey :: (Member GalleyAPIAccess r, Member EmailSending r, Member VerificationCodeSubsystem r) => Code.Key -> Code.Value -> (Handler r) (Maybe Public.ProviderActivationResponse)
 activateAccountKey key val = do
   guardSecondFactorDisabled Nothing
-  c <- wrapClientE (Code.verify key Code.IdentityVerification val) >>= maybeInvalidCode
-  (pid, email) <- case (Code.codeAccount c, Just (Code.codeFor c)) of
+  c <- (lift . liftSem $ verifyCode key IdentityVerification val) >>= maybeInvalidCode
+  (pid, email) <- case (codeAccount c, Just (codeFor c)) of
     (Just p, Just e) -> pure (Id p, e)
     _ -> throwStd (errorToWai @'E.InvalidCode)
   (name, memail, _url, _descr) <- wrapClientE (DB.lookupAccountData pid) >>= maybeInvalidCode
@@ -226,8 +229,8 @@ activateAccountKey key val = do
     Just email' | email == email' -> pure Nothing
     Just email' -> do
       -- Ensure we remove any pending password reset
-      gen <- Code.mkGen email'
-      lift $ wrapClient $ Code.delete (Code.genKey gen) Code.PasswordReset
+      let gen = mkVerificationCodeGen email'
+      lift $ liftSem $ deleteCode gen.genKey VerificationCode.PasswordReset
       -- Activate the new and remove the old key
       activate pid (Just email') email
       pure . Just $ Public.ProviderActivationResponse email
@@ -237,15 +240,15 @@ activateAccountKey key val = do
       lift $ sendApprovalConfirmMail name email
       pure . Just $ Public.ProviderActivationResponse email
 
-getActivationCodeH :: (Member GalleyAPIAccess r) => Public.Email -> (Handler r) Code.KeyValuePair
+getActivationCodeH :: (Member GalleyAPIAccess r, Member VerificationCodeSubsystem r) => Public.Email -> (Handler r) Code.KeyValuePair
 getActivationCodeH e = do
   guardSecondFactorDisabled Nothing
   email <- case validateEmail e of
     Right em -> pure em
     Left _ -> throwStd (errorToWai @'E.InvalidEmail)
-  gen <- Code.mkGen email
-  code <- wrapClientE $ Code.lookup (Code.genKey gen) Code.IdentityVerification
-  maybe (throwStd activationKeyNotFound) (pure . Code.codeToKeyValuePair) code
+  let gen = mkVerificationCodeGen email
+  code <- lift . liftSem $ internalLookupCode gen.genKey IdentityVerification
+  maybe (throwStd activationKeyNotFound) (pure . codeToKeyValuePair) code
 
 login :: (Member GalleyAPIAccess r) => ProviderLogin -> Handler r ProviderTokenCookie
 login l = do
@@ -258,29 +261,22 @@ login l = do
   s <- view settings
   pure $ ProviderTokenCookie (ProviderToken token) (not (setCookieInsecure s))
 
-beginPasswordReset :: (Member GalleyAPIAccess r, Member EmailSending r) => Public.PasswordReset -> (Handler r) ()
+beginPasswordReset :: (Member GalleyAPIAccess r, Member EmailSending r, Member VerificationCodeSubsystem r) => Public.PasswordReset -> (Handler r) ()
 beginPasswordReset (Public.PasswordReset target) = do
   guardSecondFactorDisabled Nothing
   pid <- wrapClientE (DB.lookupKey (mkEmailKey target)) >>= maybeBadCredentials
-  gen <- Code.mkGen target
-  pending <- lift . wrapClient $ Code.lookup (Code.genKey gen) Code.PasswordReset
-  code <- case pending of
-    Just p -> throwE $ pwResetError (PasswordResetInProgress . Just $ Code.codeTTL p)
-    Nothing ->
-      Code.generate
-        gen
-        Code.PasswordReset
-        (Code.Retries 3)
-        (Code.Timeout 3600) -- 1h
-        (Just (toUUID pid))
-  tryInsertVerificationCode code $ verificationCodeThrottledError . VerificationCodeThrottled
-  lift $ sendPasswordResetMail target (Code.codeKey code) (Code.codeValue code)
+  let gen = mkVerificationCodeGen target
+  (lift . liftSem $ createCode gen VerificationCode.PasswordReset (Retries 3) (Timeout 3600) (Just (toUUID pid))) >>= \case
+    Left (CodeAlreadyExists code) ->
+      throwE $ pwResetError (PasswordResetInProgress $ Just code.codeTTL)
+    Right code ->
+      lift $ sendPasswordResetMail target (code.codeKey) (code.codeValue)
 
-completePasswordReset :: (Member GalleyAPIAccess r) => Public.CompletePasswordReset -> (Handler r) ()
+completePasswordReset :: (Member GalleyAPIAccess r, Member VerificationCodeSubsystem r) => Public.CompletePasswordReset -> (Handler r) ()
 completePasswordReset (Public.CompletePasswordReset key val newpwd) = do
   guardSecondFactorDisabled Nothing
-  code <- wrapClientE (Code.verify key Code.PasswordReset val) >>= maybeInvalidCode
-  case Id <$> Code.codeAccount code of
+  code <- (lift . liftSem $ verifyCode key VerificationCode.PasswordReset val) >>= maybeInvalidCode
+  case Id <$> code.codeAccount of
     Nothing -> throwStd (errorToWai @'E.InvalidPasswordResetCode)
     Just pid -> do
       oldpass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
@@ -288,7 +284,7 @@ completePasswordReset (Public.CompletePasswordReset key val newpwd) = do
         throwStd (errorToWai @'E.ResetPasswordMustDiffer)
       wrapClientE $ do
         DB.updateAccountPassword pid newpwd
-        Code.delete key Code.PasswordReset
+      lift . liftSem $ deleteCode key VerificationCode.PasswordReset
 
 --------------------------------------------------------------------------------
 -- Provider API
@@ -309,7 +305,7 @@ updateAccountProfile pid upd = do
       (updateProviderUrl upd)
       (updateProviderDescr upd)
 
-updateAccountEmail :: (Member GalleyAPIAccess r, Member EmailSending r) => ProviderId -> Public.EmailUpdate -> (Handler r) ()
+updateAccountEmail :: (Member GalleyAPIAccess r, Member EmailSending r, Member VerificationCodeSubsystem r) => ProviderId -> Public.EmailUpdate -> (Handler r) ()
 updateAccountEmail pid (Public.EmailUpdate new) = do
   guardSecondFactorDisabled Nothing
   email <- case validateEmail new of
@@ -317,16 +313,16 @@ updateAccountEmail pid (Public.EmailUpdate new) = do
     Left _ -> throwStd (errorToWai @'E.InvalidEmail)
   let emailKey = mkEmailKey email
   wrapClientE (DB.lookupKey emailKey) >>= mapM_ (const $ throwStd emailExists)
-  gen <- Code.mkGen email
+  let gen = mkVerificationCodeGen email
   code <-
-    Code.generate
-      gen
-      Code.IdentityVerification
-      (Code.Retries 3)
-      (Code.Timeout (3600 * 24)) -- 24h
-      (Just (toUUID pid))
-  tryInsertVerificationCode code $ verificationCodeThrottledError . VerificationCodeThrottled
-  lift $ sendActivationMail (Name "name") email (Code.codeKey code) (Code.codeValue code) True
+    lift . liftSem $
+      createCodeOverwritePrevious
+        gen
+        IdentityVerification
+        (Retries 3)
+        (Timeout (3600 * 24)) -- 24h
+        (Just (toUUID pid))
+  lift $ sendActivationMail (Name "name") email code.codeKey code.codeValue True
 
 updateAccountPassword :: (Member GalleyAPIAccess r) => ProviderId -> Public.PasswordChange -> (Handler r) ()
 updateAccountPassword pid upd = do
@@ -729,7 +725,7 @@ removeBot zusr zcon cid bid = do
     Just _ -> do
       lift $ Public.RemoveBotResponse <$$> wrapHttpClient (deleteBot zusr (Just zcon) bid cid)
 
-guardConvAdmin :: Conversation -> ExceptT Error (AppT r) ()
+guardConvAdmin :: Conversation -> ExceptT HttpError (AppT r) ()
 guardConvAdmin conv = do
   let selfMember = cmSelf . cnvMembers $ conv
   unless (memConvRoleName selfMember == roleNameWireAdmin) $ (throwStd (errorToWai @'E.AccessDenied))
@@ -806,7 +802,7 @@ botDeleteSelf bid cid = do
 guardSecondFactorDisabled ::
   (Member GalleyAPIAccess r) =>
   Maybe UserId ->
-  ExceptT Error (AppT r) ()
+  ExceptT HttpError (AppT r) ()
 guardSecondFactorDisabled mbUserId = do
   enabled <- lift $ liftSem $ (==) Feature.FeatureStatusEnabled . Feature.wsStatus . Feature.afcSndFactorPasswordChallenge <$> GalleyAPIAccess.getAllFeatureConfigsForUser mbUserId
   when enabled $ (throwStd (errorToWai @'E.AccessDenied))
@@ -883,28 +879,28 @@ mkBotUserView u =
       Ext.botUserViewTeam = userTeam u
     }
 
-maybeInvalidProvider :: (Monad m) => Maybe a -> (ExceptT Error m) a
+maybeInvalidProvider :: (Monad m) => Maybe a -> (ExceptT HttpError m) a
 maybeInvalidProvider = maybe (throwStd (errorToWai @'E.ProviderNotFound)) pure
 
-maybeInvalidCode :: (Monad m) => Maybe a -> (ExceptT Error m) a
+maybeInvalidCode :: (Monad m) => Maybe a -> (ExceptT HttpError m) a
 maybeInvalidCode = maybe (throwStd (errorToWai @'E.InvalidCode)) pure
 
-maybeServiceNotFound :: (Monad m) => Maybe a -> (ExceptT Error m) a
+maybeServiceNotFound :: (Monad m) => Maybe a -> (ExceptT HttpError m) a
 maybeServiceNotFound = maybe (throwStd (errorToWai @'E.ServiceNotFound)) pure
 
-maybeConvNotFound :: (Monad m) => Maybe a -> (ExceptT Error m) a
+maybeConvNotFound :: (Monad m) => Maybe a -> (ExceptT HttpError m) a
 maybeConvNotFound = maybe (throwStd (notFound "Conversation not found")) pure
 
-maybeBadCredentials :: (Monad m) => Maybe a -> (ExceptT Error m) a
+maybeBadCredentials :: (Monad m) => Maybe a -> (ExceptT HttpError m) a
 maybeBadCredentials = maybe (throwStd (errorToWai @'E.BadCredentials)) pure
 
-maybeInvalidServiceKey :: (Monad m) => Maybe a -> (ExceptT Error m) a
+maybeInvalidServiceKey :: (Monad m) => Maybe a -> (ExceptT HttpError m) a
 maybeInvalidServiceKey = maybe (throwStd (errorToWai @'E.InvalidServiceKey)) pure
 
-maybeInvalidUser :: (Monad m) => Maybe a -> (ExceptT Error m) a
+maybeInvalidUser :: (Monad m) => Maybe a -> (ExceptT HttpError m) a
 maybeInvalidUser = maybe (throwStd (errorToWai @'E.InvalidUser)) pure
 
-rangeChecked :: (KnownNat n, KnownNat m, Within a n m, Monad monad) => a -> (ExceptT Error monad) (Range n m a)
+rangeChecked :: (KnownNat n, KnownNat m, Within a n m, Monad monad) => a -> (ExceptT HttpError monad) (Range n m a)
 rangeChecked = either (throwStd . invalidRange . fromString) pure . checkedEither
 
 badGatewayWith :: String -> Wai.Error

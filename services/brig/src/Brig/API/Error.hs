@@ -20,7 +20,6 @@ module Brig.API.Error where
 import Brig.API.Types
 import Control.Monad.Error.Class
 import Data.Aeson
-import Data.Aeson.KeyMap qualified as KeyMap
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import Data.Jwt.Tools (DPoPTokenGenerationError (..))
@@ -34,34 +33,17 @@ import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Federation.Error
 import Wire.API.User
+import Wire.Error
 
-data Error where
-  StdError :: !Wai.Error -> Error
-  RichError :: (ToJSON a) => !Wai.Error -> !a -> [Header] -> Error
-
-errorLabel :: Error -> LText
-errorLabel (StdError e) = Wai.label e
-errorLabel (RichError e _ _) = Wai.label e
-
-errorStatus :: Error -> Status
-errorStatus (StdError e) = Wai.code e
-errorStatus (RichError e _ _) = Wai.code e
-
-throwStd :: (MonadError Error m) => Wai.Error -> m a
+throwStd :: (MonadError HttpError m) => Wai.Error -> m a
 throwStd = throwError . StdError
 
-throwRich :: (MonadError Error m, ToJSON x) => Wai.Error -> x -> [Header] -> m a
+throwRich :: (MonadError HttpError m, ToJSON x) => Wai.Error -> x -> [Header] -> m a
 throwRich e x h = throwError (RichError e x h)
-
-instance ToJSON Error where
-  toJSON (StdError e) = toJSON e
-  toJSON (RichError e x _) = case (toJSON e, toJSON x) of
-    (Object o1, Object o2) -> Object (KeyMap.union o1 o2)
-    (j, _) -> j
 
 -- Error Mapping ----------------------------------------------------------
 
-connError :: ConnectionError -> Error
+connError :: ConnectionError -> HttpError
 connError TooManyConnections {} = StdError (errorToWai @'E.ConnectionLimitReached)
 connError InvalidTransition {} = StdError (errorToWai @'E.InvalidTransition)
 connError NotConnected {} = StdError (errorToWai @'E.NotConnected)
@@ -76,14 +58,14 @@ connError ConnectMissingLegalholdConsent = StdError (errorToWai @'E.MissingLegal
 connError (ConnectFederationError e) = fedError e
 connError ConnectTeamFederationError = StdError (errorToWai @'E.TeamsNotFederating)
 
-actError :: ActivationError -> Error
+actError :: ActivationError -> HttpError
 actError (UserKeyExists _) = StdError (errorToWai @'E.UserKeyExists)
 actError InvalidActivationCodeWrongUser = StdError (errorToWai @'E.InvalidActivationCodeWrongUser)
 actError InvalidActivationCodeWrongCode = StdError (errorToWai @'E.InvalidActivationCodeWrongCode)
 actError (InvalidActivationEmail _ _) = StdError (errorToWai @'E.InvalidEmail)
 actError (InvalidActivationPhone _) = StdError (errorToWai @'E.InvalidPhone)
 
-pwResetError :: PasswordResetError -> Error
+pwResetError :: PasswordResetError -> HttpError
 pwResetError InvalidPasswordResetKey = StdError (errorToWai @'E.InvalidPasswordResetKey)
 pwResetError InvalidPasswordResetCode = StdError (errorToWai @'E.InvalidPasswordResetCode)
 pwResetError (PasswordResetInProgress Nothing) = StdError (errorToWai @'E.PasswordResetInProgress)
@@ -94,30 +76,30 @@ pwResetError (PasswordResetInProgress (Just t)) =
     [("Retry-After", toByteString' t)]
 pwResetError ResetPasswordMustDiffer = StdError (errorToWai @'E.ResetPasswordMustDiffer)
 
-sendActCodeError :: SendActivationCodeError -> Error
+sendActCodeError :: SendActivationCodeError -> HttpError
 sendActCodeError (InvalidRecipient _) = StdError $ errorToWai @'E.InvalidEmail
 sendActCodeError (UserKeyInUse _) = StdError (errorToWai @'E.UserKeyExists)
 sendActCodeError (ActivationBlacklistedUserKey _) = StdError blacklistedEmail
 
-changeEmailError :: ChangeEmailError -> Error
+changeEmailError :: ChangeEmailError -> HttpError
 changeEmailError (InvalidNewEmail _ _) = StdError (errorToWai @'E.InvalidEmail)
 changeEmailError (EmailExists _) = StdError (errorToWai @'E.UserKeyExists)
 changeEmailError (ChangeBlacklistedEmail _) = StdError blacklistedEmail
 changeEmailError EmailManagedByScim = StdError $ propertyManagedByScim "email"
 
-changeHandleError :: ChangeHandleError -> Error
+changeHandleError :: ChangeHandleError -> HttpError
 changeHandleError ChangeHandleNoIdentity = StdError (errorToWai @'E.NoIdentity)
 changeHandleError ChangeHandleExists = StdError (errorToWai @'E.HandleExists)
 changeHandleError ChangeHandleInvalid = StdError (errorToWai @'E.InvalidHandle)
 changeHandleError ChangeHandleManagedByScim = StdError (errorToWai @'E.HandleManagedByScim)
 
-legalHoldLoginError :: LegalHoldLoginError -> Error
+legalHoldLoginError :: LegalHoldLoginError -> HttpError
 legalHoldLoginError LegalHoldLoginNoBindingTeam = StdError noBindingTeam
 legalHoldLoginError LegalHoldLoginLegalHoldNotEnabled = StdError legalHoldNotEnabled
 legalHoldLoginError (LegalHoldLoginError e) = loginError e
 legalHoldLoginError (LegalHoldReAuthError e) = reauthError e
 
-loginError :: LoginError -> Error
+loginError :: LoginError -> HttpError
 loginError LoginFailed = StdError (errorToWai @'E.BadCredentials)
 loginError LoginSuspended = StdError (errorToWai @'E.AccountSuspended)
 loginError LoginEphemeral = StdError (errorToWai @'E.AccountEphemeral)
@@ -136,27 +118,27 @@ loginError (LoginBlocked wait) =
 loginError LoginCodeRequired = StdError (errorToWai @'E.CodeAuthenticationRequired)
 loginError LoginCodeInvalid = StdError (errorToWai @'E.CodeAuthenticationFailed)
 
-authError :: AuthError -> Error
+authError :: AuthError -> HttpError
 authError AuthInvalidUser = StdError (errorToWai @'E.BadCredentials)
 authError AuthInvalidCredentials = StdError (errorToWai @'E.BadCredentials)
 authError AuthSuspended = StdError (errorToWai @'E.AccountSuspended)
 authError AuthEphemeral = StdError (errorToWai @'E.AccountEphemeral)
 authError AuthPendingInvitation = StdError (errorToWai @'E.AccountPending)
 
-reauthError :: ReAuthError -> Error
+reauthError :: ReAuthError -> HttpError
 reauthError ReAuthMissingPassword = StdError (errorToWai @'E.MissingAuth)
 reauthError (ReAuthError e) = authError e
 reauthError ReAuthCodeVerificationRequired = StdError verificationCodeRequired
 reauthError ReAuthCodeVerificationNoPendingCode = StdError verificationCodeNoPendingCode
 reauthError ReAuthCodeVerificationNoEmail = StdError verificationCodeNoEmail
 
-zauthError :: ZAuth.Failure -> Error
+zauthError :: ZAuth.Failure -> HttpError
 zauthError ZAuth.Expired = StdError authTokenExpired
 zauthError ZAuth.Falsified = StdError authTokenInvalid
 zauthError ZAuth.Invalid = StdError authTokenInvalid
 zauthError ZAuth.Unsupported = StdError authTokenUnsupported
 
-clientError :: ClientError -> Error
+clientError :: ClientError -> HttpError
 clientError ClientNotFound = StdError (errorToWai @'E.ClientNotFound)
 clientError (ClientDataError e) = clientDataError e
 clientError (ClientUserNotFound _) = StdError (errorToWai @'E.InvalidUser)
@@ -172,7 +154,7 @@ clientError ClientCodeAuthenticationRequired = StdError verificationCodeRequired
 -- Note that UnknownError, FfiError, and ImplementationError semantically should rather be 500s than 400s.
 -- However, the errors returned from the FFI are not always correct,
 -- and we don't want to bombard our environments with 500 log messages, so we treat them as 400s, for now.
-certEnrollmentError :: CertEnrollmentError -> Error
+certEnrollmentError :: CertEnrollmentError -> HttpError
 certEnrollmentError (RustError NoError) = StdError $ Wai.mkError status400 "internal-error" "The server experienced an internal error during DPoP token generation. Unexpected NoError."
 certEnrollmentError (RustError UnknownError) = StdError $ Wai.mkError status400 "internal-error" "The server experienced an internal error during DPoP token generation. Unknown error."
 certEnrollmentError (RustError FfiError) = StdError $ Wai.mkError status400 "internal-error" "The server experienced an internal error during DPoP token generation"
@@ -225,13 +207,13 @@ certEnrollmentError NotATeamUser = StdError $ Wai.mkError status400 "not-a-team-
 certEnrollmentError MissingHandle = StdError $ Wai.mkError status400 "missing-handle" "The user has no handle"
 certEnrollmentError MissingName = StdError $ Wai.mkError status400 "missing-name" "The user has no name"
 
-fedError :: FederationError -> Error
+fedError :: FederationError -> HttpError
 fedError = StdError . federationErrorToWai
 
-propDataError :: PropertiesDataError -> Error
+propDataError :: PropertiesDataError -> HttpError
 propDataError TooManyProperties = StdError tooManyProperties
 
-clientDataError :: ClientDataError -> Error
+clientDataError :: ClientDataError -> HttpError
 clientDataError TooManyClients = StdError (errorToWai @'E.TooManyClients)
 clientDataError (ClientReAuthError e) = reauthError e
 clientDataError ClientMissingAuth = StdError (errorToWai @'E.MissingAuth)
@@ -241,7 +223,7 @@ clientDataError KeyPackageDecodingError = StdError (errorToWai @'E.KeyPackageDec
 clientDataError InvalidKeyPackageRef = StdError (errorToWai @'E.InvalidKeyPackageRef)
 clientDataError MLSNotEnabled = StdError (errorToWai @'E.MLSNotEnabled)
 
-deleteUserError :: DeleteUserError -> Error
+deleteUserError :: DeleteUserError -> HttpError
 deleteUserError DeleteUserInvalid = StdError (errorToWai @'E.InvalidUser)
 deleteUserError DeleteUserInvalidCode = StdError (errorToWai @'E.InvalidCode)
 deleteUserError DeleteUserInvalidPassword = StdError (errorToWai @'E.BadCredentials)
@@ -249,23 +231,20 @@ deleteUserError DeleteUserMissingPassword = StdError (errorToWai @'E.MissingAuth
 deleteUserError (DeleteUserPendingCode t) = RichError deletionCodePending (DeletionCodeTimeout t) []
 deleteUserError DeleteUserOwnerDeletingSelf = StdError (errorToWai @'E.OwnerDeletingSelf)
 deleteUserError (DeleteUserVerificationCodeThrottled t) =
-  RichError
-    verificationCodeThrottled
-    ()
-    [("Retry-After", toByteString' (retryAfterSeconds t))]
+  verificationCodeThrottledError (VerificationCodeThrottled t)
 
-accountStatusError :: AccountStatusError -> Error
+accountStatusError :: AccountStatusError -> HttpError
 accountStatusError InvalidAccountStatus = StdError invalidAccountStatus
 accountStatusError AccountNotFound = StdError (notFound "Account not found")
 
-updateProfileError :: UpdateProfileError -> Error
+updateProfileError :: UpdateProfileError -> HttpError
 updateProfileError DisplayNameManagedByScim = StdError (propertyManagedByScim "name")
 updateProfileError ProfileNotFound = StdError (errorToWai @'E.UserNotFound)
 
-verificationCodeThrottledError :: VerificationCodeThrottledError -> Error
+verificationCodeThrottledError :: VerificationCodeThrottledError -> HttpError
 verificationCodeThrottledError (VerificationCodeThrottled t) =
   RichError
-    verificationCodeThrottled
+    (dynErrorToWai $ dynError @(MapError 'E.VerificationCodeThrottled))
     ()
     [("Retry-After", toByteString' (retryAfterSeconds t))]
 
@@ -400,9 +379,6 @@ loginsTooFrequent = Wai.mkError status429 "client-error" "Logins too frequent"
 
 tooManyFailedLogins :: Wai.Error
 tooManyFailedLogins = Wai.mkError status403 "client-error" "Too many failed logins"
-
-verificationCodeThrottled :: Wai.Error
-verificationCodeThrottled = Wai.mkError status429 "too-many-requests" "Too many request to generate a verification code."
 
 tooLargeRichInfo :: Wai.Error
 tooLargeRichInfo = Wai.mkError status413 "too-large-rich-info" "Rich info has exceeded the limit"

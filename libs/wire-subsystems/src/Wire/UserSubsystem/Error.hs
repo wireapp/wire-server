@@ -1,9 +1,9 @@
 module Wire.UserSubsystem.Error where
 
 import Imports
-import Network.Wai.Utilities qualified as Wai
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
+import Wire.Error
 
 -- | All errors that are thrown by the user subsystem are subsumed under this sum type.
 data UserSubsystemError
@@ -18,15 +18,15 @@ data UserSubsystemError
   | UserSubsystemProfileNotFound
   deriving (Eq, Show)
 
-userSubsystemErrorToWai :: UserSubsystemError -> Wai.Error
-userSubsystemErrorToWai =
-  dynErrorToWai . \case
-    UserSubsystemProfileNotFound -> dynError @(MapError E.UserNotFound)
-    UserSubsystemDisplayNameManagedByScim -> dynError @(MapError E.NameManagedByScim)
-    UserSubsystemLocaleManagedByScim -> dynError @(MapError E.LocaleManagedByScim)
-    UserSubsystemNoIdentity -> dynError @(MapError E.NoIdentity)
-    UserSubsystemHandleExists -> dynError @(MapError E.HandleExists)
-    UserSubsystemInvalidHandle -> dynError @(MapError E.InvalidHandle)
-    UserSubsystemHandleManagedByScim -> dynError @(MapError E.HandleManagedByScim)
+userSubsystemErrorToHttpError :: UserSubsystemError -> HttpError
+userSubsystemErrorToHttpError =
+  StdError . \case
+    UserSubsystemProfileNotFound -> errorToWai @E.UserNotFound
+    UserSubsystemDisplayNameManagedByScim -> errorToWai @E.NameManagedByScim
+    UserSubsystemLocaleManagedByScim -> errorToWai @E.LocaleManagedByScim
+    UserSubsystemNoIdentity -> errorToWai @E.NoIdentity
+    UserSubsystemHandleExists -> errorToWai @E.HandleExists
+    UserSubsystemInvalidHandle -> errorToWai @E.InvalidHandle
+    UserSubsystemHandleManagedByScim -> errorToWai @E.HandleManagedByScim
 
 instance Exception UserSubsystemError

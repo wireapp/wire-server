@@ -105,7 +105,6 @@ library
     Brig.Calling.API
     Brig.Calling.Internal
     Brig.CanonicalInterpreter
-    Brig.Code
     Brig.Data.Activation
     Brig.Data.Client
     Brig.Data.Connection
