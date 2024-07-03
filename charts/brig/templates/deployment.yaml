@@ -8,6 +8,12 @@ metadata:
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
 spec:
+  storageClassName: hcloud-volumes
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
   replicas: {{ .Values.replicaCount }}
   strategy:
     type: RollingUpdate

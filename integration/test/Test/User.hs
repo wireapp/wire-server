@@ -12,6 +12,13 @@ import qualified Data.UUID.V4 as UUID
 import SetupHelpers
 import Testlib.Prelude
 import Testlib.VersionedFed
+import UnliftIO (pooledForConcurrentlyN_)
+
+testCreateManyUsers :: (HasCallStack) => App ()
+testCreateManyUsers =
+  pooledForConcurrentlyN_ 64 (replicate 1_024 def) \u -> do
+    putStrLn "created 64 users"
+    randomUser OwnDomain u
 
 testSupportedProtocols :: (HasCallStack) => OneOf Domain AnyFedDomain -> App ()
 testSupportedProtocols bobDomain = do

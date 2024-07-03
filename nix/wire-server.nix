@@ -96,7 +96,7 @@ let
     inherit lib;
   };
 
-  localPackages = { enableOptimization, enableDocs, enableTests }: hsuper: hself:
+  localPackages = { enableOptimization, enableDocs, enableTests, enableProfiling ? true }: hsuper: hself:
     # The default packages are expected to have optimizations and docs turned
     # on.
     let
@@ -127,6 +127,10 @@ let
 
       bench = _: drv:
         hlib.doBenchmark drv;
+      profile = _: drv:
+        if enableProfiling
+        then hlib.enableExecutableProfiling (hlib.enableLibraryProfiling drv)
+        else drv;
 
       maintainer = _: drv:
         drv.overrideAttrs (old: {
@@ -152,12 +156,13 @@ let
       docs
       tests
       bench
+      profile
     ];
 
-  manualOverrides = import ./manual-overrides.nix (with pkgs; {
-    inherit (pkgs) libsodium protobuf fetchpatch fetchurl curl;
-    inherit hlib mls-test-cli;
-  });
+  manualOverrides = import ./manual-overrides.nix {
+    inherit (pkgs) libsodium protobuf fetchpatch fetchurl curl mls-test-cli;
+    inherit hlib;
+  };
 
   executables = hself: hsuper:
     attrsets.genAttrs (builtins.attrNames executablesMap) (e: withCleanedPath hsuper.${e});
@@ -165,11 +170,12 @@ let
   staticExecutables = hself: hsuper:
     attrsets.mapAttrs'
       (name: _:
-        attrsets.nameValuePair "${name}-static" (hlib.justStaticExecutables hsuper."${name}")
+        # revert: executable profiling does not work with justStaticExecutables
+        attrsets.nameValuePair "${name}-static" (hself."${name}")
       )
       executablesMap;
 
-  hPkgs = localMods@{ enableOptimization, enableDocs, enableTests }: pkgs.haskellPackages.override {
+  hPkgs = localMods: pkgs.haskellPackages.override {
     overrides = lib.composeManyExtensions [
       pinnedPackages
       (localPackages localMods)
@@ -179,7 +185,7 @@ let
     ];
   };
 
-  extractExec = localMods@{ enableOptimization, enableDocs, enableTests }: hPkgName: execName:
+  extractExec = localMods: hPkgName: execName:
     pkgs.stdenv.mkDerivation {
       name = execName;
       buildInputs = [ (hPkgs localMods)."${hPkgName}-static" ];
@@ -197,12 +203,10 @@ let
   # dependencies like openssl, cryptobox, libxml2, etc. Doing this makes the
   # final images that we generate much smaller as we don't have to carry
   # around so files for all haskell packages.
-  staticExecs = localMods@{ enableOptimization, enableDocs, enableTests }:
+  staticExecs = localMods:
     let
       nested = attrsets.mapAttrs
-        (hPkgName: execNames:
-          attrsets.genAttrs execNames (extractExec localMods hPkgName)
-        )
+        (hPkgName: execNames: attrsets.genAttrs execNames (extractExec localMods hPkgName))
         executablesMap;
       unnested = lib.lists.foldr (x: y: x // y) { } (attrsets.attrValues nested);
     in
@@ -272,23 +276,24 @@ let
     cargohold-integration = [ pkgs.awscli2 ];
     spar-integration = [ pkgs.awscli2 ];
     federator-integration = [ pkgs.awscli2 ];
-    integration = with exes; [
-      brig
-      brig-index
-      brig-schema
-      cannon
-      cargohold
-      federator
-      galley
-      galley-schema
-      gundeck
-      gundeck-schema
-      proxy
-      spar
-      spar-schema
-      stern
+    integration = [
+      exes.brig
+      exes.brig-index
+      exes.brig-schema
+      exes.cannon
+      exes.cargohold
+      exes.federator
+      exes.galley
+      exes.galley-schema
+      exes.gundeck
+      exes.gundeck-schema
+      exes.proxy
+      exes.spar
+      exes.spar-schema
+      exes.stern
+      exes.background-worker
+
       brig-templates
-      background-worker
       pkgs.nginz
       pkgs.mls-test-cli
       pkgs.awscli2
@@ -316,7 +321,7 @@ let
     which
   ];
 
-  images = localMods@{ enableOptimization, enableDocs, enableTests }:
+  images = localMods:
     let exes = staticExecs localMods;
     in
     attrsets.mapAttrs
@@ -341,6 +346,7 @@ let
           '';
           config = {
             Entrypoint = [ "${pkgs.dumb-init}/bin/dumb-init" "--" "${drv}/bin/${execName}" ];
+            WorkingDir = "/tmp";
             Env = [
               "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"
               "LOCALE_ARCHIVE=${pkgs.glibcLocales}/lib/locale/locale-archive"
@@ -452,7 +458,7 @@ let
     name = "profile-env";
     destination = "/.profile";
     # This gets sourced by direnv. Set NIX_PATH, so `nix-shell` uses the same nixpkgs as here.
-    text = ''
+    text = /*bash*/ ''
       export NIX_PATH=nixpkgs=${toString pkgs.path}
       export LOCALE_ARCHIVE=${pkgs.glibcLocales}/lib/locale/locale-archive
     '';
