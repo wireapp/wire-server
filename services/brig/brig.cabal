@@ -116,8 +116,6 @@ library
     Brig.Data.Types
     Brig.Data.User
     Brig.DeleteQueue.Interpreter
-    Brig.Effects.BlacklistPhonePrefixStore
-    Brig.Effects.BlacklistPhonePrefixStore.Cassandra
     Brig.Effects.BlacklistStore
     Brig.Effects.BlacklistStore.Cassandra
     Brig.Effects.ConnectionStore
@@ -141,7 +139,6 @@ library
     Brig.IO.Journal
     Brig.IO.Logging
     Brig.Options
-    Brig.Phone
     Brig.Provider.API
     Brig.Provider.DB
     Brig.Provider.Email
@@ -205,7 +202,6 @@ library
     Brig.User.Auth.Cookie
     Brig.User.Auth.Cookie.Limit
     Brig.User.EJPD
-    Brig.User.Phone
     Brig.User.Search.Index
     Brig.User.Search.Index.Types
     Brig.User.Search.SearchIndex
@@ -301,7 +297,6 @@ library
     , raw-strings-qq
     , resourcet                  >=1.1
     , retry                      >=0.7
-    , ropes                      >=0.4.20
     , safe-exceptions            >=0.1
     , saml2-web-sso
     , schema-profunctor

@@ -133,33 +133,13 @@ registerUser name brig = do
             ]
   post (brig . path "/register" . contentJson . body p)
 
-createRandomPhoneUser :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> m (UserId, Phone)
-createRandomPhoneUser brig = do
-  usr <- randomUser brig
-  let uid = userId usr
-  phn <- liftIO randomPhone
-  -- update phone
-  let phoneUpdate = RequestBodyLBS . encode $ PhoneUpdate phn
-  put (brig . path "/self/phone" . contentJson . zUser uid . zConn "c" . body phoneUpdate)
-    !!! (const 202 === statusCode)
-  -- activate
-  act <- getActivationCode brig (Right phn)
-  case act of
-    Nothing -> liftIO $ assertFailure "missing activation key/code"
-    Just kc -> activate brig kc !!! const 200 === statusCode
-  -- check new phone
-  get (brig . path "/self" . zUser uid) !!! do
-    const 200 === statusCode
-    const (Just phn) === (userPhone <=< responseJsonMaybe)
-  pure (uid, phn)
-
 initiatePasswordReset :: Brig -> Email -> (MonadHttp m) => m ResponseLBS
 initiatePasswordReset brig email =
   post
     ( brig
         . path "/password-reset"
         . contentJson
-        . body (RequestBodyLBS . encode $ NewPasswordReset (Left email))
+        . body (RequestBodyLBS . encode $ NewPasswordReset email)
     )
 
 activateEmail :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> Email -> m ()
@@ -198,10 +178,11 @@ initiateEmailUpdateCreds brig email (cky, tok) uid = do
       . zUser uid
       . Bilge.json (EmailUpdate email)
 
-initiateEmailUpdateNoSend :: Brig -> Email -> UserId -> (MonadHttp m) => m ResponseLBS
+initiateEmailUpdateNoSend :: (MonadHttp m, MonadIO m, MonadCatch m) => Brig -> Email -> UserId -> m ResponseLBS
 initiateEmailUpdateNoSend brig email uid =
   let emailUpdate = RequestBodyLBS . encode $ EmailUpdate email
    in put (brig . path "/i/self/email" . contentJson . zUser uid . body emailUpdate)
+        <!! const 202 === statusCode
 
 preparePasswordReset ::
   (MonadIO m, MonadHttp m) =>

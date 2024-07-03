@@ -361,7 +361,6 @@ type SelfAPI =
                \email address and a password."
           :> MakesFederatedCall 'Brig "send-connection-action"
           :> ZUser
-          :> ZConn
           :> "self"
           :> "phone"
           :> MultiVerb 'DELETE '[JSON] RemoveIdentityResponses (Maybe RemoveIdentityError)
@@ -377,7 +376,6 @@ type SelfAPI =
                \phone number."
           :> MakesFederatedCall 'Brig "send-connection-action"
           :> ZUser
-          :> ZConn
           :> "self"
           :> "email"
           :> MultiVerb 'DELETE '[JSON] RemoveIdentityResponses (Maybe RemoveIdentityError)
@@ -481,8 +479,8 @@ type AccountAPI =
     ( Summary "Register a new user."
         :> Description
              "If the environment where the registration takes \
-             \place is private and a registered email address or phone \
-             \number is not whitelisted, a 403 error is returned."
+             \place is private and a registered email address \
+             \is not whitelisted, a 403 error is returned."
         :> MakesFederatedCall 'Brig "send-connection-action"
         :> "register"
         :> ReqBody '[JSON] NewUserPublic
@@ -550,12 +548,11 @@ type AccountAPI =
     -- docs/reference/user/activation.md {#RefActivationRequest}
     :<|> Named
            "post-activate-send"
-           ( Summary "Send (or resend) an email or phone activation code."
+           ( Summary "Send (or resend) an email activation code."
                :> CanThrow 'UserKeyExists
                :> CanThrow 'InvalidEmail
                :> CanThrow 'InvalidPhone
                :> CanThrow 'BlacklistedEmail
-               :> CanThrow 'BlacklistedPhone
                :> CanThrow 'CustomerExtensionBlockedDomain
                :> "activate"
                :> "send"
@@ -1482,7 +1479,6 @@ type AuthAPI =
                :> CanThrow 'InvalidEmail
                :> CanThrow 'UserKeyExists
                :> CanThrow 'BlacklistedEmail
-               :> CanThrow 'BlacklistedPhone
                :> CanThrow 'BadCredentials
                :> MultiVerb
                     'PUT

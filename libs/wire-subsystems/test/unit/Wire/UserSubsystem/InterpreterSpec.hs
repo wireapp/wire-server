@@ -453,7 +453,7 @@ spec = describe "UserSubsystem.Interpreter" do
 
   describe "getLocalUserAccountByUserKey" $ do
     prop "gets users iff they are indexed by the UserKeyStore" $
-      \(config :: UserSubsystemConfig) (localDomain :: Domain) (storedUser :: StoredUser) (userKey :: UserKey) ->
+      \(config :: UserSubsystemConfig) (localDomain :: Domain) (storedUser :: StoredUser) (userKey :: EmailKey) ->
         let localBackend =
               def
                 { users = [storedUser],
@@ -480,11 +480,11 @@ spec = describe "UserSubsystem.Interpreter" do
                 . runErrorUnsafe
                 . runErrorUnsafe @UserSubsystemError
                 . interpretNoFederationStack localBackend Nothing def config
-                $ getLocalUserAccountByUserKey (toLocalUnsafe localDomain (userEmailKey email))
+                $ getLocalUserAccountByUserKey (toLocalUnsafe localDomain (mkEmailKey email))
          in retrievedUser === Nothing
 
     prop "doesn't get users if they are not present in the UserStore but somehow are still indexed in UserKeyStore" $
-      \(config :: UserSubsystemConfig) (localDomain :: Domain) (nonExistentUserId :: UserId) (userKey :: UserKey) ->
+      \(config :: UserSubsystemConfig) (localDomain :: Domain) (nonExistentUserId :: UserId) (userKey :: EmailKey) ->
         let localBackend =
               def
                 { users = [],

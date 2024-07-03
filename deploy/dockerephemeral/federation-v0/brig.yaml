@@ -200,9 +200,6 @@ optSettings:
   # To only allow specific email address domains to register, uncomment and update the setting below
   # setAllowlistEmailDomains:
   #   - wire.com
-  # To only allow specific phone number prefixes to register uncomment and update the settings below
-  # setAllowlistPhonePrefixes:
-  #   - "+1555555"
   # needs to be kept in sync with services/nginz/integration-test/resources/oauth/ed25519_public.jwk
   setOAuthJwkKeyPair: /etc/wire/brig/conf/oauth-ed25519.jwk
   setOAuthAuthCodeExpirationTimeSecs: 3 # 3 secs

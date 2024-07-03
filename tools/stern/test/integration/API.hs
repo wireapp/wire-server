@@ -65,7 +65,6 @@ tests s =
       test s "POST /users/:uid/suspend" testSuspendUser,
       test s "POST /users/:uid/unsuspend" testUnsuspendUser,
       test s "GET /users/by-email" testGetUsersByEmail,
-      test s "GET /users/by-phone" testGetUsersByPhone,
       test s "GET /users/by-ids" testGetUsersByIds,
       test s "GET /users/by-handles" testGetUsersByHandles,
       test s "GET /users/:id/connections" testGetConnections,
@@ -73,7 +72,6 @@ tests s =
       test s "GET /users/:uid/search" testSearchUsers,
       test s "POST /users/revoke-identity?email=..." testRevokeIdentity,
       test s "PUT /users/:uid/email" testPutEmail,
-      test s "PUT /users/:uid/phone" testPutPhone,
       test s "DELETE /users/:uid" testDeleteUser,
       test s "PUT /teams/:tid/suspend" testSuspendTeam,
       test s "PUT /teams/:tid/unsuspend" testUnsuspendTeam,
@@ -174,13 +172,6 @@ testGetUserMetaInfo = do
   putUserProperty uid k "bar"
   -- Just make sure this returns a 200
   void $ getUserMetaInfo uid
-
-testPutPhone :: TestM ()
-testPutPhone = do
-  uid <- randomUser
-  phone <- randomPhone
-  -- We simply test that this call returns 200
-  putPhone uid (PhoneUpdate phone)
 
 testDeleteUser :: TestM ()
 testDeleteUser = do
@@ -405,12 +396,6 @@ testGetUsersByHandles = do
   [ua] <- getUsersByHandles h
   liftIO $ userId ua.accountUser @?= uid
 
-testGetUsersByPhone :: TestM ()
-testGetUsersByPhone = do
-  (uid, phone) <- randomPhoneUser
-  [ua] <- getUsersByPhone phone
-  liftIO $ userId ua.accountUser @?= uid
-
 testGetUsersByEmail :: TestM ()
 testGetUsersByEmail = do
   (uid, email) <- randomEmailUser
@@ -466,14 +451,13 @@ testSearchUsers = do
 
 testRevokeIdentity :: TestM ()
 testRevokeIdentity = do
-  (_, (email, phone)) <- randomEmailPhoneUser
+  (_, email) <- randomEmailUser
   do
     [ua] <- getUsersByEmail email
     liftIO $ do
       ua.accountStatus @?= Active
       isJust ua.accountUser.userIdentity @?= True
   void $ revokeIdentity (Left email)
-  void $ revokeIdentity (Right phone)
   do
     [ua] <- getUsersByEmail email
     liftIO $ do
@@ -509,12 +493,6 @@ getUsersByHandles :: Text -> TestM [UserAccount]
 getUsersByHandles h = do
   stern <- view tsStern
   r <- get (stern . paths ["users", "by-handles"] . queryItem "handles" (cs h) . expect2xx)
-  pure $ responseJsonUnsafe r
-
-getUsersByPhone :: Phone -> TestM [UserAccount]
-getUsersByPhone phone = do
-  stern <- view tsStern
-  r <- get (stern . paths ["users", "by-phone"] . queryItem "phone" (toByteString' phone) . expect2xx)
   pure $ responseJsonUnsafe r
 
 getUsersByEmail :: Email -> TestM [UserAccount]
@@ -570,11 +548,6 @@ putEmail :: UserId -> EmailUpdate -> TestM ()
 putEmail uid emailUpdate = do
   s <- view tsStern
   void $ put (s . paths ["users", toByteString' uid, "email"] . json emailUpdate . expect2xx)
-
-putPhone :: UserId -> PhoneUpdate -> TestM ()
-putPhone uid phoneUpdate = do
-  s <- view tsStern
-  void $ put (s . paths ["users", toByteString' uid, "phone"] . json phoneUpdate . expect2xx)
 
 deleteUser :: UserId -> Either Email Phone -> TestM ()
 deleteUser uid emailOrPhone = do
