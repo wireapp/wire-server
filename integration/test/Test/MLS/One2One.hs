@@ -215,11 +215,12 @@ data One2OneScenario
     One2OneScenarioRemoteConv
 
 instance TestCases One2OneScenario where
-  testCases =
-    [ MkTestCase "[domain=own]" One2OneScenarioLocal,
-      MkTestCase "[domain=other;conv=own]" One2OneScenarioLocalConv,
-      MkTestCase "[domain=other;conv=other]" One2OneScenarioRemoteConv
-    ]
+  mkTestCases =
+    pure
+      [ MkTestCase "[domain=own]" One2OneScenarioLocal,
+        MkTestCase "[domain=other;conv=own]" One2OneScenarioLocalConv,
+        MkTestCase "[domain=other;conv=other]" One2OneScenarioRemoteConv
+      ]
 
 one2OneScenarioUserDomain :: One2OneScenario -> Domain
 one2OneScenarioUserDomain One2OneScenarioLocal = OwnDomain
