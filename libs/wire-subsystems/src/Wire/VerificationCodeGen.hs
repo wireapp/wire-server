@@ -20,6 +20,7 @@ import Imports hiding (lookup)
 import Polysemy
 import Text.Printf
 import Wire.API.User.Identity
+import Wire.Arbitrary
 import Wire.Sem.Random
 import Wire.Sem.Random qualified as Random
 import Wire.UserKeyStore
@@ -31,6 +32,8 @@ import Wire.VerificationCode
 data RandomValueType
   = Random6DigitNumber
   | Random15Bytes
+  deriving (Show, Eq, Generic)
+  deriving (Arbitrary) via GenericUniform RandomValueType
 
 -- | A contextual string that is hashed into the key to yield distinct keys in
 -- different contexts for the same email address.
@@ -40,6 +43,8 @@ data VerificationCodeGen = VerificationCodeGen
     genKey :: !Key, -- Note [Unique keys]
     genValueType :: !RandomValueType
   }
+  deriving (Show, Eq, Generic)
+  deriving (Arbitrary) via GenericUniform VerificationCodeGen
 
 -- | Initialise a 'Code' 'VerificationCodeGen'erator for a given natural key.
 -- This generates a link for emails and a 6-digit code for phone. See also:

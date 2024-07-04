@@ -52,6 +52,7 @@
 , postie
 , QuickCheck
 , quickcheck-instances
+, random
 , resource-pool
 , resourcet
 , retry
@@ -172,6 +173,7 @@ mkDerivation {
     postie
     QuickCheck
     quickcheck-instances
+    random
     servant-client-core
     streaming-commons
     string-conversions

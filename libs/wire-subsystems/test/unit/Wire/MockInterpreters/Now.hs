@@ -18,5 +18,8 @@ interpretNowAsState =
   interpret $ \case
     Wire.Sem.Now.Get -> Polysemy.State.get
 
+defaultTime :: UTCTime
+defaultTime = UTCTime (ModifiedJulianDay 0) 0
+
 passTime :: (Member (State UTCTime) r) => NominalDiffTime -> Sem r ()
 passTime t = modify (addUTCTime t)

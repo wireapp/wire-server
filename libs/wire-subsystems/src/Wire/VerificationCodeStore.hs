@@ -11,7 +11,7 @@ data VerificationCodeStore m a where
   InsertCode :: Code -> VerificationCodeStore m ()
   LookupCode :: Key -> Scope -> VerificationCodeStore m (Maybe Code)
   DeleteCode :: Key -> Scope -> VerificationCodeStore m ()
-  InsertThrottle :: Key -> Scope -> Int -> VerificationCodeStore m ()
+  InsertThrottle :: Key -> Scope -> Word -> VerificationCodeStore m ()
   LookupThrottle :: Key -> Scope -> VerificationCodeStore m (Maybe RetryAfter)
 
 makeSem ''VerificationCodeStore

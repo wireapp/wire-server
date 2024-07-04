@@ -16,6 +16,7 @@ import Wire.VerificationCodeGen
 
 data VerificationCodeSubsystemError
   = VerificationCodeThrottled RetryAfter
+  deriving (Show, Eq)
 
 verificationCodeSubsystemErrorToHttpError :: VerificationCodeSubsystemError -> HttpError
 verificationCodeSubsystemErrorToHttpError = \case
@@ -26,6 +27,7 @@ verificationCodeSubsystemErrorToHttpError = \case
       [("Retry-After", toByteString' (retryAfterSeconds t))]
 
 newtype CodeAlreadyExists = CodeAlreadyExists Code
+  deriving (Show, Eq)
 
 data VerificationCodeSubsystem m a where
   CreateCode ::
@@ -52,6 +54,7 @@ data VerificationCodeSubsystem m a where
     -- | Associated account ID.
     Maybe UUID ->
     VerificationCodeSubsystem m Code
+  -- Returns the 'Code' iff verification suceeds.
   VerifyCode :: Key -> Scope -> Value -> VerificationCodeSubsystem m (Maybe Code)
   DeleteCode :: Key -> Scope -> VerificationCodeSubsystem m ()
   -- For internal endpoints

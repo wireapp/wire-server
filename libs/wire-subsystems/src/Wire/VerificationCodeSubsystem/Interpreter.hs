@@ -7,6 +7,7 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Wire.Arbitrary
 import Wire.Sem.Random
 import Wire.VerificationCode
 import Wire.VerificationCodeGen
@@ -27,7 +28,8 @@ interpretVerificationCodeSubsystem = interpret $ \case
   DeleteCode key scope -> Store.deleteCode key scope
   InternalLookupCode key scope -> Store.lookupCode key scope
 
-newtype VerificationCodeThrottleTTL = VerificationCodeThrottleTTL Int
+newtype VerificationCodeThrottleTTL = VerificationCodeThrottleTTL Word
+  deriving (Show, Eq, Arbitrary, Num, Enum, Ord, Real, Integral)
 
 createCodeImpl ::
   ( Member VerificationCodeStore r,

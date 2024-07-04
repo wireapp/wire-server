@@ -17,6 +17,7 @@ import Data.UUID (UUID)
 import Imports hiding (lookup)
 import Wire.API.User qualified as User
 import Wire.API.User.Identity
+import Wire.Arbitrary
 
 -- Note [Unique keys]
 --
@@ -53,6 +54,9 @@ data Code = Code
   { codeKey :: !Key,
     codeScope :: !Scope,
     codeValue :: !Value,
+    -- | This field is actually used as number of allowed "tries" rather than
+    -- "retries", so if a code has a retries = 1, verification can only be tried
+    -- once, and it cannot actually be "re"-tried after that.
     codeRetries :: !Retries,
     codeTTL :: !Timeout,
     codeFor :: !Email,
@@ -79,7 +83,8 @@ data Scope
   | AccountApproval
   | CreateScimToken
   | DeleteTeam
-  deriving (Eq, Show)
+  deriving (Eq, Show, Ord, Generic)
+  deriving (Arbitrary) via GenericUniform Scope
 
 instance Cql Scope where
   ctype = Tagged IntColumn
@@ -102,7 +107,7 @@ instance Cql Scope where
   fromCql _ = Left "fromCql: Scope: int expected"
 
 newtype Retries = Retries {numRetries :: Word8}
-  deriving (Eq, Show, Ord, Num, Integral, Enum, Real)
+  deriving (Eq, Show, Ord, Num, Integral, Enum, Real, Arbitrary)
 
 instance Cql Retries where
   ctype = Tagged IntColumn

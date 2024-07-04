@@ -73,7 +73,7 @@ lookupThrottleImpl k s = do
       "SELECT ttl(initial_delay) \
       \FROM vcodes_throttle WHERE key = ? AND scope = ?"
 
-insertThrottleImpl :: (MonadClient m) => Key -> Scope -> Int -> m ()
+insertThrottleImpl :: (MonadClient m) => Key -> Scope -> Word -> m ()
 insertThrottleImpl k s t = do
   retry x5 (write cql (params LocalQuorum (k, s, fromIntegral t, fromIntegral t)))
   where
