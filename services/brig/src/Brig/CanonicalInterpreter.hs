@@ -179,7 +179,7 @@ runBrigToIO e (AppT ma) = do
               . runInputConst (e ^. settings . Opt.allowlistEmailDomains)
               . runInputConst (toLocalUnsafe (e ^. settings . Opt.federationDomain) ())
               . runInputSem (embed getCurrentTime)
-              . runInputConst (e ^. settings . to Opt.set2FACodeGenerationDelaySecs . to VerificationCodeThrottleTTL)
+              . runInputConst (e ^. settings . to Opt.set2FACodeGenerationDelaySecs . to fromIntegral)
               . connectionStoreToCassandra
               . interpretSFT (e ^. httpManager)
               . interpretVerificationCodeStoreCassandra (e ^. casClient)
