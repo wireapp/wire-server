@@ -9,7 +9,10 @@ FED_VERSIONS=(0 1)
 
 opts=( "--file" "$DOCKER_FILE" )
 for v in "${FED_VERSIONS[@]}"; do
-  opts+=( "--file" "$SCRIPT_DIR/federation-v$v.yaml" )
+  var="ENABLE_FEDERATION_V$v"
+  if [[ "${!var}" == 1 ]]; then
+    opts+=( "--file" "$SCRIPT_DIR/federation-v$v.yaml" )
+  fi
 done
 
 dc() {
