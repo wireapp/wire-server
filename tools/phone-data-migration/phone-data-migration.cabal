@@ -24,13 +24,20 @@ library
   build-depends:
     , aeson
     , aeson-pretty
+    , attoparsec
+    , base
     , bytestring
+    , bytestring-conversion
     , cassandra-util
     , conduit
+    , containers
     , cql
+    , exceptions
+    , extended
     , imports
     , lens
     , optparse-applicative
+    , text
     , time
     , tinylog
     , types-common

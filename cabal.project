@@ -64,8 +64,6 @@ benchmarks: True
 
 program-options
     ghc-options: -Werror
-package phone-data-migration
-    ghc-options: -Werror
 
 -- NOTE:
 -- - these packages are not provided by nix, reason being, that
