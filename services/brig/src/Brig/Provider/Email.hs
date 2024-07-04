@@ -41,8 +41,8 @@ import Polysemy
 import Wire.API.Provider
 import Wire.API.User
 import Wire.EmailSending
-import Wire.EmailSmsSubsystem.Interpreter (mkMimeAddress)
-import Wire.EmailSmsSubsystem.Template (TemplateBranding, renderHtmlWithBranding, renderTextWithBranding)
+import Wire.EmailSubsystem.Interpreter (mkMimeAddress)
+import Wire.EmailSubsystem.Template (TemplateBranding, renderHtmlWithBranding, renderTextWithBranding)
 
 -------------------------------------------------------------------------------
 -- Activation Email

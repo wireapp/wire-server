@@ -1,7 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Wire.EmailSmsSubsystem.Interpreter
-  ( emailSmsSubsystemInterpreter,
+module Wire.EmailSubsystem.Interpreter
+  ( emailSubsystemInterpreter,
     mkMimeAddress,
   )
 where
@@ -21,11 +21,11 @@ import Wire.API.User.Activation
 import Wire.API.User.Client (Client (..))
 import Wire.API.User.Password
 import Wire.EmailSending (EmailSending, sendMail)
-import Wire.EmailSmsSubsystem
-import Wire.EmailSmsSubsystem.Template
+import Wire.EmailSubsystem
+import Wire.EmailSubsystem.Template
 
-emailSmsSubsystemInterpreter :: (Member EmailSending r) => Localised UserTemplates -> TemplateBranding -> InterpreterFor EmailSmsSubsystem r
-emailSmsSubsystemInterpreter tpls branding = interpret \case
+emailSubsystemInterpreter :: (Member EmailSending r) => Localised UserTemplates -> TemplateBranding -> InterpreterFor EmailSubsystem r
+emailSubsystemInterpreter tpls branding = interpret \case
   SendPasswordResetMail email (key, code) mLocale -> sendPasswordResetMailImpl tpls branding email key code mLocale
   SendVerificationMail email key code mLocale -> sendVerificationMailImpl tpls branding email key code mLocale
   SendTeamDeletionVerificationMail email code mLocale -> sendTeamDeletionVerificationMailImpl tpls branding email code mLocale

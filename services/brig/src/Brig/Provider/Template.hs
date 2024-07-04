@@ -36,7 +36,7 @@ import Data.Misc (HttpsUrl)
 import Data.Text.Encoding (encodeUtf8)
 import Imports
 import Wire.API.User.Identity
-import Wire.EmailSmsSubsystem.Template
+import Wire.EmailSubsystem.Template
 
 data ProviderTemplates = ProviderTemplates
   { activationEmail :: !ActivationEmailTemplate,

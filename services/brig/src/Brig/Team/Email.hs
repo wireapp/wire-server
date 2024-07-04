@@ -38,7 +38,7 @@ import Network.Mail.Mime
 import Polysemy
 import Wire.API.User
 import Wire.EmailSending
-import Wire.EmailSmsSubsystem.Template (TemplateBranding, renderHtmlWithBranding, renderTextWithBranding)
+import Wire.EmailSubsystem.Template (TemplateBranding, renderHtmlWithBranding, renderTextWithBranding)
 
 -------------------------------------------------------------------------------
 -- Invitation Email

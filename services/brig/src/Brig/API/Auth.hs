@@ -53,7 +53,7 @@ import Wire.API.User.Auth hiding (access)
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
-import Wire.EmailSmsSubsystem (EmailSmsSubsystem)
+import Wire.EmailSubsystem (EmailSubsystem)
 import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.PasswordStore (PasswordStore)
@@ -141,7 +141,7 @@ logout uts (Just at) = Auth.logout (List1 uts) at !>> zauthError
 changeSelfEmailH ::
   ( Member BlacklistStore r,
     Member UserKeyStore r,
-    Member EmailSmsSubsystem r
+    Member EmailSubsystem r
   ) =>
   [Either Text SomeUserToken] ->
   Maybe (Either Text SomeAccessToken) ->

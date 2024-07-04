@@ -153,7 +153,7 @@ import Wire.API.Locale (Locale)
 import Wire.API.Routes.Version
 import Wire.API.User.Identity (Email)
 import Wire.EmailSending.SMTP qualified as SMTP
-import Wire.EmailSmsSubsystem.Template (TemplateBranding, forLocale)
+import Wire.EmailSubsystem.Template (TemplateBranding, forLocale)
 import Wire.SessionStore
 import Wire.SessionStore.Cassandra
 import Wire.UserKeyStore

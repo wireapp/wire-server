@@ -147,7 +147,7 @@ import Wire.API.User.RichInfo
 import Wire.API.UserEvent
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem, internalLookupPasswordResetCode)
 import Wire.DeleteQueue
-import Wire.EmailSmsSubsystem
+import Wire.EmailSubsystem
 import Wire.Error
 import Wire.GalleyAPIAccess as GalleyAPIAccess
 import Wire.NotificationSubsystem
@@ -562,7 +562,7 @@ changeManagedBy uid conn (ManagedByUpdate mb) = do
 
 -- | Call 'changeEmail' and process result: if email changes to itself, succeed, if not, send
 -- validation email.
-changeSelfEmail :: (Member BlacklistStore r, Member UserKeyStore r, Member EmailSmsSubsystem r) => UserId -> Email -> UpdateOriginType -> ExceptT HttpError (AppT r) ChangeEmailResponse
+changeSelfEmail :: (Member BlacklistStore r, Member UserKeyStore r, Member EmailSubsystem r) => UserId -> Email -> UpdateOriginType -> ExceptT HttpError (AppT r) ChangeEmailResponse
 changeSelfEmail u email allowScim = do
   changeEmail u email allowScim !>> Error.changeEmailError >>= \case
     ChangeEmailIdempotent ->
@@ -805,7 +805,7 @@ onActivated (EmailActivated uid email) = do
 -- docs/reference/user/activation.md {#RefActivationRequest}
 sendActivationCode ::
   ( Member BlacklistStore r,
-    Member EmailSmsSubsystem r,
+    Member EmailSubsystem r,
     Member GalleyAPIAccess r,
     Member UserKeyStore r
   ) =>
@@ -926,7 +926,7 @@ deleteSelfUser ::
     Member UserStore r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
-    Member EmailSmsSubsystem r,
+    Member EmailSubsystem r,
     Member VerificationCodeSubsystem r
   ) =>
   UserId ->

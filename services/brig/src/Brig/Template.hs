@@ -44,7 +44,7 @@ import Data.Text.Template (Template, template)
 import Imports hiding (readFile)
 import System.IO.Error (isDoesNotExistError)
 import Wire.API.User
-import Wire.EmailSmsSubsystem.Template (Localised (Localised))
+import Wire.EmailSubsystem.Template (Localised (Localised))
 
 -- | See 'genTemplateBranding'.
 type TemplateBranding = Text -> Text

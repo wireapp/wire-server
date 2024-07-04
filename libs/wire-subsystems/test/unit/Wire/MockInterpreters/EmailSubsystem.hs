@@ -1,11 +1,11 @@
-module Wire.MockInterpreters.EmailSmsSubsystem where
+module Wire.MockInterpreters.EmailSubsystem where
 
 import Data.Map qualified as Map
 import Imports
 import Polysemy
 import Polysemy.State
 import Wire.API.User
-import Wire.EmailSmsSubsystem
+import Wire.EmailSubsystem
 
 data SentMail = SentMail
   { locale :: Maybe Locale,
@@ -16,10 +16,10 @@ data SentMail = SentMail
 data SentMailContent = PasswordResetMail PasswordResetPair
   deriving (Show, Eq)
 
-emailSmsSubsystemInterpreter :: (Member (State (Map Email [SentMail])) r) => InterpreterFor EmailSmsSubsystem r
-emailSmsSubsystemInterpreter = interpret \case
+emailSubsystemInterpreter :: (Member (State (Map Email [SentMail])) r) => InterpreterFor EmailSubsystem r
+emailSubsystemInterpreter = interpret \case
   SendPasswordResetMail email keyCodePair mLocale -> modify $ Map.insertWith (<>) email [SentMail mLocale $ PasswordResetMail keyCodePair]
-  _ -> error "emailSmsSubsystemInterpreter: implement on demand"
+  _ -> error "emailSubsystemInterpreter: implement on demand"
 
 getEmailsSentTo :: (Member (State (Map Email [SentMail])) r) => Email -> Sem r [SentMail]
 getEmailsSentTo email = gets $ Map.findWithDefault [] email

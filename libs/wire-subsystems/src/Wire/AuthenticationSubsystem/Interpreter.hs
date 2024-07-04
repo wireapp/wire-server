@@ -41,7 +41,7 @@ import Wire.API.User
 import Wire.API.User.Password
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Error
-import Wire.EmailSmsSubsystem
+import Wire.EmailSubsystem
 import Wire.HashPassword
 import Wire.PasswordResetCodeStore
 import Wire.PasswordStore
@@ -63,7 +63,7 @@ interpretAuthenticationSubsystem ::
     Member (Input (Maybe AllowlistEmailDomains)) r,
     Member UserSubsystem r,
     Member PasswordStore r,
-    Member EmailSmsSubsystem r
+    Member EmailSubsystem r
   ) =>
   InterpreterFor AuthenticationSubsystem r
 interpretAuthenticationSubsystem = interpret $ \case
@@ -97,7 +97,7 @@ createPasswordResetCodeImpl ::
     Member (Input (Maybe AllowlistEmailDomains)) r,
     Member TinyLog r,
     Member UserSubsystem r,
-    Member EmailSmsSubsystem r
+    Member EmailSubsystem r
   ) =>
   EmailKey ->
   Sem r ()

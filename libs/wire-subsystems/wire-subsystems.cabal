@@ -78,9 +78,9 @@ library
     Wire.EmailSending
     Wire.EmailSending.SES
     Wire.EmailSending.SMTP
-    Wire.EmailSmsSubsystem
-    Wire.EmailSmsSubsystem.Interpreter
-    Wire.EmailSmsSubsystem.Template
+    Wire.EmailSubsystem
+    Wire.EmailSubsystem.Interpreter
+    Wire.EmailSubsystem.Template
     Wire.Error
     Wire.FederationAPIAccess
     Wire.FederationAPIAccess.Interpreter
@@ -200,7 +200,7 @@ test-suite wire-subsystems-tests
     Wire.AuthenticationSubsystem.InterpreterSpec
     Wire.MiniBackend
     Wire.MockInterpreters
-    Wire.MockInterpreters.EmailSmsSubsystem
+    Wire.MockInterpreters.EmailSubsystem
     Wire.MockInterpreters.Error
     Wire.MockInterpreters.GalleyAPIAccess
     Wire.MockInterpreters.HashPassword

@@ -154,7 +154,7 @@ import Wire.API.Wrapped qualified as Public
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem, createPasswordResetCode, resetPassword)
 import Wire.DeleteQueue
 import Wire.EmailSending (EmailSending)
-import Wire.EmailSmsSubsystem
+import Wire.EmailSubsystem
 import Wire.Error
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
@@ -305,7 +305,7 @@ servantSitemap ::
     Member SFT r,
     Member TinyLog r,
     Member (UserPendingActivationStore p) r,
-    Member EmailSmsSubsystem r,
+    Member EmailSubsystem r,
     Member EmailSending r,
     Member VerificationCodeSubsystem r
   ) =>
@@ -618,7 +618,7 @@ addClient ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
-    Member EmailSmsSubsystem r,
+    Member EmailSubsystem r,
     Member VerificationCodeSubsystem r
   ) =>
   UserId ->
@@ -749,7 +749,7 @@ createUser ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
-    Member EmailSmsSubsystem r,
+    Member EmailSubsystem r,
     Member EmailSending r
   ) =>
   Public.NewUserPublic ->
@@ -804,7 +804,7 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
   -- pure $ CreateUserResponse cok userId (Public.SelfProfile usr)
   pure $ Public.RegisterSuccess cok (Public.SelfProfile usr)
   where
-    sendActivationEmail :: (Member EmailSmsSubsystem r) => Public.Email -> Public.Name -> ActivationPair -> Maybe Public.Locale -> Maybe Public.NewTeamUser -> (AppT r) ()
+    sendActivationEmail :: (Member EmailSubsystem r) => Public.Email -> Public.Name -> ActivationPair -> Maybe Public.Locale -> Maybe Public.NewTeamUser -> (AppT r) ()
     sendActivationEmail email name (key, code) locale mTeamUser
       | Just teamUser <- mTeamUser,
         Public.NewTeamCreator creator <- teamUser,
@@ -1071,7 +1071,7 @@ completePasswordReset req = do
 -- docs/reference/user/registration.md {#RefRegistration}
 sendActivationCode ::
   ( Member BlacklistStore r,
-    Member EmailSmsSubsystem r,
+    Member EmailSubsystem r,
     Member GalleyAPIAccess r,
     Member UserKeyStore r
   ) =>
@@ -1236,7 +1236,7 @@ deleteSelfUser ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
-    Member EmailSmsSubsystem r,
+    Member EmailSubsystem r,
     Member VerificationCodeSubsystem r
   ) =>
   UserId ->
@@ -1265,7 +1265,7 @@ updateUserEmail ::
   ( Member BlacklistStore r,
     Member UserKeyStore r,
     Member GalleyAPIAccess r,
-    Member EmailSmsSubsystem r
+    Member EmailSubsystem r
   ) =>
   UserId ->
   UserId ->
@@ -1338,7 +1338,7 @@ sendVerificationCode ::
   forall r.
   ( Member GalleyAPIAccess r,
     Member UserKeyStore r,
-    Member EmailSmsSubsystem r,
+    Member EmailSubsystem r,
     Member VerificationCodeSubsystem r
   ) =>
   Public.SendVerificationCode ->
