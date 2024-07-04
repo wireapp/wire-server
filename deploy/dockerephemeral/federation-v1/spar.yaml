@@ -33,6 +33,8 @@ cassandra:
 # Wire/AWS specific, optional
 # discoUrl: "https://"
 
+disabledAPIVersions: []
+
 maxttlAuthreq: 5  # seconds.  don't set this too large, it is also the run time of one TTL test.
 maxttlAuthresp: 7200  # seconds.  do not set this to 1h or less, as that is what the mock idp wants.
 

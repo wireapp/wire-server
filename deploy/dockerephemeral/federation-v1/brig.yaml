@@ -34,6 +34,8 @@ federatorInternal:
   host: federator-federation-v1
   port: 8080
 
+multiSFT: false
+
 # You can set up local SQS/Dynamo running e.g. `../../deploy/dockerephemeral/run.sh`
 aws:
   userJournalQueue: integration-user-events-federation-v1.fifo
@@ -192,6 +194,7 @@ optSettings:
     - domain: example.com
       search_policy: full_search
   set2FACodeGenerationDelaySecs: 5
+  setDisabledAPIVersions: []
   setNonceTtlSecs: 5
   setDpopMaxSkewSecs: 1
   setDpopTokenExpirationTimeSecs: 300 # 5 minutes

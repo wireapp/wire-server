@@ -13,6 +13,8 @@ maxConns: 5000
 # File containing upstream secrets.
 secretsConfig: /etc/wire/proxy/conf/proxy.config
 
+disabledAPIVersions: []
+
 # Logging settings
 logLevel: Info
 logNetStrings: false
