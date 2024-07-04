@@ -52,6 +52,7 @@ packages:
   , tools/db/repair-brig-clients-table/
   , tools/db/service-backfill/
   , tools/fedcalls/
+  , tools/phone-data-migration
   , tools/rabbitmq-consumer
   , tools/rex/
   , tools/stern/
@@ -62,6 +63,8 @@ tests: True
 benchmarks: True
 
 program-options
+    ghc-options: -Werror
+package phone-data-migration
     ghc-options: -Werror
 
 -- NOTE:
