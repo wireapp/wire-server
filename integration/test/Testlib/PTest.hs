@@ -34,7 +34,7 @@ instance (HasTests x, TestCases a) => HasTests (a -> x) where
       mkTests m (n <> tc.testCaseName) s f (x tc.testCase)
 
 data TestCase a = MkTestCase {testCaseName :: String, testCase :: a}
-  deriving stock (Eq, Ord, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic, Functor)
 
 -- | enumerate all members of a bounded enum type
 class TestCases a where

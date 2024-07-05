@@ -195,8 +195,8 @@ testUnrace = do
   -}
   retryT $ True `shouldMatch` True
 
-testFedV0Instance :: (HasCallStack) => FedDomain 0 -> App ()
-testFedV0Instance domain = do
+testLegacyFedInstance :: (HasCallStack) => AnyFedDomain -> App ()
+testLegacyFedInstance domain = do
   res <- BrigP.getAPIVersion domain >>= getJSON 200
   res %. "domain" `shouldMatch` domain
 

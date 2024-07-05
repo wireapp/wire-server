@@ -252,16 +252,17 @@ services:
     networks:
       - demo_wire
 
-  # This coredns serves slightly different SRV records, so federator running in
-  # a docker container can talk to federator running on the host.
-  coredns-federation-v1:
-    image: docker.io/coredns/coredns:1.8.4
-    volumes:
-      - ./federation-v1/coredns-config:/coredns-config
-    entrypoint:
-      - /coredns
-      - -conf
-      - /coredns-config/Corefile
-    networks:
-      coredns:
-        ipv4_address: 172.20.1.4
+  #
+  # # This coredns serves slightly different SRV records, so federator running in
+  # # a docker container can talk to federator running on the host.
+  # coredns-federation-v1:
+  #   image: docker.io/coredns/coredns:1.8.4
+  #   volumes:
+  #     - ./federation-v1/coredns-config:/coredns-config
+  #   entrypoint:
+  #     - /coredns
+  #     - -conf
+  #     - /coredns-config/Corefile
+  #   networks:
+  #     coredns:
+  #       ipv4_address: 172.20.1.4

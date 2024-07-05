@@ -105,6 +105,7 @@ data GlobalEnv = GlobalEnv
     gDomain2 :: String,
     gIntegrationTestHostName :: String,
     gFederationV0Domain :: String,
+    gFederationV1Domain :: String,
     gDynamicDomains :: [String],
     gDefaultAPIVersion :: Int,
     gManager :: HTTP.Manager,
@@ -120,6 +121,7 @@ data IntegrationConfig = IntegrationConfig
   { backendOne :: BackendConfig,
     backendTwo :: BackendConfig,
     federationV0 :: BackendConfig,
+    federationV1 :: BackendConfig,
     integrationTestHostName :: String,
     dynamicBackends :: Map String DynamicBackendConfig,
     rabbitmq :: RabbitMQConfig,
@@ -134,6 +136,7 @@ instance FromJSON IntegrationConfig where
         <$> parseJSON (Object o)
         <*> o .: fromString "backendTwo"
         <*> o .: fromString "federation-v0"
+        <*> o .: fromString "federation-v1"
         <*> o .: fromString "integrationTestHostName"
         <*> o .: fromString "dynamicBackends"
         <*> o .: fromString "rabbitmq"
@@ -201,6 +204,7 @@ data Env = Env
     domain2 :: String,
     integrationTestHostName :: String,
     federationV0Domain :: String,
+    federationV1Domain :: String,
     dynamicDomains :: [String],
     defaultAPIVersion :: Int,
     manager :: HTTP.Manager,
