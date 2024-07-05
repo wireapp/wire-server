@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wwarn #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2024 Wire Swiss GmbH <opensource@wire.com>
@@ -19,18 +20,18 @@
 module PhoneDataMigration.Types where
 
 import Cassandra as C
+import qualified Cassandra.Settings as C
 import Control.Lens
+import Control.Monad.Catch (MonadThrow)
+import Data.Attoparsec.Text (char, count, digit, endOfInput, parseOnly)
 import Data.Id
+import qualified Data.Text as Text
 import Data.Text.Strict.Lens
 import Imports
 import Options.Applicative
-import Wire.API.User (Email)
-import qualified Data.Text as Text
-import Data.Attoparsec.Text (parseOnly, char, digit, endOfInput, count)
 import qualified System.Logger as Log
-import qualified Cassandra.Settings as C
-import Control.Monad.Catch (MonadThrow)
 import System.Logger.Class (MonadLogger, log)
+import Wire.API.User (Email)
 
 data Env = Env
   { casClient :: C.ClientState,
@@ -149,17 +150,14 @@ data Result = Result
     ssoIdentityFull :: Int,
     noIdentity :: Int
   }
- deriving (Show)
+  deriving (Show)
 
 instance Semigroup Result where
   (Result t1 p1 e1 f1 s1 sp1 se1 sf1 ni1) <> (Result t2 p2 e2 f2 s2 sp2 se2 sf2 ni2) =
     Result (t1 + t2) (p1 + p2) (e1 + e2) (f1 + f2) (s1 + s2) (sp1 + sp2) (se1 + se2) (sf1 + sf2) (ni1 + ni2)
 
-
 instance Monoid Result where
   mempty = Result 0 0 0 0 0 0 0 0 0
-
-
 
 data User = User
   { id :: UserId,

@@ -23,14 +23,14 @@ module PhoneDataMigration.Lib where
 import Cassandra as C
 import Data.Conduit
 import qualified Data.Conduit.Combinators as Conduit
+import Data.Id
 import Imports
 import Options.Applicative
 import PhoneDataMigration.Types
-import System.Logger.Message ((.=), (~~))
-import qualified System.Logger.Class as Log
-import Data.Id
-import Wire.API.User (Email)
 import System.Logger.Class (MonadLogger)
+import qualified System.Logger.Class as Log
+import System.Logger.Message ((.=), (~~))
+import Wire.API.User (Email)
 
 pageSize :: Int32
 pageSize = 1000
@@ -75,30 +75,30 @@ handlePhoneUser :: (MonadClient m, MonadLogger m) => User -> m Result
 handlePhoneUser = \case
   User _uid Nothing Nothing False ->
     -- this case should not happen
-    pure $ mempty { total = 1, noIdentity = 1}
+    pure $ mempty {total = 1, noIdentity = 1}
   User _uid Nothing (Just _email) False ->
-    pure $ mempty { total = 1, emailIdentity = 1}
+    pure $ mempty {total = 1, emailIdentity = 1}
   User uid (Just phone) Nothing False -> do
     removePhoneData phone uid
-    pure $ mempty { total = 1, phoneIdentity = 1}
+    pure $ mempty {total = 1, phoneIdentity = 1}
   User uid (Just phone) (Just _email) False -> do
     removePhoneData phone uid
-    pure $ mempty { total = 1, fullIdentity = 1}
+    pure $ mempty {total = 1, fullIdentity = 1}
   User _uid Nothing Nothing True -> do
-    pure $ mempty { total = 1, ssoIdentity = 1}
+    pure $ mempty {total = 1, ssoIdentity = 1}
   User _uid Nothing (Just _email) True -> do
-    pure $ mempty { total = 1, ssoIdentityEmail = 1}
+    pure $ mempty {total = 1, ssoIdentityEmail = 1}
   User uid (Just _phone) Nothing True -> do
     Log.warn $
       "uid" .= show uid
         ~~ Log.msg (Log.val "user with sso id has a phone but no email. phone number was not removed. please check manually")
-    pure $ mempty { total = 1, ssoIdentityPhone = 1}
+    pure $ mempty {total = 1, ssoIdentityPhone = 1}
   User uid (Just phone) (Just _email) True -> do
     removePhoneData phone uid
-    pure $ mempty { total = 1, ssoIdentityFull = 1}
+    pure $ mempty {total = 1, ssoIdentityFull = 1}
 
 removePhoneDataStream :: ConduitT () o (AppT IO) Result
-removePhoneDataStream  = do
+removePhoneDataStream = do
   getUsers
     .| Conduit.concat
     .| Conduit.mapM handlePhoneUser
@@ -109,7 +109,8 @@ removePhoneDataStream  = do
     logEvery :: Int -> Result -> AppT IO ()
     logEvery i r =
       when (r.total `mod` i == 0) $
-        Log.info $ "intermediate_result" .= show r
+        Log.info $
+          "intermediate_result" .= show r
 
 run :: AppT IO ()
 run = do
