@@ -297,8 +297,10 @@ mkDerivation {
     bytestring-conversion
     case-insensitive
     cassandra-util
+    conduit
     containers
     cookie
+    cql
     data-default
     data-timeout
     email-validate

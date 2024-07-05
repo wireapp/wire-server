@@ -54,6 +54,7 @@
   service-backfill = hself.callPackage ../tools/db/service-backfill/default.nix { inherit gitignoreSource; };
   fedcalls = hself.callPackage ../tools/fedcalls/default.nix { inherit gitignoreSource; };
   mlsstats = hself.callPackage ../tools/mlsstats/default.nix { inherit gitignoreSource; };
+  phone-data-migration = hself.callPackage ../tools/phone-data-migration/default.nix { inherit gitignoreSource; };
   rabbitmq-consumer = hself.callPackage ../tools/rabbitmq-consumer/default.nix { inherit gitignoreSource; };
   rex = hself.callPackage ../tools/rex/default.nix { inherit gitignoreSource; };
   stern = hself.callPackage ../tools/stern/default.nix { inherit gitignoreSource; };
