@@ -3,25 +3,17 @@
 # must be regenerated whenever local packages are added or removed, or
 # dependencies are added or removed.
 { mkDerivation
-, aeson
-, aeson-pretty
 , attoparsec
 , base
-, bytestring
-, bytestring-conversion
 , cassandra-util
 , conduit
-, containers
-, cql
 , exceptions
-, extended
 , gitignoreSource
 , imports
 , lens
 , lib
 , optparse-applicative
 , text
-, time
 , tinylog
 , types-common
 , wire-api
@@ -33,23 +25,14 @@ mkDerivation {
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [
-    aeson
-    aeson-pretty
     attoparsec
-    base
-    bytestring
-    bytestring-conversion
     cassandra-util
     conduit
-    containers
-    cql
     exceptions
-    extended
     imports
     lens
     optparse-applicative
     text
-    time
     tinylog
     types-common
     wire-api
