@@ -104,9 +104,10 @@ handlePhoneUser user = do
       (Nothing, (Just _email), True) -> do
         pure $ mempty {total = 1, ssoIdentityEmail = 1}
       ((Just _phone), Nothing, True) -> do
-        Log.warn $
-          "uid" .= show user.id
-            ~~ Log.msg (Log.val "user with sso id has a phone but no email. phone number was not removed. please check manually")
+        Log.warn
+          $ "uid"
+          .= show user.id
+          ~~ Log.msg (Log.val "user with sso id has a phone but no email. phone number was not removed. please check manually")
         pure $ mempty {total = 1, ssoIdentityPhone = 1}
       ((Just phone), (Just _email), True) -> do
         removePhoneData phone user.id
@@ -123,9 +124,10 @@ removePhoneDataStream = do
   where
     logEvery :: Int -> Result -> AppT IO ()
     logEvery i r =
-      when (unIntSum r.total `mod` i == 0) $
-        Log.info $
-          "intermediate_result" .= show r
+      when (unIntSum r.total `mod` i == 0)
+        $ Log.info
+        $ "intermediate_result"
+        .= show r
 
 run :: AppT IO ()
 run = do
