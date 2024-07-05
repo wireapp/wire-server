@@ -40,4 +40,23 @@ instance TestCases AnyFedDomain where
     fmap (map (fmap AnyFedDomain) . concat)
       $ traverse
         (uncurry mkFedTestCase)
-        [("[fed=" <> show v <> "]", v) | v <- [0, 1]]
+        [("[domain=fed-v" <> show v <> "]", v) | v <- [0, 1]]
+
+-- | This can be used as an argument for parametrised tests. It will be bound
+-- to at least 'OtherDomain', and optionally to legacy federated domains,
+-- according to the values of the corresponding environment variables
+-- (@ENABLE_FEDERATION_V0@ and similar).
+data StaticDomain = StaticDomain | StaticFedDomain Integer
+
+instance MakesValue StaticDomain where
+  make StaticDomain = make OtherDomain
+  make (StaticFedDomain n) = make (AnyFedDomain n)
+
+instance TestCases StaticDomain where
+  mkTestCases = do
+    feds <-
+      fmap (map (fmap StaticFedDomain) . concat)
+        $ traverse
+          (uncurry mkFedTestCase)
+          [("[domain=fed-v" <> show v <> "]", v) | v <- [0, 1]]
+    pure $ [MkTestCase "[domain=other]" StaticDomain] <> feds

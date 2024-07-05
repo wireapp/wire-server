@@ -11,6 +11,7 @@ import Data.Traversable
 import GHC.Generics
 import GHC.TypeLits
 import Testlib.Env
+import Testlib.JSON
 import Testlib.Types
 import Prelude
 
@@ -34,7 +35,7 @@ instance (HasTests x, TestCases a) => HasTests (a -> x) where
       mkTests m (n <> tc.testCaseName) s f (x tc.testCase)
 
 data TestCase a = MkTestCase {testCaseName :: String, testCase :: a}
-  deriving stock (Eq, Ord, Show, Generic, Functor)
+  deriving stock (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
 
 -- | enumerate all members of a bounded enum type
 class TestCases a where
@@ -119,3 +120,15 @@ instance GEnum U1 where
 
 instance (GEnum (Rep k), Generic k) => GEnum (K1 r k) where
   uni = fmap (K1 . to) <$> uni @(Rep k)
+
+data OneOf a b = OneOfA a | OneOfB b
+
+instance (MakesValue a, MakesValue b) => MakesValue (OneOf a b) where
+  make (OneOfA a) = make a
+  make (OneOfB b) = make b
+
+instance (TestCases a, TestCases b) => TestCases (OneOf a b) where
+  mkTestCases = do
+    as <- fmap (map (fmap OneOfA)) mkTestCases
+    bs <- fmap (map (fmap OneOfB)) mkTestCases
+    pure $ as <> bs

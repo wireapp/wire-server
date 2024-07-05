@@ -207,6 +207,7 @@ data Env = Env
     federationV1Domain :: String,
     dynamicDomains :: [String],
     defaultAPIVersion :: Int,
+    apiVersionByDomain :: Map String Int,
     manager :: HTTP.Manager,
     servicesCwdBase :: Maybe FilePath,
     -- | paths to removal keys by signature scheme

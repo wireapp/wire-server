@@ -200,8 +200,8 @@ testLegacyFedInstance domain = do
   res <- BrigP.getAPIVersion domain >>= getJSON 200
   res %. "domain" `shouldMatch` domain
 
-testFedV0Federation :: (HasCallStack) => FedDomain 0 -> App ()
-testFedV0Federation domain = do
+testLegacyFedFederation :: (HasCallStack) => AnyFedDomain -> App ()
+testLegacyFedFederation domain = do
   alice <- randomUser OwnDomain def
   bob <- randomUser domain def
 

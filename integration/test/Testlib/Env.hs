@@ -146,6 +146,12 @@ mkEnv ge = do
           federationV1Domain = gFederationV1Domain ge,
           dynamicDomains = gDynamicDomains ge,
           defaultAPIVersion = gDefaultAPIVersion ge,
+          -- hardcode version 5 for fed 0 backend
+          apiVersionByDomain =
+            Map.fromList
+              [ (gFederationV0Domain ge, 5),
+                (gFederationV1Domain ge, 6)
+              ],
           manager = gManager ge,
           servicesCwdBase = gServicesCwdBase ge,
           removalKeyPaths = gRemovalKeyPaths ge,

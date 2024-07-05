@@ -11,8 +11,9 @@ import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
 import SetupHelpers
 import Testlib.Prelude
+import Testlib.VersionedFed
 
-testSupportedProtocols :: (HasCallStack) => Domain -> App ()
+testSupportedProtocols :: (HasCallStack) => OneOf Domain AnyFedDomain -> App ()
 testSupportedProtocols bobDomain = do
   alice <- randomUser OwnDomain def
   alice %. "supported_protocols" `shouldMatchSet` ["proteus"]
