@@ -2100,7 +2100,7 @@ specDeleteUser = do
       liftIO $
         (brigUser, samlUser, scimUser)
           `shouldBe` (Nothing, Nothing, Nothing)
-    it "should respond with 204 on first deletion, then 404" $ do
+    it "should respond with 204 on deletion (also indempotently)" $ do
       (tok, _) <- registerIdPAndScimToken
       user <- randomScimUser
       storedUser <- createUser tok user
@@ -2109,9 +2109,9 @@ specDeleteUser = do
       -- Expect first call to succeed
       deleteUser_ (Just tok) (Just uid) spar
         !!! const 204 === statusCode
-      -- Subsequent calls will return 404 eventually
-      aFewTimes (deleteUser_ (Just tok) (Just uid) spar) ((== 404) . statusCode)
-        !!! const 404 === statusCode
+      -- Subsequent calls will always return 204 (idempotency of deletion)
+      deleteUser_ (Just tok) (Just uid) spar
+        !!! const 204 === statusCode
     it "should free externalId and everything else in the scim user for re-use" $ do
       (tok, _) <- registerIdPAndScimToken
       user <- randomScimUser
@@ -2133,7 +2133,7 @@ specDeleteUser = do
       let uid = scimUserId storedUser
       deleteUser_ Nothing (Just uid) spar
         !!! const 401 === statusCode
-    it "should return 404 if we provide a token for a different team" $ do
+    it "should always pretend to succeed, even if user exists in other team (does not leak information by diverging behavior)" $ do
       (tok, _) <- registerIdPAndScimToken
       user <- randomScimUser
       storedUser <- createUser tok user
@@ -2141,7 +2141,9 @@ specDeleteUser = do
       (invalidTok, _) <- registerIdPAndScimToken
       spar <- view teSpar
       deleteUser_ (Just invalidTok) (Just uid) spar
-        !!! const 404 === statusCode
+        !!! const 204 === statusCode
+      getUser_ (Just tok) uid spar
+        !!! const 200 === statusCode
     it "getUser should return 404 after deleteUser" $ do
       user <- randomScimUser
       (tok, _) <- registerIdPAndScimToken
@@ -2152,6 +2154,8 @@ specDeleteUser = do
         !!! const 204 === statusCode
       aFewTimes (getUser_ (Just tok) uid spar) ((== 404) . statusCode)
         !!! const 404 === statusCode
+      deleteUser_ (Just tok) (Just uid) spar
+        !!! const 204 === statusCode
     it "whether implemented or not, does *NOT EVER* respond with 5xx!" $ do
       env <- ask
       user <- randomScimUser
