@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS_GHC -Wwarn #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -49,27 +48,27 @@ getUsers =
     cql :: PrepQuery R () (UserId, Maybe Text, Maybe Email, Maybe Text)
     cql = "SELECT id, phone, email, sso_id FROM user"
 
+dropPhoneFromUser :: (MonadClient m) => UserId -> m ()
+dropPhoneFromUser =
+  retry x5
+    . write cql
+    . params LocalQuorum
+    . Identity
+  where
+    cql :: PrepQuery W (Identity UserId) ()
+    cql = "UPDATE user SET phone = null WHERE id = ?"
+
+deleteKey :: (MonadClient m) => Phone -> m ()
+deleteKey p = do
+  retry x5 $ write cql (params LocalQuorum (Identity $ fromPhone p))
+  where
+    cql :: PrepQuery W (Identity Text) ()
+    cql = "DELETE FROM user_keys WHERE key = ?"
+
 removePhoneData :: (MonadClient m) => Phone -> UserId -> m ()
 removePhoneData phone uid = do
   dropPhoneFromUser uid
   deleteKey phone
-  where
-    dropPhoneFromUser :: (MonadClient m) => UserId -> m ()
-    dropPhoneFromUser =
-      retry x5
-        . write setPhoneToNull
-        . params LocalQuorum
-        . Identity
-
-    setPhoneToNull :: PrepQuery W (Identity UserId) ()
-    setPhoneToNull = "UPDATE user SET phone = null WHERE id = ?"
-
-    deleteKey :: (MonadClient m) => Phone -> m ()
-    deleteKey p = do
-      retry x5 $ write keyDelete (params LocalQuorum (Identity $ fromPhone p))
-
-    keyDelete :: PrepQuery W (Identity Text) ()
-    keyDelete = "DELETE FROM user_keys WHERE key = ?"
 
 handlePhoneUser :: (MonadClient m, MonadLogger m) => User -> m Result
 handlePhoneUser = \case
@@ -89,9 +88,10 @@ handlePhoneUser = \case
   User _uid Nothing (Just _email) True -> do
     pure $ mempty {total = 1, ssoIdentityEmail = 1}
   User uid (Just _phone) Nothing True -> do
-    Log.warn $
-      "uid" .= show uid
-        ~~ Log.msg (Log.val "user with sso id has a phone but no email. phone number was not removed. please check manually")
+    Log.warn
+      $ "uid"
+      .= show uid
+      ~~ Log.msg (Log.val "user with sso id has a phone but no email. phone number was not removed. please check manually")
     pure $ mempty {total = 1, ssoIdentityPhone = 1}
   User uid (Just phone) (Just _email) True -> do
     removePhoneData phone uid
@@ -108,9 +108,10 @@ removePhoneDataStream = do
   where
     logEvery :: Int -> Result -> AppT IO ()
     logEvery i r =
-      when (r.total `mod` i == 0) $
-        Log.info $
-          "intermediate_result" .= show r
+      when (r.total `mod` i == 0)
+        $ Log.info
+        $ "intermediate_result"
+        .= show r
 
 run :: AppT IO ()
 run = do
