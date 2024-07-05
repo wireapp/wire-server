@@ -92,23 +92,12 @@ data CassandraSettings = CassandraSettings
   }
 
 data Opts = Opts
-  { brigDb :: CassandraSettings,
-    limit :: Maybe Int
+  { brigDb :: CassandraSettings
   }
 
 optsParser :: Parser Opts
 optsParser =
-  Opts
-    <$> brigCassandraParser
-    <*> optional
-      ( option
-          auto
-          ( long "limit"
-              <> short 'l'
-              <> metavar "INT"
-              <> help "Limit the number of users to process"
-          )
-      )
+  Opts <$> brigCassandraParser
 
 brigCassandraParser :: Parser CassandraSettings
 brigCassandraParser =
