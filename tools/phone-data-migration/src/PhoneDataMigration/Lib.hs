@@ -89,7 +89,7 @@ handlePhoneUser user = do
     then pure $ mempty {total = 1, inactive = 1}
     else case (user.phone, user.email, user.hasSsoId) of
       (Nothing, Nothing, False) ->
-        -- this case should not happen
+        -- active users without identity should not exist
         pure $ mempty {total = 1, noIdentity = 1}
       (Nothing, (Just _email), False) ->
         pure $ mempty {total = 1, emailIdentity = 1}
@@ -120,7 +120,7 @@ removePhoneDataStream = do
     .| Conduit.mapM handlePhoneUser
     .| Conduit.scanl (<>) mempty
     .| Conduit.mapM_ (logEvery 100000)
-    .| Conduit.lastDef mempty
+    .| Conduit.fold
   where
     logEvery :: Int -> Result -> AppT IO ()
     logEvery i r =
