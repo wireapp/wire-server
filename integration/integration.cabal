@@ -170,6 +170,7 @@ library
     Testlib.Run
     Testlib.RunServices
     Testlib.Types
+    Testlib.VersionedFed
     Testlib.XML
 
   build-depends:

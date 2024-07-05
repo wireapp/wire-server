@@ -35,6 +35,7 @@ import SetupHelpers hiding (deleteUser)
 import Testlib.One2One (generateRemoteAndConvIdWithDomain)
 import Testlib.Prelude
 import Testlib.ResourcePool
+import Testlib.VersionedFed
 
 testDynamicBackendsFullyConnectedWhenAllowAll :: (HasCallStack) => App ()
 testDynamicBackendsFullyConnectedWhenAllowAll = do
@@ -851,10 +852,10 @@ testGuestLinksExpired = do
       bindResponse (getJoinCodeConv tm k v) $ \resp -> do
         resp.status `shouldMatchInt` 404
 
-testConversationWithFedV0 :: (HasCallStack) => App ()
-testConversationWithFedV0 = do
+testConversationWithFedV0 :: (HasCallStack) => FedDomain 0 -> App ()
+testConversationWithFedV0 domain = do
   alice <- randomUser OwnDomain def
-  bob <- randomUser FedV0Domain def
+  bob <- randomUser domain def
   withAPIVersion 4 $ connectTwoUsers alice bob
 
   conv <-
