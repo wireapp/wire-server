@@ -791,7 +791,7 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
           -- because the user has either been deleted (tombstone) or does not
           -- exist. Asserting the correct team id here is not needed (and would
           -- be hard as the check relies on the data of `mbBrigUser`): The worst
-          -- thing that could happen is that foreign users cleanup particially
+          -- thing that could happen is that foreign users cleanup partially
           -- deleted users.
           void . lift $ BrigAccess.deleteUser uid
         Just brigUser -> do
