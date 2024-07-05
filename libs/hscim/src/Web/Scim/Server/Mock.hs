@@ -141,7 +141,7 @@ instance UserDB Mock TestServer where
   deleteUser () uid = do
     m <- asks userDB
     liftSTM (STMMap.lookup uid m) >>= \case
-      Nothing -> throwScim (notFound "User" (pack (show uid)))
+      Nothing -> pure ()
       Just _ -> liftSTM $ STMMap.delete uid m
 
 -- (there seems to be no readOnly fields in User)

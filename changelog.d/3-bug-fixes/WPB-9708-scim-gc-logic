@@ -1,0 +1,1 @@
+Make scim-delete-user idempotent. Hide information about existing users (make delete idempotent)

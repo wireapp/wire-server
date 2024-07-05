@@ -45,7 +45,7 @@ where
 import qualified Control.Applicative as Applicative (empty)
 import Control.Lens hiding (op)
 import Control.Monad.Error.Class (MonadError)
-import Control.Monad.Except (throwError, withExceptT)
+import Control.Monad.Except (throwError)
 import Control.Monad.Trans.Except (mapExceptT)
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Crypto.Hash (Digest, SHA256, hashlazy)
@@ -495,17 +495,18 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
         Just (buid, ScimUserCreated) ->
           -- If the user has been created, but can't be found in brig anymore,
           -- the invitation has timed out and the user has been deleted on brig's side.
-          -- If this is the case we can safely create the user again.
+          -- If this is the case we can safely create the user again, AFTER THE
+          -- HALF-CREATED ACCOUNT HAS BEEN GARBAGE-COLLECTED.
           -- Otherwise we return a conflict error.
           lift (BrigAccess.getStatusMaybe buid) >>= \case
             Just Active -> throwError (externalIdTakenError ("user with status Active exists: " <> Text.pack (show (veid, buid))))
             Just Suspended -> throwError (externalIdTakenError ("user with status Suspended exists" <> Text.pack (show (veid, buid))))
             Just Ephemeral -> throwError (externalIdTakenError ("user with status Ephemeral exists" <> Text.pack (show (veid, buid))))
             Just PendingInvitation -> throwError (externalIdTakenError ("user with status PendingInvitation exists" <> Text.pack (show (veid, buid))))
-            Just Deleted -> pure ()
-            Nothing -> pure ()
+            Just Deleted -> incompleteUserCreationCleanUp buid
+            Nothing -> incompleteUserCreationCleanUp buid
         Just (buid, ScimUserCreating) ->
-          incompleteUserCreationCleanUp buid externalIdTakenError
+          incompleteUserCreationCleanUp buid
         Nothing -> pure ()
 
       -- ensure uniqueness constraints of all affected identifiers.
@@ -568,15 +569,14 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
       lift $ ScimExternalIdStore.insertStatus stiTeam veid buid ScimUserCreated
       pure storedUser
   where
-    incompleteUserCreationCleanUp :: UserId -> (Text -> Scim.ScimError) -> Scim.ScimHandler (Sem r) ()
-    incompleteUserCreationCleanUp buid e = do
+    incompleteUserCreationCleanUp :: UserId -> Scim.ScimHandler (Sem r) ()
+    incompleteUserCreationCleanUp buid = do
       -- something went wrong while storing the user in brig
       -- we can try clean up now, but if brig is down, we can't do much
-      -- maybe retrying the user creation in brig is also an option?
-      -- after clean up we rethrow the error so the handler returns the correct failure
+      -- and just fail with a 5xx.
       lift $ Logger.warn $ Log.msg @Text "An earlier attempt of creating a user with this external ID has failed and left some inconsistent data. Attempting to clean up."
-      withExceptT (e . ("could not delete scim user: " <>) . Text.pack . show) $ deleteScimUser tokeninfo buid
-      lift $ Logger.info $ Log.msg @Text "Clean up successful."
+      deleteScimUser tokeninfo buid
+      lift $ Logger.info $ Log.msg @Text "Clean up complete."
 
     externalIdTakenError :: Text -> Scim.ScimError
     externalIdTakenError msg = Scim.conflict {Scim.detail = Just ("ExternalId is already taken: " <> msg)}
@@ -779,47 +779,36 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
         . logUser uid
     )
     (const id)
-    $ do
+    do
       -- `getBrigUser` does not include deleted users. This is fine: these
       -- ("tombstones") would not have the needed values (`userIdentity =
       -- Nothing`) to delete a user in spar. I.e. `SAML.UserRef` and `Email`
       -- cannot be figured out when a `User` has status `Deleted`.
       mbBrigUser <- lift $ Brig.getBrigUser WithPendingInvitations uid
-      deletionStatus <- case mbBrigUser of
+      case mbBrigUser of
         Nothing ->
           -- Ensure there's no left-over of this user in brig. This is safe
           -- because the user has either been deleted (tombstone) or does not
           -- exist. Asserting the correct team id here is not needed (and would
           -- be hard as the check relies on the data of `mbBrigUser`): The worst
-          -- thing that could happen is that foreign users cleanup particially
+          -- thing that could happen is that foreign users cleanup partially
           -- deleted users.
-          lift $ BrigAccess.deleteUser uid
+          void . lift $ BrigAccess.deleteUser uid
         Just brigUser -> do
-          -- FUTUREWORK: currently it's impossible to delete the last available team owner via SCIM
-          -- (because that owner won't be managed by SCIM in the first place), but if it ever becomes
-          -- possible, we should do a check here and prohibit it.
-          unless (userTeam brigUser == Just stiTeam) $
-            -- users from other teams get you a 404.
-            throwError $
-              Scim.notFound "user" (idToText uid)
-
-          -- This deletion needs data from the non-deleted User in brig. So,
-          -- execute it first, then delete the user in brig. Unfortunately, this
-          -- dependency prevents us from cleaning up the spar fragments of users
-          -- that have been deleted in brig.  Deleting scim-managed users in brig
-          -- (via the TM app) is blocked, though, so there is no legal way to enter
-          -- that situation.
-          deleteUserInSpar brigUser
-          lift $ BrigAccess.deleteUser uid
-      case deletionStatus of
-        NoUser ->
-          throwError $
-            Scim.notFound "user" (idToText uid)
-        AccountAlreadyDeleted ->
-          throwError $
-            Scim.notFound "user" (idToText uid)
-        AccountDeleted ->
-          pure ()
+          if userTeam brigUser == Just stiTeam
+            then do
+              -- This deletion needs data from the non-deleted User in brig. So,
+              -- execute it first, then delete the user in brig. Unfortunately, this
+              -- dependency prevents us from cleaning up the spar fragments of users
+              -- that have been deleted in brig.  Deleting scim-managed users in brig
+              -- (via the TM app) is blocked, though, so there is no legal way to enter
+              -- that situation.
+              deleteUserInSpar brigUser
+              void . lift $ BrigAccess.deleteUser uid
+            else do
+              -- if we find the user in another team, we pretend it wasn't even there, to
+              -- avoid leaking data to attackers (very unlikely, but hey).
+              pure ()
   where
     deleteUserInSpar ::
       ( Member IdPConfigStore r,
