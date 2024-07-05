@@ -26,21 +26,20 @@ import qualified Data.Conduit.Combinators as Conduit
 import Imports
 import Options.Applicative
 import PhoneDataMigration.Types
+import System.Logger.Message ((.=), (~~))
 import qualified System.Logger.Class as Log
 import Data.Id
 import Wire.API.User (Email)
 import System.Logger.Class (MonadLogger)
-import Data.ByteString.Conversion (toByteString')
 
--- | Drop the data from the 'excluded_phones' Brig table
+pageSize :: Int32
+pageSize = 1000
+
 dropExcludedPhonesTable :: (MonadClient m) => m ()
 dropExcludedPhonesTable = retry x1 . write cql $ paramsP LocalQuorum () pageSize
   where
     cql :: PrepQuery W () ()
     cql = "TRUNCATE TABLE excluded_phones"
-
-pageSize :: Int32
-pageSize = 1000
 
 getUsers :: (MonadClient m) => ConduitM () [User] m ()
 getUsers =
@@ -50,36 +49,11 @@ getUsers =
     cql :: PrepQuery R () (UserId, Maybe Text, Maybe Email, Maybe Text)
     cql = "SELECT id, phone, email, sso_id FROM user"
 
-process :: AppT IO ()
-process = do
-  dropExcludedPhonesTable
-  runConduit
-    $ getUsers
-    .| Conduit.concat
-    .| Conduit.mapM_ handlePhoneUser
-
-handlePhoneUser :: (MonadClient m, MonadLogger m) => User -> m ()
-handlePhoneUser = \case
-  User uid (Just phone) (Just _email) _hasSsoId ->
-    removePhone phone uid
-  User uid (Just _phone) Nothing True -> do
-    Log.warn $
-      Log.field "uid" (Log.val (toByteString' uid))
-        . Log.msg (Log.val "User has phone but no email and has SSO ID")
-  User uid (Just phone) Nothing False ->
-    -- delete user: call `DELETE i/user/<uid>`
-    -- then remove the phone from the user and user key table
-    removePhone phone uid
-    -- throttle
-  User _uid Nothing _email _hasSsoId -> pure ()
-
-removePhone :: (MonadClient m) => Phone -> UserId -> m ()
-removePhone phone uid = do
+removePhoneData :: (MonadClient m) => Phone -> UserId -> m ()
+removePhoneData phone uid = do
   dropPhoneFromUser uid
   deleteKey phone
   where
-    -- Drop the phone column in the user table. The rows for which this is done
-    -- are selected by a filter on rows that have data in the column.
     dropPhoneFromUser :: (MonadClient m) => UserId -> m ()
     dropPhoneFromUser =
       retry x5
@@ -97,10 +71,56 @@ removePhone phone uid = do
     keyDelete :: PrepQuery W (Identity Text) ()
     keyDelete = "DELETE FROM user_keys WHERE key = ?"
 
+handlePhoneUser :: (MonadClient m, MonadLogger m) => User -> m Result
+handlePhoneUser = \case
+  User _uid Nothing Nothing False ->
+    -- this case should not happen
+    pure $ mempty { total = 1, noIdentity = 1}
+  User _uid Nothing (Just _email) False ->
+    pure $ mempty { total = 1, emailIdentity = 1}
+  User uid (Just phone) Nothing False -> do
+    removePhoneData phone uid
+    pure $ mempty { total = 1, phoneIdentity = 1}
+  User uid (Just phone) (Just _email) False -> do
+    removePhoneData phone uid
+    pure $ mempty { total = 1, fullIdentity = 1}
+  User _uid Nothing Nothing True -> do
+    pure $ mempty { total = 1, ssoIdentity = 1}
+  User _uid Nothing (Just _email) True -> do
+    pure $ mempty { total = 1, ssoIdentityEmail = 1}
+  User uid (Just _phone) Nothing True -> do
+    Log.warn $
+      "uid" .= show uid
+        ~~ Log.msg (Log.val "user with sso id has a phone but no email. phone number was not removed. please check manually")
+    pure $ mempty { total = 1, ssoIdentityPhone = 1}
+  User uid (Just phone) (Just _email) True -> do
+    removePhoneData phone uid
+    pure $ mempty { total = 1, ssoIdentityFull = 1}
+
+removePhoneDataStream :: ConduitT () o (AppT IO) Result
+removePhoneDataStream  = do
+  getUsers
+    .| Conduit.concat
+    .| Conduit.mapM handlePhoneUser
+    .| Conduit.scanl (<>) mempty
+    .| Conduit.mapM_ (logEvery 100000)
+    .| Conduit.lastDef mempty
+  where
+    logEvery :: Int -> Result -> AppT IO ()
+    logEvery i r =
+      when (r.total `mod` i == 0) $
+        Log.info $ "intermediate_result" .= show r
+
+run :: AppT IO ()
+run = do
+  dropExcludedPhonesTable
+  result <- runConduit removePhoneDataStream
+  Log.info $ "result" .= show result
+
 main :: IO ()
 main = do
   opts <- execParser (info (helper <*> optsParser) desc)
   env <- mkEnv opts
-  runReaderT (unAppT process) env
+  runReaderT (unAppT run) env
   where
     desc = header "phone-data-migration" <> progDesc "Remove phone data from wire-server" <> fullDesc

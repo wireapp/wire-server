@@ -139,9 +139,27 @@ brigCassandraParser =
         )
 
 data Result = Result
-  { usersSearched :: Int
+  { total :: Int,
+    phoneIdentity :: Int,
+    emailIdentity :: Int,
+    fullIdentity :: Int,
+    ssoIdentity :: Int,
+    ssoIdentityPhone :: Int,
+    ssoIdentityEmail :: Int,
+    ssoIdentityFull :: Int,
+    noIdentity :: Int
   }
  deriving (Show)
+
+instance Semigroup Result where
+  (Result t1 p1 e1 f1 s1 sp1 se1 sf1 ni1) <> (Result t2 p2 e2 f2 s2 sp2 se2 sf2 ni2) =
+    Result (t1 + t2) (p1 + p2) (e1 + e2) (f1 + f2) (s1 + s2) (sp1 + sp2) (se1 + se2) (sf1 + sf2) (ni1 + ni2)
+
+
+instance Monoid Result where
+  mempty = Result 0 0 0 0 0 0 0 0 0
+
+
 
 data User = User
   { id :: UserId,
