@@ -8,6 +8,7 @@
 , cassandra-util
 , conduit
 , exceptions
+, generic-monoid
 , gitignoreSource
 , imports
 , lens
@@ -29,6 +30,7 @@ mkDerivation {
     cassandra-util
     conduit
     exceptions
+    generic-monoid
     imports
     lens
     optparse-applicative

@@ -23,6 +23,7 @@ import Control.Lens
 import Control.Monad.Catch (MonadThrow)
 import Data.Attoparsec.Text (char, count, digit, endOfInput, parseOnly)
 import Data.Id
+import Data.Monoid.Generic
 import qualified Data.Text as Text
 import Data.Text.Strict.Lens
 import Imports
@@ -147,8 +148,9 @@ data Result = Result
     ssoIdentityFull :: IntSum,
     noIdentity :: IntSum
   }
-  deriving (Show)
-  deriving (Semigroup, Monoid) via Result
+  deriving (Show, Generic)
+  deriving (Semigroup) via GenericSemigroup Result
+  deriving (Monoid) via GenericMonoid Result
 
 data User = User
   { id :: UserId,

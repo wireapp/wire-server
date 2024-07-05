@@ -26,6 +26,7 @@ library
     , cassandra-util
     , conduit
     , exceptions
+    , generic-monoid
     , imports
     , lens
     , optparse-applicative
