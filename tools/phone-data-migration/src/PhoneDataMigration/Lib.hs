@@ -29,7 +29,7 @@ import PhoneDataMigration.Types
 import System.Logger.Class (MonadLogger)
 import qualified System.Logger.Class as Log
 import System.Logger.Message ((.=), (~~))
-import Wire.API.User (Email)
+import Wire.API.User (AccountStatus (Active), Email)
 
 pageSize :: Int32
 pageSize = 1000
@@ -43,10 +43,22 @@ dropExcludedPhonesTable = retry x1 . write cql $ paramsP LocalQuorum () pageSize
 getUsers :: (MonadClient m) => ConduitM () [User] m ()
 getUsers =
   paginateC cql (paramsP LocalQuorum () pageSize) x5
-    .| Conduit.map (fmap (\(uid, phone, email, ssoId) -> User uid (phone >>= parsePhone) email (isJust ssoId)))
+    .| Conduit.map
+      ( fmap
+          ( \(uid, phone, email, ssoId, activated, status) ->
+              User
+                { id = uid,
+                  phone = phone >>= parsePhone,
+                  email = email,
+                  hasSsoId = isJust ssoId,
+                  activated = activated,
+                  status = status
+                }
+          )
+      )
   where
-    cql :: PrepQuery R () (UserId, Maybe Text, Maybe Email, Maybe Text)
-    cql = "SELECT id, phone, email, sso_id FROM user"
+    cql :: PrepQuery R () (UserId, Maybe Text, Maybe Email, Maybe Text, Bool, Maybe AccountStatus)
+    cql = "SELECT id, phone, email, sso_id, activated, status FROM user"
 
 dropPhoneFromUser :: (MonadClient m) => UserId -> m ()
 dropPhoneFromUser =
@@ -71,30 +83,34 @@ removePhoneData phone uid = do
   deleteKey phone
 
 handlePhoneUser :: (MonadClient m, MonadLogger m) => User -> m Result
-handlePhoneUser = \case
-  User _uid Nothing Nothing False ->
-    -- this case should not happen
-    pure $ mempty {total = 1, noIdentity = 1}
-  User _uid Nothing (Just _email) False ->
-    pure $ mempty {total = 1, emailIdentity = 1}
-  User uid (Just phone) Nothing False -> do
-    removePhoneData phone uid
-    pure $ mempty {total = 1, phoneIdentity = 1}
-  User uid (Just phone) (Just _email) False -> do
-    removePhoneData phone uid
-    pure $ mempty {total = 1, fullIdentity = 1}
-  User _uid Nothing Nothing True -> do
-    pure $ mempty {total = 1, ssoIdentity = 1}
-  User _uid Nothing (Just _email) True -> do
-    pure $ mempty {total = 1, ssoIdentityEmail = 1}
-  User uid (Just _phone) Nothing True -> do
-    Log.warn $
-      "uid" .= show uid
-        ~~ Log.msg (Log.val "user with sso id has a phone but no email. phone number was not removed. please check manually")
-    pure $ mempty {total = 1, ssoIdentityPhone = 1}
-  User uid (Just phone) (Just _email) True -> do
-    removePhoneData phone uid
-    pure $ mempty {total = 1, ssoIdentityFull = 1}
+handlePhoneUser user = do
+  let isActive = user.activated && user.status == Just Active
+  if not isActive
+    then pure $ mempty {total = 1, inactive = 1}
+    else case (user.phone, user.email, user.hasSsoId) of
+      (Nothing, Nothing, False) ->
+        -- this case should not happen
+        pure $ mempty {total = 1, noIdentity = 1}
+      (Nothing, (Just _email), False) ->
+        pure $ mempty {total = 1, emailIdentity = 1}
+      ((Just phone), Nothing, False) -> do
+        removePhoneData phone user.id
+        pure $ mempty {total = 1, phoneIdentity = 1}
+      ((Just phone), (Just _email), False) -> do
+        removePhoneData phone user.id
+        pure $ mempty {total = 1, fullIdentity = 1}
+      (Nothing, Nothing, True) -> do
+        pure $ mempty {total = 1, ssoIdentity = 1}
+      (Nothing, (Just _email), True) -> do
+        pure $ mempty {total = 1, ssoIdentityEmail = 1}
+      ((Just _phone), Nothing, True) -> do
+        Log.warn $
+          "uid" .= show user.id
+            ~~ Log.msg (Log.val "user with sso id has a phone but no email. phone number was not removed. please check manually")
+        pure $ mempty {total = 1, ssoIdentityPhone = 1}
+      ((Just phone), (Just _email), True) -> do
+        removePhoneData phone user.id
+        pure $ mempty {total = 1, ssoIdentityFull = 1}
 
 removePhoneDataStream :: ConduitT () o (AppT IO) Result
 removePhoneDataStream = do
@@ -107,7 +123,7 @@ removePhoneDataStream = do
   where
     logEvery :: Int -> Result -> AppT IO ()
     logEvery i r =
-      when (r.total `mod` i == 0) $
+      when (unIntSum r.total `mod` i == 0) $
         Log.info $
           "intermediate_result" .= show r
 

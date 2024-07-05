@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wwarn #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2024 Wire Swiss GmbH <opensource@wire.com>
@@ -31,7 +29,7 @@ import Imports
 import Options.Applicative
 import qualified System.Logger as Log
 import System.Logger.Class (MonadLogger, log)
-import Wire.API.User (Email)
+import Wire.API.User (AccountStatus, Email)
 
 data Env = Env
   { casClient :: C.ClientState,
@@ -128,31 +126,37 @@ brigCassandraParser =
               )
         )
 
+newtype IntSum = IntSum {unIntSum :: Int}
+  deriving newtype (Num, Show)
+
+instance Semigroup IntSum where
+  IntSum a <> IntSum b = IntSum (a + b)
+
+instance Monoid IntSum where
+  mempty = IntSum 0
+
 data Result = Result
-  { total :: Int,
-    phoneIdentity :: Int,
-    emailIdentity :: Int,
-    fullIdentity :: Int,
-    ssoIdentity :: Int,
-    ssoIdentityPhone :: Int,
-    ssoIdentityEmail :: Int,
-    ssoIdentityFull :: Int,
-    noIdentity :: Int
+  { total :: IntSum,
+    inactive :: IntSum,
+    phoneIdentity :: IntSum,
+    emailIdentity :: IntSum,
+    fullIdentity :: IntSum,
+    ssoIdentity :: IntSum,
+    ssoIdentityPhone :: IntSum,
+    ssoIdentityEmail :: IntSum,
+    ssoIdentityFull :: IntSum,
+    noIdentity :: IntSum
   }
   deriving (Show)
-
-instance Semigroup Result where
-  (Result t1 p1 e1 f1 s1 sp1 se1 sf1 ni1) <> (Result t2 p2 e2 f2 s2 sp2 se2 sf2 ni2) =
-    Result (t1 + t2) (p1 + p2) (e1 + e2) (f1 + f2) (s1 + s2) (sp1 + sp2) (se1 + se2) (sf1 + sf2) (ni1 + ni2)
-
-instance Monoid Result where
-  mempty = Result 0 0 0 0 0 0 0 0 0
+  deriving (Semigroup, Monoid) via Result
 
 data User = User
   { id :: UserId,
     phone :: Maybe Phone,
     email :: Maybe Email,
-    hasSsoId :: Bool
+    hasSsoId :: Bool,
+    activated :: Bool,
+    status :: Maybe AccountStatus
   }
   deriving (Generic)
 
