@@ -2,6 +2,9 @@ networks:
   demo_wire:
     external: false
 
+  coredns:
+    external: false
+
 services:
   brig_schema-v0:
     container_name: brig-schema-federation-v0
