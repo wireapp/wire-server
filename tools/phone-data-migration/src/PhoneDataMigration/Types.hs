@@ -146,6 +146,7 @@ data Result = Result
     ssoIdentityPhone :: IntSum,
     ssoIdentityEmail :: IntSum,
     ssoIdentityFull :: IntSum,
+    serviceIdentity :: IntSum,
     noIdentity :: IntSum
   }
   deriving (Show, Generic)
@@ -156,6 +157,8 @@ data User = User
   { id :: UserId,
     phone :: Maybe Phone,
     email :: Maybe Email,
+    provider :: Maybe ProviderId,
+    service :: Maybe ServiceId,
     hasSsoId :: Bool,
     activated :: Bool,
     status :: Maybe AccountStatus

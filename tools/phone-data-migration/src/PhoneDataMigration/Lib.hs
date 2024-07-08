@@ -28,7 +28,7 @@ import Options.Applicative
 import PhoneDataMigration.Types
 import System.Logger.Class (MonadLogger)
 import qualified System.Logger.Class as Log
-import System.Logger.Message ((.=), (~~))
+import System.Logger.Message ((.=))
 import Wire.API.User (AccountStatus (Active), Email)
 
 pageSize :: Int32
@@ -45,11 +45,13 @@ getUsers =
   paginateC cql (paramsP LocalQuorum () pageSize) x5
     .| Conduit.map
       ( fmap
-          ( \(uid, phone, email, ssoId, activated, status) ->
+          ( \(uid, phone, email, ssoId, activated, status, pid, sid) ->
               User
                 { id = uid,
                   phone = phone >>= parsePhone,
                   email = email,
+                  provider = pid,
+                  service = sid,
                   hasSsoId = isJust ssoId,
                   activated = activated,
                   status = status
@@ -57,8 +59,8 @@ getUsers =
           )
       )
   where
-    cql :: PrepQuery R () (UserId, Maybe Text, Maybe Email, Maybe Text, Bool, Maybe AccountStatus)
-    cql = "SELECT id, phone, email, sso_id, activated, status FROM user"
+    cql :: PrepQuery R () (UserId, Maybe Text, Maybe Email, Maybe Text, Bool, Maybe AccountStatus, Maybe ProviderId, Maybe ServiceId)
+    cql = "SELECT id, phone, email, sso_id, activated, status, provider, service FROM user"
 
 dropPhoneFromUser :: (MonadClient m) => UserId -> m ()
 dropPhoneFromUser =
@@ -89,8 +91,10 @@ handlePhoneUser user = do
     then pure $ mempty {total = 1, inactive = 1}
     else case (user.phone, user.email, user.hasSsoId) of
       (Nothing, Nothing, False) ->
-        -- active users without identity should not exist
-        pure $ mempty {total = 1, noIdentity = 1}
+        if isJust user.provider && isJust user.service
+          then pure $ mempty {total = 1, serviceIdentity = 1}
+          else -- this should not happen
+            pure $ mempty {total = 1, noIdentity = 1}
       (Nothing, (Just _email), False) ->
         pure $ mempty {total = 1, emailIdentity = 1}
       ((Just phone), Nothing, False) -> do
@@ -104,10 +108,6 @@ handlePhoneUser user = do
       (Nothing, (Just _email), True) -> do
         pure $ mempty {total = 1, ssoIdentityEmail = 1}
       ((Just _phone), Nothing, True) -> do
-        Log.warn
-          $ "uid"
-          .= show user.id
-          ~~ Log.msg (Log.val "user with sso id has a phone but no email. phone number was not removed. please check manually")
         pure $ mempty {total = 1, ssoIdentityPhone = 1}
       ((Just phone), (Just _email), True) -> do
         removePhoneData phone user.id
@@ -124,10 +124,10 @@ removePhoneDataStream = do
   where
     logEvery :: Int -> Result -> AppT IO ()
     logEvery i r =
-      when (unIntSum r.total `mod` i == 0)
-        $ Log.info
-        $ "intermediate_result"
-        .= show r
+      when (unIntSum r.total `mod` i == 0) $
+        Log.info $
+          "intermediate_result"
+            .= show r
 
 run :: AppT IO ()
 run = do
