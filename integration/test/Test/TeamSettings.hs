@@ -23,7 +23,7 @@ import API.Galley
 import SetupHelpers
 import Testlib.Prelude
 
-testTeamSettingsUpdate :: HasCallStack => App ()
+testTeamSettingsUpdate :: (HasCallStack) => App ()
 testTeamSettingsUpdate = do
   (ownerA, tidA, [mem]) <- createTeam OwnDomain 2
   partner <- createTeamMemberWithRole ownerA tidA "partner"
@@ -42,7 +42,7 @@ testTeamSettingsUpdate = do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "no-team-member"
 
-testTeamPropertiesUpdate :: HasCallStack => App ()
+testTeamPropertiesUpdate :: (HasCallStack) => App ()
 testTeamPropertiesUpdate = do
   (ownerA, tidA, [mem]) <- createTeam OwnDomain 2
   partner <- createTeamMemberWithRole ownerA tidA "partner"

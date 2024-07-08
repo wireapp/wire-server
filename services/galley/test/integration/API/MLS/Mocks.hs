@@ -49,8 +49,8 @@ receiveCommitMock clients =
   asum
     [ "on-conversation-updated" ~> EmptyResponse,
       "get-not-fully-connected-backends" ~> NonConnectedBackends mempty,
-      "get-mls-clients" ~>
-        Set.fromList
+      "get-mls-clients"
+        ~> Set.fromList
           ( map (flip ClientInfo True . ciClient) clients
           )
     ]
@@ -82,8 +82,8 @@ welcomeMockByDomain reachables = do
 
 sendMessageMock :: Mock LByteString
 sendMessageMock =
-  "send-mls-message" ~>
-    MLSMessageResponseUpdates
+  "send-mls-message"
+    ~> MLSMessageResponseUpdates
       []
 
 claimKeyPackagesMock :: KeyPackageBundle -> Mock LByteString

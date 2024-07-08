@@ -66,8 +66,11 @@ lookupReqId l r = case lookup requestIdName (requestHeaders r) of
   Nothing -> do
     localRid <- RequestId . UUID.toASCIIBytes <$> UUID.nextRandom
     Log.info l $
-      "request-id" .= localRid
-        ~~ "method" .= requestMethod r
-        ~~ "path" .= rawPathInfo r
+      "request-id"
+        .= localRid
+        ~~ "method"
+        .= requestMethod r
+        ~~ "path"
+        .= rawPathInfo r
         ~~ msg (val "generated a new request id for local request")
     pure localRid

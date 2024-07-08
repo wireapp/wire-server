@@ -62,10 +62,10 @@ wrapMonadClientSPImpl action =
                       . show @SomeException
                   )
 
-instance Member (Final IO) r => Catch.MonadThrow (SPImpl r) where
+instance (Member (Final IO) r) => Catch.MonadThrow (SPImpl r) where
   throwM = SPImpl . embedFinal . Catch.throwM @IO
 
-instance Member (Final IO) r => Catch.MonadCatch (SPImpl r) where
+instance (Member (Final IO) r) => Catch.MonadCatch (SPImpl r) where
   catch (SPImpl m) handler = SPImpl $
     withStrategicToFinal @IO $ do
       m' <- runS m
@@ -76,21 +76,21 @@ instance Member (Final IO) r => Catch.MonadCatch (SPImpl r) where
 newtype SPImpl r a = SPImpl {unSPImpl :: Sem r a}
   deriving (Functor, Applicative, Monad)
 
-instance Member (Input Opts) r => HasConfig (SPImpl r) where
+instance (Member (Input Opts) r) => HasConfig (SPImpl r) where
   getConfig = SPImpl $ inputs saml
 
 instance
-  Member (Logger String) r =>
+  (Member (Logger String) r) =>
   HasLogger (SPImpl r)
   where
   logger lvl = SPImpl . Logger.log (Logger.samlFromLevel lvl)
 
-instance Member (Embed IO) r => MonadIO (SPImpl r) where
+instance (Member (Embed IO) r) => MonadIO (SPImpl r) where
   liftIO = SPImpl . embed @IO
 
-instance Member (Embed IO) r => HasCreateUUID (SPImpl r)
+instance (Member (Embed IO) r) => HasCreateUUID (SPImpl r)
 
-instance Member (Embed IO) r => HasNow (SPImpl r)
+instance (Member (Embed IO) r) => HasNow (SPImpl r)
 
 instance
   ( Member (Error SparError) r,
@@ -130,7 +130,7 @@ instance
     Nothing -> IdPConfigStore.getIdPByIssuerV1 issuer
     Just team -> IdPConfigStore.getIdPByIssuerV2 issuer team
 
-instance Member (Error SparError) r => MonadError SparError (SPImpl r) where
+instance (Member (Error SparError) r) => MonadError SparError (SPImpl r) where
   throwError = SPImpl . throw
   catchError m handler = SPImpl $ catch (unSPImpl m) $ unSPImpl . handler
 

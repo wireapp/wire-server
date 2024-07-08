@@ -27,9 +27,10 @@ import Data.Aeson
 import Data.Id
 import Data.Json.Util ((#))
 import Imports
+import Wire.API.Locale (Locale)
 import Wire.API.Provider.Bot (BotConvView, BotUserView)
 import Wire.API.User.Client.Prekey (LastPrekey, Prekey)
-import Wire.API.User.Profile (Asset, ColourId, Locale, Name)
+import Wire.API.User.Profile (Asset, ColourId, Name)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 --------------------------------------------------------------------------------
@@ -67,12 +68,18 @@ instance FromJSON NewBotRequest where
 instance ToJSON NewBotRequest where
   toJSON n =
     object $
-      "id" .= newBotId n
-        # "client" .= newBotClient n
-        # "origin" .= newBotOrigin n
-        # "conversation" .= newBotConv n
-        # "token" .= newBotToken n
-        # "locale" .= newBotLocale n
+      "id"
+        .= newBotId n
+        # "client"
+        .= newBotClient n
+        # "origin"
+        .= newBotOrigin n
+        # "conversation"
+        .= newBotConv n
+        # "token"
+        .= newBotToken n
+        # "locale"
+        .= newBotLocale n
         # []
 
 --------------------------------------------------------------------------------
@@ -103,9 +110,14 @@ instance FromJSON NewBotResponse where
 instance ToJSON NewBotResponse where
   toJSON r =
     object $
-      "prekeys" .= rsNewBotPrekeys r
-        # "last_prekey" .= rsNewBotLastPrekey r
-        # "name" .= rsNewBotName r
-        # "accent_id" .= rsNewBotColour r
-        # "assets" .= rsNewBotAssets r
+      "prekeys"
+        .= rsNewBotPrekeys r
+        # "last_prekey"
+        .= rsNewBotLastPrekey r
+        # "name"
+        .= rsNewBotName r
+        # "accent_id"
+        .= rsNewBotColour r
+        # "assets"
+        .= rsNewBotAssets r
         # []

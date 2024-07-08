@@ -414,7 +414,9 @@ postMLSMessageToLocalConv qusr c con msg ctype convOrSubId = do
         Nothing -> throw $ mlsProtocolError "Application messages at epoch 0 are not supported"
         Just activeData ->
           when
-            (epochInt msg.epoch < epochInt activeData.epoch - 2)
+            ( epochInt msg.epoch < epochInt activeData.epoch - 2
+                || epochInt msg.epoch > epochInt activeData.epoch
+            )
             $ throwS @'MLSStaleMessage
 
   propagateMessage qusr (Just c) lConvOrSub con msg.rawMessage (tUnqualified lConvOrSub).members

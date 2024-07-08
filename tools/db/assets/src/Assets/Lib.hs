@@ -151,7 +151,7 @@ instance Cql AssetText where
       0 -> pure $! ImageAssetText k
       _ -> Left $ "unexpected user asset type: " ++ show t
     where
-      required :: Cql r => Text -> Either String r
+      required :: (Cql r) => Text -> Either String r
       required f =
         maybe
           (Left ("Asset: Missing required field '" ++ show f ++ "'"))

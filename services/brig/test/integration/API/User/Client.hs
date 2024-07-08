@@ -30,7 +30,6 @@ import API.User.Util
 import API.User.Util qualified as Util
 import Bilge hiding (accept, head, timeout)
 import Bilge.Assert
-import Brig.Code qualified as Code
 import Brig.Options qualified as Opt
 import Brig.Options qualified as Opts
 import Cassandra qualified as DB
@@ -41,6 +40,7 @@ import Data.Aeson qualified as A
 import Data.Aeson.KeyMap qualified as M
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
+import Data.Code qualified as Code
 import Data.Coerce (coerce)
 import Data.Default
 import Data.Domain (Domain (..))
@@ -83,6 +83,8 @@ import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey
 import Wire.API.UserMap (QualifiedUserMap (..), UserMap (..), WrappedQualifiedUserMap)
 import Wire.API.Wrapped (Wrapped (..))
+import Wire.VerificationCode qualified as Code
+import Wire.VerificationCodeGen
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> DB.ClientState -> Nginz -> Brig -> Cannon -> Galley -> TestTree
 tests _cl _at opts p db n b c g =
@@ -151,7 +153,7 @@ testAddGetClientVerificationCode db brig galley = do
   Util.setTeamFeatureLockStatus @Public.SndFactorPasswordChallengeConfig galley tid Public.LockStatusUnlocked
   Util.setTeamSndFactorPasswordChallenge galley tid Public.FeatureStatusEnabled
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
-  k <- Code.mkKey (Code.ForEmail email)
+  let k = mkKey email
   codeValue <- Code.codeValue <$$> lookupCode db k Code.AccountLogin
   checkLoginSucceeds $
     PasswordLogin $
@@ -207,8 +209,8 @@ testAddGetClientCodeExpired db opts brig galley = do
   Util.setTeamFeatureLockStatus @Public.SndFactorPasswordChallengeConfig galley tid Public.LockStatusUnlocked
   Util.setTeamSndFactorPasswordChallenge galley tid Public.FeatureStatusEnabled
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
-  k <- Code.mkKey (Code.ForEmail email)
-  codeValue <- Code.codeValue <$$> lookupCode db k Code.AccountLogin
+  let k = mkKey email
+  codeValue <- (.codeValue) <$$> lookupCode db k Code.AccountLogin
   checkLoginSucceeds $
     PasswordLogin $
       PasswordLoginData (LoginByEmail email) defPassword (Just defCookieLabel) codeValue
@@ -1165,7 +1167,7 @@ testUpdateClient opts brig = do
     const (Just "label") === (clientLabel <=< responseJsonMaybe)
 
   -- update supported client capabilities work
-  let checkUpdate :: HasCallStack => Maybe [ClientCapability] -> Bool -> [ClientCapability] -> Http ()
+  let checkUpdate :: (HasCallStack) => Maybe [ClientCapability] -> Bool -> [ClientCapability] -> Http ()
       checkUpdate capsIn respStatusOk capsOut = do
         let update'' = defUpdateClient {updateClientCapabilities = Set.fromList <$> capsIn}
         put
@@ -1193,13 +1195,13 @@ testUpdateClient opts brig = do
 
   -- update supported client capabilities don't break prekeys or label
   do
-    let checkClientLabel :: HasCallStack => Http ()
+    let checkClientLabel :: (HasCallStack) => Http ()
         checkClientLabel = do
           getClient brig uid (clientId c) !!! do
             const 200 === statusCode
             const (Just label) === (clientLabel <=< responseJsonMaybe)
 
-        flushClientPrekey :: HasCallStack => Http (Maybe ClientPrekey)
+        flushClientPrekey :: (HasCallStack) => Http (Maybe ClientPrekey)
         flushClientPrekey = do
           responseJsonMaybe
             <$> ( get
@@ -1208,7 +1210,7 @@ testUpdateClient opts brig = do
                       === statusCode
                 )
 
-        checkClientPrekeys :: HasCallStack => Prekey -> Http ()
+        checkClientPrekeys :: (HasCallStack) => Prekey -> Http ()
         checkClientPrekeys expectedPrekey = do
           flushClientPrekey >>= \case
             Nothing -> error "unexpected."
@@ -1285,7 +1287,7 @@ testMissingClient brig = do
 -- brig) have registered it.  Add second temporary client, check
 -- again.  (NB: temp clients replace each other, there can always be
 -- at most one per account.)
-testAddMultipleTemporary :: HasCallStack => Brig -> Galley -> Cannon -> Http ()
+testAddMultipleTemporary :: (HasCallStack) => Brig -> Galley -> Cannon -> Http ()
 testAddMultipleTemporary brig galley cannon = do
   uid <- userId <$> randomUser brig
   let clt1 =

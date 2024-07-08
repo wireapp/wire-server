@@ -18,6 +18,11 @@ spec:
       secret:
         secretName: {{ (include "tlsSecretRef" .Values.config | fromYaml).name }}
     {{- end}}
+    {{- if eq (include "configureRedisCa" .Values.config) "true" }}
+    - name: "redis-ca"
+      secret:
+        secretName: {{ include "redisTlsSecretName" .Values.config }}
+    {{- end }}
   containers:
   - name: integration
     # TODO: When deployed to staging (or real AWS env), _all_ tests should be run
@@ -62,6 +67,10 @@ spec:
     {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
     - name: "gundeck-cassandra"
       mountPath: "/etc/wire/gundeck/cassandra"
+    {{- end }}
+    {{- if eq (include "configureRedisCa" .Values.config) "true" }}
+    - name: "redis-ca"
+      mountPath: "/etc/wire/gundeck/redis-ca/"
     {{- end }}
     env:
     # these dummy values are necessary for Amazonka's "Discover"

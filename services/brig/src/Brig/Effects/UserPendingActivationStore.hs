@@ -23,5 +23,5 @@ data UserPendingActivationStore p m a where
 
 makeSem ''UserPendingActivationStore
 
-remove :: forall p r. Member (UserPendingActivationStore p) r => UserId -> Sem r ()
+remove :: forall p r. (Member (UserPendingActivationStore p) r) => UserId -> Sem r ()
 remove uid = removeMultiple [uid]

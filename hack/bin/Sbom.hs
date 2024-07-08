@@ -51,6 +51,7 @@ how this relates to bombon:
 
 module Sbom where
 
+import Control.Applicative ((<|>))
 import Control.Arrow ((&&&))
 import Data.Aeson
 import Data.Aeson.Key qualified as KM
@@ -73,6 +74,7 @@ import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Data.Time.Clock.POSIX
+import Data.Time.Format.ISO8601 (iso8601Show)
 import Data.Traversable (for)
 import Data.Tree
 import Data.UUID qualified as UUID
@@ -193,8 +195,9 @@ mkPurl meta =
       maybe "" ("@" <>) meta.version
     ]
   where
+    checks = meta.homepage : meta.urls
     repo
-      | any (maybe False (T.isInfixOf "hackage.haskell.org")) meta.urls = "hackage"
+      | any (maybe False (T.isInfixOf "hackage.haskell.org")) checks = "hackage"
       | otherwise = "nixpkgs"
 
 -- | serializes an SBom to JSON format
@@ -206,13 +209,17 @@ serializeSBom settings bom = do
   curTime <- getCurrentTime
   -- FUTUREWORK(mangoiv): "tools" (the tools used in the creation of the bom)
   let mkDependencies :: SBomMeta Identity -> Array
-      mkDependencies meta = do
-        let d =
-              object
-                [ "ref" .= meta.outPath,
-                  "dependsOn" .= runIdentity meta.directDeps
-                ]
-        [d]
+      mkDependencies meta =
+        [object ["ref" .= meta.outPath, "dependsOn" .= runIdentity meta.directDeps]]
+
+      serializeLicense :: Maybe License -> Maybe Value
+      serializeLicense ml = do
+        l <- ml
+        idOrName <-
+          (\i -> ["id" .= i]) <$> l.id
+            <|> (\n -> ["name" .= n]) <$> l.name
+        pure (object idOrName)
+
       mkComponents :: SBomMeta Identity -> Array
       mkComponents meta = do
         let c :: Value
@@ -220,17 +227,18 @@ serializeSBom settings bom = do
               -- FUTUREWORK(mangoiv): swid? https://www.iso.org/standard/65666.html
               -- FUTUREWORK(mangoiv): CPE?
               -- FUTUREWORK(mangoiv): more information in the supplier section
-              object
-                [ "type" .= meta.typ,
-                  "bom-ref" .= String (runIdentity meta.outPath),
-                  "supplier" .= object ["url" .= nubOrd (maybeToList meta.homepage <> catMaybes meta.urls)],
-                  "name" .= String (fromMaybe (st'name $ splitStorePath $ runIdentity meta.outPath) meta.name),
-                  "version" .= meta.version,
-                  "description" .= meta.description,
-                  "scope" .= String "required",
-                  "licenses" .= ((\ln -> object ["license" .= ln]) <$> filter (isJust . (>>= (.id))) meta.licenseSpdxId),
-                  "purl" .= mkPurl meta
-                ]
+              Object $
+                mconcat
+                  [ "type" .= String (fromMaybe "library" meta.typ),
+                    "bom-ref" .= String (runIdentity meta.outPath),
+                    "supplier" .= object ["url" .= nubOrd (maybeToList meta.homepage <> catMaybes meta.urls)],
+                    "name" .= String (fromMaybe (st'name $ splitStorePath $ runIdentity meta.outPath) meta.name),
+                    "version" .?= meta.version,
+                    "description" .?= meta.description,
+                    "scope" .= String "required",
+                    "licenses" .= ((\ln -> object ["license" .= ln]) <$> mapMaybe serializeLicense meta.licenseSpdxId),
+                    "purl" .= mkPurl meta
+                  ]
         [c]
       (dependencies, components) = foldMap (mkDependencies &&& mkComponents) bom
 
@@ -243,7 +251,7 @@ serializeSBom settings bom = do
           "version" .= Number (fromIntegral settings.sbom'version),
           "metadata"
             .= object
-              [ "timestamp" .= String (T.pack (show curTime)),
+              [ "timestamp" .= String (T.pack (iso8601Show curTime)),
                 "component"
                   .= object
                     [ "name" .= String settings.sbom'component,
@@ -253,7 +261,7 @@ serializeSBom settings bom = do
                 -- FUTUREWORK(mangoiv): "manufacture" can also have url
                 "manufacture" .= object ["name" .= String settings.sbom'manufacture],
                 "supplier" .= object ["name" .= String (fromMaybe settings.sbom'manufacture settings.sbom'supplier)],
-                "licenses" .= Array (fromList $ object . (\n -> ["id" .= n]) . String <$> settings.sbom'licenses)
+                "licenses" .= Array (fromList $ (\n -> object ["license" .= object ["id" .= String n]]) <$> settings.sbom'licenses)
               ],
           "components" .= Array components,
           -- FUTUREWORK(mangoiv): services: allow to tell the program the name of the services like brig, galley, ...

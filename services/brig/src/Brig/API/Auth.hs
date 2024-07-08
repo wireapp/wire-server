@@ -46,14 +46,22 @@ import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Polysemy.Input (Input)
 import Polysemy.TinyLog (TinyLog)
+import Wire.API.Error
+import Wire.API.Error.Brig qualified as E
 import Wire.API.User
 import Wire.API.User.Auth hiding (access)
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
+import Wire.EmailSubsystem (EmailSubsystem)
 import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
+import Wire.PasswordStore (PasswordStore)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.UserKeyStore
+import Wire.UserStore
+import Wire.UserSubsystem
+import Wire.VerificationCodeSubsystem (VerificationCodeSubsystem)
 
 accessH ::
   ( Member TinyLog r,
@@ -90,11 +98,10 @@ access mcid t mt =
   traverse mkUserTokenCookie
     =<< Auth.renewAccess (List1 t) mt mcid !>> zauthError
 
-sendLoginCode :: (Member TinyLog r) => SendLoginCode -> Handler r LoginCodeTimeout
-sendLoginCode (SendLoginCode phone call force) = do
-  checkAllowlist (Right phone)
-  c <- Auth.sendLoginCode phone call force !>> sendLoginCodeError
-  pure $ LoginCodeTimeout (pendingLoginTimeout c)
+sendLoginCode :: SendLoginCode -> Handler r LoginCodeTimeout
+sendLoginCode _ =
+  -- Login by phone is unsupported
+  throwStd (errorToWai @'E.InvalidPhone)
 
 login ::
   ( Member GalleyAPIAccess r,
@@ -103,7 +110,11 @@ login ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member PasswordStore r,
+    Member UserKeyStore r,
+    Member UserStore r,
+    Member VerificationCodeSubsystem r
   ) =>
   Login ->
   Maybe Bool ->
@@ -123,12 +134,15 @@ logoutH uts' mat' = do
   partitionTokens uts mat
     >>= either (uncurry logout) (uncurry logout)
 
-logout :: TokenPair u a => NonEmpty (Token u) -> Maybe (Token a) -> Handler r ()
+logout :: (TokenPair u a) => NonEmpty (Token u) -> Maybe (Token a) -> Handler r ()
 logout _ Nothing = throwStd authMissingToken
 logout uts (Just at) = Auth.logout (List1 uts) at !>> zauthError
 
 changeSelfEmailH ::
-  Member BlacklistStore r =>
+  ( Member BlacklistStore r,
+    Member UserKeyStore r,
+    Member EmailSubsystem r
+  ) =>
   [Either Text SomeUserToken] ->
   Maybe (Either Text SomeAccessToken) ->
   EmailUpdate ->
@@ -139,10 +153,10 @@ changeSelfEmailH uts' mat' up = do
   toks <- partitionTokens uts mat
   usr <- either (uncurry validateCredentials) (uncurry validateCredentials) toks
   let email = euEmail up
-  changeSelfEmail usr email ForbidSCIMUpdates
+  changeSelfEmail usr email UpdateOriginWireClient
 
 validateCredentials ::
-  TokenPair u a =>
+  (TokenPair u a) =>
   NonEmpty (Token u) ->
   Maybe (Token a) ->
   Handler r UserId
@@ -155,7 +169,7 @@ listCookies lusr (fold -> labels) =
   CookieList
     <$> wrapClientE (Auth.listCookies (tUnqualified lusr) (toList labels))
 
-removeCookies :: (Member TinyLog r) => Local UserId -> RemoveCookies -> Handler r ()
+removeCookies :: (Member TinyLog r, Member PasswordStore r) => Local UserId -> RemoveCookies -> Handler r ()
 removeCookies lusr (RemoveCookies pw lls ids) =
   Auth.revokeAccess (tUnqualified lusr) pw ids lls !>> authError
 
@@ -191,12 +205,10 @@ ssoLogin l (fromMaybe False -> persist) = do
   c <- Auth.ssoLogin l typ !>> loginError
   traverse mkUserTokenCookie c
 
-getLoginCode :: (Member TinyLog r) => Phone -> Handler r PendingLoginCode
-getLoginCode phone = do
-  code <- lift $ Auth.lookupLoginCode phone
-  maybe (throwStd loginCodeNotFound) pure code
+getLoginCode :: Phone -> Handler r PendingLoginCode
+getLoginCode _ = throwStd loginCodeNotFound
 
-reauthenticate :: Member GalleyAPIAccess r => UserId -> ReAuthUser -> Handler r ()
+reauthenticate :: (Member GalleyAPIAccess r, Member VerificationCodeSubsystem r) => UserId -> ReAuthUser -> Handler r ()
 reauthenticate uid body = do
   wrapClientE (User.reauthenticate uid (reAuthPassword body)) !>> reauthError
   case reAuthCodeAction body of

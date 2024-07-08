@@ -14,7 +14,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
 module Galley.API.Internal
   ( internalAPI,
     InternalAPI,
@@ -86,9 +85,11 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Routes.API
+import Wire.API.Routes.Internal.Brig.EJPD
 import Wire.API.Routes.Internal.Galley
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
+import Wire.API.Routes.MultiTablePaging qualified as MTP
 import Wire.API.Team.Feature hiding (setStatus)
 import Wire.API.User.Client
 import Wire.NotificationSubsystem
@@ -110,6 +111,57 @@ internalAPI =
       <@> featureAPI
       <@> federationAPI
       <@> conversationAPI
+      <@> iEJPDAPI
+
+iEJPDAPI :: API IEJPDAPI GalleyEffects
+iEJPDAPI = mkNamedAPI @"get-conversations-by-user" (callsFed (exposeAnnotations ejpdGetConvInfo))
+
+-- | An unpaginated, internal http interface to `Query.conversationIdsPageFrom`.  Used for
+-- EJPD reports.  Called locally with very little data for each conv, so we don't expect
+-- pagination to ever be needed.
+ejpdGetConvInfo ::
+  forall r p.
+  ( p ~ CassandraPaging,
+    Member ConversationStore r,
+    Member (Error InternalError) r,
+    Member (Input (Local ())) r,
+    Member (Input Env) r,
+    Member (ListItems p ConvId) r,
+    Member (ListItems p (Remote ConvId)) r,
+    Member P.TinyLog r
+  ) =>
+  UserId ->
+  Sem r [EJPDConvInfo]
+ejpdGetConvInfo uid = do
+  luid <- qualifyLocal uid
+  firstPage <- Query.conversationIdsPageFrom luid initialPageRequest
+  getPages luid firstPage
+  where
+    initialPageRequest = mkPageRequest (MTP.MultiTablePagingState MTP.PagingLocals Nothing)
+    mkPageRequest = MTP.GetMultiTablePageRequest (toRange (Proxy @1000)) . Just
+
+    getPages :: Local UserId -> ConvIdsPage -> Sem r [EJPDConvInfo]
+    getPages luid page = do
+      let convids = MTP.mtpResults page
+          mk :: Data.Conversation -> Maybe EJPDConvInfo
+          mk conv = do
+            let convType = conv.convMetadata.cnvmType
+                ejpdConvInfo = EJPDConvInfo (fromMaybe "n/a" conv.convMetadata.cnvmName) (tUntagged $ qualifyAs luid conv.convId)
+            -- we don't want self conversations as they don't tell us anything about connections
+            -- we don't want connect conversations, because the peer has not responded yet
+            case convType of
+              RegularConv -> Just ejpdConvInfo
+              -- FUTUREWORK(mangoiv): with GHC 9.12 we can refactor this to or-patterns
+              One2OneConv -> Nothing
+              SelfConv -> Nothing
+              ConnectConv -> Nothing
+      renderedPage <- mapMaybe mk <$> getConversations (fst $ partitionQualified luid convids)
+      if MTP.mtpHasMore page
+        then do
+          newPage <- Query.conversationIdsPageFrom luid (mkPageRequest . MTP.mtpPagingState $ page)
+          morePages <- getPages luid newPage
+          pure $ renderedPage <> morePages
+        else pure renderedPage
 
 federationAPI :: API IFederationAPI GalleyEffects
 federationAPI =
@@ -433,11 +485,12 @@ guardLegalholdPolicyConflictsH glh = do
 -- | Get an MLS conversation client list
 iGetMLSClientListForConv ::
   forall r.
-  Members
-    '[ MemberStore,
-       ErrorS 'ConvNotFound
-     ]
-    r =>
+  ( Members
+      '[ MemberStore,
+         ErrorS 'ConvNotFound
+       ]
+      r
+  ) =>
   GroupId ->
   Sem r ClientList
 iGetMLSClientListForConv gid = do

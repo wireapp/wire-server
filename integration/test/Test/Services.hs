@@ -22,7 +22,7 @@ import API.Common
 import SetupHelpers
 import Testlib.Prelude
 
-testUpdateServiceUpdateAcceptHeader :: HasCallStack => App ()
+testUpdateServiceUpdateAcceptHeader :: (HasCallStack) => App ()
 testUpdateServiceUpdateAcceptHeader = do
   let dom = OwnDomain
   email <- randomEmail
@@ -31,12 +31,12 @@ testUpdateServiceUpdateAcceptHeader = do
   pId <- provider %. "id" & asString
   service <- newService dom pId def
   sId <- service %. "id"
-  void $
-    updateService dom pId sId (Just "application/json") (Just "brand new service")
-      >>= getBody 200
-  void $
-    updateService dom pId sId (Just "text/plain") (Just "even newer service")
-      >>= getBody 200
-  void $
-    updateService dom pId sId Nothing (Just "really old service")
-      >>= getBody 200
+  void
+    $ updateService dom pId sId (Just "application/json") (Just "brand new service")
+    >>= getBody 200
+  void
+    $ updateService dom pId sId (Just "text/plain") (Just "even newer service")
+    >>= getBody 200
+  void
+    $ updateService dom pId sId Nothing (Just "really old service")
+    >>= getBody 200

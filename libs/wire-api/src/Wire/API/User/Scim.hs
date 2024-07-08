@@ -83,6 +83,7 @@ import Web.Scim.Schema.Schema (Schema (CustomSchema))
 import Web.Scim.Schema.Schema qualified as Scim
 import Web.Scim.Schema.User qualified as Scim
 import Web.Scim.Schema.User qualified as Scim.User
+import Wire.API.Locale
 import Wire.API.Team.Role (Role)
 import Wire.API.User (emailFromSAMLNameID, urefToExternalIdUnsafe)
 import Wire.API.User.Identity (Email, fromEmail)
@@ -168,11 +169,16 @@ instance FromJSON ScimTokenInfo where
 instance ToJSON ScimTokenInfo where
   toJSON s =
     A.object $
-      "team" A..= stiTeam s
-        # "id" A..= stiId s
-        # "created_at" A..= stiCreatedAt s
-        # "idp" A..= stiIdP s
-        # "description" A..= stiDescr s
+      "team"
+        A..= stiTeam s
+        # "id"
+        A..= stiId s
+        # "created_at"
+        A..= stiCreatedAt s
+        # "idp"
+        A..= stiIdP s
+        # "description"
+        A..= stiDescr s
         # []
 
 ----------------------------------------------------------------------------

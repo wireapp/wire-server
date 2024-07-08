@@ -8,28 +8,23 @@ Please refer to the following {ref}`section to better understand SFT and how it 
 
 ### As part of the wire-server umbrella chart
 
-`` sftd` `` will be installed as part of the `wire-server` umbrella chart if you set `tags.sftd: true`
+The `sftd` is packaged as its own Helm chart.
 
-In your `./values/wire-server/values.yaml` file you should set the following settings:
+In your `./values/sftd/values.yaml` file you should set the following settings:
 
 ```yaml
-tags:
-  sftd: true
-
-sftd:
-  host: sftd.example.com # Replace example.com with your domain
-  allowOrigin: https://webapp.example.com # Should be the address you used for the webapp deployment (Note: you must include the uri scheme "https://")
+host: sftd.example.com # Replace example.com with your domain
+allowOrigin: https://webapp.example.com # Should be the address you used for the webapp deployment (Note: you must include the uri scheme "https://")
 ```
 
 In your `secrets.yaml` you should set the TLS keys for sftd domain:
 
 ```yaml
-sftd:
-  tls:
-    crt: |
-      <TLS CRT HERE>
-    key: |
-      <TLS KEY HERE>
+tls:
+  crt: |
+    <TLS CRT HERE>
+  key: |
+    <TLS KEY HERE>
 ```
 
 You should also make sure that you configure brig to know about the SFT server in your `./values/wire-server/values.yaml`  file:
@@ -46,23 +41,6 @@ Now you can deploy as usual:
 helm upgrade wire-server wire/wire-server --values ./values/wire-server/values.yaml
 ```
 
-### Standalone
-
-The SFT component is also shipped as a separate helm chart. Installation is similar to installing
-the charts as in {ref}`helm-prod`.
-
-Some people might want to run SFT separately, because the deployment lifecycle for the SFT is a bit more intricate. For example,
-if you want to avoid dropping calls during an upgrade, you'd set the `terminationGracePeriodSeconds` of the SFT to a high number, to wait
-for calls to drain before updating to the new version (See  [technical documentation](https://github.com/wireapp/wire-server/blob/develop/charts/sftd/README.md)).  that would cause your otherwise snappy upgrade of the `wire-server` chart to now take a long time, as it waits for all
-the SFT servers to drain. If this is a concern for you, we advice installing `sftd` as a separate chart.
-
-It is important that you disable `sftd` in the `wire-server` umbrella chart, by setting this in your `./values/wire-server/values.yaml`  file
-
-```yaml
-tags:
-  sftd: false
-```
-
 By default `sftd` doesn't need to set that many options, so we define them inline. However, you could of course also set these values in a `values.yaml` file.
 
 SFT will deploy a Kubernetes Ingress on `$SFTD_HOST`.  Make sure that the domain name `$SFTD_HOST` points to your ingress IP as set up in {ref}`helm-prod`.  The SFT also needs to be made aware of the domain name of the webapp that you set up in {ref}`helm-prod` for setting up the appropriate CSP headers.
@@ -75,8 +53,7 @@ export WEBAPP_HOST=webapp.example.com
 Now you can install the chart:
 
 ```shell
-helm upgrade --install sftd wire/sftd --set
-helm install sftd wire/sftd  \
+helm install sftd sftd  \
   --set host=$SFTD_HOST \
   --set allowOrigin=https://$WEBAPP_HOST \
   --set-file tls.crt=/path/to/tls.crt \

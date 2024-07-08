@@ -36,14 +36,12 @@ import Data.Id
 import Data.Metrics.Servant (servantPrometheusMiddleware)
 import Data.Proxy (Proxy (Proxy))
 import Data.Text.Encoding
-import qualified Data.UUID as UUID
-import Data.UUID.V4 as UUID
 import Imports
 import Network.Wai (Application)
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Middleware.Gunzip as GZip
-import Network.Wai.Utilities.Request (lookupRequestId)
+import Network.Wai.Utilities.Server
 import qualified Network.Wai.Utilities.Server as WU
 import qualified SAML2.WebSSO as SAML
 import Spar.API (SparAPI, app)
@@ -52,7 +50,7 @@ import qualified Spar.Data as Data
 import Spar.Data.Instances ()
 import Spar.Options as Opt
 import Spar.Orphans ()
-import System.Logger (Logger, msg, val, (.=), (~~))
+import System.Logger (Logger)
 import qualified System.Logger as Log
 import qualified System.Logger.Extended as Log
 import Util.Options
@@ -101,33 +99,24 @@ mkApp sparCtxOpts = do
         Bilge.host (sparCtxOpts ^. to galley . host . to encodeUtf8)
           . Bilge.port (sparCtxOpts ^. to galley . port)
           $ Bilge.empty
-  let wrappedApp =
+  let sparCtxRequestId = RequestId "N/A"
+  let ctx0 = Env {..}
+  let heavyLogOnly :: (Wai.Request, LByteString) -> Maybe (Wai.Request, LByteString)
+      heavyLogOnly out@(req, _) =
+        if Wai.requestMethod req == "POST" && Wai.pathInfo req == ["sso", "finalize-login"]
+          then Just out
+          else Nothing
+  let middleware =
         versionMiddleware (foldMap expandVersionExp (disabledAPIVersions sparCtxOpts))
-          . WU.heavyDebugLogging heavyLogOnly logLevel sparCtxLogger
+          . requestIdMiddleware (ctx0.sparCtxLogger) defaultRequestIdHeaderName
+          . WU.heavyDebugLogging heavyLogOnly logLevel sparCtxLogger defaultRequestIdHeaderName
           . servantPrometheusMiddleware (Proxy @SparAPI)
           . GZip.gunzip
-          . WU.catchErrors sparCtxLogger []
+          . WU.catchErrors sparCtxLogger defaultRequestIdHeaderName
           -- Error 'Response's are usually not thrown as exceptions, but logged in
           -- 'renderSparErrorWithLogging' before the 'Application' can construct a 'Response'
           -- value, when there is still all the type information around.  'WU.catchErrors' is
           -- still here for errors outside the power of the 'Application', like network
           -- outages.
           . SAML.setHttpCachePolicy
-          . lookupRequestIdMiddleware sparCtxLogger
-          $ \sparCtxRequestId -> app Env {..}
-      heavyLogOnly :: (Wai.Request, LByteString) -> Maybe (Wai.Request, LByteString)
-      heavyLogOnly out@(req, _) =
-        if Wai.requestMethod req == "POST" && Wai.pathInfo req == ["sso", "finalize-login"]
-          then Just out
-          else Nothing
-  pure (wrappedApp, let sparCtxRequestId = Bilge.RequestId "N/A" in Env {..})
-
-lookupRequestIdMiddleware :: Logger -> (RequestId -> Wai.Application) -> Wai.Application
-lookupRequestIdMiddleware logger mkapp req cont = do
-  case lookupRequestId req of
-    Just rid -> do
-      mkapp (RequestId rid) req cont
-    Nothing -> do
-      localRid <- RequestId . encodeUtf8 . UUID.toText <$> UUID.nextRandom
-      Log.info logger $ "request-id" .= localRid ~~ "request" .= (show req) ~~ msg (val "generated a new request id for local request")
-      mkapp localRid req cont
+  pure (middleware $ app ctx0, ctx0)

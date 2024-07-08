@@ -30,18 +30,19 @@ import Polysemy (Member)
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
 import Wire.API.User (User (userTeam))
+import Wire.Error
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 
 -- | If the user is in a team, it has to have these permissions.  If not, it is a personal
 -- user with account validation and thus given the permission implicitly.  (Used for
 -- `SearchContactcs`.)
-ensurePermissionsOrPersonalUser :: (Member GalleyAPIAccess r, IsPerm perm) => UserId -> [perm] -> ExceptT Error (AppT r) ()
+ensurePermissionsOrPersonalUser :: (Member GalleyAPIAccess r, IsPerm perm) => UserId -> [perm] -> ExceptT HttpError (AppT r) ()
 ensurePermissionsOrPersonalUser u perms = do
   mbUser <- lift $ wrapHttp $ Data.lookupUser NoPendingInvitations u
   maybe (pure ()) (\tid -> ensurePermissions u tid perms) (userTeam =<< mbUser :: Maybe TeamId)
 
-ensurePermissions :: (Member GalleyAPIAccess r, IsPerm perm) => UserId -> TeamId -> [perm] -> ExceptT Error (AppT r) ()
+ensurePermissions :: (Member GalleyAPIAccess r, IsPerm perm) => UserId -> TeamId -> [perm] -> ExceptT HttpError (AppT r) ()
 ensurePermissions u t perms = do
   m <- lift $ liftSem $ GalleyAPIAccess.getTeamMember u t
   unless (check m) $
@@ -54,7 +55,7 @@ ensurePermissions u t perms = do
 -- | Privilege escalation detection (make sure no `RoleMember` user creates a `RoleOwner`).
 --
 -- There is some code duplication with 'Galley.API.Teams.ensureNotElevated'.
-ensurePermissionToAddUser :: Member GalleyAPIAccess r => UserId -> TeamId -> Permissions -> ExceptT Error (AppT r) ()
+ensurePermissionToAddUser :: (Member GalleyAPIAccess r) => UserId -> TeamId -> Permissions -> ExceptT HttpError (AppT r) ()
 ensurePermissionToAddUser u t inviteePerms = do
   minviter <- lift $ liftSem $ GalleyAPIAccess.getTeamMember u t
   unless (check minviter) $

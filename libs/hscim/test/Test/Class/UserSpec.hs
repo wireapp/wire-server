@@ -383,14 +383,15 @@ spec = with app $ do
             { matchStatus = 200
             }
   describe "DELETE /Users/:id" $ do
-    it "responds with 404 for unknown user" $ do
-      delete "/9999" `shouldRespondWith` 404
+    it "responds with 204 for unknown user" $ do
+      delete "/9999" `shouldRespondWith` 204
     it "deletes a stored user" $ do
       post "/" newBarbara `shouldRespondWith` 201
       delete "/0" `shouldRespondWith` 204
       -- user should be gone
       get "/0" `shouldRespondWith` 404
-      delete "/0" `shouldRespondWith` 404
+      -- delete is idempotent
+      delete "/0" `shouldRespondWith` 204
 
 smallUser :: ByteString
 smallUser =

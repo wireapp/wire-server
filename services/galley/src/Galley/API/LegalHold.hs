@@ -288,7 +288,7 @@ removeSettings' tid =
       luid <- qualifyLocal (member ^. userId)
       removeLegalHoldClientFromUser (tUnqualified luid)
       LHService.removeLegalHold tid (tUnqualified luid)
-      changeLegalholdStatus tid luid (member ^. legalHoldStatus) UserLegalHoldDisabled -- (support for withdrawing consent is not planned yet.)
+      changeLegalholdStatusAndHandlePolicyConflicts tid luid (member ^. legalHoldStatus) UserLegalHoldDisabled -- (support for withdrawing consent is not planned yet.)
 
 -- | Learn whether a user has LH enabled and fetch pre-keys.
 -- Note that this is accessible to ANY authenticated user, even ones outside the team
@@ -364,7 +364,7 @@ grantConsent lusr tid = do
       =<< fmap (view legalHoldStatus) <$> getTeamMember tid (tUnqualified lusr)
   case userLHStatus of
     lhs@UserLegalHoldNoConsent ->
-      changeLegalholdStatus tid lusr lhs UserLegalHoldDisabled $> GrantConsentSuccess
+      changeLegalholdStatusAndHandlePolicyConflicts tid lusr lhs UserLegalHoldDisabled $> GrantConsentSuccess
     UserLegalHoldEnabled -> pure GrantConsentAlreadyGranted
     UserLegalHoldPending -> pure GrantConsentAlreadyGranted
     UserLegalHoldDisabled -> pure GrantConsentAlreadyGranted
@@ -420,7 +420,12 @@ requestDevice lzusr tid uid = do
   member <- noteS @'TeamMemberNotFound =<< getTeamMember tid uid
   case member ^. legalHoldStatus of
     UserLegalHoldEnabled -> throwS @'UserLegalHoldAlreadyEnabled
-    lhs@UserLegalHoldPending -> RequestDeviceAlreadyPending <$ provisionLHDevice zusr luid lhs
+    lhs@UserLegalHoldPending ->
+      -- FUTUREWORK: we create a new device if a pending one is found.  this helps with
+      -- recovering from lost credentials (but where would that happen?).  on the other
+      -- hand. do we properly gc the old pending device?  maybe we should just throw an error
+      -- here?
+      RequestDeviceAlreadyPending <$ provisionLHDevice zusr luid lhs
     lhs@UserLegalHoldDisabled -> RequestDeviceSuccess <$ provisionLHDevice zusr luid lhs
     UserLegalHoldNoConsent -> throwS @'NoUserLegalHoldConsent
   where
@@ -436,7 +441,7 @@ requestDevice lzusr tid uid = do
       (lastPrekey', prekeys) <- requestDeviceFromService luid
       -- We don't distinguish the last key here; brig will do so when the device is added
       LegalHoldData.insertPendingPrekeys (tUnqualified luid) (unpackLastPrekey lastPrekey' : prekeys)
-      changeLegalholdStatus tid luid userLHStatus UserLegalHoldPending
+      changeLegalholdStatusAndHandlePolicyConflicts tid luid userLHStatus UserLegalHoldPending
       notifyClientsAboutLegalHoldRequest zusr (tUnqualified luid) lastPrekey'
 
     requestDeviceFromService :: Local UserId -> Sem r (LastPrekey, [Prekey])
@@ -520,7 +525,7 @@ approveDevice lzusr connId tid uid (Public.ApproveLegalHoldForUserRequest mPassw
   LHService.confirmLegalHold clientId tid (tUnqualified luid) legalHoldAuthToken
   -- TODO: send event at this point (see also:
   -- https://github.com/wireapp/wire-server/pull/802#pullrequestreview-262280386)
-  changeLegalholdStatus tid luid userLHStatus UserLegalHoldEnabled
+  changeLegalholdStatusAndHandlePolicyConflicts tid luid userLHStatus UserLegalHoldEnabled
   where
     assertUserLHPending ::
       UserLegalHoldStatus ->
@@ -576,9 +581,18 @@ disableForUser lzusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) =
 
   userLHStatus <-
     maybe defUserLegalHoldStatus (view legalHoldStatus) <$> getTeamMember tid (tUnqualified luid)
-  if not $ userLHEnabled userLHStatus
-    then pure DisableLegalHoldWasNotEnabled
-    else disableLH (tUnqualified lzusr) luid userLHStatus $> DisableLegalHoldSuccess
+
+  let doDisable = disableLH (tUnqualified lzusr) luid userLHStatus $> DisableLegalHoldSuccess
+  case userLHStatus of
+    -- no state change necessary
+    UserLegalHoldDisabled -> pure DisableLegalHoldWasNotEnabled
+    UserLegalHoldNoConsent ->
+      -- no state change allowed
+      -- we cannot go to disabled because that would subsume consent
+      pure DisableLegalHoldWasNotEnabled
+    -- LH is enabled or pending, we can disable (change state) without issue
+    UserLegalHoldEnabled -> doDisable
+    UserLegalHoldPending -> doDisable
   where
     disableLH :: UserId -> Local UserId -> UserLegalHoldStatus -> Sem r ()
     disableLH zusr luid userLHStatus = do
@@ -588,12 +602,12 @@ disableForUser lzusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) =
       -- TODO: send event at this point (see also: related TODO in this module in
       -- 'approveDevice' and
       -- https://github.com/wireapp/wire-server/pull/802#pullrequestreview-262280386)
-      changeLegalholdStatus tid luid userLHStatus UserLegalHoldDisabled
+      changeLegalholdStatusAndHandlePolicyConflicts tid luid userLHStatus UserLegalHoldDisabled
 
--- | Allow no-consent => consent without further changes.  If LH device is requested, enabled,
--- or disabled, make sure the affected connections are screened for policy conflict (anybody
--- with no-consent), and put those connections in the appropriate blocked state.
-changeLegalholdStatus ::
+-- | Allow no-consent or requested => consent without further changes.  If LH device is
+-- enabled, or disabled, make sure the affected connections are screened for policy conflict
+-- (anybody with no-consent), and put those connections in the appropriate blocked state.
+changeLegalholdStatusAndHandlePolicyConflicts ::
   ( Member BackendNotificationQueueAccess r,
     Member BrigAccess r,
     Member ConversationStore r,
@@ -621,24 +635,24 @@ changeLegalholdStatus ::
   UserLegalHoldStatus ->
   UserLegalHoldStatus ->
   Sem r ()
-changeLegalholdStatus tid luid old new = do
+changeLegalholdStatusAndHandlePolicyConflicts tid luid old new = do
   case old of
     UserLegalHoldEnabled -> case new of
       UserLegalHoldEnabled -> noop
       UserLegalHoldPending -> illegal
-      UserLegalHoldDisabled -> update >> removeblocks
+      UserLegalHoldDisabled -> update >> removeBlocks
       UserLegalHoldNoConsent -> illegal
     --
     UserLegalHoldPending -> case new of
-      UserLegalHoldEnabled -> update
+      UserLegalHoldEnabled -> addBlocks >> update
       UserLegalHoldPending -> noop
-      UserLegalHoldDisabled -> update >> removeblocks
+      UserLegalHoldDisabled -> update >> removeBlocks
       UserLegalHoldNoConsent -> illegal
     --
     UserLegalHoldDisabled -> case new of
       UserLegalHoldEnabled -> illegal
-      UserLegalHoldPending -> addblocks >> update
-      UserLegalHoldDisabled -> {- in case the last attempt crashed -} removeblocks
+      UserLegalHoldPending -> update
+      UserLegalHoldDisabled -> {- in case the last attempt crashed -} removeBlocks
       UserLegalHoldNoConsent -> {- withdrawing consent is not (yet?) implemented -} illegal
     --
     UserLegalHoldNoConsent -> case new of
@@ -648,8 +662,8 @@ changeLegalholdStatus tid luid old new = do
       UserLegalHoldNoConsent -> noop
   where
     update = LegalHoldData.setUserLegalHoldStatus tid (tUnqualified luid) new
-    removeblocks = void $ putConnectionInternal (RemoveLHBlocksInvolving (tUnqualified luid))
-    addblocks = do
+    removeBlocks = void $ putConnectionInternal (RemoveLHBlocksInvolving (tUnqualified luid))
+    addBlocks = do
       blockNonConsentingConnections (tUnqualified luid)
       handleGroupConvPolicyConflicts luid new
     noop = pure ()
@@ -690,7 +704,7 @@ blockNonConsentingConnections uid = do
       status <- putConnectionInternal (BlockForMissingLHConsent userLegalhold othersToBlock)
       pure $ ["blocking users failed: " <> show (status, othersToBlock) | status /= status200]
 
-unsetTeamLegalholdWhitelistedH :: Member LegalHoldStore r => TeamId -> Sem r ()
+unsetTeamLegalholdWhitelistedH :: (Member LegalHoldStore r) => TeamId -> Sem r ()
 unsetTeamLegalholdWhitelistedH tid = do
   () <-
     error

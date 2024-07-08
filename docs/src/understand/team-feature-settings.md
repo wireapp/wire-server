@@ -94,6 +94,10 @@ When a client first tries to fetch or renew a certificate, they may need to logi
 
 The client enrolls using the Automatic Certificate Management Environment (ACME) protocol [RFC 8555](https://www.rfc-editor.org/rfc/rfc8555.html). The `acmeDiscoveryUrl` parameter must be set to the HTTPS URL of the ACME server discovery endpoint for this team. It is of the form "https://acme.{backendDomain}/acme/{provisionerName}/discovery". For example: `https://acme.example.com/acme/provisioner1/discovery`.
 
+`useProxyOnMobile` is an optional field. If `true`, mobile clients should use the CRL proxy. If missing, null or false, mobile clients should not use the CRL proxy.
+
+`crlProxy` contains the URL to the CRL proxy. (Not that this field is optional in the server config, but mandatory when the team feature is updated via the team feature API.)
+
 ```yaml
 galley:
   # ...
@@ -109,6 +113,8 @@ galley:
             config:
               verificationExpiration: 86400
               acmeDiscoveryUrl: null
+              useProxyOnMobile: true
+              crlProxy: https://example.com
             lockStatus: unlocked
 ```
 

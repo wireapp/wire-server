@@ -25,7 +25,6 @@ module Spar.Sem.ScimTokenStore.Cassandra (scimTokenStoreToCassandra) where
 import Cassandra as Cas
 import Control.Arrow (Arrow ((&&&)))
 import Control.Lens
-import Control.Monad.Except
 import Data.Id
 import Data.Time
 import Imports
@@ -44,12 +43,13 @@ scimTokenStoreToCassandra ::
   Sem r a
 scimTokenStoreToCassandra =
   interpret $
-    embed @m . \case
-      Insert st sti -> insertScimToken st sti
-      Lookup st -> lookupScimToken st
-      LookupByTeam tid -> getScimTokens tid
-      Delete tid ur -> deleteScimToken tid ur
-      DeleteByTeam tid -> deleteTeamScimTokens tid
+    embed @m
+      . \case
+        Insert st sti -> insertScimToken st sti
+        Lookup st -> lookupScimToken st
+        LookupByTeam tid -> getScimTokens tid
+        Delete tid ur -> deleteScimToken tid ur
+        DeleteByTeam tid -> deleteTeamScimTokens tid
 
 ----------------------------------------------------------------------
 -- SCIM auth
@@ -114,7 +114,7 @@ lookupScimToken token = do
         FROM team_provisioning_by_token WHERE token_ in (?, ?)
       |]
 
-    convert :: MonadClient m => ScimToken -> ScimTokenRow -> m (Maybe ScimTokenInfo)
+    convert :: (MonadClient m) => ScimToken -> ScimTokenRow -> m (Maybe ScimTokenInfo)
     convert plain row = do
       let tokenInfo = fromScimTokenRow row
       connvertPlaintextToken plain tokenInfo

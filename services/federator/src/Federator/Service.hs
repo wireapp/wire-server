@@ -53,11 +53,11 @@ type ServiceStreaming = Service (SourceT IO ByteString)
 
 data Service body m a where
   -- | Returns status, headers and body, 'HTTP.Response' is not nice to work with in tests
-  ServiceCall :: Component -> ByteString -> RequestHeaders -> LByteString -> RequestId -> Domain -> Service body m (Servant.ResponseF body)
+  ServiceCall :: Component -> ByteString -> RequestHeaders -> LByteString -> Domain -> Service body m (Servant.ResponseF body)
 
 makeSem ''Service
 
-bodyReaderToStreamT :: Monad m => m ByteString -> SourceT m ByteString
+bodyReaderToStreamT :: (Monad m) => m ByteString -> SourceT m ByteString
 bodyReaderToStreamT action = fromStepT go
   where
     go = Effect $ do
@@ -77,14 +77,16 @@ bodyReaderToStreamT action = fromStepT go
 --
 interpretServiceHTTP ::
   ( Member (Embed (Codensity IO)) r,
-    Member (Input Env) r
+    Member (Input Env) r,
+    Member (Input RequestId) r
   ) =>
   Sem (ServiceStreaming ': r) a ->
   Sem r a
 interpretServiceHTTP = interpret $ \case
-  ServiceCall component rpcPath headers body rid domain -> do
+  ServiceCall component rpcPath headers body domain -> do
     Endpoint serviceHost servicePort <- inputs (view service) <*> pure component
     manager <- inputs (view httpManager)
+    RequestId rid <- input
     let req =
           defaultRequest
             { method = HTTP.methodPost,
@@ -95,7 +97,7 @@ interpretServiceHTTP = interpret $ \case
               requestHeaders =
                 [ ("Content-Type", "application/json"),
                   (originDomainHeaderName, Text.encodeUtf8 (domainText domain)),
-                  (RPC.requestIdName, unRequestId rid)
+                  (RPC.requestIdName, rid)
                 ]
                   <> headers
             }

@@ -1,0 +1,23 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+USUŃ SWOJE KONTO
+Otrzymaliśmy prośbę o usunięcie konta ${brand}. Kliknij przycisk poniżej w ciągu
+10 minut, aby usunąć wszystkie konwersacje, treści i połączenia.
+
+Usuń konto [${url}]Jeśli nie możesz kliknąć przycisku, skopiuj i wklej ten link
+do swojej przeglądarki:
+
+${url}
+
+Jeśli nie poprosiłeś o to, zresetuj swoje hasło [${forgot}].
+
+Jeśli masz jakieś pytania, prosimy skontaktuj się z nami [${support}].
+
+
+--------------------------------------------------------------------------------
+
+Polityka prywatności i warunki użytkowania [${legal}] · Zgłoś niewłaściwe użycie
+[${misuse}]
+${copyright}. WSZELKIE PRAWA ZASTRZEŻONE.

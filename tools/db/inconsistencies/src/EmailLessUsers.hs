@@ -21,8 +21,6 @@
 
 module EmailLessUsers where
 
-import Brig.Data.UserKey
-import Brig.Email
 import Cassandra
 import Cassandra.Util
 import Conduit
@@ -40,6 +38,7 @@ import System.Logger
 import System.Logger qualified as Log
 import UnliftIO.Async
 import Wire.API.User hiding (userEmail)
+import Wire.UserKeyStore
 
 runCommand :: Logger -> ClientState -> FilePath -> IO ()
 runCommand l brig inconsistenciesFile = do
@@ -96,7 +95,7 @@ data WithWritetime a = WithWritetime
   }
   deriving (Generic)
 
-instance Aeson.ToJSON a => Aeson.ToJSON (WithWritetime a)
+instance (Aeson.ToJSON a) => Aeson.ToJSON (WithWritetime a)
 
 ----------------------------------------------------------------------------
 -- Queries
@@ -117,7 +116,7 @@ type UserDetailsRow = (UserId, Maybe AccountStatus, Maybe (Writetime AccountStat
 
 insertMissingEmail :: Logger -> ClientState -> Email -> UserId -> IO ()
 insertMissingEmail l brig email uid = do
-  runClient brig $ K.insertKey l uid (userEmailKey email)
+  runClient brig $ K.insertKey l uid (mkEmailKey email)
 
 userWithEmailAndStatus :: UserDetailsRow -> Maybe (UserId, AccountStatus, Writetime AccountStatus, Email, Writetime Email)
 userWithEmailAndStatus (uid, mStatus, mStatusWritetime, mEmail, mEmailWritetime, activated) = do
@@ -138,7 +137,7 @@ checkUser :: Logger -> ClientState -> Bool -> (UserId, AccountStatus, Writetime 
 checkUser l brig repairData (uid, statusValue, statusWritetime, userEmailValue, userEmailWriteTime) = do
   let status = WithWritetime statusValue statusWritetime
       userEmail = WithWritetime userEmailValue userEmailWriteTime
-  mKeyDetails <- runClient brig $ K.getKey (userEmailKey userEmailValue)
+  mKeyDetails <- runClient brig $ K.getKey (mkEmailKey userEmailValue)
   case mKeyDetails of
     Nothing -> do
       let emailKey = Nothing

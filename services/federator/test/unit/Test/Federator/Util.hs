@@ -25,6 +25,7 @@ import Imports
 import Network.HTTP.Types qualified as HTTP
 import Network.Wai qualified as Wai
 import Network.Wai.Test qualified as Wai
+import Network.Wai.Utilities.Server (federationRequestIdHeaderName)
 import Polysemy
 import Polysemy.Error
 import Test.Tasty.HUnit
@@ -68,5 +69,6 @@ testRequest tr = do
         Wai.requestHeaders =
           [("X-SSL-Certificate", HTTP.urlEncode True h) | h <- toList (trCertificateHeader tr)]
             <> [(originDomainHeaderName, h) | h <- toList (trDomainHeader tr)]
+            <> [(federationRequestIdHeaderName, "test")]
             <> trExtraHeaders tr
       }

@@ -43,10 +43,10 @@ generateRemoteAndConvIdWithDomain remoteDomain shouldBeLocal lUserId = do
       isLocal = localDomain == cDomain
   if shouldBeLocal == isLocal
     then
-      pure $
-        ( object ["id" .= (otherUsr), "domain" .= otherDomain],
-          object ["id" .= (UUID.toString cId), "domain" .= cDomain]
-        )
+      pure
+        $ ( object ["id" .= (otherUsr), "domain" .= otherDomain],
+            object ["id" .= (UUID.toString cId), "domain" .= cDomain]
+          )
     else generateRemoteAndConvIdWithDomain remoteDomain shouldBeLocal lUserId
 
 one2OneConvId :: (UUID, String) -> (UUID, String) -> (UUID, String)
@@ -86,8 +86,8 @@ newtype UuidV5 = UuidV5 {toUuidV5 :: UUID}
   deriving (Eq, Ord, Show)
 
 mkV5 :: UUID -> UuidV5
-mkV5 u = UuidV5 $
-  case toWords u of
+mkV5 u = UuidV5
+  $ case toWords u of
     (x0, x1, x2, x3) ->
       fromWords
         x0

@@ -180,7 +180,7 @@ instance ToSchema ClientCapabilityList where
       ClientCapabilityList <$> fromClientCapabilityList .= fmap runIdentity capabilitiesFieldSchema
 
 capabilitiesFieldSchema ::
-  FieldFunctor SwaggerDoc f =>
+  (FieldFunctor SwaggerDoc f) =>
   ObjectSchemaP SwaggerDoc (Set ClientCapability) (f (Set ClientCapability))
 capabilitiesFieldSchema =
   Set.toList
@@ -201,7 +201,7 @@ newtype UserClientMap a = UserClientMap
   deriving newtype (Semigroup, Monoid)
   deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema (UserClientMap a)
 
-instance ToSchema a => ToSchema (UserClientMap a) where
+instance (ToSchema a) => ToSchema (UserClientMap a) where
   schema = userClientMapSchema schema
 
 class WrapName doc where
@@ -247,7 +247,7 @@ instance ToSchema UserClientPrekeyMap where
                 )
             )
 
-instance Arbitrary a => Arbitrary (UserClientMap a) where
+instance (Arbitrary a) => Arbitrary (UserClientMap a) where
   arbitrary = UserClientMap <$> mapOf' arbitrary (mapOf' arbitrary arbitrary)
 
 newtype QualifiedUserClientMap a = QualifiedUserClientMap
@@ -256,17 +256,17 @@ newtype QualifiedUserClientMap a = QualifiedUserClientMap
   deriving stock (Eq, Show, Functor)
   deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema (QualifiedUserClientMap a)
 
-instance Semigroup a => Semigroup (QualifiedUserClientMap a) where
+instance (Semigroup a) => Semigroup (QualifiedUserClientMap a) where
   (QualifiedUserClientMap m1) <> (QualifiedUserClientMap m2) =
     QualifiedUserClientMap $ Map.unionWith (Map.unionWith (Map.unionWith (<>))) m1 m2
 
-instance Semigroup (QualifiedUserClientMap a) => Monoid (QualifiedUserClientMap a) where
+instance (Semigroup (QualifiedUserClientMap a)) => Monoid (QualifiedUserClientMap a) where
   mempty = QualifiedUserClientMap mempty
 
-instance Arbitrary a => Arbitrary (QualifiedUserClientMap a) where
+instance (Arbitrary a) => Arbitrary (QualifiedUserClientMap a) where
   arbitrary = QualifiedUserClientMap <$> mapOf' arbitrary (mapOf' arbitrary (mapOf' arbitrary arbitrary))
 
-instance ToSchema a => ToSchema (QualifiedUserClientMap a) where
+instance (ToSchema a) => ToSchema (QualifiedUserClientMap a) where
   schema = qualifiedUserClientMapSchema schema
 
 qualifiedUserClientMapSchema ::

@@ -42,13 +42,14 @@ import Wire.API.User
 import Wire.API.User qualified as Public
 import Wire.API.User.Search
 import Wire.API.User.Search qualified as Public
+import Wire.UserStore (UserStore)
 import Wire.UserSubsystem
 
 getHandleInfo ::
-  (Member UserSubsystem r) =>
+  (Member UserSubsystem r, Member UserStore r) =>
   UserId ->
   Qualified Handle ->
-  (Handler r) (Maybe Public.UserProfile)
+  Handler r (Maybe Public.UserProfile)
 getHandleInfo self handle = do
   lself <- qualifyLocal self
   foldQualified
@@ -57,7 +58,7 @@ getHandleInfo self handle = do
     getRemoteHandleInfo
     handle
 
-getRemoteHandleInfo :: Remote Handle -> (Handler r) (Maybe Public.UserProfile)
+getRemoteHandleInfo :: Remote Handle -> Handler r (Maybe Public.UserProfile)
 getRemoteHandleInfo handle = do
   lift . Log.info $
     Log.msg (Log.val "getHandleInfo - remote lookup")
@@ -65,13 +66,13 @@ getRemoteHandleInfo handle = do
   Federation.getUserHandleInfo handle !>> fedError
 
 getLocalHandleInfo ::
-  (Member UserSubsystem r) =>
+  (Member UserSubsystem r, Member UserStore r) =>
   Local UserId ->
   Handle ->
-  (Handler r) (Maybe Public.UserProfile)
+  Handler r (Maybe Public.UserProfile)
 getLocalHandleInfo self handle = do
   lift . Log.info $ Log.msg $ Log.val "getHandleInfo - local lookup"
-  maybeOwnerId <- lift . wrapClient $ API.lookupHandle handle
+  maybeOwnerId <- lift . liftSem $ API.lookupHandle handle
   case maybeOwnerId of
     Nothing -> pure Nothing
     Just ownerId -> do

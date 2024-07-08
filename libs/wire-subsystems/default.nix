@@ -6,7 +6,7 @@
 , aeson
 , amazonka
 , amazonka-core
-, amazonka-sqs
+, amazonka-ses
 , async
 , base
 , base16-bytestring
@@ -16,17 +16,22 @@
 , cassandra-util
 , containers
 , cql
+, crypton
 , currency-codes
 , data-default
+, data-timeout
 , errors
 , exceptions
 , extended
 , extra
 , gitignoreSource
 , gundeck-types
+, HaskellNet
+, HaskellNet-SSL
 , HsOpenSSL
 , hspec
 , hspec-discover
+, html-entities
 , http-client
 , http-types
 , http2-manager
@@ -34,28 +39,39 @@
 , iso639
 , lens
 , lib
+, memory
 , mime
 , mime-mail
+, network
 , network-conduit-tls
+, pipes
 , polysemy
 , polysemy-plugin
 , polysemy-time
 , polysemy-wire-zoo
+, postie
 , QuickCheck
 , quickcheck-instances
+, random
+, resource-pool
 , resourcet
 , retry
 , servant
 , servant-client-core
 , stomp-queue
+, streaming-commons
 , string-conversions
+, template
 , text
 , time
+, time-out
+, time-units
 , tinylog
 , transformers
 , transitive-anns
 , types-common
 , unliftio
+, unordered-containers
 , uuid
 , wai-utilities
 , wire-api
@@ -69,7 +85,7 @@ mkDerivation {
     aeson
     amazonka
     amazonka-core
-    amazonka-sqs
+    amazonka-ses
     async
     base
     base16-bytestring
@@ -79,41 +95,53 @@ mkDerivation {
     cassandra-util
     containers
     cql
+    crypton
     currency-codes
     data-default
+    data-timeout
     errors
     exceptions
     extended
     extra
     gundeck-types
+    HaskellNet
+    HaskellNet-SSL
     HsOpenSSL
     hspec
+    html-entities
     http-client
     http-types
     http2-manager
     imports
     iso639
     lens
+    memory
     mime
     mime-mail
+    network
     network-conduit-tls
     polysemy
     polysemy-plugin
     polysemy-time
     polysemy-wire-zoo
     QuickCheck
+    resource-pool
     resourcet
     retry
     servant
     servant-client-core
     stomp-queue
+    template
     text
     time
+    time-out
+    time-units
     tinylog
     transformers
     transitive-anns
     types-common
     unliftio
+    unordered-containers
     uuid
     wai-utilities
     wire-api
@@ -126,21 +154,32 @@ mkDerivation {
     bilge
     bytestring
     containers
+    crypton
     data-default
+    errors
     extended
     gundeck-types
     hspec
     imports
     iso639
+    lens
+    mime-mail
+    network
+    pipes
     polysemy
     polysemy-plugin
     polysemy-time
     polysemy-wire-zoo
+    postie
     QuickCheck
     quickcheck-instances
+    random
     servant-client-core
+    streaming-commons
     string-conversions
+    text
     time
+    tinylog
     transformers
     types-common
     wire-api

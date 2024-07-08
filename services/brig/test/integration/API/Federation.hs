@@ -26,7 +26,7 @@ import Control.Arrow (Arrow (first), (&&&))
 import Control.Lens ((?~))
 import Data.Aeson
 import Data.Domain (Domain (Domain))
-import Data.Handle (Handle (..))
+import Data.Handle (Handle (fromHandle), parseHandle)
 import Data.Id
 import Data.Map qualified as Map
 import Data.Qualified
@@ -182,7 +182,7 @@ testSearchRestrictions opts brig = do
                  Opt.ImplicitNoFederationRestriction $ FD.FederationDomainConfig domainFullSearch FullSearch FederationRestrictionAllowAll
                ]
 
-  let expectSearch :: HasCallStack => Domain -> Either Handle Name -> Maybe (Qualified UserId) -> FederatedUserSearchPolicy -> WaiTest.Session ()
+  let expectSearch :: (HasCallStack) => Domain -> Either Handle Name -> Maybe (Qualified UserId) -> FederatedUserSearchPolicy -> WaiTest.Session ()
       expectSearch domain handleOrName mExpectedUser expectedSearchPolicy = do
         let squery = either fromHandle fromName handleOrName
         searchResponse <-
@@ -264,7 +264,7 @@ testGetUserByHandleNotFound opts = do
   maybeProfile <- withSettingsOverrides (allowFullSearch domain opts) $ do
     runWaiTestFedClient domain $
       createWaiTestFedClient @"get-user-by-handle" @'Brig $
-        Handle hdl
+        fromJust (parseHandle hdl)
 
   liftIO $ assertEqual "should not return any UserProfile" Nothing maybeProfile
 

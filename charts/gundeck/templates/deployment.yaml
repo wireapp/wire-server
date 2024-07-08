@@ -37,6 +37,16 @@ spec:
           secret:
             secretName: {{ (include "tlsSecretRef" .Values.config | fromYaml).name }}
         {{- end}}
+        {{- if eq (include "configureRedisCa" .Values.config) "true" }}
+        - name: "redis-ca"
+          secret:
+            secretName: {{ include "redisTlsSecretName" .Values.config }}
+        {{- end }}
+        {{- if eq (include "configureAdditionalRedisCa" .Values.config) "true" }}
+        - name: "additional-redis-ca"
+          secret:
+            secretName: {{ include "additionalRedisTlsSecretName" .Values.config }}
+        {{- end }}
       containers:
         - name: gundeck
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -51,6 +61,14 @@ spec:
           {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
           - name: "gundeck-cassandra"
             mountPath: "/etc/wire/gundeck/cassandra"
+          {{- end }}
+          {{- if eq (include "configureRedisCa" .Values.config) "true" }}
+          - name: "redis-ca"
+            mountPath: "/etc/wire/gundeck/redis-ca/"
+          {{- end }}
+          {{- if eq (include "configureAdditionalRedisCa" .Values.config) "true" }}
+          - name: "additional-redis-ca"
+            mountPath: "/etc/wire/gundeck/additional-redis-ca/"
           {{- end }}
           env:
           {{- if hasKey .Values.secrets "awsKeyId" }}

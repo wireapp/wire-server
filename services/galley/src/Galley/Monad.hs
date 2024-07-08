@@ -24,11 +24,11 @@ import Bilge.RPC
 import Cassandra
 import Control.Lens
 import Control.Monad.Catch
-import Control.Monad.Except
 import Galley.Env
 import Imports hiding (log)
 import Polysemy
 import Polysemy.Input
+import Prometheus
 import System.Logger
 import System.Logger.Class qualified as LC
 
@@ -42,7 +42,8 @@ newtype App a = App {unApp :: ReaderT Env IO a}
       MonadMask,
       MonadReader Env,
       MonadThrow,
-      MonadUnliftIO
+      MonadUnliftIO,
+      MonadMonitor
     )
 
 runApp :: Env -> App a -> IO a

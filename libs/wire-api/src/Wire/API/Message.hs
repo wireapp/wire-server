@@ -451,7 +451,7 @@ clientMismatchStrategyToProtolens = \case
           & Proto.Otr.userIds .~ map qualifiedUserIdToProtolens (toList users)
       )
 
-protolensToSetQualifiedUserIds :: ProtoLens.HasField s "userIds" [Proto.Otr.QualifiedUserId] => s -> Either String (Set (Qualified UserId))
+protolensToSetQualifiedUserIds :: (ProtoLens.HasField s "userIds" [Proto.Otr.QualifiedUserId]) => s -> Either String (Set (Qualified UserId))
 protolensToSetQualifiedUserIds = fmap Set.fromList . mapM protolensToQualifiedUserId . view Proto.Otr.userIds
 
 protolensToQualifiedUserId :: Proto.Otr.QualifiedUserId -> Either String (Qualified UserId)

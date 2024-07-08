@@ -37,7 +37,7 @@ joinHttpPath = intercalate "/"
 addJSONObject :: [Aeson.Pair] -> HTTP.Request -> HTTP.Request
 addJSONObject = addJSON . Aeson.object
 
-addJSON :: Aeson.ToJSON a => a -> HTTP.Request -> HTTP.Request
+addJSON :: (Aeson.ToJSON a) => a -> HTTP.Request -> HTTP.Request
 addJSON obj = addBody (HTTP.RequestBodyLBS (Aeson.encode obj)) "application/json"
 
 addBody :: HTTP.RequestBody -> String -> HTTP.Request -> HTTP.Request
@@ -83,41 +83,41 @@ contentTypeJSON = addHeader "Content-Type" "application/json"
 contentTypeMixed :: HTTP.Request -> HTTP.Request
 contentTypeMixed = addHeader "Content-Type" "multipart/mixed"
 
-bindResponse :: HasCallStack => App Response -> (Response -> App a) -> App a
+bindResponse :: (HasCallStack) => App Response -> (Response -> App a) -> App a
 bindResponse m k = m >>= \r -> withResponse r k
 
 infixl 1 `bindResponse`
 
-withResponse :: HasCallStack => Response -> (Response -> App a) -> App a
+withResponse :: (HasCallStack) => Response -> (Response -> App a) -> App a
 withResponse r k = onFailureAddResponse r (k r)
 
 -- | Check response status code, then return body.
-getBody :: HasCallStack => Int -> Response -> App ByteString
+getBody :: (HasCallStack) => Int -> Response -> App ByteString
 getBody status = flip withResponse \resp -> do
   resp.status `shouldMatch` status
   pure resp.body
 
 -- | Check response status code, then return JSON body.
-getJSON :: HasCallStack => Int -> Response -> App Aeson.Value
+getJSON :: (HasCallStack) => Int -> Response -> App Aeson.Value
 getJSON status = flip withResponse \resp -> do
   resp.status `shouldMatch` status
   resp.json
 
 -- | assert a response code in the 2** range
-assertSuccess :: HasCallStack => Response -> App ()
+assertSuccess :: (HasCallStack) => Response -> App ()
 assertSuccess = flip withResponse \resp -> resp.status `shouldMatchRange` (200, 299)
 
 -- | assert a response status code
-assertStatus :: HasCallStack => Int -> Response -> App ()
+assertStatus :: (HasCallStack) => Int -> Response -> App ()
 assertStatus status = flip withResponse \resp -> resp.status `shouldMatchInt` status
 
 -- | assert a failure with some failure code and label
-assertLabel :: HasCallStack => Int -> String -> Response -> App ()
+assertLabel :: (HasCallStack) => Int -> String -> Response -> App ()
 assertLabel status label resp = do
   j <- getJSON status resp
   j %. "label" `shouldMatch` label
 
-onFailureAddResponse :: HasCallStack => Response -> App a -> App a
+onFailureAddResponse :: (HasCallStack) => Response -> App a -> App a
 onFailureAddResponse r m = App $ do
   e <- ask
   liftIO $ E.catch (runAppWithEnv e m) $ \(AssertionFailure stack _ msg) -> do
@@ -159,6 +159,9 @@ baseRequest user service versioned path = do
 
 zUser :: String -> HTTP.Request -> HTTP.Request
 zUser = addHeader "Z-User"
+
+zProvider :: String -> HTTP.Request -> HTTP.Request
+zProvider = addHeader "Z-Provider"
 
 zConnection :: String -> HTTP.Request -> HTTP.Request
 zConnection = addHeader "Z-Connection"

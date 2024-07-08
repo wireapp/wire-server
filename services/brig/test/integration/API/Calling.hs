@@ -125,7 +125,7 @@ testSFTUnavailable b opts domain = do
         (cfg ^. rtcConfSftServersAll)
 
 modifyAndAssert ::
-  HasCallStack =>
+  (HasCallStack) =>
   Brig ->
   UserId ->
   (UserId -> Brig -> Http RTCConfiguration) ->
@@ -212,7 +212,7 @@ testCallsConfigV2SRV b opts = do
            ]
     )
 
-assertConfiguration :: HasCallStack => RTCConfiguration -> NonEmpty TurnURI -> Http ()
+assertConfiguration :: (HasCallStack) => RTCConfiguration -> NonEmpty TurnURI -> Http ()
 assertConfiguration cfg expected = do
   let actual = concatMap (toList . view iceURLs) $ toList $ cfg ^. rtcConfIceServers
   liftIO $ assertEqual "Expected adverstised TURN servers to match actual ones" (sort $ toList expected) (sort actual)
@@ -220,10 +220,10 @@ assertConfiguration cfg expected = do
 getTurnConfigurationV1 :: UserId -> Brig -> Http RTCConfiguration
 getTurnConfigurationV1 = getAndValidateTurnConfiguration ""
 
-getTurnConfigurationV2 :: HasCallStack => UserId -> Brig -> ((MonadHttp m, MonadIO m, MonadCatch m) => m RTCConfiguration)
+getTurnConfigurationV2 :: (HasCallStack) => UserId -> Brig -> ((MonadHttp m, MonadIO m, MonadCatch m) => m RTCConfiguration)
 getTurnConfigurationV2 = getAndValidateTurnConfiguration "v2"
 
-getTurnConfiguration :: ByteString -> UserId -> Brig -> (MonadHttp m => m (Response (Maybe LB.ByteString)))
+getTurnConfiguration :: ByteString -> UserId -> Brig -> ((MonadHttp m) => m (Response (Maybe LB.ByteString)))
 getTurnConfiguration suffix u b =
   get
     ( b
@@ -232,7 +232,7 @@ getTurnConfiguration suffix u b =
         . zConn "conn"
     )
 
-getAndValidateTurnConfiguration :: HasCallStack => ByteString -> UserId -> Brig -> ((MonadIO m, MonadHttp m, MonadCatch m) => m RTCConfiguration)
+getAndValidateTurnConfiguration :: (HasCallStack) => ByteString -> UserId -> Brig -> ((MonadIO m, MonadHttp m, MonadCatch m) => m RTCConfiguration)
 getAndValidateTurnConfiguration suffix u b =
   responseJsonError =<< (getTurnConfiguration suffix u b <!! const 200 === statusCode)
 
@@ -246,7 +246,7 @@ getTurnConfigurationV2Limit limit u b =
         . queryItem "limit" (toByteString' limit)
     )
 
-getAndValidateTurnConfigurationLimit :: HasCallStack => Int -> UserId -> Brig -> Http RTCConfiguration
+getAndValidateTurnConfigurationLimit :: (HasCallStack) => Int -> UserId -> Brig -> Http RTCConfiguration
 getAndValidateTurnConfigurationLimit limit u b =
   responseJsonError =<< (getTurnConfigurationV2Limit limit u b <!! const 200 === statusCode)
 

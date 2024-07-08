@@ -69,31 +69,60 @@ library
 
   -- cabal-fmt: expand src
   exposed-modules:
+    Wire.AuthenticationSubsystem
+    Wire.AuthenticationSubsystem.Error
+    Wire.AuthenticationSubsystem.Interpreter
+    Wire.AWS
     Wire.DeleteQueue
     Wire.DeleteQueue.InMemory
+    Wire.EmailSending
+    Wire.EmailSending.SES
+    Wire.EmailSending.SMTP
+    Wire.EmailSubsystem
+    Wire.EmailSubsystem.Interpreter
+    Wire.EmailSubsystem.Template
+    Wire.Error
     Wire.FederationAPIAccess
     Wire.FederationAPIAccess.Interpreter
     Wire.GalleyAPIAccess
     Wire.GalleyAPIAccess.Rpc
     Wire.GundeckAPIAccess
+    Wire.HashPassword
     Wire.InternalEvent
-    Wire.MiniBackend
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
     Wire.ParseException
+    Wire.PasswordResetCodeStore
+    Wire.PasswordResetCodeStore.Cassandra
+    Wire.PasswordStore
+    Wire.PasswordStore.Cassandra
     Wire.Rpc
+    Wire.SessionStore
+    Wire.SessionStore.Cassandra
     Wire.StoredUser
+    Wire.UserEvents
+    Wire.UserKeyStore
+    Wire.UserKeyStore.Cassandra
     Wire.UserStore
     Wire.UserStore.Cassandra
+    Wire.UserStore.Unique
     Wire.UserSubsystem
+    Wire.UserSubsystem.Error
+    Wire.UserSubsystem.HandleBlacklist
     Wire.UserSubsystem.Interpreter
+    Wire.VerificationCode
+    Wire.VerificationCodeGen
+    Wire.VerificationCodeStore
+    Wire.VerificationCodeStore.Cassandra
+    Wire.VerificationCodeSubsystem
+    Wire.VerificationCodeSubsystem.Interpreter
 
   hs-source-dirs:   src
   build-depends:
     , aeson
     , amazonka
     , amazonka-core
-    , amazonka-sqs
+    , amazonka-ses
     , async
     , base
     , base16-bytestring
@@ -103,41 +132,53 @@ library
     , cassandra-util
     , containers
     , cql
+    , crypton
     , currency-codes
     , data-default
+    , data-timeout
     , errors
     , exceptions
     , extended
     , extra
     , gundeck-types
+    , HaskellNet
+    , HaskellNet-SSL
     , HsOpenSSL
     , hspec
+    , html-entities
     , http-client
     , http-types
     , http2-manager
     , imports
     , iso639
     , lens
+    , memory
     , mime
     , mime-mail
+    , network
     , network-conduit-tls
     , polysemy
     , polysemy-plugin
     , polysemy-time
     , polysemy-wire-zoo
     , QuickCheck
+    , resource-pool
     , resourcet
     , retry
     , servant
     , servant-client-core
     , stomp-queue
+    , template
     , text
     , time
+    , time-out
+    , time-units
     , tinylog
     , transformers
     , transitive-anns
     , types-common
     , unliftio
+    , unordered-containers
     , uuid
     , wai-utilities
     , wire-api
@@ -156,9 +197,27 @@ test-suite wire-subsystems-tests
   -- cabal-fmt: expand test/unit
   other-modules:
     Spec
+    Wire.AuthenticationSubsystem.InterpreterSpec
+    Wire.MiniBackend
+    Wire.MockInterpreters
+    Wire.MockInterpreters.EmailSubsystem
+    Wire.MockInterpreters.Error
+    Wire.MockInterpreters.GalleyAPIAccess
+    Wire.MockInterpreters.HashPassword
+    Wire.MockInterpreters.Now
+    Wire.MockInterpreters.PasswordResetCodeStore
+    Wire.MockInterpreters.PasswordStore
+    Wire.MockInterpreters.Random
+    Wire.MockInterpreters.SessionStore
+    Wire.MockInterpreters.UserEvents
+    Wire.MockInterpreters.UserKeyStore
+    Wire.MockInterpreters.UserStore
+    Wire.MockInterpreters.UserSubsystem
+    Wire.MockInterpreters.VerificationCodeStore
     Wire.NotificationSubsystem.InterpreterSpec
     Wire.UserStoreSpec
     Wire.UserSubsystem.InterpreterSpec
+    Wire.VerificationCodeSubsystem.InterpreterSpec
 
   build-tool-depends: hspec-discover:hspec-discover
   build-depends:
@@ -168,21 +227,32 @@ test-suite wire-subsystems-tests
     , bilge
     , bytestring
     , containers
+    , crypton
     , data-default
+    , errors
     , extended
     , gundeck-types
     , hspec
     , imports
     , iso639
+    , lens
+    , mime-mail
+    , network
+    , pipes
     , polysemy
     , polysemy-plugin
     , polysemy-time
     , polysemy-wire-zoo
+    , postie
     , QuickCheck
     , quickcheck-instances
+    , random
     , servant-client-core
+    , streaming-commons
     , string-conversions
+    , text
     , time
+    , tinylog
     , transformers
     , types-common
     , wire-api

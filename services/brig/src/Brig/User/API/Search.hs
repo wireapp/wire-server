@@ -40,7 +40,7 @@ import Brig.User.Search.SearchIndex qualified as Q
 import Brig.User.Search.TeamUserSearch qualified as Q
 import Control.Lens (view)
 import Data.Domain (Domain)
-import Data.Handle (parseHandle)
+import Data.Handle qualified as Handle
 import Data.Id
 import Data.Range
 import Imports
@@ -59,6 +59,7 @@ import Wire.API.User.Search
 import Wire.API.User.Search qualified as Public
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
+import Wire.UserStore (UserStore)
 import Wire.UserSubsystem
 
 -- FUTUREWORK: Consider augmenting 'SearchResult' with full user profiles
@@ -66,6 +67,7 @@ import Wire.UserSubsystem
 search ::
   ( Member GalleyAPIAccess r,
     Member FederationConfigStore r,
+    Member UserStore r,
     Member UserSubsystem r
   ) =>
   UserId ->
@@ -116,7 +118,8 @@ searchRemotely domain mTid searchTerm = do
 searchLocally ::
   forall r.
   ( Member GalleyAPIAccess r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member UserStore r
   ) =>
   UserId ->
   Text ->
@@ -165,14 +168,14 @@ searchLocally searcherId searchTerm maybeMaxResults = do
     exactHandleSearch :: (Handler r) (Maybe Contact)
     exactHandleSearch = do
       lsearcherId <- qualifyLocal searcherId
-      case parseHandle searchTerm of
+      case Handle.parseHandle searchTerm of
         Nothing -> pure Nothing
         Just handle -> do
           HandleAPI.contactFromProfile
             <$$> HandleAPI.getLocalHandleInfo lsearcherId handle
 
 teamUserSearch ::
-  Member GalleyAPIAccess r =>
+  (Member GalleyAPIAccess r) =>
   UserId ->
   TeamId ->
   Maybe Text ->

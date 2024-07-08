@@ -37,19 +37,19 @@ type OriginDomainHeaderName = "Wire-Origin-Domain" :: Symbol
 
 data OriginDomainHeader
 
-instance RoutesToPaths api => RoutesToPaths (OriginDomainHeader :> api) where
+instance (RoutesToPaths api) => RoutesToPaths (OriginDomainHeader :> api) where
   getRoutes = getRoutes @api
 
 type instance
   SpecialiseToVersion v (OriginDomainHeader :> api) =
     OriginDomainHeader :> SpecialiseToVersion v api
 
-instance HasClient m api => HasClient m (OriginDomainHeader :> api) where
+instance (HasClient m api) => HasClient m (OriginDomainHeader :> api) where
   type Client m (OriginDomainHeader :> api) = Client m api
   clientWithRoute pm _ req = clientWithRoute pm (Proxy @api) req
   hoistClientMonad pm _ = hoistClientMonad pm (Proxy @api)
 
-instance HasClientAlgebra m api => HasClientAlgebra m (OriginDomainHeader :> api) where
+instance (HasClientAlgebra m api) => HasClientAlgebra m (OriginDomainHeader :> api) where
   joinClient = joinClient @m @api
   bindClient = bindClient @m @api
 
@@ -65,7 +65,7 @@ instance
   route _pa = route (Proxy @(OriginDomainHeaderHasServer :> api))
   hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
 
-originDomainHeaderName :: IsString a => a
+originDomainHeaderName :: (IsString a) => a
 originDomainHeaderName = fromString $ symbolVal (Proxy @OriginDomainHeaderName)
 
 instance (HasOpenApi api) => HasOpenApi (OriginDomainHeader :> api) where

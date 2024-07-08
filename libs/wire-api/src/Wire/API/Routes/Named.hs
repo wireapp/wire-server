@@ -42,7 +42,7 @@ newtype Named name x = Named {unnamed :: x}
 class RenderableSymbol a where
   renderSymbol :: Text
 
-instance {-# OVERLAPPABLE #-} KnownSymbol a => RenderableSymbol a where
+instance {-# OVERLAPPABLE #-} (KnownSymbol a) => RenderableSymbol a where
   renderSymbol = T.pack . show $ symbolVal (Proxy @a)
 
 instance {-# OVERLAPPING #-} (RenderableSymbol a, RenderableSymbol b) => RenderableSymbol '(a, b) where
@@ -59,21 +59,21 @@ instance (HasOpenApi api, RenderableSymbol name) => HasOpenApi (Named name api) 
           <> renderSymbol @name
           <> "]"
 
-instance HasServer api ctx => HasServer (Named name api) ctx where
+instance (HasServer api ctx) => HasServer (Named name api) ctx where
   type ServerT (Named name api) m = Named name (ServerT api m)
 
   route _ ctx action = route (Proxy @api) ctx (fmap unnamed action)
   hoistServerWithContext _ ctx f =
     fmap (hoistServerWithContext (Proxy @api) ctx f)
 
-instance HasLink endpoint => HasLink (Named name endpoint) where
+instance (HasLink endpoint) => HasLink (Named name endpoint) where
   type MkLink (Named name endpoint) a = MkLink endpoint a
   toLink toA _ = toLink toA (Proxy @endpoint)
 
-instance RoutesToPaths api => RoutesToPaths (Named name api) where
+instance (RoutesToPaths api) => RoutesToPaths (Named name api) where
   getRoutes = getRoutes @api
 
-instance HasClient m api => HasClient m (Named n api) where
+instance (HasClient m api) => HasClient m (Named n api) where
   type Client m (Named n api) = Client m api
   clientWithRoute pm _ req = clientWithRoute pm (Proxy @api) req
   hoistClientMonad pm _ f = hoistClientMonad pm (Proxy @api) f
@@ -141,6 +141,8 @@ namedClient = clientIn (Proxy @endpoint) (Proxy @m)
 -- Utility to add a combinator to a Named API
 
 type family x ::> api
+
+infixr 4 ::>
 
 type instance
   x ::> (Named name api) =

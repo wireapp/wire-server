@@ -6,12 +6,13 @@ import API.Brig
 import API.BrigInternal
 import API.GalleyInternal
 import API.Spar
+import qualified Data.Aeson as Aeson
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
 import SetupHelpers
 import Testlib.Prelude
 
-testSupportedProtocols :: HasCallStack => Domain -> App ()
+testSupportedProtocols :: (HasCallStack) => Domain -> App ()
 testSupportedProtocols bobDomain = do
   alice <- randomUser OwnDomain def
   alice %. "supported_protocols" `shouldMatchSet` ["proteus"]
@@ -43,7 +44,7 @@ testSupportedProtocols bobDomain = do
     resp.status `shouldMatchInt` 400
     resp.json %. "label" `shouldMatch` "bad-request"
 
-testCreateUserSupportedProtocols :: HasCallStack => App ()
+testCreateUserSupportedProtocols :: (HasCallStack) => App ()
 testCreateUserSupportedProtocols = do
   alice <- randomUser OwnDomain def {supportedProtocols = Just ["proteus", "mls"]}
   bindResponse (getUserSupportedProtocols alice alice) $ \resp -> do
@@ -56,7 +57,7 @@ testCreateUserSupportedProtocols = do
 
 -- | For now this only tests attempts to update /self/handle in E2EId-enabled teams.  More
 -- tests can be found under `/services/brig/test/integration` (and should be moved here).
-testUpdateHandle :: HasCallStack => App ()
+testUpdateHandle :: (HasCallStack) => App ()
 testUpdateHandle = do
   -- create team with one member, without scim, but with `mlsE2EId` enabled.
   (owner, team, [mem1]) <- createTeam OwnDomain 2
@@ -66,7 +67,7 @@ testUpdateHandle = do
   bindResponse (getTeamFeature owner team featureName) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "disabled"
-  setTeamFeatureStatus owner team featureName "enabled"
+  assertSuccess =<< setTeamFeatureStatus owner team featureName "enabled"
   bindResponse (getTeamFeature owner team featureName) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "enabled"
@@ -120,7 +121,7 @@ testUpdateHandle = do
 -- | For now this only tests attempts to update one's own display name, email address, or
 -- language in E2EId-enabled teams (ie., everything except handle).  More tests can be found
 -- under `/services/brig/test/integration` (and should be moved here).
-testUpdateSelf :: HasCallStack => Tagged "mode" TestUpdateSelfMode -> App ()
+testUpdateSelf :: (HasCallStack) => Tagged "mode" TestUpdateSelfMode -> App ()
 testUpdateSelf (MkTagged mode) = do
   -- create team with one member, without scim, but with `mlsE2EId` enabled.
   (owner, team, [mem1]) <- createTeam OwnDomain 2
@@ -129,7 +130,7 @@ testUpdateSelf (MkTagged mode) = do
   bindResponse (getTeamFeature owner team featureName) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "disabled"
-  setTeamFeatureStatus owner team featureName "enabled"
+  assertSuccess =<< setTeamFeatureStatus owner team featureName "enabled"
   bindResponse (getTeamFeature owner team featureName) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "enabled"
@@ -163,3 +164,12 @@ data TestUpdateSelfMode
   | TestUpdateEmailAddress
   | TestUpdateLocale
   deriving (Eq, Show, Generic)
+
+testActivateAccountWithPhoneV5 :: (HasCallStack) => App ()
+testActivateAccountWithPhoneV5 = do
+  let dom = OwnDomain
+  let phone = "+4912345678"
+  let reqBody = Aeson.object ["phone" .= phone]
+  activateUserV5 dom reqBody `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.json %. "label" `shouldMatch` "invalid-phone"

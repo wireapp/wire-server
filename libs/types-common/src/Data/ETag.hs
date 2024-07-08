@@ -67,7 +67,7 @@ data Digest = MD5 | SHA1
 -- of arbitrary types to a 'Builder', concatenating them, and applying the hash
 -- function on the result.
 data Opaque (d :: Digest) where
-  Opaque :: ToByteString a => a -> Opaque d
+  Opaque :: (ToByteString a) => a -> Opaque d
 
 instance ToByteString (Opaque 'MD5) where
   builder (Opaque x) =
@@ -80,11 +80,11 @@ instance ToByteString (Opaque 'SHA1) where
 instance Semigroup (Opaque d) where
   Opaque a <> Opaque b = Opaque (builder a <> builder b)
 
-opaqueMD5 :: ToByteString a => a -> Opaque 'MD5
+opaqueMD5 :: (ToByteString a) => a -> Opaque 'MD5
 opaqueMD5 = Opaque
 {-# INLINE opaqueMD5 #-}
 
-opaqueSHA1 :: ToByteString a => a -> Opaque 'SHA1
+opaqueSHA1 :: (ToByteString a) => a -> Opaque 'SHA1
 opaqueSHA1 = Opaque
 {-# INLINE opaqueSHA1 #-}
 
@@ -103,11 +103,11 @@ data ETag a
   | WeakETag !a
   deriving (Eq, Show)
 
-instance ToByteString a => ToByteString (ETag a) where
+instance (ToByteString a) => ToByteString (ETag a) where
   builder (StrictETag v) = byteString "\"" <> builder v <> byteString "\""
   builder (WeakETag v) = byteString "W/\"" <> builder v <> byteString "\""
 
-instance FromByteString a => FromByteString (ETag a) where
+instance (FromByteString a) => FromByteString (ETag a) where
   parser = do
     w <- optional (string "W/")
     v <- char '"' *> takeWhile (/= '"') <* char '"'
@@ -115,7 +115,7 @@ instance FromByteString a => FromByteString (ETag a) where
       Left e -> fail e
       Right a -> pure $ maybe (StrictETag a) (const $ WeakETag a) w
 
-instance Semigroup a => Semigroup (ETag a) where
+instance (Semigroup a) => Semigroup (ETag a) where
   StrictETag a <> StrictETag b = StrictETag (a <> b)
   StrictETag a <> WeakETag b = WeakETag (a <> b)
   WeakETag a <> StrictETag b = WeakETag (a <> b)

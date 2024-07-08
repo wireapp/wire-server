@@ -28,7 +28,6 @@ import Test.Federator.InternalServer qualified
 import Test.Federator.Monitor qualified
 import Test.Federator.Options qualified
 import Test.Federator.Remote qualified
-import Test.Federator.Response qualified
 import Test.Federator.Validation qualified
 import Test.Tasty
 
@@ -44,6 +43,5 @@ main =
           Test.Federator.InternalServer.tests,
           Test.Federator.ExternalServer.tests,
           Test.Federator.Monitor.tests,
-          Test.Federator.Remote.tests,
-          Test.Federator.Response.tests
+          Test.Federator.Remote.tests
         ]

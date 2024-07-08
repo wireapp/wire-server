@@ -111,7 +111,7 @@ extReq scon ps =
     url = httpsUrl (sconBaseUrl scon)
     tok = List1.head (sconAuthTokens scon)
 
-extHandleAll :: MonadCatch m => (SomeException -> m a) -> m a -> m a
+extHandleAll :: (MonadCatch m) => (SomeException -> m a) -> m a -> m a
 extHandleAll f ma =
   catches
     ma
@@ -137,7 +137,7 @@ extLogError scon e =
 -- Internal RPC
 
 -- | Set service connection information in galley.
-setServiceConn :: ServiceConn -> (AppT r) ()
+setServiceConn :: ServiceConn -> AppT r ()
 setServiceConn scon = do
   Log.debug $
     remote "galley"

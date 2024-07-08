@@ -35,7 +35,7 @@ tests =
     [ testChunkify
     ]
 
-testChunkify :: HasCallStack => TestTree
+testChunkify :: (HasCallStack) => TestTree
 testChunkify =
   testGroup
     "chunkify"

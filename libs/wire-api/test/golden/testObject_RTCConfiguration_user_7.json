@@ -17,7 +17,7 @@
             "urls": [
                 "https://example.com"
             ],
-            "username": "d=12.v=1.k=0.s=1.r=username"
+            "username": "d=12.v=1.k=0.s=0.r=username"
         }
     ],
     "ttl": 2

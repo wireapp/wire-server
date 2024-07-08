@@ -1,3 +1,3 @@
-Il tuo codice per Wire è ${code}.
+Il codice del tuo ${brand} è ${code}.
 
-Apri ${url} per verificare il tuo numero o inserisci manualmente il codice in Wire.
+Apri ${url} per verificare il tuo numero.

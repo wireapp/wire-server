@@ -28,7 +28,7 @@ import Data.Nonce (Nonce, NonceTtlSecs)
 import Imports
 
 insertNonce ::
-  MonadClient m =>
+  (MonadClient m) =>
   NonceTtlSecs ->
   UserId ->
   Text ->
@@ -40,14 +40,14 @@ insertNonce ttl uid key nonce = retry x5 . write insert $ params LocalQuorum (ui
     insert = "INSERT INTO nonce (user, key, nonce) VALUES (?, ?, ?) USING TTL ?"
 
 lookupAndDeleteNonce ::
-  MonadClient m =>
+  (MonadClient m) =>
   UserId ->
   Text ->
   m (Maybe Nonce)
 lookupAndDeleteNonce uid key = lookupNonce uid key <* deleteNonce uid key
 
 lookupNonce ::
-  MonadClient m =>
+  (MonadClient m) =>
   UserId ->
   Text ->
   m (Maybe Nonce)
@@ -57,7 +57,7 @@ lookupNonce uid key = (runIdentity <$$>) . retry x5 . query1 get $ params LocalQ
     get = "SELECT nonce FROM nonce WHERE user = ? AND key = ?"
 
 deleteNonce ::
-  MonadClient m =>
+  (MonadClient m) =>
   UserId ->
   Text ->
   m ()

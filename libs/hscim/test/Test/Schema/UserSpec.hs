@@ -156,7 +156,7 @@ genName =
 genStoredUser :: Gen (UserClass.StoredUser (TestTag Text () () NoUserExtra))
 genStoredUser = do
   m <- genMeta
-  i <- Gen.element @_ @Text ["wef", "asdf", "@", "#", "1"]
+  i <- Gen.element ["wef", "asdf", "@", "#", "1"]
   WithMeta m . WithId i <$> genUser
 
 genMeta :: Gen Meta

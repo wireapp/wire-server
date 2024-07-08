@@ -131,7 +131,7 @@ responseJsonUnsafe ::
   (HasCallStack, Typeable a, FromJSON a) =>
   ResponseLBS ->
   a
-responseJsonUnsafe = responseJsonUnsafeWithMsg ""
+responseJsonUnsafe resp = responseJsonUnsafeWithMsg (show resp) resp
 
 {-# INLINE responseJsonUnsafeWithMsg #-}
 responseJsonUnsafeWithMsg ::
@@ -147,7 +147,7 @@ responseJsonUnsafeWithMsg userErr = either err id . responseJsonEither
           <> [userErr | not $ null userErr]
           <> [parserErr]
 
-showResponse :: Show a => Response a -> String
+showResponse :: (Show a) => Response a -> String
 showResponse r =
   showString "HTTP/"
     . shows (httpMajor . responseVersion $ r)

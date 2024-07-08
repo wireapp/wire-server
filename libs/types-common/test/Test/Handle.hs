@@ -20,7 +20,7 @@ module Test.Handle
   )
 where
 
-import Data.Handle (Handle (fromHandle), parseHandleEither)
+import Data.Handle (BadHandle (fromBadHandle), Handle (fromHandle), parseHandleEither)
 import Data.Text qualified as Text
 import Imports
 import Test.Tasty
@@ -67,5 +67,8 @@ testHandleSerialization =
           Right parsed -> assertFailure $ "invalid handle parsed successfully: " <> show (h, parsed),
     testProperty "roundtrip for Handle" $
       \(x :: Handle) ->
-        parseHandleEither (fromHandle x) === Right x
+        parseHandleEither (fromHandle x) === Right x,
+    testProperty "roundtrip for BadHandle" $
+      \(x :: BadHandle) ->
+        property . isLeft . parseHandleEither $ fromBadHandle x
   ]

@@ -27,11 +27,11 @@ import Control.Concurrent.Async (Async)
 import Control.Lens (makeLenses, (^.))
 import Control.Retry (capDelay, exponentialBackoff)
 import Data.ByteString.Char8 qualified as BSChar8
-import Data.Metrics.Middleware (Metrics)
 import Data.Misc (Milliseconds (..))
-import Data.Text (unpack)
+import Data.Text qualified as Text
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
+import Data.X509.CertificateStore as CertStore
 import Database.Redis qualified as Redis
 import Gundeck.Aws qualified as Aws
 import Gundeck.Options as Opt hiding (host, port)
@@ -42,12 +42,13 @@ import Gundeck.ThreadBudget
 import Imports
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
+import Network.TLS as TLS
+import Network.TLS.Extra qualified as TLS
 import System.Logger qualified as Log
 import System.Logger.Extended qualified as Logger
 
 data Env = Env
   { _reqId :: !RequestId,
-    _monitor :: !Metrics,
     _options :: !Opts,
     _applog :: !Logger.Logger,
     _manager :: !Manager,
@@ -64,8 +65,8 @@ makeLenses ''Env
 schemaVersion :: Int32
 schemaVersion = 7
 
-createEnv :: Metrics -> Opts -> IO ([Async ()], Env)
-createEnv m o = do
+createEnv :: Opts -> IO ([Async ()], Env)
+createEnv o = do
   l <- Logger.mkLogger (o ^. logLevel) (o ^. logNetStrings) (o ^. logFormat)
   n <-
     newManager
@@ -102,7 +103,7 @@ createEnv m o = do
         { updateAction = Ms . round . (* 1000) <$> getPOSIXTime
         }
   mtbs <- mkThreadBudgetState `mapM` (o ^. settings . maxConcurrentNativePushes)
-  pure $! (rThread : rAdditionalThreads,) $! Env (RequestId "N/A") m o l n p r rAdditional a io mtbs
+  pure $! (rThread : rAdditionalThreads,) $! Env (RequestId "N/A") o l n p r rAdditional a io mtbs
 
 reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg
 reqIdMsg = ("request" Logger..=) . unRequestId
@@ -110,14 +111,36 @@ reqIdMsg = ("request" Logger..=) . unRequestId
 
 createRedisPool :: Logger.Logger -> RedisEndpoint -> Maybe ByteString -> Maybe ByteString -> ByteString -> IO (Async (), Redis.RobustConnection)
 createRedisPool l ep username password identifier = do
+  customCertStore <- case ep._tlsCa of
+    Nothing -> pure Nothing
+    Just caPath -> CertStore.readCertificateStore caPath
+  let defClientParams = defaultParamsClient (Text.unpack ep._host) ""
+      tlsParams =
+        guard ep._enableTls
+          $> defClientParams
+            { clientHooks =
+                if ep._insecureSkipVerifyTls
+                  then defClientParams.clientHooks {onServerCertificate = \_ _ _ _ -> pure []}
+                  else defClientParams.clientHooks,
+              clientShared =
+                case customCertStore of
+                  Nothing -> defClientParams.clientShared
+                  Just sharedCAStore -> defClientParams.clientShared {sharedCAStore},
+              clientSupported =
+                defClientParams.clientSupported
+                  { supportedVersions = [TLS.TLS13, TLS.TLS12],
+                    supportedCiphers = TLS.ciphersuite_strong
+                  }
+            }
   let redisConnInfo =
         Redis.defaultConnectInfo
-          { Redis.connectHost = unpack $ ep ^. O.host,
+          { Redis.connectHost = Text.unpack $ ep ^. O.host,
             Redis.connectPort = Redis.PortNumber (fromIntegral $ ep ^. O.port),
             Redis.connectUsername = username,
             Redis.connectAuth = password,
             Redis.connectTimeout = Just (secondsToNominalDiffTime 5),
-            Redis.connectMaxConnections = 100
+            Redis.connectMaxConnections = 100,
+            Redis.connectTLSParams = tlsParams
           }
 
   Log.info l $

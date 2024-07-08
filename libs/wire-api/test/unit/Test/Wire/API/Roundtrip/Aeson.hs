@@ -39,6 +39,7 @@ import Wire.API.CustomBackend qualified as CustomBackend
 import Wire.API.Event.Conversation qualified as Event.Conversation
 import Wire.API.Event.Team qualified as Event.Team
 import Wire.API.FederationStatus qualified as FederationStatus
+import Wire.API.Locale qualified as Locale
 import Wire.API.Message qualified as Message
 import Wire.API.OAuth qualified as OAuth
 import Wire.API.Properties qualified as Properties
@@ -49,6 +50,7 @@ import Wire.API.Provider.Service qualified as Provider.Service
 import Wire.API.Provider.Service.Tag qualified as Provider.Service.Tag
 import Wire.API.Push.Token qualified as Push.Token
 import Wire.API.Routes.FederationDomainConfig qualified as FederationDomainConfig
+import Wire.API.Routes.Internal.Brig.EJPD qualified as EJPD
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as TeamsIntra
 import Wire.API.Routes.Version qualified as Routes.Version
 import Wire.API.SystemSettings qualified as SystemSettings
@@ -136,6 +138,7 @@ tests =
       testRoundTrip @Conversation.Role.ConversationRolesList,
       testRoundTrip @Conversation.Typing.TypingStatus,
       testRoundTrip @CustomBackend.CustomBackend,
+      testRoundTrip @EJPD.EJPDContact,
       testRoundTrip @Event.Conversation.Event,
       testRoundTrip @Event.Conversation.EventType,
       testRoundTrip @Event.Conversation.SimpleMember,
@@ -149,6 +152,7 @@ tests =
       testRoundTrip @FederationDomainConfig.FederationStrategy,
       testRoundTrip @FederationStatus.FederationStatus,
       testRoundTrip @FederationStatus.RemoteDomains,
+      testRoundTrip @Locale.Locale,
       testRoundTrip @Message.Priority,
       testRoundTrip @Message.OtrRecipients,
       testRoundTrip @Message.NewOtrMessage,
@@ -323,7 +327,6 @@ tests =
       testRoundTrip @User.Profile.ColourId,
       testRoundTrip @User.Profile.AssetSize,
       testRoundTrip @User.Profile.Asset,
-      testRoundTrip @User.Profile.Locale,
       testRoundTrip @User.Profile.ManagedBy,
       testRoundTrip @User.RichInfo.RichField,
       testRoundTrip @User.RichInfo.RichInfoAssocList,

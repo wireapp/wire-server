@@ -32,46 +32,50 @@ import Control.Lens (view, (^.))
 import Data.Aeson qualified as A
 import Data.ByteString.Conversion
 import Data.Handle (Handle)
-import Data.Id (UserId)
+import Data.Qualified
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import Imports hiding (head)
 import Network.HTTP.Types.Method
-import Polysemy (Member)
+import Polysemy
 import Servant.OpenApi.Internal.Orphans ()
-import Wire.API.Connection (Relation, RelationWithHistory (..), relationDropHistory)
+import Wire.API.Connection
 import Wire.API.Push.Token qualified as PushTok
-import Wire.API.Routes.Internal.Brig.EJPD (EJPDRequestBody (EJPDRequestBody), EJPDResponseBody (EJPDResponseBody), EJPDResponseItem (EJPDResponseItem))
+import Wire.API.Routes.Internal.Brig.EJPD
 import Wire.API.Team.Member qualified as Team
 import Wire.API.User
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Rpc
+import Wire.UserStore (UserStore)
 
+-- FUTUREWORK(mangoiv): this uses 'UserStore' and should hence go to 'UserSubSystem'
 ejpdRequest ::
   forall r.
   ( Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
+    Member UserStore r,
     Member Rpc r
   ) =>
   Maybe Bool ->
   EJPDRequestBody ->
   (Handler r) EJPDResponseBody
 ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
-  ExceptT $ Right . EJPDResponseBody . catMaybes <$> forM handles go1
+  ExceptT $ Right . EJPDResponseBody . catMaybes <$> forM handles responseItemForHandle
   where
     -- find uid given handle
-    go1 :: Handle -> (AppT r) (Maybe EJPDResponseItem)
-    go1 handle = do
-      mbUid <- wrapClient $ lookupHandle handle
+    responseItemForHandle :: Handle -> AppT r (Maybe EJPDResponseItemRoot)
+    responseItemForHandle hdl = do
+      mbUid <- liftSem $ lookupHandle hdl
       mbUsr <- maybe (pure Nothing) (wrapClient . lookupUser NoPendingInvitations) mbUid
-      maybe (pure Nothing) (fmap Just . go2 includeContacts) mbUsr
+      maybe (pure Nothing) (fmap Just . responseItemForExistingUser includeContacts) mbUsr
 
     -- construct response item given uid
-    go2 :: Bool -> User -> (AppT r) EJPDResponseItem
-    go2 reallyIncludeContacts target = do
+    responseItemForExistingUser :: Bool -> User -> (AppT r) EJPDResponseItemRoot
+    responseItemForExistingUser reallyIncludeContacts target = do
       let uid = userId target
+      luid <- qualifyLocal uid
 
       ptoks <-
         PushTok.tokenText . view PushTok.token <$$> liftSem (getPushTokens uid)
@@ -79,15 +83,17 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
       mbContacts <-
         if reallyIncludeContacts
           then do
-            contacts :: [(UserId, RelationWithHistory)] <-
-              wrapClient $ Conn.lookupContactListWithRelation uid
+            contacts <-
+              wrapClient $ -- FUTUREWORK: use polysemy effect, not wrapClient
+                Conn.lookupContactListWithRelation uid
 
-            contactsFull :: [Maybe (Relation, EJPDResponseItem)] <-
-              forM contacts $ \(uid', relationDropHistory -> rel) -> do
-                mbUsr <- wrapClient $ lookupUser NoPendingInvitations uid'
-                maybe (pure Nothing) (fmap (Just . (rel,)) . go2 False) mbUsr
+            localContacts <-
+              catMaybes <$> do
+                forM contacts $ \(uid', relationDropHistory -> rel) -> do
+                  mbUsr <- wrapClient $ lookupUser NoPendingInvitations uid' -- FUTUREWORK: use polysemy effect, not wrapClient
+                  maybe (pure Nothing) (fmap (Just . EJPDContactFound rel . toEJPDResponseItemLeaf) . responseItemForExistingUser False) mbUsr
 
-            pure . Just . Set.fromList . catMaybes $ contactsFull
+            pure . Just . Set.fromList $ localContacts
           else do
             pure Nothing
 
@@ -97,18 +103,24 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
             memberList <- liftSem $ GalleyAPIAccess.getTeamMembers tid
             let members = (view Team.userId <$> (memberList ^. Team.teamMembers)) \\ [uid]
 
-            contactsFull :: [Maybe EJPDResponseItem] <-
+            contactsFull <-
               forM members $ \uid' -> do
                 mbUsr <- wrapClient $ lookupUser NoPendingInvitations uid'
-                maybe (pure Nothing) (fmap Just . go2 False) mbUsr
+                maybe (pure Nothing) (fmap Just . responseItemForExistingUser False) mbUsr
 
-            pure . Just . (,Team.toNewListType (memberList ^. Team.teamMemberListType)) . Set.fromList . catMaybes $ contactsFull
+            let listType = Team.toNewListType (memberList ^. Team.teamMemberListType)
+
+            pure . Just $
+              EJPDTeamContacts
+                (Set.fromList $ toEJPDResponseItemLeaf <$> catMaybes contactsFull)
+                listType
           _ -> do
             pure Nothing
 
-      mbConversations <- do
-        -- FUTUREWORK(fisx)
-        pure Nothing
+      mbConversations <-
+        if reallyIncludeContacts
+          then liftSem $ Just . Set.fromList <$> GalleyAPIAccess.getEJPDConvInfo uid
+          else pure Nothing
 
       mbAssets <- do
         urls <- forM (userAssets target) $ \(asset :: Asset) -> do
@@ -129,15 +141,16 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
           something -> Just (Set.fromList something)
 
       pure $
-        EJPDResponseItem
-          uid
-          (userTeam target)
-          (userDisplayName target)
-          (userHandle target)
-          (userEmail target)
-          (userPhone target)
-          (Set.fromList ptoks)
-          mbContacts
-          mbTeamContacts
-          mbConversations
-          mbAssets
+        EJPDResponseItemRoot
+          { ejpdResponseRootUserId = tUntagged luid,
+            ejpdResponseRootTeamId = userTeam target,
+            ejpdResponseRootName = userDisplayName target,
+            ejpdResponseRootHandle = userHandle target,
+            ejpdResponseRootEmail = userEmail target,
+            ejpdResponseRootPhone = Nothing,
+            ejpdResponseRootPushTokens = Set.fromList ptoks,
+            ejpdResponseRootContacts = mbContacts,
+            ejpdResponseRootTeamContacts = mbTeamContacts,
+            ejpdResponseRootConversations = mbConversations,
+            ejpdResponseRootAssets = mbAssets
+          }

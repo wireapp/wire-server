@@ -1,5 +1,12 @@
 module API.Nginz where
 
+import qualified Codec.MIME.Type as MIME
+import qualified Data.Aeson as Aeson
+import qualified Data.ByteString.Lazy as LBS
+import qualified Data.ByteString.Lazy.Char8 as LBSC
+import qualified Data.Text as T
+import qualified Network.HTTP.Client as HTTP
+import Test.Cargohold.API.Util (buildMultipartBody, multipartBoundary)
 import Testlib.Prelude
 
 getSystemSettingsUnAuthorized :: (HasCallStack, MakesValue domain) => domain -> App Response
@@ -41,3 +48,45 @@ getConversation user qcnv t = do
   token <- make t & asString
   req <- rawBaseRequest user Nginz Versioned (joinHttpPath ["conversations", domain, cnv])
   submit "GET" (req & addHeader "Authorization" ("Bearer " <> token))
+
+uploadProviderAsset :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
+uploadProviderAsset domain cookie payload = do
+  req <- rawBaseRequest domain Nginz Versioned $ joinHttpPath ["provider", "assets"]
+  bdy <- txtAsset payload
+  submit "POST"
+    $ req
+    & setCookie cookie
+    & addBody bdy multipartMixedMime
+
+txtAsset :: (HasCallStack) => String -> App HTTP.RequestBody
+txtAsset payload =
+  buildUploadAssetRequestBody
+    True
+    (Nothing :: Maybe String)
+    (LBSC.pack payload)
+    textPlainMime
+
+textPlainMime :: MIME.MIMEType
+textPlainMime = MIME.Text $ T.pack "plain"
+
+-- This case is a bit special and doesn't fit to MIMEType: We need to define
+-- the boundary.
+multipartMixedMime :: String
+multipartMixedMime = "multipart/mixed; boundary=" <> multipartBoundary
+
+buildUploadAssetRequestBody ::
+  (HasCallStack, MakesValue assetRetention) =>
+  Bool ->
+  assetRetention ->
+  LBS.ByteString ->
+  MIME.MIMEType ->
+  App HTTP.RequestBody
+buildUploadAssetRequestBody isPublic retention body mimeType = do
+  mbRetention <- make retention
+  let header' :: Aeson.Value
+      header' =
+        Aeson.object
+          [ "public" .= isPublic,
+            "retention" .= mbRetention
+          ]
+  HTTP.RequestBodyLBS <$> buildMultipartBody header' body mimeType

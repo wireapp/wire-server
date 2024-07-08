@@ -6,5 +6,5 @@ import Imports
 
 type HardTruncationLimit = (2000 :: Nat)
 
-hardTruncationLimit :: Integral a => a
+hardTruncationLimit :: (Integral a) => a
 hardTruncationLimit = fromIntegral $ natVal (Proxy @HardTruncationLimit)

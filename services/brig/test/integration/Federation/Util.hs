@@ -117,7 +117,7 @@ connectUsersEnd2End brig1 brig2 quid1 quid2 = do
   putConnectionQualified brig2 (qUnqualified quid2) quid1 Accepted
     !!! const 200 === statusCode
 
-sendCommitBundle :: HasCallStack => FilePath -> FilePath -> Maybe FilePath -> Galley -> UserId -> ClientId -> ByteString -> Http ()
+sendCommitBundle :: (HasCallStack) => FilePath -> FilePath -> Maybe FilePath -> Galley -> UserId -> ClientId -> ByteString -> Http ()
 sendCommitBundle tmp subGroupStateFn welcomeFn galley uid cid commit = do
   subGroupStateRaw <- liftIO $ BS.readFile $ tmp </> subGroupStateFn
   subGroupState <- either (liftIO . assertFailure . T.unpack) pure . decodeMLS' $ subGroupStateRaw

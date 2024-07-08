@@ -61,7 +61,7 @@ instance ToRecipient Recipient where
   toRecipient = id
 
 newMessagePush ::
-  ToRecipient r =>
+  (ToRecipient r) =>
   BotMap ->
   Maybe ConnId ->
   MessageMetadata ->
@@ -98,6 +98,6 @@ toPush (MessagePush mconn mm rs _ event) =
   let usr = qUnqualified (evtFrom event)
    in newPush (Just usr) (toJSONObject event) rs
         <&> set pushConn mconn
-          . set pushNativePriority (mmNativePriority mm)
-          . set pushRoute (bool RouteDirect RouteAny (mmNativePush mm))
-          . set pushTransient (mmTransient mm)
+        . set pushNativePriority (mmNativePriority mm)
+        . set pushRoute (bool RouteDirect RouteAny (mmNativePush mm))
+        . set pushTransient (mmTransient mm)

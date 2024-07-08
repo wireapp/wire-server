@@ -12,7 +12,7 @@ import Testlib.Mock
 import Testlib.Prelude
 import Testlib.ResourcePool
 
-testNestedError :: HasCallStack => App ()
+testNestedError :: (HasCallStack) => App ()
 testNestedError = do
   let innerError =
         object
@@ -39,10 +39,10 @@ testNestedError = do
             { port = Just (fromIntegral res.berFederatorExternal),
               tls = False
             }
-    void $
-      startMockServer mockConfig $
-        codensityApp $
-          \_req -> pure $ Wai.responseLBS HTTP.status400 mempty $ Aeson.encode innerError
+    void
+      $ startMockServer mockConfig
+      $ codensityApp
+      $ \_req -> pure $ Wai.responseLBS HTTP.status400 mempty $ Aeson.encode innerError
 
     -- get remote user
     lift $ do

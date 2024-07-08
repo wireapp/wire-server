@@ -5,7 +5,6 @@
 { mkDerivation
 , aeson
 , base
-, brig
 , bytestring
 , cassandra-util
 , conduit
@@ -20,6 +19,7 @@
 , types-common
 , unliftio
 , wire-api
+, wire-subsystems
 }:
 mkDerivation {
   pname = "inconsistencies";
@@ -30,7 +30,6 @@ mkDerivation {
   executableHaskellDepends = [
     aeson
     base
-    brig
     bytestring
     cassandra-util
     conduit
@@ -43,6 +42,7 @@ mkDerivation {
     types-common
     unliftio
     wire-api
+    wire-subsystems
   ];
   description = "Find handles which belong to deleted users";
   license = lib.licenses.agpl3Only;

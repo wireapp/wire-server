@@ -16,7 +16,7 @@ import SetupHelpers
 import Test.Version
 import Testlib.Prelude
 
-testSendMessageNoReturnToSender :: HasCallStack => App ()
+testSendMessageNoReturnToSender :: (HasCallStack) => App ()
 testSendMessageNoReturnToSender = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
   [alice1, alice2, bob1, bob2] <- traverse (createMLSClient def) [alice, alice, bob, bob]
@@ -33,8 +33,8 @@ testSendMessageNoReturnToSender = do
     for_ wss $ \ws -> do
       n <- awaitMatch (\n -> nPayload n %. "type" `isEqual` "conversation.mls-message-add") ws
       nPayload n %. "data" `shouldMatch` T.decodeUtf8 (Base64.encode mp.message)
-    expectFailure (const $ pure ()) $
-      awaitMatch
+    expectFailure (const $ pure ())
+      $ awaitMatch
         ( \n ->
             liftM2
               (&&)
@@ -43,8 +43,8 @@ testSendMessageNoReturnToSender = do
         )
         wsSender
 
-testStaleApplicationMessage :: HasCallStack => Domain -> App ()
-testStaleApplicationMessage otherDomain = do
+testPastStaleApplicationMessage :: (HasCallStack) => Domain -> App ()
+testPastStaleApplicationMessage otherDomain = do
   [alice, bob, charlie, dave, eve] <-
     createAndConnectUsers [OwnDomain, otherDomain, OwnDomain, OwnDomain, OwnDomain]
   [alice1, bob1, charlie1] <- traverse (createMLSClient def) [alice, bob, charlie]
@@ -70,7 +70,33 @@ testStaleApplicationMessage otherDomain = do
   -- bob's application messages are now rejected
   void $ postMLSMessage bob1 msg2.message >>= getJSON 409
 
-testMixedProtocolUpgrade :: HasCallStack => Domain -> App ()
+testFutureStaleApplicationMessage :: (HasCallStack) => App ()
+testFutureStaleApplicationMessage = do
+  [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OwnDomain]
+  [alice1, bob1, charlie1] <- traverse (createMLSClient def) [alice, bob, charlie]
+  traverse_ uploadNewKeyPackage [bob1, charlie1]
+  void $ createNewGroup alice1
+
+  -- alice adds bob
+  void . sendAndConsumeCommitBundle =<< createAddCommit alice1 [bob]
+
+  -- alice adds charlie and consumes the commit without sending it
+  void $ createAddCommit alice1 [charlie]
+  modifyMLSState $ \mls ->
+    mls
+      { epoch = epoch mls + 1,
+        members = members mls <> Set.singleton charlie1,
+        newMembers = mempty
+      }
+
+  -- alice's application message is rejected
+  void
+    . getJSON 409
+    =<< postMLSMessage alice1
+    . (.message)
+    =<< createApplicationMessage alice1 "hi bob"
+
+testMixedProtocolUpgrade :: (HasCallStack) => Domain -> App ()
 testMixedProtocolUpgrade secondDomain = do
   (alice, tid, _) <- createTeam OwnDomain 1
   [bob, charlie] <- replicateM 2 (randomUser secondDomain def)
@@ -113,7 +139,7 @@ testMixedProtocolUpgrade secondDomain = do
   bindResponse (putConversationProtocol bob qcnv "invalid") $ \resp -> do
     resp.status `shouldMatchInt` 400
 
-testMixedProtocolNonTeam :: HasCallStack => Domain -> App ()
+testMixedProtocolNonTeam :: (HasCallStack) => Domain -> App ()
 testMixedProtocolNonTeam secondDomain = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, secondDomain]
   qcnv <-
@@ -123,7 +149,7 @@ testMixedProtocolNonTeam secondDomain = do
   bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 403
 
-testMixedProtocolAddUsers :: HasCallStack => Domain -> Ciphersuite -> App ()
+testMixedProtocolAddUsers :: (HasCallStack) => Domain -> Ciphersuite -> App ()
 testMixedProtocolAddUsers secondDomain suite = do
   setMLSCiphersuite suite
   (alice, tid, _) <- createTeam OwnDomain 1
@@ -160,7 +186,7 @@ testMixedProtocolAddUsers secondDomain suite = do
     (suiteCode, _) <- assertOne $ T.hexadecimal (T.pack suite.code)
     resp.json %. "cipher_suite" `shouldMatchInt` suiteCode
 
-testMixedProtocolUserLeaves :: HasCallStack => Domain -> App ()
+testMixedProtocolUserLeaves :: (HasCallStack) => Domain -> App ()
 testMixedProtocolUserLeaves secondDomain = do
   (alice, tid, _) <- createTeam OwnDomain 1
   bob <- randomUser secondDomain def
@@ -196,7 +222,7 @@ testMixedProtocolUserLeaves secondDomain = do
     msg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` leafIndexBob
     msg %. "message.content.sender.External" `shouldMatchInt` 0
 
-testMixedProtocolAddPartialClients :: HasCallStack => Domain -> App ()
+testMixedProtocolAddPartialClients :: (HasCallStack) => Domain -> App ()
 testMixedProtocolAddPartialClients secondDomain = do
   (alice, tid, _) <- createTeam OwnDomain 1
   bob <- randomUser secondDomain def
@@ -235,7 +261,7 @@ testMixedProtocolAddPartialClients secondDomain = do
     mp <- createAddCommitWithKeyPackages bob1 [kp2]
     void $ postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 201
 
-testMixedProtocolRemovePartialClients :: HasCallStack => Domain -> App ()
+testMixedProtocolRemovePartialClients :: (HasCallStack) => Domain -> App ()
 testMixedProtocolRemovePartialClients secondDomain = do
   (alice, tid, _) <- createTeam OwnDomain 1
   bob <- randomUser secondDomain def
@@ -261,7 +287,7 @@ testMixedProtocolRemovePartialClients secondDomain = do
 
   void $ postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 201
 
-testMixedProtocolAppMessagesAreDenied :: HasCallStack => Domain -> App ()
+testMixedProtocolAppMessagesAreDenied :: (HasCallStack) => Domain -> App ()
 testMixedProtocolAppMessagesAreDenied secondDomain = do
   (alice, tid, _) <- createTeam OwnDomain 1
   bob <- randomUser secondDomain def
@@ -290,7 +316,7 @@ testMixedProtocolAppMessagesAreDenied secondDomain = do
     resp.status `shouldMatchInt` 422
     resp.json %. "label" `shouldMatch` "mls-unsupported-message"
 
-testMLSProtocolUpgrade :: HasCallStack => Domain -> App ()
+testMLSProtocolUpgrade :: (HasCallStack) => Domain -> App ()
 testMLSProtocolUpgrade secondDomain = do
   (alice, bob, conv) <- simpleMixedConversationSetup secondDomain
   charlie <- randomUser OwnDomain def
@@ -332,7 +358,7 @@ testMLSProtocolUpgrade secondDomain = do
     resp.status `shouldMatchInt` 200
     resp.json %. "protocol" `shouldMatch` "mls"
 
-testAddUserSimple :: HasCallStack => Ciphersuite -> CredentialType -> App ()
+testAddUserSimple :: (HasCallStack) => Ciphersuite -> CredentialType -> App ()
 testAddUserSimple suite ctype = do
   setMLSCiphersuite suite
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
@@ -366,12 +392,12 @@ testAddUserSimple suite ctype = do
   -- check that bob can now see the conversation
   convs <- getAllConvs bob
   convIds <- traverse (%. "qualified_id") convs
-  void $
-    assertBool
+  void
+    $ assertBool
       "Users added to an MLS group should find it when listing conversations"
       (qcnv `elem` convIds)
 
-testRemoteAddUser :: HasCallStack => App ()
+testRemoteAddUser :: (HasCallStack) => App ()
 testRemoteAddUser = do
   [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OtherDomain, OwnDomain]
   [alice1, bob1, charlie1] <- traverse (createMLSClient def) [alice, bob, charlie]
@@ -388,7 +414,7 @@ testRemoteAddUser = do
     resp.status `shouldMatchInt` 500
     resp.json %. "label" `shouldMatch` "federation-not-implemented"
 
-testRemoteRemoveClient :: HasCallStack => Ciphersuite -> App ()
+testRemoteRemoveClient :: (HasCallStack) => Ciphersuite -> App ()
 testRemoteRemoveClient suite = do
   setMLSCiphersuite suite
   [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
@@ -409,7 +435,7 @@ testRemoteRemoveClient suite = do
     msg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` leafIndexBob
     msg %. "message.content.sender.External" `shouldMatchInt` 0
 
-testCreateSubConv :: HasCallStack => Ciphersuite -> App ()
+testCreateSubConv :: (HasCallStack) => Ciphersuite -> App ()
 testCreateSubConv suite = do
   setMLSCiphersuite suite
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
@@ -448,7 +474,7 @@ testSelfConversation v = withVersion5 v $ do
   void $ createExternalCommit newClient Nothing >>= sendAndConsumeCommitBundle
 
 -- | FUTUREWORK: Don't allow partial adds, not even in the first commit
-testFirstCommitAllowsPartialAdds :: HasCallStack => App ()
+testFirstCommitAllowsPartialAdds :: (HasCallStack) => App ()
 testFirstCommitAllowsPartialAdds = do
   alice <- randomUser OwnDomain def
 
@@ -466,7 +492,7 @@ testFirstCommitAllowsPartialAdds = do
     resp.status `shouldMatchInt` 409
     resp.json %. "label" `shouldMatch` "mls-client-mismatch"
 
-testAddUserPartial :: HasCallStack => App ()
+testAddUserPartial :: (HasCallStack) => App ()
 testAddUserPartial = do
   [alice, bob, charlie] <- createAndConnectUsers (replicate 3 OwnDomain)
 
@@ -494,7 +520,7 @@ testAddUserPartial = do
   err %. "label" `shouldMatch` "mls-client-mismatch"
 
 -- | admin removes user from a conversation but doesn't list all clients
-testRemoveClientsIncomplete :: HasCallStack => App ()
+testRemoveClientsIncomplete :: (HasCallStack) => App ()
 testRemoveClientsIncomplete = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
 
@@ -507,7 +533,7 @@ testRemoveClientsIncomplete = do
   err <- postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 409
   err %. "label" `shouldMatch` "mls-client-mismatch"
 
-testAdminRemovesUserFromConv :: HasCallStack => Ciphersuite -> App ()
+testAdminRemovesUserFromConv :: (HasCallStack) => Ciphersuite -> App ()
 testAdminRemovesUserFromConv suite = do
   setMLSCiphersuite suite
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
@@ -539,7 +565,7 @@ testAdminRemovesUserFromConv suite = do
       "bob is not longer part of conversation after the commit"
       (qcnv `notElem` convIds)
 
-testLocalWelcome :: HasCallStack => App ()
+testLocalWelcome :: (HasCallStack) => App ()
 testLocalWelcome = do
   users@[alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
 
@@ -569,7 +595,7 @@ testLocalWelcome = do
   addedUser <- (event %. "data.users") >>= asList >>= assertOne
   objQid addedUser `shouldMatch` objQid bob
 
-testStaleCommit :: HasCallStack => App ()
+testStaleCommit :: (HasCallStack) => App ()
 testStaleCommit = do
   (alice : users) <- createAndConnectUsers (replicate 5 OwnDomain)
   let (users1, users2) = splitAt 2 users
@@ -591,7 +617,7 @@ testStaleCommit = do
     resp.status `shouldMatchInt` 409
     resp.json %. "label" `shouldMatch` "mls-stale-message"
 
-testPropInvalidEpoch :: HasCallStack => App ()
+testPropInvalidEpoch :: (HasCallStack) => App ()
 testPropInvalidEpoch = do
   users@[_alice, bob, charlie, dee] <- createAndConnectUsers (replicate 4 OwnDomain)
   [alice1, bob1, charlie1, dee1] <- traverse (createMLSClient def) users
@@ -633,7 +659,7 @@ testPropInvalidEpoch = do
 
 --- | This test submits a ReInit proposal, which is currently ignored by the
 -- backend, in order to check that unsupported proposal types are accepted.
-testPropUnsupported :: HasCallStack => App ()
+testPropUnsupported :: (HasCallStack) => App ()
 testPropUnsupported = do
   users@[_alice, bob] <- createAndConnectUsers (replicate 2 OwnDomain)
   [alice1, bob1] <- traverse (createMLSClient def) users
@@ -646,7 +672,7 @@ testPropUnsupported = do
   -- we cannot consume this message, because the membership tag is fake
   void $ postMLSMessage mp.sender mp.message >>= getJSON 201
 
-testAddUserBareProposalCommit :: HasCallStack => App ()
+testAddUserBareProposalCommit :: (HasCallStack) => App ()
 testAddUserBareProposalCommit = do
   [alice, bob] <- createAndConnectUsers (replicate 2 OwnDomain)
   [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
@@ -663,12 +689,12 @@ testAddUserBareProposalCommit = do
   -- check that bob can now see the conversation
   convs <- getAllConvs bob
   convIds <- traverse (%. "qualified_id") convs
-  void $
-    assertBool
+  void
+    $ assertBool
       "Users added to an MLS group should find it when listing conversations"
       (qcnv `elem` convIds)
 
-testPropExistingConv :: HasCallStack => App ()
+testPropExistingConv :: (HasCallStack) => App ()
 testPropExistingConv = do
   [alice, bob] <- createAndConnectUsers (replicate 2 OwnDomain)
   [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
@@ -678,7 +704,7 @@ testPropExistingConv = do
   res <- createAddProposals alice1 [bob] >>= traverse sendAndConsumeMessage >>= assertOne
   shouldBeEmpty (res %. "events")
 
-testCommitNotReferencingAllProposals :: HasCallStack => App ()
+testCommitNotReferencingAllProposals :: (HasCallStack) => App ()
 testCommitNotReferencingAllProposals = do
   users@[_alice, bob, charlie] <- createAndConnectUsers (replicate 3 OwnDomain)
 
@@ -702,7 +728,7 @@ testCommitNotReferencingAllProposals = do
     resp.status `shouldMatchInt` 400
     resp.json %. "label" `shouldMatch` "mls-commit-missing-references"
 
-testUnsupportedCiphersuite :: HasCallStack => App ()
+testUnsupportedCiphersuite :: (HasCallStack) => App ()
 testUnsupportedCiphersuite = do
   setMLSCiphersuite (Ciphersuite "0x0003")
   alice <- randomUser OwnDomain def
@@ -715,7 +741,7 @@ testUnsupportedCiphersuite = do
     resp.status `shouldMatchInt` 400
     resp.json %. "label" `shouldMatch` "mls-protocol-error"
 
-testBackendRemoveProposal :: HasCallStack => Ciphersuite -> Domain -> App ()
+testBackendRemoveProposal :: (HasCallStack) => Ciphersuite -> Domain -> App ()
 testBackendRemoveProposal suite domain = do
   setMLSCiphersuite suite
   [alice, bob] <- createAndConnectUsers [OwnDomain, domain]

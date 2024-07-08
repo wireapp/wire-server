@@ -21,7 +21,7 @@ import Wire.Sem.Delay
 -- >   delay 100
 -- > takeMVar tick -- This blocks until doStuff is done
 -- > assertStuffDone
-runDelayWithTick :: Member (Embed IO) r => MVar () -> TVar [Int] -> Sem (Delay ': r) a -> Sem r a
+runDelayWithTick :: (Member (Embed IO) r) => MVar () -> TVar [Int] -> Sem (Delay ': r) a -> Sem r a
 runDelayWithTick tick calls = interpret $ \case
   Delay i -> do
     atomically $ modifyTVar calls (<> [i])

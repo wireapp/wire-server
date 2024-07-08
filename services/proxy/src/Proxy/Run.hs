@@ -22,7 +22,6 @@ where
 
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
-import Data.Metrics.Middleware hiding (path)
 import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
 import Imports hiding (head)
 import Network.Wai.Middleware.Gunzip qualified as GZip
@@ -36,14 +35,14 @@ import Wire.API.Routes.Version.Wai
 
 run :: Opts -> IO ()
 run o = do
-  m <- metrics
-  e <- createEnv m o
-  s <- newSettings $ defaultServer (o ^. host) (o ^. port) (e ^. applog) m
+  e <- createEnv o
+  s <- newSettings $ defaultServer (o ^. host) (o ^. port) (e ^. applog)
   let rtree = compile (sitemap e)
   let app r k = runProxy e r (route rtree r k)
   let middleware =
         versionMiddleware (foldMap expandVersionExp (o ^. disabledAPIVersions))
+          . requestIdMiddleware (e ^. applog) defaultRequestIdHeaderName
           . waiPrometheusMiddleware (sitemap e)
           . GZip.gunzip
-          . catchErrors (e ^. applog) [Right m]
+          . catchErrors (e ^. applog) defaultRequestIdHeaderName
   runSettingsWithShutdown s (middleware app) Nothing `finally` destroyEnv e

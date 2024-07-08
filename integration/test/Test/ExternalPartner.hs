@@ -25,7 +25,7 @@ import MLS.Util
 import SetupHelpers
 import Testlib.Prelude
 
-testExternalPartnerPermissions :: HasCallStack => App ()
+testExternalPartnerPermissions :: (HasCallStack) => App ()
 testExternalPartnerPermissions = do
   (owner, tid, u1 : u2 : u3 : _) <- createTeam OwnDomain 4
 
@@ -55,7 +55,7 @@ testExternalPartnerPermissions = do
     bindResponse (addMembers partner conv def {users = [u3]}) $ \resp -> do
       resp.status `shouldMatchInt` 403
 
-testExternalPartnerPermissionsMls :: HasCallStack => App ()
+testExternalPartnerPermissionsMls :: (HasCallStack) => App ()
 testExternalPartnerPermissionsMls = do
   -- external partners should not be able to create (MLS) conversations
   (owner, tid, _) <- createTeam OwnDomain 2
@@ -64,13 +64,13 @@ testExternalPartnerPermissionsMls = do
   bindResponse (postConversation bobExtClient defMLS) $ \resp -> do
     resp.status `shouldMatchInt` 403
 
-testExternalPartnerPermissionMlsOne2One :: HasCallStack => App ()
+testExternalPartnerPermissionMlsOne2One :: (HasCallStack) => App ()
 testExternalPartnerPermissionMlsOne2One = do
   (owner, tid, alice : _) <- createTeam OwnDomain 2
   bobExternal <- createTeamMemberWithRole owner tid "partner"
   void $ getMLSOne2OneConversation alice bobExternal >>= getJSON 200
 
-testExternalPartnerPermissionsConvName :: HasCallStack => App ()
+testExternalPartnerPermissionsConvName :: (HasCallStack) => App ()
 testExternalPartnerPermissionsConvName = do
   (owner, tid, u1 : _) <- createTeam OwnDomain 2
 

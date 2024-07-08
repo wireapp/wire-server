@@ -47,8 +47,8 @@ getNotification ::
 getNotification user opts nid = do
   n <- nid & asString
   req <-
-    baseRequest user Gundeck Versioned $
-      joinHttpPath ["notifications", n]
+    baseRequest user Gundeck Versioned
+      $ joinHttpPath ["notifications", n]
   submit "GET" $ req & addQueryParams [("client", c) | c <- toList opts.client]
 
 getLastNotification ::
@@ -126,8 +126,8 @@ postPushToken user token = do
 listPushTokens :: (MakesValue user) => user -> App Response
 listPushTokens user = do
   req <-
-    baseRequest user Gundeck Versioned $
-      joinHttpPath ["/push/tokens"]
+    baseRequest user Gundeck Versioned
+      $ joinHttpPath ["/push/tokens"]
   submit "GET" req
 
 unregisterClient ::
@@ -138,6 +138,6 @@ unregisterClient ::
 unregisterClient user client = do
   cid <- asString client
   req <-
-    baseRequest user Gundeck Unversioned $
-      joinHttpPath ["/i/clients", cid]
+    baseRequest user Gundeck Unversioned
+      $ joinHttpPath ["/i/clients", cid]
   submit "DELETE" req

@@ -164,13 +164,14 @@ runFedClient (FedClient mgr ep) domain =
         Right res -> pure res
         Left err -> assertFailure $ "Servant client failed with: " <> show err
 
-    makeClientRequest :: Domain -> Servant.BaseUrl -> Servant.Request -> HTTP.Request
-    makeClientRequest originDomain burl req =
-      let req' = Servant.defaultMakeClientRequest burl req
-       in req'
-            { HTTP.requestHeaders =
-                HTTP.requestHeaders req'
-                  <> [ (originDomainHeaderName, toByteString' originDomain),
-                       (versionHeader, toByteString' (versionInt (maxBound :: Version)))
-                     ]
-            }
+    makeClientRequest :: Domain -> Servant.BaseUrl -> Servant.Request -> IO HTTP.Request
+    makeClientRequest originDomain burl req = do
+      req' <- Servant.defaultMakeClientRequest burl req
+      pure
+        req'
+          { HTTP.requestHeaders =
+              HTTP.requestHeaders req'
+                <> [ (originDomainHeaderName, toByteString' originDomain),
+                     (versionHeader, toByteString' (versionInt (maxBound :: Version)))
+                   ]
+          }

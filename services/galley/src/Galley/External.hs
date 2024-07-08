@@ -21,7 +21,6 @@ import Bilge.Request
 import Bilge.Retry (httpHandlers)
 import Control.Lens
 import Control.Retry
-import Data.Aeson (ToJSON)
 import Data.ByteString.Conversion.To
 import Data.Id
 import Data.Misc
@@ -70,7 +69,7 @@ interpretExternalAccess = interpret $ \case
 -- | Like deliver, but ignore orphaned bots and return immediately.
 --
 -- FUTUREWORK: Check if this can be removed.
-deliverAsync :: ToJSON e => [(BotMember, e)] -> App ()
+deliverAsync :: [(BotMember, Event)] -> App ()
 deliverAsync = void . forkIO . void . deliver
 
 -- | Like deliver, but remove orphaned bots and return immediately.
@@ -79,10 +78,10 @@ deliverAndDeleteAsync cnv pushes = void . forkIO $ do
   gone <- deliver pushes
   mapM_ (deleteBot cnv . botMemId) gone
 
-deliver :: forall e. ToJSON e => [(BotMember, e)] -> App [BotMember]
+deliver :: [(BotMember, Event)] -> App [BotMember]
 deliver pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
   where
-    exec :: (BotMember, e) -> App Bool
+    exec :: (BotMember, Event) -> App Bool
     exec (b, e) =
       lookupService (botMemService b) >>= \case
         Nothing -> pure False
@@ -128,7 +127,7 @@ deliver pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
 
 -- Internal -------------------------------------------------------------------
 
-deliver1 :: ToJSON e => Service -> BotMember -> e -> App ()
+deliver1 :: Service -> BotMember -> Event -> App ()
 deliver1 s bm e
   | s ^. serviceEnabled = do
       let t = toByteString' (s ^. serviceToken)

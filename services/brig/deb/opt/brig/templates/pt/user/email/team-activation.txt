@@ -1,0 +1,21 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+SUA NOVA CONTA EM ${BRAND}
+Um nova conta na equipe ${brand} foi criada com ${email}. Por favor, verifique
+seu e-mail.
+
+Verificar [${url}]Se você não conseguir clicar no botão, copie e cole este link
+no seu navegador:
+
+${url}
+
+Se você tiver alguma dúvida, por favor, entre em contato conosco [${support}].
+
+
+--------------------------------------------------------------------------------
+
+Política de privacidade e termos de uso [${legal}] · Reportar uso indevido
+[${misuse}]
+${copyright}. TODOS OS DIREITOS RESERVADOS.

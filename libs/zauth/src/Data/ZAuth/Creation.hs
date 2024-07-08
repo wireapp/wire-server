@@ -155,12 +155,12 @@ providerToken dur pid = do
   d <- expiry dur
   newToken d P Nothing (mkProvider pid)
 
-renewToken :: ToByteString a => Integer -> Header -> a -> Create (Token a)
+renewToken :: (ToByteString a) => Integer -> Header -> a -> Create (Token a)
 renewToken dur hdr bdy = do
   d <- expiry dur
   newToken d (hdr ^. typ) (hdr ^. tag) bdy
 
-newToken :: ToByteString a => POSIXTime -> Type -> Maybe Tag -> a -> Create (Token a)
+newToken :: (ToByteString a) => POSIXTime -> Type -> Maybe Tag -> a -> Create (Token a)
 newToken ti ty ta a = do
   k <- Create $ asks keyIdx
   let h = mkHeader tokenVersion k (floor ti) ty ta
@@ -170,10 +170,10 @@ newToken ti ty ta a = do
 -----------------------------------------------------------------------------
 -- Internal
 
-signToken :: ToByteString a => Header -> a -> Create Signature
+signToken :: (ToByteString a) => Header -> a -> Create Signature
 signToken h a = Create $ do
   f <- (! (h ^. key - 1)) <$> asks zSign
   liftIO . f . toStrict . toLazyByteString $ writeData h a
 
-expiry :: MonadIO m => Integer -> m POSIXTime
+expiry :: (MonadIO m) => Integer -> m POSIXTime
 expiry d = (fromInteger d +) <$> liftIO getPOSIXTime

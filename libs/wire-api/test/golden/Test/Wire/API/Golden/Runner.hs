@@ -147,7 +147,7 @@ testFromJSONFailureWithMsg msg path = do
   where
     failurePrefix = show (typeRep @a) <> ": FromJSON of " <> path
 
-assertRight :: Show a => Either a b -> IO b
+assertRight :: (Show a) => Either a b -> IO b
 assertRight =
   \case
     Left a -> assertFailure $ "Expected Right, got Left: " <> show a

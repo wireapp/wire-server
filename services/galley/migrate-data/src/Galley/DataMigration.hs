@@ -116,5 +116,5 @@ persistVersion (MigrationVersion v) desc time = C.write cql (C.params C.LocalQuo
     cql :: C.QueryString C.W (Int32, Text, UTCTime) ()
     cql = "insert into data_migration (id, version, descr, date) values (1,?,?,?)"
 
-info :: Log.MonadLogger m => String -> m ()
+info :: (Log.MonadLogger m) => String -> m ()
 info = Log.info . Log.msg

@@ -38,6 +38,7 @@ module Wire.API.User.Auth
     Cookie (..),
     CookieLabel (..),
     RemoveCookies (..),
+    toUnitCookie,
 
     -- * Token
     AccessToken (..),
@@ -59,6 +60,7 @@ module Wire.API.User.Auth
   )
 where
 
+import Cassandra
 import Control.Applicative
 import Control.Lens ((?~), (^.))
 import Control.Lens.TH
@@ -69,6 +71,7 @@ import Data.ByteString.Builder
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as LBS
 import Data.Code as Code
+import Data.Functor.Alt
 import Data.Handle (Handle)
 import Data.Id
 import Data.Json.Util
@@ -125,7 +128,9 @@ loginObjectSchema =
     validate :: (Maybe Email, Maybe Phone, Maybe Handle) -> A.Parser LoginId
     validate (mEmail, mPhone, mHandle) =
       maybe (fail "'email', 'phone' or 'handle' required") pure $
-        (LoginByEmail <$> mEmail) <|> (LoginByPhone <$> mPhone) <|> (LoginByHandle <$> mHandle)
+        (LoginByEmail <$> mEmail)
+          <|> (LoginByPhone <$> mPhone)
+          <|> (LoginByHandle <$> mHandle)
 
 --------------------------------------------------------------------------------
 -- LoginCode
@@ -136,6 +141,8 @@ newtype LoginCode = LoginCode
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema LoginCode
+
+deriving instance Cql LoginCode
 
 instance ToSchema LoginCode where
   schema = LoginCode <$> fromLoginCode .= text "LoginCode"
@@ -278,10 +285,19 @@ newtype CookieLabel = CookieLabel
       ToSchema
     )
 
+deriving instance Cql CookieLabel
+
 newtype CookieId = CookieId
   {cookieIdNum :: Word32}
   deriving stock (Eq, Show, Generic)
   deriving newtype (ToSchema, FromJSON, ToJSON, Arbitrary)
+
+instance Cql CookieId where
+  ctype = Cassandra.Tagged BigIntColumn
+  toCql = CqlBigInt . fromIntegral . cookieIdNum
+
+  fromCql (CqlBigInt i) = pure (CookieId (fromIntegral i))
+  fromCql _ = Left "fromCql: invalid cookie id"
 
 data CookieType
   = -- | A session cookie. These are mainly intended for clients
@@ -298,11 +314,24 @@ data CookieType
   deriving (Arbitrary) via (GenericUniform CookieType)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema CookieType
 
+instance Cql CookieType where
+  ctype = Cassandra.Tagged IntColumn
+
+  toCql SessionCookie = CqlInt 0
+  toCql PersistentCookie = CqlInt 1
+
+  fromCql (CqlInt 0) = pure SessionCookie
+  fromCql (CqlInt 1) = pure PersistentCookie
+  fromCql _ = Left "fromCql: invalid cookie type"
+
 instance ToSchema CookieType where
   schema =
     enum @Text "CookieType" $
       element "session" SessionCookie
         <> element "persistent" PersistentCookie
+
+toUnitCookie :: Cookie a -> Cookie ()
+toUnitCookie c = c {cookieValue = ()}
 
 --------------------------------------------------------------------------------
 -- Login
@@ -504,7 +533,7 @@ instance FromHttpApiData SomeUserToken where
   parseHeader h =
     first T.pack $
       fmap PlainUserToken (runParser parser h)
-        <|> fmap LHUserToken (runParser parser h)
+        <!> fmap LHUserToken (runParser parser h)
   parseUrlPiece = parseHeader . T.encodeUtf8
 
 instance FromByteString SomeUserToken where
@@ -525,7 +554,7 @@ instance FromHttpApiData SomeAccessToken where
   parseHeader h =
     first T.pack $
       fmap PlainAccessToken (runParser parser h)
-        <|> fmap LHAccessToken (runParser parser h)
+        <!> fmap LHAccessToken (runParser parser h)
   parseUrlPiece = parseHeader . T.encodeUtf8
 
 -- | Data that is returned to the client in the form of a cookie containing a

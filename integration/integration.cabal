@@ -108,6 +108,7 @@ library
     Test.AssetDownload
     Test.AssetUpload
     Test.B2B
+    Test.Bot
     Test.Brig
     Test.Cargohold.API
     Test.Cargohold.API.Federation
@@ -122,6 +123,7 @@ library
     Test.Errors
     Test.ExternalPartner
     Test.FeatureFlags
+    Test.FeatureFlags.Util
     Test.Federation
     Test.Federator
     Test.LegalHold
@@ -137,6 +139,7 @@ library
     Test.MLS.Unreachable
     Test.Notifications
     Test.Presence
+    Test.Provider
     Test.PushToken
     Test.Roles
     Test.Search
@@ -149,6 +152,7 @@ library
     Testlib.App
     Testlib.Assertions
     Testlib.Cannon
+    Testlib.Certs
     Testlib.Env
     Testlib.HTTP
     Testlib.JSON
@@ -173,6 +177,8 @@ library
     , aeson-diff
     , aeson-pretty
     , array
+    , asn1-encoding
+    , asn1-types
     , async
     , attoparsec
     , base
@@ -185,6 +191,8 @@ library
     , cql
     , cql-io
     , crypton
+    , crypton-x509
+    , cryptostore
     , data-default
     , data-timeout
     , deriving-aeson
@@ -195,6 +203,7 @@ library
     , extra
     , filepath
     , hex
+    , hourglass
     , HsOpenSSL
     , http-client
     , http-types
@@ -232,6 +241,7 @@ library
     , uuid
     , vector
     , wai
+    , wai-route
     , warp
     , warp-tls
     , websockets

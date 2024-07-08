@@ -263,7 +263,7 @@ getRemoteConversationsWithFailures lusr convs = do
     <$> traverse handleFailure resp
   where
     handleFailure ::
-      Member P.TinyLog r =>
+      (Member P.TinyLog r) =>
       Either (Remote [ConvId], FederationError) (Remote GetConversationsResponse) ->
       Sem r (Either FailedGetConversation [Remote RemoteConversation])
     handleFailure (Left (rcids, e)) = do
@@ -288,7 +288,7 @@ getConversationRoles lusr cnv = do
   pure $ Public.ConversationRolesList wireConvRoles
 
 conversationIdsPageFromUnqualified ::
-  Member (ListItems LegacyPaging ConvId) r =>
+  (Member (ListItems LegacyPaging ConvId) r) =>
   Local UserId ->
   Maybe ConvId ->
   Maybe (Range 1 1000 Int32) ->
@@ -343,9 +343,7 @@ conversationIdsPageFromV2 listGlobalSelf lusr Public.GetMultiTablePageRequest {.
       Range 1 1000 Int32 ->
       Sem r Public.ConvIdsPage
     localsAndRemotes localDomain pagingState size = do
-      localPage <-
-        pageToConvIdPage Public.PagingLocals . fmap (`Qualified` localDomain)
-          <$> E.listItems (tUnqualified lusr) pagingState size
+      localPage <- localsOnly localDomain pagingState size
       let remainingSize = fromRange size - fromIntegral (length (Public.mtpResults localPage))
       if Public.mtpHasMore localPage || remainingSize <= 0
         then -- We haven't checked the remotes yet, so has_more must always be True here.
@@ -359,6 +357,16 @@ conversationIdsPageFromV2 listGlobalSelf lusr Public.GetMultiTablePageRequest {.
                   Public.mtpResults (filterOut localPage)
                     <> Public.mtpResults remotePage
               }
+
+    localsOnly ::
+      Domain ->
+      Maybe C.PagingState ->
+      Range 1 1000 Int32 ->
+      Sem r Public.ConvIdsPage
+    localsOnly localDomain pagingState size =
+      pageToConvIdPage Public.PagingLocals
+        . fmap (`Qualified` localDomain)
+        <$> E.listItems (tUnqualified lusr) pagingState size
 
     remotesOnly ::
       Maybe C.PagingState ->
@@ -480,7 +488,7 @@ getConversationsInternal luser mids mstart msize = do
       pure (hasMore, resultSetResult r)
 
     removeDeleted ::
-      Member ConversationStore r =>
+      (Member ConversationStore r) =>
       Data.Conversation ->
       Sem r Bool
     removeDeleted c
@@ -532,7 +540,7 @@ listConversations luser (Public.ListConversations ids) = do
       }
   where
     removeDeleted ::
-      Member ConversationStore r =>
+      (Member ConversationStore r) =>
       Data.Conversation ->
       Sem r Bool
     removeDeleted c
@@ -824,7 +832,7 @@ isMLSOne2OneEstablished lself qother = do
     convId
 
 isLocalMLSOne2OneEstablished ::
-  Member ConversationStore r =>
+  (Member ConversationStore r) =>
   Local ConvId ->
   Sem r Bool
 isLocalMLSOne2OneEstablished lconv = do

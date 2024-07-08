@@ -64,7 +64,7 @@ head :: List1 a -> a
 head = N.head . toNonEmpty
 {-# INLINE head #-}
 
-instance ToSchema a => ToSchema (List1 a) where
+instance (ToSchema a) => ToSchema (List1 a) where
   schema =
     named "List1" $
       toNonEmpty S..= fmap List1 (nonEmptyArray S.schema)

@@ -155,7 +155,7 @@ class IsSwaggerResponse a where
 
 type family ResponseType a :: Type
 
-class IsWaiBody (ResponseBody a) => IsResponse cs a where
+class (IsWaiBody (ResponseBody a)) => IsResponse cs a where
   type ResponseStatus a :: Nat
   type ResponseBody a :: Type
 
@@ -238,7 +238,7 @@ instance
     either UnrenderError UnrenderSuccess $
       mimeUnrender (Proxy @ct) (responseBody output)
 
-instance KnownStatus s => IsResponse cs (RespondAs '() s desc ()) where
+instance (KnownStatus s) => IsResponse cs (RespondAs '() s desc ()) where
   type ResponseStatus (RespondAs '() s desc ()) = s
   type ResponseBody (RespondAs '() s desc ()) = ()
 
@@ -290,7 +290,7 @@ instance
     guard (responseStatusCode resp == statusVal (Proxy @s))
     pure $ responseBody resp
 
-instance KnownSymbol desc => IsSwaggerResponse (RespondStreaming s desc framing ct) where
+instance (KnownSymbol desc) => IsSwaggerResponse (RespondStreaming s desc framing ct) where
   responseSwagger =
     pure $
       mempty
@@ -333,7 +333,7 @@ instance ServantHeaders '[] '[] where
   constructHeaders Nil = []
   extractHeaders _ = Just Nil
 
-headerName :: forall name. KnownSymbol name => HTTP.HeaderName
+headerName :: forall name. (KnownSymbol name) => HTTP.HeaderName
 headerName =
   CI.mk
     . Text.encodeUtf8
@@ -378,7 +378,7 @@ instance
   where
   constructHeader x = [(headerName @name, toHeader x)]
 
-instance ServantHeader h name x => ServantHeader (OptHeader h) name (Maybe x) where
+instance (ServantHeader h name x) => ServantHeader (OptHeader h) name (Maybe x) where
   constructHeader = foldMap (constructHeader @h)
 
 instance
@@ -391,7 +391,7 @@ instance
       desc = Text.pack (symbolVal (Proxy @desc))
       sch = pure $ Inline $ S.toParamSchema (Proxy @a)
 
-instance ToResponseHeader h => ToResponseHeader (OptHeader h) where
+instance (ToResponseHeader h) => ToResponseHeader (OptHeader h) where
   toResponseHeader _ = toResponseHeader (Proxy @h)
 
 type instance ResponseType (WithHeaders hs a r) = a
@@ -535,7 +535,7 @@ class AsUnion (as :: [Type]) (r :: Type) where
 
 -- | Unions can be used directly as handler return types using this trivial
 -- instance.
-instance rs ~ ResponseTypes as => AsUnion as (Union rs) where
+instance (rs ~ ResponseTypes as) => AsUnion as (Union rs) where
   toUnion = id
   fromUnion = id
 
@@ -553,7 +553,7 @@ class InjectAfter as bs where
 instance InjectAfter '[] bs where
   injectAfter = id
 
-instance InjectAfter as bs => InjectAfter (a ': as) bs where
+instance (InjectAfter as bs) => InjectAfter (a ': as) bs where
   injectAfter = S . injectAfter @as @bs
 
 class InjectBefore as bs where
@@ -562,7 +562,7 @@ class InjectBefore as bs where
 instance InjectBefore '[] bs where
   injectBefore x = case x of {}
 
-instance InjectBefore as bs => InjectBefore (a ': as) bs where
+instance (InjectBefore as bs) => InjectBefore (a ': as) bs where
   injectBefore (Z x) = Z x
   injectBefore (S x) = S (injectBefore @as @bs x)
 
@@ -584,7 +584,7 @@ class EitherFromUnion as bs where
 instance EitherFromUnion '[] bs where
   eitherFromUnion _ g = Right . g
 
-instance EitherFromUnion as bs => EitherFromUnion (a ': as) bs where
+instance (EitherFromUnion as bs) => EitherFromUnion (a ': as) bs where
   eitherFromUnion f _ (Z x) = Left (f (Z x))
   eitherFromUnion f g (S x) = eitherFromUnion @as @bs (f . S) g x
 
@@ -598,7 +598,7 @@ maybeToUnion _ Nothing = injectAfter @as @'[()] (Z (I ()))
 
 maybeFromUnion ::
   forall as a.
-  EitherFromUnion as '[()] =>
+  (EitherFromUnion as '[()]) =>
   (Union as -> a) ->
   (Union (as .++ '[()]) -> Maybe a)
 maybeFromUnion f = leftToMaybe . eitherFromUnion @as @'[()] f (const (Z (I ())))
@@ -767,11 +767,11 @@ instance
             -- pick out an element from the map, if any exist.
             -- These will all have the same schemas, and we are reapplying the content types.
             foldMap (\c -> InsOrdHashMap.fromList $ (,c) <$> cs)
-            . listToMaybe
-            . toList
+              . listToMaybe
+              . toList
       refResps = S.Inline . addMime <$> resps
 
-class Typeable a => IsWaiBody a where
+class (Typeable a) => IsWaiBody a where
   responseToWai :: ResponseF a -> Wai.Response
 
 instance IsWaiBody LByteString where
@@ -799,9 +799,9 @@ instance IsWaiBody (SourceIO ByteString) where
           (\chunk -> output (byteString chunk) *> flush)
           (responseBody r)
 
-data SomeResponse = forall a. IsWaiBody a => SomeResponse (ResponseF a)
+data SomeResponse = forall a. (IsWaiBody a) => SomeResponse (ResponseF a)
 
-addContentType :: forall ct a. Accept ct => ResponseF a -> ResponseF a
+addContentType :: forall ct a. (Accept ct) => ResponseF a -> ResponseF a
 addContentType = addContentType' (contentType (Proxy @ct))
 
 addContentType' :: M.MediaType -> ResponseF a -> ResponseF a
@@ -828,7 +828,7 @@ fromSomeResponse (SomeResponse Response {..}) = do
 class HasAcceptCheck cs where
   acceptCheck' :: Proxy cs -> AcceptHeader -> DelayedIO ()
 
-instance AllMime cs => HasAcceptCheck cs where
+instance (AllMime cs) => HasAcceptCheck cs where
   acceptCheck' = acceptCheck
 
 instance HasAcceptCheck '() where
@@ -869,7 +869,7 @@ instance
       method = reflectMethod (Proxy @method)
 
 -- taken from Servant.Client.Core.HasClient
-getResponseContentType :: RunClient m => Response -> m M.MediaType
+getResponseContentType :: (RunClient m) => Response -> m M.MediaType
 getResponseContentType response =
   case lookup "Content-Type" (toList (responseHeaders response)) of
     Nothing -> pure $ "application" M.// "octet-stream"

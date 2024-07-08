@@ -7,7 +7,6 @@ import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Trans.Control
 import Data.Map.Strict qualified as Map
-import Data.Metrics qualified as Metrics
 import HTTP2.Client.Manager
 import Imports
 import Network.AMQP.Extended
@@ -35,7 +34,6 @@ data Env = Env
     rabbitmqAdminClient :: RabbitMqAdmin.AdminAPI (Servant.AsClientT IO),
     rabbitmqVHost :: Text,
     logger :: Logger,
-    metrics :: Metrics.Metrics,
     federatorInternal :: Endpoint,
     httpManager :: Manager,
     defederationTimeout :: ResponseTimeout,
@@ -75,7 +73,6 @@ mkEnv opts = do
       Map.fromList
         [ (BackendNotificationPusher, False)
         ]
-  metrics <- Metrics.metrics
   backendNotificationMetrics <- mkBackendNotificationMetrics
   let backendNotificationsConfig = opts.backendNotificationPusher
   pure Env {..}
@@ -111,7 +108,7 @@ deriving newtype instance (MonadBase b m) => MonadBase b (AppT m)
 deriving newtype instance (MonadBaseControl b m) => MonadBaseControl b (AppT m)
 
 -- Coppied from Federator.
-instance MonadUnliftIO m => MonadUnliftIO (AppT m) where
+instance (MonadUnliftIO m) => MonadUnliftIO (AppT m) where
   withRunInIO inner =
     AppT . ReaderT $ \r ->
       withRunInIO $ \runner ->

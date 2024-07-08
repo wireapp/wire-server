@@ -20,7 +20,7 @@
 module Test.Wire.API.Golden.Generated.SelfProfile_user where
 
 import Data.Domain (Domain (Domain, _domainText))
-import Data.Handle (Handle (Handle, fromHandle))
+import Data.Handle
 import Data.ISO3166_CountryCodes (CountryCode (PA))
 import Data.Id (Id (Id))
 import Data.Json.Util (readUTCTimeMillis)
@@ -42,7 +42,7 @@ testObject_SelfProfile_user_1 =
                   qDomain = Domain {_domainText = "n0-994.m-226.f91.vg9p-mj-j2"}
                 },
             userIdentity =
-              Just (FullIdentity (Email {emailLocal = "\a", emailDomain = ""}) (Phone {fromPhone = "+6171884202"})),
+              Just (EmailIdentity (Email {emailLocal = "\a", emailDomain = ""})),
             userDisplayName = Name {fromName = "@\1457\2598\66242\US\1104967l+\137302\&6\996495^\162211Mu\t"},
             userPict = Pict {fromPict = []},
             userAssets = [],
@@ -57,7 +57,7 @@ testObject_SelfProfile_user_1 =
                       _serviceRefProvider = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))
                     }
                 ),
-            userHandle = Just (Handle {fromHandle = "do9-5"}),
+            userHandle = Just (fromJust (parseHandle "do9-5")),
             userExpire = Just (fromJust (readUTCTimeMillis "1864-05-07T21:09:29.342Z")),
             userTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000000000002"))),
             userManagedBy = ManagedByScim,

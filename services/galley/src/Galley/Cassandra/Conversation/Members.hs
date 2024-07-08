@@ -369,7 +369,7 @@ addMLSClients groupId (Qualified usr domain) cs = retry x5 . batch $ do
   for_ cs $ \(c, idx) ->
     addPrepQuery Cql.addMLSClient (groupId, domain, usr, c, fromIntegral idx)
 
-planMLSClientRemoval :: Foldable f => GroupId -> f ClientIdentity -> Client ()
+planMLSClientRemoval :: (Foldable f) => GroupId -> f ClientIdentity -> Client ()
 planMLSClientRemoval groupId cids =
   retry x5 . batch $ do
     setType BatchLogged

@@ -268,7 +268,7 @@ cnvReceiptMode = cnvmReceiptMode . cnvMetadata
 instance ToSchema Conversation where
   schema = conversationSchema Nothing
 
-instance SingI v => ToSchema (Versioned v Conversation) where
+instance (SingI v) => ToSchema (Versioned v Conversation) where
   schema = Versioned <$> unVersioned .= conversationSchema (Just (demote @v))
 
 conversationObjectSchema :: Maybe Version -> ObjectSchema SwaggerDoc Conversation
@@ -305,7 +305,7 @@ data CreateGroupConversation = CreateGroupConversation
 instance ToSchema CreateGroupConversation where
   schema = createGroupConversationSchema Nothing
 
-instance SingI v => ToSchema (Versioned v CreateGroupConversation) where
+instance (SingI v) => ToSchema (Versioned v CreateGroupConversation) where
   schema = Versioned <$> unVersioned .= createGroupConversationSchema (Just (demote @v))
 
 createGroupConversationSchema :: Maybe Version -> ValueSchema NamedSwaggerDoc CreateGroupConversation
@@ -321,7 +321,7 @@ createGroupConversationSchema v =
     toFlatList :: Map Domain (Set a) -> [Qualified a]
     toFlatList m =
       (\(d, s) -> flip Qualified d <$> Set.toList s) =<< Map.assocs m
-    fromFlatList :: Ord a => [Qualified a] -> Map Domain (Set a)
+    fromFlatList :: (Ord a) => [Qualified a] -> Map Domain (Set a)
     fromFlatList = fmap Set.fromList . indexQualified
 
 -- | Limited view of a 'Conversation'. Is used to inform users with an invite
@@ -375,7 +375,7 @@ instance ToSchema (Versioned 'V2 (ConversationList Conversation)) where
 
 conversationListSchema ::
   forall a.
-  ConversationListItem a =>
+  (ConversationListItem a) =>
   ValueSchema NamedSwaggerDoc a ->
   ValueSchema NamedSwaggerDoc (ConversationList a)
 conversationListSchema sch =
@@ -449,7 +449,7 @@ conversationsResponseSchema v =
 instance ToSchema ConversationsResponse where
   schema = conversationsResponseSchema Nothing
 
-instance SingI v => ToSchema (Versioned v ConversationsResponse) where
+instance (SingI v) => ToSchema (Versioned v ConversationsResponse) where
   schema = Versioned <$> unVersioned .= conversationsResponseSchema (Just (demote @v))
 
 --------------------------------------------------------------------------------
@@ -553,7 +553,7 @@ toAccessRoleLegacy :: Set AccessRole -> AccessRoleLegacy
 toAccessRoleLegacy accessRoles = do
   fromMaybe NonActivatedAccessRole $ find (allMember accessRoles . fromAccessRoleLegacy) [minBound ..]
   where
-    allMember :: Ord a => Set a -> Set a -> Bool
+    allMember :: (Ord a) => Set a -> Set a -> Bool
     allMember rhs lhs = all (`Set.member` lhs) rhs
 
 instance ToSchema AccessRole where
@@ -764,7 +764,7 @@ instance ToSchema ConvTeamInfo where
             (description ?~ managedDesc)
             (c (False :: Bool))
     where
-      c :: ToJSON a => a -> ValueSchema SwaggerDoc ()
+      c :: (ToJSON a) => a -> ValueSchema SwaggerDoc ()
       c val = mkSchema mempty (const (pure ())) (const (pure (toJSON val)))
 
 --------------------------------------------------------------------------------

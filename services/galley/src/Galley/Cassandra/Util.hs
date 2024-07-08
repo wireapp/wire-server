@@ -23,5 +23,5 @@ import Polysemy
 import Polysemy.TinyLog
 import System.Logger.Message
 
-logEffect :: Member TinyLog r => ByteString -> Sem r ()
+logEffect :: (Member TinyLog r) => ByteString -> Sem r ()
 logEffect = debug . msg . val

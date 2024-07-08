@@ -46,28 +46,23 @@ import Control.Monad.Catch (MonadCatch, finally)
 import Control.Monad.Random (randomRIO)
 import Data.Aeson qualified as Aeson
 import Data.ByteString.UTF8 qualified as UTF8
-import Data.Id (RequestId (..))
 import Data.Metrics.AWS (gaugeTokenRemaing)
 import Data.Metrics.Servant qualified as Metrics
 import Data.Proxy (Proxy (Proxy))
 import Data.Text (unpack)
-import Data.Text.Encoding
-import Data.UUID as UUID
-import Data.UUID.V4 as UUID
 import Imports hiding (head)
 import Network.HTTP.Media qualified as HTTPMedia
 import Network.HTTP.Types qualified as HTTP
 import Network.Wai qualified as Wai
 import Network.Wai.Middleware.Gunzip qualified as GZip
 import Network.Wai.Middleware.Gzip qualified as GZip
-import Network.Wai.Utilities (lookupRequestId)
+import Network.Wai.Utilities.Request
 import Network.Wai.Utilities.Server
 import Network.Wai.Utilities.Server qualified as Server
 import Polysemy (Member)
 import Servant (Context ((:.)), (:<|>) (..))
 import Servant qualified
-import System.Logger (Logger, msg, val, (.=), (~~))
-import System.Logger qualified as Log
+import System.Logger (msg, val, (.=), (~~))
 import System.Logger.Class (MonadLogger, err)
 import Util.Options
 import Wire.API.Routes.API
@@ -78,6 +73,7 @@ import Wire.API.Routes.Version.Wai
 import Wire.API.User (AccountStatus (PendingInvitation))
 import Wire.DeleteQueue
 import Wire.Sem.Paging qualified as P
+import Wire.UserStore
 
 -- FUTUREWORK: If any of these async threads die, we will have no clue about it
 -- and brig could start misbehaving. We should ensure that brig dies whenever a
@@ -113,36 +109,41 @@ run o = do
     closeEnv e
   where
     endpoint' = brig o
-    server e = defaultServer (unpack $ endpoint' ^. host) (endpoint' ^. port) (e ^. applog) (e ^. metrics)
+    server e = defaultServer (unpack $ endpoint' ^. host) (endpoint' ^. port) (e ^. applog)
 
 mkApp :: Opts -> IO (Wai.Application, Env)
 mkApp o = do
   e <- newEnv o
-  pure (middleware e $ \reqId -> servantApp (e & requestId .~ reqId), e)
+  pure (middleware e $ servantApp e, e)
   where
-    middleware :: Env -> (RequestId -> Wai.Application) -> Wai.Application
+    middleware :: Env -> Wai.Middleware
     middleware e =
       -- this rewrites the request, so it must be at the top (i.e. applied last)
       versionMiddleware (e ^. disabledVersions)
+        -- this also rewrites the request
+        . requestIdMiddleware (e ^. applog) defaultRequestIdHeaderName
         . Metrics.servantPrometheusMiddleware (Proxy @ServantCombinedAPI)
         . GZip.gunzip
         . GZip.gzip GZip.def
-        . catchErrors (e ^. applog) [Right $ e ^. metrics]
-        . lookupRequestIdMiddleware (e ^. applog)
+        . catchErrors (e ^. applog) defaultRequestIdHeaderName
 
     -- the servant API wraps the one defined using wai-routing
     servantApp :: Env -> Wai.Application
-    servantApp e =
+    servantApp e0 req cont = do
+      let rid = getRequestId defaultRequestIdHeaderName req
+      let e = requestId .~ rid $ e0
       let localDomain = view (settings . federationDomain) e
-       in Servant.serveWithContext
-            (Proxy @ServantCombinedAPI)
-            (customFormatters :. localDomain :. Servant.EmptyContext)
-            ( docsAPI
-                :<|> hoistServerWithDomain @BrigAPI (toServantHandler e) servantSitemap
-                :<|> hoistServerWithDomain @IAPI.API (toServantHandler e) IAPI.servantSitemap
-                :<|> hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
-                :<|> hoistServerWithDomain @VersionAPI (toServantHandler e) versionAPI
-            )
+      Servant.serveWithContext
+        (Proxy @ServantCombinedAPI)
+        (customFormatters :. localDomain :. Servant.EmptyContext)
+        ( docsAPI
+            :<|> hoistServerWithDomain @BrigAPI (toServantHandler e) servantSitemap
+            :<|> hoistServerWithDomain @IAPI.API (toServantHandler e) IAPI.servantSitemap
+            :<|> hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
+            :<|> hoistServerWithDomain @VersionAPI (toServantHandler e) versionAPI
+        )
+        req
+        cont
 
 type ServantCombinedAPI =
   ( DocsAPI
@@ -151,20 +152,6 @@ type ServantCombinedAPI =
       :<|> FederationAPI
       :<|> VersionAPI
   )
-
-lookupRequestIdMiddleware :: Logger -> (RequestId -> Wai.Application) -> Wai.Application
-lookupRequestIdMiddleware logger mkapp req cont = do
-  case lookupRequestId req of
-    Just rid -> do
-      mkapp (RequestId rid) req cont
-    Nothing -> do
-      localRid <- RequestId . encodeUtf8 . UUID.toText <$> UUID.nextRandom
-      Log.info logger $
-        "request-id" .= localRid
-          ~~ "method" .= Wai.requestMethod req
-          ~~ "path" .= Wai.rawPathInfo req
-          ~~ msg (val "generated a new request id for local request")
-      mkapp localRid req cont
 
 customFormatters :: Servant.ErrorFormatters
 customFormatters =
@@ -194,7 +181,8 @@ pendingActivationCleanup ::
   forall r p.
   ( P.Paging p,
     Member (UserPendingActivationStore p) r,
-    Member DeleteQueue r
+    Member DeleteQueue r,
+    Member UserStore r
   ) =>
   AppT r ()
 pendingActivationCleanup = do
@@ -203,7 +191,7 @@ pendingActivationCleanup = do
     forExpirationsPaged $ \exps -> do
       uids <-
         for exps $ \(UserPendingActivation uid expiresAt) -> do
-          isPendingInvitation <- (Just PendingInvitation ==) <$> wrapClient (API.lookupStatus uid)
+          isPendingInvitation <- (Just PendingInvitation ==) <$> liftSem (lookupStatus uid)
           pure
             ( expiresAt < now,
               isPendingInvitation,
@@ -256,10 +244,9 @@ pendingActivationCleanup = do
 
 collectAuthMetrics :: forall r. AppT r ()
 collectAuthMetrics = do
-  m <- view metrics
   env <- view (awsEnv . amazonkaEnv)
   liftIO $
     forever $ do
       mbRemaining <- readAuthExpiration env
-      gaugeTokenRemaing m mbRemaining
+      gaugeTokenRemaing mbRemaining
       threadDelay 1_000_000

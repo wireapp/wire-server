@@ -51,11 +51,8 @@
 , gitignoreSource
 , gundeck-types
 , hashable
-, HaskellNet
-, HaskellNet-SSL
 , hscim
 , HsOpenSSL
-, html-entities
 , http-api-data
 , http-client
 , http-client-openssl
@@ -95,15 +92,14 @@
 , polysemy-wire-zoo
 , postie
 , process
+, prometheus-client
 , proto-lens
 , QuickCheck
 , random
 , random-shuffle
 , raw-strings-qq
-, resource-pool
 , resourcet
 , retry
-, ropes
 , safe
 , safe-exceptions
 , saml2-web-sso
@@ -194,7 +190,7 @@ mkDerivation {
     cql
     cryptobox-haskell
     currency-codes
-    data-timeout
+    data-default
     dns
     dns-util
     enclosed-exceptions
@@ -209,10 +205,7 @@ mkDerivation {
     galley-types
     gundeck-types
     hashable
-    HaskellNet
-    HaskellNet-SSL
     HsOpenSSL
-    html-entities
     http-client
     http-client-openssl
     http-media
@@ -243,13 +236,12 @@ mkDerivation {
     polysemy-plugin
     polysemy-time
     polysemy-wire-zoo
+    prometheus-client
     proto-lens
     random-shuffle
     raw-strings-qq
-    resource-pool
     resourcet
     retry
-    ropes
     safe-exceptions
     saml2-web-sso
     schema-profunctor
@@ -382,6 +374,7 @@ mkDerivation {
     warp-tls
     wire-api
     wire-api-federation
+    wire-subsystems
     yaml
     zauth
   ];

@@ -22,5 +22,5 @@ instance (HasServer api context, HasContextEntry (context .++ DefaultErrorFormat
   hoistServerWithContext _ proxyCtx f s = hoistServerWithContext (Proxy @api) proxyCtx f s
 
 -- Endpath :> route
-instance RoutesToPaths route => RoutesToPaths (Endpath :> route) where
+instance (RoutesToPaths route) => RoutesToPaths (Endpath :> route) where
   getRoutes = getRoutes @route

@@ -32,6 +32,8 @@ import Federator.Validation
 import Imports
 import Network.HTTP.Types qualified as HTTP
 import Network.Wai qualified as Wai
+import Network.Wai.Internal qualified as Wai
+import Network.Wai.Utilities.Server (federationRequestIdHeaderName)
 import Network.Wai.Utilities.Server qualified as Wai
 import Polysemy
 import Polysemy.Error
@@ -72,13 +74,13 @@ federatedRequestSuccess =
             trBody = "\"foo\"",
             trExtraHeaders = requestHeaders
           }
-    let interpretCall :: Member (Embed IO) r => Sem (Remote ': r) a -> Sem r a
-        interpretCall = interpret $ \case
-          DiscoverAndCall _ domain component rpc headers body -> embed @IO $ do
+    let verifyCallAndRespond :: (Member (Embed IO) r) => Sem (Remote ': r) a -> Sem r a
+        verifyCallAndRespond = interpret $ \case
+          DiscoverAndCall domain component rpc headers body -> embed @IO $ do
             domain @?= targetDomain
             component @?= Brig
             rpc @?= "get-user-by-handle"
-            headers @?= requestHeaders
+            sort headers @?= sort (requestHeaders <> [(federationRequestIdHeaderName, "test")])
             toLazyByteString body @?= "\"foo\""
             pure
               Response
@@ -88,21 +90,24 @@ federatedRequestSuccess =
                   responseBody = source ["\"bar\""]
                 }
 
-    let assertMetrics :: Member (Embed IO) r => Sem (Metrics ': r) a -> Sem r a
+    let assertMetrics :: (Member (Embed IO) r) => Sem (Metrics ': r) a -> Sem r a
         assertMetrics = interpret $ \case
           OutgoingCounterIncr td -> embed @IO $ td @?= targetDomain
           IncomingCounterIncr _ -> embed @IO $ assertFailure "Should not increment incoming counter"
 
-    res <-
+    resRef <- newIORef Nothing
+    let saveResponse res = writeIORef resRef (Just res) $> Wai.ResponseReceived
+    _ <-
       runM
-        . interpretCall
+        . verifyCallAndRespond
         . assertNoError @ValidationError
         . assertNoError @ServerError
         . discardTinyLogs
         . runInputConst settings
         . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig (Domain "target.example.com") FullSearch FederationRestrictionAllowAll] 10)
         . assertMetrics
-        $ callOutward Nothing targetDomain Brig (RPC "get-user-by-handle") request
+        $ callOutward targetDomain Brig (RPC "get-user-by-handle") request saveResponse
+    Just res <- readIORef resRef
     Wai.responseStatus res @?= HTTP.status200
     body <- Wai.lazyResponseBody res
     body @?= "\"bar\""
@@ -147,5 +152,5 @@ federatedRequestFailureAllowList =
         . runInputConst settings
         . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig (Domain "hello.world") FullSearch FederationRestrictionAllowAll] 10)
         . interpretMetricsEmpty
-        $ callOutward Nothing targetDomain Brig (RPC "get-user-by-handle") request
+        $ callOutward targetDomain Brig (RPC "get-user-by-handle") request undefined
     eith @?= Left (FederationDenied targetDomain)

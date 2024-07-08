@@ -6,7 +6,7 @@ import Notifications
 import SetupHelpers
 import Testlib.Prelude
 
-testWelcomeNotification :: HasCallStack => App ()
+testWelcomeNotification :: (HasCallStack) => App ()
 testWelcomeNotification = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
   [alice1, alice2, bob1, bob2] <- traverse (createMLSClient def) [alice, alice, bob, bob]

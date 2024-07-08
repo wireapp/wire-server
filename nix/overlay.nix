@@ -50,7 +50,6 @@ let
     };
 
   sources = import ./sources.nix;
-  pkgsCargo = import sources.nixpkgs-cargo { };
 in
 
 self: super: {
@@ -60,9 +59,7 @@ self: super: {
   mls-test-cli = self.callPackage ./pkgs/mls-test-cli { };
 
   # Named like this so cabal2nix can find it
-  rusty_jwt_tools_ffi = self.callPackage ./pkgs/rusty_jwt_tools_ffi {
-    inherit (pkgsCargo) rustPlatform;
-  };
+  rusty_jwt_tools_ffi = self.callPackage ./pkgs/rusty_jwt_tools_ffi { };
 
   nginxModules = super.nginxModules // {
     zauth = {
@@ -87,6 +84,13 @@ self: super: {
       self.nginxModules.moreheaders
       self.nginxModules.zauth
     ];
+  };
+
+  haskellPackages = super.haskellPackages.override {
+    overrides = hself: hsuper: {
+      # https://github.com/ocharles/weeder/pull/165
+      weeder = self.haskell.lib.dontCheck (hself.callPackage ./pkgs/weeder { });
+    };
   };
 
   stack = staticBinaryInTarball rec {

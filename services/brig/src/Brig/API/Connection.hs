@@ -71,8 +71,9 @@ import Wire.API.UserEvent
 import Wire.GalleyAPIAccess
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
+import Wire.UserStore
 
-ensureNotSameTeam :: Member GalleyAPIAccess r => Local UserId -> Local UserId -> (ConnectionM r) ()
+ensureNotSameTeam :: (Member GalleyAPIAccess r) => Local UserId -> Local UserId -> (ConnectionM r) ()
 ensureNotSameTeam self target = do
   selfTeam <- lift $ liftSem $ GalleyAPIAccess.getTeamId (tUnqualified self)
   targetTeam <- lift $ liftSem $ GalleyAPIAccess.getTeamId (tUnqualified target)
@@ -84,6 +85,7 @@ createConnection ::
     Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member TinyLog r,
+    Member UserStore r,
     Member (Embed HttpClientIO) r
   ) =>
   Local UserId ->
@@ -103,6 +105,7 @@ createConnectionToLocalUser ::
   ( Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member TinyLog r,
+    Member UserStore r,
     Member (Embed HttpClientIO) r
   ) =>
   Local UserId ->
@@ -191,7 +194,7 @@ createConnectionToLocalUser self conn target = do
 -- FUTUREWORK: we may want to move this to the LH application logic, so we can recycle it for
 -- group conv creation and possibly other situations.
 checkLegalholdPolicyConflict ::
-  Member GalleyAPIAccess r =>
+  (Member GalleyAPIAccess r) =>
   UserId ->
   UserId ->
   ExceptT ConnectionError (AppT r) ()
@@ -205,10 +208,10 @@ checkLegalholdPolicyConflict uid1 uid2 = do
   status2 <- lift (getLegalHoldStatus uid2) >>= catchProfileNotFound
 
   let oneway s1 s2 = case (s1, s2) of
+        (LH.UserLegalHoldNoConsent, LH.UserLegalHoldEnabled) -> throwE ConnectMissingLegalholdConsent
         (LH.UserLegalHoldNoConsent, LH.UserLegalHoldNoConsent) -> pure ()
         (LH.UserLegalHoldNoConsent, LH.UserLegalHoldDisabled) -> pure ()
-        (LH.UserLegalHoldNoConsent, LH.UserLegalHoldPending) -> throwE ConnectMissingLegalholdConsent
-        (LH.UserLegalHoldNoConsent, LH.UserLegalHoldEnabled) -> throwE ConnectMissingLegalholdConsent
+        (LH.UserLegalHoldNoConsent, LH.UserLegalHoldPending) -> pure ()
         (LH.UserLegalHoldDisabled, _) -> pure ()
         (LH.UserLegalHoldPending, _) -> pure ()
         (LH.UserLegalHoldEnabled, _) -> pure ()
@@ -397,7 +400,7 @@ localConnection la lb = do
   lift (wrapClient $ Data.lookupConnection la (tUntagged lb))
     >>= tryJust (NotConnected (tUnqualified la) (tUntagged lb))
 
-mkRelationWithHistory :: HasCallStack => Relation -> Relation -> RelationWithHistory
+mkRelationWithHistory :: (HasCallStack) => Relation -> Relation -> RelationWithHistory
 mkRelationWithHistory oldRel = \case
   Accepted -> AcceptedWithHistory
   Blocked -> BlockedWithHistory

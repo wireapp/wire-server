@@ -1,0 +1,23 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+YENI CIHAZ
+${brand} hesabınız şunun üzerinde kullanıldı:
+
+${date}
+
+${model}
+
+${brand} cihazını yeni bir cihaza kurmuş veya tekrar mevcut bir cihaza kurmuş
+olabilirsiniz. Öyle değilse, ${brand} Ayarlar bölümüne gidin, cihazı kaldırın ve 
+şifrenizi sıfırlayın [${forgot}].
+
+Herhangi bir sorunuz veya yardıma ihtiyacınız varsa, lütfen bize ulaşın
+[${support}].
+
+
+--------------------------------------------------------------------------------
+
+Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

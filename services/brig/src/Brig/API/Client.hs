@@ -67,7 +67,6 @@ import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.User.Auth qualified as UserAuth
 import Brig.User.Auth.Cookie qualified as Auth
-import Brig.User.Email
 import Cassandra (MonadClient)
 import Control.Error
 import Control.Lens (view)
@@ -109,6 +108,7 @@ import Wire.API.User.Client.Prekey
 import Wire.API.UserEvent
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap, qualifiedUserMap), UserMap (userMap))
 import Wire.DeleteQueue
+import Wire.EmailSubsystem (EmailSubsystem, sendNewClientEmail)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
@@ -116,6 +116,7 @@ import Wire.Sem.Concurrency
 import Wire.Sem.FromUTC (FromUTC (fromUTCTime))
 import Wire.Sem.Now as Now
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.VerificationCodeSubsystem (VerificationCodeSubsystem)
 
 lookupLocalClient :: UserId -> ClientId -> (AppT r) (Maybe Client)
 lookupLocalClient uid = wrapClient . Data.lookupClient uid
@@ -168,7 +169,9 @@ addClient ::
     Member DeleteQueue r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member EmailSubsystem r,
+    Member VerificationCodeSubsystem r
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -187,7 +190,9 @@ addClientWithReAuthPolicy ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member DeleteQueue r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member EmailSubsystem r,
+    Member VerificationCodeSubsystem r
   ) =>
   Data.ReAuthPolicy ->
   UserId ->
@@ -220,7 +225,7 @@ addClientWithReAuthPolicy policy u con new = do
     when (count > 1) $
       for_ (userEmail usr) $
         \email ->
-          sendNewClientEmail (userDisplayName usr) email clt (userLocale usr)
+          liftSem $ sendNewClientEmail email (userDisplayName usr) clt (userLocale usr)
   pure clt
   where
     clientId' = clientIdFromPrekey (unpackLastPrekey $ newClientLastKey new)
@@ -237,7 +242,7 @@ addClientWithReAuthPolicy policy u con new = do
         VerificationCodeNoPendingCode -> throwE ClientCodeAuthenticationFailed
         VerificationCodeNoEmail -> throwE ClientCodeAuthenticationFailed
 
-updateClient :: MonadClient m => UserId -> ClientId -> UpdateClient -> ExceptT ClientError m ()
+updateClient :: (MonadClient m) => UserId -> ClientId -> UpdateClient -> ExceptT ClientError m ()
 updateClient u c r = do
   client <- lift (Data.lookupClient u c) >>= maybe (throwE ClientNotFound) pure
   for_ (updateClientLabel r) $ lift . Data.updateClientLabel u c . Just
@@ -253,7 +258,7 @@ updateClient u c r = do
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
 rmClient ::
-  Member DeleteQueue r =>
+  (Member DeleteQueue r) =>
   UserId ->
   ConnId ->
   ClientId ->
@@ -273,7 +278,7 @@ rmClient u con clt pw =
       lift $ execDelete u (Just con) client
 
 claimPrekey ::
-  Member DeleteQueue r =>
+  (Member DeleteQueue r) =>
   LegalholdProtectee ->
   UserId ->
   Domain ->
@@ -286,7 +291,7 @@ claimPrekey protectee u d c = do
     else wrapClientE $ claimRemotePrekey (Qualified u d) c
 
 claimLocalPrekey ::
-  Member DeleteQueue r =>
+  (Member DeleteQueue r) =>
   LegalholdProtectee ->
   UserId ->
   ClientId ->
@@ -467,7 +472,7 @@ claimLocalMultiPrekeyBundles protectee userClients = do
 
 -- | Enqueue an orderly deletion of an existing client.
 execDelete ::
-  Member DeleteQueue r =>
+  (Member DeleteQueue r) =>
   UserId ->
   Maybe ConnId ->
   Client ->
@@ -483,7 +488,7 @@ execDelete u con c = do
 -- thus repairing any inconsistencies related to distributed
 -- (and possibly duplicated) client data.
 noPrekeys ::
-  Member DeleteQueue r =>
+  (Member DeleteQueue r) =>
   UserId ->
   ClientId ->
   (AppT r) ()

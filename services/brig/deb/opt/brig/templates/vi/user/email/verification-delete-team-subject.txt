@@ -1,0 +1,1 @@
+Mã xác minh ${brand} của bạn là ${code}

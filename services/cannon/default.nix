@@ -26,6 +26,7 @@
 , lib
 , metrics-wai
 , mwc-random
+, prometheus-client
 , QuickCheck
 , random
 , retry
@@ -77,6 +78,7 @@ mkDerivation {
     lens-family-core
     metrics-wai
     mwc-random
+    prometheus-client
     retry
     safe-exceptions
     servant-conduit
@@ -87,7 +89,6 @@ mkDerivation {
     types-common
     unix
     unliftio
-    uuid
     vector
     wai
     wai-extra

@@ -7,3 +7,6 @@ redis-cluster:
   volumePermissions:
     enabled: true
   password: very-secure-redis-cluster-password
+  tls:
+    enabled: true
+    existingSecret: redis-certificate

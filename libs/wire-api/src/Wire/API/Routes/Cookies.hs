@@ -63,7 +63,7 @@ type instance
   SpecialiseToVersion v (Cookies cs :> api) =
     Cookies cs :> SpecialiseToVersion v api
 
-instance HasOpenApi api => HasOpenApi (Cookies cs :> api) where
+instance (HasOpenApi api) => HasOpenApi (Cookies cs :> api) where
   toOpenApi _ = toOpenApi (Proxy @api)
 
 class CookieArgs (cs :: [Type]) where
@@ -103,7 +103,7 @@ instance
 mkCookieMap :: [(ByteString, ByteString)] -> CookieMap
 mkCookieMap = foldr (\(k, v) -> M.insertWith (<>) k (pure v)) mempty
 
-instance CookieArgs cs => FromHttpApiData (CookieTuple cs) where
+instance (CookieArgs cs) => FromHttpApiData (CookieTuple cs) where
   parseHeader = mkTuple . mkCookieMap . parseCookies
   parseUrlPiece = parseHeader . T.encodeUtf8
 
@@ -126,5 +126,5 @@ instance
       )
   hoistServerWithContext _ ctx f = mapArgs @cs (hoistServerWithContext (Proxy @api) ctx f)
 
-instance RoutesToPaths api => RoutesToPaths (Cookies cs :> api) where
+instance (RoutesToPaths api) => RoutesToPaths (Cookies cs :> api) where
   getRoutes = getRoutes @api

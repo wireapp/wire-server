@@ -41,7 +41,8 @@ import Control.Error.Util
 import Control.Lens ((^.))
 import Control.Monad.Trans.Except
 import Data.Domain
-import Data.Handle (Handle (..), parseHandle)
+import Data.Handle (Handle (..))
+import Data.Handle qualified as Handle
 import Data.Id (ClientId, TeamId, UserId)
 import Data.List.NonEmpty (nonEmpty)
 import Data.Qualified
@@ -70,9 +71,11 @@ import Wire.API.User.Search hiding (searchPolicy)
 import Wire.API.UserEvent
 import Wire.API.UserMap (UserMap)
 import Wire.DeleteQueue
+import Wire.Error
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
+import Wire.UserStore
 import Wire.UserSubsystem
 
 type FederationAPI = "federation" :> BrigApi
@@ -83,6 +86,7 @@ federationSitemap ::
     Member FederationConfigStore r,
     Member NotificationSubsystem r,
     Member UserSubsystem r,
+    Member UserStore r,
     Member DeleteQueue r
   ) =>
   ServerT FederationAPI (Handler r)
@@ -116,6 +120,7 @@ getFederationStatus _ request = do
 sendConnectionAction ::
   ( Member FederationConfigStore r,
     Member GalleyAPIAccess r,
+    Member UserStore r,
     Member NotificationSubsystem r
   ) =>
   Domain ->
@@ -126,7 +131,7 @@ sendConnectionAction originDomain NewConnectionRequest {..} = do
   federates <- lift . liftSem . E.backendFederatesWith $ rTeam
   if federates
     then do
-      active <- lift $ wrapClient $ Data.isActivated to
+      active <- lift . liftSem $ isActivated to
       if active
         then do
           self <- qualifyLocal to
@@ -139,11 +144,12 @@ sendConnectionAction originDomain NewConnectionRequest {..} = do
 
 getUserByHandle ::
   ( Member FederationConfigStore r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member UserStore r
   ) =>
   Domain ->
   Handle ->
-  ExceptT Error (AppT r) (Maybe UserProfile)
+  ExceptT HttpError (AppT r) (Maybe UserProfile)
 getUserByHandle domain handle = do
   searchPolicy <- lookupSearchPolicy domain
 
@@ -155,7 +161,7 @@ getUserByHandle domain handle = do
   if not performHandleLookup
     then pure Nothing
     else lift $ do
-      maybeOwnerId <- wrapClient $ API.lookupHandle handle
+      maybeOwnerId <- liftSem $ API.lookupHandle handle
       case maybeOwnerId of
         Nothing ->
           pure Nothing
@@ -167,7 +173,7 @@ getUsersByIds ::
   (Member UserSubsystem r) =>
   Domain ->
   [UserId] ->
-  ExceptT Error (AppT r) [UserProfile]
+  ExceptT HttpError (AppT r) [UserProfile]
 getUsersByIds _ uids = do
   luids <- qualifyLocal uids
   lift $ liftSem $ getLocalUserProfiles luids
@@ -202,11 +208,12 @@ fedClaimKeyPackages domain ckpr =
 searchUsers ::
   forall r.
   ( Member FederationConfigStore r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member UserStore r
   ) =>
   Domain ->
   SearchRequest ->
-  ExceptT Error (AppT r) SearchResponse
+  ExceptT HttpError (AppT r) SearchResponse
 searchUsers domain (SearchRequest _ mTeam (Just [])) = do
   searchPolicy <- lookupSearchPolicyWithTeam domain mTeam
   pure $ SearchResponse [] searchPolicy
@@ -223,22 +230,22 @@ searchUsers domain (SearchRequest searchTerm mTeam mOnlyInTeams) = do
   contacts <- go [] maxResults searches
   pure $ SearchResponse contacts searchPolicy
   where
-    go :: [Contact] -> Int -> [Int -> ExceptT Error (AppT r) [Contact]] -> ExceptT Error (AppT r) [Contact]
+    go :: [Contact] -> Int -> [Int -> ExceptT HttpError (AppT r) [Contact]] -> ExceptT HttpError (AppT r) [Contact]
     go contacts _ [] = pure contacts
     go contacts maxResult (search : searches) = do
       contactsNew <- search maxResult
       go (contacts <> contactsNew) (maxResult - length contactsNew) searches
 
-    fullSearch :: Int -> ExceptT Error (AppT r) [Contact]
+    fullSearch :: Int -> ExceptT HttpError (AppT r) [Contact]
     fullSearch n
       | n > 0 = lift $ searchResults <$> Q.searchIndex (Q.FederatedSearch mOnlyInTeams) searchTerm n
       | otherwise = pure []
 
-    exactHandleSearch :: Int -> ExceptT Error (AppT r) [Contact]
+    exactHandleSearch :: Int -> ExceptT HttpError (AppT r) [Contact]
     exactHandleSearch n
       | n > 0 = do
-          let maybeHandle = parseHandle searchTerm
-          maybeOwnerId <- maybe (pure Nothing) (wrapHttpClientE . API.lookupHandle) maybeHandle
+          let maybeHandle = Handle.parseHandle searchTerm
+          maybeOwnerId <- maybe (pure Nothing) (lift . liftSem . API.lookupHandle) maybeHandle
           case maybeOwnerId of
             Nothing -> pure []
             Just foundUser -> do

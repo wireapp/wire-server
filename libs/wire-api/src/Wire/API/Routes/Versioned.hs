@@ -39,7 +39,7 @@ data VersionedReqBody' v (mods :: [Type]) (ct :: [Type]) (a :: Type)
 
 type VersionedReqBody v = VersionedReqBody' v '[Required, Strict]
 
-instance RoutesToPaths rest => RoutesToPaths (VersionedReqBody' v mods ct a :> rest) where
+instance (RoutesToPaths rest) => RoutesToPaths (VersionedReqBody' v mods ct a :> rest) where
   getRoutes = getRoutes @rest
 
 instance
@@ -78,7 +78,7 @@ data VersionedRespond v (s :: Nat) (desc :: Symbol) (a :: Type)
 type instance ResponseType (VersionedRespond v s desc a) = a
 
 instance
-  IsResponse cs (Respond s desc (Versioned v a)) =>
+  (IsResponse cs (Respond s desc (Versioned v a))) =>
   IsResponse cs (VersionedRespond v s desc a)
   where
   type ResponseStatus (VersionedRespond v s desc a) = ResponseStatus (Respond s desc a)
@@ -106,9 +106,9 @@ newtype Versioned (v :: Version) a = Versioned {unVersioned :: a}
 instance Functor (Versioned v) where
   fmap f (Versioned a) = Versioned (f a)
 
-deriving via Schema (Versioned v a) instance ToSchema (Versioned v a) => FromJSON (Versioned v a)
+deriving via Schema (Versioned v a) instance (ToSchema (Versioned v a)) => FromJSON (Versioned v a)
 
-deriving via Schema (Versioned v a) instance ToSchema (Versioned v a) => ToJSON (Versioned v a)
+deriving via Schema (Versioned v a) instance (ToSchema (Versioned v a)) => ToJSON (Versioned v a)
 
 -- add version suffix to swagger schema to prevent collisions
 instance (SingI v, ToSchema (Versioned v a), Typeable a, Typeable v) => S.ToSchema (Versioned v a) where

@@ -316,10 +316,10 @@ testAccessRoleUpdateV2 = do
 --------------------------------------------------------------------------------
 -- Utilities
 
-assertActionSucceeded :: HasCallStack => Assertions ()
+assertActionSucceeded :: (HasCallStack) => Assertions ()
 assertActionSucceeded = const 200 === statusCode
 
-assertActionDenied :: HasCallStack => Assertions ()
+assertActionDenied :: (HasCallStack) => Assertions ()
 assertActionDenied = do
   const 403 === statusCode
   const (Just "action-denied") === fmap label . responseJsonUnsafe

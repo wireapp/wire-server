@@ -59,9 +59,9 @@ allowGuests cc =
 instance MakesValue CreateConv where
   make cc = do
     quids <- for (cc.qualifiedUsers) objQidObject
-    pure $
-      Aeson.object $
-        ( [ "qualified_users" .= quids,
+    pure
+      $ Aeson.object
+      $ ( [ "qualified_users" .= quids,
             "conversation_role" .= cc.newUsersRole,
             "protocol" .= cc.protocol
           ]
@@ -158,8 +158,8 @@ getSubConversation ::
 getSubConversation user conv sub = do
   (cnvDomain, cnvId) <- objQid conv
   req <-
-    baseRequest user Galley Versioned $
-      joinHttpPath
+    baseRequest user Galley Versioned
+      $ joinHttpPath
         [ "conversations",
           cnvDomain,
           cnvId,
@@ -179,8 +179,8 @@ deleteSubConversation user sub = do
   groupId <- sub %. "group_id" & asString
   epoch :: Int <- sub %. "epoch" & asIntegral
   req <-
-    baseRequest user Galley Versioned $
-      joinHttpPath ["conversations", domain, convId, "subconversations", subId]
+    baseRequest user Galley Versioned
+      $ joinHttpPath ["conversations", domain, convId, "subconversations", subId]
   submit "DELETE" $ req & addJSONObject ["group_id" .= groupId, "epoch" .= epoch]
 
 leaveSubConversation ::
@@ -192,8 +192,8 @@ leaveSubConversation user sub = do
   (conv, Just subId) <- objSubConv sub
   (domain, convId) <- objQid conv
   req <-
-    baseRequest user Galley Versioned $
-      joinHttpPath ["conversations", domain, convId, "subconversations", subId, "self"]
+    baseRequest user Galley Versioned
+      $ joinHttpPath ["conversations", domain, convId, "subconversations", subId, "self"]
   submit "DELETE" req
 
 getSelfConversation :: (HasCallStack, MakesValue user) => user -> App Response
@@ -206,34 +206,34 @@ data ListConversationIds = ListConversationIds {pagingState :: Maybe String, siz
 instance Default ListConversationIds where
   def = ListConversationIds Nothing Nothing
 
-listConversationIds :: MakesValue user => user -> ListConversationIds -> App Response
+listConversationIds :: (MakesValue user) => user -> ListConversationIds -> App Response
 listConversationIds user args = do
   req <- baseRequest user Galley Versioned "/conversations/list-ids"
-  submit "POST" $
-    req
-      & addJSONObject
-        ( ["paging_state" .= s | s <- toList args.pagingState]
-            <> ["size" .= s | s <- toList args.size]
-        )
+  submit "POST"
+    $ req
+    & addJSONObject
+      ( ["paging_state" .= s | s <- toList args.pagingState]
+          <> ["size" .= s | s <- toList args.size]
+      )
 
-listConversations :: MakesValue user => user -> [Value] -> App Response
+listConversations :: (MakesValue user) => user -> [Value] -> App Response
 listConversations user cnvs = do
   req <- baseRequest user Galley Versioned "/conversations/list"
-  submit "POST" $
-    req
-      & addJSONObject ["qualified_ids" .= cnvs]
+  submit "POST"
+    $ req
+    & addJSONObject ["qualified_ids" .= cnvs]
 
 getMLSPublicKeys :: (HasCallStack, MakesValue user) => user -> App Response
 getMLSPublicKeys user = do
   req <- baseRequest user Galley Versioned "/mls/public-keys"
   submit "GET" req
 
-postMLSMessage :: HasCallStack => ClientIdentity -> ByteString -> App Response
+postMLSMessage :: (HasCallStack) => ClientIdentity -> ByteString -> App Response
 postMLSMessage cid msg = do
   req <- baseRequest cid Galley Versioned "/mls/messages"
   submit "POST" (addMLS msg req)
 
-postMLSCommitBundle :: HasCallStack => ClientIdentity -> ByteString -> App Response
+postMLSCommitBundle :: (HasCallStack) => ClientIdentity -> ByteString -> App Response
 postMLSCommitBundle cid msg = do
   req <- baseRequest cid Galley Versioned "/mls/commit-bundles"
   submit "POST" (addMLS msg req)
@@ -253,24 +253,24 @@ mkProteusRecipients :: (HasCallStack, MakesValue domain, MakesValue user, MakesV
 mkProteusRecipients dom userClients msg = do
   userDomain <- asString =<< objDomain dom
   userEntries <- mapM mkUserEntry userClients
-  pure $
-    Proto.defMessage
-      & #domain .~ fromString userDomain
-      & #entries .~ userEntries
+  pure
+    $ Proto.defMessage
+    & #domain .~ fromString userDomain
+    & #entries .~ userEntries
   where
     mkUserEntry (user, clients) = do
       userId <- LBS.toStrict . UUID.toByteString . fromJust . UUID.fromString <$> objId user
       clientEntries <- mapM mkClientEntry clients
-      pure $
-        Proto.defMessage
-          & #user . #uuid .~ userId
-          & #clients .~ clientEntries
+      pure
+        $ Proto.defMessage
+        & #user . #uuid .~ userId
+        & #clients .~ clientEntries
     mkClientEntry client = do
       clientId <- (^?! hex) <$> objId client
-      pure $
-        Proto.defMessage
-          & #client . #client .~ clientId
-          & #text .~ fromString msg
+      pure
+        $ Proto.defMessage
+        & #client . #client .~ clientId
+        & #text .~ fromString msg
 
 getGroupInfo ::
   (HasCallStack, MakesValue user, MakesValue conv) =>
@@ -330,8 +330,8 @@ getMLSOne2OneConversation ::
 getMLSOne2OneConversation self other = do
   (domain, uid) <- objQid other
   req <-
-    baseRequest self Galley Versioned $
-      joinHttpPath ["conversations", "one2one", domain, uid]
+    baseRequest self Galley Versioned
+      $ joinHttpPath ["conversations", "one2one", domain, uid]
   submit "GET" req
 
 getGroupClients ::
@@ -375,12 +375,12 @@ addMembers usr qcnv opts = do
       Galley
       (maybe Versioned ExplicitVersion opts.version)
       (joinHttpPath path)
-  submit "POST" $
-    req
-      & addJSONObject
-        ( ["qualified_users" .= qUsers]
-            <> ["conversation_role" .= r | r <- toList opts.role]
-        )
+  submit "POST"
+    $ req
+    & addJSONObject
+      ( ["qualified_users" .= qUsers]
+          <> ["conversation_role" .= r | r <- toList opts.role]
+      )
 
 removeMember :: (HasCallStack, MakesValue remover, MakesValue conv, MakesValue removed) => remover -> conv -> removed -> App Response
 removeMember remover qcnv removed = do
@@ -681,7 +681,7 @@ putLegalholdStatus tid usr status = do
 
   baseRequest usr Galley Versioned (joinHttpPath ["teams", tidStr, "features", "legalhold"])
     >>= submit "PUT"
-      . addJSONObject ["status" .= status, "ttl" .= "unlimited"]
+    . addJSONObject ["status" .= status, "ttl" .= "unlimited"]
 
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/get_feature_configs
 getFeatureConfigs :: (HasCallStack, MakesValue user) => user -> App Response
@@ -701,3 +701,14 @@ getTeamFeature user tid featureName = do
   tidStr <- asString tid
   req <- baseRequest user Galley Versioned (joinHttpPath ["teams", tidStr, "features", featureName])
   submit "GET" req
+
+setTeamFeatureConfig :: (HasCallStack, MakesValue user, MakesValue team, MakesValue featureName, MakesValue payload) => user -> team -> featureName -> payload -> App Response
+setTeamFeatureConfig = setTeamFeatureConfigVersioned Versioned
+
+setTeamFeatureConfigVersioned :: (HasCallStack, MakesValue user, MakesValue team, MakesValue featureName, MakesValue payload) => Versioned -> user -> team -> featureName -> payload -> App Response
+setTeamFeatureConfigVersioned versioned user team featureName payload = do
+  tid <- asString team
+  fn <- asString featureName
+  p <- make payload
+  req <- baseRequest user Galley versioned $ joinHttpPath ["teams", tid, "features", fn]
+  submit "PUT" $ req & addJSON p

@@ -24,7 +24,7 @@ import SetupHelpers
 import Testlib.Prelude
 import UnliftIO.Async (forConcurrently_)
 
-testConnectWithRemoteUser :: HasCallStack => Domain -> App ()
+testConnectWithRemoteUser :: (HasCallStack) => Domain -> App ()
 testConnectWithRemoteUser owningDomain = do
   (alice, bob, one2oneId) <- createOne2OneConversation owningDomain
   aliceId <- alice %. "qualified_id"
@@ -40,7 +40,7 @@ testConnectWithRemoteUser owningDomain = do
     qIds <- for others (%. "qualified_id")
     qIds `shouldMatchSet` [aliceId]
 
-testRemoteUserGetsDeleted :: HasCallStack => App ()
+testRemoteUserGetsDeleted :: (HasCallStack) => App ()
 testRemoteUserGetsDeleted = do
   alice <- randomUser OwnDomain def
 
@@ -94,7 +94,7 @@ testRemoteUserGetsDeleted = do
     getConnection alice charlie `waitForResponse` \resp ->
       resp.status `shouldMatchInt` 404
 
-testInternalGetConStatusesAll :: HasCallStack => App ()
+testInternalGetConStatusesAll :: (HasCallStack) => App ()
 testInternalGetConStatusesAll =
   startDynamicBackends [mempty] \[dynBackend] -> do
     let mkFiveUsers dom = replicateM 5 do
@@ -149,7 +149,7 @@ assertConnectionStatus userFrom userTo connStatus =
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` connStatus
 
-testConnectFromIgnored :: HasCallStack => App ()
+testConnectFromIgnored :: (HasCallStack) => App ()
 testConnectFromIgnored = do
   [alice, bob] <- forM [OwnDomain, OtherDomain] $ flip randomUser def
   void $ postConnection bob alice >>= getBody 201
@@ -168,7 +168,7 @@ testConnectFromIgnored = do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "accepted"
 
-testSentFromIgnored :: HasCallStack => App ()
+testSentFromIgnored :: (HasCallStack) => App ()
 testSentFromIgnored = do
   [alice, bob] <- forM [OwnDomain, OtherDomain] $ flip randomUser def
   -- set up an initial "ignored" state
@@ -185,7 +185,7 @@ testSentFromIgnored = do
   void $ putConnection alice bob "accepted" >>= getBody 200
   assertConnectionStatus alice bob "sent"
 
-testConnectFromBlocked :: HasCallStack => App ()
+testConnectFromBlocked :: (HasCallStack) => App ()
 testConnectFromBlocked = do
   (alice, bob, one2oneId) <- createOne2OneConversation OwnDomain
   bobId <- bob %. "qualified_id"
@@ -211,7 +211,7 @@ testConnectFromBlocked = do
     qIds <- for others (%. "qualified_id")
     qIds `shouldMatchSet` [bobId]
 
-testSentFromBlocked :: HasCallStack => App ()
+testSentFromBlocked :: (HasCallStack) => App ()
 testSentFromBlocked = do
   [alice, bob] <- forM [OwnDomain, OtherDomain] $ flip randomUser def
   -- set up an initial "blocked" state
@@ -228,7 +228,7 @@ testSentFromBlocked = do
   void $ putConnection alice bob "accepted" >>= getBody 200
   assertConnectionStatus alice bob "sent"
 
-testCancel :: HasCallStack => App ()
+testCancel :: (HasCallStack) => App ()
 testCancel = do
   [alice, bob] <- forM [OwnDomain, OtherDomain] $ flip randomUser def
 
@@ -238,7 +238,7 @@ testCancel = do
   void $ putConnection alice bob "cancelled" >>= getBody 200
   assertConnectionStatus alice bob "cancelled"
 
-testConnectionLimits :: HasCallStack => App ()
+testConnectionLimits :: (HasCallStack) => App ()
 testConnectionLimits = do
   let connectionLimit = 16
 
@@ -308,7 +308,7 @@ testConnectionLimits = do
   postConnection alice charlie4 `bindResponse` \resp ->
     resp.status `shouldMatchInt` 201
 
-testNonFederatingRemoteTeam :: HasCallStack => App ()
+testNonFederatingRemoteTeam :: (HasCallStack) => App ()
 testNonFederatingRemoteTeam =
   withFederatingBackendsAllowDynamic $ \(domainA, domainB, _) -> do
     sequence_
@@ -324,7 +324,7 @@ testNonFederatingRemoteTeam =
   where
     defSearchPolicy = "full_search"
 
-testNonMutualFederationConnectionAttempt :: HasCallStack => App ()
+testNonMutualFederationConnectionAttempt :: (HasCallStack) => App ()
 testNonMutualFederationConnectionAttempt =
   withFederatingBackendsAllowDynamic $ \(domainA, domainB, _) -> do
     sequence_
@@ -348,7 +348,7 @@ testNonMutualFederationConnectionAttempt =
   where
     defSearchPolicy = "full_search"
 
-testFederationAllowAllConnectWithRemote :: HasCallStack => App ()
+testFederationAllowAllConnectWithRemote :: (HasCallStack) => App ()
 testFederationAllowAllConnectWithRemote =
   withFederatingBackendsAllowDynamic $ \(domainA, domainB, _) -> do
     sequence_
@@ -359,7 +359,7 @@ testFederationAllowAllConnectWithRemote =
   where
     defSearchPolicy = "full_search"
 
-testFederationAllowDynamicConnectWithRemote :: HasCallStack => App ()
+testFederationAllowDynamicConnectWithRemote :: (HasCallStack) => App ()
 testFederationAllowDynamicConnectWithRemote =
   withFederatingBackendsAllowDynamic $ \(domainA, domainB, _) -> do
     sequence_
@@ -383,7 +383,7 @@ testFederationAllowDynamicConnectWithRemote =
   where
     defSearchPolicy = "full_search"
 
-testFederationAllowMixedConnectWithRemote :: HasCallStack => App ()
+testFederationAllowMixedConnectWithRemote :: (HasCallStack) => App ()
 testFederationAllowMixedConnectWithRemote =
   withFederatingBackendsAllowDynamic $ \(domainA, domainB, _) -> do
     sequence_
@@ -403,7 +403,7 @@ testFederationAllowMixedConnectWithRemote =
   where
     defSearchPolicy = "full_search"
 
-testPendingConnectionUserDeleted :: HasCallStack => Domain -> App ()
+testPendingConnectionUserDeleted :: (HasCallStack) => Domain -> App ()
 testPendingConnectionUserDeleted bobsDomain = do
   alice <- randomUser OwnDomain def
   bob <- randomUser bobsDomain def

@@ -1,0 +1,21 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+VERIFIQUE SEU E-MAIL
+${email} foi usado para se registrar no ${brand}.
+Clique no botão para verificar seu e-mail.
+
+Verificar [${url}]Se você não conseguir clicar no botão, copie e cole este link
+no seu navegador:
+
+${url}
+
+Se você tiver alguma dúvida, por favor, entre em contato conosco [${support}].
+
+
+--------------------------------------------------------------------------------
+
+Política de privacidade e termos de uso [${legal}] · Reportar uso indevido
+[${misuse}]
+${copyright}. TODOS OS DIREITOS RESERVADOS.

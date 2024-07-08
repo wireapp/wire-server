@@ -19,7 +19,7 @@
 
 module Test.Federator.ExternalServer where
 
-import Control.Monad.Codensity
+import Control.Monad.Except
 import Data.ByteString qualified as BS
 import Data.Default
 import Data.Domain
@@ -29,9 +29,9 @@ import Data.Text.Encoding qualified as Text
 import Federator.Discovery
 import Federator.Error.ServerError (ServerError (..))
 import Federator.ExternalServer
+import Federator.Interpreter
 import Federator.Metrics
 import Federator.Options
-import Federator.Response
 import Federator.Service (Service (..), ServiceStreaming)
 import Federator.Validation
 import Imports
@@ -46,6 +46,7 @@ import Polysemy.Input
 import Polysemy.Output
 import Polysemy.TinyLog
 import Servant.Client.Core qualified as Servant
+import Servant.Server qualified as Servant
 import Servant.Server.Generic
 import Servant.Types.SourceT
 import System.Logger (Msg)
@@ -99,12 +100,12 @@ data Call = Call
   deriving (Eq, Show)
 
 mockService ::
-  Members [Output Call, Embed IO] r =>
+  (Members [Output Call, Embed IO] r) =>
   HTTP.Status ->
   Sem (ServiceStreaming ': r) a ->
   Sem r a
 mockService status = interpret $ \case
-  ServiceCall comp path headers body _mReqId domain -> do
+  ServiceCall comp path headers body domain -> do
     output (Call comp path headers body domain)
     pure
       Servant.Response
@@ -130,12 +131,13 @@ requestBrigSuccess =
             }
     Right cert <- decodeCertificate <$> BS.readFile "test/resources/unit/localhost.example.com.pem"
 
-    let assertMetrics :: Member (Embed IO) r => Sem (Metrics ': r) a -> Sem r a
+    let assertMetrics :: (Member (Embed IO) r) => Sem (Metrics ': r) a -> Sem r a
         assertMetrics = interpret $ \case
           OutgoingCounterIncr _ -> embed @IO $ assertFailure "Should not increment outgoing counter"
           IncomingCounterIncr od -> embed @IO $ od @?= aValidDomain
 
-    (actualCalls, res) <-
+    resRef <- newIORef Nothing
+    (actualCalls, _) <-
       runM
         . assertMetrics
         . runOutputList
@@ -147,7 +149,9 @@ requestBrigSuccess =
         . mockDiscoveryTrivial
         . runInputConst noClientCertSettings
         . runInputConst scaffoldingFederationDomainConfigs
-        $ callInward Brig (RPC "get-user-by-handle") Nothing aValidDomain (CertHeader cert) request
+        $ callInward Brig (RPC "get-user-by-handle") aValidDomain (CertHeader cert) request (saveResponse resRef)
+
+    Just res <- readIORef resRef
     let expectedCall = Call Brig "/federation/get-user-by-handle" [("X-Wire-API-Version", "v0")] "\"foo\"" aValidDomain
     assertEqual "one call to brig should be made" [expectedCall] actualCalls
     Wai.responseStatus res @?= HTTP.status200
@@ -163,7 +167,8 @@ requestBrigFailure =
         "/federation/brig/get-user-by-handle"
     Right cert <- decodeCertificate <$> BS.readFile "test/resources/unit/localhost.example.com.pem"
 
-    (actualCalls, res) <-
+    resRef <- newIORef Nothing
+    (actualCalls, _) <-
       runM
         . interpretMetricsEmpty
         . runOutputList
@@ -175,8 +180,9 @@ requestBrigFailure =
         . mockDiscoveryTrivial
         . runInputConst noClientCertSettings
         . runInputConst scaffoldingFederationDomainConfigs
-        $ callInward Brig (RPC "get-user-by-handle") Nothing aValidDomain (CertHeader cert) request
+        $ callInward Brig (RPC "get-user-by-handle") aValidDomain (CertHeader cert) request (saveResponse resRef)
 
+    Just res <- readIORef resRef
     let expectedCall = Call Brig "/federation/get-user-by-handle" [] "\"foo\"" aValidDomain
     assertEqual "one call to brig should be made" [expectedCall] actualCalls
     Wai.responseStatus res @?= HTTP.notFound404
@@ -193,24 +199,27 @@ requestGalleySuccess =
 
     Right cert <- decodeCertificate <$> BS.readFile "test/resources/unit/localhost.example.com.pem"
 
-    runM $ do
-      (actualCalls, res) <-
-        runOutputList
-          . interpretMetricsEmpty
-          . mockService HTTP.ok200
-          . assertNoError @ValidationError
-          . assertNoError @DiscoveryFailure
-          . assertNoError @ServerError
-          . discardTinyLogs
-          . mockDiscoveryTrivial
-          . runInputConst noClientCertSettings
-          . runInputConst scaffoldingFederationDomainConfigs
-          $ callInward Galley (RPC "get-conversations") Nothing aValidDomain (CertHeader cert) request
-      let expectedCall = Call Galley "/federation/get-conversations" [] "\"foo\"" aValidDomain
-      embed $ assertEqual "one call to galley should be made" [expectedCall] actualCalls
-      embed $ Wai.responseStatus res @?= HTTP.status200
-      body <- embed $ Wai.lazyResponseBody res
-      embed $ body @?= "\"bar\""
+    resRef <- newIORef Nothing
+    (actualCalls, _) <-
+      runM
+        . runOutputList
+        . interpretMetricsEmpty
+        . mockService HTTP.ok200
+        . assertNoError @ValidationError
+        . assertNoError @DiscoveryFailure
+        . assertNoError @ServerError
+        . discardTinyLogs
+        . mockDiscoveryTrivial
+        . runInputConst noClientCertSettings
+        . runInputConst scaffoldingFederationDomainConfigs
+        $ callInward Galley (RPC "get-conversations") aValidDomain (CertHeader cert) request (saveResponse resRef)
+
+    Just res <- readIORef resRef
+    let expectedCall = Call Galley "/federation/get-conversations" [] "\"foo\"" aValidDomain
+    assertEqual "one call to galley should be made" [expectedCall] actualCalls
+    Wai.responseStatus res @?= HTTP.status200
+    body <- Wai.lazyResponseBody res
+    body @?= "\"bar\""
 
 requestNoDomain :: TestTree
 requestNoDomain =
@@ -223,7 +232,7 @@ requestNoDomain =
             trPath = "/federation/brig/get-users"
           }
     serviceCallsRef <- newIORef []
-    let serverApp = genericServe $ server undefined undefined (testInterpretter serviceCallsRef)
+    let serverApp = genericServeT (testInterpreter serviceCallsRef) $ server undefined undefined
     void . serverApp request $ \res -> do
       serviceCalls <- readIORef serviceCallsRef
       assertEqual "Expected response to have status 400" status400 (Wai.responseStatus res)
@@ -240,7 +249,7 @@ requestNoCertificate =
             trPath = "/federation/brig/get-users"
           }
     serviceCallsRef <- newIORef []
-    let serverApp = genericServe $ server undefined undefined (testInterpretter serviceCallsRef)
+    let serverApp = genericServeT (testInterpreter serviceCallsRef) $ server undefined undefined
     void . serverApp request $ \res -> do
       serviceCalls <- readIORef serviceCallsRef
       assertEqual "Expected response to have status 400" status400 (Wai.responseStatus res)
@@ -258,7 +267,7 @@ requestInvalidCertificate =
             trCertificateHeader = Just "not a certificate"
           }
     serviceCallsRef <- newIORef []
-    let serverApp = genericServe $ server undefined undefined (testInterpretter serviceCallsRef)
+    let serverApp = genericServeT (testInterpreter serviceCallsRef) $ server undefined undefined
     void . serverApp request $ \res -> do
       serviceCalls <- readIORef serviceCallsRef
       assertEqual "Expected response to have status 400" status400 (Wai.responseStatus res)
@@ -307,7 +316,7 @@ testInvalidPaths = do
             invalidPath
 
         serviceCallsRef <- newIORef []
-        let serverApp = genericServe $ server undefined undefined (testInterpretter serviceCallsRef)
+        let serverApp = genericServeT (testInterpreter serviceCallsRef) $ server undefined undefined
         void . serverApp request $ \res -> do
           serviceCalls <- readIORef serviceCallsRef
           assertEqual "Unexpected status" expectedStatus (Wai.responseStatus res)
@@ -328,7 +337,7 @@ testMethod =
                   }
           request <- testRequest tr {trMethod = method}
           serviceCallsRef <- newIORef []
-          let serverApp = genericServe $ server undefined undefined (testInterpretter serviceCallsRef)
+          let serverApp = genericServeT (testInterpreter serviceCallsRef) $ server undefined undefined
           void . serverApp request $ \res -> do
             serviceCalls <- readIORef serviceCallsRef
             assertEqual "Expected response to have status 403" status403 (Wai.responseStatus res)
@@ -336,7 +345,7 @@ testMethod =
             pure Wai.ResponseReceived
      in map invalidMethodTest [HTTP.methodGet, HTTP.methodDelete, HTTP.methodPut, HTTP.methodPatch]
 
-testInterpretter ::
+testInterpreter ::
   IORef [Call] ->
   Sem
     '[ Metrics,
@@ -346,24 +355,30 @@ testInterpretter ::
        Error DiscoveryFailure,
        Error ValidationError,
        Error ServerError,
+       Error Servant.ServerError,
        Logger (Msg -> Msg),
        ServiceStreaming,
        Output Call,
        Embed IO
      ]
-    Wai.Response ->
-  Codensity IO Wai.Response
-testInterpretter serviceCallsRef =
-  liftIO
+    a ->
+  Servant.Handler a
+testInterpreter serviceCallsRef =
+  Servant.Handler
+    . ExceptT
     . runM @IO
     . runOutputMonoidIORef @Call serviceCallsRef (: [])
     . mockService HTTP.ok200
     . discardLogs
+    . runError
     . runWaiErrors @'[DiscoveryFailure, ValidationError, ServerError]
     . mockDiscoveryTrivial
     . runInputConst noClientCertSettings
     . runInputConst scaffoldingFederationDomainConfigs
     . interpretMetricsEmpty
+
+saveResponse :: IORef (Maybe Wai.Response) -> Wai.Response -> IO Wai.ResponseReceived
+saveResponse ref res = writeIORef ref (Just res) $> Wai.ResponseReceived
 
 exampleDomain :: Text
 exampleDomain = "localhost.example.com"

@@ -31,9 +31,7 @@ import Control.Concurrent.Chan
 import Control.Lens hiding ((#))
 import Data.Id
 import Data.LegalHold
-import Data.List.NonEmpty (NonEmpty (..))
 import Data.PEM
-import Data.Qualified (Qualified (..))
 import Data.Range
 import Data.Time.Clock qualified as Time
 import Galley.Cassandra.LegalHold
@@ -42,19 +40,16 @@ import Imports
 import Network.HTTP.Types.Status (status200, status404)
 import Network.Wai as Wai
 import Network.Wai.Handler.Warp qualified as Warp
-import Network.Wai.Utilities.Error qualified as Error
 import Test.QuickCheck.Instances ()
 import Test.Tasty
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
 import Wire.API.Connection qualified as Conn
-import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Provider.Service
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
-import Wire.API.Team.Member qualified as Team
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
 import Wire.API.User.Client
@@ -79,19 +74,7 @@ testsPublic s =
           GET /team/{tid}/members - show legal hold status of all members
 
       -}
-      testGroup
-        "settings.legalholdEnabledTeams" -- FUTUREWORK: ungroup this level
-        [ testGroup -- FUTUREWORK: ungroup this level
-            "teams listed"
-            [ testGroup
-                "Users are invited to a group conversation."
-                [ testGroup
-                    "The group conversation contains legalhold activated users."
-                    [testOnlyIfLhWhitelisted s "If any user in the invite has not given consent then the invite fails" testNoConsentCannotBeInvited]
-                ],
-              test s "bench hack" testBenchHack
-            ]
-        ]
+      test s "settings.legalholdEnabledTeams teams liested bench hack" testBenchHack
     ]
 
 testsInternal :: IO TestSetup -> TestTree
@@ -102,12 +85,12 @@ testsInternal s =
 
 testWhitelistingTeams :: TestM ()
 testWhitelistingTeams = do
-  let testTeamWhitelisted :: HasCallStack => TeamId -> TestM Bool
+  let testTeamWhitelisted :: (HasCallStack) => TeamId -> TestM Bool
       testTeamWhitelisted tid = do
         res <- getLHWhitelistedTeam tid
         pure (Bilge.responseStatus res == status200)
 
-  let expectWhitelisted :: HasCallStack => Bool -> TeamId -> TestM ()
+  let expectWhitelisted :: (HasCallStack) => Bool -> TeamId -> TestM ()
       expectWhitelisted yes tid = do
         let msg = if yes then "team should be whitelisted" else "team should not be whitelisted"
         aFewTimesAssertBool msg (== yes) (testTeamWhitelisted tid)
@@ -141,18 +124,18 @@ testCreateLegalHoldTeamSettings = withTeam $ \owner tid -> do
   postSettings owner tid brokenService !!! testResponse 412 (Just "legalhold-unavailable")
   -- checks /status of legal hold service (boolean argument says whether the service is
   -- behaving or not)
-  let lhapp :: HasCallStack => IsWorking -> Chan Void -> Application
+  let lhapp :: (HasCallStack) => IsWorking -> Chan Void -> Application
       lhapp NotWorking _ _ cont = cont respondBad
       lhapp Working _ req cont = do
         if
-            | pathInfo req /= ["legalhold", "status"] -> cont respondBad
-            | requestMethod req /= "GET" -> cont respondBad
-            | otherwise -> cont respondOk
+          | pathInfo req /= ["legalhold", "status"] -> cont respondBad
+          | requestMethod req /= "GET" -> cont respondBad
+          | otherwise -> cont respondOk
       respondOk :: Wai.Response
       respondOk = responseLBS status200 mempty mempty
       respondBad :: Wai.Response
       respondBad = responseLBS status404 mempty mempty
-      lhtest :: HasCallStack => IsWorking -> Warp.Port -> Chan Void -> TestM ()
+      lhtest :: (HasCallStack) => IsWorking -> Warp.Port -> Chan Void -> TestM ()
       lhtest NotWorking _ _ = do
         postSettings owner tid brokenService !!! testResponse 412 (Just "legalhold-unavailable")
       lhtest Working lhPort _ = do
@@ -234,7 +217,7 @@ testRemoveLegalHoldFromTeam = do
   -- fails if LH for team is disabled
   deleteSettings (Just defPassword) owner tid !!! testResponse 403 (Just "legalhold-disable-unimplemented")
 
-testAddTeamUserTooLargeWithLegalholdWhitelisted :: HasCallStack => TestM ()
+testAddTeamUserTooLargeWithLegalholdWhitelisted :: (HasCallStack) => TestM ()
 testAddTeamUserTooLargeWithLegalholdWhitelisted = withTeam $ \owner tid -> do
   o <- view tsGConf
   let fanoutLimit = fromIntegral @_ @Integer . fromRange $ Galley.currentFanoutLimit o
@@ -273,50 +256,7 @@ testCannotCreateLegalHoldDeviceOldAPI = do
 data GroupConvInvCase = InviteOnlyConsenters | InviteAlsoNonConsenters
   deriving (Show, Eq, Ord, Bounded, Enum)
 
-testNoConsentCannotBeInvited :: HasCallStack => TestM ()
-testNoConsentCannotBeInvited = do
-  localDomain <- viewFederationDomain
-  -- team that is legalhold whitelisted
-  (legalholder :: UserId, tid) <- createBindingTeam
-  userLHNotActivated <- (^. Team.userId) <$> addUserToTeam legalholder tid
-  putLHWhitelistTeam tid !!! const 200 === statusCode
-
-  -- team without legalhold
-  (peer :: UserId, teamPeer) <- createBindingTeam
-  let qpeer = Qualified peer localDomain
-  peer2 <- (^. Team.userId) <$> addUserToTeam peer teamPeer
-  let qpeer2 = Qualified peer2 localDomain
-
-  do
-    postConnection userLHNotActivated peer !!! const 201 === statusCode
-    void $ putConnection peer userLHNotActivated Conn.Accepted <!! const 200 === statusCode
-
-    postConnection userLHNotActivated peer2 !!! const 201 === statusCode
-    void $ putConnection peer2 userLHNotActivated Conn.Accepted <!! const 200 === statusCode
-
-  withDummyTestServiceForTeam legalholder tid $ \_chan -> do
-    convId <- createTeamConvWithRole userLHNotActivated tid [legalholder] (Just "corp + us") Nothing Nothing roleNameWireAdmin
-    let qconvId = Qualified convId localDomain
-
-    API.Util.postMembers userLHNotActivated (pure qpeer) qconvId
-      !!! const 200 === statusCode
-
-    -- activate legalhold for legalholder
-    do
-      galley <- viewGalley
-      requestLegalHoldDevice legalholder legalholder tid !!! testResponse 201 Nothing
-      approveLegalHoldDevice (Just defPassword) legalholder legalholder tid !!! testResponse 200 Nothing
-      UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped' galley legalholder tid
-      liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
-
-    API.Util.postMembers userLHNotActivated (pure qpeer2) qconvId
-      >>= errWith 403 (\err -> Error.label err == "missing-legalhold-consent")
-
-    localdomain <- viewFederationDomain
-    API.Util.postQualifiedMembers userLHNotActivated (Qualified peer2 localdomain :| []) qconvId
-      >>= errWith 403 (\err -> Error.label err == "missing-legalhold-consent")
-
-testBenchHack :: HasCallStack => TestM ()
+testBenchHack :: (HasCallStack) => TestM ()
 testBenchHack = do
   {- representative sample run on an old laptop:
 
@@ -359,13 +299,13 @@ testBenchHack = do
     print =<< testBenchHack' 300
     print =<< testBenchHack' 600
 
-testBenchHack' :: HasCallStack => Int -> TestM (Int, Time.NominalDiffTime)
+testBenchHack' :: (HasCallStack) => Int -> TestM (Int, Time.NominalDiffTime)
 testBenchHack' numPeers = do
   (legalholder :: UserId, tid) <- createBindingTeam
   peers :: [UserId] <- replicateM numPeers randomUser
   galley <- viewGalley
 
-  let doEnableLH :: HasCallStack => TestM ()
+  let doEnableLH :: (HasCallStack) => TestM ()
       doEnableLH = do
         withLHWhitelist tid (requestLegalHoldDevice' galley legalholder legalholder tid) !!! testResponse 201 Nothing
         withLHWhitelist tid (approveLegalHoldDevice' galley (Just defPassword) legalholder legalholder tid) !!! testResponse 200 Nothing

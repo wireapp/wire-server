@@ -76,7 +76,6 @@ import Bilge.RPC
 import Brig.Types.Intra
 import Control.Error
 import Control.Lens (view, (^.))
-import Control.Monad.Reader
 import Data.Aeson hiding (Error)
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Aeson.Types (emptyArray)
@@ -249,13 +248,13 @@ getUserProfiles uidsOrHandles = do
     prepareQS :: Either [UserId] [Handle] -> [Request -> Request]
     prepareQS (Left uids) = fmap (queryItem "ids") (toQS uids)
     prepareQS (Right handles) = fmap (queryItem "handles") (toQS handles)
-    toQS :: ToByteString a => [a] -> [ByteString]
+    toQS :: (ToByteString a) => [a] -> [ByteString]
     toQS =
       fmap (BS.intercalate "," . map toByteString')
         . chunksOf 50
 
-getUserProfilesByIdentity :: Either Email Phone -> Handler [UserAccount]
-getUserProfilesByIdentity emailOrPhone = do
+getUserProfilesByIdentity :: Email -> Handler [UserAccount]
+getUserProfilesByIdentity email = do
   info $ msg "Getting user accounts by identity"
   b <- view brig
   r <-
@@ -265,7 +264,7 @@ getUserProfilesByIdentity emailOrPhone = do
         b
         ( method GET
             . Bilge.path "i/users"
-            . userKeyToParam emailOrPhone
+            . userKeyToParam email
             . expect2xx
         )
   parseResponse (mkError status502 "bad-upstream") r
@@ -277,7 +276,7 @@ getEjpdInfo handles includeContacts = do
   let bdy :: Value
       bdy =
         object
-          [ "ejpd_request"
+          [ "EJPDRequest"
               .= (decodeUtf8With lenientDecode . toByteString' <$> handles)
           ]
   r <-
@@ -311,17 +310,18 @@ getContacts u q s = do
         )
   parseResponse (mkError status502 "bad-upstream") r
 
-revokeIdentity :: Either Email Phone -> Handler ()
-revokeIdentity emailOrPhone = do
+revokeIdentity :: Email -> Handler ()
+revokeIdentity email = do
   info $ msg "Revoking user identity"
   b <- view brig
-  void . catchRpcErrors $
-    rpc'
+  void
+    . catchRpcErrors
+    $ rpc'
       "brig"
       b
       ( method POST
           . Bilge.path "i/users/revoke-identity"
-          . userKeyToParam emailOrPhone
+          . userKeyToParam email
           . expect2xx
       )
 
@@ -329,8 +329,9 @@ deleteAccount :: UserId -> Handler ()
 deleteAccount uid = do
   info $ msg "Deleting account"
   b <- view brig
-  void . catchRpcErrors $
-    rpc'
+  void
+    . catchRpcErrors
+    $ rpc'
       "brig"
       b
       ( method DELETE
@@ -346,8 +347,9 @@ setStatusBindingTeam tid status = do
           <> UTF8.toString (BS.toStrict . encode $ status)
       )
   g <- view galley
-  void . catchRpcErrors $
-    rpc'
+  void
+    . catchRpcErrors
+    $ rpc'
       "galley"
       g
       ( method PUT
@@ -360,8 +362,9 @@ deleteBindingTeam :: TeamId -> Handler ()
 deleteBindingTeam tid = do
   info $ msg "Deleting team"
   g <- view galley
-  void . catchRpcErrors $
-    rpc'
+  void
+    . catchRpcErrors
+    $ rpc'
       "galley"
       g
       ( method DELETE
@@ -374,8 +377,9 @@ deleteBindingTeamForce :: TeamId -> Handler ()
 deleteBindingTeamForce tid = do
   info $ msg "Deleting team with force flag"
   g <- view galley
-  void . catchRpcErrors $
-    rpc'
+  void
+    . catchRpcErrors
+    $ rpc'
       "galley"
       g
       ( method DELETE
@@ -388,8 +392,9 @@ changeEmail :: UserId -> EmailUpdate -> Handler ()
 changeEmail u upd = do
   info $ msg "Updating email address"
   b <- view brig
-  void . catchRpcErrors $
-    rpc'
+  void
+    . catchRpcErrors
+    $ rpc'
       "brig"
       b
       ( method PUT
@@ -406,8 +411,9 @@ changePhone :: UserId -> PhoneUpdate -> Handler ()
 changePhone u upd = do
   info $ msg "Updating phone number"
   b <- view brig
-  void . catchRpcErrors $
-    rpc'
+  void
+    . catchRpcErrors
+    $ rpc'
       "brig"
       b
       ( method PUT
@@ -445,7 +451,8 @@ getUserBindingTeam u = do
     listToMaybe $
       fmap (view teamId) $
         filter ((== Binding) . view teamBinding) $
-          teams ^. teamListTeams
+          teams
+            ^. teamListTeams
 
 getInvoiceUrl :: TeamId -> InvoiceId -> Handler ByteString
 getInvoiceUrl tid iid = do
@@ -484,8 +491,9 @@ setTeamBillingInfo :: TeamId -> TeamBillingInfo -> Handler ()
 setTeamBillingInfo tid tbu = do
   info $ msg "Setting team billing info"
   i <- view ibis
-  void . catchRpcErrors $
-    rpc'
+  void
+    . catchRpcErrors
+    $ rpc'
       "ibis"
       i
       ( method PUT
@@ -495,8 +503,8 @@ setTeamBillingInfo tid tbu = do
           . expect2xx
       )
 
-isBlacklisted :: Either Email Phone -> Handler Bool
-isBlacklisted emailOrPhone = do
+isBlacklisted :: Email -> Handler Bool
+isBlacklisted email = do
   info $ msg "Checking blacklist"
   b <- view brig
   resp <-
@@ -506,24 +514,25 @@ isBlacklisted emailOrPhone = do
         b
         ( method GET
             . Bilge.path "i/users/blacklist"
-            . userKeyToParam emailOrPhone
+            . userKeyToParam email
         )
   case Bilge.statusCode resp of
     200 -> pure True
     404 -> pure False
     _ -> throwE (mkError status502 "bad-upstream" (errorMessage resp))
 
-setBlacklistStatus :: Bool -> Either Email Phone -> Handler ()
-setBlacklistStatus status emailOrPhone = do
+setBlacklistStatus :: Bool -> Email -> Handler ()
+setBlacklistStatus status email = do
   info $ msg "Changing blacklist status"
   b <- view brig
-  void . catchRpcErrors $
-    rpc'
+  void
+    . catchRpcErrors
+    $ rpc'
       "brig"
       b
       ( method (statusToMethod status)
           . Bilge.path "i/users/blacklist"
-          . userKeyToParam emailOrPhone
+          . userKeyToParam email
           . expect2xx
       )
   where
@@ -604,8 +613,9 @@ setTeamFeatureLockStatus ::
 setTeamFeatureLockStatus tid lstat = do
   info $ msg ("Setting lock status: " <> show (symbolVal (Proxy @(Public.FeatureSymbol cfg)), lstat))
   gly <- view galley
-  fromResponseBody <=< catchRpcErrors $
-    rpc'
+  fromResponseBody
+    <=< catchRpcErrors
+    $ rpc'
       "galley"
       gly
       ( method PUT
@@ -626,8 +636,9 @@ getSearchVisibility :: TeamId -> Handler TeamSearchVisibilityView
 getSearchVisibility tid = do
   info $ msg "Getting TeamSearchVisibilityView value"
   gly <- view galley
-  fromResponseBody <=< catchRpcErrors $
-    rpc'
+  fromResponseBody
+    <=< catchRpcErrors
+    $ rpc'
       "galley"
       gly
       ( method GET
@@ -668,9 +679,8 @@ setSearchVisibility tid typ = do
 stripBS :: ByteString -> ByteString
 stripBS = encodeUtf8 . strip . decodeUtf8
 
-userKeyToParam :: Either Email Phone -> Request -> Request
-userKeyToParam (Left e) = queryItem "email" (stripBS $ toByteString' e)
-userKeyToParam (Right p) = queryItem "phone" (stripBS $ toByteString' p)
+userKeyToParam :: Email -> Request -> Request
+userKeyToParam e = queryItem "email" (stripBS $ toByteString' e)
 
 errorMessage :: Response (Maybe LByteString) -> LText
 errorMessage = maybe "" TL.decodeUtf8 . responseBody
@@ -767,9 +777,17 @@ getMarketoResult email = do
         )
   -- 404 is acceptable when marketo doesn't know about this user, return an empty result
   case statusCode r of
-    200 -> parseResponse (mkError status502 "bad-upstream") r
+    200 -> do
+      let responseOrError = responseJsonEither r
+      case responseOrError of
+        Left e -> do
+          Log.err $ msg ("Error parsing marketo response: " ++ e)
+          throwE (mkError status502 "bad-upstream" (pack e))
+        Right res -> pure res
     404 -> pure noEmail
-    _ -> throwE (mkError status502 "bad-upstream" "")
+    otherStatus -> do
+      Log.err $ msg ("Unexpected status code from marketo: " ++ show otherStatus)
+      throwE (mkError status502 "bad-upstream" "")
   where
     noEmail = MarketoResult $ KeyMap.singleton "results" emptyArray
 
@@ -849,7 +867,12 @@ getUserClients uid = do
             . expect2xx
         )
   info $ msg ("Response" ++ show r)
-  parseResponse (mkError status502 "bad-upstream") r
+  let resultOrError :: Either String [Versioned 'V5 Client] = responseJsonEither r
+  case resultOrError of
+    Left e -> do
+      Log.err $ msg ("Error parsing client response: " ++ e)
+      pure []
+    Right res -> pure $ fmap unVersioned res
 
 getUserProperties :: UserId -> Handler UserProperties
 getUserProperties uid = do
@@ -892,13 +915,17 @@ getUserNotifications uid maxNotifs = do
   where
     fetchAll :: [QueuedNotification] -> Maybe NotificationId -> Int -> ExceptT Error App [QueuedNotification]
     fetchAll xs start remaining = do
-      userNotificationList <- fetchBatch start (min 100 remaining)
-      let batch = view queuedNotifications userNotificationList
-          remaining' = remaining - length batch
-      if (not . null) batch && view queuedHasMore userNotificationList && remaining' > 0
-        then fetchAll (batch ++ xs) (Just . view queuedNotificationId $ last batch) remaining'
-        else pure (batch ++ xs)
-    fetchBatch :: Maybe NotificationId -> Int -> Handler QueuedNotificationList
+      -- size must be within 100-1000
+      mUserNotificationList <- fetchBatch start (max 100 (min 1000 remaining))
+      case mUserNotificationList of
+        Nothing -> pure xs
+        Just userNotificationList -> do
+          let batch = view queuedNotifications userNotificationList
+              remaining' = remaining - length batch
+          if (not . null) batch && view queuedHasMore userNotificationList && remaining' > 0
+            then fetchAll (batch ++ xs) (Just . view queuedNotificationId $ last batch) remaining'
+            else pure (batch ++ xs)
+    fetchBatch :: Maybe NotificationId -> Int -> Handler (Maybe QueuedNotificationList)
     fetchBatch start batchSize = do
       baseReq <- view gundeck
       r <-
@@ -916,9 +943,23 @@ getUserNotifications uid maxNotifs = do
       -- 404 is an acceptable response, in case, for some reason,
       -- "start" is not found we still return a QueuedNotificationList
       case statusCode r of
-        200 -> parseResponse (mkError status502 "bad-upstream") r
-        404 -> parseResponse (mkError status502 "bad-upstream") r
-        _ -> throwE (mkError status502 "bad-upstream" "")
+        200 -> do
+          let responseOrError = responseJsonEither r
+          case responseOrError of
+            Left e -> do
+              Log.err $ msg ("Error parsing notification response: " ++ e)
+              pure Nothing
+            Right res -> pure $ Just res
+        404 -> do
+          let resultOrError = responseJsonEither r
+          case resultOrError of
+            Left e -> do
+              Log.err $ msg ("Error parsing notification response: " ++ e)
+              pure Nothing
+            Right res -> pure $ Just res
+        otherStatus -> do
+          Log.err $ msg ("Unexpected status code from gundeck: " ++ show otherStatus)
+          pure Nothing
 
 getSsoDomainRedirect :: Text -> Handler (Maybe CustomBackend)
 getSsoDomainRedirect domain = do
@@ -948,8 +989,9 @@ putSsoDomainRedirect domain config welcome = do
   -- }'
   -- curl -XPUT http://localhost/i/custom-backend/by-domain/${DOMAIN_EXAMPLE} -d "${DOMAIN_ENTRY}"
   g <- view galley
-  void . catchRpcErrors $
-    rpc'
+  void
+    . catchRpcErrors
+    $ rpc'
       "galley"
       g
       ( method PUT
@@ -968,8 +1010,9 @@ deleteSsoDomainRedirect domain = do
   info $ msg "deleteSsoDomainRedirect"
   -- curl -XDELETE http://localhost/i/custom-backend/by-domain/${DOMAIN_EXAMPLE}
   g <- view galley
-  void . catchRpcErrors $
-    rpc'
+  void
+    . catchRpcErrors
+    $ rpc'
       "galley"
       g
       ( method DELETE

@@ -156,7 +156,7 @@ verifyFingerprint hash fprs ssl = do
 -- | Compute a simple (non-standard) fingerprint of an RSA
 -- public key for use with 'verifyRsaFingerprint' with the given
 -- 'Digest'.
-rsaFingerprint :: RSAKey k => Digest -> k -> IO ByteString
+rsaFingerprint :: (RSAKey k) => Digest -> k -> IO ByteString
 rsaFingerprint d k = fmap (digestLBS d . toLazyByteString) $ do
   let s = rsaSize k
   n <- integerToMPI (rsaN k)

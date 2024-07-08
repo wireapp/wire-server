@@ -12,7 +12,7 @@ import Wire.API.Federation.Error
 
 data FederationAPIAccess (fedM :: Component -> Type -> Type) m a where
   RunFederatedEither ::
-    KnownComponent c =>
+    (KnownComponent c) =>
     Remote x ->
     fedM c a ->
     FederationAPIAccess fedM m (Either FederationError a)

@@ -6,11 +6,8 @@
 #   services: true
 
 tags:
-  team-settings: false
-  account-pages: false
   legalhold: false
   federation: false # see also galley.config.enableFederation and brig.config.enableFederation
-  sftd: false
   backoffice: false
   mlsstats: false
   integration: false

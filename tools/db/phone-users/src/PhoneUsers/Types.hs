@@ -77,7 +77,8 @@ galleyCassandraParser =
           <> value 9043
           <> showDefault
       )
-    <*> ( C.Keyspace . view packed
+    <*> ( C.Keyspace
+            . view packed
             <$> strOption
               ( long "galley-cassandra-keyspace"
                   <> metavar "STRING"
@@ -105,7 +106,8 @@ brigCassandraParser =
           <> value 9042
           <> showDefault
       )
-    <*> ( C.Keyspace . view packed
+    <*> ( C.Keyspace
+            . view packed
             <$> strOption
               ( long "brig-cassandra-keyspace"
                   <> metavar "STRING"

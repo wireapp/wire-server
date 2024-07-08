@@ -1,0 +1,21 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+E-POSTANIZI DOĞRULAYIN
+${email}, ${brand}'daki yeni e-posta adresiniz olarak kaydedildi. Adresinizi
+doğrulamak için aşağıdaki düğmeye tıklayın.
+
+Doğrula [${url}]Düğmeyi tıklayamıyorsanız, bu bağlantıyı kopyalayıp tarayıcınıza
+yapıştırın:
+
+${url}
+
+Herhangi bir sorunuz veya yardıma ihtiyacınız varsa, lütfen bize ulaşın
+[${support}].
+
+
+--------------------------------------------------------------------------------
+
+Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

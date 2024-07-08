@@ -30,7 +30,7 @@ import Wire.API.Routes.Version
 
 newtype Bearer a = Bearer {unBearer :: a}
 
-instance FromHttpApiData a => FromHttpApiData (Bearer a) where
+instance (FromHttpApiData a) => FromHttpApiData (Bearer a) where
   parseHeader h = case BS.splitAt 7 h of
     ("Bearer ", suffix) -> Bearer <$> parseHeader suffix
     _ -> Left "Invalid authorization scheme"
@@ -47,12 +47,12 @@ type instance
   SpecialiseToVersion v (Bearer a :> api) =
     Bearer a :> SpecialiseToVersion v api
 
-instance HasOpenApi api => HasOpenApi (Bearer a :> api) where
+instance (HasOpenApi api) => HasOpenApi (Bearer a :> api) where
   toOpenApi _ =
     toOpenApi (Proxy @api)
       & security <>~ [SecurityRequirement $ InsOrdHashMap.singleton "ZAuth" []]
 
-instance RoutesToPaths api => RoutesToPaths (Bearer a :> api) where
+instance (RoutesToPaths api) => RoutesToPaths (Bearer a :> api) where
   getRoutes = getRoutes @api
 
 instance

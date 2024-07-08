@@ -35,7 +35,6 @@ extra-source-files:
 library
   -- cabal-fmt: expand src
   exposed-modules:
-    Federator.App
     Federator.Discovery
     Federator.Env
     Federator.Error
@@ -43,6 +42,7 @@ library
     Federator.ExternalServer
     Federator.Health
     Federator.InternalServer
+    Federator.Interpreter
     Federator.Metrics
     Federator.MockServer
     Federator.Monitor
@@ -148,7 +148,6 @@ library
     , types-common
     , unix
     , utf8-string
-    , uuid
     , wai
     , wai-utilities
     , warp
@@ -206,8 +205,8 @@ executable federator
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -threaded -with-rtsopts=-N1 -with-rtsopts=-T -rtsopts
-    -Wredundant-constraints -Wunused-packages
+    -threaded "-with-rtsopts=-N -T" -rtsopts -Wredundant-constraints
+    -Wunused-packages
 
   build-depends:
       base
@@ -326,7 +325,6 @@ test-suite federator-tests
     Test.Federator.Monitor
     Test.Federator.Options
     Test.Federator.Remote
-    Test.Federator.Response
     Test.Federator.Util
     Test.Federator.Validation
 

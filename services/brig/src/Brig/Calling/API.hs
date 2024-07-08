@@ -57,29 +57,38 @@ import Polysemy.Error qualified as Polysemy
 import System.Logger.Class qualified as Log
 import System.Random.MWC qualified as MWC
 import Wire.API.Call.Config qualified as Public
+import Wire.API.Team.Feature (AllFeatureConfigs (afcConferenceCalling), FeatureStatus (FeatureStatusDisabled, FeatureStatusEnabled), wsStatus)
+import Wire.Error
+import Wire.GalleyAPIAccess (GalleyAPIAccess, getAllFeatureConfigsForUser)
 import Wire.Network.DNS.SRV (srvTarget)
 
 -- | ('UserId', 'ConnId' are required as args here to make sure this is an authenticated end-point.)
 getCallsConfigV2 ::
   ( Member (Embed IO) r,
-    Member SFT r
+    Member SFT r,
+    Member GalleyAPIAccess r
   ) =>
   UserId ->
   ConnId ->
   Maybe (Range 1 10 Int) ->
   (Handler r) Public.RTCConfiguration
-getCallsConfigV2 _ _ limit = do
+getCallsConfigV2 uid _ limit = do
   env <- view turnEnv
   staticUrl <- view $ settings . Opt.sftStaticUrl
   sftListAllServers <- fromMaybe Opt.HideAllSFTServers <$> view (settings . Opt.sftListAllServers)
   sftEnv' <- view sftEnv
   sftFederation <- view enableSFTFederation
   discoveredServers <- turnServersV2 (env ^. turnServers)
+  shared <- do
+    ccStatus <- lift $ liftSem $ (wsStatus . afcConferenceCalling <$> getAllFeatureConfigsForUser (Just uid))
+    pure $ case ccStatus of
+      FeatureStatusEnabled -> True
+      FeatureStatusDisabled -> False
   eitherConfig <-
     lift
       . liftSem
       . Polysemy.runError
-      $ newConfig env discoveredServers staticUrl sftEnv' limit sftListAllServers (CallsConfigV2 sftFederation)
+      $ newConfig env discoveredServers staticUrl sftEnv' limit sftListAllServers (CallsConfigV2 sftFederation) shared
   handleNoTurnServers eitherConfig
 
 -- | Throws '500 Internal Server Error' when no turn servers are found. This is
@@ -96,20 +105,26 @@ handleNoTurnServers (Left NoTurnServers) = do
 
 getCallsConfig ::
   ( Member (Embed IO) r,
-    Member SFT r
+    Member SFT r,
+    Member GalleyAPIAccess r
   ) =>
   UserId ->
   ConnId ->
   (Handler r) Public.RTCConfiguration
-getCallsConfig _ _ = do
+getCallsConfig uid _ = do
   env <- view turnEnv
   discoveredServers <- turnServersV1 (env ^. turnServers)
+  shared <- do
+    ccStatus <- lift $ liftSem $ (wsStatus . afcConferenceCalling <$> getAllFeatureConfigsForUser (Just uid))
+    pure $ case ccStatus of
+      FeatureStatusEnabled -> True
+      FeatureStatusDisabled -> False
   eitherConfig <-
     (dropTransport <$$>)
       . lift
       . liftSem
       . Polysemy.runError
-      $ newConfig env discoveredServers Nothing Nothing Nothing HideAllSFTServers CallsConfigDeprecated
+      $ newConfig env discoveredServers Nothing Nothing Nothing HideAllSFTServers CallsConfigDeprecated shared
   handleNoTurnServers eitherConfig
   where
     -- In order to avoid being backwards incompatible, remove the `transport` query param from the URIs
@@ -145,8 +160,9 @@ newConfig ::
   Maybe (Range 1 10 Int) ->
   ListAllSFTServers ->
   CallsConfigVersion ->
+  Bool ->
   Sem r Public.RTCConfiguration
-newConfig env discoveredServers sftStaticUrl mSftEnv limit listAllServers version = do
+newConfig env discoveredServers sftStaticUrl mSftEnv limit listAllServers version shared = do
   -- randomize list of servers (before limiting the list, to ensure not always the same servers are chosen if limit is set)
   randomizedUris <-
     liftIO . randomize
@@ -194,19 +210,23 @@ newConfig env discoveredServers sftStaticUrl mSftEnv limit listAllServers versio
       -- it should also be safe to assume the returning list has length >= 1
       NonEmpty.nonEmpty (Public.limitServers (NonEmpty.toList uris) (fromRange lim))
         & fromMaybe (error "newConfig:limitedList: empty list of servers")
+
     genUsername :: Word32 -> MWC.GenIO -> IO (POSIXTime, Text)
     genUsername ttl prng = do
       rnd <- view (packedBytes . utf8) <$> replicateM 16 (MWC.uniformR (97, 122) prng)
       t <- fromIntegral . (+ ttl) . round <$> getPOSIXTime
       pure $ (t, rnd)
+
     genTurnUsername :: Word32 -> MWC.GenIO -> IO Public.TurnUsername
     genTurnUsername = (fmap (uncurry Public.turnUsername) .) . genUsername
+
     genSFTUsername :: Word32 -> MWC.GenIO -> IO Public.SFTUsername
-    genSFTUsername = (fmap (uncurry Public.mkSFTUsername) .) . genUsername
-    computeCred :: ToByteString a => Digest -> ByteString -> a -> AsciiBase64
+    genSFTUsername = (fmap (uncurry (Public.mkSFTUsername shared)) .) . genUsername
+
+    computeCred :: (ToByteString a) => Digest -> ByteString -> a -> AsciiBase64
     computeCred dig secret = encodeBase64 . hmacBS dig secret . toByteString'
     authenticate ::
-      Member (Embed IO) r =>
+      (Member (Embed IO) r) =>
       Public.SFTServer ->
       Sem r Public.AuthSFTServer
     authenticate =

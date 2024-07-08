@@ -48,28 +48,28 @@ isSuccess :: Result a -> Bool
 isSuccess (Success _) = True
 isSuccess (Error _) = False
 
-genPatchOp :: forall tag. UserTypes tag => Gen Value -> Gen (PatchOp tag)
+genPatchOp :: forall tag. (UserTypes tag) => Gen Value -> Gen (PatchOp tag)
 genPatchOp genValue = PatchOp <$> Gen.list (Range.constant 0 20) ((genOperation @tag) genValue)
 
-genSimplePatchOp :: forall tag. UserTypes tag => Gen (PatchOp tag)
+genSimplePatchOp :: forall tag. (UserTypes tag) => Gen (PatchOp tag)
 genSimplePatchOp = genPatchOp @tag (String <$> Gen.text (Range.constant 0 20) Gen.unicode)
 
-genOperation :: forall tag. UserTypes tag => Gen Value -> Gen Operation
+genOperation :: forall tag. (UserTypes tag) => Gen Value -> Gen Operation
 genOperation genValue = Operation <$> Gen.enumBounded <*> Gen.maybe (genPath @tag) <*> Gen.maybe genValue
 
-genPath :: forall tag. UserTypes tag => Gen Path
+genPath :: forall tag. (UserTypes tag) => Gen Path
 genPath =
   Gen.choice
     [ IntoValuePath <$> (genValuePath @tag) <*> Gen.maybe genSubAttr,
       NormalPath <$> (genAttrPath @tag)
     ]
 
-prop_roundtrip :: forall tag. UserTypes tag => Property
+prop_roundtrip :: forall tag. (UserTypes tag) => Property
 prop_roundtrip = property $ do
   x <- forAll $ genPath @tag
   tripping x (encodeUtf8 . rPath) (parseOnly $ pPath (supportedSchemas @tag))
 
-prop_roundtrip_PatchOp :: forall tag. UserTypes tag => Property
+prop_roundtrip_PatchOp :: forall tag. (UserTypes tag) => Property
 prop_roundtrip_PatchOp = property $ do
   -- Just some strings for now. However, should be constrained to what the
   -- PatchOp is operating on in the future... We need better typed PatchOp for

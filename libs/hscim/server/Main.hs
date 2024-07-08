@@ -72,8 +72,9 @@ mkUserDB = do
                 (emailAddress "elton@wire.com"),
             E.primary = Nothing
           }
+
   let user =
-        (User.empty [User20] "elton" NoUserExtra)
+        (User.empty [User20] "elton" NoUserExtra :: User Mock)
           { name =
               Just
                 Name

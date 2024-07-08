@@ -24,25 +24,20 @@ module Federator.ExternalServer
   )
 where
 
-import Control.Monad.Codensity
 import Data.Bifunctor
 import Data.ByteString qualified as BS
 import Data.ByteString.Builder
 import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
-import Data.Id (RequestId (..))
-import Data.Metrics.Servant qualified as Metrics
-import Data.Proxy (Proxy (Proxy))
 import Data.Sequence qualified as Seq
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
-import Data.UUID as UUID
-import Data.UUID.V4 as UUID
 import Data.X509 qualified as X509
 import Federator.Discovery
 import Federator.Env
 import Federator.Error.ServerError
 import Federator.Health qualified as Health
+import Federator.Interpreter
 import Federator.Metrics
 import Federator.RPC
 import Federator.Response
@@ -57,18 +52,17 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
+import Servant qualified
 import Servant.API
 import Servant.API.Extended.Endpath
+import Servant.API.Extended.RawM qualified as RawM
 import Servant.Client.Core
-import Servant.Server (Tagged (..))
-import Servant.Server.Generic
-import System.Logger (msg, val, (.=), (~~))
+import Servant.Server.Generic (AsServerT)
 import System.Logger.Message qualified as Log
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.VersionInfo
-import Wire.Sem.Logger (info)
 
 -- | Used to get PEM encoded certificate out of an HTTP header
 newtype CertHeader = CertHeader X509.Certificate
@@ -92,14 +86,12 @@ data API mode = API
         :- "federation"
           :> Capture "component" Component
           :> Capture "rpc" RPC
-          :> Header "Wire-Origin-Request-Id" RequestId
           :> Header' '[Required, Strict] OriginDomainHeaderName Domain
           :> Header' '[Required, Strict] "X-SSL-Certificate" CertHeader
           :> Endpath
-          -- We need to use 'Raw' so we can stream request body regardless of
-          -- content-type and send a response with arbitrary content-type. Not
-          -- sure if this is the right approach.
-          :> Raw
+          -- We need to use 'RawM' so we can stream request body regardless of
+          -- content-type and send a response with arbitrary content-type.
+          :> RawM.RawM
   }
   deriving (Generic)
 
@@ -111,18 +103,17 @@ server ::
     Member (Error ValidationError) r,
     Member (Error DiscoveryFailure) r,
     Member (Error ServerError) r,
+    Member (Error Servant.ServerError) r,
     Member (Input FederationDomainConfigs) r,
     Member Metrics r
   ) =>
   Manager ->
   Word16 ->
-  (Sem r Wai.Response -> Codensity IO Wai.Response) ->
-  API AsServer
-server mgr intPort interpreter =
+  API (AsServerT (Sem r))
+server mgr intPort =
   API
     { status = Health.status mgr "internal server" intPort,
-      externalRequest = \component rpc mReqId remoteDomain remoteCert ->
-        Tagged $ \req respond -> runCodensity (interpreter (callInward component rpc mReqId remoteDomain remoteCert req)) respond
+      externalRequest = callInward
     }
 
 -- FUTUREWORK(federation): Versioning of the federation API.
@@ -139,22 +130,12 @@ callInward ::
   ) =>
   Component ->
   RPC ->
-  Maybe RequestId ->
   Domain ->
   CertHeader ->
   Wai.Request ->
-  Sem r Wai.Response
-callInward component (RPC rpc) mReqId originDomain (CertHeader cert) wreq = do
-  rid <- case mReqId of
-    Just r -> pure r
-    Nothing -> do
-      localRid <- liftIO $ RequestId . Text.encodeUtf8 . UUID.toText <$> UUID.nextRandom
-      info $
-        "request-id" .= localRid
-          ~~ "method" .= Wai.requestMethod wreq
-          ~~ "path" .= Wai.rawPathInfo wreq
-          ~~ msg (val "generated a new request id for local request")
-      pure localRid
+  (Wai.Response -> IO Wai.ResponseReceived) ->
+  Sem r Wai.ResponseReceived
+callInward component (RPC rpc) originDomain (CertHeader cert) wreq cont = do
   incomingCounterIncr originDomain
   -- only POST is supported
   when (Wai.requestMethod wreq /= HTTP.methodPost) $
@@ -169,7 +150,6 @@ callInward component (RPC rpc) mReqId originDomain (CertHeader cert) wreq = do
       . Log.field "originDomain" (domainText originDomain)
       . Log.field "component" (show component)
       . Log.field "rpc" rpc
-      . Log.field "request" rid
 
   validatedDomain <- validateDomain cert originDomain
 
@@ -177,12 +157,11 @@ callInward component (RPC rpc) mReqId originDomain (CertHeader cert) wreq = do
 
   body <- embed $ Wai.lazyRequestBody wreq
   let headers = filter ((== versionHeader) . fst) (Wai.requestHeaders wreq)
-  resp <- serviceCall component path headers body rid validatedDomain
+  resp <- serviceCall component path headers body validatedDomain
   Log.debug $
     Log.msg ("Inward Request response" :: ByteString)
       . Log.field "status" (show (responseStatusCode resp))
-      . Log.field "request" rid
-  pure $
+  embed . cont $
     streamingResponseToWai
       resp
         { responseHeaders =
@@ -192,8 +171,5 @@ callInward component (RPC rpc) mReqId originDomain (CertHeader cert) wreq = do
         }
 
 serveInward :: Env -> Int -> IO ()
-serveInward env =
-  serveServant
-    (Metrics.servantPrometheusMiddleware $ Proxy @(ToServantApi API))
-    (server env._httpManager env._internalPort $ runFederator env)
-    env
+serveInward env port =
+  serveServant @(ToServantApi API) env port $ toServant $ server env._httpManager env._internalPort

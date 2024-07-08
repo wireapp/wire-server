@@ -68,7 +68,7 @@ instance ToSchema TeamConversation where
             (description ?~ managedDesc)
             (c (False :: Bool))
     where
-      c :: A.ToJSON a => a -> ValueSchema SwaggerDoc ()
+      c :: (A.ToJSON a) => a -> ValueSchema SwaggerDoc ()
       c val = mkSchema mempty (const (pure ())) (const (pure (A.toJSON val)))
 
 newTeamConversation :: ConvId -> TeamConversation

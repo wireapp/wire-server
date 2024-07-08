@@ -23,9 +23,7 @@
 
 module Brig.Options where
 
-import Brig.Allowlists (AllowlistEmailDomains (..), AllowlistPhonePrefixes (..))
 import Brig.Queue.Types (QueueOpts (..))
-import Brig.SMTP (SMTPConnType (..))
 import Brig.User.Auth.Cookie.Limit
 import Brig.ZAuth qualified as ZAuth
 import Control.Applicative
@@ -56,11 +54,13 @@ import Network.AMQP.Extended
 import Network.DNS qualified as DNS
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
+import Wire.API.Allowlists (AllowlistEmailDomains (..))
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Version
 import Wire.API.Team.Feature qualified as Public
 import Wire.API.User
 import Wire.Arbitrary (Arbitrary, arbitrary)
+import Wire.EmailSending.SMTP (SMTPConnType (..))
 
 newtype Timeout = Timeout
   { timeoutDiff :: NominalDiffTime
@@ -457,15 +457,10 @@ data Settings = Settings
     setTeamInvitationTimeout :: !Timeout,
     -- | Check for expired users every so often, in seconds
     setExpiredUserCleanupTimeout :: !(Maybe Timeout),
-    -- | Twilio credentials
-    setTwilio :: !FilePathSecrets,
-    -- | Nexmo credentials
-    setNexmo :: !FilePathSecrets,
     -- | STOMP broker credentials
     setStomp :: !(Maybe FilePathSecrets),
     -- | Whitelist of allowed emails/phones
     setAllowlistEmailDomains :: !(Maybe AllowlistEmailDomains),
-    setAllowlistPhonePrefixes :: !(Maybe AllowlistPhonePrefixes),
     -- | Max. number of sent/accepted
     --   connections per user
     setUserMaxConnections :: !Int64,
@@ -931,7 +926,9 @@ Lens.makeLensesFor
     ("setOAuthAccessTokenExpirationTimeSecsInternal", "oauthAccessTokenExpirationTimeSecsInternal"),
     ("setDisabledAPIVersions", "disabledAPIVersions"),
     ("setOAuthRefreshTokenExpirationTimeSecsInternal", "oauthRefreshTokenExpirationTimeSecsInternal"),
-    ("setOAuthMaxActiveRefreshTokensInternal", "oauthMaxActiveRefreshTokensInternal")
+    ("setOAuthMaxActiveRefreshTokensInternal", "oauthMaxActiveRefreshTokensInternal"),
+    ("setAllowlistEmailDomains", "allowlistEmailDomains"),
+    ("setAllowlistPhonePrefixes", "allowlistPhonePrefixes")
   ]
   ''Settings
 

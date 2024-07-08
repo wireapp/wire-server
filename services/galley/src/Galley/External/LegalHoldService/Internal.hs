@@ -67,7 +67,7 @@ makeVerifiedRequestWithManager mgr verifyFingerprints fpr (HttpsUrl url) reqBuil
     a </> b = fromMaybe a (BS.stripSuffix "/" a) <> "/" <> fromMaybe b (BS.stripPrefix "/" b)
     x3 :: RetryPolicy
     x3 = limitRetries 3 <> exponentialBackoff 100000
-    extHandleAll :: MonadCatch m => (SomeException -> m a) -> m a -> m a
+    extHandleAll :: (MonadCatch m) => (SomeException -> m a) -> m a -> m a
     extHandleAll f ma =
       catches
         ma

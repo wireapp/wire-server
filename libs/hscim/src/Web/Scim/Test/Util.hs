@@ -83,17 +83,17 @@ import Web.Scim.Schema.User (UserTypes (..))
 -- FUTUREWORK: make this a PR upstream.  (while we're at it, we can also patch 'WaiSession'
 -- and 'request' to keep track of the 'SRequest', and add that to the error message here with
 -- the response.)
-shouldRespondWith :: HasCallStack => WaiSession st SResponse -> ResponseMatcher -> WaiExpectation st
+shouldRespondWith :: (HasCallStack) => WaiSession st SResponse -> ResponseMatcher -> WaiExpectation st
 shouldRespondWith action matcher =
   either (liftIO . expectationFailure) pure =<< doesRespondWith action matcher
 
-doesRespondWith :: HasCallStack => WaiSession st SResponse -> ResponseMatcher -> WaiSession st (Either String ())
+doesRespondWith :: (HasCallStack) => WaiSession st SResponse -> ResponseMatcher -> WaiSession st (Either String ())
 doesRespondWith action matcher = do
   r <- action
   let extmsg = "  details:  " <> show r <> "\n"
   pure $ maybe (Right ()) (Left . (<> extmsg)) (match r matcher)
 
-shouldEventuallyRespondWith :: HasCallStack => WaiSession st SResponse -> ResponseMatcher -> WaiExpectation st
+shouldEventuallyRespondWith :: (HasCallStack) => WaiSession st SResponse -> ResponseMatcher -> WaiExpectation st
 shouldEventuallyRespondWith action matcher =
   either (liftIO . expectationFailure) pure
     =<< Retry.retrying

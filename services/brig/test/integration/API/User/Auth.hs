@@ -28,9 +28,7 @@ import API.Team.Util
 import Bilge hiding (body)
 import Bilge qualified as Http
 import Bilge.Assert hiding (assert)
-import Brig.Code qualified as Code
 import Brig.Options qualified as Opts
-import Brig.User.Auth.Cookie (revokeAllCookies)
 import Brig.ZAuth (ZAuth, runZAuth)
 import Brig.ZAuth qualified as ZAuth
 import Cassandra hiding (Value)
@@ -42,7 +40,7 @@ import Data.Aeson as Aeson hiding (json)
 import Data.ByteString qualified as BS
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as Lazy
-import Data.Handle (Handle (Handle))
+import Data.Handle (parseHandle)
 import Data.Id
 import Data.Misc (PlainTextPassword6, plainTextPassword6, plainTextPassword6Unsafe)
 import Data.Proxy
@@ -62,7 +60,7 @@ import Test.Tasty.HUnit qualified as HUnit
 import UnliftIO.Async hiding (wait)
 import Util
 import Wire.API.Conversation (Conversation (..))
-import Wire.API.Password (Password, mkSafePassword)
+import Wire.API.Password (Password, mkSafePasswordScrypt)
 import Wire.API.User as Public
 import Wire.API.User.Auth as Auth
 import Wire.API.User.Auth.LegalHold
@@ -76,7 +74,7 @@ import Wire.API.User.Client
 -- with this are failing then assumption that
 -- 'whitelist-teams-and-implicit-consent' is set in all test environments is no
 -- longer correct.
-onlyIfLhWhitelisted :: MonadIO m => m () -> m ()
+onlyIfLhWhitelisted :: (MonadIO m) => m () -> m ()
 onlyIfLhWhitelisted action = do
   let isGalleyLegalholdFeatureWhitelist = True
   if isGalleyLegalholdFeatureWhitelist
@@ -191,23 +189,29 @@ testLoginWith6CharPassword brig db = do
     -- we need to write this directly to the db, to be able to test this
     writeDirectlyToDB :: UserId -> PlainTextPassword6 -> Http ()
     writeDirectlyToDB uid pw =
-      liftIO (runClient db (updatePassword uid pw >> revokeAllCookies uid))
+      liftIO (runClient db (updatePassword uid pw >> deleteAllCookies uid))
 
-    updatePassword :: MonadClient m => UserId -> PlainTextPassword6 -> m ()
+    updatePassword :: (MonadClient m) => UserId -> PlainTextPassword6 -> m ()
     updatePassword u t = do
-      p <- liftIO $ mkSafePassword t
+      p <- liftIO $ mkSafePasswordScrypt t
       retry x5 $ write userPasswordUpdate (params LocalQuorum (p, u))
 
     userPasswordUpdate :: PrepQuery W (Password, UserId) ()
     userPasswordUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET password = ? WHERE id = ?"
 
+    deleteAllCookies :: (MonadClient m) => UserId -> m ()
+    deleteAllCookies u = retry x5 (write cql (params LocalQuorum (Identity u)))
+      where
+        cql :: PrepQuery W (Identity UserId) ()
+        cql = "DELETE FROM user_cookies WHERE user = ?"
+
 --------------------------------------------------------------------------------
 -- ZAuth test environment for generating arbitrary tokens.
 
-randomAccessToken :: forall u a. ZAuth.TokenPair u a => ZAuth (ZAuth.Token a)
+randomAccessToken :: forall u a. (ZAuth.TokenPair u a) => ZAuth (ZAuth.Token a)
 randomAccessToken = randomUserToken @u >>= ZAuth.newAccessToken
 
-randomUserToken :: ZAuth.UserTokenLike u => ZAuth (ZAuth.Token u)
+randomUserToken :: (ZAuth.UserTokenLike u) => ZAuth (ZAuth.Token u)
 randomUserToken = do
   r <- Id <$> liftIO UUID.nextRandom
   ZAuth.newUserToken r Nothing
@@ -302,7 +306,7 @@ testNginzMultipleCookies :: Opts.Opts -> Brig -> Nginz -> Http ()
 testNginzMultipleCookies o b n = do
   u <- randomUser b
   let Just email = userEmail u
-      dologin :: HasCallStack => Http ResponseLBS
+      dologin :: (HasCallStack) => Http ResponseLBS
       dologin = login n (defEmailLogin email) PersistentCookie <!! const 200 === statusCode
   unparseableCookie <- (\c -> c {cookie_value = "ThisIsNotAZauthCookie"}) . decodeCookie <$> dologin
   badCookie1 <- (\c -> c {cookie_value = "SKsjKQbiqxuEugGMWVbq02fNEA7QFdNmTiSa1Y0YMgaEP5tWl3nYHWlIrM5F8Tt7Cfn2Of738C7oeiY8xzPHAB==.v=1.k=1.d=1.t=u.l=.u=13da31b4-c6bb-4561-8fed-07e728fa6cc5.r=f844b420"}) . decodeCookie <$> dologin
@@ -362,15 +366,11 @@ testPhoneLogin brig = do
             [ "name" .= ("Alice" :: Text),
               "phone" .= fromPhone p
             ]
+  -- phone logins are not supported anymore
   post (brig . path "/i/users" . contentJson . Http.body newUser)
-    !!! const 201 === statusCode
-  sendLoginCode brig p LoginCodeSMS False !!! const 200 === statusCode
-  code <- getPhoneLoginCode brig p
-  case code of
-    Nothing -> liftIO $ assertFailure "missing login code"
-    Just c ->
-      login brig (SmsLogin (SmsLoginData p c Nothing)) PersistentCookie
-        !!! const 200 === statusCode
+    !!! do
+      const 400 === statusCode
+      const (Just "invalid-phone") === errorLabel
 
 testHandleLogin :: Brig -> Http ()
 testHandleLogin brig = do
@@ -379,7 +379,7 @@ testHandleLogin brig = do
   let update = RequestBodyLBS . encode $ HandleUpdate hdl
   put (brig . path "/self/handle" . contentJson . zUser usr . zConn "c" . Http.body update)
     !!! const 200 === statusCode
-  let l = PasswordLogin (PasswordLoginData (LoginByHandle (Handle hdl)) defPassword Nothing Nothing)
+  let l = PasswordLogin (PasswordLoginData (LoginByHandle (fromJust $ parseHandle hdl)) defPassword Nothing Nothing)
   login brig l PersistentCookie !!! const 200 === statusCode
 
 -- | Check that local part after @+@ is ignored by equality on email addresses if the domain is
@@ -403,24 +403,9 @@ testSendLoginCode brig = do
               "password" .= ("topsecretdefaultpassword" :: Text)
             ]
   post (brig . path "/i/users" . contentJson . Http.body newUser)
-    !!! const 201 === statusCode
-  -- Unless forcing it, SMS/voice code login is not permitted if
-  -- the user has a password.
-  sendLoginCode brig p LoginCodeSMS False !!! do
-    const 403 === statusCode
-    const (Just "password-exists") === errorLabel
-  rsp1 <-
-    sendLoginCode brig p LoginCodeSMS True
-      <!! const 200 === statusCode
-  let _timeout = fromLoginCodeTimeout <$> responseJsonMaybe rsp1
-  liftIO $ assertEqual "timeout" (Just (Code.Timeout 600)) _timeout
-  -- Retry with a voice call
-  rsp2 <-
-    sendLoginCode brig p LoginCodeVoice True
-      <!! const 200 === statusCode
-  -- Timeout is reset
-  let _timeout = fromLoginCodeTimeout <$> responseJsonMaybe rsp2
-  liftIO $ assertEqual "timeout" (Just (Code.Timeout 600)) _timeout
+    !!! do
+      const 400 === statusCode
+      const (Just "invalid-phone") === errorLabel
 
 -- The testLoginFailure test conforms to the following testing standards:
 --
@@ -478,7 +463,7 @@ testThrottleLogins conf b = do
 -- successfully log in again. Furthermore, the test asserts that another
 -- unrelated user can successfully log-in in parallel to the failed attempts of
 -- the aforementioned user.
-testLimitRetries :: HasCallStack => Opts.Opts -> Brig -> Http ()
+testLimitRetries :: (HasCallStack) => Opts.Opts -> Brig -> Http ()
 testLimitRetries conf brig = do
   let Just opts = Opts.setLimitFailedLogins . Opts.optSettings $ conf
   unless (Opts.timeout opts <= 30) $
@@ -535,7 +520,7 @@ testRegularUserLegalHoldLogin brig = do
   legalHoldLogin brig (LegalHoldLogin uid (Just defPassword) Nothing) PersistentCookie !!! do
     const 403 === statusCode
 
-testTeamUserLegalHoldLogin :: HasCallStack => Brig -> Galley -> Http ()
+testTeamUserLegalHoldLogin :: (HasCallStack) => Brig -> Galley -> Http ()
 testTeamUserLegalHoldLogin brig galley = do
   -- create team user Alice
   (alice, tid) <- createUserWithTeam brig
@@ -652,7 +637,7 @@ testNoUserSsoLogin brig = do
 -- The testInvalidCookie test conforms to the following testing standards:
 --
 -- Test that invalid and expired tokens do not work.
-testInvalidCookie :: forall u. ZAuth.UserTokenLike u => ZAuth.Env -> Brig -> Http ()
+testInvalidCookie :: forall u. (ZAuth.UserTokenLike u) => ZAuth.Env -> Brig -> Http ()
 testInvalidCookie z b = do
   -- Syntactically invalid
   post (unversioned . b . path "/access" . cookieRaw "zuid" "xxx") !!! do
@@ -682,7 +667,7 @@ testInvalidToken z b = do
       const 403 === statusCode
       const (Just "Invalid access token") =~= responseBody
 
-testMissingCookie :: forall u a. ZAuth.TokenPair u a => ZAuth.Env -> Brig -> Http ()
+testMissingCookie :: forall u a. (ZAuth.TokenPair u a) => ZAuth.Env -> Brig -> Http ()
 testMissingCookie z b = do
   -- Missing cookie, i.e. token refresh mandates a cookie.
   post (unversioned . b . path "/access")
@@ -698,7 +683,7 @@ testMissingCookie z b = do
       const (Just "Missing cookie") =~= responseBody
       const (Just "invalid-credentials") =~= responseBody
 
-testUnknownCookie :: forall u. ZAuth.UserTokenLike u => ZAuth.Env -> Brig -> Http ()
+testUnknownCookie :: forall u. (ZAuth.UserTokenLike u) => ZAuth.Env -> Brig -> Http ()
 testUnknownCookie z b = do
   -- Valid cookie but unknown to the server.
   t <- toByteString' <$> runZAuth z (randomUserToken @u)
@@ -1064,7 +1049,7 @@ testNewSessionCookie config b = do
     const 200 === statusCode
     const Nothing === getHeader "Set-Cookie"
 
-testSuspendInactiveUsers :: HasCallStack => Opts.Opts -> Brig -> CookieType -> String -> Http ()
+testSuspendInactiveUsers :: (HasCallStack) => Opts.Opts -> Brig -> CookieType -> String -> Http ()
 testSuspendInactiveUsers config brig cookieType endPoint = do
   -- (context information: cookies are stored by user, not by device; so if there is a
   -- cookie that is old, it means none of the devices of the user has used it for a request.)
@@ -1278,10 +1263,10 @@ getCookieId c =
     (CookieId . ZAuth.userTokenRand @u)
     (fromByteString (cookie_value c))
 
-listCookies :: HasCallStack => Brig -> UserId -> Http [Auth.Cookie ()]
+listCookies :: (HasCallStack) => Brig -> UserId -> Http [Auth.Cookie ()]
 listCookies b u = listCookiesWithLabel b u []
 
-listCookiesWithLabel :: HasCallStack => Brig -> UserId -> [CookieLabel] -> Http [Auth.Cookie ()]
+listCookiesWithLabel :: (HasCallStack) => Brig -> UserId -> [CookieLabel] -> Http [Auth.Cookie ()]
 listCookiesWithLabel b u l = do
   rs <-
     get
@@ -1299,7 +1284,7 @@ listCookiesWithLabel b u l = do
 -- | Check that the cookie returned after login is sane.
 --
 -- Doesn't check everything, just some basic properties.
-assertSanePersistentCookie :: forall u. ZAuth.UserTokenLike u => Http.Cookie -> Assertion
+assertSanePersistentCookie :: forall u. (ZAuth.UserTokenLike u) => Http.Cookie -> Assertion
 assertSanePersistentCookie ck = do
   assertBool "type" (cookie_persistent ck)
   assertBool "http-only" (cookie_http_only ck)
@@ -1312,7 +1297,7 @@ assertSanePersistentCookie ck = do
 
 -- | Check that the access token returned after login is sane.
 assertSaneAccessToken ::
-  ZAuth.AccessTokenLike a =>
+  (ZAuth.AccessTokenLike a) =>
   -- | Some moment in time before the user was created
   UTCTime ->
   UserId ->
@@ -1334,5 +1319,5 @@ remJson p l ids =
       "ids" .= ids
     ]
 
-wait :: MonadIO m => m ()
+wait :: (MonadIO m) => m ()
 wait = liftIO $ threadDelay 1000000

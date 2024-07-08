@@ -48,8 +48,8 @@ import Data.Text.Ascii
 import Data.Tuple.Extra (fst3, snd3, thd3)
 import Imports
 import Servant (FromHttpApiData (..))
+import Wire.API.Locale
 import Wire.API.User.Identity
-import Wire.API.User.Profile
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 --------------------------------------------------------------------------------
@@ -57,7 +57,7 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 -- | The target of an activation request.
 data ActivationTarget
-  = -- | An opaque key for some email or phone number awaiting activation.
+  = -- | An opaque key for some email awaiting activation.
     ActivateKey ActivationKey
   | -- | A known phone number awaiting activation.
     ActivatePhone Phone

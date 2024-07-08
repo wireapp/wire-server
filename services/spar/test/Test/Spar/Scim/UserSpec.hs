@@ -37,22 +37,22 @@ spec = describe "deleteScimUser" $ do
         (mockBrig (withActiveUser acc) AccountDeleted)
         (deleteUserAndAssertDeletionInSpar acc tokenInfo)
     r `shouldBe` Right ()
-  it "returns an error when the account was deleted before" $ do
+  it "is idempotent" $ do
     tokenInfo <- generate arbitrary
     acc <- someActiveUser tokenInfo
     r <-
       interpretWithBrigAccessMock
         (mockBrig (withActiveUser acc) AccountAlreadyDeleted)
         (deleteUserAndAssertDeletionInSpar acc tokenInfo)
-    r `shouldBe` Left (notFound "user" ((idToText . userId . accountUser) acc))
-  it "returns an error when there never was an account" $ do
+    r `shouldBe` Right ()
+  it "works if there never was an account" $ do
     uid <- generate arbitrary
     tokenInfo <- generate arbitrary
     r <-
       interpretWithBrigAccessMock
         (mockBrig (const Nothing) NoUser)
         (runExceptT $ deleteScimUser tokenInfo uid)
-    r `shouldBe` Left (notFound "user" (idToText uid))
+    r `shouldBe` Right ()
   it "returns no error when there was a partially deleted account" $ do
     uid <- generate arbitrary
     tokenInfo <- generate arbitrary
@@ -64,16 +64,17 @@ spec = describe "deleteScimUser" $ do
 
 deleteUserAndAssertDeletionInSpar ::
   forall (r :: EffectRow).
-  Members
-    '[ Logger (Msg -> Msg),
-       BrigAccess,
-       ScimExternalIdStore.ScimExternalIdStore,
-       ScimUserTimesStore,
-       SAMLUserStore,
-       IdPConfigStore,
-       Embed IO
-     ]
-    r =>
+  ( Members
+      '[ Logger (Msg -> Msg),
+         BrigAccess,
+         ScimExternalIdStore.ScimExternalIdStore,
+         ScimUserTimesStore,
+         SAMLUserStore,
+         IdPConfigStore,
+         Embed IO
+       ]
+      r
+  ) =>
   UserAccount ->
   ScimTokenInfo ->
   Sem r (Either ScimError ())
@@ -113,12 +114,12 @@ interpretWithBrigAccessMock mock =
     . ignoringState idPToMem
     . mock
 
-ignoringState :: Functor f => (a -> f (c, b)) -> a -> f b
+ignoringState :: (Functor f) => (a -> f (c, b)) -> a -> f b
 ignoringState f = fmap snd . f
 
 mockBrig ::
   forall (r :: EffectRow) a.
-  Member (Embed IO) r =>
+  (Member (Embed IO) r) =>
   (UserId -> Maybe UserAccount) ->
   DeleteUserResult ->
   Sem (BrigAccess ': r) a ->

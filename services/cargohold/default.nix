@@ -43,6 +43,7 @@
 , mmorph
 , mtl
 , optparse-applicative
+, prometheus-client
 , resourcet
 , retry
 , safe
@@ -108,6 +109,7 @@ mkDerivation {
     metrics-core
     metrics-wai
     mime
+    prometheus-client
     resourcet
     retry
     servant

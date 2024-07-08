@@ -77,7 +77,7 @@ conf =
       Promth.prometheusInstrumentApp = False
     }
 
-routesToPaths :: forall routes. RoutesToPaths routes => Paths
+routesToPaths :: forall routes. (RoutesToPaths routes) => Paths
 routesToPaths = Paths (meltTree (getRoutes @routes))
 
 class RoutesToPaths routes where
@@ -122,19 +122,19 @@ instance
   getRoutes = getRoutes @rest
 
 instance
-  RoutesToPaths rest =>
+  (RoutesToPaths rest) =>
   RoutesToPaths (QueryParam' mods name a :> rest)
   where
   getRoutes = getRoutes @rest
 
-instance RoutesToPaths rest => RoutesToPaths (MultipartForm tag a :> rest) where
+instance (RoutesToPaths rest) => RoutesToPaths (MultipartForm tag a :> rest) where
   getRoutes = getRoutes @rest
 
-instance RoutesToPaths api => RoutesToPaths (QueryFlag a :> api) where
+instance (RoutesToPaths api) => RoutesToPaths (QueryFlag a :> api) where
   getRoutes = getRoutes @api
 
 instance
-  RoutesToPaths rest =>
+  (RoutesToPaths rest) =>
   RoutesToPaths (Description desc :> rest)
   where
   getRoutes = getRoutes @rest

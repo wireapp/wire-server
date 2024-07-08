@@ -32,15 +32,11 @@ import Brig.API.User (createUserInviteViaScim, fetchUserIdentity)
 import Brig.API.User qualified as API
 import Brig.API.Util (logEmail, logInvitationCode)
 import Brig.App
-import Brig.Data.UserKey
-import Brig.Data.UserKey qualified as Data
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.BlacklistStore qualified as BlacklistStore
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
-import Brig.Email qualified as Email
 import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
-import Brig.Phone qualified as Phone
 import Brig.Team.DB qualified as DB
 import Brig.Team.Email
 import Brig.Team.Util (ensurePermissionToAddUser, ensurePermissions)
@@ -80,15 +76,23 @@ import Wire.API.Team.Role
 import Wire.API.Team.Role qualified as Public
 import Wire.API.User hiding (fromEmail)
 import Wire.API.User qualified as Public
+import Wire.API.User.Identity qualified as Email
+import Wire.EmailSending (EmailSending)
+import Wire.Error
 import Wire.GalleyAPIAccess (GalleyAPIAccess, ShowOrHideInvitationUrl (..))
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.UserKeyStore
+import Wire.UserSubsystem
 
 servantAPI ::
   ( Member BlacklistStore r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member UserKeyStore r,
+    Member UserSubsystem r,
+    Member EmailSending r
   ) =>
   ServerT TeamsAPI (Handler r)
 servantAPI =
@@ -100,7 +104,7 @@ servantAPI =
     :<|> Named @"head-team-invitations" headInvitationByEmail
     :<|> Named @"get-team-size" teamSizePublic
 
-teamSizePublic :: Member GalleyAPIAccess r => UserId -> TeamId -> (Handler r) TeamSize
+teamSizePublic :: (Member GalleyAPIAccess r) => UserId -> TeamId -> (Handler r) TeamSize
 teamSizePublic uid tid = do
   ensurePermissions uid tid [AddTeamMember] -- limit this to team admins to reduce risk of involuntary DOS attacks
   teamSize tid
@@ -115,7 +119,10 @@ getInvitationCode t r = do
 
 createInvitationPublicH ::
   ( Member BlacklistStore r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member UserKeyStore r,
+    Member UserSubsystem r,
+    Member EmailSending r
   ) =>
   UserId ->
   TeamId ->
@@ -137,7 +144,10 @@ data CreateInvitationInviter = CreateInvitationInviter
 
 createInvitationPublic ::
   ( Member BlacklistStore r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member UserKeyStore r,
+    Member UserSubsystem r,
+    Member EmailSending r
   ) =>
   UserId ->
   TeamId ->
@@ -165,8 +175,10 @@ createInvitationPublic uid tid body = do
 createInvitationViaScim ::
   ( Member BlacklistStore r,
     Member GalleyAPIAccess r,
+    Member UserKeyStore r,
     Member (UserPendingActivationStore p) r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member EmailSending r
   ) =>
   TeamId ->
   NewUserScimInvitation ->
@@ -214,7 +226,9 @@ logInvitationRequest context action =
 
 createInvitation' ::
   ( Member BlacklistStore r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member UserKeyStore r,
+    Member EmailSending r
   ) =>
   TeamId ->
   Maybe UserId ->
@@ -229,25 +243,14 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail body = do
 
   -- Validate e-mail
   inviteeEmail <- either (const $ throwStd (errorToWai @'E.InvalidEmail)) pure (Email.validateEmail (irInviteeEmail body))
-  let uke = userEmailKey inviteeEmail
+  let uke = mkEmailKey inviteeEmail
   blacklistedEm <- lift $ liftSem $ BlacklistStore.exists uke
   when blacklistedEm $
     throwStd blacklistedEmail
-  emailTaken <- lift $ isJust <$> wrapClient (Data.lookupKey uke)
+  emailTaken <- lift $ liftSem $ isJust <$> lookupKey uke
   when emailTaken $
     throwStd emailExists
 
-  -- Validate phone
-  inviteePhone <- for (irInviteePhone body) $ \p -> do
-    validatedPhone <- maybe (throwStd (errorToWai @'E.InvalidPhone)) pure =<< lift (wrapClient $ Phone.validatePhone p)
-    let ukp = userPhoneKey validatedPhone
-    blacklistedPh <- lift $ liftSem $ BlacklistStore.exists ukp
-    when blacklistedPh $
-      throwStd (errorToWai @'E.BlacklistedPhone)
-    phoneTaken <- lift $ isJust <$> wrapClient (Data.lookupKey ukp)
-    when phoneTaken $
-      throwStd phoneExists
-    pure validatedPhone
   maxSize <- setMaxTeamSize <$> view settings
   pending <- lift $ wrapClient $ DB.countInvitations tid
   when (fromIntegral pending >= maxSize) $
@@ -272,23 +275,23 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail body = do
           mbInviterUid
           inviteeEmail
           inviteeName
-          inviteePhone
+          Nothing -- ignore phone
           timeout
     (newInv, code) <$ sendInvitationMail inviteeEmail tid fromEmail code locale
 
-deleteInvitation :: Member GalleyAPIAccess r => UserId -> TeamId -> InvitationId -> (Handler r) ()
+deleteInvitation :: (Member GalleyAPIAccess r) => UserId -> TeamId -> InvitationId -> (Handler r) ()
 deleteInvitation uid tid iid = do
   ensurePermissions uid tid [AddTeamMember]
   lift $ wrapClient $ DB.deleteInvitation tid iid
 
-listInvitations :: Member GalleyAPIAccess r => UserId -> TeamId -> Maybe InvitationId -> Maybe (Range 1 500 Int32) -> (Handler r) Public.InvitationList
+listInvitations :: (Member GalleyAPIAccess r) => UserId -> TeamId -> Maybe InvitationId -> Maybe (Range 1 500 Int32) -> (Handler r) Public.InvitationList
 listInvitations uid tid start mSize = do
   ensurePermissions uid tid [AddTeamMember]
   showInvitationUrl <- lift $ liftSem $ GalleyAPIAccess.getExposeInvitationURLsToTeamAdmin tid
   rs <- lift $ wrapClient $ DB.lookupInvitations showInvitationUrl tid start (fromMaybe (unsafeRange 100) mSize)
   pure $! Public.InvitationList (DB.resultList rs) (DB.resultHasMore rs)
 
-getInvitation :: Member GalleyAPIAccess r => UserId -> TeamId -> InvitationId -> (Handler r) (Maybe Public.Invitation)
+getInvitation :: (Member GalleyAPIAccess r) => UserId -> TeamId -> InvitationId -> (Handler r) (Maybe Public.Invitation)
 getInvitation uid tid iid = do
   ensurePermissions uid tid [AddTeamMember]
   showInvitationUrl <- lift $ liftSem $ GalleyAPIAccess.getExposeInvitationURLsToTeamAdmin tid

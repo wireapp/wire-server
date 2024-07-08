@@ -32,6 +32,7 @@ module Galley.API.Teams.Features
     guardSecondFactorDisabled,
     DoAuth (..),
     featureEnabledForTeam,
+    guardMlsE2EIdConfig,
   )
 where
 
@@ -225,7 +226,7 @@ guardLockStatus = \case
 -- SetFeatureConfig instances
 
 -- | Don't export methods of this typeclass
-class GetFeatureConfig cfg => SetFeatureConfig cfg where
+class (GetFeatureConfig cfg) => SetFeatureConfig cfg where
   type SetConfigForTeamConstraints cfg (r :: EffectRow) :: Constraint
   type SetConfigForTeamConstraints cfg (r :: EffectRow) = ()
 
@@ -384,6 +385,18 @@ instance SetFeatureConfig ExposeInvitationURLsToTeamAdminConfig
 instance SetFeatureConfig OutlookCalIntegrationConfig
 
 instance SetFeatureConfig MlsE2EIdConfig
+
+guardMlsE2EIdConfig ::
+  forall r a.
+  (Member (Error TeamFeatureError) r) =>
+  (UserId -> TeamId -> WithStatusNoLock MlsE2EIdConfig -> Sem r a) ->
+  UserId ->
+  TeamId ->
+  WithStatusNoLock MlsE2EIdConfig ->
+  Sem r a
+guardMlsE2EIdConfig handler uid tid conf = do
+  when (isNothing . crlProxy . wssConfig $ conf) $ throw MLSE2EIDMissingCrlProxy
+  handler uid tid conf
 
 instance SetFeatureConfig MlsMigrationConfig where
   type SetConfigForTeamConstraints MlsMigrationConfig (r :: EffectRow) = (Member (Error TeamFeatureError) r)

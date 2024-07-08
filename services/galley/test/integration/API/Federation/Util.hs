@@ -44,22 +44,22 @@ class HasTrivialHandler api where
 instance HasTrivialHandler (Verb m c cs a) where
   trivialHandler name = throwError err501 {errBody = cs ("mock not implemented: " <> name)}
 
-instance HasTrivialHandler api => HasTrivialHandler ((path :: Symbol) :> api) where
+instance (HasTrivialHandler api) => HasTrivialHandler ((path :: Symbol) :> api) where
   trivialHandler = trivialHandler @api
 
-instance HasTrivialHandler api => HasTrivialHandler (OriginDomainHeader :> api) where
+instance (HasTrivialHandler api) => HasTrivialHandler (OriginDomainHeader :> api) where
   trivialHandler name _ = trivialHandler @api name
 
-instance HasTrivialHandler api => HasTrivialHandler (MakesFederatedCall comp name :> api) where
+instance (HasTrivialHandler api) => HasTrivialHandler (MakesFederatedCall comp name :> api) where
   trivialHandler name _ = trivialHandler @api name
 
-instance HasTrivialHandler api => HasTrivialHandler (ReqBody cs a :> api) where
+instance (HasTrivialHandler api) => HasTrivialHandler (ReqBody cs a :> api) where
   trivialHandler name _ = trivialHandler @api name
 
-instance HasTrivialHandler api => HasTrivialHandler (Until v :> api) where
+instance (HasTrivialHandler api) => HasTrivialHandler (Until v :> api) where
   trivialHandler = trivialHandler @api
 
-instance HasTrivialHandler api => HasTrivialHandler (From v :> api) where
+instance (HasTrivialHandler api) => HasTrivialHandler (From v :> api) where
   trivialHandler = trivialHandler @api
 
 trivialNamedHandler ::

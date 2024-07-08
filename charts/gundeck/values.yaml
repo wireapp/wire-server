@@ -20,21 +20,42 @@ config:
   logNetStrings: false
   cassandra:
     host: aws-cassandra
-#   To enable TLS provide a CA:
-#   tlsCa: <CA in PEM format (can be self-signed)>
-#
-#   Or refer to an existing secret (containing the CA):
-#   tlsCaSecretRef:
-#     name: <secret-name>
-#     key: <ca-attribute>
+    # To enable TLS provide a CA:
+    # tlsCa: <CA in PEM format (can be self-signed)>
+    #
+    # Or refer to an existing secret (containing the CA):
+    # tlsCaSecretRef:
+    #   name: <secret-name>
+    #   key: <ca-attribute>
   redis:
     host: redis-ephemeral-master
     port: 6379
     connectionMode: "master" # master | cluster
+    enableTls: false
+    insecureSkipVerifyTls: false
+    # To configure custom TLS CA, please provide one of these:
+    # tlsCa: <CA in PEM format (can be self-signed)>
+    #
+    # Or refer to an existing secret (containing the CA):
+    # tlsCaSecretRef:
+    #   name: <secret-name>
+    #   key: <ca-attribute>
+
+  # To enable additional writes during a migration:
   # redisAdditionalWrite:
   #   host: redis-two
   #   port: 6379
   #   connectionMode: master
+  #   enableTls: false
+  #   insecureSkipVerifyTls: false
+  #
+  # # To configure custom TLS CA, please provide one of these:
+  # # tlsCa: <CA in PEM format (can be self-signed)>
+  # #
+  # # Or refer to an existing secret (containing the CA):
+  # # tlsCaSecretRef:
+  # #   name: <secret-name>
+  # #   key: <ca-attribute>
   bulkPush: true
   aws:
     region: "eu-west-1"

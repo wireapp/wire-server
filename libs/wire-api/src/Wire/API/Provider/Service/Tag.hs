@@ -238,7 +238,7 @@ instance (KnownNat n, KnownNat m, m <= n) => FromByteString (QueryAnyTags m n) w
     rs <- either fail pure (Range.checkedEither (Set.fromList ts))
     pure $! QueryAnyTags rs
 
-runPartial :: IsString i => Bool -> IResult i b -> Either Text b
+runPartial :: (IsString i) => Bool -> IResult i b -> Either Text b
 runPartial alreadyRun result = case result of
   Fail _ _ e -> Left $ Text.pack e
   Partial f ->

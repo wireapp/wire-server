@@ -43,7 +43,7 @@ instance Semigroup (UserList a) where
 instance Monoid (UserList a) where
   mempty = UserList mempty mempty
 
-toUserList :: Foldable f => Local x -> f (Qualified a) -> UserList a
+toUserList :: (Foldable f) => Local x -> f (Qualified a) -> UserList a
 toUserList loc = uncurry UserList . partitionQualified loc
 
 ulAddLocal :: a -> UserList a -> UserList a
@@ -59,7 +59,7 @@ ulFromRemotes :: [Remote a] -> UserList a
 ulFromRemotes = UserList []
 
 -- | Remove from the first list all the users that are in the second list.
-ulDiff :: Eq a => UserList a -> UserList a -> UserList a
+ulDiff :: (Eq a) => UserList a -> UserList a -> UserList a
 ulDiff (UserList lA rA) (UserList lB rB) =
   UserList
     (filter (`notElem` lB) lA)

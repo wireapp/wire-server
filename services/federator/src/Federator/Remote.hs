@@ -70,7 +70,6 @@ instance AsWai RemoteError where
 
 data Remote m a where
   DiscoverAndCall ::
-    RequestId ->
     Domain ->
     Component ->
     Text ->
@@ -85,13 +84,15 @@ interpretRemote ::
     Member DiscoverFederator r,
     Member (Error DiscoveryFailure) r,
     Member (Error RemoteError) r,
-    Member (Input Http2Manager) r
+    Member (Input Http2Manager) r,
+    Member (Input RequestId) r
   ) =>
   Sem (Remote ': r) a ->
   Sem r a
 interpretRemote = interpret $ \case
-  DiscoverAndCall rid domain component rpc headers body -> do
+  DiscoverAndCall domain component rpc headers body -> do
     target@(SrvTarget hostname port) <- discoverFederatorWithError domain
+    RequestId rid <- input
     let path =
           LBS.toStrict . toLazyByteString $
             HTTP.encodePathSegments ["federation", componentName component, rpc]
@@ -99,7 +100,7 @@ interpretRemote = interpret $ \case
         -- filter out Host header, because the HTTP2 client adds it back
         headers' =
           filter ((/= "Host") . fst) headers
-            <> [(RPC.requestIdName, unRequestId rid)]
+            <> [(RPC.requestIdName, rid)]
         req' = HTTP2.requestBuilder HTTP.methodPost path headers' body
 
     mgr <- input

@@ -119,9 +119,9 @@ testKeyPackageSelfClaim = do
 
     resp.json %. "key_packages"
       & asList
-      -- the keypackage claimed by client 1 should be issued by
-      -- client 2
-      >>= \[v] -> v %. "client" `shouldMatch` alice2.client
+        -- the keypackage claimed by client 1 should be issued by
+        -- client 2
+        >>= \[v] -> v %. "client" `shouldMatch` alice2.client
 
   -- - the keypackages of client 1 (claimer) should still be there
   -- - two of the keypackages of client 2 (claimee) should be stil
@@ -179,7 +179,7 @@ testKeyPackageRemoteClaim = do
         resp.json %. "count" `shouldMatchInt` 0
         resp.status `shouldMatchInt` 200
 
-testKeyPackageCount :: HasCallStack => Ciphersuite -> App ()
+testKeyPackageCount :: (HasCallStack) => Ciphersuite -> App ()
 testKeyPackageCount cs = do
   setMLSCiphersuite cs
   alice <- randomUser OwnDomain def
@@ -197,7 +197,7 @@ testKeyPackageCount cs = do
     resp.status `shouldMatchInt` 200
     resp.json %. "count" `shouldMatchInt` count
 
-testUnsupportedCiphersuite :: HasCallStack => App ()
+testUnsupportedCiphersuite :: (HasCallStack) => App ()
 testUnsupportedCiphersuite = do
   let suite = Ciphersuite "0x0003"
   setMLSCiphersuite suite
@@ -208,7 +208,7 @@ testUnsupportedCiphersuite = do
     resp.status `shouldMatchInt` 400
     resp.json %. "label" `shouldMatch` "mls-protocol-error"
 
-testReplaceKeyPackages :: HasCallStack => App ()
+testReplaceKeyPackages :: (HasCallStack) => App ()
 testReplaceKeyPackages = do
   alice <- randomUser OwnDomain def
   [alice1, alice2] <- replicateM 2 $ createMLSClient def alice
@@ -220,15 +220,15 @@ testReplaceKeyPackages = do
           resp.json %. "count" `shouldMatchInt` n
 
   -- setup: upload a batch of key packages for each ciphersuite
-  void $
-    replicateM 4 (fmap fst (generateKeyPackage alice1))
-      >>= uploadKeyPackages alice1
-      >>= getBody 201
+  void
+    $ replicateM 4 (fmap fst (generateKeyPackage alice1))
+    >>= uploadKeyPackages alice1
+    >>= getBody 201
   setMLSCiphersuite suite
-  void $
-    replicateM 5 (fmap fst (generateKeyPackage alice1))
-      >>= uploadKeyPackages alice1
-      >>= getBody 201
+  void
+    $ replicateM 5 (fmap fst (generateKeyPackage alice1))
+    >>= uploadKeyPackages alice1
+    >>= getBody 201
 
   checkCount def 4
   checkCount suite 5
@@ -245,8 +245,9 @@ testReplaceKeyPackages = do
 
     -- claim all key packages one by one
     claimed <-
-      replicateM 3 $
-        bindResponse (claimKeyPackages suite alice2 alice) $ \resp -> do
+      replicateM 3
+        $ bindResponse (claimKeyPackages suite alice2 alice)
+        $ \resp -> do
           resp.status `shouldMatchInt` 200
           ks <- resp.json %. "key_packages" & asList
           k <- assertOne ks
@@ -259,10 +260,10 @@ testReplaceKeyPackages = do
 
   do
     -- replenish key packages for the second ciphersuite
-    void $
-      replicateM 5 (fmap fst (generateKeyPackage alice1))
-        >>= uploadKeyPackages alice1
-        >>= getBody 201
+    void
+      $ replicateM 5 (fmap fst (generateKeyPackage alice1))
+      >>= uploadKeyPackages alice1
+      >>= getBody 201
 
     checkCount def 4
     checkCount suite 5

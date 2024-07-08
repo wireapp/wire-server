@@ -315,6 +315,10 @@ When a client first tries to fetch or renew a certificate, they may need to logi
 
 The client enrolls using the Automatic Certificate Management Environment (ACME) protocol [RFC 8555](https://www.rfc-editor.org/rfc/rfc8555.html). The `acmeDiscoveryUrl` parameter must be set to the HTTPS URL of the ACME server discovery endpoint for this team. It is of the form "https://acme.{backendDomain}/acme/{provisionerName}/discovery". For example: `https://acme.example.com/acme/provisioner1/discovery`.
 
+`useProxyOnMobile` is an optional field. If `true`, mobile clients should use the CRL proxy. If missing, null or false, mobile clients should not use the CRL proxy.
+
+`crlProxy` contains the URL to the CRL proxy. (Not that this field is optional in the server config, but mandatory when the team feature is updated via the team feature API.)
+
 ```yaml
 # galley.yaml
 mlsE2EId:
@@ -323,6 +327,8 @@ mlsE2EId:
     config:
       verificationExpiration: 86400
       acmeDiscoveryUrl: null
+      useProxyOnMobile: true
+      crlProxy: https://example.com
     lockStatus: unlocked
 ```
 
@@ -1028,3 +1034,94 @@ gundeck:
 
 **NOTE**: `redisAddtiionalWriteUsername` follows same restrictions as
 `redisUsername` when using legacy auth.
+
+
+## Configure TLS for Redis
+
+If the redis instance requires TLS, it can be configured like this:
+
+```yaml
+gundeck:
+  config:
+    redis:
+      enableTls: true
+```
+
+In case a custom CA certificate is required it can be provided like this:
+
+```yaml
+gundeck:
+  config:
+    redis:
+      tlsCa: <PEM encoded CA certificates>
+```
+
+There is another way to provide this, in case there already exists a kubernetes
+secret containing the CA certificate(s):
+
+```yaml
+gundeck:
+  config:
+    redis:
+      tlsCaSecretRef:
+        name: <Name of the secret>
+        key: <Key in the secret containing pem encoded CA Cert>
+```
+
+For configuring `redisAdditionalWrite` in gundeck (this is required during a
+migration from one redis instance to another), the settings need to be like
+this:
+
+```yaml
+gundeck:
+  config:
+    redisAdditionalWrite:
+      enableTls: true
+      # One or none of these:
+      # tlsCa: <similar to tlsCa>
+      # tlsCaSecretRef: <similar to tlsCaSecretRef>
+```
+
+
+**WARNING:** Please do this only if you know what you're doing.
+
+In case it is not possible to verify TLS certificate of the redis
+server, it can be turned off without tuning off TLS like this:
+
+```yaml
+gundeck:
+  config:
+    redis:
+      insecureSkipVerifyTls: true
+    redisAdditionalWrite:
+      insecureSkipVerifyTls: true
+```
+
+## Configure RabbitMQ
+
+RabbitMQ authentication must be configured on brig, galley and background-worker. For example:
+
+```yaml
+rabbitmq:
+  host: localhost
+  port: 5672
+  vHost: /
+  adminPort: 15672 # for background-worker
+```
+
+the `adminPort` setting is only needed by background-worker.
+
+In order to enable TLS when connecting to RabbitMQ, the following settings need to be added:
+
+```yaml
+rabbitmq:
+  enableTls: true
+  caCert: test/resources/rabbitmq-ca.pem
+  insecureSkipVerifyTls: false
+```
+
+**WARNING:** Please do this only if you know what you're doing.
+
+In case it is not possible to verify the TLS certificate of the RabbitMQ
+server, verification can be turned off by settings `insecureSkipVerifyTls` to
+`true`.

@@ -366,7 +366,6 @@ testBlockConnection brig = do
   -- Initiate a new connection (A -> B)
   postConnection brig uid1 uid2 !!! const 201 === statusCode
   -- Even connected users cannot see each other's email
-  -- (or phone number for that matter).
   assertEmailVisibility brig u2 u1 False
   assertEmailVisibility brig u1 u2 False
   -- B blocks A
@@ -413,7 +412,6 @@ testBlockConnectionQualified brig = do
   -- Initiate a new connection (A -> B)
   postConnectionQualified brig uid1 quid2 !!! const 201 === statusCode
   -- Even connected users cannot see each other's email
-  -- (or phone number for that matter).
   assertEmailVisibility brig u2 u1 False
   assertEmailVisibility brig u1 u2 False
   -- B blocks A

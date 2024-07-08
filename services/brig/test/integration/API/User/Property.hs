@@ -149,7 +149,7 @@ testPropertyLimits opts brig = do
     const 403 === statusCode
     const (Just "too-many-properties") === fmap Error.label . responseJsonMaybe
 
-testSizeLimits :: HasCallStack => Opt.Opts -> Brig -> Http ()
+testSizeLimits :: (HasCallStack) => Opt.Opts -> Brig -> Http ()
 testSizeLimits opts brig = do
   let maxKeyLen = fromIntegral $ fromMaybe defMaxKeyLen . setPropertyMaxKeyLen $ optSettings opts
       maxValueLen = fromIntegral $ fromMaybe defMaxValueLen . setPropertyMaxValueLen $ optSettings opts

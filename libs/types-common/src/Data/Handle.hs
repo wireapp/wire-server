@@ -18,14 +18,16 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Data.Handle
-  ( Handle (..),
+  ( Handle (fromHandle),
     parseHandle,
     parseHandleEither,
     isValidHandle,
+    BadHandle (..),
   )
 where
 
 import Cassandra qualified as C
+import Control.Lens (ix, (.~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Attoparsec.ByteString.Char8 qualified as Atto
 import Data.Bifunctor (Bifunctor (first))
@@ -101,3 +103,24 @@ instance Arbitrary Handle where
     Handle . Text.pack <$> do
       len <- oneof [choose (2, 10), choose (2, 256)] -- prefer short handles
       replicateM len (elements $ ['a' .. 'z'] <> ['0' .. '9'] <> "_-.")
+
+-- | for testing
+newtype BadHandle = BadHandle {fromBadHandle :: Text}
+  deriving newtype (Eq, Show)
+
+instance Arbitrary BadHandle where
+  arbitrary = oneof [tooShort, tooLong, badBytes]
+    where
+      tooShort = (BadHandle . Text.pack . (: [])) <$> elements validChar
+      tooLong = (BadHandle . Text.pack) <$> replicateM 258 (elements validChar)
+      badBytes =
+        BadHandle <$> do
+          totalLen :: Int <- choose (2, 256)
+          invalidCharPos :: Int <- choose (0, totalLen - 1)
+          invalidCharContent <- elements invalidChar
+          good :: Text <- Text.pack <$> replicateM totalLen (elements validChar)
+          let bad :: Text = good & ix invalidCharPos .~ invalidCharContent
+          pure bad
+
+      validChar :: [Char] = ['a' .. 'z'] <> ['0' .. '9'] <> "_-."
+      invalidChar :: [Char] = [minBound ..] \\ validChar

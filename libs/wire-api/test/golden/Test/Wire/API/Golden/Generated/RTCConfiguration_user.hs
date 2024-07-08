@@ -752,7 +752,7 @@ testObject_RTCConfiguration_user_7 =
                       }
                 )
             )
-            (mkSFTUsername (secondsToNominalDiffTime 12) "username")
+            (mkSFTUsername False (secondsToNominalDiffTime 12) "username")
             "credential"
         ]
     )

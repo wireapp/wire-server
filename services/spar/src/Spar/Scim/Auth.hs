@@ -69,7 +69,7 @@ import Wire.Sem.Random (Random)
 import qualified Wire.Sem.Random as Random
 
 -- | An instance that tells @hscim@ how authentication should be done for SCIM routes.
-instance Member ScimTokenStore r => Scim.Class.Auth.AuthDB SparTag (Sem r) where
+instance (Member ScimTokenStore r) => Scim.Class.Auth.AuthDB SparTag (Sem r) where
   -- Validate and resolve a given token
   authCheck :: Maybe ScimToken -> Scim.ScimHandler (Sem r) ScimTokenInfo
   authCheck Nothing =

@@ -167,8 +167,8 @@ data ScimSite tag route = ScimSite
     users ::
       route
         :- Header "Authorization" (Scim.Auth.AuthData tag)
-        :> "Users"
-        :> ToServantApi (Scim.User.UserSite tag)
+          :> "Users"
+          :> ToServantApi (Scim.User.UserSite tag)
   }
   deriving (Generic)
 

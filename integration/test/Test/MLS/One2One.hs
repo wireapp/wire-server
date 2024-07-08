@@ -30,7 +30,7 @@ import SetupHelpers
 import Test.Version
 import Testlib.Prelude
 
-testGetMLSOne2One :: HasCallStack => Version5 -> Domain -> App ()
+testGetMLSOne2One :: (HasCallStack) => Version5 -> Domain -> App ()
 testGetMLSOne2One v otherDomain = withVersion5 v $ do
   [alice, bob] <- createAndConnectUsers [OwnDomain, otherDomain]
 
@@ -59,7 +59,7 @@ testGetMLSOne2One v otherDomain = withVersion5 v $ do
   conv2 %. "qualified_id" `shouldMatch` convId
   assertConvData conv2
 
-testMLSOne2OneOtherMember :: HasCallStack => One2OneScenario -> App ()
+testMLSOne2OneOtherMember :: (HasCallStack) => One2OneScenario -> App ()
 testMLSOne2OneOtherMember scenario = do
   alice <- randomUser OwnDomain def
   let otherDomain = one2OneScenarioUserDomain scenario
@@ -92,14 +92,14 @@ testMLSOne2OneOtherMember scenario = do
     getMLSOne2OneConversation self other `bindResponse` assertOthers other
     getConversation self conv `bindResponse` assertOthers other
 
-testGetMLSOne2OneUnconnected :: HasCallStack => Domain -> App ()
+testGetMLSOne2OneUnconnected :: (HasCallStack) => Domain -> App ()
 testGetMLSOne2OneUnconnected otherDomain = do
   [alice, bob] <- for [OwnDomain, otherDomain] $ \domain -> randomUser domain def
 
   bindResponse (getMLSOne2OneConversation alice bob) $ \resp ->
     resp.status `shouldMatchInt` 403
 
-testMLSOne2OneBlocked :: HasCallStack => Domain -> App ()
+testMLSOne2OneBlocked :: (HasCallStack) => Domain -> App ()
 testMLSOne2OneBlocked otherDomain = do
   [alice, bob] <- for [OwnDomain, otherDomain] $ flip randomUser def
   void $ postConnection bob alice >>= getBody 201
@@ -108,7 +108,7 @@ testMLSOne2OneBlocked otherDomain = do
   void $ getMLSOne2OneConversation bob alice >>= getJSON 403
 
 -- | Alice and Bob are initially connected, but then Alice blocks Bob.
-testMLSOne2OneBlockedAfterConnected :: HasCallStack => One2OneScenario -> App ()
+testMLSOne2OneBlockedAfterConnected :: (HasCallStack) => One2OneScenario -> App ()
 testMLSOne2OneBlockedAfterConnected scenario = do
   alice <- randomUser OwnDomain def
   let otherDomain = one2OneScenarioUserDomain scenario
@@ -147,7 +147,7 @@ testMLSOne2OneBlockedAfterConnected scenario = do
 
 -- | Alice and Bob are initially connected, then Alice blocks Bob, and finally
 -- Alice unblocks Bob.
-testMLSOne2OneUnblocked :: HasCallStack => One2OneScenario -> App ()
+testMLSOne2OneUnblocked :: (HasCallStack) => One2OneScenario -> App ()
 testMLSOne2OneUnblocked scenario = do
   alice <- randomUser OwnDomain def
   let otherDomain = one2OneScenarioUserDomain scenario
@@ -230,7 +230,7 @@ one2OneScenarioConvDomain One2OneScenarioLocal = OwnDomain
 one2OneScenarioConvDomain One2OneScenarioLocalConv = OwnDomain
 one2OneScenarioConvDomain One2OneScenarioRemoteConv = OtherDomain
 
-testMLSOne2One :: HasCallStack => Ciphersuite -> One2OneScenario -> App ()
+testMLSOne2One :: (HasCallStack) => Ciphersuite -> One2OneScenario -> App ()
 testMLSOne2One suite scenario = do
   setMLSCiphersuite suite
   alice <- randomUser OwnDomain def

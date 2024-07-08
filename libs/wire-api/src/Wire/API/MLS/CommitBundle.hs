@@ -41,14 +41,14 @@ data CommitBundleF f = CommitBundleF
 
 deriving instance Show (CommitBundleF [])
 
-instance Alternative f => Semigroup (CommitBundleF f) where
+instance (Alternative f) => Semigroup (CommitBundleF f) where
   cb1 <> cb2 =
     CommitBundleF
       (cb1.commitMsg <|> cb2.commitMsg)
       (cb1.welcome <|> cb2.welcome)
       (cb1.groupInfo <|> cb2.groupInfo)
 
-instance Alternative f => Monoid (CommitBundleF f) where
+instance (Alternative f) => Monoid (CommitBundleF f) where
   mempty = CommitBundleF empty empty empty
 
 checkCommitBundleF :: CommitBundleF [] -> Either Text CommitBundle
@@ -68,7 +68,7 @@ checkCommitBundleF cb =
     checkOpt _ [x] = pure (Just x)
     checkOpt name _ = Left ("Redundant occurrence of " <> name)
 
-findMessageInStream :: Alternative f => RawMLS Message -> Either Text (CommitBundleF f)
+findMessageInStream :: (Alternative f) => RawMLS Message -> Either Text (CommitBundleF f)
 findMessageInStream msg = case msg.value.content of
   MessagePublic mp -> case mp.content.value.content of
     FramedContentCommit _ -> pure (CommitBundleF (pure msg) empty empty)
@@ -77,7 +77,7 @@ findMessageInStream msg = case msg.value.content of
   MessageGroupInfo gi -> pure (CommitBundleF empty empty (pure gi))
   _ -> Left "unexpected message type"
 
-findMessagesInStream :: Alternative f => [RawMLS Message] -> Either Text (CommitBundleF f)
+findMessagesInStream :: (Alternative f) => [RawMLS Message] -> Either Text (CommitBundleF f)
 findMessagesInStream = getAp . foldMap (Ap . findMessageInStream)
 
 instance ParseMLS CommitBundle where

@@ -99,14 +99,15 @@ getSubConversation lusr qconv sconv = do
     qconv
 
 getLocalSubConversation ::
-  Members
-    '[ SubConversationStore,
-       ConversationStore,
-       ErrorS 'ConvNotFound,
-       ErrorS 'ConvAccessDenied,
-       ErrorS 'MLSSubConvUnsupportedConvType
-     ]
-    r =>
+  ( Members
+      '[ SubConversationStore,
+         ConversationStore,
+         ErrorS 'ConvNotFound,
+         ErrorS 'ConvAccessDenied,
+         ErrorS 'MLSSubConvUnsupportedConvType
+       ]
+      r
+  ) =>
   Qualified UserId ->
   Local ConvId ->
   SubConvId ->
@@ -186,13 +187,14 @@ getSubConversationGroupInfo lusr qcnvId subconv = do
     qcnvId
 
 getSubConversationGroupInfoFromLocalConv ::
-  Members
-    '[ ConversationStore,
-       SubConversationStore,
-       MemberStore
-     ]
-    r =>
-  Members MLSGroupInfoStaticErrors r =>
+  ( Members
+      '[ ConversationStore,
+         SubConversationStore,
+         MemberStore
+       ]
+      r
+  ) =>
+  (Members MLSGroupInfoStaticErrors r) =>
   Qualified UserId ->
   SubConvId ->
   Local ConvId ->

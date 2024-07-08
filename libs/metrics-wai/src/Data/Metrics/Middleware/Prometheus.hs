@@ -32,7 +32,7 @@ import Network.Wai.Routing.Route (Routes, prepare)
 -- | Adds a prometheus metrics endpoint at @/i/metrics@
 -- This middleware requires your servers 'Routes' because it does some normalization
 -- (e.g. removing params from calls)
-waiPrometheusMiddleware :: Monad m => Routes a m b -> Wai.Middleware
+waiPrometheusMiddleware :: (Monad m) => Routes a m b -> Wai.Middleware
 waiPrometheusMiddleware routes =
   Promth.prometheus conf . instrument (normalizeWaiRequestRoute paths)
   where

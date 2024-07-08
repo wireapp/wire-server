@@ -64,8 +64,10 @@ instance ToSchema RequestNewLegalHoldClient where
 instance ToJSON RequestNewLegalHoldClient where
   toJSON (RequestNewLegalHoldClient userId teamId) =
     object $
-      "user_id" .= userId
-        # "team_id" .= teamId
+      "user_id"
+        .= userId
+        # "team_id"
+        .= teamId
         # []
 
 instance FromJSON RequestNewLegalHoldClient where
@@ -96,8 +98,10 @@ instance ToSchema NewLegalHoldClient where
 instance ToJSON NewLegalHoldClient where
   toJSON c =
     object $
-      "prekeys" .= newLegalHoldClientPrekeys c
-        # "last_prekey" .= newLegalHoldClientLastKey c
+      "prekeys"
+        .= newLegalHoldClientPrekeys c
+        # "last_prekey"
+        .= newLegalHoldClientLastKey c
         # []
 
 instance FromJSON NewLegalHoldClient where
@@ -123,10 +127,14 @@ data LegalHoldServiceConfirm = LegalHoldServiceConfirm
 instance ToJSON LegalHoldServiceConfirm where
   toJSON (LegalHoldServiceConfirm clientId userId teamId refreshToken) =
     object $
-      "client_id" .= clientId
-        # "user_id" .= userId
-        # "team_id" .= teamId
-        # "refresh_token" .= refreshToken
+      "client_id"
+        .= clientId
+        # "user_id"
+        .= userId
+        # "team_id"
+        .= teamId
+        # "refresh_token"
+        .= refreshToken
         # []
 
 instance FromJSON LegalHoldServiceConfirm where
@@ -151,8 +159,10 @@ data LegalHoldServiceRemove = LegalHoldServiceRemove
 instance ToJSON LegalHoldServiceRemove where
   toJSON (LegalHoldServiceRemove userId teamId) =
     object $
-      "user_id" .= userId
-        # "team_id" .= teamId
+      "user_id"
+        .= userId
+        # "team_id"
+        .= teamId
         # []
 
 instance FromJSON LegalHoldServiceRemove where

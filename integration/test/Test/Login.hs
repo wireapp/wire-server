@@ -12,12 +12,12 @@ import SetupHelpers
 import Testlib.Prelude
 import Text.Printf (printf)
 
-testLoginVerify6DigitEmailCodeSuccess :: HasCallStack => App ()
+testLoginVerify6DigitEmailCodeSuccess :: (HasCallStack) => App ()
 testLoginVerify6DigitEmailCodeSuccess = do
   (owner, team, []) <- createTeam OwnDomain 0
   email <- owner %. "email"
   setTeamFeatureLockStatus owner team "sndFactorPasswordChallenge" "unlocked"
-  setTeamFeatureStatus owner team "sndFactorPasswordChallenge" "enabled"
+  assertSuccess =<< setTeamFeatureStatus owner team "sndFactorPasswordChallenge" "enabled"
   generateVerificationCode owner email
   code <- getVerificationCode owner "login" >>= getJSON 200 >>= asString
   bindResponse (loginWith2ndFactor owner email defPassword code) $ \resp -> do
@@ -25,12 +25,12 @@ testLoginVerify6DigitEmailCodeSuccess = do
 
 --
 -- Test that login fails with wrong second factor email verification code
-testLoginVerify6DigitWrongCodeFails :: HasCallStack => App ()
+testLoginVerify6DigitWrongCodeFails :: (HasCallStack) => App ()
 testLoginVerify6DigitWrongCodeFails = do
   (owner, team, []) <- createTeam OwnDomain 0
   email <- owner %. "email"
   setTeamFeatureLockStatus owner team "sndFactorPasswordChallenge" "unlocked"
-  setTeamFeatureStatus owner team "sndFactorPasswordChallenge" "enabled"
+  assertSuccess =<< setTeamFeatureStatus owner team "sndFactorPasswordChallenge" "enabled"
   generateVerificationCode owner email
   correctCode <- getVerificationCode owner "login" >>= getJSON 200 >>= asString
   let wrongCode :: String = printf "%06d" $ (read @Int correctCode) + 1 `mod` 1000000
@@ -40,19 +40,19 @@ testLoginVerify6DigitWrongCodeFails = do
 
 --
 -- Test that login without verification code fails if SndFactorPasswordChallenge feature is enabled in team
-testLoginVerify6DigitMissingCodeFails :: HasCallStack => App ()
+testLoginVerify6DigitMissingCodeFails :: (HasCallStack) => App ()
 testLoginVerify6DigitMissingCodeFails = do
   (owner, team, []) <- createTeam OwnDomain 0
   email <- owner %. "email"
   setTeamFeatureLockStatus owner team "sndFactorPasswordChallenge" "unlocked"
-  setTeamFeatureStatus owner team "sndFactorPasswordChallenge" "enabled"
+  assertSuccess =<< setTeamFeatureStatus owner team "sndFactorPasswordChallenge" "enabled"
   bindResponse (login owner email defPassword) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "code-authentication-required"
 
 --
 -- Test that login fails with expired second factor email verification code
-testLoginVerify6DigitExpiredCodeFails :: HasCallStack => App ()
+testLoginVerify6DigitExpiredCodeFails :: (HasCallStack) => App ()
 testLoginVerify6DigitExpiredCodeFails = do
   withModifiedBackend
     (def {brigCfg = setField "optSettings.setVerificationTimeout" (Aeson.Number 2)})
@@ -60,7 +60,7 @@ testLoginVerify6DigitExpiredCodeFails = do
       (owner, team, []) <- createTeam domain 0
       email <- owner %. "email"
       setTeamFeatureLockStatus owner team "sndFactorPasswordChallenge" "unlocked"
-      setTeamFeatureStatus owner team "sndFactorPasswordChallenge" "enabled"
+      assertSuccess =<< setTeamFeatureStatus owner team "sndFactorPasswordChallenge" "enabled"
       bindResponse (getTeamFeature owner team "sndFactorPasswordChallenge") $ \resp -> do
         resp.status `shouldMatchInt` 200
         resp.json %. "status" `shouldMatch` "enabled"
@@ -73,12 +73,12 @@ testLoginVerify6DigitExpiredCodeFails = do
         resp.status `shouldMatchInt` 403
         resp.json %. "label" `shouldMatch` "code-authentication-failed"
 
-testLoginVerify6DigitResendCodeSuccessAndRateLimiting :: HasCallStack => App ()
+testLoginVerify6DigitResendCodeSuccessAndRateLimiting :: (HasCallStack) => App ()
 testLoginVerify6DigitResendCodeSuccessAndRateLimiting = do
   (owner, team, []) <- createTeam OwnDomain 0
   email <- owner %. "email"
   setTeamFeatureLockStatus owner team "sndFactorPasswordChallenge" "unlocked"
-  setTeamFeatureStatus owner team "sndFactorPasswordChallenge" "enabled"
+  assertSuccess =<< setTeamFeatureStatus owner team "sndFactorPasswordChallenge" "enabled"
   generateVerificationCode owner email
   fstCode <- getVerificationCode owner "login" >>= getJSON 200 >>= asString
   bindResponse (generateVerificationCode' owner email) $ \resp -> do
@@ -95,12 +95,12 @@ testLoginVerify6DigitResendCodeSuccessAndRateLimiting = do
   bindResponse (loginWith2ndFactor owner email defPassword mostRecentCode) \resp -> do
     resp.status `shouldMatchInt` 200
 
-testLoginVerify6DigitLimitRetries :: HasCallStack => App ()
+testLoginVerify6DigitLimitRetries :: (HasCallStack) => App ()
 testLoginVerify6DigitLimitRetries = do
   (owner, team, []) <- createTeam OwnDomain 0
   email <- owner %. "email"
   setTeamFeatureLockStatus owner team "sndFactorPasswordChallenge" "unlocked"
-  setTeamFeatureStatus owner team "sndFactorPasswordChallenge" "enabled"
+  assertSuccess =<< setTeamFeatureStatus owner team "sndFactorPasswordChallenge" "enabled"
   generateVerificationCode owner email
   correctCode <- getVerificationCode owner "login" >>= getJSON 200 >>= asString
   let wrongCode :: String = printf "%06d" $ (read @Int correctCode) + 1 `mod` 1000000

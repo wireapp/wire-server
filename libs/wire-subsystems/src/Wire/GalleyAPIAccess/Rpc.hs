@@ -40,6 +40,7 @@ import Servant.API (toHeader)
 import System.Logger.Message
 import Util.Options
 import Wire.API.Conversation hiding (Member)
+import Wire.API.Routes.Internal.Brig.EJPD (EJPDConvInfo)
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.Version
 import Wire.API.Team
@@ -86,6 +87,7 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           GetExposeInvitationURLsToTeamAdmin id' -> getTeamExposeInvitationURLsToTeamAdmin id'
           IsMLSOne2OneEstablished lusr qother -> checkMLSOne2OneEstablished lusr qother
           UnblockConversation lusr mconn qcnv -> unblockConversation v lusr mconn qcnv
+          GetEJPDConvInfo uid -> getEJPDConvInfo uid
 
 galleyRequest :: (Member Rpc r, Member (Input Endpoint) r) => (Request -> Request) -> Sem r (Response (Maybe LByteString))
 galleyRequest req = do
@@ -574,3 +576,22 @@ unblockConversation v lusr mconn (Qualified cnv cdom) = do
 
 remote :: ByteString -> Msg -> Msg
 remote = field "remote"
+
+getEJPDConvInfo ::
+  forall r.
+  ( Member TinyLog r,
+    Member (Error ParseException) r,
+    Member (Input Endpoint) r,
+    Member Rpc r
+  ) =>
+  UserId ->
+  Sem r [EJPDConvInfo]
+getEJPDConvInfo uid = do
+  debug $
+    remote "galley"
+      . msg (val "get conversation info for ejpd")
+  decodeBodyOrThrow "galley" =<< galleyRequest getReq
+  where
+    getReq =
+      method GET
+        . paths ["i", "user", toByteString' uid, "all-conversations"]

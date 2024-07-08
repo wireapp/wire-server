@@ -37,14 +37,14 @@ import Testlib.Prelude
 --------------------------------------------------------------------------------
 -- Simple (single-step) uploads
 
-testSimpleRoundtrip :: HasCallStack => App ()
+testSimpleRoundtrip :: (HasCallStack) => App ()
 testSimpleRoundtrip = do
   let defSettings = ["public" .= False]
       rets = ["eternal", "persistent", "volatile", "eternal-infrequent_access", "expiring"]
       allSets = fmap object $ (defSettings :) $ (\r -> ["retention" .= r]) <$> rets
   mapM_ simpleRoundtrip allSets
   where
-    simpleRoundtrip :: HasCallStack => Value -> App ()
+    simpleRoundtrip :: (HasCallStack) => Value -> App ()
     simpleRoundtrip sets = do
       uid <- randomUser OwnDomain def
       uid2 <- randomUser OwnDomain def
@@ -55,7 +55,8 @@ testSimpleRoundtrip = do
       -- use v3 path instead of the one returned in the header
       (key, tok, expires) <-
         (,,)
-          <$> r1.json %. "key"
+          <$> r1.json
+          %. "key"
           <*> (r1.json %. "token" >>= asString)
           <*> (lookupField r1.json "expires" >>= maybe (pure Nothing) (fmap pure . asString))
       -- Check mandatory Date header
@@ -74,8 +75,8 @@ testSimpleRoundtrip = do
           Just r -> do
             r' <- asString r
             -- These retention policies never expire, so an expiration date isn't sent back
-            unless (r' == "eternal" || r' == "persistent" || r' == "eternal-infrequent_access") $
-              assertBool "invalid expiration" (Just utc < expires')
+            unless (r' == "eternal" || r' == "persistent" || r' == "eternal-infrequent_access")
+              $ assertBool "invalid expiration" (Just utc < expires')
         _ -> pure ()
       -- Lookup with token and download via redirect.
       r2 <- downloadAsset' uid r1.jsonBody tok
@@ -86,8 +87,9 @@ testSimpleRoundtrip = do
       req <- liftIO $ parseRequest locReq
       r3 <- submit "GET" req
       r3.status `shouldMatchInt` 200
-      assertBool "content-type should always be application/octet-stream" $
-        getHeader (mk $ cs "content-type") r3 == Just (encodeUtf8 $ showMIMEType applicationOctetStream)
+      assertBool "content-type should always be application/octet-stream"
+        $ getHeader (mk $ cs "content-type") r3
+        == Just (encodeUtf8 $ showMIMEType applicationOctetStream)
       assertBool "Token mismatch" $ getHeader (mk $ cs "x-amz-meta-token") r3 == pure (cs tok)
       uid' <- uid %. "id" >>= asString
       assertBool "User mismatch" $ getHeader (mk $ cs "x-amz-meta-user") r3 == pure (cs uid')

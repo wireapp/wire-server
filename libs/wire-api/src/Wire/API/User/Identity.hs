@@ -22,9 +22,9 @@
 module Wire.API.User.Identity
   ( -- * UserIdentity
     UserIdentity (..),
+    isSSOIdentity,
     newIdentity,
     emailIdentity,
-    phoneIdentity,
     ssoIdentity,
     userIdentityObjectSchema,
     maybeUserIdentityObjectSchema,
@@ -54,6 +54,7 @@ where
 
 import Cassandra qualified as C
 import Control.Applicative (optional)
+import Control.Error (hush)
 import Control.Lens (dimap, over, (.~), (?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Aeson qualified as A
@@ -71,8 +72,6 @@ import Data.Text qualified as Text
 import Data.Text.Encoding
 import Data.Text.Encoding.Error
 import Data.Text.Lazy qualified as LT
-import Data.Time.Clock
-import Data.Tuple.Extra (fst3, snd3, thd3)
 import Imports
 import SAML2.WebSSO (UserRef (..))
 import SAML2.WebSSO.Test.Arbitrary ()
@@ -95,68 +94,54 @@ import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 -- | The private unique user identity that is used for login and
 -- account recovery.
 data UserIdentity
-  = FullIdentity Email Phone
-  | EmailIdentity Email
-  | PhoneIdentity Phone
-  | SSOIdentity UserSSOId (Maybe Email) (Maybe Phone)
+  = EmailIdentity Email
+  | SSOIdentity UserSSOId (Maybe Email)
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserIdentity)
 
+isSSOIdentity :: UserIdentity -> Bool
+isSSOIdentity (SSOIdentity _ _) = True
+isSSOIdentity _ = False
+
 userIdentityObjectSchema :: ObjectSchema SwaggerDoc UserIdentity
 userIdentityObjectSchema =
-  Just .= withParser maybeUserIdentityObjectSchema (maybe (fail "Missing 'email' or 'phone' or 'sso_id'.") pure)
+  Just .= withParser maybeUserIdentityObjectSchema (maybe (fail "Missing 'email' or 'sso_id'.") pure)
 
 maybeUserIdentityObjectSchema :: ObjectSchema SwaggerDoc (Maybe UserIdentity)
 maybeUserIdentityObjectSchema =
   dimap maybeUserIdentityToComponents maybeUserIdentityFromComponents userIdentityComponentsObjectSchema
 
-type UserIdentityComponents = (Maybe Email, Maybe Phone, Maybe UserSSOId)
+type UserIdentityComponents = (Maybe Email, Maybe UserSSOId)
 
 userIdentityComponentsObjectSchema :: ObjectSchema SwaggerDoc UserIdentityComponents
 userIdentityComponentsObjectSchema =
-  (,,)
-    <$> fst3 .= maybe_ (optField "email" schema)
-    <*> snd3 .= maybe_ (optField "phone" schema)
-    <*> thd3 .= maybe_ (optField "sso_id" genericToSchema)
+  (,)
+    <$> fst .= maybe_ (optField "email" schema)
+    <*> snd .= maybe_ (optField "sso_id" genericToSchema)
 
 maybeUserIdentityFromComponents :: UserIdentityComponents -> Maybe UserIdentity
 maybeUserIdentityFromComponents = \case
-  (maybeEmail, maybePhone, Just ssoid) -> Just $ SSOIdentity ssoid maybeEmail maybePhone
-  (Just email, Just phone, Nothing) -> Just $ FullIdentity email phone
-  (Just email, Nothing, Nothing) -> Just $ EmailIdentity email
-  (Nothing, Just phone, Nothing) -> Just $ PhoneIdentity phone
-  (Nothing, Nothing, Nothing) -> Nothing
+  (maybeEmail, Just ssoid) -> Just $ SSOIdentity ssoid maybeEmail
+  (Just email, Nothing) -> Just $ EmailIdentity email
+  (Nothing, Nothing) -> Nothing
 
 maybeUserIdentityToComponents :: Maybe UserIdentity -> UserIdentityComponents
-maybeUserIdentityToComponents Nothing = (Nothing, Nothing, Nothing)
-maybeUserIdentityToComponents (Just (FullIdentity email phone)) = (Just email, Just phone, Nothing)
-maybeUserIdentityToComponents (Just (EmailIdentity email)) = (Just email, Nothing, Nothing)
-maybeUserIdentityToComponents (Just (PhoneIdentity phone)) = (Nothing, Just phone, Nothing)
-maybeUserIdentityToComponents (Just (SSOIdentity ssoid m_email m_phone)) = (m_email, m_phone, Just ssoid)
+maybeUserIdentityToComponents Nothing = (Nothing, Nothing)
+maybeUserIdentityToComponents (Just (EmailIdentity email)) = (Just email, Nothing)
+maybeUserIdentityToComponents (Just (SSOIdentity ssoid m_email)) = (m_email, Just ssoid)
 
-newIdentity :: Maybe Email -> Maybe Phone -> Maybe UserSSOId -> Maybe UserIdentity
-newIdentity email phone (Just sso) = Just $! SSOIdentity sso email phone
-newIdentity Nothing Nothing Nothing = Nothing
-newIdentity (Just e) Nothing Nothing = Just $! EmailIdentity e
-newIdentity Nothing (Just p) Nothing = Just $! PhoneIdentity p
-newIdentity (Just e) (Just p) Nothing = Just $! FullIdentity e p
+newIdentity :: Maybe Email -> Maybe UserSSOId -> Maybe UserIdentity
+newIdentity email (Just sso) = Just $! SSOIdentity sso email
+newIdentity (Just e) Nothing = Just $! EmailIdentity e
+newIdentity Nothing Nothing = Nothing
 
 emailIdentity :: UserIdentity -> Maybe Email
-emailIdentity (FullIdentity email _) = Just email
 emailIdentity (EmailIdentity email) = Just email
-emailIdentity (PhoneIdentity _) = Nothing
-emailIdentity (SSOIdentity _ (Just email) _) = Just email
-emailIdentity (SSOIdentity _ Nothing _) = Nothing
-
-phoneIdentity :: UserIdentity -> Maybe Phone
-phoneIdentity (FullIdentity _ phone) = Just phone
-phoneIdentity (PhoneIdentity phone) = Just phone
-phoneIdentity (EmailIdentity _) = Nothing
-phoneIdentity (SSOIdentity _ _ (Just phone)) = Just phone
-phoneIdentity (SSOIdentity _ _ Nothing) = Nothing
+emailIdentity (SSOIdentity _ (Just email)) = Just email
+emailIdentity (SSOIdentity _ _) = Nothing
 
 ssoIdentity :: UserIdentity -> Maybe UserSSOId
-ssoIdentity (SSOIdentity ssoid _ _) = Just ssoid
+ssoIdentity (SSOIdentity ssoid _) = Just ssoid
 ssoIdentity _ = Nothing
 
 --------------------------------------------------------------------------------
@@ -237,10 +222,12 @@ parseEmail t = case Text.split (== '@') t of
 --   is the dependency worth it just for validating the local part?
 validateEmail :: Email -> Either String Email
 validateEmail =
-  pure . uncurry Email
+  pure
+    . uncurry Email
     <=< validateDomain
     <=< validateExternalLib
-    <=< validateLength . fromEmail
+    <=< validateLength
+    . fromEmail
   where
     validateLength e
       | len <= 100 = Right e
@@ -277,7 +264,8 @@ instance ToParamSchema Phone where
 instance ToSchema Phone where
   schema =
     over doc (S.description ?~ "E.164 phone number") $
-      fromPhone .= parsedText "PhoneNumber" (maybe (Left "Invalid phone number. Expected E.164 format.") Right . parsePhone)
+      fromPhone
+        .= parsedText "PhoneNumber" (maybe (Left "Invalid phone number. Expected E.164 format.") Right . parsePhone)
 
 instance ToByteString Phone where
   builder = builder . fromPhone
@@ -366,7 +354,8 @@ instance S.ToSchema UserSSOId where
     pure $
       S.NamedSchema (Just "UserSSOId") $
         mempty
-          & S.type_ ?~ S.OpenApiObject
+          & S.type_
+            ?~ S.OpenApiObject
           & S.properties
             .~ [ ("tenant", tenantSchema),
                  ("subject", subjectSchema),
@@ -388,21 +377,6 @@ instance FromJSON UserSSOId where
       (Nothing, Nothing, Just eid) -> pure $ UserScimExternalId eid
       _ -> fail "either need tenant and subject, or scim_external_id, but not both"
 
--- | If the budget for SMS and voice calls for a phone number
--- has been exhausted within a certain time frame, this timeout
--- indicates in seconds when another attempt may be made.
-newtype PhoneBudgetTimeout = PhoneBudgetTimeout
-  {phoneBudgetTimeout :: NominalDiffTime}
-  deriving stock (Eq, Show, Generic)
-  deriving newtype (Arbitrary)
-
-instance FromJSON PhoneBudgetTimeout where
-  parseJSON = A.withObject "PhoneBudgetTimeout" $ \o ->
-    PhoneBudgetTimeout <$> o A..: "expires_in"
-
-instance ToJSON PhoneBudgetTimeout where
-  toJSON (PhoneBudgetTimeout t) = A.object ["expires_in" A..= t]
-
 lenientlyParseSAMLIssuer :: Maybe LText -> A.Parser (Maybe SAML.Issuer)
 lenientlyParseSAMLIssuer mbtxt = forM mbtxt $ \txt -> do
   let asxml :: Either String SAML.Issuer
@@ -416,7 +390,7 @@ lenientlyParseSAMLIssuer mbtxt = forM mbtxt $ \txt -> do
       err :: String
       err = "lenientlyParseSAMLIssuer: " <> show (asxml, asurl, mbtxt)
 
-  either (const $ fail err) pure $ asxml <|> asurl
+  maybe (fail err) pure $ hush asxml <|> hush asurl
 
 lenientlyParseSAMLNameID :: Maybe LText -> A.Parser (Maybe SAML.NameID)
 lenientlyParseSAMLNameID Nothing = pure Nothing
@@ -439,23 +413,23 @@ lenientlyParseSAMLNameID (Just txt) = do
       err :: String
       err = "lenientlyParseSAMLNameID: " <> show (asxml, asemail, astxt, txt)
 
-  either
-    (const $ fail err)
+  maybe
+    (fail err)
     (pure . Just)
-    (asxml <|> asemail <|> astxt)
+    (hush asxml <|> hush asemail <|> hush astxt)
 
-emailFromSAML :: HasCallStack => SAMLEmail.Email -> Email
+emailFromSAML :: (HasCallStack) => SAMLEmail.Email -> Email
 emailFromSAML = fromJust . parseEmail . SAMLEmail.render
 
-emailToSAML :: HasCallStack => Email -> SAMLEmail.Email
+emailToSAML :: (HasCallStack) => Email -> SAMLEmail.Email
 emailToSAML = CI.original . fromRight (error "emailToSAML") . SAMLEmail.validate . toByteString
 
 -- | FUTUREWORK(fisx): if saml2-web-sso exported the 'NameID' constructor, we could make this
 -- function total without all that praying and hoping.
-emailToSAMLNameID :: HasCallStack => Email -> SAML.NameID
+emailToSAMLNameID :: (HasCallStack) => Email -> SAML.NameID
 emailToSAMLNameID = fromRight (error "impossible") . SAML.emailNameID . fromEmail
 
-emailFromSAMLNameID :: HasCallStack => SAML.NameID -> Maybe Email
+emailFromSAMLNameID :: (HasCallStack) => SAML.NameID -> Maybe Email
 emailFromSAMLNameID nid = case nid ^. SAML.nameID of
   SAML.UNameIDEmail email -> Just . emailFromSAML . CI.original $ email
   _ -> Nothing

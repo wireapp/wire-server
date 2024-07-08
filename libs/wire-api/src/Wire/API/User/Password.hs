@@ -24,6 +24,7 @@ module Wire.API.User.Password
     CompletePasswordReset (..),
     PasswordResetIdentity (..),
     PasswordResetKey (..),
+    mkPasswordResetKey,
     PasswordResetCode (..),
 
     -- * deprecated
@@ -33,9 +34,13 @@ where
 
 import Cassandra qualified as C
 import Control.Lens ((?~))
+import Crypto.Hash
 import Data.Aeson qualified as A
 import Data.Aeson.Types (Parser)
+import Data.ByteArray qualified as ByteArray
+import Data.ByteString qualified as BS
 import Data.ByteString.Conversion
+import Data.Id
 import Data.Misc (PlainTextPassword8)
 import Data.OpenApi qualified as S
 import Data.OpenApi.ParamSchema
@@ -43,7 +48,7 @@ import Data.Proxy (Proxy (Proxy))
 import Data.Range (Ranged (..))
 import Data.Schema as Schema
 import Data.Text.Ascii
-import Data.Tuple.Extra (fst3, snd3, thd3)
+import Data.Tuple.Extra
 import Imports
 import Servant (FromHttpApiData (..))
 import Wire.API.User.Identity
@@ -53,49 +58,46 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- NewPasswordReset
 
 -- | The payload for initiating a password reset.
-newtype NewPasswordReset = NewPasswordReset (Either Email Phone)
+data NewPasswordReset
+  = NewPasswordReset Email
+  | -- | Resetting via phone is not really supported anymore, but this is still
+    -- here to support older versions of the endpoint.
+    NewPasswordResetUnsupportedPhone
   deriving stock (Eq, Show, Generic)
-  deriving newtype (Arbitrary)
+  deriving (Arbitrary) via (GenericUniform NewPasswordReset)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema NewPasswordReset
 
 instance ToSchema NewPasswordReset where
   schema =
     objectWithDocModifier "NewPasswordReset" objectDesc $
-      NewPasswordReset
-        <$> (toTuple . unNewPasswordReset) Schema..= newPasswordResetObjectSchema
+      (toTuple .= newPasswordResetTupleObjectSchema) `withParser` fromTuple
     where
-      unNewPasswordReset :: NewPasswordReset -> Either Email Phone
-      unNewPasswordReset (NewPasswordReset v) = v
-
       objectDesc :: NamedSwaggerDoc -> NamedSwaggerDoc
       objectDesc = description ?~ "Data to initiate a password reset"
 
-      newPasswordResetObjectSchema :: ObjectSchemaP SwaggerDoc (Maybe Email, Maybe Phone) (Either Email Phone)
-      newPasswordResetObjectSchema = withParser newPasswordResetTupleObjectSchema fromTuple
+      newPasswordResetTupleObjectSchema :: ObjectSchema SwaggerDoc (Maybe Email, Maybe Text)
+      newPasswordResetTupleObjectSchema =
+        (,)
+          <$> fst .= maybe_ (optFieldWithDocModifier "email" phoneDocs schema)
+          <*> snd .= maybe_ (optFieldWithDocModifier "phone" emailDocs schema)
         where
-          newPasswordResetTupleObjectSchema :: ObjectSchema SwaggerDoc (Maybe Email, Maybe Phone)
-          newPasswordResetTupleObjectSchema =
-            (,)
-              <$> fst .= maybe_ (optFieldWithDocModifier "email" phoneDocs schema)
-              <*> snd .= maybe_ (optFieldWithDocModifier "phone" emailDocs schema)
-            where
-              emailDocs :: NamedSwaggerDoc -> NamedSwaggerDoc
-              emailDocs = description ?~ "Email"
+          emailDocs :: NamedSwaggerDoc -> NamedSwaggerDoc
+          emailDocs = description ?~ "Email"
 
-              phoneDocs :: NamedSwaggerDoc -> NamedSwaggerDoc
-              phoneDocs = description ?~ "Phone"
+          phoneDocs :: NamedSwaggerDoc -> NamedSwaggerDoc
+          phoneDocs = description ?~ "Phone"
 
-      fromTuple :: (Maybe Email, Maybe Phone) -> Parser (Either Email Phone)
+      fromTuple :: (Maybe Email, Maybe a) -> Parser NewPasswordReset
       fromTuple = \case
         (Just _, Just _) -> fail "Only one of 'email' or 'phone' allowed."
-        (Just email, Nothing) -> pure $ Left email
-        (Nothing, Just phone) -> pure $ Right phone
+        (Just email, Nothing) -> pure $ NewPasswordReset email
+        (Nothing, Just _) -> pure NewPasswordResetUnsupportedPhone
         (Nothing, Nothing) -> fail "One of 'email' or 'phone' required."
 
-      toTuple :: Either Email Phone -> (Maybe Email, Maybe Phone)
+      toTuple :: NewPasswordReset -> (Maybe Email, Maybe Text)
       toTuple = \case
-        Left e -> (Just e, Nothing)
-        Right p -> (Nothing, Just p)
+        NewPasswordReset e -> (Just e, Nothing)
+        NewPasswordResetUnsupportedPhone -> (Nothing, Just "")
 
 --------------------------------------------------------------------------------
 -- CompletePasswordReset
@@ -172,8 +174,16 @@ data PasswordResetIdentity
 -- | Opaque identifier per user (SHA256 of the user ID).
 newtype PasswordResetKey = PasswordResetKey
   {fromPasswordResetKey :: AsciiBase64Url}
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Ord)
   deriving newtype (ToSchema, FromByteString, ToByteString, A.FromJSON, A.ToJSON, Arbitrary)
+
+mkPasswordResetKey :: UserId -> PasswordResetKey
+mkPasswordResetKey userId =
+  PasswordResetKey
+    . encodeBase64Url
+    . BS.pack
+    . ByteArray.unpack
+    $ hashWith SHA256 (toByteString' userId)
 
 instance ToParamSchema PasswordResetKey where
   toParamSchema _ = toParamSchema (Proxy @Text)

@@ -47,7 +47,7 @@ class ServiceAPI service (v :: Version) where
   type ServiceAPIRoutes service
   type SpecialisedAPIRoutes v service :: Type
   type SpecialisedAPIRoutes v service = SpecialiseToVersion v (ServiceAPIRoutes service)
-  serviceSwagger :: HasOpenApi (SpecialisedAPIRoutes v service) => S.OpenApi
+  serviceSwagger :: (HasOpenApi (SpecialisedAPIRoutes v service)) => S.OpenApi
   serviceSwagger = toOpenApi (Proxy @(SpecialisedAPIRoutes v service))
 
 instance ServiceAPI VersionAPITag v where
@@ -86,7 +86,7 @@ infixr 3 <@>
 -- type argument.
 hoistServerWithDomain ::
   forall api m n.
-  HasServer api '[Domain] =>
+  (HasServer api '[Domain]) =>
   (forall x. m x -> n x) ->
   ServerT api m ->
   ServerT api n
@@ -94,7 +94,7 @@ hoistServerWithDomain = hoistServerWithContext (Proxy @api) (Proxy @'[Domain])
 
 hoistAPIHandler ::
   forall api r n.
-  HasServer api '[Domain] =>
+  (HasServer api '[Domain]) =>
   (forall x. Sem r x -> n x) ->
   API api r ->
   ServerT api n

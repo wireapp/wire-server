@@ -151,7 +151,7 @@ $(genSingletons [''GalleyError])
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: GalleyError) where
   addToOpenApi = addStaticErrorToSwagger @(MapError e)
 
-instance KnownError (MapError e) => APIError (Tagged (e :: GalleyError) ()) where
+instance (KnownError (MapError e)) => APIError (Tagged (e :: GalleyError) ()) where
   toResponse _ = toResponse $ dynError @(MapError e)
 
 -- | Convenience synonym for an operation denied error with an unspecified permission.
@@ -353,7 +353,7 @@ authenticationErrorToDyn ReAuthFailed = dynError @(MapError 'ReAuthFailed)
 authenticationErrorToDyn VerificationCodeAuthFailed = dynError @(MapError 'VerificationCodeAuthFailed)
 authenticationErrorToDyn VerificationCodeRequired = dynError @(MapError 'VerificationCodeRequired)
 
-instance Member (Error DynError) r => ServerEffect (Error AuthenticationError) r where
+instance (Member (Error DynError) r) => ServerEffect (Error AuthenticationError) r where
   interpretServerEffect = mapError authenticationErrorToDyn
 
 --------------------------------------------------------------------------------
@@ -366,6 +366,7 @@ data TeamFeatureError
   | DisableSsoNotImplemented
   | FeatureLocked
   | MLSProtocolMismatch
+  | MLSE2EIDMissingCrlProxy
 
 instance IsSwaggerError TeamFeatureError where
   -- Do not display in Swagger
@@ -397,9 +398,11 @@ type instance MapError 'FeatureLocked = 'StaticError 409 "feature-locked" "Featu
 
 type instance MapError 'MLSProtocolMismatch = 'StaticError 400 "mls-protocol-mismatch" "The default protocol needs to be part of the supported protocols"
 
+type instance MapError 'MLSE2EIDMissingCrlProxy = 'StaticError 400 "mls-e2eid-missing-crl-proxy" "The field 'crlProxy' is missing in the request payload"
+
 type instance ErrorEffect TeamFeatureError = Error TeamFeatureError
 
-instance Member (Error DynError) r => ServerEffect (Error TeamFeatureError) r where
+instance (Member (Error DynError) r) => ServerEffect (Error TeamFeatureError) r where
   interpretServerEffect = mapError $ \case
     AppLockInactivityTimeoutTooLow -> dynError @(MapError 'AppLockInactivityTimeoutTooLow)
     LegalHoldFeatureFlagNotEnabled -> dynError @(MapError 'LegalHoldFeatureFlagNotEnabled)
@@ -407,6 +410,7 @@ instance Member (Error DynError) r => ServerEffect (Error TeamFeatureError) r wh
     DisableSsoNotImplemented -> dynError @(MapError 'DisableSsoNotImplemented)
     FeatureLocked -> dynError @(MapError 'FeatureLocked)
     MLSProtocolMismatch -> dynError @(MapError 'MLSProtocolMismatch)
+    MLSE2EIDMissingCrlProxy -> dynError @(MapError 'MLSE2EIDMissingCrlProxy)
 
 --------------------------------------------------------------------------------
 -- Proposal failure
@@ -431,7 +435,7 @@ instance IsSwaggerError MLSProposalFailure where
         \for more details on the possible error responses of each type of \
         \proposal."
 
-instance Member (Error JSONResponse) r => ServerEffect (Error MLSProposalFailure) r where
+instance (Member (Error JSONResponse) r) => ServerEffect (Error MLSProposalFailure) r where
   interpretServerEffect = mapError pfInner
 
 --------------------------------------------------------------------------------
@@ -456,7 +460,7 @@ nonFederatingBackendsStatus = HTTP.status409
 nonFederatingBackendsToList :: NonFederatingBackends -> [Domain]
 nonFederatingBackendsToList (NonFederatingBackends a b) = [a, b]
 
-nonFederatingBackendsFromList :: MonadFail m => [Domain] -> m NonFederatingBackends
+nonFederatingBackendsFromList :: (MonadFail m) => [Domain] -> m NonFederatingBackends
 nonFederatingBackendsFromList [a, b] = pure (NonFederatingBackends a b)
 nonFederatingBackendsFromList domains =
   fail $
@@ -483,7 +487,7 @@ instance IsSwaggerError NonFederatingBackends where
 
 type instance ErrorEffect NonFederatingBackends = Error NonFederatingBackends
 
-instance Member (Error JSONResponse) r => ServerEffect (Error NonFederatingBackends) r where
+instance (Member (Error JSONResponse) r) => ServerEffect (Error NonFederatingBackends) r where
   interpretServerEffect = mapError toResponse
 
 --------------------------------------------------------------------------------
@@ -527,7 +531,7 @@ instance IsSwaggerError UnreachableBackends where
 
 type instance ErrorEffect UnreachableBackends = Error UnreachableBackends
 
-instance Member (Error JSONResponse) r => ServerEffect (Error UnreachableBackends) r where
+instance (Member (Error JSONResponse) r) => ServerEffect (Error UnreachableBackends) r where
   interpretServerEffect = mapError toResponse
 
 unreachableUsersToUnreachableBackends :: UnreachableUsers -> UnreachableBackends
@@ -553,5 +557,5 @@ instance APIError UnreachableBackendsLegacy where
 
 type instance ErrorEffect UnreachableBackendsLegacy = Error UnreachableBackendsLegacy
 
-instance Member (Error JSONResponse) r => ServerEffect (Error UnreachableBackendsLegacy) r where
+instance (Member (Error JSONResponse) r) => ServerEffect (Error UnreachableBackendsLegacy) r where
   interpretServerEffect = mapError toResponse

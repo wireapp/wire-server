@@ -203,7 +203,7 @@ inviteAndRegisterUser u tid brig = do
   liftIO $ assertEqual "Team ID in self profile and team table do not match" selfTeam (Just tid)
   pure invitee
 
-updatePermissions :: HasCallStack => UserId -> TeamId -> (UserId, Permissions) -> Galley -> Http ()
+updatePermissions :: (HasCallStack) => UserId -> TeamId -> (UserId, Permissions) -> Galley -> Http ()
 updatePermissions from tid (to, perm) galley =
   put
     ( galley
@@ -217,10 +217,10 @@ updatePermissions from tid (to, perm) galley =
   where
     changeMember = Member.mkNewTeamMember to perm Nothing
 
-createTeamConv :: HasCallStack => Galley -> TeamId -> UserId -> [UserId] -> Maybe Milliseconds -> Http ConvId
+createTeamConv :: (HasCallStack) => Galley -> TeamId -> UserId -> [UserId] -> Maybe Milliseconds -> Http ConvId
 createTeamConv = createTeamConvWithRole roleNameWireAdmin
 
-createTeamConvWithRole :: HasCallStack => RoleName -> Galley -> TeamId -> UserId -> [UserId] -> Maybe Milliseconds -> Http ConvId
+createTeamConvWithRole :: (HasCallStack) => RoleName -> Galley -> TeamId -> UserId -> [UserId] -> Maybe Milliseconds -> Http ConvId
 createTeamConvWithRole role g tid u us mtimer = do
   let tinfo = Just $ ConvTeamInfo tid
   let conv =
@@ -250,7 +250,7 @@ createTeamConvWithRole role g tid u us mtimer = do
     fromByteString $
       getHeader' "Location" r
 
-deleteTeamConv :: HasCallStack => Galley -> TeamId -> ConvId -> UserId -> Http ()
+deleteTeamConv :: (HasCallStack) => Galley -> TeamId -> ConvId -> UserId -> Http ()
 deleteTeamConv g tid cid u = do
   delete
     ( g
@@ -261,7 +261,7 @@ deleteTeamConv g tid cid u = do
     !!! const 200
       === statusCode
 
-deleteTeam :: HasCallStack => Galley -> TeamId -> UserId -> Http ()
+deleteTeam :: (HasCallStack) => Galley -> TeamId -> UserId -> Http ()
 deleteTeam g tid u = do
   delete
     ( g
@@ -276,7 +276,7 @@ deleteTeam g tid u = do
 newTeam :: BindingNewTeam
 newTeam = BindingNewTeam $ newNewTeam (unsafeRange "teamName") DefaultIcon
 
-putLegalHoldEnabled :: HasCallStack => TeamId -> FeatureStatus -> Galley -> Http ()
+putLegalHoldEnabled :: (HasCallStack) => TeamId -> FeatureStatus -> Galley -> Http ()
 putLegalHoldEnabled tid enabled g = do
   void . put $
     g
@@ -285,7 +285,7 @@ putLegalHoldEnabled tid enabled g = do
       . lbytes (encode (Public.WithStatusNoLock enabled Public.LegalholdConfig Public.FeatureTTLUnlimited))
       . expect2xx
 
-putLHWhitelistTeam :: HasCallStack => Galley -> TeamId -> Http ResponseLBS
+putLHWhitelistTeam :: (HasCallStack) => Galley -> TeamId -> Http ResponseLBS
 putLHWhitelistTeam galley tid = do
   put
     ( galley
@@ -420,7 +420,7 @@ getInvitationCode brig t ref = do
   let lbs = fromMaybe "" $ responseBody r
   pure $ fromByteString (maybe (error "No code?") T.encodeUtf8 (lbs ^? key "code" . _String))
 
-assertNoInvitationCode :: HasCallStack => Brig -> TeamId -> InvitationId -> (MonadIO m, MonadHttp m, MonadCatch m) => m ()
+assertNoInvitationCode :: (HasCallStack) => Brig -> TeamId -> InvitationId -> (MonadIO m, MonadHttp m, MonadCatch m) => m ()
 assertNoInvitationCode brig t i =
   get
     ( brig
@@ -457,7 +457,7 @@ setTeamTeamSearchVisibilityAvailable galley tid status =
     !!! do
       const 200 === statusCode
 
-setTeamSearchVisibility :: HasCallStack => Galley -> TeamId -> TeamSearchVisibility -> Http ()
+setTeamSearchVisibility :: (HasCallStack) => Galley -> TeamId -> TeamSearchVisibility -> Http ()
 setTeamSearchVisibility galley tid typ =
   put
     ( galley

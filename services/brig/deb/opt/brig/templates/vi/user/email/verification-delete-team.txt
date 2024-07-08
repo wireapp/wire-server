@@ -1,0 +1,18 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+XÁC MINH VIỆC XÓA NHÓM
+${email} đã được sử dụng để xóa nhóm ${brand} của bạn. Nhập đoạn mã này để xác
+nhận email của bạn và xóa nhóm.
+
+${code}
+
+Nếu bạn có bất kỳ thắc mắc nào, xin vui lòng liên hệ với chúng tôi [${support}].
+
+
+--------------------------------------------------------------------------------
+
+Chính sách riêng tư và điều khoản sử dụng [${legal}] · Báo cáo Lạm dụng
+[${misuse}]
+${copyright}. ĐÃ ĐƯỢC ĐĂNG KÝ BẢN QUYỀN.

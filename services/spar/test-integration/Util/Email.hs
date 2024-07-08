@@ -30,11 +30,11 @@ import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.Id
 import qualified Data.Misc as Misc
-import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.ZAuth.Token as ZAuth
 import Imports
 import Test.Tasty.HUnit
+import Util.Activation
 import Util.Core
 import Util.Types
 import qualified Wire.API.Team.Feature as Feature
@@ -63,7 +63,7 @@ changeEmailBrig brig usr newEmail = do
       Auth.PasswordLogin $
         Auth.PasswordLoginData (Auth.LoginByEmail e) pw cl Nothing
 
-    login :: Auth.Login -> Auth.CookieType -> MonadHttp m => m ResponseLBS
+    login :: Auth.Login -> Auth.CookieType -> (MonadHttp m) => m ResponseLBS
     login l t =
       post $
         brig
@@ -71,10 +71,10 @@ changeEmailBrig brig usr newEmail = do
           . (if t == Auth.PersistentCookie then queryItem "persist" "true" else id)
           . json l
 
-    decodeCookie :: HasCallStack => Response a -> Bilge.Cookie
+    decodeCookie :: (HasCallStack) => Response a -> Bilge.Cookie
     decodeCookie = fromMaybe (error "missing zuid cookie") . Bilge.getCookie "zuid"
 
-    decodeToken :: HasCallStack => Response (Maybe LByteString) -> ZAuth.Token ZAuth.Access
+    decodeToken :: (HasCallStack) => Response (Maybe LByteString) -> ZAuth.Token ZAuth.Access
     decodeToken r = fromMaybe (error "invalid access_token") $ do
       x <- responseBody r
       t <- x ^? key "access_token" . _String
@@ -106,9 +106,9 @@ activateEmail ::
   (MonadCatch m, MonadIO m, HasCallStack) =>
   BrigReq ->
   Email ->
-  MonadHttp m => m ()
+  (MonadHttp m) => m ()
 activateEmail brig email = do
-  act <- getActivationCode brig (Left email)
+  act <- getActivationCode brig email
   case act of
     Nothing -> liftIO $ assertFailure "missing activation key/code"
     Just kc ->
@@ -120,13 +120,13 @@ failActivatingEmail ::
   (MonadCatch m, MonadIO m, HasCallStack) =>
   BrigReq ->
   Email ->
-  MonadHttp m => m ()
+  (MonadHttp m) => m ()
 failActivatingEmail brig email = do
-  act <- getActivationCode brig (Left email)
+  act <- getActivationCode brig email
   liftIO $ assertEqual "there should be no pending activation" act Nothing
 
 checkEmail ::
-  HasCallStack =>
+  (HasCallStack) =>
   UserId ->
   Maybe Email ->
   TestSpar ()
@@ -149,20 +149,7 @@ activate brig (k, c) =
       . queryItem "key" (toByteString' k)
       . queryItem "code" (toByteString' c)
 
-getActivationCode ::
-  (MonadCatch m, MonadHttp m, HasCallStack) =>
-  BrigReq ->
-  Either Email Phone ->
-  m (Maybe (ActivationKey, ActivationCode))
-getActivationCode brig ep = do
-  let qry = either (queryItem "email" . toByteString') (queryItem "phone" . toByteString') ep
-  r <- get $ brig . path "/i/users/activation-code" . qry
-  let lbs = fromMaybe "" $ responseBody r
-  let akey = ActivationKey . Ascii.unsafeFromText <$> (lbs ^? key "key" . _String)
-  let acode = ActivationCode . Ascii.unsafeFromText <$> (lbs ^? key "code" . _String)
-  pure $ (,) <$> akey <*> acode
-
-setSamlEmailValidation :: HasCallStack => TeamId -> Feature.FeatureStatus -> TestSpar ()
+setSamlEmailValidation :: (HasCallStack) => TeamId -> Feature.FeatureStatus -> TestSpar ()
 setSamlEmailValidation tid status = do
   galley <- view teGalley
   let req = put $ galley . paths p . json (Feature.WithStatusNoLock @Feature.ValidateSAMLEmailsConfig status Feature.trivialConfig Feature.FeatureTTLUnlimited)

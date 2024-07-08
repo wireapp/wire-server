@@ -26,9 +26,7 @@ module Brig.Provider.Email
 where
 
 import Brig.App
-import Brig.Email
 import Brig.Provider.Template
-import Brig.Template
 import Control.Lens (view)
 import Data.ByteString.Conversion
 import Data.Code qualified as Code
@@ -38,18 +36,23 @@ import Data.Text.Ascii qualified as Ascii
 import Data.Text.Encoding qualified as Text
 import Data.Text.Lazy qualified as LT
 import Imports
+import Network.Mail.Mime
+import Polysemy
 import Wire.API.Provider
 import Wire.API.User
+import Wire.EmailSending
+import Wire.EmailSubsystem.Interpreter (mkMimeAddress)
+import Wire.EmailSubsystem.Template (TemplateBranding, renderHtmlWithBranding, renderTextWithBranding)
 
 -------------------------------------------------------------------------------
 -- Activation Email
 
-sendActivationMail :: Name -> Email -> Code.Key -> Code.Value -> Bool -> (AppT r) ()
+sendActivationMail :: (Member EmailSending r) => Name -> Email -> Code.Key -> Code.Value -> Bool -> (AppT r) ()
 sendActivationMail name email key code update = do
   tpl <- selectTemplate update . snd <$> providerTemplates Nothing
   branding <- view templateBranding
   let mail = ActivationEmail email name key code
-  sendMail $ renderActivationMail mail tpl branding
+  liftSem $ sendMail $ renderActivationMail mail tpl branding
   where
     selectTemplate True = activationEmailUpdate
     selectTemplate False = activationEmail
@@ -96,12 +99,12 @@ renderActivationUrl t (Code.Key k) (Code.Value v) branding =
 --------------------------------------------------------------------------------
 -- Approval Request Email
 
-sendApprovalRequestMail :: Name -> Email -> HttpsUrl -> Text -> Code.Key -> Code.Value -> (AppT r) ()
+sendApprovalRequestMail :: (Member EmailSending r) => Name -> Email -> HttpsUrl -> Text -> Code.Key -> Code.Value -> (AppT r) ()
 sendApprovalRequestMail name email url descr key val = do
   tpl <- approvalRequestEmail . snd <$> providerTemplates Nothing
   branding <- view templateBranding
   let mail = ApprovalRequestEmail email name url descr key val
-  sendMail $ renderApprovalRequestMail mail tpl branding
+  liftSem $ sendMail $ renderApprovalRequestMail mail tpl branding
 
 data ApprovalRequestEmail = ApprovalRequestEmail
   { aprTo :: !Email,
@@ -147,12 +150,12 @@ renderApprovalUrl t (Code.Key k) (Code.Value v) branding =
 --------------------------------------------------------------------------------
 -- Approval Confirmation Email
 
-sendApprovalConfirmMail :: Name -> Email -> (AppT r) ()
+sendApprovalConfirmMail :: (Member EmailSending r) => Name -> Email -> (AppT r) ()
 sendApprovalConfirmMail name email = do
   tpl <- approvalConfirmEmail . snd <$> providerTemplates Nothing
   branding <- view templateBranding
   let mail = ApprovalConfirmEmail email name
-  sendMail $ renderApprovalConfirmMail mail tpl branding
+  liftSem $ sendMail $ renderApprovalConfirmMail mail tpl branding
 
 data ApprovalConfirmEmail = ApprovalConfirmEmail
   { apcTo :: !Email,
@@ -183,12 +186,12 @@ renderApprovalConfirmMail ApprovalConfirmEmail {..} ApprovalConfirmEmailTemplate
 --------------------------------------------------------------------------------
 -- Password Reset Email
 
-sendPasswordResetMail :: Email -> Code.Key -> Code.Value -> (AppT r) ()
+sendPasswordResetMail :: (Member EmailSending r) => Email -> Code.Key -> Code.Value -> (AppT r) ()
 sendPasswordResetMail to key code = do
   tpl <- passwordResetEmail . snd <$> providerTemplates Nothing
   branding <- view templateBranding
   let mail = PasswordResetEmail to key code
-  sendMail $ renderPwResetMail mail tpl branding
+  liftSem $ sendMail $ renderPwResetMail mail tpl branding
 
 data PasswordResetEmail = PasswordResetEmail
   { pwrTo :: !Email,

@@ -34,6 +34,7 @@ where
 import Cassandra as Cas
 import Data.ByteString (toStrict)
 import Data.ByteString.Conversion (fromByteString, toByteString)
+import Data.Functor.Alt (Alt ((<!>)))
 import qualified Data.Text.Encoding as T
 import Data.Text.Encoding.Error
 import qualified Data.Text.Lazy as LT
@@ -125,7 +126,8 @@ instance Cql ScimTokenLookupKey where
     ScimTokenLookupKeyHashed h -> toCql h
     ScimTokenLookupKeyPlaintext t -> toCql t
   fromCql s@(CqlText _) =
-    ScimTokenLookupKeyHashed <$> fromCql s <|> ScimTokenLookupKeyPlaintext <$> fromCql s
+    (ScimTokenLookupKeyHashed <$> fromCql s)
+      <!> (ScimTokenLookupKeyPlaintext <$> fromCql s)
   fromCql _ = Left "ScimTokenLookupKey: expected CqlText"
 
 instance Cql ScimUserCreationStatus where

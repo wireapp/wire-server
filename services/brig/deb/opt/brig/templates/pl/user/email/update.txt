@@ -1,0 +1,21 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+POTWIERDŹ SWÓJ ADRES EMAIL
+${email} został zarejestrowany jako Twój nowy adres e-mail na ${brand}. Kliknij
+poniższy przycisk, aby zweryfikować swój adres.
+
+Zweryfikuj [${url}]Jeśli nie możesz kliknąć przycisku, skopiuj i wklej ten link
+do swojej przeglądarki:
+
+${url}
+
+Jeśli masz jakieś pytania, prosimy skontaktuj się z nami [${support}].
+
+
+--------------------------------------------------------------------------------
+
+Polityka prywatności i warunki użytkowania [${legal}] · Zgłoś niewłaściwe użycie
+[${misuse}]
+${copyright}. WSZELKIE PRAWA ZASTRZEŻONE.

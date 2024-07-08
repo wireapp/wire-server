@@ -164,7 +164,7 @@ instance RedisResult ClusterInfoResponse where
       $ Char8.lines bulkData
   decode r = Left r
 
-clusterInfo :: RedisCtx m f => m (f ClusterInfoResponse)
+clusterInfo :: (RedisCtx m f) => m (f ClusterInfoResponse)
 clusterInfo = sendRequest ["CLUSTER", "INFO"]
 
 checkedConnectCluster :: ConnectInfo -> IO Connection

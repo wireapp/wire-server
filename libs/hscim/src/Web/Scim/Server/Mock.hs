@@ -23,6 +23,7 @@
 -- <https://developer.okta.com/standards/SCIM/#step-2-test-your-scim-server>).
 module Web.Scim.Server.Mock where
 
+import Control.Monad
 import Control.Monad.Morph
 import Control.Monad.Reader
 import Control.Monad.STM (STM, atomically)
@@ -88,7 +89,7 @@ emptyTestStorage =
 -- in-memory implementation of the API for tests
 type TestServer = ReaderT TestStorage Handler
 
-liftSTM :: MonadIO m => STM a -> m a
+liftSTM :: (MonadIO m) => STM a -> m a
 liftSTM = liftIO . atomically
 
 hoistSTM :: (MFunctor t, MonadIO m) => t STM a -> t m a
@@ -140,7 +141,7 @@ instance UserDB Mock TestServer where
   deleteUser () uid = do
     m <- asks userDB
     liftSTM (STMMap.lookup uid m) >>= \case
-      Nothing -> throwScim (notFound "User" (pack (show uid)))
+      Nothing -> pure ()
       Just _ -> liftSTM $ STMMap.delete uid m
 
 -- (there seems to be no readOnly fields in User)

@@ -35,10 +35,12 @@ import Control.Monad.Catch (MonadCatch)
 import Data.Aeson
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
+import Data.Default (def)
 import Data.Either.Extra (eitherToMaybe)
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldDisabled))
+import Data.String.Conversions (cs)
 import Data.Text qualified as Text
 import Data.Text.Ascii qualified as Ascii
 import Data.Text.Encoding (encodeUtf8)
@@ -98,7 +100,6 @@ tests conf m n b c g aws = do
             test m "post /teams/:tid/invitations - roles" $ testInvitationRoles b g,
             test m "post /register - 201 accepted" $ testInvitationEmailAccepted b g,
             test m "post /register - 201 accepted (with domain blocking customer extension)" $ testInvitationEmailAcceptedInBlockedDomain conf b g,
-            test m "post /register - 201 extended accepted" $ testInvitationEmailAndPhoneAccepted b g,
             test m "post /register user & team - 201 accepted" $ testCreateTeam b g aws,
             test m "post /register user & team - 201 preverified" $ testCreateTeamPreverified b g aws,
             test m "post /register - 400 no passwordless" $ testTeamNoPassword b,
@@ -151,7 +152,7 @@ testTeamSize brig req = do
   SearchUtil.refreshIndex brig
   assertSize tid owner expectedSize
   where
-    assertSize :: HasCallStack => TeamId -> UserId -> Natural -> Http ()
+    assertSize :: (HasCallStack) => TeamId -> UserId -> Natural -> Http ()
     assertSize tid uid expectedSize =
       void $
         get (req tid uid) <!! do
@@ -269,7 +270,7 @@ invitationUrlGalleyMock ::
   UserId ->
   ReceivedRequest ->
   MockT IO Wai.Response
-invitationUrlGalleyMock featureStatus tid inviter (ReceivedRequest mth pth _body)
+invitationUrlGalleyMock featureStatus tid inviter (ReceivedRequest mth pth body_)
   | mth == "GET"
       && pth == ["i", "teams", Text.pack (show tid), "features", "exposeInvitationURLsToTeamAdmin"] =
       pure . Wai.responseLBS HTTP.status200 mempty $
@@ -284,7 +285,18 @@ invitationUrlGalleyMock featureStatus tid inviter (ReceivedRequest mth pth _body
       && pth == ["i", "teams", Text.pack (show tid), "members", Text.pack (show inviter)] =
       pure . Wai.responseLBS HTTP.status200 mempty $
         encode (mkTeamMember inviter fullPermissions Nothing UserLegalHoldDisabled)
-  | otherwise = pure $ Wai.responseLBS HTTP.status500 mempty "Unexpected request to mocked galley"
+  | mth == "GET"
+      && pth == ["i", "feature-configs"] =
+      pure $ Wai.responseLBS HTTP.status200 mempty (encode (def @AllFeatureConfigs))
+  | otherwise =
+      let errBody =
+            encode . object $
+              [ "msg" .= ("unexpecUnexpected request to mocked galley" :: Text),
+                "method" .= show mth,
+                "path" .= pth,
+                "body" .= (cs @_ @Text body_)
+              ]
+       in pure $ Wai.responseLBS HTTP.status500 mempty errBody
 
 -- FUTUREWORK: This test should be rewritten to be free of mocks once Galley is
 -- inlined into Brig.
@@ -382,7 +394,7 @@ registerInvite brig tid inv invemail = do
   pure invitee
 
 -- | Admins can invite external partners, but not owners.
-testInvitationRoles :: HasCallStack => Brig -> Galley -> Http ()
+testInvitationRoles :: (HasCallStack) => Brig -> Galley -> Http ()
 testInvitationRoles brig galley = do
   (owner, tid) <- createUserWithTeam brig
   -- owner creates a member alice.
@@ -432,29 +444,10 @@ testInvitationEmailAcceptedInBlockedDomain opts brig galley = do
       replacementBrigApp = withDomainsBlockedForRegistration opts [emailDomain inviteeEmail]
   void $ createAndVerifyInvitation' (Just replacementBrigApp) (accept (irInviteeEmail invite)) invite brig galley
 
-testInvitationEmailAndPhoneAccepted :: Brig -> Galley -> Http ()
-testInvitationEmailAndPhoneAccepted brig galley = do
-  inviteeEmail <- randomEmail
-  inviteePhone <- randomPhone
-  -- Prepare the extended invitation
-  let stdInvite = stdInvitationRequest inviteeEmail
-      inviteeName = Name "Invited Member"
-      extInvite = stdInvite {irInviteePhone = Just inviteePhone, irInviteeName = Just inviteeName}
-  -- Register the same (pre verified) phone number
-  let phoneReq = RequestBodyLBS . encode $ object ["phone" .= fromPhone inviteePhone]
-  post (brig . path "/activate/send" . contentJson . body phoneReq) !!! (const 200 === statusCode)
-  Just (_, phoneCode) <- getActivationCode brig (Right inviteePhone)
-  -- Register the user with the extra supplied information
-  (profile, invitation) <- createAndVerifyInvitation (extAccept inviteeEmail inviteeName inviteePhone phoneCode) extInvite brig galley
-  liftIO $ assertEqual "Wrong name in profile" (Just inviteeName) (userDisplayName . selfUser <$> profile)
-  liftIO $ assertEqual "Wrong name in invitation" (Just inviteeName) (inInviteeName invitation)
-  liftIO $ assertEqual "Wrong phone number in profile" (Just inviteePhone) ((userPhone . selfUser) =<< profile)
-  liftIO $ assertEqual "Wrong phone number in invitation" (Just inviteePhone) (inInviteePhone invitation)
-
 -- | FUTUREWORK: this is an alternative helper to 'createPopulatedBindingTeam'.  it has been
 -- added concurrently, and the two should probably be consolidated.
 createAndVerifyInvitation ::
-  HasCallStack =>
+  (HasCallStack) =>
   (InvitationCode -> RequestBody) ->
   InvitationRequest ->
   Brig ->
@@ -717,7 +710,7 @@ testInvitationTooManyMembers brig galley (TeamSizeLimit limit) = do
       const 403 === statusCode
       const (Just "too-many-team-members") === fmap Error.label . responseJsonMaybe
 
-testInvitationPaging :: HasCallStack => Opt.Opts -> Brig -> Http ()
+testInvitationPaging :: (HasCallStack) => Opt.Opts -> Brig -> Http ()
 testInvitationPaging opts brig = do
   before <- liftIO $ toUTCTimeMillis . addUTCTime (-1) <$> getCurrentTime
   (uid, tid) <- createUserWithTeam brig
@@ -731,7 +724,7 @@ testInvitationPaging opts brig = do
         postInvitation brig tid uid (invite email) !!! const 201 === statusCode
         pure email
   after1ms <- liftIO $ toUTCTimeMillis . addUTCTime 1 <$> getCurrentTime
-  let getPages :: HasCallStack => Int -> Maybe InvitationId -> Int -> Http [[Invitation]]
+  let getPages :: (HasCallStack) => Int -> Maybe InvitationId -> Int -> Http [[Invitation]]
       getPages count start step = do
         let range = queryRange (toByteString' <$> start) (Just step)
         r <-
@@ -742,7 +735,7 @@ testInvitationPaging opts brig = do
         if more
           then (invs :) <$> getPages (count + step) (fmap inInvitation . listToMaybe . reverse $ invs) step
           else pure [invs]
-  let checkSize :: HasCallStack => Int -> [Int] -> Http ()
+  let checkSize :: (HasCallStack) => Int -> [Int] -> Http ()
       checkSize pageSize expectedSizes =
         getPages 0 Nothing pageSize >>= \invss -> liftIO $ do
           assertEqual "page sizes" expectedSizes (take (length expectedSizes) (map length invss))

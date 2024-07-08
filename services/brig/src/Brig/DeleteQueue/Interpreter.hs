@@ -49,7 +49,7 @@ enqueue ::
     Member (Logger (Log.Msg -> Log.Msg)) r,
     Member (Error ErrorCall) r
   ) =>
-  ToJSON a =>
+  (ToJSON a) =>
   QueueEnv ->
   a ->
   Sem r ()

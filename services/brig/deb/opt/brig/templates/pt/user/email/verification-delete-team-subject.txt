@@ -1,0 +1,1 @@
+Seu código de verificação do ${brand} é ${code}

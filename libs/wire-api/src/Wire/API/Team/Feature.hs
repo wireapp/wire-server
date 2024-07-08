@@ -97,6 +97,7 @@ import Data.Attoparsec.ByteString qualified as Parser
 import Data.ByteString (fromStrict)
 import Data.ByteString.Conversion
 import Data.ByteString.UTF8 qualified as UTF8
+import Data.Default
 import Data.Domain (Domain)
 import Data.Either.Extra (maybeToEither)
 import Data.Id
@@ -222,10 +223,10 @@ class FeatureTrivialConfig cfg where
 class HasDeprecatedFeatureName cfg where
   type DeprecatedFeatureName cfg :: Symbol
 
-featureName :: forall cfg. KnownSymbol (FeatureSymbol cfg) => Text
+featureName :: forall cfg. (KnownSymbol (FeatureSymbol cfg)) => Text
 featureName = T.pack $ symbolVal (Proxy @(FeatureSymbol cfg))
 
-featureNameBS :: forall cfg. KnownSymbol (FeatureSymbol cfg) => ByteString
+featureNameBS :: forall cfg. (KnownSymbol (FeatureSymbol cfg)) => ByteString
 featureNameBS = UTF8.fromString $ symbolVal (Proxy @(FeatureSymbol cfg))
 
 ----------------------------------------------------------------------
@@ -267,10 +268,10 @@ setLockStatus ls (WithStatusBase s _ c ttl) = WithStatusBase s (Identity ls) c t
 setConfig :: cfg -> WithStatus cfg -> WithStatus cfg
 setConfig = setConfig'
 
-setConfig' :: forall (m :: Type -> Type) (cfg :: Type). Applicative m => cfg -> WithStatusBase m cfg -> WithStatusBase m cfg
+setConfig' :: forall (m :: Type -> Type) (cfg :: Type). (Applicative m) => cfg -> WithStatusBase m cfg -> WithStatusBase m cfg
 setConfig' c (WithStatusBase s ls _ ttl) = WithStatusBase s ls (pure c) ttl
 
-setTTL :: forall (m :: Type -> Type) (cfg :: Type). Applicative m => FeatureTTL -> WithStatusBase m cfg -> WithStatusBase m cfg
+setTTL :: forall (m :: Type -> Type) (cfg :: Type). (Applicative m) => FeatureTTL -> WithStatusBase m cfg -> WithStatusBase m cfg
 setTTL ttl (WithStatusBase s ls c _) = WithStatusBase s ls c (pure ttl)
 
 setWsTTL :: FeatureTTL -> WithStatus cfg -> WithStatus cfg
@@ -338,7 +339,7 @@ withStatus' = WithStatusBase
 
 -- | The ToJSON implementation of `WithStatusPatch` will encode the trivial config as `"config": {}`
 -- when the value is a `Just`, if it's `Nothing` it will be omitted, which is the important part.
-instance ToSchema cfg => ToSchema (WithStatusPatch cfg) where
+instance (ToSchema cfg) => ToSchema (WithStatusPatch cfg) where
   schema =
     object name $
       WithStatusBase
@@ -372,7 +373,7 @@ data WithStatusNoLock (cfg :: Type) = WithStatusNoLock
   deriving stock (Eq, Show, Generic, Typeable, Functor)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema (WithStatusNoLock cfg))
 
-instance Arbitrary cfg => Arbitrary (WithStatusNoLock cfg) where
+instance (Arbitrary cfg) => Arbitrary (WithStatusNoLock cfg) where
   arbitrary = WithStatusNoLock <$> arbitrary <*> arbitrary <*> arbitrary
 
 forgetLock :: WithStatus a -> WithStatusNoLock a
@@ -1009,7 +1010,9 @@ instance FeatureTrivialConfig OutlookCalIntegrationConfig where
 
 data MlsE2EIdConfig = MlsE2EIdConfig
   { verificationExpiration :: NominalDiffTime,
-    acmeDiscoveryUrl :: Maybe HttpsUrl
+    acmeDiscoveryUrl :: Maybe HttpsUrl,
+    crlProxy :: Maybe HttpsUrl,
+    useProxyOnMobile :: Bool
   }
   deriving stock (Eq, Show, Generic)
 
@@ -1021,6 +1024,8 @@ instance Arbitrary MlsE2EIdConfig where
     MlsE2EIdConfig
       <$> (fromIntegral <$> (arbitrary @Word32))
       <*> arbitrary
+      <*> fmap Just arbitrary
+      <*> arbitrary
 
 instance ToSchema MlsE2EIdConfig where
   schema :: ValueSchema NamedSwaggerDoc MlsE2EIdConfig
@@ -1029,6 +1034,8 @@ instance ToSchema MlsE2EIdConfig where
       MlsE2EIdConfig
         <$> (toSeconds . verificationExpiration) .= fieldWithDocModifier "verificationExpiration" veDesc (fromSeconds <$> schema)
         <*> acmeDiscoveryUrl .= maybe_ (optField "acmeDiscoveryUrl" schema)
+        <*> crlProxy .= maybe_ (optField "crlProxy" schema)
+        <*> useProxyOnMobile .= (fromMaybe False <$> optField "useProxyOnMobile" schema)
     where
       fromSeconds :: Int -> NominalDiffTime
       fromSeconds = fromIntegral
@@ -1055,7 +1062,7 @@ instance IsFeatureConfig MlsE2EIdConfig where
   type FeatureSymbol MlsE2EIdConfig = "mlsE2EId"
   defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked defValue FeatureTTLUnlimited
     where
-      defValue = MlsE2EIdConfig (fromIntegral @Int (60 * 60 * 24)) Nothing
+      defValue = MlsE2EIdConfig (fromIntegral @Int (60 * 60 * 24)) Nothing Nothing False
   featureSingleton = FeatureSingletonMlsE2EIdConfig
   objectSchema = field "config" schema
 
@@ -1208,7 +1215,7 @@ instance Cass.Cql FeatureStatus where
   toCql FeatureStatusDisabled = Cass.CqlInt 0
   toCql FeatureStatusEnabled = Cass.CqlInt 1
 
-defFeatureStatusNoLock :: IsFeatureConfig cfg => WithStatusNoLock cfg
+defFeatureStatusNoLock :: (IsFeatureConfig cfg) => WithStatusNoLock cfg
 defFeatureStatusNoLock = forgetLock defFeatureStatus
 
 data AllFeatureConfigs = AllFeatureConfigs
@@ -1235,6 +1242,31 @@ data AllFeatureConfigs = AllFeatureConfigs
   }
   deriving stock (Eq, Show)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AllFeatureConfigs)
+
+instance Default AllFeatureConfigs where
+  def =
+    AllFeatureConfigs
+      { afcLegalholdStatus = defFeatureStatus,
+        afcSSOStatus = defFeatureStatus,
+        afcTeamSearchVisibilityAvailable = defFeatureStatus,
+        afcSearchVisibilityInboundConfig = defFeatureStatus,
+        afcValidateSAMLEmails = defFeatureStatus,
+        afcDigitalSignatures = defFeatureStatus,
+        afcAppLock = defFeatureStatus,
+        afcFileSharing = defFeatureStatus,
+        afcClassifiedDomains = defFeatureStatus,
+        afcConferenceCalling = defFeatureStatus,
+        afcSelfDeletingMessages = defFeatureStatus,
+        afcGuestLink = defFeatureStatus,
+        afcSndFactorPasswordChallenge = defFeatureStatus,
+        afcMLS = defFeatureStatus,
+        afcExposeInvitationURLsToTeamAdmin = defFeatureStatus,
+        afcOutlookCalIntegration = defFeatureStatus,
+        afcMlsE2EId = defFeatureStatus,
+        afcMlsMigration = defFeatureStatus,
+        afcEnforceFileDownloadLocation = defFeatureStatus,
+        afcLimitedEventFanout = defFeatureStatus
+      }
 
 instance ToSchema AllFeatureConfigs where
   schema =

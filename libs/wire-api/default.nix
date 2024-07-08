@@ -29,6 +29,7 @@
 , crypton
 , crypton-x509
 , currency-codes
+, data-default
 , deriving-aeson
 , deriving-swagger2
 , either
@@ -76,6 +77,7 @@
 , saml2-web-sso
 , schema-profunctor
 , scientific
+, semigroupoids
 , servant
 , servant-client
 , servant-client-core
@@ -119,7 +121,6 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     asn1-encoding
-    async
     attoparsec
     base
     base64-bytestring
@@ -139,6 +140,7 @@ mkDerivation {
     crypton
     crypton-x509
     currency-codes
+    data-default
     deriving-aeson
     deriving-swagger2
     either
@@ -180,6 +182,7 @@ mkDerivation {
     saml2-web-sso
     schema-profunctor
     scientific
+    semigroupoids
     servant
     servant-client
     servant-client-core
@@ -243,7 +246,6 @@ mkDerivation {
     proto-lens
     QuickCheck
     random
-    saml2-web-sso
     schema-profunctor
     servant
     servant-server

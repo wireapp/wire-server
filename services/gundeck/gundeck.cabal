@@ -125,6 +125,7 @@ library
     , bytestring-conversion  >=0.2
     , cassandra-util         >=0.16.2
     , containers             >=0.5
+    , crypton-x509-store
     , errors                 >=2.0
     , exceptions             >=0.4
     , extended
@@ -142,6 +143,7 @@ library
     , metrics-wai            >=0.5.7
     , mtl                    >=2.2
     , network-uri            >=2.6
+    , prometheus-client
     , psqueues               >=0.2.2
     , raw-strings-qq
     , resourcet              >=1.1
@@ -308,7 +310,6 @@ executable gundeck-integration
     , kan-extensions
     , lens
     , lens-aeson
-    , metrics-wai
     , network
     , network-uri
     , optparse-applicative

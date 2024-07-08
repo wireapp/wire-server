@@ -1,0 +1,23 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+THIẾT BỊ MỚI
+Tài khoản ${brand} của bạn đã được sử dụng vào:
+
+${date}
+
+${model}
+
+Bạn có thể cài đặt ${brand} trên một thiết bị mới hoặc cài đặt lại trên một
+thiết bị đã tồn tại. Nếu không phải các trường hợp đó, đi đến Cài đặt ${brand},
+gỡ bỏ thiết bị và thay đổi mật khẩu của bạn [${forgot}].
+
+Nếu bạn có bất kỳ thắc mắc nào, xin vui lòng liên hệ với chúng tôi [${support}].
+
+
+--------------------------------------------------------------------------------
+
+Chính sách riêng tư và điều khoản sử dụng [${legal}] · Báo cáo Lạm dụng
+[${misuse}]
+${copyright}. ĐÃ ĐƯỢC ĐĂNG KÝ BẢN QUYỀN.

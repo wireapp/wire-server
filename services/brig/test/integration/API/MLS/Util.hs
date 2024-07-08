@@ -57,8 +57,8 @@ cliCmd tmp qcid cmnds =
     ["--store", tmp </> (show qcid <> ".db")] <> cmnds
 
 initStore ::
-  HasCallStack =>
-  MonadIO m =>
+  (HasCallStack) =>
+  (MonadIO m) =>
   FilePath ->
   ClientIdentity ->
   m ()
@@ -67,8 +67,8 @@ initStore tmp qcid = do
     cliCmd tmp qcid ["init", show qcid]
 
 generateKeyPackage ::
-  HasCallStack =>
-  MonadIO m =>
+  (HasCallStack) =>
+  (MonadIO m) =>
   FilePath ->
   ClientIdentity ->
   Maybe Timeout ->
@@ -84,7 +84,7 @@ generateKeyPackage tmp qcid lifetime = do
   pure (kp, ref)
 
 uploadKeyPackages ::
-  HasCallStack =>
+  (HasCallStack) =>
   Brig ->
   FilePath ->
   KeyingInfo ->
@@ -119,7 +119,7 @@ uploadKeyPackages brig tmp KeyingInfo {..} u c n = do
     !!! const (case kiSetKey of SetKey -> 201; DontSetKey -> 400)
       === statusCode
 
-getKeyPackageCount :: HasCallStack => Brig -> Qualified UserId -> ClientId -> Http KeyPackageCount
+getKeyPackageCount :: (HasCallStack) => Brig -> Qualified UserId -> ClientId -> Http KeyPackageCount
 getKeyPackageCount brig u c =
   responseJsonError
     =<< get
@@ -130,7 +130,7 @@ getKeyPackageCount brig u c =
       <!! const 200
         === statusCode
 
-decodeMLSError :: ParseMLS a => ByteString -> IO a
+decodeMLSError :: (ParseMLS a) => ByteString -> IO a
 decodeMLSError s = case decodeMLS' s of
   Left e -> assertFailure ("Could not parse MLS object: " <> Text.unpack e)
   Right x -> pure x

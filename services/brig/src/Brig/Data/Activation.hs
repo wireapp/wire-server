@@ -29,11 +29,8 @@ module Brig.Data.Activation
   )
 where
 
-import Brig.App (Env)
+import Brig.App (Env, adhocUserKeyStoreInterpreter)
 import Brig.Data.User
-import Brig.Data.UserKey
-import Brig.Effects.CodeStore qualified as E
-import Brig.Effects.CodeStore.Cassandra
 import Brig.Options
 import Brig.Types.Intra
 import Cassandra
@@ -50,6 +47,10 @@ import Polysemy
 import Text.Printf (printf)
 import Wire.API.User
 import Wire.API.User.Activation
+import Wire.API.User.Password
+import Wire.PasswordResetCodeStore qualified as E
+import Wire.PasswordResetCodeStore.Cassandra
+import Wire.UserKeyStore
 
 --  | The information associated with the pending activation of a 'UserKey'.
 data Activation = Activation
@@ -78,7 +79,6 @@ activationErrorToRegisterError = \case
 data ActivationEvent
   = AccountActivated !UserAccount
   | EmailActivated !UserId !Email
-  | PhoneActivated !UserId !Phone
 
 -- | Max. number of activation attempts per 'ActivationKey'.
 maxAttempts :: Int32
@@ -95,66 +95,59 @@ activateKey ::
 activateKey k c u = verifyCode k c >>= pickUser >>= activate
   where
     pickUser (uk, u') = maybe (throwE invalidUser) (pure . (uk,)) (u <|> u')
-    activate (key, uid) = do
+    activate (key :: EmailKey, uid) = do
       a <- lift (lookupAccount uid) >>= maybe (throwE invalidUser) pure
       unless (accountStatus a == Active) $ -- this is never 'PendingActivation' in the flow this function is used in.
         throwE invalidCode
       case userIdentity (accountUser a) of
         Nothing -> do
           claim key uid
-          let ident = foldKey EmailIdentity PhoneIdentity key
+          let ident = EmailIdentity (emailKeyOrig key)
           lift $ activateUser uid ident
           let a' = a {accountUser = (accountUser a) {userIdentity = Just ident}}
           pure . Just $ AccountActivated a'
         Just _ -> do
           let usr = accountUser a
-              (profileNeedsUpdate, oldKey) =
-                foldKey
-                  (\(e :: Email) -> (Just e /= userEmail usr,) . fmap userEmailKey . userEmail)
-                  (\(p :: Phone) -> (Just p /= userPhone usr,) . fmap userPhoneKey . userPhone)
-                  key
-                  usr
+              profileNeedsUpdate = Just (emailKeyOrig key) /= userEmail usr
+              oldKey :: Maybe EmailKey = mkEmailKey <$> userEmail usr
            in handleExistingIdentity uid profileNeedsUpdate oldKey key
     handleExistingIdentity uid profileNeedsUpdate oldKey key
       | oldKey == Just key && not profileNeedsUpdate = pure Nothing
       -- activating existing key and exactly same profile
       -- (can happen when a user clicks on activation links more than once)
       | oldKey == Just key && profileNeedsUpdate = do
-          lift $ foldKey (updateEmailAndDeleteEmailUnvalidated uid) (updatePhone uid) key
-          pure . Just $ foldKey (EmailActivated uid) (PhoneActivated uid) key
+          lift $ updateEmailAndDeleteEmailUnvalidated uid (emailKeyOrig key)
+          pure . Just $ EmailActivated uid (emailKeyOrig key)
       -- if the key is the same, we only want to update our profile
       | otherwise = do
-          lift (runM (codeStoreToCassandra @m @'[Embed m] (E.mkPasswordResetKey uid >>= E.codeDelete)))
+          lift (runM (passwordResetCodeStoreToCassandra @m @'[Embed m] (E.codeDelete (mkPasswordResetKey uid))))
           claim key uid
-          lift $ foldKey (updateEmailAndDeleteEmailUnvalidated uid) (updatePhone uid) key
-          for_ oldKey $ lift . deleteKey
-          pure . Just $ foldKey (EmailActivated uid) (PhoneActivated uid) key
+          lift $ updateEmailAndDeleteEmailUnvalidated uid (emailKeyOrig key)
+          for_ oldKey $ lift . adhocUserKeyStoreInterpreter . deleteKey
+          pure . Just $ EmailActivated uid (emailKeyOrig key)
       where
         updateEmailAndDeleteEmailUnvalidated :: UserId -> Email -> m ()
         updateEmailAndDeleteEmailUnvalidated u' email =
           updateEmail u' email <* deleteEmailUnvalidated u'
     claim key uid = do
-      ok <- lift $ claimKey key uid
+      ok <- lift $ adhocUserKeyStoreInterpreter (claimKey key uid)
       unless ok $
         throwE . UserKeyExists . LT.fromStrict $
-          foldKey fromEmail fromPhone key
+          fromEmail (emailKeyOrig key)
 
--- | Create a new pending activation for a given 'UserKey'.
+-- | Create a new pending activation for a given 'EmailKey'.
 newActivation ::
-  MonadClient m =>
-  UserKey ->
+  (MonadClient m) =>
+  EmailKey ->
   -- | The timeout for the activation code.
   Timeout ->
   -- | The user with whom to associate the activation code.
   Maybe UserId ->
   m Activation
 newActivation uk timeout u = do
-  (typ, key, code) <-
-    liftIO $
-      foldKey
-        (\e -> ("email",fromEmail e,) <$> genCode)
-        (\p -> ("phone",fromPhone p,) <$> genCode)
-        uk
+  let typ = "email"
+      key = fromEmail (emailKeyOrig uk)
+  code <- liftIO $ genCode
   insert typ key code
   where
     insert t k c = do
@@ -166,45 +159,42 @@ newActivation uk timeout u = do
         <$> randIntegerZeroToNMinusOne 1000000
 
 -- | Lookup an activation code and it's associated owner (if any) for a 'UserKey'.
-lookupActivationCode :: MonadClient m => UserKey -> m (Maybe (Maybe UserId, ActivationCode))
+lookupActivationCode :: (MonadClient m) => EmailKey -> m (Maybe (Maybe UserId, ActivationCode))
 lookupActivationCode k =
   liftIO (mkActivationKey k)
     >>= retry x1 . query1 codeSelect . params LocalQuorum . Identity
 
 -- | Verify an activation code.
 verifyCode ::
-  MonadClient m =>
+  (MonadClient m) =>
   ActivationKey ->
   ActivationCode ->
-  ExceptT ActivationError m (UserKey, Maybe UserId)
+  ExceptT ActivationError m (EmailKey, Maybe UserId)
 verifyCode key code = do
   s <- lift . retry x1 . query1 keySelect $ params LocalQuorum (Identity key)
   case s of
     Just (ttl, Ascii t, k, c, u, r) ->
       if
-          | c == code -> mkScope t k u
-          | r >= 1 -> countdown (key, t, k, c, u, r - 1, ttl) >> throwE invalidCode
-          | otherwise -> revoke >> throwE invalidCode
+        | c == code -> mkScope t k u
+        | r >= 1 -> countdown (key, t, k, c, u, r - 1, ttl) >> throwE invalidCode
+        | otherwise -> revoke >> throwE invalidCode
     Nothing -> throwE invalidCode
   where
     mkScope "email" k u = case parseEmail k of
-      Just e -> pure (userEmailKey e, u)
-      Nothing -> throwE invalidCode
-    mkScope "phone" k u = case parsePhone k of
-      Just p -> pure (userPhoneKey p, u)
+      Just e -> pure (mkEmailKey e, u)
       Nothing -> throwE invalidCode
     mkScope _ _ _ = throwE invalidCode
     countdown = lift . retry x5 . write keyInsert . params LocalQuorum
     revoke = lift $ deleteActivationPair key
 
-mkActivationKey :: UserKey -> IO ActivationKey
+mkActivationKey :: EmailKey -> IO ActivationKey
 mkActivationKey k = do
   d <- liftIO $ getDigestByName "SHA256"
   d' <- maybe (fail "SHA256 not found") pure d
-  let bs = digestBS d' (T.encodeUtf8 $ keyText k)
+  let bs = digestBS d' (T.encodeUtf8 $ emailKeyUniq k)
   pure . ActivationKey $ Ascii.encodeBase64Url bs
 
-deleteActivationPair :: MonadClient m => ActivationKey -> m ()
+deleteActivationPair :: (MonadClient m) => ActivationKey -> m ()
 deleteActivationPair = write keyDelete . params LocalQuorum . Identity
 
 invalidUser :: ActivationError

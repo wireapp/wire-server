@@ -344,7 +344,7 @@ mkSSLContext settings = do
   ctx <- mkSSLContextWithoutCert settings
 
   Polysemy.fromExceptionVia @SomeException (InvalidClientCertificate . displayException) $
-    SSL.contextSetCertificateFile ctx (clientCertificate settings)
+    SSL.contextSetCertificateChainFile ctx (clientCertificate settings)
 
   Polysemy.fromExceptionVia @SomeException (InvalidClientPrivateKey . displayException) $
     SSL.contextSetPrivateKeyFile ctx (clientPrivateKey settings)
@@ -355,7 +355,7 @@ mkSSLContext settings = do
 
   pure ctx
 
-mkSSLContextWithoutCert :: Members '[Embed IO, Polysemy.Error FederationSetupError] r => RunSettings -> Sem r SSLContext
+mkSSLContextWithoutCert :: (Members '[Embed IO, Polysemy.Error FederationSetupError] r) => RunSettings -> Sem r SSLContext
 mkSSLContextWithoutCert settings = do
   ctx <- embed $ SSL.context
   embed $ do

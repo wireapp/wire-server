@@ -1,0 +1,3 @@
+Twój kod ${brand} to ${code}.
+
+Otwórz ${url} aby zweryfikować swój numer.

@@ -77,10 +77,10 @@ newtype TestFederator m a = TestFederator {unwrapTestFederator :: ReaderT TestEn
       MonadMask
     )
 
-instance MonadRandom m => MonadRandom (TestFederator m) where
+instance (MonadRandom m) => MonadRandom (TestFederator m) where
   getRandomBytes = lift . getRandomBytes
 
-instance MonadIO m => MonadHttp (TestFederator m) where
+instance (MonadIO m) => MonadHttp (TestFederator m) where
   handleRequestWithCont req handler = do
     manager <- _teMgr <$> ask
     liftIO $ withResponse req manager handler
@@ -149,7 +149,7 @@ cliOptsParser =
     defaultFederatorPath = "/etc/wire/federator/conf/federator.yaml"
 
 -- | Create an environment for integration tests from integration and federator config files.
-mkEnv :: HasCallStack => IntegrationConfig -> Opts -> IO TestEnv
+mkEnv :: (HasCallStack) => IntegrationConfig -> Opts -> IO TestEnv
 mkEnv _teTstOpts _teOpts = do
   let managerSettings = mkManagerSettings (Network.Connection.TLSSettingsSimple True False False) Nothing
   _teMgr :: Manager <- newManager managerSettings
@@ -160,7 +160,7 @@ mkEnv _teTstOpts _teOpts = do
   let _teSettings = optSettings _teOpts
   pure TestEnv {..}
 
-destroyEnv :: HasCallStack => TestEnv -> IO ()
+destroyEnv :: (HasCallStack) => TestEnv -> IO ()
 destroyEnv _ = pure ()
 
 endpointToReq :: Endpoint -> (Bilge.Request -> Bilge.Request)
@@ -273,7 +273,7 @@ putHandle brig usr h =
   where
     payload = RequestBodyLBS . encode $ object ["handle" .= h]
 
-randomName :: MonadIO m => m Name
+randomName :: (MonadIO m) => m Name
 randomName = randomNameWithMaxLen 128
 
 -- | For testing purposes we restrict ourselves to code points in the
@@ -285,7 +285,7 @@ randomName = randomNameWithMaxLen 128
 -- the standard tokenizer considers as word boundaries (or which are
 -- simply unassigned code points), yielding no tokens to match and thus
 -- no results in search queries.
-randomNameWithMaxLen :: MonadIO m => Word -> m Name
+randomNameWithMaxLen :: (MonadIO m) => Word -> m Name
 randomNameWithMaxLen maxLen = liftIO $ do
   len <- randomRIO (2, maxLen)
   chars <- fill len []
@@ -305,7 +305,7 @@ randomNameWithMaxLen maxLen = liftIO $ do
         then pure c
         else randLetter
 
-randomPhone :: MonadIO m => m Phone
+randomPhone :: (MonadIO m) => m Phone
 randomPhone = liftIO $ do
   nrs <- map show <$> replicateM 14 (randomRIO (0, 9) :: IO Int)
   let phone = parsePhone . Text.pack $ "+0" ++ concat nrs
@@ -319,13 +319,13 @@ defCookieLabel = CookieLabel "auth"
 
 -- | Generate emails that are in the trusted whitelist of domains whose @+@ suffices count for email
 -- disambiguation.  See also: 'Brig.Email.mkEmailKey'.
-randomEmail :: MonadIO m => m Email
+randomEmail :: (MonadIO m) => m Email
 randomEmail = mkSimulatorEmail "success"
 
-mkSimulatorEmail :: MonadIO m => Text -> m Email
+mkSimulatorEmail :: (MonadIO m) => Text -> m Email
 mkSimulatorEmail loc = mkEmailRandomLocalSuffix (loc <> "@simulator.amazonses.com")
 
-mkEmailRandomLocalSuffix :: MonadIO m => Text -> m Email
+mkEmailRandomLocalSuffix :: (MonadIO m) => Text -> m Email
 mkEmailRandomLocalSuffix e = do
   uid <- liftIO UUID.nextRandom
   case parseEmail e of
@@ -338,7 +338,7 @@ zUser = header "Z-User" . C8.pack . show
 zConn :: ByteString -> Bilge.Request -> Bilge.Request
 zConn = header "Z-Connection"
 
-randomHandle :: MonadIO m => m Text
+randomHandle :: (MonadIO m) => m Text
 randomHandle = liftIO $ do
   nrs <- replicateM 21 (randomRIO (97, 122)) -- a-z
   pure (Text.pack (map chr nrs))

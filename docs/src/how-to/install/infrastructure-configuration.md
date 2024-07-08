@@ -527,23 +527,6 @@ Additionally, you may wish to build, sign, and host your own docker
 images to have increased confidence in those images. We haved "signed
 container images" on our roadmap.
 
-## Sign up with a phone number (Sending SMS)
-
-**Provides**:
-
-- Registering accounts with a phone number
-
-**You need**:
-
-- a [Nexmo](https://www.nexmo.com/) account
-- a [Twilio](https://www.twilio.com/) account
-
-**How to configure**:
-
-See the `brig` chart for configuration.
-
-(rd-party-proxying)=
-
 ## 3rd-party proxying
 
 You need Giphy/Google/Spotify/Soundcloud API keys (if you want to
@@ -581,19 +564,15 @@ In case of a demo install, replace `prod` with `demo`.
 First set the option under the `team-settings` section, `envVars` sub-section:
 
 ```yaml
-# NOTE: Only relevant if you want team-settings
-team-settings:
-  envVars:
-    IS_SELF_HOSTED: "true"
+envVars:
+  IS_SELF_HOSTED: "true"
 ```
 
-Second, also set the option under the `account-pages` section:
+Second, also set the option for `account-pages` helm chart:
 
 ```yaml
-# NOTE: Only relevant if you want account-pages
-account-pages:
-  envVars:
-    IS_SELF_HOSTED: "true"
+envVars:
+  IS_SELF_HOSTED: "true"
 ```
 
 (auth-cookie-config)=

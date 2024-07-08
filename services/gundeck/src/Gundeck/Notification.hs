@@ -21,12 +21,11 @@ module Gundeck.Notification
   )
 where
 
-import Bilge.IO hiding (options)
+import Bilge.IO (post)
 import Bilge.Request
 import Bilge.Response
 import Control.Lens (view)
 import Control.Monad.Catch
-import Control.Monad.Except
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Misc (Milliseconds (..))
@@ -35,13 +34,13 @@ import Data.Time.Clock.POSIX
 import Data.UUID qualified as UUID
 import Gundeck.Monad
 import Gundeck.Notification.Data qualified as Data
-import Gundeck.Options hiding (host, port)
+import Gundeck.Options (brig)
 import Imports hiding (getLast)
-import Network.HTTP.Types hiding (statusCode)
+import Network.HTTP.Types (status400)
 import Network.Wai.Utilities.Error
 import System.Logger.Class
 import System.Logger.Class qualified as Log
-import Util.Options hiding (host, port)
+import Util.Options (Endpoint (Endpoint))
 import Wire.API.Internal.Notification
 import Wire.API.Notification
 
@@ -84,5 +83,7 @@ updateActivity uid clt = do
   when (statusCode r /= 200) $ do
     Log.warn $
       Log.msg ("Could not update client activity" :: ByteString)
-        ~~ "user" .= UUID.toASCIIBytes (toUUID uid)
-        ~~ "client" .= clientToText clt
+        ~~ "user"
+        .= UUID.toASCIIBytes (toUUID uid)
+        ~~ "client"
+        .= clientToText clt

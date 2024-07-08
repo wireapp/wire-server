@@ -38,6 +38,7 @@ import Wire.API.Event.Conversation
 import Wire.API.FederationStatus
 import Wire.API.MakesFederatedCall
 import Wire.API.Provider.Service (ServiceRef)
+import Wire.API.Routes.Internal.Brig.EJPD
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti
 import Wire.API.Routes.Internal.Galley.TeamsIntra
@@ -269,6 +270,7 @@ type InternalAPIBase =
     :<|> IFeatureAPI
     :<|> IFederationAPI
     :<|> IConversationAPI
+    :<|> IEJPDAPI
 
 type ILegalholdWhitelistedTeamsAPI =
   "legalhold"
@@ -690,6 +692,16 @@ type IMiscAPI =
                :> Capture "domain" Domain
                :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 200 "OK")
            )
+
+type IEJPDAPI =
+  Named
+    "get-conversations-by-user"
+    ( CanThrow 'NotConnected
+        :> "user"
+        :> Capture "user" UserId
+        :> "all-conversations"
+        :> Get '[Servant.JSON] [EJPDConvInfo]
+    )
 
 swaggerDoc :: OpenApi
 swaggerDoc =

@@ -23,7 +23,6 @@
 -- galley-types.
 module Test.Brig.Types.Common where
 
-import Brig.Types.Common
 import Brig.Types.Team.LegalHold
 import Brig.Types.Test.Arbitrary ()
 import Test.Brig.Roundtrip (testRoundTrip)
@@ -35,7 +34,6 @@ tests :: TestTree
 tests =
   testGroup
     "Common (types vs. aeson)"
-    [ testRoundTrip @ExcludedPrefix,
-      testRoundTrip @LegalHoldService,
+    [ testRoundTrip @LegalHoldService,
       testRoundTrip @LegalHoldClientRequest
     ]

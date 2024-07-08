@@ -1,0 +1,23 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+NOVO DISPOSITIVO
+Sua conta ${brand} foi usada em:
+
+${date}
+
+${model}
+
+Você pode ter instalado o ${brand} em um dispositivo novo ou instalado novamente
+em um já existente. Se não foi esse o caso, vá nas Configurações de ${brand},
+remova o dispositivo e redefina sua senha [${forgot}].
+
+Se você tiver alguma dúvida, por favor, entre em contato conosco [${support}].
+
+
+--------------------------------------------------------------------------------
+
+Política de privacidade e termos de uso [${legal}] · Reportar uso indevido
+[${misuse}]
+${copyright}. TODOS OS DIREITOS RESERVADOS.

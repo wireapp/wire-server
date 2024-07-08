@@ -37,7 +37,6 @@ module Wire.API.User
     User (..),
     userId,
     userEmail,
-    userPhone,
     userSSOId,
     userIssuer,
     userSCIMExternalId,
@@ -66,7 +65,6 @@ module Wire.API.User
     newUserInvitationCode,
     newUserTeam,
     newUserEmail,
-    newUserPhone,
     newUserSSOId,
     isNewUserEphemeral,
     isNewUserTeamMember,
@@ -124,13 +122,6 @@ module Wire.API.User
     GetActivationCodeResp (..),
     GetPasswordResetCodeResp (..),
     CheckBlacklistResponse (..),
-    GetPhonePrefixResponse (..),
-    PhonePrefix (..),
-    parsePhonePrefix,
-    isValidPhonePrefix,
-    allPrefixes,
-    ExcludedPrefix (..),
-    PhoneBudgetTimeout (..),
     ManagedByUpdate (..),
     HavePendingInvitations (..),
     RichInfoUpdate (..),
@@ -143,6 +134,7 @@ module Wire.API.User
     EmailVisibilityConfigWithViewer,
 
     -- * re-exports
+    module Wire.API.Locale,
     module Wire.API.User.Identity,
     module Wire.API.User.Profile,
 
@@ -168,8 +160,6 @@ import Control.Lens (makePrisms, over, view, (.~), (?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..), withText)
 import Data.Aeson.Types qualified as A
 import Data.Attoparsec.ByteString qualified as Parser
-import Data.Attoparsec.Text qualified as TParser
-import Data.Bifunctor qualified as Bifunctor
 import Data.Bits
 import Data.ByteString (toStrict)
 import Data.ByteString.Builder (toLazyByteString)
@@ -197,7 +187,6 @@ import Data.Text qualified as T
 import Data.Text.Ascii
 import Data.Text.Encoding qualified as T
 import Data.Text.Encoding.Error
-import Data.Time.Clock (NominalDiffTime)
 import Data.UUID (UUID, nil)
 import Data.UUID qualified as UUID
 import Deriving.Swagger
@@ -214,6 +203,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Error.Brig qualified as E
+import Wire.API.Locale
 import Wire.API.Provider.Service (ServiceRef)
 import Wire.API.Routes.MultiVerb
 import Wire.API.Team (BindingNewTeam, bindingNewTeamObjectSchema)
@@ -308,117 +298,6 @@ instance
   fromUnion (Z (I ())) = NotBlacklisted
   fromUnion (S (Z (I ()))) = YesBlacklisted
   fromUnion (S (S x)) = case x of {}
-
-data GetPhonePrefixResponse = PhonePrefixNotFound | PhonePrefixesFound [ExcludedPrefix]
-
-instance
-  AsUnion
-    '[ RespondEmpty 404 "PhonePrefixNotFound",
-       Respond 200 "PhonePrefixesFound" [ExcludedPrefix]
-     ]
-    GetPhonePrefixResponse
-  where
-  toUnion PhonePrefixNotFound = Z (I ())
-  toUnion (PhonePrefixesFound pfxs) = S (Z (I pfxs))
-  fromUnion (Z (I ())) = PhonePrefixNotFound
-  fromUnion (S (Z (I pfxs))) = PhonePrefixesFound pfxs
-  fromUnion (S (S x)) = case x of {}
-
--- | PhonePrefix (for excluding from SMS/calling)
-newtype PhonePrefix = PhonePrefix {fromPhonePrefix :: Text}
-  deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema PhonePrefix
-
-instance Arbitrary PhonePrefix where
-  arbitrary = do
-    digits <- take 8 <$> QC.listOf1 (QC.elements ['0' .. '9'])
-    pure . PhonePrefix . T.pack $ "+" <> digits
-
-instance ToSchema PhonePrefix where
-  schema = fromPhonePrefix .= parsedText "PhonePrefix" phonePrefixParser
-
-instance S.ToParamSchema PhonePrefix where
-  toParamSchema _ = S.toParamSchema (Proxy @String)
-
-instance FromByteString PhonePrefix where
-  parser = parser >>= maybe (fail "Invalid phone") pure . parsePhonePrefix
-
-instance ToByteString PhonePrefix where
-  builder = builder . fromPhonePrefix
-
-instance FromHttpApiData PhonePrefix where
-  parseUrlPiece = Bifunctor.first T.pack . phonePrefixParser
-
-deriving instance C.Cql PhonePrefix
-
-phonePrefixParser :: Text -> Either String PhonePrefix
-phonePrefixParser p = maybe err pure (parsePhonePrefix p)
-  where
-    err =
-      Left $
-        "Invalid phone number prefix: ["
-          ++ show p
-          ++ "]. Expected format similar to E.164 (with 1-15 digits after the +)."
-
--- | Parses a phone number prefix with a mandatory leading '+'.
-parsePhonePrefix :: Text -> Maybe PhonePrefix
-parsePhonePrefix p
-  | isValidPhonePrefix p = Just $ PhonePrefix p
-  | otherwise = Nothing
-
--- | Checks whether a phone number prefix is valid,
--- i.e. it is like a E.164 format phone number, but shorter
--- (with a mandatory leading '+', followed by 1-15 digits.)
-isValidPhonePrefix :: Text -> Bool
-isValidPhonePrefix = isRight . TParser.parseOnly e164Prefix
-  where
-    e164Prefix :: TParser.Parser ()
-    e164Prefix =
-      TParser.char '+'
-        *> TParser.count 1 TParser.digit
-        *> TParser.count 14 (optional TParser.digit)
-        *> TParser.endOfInput
-
--- | get all valid prefixes of a phone number or phone number prefix
--- e.g. from +123456789 get prefixes ["+1", "+12", "+123", ..., "+123456789" ]
-allPrefixes :: Text -> [PhonePrefix]
-allPrefixes t = mapMaybe parsePhonePrefix (T.inits t)
-
-data ExcludedPrefix = ExcludedPrefix
-  { phonePrefix :: PhonePrefix,
-    comment :: Text
-  }
-  deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ExcludedPrefix
-
-instance ToSchema ExcludedPrefix where
-  schema =
-    object "ExcludedPrefix" $
-      ExcludedPrefix
-        <$> phonePrefix .= field "phone_prefix" schema
-        <*> comment .= field "comment" schema
-
--- | If the budget for SMS and voice calls for a phone number
--- has been exhausted within a certain time frame, this timeout
--- indicates in seconds when another attempt may be made.
-newtype PhoneBudgetTimeout = PhoneBudgetTimeout
-  {phoneBudgetTimeout :: NominalDiffTime}
-  deriving (Eq, Show, Generic)
-  deriving newtype (Arbitrary)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema PhoneBudgetTimeout
-
-instance ToSchema PhoneBudgetTimeout where
-  schema =
-    object "PhoneBudgetTimeout" $
-      PhoneBudgetTimeout
-        <$> phoneBudgetTimeout .= field "expires_in" nominalDiffTimeSchema
-
--- | (32bit precision)
-nominalDiffTimeSchema :: ValueSchema NamedSwaggerDoc NominalDiffTime
-nominalDiffTimeSchema = fromIntegral <$> roundDiffTime .= schema
-  where
-    roundDiffTime :: NominalDiffTime -> Int32
-    roundDiffTime = round
 
 newtype ManagedByUpdate = ManagedByUpdate {mbuManagedBy :: ManagedBy}
   deriving (Eq, Show, Generic)
@@ -588,7 +467,7 @@ instance (KnownNat max, 1 <= max) => FromJSON (LimitedQualifiedUserIdList max) w
   parseJSON = A.withObject "LimitedQualifiedUserIdList" $ \o ->
     LimitedQualifiedUserIdList <$> o A..: "qualified_users"
 
-instance 1 <= max => ToJSON (LimitedQualifiedUserIdList max) where
+instance (1 <= max) => ToJSON (LimitedQualifiedUserIdList max) where
   toJSON e = A.object ["qualified_users" A..= qualifiedUsers e]
 
 --------------------------------------------------------------------------------
@@ -750,9 +629,6 @@ userObjectSchema =
 userEmail :: User -> Maybe Email
 userEmail = emailIdentity <=< userIdentity
 
-userPhone :: User -> Maybe Phone
-userPhone = phoneIdentity <=< userIdentity
-
 userSSOId :: User -> Maybe UserSSOId
 userSSOId = ssoIdentity <=< userIdentity
 
@@ -907,7 +783,6 @@ data RegisterError
   | RegisterErrorInvalidActivationCodeWrongCode
   | RegisterErrorInvalidEmail
   | RegisterErrorInvalidPhone
-  | RegisterErrorBlacklistedPhone
   | RegisterErrorBlacklistedEmail
   | RegisterErrorTooManyTeamMembers
   | RegisterErrorUserCreationRestricted
@@ -925,7 +800,6 @@ type RegisterErrorResponses =
      ErrorResponse 'InvalidActivationCodeWrongCode,
      ErrorResponse 'InvalidEmail,
      ErrorResponse 'InvalidPhone,
-     ErrorResponse 'BlacklistedPhone,
      ErrorResponse 'BlacklistedEmail,
      ErrorResponse 'TooManyTeamMembers,
      ErrorResponse 'UserCreationRestricted
@@ -1066,7 +940,8 @@ newUserFromSpar new =
   NewUser
     { newUserDisplayName = newUserSparDisplayName new,
       newUserUUID = Just $ newUserSparUUID new,
-      newUserIdentity = Just $ SSOIdentity (newUserSparSSOId new) Nothing Nothing,
+      newUserIdentity = Just $ SSOIdentity (newUserSparSSOId new) Nothing,
+      newUserPhone = Nothing,
       newUserPict = Nothing,
       newUserAssets = [],
       newUserAccentId = Nothing,
@@ -1086,6 +961,7 @@ data NewUser = NewUser
     -- | use this as 'UserId' (if 'Nothing', call 'Data.UUID.nextRandom').
     newUserUUID :: Maybe UUID,
     newUserIdentity :: Maybe UserIdentity,
+    newUserPhone :: Maybe Phone,
     -- | DEPRECATED
     newUserPict :: Maybe Pict,
     newUserAssets :: [Asset],
@@ -1109,6 +985,7 @@ emptyNewUser name =
     { newUserDisplayName = name,
       newUserUUID = Nothing,
       newUserIdentity = Nothing,
+      newUserPhone = Nothing,
       newUserPict = Nothing,
       newUserAssets = [],
       newUserAccentId = Nothing,
@@ -1131,6 +1008,7 @@ data NewUserRaw = NewUserRaw
   { newUserRawDisplayName :: Name,
     newUserRawUUID :: Maybe UUID,
     newUserRawEmail :: Maybe Email,
+    -- | This is deprecated and it should always be 'Nothing'.
     newUserRawPhone :: Maybe Phone,
     newUserRawSSOId :: Maybe UserSSOId,
     -- | DEPRECATED
@@ -1138,6 +1016,7 @@ data NewUserRaw = NewUserRaw
     newUserRawAssets :: [Asset],
     newUserRawAccentId :: Maybe ColourId,
     newUserRawEmailCode :: Maybe ActivationCode,
+    -- | This is deprecated and it should always be 'Nothing'.
     newUserRawPhoneCode :: Maybe ActivationCode,
     newUserRawInvitationCode :: Maybe InvitationCode,
     newUserRawTeamCode :: Maybe InvitationCode,
@@ -1206,7 +1085,7 @@ newUserToRaw NewUser {..} =
         { newUserRawDisplayName = newUserDisplayName,
           newUserRawUUID = newUserUUID,
           newUserRawEmail = emailIdentity =<< newUserIdentity,
-          newUserRawPhone = phoneIdentity =<< newUserIdentity,
+          newUserRawPhone = newUserPhone,
           newUserRawSSOId = ssoIdentity =<< newUserIdentity,
           newUserRawPict = newUserPict,
           newUserRawAssets = newUserAssets,
@@ -1233,7 +1112,9 @@ newUserFromRaw NewUserRaw {..} = do
         (isJust newUserRawPassword)
         (isJust newUserRawSSOId)
         (newUserRawInvitationCode, newUserRawTeamCode, newUserRawTeam, newUserRawTeamId)
-  let identity = maybeUserIdentityFromComponents (newUserRawEmail, newUserRawPhone, newUserRawSSOId)
+  let identity =
+        maybeUserIdentityFromComponents
+          (newUserRawEmail, newUserRawSSOId)
   expiresIn <-
     case (newUserRawExpiresIn, identity) of
       (Just _, Just _) -> fail "Only users without an identity can expire"
@@ -1243,6 +1124,7 @@ newUserFromRaw NewUserRaw {..} = do
       { newUserDisplayName = newUserRawDisplayName,
         newUserUUID = newUserRawUUID,
         newUserIdentity = identity,
+        newUserPhone = newUserRawPhone,
         newUserPict = newUserRawPict,
         newUserAssets = newUserRawAssets,
         newUserAccentId = newUserRawAccentId,
@@ -1261,6 +1143,7 @@ newUserFromRaw NewUserRaw {..} = do
 instance Arbitrary NewUser where
   arbitrary = do
     newUserIdentity <- arbitrary
+    newUserPhone <- arbitrary
     newUserOrigin <- genUserOrigin newUserIdentity
     newUserDisplayName <- arbitrary
     newUserUUID <- QC.elements [Just nil, Nothing]
@@ -1311,9 +1194,6 @@ newUserTeam nu = case newUserOrigin nu of
 
 newUserEmail :: NewUser -> Maybe Email
 newUserEmail = emailIdentity <=< newUserIdentity
-
-newUserPhone :: NewUser -> Maybe Phone
-newUserPhone = phoneIdentity <=< newUserIdentity
 
 newUserSSOId :: NewUser -> Maybe UserSSOId
 newUserSSOId = ssoIdentity <=< newUserIdentity
@@ -1618,7 +1498,6 @@ instance ToSchema PhoneUpdate where
 data ChangePhoneError
   = PhoneExists
   | InvalidNewPhone
-  | BlacklistedNewPhone
   deriving (Generic)
   deriving (AsUnion ChangePhoneErrorResponses) via GenericAsUnion ChangePhoneErrorResponses ChangePhoneError
 
@@ -1626,8 +1505,7 @@ instance GSOP.Generic ChangePhoneError
 
 type ChangePhoneErrorResponses =
   [ ErrorResponse 'UserKeyExists,
-    ErrorResponse 'InvalidPhone,
-    ErrorResponse 'BlacklistedPhone
+    ErrorResponse 'InvalidPhone
   ]
 
 type ChangePhoneResponses =
@@ -2045,7 +1923,7 @@ instance ToSchema SendVerificationCode where
 -- Unlike 'ProtocolTag', this does not include any transitional protocols used
 -- for migration.
 data BaseProtocolTag = BaseProtocolProteusTag | BaseProtocolMLSTag
-  deriving stock (Eq, Ord, Show, Generic)
+  deriving stock (Eq, Ord, Enum, Bounded, Show, Generic)
   deriving (Arbitrary) via (GenericUniform BaseProtocolTag)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema BaseProtocolTag)
 

@@ -1,0 +1,18 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+XÁC MINH ĐĂNG NHẬP
+${email} đã được sử dụng để đưng nhập vào tài khoản ${brand} của bạn. Nhập đoạn
+mã này để xác thực email của bạn và đăng nhập.
+
+${code}
+
+Nếu bạn có bất kỳ thắc mắc nào, xin vui lòng liên hệ với chúng tôi [${support}].
+
+
+--------------------------------------------------------------------------------
+
+Chính sách riêng tư và điều khoản sử dụng [${legal}] · Báo cáo Lạm dụng
+[${misuse}]
+${copyright}. ĐÃ ĐƯỢC ĐĂNG KÝ BẢN QUYỀN.

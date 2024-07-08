@@ -62,6 +62,7 @@ import qualified SAML2.WebSSO as SAML
 import Spar.Error
 import qualified System.Logger.Class as Log
 import Web.Cookie
+import Wire.API.Locale
 import Wire.API.Team.Role (Role)
 import Wire.API.User
 import Wire.API.User.Auth.ReAuth
@@ -331,12 +332,12 @@ checkHandleAvailable hnd = do
         . paths ["/i/users/handles", toByteString' hnd]
   let sCode = statusCode resp
   if
-      | sCode == 200 -> -- handle exists
-          pure False
-      | sCode == 404 -> -- handle not found
-          pure True
-      | otherwise ->
-          rethrow "brig" resp
+    | sCode == 200 -> -- handle exists
+        pure False
+    | sCode == 404 -> -- handle not found
+        pure True
+    | otherwise ->
+        rethrow "brig" resp
 
 -- | Call brig to delete a user.
 -- If the user wasn't deleted completely before, another deletion attempt will be made.

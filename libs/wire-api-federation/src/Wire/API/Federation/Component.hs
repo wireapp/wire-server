@@ -49,7 +49,7 @@ instance KnownComponent 'Cargohold where
   componentVal = Cargohold
 
 data SomeComponent where
-  SomeComponent :: KnownComponent c => Proxy c -> SomeComponent
+  SomeComponent :: (KnownComponent c) => Proxy c -> SomeComponent
 
 someComponent :: Component -> SomeComponent
 someComponent Brig = SomeComponent (Proxy @'Brig)

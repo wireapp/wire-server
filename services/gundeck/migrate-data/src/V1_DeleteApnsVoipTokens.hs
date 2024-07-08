@@ -56,14 +56,14 @@ pageSize = 1000
 -- | We do not use the push token types here because they will likely be
 -- changed in future breaking this migration.
 getPushTokens ::
-  MonadClient m =>
+  (MonadClient m) =>
   ConduitM () [(UserId, Text, Text, Int32, Maybe Text)] m ()
 getPushTokens = paginateC cql (paramsP LocalQuorum () pageSize) x5
   where
     cql :: PrepQuery R () (UserId, Text, Text, Int32, Maybe Text)
     cql = "SELECT usr, ptoken, app, transport, arn FROM user_push"
 
-deletePushToken :: MonadClient m => (UserId, Text, Text, Int32) -> m ()
+deletePushToken :: (MonadClient m) => (UserId, Text, Text, Int32) -> m ()
 deletePushToken pair =
   retry x5 $ write cql (params LocalQuorum pair)
   where

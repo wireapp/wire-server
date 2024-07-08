@@ -68,7 +68,7 @@ type CollisionResolver =
 -- | Use this if you want to paginate without crashing
 newtype CqlSafe a = CqlSafe {unCqlSafe :: Either String a}
 
-instance Cql a => Cql (CqlSafe a) where
+instance (Cql a) => Cql (CqlSafe a) where
   ctype = Tagged $ untag (ctype @a)
   toCql _ = error "CqlSafe is not meant for serialization"
   fromCql val =

@@ -50,7 +50,7 @@ data SAML2 m a where
     SAML2 m resp
   Meta :: Text -> m Issuer -> m URI -> SAML2 m SPMetadata
   ToggleCookie ::
-    KnownSymbol name =>
+    (KnownSymbol name) =>
     ByteString ->
     Maybe (Text, NominalDiffTime) ->
     SAML2 m (SimpleSetCookie name)

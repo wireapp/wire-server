@@ -53,6 +53,7 @@ import Imports
 import Polysemy
 import qualified SAML2.WebSSO as SAML
 import Web.Cookie
+import Wire.API.Locale
 import Wire.API.Team.Role
 import Wire.API.User (AccountStatus (..), DeleteUserResult, VerificationAction)
 import Wire.API.User.Identity

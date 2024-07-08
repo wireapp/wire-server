@@ -76,7 +76,6 @@ library
 
   -- cabal-fmt: expand src
   exposed-modules:
-    Brig.Allowlists
     Brig.API.Auth
     Brig.API.Client
     Brig.API.Connection
@@ -106,7 +105,6 @@ library
     Brig.Calling.API
     Brig.Calling.Internal
     Brig.CanonicalInterpreter
-    Brig.Code
     Brig.Data.Activation
     Brig.Data.Client
     Brig.Data.Connection
@@ -116,26 +114,18 @@ library
     Brig.Data.Properties
     Brig.Data.Types
     Brig.Data.User
-    Brig.Data.UserKey
     Brig.DeleteQueue.Interpreter
-    Brig.Effects.BlacklistPhonePrefixStore
-    Brig.Effects.BlacklistPhonePrefixStore.Cassandra
     Brig.Effects.BlacklistStore
     Brig.Effects.BlacklistStore.Cassandra
-    Brig.Effects.CodeStore
-    Brig.Effects.CodeStore.Cassandra
     Brig.Effects.ConnectionStore
     Brig.Effects.ConnectionStore.Cassandra
     Brig.Effects.FederationConfigStore
     Brig.Effects.FederationConfigStore.Cassandra
     Brig.Effects.JwtTools
-    Brig.Effects.PasswordResetStore
-    Brig.Effects.PasswordResetStore.CodeStore
     Brig.Effects.PublicKeyBundle
     Brig.Effects.SFT
     Brig.Effects.UserPendingActivationStore
     Brig.Effects.UserPendingActivationStore.Cassandra
-    Brig.Email
     Brig.Federation.Client
     Brig.Index.Eval
     Brig.Index.Migrations
@@ -147,9 +137,7 @@ library
     Brig.IO.Intra
     Brig.IO.Journal
     Brig.IO.Logging
-    Brig.Locale
     Brig.Options
-    Brig.Phone
     Brig.Provider.API
     Brig.Provider.DB
     Brig.Provider.Email
@@ -201,26 +189,18 @@ library
     Brig.Schema.V80_KeyPackageCiphersuite
     Brig.Schema.V81_AddFederationRemoteTeams
     Brig.Schema.V_FUTUREWORK
-    Brig.SMTP
     Brig.Team.API
     Brig.Team.DB
     Brig.Team.Email
     Brig.Team.Template
     Brig.Team.Util
     Brig.Template
-    Brig.Unique
     Brig.User.API.Handle
     Brig.User.API.Search
     Brig.User.Auth
     Brig.User.Auth.Cookie
     Brig.User.Auth.Cookie.Limit
-    Brig.User.Auth.DB.Cookie
-    Brig.User.Auth.DB.Instances
     Brig.User.EJPD
-    Brig.User.Email
-    Brig.User.Handle
-    Brig.User.Handle.Blacklist
-    Brig.User.Phone
     Brig.User.Search.Index
     Brig.User.Search.Index.Types
     Brig.User.Search.SearchIndex
@@ -264,7 +244,7 @@ library
     , cql
     , cryptobox-haskell          >=0.1.1
     , currency-codes             >=2.0
-    , data-timeout               >=0.3
+    , data-default
     , dns
     , dns-util
     , enclosed-exceptions        >=1.0
@@ -279,10 +259,7 @@ library
     , galley-types               >=0.75.3
     , gundeck-types              >=1.32.1
     , hashable                   >=1.2
-    , HaskellNet                 >=0.3
-    , HaskellNet-SSL
     , HsOpenSSL                  >=0.10
-    , html-entities              >=1.1
     , http-client                >=0.7
     , http-client-openssl        >=0.2
     , http-media
@@ -313,13 +290,12 @@ library
     , polysemy-plugin
     , polysemy-time
     , polysemy-wire-zoo
+    , prometheus-client
     , proto-lens                 >=0.1
     , random-shuffle             >=0.0.3
     , raw-strings-qq
-    , resource-pool              >=0.2
     , resourcet                  >=1.1
     , retry                      >=0.7
-    , ropes                      >=0.4.20
     , safe-exceptions            >=0.1
     , saml2-web-sso
     , schema-profunctor
@@ -367,8 +343,8 @@ executable brig
   main-is:       exec/Main.hs
   other-modules: Paths_brig
   ghc-options:
-    -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T
-    -rtsopts -Wredundant-constraints -Wunused-packages
+    -funbox-strict-fields -threaded "-with-rtsopts=-N -T" -rtsopts
+    -Wredundant-constraints -Wunused-packages
 
   build-depends:
     , base
@@ -522,6 +498,7 @@ executable brig-integration
     , warp-tls               >=3.2
     , wire-api
     , wire-api-federation
+    , wire-subsystems
     , yaml
     , zauth
 

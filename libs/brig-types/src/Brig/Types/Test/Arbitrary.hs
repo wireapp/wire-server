@@ -22,14 +22,10 @@ module Brig.Types.Test.Arbitrary
   )
 where
 
-import Brig.Types.Common
 import Brig.Types.Team.LegalHold
 import Imports
 import Test.QuickCheck
 import Wire.Arbitrary
-
-instance Arbitrary ExcludedPrefix where
-  arbitrary = ExcludedPrefix <$> arbitrary <*> arbitrary
 
 instance Arbitrary LegalHoldClientRequest where
   arbitrary =

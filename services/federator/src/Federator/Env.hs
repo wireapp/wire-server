@@ -21,9 +21,7 @@
 
 module Federator.Env where
 
-import Bilge (RequestId)
 import Control.Lens (makeLenses)
-import Data.Metrics (Metrics)
 import Federator.Options (RunSettings)
 import HTTP2.Client.Manager
 import Imports
@@ -41,9 +39,7 @@ data FederatorMetrics = FederatorMetrics
   }
 
 data Env = Env
-  { _metrics :: Metrics,
-    _applog :: LC.Logger,
-    _requestId :: RequestId,
+  { _applog :: LC.Logger,
     _dnsResolver :: Resolver,
     _runSettings :: RunSettings,
     _service :: Component -> Endpoint,

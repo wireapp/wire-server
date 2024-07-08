@@ -297,7 +297,7 @@ type SelfAPI =
     "get-self"
     ( Summary "Get your own profile"
         :> DescriptionOAuthScope 'ReadSelf
-        :> ZUser
+        :> ZLocalUser
         :> "self"
         :> Get '[JSON] SelfProfile
     )
@@ -334,11 +334,11 @@ type SelfAPI =
       "put-self"
       ( Summary "Update your profile."
           :> MakesFederatedCall 'Brig "send-connection-action"
-          :> ZUser
+          :> ZLocalUser
           :> ZConn
           :> "self"
           :> ReqBody '[JSON] UserUpdate
-          :> MultiVerb 'PUT '[JSON] PutSelfResponses (Maybe UpdateProfileError)
+          :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "User updated")
       )
     :<|> Named
            "change-phone"
@@ -361,7 +361,6 @@ type SelfAPI =
                \email address and a password."
           :> MakesFederatedCall 'Brig "send-connection-action"
           :> ZUser
-          :> ZConn
           :> "self"
           :> "phone"
           :> MultiVerb 'DELETE '[JSON] RemoveIdentityResponses (Maybe RemoveIdentityError)
@@ -377,7 +376,6 @@ type SelfAPI =
                \phone number."
           :> MakesFederatedCall 'Brig "send-connection-action"
           :> ZUser
-          :> ZConn
           :> "self"
           :> "email"
           :> MultiVerb 'DELETE '[JSON] RemoveIdentityResponses (Maybe RemoveIdentityError)
@@ -409,24 +407,24 @@ type SelfAPI =
            "change-locale"
            ( Summary "Change your locale."
                :> MakesFederatedCall 'Brig "send-connection-action"
-               :> ZUser
+               :> ZLocalUser
                :> ZConn
                :> "self"
                :> "locale"
                :> ReqBody '[JSON] LocaleUpdate
-               :> MultiVerb 'PUT '[JSON] '[RespondEmpty 200 "Local Changed"] ()
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "Local Changed")
            )
     :<|> Named
            "change-handle"
            ( Summary "Change your handle."
                :> MakesFederatedCall 'Brig "send-connection-action"
                :> MakesFederatedCall 'Brig "send-connection-action"
-               :> ZUser
+               :> ZLocalUser
                :> ZConn
                :> "self"
                :> "handle"
                :> ReqBody '[JSON] HandleUpdate
-               :> MultiVerb 'PUT '[JSON] ChangeHandleResponses (Maybe ChangeHandleError)
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "Handle Changed")
            )
     :<|> Named
            "change-supported-protocols"
@@ -481,8 +479,8 @@ type AccountAPI =
     ( Summary "Register a new user."
         :> Description
              "If the environment where the registration takes \
-             \place is private and a registered email address or phone \
-             \number is not whitelisted, a 403 error is returned."
+             \place is private and a registered email address \
+             \is not whitelisted, a 403 error is returned."
         :> MakesFederatedCall 'Brig "send-connection-action"
         :> "register"
         :> ReqBody '[JSON] NewUserPublic
@@ -550,12 +548,11 @@ type AccountAPI =
     -- docs/reference/user/activation.md {#RefActivationRequest}
     :<|> Named
            "post-activate-send"
-           ( Summary "Send (or resend) an email or phone activation code."
+           ( Summary "Send (or resend) an email activation code."
                :> CanThrow 'UserKeyExists
                :> CanThrow 'InvalidEmail
                :> CanThrow 'InvalidPhone
                :> CanThrow 'BlacklistedEmail
-               :> CanThrow 'BlacklistedPhone
                :> CanThrow 'CustomerExtensionBlockedDomain
                :> "activate"
                :> "send"
@@ -565,8 +562,6 @@ type AccountAPI =
     :<|> Named
            "post-password-reset"
            ( Summary "Initiate a password reset."
-               :> CanThrow 'PasswordResetInProgress
-               :> CanThrow 'InvalidPasswordResetKey
                :> "password-reset"
                :> ReqBody '[JSON] NewPasswordReset
                :> MultiVerb 'POST '[JSON] '[RespondEmpty 201 "Password reset code created and sent by email."] ()
@@ -1484,7 +1479,6 @@ type AuthAPI =
                :> CanThrow 'InvalidEmail
                :> CanThrow 'UserKeyExists
                :> CanThrow 'BlacklistedEmail
-               :> CanThrow 'BlacklistedPhone
                :> CanThrow 'BadCredentials
                :> MultiVerb
                     'PUT

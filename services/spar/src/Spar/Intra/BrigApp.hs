@@ -50,7 +50,7 @@ import Control.Lens
 import Control.Monad.Except
 import Data.ByteString.Conversion
 import qualified Data.CaseInsensitive as CI
-import Data.Handle (Handle (Handle))
+import Data.Handle (Handle, parseHandle)
 import Data.Id (TeamId, UserId)
 import Data.Text.Encoding
 import Data.Text.Encoding.Error
@@ -73,7 +73,7 @@ import Wire.API.User.Scim (ValidExternalId (..), runValidExternalIdEither)
 veidToUserSSOId :: ValidExternalId -> UserSSOId
 veidToUserSSOId = runValidExternalIdEither UserSSOId (UserScimExternalId . fromEmail)
 
-veidFromUserSSOId :: MonadError String m => UserSSOId -> m ValidExternalId
+veidFromUserSSOId :: (MonadError String m) => UserSSOId -> m ValidExternalId
 veidFromUserSSOId = \case
   UserSSOId uref ->
     case urefToEmail uref of
@@ -93,7 +93,7 @@ veidFromUserSSOId = \case
 -- Note: the saml issuer is only needed in the case where a user has been invited via team
 -- settings and is now onboarded to saml/scim.  If this case can safely be ruled out, it's ok
 -- to just set it to 'Nothing'.
-veidFromBrigUser :: MonadError String m => User -> Maybe SAML.Issuer -> m ValidExternalId
+veidFromBrigUser :: (MonadError String m) => User -> Maybe SAML.Issuer -> m ValidExternalId
 veidFromBrigUser usr mIssuer = case (userSSOId usr, userEmail usr, mIssuer) of
   (Just ssoid, _, _) -> veidFromUserSSOId ssoid
   (Nothing, Just email, Just issuer) -> pure $ EmailAndUref email (SAML.UserRef issuer (emailToSAMLNameID email))
@@ -180,7 +180,7 @@ giveDefaultHandle :: (HasCallStack, Member BrigAccess r) => User -> Sem r Handle
 giveDefaultHandle usr = case userHandle usr of
   Just handle -> pure handle
   Nothing -> do
-    let handle = Handle . decodeUtf8With lenientDecode . toByteString' $ uid
+    let handle = fromJust . parseHandle . decodeUtf8With lenientDecode . toByteString' $ uid
         uid = userId usr
     BrigAccess.setHandle uid handle
     pure handle

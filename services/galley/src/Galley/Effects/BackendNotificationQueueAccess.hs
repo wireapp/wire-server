@@ -11,7 +11,7 @@ import Wire.API.Federation.Error
 
 data BackendNotificationQueueAccess m a where
   EnqueueNotification ::
-    KnownComponent c =>
+    (KnownComponent c) =>
     Q.DeliveryMode ->
     Remote x ->
     FedQueueClient c a ->

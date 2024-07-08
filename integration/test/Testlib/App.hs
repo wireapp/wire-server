@@ -18,7 +18,7 @@ import Testlib.JSON
 import Testlib.Types
 import Prelude
 
-failApp :: HasCallStack => String -> App a
+failApp :: (HasCallStack) => String -> App a
 failApp msg = throw (AppFailure msg)
 
 getPrekey :: App Value
@@ -78,11 +78,11 @@ retryT :: App a -> App a
 retryT action = Retry.recoverAll (Retry.exponentialBackoff 8000 <> Retry.limitRetries 10) (const action)
 
 -- | make Bool lazy
-liftBool :: Functor f => f Bool -> BoolT f
+liftBool :: (Functor f) => f Bool -> BoolT f
 liftBool = MaybeT . fmap (bool Nothing (Just ()))
 
 -- | make Bool strict
-unliftBool :: Functor f => BoolT f -> f Bool
+unliftBool :: (Functor f) => BoolT f -> f Bool
 unliftBool = fmap isJust . runMaybeT
 
 -- | lazy (&&)

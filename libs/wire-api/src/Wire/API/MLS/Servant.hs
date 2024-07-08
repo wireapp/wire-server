@@ -30,10 +30,10 @@ data MLS
 instance Accept MLS where
   contentType _ = "message" // "mls"
 
-instance {-# OVERLAPPABLE #-} ParseMLS a => MimeUnrender MLS a where
+instance {-# OVERLAPPABLE #-} (ParseMLS a) => MimeUnrender MLS a where
   mimeUnrender _ = mimeUnrenderMLSWith parseMLS
 
-instance {-# OVERLAPPABLE #-} SerialiseMLS a => MimeRender MLS a where
+instance {-# OVERLAPPABLE #-} (SerialiseMLS a) => MimeRender MLS a where
   mimeRender _ = encodeMLS
 
 mimeUnrenderMLSWith :: Get a -> LByteString -> Either String a

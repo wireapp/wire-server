@@ -59,12 +59,12 @@ type instance
   SpecialiseToVersion v ((tag :: PrincipalTag) :> api) =
     SpecialiseToVersion v (ApplyPrincipalPath tag api)
 
-instance HasServer (ApplyPrincipalPath tag api) ctx => HasServer (tag :> api) ctx where
+instance (HasServer (ApplyPrincipalPath tag api) ctx) => HasServer (tag :> api) ctx where
   type ServerT (tag :> api) m = ServerT (ApplyPrincipalPath tag api) m
   route _ = route (Proxy @(ApplyPrincipalPath tag api))
   hoistServerWithContext _ = hoistServerWithContext (Proxy @(ApplyPrincipalPath tag api))
 
-instance RoutesToPaths (ApplyPrincipalPath tag api) => RoutesToPaths (tag :> api) where
+instance (RoutesToPaths (ApplyPrincipalPath tag api)) => RoutesToPaths (tag :> api) where
   getRoutes = getRoutes @(ApplyPrincipalPath tag api)
 
 type AssetLocationHeader r =

@@ -1,0 +1,17 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+VERIFY LOGIN
+${email} was used to log in to your ${brand} account. Enter this code to verify
+your email and log in.
+
+${code}
+
+ご不明な点がございましたら、 こちら [${support}] から私たちにご連絡ください。
+
+
+--------------------------------------------------------------------------------
+
+プライバシーポリシーと利用規約 [${legal}] · 不具合を報告する [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

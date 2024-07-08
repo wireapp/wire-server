@@ -73,8 +73,7 @@ clean-hint:
 
 .PHONY: cabal.project.local
 cabal.project.local:
-	echo "optimization: False" > ./cabal.project.local
-	./hack/bin/cabal-project-local-template.sh "ghc-options: -O0" >> ./cabal.project.local
+	cp ./hack/bin/cabal.project.local.template ./cabal.project.local
 
 # Usage: make c package=brig test=1
 .PHONY: c
@@ -127,11 +126,8 @@ devtest:
 	ghcid --command 'cabal repl integration' --test='Testlib.Run.mainI []'
 
 .PHONY: sanitize-pr
-sanitize-pr:
-	./hack/bin/generate-local-nix-packages.sh
-	make formatf
-	make hlint-inplace-pr
-	make hlint-check-pr  # sometimes inplace has been observed not to do its job very well.
+sanitize-pr: 
+	make lint-all-shallow
 	make git-add-cassandra-schema
 	@git diff-files --quiet -- || ( echo "There are unstaged changes, please take a look, consider committing them, and try again."; exit 1 )
 	@git diff-index --quiet --cached HEAD -- || ( echo "There are staged changes, please take a look, consider committing them, and try again."; exit 1 )
@@ -155,7 +151,25 @@ ghcid:
 
 # Used by CI
 .PHONY: lint-all
-lint-all: formatc hlint-check-all check-local-nix-derivations treefmt-check
+lint-all: formatc hlint-check-all lint-common
+
+# For use by local devs.
+#
+# This is not safe for CI because files not changed on the branch may
+# have been pushed to develop, or caused by merging develop into the
+# branch implicitly on github.
+#
+# The extra 'hlint-check-pr' has been witnessed to be necessary due to
+# some bu in `hlint-inplace-pr`.  Details got lost in history.
+.PHONY: lint-all-shallow
+lint-all-shallow: formatf hlint-inplace-pr hlint-check-pr lint-common
+
+.PHONY: lint-common
+lint-common: check-local-nix-derivations treefmt-check # weeder (does not work on CI yet)
+
+.PHONY: weeder
+weeder:
+	weeder -N
 
 .PHONY: hlint-check-all
 hlint-check-all:

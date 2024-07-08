@@ -42,7 +42,7 @@ testBaz = pure ()
 -- The test asserts that, among others, remote users are removed from a
 -- conversation when an access update occurs that disallows guests from
 -- accessing.
-testAccessUpdateGuestRemoved :: HasCallStack => App ()
+testAccessUpdateGuestRemoved :: (HasCallStack) => App ()
 testAccessUpdateGuestRemoved = do
   (alice, tid, [bob]) <- createTeam OwnDomain 2
   charlie <- randomUser OwnDomain def
@@ -73,7 +73,7 @@ testAccessUpdateGuestRemoved = do
     res.status `shouldMatchInt` 200
     res.json %. "members.others.0.qualified_id" `shouldMatch` objQidObject bob
 
-testAccessUpdateGuestRemovedUnreachableRemotes :: HasCallStack => App ()
+testAccessUpdateGuestRemovedUnreachableRemotes :: (HasCallStack) => App ()
 testAccessUpdateGuestRemovedUnreachableRemotes = do
   resourcePool <- asks resourcePool
   (alice, tid, [bob]) <- createTeam OwnDomain 2
@@ -109,7 +109,7 @@ testAccessUpdateGuestRemovedUnreachableRemotes = do
     res.status `shouldMatchInt` 200
     res.json %. "members.others.0.qualified_id" `shouldMatch` objQidObject bob
 
-testAccessUpdateWithRemotes :: HasCallStack => App ()
+testAccessUpdateWithRemotes :: (HasCallStack) => App ()
 testAccessUpdateWithRemotes = do
   [alice, bob, charlie] <- createUsers [OwnDomain, OtherDomain, OwnDomain]
   connectTwoUsers alice bob

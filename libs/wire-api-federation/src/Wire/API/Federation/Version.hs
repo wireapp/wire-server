@@ -176,14 +176,14 @@ enumVersionRange =
 -- remote versions are given as integers as the range of versions supported by
 -- the remote backend can include a version unknown to the local backend. If
 -- there is no version in common, the return value is 'Nothing'.
-latestCommonVersion :: Foldable f => VersionRange -> f Int -> Maybe Version
+latestCommonVersion :: (Foldable f) => VersionRange -> f Int -> Maybe Version
 latestCommonVersion localVersions =
   safeMaximum
     . filter (inVersionRange localVersions)
     . mapMaybe intToVersion
     . toList
 
-safeMaximum :: Ord a => [a] -> Maybe a
+safeMaximum :: (Ord a) => [a] -> Maybe a
 safeMaximum [] = Nothing
 safeMaximum as = Just (maximum as)
 

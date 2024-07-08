@@ -198,7 +198,7 @@ runCommand env@Env {..} = do
         tally (nErrs, nReset, nSet, nNoOp) (Right NoActionRequired {}) = (nErrs, nReset, nSet, nNoOp + 1)
         tally (nErrs, nReset, nSet, nNoOp) (Left _) = (nErrs + 1, nReset, nSet, nNoOp)
 
-    chunkify :: Monad m => Int -> ConduitT i [i] m ()
+    chunkify :: (Monad m) => Int -> ConduitT i [i] m ()
     chunkify n = void (C.map (: [])) .| C.chunksOfE n
 
 main :: IO ()

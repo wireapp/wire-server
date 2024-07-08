@@ -27,7 +27,7 @@ import Cannon.API.Public
 import Cannon.App (maxPingInterval)
 import Cannon.Dict qualified as D
 import Cannon.Options
-import Cannon.Types (Cannon, applog, clients, env, mkEnv, monitor, runCannon', runCannonToServant)
+import Cannon.Types (Cannon, applog, clients, env, mkEnv, runCannon', runCannonToServant)
 import Cannon.WS hiding (env)
 import Control.Concurrent
 import Control.Concurrent.Async qualified as Async
@@ -35,8 +35,6 @@ import Control.Exception qualified as E
 import Control.Exception.Safe (catchAny)
 import Control.Lens ((^.))
 import Control.Monad.Catch (MonadCatch, finally)
-import Data.Metrics.Middleware (gaugeSet, path)
-import Data.Metrics.Middleware qualified as Middleware
 import Data.Metrics.Servant
 import Data.Proxy
 import Data.Text (pack, strip)
@@ -47,6 +45,7 @@ import Network.Wai qualified as Wai
 import Network.Wai.Handler.Warp hiding (run)
 import Network.Wai.Middleware.Gzip qualified as Gzip
 import Network.Wai.Utilities.Server
+import Prometheus qualified as Prom
 import Servant
 import System.IO.Strict qualified as Strict
 import System.Logger.Class qualified as LC
@@ -68,23 +67,23 @@ run o = do
   when (o ^. drainOpts . gracePeriodSeconds == 0) $
     error "drainOpts.gracePeriodSeconds must not be set to 0."
   ext <- loadExternal
-  m <- Middleware.metrics
   g <- L.mkLogger (o ^. logLevel) (o ^. logNetStrings) (o ^. logFormat)
   e <-
-    mkEnv m ext o g
+    mkEnv ext o g
       <$> D.empty 128
       <*> newManager defaultManagerSettings {managerConnCount = 128}
       <*> createSystemRandom
       <*> mkClock
   refreshMetricsThread <- Async.async $ runCannon' e refreshMetrics
-  s <- newSettings $ Server (o ^. cannon . host) (o ^. cannon . port) (applog e) m (Just idleTimeout)
+  s <- newSettings $ Server (o ^. cannon . host) (o ^. cannon . port) (applog e) (Just idleTimeout)
 
   let middleware :: Wai.Middleware
       middleware =
         versionMiddleware (foldMap expandVersionExp (o ^. disabledAPIVersions))
+          . requestIdMiddleware g defaultRequestIdHeaderName
           . servantPrometheusMiddleware (Proxy @CombinedAPI)
           . Gzip.gzip Gzip.def
-          . catchErrors g [Right m]
+          . catchErrors g defaultRequestIdHeaderName
       app :: Application
       app = middleware (serve (Proxy @CombinedAPI) server)
       server :: Servant.Server CombinedAPI
@@ -132,11 +131,11 @@ instance Exception SignalledToExit
 
 refreshMetrics :: Cannon ()
 refreshMetrics = do
-  m <- monitor
   c <- clients
   safeForever $ do
     s <- D.size c
-    gaugeSet (fromIntegral s) (path "net.websocket.clients") m
+    Prom.setGauge websocketClientsGauge (fromIntegral s)
+    -- gaugeSet (fromIntegral s) (path "") m
     liftIO $ threadDelay 1000000
   where
     safeForever :: (MonadIO m, LC.MonadLogger m, MonadCatch m) => m () -> m ()
@@ -145,3 +144,13 @@ refreshMetrics = do
         action `catchAny` \exc -> do
           LC.err $ "error" LC..= show exc LC.~~ LC.msg (LC.val "refreshMetrics failed")
           liftIO $ threadDelay 60000000 -- pause to keep worst-case noise in logs manageable
+
+{-# NOINLINE websocketClientsGauge #-}
+websocketClientsGauge :: Prom.Gauge
+websocketClientsGauge =
+  Prom.unsafeRegister $
+    Prom.gauge
+      Prom.Info
+        { Prom.metricName = "net.websocket.clients",
+          Prom.metricHelp = "Number of connected websocket clients"
+        }

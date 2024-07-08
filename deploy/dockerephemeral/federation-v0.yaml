@@ -1,5 +1,3 @@
-version: '2.3'
-
 networks:
   demo_wire:
     external: false

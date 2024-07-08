@@ -32,6 +32,14 @@ tests =
       testCase "verify old scrypt password still works" testHashingOldScrypt
     ]
 
+testHashPasswordScrypt :: IO ()
+testHashPasswordScrypt = do
+  pwd <- genPassword
+  hashed <- mkSafePasswordScrypt pwd
+  let (correct, status) = verifyPasswordWithStatus pwd hashed
+  assertBool "Password could not be verified" correct
+  assertEqual "Password could not be verified" status PasswordStatusOk
+
 testHashPasswordArgon2id :: IO ()
 testHashPasswordArgon2id = do
   pwd <- genPassword

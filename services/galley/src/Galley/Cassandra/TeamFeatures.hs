@@ -85,7 +85,7 @@ interpretTeamFeatureStoreToCassandra = interpret $ \case
         serverConfigs
         tid
 
-getFeatureConfig :: MonadClient m => FeatureSingleton cfg -> TeamId -> m (Maybe (WithStatusNoLock cfg))
+getFeatureConfig :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> m (Maybe (WithStatusNoLock cfg))
 getFeatureConfig FeatureSingletonLegalholdConfig tid = getTrivialConfigC "legalhold_status" tid
 getFeatureConfig FeatureSingletonSSOConfig tid = getTrivialConfigC "sso_status" tid
 getFeatureConfig FeatureSingletonSearchVisibilityAvailableConfig tid = getTrivialConfigC "search_visibility_status" tid
@@ -170,24 +170,24 @@ getFeatureConfig FeatureSingletonMlsE2EIdConfig tid = do
   let q = query1 select (params LocalQuorum (Identity tid))
   retry x1 q <&> \case
     Nothing -> Nothing
-    Just (Nothing, _, _) -> Nothing
-    Just (Just fs, mGracePeriod, mUrl) ->
+    Just (Nothing, _, _, _, _) -> Nothing
+    Just (Just fs, mGracePeriod, mUrl, mCrlProxy, mUseProxyOnMobile) ->
       Just $
         WithStatusNoLock
           fs
           ( -- FUTUREWORK: this block is duplicated in
             -- "Galley.Cassandra.GetAllTeamFeatureConfigs"; make sure the two don't diverge!
-            MlsE2EIdConfig (toGracePeriodOrDefault mGracePeriod) mUrl
+            MlsE2EIdConfig (toGracePeriodOrDefault mGracePeriod) mUrl mCrlProxy (fromMaybe (useProxyOnMobile . wsConfig $ defFeatureStatus @MlsE2EIdConfig) mUseProxyOnMobile)
           )
           FeatureTTLUnlimited
   where
     toGracePeriodOrDefault :: Maybe Int32 -> NominalDiffTime
     toGracePeriodOrDefault = maybe (verificationExpiration $ wsConfig defFeatureStatus) fromIntegral
 
-    select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe Int32, Maybe HttpsUrl)
+    select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe Int32, Maybe HttpsUrl, Maybe HttpsUrl, Maybe Bool)
     select =
       fromString $
-        "select mls_e2eid_status, mls_e2eid_grace_period, mls_e2eid_acme_discovery_url from team_features where team_id = ?"
+        "select mls_e2eid_status, mls_e2eid_grace_period, mls_e2eid_acme_discovery_url, mls_e2eid_crl_proxy, mls_e2eid_use_proxy_on_mobile from team_features where team_id = ?"
 getFeatureConfig FeatureSingletonMlsMigration tid = do
   let q = query1 select (params LocalQuorum (Identity tid))
   retry x1 q <&> \case
@@ -222,7 +222,7 @@ getFeatureConfig FeatureSingletonEnforceFileDownloadLocationConfig tid = do
 getFeatureConfig FeatureSingletonLimitedEventFanoutConfig tid =
   getTrivialConfigC "limited_event_fanout_status" tid
 
-setFeatureConfig :: MonadClient m => FeatureSingleton cfg -> TeamId -> WithStatusNoLock cfg -> m ()
+setFeatureConfig :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> WithStatusNoLock cfg -> m ()
 setFeatureConfig FeatureSingletonLegalholdConfig tid statusNoLock = setFeatureStatusC "legalhold_status" tid (wssStatus statusNoLock)
 setFeatureConfig FeatureSingletonSSOConfig tid statusNoLock = setFeatureStatusC "sso_status" tid (wssStatus statusNoLock)
 setFeatureConfig FeatureSingletonSearchVisibilityAvailableConfig tid statusNoLock = setFeatureStatusC "search_visibility_status" tid (wssStatus statusNoLock)
@@ -292,11 +292,13 @@ setFeatureConfig FeatureSingletonMlsE2EIdConfig tid status = do
   let statusValue = wssStatus status
       vex = verificationExpiration . wssConfig $ status
       mUrl = acmeDiscoveryUrl . wssConfig $ status
-  retry x5 $ write insert (params LocalQuorum (tid, statusValue, truncate vex, mUrl))
+      mCrlProxy = crlProxy . wssConfig $ status
+      useProxy = useProxyOnMobile . wssConfig $ status
+  retry x5 $ write insert (params LocalQuorum (tid, statusValue, truncate vex, mUrl, mCrlProxy, useProxy))
   where
-    insert :: PrepQuery W (TeamId, FeatureStatus, Int32, Maybe HttpsUrl) ()
+    insert :: PrepQuery W (TeamId, FeatureStatus, Int32, Maybe HttpsUrl, Maybe HttpsUrl, Bool) ()
     insert =
-      "insert into team_features (team_id, mls_e2eid_status, mls_e2eid_grace_period, mls_e2eid_acme_discovery_url) values (?, ?, ?, ?)"
+      "insert into team_features (team_id, mls_e2eid_status, mls_e2eid_grace_period, mls_e2eid_acme_discovery_url, mls_e2eid_crl_proxy, mls_e2eid_use_proxy_on_mobile) values (?, ?, ?, ?, ?, ?)"
 setFeatureConfig FeatureSingletonMlsMigration tid status = do
   let statusValue = wssStatus status
       config = wssConfig status
@@ -320,7 +322,7 @@ setFeatureConfig FeatureSingletonEnforceFileDownloadLocationConfig tid status = 
 setFeatureConfig FeatureSingletonLimitedEventFanoutConfig tid statusNoLock =
   setFeatureStatusC "limited_event_fanout_status" tid (wssStatus statusNoLock)
 
-getFeatureLockStatus :: MonadClient m => FeatureSingleton cfg -> TeamId -> m (Maybe LockStatus)
+getFeatureLockStatus :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> m (Maybe LockStatus)
 getFeatureLockStatus FeatureSingletonFileSharingConfig tid = getLockStatusC "file_sharing_lock_status" tid
 getFeatureLockStatus FeatureSingletonSelfDeletingMessagesConfig tid = getLockStatusC "self_deleting_messages_lock_status" tid
 getFeatureLockStatus FeatureSingletonGuestLinksConfig tid = getLockStatusC "guest_links_lock_status" tid
@@ -332,7 +334,7 @@ getFeatureLockStatus FeatureSingletonMLSConfig tid = getLockStatusC "mls_lock_st
 getFeatureLockStatus FeatureSingletonEnforceFileDownloadLocationConfig tid = getLockStatusC "enforce_file_download_location_lock_status" tid
 getFeatureLockStatus _ _ = pure Nothing
 
-setFeatureLockStatus :: MonadClient m => FeatureSingleton cfg -> TeamId -> LockStatus -> m ()
+setFeatureLockStatus :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> LockStatus -> m ()
 setFeatureLockStatus FeatureSingletonFileSharingConfig tid status = setLockStatusC "file_sharing_lock_status" tid status
 setFeatureLockStatus FeatureSingletonSelfDeletingMessagesConfig tid status = setLockStatusC "self_deleting_messages_lock_status" tid status
 setFeatureLockStatus FeatureSingletonGuestLinksConfig tid status = setLockStatusC "guest_links_lock_status" tid status
@@ -397,7 +399,7 @@ getLockStatusC lockStatusCol tid = do
           <> " from team_features where team_id = ?"
 
 setLockStatusC ::
-  MonadClient m =>
+  (MonadClient m) =>
   String ->
   TeamId ->
   LockStatus ->

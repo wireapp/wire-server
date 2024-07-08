@@ -20,7 +20,7 @@
 module Test.Wire.API.Golden.Generated.User_user where
 
 import Data.Domain (Domain (Domain, _domainText))
-import Data.Handle (Handle (Handle, fromHandle))
+import Data.Handle
 import Data.ISO3166_CountryCodes
   ( CountryCode
       ( MQ,
@@ -77,7 +77,7 @@ testObject_User_user_2 =
           { qUnqualified = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000200000001")),
             qDomain = Domain {_domainText = "k.vbg.p"}
           },
-      userIdentity = Just (PhoneIdentity (Phone {fromPhone = "+837934954"})),
+      userIdentity = Just (EmailIdentity (Email "foo" "example.com")),
       userDisplayName =
         Name
           { fromName =
@@ -129,7 +129,7 @@ testObject_User_user_3 =
                 _serviceRefProvider = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))
               }
           ),
-      userHandle = Just (Handle {fromHandle = "1c"}),
+      userHandle = Just (fromJust (parseHandle "1c")),
       userExpire = Just (fromJust (readUTCTimeMillis "1864-05-09T20:12:05.821Z")),
       userTeam = Just (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000200000000"))),
       userManagedBy = ManagedByWire,
@@ -145,7 +145,7 @@ testObject_User_user_4 =
             qDomain = Domain {_domainText = "28b.cqb"}
           },
       userIdentity =
-        Just (SSOIdentity (UserScimExternalId "") (Just (Email {emailLocal = "", emailDomain = ""})) Nothing),
+        Just (SSOIdentity (UserScimExternalId "") (Just (Email {emailLocal = "", emailDomain = ""}))),
       userDisplayName =
         Name
           { fromName =
@@ -164,12 +164,7 @@ testObject_User_user_4 =
               }
           ),
       userHandle =
-        Just
-          ( Handle
-              { fromHandle =
-                  "iw2-.udd2l7-7yg3dfg.wzn4vx3hjhch8.--5t6uyjqk93twv-a2pce8p1xjh7387nztzu.q"
-              }
-          ),
+        Just (fromJust (parseHandle "iw2-.udd2l7-7yg3dfg.wzn4vx3hjhch8.--5t6uyjqk93twv-a2pce8p1xjh7387nztzu.q")),
       userExpire = Just (fromJust (readUTCTimeMillis "1864-05-09T14:25:26.089Z")),
       userTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000002"))),
       userManagedBy = ManagedByScim,
@@ -185,7 +180,7 @@ testObject_User_user_5 =
             qDomain = Domain {_domainText = "28b.cqb"}
           },
       userIdentity =
-        Just (FullIdentity (Email {emailLocal = "", emailDomain = ""}) (Phone {fromPhone = "+837934954"})),
+        Just (EmailIdentity (Email {emailLocal = "bar", emailDomain = "example.com"})),
       userDisplayName =
         Name
           { fromName =
@@ -204,12 +199,7 @@ testObject_User_user_5 =
               }
           ),
       userHandle =
-        Just
-          ( Handle
-              { fromHandle =
-                  "iw2-.udd2l7-7yg3dfg.wzn4vx3hjhch8.--5t6uyjqk93twv-a2pce8p1xjh7387nztzu.q"
-              }
-          ),
+        Just (fromJust (parseHandle "iw2-.udd2l7-7yg3dfg.wzn4vx3hjhch8.--5t6uyjqk93twv-a2pce8p1xjh7387nztzu.q")),
       userExpire = Just (fromJust (readUTCTimeMillis "1864-05-09T14:25:26.089Z")),
       userTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000002"))),
       userManagedBy = ManagedByScim,

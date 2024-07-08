@@ -138,7 +138,7 @@ claimRemoteKeyPackages lusr suite target = do
 
   pure bundle
   where
-    handleFailure :: Monad m => Maybe x -> ExceptT ClientError m x
+    handleFailure :: (Monad m) => Maybe x -> ExceptT ClientError m x
     handleFailure = maybe (throwE (ClientUserNotFound (tUnqualified target))) pure
 
 countKeyPackages :: Local UserId -> ClientId -> Maybe CipherSuite -> Handler r KeyPackageCount

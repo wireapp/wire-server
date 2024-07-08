@@ -80,8 +80,18 @@ data:
     federatorInternal:
       host: federator
       port: 8080
+
+    {{- with .rabbitmq }}
     rabbitmq:
-{{ toYaml .rabbitmq | indent 6}}
+      host: {{ .host }}
+      port: {{ .port }}
+      vHost: {{ .vHost }}
+      enableTls: {{ .enableTls }}
+      insecureSkipVerifyTls: {{ .insecureSkipVerifyTls }}
+      {{- if .tlsCaSecretRef }}
+      caCert: /etc/wire/brig/rabbitmq-ca/{{ .tlsCaSecretRef.key }}
+      {{- end }}
+    {{- end }}
     {{- end }}
 
     {{- with .aws }}
@@ -243,8 +253,6 @@ data:
       {{- if .setExpiredUserCleanupTimeout }}
       setExpiredUserCleanupTimeout: {{ .setExpiredUserCleanupTimeout }}
       {{- end }}
-      setTwilio: /etc/wire/brig/secrets/twilio-credentials.yaml
-      setNexmo: /etc/wire/brig/secrets/nexmo-credentials.yaml
       setUserMaxConnections: {{ .setUserMaxConnections }}
       setCookieInsecure: {{ .setCookieInsecure }}
       setUserCookieRenewAge: {{ .setUserCookieRenewAge }}

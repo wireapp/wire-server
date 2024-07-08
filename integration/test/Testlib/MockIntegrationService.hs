@@ -1,4 +1,13 @@
-module Testlib.MockIntegrationService (withMockServer, lhMockAppWithPrekeys, lhMockApp, mkLegalHoldSettings, CreateMock (..)) where
+module Testlib.MockIntegrationService
+  ( withMockServer,
+    lhMockAppWithPrekeys,
+    lhMockApp,
+    mkLegalHoldSettings,
+    CreateMock (..),
+    LiftedApplication,
+    MockServerSettings (..),
+  )
+where
 
 import Control.Monad.Catch
 import Control.Monad.Reader
@@ -19,6 +28,123 @@ import UnliftIO.Async
 import UnliftIO.Chan
 import UnliftIO.MVar
 import UnliftIO.Timeout (timeout)
+
+withFreePortAnyAddr :: (MonadMask m, MonadIO m) => ((Warp.Port, Socket) -> m a) -> m a
+withFreePortAnyAddr = bracket openFreePortAnyAddr (liftIO . Socket.close . snd)
+
+openFreePortAnyAddr :: (MonadIO m) => m (Warp.Port, Socket)
+openFreePortAnyAddr = liftIO $ bindRandomPortTCP (fromString "*6")
+
+type LiftedApplication = Request -> (Wai.Response -> App ResponseReceived) -> App ResponseReceived
+
+type Host = String
+
+-- | The channel exists to facilitate out of http comms between the test and the
+-- service. Could be used for recording (request, response) pairs.
+withMockServer ::
+  (HasCallStack) =>
+  -- | the mock server settings
+  MockServerSettings ->
+  -- | The certificate and key pair
+  (Chan e -> LiftedApplication) ->
+  -- | the test
+  ((Host, Warp.Port) -> Chan e -> App a) ->
+  App a
+withMockServer settings mkApp go = withFreePortAnyAddr \(sPort, sock) -> do
+  serverStarted <- newEmptyMVar
+  host <- asks integrationTestHostName
+  let tlss = Warp.tlsSettingsMemory (cs settings.certificate) (cs settings.privateKey)
+  let defs = Warp.defaultSettings {Warp.settingsPort = sPort, Warp.settingsBeforeMainLoop = putMVar serverStarted ()}
+  buf <- newChan
+  srv <- async $ withRunInIO \inIO -> do
+    Warp.runTLSSocket tlss defs sock \req respond -> do
+      inIO $ mkApp buf req (liftIO . respond)
+  srvMVar <- UnliftIO.Timeout.timeout 5_000_000 (takeMVar serverStarted)
+  case srvMVar of
+    Just () -> go (host, sPort) buf `finally` cancel srv
+    Nothing -> error . show =<< poll srv
+
+lhMockApp :: Chan (Wai.Request, LBS.ByteString) -> LiftedApplication
+lhMockApp = lhMockAppWithPrekeys def
+
+data MockServerSettings = MkMockServerSettings
+  { -- | the certificate the mock service uses
+    certificate :: String,
+    -- | the private key the mock service uses
+    privateKey :: String,
+    -- | the public key the mock service uses
+    publicKey :: String
+  }
+
+instance Default MockServerSettings where
+  def =
+    MkMockServerSettings
+      { certificate = mockServerCert,
+        privateKey = mockServerPrivKey,
+        publicKey = mockServerPubKey
+      }
+
+data CreateMock f = MkCreateMock
+  { -- | how to obtain the next last prekey of a mock app
+    nextLastPrey :: f Value,
+    -- | how to obtain some prekeys of a mock app
+    somePrekeys :: f [Value]
+  }
+
+instance (App ~ f) => Default (CreateMock f) where
+  def =
+    MkCreateMock
+      { nextLastPrey = getLastPrekey,
+        somePrekeys = replicateM 3 getPrekey
+      }
+
+-- | LegalHold service.  Just fake the API, do not maintain any internal state.
+lhMockAppWithPrekeys ::
+  CreateMock App -> Chan (Wai.Request, LBS.ByteString) -> LiftedApplication
+lhMockAppWithPrekeys mks ch req cont = withRunInIO \inIO -> do
+  reqBody <- Wai.strictRequestBody req
+  writeChan ch (req, reqBody)
+  inIO do
+    (nextLastPrekey, threePrekeys) <-
+      (,)
+        <$> mks.nextLastPrey
+        <*> mks.somePrekeys
+    case (cs <$> pathInfo req, cs $ requestMethod req, cs @_ @String <$> getRequestHeader "Authorization" req) of
+      (["legalhold", "status"], "GET", _) -> cont respondOk
+      (_, _, Nothing) -> cont missingAuth
+      (["legalhold", "initiate"], "POST", Just _) -> cont (initiateResp nextLastPrekey threePrekeys)
+      (["legalhold", "confirm"], "POST", Just _) -> cont respondOk
+      (["legalhold", "remove"], "POST", Just _) -> cont respondOk
+      _ -> cont respondBad
+  where
+    initiateResp :: Value -> [Value] -> Wai.Response
+    initiateResp npk pks =
+      responseLBS status200 [(hContentType, cs "application/json")]
+        . encode
+        . Data.Aeson.object
+        $ [ "prekeys" .= pks,
+            "last_prekey" .= npk
+          ]
+
+    respondOk :: Wai.Response
+    respondOk = responseLBS status200 mempty mempty
+
+    respondBad :: Wai.Response
+    respondBad = responseLBS status404 mempty mempty
+
+    missingAuth :: Wai.Response
+    missingAuth = responseLBS status400 mempty (cs "no authorization header")
+
+    getRequestHeader :: String -> Wai.Request -> Maybe ByteString
+    getRequestHeader name = lookup (fromString name) . requestHeaders
+
+mkLegalHoldSettings :: (String, Warp.Port) -> Value
+mkLegalHoldSettings (botHost, lhPort) =
+  object
+    [ "base_url" .= ("https://" <> botHost <> ":" <> show lhPort <> "/legalhold"),
+      "public_key" .= mockServerPubKey,
+      "auth_token" .= "tok"
+    ]
 
 mockServerPubKey :: String
 mockServerPubKey =
@@ -85,95 +211,3 @@ mockServerCert =
   \hZMuK3BWD3fzkQVfW0yMwz6fWRXB483ZmekGkgndOTDoJQMdJXZxHpI3t2FcxQYj\n\
   \T45GXxRd18neXtuYa/OoAw9UQFDN5XfXN0g=\n\
   \-----END CERTIFICATE-----"
-
-withFreePortAnyAddr :: (MonadMask m, MonadIO m) => ((Warp.Port, Socket) -> m a) -> m a
-withFreePortAnyAddr = bracket openFreePortAnyAddr (liftIO . Socket.close . snd)
-
-openFreePortAnyAddr :: MonadIO m => m (Warp.Port, Socket)
-openFreePortAnyAddr = liftIO $ bindRandomPortTCP (fromString "*6")
-
-type LiftedApplication = Request -> (Wai.Response -> App ResponseReceived) -> App ResponseReceived
-
-withMockServer ::
-  (HasCallStack) =>
-  -- | the mock server
-  (Chan e -> LiftedApplication) ->
-  -- | the test
-  ((String, Warp.Port) -> Chan e -> App a) ->
-  App a
-withMockServer mkApp go = withFreePortAnyAddr \(sPort, sock) -> do
-  serverStarted <- newEmptyMVar
-  host <- asks integrationTestHostName
-  let tlss = Warp.tlsSettingsMemory (cs mockServerCert) (cs mockServerPrivKey)
-  let defs = Warp.defaultSettings {Warp.settingsPort = sPort, Warp.settingsBeforeMainLoop = putMVar serverStarted ()}
-  buf <- newChan
-  srv <- async $ withRunInIO \inIO -> do
-    Warp.runTLSSocket tlss defs sock \req respond -> do
-      inIO $ mkApp buf req (liftIO . respond)
-  srvMVar <- UnliftIO.Timeout.timeout 5_000_000 (takeMVar serverStarted)
-  case srvMVar of
-    Just () -> go (host, sPort) buf `finally` cancel srv
-    Nothing -> error . show =<< poll srv
-
-lhMockApp :: Chan (Wai.Request, LBS.ByteString) -> LiftedApplication
-lhMockApp = lhMockAppWithPrekeys def
-
-data CreateMock f = MkCreateMock
-  { -- | how to obtain the next last prekey of a mock app
-    nextLastPrey :: f Value,
-    -- | how to obtain some prekeys of a mock app
-    somePrekeys :: f [Value]
-  }
-
-instance (App ~ f) => Default (CreateMock f) where
-  def =
-    MkCreateMock
-      { nextLastPrey = getLastPrekey,
-        somePrekeys = replicateM 3 getPrekey
-      }
-
--- | LegalHold service.  Just fake the API, do not maintain any internal state.
-lhMockAppWithPrekeys ::
-  CreateMock App -> Chan (Wai.Request, LBS.ByteString) -> LiftedApplication
-lhMockAppWithPrekeys mks ch req cont = withRunInIO \inIO -> do
-  reqBody <- Wai.strictRequestBody req
-  writeChan ch (req, reqBody)
-  inIO do
-    (nextLastPrekey, threePrekeys) <-
-      (,)
-        <$> mks.nextLastPrey
-        <*> mks.somePrekeys
-    case (cs <$> pathInfo req, cs $ requestMethod req, cs @_ @String <$> getRequestHeader "Authorization" req) of
-      (["legalhold", "status"], "GET", _) -> cont respondOk
-      (_, _, Nothing) -> cont missingAuth
-      (["legalhold", "initiate"], "POST", Just _) -> cont (initiateResp nextLastPrekey threePrekeys)
-      (["legalhold", "confirm"], "POST", Just _) -> cont respondOk
-      (["legalhold", "remove"], "POST", Just _) -> cont respondOk
-      _ -> cont respondBad
-  where
-    initiateResp :: Value -> [Value] -> Wai.Response
-    initiateResp npk pks =
-      responseLBS status200 [(hContentType, cs "application/json")] . encode . Data.Aeson.object $
-        [ "prekeys" .= pks,
-          "last_prekey" .= npk
-        ]
-
-    respondOk :: Wai.Response
-    respondOk = responseLBS status200 mempty mempty
-
-    respondBad :: Wai.Response
-    respondBad = responseLBS status404 mempty mempty
-
-    missingAuth :: Wai.Response
-    missingAuth = responseLBS status400 mempty (cs "no authorization header")
-
-    getRequestHeader :: String -> Wai.Request -> Maybe ByteString
-    getRequestHeader name = lookup (fromString name) . requestHeaders
-
-mkLegalHoldSettings :: (String, Warp.Port) -> Value
-mkLegalHoldSettings (botHost, lhPort) =
-  object
-    [ "base_url" .= ("https://" <> botHost <> ":" <> show lhPort <> "/legalhold"),
-      "public_key" .= mockServerPubKey,
-      "auth_token" .= "tok"
-    ]

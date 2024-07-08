@@ -18,7 +18,6 @@
 module Brig.API.Util
   ( fetchUserIdentity,
     lookupProfilesMaybeFilterSameTeamOnly,
-    lookupSelfProfile,
     logInvitationCode,
     validateHandle,
     logEmail,
@@ -29,7 +28,6 @@ module Brig.API.Util
     traverseConcurrentlyWithErrorsAppT,
     exceptTToMaybe,
     ensureLocal,
-    tryInsertVerificationCode,
   )
 where
 
@@ -37,17 +35,13 @@ import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.Types
 import Brig.App
-import Brig.Code qualified as Code
 import Brig.Data.User qualified as Data
-import Brig.Options (set2FACodeGenerationDelaySecs)
-import Control.Lens (view)
 import Control.Monad.Catch (throwM)
 import Control.Monad.Trans.Except
 import Data.Bifunctor
 import Data.Handle (Handle, parseHandle)
 import Data.Id
 import Data.Maybe
-import Data.Qualified
 import Data.Text qualified as T
 import Data.Text.Ascii (AsciiText (toText))
 import Imports
@@ -60,9 +54,9 @@ import UnliftIO.Exception (throwIO, try)
 import Util.Logging (sha256String)
 import Wire.API.Error
 import Wire.API.Error.Brig
-import Wire.API.Federation.Error
 import Wire.API.User
 import Wire.Sem.Concurrency qualified as C
+import Wire.UserSubsystem
 
 lookupProfilesMaybeFilterSameTeamOnly :: UserId -> [UserProfile] -> (Handler r) [UserProfile]
 lookupProfilesMaybeFilterSameTeamOnly self us = do
@@ -71,18 +65,13 @@ lookupProfilesMaybeFilterSameTeamOnly self us = do
     Just team -> filter (\x -> profileTeam x == Just team) us
     Nothing -> us
 
-fetchUserIdentity :: UserId -> (AppT r) (Maybe UserIdentity)
-fetchUserIdentity uid =
-  lookupSelfProfile uid
+fetchUserIdentity :: (Member UserSubsystem r) => UserId -> AppT r (Maybe UserIdentity)
+fetchUserIdentity uid = do
+  luid <- qualifyLocal uid
+  liftSem (getSelfProfile luid)
     >>= maybe
       (throwM $ UserProfileNotFound uid)
       (pure . userIdentity . selfUser)
-
--- | Obtain a profile for a user as he can see himself.
-lookupSelfProfile :: UserId -> (AppT r) (Maybe SelfProfile)
-lookupSelfProfile = fmap (fmap mk) . wrapClient . Data.lookupAccount
-  where
-    mk a = SelfProfile (accountUser a)
 
 validateHandle :: Text -> (Handler r) Handle
 validateHandle = maybe (throwStd (errorToWai @'InvalidHandle)) pure . parseHandle
@@ -160,17 +149,5 @@ traverseConcurrentlyWithErrorsAppT f t = do
             (mapExceptT (lowerAppT env) . f)
             t
 
-exceptTToMaybe :: Monad m => ExceptT e m () -> m (Maybe e)
+exceptTToMaybe :: (Monad m) => ExceptT e m () -> m (Maybe e)
 exceptTToMaybe = (pure . either Just (const Nothing)) <=< runExceptT
-
--- | Convert a qualified value into a local one. Throw if the value is not actually local.
-ensureLocal :: Qualified a -> AppT r (Local a)
-ensureLocal x = do
-  loc <- qualifyLocal ()
-  foldQualified loc pure (\_ -> throwM federationNotImplemented) x
-
-tryInsertVerificationCode :: Code.Code -> (RetryAfter -> e) -> ExceptT e (AppT r) ()
-tryInsertVerificationCode code e = do
-  ttl <- set2FACodeGenerationDelaySecs <$> view settings
-  mRetryAfter <- wrapClientE $ Code.insert code ttl
-  mapM_ (throwE . e) mRetryAfter

@@ -180,6 +180,7 @@ library
     , QuickCheck
     , raw-strings-qq
     , saml2-web-sso          >=0.20
+    , semigroupoids
     , servant-multipart
     , servant-server
     , text
@@ -251,8 +252,7 @@ executable spar
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -j
     -Wno-redundant-constraints -Werror -threaded -rtsopts
-    -with-rtsopts=-N -with-rtsopts=-T -Wredundant-constraints
-    -Wunused-packages
+    "-with-rtsopts=-N -T" -Wredundant-constraints -Wunused-packages
 
   build-depends:
       base
@@ -276,6 +276,7 @@ executable spar-integration
     Test.Spar.Scim.AuthSpec
     Test.Spar.Scim.UserSpec
     Util
+    Util.Activation
     Util.Core
     Util.Email
     Util.Invitation

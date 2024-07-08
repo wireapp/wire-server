@@ -25,6 +25,9 @@ module Brig.IO.Intra
     onPropertyEvent,
     onClientEvent,
 
+    -- * user subsystem interpretation for user events
+    runUserEvents,
+
     -- * Conversations
     createConnectConv,
     acceptConnectConv,
@@ -49,7 +52,6 @@ import Bilge hiding (head, options, requestId)
 import Bilge.RPC
 import Brig.API.Error (internalServerError)
 import Brig.API.Types
-import Brig.API.Util
 import Brig.App
 import Brig.Data.Connection
 import Brig.Data.Connection qualified as Data
@@ -102,6 +104,7 @@ import Wire.Rpc
 import Wire.Sem.Logger qualified as Log
 import Wire.Sem.Paging qualified as P
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.UserEvents
 
 -----------------------------------------------------------------------------
 -- Event Handlers
@@ -122,6 +125,19 @@ onUserEvent orig conn e =
   updateSearchIndex orig e
     *> dispatchNotifications orig conn e
     *> embed (journalEvent orig e)
+
+runUserEvents ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
+  ) =>
+  InterpreterFor UserEvents r
+runUserEvents = interpret \case
+  -- FUTUREWORK(mangoiv): should this be in another module?
+  GenerateUserEvent uid mconnid event -> onUserEvent uid mconnid event
 
 onConnectionEvent ::
   (Member NotificationSubsystem r) =>
@@ -176,7 +192,7 @@ onClientEvent orig conn e = do
     ]
 
 updateSearchIndex ::
-  Member (Embed HttpClientIO) r =>
+  (Member (Embed HttpClientIO) r) =>
   UserId ->
   UserEvent ->
   Sem r ()

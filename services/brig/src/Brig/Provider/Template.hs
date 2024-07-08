@@ -26,8 +26,6 @@ module Brig.Provider.Template
 
     -- * Re-exports
     Template,
-    renderText,
-    renderHtml,
   )
 where
 
@@ -38,6 +36,7 @@ import Data.Misc (HttpsUrl)
 import Data.Text.Encoding (encodeUtf8)
 import Imports
 import Wire.API.User.Identity
+import Wire.EmailSubsystem.Template
 
 data ProviderTemplates = ProviderTemplates
   { activationEmail :: !ActivationEmailTemplate,
@@ -45,15 +44,6 @@ data ProviderTemplates = ProviderTemplates
     approvalRequestEmail :: !ApprovalRequestEmailTemplate,
     approvalConfirmEmail :: !ApprovalConfirmEmailTemplate,
     passwordResetEmail :: !PasswordResetEmailTemplate
-  }
-
-data ActivationEmailTemplate = ActivationEmailTemplate
-  { activationEmailUrl :: !Template,
-    activationEmailSubject :: !Template,
-    activationEmailBodyText :: !Template,
-    activationEmailBodyHtml :: !Template,
-    activationEmailSender :: !Email,
-    activationEmailSenderName :: !Text
   }
 
 data ApprovalRequestEmailTemplate = ApprovalRequestEmailTemplate
@@ -73,15 +63,6 @@ data ApprovalConfirmEmailTemplate = ApprovalConfirmEmailTemplate
     approvalConfirmEmailSender :: !Email,
     approvalConfirmEmailSenderName :: !Text,
     approvalConfirmEmailHomeUrl :: !HttpsUrl
-  }
-
-data PasswordResetEmailTemplate = PasswordResetEmailTemplate
-  { passwordResetEmailUrl :: !Template,
-    passwordResetEmailSubject :: !Template,
-    passwordResetEmailBodyText :: !Template,
-    passwordResetEmailBodyHtml :: !Template,
-    passwordResetEmailSender :: !Email,
-    passwordResetEmailSenderName :: !Text
   }
 
 -- TODO

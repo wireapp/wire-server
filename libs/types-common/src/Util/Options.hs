@@ -102,7 +102,7 @@ loadSecret (FilePathSecrets p) = do
 -- instead of the command line.
 getOptions ::
   forall a.
-  FromJSON a =>
+  (FromJSON a) =>
   -- | Program description
   String ->
   -- | CLI parser for the options (if there is no config)

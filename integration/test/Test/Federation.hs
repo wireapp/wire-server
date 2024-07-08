@@ -17,7 +17,7 @@ import SetupHelpers
 import Testlib.Prelude
 import Testlib.ResourcePool
 
-testNotificationsForOfflineBackends :: HasCallStack => App ()
+testNotificationsForOfflineBackends :: (HasCallStack) => App ()
 testNotificationsForOfflineBackends = do
   resourcePool <- asks (.resourcePool)
   -- `delUser` will eventually get deleted.

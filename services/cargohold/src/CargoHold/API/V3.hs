@@ -105,7 +105,7 @@ updateToken own key tok = do
   let m' = m {S3.v3AssetToken = tok}
   S3.updateMetadataV3 key m'
 
-randToken :: MonadIO m => m V3.AssetToken
+randToken :: (MonadIO m) => m V3.AssetToken
 randToken = liftIO $ V3.AssetToken . Ascii.encodeBase64Url <$> getRandomBytes 16
 
 download :: V3.Principal -> V3.AssetKey -> Maybe V3.AssetToken -> Maybe Text -> Handler (Maybe URI)

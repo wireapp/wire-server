@@ -19,7 +19,6 @@
 
 module Cannon.Types
   ( Env,
-    mon,
     opts,
     applog,
     dict,
@@ -32,13 +31,12 @@ module Cannon.Types
     runCannon',
     options,
     clients,
-    monitor,
     wsenv,
     runCannonToServant,
   )
 where
 
-import Bilge (Manager, RequestId (..), requestIdName)
+import Bilge (Manager, RequestId (..))
 import Bilge.RPC (HasRequestId (..))
 import Cannon.Dict (Dict)
 import Cannon.Options
@@ -47,14 +45,13 @@ import Cannon.WS qualified as WS
 import Control.Concurrent.Async (mapConcurrently)
 import Control.Lens ((^.))
 import Control.Monad.Catch
-import Data.Metrics.Middleware
 import Data.Text.Encoding
-import Data.UUID as UUID
-import Data.UUID.V4 as UUID
 import Imports
 import Network.Wai
+import Network.Wai.Utilities.Request qualified as Wai
+import Network.Wai.Utilities.Server
+import Prometheus
 import Servant qualified
-import System.Logger qualified as Log
 import System.Logger qualified as Logger
 import System.Logger.Class hiding (info)
 import System.Random.MWC (GenIO)
@@ -63,8 +60,7 @@ import System.Random.MWC (GenIO)
 -- Cannon monad
 
 data Env = Env
-  { mon :: !Metrics,
-    opts :: !Opts,
+  { opts :: !Opts,
     applog :: !Logger,
     dict :: !(Dict Key Websocket),
     reqId :: !RequestId,
@@ -81,10 +77,11 @@ newtype Cannon a = Cannon
       MonadIO,
       MonadThrow,
       MonadCatch,
-      MonadMask
+      MonadMask,
+      MonadMonitor
     )
 
-mapConcurrentlyCannon :: Traversable t => (a -> Cannon b) -> t a -> Cannon (t b)
+mapConcurrentlyCannon :: (Traversable t) => (a -> Cannon b) -> t a -> Cannon (t b)
 mapConcurrentlyCannon action inputs =
   Cannon $
     ask >>= \e ->
@@ -100,7 +97,6 @@ instance HasRequestId Cannon where
   getRequestId = Cannon $ asks reqId
 
 mkEnv ::
-  Metrics ->
   ByteString ->
   Opts ->
   Logger ->
@@ -109,39 +105,24 @@ mkEnv ::
   GenIO ->
   Clock ->
   Env
-mkEnv m external o l d p g t =
-  Env m o l d (RequestId "N/A") $
+mkEnv external o l d p g t =
+  Env o l d (RequestId "N/A") $
     WS.env external (o ^. cannon . port) (encodeUtf8 $ o ^. gundeck . host) (o ^. gundeck . port) l p d g t (o ^. drainOpts)
 
 runCannon :: Env -> Cannon a -> Request -> IO a
 runCannon e c r = do
-  rid <- lookupReqId e.applog r
-  let e' = e {reqId = rid}
+  let rid = Wai.getRequestId defaultRequestIdHeaderName r
+      e' = e {reqId = rid}
   runCannon' e' c
 
 runCannon' :: Env -> Cannon a -> IO a
 runCannon' e c = runReaderT (unCannon c) e
-
-lookupReqId :: Logger -> Request -> IO RequestId
-lookupReqId l r = case lookup requestIdName (requestHeaders r) of
-  Just rid -> pure $ RequestId rid
-  Nothing -> do
-    localRid <- RequestId . UUID.toASCIIBytes <$> UUID.nextRandom
-    Log.info l $
-      "request-id" .= localRid
-        ~~ "method" .= requestMethod r
-        ~~ "path" .= rawPathInfo r
-        ~~ msg (val "generated a new request id for local request")
-    pure localRid
 
 options :: Cannon Opts
 options = Cannon $ asks opts
 
 clients :: Cannon (Dict Key Websocket)
 clients = Cannon $ asks dict
-
-monitor :: Cannon Metrics
-monitor = Cannon $ asks mon
 
 wsenv :: Cannon WS.Env
 wsenv = Cannon $ do

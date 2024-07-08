@@ -34,14 +34,14 @@ import Wire.API.Routes.MultiVerb
 -- type, and @m R@ is always an algebra over @m@.
 --
 -- Minimal definition: 'joinClient' | 'bindClient'.
-class HasClient m api => HasClientAlgebra m api where
+class (HasClient m api) => HasClientAlgebra m api where
   joinClient :: m (Client m api) -> Client m api
   joinClient x = bindClient @m @api x id
 
   bindClient :: m a -> (a -> Client m api) -> Client m api
   bindClient x f = joinClient @m @api (fmap f x)
 
-instance HasClient m (Verb method s cs a) => HasClientAlgebra m (Verb method s cs a) where
+instance (HasClient m (Verb method s cs a)) => HasClientAlgebra m (Verb method s cs a) where
   joinClient = join
   bindClient = (>>=)
 

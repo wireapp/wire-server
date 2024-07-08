@@ -131,7 +131,7 @@ data MessageNotSent a
     via (GenericAsUnion (MessageNotSentResponses a) (MessageNotSent a))
   deriving anyclass (GSOP.Generic)
 
-instance S.ToSchema a => S.ToSchema (MessageNotSent a)
+instance (S.ToSchema a) => S.ToSchema (MessageNotSent a)
 
 type MessageNotSentResponses a =
   '[ ErrorResponse 'ConvNotFound,

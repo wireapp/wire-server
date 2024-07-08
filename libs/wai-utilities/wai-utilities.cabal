@@ -1,4 +1,4 @@
-cabal-version: 1.12
+cabal-version: 3.0
 name:          wai-utilities
 version:       0.16.1
 synopsis:      Various helpers for WAI
@@ -7,24 +7,17 @@ category:      Web
 author:        Wire Swiss GmbH
 maintainer:    Wire Swiss GmbH <backend@wire.com>
 copyright:     (c) 2017 Wire Swiss GmbH
-license:       AGPL-3
+license:       AGPL-3.0-only
 license-file:  LICENSE
 build-type:    Simple
 
-library
-  exposed-modules:
-    Network.Wai.Utilities
-    Network.Wai.Utilities.Error
-    Network.Wai.Utilities.Headers
-    Network.Wai.Utilities.JSONResponse
-    Network.Wai.Utilities.MockServer
-    Network.Wai.Utilities.Request
-    Network.Wai.Utilities.Response
-    Network.Wai.Utilities.Server
-    Network.Wai.Utilities.ZAuth
+common common-all
+  default-language:   GHC2021
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -Wredundant-constraints -Wunused-packages
 
-  other-modules:      Paths_wai_utilities
-  hs-source-dirs:     src
   default-extensions:
     AllowAmbiguousTypes
     BangPatterns
@@ -67,13 +60,23 @@ library
     UndecidableInstances
     ViewPatterns
 
-  ghc-options:
-    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints -Wunused-packages
+library
+  import:          common-all
+  exposed-modules:
+    Network.Wai.Utilities
+    Network.Wai.Utilities.Error
+    Network.Wai.Utilities.Headers
+    Network.Wai.Utilities.JSONResponse
+    Network.Wai.Utilities.MockServer
+    Network.Wai.Utilities.Request
+    Network.Wai.Utilities.Response
+    Network.Wai.Utilities.Server
+    Network.Wai.Utilities.ZAuth
 
+  other-modules:   Paths_wai_utilities
+  hs-source-dirs:  src
   build-depends:
-      aeson                  >=2.0.1.0
+    , aeson                  >=2.0.1.0
     , async                  >=2.0
     , base                   >=4.6     && <5.0
     , bytestring             >=0.10
@@ -85,7 +88,6 @@ library
     , imports
     , kan-extensions
     , metrics-core           >=0.1
-    , metrics-wai            >=0.5.7
     , openapi3
     , pipes                  >=4.1
     , prometheus-client
@@ -96,10 +98,29 @@ library
     , tinylog                >=0.8
     , types-common           >=0.12
     , unix                   >=2.7
+    , uuid
     , wai                    >=3.0
     , wai-predicates         >=0.8
     , wai-routing            >=0.12
     , warp                   >=3.0
     , warp-tls
 
-  default-language:   GHC2021
+test-suite wai-utilities-tests
+  import:             common-all
+  type:               exitcode-stdio-1.0
+  main-is:            Main.hs
+  ghc-options:        -threaded -with-rtsopts=-N
+  hs-source-dirs:     test
+  build-tool-depends: hspec-discover:hspec-discover
+
+  -- cabal-fmt: expand test -Main
+  other-modules:      Network.Wai.Utilities.ServerSpec
+  build-depends:
+    , bytestring
+    , hspec
+    , http-types
+    , imports
+    , temporary
+    , tinylog
+    , wai
+    , wai-utilities

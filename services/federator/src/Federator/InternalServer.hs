@@ -20,19 +20,13 @@
 
 module Federator.InternalServer where
 
-import Control.Monad.Codensity
 import Data.Binary.Builder
 import Data.ByteString qualified as BS
 import Data.Domain
-import Data.Id
-import Data.Metrics.Servant qualified as Metrics
-import Data.Proxy
-import Data.Text.Encoding qualified as T
-import Data.UUID as UUID
-import Data.UUID.V4 as UUID
 import Federator.Env
 import Federator.Error.ServerError
 import Federator.Health qualified as Health
+import Federator.Interpreter
 import Federator.Metrics (Metrics, outgoingCounterIncr)
 import Federator.RPC
 import Federator.Remote
@@ -45,15 +39,15 @@ import Network.Wai qualified as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.TinyLog
+import Servant qualified
 import Servant.API
 import Servant.API.Extended.Endpath
-import Servant.Server (Tagged (..))
+import Servant.API.Extended.RawM qualified as RawM
 import Servant.Server.Generic
-import System.Logger (msg, val, (.=), (~~))
 import System.Logger.Class qualified as Log
 import Wire.API.Federation.Component
 import Wire.API.Routes.FederationDomainConfig
-import Wire.Sem.Logger (Logger, debug, info)
 
 data API mode = API
   { status ::
@@ -67,15 +61,13 @@ data API mode = API
     internalRequest ::
       mode
         :- "rpc"
-          :> Header "Wire-Origin-Request-Id" RequestId
           :> Capture "domain" Domain
           :> Capture "component" Component
           :> Capture "rpc" RPC
           :> Endpath
-          -- We need to use 'Raw' so we can stream request body regardless of
-          -- content-type and send a response with arbitrary content-type. Not
-          -- sure if this is the right approach.
-          :> Raw
+          -- We need to use 'RawM' so we can stream request body regardless of
+          -- content-type and send a response with arbitrary content-type.
+          :> RawM.RawM
   }
   deriving (Generic)
 
@@ -86,17 +78,16 @@ server ::
     Member (Error ServerError) r,
     Member (Input FederationDomainConfigs) r,
     Member Metrics r,
-    Member (Logger (Log.Msg -> Log.Msg)) r
+    Member (Logger (Log.Msg -> Log.Msg)) r,
+    Member (Error Servant.ServerError) r
   ) =>
   Manager ->
   Word16 ->
-  (Sem r Wai.Response -> Codensity IO Wai.Response) ->
-  API AsServer
-server mgr extPort interpreter =
+  API (AsServerT (Sem r))
+server mgr extPort =
   API
     { status = Health.status mgr "external server" extPort,
-      internalRequest = \mReqId remoteDomain component rpc ->
-        Tagged $ \req respond -> runCodensity (interpreter (callOutward mReqId remoteDomain component rpc req)) respond
+      internalRequest = callOutward
     }
 
 callOutward ::
@@ -108,23 +99,13 @@ callOutward ::
     Member Metrics r,
     Member (Logger (Log.Msg -> Log.Msg)) r
   ) =>
-  Maybe RequestId ->
   Domain ->
   Component ->
   RPC ->
   Wai.Request ->
-  Sem r Wai.Response
-callOutward mReqId targetDomain component (RPC path) req = do
-  rid <- case mReqId of
-    Just r -> pure r
-    Nothing -> do
-      localRid <- liftIO $ RequestId . T.encodeUtf8 . UUID.toText <$> UUID.nextRandom
-      info $
-        "request-id" .= localRid
-          ~~ "method" .= Wai.requestMethod req
-          ~~ "path" .= Wai.rawPathInfo req
-          ~~ msg (val "generated a new request id for local request")
-      pure localRid
+  (Wai.Response -> IO Wai.ResponseReceived) ->
+  Sem r Wai.ResponseReceived
+callOutward targetDomain component (RPC path) req cont = do
   -- only POST is supported
   when (Wai.requestMethod req /= HTTP.methodPost) $
     throw InvalidRoute
@@ -142,17 +123,13 @@ callOutward mReqId targetDomain component (RPC path) req = do
       . Log.field "body" body
   resp <-
     discoverAndCall
-      rid
       targetDomain
       component
       path
       (Wai.requestHeaders req)
       (fromLazyByteString body)
-  pure $ streamingResponseToWai resp
+  embed . cont $ streamingResponseToWai resp
 
 serveOutward :: Env -> Int -> IO ()
-serveOutward env =
-  serveServant
-    (Metrics.servantPrometheusMiddleware $ Proxy @(ToServantApi API))
-    (server env._httpManager env._externalPort $ runFederator env)
-    env
+serveOutward env port = do
+  serveServant @(ToServantApi API) env port (toServant $ server env._httpManager env._internalPort)

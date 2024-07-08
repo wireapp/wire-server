@@ -123,7 +123,6 @@ mkDerivation {
     types-common
     unix
     utf8-string
-    uuid
     wai
     wai-utilities
     warp

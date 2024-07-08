@@ -25,21 +25,23 @@ Search visibility is controlled by three parameters on the backend:
 - A team out-bound configuration flag, `TeamSearchVisibility` with possible values `SearchVisibilityStandard`, `SearchVisibilityNoNameOutsideTeam`
 
   - `SearchVisibilityStandard` means that the user can find other people outside of the team, if the searched-person inbound search allows it
-  - `SearchVisibilityNoNameOutsideTeam` means that the user can not find any user outside the team by full text search (but exact handle search still works)
+  - `SearchVisibilityNoNameOutsideTeam` means that the user can’t find any user outside the team by full text search (but exact username search still works)
 
 - A team inbound configuration flag, `SearchVisibilityInbound` with possible values `SearchableByOwnTeam`, `SearchableByAllTeams`
 
-  - `SearchableByOwnTeam` means that the user can be found only by users in their own team.
-  - `SearchableByAllTeams` means that the user can be found by users in any/all teams.
+  - `SearchableByOwnTeam` means that the user can be found with full text search only by users in their own team
+  - `SearchableByAllTeams` means that the user can be found with full text search by all users in any/all teams.
 
 - A server configuration flag `searchSameTeamOnly` with possible values true, false.
 
   - `Note`: For the same backend, this affects inbound and out-bound searches (simply because all teams will be subject to this behavior)
-  - Setting this to `true` means that the all teams on that backend can only find users that belong to their team
+  - Setting this to `true` means that all teams on that backend can only find users that belong to their team
 
 These flag are set on the backend and the clients do not need to be aware of them.
 
 The flags will influence the behavior of the search API endpoint; clients will only need to parse the results, that are already filtered for them by the backend.
+
+Some configuration values supersede others. The table below clarifies how the various values interact with each other, highlighting the outcome of each search for the various combinations of values.
 
 ### Table of possible outcomes
 
