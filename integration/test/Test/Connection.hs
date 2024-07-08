@@ -19,8 +19,6 @@ module Test.Connection where
 import API.Brig (getConnection, postConnection, putConnection)
 import API.BrigInternal
 import API.Galley
-import Control.Concurrent
-import Debug.Trace
 import Notifications
 import SetupHelpers
 import Testlib.Prelude
@@ -87,18 +85,19 @@ testRemoteUserGetsDeleted domain = do
 
   charlieUnconnected <- randomUser domain def
 
-  for_ [charliePending, charlieConnected, charlieBlocked, charlieUnconnected] \charlie -> do
-    deleteUser charlie
+  forConcurrently_
+    [charliePending, charlieConnected, charlieBlocked, charlieUnconnected]
+    \charlie -> do
+      deleteUser charlie
 
-    -- charlie is on their local backend, so asking should be instant
-    getConnection charlie alice `bindResponse` \resp ->
-      resp.status `shouldMatchInt` 404
+      -- charlie is on their local backend, so asking should be instant
+      getConnection charlie alice `bindResponse` \resp ->
+        resp.status `shouldMatchInt` 404
 
-    -- for alice, charlie is on the remote backend, so the status change
-    -- may not be instant
-    liftIO $ threadDelay 2000000
-    getConnection alice charlie `bindResponse` \resp ->
-      resp.status `shouldMatchInt` 404
+      -- for alice, charlie is on the remote backend, so the status change
+      -- may not be instant
+      getConnection alice charlie `waitForResponse` \resp ->
+        resp.status `shouldMatchInt` 404
 
 testInternalGetConStatusesAll :: (HasCallStack) => App ()
 testInternalGetConStatusesAll =

@@ -201,6 +201,7 @@ services:
       - demo_wire
     ports:
       - '127.0.0.1:22089:8080'
+    healthcheck: *haskell_health_check
     depends_on:
       init_vhosts:
         condition: service_completed_successfully
@@ -245,6 +246,8 @@ services:
       federator-v1:
         condition: service_healthy
       proxy-v1:
+        condition: service_healthy
+      background_worker-v1:
         condition: service_healthy
 
   # We have to run a separate redis instance for each version of wire-server we
