@@ -99,24 +99,24 @@ import Brig.Types.Intra
 import Brig.User.Auth.Cookie qualified as Auth
 import Brig.User.Search.Index (reindex)
 import Brig.User.Search.TeamSize qualified as TeamSize
-import Cassandra hiding (Set)
+import Cassandra (MonadClient)
 import Control.Error
 import Control.Lens (view, (^.))
-import Control.Monad.Catch
-import Data.ByteString.Conversion
+import Control.Monad.Catch (MonadThrow (throwM))
+import Data.ByteString.Conversion (toByteString)
 import Data.Currency qualified as Currency
 import Data.Handle (Handle (fromHandle))
 import Data.Id as Id
-import Data.Json.Util
+import Data.Json.Util (UTCTimeMillis)
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
-import Data.List.Extra
+import Data.List.Extra (notNull, nubOrd)
 import Data.List1 as List1 (List1, singleton)
 import Data.Qualified
-import Data.Range
+import Data.Range (Range (fromRange))
 import Data.Time.Clock (UTCTime, addUTCTime)
 import Data.UUID.V4 (nextRandom)
 import Imports
-import Network.Wai.Utilities
+import Network.Wai.Utilities ((!>>))
 import Polysemy
 import Polysemy.Input (Input)
 import Polysemy.TinyLog (TinyLog)
@@ -127,7 +127,7 @@ import UnliftIO.Async (mapConcurrently_)
 import Wire.API.Connection
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
-import Wire.API.Federation.Error
+import Wire.API.Federation.Error (FederationError)
 import Wire.API.Password
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Team hiding (newTeam)
@@ -156,7 +156,6 @@ import Wire.UserStore
 import Wire.UserSubsystem as User
 import Wire.UserSubsystem.HandleBlacklist
 import Wire.VerificationCode qualified as VerificationCode
-import Wire.VerificationCodeGen (mkVerificationCodeGen)
 import Wire.VerificationCodeSubsystem
 
 -------------------------------------------------------------------------------
@@ -1190,7 +1189,7 @@ lookupAccountsByIdentity email includePendingInvitations = do
   let uk = mkEmailKey email
   activeUid <- liftSem $ lookupKey uk
   uidFromKey <- (>>= fst) <$> wrapClient (Data.lookupActivationCode uk)
-  result <- wrapClient $ Data.lookupAccounts (nub $ catMaybes [activeUid, uidFromKey])
+  result <- wrapClient $ Data.lookupAccounts (nubOrd $ catMaybes [activeUid, uidFromKey])
   if includePendingInvitations
     then pure result
     else pure $ filter ((/= PendingInvitation) . accountStatus) result

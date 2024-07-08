@@ -14,6 +14,15 @@ import Wire.VerificationCodeGen
 import Wire.VerificationCodeStore as Store hiding (DeleteCode)
 import Wire.VerificationCodeSubsystem
 
+runVerificationCodeSubsystem ::
+  ( Member VerificationCodeStore r,
+    Member Random r,
+    Member (Error VerificationCodeSubsystemError) r
+  ) =>
+  VerificationCodeThrottleTTL ->
+  InterpreterFor VerificationCodeSubsystem r
+runVerificationCodeSubsystem throttle = runInputConst throttle . interpretVerificationCodeSubsystem . raiseUnder
+
 interpretVerificationCodeSubsystem ::
   ( Member VerificationCodeStore r,
     Member Random r,

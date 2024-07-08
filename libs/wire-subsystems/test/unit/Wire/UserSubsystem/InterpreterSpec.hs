@@ -13,7 +13,6 @@ import Data.Handle
 import Data.Id
 import Data.LegalHold (defUserLegalHoldStatus)
 import Data.Map qualified as Map
-import Data.Misc (plainTextPassword8To6)
 import Data.Qualified
 import Data.Set qualified as S
 import Imports
@@ -30,10 +29,8 @@ import Wire.API.Team.Member
 import Wire.API.Team.Permission
 import Wire.API.User hiding (DeleteUser)
 import Wire.API.UserEvent
-import Wire.HashPassword
 import Wire.MiniBackend
 import Wire.MockInterpreters
-import Wire.PasswordStore
 import Wire.StoredUser
 import Wire.UserKeyStore
 import Wire.UserSubsystem
@@ -45,17 +42,16 @@ spec :: Spec
 spec = describe "UserSubsystem.Interpreter" do
   describe "deleteSelfUser" do
     prop "should delete user when deleted with requested code" $
-      \(NotPendingStoredUser userNoEmail) password email localDomain config ->
+      \(NotPendingStoredUser userNoEmail) email localDomain config ->
         let user = userNoEmail {email = Just email}
             localBackend = def {users = [user]}
             luid = (toLocalUnsafe localDomain user.id)
             userAfterDeletion =
               runNoFederationStack localBackend Nothing config $ do
-                upsertHashedPassword user.id =<< hashPassword password
                 -- TODO: assert something about the expiry of the code
-                _ <- requestSelfDeletionCode luid (Just $ plainTextPassword8To6 password)
+                _ <- requestDeletionCode luid
                 (_name, key, value) <- expect1AccountDeletionEmail email
-                deleteSelfUser (VerifyDeleteUser key value)
+                deleteUserByVerificationCode (VerifyDeleteUser key value)
                 getSelfProfile luid
          in userAfterDeletion === Nothing
   describe "getUserProfiles" do
@@ -104,8 +100,7 @@ spec = describe "UserSubsystem.Interpreter" do
             config = UserSubsystemConfig visibility miniLocale
             localBackend = def {users = [viewer]}
             result =
-              run
-                . runErrorUnsafe @UserSubsystemError
+              runRemainingErrorsUnsafe @AllErrors
                 . runError @FederationError
                 . interpretFederationStack localBackend online Nothing config
                 $ getUserProfiles
@@ -246,7 +241,7 @@ spec = describe "UserSubsystem.Interpreter" do
           allFeatureConfigs = def {afcMlsE2EId = withStatus FeatureStatusEnabled LockStatusUnlocked mlsE2EIdConfig FeatureTTLUnlimited}
           SelfProfile retrievedUser =
             fromJust
-              . runAllErrorsUnsafe
+              . runRemainingErrorsUnsafe @AllErrors
               . interpretNoFederationStack localBackend Nothing allFeatureConfigs susbsystemConfig
               $ getSelfProfile (toLocalUnsafe domain storedSelf.id)
           expectedManagedBy = case storedSelf.handle of
@@ -300,6 +295,7 @@ spec = describe "UserSubsystem.Interpreter" do
               profileErr :: Either UserSubsystemError (Maybe UserProfile) =
                 run
                   . runErrorUnsafe
+                  . runErrorUnsafe @FederationError
                   . runError
                   $ interpretNoFederationStack localBackend Nothing def config do
                     updateUserProfile lusr Nothing UpdateOriginWireClient update {name = Nothing, locale = Nothing}
@@ -314,6 +310,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 profileErr :: Either UserSubsystemError (Maybe UserProfile) =
                   run
                     . runErrorUnsafe
+                    . runErrorUnsafe @FederationError
                     . runError
                     $ interpretNoFederationStack localBackend Nothing def config do
                       updateUserProfile lusr Nothing UpdateOriginWireClient def {name = Just name}
@@ -326,8 +323,7 @@ spec = describe "UserSubsystem.Interpreter" do
             let lusr = toLocalUnsafe localDomain alice.id
                 localBackend = def {users = [alice {managedBy = Just ManagedByScim}]}
                 profileErr :: Either UserSubsystemError (Maybe UserProfile) =
-                  run
-                    . runErrorUnsafe
+                  runRemainingErrorsUnsafe @AllErrors
                     . runError
                     $ interpretNoFederationStack localBackend Nothing def config do
                       updateUserProfile lusr Nothing UpdateOriginWireClient def {locale = Just locale}
@@ -341,8 +337,7 @@ spec = describe "UserSubsystem.Interpreter" do
           let lusr = toLocalUnsafe localDomain alice.id
               localBackend = def {users = [alice]}
               profileErr :: Either UserSubsystemError (Maybe UserProfile) =
-                run
-                  . runErrorUnsafe
+                runRemainingErrorsUnsafe @AllErrors
                   . runError
                   $ interpretNoFederationStack localBackend Nothing def {afcMlsE2EId = setStatus FeatureStatusEnabled defFeatureStatus} config do
                     updateUserProfile lusr Nothing UpdateOriginScim (def {name = Just newName})
@@ -391,11 +386,11 @@ spec = describe "UserSubsystem.Interpreter" do
         \(alice, newHandle :: Handle, domain, config) ->
           not (isBlacklistedHandle newHandle) ==>
             let res :: Either UserSubsystemError ()
-                res = run
-                  . runErrorUnsafe
-                  . runError
-                  $ interpretNoFederationStack localBackend Nothing def config do
-                    updateHandle (toLocalUnsafe domain alice.id) Nothing UpdateOriginWireClient (fromHandle newHandle)
+                res =
+                  runRemainingErrorsUnsafe @AllErrors
+                    . runError
+                    $ interpretNoFederationStack localBackend Nothing def config do
+                      updateHandle (toLocalUnsafe domain alice.id) Nothing UpdateOriginWireClient (fromHandle newHandle)
 
                 localBackend = def {users = [alice {managedBy = Just ManagedByScim}]}
              in res === Left UserSubsystemHandleManagedByScim
@@ -404,11 +399,11 @@ spec = describe "UserSubsystem.Interpreter" do
         "Updating handles succeeds when UpdateOriginScim"
         \(alice, ssoId, email :: Maybe Email, fromHandle -> newHandle, domain, config) ->
           not (isBlacklistedHandle (fromJust (parseHandle newHandle))) ==>
-            let res :: Either UserSubsystemError () = run
-                  . runErrorUnsafe
-                  . runError
-                  $ interpretNoFederationStack localBackend Nothing def config do
-                    updateHandle (toLocalUnsafe domain alice.id) Nothing UpdateOriginScim newHandle
+            let res :: Either UserSubsystemError () =
+                  runRemainingErrorsUnsafe @AllErrors
+                    . runError
+                    $ interpretNoFederationStack localBackend Nothing def config do
+                      updateHandle (toLocalUnsafe domain alice.id) Nothing UpdateOriginScim newHandle
                 localBackend =
                   def
                     { users =
@@ -426,26 +421,26 @@ spec = describe "UserSubsystem.Interpreter" do
       "update valid handles succeeds"
       \(storedUser :: StoredUser, newHandle@(fromHandle -> rawNewHandle), config) ->
         (isJust storedUser.identity && not (isBlacklistedHandle newHandle)) ==>
-          let updateResult :: Either UserSubsystemError () = run
-                . runErrorUnsafe
-                . runError
-                $ interpretNoFederationStack (def {users = [storedUser]}) Nothing def config do
-                  let luid = toLocalUnsafe dom storedUser.id
-                      dom = Domain "localdomain"
-                  updateHandle luid Nothing UpdateOriginScim rawNewHandle
+          let updateResult :: Either UserSubsystemError () =
+                runRemainingErrorsUnsafe @AllErrors
+                  . runError
+                  $ interpretNoFederationStack (def {users = [storedUser]}) Nothing def config do
+                    let luid = toLocalUnsafe dom storedUser.id
+                        dom = Domain "localdomain"
+                    updateHandle luid Nothing UpdateOriginScim rawNewHandle
            in updateResult === Right ()
 
     prop
       "update invalid handles fails"
       \(storedUser :: StoredUser, BadHandle badHandle, config) ->
         isJust storedUser.identity ==>
-          let updateResult :: Either UserSubsystemError () = run
-                . runErrorUnsafe
-                . runError
-                $ interpretNoFederationStack localBackend Nothing def config do
-                  let luid = toLocalUnsafe dom storedUser.id
-                      dom = Domain "localdomain"
-                  updateHandle luid Nothing UpdateOriginScim badHandle
+          let updateResult :: Either UserSubsystemError () =
+                runRemainingErrorsUnsafe @AllErrors
+                  . runError
+                  $ interpretNoFederationStack localBackend Nothing def config do
+                    let luid = toLocalUnsafe dom storedUser.id
+                        dom = Domain "localdomain"
+                    updateHandle luid Nothing UpdateOriginScim badHandle
               localBackend = def {users = [storedUser]}
            in updateResult === Left UserSubsystemInvalidHandle
 
@@ -481,9 +476,7 @@ spec = describe "UserSubsystem.Interpreter" do
                   userKeys = Map.singleton userKey storedUser.id
                 }
             retrievedUser =
-              run
-                . runErrorUnsafe
-                . runErrorUnsafe @UserSubsystemError
+              runRemainingErrorsUnsafe @AllErrors
                 . interpretNoFederationStack localBackend Nothing def config
                 $ getLocalUserAccountByUserKey (toLocalUnsafe localDomain userKey)
          in retrievedUser === Just (mkAccountFromStored localDomain config.defaultLocale storedUser)
@@ -497,9 +490,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 }
             storedUser = storedUserNoEmail {email = Just email}
             retrievedUser =
-              run
-                . runErrorUnsafe
-                . runErrorUnsafe @UserSubsystemError
+              runRemainingErrorsUnsafe @AllErrors
                 . interpretNoFederationStack localBackend Nothing def config
                 $ getLocalUserAccountByUserKey (toLocalUnsafe localDomain (mkEmailKey email))
          in retrievedUser === Nothing
@@ -512,9 +503,7 @@ spec = describe "UserSubsystem.Interpreter" do
                   userKeys = Map.singleton userKey nonExistentUserId
                 }
             retrievedUser =
-              run
-                . runErrorUnsafe
-                . runErrorUnsafe @UserSubsystemError
+              runRemainingErrorsUnsafe @AllErrors
                 . interpretNoFederationStack localBackend Nothing def config
                 $ getLocalUserAccountByUserKey (toLocalUnsafe localDomain userKey)
          in retrievedUser === Nothing

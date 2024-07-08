@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Wire.VerificationCodeSubsystem where
@@ -16,7 +17,8 @@ import Wire.VerificationCodeGen
 
 data VerificationCodeSubsystemError
   = VerificationCodeThrottled RetryAfter
-  deriving (Show, Eq)
+  deriving stock (Show, Eq)
+  deriving anyclass (Exception)
 
 verificationCodeSubsystemErrorToHttpError :: VerificationCodeSubsystemError -> HttpError
 verificationCodeSubsystemErrorToHttpError = \case

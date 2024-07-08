@@ -1240,9 +1240,9 @@ requestSelfDeletionCodeH ::
   ) =>
   Local UserId ->
   Public.DeleteUser ->
-  (Handler r) (Maybe Code.Timeout)
+  Handler r (Maybe Code.Timeout)
 requestSelfDeletionCodeH u body = do
-  lift $ liftSem $ requestSelfDeletionCode u (Public.deleteUserPassword body)
+  lift $ liftSem $ maybe (requestDeletionCode u) (\pwd -> deleteUserByPassword u pwd $> Nothing) (Public.deleteUserPassword body)
 
 verifyDeleteUser ::
   ( Member (Embed HttpClientIO) r,

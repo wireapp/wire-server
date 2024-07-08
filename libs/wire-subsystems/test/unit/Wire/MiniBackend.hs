@@ -9,7 +9,7 @@ module Wire.MiniBackend
     runNoFederationStackState,
     interpretNoFederationStackState,
     runNoFederationStack,
-    runAllErrorsUnsafe,
+    runRemainingErrorsUnsafe,
     runErrorUnsafe,
     miniLocale,
 
@@ -66,6 +66,7 @@ import Wire.PasswordStore
 import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.Sequential
 import Wire.Sem.Now hiding (get)
+import Wire.Sem.Random
 import Wire.StoredUser
 import Wire.UserEvents
 import Wire.UserKeyStore
@@ -73,6 +74,9 @@ import Wire.UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.Interpreter
+import Wire.VerificationCodeStore
+import Wire.VerificationCodeSubsystem (VerificationCodeSubsystem, VerificationCodeSubsystemError)
+import Wire.VerificationCodeSubsystem.Interpreter (VerificationCodeThrottleTTL (VerificationCodeThrottleTTL), runVerificationCodeSubsystem)
 
 newtype PendingStoredUser = PendingStoredUser StoredUser
   deriving (Show, Eq)
@@ -93,16 +97,19 @@ instance Arbitrary NotPendingStoredUser where
 
 type AllErrors =
   [ Error UserSubsystemError,
-    Error FederationError
+    Error FederationError,
+    Error VerificationCodeSubsystemError
   ]
 
 type MiniBackendEffects =
   [ UserSubsystem,
+    VerificationCodeSubsystem,
     GalleyAPIAccess,
     UserStore,
     State [StoredUser],
     UserKeyStore,
     State (Map EmailKey UserId),
+    VerificationCodeStore,
     DeleteQueue,
     UserEvents,
     State [InternalNotification],
@@ -113,6 +120,7 @@ type MiniBackendEffects =
     HashPassword,
     PasswordStore,
     State (Map UserId Password),
+    Random,
     Now,
     Input UserSubsystemConfig,
     Input (Local ()),
@@ -261,7 +269,7 @@ runFederationStack ::
   Sem (MiniBackendEffects `Append` AllErrors) a ->
   a
 runFederationStack localBackend fedBackends teamMember cfg =
-  runAllErrorsUnsafe
+  runRemainingErrorsUnsafe
     . interpretFederationStack
       localBackend
       fedBackends
@@ -305,7 +313,7 @@ runNoFederationStack localBackend teamMember cfg =
   -- would be nice, but is complicated by the fact that we not only have 'UserSubsystemErrors',
   -- but other errors as well.  Maybe just wait with this until we have a better idea how we
   -- want to do errors?)
-  runAllErrorsUnsafe . interpretNoFederationStack localBackend teamMember def cfg
+  runRemainingErrorsUnsafe . interpretNoFederationStack localBackend teamMember def cfg
 
 runNoFederationStackState ::
   (HasCallStack) =>
@@ -315,7 +323,7 @@ runNoFederationStackState ::
   Sem (MiniBackendEffects `Append` AllErrors) a ->
   (MiniBackend, a)
 runNoFederationStackState localBackend teamMember cfg =
-  runAllErrorsUnsafe . interpretNoFederationStackState localBackend teamMember def cfg
+  runRemainingErrorsUnsafe . interpretNoFederationStackState localBackend teamMember def cfg
 
 interpretNoFederationStack ::
   (Members AllErrors r) =>
@@ -354,6 +362,7 @@ interpretMaybeFederationStackState maybeFederationAPIAccess localBackend teamMem
     . runInputConst (toLocalUnsafe (Domain "localdomain") ())
     . runInputConst cfg
     . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
+    . runRandomPure
     . evalState mempty
     . inMemoryPasswordStoreInterpreter
     . staticHashPasswordInterpreter
@@ -364,11 +373,14 @@ interpretMaybeFederationStackState maybeFederationAPIAccess localBackend teamMem
     . evalState []
     . miniEventInterpreter
     . inMemoryDeleteQueueInterpreter
+    . runInMemoryVerificationCodeStore
     . liftUserKeyStoreState
     . inMemoryUserKeyStoreInterpreter
     . liftUserStoreState
     . inMemoryUserStoreInterpreter
     . miniGalleyAPIAccess teamMember galleyConfigs
+    -- chosen arbitrarily
+    . runVerificationCodeSubsystem (VerificationCodeThrottleTTL 300)
     . runUserSubsystem cfg
 
 liftUserKeyStoreState :: (Member (State MiniBackend) r) => Sem (State (Map EmailKey UserId) : r) a -> Sem r a
@@ -381,8 +393,32 @@ liftUserStoreState = interpret $ \case
   Polysemy.State.Get -> gets (.users)
   Put newUsers -> modify $ \b -> b {users = newUsers}
 
-runAllErrorsUnsafe :: forall a. (HasCallStack) => Sem AllErrors a -> a
-runAllErrorsUnsafe = run . runErrorUnsafe . runErrorUnsafe
+-- runRemainingErrorsUnsafe :: forall a. (HasCallStack) => Sem AllErrors a -> a
+-- runRemainingErrorsUnsafe = run . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe
+--
+-- class RunAllErrorsExcept effs e where
+--   type NewStack effs :: [Effect]
+--   runAllErrorsExcept' :: Sem effs a -> Sem (NewStack effs) (Either e a)
+--
+-- instance {-# OVERLAPPING #-} RunAllErrorsExcept (Error e : es) e where
+--   type NewStack (Error e : es) = es
+--   runAllErrorsExcept' = runError
+--
+-- instance (Exception e') => RunAllErrorsExcept (Error e' : es) e where
+--   type NewStack (Error e' : es) = es
+--   runAllErrorsExcept' = fmap Right . runErrorUnsafe
+--
+class RunAllErrorsUnsafe effs where
+  runRemainingErrorsUnsafe :: (HasCallStack) => Sem effs a -> a
+
+instance (Exception e, RunAllErrorsUnsafe effs) => RunAllErrorsUnsafe (Error e : effs) where
+  runRemainingErrorsUnsafe = runRemainingErrorsUnsafe . runErrorUnsafe
+
+instance RunAllErrorsUnsafe '[] where
+  runRemainingErrorsUnsafe = run
+
+-- runAllErrorsExcept :: (HasCallStack, RunAllErrorsUnsafe effs) => Sem (Error e : effs) a -> Either e a
+-- runAllErrorsExcept = runRemainingErrorsUnsafe . runError
 
 emptyFederationAPIAcesss :: InterpreterFor (FederationAPIAccess MiniFederationMonad) r
 emptyFederationAPIAcesss = interpret $ \case
