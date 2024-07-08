@@ -40,8 +40,8 @@ import Wire.DeleteQueue
 import Wire.EmailSending
 import Wire.EmailSending.SES
 import Wire.EmailSending.SMTP
-import Wire.EmailSmsSubsystem
-import Wire.EmailSmsSubsystem.Interpreter
+import Wire.EmailSubsystem
+import Wire.EmailSubsystem.Interpreter
 import Wire.Error
 import Wire.FederationAPIAccess qualified
 import Wire.FederationAPIAccess.Interpreter (FederationAPIAccessConfig (..), interpretFederationAPIAccess)
@@ -85,7 +85,7 @@ import Wire.VerificationCodeSubsystem.Interpreter
 type BrigCanonicalEffects =
   '[ AuthenticationSubsystem,
      UserSubsystem,
-     EmailSmsSubsystem,
+     EmailSubsystem,
      VerificationCodeSubsystem,
      DeleteQueue,
      UserEvents,
@@ -197,7 +197,7 @@ runBrigToIO e (AppT ma) = do
               . runUserEvents
               . runDeleteQueue (e ^. internalEvents)
               . interpretVerificationCodeSubsystem
-              . emailSmsSubsystemInterpreter (e ^. usrTemplates) (e ^. templateBranding)
+              . emailSubsystemInterpreter (e ^. usrTemplates) (e ^. templateBranding)
               . runUserSubsystem userSubsystemConfig
               . interpretAuthenticationSubsystem
           )

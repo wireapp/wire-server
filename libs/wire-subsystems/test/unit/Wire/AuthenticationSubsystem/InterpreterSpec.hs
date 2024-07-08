@@ -24,7 +24,7 @@ import Wire.API.User.Auth
 import Wire.API.User.Password
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Interpreter
-import Wire.EmailSmsSubsystem
+import Wire.EmailSubsystem
 import Wire.HashPassword
 import Wire.MockInterpreters
 import Wire.PasswordResetCodeStore
@@ -49,7 +49,7 @@ type AllEffects =
     PasswordResetCodeStore,
     State (Map PasswordResetKey (PRQueryData Identity)),
     TinyLog,
-    EmailSmsSubsystem,
+    EmailSubsystem,
     State (Map Email [SentMail]),
     UserSubsystem
   ]
@@ -59,7 +59,7 @@ interpretDependencies localDomain preexistingUsers preexistingPasswords mAllowed
   run
     . userSubsystemTestInterpreter preexistingUsers
     . evalState mempty
-    . emailSmsSubsystemInterpreter
+    . emailSubsystemInterpreter
     . discardTinyLogs
     . evalState mempty
     . inMemoryPasswordResetCodeStore

@@ -102,7 +102,7 @@ import Wire.API.UserEvent
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 import Wire.DeleteQueue
 import Wire.EmailSending (EmailSending)
-import Wire.EmailSmsSubsystem (EmailSmsSubsystem)
+import Wire.EmailSubsystem (EmailSubsystem)
 import Wire.GalleyAPIAccess (GalleyAPIAccess, ShowOrHideInvitationUrl (..))
 import Wire.NotificationSubsystem
 import Wire.Rpc
@@ -136,7 +136,7 @@ servantSitemap ::
     Member TinyLog r,
     Member (UserPendingActivationStore p) r,
     Member EmailSending r,
-    Member EmailSmsSubsystem r,
+    Member EmailSubsystem r,
     Member VerificationCodeSubsystem r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
@@ -186,7 +186,7 @@ accountAPI ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
-    Member EmailSmsSubsystem r,
+    Member EmailSubsystem r,
     Member VerificationCodeSubsystem r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
@@ -403,7 +403,7 @@ addClientInternalH ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
-    Member EmailSmsSubsystem r,
+    Member EmailSubsystem r,
     Member VerificationCodeSubsystem r
   ) =>
   UserId ->
@@ -524,14 +524,14 @@ deleteUserNoAuthH uid = do
     AccountAlreadyDeleted -> pure UserResponseAccountAlreadyDeleted
     AccountDeleted -> pure UserResponseAccountDeleted
 
-changeSelfEmailMaybeSendH :: (Member BlacklistStore r, Member UserKeyStore r, Member EmailSmsSubsystem r) => UserId -> EmailUpdate -> Maybe Bool -> (Handler r) ChangeEmailResponse
+changeSelfEmailMaybeSendH :: (Member BlacklistStore r, Member UserKeyStore r, Member EmailSubsystem r) => UserId -> EmailUpdate -> Maybe Bool -> (Handler r) ChangeEmailResponse
 changeSelfEmailMaybeSendH u body (fromMaybe False -> validate) = do
   let email = euEmail body
   changeSelfEmailMaybeSend u (if validate then ActuallySendEmail else DoNotSendEmail) email UpdateOriginScim
 
 data MaybeSendEmail = ActuallySendEmail | DoNotSendEmail
 
-changeSelfEmailMaybeSend :: (Member BlacklistStore r, Member UserKeyStore r, Member EmailSmsSubsystem r) => UserId -> MaybeSendEmail -> Email -> UpdateOriginType -> (Handler r) ChangeEmailResponse
+changeSelfEmailMaybeSend :: (Member BlacklistStore r, Member UserKeyStore r, Member EmailSubsystem r) => UserId -> MaybeSendEmail -> Email -> UpdateOriginType -> (Handler r) ChangeEmailResponse
 changeSelfEmailMaybeSend u ActuallySendEmail email allowScim = do
   API.changeSelfEmail u email allowScim
 changeSelfEmailMaybeSend u DoNotSendEmail email allowScim = do

@@ -61,7 +61,7 @@ import UnliftIO.Async (pooledMapConcurrentlyN_)
 import Wire.API.Team.Invitation hiding (HeadInvitationByEmailResult (..))
 import Wire.API.Team.Role
 import Wire.API.User
-import Wire.EmailSmsSubsystem.Template (renderTextWithBranding)
+import Wire.EmailSubsystem.Template (renderTextWithBranding)
 import Wire.GalleyAPIAccess (ShowOrHideInvitationUrl (..))
 
 mkInvitationCode :: IO InvitationCode

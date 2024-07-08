@@ -108,7 +108,7 @@ import Wire.API.User.Client.Prekey
 import Wire.API.UserEvent
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap, qualifiedUserMap), UserMap (userMap))
 import Wire.DeleteQueue
-import Wire.EmailSmsSubsystem (EmailSmsSubsystem, sendNewClientEmail)
+import Wire.EmailSubsystem (EmailSubsystem, sendNewClientEmail)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
@@ -170,7 +170,7 @@ addClient ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
-    Member EmailSmsSubsystem r,
+    Member EmailSubsystem r,
     Member VerificationCodeSubsystem r
   ) =>
   UserId ->
@@ -191,7 +191,7 @@ addClientWithReAuthPolicy ::
     Member (Input UTCTime) r,
     Member DeleteQueue r,
     Member (ConnectionStore InternalPaging) r,
-    Member EmailSmsSubsystem r,
+    Member EmailSubsystem r,
     Member VerificationCodeSubsystem r
   ) =>
   Data.ReAuthPolicy ->
