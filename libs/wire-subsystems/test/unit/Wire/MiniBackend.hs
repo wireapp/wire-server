@@ -47,18 +47,22 @@ import Type.Reflection
 import Wire.API.Federation.API
 import Wire.API.Federation.Component
 import Wire.API.Federation.Error
+import Wire.API.Password
 import Wire.API.Team.Feature
 import Wire.API.Team.Member hiding (userId)
 import Wire.API.User as User hiding (DeleteUser)
 import Wire.API.User.Password
 import Wire.DeleteQueue
 import Wire.DeleteQueue.InMemory
+import Wire.EmailSmsSubsystem
 import Wire.FederationAPIAccess
 import Wire.FederationAPIAccess.Interpreter as FI
 import Wire.GalleyAPIAccess
+import Wire.HashPassword
 import Wire.InternalEvent hiding (DeleteUser)
 import Wire.MockInterpreters
 import Wire.PasswordResetCodeStore
+import Wire.PasswordStore
 import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.Sequential
 import Wire.Sem.Now hiding (get)
@@ -104,6 +108,11 @@ type MiniBackendEffects =
     State [InternalNotification],
     State MiniBackend,
     State [MiniEvent],
+    EmailSmsSubsystem,
+    State (Map Email [SentMail]),
+    HashPassword,
+    PasswordStore,
+    State (Map UserId Password),
     Now,
     Input UserSubsystemConfig,
     Input (Local ()),
@@ -345,6 +354,11 @@ interpretMaybeFederationStackState maybeFederationAPIAccess localBackend teamMem
     . runInputConst (toLocalUnsafe (Domain "localdomain") ())
     . runInputConst cfg
     . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
+    . evalState mempty
+    . inMemoryPasswordStoreInterpreter
+    . staticHashPasswordInterpreter
+    . evalState mempty
+    . emailSmsSubsystemInterpreter
     . evalState []
     . runState localBackend
     . evalState []

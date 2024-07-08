@@ -348,7 +348,7 @@ servantSitemap =
     selfAPI :: ServerT SelfAPI (Handler r)
     selfAPI =
       Named @"get-self" getSelf
-        :<|> Named @"delete-self" (callsFed (exposeAnnotations deleteSelfUser))
+        :<|> Named @"delete-self" (callsFed (exposeAnnotations requestSelfDeletionCodeH))
         :<|> Named @"put-self" (callsFed (exposeAnnotations updateUser))
         :<|> Named @"change-phone" changePhone
         :<|> Named @"remove-phone" (callsFed (exposeAnnotations removePhone))
@@ -1225,10 +1225,8 @@ getConnection self other = do
   lself <- qualifyLocal self
   lift . wrapClient $ Data.lookupConnection lself other
 
-deleteSelfUser ::
-  ( Member GalleyAPIAccess r,
-    Member TinyLog r,
-    Member (Embed HttpClientIO) r,
+requestSelfDeletionCodeH ::
+  ( Member (Embed HttpClientIO) r,
     Member UserKeyStore r,
     Member NotificationSubsystem r,
     Member UserStore r,
@@ -1237,13 +1235,14 @@ deleteSelfUser ::
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
     Member EmailSmsSubsystem r,
-    Member VerificationCodeSubsystem r
+    Member VerificationCodeSubsystem r,
+    Member UserSubsystem r
   ) =>
-  UserId ->
+  Local UserId ->
   Public.DeleteUser ->
   (Handler r) (Maybe Code.Timeout)
-deleteSelfUser u body = do
-  API.deleteSelfUser u (Public.deleteUserPassword body) !>> deleteUserError
+requestSelfDeletionCodeH u body = do
+  lift $ liftSem $ requestSelfDeletionCode u (Public.deleteUserPassword body)
 
 verifyDeleteUser ::
   ( Member (Embed HttpClientIO) r,

@@ -2,9 +2,11 @@
 
 module Wire.UserSubsystem where
 
+import Data.Code
 import Data.Default
 import Data.Handle (Handle)
 import Data.Id
+import Data.Misc
 import Data.Qualified
 import Imports
 import Polysemy
@@ -72,6 +74,12 @@ data UserSubsystem m a where
   GetLocalUserAccountByUserKey :: Local EmailKey -> UserSubsystem m (Maybe UserAccount)
   -- | returns the user's locale or the default locale if the users exists
   LookupLocaleWithDefault :: Local UserId -> UserSubsystem m (Maybe Locale)
+  -- | Send a verification code to user's email for account deletion. If the
+  -- user doesn't have any email address attached to the account, the account is
+  -- immediately deleted.
+  RequestDeletionCode :: Local UserId -> UserSubsystem m (Maybe Timeout)
+  DeleteUserByVerificationCode :: VerifyDeleteUser -> UserSubsystem m ()
+  DeleteUserByPassword :: Local UserId -> PlainTextPassword6 -> UserSubsystem m ()
 
 -- | the return type of 'CheckHandle'
 data CheckHandleResp

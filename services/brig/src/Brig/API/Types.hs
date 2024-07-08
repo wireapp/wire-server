@@ -183,6 +183,7 @@ data ClientError
   | ClientCodeAuthenticationFailed
   | ClientCodeAuthenticationRequired
 
+-- TODO: delete
 data DeleteUserError
   = DeleteUserInvalid
   | DeleteUserInvalidCode

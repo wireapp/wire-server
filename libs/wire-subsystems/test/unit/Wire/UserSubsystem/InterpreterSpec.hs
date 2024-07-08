@@ -5,6 +5,7 @@ module Wire.UserSubsystem.InterpreterSpec (spec) where
 
 import Control.Lens.At ()
 import Data.Bifunctor (first)
+import Data.Code qualified as Code
 import Data.Coerce
 import Data.Default (Default (def))
 import Data.Domain
@@ -12,6 +13,7 @@ import Data.Handle
 import Data.Id
 import Data.LegalHold (defUserLegalHoldStatus)
 import Data.Map qualified as Map
+import Data.Misc (plainTextPassword8To6)
 import Data.Qualified
 import Data.Set qualified as S
 import Imports
@@ -28,7 +30,10 @@ import Wire.API.Team.Member
 import Wire.API.Team.Permission
 import Wire.API.User hiding (DeleteUser)
 import Wire.API.UserEvent
+import Wire.HashPassword
 import Wire.MiniBackend
+import Wire.MockInterpreters
+import Wire.PasswordStore
 import Wire.StoredUser
 import Wire.UserKeyStore
 import Wire.UserSubsystem
@@ -38,6 +43,21 @@ import Wire.UserSubsystem.Interpreter (UserSubsystemConfig (..))
 
 spec :: Spec
 spec = describe "UserSubsystem.Interpreter" do
+  describe "deleteSelfUser" do
+    prop "should delete user when deleted with requested code" $
+      \(NotPendingStoredUser userNoEmail) password email localDomain config ->
+        let user = userNoEmail {email = Just email}
+            localBackend = def {users = [user]}
+            luid = (toLocalUnsafe localDomain user.id)
+            userAfterDeletion =
+              runNoFederationStack localBackend Nothing config $ do
+                upsertHashedPassword user.id =<< hashPassword password
+                -- TODO: assert something about the expiry of the code
+                _ <- requestSelfDeletionCode luid (Just $ plainTextPassword8To6 password)
+                (_name, key, value) <- expect1AccountDeletionEmail email
+                deleteSelfUser (VerifyDeleteUser key value)
+                getSelfProfile luid
+         in userAfterDeletion === Nothing
   describe "getUserProfiles" do
     describe "[with federation]" do
       prop "gets all users on multiple federating backends" $
@@ -498,3 +518,11 @@ spec = describe "UserSubsystem.Interpreter" do
                 . interpretNoFederationStack localBackend Nothing def config
                 $ getLocalUserAccountByUserKey (toLocalUnsafe localDomain userKey)
          in retrievedUser === Nothing
+
+expect1AccountDeletionEmail :: (Member (State (Map Email [SentMail])) r) => Email -> Sem r (Name, Code.Key, Code.Value)
+expect1AccountDeletionEmail email =
+  getEmailsSentTo email
+    <&> \case
+      [] -> error "no emails sent"
+      [SentMail _ (AccountDeletionCodeMail name key val)] -> (name, key, val)
+      wrongEmails -> error $ "Wrong emails sent: " <> show wrongEmails

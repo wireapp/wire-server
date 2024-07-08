@@ -8,19 +8,25 @@ where
 
 import Control.Lens (view)
 import Control.Monad.Trans.Maybe
+import Data.ByteString.Conversion
+import Data.Code
 import Data.Either.Extra
 import Data.Handle (Handle)
 import Data.Handle qualified as Handle
 import Data.Id
 import Data.Json.Util
 import Data.LegalHold
+import Data.Misc
 import Data.Qualified
 import Data.Time.Clock
 import Imports hiding (local)
 import Polysemy
 import Polysemy.Error hiding (try)
 import Polysemy.Input
+import Polysemy.TinyLog (TinyLog)
+import Polysemy.TinyLog qualified as Log
 import Servant.Client.Core
+import System.Logger.Message
 import Wire.API.Federation.API
 import Wire.API.Federation.Error
 import Wire.API.Team.Feature
@@ -29,8 +35,10 @@ import Wire.API.User
 import Wire.API.UserEvent
 import Wire.Arbitrary
 import Wire.DeleteQueue
+import Wire.EmailSmsSubsystem
 import Wire.FederationAPIAccess
 import Wire.GalleyAPIAccess
+import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.Sem.Concurrency
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
@@ -41,6 +49,9 @@ import Wire.UserStore as UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.HandleBlacklist
+import Wire.VerificationCode qualified as VerificationCode
+import Wire.VerificationCodeGen
+import Wire.VerificationCodeSubsystem
 
 data UserSubsystemConfig = UserSubsystemConfig
   { emailVisibilityConfig :: EmailVisibilityConfig,
@@ -64,7 +75,10 @@ runUserSubsystem ::
     Member Now r,
     RunClient (fedM 'Brig),
     FederationMonad fedM,
-    Typeable fedM
+    Typeable fedM,
+    Member TinyLog r,
+    Member VerificationCodeSubsystem r,
+    Member EmailSmsSubsystem r
   ) =>
   UserSubsystemConfig ->
   InterpreterFor UserSubsystem r
@@ -84,7 +98,10 @@ interpretUserSubsystem ::
     Member Now r,
     RunClient (fedM 'Brig),
     FederationMonad fedM,
-    Typeable fedM
+    Typeable fedM,
+    Member TinyLog r,
+    Member VerificationCodeSubsystem r,
+    Member EmailSmsSubsystem r
   ) =>
   InterpreterFor UserSubsystem r
 interpretUserSubsystem = interpret \case
@@ -98,6 +115,9 @@ interpretUserSubsystem = interpret \case
   UpdateHandle uid mconn mb uhandle -> updateHandleImpl uid mconn mb uhandle
   GetLocalUserAccountByUserKey userKey -> getLocalUserAccountByUserKeyImpl userKey
   LookupLocaleWithDefault luid -> lookupLocaleOrDefaultImpl luid
+  RequestDeletionCode uid -> requestDeletionCodeImpl uid
+  DeleteUserByVerificationCode verification -> deleteUserByVerificationCodeImpl verification
+  DeleteUserByPassword luid password -> deleteUserByPasswordImpl luid password
 
 lookupLocaleOrDefaultImpl :: (Member UserStore r, Member (Input UserSubsystemConfig) r) => Local UserId -> Sem r (Maybe Locale)
 lookupLocaleOrDefaultImpl luid = do
@@ -407,10 +427,14 @@ getLocalUserAccountByUserKeyImpl ::
   Local EmailKey ->
   Sem r (Maybe UserAccount)
 getLocalUserAccountByUserKeyImpl target = runMaybeT $ do
-  config <- lift input
   uid <- MaybeT $ lookupKey (tUnqualified target)
-  user <- MaybeT $ getUser uid
-  pure $ mkAccountFromStored (tDomain target) config.defaultLocale user
+  MaybeT $ getAccountByUserId $ qualifyAs target uid
+
+getAccountByUserId :: (Member UserStore r, Member (Input UserSubsystemConfig) r) => Local UserId -> Sem r (Maybe UserAccount)
+getAccountByUserId luid = runMaybeT do
+  config <- lift input
+  user <- MaybeT $ getUser $ tUnqualified luid
+  pure $ mkAccountFromStored (tDomain luid) config.defaultLocale user
 
 --------------------------------------------------------------------------------
 -- Update Handle
@@ -475,3 +499,75 @@ checkHandlesImpl check num = reverse <$> collectFree [] check num
           case owner of
             Nothing -> collectFree (h : free) hs (n - 1)
             Just _ -> collectFree free hs n
+
+--------------------------------------------------------------------------------
+-- Account Deletion
+
+-- | Initiate validation of a user's delete request.  Called via @delete /self@.  Users with an
+-- 'UserSSOId' can still do this if they also have an 'Email', 'Phone', and/or password.  Otherwise,
+-- the team admin has to delete them via the team console on galley.
+--
+-- Owners are not allowed to delete themselves.  Instead, they must ask a fellow owner to
+-- delete them in the team settings.  This protects teams against orphanhood.
+--
+-- TODO: communicate deletions of SSO users to SSO service.
+requestDeletionCodeImpl ::
+  forall r.
+  ( Member (Input UserSubsystemConfig) r,
+    Member UserStore r,
+    Member GalleyAPIAccess r,
+    Member (Error UserSubsystemError) r,
+    Member VerificationCodeSubsystem r,
+    Member TinyLog r,
+    Member EmailSmsSubsystem r
+  ) =>
+  Local UserId ->
+  Sem r (Maybe Timeout)
+requestDeletionCodeImpl luid = mapError UserSubsystemDeleteUserError $ do
+  account <- getAccountByUserId luid
+  case account of
+    Nothing -> throw DeleteUserInvalid
+    Just a -> case accountStatus a of
+      Deleted -> pure Nothing
+      Suspended -> ensureNotOwner a >> go a
+      Active -> ensureNotOwner a >> go a
+      Ephemeral -> go a
+      PendingInvitation -> go a
+  where
+    ensureNotOwner acc = do
+      case userTeam $ accountUser acc of
+        Nothing -> pure ()
+        Just tid -> do
+          isOwner <- GalleyAPIAccess.memberIsTeamOwner tid (tUnqualified luid)
+          when isOwner $ throw DeleteUserOwnerDeletingSelf
+
+    go a = case userEmail (accountUser a) of
+      Just email -> sendCode a email
+      Nothing ->
+        deleteAccount a >> pure Nothing
+
+    sendCode a target = do
+      let gen = mkVerificationCodeGen target
+      createCode gen VerificationCode.AccountDeletion (VerificationCode.Retries 3) (VerificationCode.Timeout 600) (Just (toUUID (tUnqualified luid))) >>= \case
+        Left (CodeAlreadyExists c) -> throw $ DeleteUserPendingCode (VerificationCode.codeTTL c)
+        Right c -> do
+          Log.info $
+            field "user" (toByteString (tUnqualified luid))
+              . msg (val "Sending verification code for account deletion")
+          let k = c.codeKey
+          let v = c.codeValue
+          let l = a.accountUser.userLocale
+          let n = a.accountUser.userDisplayName
+          sendAccountDeletionEmail target n k v l
+          -- TODO: figure out how to
+          -- `onException` lift (liftSem $ deleteCode k VerificationCode.AccountDeletion)
+          pure $ Just $ VerificationCode.codeTTL c
+
+deleteUserByVerificationCodeImpl :: VerifyDeleteUser -> Sem r ()
+deleteUserByVerificationCodeImpl = undefined
+
+deleteUserByPasswordImpl :: Local UserId -> PlainTextPassword6 -> Sem r ()
+deleteUserByPasswordImpl = undefined
+
+deleteAccount :: UserAccount -> Sem r ()
+deleteAccount = undefined
