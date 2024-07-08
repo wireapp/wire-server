@@ -119,8 +119,8 @@ removePhoneDataStream = do
     .| Conduit.concat
     .| Conduit.mapM handlePhoneUser
     .| Conduit.scanl (<>) mempty
-    .| Conduit.mapM_ (logEvery 100000)
-    .| Conduit.fold
+    .| Conduit.iterM (logEvery 100000)
+    .| Conduit.lastDef mempty
   where
     logEvery :: Int -> Result -> AppT IO ()
     logEvery i r =
