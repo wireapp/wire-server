@@ -1,3 +1,154 @@
+# [2024-07-08] (Chart Release 5.4.0)
+
+## Release notes
+
+
+* Phone registration and login is not supported anymore. All API endpoints dealing with phone numbers and phone activation codes now fail with a 400 error. Brig options related to phone number support have now been deleted, namely:
+   - `setTwilio`
+   - `setNexmo`
+   - `setAllowlistPhonePrefixes`. (#4045)
+
+
+## API changes
+
+
+* Internal API endpoints related to phone numbers have been removed.
+
+  In brig:
+  - `iGetPhonePrefix`
+  - `iDeletePhonePrefix`
+  - `iPostPhonePrefix`.
+
+  In stern:
+  - `get-users-by-phone`
+  - `put-phone`. (#4045)
+
+
+## Features
+
+
+* charts/coturn: support putting coturn into 'drain' mode when terminating pods, denying new incoming client connections. This speeds up graceful coturn restarts significantly. (#4098)
+
+* Set SFT usernames's `shared` field according to team settings (#4117)
+
+* Updated the `mlsE2EId` feature config with two additional fields `crlProxy` and `useProxyOnMobile` (#4051)
+
+* reject MLS messages for future epochs (#4110)
+
+* Introduce more configuration options to the `coturn` helm chart (#4083)
+
+* Update email templates to v1.0.121. (#4064)
+
+* Support connecting to RabbitMQ over TLS. See "Configure RabbitMQ" section in the documentation for details. (#4094)
+
+* Support connecting to Redis over TLS
+
+  It can be enabled by setting these options on the wire-server helm chart:
+
+  ```yaml
+  gundeck:
+    config:
+      redis:
+        enableTls: true
+
+        # When custom CAs are required, one of these must be set:
+        tlsCa: <PEM encoded CA certificates>
+        tlsCaSecretRef:
+          name: <Name of the secret>
+          key: <Key in the secret containing pem encoded CA Cert>
+
+        # When TLS needs to be used without verification:
+        insecureSkipVerifyTls: true
+  ```
+  (#4016)
+
+
+## Bug fixes and other updates
+
+
+* fixed stern endpoint `/i/users/meta-info` (#4101)
+
+* Log password reset errors instead of propagating them (#4114)
+
+* Log request ids in brig. (#4086)
+
+* Do not set update origin "scim" in public brig api. (#4072)
+
+* Disabling legalhold before user's approval doesn't result in an error  (#4104)
+
+* Make scim-delete-user idempotent. Hide information about existing users (make delete idempotent) (#4120)
+
+* Expose /providers/assets via nginz (#4082)
+
+* federator: Expect a client certificate to be the certificate chain
+
+  Without this openssl doesn't forward to whole chain causing mTLS to not succeed. (#4089)
+
+* Only resend proposals once after external commit (#4103)
+
+* gundeck: Better tolerance for redis-cluster restarts (#4084)
+
+* GHC does not support repeated --with-rtsopts options, and it simply applies the last one. This means many of the baked-in options were actually not being passed, including -N for some of the services and -T for cannon. (#4118)
+
+* Ensure that a Request ID is logged whenever unexpected errors are caught in any service (#4059)
+
+* charts/coturn: use allowed dir to write PID file (#4098)
+
+* Make pending LH requests (with no LH devices listening yet) not throw LH policy errors.  This helps eg. in cases where a LH request is issued to the wrong user by accident, and the user can clear up the mistake. (#4056)
+
+
+## Documentation
+
+
+* Adjust documentation for migrated helm charts (#4058)
+
+
+## Internal changes
+
+
+* Adapt EJPD data to current requirements. (#3945)
+
+* Port team feature tests to the `integration` package (#4063)
+
+* Ported flaky legalhold test to the new integration test suite (#4057)
+
+* Added profile update operations to the user subsystem. (#4046)
+
+* Introduce authentication subsystem with password reset. (#4086)
+
+* update nixpkgs and hence GHC version as well as some other tooling. (#4071)
+
+* nginz: Added `allowlisted_fqdn_origins` to `nginx_conf` value (#4087)
+
+* Add weeder for dead code elimination. (#4088)
+
+* Introduce email subsystem (#4111)
+
+* replace cabal.project.local template and update cabal.project (#4119)
+
+* Add HTTP proxy in the local setup for elasticsearch in federation-v0. This makes it possible to use a single elasticsearch instance for both the main backends and federation-v0. (#4062)
+
+* federator: Add metrics for garbage collections and unexpected errors that were caught (#4085)
+
+* federator: Simplify polysemy setup to make it similar to other services so the
+  interpreter is only used for hoisting the servant application and not explicitly
+  inside handler of an endpoint (#4059)
+
+* Added prometheus enable and datacenter size variables for k8ssandra-test-cluster helm chart. (#4011)
+
+* Make `Handle` type abstract to guarantee it always contains *valid* Handles. (#4076)
+
+* metrics-core: Delete `Data.Metrics` in favour of defining metrics closer to where they are being emitted (#4085)
+
+* add more metadata into the meta attribute of all nix derivations produced locally (#4069)
+
+* Do not log anything when warp kills a worker thread. (#4112)
+
+* Introduce VerificationCodSubsystem (#4121)
+
+* add tests for bots that use self-signed certs and add documentation on why we cannot test the bots to work with PKI (#4027)
+
+
 # [2024-05-21] (Chart Release 5.3.0)
 
 ## API changes

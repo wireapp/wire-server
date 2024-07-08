@@ -1,1 +1,0 @@
-Add HTTP proxy in the local setup for elasticsearch in federation-v0. This makes it possible to use a single elasticsearch instance for both the main backends and federation-v0.
