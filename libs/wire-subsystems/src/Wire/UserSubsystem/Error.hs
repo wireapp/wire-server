@@ -31,6 +31,7 @@ data DeleteUserError
   | DeleteUserPendingCode Timeout
   | DeleteUserOwnerDeletingSelf
   | DeleteUserVerificationCodeThrottled RetryAfter
+  | DeleteUserSecondFactorEnabled
   deriving (Eq, Show)
 
 instance Exception DeleteUserError
@@ -45,4 +46,6 @@ userSubsystemErrorToHttpError =
     UserSubsystemHandleExists -> errorToWai @E.HandleExists
     UserSubsystemInvalidHandle -> errorToWai @E.InvalidHandle
     UserSubsystemHandleManagedByScim -> errorToWai @E.HandleManagedByScim
-    UserSubsystemDeleteUserError _ -> undefined -- TODO
+    UserSubsystemDeleteUserError deleteUserError -> case deleteUserError of
+      DeleteUserSecondFactorEnabled -> errorToWai @E.AccessDenied
+      _ -> undefined -- TODO

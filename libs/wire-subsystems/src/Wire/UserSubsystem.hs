@@ -78,7 +78,9 @@ data UserSubsystem m a where
   -- user doesn't have any email address attached to the account, the account is
   -- immediately deleted.
   RequestDeletionCode :: Local UserId -> UserSubsystem m (Maybe Timeout)
-  DeleteUserByVerificationCode :: VerifyDeleteUser -> UserSubsystem m ()
+  -- | given a verification code, delete the user associated with that verification code
+  DeleteUserByVerificationCode :: Local VerifyDeleteUser -> UserSubsystem m ()
+  -- | given a user and a password, delete the user immeidately
   DeleteUserByPassword :: Local UserId -> PlainTextPassword6 -> UserSubsystem m ()
 
 -- | the return type of 'CheckHandle'

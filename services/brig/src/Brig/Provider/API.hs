@@ -496,8 +496,7 @@ finishDeleteService pid sid = do
     kick (bid, cid, _) = deleteBot (botUserId bid) Nothing bid cid
 
 deleteAccount ::
-  ( Member GalleyAPIAccess r
-  ) =>
+  (Member GalleyAPIAccess r) =>
   ProviderId ->
   Public.DeleteProvider ->
   (Handler r) ()

@@ -1,10 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Wire.UserSubsystem.Interpreter
-  ( runUserSubsystem,
-    UserSubsystemConfig (..),
-  )
-where
+module Wire.UserSubsystem.Interpreter (runUserSubsystem, UserSubsystemConfig (..)) where
 
 import Control.Lens (view)
 import Control.Monad.Trans.Maybe
@@ -29,6 +25,7 @@ import Servant.Client.Core
 import System.Logger.Message
 import Wire.API.Federation.API
 import Wire.API.Federation.Error
+import Wire.API.Password (verifyPassword)
 import Wire.API.Team.Feature
 import Wire.API.Team.Member hiding (userId)
 import Wire.API.User
@@ -39,6 +36,7 @@ import Wire.EmailSmsSubsystem
 import Wire.FederationAPIAccess
 import Wire.GalleyAPIAccess
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
+import Wire.PasswordStore (PasswordStore, lookupHashedPassword)
 import Wire.Sem.Concurrency
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
@@ -78,7 +76,8 @@ runUserSubsystem ::
     Typeable fedM,
     Member TinyLog r,
     Member VerificationCodeSubsystem r,
-    Member EmailSmsSubsystem r
+    Member EmailSmsSubsystem r,
+    Member PasswordStore r
   ) =>
   UserSubsystemConfig ->
   InterpreterFor UserSubsystem r
@@ -101,7 +100,8 @@ interpretUserSubsystem ::
     Typeable fedM,
     Member TinyLog r,
     Member VerificationCodeSubsystem r,
-    Member EmailSmsSubsystem r
+    Member EmailSmsSubsystem r,
+    Member PasswordStore r
   ) =>
   InterpreterFor UserSubsystem r
 interpretUserSubsystem = interpret \case
@@ -523,24 +523,8 @@ requestDeletionCodeImpl ::
   ) =>
   Local UserId ->
   Sem r (Maybe Timeout)
-requestDeletionCodeImpl luid = mapError UserSubsystemDeleteUserError $ do
-  account <- getAccountByUserId luid
-  case account of
-    Nothing -> throw DeleteUserInvalid
-    Just a -> case accountStatus a of
-      Deleted -> pure Nothing
-      Suspended -> ensureNotOwner a >> go a
-      Active -> ensureNotOwner a >> go a
-      Ephemeral -> go a
-      PendingInvitation -> go a
+requestDeletionCodeImpl luid = mapError UserSubsystemDeleteUserError (accountCheck go (pure Nothing) luid)
   where
-    ensureNotOwner acc = do
-      case userTeam $ accountUser acc of
-        Nothing -> pure ()
-        Just tid -> do
-          isOwner <- GalleyAPIAccess.memberIsTeamOwner tid (tUnqualified luid)
-          when isOwner $ throw DeleteUserOwnerDeletingSelf
-
     go a = case userEmail (accountUser a) of
       Just email -> sendCode a email
       Nothing ->
@@ -554,20 +538,110 @@ requestDeletionCodeImpl luid = mapError UserSubsystemDeleteUserError $ do
           Log.info $
             field "user" (toByteString (tUnqualified luid))
               . msg (val "Sending verification code for account deletion")
-          let k = c.codeKey
-          let v = c.codeValue
-          let l = a.accountUser.userLocale
-          let n = a.accountUser.userDisplayName
-          sendAccountDeletionEmail target n k v l
+          sendAccountDeletionEmail
+            target
+            a.accountUser.userDisplayName
+            c.codeKey
+            c.codeValue
+            a.accountUser.userLocale
           -- TODO: figure out how to
           -- `onException` lift (liftSem $ deleteCode k VerificationCode.AccountDeletion)
           pure $ Just $ VerificationCode.codeTTL c
 
-deleteUserByVerificationCodeImpl :: VerifyDeleteUser -> Sem r ()
-deleteUserByVerificationCodeImpl = undefined
+deleteUserByVerificationCodeImpl ::
+  ( Member VerificationCodeSubsystem r,
+    Member (Error UserSubsystemError) r,
+    Member (Input UserSubsystemConfig) r,
+    Member UserStore r
+  ) =>
+  Local VerifyDeleteUser ->
+  Sem r ()
+deleteUserByVerificationCodeImpl luser@(tUnqualified -> usr) = mapError UserSubsystemDeleteUserError do
+  verifiedCode <- verifyCode usr.verifyDeleteUserKey VerificationCode.AccountDeletion usr.verifyDeleteUserCode
+  uid <- maybe (throw DeleteUserInvalidCode) pure do
+    verifiedCode >>= VerificationCode.codeAccount
+  account <- getAccountByUserId $ toLocalUnsafe (tDomain luser) (Id uid)
+  traverse_ deleteAccount account
+  deleteCode usr.verifyDeleteUserKey VerificationCode.AccountDeletion
 
-deleteUserByPasswordImpl :: Local UserId -> PlainTextPassword6 -> Sem r ()
-deleteUserByPasswordImpl = undefined
+deleteUserByPasswordImpl ::
+  ( Member TinyLog r,
+    Member PasswordStore r,
+    Member (Error UserSubsystemError) r,
+    Member (Input UserSubsystemConfig) r,
+    Member GalleyAPIAccess r,
+    Member UserStore r
+  ) =>
+  Local UserId ->
+  PlainTextPassword6 ->
+  Sem r ()
+deleteUserByPasswordImpl luid pw = mapError UserSubsystemDeleteUserError do
+  accountCheck doDeletePasswordByUser (pure ()) luid
+  where
+    doDeletePasswordByUser account = do
+      let uid = tUnqualified luid
+      Log.info $
+        field "user" (toByteString uid)
+          . msg (val "Attempting account deletion with a password")
+      actual <- lookupHashedPassword uid
+      case actual of
+        Nothing -> throw DeleteUserInvalidPassword
+        Just p -> do
+          -- We're deleting a user, no sense in updating their pwd, so we ignore pwd status
+          unless (verifyPassword pw p) do
+            throw DeleteUserInvalidPassword
+          deleteAccount account
 
-deleteAccount :: UserAccount -> Sem r ()
-deleteAccount = undefined
+-- TODO(mangoiv): move in some more sensible module where this can be used from other functions
+
+deleteAccount :: (Member (Error UserSubsystemError) r) => UserAccount -> Sem r ()
+deleteAccount (accountUser -> _user) = mapError UserSubsystemDeleteUserError undefined
+
+--   let uid = user.userId
+--   -- we need a domain to qualify, e.g. with Local UserAccount
+--   -- luid <- undefined (tDomain luser) uid
+--   Log.info $ field "user" (toByteString uid) . msg (val "Deleting account")
+--   do
+--     -- Free unique keys
+--     for_ (userEmail user) $ deleteKeyForUser uid . mkEmailKey
+--     clearProperties uid
+--     deleteUser user
+--
+-- this guy is problematic
+-- Intra.rmUser uid (userAssets user)
+
+-- lookupClients uid >>= mapM_ (Data.rmClient uid . clientId)
+
+-- Intra.onUserEvent uid Nothing (UserDeleted (tUntagged luid))
+-- Note: Connections can only be deleted afterwards, since
+--       they need to be notified.
+-- Data.deleteConnections uid
+-- Auth.revokeAllCookies uid
+
+accountCheck ::
+  ( Member (Input UserSubsystemConfig) r,
+    Member (Error DeleteUserError) r,
+    Member GalleyAPIAccess r,
+    Member UserStore r
+  ) =>
+  (UserAccount -> Sem r b) ->
+  Sem r b ->
+  Local UserId ->
+  Sem r b
+accountCheck go deleted luid = do
+  account <- getAccountByUserId luid
+  case account of
+    Nothing -> throw DeleteUserInvalid
+    Just a -> case accountStatus a of
+      Deleted -> deleted
+      Suspended -> ensureNotOwner a >> go a
+      Active -> ensureNotOwner a >> go a
+      Ephemeral -> go a
+      PendingInvitation -> go a
+  where
+    ensureNotOwner acc = do
+      case userTeam $ accountUser acc of
+        Nothing -> pure ()
+        Just tid -> do
+          isOwner <- GalleyAPIAccess.memberIsTeamOwner tid (tUnqualified luid)
+          when isOwner $ throw DeleteUserOwnerDeletingSelf
