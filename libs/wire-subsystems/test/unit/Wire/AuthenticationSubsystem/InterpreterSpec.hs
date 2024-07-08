@@ -74,9 +74,6 @@ interpretDependencies localDomain preexistingUsers preexistingPasswords mAllowed
     . staticHashPasswordInterpreter
     . runError
 
-defaultTime :: UTCTime
-defaultTime = UTCTime (ModifiedJulianDay 0) 0
-
 spec :: Spec
 spec = describe "AuthenticationSubsystem.Interpreter" do
   describe "password reset" do

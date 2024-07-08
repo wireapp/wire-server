@@ -30,7 +30,6 @@ import API.User.Util
 import API.User.Util qualified as Util
 import Bilge hiding (accept, head, timeout)
 import Bilge.Assert
-import Brig.Code qualified as Code
 import Brig.Options qualified as Opt
 import Brig.Options qualified as Opts
 import Cassandra qualified as DB
@@ -41,6 +40,7 @@ import Data.Aeson qualified as A
 import Data.Aeson.KeyMap qualified as M
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
+import Data.Code qualified as Code
 import Data.Coerce (coerce)
 import Data.Default
 import Data.Domain (Domain (..))
@@ -83,6 +83,8 @@ import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey
 import Wire.API.UserMap (QualifiedUserMap (..), UserMap (..), WrappedQualifiedUserMap)
 import Wire.API.Wrapped (Wrapped (..))
+import Wire.VerificationCode qualified as Code
+import Wire.VerificationCodeGen
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> DB.ClientState -> Nginz -> Brig -> Cannon -> Galley -> TestTree
 tests _cl _at opts p db n b c g =
@@ -151,7 +153,7 @@ testAddGetClientVerificationCode db brig galley = do
   Util.setTeamFeatureLockStatus @Public.SndFactorPasswordChallengeConfig galley tid Public.LockStatusUnlocked
   Util.setTeamSndFactorPasswordChallenge galley tid Public.FeatureStatusEnabled
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
-  k <- Code.mkKey email
+  let k = mkKey email
   codeValue <- Code.codeValue <$$> lookupCode db k Code.AccountLogin
   checkLoginSucceeds $
     PasswordLogin $
@@ -207,8 +209,8 @@ testAddGetClientCodeExpired db opts brig galley = do
   Util.setTeamFeatureLockStatus @Public.SndFactorPasswordChallengeConfig galley tid Public.LockStatusUnlocked
   Util.setTeamSndFactorPasswordChallenge galley tid Public.FeatureStatusEnabled
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
-  k <- Code.mkKey email
-  codeValue <- Code.codeValue <$$> lookupCode db k Code.AccountLogin
+  let k = mkKey email
+  codeValue <- (.codeValue) <$$> lookupCode db k Code.AccountLogin
   checkLoginSucceeds $
     PasswordLogin $
       PasswordLoginData (LoginByEmail email) defPassword (Just defCookieLabel) codeValue

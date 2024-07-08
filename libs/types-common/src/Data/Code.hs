@@ -44,7 +44,7 @@ import Test.QuickCheck (Arbitrary (arbitrary))
 
 -- | A scoped identifier for a 'Value' with an associated 'Timeout'.
 newtype Key = Key {asciiKey :: Range 20 20 AsciiBase64Url}
-  deriving (Eq, Show)
+  deriving (Eq, Show, Ord)
   deriving newtype
     ( A.FromJSON,
       A.ToJSON,

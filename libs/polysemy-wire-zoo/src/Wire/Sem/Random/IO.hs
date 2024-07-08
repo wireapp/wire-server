@@ -23,6 +23,7 @@ where
 import Data.Id (randomId)
 import qualified Data.UUID.V4 as UUID
 import Imports
+import OpenSSL.BN
 import OpenSSL.Random (randBytes)
 import Polysemy
 import Wire.Sem.Random (Random (..))
@@ -36,3 +37,4 @@ randomToIO = interpret $ \case
   Uuid -> embed $ UUID.nextRandom
   ScimTokenId -> embed $ randomId @IO
   LiftRandom m -> embed @IO $ m
+  NDigitNumber n -> embed $ randIntegerZeroToNMinusOne (10 ^ n)

@@ -39,6 +39,7 @@ import Wire.UserEvents
 import Wire.UserKeyStore
 import Wire.UserStore as UserStore
 import Wire.UserSubsystem
+import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.HandleBlacklist
 
 data UserSubsystemConfig = UserSubsystemConfig

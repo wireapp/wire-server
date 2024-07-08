@@ -78,6 +78,7 @@ import Wire.API.User hiding (fromEmail)
 import Wire.API.User qualified as Public
 import Wire.API.User.Identity qualified as Email
 import Wire.EmailSending (EmailSending)
+import Wire.Error
 import Wire.GalleyAPIAccess (GalleyAPIAccess, ShowOrHideInvitationUrl (..))
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem

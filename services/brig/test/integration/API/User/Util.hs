@@ -23,7 +23,6 @@ module API.User.Util where
 
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
-import Brig.Code qualified as Code
 import Brig.Options (Opts)
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.ZAuth (Token)
@@ -37,6 +36,7 @@ import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as LB
+import Data.Code qualified as Code
 import Data.Domain
 import Data.Handle (parseHandle)
 import Data.Id
@@ -76,6 +76,8 @@ import Wire.API.User.Client.DPoPAccessToken (Proof)
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Handle
 import Wire.API.User.Password
+import Wire.VerificationCode qualified as Code
+import Wire.VerificationCodeStore.Cassandra qualified as VerificationCodeStore
 
 newtype ConnectionLimit = ConnectionLimit Int64
 
@@ -534,7 +536,7 @@ setTeamFeatureLockStatus galley tid status =
   put (galley . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg, toByteString' status]) !!! const 200 === statusCode
 
 lookupCode :: (MonadIO m) => DB.ClientState -> Code.Key -> Code.Scope -> m (Maybe Code.Code)
-lookupCode db k = liftIO . DB.runClient db . Code.lookup k
+lookupCode db k = liftIO . DB.runClient db . VerificationCodeStore.lookupCodeImpl k
 
 getNonce ::
   (MonadHttp m) =>

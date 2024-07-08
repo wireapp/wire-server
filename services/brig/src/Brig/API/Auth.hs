@@ -61,6 +61,7 @@ import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserKeyStore
 import Wire.UserStore
 import Wire.UserSubsystem
+import Wire.VerificationCodeSubsystem (VerificationCodeSubsystem)
 
 accessH ::
   ( Member TinyLog r,
@@ -112,7 +113,8 @@ login ::
     Member (ConnectionStore InternalPaging) r,
     Member PasswordStore r,
     Member UserKeyStore r,
-    Member UserStore r
+    Member UserStore r,
+    Member VerificationCodeSubsystem r
   ) =>
   Login ->
   Maybe Bool ->
@@ -206,7 +208,7 @@ ssoLogin l (fromMaybe False -> persist) = do
 getLoginCode :: Phone -> Handler r PendingLoginCode
 getLoginCode _ = throwStd loginCodeNotFound
 
-reauthenticate :: (Member GalleyAPIAccess r) => UserId -> ReAuthUser -> Handler r ()
+reauthenticate :: (Member GalleyAPIAccess r, Member VerificationCodeSubsystem r) => UserId -> ReAuthUser -> Handler r ()
 reauthenticate uid body = do
   wrapClientE (User.reauthenticate uid (reAuthPassword body)) !>> reauthError
   case reAuthCodeAction body of

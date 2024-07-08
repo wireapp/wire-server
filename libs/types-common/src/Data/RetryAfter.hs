@@ -21,4 +21,4 @@ import Imports
 
 newtype RetryAfter = RetryAfter
   {retryAfterSeconds :: Int64}
-  deriving (Eq, Show)
+  deriving (Eq, Show, Num, Ord, Enum, Real, Integral)

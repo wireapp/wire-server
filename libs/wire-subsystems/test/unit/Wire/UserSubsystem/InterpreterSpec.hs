@@ -32,6 +32,7 @@ import Wire.MiniBackend
 import Wire.StoredUser
 import Wire.UserKeyStore
 import Wire.UserSubsystem
+import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.HandleBlacklist
 import Wire.UserSubsystem.Interpreter (UserSubsystemConfig (..))
 

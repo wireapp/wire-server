@@ -67,6 +67,7 @@ import Wire.UserEvents
 import Wire.UserKeyStore
 import Wire.UserStore
 import Wire.UserSubsystem
+import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.Interpreter
 
 newtype PendingStoredUser = PendingStoredUser StoredUser

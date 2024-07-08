@@ -39,6 +39,7 @@
 , iso639
 , lens
 , lib
+, memory
 , mime
 , mime-mail
 , network
@@ -51,6 +52,7 @@
 , postie
 , QuickCheck
 , quickcheck-instances
+, random
 , resource-pool
 , resourcet
 , retry
@@ -93,6 +95,7 @@ mkDerivation {
     cassandra-util
     containers
     cql
+    crypton
     currency-codes
     data-default
     data-timeout
@@ -112,6 +115,7 @@ mkDerivation {
     imports
     iso639
     lens
+    memory
     mime
     mime-mail
     network
@@ -169,6 +173,7 @@ mkDerivation {
     postie
     QuickCheck
     quickcheck-instances
+    random
     servant-client-core
     streaming-commons
     string-conversions
