@@ -1,1 +1,0 @@
-metrics-core: Delete `Data.Metrics` in favour of defining metrics closer to where they are being emitted

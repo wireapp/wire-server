@@ -1,1 +1,0 @@
-GHC does not support repeated --with-rtsopts options, and it simply applies the last one. This means many of the baked-in options were actually not being passed, including -N for some of the services and -T for cannon.

@@ -1,1 +1,0 @@
-charts/coturn: support putting coturn into 'drain' mode when terminating pods, denying new incoming client connections. This speeds up graceful coturn restarts significantly.

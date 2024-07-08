@@ -1,1 +1,0 @@
-Make pending LH requests (with no LH devices listening yet) not throw LH policy errors.  This helps eg. in cases where a LH request is issued to the wrong user by accident, and the user can clear up the mistake.

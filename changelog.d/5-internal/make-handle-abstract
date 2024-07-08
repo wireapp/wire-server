@@ -1,1 +1,0 @@
-Make `Handle` type abstract to guarantee it always contains *valid* Handles.
