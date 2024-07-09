@@ -1152,11 +1152,13 @@ specListUsers = describe "GET /Users" $ do
   it "lists all SCIM users in a team" $ testListProvisionedUsers
   context "1 SAML IdP" $ do
     it "finds a SCIM-provisioned user by userName or externalId" $ testFindProvisionedUser
+    it "returns an empty list of SCIM-provisioned users if user not found (userName, externalId)" $ testDoNotFindProvisionedUser True
     it "finds a user autoprovisioned via saml by externalId via email" $ testFindSamlAutoProvisionedUserMigratedWithEmailInTeamWithSSO
     it "finds a user invited via team settings by externalId via email" $ testFindTeamSettingsInvitedUserMigratedWithEmailInTeamWithSSO
     it "finds a user invited via team settings by UserId" $ testFindTeamSettingsInvitedUserMigratedWithEmailInTeamWithSSOViaUserId
   context "0 SAML IdP" $ do
     it "finds a SCIM-provisioned user by userName or externalId" $ testFindProvisionedUserNoIdP
+    it "returns an empty list of SCIM-provisioned users if user not found (userName, externalId)" $ testDoNotFindProvisionedUser False
     it "finds a non-SCIM-provisioned user by userName" $ testFindNonProvisionedUserNoIdP FindByHandle
     it "finds a non-SCIM-provisioned user by externalId" $ testFindNonProvisionedUserNoIdP FindByExternalId
     it "finds a non-SCIM-provisioned user by UserId" $ testFindNonProvisionedUserNoIdP GetByUserId
@@ -1187,6 +1189,21 @@ testFindProvisionedUser = do
   let Just externalId = Scim.User.externalId user
   users' <- listUsers tok (Just (filterBy "externalId" externalId))
   liftIO $ users' `shouldBe` [storedUser]
+
+testDoNotFindProvisionedUser :: Bool -> TestSpar ()
+testDoNotFindProvisionedUser hasSaml = do
+  tok <-
+    if hasSaml
+      then registerIdPAndScimToken <&> fst
+      else do
+        env <- ask
+        (_owner, teamid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+        registerScimToken teamid Nothing
+  byName <- listUsers tok (Just (filterBy "userName" "6861f068-3dc7-11ef-9bc2-73f612ae094d"))
+  byEmail <- listUsers tok (Just (filterBy "externalId" "6861f068-3dc7-11ef-9bc2-73f612ae094d"))
+  liftIO $ do
+    byName `shouldBe` []
+    byEmail `shouldBe` []
 
 -- The user is migrated by using the email as the externalId
 testFindSamlAutoProvisionedUserMigratedWithEmailInTeamWithSSO :: TestSpar ()
