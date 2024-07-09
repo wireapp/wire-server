@@ -17,10 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Schema.V_FUTUREWORK
-  ( migration,
-  )
-where
+module Brig.Schema.V82_DropUserKeysHashed (migration) where
 
 import Cassandra.Schema
 import Imports
@@ -36,13 +33,8 @@ import Text.RawString.QQ
 -- backwards-incompatbile schema migration docs in
 -- https://docs.wire.com/developer/developer/cassandra-interaction.html?highlight=backwards+incompatbile#backwards-incompatible-schema-changes
 --
--- FUTUREWORK: remove futurework_number and replace its usage by the next matching number after July 2023, rename this module with a version number, and
--- integrate it inside Main.hs and App.hs
-futureworkNumber :: Int32
-futureworkNumber = undefined
-
 migration :: Migration
-migration = Migration futureworkNumber "Drop deprecated user_keys_hashed table" $ do
+migration = Migration 82 "Drop deprecated user_keys_hashed table" $ do
   schema'
     [r|
       DROP TABLE IF EXISTS user_keys_hash

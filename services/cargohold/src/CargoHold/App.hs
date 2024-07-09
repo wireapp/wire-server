@@ -39,7 +39,6 @@ module CargoHold.App
     AppT,
     App,
     runAppT,
-    runAppResourceT,
     executeBrigInteral,
 
     -- * Handler Monad
@@ -59,21 +58,20 @@ import Control.Error (ExceptT, exceptT)
 import Control.Exception (throw)
 import Control.Lens (Lens', makeLenses, non, view, (?~), (^.))
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
-import Control.Monad.Trans.Resource (ResourceT, runResourceT, transResourceT)
 import qualified Data.Map as Map
-import Data.Qualified
+import Data.Qualified (Local, toLocalUnsafe)
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Imports hiding (log)
 import Network.HTTP.Client (ManagerSettings (..), requestHeaders, responseTimeoutMicro)
-import Network.HTTP.Client.OpenSSL
+import Network.HTTP.Client.OpenSSL (opensslManagerSettings)
 import Network.Wai.Utilities (Error (..))
 import OpenSSL.Session (SSLContext, SSLOption (..))
 import qualified OpenSSL.Session as SSL
-import Prometheus
+import Prometheus (MonadMonitor)
 import qualified Servant.Client as Servant
-import System.Logger.Class hiding (settings)
+import System.Logger.Class (Logger, MonadLogger (..), (.=), (~~))
 import qualified System.Logger.Extended as Log
-import Util.Options
+import Util.Options (AWSEndpoint)
 import Wire.API.Routes.Internal.Brig (BrigInternalClient)
 import qualified Wire.API.Routes.Internal.Brig as IBrig
 
@@ -232,9 +230,6 @@ instance HasRequestId (ExceptT e App) where
 
 runAppT :: Env -> AppT m a -> m a
 runAppT e (AppT a) = runReaderT a e
-
-runAppResourceT :: (MonadIO m) => Env -> ResourceT App a -> m a
-runAppResourceT e rma = liftIO . runResourceT $ transResourceT (runAppT e) rma
 
 executeBrigInteral :: BrigInternalClient a -> App (Either Servant.ClientError a)
 executeBrigInteral action = do

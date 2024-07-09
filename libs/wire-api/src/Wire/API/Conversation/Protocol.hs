@@ -28,7 +28,6 @@ module Wire.API.Conversation.Protocol
     _ProtocolMLS,
     _ProtocolMixed,
     _ProtocolProteus,
-    conversationMLSData,
     protocolSchema,
     ConversationMLSData (..),
     ActiveMLSConversationData (..),
@@ -39,13 +38,13 @@ module Wire.API.Conversation.Protocol
 where
 
 import Control.Applicative
-import Control.Arrow
-import Control.Lens (Traversal', makePrisms, (?~))
+import Control.Arrow (Arrow ((&&&)))
+import Control.Lens (makePrisms, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import Data.Json.Util
+import Data.Json.Util (utcTimeSchema)
 import Data.OpenApi qualified as S
 import Data.Schema
-import Data.Time.Clock
+import Data.Time.Clock (UTCTime)
 import Imports
 import Test.QuickCheck
 import Wire.API.Conversation.Action.Tag
@@ -200,11 +199,6 @@ data Protocol
   deriving (Arbitrary) via GenericUniform Protocol
 
 $(makePrisms ''Protocol)
-
-conversationMLSData :: Traversal' Protocol ConversationMLSData
-conversationMLSData _ ProtocolProteus = pure ProtocolProteus
-conversationMLSData f (ProtocolMLS mls) = ProtocolMLS <$> f mls
-conversationMLSData f (ProtocolMixed mls) = ProtocolMixed <$> f mls
 
 protocolTag :: Protocol -> ProtocolTag
 protocolTag ProtocolProteus = ProtocolProteusTag

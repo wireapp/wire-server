@@ -65,7 +65,6 @@ module Testlib.Prelude
 
     -- * Functor
     (<$$>),
-    (<$$$>),
 
     -- * Applicative
     allPreds,
@@ -220,11 +219,6 @@ readLn = liftIO P.readLn
 (<$$>) = fmap . fmap
 
 infix 4 <$$>
-
-(<$$$>) :: (Functor f, Functor g, Functor h) => (a -> b) -> f (g (h a)) -> f (g (h b))
-(<$$$>) = fmap . fmap . fmap
-
-infix 4 <$$$>
 
 ----------------------------------------------------------------------
 -- Applicative

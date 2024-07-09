@@ -18,30 +18,21 @@
 -- | Working with remote queues (like Amazon SQS).
 module Brig.Queue
   ( module Brig.Queue.Types,
-    enqueue,
     listen,
   )
 where
 
-import Amazonka.SQS.Lens (sendMessageResponse_mD5OfMessageBody)
 import Brig.AWS qualified as AWS
-import Brig.App
 import Brig.DeleteQueue.Interpreter (QueueEnv (..))
 import Brig.Queue.Stomp qualified as Stomp
 import Brig.Queue.Types
-import Control.Exception (ErrorCall (..))
-import Control.Lens (view, (^.))
-import Control.Monad.Catch
-import Data.Aeson
-import Data.ByteString.Base16 qualified as B16
-import Data.ByteString.Lazy qualified as BL
-import Data.Text.Encoding qualified as T
+import Control.Monad.Catch (MonadMask)
+import Data.Aeson (FromJSON)
 import Imports
-import OpenSSL.EVP.Digest (Digest, digestLBS)
-import System.Logger.Class as Log hiding (settings)
+import System.Logger.Class (MonadLogger)
 
 -- Note [queue refactoring]
--- ~~~~~~~~~~~~~~~~
+-- ~~~~~~~~~~~~~~~~~~~~~~~~
 --
 -- The way we deal with queues is not the best. There is at least one piece of
 -- technical debt here:
@@ -49,36 +40,6 @@ import System.Logger.Class as Log hiding (settings)
 --   1. 'Queue' is currently used only for the internal events queue, even
 --      though we have queues in other places (and not only in Brig). We
 --      should move 'Brig.Queue' out of Brig and use it elsewhere too.
-
--- | Enqueue a message.
---
--- Throws an error in case of failure.
-enqueue ::
-  ( MonadReader Env m,
-    ToJSON a,
-    MonadIO m,
-    MonadLogger m,
-    MonadThrow m
-  ) =>
-  QueueEnv ->
-  a ->
-  m ()
-enqueue (StompQueueEnv env queue) message =
-  Stomp.enqueue env queue message
-enqueue (SqsQueueEnv env _ queue) message = do
-  let body = encode message
-  bodyMD5 <- digest <$> view digestMD5 <*> pure body
-  resp <- AWS.execute env (AWS.enqueueStandard queue body)
-  unless (resp ^. sendMessageResponse_mD5OfMessageBody == Just bodyMD5) $ do
-    Log.err $
-      msg (val "Returned hash (MD5) doesn't match message hash")
-        . field "SqsQueue" (show queue)
-        . field "returned_hash" (show (resp ^. sendMessageResponse_mD5OfMessageBody))
-        . field "message_hash" (show (Just bodyMD5))
-    throwM (ErrorCall "The server couldn't access a queue")
-  where
-    digest :: Digest -> BL.ByteString -> Text
-    digest d = T.decodeLatin1 . B16.encode . digestLBS d
 
 -- | Forever listen to messages coming from a queue and execute a callback
 -- for each incoming message.

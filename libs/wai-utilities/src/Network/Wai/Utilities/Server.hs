@@ -42,7 +42,7 @@ module Network.Wai.Utilities.Server
     logError,
     logError',
     logErrorMsg,
-    restrict,
+    runHandlers,
     flushRequestBody,
 
     -- * Constants
@@ -468,22 +468,6 @@ logErrorMsgWithRequest mr e =
 runHandlers :: SomeException -> [Handler IO a] -> IO a
 runHandlers e [] = throwIO e
 runHandlers e (Handler h : hs) = maybe (runHandlers e hs) h (fromException e)
-
-restrict :: Int -> Int -> Predicate r P.Error Int -> Predicate r P.Error Int
-restrict l u = fmap $ \x ->
-  x >>= \v ->
-    if v >= l && v <= u
-      then x
-      else Fail (setMessage (emsg v) . setReason TypeError $ e400)
-  where
-    emsg v =
-      LBS.toStrict . toLazyByteString $
-        byteString "outside range ["
-          <> intDec l
-          <> byteString ", "
-          <> intDec u
-          <> byteString "]: "
-          <> intDec v
 
 flushRequestBody :: Request -> IO ()
 flushRequestBody req = do

@@ -45,14 +45,14 @@ module Web.Scim.Client
   )
 where
 
-import Control.Exception
+import Control.Exception (throwIO)
 import Data.Aeson (FromJSON, ToJSON, Value)
-import Data.Text
+import Data.Text (Text)
 import Servant.API
-import Servant.Client
-import Servant.Client.Generic
+import Servant.Client (AsClientT, ClientEnv, runClientM)
+import Servant.Client.Generic (genericClientHoist)
 import qualified Web.Scim.Capabilities.MetaSchema as MetaSchema
-import Web.Scim.Class.Auth
+import Web.Scim.Class.Auth (AuthTypes (AuthData))
 import Web.Scim.Class.Group (Group, GroupId, StoredGroup)
 import Web.Scim.Class.User (StoredUser)
 import Web.Scim.Filter (Filter)
@@ -61,7 +61,7 @@ import Web.Scim.Schema.PatchOp (PatchOp)
 import qualified Web.Scim.Schema.ResourceType as ResourceType
 import Web.Scim.Schema.User (User)
 import Web.Scim.Schema.UserTypes (UserExtra, UserId)
-import Web.Scim.Server
+import Web.Scim.Server (Site (config, users))
 
 type HasScimClient tag =
   ( AuthTypes tag,

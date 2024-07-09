@@ -87,12 +87,6 @@ changeEmailError (EmailExists _) = StdError (errorToWai @'E.UserKeyExists)
 changeEmailError (ChangeBlacklistedEmail _) = StdError blacklistedEmail
 changeEmailError EmailManagedByScim = StdError $ propertyManagedByScim "email"
 
-changeHandleError :: ChangeHandleError -> HttpError
-changeHandleError ChangeHandleNoIdentity = StdError (errorToWai @'E.NoIdentity)
-changeHandleError ChangeHandleExists = StdError (errorToWai @'E.HandleExists)
-changeHandleError ChangeHandleInvalid = StdError (errorToWai @'E.InvalidHandle)
-changeHandleError ChangeHandleManagedByScim = StdError (errorToWai @'E.HandleManagedByScim)
-
 legalHoldLoginError :: LegalHoldLoginError -> HttpError
 legalHoldLoginError LegalHoldLoginNoBindingTeam = StdError noBindingTeam
 legalHoldLoginError LegalHoldLoginLegalHoldNotEnabled = StdError legalHoldNotEnabled
@@ -237,10 +231,6 @@ accountStatusError :: AccountStatusError -> HttpError
 accountStatusError InvalidAccountStatus = StdError invalidAccountStatus
 accountStatusError AccountNotFound = StdError (notFound "Account not found")
 
-updateProfileError :: UpdateProfileError -> HttpError
-updateProfileError DisplayNameManagedByScim = StdError (propertyManagedByScim "name")
-updateProfileError ProfileNotFound = StdError (errorToWai @'E.UserNotFound)
-
 verificationCodeThrottledError :: VerificationCodeThrottledError -> HttpError
 verificationCodeThrottledError (VerificationCodeThrottled t) =
   RichError
@@ -271,9 +261,6 @@ phoneExists = Wai.mkError status409 "phone-exists" "The given phone number is in
 badRequest :: LText -> Wai.Error
 badRequest = Wai.mkError status400 "bad-request"
 
-loginCodePending :: Wai.Error
-loginCodePending = Wai.mkError status403 "pending-login" "A login code is still pending."
-
 loginCodeNotFound :: Wai.Error
 loginCodeNotFound = Wai.mkError status404 "no-pending-login" "No login code was found."
 
@@ -285,12 +272,6 @@ invalidAccountStatus = Wai.mkError status400 "invalid-status" "The specified acc
 
 activationKeyNotFound :: Wai.Error
 activationKeyNotFound = notFound "Activation key not found."
-
-invalidActivationCode :: LText -> Wai.Error
-invalidActivationCode = Wai.mkError status404 "invalid-code"
-
-activationCodeNotFound :: Wai.Error
-activationCodeNotFound = invalidActivationCode "Activation key/code not found or invalid."
 
 deletionCodePending :: Wai.Error
 deletionCodePending = Wai.mkError status403 "pending-delete" "A verification code for account deletion is still pending."
@@ -306,13 +287,6 @@ blacklistedEmail =
     "The given e-mail address has been blacklisted due to a permanent bounce \
     \or a complaint."
 
-passwordExists :: Wai.Error
-passwordExists =
-  Wai.mkError
-    status403
-    "password-exists"
-    "The operation is not permitted because the user has a password set."
-
 phoneBudgetExhausted :: Wai.Error
 phoneBudgetExhausted =
   Wai.mkError
@@ -326,17 +300,11 @@ phoneBudgetExhausted =
 authMissingCookie :: Wai.Error
 authMissingCookie = Wai.mkError status403 "invalid-credentials" "Missing cookie"
 
-authInvalidCookie :: Wai.Error
-authInvalidCookie = Wai.mkError status403 "invalid-credentials" "Invalid cookie"
-
 authMissingToken :: Wai.Error
 authMissingToken = Wai.mkError status403 "invalid-credentials" "Missing token"
 
 authMissingCookieAndToken :: Wai.Error
 authMissingCookieAndToken = Wai.mkError status403 "invalid-credentials" "Missing cookie and token"
-
-invalidAccessToken :: Wai.Error
-invalidAccessToken = Wai.mkError status403 "invalid-credentials" "Invalid access token"
 
 missingAccessToken :: Wai.Error
 missingAccessToken = Wai.mkError status403 "invalid-credentials" "Missing access token"

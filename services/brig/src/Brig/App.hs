@@ -84,7 +84,6 @@ module Brig.App
     runHttpClientIO,
     liftSem,
     lowerAppT,
-    temporaryGetEnv,
     initHttpManagerWithTLSConfig,
     adhocUserKeyStoreInterpreter,
     adhocSessionStoreInterpreter,
@@ -120,28 +119,28 @@ import Control.Monad.Catch
 import Control.Monad.Trans.Resource
 import Data.ByteString.Conversion
 import Data.Credentials (Credentials (..))
-import Data.Domain
-import Data.Misc
+import Data.Domain (Domain)
+import Data.Misc (Fingerprint, Rsa)
 import Data.Qualified
 import Data.Text qualified as Text
 import Data.Text.Encoding (encodeUtf8)
 import Data.Text.Encoding qualified as Text
 import Data.Text.IO qualified as Text
-import Data.Time.Clock
+import Data.Time.Clock (UTCTime, getCurrentTime)
 import Database.Bloodhound qualified as ES
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Imports
 import Network.AMQP qualified as Q
 import Network.AMQP.Extended qualified as Q
 import Network.HTTP.Client (responseTimeoutMicro)
-import Network.HTTP.Client.OpenSSL
+import Network.HTTP.Client.OpenSSL (opensslManagerSettings)
 import OpenSSL.EVP.Digest (Digest, getDigestByName)
 import OpenSSL.Session (SSLOption (..))
 import OpenSSL.Session qualified as SSL
 import Polysemy
 import Polysemy.Final
 import Polysemy.Input (Input, input)
-import Prometheus
+import Prometheus (MonadMonitor (..))
 import Ssl.Util
 import System.FSNotify qualified as FS
 import System.Logger.Class hiding (Settings, settings)
@@ -150,7 +149,7 @@ import System.Logger.Extended qualified as Log
 import Util.Options
 import Wire.API.Federation.Error (federationNotImplemented)
 import Wire.API.Locale (Locale)
-import Wire.API.Routes.Version
+import Wire.API.Routes.Version (Version, expandVersionExp)
 import Wire.API.User.Identity (Email)
 import Wire.EmailSending.SMTP qualified as SMTP
 import Wire.EmailSubsystem.Template (TemplateBranding, forLocale)
@@ -467,9 +466,6 @@ newtype AppT r a = AppT
 
 lowerAppT :: (Member (Final IO) r) => Env -> AppT r a -> Sem r a
 lowerAppT env (AppT r) = runReaderT r env
-
-temporaryGetEnv :: AppT r Env
-temporaryGetEnv = AppT ask
 
 instance Functor (AppT r) where
   fmap fab (AppT x0) = AppT $ fmap fab x0

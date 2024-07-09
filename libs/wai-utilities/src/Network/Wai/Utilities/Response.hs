@@ -19,19 +19,16 @@
 
 module Network.Wai.Utilities.Response where
 
-import Data.Aeson hiding (Error, json)
+import Data.Aeson (ToJSON, encode)
 import Data.ByteString.Lazy qualified as Lazy
 import Imports
 import Network.HTTP.Types
-import Network.Wai
-import Network.Wai.Internal
-import Network.Wai.Utilities.Error
+import Network.Wai (responseLBS)
+import Network.Wai.Internal (Response (..))
+import Network.Wai.Utilities.Error (Error (code))
 
 empty :: Response
 empty = plain ""
-
-noContent :: Response
-noContent = empty & setStatus status204
 
 plain :: Lazy.ByteString -> Response
 plain = responseLBS status200 [plainContent]
@@ -44,9 +41,6 @@ json = responseLBS status200 [jsonContent] . encode
 
 jsonContent :: Header
 jsonContent = (hContentType, "application/json")
-
-errorRs :: Status -> LText -> LText -> Response
-errorRs s l m = errorRs' (mkError s l m)
 
 errorRs' :: Error -> Response
 errorRs' e = setStatus (code e) (json e)

@@ -234,9 +234,6 @@ selectConv ::
     )
 selectConv = "select type, creator, access, access_role, access_roles_v2, name, team, deleted, message_timer, receipt_mode, protocol, group_id, epoch, WRITETIME(epoch), cipher_suite from conversation where conv = ?"
 
-selectReceiptMode :: PrepQuery R (Identity ConvId) (Identity (Maybe ReceiptMode))
-selectReceiptMode = "select receipt_mode from conversation where conv = ?"
-
 isConvDeleted :: PrepQuery R (Identity ConvId) (Identity (Maybe Bool))
 isConvDeleted = "select deleted from conversation where conv = ?"
 
@@ -364,9 +361,6 @@ insertCipherSuiteForSubConversation = "UPDATE subconversation set cipher_suite =
 listSubConversations :: PrepQuery R (Identity ConvId) (SubConvId, CipherSuiteTag, Epoch, Writetime Epoch, GroupId)
 listSubConversations = "SELECT subconv_id, cipher_suite, epoch, WRITETIME(epoch), group_id FROM subconversation WHERE conv_id = ?"
 
-selectSubConversations :: PrepQuery R (Identity ConvId) (Identity SubConvId)
-selectSubConversations = "SELECT subconv_id FROM subconversation WHERE conv_id = ?"
-
 deleteSubConversation :: PrepQuery W (ConvId, SubConvId) ()
 deleteSubConversation = "DELETE FROM subconversation where conv_id = ? and subconv_id = ?"
 
@@ -459,9 +453,6 @@ updateRemoteOtrMemberArchived = {- `IF EXISTS`, but that requires benchmarking -
 
 updateRemoteMemberHidden :: PrepQuery W (Bool, Maybe Text, Domain, ConvId, UserId) ()
 updateRemoteMemberHidden = {- `IF EXISTS`, but that requires benchmarking -} "update user_remote_conv set hidden = ?, hidden_ref = ? where conv_remote_domain = ? and conv_remote_id = ? and user = ?"
-
-selectRemoteMemberStatus :: PrepQuery R (Domain, ConvId, UserId) (Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text)
-selectRemoteMemberStatus = "select otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref from user_remote_conv where conv_remote_domain = ? and conv_remote_id = ? and user = ?"
 
 -- Clients ------------------------------------------------------------------
 

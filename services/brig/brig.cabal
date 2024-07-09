@@ -190,7 +190,7 @@ library
     Brig.Schema.V81_AddFederationRemoteTeams
     Brig.Schema.V82_DropPhoneColumn
     Brig.Schema.V83_AddTextStatus
-    Brig.Schema.V_FUTUREWORK
+    Brig.Schema.V84_DropUserKeysHashed
     Brig.Team.API
     Brig.Team.DB
     Brig.Team.Email

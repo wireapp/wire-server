@@ -29,9 +29,9 @@ import Brig.App (applog, fsWatcher, sftEnv, turnEnv)
 import Brig.Calling as Calling
 import Brig.Options qualified as Opt
 import Brig.Run qualified as Run
-import Brig.Types.Activation
+import Brig.Types.Activation (ActivationPair)
 import Brig.ZAuth qualified as ZAuth
-import Control.Concurrent.Async
+import Control.Concurrent.Async (concurrently)
 import Control.Exception (throw)
 import Control.Lens ((^.), (^?), (^?!))
 import Control.Monad.Catch (MonadCatch, MonadMask)
@@ -50,18 +50,18 @@ import Data.ByteString.Char8 (pack)
 import Data.ByteString.Char8 qualified as B8
 import Data.ByteString.Conversion
 import Data.Code qualified as Code
-import Data.Default
+import Data.Default (Default (def))
 import Data.Domain (Domain (..), domainText, mkDomain)
 import Data.Handle (Handle (..))
 import Data.Id
 import Data.List1 (List1)
 import Data.List1 qualified as List1
 import Data.Misc
-import Data.Proxy
-import Data.Qualified hiding (isLocal)
+import Data.Proxy (Proxy (Proxy))
+import Data.Qualified
 import Data.Range
 import Data.Sequence qualified as Seq
-import Data.String.Conversions
+import Data.String.Conversions (cs)
 import Data.Text qualified as T
 import Data.Text qualified as Text
 import Data.Text.Ascii qualified as Ascii
@@ -71,11 +71,11 @@ import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID
 import Data.ZAuth.Token qualified as ZAuth
 import Federator.MockServer qualified as Mock
-import GHC.TypeLits
+import GHC.TypeLits (Symbol)
 import Galley.Types.Conversations.One2One (one2OneConvId)
 import Imports
 import Network.HTTP.Client qualified as HTTP
-import Network.HTTP.Media.MediaType
+import Network.HTTP.Media.MediaType ((//))
 import Network.HTTP.Media.RenderHeader (renderHeader)
 import Network.HTTP.Types (Method, http11, renderQuery)
 import Network.HTTP.Types qualified as HTTP
@@ -91,39 +91,39 @@ import Servant.Client qualified as Servant
 import Servant.Client.Core (RunClient (throwClientError))
 import Servant.Client.Core qualified as Servant
 import Servant.Client.Core.Request qualified as ServantRequest
-import System.Exit
+import System.Exit (ExitCode (ExitSuccess))
 import System.Process
 import System.Random (randomIO, randomRIO)
 import System.Timeout qualified as System
 import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty (TestName, TestTree)
-import Test.Tasty.Cannon
+import Test.Tasty.Cannon (TimeoutUnit (Second), (#))
 import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import Test.Tasty.Pending (flakyTestCase)
 import Text.Printf (printf)
 import UnliftIO.Async qualified as Async
-import Util.Options
-import Web.Internal.HttpApiData
+import Util.Options (Endpoint (Endpoint), host, port)
+import Web.Internal.HttpApiData (ToHttpApiData (toHeader))
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Conversation.Role (roleNameWireAdmin)
-import Wire.API.Federation.API
-import Wire.API.Federation.Domain
-import Wire.API.Federation.Version
-import Wire.API.Internal.Notification
-import Wire.API.MLS.SubConversation
+import Wire.API.Federation.API (Component, HasUnsafeFedEndpoint)
+import Wire.API.Federation.Domain (originDomainHeaderName)
+import Wire.API.Federation.Version (Version, versionInt)
+import Wire.API.Internal.Notification (Notification (ntfPayload))
+import Wire.API.MLS.SubConversation (SubConvId)
 import Wire.API.Routes.MultiTablePaging
-import Wire.API.Team.Member hiding (userId)
+import Wire.API.Team.Member (TeamMember)
 import Wire.API.User hiding (AccountStatus (..))
 import Wire.API.User qualified as WU
 import Wire.API.User.Activation
 import Wire.API.User.Auth
-import Wire.API.User.Auth.LegalHold
-import Wire.API.User.Auth.Sso
+import Wire.API.User.Auth.LegalHold (LegalHoldLogin)
+import Wire.API.User.Auth.Sso (SsoLogin)
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
-import Wire.API.VersionInfo
+import Wire.API.VersionInfo (VersionedMonad (..), versionHeader)
 
 type Brig = Request -> Request
 

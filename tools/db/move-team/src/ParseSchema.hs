@@ -278,11 +278,6 @@ exportAllTablesFull env@Env {..} = do
 {{/chunkTable}}
 |]
 
-_printAllTables :: [CreateTable] -> IO ()
-_printAllTables createTables =
-  for_ createTables $ \CreateTable {..} ->
-    putStrLn $ T.unpack (ctKeyspace <> "." <> ctTablename)
-
 main :: IO ()
 main = do
   Arguments schemaFile mbOutFile <-

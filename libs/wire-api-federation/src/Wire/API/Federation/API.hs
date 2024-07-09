@@ -29,7 +29,6 @@ module Wire.API.Federation.API
     fedQueueClient,
     sendBundle,
     fedClientIn,
-    unsafeFedClientIn,
     module Wire.API.MakesFederatedCall,
 
     -- * Re-exports
@@ -165,11 +164,3 @@ fedQueueClient ::
   Payload tag ->
   FedQueueClient c ()
 fedQueueClient payload = sendBundle =<< makeBundle @tag payload
-
--- | Like 'fedClientIn', but doesn't propagate a 'CallsFed' constraint. Intended
--- to be used in test situations only.
-unsafeFedClientIn ::
-  forall (comp :: Component) (name :: Symbol) m api.
-  (HasUnsafeFedEndpoint comp api name, HasClient m api) =>
-  Client m api
-unsafeFedClientIn = clientIn (Proxy @api) (Proxy @m)

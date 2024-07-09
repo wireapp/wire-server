@@ -47,8 +47,3 @@ mapAsync ::
   m (t (Either SomeException b))
 mapAsync f = mapM waitCatch <=< mapM (async . f)
 {-# INLINE mapAsync #-}
-
-maybeEqual :: (Eq a) => Maybe a -> Maybe a -> Bool
-maybeEqual (Just x) (Just y) = x == y
-maybeEqual _ _ = False
-{-# INLINE maybeEqual #-}

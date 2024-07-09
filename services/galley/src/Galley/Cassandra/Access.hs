@@ -15,11 +15,11 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra.Access where
+module Galley.Cassandra.Access (defAccess) where
 
-import Cassandra
+import Cassandra (Set (Set))
 import Galley.Data.Conversation
-import Imports hiding (Set)
+import Imports (Maybe (..))
 import Wire.API.Conversation hiding (Conversation)
 
 defAccess :: ConvType -> Maybe (Set Access) -> [Access]
@@ -32,6 +32,3 @@ defAccess ConnectConv (Just (Set [])) = [PrivateAccess]
 defAccess One2OneConv (Just (Set [])) = [PrivateAccess]
 defAccess RegularConv (Just (Set [])) = defRegularConvAccess
 defAccess _ (Just (Set (x : xs))) = x : xs
-
-privateOnly :: Set Access
-privateOnly = Set [PrivateAccess]

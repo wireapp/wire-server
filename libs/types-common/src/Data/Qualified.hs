@@ -26,7 +26,6 @@ module Data.Qualified
     qToPair,
     QualifiedWithTag,
     tUnqualified,
-    tUnqualifiedL,
     tDomain,
     tUntagged,
     qTagUnsafe,
@@ -41,19 +40,18 @@ module Data.Qualified
     indexQualified,
     bucketQualified,
     bucketRemote,
-    isLocal,
     deprecatedSchema,
     qualifiedSchema,
     qualifiedObjectSchema,
   )
 where
 
-import Control.Lens (Lens, lens, over, (?~))
+import Control.Lens (over, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Bifunctor (first)
 import Data.Domain (Domain)
 import Data.Handle (Handle (..))
-import Data.Id
+import Data.Id (Id, KnownIdTag (..), idTagName)
 import Data.Map qualified as Map
 import Data.OpenApi (deprecated)
 import Data.OpenApi qualified as S
@@ -92,9 +90,6 @@ tUnqualified = qUnqualified . tUntagged
 
 tDomain :: QualifiedWithTag t a -> Domain
 tDomain = qDomain . tUntagged
-
-tUnqualifiedL :: Lens (QualifiedWithTag t a) (QualifiedWithTag t b) a b
-tUnqualifiedL = lens tUnqualified qualifyAs
 
 -- | A type representing a 'Qualified' value where the domain is guaranteed to
 -- be remote.
@@ -158,9 +153,6 @@ bucketRemote =
     . Map.assocs
     . indexQualified
     . fmap tUntagged
-
-isLocal :: Local x -> Qualified a -> Bool
-isLocal loc = foldQualified loc (const True) (const False)
 
 ----------------------------------------------------------------------
 

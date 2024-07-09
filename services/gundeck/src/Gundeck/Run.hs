@@ -39,6 +39,7 @@ import Gundeck.Env qualified as Env
 import Gundeck.Monad
 import Gundeck.Options hiding (host, port)
 import Gundeck.React
+import Gundeck.Schema.Run (lastSchemaVersion)
 import Gundeck.ThreadBudget
 import Imports hiding (head)
 import Network.Wai as Wai
@@ -59,7 +60,7 @@ run :: Opts -> IO ()
 run o = do
   (rThreads, e) <- createEnv o
   runClient (e ^. cstate) $
-    versionCheck schemaVersion
+    versionCheck lastSchemaVersion
   let l = e ^. applog
   s <- newSettings $ defaultServer (unpack $ o ^. gundeck . host) (o ^. gundeck . port) l
   let throttleMillis = fromMaybe defSqsThrottleMillis $ o ^. (settings . sqsThrottleMillis)

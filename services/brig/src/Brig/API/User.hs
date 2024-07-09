@@ -29,13 +29,11 @@ module Brig.API.User
     CheckHandleResp (..),
     checkHandle,
     lookupHandle,
-    changeManagedBy,
     changeAccountStatus,
     changeSingleAccountStatus,
     Data.lookupAccounts,
     Data.lookupAccount,
     lookupAccountsByIdentity,
-    lookupProfilesV3,
     getLegalHoldStatus,
     Data.lookupName,
     Data.lookupUser,
@@ -130,7 +128,6 @@ import UnliftIO.Async (mapConcurrently_)
 import Wire.API.Connection
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
-import Wire.API.Federation.Error
 import Wire.API.Password
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Team hiding (newTeam)
@@ -537,25 +534,6 @@ checkRestrictedUserCreation new = do
         && not (isNewUserEphemeral new)
     )
     $ throwE RegisterErrorUserCreationRestricted
-
--------------------------------------------------------------------------------
--- Update ManagedBy
-
-changeManagedBy ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
-  ) =>
-  UserId ->
-  ConnId ->
-  ManagedByUpdate ->
-  (AppT r) ()
-changeManagedBy uid conn (ManagedByUpdate mb) = do
-  wrapClient $ Data.updateManagedBy uid mb
-  liftSem $ Intra.onUserEvent uid (Just conn) (managedByUpdate uid mb)
 
 -------------------------------------------------------------------------------
 -- Change Email
@@ -1154,16 +1132,6 @@ enqueueMultiDeleteCallsCounter =
         { Prom.metricName = "user_enqueue_multi_delete_calls_total",
           Prom.metricHelp = "Number of users enqueued to be deleted"
         }
-
--- | Similar to lookupProfiles except it returns all results and all errors
--- allowing for partial success.
-lookupProfilesV3 ::
-  (Member UserSubsystem r) =>
-  Local UserId ->
-  -- | The users ('others') for which to obtain the profiles.
-  [Qualified UserId] ->
-  Sem r ([(Qualified UserId, FederationError)], [UserProfile])
-lookupProfilesV3 self others = getUserProfilesWithErrors self others
 
 getLegalHoldStatus ::
   (Member GalleyAPIAccess r) =>

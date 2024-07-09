@@ -22,7 +22,6 @@ module Brig.Team.Email
     CreatorWelcomeEmail (..),
     MemberWelcomeEmail (..),
     sendInvitationMail,
-    sendCreatorWelcomeMail,
     sendMemberWelcomeMail,
   )
 where
@@ -49,13 +48,6 @@ sendInvitationMail to tid from code loc = do
   branding <- view templateBranding
   let mail = InvitationEmail to tid code from
   liftSem $ sendMail $ renderInvitationEmail mail tpl branding
-
-sendCreatorWelcomeMail :: (Member EmailSending r) => Email -> TeamId -> Text -> Maybe Locale -> (AppT r) ()
-sendCreatorWelcomeMail to tid teamName loc = do
-  tpl <- creatorWelcomeEmail . snd <$> teamTemplates loc
-  branding <- view templateBranding
-  let mail = CreatorWelcomeEmail to tid teamName
-  liftSem $ sendMail $ renderCreatorWelcomeMail mail tpl branding
 
 sendMemberWelcomeMail :: (Member EmailSending r) => Email -> TeamId -> Text -> Maybe Locale -> (AppT r) ()
 sendMemberWelcomeMail to tid teamName loc = do
@@ -112,28 +104,6 @@ data CreatorWelcomeEmail = CreatorWelcomeEmail
     cwTid :: !TeamId,
     cwTeamName :: !Text
   }
-
-renderCreatorWelcomeMail :: CreatorWelcomeEmail -> CreatorWelcomeEmailTemplate -> TemplateBranding -> Mail
-renderCreatorWelcomeMail CreatorWelcomeEmail {..} CreatorWelcomeEmailTemplate {..} branding =
-  (emptyMail from)
-    { mailTo = [to],
-      mailHeaders =
-        [ ("Subject", toStrict subj),
-          ("X-Zeta-Purpose", "Welcome")
-        ],
-      mailParts = [[plainPart txt, htmlPart html]]
-    }
-  where
-    from = Address (Just creatorWelcomeEmailSenderName) (fromEmail creatorWelcomeEmailSender)
-    to = Address Nothing (fromEmail cwTo)
-    txt = renderTextWithBranding creatorWelcomeEmailBodyText replace branding
-    html = renderHtmlWithBranding creatorWelcomeEmailBodyHtml replace branding
-    subj = renderTextWithBranding creatorWelcomeEmailSubject replace branding
-    replace "url" = creatorWelcomeEmailUrl
-    replace "email" = fromEmail cwTo
-    replace "team_id" = idToText cwTid
-    replace "team_name" = cwTeamName
-    replace x = x
 
 -------------------------------------------------------------------------------
 -- Member Welcome Email

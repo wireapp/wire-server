@@ -38,12 +38,10 @@ module Data.Text.Ascii
     -- * Standard Characters
     Standard (..),
     Ascii,
-    validateStandard,
 
     -- * Printable Characters
     Printable (..),
     AsciiPrintable,
-    validatePrintable,
 
     -- * Base64 Characters
     Base64 (..),
@@ -66,10 +64,6 @@ module Data.Text.Ascii
     validateBase16,
     encodeBase16,
     decodeBase16,
-
-    -- * Safe Widening
-    widen,
-    widenChar,
 
     -- * Unsafe Construction
     unsafeFromText,
@@ -194,9 +188,6 @@ instance AsciiChars Standard where
   contains Standard = isAscii
   {-# INLINE contains #-}
 
-validateStandard :: Text -> Either String Ascii
-validateStandard = validate
-
 --------------------------------------------------------------------------------
 -- Printable
 
@@ -217,9 +208,6 @@ instance AsciiChars Printable where
   validate = check "Invalid printable ASCII characters" (contains Printable)
   contains Printable c = isAscii c && isPrint c
   {-# INLINE contains #-}
-
-validatePrintable :: Text -> Either String AsciiPrintable
-validatePrintable = validate
 
 --------------------------------------------------------------------------------
 -- Base64
@@ -359,19 +347,6 @@ encodeBase16 = unsafeFromByteString . B16.encode
 -- Decoding only succeeds if the text is a multiple of 2 bytes in length.
 decodeBase16 :: AsciiBase16 -> Maybe ByteString
 decodeBase16 t = either (const Nothing) Just (B16.decode (toByteString' t))
-
---------------------------------------------------------------------------------
--- Safe Widening
-
--- | Safely widen an ASCII text into another ASCII text with a larger
--- character set.
-widen :: (Subset c c' ~ 'True) => AsciiText c -> AsciiText c'
-widen (AsciiText t) = AsciiText t
-
--- | Safely widen an ASCII character into another ASCII character with a larger
--- character set.
-widenChar :: (Subset c c' ~ 'True) => AsciiChar c -> AsciiChar c'
-widenChar (AsciiChar t) = AsciiChar t
 
 --------------------------------------------------------------------------------
 -- Unsafe Construction

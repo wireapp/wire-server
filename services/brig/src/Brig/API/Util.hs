@@ -17,53 +17,32 @@
 
 module Brig.API.Util
   ( fetchUserIdentity,
-    lookupProfilesMaybeFilterSameTeamOnly,
     logInvitationCode,
-    validateHandle,
     logEmail,
-    traverseConcurrentlyAppT,
     traverseConcurrentlySem,
     traverseConcurrentlyWithErrors,
-    traverseConcurrentlyWithErrorsSem,
-    traverseConcurrentlyWithErrorsAppT,
     exceptTToMaybe,
     ensureLocal,
   )
 where
 
-import Brig.API.Error
-import Brig.API.Handler
 import Brig.API.Types
 import Brig.App
-import Brig.Data.User qualified as Data
 import Control.Monad.Catch (throwM)
 import Control.Monad.Trans.Except
-import Data.Bifunctor
-import Data.Handle (Handle, parseHandle)
-import Data.Id
-import Data.Maybe
+import Data.Bifunctor (first)
+import Data.Id (UserId)
 import Data.Text qualified as T
 import Data.Text.Ascii (AsciiText (toText))
 import Imports
-import Polysemy
-import Polysemy.Error qualified as E
+import Polysemy (Member)
 import System.Logger (Msg)
 import System.Logger qualified as Log
-import UnliftIO.Async
+import UnliftIO.Async (pooledMapConcurrentlyN)
 import UnliftIO.Exception (throwIO, try)
 import Util.Logging (sha256String)
-import Wire.API.Error
-import Wire.API.Error.Brig
 import Wire.API.User
-import Wire.Sem.Concurrency qualified as C
-import Wire.UserSubsystem
-
-lookupProfilesMaybeFilterSameTeamOnly :: UserId -> [UserProfile] -> (Handler r) [UserProfile]
-lookupProfilesMaybeFilterSameTeamOnly self us = do
-  selfTeam <- lift $ wrapClient $ Data.lookupUserTeam self
-  pure $ case selfTeam of
-    Just team -> filter (\x -> profileTeam x == Just team) us
-    Nothing -> us
+import Wire.UserSubsystem (UserSubsystem, getSelfProfile)
 
 fetchUserIdentity :: (Member UserSubsystem r) => UserId -> AppT r (Maybe UserIdentity)
 fetchUserIdentity uid = do
@@ -73,30 +52,12 @@ fetchUserIdentity uid = do
       (throwM $ UserProfileNotFound uid)
       (pure . userIdentity . selfUser)
 
-validateHandle :: Text -> (Handler r) Handle
-validateHandle = maybe (throwStd (errorToWai @'InvalidHandle)) pure . parseHandle
-
 logEmail :: Email -> (Msg -> Msg)
 logEmail email =
   Log.field "email_sha256" (sha256String . T.pack . show $ email)
 
 logInvitationCode :: InvitationCode -> (Msg -> Msg)
 logInvitationCode code = Log.field "invitation_code" (toText $ fromInvitationCode code)
-
--- | Traverse concurrently and collect errors.
-traverseConcurrentlyAppT ::
-  (Traversable t, Member (C.Concurrency 'C.Unsafe) r) =>
-  (a -> ExceptT e (AppT r) b) ->
-  t a ->
-  AppT r [Either (a, e) b]
-traverseConcurrentlyAppT f t = do
-  env <- temporaryGetEnv
-  AppT $
-    lift $
-      C.unsafePooledMapConcurrentlyN
-        8
-        (\a -> first (a,) <$> lowerAppT env (runExceptT $ f a))
-        t
 
 -- | Traverse concurrently and fail on first error.
 traverseConcurrentlyWithErrors ::
@@ -118,36 +79,6 @@ traverseConcurrentlySem ::
   m (t (Either (a, e) b))
 traverseConcurrentlySem f =
   pooledMapConcurrentlyN 8 $ \a -> first (a,) <$> runExceptT (f a)
-
--- | Traverse concurrently and fail on first error.
-traverseConcurrentlyWithErrorsSem ::
-  forall t e a r b.
-  (Traversable t, Member (C.Concurrency 'C.Unsafe) r) =>
-  (a -> ExceptT e (Sem r) b) ->
-  t a ->
-  ExceptT e (Sem r) [b]
-traverseConcurrentlyWithErrorsSem f =
-  ExceptT
-    . E.runError
-    . ( traverse (either E.throw pure)
-          <=< C.unsafePooledMapConcurrentlyN 8 (raise . runExceptT . f)
-      )
-
-traverseConcurrentlyWithErrorsAppT ::
-  forall t e a r b.
-  (Traversable t, Member (C.Concurrency 'C.Unsafe) r) =>
-  (a -> ExceptT e (AppT r) b) ->
-  t a ->
-  ExceptT e (AppT r) [b]
-traverseConcurrentlyWithErrorsAppT f t = do
-  env <- lift temporaryGetEnv
-  ExceptT $
-    AppT $
-      lift $
-        runExceptT $
-          traverseConcurrentlyWithErrorsSem
-            (mapExceptT (lowerAppT env) . f)
-            t
 
 exceptTToMaybe :: (Monad m) => ExceptT e m () -> m (Maybe e)
 exceptTToMaybe = (pure . either Just (const Nothing)) <=< runExceptT
