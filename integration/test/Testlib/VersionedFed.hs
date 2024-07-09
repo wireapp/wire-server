@@ -18,8 +18,8 @@ instance MakesValue (FedDomain 1) where
 
 instance (KnownNat n) => TestCases (FedDomain n) where
   mkTestCases =
-    fmap (map (fmap (const FedDomain)))
-      $ mkFedTestCase "" (natVal (Proxy @n))
+    map (fmap (const FedDomain))
+      <$> mkFedTestCase "" (natVal (Proxy @n))
 
 mkFedTestCase :: String -> Integer -> IO [TestCase Integer]
 mkFedTestCase name n = do
@@ -37,8 +37,9 @@ instance MakesValue AnyFedDomain where
 
 instance TestCases AnyFedDomain where
   mkTestCases =
-    fmap (map (fmap AnyFedDomain) . concat)
-      $ traverse
+    map (fmap AnyFedDomain)
+      . concat
+      <$> traverse
         (uncurry mkFedTestCase)
         [("[domain=fed-v" <> show v <> "]", v) | v <- [0, 1]]
 
@@ -55,8 +56,9 @@ instance MakesValue StaticDomain where
 instance TestCases StaticDomain where
   mkTestCases = do
     feds <-
-      fmap (map (fmap StaticFedDomain) . concat)
-        $ traverse
+      map (fmap StaticFedDomain)
+        . concat
+        <$> traverse
           (uncurry mkFedTestCase)
           [("[domain=fed-v" <> show v <> "]", v) | v <- [0, 1]]
     pure $ [MkTestCase "[domain=other]" StaticDomain] <> feds
