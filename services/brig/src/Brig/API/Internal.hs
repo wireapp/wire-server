@@ -105,6 +105,7 @@ import Wire.EmailSending (EmailSending)
 import Wire.EmailSubsystem (EmailSubsystem)
 import Wire.GalleyAPIAccess (GalleyAPIAccess, ShowOrHideInvitationUrl (..))
 import Wire.NotificationSubsystem
+import Wire.PropertySubsystem
 import Wire.Rpc
 import Wire.Sem.Concurrency
 import Wire.Sem.Paging.Cassandra (InternalPaging)
@@ -137,7 +138,8 @@ servantSitemap ::
     Member (UserPendingActivationStore p) r,
     Member EmailSending r,
     Member EmailSubsystem r,
-    Member VerificationCodeSubsystem r
+    Member VerificationCodeSubsystem r,
+    Member PropertySubsystem r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -187,7 +189,8 @@ accountAPI ::
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
     Member EmailSubsystem r,
-    Member VerificationCodeSubsystem r
+    Member VerificationCodeSubsystem r,
+    Member PropertySubsystem r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
@@ -513,7 +516,8 @@ deleteUserNoAuthH ::
     Member UserKeyStore r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member PropertySubsystem r
   ) =>
   UserId ->
   (Handler r) DeleteUserResponse

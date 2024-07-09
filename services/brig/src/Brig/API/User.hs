@@ -84,7 +84,6 @@ import Brig.Data.Activation qualified as Data
 import Brig.Data.Client qualified as Data
 import Brig.Data.Connection (countConnections)
 import Brig.Data.Connection qualified as Data
-import Brig.Data.Properties qualified as Data
 import Brig.Data.User
 import Brig.Data.User qualified as Data
 import Brig.Effects.BlacklistStore (BlacklistStore)
@@ -152,6 +151,7 @@ import Wire.Error
 import Wire.GalleyAPIAccess as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.PasswordStore (PasswordStore, lookupHashedPassword, upsertHashedPassword)
+import Wire.PropertySubsystem as PropertySubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserKeyStore
@@ -927,7 +927,8 @@ deleteSelfUser ::
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
     Member EmailSubsystem r,
-    Member VerificationCodeSubsystem r
+    Member VerificationCodeSubsystem r,
+    Member PropertySubsystem r
   ) =>
   UserId ->
   Maybe PlainTextPassword6 ->
@@ -998,7 +999,8 @@ verifyDeleteUser ::
     Member UserStore r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
-    Member VerificationCodeSubsystem r
+    Member VerificationCodeSubsystem r,
+    Member PropertySubsystem r
   ) =>
   VerifyDeleteUser ->
   ExceptT DeleteUserError (AppT r) ()
@@ -1024,7 +1026,8 @@ ensureAccountDeleted ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
-    Member UserStore r
+    Member UserStore r,
+    Member PropertySubsystem r
   ) =>
   UserId ->
   AppT r DeleteUserResult
@@ -1033,7 +1036,7 @@ ensureAccountDeleted uid = do
   case mbAcc of
     Nothing -> pure NoUser
     Just acc -> do
-      probs <- wrapClient $ Data.lookupPropertyKeysAndValues uid
+      probs <- liftSem $ getPropertyKeys uid
 
       let accIsDeleted = accountStatus acc == Deleted
       clients <- wrapClient $ Data.lookupClients uid
@@ -1073,7 +1076,8 @@ deleteAccount ::
     Member (Input (Local ())) r,
     Member UserStore r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member PropertySubsystem r
   ) =>
   UserAccount ->
   Sem r ()
@@ -1084,7 +1088,7 @@ deleteAccount (accountUser -> user) = do
     -- Free unique keys
     for_ (userEmail user) $ deleteKeyForUser uid . mkEmailKey
 
-    embed $ Data.clearProperties uid
+    PropertySubsystem.onUserDeleted uid
 
     deleteUser user
 

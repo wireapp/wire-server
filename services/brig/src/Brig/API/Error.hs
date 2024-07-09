@@ -210,9 +210,6 @@ certEnrollmentError MissingName = StdError $ Wai.mkError status400 "missing-name
 fedError :: FederationError -> HttpError
 fedError = StdError . federationErrorToWai
 
-propDataError :: PropertiesDataError -> HttpError
-propDataError TooManyProperties = StdError tooManyProperties
-
 clientDataError :: ClientDataError -> HttpError
 clientDataError TooManyClients = StdError (errorToWai @'E.TooManyClients)
 clientDataError (ClientReAuthError e) = reauthError e
@@ -249,15 +246,6 @@ verificationCodeThrottledError (VerificationCodeThrottled t) =
     [("Retry-After", toByteString' (retryAfterSeconds t))]
 
 -- WAI Errors -----------------------------------------------------------------
-
-tooManyProperties :: Wai.Error
-tooManyProperties = Wai.mkError status403 "too-many-properties" "Too many properties"
-
-propertyKeyTooLarge :: Wai.Error
-propertyKeyTooLarge = Wai.mkError status403 "property-key-too-large" "The property key is too large."
-
-propertyValueTooLarge :: Wai.Error
-propertyValueTooLarge = Wai.mkError status403 "property-value-too-large" "The property value is too large"
 
 clientCapabilitiesCannotBeRemoved :: Wai.Error
 clientCapabilitiesCannotBeRemoved = Wai.mkError status409 "client-capabilities-cannot-be-removed" "You can only add capabilities to a client, not remove them."

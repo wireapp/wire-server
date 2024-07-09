@@ -22,7 +22,6 @@ module Brig.API.Types
     Activation (..),
     ActivationError (..),
     ClientDataError (..),
-    PropertiesDataError (..),
     AuthError (..),
     ReAuthError (..),
     LegalHoldLoginError (..),
@@ -33,7 +32,6 @@ where
 
 import Brig.Data.Activation (Activation (..), ActivationError (..))
 import Brig.Data.Client (ClientDataError (..))
-import Brig.Data.Properties (PropertiesDataError (..))
 import Brig.Data.User (AuthError (..), ReAuthError (..))
 import Brig.Types.Intra
 import Data.Code

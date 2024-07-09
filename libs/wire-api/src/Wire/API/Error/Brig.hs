@@ -94,6 +94,9 @@ data BrigError
   | ProviderNotFound
   | TeamsNotFederating
   | PasswordIsStale
+  | TooManyProperties
+  | PropertyKeyTooLarge
+  | PropertyValueTooLarge
 
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: BrigError) where
   addToOpenApi = addStaticErrorToSwagger @(MapError e)
@@ -282,3 +285,9 @@ type instance MapError 'ConflictingInvitations = 'StaticError 409 "conflicting-i
 type instance MapError 'TeamsNotFederating = 'StaticError 403 "team-not-federating" "The target user is owned by a federated backend, but is not in an allow-listed team"
 
 type instance MapError 'PasswordIsStale = 'StaticError 403 "password-is-stale" "The password is too old, please update your password."
+
+type instance MapError 'TooManyProperties = 'StaticError 403 "too-many-properties" "Too many properties"
+
+type instance MapError 'PropertyKeyTooLarge = 'StaticError 403 "property-key-too-large" "The property key is too large."
+
+type instance MapError 'PropertyValueTooLarge = 'StaticError 403 "property-value-too-large" "The property value is too large"

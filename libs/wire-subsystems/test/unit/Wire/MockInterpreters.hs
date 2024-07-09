@@ -11,6 +11,7 @@ import Wire.MockInterpreters.HashPassword as MockInterpreters
 import Wire.MockInterpreters.Now as MockInterpreters
 import Wire.MockInterpreters.PasswordResetCodeStore as MockInterpreters
 import Wire.MockInterpreters.PasswordStore as MockInterpreters
+import Wire.MockInterpreters.PropertyStore as MockInterpreters
 import Wire.MockInterpreters.Random as MockInterpreters
 import Wire.MockInterpreters.SessionStore as MockInterpreters
 import Wire.MockInterpreters.UserKeyStore as MockInterpreters

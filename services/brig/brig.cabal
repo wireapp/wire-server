@@ -90,7 +90,6 @@ library
     Brig.API.MLS.KeyPackages.Validation
     Brig.API.MLS.Util
     Brig.API.OAuth
-    Brig.API.Properties
     Brig.API.Public
     Brig.API.Public.Swagger
     Brig.API.Types
@@ -111,7 +110,6 @@ library
     Brig.Data.LoginCode
     Brig.Data.MLS.KeyPackage
     Brig.Data.Nonce
-    Brig.Data.Properties
     Brig.Data.Types
     Brig.Data.User
     Brig.DeleteQueue.Interpreter

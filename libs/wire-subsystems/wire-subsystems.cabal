@@ -97,6 +97,10 @@ library
     Wire.PasswordResetCodeStore.Cassandra
     Wire.PasswordStore
     Wire.PasswordStore.Cassandra
+    Wire.PropertyStore
+    Wire.PropertyStore.Cassandra
+    Wire.PropertySubsystem
+    Wire.PropertySubsystem.Interpreter
     Wire.Rpc
     Wire.SessionStore
     Wire.SessionStore.Cassandra
@@ -208,6 +212,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.Now
     Wire.MockInterpreters.PasswordResetCodeStore
     Wire.MockInterpreters.PasswordStore
+    Wire.MockInterpreters.PropertyStore
     Wire.MockInterpreters.Random
     Wire.MockInterpreters.SessionStore
     Wire.MockInterpreters.UserKeyStore
@@ -215,6 +220,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.UserSubsystem
     Wire.MockInterpreters.VerificationCodeStore
     Wire.NotificationSubsystem.InterpreterSpec
+    Wire.PropertySubsystem.InterpreterSpec
     Wire.UserStoreSpec
     Wire.UserSubsystem.InterpreterSpec
     Wire.VerificationCodeSubsystem.InterpreterSpec
@@ -247,6 +253,7 @@ test-suite wire-subsystems-tests
     , QuickCheck
     , quickcheck-instances
     , random
+    , scientific
     , servant-client-core
     , streaming-commons
     , string-conversions

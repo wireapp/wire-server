@@ -57,6 +57,10 @@ import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PasswordResetCodeStore.Cassandra (interpretClientToIO, passwordResetCodeStoreToCassandra)
 import Wire.PasswordStore (PasswordStore)
 import Wire.PasswordStore.Cassandra (interpretPasswordStore)
+import Wire.PropertyStore
+import Wire.PropertyStore.Cassandra
+import Wire.PropertySubsystem
+import Wire.PropertySubsystem.Interpreter
 import Wire.Rpc
 import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.IO
@@ -87,12 +91,14 @@ type BrigCanonicalEffects =
      UserSubsystem,
      EmailSubsystem,
      VerificationCodeSubsystem,
+     PropertySubsystem,
      DeleteQueue,
      Wire.Events.Events,
      Error UserSubsystemError,
      Error AuthenticationSubsystemError,
      Error Wire.API.Federation.Error.FederationError,
      Error VerificationCodeSubsystemError,
+     Error PropertySubsystemError,
      Error HttpError,
      Wire.FederationAPIAccess.FederationAPIAccess Wire.API.Federation.Client.FederatorClient,
      HashPassword,
@@ -101,6 +107,7 @@ type BrigCanonicalEffects =
      SessionStore,
      PasswordStore,
      VerificationCodeStore,
+     PropertyStore,
      SFT,
      ConnectionStore InternalPaging,
      Input VerificationCodeThrottleTTL,
@@ -149,6 +156,12 @@ runBrigToIO e (AppT ma) = do
             http2Manager = e ^. App.http2Manager,
             requestId = e ^. App.requestId
           }
+      propertySubsystemConfig =
+        PropertySubsystemConfig
+          { maxKeyLength = fromMaybe Opt.defMaxKeyLen $ e ^. settings . Opt.propertyMaxKeyLen,
+            maxValueLength = fromMaybe Opt.defMaxValueLen $ e ^. settings . Opt.propertyMaxValueLen,
+            maxProperties = 16
+          }
   ( either throwM pure
       <=< ( runFinal
               . unsafelyPerformConcurrency
@@ -182,6 +195,7 @@ runBrigToIO e (AppT ma) = do
               . runInputConst (e ^. settings . to Opt.set2FACodeGenerationDelaySecs . to fromIntegral)
               . connectionStoreToCassandra
               . interpretSFT (e ^. httpManager)
+              . interpretPropertyStoreCassandra (e ^. casClient)
               . interpretVerificationCodeStoreCassandra (e ^. casClient)
               . interpretPasswordStore (e ^. casClient)
               . interpretSessionStoreCassandra (e ^. casClient)
@@ -190,12 +204,14 @@ runBrigToIO e (AppT ma) = do
               . runHashPassword
               . interpretFederationAPIAccess federationApiAccessConfig
               . rethrowHttpErrorIO
+              . mapError propertySubsystemErrorToHttpError
               . mapError verificationCodeSubsystemErrorToHttpError
               . mapError (StdError . federationErrorToWai)
               . mapError authenticationSubsystemErrorToHttpError
               . mapError userSubsystemErrorToHttpError
               . runEvents
               . runDeleteQueue (e ^. internalEvents)
+              . interpretPropertySubsystem propertySubsystemConfig
               . interpretVerificationCodeSubsystem
               . emailSubsystemInterpreter (e ^. usrTemplates) (e ^. templateBranding)
               . runUserSubsystem userSubsystemConfig
