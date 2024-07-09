@@ -36,9 +36,9 @@ import Data.Qualified
 import Data.Set qualified as Set
 import Data.Singletons
 import Data.Text qualified as T
-import Data.Time ( UTCTime )
+import Data.Time (UTCTime)
 import Galley.API.Error
-import Galley.API.Mapping ( conversationView )
+import Galley.API.Mapping (conversationView)
 import Galley.Data.Conversation qualified as Data
 import Galley.Data.Services (BotMember, newBotMember)
 import Galley.Data.Types qualified as DataTypes
@@ -1080,4 +1080,3 @@ instance
     if err' == demote @e
       then throwS @e
       else rethrowErrors @effs @r err'
-
