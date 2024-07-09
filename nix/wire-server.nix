@@ -96,7 +96,7 @@ let
     inherit lib;
   };
 
-  localPackages = { enableOptimization, enableDocs, enableTests, enableProfiling ? true }: hsuper: hself:
+  localPackages = { enableOptimization, enableDocs, enableTests, enableProfiling }: hsuper: hself:
     # The default packages are expected to have optimizations and docs turned
     # on.
     let
@@ -362,16 +362,22 @@ let
     enableOptimization = true;
     enableDocs = true;
     enableTests = true;
+    # FIXME(mangoiv): should probably be false by default
+    enableProfiling = true;
   };
   localModsOnlyTests = {
     enableOptimization = false;
     enableDocs = false;
     enableTests = true;
+    # FIXME(mangoiv): should probably be false by default
+    enableProfiling = true;
   };
   localModsOnlyDocs = {
     enableOptimization = false;
     enableDocs = true;
     enableTests = false;
+    # FIXME(mangoiv): should probably be false by default
+    enableProfiling = true;
   };
 
   imagesList = pkgs.writeTextFile {
