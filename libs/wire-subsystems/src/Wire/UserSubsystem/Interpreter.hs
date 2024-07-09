@@ -523,13 +523,14 @@ requestDeletionCodeImpl ::
   ) =>
   Local UserId ->
   Sem r (Maybe Timeout)
-requestDeletionCodeImpl luid = mapError UserSubsystemDeleteUserError (accountCheck go (pure Nothing) luid)
-  where
-    go a = case userEmail (accountUser a) of
-      Just email -> sendCode a email
+requestDeletionCodeImpl luid =
+  mapError UserSubsystemDeleteUserError $ runMaybeT $ do
+    account <- MaybeT $ getAccountReadyToBeDeleted luid
+    MaybeT case userEmail account.accountUser of
+      Just email -> sendCode account email
       Nothing ->
-        deleteAccount a >> pure Nothing
-
+        deleteAccount account >> pure Nothing
+  where
     sendCode a target = do
       let gen = mkVerificationCodeGen target
       createCode gen VerificationCode.AccountDeletion (VerificationCode.Retries 3) (VerificationCode.Timeout 600) (Just (toUUID (tUnqualified luid))) >>= \case
@@ -576,9 +577,9 @@ deleteUserByPasswordImpl ::
   PlainTextPassword6 ->
   Sem r ()
 deleteUserByPasswordImpl luid pw = mapError UserSubsystemDeleteUserError do
-  accountCheck doDeletePasswordByUser (pure ()) luid
-  where
-    doDeletePasswordByUser account = do
+  getAccountReadyToBeDeleted luid >>= \case
+    Nothing -> pure ()
+    Just account -> do
       let uid = tUnqualified luid
       Log.info $
         field "user" (toByteString uid)
@@ -586,13 +587,11 @@ deleteUserByPasswordImpl luid pw = mapError UserSubsystemDeleteUserError do
       actual <- lookupHashedPassword uid
       case actual of
         Nothing -> throw DeleteUserInvalidPassword
-        Just p -> do
+        Just p ->
           -- We're deleting a user, no sense in updating their pwd, so we ignore pwd status
-          unless (verifyPassword pw p) do
-            throw DeleteUserInvalidPassword
-          deleteAccount account
-
--- TODO(mangoiv): move in some more sensible module where this can be used from other functions
+          if (verifyPassword pw p)
+            then throw DeleteUserInvalidPassword
+            else deleteAccount account
 
 deleteAccount :: (Member (Error UserSubsystemError) r) => UserAccount -> Sem r ()
 deleteAccount (accountUser -> _user) = mapError UserSubsystemDeleteUserError undefined
@@ -618,26 +617,24 @@ deleteAccount (accountUser -> _user) = mapError UserSubsystemDeleteUserError und
 -- Data.deleteConnections uid
 -- Auth.revokeAllCookies uid
 
-accountCheck ::
+getAccountReadyToBeDeleted ::
   ( Member (Input UserSubsystemConfig) r,
     Member (Error DeleteUserError) r,
     Member GalleyAPIAccess r,
     Member UserStore r
   ) =>
-  (UserAccount -> Sem r b) ->
-  Sem r b ->
   Local UserId ->
-  Sem r b
-accountCheck go deleted luid = do
+  Sem r (Maybe UserAccount)
+getAccountReadyToBeDeleted luid = do
   account <- getAccountByUserId luid
   case account of
     Nothing -> throw DeleteUserInvalid
     Just a -> case accountStatus a of
-      Deleted -> deleted
-      Suspended -> ensureNotOwner a >> go a
-      Active -> ensureNotOwner a >> go a
-      Ephemeral -> go a
-      PendingInvitation -> go a
+      Deleted -> pure Nothing
+      Suspended -> ensureNotOwner a $> Just a
+      Active -> ensureNotOwner a $> Just a
+      Ephemeral -> pure $ Just a
+      PendingInvitation -> pure $ Just a
   where
     ensureNotOwner acc = do
       case userTeam $ accountUser acc of
