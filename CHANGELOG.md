@@ -1,3 +1,11 @@
+# [2024-07-09] (Chart Release 5.5.0)
+
+## Bug fixes and other updates
+
+
+* Fix names of metrics so they do not contain any dots (#4134)
+
+
 # [2024-07-08] (Chart Release 5.4.0)
 
 ## Release notes
