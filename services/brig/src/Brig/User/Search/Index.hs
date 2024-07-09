@@ -976,7 +976,7 @@ indexUpdateCounter =
   Prom.unsafeRegister $
     Prom.counter
       Prom.Info
-        { Prom.metricName = "user.index.update.count",
+        { Prom.metricName = "user_index_update_count",
           Prom.metricHelp = "Number of updates on user index"
         }
 
@@ -986,7 +986,7 @@ indexUpdateErrorCounter =
   Prom.unsafeRegister $
     Prom.counter
       Prom.Info
-        { Prom.metricName = "user.index.update.err",
+        { Prom.metricName = "user_index_update_err",
           Prom.metricHelp = "Number of errors during user index update"
         }
 
@@ -996,7 +996,7 @@ indexUpdateSuccessCounter =
   Prom.unsafeRegister $
     Prom.counter
       Prom.Info
-        { Prom.metricName = "user.index.update.ok",
+        { Prom.metricName = "user_index_update_ok",
           Prom.metricHelp = "Number of successful user index updates"
         }
 
@@ -1006,7 +1006,7 @@ indexBulkUpdateCounter =
   Prom.unsafeRegister $
     Prom.counter
       Prom.Info
-        { Prom.metricName = "user.index.update.bulk.count",
+        { Prom.metricName = "user_index_update_bulk_count",
           Prom.metricHelp = "Number of bulk updates on user index"
         }
 
@@ -1016,7 +1016,7 @@ indexBulkUpdateErrorCounter =
   Prom.unsafeRegister $
     Prom.counter
       Prom.Info
-        { Prom.metricName = "user.index.update.bulk.err",
+        { Prom.metricName = "user_index_update_bulk_err",
           Prom.metricHelp = "Number of errors during bulk updates on user index"
         }
 
@@ -1026,7 +1026,7 @@ indexBulkUpdateSuccessCounter =
   Prom.unsafeRegister $
     Prom.counter
       Prom.Info
-        { Prom.metricName = "user.index.update.bulk.ok",
+        { Prom.metricName = "user_index_update_bulk_ok",
           Prom.metricHelp = "Number of successful bulk updates on user index"
         }
 
@@ -1037,7 +1037,7 @@ indexBulkUpdateResponseCounter =
     Prom.vector ("status") $
       Prom.counter
         Prom.Info
-          { Prom.metricName = "user.index.update.bulk.response",
+          { Prom.metricName = "user_index_update_bulk_response",
             Prom.metricHelp = "Number of successful bulk updates on user index"
           }
 
@@ -1047,6 +1047,6 @@ indexDeleteCounter =
   Prom.unsafeRegister $
     Prom.counter
       Prom.Info
-        { Prom.metricName = "user.index.delete.count",
+        { Prom.metricName = "user_index_delete_count",
           Prom.metricHelp = "Number of deletes on user index"
         }

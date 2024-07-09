@@ -126,7 +126,7 @@ netConnections =
   Prom.unsafeRegister $
     Prom.gauge
       Prom.Info
-        { Prom.metricName = "net.connections",
+        { Prom.metricName = "net_connections",
           Prom.metricHelp = "Number of active connections"
         }
 
@@ -412,7 +412,7 @@ netErrors =
   Prom.unsafeRegister $
     Prom.counter
       Prom.Info
-        { Prom.metricName = "net.errors",
+        { Prom.metricName = "net_errors",
           Prom.metricHelp = "Number of exceptions caught by catchErrors middleware"
         }
 

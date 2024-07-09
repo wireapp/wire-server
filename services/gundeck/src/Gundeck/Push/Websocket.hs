@@ -113,7 +113,7 @@ pushWsUnreachableCounter =
   Prom.unsafeRegister $
     Prom.counter
       Prom.Info
-        { Prom.metricName = "push.ws.unreachable",
+        { Prom.metricName = "push_ws_unreachable",
           Prom.metricHelp = "Number of times websocket pushes were not pushed due cannon being unreachable"
         }
 

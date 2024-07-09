@@ -306,6 +306,6 @@ cookieSupersededCounter =
   Prom.unsafeRegister $
     Prom.counter
       Prom.Info
-        { Prom.metricName = "user.auth.cookie.superseded",
+        { Prom.metricName = "user_auth_cookie_superseded",
           Prom.metricHelp = "Number of times user's cookie got superseded"
         }

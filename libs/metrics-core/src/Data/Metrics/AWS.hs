@@ -34,6 +34,6 @@ awsAuthTokenSecsRemaining =
   Prom.unsafeRegister $
     Prom.gauge
       Prom.Info
-        { Prom.metricName = "aws_auth.token_secs_remaining",
+        { Prom.metricName = "aws_auth_token_secs_remaining",
           Prom.metricHelp = "Number of seconds left before AWS Auth expires"
         }
