@@ -188,7 +188,7 @@ deleteQueueLengthGauge =
   Prom.unsafeRegister $
     Prom.gauge
       Prom.Info
-        { Prom.metricName = "galley.deletequeue.len",
+        { Prom.metricName = "galley_deletequeue_len",
           Prom.metricHelp = "Length of the galley delete queue"
         }
 

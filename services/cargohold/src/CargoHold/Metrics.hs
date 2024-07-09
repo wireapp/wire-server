@@ -29,7 +29,7 @@ netS3UploadOk =
   Prom.unsafeRegister $
     Prom.counter
       Prom.Info
-        { Prom.metricName = "net.s3.upload_ok",
+        { Prom.metricName = "net_s3_upload_ok",
           Prom.metricHelp = "Number of successful S3 Uploads"
         }
 
@@ -43,6 +43,6 @@ netS3UploadSize =
   Prom.unsafeRegister $
     Prom.counter
       Prom.Info
-        { Prom.metricName = "net.s3.upload_size",
+        { Prom.metricName = "net_s3_upload_size",
           Prom.metricHelp = "Number of bytes uploaded successfully uploaded to S3"
         }

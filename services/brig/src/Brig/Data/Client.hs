@@ -592,7 +592,7 @@ optimisticLockGrabAttemptFailedCounter =
   Prom.unsafeRegister $
     Prom.counter
       Prom.Info
-        { Prom.metricName = "client.opt_lock.optimistic_lock_grab_attempt_failed",
+        { Prom.metricName = "client_opt_lock_optimistic_lock_grab_attempt_failed",
           Prom.metricHelp = "Number of times grab attempts for optimisitic lock on prekeys failed"
         }
 
@@ -602,7 +602,7 @@ optimisticLockFailedCounter =
   Prom.unsafeRegister $
     Prom.counter
       Prom.Info
-        { Prom.metricName = "client.opt_lock.optimistic_lock_failed",
+        { Prom.metricName = "client_opt_lock_optimistic_lock_failed",
           Prom.metricHelp = "Number of time optimisitic lock on prekeys failed"
         }
 
@@ -612,6 +612,6 @@ dynProvisionedThroughputExceededCounter =
   Prom.unsafeRegister $
     Prom.counter
       Prom.Info
-        { Prom.metricName = "client.opt_lock.provisioned_throughput_exceeded",
+        { Prom.metricName = "client_opt_lock_provisioned_throughput_exceeded",
           Prom.metricHelp = "Number of times provisioned throughput on DynamoDB was exceeded"
         }

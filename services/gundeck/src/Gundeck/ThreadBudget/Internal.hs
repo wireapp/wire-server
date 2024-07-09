@@ -209,7 +209,7 @@ threadBudgetAllocatedGauge =
   Prom.unsafeRegister $
     Prom.gauge
       Prom.Info
-        { Prom.metricName = "net.nativepush.thread_budget_allocated",
+        { Prom.metricName = "net_nativepush_thread_budget_allocated",
           Prom.metricHelp = "Number of allocated threads for native pushes"
         }
 
@@ -219,7 +219,7 @@ threadBudgetHardLimitGauge =
   Prom.unsafeRegister $
     Prom.gauge
       Prom.Info
-        { Prom.metricName = "net.nativepush.thread_budget_hard_limit",
+        { Prom.metricName = "net_nativepush_thread_budget_hard_limit",
           Prom.metricHelp = "Hard limit for threads for native pushes"
         }
 
@@ -229,7 +229,7 @@ threadBudgetSoftLimitGauge =
   Prom.unsafeRegister $
     Prom.gauge
       Prom.Info
-        { Prom.metricName = "net.nativepush.thread_budget_soft_limit",
+        { Prom.metricName = "net_nativepush_thread_budget_soft_limit",
           Prom.metricHelp = "Soft limit for threads for native pushes"
         }
 
@@ -239,7 +239,7 @@ threadBudgetHardLimitBreachedCounter =
   Prom.unsafeRegister $
     Prom.counter
       Prom.Info
-        { Prom.metricName = "net.nativepush.thread_budget_hard_limit_breached",
+        { Prom.metricName = "net_nativepush_thread_budget_hard_limit_breached",
           Prom.metricHelp = "Number of times hard limit for threads for native pushes was breached"
         }
 
@@ -249,7 +249,7 @@ threadBudgetSoftLimitBreachedCounter =
   Prom.unsafeRegister $
     Prom.counter
       Prom.Info
-        { Prom.metricName = "net.nativepush.thread_budget_soft_limit_breached",
+        { Prom.metricName = "net_nativepush_thread_budget_soft_limit_breached",
           Prom.metricHelp = "Number of times soft limit for threads for native pushes was breached"
         }
 

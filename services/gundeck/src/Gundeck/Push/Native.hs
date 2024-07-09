@@ -66,7 +66,7 @@ nativePushSuccessCounter =
   Prom.unsafeRegister $
     Prom.counter
       Prom.Info
-        { Prom.metricName = "push.native.success",
+        { Prom.metricName = "push_native_success",
           Prom.metricHelp = "Number of times native pushes were successfully pushed"
         }
 
@@ -76,7 +76,7 @@ nativePushDisabledCounter =
   Prom.unsafeRegister $
     Prom.counter
       Prom.Info
-        { Prom.metricName = "push.native.disabled",
+        { Prom.metricName = "push_native_disabled",
           Prom.metricHelp = "Number of times native pushes were not pushed due to a disabled endpoint"
         }
 
@@ -86,7 +86,7 @@ nativePushInvalidCounter =
   Prom.unsafeRegister $
     Prom.counter
       Prom.Info
-        { Prom.metricName = "push.native.invalid",
+        { Prom.metricName = "push_native_invalid",
           Prom.metricHelp = "Number of times native pushes were not pushed due to an invalid endpoint"
         }
 
@@ -96,7 +96,7 @@ nativePushTooLargeCounter =
   Prom.unsafeRegister $
     Prom.counter
       Prom.Info
-        { Prom.metricName = "push.native.too_large",
+        { Prom.metricName = "push_native_too_large",
           Prom.metricHelp = "Number of times native pushes were not pushed due to payload being too large"
         }
 
@@ -106,7 +106,7 @@ nativePushUnauthorizedCounter =
   Prom.unsafeRegister $
     Prom.counter
       Prom.Info
-        { Prom.metricName = "push.native.unauthorized",
+        { Prom.metricName = "push_native_unauthorized",
           Prom.metricHelp = "Number of times native pushes were not pushed due to an unauthorized endpoint"
         }
 
@@ -116,7 +116,7 @@ nativePushErrorCounter =
   Prom.unsafeRegister $
     Prom.counter
       Prom.Info
-        { Prom.metricName = "push.native.errors",
+        { Prom.metricName = "push_native_errors",
           Prom.metricHelp = "Number of times native pushes were not pushed due to an unexpected error"
         }
 
