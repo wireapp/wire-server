@@ -379,7 +379,7 @@ interpretMaybeFederationStackState maybeFederationAPIAccess localBackend teamMem
     . liftUserStoreState
     . inMemoryUserStoreInterpreter
     . miniGalleyAPIAccess teamMember galleyConfigs
-    -- chosen arbitrarily
+    -- The TTL is chosen arbitrarily
     . runVerificationCodeSubsystem (VerificationCodeThrottleTTL 300)
     . runUserSubsystem cfg
 
@@ -393,21 +393,6 @@ liftUserStoreState = interpret $ \case
   Polysemy.State.Get -> gets (.users)
   Put newUsers -> modify $ \b -> b {users = newUsers}
 
--- runRemainingErrorsUnsafe :: forall a. (HasCallStack) => Sem AllErrors a -> a
--- runRemainingErrorsUnsafe = run . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe
---
--- class RunAllErrorsExcept effs e where
---   type NewStack effs :: [Effect]
---   runAllErrorsExcept' :: Sem effs a -> Sem (NewStack effs) (Either e a)
---
--- instance {-# OVERLAPPING #-} RunAllErrorsExcept (Error e : es) e where
---   type NewStack (Error e : es) = es
---   runAllErrorsExcept' = runError
---
--- instance (Exception e') => RunAllErrorsExcept (Error e' : es) e where
---   type NewStack (Error e' : es) = es
---   runAllErrorsExcept' = fmap Right . runErrorUnsafe
---
 class RunAllErrorsUnsafe effs where
   runRemainingErrorsUnsafe :: (HasCallStack) => Sem effs a -> a
 
@@ -416,9 +401,6 @@ instance (Exception e, RunAllErrorsUnsafe effs) => RunAllErrorsUnsafe (Error e :
 
 instance RunAllErrorsUnsafe '[] where
   runRemainingErrorsUnsafe = run
-
--- runAllErrorsExcept :: (HasCallStack, RunAllErrorsUnsafe effs) => Sem (Error e : effs) a -> Either e a
--- runAllErrorsExcept = runRemainingErrorsUnsafe . runError
 
 emptyFederationAPIAcesss :: InterpreterFor (FederationAPIAccess MiniFederationMonad) r
 emptyFederationAPIAcesss = interpret $ \case
