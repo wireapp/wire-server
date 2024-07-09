@@ -151,6 +151,6 @@ websocketClientsGauge =
   Prom.unsafeRegister $
     Prom.gauge
       Prom.Info
-        { Prom.metricName = "net.websocket.clients",
+        { Prom.metricName = "net_websocket_clients",
           Prom.metricHelp = "Number of connected websocket clients"
         }

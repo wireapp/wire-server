@@ -1141,7 +1141,7 @@ enqueueMultiDeleteCounter =
   Prom.unsafeRegister $
     Prom.counter
       Prom.Info
-        { Prom.metricName = "user.enqueue_multi_delete_total",
+        { Prom.metricName = "user_enqueue_multi_delete_total",
           Prom.metricHelp = "Number of users enqueued to be deleted"
         }
 
@@ -1151,7 +1151,7 @@ enqueueMultiDeleteCallsCounter =
   Prom.unsafeRegister $
     Prom.counter
       Prom.Info
-        { Prom.metricName = "user.enqueue_multi_delete_calls_total",
+        { Prom.metricName = "user_enqueue_multi_delete_calls_total",
           Prom.metricHelp = "Number of users enqueued to be deleted"
         }
 
