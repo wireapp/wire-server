@@ -48,8 +48,6 @@ makePrisms ''FederationRestriction
 data FederationRestrictionTag = FederationRestrictionAllowAllTag | FederationRestrictionByTeamTag
   deriving (Eq, Enum, Bounded)
 
-makePrisms ''FederationRestrictionTag
-
 deriving via Schema FederationRestriction instance (S.ToSchema FederationRestriction)
 
 deriving via Schema FederationRestriction instance (FromJSON FederationRestriction)

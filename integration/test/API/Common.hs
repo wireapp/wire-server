@@ -8,13 +8,6 @@ import qualified Data.ByteString as BS
 import System.Random (randomIO, randomRIO)
 import Testlib.Prelude
 
-teamRole :: String -> Int
-teamRole "partner" = 1025
-teamRole "member" = 1587
-teamRole "admin" = 5951
-teamRole "owner" = 8191
-teamRole bad = error $ "unknown team role: " <> bad
-
 -- | please don't use special shell characters like '!' here.  it makes writing shell lines
 -- that use test data a lot less straight-forward.
 defPassword :: String

@@ -78,9 +78,6 @@ addQueryParams :: [(String, String)] -> HTTP.Request -> HTTP.Request
 addQueryParams params req =
   HTTP.setQueryString (map (\(k, v) -> (cs k, Just (cs v))) params) req
 
-contentTypeJSON :: HTTP.Request -> HTTP.Request
-contentTypeJSON = addHeader "Content-Type" "application/json"
-
 contentTypeMixed :: HTTP.Request -> HTTP.Request
 contentTypeMixed = addHeader "Content-Type" "multipart/mixed"
 

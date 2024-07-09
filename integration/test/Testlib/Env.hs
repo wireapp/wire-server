@@ -163,18 +163,6 @@ mkEnv ge = do
           timeOutSeconds = ge.gTimeOutSeconds
         }
 
-destroy :: IORef (Set BackendResource) -> BackendResource -> IO ()
-destroy ioRef = modifyIORef' ioRef . Set.insert
-
-create :: IORef (Set.Set BackendResource) -> IO BackendResource
-create ioRef =
-  atomicModifyIORef
-    ioRef
-    $ \s ->
-      case Set.minView s of
-        Nothing -> error "No resources available"
-        Just (r, s') -> (s', r)
-
 allCiphersuites :: [Ciphersuite]
 -- FUTUREWORK: add 0x0005 to this list once openmls supports it
 allCiphersuites = map Ciphersuite ["0x0001", "0xf031", "0x0002", "0x0007"]

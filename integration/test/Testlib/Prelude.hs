@@ -52,15 +52,6 @@ module Testlib.Prelude
     putStr,
     putStrLn,
     print,
-    getChar,
-    getLine,
-    getContents,
-    interact,
-    readFile,
-    writeFile,
-    appendFile,
-    readIO,
-    readLn,
     liftIO,
 
     -- * Functor
@@ -184,33 +175,6 @@ putStrLn = liftIO . P.putStrLn
 
 print :: (Show a, MonadIO m) => a -> m ()
 print = liftIO . P.print
-
-getChar :: (MonadIO m) => m Char
-getChar = liftIO P.getChar
-
-getLine :: (MonadIO m) => m String
-getLine = liftIO P.getLine
-
-getContents :: (MonadIO m) => m String
-getContents = liftIO P.getContents
-
-interact :: (MonadIO m) => (String -> String) -> m ()
-interact = liftIO . P.interact
-
-readFile :: (MonadIO m) => FilePath -> m String
-readFile = liftIO . P.readFile
-
-writeFile :: (MonadIO m) => FilePath -> String -> m ()
-writeFile = fmap liftIO . P.writeFile
-
-appendFile :: (MonadIO m) => FilePath -> String -> m ()
-appendFile = fmap liftIO . P.appendFile
-
-readIO :: (Read a, MonadIO m) => String -> m a
-readIO = liftIO . P.readIO
-
-readLn :: (Read a, MonadIO m) => m a
-readLn = liftIO P.readLn
 
 ----------------------------------------------------------------------
 -- Functor

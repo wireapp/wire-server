@@ -132,12 +132,10 @@ instance Cql.Cql WireIdPAPIVersion where
 
 -- | A list of 'IdP's, returned by some endpoints. Wrapped into an object to
 -- allow extensibility later on.
-data IdPList = IdPList
+newtype IdPList = IdPList
   { _providers :: [IdP]
   }
   deriving (Eq, Show, Generic)
-
-makeLenses ''IdPList
 
 -- Same as WireIdP, we want the lenses, so we have to drop a prefix
 deriveJSON (defaultOptsDropChar '_') ''IdPList

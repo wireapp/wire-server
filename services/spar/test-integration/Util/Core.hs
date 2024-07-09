@@ -38,7 +38,6 @@ module Util.Core
     it,
     pending,
     pendingWith,
-    xit,
     shouldRespondWith,
     module Test.Hspec,
     aFewTimes,
@@ -48,8 +47,6 @@ module Util.Core
     -- * HTTP
     call,
     endpointToReq,
-    endpointToSettings,
-    endpointToURL,
 
     -- * Other
     randomEmail,
@@ -60,7 +57,6 @@ module Util.Core
     updateProfileBrig,
     createUserWithTeam,
     createUserWithTeamDisableSSO,
-    getSSOEnabledInternal,
     putSSOEnabledInternal,
     inviteAndRegisterUser,
     createTeamMember,
@@ -95,7 +91,6 @@ module Util.Core
     loginSsoUserFirstTime,
     loginSsoUserFirstTime',
     loginCreatedSsoUser,
-    callAuthnReqPrecheck',
     callAuthnReq,
     callAuthnReq',
     callIdpGet,
@@ -170,8 +165,6 @@ import qualified Data.Yaml as Yaml
 import GHC.TypeLits
 import Imports hiding (head)
 import Network.HTTP.Client.MultipartFormData
-import qualified Network.Wai.Handler.Warp as Warp
-import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified Options.Applicative as OPA
 import Polysemy (Sem)
 import SAML2.WebSSO as SAML hiding ((<$$>))
@@ -191,7 +184,7 @@ import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
 import qualified System.Logger.Extended as Log
 import System.Random (randomRIO)
-import Test.Hspec hiding (it, pending, pendingWith, xit)
+import Test.Hspec hiding (it, pending, pendingWith)
 import qualified Test.Hspec
 import qualified Text.XML as XML
 import qualified Text.XML.Cursor as XML
@@ -299,15 +292,6 @@ it ::
   SpecWith TestEnv
 it msg bdy = Test.Hspec.it msg $ runReaderT bdy
 
-xit ::
-  (HasCallStack) =>
-  -- or, more generally:
-  -- MonadIO m, Example (TestEnv -> m ()), Arg (TestEnv -> m ()) ~ TestEnv
-  String ->
-  TestSpar () ->
-  SpecWith TestEnv
-xit msg bdy = Test.Hspec.xit msg $ runReaderT bdy
-
 pending :: (HasCallStack, MonadIO m) => m ()
 pending = liftIO Test.Hspec.pending
 
@@ -395,12 +379,6 @@ createUserWithTeamDisableSSO brg gly = do
     Control.Exception.assert {- "Team ID in self profile and team table do not match" -} (selfTeam == Just tid) $
       pure ()
   pure (uid, tid)
-
-getSSOEnabledInternal :: (HasCallStack, MonadHttp m) => GalleyReq -> TeamId -> m ResponseLBS
-getSSOEnabledInternal gly tid = do
-  get $
-    gly
-      . paths ["i", "teams", toByteString' tid, "features", "sso"]
 
 putSSOEnabledInternal :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyReq -> TeamId -> FeatureStatus -> m ()
 putSSOEnabledInternal gly tid enabled = do
@@ -688,21 +666,6 @@ zConn = header "Z-Connection"
 endpointToReq :: Endpoint -> (Bilge.Request -> Bilge.Request)
 endpointToReq ep = Bilge.host (ep ^. host . to cs) . Bilge.port (ep ^. port)
 
-endpointToSettings :: Endpoint -> Warp.Settings
-endpointToSettings ep =
-  Warp.defaultSettings
-    { Warp.settingsHost = Imports.fromString . cs $ ep ^. host,
-      Warp.settingsPort = fromIntegral $ ep ^. port
-    }
-
-endpointToURL :: (MonadIO m) => Endpoint -> Text -> m URI
-endpointToURL ep urlpath = either err pure url
-  where
-    url = parseURI' ("http://" <> urlhost <> ":" <> urlport) <&> (=/ urlpath)
-    urlhost = cs $ ep ^. host
-    urlport = cs . show $ ep ^. port
-    err = liftIO . throwIO . ErrorCall . show . (,(ep, url))
-
 -- spar specifics
 
 shouldRespondWith ::
@@ -981,10 +944,6 @@ safeHead msg [] = throwError $ msg <> ": []"
 callAuthnReq' :: (MonadHttp m) => SparReq -> SAML.IdPId -> m ResponseLBS
 callAuthnReq' sparreq_ idpid = do
   get $ sparreq_ . path (cs $ "/sso/initiate-login/" -/ SAML.idPIdToST idpid)
-
-callAuthnReqPrecheck' :: (MonadHttp m) => SparReq -> SAML.IdPId -> m ResponseLBS
-callAuthnReqPrecheck' sparreq_ idpid = do
-  head $ sparreq_ . path (cs $ "/sso/initiate-login/" -/ SAML.idPIdToST idpid)
 
 callIdpGet :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m IdP
 callIdpGet sparreq_ muid idpid = do

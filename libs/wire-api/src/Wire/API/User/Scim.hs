@@ -382,13 +382,6 @@ veidUref = prism' UrefOnly $
     UrefOnly uref -> Just uref
     EmailOnly _ -> Nothing
 
-veidEmail :: Prism' ValidExternalId Email
-veidEmail = prism' EmailOnly $
-  \case
-    EmailAndUref em _ -> Just em
-    UrefOnly _ -> Nothing
-    EmailOnly em -> Just em
-
 makeLenses ''ValidScimUser
 makeLenses ''ValidExternalId
 

@@ -28,7 +28,6 @@ module Wire.API.Team.Conversation
     -- * TeamConversationList
     TeamConversationList,
     newTeamConversationList,
-    teamConversations,
   )
 where
 
@@ -97,4 +96,3 @@ newTeamConversationList :: [TeamConversation] -> TeamConversationList
 newTeamConversationList = TeamConversationList
 
 makeLenses ''TeamConversation
-makeLenses ''TeamConversationList

@@ -32,8 +32,6 @@ module Wire.API.Federation.Version
     -- * VersionRange
     VersionUpperBound (..),
     VersionRange (..),
-    fromVersion,
-    toVersionExcl,
     allVersions,
     latestCommonVersion,
     rangeFromVersion,
@@ -41,7 +39,7 @@ module Wire.API.Federation.Version
   )
 where
 
-import Control.Lens (makeLenses, (?~))
+import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.OpenApi qualified as S
 import Data.Schema
@@ -129,8 +127,6 @@ deriving instance Eq VersionRange
 deriving instance Show VersionRange
 
 deriving instance Ord VersionRange
-
-makeLenses ''VersionRange
 
 instance ToSchema VersionRange where
   schema =
