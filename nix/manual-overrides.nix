@@ -28,6 +28,7 @@ hself: hsuper: {
 
   # Tests require a running redis
   hedis = hlib.dontCheck hsuper.hedis;
+  network-control = hlib.dontCheck hsuper.network-control;
 
   # ---------------------
   # need to be jailbroken
