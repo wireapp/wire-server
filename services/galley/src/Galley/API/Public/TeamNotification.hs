@@ -45,9 +45,9 @@ getTeamNotifications uid since size = do
       Maybe NotificationId ->
       Sem r (Maybe NotificationId)
     checkSince Nothing = pure Nothing
-    checkSince (Just nid)
+    checkSince (Just (parseIdFromText -> (Right nid)))
       | (UUID.version . toUUID) nid == 1 =
-          (pure . Just) nid
+          (pure . Just . idToText) nid
     checkSince (Just _) = throwS @'InvalidTeamNotificationId
 
     defaultSize :: SizeRange

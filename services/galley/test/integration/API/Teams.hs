@@ -32,6 +32,7 @@ import API.Util.TeamFeature qualified as Util
 import Bilge hiding (head, timeout)
 import Bilge.Assert
 import Control.Arrow ((>>>))
+import Control.Error (hush)
 import Control.Lens hiding ((#), (.=))
 import Control.Monad.Catch
 import Data.Aeson hiding (json)
@@ -53,7 +54,6 @@ import Data.Range
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import Data.Text.Ascii (AsciiChars (validate))
-import Data.UUID qualified as UUID
 import Data.UUID.Util qualified as UUID
 import Data.UUID.V1 qualified as UUID
 import Data.Vector qualified as V
@@ -535,20 +535,20 @@ testTeamQueue = do
 
   do
     -- unknown old 'NotificationId'
-    let Just n1 = Id <$> UUID.fromText "615c4e38-950d-11ea-b0fc-7b04ea9f81c0"
+    let n1 = "615c4e38-950d-11ea-b0fc-7b04ea9f81c0"
     queue <- getTeamQueue owner (Just n1) Nothing False
     liftIO $ assertEqual "team queue: from old unknown" (snd <$> queue) [mem1, mem2]
 
   do
     -- unknown younger 'NotificationId'
-    [(Id n1, _), (Id n2, _)] <- getTeamQueue owner Nothing Nothing False
+    [(n1, _), (n2, _)] <- getTeamQueue owner Nothing Nothing False
     nu <-
       -- create new UUIDv1 in the gap between n1, n2.
-      let Just time1 = UUID.extractTime n1
-          Just time2 = UUID.extractTime n2
+      let Just time1 = UUID.extractTime <=< fmap toUUID . hush $ parseIdFromText n1
+          Just time2 = UUID.extractTime <=< fmap toUUID . hush $ parseIdFromText n2
           timeu = time1 + (time2 - time1) `div` 2
        in Id . fromJust . (`UUID.setTime` timeu) . fromJust <$> liftIO UUID.nextUUID
-    queue <- getTeamQueue owner (Just nu) Nothing False
+    queue <- getTeamQueue owner (Just $ idToText nu) Nothing False
     liftIO $ assertEqual "team queue: from old unknown" (snd <$> queue) [mem2]
 
   mem3 :: UserId <- view userId <$> addUserToTeam owner tid

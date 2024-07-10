@@ -41,7 +41,7 @@ import Galley.Cassandra.Store
 import Galley.Cassandra.Util
 import Galley.Data.TeamNotifications
 import Galley.Effects
-import Galley.Effects.TeamNotificationStore (TeamNotificationStore (..))
+import Galley.Effects.TeamNotificationStore (TeamNotificationId, TeamNotificationStore (..))
 import Imports
 import Network.HTTP.Types
 import Network.Wai.Utilities hiding (Error)
@@ -69,7 +69,7 @@ interpretTeamNotificationStoreToCassandra = interpret $ \case
     embed mkNotificationId
 
 -- | 'Data.UUID.V1.nextUUID' is sometimes unsuccessful, so we try a few times.
-mkNotificationId :: IO NotificationId
+mkNotificationId :: IO TeamNotificationId
 mkNotificationId = do
   ni <- fmap Id <$> retrying x10 fun (const (liftIO UUID.nextUUID))
   maybe (throwM err) pure ni
@@ -81,13 +81,13 @@ mkNotificationId = do
 -- FUTUREWORK: the magic 32 should be made configurable, so it can be tuned
 add ::
   TeamId ->
-  NotificationId ->
+  TeamNotificationId ->
   List1 JSON.Object ->
   Client ()
 add tid nid (Blob . JSON.encode -> payload) =
   write cqlInsert (params LocalQuorum (tid, nid, payload, notificationTTLSeconds)) & retry x5
   where
-    cqlInsert :: PrepQuery W (TeamId, NotificationId, Blob, Int32) ()
+    cqlInsert :: PrepQuery W (TeamId, TeamNotificationId, Blob, Int32) ()
     cqlInsert =
       "INSERT INTO team_notifications \
       \(team, id, payload) VALUES \
@@ -102,7 +102,7 @@ add tid nid (Blob . JSON.encode -> payload) =
 notificationTTLSeconds :: Int32
 notificationTTLSeconds = round $ nominalDiffTimeToSeconds $ 28 * nominalDay
 
-fetch :: TeamId -> Maybe NotificationId -> Range 1 10000 Int32 -> Client ResultPage
+fetch :: TeamId -> Maybe TeamNotificationId -> Range 1 10000 Int32 -> Client ResultPage
 fetch tid since (fromRange -> size) = do
   -- We always need to look for one more than requested in order to correctly
   -- report whether there are more results.
@@ -170,4 +170,4 @@ toNotif (i, b) ns =
     -- error entry in the log file and crash, rather than ignore the error and continue.
     )
   where
-    notifId = Id (fromTimeUuid i)
+    notifId = idToText $ Id (fromTimeUuid i)

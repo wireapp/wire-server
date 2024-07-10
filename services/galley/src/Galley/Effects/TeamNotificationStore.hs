@@ -19,6 +19,7 @@
 
 module Galley.Effects.TeamNotificationStore
   ( TeamNotificationStore (..),
+    TeamNotificationId,
     createTeamNotification,
     getTeamNotifications,
     mkNotificationId,
@@ -32,19 +33,22 @@ import Data.Range
 import Galley.Data.TeamNotifications
 import Imports
 import Polysemy
-import Wire.API.Internal.Notification
+
+data TeamNotification
+
+type TeamNotificationId = Id TeamNotification
 
 data TeamNotificationStore m a where
   CreateTeamNotification ::
     TeamId ->
-    NotificationId ->
+    TeamNotificationId ->
     List1 JSON.Object ->
     TeamNotificationStore m ()
   GetTeamNotifications ::
     TeamId ->
-    Maybe NotificationId ->
+    Maybe TeamNotificationId ->
     Range 1 10000 Int32 ->
     TeamNotificationStore m ResultPage
-  MkNotificationId :: TeamNotificationStore m NotificationId
+  MkNotificationId :: TeamNotificationStore m TeamNotificationId
 
 makeSem ''TeamNotificationStore
