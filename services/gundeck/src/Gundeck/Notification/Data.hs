@@ -120,7 +120,7 @@ fetchId u n c = do
         Q.Ack
         processMsg
         (const $ pure ())
-        (Q.FieldTable $ Map.singleton "x-stream-offset" (Q.FVInt64 (read $ Text.unpack n)))
+        (Q.FieldTable $ Map.singleton "x-stream-offset" (Q.FVInt64 n))
   -- This is a weird hack because we cannot know when we're done fetching notifs.
   mMsg <- timeout 1_000_000 (takeMVar notifsMVar)
   liftIO $ Q.cancelConsumer chan consumerTag
@@ -167,7 +167,7 @@ fetch u c mSince (fromIntegral . fromRange -> pageSize) = do
         Q.Ack
         processMsg
         (const $ pure ())
-        (Q.FieldTable $ Map.singleton "x-stream-offset" $ maybe (Q.FVString "first") (Q.FVInt64 . read . Text.unpack) mSince)
+        (Q.FieldTable $ Map.singleton "x-stream-offset" $ maybe (Q.FVString "first") Q.FVInt64 mSince)
   -- This is a weird hack because we cannot know when we're done fetching notifs.
   mFull <- timeout (1_000_000) (takeMVar notifsFullMVar)
   liftIO $ Q.cancelConsumer chan consumerTag
@@ -204,7 +204,7 @@ mkNotif c msg = do
     _ -> Nothing
   sm <- Aeson.decode @StoredMessage (Q.msgBody msg)
   if sm.smTargetClients == mempty || maybe True (flip Set.member sm.smTargetClients) c
-    then Just $ queuedNotification (Text.pack $ show offset) sm.smEvent
+    then Just $ queuedNotification offset sm.smEvent
     else Nothing
 
 data StoredMessage = StoredMessage

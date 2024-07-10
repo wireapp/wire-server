@@ -54,7 +54,7 @@ serialiseOkProp t = ioProperty $ do
   let equalTransport = fmap snsNotifTransport sn == Just t
   equalNotif <- case snsNotifBundle <$> sn of
     Nothing -> pure False
-    Just (NoticeBundle n') -> pure $ "00000000-0000-0000-0000-000000000000" == n'
+    Just (NoticeBundle n') -> pure $ 0 == n' -- TODO: "0"?
   let debugInfo = (t, a, n, r, sn, equalTransport, equalNotif)
   pure . counterexample (show debugInfo) $ equalTransport && equalNotif
 

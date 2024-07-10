@@ -61,7 +61,6 @@ import Data.Range
 import Data.Scientific qualified as Scientific
 import Data.Set qualified as Set
 import Data.String.Conversions
-import Data.Text qualified as Text
 import Gundeck.Aws.Arn as Aws
 import Gundeck.Push
 import Gundeck.Push.Native as Native
@@ -294,7 +293,7 @@ genRoute = QC.elements [minBound ..]
 genId :: Gen NotificationId
 genId = do
   gen <- mkStdGen <$> arbitrary
-  pure . Text.pack . show . fst $ random @Int gen
+  pure . fst $ random @Int64 gen
 
 genClientId :: Gen ClientId
 genClientId = ClientId <$> arbitrary

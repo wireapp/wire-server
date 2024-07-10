@@ -56,8 +56,7 @@ import Servant
 import Wire.API.Routes.MultiVerb
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
--- TODO: make this Int64
-type NotificationId = Text
+type NotificationId = Int64
 
 -- FUTUREWORK:
 -- This definition is very opaque, but we know some of the structure already
