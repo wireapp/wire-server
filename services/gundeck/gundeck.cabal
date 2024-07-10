@@ -38,7 +38,6 @@ library
     Gundeck.Push.Native
     Gundeck.Push.Native.Serialise
     Gundeck.Push.Native.Types
-    Gundeck.Push.Websocket
     Gundeck.React
     Gundeck.Redis
     Gundeck.Redis.HedisExtensions

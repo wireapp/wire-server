@@ -54,8 +54,7 @@ import Wire.API.Notification
 -- Notification
 
 data Notification = Notification
-  { ntfId :: !NotificationId,
-    ntfTransient :: !Bool,
+  { ntfTransient :: !Bool,
     ntfPayload :: !(List1 Object)
   }
   deriving (Eq, Show)
@@ -65,8 +64,7 @@ instance S.ToSchema Notification where
   schema =
     S.object "Notification" $
       Notification
-        <$> ntfId S..= S.field "id" S.schema
-        <*> ntfTransient S..= (fromMaybe False <$> S.optField "transient" S.schema)
+        <$> ntfTransient S..= (fromMaybe False <$> S.optField "transient" S.schema)
         <*> (toNonEmpty . ntfPayload) S..= fmap List1 (S.field "payload" (S.nonEmptyArray S.jsonObject))
 
 --------------------------------------------------------------------------------
