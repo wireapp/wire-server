@@ -811,7 +811,9 @@ fromConversationCreated loc rc@ConversationCreated {..} =
             -- domain.
             cnvmTeam = Nothing,
             cnvmMessageTimer = messageTimer,
-            cnvmReceiptMode = receiptMode
+            cnvmReceiptMode = receiptMode,
+            cnvmGroupColor = Nothing,
+            cnvmGroupIcon = Nothing
           }
         (ConvMembers this others)
         ProtocolProteus

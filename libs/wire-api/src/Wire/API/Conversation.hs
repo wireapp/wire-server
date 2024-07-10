@@ -137,7 +137,9 @@ data ConversationMetadata = ConversationMetadata
     -- federation.
     cnvmTeam :: Maybe TeamId,
     cnvmMessageTimer :: Maybe Milliseconds,
-    cnvmReceiptMode :: Maybe ReceiptMode
+    cnvmReceiptMode :: Maybe ReceiptMode,
+    cnvmGroupColor :: Maybe Text,
+    cnvmGroupIcon :: Maybe Text
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationMetadata)
@@ -153,7 +155,9 @@ defConversationMetadata mCreator =
       cnvmName = Nothing,
       cnvmTeam = Nothing,
       cnvmMessageTimer = Nothing,
-      cnvmReceiptMode = Nothing
+      cnvmReceiptMode = Nothing,
+      cnvmGroupColor = Nothing,
+      cnvmGroupIcon = Nothing
     }
 
 accessRolesVersionedSchema :: Maybe Version -> ObjectSchema SwaggerDoc (Set AccessRole)
@@ -213,6 +217,8 @@ conversationMetadataObjectSchema sch =
         (description ?~ "Per-conversation message timer (can be null)")
         (maybeWithDefault A.Null schema)
     <*> cnvmReceiptMode .= optField "receipt_mode" (maybeWithDefault A.Null schema)
+    <*> cnvmGroupColor .= optField "color" (maybeWithDefault A.Null schema)
+    <*> cnvmGroupIcon .= optField "emoji" (maybeWithDefault A.Null schema)
 
 instance ToSchema ConversationMetadata where
   schema = object "ConversationMetadata" (conversationMetadataObjectSchema accessRolesSchema)

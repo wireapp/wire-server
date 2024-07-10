@@ -171,10 +171,10 @@ conversationMeta conv =
   (toConvMeta =<<)
     <$> retry x1 (query1 Cql.selectConv (params LocalQuorum (Identity conv)))
   where
-    toConvMeta (t, mc, a, r, r', n, i, _, mt, rm, _, _, _, _, _, _, _) = do
+    toConvMeta (t, mc, a, r, r', n, i, _, mt, rm, _, _, _, _, _, mcolour, memoji) = do
       let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> r'
           accessRoles = maybeRole t $ parseAccessRoles r mbAccessRolesV2
-      pure $ ConversationMetadata t mc (defAccess t a) accessRoles n i mt rm
+      pure $ ConversationMetadata t mc (defAccess t a) accessRoles n i mt rm mcolour memoji
 
 getGroupInfo :: ConvId -> Client (Maybe GroupInfoData)
 getGroupInfo cid = do
@@ -369,7 +369,7 @@ toConv ::
     ) ->
   Maybe Conversation
 toConv cid ms remoteMems mconv = do
-  (cty, muid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid, mep, mts, mcs, _mcolour, _memoji) <- mconv
+  (cty, muid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid, mep, mts, mcs, mcolour, memoji) <- mconv
   let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> roleV2
       accessRoles = maybeRole cty $ parseAccessRoles role mbAccessRolesV2
   proto <- toProtocol ptag mgid mep (writetimeToUTC <$> mts) mcs
@@ -389,7 +389,9 @@ toConv cid ms remoteMems mconv = do
               cnvmName = nme,
               cnvmTeam = ti,
               cnvmMessageTimer = timer,
-              cnvmReceiptMode = rm
+              cnvmReceiptMode = rm,
+              cnvmGroupColor = mcolour,
+              cnvmGroupIcon = memoji
             }
       }
 
