@@ -34,7 +34,7 @@ type JSON = Media "application" "json"
 mkNotificationId :: (MonadIO m, MonadThrow m) => m NotificationId
 mkNotificationId = do
   ni <- fmap Id <$> retrying x10 fun (const (liftIO nextUUID))
-  maybe (throwM err) pure ni
+  maybe (throwM err) pure $ undefined ni
   where
     x10 = limitRetries 10 <> exponentialBackoff 10
     fun = const (pure . isNothing)

@@ -36,6 +36,7 @@ import Data.List1 (List1, toNonEmpty)
 import Data.Range (Range, fromRange)
 import Data.Sequence (Seq, ViewL ((:<)))
 import Data.Sequence qualified as Seq
+import Data.Text qualified as Text
 import Gundeck.Env
 import Gundeck.Options (NotificationTTL (..), internalPageSize, maxPayloadLoadSize, settings)
 import Gundeck.Push.Native.Serialise ()
@@ -238,7 +239,7 @@ fetch u c (Just since) (fromIntegral . fromRange -> size) = do
   pageSize <- fromMaybe 100 <$> asks (^. options . settings . internalPageSize)
   let page1 =
         retry x1 $
-          paginate cqlSince (paramsP LocalQuorum (u, TimeUuid (toUUID since)) pageSize)
+          paginate cqlSince (paramsP LocalQuorum (u, TimeUuid (toUUID $ undefined since)) pageSize)
   -- We fetch 2 more rows than requested. The first is to accommodate the
   -- notification corresponding to the `since` argument itself. The second is
   -- to get an accurate `hasMore`, just like in the case above.
@@ -287,5 +288,5 @@ toNotifSingle c (i, b, cs) =
           -- in this case for backward compatibility with existing internal
           -- clients.
           if null clients || maybe True (`elem` clients) c
-            then Just (queuedNotification notifId pl)
+            then Just (queuedNotification (Text.pack $ show notifId) pl)
             else Nothing

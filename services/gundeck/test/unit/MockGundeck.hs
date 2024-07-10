@@ -293,10 +293,10 @@ genRecipient' env uid = do
 genRoute :: (HasCallStack) => Gen Route
 genRoute = QC.elements [minBound ..]
 
-genId :: Gen (Id a)
+genId :: Gen NotificationId
 genId = do
   gen <- mkStdGen <$> arbitrary
-  pure . Id . fst $ random gen
+  pure . Text.pack . show . fst $ random @Int gen
 
 genClientId :: Gen ClientId
 genClientId = ClientId <$> arbitrary
