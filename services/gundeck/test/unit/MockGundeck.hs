@@ -57,16 +57,15 @@ import Data.IntMultiSet qualified as MSet
 import Data.List.NonEmpty qualified as NE
 import Data.List1
 import Data.Map qualified as Map
-import Data.Misc (Milliseconds (Ms))
 import Data.Range
 import Data.Scientific qualified as Scientific
 import Data.Set qualified as Set
 import Data.String.Conversions
+import Data.Text qualified as Text
 import Gundeck.Aws.Arn as Aws
 import Gundeck.Options
 import Gundeck.Push
 import Gundeck.Push.Native as Native
-import Gundeck.Push.Websocket as Web
 import Gundeck.Types hiding (recipient)
 import Imports
 import Network.URI qualified as URI
@@ -217,7 +216,7 @@ genMockEnv = do
         pure ClientInfo {..}
   -- Generate a list of users
   uids :: [UserId] <-
-    nub <$> listOf1 genId
+    nub <$> listOf1 arbitrary
   -- For every user, generate several clients (preferring less clients)
   cidss :: [[ClientId]] <-
     let gencids _uid = do
@@ -390,15 +389,13 @@ genPayload = do
   pure $ List1 (KeyMap.singleton "val" (Aeson.toJSON num) NE.:| [])
 
 genNotif :: Gen Notification
-genNotif = Notification <$> genId <*> arbitrary <*> genPayload
+genNotif = Notification <$> arbitrary <*> genPayload
 
 genNotifs :: MockEnv -> Gen [(Notification, [Presence])]
-genNotifs env = fmap uniqNotifs . listOf $ do
+genNotifs env = listOf $ do
   notif <- genNotif
   prcs <- nub . mconcat <$> listOf (fakePresences' env <$> genRecipient env)
   pure (notif, prcs)
-  where
-    uniqNotifs = nubBy ((==) `on` (ntfId . fst))
 
 shrinkNotifs :: (HasCallStack) => [(Notification, [Presence])] -> [[(Notification, [Presence])]]
 shrinkNotifs = shrinkList (\(notif, prcs) -> (notif,) <$> shrinkList (const []) prcs)
@@ -437,16 +434,6 @@ instance MonadNativeTargets MockGundeck where
 instance MonadMapAsync MockGundeck where
   mntgtPerPushConcurrency = pure Nothing -- (unbounded)
   mntgtMapAsync f xs = Right <$$> mapM f xs -- (no concurrency)
-
-instance MonadPushAny MockGundeck where
-  mpyPush = mockOldSimpleWebPush
-
-instance MonadBulkPush MockGundeck where
-  mbpBulkSend = mockBulkSend
-  mbpDeleteAllPresences _ = pure () -- FUTUREWORK: test presence deletion logic
-  mbpPosixTime = pure $ Ms 1545045904275 -- (time is constant)
-  mbpMapConcurrently = mapM -- (no concurrency)
-  mbpMonitorBadCannons _ = pure () -- (no monitoring)
 
 instance Log.MonadLogger MockGundeck where
   log _ _ = pure () -- (no logging)
@@ -552,7 +539,7 @@ handlePushCass Push {..} = do
 mockMkNotificationId ::
   (HasCallStack, m ~ MockGundeck) =>
   m NotificationId
-mockMkNotificationId = Id <$> getRandom
+mockMkNotificationId = Text.pack . show <$> getRandom @_ @Int
 
 mockListAllPresences ::
   (HasCallStack, m ~ MockGundeck) =>
@@ -582,17 +569,16 @@ mockBulkPush notifs = do
     forM_ prcs $ \prc ->
       msWSQueue
         %= deliver (userId prc, clientIdFromConnId $ connId prc) (ntfPayload notif)
-  pure $ (_1 %~ ntfId) <$> delivered
+  -- TODO:
+  pure $ (_1 %~ undefined) <$> delivered
 
 -- | persisting notification is not needed for the tests at the moment, so we do nothing here.
 mockStreamAdd ::
   (HasCallStack, m ~ MockGundeck) =>
-  NotificationId ->
   List1 NotificationTarget ->
   Payload ->
-  NotificationTTL ->
   m ()
-mockStreamAdd _ (toList -> targets) pay _ =
+mockStreamAdd (toList -> targets) pay =
   forM_ targets $ \tgt -> case tgt ^. targetClients of
     clients@(_ : _) -> forM_ clients $ \cid ->
       msCassQueue %= deliver (tgt ^. targetUser, cid) pay
@@ -641,7 +627,7 @@ mockBulkSend uri notifs = do
         %= deliver (ptUserId ptgt, clientIdFromConnId $ ptConnId ptgt) (ntfPayload ntif)
   pure . (uri,) . Right $
     BulkPushResponse
-      [(ntfId ntif, trgt, getstatus trgt) | (ntif, trgt) <- flat]
+      [(undefined ntif, trgt, getstatus trgt) | (ntif, trgt) <- flat]
 
 mockOldSimpleWebPush ::
   (HasCallStack, m ~ MockGundeck) =>

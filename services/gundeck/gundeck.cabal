@@ -142,7 +142,6 @@ library
     , metrics-core           >=0.2.1
     , metrics-wai            >=0.5.7
     , mtl                    >=2.2
-    , network-uri            >=2.6
     , prometheus-client
     , psqueues               >=0.2.2
     , raw-strings-qq

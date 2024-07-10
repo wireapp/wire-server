@@ -54,7 +54,7 @@ serialiseOkProp t = ioProperty $ do
   let equalTransport = fmap snsNotifTransport sn == Just t
   equalNotif <- case snsNotifBundle <$> sn of
     Nothing -> pure False
-    Just (NoticeBundle n') -> pure $ ntfId n == n'
+    Just (NoticeBundle n') -> pure $ "00000000-0000-0000-0000-000000000000" == n'
   let debugInfo = (t, a, n, r, sn, equalTransport, equalNotif)
   pure . counterexample (show debugInfo) $ equalTransport && equalNotif
 
@@ -147,15 +147,14 @@ genTransport = elements [minBound ..]
 
 randNotif :: (Int, Int) -> IO Notification
 randNotif size = do
-  i <- randomId
   generate $ do
     l <- choose size
     v <- T.pack <$> vectorOf l (elements ['a' .. 'z'])
     let pload = List1.singleton (KeyMap.fromList ["data" .= v])
-    Notification i <$> arbitrary <*> pure pload
+    Notification <$> arbitrary <*> pure pload
 
 randMessage :: Notification -> IO NativePush
-randMessage n = pure $ NativePush (ntfId n) HighPriority Nothing
+randMessage _ = pure $ NativePush HighPriority Nothing
 
 -----------------------------------------------------------------------------
 -- Utilities

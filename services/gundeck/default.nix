@@ -125,7 +125,6 @@ mkDerivation {
     metrics-core
     metrics-wai
     mtl
-    network-uri
     prometheus-client
     psqueues
     raw-strings-qq

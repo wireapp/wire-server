@@ -44,7 +44,30 @@ tests =
             assertEqual "" (decode serialized) (Just typed),
           testCase "BulkPushRequest example" $ do
             let serialized = "{\"bulkpush_req\":[{\"notification\":{\"payload\":[{\"Rk\":\"o\"},{\"n\":\"uy\"}],\"transient\":true,\"id\":\"d8f6c42e-f8da-4e7b-99e7-db66eccf8da1\"},\"targets\":[{\"conn_id\":\"88\",\"user_id\":\"7d94d3f0-f853-41d3-bd25-eb17c8f72f6e\"},{\"conn_id\":\"v\",\"user_id\":\"10158f18-3350-41c5-9eb4-374dee978e05\"}]},{\"notification\":{\"payload\":[{}],\"transient\":false,\"id\":\"8d3111d1-d010-47e6-b5db-d81cfbe8b0d4\"},\"targets\":[{\"conn_id\":\"nJ\",\"user_id\":\"09178cd7-3190-45ec-95aa-695edbb03960\"}]}]}"
-                typed = Just (BulkPushRequest {fromBulkPushRequest = [(Notification {ntfId = read "d8f6c42e-f8da-4e7b-99e7-db66eccf8da1", ntfTransient = True, ntfPayload = list1 (fromList [("Rk", String "o")]) [fromList [("n", String "uy")]]}, [PushTarget {ptUserId = read "7d94d3f0-f853-41d3-bd25-eb17c8f72f6e", ptConnId = ConnId {fromConnId = "88"}}, PushTarget {ptUserId = read "10158f18-3350-41c5-9eb4-374dee978e05", ptConnId = ConnId {fromConnId = "v"}}]), (Notification {ntfId = read "8d3111d1-d010-47e6-b5db-d81cfbe8b0d4", ntfTransient = False, ntfPayload = list1 (fromList []) []}, [PushTarget {ptUserId = read "09178cd7-3190-45ec-95aa-695edbb03960", ptConnId = ConnId {fromConnId = "nJ"}}])]})
+                typed =
+                  Just
+                    ( BulkPushRequest
+                        { fromBulkPushRequest =
+                            [ ( Notification
+                                  { ntfTransient = True,
+                                    ntfPayload = list1 (fromList [("Rk", String "o")]) [fromList [("n", String "uy")]]
+                                  },
+                                [ PushTarget
+                                    { ptUserId = read "7d94d3f0-f853-41d3-bd25-eb17c8f72f6e",
+                                      ptConnId = ConnId {fromConnId = "88"}
+                                    },
+                                  PushTarget {ptUserId = read "10158f18-3350-41c5-9eb4-374dee978e05", ptConnId = ConnId {fromConnId = "v"}}
+                                ]
+                              ),
+                              ( Notification
+                                  { ntfTransient = False,
+                                    ntfPayload = list1 (fromList []) []
+                                  },
+                                [PushTarget {ptUserId = read "09178cd7-3190-45ec-95aa-695edbb03960", ptConnId = ConnId {fromConnId = "nJ"}}]
+                              )
+                            ]
+                        }
+                    )
             assertEqual "" (decode serialized) (Just typed),
           testCase "BulkPushResponse example" $ do
             let serialized = "{\"bulkpush_resp\":[{\"status\":\"push_status_gone\",\"notif_id\":\"f2c218cf-6399-47fb-8d7b-726ed599af91\",\"target\":{\"conn_id\":\"\",\"user_id\":\"5b099991-364a-425d-91af-9b8e51ac2956\"}},{\"status\":\"push_status_ok\",\"notif_id\":\"d8e8d19a-6788-4180-afcd-bf84395f4cf6\",\"target\":{\"conn_id\":\"Lf\",\"user_id\":\"cccc316f-eaad-4d55-9798-3fd8b431106e\"}}]}"
@@ -97,7 +120,7 @@ genBulkPushResponse =
     <$> shortListOf (scale (`div` 3) ((,,) <$> arbitrary <*> genPushTarget <*> elements [minBound ..]))
 
 genNotification :: Gen Notification
-genNotification = Notification <$> arbitrary <*> arbitrary <*> (list1 <$> genobj <*> listOf genobj)
+genNotification = Notification <$> arbitrary <*> (list1 <$> genobj <*> listOf genobj)
   where
     genobj = scale (`div` 3) genObject
 

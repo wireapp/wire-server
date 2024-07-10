@@ -27,22 +27,26 @@ where
 
 import Cassandra as C
 import Control.Error (MaybeT (..))
-import Control.Lens ((^.), _1)
+import Control.Lens (view, (^.), _1)
+import Data.Aeson ((.=))
+import Data.Aeson qualified as Aeson
 import Data.Aeson qualified as JSON
 import Data.ByteString.Lazy qualified as BSL
 import Data.Id
-import Data.List.NonEmpty qualified as NonEmpty
-import Data.List1 (List1, toNonEmpty)
+import Data.List1 (List1)
+import Data.Map qualified as Map
 import Data.Range (Range, fromRange)
 import Data.Sequence (Seq, ViewL ((:<)))
 import Data.Sequence qualified as Seq
 import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 import Gundeck.Env
-import Gundeck.Options (NotificationTTL (..), internalPageSize, maxPayloadLoadSize, settings)
+import Gundeck.Options (NotificationTTL (..), internalPageSize, maxPayloadLoadSize, notificationTTL, settings)
 import Gundeck.Push.Native.Serialise ()
 import Imports
-import UnliftIO (pooledForConcurrentlyN_)
-import UnliftIO.Async (pooledMapConcurrentlyN)
+import Network.AMQP qualified as Q
+import Network.AMQP.Types qualified as Q
+import UnliftIO (pooledForConcurrentlyN_, pooledMapConcurrentlyN)
 import Wire.API.Internal.Notification
 
 data ResultPage = ResultPage
@@ -62,50 +66,46 @@ data Payload = Payload
 type PayloadId = Id 'Payload
 
 add ::
-  (MonadClient m, MonadUnliftIO m) =>
-  NotificationId ->
+  forall m.
+  (MonadReader Env m, MonadUnliftIO m) =>
   List1 NotificationTarget ->
   List1 JSON.Object ->
-  NotificationTTL ->
   m ()
-add n tgts (JSON.encode -> payload) (notificationTTLSeconds -> t) = do
-  -- inline payload when there is exactly one target
-  let inlinePayload = null (NonEmpty.tail (toNonEmpty tgts))
-  if inlinePayload
-    then do
-      pooledForConcurrentlyN_ 32 tgts $ \tgt ->
-        let u = tgt ^. targetUser
-            cs = C.Set (tgt ^. targetClients)
-         in retry x5 $ write cqlInsertInline (params LocalQuorum (u, n, Blob payload, cs, fromIntegral t))
-    else do
-      payloadId <- randomId
-      write cqlInsertPayload (params LocalQuorum (payloadId, Blob payload, fromIntegral t)) & retry x5
-      let payloadRefSize = fromIntegral $ BSL.length payload
+add tgts event = do
+  --  TODO: maybe tryRead and fail?
+  chan <- readMVar =<< view rabbitmqChannel
+  pooledForConcurrentlyN_ 32 tgts $ \tgt -> do
+    let uid = tgt ^. targetUser
+    ensureNotifStream uid
+    let msg =
+          Q.newMsg
+            { Q.msgBody =
+                Aeson.encode $
+                  Aeson.object
+                    [ "target_clients" .= (tgt ^. targetClients),
+                      "event" .= event
+                    ]
+            }
+    liftIO $ Q.publishMsg chan "" (userStreamName uid) msg
 
-      pooledForConcurrentlyN_ 32 tgts $ \tgt ->
-        let u = tgt ^. targetUser
-            cs = C.Set (tgt ^. targetClients)
-         in retry x5 $ write cqlInsertReference (params LocalQuorum (u, n, payloadId, payloadRefSize, cs, fromIntegral t))
-  where
-    cqlInsertInline :: PrepQuery W (UserId, NotificationId, Blob, C.Set ClientId, Int32) ()
-    cqlInsertInline =
-      "INSERT INTO notifications \
-      \(user, id, payload, clients) VALUES \
-      \(?   , ? , ?      , ?) \
-      \USING TTL ?"
-    cqlInsertReference :: PrepQuery W (UserId, NotificationId, PayloadId, Int32, C.Set ClientId, Int32) ()
-    cqlInsertReference =
-      "INSERT INTO notifications \
-      \(user, id, payload_ref, payload_ref_size, clients) VALUES \
-      \(?, ?, ?, ?, ?) \
-      \USING TTL ?"
+ensureNotifStream :: (MonadReader Env m, MonadIO m) => UserId -> m ()
+ensureNotifStream uid = do
+  chan <- readMVar =<< view rabbitmqChannel
+  NotificationTTL ttlSeconds <- view $ options . settings . notificationTTL
+  let qOpts =
+        Q.newQueue
+          { Q.queueName = userStreamName uid,
+            Q.queueHeaders =
+              Q.FieldTable $
+                Map.fromList
+                  [ ("x-queue-type", (Q.FVString "stream")),
+                    ("x-max-age", (Q.FVString $ Text.encodeUtf8 $ Text.pack $ show ttlSeconds <> "s"))
+                  ]
+          }
+  void $ liftIO $ Q.declareQueue chan qOpts
 
-    cqlInsertPayload :: PrepQuery W (PayloadId, Blob, Int32) ()
-    cqlInsertPayload =
-      "INSERT INTO notification_payload \
-      \(id, payload) VALUES \
-      \(?   , ?) \
-      \USING TTL ?"
+userStreamName :: UserId -> Text
+userStreamName uid = "client-notifications." <> Text.pack (show uid)
 
 fetchId :: (MonadClient m) => UserId -> NotificationId -> Maybe ClientId -> m (Maybe QueuedNotification)
 fetchId u n c = runMaybeT $ do

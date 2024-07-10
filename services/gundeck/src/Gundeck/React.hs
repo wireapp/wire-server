@@ -37,12 +37,9 @@ import Gundeck.Env
 import Gundeck.Instances ()
 import Gundeck.Monad
 import Gundeck.Notification.Data qualified as Stream
-import Gundeck.Options (notificationTTL, settings)
 import Gundeck.Push.Data qualified as Push
 import Gundeck.Push.Native.Types
-import Gundeck.Push.Websocket qualified as Web
 import Gundeck.Types
-import Gundeck.Util
 import Imports
 import System.Logger.Class (Msg, msg, val, (+++), (.=), (~~))
 import System.Logger.Class qualified as Log
@@ -164,13 +161,10 @@ deleteToken u ev tk cl = do
     "token"
       .= Text.take 16 (tokenText tk)
       ~~ msg (val "Deleting push token")
-  i <- mkNotificationId
   let t = mkPushToken ev tk cl
       p = singletonPayload (PushRemove t)
-      n = Notification i False p
       r = singleton (target u & targetClients .~ [cl])
-  void $ Web.push n r (Just u) Nothing Set.empty
-  Stream.add i r p =<< view (options . settings . notificationTTL)
+  Stream.add r p
   Push.delete u (t ^. tokenTransport) (t ^. tokenApp) tk
 
 mkPushToken :: Event -> Token -> ClientId -> PushToken

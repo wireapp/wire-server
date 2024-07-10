@@ -58,9 +58,8 @@ main = withOpenSSL $ do
 
 notice :: IO Text
 notice = do
-  i <- randomId
   a <- mkAddress GCM
-  let msg = NativePush i HighPriority Nothing
+  let msg = NativePush HighPriority Nothing
       uid = a ^. addrUser
       transp = a ^. addrTransport
   Right txt <- pure $ serialise msg uid transp
