@@ -68,7 +68,6 @@ import qualified Network.HTTP.Client as Http
 import qualified Network.WebSockets as WS
 import System.Random (randomIO)
 import System.Timeout (timeout)
-import Testlib.App
 import Testlib.Assertions
 import Testlib.Env
 import Testlib.HTTP
@@ -164,7 +163,6 @@ run wsConnect app = do
   serviceMap <- getServiceMap domain
 
   let HostPort caHost caPort = serviceHostPort serviceMap Cannon
-  latch <- liftIO newEmptyMVar
 
   connId <- case wsConnect.conn of
     Just c -> pure c
