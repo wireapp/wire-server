@@ -32,6 +32,7 @@ import Test.Wire.API.Roundtrip.ByteString qualified as Roundtrip.ByteString
 import Test.Wire.API.Roundtrip.CSV qualified as Roundtrip.CSV
 import Test.Wire.API.Roundtrip.HttpApiData qualified as Roundtrip.HttpApiData
 import Test.Wire.API.Roundtrip.MLS qualified as Roundtrip.MLS
+import Test.Wire.API.Roundtrip.NotificationId qualified as Roundtrip.NotificationId
 import Test.Wire.API.Routes qualified as Routes
 import Test.Wire.API.Routes.Version qualified as Routes.Version
 import Test.Wire.API.Routes.Version.Wai qualified as Routes.Version.Wai
@@ -62,6 +63,7 @@ main =
         Roundtrip.MLS.tests,
         Swagger.tests,
         Roundtrip.CSV.tests,
+        Roundtrip.NotificationId.tests,
         Routes.tests,
         Conversation.tests,
         MLS.tests,

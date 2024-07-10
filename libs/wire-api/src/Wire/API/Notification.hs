@@ -35,6 +35,8 @@ module Wire.API.Notification
     queuedHasMore,
     queuedTime,
     GetNotificationsResponse (..),
+    notificationIdToUUIDV1,
+    uuidV1ToNotificationId,
   )
 where
 
@@ -51,12 +53,35 @@ import Data.SOP
 import Data.Schema
 import Data.Text.Encoding
 import Data.Time.Clock (UTCTime)
+import Data.UUID as UUID
 import Imports
+import Numeric
 import Servant
+import Text.Printf qualified as Printf
 import Wire.API.Routes.MultiVerb
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 type NotificationId = Int64
+
+notificationIdToUUIDV1 :: Int -> UUID.UUID
+notificationIdToUUIDV1 =
+  -- https://www.rfc-editor.org/rfc/rfc4122#page-6
+  --
+  -- this should work for the proof of concept: Int64 values starting from 0 will fit into the
+  -- first 4 bytes of the uuidv1 time stamp (it takes 7 minutes for a roll-over).
+  --
+  -- TODO: not like this please.  but we may have to think of something if we want to continue
+  -- supporting old clients while this is in production.  (maybe we can make the change in a
+  -- new version?  are there any event notifications sent to clients that contain notification
+  -- ids?)
+  fromJust . UUID.fromString . Printf.printf "%8.8x-0000-0000-0000-000000000000"
+
+uuidV1ToNotificationId :: UUID.UUID -> Int
+uuidV1ToNotificationId =
+  -- only tested on uuidv1s created with notificationIdToUUIDV1.
+  --
+  -- TODO: see notificationIdToUUIDV1
+  fst . head . readHex . UUID.toString
 
 -- FUTUREWORK:
 -- This definition is very opaque, but we know some of the structure already

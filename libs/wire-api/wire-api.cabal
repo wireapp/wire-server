@@ -654,6 +654,7 @@ test-suite wire-api-tests
     Test.Wire.API.Roundtrip.CSV
     Test.Wire.API.Roundtrip.HttpApiData
     Test.Wire.API.Roundtrip.MLS
+    Test.Wire.API.Roundtrip.NotificationId
     Test.Wire.API.Routes
     Test.Wire.API.Routes.Version
     Test.Wire.API.Routes.Version.Wai
