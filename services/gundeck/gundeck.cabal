@@ -37,8 +37,6 @@ library
     Gundeck.Push.Native.Serialise
     Gundeck.Push.Native.Types
     Gundeck.React
-    Gundeck.Redis
-    Gundeck.Redis.HedisExtensions
     Gundeck.Run
     Gundeck.Schema.Run
     Gundeck.Schema.V1
@@ -56,7 +54,6 @@ library
     Gundeck.ThreadBudget.Internal
     Gundeck.Util
     Gundeck.Util.DelayQueue
-    Gundeck.Util.Redis
 
   other-modules:      Paths_gundeck
   hs-source-dirs:     src
@@ -123,14 +120,12 @@ library
     , bytestring-conversion  >=0.2
     , cassandra-util         >=0.16.2
     , containers             >=0.5
-    , crypton-x509-store
     , errors                 >=2.0
     , exceptions             >=0.4
     , extended
     , extra                  >=1.1
     , foldl
     , gundeck-types          >=1.0
-    , hedis                  >=0.14.0
     , http-client            >=0.7
     , http-client-tls        >=0.3
     , http-types             >=0.8

@@ -12,6 +12,7 @@
 , bytestring
 , bytestring-conversion
 , conduit
+, containers
 , criterion
 , data-timeout
 , exceptions
@@ -68,6 +69,7 @@ mkDerivation {
     bytestring
     bytestring-conversion
     conduit
+    containers
     data-timeout
     exceptions
     extended
