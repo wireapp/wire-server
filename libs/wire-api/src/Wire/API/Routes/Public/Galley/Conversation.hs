@@ -1358,3 +1358,14 @@ type ConversationAPI =
                :> ReqBody '[JSON] ProtocolUpdate
                :> MultiVerb 'PUT '[Servant.JSON] ConvUpdateResponses (UpdateResult Event)
            )
+    :<|> Named
+           "update-conversation-group-picture"
+           ( Summary "Update the group picture information of the conversation"
+               :> Description "_______"
+               :> ZLocalUser
+               :> ZConn
+               :> "conversations"
+               :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+               :> ReqBody '[JSON] ProtocolUpdate
+               :> MultiVerb 'PUT '[Servant.JSON] ConvUpdateResponses (UpdateResult Event)
+           )

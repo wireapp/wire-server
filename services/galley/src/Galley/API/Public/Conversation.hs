@@ -95,3 +95,4 @@ conversationAPI =
     <@> mkNamedAPI @"update-conversation-self-unqualified" updateUnqualifiedSelfMember
     <@> mkNamedAPI @"update-conversation-self" updateSelfMember
     <@> mkNamedAPI @"update-conversation-protocol" updateConversationProtocolWithLocalUser
+    <@> mkNamedAPI @"update-conversation-group-picture" updateConversationGroupPicture

@@ -272,6 +272,7 @@ library
     Galley.Schema.V90_EnforceFileDownloadLocationConfig
     Galley.Schema.V91_TeamMemberDeletedLimitedEventFanout
     Galley.Schema.V92_MlsE2EIdConfig
+    Galley.Schema.V93_GroupPicture
     Galley.Types.Clients
     Galley.Types.ToUserRole
     Galley.Types.UserList
