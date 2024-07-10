@@ -63,7 +63,6 @@ import Data.Set qualified as Set
 import Data.String.Conversions
 import Data.Text qualified as Text
 import Gundeck.Aws.Arn as Aws
-import Gundeck.Options
 import Gundeck.Push
 import Gundeck.Push.Native as Native
 import Gundeck.Types hiding (recipient)
@@ -416,7 +415,6 @@ instance MonadThrow MockGundeck where
   -- as well crash badly here, as long as it doesn't go unnoticed...)
 
 instance MonadPushAll MockGundeck where
-  mpaListAllPresences = mockListAllPresences
   mpaStreamAdd = mockStreamAdd
   mpaPushNative = mockPushNative
   mpaForkIO = id -- just don't fork.  (this *may* cause deadlocks in principle, but as long as it
@@ -532,13 +530,6 @@ handlePushCass Push {..} = do
           RecipientClientsSome cc -> toList cc
     forM_ cids' $ \cid ->
       msCassQueue %= deliver (uid, cid) _pushPayload
-
-mockListAllPresences ::
-  (HasCallStack, m ~ MockGundeck) =>
-  [UserId] ->
-  m [[Presence]]
-mockListAllPresences uids =
-  asks $ fmap fakePresences . filter ((`elem` uids) . fst) . allRecipients
 
 -- | persisting notification is not needed for the tests at the moment, so we do nothing here.
 mockStreamAdd ::

@@ -52,7 +52,6 @@ import Gundeck.Env
 import Gundeck.Monad
 import Gundeck.Notification.Data qualified as Data
 import Gundeck.Options
-import Gundeck.Presence.Data qualified as Presence
 import Gundeck.Push.Data qualified as Data
 import Gundeck.Push.Native qualified as Native
 import Gundeck.Push.Native.Types
@@ -83,14 +82,12 @@ push ps = do
 
 -- | Abstract over all effects in 'pushAll' (for unit testing).
 class (MonadThrow m) => MonadPushAll m where
-  mpaListAllPresences :: [UserId] -> m [[Presence]]
   mpaStreamAdd :: List1 NotificationTarget -> List1 Aeson.Object -> m ()
   mpaPushNative :: Notification -> Priority -> [Address] -> m ()
   mpaForkIO :: m () -> m ()
   mpaRunWithBudget :: Int -> a -> m a -> m a
 
 instance MonadPushAll Gundeck where
-  mpaListAllPresences = runWithDefaultRedis . Presence.listAll
   mpaStreamAdd = Data.add
   mpaPushNative = pushNative
   mpaForkIO = void . forkIO
