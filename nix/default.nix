@@ -1,14 +1,15 @@
+{ system ? builtins.currentSystem
+, sources ? import ./sources.nix
+, basePkgs ? (import sources.nixpkgs { inherit system; config.allowUnfree = true; })
+, ...
+}:
 let
-  sources = import ./sources.nix;
 
-  pkgs = import sources.nixpkgs {
-    config.allowUnfree = true;
-    overlays = [
-      # All wire-server specific packages
-      (import ./overlay.nix)
-      (import ./overlay-docs.nix)
-    ];
-  };
+  pkgs = basePkgs.appendOverlays [
+    # All wire-server specific packages
+    (import ./overlay.nix)
+    (import ./overlay-docs.nix)
+  ];
 
   profileEnv = pkgs.writeTextFile {
     name = "profile-env";
