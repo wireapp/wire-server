@@ -86,7 +86,6 @@ class (MonadThrow m) => MonadPushAll m where
   mpaNotificationTTL :: m NotificationTTL
   mpaMkNotificationId :: m NotificationId
   mpaListAllPresences :: [UserId] -> m [[Presence]]
-  mpaBulkPush :: [(Notification, [Presence])] -> m [(NotificationId, [Presence])]
   mpaStreamAdd :: List1 NotificationTarget -> List1 Aeson.Object -> m ()
   mpaPushNative :: Notification -> Priority -> [Address] -> m ()
   mpaForkIO :: m () -> m ()
@@ -96,7 +95,6 @@ instance MonadPushAll Gundeck where
   mpaNotificationTTL = view (options . settings . notificationTTL)
   mpaMkNotificationId = mkNotificationId
   mpaListAllPresences = runWithDefaultRedis . Presence.listAll
-  mpaBulkPush = undefined -- TODO:
   mpaStreamAdd = Data.add
   mpaPushNative = pushNative
   mpaForkIO = void . forkIO
@@ -178,9 +176,6 @@ pushAll pushes = do
     unless (ntfTransient ctNotification) $
       mpaStreamAdd ctNotificationTargets (ntfPayload ctNotification)
   mpaForkIO $ do
-    -- -- websockets
-    -- wsTargets <- mapM mkWSTargets newNotifications
-    -- resp <- compilePushResps wsTargets <$> mpaBulkPush (compilePushReq <$> wsTargets)
     -- native push
     perPushConcurrency <- mntgtPerPushConcurrency
     forM_ newNotifications $ \newNotif -> do

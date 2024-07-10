@@ -419,7 +419,6 @@ instance MonadPushAll MockGundeck where
   mpaNotificationTTL = pure $ NotificationTTL 300 -- (longer than we want any test to take.)
   mpaMkNotificationId = mockMkNotificationId
   mpaListAllPresences = mockListAllPresences
-  mpaBulkPush = mockBulkPush
   mpaStreamAdd = mockStreamAdd
   mpaPushNative = mockPushNative
   mpaForkIO = id -- just don't fork.  (this *may* cause deadlocks in principle, but as long as it
@@ -547,30 +546,6 @@ mockListAllPresences ::
   m [[Presence]]
 mockListAllPresences uids =
   asks $ fmap fakePresences . filter ((`elem` uids) . fst) . allRecipients
-
--- | Fake implementation of 'Web.bulkPush'.
-mockBulkPush ::
-  (HasCallStack, m ~ MockGundeck) =>
-  [(Notification, [Presence])] ->
-  m [(NotificationId, [Presence])]
-mockBulkPush notifs = do
-  env <- ask
-  let delivered :: [(Notification, [Presence])]
-      delivered =
-        [ (nid, prcs)
-          | (nid, filter (`elem` deliveredprcs) -> prcs) <- notifs,
-            not $ null prcs -- (sic!) (this is what gundeck currently does)
-        ]
-      deliveredprcs :: [Presence]
-      deliveredprcs = filter isreachable . mconcat . fmap fakePresences $ allRecipients env
-      isreachable :: Presence -> Bool
-      isreachable prc = wsReachable env (userId prc, fromJust $ clientId prc)
-  forM_ delivered $ \(notif, prcs) -> do
-    forM_ prcs $ \prc ->
-      msWSQueue
-        %= deliver (userId prc, clientIdFromConnId $ connId prc) (ntfPayload notif)
-  -- TODO:
-  pure $ (_1 %~ undefined) <$> delivered
 
 -- | persisting notification is not needed for the tests at the moment, so we do nothing here.
 mockStreamAdd ::
