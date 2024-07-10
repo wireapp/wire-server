@@ -28,6 +28,7 @@ module Cannon.WS
     setRequestId,
     registerLocal,
     unregisterLocal,
+    rabbitmqChannel,
     isRemoteRegistered,
     registerRemote,
     sendMsgIO,
@@ -68,6 +69,7 @@ import Data.Text.Encoding (decodeUtf8)
 import Data.Timeout (TimeoutUnit (..), (#))
 import Gundeck.Types
 import Imports hiding (threadDelay)
+import Network.AMQP qualified as Q
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
@@ -138,6 +140,7 @@ getTime (Clock r) = readIORef r
 data Env = Env
   { externalHostname :: !ByteString,
     portnum :: !Word16,
+    rabbitmqChannel :: !(MVar Q.Channel),
     upstream :: !Request,
     reqId :: !RequestId,
     logg :: !Logger,
@@ -183,6 +186,7 @@ instance HasRequestId WS where
 env ::
   ByteString ->
   Word16 ->
+  MVar Q.Channel ->
   ByteString ->
   Word16 ->
   Logger ->
@@ -192,7 +196,7 @@ env ::
   Clock ->
   DrainOpts ->
   Env
-env leh lp gh gp = Env leh lp (host gh . port gp $ empty) (RequestId "N/A")
+env leh lp q gh gp = Env leh lp q (host gh . port gp $ empty) (RequestId "N/A")
 
 runWS :: (MonadIO m) => Env -> WS a -> m a
 runWS e m = liftIO $ runReaderT (_conn m) e

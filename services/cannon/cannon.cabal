@@ -78,6 +78,7 @@ library
 
   build-depends:
       aeson                  >=2.0.1.0
+    , amqp
     , api-field-json-th      >=0.1.0.2
     , async                  >=2.0
     , base                   >=4.6     && <5

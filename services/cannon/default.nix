@@ -4,6 +4,7 @@
 # dependencies are added or removed.
 { mkDerivation
 , aeson
+, amqp
 , api-field-json-th
 , async
 , base
@@ -59,6 +60,7 @@ mkDerivation {
   isExecutable = true;
   libraryHaskellDepends = [
     aeson
+    amqp
     api-field-json-th
     async
     base

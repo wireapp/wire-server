@@ -41,6 +41,7 @@ import Data.Text (pack, strip)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Typeable
 import Imports hiding (head, threadDelay)
+import Network.AMQP.Extended (mkRabbitMqChannelMVar)
 import Network.Wai qualified as Wai
 import Network.Wai.Handler.Warp hiding (run)
 import Network.Wai.Middleware.Gzip qualified as Gzip
@@ -68,8 +69,9 @@ run o = do
     error "drainOpts.gracePeriodSeconds must not be set to 0."
   ext <- loadExternal
   g <- L.mkLogger (o ^. logLevel) (o ^. logNetStrings) (o ^. logFormat)
+  chan <- mkRabbitMqChannelMVar g (o ^. rabbitmq)
   e <-
-    mkEnv ext o g
+    mkEnv ext chan o g
       <$> D.empty 128
       <*> newManager defaultManagerSettings {managerConnCount = 128}
       <*> createSystemRandom

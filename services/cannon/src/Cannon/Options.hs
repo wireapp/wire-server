@@ -26,6 +26,7 @@ module Cannon.Options
     gundeck,
     externalHost,
     externalHostFile,
+    rabbitmq,
     logLevel,
     logNetStrings,
     logFormat,
@@ -42,6 +43,7 @@ where
 import Control.Lens (makeFields)
 import Data.Aeson.APIFieldJsonTH
 import Imports
+import Network.AMQP.Extended (RabbitMqOpts)
 import System.Logger.Extended (Level, LogFormat)
 import Wire.API.Routes.Version
 
@@ -87,6 +89,7 @@ deriveApiFieldJSON ''DrainOpts
 data Opts = Opts
   { _optsCannon :: !Cannon,
     _optsGundeck :: !Gundeck,
+    _optsRabbitmq :: !RabbitMqOpts,
     _optsLogLevel :: !Level,
     _optsLogNetStrings :: !(Maybe (Last Bool)),
     _optsLogFormat :: !(Maybe (Last LogFormat)),
