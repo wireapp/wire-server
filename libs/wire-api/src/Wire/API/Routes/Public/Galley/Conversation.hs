@@ -1375,6 +1375,6 @@ type ConversationAPI =
                :> MultiVerb
                     'PUT
                     '[Servant.JSON]
-                    '[RespondEmpty 200 "Update successful"]
+                    '[RespondEmpty 204 "Update successful"]
                     ()
            )
