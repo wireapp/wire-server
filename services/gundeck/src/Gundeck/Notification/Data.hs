@@ -26,6 +26,7 @@ module Gundeck.Notification.Data
 where
 
 import Cassandra as C
+import Control.Exception qualified as CE
 import Control.Lens (view, (^.))
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
@@ -109,7 +110,7 @@ fetchId u n c = do
   chan <- readMVar =<< view rabbitmqChannel
   notifsMVar <- newEmptyMVar
   liftIO $ Q.qos chan 0 1 False
-  let processMsg (msg, _envelope) = do
+  let processMsg (msg, _envelope) = handleErrors $ do
         void $ tryPutMVar notifsMVar msg
   consumerTag <-
     liftIO $
@@ -130,7 +131,7 @@ fetchLast u c = do
   chan <- readMVar =<< view rabbitmqChannel
   notifsTVar <- newTVarIO Nothing
   liftIO $ Q.qos chan 0 1 False
-  let processMsg (msg, _envelope) = do
+  let processMsg (msg, _envelope) = handleErrors $ do
         atomically $ modifyTVar' notifsTVar $ const $ Just msg
   consumerTag <-
     liftIO $
@@ -153,7 +154,7 @@ fetch u c mSince (fromIntegral . fromRange -> pageSize) = do
   notifsTVar <- newTVarIO mempty
   notifsFullMVar <- newEmptyMVar
   liftIO $ Q.qos chan 0 1 False
-  let processMsg (msg, _envelope) = do
+  let processMsg (msg, _envelope) = handleErrors $ do
         isFull <- atomically $ stateTVar notifsTVar $ \allMsgs ->
           let allMsgsNew = allMsgs :|> msg
            in (length allMsgsNew >= pageSize, allMsgsNew)
@@ -177,6 +178,20 @@ fetch u c mSince (fromIntegral . fromRange -> pageSize) = do
         resultHasMore = isJust mFull,
         resultGap = False
       }
+
+handleErrors :: IO () -> IO ()
+handleErrors action =
+  action
+    `CE.catches` [
+                   -- rethrow this exception, since the AMPQ library uses it internally
+                   CE.Handler $ \(e :: Q.ChanThreadKilledException) -> CE.throwIO e,
+                   -- (optional) catch individual exceptions that your code may throw
+                   -- CE.Handler $ \(e::CE.IOException) -> ...,
+                   -- CE.Handler $ \(e::SomeOtherException) -> ...,
+
+                   -- catch all exceptions that weren't handled above
+                   CE.Handler $ \(_ :: CE.SomeException) -> pure ()
+                 ]
 
 -- returns empty if message cannot be converted to notif
 -- TODO: log when a mesasge doesn't get translated to queued notification
