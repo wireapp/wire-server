@@ -262,7 +262,11 @@ services:
 
   rabbitmq:
     container_name: rabbitmq
-    image: rabbitmq:3.11-management-alpine
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM rabbitmq:3.11-management-alpine
+        RUN rabbitmq-plugins enable rabbitmq_stream
     environment:
       - RABBITMQ_USERNAME
       - RABBITMQ_PASSWORD
