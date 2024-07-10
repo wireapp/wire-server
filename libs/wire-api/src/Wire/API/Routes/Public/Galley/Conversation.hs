@@ -1366,6 +1366,7 @@ type ConversationAPI =
                :> ZConn
                :> "conversations"
                :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
-               :> ReqBody '[JSON] ProtocolUpdate
+               :> "icon"
+               :> ReqBody '[JSON] ConversationGroupPicture
                :> MultiVerb 'PUT '[Servant.JSON] ConvUpdateResponses (UpdateResult Event)
            )

@@ -65,7 +65,7 @@ type family ConversationAction (tag :: ConversationActionTag) :: Type where
   ConversationAction 'ConversationAccessDataTag = ConversationAccessData
   ConversationAction 'ConversationRemoveMembersTag = ConversationRemoveMembers
   ConversationAction 'ConversationUpdateProtocolTag = ProtocolTag
-  ConversationAction 'ConversationUpdateGroupPictureTag = ProtocolTag
+  ConversationAction 'ConversationUpdateGroupPictureTag = ConversationGroupPicture
 
 data SomeConversationAction where
   SomeConversationAction :: Sing tag -> ConversationAction tag -> SomeConversationAction
@@ -207,5 +207,7 @@ conversationActionToEvent tag now quid qcnv subconv action =
         SConversationReceiptModeUpdateTag -> EdConvReceiptModeUpdate action
         SConversationAccessDataTag -> EdConvAccessUpdate action
         SConversationUpdateProtocolTag -> EdProtocolUpdate action
-        SConversationUpdateGroupPictureTag -> undefined
+        SConversationUpdateGroupPictureTag ->
+          let cgp :: ConversationGroupPicture = action
+           in EdConvGroupPictureUpdate cgp
    in Event qcnv subconv quid now edata

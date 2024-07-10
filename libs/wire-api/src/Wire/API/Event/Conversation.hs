@@ -138,6 +138,7 @@ data EventType
   | MLSWelcome
   | Typing
   | ProtocolUpdate
+  | ConvGroupPictureUpdate
   deriving stock (Eq, Show, Generic, Enum, Bounded, Ord)
   deriving (Arbitrary) via (GenericUniform EventType)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema EventType
@@ -183,6 +184,7 @@ data EventData
   | EdMLSMessage ByteString
   | EdMLSWelcome ByteString
   | EdProtocolUpdate P.ProtocolTag
+  | EdConvGroupPictureUpdate ConversationGroupPicture
   deriving stock (Eq, Show, Generic)
 
 genEventData :: EventType -> QC.Gen EventData
@@ -204,6 +206,7 @@ genEventData = \case
   MLSWelcome -> EdMLSWelcome <$> arbitrary
   ConvDelete -> pure EdConvDelete
   ProtocolUpdate -> EdProtocolUpdate <$> arbitrary
+  ConvGroupPictureUpdate -> EdConvGroupPictureUpdate <$> arbitrary
 
 eventDataType :: EventData -> EventType
 eventDataType (EdMembersJoin _) = MemberJoin
@@ -223,6 +226,7 @@ eventDataType (EdMLSMessage _) = MLSMessageAdd
 eventDataType (EdMLSWelcome _) = MLSWelcome
 eventDataType EdConvDelete = ConvDelete
 eventDataType (EdProtocolUpdate _) = ProtocolUpdate
+eventDataType (EdConvGroupPictureUpdate _) = ConvGroupPictureUpdate
 
 --------------------------------------------------------------------------------
 -- Event data helpers
@@ -406,6 +410,7 @@ taggedEventDataSchema =
       ConvCodeDelete -> tag _EdConvCodeDelete null_
       ConvDelete -> tag _EdConvDelete null_
       ProtocolUpdate -> tag _EdProtocolUpdate (unnamed (unProtocolUpdate <$> P.ProtocolUpdate .= schema))
+      ConvGroupPictureUpdate -> tag _EdConvGroupPictureUpdate (unnamed schema)
 
 memberLeaveSchema :: ValueSchema NamedSwaggerDoc (EdMemberLeftReason, QualifiedUserIdList)
 memberLeaveSchema =

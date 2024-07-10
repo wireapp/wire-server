@@ -72,6 +72,7 @@ module Wire.API.Conversation
 
     -- * update
     ConversationRename (..),
+    ConversationGroupPicture (..),
     ConversationAccessData (..),
     conversationAccessDataSchema,
     ConversationReceiptModeUpdate (..),
@@ -810,6 +811,31 @@ newInvite us = Invite us roleNameWireAdmin
 
 --------------------------------------------------------------------------------
 -- update
+
+data ConversationGroupPicture = ConversationGroupPicture
+  { color :: Text,
+    emoji :: Text
+  }
+  deriving stock (Eq, Show)
+  deriving (S.ToSchema, ToJSON, FromJSON) via Schema ConversationGroupPicture
+
+instance Arbitrary ConversationGroupPicture where
+  arbitrary = ConversationGroupPicture <$> arbitrary <*> arbitrary
+
+instance ToSchema ConversationGroupPicture where
+  schema =
+    object "ConversationGroupPicture" $
+      ConversationGroupPicture
+        <$> color
+          .= fieldWithDocModifier
+            "colour"
+            (description ?~ "background colour")
+            (unnamed (schema @Text))
+        <*> emoji
+          .= fieldWithDocModifier
+            "emoji"
+            (description ?~ "foreground emoji")
+            (unnamed (schema @Text))
 
 newtype ConversationRename = ConversationRename
   { cupName :: Text
