@@ -29,7 +29,7 @@ import Cannon.Dict qualified as D
 import Cannon.Options
 import Cannon.Types (Cannon, applog, clients, env, mkEnv, runCannon', runCannonToServant)
 import Cannon.WS hiding (env)
-import Control.Concurrent
+import Control.Concurrent hiding (readMVar)
 import Control.Concurrent.Async qualified as Async
 import Control.Exception qualified as E
 import Control.Exception.Safe (catchAny)
@@ -41,7 +41,8 @@ import Data.Text (pack, strip)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Typeable
 import Imports hiding (head, threadDelay)
-import Network.AMQP.Extended (mkRabbitMqChannelMVar)
+import Network.AMQP qualified as Q
+import Network.AMQP.Extended qualified as Q
 import Network.Wai qualified as Wai
 import Network.Wai.Handler.Warp hiding (run)
 import Network.Wai.Middleware.Gzip qualified as Gzip
@@ -69,7 +70,10 @@ run o = do
     error "drainOpts.gracePeriodSeconds must not be set to 0."
   ext <- loadExternal
   g <- L.mkLogger (o ^. logLevel) (o ^. logNetStrings) (o ^. logFormat)
-  chan <- mkRabbitMqChannelMVar g (o ^. rabbitmq)
+  chan <- Q.mkRabbitMqChannelMVar g (o ^. rabbitmq)
+  do
+    c <- readMVar chan
+    Q.qos c 0 10 True
   e <-
     mkEnv ext chan o g
       <$> D.empty 128

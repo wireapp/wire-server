@@ -26,6 +26,14 @@ import Notifications
 import SetupHelpers
 import Testlib.Prelude
 
+testFoo :: (HasCallStack) => App ()
+testFoo = do
+  alice <- randomUser OwnDomain def
+  withWebSocket alice $ \ws -> do
+    void $ createMLSClient def alice
+    n <- awaitMatch isUserClientAddNotif ws
+    printJSON n
+
 -- | Test happy case of federated MLS message sending in both directions.
 testApplicationMessage :: (HasCallStack) => App ()
 testApplicationMessage = do

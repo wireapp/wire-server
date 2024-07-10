@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wwarn #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -29,11 +31,16 @@ import Control.Monad.Catch
 import Data.Aeson hiding (Error, Key, (.=))
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
-import Data.Id (ClientId)
+import Data.Id (ClientId, UserId)
+import Data.Map qualified as Map
+import Data.Text.Encoding as Text
 import Data.Text.Lazy qualified as Text
 import Data.Timeout
+import Debug.Trace
 import Imports hiding (threadDelay)
 import Lens.Family hiding (reset, set)
+import Network.AMQP qualified as Q
+import Network.AMQP.Types qualified as Q
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 import Network.WebSockets hiding (Request, Response, requestHeaders)
@@ -65,8 +72,39 @@ maxPingInterval = 3600
 maxLifetime :: Word64
 maxLifetime = 3 * 24 * 3600
 
-wsapp :: Key -> Maybe ClientId -> Env -> ServerApp
-wsapp k c e pc = runWS e (go `catches` ioErrors k)
+routingKey :: UserId -> Text
+routingKey uid = Text.decodeUtf8 ("client-notifications." <> toByteString' uid)
+
+ensureQueue :: Q.Channel -> UserId -> IO ()
+ensureQueue chan uid = do
+  let opts =
+        Q.QueueOpts
+          { Q.queueName = routingKey uid,
+            Q.queuePassive = False,
+            Q.queueDurable = True,
+            Q.queueExclusive = False,
+            Q.queueAutoDelete = False,
+            Q.queueHeaders =
+              Q.FieldTable $
+                Map.fromList [("x-queue-type", Q.FVString "stream")]
+          }
+  void $ Q.declareQueue chan opts
+
+wsapp :: Key -> UserId -> Maybe ClientId -> Env -> ServerApp
+wsapp k uid c e pc = do
+  -- create rabbitmq consumer
+  do
+    chan <- readMVar e.rabbitmqChannel
+    traceM "got channel"
+    -- ensureQueue chan uid
+    -- traceM "declared queue"
+    tag <- Q.consumeMsgs chan (routingKey uid) Q.NoAck $ \(message, _envelope) -> do
+      traceM $ "message: " <> show message
+    -- traceM $ "envelope: " <> show envelope
+    traceM $ "tag: " <> show tag
+
+  -- start websocket app
+  runWS e (go `catches` ioErrors k)
   where
     go = do
       ws <- mkWebSocket =<< liftIO (acceptRequest pc `catch` rejectOnError pc)

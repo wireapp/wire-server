@@ -37,4 +37,4 @@ publicAPIServer = Named @"await-notifications" streamData
 streamData :: UserId -> ConnId -> Maybe ClientId -> PendingConnection -> Cannon ()
 streamData userId connId clientId con = do
   e <- wsenv
-  liftIO $ wsapp (mkKey userId connId) clientId e con
+  liftIO $ wsapp (mkKey userId connId) userId clientId e con
