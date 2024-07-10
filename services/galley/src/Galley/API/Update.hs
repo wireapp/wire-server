@@ -736,17 +736,15 @@ updateConversationGroupPicture ::
   ConnId ->
   Qualified ConvId ->
   a ->
-  Sem r (UpdateResult Event)
+  Sem r ()
 updateConversationGroupPicture lusr _conn qcnv _ = do
   foldQualified
     lusr
     ( \lcnv -> do
         traceM $ "\n ---------- Local: " <> show lcnv
-        undefined
     )
     ( \rcnv -> do
         traceM $ "\n ---------- Remote: " <> show rcnv
-        undefined
     )
     qcnv
 

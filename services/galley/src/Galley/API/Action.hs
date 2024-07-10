@@ -501,7 +501,9 @@ performAction tag origUser lconv action = do
       (bm, act) <- performConversationAccessData origUser lconv action
       pure (bm, act)
     SConversationUpdateGroupPictureTag -> do
-      undefined
+      let ConversationGroupPicture colour emoji = action
+      E.setConversationGroupPicture (tUnqualified lcnv) colour emoji
+      pure (mempty, action)
     SConversationUpdateProtocolTag -> do
       case (protocolTag (convProtocol (tUnqualified lconv)), action, convTeam (tUnqualified lconv)) of
         (ProtocolProteusTag, ProtocolMixedTag, Just _) -> do

@@ -214,6 +214,9 @@ updateConvReceiptMode cid receiptMode = retry x5 $ write Cql.updateConvReceiptMo
 updateConvMessageTimer :: ConvId -> Maybe Milliseconds -> Client ()
 updateConvMessageTimer cid mtimer = retry x5 $ write Cql.updateConvMessageTimer (params LocalQuorum (mtimer, cid))
 
+updateConvGroupPicture :: ConvId -> Text -> Text -> Client ()
+updateConvGroupPicture cid colour emoji = retry x5 $ write Cql.updateConvGroupPicture (params LocalQuorum (colour, emoji, cid))
+
 getConvEpoch :: ConvId -> Client (Maybe Epoch)
 getConvEpoch cid =
   (runIdentity =<<)
@@ -476,6 +479,9 @@ interpretConversationStoreToCassandra = interpret $ \case
   SetConversationMessageTimer cid value -> do
     logEffect "ConversationStore.SetConversationMessageTimer"
     embedClient $ updateConvMessageTimer cid value
+  SetConversationGroupPicture cid colour emoji -> do
+    logEffect "ConversationStore.SetConversationGroupPicture"
+    embedClient $ updateConvGroupPicture cid colour emoji
   SetConversationEpoch cid epoch -> do
     logEffect "ConversationStore.SetConversationEpoch"
     embedClient $ updateConvEpoch cid epoch
