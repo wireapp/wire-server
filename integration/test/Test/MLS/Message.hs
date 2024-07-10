@@ -21,6 +21,7 @@ module Test.MLS.Message where
 
 import API.Galley
 import API.Gundeck
+import qualified Data.Aeson as Aeson
 import MLS.Util
 import Notifications
 import SetupHelpers
@@ -34,6 +35,14 @@ testFoo = do
     void $ createMLSClient def alice
     n <- awaitMatch isUserClientAddNotif ws
     printJSON n
+
+testBar :: (HasCallStack) => App ()
+testBar = do
+  alice <- randomUser OwnDomain def
+  printJSON alice
+  getNotifications alice def `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json `shouldMatch` Aeson.Null
 
 -- | Test happy case of federated MLS message sending in both directions.
 testApplicationMessage :: (HasCallStack) => App ()

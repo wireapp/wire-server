@@ -31,22 +31,24 @@ import Control.Lens (view, (^.), _1)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Aeson qualified as JSON
-import Data.ByteString.Lazy qualified as BSL
 import Data.Id
+import Data.List.NonEmpty (NonEmpty)
 import Data.List1 (List1)
 import Data.Map qualified as Map
 import Data.Range (Range, fromRange)
-import Data.Sequence (Seq, ViewL ((:<)))
+import Data.Sequence (Seq)
 import Data.Sequence qualified as Seq
+import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Gundeck.Env
-import Gundeck.Options (NotificationTTL (..), internalPageSize, maxPayloadLoadSize, notificationTTL, settings)
+import Gundeck.Options (NotificationTTL (..), internalPageSize, notificationTTL, settings)
 import Gundeck.Push.Native.Serialise ()
 import Imports
 import Network.AMQP qualified as Q
 import Network.AMQP.Types qualified as Q
-import UnliftIO (pooledForConcurrentlyN_, pooledMapConcurrentlyN)
+import UnliftIO (pooledForConcurrentlyN_)
+import UnliftIO.Timeout (timeout)
 import Wire.API.Internal.Notification
 
 data ResultPage = ResultPage
@@ -173,94 +175,58 @@ fetchPayload c (id_, mbPayload, mbPayloadRef, _mbPayloadRefSize, mbClients) =
 
 type NotifRow = (TimeUuid, Maybe Blob, Maybe PayloadId, Maybe Int32, Maybe (C.Set ClientId))
 
-payloadSize :: NotifRow -> Int32
-payloadSize (_, mbPayload, _, mbPayloadRefSize, _) =
-  case (mbPayload, mbPayloadRefSize) of
-    (Just blob, _) -> fromIntegral $ BSL.length (fromBlob blob)
-    (_, Just size) -> size
-    _ -> 0
-
--- | Fetches referenced payloads until maxTotalSize payload bytes are fetched from the database.
--- At least the first row is fetched regardless of the payload size.
-fetchPayloads :: (MonadClient m, MonadUnliftIO m) => Maybe ClientId -> Int32 -> [NotifRow] -> m (Seq QueuedNotification, Int32)
-fetchPayloads c left rows = do
-  let (rows', left') = truncateNotifs [] (0 :: Int) left rows
-  s <- Seq.fromList . catMaybes <$> pooledMapConcurrentlyN 16 (fetchPayload c) rows'
-  pure (s, left')
-  where
-    truncateNotifs acc _i l [] = (reverse acc, l)
-    truncateNotifs acc i l (row : rest)
-      | i > 0 && l <= 0 = (reverse acc, l)
-      | otherwise = truncateNotifs (row : acc) (i + 1) (l - payloadSize row) rest
-
--- | Tries to fetch @remaining@ many notifications.
--- The returned 'Seq' might contain more notifications than @remaining@, (see
--- https://docs.datastax.com/en/developer/java-driver/3.2/manual/paging/).
---
--- The boolean indicates whether more notifications can be fetched.
-collect :: (MonadReader Env m, MonadClient m, MonadUnliftIO m) => Maybe ClientId -> Seq QueuedNotification -> Bool -> Int -> Int32 -> m (Page NotifRow) -> m (Seq QueuedNotification, Bool)
-collect c acc lastPageHasMore remaining remainingBytes getPage
-  | remaining <= 0 = pure (acc, lastPageHasMore)
-  | remainingBytes <= 0 = pure (acc, True)
-  | not lastPageHasMore = pure (acc, False)
-  | otherwise = do
-      page <- getPage
-      let rows = result page
-      (s, remaingBytes') <- fetchPayloads c remainingBytes rows
-      let remaining' = remaining - Seq.length s
-      collect c (acc <> s) (hasMore page) remaining' remaingBytes' (liftClient (nextPage page))
-
-mkResultPage :: Int -> Bool -> Seq QueuedNotification -> ResultPage
-mkResultPage size more ns =
-  ResultPage
-    { resultSeq = Seq.take size ns,
-      resultHasMore = Seq.length ns > size || more,
-      resultGap = False
-    }
-
-fetch :: (MonadReader Env m, MonadClient m, MonadUnliftIO m) => UserId -> Maybe ClientId -> Maybe NotificationId -> Range 100 10000 Int32 -> m ResultPage
-fetch u c Nothing (fromIntegral . fromRange -> size) = do
-  pageSize <- fromMaybe 100 <$> asks (^. options . settings . internalPageSize)
-  let page1 = retry x1 $ paginate cqlStart (paramsP LocalQuorum (Identity u) pageSize)
-  -- We always need to look for one more than requested in order to correctly
-  -- report whether there are more results.
-  maxPayloadSize <- fromMaybe (5 * 1024 * 1024) <$> asks (^. options . settings . maxPayloadLoadSize)
-  (ns, more) <- collect c Seq.empty True (size + 1) maxPayloadSize page1
-  -- Drop the extra element at the end if present
-  pure $! mkResultPage size more ns
-  where
-    cqlStart :: PrepQuery R (Identity UserId) NotifRow
-    cqlStart =
-      "SELECT id, payload, payload_ref, payload_ref_size, clients \
-      \FROM notifications \
-      \WHERE user = ? \
-      \ORDER BY id ASC"
-fetch u c (Just since) (fromIntegral . fromRange -> size) = do
-  pageSize <- fromMaybe 100 <$> asks (^. options . settings . internalPageSize)
-  let page1 =
-        retry x1 $
-          paginate cqlSince (paramsP LocalQuorum (u, TimeUuid (toUUID $ undefined since)) pageSize)
-  -- We fetch 2 more rows than requested. The first is to accommodate the
-  -- notification corresponding to the `since` argument itself. The second is
-  -- to get an accurate `hasMore`, just like in the case above.
-
-  maxPayloadSize <- fromMaybe (5 * 1024 * 1024) <$> asks (^. options . settings . maxPayloadLoadSize)
-  (ns, more) <- collect c Seq.empty True (size + 2) maxPayloadSize page1
-  -- Remove notification corresponding to the `since` argument, and record if it is found.
-  let (ns', sinceFound) = case Seq.viewl ns of
-        x :< xs | since == x ^. queuedNotificationId -> (xs, True)
-        _ -> (ns, False)
-  pure $!
-    (mkResultPage size more ns')
-      { resultGap = not sinceFound
+fetch :: forall m. (MonadReader Env m, MonadClient m, MonadUnliftIO m) => UserId -> Maybe ClientId -> Maybe NotificationId -> Range 100 10000 Int32 -> m ResultPage
+fetch u c mSince (fromIntegral . fromRange -> pageSize) = do
+  chan <- readMVar =<< view rabbitmqChannel
+  notifsTVar <- newTVarIO []
+  notifsFullMVar <- newEmptyMVar
+  liftIO $ Q.qos chan 0 1 False
+  let processMsg (msg, _envelope) = do
+        isFull <- atomically $ stateTVar notifsTVar $ \allMsgs ->
+          let allMsgsNew = allMsgs <> [msg]
+           in (length allMsgsNew >= pageSize, allMsgsNew)
+        when isFull $ void $ tryPutMVar notifsFullMVar ()
+  consumerTag <-
+    liftIO $
+      Q.consumeMsgs'
+        chan
+        (userStreamName u)
+        Q.Ack
+        processMsg
+        (const $ pure ())
+        (Q.FieldTable $ Map.singleton "x-stream-offset" $ maybe (Q.FVString "first") (Q.FVInt64 . read . Text.unpack) mSince)
+  -- This is a weird hack because we cannot know when we're done fetching notifs.
+  mFull <- timeout (1_000_000) (takeMVar notifsFullMVar)
+  liftIO $ Q.cancelConsumer chan consumerTag
+  msgs <- readTVarIO notifsTVar
+  -- TODO: What is the starting notif id, assumed 0 here, but obv wrong. Q.msgTimestamp?
+  notifs <- fmap catMaybes . traverse mkNotifs $ zip msgs [0 ..]
+  pure $
+    ResultPage
+      { resultSeq = Seq.fromList notifs,
+        resultHasMore = isJust mFull,
+        resultGap = False
       }
   where
-    cqlSince :: PrepQuery R (UserId, TimeUuid) NotifRow
-    cqlSince =
-      "SELECT id, payload, payload_ref, payload_ref_size, clients \
-      \FROM notifications \
-      \WHERE user = ? AND id >= ? \
-      \ORDER BY id ASC"
+    mkNotifs :: (Q.Message, Int) -> m (Maybe QueuedNotification)
+    mkNotifs (msg, offset) =
+      case Aeson.decode @StoredMessage (Q.msgBody msg) of
+        Nothing -> pure Nothing -- TODO: Log this
+        Just sm ->
+          if sm.smTargetClients == mempty || maybe True (flip Set.member sm.smTargetClients) c
+            then pure $ Just $ queuedNotification (Text.pack $ show offset) sm.smEvent
+            else pure Nothing
+
+data StoredMessage = StoredMessage
+  { smTargetClients :: Imports.Set ClientId,
+    smEvent :: NonEmpty Aeson.Object
+  }
+
+instance JSON.FromJSON StoredMessage where
+  parseJSON = JSON.withObject "StoredMessage" $ \o ->
+    StoredMessage
+      <$> o JSON..: "target_clients"
+      <*> o JSON..: "event"
 
 deleteAll :: (MonadClient m) => UserId -> m ()
 deleteAll u = write cql (params LocalQuorum (Identity u)) & retry x5
