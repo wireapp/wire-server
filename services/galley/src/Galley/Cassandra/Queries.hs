@@ -230,9 +230,11 @@ selectConv ::
       Maybe GroupId,
       Maybe Epoch,
       Maybe (Writetime Epoch),
-      Maybe CipherSuiteTag
+      Maybe CipherSuiteTag,
+      Maybe Text,
+      Maybe Text
     )
-selectConv = "select type, creator, access, access_role, access_roles_v2, name, team, deleted, message_timer, receipt_mode, protocol, group_id, epoch, WRITETIME(epoch), cipher_suite from conversation where conv = ?"
+selectConv = "select type, creator, access, access_role, access_roles_v2, name, team, deleted, message_timer, receipt_mode, protocol, group_id, epoch, WRITETIME(epoch), cipher_suite, background_colour, emoji from conversation where conv = ?"
 
 selectReceiptMode :: PrepQuery R (Identity ConvId) (Identity (Maybe ReceiptMode))
 selectReceiptMode = "select receipt_mode from conversation where conv = ?"
@@ -284,7 +286,7 @@ updateConvMessageTimer :: PrepQuery W (Maybe Milliseconds, ConvId) ()
 updateConvMessageTimer = {- `IF EXISTS`, but that requires benchmarking -} "update conversation set message_timer = ? where conv = ?"
 
 updateConvGroupPicture :: PrepQuery W (Text, Text, ConvId) ()
-updateConvGroupPicture = "update conversation set color = ?, emoji = ? where conv = ?"
+updateConvGroupPicture = "update conversation set background_colour = ?, emoji = ? where conv = ?"
 
 updateConvName :: PrepQuery W (Text, ConvId) ()
 updateConvName = {- `IF EXISTS`, but that requires benchmarking -} "update conversation set name = ? where conv = ?"
