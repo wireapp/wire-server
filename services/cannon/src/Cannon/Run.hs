@@ -40,6 +40,7 @@ import Data.Proxy
 import Data.Text (pack, strip)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Typeable
+import Debug.Trace
 import Imports hiding (head, threadDelay)
 import Network.AMQP qualified as Q
 import Network.AMQP.Extended qualified as Q
@@ -73,7 +74,8 @@ run o = do
   chan <- Q.mkRabbitMqChannelMVar g (o ^. rabbitmq)
   do
     c <- readMVar chan
-    Q.qos c 0 10 True
+    traceM "qos"
+    Q.qos c 0 1 False
   e <-
     mkEnv ext chan o g
       <$> D.empty 128

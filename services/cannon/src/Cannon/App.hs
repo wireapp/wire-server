@@ -98,7 +98,7 @@ wsapp k uid c e pc = do
     traceM "got channel"
     -- ensureQueue chan uid
     -- traceM "declared queue"
-    tag <- Q.consumeMsgs chan (routingKey uid) Q.NoAck $ \(message, _envelope) -> do
+    tag <- Q.consumeMsgs chan (routingKey uid) Q.Ack $ \(message, _envelope) -> do
       traceM $ "message: " <> show message
     -- traceM $ "envelope: " <> show envelope
     traceM $ "tag: " <> show tag

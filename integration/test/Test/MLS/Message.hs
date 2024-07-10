@@ -29,6 +29,7 @@ import Testlib.Prelude
 testFoo :: (HasCallStack) => App ()
 testFoo = do
   alice <- randomUser OwnDomain def
+  printJSON alice
   withWebSocket alice $ \ws -> do
     void $ createMLSClient def alice
     n <- awaitMatch isUserClientAddNotif ws
