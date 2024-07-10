@@ -196,17 +196,7 @@ run wsConnect app = do
             caHdrs
             app
         )
-      $ \(e :: SomeException) -> putMVar latch e
-
-  presenceRequest <-
-    baseRequest domain Cannon Unversioned $
-      "/i/presences/" <> wsConnect.user <> "/" <> connId
-
-  waitForPresence <- appToIO $ retryT $ do
-    response <- submit "HEAD" presenceRequest
-    status response `shouldMatchInt` 200
-  let waitForException = do
-        ex <- takeMVar latch
+      $ \(ex :: SomeException) -> do
         -- Construct a "fake" response. We do not really have access to the
         -- websocket connection requests and response, unfortunately, but it is
         -- useful to display some information about the request in case an
@@ -220,8 +210,6 @@ run wsConnect app = do
                   request = request
                 }
         throwIO (AssertionFailure callStack (Just r) (displayException ex))
-
-  liftIO $ race_ waitForPresence waitForException
   pure wsapp
 
 close :: (MonadIO m) => WebSocket -> m ()

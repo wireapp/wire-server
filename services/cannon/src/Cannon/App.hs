@@ -29,6 +29,7 @@ import Control.Concurrent.Async
 import Control.Concurrent.Timeout
 import Control.Monad.Catch
 import Data.Aeson hiding (Error, Key, (.=))
+import Data.Aeson qualified as Aeson
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
 import Data.Id (ClientId, UserId)
@@ -90,24 +91,51 @@ ensureQueue chan uid = do
           }
   void $ Q.declareQueue chan opts
 
+data RabbitmqMessage = MkRabbitmqMessage
+  { event :: Value,
+    targetClients :: [ClientId]
+  }
+
+instance FromJSON RabbitmqMessage where
+  parseJSON = withObject "RabbitmqMessage" $ \obj -> do
+    MkRabbitmqMessage
+      <$> obj .: "event"
+      <*> obj .: "target_clients"
+
 wsapp :: Key -> UserId -> Maybe ClientId -> Env -> ServerApp
 wsapp k uid c e pc = do
+  wsVar <- newEmptyMVar
+
   -- create rabbitmq consumer
   do
     chan <- readMVar e.rabbitmqChannel
     traceM "got channel"
     -- ensureQueue chan uid
     -- traceM "declared queue"
-    tag <- Q.consumeMsgs chan (routingKey uid) Q.Ack $ \(message, _envelope) -> do
-      traceM $ "message: " <> show message
+    tag <- Q.consumeMsgs chan (routingKey uid) Q.Ack $ \(message, envelope) -> do
+      traceM $ "rabbitmq message: " <> show message.msgBody
+      notif <- case Aeson.eitherDecode message.msgBody of
+        Left errMsg -> error $ "failed parsing rabbitmq message: " <> errMsg
+        Right (body :: RabbitmqMessage) -> do
+          pure $
+            Aeson.encode $
+              object
+                [ "payload" Aeson..= body.event
+                ]
+      traceM $ "notif: " <> show notif
+      ws <- readMVar wsVar
+      runWS e $ sendMsg notif ws
+      Q.ackMsg chan envelope.envDeliveryTag False
+
     -- traceM $ "envelope: " <> show envelope
     traceM $ "tag: " <> show tag
 
   -- start websocket app
-  runWS e (go `catches` ioErrors k)
+  runWS e (go wsVar `catches` ioErrors k)
   where
-    go = do
+    go wsVar = do
       ws <- mkWebSocket =<< liftIO (acceptRequest pc `catch` rejectOnError pc)
+      putMVar wsVar ws
       debug $ client (key2bytes k) ~~ "websocket" .= connIdent ws
       registerLocal k ws
       registerRemote k c `onException` (unregisterLocal k ws >> close k ws)
