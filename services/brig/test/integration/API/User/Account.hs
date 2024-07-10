@@ -759,6 +759,7 @@ testMultipleUsers opts brig = do
         UserProfile
           { profileQualifiedId = u5,
             profileName = Name "u5",
+            profileTextStatus = Nothing,
             profilePict = Pict [],
             profileAssets = [],
             profileAccentId = ColourId 0,
@@ -882,8 +883,9 @@ testUserUpdate brig cannon userJournalWatcher = do
               (Just AssetComplete)
           ]
       mNewName = Just $ aliceNewName
+      mNewTextStatus = Just $ TextStatus "fun status"
       newPic = Nothing -- Legacy
-      userUpdate = UserUpdate mNewName newPic newAssets newColId
+      userUpdate = UserUpdate mNewName mNewTextStatus newPic newAssets newColId
       update = RequestBodyLBS . encode $ userUpdate
   -- Update profile & receive notification
   WS.bracketRN cannon [alice, bob] $ \[aliceWS, bobWS] -> do
@@ -895,9 +897,10 @@ testUserUpdate brig cannon userJournalWatcher = do
   -- get the updated profile
   get (brig . path "/self" . zUser alice) !!! do
     const 200 === statusCode
-    const (mNewName, newColId, newAssets)
+    const (mNewName, mNewTextStatus, newColId, newAssets)
       === ( \u ->
               ( fmap userDisplayName u,
+                userTextStatus =<< u,
                 fmap userAccentId u,
                 fmap userAssets u
               )
@@ -1275,7 +1278,7 @@ testDeleteWithProfilePic brig cargohold = do
               (qUnqualified $ ast ^. Asset.assetKey)
               (Just AssetComplete)
           ]
-      userUpdate = UserUpdate Nothing Nothing newAssets Nothing
+      userUpdate = UserUpdate Nothing Nothing Nothing newAssets Nothing
       update = RequestBodyLBS . encode $ userUpdate
   -- Update profile with the uploaded asset
   put (brig . path "/self" . contentJson . zUser uid . zConn "c" . body update)

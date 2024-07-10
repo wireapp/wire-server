@@ -479,6 +479,7 @@ instance (1 <= max) => ToJSON (LimitedQualifiedUserIdList max) where
 data UserProfile = UserProfile
   { profileQualifiedId :: Qualified UserId,
     profileName :: Name,
+    profileTextStatus :: Maybe TextStatus,
     -- | DEPRECATED
     profilePict :: Pict,
     profileAssets :: [Asset],
@@ -508,6 +509,8 @@ instance ToSchema UserProfile where
           .= optional (field "id" (deprecatedSchema "qualified_id" schema))
         <*> profileName
           .= field "name" schema
+        <*> profileTextStatus
+          .= maybe_ (optField "text_status" schema)
         <*> profilePict
           .= (field "picture" schema <|> pure noPict)
         <*> profileAssets
@@ -562,6 +565,8 @@ data User = User
     userIdentity :: Maybe UserIdentity,
     -- | required; non-unique
     userDisplayName :: Name,
+    -- | text status
+    userTextStatus :: Maybe TextStatus,
     -- | DEPRECATED
     userPict :: Pict,
     userAssets :: [Asset],
@@ -605,6 +610,8 @@ userObjectSchema =
       .= maybeUserIdentityObjectSchema
     <*> userDisplayName
       .= field "name" schema
+    <*> userTextStatus
+      .= maybe_ (optField "text_status" schema)
     <*> userPict
       .= (fromMaybe noPict <$> optField "picture" schema)
     <*> userAssets
@@ -692,6 +699,7 @@ mkUserProfileWithEmail memail u legalHoldStatus =
     { profileQualifiedId = userQualifiedId u,
       profileHandle = userHandle u,
       profileName = userDisplayName u,
+      profileTextStatus = userTextStatus u,
       profilePict = userPict u,
       profileAssets = userAssets u,
       profileAccentId = userAccentId u,
@@ -1368,6 +1376,7 @@ instance ToSchema UserSet where
 
 data UserUpdate = UserUpdate
   { uupName :: Maybe Name,
+    uupTextStatus :: Maybe TextStatus,
     -- | DEPRECATED
     uupPict :: Maybe Pict,
     uupAssets :: Maybe [Asset],
@@ -1383,6 +1392,8 @@ instance ToSchema UserUpdate where
       UserUpdate
         <$> uupName
           .= maybe_ (optField "name" schema)
+        <*> uupTextStatus
+          .= maybe_ (optField "text_status" schema)
         <*> uupPict
           .= maybe_ (optField "picture" schema)
         <*> uupAssets

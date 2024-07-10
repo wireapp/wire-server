@@ -89,6 +89,7 @@ testObject_UserEvent_6 =
         ( UserUpdatedData
             (userId alice)
             (Just alice.userDisplayName)
+            alice.userTextStatus
             (Just alice.userPict)
             (Just alice.userAccentId)
             (Just alice.userAssets)
@@ -202,6 +203,7 @@ alice =
           },
       userIdentity = Nothing,
       userDisplayName = Name "alice",
+      userTextStatus = Nothing,
       userPict = Pict {fromPict = []},
       userAssets = [],
       userAccentId = ColourId {fromColourId = 1},
@@ -229,6 +231,7 @@ bob =
           },
       userIdentity = Nothing,
       userDisplayName = Name "bob",
+      userTextStatus = Nothing,
       userPict = Pict {fromPict = []},
       userAssets = [],
       userAccentId = ColourId {fromColourId = 2},

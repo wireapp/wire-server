@@ -56,6 +56,7 @@ testObject_User_user_1 =
           },
       userIdentity = Nothing,
       userDisplayName = Name {fromName = "\NULuv\996028su\28209lRi"},
+      userTextStatus = Nothing,
       userPict = Pict {fromPict = []},
       userAssets = [],
       userAccentId = ColourId {fromColourId = 1},
@@ -83,6 +84,7 @@ testObject_User_user_2 =
           { fromName =
               "4\1067195\&7\ACK\DC2\DC2\ETBbp\SOH\40601\&0Yr\\\984611vKRg\1048403)\1040186S\983500\1057766:3B\ACK\DC3\ETXT"
           },
+      userTextStatus = Nothing,
       userPict = Pict {fromPict = []},
       userAssets =
         [ ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) Nothing,
@@ -117,6 +119,7 @@ testObject_User_user_3 =
       userIdentity = Just (EmailIdentity (Email {emailLocal = "f", emailDomain = "\83115"})),
       userDisplayName =
         Name {fromName = ",r\EMXEg0$\98187\RS\SI'uS\ETX/\1009222`\228V.J{\fgE(\rK!\SOp8s9gXO\21810Xj\STX\RS\DC2"},
+      userTextStatus = Nothing,
       userPict = Pict {fromPict = []},
       userAssets = [],
       userAccentId = ColourId {fromColourId = -2},
@@ -151,6 +154,7 @@ testObject_User_user_4 =
           { fromName =
               "^\1025896F\1083260=&o>f<7\SOq|6\DC1\EM\997351\1054148\ESCf\1014774\170183\DC3bnVAj`^L\f\1047425\USLI\ENQ!\1061384\ETB`\1041537\ETXe\26313\SUBK|"
           },
+      userTextStatus = Nothing,
       userPict = Pict {fromPict = []},
       userAssets = [],
       userAccentId = ColourId {fromColourId = 0},
@@ -186,6 +190,7 @@ testObject_User_user_5 =
           { fromName =
               "^\1025896F\1083260=&o>f<7\SOq|6\DC1\EM\997351\1054148\ESCf\1014774\170183\DC3bnVAj`^L\f\1047425\USLI\ENQ!\1061384\ETB`\1041537\ETXe\26313\SUBK|"
           },
+      userTextStatus = Nothing,
       userPict = Pict {fromPict = []},
       userAssets = [],
       userAccentId = ColourId {fromColourId = 0},

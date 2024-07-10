@@ -57,6 +57,7 @@ import Brig.Schema.V79_ConnectionRemoteIndex qualified as V79_ConnectionRemoteIn
 import Brig.Schema.V80_KeyPackageCiphersuite qualified as V80_KeyPackageCiphersuite
 import Brig.Schema.V81_AddFederationRemoteTeams qualified as V81_AddFederationRemoteTeams
 import Brig.Schema.V82_DropPhoneColumn qualified as V82_DropPhoneColumn
+import Brig.Schema.V83_AddTextStatus qualified as V83_AddTextStatus
 import Cassandra.MigrateSchema (migrateSchema)
 import Cassandra.Schema
 import Control.Exception (finally)
@@ -120,7 +121,8 @@ migrations =
     V79_ConnectionRemoteIndex.migration,
     V80_KeyPackageCiphersuite.migration,
     V81_AddFederationRemoteTeams.migration,
-    V82_DropPhoneColumn.migration
+    V82_DropPhoneColumn.migration,
+    V83_AddTextStatus.migration
     -- FUTUREWORK: undo V41 (searchable flag); we stopped using it in
     -- https://github.com/wireapp/wire-server/pull/964
     --
