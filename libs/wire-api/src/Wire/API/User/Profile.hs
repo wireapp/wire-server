@@ -21,6 +21,8 @@
 module Wire.API.User.Profile
   ( Name (..),
     mkName,
+    TextStatus (..),
+    mkTextStatus,
     ColourId (..),
     defaultAccentId,
 
@@ -71,6 +73,25 @@ instance ToSchema Name where
   schema = Name <$> fromName .= untypedRangedSchema 1 128 schema
 
 deriving instance C.Cql Name
+
+--------------------------------------------------------------------------------
+-- TextStatus
+
+-- Length is between 1 and 256 characters.
+newtype TextStatus = TextStatus
+  {fromTextStatus :: Text}
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving newtype (FromByteString, ToByteString)
+  deriving (Arbitrary) via (Ranged 1 256 Text)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema TextStatus
+
+mkTextStatus :: Text -> Either String TextStatus
+mkTextStatus txt = TextStatus . fromRange <$> checkedEitherMsg @_ @1 @256 "TextStatus" txt
+
+instance ToSchema TextStatus where
+  schema = TextStatus <$> fromTextStatus .= untypedRangedSchema 1 256 schema
+
+deriving instance C.Cql TextStatus
 
 --------------------------------------------------------------------------------
 -- Colour

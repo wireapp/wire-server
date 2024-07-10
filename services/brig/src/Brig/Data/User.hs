@@ -148,7 +148,7 @@ newAccount u inv tid mbHandle = do
     locale defLoc = fromMaybe defLoc (newUserLocale u)
     managedBy = fromMaybe defaultManagedBy (newUserManagedBy u)
     prots = fromMaybe defSupportedProtocols (newUserSupportedProtocols u)
-    user uid domain l e = User (Qualified uid domain) ident name pict assets colour False l Nothing mbHandle e tid managedBy prots
+    user uid domain l e = User (Qualified uid domain) ident name Nothing pict assets colour False l Nothing mbHandle e tid managedBy prots
 
 newAccountInviteViaScim :: (MonadReader Env m) => UserId -> TeamId -> Maybe Locale -> Name -> Email -> m UserAccount
 newAccountInviteViaScim uid tid locale name email = do
@@ -162,6 +162,7 @@ newAccountInviteViaScim uid tid locale name email = do
         (Qualified uid domain)
         (Just $ EmailIdentity email)
         name
+        Nothing
         (Pict [])
         []
         defaultAccentId
@@ -243,6 +244,7 @@ insertAccount (UserAccount u status) mbConv password activated = retry x5 . batc
     userInsert
     ( userId u,
       userDisplayName u,
+      userTextStatus u,
       userPict u,
       userAssets u,
       userEmail u,
@@ -463,6 +465,7 @@ type Activated = Bool
 type UserRow =
   ( UserId,
     Name,
+    Maybe TextStatus,
     Maybe Pict,
     Maybe Email,
     Maybe UserSSOId,
@@ -484,6 +487,7 @@ type UserRow =
 type UserRowInsert =
   ( UserId,
     Name,
+    Maybe TextStatus,
     Pict,
     [Asset],
     Maybe Email,
@@ -510,7 +514,7 @@ type AccountRow = UserRow
 
 usersSelect :: PrepQuery R (Identity [UserId]) UserRow
 usersSelect =
-  "SELECT id, name, picture, email, sso_id, accent_id, assets, \
+  "SELECT id, name, text_status, picture, email, sso_id, accent_id, assets, \
   \activated, status, expires, language, country, provider, service, \
   \handle, team, managed_by, supported_protocols \
   \FROM user where id IN ?"
@@ -538,17 +542,17 @@ teamSelect = "SELECT team FROM user WHERE id = ?"
 
 accountsSelect :: PrepQuery R (Identity [UserId]) AccountRow
 accountsSelect =
-  "SELECT id, name, picture, email, sso_id, accent_id, assets, \
+  "SELECT id, name, text_status, picture, email, sso_id, accent_id, assets, \
   \activated, status, expires, language, country, provider, \
   \service, handle, team, managed_by, supported_protocols \
   \FROM user WHERE id IN ?"
 
 userInsert :: PrepQuery W UserRowInsert ()
 userInsert =
-  "INSERT INTO user (id, name, picture, assets, email, sso_id, \
+  "INSERT INTO user (id, name, text_status, picture, assets, email, sso_id, \
   \accent_id, password, activated, status, expires, language, \
   \country, provider, service, handle, team, managed_by, supported_protocols) \
-  \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 userEmailUpdate :: PrepQuery W (Email, UserId) ()
 userEmailUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET email = ? WHERE id = ?"
@@ -590,6 +594,7 @@ toUserAccount
   defaultLocale
   ( uid,
     name,
+    textStatus,
     pict,
     email,
     ssoid,
@@ -617,6 +622,7 @@ toUserAccount
               (Qualified uid domain)
               ident
               name
+              textStatus
               (fromMaybe noPict pict)
               (fromMaybe [] assets)
               accent
@@ -641,6 +647,7 @@ toUsers domain defaultLocale havePendingInvitations = fmap mk . filter fp
         NoPendingInvitations ->
           ( \( _uid,
                _name,
+               _textStatus,
                _pict,
                _email,
                _ssoid,
@@ -664,6 +671,7 @@ toUsers domain defaultLocale havePendingInvitations = fmap mk . filter fp
     mk
       ( uid,
         name,
+        textStatus,
         pict,
         email,
         ssoid,
@@ -690,6 +698,7 @@ toUsers domain defaultLocale havePendingInvitations = fmap mk . filter fp
               (Qualified uid domain)
               ident
               name
+              textStatus
               (fromMaybe noPict pict)
               (fromMaybe [] assets)
               accent
