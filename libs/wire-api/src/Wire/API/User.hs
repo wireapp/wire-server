@@ -562,6 +562,8 @@ data User = User
     userIdentity :: Maybe UserIdentity,
     -- | required; non-unique
     userDisplayName :: Name,
+    -- | text status
+    userTextStatus :: Maybe TextStatus,
     -- | DEPRECATED
     userPict :: Pict,
     userAssets :: [Asset],
@@ -605,6 +607,8 @@ userObjectSchema =
       .= maybeUserIdentityObjectSchema
     <*> userDisplayName
       .= field "name" schema
+    <*> userTextStatus
+      .= maybe_ (optField "text_status" schema)
     <*> userPict
       .= (fromMaybe noPict <$> optField "picture" schema)
     <*> userAssets
@@ -1368,6 +1372,7 @@ instance ToSchema UserSet where
 
 data UserUpdate = UserUpdate
   { uupName :: Maybe Name,
+    uupTextStatus :: Maybe TextStatus,
     -- | DEPRECATED
     uupPict :: Maybe Pict,
     uupAssets :: Maybe [Asset],
@@ -1383,6 +1388,8 @@ instance ToSchema UserUpdate where
       UserUpdate
         <$> uupName
           .= maybe_ (optField "name" schema)
+        <*> uupTextStatus
+          .= maybe_ (optField "text_status" schema)
         <*> uupPict
           .= maybe_ (optField "picture" schema)
         <*> uupAssets

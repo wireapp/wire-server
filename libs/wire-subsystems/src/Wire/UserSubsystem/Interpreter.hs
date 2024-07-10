@@ -376,6 +376,7 @@ storedUserUpdate :: UserProfileUpdate -> StoredUserUpdate
 storedUserUpdate update =
   MkStoredUserUpdate
     { name = update.name,
+      textStatus = update.textStatus,
       pict = update.pict,
       assets = update.assets,
       accentId = update.accentId,

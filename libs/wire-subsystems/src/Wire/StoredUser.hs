@@ -19,6 +19,7 @@ import Wire.Arbitrary
 data StoredUser = StoredUser
   { id :: UserId,
     name :: Name,
+    textStatus :: Maybe TextStatus,
     pict :: Maybe Pict,
     email :: Maybe Email,
     phone :: Maybe Phone,
@@ -80,6 +81,7 @@ mkUserFromStored domain defaultLocale storedUser =
         { userQualifiedId = (Qualified storedUser.id domain),
           userIdentity = storedUser.identity,
           userDisplayName = storedUser.name,
+          userTextStatus = storedUser.textStatus,
           userPict = (fromMaybe noPict storedUser.pict),
           userAssets = (fromMaybe [] storedUser.assets),
           userAccentId = storedUser.accentId,

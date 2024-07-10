@@ -31,6 +31,7 @@ data UpdateOriginType
 -- operations).
 data UserProfileUpdate = MkUserProfileUpdate
   { name :: Maybe Name,
+    textStatus :: Maybe TextStatus,
     pict :: Maybe Pict, -- DEPRECATED
     assets :: Maybe [Asset],
     accentId :: Maybe ColourId,
@@ -44,6 +45,7 @@ instance Default UserProfileUpdate where
   def =
     MkUserProfileUpdate
       { name = Nothing,
+        textStatus = Nothing,
         pict = Nothing, -- DEPRECATED
         assets = Nothing,
         accentId = Nothing,

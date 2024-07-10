@@ -948,6 +948,7 @@ updateUser uid conn uu = do
         def
           { name = uu.uupName,
             pict = uu.uupPict,
+            textStatus = uu.uupTextStatus,
             assets = uu.uupAssets,
             accentId = uu.uupAccentId
           }
