@@ -83,7 +83,6 @@ push ps = do
 
 -- | Abstract over all effects in 'pushAll' (for unit testing).
 class (MonadThrow m) => MonadPushAll m where
-  mpaNotificationTTL :: m NotificationTTL
   mpaListAllPresences :: [UserId] -> m [[Presence]]
   mpaStreamAdd :: List1 NotificationTarget -> List1 Aeson.Object -> m ()
   mpaPushNative :: Notification -> Priority -> [Address] -> m ()
@@ -91,7 +90,6 @@ class (MonadThrow m) => MonadPushAll m where
   mpaRunWithBudget :: Int -> a -> m a -> m a
 
 instance MonadPushAll Gundeck where
-  mpaNotificationTTL = view (options . settings . notificationTTL)
   mpaListAllPresences = runWithDefaultRedis . Presence.listAll
   mpaStreamAdd = Data.add
   mpaPushNative = pushNative

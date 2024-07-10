@@ -416,7 +416,6 @@ instance MonadThrow MockGundeck where
   -- as well crash badly here, as long as it doesn't go unnoticed...)
 
 instance MonadPushAll MockGundeck where
-  mpaNotificationTTL = pure $ NotificationTTL 300 -- (longer than we want any test to take.)
   mpaListAllPresences = mockListAllPresences
   mpaStreamAdd = mockStreamAdd
   mpaPushNative = mockPushNative
