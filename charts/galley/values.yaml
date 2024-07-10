@@ -232,3 +232,7 @@ tests:
         hZMuK3BWD3fzkQVfW0yMwz6fWRXB483ZmekGkgndOTDoJQMdJXZxHpI3t2FcxQYj
         T45GXxRd18neXtuYa/OoAw9UQFDN5XfXN0g=
         -----END CERTIFICATE-----
+
+profLogs:
+  enabled: false
+  storageClassName: hcloud-volumes

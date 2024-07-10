@@ -369,7 +369,7 @@ executable galley
   import:        common-all
   main-is:       exec/Main.hs
   other-modules: Paths_galley
-  ghc-options:   -threaded -with-rtsopts=-T -rtsopts
+  ghc-options:   -threaded "-with-rtsopts=-N -T" -rtsopts
   build-depends:
     , base
     , galley
@@ -408,7 +408,7 @@ executable galley-integration
     TestHelpers
     TestSetup
 
-  ghc-options:        -threaded -with-rtsopts=-N -rtsopts
+  ghc-options:        -threaded "-with-rtsopts=-N -T" -rtsopts
   hs-source-dirs:     test/integration
   hs-source-dirs:     test/integration
   default-extensions:
