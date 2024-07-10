@@ -538,7 +538,10 @@ updateConversation origDomain updateRequest = do
           . fmap lcuUpdate
           $ updateLocalConversation @'ConversationUpdateProtocolTag lcnv (tUntagged rusr) Nothing action
       SConversationUpdateGroupPictureTag ->
-        undefined
+        mapToGalleyError
+          @(HasConversationActionGalleyErrors 'ConversationUpdateGroupPictureTag)
+          . fmap lcuUpdate
+          $ updateLocalConversation @'ConversationUpdateGroupPictureTag lcnv (tUntagged rusr) Nothing action
   where
     mkResponse =
       fmap (either ConversationUpdateResponseError Imports.id)

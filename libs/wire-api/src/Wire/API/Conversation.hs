@@ -828,7 +828,7 @@ instance ToSchema ConversationGroupPicture where
       ConversationGroupPicture
         <$> color
           .= fieldWithDocModifier
-            "colour"
+            "color"
             (description ?~ "background colour")
             (unnamed (schema @Text))
         <*> emoji

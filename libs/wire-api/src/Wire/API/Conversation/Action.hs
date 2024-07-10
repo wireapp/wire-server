@@ -176,6 +176,7 @@ $( singletons
        conversationActionPermission ConversationReceiptModeUpdateTag = ModifyConversationReceiptMode
        conversationActionPermission ConversationAccessDataTag = ModifyConversationAccess
        conversationActionPermission ConversationUpdateProtocolTag = LeaveConversation
+       conversationActionPermission ConversationUpdateGroupPictureTag = ModifyConversationGroupPicture
        |]
  )
 

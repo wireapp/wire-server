@@ -264,6 +264,12 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member TeamStore r,
       Member TinyLog r
     )
+  HasConversationActionEffects 'ConversationUpdateGroupPictureTag r =
+    ( Member (Error InvalidInput) r,
+      Member ConversationStore r,
+      Member TeamStore r,
+      Member (ErrorS InvalidOperation) r
+    )
 
 type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: EffectRow where
   HasConversationActionGalleyErrors 'ConversationJoinTag =
@@ -330,6 +336,12 @@ type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: 
        ErrorS 'NotATeamMember,
        ErrorS OperationDenied,
        ErrorS 'TeamNotFound
+     ]
+  HasConversationActionGalleyErrors 'ConversationUpdateGroupPictureTag =
+    '[ ErrorS ('ActionDenied 'ModifyConversationGroupPicture),
+       ErrorS 'InvalidOperation,
+       ErrorS 'InvalidTargetAccess,
+       ErrorS 'ConvNotFound
      ]
 
 checkFederationStatus ::
