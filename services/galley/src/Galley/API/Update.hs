@@ -85,6 +85,7 @@ import Data.Qualified
 import Data.Set qualified as Set
 import Data.Singletons
 import Data.Time
+import Debug.Trace (traceM)
 import Galley.API.Action
 import Galley.API.Error
 import Galley.API.Mapping
@@ -730,8 +731,24 @@ updateConversationProtocolWithLocalUser lusr conn qcnv (P.ProtocolUpdate newProt
       )
       qcnv
 
-updateConversationGroupPicture :: a
-updateConversationGroupPicture = undefined
+updateConversationGroupPicture ::
+  Local UserId ->
+  ConnId ->
+  Qualified ConvId ->
+  a ->
+  Sem r (UpdateResult Event)
+updateConversationGroupPicture lusr _conn qcnv _ = do
+  foldQualified
+    lusr
+    ( \lcnv -> do
+        traceM $ "\n ---------- Local: " <> show lcnv
+        undefined
+    )
+    ( \rcnv -> do
+        traceM $ "\n ---------- Remote: " <> show rcnv
+        undefined
+    )
+    qcnv
 
 joinConversationByReusableCode ::
   forall r.

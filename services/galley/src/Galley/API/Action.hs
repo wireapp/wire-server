@@ -488,6 +488,8 @@ performAction tag origUser lconv action = do
     SConversationAccessDataTag -> do
       (bm, act) <- performConversationAccessData origUser lconv action
       pure (bm, act)
+    SConversationUpdateGroupPictureTag -> do
+      undefined
     SConversationUpdateProtocolTag -> do
       case (protocolTag (convProtocol (tUnqualified lconv)), action, convTeam (tUnqualified lconv)) of
         (ProtocolProteusTag, ProtocolMixedTag, Just _) -> do
@@ -971,6 +973,7 @@ updateLocalStateOfRemoteConv rcu con = do
       SConversationReceiptModeUpdateTag -> pure (Just sca, [])
       SConversationAccessDataTag -> pure (Just sca, [])
       SConversationUpdateProtocolTag -> pure (Just sca, [])
+      SConversationUpdateGroupPictureTag -> pure (Just sca, [])
 
   unless allUsersArePresent $
     P.warn $
