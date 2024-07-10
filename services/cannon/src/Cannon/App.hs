@@ -107,40 +107,39 @@ wsapp k uid c e pc = do
   wsVar <- newEmptyMVar
 
   -- create rabbitmq consumer
-  do
-    chan <- readMVar e.rabbitmqChannel
-    traceM "got channel"
-    -- ensureQueue chan uid
-    -- traceM "declared queue"
-    tag <- Q.consumeMsgs chan (routingKey uid) Q.Ack $ \(message, envelope) -> do
-      traceM $ "rabbitmq message: " <> show message.msgBody
-      notif <- case Aeson.eitherDecode message.msgBody of
-        Left errMsg -> error $ "failed parsing rabbitmq message: " <> errMsg
-        Right (body :: RabbitmqMessage) -> do
-          pure $
-            Aeson.encode $
-              object
-                [ "payload" Aeson..= body.event
-                ]
-      traceM $ "notif: " <> show notif
-      ws <- readMVar wsVar
-      runWS e $ sendMsg notif ws
-      Q.ackMsg chan envelope.envDeliveryTag False
+  chan <- readMVar e.rabbitmqChannel
+  traceM "got channel"
+  -- ensureQueue chan uid
+  -- traceM "declared queue"
+  consumerTag <- Q.consumeMsgs chan (routingKey uid) Q.Ack $ \(message, envelope) -> do
+    traceM $ "rabbitmq message: " <> show message.msgBody
+    notif <- case Aeson.eitherDecode message.msgBody of
+      Left errMsg -> error $ "failed parsing rabbitmq message: " <> errMsg
+      Right (body :: RabbitmqMessage) -> do
+        pure $
+          Aeson.encode $
+            object
+              [ "payload" Aeson..= body.event
+              ]
+    traceM $ "notif: " <> show notif
+    ws <- readMVar wsVar
+    runWS e $ sendMsg notif ws
+    Q.ackMsg chan envelope.envDeliveryTag False
 
-    -- traceM $ "envelope: " <> show envelope
-    traceM $ "tag: " <> show tag
+  -- traceM $ "envelope: " <> show envelope
+  traceM $ "tag: " <> show consumerTag
+
+  let go = do
+        ws <- mkWebSocket =<< liftIO (acceptRequest pc `catch` rejectOnError pc)
+        putMVar wsVar ws
+        debug $ client (key2bytes k) ~~ "websocket" .= connIdent ws
+        registerLocal k ws
+        registerRemote k c `onException` (unregisterLocal k ws >> close k ws)
+        clock <- getClock
+        continue ws clock k `finally` terminate k ws (chan, consumerTag)
 
   -- start websocket app
-  runWS e (go wsVar `catches` ioErrors k)
-  where
-    go wsVar = do
-      ws <- mkWebSocket =<< liftIO (acceptRequest pc `catch` rejectOnError pc)
-      putMVar wsVar ws
-      debug $ client (key2bytes k) ~~ "websocket" .= connIdent ws
-      registerLocal k ws
-      registerRemote k c `onException` (unregisterLocal k ws >> close k ws)
-      clock <- getClock
-      continue ws clock k `finally` terminate k ws
+  runWS e (go `catches` ioErrors k)
 
 continue :: (MonadLogger m, MonadUnliftIO m) => Websocket -> Clock -> Key -> m ()
 continue ws clock k = do
@@ -160,8 +159,9 @@ continue ws clock k = do
          in runInIO $ Logger.debug text
       _ -> pure ()
 
-terminate :: Key -> Websocket -> WS ()
-terminate k ws = do
+terminate :: Key -> Websocket -> (Q.Channel, Q.ConsumerTag) -> WS ()
+terminate k ws (chan, consumerTag) = do
+  liftIO $ Q.cancelConsumer chan consumerTag
   success <- unregisterLocal k ws
   debug $ client (key2bytes k) ~~ "websocket" .= connIdent ws ~~ "removed" .= success
   when success $
