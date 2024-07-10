@@ -1356,7 +1356,11 @@ type ConversationAPI =
                :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
                :> "protocol"
                :> ReqBody '[JSON] ProtocolUpdate
-               :> MultiVerb 'PUT '[Servant.JSON] ConvUpdateResponses (UpdateResult Event)
+               :> MultiVerb
+                    'PUT
+                    '[Servant.JSON]
+                    ConvUpdateResponses
+                    (UpdateResult Event)
            )
     :<|> Named
            "update-conversation-group-picture"
@@ -1368,5 +1372,9 @@ type ConversationAPI =
                :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
                :> "icon"
                :> ReqBody '[JSON] ConversationGroupPicture
-               :> MultiVerb 'PUT '[Servant.JSON] ConvUpdateResponses (UpdateResult Event)
+               :> MultiVerb
+                    'PUT
+                    '[Servant.JSON]
+                    '[RespondEmpty 200 "Update successful"]
+                    ()
            )
