@@ -26,8 +26,7 @@ module Gundeck.Notification.Data
 where
 
 import Cassandra as C
-import Control.Error (MaybeT (..))
-import Control.Lens (view, (^.), _1)
+import Control.Lens (view, (^.))
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Aeson qualified as JSON
@@ -36,13 +35,13 @@ import Data.List.NonEmpty (NonEmpty)
 import Data.List1 (List1)
 import Data.Map qualified as Map
 import Data.Range (Range, fromRange)
-import Data.Sequence (Seq)
+import Data.Sequence (Seq (..))
 import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Gundeck.Env
-import Gundeck.Options (NotificationTTL (..), internalPageSize, notificationTTL, settings)
+import Gundeck.Options (NotificationTTL (..), notificationTTL, settings)
 import Gundeck.Push.Native.Serialise ()
 import Imports
 import Network.AMQP qualified as Q
@@ -62,10 +61,6 @@ data ResultPage = ResultPage
     -- iff a start ID ('since') has been given which could not be found.
     resultGap :: !Bool
   }
-
-data Payload = Payload
-
-type PayloadId = Id 'Payload
 
 add ::
   forall m.
@@ -109,81 +104,58 @@ ensureNotifStream uid = do
 userStreamName :: UserId -> Text
 userStreamName uid = "client-notifications." <> Text.pack (show uid)
 
-fetchId :: (MonadClient m) => UserId -> NotificationId -> Maybe ClientId -> m (Maybe QueuedNotification)
-fetchId u n c = runMaybeT $ do
-  row <- MaybeT $ retry x1 $ query1 cqlById (params LocalQuorum (u, n))
-  MaybeT $ fetchPayload c row
-  where
-    cqlById :: PrepQuery R (UserId, NotificationId) NotifRow
-    cqlById =
-      "SELECT id, payload, payload_ref, payload_ref_size, clients \
-      \FROM notifications \
-      \WHERE user = ? AND id = ?"
+fetchId :: (MonadReader Env m, MonadUnliftIO m) => UserId -> NotificationId -> Maybe ClientId -> m (Maybe QueuedNotification)
+fetchId u n c = do
+  chan <- readMVar =<< view rabbitmqChannel
+  notifsMVar <- newEmptyMVar
+  liftIO $ Q.qos chan 0 1 False
+  let processMsg (msg, _envelope) = do
+        void $ tryPutMVar notifsMVar msg
+  consumerTag <-
+    liftIO $
+      Q.consumeMsgs'
+        chan
+        (userStreamName u)
+        Q.Ack
+        processMsg
+        (const $ pure ())
+        (Q.FieldTable $ Map.singleton "x-stream-offset" (Q.FVInt64 (read $ Text.unpack n)))
+  -- This is a weird hack because we cannot know when we're done fetching notifs.
+  mMsg <- timeout 1_000_000 (takeMVar notifsMVar)
+  liftIO $ Q.cancelConsumer chan consumerTag
+  pure $ mkNotif c =<< mMsg
 
-fetchLast :: (MonadReader Env m, MonadClient m) => UserId -> Maybe ClientId -> m (Maybe QueuedNotification)
+fetchLast :: forall m. (MonadReader Env m, MonadClient m) => UserId -> Maybe ClientId -> m (Maybe QueuedNotification)
 fetchLast u c = do
-  pageSize <- fromMaybe 100 <$> asks (^. options . settings . internalPageSize)
-  go (Page True [] (firstPage pageSize))
-  where
-    go page = case result page of
-      (row : rows) -> do
-        mNotif <- fetchPayload c row
-        case mNotif of
-          Nothing -> go page {result = rows}
-          Just notif -> pure (Just notif)
-      [] | hasMore page -> do
-        page' <- liftClient (nextPage page)
-        go page'
-      _ -> pure Nothing
-
-    -- The first page consists of at most one row. We retrieve the first page
-    -- with a direct query with a LIMIT, and the following pages using
-    -- Cassandra pagination.
-    firstPage pageSize = do
-      results <- retry x1 $ query cqlLast (params LocalQuorum (Identity u))
-      let nextPage = case results of
-            [] -> pure emptyPage
-            (n : _) ->
-              retry x1 $
-                paginate cqlSeek (paramsP LocalQuorum (u, n ^. _1) pageSize)
-      pure $ Page True results nextPage
-
-    cqlLast :: PrepQuery R (Identity UserId) NotifRow
-    cqlLast =
-      "SELECT id, payload, payload_ref, payload_ref_size, clients \
-      \FROM notifications \
-      \WHERE user = ? \
-      \ORDER BY id DESC LIMIT 1"
-    cqlSeek :: PrepQuery R (UserId, TimeUuid) NotifRow
-    cqlSeek =
-      "SELECT id, payload, payload_ref, payload_ref_size, clients \
-      \FROM notifications \
-      \WHERE user = ? AND id < ? \
-      \ORDER BY id DESC"
-
-fetchPayload :: (MonadClient m) => Maybe ClientId -> NotifRow -> m (Maybe QueuedNotification)
-fetchPayload c (id_, mbPayload, mbPayloadRef, _mbPayloadRefSize, mbClients) =
-  case (mbPayload, mbPayloadRef) of
-    (Just payload, _) -> pure $ toNotifSingle c (id_, payload, mbClients)
-    (_, Just payloadRef) -> runMaybeT $ do
-      pl <- MaybeT $ fmap (fmap runIdentity) (query1 cqlSelectPayload (params LocalQuorum (Identity payloadRef)))
-      maybe mzero pure $ toNotifSingle c (id_, pl, mbClients)
-    _ -> pure Nothing
-  where
-    cqlSelectPayload :: PrepQuery R (Identity PayloadId) (Identity Blob)
-    cqlSelectPayload = "SELECT payload from notification_payload where id = ?"
-
-type NotifRow = (TimeUuid, Maybe Blob, Maybe PayloadId, Maybe Int32, Maybe (C.Set ClientId))
+  chan <- readMVar =<< view rabbitmqChannel
+  notifsTVar <- newTVarIO Nothing
+  liftIO $ Q.qos chan 0 1 False
+  let processMsg (msg, _envelope) = do
+        atomically $ modifyTVar' notifsTVar $ const $ Just msg
+  consumerTag <-
+    liftIO $
+      Q.consumeMsgs'
+        chan
+        (userStreamName u)
+        Q.Ack
+        processMsg
+        (const $ pure ())
+        (Q.FieldTable $ Map.singleton "x-stream-offset" (Q.FVString "last"))
+  -- This is a weird hack because we cannot know when we're done fetching notifs.
+  threadDelay 1_000_000
+  liftIO $ Q.cancelConsumer chan consumerTag
+  mMsg <- readTVarIO notifsTVar
+  pure $ mkNotif c =<< mMsg
 
 fetch :: forall m. (MonadReader Env m, MonadClient m, MonadUnliftIO m) => UserId -> Maybe ClientId -> Maybe NotificationId -> Range 100 10000 Int32 -> m ResultPage
 fetch u c mSince (fromIntegral . fromRange -> pageSize) = do
   chan <- readMVar =<< view rabbitmqChannel
-  notifsTVar <- newTVarIO []
+  notifsTVar <- newTVarIO mempty
   notifsFullMVar <- newEmptyMVar
   liftIO $ Q.qos chan 0 1 False
   let processMsg (msg, _envelope) = do
         isFull <- atomically $ stateTVar notifsTVar $ \allMsgs ->
-          let allMsgsNew = allMsgs <> [msg]
+          let allMsgsNew = allMsgs :|> msg
            in (length allMsgsNew >= pageSize, allMsgsNew)
         when isFull $ void $ tryPutMVar notifsFullMVar ()
   consumerTag <-
@@ -198,24 +170,27 @@ fetch u c mSince (fromIntegral . fromRange -> pageSize) = do
   -- This is a weird hack because we cannot know when we're done fetching notifs.
   mFull <- timeout (1_000_000) (takeMVar notifsFullMVar)
   liftIO $ Q.cancelConsumer chan consumerTag
-  msgs <- readTVarIO notifsTVar
-  -- TODO: What is the starting notif id, assumed 0 here, but obv wrong. Q.msgTimestamp?
-  notifs <- fmap catMaybes . traverse mkNotifs $ zip msgs [0 ..]
+  notifs <- foldMap (foldMap Seq.singleton . mkNotif c) <$> readTVarIO notifsTVar
   pure $
     ResultPage
-      { resultSeq = Seq.fromList notifs,
+      { resultSeq = notifs,
         resultHasMore = isJust mFull,
         resultGap = False
       }
-  where
-    mkNotifs :: (Q.Message, Int) -> m (Maybe QueuedNotification)
-    mkNotifs (msg, offset) =
-      case Aeson.decode @StoredMessage (Q.msgBody msg) of
-        Nothing -> pure Nothing -- TODO: Log this
-        Just sm ->
-          if sm.smTargetClients == mempty || maybe True (flip Set.member sm.smTargetClients) c
-            then pure $ Just $ queuedNotification (Text.pack $ show offset) sm.smEvent
-            else pure Nothing
+
+-- returns empty if message cannot be converted to notif
+-- TODO: log when a mesasge doesn't get translated to queued notification
+mkNotif :: Maybe ClientId -> Q.Message -> Maybe QueuedNotification
+mkNotif c msg = do
+  Q.FieldTable headers <- msg.msgHeaders
+  offsetVal <- Map.lookup "x-stream-offset" headers
+  offset <- case offsetVal of
+    Q.FVInt64 o -> Just o
+    _ -> Nothing
+  sm <- Aeson.decode @StoredMessage (Q.msgBody msg)
+  if sm.smTargetClients == mempty || maybe True (flip Set.member sm.smTargetClients) c
+    then Just $ queuedNotification (Text.pack $ show offset) sm.smEvent
+    else Nothing
 
 data StoredMessage = StoredMessage
   { smTargetClients :: Imports.Set ClientId,
@@ -228,31 +203,7 @@ instance JSON.FromJSON StoredMessage where
       <$> o JSON..: "target_clients"
       <*> o JSON..: "event"
 
-deleteAll :: (MonadClient m) => UserId -> m ()
-deleteAll u = write cql (params LocalQuorum (Identity u)) & retry x5
-  where
-    cql :: PrepQuery W (Identity UserId) ()
-    cql = "DELETE FROM notifications WHERE user = ?"
-
--------------------------------------------------------------------------------
--- Conversions
-
-toNotifSingle ::
-  Maybe ClientId ->
-  (TimeUuid, Blob, Maybe (C.Set ClientId)) ->
-  Maybe QueuedNotification
-toNotifSingle c (i, b, cs) =
-  let clients = maybe [] fromSet cs
-      notifId = Id (fromTimeUuid i)
-   in case JSON.decode' (fromBlob b) of
-        Nothing -> Nothing
-        Just pl ->
-          -- nb. At some point we should be able to do:
-          -- @@@ if null clients || maybe False (`elem` clients) c @@@
-          -- i.e. not return notifications targeted at specific clients,
-          -- if no client ID is given. We currently return all of them
-          -- in this case for backward compatibility with existing internal
-          -- clients.
-          if null clients || maybe True (`elem` clients) c
-            then Just (queuedNotification (Text.pack $ show notifId) pl)
-            else Nothing
+deleteAll :: (MonadClient m, MonadReader Env m) => UserId -> m ()
+deleteAll u = do
+  chan <- readMVar =<< view rabbitmqChannel
+  void . liftIO . Q.deleteQueue chan $ userStreamName u
