@@ -31,8 +31,6 @@ library
     Gundeck.Notification
     Gundeck.Notification.Data
     Gundeck.Options
-    Gundeck.Presence
-    Gundeck.Presence.Data
     Gundeck.Push
     Gundeck.Push.Data
     Gundeck.Push.Native
