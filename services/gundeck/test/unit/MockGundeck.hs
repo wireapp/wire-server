@@ -417,7 +417,6 @@ instance MonadThrow MockGundeck where
 
 instance MonadPushAll MockGundeck where
   mpaNotificationTTL = pure $ NotificationTTL 300 -- (longer than we want any test to take.)
-  mpaMkNotificationId = mockMkNotificationId
   mpaListAllPresences = mockListAllPresences
   mpaStreamAdd = mockStreamAdd
   mpaPushNative = mockPushNative
@@ -534,11 +533,6 @@ handlePushCass Push {..} = do
           RecipientClientsSome cc -> toList cc
     forM_ cids' $ \cid ->
       msCassQueue %= deliver (uid, cid) _pushPayload
-
-mockMkNotificationId ::
-  (HasCallStack, m ~ MockGundeck) =>
-  m NotificationId
-mockMkNotificationId = Text.pack . show <$> getRandom @_ @Int
 
 mockListAllPresences ::
   (HasCallStack, m ~ MockGundeck) =>
