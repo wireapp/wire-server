@@ -11,6 +11,15 @@ config:
   logLevel: Info
   logFormat: StructuredJSON
   logNetStrings: false
+  rabbitmq:
+    host: rabbitmq
+    port: 5672
+    vHost: /
+    enableTls: false
+    insecureSkipVerifyTls: false
+    # tlsCaSecretRef:
+    #   name: <secret-name>
+    #   key: <ca-attribute>
 
   # See also the section 'Controlling the speed of websocket draining during
   # cannon pod replacement' in docs/how-to/install/configuration-options.rst

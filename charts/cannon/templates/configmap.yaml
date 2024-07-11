@@ -14,6 +14,18 @@ data:
       host: gundeck
       port: 8080
 
+    {{- with .Values.config.rabbitmq }}
+    rabbitmq:
+      host: {{ .host }}
+      port: {{ .port }}
+      vHost: {{ .vHost }}
+      enableTls: {{ .enableTls }}
+      insecureSkipVerifyTls: {{ .insecureSkipVerifyTls }}
+      {{- if .tlsCaSecretRef }}
+      caCert: /etc/wire/cannon/rabbitmq-ca/{{ .tlsCaSecretRef.key }}
+      {{- end }}
+    {{- end }}
+
     drainOpts:
       gracePeriodSeconds: {{ .Values.config.drainOpts.gracePeriodSeconds }}
       millisecondsBetweenBatches: {{ .Values.config.drainOpts.millisecondsBetweenBatches }}
