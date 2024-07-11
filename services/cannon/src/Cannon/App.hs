@@ -108,23 +108,30 @@ wsapp k uid c e pc = do
 
   -- create rabbitmq consumer
   chan <- readMVar e.rabbitmqChannel
+  Q.qos chan 0 1 False
   traceM "got channel"
   -- ensureQueue chan uid
   -- traceM "declared queue"
   consumerTag <- Q.consumeMsgs chan (routingKey uid) Q.Ack $ \(message, envelope) -> do
-    traceM $ "rabbitmq message: " <> show message.msgBody
-    notif <- case Aeson.eitherDecode message.msgBody of
-      Left errMsg -> error $ "failed parsing rabbitmq message: " <> errMsg
-      Right (body :: RabbitmqMessage) -> do
-        pure $
-          Aeson.encode $
-            object
-              [ "payload" Aeson..= body.event
-              ]
-    traceM $ "notif: " <> show notif
-    ws <- readMVar wsVar
-    runWS e $ sendMsg notif ws
-    Q.ackMsg chan envelope.envDeliveryTag False
+    catch
+      ( do
+          traceM $ "rabbitmq message: " <> show message.msgBody
+          traceM $ "message headers: " <> show message.msgHeaders
+          notif <- case Aeson.eitherDecode message.msgBody of
+            Left errMsg -> error $ "failed parsing rabbitmq message: " <> errMsg
+            Right (body :: RabbitmqMessage) -> do
+              pure $
+                Aeson.encode $
+                  object
+                    [ "payload" Aeson..= body.event
+                    ]
+          traceM $ "notif: " <> show notif
+          ws <- readMVar wsVar
+          runWS e $ sendMsg notif ws
+          Q.ackMsg chan envelope.envDeliveryTag False
+      )
+      $ \(e :: SomeException) -> do
+        traceM $ "exception in rabbitmq handler: " <> displayException e
 
   -- traceM $ "envelope: " <> show envelope
   traceM $ "tag: " <> show consumerTag
@@ -134,7 +141,7 @@ wsapp k uid c e pc = do
         putMVar wsVar ws
         debug $ client (key2bytes k) ~~ "websocket" .= connIdent ws
         registerLocal k ws
-        registerRemote k c `onException` (unregisterLocal k ws >> close k ws)
+        -- registerRemote k c `onException` (unregisterLocal k ws >> close k ws)
         clock <- getClock
         continue ws clock k `finally` terminate k ws (chan, consumerTag)
 

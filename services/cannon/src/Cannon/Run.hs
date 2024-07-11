@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wwarn #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -72,10 +74,6 @@ run o = do
   ext <- loadExternal
   g <- L.mkLogger (o ^. logLevel) (o ^. logNetStrings) (o ^. logFormat)
   chan <- Q.mkRabbitMqChannelMVar g (o ^. rabbitmq)
-  do
-    c <- readMVar chan
-    traceM "qos"
-    Q.qos c 0 1 False
   e <-
     mkEnv ext chan o g
       <$> D.empty 128
