@@ -11,6 +11,7 @@ config:
   logLevel: Info
   logFormat: StructuredJSON
   logNetStrings: false
+  notificationTTL: 2419200
   rabbitmq:
     host: rabbitmq
     port: 5672
