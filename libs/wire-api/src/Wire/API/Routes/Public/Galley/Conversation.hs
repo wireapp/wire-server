@@ -1369,7 +1369,7 @@ type ConversationAPI =
                :> ZLocalUser
                :> ZConn
                :> "conversations"
-               :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+               :> Capture "cnv" ConvId
                :> "icon"
                :> ReqBody '[JSON] ConversationGroupPicture
                :> MultiVerb

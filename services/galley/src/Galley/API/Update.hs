@@ -85,7 +85,6 @@ import Data.Qualified
 import Data.Set qualified as Set
 import Data.Singletons
 import Data.Time
-import Debug.Trace (traceM)
 import Galley.API.Action
 import Galley.API.Error
 import Galley.API.Mapping
@@ -732,21 +731,14 @@ updateConversationProtocolWithLocalUser lusr conn qcnv (P.ProtocolUpdate newProt
       qcnv
 
 updateConversationGroupPicture ::
+  (Member ConversationStore r) =>
   Local UserId ->
   ConnId ->
-  Qualified ConvId ->
-  a ->
+  ConvId ->
+  ConversationGroupPicture ->
   Sem r ()
-updateConversationGroupPicture lusr _conn qcnv _ = do
-  foldQualified
-    lusr
-    ( \lcnv -> do
-        traceM $ "\n ---------- Local: " <> show lcnv
-    )
-    ( \rcnv -> do
-        traceM $ "\n ---------- Remote: " <> show rcnv
-    )
-    qcnv
+updateConversationGroupPicture _lusr _conn cnv ConversationGroupPicture {..} = do
+  E.setConversationGroupPicture cnv color emoji
 
 joinConversationByReusableCode ::
   forall r.
