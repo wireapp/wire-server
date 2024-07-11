@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wwarn #-}
+{-# OPTIONS_GHC -Wwarn -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
 --
