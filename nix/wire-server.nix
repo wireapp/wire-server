@@ -496,7 +496,11 @@ in
     toplevel-derivations haskellPackages haskellPackagesUnoptimizedNoDocs imagesList;
 
   images = images localModsEnableAll;
-  imagesUnoptimizedNoDocs = images localModsOnlyTests;
+  imagesUnoptimizedNoDocs = images {
+    enableOptimization = false;
+    enableTests = false;
+    enableDocs = false;
+  };
   # Used for production images, ensure that optimizations and tests are always
   # enabled!
   imagesNoDocs = images {
