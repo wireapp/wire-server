@@ -61,7 +61,8 @@ import Text.Printf qualified as Printf
 import Wire.API.Routes.MultiVerb
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
-type NotificationId = Int64
+-- TODO: make this Int64
+type NotificationId = Text
 
 notificationIdToUUIDV1 :: Int -> UUID.UUID
 notificationIdToUUIDV1 =

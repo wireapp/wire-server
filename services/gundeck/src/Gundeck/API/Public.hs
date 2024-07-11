@@ -22,7 +22,6 @@ where
 
 import Data.Id
 import Data.Range
-import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Gundeck.Monad
 import Gundeck.Notification qualified as Notification
@@ -104,7 +103,7 @@ paginateUntilV2 uid mbSince mbClient mbSize = do
     since = parseUUID <$> mbSince
 
     parseUUID :: Public.RawNotificationId -> Maybe Public.NotificationId
-    parseUUID = read . Text.unpack . Text.decodeUtf8 . Public.unRawNotificationId -- TODO: don't use `read` here
+    parseUUID = pure . Text.decodeUtf8 . Public.unRawNotificationId
 
 paginate ::
   UserId ->
