@@ -263,6 +263,7 @@ spec = describe "UserSubsystem.Interpreter" do
                       ( UserUpdated $
                           (emptyUserUpdatedData alice.id)
                             { eupName = update.name,
+                              eupTextStatus = update.textStatus,
                               eupPict = update.pict,
                               eupAccentId = update.accentId,
                               eupAssets = update.assets,

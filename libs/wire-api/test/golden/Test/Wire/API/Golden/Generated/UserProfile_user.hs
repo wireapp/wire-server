@@ -39,6 +39,7 @@ testObject_UserProfile_user_1 =
             qDomain = Domain {_domainText = "v.ay64d"}
           },
       profileName = Name {fromName = "\50534\3354]$\169938\183604UV`\nF\f\23427ys'd\bXy\ENQ:\ESC\139288\RSD[<\132982E"},
+      profileTextStatus = Nothing,
       profilePict = Pict {fromPict = []},
       profileAssets = [],
       profileAccentId = ColourId {fromColourId = 2},
@@ -61,6 +62,7 @@ testObject_UserProfile_user_2 =
             qDomain = Domain {_domainText = "go.7.w-3r8iy2.a"}
           },
       profileName = Name {fromName = "si4v\999679\ESC^'\12447k\21889\NAK?\1082547\NULBw;\b3*R/\164149lrI"},
+      profileTextStatus = Nothing,
       profilePict = Pict {fromPict = []},
       profileAssets = [],
       profileAccentId = ColourId {fromColourId = -1},

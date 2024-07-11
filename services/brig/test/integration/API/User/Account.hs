@@ -759,6 +759,7 @@ testMultipleUsers opts brig = do
         UserProfile
           { profileQualifiedId = u5,
             profileName = Name "u5",
+            profileTextStatus = Nothing,
             profilePict = Pict [],
             profileAssets = [],
             profileAccentId = ColourId 0,

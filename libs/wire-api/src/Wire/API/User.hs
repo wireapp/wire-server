@@ -479,6 +479,7 @@ instance (1 <= max) => ToJSON (LimitedQualifiedUserIdList max) where
 data UserProfile = UserProfile
   { profileQualifiedId :: Qualified UserId,
     profileName :: Name,
+    profileTextStatus :: Maybe TextStatus,
     -- | DEPRECATED
     profilePict :: Pict,
     profileAssets :: [Asset],
@@ -508,6 +509,8 @@ instance ToSchema UserProfile where
           .= optional (field "id" (deprecatedSchema "qualified_id" schema))
         <*> profileName
           .= field "name" schema
+        <*> profileTextStatus
+          .= maybe_ (optField "text_status" schema)
         <*> profilePict
           .= (field "picture" schema <|> pure noPict)
         <*> profileAssets
@@ -696,6 +699,7 @@ mkUserProfileWithEmail memail u legalHoldStatus =
     { profileQualifiedId = userQualifiedId u,
       profileHandle = userHandle u,
       profileName = userDisplayName u,
+      profileTextStatus = userTextStatus u,
       profilePict = userPict u,
       profileAssets = userAssets u,
       profileAccentId = userAccentId u,

@@ -89,6 +89,7 @@ testObject_UserEvent_6 =
         ( UserUpdatedData
             (userId alice)
             (Just alice.userDisplayName)
+            alice.userTextStatus
             (Just alice.userPict)
             (Just alice.userAccentId)
             (Just alice.userAssets)

@@ -389,6 +389,7 @@ mkProfileUpdateEvent uid update =
   UserUpdated $
     (emptyUserUpdatedData uid)
       { eupName = update.name,
+        eupTextStatus = update.textStatus,
         eupPict = update.pict,
         eupAccentId = update.accentId,
         eupAssets = update.assets,

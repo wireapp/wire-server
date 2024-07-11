@@ -146,6 +146,7 @@ data ClientEvent
 data UserUpdatedData = UserUpdatedData
   { eupId :: !UserId,
     eupName :: !(Maybe Name),
+    eupTextStatus :: !(Maybe TextStatus),
     -- | DEPRECATED
     eupPict :: !(Maybe Pict),
     eupAccentId :: !(Maybe ColourId),
@@ -220,6 +221,7 @@ profileUpdated u UserUpdate {..} =
   UserUpdated $
     (emptyUserUpdatedData u)
       { eupName = uupName,
+        eupTextStatus = uupTextStatus,
         eupPict = uupPict,
         eupAccentId = uupAccentId,
         eupAssets = uupAssets
@@ -233,6 +235,7 @@ emptyUserUpdatedData u =
   UserUpdatedData
     { eupId = u,
       eupName = Nothing,
+      eupTextStatus = Nothing,
       eupPict = Nothing,
       eupAccentId = Nothing,
       eupAssets = Nothing,
@@ -273,6 +276,7 @@ eventObjectSchema =
                           ( UserUpdatedData
                               <$> eupId .= field "id" schema
                               <*> eupName .= maybe_ (optField "name" schema)
+                              <*> eupTextStatus .= maybe_ (optField "text_status" schema)
                               <*> eupPict .= maybe_ (optField "picture" schema) -- DEPRECATED
                               <*> eupAccentId .= maybe_ (optField "accent_id" schema)
                               <*> eupAssets .= maybe_ (optField "assets" (array schema))
