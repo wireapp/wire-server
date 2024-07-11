@@ -1,0 +1,2 @@
+rabbitmq:
+  extraPlugins: rabbitmq_stream
