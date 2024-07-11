@@ -21,19 +21,21 @@ module Test.MLS.Message where
 
 import API.Galley
 import API.Gundeck
-import Control.Concurrent
 import qualified Data.Aeson as Aeson
 import MLS.Util
 import Notifications
 import SetupHelpers
 import Testlib.Prelude
 
+-- import UnliftIO.Concurrent (threadDelay)
+
 testFoo :: (HasCallStack) => App ()
-testFoo = do
+testFoo = replicateM_ 10 $ do
   alice <- randomUser OwnDomain def
   printJSON alice
-  liftIO $ threadDelay 1000000
+  -- threadDelay 1000000
   withWebSocket alice $ \ws -> do
+    -- liftIO $ threadDelay 1000000
     void $ createMLSClient def alice
     n <- awaitMatch isUserClientAddNotif ws
     printJSON n

@@ -76,7 +76,7 @@ data RabbitMqAdminOpts = RabbitMqAdminOpts
     tls :: Maybe RabbitMqTlsOpts,
     adminPort :: !Int
   }
-  deriving (Show)
+  deriving (Eq, Show)
 
 instance FromJSON RabbitMqAdminOpts where
   parseJSON = withObject "RabbitMqAdminOpts" $ \v ->
@@ -86,6 +86,9 @@ instance FromJSON RabbitMqAdminOpts where
       <*> v .: "vHost"
       <*> parseTlsJson v
       <*> v .: "adminPort"
+
+instance ToJSON RabbitMqAdminOpts where
+  toJSON = error "RabbitMqAdminOpts toJSON not implemented due to developer laziness"
 
 mkRabbitMqAdminClientEnv :: RabbitMqAdminOpts -> IO (AdminAPI (AsClientT IO))
 mkRabbitMqAdminClientEnv opts = do

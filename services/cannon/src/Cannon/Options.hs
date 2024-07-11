@@ -44,7 +44,7 @@ where
 import Control.Lens (makeFields)
 import Data.Aeson.APIFieldJsonTH
 import Imports
-import Network.AMQP.Extended (RabbitMqOpts)
+import Network.AMQP.Extended (RabbitMqAdminOpts)
 import System.Logger.Extended (Level, LogFormat)
 import Wire.API.Routes.Version
 
@@ -90,7 +90,7 @@ deriveApiFieldJSON ''DrainOpts
 data Opts = Opts
   { _optsCannon :: !Cannon,
     _optsGundeck :: !Gundeck,
-    _optsRabbitmq :: !RabbitMqOpts,
+    _optsRabbitmq :: !RabbitMqAdminOpts,
     _optsNotificationTTL :: !Word32,
     _optsLogLevel :: !Level,
     _optsLogNetStrings :: !(Maybe (Last Bool)),

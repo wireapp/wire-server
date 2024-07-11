@@ -71,7 +71,7 @@ run o = do
     error "drainOpts.gracePeriodSeconds must not be set to 0."
   ext <- loadExternal
   g <- L.mkLogger (o ^. logLevel) (o ^. logNetStrings) (o ^. logFormat)
-  chan <- Q.mkRabbitMqChannelMVar g (o ^. rabbitmq)
+  chan <- Q.mkRabbitMqChannelMVar g (Q.demoteOpts (o ^. rabbitmq))
   e <-
     mkEnv ext chan o g
       <$> D.empty 128

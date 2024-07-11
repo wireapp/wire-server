@@ -46,6 +46,7 @@ import Network.AMQP qualified as Q
 import Network.AMQP.Extended qualified as Q
 import Network.AMQP.Types qualified as Q
 import Network.HTTP.Types.Status
+import Network.RabbitMqAdmin qualified as Q
 import Network.Wai.Utilities.Error
 import Network.WebSockets hiding (Request, Response, requestHeaders)
 import System.Logger.Class hiding (Error, close)
@@ -105,15 +106,21 @@ instance FromJSON RabbitmqMessage where
       <$> obj .: "event"
       <*> obj .: "target_clients"
 
-wsapp :: Key -> UserId -> Maybe ClientId -> Env -> Q.RabbitMqOpts -> ServerApp
+wsapp :: Key -> UserId -> Maybe ClientId -> Env -> Q.RabbitMqAdminOpts -> ServerApp
 wsapp k uid c e rabbitmqOpts pc = do
   wsVar <- newEmptyMVar
 
   -- create rabbitmq consumer
-  -- chan <- readMVar e.rabbitmqChannel
-  chan <- Q.mkRabbitMqChannelMVar e.logg rabbitmqOpts >>= readMVar
+  chan <- readMVar e.rabbitmqChannel
+
+  -- TODO: This is hack, this somehow makes the stream available even if it was
+  -- just created. I don't know how this would perform in a multi node cluster.
+  rabbitmqAdminClient <- Q.mkRabbitMqAdminClientEnv rabbitmqOpts
+  traceShowM =<< (liftIO $ Q.getQueue rabbitmqAdminClient "/" (routingKey uid))
+  -- chan <- Q.mkRabbitMqChannelMVar e.logg rabbitmqOpts >>= readMVar
+  -- threadDelay 10000
   Q.qos chan 0 1 False
-  threadDelay 1000000
+  -- threadDelay 1000000
   traceM "got channel"
   ensureNotifStream chan e uid
   consumerTag <- Q.consumeMsgs chan (routingKey uid) Q.Ack $ \(message, envelope) -> do

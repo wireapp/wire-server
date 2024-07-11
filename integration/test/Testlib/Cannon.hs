@@ -147,9 +147,11 @@ clientApp wsChan latch conn = do
       case decodeStrict' bs of
         Just n -> atomically $ writeTChan wsChan n
         Nothing -> putStrLn $ "Failed to decode notification: " ++ show bs
-    wsWrite = forever $ do
-      takeMVar latch
-      WS.sendClose conn ("close" :: ByteString)
+    wsWrite = do
+      WS.sendPing conn ("hello" :: ByteString)
+      forever $ do
+        takeMVar latch
+        WS.sendClose conn ("close" :: ByteString)
 
 -- | Start a client thread in 'Async' that opens a web socket to a Cannon, wait
 --   for the connection to register with Gundeck, and return the 'Async' thread.
@@ -182,6 +184,7 @@ run wsConnect app = do
     r <- rawBaseRequest domain Cannon Versioned path
     pure r {HTTP.requestHeaders = caHdrs}
 
+  waitForPong <- liftIO $ newEmptyMVar
   wsapp <-
     liftIO
       $ async
@@ -190,7 +193,7 @@ run wsConnect app = do
             caHost
             (fromIntegral caPort)
             path
-            WS.defaultConnectionOptions
+            (WS.defaultConnectionOptions {WS.connectionOnPong = void $ tryPutMVar waitForPong ()})
             caHdrs
             app
         )
@@ -208,6 +211,8 @@ run wsConnect app = do
                   request = request
                 }
         throwIO (AssertionFailure callStack (Just r) (displayException ex))
+  -- TODO: add a race so we timeout
+  liftIO $ takeMVar waitForPong
   pure wsapp
 
 close :: (MonadIO m) => WebSocket -> m ()
