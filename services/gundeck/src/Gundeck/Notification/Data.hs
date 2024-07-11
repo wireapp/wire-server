@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wwarn #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -107,6 +109,11 @@ userStreamName uid = "client-notifications." <> Text.pack (show uid)
 
 fetchId :: (MonadReader Env m, MonadUnliftIO m) => UserId -> NotificationId -> Maybe ClientId -> m (Maybe QueuedNotification)
 fetchId u n c = do
+  mMsg <- fetchNotifById u n
+  pure $ mkNotif c =<< mMsg
+
+fetchNotifById :: (MonadReader Env m, MonadUnliftIO m) => UserId -> NotificationId -> m (Maybe Q.Message)
+fetchNotifById u n = do
   chan <- readMVar =<< view rabbitmqChannel
   notifsMVar <- newEmptyMVar
   liftIO $ Q.qos chan 0 1 False
@@ -124,9 +131,9 @@ fetchId u n c = do
   -- This is a weird hack because we cannot know when we're done fetching notifs.
   mMsg <- timeout 1_000_000 (takeMVar notifsMVar)
   liftIO $ Q.cancelConsumer chan consumerTag
-  pure $ mkNotif c =<< mMsg
+  pure mMsg
 
-fetchLast :: forall m. (MonadReader Env m, MonadClient m) => UserId -> Maybe ClientId -> m (Maybe QueuedNotification)
+fetchLast :: forall m. (MonadUnliftIO m, MonadReader Env m) => UserId -> Maybe ClientId -> m (Maybe QueuedNotification)
 fetchLast u c = do
   chan <- readMVar =<< view rabbitmqChannel
   notifsTVar <- newTVarIO Nothing
@@ -145,8 +152,18 @@ fetchLast u c = do
   -- This is a weird hack because we cannot know when we're done fetching notifs.
   threadDelay 1_000_000
   liftIO $ Q.cancelConsumer chan consumerTag
-  mMsg <- readTVarIO notifsTVar
-  pure $ mkNotif c =<< mMsg
+  let go :: Maybe Q.Message -> m (Maybe QueuedNotification)
+      go mMsg =
+        case mMsg of
+          Nothing -> pure Nothing
+          Just m -> case mkNotif c m of
+            Nothing -> do
+              let Just (Q.FieldTable table) = m.msgHeaders
+              let Just (Q.FVInt64 notifId) = Map.lookup "x-stream-offset" table
+              let nId = Text.pack (show (notifId - 1))
+              fetchNotifById u nId >>= go
+            Just n -> pure (Just n)
+  readTVarIO notifsTVar >>= go
 
 fetch :: forall m. (MonadReader Env m, MonadClient m, MonadUnliftIO m) => UserId -> Maybe ClientId -> Maybe NotificationId -> Range 100 10000 Int32 -> m ResultPage
 fetch u c mSince (fromIntegral . fromRange -> pageSize) = do
