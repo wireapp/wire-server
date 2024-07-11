@@ -21,7 +21,7 @@
 module Push where
 
 import Data.Aeson qualified as Aeson
-import Gundeck.Push (pushAll, pushAny)
+import Gundeck.Push (pushAll)
 import Gundeck.Types
 import Imports
 import MockGundeck
