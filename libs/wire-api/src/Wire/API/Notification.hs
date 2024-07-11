@@ -61,7 +61,16 @@ import Text.Printf qualified as Printf
 import Wire.API.Routes.MultiVerb
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
--- TODO: make this Int64
+-- TODO: This used to be UUIDV1, but with the migration from cassandra to rabbitmq, we had to
+-- change it to Int64.  To make team notifications in galley keep working with cassandra, we
+-- keep that Int64 in an untyped Text.
+--
+-- The time stamp in a UUIDV1 is 64 bits, so we should be able to fit all Int64 values into it
+-- contain an Int64 https://www.rfc-editor.org/rfc/rfc4122#page-6.  The uuid package has all
+-- the code we need to do that, but it doesn't expose it.
+--
+-- A better way is probably to make team notifications in galley and all clients work with
+-- Int64 instead.  (Also, how do we make this upgrade-safe?)
 type NotificationId = Text
 
 notificationIdToUUIDV1 :: Int -> UUID.UUID
