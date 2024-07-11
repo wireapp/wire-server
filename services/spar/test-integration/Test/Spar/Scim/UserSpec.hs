@@ -2367,7 +2367,7 @@ specSCIMManaged = do
 
       do
         displayName <- Name <$> randomAlphaNum
-        let uupd = UserUpdate (Just displayName) Nothing Nothing Nothing
+        let uupd = UserUpdate (Just displayName) Nothing Nothing Nothing Nothing
         call $
           updateProfileBrig brig uid uupd !!! do
             (fmap Wai.label . responseJsonEither @Wai.Error) === const (Right "managed-by-scim")

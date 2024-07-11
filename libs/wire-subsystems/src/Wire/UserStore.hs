@@ -19,6 +19,7 @@ import Wire.StoredUser
 -- | see 'UserProfileUpdate'.
 data StoredUserUpdate = MkStoredUserUpdate
   { name :: Maybe Name,
+    textStatus :: Maybe TextStatus,
     pict :: Maybe Pict,
     assets :: Maybe [Asset],
     accentId :: Maybe ColourId,
@@ -29,7 +30,7 @@ data StoredUserUpdate = MkStoredUserUpdate
   deriving (Arbitrary) via GenericUniform StoredUserUpdate
 
 instance Default StoredUserUpdate where
-  def = MkStoredUserUpdate Nothing Nothing Nothing Nothing Nothing Nothing
+  def = MkStoredUserUpdate Nothing Nothing Nothing Nothing Nothing Nothing Nothing
 
 -- | Update user handle (this involves several http requests for locking the required handle).
 -- The old/previous handle (for deciding idempotency).
