@@ -90,6 +90,17 @@ spec:
         securityContext:
           {{- toYaml .Values.podSecurityContext | nindent 10 }}
         {{- end }}
+        env:
+        - name: RABBITMQ_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: cannon
+              key: rabbitmqUsername
+        - name: RABBITMQ_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: cannon
+              key: rabbitmqPassword
         volumeMounts:
         - name: empty
           mountPath: /etc/wire/cannon/externalHost
