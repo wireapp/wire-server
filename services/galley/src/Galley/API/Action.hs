@@ -264,6 +264,12 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member TeamStore r,
       Member TinyLog r
     )
+  HasConversationActionEffects 'ConversationUpdateGroupPictureTag r =
+    ( Member (Error InvalidInput) r,
+      Member ConversationStore r,
+      Member TeamStore r,
+      Member (ErrorS InvalidOperation) r
+    )
 
 type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: EffectRow where
   HasConversationActionGalleyErrors 'ConversationJoinTag =
@@ -330,6 +336,12 @@ type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: 
        ErrorS 'NotATeamMember,
        ErrorS OperationDenied,
        ErrorS 'TeamNotFound
+     ]
+  HasConversationActionGalleyErrors 'ConversationUpdateGroupPictureTag =
+    '[ ErrorS ('ActionDenied 'ModifyConversationGroupPicture),
+       ErrorS 'InvalidOperation,
+       ErrorS 'InvalidTargetAccess,
+       ErrorS 'ConvNotFound
      ]
 
 checkFederationStatus ::
@@ -488,6 +500,10 @@ performAction tag origUser lconv action = do
     SConversationAccessDataTag -> do
       (bm, act) <- performConversationAccessData origUser lconv action
       pure (bm, act)
+    SConversationUpdateGroupPictureTag -> do
+      let ConversationGroupPicture colour emoji = action
+      E.setConversationGroupPicture (tUnqualified lcnv) colour emoji
+      pure (mempty, action)
     SConversationUpdateProtocolTag -> do
       case (protocolTag (convProtocol (tUnqualified lconv)), action, convTeam (tUnqualified lconv)) of
         (ProtocolProteusTag, ProtocolMixedTag, Just _) -> do
@@ -971,6 +987,7 @@ updateLocalStateOfRemoteConv rcu con = do
       SConversationReceiptModeUpdateTag -> pure (Just sca, [])
       SConversationAccessDataTag -> pure (Just sca, [])
       SConversationUpdateProtocolTag -> pure (Just sca, [])
+      SConversationUpdateGroupPictureTag -> pure (Just sca, [])
 
   unless allUsersArePresent $
     P.warn $

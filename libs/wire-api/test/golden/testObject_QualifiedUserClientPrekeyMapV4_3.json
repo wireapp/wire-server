@@ -1,10 +1,13 @@
-{ "qualified_user_client_prekeys" : {}
-, "failed_to_list" :
-  [ { "domain" : "example.com"
-    , "id" : "44f9c51e-0dce-4e7f-85ba-b4e5a545ce68"
-    }
-  , { "domain" : "test.net"
-    , "id" : "284c4e8f-78ef-43f4-a77a-015c22e37960"
-    }
-  ]
+{
+    "failed_to_list": [
+        {
+            "domain": "example.com",
+            "id": "44f9c51e-0dce-4e7f-85ba-b4e5a545ce68"
+        },
+        {
+            "domain": "test.net",
+            "id": "284c4e8f-78ef-43f4-a77a-015c22e37960"
+        }
+    ],
+    "qualified_user_client_prekeys": {}
 }

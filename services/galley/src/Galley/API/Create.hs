@@ -630,7 +630,9 @@ newRegularConversation lusr newConv = do
                   cnvmName = fmap fromRange (newConvName newConv),
                   cnvmMessageTimer = newConvMessageTimer newConv,
                   cnvmReceiptMode = newConvReceiptMode newConv,
-                  cnvmTeam = fmap cnvTeamId (newConvTeam newConv)
+                  cnvmTeam = fmap cnvTeamId (newConvTeam newConv),
+                  cnvmGroupColor = Nothing,
+                  cnvmGroupIcon = Nothing
                 },
             ncUsers = ulAddLocal (toUserRole (tUnqualified lusr)) (fmap (,newConvUsersRole newConv) (fromConvSize users)),
             ncProtocol = newConvProtocol newConv

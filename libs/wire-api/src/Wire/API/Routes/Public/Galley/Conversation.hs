@@ -1356,5 +1356,25 @@ type ConversationAPI =
                :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
                :> "protocol"
                :> ReqBody '[JSON] ProtocolUpdate
-               :> MultiVerb 'PUT '[Servant.JSON] ConvUpdateResponses (UpdateResult Event)
+               :> MultiVerb
+                    'PUT
+                    '[Servant.JSON]
+                    ConvUpdateResponses
+                    (UpdateResult Event)
+           )
+    :<|> Named
+           "update-conversation-group-picture"
+           ( Summary "Update the group picture information of the conversation"
+               :> Description "_______"
+               :> ZLocalUser
+               :> ZConn
+               :> "conversations"
+               :> Capture "cnv" ConvId
+               :> "icon"
+               :> ReqBody '[JSON] ConversationGroupPicture
+               :> MultiVerb
+                    'PUT
+                    '[Servant.JSON]
+                    '[RespondEmpty 204 "Update successful"]
+                    ()
            )

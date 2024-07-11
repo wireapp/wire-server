@@ -1,7 +1,9 @@
 {
     "access": [],
     "access_role": [],
+    "color": null,
     "creator": "00000001-0000-0001-0000-000200000001",
+    "emoji": null,
     "failed_to_add": [
         {
             "domain": "golden-unreachable-1.example.com",

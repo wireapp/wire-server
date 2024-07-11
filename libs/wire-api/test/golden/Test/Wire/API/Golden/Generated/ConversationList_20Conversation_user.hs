@@ -48,7 +48,9 @@ testObject_ConversationList_20Conversation_user_1 =
                     cnvmName = Just "",
                     cnvmTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))),
                     cnvmMessageTimer = Just (Ms {ms = 4760386328981119}),
-                    cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = 0})
+                    cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = 0}),
+                    cnvmGroupColor = Nothing,
+                    cnvmGroupIcon = Nothing
                   },
               cnvProtocol = ProtocolProteus,
               cnvMembers =

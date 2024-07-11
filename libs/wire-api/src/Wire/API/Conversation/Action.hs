@@ -65,6 +65,7 @@ type family ConversationAction (tag :: ConversationActionTag) :: Type where
   ConversationAction 'ConversationAccessDataTag = ConversationAccessData
   ConversationAction 'ConversationRemoveMembersTag = ConversationRemoveMembers
   ConversationAction 'ConversationUpdateProtocolTag = ProtocolTag
+  ConversationAction 'ConversationUpdateGroupPictureTag = ConversationGroupPicture
 
 data SomeConversationAction where
   SomeConversationAction :: Sing tag -> ConversationAction tag -> SomeConversationAction
@@ -142,6 +143,7 @@ conversationActionSchema SConversationMessageTimerUpdateTag = schema
 conversationActionSchema SConversationReceiptModeUpdateTag = schema
 conversationActionSchema SConversationAccessDataTag = schema
 conversationActionSchema SConversationUpdateProtocolTag = schema
+conversationActionSchema SConversationUpdateGroupPictureTag = schema
 
 instance FromJSON SomeConversationAction where
   parseJSON = A.withObject "SomeConversationAction" $ \ob -> do
@@ -174,6 +176,7 @@ $( singletons
        conversationActionPermission ConversationReceiptModeUpdateTag = ModifyConversationReceiptMode
        conversationActionPermission ConversationAccessDataTag = ModifyConversationAccess
        conversationActionPermission ConversationUpdateProtocolTag = LeaveConversation
+       conversationActionPermission ConversationUpdateGroupPictureTag = ModifyConversationGroupPicture
        |]
  )
 
@@ -205,4 +208,7 @@ conversationActionToEvent tag now quid qcnv subconv action =
         SConversationReceiptModeUpdateTag -> EdConvReceiptModeUpdate action
         SConversationAccessDataTag -> EdConvAccessUpdate action
         SConversationUpdateProtocolTag -> EdProtocolUpdate action
+        SConversationUpdateGroupPictureTag ->
+          let cgp :: ConversationGroupPicture = action
+           in EdConvGroupPictureUpdate cgp
    in Event qcnv subconv quid now edata

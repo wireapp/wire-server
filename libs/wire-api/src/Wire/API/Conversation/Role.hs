@@ -51,6 +51,7 @@ module Wire.API.Conversation.Role
     ModifyOtherConversationMemberSym0,
     LeaveConversationSym0,
     DeleteConversationSym0,
+    ModifyConversationGroupPictureSym0,
 
     -- * helpers
     isValidRoleName,
@@ -103,6 +104,7 @@ data Action
   | ModifyOtherConversationMember
   | LeaveConversation
   | DeleteConversation
+  | ModifyConversationGroupPicture
   deriving stock (Eq, Ord, Show, Enum, Bounded, Generic)
   deriving (Arbitrary) via (GenericUniform Action)
   deriving (S.ToSchema) via (S.CustomSwagger '[S.ConstructorTagModifier S.CamelToSnake] Action)
@@ -117,6 +119,7 @@ type family ActionName (a :: Action) :: Symbol where
   ActionName 'ModifyOtherConversationMember = "modify_other_conversation_member"
   ActionName 'LeaveConversation = "leave_conversation"
   ActionName 'DeleteConversation = "delete_conversation"
+  ActionName 'ModifyConversationGroupPicture = "modify_conversation_group_picture"
 
 A.deriveJSON A.defaultOptions {A.constructorTagModifier = A.camelTo2 '_'} ''Action
 

@@ -48,6 +48,7 @@ module Galley.Effects.ConversationStore
     setGroupInfo,
     updateToMixedProtocol,
     updateToMLSProtocol,
+    setConversationGroupPicture,
 
     -- * Delete conversation
     deleteConversation,
@@ -103,6 +104,7 @@ data ConversationStore m a where
   ReleaseCommitLock :: GroupId -> Epoch -> ConversationStore m ()
   UpdateToMixedProtocol :: Local ConvId -> ConvType -> ConversationStore m ()
   UpdateToMLSProtocol :: Local ConvId -> ConversationStore m ()
+  SetConversationGroupPicture :: ConvId -> Maybe Text -> Maybe Text -> ConversationStore m ()
 
 makeSem ''ConversationStore
 

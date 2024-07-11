@@ -18,7 +18,9 @@
         "guest",
         "service"
     ],
+    "color": null,
     "creator": "00000000-0000-0000-0000-000200000001",
+    "emoji": null,
     "epoch": 0,
     "group_id": "dGVzdF9ncm91cA==",
     "id": "00000000-0000-0000-0000-000000000002",

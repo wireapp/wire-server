@@ -1,7 +1,9 @@
 {
     "access": [],
     "access_role": [],
+    "color": null,
     "creator": "00000001-0000-0001-0000-000200000001",
+    "emoji": null,
     "failed_to_add": [],
     "id": "00000001-0000-0000-0000-000000000000",
     "last_event": "0.0",

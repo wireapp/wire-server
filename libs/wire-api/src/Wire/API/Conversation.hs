@@ -72,6 +72,7 @@ module Wire.API.Conversation
 
     -- * update
     ConversationRename (..),
+    ConversationGroupPicture (..),
     ConversationAccessData (..),
     conversationAccessDataSchema,
     ConversationReceiptModeUpdate (..),
@@ -110,6 +111,7 @@ import Data.UUID qualified as UUID
 import Data.UUID.V5 qualified as UUIDV5
 import Imports
 import System.Random (randomRIO)
+import Test.QuickCheck.Gen
 import Wire.API.Conversation.Member
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
@@ -136,7 +138,9 @@ data ConversationMetadata = ConversationMetadata
     -- federation.
     cnvmTeam :: Maybe TeamId,
     cnvmMessageTimer :: Maybe Milliseconds,
-    cnvmReceiptMode :: Maybe ReceiptMode
+    cnvmReceiptMode :: Maybe ReceiptMode,
+    cnvmGroupColor :: Maybe Text,
+    cnvmGroupIcon :: Maybe Text
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationMetadata)
@@ -152,7 +156,9 @@ defConversationMetadata mCreator =
       cnvmName = Nothing,
       cnvmTeam = Nothing,
       cnvmMessageTimer = Nothing,
-      cnvmReceiptMode = Nothing
+      cnvmReceiptMode = Nothing,
+      cnvmGroupColor = Nothing,
+      cnvmGroupIcon = Nothing
     }
 
 accessRolesVersionedSchema :: Maybe Version -> ObjectSchema SwaggerDoc (Set AccessRole)
@@ -212,6 +218,8 @@ conversationMetadataObjectSchema sch =
         (description ?~ "Per-conversation message timer (can be null)")
         (maybeWithDefault A.Null schema)
     <*> cnvmReceiptMode .= optField "receipt_mode" (maybeWithDefault A.Null schema)
+    <*> cnvmGroupColor .= optField "color" (maybeWithDefault A.Null schema)
+    <*> cnvmGroupIcon .= optField "emoji" (maybeWithDefault A.Null schema)
 
 instance ToSchema ConversationMetadata where
   schema = object "ConversationMetadata" (conversationMetadataObjectSchema accessRolesSchema)
@@ -810,6 +818,35 @@ newInvite us = Invite us roleNameWireAdmin
 
 --------------------------------------------------------------------------------
 -- update
+
+data ConversationGroupPicture = ConversationGroupPicture
+  { color :: Maybe Text,
+    emoji :: Maybe Text
+  }
+  deriving stock (Eq, Show)
+  deriving (S.ToSchema, ToJSON, FromJSON) via Schema ConversationGroupPicture
+
+instance Arbitrary ConversationGroupPicture where
+  arbitrary = ConversationGroupPicture <$> elements [Nothing, Just "purple"] <*> elements [Nothing, Just "😇"]
+
+instance ToSchema ConversationGroupPicture where
+  schema =
+    object "ConversationGroupPicture" $
+      ConversationGroupPicture
+        <$> color
+          .= maybe_
+            ( optFieldWithDocModifier
+                "color"
+                (description ?~ "background colour")
+                (unnamed (schema @Text))
+            )
+        <*> emoji
+          .= maybe_
+            ( optFieldWithDocModifier
+                "emoji"
+                (description ?~ "foreground emoji")
+                (unnamed (schema @Text))
+            )
 
 newtype ConversationRename = ConversationRename
   { cupName :: Text

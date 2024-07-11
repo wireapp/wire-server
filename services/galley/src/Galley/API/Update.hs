@@ -43,6 +43,7 @@ module Galley.API.Update
     updateRemoteConversation,
     updateConversationProtocolWithLocalUser,
     updateLocalStateOfRemoteConv,
+    updateConversationGroupPicture,
 
     -- * Managing Members
     addMembersUnqualified,
@@ -728,6 +729,16 @@ updateConversationProtocolWithLocalUser lusr conn qcnv (P.ProtocolUpdate newProt
             newProtocol
       )
       qcnv
+
+updateConversationGroupPicture ::
+  (Member ConversationStore r) =>
+  Local UserId ->
+  ConnId ->
+  ConvId ->
+  ConversationGroupPicture ->
+  Sem r ()
+updateConversationGroupPicture _lusr _conn cnv ConversationGroupPicture {..} = do
+  E.setConversationGroupPicture cnv color emoji
 
 joinConversationByReusableCode ::
   forall r.
