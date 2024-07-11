@@ -285,7 +285,7 @@ updateConvReceiptMode = {- `IF EXISTS`, but that requires benchmarking -} "updat
 updateConvMessageTimer :: PrepQuery W (Maybe Milliseconds, ConvId) ()
 updateConvMessageTimer = {- `IF EXISTS`, but that requires benchmarking -} "update conversation set message_timer = ? where conv = ?"
 
-updateConvGroupPicture :: PrepQuery W (Text, Text, ConvId) ()
+updateConvGroupPicture :: PrepQuery W (Maybe Text, Maybe Text, ConvId) ()
 updateConvGroupPicture = "update conversation set background_colour = ?, emoji = ? where conv = ?"
 
 updateConvName :: PrepQuery W (Text, ConvId) ()

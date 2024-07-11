@@ -214,7 +214,7 @@ updateConvReceiptMode cid receiptMode = retry x5 $ write Cql.updateConvReceiptMo
 updateConvMessageTimer :: ConvId -> Maybe Milliseconds -> Client ()
 updateConvMessageTimer cid mtimer = retry x5 $ write Cql.updateConvMessageTimer (params LocalQuorum (mtimer, cid))
 
-updateConvGroupPicture :: ConvId -> Text -> Text -> Client ()
+updateConvGroupPicture :: ConvId -> Maybe Text -> Maybe Text -> Client ()
 updateConvGroupPicture cid colour emoji = retry x5 $ write Cql.updateConvGroupPicture (params LocalQuorum (colour, emoji, cid))
 
 getConvEpoch :: ConvId -> Client (Maybe Epoch)

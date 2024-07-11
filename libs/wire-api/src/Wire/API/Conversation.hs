@@ -111,6 +111,7 @@ import Data.UUID qualified as UUID
 import Data.UUID.V5 qualified as UUIDV5
 import Imports
 import System.Random (randomRIO)
+import Test.QuickCheck.Gen
 import Wire.API.Conversation.Member
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
@@ -819,29 +820,33 @@ newInvite us = Invite us roleNameWireAdmin
 -- update
 
 data ConversationGroupPicture = ConversationGroupPicture
-  { color :: Text,
-    emoji :: Text
+  { color :: Maybe Text,
+    emoji :: Maybe Text
   }
   deriving stock (Eq, Show)
   deriving (S.ToSchema, ToJSON, FromJSON) via Schema ConversationGroupPicture
 
 instance Arbitrary ConversationGroupPicture where
-  arbitrary = ConversationGroupPicture <$> arbitrary <*> arbitrary
+  arbitrary = ConversationGroupPicture <$> elements [Nothing, Just "purple"] <*> elements [Nothing, Just "😇"]
 
 instance ToSchema ConversationGroupPicture where
   schema =
     object "ConversationGroupPicture" $
       ConversationGroupPicture
         <$> color
-          .= fieldWithDocModifier
-            "color"
-            (description ?~ "background colour")
-            (unnamed (schema @Text))
+          .= maybe_
+            ( optFieldWithDocModifier
+                "color"
+                (description ?~ "background colour")
+                (unnamed (schema @Text))
+            )
         <*> emoji
-          .= fieldWithDocModifier
-            "emoji"
-            (description ?~ "foreground emoji")
-            (unnamed (schema @Text))
+          .= maybe_
+            ( optFieldWithDocModifier
+                "emoji"
+                (description ?~ "foreground emoji")
+                (unnamed (schema @Text))
+            )
 
 newtype ConversationRename = ConversationRename
   { cupName :: Text

@@ -104,7 +104,7 @@ data ConversationStore m a where
   ReleaseCommitLock :: GroupId -> Epoch -> ConversationStore m ()
   UpdateToMixedProtocol :: Local ConvId -> ConvType -> ConversationStore m ()
   UpdateToMLSProtocol :: Local ConvId -> ConversationStore m ()
-  SetConversationGroupPicture :: ConvId -> Text -> Text -> ConversationStore m ()
+  SetConversationGroupPicture :: ConvId -> Maybe Text -> Maybe Text -> ConversationStore m ()
 
 makeSem ''ConversationStore
 

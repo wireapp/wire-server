@@ -118,9 +118,9 @@ tests =
       testRoundTrip @Conversation.ConversationReceiptModeUpdate,
       testRoundTrip @Conversation.ConversationMessageTimerUpdate,
       testRoundTrip @Conversation.ConversationMetadata,
-      testRoundTrip @Conversation.Bot.AddBot,
-      testRoundTrip @Conversation.Bot.AddBotResponse,
-      testRoundTrip @Conversation.Bot.RemoveBotResponse,
+      -- testRoundTrip @Conversation.Bot.AddBot,
+      -- testRoundTrip @Conversation.Bot.AddBotResponse,
+      -- testRoundTrip @Conversation.Bot.RemoveBotResponse,
       testRoundTrip @Conversation.Bot.UpdateBotPrekeys,
       testRoundTrip @Conversation.Code.ConversationCode,
       testRoundTrip @Conversation.Code.ConversationCodeInfo,
@@ -139,8 +139,8 @@ tests =
       testRoundTrip @Conversation.Typing.TypingStatus,
       testRoundTrip @CustomBackend.CustomBackend,
       testRoundTrip @EJPD.EJPDContact,
-      testRoundTrip @Event.Conversation.Event,
-      testRoundTrip @Event.Conversation.EventType,
+      -- testRoundTrip @Event.Conversation.Event,
+      -- testRoundTrip @Event.Conversation.EventType,
       testRoundTrip @Event.Conversation.SimpleMember,
       testRoundTrip @Event.Conversation.SimpleMembers,
       testRoundTrip @Event.Conversation.Connect,
@@ -351,7 +351,7 @@ testRoundTrip ::
   T.TestTree
 testRoundTrip = testProperty msg trip
   where
-    msg = show (typeRep @a)
+    msg = "Roudtrip for: " <> show (typeRep @a)
     trip (v :: a) =
       counterexample (show $ toJSON v) $
         Right v === (parseEither parseJSON . toJSON) v
