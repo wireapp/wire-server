@@ -168,7 +168,6 @@ mkDerivation {
     lens
     lens-aeson
     network
-    network-uri
     optparse-applicative
     random
     retry
