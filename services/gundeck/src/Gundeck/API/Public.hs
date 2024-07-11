@@ -45,8 +45,8 @@ servantSitemap = pushAPI :<|> notificationAPI
         :<|> Named @"get-push-tokens" Push.listTokens
 
     notificationAPI =
-      Named @"get-notification-by-id" Data.fetchId
-        :<|> Named @"get-last-notification" Data.fetchLast
+      Named @"get-last-notification" Data.fetchLast
+        :<|> Named @"get-notification-by-id" Data.fetchId
         :<|> Named @"get-notifications@v2" paginateUntilV2
         :<|> Named @"get-notifications" paginate
 

@@ -66,11 +66,11 @@ type PushAPI =
 
 type NotificationAPI =
   Named
-    "get-notification-by-id"
-    ( Summary "Fetch a notification by ID"
+    "get-last-notification"
+    ( Summary "Fetch the last notification"
         :> ZUser
         :> "notifications"
-        :> Capture' '[Description "Notification ID"] "id" NotificationId
+        :> "last"
         :> QueryParam' [Optional, Strict, Description "Only return notifications targeted at the given client"] "client" ClientId
         :> MultiVerb
              'GET
@@ -81,11 +81,11 @@ type NotificationAPI =
              (Maybe QueuedNotification)
     )
     :<|> Named
-           "get-last-notification"
-           ( Summary "Fetch the last notification"
+           "get-notification-by-id"
+           ( Summary "Fetch a notification by ID"
                :> ZUser
                :> "notifications"
-               :> "last"
+               :> Capture' '[Description "Notification ID"] "id" NotificationId
                :> QueryParam' [Optional, Strict, Description "Only return notifications targeted at the given client"] "client" ClientId
                :> MultiVerb
                     'GET
