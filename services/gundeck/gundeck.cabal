@@ -303,7 +303,6 @@ executable gundeck-integration
     , lens
     , lens-aeson
     , network
-    , network-uri
     , optparse-applicative
     , random
     , retry

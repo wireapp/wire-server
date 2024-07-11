@@ -36,7 +36,7 @@ import Gundeck.Aws qualified as Aws
 import Gundeck.Env
 import Gundeck.Env qualified as Env
 import Gundeck.Monad
-import Gundeck.Options hiding (host, port)
+import Gundeck.Options
 import Gundeck.React
 import Gundeck.ThreadBudget
 import Imports hiding (head)

@@ -27,10 +27,9 @@ where
 import Bilge hiding (head)
 import Bilge.Assert
 import Control.Arrow ((&&&))
-import Control.Concurrent.Async (Async, async, concurrently_, forConcurrently_, wait)
-import Control.Concurrent.Async qualified as Async
+import Control.Concurrent.Async (Async, async, concurrently_, forConcurrently_)
 import Control.Lens (view, (%~), (.~), (?~), (^.), (^?), _2)
-import Control.Retry (constantDelay, limitRetries, recoverAll, retrying)
+import Control.Retry (constantDelay, limitRetries, retrying)
 import Data.Aeson hiding (json)
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Aeson.Lens
@@ -50,13 +49,9 @@ import Data.Set qualified as Set
 import Data.Text.Encoding qualified as T
 import Data.UUID qualified as UUID
 import Data.UUID.V4
-import Gundeck.Options hiding (bulkPush)
-import Gundeck.Options qualified as O
 import Gundeck.Types
-import Gundeck.Types.Common qualified
 import Imports
 import Network.HTTP.Client qualified as Http
-import Network.URI (parseURI)
 import Network.WebSockets qualified as WS
 import Safe
 import System.Random (randomIO)
@@ -64,7 +59,6 @@ import System.Timeout (timeout)
 import Test.Tasty
 import Test.Tasty.HUnit
 import TestSetup
-import Util (runRedisProxy, withEnvOverrides, withSettingsOverrides)
 import Wire.API.Internal.Notification
 import Prelude qualified
 
@@ -74,16 +68,13 @@ tests s =
     "API tests"
     [ testGroup
         "Push"
-        [ test s "Replace presence" replacePresence,
-          test s "Remove stale presence" removeStalePresence,
-          test s "Single user push" singleUserPush,
+        [ test s "Single user push" singleUserPush,
           test s "Single user push with large message" singleUserPushLargeMessage,
           test s "Push many to Cannon via bulkpush (via gundeck; group notif)" $ bulkPush False 50 8,
           test s "Push many to Cannon via bulkpush (via gundeck; e2e notif)" $ bulkPush True 50 8,
           test s "Send a push, ensure origin does not receive it" sendSingleUserNoPiggyback,
           test s "Targeted push by connection" targetConnectionPush,
-          test s "Targeted push by client" targetClientPush,
-          test s "Store notifications even when redis is down" storeNotificationsEvenWhenRedisIsDown
+          test s "Targeted push by client" targetClientPush
         ],
       testGroup
         "Notifications"
@@ -114,10 +105,6 @@ tests s =
           test s "control pings with payload produce pongs with the same payload" testControlPingPongWithData,
           test s "data non-pings are ignored" testNoPingNoPong
         ],
-      testGroup
-        "Redis migration"
-        [ test s "redis migration should work" testRedisMigration
-        ],
       -- TODO: The following tests require (at the moment), the usage real AWS
       --       services so they are kept in a separate group to simplify testing
       testGroup
@@ -133,56 +120,6 @@ tests s =
 -----------------------------------------------------------------------------
 -- Push
 
-replacePresence :: TestM ()
-replacePresence = do
-  gu <- view tsGundeck
-  ca <- view tsCannon
-  uid <- randomId
-  con <- randomConnId
-  let localhost8080 = URI . fromJust $ parseURI "http://localhost:8080"
-  let localhost8081 = URI . fromJust $ parseURI "http://localhost:8081"
-  let pres1 = Presence uid (ConnId "dummy_dev") localhost8080 Nothing 0 ""
-  let pres2 = Presence uid (ConnId "dummy_dev") localhost8081 Nothing 0 ""
-  void $ connectUser ca uid con
-  setPresence gu pres1 !!! const 201 === statusCode
-  sendPush (push uid [uid])
-  getPresence gu (showUser uid) !!! do
-    const 2 === length . decodePresence
-    assertTrue "Cannon is not removed" $
-      elem localhost8080 . map resource . decodePresence
-  setPresence gu pres2
-    !!! const 201
-      === statusCode
-  getPresence gu (showUser uid) !!! do
-    const 2 === length . decodePresence
-    assertTrue "New Cannon" $
-      elem localhost8081 . map resource . decodePresence
-    assertTrue "Old Cannon is removed" $
-      notElem localhost8080 . map resource . decodePresence
-  where
-    pload = List1.singleton $ KeyMap.fromList ["foo" .= (42 :: Int)]
-    push u us = newPush (Just u) (toRecipients us) pload & pushOriginConnection ?~ ConnId "dev"
-
-removeStalePresence :: TestM ()
-removeStalePresence = do
-  ca <- view tsCannon
-  uid <- randomId
-  con <- randomConnId
-  void $ connectUser ca uid con
-  ensurePresent uid 1
-  sendPush (push (Just uid) [uid])
-  m <- liftIO newEmptyMVar
-  w <- wsRun ca uid con (wsCloser m)
-  wsAssertPresences uid 1
-  liftIO $ void $ putMVar m () >> wait w
-  -- The websocket might take a few time units to drop so better to try a few pushes
-  recoverAll (constantDelay 1000000 <> limitRetries 10) $ \_ -> do
-    sendPush (push (Just uid) [uid])
-    ensurePresent uid 0
-  where
-    pload = List1.singleton $ KeyMap.fromList ["foo" .= (42 :: Int)]
-    push u us = newPush u (toRecipients us) pload & pushOriginConnection ?~ ConnId "dev"
-
 singleUserPush :: TestM ()
 singleUserPush = testSingleUserPush smallMsgPayload
   where
@@ -192,7 +129,7 @@ singleUserPush = testSingleUserPush smallMsgPayload
 testSingleUserPush :: List1 Object -> TestM ()
 testSingleUserPush msgPayload = do
   ca <- view tsCannon
-  uid <- randomId
+  uid <- randomUser
   ch <- connectUser ca uid =<< randomConnId
   sendPush (push uid [uid])
   liftIO $ do
@@ -403,28 +340,6 @@ targetClientPush = do
       recipient u RouteAny
         & recipientClients .~ RecipientClientsSome (List1.singleton c)
     push u c = newPush (Just u) (unsafeRange (Set.singleton (rcpt u c))) (pload c)
-
-storeNotificationsEvenWhenRedisIsDown :: TestM ()
-storeNotificationsEvenWhenRedisIsDown = do
-  ally <- randomId
-  origRedisEndpoint <- view $ tsOpts . redis
-  let proxyPort = 10112
-  redisProxyServer <- liftIO . async $ runRedisProxy (origRedisEndpoint ^. O.host) (origRedisEndpoint ^. O.port) proxyPort
-  withSettingsOverrides
-    ( \gundeckSettings ->
-        gundeckSettings
-          & redis . Gundeck.Options.host .~ "localhost"
-          & redis . Gundeck.Options.port .~ proxyPort
-    )
-    $ do
-      let pload = textPayload "hello"
-          push = buildPush ally [(ally, RecipientClientsAll)] pload
-      gu <- view tsGundeck
-      liftIO $ Async.cancel redisProxyServer
-      post (runGundeckR gu . path "i/push/v2" . json [push]) !!! const 200 === statusCode
-
-  ns <- listNotifications ally Nothing
-  liftIO $ assertEqual ("Expected 1 notification, got: " <> show ns) 1 (length ns)
 
 -----------------------------------------------------------------------------
 -- Notifications
@@ -865,43 +780,7 @@ testLongPushToken = do
   tkn4 <- randomToken clt gcmToken {tSize = 5000}
   registerPushTokenRequest uid tkn4 !!! const 413 === statusCode
 
--- * Redis Migration
-
-testRedisMigration :: TestM ()
-testRedisMigration = do
-  uid <- randomUser
-  con <- randomConnId
-  cannonURI <- Gundeck.Types.Common.parse "http://cannon.example"
-  let presence = Presence uid con cannonURI Nothing 1 ""
-  redis2 <- view tsRedis2
-
-  withSettingsOverrides (redisAdditionalWrite ?~ redis2) $ do
-    g <- view tsGundeck
-    setPresence g presence
-      !!! const 201
-        === statusCode
-    retrievedPresence <-
-      map resource . decodePresence <$> (getPresence g (toByteString' uid) <!! const 200 === statusCode)
-    liftIO $ assertEqual "With both redises: presences should match the set presences" [cannonURI] retrievedPresence
-
-  redis2CredsAsRedis1Creds <- do
-    username <- ("REDIS_USERNAME",) <$$> lookupEnv "REDIS_ADDITIONAL_WRITE_USERNAME"
-    password <- ("REDIS_PASSWORD",) <$$> lookupEnv "REDIS_ADDITIONAL_WRITE_PASSWORD"
-    pure $ catMaybes [username, password]
-
-  withEnvOverrides redis2CredsAsRedis1Creds $ withSettingsOverrides (redis .~ redis2) $ do
-    g <- view tsGundeck
-    retrievedPresence <-
-      map resource . decodePresence <$> (getPresence g (toByteString' uid) <!! const 200 === statusCode)
-    liftIO $ assertEqual "With only second redis: presences should match the set presences" [cannonURI] retrievedPresence
-
 -- * Helpers
-
-ensurePresent :: (HasCallStack) => UserId -> Int -> TestM ()
-ensurePresent u n = do
-  gu <- view tsGundeck
-  retryWhile ((n /=) . length . decodePresence) (getPresence gu (showUser u))
-    !!! (const n === length . decodePresence)
 
 connectUser :: (HasCallStack) => CannonR -> UserId -> ConnId -> TestM (TChan ByteString)
 connectUser ca uid con = do
@@ -925,15 +804,12 @@ connectUsersAndDevicesWithSendingClients ::
   TestM [(UserId, [(TChan ByteString, TChan ByteString)])]
 connectUsersAndDevicesWithSendingClients ca uidsAndConnIds = do
   forM uidsAndConnIds $ \(uid, conns) -> do
-    chs <-
-      (uid,) <$> do
-        forM conns $ \conn -> do
-          chread <- liftIO $ atomically newTChan
-          chwrite <- liftIO $ atomically newTChan
-          _ <- wsRun ca uid conn (wsReaderWriter chread chwrite)
-          pure (chread, chwrite)
-    assertPresences (uid, conns)
-    pure chs
+    (uid,) <$> do
+      forM conns $ \conn -> do
+        chread <- liftIO $ atomically newTChan
+        chwrite <- liftIO $ atomically newTChan
+        _ <- wsRun ca uid conn (wsReaderWriter chread chwrite)
+        pure (chread, chwrite)
 
 -- similar to the function above, but hooks
 -- in a Ping Writer and gives access to 'WS.Message's
@@ -945,18 +821,12 @@ connectUsersAndDevicesWithSendingClientsRaw ::
   TestM [(UserId, [(TChan WS.Message, TChan ByteString)])]
 connectUsersAndDevicesWithSendingClientsRaw ca uidsAndConnIds = do
   forM uidsAndConnIds $ \(uid, conns) -> do
-    chs <-
-      (uid,) <$> do
-        forM conns $ \conn -> do
-          chread <- liftIO $ atomically newTChan
-          chwrite <- liftIO $ atomically newTChan
-          _ <- wsRun ca uid conn (wsReaderWriterPing chread chwrite)
-          pure (chread, chwrite)
-    assertPresences (uid, conns)
-    pure chs
-
-assertPresences :: (UserId, [ConnId]) -> TestM ()
-assertPresences (uid, conns) = wsAssertPresences uid (length conns)
+    (uid,) <$> do
+      forM conns $ \conn -> do
+        chread <- liftIO $ atomically newTChan
+        chwrite <- liftIO $ atomically newTChan
+        _ <- wsRun ca uid conn (wsReaderWriterPing chread chwrite)
+        pure (chread, chwrite)
 
 wsRun :: (HasCallStack) => CannonR -> UserId -> ConnId -> WS.ClientApp () -> TestM (Async ())
 wsRun ca uid (ConnId con) app = do
@@ -968,15 +838,6 @@ wsRun ca uid (ConnId con) app = do
     caPath = "/await" ++ C.unpack (Http.queryString runCan)
     caOpts = WS.defaultConnectionOptions
     caHdrs = [("Z-User", showUser uid), ("Z-Connection", con)]
-
-wsAssertPresences :: (HasCallStack) => UserId -> Int -> TestM ()
-wsAssertPresences uid numPres = do
-  gu <- view tsGundeck
-  retryWhile ((numPres /=) . length . decodePresence) (getPresence gu $ showUser uid)
-    !!! (const numPres === length . decodePresence)
-
-wsCloser :: MVar () -> WS.ClientApp ()
-wsCloser m conn = takeMVar m >> WS.sendClose conn C.empty >> putMVar m ()
 
 wsReaderWriter :: TChan ByteString -> TChan ByteString -> WS.ClientApp ()
 wsReaderWriter chread chwrite conn =
@@ -1135,15 +996,6 @@ zUser = header "Z-User" . toByteString'
 
 zConn :: ByteString -> Request -> Request
 zConn = header "Z-Connection"
-
-getPresence :: GundeckR -> ByteString -> TestM (Response (Maybe BL.ByteString))
-getPresence gu u = get (runGundeckR gu . path ("/i/presences/" <> u))
-
-setPresence :: GundeckR -> Presence -> TestM (Response (Maybe BL.ByteString))
-setPresence gu dat = post (runGundeckR gu . path "/i/presences" . json dat)
-
-decodePresence :: Response (Maybe BL.ByteString) -> [Presence]
-decodePresence rs = fromMaybe (error "Failed to decode presences") $ responseBody rs >>= decode
 
 randomUser :: TestM UserId
 randomUser = do

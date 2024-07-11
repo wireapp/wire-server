@@ -27,7 +27,7 @@ import Control.Lens (makeLenses, (^.))
 import Data.Misc (Milliseconds (..))
 import Data.Time.Clock.POSIX
 import Gundeck.Aws qualified as Aws
-import Gundeck.Options as Opt hiding (host, port)
+import Gundeck.Options as Opt
 import Gundeck.ThreadBudget
 import Imports
 import Network.AMQP qualified as Q
