@@ -14,7 +14,7 @@ data:
       host: gundeck
       port: 8080
 
-    notificaionTTL: {{ .Values.config.notificationTTL }}
+    notificationTTL: {{ .Values.config.notificationTTL }}
 
     {{- with .Values.config.rabbitmq }}
     rabbitmq:
