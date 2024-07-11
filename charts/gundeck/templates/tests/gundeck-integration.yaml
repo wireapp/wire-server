@@ -18,11 +18,6 @@ spec:
       secret:
         secretName: {{ (include "tlsSecretRef" .Values.config | fromYaml).name }}
     {{- end}}
-    {{- if eq (include "configureRedisCa" .Values.config) "true" }}
-    - name: "redis-ca"
-      secret:
-        secretName: {{ include "redisTlsSecretName" .Values.config }}
-    {{- end }}
   containers:
   - name: integration
     # TODO: When deployed to staging (or real AWS env), _all_ tests should be run
@@ -68,10 +63,6 @@ spec:
     - name: "gundeck-cassandra"
       mountPath: "/etc/wire/gundeck/cassandra"
     {{- end }}
-    {{- if eq (include "configureRedisCa" .Values.config) "true" }}
-    - name: "redis-ca"
-      mountPath: "/etc/wire/gundeck/redis-ca/"
-    {{- end }}
     env:
     # these dummy values are necessary for Amazonka's "Discover"
     - name: AWS_ACCESS_KEY_ID
@@ -82,34 +73,6 @@ spec:
       value: "eu-west-1"
     - name: TEST_XML
       value: /tmp/result.xml
-    {{- if hasKey .Values.secrets "redisUsername" }}
-    - name: REDIS_USERNAME
-      valueFrom:
-        secretKeyRef:
-          name: gundeck
-          key: redisUsername
-    {{- end }}
-    {{- if hasKey .Values.secrets "redisPassword" }}
-    - name: REDIS_PASSWORD
-      valueFrom:
-        secretKeyRef:
-          name: gundeck
-          key: redisPassword
-    {{- end }}
-    {{- if and (hasKey .Values.tests "secrets") (hasKey .Values.tests.secrets "redisAdditionalWriteUsername") }}
-    - name: REDIS_ADDITIONAL_WRITE_USERNAME
-      valueFrom:
-        secretKeyRef:
-          name: gundeck-integration
-          key: redisAdditionalWriteUsername
-    {{- end }}
-    {{- if and (hasKey .Values.tests "secrets") (hasKey .Values.tests.secrets "redisAdditionalWritePassword") }}
-    - name: REDIS_ADDITIONAL_WRITE_PASSWORD
-      valueFrom:
-        secretKeyRef:
-          name: gundeck-integration
-          key: redisAdditionalWritePassword
-    {{- end }}
     {{- if .Values.tests.config.uploadXml }}
     - name: UPLOAD_XML_S3_BASE_URL
       value: {{ .Values.tests.config.uploadXml.baseUrl }}
