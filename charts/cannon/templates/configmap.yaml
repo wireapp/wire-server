@@ -17,6 +17,7 @@ data:
     {{- with .Values.config.rabbitmq }}
     rabbitmq:
       host: {{ .host }}
+      adminPort: {{ .adminPort }}
       port: {{ .port }}
       vHost: {{ .vHost }}
       enableTls: {{ .enableTls }}
