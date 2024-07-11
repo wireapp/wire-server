@@ -20,7 +20,9 @@
         "service"
     ],
     "cipher_suite": 1,
+    "color": null,
     "creator": "00000000-0000-0000-0000-000200000001",
+    "emoji": null,
     "epoch": 42,
     "epoch_timestamp": "2023-01-17T00:00:42Z",
     "group_id": "dGVzdF9ncm91cA==",
@@ -56,8 +58,6 @@
         "id": "00000000-0000-0000-0000-000000000002"
     },
     "receipt_mode": 2,
-    "color": null,
-    "emoji": null,
     "team": "00000000-0000-0001-0000-000200000000",
     "type": 1
 }
