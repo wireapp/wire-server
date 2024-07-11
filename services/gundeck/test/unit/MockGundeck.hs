@@ -449,33 +449,8 @@ mockPushAll ::
   m ()
 mockPushAll pushes = do
   forM_ pushes $ \psh -> do
-    handlePushWS psh
     handlePushNative psh
     handlePushCass psh
-
--- | From a single 'Push', deliver only those notifications that real Gundeck would deliver via
--- websockets.
-handlePushWS ::
-  (HasCallStack, m ~ MockGundeck) =>
-  Push ->
-  m ()
-handlePushWS Push {..} = do
-  env <- ask
-  forM_ (fromRange _pushRecipients) $ \(Recipient uid _ cids) -> do
-    let cids' = case cids of
-          RecipientClientsAll -> clientIdsOfUser env uid
-          RecipientClientsSome cc -> toList cc
-    forM_ cids' $ \cid -> do
-      -- Condition 1: only devices with a working websocket connection will get the push.
-      let isReachable = wsReachable env (uid, cid)
-      -- Condition 2: we never deliver pushes to the originating device.
-      let isOriginDevice = origin == (Just uid, Just cid)
-      -- Condition 3: push to cid iff (a) listed in pushConnections or (b) pushConnections is empty.
-      let isWhitelisted = null _pushConnections || fakeConnId cid `elem` _pushConnections
-      when (isReachable && not isOriginDevice && isWhitelisted) $
-        msWSQueue %= deliver (uid, cid) _pushPayload
-  where
-    origin = (_pushOrigin, clientIdFromConnId <$> _pushOriginConnection)
 
 -- | From a single 'Push', deliver eligible 'Notification's via native transport.
 handlePushNative ::
