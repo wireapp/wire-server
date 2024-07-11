@@ -115,6 +115,7 @@ fetchId u n c = do
 fetchNotifById :: (MonadReader Env m, MonadUnliftIO m) => UserId -> NotificationId -> m (Maybe Q.Message)
 fetchNotifById u n = do
   chan <- readMVar =<< view rabbitmqChannel
+  ensureNotifStream u
   notifsMVar <- newEmptyMVar
   liftIO $ Q.qos chan 0 1 False
   let processMsg (msg, _envelope) = handleErrors $ do
@@ -136,6 +137,7 @@ fetchNotifById u n = do
 fetchLast :: forall m. (MonadUnliftIO m, MonadReader Env m) => UserId -> Maybe ClientId -> m (Maybe QueuedNotification)
 fetchLast u c = do
   chan <- readMVar =<< view rabbitmqChannel
+  ensureNotifStream u
   notifsTVar <- newTVarIO Nothing
   liftIO $ Q.qos chan 0 1 False
   let processMsg (msg, _envelope) = handleErrors $ do
@@ -168,6 +170,7 @@ fetchLast u c = do
 fetch :: forall m. (MonadReader Env m, MonadClient m, MonadUnliftIO m) => UserId -> Maybe ClientId -> Maybe NotificationId -> Range 100 10000 Int32 -> m ResultPage
 fetch u c mSince (fromIntegral . fromRange -> pageSize) = do
   chan <- readMVar =<< view rabbitmqChannel
+  ensureNotifStream u
   notifsTVar <- newTVarIO mempty
   notifsFullMVar <- newEmptyMVar
   liftIO $ Q.qos chan 0 1 False
