@@ -70,8 +70,8 @@ tests =
                     )
             assertEqual "" (decode serialized) (Just typed),
           testCase "BulkPushResponse example" $ do
-            let serialized = "{\"bulkpush_resp\":[{\"status\":\"push_status_gone\",\"notif_id\":\"f2c218cf-6399-47fb-8d7b-726ed599af91\",\"target\":{\"conn_id\":\"\",\"user_id\":\"5b099991-364a-425d-91af-9b8e51ac2956\"}},{\"status\":\"push_status_ok\",\"notif_id\":\"d8e8d19a-6788-4180-afcd-bf84395f4cf6\",\"target\":{\"conn_id\":\"Lf\",\"user_id\":\"cccc316f-eaad-4d55-9798-3fd8b431106e\"}}]}"
-                typed = BulkPushResponse {fromBulkPushResponse = [(read "f2c218cf-6399-47fb-8d7b-726ed599af91", PushTarget {ptUserId = read "5b099991-364a-425d-91af-9b8e51ac2956", ptConnId = ConnId {fromConnId = ""}}, PushStatusGone), (read "d8e8d19a-6788-4180-afcd-bf84395f4cf6", PushTarget {ptUserId = read "cccc316f-eaad-4d55-9798-3fd8b431106e", ptConnId = ConnId {fromConnId = "Lf"}}, PushStatusOk)]}
+            let serialized = "{\"bulkpush_resp\":[{\"status\":\"push_status_gone\",\"notif_id\":\"7\",\"target\":{\"conn_id\":\"\",\"user_id\":\"5b099991-364a-425d-91af-9b8e51ac2956\"}},{\"status\":\"push_status_ok\",\"notif_id\":\"8\",\"target\":{\"conn_id\":\"Lf\",\"user_id\":\"cccc316f-eaad-4d55-9798-3fd8b431106e\"}}]}"
+                typed = BulkPushResponse {fromBulkPushResponse = [("7", PushTarget {ptUserId = read "5b099991-364a-425d-91af-9b8e51ac2956", ptConnId = ConnId {fromConnId = ""}}, PushStatusGone), ("8", PushTarget {ptUserId = read "cccc316f-eaad-4d55-9798-3fd8b431106e", ptConnId = ConnId {fromConnId = "Lf"}}, PushStatusOk)]}
             assertEqual "" (decode serialized) (Just typed)
         ],
       testProperty "BulkPushRequest roundtrip"
