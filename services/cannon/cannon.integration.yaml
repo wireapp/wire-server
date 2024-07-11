@@ -33,5 +33,7 @@ drainOpts:
 # brig, cannon, cargohold, galley, gundeck, proxy, spar.
 disabledAPIVersions: []
 
+notificationTTL: 24192200
+
 logLevel: Warn
 logNetStrings: false

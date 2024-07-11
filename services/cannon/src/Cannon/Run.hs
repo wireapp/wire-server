@@ -42,9 +42,7 @@ import Data.Proxy
 import Data.Text (pack, strip)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Typeable
-import Debug.Trace
 import Imports hiding (head, threadDelay)
-import Network.AMQP qualified as Q
 import Network.AMQP.Extended qualified as Q
 import Network.Wai qualified as Wai
 import Network.Wai.Handler.Warp hiding (run)
@@ -80,6 +78,7 @@ run o = do
       <*> newManager defaultManagerSettings {managerConnCount = 128}
       <*> createSystemRandom
       <*> mkClock
+      <*> pure (o ^. notificationTTL)
   refreshMetricsThread <- Async.async $ runCannon' e refreshMetrics
   s <- newSettings $ Server (o ^. cannon . host) (o ^. cannon . port) (applog e) (Just idleTimeout)
 

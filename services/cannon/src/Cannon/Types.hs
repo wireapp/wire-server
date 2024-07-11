@@ -106,10 +106,11 @@ mkEnv ::
   Manager ->
   GenIO ->
   Clock ->
+  Word32 ->
   Env
-mkEnv external chan o l d p g t =
+mkEnv external chan o l d p g t nttl =
   Env o l d (RequestId "N/A") $
-    WS.env external (o ^. cannon . port) chan (encodeUtf8 $ o ^. gundeck . host) (o ^. gundeck . port) l p d g t (o ^. drainOpts)
+    WS.env external (o ^. cannon . port) chan (encodeUtf8 $ o ^. gundeck . host) (o ^. gundeck . port) l p d g t (o ^. drainOpts) nttl
 
 runCannon :: Env -> Cannon a -> Request -> IO a
 runCannon e c r = do

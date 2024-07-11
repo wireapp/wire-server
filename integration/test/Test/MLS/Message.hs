@@ -21,6 +21,7 @@ module Test.MLS.Message where
 
 import API.Galley
 import API.Gundeck
+import Control.Concurrent
 import qualified Data.Aeson as Aeson
 import MLS.Util
 import Notifications
@@ -31,6 +32,7 @@ testFoo :: (HasCallStack) => App ()
 testFoo = do
   alice <- randomUser OwnDomain def
   printJSON alice
+  liftIO $ threadDelay 1000000
   withWebSocket alice $ \ws -> do
     void $ createMLSClient def alice
     n <- awaitMatch isUserClientAddNotif ws

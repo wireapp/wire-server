@@ -32,6 +32,7 @@ module Cannon.WS
     isRemoteRegistered,
     registerRemote,
     sendMsgIO,
+    wsNotificationTTL,
     Clock,
     mkClock,
     getClock,
@@ -148,7 +149,8 @@ data Env = Env
     dict :: !(Dict Key Websocket),
     rand :: !GenIO,
     clock :: !Clock,
-    drainOpts :: DrainOpts
+    drainOpts :: DrainOpts,
+    wsNotificationTTL :: !Word32
   }
 
 setRequestId :: RequestId -> Env -> Env
@@ -195,8 +197,9 @@ env ::
   GenIO ->
   Clock ->
   DrainOpts ->
+  Word32 ->
   Env
-env leh lp q gh gp = Env leh lp q (host gh . port gp $ empty) (RequestId "N/A")
+env leh lp q gh gp nttl = Env leh lp q (host gh . port gp $ empty) (RequestId "N/A") nttl
 
 runWS :: (MonadIO m) => Env -> WS a -> m a
 runWS e m = liftIO $ runReaderT (_conn m) e

@@ -24,6 +24,7 @@ module Cannon.App
   )
 where
 
+import Cannon.Options
 import Cannon.WS
 import Control.Concurrent.Async
 import Control.Concurrent.Timeout
@@ -34,8 +35,9 @@ import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
 import Data.Id (ClientId, UserId)
 import Data.Map qualified as Map
-import Data.Text.Encoding as Text
-import Data.Text.Lazy qualified as Text
+import Data.Text as T
+import Data.Text.Encoding as T
+import Data.Text.Lazy qualified as LT
 import Data.Timeout
 import Debug.Trace
 import Imports hiding (threadDelay)
@@ -74,22 +76,22 @@ maxLifetime :: Word64
 maxLifetime = 3 * 24 * 3600
 
 routingKey :: UserId -> Text
-routingKey uid = Text.decodeUtf8 ("client-notifications." <> toByteString' uid)
+routingKey uid = T.decodeUtf8 ("client-notifications." <> toByteString' uid)
 
-ensureQueue :: Q.Channel -> UserId -> IO ()
-ensureQueue chan uid = do
-  let opts =
-        Q.QueueOpts
+ensureNotifStream :: Q.Channel -> Env -> UserId -> IO ()
+ensureNotifStream chan e uid = do
+  let ttlSeconds = e.wsNotificationTTL
+      qOpts =
+        Q.newQueue
           { Q.queueName = routingKey uid,
-            Q.queuePassive = False,
-            Q.queueDurable = True,
-            Q.queueExclusive = False,
-            Q.queueAutoDelete = False,
             Q.queueHeaders =
               Q.FieldTable $
-                Map.fromList [("x-queue-type", Q.FVString "stream")]
+                Map.fromList
+                  [ ("x-queue-type", (Q.FVString "stream")),
+                    ("x-max-age", (Q.FVString $ T.encodeUtf8 $ T.pack $ show ttlSeconds <> "s"))
+                  ]
           }
-  void $ Q.declareQueue chan opts
+  void $ liftIO $ Q.declareQueue chan qOpts
 
 data RabbitmqMessage = MkRabbitmqMessage
   { event :: Value,
@@ -110,8 +112,7 @@ wsapp k uid c e pc = do
   chan <- readMVar e.rabbitmqChannel
   Q.qos chan 0 1 False
   traceM "got channel"
-  -- ensureQueue chan uid
-  -- traceM "declared queue"
+  ensureNotifStream chan e uid
   consumerTag <- Q.consumeMsgs chan (routingKey uid) Q.Ack $ \(message, envelope) -> do
     catch
       ( do
@@ -229,8 +230,8 @@ rejectOnError p x = do
   let f lb mg = toStrict . encode $ mkError status400 lb mg
   case x of
     NotSupported -> rejectRequest p (f "protocol not supported" "N/A")
-    MalformedRequest _ m -> rejectRequest p (f "malformed-request" (Text.pack m))
-    OtherHandshakeException m -> rejectRequest p (f "other-error" (Text.pack m))
+    MalformedRequest _ m -> rejectRequest p (f "malformed-request" (LT.pack m))
+    OtherHandshakeException m -> rejectRequest p (f "other-error" (LT.pack m))
     _ -> pure ()
   throwM x
 
