@@ -171,11 +171,13 @@ fetch u c mSince (fromIntegral . fromRange -> pageSize) = do
   notifsTVar <- newTVarIO mempty
   notifsFullMVar <- newEmptyMVar
   liftIO $ Q.qos chan 0 1 False
-  let processMsg (msg, _envelope) = handleErrors $ do
+  let processMsg (msg, envelope) = handleErrors $ do
         isFull <- atomically $ stateTVar notifsTVar $ \allMsgs ->
           let allMsgsNew = allMsgs :|> msg
            in (length allMsgsNew >= pageSize, allMsgsNew)
         when isFull $ void $ tryPutMVar notifsFullMVar ()
+        Q.ackMsg chan envelope.envDeliveryTag False
+  let offset = maybe (Q.FVString "first") (Q.FVInt64 . read . Text.unpack) mSince
   consumerTag <-
     liftIO $
       Q.consumeMsgs'
@@ -184,7 +186,7 @@ fetch u c mSince (fromIntegral . fromRange -> pageSize) = do
         Q.Ack
         processMsg
         (const $ pure ())
-        (Q.FieldTable $ Map.singleton "x-stream-offset" $ maybe (Q.FVString "first") (Q.FVInt64 . read . Text.unpack) mSince)
+        (Q.FieldTable $ Map.singleton "x-stream-offset" offset)
   -- This is a weird hack because we cannot know when we're done fetching notifs.
   mFull <- timeout (1_000_000) (takeMVar notifsFullMVar)
   liftIO $ Q.cancelConsumer chan consumerTag
