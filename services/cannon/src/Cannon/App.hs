@@ -116,7 +116,7 @@ wsapp k uid c e rabbitmqOpts pc = do
   -- TODO: This is hack, this somehow makes the stream available even if it was
   -- just created. I don't know how this would perform in a multi node cluster.
   rabbitmqAdminClient <- Q.mkRabbitMqAdminClientEnv rabbitmqOpts
-  traceShowM =<< (liftIO $ Q.getQueue rabbitmqAdminClient "/" (routingKey uid))
+  traceShowM =<< liftIO (Q.getQueue rabbitmqAdminClient "/" (routingKey uid))
   -- chan <- Q.mkRabbitMqChannelMVar e.logg rabbitmqOpts >>= readMVar
   -- threadDelay 10000
   Q.qos chan 0 1 False
