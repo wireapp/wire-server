@@ -80,10 +80,6 @@ spec:
       secret:
         secretName: {{ .Values.config.elasticsearch.tlsCaSecretRef.name }}
 
-    - name: redis-ca
-      secret:
-        secretName: {{ .Values.config.redis.tlsCaSecretRef.name }}
-
     - name: rabbitmq-ca
       secret:
         secretName: {{ .Values.config.rabbitmq.tlsCaSecretRef.name }}
@@ -249,11 +245,14 @@ spec:
     - name: elasticsearch-ca
       mountPath: /etc/wire/brig/elasticsearch-ca
 
-    - name: redis-ca
-      mountPath: /etc/wire/gundeck/redis-ca
-
     - name: rabbitmq-ca
       mountPath: /etc/wire/brig/rabbitmq-ca
+
+    - name: rabbitmq-ca
+      mountPath: /etc/wire/gundeck/rabbitmq-ca
+
+    - name: rabbitmq-ca
+      mountPath: /etc/wire/cannon/rabbitmq-ca
 
     - name: rabbitmq-ca
       mountPath: /etc/wire/galley/rabbitmq-ca
