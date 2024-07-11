@@ -16,6 +16,15 @@ gundeck:
   host: 127.0.0.1
   port: 8086
 
+rabbitmq:
+  host: 127.0.0.1
+  port: 5671
+  adminPort: 15671
+  vHost: /
+  enableTls: true
+  caCert: test/resources/rabbitmq-ca.pem
+  insecureSkipVerifyTls: false
+
 drainOpts:
   gracePeriodSeconds: 1
   millisecondsBetweenBatches: 500
@@ -24,6 +33,8 @@ drainOpts:
 # We explicitly do not disable any API version. Please make sure the configuration value is the same in all these configs:
 # brig, cannon, cargohold, galley, gundeck, proxy, spar.
 disabledAPIVersions: []
+
+notificationTTL: 24192200
 
 logLevel: Warn
 logNetStrings: false

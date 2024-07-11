@@ -30,14 +30,13 @@ import Data.Metrics.AWS (gaugeTokenRemaing)
 import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
 import Data.Proxy (Proxy (Proxy))
 import Data.Text (unpack)
-import Database.Redis qualified as Redis
 import Gundeck.API (sitemap)
 import Gundeck.API.Public (servantSitemap)
 import Gundeck.Aws qualified as Aws
 import Gundeck.Env
 import Gundeck.Env qualified as Env
 import Gundeck.Monad
-import Gundeck.Options hiding (host, port)
+import Gundeck.Options
 import Gundeck.React
 import Gundeck.ThreadBudget
 import Imports hiding (head)
@@ -57,7 +56,7 @@ import Wire.API.Routes.Version.Wai
 
 run :: Opts -> IO ()
 run o = do
-  (rThreads, e) <- createEnv o
+  e <- createEnv o
   runClient (e ^. cstate) $
     versionCheck schemaVersion
   let l = e ^. applog
@@ -75,9 +74,6 @@ run o = do
     Async.cancel lst
     Async.cancel wCollectAuth
     forM_ wtbs Async.cancel
-    forM_ rThreads Async.cancel
-    Redis.disconnect =<< takeMVar (e ^. rstate)
-    whenJust (e ^. rstateAdditionalWrite) $ (=<<) Redis.disconnect . takeMVar
     Log.close (e ^. applog)
   where
     middleware :: Env -> Middleware

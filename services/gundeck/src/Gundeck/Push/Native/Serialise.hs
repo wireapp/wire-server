@@ -31,12 +31,13 @@ import Data.Id
 import Data.Text.Encoding (encodeUtf8)
 import Data.Text.Lazy qualified as LT
 import Data.Text.Lazy.Builder qualified as LTB
+import Data.UUID qualified as UUID
 import Gundeck.Push.Native.Types
 import Gundeck.Types
 import Imports
 
 serialise :: (HasCallStack) => NativePush -> UserId -> Transport -> Either Failure LT.Text
-serialise (NativePush nid prio _aps) uid transport = do
+serialise (NativePush prio _aps) uid transport = do
   case renderText transport prio o of
     Nothing -> Left PayloadTooLarge
     Just txt -> Right txt
@@ -44,7 +45,7 @@ serialise (NativePush nid prio _aps) uid transport = do
     o =
       object
         [ "type" .= ("notice" :: Text),
-          "data" .= object ["id" .= nid],
+          "data" .= object ["id" .= UUID.nil],
           "user" .= uid
         ]
 

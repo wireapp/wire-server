@@ -68,7 +68,6 @@ import qualified Network.HTTP.Client as Http
 import qualified Network.WebSockets as WS
 import System.Random (randomIO)
 import System.Timeout (timeout)
-import Testlib.App
 import Testlib.Assertions
 import Testlib.Env
 import Testlib.HTTP
@@ -148,9 +147,11 @@ clientApp wsChan latch conn = do
       case decodeStrict' bs of
         Just n -> atomically $ writeTChan wsChan n
         Nothing -> putStrLn $ "Failed to decode notification: " ++ show bs
-    wsWrite = forever $ do
-      takeMVar latch
-      WS.sendClose conn ("close" :: ByteString)
+    wsWrite = do
+      WS.sendPing conn ("hello" :: ByteString)
+      forever $ do
+        takeMVar latch
+        WS.sendClose conn ("close" :: ByteString)
 
 -- | Start a client thread in 'Async' that opens a web socket to a Cannon, wait
 --   for the connection to register with Gundeck, and return the 'Async' thread.
@@ -164,7 +165,6 @@ run wsConnect app = do
   serviceMap <- getServiceMap domain
 
   let HostPort caHost caPort = serviceHostPort serviceMap Cannon
-  latch <- liftIO newEmptyMVar
 
   connId <- case wsConnect.conn of
     Just c -> pure c
@@ -184,6 +184,7 @@ run wsConnect app = do
     r <- rawBaseRequest domain Cannon Versioned path
     pure r {HTTP.requestHeaders = caHdrs}
 
+  waitForPong <- liftIO $ newEmptyMVar
   wsapp <-
     liftIO
       $ async
@@ -192,21 +193,11 @@ run wsConnect app = do
             caHost
             (fromIntegral caPort)
             path
-            WS.defaultConnectionOptions
+            (WS.defaultConnectionOptions {WS.connectionOnPong = void $ tryPutMVar waitForPong ()})
             caHdrs
             app
         )
-      $ \(e :: SomeException) -> putMVar latch e
-
-  presenceRequest <-
-    baseRequest domain Cannon Unversioned $
-      "/i/presences/" <> wsConnect.user <> "/" <> connId
-
-  waitForPresence <- appToIO $ retryT $ do
-    response <- submit "HEAD" presenceRequest
-    status response `shouldMatchInt` 200
-  let waitForException = do
-        ex <- takeMVar latch
+      $ \(ex :: SomeException) -> do
         -- Construct a "fake" response. We do not really have access to the
         -- websocket connection requests and response, unfortunately, but it is
         -- useful to display some information about the request in case an
@@ -220,8 +211,8 @@ run wsConnect app = do
                   request = request
                 }
         throwIO (AssertionFailure callStack (Just r) (displayException ex))
-
-  liftIO $ race_ waitForPresence waitForException
+  -- TODO: add a race so we timeout
+  liftIO $ takeMVar waitForPong
   pure wsapp
 
 close :: (MonadIO m) => WebSocket -> m ()

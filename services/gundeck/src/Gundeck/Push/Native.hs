@@ -40,7 +40,6 @@ import Gundeck.Push.Data qualified as Data
 import Gundeck.Push.Native.Serialise
 import Gundeck.Push.Native.Types as Types
 import Gundeck.Types
-import Gundeck.Util
 import Imports
 import Prometheus qualified as Prom
 import System.Logger.Class (MonadLogger, field, msg, val, (.=), (~~))
@@ -144,7 +143,6 @@ push1 = push1' 0
         onSuccess = do
           Log.debug $
             field "user" (toByteString (a ^. addrUser))
-              ~~ field "notificationId" (toText (npNotificationid m))
               ~~ Log.msg (val "Native push success")
           Prom.incCounter nativePushSuccessCounter
         onDisabled =
@@ -212,12 +210,11 @@ push1 = push1' 0
           logError a "Native push failed" ex
           Prom.incCounter nativePushErrorCounter
         onTokenRemoved = do
-          i <- mkNotificationId
           let c = a ^. addrClient
           let r = singleton (target (a ^. addrUser) & targetClients .~ [c])
           let t = a ^. addrPushToken
           let p = singletonPayload (PushRemove t)
-          Stream.add i r p =<< view (options . settings . notificationTTL)
+          Stream.add r p
 
 publish :: NativePush -> Address -> Aws.Amazon Result
 publish m a = flip catches pushException $ do
@@ -228,7 +225,6 @@ publish m a = flip catches pushException $ do
   Log.debug $
     field "user" (toByteString (a ^. addrUser))
       ~~ field "arn" (toText (a ^. addrEndpoint))
-      ~~ field "notificationId" (toText (npNotificationid m))
       ~~ field "prio" (show (npPriority m))
       ~~ Log.msg (val "Native push")
   case txt of

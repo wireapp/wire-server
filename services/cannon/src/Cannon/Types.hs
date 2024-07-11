@@ -47,6 +47,7 @@ import Control.Lens ((^.))
 import Control.Monad.Catch
 import Data.Text.Encoding
 import Imports
+import Network.AMQP qualified as Q
 import Network.Wai
 import Network.Wai.Utilities.Request qualified as Wai
 import Network.Wai.Utilities.Server
@@ -98,16 +99,18 @@ instance HasRequestId Cannon where
 
 mkEnv ::
   ByteString ->
+  MVar Q.Channel ->
   Opts ->
   Logger ->
   Dict Key Websocket ->
   Manager ->
   GenIO ->
   Clock ->
+  Word32 ->
   Env
-mkEnv external o l d p g t =
+mkEnv external chan o l d p g t nttl =
   Env o l d (RequestId "N/A") $
-    WS.env external (o ^. cannon . port) (encodeUtf8 $ o ^. gundeck . host) (o ^. gundeck . port) l p d g t (o ^. drainOpts)
+    WS.env external (o ^. cannon . port) chan (encodeUtf8 $ o ^. gundeck . host) (o ^. gundeck . port) l p d g t (o ^. drainOpts) nttl
 
 runCannon :: Env -> Cannon a -> Request -> IO a
 runCannon e c r = do

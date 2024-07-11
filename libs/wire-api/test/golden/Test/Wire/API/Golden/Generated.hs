@@ -155,8 +155,6 @@ import Test.Wire.API.Golden.Generated.PushTokenList_user qualified
 import Test.Wire.API.Golden.Generated.PushToken_user qualified
 import Test.Wire.API.Golden.Generated.Push_2eToken_2eTransport_user qualified
 import Test.Wire.API.Golden.Generated.QualifiedUserClientPrekeyMapV4_user qualified
-import Test.Wire.API.Golden.Generated.QueuedNotificationList_user qualified
-import Test.Wire.API.Golden.Generated.QueuedNotification_user qualified
 import Test.Wire.API.Golden.Generated.RTCConfiguration_user qualified
 import Test.Wire.API.Golden.Generated.RTCIceServer_user qualified
 import Test.Wire.API.Golden.Generated.ReceiptMode_user qualified
@@ -756,21 +754,6 @@ tests =
         testObjects
           [ ( Test.Wire.API.Golden.Generated.ClientMismatch_user.testObject_ClientMismatch_user_1,
               "testObject_ClientMismatch_user_1.json"
-            )
-          ],
-      testGroup "Golden: QueuedNotification_user" $
-        testObjects
-          [ ( Test.Wire.API.Golden.Generated.QueuedNotification_user.testObject_QueuedNotification_user_1,
-              "testObject_QueuedNotification_user_1.json"
-            )
-          ],
-      testGroup "Golden: QueuedNotificationList_user" $
-        testObjects
-          [ ( Test.Wire.API.Golden.Generated.QueuedNotificationList_user.testObject_QueuedNotificationList_user_1,
-              "testObject_QueuedNotificationList_user_1.json"
-            ),
-            ( Test.Wire.API.Golden.Generated.QueuedNotificationList_user.testObject_QueuedNotificationList_user_2,
-              "testObject_QueuedNotificationList_user_2.json"
             )
           ],
       testGroup "Golden: PropertyKey_user" $

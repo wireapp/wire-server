@@ -25,7 +25,6 @@ import Control.Lens (view)
 import Data.Id
 import Gundeck.Client qualified as Client
 import Gundeck.Monad
-import Gundeck.Presence qualified as Presence
 import Gundeck.Push qualified as Push
 import Gundeck.Push.Data qualified as PushTok
 import Gundeck.Push.Native.Types qualified as PushTok
@@ -45,20 +44,6 @@ sitemap = do
 
   post "/i/push/v2" (continue pushH) $
     request .&. accept "application" "json"
-
-  -- Presence API ----------------------------------------------------------
-
-  get "/i/presences/:uid" (continue Presence.list) $
-    param "uid" .&. accept "application" "json"
-
-  get "/i/presences" (continue Presence.listAll) $
-    param "ids" .&. accept "application" "json"
-
-  post "/i/presences" (continue Presence.add) $
-    request .&. accept "application" "json"
-
-  delete "/i/presences/:uid/devices/:did/cannons/:cannon" (continue Presence.remove) $
-    param "uid" .&. param "did" .&. param "cannon"
 
   -- User-Client API -------------------------------------------------------
 

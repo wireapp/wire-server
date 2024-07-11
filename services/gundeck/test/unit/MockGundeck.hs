@@ -57,16 +57,14 @@ import Data.IntMultiSet qualified as MSet
 import Data.List.NonEmpty qualified as NE
 import Data.List1
 import Data.Map qualified as Map
-import Data.Misc (Milliseconds (Ms))
 import Data.Range
 import Data.Scientific qualified as Scientific
 import Data.Set qualified as Set
 import Data.String.Conversions
+import Data.Text qualified as Text
 import Gundeck.Aws.Arn as Aws
-import Gundeck.Options
 import Gundeck.Push
 import Gundeck.Push.Native as Native
-import Gundeck.Push.Websocket as Web
 import Gundeck.Types hiding (recipient)
 import Imports
 import Network.URI qualified as URI
@@ -217,7 +215,7 @@ genMockEnv = do
         pure ClientInfo {..}
   -- Generate a list of users
   uids :: [UserId] <-
-    nub <$> listOf1 genId
+    nub <$> listOf1 arbitrary
   -- For every user, generate several clients (preferring less clients)
   cidss :: [[ClientId]] <-
     let gencids _uid = do
@@ -293,10 +291,10 @@ genRecipient' env uid = do
 genRoute :: (HasCallStack) => Gen Route
 genRoute = QC.elements [minBound ..]
 
-genId :: Gen (Id a)
+genId :: Gen NotificationId
 genId = do
   gen <- mkStdGen <$> arbitrary
-  pure . Id . fst $ random gen
+  pure . Text.pack . show . fst $ random @Int gen
 
 genClientId :: Gen ClientId
 genClientId = ClientId <$> arbitrary
@@ -390,15 +388,13 @@ genPayload = do
   pure $ List1 (KeyMap.singleton "val" (Aeson.toJSON num) NE.:| [])
 
 genNotif :: Gen Notification
-genNotif = Notification <$> genId <*> arbitrary <*> genPayload
+genNotif = Notification <$> arbitrary <*> genPayload
 
 genNotifs :: MockEnv -> Gen [(Notification, [Presence])]
-genNotifs env = fmap uniqNotifs . listOf $ do
+genNotifs env = listOf $ do
   notif <- genNotif
   prcs <- nub . mconcat <$> listOf (fakePresences' env <$> genRecipient env)
   pure (notif, prcs)
-  where
-    uniqNotifs = nubBy ((==) `on` (ntfId . fst))
 
 shrinkNotifs :: (HasCallStack) => [(Notification, [Presence])] -> [[(Notification, [Presence])]]
 shrinkNotifs = shrinkList (\(notif, prcs) -> (notif,) <$> shrinkList (const []) prcs)
@@ -419,10 +415,6 @@ instance MonadThrow MockGundeck where
   -- as well crash badly here, as long as it doesn't go unnoticed...)
 
 instance MonadPushAll MockGundeck where
-  mpaNotificationTTL = pure $ NotificationTTL 300 -- (longer than we want any test to take.)
-  mpaMkNotificationId = mockMkNotificationId
-  mpaListAllPresences = mockListAllPresences
-  mpaBulkPush = mockBulkPush
   mpaStreamAdd = mockStreamAdd
   mpaPushNative = mockPushNative
   mpaForkIO = id -- just don't fork.  (this *may* cause deadlocks in principle, but as long as it
@@ -437,16 +429,6 @@ instance MonadNativeTargets MockGundeck where
 instance MonadMapAsync MockGundeck where
   mntgtPerPushConcurrency = pure Nothing -- (unbounded)
   mntgtMapAsync f xs = Right <$$> mapM f xs -- (no concurrency)
-
-instance MonadPushAny MockGundeck where
-  mpyPush = mockOldSimpleWebPush
-
-instance MonadBulkPush MockGundeck where
-  mbpBulkSend = mockBulkSend
-  mbpDeleteAllPresences _ = pure () -- FUTUREWORK: test presence deletion logic
-  mbpPosixTime = pure $ Ms 1545045904275 -- (time is constant)
-  mbpMapConcurrently = mapM -- (no concurrency)
-  mbpMonitorBadCannons _ = pure () -- (no monitoring)
 
 instance Log.MonadLogger MockGundeck where
   log _ _ = pure () -- (no logging)
@@ -467,33 +449,8 @@ mockPushAll ::
   m ()
 mockPushAll pushes = do
   forM_ pushes $ \psh -> do
-    handlePushWS psh
     handlePushNative psh
     handlePushCass psh
-
--- | From a single 'Push', deliver only those notifications that real Gundeck would deliver via
--- websockets.
-handlePushWS ::
-  (HasCallStack, m ~ MockGundeck) =>
-  Push ->
-  m ()
-handlePushWS Push {..} = do
-  env <- ask
-  forM_ (fromRange _pushRecipients) $ \(Recipient uid _ cids) -> do
-    let cids' = case cids of
-          RecipientClientsAll -> clientIdsOfUser env uid
-          RecipientClientsSome cc -> toList cc
-    forM_ cids' $ \cid -> do
-      -- Condition 1: only devices with a working websocket connection will get the push.
-      let isReachable = wsReachable env (uid, cid)
-      -- Condition 2: we never deliver pushes to the originating device.
-      let isOriginDevice = origin == (Just uid, Just cid)
-      -- Condition 3: push to cid iff (a) listed in pushConnections or (b) pushConnections is empty.
-      let isWhitelisted = null _pushConnections || fakeConnId cid `elem` _pushConnections
-      when (isReachable && not isOriginDevice && isWhitelisted) $
-        msWSQueue %= deliver (uid, cid) _pushPayload
-  where
-    origin = (_pushOrigin, clientIdFromConnId <$> _pushOriginConnection)
 
 -- | From a single 'Push', deliver eligible 'Notification's via native transport.
 handlePushNative ::
@@ -549,50 +506,13 @@ handlePushCass Push {..} = do
     forM_ cids' $ \cid ->
       msCassQueue %= deliver (uid, cid) _pushPayload
 
-mockMkNotificationId ::
-  (HasCallStack, m ~ MockGundeck) =>
-  m NotificationId
-mockMkNotificationId = Id <$> getRandom
-
-mockListAllPresences ::
-  (HasCallStack, m ~ MockGundeck) =>
-  [UserId] ->
-  m [[Presence]]
-mockListAllPresences uids =
-  asks $ fmap fakePresences . filter ((`elem` uids) . fst) . allRecipients
-
--- | Fake implementation of 'Web.bulkPush'.
-mockBulkPush ::
-  (HasCallStack, m ~ MockGundeck) =>
-  [(Notification, [Presence])] ->
-  m [(NotificationId, [Presence])]
-mockBulkPush notifs = do
-  env <- ask
-  let delivered :: [(Notification, [Presence])]
-      delivered =
-        [ (nid, prcs)
-          | (nid, filter (`elem` deliveredprcs) -> prcs) <- notifs,
-            not $ null prcs -- (sic!) (this is what gundeck currently does)
-        ]
-      deliveredprcs :: [Presence]
-      deliveredprcs = filter isreachable . mconcat . fmap fakePresences $ allRecipients env
-      isreachable :: Presence -> Bool
-      isreachable prc = wsReachable env (userId prc, fromJust $ clientId prc)
-  forM_ delivered $ \(notif, prcs) -> do
-    forM_ prcs $ \prc ->
-      msWSQueue
-        %= deliver (userId prc, clientIdFromConnId $ connId prc) (ntfPayload notif)
-  pure $ (_1 %~ ntfId) <$> delivered
-
 -- | persisting notification is not needed for the tests at the moment, so we do nothing here.
 mockStreamAdd ::
   (HasCallStack, m ~ MockGundeck) =>
-  NotificationId ->
   List1 NotificationTarget ->
   Payload ->
-  NotificationTTL ->
   m ()
-mockStreamAdd _ (toList -> targets) pay _ =
+mockStreamAdd (toList -> targets) pay =
   forM_ targets $ \tgt -> case tgt ^. targetClients of
     clients@(_ : _) -> forM_ clients $ \cid ->
       msCassQueue %= deliver (tgt ^. targetUser, cid) pay
@@ -641,7 +561,7 @@ mockBulkSend uri notifs = do
         %= deliver (ptUserId ptgt, clientIdFromConnId $ ptConnId ptgt) (ntfPayload ntif)
   pure . (uri,) . Right $
     BulkPushResponse
-      [(ntfId ntif, trgt, getstatus trgt) | (ntif, trgt) <- flat]
+      [(undefined ntif, trgt, getstatus trgt) | (ntif, trgt) <- flat]
 
 mockOldSimpleWebPush ::
   (HasCallStack, m ~ MockGundeck) =>

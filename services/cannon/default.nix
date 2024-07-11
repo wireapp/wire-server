@@ -4,6 +4,7 @@
 # dependencies are added or removed.
 { mkDerivation
 , aeson
+, amqp
 , api-field-json-th
 , async
 , base
@@ -11,6 +12,7 @@
 , bytestring
 , bytestring-conversion
 , conduit
+, containers
 , criterion
 , data-timeout
 , exceptions
@@ -59,6 +61,7 @@ mkDerivation {
   isExecutable = true;
   libraryHaskellDepends = [
     aeson
+    amqp
     api-field-json-th
     async
     base
@@ -66,6 +69,7 @@ mkDerivation {
     bytestring
     bytestring-conversion
     conduit
+    containers
     data-timeout
     exceptions
     extended

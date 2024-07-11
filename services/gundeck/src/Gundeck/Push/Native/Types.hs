@@ -47,7 +47,6 @@ import Data.Id (ClientId, ConnId, UserId)
 import Gundeck.Aws.Arn
 import Gundeck.Types
 import Imports
-import Wire.API.Internal.Notification
 
 -- | Native push address information of a device.
 data Address = Address
@@ -107,7 +106,6 @@ data Failure
   deriving (Show)
 
 data NativePush = NativePush
-  { npNotificationid :: NotificationId,
-    npPriority :: Priority,
+  { npPriority :: Priority,
     npApsData :: Maybe ApsData
   }

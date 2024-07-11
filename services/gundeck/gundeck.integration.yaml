@@ -13,18 +13,13 @@ cassandra:
   keyspace: gundeck_test
   # filterNodesByDatacentre: datacenter1
 
-redis:
-  host: 172.20.0.31
-  port: 6373
-  connectionMode: cluster # master | cluster
+rabbitmq:
+  host: 127.0.0.1
+  port: 5671
+  vHost: /
   enableTls: true
-  tlsCa: ../../deploy/dockerephemeral/docker/redis-ca.pem
+  caCert: test/resources/rabbitmq-ca.pem
   insecureSkipVerifyTls: false
-
-# redisAdditionalWrite:
-#   host: 127.0.0.1
-#   port: 6379
-#   connectionMode: master
 
 aws:
   queueName: integration-gundeck-events

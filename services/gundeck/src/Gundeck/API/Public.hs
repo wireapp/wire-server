@@ -22,8 +22,7 @@ where
 
 import Data.Id
 import Data.Range
-import Data.UUID as UUID
-import Data.UUID.Util qualified as UUID
+import Data.Text.Encoding qualified as Text
 import Gundeck.Monad
 import Gundeck.Notification qualified as Notification
 import Gundeck.Notification.Data qualified as Data
@@ -104,10 +103,7 @@ paginateUntilV2 uid mbSince mbClient mbSize = do
     since = parseUUID <$> mbSince
 
     parseUUID :: Public.RawNotificationId -> Maybe Public.NotificationId
-    parseUUID = (UUID.fromASCIIBytes . Public.unRawNotificationId) >=> isV1UUID >=> pure . Id
-
-    isV1UUID :: UUID -> Maybe UUID
-    isV1UUID u = if UUID.version u == 1 then Just u else Nothing
+    parseUUID = pure . Text.decodeUtf8 . Public.unRawNotificationId
 
 paginate ::
   UserId ->

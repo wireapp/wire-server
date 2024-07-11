@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedLists #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -17,22 +15,21 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Wire.API.Golden.Generated.QueuedNotification_user where
+module Test.Wire.API.Roundtrip.NotificationId where
 
-import Data.Aeson (Value (Array))
-import Data.Id (Id (Id))
-import Data.List.NonEmpty qualified as NonEmpty (fromList)
-import Data.UUID qualified as UUID (fromString)
-import GHC.Exts (IsList (fromList))
-import Imports (fromJust)
-import Wire.API.Notification (QueuedNotification, queuedNotification)
+import Debug.Trace
+import Imports
+import Test.Tasty qualified as T
+import Test.Tasty.QuickCheck (testProperty, (===))
+import Wire.API.Notification
 
-testObject_QueuedNotification_user_1 :: QueuedNotification
-testObject_QueuedNotification_user_1 =
-  queuedNotification
-    (Id (fromJust (UUID.fromString "0000005f-0000-007b-0000-001a0000000a")))
-    ( NonEmpty.fromList
-        [ fromList [],
-          fromList [("\179372\&3", Array [])]
-        ]
-    )
+tests :: T.TestTree
+tests =
+  testProperty "notificationIdToUUIDV1, uuidV1ToNotificationId" $ \(pre_i :: Word32) ->
+    let i = fromIntegral pre_i
+     in traceShow
+          ( i,
+            notificationIdToUUIDV1 i,
+            uuidV1ToNotificationId (notificationIdToUUIDV1 i)
+          )
+          `seq` (uuidV1ToNotificationId (notificationIdToUUIDV1 i) === i)

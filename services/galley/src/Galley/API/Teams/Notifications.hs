@@ -64,7 +64,11 @@ getTeamNotifications ::
   Maybe NotificationId ->
   Range 1 10000 Int32 ->
   Sem r QueuedNotificationList
-getTeamNotifications zusr since size = do
+getTeamNotifications zusr mSinceText size = do
+  let since = case mSinceText of
+        Nothing -> Nothing
+        -- TODO: error is bad
+        Just sinceText -> either error Just $ parseIdFromText sinceText
   tid <- (noteS @'TeamNotFound =<<) $ (userTeam . accountUser =<<) <$> Intra.getUser zusr
   page <- E.getTeamNotifications tid since size
   pure $

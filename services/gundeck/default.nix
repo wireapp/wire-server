@@ -9,6 +9,7 @@
 , amazonka-core
 , amazonka-sns
 , amazonka-sqs
+, amqp
 , async
 , attoparsec
 , auto-update
@@ -21,7 +22,6 @@
 , conduit
 , containers
 , criterion
-, crypton-x509-store
 , errors
 , exceptions
 , extended
@@ -29,7 +29,6 @@
 , foldl
 , gitignoreSource
 , gundeck-types
-, hedis
 , HsOpenSSL
 , http-client
 , http-client-tls
@@ -97,6 +96,7 @@ mkDerivation {
     amazonka-core
     amazonka-sns
     amazonka-sqs
+    amqp
     async
     attoparsec
     auto-update
@@ -106,14 +106,12 @@ mkDerivation {
     bytestring-conversion
     cassandra-util
     containers
-    crypton-x509-store
     errors
     exceptions
     extended
     extra
     foldl
     gundeck-types
-    hedis
     http-client
     http-client-tls
     http-types
@@ -123,7 +121,6 @@ mkDerivation {
     metrics-core
     metrics-wai
     mtl
-    network-uri
     prometheus-client
     psqueues
     raw-strings-qq

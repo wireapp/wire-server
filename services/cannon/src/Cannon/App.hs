@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wwarn #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -22,19 +24,29 @@ module Cannon.App
   )
 where
 
+import Cannon.Options
 import Cannon.WS
 import Control.Concurrent.Async
 import Control.Concurrent.Timeout
 import Control.Monad.Catch
 import Data.Aeson hiding (Error, Key, (.=))
+import Data.Aeson qualified as Aeson
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
-import Data.Id (ClientId)
-import Data.Text.Lazy qualified as Text
+import Data.Id (ClientId, UserId)
+import Data.Map qualified as Map
+import Data.Text as T
+import Data.Text.Encoding as T
+import Data.Text.Lazy qualified as LT
 import Data.Timeout
+import Debug.Trace
 import Imports hiding (threadDelay)
 import Lens.Family hiding (reset, set)
+import Network.AMQP qualified as Q
+import Network.AMQP.Extended qualified as Q
+import Network.AMQP.Types qualified as Q
 import Network.HTTP.Types.Status
+import Network.RabbitMqAdmin qualified as Q
 import Network.Wai.Utilities.Error
 import Network.WebSockets hiding (Request, Response, requestHeaders)
 import System.Logger.Class hiding (Error, close)
@@ -65,16 +77,87 @@ maxPingInterval = 3600
 maxLifetime :: Word64
 maxLifetime = 3 * 24 * 3600
 
-wsapp :: Key -> Maybe ClientId -> Env -> ServerApp
-wsapp k c e pc = runWS e (go `catches` ioErrors k)
-  where
-    go = do
-      ws <- mkWebSocket =<< liftIO (acceptRequest pc `catch` rejectOnError pc)
-      debug $ client (key2bytes k) ~~ "websocket" .= connIdent ws
-      registerLocal k ws
-      registerRemote k c `onException` (unregisterLocal k ws >> close k ws)
-      clock <- getClock
-      continue ws clock k `finally` terminate k ws
+routingKey :: UserId -> Text
+routingKey uid = T.decodeUtf8 ("client-notifications." <> toByteString' uid)
+
+ensureNotifStream :: Q.Channel -> Env -> UserId -> IO ()
+ensureNotifStream chan e uid = do
+  let ttlSeconds = e.wsNotificationTTL
+      qOpts =
+        Q.newQueue
+          { Q.queueName = routingKey uid,
+            Q.queueHeaders =
+              Q.FieldTable $
+                Map.fromList
+                  [ ("x-queue-type", (Q.FVString "stream")),
+                    ("x-max-age", (Q.FVString $ T.encodeUtf8 $ T.pack $ show ttlSeconds <> "s"))
+                  ]
+          }
+  void $ liftIO $ Q.declareQueue chan qOpts
+
+data RabbitmqMessage = MkRabbitmqMessage
+  { event :: Value,
+    targetClients :: [ClientId]
+  }
+
+instance FromJSON RabbitmqMessage where
+  parseJSON = withObject "RabbitmqMessage" $ \obj -> do
+    MkRabbitmqMessage
+      <$> obj .: "event"
+      <*> obj .: "target_clients"
+
+wsapp :: Key -> UserId -> Maybe ClientId -> Env -> Q.RabbitMqAdminOpts -> ServerApp
+wsapp k uid c e rabbitmqOpts pc = do
+  wsVar <- newEmptyMVar
+
+  -- create rabbitmq consumer
+  chan <- readMVar e.rabbitmqChannel
+
+  -- TODO: This is hack, this somehow makes the stream available even if it was
+  -- just created. I don't know how this would perform in a multi node cluster.
+  rabbitmqAdminClient <- Q.mkRabbitMqAdminClientEnv rabbitmqOpts
+  traceShowM =<< (liftIO $ Q.getQueue rabbitmqAdminClient "/" (routingKey uid))
+  -- chan <- Q.mkRabbitMqChannelMVar e.logg rabbitmqOpts >>= readMVar
+  -- threadDelay 10000
+  Q.qos chan 0 1 False
+  -- threadDelay 1000000
+  traceM "got channel"
+  ensureNotifStream chan e uid
+  consumerTag <- Q.consumeMsgs chan (routingKey uid) Q.Ack $ \(message, envelope) -> do
+    catch
+      ( do
+          traceM $ "rabbitmq message: " <> show message.msgBody
+          traceM $ "message headers: " <> show message.msgHeaders
+          notif <- case Aeson.eitherDecode message.msgBody of
+            Left errMsg -> error $ "failed parsing rabbitmq message: " <> errMsg
+            Right (body :: RabbitmqMessage) -> do
+              pure $
+                Aeson.encode $
+                  object
+                    [ "payload" Aeson..= body.event
+                    ]
+          traceM $ "notif: " <> show notif
+          ws <- readMVar wsVar
+          runWS e $ sendMsg notif ws
+          Q.ackMsg chan envelope.envDeliveryTag False
+      )
+      $ \(e :: SomeException) -> do
+        traceM $ "exception in rabbitmq handler: " <> displayException e
+
+  -- traceM $ "envelope: " <> show envelope
+  traceM $ "tag: " <> show consumerTag
+
+  let go = do
+        ws <- mkWebSocket =<< liftIO (acceptRequest pc `catch` rejectOnError pc)
+        putMVar wsVar ws
+        debug $ client (key2bytes k) ~~ "websocket" .= connIdent ws
+        registerLocal k ws
+        -- registerRemote k c `onException` (unregisterLocal k ws >> close k ws)
+        clock <- getClock
+        continue ws clock k `finally` terminate k ws (chan, consumerTag)
+
+  -- start websocket app
+  runWS e (go `catches` ioErrors k)
 
 continue :: (MonadLogger m, MonadUnliftIO m) => Websocket -> Clock -> Key -> m ()
 continue ws clock k = do
@@ -94,8 +177,9 @@ continue ws clock k = do
          in runInIO $ Logger.debug text
       _ -> pure ()
 
-terminate :: Key -> Websocket -> WS ()
-terminate k ws = do
+terminate :: Key -> Websocket -> (Q.Channel, Q.ConsumerTag) -> WS ()
+terminate k ws (chan, consumerTag) = do
+  liftIO $ Q.cancelConsumer chan consumerTag
   success <- unregisterLocal k ws
   debug $ client (key2bytes k) ~~ "websocket" .= connIdent ws ~~ "removed" .= success
   when success $
@@ -156,8 +240,8 @@ rejectOnError p x = do
   let f lb mg = toStrict . encode $ mkError status400 lb mg
   case x of
     NotSupported -> rejectRequest p (f "protocol not supported" "N/A")
-    MalformedRequest _ m -> rejectRequest p (f "malformed-request" (Text.pack m))
-    OtherHandshakeException m -> rejectRequest p (f "other-error" (Text.pack m))
+    MalformedRequest _ m -> rejectRequest p (f "malformed-request" (LT.pack m))
+    OtherHandshakeException m -> rejectRequest p (f "other-error" (LT.pack m))
     _ -> pure ()
   throwM x
 

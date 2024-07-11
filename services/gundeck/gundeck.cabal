@@ -31,17 +31,12 @@ library
     Gundeck.Notification
     Gundeck.Notification.Data
     Gundeck.Options
-    Gundeck.Presence
-    Gundeck.Presence.Data
     Gundeck.Push
     Gundeck.Push.Data
     Gundeck.Push.Native
     Gundeck.Push.Native.Serialise
     Gundeck.Push.Native.Types
-    Gundeck.Push.Websocket
     Gundeck.React
-    Gundeck.Redis
-    Gundeck.Redis.HedisExtensions
     Gundeck.Run
     Gundeck.Schema.Run
     Gundeck.Schema.V1
@@ -59,7 +54,6 @@ library
     Gundeck.ThreadBudget.Internal
     Gundeck.Util
     Gundeck.Util.DelayQueue
-    Gundeck.Util.Redis
 
   other-modules:      Paths_gundeck
   hs-source-dirs:     src
@@ -116,6 +110,7 @@ library
     , amazonka-core          >=2
     , amazonka-sns           >=2
     , amazonka-sqs           >=2
+    , amqp
     , async                  >=2.0
     , attoparsec             >=0.10
     , auto-update            >=0.1
@@ -125,14 +120,12 @@ library
     , bytestring-conversion  >=0.2
     , cassandra-util         >=0.16.2
     , containers             >=0.5
-    , crypton-x509-store
     , errors                 >=2.0
     , exceptions             >=0.4
     , extended
     , extra                  >=1.1
     , foldl
     , gundeck-types          >=1.0
-    , hedis                  >=0.14.0
     , http-client            >=0.7
     , http-client-tls        >=0.3
     , http-types             >=0.8
@@ -142,7 +135,6 @@ library
     , metrics-core           >=0.2.1
     , metrics-wai            >=0.5.7
     , mtl                    >=2.2
-    , network-uri            >=2.6
     , prometheus-client
     , psqueues               >=0.2.2
     , raw-strings-qq
@@ -311,7 +303,6 @@ executable gundeck-integration
     , lens
     , lens-aeson
     , network
-    , network-uri
     , optparse-applicative
     , random
     , retry

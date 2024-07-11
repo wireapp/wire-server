@@ -35,6 +35,8 @@ module Wire.API.Notification
     queuedHasMore,
     queuedTime,
     GetNotificationsResponse (..),
+    notificationIdToUUIDV1,
+    uuidV1ToNotificationId,
   )
 where
 
@@ -42,9 +44,7 @@ import Control.Lens (makeLenses, (.~))
 import Control.Lens.Operators ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Aeson.Types qualified as Aeson
-import Data.Bits
 import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
-import Data.Id
 import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty)
 import Data.OpenApi (ToParamSchema (..))
@@ -53,13 +53,45 @@ import Data.SOP
 import Data.Schema
 import Data.Text.Encoding
 import Data.Time.Clock (UTCTime)
-import Data.UUID qualified as UUID
+import Data.UUID as UUID
 import Imports
+import Numeric
 import Servant
+import Text.Printf qualified as Printf
 import Wire.API.Routes.MultiVerb
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
-type NotificationId = Id QueuedNotification
+-- TODO: This used to be UUIDV1, but with the migration from cassandra to rabbitmq, we had to
+-- change it to Int64.  To make team notifications in galley keep working with cassandra, we
+-- keep that Int64 in an untyped Text.
+--
+-- The time stamp in a UUIDV1 is 64 bits, so we should be able to fit all Int64 values into it
+-- contain an Int64 https://www.rfc-editor.org/rfc/rfc4122#page-6.  The uuid package has all
+-- the code we need to do that, but it doesn't expose it.
+--
+-- A better way is probably to make team notifications in galley and all clients work with
+-- Int64 instead.  (Also, how do we make this upgrade-safe?)
+type NotificationId = Text
+
+notificationIdToUUIDV1 :: Int -> UUID.UUID
+notificationIdToUUIDV1 =
+  -- https://www.rfc-editor.org/rfc/rfc4122#page-6
+  --
+  -- this should work for the proof of concept: Int64 values starting from 0 will fit into the
+  -- first 4 bytes of the uuidv1 time stamp (it takes 7 minutes for a roll-over).
+  --
+  -- TODO: not like this please.  but we may have to think of something if we want to continue
+  -- supporting old clients while this is in production.  (maybe we can make the change in a
+  -- new version?  are there any event notifications sent to clients that contain notification
+  -- ids?)
+  fromJust . UUID.fromString . Printf.printf "%8.8x-0000-0000-0000-000000000000"
+
+uuidV1ToNotificationId :: UUID.UUID -> Int
+uuidV1ToNotificationId =
+  -- only tested on uuidv1s created with notificationIdToUUIDV1.
+  --
+  -- TODO: see notificationIdToUUIDV1
+  fst . head . readHex . UUID.toString
 
 -- FUTUREWORK:
 -- This definition is very opaque, but we know some of the structure already
@@ -84,11 +116,9 @@ eventSchema = mkSchema sdoc Aeson.parseJSON (Just . Aeson.toJSON)
               )
             ]
 
+-- TODO: Delete
 isValidNotificationId :: NotificationId -> Bool
-isValidNotificationId (Id uuid) =
-  -- check that the version bits are set to 1
-  case UUID.toWords uuid of
-    (_, w, _, _) -> (w `shiftR` 12) .&. 0xf == 1
+isValidNotificationId _ = True
 
 --------------------------------------------------------------------------------
 -- QueuedNotification

@@ -22,7 +22,7 @@ withSettingsOverrides :: (Opts -> Opts) -> TestM a -> TestM a
 withSettingsOverrides f action = do
   ts <- ask
   let opts = f (view tsOpts ts)
-  (_rThreads, env) <- liftIO $ createEnv opts
+  env <- liftIO $ createEnv opts
   liftIO . lowerCodensity $ do
     let app = mkApp env
     p <- withMockServer app

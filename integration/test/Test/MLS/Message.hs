@@ -21,10 +21,32 @@ module Test.MLS.Message where
 
 import API.Galley
 import API.Gundeck
+import qualified Data.Aeson as Aeson
 import MLS.Util
 import Notifications
 import SetupHelpers
 import Testlib.Prelude
+
+-- import UnliftIO.Concurrent (threadDelay)
+
+testFoo :: (HasCallStack) => App ()
+testFoo = replicateM_ 10 $ do
+  alice <- randomUser OwnDomain def
+  printJSON alice
+  -- threadDelay 1000000
+  withWebSocket alice $ \ws -> do
+    -- liftIO $ threadDelay 1000000
+    void $ createMLSClient def alice
+    n <- awaitMatch isUserClientAddNotif ws
+    printJSON n
+
+testBar :: (HasCallStack) => App ()
+testBar = do
+  alice <- randomUser OwnDomain def
+  printJSON alice
+  getNotifications alice def `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json `shouldMatch` Aeson.Null
 
 -- | Test happy case of federated MLS message sending in both directions.
 testApplicationMessage :: (HasCallStack) => App ()

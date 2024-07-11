@@ -55,7 +55,7 @@ data RabbitMqTlsOpts = RabbitMqTlsOpts
   { caCert :: !(Maybe FilePath),
     insecureSkipVerifyTls :: Bool
   }
-  deriving (Show)
+  deriving (Show, Eq)
 
 parseTlsJson :: Object -> Parser (Maybe RabbitMqTlsOpts)
 parseTlsJson v = do
@@ -76,7 +76,7 @@ data RabbitMqAdminOpts = RabbitMqAdminOpts
     tls :: Maybe RabbitMqTlsOpts,
     adminPort :: !Int
   }
-  deriving (Show)
+  deriving (Eq, Show)
 
 instance FromJSON RabbitMqAdminOpts where
   parseJSON = withObject "RabbitMqAdminOpts" $ \v ->
@@ -86,6 +86,9 @@ instance FromJSON RabbitMqAdminOpts where
       <*> v .: "vHost"
       <*> parseTlsJson v
       <*> v .: "adminPort"
+
+instance ToJSON RabbitMqAdminOpts where
+  toJSON = error "RabbitMqAdminOpts toJSON not implemented due to developer laziness"
 
 mkRabbitMqAdminClientEnv :: RabbitMqAdminOpts -> IO (AdminAPI (AsClientT IO))
 mkRabbitMqAdminClientEnv opts = do
@@ -111,7 +114,7 @@ data RabbitMqOpts = RabbitMqOpts
     vHost :: !Text,
     tls :: !(Maybe RabbitMqTlsOpts)
   }
-  deriving (Show)
+  deriving (Show, Eq)
 
 instance FromJSON RabbitMqOpts where
   parseJSON = withObject "RabbitMqAdminOpts" $ \v ->
@@ -120,6 +123,9 @@ instance FromJSON RabbitMqOpts where
       <*> v .: "port"
       <*> v .: "vHost"
       <*> parseTlsJson v
+
+instance ToJSON RabbitMqOpts where
+  toJSON = error "RabbitMqOpts toJSON not implemented due to developer laziness"
 
 demoteOpts :: RabbitMqAdminOpts -> RabbitMqOpts
 demoteOpts RabbitMqAdminOpts {..} = RabbitMqOpts {..}

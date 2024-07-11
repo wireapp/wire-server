@@ -492,8 +492,6 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.PushTokenList_user
     Test.Wire.API.Golden.Generated.QualifiedNewOtrMessage_user
     Test.Wire.API.Golden.Generated.QualifiedUserClientPrekeyMapV4_user
-    Test.Wire.API.Golden.Generated.QueuedNotification_user
-    Test.Wire.API.Golden.Generated.QueuedNotificationList_user
     Test.Wire.API.Golden.Generated.ReceiptMode_user
     Test.Wire.API.Golden.Generated.Relation_user
     Test.Wire.API.Golden.Generated.RemoveBotResponse_user
@@ -656,6 +654,7 @@ test-suite wire-api-tests
     Test.Wire.API.Roundtrip.CSV
     Test.Wire.API.Roundtrip.HttpApiData
     Test.Wire.API.Roundtrip.MLS
+    Test.Wire.API.Roundtrip.NotificationId
     Test.Wire.API.Routes
     Test.Wire.API.Routes.Version
     Test.Wire.API.Routes.Version.Wai

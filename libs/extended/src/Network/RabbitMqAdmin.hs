@@ -25,6 +25,13 @@ data AdminAPI route = AdminAPI
           :> "queues"
           :> Capture "vhost" VHost
           :> Get '[JSON] [Queue],
+    getQueue ::
+      route
+        :- "api"
+          :> "queues"
+          :> Capture "vhost" VHost
+          :> Capture "queue" Text
+          :> Get '[JSON] Queue,
     deleteQueue ::
       route
         :- "api"
@@ -43,7 +50,7 @@ data AuthenticatedAPI route = AuthenticatedAPI
   }
   deriving (Generic)
 
-data Queue = Queue {name :: Text, vhost :: Text}
+data Queue = Queue {name :: Text, vhost :: Text, status :: Maybe Text}
   deriving (Show, Eq, Generic)
 
 instance FromJSON Queue

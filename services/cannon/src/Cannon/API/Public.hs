@@ -21,8 +21,10 @@ module Cannon.API.Public
 where
 
 import Cannon.App (wsapp)
+import Cannon.Options
 import Cannon.Types
 import Cannon.WS
+import Control.Lens
 import Control.Monad.IO.Class
 import Data.Id
 import GHC.Base
@@ -36,5 +38,6 @@ publicAPIServer = Named @"await-notifications" streamData
 
 streamData :: UserId -> ConnId -> Maybe ClientId -> PendingConnection -> Cannon ()
 streamData userId connId clientId con = do
+  opts <- options
   e <- wsenv
-  liftIO $ wsapp (mkKey userId connId) clientId e con
+  liftIO $ wsapp (mkKey userId connId) userId clientId e (opts ^. rabbitmq) con

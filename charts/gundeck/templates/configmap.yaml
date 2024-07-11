@@ -29,25 +29,15 @@ data:
       tlsCa: /etc/wire/gundeck/cassandra/{{- (include "tlsSecretRef" . | fromYaml).key }}
       {{- end }}
 
-    redis:
-      host: {{ .redis.host }}
-      port: {{ .redis.port }}
-      connectionMode: {{ .redis.connectionMode }}
-      enableTls: {{ .redis.enableTls }}
-      insecureSkipVerifyTls: {{ .redis.insecureSkipVerifyTls }}
-      {{- if eq (include "configureRedisCa" .) "true" }}
-      tlsCa: /etc/wire/gundeck/redis-ca/{{ include "redisTlsSecretKey" .}}
-      {{- end }}
-
-    {{- if .redisAdditionalWrite }}
-    redisAdditionalWrite:
-      host: {{ .redisAdditionalWrite.host }}
-      port: {{ .redisAdditionalWrite.port }}
-      connectionMode: {{ .redisAdditionalWrite.connectionMode }}
-      enableTls: {{ .redisAdditionalWrite.enableTls }}
-      insecureSkipVerifyTls: {{ .redisAdditionalWrite.insecureSkipVerifyTls }}
-      {{- if eq (include "configureAdditionalRedisCa" .) "true" }}
-      tlsCa: /etc/wire/gundeck/additional-redis-ca/{{ include "additionalRedisTlsSecretKey" .}}
+    {{- with .rabbitmq }}
+    rabbitmq:
+      host: {{ .host }}
+      port: {{ .port }}
+      vHost: {{ .vHost }}
+      enableTls: {{ .enableTls }}
+      insecureSkipVerifyTls: {{ .insecureSkipVerifyTls }}
+      {{- if .tlsCaSecretRef }}
+      caCert: /etc/wire/gundeck/rabbitmq-ca/{{ .tlsCaSecretRef.key }}
       {{- end }}
     {{- end }}
 

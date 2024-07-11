@@ -28,9 +28,12 @@ module Cannon.WS
     setRequestId,
     registerLocal,
     unregisterLocal,
+    rabbitmqChannel,
     isRemoteRegistered,
     registerRemote,
     sendMsgIO,
+    wsNotificationTTL,
+    logg,
     Clock,
     mkClock,
     getClock,
@@ -68,6 +71,7 @@ import Data.Text.Encoding (decodeUtf8)
 import Data.Timeout (TimeoutUnit (..), (#))
 import Gundeck.Types
 import Imports hiding (threadDelay)
+import Network.AMQP qualified as Q
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
@@ -138,6 +142,7 @@ getTime (Clock r) = readIORef r
 data Env = Env
   { externalHostname :: !ByteString,
     portnum :: !Word16,
+    rabbitmqChannel :: MVar Q.Channel,
     upstream :: !Request,
     reqId :: !RequestId,
     logg :: !Logger,
@@ -145,7 +150,8 @@ data Env = Env
     dict :: !(Dict Key Websocket),
     rand :: !GenIO,
     clock :: !Clock,
-    drainOpts :: DrainOpts
+    drainOpts :: DrainOpts,
+    wsNotificationTTL :: !Word32
   }
 
 setRequestId :: RequestId -> Env -> Env
@@ -183,6 +189,7 @@ instance HasRequestId WS where
 env ::
   ByteString ->
   Word16 ->
+  MVar Q.Channel ->
   ByteString ->
   Word16 ->
   Logger ->
@@ -191,8 +198,9 @@ env ::
   GenIO ->
   Clock ->
   DrainOpts ->
+  Word32 ->
   Env
-env leh lp gh gp = Env leh lp (host gh . port gp $ empty) (RequestId "N/A")
+env leh lp q gh gp nttl = Env leh lp q (host gh . port gp $ empty) (RequestId "N/A") nttl
 
 runWS :: (MonadIO m) => Env -> WS a -> m a
 runWS e m = liftIO $ runReaderT (_conn m) e
@@ -235,18 +243,17 @@ sendMsgIO :: (WebSocketsData a) => a -> Websocket -> IO ()
 sendMsgIO m c =
   recoverAll retry3x $ const $ sendBinaryData (connection c) m
 
-sendMsg :: (WebSocketsData a) => a -> Key -> Websocket -> WS ()
-sendMsg message k c = do
+sendMsg :: (WebSocketsData a) => a -> Websocket -> WS ()
+sendMsg message c = do
   traceLog message
   liftIO $ sendMsgIO message c
   where
     traceLog :: (WebSocketsData a) => a -> WS ()
-    traceLog m = trace $ client kb . msg (logMsg m)
+    -- TODO: log user/client id?
+    traceLog m = trace $ msg (logMsg m)
 
     logMsg :: (WebSocketsData a) => a -> Builder
     logMsg m = val "sendMsgConduit: \"" +++ L.take 128 (toLazyByteString m) +++ val "...\""
-
-    kb = key2bytes k
 
 -- | Closes all websockets connected to this instance of cannon.
 --
