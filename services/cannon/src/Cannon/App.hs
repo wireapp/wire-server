@@ -43,6 +43,7 @@ import Debug.Trace
 import Imports hiding (threadDelay)
 import Lens.Family hiding (reset, set)
 import Network.AMQP qualified as Q
+import Network.AMQP.Extended qualified as Q
 import Network.AMQP.Types qualified as Q
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
@@ -104,13 +105,15 @@ instance FromJSON RabbitmqMessage where
       <$> obj .: "event"
       <*> obj .: "target_clients"
 
-wsapp :: Key -> UserId -> Maybe ClientId -> Env -> ServerApp
-wsapp k uid c e pc = do
+wsapp :: Key -> UserId -> Maybe ClientId -> Env -> Q.RabbitMqOpts -> ServerApp
+wsapp k uid c e rabbitmqOpts pc = do
   wsVar <- newEmptyMVar
 
   -- create rabbitmq consumer
-  chan <- readMVar e.rabbitmqChannel
+  -- chan <- readMVar e.rabbitmqChannel
+  chan <- Q.mkRabbitMqChannelMVar e.logg rabbitmqOpts >>= readMVar
   Q.qos chan 0 1 False
+  threadDelay 1000000
   traceM "got channel"
   ensureNotifStream chan e uid
   consumerTag <- Q.consumeMsgs chan (routingKey uid) Q.Ack $ \(message, envelope) -> do

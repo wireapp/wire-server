@@ -33,6 +33,7 @@ module Cannon.WS
     registerRemote,
     sendMsgIO,
     wsNotificationTTL,
+    logg,
     Clock,
     mkClock,
     getClock,
@@ -141,7 +142,7 @@ getTime (Clock r) = readIORef r
 data Env = Env
   { externalHostname :: !ByteString,
     portnum :: !Word16,
-    rabbitmqChannel :: !(MVar Q.Channel),
+    rabbitmqChannel :: MVar Q.Channel,
     upstream :: !Request,
     reqId :: !RequestId,
     logg :: !Logger,
