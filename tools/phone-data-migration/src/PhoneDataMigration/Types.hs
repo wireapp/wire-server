@@ -21,8 +21,6 @@ import Cassandra as C
 import qualified Cassandra.Settings as C
 import Control.Lens
 import Control.Monad.Catch (MonadThrow)
-import Data.Attoparsec.Text (char, count, digit, endOfInput, parseOnly)
-import qualified Data.Text as Text
 import Data.Text.Strict.Lens
 import Imports
 import Options.Applicative
@@ -131,21 +129,3 @@ instance Semigroup IntSum where
 
 instance Monoid IntSum where
   mempty = IntSum 0
-
-newtype Phone = Phone {fromPhone :: Text}
-  deriving stock (Eq, Ord, Show, Generic)
-
--- | Parses a phone number in E.164 format with a mandatory leading '+'.
-parsePhone :: Text -> Maybe Phone
-parsePhone p =
-  let canonicalPhone = Text.filter (not . isSpace) p
-   in if isValidPhone canonicalPhone
-        then Just $ Phone canonicalPhone
-        else Nothing
-
--- | Checks whether a phone number is valid, i.e. it is in E.164 format
--- with a mandatory leading '+' followed by 10-15 digits.
-isValidPhone :: Text -> Bool
-isValidPhone = either (const False) (const True) . parseOnly e164
-  where
-    e164 = char '+' *> count 8 digit *> count 7 (optional digit) *> endOfInput

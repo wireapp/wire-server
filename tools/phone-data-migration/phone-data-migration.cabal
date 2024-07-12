@@ -13,6 +13,7 @@ library
   hs-source-dirs:     src
   exposed-modules:
     PhoneDataMigration.Lib
+    PhoneDataMigration.Phone
     PhoneDataMigration.Types
 
   ghc-options:

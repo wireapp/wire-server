@@ -25,6 +25,7 @@ import qualified Data.Conduit.Combinators as Conduit
 import qualified Data.Conduit.List as ConduitList
 import Imports
 import Options.Applicative
+import PhoneDataMigration.Phone
 import PhoneDataMigration.Types
 import qualified System.Logger.Class as Log
 import System.Logger.Message ((.=))
@@ -42,7 +43,7 @@ getKeys =
 
 deleteKey :: (MonadClient m) => Phone -> m IntSum
 deleteKey p = do
-  retry x5 $ write cql (params LocalQuorum (Identity $ fromPhone p))
+  retry x5 $ write cql (params LocalQuorum (Identity $ toText p))
   pure 1
   where
     cql :: PrepQuery W (Identity Text) ()
@@ -61,9 +62,12 @@ deleteKeys keys = do
 
 run :: AppT IO ()
 run = do
+  -- deleting from user_keys while paginating through it is probably not a good idea
+  -- therefore we read all keys first and then delete them
   phoneKeys <- runConduit $ getKeys .| Conduit.sinkList
+  Log.info $ "phone_keys" .= show (length phoneKeys)
   result <- runConduit $ deleteKeys phoneKeys .| Conduit.lastDef mempty
-  Log.info $ "final_deleted_keys" .= show result
+  Log.info $ "final_deleted_phone_keys" .= show result
 
 main :: IO ()
 main = do
