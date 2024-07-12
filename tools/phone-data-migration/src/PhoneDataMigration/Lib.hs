@@ -27,19 +27,26 @@ import Imports
 import Options.Applicative
 import PhoneDataMigration.Phone
 import PhoneDataMigration.Types
+import System.Logger.Class (MonadLogger)
 import qualified System.Logger.Class as Log
 import System.Logger.Message ((.=))
 
 pageSize :: Int32
 pageSize = 1000
 
-getKeys :: (MonadClient m) => ConduitM () Phone m ()
-getKeys =
+getKeys :: forall m. (MonadClient m, MonadLogger m) => IORef Int -> ConduitM () Phone m ()
+getKeys counter =
   paginateC cql (paramsP LocalQuorum () pageSize) x5
     .| Conduit.concatMap (mapMaybe (parsePhone . runIdentity))
+    .| Conduit.iterM (const $ logEvery 100000 counter)
   where
     cql :: PrepQuery R () (Identity Text)
     cql = "SELECT key FROM user_keys"
+
+    logEvery :: Int -> IORef Int -> m ()
+    logEvery i ctr = do
+      c <- liftIO $ atomicModifyIORef' ctr (\x -> (x + 1, x + 1))
+      when (c `mod` i == 0) $ Log.info $ "found_phone_keys" .= show c
 
 deleteKey :: (MonadClient m) => Phone -> m IntSum
 deleteKey p = do
@@ -62,10 +69,10 @@ deleteKeys keys = do
 
 run :: AppT IO ()
 run = do
+  ctr <- liftIO $ newIORef 0
   -- deleting from user_keys while paginating through it is probably not a good idea
   -- therefore we read all keys first and then delete them
-  phoneKeys <- runConduit $ getKeys .| Conduit.sinkList
-  Log.info $ "phone_keys" .= show (length phoneKeys)
+  phoneKeys <- runConduit $ getKeys ctr .| Conduit.sinkList
   result <- runConduit $ deleteKeys phoneKeys .| Conduit.lastDef mempty
   Log.info $ "final_deleted_phone_keys" .= show result
 

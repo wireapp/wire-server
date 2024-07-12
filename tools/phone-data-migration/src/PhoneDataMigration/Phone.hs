@@ -1,4 +1,3 @@
-
 module PhoneDataMigration.Phone (Phone, parsePhone, toText) where
 
 import Data.Attoparsec.Text (char, count, digit, endOfInput, parseOnly)
