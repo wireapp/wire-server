@@ -21,7 +21,6 @@ data StoredUser = StoredUser
     name :: Name,
     pict :: Maybe Pict,
     email :: Maybe Email,
-    phone :: Maybe Phone,
     ssoId :: Maybe UserSSOId,
     accentId :: ColourId,
     assets :: Maybe [Asset],

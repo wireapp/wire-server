@@ -127,7 +127,7 @@ lookupLocaleImpl u = do
 
 selectUser :: PrepQuery R (Identity UserId) (TupleType StoredUser)
 selectUser =
-  "SELECT id, name, picture, email, phone, sso_id, accent_id, assets, \
+  "SELECT id, name, picture, email, sso_id, accent_id, assets, \
   \activated, status, expires, language, country, provider, service, \
   \handle, team, managed_by, supported_protocols \
   \FROM user where id = ?"
@@ -166,7 +166,7 @@ updateUserToTombstone :: PrepQuery W (AccountStatus, Name, ColourId, Pict, [Asse
 updateUserToTombstone =
   "UPDATE user SET status = ?, name = ?,\
   \ accent_id = ?, picture = ?, assets = ?, handle = null, country = null,\
-  \ language = null, email = null, phone = null, sso_id = null WHERE id = ?"
+  \ language = null, email = null, sso_id = null WHERE id = ?"
 
 statusSelect :: PrepQuery R (Identity UserId) (Identity (Maybe AccountStatus))
 statusSelect = "SELECT status FROM user WHERE id = ?"
