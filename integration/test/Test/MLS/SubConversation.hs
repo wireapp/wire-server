@@ -30,6 +30,28 @@ testJoinSubConv = do
     $ createExternalCommit alice1 Nothing
     >>= sendAndConsumeCommitBundle
 
+testJoinOne2OneSubConv :: App ()
+testJoinOne2OneSubConv = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
+  [alice1, bob1, bob2] <- traverse (createMLSClient def) [alice, bob, bob]
+  traverse_ uploadNewKeyPackage [bob1, bob2]
+  conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
+  resetGroup alice1 conv
+
+  void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+  createSubConv bob1 "conference"
+
+  -- bob adds his first client to the subconversation
+  sub' <- getSubConversation bob conv "conference" >>= getJSON 200
+  do
+    tm <- sub' %. "epoch_timestamp"
+    assertBool "Epoch timestamp should not be null" (tm /= Null)
+
+  -- now alice joins with her own client
+  void
+    $ createExternalCommit alice1 Nothing
+    >>= sendAndConsumeCommitBundle
+
 testDeleteParentOfSubConv :: (HasCallStack) => Domain -> App ()
 testDeleteParentOfSubConv secondDomain = do
   (alice, tid, _) <- createTeam OwnDomain 1
