@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module PhoneDataMigration.Lib where
+module RemovePhoneKeys.Lib where
 
 import Cassandra as C
 import Data.Conduit
@@ -25,8 +25,8 @@ import qualified Data.Conduit.Combinators as Conduit
 import qualified Data.Conduit.List as ConduitList
 import Imports
 import Options.Applicative
-import PhoneDataMigration.Phone
-import PhoneDataMigration.Types
+import RemovePhoneKeys.Phone
+import RemovePhoneKeys.Types
 import System.Logger.Class (MonadLogger)
 import qualified System.Logger.Class as Log
 import System.Logger.Message ((.=))
@@ -82,4 +82,4 @@ main = do
   env <- mkEnv opts
   runReaderT (unAppT run) env
   where
-    desc = header "phone-data-migration" <> progDesc "Remove phone data from wire-server" <> fullDesc
+    desc = header "remove-phone-keys" <> progDesc "Remove phone data from wire-server" <> fullDesc

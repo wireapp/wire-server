@@ -1,4 +1,4 @@
-module PhoneDataMigration.Phone (Phone, parsePhone, toText) where
+module RemovePhoneKeys.Phone (Phone, parsePhone, toText) where
 
 import Data.Attoparsec.Text (char, count, digit, endOfInput, parseOnly)
 import qualified Data.Text as Text

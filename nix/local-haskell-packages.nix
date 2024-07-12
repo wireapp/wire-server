@@ -49,12 +49,12 @@
   migrate-sso-feature-flag = hself.callPackage ../tools/db/migrate-sso-feature-flag/default.nix { inherit gitignoreSource; };
   move-team = hself.callPackage ../tools/db/move-team/default.nix { inherit gitignoreSource; };
   phone-users = hself.callPackage ../tools/db/phone-users/default.nix { inherit gitignoreSource; };
+  remove-phone-keys = hself.callPackage ../tools/db/remove-phone-keys/default.nix { inherit gitignoreSource; };
   repair-brig-clients-table = hself.callPackage ../tools/db/repair-brig-clients-table/default.nix { inherit gitignoreSource; };
   repair-handles = hself.callPackage ../tools/db/repair-handles/default.nix { inherit gitignoreSource; };
   service-backfill = hself.callPackage ../tools/db/service-backfill/default.nix { inherit gitignoreSource; };
   fedcalls = hself.callPackage ../tools/fedcalls/default.nix { inherit gitignoreSource; };
   mlsstats = hself.callPackage ../tools/mlsstats/default.nix { inherit gitignoreSource; };
-  phone-data-migration = hself.callPackage ../tools/phone-data-migration/default.nix { inherit gitignoreSource; };
   rabbitmq-consumer = hself.callPackage ../tools/rabbitmq-consumer/default.nix { inherit gitignoreSource; };
   rex = hself.callPackage ../tools/rex/default.nix { inherit gitignoreSource; };
   stern = hself.callPackage ../tools/stern/default.nix { inherit gitignoreSource; };

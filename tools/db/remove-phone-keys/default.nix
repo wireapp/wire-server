@@ -17,7 +17,7 @@
 , tinylog
 }:
 mkDerivation {
-  pname = "phone-data-migration";
+  pname = "remove-phone-keys";
   version = "1.0.0";
   src = gitignoreSource ./.;
   isLibrary = true;
@@ -36,5 +36,5 @@ mkDerivation {
   executableHaskellDepends = [ base ];
   description = "remove phone data from wire-server";
   license = lib.licenses.agpl3Only;
-  mainProgram = "phone-data-migration";
+  mainProgram = "remove-phone-keys";
 }

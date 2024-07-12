@@ -1,5 +1,5 @@
 cabal-version: 3.0
-name:          phone-data-migration
+name:          remove-phone-keys
 version:       1.0.0
 synopsis:      remove phone data from wire-server
 category:      Network
@@ -12,9 +12,9 @@ build-type:    Simple
 library
   hs-source-dirs:     src
   exposed-modules:
-    PhoneDataMigration.Lib
-    PhoneDataMigration.Phone
-    PhoneDataMigration.Types
+    RemovePhoneKeys.Lib
+    RemovePhoneKeys.Phone
+    RemovePhoneKeys.Types
 
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
@@ -78,11 +78,11 @@ library
     UndecidableInstances
     ViewPatterns
 
-executable phone-data-migration
+executable remove-phone-keys
   main-is:          Main.hs
   build-depends:
     , base
-    , phone-data-migration
+    , remove-phone-keys
 
   hs-source-dirs:   app
   default-language: Haskell2010

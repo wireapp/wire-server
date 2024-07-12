@@ -17,7 +17,7 @@
 
 module Main where
 
-import qualified PhoneDataMigration.Lib as Lib
+import qualified RemovePhoneKeys.Lib as Lib
 
 main :: IO ()
 main = Lib.main

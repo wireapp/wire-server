@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module PhoneDataMigration.Types where
+module RemovePhoneKeys.Types where
 
 import Cassandra as C
 import qualified Cassandra.Settings as C
