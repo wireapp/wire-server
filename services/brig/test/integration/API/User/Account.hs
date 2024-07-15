@@ -130,7 +130,7 @@ tests _ at opts p b c ch g aws userJournalWatcher =
       test p "post /list-users - 200" $ testMultipleUsers opts b,
       test p "put /self - 200" $ testUserUpdate b c userJournalWatcher,
       test p "put /access/self/email - 2xx" $ testEmailUpdate b userJournalWatcher,
-      test p "put /self/phone - 400" $ testPhoneUpdate b,
+      test p "put /self/phone - 404" $ testPhoneUpdate b,
       test p "head /self/password - 200/404" $ testPasswordSet b,
       test p "put /self/password - 400" $ testPasswordSetInvalidPasswordLength b,
       test p "put /self/password - 200" $ testPasswordChange b,
@@ -980,8 +980,7 @@ testCreateAccountPendingActivationKey _ brig = do
   let phoneUpdate = RequestBodyLBS . encode $ PhoneUpdate phn
   put (brig . path "/self/phone" . contentJson . zUser uid . zConn "c" . body phoneUpdate)
     !!! do
-      const 400 === statusCode
-      const (Just "invalid-phone") === fmap Error.label . responseJsonMaybe
+      const 404 === statusCode
 
 testUserLocaleUpdate :: Brig -> UserJournalWatcher -> Http ()
 testUserLocaleUpdate brig userJournalWatcher = do

@@ -84,7 +84,6 @@ import Network.Wai qualified as Wai
 import Network.Wai.Handler.Warp qualified as Warp
 import Network.Wai.Test (Session)
 import Network.Wai.Test qualified as WaiTest
-import Network.Wai.Utilities.Error qualified as Wai
 import OpenSSL.BN (randIntegerZeroToNMinusOne)
 import Servant.Client (ClientError (FailureResponse))
 import Servant.Client qualified as Servant
@@ -844,8 +843,7 @@ updatePhone brig uid phn = do
   -- update phone
   let phoneUpdate = RequestBodyLBS . encode $ PhoneUpdate phn
   put (brig . path "/self/phone" . contentJson . zUser uid . zConn "c" . body phoneUpdate) !!! do
-    const 400 === statusCode
-    const (Just "invalid-phone") === fmap Wai.label . responseJsonMaybe
+    const 404 === statusCode
 
 defEmailLogin :: Email -> Login
 defEmailLogin e = emailLogin e defPassword (Just defCookieLabel)
