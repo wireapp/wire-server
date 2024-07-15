@@ -1,3 +1,1 @@
-Run a tool for deleting phone keys from the `user_keys` table in Brig. It can be
-found in `tools/db/remove-phone-keys`. See the accompanying README for more
-details.
+To remove phone keys from brig's `user_keys` table an ad hoc data-migration can be run. See PR https://github.com/wireapp/wire-server/pull/4146 which contains the implementation.
