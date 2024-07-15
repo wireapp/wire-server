@@ -48,7 +48,6 @@ packages:
   , tools/db/migrate-sso-feature-flag/
   , tools/db/move-team/
   , tools/db/phone-users/
-  , tools/db/remove-phone-keys
   , tools/db/repair-handles/
   , tools/db/repair-brig-clients-table/
   , tools/db/service-backfill/
