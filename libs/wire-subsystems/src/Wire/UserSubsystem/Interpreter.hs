@@ -138,7 +138,8 @@ getLocalUserProfilesImpl ::
     Member (Input UserSubsystemConfig) r,
     Member DeleteQueue r,
     Member Now r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member (Concurrency Unsafe) r
   ) =>
   Local [UserId] ->
   Sem r [UserProfile]
@@ -154,7 +155,8 @@ getUserProfilesFromDomain ::
     Member UserStore r,
     RunClient (fedM 'Brig),
     FederationMonad fedM,
-    Typeable fedM
+    Typeable fedM,
+    Member (Concurrency Unsafe) r
   ) =>
   Local UserId ->
   Qualified [UserId] ->
@@ -183,7 +185,8 @@ getUserProfilesLocalPart ::
     Member (Input UserSubsystemConfig) r,
     Member DeleteQueue r,
     Member Now r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member (Concurrency Unsafe) r
   ) =>
   Maybe (Local UserId) ->
   Local [UserId] ->
@@ -199,7 +202,7 @@ getUserProfilesLocalPart requestingUser luids = do
           <$> traverse getRequestingUserInfo requestingUser
   -- FUTUREWORK: (in the interpreters where it makes sense) pull paginated lists from the DB,
   -- not just single rows.
-  catMaybes <$> traverse (getLocalUserProfileImpl emailVisibilityConfigWithViewer) (sequence luids)
+  catMaybes <$> unsafePooledForConcurrentlyN 8 (sequence luids) (getLocalUserProfileImpl emailVisibilityConfigWithViewer)
   where
     getRequestingUserInfo :: Local UserId -> Sem r (Maybe (TeamId, TeamMember))
     getRequestingUserInfo self = do
