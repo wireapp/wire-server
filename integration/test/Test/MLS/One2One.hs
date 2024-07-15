@@ -19,6 +19,8 @@ module Test.MLS.One2One where
 
 import API.Brig
 import API.Galley
+import Control.Concurrent.Async
+import Control.Concurrent.MVar
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.Set as Set
@@ -264,3 +266,37 @@ testMLSOne2One suite scenario = do
   conv' <- getMLSOne2OneConversation alice bob >>= getJSON 200
   (suiteCode, _) <- assertOne $ T.hexadecimal (T.pack suite.code)
   conv' %. "cipher_suite" `shouldMatchInt` suiteCode
+
+-- | This test verifies that one-to-one conversations are created inside the
+-- commit lock. There used to be an issue where a conversation could be
+-- partially created at the time of setting its ciphersuite, resulting in an
+-- incomplete database entry that would prevent further uses of the
+-- conversation.
+testMLSGhostOne2OneConv :: App ()
+testMLSGhostOne2OneConv = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
+  [alice1, bob1, bob2] <- traverse (createMLSClient def) [alice, bob, bob]
+  traverse_ uploadNewKeyPackage [bob1, bob2]
+  conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
+  resetGroup alice1 conv
+
+  doneVar <- liftIO $ newEmptyMVar
+  let checkConversation =
+        liftIO (tryReadMVar doneVar) >>= \case
+          Nothing -> do
+            bindResponse (getConversation alice conv) $ \resp ->
+              resp.status `shouldMatchOneOf` [404 :: Int, 403, 200]
+            checkConversation
+          Just _ -> pure ()
+  checkConversationIO <- appToIO checkConversation
+
+  createCommit <-
+    appToIO
+      $ void
+      $ createAddCommit alice1 [bob]
+      >>= sendAndConsumeCommitBundle
+
+  liftIO $ withAsync checkConversationIO $ \a -> do
+    createCommit
+    liftIO $ putMVar doneVar ()
+    wait a

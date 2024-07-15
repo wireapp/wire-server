@@ -32,8 +32,10 @@ import Galley.API.MLS.Removal
 import Galley.API.MLS.Types
 import Galley.API.MLS.Util
 import Galley.Effects
+import Galley.Effects.ConversationStore
 import Galley.Effects.MemberStore
-import Imports hiding (cs)
+import Galley.Effects.SubConversationStore
+import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Resource (Resource)
@@ -135,11 +137,12 @@ processExternalCommit ::
   ClientIdentity ->
   Local ConvOrSubConv ->
   CipherSuiteTag ->
+  Bool ->
   Epoch ->
   ExternalCommitAction ->
   Maybe UpdatePath ->
   Sem r ()
-processExternalCommit senderIdentity lConvOrSub ciphersuite epoch action updatePath = do
+processExternalCommit senderIdentity lConvOrSub ciphersuite ciphersuiteUpdate epoch action updatePath = do
   let convOrSub = tUnqualified lConvOrSub
 
   -- only members can join a subconversation
@@ -172,6 +175,11 @@ processExternalCommit senderIdentity lConvOrSub ciphersuite epoch action updateP
       -- skip remove proposals of already removed by the external commit
       (\\ toList action.remove)
         <$> getPendingBackendRemoveProposals groupId epoch
+
+    -- set cipher suite
+    when ciphersuiteUpdate $ case convOrSub.id of
+      Conv cid -> setConversationCipherSuite cid ciphersuite
+      SubConv cid sub -> setSubConversationCipherSuite cid sub ciphersuite
 
     -- requeue backend remove proposals for the current epoch
     createAndSendRemoveProposals
