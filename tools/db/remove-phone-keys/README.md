@@ -1,5 +1,8 @@
 # Remove phone keys
 
+This tool removes the phone keys from the `user_keys` table. Assuming `wire-server` is up and running, run the tool as laid out below.
+
+
 ```text
 remove-phone-keys
 
