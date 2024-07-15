@@ -360,10 +360,10 @@ importBrigRichInfo Env {..} path = do
 
 -- brig.user
 
-type RowBrigUser = (Maybe UUID, Maybe [Float], Maybe Int32, Maybe Bool, Maybe [AssetIgnoreData], Maybe Ascii, Maybe Text, Maybe UTCTime, Maybe Text, Maybe Ascii, Maybe Int32, Maybe Text, Maybe Blob, Maybe Text, Maybe [Blob], Maybe UUID, Maybe Bool, Maybe UUID, Maybe Text, Maybe Int32, Maybe UUID)
+type RowBrigUser = (Maybe UUID, Maybe [Float], Maybe Int32, Maybe Bool, Maybe [AssetIgnoreData], Maybe Ascii, Maybe Text, Maybe UTCTime, Maybe Text, Maybe Ascii, Maybe Int32, Maybe Text, Maybe Blob, Maybe [Blob], Maybe UUID, Maybe Bool, Maybe UUID, Maybe Text, Maybe Int32, Maybe UUID)
 
 selectBrigUser :: PrepQuery R (Identity [UserId]) RowBrigUser
-selectBrigUser = "SELECT id, accent, accent_id, activated, assets, country, email, expires, handle, language, managed_by, name, password, phone, picture, provider, searchable, service, sso_id, status, team FROM user WHERE id in ?"
+selectBrigUser = "SELECT id, accent, accent_id, activated, assets, country, email, expires, handle, language, managed_by, name, password, picture, provider, searchable, service, sso_id, status, team FROM user WHERE id in ?"
 
 readBrigUser :: Env -> [UserId] -> ConduitM () [RowBrigUser] IO ()
 readBrigUser Env {..} uids =
@@ -371,7 +371,7 @@ readBrigUser Env {..} uids =
     paginateC selectBrigUser (paramsP LocalQuorum (pure uids) envPageSize) x5
 
 selectBrigUserAll :: PrepQuery R () RowBrigUser
-selectBrigUserAll = "SELECT id, accent, accent_id, activated, assets, country, email, expires, handle, language, managed_by, name, password, phone, picture, provider, searchable, service, sso_id, status, team FROM user"
+selectBrigUserAll = "SELECT id, accent, accent_id, activated, assets, country, email, expires, handle, language, managed_by, name, password, picture, provider, searchable, service, sso_id, status, team FROM user"
 
 readBrigUserAll :: Env -> ConduitM () [RowBrigUser] IO ()
 readBrigUserAll Env {..} =
@@ -388,7 +388,7 @@ exportBrigUserFull env path = do
 
 insertBrigUser :: PrepQuery W RowBrigUser ()
 insertBrigUser =
-  "INSERT INTO user (id, accent, accent_id, activated, assets, country, email, expires, handle, language, managed_by, name, password, phone, picture, provider, searchable, service, sso_id, status, team) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  "INSERT INTO user (id, accent, accent_id, activated, assets, country, email, expires, handle, language, managed_by, name, password, picture, provider, searchable, service, sso_id, status, team) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 importBrigUser :: Env -> FilePath -> IO ()
 importBrigUser Env {..} path = do

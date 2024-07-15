@@ -1,0 +1,3 @@
+Run a tool for deleting phone keys from the `user_keys` table in Brig. It can be
+found in `tools/db/remove-phone-keys`. See the accompanying README for more
+details.
