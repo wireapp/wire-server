@@ -838,13 +838,6 @@ randomActivationCode =
       . printf "%06d"
       <$> randIntegerZeroToNMinusOne 1000000
 
-updatePhone :: (HasCallStack) => Brig -> UserId -> Phone -> Http ()
-updatePhone brig uid phn = do
-  -- update phone
-  let phoneUpdate = RequestBodyLBS . encode $ PhoneUpdate phn
-  put (brig . path "/self/phone" . contentJson . zUser uid . zConn "c" . body phoneUpdate) !!! do
-    const 404 === statusCode
-
 defEmailLogin :: Email -> Login
 defEmailLogin e = emailLogin e defPassword (Just defCookieLabel)
 

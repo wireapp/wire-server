@@ -108,7 +108,6 @@ tests _ at opts p b c ch g aws userJournalWatcher =
       test p "testCreateUserLongName - post /register - 400 name too long" $ testCreateUserLongName b,
       test p "post /register - 201 anonymous expiry" $ testCreateUserAnonExpiry b,
       test p "post /register - 201 pending" $ testCreateUserPending opts b,
-      test p "post /register - 201 existing activation" $ testCreateAccountPendingActivationKey opts b,
       test p "testCreateUserConflict - post /register - 409 conflict" $ testCreateUserConflict opts b,
       test p "testCreateUserInvalidEmailOrPhone - post /register - 400 invalid input" $ testCreateUserInvalidEmailOrPhone opts b,
       test p "post /register - 403 blacklist" $ testCreateUserBlacklist opts b aws,
@@ -130,7 +129,6 @@ tests _ at opts p b c ch g aws userJournalWatcher =
       test p "post /list-users - 200" $ testMultipleUsers opts b,
       test p "put /self - 200" $ testUserUpdate b c userJournalWatcher,
       test p "put /access/self/email - 2xx" $ testEmailUpdate b userJournalWatcher,
-      test p "put /self/phone - 404" $ testPhoneUpdate b,
       test p "head /self/password - 200/404" $ testPasswordSet b,
       test p "put /self/password - 400" $ testPasswordSetInvalidPasswordLength b,
       test p "put /self/password - 200" $ testPasswordChange b,
@@ -962,26 +960,6 @@ testEmailUpdate brig userJournalWatcher = do
       login brig (defEmailLogin eml) SessionCookie !!! const 200 === statusCode
       login brig (defEmailLogin (Email "test" "example.com")) SessionCookie !!! const 200 === statusCode
 
-testPhoneUpdate :: Brig -> Http ()
-testPhoneUpdate brig = do
-  uid <- userId <$> randomUser brig
-  phn <- randomPhone
-  updatePhone brig uid phn
-  -- check new phone
-  get (brig . path "/self" . zUser uid) !!! do
-    const 200 === statusCode
-
-testCreateAccountPendingActivationKey :: Opt.Opts -> Brig -> Http ()
-testCreateAccountPendingActivationKey (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ = pure ()
-testCreateAccountPendingActivationKey _ brig = do
-  uid <- userId <$> randomUser brig
-  phn <- randomPhone
-  -- update phone
-  let phoneUpdate = RequestBodyLBS . encode $ PhoneUpdate phn
-  put (brig . path "/self/phone" . contentJson . zUser uid . zConn "c" . body phoneUpdate)
-    !!! do
-      const 404 === statusCode
-
 testUserLocaleUpdate :: Brig -> UserJournalWatcher -> Http ()
 testUserLocaleUpdate brig userJournalWatcher = do
   usr <- randomUser brig
@@ -1311,11 +1289,9 @@ testUpdateSSOId brig galley = do
           assertEqual "updateSSOId/ssoid" ssoid ssoid'
           assertEqual "updateSSOId/email" (userEmail user) mEmail
   (owner, teamid) <- createUserWithTeam brig
-  let mkMember :: Bool -> Bool -> Http User
-      mkMember hasEmail hasPhone = do
+  let mkMember :: Bool -> Http User
+      mkMember hasEmail = do
         member <- createTeamMember brig galley owner teamid noPermissions
-        when hasPhone $ do
-          updatePhone brig (userId member) =<< randomPhone
         unless hasEmail $ do
           error "not implemented"
         selfUser <$> (responseJsonError =<< get (brig . path "/self" . zUser (userId member)))
@@ -1323,7 +1299,7 @@ testUpdateSSOId brig galley = do
       ssoids2 = [UserSSOId (mkSampleUref "2" "1"), UserSSOId (mkSampleUref "2" "2")]
   users <-
     sequence
-      [ mkMember True False
+      [ mkMember True
       -- the following two could be implemented by creating the user implicitly via SSO login.
       -- , mkMember False  False
       ]
