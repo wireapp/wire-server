@@ -270,6 +270,23 @@ let
       };
     };
 
+    http2 = {
+      src = pkgs.fetchFromGitHub {
+        owner = "kazu-yamamoto";
+        repo = "http2";
+        rev = "90dde392d8d0edba77c66fe99966267ed9369c30";
+        hash = "sha256-RkvJxpMkNbDGSPkjt+h5smhe1cr6bnqYeAfyc5YbwIU=";
+      };
+    };
+
+    http-semantics = {
+      src = pkgs.fetchFromGitHub {
+        owner = "kazu-yamamoto";
+        repo = "http-semantics";
+        rev = "d4315ba8d4d23ec09a7642064d20353a296ceb89";
+        hash = "sha256-ChpXT+FMqdm2WkEBR1hq4cjKPj3WmjeePvTnQgcJzlM=";
+      };
+    };
   };
 
   hackagePins = {
@@ -281,19 +298,6 @@ let
     };
 
     # start pinned dependencies for http2
-
-    # this contains an important fix to the initialization of the window size
-    # and should be switched to upstream as soon as we can
-    http2 = {
-      version = "5.2.5";
-      sha256 = "sha256-FCd4lPydwWqm2lrhgYtPW+BuXGqmmA8KFrB87SYEowY=";
-    };
-
-    http-semantics = {
-      version = "0.1.2";
-      sha256 = "sha256-S4rGBCIKVPpLPumLcVzrPONrbWm8VBizqxI3dXNIfr0=";
-    };
-
     network-run = {
       version = "0.3.0";
       sha256 = "sha256-FP2GZKwacC+TLLwEIVgKBtnKplYPf5xOIjDfvlbQV0o=";

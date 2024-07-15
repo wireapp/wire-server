@@ -34,7 +34,6 @@ module Wire.API.Federation.Client
   )
 where
 
-import Control.Concurrent.Async
 import Control.Exception qualified as E
 import Control.Monad.Catch
 import Control.Monad.Codensity
@@ -63,7 +62,6 @@ import Network.HTTP.Media qualified as HTTP
 import Network.HTTP.Types qualified as HTTP
 import Network.HTTP2.Client qualified as HTTP2
 import Network.Wai.Utilities.Error qualified as Wai
-import OpenSSL.Session qualified as SSL
 import Servant.Client
 import Servant.Client.Core
 import Servant.Types.SourceT
@@ -123,27 +121,13 @@ liftCodensity = FederatorClient . lift . lift . lift
 headersFromTable :: HTTP2.TokenHeaderTable -> [HTTP.Header]
 headersFromTable (headerList, _) = flip map headerList $ first HTTP2.tokenKey
 
--- This opens a new http2 connection. Using a http2-manager leads to this problem https://wearezeta.atlassian.net/browse/WPB-4787
--- FUTUREWORK: Replace with H2Manager.withHTTP2Request once the bugs are solved.
-withNewHttpRequest :: H2Manager.Target -> HTTP2.Request -> (HTTP2.Response -> IO a) -> IO a
-withNewHttpRequest target req k = do
-  ctx <- SSL.context
-  let cacheLimit = 20
-      sslRemoveTrailingDot = False
-      tcpConnectionTimeout = 30_000_000
-  sendReqMVar <- newEmptyMVar
-  thread <- liftIO . async $ H2Manager.startPersistentHTTP2Connection ctx target cacheLimit sslRemoveTrailingDot tcpConnectionTimeout sendReqMVar
-  let newConn = H2Manager.HTTP2Conn thread (putMVar sendReqMVar H2Manager.CloseConnection) sendReqMVar
-  H2Manager.sendRequestWithConnection newConn req $ \resp -> do
-    k resp <* newConn.disconnect
-
 performHTTP2Request ::
   Http2Manager ->
   H2Manager.Target ->
   HTTP2.Request ->
   IO (Either FederatorClientHTTP2Error (ResponseF Builder))
-performHTTP2Request _mgr target req = try $ do
-  withNewHttpRequest target req $ consumeStreamingResponseWith $ \resp -> do
+performHTTP2Request mgr target req = try $ do
+  H2Manager.withHTTP2Request mgr target req $ consumeStreamingResponseWith $ \resp -> do
     b <-
       fmap (fromRight mempty)
         . runExceptT
@@ -250,7 +234,7 @@ withHTTP2StreamingRequest successfulStatus req handleResponse = do
       $ Codensity
       $ \k ->
         E.catches
-          (withNewHttpRequest (False, hostname, port) req' (consumeStreamingResponseWith (k . Right)))
+          (H2Manager.withHTTP2Request env.ceHttp2Manager (False, hostname, port) req' (consumeStreamingResponseWith (k . Right)))
           [ E.Handler $ k . Left . FederatorClientHTTP2Error,
             E.Handler $ k . Left . FederatorClientHTTP2Error . FederatorClientConnectionError,
             E.Handler $ k . Left . FederatorClientHTTP2Error . FederatorClientHTTP2Exception,
