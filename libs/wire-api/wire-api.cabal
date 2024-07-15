@@ -511,7 +511,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.SearchResult_20Contact_user
     Test.Wire.API.Golden.Generated.SearchResult_20TeamContact_user
     Test.Wire.API.Golden.Generated.SelfProfile_user
-    Test.Wire.API.Golden.Generated.SendActivationCode_user
+    Test.Wire.API.Golden.Generated.SendActivationCodeV5_user
     Test.Wire.API.Golden.Generated.SendLoginCode_user
     Test.Wire.API.Golden.Generated.Service_provider
     Test.Wire.API.Golden.Generated.ServiceKey_provider
@@ -594,6 +594,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.MLSKeys
     Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
     Test.Wire.API.Golden.Manual.SearchResultContact
+    Test.Wire.API.Golden.Manual.SendActivationCode_user
     Test.Wire.API.Golden.Manual.SubConversation
     Test.Wire.API.Golden.Manual.TeamSize
     Test.Wire.API.Golden.Manual.Token

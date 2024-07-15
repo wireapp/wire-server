@@ -237,14 +237,6 @@ testUpdateUserEmailByTeamOwner opts brig = do
 
 testCreateUserWithPreverified :: Opt.Opts -> Brig -> UserJournalWatcher -> Http ()
 testCreateUserWithPreverified opts brig userJournalWatcher = do
-  -- Register (pre verified) user with phone
-  p <- randomPhone
-  let phoneReq = RequestBodyLBS . encode $ object ["phone" .= fromPhone p]
-  post (brig . path "/activate/send" . contentJson . body phoneReq)
-    !!! do
-      const 400 === statusCode
-      const (Just "invalid-phone") === fmap Wai.label . responseJsonMaybe
-
   -- Register (pre verified) user with email
   e <- randomEmail
   let emailReq = RequestBodyLBS . encode $ object ["email" .= fromEmail e]
@@ -1320,7 +1312,7 @@ testDomainsBlockedForRegistration opts brig = withDomainsBlockedForRegistration 
   post (brig . path "/activate/send" . contentJson . body (p goodEmail)) !!! do
     const 200 === statusCode
   where
-    p email = RequestBodyLBS . encode $ SendActivationCode (Left email) Nothing False
+    p email = RequestBodyLBS . encode $ SendActivationCode email Nothing
 
 -- | FUTUREWORK: @setRestrictUserCreation@ perhaps needs to be tested in one place only, since it's the
 -- first thing that we check on the /register endpoint. Other tests that make use of @setRestrictUserCreation@

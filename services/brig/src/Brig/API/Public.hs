@@ -361,6 +361,7 @@ servantSitemap =
         :<|> Named @"verify-delete" (callsFed (exposeAnnotations verifyDeleteUser))
         :<|> Named @"get-activate" (callsFed (exposeAnnotations activate))
         :<|> Named @"post-activate" (callsFed (exposeAnnotations activateKey))
+        :<|> Named @"post-activate-send-v5" sendActivationCodeV5
         :<|> Named @"post-activate-send" sendActivationCode
         :<|> Named @"post-password-reset" beginPasswordReset
         :<|> Named @"post-password-reset-complete" completePasswordReset
@@ -1028,6 +1029,22 @@ completePasswordReset req = do
 
 -- docs/reference/user/activation.md {#RefActivationRequest}
 -- docs/reference/user/registration.md {#RefRegistration}
+sendActivationCodeV5 ::
+  ( Member BlacklistStore r,
+    Member EmailSubsystem r,
+    Member GalleyAPIAccess r,
+    Member UserKeyStore r
+  ) =>
+  Public.SendActivationCodeV5 ->
+  Handler r ()
+sendActivationCodeV5 Public.SendActivationCodeV5 {..} = do
+  email <- case saUserKey of
+    Left email -> pure email
+    Right _ -> throwStd (errorToWai @'E.InvalidPhone)
+  sendActivationCode (Public.SendActivationCode email saLocale)
+
+-- docs/reference/user/activation.md {#RefActivationRequest}
+-- docs/reference/user/registration.md {#RefRegistration}
 sendActivationCode ::
   ( Member BlockListStore r,
     Member EmailSubsystem r,
@@ -1036,13 +1053,11 @@ sendActivationCode ::
   ) =>
   Public.SendActivationCode ->
   Handler r ()
-sendActivationCode Public.SendActivationCode {..} = do
-  email <- case saUserKey of
-    Left email -> pure email
-    Right _ -> throwStd (errorToWai @'E.InvalidPhone)
+sendActivationCode ac = do
+  let email = ac.emailKey
   customerExtensionCheckBlockedDomains email
   checkAllowlist email
-  API.sendActivationCode email saLocale saCall !>> sendActCodeError
+  API.sendActivationCode email (ac.locale) !>> sendActCodeError
 
 -- | If the user presents an email address from a blocked domain, throw an error.
 --

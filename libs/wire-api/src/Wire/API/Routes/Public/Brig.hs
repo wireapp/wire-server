@@ -549,11 +549,25 @@ type AccountAPI =
            )
     -- docs/reference/user/activation.md {#RefActivationRequest}
     :<|> Named
-           "post-activate-send"
+           "post-activate-send-v5"
            ( Summary "Send (or resend) an email activation code."
+               :> Until 'V6
                :> CanThrow 'UserKeyExists
                :> CanThrow 'InvalidEmail
                :> CanThrow 'InvalidPhone
+               :> CanThrow 'BlacklistedEmail
+               :> CanThrow 'CustomerExtensionBlockedDomain
+               :> "activate"
+               :> "send"
+               :> ReqBody '[JSON] SendActivationCodeV5
+               :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Activation code sent."] ()
+           )
+    :<|> Named
+           "post-activate-send"
+           ( Summary "Send (or resend) an email activation code."
+               :> From 'V6
+               :> CanThrow 'UserKeyExists
+               :> CanThrow 'InvalidEmail
                :> CanThrow 'BlacklistedEmail
                :> CanThrow 'CustomerExtensionBlockedDomain
                :> "activate"

@@ -31,6 +31,7 @@ module Wire.API.User.Activation
     ActivationResponse (..),
 
     -- * SendActivationCode
+    SendActivationCodeV5 (..),
     SendActivationCode (..),
   )
 where
@@ -189,24 +190,24 @@ instance ToSchema ActivationResponse where
         <*> activatedFirst .= (fromMaybe False <$> optFieldWithDocModifier "first" (description ?~ "Whether this is the first successful activation (i.e. account activation).") schema)
 
 --------------------------------------------------------------------------------
--- SendActivationCode
+-- SendActivationCodeV5 and SendActivationCode
 
 -- | Payload for a request to (re-)send an activation code
 -- for a phone number or e-mail address. If a phone is used,
 -- one can also request a call instead of SMS.
-data SendActivationCode = SendActivationCode
+data SendActivationCodeV5 = SendActivationCodeV5
   { saUserKey :: Either Email Phone,
     saLocale :: Maybe Locale,
     saCall :: Bool
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform SendActivationCode)
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema SendActivationCode
+  deriving (Arbitrary) via (GenericUniform SendActivationCodeV5)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema SendActivationCodeV5
 
-instance ToSchema SendActivationCode where
+instance ToSchema SendActivationCodeV5 where
   schema =
-    objectWithDocModifier "SendActivationCode" objectDesc $
-      SendActivationCode
+    objectWithDocModifier "SendActivationCode_V5" objectDesc $
+      SendActivationCodeV5
         <$> (maybeUserKeyToTuple . saUserKey) .= userKeyObjectSchema
         <*> saLocale .= maybe_ (optFieldWithDocModifier "locale" (description ?~ "Locale to use for the activation code template.") schema)
         <*> saCall .= (fromMaybe False <$> optFieldWithDocModifier "voice_call" (description ?~ "Request the code with a call instead (default is SMS).") schema)
@@ -241,3 +242,32 @@ instance ToSchema SendActivationCode where
             (Just email, Nothing) -> pure $ Left email
             (Nothing, Just phone) -> pure $ Right phone
             (Nothing, Nothing) -> fail "One of 'email' or 'phone' required."
+
+-- | Payload for a request to (re-)send an activation code for an e-mail
+-- address.
+data SendActivationCode = SendActivationCode
+  { emailKey :: Email,
+    locale :: Maybe Locale
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform SendActivationCode)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema SendActivationCode
+
+instance ToSchema SendActivationCode where
+  schema =
+    objectWithDocModifier "SendActivationCode" objectDesc $
+      SendActivationCode
+        <$> emailKey .= field "email" schema
+        <*> locale
+          .= maybe_
+            ( optFieldWithDocModifier
+                "locale"
+                ( description ?~ "Locale to use for the activation code template."
+                )
+                schema
+            )
+    where
+      objectDesc :: NamedSwaggerDoc -> NamedSwaggerDoc
+      objectDesc =
+        description
+          ?~ "Data for requesting an email code to be sent. 'email' must be present."

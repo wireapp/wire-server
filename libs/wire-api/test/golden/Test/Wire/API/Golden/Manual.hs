@@ -41,6 +41,7 @@ import Test.Wire.API.Golden.Manual.ListUsersById
 import Test.Wire.API.Golden.Manual.MLSKeys
 import Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
 import Test.Wire.API.Golden.Manual.SearchResultContact
+import Test.Wire.API.Golden.Manual.SendActivationCode_user
 import Test.Wire.API.Golden.Manual.SubConversation
 import Test.Wire.API.Golden.Manual.TeamSize
 import Test.Wire.API.Golden.Manual.Token
@@ -238,5 +239,10 @@ tests =
       testGroup "MLSKeysByPurpose" $
         testObjects
           [ (testObject_MLSKeysByPurpose1, "testObject_MLSKeysByPurpose_1.json")
+          ],
+      testGroup "SendActivationCode" $
+        testObjects
+          [ (testObject_SendActivationCode_1, "testObject_SendActivationCode_1.json"),
+            (testObject_SendActivationCode_2, "testObject_SendActivationCode_2.json")
           ]
     ]
