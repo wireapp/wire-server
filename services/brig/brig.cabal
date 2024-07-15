@@ -188,6 +188,7 @@ library
     Brig.Schema.V79_ConnectionRemoteIndex
     Brig.Schema.V80_KeyPackageCiphersuite
     Brig.Schema.V81_AddFederationRemoteTeams
+    Brig.Schema.V82_DropPhoneColumn
     Brig.Schema.V_FUTUREWORK
     Brig.Team.API
     Brig.Team.DB

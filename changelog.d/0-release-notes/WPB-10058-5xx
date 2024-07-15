@@ -1,0 +1,4 @@
+Because the `phone` column is deleted from Brig's `user` table in a schema
+migration, temporarily there might be 5xx errors during deployment if Wire
+server 5.4.0 was not deployed previously. To avoid these errors, please deploy
+the Wire server 5.4.0 release first.

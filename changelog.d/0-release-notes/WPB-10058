@@ -1,0 +1,1 @@
+To remove phone keys from brig's `user_keys` table an ad hoc data-migration can be run. See PR https://github.com/wireapp/wire-server/pull/4146 which contains the implementation.

@@ -678,7 +678,6 @@ CREATE TABLE brig_test.user (
     managed_by int,
     name text,
     password blob,
-    phone text,
     picture list<blob>,
     provider uuid,
     searchable boolean,
