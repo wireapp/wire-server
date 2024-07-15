@@ -39,12 +39,15 @@ import Brig.User.Search.Index
 import Brig.User.Search.SearchIndex qualified as Q
 import Brig.User.Search.TeamUserSearch qualified as Q
 import Control.Lens (view)
+import Control.Monad.Catch (catch, throwM)
 import Data.Domain (Domain)
 import Data.Handle qualified as Handle
 import Data.Id
 import Data.Range
 import Imports
+import Network.HTTP.Types
 import Network.Wai.Utilities ((!>>))
+import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import System.Logger (field, msg)
 import System.Logger.Class (val, (~~))
@@ -187,4 +190,8 @@ teamUserSearch ::
   (Handler r) (Public.SearchResult Public.TeamContact)
 teamUserSearch uid tid mQuery mRoleFilter mSortBy mSortOrder size mPagingState = do
   ensurePermissions uid tid [Public.AddTeamMember] -- limit this to team admins to reduce risk of involuntary DOS attacks.  (also, this way we don't need to worry about revealing confidential user data to other team members.)
-  Q.teamUserSearch tid mQuery mRoleFilter mSortBy mSortOrder (fromMaybe (unsafeRange 15) size) mPagingState
+  (Q.teamUserSearch tid mQuery mRoleFilter mSortBy mSortOrder (fromMaybe (unsafeRange 15) size) mPagingState)
+    `catch` ( \(_e :: IndexError) -> do
+                -- TODO: log error
+                throwM $ Wai.mkError status500 "server-error" "Server Error."
+            )
