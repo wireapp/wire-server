@@ -505,7 +505,7 @@ type AccountAPI =
     -- - UserIdentityUpdated event to the user, if email or phone get activated
     :<|> Named
            "get-activate"
-           ( Summary "Activate (i.e. confirm) an email address or phone number."
+           ( Summary "Activate (i.e. confirm) an email address."
                :> MakesFederatedCall 'Brig "send-connection-action"
                :> Description "See also 'POST /activate' which has a larger feature set."
                :> CanThrow 'UserKeyExists
@@ -529,10 +529,10 @@ type AccountAPI =
     -- - UserIdentityUpdated event to the user, if email or phone get activated
     :<|> Named
            "post-activate"
-           ( Summary "Activate (i.e. confirm) an email address or phone number."
+           ( Summary "Activate (i.e. confirm) an email address."
                :> Description
                     "Activation only succeeds once and the number of \
-                    \failed attempts for a valid key is limited."
+                    \failed attempts for a valid key is limited. "
                :> MakesFederatedCall 'Brig "send-connection-action"
                :> CanThrow 'UserKeyExists
                :> CanThrow 'InvalidActivationCodeWrongUser
