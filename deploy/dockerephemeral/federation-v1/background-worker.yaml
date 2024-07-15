@@ -1,0 +1,28 @@
+logLevel: Debug
+
+backgroundWorker:
+  host: 0.0.0.0
+  port: 8080
+
+federatorInternal:
+  host: federator-federation-v1
+  port: 8080
+
+galley:
+  host: galley-federation-v1
+  port: 8080
+
+brig:
+  host: brig-federation-v1
+  port: 8080
+
+rabbitmq:
+  host: rabbitmq
+  port: 5672
+  vHost: federation-v1
+  adminPort: 15672
+
+backendNotificationPusher:
+  pushBackoffMinWait: 1000
+  pushBackoffMaxWait: 1000000
+  remotesRefreshInterval: 5000000

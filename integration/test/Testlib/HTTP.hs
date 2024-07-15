@@ -11,6 +11,7 @@ import qualified Data.CaseInsensitive as CI
 import Data.Function
 import Data.List
 import Data.List.Split (splitOn)
+import qualified Data.Map as Map
 import Data.Maybe
 import Data.String
 import Data.String.Conversions (cs)
@@ -130,15 +131,20 @@ data Versioned = Versioned | Unversioned | ExplicitVersion Int
 -- OwnDomain ...`.
 rawBaseRequest :: (HasCallStack, MakesValue domain) => domain -> Service -> Versioned -> String -> App HTTP.Request
 rawBaseRequest domain service versioned path = do
+  domainV <- objDomain domain
+
   pathSegsPrefix <- case versioned of
     Versioned -> do
-      v <- asks (.defaultAPIVersion)
+      d <- asString domainV
+      versionMap <- asks (.apiVersionByDomain)
+      v <- case Map.lookup d versionMap of
+        Nothing -> asks (.defaultAPIVersion)
+        Just v -> pure v
       pure ["v" <> show v]
     Unversioned -> pure []
     ExplicitVersion v -> do
       pure ["v" <> show v]
 
-  domainV <- objDomain domain
   serviceMap <- getServiceMap domainV
 
   liftIO . HTTP.parseRequest $

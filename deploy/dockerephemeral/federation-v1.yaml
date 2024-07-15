@@ -6,10 +6,10 @@ networks:
     external: false
 
 services:
-  brig_schema-v0:
-    container_name: brig-schema-federation-v0
-    image: quay.io/wire/brig-schema:4.38.51
-    command: --host cassandra --keyspace brig_test_federation_v0 --replication-factor 1
+  brig_schema-v1:
+    container_name: brig-schema-federation-v1
+    image: quay.io/wire/brig-schema:4.42.0-pre.27
+    command: --host cassandra --keyspace brig_test_federation_v1 --replication-factor 1
     depends_on:
       cassandra:
         condition: service_healthy
@@ -18,25 +18,25 @@ services:
         condition: on-failure
     networks:
       - demo_wire
-  brig-v0:
-    container_name: brig-federation-v0
-    image: quay.io/wire/brig:4.38.0-mandarin.14
+
+  brig-v1:
+    container_name: brig-federation-v1
+    image: quay.io/wire/brig:4.42.0-pre.27
     volumes:
-      - ./federation-v0:/etc/wire/brig/conf
+      - ./federation-v1:/etc/wire/brig/conf
     networks:
       - demo_wire
     ports:
-      - '127.0.0.1:21082:8080'
+      - '127.0.0.1:22082:8080'
     healthcheck: &haskell_health_check
       test: "curl --fail localhost:8080/i/status"
     depends_on:
-      brig_schema-v0:
+      brig_schema-v1:
         condition: service_completed_successfully
       aws_cli:
         condition: service_completed_successfully
       init_vhosts:
         condition: service_completed_successfully
-
     environment:
       - AWS_REGION=eu-west-1
       - AWS_ACCESS_KEY_ID=dummykey
@@ -44,10 +44,10 @@ services:
       - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
 
-  galley_schema-v0:
-    container_name: galley-schema-federation-v0
-    image: quay.io/wire/galley-schema:4.38.51
-    command: --host cassandra --keyspace galley_test_federation_v0 --replication-factor 1
+  galley_schema-v1:
+    container_name: galley-schema-federation-v1
+    image: quay.io/wire/galley-schema:4.42.0-pre.27
+    command: --host cassandra --keyspace galley_test_federation_v1 --replication-factor 1
     depends_on:
       cassandra:
         condition: service_healthy
@@ -57,24 +57,23 @@ services:
     networks:
       - demo_wire
 
-  galley-v0:
-    container_name: galley-federation-v0
-    image: quay.io/wire/galley:4.38.0-mandarin.14
+  galley-v1:
+    container_name: galley-federation-v1
+    image: quay.io/wire/galley:4.42.0-pre.27
     volumes:
-      - ./federation-v0:/etc/wire/galley/conf
+      - ./federation-v1:/etc/wire/galley/conf
     networks:
       - demo_wire
     ports:
-      - '127.0.0.1:21085:8080'
+      - '127.0.0.1:22085:8080'
     healthcheck: *haskell_health_check
     depends_on:
-      galley_schema-v0:
+      galley_schema-v1:
         condition: service_completed_successfully
       aws_cli:
         condition: service_completed_successfully
       init_vhosts:
         condition: service_completed_successfully
-
     environment:
       - AWS_REGION=eu-west-1
       - AWS_ACCESS_KEY_ID=dummykey
@@ -82,29 +81,28 @@ services:
       - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
 
-  cargohold-v0:
-    container_name: cargohold-federation-v0
-    image: quay.io/wire/cargohold:4.38.0-mandarin.14
+  cargohold-v1:
+    container_name: cargohold-federation-v1
+    image: quay.io/wire/cargohold:4.42.0-pre.27
     volumes:
-      - ./federation-v0:/etc/wire/cargohold/conf
+      - ./federation-v1:/etc/wire/cargohold/conf
     networks:
       - demo_wire
     ports:
-      - '127.0.0.1:21084:8080'
+      - '127.0.0.1:22084:8080'
     healthcheck: *haskell_health_check
     depends_on:
       aws_cli:
         condition: service_completed_successfully
-
     environment:
       - AWS_REGION=eu-west-1
       - AWS_ACCESS_KEY_ID=dummykey
       - AWS_SECRET_ACCESS_KEY=dummysecret
 
-  gundeck_schema-v0:
-    container_name: gundeck-schema-federation-v0
-    image: quay.io/wire/gundeck-schema:4.38.51
-    command: --host cassandra --keyspace gundeck_test_federation_v0 --replication-factor 1
+  gundeck_schema-v1:
+    container_name: gundeck-schema-federation-v1
+    image: quay.io/wire/gundeck-schema:4.42.0-pre.27
+    command: --host cassandra --keyspace gundeck_test_federation_v1 --replication-factor 1
     depends_on:
       cassandra:
         condition: service_healthy
@@ -114,33 +112,32 @@ services:
     networks:
       - demo_wire
 
-  gundeck-v0:
-    container_name: gundeck-federation-v0
-    image: quay.io/wire/gundeck:4.38.0-mandarin.14
+  gundeck-v1:
+    container_name: gundeck-federation-v1
+    image: quay.io/wire/gundeck:4.42.0-pre.27
     volumes:
-      - ./federation-v0:/etc/wire/gundeck/conf
+      - ./federation-v1:/etc/wire/gundeck/conf
     networks:
       - demo_wire
     ports:
-      - '127.0.0.1:21086:8080'
+      - '127.0.0.1:22086:8080'
     healthcheck: *haskell_health_check
     depends_on:
-      gundeck_schema-v0:
+      gundeck_schema-v1:
         condition: service_completed_successfully
       aws_cli:
         condition: service_completed_successfully
-      redis-v0:
+      redis-v1:
         condition: service_started
-
     environment:
       - AWS_REGION=eu-west-1
       - AWS_ACCESS_KEY_ID=dummykey
       - AWS_SECRET_ACCESS_KEY=dummysecret
 
-  spar_schema-v0:
-    container_name: spar-schema-federation-v0
-    image: quay.io/wire/spar-schema:4.38.51
-    command: --host cassandra --keyspace spar_test_federation_v0 --replication-factor 1
+  spar_schema-v1:
+    container_name: spar-schema-federation-v1
+    image: quay.io/wire/spar-schema:4.42.0-pre.27
+    command: --host cassandra --keyspace spar_test_federation_v1 --replication-factor 1
     depends_on:
       cassandra:
         condition: service_healthy
@@ -150,60 +147,60 @@ services:
     networks:
       - demo_wire
 
-  spar-v0:
-    container_name: spar-federation-v0
-    image: quay.io/wire/spar:4.38.0-mandarin.14
+  spar-v1:
+    container_name: spar-federation-v1
+    image: quay.io/wire/spar:4.42.0-pre.27
     volumes:
-      - ./federation-v0:/etc/wire/spar/conf
+      - ./federation-v1:/etc/wire/spar/conf
     networks:
       - demo_wire
     ports:
-      - '127.0.0.1:21088:8080'
+      - '127.0.0.1:22088:8080'
     healthcheck: *haskell_health_check
     depends_on:
-      spar_schema-v0:
+      spar_schema-v1:
         condition: service_completed_successfully
 
-  cannon-v0:
-    container_name: cannon-federation-v0
-    image: quay.io/wire/cannon:4.38.0-mandarin.14
+  cannon-v1:
+    container_name: cannon-federation-v1
+    image: quay.io/wire/cannon:4.42.0-pre.27
     volumes:
-      - ./federation-v0:/etc/wire/cannon/conf
+      - ./federation-v1:/etc/wire/cannon/conf
     networks:
       - demo_wire
     ports:
-      - '127.0.0.1:21083:8080'
+      - '127.0.0.1:22083:8080'
     healthcheck: *haskell_health_check
 
-  federator-v0:
-    container_name: federator-federation-v0
-    image: quay.io/wire/federator:4.38.0-mandarin.14
+  federator-v1:
+    container_name: federator-federation-v1
+    image: quay.io/wire/federator:4.42.0-pre.27
     volumes:
-      - ./federation-v0:/etc/wire/federator/conf
+      - ./federation-v1:/etc/wire/federator/conf
     networks:
       - demo_wire
       - coredns
     extra_hosts:
       - "host.docker.internal.:host-gateway"
     ports:
-      - '127.0.0.1:21097:8080'
-      - '127.0.0.1:21098:8081'
+      - '127.0.0.1:22097:8080'
+      - '127.0.0.1:22098:8081'
     # healthcheck: *haskell_health_check
     healthcheck:
       test: "true"
     depends_on:
-      coredns-federation-v0:
+      coredns-federation-v1:
         condition: service_started
 
-  background_worker-v0:
-    container_name: background-worker-federation-v0
-    image: quay.io/wire/background-worker:4.38.0-mandarin.14
+  background_worker-v1:
+    container_name: background-worker-federation-v1
+    image: quay.io/wire/background-worker:4.42.0-pre.27
     volumes:
-      - ./federation-v0:/etc/wire/background-worker/conf
+      - ./federation-v1:/etc/wire/background-worker/conf
     networks:
       - demo_wire
     ports:
-      - '127.0.0.1:21089:8080'
+      - '127.0.0.1:22089:8080'
     healthcheck: *haskell_health_check
     depends_on:
       init_vhosts:
@@ -212,66 +209,66 @@ services:
       - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
 
-  proxy-v0:
-    container_name: proxy-federation-v0
-    image: quay.io/wire/proxy:4.38.0-mandarin.14
+  proxy-v1:
+    container_name: proxy-federation-v1
+    image: quay.io/wire/proxy:4.42.0-pre.27
     volumes:
-      - ./federation-v0:/etc/wire/proxy/conf
+      - ./federation-v1:/etc/wire/proxy/conf
     networks:
       - demo_wire
     ports:
-      - '127.0.0.1:21087:8080'
+      - '127.0.0.1:22087:8080'
     healthcheck: *haskell_health_check
 
-  nginz-v0:
-    container_name: nginz-federation-v0
-    image: quay.io/wire/nginz:4.38.0-mandarin.14
+  nginz-v1:
+    container_name: nginz-federation-v1
+    image: quay.io/wire/nginz:4.42.0-pre.27
     volumes:
-      - ./federation-v0:/etc/wire/
+      - ./federation-v1:/etc/wire/
     networks:
       - demo_wire
     ports:
-      - '127.0.0.1:21080:8080'
-      - '127.0.0.1:21443:8443'
+      - '127.0.0.1:22080:8080'
+      - '127.0.0.1:22443:8443'
     depends_on:
-      brig-v0:
+      brig-v1:
         condition: service_healthy
-      galley-v0:
+      galley-v1:
         condition: service_healthy
-      gundeck-v0:
+      gundeck-v1:
         condition: service_healthy
-      cargohold-v0:
+      cargohold-v1:
         condition: service_healthy
-      cannon-v0:
+      cannon-v1:
         condition: service_healthy
-      spar-v0:
+      spar-v1:
         condition: service_healthy
-      federator-v0:
+      federator-v1:
         condition: service_healthy
-      proxy-v0:
+      proxy-v1:
         condition: service_healthy
-      background_worker-v0:
+      background_worker-v1:
         condition: service_healthy
 
   # We have to run a separate redis instance for each version of wire-server we
   # want. This is because gundeck just assumes the whole redis is for itself
-  redis-v0:
-    container_name: redis-federation-v0
+  redis-v1:
+    container_name: redis-federation-v1
     image: redis:6.0-alpine
     networks:
       - demo_wire
 
+
   # This coredns serves slightly different SRV records, so federator running in
   # a docker container can talk to federator running on the host.
-  coredns-federation-v0:
+  coredns-federation-v1:
     image: docker.io/coredns/coredns:1.8.4
     volumes:
-      - ./federation-v0/coredns-config:/coredns-config
+      - ./federation-v1/coredns-config:/coredns-config
     entrypoint:
       - /coredns
       - -conf
       - /coredns-config/Corefile
     networks:
       coredns:
-        ipv4_address: 172.20.1.3
-
+        ipv4_address: 172.20.1.4

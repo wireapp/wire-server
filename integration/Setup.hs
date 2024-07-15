@@ -191,10 +191,11 @@ testHooks hooks =
                 [ "module RunAllTests where",
                   "import Testlib.PTest",
                   "import Prelude",
+                  "import Control.Monad.Trans.Writer",
                   unlines (map ("import qualified " <>) modules),
-                  "allTests :: [Test]",
-                  "allTests =",
-                  "  " <> intercalate " <>\n  " (map (\(m, n, s, f) -> "mkTests " <> unwords [show m, show n, show s, show f, m <> "." <> n]) tests)
+                  "mkAllTests :: IO [Test]",
+                  "mkAllTests = execWriterT $ do",
+                  unlines (map (\(m, n, s, f) -> "  yieldTests " <> unwords [show m, show n, show s, show f, m <> "." <> n]) tests)
                 ]
             )
           pure ()

@@ -88,7 +88,8 @@ mkGlobalEnv cfgFile = do
         Map.fromList $
           [ (intConfig.backendOne.originDomain, intConfig.backendOne.beServiceMap),
             (intConfig.backendTwo.originDomain, intConfig.backendTwo.beServiceMap),
-            (intConfig.federationV0.originDomain, intConfig.federationV0.beServiceMap)
+            (intConfig.federationV0.originDomain, intConfig.federationV0.beServiceMap),
+            (intConfig.federationV1.originDomain, intConfig.federationV1.beServiceMap)
           ]
             <> [(berDomain resource, resourceServiceMap resource) | resource <- resources]
   tempDir <- Codensity $ withSystemTempDirectory "test"
@@ -102,6 +103,7 @@ mkGlobalEnv cfgFile = do
         gDomain2 = intConfig.backendTwo.originDomain,
         gIntegrationTestHostName = intConfig.integrationTestHostName,
         gFederationV0Domain = intConfig.federationV0.originDomain,
+        gFederationV1Domain = intConfig.federationV1.originDomain,
         gDynamicDomains = (.domain) <$> Map.elems intConfig.dynamicBackends,
         gDefaultAPIVersion = 6,
         gManager = manager,
@@ -141,8 +143,15 @@ mkEnv ge = do
           domain2 = gDomain2 ge,
           integrationTestHostName = gIntegrationTestHostName ge,
           federationV0Domain = gFederationV0Domain ge,
+          federationV1Domain = gFederationV1Domain ge,
           dynamicDomains = gDynamicDomains ge,
           defaultAPIVersion = gDefaultAPIVersion ge,
+          -- hardcode version 5 for fed 0 backend
+          apiVersionByDomain =
+            Map.fromList
+              [ (gFederationV0Domain ge, 5),
+                (gFederationV1Domain ge, 6)
+              ],
           manager = gManager ge,
           servicesCwdBase = gServicesCwdBase ge,
           removalKeyPaths = gRemovalKeyPaths ge,

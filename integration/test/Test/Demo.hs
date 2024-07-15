@@ -10,6 +10,7 @@ import qualified API.Nginz as Nginz
 import GHC.Stack
 import SetupHelpers
 import Testlib.Prelude
+import Testlib.VersionedFed
 
 -- | Deleting unknown clients should fail with 404.
 testDeleteUnknownClient :: (HasCallStack) => App ()
@@ -194,15 +195,15 @@ testUnrace = do
   -}
   retryT $ True `shouldMatch` True
 
-testFedV0Instance :: (HasCallStack) => App ()
-testFedV0Instance = do
-  res <- BrigP.getAPIVersion FedV0Domain >>= getJSON 200
-  res %. "domain" `shouldMatch` FedV0Domain
+testLegacyFedInstance :: (HasCallStack) => AnyFedDomain -> App ()
+testLegacyFedInstance domain = do
+  res <- BrigP.getAPIVersion domain >>= getJSON 200
+  res %. "domain" `shouldMatch` domain
 
-testFedV0Federation :: (HasCallStack) => App ()
-testFedV0Federation = do
+testLegacyFedFederation :: (HasCallStack) => AnyFedDomain -> App ()
+testLegacyFedFederation domain = do
   alice <- randomUser OwnDomain def
-  bob <- randomUser FedV0Domain def
+  bob <- randomUser domain def
 
   bob' <- BrigP.getUser alice bob >>= getJSON 200
   bob' %. "qualified_id" `shouldMatch` (bob %. "qualified_id")
