@@ -95,6 +95,7 @@ main = do
   let f = testFilter opts
       cfg = opts.configFile
 
+  allTests <- mkAllTests
   let tests =
         filter (\(qname, _, _, _) -> f qname)
           . sortOn (\(qname, _, _, _) -> qname)

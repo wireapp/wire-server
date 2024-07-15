@@ -206,14 +206,15 @@ withFederatingBackendsAllowDynamic k = do
 
 -- | Create two users on different domains such that the one-to-one
 -- conversation, once finalised, will be hosted on the backend given by the
--- input domain.
-createOne2OneConversation :: HasCallStack => Domain -> App (Value, Value, Value)
-createOne2OneConversation owningDomain = do
+-- first domain.
+createOne2OneConversation ::
+  (HasCallStack, MakesValue domain1, MakesValue domain2) =>
+  domain1 ->
+  domain2 ->
+  App (Value, Value, Value)
+createOne2OneConversation owningDomain otherDomain = do
   owningUser <- randomUser owningDomain def
   domainName <- owningUser %. "qualified_id.domain"
-  let otherDomain = case owningDomain of
-        OwnDomain -> OtherDomain
-        OtherDomain -> OwnDomain
   let go = do
         otherUser <- randomUser otherDomain def
         otherUserId <- otherUser %. "qualified_id"

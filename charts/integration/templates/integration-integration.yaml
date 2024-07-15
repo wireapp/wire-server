@@ -280,3 +280,7 @@ spec:
           key: uploadXmlAwsSecretAccessKey
     {{- end }}
     {{- end }}
+    - name: ENABLE_FEDERATION_V0
+      value: "1"
+    - name: ENABLE_FEDERATION_V1
+      value: "1"
