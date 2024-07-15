@@ -1,38 +1,38 @@
 upstream cargohold {
     least_conn;
     keepalive 32;
-    server cargohold-v0:8080 max_fails=3 weight=1;
+    server cargohold-v1:8080 max_fails=3 weight=1;
 }
 upstream gundeck {
     least_conn;
     keepalive 32;
-    server gundeck-v0:8080 max_fails=3 weight=1;
+    server gundeck-v1:8080 max_fails=3 weight=1;
 }
 upstream cannon {
     least_conn;
     keepalive 32;
-    server cannon-v0:8080 max_fails=3 weight=1;
+    server cannon-v1:8080 max_fails=3 weight=1;
 }
 upstream galley {
     least_conn;
     keepalive 32;
-    server galley-v0:8080 max_fails=3 weight=1;
+    server galley-v1:8080 max_fails=3 weight=1;
 }
 upstream proxy {
     least_conn;
     keepalive 32;
-    server proxy-v0:8080 max_fails=3 weight=1;
+    server proxy-v1:8080 max_fails=3 weight=1;
 }
 upstream brig {
     least_conn;
     keepalive 32;
-    server brig-v0:8080 max_fails=3 weight=1;
+    server brig-v1:8080 max_fails=3 weight=1;
 }
 upstream spar {
     least_conn;
     keepalive 32;
-    server spar-v0:8080 max_fails=3 weight=1;
+    server spar-v1:8080 max_fails=3 weight=1;
 }
 upstream federator_external {
-    server federator-v0:8081 max_fails=3 weight=1;
+    server federator-v1:8081 max_fails=3 weight=1;
 }

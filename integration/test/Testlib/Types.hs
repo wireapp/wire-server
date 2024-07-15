@@ -103,6 +103,7 @@ data GlobalEnv = GlobalEnv
     gDomain1 :: String,
     gDomain2 :: String,
     gFederationV0Domain :: String,
+    gFederationV1Domain :: String,
     gDynamicDomains :: [String],
     gDefaultAPIVersion :: Int,
     gManager :: HTTP.Manager,
@@ -118,6 +119,8 @@ data IntegrationConfig = IntegrationConfig
   { backendOne :: BackendConfig,
     backendTwo :: BackendConfig,
     federationV0 :: BackendConfig,
+    federationV1 :: BackendConfig,
+    integrationTestHostName :: String,
     dynamicBackends :: Map String DynamicBackendConfig,
     rabbitmq :: RabbitMQConfig,
     cassandra :: CassandraConfig
@@ -131,6 +134,8 @@ instance FromJSON IntegrationConfig where
         <$> parseJSON (Object o)
         <*> o .: fromString "backendTwo"
         <*> o .: fromString "federation-v0"
+        <*> o .: fromString "federation-v1"
+        <*> o .: fromString "integrationTestHostName"
         <*> o .: fromString "dynamicBackends"
         <*> o .: fromString "rabbitmq"
         <*> o .: fromString "cassandra"
@@ -196,8 +201,10 @@ data Env = Env
     domain1 :: String,
     domain2 :: String,
     federationV0Domain :: String,
+    federationV1Domain :: String,
     dynamicDomains :: [String],
     defaultAPIVersion :: Int,
+    apiVersionByDomain :: Map String Int,
     manager :: HTTP.Manager,
     servicesCwdBase :: Maybe FilePath,
     -- | paths to removal keys by signature scheme
