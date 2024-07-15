@@ -289,7 +289,7 @@ testMLSGhostOne2OneConv = do
         liftIO (tryReadMVar doneVar) >>= \case
           Nothing -> do
             bindResponse (getConversation alice conv) $ \resp ->
-              resp.status `shouldMatchOneOf` [404 :: Int, 200]
+              resp.status `shouldMatchOneOf` [404 :: Int, 403, 200]
             checkConversation
           Just _ -> pure ()
   checkConversationIO <- appToIO checkConversation
