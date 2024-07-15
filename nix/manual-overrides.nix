@@ -70,8 +70,12 @@ hself: hsuper: {
   tls = hsuper.tls_2_0_5;
   tls-session-manager = hsuper.tls-session-manager_0_0_5;
 
+  # http-semantics is not released with the right version yet, but http2 bounds
+  # have already changed.
+  http2 = hlib.doJailbreak hsuper.http2;
+
   # warp requires curl in its testsuite
-  warp = hlib.addTestToolDepends hsuper.warp [ curl ];
+  warp = hlib.doJailbreak (hlib.addTestToolDepends hsuper.warp [ curl ]);
 
   # -----------------
   # flags and patches
