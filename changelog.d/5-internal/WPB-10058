@@ -1,2 +1,0 @@
-- DB migration for dropping `phone` column from `user` table
-- Tool for deleting phone keys from `user_keys`
