@@ -1419,6 +1419,7 @@ type AuthAPI =
            "send-login-code"
            ( "login"
                :> "send"
+               :> Until 'V6
                :> Summary "Send a login code to a verified phone number"
                :> Description
                     "This operation generates and sends a login code via sms for phone login.\
