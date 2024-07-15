@@ -44,17 +44,17 @@ testConnectWithRemoteUser owningDomain = do
     qIds <- for others (%. "qualified_id")
     qIds `shouldMatchSet` [aliceId]
 
-testRemoteUserGetsDeleted :: (HasCallStack) => StaticDomain -> App ()
-testRemoteUserGetsDeleted domain = do
+testRemoteUserGetsDeleted :: (HasCallStack) => App ()
+testRemoteUserGetsDeleted = do
   alice <- randomUser OwnDomain def
 
   charlieConnected <- do
-    charlie <- randomUser domain def
+    charlie <- randomUser OtherDomain def
     connectTwoUsers alice charlie
     pure charlie
 
   charliePending <- do
-    charlie <- randomUser domain def
+    charlie <- randomUser OtherDomain def
     -- the connection should be pending here
     postConnection alice charlie `bindResponse` \resp ->
       resp.status `shouldMatchInt` 201
@@ -70,7 +70,7 @@ testRemoteUserGetsDeleted domain = do
     pure charlie
 
   charlieBlocked <- do
-    charlie <- randomUser domain def
+    charlie <- randomUser OtherDomain def
     postConnection alice charlie `bindResponse` \resp ->
       resp.status `shouldMatchInt` 201
 
@@ -83,7 +83,7 @@ testRemoteUserGetsDeleted domain = do
 
     pure charlie
 
-  charlieUnconnected <- randomUser domain def
+  charlieUnconnected <- randomUser OtherDomain def
 
   forConcurrently_
     [charliePending, charlieConnected, charlieBlocked, charlieUnconnected]

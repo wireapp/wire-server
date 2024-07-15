@@ -48,6 +48,7 @@ instance TestCases AnyFedDomain where
 -- according to the values of the corresponding environment variables
 -- (@ENABLE_FEDERATION_V0@ and similar).
 data StaticDomain = StaticDomain | StaticFedDomain Integer
+  deriving (Eq)
 
 instance MakesValue StaticDomain where
   make StaticDomain = make OtherDomain
