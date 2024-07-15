@@ -1,44 +1,45 @@
 module Testlib.PTest where
 
+import Control.Monad.Trans.Class
+import Control.Monad.Trans.Writer
 import Data.Bifunctor (bimap)
 import Data.Char (toLower)
 import Data.Functor ((<&>))
 import Data.Kind
 import Data.Proxy
+import Data.Traversable
 import GHC.Generics
 import GHC.TypeLits
 import Testlib.Env
+import Testlib.JSON
 import Testlib.Types
 import Prelude
 
 type Test = (String, String, String, String, App ())
 
+yieldTests :: (HasTests x) => String -> String -> String -> String -> x -> WriterT [Test] IO ()
+yieldTests m n s f x = do
+  t <- lift (mkTests m n s f x)
+  tell t
+
 class HasTests x where
-  mkTests :: String -> String -> String -> String -> x -> [Test]
+  mkTests :: String -> String -> String -> String -> x -> IO [Test]
 
 instance HasTests (App ()) where
-  mkTests m n s f x = [(m, n, s, f, x)]
+  mkTests m n s f x = pure [(m, n, s, f, x)]
 
 instance (HasTests x, TestCases a) => HasTests (a -> x) where
-  mkTests m n s f x =
-    flip foldMap (testCases @a) \tc ->
+  mkTests m n s f x = do
+    tcs <- mkTestCases @a
+    fmap concat $ for tcs $ \tc ->
       mkTests m (n <> tc.testCaseName) s f (x tc.testCase)
 
 data TestCase a = MkTestCase {testCaseName :: String, testCase :: a}
-  deriving stock (Eq, Ord, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
 
 -- | enumerate all members of a bounded enum type
---
--- >>> testCases @Bool
--- [MkTestCase {testCaseName = "[bool=false]", testCase = False},MkTestCase {testCaseName = "[bool=true]", testCase = True}]
--- >>> testCases @Domain
--- [MkTestCase {testCaseName = "[domain=owndomain]", testCase = OwnDomain},MkTestCase {testCaseName = "[domain=otherdomain]", testCase = OtherDomain}]
--- >>> testCases @Ciphersuite
--- [MkTestCase {testCaseName = "[suite=0x0001]", testCase = Ciphersuite {code = "0x0001"}},MkTestCase {testCaseName = "[suite=0xf031]", testCase = Ciphersuite {code = "0xf031"}}]
--- >>> testCases @(Tagged "foo" Bool)
--- [MkTestCase {testCaseName = "[foo=false]", testCase = MkTagged {unTagged = False}},MkTestCase {testCaseName = "[foo=true]", testCase = MkTagged {unTagged = True}}]
 class TestCases a where
-  testCases :: [TestCase a]
+  mkTestCases :: IO [TestCase a]
 
 type Tagged :: Symbol -> Type -> Type
 newtype Tagged s a = MkTagged {unTagged :: a}
@@ -52,21 +53,20 @@ pattern TaggedBool a = MkTagged a
 {-# COMPLETE TaggedBool #-}
 
 -- | only works for outer-most use of `Tagged` (not: `Maybe (Tagged "bla" Bool)`)
---
--- >>> testCases @(Tagged "bla" Bool)
 instance (GEnum (Rep a), KnownSymbol s, Generic a) => TestCases (Tagged s a) where
-  testCases =
-    uni @(Rep a) <&> \case
-      -- replace the toplevel
-      (Left _ : ls, tc) ->
-        MkTestCase
-          { testCaseName = foldr mkName "" (Left (symbolVal @s Proxy) : ls),
-            testCase = MkTagged $ to tc
-          }
-      _ -> error "tagged test cases: impossible"
+  mkTestCases =
+    pure $
+      uni @(Rep a) <&> \case
+        -- replace the toplevel
+        (Left _ : ls, tc) ->
+          MkTestCase
+            { testCaseName = foldr mkName "" (Left (symbolVal @s Proxy) : ls),
+              testCase = MkTagged $ to tc
+            }
+        _ -> error "tagged test cases: impossible"
 
 instance TestCases Ciphersuite where
-  testCases = do
+  mkTestCases = pure $ do
     suite <- allCiphersuites
     pure $
       MkTestCase
@@ -75,20 +75,22 @@ instance TestCases Ciphersuite where
         }
 
 instance TestCases CredentialType where
-  testCases =
-    [ MkTestCase "[ctype=basic]" BasicCredentialType,
-      MkTestCase "[ctype=x509]" X509CredentialType
-    ]
+  mkTestCases =
+    pure
+      [ MkTestCase "[ctype=basic]" BasicCredentialType,
+        MkTestCase "[ctype=x509]" X509CredentialType
+      ]
 
 -- | a default instance, normally we don't do such things but this is more convenient in
 --   the test suite as you don't have to derive anything
 instance {-# OVERLAPPABLE #-} (Generic a, GEnum (Rep a)) => TestCases a where
-  testCases =
-    uni @(Rep a) <&> \(tcn, tc) ->
-      MkTestCase
-        { testCaseName = foldr mkName "" tcn,
-          testCase = to tc
-        }
+  mkTestCases =
+    pure $
+      uni @(Rep a) <&> \(tcn, tc) ->
+        MkTestCase
+          { testCaseName = foldr mkName "" tcn,
+            testCase = to tc
+          }
 
 {-# INLINE [1] mkName #-}
 mkName :: Either String String -> String -> String
@@ -118,3 +120,15 @@ instance GEnum U1 where
 
 instance (GEnum (Rep k), Generic k) => GEnum (K1 r k) where
   uni = fmap (K1 . to) <$> uni @(Rep k)
+
+data OneOf a b = OneOfA a | OneOfB b
+
+instance (MakesValue a, MakesValue b) => MakesValue (OneOf a b) where
+  make (OneOfA a) = make a
+  make (OneOfB b) = make b
+
+instance (TestCases a, TestCases b) => TestCases (OneOf a b) where
+  mkTestCases = do
+    as <- fmap (map (fmap OneOfA)) mkTestCases
+    bs <- fmap (map (fmap OneOfB)) mkTestCases
+    pure $ as <> bs

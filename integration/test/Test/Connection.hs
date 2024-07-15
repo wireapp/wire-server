@@ -21,11 +21,15 @@ import API.BrigInternal
 import API.Galley
 import SetupHelpers
 import Testlib.Prelude
+import Testlib.VersionedFed
 import UnliftIO.Async (forConcurrently_)
 
-testConnectWithRemoteUser :: HasCallStack => Domain -> App ()
+testConnectWithRemoteUser :: (HasCallStack) => OneOf Domain AnyFedDomain -> App ()
 testConnectWithRemoteUser owningDomain = do
-  (alice, bob, one2oneId) <- createOne2OneConversation owningDomain
+  let otherDomain = case owningDomain of
+        OneOfA OwnDomain -> OtherDomain
+        _ -> OwnDomain
+  (alice, bob, one2oneId) <- createOne2OneConversation owningDomain otherDomain
   aliceId <- alice %. "qualified_id"
   getConversation alice one2oneId `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
@@ -78,20 +82,21 @@ testRemoteUserGetsDeleted = do
 
     pure charlie
 
-  charlieUnconnected <- do
-    randomUser OtherDomain def
+  charlieUnconnected <- randomUser OtherDomain def
 
-  forConcurrently_ [charliePending, charlieConnected, charlieBlocked, charlieUnconnected] \charlie -> do
-    deleteUser charlie
+  forConcurrently_
+    [charliePending, charlieConnected, charlieBlocked, charlieUnconnected]
+    \charlie -> do
+      deleteUser charlie
 
-    -- charlie is on their local backend, so asking should be instant
-    getConnection charlie alice `bindResponse` \resp ->
-      resp.status `shouldMatchInt` 404
+      -- charlie is on their local backend, so asking should be instant
+      getConnection charlie alice `bindResponse` \resp ->
+        resp.status `shouldMatchInt` 404
 
-    -- for alice, charlie is on the remote backend, so the status change
-    -- may not be instant
-    getConnection alice charlie `waitForResponse` \resp ->
-      resp.status `shouldMatchInt` 404
+      -- for alice, charlie is on the remote backend, so the status change
+      -- may not be instant
+      getConnection alice charlie `waitForResponse` \resp ->
+        resp.status `shouldMatchInt` 404
 
 testInternalGetConStatusesAll :: HasCallStack => App ()
 testInternalGetConStatusesAll =
@@ -148,9 +153,11 @@ assertConnectionStatus userFrom userTo connStatus =
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` connStatus
 
-testConnectFromIgnored :: HasCallStack => App ()
-testConnectFromIgnored = do
-  [alice, bob] <- forM [OwnDomain, OtherDomain] $ flip randomUser def
+testConnectFromIgnored :: (HasCallStack) => StaticDomain -> App ()
+testConnectFromIgnored domain = do
+  alice <- randomUser OwnDomain def
+  bob <- randomUser domain def
+
   void $ postConnection bob alice >>= getBody 201
   -- set up an initial "ignored" state on Alice's side
   assertConnectionStatus alice bob "pending"
@@ -167,9 +174,11 @@ testConnectFromIgnored = do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "accepted"
 
-testSentFromIgnored :: HasCallStack => App ()
-testSentFromIgnored = do
-  [alice, bob] <- forM [OwnDomain, OtherDomain] $ flip randomUser def
+testSentFromIgnored :: (HasCallStack) => StaticDomain -> App ()
+testSentFromIgnored domain = do
+  alice <- randomUser OwnDomain def
+  bob <- randomUser domain def
+
   -- set up an initial "ignored" state
   void $ postConnection bob alice >>= getBody 201
   void $ putConnection alice bob "ignored" >>= getBody 200
@@ -184,9 +193,9 @@ testSentFromIgnored = do
   void $ putConnection alice bob "accepted" >>= getBody 200
   assertConnectionStatus alice bob "sent"
 
-testConnectFromBlocked :: HasCallStack => App ()
-testConnectFromBlocked = do
-  (alice, bob, one2oneId) <- createOne2OneConversation OwnDomain
+testConnectFromBlocked :: (HasCallStack) => StaticDomain -> App ()
+testConnectFromBlocked domain = do
+  (alice, bob, one2oneId) <- createOne2OneConversation OwnDomain domain
   bobId <- bob %. "qualified_id"
 
   -- set up an initial "blocked" state
@@ -210,9 +219,11 @@ testConnectFromBlocked = do
     qIds <- for others (%. "qualified_id")
     qIds `shouldMatchSet` [bobId]
 
-testSentFromBlocked :: HasCallStack => App ()
-testSentFromBlocked = do
-  [alice, bob] <- forM [OwnDomain, OtherDomain] $ flip randomUser def
+testSentFromBlocked :: (HasCallStack) => StaticDomain -> App ()
+testSentFromBlocked domain = do
+  alice <- randomUser OwnDomain def
+  bob <- randomUser domain def
+
   -- set up an initial "blocked" state
   void $ postConnection bob alice >>= getBody 201
   void $ putConnection alice bob "blocked" >>= getBody 200
@@ -227,9 +238,10 @@ testSentFromBlocked = do
   void $ putConnection alice bob "accepted" >>= getBody 200
   assertConnectionStatus alice bob "sent"
 
-testCancel :: HasCallStack => App ()
-testCancel = do
-  [alice, bob] <- forM [OwnDomain, OtherDomain] $ flip randomUser def
+testCancel :: (HasCallStack) => StaticDomain -> App ()
+testCancel domain = do
+  alice <- randomUser OwnDomain def
+  bob <- randomUser domain def
 
   void $ postConnection alice bob >>= getBody 201
   assertConnectionStatus alice bob "sent"
@@ -237,16 +249,16 @@ testCancel = do
   void $ putConnection alice bob "cancelled" >>= getBody 200
   assertConnectionStatus alice bob "cancelled"
 
-testConnectionLimits :: HasCallStack => App ()
-testConnectionLimits = do
+testConnectionLimits :: (HasCallStack) => StaticDomain -> App ()
+testConnectionLimits domain = do
   let connectionLimit = 16
 
   alice <- randomUser OwnDomain def
   [charlie1, charlie2, charlie3, charlie4] <- replicateM 4 do
-    randomUser OtherDomain def
+    randomUser domain def
   -- connect to connectionLimit - 1 many users
   (charlie5 : _) <- replicateM (connectionLimit - 1) do
-    charlie <- randomUser OtherDomain def
+    charlie <- randomUser domain def
     postConnection alice charlie `bindResponse` \resp ->
       resp.status `shouldMatchInt` 201
     pure charlie
