@@ -270,6 +270,17 @@ let
       };
     };
 
+    # this contains an important fix to the initialization of the window size
+    # and should be switched to upstream as soon as we can
+    # version = "5.2.5";
+    # This patch also includes suppressing ConnectionIsClosed
+    http2 = {
+      src = fetchgit {
+        url = "https://github.com/wireapp/http2";
+        rev = "45653e3caab0642e539fab2681cb09402aae29ca";
+        hash = "sha256-L90PQtDw/JFwyltSVFvmfjTAb0ZLhFt9Hl0jbzn+cFQ=";
+      };
+    };
   };
 
   hackagePins = {
@@ -281,14 +292,6 @@ let
     };
 
     # start pinned dependencies for http2
-
-    # this contains an important fix to the initialization of the window size
-    # and should be switched to upstream as soon as we can
-    http2 = {
-      version = "5.2.5";
-      sha256 = "sha256-FCd4lPydwWqm2lrhgYtPW+BuXGqmmA8KFrB87SYEowY=";
-    };
-
     http-semantics = {
       version = "0.1.2";
       sha256 = "sha256-S4rGBCIKVPpLPumLcVzrPONrbWm8VBizqxI3dXNIfr0=";
