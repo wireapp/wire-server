@@ -20,6 +20,7 @@
 module Test.Wire.API.Golden.Manual.ListUsersById where
 
 import Data.Domain
+import Data.Either.Combinators (rightToMaybe)
 import Data.Id
 import Data.LegalHold
 import Data.Qualified
@@ -58,7 +59,7 @@ profile2 =
   UserProfile
     { profileQualifiedId = Qualified user2 domain2,
       profileName = Name "user2",
-      profileTextStatus = Nothing,
+      profileTextStatus = rightToMaybe $ mkTextStatus "text status",
       profilePict = Pict [],
       profileAssets = [],
       profileAccentId = ColourId 0,

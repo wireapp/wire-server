@@ -20,6 +20,7 @@
 module Test.Wire.API.Golden.Generated.User_user where
 
 import Data.Domain (Domain (Domain, _domainText))
+import Data.Either.Combinators (rightToMaybe)
 import Data.Handle
 import Data.ISO3166_CountryCodes
   ( CountryCode
@@ -84,7 +85,7 @@ testObject_User_user_2 =
           { fromName =
               "4\1067195\&7\ACK\DC2\DC2\ETBbp\SOH\40601\&0Yr\\\984611vKRg\1048403)\1040186S\983500\1057766:3B\ACK\DC3\ETXT"
           },
-      userTextStatus = Nothing,
+      userTextStatus = rightToMaybe $ mkTextStatus "text status",
       userPict = Pict {fromPict = []},
       userAssets =
         [ ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) Nothing,

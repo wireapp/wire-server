@@ -38,6 +38,7 @@ where
 
 import Data.Aeson (toJSON)
 import Data.Domain
+import Data.Either.Combinators (rightToMaybe)
 import Data.ISO3166_CountryCodes
 import Data.Id
 import Data.Json.Util
@@ -203,7 +204,7 @@ alice =
           },
       userIdentity = Nothing,
       userDisplayName = Name "alice",
-      userTextStatus = Nothing,
+      userTextStatus = rightToMaybe $ mkTextStatus "text status",
       userPict = Pict {fromPict = []},
       userAssets = [],
       userAccentId = ColourId {fromColourId = 1},
@@ -231,7 +232,7 @@ bob =
           },
       userIdentity = Nothing,
       userDisplayName = Name "bob",
-      userTextStatus = Nothing,
+      userTextStatus = rightToMaybe $ mkTextStatus "text status",
       userPict = Pict {fromPict = []},
       userAssets = [],
       userAccentId = ColourId {fromColourId = 2},
