@@ -1030,7 +1030,7 @@ completePasswordReset req = do
 -- docs/reference/user/activation.md {#RefActivationRequest}
 -- docs/reference/user/registration.md {#RefRegistration}
 sendActivationCodeV5 ::
-  ( Member BlacklistStore r,
+  ( Member BlockListStore r,
     Member EmailSubsystem r,
     Member GalleyAPIAccess r,
     Member UserKeyStore r

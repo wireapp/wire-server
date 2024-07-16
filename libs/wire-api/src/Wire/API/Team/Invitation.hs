@@ -19,6 +19,7 @@
 
 module Wire.API.Team.Invitation
   ( InvitationRequest (..),
+    InvitationRequestV5 (..),
     Invitation (..),
     InvitationList (..),
     InvitationLocation (..),
@@ -52,11 +53,10 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- InvitationRequest
 
 data InvitationRequest = InvitationRequest
-  { irLocale :: Maybe Locale,
-    irRole :: Maybe Role,
-    irInviteeName :: Maybe Name,
-    irInviteeEmail :: Email,
-    irInviteePhone :: Maybe Phone
+  { locale :: Maybe Locale,
+    role :: Maybe Role,
+    inviteeName :: Maybe Name,
+    inviteeEmail :: Email
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform InvitationRequest)
@@ -66,6 +66,30 @@ instance ToSchema InvitationRequest where
   schema =
     objectWithDocModifier "InvitationRequest" (description ?~ "A request to join a team on Wire.") $
       InvitationRequest
+        <$> locale
+          .= optFieldWithDocModifier "locale" (description ?~ "Locale to use for the invitation.") (maybeWithDefault A.Null schema)
+        <*> role
+          .= optFieldWithDocModifier "role" (description ?~ "Role of the invitee (invited user).") (maybeWithDefault A.Null schema)
+        <*> inviteeName
+          .= optFieldWithDocModifier "name" (description ?~ "Name of the invitee (1 - 128 characters).") (maybeWithDefault A.Null schema)
+        <*> inviteeEmail
+          .= fieldWithDocModifier "email" (description ?~ "Email of the invitee.") schema
+
+data InvitationRequestV5 = InvitationRequestV5
+  { irLocale :: Maybe Locale,
+    irRole :: Maybe Role,
+    irInviteeName :: Maybe Name,
+    irInviteeEmail :: Email,
+    irInviteePhone :: Maybe Phone
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform InvitationRequestV5)
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema InvitationRequestV5)
+
+instance ToSchema InvitationRequestV5 where
+  schema =
+    objectWithDocModifier "InvitationRequestV5" (description ?~ "A request to join a team on Wire.") $
+      InvitationRequestV5
         <$> irLocale
           .= optFieldWithDocModifier "locale" (description ?~ "Locale to use for the invitation.") (maybeWithDefault A.Null schema)
         <*> irRole
