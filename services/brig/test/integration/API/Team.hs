@@ -215,7 +215,7 @@ testInvitationEmail brig = do
 assertInvitationResponseInvariants :: InvitationRequest -> Invitation -> Assertion
 assertInvitationResponseInvariants invReq inv = do
   irInviteeName invReq @=? inInviteeName inv
-  irInviteePhone invReq @=? inInviteePhone inv
+  irInviteePhone invReq @=? Nothing
   irInviteeEmail invReq @=? inInviteeEmail inv
 
 testGetInvitation :: Brig -> Http ()

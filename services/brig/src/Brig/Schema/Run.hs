@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2024 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -58,6 +58,7 @@ import Brig.Schema.V80_KeyPackageCiphersuite qualified as V80_KeyPackageCiphersu
 import Brig.Schema.V81_AddFederationRemoteTeams qualified as V81_AddFederationRemoteTeams
 import Brig.Schema.V82_DropPhoneColumn qualified as V82_DropPhoneColumn
 import Brig.Schema.V83_AddTextStatus qualified as V83_AddTextStatus
+import Brig.Schema.V84_DropTeamInvitationPhone qualified as V84_DropTeamInvitationPhone
 import Cassandra.MigrateSchema (migrateSchema)
 import Cassandra.Schema
 import Control.Exception (finally)
@@ -122,7 +123,8 @@ migrations =
     V80_KeyPackageCiphersuite.migration,
     V81_AddFederationRemoteTeams.migration,
     V82_DropPhoneColumn.migration,
-    V83_AddTextStatus.migration
+    V83_AddTextStatus.migration,
+    V84_DropTeamInvitationPhone.migration
     -- FUTUREWORK: undo V41 (searchable flag); we stopped using it in
     -- https://github.com/wireapp/wire-server/pull/964
     --
