@@ -210,18 +210,16 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
     note (mlsProtocolError "Unsupported ciphersuite") $
       cipherSuiteTag bundle.groupInfo.value.groupContext.cipherSuite
 
-  case convOrSub.mlsMeta.cnvmlsActiveData of
+  ciphersuiteUpdate <- case convOrSub.mlsMeta.cnvmlsActiveData of
     -- if this is the first commit of the conversation, update ciphersuite
-    Nothing -> do
-      case convOrSub.id of
-        Conv cid -> setConversationCipherSuite cid ciphersuite
-        SubConv cid sub -> setSubConversationCipherSuite cid sub ciphersuite
+    Nothing -> pure True
     -- otherwise, make sure the ciphersuite matches
     Just activeData -> do
       unless (ciphersuite == activeData.ciphersuite) $
         throw $
           mlsProtocolError "GroupInfo ciphersuite does not match conversation"
       unless (bundle.epoch == activeData.epoch) $ throwS @'MLSStaleMessage
+      pure False
 
   senderIdentity <- getSenderIdentity qusr c bundle.sender lConvOrSub
 
@@ -237,6 +235,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
           conn
           lConvOrSub
           ciphersuite
+          ciphersuiteUpdate
           bundle.epoch
           action
           bundle.commit.value
@@ -252,6 +251,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
         senderIdentity
         lConvOrSub
         ciphersuite
+        ciphersuiteUpdate
         bundle.epoch
         action
         bundle.commit.value.path
