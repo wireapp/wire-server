@@ -11,5 +11,6 @@
     },
     "supported_protocols": [
         "proteus"
-    ]
+    ],
+    "text_status": "text status"
 }

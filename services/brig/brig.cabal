@@ -189,6 +189,7 @@ library
     Brig.Schema.V80_KeyPackageCiphersuite
     Brig.Schema.V81_AddFederationRemoteTeams
     Brig.Schema.V82_DropPhoneColumn
+    Brig.Schema.V83_AddTextStatus
     Brig.Schema.V_FUTUREWORK
     Brig.Team.API
     Brig.Team.DB
@@ -427,6 +428,7 @@ executable brig-integration
     , cookie
     , data-default
     , data-timeout
+    , either
     , email-validate
     , exceptions
     , extra

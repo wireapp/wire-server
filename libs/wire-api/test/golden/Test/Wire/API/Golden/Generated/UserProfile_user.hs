@@ -19,15 +19,16 @@
 
 module Test.Wire.API.Golden.Generated.UserProfile_user where
 
-import Data.Domain (Domain (Domain, _domainText))
+import Data.Domain
+import Data.Either.Combinators
 import Data.Handle
-import Data.Id (Id (Id))
-import Data.Json.Util (readUTCTimeMillis)
-import Data.LegalHold (UserLegalHoldStatus (..))
-import Data.Qualified (Qualified (Qualified, qDomain, qUnqualified))
-import Data.UUID qualified as UUID (fromString)
-import Imports (Bool (False, True), Maybe (Just, Nothing), fromJust)
-import Wire.API.Provider.Service (ServiceRef (ServiceRef, _serviceRefId, _serviceRefProvider))
+import Data.Id
+import Data.Json.Util
+import Data.LegalHold
+import Data.Qualified
+import Data.UUID qualified as UUID
+import Imports
+import Wire.API.Provider.Service
 import Wire.API.User
 
 testObject_UserProfile_user_1 :: UserProfile
@@ -39,6 +40,7 @@ testObject_UserProfile_user_1 =
             qDomain = Domain {_domainText = "v.ay64d"}
           },
       profileName = Name {fromName = "\50534\3354]$\169938\183604UV`\nF\f\23427ys'd\bXy\ENQ:\ESC\139288\RSD[<\132982E"},
+      profileTextStatus = rightToMaybe $ mkTextStatus "text status",
       profilePict = Pict {fromPict = []},
       profileAssets = [],
       profileAccentId = ColourId {fromColourId = 2},
@@ -61,6 +63,7 @@ testObject_UserProfile_user_2 =
             qDomain = Domain {_domainText = "go.7.w-3r8iy2.a"}
           },
       profileName = Name {fromName = "si4v\999679\ESC^'\12447k\21889\NAK?\1082547\NULBw;\b3*R/\164149lrI"},
+      profileTextStatus = Nothing,
       profilePict = Pict {fromPict = []},
       profileAssets = [],
       profileAccentId = ColourId {fromColourId = -1},

@@ -32,5 +32,6 @@
         "id": "00000000-0000-0000-0000-000000000001",
         "provider": "00000000-0000-0000-0000-000100000000"
     },
-    "supported_protocols": []
+    "supported_protocols": [],
+    "text_status": "text status"
 }

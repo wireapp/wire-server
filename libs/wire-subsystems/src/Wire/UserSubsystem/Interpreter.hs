@@ -379,6 +379,7 @@ storedUserUpdate :: UserProfileUpdate -> StoredUserUpdate
 storedUserUpdate update =
   MkStoredUserUpdate
     { name = update.name,
+      textStatus = update.textStatus,
       pict = update.pict,
       assets = update.assets,
       accentId = update.accentId,
@@ -391,6 +392,7 @@ mkProfileUpdateEvent uid update =
   UserUpdated $
     (emptyUserUpdatedData uid)
       { eupName = update.name,
+        eupTextStatus = update.textStatus,
         eupPict = update.pict,
         eupAccentId = update.accentId,
         eupAssets = update.assets,

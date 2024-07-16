@@ -42,6 +42,7 @@ updateUserImpl uid update =
     setType BatchLogged
     setConsistency LocalQuorum
     for_ update.name \n -> addPrepQuery userDisplayNameUpdate (n, uid)
+    for_ update.textStatus \s -> addPrepQuery userTextStatusUpdate (s, uid)
     for_ update.pict \p -> addPrepQuery userPictUpdate (p, uid)
     for_ update.assets \a -> addPrepQuery userAssetsUpdate (a, uid)
     for_ update.locale \a -> addPrepQuery userLocaleUpdate (a.lLanguage, a.lCountry, uid)
@@ -127,13 +128,16 @@ lookupLocaleImpl u = do
 
 selectUser :: PrepQuery R (Identity UserId) (TupleType StoredUser)
 selectUser =
-  "SELECT id, name, picture, email, sso_id, accent_id, assets, \
+  "SELECT id, name, text_status, picture, email, sso_id, accent_id, assets, \
   \activated, status, expires, language, country, provider, service, \
   \handle, team, managed_by, supported_protocols \
   \FROM user where id = ?"
 
 userDisplayNameUpdate :: PrepQuery W (Name, UserId) ()
 userDisplayNameUpdate = "UPDATE user SET name = ? WHERE id = ?"
+
+userTextStatusUpdate :: PrepQuery W (TextStatus, UserId) ()
+userTextStatusUpdate = "UPDATE user SET text_status = ? WHERE id = ?"
 
 userPictUpdate :: PrepQuery W (Pict, UserId) ()
 userPictUpdate = "UPDATE user SET picture = ? WHERE id = ?"
