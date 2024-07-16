@@ -1,0 +1,1 @@
+Fixed API version check. It has now precedence over other checks like e.g. method check.

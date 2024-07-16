@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -72,7 +74,7 @@ instance
 
   route _ ctx action =
     route (Proxy @api) ctx $
-      fmap const action `addHeaderCheck` withRequest headerCheck
+      action `addVersionCheck` withRequest headerCheck
     where
       headerCheck :: Wai.Request -> DelayedIO ()
       headerCheck req = do
@@ -84,6 +86,14 @@ instance
                   (lookup versionHeader (Wai.requestHeaders req))
         when (v >= demote @n) $
           delayedFail err404
+
+      -- this hack makes sure that the version check is executed before the method check
+      addVersionCheck :: Delayed env b -> DelayedIO () -> Delayed env b
+      addVersionCheck Delayed {..} new =
+        Delayed
+          { capturesD = \env -> capturesD env <* new,
+            ..
+          }
 
   hoistServerWithContext _ ctx f =
     hoistServerWithContext (Proxy @api) ctx f
