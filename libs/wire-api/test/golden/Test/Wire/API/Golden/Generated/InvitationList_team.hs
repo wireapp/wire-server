@@ -26,22 +26,8 @@ import Data.UUID qualified as UUID (fromString)
 import Imports (Bool (False, True), Maybe (Just, Nothing), fromJust)
 import URI.ByteString (parseURI, strictURIParserOptions)
 import Wire.API.Team.Invitation
-  ( Invitation
-      ( Invitation,
-        inCreatedAt,
-        inCreatedBy,
-        inInvitation,
-        inInviteeEmail,
-        inInviteeName,
-        inInviteePhone,
-        inInviteeUrl,
-        inRole,
-        inTeam
-      ),
-    InvitationList (..),
-  )
 import Wire.API.Team.Role (Role (RoleAdmin, RoleExternalPartner, RoleMember, RoleOwner))
-import Wire.API.User.Identity (Email (Email, emailDomain, emailLocal), Phone (Phone, fromPhone))
+import Wire.API.User.Identity (Email (Email, emailDomain, emailLocal))
 import Wire.API.User.Profile (Name (Name, fromName))
 
 testObject_InvitationList_team_1 :: InvitationList
@@ -65,7 +51,6 @@ testObject_InvitationList_team_2 =
                           "fuC9p\1098501A\163554\f\ENQ\SO\21027N\47326_?oCX.U\r\163744W\33096\58996\1038685\DC3\t[\37667\SYN/\8408A\145025\173325\DC4H\135001\STX\166880\EOT\165028o\DC3"
                       }
                   ),
-              inInviteePhone = Just (Phone {fromPhone = "+851333011"}),
               inInviteeUrl = Just (fromRight' (parseURI strictURIParserOptions "https://example.com/inv14"))
             }
         ],
@@ -93,7 +78,6 @@ testObject_InvitationList_team_4 =
                           "R6\133444\134053VQ\187682\SUB\SOH\180538\&0C\1088909\ESCR\185800\125002@\38857Z?\STX\169387\1067878e}\SOH\ETB\EOTm\184898\US]\986782\189015\1059374\986508\b\DC1zfw-5\120662\CAN\1064450 \EMe\DC4|\14426Vo{\1076439\DC3#\USS\45051&zz\160719\&9\142411,\SI\f\SOHp\1025840\DLE\163178\1060369.&\997544kZ\50431u\b\50764\1109279n:\1103691D$.Q"
                       }
                   ),
-              inInviteePhone = Just (Phone {fromPhone = "+60506387292"}),
               inInviteeUrl = Nothing
             },
           Invitation
@@ -110,7 +94,6 @@ testObject_InvitationList_team_4 =
                           "\DC2}q\CAN=SA\ETXx\t\ETX\\\v[\b)(\ESC]\135875Y\v@p\41515l\45065\157388\NUL\t\1100066\SOH1\DC1\ENQ\1021763\"i\29460\EM\b\ACK\SI\DC2v\ACK"
                       }
                   ),
-              inInviteePhone = Just (Phone {fromPhone = "+913945015"}),
               inInviteeUrl = Nothing
             },
           Invitation
@@ -127,7 +110,6 @@ testObject_InvitationList_team_4 =
                           "\58076&\1059325Ec\NUL\16147}k\1036184l\172911\USJ\EM0^.+F\DEL\NUL\f$'`!\ETB[p\1041609}>E0y\96440#4I\a\66593jc\ESCgt\22473\1093208P\DC4!\1095909E93'Y$YL\46886b\r:,\181790\SO\153247y\ETX;\1064633\1099478z4z-D\1096755a\139100\&6\164829r\1033640\987906J\DLE\48134"
                       }
                   ),
-              inInviteePhone = Just (Phone {fromPhone = "+17046334"}),
               inInviteeUrl = Nothing
             },
           Invitation
@@ -144,7 +126,6 @@ testObject_InvitationList_team_4 =
                           "Ft*O1\b&\SO\CAN<\72219\1092619m\n\DC4\DC2; \ETX\988837\DC1\1059627\"k.T\1023249[[\FS\EOT{j`\GS\997342c\1066411{\SUB\GSQY\182805\t\NAKy\t\132339j\1036225W "
                       }
                   ),
-              inInviteePhone = Nothing,
               inInviteeUrl = Nothing
             },
           Invitation
@@ -155,7 +136,6 @@ testObject_InvitationList_team_4 =
               inCreatedBy = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))),
               inInviteeEmail = Email {emailLocal = "", emailDomain = ""},
               inInviteeName = Nothing,
-              inInviteePhone = Just (Phone {fromPhone = "+918848647685283"}),
               inInviteeUrl = Nothing
             },
           Invitation
@@ -172,7 +152,6 @@ testObject_InvitationList_team_4 =
                           "Lo\r\1107113<D/\1080678\1047135|`5-j\113720{[qI\ETBY\136863C\ENQ\12798]\1098415#\DLEE\167933\&8S.\17945{[\GS\aE\159959E\ENQS"
                       }
                   ),
-              inInviteePhone = Just (Phone {fromPhone = "+965119366001"}),
               inInviteeUrl = Nothing
             },
           Invitation
@@ -189,7 +168,6 @@ testObject_InvitationList_team_4 =
                           "\STX\169353t\b\169021\v\DC1)[Y3\ACK\ENQ4'K\a\1100241\1021845NSR(\13201Mm\1031218\&0`yC\3610\52938M~\1101289jBO \SYN\SOi/\1073867\ETX\NULuiu\vdP\1101172M3N\4552h3F\ETX!\17631cm\1070069\993270\97591\67352\US9\1005657\ETX\1068855\&2kFl\EOT\DC2r \1061616\158169\DC3c"
                       }
                   ),
-              inInviteePhone = Nothing,
               inInviteeUrl = Nothing
             },
           Invitation
@@ -206,7 +184,6 @@ testObject_InvitationList_team_4 =
                           "K\1020696\1063906\171142\ETX\DC2M\1087382\SYN\1002264\25468\60040\1093048\ETBa~ZD\SI}+>B\95920_v\984354\1074038\1028140\1093478\&9\STXvyQ\128432&W\1030097\134680\1080940'\1053995:\149463\138648\1113696}-o\1046282le8Zp\1026640\1097625)nK\DC40\9951\&0DE\NAKK$io\RS|Ip2ClnU\181645"
                       }
                   ),
-              inInviteePhone = Just (Phone {fromPhone = "+2239859474784"}),
               inInviteeUrl = Nothing
             }
         ],
@@ -228,7 +205,6 @@ testObject_InvitationList_team_6 =
               inCreatedBy = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))),
               inInviteeEmail = Email {emailLocal = "", emailDomain = ""},
               inInviteeName = Nothing,
-              inInviteePhone = Nothing,
               inInviteeUrl = Nothing
             },
           Invitation
@@ -239,7 +215,6 @@ testObject_InvitationList_team_6 =
               inCreatedBy = Just (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))),
               inInviteeEmail = Email {emailLocal = "", emailDomain = ""},
               inInviteeName = Nothing,
-              inInviteePhone = Just (Phone {fromPhone = "+85999765"}),
               inInviteeUrl = Nothing
             },
           Invitation
@@ -250,7 +225,6 @@ testObject_InvitationList_team_6 =
               inCreatedBy = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))),
               inInviteeEmail = Email {emailLocal = "", emailDomain = ""},
               inInviteeName = Nothing,
-              inInviteePhone = Just (Phone {fromPhone = "+150835819626453"}),
               inInviteeUrl = Nothing
             },
           Invitation
@@ -267,7 +241,6 @@ testObject_InvitationList_team_6 =
                           "YBc\r\50934\&8{\\\n\1097235+\b\SYN\DEL'<\EOT\1081663Z\anOb\1096244\1101334\170916}2<u\ENQlS\138071A\DC1\180035\STX(\1032605\1063133/\r\51645NG\987674\23168k6^M\1087646\134976\vl\1064801\1003763/#T|\DC4\1032323\1091557\ETX|_\1016556\SOM\"m(\SUB\b\ACKmg\64021+\DC2\SUB32y"
                       }
                   ),
-              inInviteePhone = Just (Phone {fromPhone = "+7567676773326"}),
               inInviteeUrl = Nothing
             },
           Invitation
@@ -278,7 +251,6 @@ testObject_InvitationList_team_6 =
               inCreatedBy = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))),
               inInviteeEmail = Email {emailLocal = "", emailDomain = ""},
               inInviteeName = Nothing,
-              inInviteePhone = Nothing,
               inInviteeUrl = Nothing
             },
           Invitation
@@ -289,7 +261,6 @@ testObject_InvitationList_team_6 =
               inCreatedBy = Just (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))),
               inInviteeEmail = Email {emailLocal = "", emailDomain = ""},
               inInviteeName = Just (Name {fromName = "\1100765v\191022UcU+_\23043!?e Pr\40620=x-z5N\1059506"}),
-              inInviteePhone = Just (Phone {fromPhone = "+158732240"}),
               inInviteeUrl = Nothing
             },
           Invitation
@@ -300,7 +271,6 @@ testObject_InvitationList_team_6 =
               inCreatedBy = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))),
               inInviteeEmail = Email {emailLocal = "", emailDomain = ""},
               inInviteeName = Nothing,
-              inInviteePhone = Nothing,
               inInviteeUrl = Nothing
             },
           Invitation
@@ -311,7 +281,6 @@ testObject_InvitationList_team_6 =
               inCreatedBy = Nothing,
               inInviteeEmail = Email {emailLocal = "", emailDomain = ""},
               inInviteeName = Nothing,
-              inInviteePhone = Just (Phone {fromPhone = "+296657605447"}),
               inInviteeUrl = Nothing
             },
           Invitation
@@ -328,7 +297,6 @@ testObject_InvitationList_team_6 =
                           "\988101l\52730u-@'\nn!'CK\DC38\r8\133255\69877\138131,;r\1065688S\1109836\SO\r^hH\178090\996621\"\194637u\1002144?A\1093531O1\173047\&6\155713\aW+\DC2C[c\1104847\&25-V\1091985\DC2\1017363m\1035909\189810d\1083637a\1075543+51\999435\NAK]\1047246\20557o*0\NAKC\3523n\vy\ETB\6284+\ACK\1049886"
                       }
                   ),
-              inInviteePhone = Nothing,
               inInviteeUrl = Nothing
             },
           Invitation
@@ -339,7 +307,6 @@ testObject_InvitationList_team_6 =
               inCreatedBy = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000"))),
               inInviteeEmail = Email {emailLocal = "", emailDomain = ""},
               inInviteeName = Nothing,
-              inInviteePhone = Just (Phone {fromPhone = "+22915271921199"}),
               inInviteeUrl = Nothing
             },
           Invitation
@@ -350,7 +317,6 @@ testObject_InvitationList_team_6 =
               inCreatedBy = Nothing,
               inInviteeEmail = Email {emailLocal = "", emailDomain = ""},
               inInviteeName = Just (Name {fromName = "')\28977mD\71122?\v\"Q&_8\DC4a"}),
-              inInviteePhone = Just (Phone {fromPhone = "+5593066131958"}),
               inInviteeUrl = Nothing
             },
           Invitation
@@ -361,7 +327,6 @@ testObject_InvitationList_team_6 =
               inCreatedBy = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))),
               inInviteeEmail = Email {emailLocal = "", emailDomain = ""},
               inInviteeName = Nothing,
-              inInviteePhone = Just (Phone {fromPhone = "+36312513329045"}),
               inInviteeUrl = Nothing
             },
           Invitation
@@ -378,7 +343,6 @@ testObject_InvitationList_team_6 =
                           "0\1032778F\1001257\19526/\DLE1\64642\57959dx\1021515\990081\SOE\b\1085143\65542\1023026,\DELkn\EOT\15377j[\185500\ACK\US{\1032659\1012564]b\f$i7,\25879{v\\uYI\1086200\186238\1068862|:w\DC1v\1097961Y\1067044\"N"
                       }
                   ),
-              inInviteePhone = Just (Phone {fromPhone = "+310054067321354"}),
               inInviteeUrl = Nothing
             },
           Invitation
@@ -389,7 +353,6 @@ testObject_InvitationList_team_6 =
               inCreatedBy = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))),
               inInviteeEmail = Email {emailLocal = "", emailDomain = ""},
               inInviteeName = Just (Name {fromName = "\EM\1085994\5162\&29\93808\GS\n\RSzC`"}),
-              inInviteePhone = Nothing,
               inInviteeUrl = Nothing
             },
           Invitation
@@ -400,7 +363,6 @@ testObject_InvitationList_team_6 =
               inCreatedBy = Nothing,
               inInviteeEmail = Email {emailLocal = "", emailDomain = ""},
               inInviteeName = Nothing,
-              inInviteePhone = Nothing,
               inInviteeUrl = Nothing
             }
         ],
@@ -425,7 +387,6 @@ testObject_InvitationList_team_7 =
                           "8J\97163\1065575\&5\ETB#y\DC2T\SYN*O9\1030547CmCa)1e\SOH\131826)2\4970_u7\ETB\1025957\a\tb\568E\DC1@\1017070R\1059753\v\ESC\1097620\190666s\ENQ\111026\&1O\1070323Af(\14968)]\1039670\ESC3W\73889\"\12401\ENQ\EOT\SOH"
                       }
                   ),
-              inInviteePhone = Just (Phone {fromPhone = "+2641695032926"}),
               inInviteeUrl = Nothing
             },
           Invitation
@@ -442,7 +403,6 @@ testObject_InvitationList_team_7 =
                           "\1086593<\62708\1035786cl\EOT;\nB\40425\32084&Ur|8\ETX\a(UQ\58362\93792\NUL\DC2\147401h\985239|c\1063340?\42278\RS7h\999227\57954t\134319\NULw\r\34152\1029870\22366w_)\t\1025609\CANUy\EM#D"
                       }
                   ),
-              inInviteePhone = Just (Phone {fromPhone = "+65473071584964"}),
               inInviteeUrl = Nothing
             },
           Invitation
@@ -459,7 +419,6 @@ testObject_InvitationList_team_7 =
                           "X\DC1\1103092\v/\a\SYN\ETBE\DC2<O\141295~b*\NUL\f\147396\&4\188255\EMO\1025085\96288UNH\15236.\1026289-\1080005\NAK?\1041361\DEL\1031624\24082JlY\1002297'\\2\EM"
                       }
                   ),
-              inInviteePhone = Just (Phone {fromPhone = "+5876007323"}),
               inInviteeUrl = Nothing
             }
         ],
@@ -479,7 +438,6 @@ testObject_InvitationList_team_8 =
               inInviteeEmail = Email {emailLocal = "", emailDomain = ""},
               inInviteeName =
                 Just (Name {fromName = "I/\SOH\RS\1084682\1069618U\ETB\178928\1078899`\1087404TD4KU\5388?["}),
-              inInviteePhone = Nothing,
               inInviteeUrl = Nothing
             },
           Invitation
@@ -496,7 +454,6 @@ testObject_InvitationList_team_8 =
                           "\1041350rz\EM|%\EOT[\r\1039916\1017178i\1095116\38526\\+\156143i\US\bO3\58570M\984116I/X6Fnn^ 2g{]Z\1028085K}\a[a8\1058092f\SUB54b+Ye;t$\52307\SYN\999575\142215r"
                       }
                   ),
-              inInviteePhone = Nothing,
               inInviteeUrl = Nothing
             }
         ],
@@ -515,7 +472,6 @@ testObject_InvitationList_team_9 =
               inCreatedBy = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001"))),
               inInviteeEmail = Email {emailLocal = "", emailDomain = ""},
               inInviteeName = Nothing,
-              inInviteePhone = Just (Phone {fromPhone = "+114415926391"}),
               inInviteeUrl = Nothing
             },
           Invitation
@@ -532,7 +488,6 @@ testObject_InvitationList_team_9 =
                           "`\NUL\132575\1020351\30011P\143287\a\72400\a38\DC3\1112041QX\EMgq\161015.*e\40511#|'f(/G\nh$GHS\60489\GS(k\63238I`]\1055158x\190035i\STX\118995\370\163176o@\11183\151777Izq\156426\179352X\1094239^_\CANhGjR/z\DC2\182745\1076233\DLE\DLE\STX\STX\1028620DFW\120506\DC4W\DC4(\62434n\155938H\184409&it\STX<oW\ETB\SYN]"
                       }
                   ),
-              inInviteePhone = Just (Phone {fromPhone = "+0011966022439"}),
               inInviteeUrl = Nothing
             },
           Invitation
@@ -549,7 +504,6 @@ testObject_InvitationList_team_9 =
                           "\ENQ\1105937\1082218X~|\133594\165234]\1020977gWMJ6\22072''\EM%xf\1095512=2\a\ACK \DC2\SOH\NUL\1015912\74994\18943.\1092396o\185429v\DEL\9591~>o@v/"
                       }
                   ),
-              inInviteePhone = Just (Phone {fromPhone = "+787465997389"}),
               inInviteeUrl = Nothing
             }
         ],
@@ -573,7 +527,6 @@ testObject_InvitationList_team_10 =
                       { fromName = "P\152999\ACK'e\DLE\GS\"\DC1K\1037800Fcvm[\"Sc}U\70290\1057576\1045791~!E\1049991\vV"
                       }
                   ),
-              inInviteePhone = Nothing,
               inInviteeUrl = Nothing
             }
         ],
@@ -598,7 +551,6 @@ testObject_InvitationList_team_11 =
                           "G\\,\NUL=\3549I-w\917561}\131693\25267-92\DC3@\ACK\US\\F\SUB\"-r\42155\&6\SI\3500\US*}c\1033785\US\aT8m@\26053M\DC2#MIq\r4nW\1104272y\ENQUd\47339#\179602\&5\n\STXV]\165952\"<OI~e\25178M~\DEL\182183\US{/|T\159562y$\EOT\GS \1103873}~[!\163064j0\995858~\95009"
                       }
                   ),
-              inInviteePhone = Just (Phone {fromPhone = "+5208043225346"}),
               inInviteeUrl = Nothing
             }
         ],
@@ -620,7 +572,6 @@ testObject_InvitationList_team_13 =
               inCreatedBy = Just (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))),
               inInviteeEmail = Email {emailLocal = "", emailDomain = ""},
               inInviteeName = Nothing,
-              inInviteePhone = Just (Phone {fromPhone = "+62353188857"}),
               inInviteeUrl = Nothing
             },
           Invitation
@@ -637,7 +588,6 @@ testObject_InvitationList_team_13 =
                           "\994542\NAKw/\1052566.f\1007214-\1030283\DC1N\t\49191\\XM\ETB{i\49791\184588\144132\a\100864\tyz\1088074#s\1092212{<\175371\DC43-\157880\1105778:e\FS\1069621}\SUB!\1112190bc\vq{\14242)\1041251[\ETXBSQC"
                       }
                   ),
-              inInviteePhone = Just (Phone {fromPhone = "+999942131912804"}),
               inInviteeUrl = Nothing
             },
           Invitation
@@ -654,7 +604,6 @@ testObject_InvitationList_team_13 =
                           "\1102212\169290\1106435\100525eG\STX\1007181\r\173749\10441/\27105<\2270 '\12330\GS\t.\EOT_o_\STX\SIH\NUL\n\v\NULn \1094133\RS"
                       }
                   ),
-              inInviteePhone = Just (Phone {fromPhone = "+07115371093"}),
               inInviteeUrl = Nothing
             },
           Invitation
@@ -671,7 +620,6 @@ testObject_InvitationList_team_13 =
                           "\141948;e\22744\SOHQz\EOT\a\1102781w(h!\171541\DLEx\173218.]\1057140 fs*\178577{nazI\ENQ\986534`\44375?\25283\DC1,W\n\SII\DC1I\38878\NAKl8\1062502*&\128545?\1104659/\1106548\&7Zp\NAK\1069997?WC\vZ\1006139IBxk\148534\ENQ\1070706 15\1054011\SI#2\EMG^w`\NAK\35325\1083642\1063225:|M\b\189501J&"
                       }
                   ),
-              inInviteePhone = Just (Phone {fromPhone = "+13664001"}),
               inInviteeUrl = Nothing
             },
           Invitation
@@ -688,7 +636,6 @@ testObject_InvitationList_team_13 =
                           "\GS\1107873\\PM\v\DLEU\1097493\FS\SUBF(\FS$w\1054931\NAK\ACK\1033467\30078gk\EM\SOe\118941\RSv\\\STX\133742\STXJ\194921R\EOT3\1016521jx\1108890K\1102645\190174\1063299\SI\3508Q\1109890x,\NUL,\ENQ\1102339Cg\SOH\b\993150\26092XZ:\ACKC\1042056^\1099391O\axZ\SI\SUB5\142807\t"
                       }
                   ),
-              inInviteePhone = Just (Phone {fromPhone = "+6119051205"}),
               inInviteeUrl = Nothing
             },
           Invitation
@@ -700,7 +647,6 @@ testObject_InvitationList_team_13 =
               inInviteeEmail = Email {emailLocal = "", emailDomain = ""},
               inInviteeName =
                 Just (Name {fromName = "\US\1039297@p(#\1103640\28521\&0\1083979\n[q~2\f\1057993P\CAN\ACK"}),
-              inInviteePhone = Just (Phone {fromPhone = "+39377671045038"}),
               inInviteeUrl = Nothing
             },
           Invitation
@@ -717,7 +663,6 @@ testObject_InvitationList_team_13 =
                           "C$\DC30\DC4Y\177559J\rK\1037217\&2g#.H2PmT\987228t\1034128\40120\SOHHI|a:?P\1105347%K[E\1032763ig-K\1040395+Ul\61321\FS\\ ;_h\RS\aLOz\1010646/\ETXV)\DELa@\174946\999132\"\GS\1054858\62985/\1044239\&2\17537\EOT\1032172"
                       }
                   ),
-              inInviteePhone = Just (Phone {fromPhone = "+35687997289"}),
               inInviteeUrl = Nothing
             }
         ],
@@ -745,7 +690,6 @@ testObject_InvitationList_team_15 =
                           "\EMOX^Gr\165898)\1011974\DC1U\\\1048848\13465\15567\&1N\50964M\1084911\7316Nj<\EOT\bR\\v\184725\58158\1111120\SUBr\NUL\182647A\1096185IK\986119\NAKf\25608N\RS\1056043e\139500f@N\174882%VY\SO\&Hz\DEL\SUBO\bL}B\DLE\nolk?\1017065`\62940\tak{$~Pd\1042568rm*q7\ESCi^\94032\997634Yvo;\169228xq+\7788ud>\1007747\170712\&0:\64700\191337+\SOH\vP\1020855X\38239\DEL\1070375.\EMN\"\180987"
                       }
                   ),
-              inInviteePhone = Just (Phone {fromPhone = "+872574694"}),
               inInviteeUrl = Nothing
             },
           Invitation
@@ -757,7 +701,6 @@ testObject_InvitationList_team_15 =
               inInviteeEmail = Email {emailLocal = "", emailDomain = ""},
               inInviteeName =
                 Just (Name {fromName = "\21461\&5q}B\SOH\156444`\65394w\\X@\1035677\143112\&7Mw,*z{\132791&~"}),
-              inInviteePhone = Just (Phone {fromPhone = "+143031479742"}),
               inInviteeUrl = Nothing
             },
           Invitation
@@ -774,7 +717,6 @@ testObject_InvitationList_team_15 =
                           "V\1084142\DLEqY\65419CU\SO\1066304fQJ\ENQ\2579q+\a\SYN\987832\DC1@\149564`\22367qh+\184236A7\155937Y \DC1T\12622\&1_\1083975#B<\1058881;a6o="
                       }
                   ),
-              inInviteePhone = Just (Phone {fromPhone = "+236346166386230"}),
               inInviteeUrl = Nothing
             },
           Invitation
@@ -791,7 +733,6 @@ testObject_InvitationList_team_15 =
                           ",\1062974\60953{\1405\f\181627Uh\51417\t\ESC\EOT\SOHO@\SUB_\STXD\1109029\155675\SYNg}"
                       }
                   ),
-              inInviteePhone = Just (Phone {fromPhone = "+80162248"}),
               inInviteeUrl = Nothing
             },
           Invitation
@@ -802,7 +743,6 @@ testObject_InvitationList_team_15 =
               inCreatedBy = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))),
               inInviteeEmail = Email {emailLocal = "", emailDomain = ""},
               inInviteeName = Nothing,
-              inInviteePhone = Nothing,
               inInviteeUrl = Nothing
             }
         ],
@@ -827,7 +767,6 @@ testObject_InvitationList_team_16 =
                           "E\120326YM<\1043108j\1075334\r\1080535O\1001460MCU\RSI\995971m\83127hG\DC2|:P\1070845Vj\FS\NULffgG)K{\1053135\&7x5\989168\173336\n\flT\1073822"
                       }
                   ),
-              inInviteePhone = Just (Phone {fromPhone = "+36515555"}),
               inInviteeUrl = Nothing
             }
         ],
@@ -846,7 +785,6 @@ testObject_InvitationList_team_17 =
               inCreatedBy = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))),
               inInviteeEmail = Email {emailLocal = "&", emailDomain = "\179430"},
               inInviteeName = Nothing,
-              inInviteePhone = Nothing,
               inInviteeUrl = Nothing
             }
         ],
@@ -871,7 +809,6 @@ testObject_InvitationList_team_20 =
               inCreatedBy = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))),
               inInviteeEmail = Email {emailLocal = "", emailDomain = ""},
               inInviteeName = Nothing,
-              inInviteePhone = Just (Phone {fromPhone = "+745177056001783"}),
               inInviteeUrl = Nothing
             },
           Invitation
@@ -888,7 +825,6 @@ testObject_InvitationList_team_20 =
                           "YPf\9566:\ENQ\7880&\CAN\DC1\1038811%\43425k\175051\1071439:Q\ENQF+\bb8Jh\1098643K\a\GSY\EOT\1061857\SI\1038192\SYN \1054176\&6>I\1041001B$z?\149694wECB\RS\155436\45892\"W\96542\994562@\RSg)\SOHm!-U\1079782\1005360o\ACKa\EOT\184482;R\1059495kgT\1102216f\EOT\RS\rp\78734\1045066X/\1065138)\STX5.Ym\1006828n\49887N\DC3\176452]?'\134458a4\"\997374!i5\RS\GSC14"
                       }
                   ),
-              inInviteePhone = Nothing,
               inInviteeUrl = Nothing
             }
         ],

@@ -90,12 +90,14 @@ data Invitation = Invitation
     inCreatedBy :: Maybe UserId,
     inInviteeEmail :: Email,
     inInviteeName :: Maybe Name,
-    inInviteePhone :: Maybe Phone,
     inInviteeUrl :: Maybe (URIRef Absolute)
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Invitation)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema Invitation)
+
+inInviteePhone :: Invitation -> Maybe Phone
+inInviteePhone = const Nothing
 
 instance ToSchema Invitation where
   schema =
@@ -116,7 +118,7 @@ instance ToSchema Invitation where
           .= fieldWithDocModifier "email" (description ?~ "Email of the invitee") schema
         <*> inInviteeName
           .= optFieldWithDocModifier "name" (description ?~ "Name of the invitee (1 - 128 characters)") (maybeWithDefault A.Null schema)
-        <*> inInviteePhone
+        <* inInviteePhone
           .= optFieldWithDocModifier "phone" (description ?~ "Phone number of the invitee, in the E.164 format") (maybeWithDefault A.Null schema)
         <*> (fmap (TE.decodeUtf8 . serializeURIRef') . inInviteeUrl)
           .= optFieldWithDocModifier "url" (description ?~ "URL of the invitation link to be sent to the invitee") (maybeWithDefault A.Null urlSchema)
