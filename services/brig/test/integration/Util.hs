@@ -366,7 +366,7 @@ assertUpdateNotification ws uid upd = WS.assertMatch (5 # Second) ws $ \n -> do
   let u = j ^?! key "user"
   u ^? key "id" . _String @?= Just (UUID.toText (toUUID uid))
   u ^? key "name" . _String @?= fromName <$> uupName upd
-  u ^? key "text_status" . _String @?= textStatusToText <$> uupTextStatus upd
+  u ^? key "text_status" . _String @?= fromTextStatus <$> uupTextStatus upd
   u ^? key "accent_id" . _Integral @?= fromColourId <$> uupAccentId upd
   u ^? key "assets" @?= Just (toJSON (uupAssets upd))
 
