@@ -45,7 +45,6 @@ module Brig.Calling
     turnConfigTTL,
     turnSecret,
     turnSHA512,
-    turnPrng,
   )
 where
 
@@ -74,7 +73,6 @@ import Polysemy.TinyLog
 import System.FSNotify qualified as FS
 import System.FilePath qualified as Path
 import System.Logger qualified as Log
-import System.Random.MWC (GenIO, createSystemRandom)
 import System.Random.Shuffle
 import UnliftIO (Async)
 import UnliftIO.Async qualified as Async
@@ -189,7 +187,6 @@ srvDiscoveryLoop domain discoveryInterval saveAction = forever $ do
 data SFTTokenEnv = SFTTokenEnv
   { sftTokenTTL :: Word32,
     sftTokenSecret :: ByteString,
-    sftTokenPRNG :: GenIO,
     sftTokenSHA :: Digest
   }
 
@@ -214,7 +211,6 @@ mkSFTTokenEnv :: Digest -> Opts.SFTTokenOptions -> IO SFTTokenEnv
 mkSFTTokenEnv digest opts =
   SFTTokenEnv (Opts.sttTTL opts)
     <$> BS.readFile (Opts.sttSecret opts)
-    <*> createSystemRandom
     <*> pure digest
 
 -- | Start SFT service discovery synchronously
@@ -240,8 +236,7 @@ data TurnEnv = TurnEnv
     _turnTokenTTL :: Word32,
     _turnConfigTTL :: Word32,
     _turnSecret :: ByteString,
-    _turnSHA512 :: Digest,
-    _turnPrng :: GenIO
+    _turnSHA512 :: Digest
   }
 
 makeLenses ''TurnEnv
@@ -260,7 +255,6 @@ mkTurnEnv serversSource _turnTokenTTL _turnConfigTTL _turnSecret _turnSHA512 = d
       TurnServersFromFiles files
         <$> newIORef NotDiscoveredYet
         <*> newIORef NotDiscoveredYet
-  _turnPrng <- createSystemRandom
   pure $ TurnEnv {..}
 
 turnServersV1 :: (MonadIO m) => TurnServers -> m (Discovery (NonEmpty TurnURI))
