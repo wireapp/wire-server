@@ -21,6 +21,7 @@
 module Brig.Calling.API
   ( getCallsConfig,
     getCallsConfigV2,
+    base26,
 
     -- * Exposed for testing purposes
     newConfig,
@@ -43,7 +44,6 @@ import Control.Lens
 import Crypto.Hash qualified as Crypto
 import Data.ByteArray (convert)
 import Data.ByteString qualified as B
-import Data.ByteString.Base64.URL qualified as B64U
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as BL
 import Data.Id
@@ -52,7 +52,6 @@ import Data.List.NonEmpty qualified as NonEmpty
 import Data.Misc (HttpsUrl)
 import Data.Range
 import Data.Text.Ascii (AsciiBase64, encodeBase64)
-import Data.Text.Encoding qualified as T
 import Data.Time.Clock.POSIX
 import Data.UUID qualified as UUID
 import Imports hiding (head)
@@ -221,9 +220,10 @@ newConfig uid env discoveredServers sftStaticUrl mSftEnv limit listAllServers ve
 
     genUsername :: UserId -> Text
     genUsername =
-      T.decodeUtf8
-        . B64U.encodeUnpadded
-        . B.take 16
+      base26
+        . foldr (\x r -> fromIntegral x + r * 256) 0
+        . take 16
+        . B.unpack
         . hash
         . BL.toStrict
         . UUID.toByteString

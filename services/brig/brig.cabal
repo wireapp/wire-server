@@ -555,6 +555,7 @@ test-suite brig-tests
     , tasty
     , tasty-hunit
     , tasty-quickcheck
+    , text
     , time
     , tinylog
     , types-common
