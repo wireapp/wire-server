@@ -428,6 +428,7 @@ executable brig-integration
     , cookie
     , data-default
     , data-timeout
+    , either
     , email-validate
     , exceptions
     , extra

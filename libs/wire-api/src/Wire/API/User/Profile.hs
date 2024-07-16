@@ -21,8 +21,9 @@
 module Wire.API.User.Profile
   ( Name (..),
     mkName,
-    TextStatus (..),
+    TextStatus,
     mkTextStatus,
+    textStatusToText,
     ColourId (..),
     defaultAccentId,
 
@@ -87,6 +88,9 @@ newtype TextStatus = TextStatus
 
 mkTextStatus :: Text -> Either String TextStatus
 mkTextStatus txt = TextStatus . fromRange <$> checkedEitherMsg @_ @1 @256 "TextStatus" txt
+
+textStatusToText :: TextStatus -> Text
+textStatusToText = fromTextStatus
 
 instance ToSchema TextStatus where
   schema = TextStatus <$> fromTextStatus .= untypedRangedSchema 1 256 schema

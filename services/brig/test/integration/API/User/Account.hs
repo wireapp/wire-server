@@ -44,6 +44,7 @@ import Data.ByteString qualified as C8
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import Data.Domain
+import Data.Either.Combinators
 import Data.Handle
 import Data.Id
 import Data.Json.Util (fromUTCTimeMillis)
@@ -883,7 +884,7 @@ testUserUpdate brig cannon userJournalWatcher = do
               (Just AssetComplete)
           ]
       mNewName = Just $ aliceNewName
-      mNewTextStatus = Just $ TextStatus "fun status"
+      mNewTextStatus = rightToMaybe $ mkTextStatus "fun status"
       newPic = Nothing -- Legacy
       userUpdate = UserUpdate mNewName mNewTextStatus newPic newAssets newColId
       update = RequestBodyLBS . encode $ userUpdate
