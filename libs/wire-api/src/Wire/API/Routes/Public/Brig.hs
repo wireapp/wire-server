@@ -1661,6 +1661,19 @@ type TeamsAPI =
                :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 200 "Invitation deleted")
            )
     :<|> Named
+           "get-team-invitation-info-v5"
+           ( Summary "Get invitation info given a code."
+               :> CanThrow 'InvalidInvitationCode
+               :> "teams"
+               :> "invitations"
+               :> "info"
+               :> QueryParam' '[Required, Strict, Description "Invitation code"] "code" InvitationCode
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    (VersionedRespond 'V5 200 "Invitation info" Invitation)
+           )
+    :<|> Named
            "get-team-invitation-info"
            ( Summary "Get invitation info given a code."
                :> CanThrow 'InvalidInvitationCode

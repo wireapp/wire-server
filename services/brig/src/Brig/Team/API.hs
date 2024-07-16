@@ -100,6 +100,7 @@ servantAPI =
     :<|> Named @"get-team-invitations" listInvitations
     :<|> Named @"get-team-invitation" getInvitation
     :<|> Named @"delete-team-invitation" deleteInvitation
+    :<|> Named @"get-team-invitation-info-v5" getInvitationByCode
     :<|> Named @"get-team-invitation-info" getInvitationByCode
     :<|> Named @"head-team-invitations" headInvitationByEmail
     :<|> Named @"get-team-size" teamSizePublic
