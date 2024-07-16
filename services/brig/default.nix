@@ -36,6 +36,7 @@
 , data-timeout
 , dns
 , dns-util
+, either
 , email-validate
 , enclosed-exceptions
 , errors
@@ -301,6 +302,7 @@ mkDerivation {
     cookie
     data-default
     data-timeout
+    either
     email-validate
     exceptions
     extended
