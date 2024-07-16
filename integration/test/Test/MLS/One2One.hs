@@ -291,10 +291,10 @@ testMLSGhostOne2OneConv = do
   checkConversationIO <- appToIO checkConversation
 
   createCommit <-
-    appToIO
-      $ void
-      $ createAddCommit alice1 [bob]
-      >>= sendAndConsumeCommitBundle
+    appToIO $
+      void $
+        createAddCommit alice1 [bob]
+          >>= sendAndConsumeCommitBundle
 
   liftIO $ withAsync checkConversationIO $ \a -> do
     createCommit
