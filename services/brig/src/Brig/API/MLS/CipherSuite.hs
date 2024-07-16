@@ -41,7 +41,7 @@ validateCipherSuites ::
   Handler r (Set CipherSuiteTag)
 validateCipherSuites suites upload = do
   suitesQuery <- Set.fromList <$> maybe (pure [defCipherSuite]) (traverse getOneCipherSuite) suites
-  when (any isNothing suitesKPM) . void $ mlsProtocolError "uploaded key packages containes unsupported cipher suite"
+  when (any isNothing suitesKPM) . void $ mlsProtocolError "uploaded key packages contains unsupported cipher suite"
   unless (suitesQuery == suitesKP) . void $ mlsProtocolError "uploaded key packages for unannounced cipher suites"
   pure suitesQuery
   where
