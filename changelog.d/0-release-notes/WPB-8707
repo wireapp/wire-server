@@ -1,0 +1,1 @@
+A schema migration drops column 'phone' from Brig's 'team_invitation' table. Previous releases were still reading this column. As there is no Team Settings UI action to enter a phone number, this reading will not miss to read actual phone numbers. Therefore, during deployment this will lead to benign 5xx errors.
