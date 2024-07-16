@@ -15,12 +15,15 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.API.MLS.CipherSuite (getCipherSuite, getCipherSuites) where
+module Brig.API.MLS.CipherSuite (getCipherSuite, validateCipherSuites) where
 
 import Brig.API.Handler
 import Brig.API.MLS.KeyPackages.Validation
+import Data.Set qualified as Set
 import Imports
 import Wire.API.MLS.CipherSuite
+import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.Serialisation
 
 getOneCipherSuite :: CipherSuite -> Handler r CipherSuiteTag
 getOneCipherSuite s =
@@ -32,5 +35,15 @@ getOneCipherSuite s =
 getCipherSuite :: Maybe CipherSuite -> Handler r CipherSuiteTag
 getCipherSuite = maybe (pure defCipherSuite) getOneCipherSuite
 
-getCipherSuites :: Maybe [CipherSuite] -> Handler r [CipherSuiteTag]
-getCipherSuites = maybe (pure [defCipherSuite]) (traverse getOneCipherSuite)
+validateCipherSuites ::
+  Maybe [CipherSuite] ->
+  KeyPackageUpload ->
+  Handler r (Set CipherSuiteTag)
+validateCipherSuites suites upload = do
+  suitesQuery <- Set.fromList <$> maybe (pure [defCipherSuite]) (traverse getOneCipherSuite) suites
+  when (any isNothing suitesKPM) . void $ mlsProtocolError "uploaded key packages containes unsupported cipher suite"
+  unless (suitesQuery == suitesKP) . void $ mlsProtocolError "uploaded key packages for unannounced cipher suites"
+  pure suitesQuery
+  where
+    suitesKPM = map (cipherSuiteTag . (.cipherSuite) . value) upload.keyPackages
+    suitesKP = Set.fromList $ catMaybes suitesKPM

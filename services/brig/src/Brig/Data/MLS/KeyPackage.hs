@@ -145,10 +145,10 @@ deleteKeyPackages u c suite refs =
     deleteQuery = "DELETE FROM mls_key_packages WHERE user = ? AND client = ? AND cipher_suite = ? AND ref in ?"
 
 deleteAllKeyPackages ::
-  (MonadClient m, MonadUnliftIO m) =>
+  (MonadClient m, MonadUnliftIO m, Foldable f) =>
   UserId ->
   ClientId ->
-  [CipherSuiteTag] ->
+  f CipherSuiteTag ->
   m ()
 deleteAllKeyPackages u c suites =
   pooledForConcurrentlyN_ 16 suites $ \suite ->
