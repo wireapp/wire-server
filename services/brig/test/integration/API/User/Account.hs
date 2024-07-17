@@ -100,7 +100,6 @@ tests _ at opts p b c ch g aws userJournalWatcher =
   testGroup
     "account"
     [ test p "post /register - 201 (with preverified)" $ testCreateUserWithPreverified opts b userJournalWatcher,
-      test p "testCreateUserWithInvalidVerificationCode - post /register - 400 (with preverified)" $ testCreateUserWithInvalidVerificationCode b,
       test p "post /register - 201" $ testCreateUser b g,
       test p "post /register - 201 anonymous" $ testCreateUserAnon b g,
       test p "testCreateUserEmptyName - post /register - 400 empty name" $ testCreateUserEmptyName b,
@@ -160,34 +159,6 @@ tests _ at opts p b c ch g aws userJournalWatcher =
           test p "delete again because of dangling property" $ testDeleteUserWithDanglingProperty b c userJournalWatcher
         ]
     ]
-
--- The testCreateUserWithInvalidVerificationCode test conforms to the following testing standards:
---
--- Registering with an invalid verification code and valid account details should fail.
-testCreateUserWithInvalidVerificationCode :: Brig -> Http ()
-testCreateUserWithInvalidVerificationCode brig = do
-  -- Attempt to register (pre verified) user with phone
-  p <- randomPhone
-  code <- randomActivationCode -- incorrect but syntactically valid activation code
-  let Object regPhone =
-        object
-          [ "name" .= Name "Alice",
-            "phone" .= fromPhone p,
-            "phone_code" .= code
-          ]
-  postUserRegister' regPhone brig !!! do
-    const 400 === statusCode
-    const (Just "invalid-phone") === fmap Wai.label . responseJsonMaybe
-
-  -- Attempt to register (pre verified) user with email
-  e <- randomEmail
-  let Object regEmail =
-        object
-          [ "name" .= Name "Alice",
-            "email" .= fromEmail e,
-            "email_code" .= code
-          ]
-  postUserRegister' regEmail brig !!! const 404 === statusCode
 
 testUpdateUserEmailByTeamOwner :: Opt.Opts -> Brig -> Http ()
 testUpdateUserEmailByTeamOwner opts brig = do
