@@ -285,21 +285,24 @@ testReplaceKeyPackages = do
     setMLSCiphersuite suite
     suiteKeyPackages <- replicateM 3 (fmap fst (generateKeyPackage alice1))
 
-    void $
-      replaceKeyPackages' alice1 (Just []) [] `bindResponse` \resp -> do
+    void
+      $ replaceKeyPackages' alice1 (Just []) []
+      `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 201
 
-    void $
-      replaceKeyPackages' alice1 Nothing defKeyPackages `bindResponse` \resp -> do
+    void
+      $ replaceKeyPackages' alice1 Nothing defKeyPackages
+      `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 201
 
     checkCount def 3
     checkCount suite 2
 
-    let testErrorCases :: HasCallStack => Maybe [Ciphersuite] -> [ByteString] -> App ()
+    let testErrorCases :: (HasCallStack) => Maybe [Ciphersuite] -> [ByteString] -> App ()
         testErrorCases ciphersuites keyPackages = do
-          void $
-            replaceKeyPackages' alice1 ciphersuites keyPackages `bindResponse` \resp -> do
+          void
+            $ replaceKeyPackages' alice1 ciphersuites keyPackages
+            `bindResponse` \resp -> do
               resp.status `shouldMatchInt` 400
               resp.json %. "label" `shouldMatch` "mls-protocol-error"
           checkCount def 3
