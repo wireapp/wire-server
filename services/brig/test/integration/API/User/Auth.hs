@@ -94,10 +94,8 @@ tests conf m z db b g n =
     [ testGroup
         "login"
         [ test m "email" (testEmailLogin b),
-          test m "phone" (testPhoneLogin b),
           test m "handle" (testHandleLogin b),
           test m "email-untrusted-domain" (testLoginUntrustedDomain b),
-          test m "send-phone-code" (testSendLoginCode b),
           test m "testLoginFailure - failure" (testLoginFailure b),
           test m "throttle" (testThrottleLogins conf b),
           test m "testLimitRetries - limit-retry" (testLimitRetries conf b),
@@ -357,21 +355,6 @@ testEmailLogin brig = do
   login brig (defEmailLogin email') PersistentCookie
     !!! const 200 === statusCode
 
-testPhoneLogin :: Brig -> Http ()
-testPhoneLogin brig = do
-  p <- randomPhone
-  let newUser =
-        RequestBodyLBS . encode $
-          object
-            [ "name" .= ("Alice" :: Text),
-              "phone" .= fromPhone p
-            ]
-  -- phone logins are not supported anymore
-  post (brig . path "/i/users" . contentJson . Http.body newUser)
-    !!! do
-      const 400 === statusCode
-      const (Just "invalid-phone") === errorLabel
-
 testHandleLogin :: Brig -> Http ()
 testHandleLogin brig = do
   usr <- Public.userId <$> randomUser brig
@@ -391,21 +374,6 @@ testLoginUntrustedDomain brig = do
   let email' = Email (Text.takeWhile (/= '+') loc) dom
   login brig (defEmailLogin email') PersistentCookie
     !!! const 200 === statusCode
-
-testSendLoginCode :: Brig -> Http ()
-testSendLoginCode brig = do
-  p <- randomPhone
-  let newUser =
-        RequestBodyLBS . encode $
-          object
-            [ "name" .= ("Alice" :: Text),
-              "phone" .= fromPhone p,
-              "password" .= ("topsecretdefaultpassword" :: Text)
-            ]
-  post (brig . path "/i/users" . contentJson . Http.body newUser)
-    !!! do
-      const 400 === statusCode
-      const (Just "invalid-phone") === errorLabel
 
 -- The testLoginFailure test conforms to the following testing standards:
 --
