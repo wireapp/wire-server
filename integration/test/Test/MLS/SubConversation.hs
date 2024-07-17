@@ -7,6 +7,7 @@ import qualified Data.Set as Set
 import MLS.Util
 import Notifications
 import SetupHelpers
+import Test.MLS.One2One
 import Testlib.Prelude
 
 testJoinSubConv :: App ()
@@ -51,6 +52,38 @@ testJoinOne2OneSubConv = do
   void
     $ createExternalCommit alice1 Nothing
     >>= sendAndConsumeCommitBundle
+
+testLeaveOne2OneSubConv :: One2OneScenario -> Leaver -> App ()
+testLeaveOne2OneSubConv scenario leaver = do
+  -- set up 1-1 conversation
+  alice <- randomUser OwnDomain def
+  let otherDomain = one2OneScenarioUserDomain scenario
+      convDomain = one2OneScenarioConvDomain scenario
+  bob <- createMLSOne2OnePartner otherDomain alice convDomain
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  traverse_ uploadNewKeyPackage [bob1]
+  conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
+  resetGroup alice1 conv
+  void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+
+  -- create and join subconversation
+  createSubConv alice1 "conference"
+  void $ createExternalCommit bob1 Nothing >>= sendAndConsumeCommitBundle
+
+  -- one of the two clients leaves
+  let (leaverClient, leaverIndex, otherClient) = case leaver of
+        Alice -> (alice1, 0, bob1)
+        Bob -> (bob1, 1, alice1)
+
+  withWebSocket otherClient $ \ws -> do
+    leaveCurrentConv leaverClient
+
+    msg <- consumeMessage otherClient Nothing ws
+    msg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` leaverIndex
+    msg %. "message.content.sender.External" `shouldMatchInt` 0
+
+  -- the other client commits the pending proposal
+  void $ createPendingProposalCommit otherClient >>= sendAndConsumeCommitBundle
 
 testDeleteParentOfSubConv :: (HasCallStack) => Domain -> App ()
 testDeleteParentOfSubConv secondDomain = do
