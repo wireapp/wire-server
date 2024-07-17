@@ -349,11 +349,8 @@ deleteKeyPackages cid kps = do
   req <- baseRequest cid Brig Versioned ("/mls/key-packages/self/" <> cid.client)
   submit "DELETE" $ req & addJSONObject ["key_packages" .= kps]
 
-replaceKeyPackages :: ClientIdentity -> [Ciphersuite] -> [ByteString] -> App Response
-replaceKeyPackages cid suites kps = replaceKeyPackages' cid (Just suites) kps
-
-replaceKeyPackages' :: ClientIdentity -> Maybe [Ciphersuite] -> [ByteString] -> App Response
-replaceKeyPackages' cid mSuites kps = do
+replaceKeyPackages :: ClientIdentity -> Maybe [Ciphersuite] -> [ByteString] -> App Response
+replaceKeyPackages cid mSuites kps = do
   req <-
     baseRequest cid Brig Versioned $
       "/mls/key-packages/self/" <> cid.client

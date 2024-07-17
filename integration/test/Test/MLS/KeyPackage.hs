@@ -238,7 +238,7 @@ testReplaceKeyPackages = do
     (kps, refs) <- unzip <$> replicateM 3 (generateKeyPackage alice1)
 
     -- replace old key packages with new
-    void $ replaceKeyPackages alice1 [suite] kps >>= getBody 201
+    void $ replaceKeyPackages alice1 (Just [suite]) kps >>= getBody 201
 
     checkCount def 4
     checkCount suite 3
@@ -274,7 +274,7 @@ testReplaceKeyPackages = do
     setMLSCiphersuite suite
     kps2 <- replicateM 2 (fmap fst (generateKeyPackage alice1))
 
-    void $ replaceKeyPackages alice1 [def, suite] (kps1 <> kps2) >>= getBody 201
+    void $ replaceKeyPackages alice1 (Just [def, suite]) (kps1 <> kps2) >>= getBody 201
 
     checkCount def 2
     checkCount suite 2
@@ -286,12 +286,12 @@ testReplaceKeyPackages = do
     suiteKeyPackages <- replicateM 3 (fmap fst (generateKeyPackage alice1))
 
     void
-      $ replaceKeyPackages' alice1 (Just []) []
+      $ replaceKeyPackages alice1 (Just []) []
       `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 201
 
     void
-      $ replaceKeyPackages' alice1 Nothing defKeyPackages
+      $ replaceKeyPackages alice1 Nothing defKeyPackages
       `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 201
 
@@ -301,7 +301,7 @@ testReplaceKeyPackages = do
     let testErrorCases :: (HasCallStack) => Maybe [Ciphersuite] -> [ByteString] -> App ()
         testErrorCases ciphersuites keyPackages = do
           void
-            $ replaceKeyPackages' alice1 ciphersuites keyPackages
+            $ replaceKeyPackages alice1 ciphersuites keyPackages
             `bindResponse` \resp -> do
               resp.status `shouldMatchInt` 400
               resp.json %. "label" `shouldMatch` "mls-protocol-error"
