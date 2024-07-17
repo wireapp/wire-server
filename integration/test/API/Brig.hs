@@ -349,14 +349,14 @@ deleteKeyPackages cid kps = do
   req <- baseRequest cid Brig Versioned ("/mls/key-packages/self/" <> cid.client)
   submit "DELETE" $ req & addJSONObject ["key_packages" .= kps]
 
-replaceKeyPackages :: ClientIdentity -> [Ciphersuite] -> [ByteString] -> App Response
-replaceKeyPackages cid suites kps = do
+replaceKeyPackages :: ClientIdentity -> Maybe [Ciphersuite] -> [ByteString] -> App Response
+replaceKeyPackages cid mSuites kps = do
   req <-
     baseRequest cid Brig Versioned $
       "/mls/key-packages/self/" <> cid.client
   submit "PUT" $
     req
-      & addQueryParams [("ciphersuites", intercalate "," (map (.code) suites))]
+      & maybe id (\suites -> addQueryParams [("ciphersuites", intercalate "," (map (.code) suites))]) mSuites
       & addJSONObject ["key_packages" .= map (T.decodeUtf8 . Base64.encode) kps]
 
 -- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/get_self

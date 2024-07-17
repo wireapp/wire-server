@@ -168,6 +168,6 @@ replaceKeyPackages ::
   Handler r ()
 replaceKeyPackages lusr c (fmap toList -> mSuites) upload = do
   assertMLSEnabled
-  suites <- getCipherSuites mSuites
+  suites <- validateCipherSuites mSuites upload
   lift $ wrapClient (Data.deleteAllKeyPackages (tUnqualified lusr) c suites)
   uploadKeyPackages lusr c upload
