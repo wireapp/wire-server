@@ -31,6 +31,7 @@
 , cookie
 , cql
 , cryptobox-haskell
+, crypton
 , currency-codes
 , data-default
 , data-timeout
@@ -71,6 +72,7 @@
 , lens
 , lens-aeson
 , lib
+, memory
 , metrics-core
 , metrics-wai
 , mime
@@ -78,7 +80,6 @@
 , mmorph
 , MonadRandom
 , mtl
-, mwc-random
 , network
 , network-conduit-tls
 , network-uri
@@ -190,6 +191,7 @@ mkDerivation {
     cookie
     cql
     cryptobox-haskell
+    crypton
     currency-codes
     data-default
     dns
@@ -220,6 +222,7 @@ mkDerivation {
     jwt-tools
     lens
     lens-aeson
+    memory
     metrics-core
     metrics-wai
     mime
@@ -227,7 +230,6 @@ mkDerivation {
     mmorph
     MonadRandom
     mtl
-    mwc-random
     network
     network-conduit-tls
     openapi3
@@ -399,6 +401,7 @@ mkDerivation {
     tasty
     tasty-hunit
     tasty-quickcheck
+    text
     time
     tinylog
     types-common

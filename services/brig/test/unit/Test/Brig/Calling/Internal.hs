@@ -21,9 +21,11 @@ module Test.Brig.Calling.Internal where
 
 import Brig.Calling.Internal
 import Data.Misc (mkHttpsUrl)
+import Data.Text qualified as T
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
+import Test.Tasty.QuickCheck
 import URI.ByteString.QQ as URI
 import Wire.API.Call.Config (sftServer)
 import Wire.Network.DNS.SRV (SrvTarget (SrvTarget))
@@ -44,5 +46,26 @@ tests =
               "the dot should be stripped from sft server"
               expectedServer
               (sftServerFromSrvTarget $ SrvTarget "sft2.env.example.com" 443)
-        ]
+        ],
+      testCase "base26" $ do
+        "a" @=? base26 0
+        "ba" @=? base26 26
+        "cfox" @=? base26 38919,
+      testProperty "base26 . unbase26 === id" $ \(Base26 s) -> base26 (unbase26 s) === s,
+      testProperty "unbase26 . base26 === id" $ \(NonNegative n) -> unbase26 (base26 n) === n
     ]
+
+newtype Base26 = Base26 Text
+  deriving (Eq, Show)
+
+mkBase26 :: String -> Base26
+mkBase26 s = Base26 $ case dropWhile (== 'a') s of
+  "" -> "a"
+  str -> T.pack str
+
+instance Arbitrary Base26 where
+  arbitrary =
+    mkBase26 <$> listOf1 (fmap chr (chooseInt (ord 'a', ord 'z')))
+
+unbase26 :: Text -> Integer
+unbase26 = foldl' (\v c -> fromIntegral (ord c - ord 'a') + v * 26) 0 . T.unpack

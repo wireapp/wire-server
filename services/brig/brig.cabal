@@ -245,6 +245,7 @@ library
     , cookie                     >=0.4
     , cql
     , cryptobox-haskell          >=0.1.1
+    , crypton
     , currency-codes             >=2.0
     , data-default
     , dns
@@ -275,6 +276,7 @@ library
     , jwt-tools
     , lens                       >=3.8
     , lens-aeson                 >=1.0
+    , memory
     , metrics-core               >=0.3
     , metrics-wai                >=0.3
     , mime
@@ -282,7 +284,6 @@ library
     , mmorph
     , MonadRandom                >=0.5
     , mtl                        >=2.1
-    , mwc-random
     , network                    >=2.4
     , network-conduit-tls
     , openapi3
@@ -556,6 +557,7 @@ test-suite brig-tests
     , tasty
     , tasty-hunit
     , tasty-quickcheck
+    , text
     , time
     , tinylog
     , types-common

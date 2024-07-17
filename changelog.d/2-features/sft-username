@@ -1,0 +1,1 @@
+The SFT and turn usernames returned by `/calls/config/v2` are now deterministically computed from the user ID

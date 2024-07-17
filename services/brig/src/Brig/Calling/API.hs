@@ -21,6 +21,7 @@
 module Brig.Calling.API
   ( getCallsConfig,
     getCallsConfigV2,
+    base26,
 
     -- * Exposed for testing purposes
     newConfig,
@@ -40,22 +41,24 @@ import Brig.Options (ListAllSFTServers (..))
 import Brig.Options qualified as Opt
 import Control.Error (hush, throwE)
 import Control.Lens
+import Crypto.Hash qualified as Crypto
+import Data.ByteArray (convert)
+import Data.ByteString qualified as B
 import Data.ByteString.Conversion
-import Data.ByteString.Lens
+import Data.ByteString.Lazy qualified as BL
 import Data.Id
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Misc (HttpsUrl)
 import Data.Range
 import Data.Text.Ascii (AsciiBase64, encodeBase64)
-import Data.Text.Strict.Lens
 import Data.Time.Clock.POSIX
+import Data.UUID qualified as UUID
 import Imports hiding (head)
 import OpenSSL.EVP.Digest (Digest, hmacBS)
 import Polysemy
 import Polysemy.Error qualified as Polysemy
 import System.Logger.Class qualified as Log
-import System.Random.MWC qualified as MWC
 import Wire.API.Call.Config qualified as Public
 import Wire.API.Team.Feature (AllFeatureConfigs (afcConferenceCalling), FeatureStatus (FeatureStatusDisabled, FeatureStatusEnabled), wsStatus)
 import Wire.Error
@@ -88,7 +91,7 @@ getCallsConfigV2 uid _ limit = do
     lift
       . liftSem
       . Polysemy.runError
-      $ newConfig env discoveredServers staticUrl sftEnv' limit sftListAllServers (CallsConfigV2 sftFederation) shared
+      $ newConfig uid env discoveredServers staticUrl sftEnv' limit sftListAllServers (CallsConfigV2 sftFederation) shared
   handleNoTurnServers eitherConfig
 
 -- | Throws '500 Internal Server Error' when no turn servers are found. This is
@@ -124,7 +127,7 @@ getCallsConfig uid _ = do
       . lift
       . liftSem
       . Polysemy.runError
-      $ newConfig env discoveredServers Nothing Nothing Nothing HideAllSFTServers CallsConfigDeprecated shared
+      $ newConfig uid env discoveredServers Nothing Nothing Nothing HideAllSFTServers CallsConfigDeprecated shared
   handleNoTurnServers eitherConfig
   where
     -- In order to avoid being backwards incompatible, remove the `transport` query param from the URIs
@@ -153,6 +156,7 @@ newConfig ::
     Member SFT r,
     Member (Polysemy.Error NoTurnServers) r
   ) =>
+  UserId ->
   Calling.TurnEnv ->
   Discovery (NonEmpty Public.TurnURI) ->
   Maybe HttpsUrl ->
@@ -162,7 +166,7 @@ newConfig ::
   CallsConfigVersion ->
   Bool ->
   Sem r Public.RTCConfiguration
-newConfig env discoveredServers sftStaticUrl mSftEnv limit listAllServers version shared = do
+newConfig uid env discoveredServers sftStaticUrl mSftEnv limit listAllServers version shared = do
   -- randomize list of servers (before limiting the list, to ensure not always the same servers are chosen if limit is set)
   randomizedUris <-
     liftIO . randomize
@@ -173,7 +177,7 @@ newConfig env discoveredServers sftStaticUrl mSftEnv limit listAllServers versio
   -- randomize again (as limitedList partially re-orders uris)
   finalUris <- liftIO $ randomize limitedUris
   srvs <- for finalUris $ \uri -> do
-    u <- liftIO $ genTurnUsername (env ^. turnTokenTTL) (env ^. turnPrng)
+    u <- liftIO $ genTurnUsername (env ^. turnTokenTTL)
     pure . Public.rtcIceServer (pure uri) u $ computeCred (env ^. turnSHA512) (env ^. turnSecret) u
 
   let staticSft = pure . Public.sftServer <$> sftStaticUrl
@@ -211,20 +215,38 @@ newConfig env discoveredServers sftStaticUrl mSftEnv limit listAllServers versio
       NonEmpty.nonEmpty (Public.limitServers (NonEmpty.toList uris) (fromRange lim))
         & fromMaybe (error "newConfig:limitedList: empty list of servers")
 
-    genUsername :: Word32 -> MWC.GenIO -> IO (POSIXTime, Text)
-    genUsername ttl prng = do
-      rnd <- view (packedBytes . utf8) <$> replicateM 16 (MWC.uniformR (97, 122) prng)
-      t <- fromIntegral . (+ ttl) . round <$> getPOSIXTime
-      pure $ (t, rnd)
+    hash :: ByteString -> ByteString
+    hash = convert . Crypto.hash @ByteString @Crypto.SHA256
 
-    genTurnUsername :: Word32 -> MWC.GenIO -> IO Public.TurnUsername
-    genTurnUsername = (fmap (uncurry Public.turnUsername) .) . genUsername
+    genUsername :: UserId -> Text
+    genUsername =
+      base26
+        . foldr (\x r -> fromIntegral x + r * 256) 0
+        . take 16
+        . B.unpack
+        . hash
+        . BL.toStrict
+        . UUID.toByteString
+        . toUUID
 
-    genSFTUsername :: Word32 -> MWC.GenIO -> IO Public.SFTUsername
-    genSFTUsername = (fmap (uncurry (Public.mkSFTUsername shared)) .) . genUsername
+    getTime :: Word32 -> IO POSIXTime
+    getTime ttl = fromIntegral . (+ ttl) . round <$> getPOSIXTime
+
+    genTurnUsername :: Word32 -> IO Public.TurnUsername
+    genTurnUsername ttl =
+      Public.turnUsername
+        <$> getTime ttl
+        <*> pure (genUsername uid)
+
+    genSFTUsername :: Word32 -> IO Public.SFTUsername
+    genSFTUsername ttl =
+      Public.mkSFTUsername shared
+        <$> getTime ttl
+        <*> pure (genUsername uid)
 
     computeCred :: (ToByteString a) => Digest -> ByteString -> a -> AsciiBase64
     computeCred dig secret = encodeBase64 . hmacBS dig secret . toByteString'
+
     authenticate ::
       (Member (Embed IO) r) =>
       Public.SFTServer ->
@@ -233,7 +255,7 @@ newConfig env discoveredServers sftStaticUrl mSftEnv limit listAllServers versio
       maybe
         (pure . Public.nauthSFTServer)
         ( \SFTTokenEnv {..} sftsvr -> do
-            username <- liftIO $ genSFTUsername sftTokenTTL sftTokenPRNG
+            username <- liftIO $ genSFTUsername sftTokenTTL
             let credential = computeCred sftTokenSHA sftTokenSecret username
             pure $ Public.authSFTServer sftsvr username credential
         )
