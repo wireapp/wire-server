@@ -718,10 +718,6 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
   for_ (Public.newUserEmail new) $
     mapExceptT wrapHttp . checkAllowlistWithError RegisterErrorAllowlistError
 
-  -- prevent registration with a phone number
-  when (isJust (Public.newUserPhone new)) $
-    throwE Public.RegisterErrorInvalidPhone
-
   result <- API.createUser new
   let acc = createdAccount result
 

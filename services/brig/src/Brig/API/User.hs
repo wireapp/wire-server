@@ -385,10 +385,6 @@ createUser new = do
           pure
           (validateEmail e)
 
-      -- Disallow registering a user with a phone number
-      when (isJust (newUserPhone newUser)) $
-        throwE RegisterErrorInvalidPhone
-
       for_ (mkEmailKey <$> email) $ \k ->
         verifyUniquenessAndCheckBlacklist k !>> identityErrorToRegisterError
 

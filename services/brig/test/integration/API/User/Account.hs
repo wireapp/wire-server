@@ -109,7 +109,7 @@ tests _ at opts p b c ch g aws userJournalWatcher =
       test p "post /register - 201 anonymous expiry" $ testCreateUserAnonExpiry b,
       test p "post /register - 201 pending" $ testCreateUserPending opts b,
       test p "testCreateUserConflict - post /register - 409 conflict" $ testCreateUserConflict opts b,
-      test p "testCreateUserInvalidEmailOrPhone - post /register - 400 invalid input" $ testCreateUserInvalidEmailOrPhone opts b,
+      test p "testCreateUserInvalidEmail - post /register - 400 invalid input" $ testCreateUserInvalidEmail opts b,
       test p "post /register - 403 blacklist" $ testCreateUserBlacklist opts b aws,
       test p "post /register - 400 external-SSO" $ testCreateUserExternalSSO b,
       test p "post /register - 403 restricted user creation" $ testRestrictedUserCreation opts b,
@@ -427,12 +427,12 @@ testCreateUserConflict _ brig = do
     const 409 === statusCode
     const (Just "key-exists") === fmap Error.label . responseJsonMaybe
 
--- The testCreateUserInvalidEmailOrPhone test conforms to the following testing standards:
+-- The testCreateUserInvalidEmail test conforms to the following testing standards:
 --
 -- Test to make sure a new user cannot be created with an invalid email address or invalid phone number.
-testCreateUserInvalidEmailOrPhone :: Opt.Opts -> Brig -> Http ()
-testCreateUserInvalidEmailOrPhone (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ = pure ()
-testCreateUserInvalidEmailOrPhone _ brig = do
+testCreateUserInvalidEmail :: Opt.Opts -> Brig -> Http ()
+testCreateUserInvalidEmail (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ = pure ()
+testCreateUserInvalidEmail _ brig = do
   email <- randomEmail
   let reqEmail =
         RequestBodyLBS . encode $
@@ -440,10 +440,10 @@ testCreateUserInvalidEmailOrPhone _ brig = do
             [ "name" .= ("foo" :: Text),
               "email" .= fromEmail email,
               "password" .= defPassword,
-              "phone" .= ("123456" :: Text) -- invalid phone nr
+              "phone" .= ("123456" :: Text) -- invalid phone number, but ignored
             ]
   post (brig . path "/register" . contentJson . body reqEmail)
-    !!! const 400 === statusCode
+    !!! const 201 === statusCode
 
   phone <- randomPhone
   let reqPhone =
