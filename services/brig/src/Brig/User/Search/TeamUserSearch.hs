@@ -61,12 +61,10 @@ teamUserSearch tid mbSearchText mRoleFilter mSortBy mSortOrder (fromRange -> siz
             ES.sortBody = Just (fmap ES.DefaultSortSpec sortSpecs),
             ES.searchAfterKey = toSearchAfterKey =<< mPagingState
           }
-  r :: Either ES.EsError (ES.SearchResult TeamContact) <-
+  r <-
     ES.searchByType idx mappingName search
       >>= ES.parseEsResponse
-  -- TODO: revert this file
-  _ <- either (throwM . IndexLookupError) (pure . mkResult) r
-  throwM $ IndexError "oops"
+  either (throwM . IndexLookupError) (pure . mkResult) r
   where
     toSearchAfterKey :: PagingState -> Maybe ES.SearchAfterKey
     toSearchAfterKey ps = decode' . fromStrict =<< (decodeBase64Url . unPagingState $ ps)

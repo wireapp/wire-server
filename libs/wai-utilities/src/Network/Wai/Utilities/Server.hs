@@ -65,7 +65,6 @@ import Data.Metrics.GC (spawnGCMetricsCollector)
 import Data.Streaming.Zlib (ZlibException (..))
 import Data.Text.Encoding qualified as Text
 import Data.Text.Encoding.Error (lenientDecode)
-import Data.Text.Lazy qualified as LT
 import Data.Text.Lazy.Encoding qualified as LT
 import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID
@@ -253,7 +252,7 @@ errorHandlers =
         ThreadKilled -> throwIO x
         _ ->
           pure . Left $
-            Wai.mkError status500 "server-error" ("Server Error. " <> LT.pack (displayException x)),
+            Wai.mkError status500 "server-error" "Server Error",
     Handler $ \(_ :: InvalidRequest) ->
       pure . Left $
         Wai.mkError status400 "client-error" "Invalid Request",
@@ -267,9 +266,9 @@ errorHandlers =
       ZlibException _ ->
         pure . Left $
           Wai.mkError status500 "server-error" "Server Error",
-    Handler $ \(e :: SomeException) ->
+    Handler $ \(_ :: SomeException) ->
       pure . Left $
-        Wai.mkError status500 "server-error" ("Server Error. " <> LT.pack (displayException e))
+        Wai.mkError status500 "server-error" "Server Error"
   ]
 {-# INLINE errorHandlers #-}
 
