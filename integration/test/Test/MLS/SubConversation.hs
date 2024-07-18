@@ -260,7 +260,7 @@ testCreatorRemovesUserFromParent = do
     setMLSState childState
     let idxBob1 :: Int = 1
         idxBob2 :: Int = 2
-    for_ ((,) <$> [idxBob1, idxBob2] <*> [alice1, charlie1, charlie2] `zip` wss) \(idx, (consumer, ws)) -> do
+    for_ ((,) <$> [idxBob1, idxBob2] <*> wss) \(idx, ws) -> do
       msg <-
         awaitMatch
           do
@@ -277,9 +277,8 @@ testCreatorRemovesUserFromParent = do
                 lift do
                   (== idx) <$> (prop %. "Remove.removed" & asInt)
           ws
-      msg %. "payload.0.data"
-        & asByteString
-          >>= mlsCliConsume consumer
+      for_ ws.client $ \consumer ->
+        msg %. "payload.0.data" & asByteString >>= mlsCliConsume consumer
 
     -- remove bob from the child state
     modifyMLSState $ \s -> s {members = s.members Set.\\ Set.fromList [bob1, bob2]}
