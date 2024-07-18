@@ -283,6 +283,10 @@ createUser ::
 createUser new = do
   email <- validateEmailAndPhone new
 
+  -- assert the new user has an identity
+  unless (isJust (newIdentity email (newUserSSOId new))) $
+    throwE RegisterErrorMissingIdentity
+
   -- get invitation and existing account
   (mNewTeamUser, teamInvitation, tid) <-
     case newUserTeam new of
