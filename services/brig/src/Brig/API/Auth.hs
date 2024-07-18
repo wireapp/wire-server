@@ -103,6 +103,27 @@ sendLoginCode _ =
   -- Login by phone is unsupported
   throwStd (errorToWai @'E.InvalidPhone)
 
+loginV5 ::
+  ( Member GalleyAPIAccess r,
+    Member TinyLog r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r,
+    Member PasswordStore r,
+    Member UserKeyStore r,
+    Member UserStore r,
+    Member VerificationCodeSubsystem r
+  ) =>
+  LoginV5 ->
+  Maybe Bool ->
+  Handler r SomeAccess
+loginV5 l (fromMaybe False -> persist) = do
+  let typ = if persist then PersistentCookie else SessionCookie
+  c <- Auth.loginV5 l typ !>> loginError
+  traverse mkUserTokenCookie c
+
 login ::
   ( Member GalleyAPIAccess r,
     Member TinyLog r,

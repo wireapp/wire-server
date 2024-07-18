@@ -842,7 +842,7 @@ defEmailLogin :: Email -> Login
 defEmailLogin e = emailLogin e defPassword (Just defCookieLabel)
 
 emailLogin :: Email -> PlainTextPassword6 -> Maybe CookieLabel -> Login
-emailLogin e pw cl = PasswordLogin (PasswordLoginData (LoginByEmail e) pw cl Nothing)
+emailLogin e pw cl = MkLogin (LoginByEmail e) pw cl Nothing
 
 somePrekeys :: [Prekey]
 somePrekeys =

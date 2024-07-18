@@ -435,10 +435,10 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.ListType_team
     Test.Wire.API.Golden.Generated.Locale_user
     Test.Wire.API.Golden.Generated.LocaleUpdate_user
-    Test.Wire.API.Golden.Generated.Login_user
     Test.Wire.API.Golden.Generated.LoginCode_user
     Test.Wire.API.Golden.Generated.LoginCodeTimeout_user
-    Test.Wire.API.Golden.Generated.LoginId_user
+    Test.Wire.API.Golden.Generated.LoginIdV5_user
+    Test.Wire.API.Golden.Generated.LoginV5_user
     Test.Wire.API.Golden.Generated.ManagedBy_user
     Test.Wire.API.Golden.Generated.Member_user
     Test.Wire.API.Golden.Generated.MemberUpdate_user
@@ -591,6 +591,8 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.GroupId
     Test.Wire.API.Golden.Manual.ListConversations
     Test.Wire.API.Golden.Manual.ListUsersById
+    Test.Wire.API.Golden.Manual.Login_user
+    Test.Wire.API.Golden.Manual.LoginId_user
     Test.Wire.API.Golden.Manual.MLSKeys
     Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
     Test.Wire.API.Golden.Manual.SearchResultContact

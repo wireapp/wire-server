@@ -447,6 +447,7 @@ servantSitemap =
     authAPI =
       Named @"access" (callsFed (exposeAnnotations accessH))
         :<|> Named @"send-login-code" sendLoginCode
+        :<|> Named @"login-v5" (callsFed (exposeAnnotations loginV5))
         :<|> Named @"login" (callsFed (exposeAnnotations login))
         :<|> Named @"logout" logoutH
         :<|> Named @"change-self-email" changeSelfEmailH

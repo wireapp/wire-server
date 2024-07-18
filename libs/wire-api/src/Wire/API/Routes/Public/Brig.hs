@@ -1450,8 +1450,31 @@ type AuthAPI =
                     (Respond 200 "OK" LoginCodeTimeout)
            )
     :<|> Named
+           "login-v5"
+           ( "login"
+               :> Until 'V6
+               :> Summary "Authenticate a user to obtain a cookie and first access token"
+               :> Description "Logins are throttled at the server's discretion"
+               :> MakesFederatedCall 'Brig "send-connection-action"
+               :> ReqBody '[JSON] LoginV5
+               :> QueryParam'
+                    [ Optional,
+                      Strict,
+                      Description "Request a persistent cookie instead of a session cookie"
+                    ]
+                    "persist"
+                    Bool
+               :> CanThrow 'BadCredentials
+               :> CanThrow 'AccountSuspended
+               :> CanThrow 'AccountPending
+               :> CanThrow 'CodeAuthenticationFailed
+               :> CanThrow 'CodeAuthenticationRequired
+               :> MultiVerb1 'POST '[JSON] TokenResponse
+           )
+    :<|> Named
            "login"
            ( "login"
+               :> From 'V6
                :> Summary "Authenticate a user to obtain a cookie and first access token"
                :> Description "Logins are throttled at the server's discretion"
                :> MakesFederatedCall 'Brig "send-connection-action"

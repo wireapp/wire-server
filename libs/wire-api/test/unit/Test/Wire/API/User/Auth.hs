@@ -39,7 +39,7 @@ loginIdFailFastOnEmail = testCase "LoginId parser: invalid email, valid phone" $
   assertEqual "should fail if any provided login id is invalid" expected actual
 
 loginIdFailFastOnPhone :: T.TestTree
-loginIdFailFastOnPhone = testCase "LoginId parser: invalid phone, valid email" $ do
-  let actual :: Maybe LoginId = Aeson.decode "{\"email\":\"foo@bar.com\",\"phone\":\"invalid-phone\"}"
+loginIdFailFastOnPhone = testCase "LoginIdV5 parser: invalid phone, valid email" $ do
+  let actual :: Maybe LoginIdV5 = Aeson.decode "{\"email\":\"foo@bar.com\",\"phone\":\"invalid-phone\"}"
   let expected = Nothing
   assertEqual "should fail if any provided login id is invalid" expected actual

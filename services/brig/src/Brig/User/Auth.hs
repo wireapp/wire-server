@@ -18,6 +18,7 @@
 -- | High-level user authentication and access control.
 module Brig.User.Auth
   ( Access,
+    loginV5,
     login,
     logout,
     renewAccess,
@@ -85,6 +86,33 @@ import Wire.VerificationCodeGen qualified as VerificationCodeGen
 import Wire.VerificationCodeSubsystem (VerificationCodeSubsystem)
 import Wire.VerificationCodeSubsystem qualified as VerificationCodeSubsystem
 
+loginV5 ::
+  forall r.
+  ( Member GalleyAPIAccess r,
+    Member TinyLog r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r,
+    Member PasswordStore r,
+    Member UserKeyStore r,
+    Member UserStore r,
+    Member VerificationCodeSubsystem r
+  ) =>
+  LoginV5 ->
+  CookieType ->
+  ExceptT LoginError (AppT r) (Access ZAuth.User)
+loginV5 (PasswordLogin (PasswordLoginData (LoginV5ByPhone _) _ _ _)) _ =
+  throwE LoginFailed
+loginV5 (PasswordLogin (PasswordLoginData (LoginV5ByEmail e) pw label code)) typ =
+  login (MkLogin (LoginByEmail e) pw label code) typ
+loginV5 (PasswordLogin (PasswordLoginData (LoginV5ByHandle h) pw label code)) typ =
+  login (MkLogin (LoginByHandle h) pw label code) typ
+loginV5 (SmsLogin _) _ = do
+  -- sms login not supported
+  throwE LoginFailed
+
 login ::
   forall r.
   ( Member GalleyAPIAccess r,
@@ -102,7 +130,7 @@ login ::
   Login ->
   CookieType ->
   ExceptT LoginError (AppT r) (Access ZAuth.User)
-login (PasswordLogin (PasswordLoginData li pw label code)) typ = do
+login (MkLogin li pw label code) typ = do
   uid <- resolveLoginId li
   lift . liftSem . Log.debug $ field "user" (toByteString uid) . field "action" (val "User.login")
   wrapHttpClientE $ checkRetryLimit uid
@@ -122,9 +150,6 @@ login (PasswordLogin (PasswordLoginData li pw label code)) typ = do
           VerificationCodeNoPendingCode -> wrapHttpClientE $ loginFailedWith LoginCodeInvalid uid
           VerificationCodeRequired -> wrapHttpClientE $ loginFailedWith LoginCodeRequired uid
           VerificationCodeNoEmail -> wrapHttpClientE $ loginFailed uid
-login (SmsLogin _) _ = do
-  -- sms login not supported
-  throwE LoginFailed
 
 verifyCode ::
   forall r.
@@ -302,9 +327,6 @@ validateLoginId (LoginByEmail email) =
     (const $ throwE LoginFailed)
     (pure . Left . mkEmailKey)
     (validateEmail email)
-validateLoginId (LoginByPhone _) = do
-  -- phone logins are not supported
-  throwE LoginFailed
 validateLoginId (LoginByHandle h) =
   pure (Right h)
 
@@ -312,7 +334,6 @@ isPendingActivation :: (MonadClient m, MonadReader Env m) => LoginId -> m Bool
 isPendingActivation ident = case ident of
   (LoginByHandle _) -> pure False
   (LoginByEmail e) -> checkKey (mkEmailKey e)
-  (LoginByPhone _) -> pure False
   where
     checkKey k = do
       usr <- (>>= fst) <$> Data.lookupActivationCode k

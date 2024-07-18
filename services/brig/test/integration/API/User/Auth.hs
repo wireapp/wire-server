@@ -179,7 +179,7 @@ testLoginWith6CharPassword brig db = do
     checkLogin email pw expectedStatusCode =
       login
         brig
-        (PasswordLogin (PasswordLoginData (LoginByEmail email) pw Nothing Nothing))
+        (MkLogin (LoginByEmail email) pw Nothing Nothing)
         PersistentCookie
         !!! const expectedStatusCode === statusCode
 
@@ -362,7 +362,7 @@ testHandleLogin brig = do
   let update = RequestBodyLBS . encode $ HandleUpdate hdl
   put (brig . path "/self/handle" . contentJson . zUser usr . zConn "c" . Http.body update)
     !!! const 200 === statusCode
-  let l = PasswordLogin (PasswordLoginData (LoginByHandle (fromJust $ parseHandle hdl)) defPassword Nothing Nothing)
+  let l = MkLogin (LoginByHandle (fromJust $ parseHandle hdl)) defPassword Nothing Nothing
   login brig l PersistentCookie !!! const 200 === statusCode
 
 -- | Check that local part after @+@ is ignored by equality on email addresses if the domain is
@@ -385,15 +385,14 @@ testLoginFailure brig = do
   let badpw = plainTextPassword6Unsafe "wrongpassword"
   login
     brig
-    (PasswordLogin (PasswordLoginData (LoginByEmail email) badpw Nothing Nothing))
+    (MkLogin (LoginByEmail email) badpw Nothing Nothing)
     PersistentCookie
     !!! const 403 === statusCode
   -- login with wrong / non-existent email
   let badmail = Email "wrong" "wire.com"
   login
     brig
-    ( PasswordLogin
-        (PasswordLoginData (LoginByEmail badmail) defPassword Nothing Nothing)
+    ( MkLogin (LoginByEmail badmail) defPassword Nothing Nothing
     )
     PersistentCookie
     !!! const 403 === statusCode

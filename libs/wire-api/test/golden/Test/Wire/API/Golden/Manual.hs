@@ -38,6 +38,8 @@ import Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
 import Test.Wire.API.Golden.Manual.GroupId
 import Test.Wire.API.Golden.Manual.ListConversations
 import Test.Wire.API.Golden.Manual.ListUsersById
+import Test.Wire.API.Golden.Manual.LoginId_user
+import Test.Wire.API.Golden.Manual.Login_user
 import Test.Wire.API.Golden.Manual.MLSKeys
 import Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
 import Test.Wire.API.Golden.Manual.SearchResultContact
@@ -244,5 +246,22 @@ tests =
         testObjects
           [ (testObject_SendActivationCode_1, "testObject_SendActivationCode_1.json"),
             (testObject_SendActivationCode_2, "testObject_SendActivationCode_2.json")
+          ],
+      testGroup "LoginId" $
+        testObjects
+          [ (testObject_LoginId_user_1, "testObject_LoginId_user_1.json"),
+            (testObject_LoginId_user_2, "testObject_LoginId_user_2.json"),
+            (testObject_LoginId_user_3, "testObject_LoginId_user_3.json"),
+            (testObject_LoginId_user_4, "testObject_LoginId_user_4.json"),
+            (testObject_LoginId_user_5, "testObject_LoginId_user_5.json"),
+            (testObject_LoginId_user_6, "testObject_LoginId_user_6.json")
+          ],
+      testGroup "Login" $
+        testObjects
+          [ (testObject_Login_user_1, "testObject_Login_user_1.json"),
+            (testObject_Login_user_2, "testObject_Login_user_2.json"),
+            (testObject_Login_user_3, "testObject_Login_user_3.json"),
+            (testObject_Login_user_4, "testObject_Login_user_4.json"),
+            (testObject_Login_user_5, "testObject_Login_user_5.json")
           ]
     ]

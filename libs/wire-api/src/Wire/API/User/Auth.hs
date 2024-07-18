@@ -21,11 +21,14 @@
 
 module Wire.API.User.Auth
   ( -- * Login
+    LoginV5 (..),
     Login (..),
     PasswordLoginData (..),
     SmsLoginData (..),
+    loginLabelV5,
     loginLabel,
     LoginCode (..),
+    LoginIdV5 (..),
     LoginId (..),
     PendingLoginCode (..),
     SendLoginCode (..),
@@ -97,40 +100,71 @@ import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 --------------------------------------------------------------------------------
 -- LoginId
 
-data LoginId
-  = LoginByEmail Email
-  | LoginByPhone Phone
-  | LoginByHandle Handle
+-- | The login ID for client API versions v0..v5
+data LoginIdV5
+  = LoginV5ByEmail Email
+  | LoginV5ByPhone Phone
+  | LoginV5ByHandle Handle
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform LoginId)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema LoginId
+  deriving (Arbitrary) via (GenericUniform LoginIdV5)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema LoginIdV5
 
 -- NB. this should fail if (e.g.) the email is present but unparseable even if the JSON contains a valid phone number or handle.
 -- See tests in `Test.Wire.API.User.Auth`.
-instance ToSchema LoginId where
-  schema = object "LoginId" $ loginObjectSchema
+instance ToSchema LoginIdV5 where
+  schema = object "LoginIdV5" $ loginObjectSchemaV5
 
-loginObjectSchema :: ObjectSchema SwaggerDoc LoginId
-loginObjectSchema =
+loginObjectSchemaV5 :: ObjectSchema SwaggerDoc LoginIdV5
+loginObjectSchemaV5 =
   fromLoginId .= tupleSchema `withParser` validate
   where
-    fromLoginId :: LoginId -> (Maybe Email, Maybe Phone, Maybe Handle)
+    fromLoginId :: LoginIdV5 -> (Maybe Email, Maybe Phone, Maybe Handle)
     fromLoginId = \case
-      LoginByEmail e -> (Just e, Nothing, Nothing)
-      LoginByPhone p -> (Nothing, Just p, Nothing)
-      LoginByHandle h -> (Nothing, Nothing, Just h)
+      LoginV5ByEmail e -> (Just e, Nothing, Nothing)
+      LoginV5ByPhone p -> (Nothing, Just p, Nothing)
+      LoginV5ByHandle h -> (Nothing, Nothing, Just h)
     tupleSchema :: ObjectSchema SwaggerDoc (Maybe Email, Maybe Phone, Maybe Handle)
     tupleSchema =
       (,,)
         <$> fst3 .= maybe_ (optField "email" schema)
         <*> snd3 .= maybe_ (optField "phone" schema)
         <*> thd3 .= maybe_ (optField "handle" schema)
-    validate :: (Maybe Email, Maybe Phone, Maybe Handle) -> A.Parser LoginId
+    validate :: (Maybe Email, Maybe Phone, Maybe Handle) -> A.Parser LoginIdV5
     validate (mEmail, mPhone, mHandle) =
       maybe (fail "'email', 'phone' or 'handle' required") pure $
-        (LoginByEmail <$> mEmail)
-          <|> (LoginByPhone <$> mPhone)
-          <|> (LoginByHandle <$> mHandle)
+        (LoginV5ByEmail <$> mEmail)
+          <|> (LoginV5ByPhone <$> mPhone)
+          <|> (LoginV5ByHandle <$> mHandle)
+
+data LoginId
+  = LoginByEmail Email
+  | LoginByHandle Handle
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform LoginId)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema LoginId
+
+-- NB. this should fail if (e.g.) the email is present but unparseable even if
+-- the JSON contains a valid handle.
+instance ToSchema LoginId where
+  schema = object "LoginId" loginObjectSchema
+
+loginObjectSchema :: ObjectSchema SwaggerDoc LoginId
+loginObjectSchema =
+  fromLoginId .= tupleSchema `withParser` validate
+  where
+    fromLoginId :: LoginId -> (Maybe Email, Maybe Handle)
+    fromLoginId = \case
+      LoginByEmail e -> (Just e, Nothing)
+      LoginByHandle h -> (Nothing, Just h)
+    tupleSchema :: ObjectSchema SwaggerDoc (Maybe Email, Maybe Handle)
+    tupleSchema =
+      (,)
+        <$> fst .= maybe_ (optField "email" schema)
+        <*> snd .= maybe_ (optField "handle" schema)
+    validate :: (Maybe Email, Maybe Handle) -> A.Parser LoginId
+    validate (mEmail, mHandle) =
+      maybe (fail "'email' or 'handle' required") pure $
+        (LoginByEmail <$> mEmail) <|> (LoginByHandle <$> mHandle)
 
 --------------------------------------------------------------------------------
 -- LoginCode
@@ -336,15 +370,34 @@ toUnitCookie c = c {cookieValue = ()}
 --------------------------------------------------------------------------------
 -- Login
 
--- | Different kinds of logins.
-data Login
+data Login = MkLogin
+  { lId :: LoginId,
+    lPassword :: PlainTextPassword6,
+    lLabel :: Maybe CookieLabel,
+    lCode :: Maybe Code.Value
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform Login)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema Login)
+
+instance ToSchema Login where
+  schema =
+    object "Login" $
+      MkLogin
+        <$> lId .= loginObjectSchema
+        <*> lPassword .= field "password" schema
+        <*> lLabel .= optField "label" (maybeWithDefault A.Null schema)
+        <*> lCode .= optField "verification_code" (maybeWithDefault A.Null schema)
+
+-- | Different kinds of logins for client API versions v0..v5.
+data LoginV5
   = PasswordLogin PasswordLoginData
   | SmsLogin SmsLoginData
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform Login)
+  deriving (Arbitrary) via (GenericUniform LoginV5)
 
 data PasswordLoginData = PasswordLoginData
-  { plId :: LoginId,
+  { plId :: LoginIdV5,
     plPassword :: PlainTextPassword6,
     plLabel :: Maybe CookieLabel,
     plCode :: Maybe Code.Value
@@ -355,7 +408,7 @@ data PasswordLoginData = PasswordLoginData
 passwordLoginSchema :: ObjectSchema SwaggerDoc PasswordLoginData
 passwordLoginSchema =
   PasswordLoginData
-    <$> plId .= loginObjectSchema
+    <$> plId .= loginObjectSchemaV5
     <*> plPassword .= field "password" schema
     <*> plLabel .= optField "label" (maybeWithDefault A.Null schema)
     <*> plCode .= optField "verification_code" (maybeWithDefault A.Null schema)
@@ -382,23 +435,26 @@ smsLoginSchema =
         )
         (maybeWithDefault A.Null schema)
 
-$(makePrisms ''Login)
+$(makePrisms ''LoginV5)
 
-instance ToSchema Login where
+instance ToSchema LoginV5 where
   schema =
-    object "Login" $
+    object "LoginV5" $
       tag _PasswordLogin passwordLoginSchema
         <> tag _SmsLogin smsLoginSchema
 
-deriving via Schema Login instance FromJSON Login
+deriving via Schema LoginV5 instance FromJSON LoginV5
 
-deriving via Schema Login instance ToJSON Login
+deriving via Schema LoginV5 instance ToJSON LoginV5
 
-deriving via Schema Login instance S.ToSchema Login
+deriving via Schema LoginV5 instance S.ToSchema LoginV5
+
+loginLabelV5 :: LoginV5 -> Maybe CookieLabel
+loginLabelV5 (PasswordLogin pl) = plLabel pl
+loginLabelV5 (SmsLogin sl) = slLabel sl
 
 loginLabel :: Login -> Maybe CookieLabel
-loginLabel (PasswordLogin pl) = plLabel pl
-loginLabel (SmsLogin sl) = slLabel sl
+loginLabel = lLabel
 
 --------------------------------------------------------------------------------
 -- RemoveCookies

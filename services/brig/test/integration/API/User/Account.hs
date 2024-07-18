@@ -1036,7 +1036,7 @@ testPasswordChange brig = do
   -- login with new password
   login
     brig
-    (PasswordLogin (PasswordLoginData (LoginByEmail email) newPass Nothing Nothing))
+    (MkLogin (LoginByEmail email) newPass Nothing Nothing)
     PersistentCookie
     !!! const 200 === statusCode
   -- try to change the password to itself should fail

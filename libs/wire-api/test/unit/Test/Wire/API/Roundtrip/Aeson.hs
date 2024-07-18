@@ -286,6 +286,7 @@ tests =
       testRoundTrip @User.Auth.LoginCodeTimeout,
       testRoundTrip @User.Auth.CookieLabel,
       testRoundTrip @User.Auth.Login,
+      testRoundTrip @User.Auth.LoginV5,
       testRoundTrip @User.Auth.CookieId,
       testRoundTrip @User.Auth.CookieType,
       testRoundTrip @(User.Auth.Cookie ()),
