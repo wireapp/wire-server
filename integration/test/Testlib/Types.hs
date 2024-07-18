@@ -268,6 +268,14 @@ csSignatureScheme (Ciphersuite code) = case code of
   "0x0007" -> "ecdsa_secp384r1_sha384"
   _ -> "ed25519"
 
+allSignatureSchemes :: [String]
+allSignatureSchemes =
+  [ "ecdsa_secp256r1_sha256",
+    "ecdsa_secp521r1_sha512",
+    "ecdsa_secp384r1_sha384",
+    "ed25519"
+  ]
+
 data MLSProtocol = MLSProtocolMLS | MLSProtocolMixed
   deriving (Eq, Show)
 

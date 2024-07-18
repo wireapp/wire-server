@@ -137,6 +137,7 @@ startDynamicBackend resource beOverrides = do
             setFederationSettings,
             setAwsConfigs,
             setLogLevel,
+            setMLSKeys,
             beOverrides
           ]
   startBackend resource overrides
@@ -213,6 +214,21 @@ startDynamicBackend resource beOverrides = do
           backgroundWorkerCfg = setField "logLevel" ("Warn" :: String),
           sternCfg = setField "logLevel" ("Warn" :: String),
           federatorInternalCfg = setField "logLevel" ("Warn" :: String)
+        }
+
+    setMLSKeys :: ServiceOverrides
+    setMLSKeys =
+      def
+        { galleyCfg =
+            foldr (<=<) pure $
+              [ setField
+                  ("settings.mlsPrivateKeyPaths.removal." <> ss)
+                  ( "../../integration/test/resources/removal_keys"
+                      </> resource.berDomain
+                      </> ss <> ".pem"
+                  )
+                | ss <- allSignatureSchemes
+              ]
         }
 
 updateServiceMapInConfig :: BackendResource -> Service -> Value -> App Value
