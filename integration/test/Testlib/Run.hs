@@ -1,4 +1,4 @@
-module Testlib.Run (main, mainI, createGlobalEnv) where
+module Testlib.Run (main, mainI) where
 
 import Control.Concurrent
 import Control.Exception as E
@@ -112,34 +112,6 @@ main = do
 
   if opts.listTests then doListTests tests else runTests tests opts.xmlReport cfg
 
-createGlobalEnv :: FilePath -> Codensity IO GlobalEnv
-createGlobalEnv cfg = do
-  genv0 <- mkGlobalEnv cfg
-  -- Run codensity locally here, because we only need the environment to get at
-  -- Galley's configuration. Accessing the environment has the side effect of
-  -- creating a temporary mls directory, which we don't need here.
-
-  let removalKeysDir = gTempDir genv0 </> "removal-keys"
-  keys <- liftIO . lowerCodensity $ do
-    env <- mkEnv genv0
-    liftIO $ createDirectoryIfMissing True removalKeysDir
-    liftIO . runAppWithEnv env $ do
-      config <- readServiceConfig Galley
-      for
-        [ ("ed25519", loadEd25519Key),
-          ("ecdsa_secp256r1_sha256", loadEcKey "ecdsa_secp256r1_sha256" 73),
-          ("ecdsa_secp384r1_sha384", loadEcKey "ecdsa_secp384r1_sha384" 88),
-          ("ecdsa_secp521r1_sha512", loadEcKey "ecdsa_secp521r1_sha512" 108)
-        ]
-        $ \(sigScheme, load) -> do
-          key <- load config
-          let path = removalKeysDir </> (sigScheme <> ".key")
-          liftIO $ B.writeFile path key
-          pure (sigScheme, path)
-
-  -- save removal key to a temporary file
-  pure genv0 {gRemovalKeyPaths = Map.fromList keys}
-
 getPrivateKeyPath :: Value -> String -> App FilePath
 getPrivateKeyPath config signatureScheme = do
   relPath <- config %. "settings.mlsPrivateKeyPaths.removal" %. signatureScheme & asString
@@ -182,7 +154,7 @@ runTests tests mXMLOutput cfg = do
           Nothing -> pure ()
   let writeOutput = writeChan output . Just
 
-  runCodensity (createGlobalEnv cfg) $ \genv ->
+  runCodensity (mkGlobalEnv cfg) $ \genv ->
     withAsync displayOutput $ \displayThread -> do
       -- Currently 4 seems to be stable, more seems to create more timeouts.
       report <- fmap mconcat $ pooledForConcurrentlyN 4 tests $ \(qname, _, _, action) -> do
