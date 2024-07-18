@@ -174,3 +174,12 @@ testActivateAccountWithPhoneV5 = do
   activateUserV5 dom reqBody `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 400
     resp.json %. "label" `shouldMatch` "invalid-phone"
+
+testRegisterUserWithoutIdentity :: (HasCallStack) => Versioned -> App ()
+testRegisterUserWithoutIdentity versioned = do
+  req <-
+    baseRequest OwnDomain Brig versioned "register"
+      <&> addJSONObject ["name" .= "User without face"]
+  submit "POST" req `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "missing-identity"
