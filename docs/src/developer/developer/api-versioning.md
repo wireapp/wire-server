@@ -118,6 +118,8 @@ the version. In these example we assume that version `V6` should be finalized an
   - update `versionedSwaggerDocsAPI` so that the finalized version points to the pregenerated swagger
   - and `internalEndpointsSwaggerDocsAPI` so that the finalized version `V6`, the new version `V7`, as well as the unversioned path point to the swagger of the internal API, and the previous latest stable version V5 points to an empty swagger.
 - Set the version for `gDefaultAPIVersion` in `integration/test/Testlib/Env.hs` to 7.
+- Update the `TestCases Versioned` instance in
+  `integration/test/Testlib/HTTP.hs` to include the new version.
 - Consider updating the `backendApiVersion` value in Stern, which is
   unit-tested by checking if it is listed as supported in the response to `GET
   /api-version`.

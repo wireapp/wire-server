@@ -26,6 +26,7 @@ import Network.URI (URI (..), URIAuth (..), parseURI)
 import Testlib.Assertions
 import Testlib.Env
 import Testlib.JSON
+import Testlib.PTest
 import Testlib.Types
 import Prelude
 
@@ -126,6 +127,20 @@ onFailureAddResponse r m = App $ do
 
 data Versioned = Versioned | Unversioned | ExplicitVersion Int
   deriving stock (Generic)
+
+instance TestCases Versioned where
+  mkTestCases =
+    pure
+      [ MkTestCase "[versioned]" Versioned,
+        MkTestCase "[unversioned]" Unversioned,
+        MkTestCase "[explicit-version=0]" (ExplicitVersion 0),
+        MkTestCase "[explicit-version=1]" (ExplicitVersion 1),
+        MkTestCase "[explicit-version=2]" (ExplicitVersion 2),
+        MkTestCase "[explicit-version=3]" (ExplicitVersion 3),
+        MkTestCase "[explicit-version=4]" (ExplicitVersion 4),
+        MkTestCase "[explicit-version=5]" (ExplicitVersion 5),
+        MkTestCase "[explicit-version=6]" (ExplicitVersion 6)
+      ]
 
 -- | If you don't know what domain is for or what you should put in there, try `rawBaseRequest
 -- OwnDomain ...`.
