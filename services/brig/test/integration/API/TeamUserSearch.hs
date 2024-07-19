@@ -43,7 +43,7 @@ type TestConstraints m = (MonadFail m, MonadCatch m, MonadIO m, MonadHttp m)
 tests :: Opt.Opts -> Manager -> Galley -> Brig -> IO TestTree
 tests opts mgr _galley brig = do
   pure $
-    testGroup "/teams/:tid/search" $
+    testGroup "teams user search" $
       [ testWithNewIndex "can find user by email" (testSearchByEmailSameTeam brig),
         testWithNewIndex "empty query returns the whole team sorted" (testEmptyQuerySorted brig),
         testWithNewIndex "sorting by some properties works" (testSort brig),
