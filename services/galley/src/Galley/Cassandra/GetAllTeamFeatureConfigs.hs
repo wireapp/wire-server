@@ -199,7 +199,7 @@ allFeatureConfigsFromRow ourteam allowListForExposeInvitationURLs featureLH hasT
           row.conferenceCalling
           Nothing
           (fromMaybe FeatureTTLUnlimited row.conferenceCallingTtl)
-          (Just ConferenceCallingConfig)
+          conferenceCallingConfig
           serverConfigs.afcConferenceCalling,
       afcSelfDeletingMessages =
         computeConfig
@@ -313,6 +313,12 @@ allFeatureConfigsFromRow ourteam allowListForExposeInvitationURLs featureLH hasT
           }
 
     downloadLocationConfig = Just $ EnforceFileDownloadLocationConfig row.enforceDownloadLocation_Location
+
+    conferenceCallingConfig =
+      Just $
+        ConferenceCallingConfig
+          { sftForOne2One = False
+          }
 
     -- FUTUREWORK: this duplicates logic hidden elsewhere for the other getters and setters.  do not change lightly!
     exposeInvitationURLsComputeFeatureStatus ::

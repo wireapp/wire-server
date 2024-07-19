@@ -726,23 +726,27 @@ instance FeatureTrivialConfig DigitalSignaturesConfig where
 -- ConferenceCalling feature
 
 data ConferenceCallingConfig = ConferenceCallingConfig
+  { sftForOne2One :: Bool
+  }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConferenceCallingConfig)
+
+instance Default ConferenceCallingConfig where
+  def = ConferenceCallingConfig {sftForOne2One = False}
 
 instance RenderableSymbol ConferenceCallingConfig where
   renderSymbol = "ConferenceCallingConfig"
 
 instance IsFeatureConfig ConferenceCallingConfig where
   type FeatureSymbol ConferenceCallingConfig = "conferenceCalling"
-  defFeatureStatus = withStatus FeatureStatusEnabled LockStatusUnlocked ConferenceCallingConfig FeatureTTLUnlimited
+  defFeatureStatus = withStatus FeatureStatusEnabled LockStatusUnlocked def FeatureTTLUnlimited
   featureSingleton = FeatureSingletonConferenceCallingConfig
-  objectSchema = pure ConferenceCallingConfig
+  objectSchema =
+    ConferenceCallingConfig
+      <$> sftForOne2One .= (fromMaybe False <$> optField "useSFTForOneToOneCalls" schema)
 
 instance ToSchema ConferenceCallingConfig where
   schema = object "ConferenceCallingConfig" objectSchema
-
-instance FeatureTrivialConfig ConferenceCallingConfig where
-  trivialConfig = ConferenceCallingConfig
 
 --------------------------------------------------------------------------------
 -- SndFactorPasswordChallenge feature

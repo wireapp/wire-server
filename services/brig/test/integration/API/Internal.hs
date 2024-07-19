@@ -160,8 +160,9 @@ testFeatureConferenceCallingByAccount (Opt.optSettings -> settings) mgr db brig 
           . (^?! Aeson.key "conferenceCalling")
           . responseJsonUnsafe @Aeson.Value
 
-  check $ ApiFt.WithStatusNoLock ApiFt.FeatureStatusEnabled ApiFt.ConferenceCallingConfig ApiFt.FeatureTTLUnlimited
-  check $ ApiFt.WithStatusNoLock ApiFt.FeatureStatusDisabled ApiFt.ConferenceCallingConfig ApiFt.FeatureTTLUnlimited
+  -- TODO
+  check $ ApiFt.WithStatusNoLock ApiFt.FeatureStatusEnabled (ApiFt.ConferenceCallingConfig False) ApiFt.FeatureTTLUnlimited
+  check $ ApiFt.WithStatusNoLock ApiFt.FeatureStatusDisabled (ApiFt.ConferenceCallingConfig False) ApiFt.FeatureTTLUnlimited
   check'
 
 testGetMlsClients :: Brig -> Http ()
