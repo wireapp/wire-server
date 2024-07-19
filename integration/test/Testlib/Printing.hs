@@ -5,6 +5,9 @@ import Prelude
 yellow :: String
 yellow = "\x1b[38;5;11m"
 
+blue :: String
+blue = "\x1b[38;5;6m"
+
 purpleish :: String
 purpleish = "\x1b[38;5;13m"
 

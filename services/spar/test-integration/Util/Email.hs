@@ -24,14 +24,10 @@ module Util.Email where
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import Brig.Types.Activation
-import Control.Lens (view, (^?))
+import Control.Lens (view)
 import Control.Monad.Catch (MonadCatch)
-import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.Id
-import qualified Data.Misc as Misc
-import qualified Data.Text.Ascii as Ascii
-import Data.Text.Encoding (encodeUtf8)
 import qualified Data.ZAuth.Token as ZAuth
 import Imports
 import Test.Tasty.HUnit

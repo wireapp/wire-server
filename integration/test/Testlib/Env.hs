@@ -11,8 +11,6 @@ import Data.Functor
 import Data.IORef
 import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
-import Data.Set (Set)
-import qualified Data.Set as Set
 import Data.Traversable (for)
 import qualified Data.Yaml as Yaml
 import qualified Database.CQL.IO as Cassandra
