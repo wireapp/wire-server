@@ -123,7 +123,7 @@ migrations =
     V80_KeyPackageCiphersuite.migration,
     V81_AddFederationRemoteTeams.migration,
     V82_DropPhoneColumn.migration,
-    V83_AddTextStatus.migration
+    V83_AddTextStatus.migration,
     V84_DropUserKeysHashed.migration
     -- FUTUREWORK: undo V41 (searchable flag); we stopped using it in
     -- https://github.com/wireapp/wire-server/pull/964
