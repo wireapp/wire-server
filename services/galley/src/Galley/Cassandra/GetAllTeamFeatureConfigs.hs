@@ -41,6 +41,7 @@ data AllTeamFeatureConfigsRow = AllTeamFeatureConfigsRow
     conferenceCalling :: Maybe FeatureStatus,
     conferenceCallingTtl :: Maybe FeatureTTL,
     conferenceCallingSftForOne2One :: Maybe Bool,
+    conferenceCallingLock :: Maybe LockStatus,
     -- guest links
     guestLinks :: Maybe FeatureStatus,
     guestLinksLock :: Maybe LockStatus,
@@ -102,6 +103,7 @@ emptyRow =
       conferenceCalling = Nothing,
       conferenceCallingTtl = Nothing,
       conferenceCallingSftForOne2One = Nothing,
+      conferenceCallingLock = Nothing,
       guestLinks = Nothing,
       guestLinksLock = Nothing,
       sndFactor = Nothing,
@@ -199,7 +201,7 @@ allFeatureConfigsFromRow ourteam allowListForExposeInvitationURLs featureLH hasT
       afcConferenceCalling =
         computeConfig
           row.conferenceCalling
-          Nothing
+          row.conferenceCallingLock
           (fromMaybe FeatureTTLUnlimited row.conferenceCallingTtl)
           conferenceCallingConfig
           serverConfigs.afcConferenceCalling,
@@ -375,7 +377,7 @@ getAllFeatureConfigs allowListForExposeInvitationURLs featureLH hasTeamImplicitL
       \app_lock_status, app_lock_enforce, app_lock_inactivity_timeout_secs, \
       \file_sharing, file_sharing_lock_status, \
       \self_deleting_messages_status, self_deleting_messages_ttl, self_deleting_messages_lock_status, \
-      \conference_calling, ttl(conference_calling), conference_calling_sft_for_one_to_one, \
+      \conference_calling, ttl(conference_calling), conference_calling_sft_for_one_to_one, conference_calling_lock_status, \
       \guest_links_status, guest_links_lock_status, \
       \snd_factor_password_challenge_status, snd_factor_password_challenge_lock_status, \
       \\

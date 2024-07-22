@@ -332,6 +332,7 @@ getFeatureLockStatus FeatureSingletonMlsMigration tid = getLockStatusC "mls_migr
 getFeatureLockStatus FeatureSingletonOutlookCalIntegrationConfig tid = getLockStatusC "outlook_cal_integration_lock_status" tid
 getFeatureLockStatus FeatureSingletonMLSConfig tid = getLockStatusC "mls_lock_status" tid
 getFeatureLockStatus FeatureSingletonEnforceFileDownloadLocationConfig tid = getLockStatusC "enforce_file_download_location_lock_status" tid
+getFeatureLockStatus FeatureSingletonConferenceCallingConfig tid = getLockStatusC "conference_calling_lock_status" tid
 getFeatureLockStatus _ _ = pure Nothing
 
 setFeatureLockStatus :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> LockStatus -> m ()
@@ -344,6 +345,7 @@ setFeatureLockStatus FeatureSingletonMlsMigration tid status = setLockStatusC "m
 setFeatureLockStatus FeatureSingletonOutlookCalIntegrationConfig tid status = setLockStatusC "outlook_cal_integration_lock_status" tid status
 setFeatureLockStatus FeatureSingletonMLSConfig tid status = setLockStatusC "mls_lock_status" tid status
 setFeatureLockStatus FeatureSingletonEnforceFileDownloadLocationConfig tid status = setLockStatusC "enforce_file_download_location_lock_status" tid status
+setFeatureLockStatus FeatureSingletonConferenceCallingConfig tid status = setLockStatusC "conference_calling_lock_status" tid status
 setFeatureLockStatus _ _tid _status = pure ()
 
 getTrivialConfigC ::

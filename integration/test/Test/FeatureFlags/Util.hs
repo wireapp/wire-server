@@ -34,7 +34,7 @@ enabled = object ["lockStatus" .= "unlocked", "status" .= "enabled", "ttl" .= "u
 checkFeature :: (HasCallStack, MakesValue user, MakesValue tid) => String -> user -> tid -> Value -> App ()
 checkFeature = checkFeatureWith shouldMatch
 
-checkFeatureWith :: (HasCallStack, MakesValue user, MakesValue tid, MakesValue expected) => (App Value -> expected -> App ()) -> String -> user -> tid -> expected -> App ()
+checkFeatureWith :: (HasCallStack, MakesValue user, MakesValue tid, MakesValue expected) => ((HasCallStack) => App Value -> expected -> App ()) -> String -> user -> tid -> expected -> App ()
 checkFeatureWith shouldMatch' feature user tid expected = do
   tidStr <- asString tid
   domain <- objDomain user

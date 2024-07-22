@@ -718,12 +718,13 @@ instance IsFeatureConfig ConferenceCallingConfig where
   type FeatureSymbol ConferenceCallingConfig = "conferenceCalling"
   defFeatureStatus = withStatus FeatureStatusEnabled LockStatusUnlocked def FeatureTTLUnlimited
   featureSingleton = FeatureSingletonConferenceCallingConfig
-  objectSchema =
-    ConferenceCallingConfig
-      <$> sftForOne2One .= (fromMaybe False <$> optField "useSFTForOneToOneCalls" schema)
+  objectSchema = fromMaybe def <$> optField "config" schema
 
 instance ToSchema ConferenceCallingConfig where
-  schema = object "ConferenceCallingConfig" objectSchema
+  schema =
+    object "ConferenceCallingConfig" $
+      ConferenceCallingConfig
+        <$> sftForOne2One .= (fromMaybe False <$> optField "useSFTForOneToOneCalls" schema)
 
 --------------------------------------------------------------------------------
 -- SndFactorPasswordChallenge feature

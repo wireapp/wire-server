@@ -424,18 +424,20 @@ testClassifiedDomainsDisabled = do
 testAllFeatures :: (HasCallStack) => App ()
 testAllFeatures = do
   (_, tid, m : _) <- createTeam OwnDomain 2
-  let expected =
+  let defEnabledObj :: Value -> Value
+      defEnabledObj conf = object ["lockStatus" .= "unlocked", "status" .= "enabled", "ttl" .= "unlimited", "config" .= conf]
+      expected =
         object
           $ [ "legalhold" .= disabled,
               "sso" .= disabled,
               "searchVisibility" .= disabled,
               "validateSAMLemails" .= enabled,
               "digitalSignatures" .= disabled,
-              "appLock" .= object ["lockStatus" .= "unlocked", "status" .= "enabled", "ttl" .= "unlimited", "config" .= object ["enforceAppLock" .= False, "inactivityTimeoutSecs" .= A.Number 60]],
+              "appLock" .= defEnabledObj (object ["enforceAppLock" .= False, "inactivityTimeoutSecs" .= A.Number 60]),
               "fileSharing" .= enabled,
-              "classifiedDomains" .= object ["lockStatus" .= "unlocked", "status" .= "enabled", "ttl" .= "unlimited", "config" .= object ["domains" .= ["example.com"]]],
-              "conferenceCalling" .= enabled,
-              "selfDeletingMessages" .= object ["lockStatus" .= "unlocked", "status" .= "enabled", "ttl" .= "unlimited", "config" .= object ["enforcedTimeoutSeconds" .= A.Number 0]],
+              "classifiedDomains" .= defEnabledObj (object ["domains" .= ["example.com"]]),
+              "conferenceCalling" .= defEnabledObj (object ["useSFTForOneToOneCalls" .= A.Bool False]),
+              "selfDeletingMessages" .= defEnabledObj (object ["enforcedTimeoutSeconds" .= A.Number 0]),
               "conversationGuestLinks" .= enabled,
               "sndFactorPasswordChallenge" .= disabledLocked,
               "mls"
@@ -787,6 +789,34 @@ testMLSE2EIdInternal = do
     cfg2
     invalidCfg'
 
+testConferenceCalling :: (HasCallStack) => App ()
+testConferenceCalling = do
+  _testLockStatusWithConfig
+    "conferenceCalling"
+    Public.setTeamFeatureConfig
+    (confCallingDef False)
+    (confCallingDef' True)
+    (confCallingDef' False)
+    (confCallingDef' (0 :: Int))
+  where
+    confCallingDef :: (ToJSON a) => a -> Value
+    confCallingDef arg =
+      object
+        [ "lockStatus" .= "unlocked",
+          "status" .= "enabled",
+          "ttl" .= "unlimited",
+          "config"
+            .= object ["useSFTForOneToOneCalls" .= toJSON arg]
+        ]
+
+    confCallingDef' :: (ToJSON a) => a -> Value
+    confCallingDef' arg =
+      object
+        [ "status" .= "enabled",
+          "config"
+            .= object ["useSFTForOneToOneCalls" .= toJSON arg]
+        ]
+
 _testLockStatusWithConfig ::
   (HasCallStack) =>
   String ->
@@ -835,6 +865,10 @@ _testLockStatusWithConfigWithTeam (owner, tid, m) featureName setTeamFeatureConf
 
   -- lock the feature
   Internal.setTeamFeatureLockStatus OwnDomain tid featureName "locked"
+  bindResponse (Public.getTeamFeature owner tid featureName) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "lockStatus" `shouldMatch` "locked"
+
   assertStatus 409 =<< setTeamFeatureConfig owner tid featureName config1
   Internal.setTeamFeatureLockStatus OwnDomain tid featureName "unlocked"
 
