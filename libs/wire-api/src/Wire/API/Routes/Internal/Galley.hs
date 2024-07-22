@@ -394,7 +394,7 @@ type ITeamsAPIBase =
 
 type IFeatureStatusGet f = IFeatureStatusGetWithDesc f ""
 
-type IFeatureStatusGetWithDesc f desc = Named '("iget", f) (Description desc :> FeatureStatusBaseGet f)
+type IFeatureStatusGetWithDesc f desc = Named '("iget", f) (Description desc :> FeatureStatusBaseGet Nothing f)
 
 type IFeatureStatusPut calls errs f = IFeatureStatusPutWithDesc calls errs f ""
 

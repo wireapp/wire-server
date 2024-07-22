@@ -39,6 +39,7 @@ module Wire.API.Routes.Version
     developmentVersions,
     expandVersionExp,
     maxAvailableVersion,
+    VersionSymbol,
 
     -- * Servant combinators
     Until,
@@ -116,6 +117,22 @@ versionText = ("v" <>) . toUrlPiece . versionInt @Int
 
 versionByteString :: Version -> ByteString
 versionByteString = ("v" <>) . toByteString' . versionInt @Int
+
+type family VersionSymbol (v :: Version) :: Symbol
+
+type instance VersionSymbol 'V0 = "v0"
+
+type instance VersionSymbol 'V1 = "v1"
+
+type instance VersionSymbol 'V2 = "v2"
+
+type instance VersionSymbol 'V3 = "v3"
+
+type instance VersionSymbol 'V4 = "v4"
+
+type instance VersionSymbol 'V5 = "v5"
+
+type instance VersionSymbol 'V6 = "v6"
 
 instance ToSchema Version where
   schema = enum @Text "Version" . mconcat $ (\v -> element (versionText v) v) <$> [minBound ..]

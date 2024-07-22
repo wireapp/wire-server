@@ -123,6 +123,8 @@ import Test.QuickCheck.Gen (suchThat)
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite (CipherSuiteTag (MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519))
 import Wire.API.Routes.Named (RenderableSymbol (renderSymbol))
+import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 ----------------------------------------------------------------------
@@ -300,6 +302,9 @@ instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (WithStatus cfg) where
     where
       inner = schema @cfg
       name = fromMaybe "" (getName (schemaDoc inner)) <> ".WithStatus"
+
+instance ToSchema (Versioned 'V5 (WithStatus cfg)) where
+  schema = undefined
 
 instance (Arbitrary cfg, IsFeatureConfig cfg) => Arbitrary (WithStatus cfg) where
   arbitrary = WithStatusBase <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
@@ -935,15 +940,21 @@ data MLSConfig = MLSConfig
 instance RenderableSymbol MLSConfig where
   renderSymbol = "MLSConfig"
 
+mlsConfigSchema :: Maybe Version -> ValueSchema NamedSwaggerDoc MLSConfig
+mlsConfigSchema mv =
+  object ("MLSConfig" <> T.pack (foldMap show mv)) $
+    MLSConfig
+      <$> mlsProtocolToggleUsers .= fieldWithDocModifier "protocolToggleUsers" (S.description ?~ "allowlist of users that may change protocols") (array schema)
+      <*> mlsDefaultProtocol .= field "defaultProtocol" schema
+      <*> mlsAllowedCipherSuites .= field "allowedCipherSuites" (array schema)
+      <*> mlsDefaultCipherSuite .= field "defaultCipherSuite" schema
+      <*> mlsSupportedProtocols .= field "supportedProtocols" (array schema)
+
 instance ToSchema MLSConfig where
-  schema =
-    object "MLSConfig" $
-      MLSConfig
-        <$> mlsProtocolToggleUsers .= fieldWithDocModifier "protocolToggleUsers" (S.description ?~ "allowlist of users that may change protocols") (array schema)
-        <*> mlsDefaultProtocol .= field "defaultProtocol" schema
-        <*> mlsAllowedCipherSuites .= field "allowedCipherSuites" (array schema)
-        <*> mlsDefaultCipherSuite .= field "defaultCipherSuite" schema
-        <*> mlsSupportedProtocols .= field "supportedProtocols" (array schema)
+  schema = mlsConfigSchema Nothing
+
+instance ToSchema (Versioned 'V5 MLSConfig) where
+  schema = Versioned <$> unVersioned .= mlsConfigSchema (Just V5)
 
 instance IsFeatureConfig MLSConfig where
   type FeatureSymbol MLSConfig = "mls"

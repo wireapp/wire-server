@@ -19,6 +19,7 @@ module Wire.API.Routes.Public.Galley.Feature where
 
 import Data.Id
 import GHC.TypeLits
+import Imports
 import Servant hiding (WithStatus)
 import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.ApplyMods
@@ -31,6 +32,7 @@ import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned
 import Wire.API.Team.Feature
 import Wire.API.Team.SearchVisibility (TeamSearchVisibilityView)
 
@@ -79,7 +81,7 @@ type FeatureAPI =
     :<|> FeatureStatusPut '[] '() GuestLinksConfig
     :<|> FeatureStatusGet SndFactorPasswordChallengeConfig
     :<|> FeatureStatusPut '[] '() SndFactorPasswordChallengeConfig
-    :<|> From 'V5 ::> FeatureStatusGet MLSConfig
+    :<|> From 'V5 ::> Until 'V6 ::> FeatureStatusGetVersioned 'V5 MLSConfig
     :<|> From 'V5 ::> FeatureStatusPut '[] '() MLSConfig
     :<|> FeatureStatusGet ExposeInvitationURLsToTeamAdminConfig
     :<|> FeatureStatusPut '[] '() ExposeInvitationURLsToTeamAdminConfig
@@ -121,11 +123,20 @@ type FeatureAPI =
 
 type FeatureStatusGet f = FeatureStatusGetWithDesc f ""
 
+type FeatureStatusGetVersioned v f = FeatureStatusGetWithDescVersioned v f ""
+
 type FeatureStatusGetWithDesc f desc =
   Named
     '("get", f)
     ( Description desc
-        :> (ZUser :> FeatureStatusBaseGet f)
+        :> (ZUser :> FeatureStatusBaseGet Nothing f)
+    )
+
+type FeatureStatusGetWithDescVersioned v f desc =
+  Named
+    '(AppendSymbol "get@" (VersionSymbol v), f)
+    ( Description desc
+        :> (ZUser :> FeatureStatusBaseGet (Just v) f)
     )
 
 type FeatureStatusPut segs errs f = FeatureStatusPutWithDesc segs errs f ""
@@ -147,7 +158,13 @@ type FeatureStatusDeprecatedPut d f =
     '("put-deprecated", f)
     (ZUser :> FeatureStatusBaseDeprecatedPut d f)
 
-type FeatureStatusBaseGet featureConfig =
+type family FeatureVerb (verb :: StdMethod) featureConfig (mVersion :: Maybe Version)
+
+type instance FeatureVerb verb featureConfig 'Nothing = Verb verb 200 '[Servant.JSON] (WithStatus featureConfig)
+
+type instance FeatureVerb verb featureConfig ('Just v) = Verb verb 200 '[Servant.JSON] (Versioned v (WithStatus featureConfig))
+
+type FeatureStatusBaseGet mVersion featureConfig =
   Summary (AppendSymbol "Get config for " (FeatureSymbol featureConfig))
     :> CanThrow OperationDenied
     :> CanThrow 'NotATeamMember
@@ -156,7 +173,7 @@ type FeatureStatusBaseGet featureConfig =
     :> Capture "tid" TeamId
     :> "features"
     :> FeatureSymbol featureConfig
-    :> Get '[Servant.JSON] (WithStatus featureConfig)
+    :> FeatureVerb 'GET featureConfig mVersion
 
 type FeatureStatusBasePutPublic errs featureConfig =
   Summary (AppendSymbol "Put config for " (FeatureSymbol featureConfig))

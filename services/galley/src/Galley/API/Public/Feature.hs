@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -24,6 +26,7 @@ import Imports
 import Wire.API.Federation.API
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.Feature
+import Wire.API.Routes.Versioned
 import Wire.API.Team.Feature
 
 featureAPI :: API FeatureAPI GalleyEffects
@@ -53,7 +56,7 @@ featureAPI =
     <@> mkNamedAPI @'("put", GuestLinksConfig) (setFeatureStatus . DoAuth)
     <@> mkNamedAPI @'("get", SndFactorPasswordChallengeConfig) (getFeatureStatus . DoAuth)
     <@> mkNamedAPI @'("put", SndFactorPasswordChallengeConfig) (setFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("get", MLSConfig) (getFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("get@v5", MLSConfig) (\uid tid -> Versioned <$> (getFeatureStatus (DoAuth uid) tid))
     <@> mkNamedAPI @'("put", MLSConfig) (setFeatureStatus . DoAuth)
     <@> mkNamedAPI @'("get", ExposeInvitationURLsToTeamAdminConfig) (getFeatureStatus . DoAuth)
     <@> mkNamedAPI @'("put", ExposeInvitationURLsToTeamAdminConfig) (setFeatureStatus . DoAuth)
