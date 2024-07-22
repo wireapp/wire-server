@@ -58,7 +58,6 @@ module Wire.API.Team.Feature
     computeFeatureConfigForTeamUser,
     IsFeatureConfig (..),
     FeatureSingleton (..),
-    FeatureTrivialConfig (..),
     HasDeprecatedFeatureName (..),
     LockStatusResponse (..),
     -- Features
@@ -134,8 +133,7 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- being enabled/disabled, locked/unlocked, then the config should be a unit
 -- type, e.g. **data MyFeatureConfig = MyFeatureConfig**. Add a singleton for
 -- the new data type. Implement type classes 'RenderableSymbol', 'ToSchema',
--- 'IsFeatureConfig' and 'Arbitrary'. If your feature doesn't have a config
--- implement 'FeatureTrivialConfig'.
+-- 'IsFeatureConfig' and 'Arbitrary'.
 --
 -- 2. Add the config to 'AllFeatureConfigs'.
 --
@@ -215,9 +213,6 @@ data FeatureSingleton cfg where
     FeatureSingleton MlsMigrationConfig
   FeatureSingletonEnforceFileDownloadLocationConfig :: FeatureSingleton EnforceFileDownloadLocationConfig
   FeatureSingletonLimitedEventFanoutConfig :: FeatureSingleton LimitedEventFanoutConfig
-
-class FeatureTrivialConfig cfg where
-  trivialConfig :: cfg
 
 class HasDeprecatedFeatureName cfg where
   type DeprecatedFeatureName cfg :: Symbol
@@ -598,9 +593,6 @@ instance IsFeatureConfig GuestLinksConfig where
 
   objectSchema = pure GuestLinksConfig
 
-instance FeatureTrivialConfig GuestLinksConfig where
-  trivialConfig = GuestLinksConfig
-
 --------------------------------------------------------------------------------
 -- Legalhold feature
 
@@ -620,9 +612,6 @@ instance IsFeatureConfig LegalholdConfig where
 instance ToSchema LegalholdConfig where
   schema = object "LegalholdConfig" objectSchema
 
-instance FeatureTrivialConfig LegalholdConfig where
-  trivialConfig = LegalholdConfig
-
 --------------------------------------------------------------------------------
 -- SSO feature
 
@@ -641,9 +630,6 @@ instance IsFeatureConfig SSOConfig where
 
 instance ToSchema SSOConfig where
   schema = object "SSOConfig" objectSchema
-
-instance FeatureTrivialConfig SSOConfig where
-  trivialConfig = SSOConfig
 
 --------------------------------------------------------------------------------
 -- SearchVisibility available feature
@@ -665,9 +651,6 @@ instance IsFeatureConfig SearchVisibilityAvailableConfig where
 
 instance ToSchema SearchVisibilityAvailableConfig where
   schema = object "SearchVisibilityAvailableConfig" objectSchema
-
-instance FeatureTrivialConfig SearchVisibilityAvailableConfig where
-  trivialConfig = SearchVisibilityAvailableConfig
 
 instance HasDeprecatedFeatureName SearchVisibilityAvailableConfig where
   type DeprecatedFeatureName SearchVisibilityAvailableConfig = "search-visibility"
@@ -694,9 +677,6 @@ instance IsFeatureConfig ValidateSAMLEmailsConfig where
 instance HasDeprecatedFeatureName ValidateSAMLEmailsConfig where
   type DeprecatedFeatureName ValidateSAMLEmailsConfig = "validate-saml-emails"
 
-instance FeatureTrivialConfig ValidateSAMLEmailsConfig where
-  trivialConfig = ValidateSAMLEmailsConfig
-
 --------------------------------------------------------------------------------
 -- DigitalSignatures feature
 
@@ -718,9 +698,6 @@ instance HasDeprecatedFeatureName DigitalSignaturesConfig where
 
 instance ToSchema DigitalSignaturesConfig where
   schema = object "DigitalSignaturesConfig" objectSchema
-
-instance FeatureTrivialConfig DigitalSignaturesConfig where
-  trivialConfig = DigitalSignaturesConfig
 
 --------------------------------------------------------------------------------
 -- ConferenceCalling feature
@@ -767,9 +744,6 @@ instance IsFeatureConfig SndFactorPasswordChallengeConfig where
   featureSingleton = FeatureSingletonSndFactorPasswordChallengeConfig
   objectSchema = pure SndFactorPasswordChallengeConfig
 
-instance FeatureTrivialConfig SndFactorPasswordChallengeConfig where
-  trivialConfig = SndFactorPasswordChallengeConfig
-
 --------------------------------------------------------------------------------
 -- SearchVisibilityInbound feature
 
@@ -789,9 +763,6 @@ instance IsFeatureConfig SearchVisibilityInboundConfig where
 
 instance ToSchema SearchVisibilityInboundConfig where
   schema = object "SearchVisibilityInboundConfig" objectSchema
-
-instance FeatureTrivialConfig SearchVisibilityInboundConfig where
-  trivialConfig = SearchVisibilityInboundConfig
 
 ----------------------------------------------------------------------
 -- ClassifiedDomains feature
@@ -885,9 +856,6 @@ instance IsFeatureConfig FileSharingConfig where
 instance ToSchema FileSharingConfig where
   schema = object "FileSharingConfig" objectSchema
 
-instance FeatureTrivialConfig FileSharingConfig where
-  trivialConfig = FileSharingConfig
-
 ----------------------------------------------------------------------
 -- SelfDeletingMessagesConfig
 
@@ -977,9 +945,6 @@ instance IsFeatureConfig ExposeInvitationURLsToTeamAdminConfig where
 instance ToSchema ExposeInvitationURLsToTeamAdminConfig where
   schema = object "ExposeInvitationURLsToTeamAdminConfig" objectSchema
 
-instance FeatureTrivialConfig ExposeInvitationURLsToTeamAdminConfig where
-  trivialConfig = ExposeInvitationURLsToTeamAdminConfig
-
 ----------------------------------------------------------------------
 -- OutlookCalIntegrationConfig
 
@@ -1000,9 +965,6 @@ instance IsFeatureConfig OutlookCalIntegrationConfig where
 
 instance ToSchema OutlookCalIntegrationConfig where
   schema = object "OutlookCalIntegrationConfig" objectSchema
-
-instance FeatureTrivialConfig OutlookCalIntegrationConfig where
-  trivialConfig = OutlookCalIntegrationConfig
 
 ----------------------------------------------------------------------
 -- MlsE2EId
@@ -1150,9 +1112,6 @@ instance IsFeatureConfig LimitedEventFanoutConfig where
 
 instance ToSchema LimitedEventFanoutConfig where
   schema = object "LimitedEventFanoutConfig" objectSchema
-
-instance FeatureTrivialConfig LimitedEventFanoutConfig where
-  trivialConfig = LimitedEventFanoutConfig
 
 ----------------------------------------------------------------------
 -- FeatureStatus
