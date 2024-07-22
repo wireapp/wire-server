@@ -73,6 +73,7 @@ type FeatureAPI =
     :<|> FeatureStatusPut '[] '() FileSharingConfig
     :<|> FeatureStatusGet ClassifiedDomainsConfig
     :<|> FeatureStatusGet ConferenceCallingConfig
+    :<|> FeatureStatusPut '[] '() ConferenceCallingConfig
     :<|> FeatureStatusGet SelfDeletingMessagesConfig
     :<|> FeatureStatusPut '[] '() SelfDeletingMessagesConfig
     :<|> FeatureStatusGet GuestLinksConfig
