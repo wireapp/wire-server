@@ -5,6 +5,8 @@ import Control.Monad.IO.Class
 import Data.Array ((!))
 import qualified Data.Array as Array
 import qualified Data.ByteString as BS
+import Data.Scientific (scientific)
+import qualified Data.Vector as Vector
 import System.Random (randomIO, randomRIO)
 import Testlib.Prelude
 
@@ -46,6 +48,29 @@ randomHandleWithRange min' max' = liftIO $ do
 
 randomBytes :: Int -> App ByteString
 randomBytes n = liftIO $ BS.pack <$> replicateM n randomIO
+
+randomString :: Int -> App String
+randomString n = liftIO $ replicateM n randomIO
+
+randomJSON :: App Value
+randomJSON = do
+  let maxThings = 5
+  liftIO (randomRIO (0 :: Int, 5)) >>= \case
+    0 -> String . fromString <$> (randomString =<< randomRIO (0, maxThings))
+    1 -> Number <$> liftIO (scientific <$> randomIO <*> randomIO)
+    2 -> Bool <$> liftIO randomIO
+    3 -> pure Null
+    4 -> do
+      n <- liftIO $ randomRIO (0, maxThings)
+      Array . Vector.fromList <$> replicateM n randomJSON
+    5 -> do
+      n <- liftIO $ randomRIO (0, maxThings)
+      keys <- do
+        keyLength <- randomRIO (0, maxThings)
+        replicateM n (randomString keyLength)
+      vals <- replicateM n randomJSON
+      pure . object $ zipWith (.=) keys vals
+    _ -> error $ "impopssible: randomJSON"
 
 randomHex :: Int -> App String
 randomHex n = liftIO $ replicateM n pick
