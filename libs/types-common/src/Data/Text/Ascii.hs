@@ -105,7 +105,6 @@ newtype AsciiText c = AsciiText {toText :: Text}
       Monoid,
       NFData,
       ToByteString,
-      FromJSONKey,
       ToJSONKey,
       Hashable,
       ToHttpApiData
@@ -158,6 +157,8 @@ instance (AsciiChars c) => ToJSON (AsciiText c) where
 
 instance (AsciiChars c) => FromJSON (AsciiText c) where
   parseJSON = schemaParseJSON
+
+instance (FromJSON (AsciiText c)) => FromJSONKey (AsciiText c)
 
 instance (Typeable c, AsciiChars c) => S.ToSchema (AsciiText c) where
   declareNamedSchema = schemaToSwagger
