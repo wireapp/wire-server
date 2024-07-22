@@ -80,6 +80,7 @@ where
 import Cassandra hiding (Ascii)
 import Data.Aeson (FromJSON (..), FromJSONKey, ToJSON (..), ToJSONKey)
 import Data.Attoparsec.ByteString (Parser)
+import Data.Bifunctor (first)
 import Data.ByteString.Base16 qualified as B16
 import Data.ByteString.Base64 qualified as B64
 import Data.ByteString.Base64.URL qualified as B64Url
@@ -107,8 +108,7 @@ newtype AsciiText c = AsciiText {toText :: Text}
       FromJSONKey,
       ToJSONKey,
       Hashable,
-      ToHttpApiData,
-      FromHttpApiData
+      ToHttpApiData
     )
 
 newtype AsciiChar c = AsciiChar {toChar :: Char}
@@ -140,6 +140,9 @@ class AsciiChars c where
 -- the correct encoding instead of using this instance.
 instance (AsciiChars c) => FromByteString (AsciiText c) where
   parser = parseBytes validate
+
+instance (AsciiChars c) => FromHttpApiData (AsciiText c) where
+  parseUrlPiece = first Text.pack . validate
 
 -- | Note: 'fromString' is a partial function that will 'error' when given
 -- a string containing characters not in the set @c@. It is only intended to be used
