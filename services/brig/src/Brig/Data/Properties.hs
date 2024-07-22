@@ -45,10 +45,16 @@ insertProperty ::
   RawPropertyValue ->
   ExceptT PropertiesDataError m ()
 insertProperty u k v = do
-  n <- lift . fmap (maybe 0 runIdentity) . retry x1 $ query1 propertyCount (params LocalQuorum (Identity u))
-  unless (n < maxProperties) $
-    throwE TooManyProperties
-  lift . retry x5 $ write propertyInsert (params LocalQuorum (u, k, v))
+  propertyExists <- isJust <$> lookupProperty u k
+  if propertyExists
+    then insert
+    else do
+      n <- lift . fmap (maybe 0 runIdentity) . retry x1 $ query1 propertyCount (params LocalQuorum (Identity u))
+      unless (n < maxProperties) $
+        throwE TooManyProperties
+      insert
+  where
+    insert = lift . retry x5 $ write propertyInsert (params LocalQuorum (u, k, v))
 
 deleteProperty :: (MonadClient m) => UserId -> PropertyKey -> m ()
 deleteProperty u k = retry x5 $ write propertyDelete (params LocalQuorum (u, k))
