@@ -1,4 +1,5 @@
 {
     "status": "disabled",
-    "ttl": "unlimited"
+    "ttl": "unlimited",
+    "useSFTForOneToOneCalls": true
 }

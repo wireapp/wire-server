@@ -1,6 +1,5 @@
 {
     "lockStatus": "unlocked",
     "status": "disabled",
-    "ttl": "unlimited",
-    "useSFTForOneToOneCalls": false
+    "ttl": "unlimited"
 }

@@ -66,7 +66,7 @@ testObject_WithStatus_team_13 :: WithStatus DigitalSignaturesConfig
 testObject_WithStatus_team_13 = withStatus FeatureStatusEnabled LockStatusLocked DigitalSignaturesConfig
 
 testObject_WithStatus_team_14 :: WithStatus ConferenceCallingConfig
-testObject_WithStatus_team_14 = withStatus FeatureStatusDisabled LockStatusUnlocked (ConferenceCallingConfig True)
+testObject_WithStatus_team_14 = withStatus FeatureStatusDisabled LockStatusUnlocked (ConferenceCallingConfig False)
 
 testObject_WithStatus_team_15 :: WithStatus GuestLinksConfig
 testObject_WithStatus_team_15 = withStatus FeatureStatusEnabled LockStatusUnlocked GuestLinksConfig
