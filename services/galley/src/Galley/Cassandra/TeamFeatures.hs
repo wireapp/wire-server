@@ -129,18 +129,18 @@ getFeatureConfig FeatureSingletonConferenceCallingConfig tid = do
   let q = query1 select (params LocalQuorum (Identity tid))
   retry x1 q <&> \case
     Nothing -> Nothing
-    Just (Nothing, _) -> Nothing
-    Just (Just status, mTtl) ->
-      Just
-        . forgetLock
-        . setStatus status
-        . setWsTTL (fromMaybe FeatureTTLUnlimited mTtl)
-        $ defFeatureStatus
+    Just (Nothing, _, _) -> Nothing
+    Just (Just status, mTtl, mSft) ->
+      Just $
+        WithStatusNoLock
+          status
+          (ConferenceCallingConfig {sftForOne2One = fromMaybe False mSft})
+          (fromMaybe FeatureTTLUnlimited mTtl)
   where
-    select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe FeatureTTL)
+    select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe FeatureTTL, Maybe Bool)
     select =
       fromString $
-        "select conference_calling, ttl(conference_calling) from team_features where team_id = ?"
+        "select conference_calling, ttl(conference_calling), conference_calling_sft_for_one_to_one from team_features where team_id = ?"
 getFeatureConfig FeatureSingletonGuestLinksConfig tid = getTrivialConfigC "guest_links_status" tid
 getFeatureConfig FeatureSingletonSndFactorPasswordChallengeConfig tid = getTrivialConfigC "snd_factor_password_challenge_status" tid
 getFeatureConfig FeatureSingletonSearchVisibilityInboundConfig tid = getTrivialConfigC "search_visibility_status" tid
@@ -251,16 +251,16 @@ setFeatureConfig FeatureSingletonSelfDeletingMessagesConfig tid status = do
       "insert into team_features (team_id, self_deleting_messages_status,\
       \ self_deleting_messages_ttl) values (?, ?, ?)"
 setFeatureConfig FeatureSingletonConferenceCallingConfig tid statusNoLock =
-  retry x5 $ write insert (params LocalQuorum (tid, wssStatus statusNoLock))
+  retry x5 $ write insert (params LocalQuorum (tid, statusNoLock.wssStatus, statusNoLock.wssConfig.sftForOne2One))
   where
     renderFeatureTtl :: FeatureTTL -> String
     renderFeatureTtl = \case
       FeatureTTLSeconds d | d > 0 -> " using ttl " <> show d
       _ -> " using ttl 0" -- 0 or unlimited (delete a column's existing TTL by setting its value to zero)
-    insert :: PrepQuery W (TeamId, FeatureStatus) ()
+    insert :: PrepQuery W (TeamId, FeatureStatus, Bool) ()
     insert =
       fromString $
-        "insert into team_features (team_id,conference_calling) values (?, ?)"
+        "insert into team_features (team_id,conference_calling,conference_calling_sft_for_one_to_one) values (?, ?, ?)"
           <> renderFeatureTtl (wssTTL statusNoLock)
 setFeatureConfig FeatureSingletonGuestLinksConfig tid statusNoLock = setFeatureStatusC "guest_links_status" tid (wssStatus statusNoLock)
 setFeatureConfig FeatureSingletonSndFactorPasswordChallengeConfig tid statusNoLock =
