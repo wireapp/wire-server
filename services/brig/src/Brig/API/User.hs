@@ -850,7 +850,6 @@ mkActivationKey (ActivateEmail e) = do
       (pure . mkEmailKey)
       (validateEmail e)
   liftIO $ Data.mkActivationKey ek
-mkActivationKey (ActivatePhone p) = throwE $ InvalidActivationPhone p
 
 -------------------------------------------------------------------------------
 -- Password Management

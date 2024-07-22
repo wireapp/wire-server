@@ -20,6 +20,7 @@
 
 module Wire.API.User.Activation
   ( -- * ActivationTarget
+    ActivationTargetV5 (..),
     ActivationTarget (..),
     ActivationKey (..),
 
@@ -27,6 +28,7 @@ module Wire.API.User.Activation
     ActivationCode (..),
 
     -- * Activate
+    ActivateV5 (..),
     Activate (..),
     ActivationResponse (..),
 
@@ -60,8 +62,6 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 data ActivationTarget
   = -- | An opaque key for some email awaiting activation.
     ActivateKey ActivationKey
-  | -- | A known phone number awaiting activation.
-    ActivatePhone Phone
   | -- | A known email address awaiting activation.
     ActivateEmail Email
   deriving stock (Eq, Show, Generic)
@@ -70,7 +70,22 @@ data ActivationTarget
 instance ToByteString ActivationTarget where
   builder (ActivateKey k) = builder k
   builder (ActivateEmail e) = builder e
-  builder (ActivatePhone p) = builder p
+
+-- | The target of an activation request for client API versions v0..v5.
+data ActivationTargetV5
+  = -- | An opaque key for some email awaiting activation.
+    ActivateV5Key ActivationKey
+  | -- | A known phone number awaiting activation.
+    ActivateV5Phone Phone
+  | -- | A known email address awaiting activation.
+    ActivateV5Email Email
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ActivationTargetV5)
+
+instance ToByteString ActivationTargetV5 where
+  builder (ActivateV5Key k) = builder k
+  builder (ActivateV5Email e) = builder e
+  builder (ActivateV5Phone p) = builder p
 
 -- | An opaque identifier of a 'UserKey' awaiting activation.
 newtype ActivationKey = ActivationKey
@@ -143,7 +158,65 @@ instance ToSchema Activate where
              \cookies or tokens on success but failures still count \
              \towards the maximum failure count."
 
-      maybeActivationTargetObjectSchema :: ObjectSchemaP SwaggerDoc (Maybe ActivationKey, Maybe Phone, Maybe Email) ActivationTarget
+      maybeActivationTargetObjectSchema :: ObjectSchemaP SwaggerDoc (Maybe ActivationKey, Maybe Email) ActivationTarget
+      maybeActivationTargetObjectSchema =
+        withParser activationTargetTupleObjectSchema maybeActivationTargetTargetFromTuple
+        where
+          activationTargetTupleObjectSchema :: ObjectSchema SwaggerDoc (Maybe ActivationKey, Maybe Email)
+          activationTargetTupleObjectSchema =
+            (,)
+              <$> fst .= maybe_ (optFieldWithDocModifier "key" keyDocs schema)
+              <*> snd .= maybe_ (optFieldWithDocModifier "email" emailDocs schema)
+            where
+              keyDocs = description ?~ "An opaque key to activate, as it was sent by the API."
+              emailDocs = description ?~ "A known email address to activate."
+
+          maybeActivationTargetTargetFromTuple :: (Maybe ActivationKey, Maybe Email) -> Parser ActivationTarget
+          maybeActivationTargetTargetFromTuple = \case
+            (Just key, _) -> pure $ ActivateKey key
+            (_, Just email) -> pure $ ActivateEmail email
+            _ -> fail "key or email must be present"
+
+      maybeActivationTargetToTuple :: ActivationTarget -> (Maybe ActivationKey, Maybe Email)
+      maybeActivationTargetToTuple = \case
+        ActivateKey key -> (Just key, Nothing)
+        ActivateEmail email -> (Nothing, Just email)
+
+-- | Data for an activation request in client API versions v0..v5.
+data ActivateV5 = ActivateV5
+  { activateV5Target :: ActivationTargetV5,
+    activateV5Code :: ActivationCode,
+    activateV5Dryrun :: Bool
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ActivateV5)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema ActivateV5
+
+instance ToSchema ActivateV5 where
+  schema =
+    objectWithDocModifier "ActivateV5" objectDocs $
+      ActivateV5
+        <$> (maybeActivationTargetToTuple . activateV5Target) .= maybeActivationTargetObjectSchema
+        <*> activateV5Code .= fieldWithDocModifier "code" codeDocs schema
+        <*> activateV5Dryrun .= fieldWithDocModifier "dryrun" dryRunDocs schema
+    where
+      objectDocs :: NamedSwaggerDoc -> NamedSwaggerDoc
+      objectDocs = description ?~ "Data for an activation request."
+
+      codeDocs :: NamedSwaggerDoc -> NamedSwaggerDoc
+      codeDocs = description ?~ "The activation code."
+
+      dryRunDocs :: NamedSwaggerDoc -> NamedSwaggerDoc
+      dryRunDocs =
+        description
+          ?~ "At least one of key, email, or phone has to be present \
+             \while key takes precedence over email, and email takes precedence over phone. \
+             \Whether to perform a dryrun, i.e. to only check whether \
+             \activation would succeed. Dry-runs never issue access \
+             \cookies or tokens on success but failures still count \
+             \towards the maximum failure count."
+
+      maybeActivationTargetObjectSchema :: ObjectSchemaP SwaggerDoc (Maybe ActivationKey, Maybe Phone, Maybe Email) ActivationTargetV5
       maybeActivationTargetObjectSchema =
         withParser activationTargetTupleObjectSchema maybeActivationTargetTargetFromTuple
         where
@@ -158,18 +231,18 @@ instance ToSchema Activate where
               phoneDocs = description ?~ "A known phone number to activate."
               emailDocs = description ?~ "A known email address to activate."
 
-          maybeActivationTargetTargetFromTuple :: (Maybe ActivationKey, Maybe Phone, Maybe Email) -> Parser ActivationTarget
+          maybeActivationTargetTargetFromTuple :: (Maybe ActivationKey, Maybe Phone, Maybe Email) -> Parser ActivationTargetV5
           maybeActivationTargetTargetFromTuple = \case
-            (Just key, _, _) -> pure $ ActivateKey key
-            (_, _, Just email) -> pure $ ActivateEmail email
-            (_, Just phone, _) -> pure $ ActivatePhone phone
+            (Just key, _, _) -> pure $ ActivateV5Key key
+            (_, _, Just email) -> pure $ ActivateV5Email email
+            (_, Just phone, _) -> pure $ ActivateV5Phone phone
             _ -> fail "key, email or phone must be present"
 
-      maybeActivationTargetToTuple :: ActivationTarget -> (Maybe ActivationKey, Maybe Phone, Maybe Email)
+      maybeActivationTargetToTuple :: ActivationTargetV5 -> (Maybe ActivationKey, Maybe Phone, Maybe Email)
       maybeActivationTargetToTuple = \case
-        ActivateKey key -> (Just key, Nothing, Nothing)
-        ActivatePhone phone -> (Nothing, Just phone, Nothing)
-        ActivateEmail email -> (Nothing, Nothing, Just email)
+        ActivateV5Key key -> (Just key, Nothing, Nothing)
+        ActivateV5Phone phone -> (Nothing, Just phone, Nothing)
+        ActivateV5Email email -> (Nothing, Nothing, Just email)
 
 -- | Information returned as part of a successful activation.
 data ActivationResponse = ActivationResponse

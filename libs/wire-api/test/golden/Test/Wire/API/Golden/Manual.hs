@@ -19,6 +19,7 @@ module Test.Wire.API.Golden.Manual where
 
 import Imports
 import Test.Tasty
+import Test.Wire.API.Golden.Manual.Activate_user
 import Test.Wire.API.Golden.Manual.ClientCapability
 import Test.Wire.API.Golden.Manual.ClientCapabilityList
 import Test.Wire.API.Golden.Manual.Contact
@@ -263,5 +264,12 @@ tests =
             (testObject_Login_user_3, "testObject_Login_user_3.json"),
             (testObject_Login_user_4, "testObject_Login_user_4.json"),
             (testObject_Login_user_5, "testObject_Login_user_5.json")
+          ],
+      testGroup "Activate" $
+        testObjects
+          [ (testObject_Activate_user_1, "testObject_Activate_user_1.json"),
+            (testObject_Activate_user_2, "testObject_Activate_user_2.json"),
+            (testObject_Activate_user_3, "testObject_Activate_user_3.json"),
+            (testObject_Activate_user_4, "testObject_Activate_user_4.json")
           ]
     ]

@@ -528,11 +528,38 @@ type AccountAPI =
     -- - UserActivated event to the user, if account gets activated
     -- - UserIdentityUpdated event to the user, if email or phone get activated
     :<|> Named
-           "post-activate"
+           "post-activate-v5"
            ( Summary "Activate (i.e. confirm) an email address."
+               :> Until 'V6
                :> Description
                     "Activation only succeeds once and the number of \
-                    \failed attempts for a valid key is limited. "
+                    \failed attempts for a valid key is limited."
+               :> MakesFederatedCall 'Brig "send-connection-action"
+               :> CanThrow 'UserKeyExists
+               :> CanThrow 'InvalidActivationCodeWrongUser
+               :> CanThrow 'InvalidActivationCodeWrongCode
+               :> CanThrow 'InvalidEmail
+               :> CanThrow 'InvalidPhone
+               :> "activate"
+               :> ReqBody '[JSON] ActivateV5
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    GetActivateResponse
+                    ActivationRespWithStatus
+           )
+    -- docs/reference/user/activation.md {#RefActivationSubmit}
+    --
+    -- This endpoint can lead to the following events being sent:
+    -- - UserActivated event to the user, if account gets activated
+    -- - UserIdentityUpdated event to the user, if email or phone get activated
+    :<|> Named
+           "post-activate"
+           ( Summary "Activate (i.e. confirm) an email address."
+               :> From 'V6
+               :> Description
+                    "Activation only succeeds once and the number of \
+                    \failed attempts for a valid key is limited."
                :> MakesFederatedCall 'Brig "send-connection-action"
                :> CanThrow 'UserKeyExists
                :> CanThrow 'InvalidActivationCodeWrongUser
