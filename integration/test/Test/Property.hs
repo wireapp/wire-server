@@ -91,27 +91,23 @@ testMaxProperties = do
     resp.status `shouldMatchInt` 200
     resp.json `shouldMatch` Map.fromList properties
 
-  -- TODO: This part is failing due to a bug
-  -- -- Can still update the old properties
-  -- newPropertyVals <- replicateM 16 $ randomJSON
-  -- let newProperties = zip propertyNames newPropertyVals
-  -- forM_  newProperties $ \(prop, val) ->
-  --   setProperty user prop val `bindResponse` \resp ->
-  --     resp.status `shouldMatchInt` 200
+  -- Can still update the old properties
+  newPropertyVals <- replicateM 16 $ randomJSON
+  let newProperties = zip propertyNames newPropertyVals
+  forM_  newProperties $ \(prop, val) ->
+    setProperty user prop val `bindResponse` \resp ->
+      resp.status `shouldMatchInt` 200
 
-  -- getAllPropertyValues user `bindResponse` \resp -> do
-  --   resp.status `shouldMatchInt` 200
-  --   resp.json `shouldMatch` Map.fromList newProperties
+  getAllPropertyValues user `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json `shouldMatch` Map.fromList newProperties
 
-  -- TODO: This line exists so ormolu does reindent the commented out code above
-  pure ()
 
--- TODO: This throws 500 because of a bad FromHttpApiData instance
--- testPropertyNameNotAscii :: App ()
--- testPropertyNameNotAscii = do
---   user <- randomUser OwnDomain def
---   setProperty user "döner" "yes" `bindResponse` \resp ->
---     resp.status `shouldMatchInt` 400
+testPropertyNameNotAscii :: App ()
+testPropertyNameNotAscii = do
+  user <- randomUser OwnDomain def
+  setProperty user "döner" "yes" `bindResponse` \resp ->
+    resp.status `shouldMatchInt` 400
 
 testMaxLength :: App ()
 testMaxLength = do
