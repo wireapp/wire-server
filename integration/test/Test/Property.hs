@@ -94,14 +94,13 @@ testMaxProperties = do
   -- Can still update the old properties
   newPropertyVals <- replicateM 16 $ randomJSON
   let newProperties = zip propertyNames newPropertyVals
-  forM_  newProperties $ \(prop, val) ->
+  forM_ newProperties $ \(prop, val) ->
     setProperty user prop val `bindResponse` \resp ->
       resp.status `shouldMatchInt` 200
 
   getAllPropertyValues user `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json `shouldMatch` Map.fromList newProperties
-
 
 testPropertyNameNotAscii :: App ()
 testPropertyNameNotAscii = do
