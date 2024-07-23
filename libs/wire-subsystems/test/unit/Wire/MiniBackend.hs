@@ -51,6 +51,7 @@ import Wire.API.Team.Feature
 import Wire.API.Team.Member hiding (userId)
 import Wire.API.User as User hiding (DeleteUser)
 import Wire.API.User.Password
+import Wire.BlockListStore
 import Wire.DeleteQueue
 import Wire.DeleteQueue.InMemory
 import Wire.Events
@@ -95,6 +96,8 @@ type AllErrors =
 type MiniBackendEffects =
   [ UserSubsystem,
     GalleyAPIAccess,
+    BlockListStore,
+    State [EmailKey],
     UserStore,
     State [StoredUser],
     UserKeyStore,
@@ -118,7 +121,8 @@ data MiniBackend = MkMiniBackend
     --   invariant: for each key, the user.id and the key are the same
     users :: [StoredUser],
     userKeys :: Map EmailKey UserId,
-    passwordResetCodes :: Map PasswordResetKey (PRQueryData Identity)
+    passwordResetCodes :: Map PasswordResetKey (PRQueryData Identity),
+    blockList :: [EmailKey]
   }
 
 instance Default MiniBackend where
@@ -126,7 +130,8 @@ instance Default MiniBackend where
     MkMiniBackend
       { users = mempty,
         userKeys = mempty,
-        passwordResetCodes = mempty
+        passwordResetCodes = mempty,
+        blockList = mempty
       }
 
 -- | represents an entire federated, stateful world of backends
@@ -354,8 +359,15 @@ interpretMaybeFederationStackState maybeFederationAPIAccess localBackend teamMem
     . inMemoryUserKeyStoreInterpreter
     . liftUserStoreState
     . inMemoryUserStoreInterpreter
+    . liftBlockListStoreState
+    . inMemoryBlockListStoreInterpreter
     . miniGalleyAPIAccess teamMember galleyConfigs
     . runUserSubsystem cfg
+
+liftBlockListStoreState :: (Member (State MiniBackend) r) => Sem (State [EmailKey] : r) a -> Sem r a
+liftBlockListStoreState = interpret $ \case
+  Polysemy.State.Get -> gets (.blockList)
+  Put newBlockList -> modify $ \b -> b {blockList = newBlockList}
 
 liftUserKeyStoreState :: (Member (State MiniBackend) r) => Sem (State (Map EmailKey UserId) : r) a -> Sem r a
 liftUserKeyStoreState = interpret $ \case

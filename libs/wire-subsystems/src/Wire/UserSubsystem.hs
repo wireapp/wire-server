@@ -74,6 +74,12 @@ data UserSubsystem m a where
   GetLocalUserAccountByUserKey :: Local EmailKey -> UserSubsystem m (Maybe UserAccount)
   -- | returns the user's locale or the default locale if the users exists
   LookupLocaleWithDefault :: Local UserId -> UserSubsystem m (Maybe Locale)
+  -- | checks if an email is blocked
+  IsBlocked :: Email -> UserSubsystem m Bool
+  -- | removes an email from the block list
+  BlockListDelete :: Email -> UserSubsystem m ()
+  -- | adds an email to the block list
+  BlockListInsert :: Email -> UserSubsystem m ()
 
 -- | the return type of 'CheckHandle'
 data CheckHandleResp
