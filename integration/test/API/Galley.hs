@@ -520,6 +520,14 @@ getTeamMembers user tid = do
   req <- baseRequest user Galley Versioned (joinHttpPath ["teams", tidStr, "members"])
   submit "GET" req
 
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/get_teams__tid__legalhold__uid_
+legalholdUserStatus :: (HasCallStack, MakesValue tid, MakesValue user, MakesValue owner) => tid -> owner -> user -> App Response
+legalholdUserStatus tid ownerid user = do
+  tidS <- asString tid
+  uid <- objId user
+  req <- baseRequest ownerid Galley Versioned (joinHttpPath ["teams", tidS, "legalhold", uid])
+  submit "GET" req
+
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_teams__tid__legalhold_settings
 enableLegalHold :: (HasCallStack, MakesValue tid, MakesValue ownerid) => tid -> ownerid -> App Response
 enableLegalHold tid ownerid = do

@@ -74,6 +74,12 @@ instance TestCases Ciphersuite where
           testCase = suite
         }
 
+instance TestCases CredentialType where
+  testCases =
+    [ MkTestCase "[ctype=basic]" BasicCredentialType,
+      MkTestCase "[ctype=x509]" X509CredentialType
+    ]
+
 -- | a default instance, normally we don't do such things but this is more convenient in
 --   the test suite as you don't have to derive anything
 instance {-# OVERLAPPABLE #-} (Generic a, GEnum (Rep a)) => TestCases a where

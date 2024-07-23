@@ -143,17 +143,6 @@ createWireClient u = do
     >>= getJSON 201
     >>= mkClientIdentity u
 
-data CredentialType = BasicCredentialType | X509CredentialType
-
-instance MakesValue CredentialType where
-  make BasicCredentialType = make "basic"
-  make X509CredentialType = make "x509"
-
-instance TestCases CredentialType where
-  testCases =
-    [ MkTestCase "[ctype=basic]" BasicCredentialType,
-      MkTestCase "[ctype=x509]" X509CredentialType
-    ]
 
 data InitMLSClient = InitMLSClient
   {credType :: CredentialType}
