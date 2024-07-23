@@ -987,9 +987,6 @@ testPatchValidateSAMLEmails = _testPatch "validateSAMLemails" False enabled disa
 testPatchDigitalSignatures :: (HasCallStack) => App ()
 testPatchDigitalSignatures = _testPatch "digitalSignatures" False disabled enabled
 
-testPatchConferenceCalling :: (HasCallStack) => App ()
-testPatchConferenceCalling = _testPatch "conferenceCalling" False enabled disabled
-
 --------------------------------------------------------------------------------
 -- Simple flags with explicit lock status
 
@@ -1025,6 +1022,19 @@ testPatchAppLock = do
 
 --------------------------------------------------------------------------------
 -- Flags with config & explicit lock status
+
+testPatchConferenceCalling :: (HasCallStack) => App ()
+testPatchConferenceCalling = do
+  let defCfg =
+        confCalling
+          def
+            { lockStatus = Just "unlocked",
+              ttl = Just (toJSON "unlimited")
+            }
+  _testPatch "conferenceCalling" True defCfg (object ["lockStatus" .= "locked"])
+  _testPatch "conferenceCalling" True defCfg (object ["status" .= "disabled"])
+  _testPatch "conferenceCalling" True defCfg (object ["lockStatus" .= "locked", "status" .= "disabled"])
+  _testPatch "conferenceCalling" True defCfg (object ["lockStatus" .= "unlocked", "config" .= object ["useSFTForOneToOneCalls" .= toJSON True]])
 
 testPatchSelfDeletingMessages :: (HasCallStack) => App ()
 testPatchSelfDeletingMessages = do
