@@ -622,32 +622,6 @@ mlsInvalidConfig =
           ]
     ]
 
-data ConfCalling = ConfCalling
-  { lockStatus :: Maybe String,
-    ttl :: Maybe Value,
-    status :: String,
-    sft :: Value
-  }
-
-instance Default ConfCalling where
-  def =
-    ConfCalling
-      { lockStatus = Nothing,
-        ttl = Nothing,
-        status = "enabled",
-        sft = toJSON False
-      }
-
-confCalling :: ConfCalling -> Value
-confCalling args =
-  object
-    $ ["lockStatus" .= s | s <- toList args.lockStatus]
-    <> ["ttl" .= s | s <- toList args.ttl]
-    <> [ "status" .= args.status,
-         "config"
-           .= object ["useSFTForOneToOneCalls" .= args.sft]
-       ]
-
 testEnforceDownloadLocation :: (HasCallStack) => App ()
 testEnforceDownloadLocation =
   _testLockStatusWithConfig

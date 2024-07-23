@@ -123,6 +123,7 @@ library
     Test.Errors
     Test.ExternalPartner
     Test.FeatureFlags
+    Test.FeatureFlags.User
     Test.FeatureFlags.Util
     Test.Federation
     Test.Federator

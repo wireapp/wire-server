@@ -705,3 +705,7 @@ setTeamFeatureConfigVersioned versioned user team featureName payload = do
   p <- make payload
   req <- baseRequest user Galley versioned $ joinHttpPath ["teams", tid, "features", fn]
   submit "PUT" $ req & addJSON p
+
+-- | http://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/get_feature_configs
+getFeaturesForUser :: (HasCallStack, MakesValue user) => user -> App Response
+getFeaturesForUser user = baseRequest user Galley Versioned "feature-configs" >>= submit "GET"

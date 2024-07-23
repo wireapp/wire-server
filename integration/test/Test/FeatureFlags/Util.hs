@@ -67,13 +67,18 @@ checkFeatureLenientTtl = checkFeatureWith shouldMatchLenientTtl
       actualTtl <- actual %. "ttl"
       checkTtl actualTtl expectedTtl
 
-    checkTtl :: Value -> Value -> App ()
-    checkTtl (A.String a) (A.String b) = do
+checkTtl :: (MakesValue a, MakesValue b) => a -> b -> App ()
+checkTtl x y = do
+  vx <- make x
+  vy <- make y
+  check vx vy
+  where
+    check (A.String a) (A.String b) = do
       a `shouldMatch` "unlimited"
       b `shouldMatch` "unlimited"
-    checkTtl _ (A.String _) = assertFailure "expected the actual ttl to be unlimited, but it was limited"
-    checkTtl (A.String _) _ = assertFailure "expected the actual ttl to be limited, but it was unlimited"
-    checkTtl (A.Number actualTtl) (A.Number expectedTtl) = do
+    check _ (A.String _) = assertFailure "expected the actual ttl to be unlimited, but it was limited"
+    check (A.String _) _ = assertFailure "expected the actual ttl to be limited, but it was unlimited"
+    check (A.Number actualTtl) (A.Number expectedTtl) = do
       assertBool
         ("expected the actual TTL to be greater than 0 and equal to or no more than 2 seconds less than " <> show expectedTtl <> ", but it was " <> show actualTtl)
         ( actualTtl
@@ -83,7 +88,33 @@ checkFeatureLenientTtl = checkFeatureWith shouldMatchLenientTtl
             && abs (actualTtl - expectedTtl)
             <= 2
         )
-    checkTtl _ _ = assertFailure "unexpected ttl value(s)"
+    check _ _ = assertFailure "unexpected ttl value(s)"
 
 assertForbidden :: (HasCallStack) => Response -> App ()
 assertForbidden = assertLabel 403 "no-team-member"
+
+data ConfCalling = ConfCalling
+  { lockStatus :: Maybe String,
+    ttl :: Maybe Value,
+    status :: String,
+    sft :: Value
+  }
+
+instance Default ConfCalling where
+  def =
+    ConfCalling
+      { lockStatus = Nothing,
+        ttl = Nothing,
+        status = "enabled",
+        sft = toJSON False
+      }
+
+confCalling :: ConfCalling -> Value
+confCalling args =
+  object
+    $ ["lockStatus" .= s | s <- toList args.lockStatus]
+    <> ["ttl" .= s | s <- toList args.ttl]
+    <> [ "status" .= args.status,
+         "config"
+           .= object ["useSFTForOneToOneCalls" .= args.sft]
+       ]
