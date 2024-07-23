@@ -359,6 +359,9 @@ instance (Arbitrary cfg, IsFeatureConfig cfg) => Arbitrary (WithStatusPatch cfg)
 -- if we switch to `unlocked`, we auto-enable the feature, and if we switch to locked, we
 -- auto-disable it.  But we need to change the API to force clients to use `lockStatus`
 -- instead of `status`, current behavior is just wrong.
+--
+-- FUTUREWORK(paolo): why delete this type? it's used as the request body of
+-- the public API for setting features
 data WithStatusNoLock (cfg :: Type) = WithStatusNoLock
   { wssStatus :: FeatureStatus,
     wssConfig :: cfg,
