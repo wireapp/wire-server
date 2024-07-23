@@ -1,1 +1,1 @@
-Adds useSFTForOneToOneCalls as a config option for the Conference Calling feature flag.
+Adds useSFTForOneToOneCalls as a config option for the Conference Calling feature flag and made lock status explicit.
