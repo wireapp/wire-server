@@ -5,6 +5,7 @@ module Wire.MockInterpreters (module MockInterpreters) where
 
 import Wire.MockInterpreters.EmailSubsystem as MockInterpreters
 import Wire.MockInterpreters.Error as MockInterpreters
+import Wire.MockInterpreters.Events as MockInterpreters
 import Wire.MockInterpreters.GalleyAPIAccess as MockInterpreters
 import Wire.MockInterpreters.HashPassword as MockInterpreters
 import Wire.MockInterpreters.Now as MockInterpreters
@@ -12,7 +13,6 @@ import Wire.MockInterpreters.PasswordResetCodeStore as MockInterpreters
 import Wire.MockInterpreters.PasswordStore as MockInterpreters
 import Wire.MockInterpreters.Random as MockInterpreters
 import Wire.MockInterpreters.SessionStore as MockInterpreters
-import Wire.MockInterpreters.UserEvents as MockInterpreters
 import Wire.MockInterpreters.UserKeyStore as MockInterpreters
 import Wire.MockInterpreters.UserStore as MockInterpreters
 import Wire.MockInterpreters.UserSubsystem as MockInterpreters

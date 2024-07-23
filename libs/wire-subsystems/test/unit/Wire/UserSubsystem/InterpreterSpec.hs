@@ -260,7 +260,7 @@ spec = describe "UserSubsystem.Interpreter" do
          in events
               === [ MkMiniEvent
                       alice.id
-                      ( UserUpdated $
+                      ( UserEvent . UserUpdated $
                           (emptyUserUpdatedData alice.id)
                             { eupName = update.name,
                               eupTextStatus = update.textStatus,

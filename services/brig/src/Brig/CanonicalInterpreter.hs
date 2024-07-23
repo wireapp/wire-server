@@ -14,7 +14,7 @@ import Brig.Effects.PublicKeyBundle
 import Brig.Effects.SFT (SFT, interpretSFT)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Effects.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
-import Brig.IO.Intra (runUserEvents)
+import Brig.IO.Intra (runEvents)
 import Brig.Options (ImplicitNoFederationRestriction (federationDomainConfig), federationDomainConfigs, federationStrategy)
 import Brig.Options qualified as Opt
 import Cassandra qualified as Cas
@@ -43,6 +43,7 @@ import Wire.EmailSending.SMTP
 import Wire.EmailSubsystem
 import Wire.EmailSubsystem.Interpreter
 import Wire.Error
+import Wire.Events
 import Wire.FederationAPIAccess qualified
 import Wire.FederationAPIAccess.Interpreter (FederationAPIAccessConfig (..), interpretFederationAPIAccess)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
@@ -69,7 +70,6 @@ import Wire.Sem.Random
 import Wire.Sem.Random.IO
 import Wire.SessionStore
 import Wire.SessionStore.Cassandra (interpretSessionStoreCassandra)
-import Wire.UserEvents
 import Wire.UserKeyStore
 import Wire.UserKeyStore.Cassandra
 import Wire.UserStore
@@ -88,7 +88,7 @@ type BrigCanonicalEffects =
      EmailSubsystem,
      VerificationCodeSubsystem,
      DeleteQueue,
-     UserEvents,
+     Wire.Events.Events,
      Error UserSubsystemError,
      Error AuthenticationSubsystemError,
      Error Wire.API.Federation.Error.FederationError,
@@ -194,7 +194,7 @@ runBrigToIO e (AppT ma) = do
               . mapError (StdError . federationErrorToWai)
               . mapError authenticationSubsystemErrorToHttpError
               . mapError userSubsystemErrorToHttpError
-              . runUserEvents
+              . runEvents
               . runDeleteQueue (e ^. internalEvents)
               . interpretVerificationCodeSubsystem
               . emailSubsystemInterpreter (e ^. usrTemplates) (e ^. templateBranding)

@@ -29,13 +29,13 @@ import Wire.API.User
 import Wire.API.UserEvent
 import Wire.Arbitrary
 import Wire.DeleteQueue
+import Wire.Events
 import Wire.FederationAPIAccess
 import Wire.GalleyAPIAccess
 import Wire.Sem.Concurrency
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredUser
-import Wire.UserEvents
 import Wire.UserKeyStore
 import Wire.UserStore as UserStore
 import Wire.UserSubsystem
@@ -60,7 +60,7 @@ runUserSubsystem ::
     Member (Error UserSubsystemError) r,
     Member (FederationAPIAccess fedM) r,
     Member DeleteQueue r,
-    Member UserEvents r,
+    Member Events r,
     Member Now r,
     RunClient (fedM 'Brig),
     FederationMonad fedM,
@@ -80,7 +80,7 @@ interpretUserSubsystem ::
     Member (FederationAPIAccess fedM) r,
     Member (Input UserSubsystemConfig) r,
     Member DeleteQueue r,
-    Member UserEvents r,
+    Member Events r,
     Member Now r,
     RunClient (fedM 'Brig),
     FederationMonad fedM,
@@ -360,7 +360,7 @@ guardLockedHandleField user updateOrigin handle = do
 updateUserProfileImpl ::
   ( Member UserStore r,
     Member (Error UserSubsystemError) r,
-    Member UserEvents r,
+    Member Events r,
     Member GalleyAPIAccess r
   ) =>
   Local UserId ->
@@ -423,7 +423,7 @@ getLocalUserAccountByUserKeyImpl target = runMaybeT $ do
 updateHandleImpl ::
   ( Member (Error UserSubsystemError) r,
     Member GalleyAPIAccess r,
-    Member UserEvents r,
+    Member Events r,
     Member UserStore r
   ) =>
   Local UserId ->

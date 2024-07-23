@@ -53,6 +53,7 @@ import Wire.API.User as User hiding (DeleteUser)
 import Wire.API.User.Password
 import Wire.DeleteQueue
 import Wire.DeleteQueue.InMemory
+import Wire.Events
 import Wire.FederationAPIAccess
 import Wire.FederationAPIAccess.Interpreter as FI
 import Wire.GalleyAPIAccess
@@ -63,7 +64,6 @@ import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.Sequential
 import Wire.Sem.Now hiding (get)
 import Wire.StoredUser
-import Wire.UserEvents
 import Wire.UserKeyStore
 import Wire.UserStore
 import Wire.UserSubsystem
@@ -100,7 +100,7 @@ type MiniBackendEffects =
     UserKeyStore,
     State (Map EmailKey UserId),
     DeleteQueue,
-    UserEvents,
+    Events,
     State [InternalNotification],
     State MiniBackend,
     State [MiniEvent],

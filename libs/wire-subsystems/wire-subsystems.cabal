@@ -82,6 +82,7 @@ library
     Wire.EmailSubsystem.Interpreter
     Wire.EmailSubsystem.Template
     Wire.Error
+    Wire.Events
     Wire.FederationAPIAccess
     Wire.FederationAPIAccess.Interpreter
     Wire.GalleyAPIAccess
@@ -100,7 +101,6 @@ library
     Wire.SessionStore
     Wire.SessionStore.Cassandra
     Wire.StoredUser
-    Wire.UserEvents
     Wire.UserKeyStore
     Wire.UserKeyStore.Cassandra
     Wire.UserStore
@@ -202,6 +202,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters
     Wire.MockInterpreters.EmailSubsystem
     Wire.MockInterpreters.Error
+    Wire.MockInterpreters.Events
     Wire.MockInterpreters.GalleyAPIAccess
     Wire.MockInterpreters.HashPassword
     Wire.MockInterpreters.Now
@@ -209,7 +210,6 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.PasswordStore
     Wire.MockInterpreters.Random
     Wire.MockInterpreters.SessionStore
-    Wire.MockInterpreters.UserEvents
     Wire.MockInterpreters.UserKeyStore
     Wire.MockInterpreters.UserStore
     Wire.MockInterpreters.UserSubsystem
