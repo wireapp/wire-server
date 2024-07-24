@@ -1,0 +1,1 @@
+Brig was refactored by pulling out email block-listing into a wire subsystems effect, and its actions are exposed via the user subsystem.
