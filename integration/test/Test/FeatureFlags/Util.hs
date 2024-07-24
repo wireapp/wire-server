@@ -54,7 +54,7 @@ checkFeatureWith shouldMatch' feature user tid expected = do
 checkFeatureLenientTtl :: (HasCallStack, MakesValue user, MakesValue tid) => String -> user -> tid -> Value -> App ()
 checkFeatureLenientTtl = checkFeatureWith shouldMatchLenientTtl
   where
-    shouldMatchLenientTtl :: App Value -> Value -> App ()
+    shouldMatchLenientTtl :: (HasCallStack) => App Value -> Value -> App ()
     shouldMatchLenientTtl actual expected = do
       expectedLockStatus <- expected %. "lockStatus"
       actual %. "lockStatus" `shouldMatch` expectedLockStatus

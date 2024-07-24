@@ -250,18 +250,21 @@ setFeatureConfig FeatureSingletonSelfDeletingMessagesConfig tid status = do
     insert =
       "insert into team_features (team_id, self_deleting_messages_status,\
       \ self_deleting_messages_ttl) values (?, ?, ?)"
-setFeatureConfig FeatureSingletonConferenceCallingConfig tid statusNoLock =
-  retry x5 $ write insert (params LocalQuorum (tid, statusNoLock.wssStatus, statusNoLock.wssConfig.sftForOne2One))
+setFeatureConfig FeatureSingletonConferenceCallingConfig tid statusNoLock = do
+  retry x5 . batch $ do
+    setType BatchLogged
+    setConsistency LocalQuorum
+    addPrepQuery insertStatus (tid, statusNoLock.wssStatus, ttlValue (statusNoLock.wssTTL))
+    addPrepQuery insertConfig (tid, statusNoLock.wssConfig.sftForOne2One)
   where
-    renderFeatureTtl :: FeatureTTL -> String
-    renderFeatureTtl = \case
-      FeatureTTLSeconds d | d > 0 -> " using ttl " <> show d
-      _ -> " using ttl 0" -- 0 or unlimited (delete a column's existing TTL by setting its value to zero)
-    insert :: PrepQuery W (TeamId, FeatureStatus, Bool) ()
-    insert =
-      fromString $
-        "insert into team_features (team_id,conference_calling,conference_calling_sft_for_one_to_one) values (?, ?, ?)"
-          <> renderFeatureTtl (wssTTL statusNoLock)
+    ttlValue :: FeatureTTL -> Int32
+    ttlValue (FeatureTTLSeconds d) = fromIntegral d
+    ttlValue FeatureTTLUnlimited = 0
+
+    insertStatus :: PrepQuery W (TeamId, FeatureStatus, Int32) ()
+    insertStatus = "insert into team_features (team_id, conference_calling) values (?, ?) using ttl ?"
+    insertConfig :: PrepQuery W (TeamId, Bool) ()
+    insertConfig = "insert into team_features (team_id, conference_calling_sft_for_one_to_one) values (?, ?)"
 setFeatureConfig FeatureSingletonGuestLinksConfig tid statusNoLock = setFeatureStatusC "guest_links_status" tid (wssStatus statusNoLock)
 setFeatureConfig FeatureSingletonSndFactorPasswordChallengeConfig tid statusNoLock =
   setFeatureStatusC "snd_factor_password_challenge_status" tid (wssStatus statusNoLock)
