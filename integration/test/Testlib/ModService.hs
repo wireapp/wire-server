@@ -29,25 +29,25 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Data.Traversable
 import qualified Data.Yaml as Yaml
+import Debug.TimeStats (measureM)
 import GHC.Stack
 import qualified Network.HTTP.Client as HTTP
-import System.Directory (copyFile, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, removeDirectoryRecursive, removeFile)
+import System.Directory (copyFile, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, removeFile)
 import System.FilePath
 import System.IO
 import System.IO.Temp (createTempDirectory, writeTempFile)
-import System.Posix (keyboardSignal, killProcess, signalProcess)
-import System.Process
 import Testlib.App
 import Testlib.HTTP
 import Testlib.JSON
-import Testlib.Printing
+import Testlib.ModService.ServiceInstance
 import Testlib.ResourcePool
 import Testlib.Types
 import Text.RawString.QQ
+import qualified UnliftIO
 import Prelude
 
 withModifiedBackend :: HasCallStack => ServiceOverrides -> (HasCallStack => String -> App a) -> App a
-withModifiedBackend overrides k =
+withModifiedBackend overrides k = measureM "withModifiedBackend" $ do
   startDynamicBackends [overrides] (\domains -> k (head domains))
 
 copyDirectoryRecursively :: FilePath -> FilePath -> IO ()
@@ -118,7 +118,7 @@ traverseConcurrentlyCodensity f args = do
     pure result
 
 startDynamicBackends :: HasCallStack => [ServiceOverrides] -> (HasCallStack => [String] -> App a) -> App a
-startDynamicBackends beOverrides k =
+startDynamicBackends beOverrides k = measureM "startDynamicBackends" do
   runCodensity
     do
       when (Prelude.length beOverrides > 3) $ lift $ failApp "Too many backends. Currently only 3 are supported."
@@ -203,17 +203,22 @@ startDynamicBackend resource beOverrides = do
     setLogLevel :: ServiceOverrides
     setLogLevel =
       def
-        { sparCfg = setField "saml.logLevel" ("Warn" :: String),
-          brigCfg = setField "logLevel" ("Warn" :: String),
-          cannonCfg = setField "logLevel" ("Warn" :: String),
-          cargoholdCfg = setField "logLevel" ("Warn" :: String),
-          galleyCfg = setField "logLevel" ("Warn" :: String),
-          gundeckCfg = setField "logLevel" ("Warn" :: String),
-          nginzCfg = setField "logLevel" ("Warn" :: String),
-          backgroundWorkerCfg = setField "logLevel" ("Warn" :: String),
-          sternCfg = setField "logLevel" ("Warn" :: String),
-          federatorInternalCfg = setField "logLevel" ("Warn" :: String)
+        { -- NOTE: if you want to set logLevel to "Debug", consider doing it for the service
+          -- you're interested in only.  it's *very* noisy!
+          sparCfg = setField "saml.logLevel" logLevel,
+          brigCfg = setField "logLevel" logLevel,
+          cannonCfg = setField "logLevel" logLevel,
+          cargoholdCfg = setField "logLevel" logLevel,
+          galleyCfg = setField "logLevel" logLevel,
+          gundeckCfg = setField "logLevel" logLevel,
+          nginzCfg = setField "logLevel" logLevel,
+          backgroundWorkerCfg = setField "logLevel" logLevel,
+          sternCfg = setField "logLevel" logLevel,
+          federatorInternalCfg = setField "logLevel" logLevel
         }
+      where
+        logLevel :: String
+        logLevel = "Warn"
 
 updateServiceMapInConfig :: BackendResource -> Service -> Value -> App Value
 updateServiceMapInConfig resource forSrv config =
@@ -246,12 +251,12 @@ startBackend ::
   BackendResource ->
   ServiceOverrides ->
   Codensity App ()
-startBackend resource overrides = do
+startBackend resource overrides = measureM "startBackend" do
   traverseConcurrentlyCodensity (withProcess resource overrides) allServices
   lift $ ensureBackendReachable resource.berDomain
 
 ensureBackendReachable :: String -> App ()
-ensureBackendReachable domain = do
+ensureBackendReachable domain = measureM "ensureBackendReachable" do
   env <- ask
   let checkServiceIsUpReq = do
         req <-
@@ -280,54 +285,21 @@ ensureBackendReachable domain = do
         pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
 
   when ((domain /= env.domain1) && (domain /= env.domain2)) $ do
-    retryRequestUntil checkServiceIsUpReq "Federator ingress"
-
-processColors :: [(String, String -> String)]
-processColors =
-  [ ("brig", colored green),
-    ("galley", colored yellow),
-    ("gundeck", colored blue),
-    ("cannon", colored orange),
-    ("cargohold", colored purpleish),
-    ("spar", colored orange),
-    ("federator", colored blue),
-    ("background-worker", colored blue),
-    ("nginx", colored purpleish)
-  ]
-
-data ServiceInstance = ServiceInstance
-  { handle :: ProcessHandle,
-    config :: FilePath
-  }
-
-timeout :: Int -> IO a -> IO (Maybe a)
-timeout usecs action = either (const Nothing) Just <$> race (threadDelay usecs) action
-
-cleanupService :: ServiceInstance -> IO ()
-cleanupService inst = do
-  let ignoreExceptions action = E.catch action $ \(_ :: E.SomeException) -> pure ()
-  ignoreExceptions $ do
-    mPid <- getPid inst.handle
-    for_ mPid (signalProcess keyboardSignal)
-    timeout 50000 (waitForProcess inst.handle) >>= \case
-      Just _ -> pure ()
-      Nothing -> do
-        for_ mPid (signalProcess killProcess)
-        void $ waitForProcess inst.handle
-  whenM (doesFileExist inst.config) $ removeFile inst.config
-  whenM (doesDirectoryExist inst.config) $ removeDirectoryRecursive inst.config
+    retryRequestUntil checkServiceIsUpReq "Federator ingress" domain Nothing
 
 -- | Wait for a service to come up.
-waitUntilServiceIsUp :: String -> Service -> App ()
-waitUntilServiceIsUp domain srv =
+waitUntilServiceIsUp :: String -> Service -> ServiceInstance -> App ()
+waitUntilServiceIsUp domain srv serviceInstance = measureM "waitUntilServiceUp" do
   retryRequestUntil
     (checkServiceIsUp domain srv)
     (show srv)
+    domain
+    (Just serviceInstance)
 
 -- | Check if a service is up and running.
 checkServiceIsUp :: String -> Service -> App Bool
 checkServiceIsUp _ Nginz = pure True
-checkServiceIsUp domain srv = do
+checkServiceIsUp domain srv = measureM "checkServiceIsUp" do
   req <- baseRequest domain srv Unversioned "/i/status"
   checkStatus <- appToIO $ do
     res <- submit "GET" req
@@ -353,44 +325,34 @@ withProcess resource overrides service = do
 
   startNginzLocalIO <- lift $ appToIO $ startNginzLocal resource
 
-  let initProcess = case (service, cwd) of
+  let initProcess = liftIO $ case (service, cwd) of
         (Nginz, Nothing) -> startNginzK8s domain sm
         (Nginz, Just _) -> startNginzLocalIO
         _ -> do
           config <- getConfig
           tempFile <- writeTempFile "/tmp" (execName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
-          (_, Just stdoutHdl, Just stderrHdl, ph) <- createProcess (proc exe ["-c", tempFile]) {cwd = cwd, std_out = CreatePipe, std_err = CreatePipe}
-          let prefix = "[" <> execName <> "@" <> domain <> "] "
-          let colorize = fromMaybe id (lookup execName processColors)
-          void $ forkIO $ logToConsole colorize prefix stdoutHdl
-          void $ forkIO $ logToConsole colorize prefix stderrHdl
-          pure $ ServiceInstance ph tempFile
+          startServiceInstance exe ["-c", tempFile] cwd tempFile execName domain
 
   void $ Codensity $ \k -> do
-    iok <- appToIOKleisli k
-    liftIO $ E.bracket initProcess cleanupService iok
+    UnliftIO.bracket initProcess cleanupServiceInstance $ \serviceInstance -> do
+      waitUntilServiceIsUp domain service serviceInstance
+      k serviceInstance
 
-  lift $ waitUntilServiceIsUp domain service
-
-logToConsole :: (String -> String) -> String -> Handle -> IO ()
-logToConsole colorize prefix hdl = do
-  let go =
-        do
-          line <- hGetLine hdl
-          putStrLn (colorize (prefix <> line))
-          go
-          `E.catch` (\(_ :: E.IOException) -> pure ())
-  go
-
-retryRequestUntil :: HasCallStack => App Bool -> String -> App ()
-retryRequestUntil reqAction err = do
+retryRequestUntil :: HasCallStack => App Bool -> String -> String -> Maybe ServiceInstance -> App ()
+retryRequestUntil reqAction execName domain mServiceInstance = measureM "retryRequestUntil" do
   isUp <-
     retrying
       (limitRetriesByCumulativeDelay (4 * 1000 * 1000) (fibonacciBackoff (200 * 1000)))
       (\_ isUp -> pure (not isUp))
       (const reqAction)
-  unless isUp $
-    failApp ("Timed out waiting for service " <> err <> " to come up")
+  unless isUp $ do
+    errDetails <- liftIO $ do
+      case mServiceInstance of
+        Nothing -> pure ""
+        Just serviceInstance -> do
+          outStr <- flushServiceInstanceOutput serviceInstance
+          pure $ unlines [":", outStr]
+    failApp ("Timed out waiting for service " <> execName <> "@" <> domain <> " to come up" <> errDetails)
 
 startNginzK8s :: String -> ServiceMap -> IO ServiceInstance
 startNginzK8s domain sm = do
@@ -412,8 +374,7 @@ startNginzK8s domain sm = do
           & Text.replace ("/etc/wire/nginz/upstreams/upstreams.conf") (cs upstreamsCfg)
       )
   createUpstreamsCfg upstreamsCfg sm
-  ph <- startNginz domain nginxConfFile "/"
-  pure $ ServiceInstance ph tmpDir
+  startNginz domain nginxConfFile tmpDir
 
 startNginzLocal :: BackendResource -> App ServiceInstance
 startNginzLocal resource = do
@@ -486,10 +447,7 @@ server 127.0.0.1:{port} max_fails=3 weight=1;
     writeFile pidConfigFile (cs $ "pid " <> pid <> ";")
 
   -- start service
-  ph <- liftIO $ startNginz domain nginxConfFile tmpDir
-
-  -- return handle and nginx tmp dir path
-  pure $ ServiceInstance ph tmpDir
+  liftIO $ startNginz domain nginxConfFile tmpDir
 
 createUpstreamsCfg :: String -> ServiceMap -> IO ()
 createUpstreamsCfg upstreamsCfg sm = do
@@ -520,19 +478,12 @@ server 127.0.0.1:{port} max_fails=3 weight=1;
                 & Text.replace "{port}" (cs $ show p)
         liftIO $ appendFile upstreamsCfg (cs upstream)
 
-startNginz :: String -> FilePath -> FilePath -> IO ProcessHandle
-startNginz domain conf workingDir = do
-  (_, Just stdoutHdl, Just stderrHdl, ph) <-
-    createProcess
-      (proc "nginx" ["-c", conf, "-g", "daemon off;", "-e", "/dev/stdout"])
-        { cwd = Just workingDir,
-          std_out = CreatePipe,
-          std_err = CreatePipe
-        }
-
-  let prefix = "[" <> "nginz" <> "@" <> domain <> "] "
-  let colorize = fromMaybe id (lookup "nginx" processColors)
-  void $ forkIO $ logToConsole colorize prefix stdoutHdl
-  void $ forkIO $ logToConsole colorize prefix stderrHdl
-
-  pure ph
+startNginz :: String -> FilePath -> FilePath -> IO ServiceInstance
+startNginz domain conf configDir = do
+  startServiceInstance
+    "nginx"
+    ["-c", conf, "-g", "daemon off;", "-e", "/dev/stdout"]
+    (Just configDir)
+    configDir
+    "nginz"
+    domain

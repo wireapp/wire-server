@@ -37,6 +37,7 @@
 , lens
 , lens-aeson
 , lib
+, lifted-base
 , memory
 , mime
 , monad-control
@@ -61,6 +62,7 @@
 , temporary
 , text
 , time
+, timestats
 , transformers
 , transformers-base
 , unix
@@ -120,6 +122,7 @@ mkDerivation {
     kan-extensions
     lens
     lens-aeson
+    lifted-base
     memory
     mime
     monad-control
@@ -144,6 +147,7 @@ mkDerivation {
     temporary
     text
     time
+    timestats
     transformers
     transformers-base
     unix

@@ -236,7 +236,7 @@ testDownloadURLOverride = do
     downloadURLRes.status `shouldMatchInt` 302
     cs @_ @String downloadURLRes.body `shouldMatch` ""
     downloadURL <- parseUrlThrow (C8.unpack (getHeader' (mk $ cs "Location") downloadURLRes))
-    downloadEndpoint `shouldMatch` cs @_ @String (HTTP.host downloadURL)
+    cs @_ @String (HTTP.host downloadURL) `shouldMatch` downloadEndpoint
     HTTP.port downloadURL `shouldMatchInt` 443
     True `shouldMatch` (HTTP.secure downloadURL)
 
