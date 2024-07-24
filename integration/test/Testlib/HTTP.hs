@@ -16,6 +16,7 @@ import Data.String
 import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
+import GHC.Generics
 import GHC.Stack
 import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Types (hLocation)
@@ -85,23 +86,32 @@ contentTypeMixed = addHeader "Content-Type" "multipart/mixed"
 bindResponse :: HasCallStack => App Response -> (Response -> App a) -> App a
 bindResponse m k = m >>= \r -> withResponse r k
 
+infixl 1 `bindResponse`
+
 withResponse :: HasCallStack => Response -> (Response -> App a) -> App a
 withResponse r k = onFailureAddResponse r (k r)
 
 -- | Check response status code, then return body.
 getBody :: HasCallStack => Int -> Response -> App ByteString
-getBody status resp = withResponse resp $ \r -> do
-  r.status `shouldMatch` status
-  pure r.body
+getBody status = flip withResponse \resp -> do
+  resp.status `shouldMatch` status
+  pure resp.body
 
 -- | Check response status code, then return JSON body.
 getJSON :: HasCallStack => Int -> Response -> App Aeson.Value
-getJSON status resp = withResponse resp $ \r -> do
-  r.status `shouldMatch` status
-  r.json
+getJSON status = flip withResponse \resp -> do
+  resp.status `shouldMatch` status
+  resp.json
 
+-- | assert a response code in the 2** range
 assertSuccess :: HasCallStack => Response -> App ()
-assertSuccess resp = withResponse resp $ \r -> r.status `shouldMatchRange` (200, 299)
+assertSuccess = flip withResponse \resp -> resp.status `shouldMatchRange` (200, 299)
+
+-- | assert a failure with some failure code and label
+assertLabel :: HasCallStack => Int -> String -> Response -> App ()
+assertLabel status label resp = do
+  j <- getJSON status resp
+  j %. "label" `shouldMatch` label
 
 -- | assert a response status code
 assertStatus :: HasCallStack => Int -> Response -> App ()
@@ -114,6 +124,7 @@ onFailureAddResponse r m = App $ do
     E.throw (AssertionFailure stack (Just r) msg)
 
 data Versioned = Versioned | Unversioned | ExplicitVersion Int
+  deriving stock (Generic)
 
 -- | If you don't know what domain is for or what you should put in there, try `rawBaseRequest
 -- OwnDomain ...`.

@@ -11,6 +11,7 @@
 - ignore: { name: Avoid lambda using `infix` }
 - ignore: { name: Eta reduce }
 - ignore: { name: Use section }
+- ignore: { name: "Use :" }
 - ignore: { name: Use underscore }
 
 # custom rules:

@@ -8,21 +8,18 @@ import Testlib.Prelude
 newtype Versioned' = Versioned' Versioned
 
 -- | This instance is used to generate tests for some of the versions. (Not checking all of them for time efficiency reasons)
-instance HasTests x => HasTests (Versioned' -> x) where
-  mkTests m n s f x =
-    mkTests m (n <> "[version=unversioned]") s f (x (Versioned' Unversioned))
-      <> mkTests m (n <> "[version=versioned]") s f (x (Versioned' Versioned))
-      <> mkTests m (n <> "[version=v1]") s f (x (Versioned' (ExplicitVersion 1)))
-      <> mkTests m (n <> "[version=v3]") s f (x (Versioned' (ExplicitVersion 3)))
-      <> mkTests m (n <> "[version=v6]") s f (x (Versioned' (ExplicitVersion 6)))
+instance TestCases Versioned' where
+  testCases =
+    [ MkTestCase "[version=unversioned]" (Versioned' Unversioned),
+      MkTestCase "[version=versioned]" (Versioned' Versioned),
+      MkTestCase "[version=v1]" (Versioned' (ExplicitVersion 1)),
+      MkTestCase "[version=v3]" (Versioned' (ExplicitVersion 3)),
+      MkTestCase "[version=v6]" (Versioned' (ExplicitVersion 6))
+    ]
 
 -- | Used to test endpoints that have changed after version 5
 data Version5 = Version5 | NoVersion5
-
-instance HasTests x => HasTests (Version5 -> x) where
-  mkTests m n s f x =
-    mkTests m (n <> "[version=versioned]") s f (x NoVersion5)
-      <> mkTests m (n <> "[version=v5]") s f (x Version5)
+  deriving (Generic)
 
 withVersion5 :: Version5 -> App a -> App a
 withVersion5 Version5 = withAPIVersion 5

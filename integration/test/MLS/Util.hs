@@ -36,7 +36,6 @@ import System.IO hiding (print, putStrLn)
 import System.IO.Temp
 import System.Posix.Files
 import System.Process
-import Testlib.App
 import Testlib.Assertions
 import Testlib.HTTP
 import Testlib.JSON
@@ -140,15 +139,9 @@ argSubst from to_ s =
 
 createWireClient :: (MakesValue u, HasCallStack) => u -> App ClientIdentity
 createWireClient u = do
-  lpk <- getLastPrekey
-  c <- addClient u def {lastPrekey = Just lpk} >>= getJSON 201
-  mkClientIdentity u c
-
--- data CredentialType = BasicCredentialType | X509CredentialType
---
--- instance MakesValue CredentialType where
---   make BasicCredentialType = make "basic"
---   make X509CredentialType = make "x509"
+  addClient u def
+    >>= getJSON 201
+    >>= mkClientIdentity u
 
 data InitMLSClient = InitMLSClient
   {credType :: CredentialType}

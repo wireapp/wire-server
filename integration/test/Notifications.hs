@@ -2,10 +2,47 @@
 module Notifications where
 
 import API.Gundeck
+import Control.Error (lastMay)
 import Control.Monad.Extra
 import Control.Monad.Reader (asks)
 import Testlib.Prelude
+import UnliftIO (timeout)
 import UnliftIO.Concurrent
+
+-- | assert that no notifications with the predicate happen within the timeout
+assertNoNotifications ::
+  (HasCallStack, MakesValue user, MakesValue client) =>
+  -- | the user
+  user ->
+  -- | the client of that user
+  client ->
+  -- | the last notif
+  Maybe String ->
+  -- | the predicate
+  (Value -> App Bool) ->
+  App ()
+assertNoNotifications u uc since0 p = do
+  ucid <- objId uc
+  let go since = do
+        notifs <-
+          getNotifications u def {client = Just ucid, since = since}
+            `bindResponse` asList
+            . (%. "notifications")
+            . (.json)
+        partitionM p notifs >>= \case
+          ([], nonMatching) ->
+            threadDelay 1_000 *> case nonMatching of
+              (lastMay -> Just lst) -> objId lst >>= go . Just
+              _ -> go Nothing
+          (matching, _) -> do
+            pj <- prettyJSON matching
+            assertFailure $
+              unlines
+                [ "Expected no matching events  but got:",
+                  pj
+                ]
+  Nothing <- asks timeOutSeconds >>= flip timeout (go since0)
+  pure ()
 
 awaitNotifications ::
   (HasCallStack, MakesValue user, MakesValue client) =>
@@ -18,34 +55,35 @@ awaitNotifications ::
   (Value -> App Bool) ->
   App [Value]
 awaitNotifications user client since0 n selector = do
-  tSecs <- asks timeOutSeconds
+  tSecs <- asks ((* 1000) . timeOutSeconds)
   assertAwaitResult =<< go tSecs since0 (AwaitResult False n [] [])
   where
-    go 0 _ res = pure res
-    go timeRemaining since res0 = do
-      c <- make client & asString
-      notifs <- bindResponse
-        ( getNotifications
-            user
-            def {since = since, client = Just c}
-        )
-        $ \resp -> asList (resp.json %. "notifications")
-      lastNotifId <- case notifs of
-        [] -> pure since
-        _ -> Just <$> objId (last notifs)
-      (matching, notMatching) <- partitionM selector notifs
-      let matchesSoFar = res0.matches <> matching
-          res =
-            res0
-              { matches = matchesSoFar,
-                nonMatches = res0.nonMatches <> notMatching,
-                success = length matchesSoFar >= res0.nMatchesExpected
-              }
-      if res.success
-        then pure res
-        else do
-          threadDelay (1_000_000)
-          go (timeRemaining - 1) lastNotifId res
+    go timeRemaining since res0
+      | timeRemaining <= 0 = pure res0
+      | otherwise =
+          do
+            c <- make client & asString
+            notifs <-
+              getNotifications
+                user
+                def {since = since, client = Just c}
+                `bindResponse` \resp -> asList (resp.json %. "notifications")
+            lastNotifId <- case notifs of
+              [] -> pure since
+              _ -> Just <$> objId (last notifs)
+            (matching, notMatching) <- partitionM selector notifs
+            let matchesSoFar = res0.matches <> matching
+                res =
+                  res0
+                    { matches = matchesSoFar,
+                      nonMatches = res0.nonMatches <> notMatching,
+                      success = length matchesSoFar >= res0.nMatchesExpected
+                    }
+            if res.success
+              then pure res
+              else do
+                threadDelay 1_000
+                go (timeRemaining - 1) lastNotifId res
 
 awaitNotification ::
   (HasCallStack, MakesValue user, MakesValue client, MakesValue lastNotifId) =>
@@ -110,8 +148,32 @@ isConvCreateNotif n = fieldEquals n "payload.0.type" "conversation.create"
 isConvDeleteNotif :: MakesValue a => a -> App Bool
 isConvDeleteNotif n = fieldEquals n "payload.0.type" "conversation.delete"
 
+notifTypeIsEqual :: MakesValue a => String -> a -> App Bool
+notifTypeIsEqual typ n = nPayload n %. "type" `isEqual` typ
+
 isTeamMemberLeaveNotif :: MakesValue a => a -> App Bool
-isTeamMemberLeaveNotif n = nPayload n %. "type" `isEqual` "team.member-leave"
+isTeamMemberLeaveNotif = notifTypeIsEqual "team.member-leave"
+
+isUserActivateNotif :: MakesValue a => a -> App Bool
+isUserActivateNotif = notifTypeIsEqual "user.activate"
+
+isUserClientAddNotif :: MakesValue a => a -> App Bool
+isUserClientAddNotif = notifTypeIsEqual "user.client-add"
+
+isUserClientRemoveNotif :: MakesValue a => a -> App Bool
+isUserClientRemoveNotif = notifTypeIsEqual "user.client-remove"
+
+isUserLegalholdRequestNotif :: MakesValue a => a -> App Bool
+isUserLegalholdRequestNotif = notifTypeIsEqual "user.legalhold-request"
+
+isUserLegalholdEnabledNotif :: MakesValue a => a -> App Bool
+isUserLegalholdEnabledNotif = notifTypeIsEqual "user.legalhold-enable"
+
+isUserLegalholdDisabledNotif :: MakesValue a => a -> App Bool
+isUserLegalholdDisabledNotif = notifTypeIsEqual "user.legalhold-disable"
+
+isUserConnectionNotif :: MakesValue a => a -> App Bool
+isUserConnectionNotif = notifTypeIsEqual "user.connection"
 
 assertLeaveNotification ::
   ( HasCallStack,

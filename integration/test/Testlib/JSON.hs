@@ -196,6 +196,15 @@ renameField old new obj =
     o :: Value <- maybe mzero pure =<< lift (lookupField obj old)
     lift (removeField old obj >>= setField new o)
 
+-- | like 'lookupField' but wrapped in 'MaybeT' for convenience
+lookupFieldM ::
+  (HasCallStack, MakesValue a) =>
+  a ->
+  -- | A plain key, e.g. "id", or a nested key "user.profile.id"
+  String ->
+  MaybeT App Value
+lookupFieldM = fmap MaybeT . lookupField
+
 -- | Look up (nested) field of a JSON object
 --
 -- If the field key has no dots then returns Nothing if the key is missing from the
@@ -298,6 +307,10 @@ assertFailureWithJSON v msg = do
 -- | Useful for debugging
 printJSON :: MakesValue a => a -> App ()
 printJSON = prettyJSON >=> liftIO . putStrLn
+
+-- | useful for debugging, same as 'printJSON' but returns input JSON
+traceJSON :: MakesValue a => a -> App a
+traceJSON a = printJSON a $> a
 
 prettyJSON :: MakesValue a => a -> App String
 prettyJSON x =

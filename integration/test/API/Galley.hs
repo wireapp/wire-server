@@ -243,7 +243,7 @@ postProteusMessage user conv msgs = do
   convDomain <- objDomain conv
   convId <- objId conv
   let bytes = Proto.encodeMessage msgs
-  req <- baseRequest user Galley Versioned ("/conversations/" <> convDomain <> "/" <> convId <> "/proteus/messages")
+  req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", convDomain, convId, "proteus", "messages"])
   submit "POST" (addProtobuf bytes req)
 
 mkProteusRecipient :: (HasCallStack, MakesValue user, MakesValue client) => user -> client -> String -> App Proto.QualifiedUserEntry
@@ -520,6 +520,14 @@ getTeamMembers user tid = do
   req <- baseRequest user Galley Versioned (joinHttpPath ["teams", tidStr, "members"])
   submit "GET" req
 
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/get_teams__tid__legalhold__uid_
+legalholdUserStatus :: (HasCallStack, MakesValue tid, MakesValue user, MakesValue owner) => tid -> owner -> user -> App Response
+legalholdUserStatus tid ownerid user = do
+  tidS <- asString tid
+  uid <- objId user
+  req <- baseRequest ownerid Galley Versioned (joinHttpPath ["teams", tidS, "legalhold", uid])
+  submit "GET" req
+
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_teams__tid__legalhold_settings
 enableLegalHold :: (HasCallStack, MakesValue tid, MakesValue ownerid) => tid -> ownerid -> App Response
 enableLegalHold tid ownerid = do
@@ -527,16 +535,32 @@ enableLegalHold tid ownerid = do
   req <- baseRequest ownerid Galley Versioned (joinHttpPath ["teams", tidStr, "features", "legalhold"])
   submit "PUT" (addJSONObject ["status" .= "enabled", "ttl" .= "unlimited"] req)
 
--- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_teams__tid__legalhold_settings
-postLegalHoldSettings :: (HasCallStack, MakesValue owner, MakesValue tid, MakesValue newService) => owner -> tid -> newService -> App Response
-postLegalHoldSettings owner tid newSettings = retrying policy only412 $ \_ -> do
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/delete_teams__tid__legalhold__uid_
+disableLegalHold ::
+  (HasCallStack, MakesValue tid, MakesValue ownerid, MakesValue uid) =>
+  tid ->
+  ownerid ->
+  uid ->
+  -- | the password for user with $uid$
+  String ->
+  App Response
+disableLegalHold tid ownerid uid pw = do
   tidStr <- asString tid
-  req <- baseRequest owner Galley Versioned (joinHttpPath ["teams", tidStr, "legalhold", "settings"])
-  newSettingsObj <- make newSettings
-  submit "POST" (addJSON newSettingsObj req)
+  uidStr <- objId uid
+  req <- baseRequest ownerid Galley Versioned (joinHttpPath ["teams", tidStr, "legalhold", uidStr])
+  submit "DELETE" (addJSONObject ["password" .= pw] req)
+
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_teams__tid__legalhold_settings
+postLegalHoldSettings :: (HasCallStack, MakesValue ownerid, MakesValue tid, MakesValue newService) => tid -> ownerid -> newService -> App Response
+postLegalHoldSettings tid owner newSettings =
+  asks ((* 1_000_000) . timeOutSeconds) >>= \tSecs -> retrying (policy tSecs) only412 $ \_ -> do
+    tidStr <- asString tid
+    req <- baseRequest owner Galley Versioned (joinHttpPath ["teams", tidStr, "legalhold", "settings"])
+    newSettingsObj <- make newSettings
+    submit "POST" (addJSON newSettingsObj req)
   where
-    policy :: RetryPolicy
-    policy = limitRetriesByCumulativeDelay 5_000_000 $ exponentialBackoff 50
+    policy :: Int -> RetryPolicy
+    policy tSecs = limitRetriesByCumulativeDelay tSecs $ exponentialBackoff 50
 
     only412 :: RetryStatus -> Response -> App Bool
     only412 _ resp = pure $ resp.status == 412
@@ -550,10 +574,18 @@ requestLegalHoldDevice tid ownerid uid = do
   submit "POST" req
 
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/put_teams__tid__legalhold__uid__approve
+--
+--   like approveLegalHoldDevice' but approves for the requesting party
 approveLegalHoldDevice :: (HasCallStack, MakesValue tid, MakesValue uid) => tid -> uid -> String -> App Response
-approveLegalHoldDevice tid uid pwd = do
+approveLegalHoldDevice tid uid = approveLegalHoldDevice' tid uid uid
+
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/put_teams__tid__legalhold__uid__approve
+--
+--   useful for testing unauthorized requests
+approveLegalHoldDevice' :: (HasCallStack, MakesValue tid, MakesValue uid, MakesValue forUid) => tid -> uid -> forUid -> String -> App Response
+approveLegalHoldDevice' tid uid forUid pwd = do
   tidStr <- asString tid
-  uidStr <- asString $ uid %. "id"
+  uidStr <- asString $ forUid %. "id"
   req <- baseRequest uid Galley Versioned (joinHttpPath ["teams", tidStr, "legalhold", uidStr, "approve"])
   submit "PUT" (addJSONObject ["password" .= pwd] req)
 
@@ -590,3 +622,18 @@ getTeamFeature user tid featureName = do
   tidStr <- asString tid
   req <- baseRequest user Galley Versioned (joinHttpPath ["teams", tidStr, "features", featureName])
   submit "GET" req
+
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/put_teams__tid__features_legalhold
+putLegalholdStatus ::
+  (HasCallStack, MakesValue tid, MakesValue usr) =>
+  tid ->
+  usr ->
+  -- | the status to put to
+  String ->
+  App Response
+putLegalholdStatus tid usr status = do
+  tidStr <- asString tid
+
+  baseRequest usr Galley Versioned (joinHttpPath ["teams", tidStr, "features", "legalhold"])
+    >>= submit "PUT"
+      . addJSONObject ["status" .= status, "ttl" .= "unlimited"]

@@ -987,8 +987,11 @@ allLegalholdConsentGiven uids = do
       -- a whitelisted team is equivalent to have given consent to be in a
       -- conversation with user under legalhold.
       flip allM (chunksOf 32 uids) $ \uidsPage -> do
-        teamsPage <- nub . Map.elems <$> getUsersTeams uidsPage
-        allM isTeamLegalholdWhitelisted teamsPage
+        teamsPage <- getUsersTeams uidsPage
+        allM (eitherTeamMemberAndLHAllowedOrDefLHStatus teamsPage) uidsPage
+      where
+        eitherTeamMemberAndLHAllowedOrDefLHStatus teamsPage uid = do
+          fromMaybe (consentGiven defUserLegalHoldStatus == ConsentGiven) <$> (for (Map.lookup uid teamsPage) isTeamLegalholdWhitelisted)
 
 -- | Add to every uid the legalhold status
 getLHStatusForUsers ::

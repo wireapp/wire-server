@@ -85,11 +85,7 @@ tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> DB.ClientState
 tests _cl _at opts p db n b c g =
   testGroup
     "client"
-    [ test p "delete /clients/:client 403 - can't delete legalhold clients" $
-        testCan'tDeleteLegalHoldClient b,
-      test p "post /clients 400 - can't add legalhold clients manually" $
-        testCan'tAddLegalHoldClient b,
-      test p "get /users/:uid/clients - 200" $ testGetUserClientsUnqualified opts b,
+    [ test p "get /users/:uid/clients - 200" $ testGetUserClientsUnqualified opts b,
       test p "get /users/<localdomain>/:uid/clients - 200" $ testGetUserClientsQualified opts b,
       test p "get /users/:uid/prekeys - 200" $ testGetUserPrekeys b,
       test p "get /users/<localdomain>/:uid/prekeys - 200" $ testGetUserPrekeysQualified b opts,
@@ -1546,27 +1542,3 @@ testCreateAccessTokenNoNonce brig = do
 createClientForUser :: Brig -> UserId -> Http ClientId
 createClientForUser brig uid =
   clientId <$> (responseJsonError =<< addClient brig uid (defNewClient PermanentClientType [head somePrekeys] (head someLastPrekeys)))
-
-testCan'tDeleteLegalHoldClient :: Brig -> Http ()
-testCan'tDeleteLegalHoldClient brig = do
-  let hasPassword = False
-  user <- randomUser' hasPassword brig
-  let uid = userId user
-  let pk = head somePrekeys
-  let lk = head someLastPrekeys
-  resp <-
-    addClientInternal brig uid (defNewClient LegalHoldClientType [pk] lk)
-      <!! const 201
-        === statusCode
-  lhClientId <- clientId <$> responseJsonError resp
-  deleteClient brig uid lhClientId Nothing !!! const 400 === statusCode
-
-testCan'tAddLegalHoldClient :: Brig -> Http ()
-testCan'tAddLegalHoldClient brig = do
-  let hasPassword = False
-  user <- randomUser' hasPassword brig
-  let uid = userId user
-  let pk = head somePrekeys
-  let lk = head someLastPrekeys
-  -- Regular users cannot add legalhold clients
-  addClient brig uid (defNewClient LegalHoldClientType [pk] lk) !!! const 400 === statusCode

@@ -76,7 +76,7 @@ data FedUserSearchTestCase = FedUserSearchTestCase
 
 testFederatedUserSearch :: HasCallStack => App ()
 testFederatedUserSearch = do
-  let testCases =
+  let tcs =
         [ -- no search
           FedUserSearchTestCase "no_search" AllowAll AllowAll False False,
           FedUserSearchTestCase "no_search" TeamAllowed TeamAllowed False False,
@@ -100,7 +100,7 @@ testFederatedUserSearch = do
   startDynamicBackends [def, def] $ \[d1, d2] -> do
     void $ BrigI.createFedConn d2 (BrigI.FedConn d1 "full_search" Nothing)
     void $ BrigI.createFedConn d1 (BrigI.FedConn d2 "full_search" Nothing)
-    forM_ testCases (federatedUserSearch d1 d2)
+    forM_ tcs (federatedUserSearch d1 d2)
 
 federatedUserSearch :: HasCallStack => String -> String -> FedUserSearchTestCase -> App ()
 federatedUserSearch d1 d2 test = do

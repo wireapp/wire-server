@@ -1,5 +1,6 @@
 module API.Brig where
 
+import API.BrigCommon
 import API.Common
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Base64 as Base64
@@ -130,6 +131,7 @@ getUserByHandle user domain handle = do
       joinHttpPath ["users", "by-handle", domainStr, handle]
   submit "GET" req
 
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/get_clients__client_
 getClient ::
   (HasCallStack, MakesValue user, MakesValue client) =>
   user ->
@@ -142,58 +144,23 @@ getClient u cli = do
       joinHttpPath ["clients", c]
   submit "GET" req
 
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/delete_self
 deleteUser :: (HasCallStack, MakesValue user) => user -> App Response
 deleteUser user = do
   req <- baseRequest user Brig Versioned "/self"
   submit "DELETE" $
     req & addJSONObject ["password" .= defPassword]
 
-data AddClient = AddClient
-  { ctype :: String,
-    internal :: Bool,
-    clabel :: String,
-    model :: String,
-    prekeys :: Maybe [Value],
-    lastPrekey :: Maybe Value,
-    password :: String,
-    acapabilities :: Maybe [String]
-  }
-
-instance Default AddClient where
-  def =
-    AddClient
-      { ctype = "permanent",
-        internal = False,
-        clabel = "Test Device",
-        model = "Test Model",
-        prekeys = Nothing,
-        lastPrekey = Nothing,
-        password = defPassword,
-        acapabilities = Just ["legalhold-implicit-consent"]
-      }
-
--- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/post_i_clients__uid_
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_clients
 addClient ::
   (HasCallStack, MakesValue user) =>
   user ->
   AddClient ->
   App Response
 addClient user args = do
-  uid <- objId user
-  req <- baseRequest user Brig Unversioned $ "/i/clients/" <> uid
-  pks <- maybe (fmap pure getPrekey) pure args.prekeys
-  lpk <- maybe getLastPrekey pure args.lastPrekey
-  submit "POST" $
-    req
-      & addJSONObject
-        [ "prekeys" .= pks,
-          "lastkey" .= lpk,
-          "type" .= args.ctype,
-          "label" .= args.clabel,
-          "model" .= args.model,
-          "password" .= args.password,
-          "capabilities" .= args.acapabilities
-        ]
+  req <- baseRequest user Brig Versioned $ "/clients"
+  val <- mkAddClientValue args
+  submit "POST" $ req & addJSONObject val
 
 data UpdateClient = UpdateClient
   { prekeys :: [Value],
@@ -230,6 +197,7 @@ updateClient cid args = do
             <> ["mls_public_keys" .= k | k <- toList args.mlsPublicKeys]
         )
 
+-- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/delete_clients__client_
 deleteClient ::
   (HasCallStack, MakesValue user, MakesValue client) =>
   user ->
@@ -354,9 +322,7 @@ uploadKeyPackages cid kps = do
       "/mls/key-packages/self/" <> cid.client
   submit
     "POST"
-    ( req
-        & addJSONObject ["key_packages" .= map (T.decodeUtf8 . Base64.encode) kps]
-    )
+    (req & addJSONObject ["key_packages" .= map (T.decodeUtf8 . Base64.encode) kps])
 
 claimKeyPackagesWithParams :: (MakesValue u, MakesValue v) => Ciphersuite -> u -> v -> [(String, String)] -> App Response
 claimKeyPackagesWithParams suite u v params = do
@@ -368,7 +334,7 @@ claimKeyPackagesWithParams suite u v params = do
     req
       & addQueryParams ([("ciphersuite", suite.code)] <> params)
 
-claimKeyPackages :: (MakesValue u, MakesValue v) => Ciphersuite -> u -> v -> App Response
+claimKeyPackages :: (HasCallStack, MakesValue u, MakesValue v) => Ciphersuite -> u -> v -> App Response
 claimKeyPackages suite u v = claimKeyPackagesWithParams suite u v []
 
 countKeyPackages :: Ciphersuite -> ClientIdentity -> App Response
@@ -664,3 +630,9 @@ getMultiUserPrekeyBundle :: (HasCallStack, MakesValue caller, ToJSON userClients
 getMultiUserPrekeyBundle caller userClients = do
   req <- baseRequest caller Brig Versioned $ joinHttpPath ["users", "list-prekeys"]
   submit "POST" (addJSON userClients req)
+
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_access
+renewToken :: (HasCallStack, MakesValue uid) => uid -> String -> App Response
+renewToken caller cookie = do
+  req <- baseRequest caller Brig Versioned "access"
+  submit "POST" (addHeader "Cookie" ("zuid=" <> cookie) req)
