@@ -26,7 +26,6 @@ import Galley.App
 import Galley.Effects
 import Galley.Effects qualified as E
 import Galley.Options
-import Imports hiding (head)
 import Polysemy
 import Polysemy.Input
 import Wire.API.Error
@@ -55,6 +54,6 @@ getBotConversation ::
   BotId ->
   ConvId ->
   Sem r BotConvView
-getBotConversation bid cnv =
-  Features.guardSecondFactorDisabled (botUserId bid) cnv $
-    Query.getBotConversation bid cnv
+getBotConversation bid cnv = do
+  Features.guardSecondFactorDisabled (botUserId bid) cnv
+  Query.getBotConversation bid cnv

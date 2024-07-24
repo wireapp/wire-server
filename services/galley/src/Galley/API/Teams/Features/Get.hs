@@ -524,7 +524,7 @@ instance GetFeatureConfig LimitedEventFanoutConfig where
 --
 -- This function exists to resolve a cyclic dependency.
 guardSecondFactorDisabled ::
-  forall r a.
+  forall r.
   ( Member TeamFeatureStore r,
     Member (Input Opts) r,
     Member (ErrorS 'AccessDenied) r,
@@ -533,9 +533,8 @@ guardSecondFactorDisabled ::
   ) =>
   UserId ->
   ConvId ->
-  Sem r a ->
-  Sem r a
-guardSecondFactorDisabled uid cid action = do
+  Sem r ()
+guardSecondFactorDisabled uid cid = do
   mTid <- fmap hush . runError @() $ do
     convData <- ConversationStore.getConversationMetadata cid >>= note ()
     tid <- note () convData.cnvmTeam
@@ -544,7 +543,7 @@ guardSecondFactorDisabled uid cid action = do
 
   tf <- getConfigForTeamUser @SndFactorPasswordChallengeConfig uid mTid
   case wsStatus tf of
-    FeatureStatusDisabled -> action
+    FeatureStatusDisabled -> pure ()
     FeatureStatusEnabled -> throwS @'AccessDenied
 
 featureEnabledForTeam ::
