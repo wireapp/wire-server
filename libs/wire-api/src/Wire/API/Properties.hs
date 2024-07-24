@@ -28,7 +28,6 @@ import Cassandra qualified as C
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..), Value)
 import Data.Aeson qualified as A
-import Data.Aeson qualified as Aeson
 import Data.ByteString.Conversion
 import Data.Hashable (Hashable)
 import Data.OpenApi qualified as S
@@ -74,13 +73,6 @@ deriving instance C.Cql PropertyKey
 -- | A raw, unparsed property value.
 newtype RawPropertyValue = RawPropertyValue {rawPropertyBytes :: LByteString}
   deriving (Eq, Show)
-
--- | Generates an invalid values ~10% of the time
-instance Arbitrary RawPropertyValue where
-  arbitrary = do
-    chooseInt (0, 9) >>= \case
-      0 -> RawPropertyValue <$> arbitrary
-      _ -> RawPropertyValue . Aeson.encode @Value <$> arbitrary
 
 instance C.Cql RawPropertyValue where
   ctype = C.Tagged C.BlobColumn
