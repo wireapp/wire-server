@@ -143,7 +143,6 @@ createWireClient u = do
     >>= getJSON 201
     >>= mkClientIdentity u
 
-
 data InitMLSClient = InitMLSClient
   {credType :: CredentialType}
 

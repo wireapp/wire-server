@@ -19,11 +19,7 @@ instance TestCases Versioned' where
 
 -- | Used to test endpoints that have changed after version 5
 data Version5 = Version5 | NoVersion5
-
-instance HasTests x => HasTests (Version5 -> x) where
-  mkTests m n s f x =
-    mkTests m (n <> "[version=versioned]") s f (x NoVersion5)
-      <> mkTests m (n <> "[version=v5]") s f (x Version5)
+  deriving (Generic)
 
 withVersion5 :: Version5 -> App a -> App a
 withVersion5 Version5 = withAPIVersion 5
