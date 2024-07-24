@@ -30,7 +30,6 @@ import Control.Concurrent.Async
 import Control.Lens
 import Control.Monad.Catch (MonadCatch, catch)
 import Data.String.Conversions
-import Data.Time
 import GHC.Generics
 import Gundeck.Options
 import Gundeck.ThreadBudget.Internal
@@ -42,7 +41,6 @@ import Test.StateMachine
 import Test.StateMachine.Types qualified as STM
 import Test.StateMachine.Types.Rank2 qualified as Rank2
 import Test.Tasty
-import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 
 ----------------------------------------------------------------------
@@ -55,16 +53,6 @@ newtype NumberOfThreads = NumberOfThreads {fromNumberOfThreads :: Int}
 -- vs. robust in this whole setup.  this type is supposed to help us find a good sweet spot.
 newtype MilliSeconds = MilliSeconds {fromMilliSeconds :: Int}
   deriving (Eq, Ord, Show, Generic, ToExpr)
-
--- toMillisecondsCeiling 0.03      == MilliSeconds 30
--- toMillisecondsCeiling 0.003     == MilliSeconds 3
--- toMillisecondsCeiling 0.0003    == MilliSeconds 1
--- toMillisecondsCeiling 0.0000003 == MilliSeconds 1
-toMillisecondsCeiling :: NominalDiffTime -> MilliSeconds
-toMillisecondsCeiling = MilliSeconds . ceiling . (* 1000) . toRational
-
-milliSecondsToNominalDiffTime :: MilliSeconds -> NominalDiffTime
-milliSecondsToNominalDiffTime = fromRational . (/ 1000) . toRational . fromMilliSeconds
 
 instance Arbitrary NumberOfThreads where
   arbitrary = NumberOfThreads <$> choose (1, 30)
@@ -80,18 +68,6 @@ data LogEntry = NoBudget | Debug String | Unknown String
 makePrisms ''LogEntry
 
 type LogHistory = MVar [LogEntry]
-
-extractLogHistory :: (HasCallStack, MonadReader LogHistory m, MonadIO m) => m [LogEntry]
-extractLogHistory = do
-  logHistory <- ask
-  liftIO $ modifyMVar logHistory (pure . ([],))
-
-expectLogHistory :: (HasCallStack, MonadReader LogHistory m, MonadIO m) => ([LogEntry] -> Bool) -> m ()
-expectLogHistory expected = do
-  logHistory <- ask
-  liftIO $ do
-    found <- modifyMVar logHistory (\found -> pure ([], found))
-    expected (filter (isn't _Debug) found) @? ("unexpected log data: " <> show found)
 
 enterLogHistory :: (HasCallStack, MonadReader LogHistory m, MonadIO m) => LogEntry -> m ()
 enterLogHistory entry = do
@@ -111,9 +87,6 @@ instance LC.MonadLogger (ReaderT LogHistory IO) where
 
 delayms :: (MonadCatch m, MonadIO m) => MilliSeconds -> m ()
 delayms = delay' . (* 1000) . fromMilliSeconds
-
-delayndt :: (MonadCatch m, MonadIO m) => NominalDiffTime -> m ()
-delayndt = delay' . round . (* 1000) . (* 1000) . toRational
 
 delay' :: (MonadCatch m, MonadIO m) => Int -> m ()
 delay' microsecs = threadDelay microsecs `catch` \AsyncCancelled -> pure ()
@@ -148,42 +121,6 @@ tests =
       -- testCase "unit test" testThreadBudgets,
       testProperty "qc stm (sequential)" propSequential
     ]
-
-----------------------------------------------------------------------
--- deterministic unit test
-
-_testThreadBudgets :: Assertion
-_testThreadBudgets = do
-  let timeUnits n = MilliSeconds $ lengthOfTimeUnit * n
-      lengthOfTimeUnit = 5 -- if you make this larger, the test will run more slowly, and be
-      -- less likely to have timing issues.  if you make it too small, some of the calls to
-      -- 'delayms' may return too fast and some things may not be ready yet.
-  tbs <- mkThreadBudgetState (MaxConcurrentNativePushes (Just 5) (Just 5))
-  logHistory :: LogHistory <- newMVar []
-  watcher <- mkWatcher tbs logHistory
-  flip runReaderT logHistory $ do
-    burstActions tbs logHistory (timeUnits 100) (NumberOfThreads 5)
-    delayms (timeUnits 20)
-    expectLogHistory null
-    liftIO $ budgetSpent tbs >>= (@=? 5)
-    burstActions tbs logHistory (timeUnits 100) (NumberOfThreads 3)
-    delayms (timeUnits 20)
-    expectLogHistory (== [NoBudget, NoBudget, NoBudget])
-    liftIO $ budgetSpent tbs >>= (@=? 5)
-    burstActions tbs logHistory (timeUnits 100) (NumberOfThreads 3)
-    delayms (timeUnits 20)
-    expectLogHistory (== [NoBudget, NoBudget, NoBudget])
-    liftIO $ budgetSpent tbs >>= (@=? 5)
-    delayms (timeUnits 50)
-    burstActions tbs logHistory (timeUnits 100) (NumberOfThreads 3)
-    delayms (timeUnits 20)
-    expectLogHistory null
-    liftIO $ budgetSpent tbs >>= (@=? 3)
-    burstActions tbs logHistory (timeUnits 100) (NumberOfThreads 3)
-    delayms (timeUnits 20)
-    expectLogHistory (== [NoBudget])
-    liftIO $ budgetSpent tbs >>= (@=? 5)
-  cancel watcher
 
 ----------------------------------------------------------------------
 -- property-based state machine tests

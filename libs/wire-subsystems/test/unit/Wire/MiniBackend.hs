@@ -6,7 +6,6 @@ module Wire.MiniBackend
     interpretFederationStack,
     runFederationStack,
     interpretNoFederationStack,
-    runNoFederationStackState,
     interpretNoFederationStackState,
     runNoFederationStack,
     runAllErrorsUnsafe,
@@ -297,16 +296,6 @@ runNoFederationStack localBackend teamMember cfg =
   -- but other errors as well.  Maybe just wait with this until we have a better idea how we
   -- want to do errors?)
   runAllErrorsUnsafe . interpretNoFederationStack localBackend teamMember def cfg
-
-runNoFederationStackState ::
-  (HasCallStack) =>
-  MiniBackend ->
-  Maybe TeamMember ->
-  UserSubsystemConfig ->
-  Sem (MiniBackendEffects `Append` AllErrors) a ->
-  (MiniBackend, a)
-runNoFederationStackState localBackend teamMember cfg =
-  runAllErrorsUnsafe . interpretNoFederationStackState localBackend teamMember def cfg
 
 interpretNoFederationStack ::
   (Members AllErrors r) =>

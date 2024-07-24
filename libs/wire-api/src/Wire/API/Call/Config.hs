@@ -46,7 +46,6 @@ module Wire.API.Call.Config
     turiTransport,
     Transport (..),
     TurnHost (..),
-    isHostName,
 
     -- * SFTUsername
     SFTUsername,
@@ -408,10 +407,6 @@ instance Arbitrary TurnHost where
             "007.com",
             "xn--mgbh0fb.xn--kgbechtv"
           ]
-
-isHostName :: TurnHost -> Bool
-isHostName (TurnHostIp _) = False
-isHostName (TurnHostName _) = True
 
 parseTurnHost :: Text -> Maybe TurnHost
 parseTurnHost h = case BC.fromByteString host of

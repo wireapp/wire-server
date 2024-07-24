@@ -17,7 +17,6 @@
 
 module Wire.API.ConverProtoLens where
 
-import Data.Bifunctor (Bifunctor (first))
 import Imports
 
 -- | This typeclass exists to provide overloaded function names for convertion
@@ -27,7 +26,3 @@ import Imports
 class ConvertProtoLens a b | b -> a where
   fromProtolens :: a -> Either Text b
   toProtolens :: b -> a
-
--- | Add labels to error messages
-protoLabel :: Text -> Either Text a -> Either Text a
-protoLabel lbl = first ((lbl <> ": ") <>)

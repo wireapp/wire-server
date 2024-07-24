@@ -19,14 +19,12 @@ module Brig.API.Error where
 
 import Brig.API.Types
 import Control.Monad.Error.Class
-import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import Data.Jwt.Tools (DPoPTokenGenerationError (..))
 import Data.Text.Lazy as LT
 import Data.ZAuth.Validation qualified as ZAuth
 import Imports
-import Network.HTTP.Types.Header
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error qualified as Wai
 import Wire.API.Error
@@ -37,9 +35,6 @@ import Wire.Error
 
 throwStd :: (MonadError HttpError m) => Wai.Error -> m a
 throwStd = throwError . StdError
-
-throwRich :: (MonadError HttpError m, ToJSON x) => Wai.Error -> x -> [Header] -> m a
-throwRich e x h = throwError (RichError e x h)
 
 -- Error Mapping ----------------------------------------------------------
 
@@ -86,12 +81,6 @@ changeEmailError (InvalidNewEmail _ _) = StdError (errorToWai @'E.InvalidEmail)
 changeEmailError (EmailExists _) = StdError (errorToWai @'E.UserKeyExists)
 changeEmailError (ChangeBlacklistedEmail _) = StdError blacklistedEmail
 changeEmailError EmailManagedByScim = StdError $ propertyManagedByScim "email"
-
-changeHandleError :: ChangeHandleError -> HttpError
-changeHandleError ChangeHandleNoIdentity = StdError (errorToWai @'E.NoIdentity)
-changeHandleError ChangeHandleExists = StdError (errorToWai @'E.HandleExists)
-changeHandleError ChangeHandleInvalid = StdError (errorToWai @'E.InvalidHandle)
-changeHandleError ChangeHandleManagedByScim = StdError (errorToWai @'E.HandleManagedByScim)
 
 legalHoldLoginError :: LegalHoldLoginError -> HttpError
 legalHoldLoginError LegalHoldLoginNoBindingTeam = StdError noBindingTeam
@@ -234,10 +223,6 @@ accountStatusError :: AccountStatusError -> HttpError
 accountStatusError InvalidAccountStatus = StdError invalidAccountStatus
 accountStatusError AccountNotFound = StdError (notFound "Account not found")
 
-updateProfileError :: UpdateProfileError -> HttpError
-updateProfileError DisplayNameManagedByScim = StdError (propertyManagedByScim "name")
-updateProfileError ProfileNotFound = StdError (errorToWai @'E.UserNotFound)
-
 verificationCodeThrottledError :: VerificationCodeThrottledError -> HttpError
 verificationCodeThrottledError (VerificationCodeThrottled t) =
   RichError
@@ -253,14 +238,8 @@ clientCapabilitiesCannotBeRemoved = Wai.mkError status409 "client-capabilities-c
 emailExists :: Wai.Error
 emailExists = Wai.mkError status409 "email-exists" "The given e-mail address is in use."
 
-phoneExists :: Wai.Error
-phoneExists = Wai.mkError status409 "phone-exists" "The given phone number is in use."
-
 badRequest :: LText -> Wai.Error
 badRequest = Wai.mkError status400 "bad-request"
-
-loginCodePending :: Wai.Error
-loginCodePending = Wai.mkError status403 "pending-login" "A login code is still pending."
 
 loginCodeNotFound :: Wai.Error
 loginCodeNotFound = Wai.mkError status404 "no-pending-login" "No login code was found."
@@ -273,12 +252,6 @@ invalidAccountStatus = Wai.mkError status400 "invalid-status" "The specified acc
 
 activationKeyNotFound :: Wai.Error
 activationKeyNotFound = notFound "Activation key not found."
-
-invalidActivationCode :: LText -> Wai.Error
-invalidActivationCode = Wai.mkError status404 "invalid-code"
-
-activationCodeNotFound :: Wai.Error
-activationCodeNotFound = invalidActivationCode "Activation key/code not found or invalid."
 
 deletionCodePending :: Wai.Error
 deletionCodePending = Wai.mkError status403 "pending-delete" "A verification code for account deletion is still pending."
@@ -293,13 +266,6 @@ blacklistedEmail =
     "blacklisted-email"
     "The given e-mail address has been blacklisted due to a permanent bounce \
     \or a complaint."
-
-passwordExists :: Wai.Error
-passwordExists =
-  Wai.mkError
-    status403
-    "password-exists"
-    "The operation is not permitted because the user has a password set."
 
 phoneBudgetExhausted :: Wai.Error
 phoneBudgetExhausted =

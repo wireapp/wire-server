@@ -90,7 +90,6 @@ library
     , data-default
     , errors
     , exceptions
-    , extra
     , http-client
     , http-client-tls
     , http-types

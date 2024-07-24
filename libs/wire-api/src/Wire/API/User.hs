@@ -99,7 +99,6 @@ module Wire.API.User
     DeleteUser (..),
     mkDeleteUser,
     VerifyDeleteUser (..),
-    mkVerifyDeleteUser,
     DeletionCodeTimeout (..),
     DeleteUserResponse (..),
     DeleteUserResult (..),
@@ -1649,9 +1648,6 @@ data VerifyDeleteUser = VerifyDeleteUser
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform VerifyDeleteUser)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema VerifyDeleteUser)
-
-mkVerifyDeleteUser :: Code.Key -> Code.Value -> VerifyDeleteUser
-mkVerifyDeleteUser = VerifyDeleteUser
 
 instance ToSchema VerifyDeleteUser where
   schema =
