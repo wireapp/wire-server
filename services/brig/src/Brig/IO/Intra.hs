@@ -26,7 +26,7 @@ module Brig.IO.Intra
     onClientEvent,
 
     -- * user subsystem interpretation for user events
-    runUserEvents,
+    runEvents,
 
     -- * Conversations
     createConnectConv,
@@ -99,12 +99,12 @@ import Wire.API.Team.Member qualified as Team
 import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.UserEvent
+import Wire.Events
 import Wire.NotificationSubsystem
 import Wire.Rpc
 import Wire.Sem.Logger qualified as Log
 import Wire.Sem.Paging qualified as P
 import Wire.Sem.Paging.Cassandra (InternalPaging)
-import Wire.UserEvents
 
 -----------------------------------------------------------------------------
 -- Event Handlers
@@ -126,7 +126,7 @@ onUserEvent orig conn e =
     *> dispatchNotifications orig conn e
     *> embed (journalEvent orig e)
 
-runUserEvents ::
+runEvents ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member TinyLog r,
@@ -134,10 +134,11 @@ runUserEvents ::
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r
   ) =>
-  InterpreterFor UserEvents r
-runUserEvents = interpret \case
+  InterpreterFor Events r
+runEvents = interpret \case
   -- FUTUREWORK(mangoiv): should this be in another module?
   GenerateUserEvent uid mconnid event -> onUserEvent uid mconnid event
+  GeneratePropertyEvent uid connid event -> onPropertyEvent uid connid event
 
 onConnectionEvent ::
   (Member NotificationSubsystem r) =>

@@ -39,6 +39,7 @@ import Polysemy.TinyLog as Log
 import System.Logger.Class (field, msg, val, (~~))
 import Wire.API.UserEvent
 import Wire.NotificationSubsystem
+import Wire.PropertySubsystem
 import Wire.Sem.Delay
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserKeyStore
@@ -57,7 +58,8 @@ onEvent ::
     Member UserKeyStore r,
     Member (Input UTCTime) r,
     Member UserStore r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member PropertySubsystem r
   ) =>
   InternalNotification ->
   Sem r ()

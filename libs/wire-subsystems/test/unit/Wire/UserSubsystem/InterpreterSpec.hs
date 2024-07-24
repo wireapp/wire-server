@@ -251,16 +251,17 @@ spec = describe "UserSubsystem.Interpreter" do
               .&&. userAfterUpdate.userLocale === fromMaybe userBeforeUpdate.userLocale update.locale
 
     prop "Update user events" $
-      \(NotPendingStoredUser alice) localDomain update config -> do
+      \(NotPendingStoredUser alice) connId localDomain update config -> do
         let lusr = toLocalUnsafe localDomain alice.id
             localBackend = def {users = [alice {managedBy = Just ManagedByWire}]}
             events = runNoFederationStack localBackend Nothing config do
-              updateUserProfile lusr Nothing UpdateOriginScim update
+              updateUserProfile lusr connId UpdateOriginScim update
               get @[MiniEvent]
          in events
               === [ MkMiniEvent
                       alice.id
-                      ( UserUpdated $
+                      connId
+                      ( UserEvent . UserUpdated $
                           (emptyUserUpdatedData alice.id)
                             { eupName = update.name,
                               eupTextStatus = update.textStatus,

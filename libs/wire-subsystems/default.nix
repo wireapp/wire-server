@@ -56,6 +56,7 @@
 , resource-pool
 , resourcet
 , retry
+, scientific
 , servant
 , servant-client-core
 , stomp-queue
@@ -174,6 +175,7 @@ mkDerivation {
     QuickCheck
     quickcheck-instances
     random
+    scientific
     servant-client-core
     streaming-commons
     string-conversions

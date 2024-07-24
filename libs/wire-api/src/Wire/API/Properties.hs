@@ -21,7 +21,6 @@ module Wire.API.Properties
   ( PropertyKeysAndValues (..),
     PropertyKey (..),
     RawPropertyValue (..),
-    PropertyValue (..),
   )
 where
 
@@ -35,9 +34,10 @@ import Data.OpenApi qualified as S
 import Data.Text.Ascii
 import Imports
 import Servant
-import Wire.Arbitrary (Arbitrary)
+import Test.QuickCheck
 
-newtype PropertyKeysAndValues = PropertyKeysAndValues (Map PropertyKey PropertyValue)
+newtype PropertyKeysAndValues = PropertyKeysAndValues (Map PropertyKey Value)
+  deriving stock (Eq, Show)
   deriving newtype (ToJSON)
 
 instance S.ToSchema PropertyKeysAndValues where
@@ -72,6 +72,7 @@ deriving instance C.Cql PropertyKey
 
 -- | A raw, unparsed property value.
 newtype RawPropertyValue = RawPropertyValue {rawPropertyBytes :: LByteString}
+  deriving (Eq, Show)
 
 instance C.Cql RawPropertyValue where
   ctype = C.Tagged C.BlobColumn
@@ -89,15 +90,3 @@ instance S.ToSchema RawPropertyValue where
   declareNamedSchema _ =
     pure . S.NamedSchema (Just "PropertyValue") $
       mempty & S.description ?~ "An arbitrary JSON value for a property"
-
--- | A property value together with its original serialisation.
-data PropertyValue = PropertyValue
-  { propertyRaw :: RawPropertyValue,
-    propertyValue :: Value
-  }
-
-instance ToJSON PropertyValue where
-  toJSON = propertyValue
-
-instance Show PropertyValue where
-  show = show . propertyValue

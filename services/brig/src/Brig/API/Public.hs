@@ -32,7 +32,6 @@ import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.MLS.KeyPackages
 import Brig.API.OAuth (oauthAPI)
-import Brig.API.Properties qualified as API
 import Brig.API.Public.Swagger
 import Brig.API.Types
 import Brig.API.User qualified as API
@@ -67,9 +66,7 @@ import Control.Lens (view, (.~), (?~), (^.))
 import Control.Monad.Catch (throwM)
 import Control.Monad.Except
 import Data.Aeson hiding (json)
-import Data.Bifunctor
 import Data.ByteString (fromStrict, toStrict)
-import Data.ByteString.Lazy qualified as Lazy
 import Data.ByteString.Lazy.Char8 qualified as LBS
 import Data.ByteString.UTF8 qualified as UTF8
 import Data.Code qualified as Code
@@ -88,10 +85,7 @@ import Data.OpenApi qualified as S
 import Data.Qualified
 import Data.Range
 import Data.Schema ()
-import Data.Text qualified as Text
-import Data.Text.Ascii qualified as Ascii
 import Data.Text.Encoding qualified as Text
-import Data.Text.Lazy (pack)
 import Data.Time.Clock (UTCTime)
 import Data.ZAuth.Token qualified as ZAuth
 import FileEmbedLzma
@@ -160,6 +154,7 @@ import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.PasswordStore (PasswordStore, lookupHashedPassword)
+import Wire.PropertySubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Now (Now)
@@ -307,7 +302,8 @@ servantSitemap ::
     Member (UserPendingActivationStore p) r,
     Member EmailSubsystem r,
     Member EmailSending r,
-    Member VerificationCodeSubsystem r
+    Member VerificationCodeSubsystem r,
+    Member PropertySubsystem r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -421,13 +417,13 @@ servantSitemap =
 
     propertiesAPI :: ServerT PropertiesAPI (Handler r)
     propertiesAPI =
-      ( Named @"set-property" setProperty
-          :<|> Named @"delete-property" deleteProperty
-          :<|> Named @"clear-properties" clearProperties
-          :<|> Named @"get-property" getProperty
-          :<|> Named @"list-property-keys" listPropertyKeys
+      ( Named @"set-property" setPropertyH
+          :<|> Named @"delete-property" deletePropertyH
+          :<|> Named @"clear-properties" clearPropertiesH
+          :<|> Named @"get-property" getPropertyH
+          :<|> Named @"list-property-keys" listPropertyKeysH
       )
-        :<|> Named @"list-properties" listPropertyKeysAndValues
+        :<|> Named @"list-properties" listPropertyKeysAndValuesH
 
     mlsAPI :: ServerT MLSAPI (Handler r)
     mlsAPI =
@@ -476,61 +472,23 @@ servantSitemap =
 ---------------------------------------------------------------------------
 -- Handlers
 
-setProperty :: (Member NotificationSubsystem r) => UserId -> ConnId -> Public.PropertyKey -> Public.RawPropertyValue -> Handler r ()
-setProperty u c key raw = do
-  checkPropertyKey key
-  val <- safeParsePropertyValue raw
-  API.setProperty u c key val !>> propDataError
+setPropertyH :: (Member PropertySubsystem r) => UserId -> ConnId -> Public.PropertyKey -> Public.RawPropertyValue -> Handler r ()
+setPropertyH u c key raw = lift . liftSem $ setProperty u c key raw
 
-checkPropertyKey :: Public.PropertyKey -> Handler r ()
-checkPropertyKey k = do
-  maxKeyLen <- fromMaybe defMaxKeyLen <$> view (settings . propertyMaxKeyLen)
-  let keyText = Ascii.toText (Public.propertyKeyName k)
-  when (Text.compareLength keyText (fromIntegral maxKeyLen) == GT) $
-    throwStd propertyKeyTooLarge
+deletePropertyH :: (Member PropertySubsystem r) => UserId -> ConnId -> Public.PropertyKey -> Handler r ()
+deletePropertyH u c k = lift . liftSem $ deleteProperty u c k
 
--- | Parse a 'PropertyValue' from a bytestring.  This is different from 'FromJSON' in that
--- checks the byte size of the input, and fails *without consuming all of it* if that size
--- exceeds the settings.
-safeParsePropertyValue :: Public.RawPropertyValue -> Handler r Public.PropertyValue
-safeParsePropertyValue raw = do
-  maxValueLen <- fromMaybe defMaxValueLen <$> view (settings . propertyMaxValueLen)
-  let lbs = Lazy.take (maxValueLen + 1) (Public.rawPropertyBytes raw)
-  unless (Lazy.length lbs <= maxValueLen) $
-    throwStd propertyValueTooLarge
-  hoistEither $ first (StdError . badRequest . pack) (propertyValueFromRaw raw)
+clearPropertiesH :: (Member PropertySubsystem r) => UserId -> ConnId -> Handler r ()
+clearPropertiesH u c = lift . liftSem $ clearProperties u c
 
-propertyValueFromRaw :: Public.RawPropertyValue -> Either String Public.PropertyValue
-propertyValueFromRaw raw =
-  Public.PropertyValue raw
-    <$> eitherDecode (Public.rawPropertyBytes raw)
+getPropertyH :: (Member PropertySubsystem r) => UserId -> Public.PropertyKey -> Handler r (Maybe Public.RawPropertyValue)
+getPropertyH u k = lift . liftSem $ lookupProperty u k
 
-parseStoredPropertyValue :: Public.RawPropertyValue -> Handler r Public.PropertyValue
-parseStoredPropertyValue raw = case propertyValueFromRaw raw of
-  Right value -> pure value
-  Left e -> do
-    Log.err $
-      Log.msg (Log.val "Failed to parse a stored property value")
-        . Log.field "raw_value" (Public.rawPropertyBytes raw)
-        . Log.field "parse_error" e
-    throwStd internalServerError
+listPropertyKeysH :: (Member PropertySubsystem r) => UserId -> Handler r [Public.PropertyKey]
+listPropertyKeysH u = lift . liftSem $ getPropertyKeys u
 
-deleteProperty :: (Member NotificationSubsystem r) => UserId -> ConnId -> Public.PropertyKey -> Handler r ()
-deleteProperty u c k = lift (API.deleteProperty u c k)
-
-clearProperties :: (Member NotificationSubsystem r) => UserId -> ConnId -> Handler r ()
-clearProperties u c = lift (API.clearProperties u c)
-
-getProperty :: UserId -> Public.PropertyKey -> Handler r (Maybe Public.RawPropertyValue)
-getProperty u k = lift . wrapClient $ API.lookupProperty u k
-
-listPropertyKeys :: UserId -> Handler r [Public.PropertyKey]
-listPropertyKeys u = lift $ wrapClient (API.lookupPropertyKeys u)
-
-listPropertyKeysAndValues :: UserId -> Handler r Public.PropertyKeysAndValues
-listPropertyKeysAndValues u = do
-  keysAndVals <- fmap Map.fromList . lift $ wrapClient (API.lookupPropertyKeysAndValues u)
-  Public.PropertyKeysAndValues <$> traverse parseStoredPropertyValue keysAndVals
+listPropertyKeysAndValuesH :: (Member PropertySubsystem r) => UserId -> Handler r Public.PropertyKeysAndValues
+listPropertyKeysAndValuesH u = lift . liftSem $ getAllProperties u
 
 getPrekeyUnqualifiedH ::
   (Member DeleteQueue r) =>
@@ -1238,7 +1196,8 @@ deleteSelfUser ::
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
     Member EmailSubsystem r,
-    Member VerificationCodeSubsystem r
+    Member VerificationCodeSubsystem r,
+    Member PropertySubsystem r
   ) =>
   UserId ->
   Public.DeleteUser ->
@@ -1255,7 +1214,8 @@ verifyDeleteUser ::
     Member UserKeyStore r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
-    Member VerificationCodeSubsystem r
+    Member VerificationCodeSubsystem r,
+    Member PropertySubsystem r
   ) =>
   Public.VerifyDeleteUser ->
   Handler r ()

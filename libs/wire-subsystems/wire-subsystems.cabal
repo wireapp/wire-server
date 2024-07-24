@@ -82,6 +82,7 @@ library
     Wire.EmailSubsystem.Interpreter
     Wire.EmailSubsystem.Template
     Wire.Error
+    Wire.Events
     Wire.FederationAPIAccess
     Wire.FederationAPIAccess.Interpreter
     Wire.GalleyAPIAccess
@@ -96,11 +97,14 @@ library
     Wire.PasswordResetCodeStore.Cassandra
     Wire.PasswordStore
     Wire.PasswordStore.Cassandra
+    Wire.PropertyStore
+    Wire.PropertyStore.Cassandra
+    Wire.PropertySubsystem
+    Wire.PropertySubsystem.Interpreter
     Wire.Rpc
     Wire.SessionStore
     Wire.SessionStore.Cassandra
     Wire.StoredUser
-    Wire.UserEvents
     Wire.UserKeyStore
     Wire.UserKeyStore.Cassandra
     Wire.UserStore
@@ -202,19 +206,21 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters
     Wire.MockInterpreters.EmailSubsystem
     Wire.MockInterpreters.Error
+    Wire.MockInterpreters.Events
     Wire.MockInterpreters.GalleyAPIAccess
     Wire.MockInterpreters.HashPassword
     Wire.MockInterpreters.Now
     Wire.MockInterpreters.PasswordResetCodeStore
     Wire.MockInterpreters.PasswordStore
+    Wire.MockInterpreters.PropertyStore
     Wire.MockInterpreters.Random
     Wire.MockInterpreters.SessionStore
-    Wire.MockInterpreters.UserEvents
     Wire.MockInterpreters.UserKeyStore
     Wire.MockInterpreters.UserStore
     Wire.MockInterpreters.UserSubsystem
     Wire.MockInterpreters.VerificationCodeStore
     Wire.NotificationSubsystem.InterpreterSpec
+    Wire.PropertySubsystem.InterpreterSpec
     Wire.UserStoreSpec
     Wire.UserSubsystem.InterpreterSpec
     Wire.VerificationCodeSubsystem.InterpreterSpec
@@ -247,6 +253,7 @@ test-suite wire-subsystems-tests
     , QuickCheck
     , quickcheck-instances
     , random
+    , scientific
     , servant-client-core
     , streaming-commons
     , string-conversions

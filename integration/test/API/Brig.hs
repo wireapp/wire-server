@@ -675,3 +675,33 @@ addBot user providerId serviceId convId = do
     req
       & zType "access"
       & addJSONObject ["provider" .= providerId, "service" .= serviceId]
+
+setProperty :: (MakesValue user, ToJSON val) => user -> String -> val -> App Response
+setProperty user propName val = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["properties", propName]
+  submit "PUT" $ req & addJSON val
+
+getProperty :: (MakesValue user) => user -> String -> App Response
+getProperty user propName = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["properties", propName]
+  submit "GET" req
+
+deleteProperty :: (MakesValue user) => user -> String -> App Response
+deleteProperty user propName = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["properties", propName]
+  submit "DELETE" req
+
+getAllPropertyNames :: (MakesValue user) => user -> App Response
+getAllPropertyNames user = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["properties"]
+  submit "GET" req
+
+getAllPropertyValues :: (MakesValue user) => user -> App Response
+getAllPropertyValues user = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["properties-values"]
+  submit "GET" req
+
+clearProperties :: (MakesValue user) => user -> App Response
+clearProperties user = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["properties"]
+  submit "DELETE" req

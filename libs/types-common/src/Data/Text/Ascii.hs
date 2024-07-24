@@ -80,6 +80,7 @@ where
 import Cassandra hiding (Ascii)
 import Data.Aeson (FromJSON (..), FromJSONKey, ToJSON (..), ToJSONKey)
 import Data.Attoparsec.ByteString (Parser)
+import Data.Bifunctor (first)
 import Data.ByteString.Base16 qualified as B16
 import Data.ByteString.Base64 qualified as B64
 import Data.ByteString.Base64.URL qualified as B64Url
@@ -104,11 +105,9 @@ newtype AsciiText c = AsciiText {toText :: Text}
       Monoid,
       NFData,
       ToByteString,
-      FromJSONKey,
       ToJSONKey,
       Hashable,
-      ToHttpApiData,
-      FromHttpApiData
+      ToHttpApiData
     )
 
 newtype AsciiChar c = AsciiChar {toChar :: Char}
@@ -141,6 +140,9 @@ class AsciiChars c where
 instance (AsciiChars c) => FromByteString (AsciiText c) where
   parser = parseBytes validate
 
+instance (AsciiChars c) => FromHttpApiData (AsciiText c) where
+  parseUrlPiece = first Text.pack . validate
+
 -- | Note: 'fromString' is a partial function that will 'error' when given
 -- a string containing characters not in the set @c@. It is only intended to be used
 -- via the @OverloadedStrings@ extension, i.e. for known ASCII string literals.
@@ -155,6 +157,8 @@ instance (AsciiChars c) => ToJSON (AsciiText c) where
 
 instance (AsciiChars c) => FromJSON (AsciiText c) where
   parseJSON = schemaParseJSON
+
+instance (FromJSON (AsciiText c)) => FromJSONKey (AsciiText c)
 
 instance (Typeable c, AsciiChars c) => S.ToSchema (AsciiText c) where
   declareNamedSchema = schemaToSwagger
