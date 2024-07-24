@@ -37,7 +37,6 @@ import Brig.Data.Client qualified as Data
 import Brig.Data.Connection qualified as Data
 import Brig.Data.MLS.KeyPackage qualified as Data
 import Brig.Data.User qualified as Data
-import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.FederationConfigStore
   ( AddFederationRemoteResult (..),
@@ -100,6 +99,7 @@ import Wire.API.User.Client
 import Wire.API.User.RichInfo
 import Wire.API.UserEvent
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
+import Wire.BlockListStore (BlockListStore)
 import Wire.DeleteQueue
 import Wire.EmailSending (EmailSending)
 import Wire.EmailSubsystem (EmailSubsystem)
@@ -119,7 +119,7 @@ import Wire.VerificationCodeSubsystem
 
 servantSitemap ::
   forall r p.
-  ( Member BlacklistStore r,
+  ( Member BlockListStore r,
     Member DeleteQueue r,
     Member (Concurrency 'Unsafe) r,
     Member (ConnectionStore InternalPaging) r,
@@ -174,7 +174,7 @@ mlsAPI :: ServerT BrigIRoutes.MLSAPI (Handler r)
 mlsAPI = getMLSClients
 
 accountAPI ::
-  ( Member BlacklistStore r,
+  ( Member BlockListStore r,
     Member GalleyAPIAccess r,
     Member AuthenticationSubsystem r,
     Member DeleteQueue r,
@@ -232,7 +232,7 @@ accountAPI =
 teamsAPI ::
   ( Member GalleyAPIAccess r,
     Member (UserPendingActivationStore p) r,
-    Member BlacklistStore r,
+    Member BlockListStore r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member UserKeyStore r,
@@ -241,7 +241,8 @@ teamsAPI ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
-    Member EmailSending r
+    Member EmailSending r,
+    Member UserSubsystem r
   ) =>
   ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI =
@@ -458,7 +459,7 @@ internalListFullClientsH (UserSet usrs) = lift $ do
   UserClientsFull <$> wrapClient (Data.lookupClientsBulk (Set.toList usrs))
 
 createUserNoVerify ::
-  ( Member BlacklistStore r,
+  ( Member BlockListStore r,
     Member GalleyAPIAccess r,
     Member (UserPendingActivationStore p) r,
     Member TinyLog r,
@@ -528,14 +529,14 @@ deleteUserNoAuthH uid = do
     AccountAlreadyDeleted -> pure UserResponseAccountAlreadyDeleted
     AccountDeleted -> pure UserResponseAccountDeleted
 
-changeSelfEmailMaybeSendH :: (Member BlacklistStore r, Member UserKeyStore r, Member EmailSubsystem r) => UserId -> EmailUpdate -> Maybe Bool -> (Handler r) ChangeEmailResponse
+changeSelfEmailMaybeSendH :: (Member BlockListStore r, Member UserKeyStore r, Member EmailSubsystem r) => UserId -> EmailUpdate -> Maybe Bool -> (Handler r) ChangeEmailResponse
 changeSelfEmailMaybeSendH u body (fromMaybe False -> validate) = do
   let email = euEmail body
   changeSelfEmailMaybeSend u (if validate then ActuallySendEmail else DoNotSendEmail) email UpdateOriginScim
 
 data MaybeSendEmail = ActuallySendEmail | DoNotSendEmail
 
-changeSelfEmailMaybeSend :: (Member BlacklistStore r, Member UserKeyStore r, Member EmailSubsystem r) => UserId -> MaybeSendEmail -> Email -> UpdateOriginType -> (Handler r) ChangeEmailResponse
+changeSelfEmailMaybeSend :: (Member BlockListStore r, Member UserKeyStore r, Member EmailSubsystem r) => UserId -> MaybeSendEmail -> Email -> UpdateOriginType -> (Handler r) ChangeEmailResponse
 changeSelfEmailMaybeSend u ActuallySendEmail email allowScim = do
   API.changeSelfEmail u email allowScim
 changeSelfEmailMaybeSend u DoNotSendEmail email allowScim = do
@@ -695,13 +696,13 @@ updateConnectionInternalH updateConn = do
   API.updateConnectionInternal updateConn !>> connError
   pure NoContent
 
-checkBlacklist :: (Member BlacklistStore r) => Email -> Handler r CheckBlacklistResponse
+checkBlacklist :: (Member BlockListStore r) => Email -> Handler r CheckBlacklistResponse
 checkBlacklist email = lift $ bool NotBlacklisted YesBlacklisted <$> API.isBlacklisted email
 
-deleteFromBlacklist :: (Member BlacklistStore r) => Email -> Handler r NoContent
+deleteFromBlacklist :: (Member BlockListStore r) => Email -> Handler r NoContent
 deleteFromBlacklist email = lift $ NoContent <$ API.blacklistDelete email
 
-addBlacklist :: (Member BlacklistStore r) => Email -> Handler r NoContent
+addBlacklist :: (Member BlockListStore r) => Email -> Handler r NoContent
 addBlacklist email = lift $ NoContent <$ API.blacklistInsert email
 
 updateSSOIdH ::

@@ -32,8 +32,6 @@ import Brig.API.User (createUserInviteViaScim, fetchUserIdentity)
 import Brig.API.User qualified as API
 import Brig.API.Util (logEmail, logInvitationCode)
 import Brig.App
-import Brig.Effects.BlacklistStore (BlacklistStore)
-import Brig.Effects.BlacklistStore qualified as BlacklistStore
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
@@ -77,6 +75,7 @@ import Wire.API.Team.Role qualified as Public
 import Wire.API.User hiding (fromEmail)
 import Wire.API.User qualified as Public
 import Wire.API.User.Identity qualified as Email
+import Wire.BlockListStore
 import Wire.EmailSending (EmailSending)
 import Wire.Error
 import Wire.GalleyAPIAccess (GalleyAPIAccess, ShowOrHideInvitationUrl (..))
@@ -88,8 +87,7 @@ import Wire.UserKeyStore
 import Wire.UserSubsystem
 
 servantAPI ::
-  ( Member BlacklistStore r,
-    Member GalleyAPIAccess r,
+  ( Member GalleyAPIAccess r,
     Member UserKeyStore r,
     Member UserSubsystem r,
     Member EmailSending r
@@ -118,8 +116,7 @@ getInvitationCode t r = do
   maybe (throwStd $ errorToWai @'E.InvalidInvitationCode) (pure . FoundInvitationCode) code
 
 createInvitationPublicH ::
-  ( Member BlacklistStore r,
-    Member GalleyAPIAccess r,
+  ( Member GalleyAPIAccess r,
     Member UserKeyStore r,
     Member UserSubsystem r,
     Member EmailSending r
@@ -143,8 +140,7 @@ data CreateInvitationInviter = CreateInvitationInviter
   deriving (Eq, Show)
 
 createInvitationPublic ::
-  ( Member BlacklistStore r,
-    Member GalleyAPIAccess r,
+  ( Member GalleyAPIAccess r,
     Member UserKeyStore r,
     Member UserSubsystem r,
     Member EmailSending r
@@ -173,12 +169,13 @@ createInvitationPublic uid tid body = do
       (createInvitation' tid Nothing inviteeRole (Just (inviterUid inviter)) (inviterEmail inviter) body)
 
 createInvitationViaScim ::
-  ( Member BlacklistStore r,
+  ( Member BlockListStore r,
     Member GalleyAPIAccess r,
     Member UserKeyStore r,
     Member (UserPendingActivationStore p) r,
     Member TinyLog r,
-    Member EmailSending r
+    Member EmailSending r,
+    Member UserSubsystem r
   ) =>
   TeamId ->
   NewUserScimInvitation ->
@@ -225,7 +222,7 @@ logInvitationRequest context action =
         pure (Right result)
 
 createInvitation' ::
-  ( Member BlacklistStore r,
+  ( Member UserSubsystem r,
     Member GalleyAPIAccess r,
     Member UserKeyStore r,
     Member EmailSending r
@@ -244,7 +241,7 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail body = do
   -- Validate e-mail
   inviteeEmail <- either (const $ throwStd (errorToWai @'E.InvalidEmail)) pure (Email.validateEmail (irInviteeEmail body))
   let uke = mkEmailKey inviteeEmail
-  blacklistedEm <- lift $ liftSem $ BlacklistStore.exists uke
+  blacklistedEm <- lift $ liftSem $ isBlocked inviteeEmail
   when blacklistedEm $
     throwStd blacklistedEmail
   emailTaken <- lift $ liftSem $ isJust <$> lookupKey uke

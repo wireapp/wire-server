@@ -3,8 +3,6 @@ module Brig.CanonicalInterpreter where
 import Brig.AWS (amazonkaEnv)
 import Brig.App as App
 import Brig.DeleteQueue.Interpreter as DQ
-import Brig.Effects.BlacklistStore (BlacklistStore)
-import Brig.Effects.BlacklistStore.Cassandra (interpretBlacklistStoreToCassandra)
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.ConnectionStore.Cassandra (connectionStoreToCassandra)
 import Brig.Effects.FederationConfigStore (FederationConfigStore)
@@ -36,6 +34,8 @@ import Wire.API.Federation.Client qualified
 import Wire.API.Federation.Error
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Interpreter
+import Wire.BlockListStore
+import Wire.BlockListStore.Cassandra
 import Wire.DeleteQueue
 import Wire.EmailSending
 import Wire.EmailSending.SES
@@ -120,7 +120,7 @@ type BrigCanonicalEffects =
      Jwk,
      PublicKeyBundle,
      JwtTools,
-     BlacklistStore,
+     BlockListStore,
      UserPendingActivationStore InternalPaging,
      Now,
      Delay,
@@ -182,7 +182,7 @@ runBrigToIO e (AppT ma) = do
               . runDelay
               . nowToIOAction (e ^. currentTime)
               . userPendingActivationStoreToCassandra
-              . interpretBlacklistStoreToCassandra @Cas.Client
+              . interpretBlockListStoreToCassandra @Cas.Client
               . interpretJwtTools
               . interpretPublicKeyBundle
               . interpretJwk

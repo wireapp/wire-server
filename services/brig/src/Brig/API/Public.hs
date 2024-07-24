@@ -41,7 +41,6 @@ import Brig.Calling.API qualified as Calling
 import Brig.Data.Connection qualified as Data
 import Brig.Data.Nonce as Nonce
 import Brig.Data.User qualified as Data
-import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.FederationConfigStore (FederationConfigStore)
 import Brig.Effects.JwtTools (JwtTools)
@@ -146,6 +145,7 @@ import Wire.API.User.RichInfo qualified as Public
 import Wire.API.UserMap qualified as Public
 import Wire.API.Wrapped qualified as Public
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem, createPasswordResetCode, resetPassword)
+import Wire.BlockListStore (BlockListStore)
 import Wire.DeleteQueue
 import Wire.EmailSending (EmailSending)
 import Wire.EmailSubsystem
@@ -277,7 +277,7 @@ internalEndpointsSwaggerDocsAPI service examplePort swagger Nothing =
 
 servantSitemap ::
   forall r p.
-  ( Member BlacklistStore r,
+  ( Member BlockListStore r,
     Member DeleteQueue r,
     Member (Concurrency 'Unsafe) r,
     Member (ConnectionStore InternalPaging) r,
@@ -697,7 +697,7 @@ createAccessToken method luid cid proof = do
 
 -- | docs/reference/user/registration.md {#RefRegistration}
 createUser ::
-  ( Member BlacklistStore r,
+  ( Member BlockListStore r,
     Member GalleyAPIAccess r,
     Member (UserPendingActivationStore p) r,
     Member TinyLog r,
@@ -1029,7 +1029,7 @@ completePasswordReset req = do
 -- docs/reference/user/activation.md {#RefActivationRequest}
 -- docs/reference/user/registration.md {#RefRegistration}
 sendActivationCode ::
-  ( Member BlacklistStore r,
+  ( Member BlockListStore r,
     Member EmailSubsystem r,
     Member GalleyAPIAccess r,
     Member UserKeyStore r
@@ -1223,7 +1223,7 @@ verifyDeleteUser body = API.verifyDeleteUser body !>> deleteUserError
 
 updateUserEmail ::
   forall r.
-  ( Member BlacklistStore r,
+  ( Member BlockListStore r,
     Member UserKeyStore r,
     Member GalleyAPIAccess r,
     Member EmailSubsystem r
