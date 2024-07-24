@@ -685,7 +685,8 @@ CREATE TABLE brig_test.user (
     sso_id text,
     status int,
     supported_protocols int,
-    team uuid
+    team uuid,
+    text_status text
 ) WITH bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
