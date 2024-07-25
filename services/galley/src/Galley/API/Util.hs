@@ -22,7 +22,6 @@ module Galley.API.Util where
 import Control.Lens (set, view, (.~), (^.))
 import Control.Monad.Extra (allM, anyM)
 import Data.Bifunctor
-import Data.ByteString.Conversion
 import Data.Code qualified as Code
 import Data.Domain (Domain)
 import Data.Id as Id
@@ -38,7 +37,6 @@ import Data.Set qualified as Set
 import Data.Singletons
 import Data.Text qualified as T
 import Data.Time
-import GHC.TypeLits
 import Galley.API.Error
 import Galley.API.Mapping
 import Galley.Data.Conversation qualified as Data
@@ -64,14 +62,10 @@ import Galley.Types.UserList
 import Gundeck.Types.Push.V2 qualified as PushV2
 import Imports hiding (forkIO)
 import Network.AMQP qualified as Q
-import Network.HTTP.Types
-import Network.Wai
-import Network.Wai.Utilities qualified as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
-import System.Logger qualified as Log
 import Wire.API.Connection
 import Wire.API.Conversation hiding (Member, cnvAccess, cnvAccessRoles, cnvName, cnvType)
 import Wire.API.Conversation qualified as Public
@@ -519,9 +513,6 @@ localBotsAndUsers = foldMap botOrUser
       -- we drop invalid bots here, which shouldn't happen
       Just _ -> (toList (newBotMember m), [])
       Nothing -> ([], [m])
-
-location :: (ToByteString a) => a -> Response -> Response
-location = Wai.addHeader hLocation . toByteString'
 
 nonTeamMembers :: [LocalMember] -> [TeamMember] -> [LocalMember]
 nonTeamMembers cm tm = filter (not . isMemberOfTeam . lmId) cm
@@ -1089,13 +1080,3 @@ instance
     if err' == demote @e
       then throwS @e
       else rethrowErrors @effs @r err'
-
-logRemoteNotificationError ::
-  forall rpc r.
-  (Member P.TinyLog r, KnownSymbol rpc) =>
-  FederationError ->
-  Sem r ()
-logRemoteNotificationError e =
-  P.warn $
-    Log.field "federation call" (symbolVal (Proxy @rpc))
-      . Log.msg (displayException e)

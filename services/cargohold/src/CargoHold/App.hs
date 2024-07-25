@@ -39,7 +39,6 @@ module CargoHold.App
     AppT,
     App,
     runAppT,
-    runAppResourceT,
     executeBrigInteral,
 
     -- * Handler Monad
@@ -59,7 +58,6 @@ import Control.Error (ExceptT, exceptT)
 import Control.Exception (throw)
 import Control.Lens (Lens', makeLenses, non, view, (?~), (^.))
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
-import Control.Monad.Trans.Resource (ResourceT, runResourceT, transResourceT)
 import qualified Data.Map as Map
 import Data.Qualified
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
@@ -232,9 +230,6 @@ instance HasRequestId (ExceptT e App) where
 
 runAppT :: Env -> AppT m a -> m a
 runAppT e (AppT a) = runReaderT a e
-
-runAppResourceT :: (MonadIO m) => Env -> ResourceT App a -> m a
-runAppResourceT e rma = liftIO . runResourceT $ transResourceT (runAppT e) rma
 
 executeBrigInteral :: BrigInternalClient a -> App (Either Servant.ClientError a)
 executeBrigInteral action = do

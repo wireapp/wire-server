@@ -824,7 +824,7 @@ onMLSMessageSent domain rmm =
                   ByteString
               )
       let recipients =
-            filter (\r -> Set.member (_recipientUserId r) members)
+            filter (\r -> Set.member (recipientUserId r) members)
               . map (\(u, clts) -> Recipient u (RecipientClientsSome (List1 clts)))
               . Map.assocs
               $ rmm.recipients

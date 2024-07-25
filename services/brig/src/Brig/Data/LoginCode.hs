@@ -20,7 +20,6 @@
 -- TODO: Move to Brig.User.Auth.DB.LoginCode
 module Brig.Data.LoginCode
   ( LoginCode,
-    createLoginCode,
     verifyLoginCode,
     lookupLoginCode,
   )
@@ -31,29 +30,13 @@ import Cassandra
 import Control.Lens (view)
 import Data.Code
 import Data.Id
-import Data.Text qualified as T
 import Data.Time.Clock
 import Imports
-import OpenSSL.BN (randIntegerZeroToNMinusOne)
-import Text.Printf (printf)
 import Wire.API.User.Auth
-
--- | Max. number of verification attempts per code.
-maxAttempts :: Int32
-maxAttempts = 3
 
 -- | Timeout of individual codes.
 ttl :: NominalDiffTime
 ttl = 600
-
-createLoginCode :: (MonadClient m, MonadReader Env m) => UserId -> m PendingLoginCode
-createLoginCode u = do
-  now <- liftIO =<< view currentTime
-  code <- liftIO genCode
-  insertLoginCode u code maxAttempts (ttl `addUTCTime` now)
-  pure $! PendingLoginCode code (Timeout ttl)
-  where
-    genCode = LoginCode . T.pack . printf "%06d" <$> randIntegerZeroToNMinusOne 1000000
 
 verifyLoginCode :: (MonadClient m, MonadReader Env m) => UserId -> LoginCode -> m Bool
 verifyLoginCode u c = do

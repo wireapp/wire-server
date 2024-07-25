@@ -36,7 +36,6 @@ module Wire.API.User.Client
     mkQualifiedUserClientPrekeyMap,
     qualifiedUserClientPrekeyMapFromList,
     UserClientsFull (..),
-    userClientsFullToUserClients,
     UserClients (..),
     mkUserClients,
     QualifiedUserClients (..),
@@ -393,9 +392,6 @@ instance FromJSON UserClientsFull where
 
 instance Arbitrary UserClientsFull where
   arbitrary = UserClientsFull <$> mapOf' arbitrary (setOf' arbitrary)
-
-userClientsFullToUserClients :: UserClientsFull -> UserClients
-userClientsFullToUserClients (UserClientsFull mp) = UserClients $ Set.map clientId <$> mp
 
 newtype UserClients = UserClients
   { userClients :: Map UserId (Set ClientId)

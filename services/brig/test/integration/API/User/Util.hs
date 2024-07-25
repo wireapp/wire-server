@@ -23,7 +23,6 @@ module API.User.Util where
 
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
-import Brig.Options (Opts)
 import Brig.ZAuth (Token)
 import Cassandra qualified as DB
 import Codec.MIME.Type qualified as MIME
@@ -48,7 +47,6 @@ import Data.String.Conversions
 import Data.Text.Ascii qualified as Ascii
 import Data.Vector qualified as Vec
 import Data.ZAuth.Token qualified as ZAuth
-import Federation.Util (withTempMockFederator)
 import GHC.TypeLits (KnownSymbol)
 import Imports
 import Test.Tasty.Cannon qualified as WS
@@ -370,23 +368,6 @@ receiveConnectionAction brig fedBrigClient uid1 quid2 action expectedReaction ex
       F.NewConnectionRequest (qUnqualified quid2) Nothing uid1 action
   liftIO $ do
     res @?= F.NewConnectionResponseOk expectedReaction
-  assertConnectionQualified brig uid1 quid2 expectedRel
-
-sendConnectionUpdateAction ::
-  (HasCallStack) =>
-  Brig ->
-  Opts ->
-  UserId ->
-  Qualified UserId ->
-  Maybe F.RemoteConnectionAction ->
-  Relation ->
-  Http ()
-sendConnectionUpdateAction brig opts uid1 quid2 reaction expectedRel = do
-  let mockConnectionResponse = F.NewConnectionResponseOk reaction
-      mockResponse = encode mockConnectionResponse
-  void $
-    liftIO . withTempMockFederator opts mockResponse $
-      putConnectionQualified brig uid1 quid2 expectedRel !!! const 200 === statusCode
   assertConnectionQualified brig uid1 quid2 expectedRel
 
 assertEmailVisibility :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> Bool -> m ()

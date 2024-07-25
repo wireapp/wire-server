@@ -59,7 +59,6 @@ import Data.Qualified
 import Data.Range
 import Data.Serialize (runPut)
 import Data.Set qualified as Set
-import Data.Singletons
 import Data.String.Conversions
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as T
@@ -96,14 +95,12 @@ import Web.Cookie
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Conversation qualified as Conv
-import Wire.API.Conversation.Action
 import Wire.API.Conversation.Code hiding (Value)
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
 import Wire.API.Event.Conversation qualified as Conv
-import Wire.API.Event.Federation qualified as Fed
 import Wire.API.Event.LeaveReason
 import Wire.API.Event.Team
 import Wire.API.Event.Team qualified as TE
@@ -1695,10 +1692,6 @@ assertMLSMessageEvent qcs u message e = do
   evtFrom e @?= u
   evtData e @?= EdMLSMessage message
 
--- | This assumes the default role name
-wsAssertMemberJoin :: (HasCallStack) => Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> Notification -> IO ()
-wsAssertMemberJoin conv usr new = wsAssertMemberJoinWithRole conv usr new roleNameWireAdmin
-
 wsAssertMemberJoinWithRole :: (HasCallStack) => Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> RoleName -> Notification -> IO ()
 wsAssertMemberJoinWithRole conv usr new role n = do
   let e = List1.head (WS.unpackPayload n)
@@ -1711,23 +1704,6 @@ assertJoinEvent conv usr new role e = do
   evtType e @?= Conv.MemberJoin
   evtFrom e @?= usr
   fmap (sort . mMembers) (evtData e ^? _EdMembersJoin) @?= Just (sort (fmap (`SimpleMember` role) new))
-
-wsAssertFederationDeleted ::
-  (HasCallStack) =>
-  Domain ->
-  Notification ->
-  IO ()
-wsAssertFederationDeleted dom n = do
-  ntfTransient n @?= False
-  assertFederationDeletedEvent dom $ List1.head (WS.unpackPayload n)
-
-assertFederationDeletedEvent ::
-  Domain ->
-  Fed.Event ->
-  IO ()
-assertFederationDeletedEvent dom e = do
-  Fed._eventType e @?= Fed.FederationDelete
-  Fed._eventDomain e @?= dom
 
 -- FUTUREWORK: See if this one can be implemented in terms of:
 --
@@ -1817,29 +1793,6 @@ assertNoMsg ws f = do
     Left _ -> pure () -- expected
     Right _ -> assertFailure "Unexpected message"
 
-assertRemoveUpdate :: (MonadIO m, HasCallStack) => FederatedRequest -> Qualified ConvId -> Qualified UserId -> [UserId] -> Qualified UserId -> m ()
-assertRemoveUpdate req qconvId remover alreadyPresentUsers victim = liftIO $ do
-  frRPC req @?= "on-conversation-updated"
-  frOriginDomain req @?= qDomain qconvId
-  cu <- assertJust $ decode (frBody req)
-  cuOrigUserId cu @?= remover
-  cuConvId cu @?= qUnqualified qconvId
-  sort (cuAlreadyPresentUsers cu) @?= sort alreadyPresentUsers
-  cuAction cu
-    @?= SomeConversationAction
-      (sing @'ConversationRemoveMembersTag)
-      (ConversationRemoveMembers (pure victim) EdReasonRemoved)
-
-assertLeaveUpdate :: (MonadIO m, HasCallStack) => FederatedRequest -> Qualified ConvId -> Qualified UserId -> [UserId] -> m ()
-assertLeaveUpdate req qconvId remover alreadyPresentUsers = liftIO $ do
-  frRPC req @?= "on-conversation-updated"
-  frOriginDomain req @?= qDomain qconvId
-  cu <- assertJust $ decode (frBody req)
-  cuOrigUserId cu @?= remover
-  cuConvId cu @?= qUnqualified qconvId
-  sort (cuAlreadyPresentUsers cu) @?= sort alreadyPresentUsers
-  cuAction cu @?= SomeConversationAction (sing @'ConversationLeaveTag) ()
-
 -------------------------------------------------------------------------------
 -- Helpers
 
@@ -1873,14 +1826,8 @@ decodeConvId = qUnqualified . decodeQualifiedConvId
 decodeQualifiedConvId :: (HasCallStack) => Response (Maybe Lazy.ByteString) -> Qualified ConvId
 decodeQualifiedConvId = cnvQualifiedId . responseJsonUnsafe
 
-decodeConvList :: (HasCallStack) => Response (Maybe Lazy.ByteString) -> [Conversation]
-decodeConvList = convList . responseJsonUnsafeWithMsg "conversations"
-
 decodeConvIdList :: (HasCallStack) => Response (Maybe Lazy.ByteString) -> [ConvId]
 decodeConvIdList = convList . responseJsonUnsafeWithMsg "conversation-ids"
-
-decodeQualifiedConvIdList :: Response (Maybe Lazy.ByteString) -> Either String [Qualified ConvId]
-decodeQualifiedConvIdList = fmap mtpResults . responseJsonEither @ConvIdsPage
 
 zUser :: UserId -> Request -> Request
 zUser = header "Z-User" . toByteString'

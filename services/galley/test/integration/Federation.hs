@@ -9,7 +9,6 @@ import Data.ByteString qualified as LBS
 import Data.Domain
 import Data.Id
 import Data.Qualified
-import Data.Set qualified as Set
 import Data.UUID qualified as UUID
 import Galley.API.Util
 import Galley.App
@@ -24,12 +23,8 @@ import Wire.API.Conversation
 import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.Protocol (Protocol (..))
 import Wire.API.Conversation.Role (roleNameWireMember)
-import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.MultiTablePaging qualified as Public
-
-x3 :: RetryPolicy
-x3 = limitRetries 3 <> exponentialBackoff 100000
 
 isConvMemberLTests :: TestM ()
 isConvMemberLTests = do
@@ -59,9 +54,6 @@ isConvMemberLTests = do
   liftIO $ assertBool "Remote UserId" $ isConvMemberL lconv rUserId
   liftIO $ assertBool "Qualified UserId (local)" $ isConvMemberL lconv $ tUntagged lUserId
   liftIO $ assertBool "Qualified UserId (remote)" $ isConvMemberL lconv $ tUntagged rUserId
-
-fromFedList :: FederationDomainConfigs -> Set Domain
-fromFedList = Set.fromList . fmap domain . remotes
 
 constHandlers :: (MonadIO m) => [RetryStatus -> Handler m Bool]
 constHandlers = [const $ Handler $ (\(_ :: SomeException) -> pure True)]

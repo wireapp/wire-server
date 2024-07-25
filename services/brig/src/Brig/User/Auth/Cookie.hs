@@ -31,7 +31,6 @@ module Brig.User.Auth.Cookie
     newCookieLimited,
 
     -- * HTTP
-    setResponseCookie,
     toWebCookie,
 
     -- * Re-exports
@@ -55,8 +54,6 @@ import Data.Proxy
 import Data.RetryAfter
 import Data.Time.Clock
 import Imports
-import Network.Wai (Response)
-import Network.Wai.Utilities.Response (addHeader)
 import Prometheus qualified as Prom
 import System.Logger.Class (field, msg, val, (~~))
 import System.Logger.Class qualified as Log
@@ -263,15 +260,6 @@ newCookieLimited u c typ label = do
 
 --------------------------------------------------------------------------------
 -- HTTP
-
-setResponseCookie ::
-  (MonadReader Env m, ZAuth.UserTokenLike u) =>
-  Cookie (ZAuth.Token u) ->
-  Response ->
-  m Response
-setResponseCookie c r = do
-  hdr <- toByteString' . WebCookie.renderSetCookie <$> toWebCookie c
-  pure (addHeader "Set-Cookie" hdr r)
 
 toWebCookie :: (MonadReader Env m, ZAuth.UserTokenLike u) => Cookie (ZAuth.Token u) -> m WebCookie.SetCookie
 toWebCookie c = do

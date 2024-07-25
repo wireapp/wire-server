@@ -38,7 +38,6 @@ module Spar.Intra.BrigApp
 
     -- * re-exports, mostly for historical reasons and lazyness
     emailFromSAML,
-    emailToSAML,
     emailToSAMLNameID,
     emailFromSAMLNameID,
   )

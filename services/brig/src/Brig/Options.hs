@@ -743,9 +743,6 @@ instance ToJSON AccountFeatureConfigs where
 getAfcConferenceCallingDefNewMaybe :: Lens.Getter Settings (Maybe (Public.WithStatus Public.ConferenceCallingConfig))
 getAfcConferenceCallingDefNewMaybe = Lens.to (Lens.^? (Lens.to setFeatureFlags . Lens._Just . Lens.to afcConferenceCallingDefNew . unImplicitLockStatus))
 
-getAfcConferenceCallingDefNullMaybe :: Lens.Getter Settings (Maybe (Public.WithStatus Public.ConferenceCallingConfig))
-getAfcConferenceCallingDefNullMaybe = Lens.to (Lens.^? (Lens.to setFeatureFlags . Lens._Just . Lens.to afcConferenceCallingDefNull . unImplicitLockStatus))
-
 getAfcConferenceCallingDefNew :: Lens.Getter Settings (Public.WithStatus Public.ConferenceCallingConfig)
 getAfcConferenceCallingDefNew = Lens.to (Public._unImplicitLockStatus . afcConferenceCallingDefNew . fromMaybe defAccountFeatureConfigs . setFeatureFlags)
 
@@ -943,7 +940,5 @@ Lens.makeLensesFor
     ("additionalInsecureSkipVerifyTls", "additionalInsecureSkipVerifyTlsL")
   ]
   ''ElasticSearchOpts
-
-Lens.makeLensesFor [("sftBaseDomain", "sftBaseDomainL")] ''SFTOptions
 
 Lens.makeLensesFor [("serversSource", "serversSourceL")] ''TurnOpts

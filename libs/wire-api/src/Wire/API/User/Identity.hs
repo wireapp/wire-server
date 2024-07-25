@@ -44,7 +44,6 @@ module Wire.API.User.Identity
     -- * UserSSOId
     UserSSOId (..),
     emailFromSAML,
-    emailToSAML,
     emailToSAMLNameID,
     emailFromSAMLNameID,
     mkSampleUref,
@@ -420,9 +419,6 @@ lenientlyParseSAMLNameID (Just txt) = do
 
 emailFromSAML :: (HasCallStack) => SAMLEmail.Email -> Email
 emailFromSAML = fromJust . parseEmail . SAMLEmail.render
-
-emailToSAML :: (HasCallStack) => Email -> SAMLEmail.Email
-emailToSAML = CI.original . fromRight (error "emailToSAML") . SAMLEmail.validate . toByteString
 
 -- | FUTUREWORK(fisx): if saml2-web-sso exported the 'NameID' constructor, we could make this
 -- function total without all that praying and hoping.

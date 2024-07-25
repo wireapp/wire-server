@@ -26,7 +26,7 @@ module Stern.App where
 import Bilge qualified
 import Bilge.RPC (HasRequestId (..))
 import Control.Error
-import Control.Lens (makeLenses, set, view, (^.))
+import Control.Lens (makeLenses, view, (^.))
 import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Monad.IO.Class
 import Control.Monad.Reader.Class
@@ -34,16 +34,10 @@ import Control.Monad.Trans.Class
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.Text.Encoding (encodeUtf8)
-import Data.UUID (toString)
-import Data.UUID.V4 qualified as UUID
 import Imports
 import Network.HTTP.Client (responseTimeoutMicro)
-import Network.Wai (Request, Response, ResponseReceived)
-import Network.Wai.Utilities (Error (..), lookupRequestId)
-import Network.Wai.Utilities.Error qualified as WaiError
-import Network.Wai.Utilities.Response (json, setStatus)
-import Network.Wai.Utilities.Server (defaultRequestIdHeaderName)
-import Network.Wai.Utilities.Server qualified as Server
+import Network.Wai (Response, ResponseReceived)
+import Network.Wai.Utilities (Error (..))
 import Stern.Options as O
 import System.Logger qualified as Log
 import System.Logger.Class hiding (Error, info)
@@ -123,24 +117,6 @@ runAppT e (AppT ma) = runReaderT ma e
 type Handler = ExceptT Error App
 
 type Continue m = Response -> m ResponseReceived
-
-runHandler :: Env -> Request -> Handler ResponseReceived -> Continue IO -> IO ResponseReceived
-runHandler e r h k = do
-  i <- reqId (lookupRequestId defaultRequestIdHeaderName r)
-  let e' = set requestId (Bilge.RequestId i) e
-  a <- runAppT e' (runExceptT h)
-  either (onError (view applog e) r k) pure a
-  where
-    reqId (Just i) = pure i
-    reqId Nothing = do
-      uuid <- UUID.nextRandom
-      pure $ toByteString' $ "stern-" ++ toString uuid
-
-onError :: Logger -> Request -> Continue IO -> Error -> IO ResponseReceived
-onError g r k e = do
-  Server.logError g (Just r) e
-  Server.flushRequestBody r
-  k (setStatus (WaiError.code e) (json e))
 
 userMsg :: UserId -> Msg -> Msg
 userMsg = field "user" . toByteString'

@@ -182,22 +182,15 @@ randomUser' ::
   m User
 randomUser' hasPwd brig = do
   n <- fromName <$> randomName
-  createUser' hasPwd n brig
+  createUser hasPwd n brig
 
 createUser ::
-  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
-  Text ->
-  BrigReq ->
-  m User
-createUser = createUser' True
-
-createUser' ::
   (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
   Bool ->
   Text ->
   BrigReq ->
   m User
-createUser' hasPwd name brig = do
+createUser hasPwd name brig = do
   r <-
     postUser' hasPwd True name True False Nothing Nothing brig
       <!! const 201 === statusCode
