@@ -27,7 +27,7 @@ import Control.Exception (finally)
 import Control.Lens ((.~), (^.))
 import Control.Monad.Extra
 import Data.Metrics.AWS (gaugeTokenRemaing)
-import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
+import Data.Metrics.Servant
 import Data.Proxy (Proxy (Proxy))
 import Data.Text (unpack)
 import Database.Redis qualified as Redis
@@ -84,7 +84,7 @@ run o = do
     middleware e =
       versionMiddleware (foldMap expandVersionExp (o ^. settings . disabledAPIVersions))
         . requestIdMiddleware (e ^. applog) defaultRequestIdHeaderName
-        . waiPrometheusMiddleware sitemap
+        . servantPlusWAIPrometheusMiddleware sitemap (Proxy @CombinedAPI)
         . GZip.gunzip
         . GZip.gzip GZip.def
         . catchErrors (e ^. applog) defaultRequestIdHeaderName
