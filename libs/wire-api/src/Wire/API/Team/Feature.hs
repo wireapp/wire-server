@@ -56,6 +56,7 @@ module Wire.API.Team.Feature
     convertFeatureTTLDaysToSeconds,
     EnforceAppLock (..),
     defFeatureStatusNoLock,
+    genericComputeFeature,
     computeFeatureConfigForTeamUser,
     IsFeatureConfig (..),
     FeatureSingleton (..),
@@ -564,6 +565,20 @@ instance (IsFeatureConfig a, ToSchema a) => ToJSON (ImplicitLockStatus a) where
 
 instance (IsFeatureConfig a, ToSchema a) => FromJSON (ImplicitLockStatus a) where
   parseJSON v = ImplicitLockStatus . withLockStatus (wsLockStatus $ defFeatureStatus @a) <$> A.parseJSON v
+
+-- | Convert a feature coming from the database to its public form. This can be
+-- overridden on a feature basis by implementing the `computeFeature` method of
+-- the `GetFeatureConfig` class.
+genericComputeFeature :: WithStatus cfg -> WithStatusBase Maybe cfg -> WithStatus cfg
+genericComputeFeature defFeature dbFeature =
+  case fromMaybe (wsLockStatus defFeature) (wsbLockStatus dbFeature) of
+    LockStatusLocked -> setLockStatus LockStatusLocked defFeature
+    LockStatusUnlocked ->
+      withStatus
+        (fromMaybe (wsStatus defFeature) (wsbStatus dbFeature))
+        LockStatusUnlocked
+        (fromMaybe (wsConfig defFeature) (wsbConfig dbFeature))
+        (fromMaybe (wsTTL defFeature) (wsbTTL dbFeature))
 
 -- | This contains the pure business logic for users from teams
 computeFeatureConfigForTeamUser :: Maybe (WithStatusNoLock cfg) -> Maybe LockStatus -> WithStatus cfg -> WithStatus cfg

@@ -23,6 +23,7 @@ module Galley.API.Teams.Features.Get
     getAllFeatureConfigsForTeam,
     getAllFeatureConfigsForUser,
     GetFeatureConfig (..),
+    getConfigForTeam,
     guardSecondFactorDisabled,
     DoAuth (..),
     featureEnabledForTeam,
@@ -35,7 +36,7 @@ import Data.Bifunctor (second)
 import Data.Id
 import Data.Kind
 import Data.Qualified (Local, tUnqualified)
-import Galley.API.LegalHold.Team (isLegalHoldEnabledForTeam)
+import Galley.API.LegalHold.Team
 import Galley.API.Util
 import Galley.Effects
 import Galley.Effects.BrigAccess (getAccountConferenceCallingConfigClient)
@@ -57,13 +58,6 @@ data DoAuth = DoAuth UserId | DontDoAuth
 
 -- | Don't export methods of this typeclass
 class (IsFeatureConfig cfg) => GetFeatureConfig cfg where
-  type GetConfigForTeamConstraints cfg (r :: EffectRow) :: Constraint
-  type
-    GetConfigForTeamConstraints cfg (r :: EffectRow) =
-      ( Member (Input Opts) r,
-        Member TeamFeatureStore r
-      )
-
   type GetConfigForUserConstraints cfg (r :: EffectRow) :: Constraint
   type
     GetConfigForUserConstraints cfg (r :: EffectRow) =
@@ -75,6 +69,9 @@ class (IsFeatureConfig cfg) => GetFeatureConfig cfg where
         Member TeamFeatureStore r
       )
 
+  type ComputeFeatureConstraints cfg (r :: EffectRow) :: Constraint
+  type ComputeFeatureConstraints cfg r = ()
+
   getConfigForServer ::
     (Member (Input Opts) r) =>
     Sem r (WithStatus cfg)
@@ -83,18 +80,6 @@ class (IsFeatureConfig cfg) => GetFeatureConfig cfg where
   -- otherwise this will return the default config from wire-api
   default getConfigForServer :: Sem r (WithStatus cfg)
   getConfigForServer = pure defFeatureStatus
-
-  getConfigForTeam ::
-    (GetConfigForTeamConstraints cfg r) =>
-    TeamId ->
-    Sem r (WithStatus cfg)
-  default getConfigForTeam ::
-    ( Member (Input Opts) r,
-      Member TeamFeatureStore r
-    ) =>
-    TeamId ->
-    Sem r (WithStatus cfg)
-  getConfigForTeam = genericGetConfigForTeam
 
   getConfigForUser ::
     (GetConfigForUserConstraints cfg r) =>
@@ -105,20 +90,37 @@ class (IsFeatureConfig cfg) => GetFeatureConfig cfg where
       Member (ErrorS 'NotATeamMember) r,
       Member (ErrorS 'TeamNotFound) r,
       Member TeamStore r,
-      Member TeamFeatureStore r
+      Member TeamFeatureStore r,
+      ComputeFeatureConstraints cfg r
     ) =>
     UserId ->
     Sem r (WithStatus cfg)
   getConfigForUser = genericGetConfigForUser
 
+  computeFeature ::
+    (ComputeFeatureConstraints cfg r) =>
+    TeamId ->
+    WithStatus cfg ->
+    WithStatusBase Maybe cfg ->
+    Sem r (WithStatus cfg)
+  default computeFeature ::
+    TeamId ->
+    WithStatus cfg ->
+    WithStatusBase Maybe cfg ->
+    Sem r (WithStatus cfg)
+  computeFeature _tid defFeature dbFeature =
+    pure $
+      genericComputeFeature @cfg defFeature dbFeature
+
 getFeatureStatus ::
   forall cfg r.
   ( GetFeatureConfig cfg,
-    GetConfigForTeamConstraints cfg r,
-    ( Member (ErrorS 'NotATeamMember) r,
-      Member (ErrorS 'TeamNotFound) r,
-      Member TeamStore r
-    )
+    ComputeFeatureConstraints cfg r,
+    Member (Input Opts) r,
+    Member TeamFeatureStore r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS 'TeamNotFound) r,
+    Member TeamStore r
   ) =>
   DoAuth ->
   TeamId ->
@@ -153,11 +155,13 @@ toTeamStatus tid ws = Multi.TeamStatus tid (wssStatus ws)
 -- In `getConfigForUser` this is mostly also the case. But there are exceptions, e.g. `ConferenceCallingConfig`
 getFeatureStatusForUser ::
   forall cfg r.
-  ( Member (ErrorS 'NotATeamMember) r,
+  ( Member (Input Opts) r,
+    Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TeamNotFound) r,
+    Member TeamFeatureStore r,
     Member TeamStore r,
-    GetConfigForTeamConstraints cfg r,
     GetConfigForUserConstraints cfg r,
+    ComputeFeatureConstraints cfg r,
     GetFeatureConfig cfg
   ) =>
   UserId ->
@@ -279,19 +283,27 @@ getAllFeatureConfigsUser uid =
     <*> getConfigForUser @EnforceFileDownloadLocationConfig uid
     <*> getConfigForUser @LimitedEventFanoutConfig uid
 
--- | Note: this is an internal function which doesn't cover all features, e.g. LegalholdConfig
-genericGetConfigForTeam ::
+getConfigForTeam ::
   forall cfg r.
-  (GetFeatureConfig cfg) =>
-  (Member TeamFeatureStore r) =>
-  (Member (Input Opts) r) =>
+  ( GetFeatureConfig cfg,
+    ComputeFeatureConstraints cfg r,
+    Member (Input Opts) r,
+    Member TeamFeatureStore r
+  ) =>
   TeamId ->
   Sem r (WithStatus cfg)
-genericGetConfigForTeam tid = do
-  computeFeatureConfigForTeamUser
-    <$> TeamFeatures.getFeatureConfig (featureSingleton @cfg) tid
-    <*> TeamFeatures.getFeatureLockStatus (featureSingleton @cfg) tid
-    <*> getConfigForServer
+getConfigForTeam tid = do
+  dbFeature <- TeamFeatures.getFeatureConfig (featureSingleton @cfg) tid
+  lockStatus <- TeamFeatures.getFeatureLockStatus (featureSingleton @cfg) tid
+  defFeature <- getConfigForServer
+  -- TODO
+  computeFeature @cfg tid defFeature $
+    WithStatusBase
+      { wsbStatus = fmap wssStatus dbFeature,
+        wsbLockStatus = lockStatus,
+        wsbTTL = fmap wssTTL dbFeature,
+        wsbConfig = fmap wssConfig dbFeature
+      }
 
 -- Note: this function assumes the feature cannot be locked
 genericGetConfigForMultiTeam ::
@@ -314,7 +326,8 @@ genericGetConfigForUser ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TeamNotFound) r,
     Member TeamStore r,
-    GetFeatureConfig cfg
+    GetFeatureConfig cfg,
+    ComputeFeatureConstraints cfg r
   ) =>
   UserId ->
   Sem r (WithStatus cfg)
@@ -327,7 +340,7 @@ genericGetConfigForUser uid = do
       zusrMembership <- getTeamMember tid uid
       maybe (throwS @'NotATeamMember) (const $ pure ()) zusrMembership
       assertTeamExists tid
-      genericGetConfigForTeam tid
+      getConfigForTeam tid
 
 -------------------------------------------------------------------------------
 -- GetFeatureConfig instances
@@ -358,13 +371,6 @@ instance GetFeatureConfig DigitalSignaturesConfig
 
 instance GetFeatureConfig LegalholdConfig where
   type
-    GetConfigForTeamConstraints LegalholdConfig (r :: EffectRow) =
-      ( Member (Input Opts) r,
-        Member TeamFeatureStore r,
-        Member LegalHoldStore r,
-        Member TeamStore r
-      )
-  type
     GetConfigForUserConstraints LegalholdConfig (r :: EffectRow) =
       ( Member (Input Opts) r,
         Member TeamFeatureStore r,
@@ -374,13 +380,13 @@ instance GetFeatureConfig LegalholdConfig where
         Member (ErrorS 'NotATeamMember) r,
         Member (ErrorS 'TeamNotFound) r
       )
+  type
+    ComputeFeatureConstraints LegalholdConfig r =
+      (Member TeamStore r, Member LegalHoldStore r)
 
-  getConfigForTeam tid = do
-    status <-
-      isLegalHoldEnabledForTeam tid <&> \case
-        True -> FeatureStatusEnabled
-        False -> FeatureStatusDisabled
-    pure $ setStatus status defFeatureStatus
+  computeFeature tid defFeature dbFeature = do
+    status <- computeLegalHoldFeatureStatus tid (wsbStatus dbFeature)
+    pure $ setStatus status defFeature
 
 instance GetFeatureConfig FileSharingConfig where
   getConfigForServer =
@@ -434,26 +440,16 @@ instance GetFeatureConfig MLSConfig where
     input <&> view (settings . featureFlags . flagMLS . unDefaults)
 
 instance GetFeatureConfig ExposeInvitationURLsToTeamAdminConfig where
-  getConfigForTeam tid = do
-    allowList <- input <&> view (settings . exposeInvitationURLsTeamAllowlist . to (fromMaybe []))
-    mbOldStatus <- TeamFeatures.getFeatureConfig FeatureSingletonExposeInvitationURLsToTeamAdminConfig tid <&> fmap wssStatus
-    let teamAllowed = tid `elem` allowList
-    pure $ computeConfigForTeam teamAllowed (fromMaybe FeatureStatusDisabled mbOldStatus)
-    where
-      computeConfigForTeam :: Bool -> FeatureStatus -> WithStatus ExposeInvitationURLsToTeamAdminConfig
-      computeConfigForTeam teamAllowed teamDbStatus =
-        if teamAllowed
-          then makeConfig LockStatusUnlocked teamDbStatus
-          else -- FUTUREWORK: use default feature status instead
-            makeConfig LockStatusLocked FeatureStatusDisabled
+  type
+    ComputeFeatureConstraints ExposeInvitationURLsToTeamAdminConfig r =
+      (Member (Input Opts) r)
 
-      makeConfig :: LockStatus -> FeatureStatus -> WithStatus ExposeInvitationURLsToTeamAdminConfig
-      makeConfig lockStatus status =
-        withStatus
-          status
-          lockStatus
-          ExposeInvitationURLsToTeamAdminConfig
-          FeatureTTLUnlimited
+  -- the lock status of this feature is calculated from the allow list, not the database
+  computeFeature tid defFeature dbFeature = do
+    allowList <- input <&> view (settings . exposeInvitationURLsTeamAllowlist . to (fromMaybe []))
+    let teamAllowed = tid `elem` allowList
+        lockStatus = if teamAllowed then LockStatusUnlocked else LockStatusLocked
+    pure $ genericComputeFeature defFeature dbFeature {wsbLockStatus = Just lockStatus}
 
 instance GetFeatureConfig OutlookCalIntegrationConfig where
   getConfigForServer =
@@ -511,13 +507,16 @@ guardSecondFactorDisabled uid cid action = do
 featureEnabledForTeam ::
   forall cfg r.
   ( GetFeatureConfig cfg,
-    GetConfigForTeamConstraints cfg r,
-    ( Member (ErrorS OperationDenied) r,
-      Member (ErrorS 'NotATeamMember) r,
-      Member (ErrorS 'TeamNotFound) r,
-      Member TeamStore r
-    )
+    Member (Input Opts) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS 'TeamNotFound) r,
+    Member TeamStore r,
+    Member TeamFeatureStore r,
+    ComputeFeatureConstraints cfg r
   ) =>
   TeamId ->
   Sem r Bool
-featureEnabledForTeam tid = (==) FeatureStatusEnabled . wsStatus <$> getFeatureStatus @cfg DontDoAuth tid
+featureEnabledForTeam tid =
+  (==) FeatureStatusEnabled
+    . wsStatus
+    <$> getFeatureStatus @cfg DontDoAuth tid
