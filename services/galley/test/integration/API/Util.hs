@@ -2714,8 +2714,7 @@ generateRemoteAndConvIdWithDomain :: Domain -> Bool -> Local UserId -> TestM (Re
 generateRemoteAndConvIdWithDomain remoteDomain shouldBeLocal lUserId = do
   other <- Qualified <$> randomId <*> pure remoteDomain
   let convId = one2OneConvId BaseProtocolProteusTag (tUntagged lUserId) other
-      isLocal = tDomain lUserId == qDomain convId
-  if shouldBeLocal == isLocal
+  if shouldBeLocal == isLocal lUserId convId
     then pure (qTagUnsafe other, convId)
     else generateRemoteAndConvIdWithDomain remoteDomain shouldBeLocal lUserId
 
