@@ -60,7 +60,7 @@ import Polysemy
 import Polysemy.Error qualified as Polysemy
 import System.Logger.Class qualified as Log
 import Wire.API.Call.Config qualified as Public
-import Wire.API.Team.Feature (AllFeatureConfigs (afcConferenceCalling), FeatureStatus (FeatureStatusDisabled, FeatureStatusEnabled), wsStatus)
+import Wire.API.Team.Feature
 import Wire.Error
 import Wire.GalleyAPIAccess (GalleyAPIAccess, getAllFeatureConfigsForUser)
 import Wire.Network.DNS.SRV (srvTarget)

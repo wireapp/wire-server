@@ -145,7 +145,7 @@ allFeatureConfigsFromRow ::
   AllTeamFeatureConfigsRow ->
   AllFeatureConfigs
 allFeatureConfigsFromRow ourteam allowListForExposeInvitationURLs featureLH hasTeamImplicitLegalhold serverConfigs row =
-  AllFeatureConfigs
+  AllFeatures
     { afcLegalholdStatus = legalholdComputeFeatureStatus row.legalhold,
       afcSSOStatus =
         computeConfig

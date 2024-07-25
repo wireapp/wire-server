@@ -216,7 +216,7 @@ getAllFeatureConfigsForServer ::
   (Member (Input Opts) r) =>
   Sem r AllFeatureConfigs
 getAllFeatureConfigsForServer =
-  AllFeatureConfigs
+  AllFeatures
     <$> getConfigForServer @LegalholdConfig
     <*> getConfigForServer @SSOConfig
     <*> getConfigForServer @SearchVisibilityAvailableConfig
@@ -252,7 +252,7 @@ getAllFeatureConfigsUser ::
   UserId ->
   Sem r AllFeatureConfigs
 getAllFeatureConfigsUser uid =
-  AllFeatureConfigs
+  AllFeatures
     <$> getConfigForUser @LegalholdConfig uid
     <*> getConfigForUser @SSOConfig uid
     <*> getConfigForUser @SearchVisibilityAvailableConfig uid

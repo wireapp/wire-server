@@ -81,7 +81,8 @@ module Wire.API.Team.Feature
     MlsMigrationConfig (..),
     EnforceFileDownloadLocationConfig (..),
     LimitedEventFanoutConfig (..),
-    AllFeatureConfigs (..),
+    AllFeatures (..),
+    AllFeatureConfigs,
     unImplicitLockStatus,
     ImplicitLockStatus (..),
   )
@@ -271,7 +272,7 @@ setTTL ttl (WithStatusBase s ls c _) = WithStatusBase s ls c (pure ttl)
 setWsTTL :: FeatureTTL -> WithStatus cfg -> WithStatus cfg
 setWsTTL = setTTL
 
-type WithStatus (cfg :: Type) = WithStatusBase Identity cfg
+type WithStatus = WithStatusBase Identity
 
 deriving instance (Eq cfg) => Eq (WithStatus cfg)
 
@@ -1180,34 +1181,34 @@ instance Cass.Cql FeatureStatus where
 defFeatureStatusNoLock :: (IsFeatureConfig cfg) => WithStatusNoLock cfg
 defFeatureStatusNoLock = forgetLock defFeatureStatus
 
-data AllFeatureConfigs = AllFeatureConfigs
-  { afcLegalholdStatus :: WithStatus LegalholdConfig,
-    afcSSOStatus :: WithStatus SSOConfig,
-    afcTeamSearchVisibilityAvailable :: WithStatus SearchVisibilityAvailableConfig,
-    afcSearchVisibilityInboundConfig :: WithStatus SearchVisibilityInboundConfig,
-    afcValidateSAMLEmails :: WithStatus ValidateSAMLEmailsConfig,
-    afcDigitalSignatures :: WithStatus DigitalSignaturesConfig,
-    afcAppLock :: WithStatus AppLockConfig,
-    afcFileSharing :: WithStatus FileSharingConfig,
-    afcClassifiedDomains :: WithStatus ClassifiedDomainsConfig,
-    afcConferenceCalling :: WithStatus ConferenceCallingConfig,
-    afcSelfDeletingMessages :: WithStatus SelfDeletingMessagesConfig,
-    afcGuestLink :: WithStatus GuestLinksConfig,
-    afcSndFactorPasswordChallenge :: WithStatus SndFactorPasswordChallengeConfig,
-    afcMLS :: WithStatus MLSConfig,
-    afcExposeInvitationURLsToTeamAdmin :: WithStatus ExposeInvitationURLsToTeamAdminConfig,
-    afcOutlookCalIntegration :: WithStatus OutlookCalIntegrationConfig,
-    afcMlsE2EId :: WithStatus MlsE2EIdConfig,
-    afcMlsMigration :: WithStatus MlsMigrationConfig,
-    afcEnforceFileDownloadLocation :: WithStatus EnforceFileDownloadLocationConfig,
-    afcLimitedEventFanout :: WithStatus LimitedEventFanoutConfig
+data AllFeatures f = AllFeatures
+  { afcLegalholdStatus :: f LegalholdConfig,
+    afcSSOStatus :: f SSOConfig,
+    afcTeamSearchVisibilityAvailable :: f SearchVisibilityAvailableConfig,
+    afcSearchVisibilityInboundConfig :: f SearchVisibilityInboundConfig,
+    afcValidateSAMLEmails :: f ValidateSAMLEmailsConfig,
+    afcDigitalSignatures :: f DigitalSignaturesConfig,
+    afcAppLock :: f AppLockConfig,
+    afcFileSharing :: f FileSharingConfig,
+    afcClassifiedDomains :: f ClassifiedDomainsConfig,
+    afcConferenceCalling :: f ConferenceCallingConfig,
+    afcSelfDeletingMessages :: f SelfDeletingMessagesConfig,
+    afcGuestLink :: f GuestLinksConfig,
+    afcSndFactorPasswordChallenge :: f SndFactorPasswordChallengeConfig,
+    afcMLS :: f MLSConfig,
+    afcExposeInvitationURLsToTeamAdmin :: f ExposeInvitationURLsToTeamAdminConfig,
+    afcOutlookCalIntegration :: f OutlookCalIntegrationConfig,
+    afcMlsE2EId :: f MlsE2EIdConfig,
+    afcMlsMigration :: f MlsMigrationConfig,
+    afcEnforceFileDownloadLocation :: f EnforceFileDownloadLocationConfig,
+    afcLimitedEventFanout :: f LimitedEventFanoutConfig
   }
-  deriving stock (Eq, Show)
-  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AllFeatureConfigs)
+
+type AllFeatureConfigs = AllFeatures WithStatus
 
 instance Default AllFeatureConfigs where
   def =
-    AllFeatureConfigs
+    AllFeatures
       { afcLegalholdStatus = defFeatureStatus,
         afcSSOStatus = defFeatureStatus,
         afcTeamSearchVisibilityAvailable = defFeatureStatus,
@@ -1233,7 +1234,7 @@ instance Default AllFeatureConfigs where
 instance ToSchema AllFeatureConfigs where
   schema =
     object "AllFeatureConfigs" $
-      AllFeatureConfigs
+      AllFeatures
         <$> afcLegalholdStatus .= featureField
         <*> afcSSOStatus .= featureField
         <*> afcTeamSearchVisibilityAvailable .= featureField
@@ -1263,7 +1264,7 @@ instance ToSchema AllFeatureConfigs where
 
 instance Arbitrary AllFeatureConfigs where
   arbitrary =
-    AllFeatureConfigs
+    AllFeatures
       <$> arbitrary
       <*> arbitrary
       <*> arbitrary
@@ -1286,3 +1287,13 @@ instance Arbitrary AllFeatureConfigs where
       <*> arbitrary
 
 makeLenses ''ImplicitLockStatus
+
+deriving instance Show AllFeatureConfigs
+
+deriving instance Eq AllFeatureConfigs
+
+deriving via (Schema AllFeatureConfigs) instance (FromJSON AllFeatureConfigs)
+
+deriving via (Schema AllFeatureConfigs) instance (ToJSON AllFeatureConfigs)
+
+deriving via (Schema AllFeatureConfigs) instance (S.ToSchema AllFeatureConfigs)
