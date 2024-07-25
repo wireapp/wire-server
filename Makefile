@@ -128,7 +128,6 @@ devtest:
 .PHONY: sanitize-pr
 sanitize-pr: 
 	make lint-all-shallow
-	make git-add-cassandra-schema
 	@git diff-files --quiet -- || ( echo "There are unstaged changes, please take a look, consider committing them, and try again."; exit 1 )
 	@git diff-index --quiet --cached HEAD -- || ( echo "There are staged changes, please take a look, consider committing them, and try again."; exit 1 )
 	make list-flaky-tests
@@ -151,7 +150,7 @@ ghcid:
 
 # Used by CI
 .PHONY: lint-all
-lint-all: formatc hlint-check-all lint-common
+lint-all: formatc hlint-check-all lint-common check-cassandra-schema-dump
 
 # For use by local devs.
 #
@@ -162,7 +161,7 @@ lint-all: formatc hlint-check-all lint-common
 # The extra 'hlint-check-pr' has been witnessed to be necessary due to
 # some bu in `hlint-inplace-pr`.  Details got lost in history.
 .PHONY: lint-all-shallow
-lint-all-shallow: formatf hlint-inplace-pr hlint-check-pr lint-common
+lint-all-shallow: formatf hlint-inplace-pr hlint-check-pr lint-common git-add-cassandra-schema
 
 .PHONY: lint-common
 lint-common: check-local-nix-derivations treefmt-check # weeder (does not work on CI yet)
@@ -270,6 +269,11 @@ upload-hoogle-image:
 
 #################################
 ## cassandra management
+
+.PHONY: check-cassandra-schema-dump
+check-cassandra-schema-dump: db-migrate
+	./hack/bin/cassandra_dump_schema > ./cassandra-schema.cql
+	git diff-index --quiet HEAD --
 
 .PHONY: git-add-cassandra-schema
 git-add-cassandra-schema: db-migrate git-add-cassandra-schema-impl
