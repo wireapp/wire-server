@@ -18,6 +18,7 @@ roots = [ # may of the entries here are about general-purpose module
          "^Data.ETag._StrictETag",
          "^Data.ETag.weakETag",
          "^Data.ETag._WeakETag",
+         "^Data.Qualified.isLocal",
          "^Data.Range.(<|)",
          "^Data.Range.rappend",
          "^Data.Range.rcons",

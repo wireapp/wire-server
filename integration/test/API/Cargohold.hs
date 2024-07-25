@@ -1,5 +1,6 @@
 module API.Cargohold where
 
+import API.Federator
 import qualified Codec.MIME.Type as MIME
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
