@@ -50,11 +50,6 @@ module Wire.API.Call.Config
     -- * SFTUsername
     SFTUsername,
     mkSFTUsername,
-    suExpiresAt,
-    suVersion,
-    suKeyindex,
-    suShared,
-    suRandom,
 
     -- * TurnUsername
     TurnUsername,
@@ -640,7 +635,6 @@ isTls uri =
 makeLenses ''RTCConfiguration
 makeLenses ''RTCIceServer
 makeLenses ''TurnURI
-makeLenses ''SFTUsername
 makeLenses ''TurnUsername
 makeLenses ''SFTServer
 makeLenses ''AuthSFTServer

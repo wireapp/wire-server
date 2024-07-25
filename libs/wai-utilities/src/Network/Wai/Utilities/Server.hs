@@ -42,7 +42,6 @@ module Network.Wai.Utilities.Server
     logError,
     logError',
     logErrorMsg,
-    restrict,
     flushRequestBody,
 
     -- * Constants
@@ -185,7 +184,7 @@ compile routes = Route.prepare (Route.renderer predicateError >> routes)
     messageStr Nothing = mempty
 
 route :: (MonadIO m) => Tree (App m) -> Request -> Continue IO -> m ResponseReceived
-route rt rq k = Route.routeWith (Route.Config $ errorRs' noEndpoint) rt rq (liftIO . k)
+route rt rq k = Route.routeWith (Route.Config $ errorRs noEndpoint) rt rq (liftIO . k)
   where
     noEndpoint = Wai.mkError status404 "no-endpoint" "The requested endpoint does not exist"
 {-# INLINEABLE route #-}
@@ -468,22 +467,6 @@ logErrorMsgWithRequest mr e =
 runHandlers :: SomeException -> [Handler IO a] -> IO a
 runHandlers e [] = throwIO e
 runHandlers e (Handler h : hs) = maybe (runHandlers e hs) h (fromException e)
-
-restrict :: Int -> Int -> Predicate r P.Error Int -> Predicate r P.Error Int
-restrict l u = fmap $ \x ->
-  x >>= \v ->
-    if v >= l && v <= u
-      then x
-      else Fail (setMessage (emsg v) . setReason TypeError $ e400)
-  where
-    emsg v =
-      LBS.toStrict . toLazyByteString $
-        byteString "outside range ["
-          <> intDec l
-          <> byteString ", "
-          <> intDec u
-          <> byteString "]: "
-          <> intDec v
 
 flushRequestBody :: Request -> IO ()
 flushRequestBody req = do

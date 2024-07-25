@@ -23,7 +23,6 @@ module Wire.API.MLS.Serialisation
     SerialiseMLS (..),
     VarInt (..),
     parseMLSStream,
-    serialiseMLSStream,
     parseMLSVector,
     serialiseMLSVector,
     parseMLSBytes,
@@ -128,9 +127,6 @@ parseMLSStream p = do
   if e
     then pure []
     else (:) <$> p <*> parseMLSStream p
-
-serialiseMLSStream :: (a -> Put) -> [a] -> Put
-serialiseMLSStream = traverse_
 
 parseMLSVector :: forall w a. (Binary w, Integral w) => Get a -> Get [a]
 parseMLSVector getItem = do

@@ -30,9 +30,6 @@ module Wire.API.MLS.Message
     FramedContentAuthData (..),
     Sender (..),
 
-    -- * Utilities
-    verifyMessageSignature,
-
     -- * Servant types
     MLSMessageSendingStatus (..),
   )
@@ -48,7 +45,6 @@ import GHC.Records
 import Imports
 import Test.QuickCheck hiding (label)
 import Wire.API.Event.Conversation
-import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
@@ -238,11 +234,6 @@ instance SerialiseMLS Sender where
   serialiseMLS SenderNewMemberCommit =
     serialiseMLS SenderNewMemberCommitTag
 
-needsGroupContext :: Sender -> Bool
-needsGroupContext (SenderMember _) = True
-needsGroupContext (SenderExternal _) = True
-needsGroupContext _ = False
-
 -- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-6-4
 data FramedContent = FramedContent
   { groupId :: GroupId,
@@ -329,15 +320,6 @@ instance SerialiseMLS FramedContentTBS where
     serialiseMLS tbs.content
     traverse_ serialiseMLS tbs.groupContext
 
-framedContentTBS :: RawMLS GroupContext -> RawMLS FramedContent -> FramedContentTBS
-framedContentTBS ctx msgContent =
-  FramedContentTBS
-    { protocolVersion = defaultProtocolVersion,
-      wireFormat = WireFormatPublicTag,
-      content = msgContent,
-      groupContext = guard (needsGroupContext msgContent.value.sender) $> ctx
-    }
-
 -- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-6.1-2
 data FramedContentAuthData = FramedContentAuthData
   { signature_ :: ByteString,
@@ -358,18 +340,6 @@ instance SerialiseMLS FramedContentAuthData where
   serialiseMLS ad = do
     serialiseMLSBytes @VarInt ad.signature_
     traverse_ (serialiseMLSBytes @VarInt) ad.confirmationTag
-
-verifyMessageSignature ::
-  RawMLS GroupContext ->
-  RawMLS FramedContent ->
-  RawMLS FramedContentAuthData ->
-  ByteString ->
-  Bool
-verifyMessageSignature ctx msgContent authData pubkey = isJust $ do
-  let tbs = mkRawMLS (framedContentTBS ctx msgContent)
-      sig = authData.value.signature_
-  cs <- cipherSuiteTag ctx.value.cipherSuite
-  guard $ csVerifySignature cs pubkey tbs sig
 
 --------------------------------------------------------------------------------
 -- Servant

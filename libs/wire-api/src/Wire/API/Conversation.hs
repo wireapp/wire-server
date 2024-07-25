@@ -68,7 +68,6 @@ module Wire.API.Conversation
     -- * invite
     Invite (..),
     InviteQualified (..),
-    newInvite,
 
     -- * update
     ConversationRename (..),
@@ -804,9 +803,6 @@ instance ToSchema InviteQualified where
         <$> invQUsers .= field "qualified_users" (nonEmptyArray schema)
         <*> invQRoleName
           .= (fromMaybe roleNameWireAdmin <$> optField "conversation_role" schema)
-
-newInvite :: List1 UserId -> Invite
-newInvite us = Invite us roleNameWireAdmin
 
 --------------------------------------------------------------------------------
 -- update
