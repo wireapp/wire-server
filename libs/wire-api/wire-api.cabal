@@ -357,7 +357,6 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.AccessRoleLegacy_user
     Test.Wire.API.Golden.Generated.AccessToken_user
     Test.Wire.API.Golden.Generated.Action_user
-    Test.Wire.API.Golden.Generated.ActivateV5_user
     Test.Wire.API.Golden.Generated.ActivationCode_user
     Test.Wire.API.Golden.Generated.ActivationKey_user
     Test.Wire.API.Golden.Generated.ActivationResponse_user
@@ -437,8 +436,6 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.LocaleUpdate_user
     Test.Wire.API.Golden.Generated.LoginCode_user
     Test.Wire.API.Golden.Generated.LoginCodeTimeout_user
-    Test.Wire.API.Golden.Generated.LoginIdV5_user
-    Test.Wire.API.Golden.Generated.LoginV5_user
     Test.Wire.API.Golden.Generated.ManagedBy_user
     Test.Wire.API.Golden.Generated.Member_user
     Test.Wire.API.Golden.Generated.MemberUpdate_user
@@ -511,7 +508,6 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.SearchResult_20Contact_user
     Test.Wire.API.Golden.Generated.SearchResult_20TeamContact_user
     Test.Wire.API.Golden.Generated.SelfProfile_user
-    Test.Wire.API.Golden.Generated.SendActivationCodeV5_user
     Test.Wire.API.Golden.Generated.SendLoginCode_user
     Test.Wire.API.Golden.Generated.Service_provider
     Test.Wire.API.Golden.Generated.ServiceKey_provider

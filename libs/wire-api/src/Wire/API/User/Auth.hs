@@ -1,6 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -21,14 +20,9 @@
 
 module Wire.API.User.Auth
   ( -- * Login
-    LoginV5 (..),
     Login (..),
-    PasswordLoginData (..),
-    SmsLoginData (..),
-    loginLabelV5,
     loginLabel,
     LoginCode (..),
-    LoginIdV5 (..),
     LoginId (..),
     PendingLoginCode (..),
     SendLoginCode (..),
@@ -66,7 +60,6 @@ where
 import Cassandra
 import Control.Applicative
 import Control.Lens ((?~), (^.))
-import Control.Lens.TH
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Aeson.Types qualified as A
 import Data.Bifunctor
@@ -101,41 +94,6 @@ import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 -- LoginId
 
 -- | The login ID for client API versions v0..v5
-data LoginIdV5
-  = LoginV5ByEmail Email
-  | LoginV5ByPhone Phone
-  | LoginV5ByHandle Handle
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform LoginIdV5)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema LoginIdV5
-
--- NB. this should fail if (e.g.) the email is present but unparseable even if the JSON contains a valid phone number or handle.
--- See tests in `Test.Wire.API.User.Auth`.
-instance ToSchema LoginIdV5 where
-  schema = object "LoginIdV5" $ loginObjectSchemaV5
-
-loginObjectSchemaV5 :: ObjectSchema SwaggerDoc LoginIdV5
-loginObjectSchemaV5 =
-  fromLoginId .= tupleSchema `withParser` validate
-  where
-    fromLoginId :: LoginIdV5 -> (Maybe Email, Maybe Phone, Maybe Handle)
-    fromLoginId = \case
-      LoginV5ByEmail e -> (Just e, Nothing, Nothing)
-      LoginV5ByPhone p -> (Nothing, Just p, Nothing)
-      LoginV5ByHandle h -> (Nothing, Nothing, Just h)
-    tupleSchema :: ObjectSchema SwaggerDoc (Maybe Email, Maybe Phone, Maybe Handle)
-    tupleSchema =
-      (,,)
-        <$> fst3 .= maybe_ (optField "email" schema)
-        <*> snd3 .= maybe_ (optField "phone" schema)
-        <*> thd3 .= maybe_ (optField "handle" schema)
-    validate :: (Maybe Email, Maybe Phone, Maybe Handle) -> A.Parser LoginIdV5
-    validate (mEmail, mPhone, mHandle) =
-      maybe (fail "'email', 'phone' or 'handle' required") pure $
-        (LoginV5ByEmail <$> mEmail)
-          <|> (LoginV5ByPhone <$> mPhone)
-          <|> (LoginV5ByHandle <$> mHandle)
-
 data LoginId
   = LoginByEmail Email
   | LoginByHandle Handle
@@ -388,70 +346,6 @@ instance ToSchema Login where
         <*> lPassword .= field "password" schema
         <*> lLabel .= optField "label" (maybeWithDefault A.Null schema)
         <*> lCode .= optField "verification_code" (maybeWithDefault A.Null schema)
-
--- | Different kinds of logins for client API versions v0..v5.
-data LoginV5
-  = PasswordLogin PasswordLoginData
-  | SmsLogin SmsLoginData
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform LoginV5)
-
-data PasswordLoginData = PasswordLoginData
-  { plId :: LoginIdV5,
-    plPassword :: PlainTextPassword6,
-    plLabel :: Maybe CookieLabel,
-    plCode :: Maybe Code.Value
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform PasswordLoginData)
-
-passwordLoginSchema :: ObjectSchema SwaggerDoc PasswordLoginData
-passwordLoginSchema =
-  PasswordLoginData
-    <$> plId .= loginObjectSchemaV5
-    <*> plPassword .= field "password" schema
-    <*> plLabel .= optField "label" (maybeWithDefault A.Null schema)
-    <*> plCode .= optField "verification_code" (maybeWithDefault A.Null schema)
-
-data SmsLoginData = SmsLoginData
-  { slPhone :: Phone,
-    slCode :: LoginCode,
-    slLabel :: Maybe CookieLabel
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform SmsLoginData)
-
-smsLoginSchema :: ObjectSchema SwaggerDoc SmsLoginData
-smsLoginSchema =
-  SmsLoginData
-    <$> slPhone .= field "phone" schema
-    <*> slCode .= field "code" schema
-    <*> slLabel
-      .= optFieldWithDocModifier
-        "label"
-        ( description
-            ?~ "This label can be used to delete all cookies matching it\
-               \ (cf. /cookies/remove)"
-        )
-        (maybeWithDefault A.Null schema)
-
-$(makePrisms ''LoginV5)
-
-instance ToSchema LoginV5 where
-  schema =
-    object "LoginV5" $
-      tag _PasswordLogin passwordLoginSchema
-        <> tag _SmsLogin smsLoginSchema
-
-deriving via Schema LoginV5 instance FromJSON LoginV5
-
-deriving via Schema LoginV5 instance ToJSON LoginV5
-
-deriving via Schema LoginV5 instance S.ToSchema LoginV5
-
-loginLabelV5 :: LoginV5 -> Maybe CookieLabel
-loginLabelV5 (PasswordLogin pl) = plLabel pl
-loginLabelV5 (SmsLogin sl) = slLabel sl
 
 loginLabel :: Login -> Maybe CookieLabel
 loginLabel = lLabel

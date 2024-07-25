@@ -20,7 +20,6 @@
 
 module Wire.API.User.Activation
   ( -- * ActivationTarget
-    ActivationTargetV5 (..),
     ActivationTarget (..),
     ActivationKey (..),
 
@@ -28,12 +27,10 @@ module Wire.API.User.Activation
     ActivationCode (..),
 
     -- * Activate
-    ActivateV5 (..),
     Activate (..),
     ActivationResponse (..),
 
     -- * SendActivationCode
-    SendActivationCodeV5 (..),
     SendActivationCode (..),
   )
 where
@@ -48,7 +45,6 @@ import Data.OpenApi (ToParamSchema)
 import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Text.Ascii
-import Data.Tuple.Extra (fst3, snd3, thd3)
 import Imports
 import Servant (FromHttpApiData (..))
 import Wire.API.Locale
@@ -70,22 +66,6 @@ data ActivationTarget
 instance ToByteString ActivationTarget where
   builder (ActivateKey k) = builder k
   builder (ActivateEmail e) = builder e
-
--- | The target of an activation request for client API versions v0..v5.
-data ActivationTargetV5
-  = -- | An opaque key for some email awaiting activation.
-    ActivateV5Key ActivationKey
-  | -- | A known phone number awaiting activation.
-    ActivateV5Phone Phone
-  | -- | A known email address awaiting activation.
-    ActivateV5Email Email
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform ActivationTargetV5)
-
-instance ToByteString ActivationTargetV5 where
-  builder (ActivateV5Key k) = builder k
-  builder (ActivateV5Email e) = builder e
-  builder (ActivateV5Phone p) = builder p
 
 -- | An opaque identifier of a 'UserKey' awaiting activation.
 newtype ActivationKey = ActivationKey
@@ -182,68 +162,6 @@ instance ToSchema Activate where
         ActivateKey key -> (Just key, Nothing)
         ActivateEmail email -> (Nothing, Just email)
 
--- | Data for an activation request in client API versions v0..v5.
-data ActivateV5 = ActivateV5
-  { activateV5Target :: ActivationTargetV5,
-    activateV5Code :: ActivationCode,
-    activateV5Dryrun :: Bool
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform ActivateV5)
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema ActivateV5
-
-instance ToSchema ActivateV5 where
-  schema =
-    objectWithDocModifier "ActivateV5" objectDocs $
-      ActivateV5
-        <$> (maybeActivationTargetToTuple . activateV5Target) .= maybeActivationTargetObjectSchema
-        <*> activateV5Code .= fieldWithDocModifier "code" codeDocs schema
-        <*> activateV5Dryrun .= fieldWithDocModifier "dryrun" dryRunDocs schema
-    where
-      objectDocs :: NamedSwaggerDoc -> NamedSwaggerDoc
-      objectDocs = description ?~ "Data for an activation request."
-
-      codeDocs :: NamedSwaggerDoc -> NamedSwaggerDoc
-      codeDocs = description ?~ "The activation code."
-
-      dryRunDocs :: NamedSwaggerDoc -> NamedSwaggerDoc
-      dryRunDocs =
-        description
-          ?~ "At least one of key, email, or phone has to be present \
-             \while key takes precedence over email, and email takes precedence over phone. \
-             \Whether to perform a dryrun, i.e. to only check whether \
-             \activation would succeed. Dry-runs never issue access \
-             \cookies or tokens on success but failures still count \
-             \towards the maximum failure count."
-
-      maybeActivationTargetObjectSchema :: ObjectSchemaP SwaggerDoc (Maybe ActivationKey, Maybe Phone, Maybe Email) ActivationTargetV5
-      maybeActivationTargetObjectSchema =
-        withParser activationTargetTupleObjectSchema maybeActivationTargetTargetFromTuple
-        where
-          activationTargetTupleObjectSchema :: ObjectSchema SwaggerDoc (Maybe ActivationKey, Maybe Phone, Maybe Email)
-          activationTargetTupleObjectSchema =
-            (,,)
-              <$> fst3 .= maybe_ (optFieldWithDocModifier "key" keyDocs schema)
-              <*> snd3 .= maybe_ (optFieldWithDocModifier "phone" phoneDocs schema)
-              <*> thd3 .= maybe_ (optFieldWithDocModifier "email" emailDocs schema)
-            where
-              keyDocs = description ?~ "An opaque key to activate, as it was sent by the API."
-              phoneDocs = description ?~ "A known phone number to activate."
-              emailDocs = description ?~ "A known email address to activate."
-
-          maybeActivationTargetTargetFromTuple :: (Maybe ActivationKey, Maybe Phone, Maybe Email) -> Parser ActivationTargetV5
-          maybeActivationTargetTargetFromTuple = \case
-            (Just key, _, _) -> pure $ ActivateV5Key key
-            (_, _, Just email) -> pure $ ActivateV5Email email
-            (_, Just phone, _) -> pure $ ActivateV5Phone phone
-            _ -> fail "key, email or phone must be present"
-
-      maybeActivationTargetToTuple :: ActivationTargetV5 -> (Maybe ActivationKey, Maybe Phone, Maybe Email)
-      maybeActivationTargetToTuple = \case
-        ActivateV5Key key -> (Just key, Nothing, Nothing)
-        ActivateV5Phone phone -> (Nothing, Just phone, Nothing)
-        ActivateV5Email email -> (Nothing, Nothing, Just email)
-
 -- | Information returned as part of a successful activation.
 data ActivationResponse = ActivationResponse
   { -- | The activated / verified user identity.
@@ -263,58 +181,7 @@ instance ToSchema ActivationResponse where
         <*> activatedFirst .= (fromMaybe False <$> optFieldWithDocModifier "first" (description ?~ "Whether this is the first successful activation (i.e. account activation).") schema)
 
 --------------------------------------------------------------------------------
--- SendActivationCodeV5 and SendActivationCode
-
--- | Payload for a request to (re-)send an activation code
--- for a phone number or e-mail address. If a phone is used,
--- one can also request a call instead of SMS.
-data SendActivationCodeV5 = SendActivationCodeV5
-  { saUserKey :: Either Email Phone,
-    saLocale :: Maybe Locale,
-    saCall :: Bool
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform SendActivationCodeV5)
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema SendActivationCodeV5
-
-instance ToSchema SendActivationCodeV5 where
-  schema =
-    objectWithDocModifier "SendActivationCode_V5" objectDesc $
-      SendActivationCodeV5
-        <$> (maybeUserKeyToTuple . saUserKey) .= userKeyObjectSchema
-        <*> saLocale .= maybe_ (optFieldWithDocModifier "locale" (description ?~ "Locale to use for the activation code template.") schema)
-        <*> saCall .= (fromMaybe False <$> optFieldWithDocModifier "voice_call" (description ?~ "Request the code with a call instead (default is SMS).") schema)
-    where
-      maybeUserKeyToTuple :: Either Email Phone -> (Maybe Email, Maybe Phone)
-      maybeUserKeyToTuple = \case
-        Left email -> (Just email, Nothing)
-        Right phone -> (Nothing, Just phone)
-
-      objectDesc :: NamedSwaggerDoc -> NamedSwaggerDoc
-      objectDesc =
-        description
-          ?~ "Data for requesting an email or phone activation code to be sent. \
-             \One of 'email' or 'phone' must be present."
-
-      userKeyObjectSchema :: ObjectSchemaP SwaggerDoc (Maybe Email, Maybe Phone) (Either Email Phone)
-      userKeyObjectSchema =
-        withParser userKeyTupleObjectSchema maybeUserKeyFromTuple
-        where
-          userKeyTupleObjectSchema :: ObjectSchema SwaggerDoc (Maybe Email, Maybe Phone)
-          userKeyTupleObjectSchema =
-            (,)
-              <$> fst .= maybe_ (optFieldWithDocModifier "email" phoneDocs schema)
-              <*> snd .= maybe_ (optFieldWithDocModifier "phone" emailDocs schema)
-            where
-              emailDocs = description ?~ "Email address to send the code to."
-              phoneDocs = description ?~ "E.164 phone number to send the code to."
-
-          maybeUserKeyFromTuple :: (Maybe Email, Maybe Phone) -> Parser (Either Email Phone)
-          maybeUserKeyFromTuple = \case
-            (Just _, Just _) -> fail "Only one of 'email' or 'phone' allowed."
-            (Just email, Nothing) -> pure $ Left email
-            (Nothing, Just phone) -> pure $ Right phone
-            (Nothing, Nothing) -> fail "One of 'email' or 'phone' required."
+-- SendActivationCode
 
 -- | Payload for a request to (re-)send an activation code for an e-mail
 -- address.

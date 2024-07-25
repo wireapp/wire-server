@@ -528,35 +528,8 @@ type AccountAPI =
     -- - UserActivated event to the user, if account gets activated
     -- - UserIdentityUpdated event to the user, if email or phone get activated
     :<|> Named
-           "post-activate-v5"
-           ( Summary "Activate (i.e. confirm) an email address."
-               :> Until 'V6
-               :> Description
-                    "Activation only succeeds once and the number of \
-                    \failed attempts for a valid key is limited."
-               :> MakesFederatedCall 'Brig "send-connection-action"
-               :> CanThrow 'UserKeyExists
-               :> CanThrow 'InvalidActivationCodeWrongUser
-               :> CanThrow 'InvalidActivationCodeWrongCode
-               :> CanThrow 'InvalidEmail
-               :> CanThrow 'InvalidPhone
-               :> "activate"
-               :> ReqBody '[JSON] ActivateV5
-               :> MultiVerb
-                    'POST
-                    '[JSON]
-                    GetActivateResponse
-                    ActivationRespWithStatus
-           )
-    -- docs/reference/user/activation.md {#RefActivationSubmit}
-    --
-    -- This endpoint can lead to the following events being sent:
-    -- - UserActivated event to the user, if account gets activated
-    -- - UserIdentityUpdated event to the user, if email or phone get activated
-    :<|> Named
            "post-activate"
            ( Summary "Activate (i.e. confirm) an email address."
-               :> From 'V6
                :> Description
                     "Activation only succeeds once and the number of \
                     \failed attempts for a valid key is limited."
@@ -576,23 +549,8 @@ type AccountAPI =
            )
     -- docs/reference/user/activation.md {#RefActivationRequest}
     :<|> Named
-           "post-activate-send-v5"
-           ( Summary "Send (or resend) an email activation code."
-               :> Until 'V6
-               :> CanThrow 'UserKeyExists
-               :> CanThrow 'InvalidEmail
-               :> CanThrow 'InvalidPhone
-               :> CanThrow 'BlacklistedEmail
-               :> CanThrow 'CustomerExtensionBlockedDomain
-               :> "activate"
-               :> "send"
-               :> ReqBody '[JSON] SendActivationCodeV5
-               :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Activation code sent."] ()
-           )
-    :<|> Named
            "post-activate-send"
            ( Summary "Send (or resend) an email activation code."
-               :> From 'V6
                :> CanThrow 'UserKeyExists
                :> CanThrow 'InvalidEmail
                :> CanThrow 'BlacklistedEmail
@@ -1477,31 +1435,8 @@ type AuthAPI =
                     (Respond 200 "OK" LoginCodeTimeout)
            )
     :<|> Named
-           "login-v5"
-           ( "login"
-               :> Until 'V6
-               :> Summary "Authenticate a user to obtain a cookie and first access token"
-               :> Description "Logins are throttled at the server's discretion"
-               :> MakesFederatedCall 'Brig "send-connection-action"
-               :> ReqBody '[JSON] LoginV5
-               :> QueryParam'
-                    [ Optional,
-                      Strict,
-                      Description "Request a persistent cookie instead of a session cookie"
-                    ]
-                    "persist"
-                    Bool
-               :> CanThrow 'BadCredentials
-               :> CanThrow 'AccountSuspended
-               :> CanThrow 'AccountPending
-               :> CanThrow 'CodeAuthenticationFailed
-               :> CanThrow 'CodeAuthenticationRequired
-               :> MultiVerb1 'POST '[JSON] TokenResponse
-           )
-    :<|> Named
            "login"
            ( "login"
-               :> From 'V6
                :> Summary "Authenticate a user to obtain a cookie and first access token"
                :> Description "Logins are throttled at the server's discretion"
                :> MakesFederatedCall 'Brig "send-connection-action"
@@ -1614,9 +1549,8 @@ type CallingAPI =
 
 type TeamsAPI =
   Named
-    "send-team-invitation-v5"
+    "send-team-invitation"
     ( Summary "Create and send a new team invitation."
-        :> Until 'V6
         :> Description
              "Invitations are sent by email. The maximum allowed number of \
              \pending team invitations is equal to the team size."
@@ -1630,7 +1564,7 @@ type TeamsAPI =
         :> "teams"
         :> Capture "tid" TeamId
         :> "invitations"
-        :> ReqBody '[JSON] InvitationRequestV5
+        :> ReqBody '[JSON] InvitationRequest
         :> MultiVerb1
              'POST
              '[JSON]
@@ -1640,33 +1574,6 @@ type TeamsAPI =
                  (Respond 201 "Invitation was created and sent." Invitation)
              )
     )
-    :<|> Named
-           "send-team-invitation"
-           ( Summary "Create and send a new team invitation."
-               :> From 'V6
-               :> Description
-                    "Invitations are sent by email. The maximum allowed number of \
-                    \pending team invitations is equal to the team size."
-               :> CanThrow 'NoEmail
-               :> CanThrow 'NoIdentity
-               :> CanThrow 'InvalidEmail
-               :> CanThrow 'BlacklistedEmail
-               :> CanThrow 'TooManyTeamInvitations
-               :> CanThrow 'InsufficientTeamPermissions
-               :> ZUser
-               :> "teams"
-               :> Capture "tid" TeamId
-               :> "invitations"
-               :> ReqBody '[JSON] InvitationRequest
-               :> MultiVerb1
-                    'POST
-                    '[JSON]
-                    ( WithHeaders
-                        '[Header "Location" InvitationLocation]
-                        (Invitation, InvitationLocation)
-                        (Respond 201 "Invitation was created and sent." Invitation)
-                    )
-           )
     :<|> Named
            "get-team-invitations"
            ( Summary "List the sent team invitations"
