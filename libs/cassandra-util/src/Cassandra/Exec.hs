@@ -24,7 +24,6 @@ module Cassandra.Exec
     paramsP,
     x5,
     x1,
-    syncCassandra,
     paginateC,
     PageWithState (..),
     paginateWithState,
@@ -79,15 +78,6 @@ data CassandraError
   | InvalidData !Text
   | Other !SomeException
   deriving (Show)
-
-syncCassandra :: (MonadIO m, MonadCatch m) => m a -> m (Either CassandraError a)
-syncCassandra m =
-  catches
-    (Right <$> m)
-    [ Handler $ \(e :: Error) -> pure . Left . Cassandra $ e,
-      Handler $ \(e :: IOException) -> pure . Left . Comm $ e,
-      Handler $ \(e :: SomeException) -> pure . Left . Other $ e
-    ]
 
 -- | Stream results of a query.
 --

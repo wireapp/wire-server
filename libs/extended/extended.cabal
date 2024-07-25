@@ -22,7 +22,6 @@ library
     Data.Time.Clock.DiffTime
     Network.AMQP.Extended
     Network.RabbitMqAdmin
-    Options.Applicative.Extended
     Servant.API.Extended
     Servant.API.Extended.Endpath
     Servant.API.Extended.RawM
@@ -96,7 +95,6 @@ library
     , imports
     , metrics-wai
     , monad-control
-    , optparse-applicative
     , resourcet
     , retry
     , servant

@@ -1,4 +1,4 @@
-module Cassandra.Helpers where
+module Cassandra.Helpers (toOptionFieldName) where
 
 import Data.Aeson.TH
 import Imports

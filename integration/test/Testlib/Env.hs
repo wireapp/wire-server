@@ -11,8 +11,6 @@ import Data.Functor
 import Data.IORef
 import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
-import Data.Set (Set)
-import qualified Data.Set as Set
 import Data.Traversable (for)
 import qualified Data.Yaml as Yaml
 import qualified Database.CQL.IO as Cassandra
@@ -160,18 +158,6 @@ mkEnv ge = do
           rabbitMQConfig = ge.gRabbitMQConfig,
           timeOutSeconds = ge.gTimeOutSeconds
         }
-
-destroy :: IORef (Set BackendResource) -> BackendResource -> IO ()
-destroy ioRef = modifyIORef' ioRef . Set.insert
-
-create :: IORef (Set.Set BackendResource) -> IO BackendResource
-create ioRef =
-  atomicModifyIORef
-    ioRef
-    $ \s ->
-      case Set.minView s of
-        Nothing -> error "No resources available"
-        Just (r, s') -> (s', r)
 
 allCiphersuites :: [Ciphersuite]
 -- FUTUREWORK: add 0x0005 to this list once openmls supports it
