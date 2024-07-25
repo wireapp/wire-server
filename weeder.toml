@@ -5,6 +5,8 @@ roots = [ # may of the entries here are about general-purpose module
           # only used in part.  it's possible that we should remove
           # those entries here and extend the tests to cover them.
 
+         "^API.Cargohold.getFederationAsset", # FUTUREWORK: write tests that need this!
+         "^API.Cargohold.uploadAssetV3", # FUTUREWORK: write tests that need this!
          "^Data.Range.rcons",
          "^Data.Range.(<|)",
          "^Data.Range.rinc",
