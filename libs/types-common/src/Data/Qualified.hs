@@ -40,7 +40,6 @@ module Data.Qualified
     indexQualified,
     bucketQualified,
     bucketRemote,
-    isLocal,
     deprecatedSchema,
     qualifiedSchema,
     qualifiedObjectSchema,
@@ -154,9 +153,6 @@ bucketRemote =
     . Map.assocs
     . indexQualified
     . fmap tUntagged
-
-isLocal :: Local x -> Qualified a -> Bool
-isLocal loc = foldQualified loc (const True) (const False)
 
 ----------------------------------------------------------------------
 
