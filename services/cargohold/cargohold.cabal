@@ -280,7 +280,6 @@ executable cargohold-integration
     , imports
     , kan-extensions
     , lens                   >=3.8
-    , mime                   >=0.4
     , mmorph
     , mtl
     , optparse-applicative

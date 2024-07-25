@@ -31,10 +31,7 @@ module TestSetup
     viewCargohold,
     createTestSetup,
     runFederationClient,
-    withFederationClient,
-    withFederationError,
     apiVersion,
-    unversioned,
   )
 where
 
@@ -45,7 +42,6 @@ import Control.Lens
 import Control.Monad.Codensity
 import Control.Monad.Except
 import Control.Monad.Morph
-import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Char8 as B8
 import Data.ByteString.Conversion
 import qualified Data.Text as T
@@ -55,7 +51,6 @@ import Imports
 import Network.HTTP.Client hiding (responseBody)
 import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Client.TLS
-import qualified Network.Wai.Utilities.Error as Wai
 import Servant.Client.Streaming
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -103,16 +98,8 @@ removeVersionPrefix bs = do
   (_, s') <- B8.readInteger s
   pure (B8.tail s')
 
--- | Note: Apply this function last when composing (Request -> Request) functions
-unversioned :: Request -> Request
-unversioned r =
-  r
-    { HTTP.path =
-        maybe
-          (HTTP.path r)
-          (B8.pack "/" <>)
-          (removeVersionPrefix . removeSlash' $ HTTP.path r)
-    }
+viewUnversionedCargohold :: TestM Cargohold
+viewUnversionedCargohold = mkRequest <$> view tsEndpoint
 
 viewCargohold :: TestM Cargohold
 viewCargohold =
@@ -122,9 +109,6 @@ viewCargohold =
   where
     latestVersion :: Version
     latestVersion = maxBound
-
-viewUnversionedCargohold :: TestM Cargohold
-viewUnversionedCargohold = mkRequest <$> view tsEndpoint
 
 runTestM :: TestSetup -> TestM a -> IO a
 runTestM ts action = runHttpT (view tsManager ts) (runReaderT action ts)
@@ -188,29 +172,3 @@ runFederationClient action = do
       catch (withClientM action env k) (k . Left)
 
   either throwError pure r
-
-hoistFederation :: ReaderT TestSetup (ExceptT ClientError (Codensity IO)) a -> ExceptT ClientError TestM a
-hoistFederation action = do
-  env <- ask
-  hoist (liftIO . lowerCodensity) $ runReaderT action env
-
-withFederationClient :: ReaderT TestSetup (ExceptT ClientError (Codensity IO)) a -> TestM a
-withFederationClient action =
-  runExceptT (hoistFederation action) >>= \case
-    Left err ->
-      liftIO
-        . assertFailure
-        $ "Unexpected federation client error: "
-          <> displayException err
-    Right x -> pure x
-
-withFederationError :: ReaderT TestSetup (ExceptT ClientError (Codensity IO)) a -> TestM Wai.Error
-withFederationError action =
-  runExceptT (hoistFederation action)
-    >>= liftIO
-      . \case
-        Left (FailureResponse _ resp) -> case Aeson.eitherDecode (responseBody resp) of
-          Left err -> assertFailure $ "Error while parsing error response: " <> err
-          Right e -> (Wai.code e @?= responseStatusCode resp) $> e
-        Left err -> assertFailure $ "Unexpected federation client error: " <> displayException err
-        Right _ -> assertFailure "Unexpected success"

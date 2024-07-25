@@ -75,7 +75,6 @@ library
     Wire.API.Bot.Service
     Wire.API.Call.Config
     Wire.API.Connection
-    Wire.API.ConverProtoLens
     Wire.API.Conversation
     Wire.API.Conversation.Action
     Wire.API.Conversation.Action.Tag

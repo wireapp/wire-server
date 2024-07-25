@@ -37,7 +37,6 @@ import Imports
 import Options.Applicative
 import Options.Applicative.Types
 import URI.ByteString
-import Util.Options.Common
 
 data AWSEndpoint = AWSEndpoint
   { _awsHost :: !ByteString,
@@ -147,10 +146,3 @@ getOptions desc mp defaultPath = do
 
 parseAWSEndpoint :: ReadM AWSEndpoint
 parseAWSEndpoint = readerAsk >>= maybe (error "Could not parse AWS endpoint") pure . fromByteString . fromString
-
-discoUrlParser :: Parser Text
-discoUrlParser =
-  textOption $
-    long "disco-url"
-      <> metavar "URL"
-      <> help "klabautermann url"

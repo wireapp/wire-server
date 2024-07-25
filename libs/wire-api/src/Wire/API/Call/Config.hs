@@ -46,16 +46,10 @@ module Wire.API.Call.Config
     turiTransport,
     Transport (..),
     TurnHost (..),
-    isHostName,
 
     -- * SFTUsername
     SFTUsername,
     mkSFTUsername,
-    suExpiresAt,
-    suVersion,
-    suKeyindex,
-    suShared,
-    suRandom,
 
     -- * TurnUsername
     TurnUsername,
@@ -409,10 +403,6 @@ instance Arbitrary TurnHost where
             "xn--mgbh0fb.xn--kgbechtv"
           ]
 
-isHostName :: TurnHost -> Bool
-isHostName (TurnHostIp _) = False
-isHostName (TurnHostName _) = True
-
 parseTurnHost :: Text -> Maybe TurnHost
 parseTurnHost h = case BC.fromByteString host of
   Just ip@(IpAddr _) -> Just $ TurnHostIp ip
@@ -645,7 +635,6 @@ isTls uri =
 makeLenses ''RTCConfiguration
 makeLenses ''RTCIceServer
 makeLenses ''TurnURI
-makeLenses ''SFTUsername
 makeLenses ''TurnUsername
 makeLenses ''SFTServer
 makeLenses ''AuthSFTServer

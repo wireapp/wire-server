@@ -593,24 +593,6 @@ testLHGetMembersIncludesStatus = do
     -- bob has accepted the legalhold device
     statusShouldBe "enabled"
 
-type TB s = TaggedBool s
-
-enableLH :: (MakesValue tid, MakesValue teamAdmin, MakesValue targetUser, HasCallStack) => tid -> teamAdmin -> targetUser -> Bool -> App (Maybe String)
-enableLH tid teamAdmin targetUser approveLH = do
-  -- alice requests a legalhold device for herself
-  requestLegalHoldDevice tid teamAdmin targetUser
-    >>= assertStatus 201
-
-  when approveLH do
-    approveLegalHoldDevice tid targetUser defPassword
-      >>= assertStatus 200
-  legalholdUserStatus tid targetUser targetUser `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json %. "status" `shouldMatch` if approveLH then "enabled" else "pending"
-  if approveLH
-    then Just <$> lhDeviceIdOf targetUser
-    else pure Nothing
-
 testLHConnectionsWithNonConsentingUsers :: App ()
 testLHConnectionsWithNonConsentingUsers = do
   (alice, tid, []) <- createTeam OwnDomain 1

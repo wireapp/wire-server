@@ -148,13 +148,12 @@ test-suite brig-types-tests
     -Wunused-packages
 
   build-depends:
-      aeson                  >=2.0.1.0
-    , base                   >=4       && <5
+      aeson             >=2.0.1.0
+    , base              >=4       && <5
     , brig-types
-    , bytestring-conversion  >=0.3.1
     , imports
     , openapi3
-    , QuickCheck             >=2.9
+    , QuickCheck        >=2.9
     , tasty
     , tasty-hunit
     , tasty-quickcheck

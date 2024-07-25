@@ -152,7 +152,6 @@ mkDerivation {
     imports
     kan-extensions
     lens
-    mime
     mmorph
     mtl
     optparse-applicative

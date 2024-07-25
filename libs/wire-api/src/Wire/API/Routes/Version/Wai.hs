@@ -44,12 +44,12 @@ versionMiddleware disabledAPIVersions app req k = case parseVersion (removeVersi
   where
     err :: Text -> IO ResponseReceived
     err v =
-      k . errorRs' . mkError HTTP.status404 "unsupported-version" $
+      k . errorRs . mkError HTTP.status404 "unsupported-version" $
         "Version " <> fromStrict v <> " is not supported"
 
     errint :: IO ResponseReceived
     errint =
-      k . errorRs' . mkError HTTP.status404 "unsupported-version" $
+      k . errorRs . mkError HTTP.status404 "unsupported-version" $
         "Internal APIs (`/i/...`) are not under version control"
 
 data ParseVersionError = NoVersion | BadVersion Text | InternalApisAreUnversioned

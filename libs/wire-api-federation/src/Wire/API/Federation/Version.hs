@@ -32,17 +32,14 @@ module Wire.API.Federation.Version
     -- * VersionRange
     VersionUpperBound (..),
     VersionRange (..),
-    fromVersion,
-    toVersionExcl,
     allVersions,
     latestCommonVersion,
     rangeFromVersion,
     rangeUntilVersion,
-    enumVersionRange,
   )
 where
 
-import Control.Lens (makeLenses, (?~))
+import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.OpenApi qualified as S
 import Data.Schema
@@ -131,8 +128,6 @@ deriving instance Show VersionRange
 
 deriving instance Ord VersionRange
 
-makeLenses ''VersionRange
-
 instance ToSchema VersionRange where
   schema =
     object "VersionRange" $
@@ -164,12 +159,6 @@ rangeFromVersion v = VersionRange v Unbounded
 
 rangeUntilVersion :: Version -> VersionRange
 rangeUntilVersion v = VersionRange minBound (VersionUpperBound v)
-
-enumVersionRange :: VersionRange -> Set Version
-enumVersionRange =
-  Set.fromList . \case
-    VersionRange l Unbounded -> [l ..]
-    VersionRange l (VersionUpperBound u) -> init [l .. u]
 
 -- | For a version range of a local backend and for a set of versions that a
 -- remote backend supports, compute the newest version supported by both. The

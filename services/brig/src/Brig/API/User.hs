@@ -29,7 +29,6 @@ module Brig.API.User
     CheckHandleResp (..),
     checkHandle,
     lookupHandle,
-    changeManagedBy,
     changeAccountStatus,
     changeSingleAccountStatus,
     Data.lookupAccounts,
@@ -536,25 +535,6 @@ checkRestrictedUserCreation new = do
         && not (isNewUserEphemeral new)
     )
     $ throwE RegisterErrorUserCreationRestricted
-
--------------------------------------------------------------------------------
--- Update ManagedBy
-
-changeManagedBy ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
-  ) =>
-  UserId ->
-  ConnId ->
-  ManagedByUpdate ->
-  (AppT r) ()
-changeManagedBy uid conn (ManagedByUpdate mb) = do
-  wrapClient $ Data.updateManagedBy uid mb
-  liftSem $ Intra.onUserEvent uid (Just conn) (managedByUpdate uid mb)
 
 -------------------------------------------------------------------------------
 -- Change Email

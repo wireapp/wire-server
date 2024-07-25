@@ -556,7 +556,6 @@ test-suite gundeck-tests
     , tasty-hunit
     , tasty-quickcheck
     , text
-    , time
     , tinylog
     , types-common
     , wai-utilities

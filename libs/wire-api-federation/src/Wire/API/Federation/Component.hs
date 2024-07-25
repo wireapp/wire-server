@@ -25,12 +25,6 @@ import Data.Proxy
 import Imports
 import Wire.API.MakesFederatedCall (Component (..))
 
-parseComponent :: Text -> Maybe Component
-parseComponent "brig" = Just Brig
-parseComponent "galley" = Just Galley
-parseComponent "cargohold" = Just Cargohold
-parseComponent _ = Nothing
-
 componentName :: Component -> Text
 componentName Brig = "brig"
 componentName Galley = "galley"

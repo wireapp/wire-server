@@ -24,7 +24,6 @@ module API.User.Util where
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import Brig.Options (Opts)
-import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.ZAuth (Token)
 import Cassandra qualified as DB
 import Codec.MIME.Type qualified as MIME
@@ -50,7 +49,6 @@ import Data.Text.Ascii qualified as Ascii
 import Data.Vector qualified as Vec
 import Data.ZAuth.Token qualified as ZAuth
 import Federation.Util (withTempMockFederator)
-import Federator.MockServer (FederatedRequest (..))
 import GHC.TypeLits (KnownSymbol)
 import Imports
 import Test.Tasty.Cannon qualified as WS
@@ -73,7 +71,6 @@ import Wire.API.User.Activation
 import Wire.API.User.Auth
 import Wire.API.User.Client
 import Wire.API.User.Client.DPoPAccessToken (Proof)
-import Wire.API.User.Client.Prekey
 import Wire.API.User.Handle
 import Wire.API.User.Password
 import Wire.VerificationCode qualified as Code
@@ -375,33 +372,6 @@ receiveConnectionAction brig fedBrigClient uid1 quid2 action expectedReaction ex
     res @?= F.NewConnectionResponseOk expectedReaction
   assertConnectionQualified brig uid1 quid2 expectedRel
 
-sendConnectionAction ::
-  (HasCallStack) =>
-  Brig ->
-  Opts ->
-  UserId ->
-  Qualified UserId ->
-  Maybe F.RemoteConnectionAction ->
-  Relation ->
-  Http ()
-sendConnectionAction brig opts uid1 quid2 reaction expectedRel = do
-  let mockConnectionResponse = F.NewConnectionResponseOk reaction
-      mockResponse = encode mockConnectionResponse
-  (res, reqs) <-
-    liftIO . withTempMockFederator opts mockResponse $
-      postConnectionQualified brig uid1 quid2
-
-  liftIO $ do
-    req <- assertOne reqs
-    frTargetDomain req @?= qDomain quid2
-    frComponent req @?= Brig
-    frRPC req @?= "send-connection-action"
-    eitherDecode (frBody req)
-      @?= Right (F.NewConnectionRequest uid1 Nothing (qUnqualified quid2) F.RemoteConnect)
-
-  liftIO $ assertBool "postConnectionQualified failed" $ statusCode res `elem` [200, 201]
-  assertConnectionQualified brig uid1 quid2 expectedRel
-
 sendConnectionUpdateAction ::
   (HasCallStack) =>
   Brig ->
@@ -461,25 +431,6 @@ downloadAsset c usr ast =
         . zUser usr
         . zConn "conn"
     )
-
-requestLegalHoldDevice :: Brig -> UserId -> UserId -> LastPrekey -> (MonadHttp m) => m ResponseLBS
-requestLegalHoldDevice brig requesterId targetUserId lastPrekey' =
-  post $
-    brig
-      . paths ["i", "clients", "legalhold", toByteString' targetUserId, "request"]
-      . contentJson
-      . body payload
-  where
-    payload =
-      RequestBodyLBS . encode $
-        LegalHoldClientRequest requesterId lastPrekey'
-
-deleteLegalHoldDevice :: Brig -> UserId -> (MonadHttp m) => m ResponseLBS
-deleteLegalHoldDevice brig uid =
-  delete $
-    brig
-      . paths ["i", "clients", "legalhold", toByteString' uid]
-      . contentJson
 
 matchDeleteUserNotification :: Qualified UserId -> Notification -> Assertion
 matchDeleteUserNotification quid n = do

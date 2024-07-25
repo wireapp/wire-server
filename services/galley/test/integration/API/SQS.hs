@@ -111,9 +111,6 @@ tUpdate expectedCount uids l (Just e) = liftIO $ do
     (Set.fromList $ billingUserIds)
 tUpdate _ _ l Nothing = liftIO $ assertFailure $ l <> ": Expected 1 TeamUpdate, got nothing"
 
-updateMatcher :: TeamId -> TeamEvent -> Bool
-updateMatcher tid e = e ^. eventType == E.TeamEvent'TEAM_UPDATE && decodeIdFromBS (e ^. teamId) == tid
-
 assertTeamUpdate :: (HasCallStack) => String -> TeamId -> Int32 -> [UserId] -> TestM ()
 assertTeamUpdate l tid c uids =
   assertIfWatcher l (\e -> e ^. eventType == E.TeamEvent'TEAM_UPDATE && decodeIdFromBS (e ^. teamId) == tid) $ tUpdate c uids

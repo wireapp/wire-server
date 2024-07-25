@@ -218,7 +218,6 @@ mkDerivation {
     tasty-hunit
     tasty-quickcheck
     text
-    time
     tinylog
     types-common
     wai-utilities

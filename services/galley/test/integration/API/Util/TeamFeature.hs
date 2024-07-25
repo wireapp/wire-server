@@ -24,21 +24,15 @@ module API.Util.TeamFeature where
 import API.Util (HasGalley (viewGalley), zUser)
 import API.Util qualified as Util
 import Bilge
-import Control.Lens ((.~), (^?))
-import Control.Monad.Catch (MonadThrow)
-import Data.Aeson (FromJSON, Result (Success), ToJSON, Value, fromJSON)
-import Data.Aeson.Key qualified as Key
-import Data.Aeson.Lens
+import Control.Lens ((.~))
+import Data.Aeson (ToJSON)
 import Data.ByteString.Conversion (toByteString')
 import Data.Id (ConvId, TeamId, UserId)
-import Data.Schema
 import GHC.TypeLits (KnownSymbol)
 import Galley.Options (featureFlags, settings)
 import Galley.Types.Teams
 import Imports
-import Test.Tasty.HUnit (assertBool, assertFailure, (@?=))
 import TestSetup
-import Wire.API.Team.Feature
 import Wire.API.Team.Feature qualified as Public
 
 withCustomSearchFeature :: FeatureTeamSearchVisibilityAvailability -> TestM () -> TestM ()
@@ -57,6 +51,57 @@ putTeamSearchVisibilityAvailableInternal tid statusValue =
       expect2xx
       tid
       (Public.WithStatusNoLock statusValue Public.SearchVisibilityAvailableConfig Public.FeatureTTLUnlimited)
+
+putTeamFeatureInternal ::
+  forall cfg m.
+  ( Monad m,
+    HasGalley m,
+    MonadHttp m,
+    HasCallStack,
+    KnownSymbol (Public.FeatureSymbol cfg),
+    ToJSON (Public.WithStatusNoLock cfg)
+  ) =>
+  (Request -> Request) ->
+  TeamId ->
+  Public.WithStatusNoLock cfg ->
+  m ResponseLBS
+putTeamFeatureInternal reqmod tid status = do
+  galley <- viewGalley
+  put $
+    galley
+      . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg]
+      . json status
+      . reqmod
+
+putTeamFeature ::
+  forall cfg.
+  ( HasCallStack,
+    KnownSymbol (Public.FeatureSymbol cfg),
+    ToJSON (Public.WithStatusNoLock cfg)
+  ) =>
+  UserId ->
+  TeamId ->
+  Public.WithStatusNoLock cfg ->
+  TestM ResponseLBS
+putTeamFeature uid tid status = do
+  galley <- viewGalley
+  put $
+    galley
+      . paths ["teams", toByteString' tid, "features", Public.featureNameBS @cfg]
+      . json status
+      . zUser uid
+
+getGuestLinkStatus ::
+  (HasCallStack) =>
+  (Request -> Request) ->
+  UserId ->
+  ConvId ->
+  TestM ResponseLBS
+getGuestLinkStatus galley u cid =
+  get $
+    galley
+      . paths ["conversations", toByteString' cid, "features", Public.featureNameBS @Public.GuestLinksConfig]
+      . zUser u
 
 getTeamFeatureInternal ::
   forall cfg m.
@@ -81,205 +126,3 @@ getTeamFeature uid tid = do
     galley
       . paths ["teams", toByteString' tid, "features", Public.featureNameBS @cfg]
       . zUser uid
-
-getAllTeamFeatures ::
-  (HasCallStack, HasGalley m, MonadIO m, MonadHttp m) =>
-  UserId ->
-  TeamId ->
-  m ResponseLBS
-getAllTeamFeatures uid tid = do
-  g <- viewGalley
-  get $
-    g
-      . paths ["teams", toByteString' tid, "features"]
-      . zUser uid
-
-getTeamFeatureFromAll ::
-  forall cfg m.
-  ( HasCallStack,
-    MonadThrow m,
-    HasGalley m,
-    MonadIO m,
-    MonadHttp m,
-    KnownSymbol (Public.FeatureSymbol cfg),
-    FromJSON (Public.WithStatus cfg)
-  ) =>
-  UserId ->
-  TeamId ->
-  m (Public.WithStatus cfg)
-getTeamFeatureFromAll uid tid = do
-  response :: Value <- responseJsonError =<< getAllTeamFeatures uid tid
-  let status = response ^? key (Key.fromText (Public.featureName @cfg))
-  maybe (error "getting all features failed") pure (status >>= fromResult . fromJSON)
-  where
-    fromResult :: Result a -> Maybe a
-    fromResult (Success b) = Just b
-    fromResult _ = Nothing
-
-getAllFeatureConfigs ::
-  (HasCallStack, HasGalley m, Monad m, MonadHttp m) =>
-  UserId ->
-  m ResponseLBS
-getAllFeatureConfigs uid = do
-  g <- viewGalley
-  get $
-    g
-      . paths ["feature-configs"]
-      . zUser uid
-
-getFeatureConfig ::
-  forall cfg m.
-  ( HasCallStack,
-    MonadThrow m,
-    HasGalley m,
-    MonadHttp m,
-    KnownSymbol (Public.FeatureSymbol cfg),
-    FromJSON (Public.WithStatus cfg)
-  ) =>
-  UserId ->
-  m (Public.WithStatus cfg)
-getFeatureConfig uid = do
-  response :: Value <- responseJsonError =<< getAllFeatureConfigs uid
-  let status = response ^? key (Key.fromText (Public.featureName @cfg))
-  maybe (error "getting all feature configs failed") pure (status >>= fromResult . fromJSON)
-  where
-    fromResult :: Result a -> Maybe a
-    fromResult (Success b) = Just b
-    fromResult _ = Nothing
-
-putTeamFeature ::
-  forall cfg.
-  ( HasCallStack,
-    KnownSymbol (Public.FeatureSymbol cfg),
-    ToJSON (Public.WithStatusNoLock cfg)
-  ) =>
-  UserId ->
-  TeamId ->
-  Public.WithStatusNoLock cfg ->
-  TestM ResponseLBS
-putTeamFeature uid tid status = do
-  galley <- viewGalley
-  put $
-    galley
-      . paths ["teams", toByteString' tid, "features", Public.featureNameBS @cfg]
-      . json status
-      . zUser uid
-
-putTeamFeatureInternal ::
-  forall cfg m.
-  ( Monad m,
-    HasGalley m,
-    MonadHttp m,
-    HasCallStack,
-    KnownSymbol (Public.FeatureSymbol cfg),
-    ToJSON (Public.WithStatusNoLock cfg)
-  ) =>
-  (Request -> Request) ->
-  TeamId ->
-  Public.WithStatusNoLock cfg ->
-  m ResponseLBS
-putTeamFeatureInternal reqmod tid status = do
-  galley <- viewGalley
-  put $
-    galley
-      . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg]
-      . json status
-      . reqmod
-
-setLockStatusInternal ::
-  forall cfg.
-  ( HasCallStack,
-    KnownSymbol (Public.FeatureSymbol cfg)
-  ) =>
-  (Request -> Request) ->
-  TeamId ->
-  Public.LockStatus ->
-  TestM ResponseLBS
-setLockStatusInternal reqmod tid lockStatus = do
-  galley <- viewGalley
-  put $
-    galley
-      . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg, toByteString' lockStatus]
-      . reqmod
-
-patchTeamFeatureInternal ::
-  forall cfg.
-  ( HasCallStack,
-    KnownSymbol (Public.FeatureSymbol cfg),
-    ToSchema cfg
-  ) =>
-  TeamId ->
-  Public.WithStatusPatch cfg ->
-  TestM ResponseLBS
-patchTeamFeatureInternal = patchTeamFeatureInternalWithMod id
-
-patchTeamFeatureInternalWithMod ::
-  forall cfg.
-  ( HasCallStack,
-    KnownSymbol (Public.FeatureSymbol cfg),
-    ToSchema cfg
-  ) =>
-  (Request -> Request) ->
-  TeamId ->
-  Public.WithStatusPatch cfg ->
-  TestM ResponseLBS
-patchTeamFeatureInternalWithMod reqmod tid reqBody = do
-  galley <- viewGalley
-  patch $
-    galley
-      . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg]
-      . json reqBody
-      . reqmod
-
-getGuestLinkStatus ::
-  (HasCallStack) =>
-  (Request -> Request) ->
-  UserId ->
-  ConvId ->
-  TestM ResponseLBS
-getGuestLinkStatus galley u cid =
-  get $
-    galley
-      . paths ["conversations", toByteString' cid, "features", Public.featureNameBS @Public.GuestLinksConfig]
-      . zUser u
-
-checkTeamFeatureAllEndpoints ::
-  forall cfg.
-  ( HasCallStack,
-    IsFeatureConfig cfg,
-    ToSchema cfg,
-    Typeable cfg,
-    Eq cfg,
-    Show cfg,
-    KnownSymbol (FeatureSymbol cfg)
-  ) =>
-  UserId ->
-  TeamId ->
-  WithStatus cfg ->
-  TestM ()
-checkTeamFeatureAllEndpoints uid tid expected = do
-  compareLeniently $ responseJsonUnsafe <$> getTeamFeatureInternal @cfg tid
-  compareLeniently $ responseJsonUnsafe <$> getTeamFeature @cfg uid tid
-  compareLeniently $ getTeamFeatureFromAll @cfg uid tid
-  compareLeniently $ getFeatureConfig uid
-  where
-    compareLeniently :: TestM (WithStatus cfg) -> TestM ()
-    compareLeniently receive = do
-      received <- receive
-      liftIO $ do
-        wsStatus received @?= wsStatus expected
-        wsLockStatus received @?= wsLockStatus expected
-        wsConfig received @?= wsConfig expected
-        checkTtl (wsTTL received) (wsTTL expected)
-
-    checkTtl :: FeatureTTL -> FeatureTTL -> IO ()
-    checkTtl (FeatureTTLSeconds actualTtl) (FeatureTTLSeconds expectedTtl) =
-      assertBool
-        ("expected the actual TTL to be greater than 0 and equal to or no more than 2 seconds less than " <> show expectedTtl <> ", but it was " <> show actualTtl)
-        ( actualTtl > 0
-            && actualTtl <= expectedTtl
-            && abs (fromIntegral @Word @Int actualTtl - fromIntegral @Word @Int expectedTtl) <= 2
-        )
-    checkTtl FeatureTTLUnlimited FeatureTTLUnlimited = pure ()
-    checkTtl FeatureTTLUnlimited _ = assertFailure "expected the actual TTL to be unlimited, but it was limited"
-    checkTtl _ FeatureTTLUnlimited = assertFailure "expected the actual TTL to be limited, but it was unlimited"

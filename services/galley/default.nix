@@ -230,7 +230,6 @@ mkDerivation {
     bytestring
     bytestring-conversion
     call-stack
-    case-insensitive
     cassandra-util
     cassava
     cereal
@@ -272,7 +271,6 @@ mkDerivation {
     random
     retry
     saml2-web-sso
-    schema-profunctor
     servant-client
     servant-client-core
     servant-server
@@ -300,7 +298,6 @@ mkDerivation {
     uuid
     vector
     wai
-    wai-extra
     wai-utilities
     warp
     warp-tls
