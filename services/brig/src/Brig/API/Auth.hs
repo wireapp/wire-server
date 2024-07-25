@@ -23,7 +23,6 @@ import Brig.API.Types
 import Brig.API.User
 import Brig.App
 import Brig.Data.User qualified as User
-import Brig.Effects.BlacklistStore
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Options
 import Brig.User.Auth qualified as Auth
@@ -53,6 +52,7 @@ import Wire.API.User.Auth hiding (access)
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
+import Wire.BlockListStore
 import Wire.EmailSubsystem (EmailSubsystem)
 import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
@@ -139,7 +139,7 @@ logout _ Nothing = throwStd authMissingToken
 logout uts (Just at) = Auth.logout (List1 uts) at !>> zauthError
 
 changeSelfEmailH ::
-  ( Member BlacklistStore r,
+  ( Member BlockListStore r,
     Member UserKeyStore r,
     Member EmailSubsystem r
   ) =>

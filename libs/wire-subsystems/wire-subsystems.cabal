@@ -73,6 +73,8 @@ library
     Wire.AuthenticationSubsystem.Error
     Wire.AuthenticationSubsystem.Interpreter
     Wire.AWS
+    Wire.BlockListStore
+    Wire.BlockListStore.Cassandra
     Wire.DeleteQueue
     Wire.DeleteQueue.InMemory
     Wire.EmailSending
@@ -204,6 +206,7 @@ test-suite wire-subsystems-tests
     Wire.AuthenticationSubsystem.InterpreterSpec
     Wire.MiniBackend
     Wire.MockInterpreters
+    Wire.MockInterpreters.BlockListStore
     Wire.MockInterpreters.EmailSubsystem
     Wire.MockInterpreters.Error
     Wire.MockInterpreters.Events

@@ -28,6 +28,7 @@ import Wire.API.Team.Member hiding (userId)
 import Wire.API.User
 import Wire.API.UserEvent
 import Wire.Arbitrary
+import Wire.BlockListStore as BlockList
 import Wire.DeleteQueue
 import Wire.Events
 import Wire.FederationAPIAccess
@@ -55,6 +56,7 @@ runUserSubsystem ::
   ( Member GalleyAPIAccess r,
     Member UserStore r,
     Member UserKeyStore r,
+    Member BlockListStore r,
     Member (Concurrency 'Unsafe) r, -- FUTUREWORK: subsystems should implement concurrency inside interpreters, not depend on this dangerous effect.
     Member (Error FederationError) r,
     Member (Error UserSubsystemError) r,
@@ -74,6 +76,7 @@ interpretUserSubsystem ::
   ( Member GalleyAPIAccess r,
     Member UserStore r,
     Member UserKeyStore r,
+    Member BlockListStore r,
     Member (Concurrency 'Unsafe) r,
     Member (Error FederationError) r,
     Member (Error UserSubsystemError) r,
@@ -98,6 +101,18 @@ interpretUserSubsystem = interpret \case
   UpdateHandle uid mconn mb uhandle -> updateHandleImpl uid mconn mb uhandle
   GetLocalUserAccountByUserKey userKey -> getLocalUserAccountByUserKeyImpl userKey
   LookupLocaleWithDefault luid -> lookupLocaleOrDefaultImpl luid
+  IsBlocked email -> isBlockedImpl email
+  BlockListDelete email -> blockListDeleteImpl email
+  BlockListInsert email -> blockListInsertImpl email
+
+isBlockedImpl :: (Member BlockListStore r) => Email -> Sem r Bool
+isBlockedImpl = BlockList.exists . mkEmailKey
+
+blockListDeleteImpl :: (Member BlockListStore r) => Email -> Sem r ()
+blockListDeleteImpl = BlockList.delete . mkEmailKey
+
+blockListInsertImpl :: (Member BlockListStore r) => Email -> Sem r ()
+blockListInsertImpl = BlockList.insert . mkEmailKey
 
 lookupLocaleOrDefaultImpl :: (Member UserStore r, Member (Input UserSubsystemConfig) r) => Local UserId -> Sem r (Maybe Locale)
 lookupLocaleOrDefaultImpl luid = do

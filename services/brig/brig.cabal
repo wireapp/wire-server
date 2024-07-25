@@ -113,8 +113,6 @@ library
     Brig.Data.Types
     Brig.Data.User
     Brig.DeleteQueue.Interpreter
-    Brig.Effects.BlacklistStore
-    Brig.Effects.BlacklistStore.Cassandra
     Brig.Effects.ConnectionStore
     Brig.Effects.ConnectionStore.Cassandra
     Brig.Effects.FederationConfigStore

@@ -22,25 +22,23 @@ where
 
 import Brig.AWS.Types
 import Brig.App
-import Brig.Effects.BlacklistStore (BlacklistStore)
-import Brig.Effects.BlacklistStore qualified as BlacklistStore
 import Imports
 import Polysemy (Member)
 import System.Logger.Class (field, msg, (~~))
 import System.Logger.Class qualified as Log
 import Wire.API.User.Identity
-import Wire.UserKeyStore
+import Wire.UserSubsystem
 
-onEvent :: (Member BlacklistStore r) => SESNotification -> AppT r ()
+onEvent :: (Member UserSubsystem r) => SESNotification -> AppT r ()
 onEvent (MailBounce BouncePermanent es) = onPermanentBounce es
 onEvent (MailBounce BounceTransient es) = onTransientBounce es
 onEvent (MailBounce BounceUndetermined es) = onUndeterminedBounce es
 onEvent (MailComplaint es) = onComplaint es
 
-onPermanentBounce :: (Member BlacklistStore r) => [Email] -> AppT r ()
+onPermanentBounce :: (Member UserSubsystem r) => [Email] -> AppT r ()
 onPermanentBounce = mapM_ $ \e -> do
   logEmailEvent "Permanent bounce" e
-  liftSem $ BlacklistStore.insert (mkEmailKey e)
+  liftSem $ blockListInsert e
 
 onTransientBounce :: [Email] -> AppT r ()
 onTransientBounce = mapM_ (logEmailEvent "Transient bounce")
@@ -48,10 +46,10 @@ onTransientBounce = mapM_ (logEmailEvent "Transient bounce")
 onUndeterminedBounce :: [Email] -> AppT r ()
 onUndeterminedBounce = mapM_ (logEmailEvent "Undetermined bounce")
 
-onComplaint :: (Member BlacklistStore r) => [Email] -> AppT r ()
+onComplaint :: (Member UserSubsystem r) => [Email] -> AppT r ()
 onComplaint = mapM_ $ \e -> do
   logEmailEvent "Complaint" e
-  liftSem $ BlacklistStore.insert (mkEmailKey e)
+  liftSem $ blockListInsert e
 
 logEmailEvent :: Text -> Email -> AppT r ()
 logEmailEvent t e = Log.info $ field "email" (fromEmail e) ~~ msg t

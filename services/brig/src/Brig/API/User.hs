@@ -85,8 +85,6 @@ import Brig.Data.Connection (countConnections)
 import Brig.Data.Connection qualified as Data
 import Brig.Data.User
 import Brig.Data.User qualified as Data
-import Brig.Effects.BlacklistStore (BlacklistStore)
-import Brig.Effects.BlacklistStore qualified as BlacklistStore
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivation (..), UserPendingActivationStore)
 import Brig.Effects.UserPendingActivationStore qualified as UserPendingActivationStore
@@ -144,6 +142,7 @@ import Wire.API.User.Client
 import Wire.API.User.RichInfo
 import Wire.API.UserEvent
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem, internalLookupPasswordResetCode)
+import Wire.BlockListStore as BlockListStore
 import Wire.DeleteQueue
 import Wire.EmailSubsystem
 import Wire.Error
@@ -179,14 +178,14 @@ identityErrorToBrigError = \case
   IdentityErrorUserKeyExists -> StdError $ errorToWai @'E.UserKeyExists
 
 verifyUniquenessAndCheckBlacklist ::
-  ( Member BlacklistStore r,
+  ( Member BlockListStore r,
     Member UserKeyStore r
   ) =>
   EmailKey ->
   ExceptT IdentityError (AppT r) ()
 verifyUniquenessAndCheckBlacklist uk = do
   checkKey Nothing uk
-  blacklisted <- lift $ liftSem $ BlacklistStore.exists uk
+  blacklisted <- lift $ liftSem $ BlockListStore.exists uk
   when blacklisted $ throwE IdentityErrorBlacklistedEmail
   where
     checkKey u k = do
@@ -266,7 +265,7 @@ createUserSpar new = do
 -- docs/reference/user/registration.md {#RefRegistration}
 createUser ::
   forall r p.
-  ( Member BlacklistStore r,
+  ( Member BlockListStore r,
     Member GalleyAPIAccess r,
     Member (UserPendingActivationStore p) r,
     Member UserKeyStore r,
@@ -496,7 +495,7 @@ initAccountFeatureConfig uid = do
 -- all over the place there, we add a new function that handles just the one new flow where
 -- users are invited to the team via scim.
 createUserInviteViaScim ::
-  ( Member BlacklistStore r,
+  ( Member BlockListStore r,
     Member UserKeyStore r,
     Member (UserPendingActivationStore p) r,
     Member TinyLog r
@@ -542,7 +541,7 @@ checkRestrictedUserCreation new = do
 
 -- | Call 'changeEmail' and process result: if email changes to itself, succeed, if not, send
 -- validation email.
-changeSelfEmail :: (Member BlacklistStore r, Member UserKeyStore r, Member EmailSubsystem r) => UserId -> Email -> UpdateOriginType -> ExceptT HttpError (AppT r) ChangeEmailResponse
+changeSelfEmail :: (Member BlockListStore r, Member UserKeyStore r, Member EmailSubsystem r) => UserId -> Email -> UpdateOriginType -> ExceptT HttpError (AppT r) ChangeEmailResponse
 changeSelfEmail u email allowScim = do
   changeEmail u email allowScim !>> Error.changeEmailError >>= \case
     ChangeEmailIdempotent ->
@@ -562,7 +561,7 @@ changeSelfEmail u email allowScim = do
         (Just (userLocale usr))
 
 -- | Prepare changing the email (checking a number of invariants).
-changeEmail :: (Member BlacklistStore r, Member UserKeyStore r) => UserId -> Email -> UpdateOriginType -> ExceptT ChangeEmailError (AppT r) ChangeEmailResult
+changeEmail :: (Member BlockListStore r, Member UserKeyStore r) => UserId -> Email -> UpdateOriginType -> ExceptT ChangeEmailError (AppT r) ChangeEmailResult
 changeEmail u email updateOrigin = do
   em <-
     either
@@ -570,7 +569,7 @@ changeEmail u email updateOrigin = do
       pure
       (validateEmail email)
   let ek = mkEmailKey em
-  blacklisted <- lift . liftSem $ BlacklistStore.exists ek
+  blacklisted <- lift . liftSem $ BlockListStore.exists ek
   when blacklisted $
     throwE (ChangeBlacklistedEmail email)
   available <- lift $ liftSem $ keyAvailable ek (Just u)
@@ -784,7 +783,7 @@ onActivated (EmailActivated uid email) = do
 
 -- docs/reference/user/activation.md {#RefActivationRequest}
 sendActivationCode ::
-  ( Member BlacklistStore r,
+  ( Member BlockListStore r,
     Member EmailSubsystem r,
     Member GalleyAPIAccess r,
     Member UserKeyStore r
@@ -799,11 +798,11 @@ sendActivationCode email loc _call = do
       (const . throwE . InvalidRecipient $ mkEmailKey email)
       (pure . mkEmailKey)
       (validateEmail email)
-  exists <- lift $ liftSem $ isJust <$> lookupKey ek
-  when exists $
+  doesExist <- lift $ liftSem $ isJust <$> lookupKey ek
+  when doesExist $
     throwE $
       UserKeyInUse ek
-  blacklisted <- lift . liftSem $ BlacklistStore.exists ek
+  blacklisted <- lift . liftSem $ BlockListStore.exists ek
   when blacklisted $
     throwE (ActivationBlacklistedUserKey ek)
   uc <- lift . wrapClient $ Data.lookupActivationCode ek
@@ -1182,17 +1181,17 @@ lookupAccountsByIdentity email includePendingInvitations = do
     then pure result
     else pure $ filter ((/= PendingInvitation) . accountStatus) result
 
-isBlacklisted :: (Member BlacklistStore r) => Email -> AppT r Bool
+isBlacklisted :: (Member BlockListStore r) => Email -> AppT r Bool
 isBlacklisted email = do
   let uk = mkEmailKey email
-  liftSem $ BlacklistStore.exists uk
+  liftSem $ BlockListStore.exists uk
 
-blacklistInsert :: (Member BlacklistStore r) => Email -> AppT r ()
+blacklistInsert :: (Member BlockListStore r) => Email -> AppT r ()
 blacklistInsert email = do
   let uk = mkEmailKey email
-  liftSem $ BlacklistStore.insert uk
+  liftSem $ BlockListStore.insert uk
 
-blacklistDelete :: (Member BlacklistStore r) => Email -> AppT r ()
+blacklistDelete :: (Member BlockListStore r) => Email -> AppT r ()
 blacklistDelete email = do
   let uk = mkEmailKey email
-  liftSem $ BlacklistStore.delete uk
+  liftSem $ BlockListStore.delete uk

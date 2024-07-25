@@ -1,20 +1,20 @@
-module Brig.Effects.BlacklistStore.Cassandra
-  ( interpretBlacklistStoreToCassandra,
+module Wire.BlockListStore.Cassandra
+  ( interpretBlockListStoreToCassandra,
   )
 where
 
-import Brig.Effects.BlacklistStore (BlacklistStore (..))
 import Cassandra
 import Imports
 import Polysemy
+import Wire.BlockListStore (BlockListStore (..))
 import Wire.UserKeyStore
 
-interpretBlacklistStoreToCassandra ::
+interpretBlockListStoreToCassandra ::
   forall m r a.
   (MonadClient m, Member (Embed m) r) =>
-  Sem (BlacklistStore ': r) a ->
+  Sem (BlockListStore ': r) a ->
   Sem r a
-interpretBlacklistStoreToCassandra =
+interpretBlockListStoreToCassandra =
   interpret $
     embed @m . \case
       Insert uk -> insert uk
@@ -22,7 +22,7 @@ interpretBlacklistStoreToCassandra =
       Delete uk -> delete uk
 
 --------------------------------------------------------------------------------
--- UserKey blacklisting
+-- UserKey block listing
 
 insert :: (MonadClient m) => EmailKey -> m ()
 insert uk = retry x5 $ write keyInsert (params LocalQuorum (Identity $ emailKeyUniq uk))
