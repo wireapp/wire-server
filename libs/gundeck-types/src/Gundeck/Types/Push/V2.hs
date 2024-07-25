@@ -35,7 +35,6 @@ module Gundeck.Types.Push.V2
     pushNativeAps,
     pushNativePriority,
     pushPayload,
-    singletonRecipient,
     singletonPayload,
     Recipient (..),
     RecipientClients (..),
@@ -79,7 +78,6 @@ import Data.Json.Util
 import Data.List1
 import Data.List1 qualified as List1
 import Data.Range
-import Data.Range qualified as Range
 import Data.Set qualified as Set
 import Imports
 import Wire.API.Message (Priority (..))
@@ -272,9 +270,6 @@ newPush from to pload =
       _pushNativePriority = HighPriority,
       _pushPayload = pload
     }
-
-singletonRecipient :: Recipient -> Range 1 1024 (Set Recipient)
-singletonRecipient = Range.unsafeRange . Set.singleton
 
 singletonPayload :: (ToJSONObject a) => a -> List1 Object
 singletonPayload = List1.singleton . toJSONObject

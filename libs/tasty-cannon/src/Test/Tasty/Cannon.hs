@@ -33,8 +33,6 @@ module Test.Tasty.Cannon
     bracketAsClient,
 
     -- ** Random Connection IDs
-    connectR,
-    connectAsClientR,
     bracketR,
     bracketAsClientR,
     bracketR2,
@@ -141,12 +139,6 @@ bracketAsClient can uid client conn =
   Catch.bracket (connectAsClient can uid client conn) close
 
 -- Random Connection IDs
-
-connectR :: (MonadIO m) => Cannon -> UserId -> m WebSocket
-connectR can uid = randomConnId >>= connect can uid
-
-connectAsClientR :: (MonadIO m) => Cannon -> UserId -> ClientId -> m WebSocket
-connectAsClientR can uid clientId = randomConnId >>= connectAsClient can uid clientId
 
 bracketR :: (MonadIO m, MonadMask m) => Cannon -> UserId -> (WebSocket -> m a) -> m a
 bracketR can usr f = do

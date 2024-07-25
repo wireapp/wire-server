@@ -43,7 +43,6 @@ mkDerivation {
   testHaskellDepends = [
     aeson
     base
-    bytestring-conversion
     imports
     openapi3
     QuickCheck
