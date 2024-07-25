@@ -21,7 +21,6 @@ module Data.Handle
   ( Handle (fromHandle),
     parseHandle,
     parseHandleEither,
-    isValidHandle,
     BadHandle (..),
   )
 where
@@ -72,9 +71,6 @@ instance FromByteString Handle where
 
 parseHandle :: Text -> Maybe Handle
 parseHandle = either (const Nothing) Just . parseHandleEither
-
-isValidHandle :: Text -> Bool
-isValidHandle = isRight . parseHandleEither
 
 parseHandleEither :: Text -> Either String Handle
 parseHandleEither = Atto.parseOnly (handleParser <* Atto.endOfInput) . Text.E.encodeUtf8

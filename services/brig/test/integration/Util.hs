@@ -58,7 +58,7 @@ import Data.List1 (List1)
 import Data.List1 qualified as List1
 import Data.Misc
 import Data.Proxy
-import Data.Qualified hiding (isLocal)
+import Data.Qualified
 import Data.Range
 import Data.Sequence qualified as Seq
 import Data.String.Conversions
