@@ -7,11 +7,9 @@ roots = [ # may of the entries here are about general-purpose module
 
          "^API.Cargohold.getFederationAsset", # FUTUREWORK: write tests that need this!
          "^API.Cargohold.uploadAssetV3", # FUTUREWORK: write tests that need this!
-         "^Data.Range.rcons",
-         "^Data.Range.(<|)",
-         "^Data.Range.rinc",
-         "^Data.Range.rappend",
-         "^Data.Range.rsingleton",
+         "^API.Galley.consentToLegalHold",  # FUTUREWORK: write tests that need this!
+         "^API.Galley.enableLegalHold",  # FUTUREWORK: write tests that need this!
+         "^API.Galley.getLegalHoldStatus",  # FUTUREWORK: write tests that need this!
          "^Data.ETag.opaqueDigest",
          "^Data.ETag._OpaqueDigest",
          "^Data.ETag.opaqueMD5",
@@ -20,6 +18,11 @@ roots = [ # may of the entries here are about general-purpose module
          "^Data.ETag._StrictETag",
          "^Data.ETag.weakETag",
          "^Data.ETag._WeakETag",
+         "^Data.Range.(<|)",
+         "^Data.Range.rappend",
+         "^Data.Range.rcons",
+         "^Data.Range.rinc",
+         "^Data.Range.rsingleton",
          "^Imports.getChar",
          "^Imports.getContents",
          "^Imports.interact",
@@ -28,6 +31,9 @@ roots = [ # may of the entries here are about general-purpose module
          "^Imports.readLn",
          "^Main.main$",
          "^Paths_.*",
+         "^Test.Cargohold.API.Util.shouldMatchALittle",
+         "^Test.Cargohold.API.Util.shouldMatchLeniently",
+         "^Test.Cargohold.API.Util.shouldMatchSloppily",
          "^Testlib.JSON.(<$$$>)",
          "^Testlib.JSON.member",
          "^Testlib.Prelude.appendFile",

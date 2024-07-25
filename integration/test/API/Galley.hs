@@ -592,6 +592,13 @@ legalholdUserStatus tid ownerid user = do
   req <- baseRequest ownerid Galley Versioned (joinHttpPath ["teams", tidS, "legalhold", uid])
   submit "GET" req
 
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_teams__tid__legalhold_settings
+enableLegalHold :: (HasCallStack, MakesValue tid, MakesValue ownerid) => tid -> ownerid -> App Response
+enableLegalHold tid ownerid = do
+  tidStr <- asString tid
+  req <- baseRequest ownerid Galley Versioned (joinHttpPath ["teams", tidStr, "features", "legalhold"])
+  submit "PUT" (addJSONObject ["status" .= "enabled", "ttl" .= "unlimited"] req)
+
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/delete_teams__tid__legalhold__uid_
 disableLegalHold ::
   (HasCallStack, MakesValue tid, MakesValue ownerid, MakesValue uid) =>
@@ -606,6 +613,21 @@ disableLegalHold tid ownerid uid pw = do
   uidStr <- objId uid
   req <- baseRequest ownerid Galley Versioned (joinHttpPath ["teams", tidStr, "legalhold", uidStr])
   submit "DELETE" (addJSONObject ["password" .= pw] req)
+
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_teams__tid__legalhold_consent
+consentToLegalHold :: (HasCallStack, MakesValue tid, MakesValue zusr) => tid -> zusr -> String -> App Response
+consentToLegalHold tid zusr pwd = do
+  tidStr <- asString tid
+  req <- baseRequest zusr Galley Versioned (joinHttpPath ["teams", tidStr, "legalhold", "consent"])
+  submit "POST" (addJSONObject ["password" .= pwd] req)
+
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/get_teams__tid__legalhold__uid_
+getLegalHoldStatus :: (HasCallStack, MakesValue tid, MakesValue zusr) => tid -> zusr -> App Response
+getLegalHoldStatus tid zusr = do
+  tidStr <- asString tid
+  uidStr <- asString $ zusr %. "id"
+  req <- baseRequest zusr Galley Versioned (joinHttpPath ["teams", tidStr, "legalhold", uidStr])
+  submit "GET" req
 
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_teams__tid__legalhold_settings
 postLegalHoldSettings :: (HasCallStack, MakesValue ownerid, MakesValue tid, MakesValue newService) => tid -> ownerid -> newService -> App Response
