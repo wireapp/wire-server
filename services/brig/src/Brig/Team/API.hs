@@ -95,12 +95,10 @@ servantAPI ::
   ) =>
   ServerT TeamsAPI (Handler r)
 servantAPI =
-  Named @"send-team-invitation-v5" createInvitationV5
-    :<|> Named @"send-team-invitation" createInvitation
+  Named @"send-team-invitation" createInvitation
     :<|> Named @"get-team-invitations" listInvitations
     :<|> Named @"get-team-invitation" getInvitation
     :<|> Named @"delete-team-invitation" deleteInvitation
-    :<|> Named @"get-team-invitation-info-v5" getInvitationByCode
     :<|> Named @"get-team-invitation-info" getInvitationByCode
     :<|> Named @"head-team-invitations" headInvitationByEmail
     :<|> Named @"get-team-size" teamSizePublic
@@ -117,32 +115,6 @@ getInvitationCode :: TeamId -> InvitationId -> (Handler r) FoundInvitationCode
 getInvitationCode t r = do
   code <- lift . wrapClient $ DB.lookupInvitationCode t r
   maybe (throwStd $ errorToWai @'E.InvalidInvitationCode) (pure . FoundInvitationCode) code
-
-createInvitationV5 ::
-  ( Member GalleyAPIAccess r,
-    Member UserKeyStore r,
-    Member UserSubsystem r,
-    Member EmailSending r
-  ) =>
-  UserId ->
-  TeamId ->
-  Public.InvitationRequestV5 ->
-  Handler r (Public.Invitation, Public.InvitationLocation)
-createInvitationV5 uid tid body = do
-  when (isJust body.irInviteePhone) . throwStd . dynErrorToWai $
-    -- 'E.InvalidPhone' would be ideal here, but that would be an API breaking
-    -- change.
-    DynError 400 "bad-request" "bad-request"
-  createInvitation uid tid (fromV5 body)
-  where
-    fromV5 :: Public.InvitationRequestV5 -> Public.InvitationRequest
-    fromV5 v5 =
-      Public.InvitationRequest
-        { locale = v5.irLocale,
-          role = v5.irRole,
-          inviteeName = v5.irInviteeName,
-          inviteeEmail = v5.irInviteeEmail
-        }
 
 data CreateInvitationInviter = CreateInvitationInviter
   { inviterUid :: UserId,

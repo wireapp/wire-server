@@ -37,4 +37,3 @@ loginIdFailFastOnEmail = testCase "LoginId parser: invalid email, valid phone" $
   let actual :: Maybe LoginId = Aeson.decode "{\"email\":\"invalid-email\",\"phone\":\"+123456789\"}"
   let expected = Nothing
   assertEqual "should fail if any provided login id is invalid" expected actual
-

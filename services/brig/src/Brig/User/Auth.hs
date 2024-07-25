@@ -18,7 +18,6 @@
 -- | High-level user authentication and access control.
 module Brig.User.Auth
   ( Access,
-    loginV5,
     login,
     logout,
     renewAccess,
@@ -85,33 +84,6 @@ import Wire.VerificationCode qualified as VerificationCode
 import Wire.VerificationCodeGen qualified as VerificationCodeGen
 import Wire.VerificationCodeSubsystem (VerificationCodeSubsystem)
 import Wire.VerificationCodeSubsystem qualified as VerificationCodeSubsystem
-
-loginV5 ::
-  forall r.
-  ( Member GalleyAPIAccess r,
-    Member TinyLog r,
-    Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
-    Member PasswordStore r,
-    Member UserKeyStore r,
-    Member UserStore r,
-    Member VerificationCodeSubsystem r
-  ) =>
-  LoginV5 ->
-  CookieType ->
-  ExceptT LoginError (AppT r) (Access ZAuth.User)
-loginV5 (PasswordLogin (PasswordLoginData (LoginV5ByPhone _) _ _ _)) _ =
-  throwE LoginFailed
-loginV5 (PasswordLogin (PasswordLoginData (LoginV5ByEmail e) pw label code)) typ =
-  login (MkLogin (LoginByEmail e) pw label code) typ
-loginV5 (PasswordLogin (PasswordLoginData (LoginV5ByHandle h) pw label code)) typ =
-  login (MkLogin (LoginByHandle h) pw label code) typ
-loginV5 (SmsLogin _) _ = do
-  -- sms login not supported
-  throwE LoginFailed
 
 login ::
   forall r.

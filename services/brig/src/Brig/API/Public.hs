@@ -360,9 +360,7 @@ servantSitemap =
       Named @"register" (callsFed (exposeAnnotations createUser))
         :<|> Named @"verify-delete" (callsFed (exposeAnnotations verifyDeleteUser))
         :<|> Named @"get-activate" (callsFed (exposeAnnotations activate))
-        :<|> Named @"post-activate-v5" (callsFed (exposeAnnotations activateKeyV5))
         :<|> Named @"post-activate" (callsFed (exposeAnnotations activateKey))
-        :<|> Named @"post-activate-send-v5" sendActivationCodeV5
         :<|> Named @"post-activate-send" sendActivationCode
         :<|> Named @"post-password-reset" beginPasswordReset
         :<|> Named @"post-password-reset-complete" completePasswordReset
@@ -448,7 +446,6 @@ servantSitemap =
     authAPI =
       Named @"access" (callsFed (exposeAnnotations accessH))
         :<|> Named @"send-login-code" sendLoginCode
-        :<|> Named @"login-v5" (callsFed (exposeAnnotations loginV5))
         :<|> Named @"login" (callsFed (exposeAnnotations login))
         :<|> Named @"logout" logoutH
         :<|> Named @"change-self-email" changeSelfEmailH
@@ -1027,22 +1024,6 @@ completePasswordReset req = do
 
 -- docs/reference/user/activation.md {#RefActivationRequest}
 -- docs/reference/user/registration.md {#RefRegistration}
-sendActivationCodeV5 ::
-  ( Member BlockListStore r,
-    Member EmailSubsystem r,
-    Member GalleyAPIAccess r,
-    Member UserKeyStore r
-  ) =>
-  Public.SendActivationCodeV5 ->
-  Handler r ()
-sendActivationCodeV5 Public.SendActivationCodeV5 {..} = do
-  email <- case saUserKey of
-    Left email -> pure email
-    Right _ -> throwStd (errorToWai @'E.InvalidPhone)
-  sendActivationCode (Public.SendActivationCode email saLocale)
-
--- docs/reference/user/activation.md {#RefActivationRequest}
--- docs/reference/user/registration.md {#RefRegistration}
 sendActivationCode ::
   ( Member BlockListStore r,
     Member EmailSubsystem r,
@@ -1282,25 +1263,6 @@ activate ::
 activate k c = do
   let activationRequest = Public.Activate (Public.ActivateKey k) c False
   activateKey activationRequest
-
--- docs/reference/user/activation.md {#RefActivationSubmit}
-activateKeyV5 ::
-  ( Member GalleyAPIAccess r,
-    Member TinyLog r,
-    Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
-  ) =>
-  Public.ActivateV5 ->
-  (Handler r) ActivationRespWithStatus
-activateKeyV5 (Public.ActivateV5 tgtV5 code dryrun) = do
-  tgt <- case tgtV5 of
-    Public.ActivateV5Phone p -> throwE $ actError (InvalidActivationPhone p)
-    Public.ActivateV5Email e -> pure (Public.ActivateEmail e)
-    Public.ActivateV5Key k -> pure (Public.ActivateKey k)
-  activateKey $ Public.Activate tgt code dryrun
 
 -- docs/reference/user/activation.md {#RefActivationSubmit}
 activateKey ::
