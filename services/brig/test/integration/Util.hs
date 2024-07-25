@@ -263,7 +263,8 @@ localAndRemoteUserWithConvId brig shouldBeLocal = do
   let go = do
         other <- Qualified <$> randomId <*> pure (Domain "far-away.example.com")
         let convId = one2OneConvId BaseProtocolProteusTag quid other
-        if shouldBeLocal == isLocal quid convId
+            isLocalUntagged = qDomain quid == qDomain convId
+        if shouldBeLocal == isLocalUntagged
           then pure (qUnqualified quid, other, convId)
           else go
   go
