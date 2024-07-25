@@ -5,8 +5,29 @@ roots = [ # may of the entries here are about general-purpose module
           # only used in part.  it's possible that we should remove
           # those entries here and extend the tests to cover them.
 
+         "^Data.Range.rcons",
+         "^Data.Range.(<|)",
+         "^Data.Range.rinc",
+         "^Data.Range.rappend",
+         "^Data.Range.rsingleton",
+         "^Data.ETag.opaqueDigest",
+         "^Data.ETag._OpaqueDigest",
+         "^Data.ETag.opaqueMD5",
+         "^Data.ETag.opaqueSHA1",
+         "^Data.ETag.strictETag",
+         "^Data.ETag._StrictETag",
+         "^Data.ETag.weakETag",
+         "^Data.ETag._WeakETag",
+         "^Imports.getChar",
+         "^Imports.getContents",
+         "^Imports.interact",
+         "^Imports.putChar",
+         "^Imports.readIO",
+         "^Imports.readLn",
          "^Main.main$",
          "^Paths_.*",
+         "^Testlib.JSON.(<$$$>)",
+         "^Testlib.JSON.member",
          "^Testlib.Prelude.appendFile",
          "^Testlib.Prelude.getChar",
          "^Testlib.Prelude.getContents",
@@ -14,13 +35,13 @@ roots = [ # may of the entries here are about general-purpose module
          "^Testlib.Prelude.interact",
          "^Testlib.Prelude.readFile",
          "^Testlib.Prelude.readIO",
-         "^Testlib.Prelude.readLn"
+         "^Testlib.Prelude.readLn",
          "^Testlib.Prelude.writeFile",
          "^Testlib.Printing.gray",
          "^Testlib.Printing.hline",
          "^Testlib.Run.main$",
          "^Testlib.RunServices.main$",
-         "^Test.Wire.API.Golden.Run.main$",
+         "^Test.Wire.API.Golden.Run.main$"
         ]
 type-class-roots = true  # `root-instances` is more precise, but requires more config maintenance.
 
