@@ -193,7 +193,7 @@ getAllFeatureConfigsForUser zusr = do
     maybe (throwS @'NotATeamMember) (const $ pure ()) zusrMembership
   case mbTeam of
     Just tid ->
-      TeamFeatures.getAllFeatureConfigs tid
+      getAllFeatureConfigs tid
     Nothing ->
       getAllFeatureConfigsUser zusr
 
@@ -209,7 +209,12 @@ getAllFeatureConfigsForTeam ::
 getAllFeatureConfigsForTeam luid tid = do
   zusrMembership <- getTeamMember tid (tUnqualified luid)
   maybe (throwS @'NotATeamMember) (const $ pure ()) zusrMembership
-  TeamFeatures.getAllFeatureConfigs tid
+  getAllFeatureConfigs tid
+
+getAllFeatureConfigs :: (Member TeamFeatureStore r) => TeamId -> Sem r AllFeatureConfigs
+getAllFeatureConfigs tid = do
+  _features <- TeamFeatures.getAllFeatureConfigs tid
+  error "TODO"
 
 getAllFeatureConfigsForServer ::
   forall r.

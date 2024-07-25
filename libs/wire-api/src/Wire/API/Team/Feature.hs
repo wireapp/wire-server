@@ -25,6 +25,7 @@ module Wire.API.Team.Feature
     featureName,
     featureNameBS,
     LockStatus (..),
+    WithStatusBase (..),
     WithStatus,
     withStatus,
     withStatus',
