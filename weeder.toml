@@ -1,5 +1,27 @@
 # weeder intro and further reading: https://github.com/ocharles/weeder?tab=readme-ov-file#weeder
-roots = ["^Main.main$", "^Paths_.*", "^Testlib.RunServices.main$", "^Testlib.Run.main$", "^Test.Wire.API.Golden.Run.main$"]
+
+roots = [ # may of the entries here are about general-purpose module
+          # interfaces that make sense as a whole, but are *currently*
+          # only used in part.  it's possible that we should remove
+          # those entries here and extend the tests to cover them.
+
+         "^Main.main$",
+         "^Paths_.*",
+         "^Testlib.Prelude.appendFile",
+         "^Testlib.Prelude.getChar",
+         "^Testlib.Prelude.getContents",
+         "^Testlib.Prelude.getLine",
+         "^Testlib.Prelude.interact",
+         "^Testlib.Prelude.readFile",
+         "^Testlib.Prelude.readIO",
+         "^Testlib.Prelude.readLn"
+         "^Testlib.Prelude.writeFile",
+         "^Testlib.Printing.gray",
+         "^Testlib.Printing.hline",
+         "^Testlib.Run.main$",
+         "^Testlib.RunServices.main$",
+         "^Test.Wire.API.Golden.Run.main$",
+        ]
 type-class-roots = true  # `root-instances` is more precise, but requires more config maintenance.
 
 # FUTUREWORK: unused-types = true
