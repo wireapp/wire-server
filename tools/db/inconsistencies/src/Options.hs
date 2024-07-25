@@ -97,15 +97,6 @@ inconsistenciesFileParser =
         <> metavar "FILEPATH"
     )
 
-teamIdParser :: Parser TeamId
-teamIdParser =
-  option
-    (eitherReader (parseIdFromText . Text.pack))
-    ( long "team-id"
-        <> help "Team id to search into"
-        <> metavar "TEAM_ID"
-    )
-
 cassandraSettingsParser :: String -> Parser CassandraSettings
 cassandraSettingsParser ks =
   CassandraSettings
