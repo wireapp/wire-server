@@ -26,7 +26,15 @@
 module Data.ETag
   ( Digest (..),
     Opaque,
+    opaqueMD5,
+    opaqueSHA1,
+    _OpaqueDigest,
+    opaqueDigest,
     ETag,
+    _StrictETag,
+    _WeakETag,
+    strictETag,
+    weakETag,
   )
 where
 
@@ -72,6 +80,24 @@ instance ToByteString (Opaque 'SHA1) where
 instance Semigroup (Opaque d) where
   Opaque a <> Opaque b = Opaque (builder a <> builder b)
 
+opaqueMD5 :: (ToByteString a) => a -> Opaque 'MD5
+opaqueMD5 = Opaque
+{-# INLINE opaqueMD5 #-}
+
+opaqueSHA1 :: (ToByteString a) => a -> Opaque 'SHA1
+opaqueSHA1 = Opaque
+{-# INLINE opaqueSHA1 #-}
+
+-- | Adjust the digest algorithm of an 'Opaque' value, as an 'Iso'
+_OpaqueDigest :: Iso' (Opaque a) (Opaque b)
+_OpaqueDigest = iso opaqueDigest opaqueDigest
+{-# INLINE _OpaqueDigest #-}
+
+-- | Adjust the digest algorithm of an 'Opaque' value
+opaqueDigest :: Opaque a -> Opaque b
+opaqueDigest (Opaque x) = Opaque x
+{-# INLINE opaqueDigest #-}
+
 data ETag a
   = StrictETag !a
   | WeakETag !a
@@ -96,3 +122,11 @@ instance (Semigroup a) => Semigroup (ETag a) where
   WeakETag a <> WeakETag b = WeakETag (a <> b)
 
 makePrisms ''ETag
+
+strictETag :: a -> ETag a
+strictETag = StrictETag
+{-# INLINE strictETag #-}
+
+weakETag :: a -> ETag a
+weakETag = WeakETag
+{-# INLINEABLE weakETag #-}

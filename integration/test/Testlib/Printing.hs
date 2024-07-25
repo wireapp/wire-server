@@ -20,6 +20,9 @@ red = "\x1b[38;5;9m"
 green :: String
 green = "\x1b[32m"
 
+gray :: String
+gray = "\x1b[38;5;250m"
+
 resetColor :: String
 resetColor = "\x1b[0m"
 
@@ -31,3 +34,6 @@ indent n s =
   unlines (map (pad <>) (lines s))
   where
     pad = replicate n ' '
+
+hline :: String
+hline = replicate 40 '-'
