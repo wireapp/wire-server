@@ -267,30 +267,14 @@ blacklistedEmail =
     "The given e-mail address has been blacklisted due to a permanent bounce \
     \or a complaint."
 
-phoneBudgetExhausted :: Wai.Error
-phoneBudgetExhausted =
-  Wai.mkError
-    status403
-    "phone-budget-exhausted"
-    "The SMS or voice call budget for the given phone number has been \
-    \exhausted. Please try again later. Repeated exhaustion of the SMS or \
-    \voice call budget is considered abuse of the API and may result in \
-    \permanent blacklisting of the phone number."
-
 authMissingCookie :: Wai.Error
 authMissingCookie = Wai.mkError status403 "invalid-credentials" "Missing cookie"
-
-authInvalidCookie :: Wai.Error
-authInvalidCookie = Wai.mkError status403 "invalid-credentials" "Invalid cookie"
 
 authMissingToken :: Wai.Error
 authMissingToken = Wai.mkError status403 "invalid-credentials" "Missing token"
 
 authMissingCookieAndToken :: Wai.Error
 authMissingCookieAndToken = Wai.mkError status403 "invalid-credentials" "Missing cookie and token"
-
-invalidAccessToken :: Wai.Error
-invalidAccessToken = Wai.mkError status403 "invalid-credentials" "Invalid access token"
 
 missingAccessToken :: Wai.Error
 missingAccessToken = Wai.mkError status403 "invalid-credentials" "Missing access token"

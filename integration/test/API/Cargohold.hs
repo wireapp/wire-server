@@ -1,6 +1,5 @@
 module API.Cargohold where
 
-import API.Federator
 import qualified Codec.MIME.Type as MIME
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
@@ -14,24 +13,6 @@ import Testlib.Prelude
 import UnliftIO (catch)
 
 type LByteString = LBS.ByteString
-
-getFederationAsset :: (HasCallStack, MakesValue asset) => asset -> App Response
-getFederationAsset ga = do
-  req <- rawBaseRequestF OwnDomain cargohold "federation/get-asset"
-  bdy <- make ga
-  submit "POST"
-    $ req
-    & addBody (HTTP.RequestBodyLBS $ encode bdy) "application/json"
-
-uploadAssetV3 :: (HasCallStack, MakesValue user, MakesValue assetRetention) => user -> Bool -> assetRetention -> MIME.MIMEType -> LByteString -> App Response
-uploadAssetV3 user isPublic retention mimeType bdy = do
-  uid <- user & objId
-  req <- baseRequest user Cargohold (ExplicitVersion 1) "/assets/v3"
-  body <- buildUploadAssetRequestBody isPublic retention bdy mimeType
-  submit "POST"
-    $ req
-    & zUser uid
-    & addBody body multipartMixedMime
 
 uploadAsset :: (HasCallStack, MakesValue user) => user -> App Response
 uploadAsset = flip uploadFreshAsset "Hello World!"
@@ -71,9 +52,6 @@ textPlainMime = MIME.Text $ T.pack "plain"
 -- the boundary.
 multipartMixedMime :: String
 multipartMixedMime = "multipart/mixed; boundary=" <> multipartBoundary
-
-mimeTypeToString :: MIME.MIMEType -> String
-mimeTypeToString = T.unpack . MIME.showMIMEType
 
 buildUploadAssetRequestBody ::
   (HasCallStack, MakesValue assetRetention) =>

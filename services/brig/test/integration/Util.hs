@@ -104,7 +104,6 @@ import Test.Tasty.Pending (flakyTestCase)
 import Text.Printf (printf)
 import UnliftIO.Async qualified as Async
 import Util.Options
-import Web.Internal.HttpApiData
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Conversation.Role (roleNameWireAdmin)
@@ -112,7 +111,6 @@ import Wire.API.Federation.API
 import Wire.API.Federation.Domain
 import Wire.API.Federation.Version
 import Wire.API.Internal.Notification
-import Wire.API.MLS.SubConversation
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Team.Member hiding (userId)
 import Wire.API.User hiding (AccountStatus (..))
@@ -353,12 +351,6 @@ getActivationCode brig ep = do
   let acode = ActivationCode . Ascii.unsafeFromText <$> (lbs ^? key "code" . _String)
   pure $ (,) <$> akey <*> acode
 
-getPhoneLoginCode :: Brig -> Phone -> Http (Maybe LoginCode)
-getPhoneLoginCode brig p = do
-  r <- get $ brig . path "/i/users/login-code" . queryItem "phone" (toByteString' p)
-  let lbs = fromMaybe "" $ responseBody r
-  pure (LoginCode <$> (lbs ^? key "code" . _String))
-
 assertUpdateNotification :: (HasCallStack) => WS.WebSocket -> UserId -> UserUpdate -> IO ()
 assertUpdateNotification ws uid upd = WS.assertMatch (5 # Second) ws $ \n -> do
   let j = Object $ List1.head (ntfPayload n)
@@ -537,23 +529,6 @@ decodeToken' r = fromMaybe (error "invalid access_token") $ do
 data LoginCodeType = LoginCodeSMS | LoginCodeVoice
   deriving (Eq)
 
-sendLoginCode :: Brig -> Phone -> LoginCodeType -> Bool -> Http ResponseLBS
-sendLoginCode b p typ force =
-  post $
-    b
-      . path "/login/send"
-      . contentJson
-      . body js
-  where
-    js =
-      RequestBodyLBS
-        . encode
-        $ object
-          [ "phone" .= fromPhone p,
-            "voice_call" .= (typ == LoginCodeVoice),
-            "force" .= force
-          ]
-
 postConnection :: Brig -> UserId -> UserId -> (MonadHttp m) => m ResponseLBS
 postConnection brig from to =
   post $
@@ -642,23 +617,6 @@ createUserWithHandle brig = do
   -- when using this function.
   pure (handle, userWithHandle)
 
-getUserInfoFromHandle ::
-  (MonadIO m, MonadCatch m, MonadHttp m, HasCallStack) =>
-  Brig ->
-  Domain ->
-  Handle ->
-  m UserProfile
-getUserInfoFromHandle brig domain handle = do
-  u <- randomId
-  responseJsonError
-    =<< get
-      ( apiVersion "v1"
-          . brig
-          . paths ["users", "by-handle", toByteString' (domainText domain), toByteString' handle]
-          . zUser u
-          . expect2xx
-      )
-
 addClient ::
   (MonadHttp m, HasCallStack) =>
   Brig ->
@@ -732,47 +690,6 @@ getConversationQualified galley usr cnv =
     galley
       . paths ["conversations", toByteString' (qDomain cnv), toByteString' (qUnqualified cnv)]
       . zAuthAccess usr "conn"
-
-createMLSConversation :: (MonadHttp m) => Galley -> UserId -> ClientId -> m ResponseLBS
-createMLSConversation galley zusr c = do
-  let conv =
-        NewConv
-          []
-          mempty
-          (checked "gossip")
-          mempty
-          Nothing
-          Nothing
-          Nothing
-          Nothing
-          roleNameWireAdmin
-          BaseProtocolMLSTag
-  post $
-    galley
-      . path "/conversations"
-      . zUser zusr
-      . zConn "conn"
-      . zClient c
-      . json conv
-
-createMLSSubConversation ::
-  (MonadIO m, MonadHttp m) =>
-  Galley ->
-  UserId ->
-  Qualified ConvId ->
-  SubConvId ->
-  m ResponseLBS
-createMLSSubConversation galley zusr qcnv sconv =
-  get $
-    galley
-      . paths
-        [ "conversations",
-          toByteString' (qDomain qcnv),
-          toByteString' (qUnqualified qcnv),
-          "subconversations",
-          toHeader sconv
-        ]
-      . zUser zusr
 
 createConversation :: (MonadHttp m) => Galley -> UserId -> [Qualified UserId] -> m ResponseLBS
 createConversation galley zusr usersToAdd = do
@@ -966,10 +883,6 @@ somePrekeys =
     Prekey (PrekeyId 26) "pQABARgaAqEAWCBMSQoQ6B35plB80i1O3AWlJSftCEbCbju97Iykg5+NWQOhAKEAWCCy39UyMEgetquvTo7P19bcyfnWBzQMOEG1v+0wub0magT2"
   ]
 
--- | The client ID of the first of 'someLastPrekeys'
-someClientId :: ClientId
-someClientId = ClientId 0x1dbfbe22c8a35cb2
-
 someLastPrekeys :: [LastPrekey]
 someLastPrekeys =
   [ lastPrekey "pQABARn//wKhAFggnCcZIK1pbtlJf4wRQ44h4w7/sfSgj5oWXMQaUGYAJ/sDoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g==",
@@ -1117,9 +1030,6 @@ aFewTimes
       (exponentialBackoff 1000 <> limitRetries retries)
       (\_ -> pure . not . good)
       (const action)
-
-retryT :: (MonadIO m, MonadMask m) => m a -> m a
-retryT = recoverAll (exponentialBackoff 8000 <> limitRetries 3) . const
 
 assertOne :: (HasCallStack, MonadIO m, Show a) => [a] -> m a
 assertOne [a] = pure a

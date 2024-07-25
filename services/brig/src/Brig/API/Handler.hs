@@ -21,7 +21,6 @@ module Brig.API.Handler
     toServantHandler,
 
     -- * Utilities
-    parseJsonBody,
     checkAllowlist,
     checkAllowlistWithError,
     isAllowlisted,
@@ -41,16 +40,13 @@ import Control.Lens (view)
 import Control.Monad.Catch (catches, throwM)
 import Control.Monad.Catch qualified as Catch
 import Control.Monad.Except (MonadError, throwError)
-import Data.Aeson (FromJSON)
 import Data.Aeson qualified as Aeson
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.ZAuth.Validation qualified as ZV
 import Imports
 import Network.HTTP.Types (Status (statusCode, statusMessage))
-import Network.Wai.Utilities.Error ((!>>))
 import Network.Wai.Utilities.Error qualified as WaiError
-import Network.Wai.Utilities.Request (JsonRequest, parseBody)
 import Network.Wai.Utilities.Server qualified as Server
 import Servant qualified
 import System.Logger qualified as Log
@@ -121,12 +117,6 @@ brigErrorHandlers logger reqId =
 
 -------------------------------------------------------------------------------
 -- Utilities
-
--- This could go to libs/wai-utilities.  There is a `parseJson'` in
--- "Network.Wai.Utilities.Request", but adding `parseJsonBody` there would require to move
--- more code out of brig.
-parseJsonBody :: (FromJSON a, MonadIO m) => JsonRequest a -> ExceptT HttpError m a
-parseJsonBody req = parseBody req !>> StdError . badRequest
 
 -- | If an Allowlist is configured, consult it, otherwise a no-op. {#RefActivationAllowlist}
 checkAllowlist :: Email -> Handler r ()

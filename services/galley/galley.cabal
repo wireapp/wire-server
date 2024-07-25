@@ -472,7 +472,6 @@ executable galley-integration
     , bytestring
     , bytestring-conversion
     , call-stack
-    , case-insensitive
     , cassandra-util
     , cassava
     , cereal
@@ -513,7 +512,6 @@ executable galley-integration
     , random
     , retry
     , saml2-web-sso          >=0.20
-    , schema-profunctor
     , servant-client
     , servant-client-core
     , servant-server
@@ -541,7 +539,6 @@ executable galley-integration
     , uuid
     , vector
     , wai
-    , wai-extra
     , wai-utilities
     , warp
     , warp-tls               >=3.2

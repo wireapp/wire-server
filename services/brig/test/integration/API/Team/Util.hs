@@ -110,22 +110,6 @@ createPopulatedBindingTeamWithNames brig names = do
     pure invitee
   pure (tid, inviter, invitees)
 
-createTeam :: UserId -> Galley -> Http TeamId
-createTeam u galley = do
-  tid <- randomId
-  r <-
-    put
-      ( galley
-          . paths ["i", "teams", toByteString' tid]
-          . contentJson
-          . zAuthAccess u "conn"
-          . expect2xx
-          . lbytes (encode newTeam)
-      )
-  maybe (error "invalid team id") pure $
-    fromByteString $
-      getHeader' "Location" r
-
 -- | Create user and binding team.
 --
 -- NB: the created user is the team owner.

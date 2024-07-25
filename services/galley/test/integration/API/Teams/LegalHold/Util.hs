@@ -529,18 +529,6 @@ putLHWhitelistTeam' g tid = do
         . paths ["i", "legalhold", "whitelisted-teams", toByteString' tid]
     )
 
-_deleteLHWhitelistTeam :: (HasCallStack) => TeamId -> TestM ResponseLBS
-_deleteLHWhitelistTeam tid = do
-  galleyCall <- viewGalley
-  deleteLHWhitelistTeam' galleyCall tid
-
-deleteLHWhitelistTeam' :: (HasCallStack, MonadHttp m) => GalleyR -> TeamId -> m ResponseLBS
-deleteLHWhitelistTeam' g tid = do
-  delete
-    ( g
-        . paths ["i", "legalhold", "whitelisted-teams", toByteString' tid]
-    )
-
 errWith :: (HasCallStack, Typeable a, FromJSON a) => Int -> (a -> Bool) -> ResponseLBS -> TestM ()
 errWith wantStatus wantBody rsp = liftIO $ do
   assertEqual "" wantStatus (statusCode rsp)

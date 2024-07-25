@@ -17,13 +17,6 @@
 
 module API.Util
   ( randomUser,
-    uploadSimple,
-    decodeHeaderOrFail,
-    getContentType,
-    applicationText,
-    applicationOctetStream,
-    deleteAssetV3,
-    deleteAsset,
     downloadAsset,
     withMockFederator,
   )
@@ -33,26 +26,20 @@ import Bilge hiding (body, host, port)
 import qualified Bilge
 import CargoHold.Options
 import CargoHold.Run
-import qualified Codec.MIME.Parse as MIME
-import qualified Codec.MIME.Type as MIME
 import Control.Lens hiding ((.=))
 import Control.Monad.Codensity
 import Data.Aeson (object, (.=))
-import Data.ByteString.Builder
 import qualified Data.ByteString.Char8 as C
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy as Lazy
 import Data.Default
 import Data.Id
 import Data.Qualified
-import Data.Text.Encoding (decodeLatin1, encodeUtf8)
+import Data.Text.Encoding (encodeUtf8)
 import qualified Data.UUID as UUID
 import Data.UUID.V4 (nextRandom)
 import Federator.MockServer
 import Imports hiding (head)
 import qualified Network.HTTP.Media as HTTP
-import Network.HTTP.Types.Header
-import Network.HTTP.Types.Method
 import Network.Wai.Utilities.MockServer
 import Safe (readNote)
 import TestSetup
@@ -86,70 +73,8 @@ randomUser = do
       uid <- nextRandom
       pure $ loc <> "+" <> UUID.toText uid <> "@" <> dom
 
-uploadSimple ::
-  (Request -> Request) ->
-  UserId ->
-  AssetSettings ->
-  (MIME.Type, ByteString) ->
-  TestM (Response (Maybe Lazy.ByteString))
-uploadSimple c usr sts (ct, bs) =
-  let mp = buildMultipartBody sts ct (Lazy.fromStrict bs)
-   in uploadRaw c usr (toLazyByteString mp)
-
-decodeHeaderOrFail :: (HasCallStack, FromByteString a) => HeaderName -> Response b -> a
-decodeHeaderOrFail h =
-  fromMaybe (error $ "decodeHeaderOrFail: missing or invalid header: " ++ show h)
-    . fromByteString
-    . getHeader' h
-
-uploadRaw ::
-  (Request -> Request) ->
-  UserId ->
-  Lazy.ByteString ->
-  TestM (Response (Maybe Lazy.ByteString))
-uploadRaw c usr bs = do
-  cargohold' <- viewUnversionedCargohold
-  post $
-    apiVersion "v1"
-      . c
-      . cargohold'
-      . method POST
-      . zUser usr
-      . zConn "conn"
-      . content "multipart/mixed"
-      . lbytes bs
-
-getContentType :: Response a -> Maybe MIME.Type
-getContentType = MIME.parseContentType . decodeLatin1 . getHeader' "Content-Type"
-
-applicationText :: MIME.Type
-applicationText = MIME.Type (MIME.Application "text") []
-
-applicationOctetStream :: MIME.Type
-applicationOctetStream = MIME.Type (MIME.Application "octet-stream") []
-
 zUser :: UserId -> Request -> Request
 zUser = header "Z-User" . UUID.toASCIIBytes . toUUID
-
-zConn :: ByteString -> Request -> Request
-zConn = header "Z-Connection"
-
-deleteAssetV3 :: UserId -> Qualified AssetKey -> TestM (Response (Maybe Lazy.ByteString))
-deleteAssetV3 u k = do
-  c <- viewUnversionedCargohold
-  delete $ apiVersion "v1" . c . zUser u . paths ["assets", "v3", toByteString' (qUnqualified k)]
-
-deleteAsset :: UserId -> Qualified AssetKey -> TestM (Response (Maybe Lazy.ByteString))
-deleteAsset u k = do
-  c <- viewCargohold
-  delete $
-    c
-      . zUser u
-      . paths
-        [ "assets",
-          toByteString' (qDomain k),
-          toByteString' (qUnqualified k)
-        ]
 
 class IsAssetLocation key where
   locationPath :: key -> Request -> Request

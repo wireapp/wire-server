@@ -32,6 +32,8 @@ tests =
       testCase "verify old scrypt password still works" testHashingOldScrypt
     ]
 
+-- TODO: Address password hashing being wrong
+-- https://wearezeta.atlassian.net/browse/WPB-9746
 testHashPasswordScrypt :: IO ()
 testHashPasswordScrypt = do
   pwd <- genPassword

@@ -65,8 +65,6 @@ instance Arbitrary MilliSeconds where
 data LogEntry = NoBudget | Debug String | Unknown String
   deriving (Eq, Show, Generic)
 
-makePrisms ''LogEntry
-
 type LogHistory = MVar [LogEntry]
 
 enterLogHistory :: (HasCallStack, MonadReader LogHistory m, MonadIO m) => LogEntry -> m ()

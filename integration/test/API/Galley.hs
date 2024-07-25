@@ -592,13 +592,6 @@ legalholdUserStatus tid ownerid user = do
   req <- baseRequest ownerid Galley Versioned (joinHttpPath ["teams", tidS, "legalhold", uid])
   submit "GET" req
 
--- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_teams__tid__legalhold_settings
-enableLegalHold :: (HasCallStack, MakesValue tid, MakesValue ownerid) => tid -> ownerid -> App Response
-enableLegalHold tid ownerid = do
-  tidStr <- asString tid
-  req <- baseRequest ownerid Galley Versioned (joinHttpPath ["teams", tidStr, "features", "legalhold"])
-  submit "PUT" (addJSONObject ["status" .= "enabled", "ttl" .= "unlimited"] req)
-
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/delete_teams__tid__legalhold__uid_
 disableLegalHold ::
   (HasCallStack, MakesValue tid, MakesValue ownerid, MakesValue uid) =>
@@ -652,21 +645,6 @@ approveLegalHoldDevice' tid uid forUid pwd = do
   uidStr <- asString $ forUid %. "id"
   req <- baseRequest uid Galley Versioned (joinHttpPath ["teams", tidStr, "legalhold", uidStr, "approve"])
   submit "PUT" (addJSONObject ["password" .= pwd] req)
-
--- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_teams__tid__legalhold_consent
-consentToLegalHold :: (HasCallStack, MakesValue tid, MakesValue zusr) => tid -> zusr -> String -> App Response
-consentToLegalHold tid zusr pwd = do
-  tidStr <- asString tid
-  req <- baseRequest zusr Galley Versioned (joinHttpPath ["teams", tidStr, "legalhold", "consent"])
-  submit "POST" (addJSONObject ["password" .= pwd] req)
-
--- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/get_teams__tid__legalhold__uid_
-getLegalHoldStatus :: (HasCallStack, MakesValue tid, MakesValue zusr) => tid -> zusr -> App Response
-getLegalHoldStatus tid zusr = do
-  tidStr <- asString tid
-  uidStr <- asString $ zusr %. "id"
-  req <- baseRequest zusr Galley Versioned (joinHttpPath ["teams", tidStr, "legalhold", uidStr])
-  submit "GET" req
 
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/put_teams__tid__features_legalhold
 putLegalholdStatus ::
