@@ -348,9 +348,8 @@ instance MakeFeature MLSConfig where
     foldMap dbFeatureStatus status
       <> foldMap
         dbFeatureConfig
-        ( MLSConfig
-            <$> pure (foldMap C.fromSet toggleUsers)
-            <*> defProto
+        ( MLSConfig (foldMap C.fromSet toggleUsers)
+            <$> defProto
             <*> pure (foldMap C.fromSet ciphersuites)
             <*> defCiphersuite
             <*> pure (foldMap C.fromSet supportedProtos)
