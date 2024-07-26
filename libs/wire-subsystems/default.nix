@@ -56,6 +56,7 @@
 , resource-pool
 , resourcet
 , retry
+, saml2-web-sso
 , scientific
 , servant
 , servant-client-core
@@ -129,6 +130,7 @@ mkDerivation {
     resource-pool
     resourcet
     retry
+    saml2-web-sso
     servant
     servant-client-core
     stomp-queue

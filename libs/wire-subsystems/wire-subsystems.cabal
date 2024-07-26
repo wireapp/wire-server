@@ -172,6 +172,7 @@ library
     , resource-pool
     , resourcet
     , retry
+    , saml2-web-sso
     , servant
     , servant-client-core
     , stomp-queue

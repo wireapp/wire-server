@@ -28,6 +28,7 @@ import Wire.API.Team.Member hiding (userId)
 import Wire.API.User
 import Wire.API.UserEvent
 import Wire.Arbitrary
+import Wire.Authorize
 import Wire.BlockListStore as BlockList
 import Wire.DeleteQueue
 import Wire.Events
@@ -96,6 +97,10 @@ interpretUserSubsystem = interpret \case
   GetSelfProfile self -> getSelfProfileImpl self
   GetUserProfilesWithErrors self others -> getUserProfilesWithErrorsImpl self others
   UpdateUserProfile self mconn mb update -> updateUserProfileImpl self mconn mb update
+  UpdateUserEmailInit uid email -> updateUserEmailInitImpl (runAuthorized uid) email
+  UpdateUserEmailComplete activate -> updateUserEmailCompleteImpl activate
+  UpdateUserSamlUserRef uref -> undefined uref
+  UpdateUserScimExternalId scimEId -> undefined scimEId
   CheckHandle uhandle -> checkHandleImpl uhandle
   CheckHandles hdls cnt -> checkHandlesImpl hdls cnt
   UpdateHandle uid mconn mb uhandle -> updateHandleImpl uid mconn mb uhandle
@@ -104,6 +109,27 @@ interpretUserSubsystem = interpret \case
   IsBlocked email -> isBlockedImpl email
   BlockListDelete email -> blockListDeleteImpl email
   BlockListInsert email -> blockListInsertImpl email
+
+-- :> CanThrow 'InvalidEmail
+-- :> CanThrow 'UserKeyExists
+-- :> CanThrow 'BlacklistedEmail
+-- :> CanThrow 'BadCredentials
+--
+-- https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/put_access_self_email  "change-self-email"
+-- https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_activate_send  "post-activate-send"
+updateUserEmailInitImpl :: a
+updateUserEmailInitImpl = undefined
+
+-- :> CanThrow 'UserKeyExists
+-- :> CanThrow 'InvalidActivationCodeWrongUser
+-- :> CanThrow 'InvalidActivationCodeWrongCode
+-- :> CanThrow 'InvalidEmail
+-- :> CanThrow 'InvalidPhone
+--
+-- https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/get_activate  "get-activate"
+-- https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_activate  "post-activate"
+updateUserEmailCompleteImpl :: a
+updateUserEmailCompleteImpl = undefined
 
 isBlockedImpl :: (Member BlockListStore r) => Email -> Sem r Bool
 isBlockedImpl = BlockList.exists . mkEmailKey
