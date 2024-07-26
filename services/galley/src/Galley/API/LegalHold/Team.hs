@@ -79,7 +79,7 @@ isLegalHoldEnabledForTeam ::
   TeamId ->
   Sem r Bool
 isLegalHoldEnabledForTeam tid = do
-  dbStatus <- wssStatus <$$> TeamFeatures.getFeatureConfig FeatureSingletonLegalholdConfig tid
+  dbStatus <- wsbStatus <$> TeamFeatures.getFeatureConfig FeatureSingletonLegalholdConfig tid
   status <- computeLegalHoldFeatureStatus tid dbStatus
   pure $ status == FeatureStatusEnabled
 

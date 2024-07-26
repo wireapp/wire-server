@@ -136,13 +136,14 @@ getFeatureStatus doauth tid = do
 getFeatureStatusMulti ::
   forall cfg r.
   ( GetFeatureConfig cfg,
+    ComputeFeatureConstraints cfg r,
     Member (Input Opts) r,
     Member TeamFeatureStore r
   ) =>
   Multi.TeamFeatureNoConfigMultiRequest ->
   Sem r (Multi.TeamFeatureNoConfigMultiResponse cfg)
 getFeatureStatusMulti (Multi.TeamFeatureNoConfigMultiRequest tids) = do
-  cfgs <- genericGetConfigForMultiTeam @cfg tids
+  cfgs <- getConfigForMultiTeam @cfg tids
   let xs = uncurry toTeamStatus . second forgetLock <$> cfgs
   pure $ Multi.TeamFeatureNoConfigMultiResponse xs
 
@@ -296,27 +297,31 @@ getConfigForTeam tid = do
   dbFeature <- TeamFeatures.getFeatureConfig (featureSingleton @cfg) tid
   lockStatus <- TeamFeatures.getFeatureLockStatus (featureSingleton @cfg) tid
   defFeature <- getConfigForServer
-  -- TODO
-  computeFeature @cfg tid defFeature $
-    WithStatusBase
-      { wsbStatus = fmap wssStatus dbFeature,
-        wsbLockStatus = lockStatus,
-        wsbTTL = fmap wssTTL dbFeature,
-        wsbConfig = fmap wssConfig dbFeature
+  -- TODO: check that all cascading logic has been preserved
+  computeFeature @cfg
+    tid
+    defFeature
+    dbFeature
+      { wsbLockStatus = lockStatus
       }
 
 -- Note: this function assumes the feature cannot be locked
-genericGetConfigForMultiTeam ::
+getConfigForMultiTeam ::
   forall cfg r.
-  (GetFeatureConfig cfg) =>
-  (Member TeamFeatureStore r) =>
-  (Member (Input Opts) r) =>
+  ( GetFeatureConfig cfg,
+    ComputeFeatureConstraints cfg r,
+    Member TeamFeatureStore r,
+    Member (Input Opts) r
+  ) =>
   [TeamId] ->
   Sem r [(TeamId, WithStatus cfg)]
-genericGetConfigForMultiTeam tids = do
-  def <- getConfigForServer
-  (\(tid, mwsnl) -> (tid, computeFeatureConfigForTeamUser mwsnl (Just LockStatusUnlocked) def))
-    <$$> TeamFeatures.getFeatureConfigMulti (featureSingleton @cfg) tids
+getConfigForMultiTeam tids = do
+  defFeature <- getConfigForServer
+  features <- TeamFeatures.getFeatureConfigMulti (featureSingleton @cfg) tids
+  for features $ \(tid, dbFeature) -> do
+    let unlocked = dbFeature {wsbLockStatus = Just LockStatusUnlocked}
+    feat <- computeFeature @cfg tid defFeature unlocked
+    pure (tid, feat)
 
 -- | Note: this is an internal function which doesn't cover all features, e.g. conference calling
 genericGetConfigForUser ::

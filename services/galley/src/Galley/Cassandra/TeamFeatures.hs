@@ -24,7 +24,6 @@ where
 
 import Cassandra
 import Cassandra qualified as C
-import Control.Monad.Trans.Maybe
 import Data.Id
 import Data.Misc (HttpsUrl)
 import Data.Time
@@ -70,142 +69,54 @@ interpretTeamFeatureStoreToCassandra = interpret $ \case
     logEffect "TeamFeatureStore.GetAllFeatureConfigs"
     embedClient $ getAllFeatureConfigs tid
 
-getFeatureConfig :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> m (Maybe (WithStatusNoLock cfg))
-getFeatureConfig FeatureSingletonLegalholdConfig tid = getTrivialConfigC "legalhold_status" tid
-getFeatureConfig FeatureSingletonSSOConfig tid = getTrivialConfigC "sso_status" tid
-getFeatureConfig FeatureSingletonSearchVisibilityAvailableConfig tid = getTrivialConfigC "search_visibility_status" tid
-getFeatureConfig FeatureSingletonValidateSAMLEmailsConfig tid = getTrivialConfigC "validate_saml_emails" tid
-getFeatureConfig FeatureSingletonClassifiedDomainsConfig _tid = pure Nothing -- TODO(fisx): what's this about?
-getFeatureConfig FeatureSingletonDigitalSignaturesConfig tid = getTrivialConfigC "digital_signatures" tid
-getFeatureConfig FeatureSingletonAppLockConfig tid = runMaybeT $ do
-  (mStatus, mEnforce, mTimeout) <-
-    MaybeT . retry x1 $
-      query1 select (params LocalQuorum (Identity tid))
-  maybe mzero pure $
-    WithStatusNoLock
-      <$> mStatus
-      <*> (AppLockConfig <$> mEnforce <*> mTimeout)
-      -- FUTUREWORK: the above line is duplicated in
-      -- "Galley.Cassandra.GetAllTeamFeatureConfigs"; make sure the two don't diverge!
-      <*> Just FeatureTTLUnlimited
-  where
-    select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe EnforceAppLock, Maybe Int32)
-    select =
-      "select app_lock_status, app_lock_enforce, app_lock_inactivity_timeout_secs \
-      \ from team_features where team_id = ?"
-getFeatureConfig FeatureSingletonFileSharingConfig tid = getTrivialConfigC "file_sharing" tid
-getFeatureConfig FeatureSingletonSelfDeletingMessagesConfig tid = runMaybeT $ do
-  (mEnabled, mTimeout) <-
-    MaybeT . retry x1 $
-      query1 select (params LocalQuorum (Identity tid))
-  maybe mzero pure $
-    WithStatusNoLock
-      <$> mEnabled
-      <*> fmap SelfDeletingMessagesConfig mTimeout
-      -- FUTUREWORK: the above line is duplicated in
-      -- "Galley.Cassandra.GetAllTeamFeatureConfigs"; make sure the two don't diverge!
-      <*> Just FeatureTTLUnlimited
-  where
-    select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe Int32)
-    select =
-      "select self_deleting_messages_status, self_deleting_messages_ttl\
-      \ from team_features where team_id = ?"
-getFeatureConfig FeatureSingletonConferenceCallingConfig tid = do
-  let q = query1 select (params LocalQuorum (Identity tid))
-  retry x1 q <&> \case
-    Nothing -> Nothing
-    Just (Nothing, _, _) -> Nothing
-    Just (Just status, mTtl, mSft) ->
-      Just $
-        WithStatusNoLock
-          status
-          (ConferenceCallingConfig {sftForOne2One = fromMaybe False mSft})
-          (fromMaybe FeatureTTLUnlimited mTtl)
-  where
-    select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe FeatureTTL, Maybe Bool)
-    select =
-      fromString $
-        "select conference_calling, ttl(conference_calling), conference_calling_sft_for_one_to_one from team_features where team_id = ?"
-getFeatureConfig FeatureSingletonGuestLinksConfig tid = getTrivialConfigC "guest_links_status" tid
-getFeatureConfig FeatureSingletonSndFactorPasswordChallengeConfig tid = getTrivialConfigC "snd_factor_password_challenge_status" tid
-getFeatureConfig FeatureSingletonSearchVisibilityInboundConfig tid = getTrivialConfigC "search_visibility_status" tid
-getFeatureConfig FeatureSingletonMLSConfig tid = do
-  m <- retry x1 $ query1 select (params LocalQuorum (Identity tid))
-  pure $ case m of
-    Nothing -> Nothing
-    Just (status, defaultProtocol, protocolToggleUsers, allowedCipherSuites, defaultCipherSuite, supportedProtocols) ->
-      WithStatusNoLock
-        <$> status
-        <*> ( -- FUTUREWORK: this block is duplicated in
-              -- "Galley.Cassandra.GetAllTeamFeatureConfigs"; make sure the two don't diverge!
-              MLSConfig
-                <$> maybe (Just []) (Just . C.fromSet) protocolToggleUsers
-                <*> defaultProtocol
-                <*> maybe (Just []) (Just . C.fromSet) allowedCipherSuites
-                <*> defaultCipherSuite
-                <*> maybe (Just []) (Just . C.fromSet) supportedProtocols
-            )
-        <*> Just FeatureTTLUnlimited
-  where
-    select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe ProtocolTag, Maybe (C.Set UserId), Maybe (C.Set CipherSuiteTag), Maybe CipherSuiteTag, Maybe (C.Set ProtocolTag))
-    select =
-      "select mls_status, mls_default_protocol, mls_protocol_toggle_users, mls_allowed_ciphersuites, \
-      \mls_default_ciphersuite, mls_supported_protocols from team_features where team_id = ?"
-getFeatureConfig FeatureSingletonMlsE2EIdConfig tid = do
-  let q = query1 select (params LocalQuorum (Identity tid))
-  retry x1 q <&> \case
-    Nothing -> Nothing
-    Just (Nothing, _, _, _, _) -> Nothing
-    Just (Just fs, mGracePeriod, mUrl, mCrlProxy, mUseProxyOnMobile) ->
-      Just $
-        WithStatusNoLock
-          fs
-          ( -- FUTUREWORK: this block is duplicated in
-            -- "Galley.Cassandra.GetAllTeamFeatureConfigs"; make sure the two don't diverge!
-            MlsE2EIdConfig (toGracePeriodOrDefault mGracePeriod) mUrl mCrlProxy (fromMaybe (useProxyOnMobile . wsConfig $ defFeatureStatus @MlsE2EIdConfig) mUseProxyOnMobile)
-          )
-          FeatureTTLUnlimited
-  where
-    toGracePeriodOrDefault :: Maybe Int32 -> NominalDiffTime
-    toGracePeriodOrDefault = maybe (verificationExpiration $ wsConfig defFeatureStatus) fromIntegral
-
-    select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe Int32, Maybe HttpsUrl, Maybe HttpsUrl, Maybe Bool)
-    select =
-      fromString $
-        "select mls_e2eid_status, mls_e2eid_grace_period, mls_e2eid_acme_discovery_url, mls_e2eid_crl_proxy, mls_e2eid_use_proxy_on_mobile from team_features where team_id = ?"
-getFeatureConfig FeatureSingletonMlsMigration tid = do
-  let q = query1 select (params LocalQuorum (Identity tid))
-  retry x1 q <&> \case
-    Nothing -> Nothing
-    Just (Nothing, _, _) -> Nothing
-    Just (Just fs, startTime, finaliseRegardlessAfter) ->
-      Just $
-        WithStatusNoLock
-          fs
-          -- FUTUREWORK: the following expression is duplicated in
-          -- "Galley.Cassandra.GetAllTeamFeatureConfigs"; make sure the two don't diverge!
-          MlsMigrationConfig
-            { startTime = startTime,
-              finaliseRegardlessAfter = finaliseRegardlessAfter
-            }
-          FeatureTTLUnlimited
-  where
-    select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe UTCTime, Maybe UTCTime)
-    select = "select mls_migration_status, mls_migration_start_time, mls_migration_finalise_regardless_after from team_features where team_id = ?"
-getFeatureConfig FeatureSingletonExposeInvitationURLsToTeamAdminConfig tid = getTrivialConfigC "expose_invitation_urls_to_team_admin" tid
-getFeatureConfig FeatureSingletonOutlookCalIntegrationConfig tid = getTrivialConfigC "outlook_cal_integration_status" tid
-getFeatureConfig FeatureSingletonEnforceFileDownloadLocationConfig tid = do
-  let q = query1 select (params LocalQuorum (Identity tid))
-  retry x1 q <&> \case
-    Nothing -> Nothing
-    Just (Nothing, _) -> Nothing
-    Just (Just fs, mbLocation) ->
-      Just $ WithStatusNoLock fs (EnforceFileDownloadLocationConfig mbLocation) FeatureTTLUnlimited
-  where
-    select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe Text)
-    select = "select enforce_file_download_location_status, enforce_file_download_location from team_features where team_id = ?"
+getFeatureConfig :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> m (WithStatusBase Maybe cfg)
+getFeatureConfig FeatureSingletonLegalholdConfig tid = getFeature "legalhold_status" tid
+getFeatureConfig FeatureSingletonSSOConfig tid = getFeature "sso_status" tid
+getFeatureConfig FeatureSingletonSearchVisibilityAvailableConfig tid = getFeature "search_visibility_status" tid
+getFeatureConfig FeatureSingletonValidateSAMLEmailsConfig tid = getFeature "validate_saml_emails" tid
+getFeatureConfig FeatureSingletonClassifiedDomainsConfig _tid = pure defFeatureWithStatus
+getFeatureConfig FeatureSingletonDigitalSignaturesConfig tid = getFeature "digital_signatures" tid
+getFeatureConfig FeatureSingletonAppLockConfig tid =
+  getFeature
+    "app_lock_status, app_lock_enforce, app_lock_inactivity_timeout_secs"
+    tid
+getFeatureConfig FeatureSingletonFileSharingConfig tid = getFeature "file_sharing" tid
+getFeatureConfig FeatureSingletonSelfDeletingMessagesConfig tid =
+  getFeature
+    "self_deleting_messages_status, self_deleting_messages_ttl"
+    tid
+getFeatureConfig FeatureSingletonConferenceCallingConfig tid =
+  getFeature
+    "conference_calling, ttl(conference_calling), conference_calling_sft_for_one_to_one"
+    tid
+getFeatureConfig FeatureSingletonGuestLinksConfig tid = getFeature "guest_links_status" tid
+getFeatureConfig FeatureSingletonSndFactorPasswordChallengeConfig tid = getFeature "snd_factor_password_challenge_status" tid
+getFeatureConfig FeatureSingletonSearchVisibilityInboundConfig tid = getFeature "search_visibility_status" tid
+getFeatureConfig FeatureSingletonMLSConfig tid =
+  getFeature
+    "mls_status, mls_default_protocol, mls_protocol_toggle_users, \
+    \mls_allowed_ciphersuites, mls_default_ciphersuite, mls_supported_protocols"
+    tid
+getFeatureConfig FeatureSingletonMlsE2EIdConfig tid =
+  getFeature
+    "mls_e2eid_status, mls_e2eid_grace_period, mls_e2eid_acme_discovery_url, \
+    \mls_e2eid_crl_proxy, mls_e2eid_use_proxy_on_mobile"
+    tid
+getFeatureConfig FeatureSingletonMlsMigration tid =
+  getFeature
+    "mls_migration_status, mls_migration_start_time, \
+    \mls_migration_finalise_regardless_after"
+    tid
+getFeatureConfig FeatureSingletonExposeInvitationURLsToTeamAdminConfig tid =
+  getFeature "expose_invitation_urls_to_team_admin" tid
+getFeatureConfig FeatureSingletonOutlookCalIntegrationConfig tid =
+  getFeature "outlook_cal_integration_status" tid
+getFeatureConfig FeatureSingletonEnforceFileDownloadLocationConfig tid =
+  getFeature
+    "enforce_file_download_location_status, enforce_file_download_location"
+    tid
 getFeatureConfig FeatureSingletonLimitedEventFanoutConfig tid =
-  getTrivialConfigC "limited_event_fanout_status" tid
+  getFeature "limited_event_fanout_status" tid
 
 setFeatureConfig :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> WithStatusNoLock cfg -> m ()
 setFeatureConfig FeatureSingletonLegalholdConfig tid statusNoLock = setFeatureStatusC "legalhold_status" tid (wssStatus statusNoLock)
@@ -336,24 +247,21 @@ setFeatureLockStatus FeatureSingletonEnforceFileDownloadLocationConfig tid statu
 setFeatureLockStatus FeatureSingletonConferenceCallingConfig tid status = setLockStatusC "conference_calling_lock_status" tid status
 setFeatureLockStatus _ _tid _status = pure ()
 
-getTrivialConfigC ::
+getFeature ::
   forall m cfg.
-  (MonadClient m, IsFeatureConfig cfg) =>
+  (MonadClient m, MakeFeature cfg) =>
   String ->
   TeamId ->
-  m (Maybe (WithStatusNoLock cfg))
-getTrivialConfigC statusCol tid = do
-  let q = query1 select (params LocalQuorum (Identity tid))
-  mFeatureStatus <- (>>= runIdentity) <$> retry x1 q
-  pure $ case mFeatureStatus of
-    Nothing -> Nothing
-    Just status -> Just . forgetLock $ setStatus status defFeatureStatus
+  m (WithStatusBase Maybe cfg)
+getFeature columns tid = do
+  row <- retry x1 $ query1 select (params LocalQuorum (Identity tid))
+  pure $ maybe defFeatureWithStatus (mkFeature . toRowType) row
   where
-    select :: PrepQuery R (Identity TeamId) (Identity (Maybe FeatureStatus))
+    select :: PrepQuery R (Identity TeamId) (FeatureRow cfg)
     select =
       fromString $
         "select "
-          <> statusCol
+          <> columns
           <> " from team_features where team_id = ?"
 
 setFeatureStatusC ::
@@ -407,6 +315,6 @@ getFeatureConfigMulti ::
   (MonadClient m, MonadUnliftIO m) =>
   FeatureSingleton cfg ->
   [TeamId] ->
-  m [(TeamId, Maybe (WithStatusNoLock cfg))]
+  m [(TeamId, WithStatusBase Maybe cfg)]
 getFeatureConfigMulti proxy =
   pooledMapConcurrentlyN 8 (\tid -> getFeatureConfig proxy tid <&> (tid,))

@@ -133,9 +133,6 @@ emptyRow =
       limitEventFanout = Nothing
     }
 
-mkFeatureWithStatus :: Maybe FeatureStatus -> WithStatusBase Maybe cfg
-mkFeatureWithStatus s = defFeatureWithStatus {wsbStatus = s}
-
 defFeatureWithStatus :: WithStatusBase Maybe cfg
 defFeatureWithStatus =
   WithStatusBase
@@ -148,95 +145,68 @@ defFeatureWithStatus =
 allFeatureConfigsFromRow :: AllTeamFeatureConfigsRow -> AllFeatures (WithStatusBase Maybe)
 allFeatureConfigsFromRow row =
   AllFeatures
-    { afcLegalholdStatus = mkFeatureWithStatus row.legalhold,
-      afcSSOStatus = mkFeatureWithStatus row.sso,
-      afcTeamSearchVisibilityAvailable = mkFeatureWithStatus row.searchVisibility,
-      afcSearchVisibilityInboundConfig = mkFeatureWithStatus row.searchVisibility,
-      afcValidateSAMLEmails = mkFeatureWithStatus row.validateSamlEmails,
-      afcDigitalSignatures = mkFeatureWithStatus row.digitalSignatures,
-      afcAppLock =
-        defFeatureWithStatus
-          { wsbStatus = row.appLock,
-            wsbConfig =
-              AppLockConfig <$> row.appLockEnforce <*> row.appLockInactivityTimeoutSecs
-          },
-      afcFileSharing =
-        defFeatureWithStatus
-          { wsbStatus = row.fileSharing,
-            wsbLockStatus = row.fileSharingLock
-          },
-      afcClassifiedDomains = mkFeatureWithStatus Nothing,
+    { afcLegalholdStatus = mkFeature row.legalhold,
+      afcSSOStatus = mkFeature row.sso,
+      afcTeamSearchVisibilityAvailable = mkFeature row.searchVisibility,
+      afcSearchVisibilityInboundConfig = mkFeature row.searchVisibility,
+      afcValidateSAMLEmails = mkFeature row.validateSamlEmails,
+      afcDigitalSignatures = mkFeature row.digitalSignatures,
+      afcAppLock = mkFeature (row.appLock, row.appLockEnforce, row.appLockInactivityTimeoutSecs),
+      afcFileSharing = mkFeatureWithLock row.fileSharingLock row.fileSharing,
+      afcClassifiedDomains = mkFeature Nothing,
       afcConferenceCalling =
-        WithStatusBase
-          { wsbStatus = row.conferenceCalling,
-            wsbLockStatus = row.conferenceCallingLock,
-            wsbTTL = row.conferenceCallingTtl,
-            wsbConfig = ConferenceCallingConfig <$> row.conferenceCallingSftForOne2One
-          },
+        mkFeatureWithLock
+          row.conferenceCallingLock
+          ( row.conferenceCalling,
+            row.conferenceCallingTtl,
+            row.conferenceCallingSftForOne2One
+          ),
       afcSelfDeletingMessages =
-        defFeatureWithStatus
-          { wsbStatus = row.selfDeletingMessages,
-            wsbLockStatus = row.selfDeletingMessagesLock,
-            wsbConfig = SelfDeletingMessagesConfig <$> row.selfDeletingMessagesTtl
-          },
-      afcGuestLink =
-        defFeatureWithStatus
-          { wsbStatus = row.guestLinks,
-            wsbLockStatus = row.guestLinksLock
-          },
-      afcSndFactorPasswordChallenge =
-        defFeatureWithStatus
-          { wsbStatus = row.sndFactor,
-            wsbLockStatus = row.sndFactorLock
-          },
+        mkFeatureWithLock
+          row.selfDeletingMessagesLock
+          ( row.selfDeletingMessages,
+            row.selfDeletingMessagesTtl
+          ),
+      afcGuestLink = mkFeatureWithLock row.guestLinksLock row.guestLinks,
+      afcSndFactorPasswordChallenge = mkFeatureWithLock row.sndFactorLock row.sndFactor,
       afcMLS =
-        defFeatureWithStatus
-          { wsbStatus = row.mls,
-            wsbLockStatus = row.mlsLock,
-            wsbConfig =
-              MLSConfig
-                <$> fmap C.fromSet row.mlsToggleUsers
-                <*> row.mlsDefaultProtocol
-                <*> fmap C.fromSet row.mlsAllowedCipherSuites
-                <*> row.mlsDefaultCipherSuite
-                <*> fmap C.fromSet row.mlsSupportedProtocols
-          },
-      afcExposeInvitationURLsToTeamAdmin = mkFeatureWithStatus row.exposeInvitationUrls,
+        mkFeatureWithLock
+          row.mlsLock
+          ( row.mls,
+            row.mlsDefaultProtocol,
+            row.mlsToggleUsers,
+            row.mlsAllowedCipherSuites,
+            row.mlsDefaultCipherSuite,
+            row.mlsSupportedProtocols
+          ),
+      afcExposeInvitationURLsToTeamAdmin = mkFeature row.exposeInvitationUrls,
       afcOutlookCalIntegration =
-        defFeatureWithStatus
-          { wsbStatus = row.outlookCalIntegration,
-            wsbLockStatus = row.outlookCalIntegrationLock
-          },
+        mkFeatureWithLock
+          row.outlookCalIntegrationLock
+          row.outlookCalIntegration,
       afcMlsE2EId =
-        defFeatureWithStatus
-          { wsbStatus = row.mlsE2eid,
-            wsbLockStatus = row.mlsE2eidLock,
-            wsbConfig =
-              MlsE2EIdConfig
-                <$> fmap fromIntegral row.mlsE2eidGracePeriod
-                <*> pure row.mlsE2eidAcmeDiscoverUrl
-                <*> pure row.mlsE2eidMaybeCrlProxy
-                <*> row.mlsE2eidMaybeUseProxyOnMobile
-          },
+        mkFeatureWithLock
+          row.mlsE2eidLock
+          ( row.mlsE2eid,
+            row.mlsE2eidGracePeriod,
+            row.mlsE2eidAcmeDiscoverUrl,
+            row.mlsE2eidMaybeCrlProxy,
+            row.mlsE2eidMaybeUseProxyOnMobile
+          ),
       afcMlsMigration =
-        defFeatureWithStatus
-          { wsbStatus = row.mlsMigration,
-            wsbLockStatus = row.mlsMigrationLock,
-            wsbConfig =
-              Just $
-                MlsMigrationConfig
-                  row.mlsMigrationStartTime
-                  row.mlsMigrationFinalizeRegardlessAfter
-          },
+        mkFeatureWithLock
+          row.mlsMigrationLock
+          ( row.mlsMigration,
+            row.mlsMigrationStartTime,
+            row.mlsMigrationFinalizeRegardlessAfter
+          ),
       afcEnforceFileDownloadLocation =
-        defFeatureWithStatus
-          { wsbStatus = row.enforceDownloadLocation,
-            wsbLockStatus = row.enforceDownloadLocationLock,
-            wsbConfig =
-              Just $
-                EnforceFileDownloadLocationConfig row.enforceDownloadLocation_Location
-          },
-      afcLimitedEventFanout = mkFeatureWithStatus row.limitEventFanout
+        mkFeatureWithLock
+          row.enforceDownloadLocationLock
+          ( row.enforceDownloadLocation,
+            row.enforceDownloadLocation_Location
+          ),
+      afcLimitedEventFanout = mkFeature row.limitEventFanout
     }
 
 getAllFeatureConfigs :: (MonadClient m) => TeamId -> m (AllFeatures (WithStatusBase Maybe))
@@ -276,3 +246,170 @@ getAllFeatureConfigs tid = do
       \enforce_file_download_location_status, enforce_file_download_location, enforce_file_download_location_lock_status, \
       \limited_event_fanout_status \
       \from team_features where team_id = ?"
+
+class (Tuple (FeatureRow cfg), HasRowType (FeatureRow cfg)) => MakeFeature cfg where
+  type FeatureRow cfg
+  type FeatureRow cfg = Identity (Maybe FeatureStatus)
+
+  mkFeature :: RowType (FeatureRow cfg) -> WithStatusBase Maybe cfg
+  default mkFeature ::
+    (FeatureRow cfg ~ Identity (Maybe FeatureStatus)) =>
+    RowType (FeatureRow cfg) ->
+    WithStatusBase Maybe cfg
+  mkFeature s = defFeatureWithStatus {wsbStatus = s}
+
+mkFeatureWithLock ::
+  (MakeFeature cfg) =>
+  Maybe LockStatus ->
+  RowType (FeatureRow cfg) ->
+  WithStatusBase Maybe cfg
+mkFeatureWithLock lockStatus row = (mkFeature row) {wsbLockStatus = lockStatus}
+
+-- | Used to remove the annoying Identity wrapper around single-element rows.
+type family RowType a where
+  RowType (Identity a) = a
+  RowType tuple = tuple
+
+class HasRowType a where
+  fromRowType :: RowType a -> a
+  default fromRowType :: (RowType a ~ a) => RowType a -> a
+  fromRowType = id
+
+  toRowType :: a -> RowType a
+  default toRowType :: (RowType a ~ a) => a -> RowType a
+  toRowType = id
+
+instance HasRowType (a, b)
+
+instance HasRowType (a, b, c)
+
+instance HasRowType (a, b, c, d)
+
+instance HasRowType (a, b, c, d, e)
+
+instance HasRowType (a, b, c, d, e, f)
+
+instance HasRowType (Identity a) where
+  fromRowType = Identity
+  toRowType = runIdentity
+
+instance MakeFeature LegalholdConfig
+
+instance MakeFeature SSOConfig
+
+instance MakeFeature SearchVisibilityAvailableConfig
+
+instance MakeFeature SearchVisibilityInboundConfig
+
+instance MakeFeature ValidateSAMLEmailsConfig
+
+instance MakeFeature DigitalSignaturesConfig
+
+instance MakeFeature AppLockConfig where
+  type FeatureRow AppLockConfig = (Maybe FeatureStatus, Maybe EnforceAppLock, Maybe Int32)
+
+  mkFeature (status, enforce, timeout) =
+    defFeatureWithStatus
+      { wsbStatus = status,
+        wsbConfig = AppLockConfig <$> enforce <*> timeout
+      }
+
+instance MakeFeature FileSharingConfig
+
+instance MakeFeature ClassifiedDomainsConfig
+
+instance MakeFeature ConferenceCallingConfig where
+  type FeatureRow ConferenceCallingConfig = (Maybe FeatureStatus, Maybe FeatureTTL, Maybe Bool)
+
+  mkFeature (status, ttl, sftForOneToOne) =
+    defFeatureWithStatus
+      { wsbStatus = status,
+        wsbTTL = ttl,
+        wsbConfig = ConferenceCallingConfig <$> sftForOneToOne
+      }
+
+instance MakeFeature SelfDeletingMessagesConfig where
+  type FeatureRow SelfDeletingMessagesConfig = (Maybe FeatureStatus, Maybe Int32)
+
+  mkFeature (status, ttl) =
+    defFeatureWithStatus
+      { wsbStatus = status,
+        wsbConfig = SelfDeletingMessagesConfig <$> ttl
+      }
+
+instance MakeFeature GuestLinksConfig
+
+instance MakeFeature SndFactorPasswordChallengeConfig
+
+instance MakeFeature ExposeInvitationURLsToTeamAdminConfig
+
+instance MakeFeature OutlookCalIntegrationConfig
+
+instance MakeFeature MLSConfig where
+  type
+    FeatureRow MLSConfig =
+      ( Maybe FeatureStatus,
+        Maybe ProtocolTag,
+        Maybe (C.Set UserId),
+        Maybe (C.Set CipherSuiteTag),
+        Maybe CipherSuiteTag,
+        Maybe (C.Set ProtocolTag)
+      )
+
+  mkFeature (status, defProto, toggleUsers, ciphersuites, defCiphersuite, supportedProtos) =
+    defFeatureWithStatus
+      { wsbStatus = status,
+        wsbConfig =
+          MLSConfig
+            <$> fmap C.fromSet toggleUsers
+            <*> defProto
+            <*> fmap C.fromSet ciphersuites
+            <*> defCiphersuite
+            <*> fmap C.fromSet supportedProtos
+      }
+
+instance MakeFeature MlsE2EIdConfig where
+  type
+    FeatureRow MlsE2EIdConfig =
+      ( Maybe FeatureStatus,
+        Maybe Int32,
+        Maybe HttpsUrl,
+        Maybe HttpsUrl,
+        Maybe Bool
+      )
+
+  mkFeature (status, gracePeriod, acmeDiscovery, crlProxy, proxyOnMobile) =
+    defFeatureWithStatus
+      { wsbStatus = status,
+        wsbConfig =
+          MlsE2EIdConfig
+            <$> fmap fromIntegral gracePeriod
+            <*> pure acmeDiscovery
+            <*> pure crlProxy
+            <*> proxyOnMobile
+      }
+
+instance MakeFeature MlsMigrationConfig where
+  type
+    FeatureRow MlsMigrationConfig =
+      ( Maybe FeatureStatus,
+        Maybe UTCTime,
+        Maybe UTCTime
+      )
+
+  mkFeature (status, startTime, finalizeAfter) =
+    defFeatureWithStatus
+      { wsbStatus = status,
+        wsbConfig = Just $ MlsMigrationConfig startTime finalizeAfter
+      }
+
+instance MakeFeature EnforceFileDownloadLocationConfig where
+  type FeatureRow EnforceFileDownloadLocationConfig = (Maybe FeatureStatus, Maybe Text)
+
+  mkFeature (status, location) =
+    defFeatureWithStatus
+      { wsbStatus = status,
+        wsbConfig = Just (EnforceFileDownloadLocationConfig location)
+      }
+
+instance MakeFeature LimitedEventFanoutConfig
