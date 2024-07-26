@@ -206,6 +206,7 @@ test-suite wire-subsystems-tests
   other-modules:
     Spec
     Wire.AuthenticationSubsystem.InterpreterSpec
+    Wire.AuthorizeSpec
     Wire.MiniBackend
     Wire.MockInterpreters
     Wire.MockInterpreters.BlockListStore
