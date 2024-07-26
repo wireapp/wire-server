@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -206,7 +208,9 @@ getAllFeatureConfigsForUser zusr = do
 
 getAllFeatureConfigsForTeam ::
   forall r.
-  ( Member (ErrorS 'NotATeamMember) r,
+  ( Member (Input Opts) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member LegalHoldStore r,
     Member TeamFeatureStore r,
     Member TeamStore r
   ) =>
@@ -218,10 +222,64 @@ getAllFeatureConfigsForTeam luid tid = do
   maybe (throwS @'NotATeamMember) (const $ pure ()) zusrMembership
   getAllFeatureConfigs tid
 
-getAllFeatureConfigs :: (Member TeamFeatureStore r) => TeamId -> Sem r AllFeatureConfigs
+getAllFeatureConfigs ::
+  ( Member (Input Opts) r,
+    Member LegalHoldStore r,
+    Member TeamFeatureStore r,
+    Member TeamStore r
+  ) =>
+  TeamId ->
+  Sem r AllFeatureConfigs
 getAllFeatureConfigs tid = do
-  _features <- TeamFeatures.getAllFeatureConfigs tid
-  error "TODO"
+  features <- TeamFeatures.getAllFeatureConfigs tid
+  defFeatures <- getAllFeatureConfigsForServer
+  biTraverseAllFeatures (computeFeatureWithLock tid) defFeatures features
+
+computeFeatureWithLock ::
+  forall cfg r.
+  (GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) =>
+  TeamId ->
+  WithStatus cfg ->
+  DbFeatureWithLock cfg ->
+  Sem r (WithStatus cfg)
+computeFeatureWithLock tid defFeature feat =
+  computeFeature @cfg tid defFeature feat.lockStatus feat.feature
+
+-- | One of a number of possible combinators. This is the only one we happen to need.
+biTraverseAllFeatures ::
+  ( Member (Input Opts) r,
+    Member TeamStore r,
+    Member LegalHoldStore r
+  ) =>
+  ( forall cfg.
+    (GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) =>
+    f cfg ->
+    g cfg ->
+    Sem r (h cfg)
+  ) ->
+  (AllFeatures f -> AllFeatures g -> Sem r (AllFeatures h))
+biTraverseAllFeatures phi features1 features2 = do
+  afcLegalholdStatus <- phi (afcLegalholdStatus features1) (afcLegalholdStatus features2)
+  afcSSOStatus <- phi (afcSSOStatus features1) (afcSSOStatus features2)
+  afcTeamSearchVisibilityAvailable <- phi (afcTeamSearchVisibilityAvailable features1) (afcTeamSearchVisibilityAvailable features2)
+  afcSearchVisibilityInboundConfig <- phi (afcSearchVisibilityInboundConfig features1) (afcSearchVisibilityInboundConfig features2)
+  afcValidateSAMLEmails <- phi (afcValidateSAMLEmails features1) (afcValidateSAMLEmails features2)
+  afcDigitalSignatures <- phi (afcDigitalSignatures features1) (afcDigitalSignatures features2)
+  afcAppLock <- phi (afcAppLock features1) (afcAppLock features2)
+  afcFileSharing <- phi (afcFileSharing features1) (afcFileSharing features2)
+  afcClassifiedDomains <- phi (afcClassifiedDomains features1) (afcClassifiedDomains features2)
+  afcConferenceCalling <- phi (afcConferenceCalling features1) (afcConferenceCalling features2)
+  afcSelfDeletingMessages <- phi (afcSelfDeletingMessages features1) (afcSelfDeletingMessages features2)
+  afcGuestLink <- phi (afcGuestLink features1) (afcGuestLink features2)
+  afcSndFactorPasswordChallenge <- phi (afcSndFactorPasswordChallenge features1) (afcSndFactorPasswordChallenge features2)
+  afcMLS <- phi (afcMLS features1) (afcMLS features2)
+  afcExposeInvitationURLsToTeamAdmin <- phi (afcExposeInvitationURLsToTeamAdmin features1) (afcExposeInvitationURLsToTeamAdmin features2)
+  afcOutlookCalIntegration <- phi (afcOutlookCalIntegration features1) (afcOutlookCalIntegration features2)
+  afcMlsE2EId <- phi (afcMlsE2EId features1) (afcMlsE2EId features2)
+  afcMlsMigration <- phi (afcMlsMigration features1) (afcMlsMigration features2)
+  afcEnforceFileDownloadLocation <- phi (afcEnforceFileDownloadLocation features1) (afcEnforceFileDownloadLocation features2)
+  afcLimitedEventFanout <- phi (afcLimitedEventFanout features1) (afcLimitedEventFanout features2)
+  pure AllFeatures {..}
 
 getAllFeatureConfigsForServer ::
   forall r.

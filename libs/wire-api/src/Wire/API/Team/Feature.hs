@@ -1,3 +1,4 @@
+{-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StrictData #-}
@@ -1232,6 +1233,7 @@ instance Cass.Cql FeatureStatus where
 defFeatureStatusNoLock :: (IsFeatureConfig cfg) => WithStatusNoLock cfg
 defFeatureStatusNoLock = forgetLock defFeatureStatus
 
+-- FUTUREWORK: rewrite using SOP
 data AllFeatures f = AllFeatures
   { afcLegalholdStatus :: f LegalholdConfig,
     afcSSOStatus :: f SSOConfig,
