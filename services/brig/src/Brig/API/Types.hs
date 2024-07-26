@@ -64,12 +64,6 @@ data CreateUserTeam = CreateUserTeam
   }
   deriving (Show)
 
-data ActivationResult
-  = -- | The key/code was valid and successfully activated.
-    ActivationSuccess !(Maybe UserIdentity) !Bool
-  | -- | The key/code was valid but already recently activated.
-    ActivationPass
-
 -- | Outcome of the invariants check in 'Brig.API.User.changeEmail'.
 data ChangeEmailResult
   = -- | The request was successful, user needs to verify the new email address

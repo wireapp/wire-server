@@ -1259,7 +1259,7 @@ activate ::
   ) =>
   Public.ActivationKey ->
   Public.ActivationCode ->
-  (Handler r) ActivationRespWithStatus
+  (Handler r) Public.ActivationFullResponse
 activate k c = do
   let activationRequest = Public.Activate (Public.ActivateKey k) c False
   activateKey activationRequest
@@ -1275,19 +1275,19 @@ activateKey ::
     Member (ConnectionStore InternalPaging) r
   ) =>
   Public.Activate ->
-  (Handler r) ActivationRespWithStatus
+  (Handler r) Public.ActivationFullResponse
 activateKey (Public.Activate tgt code dryrun)
   | dryrun = do
       wrapClientE (API.preverify tgt code) !>> actError
-      pure ActivationRespDryRun
+      pure Public.ActivationRespDryRun
   | otherwise = do
       result <- API.activate tgt code Nothing !>> actError
       pure $ case result of
-        ActivationSuccess ident x -> respond ident x
-        ActivationPass -> ActivationRespPass
+        Public.ActivationSuccess ident x -> respond ident x
+        Public.ActivationPass -> Public.ActivationRespPass
   where
-    respond (Just ident) x = ActivationResp $ Public.ActivationResponse ident x
-    respond Nothing _ = ActivationRespSuccessNoIdent
+    respond (Just ident) x = Public.ActivationResp $ Public.ActivationResponse ident x
+    respond Nothing _ = Public.ActivationRespSuccessNoIdentity
 
 sendVerificationCode ::
   forall r.

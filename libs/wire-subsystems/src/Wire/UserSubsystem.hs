@@ -71,7 +71,7 @@ data UserSubsystem m a where
   -- | Initiate change of email address
   UpdateUserEmailInit :: Authorized AuthorizeUpdateEmail UserId -> Email -> UserSubsystem m ChangeEmailResponse
   -- | Complete the email address update flow
-  UpdateUserEmailComplete :: Activate -> UserSubsystem m {- TODO: s/Bool/ActivationRespWithStatus/, but that's in a routes module? -} Bool
+  UpdateUserEmailComplete :: Activate -> UserSubsystem m ActivationFullResponse
   -- | Update SAML IdP EntityId (Issuer) and User NameId
   UpdateUserSamlUserRef :: UserRef -> UserSubsystem m ()
   -- | Update SCIM externalId
