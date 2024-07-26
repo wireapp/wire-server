@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -34,7 +35,6 @@ import Data.Qualified (Qualified (..))
 import Data.Range
 import Data.SOP
 import Data.Schema as Schema
-import Generics.SOP qualified as GSOP
 import Imports hiding (head)
 import Network.Wai.Utilities
 import Servant (JSON)
@@ -533,7 +533,7 @@ type AccountAPI =
                     'GET
                     '[JSON]
                     GetActivateResponse
-                    ActivationRespWithStatus
+                    ActivationFullResponse
            )
     -- docs/reference/user/activation.md {#RefActivationSubmit}
     --
@@ -558,7 +558,7 @@ type AccountAPI =
                     'POST
                     '[JSON]
                     GetActivateResponse
-                    ActivationRespWithStatus
+                    ActivationFullResponse
            )
     -- docs/reference/user/activation.md {#RefActivationRequest}
     :<|> Named
@@ -637,15 +637,7 @@ instance ToSchema DeprecatedMatchingResult where
         <* const []
           .= field "auto-connects" (array (null_ @SwaggerDoc))
 
-data ActivationRespWithStatus
-  = ActivationResp ActivationResponse
-  | ActivationRespDryRun
-  | ActivationRespPass
-  | ActivationRespSuccessNoIdent
-  deriving (Generic)
-  deriving (AsUnion GetActivateResponse) via GenericAsUnion GetActivateResponse ActivationRespWithStatus
-
-instance GSOP.Generic ActivationRespWithStatus
+deriving via GenericAsUnion GetActivateResponse ActivationFullResponse instance AsUnion GetActivateResponse ActivationFullResponse
 
 type GetActivateResponse =
   '[ Respond 200 "Activation successful." ActivationResponse,
