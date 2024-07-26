@@ -74,6 +74,7 @@ library
     Wire.AuthenticationSubsystem
     Wire.AuthenticationSubsystem.Error
     Wire.AuthenticationSubsystem.Interpreter
+    Wire.Authorize
     Wire.AWS
     Wire.BlockListStore
     Wire.BlockListStore.Cassandra
