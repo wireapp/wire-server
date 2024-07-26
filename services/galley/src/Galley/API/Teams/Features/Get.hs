@@ -299,7 +299,6 @@ getConfigForTeam tid = do
   dbFeature <- TeamFeatures.getFeatureConfig (featureSingleton @cfg) tid
   lockStatus <- TeamFeatures.getFeatureLockStatus (featureSingleton @cfg) tid
   defFeature <- getConfigForServer
-  -- TODO: check that all cascading logic has been preserved
   computeFeature @cfg
     tid
     defFeature

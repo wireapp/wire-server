@@ -366,15 +366,17 @@ instance MakeFeature MlsE2EIdConfig where
         Maybe Bool
       )
 
-  mkFeature (status, gracePeriod, acmeDiscovery, crlProxy, proxyOnMobile) =
+  mkFeature (status, gracePeriod, acmeDiscoveryUrl, crlProxy, useProxyOnMobile) =
     foldMap dbFeatureStatus status
-      <> foldMap
-        dbFeatureConfig
-        ( MlsE2EIdConfig
-            <$> fmap fromIntegral gracePeriod
-            <*> pure acmeDiscovery
-            <*> pure crlProxy
-            <*> proxyOnMobile
+      <> dbFeatureModConfig
+        ( \defCfg ->
+            defCfg
+              { verificationExpiration =
+                  maybe defCfg.verificationExpiration fromIntegral gracePeriod,
+                acmeDiscoveryUrl = acmeDiscoveryUrl,
+                crlProxy = crlProxy,
+                useProxyOnMobile = fromMaybe defCfg.useProxyOnMobile useProxyOnMobile
+              }
         )
 
 instance MakeFeature MlsMigrationConfig where
