@@ -26,6 +26,12 @@ module Wire.API.Team.Feature
     featureNameBS,
     LockStatus (..),
     WithStatusBase (..),
+    DbFeature (..),
+    DbFeatureWithLock (..),
+    dbFeatureStatus,
+    dbFeatureTTL,
+    dbFeatureConfig,
+    dbFeatureModConfig,
     WithStatus,
     withStatus,
     withStatus',
@@ -236,6 +242,36 @@ data WithStatusBase (m :: Type -> Type) (cfg :: Type) = WithStatusBase
     wsbTTL :: m FeatureTTL
   }
   deriving stock (Generic, Typeable, Functor)
+
+--------------------------------------------------------------------------------
+-- DbFeature
+
+-- | Feature data stored in the database, as a function of its default values.
+newtype DbFeature cfg = DbFeature
+  {unDbFeature :: WithStatusNoLock cfg -> WithStatusNoLock cfg}
+
+instance Semigroup (DbFeature cfg) where
+  DbFeature f <> DbFeature g = DbFeature (f . g)
+
+instance Monoid (DbFeature cfg) where
+  mempty = DbFeature id
+
+dbFeatureStatus :: FeatureStatus -> DbFeature cfg
+dbFeatureStatus s = DbFeature $ \w -> w {wssStatus = s}
+
+dbFeatureTTL :: FeatureTTL -> DbFeature cfg
+dbFeatureTTL ttl = DbFeature $ \w -> w {wssTTL = ttl}
+
+dbFeatureConfig :: cfg -> DbFeature cfg
+dbFeatureConfig c = DbFeature $ \w -> w {wssConfig = c}
+
+dbFeatureModConfig :: (cfg -> cfg) -> DbFeature cfg
+dbFeatureModConfig f = DbFeature $ \w -> w {wssConfig = f (wssConfig w)}
+
+data DbFeatureWithLock cfg = DbFeatureWithLock
+  { lockStatus :: Maybe LockStatus,
+    feature :: DbFeature cfg
+  }
 
 ----------------------------------------------------------------------
 -- WithStatus
@@ -569,16 +605,15 @@ instance (IsFeatureConfig a, ToSchema a) => FromJSON (ImplicitLockStatus a) wher
 -- | Convert a feature coming from the database to its public form. This can be
 -- overridden on a feature basis by implementing the `computeFeature` method of
 -- the `GetFeatureConfig` class.
-genericComputeFeature :: WithStatus cfg -> WithStatusBase Maybe cfg -> WithStatus cfg
-genericComputeFeature defFeature dbFeature =
-  case fromMaybe (wsLockStatus defFeature) (wsbLockStatus dbFeature) of
+genericComputeFeature ::
+  WithStatus cfg ->
+  Maybe LockStatus ->
+  DbFeature cfg ->
+  WithStatus cfg
+genericComputeFeature defFeature lockStatus dbFeature =
+  case fromMaybe (wsLockStatus defFeature) lockStatus of
     LockStatusLocked -> setLockStatus LockStatusLocked defFeature
-    LockStatusUnlocked ->
-      withStatus
-        (fromMaybe (wsStatus defFeature) (wsbStatus dbFeature))
-        LockStatusUnlocked
-        (fromMaybe (wsConfig defFeature) (wsbConfig dbFeature))
-        (fromMaybe (wsTTL defFeature) (wsbTTL dbFeature))
+    LockStatusUnlocked -> withUnlocked $ unDbFeature dbFeature (forgetLock defFeature)
 
 -- | This contains the pure business logic for users from teams
 computeFeatureConfigForTeamUser :: Maybe (WithStatusNoLock cfg) -> Maybe LockStatus -> WithStatus cfg -> WithStatus cfg

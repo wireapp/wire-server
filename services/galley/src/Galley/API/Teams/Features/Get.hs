@@ -101,16 +101,18 @@ class (IsFeatureConfig cfg) => GetFeatureConfig cfg where
     (ComputeFeatureConstraints cfg r) =>
     TeamId ->
     WithStatus cfg ->
-    WithStatusBase Maybe cfg ->
+    Maybe LockStatus ->
+    DbFeature cfg ->
     Sem r (WithStatus cfg)
   default computeFeature ::
     TeamId ->
     WithStatus cfg ->
-    WithStatusBase Maybe cfg ->
+    Maybe LockStatus ->
+    DbFeature cfg ->
     Sem r (WithStatus cfg)
-  computeFeature _tid defFeature dbFeature =
+  computeFeature _tid defFeature lockStatus dbFeature =
     pure $
-      genericComputeFeature @cfg defFeature dbFeature
+      genericComputeFeature @cfg defFeature lockStatus dbFeature
 
 getFeatureStatus ::
   forall cfg r.
@@ -301,9 +303,8 @@ getConfigForTeam tid = do
   computeFeature @cfg
     tid
     defFeature
+    lockStatus
     dbFeature
-      { wsbLockStatus = lockStatus
-      }
 
 -- Note: this function assumes the feature cannot be locked
 getConfigForMultiTeam ::
@@ -319,8 +320,7 @@ getConfigForMultiTeam tids = do
   defFeature <- getConfigForServer
   features <- TeamFeatures.getFeatureConfigMulti (featureSingleton @cfg) tids
   for features $ \(tid, dbFeature) -> do
-    let unlocked = dbFeature {wsbLockStatus = Just LockStatusUnlocked}
-    feat <- computeFeature @cfg tid defFeature unlocked
+    feat <- computeFeature @cfg tid defFeature (Just LockStatusUnlocked) dbFeature
     pure (tid, feat)
 
 -- | Note: this is an internal function which doesn't cover all features, e.g. conference calling
@@ -389,8 +389,8 @@ instance GetFeatureConfig LegalholdConfig where
     ComputeFeatureConstraints LegalholdConfig r =
       (Member TeamStore r, Member LegalHoldStore r)
 
-  computeFeature tid defFeature dbFeature = do
-    status <- computeLegalHoldFeatureStatus tid (wsbStatus dbFeature)
+  computeFeature tid defFeature _lockStatus dbFeature = do
+    status <- computeLegalHoldFeatureStatus tid dbFeature
     pure $ setStatus status defFeature
 
 instance GetFeatureConfig FileSharingConfig where
@@ -450,11 +450,11 @@ instance GetFeatureConfig ExposeInvitationURLsToTeamAdminConfig where
       (Member (Input Opts) r)
 
   -- the lock status of this feature is calculated from the allow list, not the database
-  computeFeature tid defFeature dbFeature = do
+  computeFeature tid defFeature _lockStatus dbFeature = do
     allowList <- input <&> view (settings . exposeInvitationURLsTeamAllowlist . to (fromMaybe []))
     let teamAllowed = tid `elem` allowList
         lockStatus = if teamAllowed then LockStatusUnlocked else LockStatusLocked
-    pure $ genericComputeFeature defFeature dbFeature {wsbLockStatus = Just lockStatus}
+    pure $ genericComputeFeature defFeature (Just lockStatus) dbFeature
 
 instance GetFeatureConfig OutlookCalIntegrationConfig where
   getConfigForServer =

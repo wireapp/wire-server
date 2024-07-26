@@ -29,11 +29,11 @@ data TeamFeatureStore m a where
   GetFeatureConfig ::
     FeatureSingleton cfg ->
     TeamId ->
-    TeamFeatureStore m (WithStatusBase Maybe cfg)
+    TeamFeatureStore m (DbFeature cfg)
   GetFeatureConfigMulti ::
     FeatureSingleton cfg ->
     [TeamId] ->
-    TeamFeatureStore m [(TeamId, WithStatusBase Maybe cfg)]
+    TeamFeatureStore m [(TeamId, DbFeature cfg)]
   SetFeatureConfig ::
     FeatureSingleton cfg ->
     TeamId ->
@@ -50,6 +50,6 @@ data TeamFeatureStore m a where
     TeamFeatureStore m ()
   GetAllFeatureConfigs ::
     TeamId ->
-    TeamFeatureStore m (AllFeatures (WithStatusBase Maybe))
+    TeamFeatureStore m (AllFeatures DbFeatureWithLock)
 
 makeSem ''TeamFeatureStore

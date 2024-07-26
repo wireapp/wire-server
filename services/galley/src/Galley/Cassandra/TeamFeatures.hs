@@ -69,12 +69,12 @@ interpretTeamFeatureStoreToCassandra = interpret $ \case
     logEffect "TeamFeatureStore.GetAllFeatureConfigs"
     embedClient $ getAllFeatureConfigs tid
 
-getFeatureConfig :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> m (WithStatusBase Maybe cfg)
+getFeatureConfig :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> m (DbFeature cfg)
 getFeatureConfig FeatureSingletonLegalholdConfig tid = getFeature "legalhold_status" tid
 getFeatureConfig FeatureSingletonSSOConfig tid = getFeature "sso_status" tid
 getFeatureConfig FeatureSingletonSearchVisibilityAvailableConfig tid = getFeature "search_visibility_status" tid
 getFeatureConfig FeatureSingletonValidateSAMLEmailsConfig tid = getFeature "validate_saml_emails" tid
-getFeatureConfig FeatureSingletonClassifiedDomainsConfig _tid = pure defFeatureWithStatus
+getFeatureConfig FeatureSingletonClassifiedDomainsConfig _tid = pure mempty
 getFeatureConfig FeatureSingletonDigitalSignaturesConfig tid = getFeature "digital_signatures" tid
 getFeatureConfig FeatureSingletonAppLockConfig tid =
   getFeature
@@ -252,10 +252,10 @@ getFeature ::
   (MonadClient m, MakeFeature cfg) =>
   String ->
   TeamId ->
-  m (WithStatusBase Maybe cfg)
+  m (DbFeature cfg)
 getFeature columns tid = do
   row <- retry x1 $ query1 select (params LocalQuorum (Identity tid))
-  pure $ maybe defFeatureWithStatus (mkFeature . toRowType) row
+  pure $ foldMap (mkFeature . toRowType) row
   where
     select :: PrepQuery R (Identity TeamId) (FeatureRow cfg)
     select =
@@ -315,6 +315,6 @@ getFeatureConfigMulti ::
   (MonadClient m, MonadUnliftIO m) =>
   FeatureSingleton cfg ->
   [TeamId] ->
-  m [(TeamId, WithStatusBase Maybe cfg)]
+  m [(TeamId, DbFeature cfg)]
 getFeatureConfigMulti proxy =
   pooledMapConcurrentlyN 8 (\tid -> getFeatureConfig proxy tid <&> (tid,))

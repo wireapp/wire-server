@@ -29,7 +29,7 @@ import Data.Range
 import Galley.Effects
 import Galley.Effects.BrigAccess
 import Galley.Effects.LegalHoldStore qualified as LegalHoldData
-import Galley.Effects.TeamFeatureStore qualified as TeamFeatures
+import Galley.Effects.TeamFeatureStore
 import Galley.Effects.TeamStore
 import Galley.Types.Teams as Team
 import Imports
@@ -57,15 +57,14 @@ computeLegalHoldFeatureStatus ::
     Member LegalHoldStore r
   ) =>
   TeamId ->
-  Maybe FeatureStatus ->
+  DbFeature LegalholdConfig ->
   Sem r FeatureStatus
-computeLegalHoldFeatureStatus tid dbStatus =
+computeLegalHoldFeatureStatus tid dbFeature =
   getLegalHoldFlag >>= \case
     FeatureLegalHoldDisabledPermanently -> pure FeatureStatusDisabled
-    FeatureLegalHoldDisabledByDefault -> pure $ case dbStatus of
-      Just FeatureStatusEnabled -> FeatureStatusEnabled
-      Just FeatureStatusDisabled -> FeatureStatusDisabled
-      Nothing -> FeatureStatusDisabled
+    FeatureLegalHoldDisabledByDefault ->
+      pure . wssStatus $
+        unDbFeature dbFeature defFeatureStatusNoLock
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
       wl <- LegalHoldData.isTeamLegalholdWhitelisted tid
       pure $ if wl then FeatureStatusEnabled else FeatureStatusDisabled
@@ -79,8 +78,8 @@ isLegalHoldEnabledForTeam ::
   TeamId ->
   Sem r Bool
 isLegalHoldEnabledForTeam tid = do
-  dbStatus <- wsbStatus <$> TeamFeatures.getFeatureConfig FeatureSingletonLegalholdConfig tid
-  status <- computeLegalHoldFeatureStatus tid dbStatus
+  dbFeature <- getFeatureConfig FeatureSingletonLegalholdConfig tid
+  status <- computeLegalHoldFeatureStatus tid dbFeature
   pure $ status == FeatureStatusEnabled
 
 ensureNotTooLargeToActivateLegalHold ::
