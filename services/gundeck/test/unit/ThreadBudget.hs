@@ -1,4 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE NoGeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
@@ -39,6 +41,7 @@ import Test.StateMachine
 import Test.StateMachine.Types qualified as STM
 import Test.StateMachine.Types.Rank2 qualified as Rank2
 import Test.Tasty
+import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 
 ----------------------------------------------------------------------
@@ -63,7 +66,21 @@ instance Arbitrary MilliSeconds where
 data LogEntry = NoBudget | Debug String | Unknown String
   deriving (Eq, Show, Generic)
 
+makePrisms ''LogEntry
+
 type LogHistory = MVar [LogEntry]
+
+extractLogHistory :: (HasCallStack, MonadReader LogHistory m, MonadIO m) => m [LogEntry]
+extractLogHistory = do
+  logHistory <- ask
+  liftIO $ modifyMVar logHistory (pure . ([],))
+
+expectLogHistory :: (HasCallStack, MonadReader LogHistory m, MonadIO m) => ([LogEntry] -> Bool) -> m ()
+expectLogHistory expected = do
+  logHistory <- ask
+  liftIO $ do
+    found <- modifyMVar logHistory (\found -> pure ([], found))
+    expected (filter (isn't _Debug) found) @? ("unexpected log data: " <> show found)
 
 enterLogHistory :: (HasCallStack, MonadReader LogHistory m, MonadIO m) => LogEntry -> m ()
 enterLogHistory entry = do

@@ -39,6 +39,11 @@ module Data.Range
     untypedRangedSchema,
     rcast,
     rnil,
+    rcons,
+    (<|),
+    rinc,
+    rappend,
+    rsingleton,
 
     -- * 'Arbitrary' generators
     Ranged (..),
@@ -298,6 +303,22 @@ rcast (Range a) = Range a
 
 rnil :: (Monoid a) => Range 0 0 a
 rnil = Range mempty
+
+rcons, (<|) :: (n <= m) => a -> Range n m [a] -> Range n (m + 1) [a]
+rcons a (Range aa) = Range (a : aa)
+
+infixr 5 <|
+
+(<|) = rcons
+
+rinc :: (Integral a, n <= m) => Range n m a -> Range n (m + 1) a
+rinc (Range a) = Range (a + 1)
+
+rappend :: (n <= m, n' <= m', Monoid a) => Range n m a -> Range n' m' a -> Range n (m + m') a
+rappend (Range a) (Range b) = Range (a <> b)
+
+rsingleton :: a -> Range 1 1 [a]
+rsingleton = Range . pure
 
 rangedNumToParamSchema :: forall a n m. (ToParamSchema a, Num a, KnownNat n, KnownNat m) => Proxy (Range n m a) -> Schema
 rangedNumToParamSchema _ =

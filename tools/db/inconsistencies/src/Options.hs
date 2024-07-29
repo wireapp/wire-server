@@ -20,7 +20,6 @@
 module Options where
 
 import Cassandra qualified as C
-import Data.Id
 import Data.Text qualified as Text
 import Imports
 import Options.Applicative
