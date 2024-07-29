@@ -199,7 +199,6 @@ mkDerivation {
     vector
     wai-extra
     wai-utilities
-    warp
     wire-api
     xml-conduit
     yaml

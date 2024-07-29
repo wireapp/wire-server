@@ -1,11 +1,7 @@
-{-# LANGUAGE RecordWildCards #-}
-
 module Federation where
 
-import Cassandra qualified as C
 import Control.Lens ((^.))
 import Control.Monad.Catch
-import Data.ByteString qualified as LBS
 import Data.Domain
 import Data.Id
 import Data.Qualified
@@ -20,11 +16,8 @@ import Test.Tasty.HUnit
 import TestSetup
 import UnliftIO.Retry
 import Wire.API.Conversation
-import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.Protocol (Protocol (..))
 import Wire.API.Conversation.Role (roleNameWireMember)
-import Wire.API.Routes.MultiTablePaging
-import Wire.API.Routes.MultiTablePaging qualified as Public
 
 isConvMemberLTests :: TestM ()
 isConvMemberLTests = do
@@ -57,11 +50,3 @@ isConvMemberLTests = do
 
 constHandlers :: (MonadIO m) => [RetryStatus -> Handler m Bool]
 constHandlers = [const $ Handler $ (\(_ :: SomeException) -> pure True)]
-
-pageToConvIdPage :: Public.LocalOrRemoteTable -> C.PageWithState (Qualified ConvId) -> Public.ConvIdsPage
-pageToConvIdPage table page@C.PageWithState {..} =
-  Public.MultiTablePage
-    { mtpResults = pwsResults,
-      mtpHasMore = C.pwsHasMore page,
-      mtpPagingState = Public.ConversationPagingState table (LBS.toStrict . C.unPagingState <$> pwsState)
-    }
