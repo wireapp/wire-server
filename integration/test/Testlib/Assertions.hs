@@ -84,21 +84,6 @@ shouldMatchWithMsg msg a b = do
         else pure ""
     assertFailure $ (maybe "" (<> "\n") msg) <> "Actual:\n" <> pa <> "\nExpected:\n" <> pb <> diff
 
--- | apply some canonicalization transformations that *usually* do not change semantics before
--- comparing.
-shouldMatchLeniently :: (MakesValue a, MakesValue b, HasCallStack) => a -> b -> App ()
-shouldMatchLeniently = shouldMatchWithRules [EmptyArrayIsNull, RemoveNullFieldsFromObjects] (const $ pure Nothing)
-
--- | apply *all* canonicalization transformations before comparing.  some of these may not be
--- valid on your input, see 'LenientMatchRule' for details.
-shouldMatchSloppily :: (MakesValue a, MakesValue b, HasCallStack) => a -> b -> App ()
-shouldMatchSloppily = shouldMatchWithRules [minBound ..] (const $ pure Nothing)
-
--- | apply *all* canonicalization transformations before comparing.  some of these may not be
--- valid on your input, see 'LenientMatchRule' for details.
-shouldMatchALittle :: (MakesValue a, MakesValue b, HasCallStack) => (Aeson.Value -> App (Maybe Aeson.Value)) -> a -> b -> App ()
-shouldMatchALittle = shouldMatchWithRules [minBound ..]
-
 data LenientMatchRule
   = EmptyArrayIsNull
   | ArraysAreSets

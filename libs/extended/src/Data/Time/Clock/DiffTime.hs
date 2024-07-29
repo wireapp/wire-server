@@ -11,7 +11,7 @@ where
 import Data.Time
 import Imports
 
--- we really should be doing all this with https://hackage.haskell.org/package/units...
+-- FUTUREWORK: we really should be doing all this with https://hackage.haskell.org/package/units...
 millisecondsToDiffTime :: Integer -> DiffTime
 millisecondsToDiffTime = picosecondsToDiffTime . (e9 *)
 
