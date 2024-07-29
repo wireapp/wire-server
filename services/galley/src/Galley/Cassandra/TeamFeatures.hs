@@ -150,15 +150,11 @@ setFeatureConfig FeatureSingletonConferenceCallingConfig tid statusNoLock = do
   retry x5 . batch $ do
     setType BatchLogged
     setConsistency LocalQuorum
-    addPrepQuery insertStatus (tid, statusNoLock.wssStatus, ttlValue (statusNoLock.wssTTL))
+    addPrepQuery insertStatus (tid, statusNoLock.wssStatus)
     addPrepQuery insertConfig (tid, statusNoLock.wssConfig.one2OneCalls)
   where
-    ttlValue :: FeatureTTL -> Int32
-    ttlValue (FeatureTTLSeconds d) = fromIntegral d
-    ttlValue FeatureTTLUnlimited = 0
-
-    insertStatus :: PrepQuery W (TeamId, FeatureStatus, Int32) ()
-    insertStatus = "insert into team_features (team_id, conference_calling_status) values (?, ?) using ttl ?"
+    insertStatus :: PrepQuery W (TeamId, FeatureStatus) ()
+    insertStatus = "insert into team_features (team_id, conference_calling_status) values (?, ?)"
     insertConfig :: PrepQuery W (TeamId, One2OneCalls) ()
     insertConfig = "insert into team_features (team_id, conference_calling_one_to_one) values (?, ?)"
 setFeatureConfig FeatureSingletonGuestLinksConfig tid statusNoLock = setFeatureStatusC "guest_links_status" tid (wssStatus statusNoLock)
