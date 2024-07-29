@@ -102,7 +102,7 @@ login ::
   Login ->
   CookieType ->
   ExceptT LoginError (AppT r) (Access ZAuth.User)
-login (PasswordLogin (PasswordLoginData li pw label code)) typ = do
+login (MkLogin li pw label code) typ = do
   uid <- resolveLoginId li
   lift . liftSem . Log.debug $ field "user" (toByteString uid) . field "action" (val "User.login")
   wrapHttpClientE $ checkRetryLimit uid
@@ -122,9 +122,6 @@ login (PasswordLogin (PasswordLoginData li pw label code)) typ = do
           VerificationCodeNoPendingCode -> wrapHttpClientE $ loginFailedWith LoginCodeInvalid uid
           VerificationCodeRequired -> wrapHttpClientE $ loginFailedWith LoginCodeRequired uid
           VerificationCodeNoEmail -> wrapHttpClientE $ loginFailed uid
-login (SmsLogin _) _ = do
-  -- sms login not supported
-  throwE LoginFailed
 
 verifyCode ::
   forall r.
@@ -302,9 +299,6 @@ validateLoginId (LoginByEmail email) =
     (const $ throwE LoginFailed)
     (pure . Left . mkEmailKey)
     (validateEmail email)
-validateLoginId (LoginByPhone _) = do
-  -- phone logins are not supported
-  throwE LoginFailed
 validateLoginId (LoginByHandle h) =
   pure (Right h)
 
@@ -312,7 +306,6 @@ isPendingActivation :: (MonadClient m, MonadReader Env m) => LoginId -> m Bool
 isPendingActivation ident = case ident of
   (LoginByHandle _) -> pure False
   (LoginByEmail e) -> checkKey (mkEmailKey e)
-  (LoginByPhone _) -> pure False
   where
     checkKey k = do
       usr <- (>>= fst) <$> Data.lookupActivationCode k

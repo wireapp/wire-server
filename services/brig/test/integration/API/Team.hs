@@ -214,9 +214,8 @@ testInvitationEmail brig = do
 
 assertInvitationResponseInvariants :: InvitationRequest -> Invitation -> Assertion
 assertInvitationResponseInvariants invReq inv = do
-  irInviteeName invReq @=? inInviteeName inv
-  irInviteePhone invReq @=? inInviteePhone inv
-  irInviteeEmail invReq @=? inInviteeEmail inv
+  inviteeName invReq @=? inInviteeName inv
+  inviteeEmail invReq @=? inInviteeEmail inv
 
 testGetInvitation :: Brig -> Http ()
 testGetInvitation brig = do
@@ -430,19 +429,19 @@ testInvitationRoles brig galley = do
 
 testInvitationEmailAccepted :: Brig -> Galley -> Http ()
 testInvitationEmailAccepted brig galley = do
-  inviteeEmail <- randomEmail
-  let invite = stdInvitationRequest inviteeEmail
-  void $ createAndVerifyInvitation (accept (irInviteeEmail invite)) invite brig galley
+  email <- randomEmail
+  let invite = stdInvitationRequest email
+  void $ createAndVerifyInvitation (accept invite.inviteeEmail) invite brig galley
 
 -- | Related: 'testDomainsBlockedForRegistration'.  When we remove the customer-specific
 -- extension of domain blocking, this test will fail to compile (so you will know it's time to
 -- remove it).
 testInvitationEmailAcceptedInBlockedDomain :: Opt.Opts -> Brig -> Galley -> Http ()
 testInvitationEmailAcceptedInBlockedDomain opts brig galley = do
-  inviteeEmail :: Email <- randomEmail
-  let invite = stdInvitationRequest inviteeEmail
-      replacementBrigApp = withDomainsBlockedForRegistration opts [emailDomain inviteeEmail]
-  void $ createAndVerifyInvitation' (Just replacementBrigApp) (accept (irInviteeEmail invite)) invite brig galley
+  email :: Email <- randomEmail
+  let invite = stdInvitationRequest email
+      replacementBrigApp = withDomainsBlockedForRegistration opts [emailDomain email]
+  void $ createAndVerifyInvitation' (Just replacementBrigApp) (accept invite.inviteeEmail) invite brig galley
 
 -- | FUTUREWORK: this is an alternative helper to 'createPopulatedBindingTeam'.  it has been
 -- added concurrently, and the two should probably be consolidated.

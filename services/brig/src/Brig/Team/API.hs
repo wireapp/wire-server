@@ -49,6 +49,7 @@ import Data.Qualified (Local)
 import Data.Range
 import Data.Text.Lazy qualified as LT
 import Data.Time.Clock (UTCTime)
+import Data.Tuple.Extra
 import Imports hiding (head)
 import Network.Wai.Utilities hiding (code, message)
 import Polysemy
@@ -94,7 +95,7 @@ servantAPI ::
   ) =>
   ServerT TeamsAPI (Handler r)
 servantAPI =
-  Named @"send-team-invitation" createInvitationPublicH
+  Named @"send-team-invitation" createInvitation
     :<|> Named @"get-team-invitations" listInvitations
     :<|> Named @"get-team-invitation" getInvitation
     :<|> Named @"delete-team-invitation" deleteInvitation
@@ -115,7 +116,13 @@ getInvitationCode t r = do
   code <- lift . wrapClient $ DB.lookupInvitationCode t r
   maybe (throwStd $ errorToWai @'E.InvalidInvitationCode) (pure . FoundInvitationCode) code
 
-createInvitationPublicH ::
+data CreateInvitationInviter = CreateInvitationInviter
+  { inviterUid :: UserId,
+    inviterEmail :: Email
+  }
+  deriving (Eq, Show)
+
+createInvitation ::
   ( Member GalleyAPIAccess r,
     Member UserKeyStore r,
     Member UserSubsystem r,
@@ -125,32 +132,8 @@ createInvitationPublicH ::
   TeamId ->
   Public.InvitationRequest ->
   Handler r (Public.Invitation, Public.InvitationLocation)
-createInvitationPublicH uid tid body = do
-  inv <- createInvitationPublic uid tid body
-  pure (inv, loc inv)
-  where
-    loc :: Invitation -> InvitationLocation
-    loc inv =
-      InvitationLocation $ "/teams/" <> toByteString' tid <> "/invitations/" <> toByteString' (inInvitation inv)
-
-data CreateInvitationInviter = CreateInvitationInviter
-  { inviterUid :: UserId,
-    inviterEmail :: Email
-  }
-  deriving (Eq, Show)
-
-createInvitationPublic ::
-  ( Member GalleyAPIAccess r,
-    Member UserKeyStore r,
-    Member UserSubsystem r,
-    Member EmailSending r
-  ) =>
-  UserId ->
-  TeamId ->
-  Public.InvitationRequest ->
-  Handler r Public.Invitation
-createInvitationPublic uid tid body = do
-  let inviteeRole = fromMaybe defaultRole . irRole $ body
+createInvitation uid tid body = do
+  let inviteeRole = fromMaybe defaultRole body.role
   inviter <- do
     let inviteePerms = Teams.rolePermissions inviteeRole
     idt <- maybe (throwStd (errorToWai @'E.NoIdentity)) pure =<< lift (fetchUserIdentity uid)
@@ -159,14 +142,18 @@ createInvitationPublic uid tid body = do
     pure $ CreateInvitationInviter uid from
 
   let context =
-        logFunction "Brig.Team.API.createInvitationPublic"
+        logFunction "Brig.Team.API.createInvitation"
           . logTeam tid
-          . logEmail (irInviteeEmail body)
+          . logEmail body.inviteeEmail
 
-  fst
+  (id &&& loc) . fst
     <$> logInvitationRequest
       context
       (createInvitation' tid Nothing inviteeRole (Just (inviterUid inviter)) (inviterEmail inviter) body)
+  where
+    loc :: Invitation -> InvitationLocation
+    loc inv =
+      InvitationLocation $ "/teams/" <> toByteString' tid <> "/invitations/" <> toByteString' (inInvitation inv)
 
 createInvitationViaScim ::
   ( Member BlockListStore r,
@@ -186,11 +173,10 @@ createInvitationViaScim tid newUser@(NewUserScimInvitation _tid uid loc name ema
       fromEmail = env ^. emailSender
       invreq =
         InvitationRequest
-          { irLocale = loc,
-            irRole = Nothing, -- (unused, it's in the type for 'createInvitationPublicH')
-            irInviteeName = Just name,
-            irInviteeEmail = email,
-            irInviteePhone = Nothing
+          { locale = loc,
+            role = Nothing, -- (unused, it's in the type for 'createInvitationV5')
+            inviteeName = Just name,
+            inviteeEmail = email
           }
 
       context =
@@ -239,9 +225,9 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail body = do
   --             sendActivationCode. Refactor this to a single place
 
   -- Validate e-mail
-  inviteeEmail <- either (const $ throwStd (errorToWai @'E.InvalidEmail)) pure (Email.validateEmail (irInviteeEmail body))
-  let uke = mkEmailKey inviteeEmail
-  blacklistedEm <- lift $ liftSem $ isBlocked inviteeEmail
+  validatedEmail <- either (const $ throwStd (errorToWai @'E.InvalidEmail)) pure (Email.validateEmail (inviteeEmail body))
+  let uke = mkEmailKey validatedEmail
+  blacklistedEm <- lift $ liftSem $ isBlocked validatedEmail
   when blacklistedEm $
     throwStd blacklistedEmail
   emailTaken <- lift $ liftSem $ isJust <$> lookupKey uke
@@ -253,8 +239,6 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail body = do
   when (fromIntegral pending >= maxSize) $
     throwStd (errorToWai @'E.TooManyTeamInvitations)
 
-  let locale = irLocale body
-  let inviteeName = irInviteeName body
   showInvitationUrl <- lift $ liftSem $ GalleyAPIAccess.getExposeInvitationURLsToTeamAdmin tid
 
   lift $ do
@@ -270,11 +254,10 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail body = do
           inviteeRole
           now
           mbInviterUid
-          inviteeEmail
-          inviteeName
-          Nothing -- ignore phone
+          validatedEmail
+          body.inviteeName
           timeout
-    (newInv, code) <$ sendInvitationMail inviteeEmail tid fromEmail code locale
+    (newInv, code) <$ sendInvitationMail validatedEmail tid fromEmail code body.locale
 
 deleteInvitation :: (Member GalleyAPIAccess r) => UserId -> TeamId -> InvitationId -> (Handler r) ()
 deleteInvitation uid tid iid = do

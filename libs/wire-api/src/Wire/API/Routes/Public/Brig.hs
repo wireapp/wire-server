@@ -343,6 +343,7 @@ type SelfAPI =
     :<|> Named
            "change-phone"
            ( Summary "Change your phone number."
+               :> Until 'V6
                :> ZUser
                :> ZConn
                :> "self"
@@ -356,6 +357,7 @@ type SelfAPI =
     Named
       "remove-phone"
       ( Summary "Remove your phone number."
+          :> Until 'V6
           :> Description
                "Your phone number can only be removed if you also have an \
                \email address and a password."
@@ -503,7 +505,7 @@ type AccountAPI =
     -- - UserIdentityUpdated event to the user, if email or phone get activated
     :<|> Named
            "get-activate"
-           ( Summary "Activate (i.e. confirm) an email address or phone number."
+           ( Summary "Activate (i.e. confirm) an email address."
                :> MakesFederatedCall 'Brig "send-connection-action"
                :> Description "See also 'POST /activate' which has a larger feature set."
                :> CanThrow 'UserKeyExists
@@ -527,7 +529,7 @@ type AccountAPI =
     -- - UserIdentityUpdated event to the user, if email or phone get activated
     :<|> Named
            "post-activate"
-           ( Summary "Activate (i.e. confirm) an email address or phone number."
+           ( Summary "Activate (i.e. confirm) an email address."
                :> Description
                     "Activation only succeeds once and the number of \
                     \failed attempts for a valid key is limited."
@@ -551,7 +553,6 @@ type AccountAPI =
            ( Summary "Send (or resend) an email activation code."
                :> CanThrow 'UserKeyExists
                :> CanThrow 'InvalidEmail
-               :> CanThrow 'InvalidPhone
                :> CanThrow 'BlacklistedEmail
                :> CanThrow 'CustomerExtensionBlockedDomain
                :> "activate"
@@ -1417,6 +1418,7 @@ type AuthAPI =
            "send-login-code"
            ( "login"
                :> "send"
+               :> Until 'V6
                :> Summary "Send a login code to a verified phone number"
                :> Description
                     "This operation generates and sends a login code via sms for phone login.\

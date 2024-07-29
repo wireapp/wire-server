@@ -52,7 +52,6 @@ testObject_NewUser_user_1 =
           },
       newUserUUID = (Just . toUUID) (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))),
       newUserIdentity = Just (EmailIdentity (Email {emailLocal = "S\ENQX\1076723$\STX\"\1110507e\1015716\24831\1031964L\ETB", emailDomain = "P.b"})),
-      newUserPhone = Nothing,
       newUserPict = Just (Pict {fromPict = []}),
       newUserAssets =
         [ ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview),
@@ -61,7 +60,6 @@ testObject_NewUser_user_1 =
         ],
       newUserAccentId = Just (ColourId {fromColourId = -7404}),
       newUserEmailCode = Just (ActivationCode {fromActivationCode = fromRight undefined (validate "1YgaHo0=")}),
-      newUserPhoneCode = Nothing,
       newUserOrigin =
         Just
           ( NewUserOriginInvitationCode
@@ -172,16 +170,4 @@ testObject_NewUser_user_8 =
               )
           ),
       newUserPassword = Just (plainTextPassword8Unsafe "12345678")
-    }
-
-testObject_NewUser_user_9 :: NewUser
-testObject_NewUser_user_9 =
-  testObject_NewUser_user_1
-    { newUserPhoneCode =
-        Just
-          ( ActivationCode
-              { fromActivationCode =
-                  fromRight undefined (validate "z1OeJQ==")
-              }
-          )
     }

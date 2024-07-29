@@ -75,7 +75,7 @@ testPasswordReset brig = do
     !!! const 403 === statusCode
   login
     brig
-    (PasswordLogin (PasswordLoginData (LoginByEmail email) (plainTextPassword8To6 newpw) Nothing Nothing))
+    (MkLogin (LoginByEmail email) (plainTextPassword8To6 newpw) Nothing Nothing)
     PersistentCookie
     !!! const 200 === statusCode
   -- reset password again to the same new password, get 400 "must be different"

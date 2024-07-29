@@ -39,7 +39,6 @@ testObject_NewUserPublic_user_1 =
             Name {fromName = "\\sY4]u\1033976\DLE\1027259\FS\ETX \US\ETB\1066640dw;}\1073386@\184511\r8"},
           newUserUUID = Nothing,
           newUserIdentity = Just (EmailIdentity (Email {emailLocal = "test", emailDomain = "example.com"})),
-          newUserPhone = Nothing,
           newUserPict = Nothing,
           newUserAssets =
             [ ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete),
@@ -53,7 +52,6 @@ testObject_NewUserPublic_user_1 =
                   { fromActivationCode = fromRight undefined (validate "cfTQLlhl6H6sYloQXsghILggxWoGhM2WGbxjzm0=")
                   }
               ),
-          newUserPhoneCode = Nothing,
           newUserOrigin =
             Just
               ( NewUserOriginTeamUser

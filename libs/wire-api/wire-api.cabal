@@ -357,7 +357,6 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.AccessRoleLegacy_user
     Test.Wire.API.Golden.Generated.AccessToken_user
     Test.Wire.API.Golden.Generated.Action_user
-    Test.Wire.API.Golden.Generated.Activate_user
     Test.Wire.API.Golden.Generated.ActivationCode_user
     Test.Wire.API.Golden.Generated.ActivationKey_user
     Test.Wire.API.Golden.Generated.ActivationResponse_user
@@ -435,10 +434,8 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.ListType_team
     Test.Wire.API.Golden.Generated.Locale_user
     Test.Wire.API.Golden.Generated.LocaleUpdate_user
-    Test.Wire.API.Golden.Generated.Login_user
     Test.Wire.API.Golden.Generated.LoginCode_user
     Test.Wire.API.Golden.Generated.LoginCodeTimeout_user
-    Test.Wire.API.Golden.Generated.LoginId_user
     Test.Wire.API.Golden.Generated.ManagedBy_user
     Test.Wire.API.Golden.Generated.Member_user
     Test.Wire.API.Golden.Generated.MemberUpdate_user
@@ -511,7 +508,6 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.SearchResult_20Contact_user
     Test.Wire.API.Golden.Generated.SearchResult_20TeamContact_user
     Test.Wire.API.Golden.Generated.SelfProfile_user
-    Test.Wire.API.Golden.Generated.SendActivationCode_user
     Test.Wire.API.Golden.Generated.SendLoginCode_user
     Test.Wire.API.Golden.Generated.Service_provider
     Test.Wire.API.Golden.Generated.ServiceKey_provider
@@ -572,6 +568,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.WithStatusPatch_team
     Test.Wire.API.Golden.Generated.Wrapped_20_22some_5fint_22_20Int_user
     Test.Wire.API.Golden.Manual
+    Test.Wire.API.Golden.Manual.Activate_user
     Test.Wire.API.Golden.Manual.ClientCapability
     Test.Wire.API.Golden.Manual.ClientCapabilityList
     Test.Wire.API.Golden.Manual.Contact
@@ -591,9 +588,12 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.GroupId
     Test.Wire.API.Golden.Manual.ListConversations
     Test.Wire.API.Golden.Manual.ListUsersById
+    Test.Wire.API.Golden.Manual.Login_user
+    Test.Wire.API.Golden.Manual.LoginId_user
     Test.Wire.API.Golden.Manual.MLSKeys
     Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
     Test.Wire.API.Golden.Manual.SearchResultContact
+    Test.Wire.API.Golden.Manual.SendActivationCode_user
     Test.Wire.API.Golden.Manual.SubConversation
     Test.Wire.API.Golden.Manual.TeamSize
     Test.Wire.API.Golden.Manual.Token

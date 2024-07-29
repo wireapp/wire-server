@@ -94,10 +94,8 @@ tests conf m z db b g n =
     [ testGroup
         "login"
         [ test m "email" (testEmailLogin b),
-          test m "phone" (testPhoneLogin b),
           test m "handle" (testHandleLogin b),
           test m "email-untrusted-domain" (testLoginUntrustedDomain b),
-          test m "send-phone-code" (testSendLoginCode b),
           test m "testLoginFailure - failure" (testLoginFailure b),
           test m "throttle" (testThrottleLogins conf b),
           test m "testLimitRetries - limit-retry" (testLimitRetries conf b),
@@ -181,7 +179,7 @@ testLoginWith6CharPassword brig db = do
     checkLogin email pw expectedStatusCode =
       login
         brig
-        (PasswordLogin (PasswordLoginData (LoginByEmail email) pw Nothing Nothing))
+        (MkLogin (LoginByEmail email) pw Nothing Nothing)
         PersistentCookie
         !!! const expectedStatusCode === statusCode
 
@@ -357,21 +355,6 @@ testEmailLogin brig = do
   login brig (defEmailLogin email') PersistentCookie
     !!! const 200 === statusCode
 
-testPhoneLogin :: Brig -> Http ()
-testPhoneLogin brig = do
-  p <- randomPhone
-  let newUser =
-        RequestBodyLBS . encode $
-          object
-            [ "name" .= ("Alice" :: Text),
-              "phone" .= fromPhone p
-            ]
-  -- phone logins are not supported anymore
-  post (brig . path "/i/users" . contentJson . Http.body newUser)
-    !!! do
-      const 400 === statusCode
-      const (Just "invalid-phone") === errorLabel
-
 testHandleLogin :: Brig -> Http ()
 testHandleLogin brig = do
   usr <- Public.userId <$> randomUser brig
@@ -379,7 +362,7 @@ testHandleLogin brig = do
   let update = RequestBodyLBS . encode $ HandleUpdate hdl
   put (brig . path "/self/handle" . contentJson . zUser usr . zConn "c" . Http.body update)
     !!! const 200 === statusCode
-  let l = PasswordLogin (PasswordLoginData (LoginByHandle (fromJust $ parseHandle hdl)) defPassword Nothing Nothing)
+  let l = MkLogin (LoginByHandle (fromJust $ parseHandle hdl)) defPassword Nothing Nothing
   login brig l PersistentCookie !!! const 200 === statusCode
 
 -- | Check that local part after @+@ is ignored by equality on email addresses if the domain is
@@ -392,21 +375,6 @@ testLoginUntrustedDomain brig = do
   login brig (defEmailLogin email') PersistentCookie
     !!! const 200 === statusCode
 
-testSendLoginCode :: Brig -> Http ()
-testSendLoginCode brig = do
-  p <- randomPhone
-  let newUser =
-        RequestBodyLBS . encode $
-          object
-            [ "name" .= ("Alice" :: Text),
-              "phone" .= fromPhone p,
-              "password" .= ("topsecretdefaultpassword" :: Text)
-            ]
-  post (brig . path "/i/users" . contentJson . Http.body newUser)
-    !!! do
-      const 400 === statusCode
-      const (Just "invalid-phone") === errorLabel
-
 -- The testLoginFailure test conforms to the following testing standards:
 --
 -- Test that trying to log in with a wrong password or non-existent email fails.
@@ -417,15 +385,14 @@ testLoginFailure brig = do
   let badpw = plainTextPassword6Unsafe "wrongpassword"
   login
     brig
-    (PasswordLogin (PasswordLoginData (LoginByEmail email) badpw Nothing Nothing))
+    (MkLogin (LoginByEmail email) badpw Nothing Nothing)
     PersistentCookie
     !!! const 403 === statusCode
   -- login with wrong / non-existent email
   let badmail = Email "wrong" "wire.com"
   login
     brig
-    ( PasswordLogin
-        (PasswordLoginData (LoginByEmail badmail) defPassword Nothing Nothing)
+    ( MkLogin (LoginByEmail badmail) defPassword Nothing Nothing
     )
     PersistentCookie
     !!! const 403 === statusCode

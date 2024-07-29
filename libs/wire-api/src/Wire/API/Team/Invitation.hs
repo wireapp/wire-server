@@ -44,7 +44,7 @@ import Wire.API.Error.Brig
 import Wire.API.Locale (Locale)
 import Wire.API.Routes.MultiVerb
 import Wire.API.Team.Role (Role, defaultRole)
-import Wire.API.User.Identity (Email, Phone)
+import Wire.API.User.Identity (Email)
 import Wire.API.User.Profile (Name)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
@@ -52,11 +52,10 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- InvitationRequest
 
 data InvitationRequest = InvitationRequest
-  { irLocale :: Maybe Locale,
-    irRole :: Maybe Role,
-    irInviteeName :: Maybe Name,
-    irInviteeEmail :: Email,
-    irInviteePhone :: Maybe Phone
+  { locale :: Maybe Locale,
+    role :: Maybe Role,
+    inviteeName :: Maybe Name,
+    inviteeEmail :: Email
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform InvitationRequest)
@@ -66,16 +65,14 @@ instance ToSchema InvitationRequest where
   schema =
     objectWithDocModifier "InvitationRequest" (description ?~ "A request to join a team on Wire.") $
       InvitationRequest
-        <$> irLocale
+        <$> locale
           .= optFieldWithDocModifier "locale" (description ?~ "Locale to use for the invitation.") (maybeWithDefault A.Null schema)
-        <*> irRole
+        <*> role
           .= optFieldWithDocModifier "role" (description ?~ "Role of the invitee (invited user).") (maybeWithDefault A.Null schema)
-        <*> irInviteeName
+        <*> inviteeName
           .= optFieldWithDocModifier "name" (description ?~ "Name of the invitee (1 - 128 characters).") (maybeWithDefault A.Null schema)
-        <*> irInviteeEmail
+        <*> inviteeEmail
           .= fieldWithDocModifier "email" (description ?~ "Email of the invitee.") schema
-        <*> irInviteePhone
-          .= optFieldWithDocModifier "phone" (description ?~ "Phone number of the invitee, in the E.164 format.") (maybeWithDefault A.Null schema)
 
 --------------------------------------------------------------------------------
 -- Invitation
@@ -90,7 +87,6 @@ data Invitation = Invitation
     inCreatedBy :: Maybe UserId,
     inInviteeEmail :: Email,
     inInviteeName :: Maybe Name,
-    inInviteePhone :: Maybe Phone,
     inInviteeUrl :: Maybe (URIRef Absolute)
   }
   deriving stock (Eq, Show, Generic)
@@ -99,8 +95,10 @@ data Invitation = Invitation
 
 instance ToSchema Invitation where
   schema =
-    objectWithDocModifier "Invitation" (description ?~ "An invitation to join a team on Wire") $
-      Invitation
+    objectWithDocModifier
+      "Invitation"
+      (description ?~ "An invitation to join a team on Wire")
+      $ Invitation
         <$> inTeam
           .= fieldWithDocModifier "team" (description ?~ "Team ID of the inviting team") schema
         <*> inRole
@@ -116,8 +114,6 @@ instance ToSchema Invitation where
           .= fieldWithDocModifier "email" (description ?~ "Email of the invitee") schema
         <*> inInviteeName
           .= optFieldWithDocModifier "name" (description ?~ "Name of the invitee (1 - 128 characters)") (maybeWithDefault A.Null schema)
-        <*> inInviteePhone
-          .= optFieldWithDocModifier "phone" (description ?~ "Phone number of the invitee, in the E.164 format") (maybeWithDefault A.Null schema)
         <*> (fmap (TE.decodeUtf8 . serializeURIRef') . inInviteeUrl)
           .= optFieldWithDocModifier "url" (description ?~ "URL of the invitation link to be sent to the invitee") (maybeWithDefault A.Null urlSchema)
     where

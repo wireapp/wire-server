@@ -24,7 +24,7 @@ import Wire.API.User
 import Wire.API.User.Auth
 
 tests :: T.TestTree
-tests = T.testGroup "Auth" [loginIdHappyCase, loginIdFailFastOnEmail, loginIdFailFastOnPhone]
+tests = T.testGroup "Auth" [loginIdHappyCase, loginIdFailFastOnEmail]
 
 loginIdHappyCase :: T.TestTree
 loginIdHappyCase = testCase "LoginId parser: valid email" $ do
@@ -35,11 +35,5 @@ loginIdHappyCase = testCase "LoginId parser: valid email" $ do
 loginIdFailFastOnEmail :: T.TestTree
 loginIdFailFastOnEmail = testCase "LoginId parser: invalid email, valid phone" $ do
   let actual :: Maybe LoginId = Aeson.decode "{\"email\":\"invalid-email\",\"phone\":\"+123456789\"}"
-  let expected = Nothing
-  assertEqual "should fail if any provided login id is invalid" expected actual
-
-loginIdFailFastOnPhone :: T.TestTree
-loginIdFailFastOnPhone = testCase "LoginId parser: invalid phone, valid email" $ do
-  let actual :: Maybe LoginId = Aeson.decode "{\"email\":\"foo@bar.com\",\"phone\":\"invalid-phone\"}"
   let expected = Nothing
   assertEqual "should fail if any provided login id is invalid" expected actual
