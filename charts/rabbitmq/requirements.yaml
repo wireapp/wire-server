@@ -1,4 +1,0 @@
-dependencies:
-- name: rabbitmq
-  version: 11.13.0
-  repository: https://charts.bitnami.com/bitnami
