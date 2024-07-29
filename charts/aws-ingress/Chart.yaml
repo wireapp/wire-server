@@ -1,4 +1,0 @@
-apiVersion: v1
-description: A Helm chart for ingresses (AWS specific) on Kubernetes
-name: aws-ingress
-version: 0.0.42
