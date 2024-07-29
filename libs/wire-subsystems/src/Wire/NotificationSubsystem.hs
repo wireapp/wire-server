@@ -13,13 +13,11 @@ import Polysemy
 import Wire.Arbitrary
 
 data Recipient = Recipient
-  { _recipientUserId :: UserId,
-    _recipientClients :: RecipientClients
+  { recipientUserId :: UserId,
+    recipientClients :: RecipientClients
   }
   deriving stock (Show, Ord, Eq, Generic)
   deriving (Arbitrary) via GenericUniform Recipient
-
-makeLenses ''Recipient
 
 data Push = Push
   { _pushConn :: Maybe ConnId,

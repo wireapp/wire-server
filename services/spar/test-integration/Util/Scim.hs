@@ -603,9 +603,6 @@ acceptScim = accept "application/scim+json"
 scimUserId :: Scim.StoredUser SparTag -> UserId
 scimUserId = Scim.id . Scim.thing
 
-scimPreferredLanguage :: Scim.StoredUser SparTag -> Maybe Text
-scimPreferredLanguage = Scim.preferredLanguage . Scim.value . Scim.thing
-
 -- | There are a number of user types that all partially map on each other. This class
 -- provides a uniform interface to data stored in those types.
 --

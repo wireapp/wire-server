@@ -107,7 +107,6 @@ library
     Brig.Data.Activation
     Brig.Data.Client
     Brig.Data.Connection
-    Brig.Data.LoginCode
     Brig.Data.MLS.KeyPackage
     Brig.Data.Nonce
     Brig.Data.Types
@@ -187,7 +186,7 @@ library
     Brig.Schema.V82_DropPhoneColumn
     Brig.Schema.V83_AddTextStatus
     Brig.Schema.V84_DropTeamInvitationPhone
-    Brig.Schema.V_FUTUREWORK
+    Brig.Schema.V85_DropUserKeysHashed
     Brig.Team.API
     Brig.Team.DB
     Brig.Team.Email

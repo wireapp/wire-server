@@ -116,32 +116,3 @@ connectUsersEnd2End brig1 brig2 quid1 quid2 = do
     !!! const 201 === statusCode
   putConnectionQualified brig2 (qUnqualified quid2) quid1 Accepted
     !!! const 200 === statusCode
-
-sendCommitBundle :: (HasCallStack) => FilePath -> FilePath -> Maybe FilePath -> Galley -> UserId -> ClientId -> ByteString -> Http ()
-sendCommitBundle tmp subGroupStateFn welcomeFn galley uid cid commit = do
-  subGroupStateRaw <- liftIO $ BS.readFile $ tmp </> subGroupStateFn
-  subGroupState <- either (liftIO . assertFailure . T.unpack) pure . decodeMLS' $ subGroupStateRaw
-  subCommit <- either (liftIO . assertFailure . T.unpack) pure . decodeMLS' $ commit
-  mbWelcome <-
-    for
-      welcomeFn
-      $ \fn -> do
-        bs <- liftIO $ BS.readFile $ tmp </> fn
-        msg :: Message <- either (liftIO . assertFailure . T.unpack) pure . decodeMLS' $ bs
-        case msg.content of
-          MessageWelcome welcome -> pure welcome
-          _ -> liftIO . assertFailure $ "Expected a welcome"
-
-  let subGroupBundle = CommitBundle subCommit mbWelcome subGroupState
-  post
-    ( galley
-        . paths
-          ["mls", "commit-bundles"]
-        . zUser uid
-        . zClient cid
-        . zConn "conn"
-        . header "Z-Type" "access"
-        . Bilge.content "message/mls"
-        . lbytes (encodeMLS subGroupBundle)
-    )
-    !!! const 201 === statusCode

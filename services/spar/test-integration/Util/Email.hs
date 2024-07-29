@@ -24,13 +24,10 @@ module Util.Email where
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import Brig.Types.Activation
-import Control.Lens (view, (^?))
+import Control.Lens (view)
 import Control.Monad.Catch (MonadCatch)
-import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.Id
-import qualified Data.Misc as Misc
-import Data.Text.Encoding (encodeUtf8)
 import qualified Data.ZAuth.Token as ZAuth
 import Imports
 import Test.Tasty.HUnit
@@ -40,44 +37,6 @@ import Util.Types
 import qualified Wire.API.Team.Feature as Feature
 import Wire.API.User
 import Wire.API.User.Activation
-import qualified Wire.API.User.Auth as Auth
-
-changeEmailBrig ::
-  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
-  BrigReq ->
-  User ->
-  Email ->
-  m ResponseLBS
-changeEmailBrig brig usr newEmail = do
-  -- most of this code is stolen from brig integration tests
-  let oldEmail = fromJust (userEmail usr)
-  (cky, tok) <- do
-    rsp <-
-      login (emailLogin oldEmail defPassword Nothing) Auth.PersistentCookie
-        <!! const 200 === statusCode
-    pure (decodeCookie rsp, decodeToken rsp)
-  changeEmailBrigCreds brig cky tok newEmail
-  where
-    emailLogin :: Email -> Misc.PlainTextPassword6 -> Maybe Auth.CookieLabel -> Auth.Login
-    emailLogin e pw cl =
-      Auth.MkLogin (Auth.LoginByEmail e) pw cl Nothing
-
-    login :: Auth.Login -> Auth.CookieType -> (MonadHttp m) => m ResponseLBS
-    login l t =
-      post $
-        brig
-          . path "/login"
-          . (if t == Auth.PersistentCookie then queryItem "persist" "true" else id)
-          . json l
-
-    decodeCookie :: (HasCallStack) => Response a -> Bilge.Cookie
-    decodeCookie = fromMaybe (error "missing zuid cookie") . Bilge.getCookie "zuid"
-
-    decodeToken :: (HasCallStack) => Response (Maybe LByteString) -> ZAuth.Token ZAuth.Access
-    decodeToken r = fromMaybe (error "invalid access_token") $ do
-      x <- responseBody r
-      t <- x ^? key "access_token" . _String
-      fromByteString (encodeUtf8 t)
 
 changeEmailBrigCreds ::
   (MonadHttp m, HasCallStack) =>

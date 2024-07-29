@@ -128,8 +128,8 @@ toV2Push p =
     recipients = map toRecipient $ toList p._pushRecipients
     toRecipient :: Recipient -> V2.Recipient
     toRecipient r =
-      (recipient r._recipientUserId p._pushRoute)
-        { V2._recipientClients = r._recipientClients
+      (recipient r.recipientUserId p._pushRoute)
+        { V2._recipientClients = r.recipientClients
         }
 
 {-# INLINE [1] chunkPushes #-}

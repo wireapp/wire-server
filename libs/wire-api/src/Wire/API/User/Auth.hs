@@ -21,7 +21,6 @@
 module Wire.API.User.Auth
   ( -- * Login
     Login (..),
-    loginLabel,
     LoginCode (..),
     LoginId (..),
     PendingLoginCode (..),
@@ -346,9 +345,6 @@ instance ToSchema Login where
         <*> lPassword .= field "password" schema
         <*> lLabel .= optField "label" (maybeWithDefault A.Null schema)
         <*> lCode .= optField "verification_code" (maybeWithDefault A.Null schema)
-
-loginLabel :: Login -> Maybe CookieLabel
-loginLabel = lLabel
 
 --------------------------------------------------------------------------------
 -- RemoveCookies

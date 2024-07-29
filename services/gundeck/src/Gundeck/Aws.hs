@@ -46,7 +46,6 @@ module Gundeck.Aws
     Attributes,
     AWS.Seconds (..),
     publish,
-    timeToLive,
 
     -- * Feedback
     listen,
@@ -382,26 +381,6 @@ newtype Attributes = Attributes
 -- already by SNS.
 --
 -- cf. http://docs.aws.amazon.com/sns/latest/dg/sns-ttl.html
-
-timeToLive :: Transport -> AWS.Seconds -> Attributes
-timeToLive t s = Attributes (Endo (ttlAttr s))
-  where
-    ttlAttr n
-      | n == 0 = setTTL (ttlNow t)
-      | otherwise = setTTL (toText n)
-    setTTL v =
-      let ty = SNS.newMessageAttributeValue "String"
-       in Map.insert (ttlKey t) (ty & SNS.messageAttributeValue_stringValue ?~ v)
-    ttlNow GCM = "0"
-    ttlNow APNS = "0"
-    ttlNow APNSSandbox = "0"
-    ttlNow APNSVoIP = "15" -- See note [VoIP TTLs]
-    ttlNow APNSVoIPSandbox = "15" -- See note [VoIP TTLs]
-    ttlKey GCM = "AWS.SNS.MOBILE.GCM.TTL"
-    ttlKey APNS = "AWS.SNS.MOBILE.APNS.TTL"
-    ttlKey APNSSandbox = "AWS.SNS.MOBILE.APNS_SANDBOX.TTL"
-    ttlKey APNSVoIP = "AWS.SNS.MOBILE.APNS_VOIP.TTL"
-    ttlKey APNSVoIPSandbox = "AWS.SNS.MOBILE.APNS_VOIP_SANDBOX.TTL"
 
 publish :: EndpointArn -> LT.Text -> Attributes -> Amazon (Either PublishError ())
 publish arn txt attrs = do

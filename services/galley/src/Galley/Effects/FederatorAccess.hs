@@ -25,7 +25,6 @@ module Galley.Effects.FederatorAccess
     runFederatedConcurrently,
     runFederatedConcurrentlyEither,
     runFederatedConcurrentlyBucketsEither,
-    runFederatedConcurrently_,
     isFederationConfigured,
   )
 where
@@ -71,10 +70,3 @@ data FederatorAccess m a where
   IsFederationConfigured :: FederatorAccess m Bool
 
 makeSem ''FederatorAccess
-
-runFederatedConcurrently_ ::
-  (KnownComponent c, Foldable f, Functor f, Member FederatorAccess r) =>
-  f (Remote a) ->
-  (Remote [a] -> FederatorClient c x) ->
-  Sem r ()
-runFederatedConcurrently_ xs = void . runFederatedConcurrently xs

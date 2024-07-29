@@ -245,7 +245,6 @@ findTeamMember u = find ((u ==) . view userId)
 isTeamOwner :: TeamMemberOptPerms -> Bool
 isTeamOwner tm = optionalPermissions tm == Just fullPermissions
 
--- | Use this to construct the condition expected by 'teamMemberJson', 'teamMemberListJson'
 canSeePermsOf :: TeamMember -> TeamMember -> Bool
 canSeePermsOf seeer seeee =
   seeer `hasPermission` GetMemberPermissions || seeer == seeee

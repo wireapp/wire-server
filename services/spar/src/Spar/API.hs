@@ -382,7 +382,7 @@ idpGetAll ::
   Sem r IdPList
 idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
   teamid <- Brig.getZUsrCheckPerm zusr ReadIdp
-  _providers <- IdPConfigStore.getConfigsByTeam teamid
+  providers <- IdPConfigStore.getConfigsByTeam teamid
   pure IdPList {..}
 
 -- | Delete empty IdPs, or if @"purge=true"@ in the HTTP query, delete all users

@@ -392,7 +392,6 @@ executable spar-integration
     , vector
     , wai-extra
     , wai-utilities
-    , warp
     , wire-api
     , xml-conduit
     , yaml
@@ -405,7 +404,6 @@ executable spar-migrate-data
   other-modules:
     Paths_spar
     Spar.DataMigration.Options
-    Spar.DataMigration.RIO
     Spar.DataMigration.Run
     Spar.DataMigration.Types
     Spar.DataMigration.V2_UserV2

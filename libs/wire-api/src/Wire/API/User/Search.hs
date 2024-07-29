@@ -1,7 +1,6 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -35,7 +34,7 @@ where
 
 import Cassandra qualified as C
 import Control.Error
-import Control.Lens (makePrisms, (?~))
+import Control.Lens ((?~))
 import Data.Aeson hiding (object, (.=))
 import Data.Aeson qualified as Aeson
 import Data.Attoparsec.ByteString (sepBy)
@@ -329,5 +328,3 @@ instance C.Cql FederatedUserSearchPolicy where
   fromCql (C.CqlInt 1) = pure ExactHandleSearch
   fromCql (C.CqlInt 2) = pure FullSearch
   fromCql n = Left $ "Unexpected SearchVisibilityInbound: " ++ show n
-
-makePrisms ''FederatedUserSearchPolicy

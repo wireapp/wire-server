@@ -27,7 +27,6 @@ module Proxy.Options
     logLevel,
     logNetStrings,
     logFormat,
-    mockOpts,
     disabledAPIVersions,
   )
 where
@@ -36,7 +35,7 @@ import Control.Lens hiding (Level)
 import Data.Aeson
 import Data.Aeson.TH
 import Imports
-import System.Logger.Extended (Level (Debug), LogFormat)
+import System.Logger.Extended (Level, LogFormat)
 import Wire.API.Routes.Version
 
 data Opts = Opts
@@ -64,18 +63,3 @@ data Opts = Opts
 makeLenses ''Opts
 
 deriveJSON defaultOptions {fieldLabelModifier = drop 1} ''Opts
-
--- | for testing.
-mockOpts :: FilePath -> Opts
-mockOpts secrets =
-  Opts
-    { _host = mempty,
-      _port = 0,
-      _secretsConfig = secrets,
-      _httpPoolSize = 0,
-      _maxConns = 0,
-      _logLevel = Debug,
-      _logNetStrings = pure $ pure $ True,
-      _logFormat = mempty,
-      _disabledAPIVersions = mempty
-    }

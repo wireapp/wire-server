@@ -516,7 +516,7 @@ specCRUDIdentityProvider = do
           (owner :: UserId, _teamid :: TeamId) <-
             call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           callIdpGetAll (env ^. teSpar) (Just owner)
-            `shouldRespondWith` (null . _providers)
+            `shouldRespondWith` (null . providers)
     context "some idps are registered" $ do
       context "client is team owner with email" $ do
         it "returns a non-empty empty list" $ do
@@ -525,7 +525,7 @@ specCRUDIdentityProvider = do
           (owner, _tid) <- callCreateUserWithTeam
           _ <- registerTestIdPFrom metadata (env ^. teMgr) owner (env ^. teSpar)
           callIdpGetAll (env ^. teSpar) (Just owner)
-            `shouldRespondWith` (not . null . _providers)
+            `shouldRespondWith` (not . null . providers)
       context "client is team owner without email" $ do
         it "returns a non-empty empty list" $ do
           env <- ask
@@ -534,7 +534,7 @@ specCRUDIdentityProvider = do
           idp <- registerTestIdPFrom metadata (env ^. teMgr) firstOwner (env ^. teSpar)
           ssoOwner <- mkSsoOwner firstOwner tid idp privcreds
           callIdpGetAll (env ^. teSpar) (Just ssoOwner)
-            `shouldRespondWith` (not . null . _providers)
+            `shouldRespondWith` (not . null . providers)
   describe "DELETE /identity-providers/:idp" $ do
     testGetPutDelete (\o t i _ -> callIdpDelete' o t i)
     context "zuser has wrong team" $ do

@@ -62,7 +62,6 @@ module Wire.API.User
     urefToExternalIdUnsafe,
     urefToEmail,
     ExpiresIn,
-    newUserInvitationCode,
     newUserTeam,
     newUserEmail,
     newUserSSOId,
@@ -1168,11 +1167,6 @@ instance Arbitrary NewUser where
         if isTeamUser && not hasSSOId then Just <$> arbitrary else arbitrary
       genUserExpiresIn newUserIdentity =
         if isJust newUserIdentity then pure Nothing else arbitrary
-
-newUserInvitationCode :: NewUser -> Maybe InvitationCode
-newUserInvitationCode nu = case newUserOrigin nu of
-  Just (NewUserOriginInvitationCode ic) -> Just ic
-  _ -> Nothing
 
 newUserTeam :: NewUser -> Maybe NewTeamUser
 newUserTeam nu = case newUserOrigin nu of

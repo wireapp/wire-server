@@ -87,7 +87,6 @@ mkDerivation {
     types-common
     unliftio
     utf8-string
-    uuid
     wai
     wai-utilities
     wire-api

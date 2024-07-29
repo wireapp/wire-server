@@ -213,7 +213,7 @@ runBrigToIO e (AppT ma) = do
               . runDeleteQueue (e ^. internalEvents)
               . interpretPropertySubsystem propertySubsystemConfig
               . interpretVerificationCodeSubsystem
-              . emailSubsystemInterpreter (e ^. usrTemplates) (e ^. templateBranding)
+              . emailSubsystemInterpreter (e ^. userTemplates) (e ^. templateBranding)
               . runUserSubsystem userSubsystemConfig
               . interpretAuthenticationSubsystem
           )

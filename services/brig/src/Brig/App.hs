@@ -40,7 +40,6 @@ module Brig.App
     federator,
     casClient,
     userTemplates,
-    usrTemplates,
     providerTemplates,
     teamTemplates,
     templateBranding,
@@ -181,7 +180,7 @@ data Env = Env
     _applog :: Logger,
     _internalEvents :: QueueEnv,
     _requestId :: RequestId,
-    _usrTemplates :: Localised UserTemplates,
+    _userTemplates :: Localised UserTemplates,
     _provTemplates :: Localised ProviderTemplates,
     _tmTemplates :: Localised TeamTemplates,
     _templateBranding :: TemplateBranding,
@@ -277,7 +276,7 @@ newEnv o = do
         _applog = lgr,
         _internalEvents = (eventsQueue :: QueueEnv),
         _requestId = RequestId "N/A",
-        _usrTemplates = utp,
+        _userTemplates = utp,
         _provTemplates = ptp,
         _tmTemplates = ttp,
         _templateBranding = branding,
@@ -436,9 +435,6 @@ initCassandra o g =
     (Opt.discoUrl o)
     (Just schemaVersion)
     g
-
-userTemplates :: (MonadReader Env m) => Maybe Locale -> m (Locale, UserTemplates)
-userTemplates l = forLocale l <$> view usrTemplates
 
 providerTemplates :: (MonadReader Env m) => Maybe Locale -> m (Locale, ProviderTemplates)
 providerTemplates l = forLocale l <$> view provTemplates

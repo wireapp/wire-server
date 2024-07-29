@@ -27,7 +27,6 @@ module Brig.Data.Client
     addClientWithReAuthPolicy,
     addClient,
     rmClient,
-    hasClient,
     lookupClient,
     lookupClients,
     lookupPubClientsBulk,
@@ -238,9 +237,6 @@ lookupPrekeyIds u c =
   map runIdentity
     <$> retry x1 (query selectPrekeyIds (params LocalQuorum (u, c)))
 
-hasClient :: (MonadClient m) => UserId -> ClientId -> m Bool
-hasClient u d = isJust <$> retry x1 (query1 checkClient (params LocalQuorum (u, d)))
-
 rmClient ::
   ( MonadClient m,
     MonadReader Brig.App.Env m,
@@ -415,9 +411,6 @@ selectPrekeyIds = "SELECT key FROM prekeys where user = ? and client = ?"
 
 removePrekey :: PrepQuery W (UserId, ClientId, PrekeyId) ()
 removePrekey = "DELETE FROM prekeys where user = ? and client = ? and key = ?"
-
-checkClient :: PrepQuery R (UserId, ClientId) (Identity ClientId)
-checkClient = "SELECT client from clients where user = ? and client = ?"
 
 selectMLSPublicKey :: PrepQuery R (UserId, ClientId, SignatureSchemeTag) (Identity Blob)
 selectMLSPublicKey = "SELECT key from mls_public_keys where user = ? and client = ? and sig_scheme = ?"

@@ -27,7 +27,7 @@ import Cannon.API.Public
 import Cannon.App (maxPingInterval)
 import Cannon.Dict qualified as D
 import Cannon.Options
-import Cannon.Types (Cannon, applog, clients, env, mkEnv, runCannon', runCannonToServant)
+import Cannon.Types (Cannon, applog, clients, env, mkEnv, runCannon, runCannonToServant)
 import Cannon.WS hiding (env)
 import Control.Concurrent
 import Control.Concurrent.Async qualified as Async
@@ -74,7 +74,7 @@ run o = do
       <*> newManager defaultManagerSettings {managerConnCount = 128}
       <*> createSystemRandom
       <*> mkClock
-  refreshMetricsThread <- Async.async $ runCannon' e refreshMetrics
+  refreshMetricsThread <- Async.async $ runCannon e refreshMetrics
   s <- newSettings $ Server (o ^. cannon . host) (o ^. cannon . port) (applog e) (Just idleTimeout)
 
   let middleware :: Wai.Middleware

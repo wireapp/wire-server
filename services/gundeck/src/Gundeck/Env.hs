@@ -62,9 +62,6 @@ data Env = Env
 
 makeLenses ''Env
 
-schemaVersion :: Int32
-schemaVersion = 7
-
 createEnv :: Opts -> IO ([Async ()], Env)
 createEnv o = do
   l <- Logger.mkLogger (o ^. logLevel) (o ^. logNetStrings) (o ^. logFormat)

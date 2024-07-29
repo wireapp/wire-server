@@ -29,7 +29,6 @@ module Gundeck.Push.Native.Types
     addrEndpoint,
     addrConn,
     addrClient,
-    addrEqualClient,
     addrPushToken,
 
     -- * Re-Exports
@@ -42,7 +41,7 @@ module Gundeck.Push.Native.Types
   )
 where
 
-import Control.Lens (Lens', makeLenses, view, (^.))
+import Control.Lens (Lens', makeLenses, (^.))
 import Data.Id (ClientId, ConnId, UserId)
 import Gundeck.Aws.Arn
 import Gundeck.Types
@@ -71,11 +70,6 @@ addrToken = addrPushToken . token
 
 addrClient :: Lens' Address ClientId
 addrClient = addrPushToken . tokenClient
-
-addrEqualClient :: Address -> Address -> Bool
-addrEqualClient a a' =
-  view addrConn a == view addrConn a'
-    || view addrClient a == view addrClient a'
 
 instance Show Address where
   show a =

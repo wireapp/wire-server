@@ -200,36 +200,6 @@ phoneUpdated :: UserId -> Phone -> UserEvent
 phoneUpdated u p =
   UserIdentityUpdated $ UserIdentityUpdatedData u Nothing (Just p)
 
-handleUpdated :: UserId -> Handle -> UserEvent
-handleUpdated u h =
-  UserUpdated $ (emptyUserUpdatedData u) {eupHandle = Just h}
-
-localeUpdate :: UserId -> Locale -> UserEvent
-localeUpdate u loc =
-  UserUpdated $ (emptyUserUpdatedData u) {eupLocale = Just loc}
-
-managedByUpdate :: UserId -> ManagedBy -> UserEvent
-managedByUpdate u mb =
-  UserUpdated $ (emptyUserUpdatedData u) {eupManagedBy = Just mb}
-
-supportedProtocolUpdate :: UserId -> Set BaseProtocolTag -> UserEvent
-supportedProtocolUpdate u prots =
-  UserUpdated $ (emptyUserUpdatedData u) {eupSupportedProtocols = Just prots}
-
-profileUpdated :: UserId -> UserUpdate -> UserEvent
-profileUpdated u UserUpdate {..} =
-  UserUpdated $
-    (emptyUserUpdatedData u)
-      { eupName = uupName,
-        eupTextStatus = uupTextStatus,
-        eupPict = uupPict,
-        eupAccentId = uupAccentId,
-        eupAssets = uupAssets
-      }
-
-emptyUpdate :: UserId -> UserEvent
-emptyUpdate = UserUpdated . emptyUserUpdatedData
-
 emptyUserUpdatedData :: UserId -> UserUpdatedData
 emptyUserUpdatedData u =
   UserUpdatedData
