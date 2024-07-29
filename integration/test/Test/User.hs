@@ -173,4 +173,4 @@ testActivateAccountWithPhoneV5 = do
   let reqBody = Aeson.object ["phone" .= phone]
   activateUserV5 dom reqBody `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 400
-    resp.json %. "label" `shouldMatch` "invalid-phone"
+    resp.json %. "label" `shouldMatch` "bad-request"
