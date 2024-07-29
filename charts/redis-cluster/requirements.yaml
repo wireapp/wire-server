@@ -1,4 +1,0 @@
-dependencies:
-- name: redis-cluster
-  version: 7.6.4
-  repository: https://charts.bitnami.com/bitnami
