@@ -87,7 +87,7 @@ getFeatureConfig FeatureSingletonSelfDeletingMessagesConfig tid =
     tid
 getFeatureConfig FeatureSingletonConferenceCallingConfig tid =
   getFeature
-    "conference_calling, ttl(conference_calling), conference_calling_one_to_one"
+    "conference_calling_status, ttl(conference_calling_status), conference_calling_one_to_one"
     tid
 getFeatureConfig FeatureSingletonGuestLinksConfig tid = getFeature "guest_links_status" tid
 getFeatureConfig FeatureSingletonSndFactorPasswordChallengeConfig tid = getFeature "snd_factor_password_challenge_status" tid
@@ -158,7 +158,7 @@ setFeatureConfig FeatureSingletonConferenceCallingConfig tid statusNoLock = do
     ttlValue FeatureTTLUnlimited = 0
 
     insertStatus :: PrepQuery W (TeamId, FeatureStatus, Int32) ()
-    insertStatus = "insert into team_features (team_id, conference_calling) values (?, ?) using ttl ?"
+    insertStatus = "insert into team_features (team_id, conference_calling_status) values (?, ?) using ttl ?"
     insertConfig :: PrepQuery W (TeamId, One2OneCalls) ()
     insertConfig = "insert into team_features (team_id, conference_calling_one_to_one) values (?, ?)"
 setFeatureConfig FeatureSingletonGuestLinksConfig tid statusNoLock = setFeatureStatusC "guest_links_status" tid (wssStatus statusNoLock)
@@ -231,7 +231,7 @@ getFeatureLockStatus FeatureSingletonMlsMigration tid = getLockStatusC "mls_migr
 getFeatureLockStatus FeatureSingletonOutlookCalIntegrationConfig tid = getLockStatusC "outlook_cal_integration_lock_status" tid
 getFeatureLockStatus FeatureSingletonMLSConfig tid = getLockStatusC "mls_lock_status" tid
 getFeatureLockStatus FeatureSingletonEnforceFileDownloadLocationConfig tid = getLockStatusC "enforce_file_download_location_lock_status" tid
-getFeatureLockStatus FeatureSingletonConferenceCallingConfig tid = getLockStatusC "conference_calling_lock_status" tid
+getFeatureLockStatus FeatureSingletonConferenceCallingConfig tid = getLockStatusC "conference_calling" tid
 getFeatureLockStatus _ _ = pure Nothing
 
 setFeatureLockStatus :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> LockStatus -> m ()
@@ -244,7 +244,7 @@ setFeatureLockStatus FeatureSingletonMlsMigration tid status = setLockStatusC "m
 setFeatureLockStatus FeatureSingletonOutlookCalIntegrationConfig tid status = setLockStatusC "outlook_cal_integration_lock_status" tid status
 setFeatureLockStatus FeatureSingletonMLSConfig tid status = setLockStatusC "mls_lock_status" tid status
 setFeatureLockStatus FeatureSingletonEnforceFileDownloadLocationConfig tid status = setLockStatusC "enforce_file_download_location_lock_status" tid status
-setFeatureLockStatus FeatureSingletonConferenceCallingConfig tid status = setLockStatusC "conference_calling_lock_status" tid status
+setFeatureLockStatus FeatureSingletonConferenceCallingConfig tid status = setLockStatusC "conference_calling" tid status
 setFeatureLockStatus _ _tid _status = pure ()
 
 getFeature ::

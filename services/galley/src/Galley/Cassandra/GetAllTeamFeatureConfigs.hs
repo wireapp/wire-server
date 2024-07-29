@@ -223,7 +223,7 @@ getAllFeatureConfigs tid = do
       \app_lock_status, app_lock_enforce, app_lock_inactivity_timeout_secs, \
       \file_sharing, file_sharing_lock_status, \
       \self_deleting_messages_status, self_deleting_messages_ttl, self_deleting_messages_lock_status, \
-      \conference_calling, ttl(conference_calling), conference_calling_one_to_one, conference_calling_lock_status, \
+      \conference_calling_status, ttl(conference_calling_status), conference_calling_one_to_one, conference_calling, \
       \guest_links_status, guest_links_lock_status, \
       \snd_factor_password_challenge_status, snd_factor_password_challenge_lock_status, \
       \\
