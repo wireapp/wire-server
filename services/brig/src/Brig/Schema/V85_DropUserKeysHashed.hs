@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Schema.V84_DropUserKeysHashed
+module Brig.Schema.V85_DropUserKeysHashed
   ( migration,
   )
 where
@@ -38,7 +38,7 @@ import Text.RawString.QQ
 --
 
 migration :: Migration
-migration = Migration 84 "Drop deprecated user_keys_hashed table" $ do
+migration = Migration 85 "Drop deprecated user_keys_hashed table" $ do
   schema'
     [r|
       DROP TABLE IF EXISTS user_keys_hash

@@ -149,8 +149,8 @@ addUserToTeamWithRole role inviter tid = do
 addUserToTeamWithRole' :: (HasCallStack) => Maybe Role -> UserId -> TeamId -> TestM (Invitation, ResponseLBS)
 addUserToTeamWithRole' role inviter tid = do
   brig <- view tsBrig
-  inviteeEmail <- randomEmail
-  let invite = InvitationRequest Nothing role Nothing inviteeEmail Nothing
+  email <- randomEmail
+  let invite = InvitationRequest Nothing role Nothing email
   invResponse <- postInvitation tid inviter invite
   inv <- responseJsonError invResponse
   inviteeCode <- getInvitationCode tid (inInvitation inv)
@@ -159,7 +159,7 @@ addUserToTeamWithRole' role inviter tid = do
       ( brig
           . path "/register"
           . contentJson
-          . body (acceptInviteBody inviteeEmail inviteeCode)
+          . body (acceptInviteBody email inviteeCode)
       )
   pure (inv, r)
 

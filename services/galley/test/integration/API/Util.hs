@@ -437,7 +437,7 @@ addUserToTeamWithRole' :: (HasCallStack) => Maybe Role -> UserId -> TeamId -> Te
 addUserToTeamWithRole' role inviter tid = do
   brig <- viewBrig
   inviteeEmail <- randomEmail
-  let invite = InvitationRequest Nothing role Nothing inviteeEmail Nothing
+  let invite = InvitationRequest Nothing role Nothing inviteeEmail
   invResponse <- postInvitation tid inviter invite
   inv <- responseJsonError invResponse
   inviteeCode <- getInvitationCode tid (inInvitation inv)

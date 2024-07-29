@@ -383,10 +383,6 @@ createUser new = do
           pure
           (validateEmail e)
 
-      -- Disallow registering a user with a phone number
-      when (isJust (newUserPhone newUser)) $
-        throwE RegisterErrorInvalidPhone
-
       for_ (mkEmailKey <$> email) $ \k ->
         verifyUniquenessAndCheckBlacklist k !>> identityErrorToRegisterError
 
@@ -788,9 +784,8 @@ sendActivationCode ::
   ) =>
   Email ->
   Maybe Locale ->
-  Bool ->
   ExceptT SendActivationCodeError (AppT r) ()
-sendActivationCode email loc _call = do
+sendActivationCode email loc = do
   ek <-
     either
       (const . throwE . InvalidRecipient $ mkEmailKey email)
@@ -853,7 +848,6 @@ mkActivationKey (ActivateEmail e) = do
       (pure . mkEmailKey)
       (validateEmail e)
   liftIO $ Data.mkActivationKey ek
-mkActivationKey (ActivatePhone p) = throwE $ InvalidActivationPhone p
 
 -------------------------------------------------------------------------------
 -- Password Management

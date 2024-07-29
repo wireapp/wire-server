@@ -19,6 +19,7 @@ module Test.Wire.API.Golden.Manual where
 
 import Imports
 import Test.Tasty
+import Test.Wire.API.Golden.Manual.Activate_user
 import Test.Wire.API.Golden.Manual.ClientCapability
 import Test.Wire.API.Golden.Manual.ClientCapabilityList
 import Test.Wire.API.Golden.Manual.Contact
@@ -38,9 +39,12 @@ import Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
 import Test.Wire.API.Golden.Manual.GroupId
 import Test.Wire.API.Golden.Manual.ListConversations
 import Test.Wire.API.Golden.Manual.ListUsersById
+import Test.Wire.API.Golden.Manual.LoginId_user
+import Test.Wire.API.Golden.Manual.Login_user
 import Test.Wire.API.Golden.Manual.MLSKeys
 import Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
 import Test.Wire.API.Golden.Manual.SearchResultContact
+import Test.Wire.API.Golden.Manual.SendActivationCode_user
 import Test.Wire.API.Golden.Manual.SubConversation
 import Test.Wire.API.Golden.Manual.TeamSize
 import Test.Wire.API.Golden.Manual.Token
@@ -238,5 +242,34 @@ tests =
       testGroup "MLSKeysByPurpose" $
         testObjects
           [ (testObject_MLSKeysByPurpose1, "testObject_MLSKeysByPurpose_1.json")
+          ],
+      testGroup "SendActivationCode" $
+        testObjects
+          [ (testObject_SendActivationCode_1, "testObject_SendActivationCode_1.json"),
+            (testObject_SendActivationCode_2, "testObject_SendActivationCode_2.json")
+          ],
+      testGroup "LoginId" $
+        testObjects
+          [ (testObject_LoginId_user_1, "testObject_LoginId_user_1.json"),
+            (testObject_LoginId_user_2, "testObject_LoginId_user_2.json"),
+            (testObject_LoginId_user_3, "testObject_LoginId_user_3.json"),
+            (testObject_LoginId_user_4, "testObject_LoginId_user_4.json"),
+            (testObject_LoginId_user_5, "testObject_LoginId_user_5.json"),
+            (testObject_LoginId_user_6, "testObject_LoginId_user_6.json")
+          ],
+      testGroup "Login" $
+        testObjects
+          [ (testObject_Login_user_1, "testObject_Login_user_1.json"),
+            (testObject_Login_user_2, "testObject_Login_user_2.json"),
+            (testObject_Login_user_3, "testObject_Login_user_3.json"),
+            (testObject_Login_user_4, "testObject_Login_user_4.json"),
+            (testObject_Login_user_5, "testObject_Login_user_5.json")
+          ],
+      testGroup "Activate" $
+        testObjects
+          [ (testObject_Activate_user_1, "testObject_Activate_user_1.json"),
+            (testObject_Activate_user_2, "testObject_Activate_user_2.json"),
+            (testObject_Activate_user_3, "testObject_Activate_user_3.json"),
+            (testObject_Activate_user_4, "testObject_Activate_user_4.json")
           ]
     ]

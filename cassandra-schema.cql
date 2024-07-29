@@ -643,7 +643,6 @@ CREATE TABLE brig_test.team_invitation (
     created_by uuid,
     email text,
     name text,
-    phone text,
     role int,
     PRIMARY KEY (team, id)
 ) WITH CLUSTERING ORDER BY (id ASC)

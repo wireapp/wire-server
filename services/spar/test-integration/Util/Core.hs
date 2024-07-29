@@ -1210,7 +1210,7 @@ stdInvitationRequest = stdInvitationRequest' Nothing Nothing
 -- | copied from brig integration tests
 stdInvitationRequest' :: Maybe User.Locale -> Maybe Role -> User.Email -> TeamInvitation.InvitationRequest
 stdInvitationRequest' loc role email =
-  TeamInvitation.InvitationRequest loc role Nothing email Nothing
+  TeamInvitation.InvitationRequest loc role Nothing email
 
 setRandomHandleBrig :: (HasCallStack) => UserId -> TestSpar ()
 setRandomHandleBrig uid = do

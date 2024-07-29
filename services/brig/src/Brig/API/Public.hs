@@ -717,10 +717,6 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
   for_ (Public.newUserEmail new) $
     mapExceptT wrapHttp . checkAllowlistWithError RegisterErrorAllowlistError
 
-  -- prevent registration with a phone number
-  when (isJust (Public.newUserPhone new)) $
-    throwE Public.RegisterErrorInvalidPhone
-
   result <- API.createUser new
   let acc = createdAccount result
 
@@ -1036,13 +1032,11 @@ sendActivationCode ::
   ) =>
   Public.SendActivationCode ->
   Handler r ()
-sendActivationCode Public.SendActivationCode {..} = do
-  email <- case saUserKey of
-    Left email -> pure email
-    Right _ -> throwStd (errorToWai @'E.InvalidPhone)
+sendActivationCode ac = do
+  let email = ac.emailKey
   customerExtensionCheckBlockedDomains email
   checkAllowlist email
-  API.sendActivationCode email saLocale saCall !>> sendActCodeError
+  API.sendActivationCode email (ac.locale) !>> sendActCodeError
 
 -- | If the user presents an email address from a blocked domain, throw an error.
 --
