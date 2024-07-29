@@ -624,7 +624,6 @@ CREATE TABLE brig_test.team_invitation (
     created_by uuid,
     email text,
     name text,
-    phone text,
     role int,
     PRIMARY KEY (team, id)
 ) WITH CLUSTERING ORDER BY (id ASC)
@@ -1171,8 +1170,6 @@ CREATE TABLE galley_test.team_features (
     app_lock_inactivity_timeout_secs int,
     app_lock_status int,
     conference_calling int,
-    conference_calling_lock_status int,
-    conference_calling_sft_for_one_to_one boolean,
     digital_signatures int,
     enforce_file_download_location text,
     enforce_file_download_location_lock_status int,
