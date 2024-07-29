@@ -1,4 +1,0 @@
-dependencies:
-- name: elasticsearch-curator
-  version: 1.5.0
-  repository: https://charts.helm.sh/stable

@@ -15,7 +15,7 @@ CHARTS_INTEGRATION    := wire-server databases-ephemeral redis-cluster rabbitmq 
 # CHARTS_RELEASE := $(shell find charts/ -maxdepth 1 -type d | xargs -n 1 basename | grep -v charts)
 CHARTS_RELEASE := wire-server redis-ephemeral redis-cluster rabbitmq rabbitmq-external databases-ephemeral	\
 fake-aws fake-aws-s3 fake-aws-sqs fluent-bit kibana backoffice		\
-demo-smtp elasticsearch-curator elasticsearch-external				\
+demo-smtp elasticsearch-external				\
 elasticsearch-ephemeral minio-external cassandra-external						\
 nginx-ingress-controller ingress-nginx-controller nginx-ingress-services reaper restund coturn		\
 k8ssandra-test-cluster postgresql ldap-scim-bridge smallstep-accomp
