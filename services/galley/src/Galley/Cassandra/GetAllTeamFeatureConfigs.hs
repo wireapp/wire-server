@@ -39,7 +39,7 @@ data AllTeamFeatureConfigsRow = AllTeamFeatureConfigsRow
     -- conference calling
     conferenceCalling :: Maybe FeatureStatus,
     conferenceCallingTtl :: Maybe FeatureTTL,
-    conferenceCallingSftForOne2One :: Maybe Bool,
+    conferenceCallingOne2One :: Maybe One2OneCalls,
     conferenceCallingLock :: Maybe LockStatus,
     -- guest links
     guestLinks :: Maybe FeatureStatus,
@@ -101,7 +101,7 @@ emptyRow =
       selfDeletingMessagesLock = Nothing,
       conferenceCalling = Nothing,
       conferenceCallingTtl = Nothing,
-      conferenceCallingSftForOne2One = Nothing,
+      conferenceCallingOne2One = Nothing,
       conferenceCallingLock = Nothing,
       guestLinks = Nothing,
       guestLinksLock = Nothing,
@@ -153,7 +153,7 @@ allFeatureConfigsFromRow row =
           row.conferenceCallingLock
           ( row.conferenceCalling,
             row.conferenceCallingTtl,
-            row.conferenceCallingSftForOne2One
+            row.conferenceCallingOne2One
           ),
       afcSelfDeletingMessages =
         mkFeatureWithLock
@@ -223,7 +223,7 @@ getAllFeatureConfigs tid = do
       \app_lock_status, app_lock_enforce, app_lock_inactivity_timeout_secs, \
       \file_sharing, file_sharing_lock_status, \
       \self_deleting_messages_status, self_deleting_messages_ttl, self_deleting_messages_lock_status, \
-      \conference_calling, ttl(conference_calling), conference_calling_sft_for_one_to_one, conference_calling_lock_status, \
+      \conference_calling, ttl(conference_calling), conference_calling_one_to_one, conference_calling_lock_status, \
       \guest_links_status, guest_links_lock_status, \
       \snd_factor_password_challenge_status, snd_factor_password_challenge_lock_status, \
       \\
@@ -311,7 +311,7 @@ instance MakeFeature FileSharingConfig
 instance MakeFeature ClassifiedDomainsConfig
 
 instance MakeFeature ConferenceCallingConfig where
-  type FeatureRow ConferenceCallingConfig = (Maybe FeatureStatus, Maybe FeatureTTL, Maybe Bool)
+  type FeatureRow ConferenceCallingConfig = (Maybe FeatureStatus, Maybe FeatureTTL, Maybe One2OneCalls)
 
   mkFeature (status, ttl, sftForOneToOne) =
     foldMap dbFeatureStatus status

@@ -87,7 +87,7 @@ getFeatureConfig FeatureSingletonSelfDeletingMessagesConfig tid =
     tid
 getFeatureConfig FeatureSingletonConferenceCallingConfig tid =
   getFeature
-    "conference_calling, ttl(conference_calling), conference_calling_sft_for_one_to_one"
+    "conference_calling, ttl(conference_calling), conference_calling_one_to_one"
     tid
 getFeatureConfig FeatureSingletonGuestLinksConfig tid = getFeature "guest_links_status" tid
 getFeatureConfig FeatureSingletonSndFactorPasswordChallengeConfig tid = getFeature "snd_factor_password_challenge_status" tid
@@ -151,7 +151,7 @@ setFeatureConfig FeatureSingletonConferenceCallingConfig tid statusNoLock = do
     setType BatchLogged
     setConsistency LocalQuorum
     addPrepQuery insertStatus (tid, statusNoLock.wssStatus, ttlValue (statusNoLock.wssTTL))
-    addPrepQuery insertConfig (tid, statusNoLock.wssConfig.sftForOne2One)
+    addPrepQuery insertConfig (tid, statusNoLock.wssConfig.one2OneCalls)
   where
     ttlValue :: FeatureTTL -> Int32
     ttlValue (FeatureTTLSeconds d) = fromIntegral d
@@ -159,8 +159,8 @@ setFeatureConfig FeatureSingletonConferenceCallingConfig tid statusNoLock = do
 
     insertStatus :: PrepQuery W (TeamId, FeatureStatus, Int32) ()
     insertStatus = "insert into team_features (team_id, conference_calling) values (?, ?) using ttl ?"
-    insertConfig :: PrepQuery W (TeamId, Bool) ()
-    insertConfig = "insert into team_features (team_id, conference_calling_sft_for_one_to_one) values (?, ?)"
+    insertConfig :: PrepQuery W (TeamId, One2OneCalls) ()
+    insertConfig = "insert into team_features (team_id, conference_calling_one_to_one) values (?, ?)"
 setFeatureConfig FeatureSingletonGuestLinksConfig tid statusNoLock = setFeatureStatusC "guest_links_status" tid (wssStatus statusNoLock)
 setFeatureConfig FeatureSingletonSndFactorPasswordChallengeConfig tid statusNoLock =
   setFeatureStatusC "snd_factor_password_challenge_status" tid (wssStatus statusNoLock)

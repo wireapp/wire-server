@@ -69,6 +69,7 @@ module Wire.API.Team.Feature
     FeatureSingleton (..),
     HasDeprecatedFeatureName (..),
     LockStatusResponse (..),
+    One2OneCalls (..),
     -- Features
     LegalholdConfig (..),
     SSOConfig (..),
@@ -758,14 +759,37 @@ instance ToSchema DigitalSignaturesConfig where
 --------------------------------------------------------------------------------
 -- ConferenceCalling feature
 
+data One2OneCalls = One2OneCallsTurn | One2OneCallsSft
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform One2OneCalls)
+
+one2OneCallsFromUseSftFlag :: Bool -> One2OneCalls
+one2OneCallsFromUseSftFlag False = One2OneCallsTurn
+one2OneCallsFromUseSftFlag True = One2OneCallsSft
+
+instance Default One2OneCalls where
+  def = One2OneCallsTurn
+
+instance Cass.Cql One2OneCalls where
+  ctype = Cass.Tagged Cass.IntColumn
+
+  fromCql (Cass.CqlInt n) = case n of
+    0 -> pure One2OneCallsTurn
+    1 -> pure One2OneCallsSft
+    _ -> Left "fromCql: Invalid One2OneCalls"
+  fromCql _ = Left "fromCql: One2OneCalls: CqlInt expected"
+
+  toCql One2OneCallsTurn = Cass.CqlInt 0
+  toCql One2OneCallsSft = Cass.CqlInt 1
+
 data ConferenceCallingConfig = ConferenceCallingConfig
-  { sftForOne2One :: Bool
+  { one2OneCalls :: One2OneCalls
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConferenceCallingConfig)
 
 instance Default ConferenceCallingConfig where
-  def = ConferenceCallingConfig {sftForOne2One = False}
+  def = ConferenceCallingConfig {one2OneCalls = def}
 
 instance RenderableSymbol ConferenceCallingConfig where
   renderSymbol = "ConferenceCallingConfig"
@@ -780,7 +804,10 @@ instance ToSchema ConferenceCallingConfig where
   schema =
     object "ConferenceCallingConfig" $
       ConferenceCallingConfig
-        <$> sftForOne2One .= (fromMaybe False <$> optField "useSFTForOneToOneCalls" schema)
+        <$> ((== One2OneCallsSft) . one2OneCalls)
+          .= ( fromMaybe def . fmap one2OneCallsFromUseSftFlag
+                 <$> optField "useSFTForOneToOneCalls" schema
+             )
 
 --------------------------------------------------------------------------------
 -- SndFactorPasswordChallenge feature
@@ -1066,7 +1093,7 @@ instance ToSchema MlsE2EIdConfig where
         description
           ?~ "When a client first tries to fetch or renew a certificate, \
              \they may need to login to an identity provider (IdP) depending on their IdP domain authentication policy. \
-             \The user may have a grace period during which they can “snooze” this login. \
+             \The user may have a grace period during which they can \"snooze\" this login. \
              \The duration of this grace period (in seconds) is set in the `verificationDuration` parameter, \
              \which is enforced separately by each client. \
              \After the grace period has expired, the client will not allow the user to use the application \
