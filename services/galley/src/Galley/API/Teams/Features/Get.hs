@@ -462,6 +462,16 @@ instance GetFeatureConfig ClassifiedDomainsConfig where
   getConfigForServer =
     input <&> view (settings . featureFlags . flagClassifiedDomains . unImplicitLockStatus)
 
+-- | Conference calling gets enabled automatically once unlocked. To achieve
+-- that, the default feature status in the unlocked case is forced to be
+-- "enabled" before the database data is applied.
+--
+-- Previously, we were assuming that this feature would be left as "unlocked",
+-- and the clients were simply setting the status field. Now, the pre-existing
+-- status field is reinterpreted as the lock status, which means that the
+-- status will be NULL in many cases. The defaulting logic in 'computeFeature'
+-- here makes sure that the status is aligned with the lock status in those
+-- situations.
 instance GetFeatureConfig ConferenceCallingConfig where
   type
     GetConfigForUserConstraints ConferenceCallingConfig r =
@@ -480,6 +490,16 @@ instance GetFeatureConfig ConferenceCallingConfig where
   getConfigForUser uid = do
     wsnl <- getAccountConferenceCallingConfigClient uid
     pure $ withLockStatus (wsLockStatus (defFeatureStatus @ConferenceCallingConfig)) wsnl
+
+  computeFeature _tid defFeature lockStatus dbFeature =
+    pure $ case fromMaybe (wsLockStatus defFeature) lockStatus of
+      LockStatusLocked -> setLockStatus LockStatusLocked defFeature
+      LockStatusUnlocked ->
+        withUnlocked $
+          (unDbFeature dbFeature)
+            (forgetLock defFeature)
+              { wssStatus = FeatureStatusEnabled
+              }
 
 instance GetFeatureConfig SelfDeletingMessagesConfig where
   getConfigForServer =
