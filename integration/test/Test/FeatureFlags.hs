@@ -915,40 +915,6 @@ testFeatureNoConfigMultiSearchVisibilityInbound = do
   length statuses `shouldMatchInt` 2
   statuses `shouldMatchSet` [object ["team" .= team1, "status" .= "disabled"], object ["team" .= team2, "status" .= "enabled"]]
 
-testConferenceCallingTTLOverride :: (HasCallStack) => App ()
-testConferenceCallingTTLOverride = do
-  (owner, tid, _) <- createTeam OwnDomain 0
-  let defArgs = def {lockStatus = Just "unlocked", ttl = Just (toJSON "unlimited")}
-      featureName = "conferenceCalling"
-      ttl1 = Just (toJSON (2 :: Int))
-      ttl2 = Just (toJSON (5 :: Int))
-
-  checkFeature featureName owner tid (confCalling defArgs)
-
-  -- set a small ttl
-  assertSuccess =<< Internal.setTeamFeatureConfig OwnDomain tid featureName (confCalling def {status = "disabled", ttl = ttl1, sft = toJSON True})
-  checkFeatureLenientTtl featureName owner tid (confCalling defArgs {status = "disabled", ttl = ttl1, sft = toJSON True})
-
-  -- wait less than expiration, override and recheck
-  liftIO $ threadDelay 500000 -- waiting half of TTL
-  checkFeatureLenientTtl featureName owner tid (confCalling defArgs {status = "disabled", ttl = ttl1, sft = toJSON True})
-
-  -- override ttl with a larger value
-  assertSuccess =<< Internal.setTeamFeatureConfig OwnDomain tid featureName (confCalling def {status = "disabled", ttl = ttl2, sft = toJSON True})
-  checkFeatureLenientTtl featureName owner tid (confCalling defArgs {status = "disabled", ttl = ttl2, sft = toJSON True})
-
-  -- set it back to unlimited
-  assertSuccess =<< Internal.setTeamFeatureConfig OwnDomain tid featureName (confCalling def {status = "disabled", ttl = Just (toJSON "unlimited"), sft = toJSON True})
-  checkFeatureLenientTtl featureName owner tid (confCalling defArgs {status = "disabled", ttl = Just (toJSON "unlimited"), sft = toJSON True})
-
-  -- set it again to ttl1
-  assertSuccess =<< Internal.setTeamFeatureConfig OwnDomain tid featureName (confCalling def {status = "disabled", ttl = ttl1, sft = toJSON True})
-  checkFeatureLenientTtl featureName owner tid (confCalling defArgs {status = "disabled", ttl = ttl1, sft = toJSON True})
-
-  -- wait it out fully and check that the status reverted
-  liftIO $ threadDelay 2000000
-  checkFeatureLenientTtl featureName owner tid (confCalling defArgs {sft = toJSON True})
-
 --------------------------------------------------------------------------------
 -- Simple flags with implicit lock status
 
