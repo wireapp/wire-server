@@ -49,7 +49,6 @@ static ngx_int_t zauth_and_oauth_handle_request (ngx_http_request_t *);
 
 // Request Inspection
 static ZauthResult    token_from_header    (ngx_str_t const *, ZauthToken **);
-static ZauthResult    token_from_query     (ngx_str_t const *, ZauthToken **);
 static ZauthContext * alloc_zauth_context  (ngx_http_request_t * r, ZauthToken *);
 static ZauthContext * alloc_oauth_context  (ngx_http_request_t * r, char *);
 static ngx_int_t      setup_zauth_context  (ngx_http_request_t * , ZauthContext *);
@@ -455,17 +454,6 @@ static ngx_int_t zauth_parse_request (ngx_http_request_t * r) {
 
         if (r->headers_in.authorization != NULL) {
                 res = token_from_header(&r->headers_in.authorization->value, &tkn);
-        } else if (r->args.len > 0) {
-                ngx_str_t query;
-                query.data = ngx_pnalloc(r->pool, r->args.len);
-                if (query.data == NULL) {
-                        return NGX_ERROR;
-                }
-                u_char* writer = query.data;
-                u_char* reqargs = r->args.data;
-                ngx_unescape_uri(&writer, &reqargs, r->args.len, 0);
-                query.len = writer - query.data;
-                res = token_from_query(&query, &tkn);
         } else {
                 ngx_str_t name   = ngx_string("zprovider");
                 ngx_str_t cookie = ngx_null_string;
@@ -500,22 +488,6 @@ static ZauthResult token_from_header (ngx_str_t const * hdr, ZauthToken ** t) {
         } else {
                 return ZAUTH_PARSE_ERROR;
         }
-}
-
-static ZauthResult token_from_query (ngx_str_t const * query, ZauthToken ** t) {
-        uint8_t const * start = memmem(query->data, query->len, "access_token=", 13);
-
-        if (start == NULL) {
-                return ZAUTH_PARSE_ERROR;
-        }
-
-        uint8_t const * token_start = start + 13; // length of "access_token="
-        size_t          token_len   = query->len - (token_start - query->data);
-        uint8_t const * token_end   = memchr(token_start, '&', token_len);
-
-        return token_end == NULL
-                ? zauth_token_parse(token_start, token_len, t)
-                : zauth_token_parse(token_start, token_end - token_start, t);
 }
 
 // Variables ////////////////////////////////////////////////////////////////
