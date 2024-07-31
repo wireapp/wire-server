@@ -86,7 +86,6 @@ import Test.Wire.API.Golden.Generated.Event_conversation qualified
 import Test.Wire.API.Golden.Generated.Event_featureConfig qualified
 import Test.Wire.API.Golden.Generated.Event_team qualified
 import Test.Wire.API.Golden.Generated.Event_user qualified
-import Test.Wire.API.Golden.Generated.FeatureStatus_team qualified
 import Test.Wire.API.Golden.Generated.HandleUpdate_user qualified
 import Test.Wire.API.Golden.Generated.InvitationCode_user qualified
 import Test.Wire.API.Golden.Generated.InvitationList_team qualified
@@ -1428,30 +1427,6 @@ tests =
             (Test.Wire.API.Golden.Generated.Event_featureConfig.testObject_Event_featureConfig_8, "testObject_Event_featureConfig_8.json"),
             (Test.Wire.API.Golden.Generated.Event_featureConfig.testObject_Event_featureConfig_9, "testObject_Event_featureConfig_9.json"),
             (Test.Wire.API.Golden.Generated.Event_featureConfig.testObject_Event_featureConfig_10, "testObject_Event_featureConfig_10.json")
-          ],
-      testGroup
-        "Golden: FeatureStatus_team"
-        $ testObjects
-          [ (Test.Wire.API.Golden.Generated.FeatureStatus_team.testObject_FeatureStatus_team_1, "testObject_FeatureStatus_team_1.json"),
-            (Test.Wire.API.Golden.Generated.FeatureStatus_team.testObject_FeatureStatus_team_2, "testObject_FeatureStatus_team_2.json"),
-            (Test.Wire.API.Golden.Generated.FeatureStatus_team.testObject_FeatureStatus_team_3, "testObject_FeatureStatus_team_3.json"),
-            (Test.Wire.API.Golden.Generated.FeatureStatus_team.testObject_FeatureStatus_team_4, "testObject_FeatureStatus_team_4.json"),
-            (Test.Wire.API.Golden.Generated.FeatureStatus_team.testObject_FeatureStatus_team_5, "testObject_FeatureStatus_team_5.json"),
-            (Test.Wire.API.Golden.Generated.FeatureStatus_team.testObject_FeatureStatus_team_6, "testObject_FeatureStatus_team_6.json"),
-            (Test.Wire.API.Golden.Generated.FeatureStatus_team.testObject_FeatureStatus_team_7, "testObject_FeatureStatus_team_7.json"),
-            (Test.Wire.API.Golden.Generated.FeatureStatus_team.testObject_FeatureStatus_team_8, "testObject_FeatureStatus_team_8.json"),
-            (Test.Wire.API.Golden.Generated.FeatureStatus_team.testObject_FeatureStatus_team_9, "testObject_FeatureStatus_team_9.json"),
-            (Test.Wire.API.Golden.Generated.FeatureStatus_team.testObject_FeatureStatus_team_10, "testObject_FeatureStatus_team_10.json"),
-            (Test.Wire.API.Golden.Generated.FeatureStatus_team.testObject_FeatureStatus_team_11, "testObject_FeatureStatus_team_11.json"),
-            (Test.Wire.API.Golden.Generated.FeatureStatus_team.testObject_FeatureStatus_team_12, "testObject_FeatureStatus_team_12.json"),
-            (Test.Wire.API.Golden.Generated.FeatureStatus_team.testObject_FeatureStatus_team_13, "testObject_FeatureStatus_team_13.json"),
-            (Test.Wire.API.Golden.Generated.FeatureStatus_team.testObject_FeatureStatus_team_14, "testObject_FeatureStatus_team_14.json"),
-            (Test.Wire.API.Golden.Generated.FeatureStatus_team.testObject_FeatureStatus_team_15, "testObject_FeatureStatus_team_15.json"),
-            (Test.Wire.API.Golden.Generated.FeatureStatus_team.testObject_FeatureStatus_team_16, "testObject_FeatureStatus_team_16.json"),
-            (Test.Wire.API.Golden.Generated.FeatureStatus_team.testObject_FeatureStatus_team_17, "testObject_FeatureStatus_team_17.json"),
-            (Test.Wire.API.Golden.Generated.FeatureStatus_team.testObject_FeatureStatus_team_18, "testObject_FeatureStatus_team_18.json"),
-            (Test.Wire.API.Golden.Generated.FeatureStatus_team.testObject_FeatureStatus_team_19, "testObject_FeatureStatus_team_19.json"),
-            (Test.Wire.API.Golden.Generated.FeatureStatus_team.testObject_FeatureStatus_team_20, "testObject_FeatureStatus_team_20.json")
           ],
       testGroup
         "Golden: Event_Conversation"

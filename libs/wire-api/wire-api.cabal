@@ -420,7 +420,6 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.Event_user
     Test.Wire.API.Golden.Generated.EventType_team
     Test.Wire.API.Golden.Generated.EventType_user
-    Test.Wire.API.Golden.Generated.FeatureStatus_team
     Test.Wire.API.Golden.Generated.HandleUpdate_user
     Test.Wire.API.Golden.Generated.Invitation_team
     Test.Wire.API.Golden.Generated.InvitationCode_user
