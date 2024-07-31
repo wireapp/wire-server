@@ -39,6 +39,7 @@ type InternalLegalHoldAPI =
              :> Put '[] NoContent
        )
 
+-- TODO: should be called, is currently dead code.
 swaggerDoc :: OpenApi
 swaggerDoc =
   toOpenApi (Proxy @InternalLegalHoldAPI)
