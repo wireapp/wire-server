@@ -123,18 +123,9 @@ roots = [ # may of the entries here are about general-purpose module
          "^Testlib.Cannon.printAwaitAtLeastResult",
          "^Testlib.Cannon.printAwaitResult",
          "^Testlib.JSON.member",
-         "^Testlib.Prelude.appendFile",
-         "^Testlib.Prelude.getChar",
-         "^Testlib.Prelude.getContents",
-         "^Testlib.Prelude.getLine",
-         "^Testlib.Prelude.interact",
-         "^Testlib.Prelude.print",
-         "^Testlib.Prelude.putChar",
-         "^Testlib.Prelude.putStr",
-         "^Testlib.Prelude.readFile",
-         "^Testlib.Prelude.readIO",
-         "^Testlib.Prelude.readLn",
-         "^Testlib.Prelude.writeFile",
+         "^Testlib.JSON.printJSON",
+         "^Testlib.JSON.traceJSON",
+         "^Testlib.Prelude.*$", # FUTUREWORK: consider making them individually
          "^Testlib.Printing.gray",
          "^Testlib.Printing.hline",
          "^Testlib.Run.main$",
@@ -164,7 +155,8 @@ roots = [ # may of the entries here are about general-purpose module
          "^Web.Scim.Test.Util.getField",
          "^Web.Scim.Test.Util.put'",
          "^Web.Scim.Test.Util.scim",
-         "^Web.Scim.Test.Util.shouldEventuallyRespondWith"
+         "^Web.Scim.Test.Util.shouldEventuallyRespondWith",
+         "^Wire.API.MLS.Serialisation.traceMLS" # Debug
         ]
 type-class-roots = true  # `root-instances` is more precise, but requires more config maintenance.
 
