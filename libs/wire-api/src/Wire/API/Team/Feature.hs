@@ -806,7 +806,7 @@ instance RenderableSymbol ConferenceCallingConfig where
 
 instance IsFeatureConfig ConferenceCallingConfig where
   type FeatureSymbol ConferenceCallingConfig = "conferenceCalling"
-  defFeatureStatus = withStatus FeatureStatusEnabled LockStatusUnlocked def FeatureTTLUnlimited
+  defFeatureStatus = withStatus FeatureStatusEnabled LockStatusLocked def FeatureTTLUnlimited
   featureSingleton = FeatureSingletonConferenceCallingConfig
   objectSchema = fromMaybe def <$> optField "config" schema
 

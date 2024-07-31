@@ -21,7 +21,6 @@ module Test.FeatureFlags where
 
 import qualified API.Galley as Public
 import qualified API.GalleyInternal as Internal
-import Control.Concurrent (threadDelay)
 import Control.Monad.Codensity (Codensity (runCodensity))
 import Control.Monad.Reader
 import qualified Data.Aeson as A
@@ -433,8 +432,9 @@ testAllFeatures = do
               "appLock" .= defEnabledObj (object ["enforceAppLock" .= False, "inactivityTimeoutSecs" .= A.Number 60]),
               "fileSharing" .= enabled,
               "classifiedDomains" .= defEnabledObj (object ["domains" .= ["example.com"]]),
-              "conferenceCalling" .= defEnabledObj (object ["useSFTForOneToOneCalls" .= A.Bool False]),
-              "selfDeletingMessages" .= defEnabledObj (object ["enforcedTimeoutSeconds" .= A.Number 0]),
+              "conferenceCalling" .= confCalling def {lockStatus = Just "locked"},
+              "selfDeletingMessages"
+                .= defEnabledObj (object ["enforcedTimeoutSeconds" .= A.Number 0]),
               "conversationGuestLinks" .= enabled,
               "sndFactorPasswordChallenge" .= disabledLocked,
               "mls"
@@ -791,34 +791,52 @@ testConferenceCalling = do
   _testLockStatusWithConfig
     "conferenceCalling"
     Public.setTeamFeatureConfig
-    (confCalling def {lockStatus = Just "unlocked", ttl = Just (toJSON "unlimited")})
+    (confCalling def {lockStatus = Just "locked"})
     (confCalling def {sft = toJSON True})
     (confCalling def)
     (confCalling def {sft = toJSON (0 :: Int)})
 
 testConferenceCallingInternal :: (HasCallStack) => App ()
 testConferenceCallingInternal = do
-  let defaultArgs = def {lockStatus = Just "unlocked", ttl = Just (toJSON "unlimited")}
+  let defaultArgs = def {lockStatus = Just "locked"}
 
   (owner, tid, m : _) <- createTeam OwnDomain 2
   nonTeamMember <- randomUser OwnDomain def
   assertForbidden =<< Public.getTeamFeature nonTeamMember tid "conferenceCalling"
   checkFeature "conferenceCalling" m tid (confCalling defaultArgs)
 
-  -- should receive an event
   void $ withWebSocket m $ \ws -> do
+    -- unlock and enable
+    assertSuccess =<< Internal.patchTeamFeatureConfig owner tid "conferenceCalling" (object ["status" .= "enabled", "lockStatus" .= "unlocked"])
+    do
+      notif <- awaitMatch isFeatureConfigUpdateNotif ws
+      notif %. "payload.0.name" `shouldMatch` "conferenceCalling"
+      -- TODO: the patch event is currently wrong, and does not reflect the update
+      notif %. "payload.0.data" `shouldMatch` (confCalling defaultArgs {status = "disabled", lockStatus = Just "locked"})
+    checkFeature "conferenceCalling" m tid (confCalling defaultArgs {status = "enabled", lockStatus = Just "unlocked"})
+
+    -- just disable
     assertSuccess =<< Internal.setTeamFeatureConfig owner tid "conferenceCalling" (confCalling def {status = "disabled"})
     do
       notif <- awaitMatch isFeatureConfigUpdateNotif ws
       notif %. "payload.0.name" `shouldMatch` "conferenceCalling"
-      notif %. "payload.0.data" `shouldMatch` (confCalling defaultArgs {status = "disabled"})
-    checkFeature "conferenceCalling" m tid (confCalling defaultArgs {status = "disabled"})
+      notif %. "payload.0.data" `shouldMatch` (confCalling defaultArgs {status = "disabled", lockStatus = Just "unlocked"})
+    checkFeature "conferenceCalling" m tid (confCalling defaultArgs {lockStatus = Just "unlocked"})
 
-    assertSuccess =<< Internal.setTeamFeatureConfig owner tid "conferenceCalling" (confCalling def)
+    -- re-enable
+    assertSuccess =<< Internal.setTeamFeatureConfig owner tid "conferenceCalling" (confCalling def {status = "enabled"})
     do
       notif <- awaitMatch isFeatureConfigUpdateNotif ws
       notif %. "payload.0.name" `shouldMatch` "conferenceCalling"
-      notif %. "payload.0.data" `shouldMatch` (confCalling defaultArgs)
+      notif %. "payload.0.data" `shouldMatch` (confCalling defaultArgs {status = "enabled", lockStatus = Just "unlocked"})
+    checkFeature "conferenceCalling" m tid (confCalling defaultArgs {status = "enabled", lockStatus = Just "unlocked"})
+
+    -- restore initial state
+    assertSuccess =<< Internal.patchTeamFeatureConfig owner tid "conferenceCalling" (object ["status" .= "disabled", "lockStatus" .= "locked"])
+    do
+      notif <- awaitMatch isFeatureConfigUpdateNotif ws
+      notif %. "payload.0.name" `shouldMatch` "conferenceCalling"
+      notif %. "payload.0.data" `shouldMatch` (confCalling defaultArgs {lockStatus = Just "unlocked"})
     checkFeature "conferenceCalling" m tid (confCalling defaultArgs)
 
 _testLockStatusWithConfig ::
@@ -965,12 +983,7 @@ testPatchAppLock = do
 
 testPatchConferenceCalling :: (HasCallStack) => App ()
 testPatchConferenceCalling = do
-  let defCfg =
-        confCalling
-          def
-            { lockStatus = Just "unlocked",
-              ttl = Just (toJSON "unlimited")
-            }
+  let defCfg = confCalling def {lockStatus = Just "locked"}
   _testPatch "conferenceCalling" True defCfg (object ["lockStatus" .= "locked"])
   _testPatch "conferenceCalling" True defCfg (object ["status" .= "disabled"])
   _testPatch "conferenceCalling" True defCfg (object ["lockStatus" .= "locked", "status" .= "disabled"])

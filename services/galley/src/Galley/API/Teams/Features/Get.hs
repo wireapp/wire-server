@@ -485,7 +485,7 @@ instance GetFeatureConfig ConferenceCallingConfig where
       )
 
   getConfigForServer =
-    input <&> view (settings . featureFlags . flagConferenceCalling . unDefaults . unImplicitLockStatus)
+    input <&> view (settings . featureFlags . flagConferenceCalling . unDefaults)
 
   getConfigForUser uid = do
     wsnl <- getAccountConferenceCallingConfigClient uid

@@ -4,7 +4,6 @@ import qualified API.BrigInternal as I
 import API.Galley
 import qualified API.GalleyInternal as I
 import SetupHelpers
-import Test.FeatureFlags.Util
 import Testlib.Prelude
 
 testFeatureConferenceCallingForUser :: App ()
@@ -14,17 +13,26 @@ testFeatureConferenceCallingForUser = do
   let featureName = "conferenceCalling"
 
   -- set initial value at the team level
-  let initial =
-        confCalling
-          def
-            { status = "enabled",
-              sft = toJSON True
-            }
-  assertSuccess =<< I.setTeamFeatureConfig OwnDomain tid featureName initial
+  let patch =
+        object
+          [ "lockStatus" .= "unlocked",
+            "status" .= "enabled",
+            "config" .= object ["useSFTForOneToOneCalls" .= True]
+          ]
+
+  assertSuccess =<< I.patchTeamFeatureConfig OwnDomain tid featureName patch
 
   -- set user value for both users
   for_ [alice, bob] $ \u -> do
-    void $ I.putFeatureForUser u featureName (object ["status" .= "disabled"]) >>= getBody 200
+    void
+      $ I.putFeatureForUser
+        u
+        featureName
+        ( object
+            [ "status" .= "disabled"
+            ]
+        )
+      >>= getBody 200
     config <- I.getFeatureForUser u featureName >>= getJSON 200
     config %. "status" `shouldMatch` "disabled"
 
@@ -59,5 +67,5 @@ testFeatureConferenceCallingForUser = do
     void $ I.deleteFeatureForUser bob featureName >>= getBody 200
     features <- getFeaturesForUser bob >>= getJSON 200
     config <- features %. featureName
-    config %. "status" `shouldMatch` "enabled"
+    config %. "status" `shouldMatch` "disabled"
     config %. "config.useSFTForOneToOneCalls" `shouldMatch` False

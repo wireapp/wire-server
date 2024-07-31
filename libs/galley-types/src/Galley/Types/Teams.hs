@@ -85,7 +85,7 @@ data FeatureFlags = FeatureFlags
     _flagAppLockDefaults :: !(Defaults (ImplicitLockStatus AppLockConfig)),
     _flagClassifiedDomains :: !(ImplicitLockStatus ClassifiedDomainsConfig),
     _flagFileSharing :: !(Defaults (WithStatus FileSharingConfig)),
-    _flagConferenceCalling :: !(Defaults (ImplicitLockStatus ConferenceCallingConfig)),
+    _flagConferenceCalling :: !(Defaults (WithStatus ConferenceCallingConfig)),
     _flagSelfDeletingMessages :: !(Defaults (WithStatus SelfDeletingMessagesConfig)),
     _flagConversationGuestLinks :: !(Defaults (WithStatus GuestLinksConfig)),
     _flagsTeamFeatureValidateSAMLEmailsStatus :: !(Defaults (ImplicitLockStatus ValidateSAMLEmailsConfig)),
@@ -139,7 +139,7 @@ instance FromJSON FeatureFlags where
       <*> withImplicitLockStatusOrDefault obj "appLock"
       <*> (fromMaybe (ImplicitLockStatus (defFeatureStatus @ClassifiedDomainsConfig)) <$> (obj .:? "classifiedDomains"))
       <*> (fromMaybe (Defaults (defFeatureStatus @FileSharingConfig)) <$> (obj .:? "fileSharing"))
-      <*> withImplicitLockStatusOrDefault obj "conferenceCalling"
+      <*> (fromMaybe (Defaults (defFeatureStatus @ConferenceCallingConfig)) <$> (obj .:? "conferenceCalling"))
       <*> (fromMaybe (Defaults (defFeatureStatus @SelfDeletingMessagesConfig)) <$> (obj .:? "selfDeletingMessages"))
       <*> (fromMaybe (Defaults (defFeatureStatus @GuestLinksConfig)) <$> (obj .:? "conversationGuestLinks"))
       <*> withImplicitLockStatusOrDefault obj "validateSAMLEmails"

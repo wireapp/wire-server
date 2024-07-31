@@ -95,7 +95,6 @@ assertForbidden = assertLabel 403 "no-team-member"
 
 data ConfCalling = ConfCalling
   { lockStatus :: Maybe String,
-    ttl :: Maybe Value,
     status :: String,
     sft :: Value
   }
@@ -104,8 +103,7 @@ instance Default ConfCalling where
   def =
     ConfCalling
       { lockStatus = Nothing,
-        ttl = Nothing,
-        status = "enabled",
+        status = "disabled",
         sft = toJSON False
       }
 
@@ -113,7 +111,7 @@ confCalling :: ConfCalling -> Value
 confCalling args =
   object
     $ ["lockStatus" .= s | s <- toList args.lockStatus]
-    <> ["ttl" .= s | s <- toList args.ttl]
+    <> ["ttl" .= "unlimited"]
     <> [ "status" .= args.status,
          "config"
            .= object ["useSFTForOneToOneCalls" .= args.sft]
