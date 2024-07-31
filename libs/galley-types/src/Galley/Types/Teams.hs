@@ -167,49 +167,6 @@ instance FromJSON FeatureFlags where
       withImplicitLockStatusOrDefault :: forall cfg. (IsFeatureConfig cfg, Schema.ToSchema cfg) => Object -> Key -> A.Parser (Defaults (ImplicitLockStatus cfg))
       withImplicitLockStatusOrDefault obj fieldName = fromMaybe (Defaults (ImplicitLockStatus (defFeatureStatus @cfg))) <$> obj .:? fieldName
 
-instance ToJSON FeatureFlags where
-  toJSON
-    ( FeatureFlags
-        sso
-        legalhold
-        searchVisibility
-        appLock
-        classifiedDomains
-        fileSharing
-        conferenceCalling
-        selfDeletingMessages
-        guestLinks
-        validateSAMLEmails
-        sndFactorPasswordChallenge
-        searchVisibilityInbound
-        mls
-        outlookCalIntegration
-        mlsE2EId
-        mlsMigration
-        enforceFileDownloadLocation
-        teamMemberDeletedLimitedEventFanout
-      ) =
-      object
-        [ "sso" .= sso,
-          "legalhold" .= legalhold,
-          "teamSearchVisibility" .= searchVisibility,
-          "appLock" .= appLock,
-          "classifiedDomains" .= classifiedDomains,
-          "fileSharing" .= fileSharing,
-          "conferenceCalling" .= conferenceCalling,
-          "selfDeletingMessages" .= selfDeletingMessages,
-          "conversationGuestLinks" .= guestLinks,
-          "validateSAMLEmails" .= validateSAMLEmails,
-          "sndFactorPasswordChallenge" .= sndFactorPasswordChallenge,
-          "searchVisibilityInbound" .= searchVisibilityInbound,
-          "mls" .= mls,
-          "outlookCalIntegration" .= outlookCalIntegration,
-          "mlsE2EId" .= mlsE2EId,
-          "mlsMigration" .= mlsMigration,
-          "enforceFileDownloadLocation" .= enforceFileDownloadLocation,
-          "limitedEventFanout" .= teamMemberDeletedLimitedEventFanout
-        ]
-
 instance FromJSON FeatureSSO where
   parseJSON (String "enabled-by-default") = pure FeatureSSOEnabledByDefault
   parseJSON (String "disabled-by-default") = pure FeatureSSODisabledByDefault
