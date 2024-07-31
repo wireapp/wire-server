@@ -13,6 +13,7 @@ roots = [ # may of the entries here are about general-purpose module
          "^API.MLS.Util.getCurrentGroupId",
          "^API.MLS.Util.getKeyPackageCount",
          "^API.MLS.Util.getKeyPair",
+         "^API.Nginz.*$", # FUTUREWORK: consider using everything or cleaning up.
          "^Bilge.*$",
          "^Cassandra.Helpers.toOptionFieldName",
          "^Data.ETag._OpaqueDigest",
@@ -43,6 +44,7 @@ roots = [ # may of the entries here are about general-purpose module
          "^Main.debugMainImport", # move-team
          "^Main.main$",
          "^Network.Wai.Utilities.ZAuth.*$",
+         "^Notifications.*$", # new integration tests
          "^ParseSchema._printAllTables",
          "^ParseSchema.debug",
          "^ParseSchema.debugwrite",
@@ -156,7 +158,9 @@ roots = [ # may of the entries here are about general-purpose module
          "^Web.Scim.Test.Util.put'",
          "^Web.Scim.Test.Util.scim",
          "^Web.Scim.Test.Util.shouldEventuallyRespondWith",
-         "^Wire.API.MLS.Serialisation.traceMLS" # Debug
+         "^Wire.API.MLS.Serialisation.traceMLS", # Debug
+         "^Wire.Sem.Concurrency.IO.performConcurrency",
+         "^Wire.Sem.Logger.fatal"
         ]
 type-class-roots = true  # `root-instances` is more precise, but requires more config maintenance.
 
