@@ -39,6 +39,7 @@ module Wire.API.Team.Feature
     setTTL,
     setWsTTL,
     WithStatusPatch,
+    wsPatch,
     wspStatus,
     wspLockStatus,
     wspConfig,
@@ -316,6 +317,9 @@ deriving via (Schema (WithStatusPatch cfg)) instance (ToSchema (WithStatusPatch 
 deriving via (Schema (WithStatusPatch cfg)) instance (ToSchema (WithStatusPatch cfg)) => FromJSON (WithStatusPatch cfg)
 
 deriving via (Schema (WithStatusPatch cfg)) instance (ToSchema (WithStatusPatch cfg), Typeable cfg) => S.ToSchema (WithStatusPatch cfg)
+
+wsPatch :: Maybe FeatureStatus -> Maybe LockStatus -> Maybe cfg -> Maybe FeatureTTL -> WithStatusPatch cfg
+wsPatch = WithStatusBase
 
 wspStatus :: WithStatusPatch cfg -> Maybe FeatureStatus
 wspStatus = wsbStatus
