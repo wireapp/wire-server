@@ -1,9 +1,0 @@
-dependencies:
-- name: redis
-  version: 11.3.4
-  # Use helm repo from the git repo because bitnami removed charts from the
-  # official index to keep the index small. On next upgrade, this should be
-  # changed to use the official repo. Context:
-  # https://github.com/bitnami/charts/issues/10539
-  repository: https://raw.githubusercontent.com/bitnami/charts/defb094c658024e4aa8245622dab202874880cbc/bitnami/
-  alias: redis-ephemeral

@@ -1,4 +1,0 @@
-apiVersion: v1
-description: Wrapper chart for stable/redis
-name: redis-ephemeral
-version: 0.0.42
