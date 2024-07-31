@@ -1,0 +1,11 @@
+sender { client: 8 }
+recipients { domain: "79-y-r4-9.d" }
+recipients { domain: "7f3.ra.9.r37.xavdz88-9vw-z" }
+recipients { domain: "7g.hw9aq-1" }
+recipients { domain: "8w5.g5l-7.tys" }
+recipients { domain: "n.659-s.nfd" }
+recipients { domain: "pc5s-p9-48-x.r8cq.ss89h" }
+native_push: false
+blob: "GL\006"
+transient: false
+ignore_all { }

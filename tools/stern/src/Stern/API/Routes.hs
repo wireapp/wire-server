@@ -21,13 +21,11 @@ module Stern.API.Routes
     SwaggerDocsAPI,
     swaggerDocs,
     UserConnectionGroups (..),
-    doubleMaybeToEither,
     RedirectToSwaggerDocsAPI,
   )
 where
 
 import Control.Lens
-import Control.Monad.Trans.Except
 import Data.Aeson qualified as A
 import Data.Handle
 import Data.Id
@@ -35,8 +33,6 @@ import Data.Kind
 import Data.OpenApi qualified as S
 import Data.Schema qualified as Schema
 import Imports hiding (head)
-import Network.HTTP.Types.Status
-import Network.Wai.Utilities
 import Servant hiding (Handler, WithStatus (..), addHeader, respond)
 import Servant.OpenApi (HasOpenApi (toOpenApi))
 import Servant.OpenApi.Internal.Orphans ()
@@ -481,11 +477,6 @@ instance Schema.ToSchema UserConnectionGroups where
         <*> ucgIgnored Schema..= Schema.field "ucgIgnored" Schema.schema
         <*> ucgMissingLegalholdConsent Schema..= Schema.field "ucgMissingLegalholdConsent" Schema.schema
         <*> ucgTotal Schema..= Schema.field "ucgTotal" Schema.schema
-
-doubleMaybeToEither :: (Monad m) => LText -> Maybe a -> Maybe b -> ExceptT Error m (Either a b)
-doubleMaybeToEither _ (Just a) Nothing = pure $ Left a
-doubleMaybeToEither _ Nothing (Just b) = pure $ Right b
-doubleMaybeToEither msg _ _ = throwE $ mkError status400 "either-params" ("Must use exactly one of two query params: " <> msg)
 
 type MkFeatureGetRoute (feature :: Type) =
   Summary "Shows whether a feature flag is enabled or not for a given team."

@@ -188,17 +188,9 @@ emailRemoved :: UserId -> Email -> UserEvent
 emailRemoved u e =
   UserIdentityRemoved $ UserIdentityRemovedData u (Just e) Nothing
 
-phoneRemoved :: UserId -> Phone -> UserEvent
-phoneRemoved u p =
-  UserIdentityRemoved $ UserIdentityRemovedData u Nothing (Just p)
-
 emailUpdated :: UserId -> Email -> UserEvent
 emailUpdated u e =
   UserIdentityUpdated $ UserIdentityUpdatedData u (Just e) Nothing
-
-phoneUpdated :: UserId -> Phone -> UserEvent
-phoneUpdated u p =
-  UserIdentityUpdated $ UserIdentityUpdatedData u Nothing (Just p)
 
 emptyUserUpdatedData :: UserId -> UserUpdatedData
 emptyUserUpdatedData u =

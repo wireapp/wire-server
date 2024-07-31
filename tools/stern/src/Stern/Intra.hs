@@ -34,7 +34,6 @@ module Stern.Intra
     getInvoiceUrl,
     revokeIdentity,
     changeEmail,
-    changePhone,
     deleteAccount,
     setStatusBindingTeam,
     deleteBindingTeam,
@@ -383,24 +382,6 @@ changeEmail u upd = do
           . header "Z-User" (toByteString' u)
           . header "Z-Connection" (toByteString' "")
           . queryItem "validate" "true"
-          . lbytes (encode upd)
-          . contentJson
-          . expect2xx
-      )
-
-changePhone :: UserId -> PhoneUpdate -> Handler ()
-changePhone u upd = do
-  info $ msg "Updating phone number"
-  b <- view brig
-  void
-    . catchRpcErrors
-    $ rpc'
-      "brig"
-      b
-      ( method PUT
-          . versionedPath "self/phone"
-          . header "Z-User" (toByteString' u)
-          . header "Z-Connection" (toByteString' "")
           . lbytes (encode upd)
           . contentJson
           . expect2xx
