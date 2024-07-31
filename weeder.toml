@@ -14,6 +14,7 @@ roots = [ # may of the entries here are about general-purpose module
          "^API.MLS.Util.getKeyPackageCount",
          "^API.MLS.Util.getKeyPair",
          "^Bilge.*$",
+         "^Cassandra.Helpers.toOptionFieldName",
          "^Data.ETag._OpaqueDigest",
          "^Data.ETag._StrictETag",
          "^Data.ETag._WeakETag",
@@ -23,11 +24,13 @@ roots = [ # may of the entries here are about general-purpose module
          "^Data.ETag.strictETag",
          "^Data.ETag.weakETag",
          "^Data.Qualified.isLocal",
+         "^Data.Range.*$",
          "^Data.Range.rappend",
          "^Data.Range.rcons",
          "^Data.Range.rinc",
          "^Data.Range.rsingleton",
          "^Data.ZAuth.Validation.*$",
+         "^Galley.Types.UserList.ulDiff",
          "^HTTP2.Client.Manager.*$",
          "^Imports.getChar",
          "^Imports.getContents",
@@ -35,7 +38,15 @@ roots = [ # may of the entries here are about general-purpose module
          "^Imports.putChar",
          "^Imports.readIO",
          "^Imports.readLn",
+         "^Main.debugMainDebugExportFull", # move-team
+         "^Main.debugMainExport", # move-team
+         "^Main.debugMainImport", # move-team
          "^Main.main$",
+         "^Network.Wai.Utilities.ZAuth.*$",
+         "^ParseSchema._printAllTables",
+         "^ParseSchema.debug",
+         "^ParseSchema.debugwrite",
+         "^ParseSchema.projectFile",
          "^Paths_.*",
          "^Proto.Mls_Fields.commit",
          "^Proto.Mls_Fields.groupInfo",
@@ -90,6 +101,10 @@ roots = [ # may of the entries here are about general-purpose module
          "^Proto.Otr_Fields.vec'userIds",
          "^Proto.TeamEvents_Fields.currency",
          "^Proto.TeamEvents_Fields.vec'billingUser",
+         "^Spar.Sem.AReqIDStore.Mem.*$", # FUTUREWORK: @fisx can we delete this?
+         "^Spar.Sem.AssIDStore.Mem.*$", # FUTUREWORK: @fisx can we delete this?
+         "^Spar.Sem.ScimTokenStore.Mem.*$", # FUTUREWORK: @fisx can we delete this?
+         "^Spar.Sem.VerdictFormatStore.Mem.*$", # FUTUREWORK: @fisx can we delete this?
          "^Spec.main$",
          "^Test.Cargohold.API.Util.shouldMatchALittle",
          "^Test.Cargohold.API.Util.shouldMatchLeniently",
@@ -122,10 +137,6 @@ roots = [ # may of the entries here are about general-purpose module
          "^Testlib.Prelude.writeFile",
          "^Testlib.Printing.gray",
          "^Testlib.Printing.hline",
-         "^ParseSchema._printAllTables",
-         "^ParseSchema.projectFile",
-         "^ParseSchema.debug",
-         "^ParseSchema.debugwrite",
          "^Testlib.Run.main$",
          "^Testlib.RunServices.main$",
          "^ThreadBudget.extractLogHistory",
