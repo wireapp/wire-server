@@ -83,7 +83,6 @@ module Brig.App
     runHttpClientIO,
     liftSem,
     lowerAppT,
-    temporaryGetEnv,
     initHttpManagerWithTLSConfig,
     adhocUserKeyStoreInterpreter,
     adhocSessionStoreInterpreter,
@@ -463,9 +462,6 @@ newtype AppT r a = AppT
 
 lowerAppT :: (Member (Final IO) r) => Env -> AppT r a -> Sem r a
 lowerAppT env (AppT r) = runReaderT r env
-
-temporaryGetEnv :: AppT r Env
-temporaryGetEnv = AppT ask
 
 instance Functor (AppT r) where
   fmap fab (AppT x0) = AppT $ fmap fab x0

@@ -28,7 +28,6 @@ module Brig.Data.User
     insertAccount,
     authenticate,
     reauthenticate,
-    filterActive,
     isSamlUser,
 
     -- * Lookups
@@ -342,15 +341,6 @@ updateStatus u s =
 userExists :: (MonadClient m) => UserId -> m Bool
 userExists uid = isJust <$> retry x1 (query1 idSelect (params LocalQuorum (Identity uid)))
 
-filterActive :: (MonadClient m) => [UserId] -> m [UserId]
-filterActive us =
-  map (view _1) . filter isActiveUser
-    <$> retry x1 (query accountStateSelectAll (params LocalQuorum (Identity us)))
-  where
-    isActiveUser :: (UserId, Bool, Maybe AccountStatus) -> Bool
-    isActiveUser (_, True, Just Active) = True
-    isActiveUser _ = False
-
 lookupUser :: (MonadClient m, MonadReader Env m) => HavePendingInvitations -> UserId -> m (Maybe User)
 lookupUser hpi u = listToMaybe <$> lookupUsers hpi [u]
 
@@ -527,9 +517,6 @@ nameSelect = "SELECT name FROM user WHERE id = ?"
 
 authSelect :: PrepQuery R (Identity UserId) (Maybe Password, Maybe AccountStatus)
 authSelect = "SELECT password, status FROM user WHERE id = ?"
-
-accountStateSelectAll :: PrepQuery R (Identity [UserId]) (UserId, Bool, Maybe AccountStatus)
-accountStateSelectAll = "SELECT id, activated, status FROM user WHERE id IN ?"
 
 richInfoSelect :: PrepQuery R (Identity UserId) (Identity RichInfoAssocList)
 richInfoSelect = "SELECT json FROM rich_info WHERE user = ?"
