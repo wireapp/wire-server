@@ -278,6 +278,24 @@ data DbFeatureWithLock cfg = DbFeatureWithLock
 ----------------------------------------------------------------------
 -- WithStatus
 
+-- [Note: unsettable features]
+--
+-- Some feature flags (e.g. sso) don't have a lock status stored in the
+-- database. Instead, they are considered unlocked by default, but behave as if
+-- they were locked, since they lack a public PUT endpoint.
+--
+-- This trick has caused a lot of confusion in the past, and cannot be extended
+-- to flags that have non-trivial configuration. For this reason, we are in the
+-- process of changing this mechanism to make it work like every other feature.
+--
+-- That means that such features will afterwards be toggled by setting their
+-- lock status instead. And we'll have some logic in place to make the default
+-- status when unlocked be enabled. This achieves a similar behaviour but with
+-- fewer exceptional code paths.
+--
+-- See the implementation of 'computeFeature' for 'ConferenceCallingConfig' for
+-- an example of this mechanism in practice.
+
 -- FUTUREWORK: use lenses, maybe?
 wsStatus :: WithStatus cfg -> FeatureStatus
 wsStatus = runIdentity . wsbStatus
@@ -392,17 +410,6 @@ instance (Arbitrary cfg, IsFeatureConfig cfg) => Arbitrary (WithStatusPatch cfg)
 ----------------------------------------------------------------------
 -- WithStatusNoLock
 
--- FUTUREWORK(fisx): remove this type.  we want all features to have fields `lockStatus` and
--- `status`, and we want them to have the same semantics everywhere.  currently we have
--- eg. conf calling, which was introduced before `lockStatus`, and where `status` means
--- `lockStatus`.  TTL always refers to `lockStatus`, not `status`.  In order to keep current
--- (desired) behavior, consider eg. conf calling: let's only allow setting `lockStatus`, but
--- if we switch to `unlocked`, we auto-enable the feature, and if we switch to locked, we
--- auto-disable it.  But we need to change the API to force clients to use `lockStatus`
--- instead of `status`, current behavior is just wrong.
---
--- FUTUREWORK(paolo): why delete this type? it's used as the request body of
--- the public API for setting features
 data WithStatusNoLock (cfg :: Type) = WithStatusNoLock
   { wssStatus :: FeatureStatus,
     wssConfig :: cfg,
@@ -672,6 +679,7 @@ instance ToSchema LegalholdConfig where
 --------------------------------------------------------------------------------
 -- SSO feature
 
+-- | This feature does not have a PUT endpoint. See [Note: unsettable features].
 data SSOConfig = SSOConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SSOConfig)
@@ -715,6 +723,7 @@ instance HasDeprecatedFeatureName SearchVisibilityAvailableConfig where
 --------------------------------------------------------------------------------
 -- ValidateSAMLEmails feature
 
+-- | This feature does not have a PUT endpoint. See [Note: unsettable features].
 data ValidateSAMLEmailsConfig = ValidateSAMLEmailsConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ValidateSAMLEmailsConfig)
@@ -737,6 +746,7 @@ instance HasDeprecatedFeatureName ValidateSAMLEmailsConfig where
 --------------------------------------------------------------------------------
 -- DigitalSignatures feature
 
+-- | This feature does not have a PUT endpoint. See [Note: unsettable features].
 data DigitalSignaturesConfig = DigitalSignaturesConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform DigitalSignaturesConfig)
@@ -851,6 +861,9 @@ instance ToSchema SearchVisibilityInboundConfig where
 ----------------------------------------------------------------------
 -- ClassifiedDomains feature
 
+-- | This feature is quite special, in that it does not have any database
+-- state. Its value cannot be updated dynamically, and is always set to the
+-- server default taken from the backend configuration.
 data ClassifiedDomainsConfig = ClassifiedDomainsConfig
   { classifiedDomainsDomains :: [Domain]
   }
@@ -1181,6 +1194,7 @@ instance IsFeatureConfig EnforceFileDownloadLocationConfig where
 -- months of its introduction, namely once all clients get a chance to adapt to
 -- a limited event fanout.
 
+-- | This feature does not have a PUT endpoint. See [Note: unsettable features].
 data LimitedEventFanoutConfig = LimitedEventFanoutConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform LimitedEventFanoutConfig)
