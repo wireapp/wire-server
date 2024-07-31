@@ -815,7 +815,7 @@ instance ToSchema ConferenceCallingConfig where
     object "ConferenceCallingConfig" $
       ConferenceCallingConfig
         <$> ((== One2OneCallsSft) . one2OneCalls)
-          .= ( fromMaybe def . fmap one2OneCallsFromUseSftFlag
+          .= ( maybe def one2OneCallsFromUseSftFlag
                  <$> optField "useSFTForOneToOneCalls" schema
              )
 
