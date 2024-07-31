@@ -17,8 +17,6 @@
 , memory
 , QuickCheck
 , schema-profunctor
-, tasty
-, tasty-quickcheck
 , text
 , types-common
 , utf8-string
@@ -46,15 +44,6 @@ mkDerivation {
     types-common
     utf8-string
     uuid
-    wire-api
-  ];
-  testHaskellDepends = [
-    aeson
-    base
-    imports
-    QuickCheck
-    tasty
-    tasty-quickcheck
     wire-api
   ];
   license = lib.licenses.agpl3Only;
