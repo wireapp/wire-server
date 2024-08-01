@@ -125,8 +125,6 @@ testMaxLength = do
   tooLongValue <- randomHandleWithRange (maxValLength - 1) (maxValLength - 1)
   acceptableValue <- randomHandleWithRange (maxValLength - 2) (maxValLength - 2)
 
-  putStrLn $ "acceptableValue= " <> acceptableValue
-
   setProperty user tooLongProperty acceptableValue `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "property-key-too-large"
