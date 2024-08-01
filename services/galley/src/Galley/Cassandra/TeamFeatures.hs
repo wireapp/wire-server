@@ -118,7 +118,7 @@ getFeatureConfig FeatureSingletonEnforceFileDownloadLocationConfig tid =
 getFeatureConfig FeatureSingletonLimitedEventFanoutConfig tid =
   getFeature "limited_event_fanout_status" tid
 
-setFeatureConfig :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> WithStatusNoLock cfg -> m ()
+setFeatureConfig :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> Feature cfg -> m ()
 setFeatureConfig FeatureSingletonLegalholdConfig tid statusNoLock = setFeatureStatusC "legalhold_status" tid (wssStatus statusNoLock)
 setFeatureConfig FeatureSingletonSSOConfig tid statusNoLock = setFeatureStatusC "sso_status" tid (wssStatus statusNoLock)
 setFeatureConfig FeatureSingletonSearchVisibilityAvailableConfig tid statusNoLock = setFeatureStatusC "search_visibility_status" tid (wssStatus statusNoLock)

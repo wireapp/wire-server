@@ -90,8 +90,8 @@ patchFeatureStatusInternal ::
     Member NotificationSubsystem r
   ) =>
   TeamId ->
-  WithStatusPatch cfg ->
-  Sem r (WithStatus cfg)
+  LockableFeaturePatch cfg ->
+  Sem r (LockableFeature cfg)
 patchFeatureStatusInternal tid patch = do
   assertTeamExists tid
   currentFeatureStatus <- getFeatureStatus @cfg DontDoAuth tid
@@ -101,7 +101,7 @@ patchFeatureStatusInternal tid patch = do
   when (isJust $ wspLockStatus patch) $ void $ updateLockStatus @cfg tid (wsLockStatus newFeatureStatus)
   getFeatureStatus @cfg DontDoAuth tid
   where
-    applyPatch :: WithStatus cfg -> WithStatus cfg
+    applyPatch :: LockableFeature cfg -> LockableFeature cfg
     applyPatch current =
       current
         & setStatus (fromMaybe (wsStatus current) (wspStatus patch))
@@ -126,8 +126,8 @@ setFeatureStatus ::
   ) =>
   DoAuth ->
   TeamId ->
-  WithStatusNoLock cfg ->
-  Sem r (WithStatus cfg)
+  Feature cfg ->
+  Sem r (LockableFeature cfg)
 setFeatureStatus doauth tid wsnl = do
   case doauth of
     DoAuth uid -> do
@@ -154,8 +154,8 @@ setFeatureStatusInternal ::
     Member NotificationSubsystem r
   ) =>
   TeamId ->
-  WithStatusNoLock cfg ->
-  Sem r (WithStatus cfg)
+  Feature cfg ->
+  Sem r (LockableFeature cfg)
 setFeatureStatusInternal = setFeatureStatus @cfg DontDoAuth
 
 updateLockStatus ::
@@ -186,8 +186,8 @@ persistAndPushEvent ::
     Member TeamStore r
   ) =>
   TeamId ->
-  WithStatusNoLock cfg ->
-  Sem r (WithStatus cfg)
+  Feature cfg ->
+  Sem r (LockableFeature cfg)
 persistAndPushEvent tid wsnl = do
   setFeatureConfig (featureSingleton @cfg) tid wsnl
   fs <- getConfigForTeam @cfg tid
@@ -247,8 +247,8 @@ class (GetFeatureConfig cfg) => SetFeatureConfig cfg where
       Member TeamStore r
     ) =>
     TeamId ->
-    WithStatusNoLock cfg ->
-    Sem r (WithStatus cfg)
+    Feature cfg ->
+    Sem r (LockableFeature cfg)
   default setConfigForTeam ::
     ( ComputeFeatureConstraints cfg r,
       KnownSymbol (FeatureSymbol cfg),
@@ -260,8 +260,8 @@ class (GetFeatureConfig cfg) => SetFeatureConfig cfg where
       Member TeamStore r
     ) =>
     TeamId ->
-    WithStatusNoLock cfg ->
-    Sem r (WithStatus cfg)
+    Feature cfg ->
+    Sem r (LockableFeature cfg)
   setConfigForTeam tid wsnl = persistAndPushEvent tid wsnl
 
 instance SetFeatureConfig SSOConfig where
@@ -399,10 +399,10 @@ instance SetFeatureConfig MlsE2EIdConfig
 guardMlsE2EIdConfig ::
   forall r a.
   (Member (Error TeamFeatureError) r) =>
-  (UserId -> TeamId -> WithStatusNoLock MlsE2EIdConfig -> Sem r a) ->
+  (UserId -> TeamId -> Feature MlsE2EIdConfig -> Sem r a) ->
   UserId ->
   TeamId ->
-  WithStatusNoLock MlsE2EIdConfig ->
+  Feature MlsE2EIdConfig ->
   Sem r a
 guardMlsE2EIdConfig handler uid tid conf = do
   when (isNothing . crlProxy . wssConfig $ conf) $ throw MLSE2EIDMissingCrlProxy

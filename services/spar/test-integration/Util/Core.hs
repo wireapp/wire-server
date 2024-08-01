@@ -385,7 +385,7 @@ putSSOEnabledInternal gly tid enabled = do
   void . put $
     gly
       . paths ["i", "teams", toByteString' tid, "features", "sso"]
-      . json (WithStatusNoLock @SSOConfig enabled SSOConfig FeatureTTLUnlimited)
+      . json (Feature @SSOConfig enabled SSOConfig FeatureTTLUnlimited)
       . expect2xx
 
 -- | cloned from `/services/brig/test/integration/API/Team/Util.hs`.

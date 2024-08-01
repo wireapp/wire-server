@@ -667,7 +667,7 @@ getConversationGuestLinksStatus ::
   ) =>
   UserId ->
   ConvId ->
-  Sem r (WithStatus GuestLinksConfig)
+  Sem r (LockableFeature GuestLinksConfig)
 getConversationGuestLinksStatus uid convId = do
   conv <- E.getConversation convId >>= noteS @'ConvNotFound
   ensureConvAdmin (Data.convLocalMembers conv) uid
@@ -679,7 +679,7 @@ getConversationGuestLinksFeatureStatus ::
     Member (Input Opts) r
   ) =>
   Maybe TeamId ->
-  Sem r (WithStatus GuestLinksConfig)
+  Sem r (LockableFeature GuestLinksConfig)
 getConversationGuestLinksFeatureStatus Nothing = getConfigForServer @GuestLinksConfig
 getConversationGuestLinksFeatureStatus (Just tid) = getConfigForTeam @GuestLinksConfig tid
 

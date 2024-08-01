@@ -23,7 +23,7 @@ import Data.OpenApi (OpenApi)
 import Data.OpenApi.Lens
 import Data.Proxy
 import Imports
-import Servant.API hiding (Header, WithStatus)
+import Servant.API hiding (Header)
 import Servant.OpenApi
 import Wire.API.Team.Feature
 
@@ -32,10 +32,10 @@ type InternalLegalHoldAPI =
     :> "teams"
     :> ( Capture "tid" TeamId
            :> "legalhold"
-           :> Get '[JSON] (WithStatus LegalholdConfig)
+           :> Get '[JSON] (LockableFeature LegalholdConfig)
            :<|> Capture "tid" TeamId
              :> "legalhold"
-             :> ReqBody '[JSON] (WithStatusNoLock LegalholdConfig)
+             :> ReqBody '[JSON] (Feature LegalholdConfig)
              :> Put '[] NoContent
        )
 

@@ -26,14 +26,14 @@ module Wire.API.Team.Feature
     featureName,
     featureNameBS,
     LockStatus (..),
-    WithStatusBase (..),
+    LockableFeatureBase (..),
     DbFeature (..),
     DbFeatureWithLock (..),
     dbFeatureStatus,
     dbFeatureTTL,
     dbFeatureConfig,
     dbFeatureModConfig,
-    WithStatus,
+    LockableFeature,
     withStatus,
     withStatus',
     wsStatus,
@@ -46,13 +46,13 @@ module Wire.API.Team.Feature
     setConfig',
     setTTL,
     setWsTTL,
-    WithStatusPatch,
+    LockableFeaturePatch,
     wsPatch,
     wspStatus,
     wspLockStatus,
     wspConfig,
     wspTTL,
-    WithStatusNoLock (..),
+    Feature (..),
     forgetLock,
     withLockStatus,
     withUnlocked,
@@ -191,7 +191,7 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- 'docs/src/understand/team-feature-settings.md')
 class IsFeatureConfig cfg where
   type FeatureSymbol cfg :: Symbol
-  defFeatureStatus :: WithStatus cfg
+  defFeatureStatus :: LockableFeature cfg
   featureSingleton :: FeatureSingleton cfg
 
   objectSchema ::
@@ -235,9 +235,9 @@ featureNameBS :: forall cfg. (KnownSymbol (FeatureSymbol cfg)) => ByteString
 featureNameBS = UTF8.fromString $ symbolVal (Proxy @(FeatureSymbol cfg))
 
 ----------------------------------------------------------------------
--- WithStatusBase
+-- LockableFeatureBase
 
-data WithStatusBase (m :: Type -> Type) (cfg :: Type) = WithStatusBase
+data LockableFeatureBase (m :: Type -> Type) (cfg :: Type) = LockableFeatureBase
   { wsbStatus :: m FeatureStatus,
     wsbLockStatus :: m LockStatus,
     wsbConfig :: m cfg,
@@ -250,7 +250,7 @@ data WithStatusBase (m :: Type -> Type) (cfg :: Type) = WithStatusBase
 
 -- | Feature data stored in the database, as a function of its default values.
 newtype DbFeature cfg = DbFeature
-  {unDbFeature :: WithStatusNoLock cfg -> WithStatusNoLock cfg}
+  {unDbFeature :: Feature cfg -> Feature cfg}
 
 instance Semigroup (DbFeature cfg) where
   DbFeature f <> DbFeature g = DbFeature (f . g)
@@ -276,7 +276,7 @@ data DbFeatureWithLock cfg = DbFeatureWithLock
   }
 
 ----------------------------------------------------------------------
--- WithStatus
+-- LockableFeature
 
 -- [Note: unsettable features]
 --
@@ -297,152 +297,152 @@ data DbFeatureWithLock cfg = DbFeatureWithLock
 -- an example of this mechanism in practice.
 
 -- FUTUREWORK: use lenses, maybe?
-wsStatus :: WithStatus cfg -> FeatureStatus
+wsStatus :: LockableFeature cfg -> FeatureStatus
 wsStatus = runIdentity . wsbStatus
 
-wsLockStatus :: WithStatus cfg -> LockStatus
+wsLockStatus :: LockableFeature cfg -> LockStatus
 wsLockStatus = runIdentity . wsbLockStatus
 
-wsConfig :: WithStatus cfg -> cfg
+wsConfig :: LockableFeature cfg -> cfg
 wsConfig = runIdentity . wsbConfig
 
-wsTTL :: WithStatus cfg -> FeatureTTL
+wsTTL :: LockableFeature cfg -> FeatureTTL
 wsTTL = runIdentity . wsbTTL
 
-withStatus :: FeatureStatus -> LockStatus -> cfg -> FeatureTTL -> WithStatus cfg
-withStatus s ls c ttl = WithStatusBase (Identity s) (Identity ls) (Identity c) (Identity ttl)
+withStatus :: FeatureStatus -> LockStatus -> cfg -> FeatureTTL -> LockableFeature cfg
+withStatus s ls c ttl = LockableFeatureBase (Identity s) (Identity ls) (Identity c) (Identity ttl)
 
-setStatus :: FeatureStatus -> WithStatus cfg -> WithStatus cfg
-setStatus s (WithStatusBase _ ls c ttl) = WithStatusBase (Identity s) ls c ttl
+setStatus :: FeatureStatus -> LockableFeature cfg -> LockableFeature cfg
+setStatus s (LockableFeatureBase _ ls c ttl) = LockableFeatureBase (Identity s) ls c ttl
 
-setLockStatus :: LockStatus -> WithStatus cfg -> WithStatus cfg
-setLockStatus ls (WithStatusBase s _ c ttl) = WithStatusBase s (Identity ls) c ttl
+setLockStatus :: LockStatus -> LockableFeature cfg -> LockableFeature cfg
+setLockStatus ls (LockableFeatureBase s _ c ttl) = LockableFeatureBase s (Identity ls) c ttl
 
-setConfig :: cfg -> WithStatus cfg -> WithStatus cfg
+setConfig :: cfg -> LockableFeature cfg -> LockableFeature cfg
 setConfig = setConfig'
 
-setConfig' :: forall (m :: Type -> Type) (cfg :: Type). (Applicative m) => cfg -> WithStatusBase m cfg -> WithStatusBase m cfg
-setConfig' c (WithStatusBase s ls _ ttl) = WithStatusBase s ls (pure c) ttl
+setConfig' :: forall (m :: Type -> Type) (cfg :: Type). (Applicative m) => cfg -> LockableFeatureBase m cfg -> LockableFeatureBase m cfg
+setConfig' c (LockableFeatureBase s ls _ ttl) = LockableFeatureBase s ls (pure c) ttl
 
-setTTL :: forall (m :: Type -> Type) (cfg :: Type). (Applicative m) => FeatureTTL -> WithStatusBase m cfg -> WithStatusBase m cfg
-setTTL ttl (WithStatusBase s ls c _) = WithStatusBase s ls c (pure ttl)
+setTTL :: forall (m :: Type -> Type) (cfg :: Type). (Applicative m) => FeatureTTL -> LockableFeatureBase m cfg -> LockableFeatureBase m cfg
+setTTL ttl (LockableFeatureBase s ls c _) = LockableFeatureBase s ls c (pure ttl)
 
-setWsTTL :: FeatureTTL -> WithStatus cfg -> WithStatus cfg
+setWsTTL :: FeatureTTL -> LockableFeature cfg -> LockableFeature cfg
 setWsTTL = setTTL
 
-type WithStatus = WithStatusBase Identity
+type LockableFeature = LockableFeatureBase Identity
 
-deriving instance (Eq cfg) => Eq (WithStatus cfg)
+deriving instance (Eq cfg) => Eq (LockableFeature cfg)
 
-deriving instance (Show cfg) => Show (WithStatus cfg)
+deriving instance (Show cfg) => Show (LockableFeature cfg)
 
-deriving via (Schema (WithStatus cfg)) instance (ToSchema (WithStatus cfg)) => ToJSON (WithStatus cfg)
+deriving via (Schema (LockableFeature cfg)) instance (ToSchema (LockableFeature cfg)) => ToJSON (LockableFeature cfg)
 
-deriving via (Schema (WithStatus cfg)) instance (ToSchema (WithStatus cfg)) => FromJSON (WithStatus cfg)
+deriving via (Schema (LockableFeature cfg)) instance (ToSchema (LockableFeature cfg)) => FromJSON (LockableFeature cfg)
 
-deriving via (Schema (WithStatus cfg)) instance (ToSchema (WithStatus cfg), Typeable cfg) => S.ToSchema (WithStatus cfg)
+deriving via (Schema (LockableFeature cfg)) instance (ToSchema (LockableFeature cfg), Typeable cfg) => S.ToSchema (LockableFeature cfg)
 
-instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (WithStatus cfg) where
+instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (LockableFeature cfg) where
   schema =
     object name $
-      WithStatusBase
+      LockableFeatureBase
         <$> (runIdentity . wsbStatus) .= (Identity <$> field "status" schema)
         <*> (runIdentity . wsbLockStatus) .= (Identity <$> field "lockStatus" schema)
         <*> (runIdentity . wsbConfig) .= (Identity <$> objectSchema @cfg)
         <*> (runIdentity . wsbTTL) .= (Identity . fromMaybe FeatureTTLUnlimited <$> optField "ttl" schema)
     where
       inner = schema @cfg
-      name = fromMaybe "" (getName (schemaDoc inner)) <> ".WithStatus"
+      name = fromMaybe "" (getName (schemaDoc inner)) <> ".LockableFeature"
 
-instance (Arbitrary cfg, IsFeatureConfig cfg) => Arbitrary (WithStatus cfg) where
-  arbitrary = WithStatusBase <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+instance (Arbitrary cfg, IsFeatureConfig cfg) => Arbitrary (LockableFeature cfg) where
+  arbitrary = LockableFeatureBase <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 ----------------------------------------------------------------------
--- WithStatusPatch
+-- LockableFeaturePatch
 
-type WithStatusPatch (cfg :: Type) = WithStatusBase Maybe cfg
+type LockableFeaturePatch (cfg :: Type) = LockableFeatureBase Maybe cfg
 
-deriving instance (Eq cfg) => Eq (WithStatusPatch cfg)
+deriving instance (Eq cfg) => Eq (LockableFeaturePatch cfg)
 
-deriving instance (Show cfg) => Show (WithStatusPatch cfg)
+deriving instance (Show cfg) => Show (LockableFeaturePatch cfg)
 
-deriving via (Schema (WithStatusPatch cfg)) instance (ToSchema (WithStatusPatch cfg)) => ToJSON (WithStatusPatch cfg)
+deriving via (Schema (LockableFeaturePatch cfg)) instance (ToSchema (LockableFeaturePatch cfg)) => ToJSON (LockableFeaturePatch cfg)
 
-deriving via (Schema (WithStatusPatch cfg)) instance (ToSchema (WithStatusPatch cfg)) => FromJSON (WithStatusPatch cfg)
+deriving via (Schema (LockableFeaturePatch cfg)) instance (ToSchema (LockableFeaturePatch cfg)) => FromJSON (LockableFeaturePatch cfg)
 
-deriving via (Schema (WithStatusPatch cfg)) instance (ToSchema (WithStatusPatch cfg), Typeable cfg) => S.ToSchema (WithStatusPatch cfg)
+deriving via (Schema (LockableFeaturePatch cfg)) instance (ToSchema (LockableFeaturePatch cfg), Typeable cfg) => S.ToSchema (LockableFeaturePatch cfg)
 
-wsPatch :: Maybe FeatureStatus -> Maybe LockStatus -> Maybe cfg -> Maybe FeatureTTL -> WithStatusPatch cfg
-wsPatch = WithStatusBase
+wsPatch :: Maybe FeatureStatus -> Maybe LockStatus -> Maybe cfg -> Maybe FeatureTTL -> LockableFeaturePatch cfg
+wsPatch = LockableFeatureBase
 
-wspStatus :: WithStatusPatch cfg -> Maybe FeatureStatus
+wspStatus :: LockableFeaturePatch cfg -> Maybe FeatureStatus
 wspStatus = wsbStatus
 
-wspLockStatus :: WithStatusPatch cfg -> Maybe LockStatus
+wspLockStatus :: LockableFeaturePatch cfg -> Maybe LockStatus
 wspLockStatus = wsbLockStatus
 
-wspConfig :: WithStatusPatch cfg -> Maybe cfg
+wspConfig :: LockableFeaturePatch cfg -> Maybe cfg
 wspConfig = wsbConfig
 
-wspTTL :: WithStatusPatch cfg -> Maybe FeatureTTL
+wspTTL :: LockableFeaturePatch cfg -> Maybe FeatureTTL
 wspTTL = wsbTTL
 
-withStatus' :: Maybe FeatureStatus -> Maybe LockStatus -> Maybe cfg -> Maybe FeatureTTL -> WithStatusPatch cfg
-withStatus' = WithStatusBase
+withStatus' :: Maybe FeatureStatus -> Maybe LockStatus -> Maybe cfg -> Maybe FeatureTTL -> LockableFeaturePatch cfg
+withStatus' = LockableFeatureBase
 
--- | The ToJSON implementation of `WithStatusPatch` will encode the trivial config as `"config": {}`
+-- | The ToJSON implementation of `LockableFeaturePatch` will encode the trivial config as `"config": {}`
 -- when the value is a `Just`, if it's `Nothing` it will be omitted, which is the important part.
-instance (ToSchema cfg) => ToSchema (WithStatusPatch cfg) where
+instance (ToSchema cfg) => ToSchema (LockableFeaturePatch cfg) where
   schema =
     object name $
-      WithStatusBase
+      LockableFeatureBase
         <$> wsbStatus .= maybe_ (optField "status" schema)
         <*> wsbLockStatus .= maybe_ (optField "lockStatus" schema)
         <*> wsbConfig .= maybe_ (optField "config" schema)
         <*> wsbTTL .= maybe_ (optField "ttl" schema)
     where
       inner = schema @cfg
-      name = fromMaybe "" (getName (schemaDoc inner)) <> ".WithStatusPatch"
+      name = fromMaybe "" (getName (schemaDoc inner)) <> ".LockableFeaturePatch"
 
-instance (Arbitrary cfg, IsFeatureConfig cfg) => Arbitrary (WithStatusPatch cfg) where
-  arbitrary = WithStatusBase <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+instance (Arbitrary cfg, IsFeatureConfig cfg) => Arbitrary (LockableFeaturePatch cfg) where
+  arbitrary = LockableFeatureBase <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 ----------------------------------------------------------------------
--- WithStatusNoLock
+-- Feature
 
-data WithStatusNoLock (cfg :: Type) = WithStatusNoLock
+data Feature (cfg :: Type) = Feature
   { wssStatus :: FeatureStatus,
     wssConfig :: cfg,
     wssTTL :: FeatureTTL
   }
   deriving stock (Eq, Show, Generic, Typeable, Functor)
-  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema (WithStatusNoLock cfg))
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema (Feature cfg))
 
-instance (Arbitrary cfg) => Arbitrary (WithStatusNoLock cfg) where
-  arbitrary = WithStatusNoLock <$> arbitrary <*> arbitrary <*> arbitrary
+instance (Arbitrary cfg) => Arbitrary (Feature cfg) where
+  arbitrary = Feature <$> arbitrary <*> arbitrary <*> arbitrary
 
-forgetLock :: WithStatus a -> WithStatusNoLock a
-forgetLock ws = WithStatusNoLock (wsStatus ws) (wsConfig ws) (wsTTL ws)
+forgetLock :: LockableFeature a -> Feature a
+forgetLock ws = Feature (wsStatus ws) (wsConfig ws) (wsTTL ws)
 
-withLockStatus :: LockStatus -> WithStatusNoLock a -> WithStatus a
-withLockStatus ls (WithStatusNoLock s c ttl) = withStatus s ls c ttl
+withLockStatus :: LockStatus -> Feature a -> LockableFeature a
+withLockStatus ls (Feature s c ttl) = withStatus s ls c ttl
 
-withUnlocked :: WithStatusNoLock a -> WithStatus a
+withUnlocked :: Feature a -> LockableFeature a
 withUnlocked = withLockStatus LockStatusUnlocked
 
-withLocked :: WithStatusNoLock a -> WithStatus a
+withLocked :: Feature a -> LockableFeature a
 withLocked = withLockStatus LockStatusLocked
 
-instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (WithStatusNoLock cfg) where
+instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (Feature cfg) where
   schema =
     object name $
-      WithStatusNoLock
+      Feature
         <$> wssStatus .= field "status" schema
         <*> wssConfig .= objectSchema @cfg
         <*> wssTTL .= (fromMaybe FeatureTTLUnlimited <$> optField "ttl" schema)
     where
       inner = schema @cfg
-      name = fromMaybe "" (getName (schemaDoc inner)) <> ".WithStatusNoLock"
+      name = fromMaybe "" (getName (schemaDoc inner)) <> ".Feature"
 
 ----------------------------------------------------------------------
 -- FeatureTTL
@@ -602,7 +602,7 @@ instance ToSchema LockStatusResponse where
       LockStatusResponse
         <$> _unlockStatus .= field "lockStatus" schema
 
-newtype ImplicitLockStatus (cfg :: Type) = ImplicitLockStatus {_unImplicitLockStatus :: WithStatus cfg}
+newtype ImplicitLockStatus (cfg :: Type) = ImplicitLockStatus {_unImplicitLockStatus :: LockableFeature cfg}
   deriving newtype (Eq, Show, Arbitrary)
 
 instance (IsFeatureConfig a, ToSchema a) => ToJSON (ImplicitLockStatus a) where
@@ -615,17 +615,17 @@ instance (IsFeatureConfig a, ToSchema a) => FromJSON (ImplicitLockStatus a) wher
 -- overridden on a feature basis by implementing the `computeFeature` method of
 -- the `GetFeatureConfig` class.
 genericComputeFeature ::
-  WithStatus cfg ->
+  LockableFeature cfg ->
   Maybe LockStatus ->
   DbFeature cfg ->
-  WithStatus cfg
+  LockableFeature cfg
 genericComputeFeature defFeature lockStatus dbFeature =
   case fromMaybe (wsLockStatus defFeature) lockStatus of
     LockStatusLocked -> setLockStatus LockStatusLocked defFeature
     LockStatusUnlocked -> withUnlocked $ unDbFeature dbFeature (forgetLock defFeature)
 
 -- | This contains the pure business logic for users from teams
-computeFeatureConfigForTeamUser :: Maybe (WithStatusNoLock cfg) -> Maybe LockStatus -> WithStatus cfg -> WithStatus cfg
+computeFeatureConfigForTeamUser :: Maybe (Feature cfg) -> Maybe LockStatus -> LockableFeature cfg -> LockableFeature cfg
 computeFeatureConfigForTeamUser mStatusDb mLockStatusDb defStatus =
   case lockStatus of
     LockStatusLocked ->
@@ -1271,7 +1271,7 @@ instance Cass.Cql FeatureStatus where
   toCql FeatureStatusDisabled = Cass.CqlInt 0
   toCql FeatureStatusEnabled = Cass.CqlInt 1
 
-defFeatureStatusNoLock :: (IsFeatureConfig cfg) => WithStatusNoLock cfg
+defFeatureStatusNoLock :: (IsFeatureConfig cfg) => Feature cfg
 defFeatureStatusNoLock = forgetLock defFeatureStatus
 
 -- FUTUREWORK: rewrite using SOP
@@ -1298,7 +1298,7 @@ data AllFeatures f = AllFeatures
     afcLimitedEventFanout :: f LimitedEventFanoutConfig
   }
 
-type AllFeatureConfigs = AllFeatures WithStatus
+type AllFeatureConfigs = AllFeatures LockableFeature
 
 instance Default AllFeatureConfigs where
   def =
@@ -1353,7 +1353,7 @@ instance ToSchema AllFeatureConfigs where
       featureField ::
         forall cfg.
         (IsFeatureConfig cfg, ToSchema cfg, KnownSymbol (FeatureSymbol cfg)) =>
-        ObjectSchema SwaggerDoc (WithStatus cfg)
+        ObjectSchema SwaggerDoc (LockableFeature cfg)
       featureField = field (T.pack (symbolVal (Proxy @(FeatureSymbol cfg)))) schema
 
 instance Arbitrary AllFeatureConfigs where

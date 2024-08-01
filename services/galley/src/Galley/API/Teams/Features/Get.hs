@@ -79,36 +79,36 @@ class (IsFeatureConfig cfg) => GetFeatureConfig cfg where
 
   getConfigForServer ::
     (Member (Input Opts) r) =>
-    Sem r (WithStatus cfg)
+    Sem r (LockableFeature cfg)
   -- only override if there is additional business logic for getting the feature config
   -- and/or if the feature flag is configured for the backend in 'FeatureFlags' for galley in 'Galley.Types.Teams'
   -- otherwise this will return the default config from wire-api
-  default getConfigForServer :: Sem r (WithStatus cfg)
+  default getConfigForServer :: Sem r (LockableFeature cfg)
   getConfigForServer = pure defFeatureStatus
 
   getConfigForUser ::
     (GetConfigForUserConstraints cfg r) =>
     UserId ->
-    Sem r (WithStatus cfg)
+    Sem r (LockableFeature cfg)
   default getConfigForUser ::
     (DefaultGetConfigForUserConstraints cfg r) =>
     UserId ->
-    Sem r (WithStatus cfg)
+    Sem r (LockableFeature cfg)
   getConfigForUser _ = getConfigForServer
 
   computeFeature ::
     (ComputeFeatureConstraints cfg r) =>
     TeamId ->
-    WithStatus cfg ->
+    LockableFeature cfg ->
     Maybe LockStatus ->
     DbFeature cfg ->
-    Sem r (WithStatus cfg)
+    Sem r (LockableFeature cfg)
   default computeFeature ::
     TeamId ->
-    WithStatus cfg ->
+    LockableFeature cfg ->
     Maybe LockStatus ->
     DbFeature cfg ->
-    Sem r (WithStatus cfg)
+    Sem r (LockableFeature cfg)
   computeFeature _tid defFeature lockStatus dbFeature =
     pure $
       genericComputeFeature @cfg defFeature lockStatus dbFeature
@@ -125,7 +125,7 @@ getFeatureStatus ::
   ) =>
   DoAuth ->
   TeamId ->
-  Sem r (WithStatus cfg)
+  Sem r (LockableFeature cfg)
 getFeatureStatus doauth tid = do
   case doauth of
     DoAuth uid ->
@@ -148,7 +148,7 @@ getFeatureStatusMulti (Multi.TeamFeatureNoConfigMultiRequest tids) = do
   let xs = uncurry toTeamStatus . second forgetLock <$> cfgs
   pure $ Multi.TeamFeatureNoConfigMultiResponse xs
 
-toTeamStatus :: TeamId -> WithStatusNoLock cfg -> Multi.TeamStatus cfg
+toTeamStatus :: TeamId -> Feature cfg -> Multi.TeamStatus cfg
 toTeamStatus tid ws = Multi.TeamStatus tid (wssStatus ws)
 
 getTeamAndCheckMembership ::
@@ -198,9 +198,9 @@ computeFeatureWithLock ::
   forall cfg r.
   (GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) =>
   TeamId ->
-  WithStatus cfg ->
+  LockableFeature cfg ->
   DbFeatureWithLock cfg ->
-  Sem r (WithStatus cfg)
+  Sem r (LockableFeature cfg)
 computeFeatureWithLock tid defFeature feat =
   computeFeature @cfg tid defFeature feat.lockStatus feat.feature
 
@@ -316,7 +316,7 @@ getSingleFeatureConfigForUser ::
     ComputeFeatureConstraints cfg r
   ) =>
   UserId ->
-  Sem r (WithStatus cfg)
+  Sem r (LockableFeature cfg)
 getSingleFeatureConfigForUser uid = do
   mTid <- getTeamAndCheckMembership uid
   getConfigForTeamUser @cfg uid mTid
@@ -329,7 +329,7 @@ getConfigForTeam ::
     Member TeamFeatureStore r
   ) =>
   TeamId ->
-  Sem r (WithStatus cfg)
+  Sem r (LockableFeature cfg)
 getConfigForTeam tid = do
   dbFeature <- TeamFeatures.getFeatureConfig (featureSingleton @cfg) tid
   lockStatus <- TeamFeatures.getFeatureLockStatus (featureSingleton @cfg) tid
@@ -349,7 +349,7 @@ getConfigForMultiTeam ::
     Member (Input Opts) r
   ) =>
   [TeamId] ->
-  Sem r [(TeamId, WithStatus cfg)]
+  Sem r [(TeamId, LockableFeature cfg)]
 getConfigForMultiTeam tids = do
   defFeature <- getConfigForServer
   features <- TeamFeatures.getFeatureConfigMulti (featureSingleton @cfg) tids
@@ -367,7 +367,7 @@ getConfigForTeamUser ::
   ) =>
   UserId ->
   Maybe TeamId ->
-  Sem r (WithStatus cfg)
+  Sem r (LockableFeature cfg)
 getConfigForTeamUser uid Nothing = getConfigForUser uid
 getConfigForTeamUser _ (Just tid) = getConfigForTeam @cfg tid
 

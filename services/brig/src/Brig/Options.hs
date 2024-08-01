@@ -740,10 +740,10 @@ instance ToJSON AccountFeatureConfigs where
               ]
         ]
 
-getAfcConferenceCallingDefNewMaybe :: Lens.Getter Settings (Maybe (Public.WithStatus Public.ConferenceCallingConfig))
+getAfcConferenceCallingDefNewMaybe :: Lens.Getter Settings (Maybe (Public.LockableFeature Public.ConferenceCallingConfig))
 getAfcConferenceCallingDefNewMaybe = Lens.to (Lens.^? (Lens.to setFeatureFlags . Lens._Just . Lens.to afcConferenceCallingDefNew . unImplicitLockStatus))
 
-getAfcConferenceCallingDefNull :: Lens.Getter Settings (Public.WithStatus Public.ConferenceCallingConfig)
+getAfcConferenceCallingDefNull :: Lens.Getter Settings (Public.LockableFeature Public.ConferenceCallingConfig)
 getAfcConferenceCallingDefNull = Lens.to (Public._unImplicitLockStatus . afcConferenceCallingDefNull . fromMaybe defAccountFeatureConfigs . setFeatureFlags)
 
 defAccountFeatureConfigs :: AccountFeatureConfigs

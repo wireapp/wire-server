@@ -403,7 +403,7 @@ getTeamLegalHoldStatus ::
     Member TinyLog r
   ) =>
   TeamId ->
-  Sem r (WithStatus LegalholdConfig)
+  Sem r (LockableFeature LegalholdConfig)
 getTeamLegalHoldStatus tid = do
   debug $ remote "galley" . msg (val "Get legalhold settings")
   galleyRequest req >>= decodeBodyOrThrow "galley"
@@ -443,7 +443,7 @@ getVerificationCodeEnabled ::
 getVerificationCodeEnabled tid = do
   debug $ remote "galley" . msg (val "Get snd factor password challenge settings")
   response <- galleyRequest req
-  status <- wsStatus <$> decodeBodyOrThrow @(WithStatus SndFactorPasswordChallengeConfig) "galley" response
+  status <- wsStatus <$> decodeBodyOrThrow @(LockableFeature SndFactorPasswordChallengeConfig) "galley" response
   case status of
     FeatureStatusEnabled -> pure True
     FeatureStatusDisabled -> pure False
@@ -500,7 +500,7 @@ getTeamExposeInvitationURLsToTeamAdmin ::
 getTeamExposeInvitationURLsToTeamAdmin tid = do
   debug $ remote "galley" . msg (val "Get expose invitation URLs to team admin settings")
   response <- galleyRequest req
-  status <- wsStatus <$> decodeBodyOrThrow @(WithStatus ExposeInvitationURLsToTeamAdminConfig) "galley" response
+  status <- wsStatus <$> decodeBodyOrThrow @(LockableFeature ExposeInvitationURLsToTeamAdminConfig) "galley" response
   case status of
     FeatureStatusEnabled -> pure ShowInvitationUrl
     FeatureStatusDisabled -> pure HideInvitationUrl

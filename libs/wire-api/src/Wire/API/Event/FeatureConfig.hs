@@ -47,20 +47,20 @@ instance Arbitrary Event where
     do
       let arbConfig =
             oneof
-              [ arbitrary @(WithStatus SSOConfig) <&> toJSON,
-                arbitrary @(WithStatus SearchVisibilityAvailableConfig) <&> toJSON,
-                arbitrary @(WithStatus ValidateSAMLEmailsConfig) <&> toJSON,
-                arbitrary @(WithStatus DigitalSignaturesConfig) <&> toJSON,
-                arbitrary @(WithStatus AppLockConfig) <&> toJSON,
-                arbitrary @(WithStatus FileSharingConfig) <&> toJSON,
-                arbitrary @(WithStatus ClassifiedDomainsConfig) <&> toJSON,
-                arbitrary @(WithStatus ConferenceCallingConfig) <&> toJSON,
-                arbitrary @(WithStatus SelfDeletingMessagesConfig) <&> toJSON,
-                arbitrary @(WithStatus GuestLinksConfig) <&> toJSON,
-                arbitrary @(WithStatus SndFactorPasswordChallengeConfig) <&> toJSON,
-                arbitrary @(WithStatus SearchVisibilityInboundConfig) <&> toJSON,
-                arbitrary @(WithStatus MLSConfig) <&> toJSON,
-                arbitrary @(WithStatus ExposeInvitationURLsToTeamAdminConfig) <&> toJSON
+              [ arbitrary @(LockableFeature SSOConfig) <&> toJSON,
+                arbitrary @(LockableFeature SearchVisibilityAvailableConfig) <&> toJSON,
+                arbitrary @(LockableFeature ValidateSAMLEmailsConfig) <&> toJSON,
+                arbitrary @(LockableFeature DigitalSignaturesConfig) <&> toJSON,
+                arbitrary @(LockableFeature AppLockConfig) <&> toJSON,
+                arbitrary @(LockableFeature FileSharingConfig) <&> toJSON,
+                arbitrary @(LockableFeature ClassifiedDomainsConfig) <&> toJSON,
+                arbitrary @(LockableFeature ConferenceCallingConfig) <&> toJSON,
+                arbitrary @(LockableFeature SelfDeletingMessagesConfig) <&> toJSON,
+                arbitrary @(LockableFeature GuestLinksConfig) <&> toJSON,
+                arbitrary @(LockableFeature SndFactorPasswordChallengeConfig) <&> toJSON,
+                arbitrary @(LockableFeature SearchVisibilityInboundConfig) <&> toJSON,
+                arbitrary @(LockableFeature MLSConfig) <&> toJSON,
+                arbitrary @(LockableFeature ExposeInvitationURLsToTeamAdminConfig) <&> toJSON
               ]
       Event
         <$> arbitrary
@@ -98,5 +98,5 @@ instance ToJSONObject Event where
 instance S.ToSchema Event where
   declareNamedSchema = schemaToSwagger
 
-mkUpdateEvent :: forall cfg. (IsFeatureConfig cfg, ToSchema cfg, KnownSymbol (FeatureSymbol cfg)) => WithStatus cfg -> Event
+mkUpdateEvent :: forall cfg. (IsFeatureConfig cfg, ToSchema cfg, KnownSymbol (FeatureSymbol cfg)) => LockableFeature cfg -> Event
 mkUpdateEvent ws = Event Update (featureName @cfg) (toJSON ws)

@@ -105,7 +105,7 @@ tests s =
       -- - `POST /teams/:tid/billing`
     ]
 
-defConfCalling :: WithStatus ConferenceCallingConfig
+defConfCalling :: LockableFeature ConferenceCallingConfig
 defConfCalling = setStatus FeatureStatusDisabled defFeatureStatus
 
 testRudSsoDomainRedirect :: TestM ()
@@ -321,7 +321,7 @@ testFeatureStatusOptTtl ::
     Eq cfg,
     Show cfg
   ) =>
-  WithStatus cfg ->
+  LockableFeature cfg ->
   Maybe FeatureTTL ->
   TestM ()
 testFeatureStatusOptTtl defValue mTtl = do
@@ -614,7 +614,7 @@ getFeatureConfig ::
     IsFeatureConfig cfg
   ) =>
   TeamId ->
-  TestM (WithStatus cfg)
+  TestM (LockableFeature cfg)
 getFeatureConfig tid = do
   s <- view tsStern
   r <- get (s . paths ["teams", toByteString' tid, "features", Public.featureNameBS @cfg] . expect2xx)
@@ -669,10 +669,10 @@ putFeatureConfig ::
     ToSchema cfg,
     Typeable cfg,
     IsFeatureConfig cfg,
-    ToJSON (WithStatus cfg)
+    ToJSON (LockableFeature cfg)
   ) =>
   TeamId ->
-  WithStatus cfg ->
+  LockableFeature cfg ->
   TestM ResponseLBS
 putFeatureConfig tid cfg = do
   s <- view tsStern
@@ -706,7 +706,7 @@ unlockFeature ::
     ToSchema cfg,
     Typeable cfg,
     IsFeatureConfig cfg,
-    ToJSON (WithStatus cfg)
+    ToJSON (LockableFeature cfg)
   ) =>
   TeamId ->
   TestM ()

@@ -22,7 +22,7 @@ import Data.Int
 import Data.Range
 import GHC.Generics
 import Generics.SOP qualified as GSOP
-import Servant hiding (WithStatus)
+import Servant
 import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Error
 import Wire.API.Error.Galley

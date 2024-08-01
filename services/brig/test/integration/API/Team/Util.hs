@@ -266,7 +266,7 @@ putLegalHoldEnabled tid enabled g = do
     g
       . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
       . contentJson
-      . lbytes (encode (Public.WithStatusNoLock enabled Public.LegalholdConfig Public.FeatureTTLUnlimited))
+      . lbytes (encode (Public.Feature enabled Public.LegalholdConfig Public.FeatureTTLUnlimited))
       . expect2xx
 
 putLHWhitelistTeam :: (HasCallStack) => Galley -> TeamId -> Http ResponseLBS
@@ -436,7 +436,7 @@ setTeamTeamSearchVisibilityAvailable galley tid status =
     ( galley
         . paths ["i/teams", toByteString' tid, "features/searchVisibility"]
         . contentJson
-        . body (RequestBodyLBS . encode $ Public.WithStatusNoLock status Public.SearchVisibilityAvailableConfig Public.FeatureTTLUnlimited)
+        . body (RequestBodyLBS . encode $ Public.Feature status Public.SearchVisibilityAvailableConfig Public.FeatureTTLUnlimited)
     )
     !!! do
       const 200 === statusCode
@@ -458,7 +458,7 @@ setTeamSearchVisibilityInboundAvailable galley tid status =
     ( galley
         . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @Public.SearchVisibilityInboundConfig]
         . contentJson
-        . body (RequestBodyLBS . encode $ Public.WithStatusNoLock status Public.SearchVisibilityInboundConfig Public.FeatureTTLUnlimited)
+        . body (RequestBodyLBS . encode $ Public.Feature status Public.SearchVisibilityInboundConfig Public.FeatureTTLUnlimited)
     )
     !!! do
       const 200 === statusCode

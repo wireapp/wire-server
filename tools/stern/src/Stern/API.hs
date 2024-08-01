@@ -314,16 +314,16 @@ mkFeatureGetRoute ::
     Typeable cfg
   ) =>
   TeamId ->
-  Handler (WithStatus cfg)
+  Handler (LockableFeature cfg)
 mkFeatureGetRoute = Intra.getTeamFeatureFlag @cfg
 
 mkFeaturePutRoute ::
   forall cfg.
   ( KnownSymbol (FeatureSymbol cfg),
-    ToJSON (WithStatusNoLock cfg)
+    ToJSON (Feature cfg)
   ) =>
   TeamId ->
-  WithStatusNoLock cfg ->
+  Feature cfg ->
   Handler NoContent
 mkFeaturePutRoute tid payload = NoContent <$ Intra.setTeamFeatureFlag @cfg tid payload
 
@@ -331,8 +331,8 @@ type MkFeaturePutConstraints cfg =
   ( IsFeatureConfig cfg,
     KnownSymbol (FeatureSymbol cfg),
     ToSchema cfg,
-    FromJSON (WithStatusNoLock cfg),
-    ToJSON (WithStatusNoLock cfg),
+    FromJSON (Feature cfg),
+    ToJSON (Feature cfg),
     Typeable cfg
   )
 

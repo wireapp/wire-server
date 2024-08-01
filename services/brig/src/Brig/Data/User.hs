@@ -299,7 +299,7 @@ updateManagedBy u h = retry x5 $ write userManagedByUpdate (params LocalQuorum (
 updateRichInfo :: (MonadClient m) => UserId -> RichInfoAssocList -> m ()
 updateRichInfo u ri = retry x5 $ write userRichInfoUpdate (params LocalQuorum (ri, u))
 
-updateFeatureConferenceCalling :: (MonadClient m) => UserId -> Maybe (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig) -> m (Maybe (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig))
+updateFeatureConferenceCalling :: (MonadClient m) => UserId -> Maybe (ApiFt.Feature ApiFt.ConferenceCallingConfig) -> m (Maybe (ApiFt.Feature ApiFt.ConferenceCallingConfig))
 updateFeatureConferenceCalling uid mbStatus = do
   let flag = ApiFt.wssStatus <$> mbStatus
   retry x5 $ write update (params LocalQuorum (flag, uid))
@@ -436,7 +436,7 @@ lookupServiceUsersForTeam pid sid tid =
       "SELECT user, conv FROM service_team \
       \WHERE provider = ? AND service = ? AND team = ?"
 
-lookupFeatureConferenceCalling :: (MonadClient m) => UserId -> m (Maybe (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig))
+lookupFeatureConferenceCalling :: (MonadClient m) => UserId -> m (Maybe (ApiFt.Feature ApiFt.ConferenceCallingConfig))
 lookupFeatureConferenceCalling uid = do
   let q = query1 select (params LocalQuorum (Identity uid))
   mStatusValue <- (>>= runIdentity) <$> retry x1 q

@@ -17,7 +17,7 @@
 
 module Wire.API.Routes.Public.Galley.MLS where
 
-import Servant hiding (WithStatus)
+import Servant
 import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Error
 import Wire.API.Error.Galley

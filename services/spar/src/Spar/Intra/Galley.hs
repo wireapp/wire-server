@@ -99,7 +99,7 @@ assertSSOEnabled tid = do
         . paths ["i", "teams", toByteString' tid, "features", "sso"]
   unless (statusCode resp == 200) $
     rethrow "galley" resp
-  ws :: WithStatus SSOConfig <- parseResponse "galley" resp
+  ws :: LockableFeature SSOConfig <- parseResponse "galley" resp
   unless (wsStatus ws == FeatureStatusEnabled) $
     throwSpar SparSSODisabled
 
@@ -108,7 +108,7 @@ isEmailValidationEnabledTeam tid = do
   resp <- call $ method GET . paths ["i", "teams", toByteString' tid, "features", "validateSAMLemails"]
   pure
     ( statusCode resp == 200
-        && ( (wsStatus <$> responseJsonMaybe @(WithStatus ValidateSAMLEmailsConfig) resp)
+        && ( (wsStatus <$> responseJsonMaybe @(LockableFeature ValidateSAMLEmailsConfig) resp)
                == Just FeatureStatusEnabled
            )
     )

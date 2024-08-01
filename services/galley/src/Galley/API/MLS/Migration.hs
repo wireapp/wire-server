@@ -52,7 +52,7 @@ checkMigrationCriteria ::
   ) =>
   UTCTime ->
   MLSConversation ->
-  WithStatus MlsMigrationConfig ->
+  LockableFeature MlsMigrationConfig ->
   Sem r Bool
 checkMigrationCriteria now conv ws
   | wsStatus ws == FeatureStatusDisabled = pure False

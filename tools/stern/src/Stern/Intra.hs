@@ -504,12 +504,12 @@ setBlacklistStatus status email = do
 
 getTeamFeatureFlag ::
   forall cfg.
-  ( Typeable (Public.WithStatus cfg),
-    FromJSON (Public.WithStatus cfg),
+  ( Typeable (Public.LockableFeature cfg),
+    FromJSON (Public.LockableFeature cfg),
     KnownSymbol (Public.FeatureSymbol cfg)
   ) =>
   TeamId ->
-  Handler (Public.WithStatus cfg)
+  Handler (Public.LockableFeature cfg)
 getTeamFeatureFlag tid = do
   info $ msg "Getting team feature status"
   gly <- view galley
@@ -518,17 +518,17 @@ getTeamFeatureFlag tid = do
           . Bilge.paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg]
   resp <- catchRpcErrors $ rpc' "galley" gly req
   case Bilge.statusCode resp of
-    200 -> pure $ responseJsonUnsafe @(Public.WithStatus cfg) resp
+    200 -> pure $ responseJsonUnsafe @(Public.LockableFeature cfg) resp
     404 -> throwE (mkError status404 "bad-upstream" "team doesnt exist")
     _ -> throwE (mkError status502 "bad-upstream" (errorMessage resp))
 
 setTeamFeatureFlag ::
   forall cfg.
-  ( ToJSON (Public.WithStatusNoLock cfg),
+  ( ToJSON (Public.Feature cfg),
     KnownSymbol (Public.FeatureSymbol cfg)
   ) =>
   TeamId ->
-  Public.WithStatusNoLock cfg ->
+  Public.Feature cfg ->
   Handler ()
 setTeamFeatureFlag tid status = do
   info $ msg "Setting team feature status"
@@ -541,11 +541,11 @@ setTeamFeatureFlag tid status = do
 
 patchTeamFeatureFlag ::
   forall cfg.
-  ( ToJSON (Public.WithStatusPatch cfg),
+  ( ToJSON (Public.LockableFeaturePatch cfg),
     KnownSymbol (Public.FeatureSymbol cfg)
   ) =>
   TeamId ->
-  Public.WithStatusPatch cfg ->
+  Public.LockableFeaturePatch cfg ->
   Handler ()
 patchTeamFeatureFlag tid patch = do
   info $ msg "Patching team feature status"

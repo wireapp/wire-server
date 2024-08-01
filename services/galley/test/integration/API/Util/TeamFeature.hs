@@ -50,7 +50,7 @@ putTeamSearchVisibilityAvailableInternal tid statusValue =
       @Public.SearchVisibilityAvailableConfig
       expect2xx
       tid
-      (Public.WithStatusNoLock statusValue Public.SearchVisibilityAvailableConfig Public.FeatureTTLUnlimited)
+      (Public.Feature statusValue Public.SearchVisibilityAvailableConfig Public.FeatureTTLUnlimited)
 
 putTeamFeatureInternal ::
   forall cfg m.
@@ -59,11 +59,11 @@ putTeamFeatureInternal ::
     MonadHttp m,
     HasCallStack,
     KnownSymbol (Public.FeatureSymbol cfg),
-    ToJSON (Public.WithStatusNoLock cfg)
+    ToJSON (Public.Feature cfg)
   ) =>
   (Request -> Request) ->
   TeamId ->
-  Public.WithStatusNoLock cfg ->
+  Public.Feature cfg ->
   m ResponseLBS
 putTeamFeatureInternal reqmod tid status = do
   galley <- viewGalley
@@ -77,11 +77,11 @@ putTeamFeature ::
   forall cfg.
   ( HasCallStack,
     KnownSymbol (Public.FeatureSymbol cfg),
-    ToJSON (Public.WithStatusNoLock cfg)
+    ToJSON (Public.Feature cfg)
   ) =>
   UserId ->
   TeamId ->
-  Public.WithStatusNoLock cfg ->
+  Public.Feature cfg ->
   TestM ResponseLBS
 putTeamFeature uid tid status = do
   galley <- viewGalley

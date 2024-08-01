@@ -37,7 +37,7 @@ data TeamFeatureStore m a where
   SetFeatureConfig ::
     FeatureSingleton cfg ->
     TeamId ->
-    WithStatusNoLock cfg ->
+    Feature cfg ->
     TeamFeatureStore m ()
   GetFeatureLockStatus ::
     FeatureSingleton cfg ->
