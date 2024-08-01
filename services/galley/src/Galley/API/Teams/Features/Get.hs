@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -380,7 +381,7 @@ instance GetFeatureConfig SSOConfig where
       inputs (view (settings . featureFlags . flagSSO)) <&> \case
         FeatureSSOEnabledByDefault -> FeatureStatusEnabled
         FeatureSSODisabledByDefault -> FeatureStatusDisabled
-    pure $ setStatus status defFeatureStatus
+    pure $ defFeatureStatus {status = status}
 
 instance GetFeatureConfig SearchVisibilityAvailableConfig where
   getConfigForServer = do
@@ -388,7 +389,7 @@ instance GetFeatureConfig SearchVisibilityAvailableConfig where
       inputs (view (settings . featureFlags . flagTeamSearchVisibility)) <&> \case
         FeatureTeamSearchVisibilityAvailableByDefault -> FeatureStatusEnabled
         FeatureTeamSearchVisibilityUnavailableByDefault -> FeatureStatusDisabled
-    pure $ setStatus status defFeatureStatus
+    pure $ defFeatureStatus {status = status}
 
 instance GetFeatureConfig ValidateSAMLEmailsConfig where
   getConfigForServer =
@@ -413,7 +414,7 @@ instance GetFeatureConfig LegalholdConfig where
 
   computeFeature tid defFeature _lockStatus dbFeature = do
     status <- computeLegalHoldFeatureStatus tid dbFeature
-    pure $ setStatus status defFeature
+    pure $ defFeature {status = status}
 
 instance GetFeatureConfig FileSharingConfig where
   getConfigForServer =
@@ -453,12 +454,12 @@ instance GetFeatureConfig ConferenceCallingConfig where
     input <&> view (settings . featureFlags . flagConferenceCalling . unDefaults)
 
   getConfigForUser uid = do
-    wsnl <- getAccountConferenceCallingConfigClient uid
-    pure $ withLockStatus (wsLockStatus (defFeatureStatus @ConferenceCallingConfig)) wsnl
+    feat <- getAccountConferenceCallingConfigClient uid
+    pure $ withLockStatus (defFeatureStatus @ConferenceCallingConfig).lockStatus feat
 
   computeFeature _tid defFeature lockStatus dbFeature =
-    pure $ case fromMaybe (wsLockStatus defFeature) lockStatus of
-      LockStatusLocked -> setLockStatus LockStatusLocked defFeature
+    pure $ case fromMaybe defFeature.lockStatus lockStatus of
+      LockStatusLocked -> defFeature {lockStatus = LockStatusLocked}
       LockStatusUnlocked ->
         withUnlocked $
           (unDbFeature dbFeature)
@@ -542,7 +543,7 @@ guardSecondFactorDisabled uid cid = do
     pure tid
 
   tf <- getConfigForTeamUser @SndFactorPasswordChallengeConfig uid mTid
-  case wsStatus tf of
+  case tf.status of
     FeatureStatusDisabled -> pure ()
     FeatureStatusEnabled -> throwS @'AccessDenied
 
@@ -560,5 +561,5 @@ featureEnabledForTeam ::
   Sem r Bool
 featureEnabledForTeam tid =
   (==) FeatureStatusEnabled
-    . wsStatus
+    . (.status)
     <$> getFeatureStatus @cfg DontDoAuth tid

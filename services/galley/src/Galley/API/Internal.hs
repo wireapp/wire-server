@@ -90,7 +90,7 @@ import Wire.API.Routes.Internal.Galley
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Routes.MultiTablePaging qualified as MTP
-import Wire.API.Team.Feature hiding (setStatus)
+import Wire.API.Team.Feature
 import Wire.API.User.Client
 import Wire.NotificationSubsystem
 import Wire.Sem.Paging
@@ -364,7 +364,7 @@ rmUser lusr conn = do
                     FeatureStatusEnabled -> Left <$> E.getTeamAdmins tid
                     FeatureStatusDisabled -> Right <$> getTeamMembersForFanout tid
                 )
-              . wsStatus
+              . (.status)
       uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) toNotify
       page' <- listTeams @p2 (tUnqualified lusr) (Just (pageState page)) maxBound
       leaveTeams page'

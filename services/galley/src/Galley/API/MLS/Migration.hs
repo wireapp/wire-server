@@ -55,12 +55,11 @@ checkMigrationCriteria ::
   LockableFeature MlsMigrationConfig ->
   Sem r Bool
 checkMigrationCriteria now conv ws
-  | wsStatus ws == FeatureStatusDisabled = pure False
+  | ws.status == FeatureStatusDisabled = pure False
   | afterDeadline = pure True
   | otherwise = unApAll $ mconcat [localUsersMigrated, remoteUsersMigrated]
   where
-    mig = wsConfig ws
-    afterDeadline = maybe False (now >=) mig.finaliseRegardlessAfter
+    afterDeadline = maybe False (now >=) ws.config.finaliseRegardlessAfter
 
     containsMLS = Set.member BaseProtocolMLSTag
 

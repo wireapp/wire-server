@@ -98,16 +98,16 @@ patchFeatureStatusInternal tid patch = do
   let newFeatureStatus = applyPatch currentFeatureStatus
   -- setting the config can fail, so we need to do it first
   void $ setConfigForTeam @cfg tid (forgetLock newFeatureStatus)
-  when (isJust $ wspLockStatus patch) $ void $ updateLockStatus @cfg tid (wsLockStatus newFeatureStatus)
+  when (isJust $ wspLockStatus patch) $ void $ updateLockStatus @cfg tid newFeatureStatus.lockStatus
   getFeatureStatus @cfg DontDoAuth tid
   where
     applyPatch :: LockableFeature cfg -> LockableFeature cfg
     applyPatch current =
       current
-        & setStatus (fromMaybe (wsStatus current) (wspStatus patch))
-        & setLockStatus (fromMaybe (wsLockStatus current) (wspLockStatus patch))
-        & setConfig (fromMaybe (wsConfig current) (wspConfig patch))
-        & setWsTTL (fromMaybe (wsTTL current) (wspTTL patch))
+        { status = fromMaybe current.status (wspStatus patch),
+          lockStatus = fromMaybe current.lockStatus (wspLockStatus patch),
+          config = fromMaybe current.config (wspConfig patch)
+        }
 
 setFeatureStatus ::
   forall cfg r.
@@ -135,7 +135,7 @@ setFeatureStatus doauth tid wsnl = do
       void $ permissionCheck ChangeTeamFeature zusrMembership
     DontDoAuth ->
       assertTeamExists tid
-  guardLockStatus . wsLockStatus =<< getConfigForTeam @cfg tid
+  guardLockStatus . (.lockStatus) =<< getConfigForTeam @cfg tid
   setConfigForTeam @cfg tid wsnl
 
 setFeatureStatusInternal ::
@@ -379,16 +379,16 @@ instance SetFeatureConfig SearchVisibilityInboundConfig where
 
 instance SetFeatureConfig MLSConfig where
   type SetConfigForTeamConstraints MLSConfig (r :: EffectRow) = (Member (Error TeamFeatureError) r)
-  setConfigForTeam tid wsnl = do
+  setConfigForTeam tid feat = do
     mlsMigrationConfig <- getConfigForTeam @MlsMigrationConfig tid
     unless
       ( -- default protocol needs to be included in supported protocols
-        mlsDefaultProtocol (wssConfig wsnl) `elem` mlsSupportedProtocols (wssConfig wsnl)
+        mlsDefaultProtocol (wssConfig feat) `elem` mlsSupportedProtocols (wssConfig feat)
           -- when MLS migration is enabled, MLS needs to be enabled as well
-          && (wsStatus mlsMigrationConfig == FeatureStatusDisabled || wssStatus wsnl == FeatureStatusEnabled)
+          && (mlsMigrationConfig.status == FeatureStatusDisabled || wssStatus feat == FeatureStatusEnabled)
       )
       $ throw MLSProtocolMismatch
-    persistAndPushEvent tid wsnl
+    persistAndPushEvent tid feat
 
 instance SetFeatureConfig ExposeInvitationURLsToTeamAdminConfig
 
@@ -410,14 +410,14 @@ guardMlsE2EIdConfig handler uid tid conf = do
 
 instance SetFeatureConfig MlsMigrationConfig where
   type SetConfigForTeamConstraints MlsMigrationConfig (r :: EffectRow) = (Member (Error TeamFeatureError) r)
-  setConfigForTeam tid wsnl = do
+  setConfigForTeam tid feat = do
     mlsConfig <- getConfigForTeam @MLSConfig tid
     unless
       ( -- when MLS migration is enabled, MLS needs to be enabled as well
-        wssStatus wsnl == FeatureStatusDisabled || wsStatus mlsConfig == FeatureStatusEnabled
+        wssStatus feat == FeatureStatusDisabled || mlsConfig.status == FeatureStatusEnabled
       )
       $ throw MLSProtocolMismatch
-    persistAndPushEvent tid wsnl
+    persistAndPushEvent tid feat
 
 instance SetFeatureConfig EnforceFileDownloadLocationConfig
 

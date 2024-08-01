@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 -- Disabling to stop errors on Getters
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
@@ -708,7 +709,11 @@ instance Arbitrary AccountFeatureConfigs where
   arbitrary = AccountFeatureConfigs <$> fmap locked arbitrary <*> fmap locked arbitrary
     where
       locked :: Public.ImplicitLockStatus a -> Public.ImplicitLockStatus a
-      locked = Public.ImplicitLockStatus . Public.setLockStatus Public.LockStatusLocked . Public._unImplicitLockStatus
+      locked impl =
+        Public.ImplicitLockStatus $
+          (Public._unImplicitLockStatus impl)
+            { Public.lockStatus = Public.LockStatusLocked
+            }
 
 instance FromJSON AccountFeatureConfigs where
   parseJSON =

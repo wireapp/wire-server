@@ -70,7 +70,7 @@ import Wire.API.Routes.Internal.Brig.Connection (ConnectionStatus)
 import Wire.API.Routes.Internal.Brig.EJPD qualified as EJPD
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.Named (Named (Named))
-import Wire.API.Team.Feature hiding (setStatus)
+import Wire.API.Team.Feature
 import Wire.API.Team.SearchVisibility
 import Wire.API.User
 import Wire.API.User.Search

@@ -1000,7 +1000,7 @@ deleteTeamMember' lusr zcon tid remove mBody = do
                   mems <- getTeamMembersForFanout tid
                   uncheckedDeleteTeamMember lusr (Just zcon) tid remove (Right mems)
             )
-          . wsStatus
+          . (.status)
       pure TeamMemberDeleteCompleted
 
 -- This function is "unchecked" because it does not validate that the user has the `RemoveTeamMember` permission.

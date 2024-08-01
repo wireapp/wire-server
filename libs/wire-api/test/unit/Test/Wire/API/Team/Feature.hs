@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
@@ -39,11 +40,10 @@ testComputeFeatureConfigForTeamUserLsIsNothing = do
   let mStatusDb = undefined
   let mLockStatusDb = Nothing
   let defStatus =
-        withStatus
+        LockableFeature
           FeatureStatusEnabled
           LockStatusLocked
           ExposeInvitationURLsToTeamAdminConfig
-          FeatureTTLUnlimited
   let expected = defStatus
   let actual = computeFeatureConfigForTeamUser @ExposeInvitationURLsToTeamAdminConfig mStatusDb mLockStatusDb defStatus
   actual @?= expected
@@ -53,11 +53,10 @@ testComputeFeatureConfigForTeamUserLocked = do
   let mStatusDb = undefined
   let mLockStatusDb = Just LockStatusLocked
   let defStatus =
-        withStatus
+        LockableFeature
           FeatureStatusEnabled
           LockStatusLocked
           ExposeInvitationURLsToTeamAdminConfig
-          FeatureTTLUnlimited
   let expected = defStatus
   let actual = computeFeatureConfigForTeamUser @ExposeInvitationURLsToTeamAdminConfig mStatusDb mLockStatusDb defStatus
   actual @?= expected
@@ -67,12 +66,11 @@ testComputeFeatureConfigForTeamUserUnlocked = do
   let mStatusDb = Nothing
   let mLockStatusDb = Just LockStatusUnlocked
   let defStatus =
-        withStatus
+        LockableFeature
           FeatureStatusEnabled
           LockStatusLocked
           ExposeInvitationURLsToTeamAdminConfig
-          FeatureTTLUnlimited
-  let expected = defStatus & setLockStatus LockStatusUnlocked
+  let expected = defStatus {lockStatus = LockStatusUnlocked} :: LockableFeature ExposeInvitationURLsToTeamAdminConfig
   let actual = computeFeatureConfigForTeamUser @ExposeInvitationURLsToTeamAdminConfig mStatusDb mLockStatusDb defStatus
   actual @?= expected
 
@@ -80,11 +78,10 @@ testComputeFeatureConfigForTeamWithDbStatus :: Assertion
 testComputeFeatureConfigForTeamWithDbStatus = do
   let mStatusDb =
         Just . forgetLock $
-          withStatus
+          LockableFeature
             FeatureStatusDisabled
             LockStatusUnlocked
             ExposeInvitationURLsToTeamAdminConfig
-            FeatureTTLUnlimited
   let mLockStatusDb = Just LockStatusUnlocked
   let defStatus = undefined
   let (Just expected) = withUnlocked <$> mStatusDb

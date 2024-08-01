@@ -21,7 +21,7 @@ module Test.Wire.API.Golden.Generated.LockableFeaturePatch_team where
 
 import Data.Domain
 import Imports
-import Wire.API.Team.Feature hiding (withStatus)
+import Wire.API.Team.Feature
 
 testObject_LockableFeaturePatch_team_1 :: LockableFeaturePatch AppLockConfig
 testObject_LockableFeaturePatch_team_1 = withStatus (Just FeatureStatusEnabled) (Just LockStatusUnlocked) (Just (AppLockConfig (EnforceAppLock False) (-98)))

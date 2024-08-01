@@ -97,7 +97,7 @@ import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.Provider.Bot qualified as Public
 import Wire.API.Routes.MultiTablePaging qualified as Public
-import Wire.API.Team.Feature as Public hiding (setStatus)
+import Wire.API.Team.Feature as Public
 import Wire.API.User
 import Wire.Sem.Paging.Cassandra
 
@@ -653,7 +653,7 @@ ensureGuestLinksEnabled ::
   Maybe TeamId ->
   Sem r ()
 ensureGuestLinksEnabled mbTid =
-  getConversationGuestLinksFeatureStatus mbTid >>= \ws -> case wsStatus ws of
+  getConversationGuestLinksFeatureStatus mbTid >>= \ws -> case ws.status of
     FeatureStatusEnabled -> pure ()
     FeatureStatusDisabled -> throwS @'GuestLinksDisabled
 

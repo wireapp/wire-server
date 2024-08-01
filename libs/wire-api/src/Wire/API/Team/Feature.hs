@@ -3,6 +3,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -33,19 +34,12 @@ module Wire.API.Team.Feature
     dbFeatureTTL,
     dbFeatureConfig,
     dbFeatureModConfig,
-    LockableFeature,
-    withStatus,
+    LockableFeature (..),
+    defUnlockedFeature,
+    defLockedFeature,
     withStatus',
-    wsStatus,
-    wsLockStatus,
-    wsConfig,
-    wsTTL,
-    setStatus,
-    setLockStatus,
-    setConfig,
     setConfig',
     setTTL,
-    setWsTTL,
     LockableFeaturePatch,
     wsPatch,
     wspStatus,
@@ -245,6 +239,12 @@ data LockableFeatureBase (m :: Type -> Type) (cfg :: Type) = LockableFeatureBase
   }
   deriving stock (Generic, Typeable, Functor)
 
+setConfig' :: forall (m :: Type -> Type) (cfg :: Type). (Applicative m) => cfg -> LockableFeatureBase m cfg -> LockableFeatureBase m cfg
+setConfig' c (LockableFeatureBase s ls _ ttl) = LockableFeatureBase s ls (pure c) ttl
+
+setTTL :: forall (m :: Type -> Type) (cfg :: Type). (Applicative m) => FeatureTTL -> LockableFeatureBase m cfg -> LockableFeatureBase m cfg
+setTTL ttl (LockableFeatureBase s ls c _) = LockableFeatureBase s ls c (pure ttl)
+
 --------------------------------------------------------------------------------
 -- DbFeature
 
@@ -296,66 +296,49 @@ data DbFeatureWithLock cfg = DbFeatureWithLock
 -- See the implementation of 'computeFeature' for 'ConferenceCallingConfig' for
 -- an example of this mechanism in practice.
 
--- FUTUREWORK: use lenses, maybe?
-wsStatus :: LockableFeature cfg -> FeatureStatus
-wsStatus = runIdentity . wsbStatus
+data LockableFeature cfg = LockableFeature
+  { status :: FeatureStatus,
+    lockStatus :: LockStatus,
+    config :: cfg
+  }
+  deriving stock (Eq, Show)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema (LockableFeature cfg)
 
-wsLockStatus :: LockableFeature cfg -> LockStatus
-wsLockStatus = runIdentity . wsbLockStatus
+-- | A feature that is disabled and locked.
+defLockedFeature :: cfg -> LockableFeature cfg
+defLockedFeature c =
+  LockableFeature
+    { status = FeatureStatusDisabled,
+      lockStatus = LockStatusLocked,
+      config = c
+    }
 
-wsConfig :: LockableFeature cfg -> cfg
-wsConfig = runIdentity . wsbConfig
-
-wsTTL :: LockableFeature cfg -> FeatureTTL
-wsTTL = runIdentity . wsbTTL
-
-withStatus :: FeatureStatus -> LockStatus -> cfg -> FeatureTTL -> LockableFeature cfg
-withStatus s ls c ttl = LockableFeatureBase (Identity s) (Identity ls) (Identity c) (Identity ttl)
-
-setStatus :: FeatureStatus -> LockableFeature cfg -> LockableFeature cfg
-setStatus s (LockableFeatureBase _ ls c ttl) = LockableFeatureBase (Identity s) ls c ttl
-
-setLockStatus :: LockStatus -> LockableFeature cfg -> LockableFeature cfg
-setLockStatus ls (LockableFeatureBase s _ c ttl) = LockableFeatureBase s (Identity ls) c ttl
-
-setConfig :: cfg -> LockableFeature cfg -> LockableFeature cfg
-setConfig = setConfig'
-
-setConfig' :: forall (m :: Type -> Type) (cfg :: Type). (Applicative m) => cfg -> LockableFeatureBase m cfg -> LockableFeatureBase m cfg
-setConfig' c (LockableFeatureBase s ls _ ttl) = LockableFeatureBase s ls (pure c) ttl
-
-setTTL :: forall (m :: Type -> Type) (cfg :: Type). (Applicative m) => FeatureTTL -> LockableFeatureBase m cfg -> LockableFeatureBase m cfg
-setTTL ttl (LockableFeatureBase s ls c _) = LockableFeatureBase s ls c (pure ttl)
-
-setWsTTL :: FeatureTTL -> LockableFeature cfg -> LockableFeature cfg
-setWsTTL = setTTL
-
-type LockableFeature = LockableFeatureBase Identity
-
-deriving instance (Eq cfg) => Eq (LockableFeature cfg)
-
-deriving instance (Show cfg) => Show (LockableFeature cfg)
-
-deriving via (Schema (LockableFeature cfg)) instance (ToSchema (LockableFeature cfg)) => ToJSON (LockableFeature cfg)
-
-deriving via (Schema (LockableFeature cfg)) instance (ToSchema (LockableFeature cfg)) => FromJSON (LockableFeature cfg)
-
-deriving via (Schema (LockableFeature cfg)) instance (ToSchema (LockableFeature cfg), Typeable cfg) => S.ToSchema (LockableFeature cfg)
+-- | A feature that is enabled and unlocked.
+defUnlockedFeature :: cfg -> LockableFeature cfg
+defUnlockedFeature c =
+  LockableFeature
+    { status = FeatureStatusEnabled,
+      lockStatus = LockStatusUnlocked,
+      config = c
+    }
 
 instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (LockableFeature cfg) where
   schema =
     object name $
-      LockableFeatureBase
-        <$> (runIdentity . wsbStatus) .= (Identity <$> field "status" schema)
-        <*> (runIdentity . wsbLockStatus) .= (Identity <$> field "lockStatus" schema)
-        <*> (runIdentity . wsbConfig) .= (Identity <$> objectSchema @cfg)
-        <*> (runIdentity . wsbTTL) .= (Identity . fromMaybe FeatureTTLUnlimited <$> optField "ttl" schema)
+      LockableFeature
+        <$> (.status) .= field "status" schema
+        <*> (.lockStatus) .= field "lockStatus" schema
+        <*> (.config) .= objectSchema @cfg
+        <* const FeatureTTLUnlimited
+          .= optField
+            "ttl"
+            (schema :: ValueSchema NamedSwaggerDoc FeatureTTL)
     where
       inner = schema @cfg
       name = fromMaybe "" (getName (schemaDoc inner)) <> ".LockableFeature"
 
 instance (Arbitrary cfg, IsFeatureConfig cfg) => Arbitrary (LockableFeature cfg) where
-  arbitrary = LockableFeatureBase <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = LockableFeature <$> arbitrary <*> arbitrary <*> arbitrary
 
 ----------------------------------------------------------------------
 -- LockableFeaturePatch
@@ -422,10 +405,10 @@ instance (Arbitrary cfg) => Arbitrary (Feature cfg) where
   arbitrary = Feature <$> arbitrary <*> arbitrary <*> arbitrary
 
 forgetLock :: LockableFeature a -> Feature a
-forgetLock ws = Feature (wsStatus ws) (wsConfig ws) (wsTTL ws)
+forgetLock ws = Feature ws.status ws.config FeatureTTLUnlimited
 
 withLockStatus :: LockStatus -> Feature a -> LockableFeature a
-withLockStatus ls (Feature s c ttl) = withStatus s ls c ttl
+withLockStatus ls (Feature s c _ttl) = LockableFeature s ls c
 
 withUnlocked :: Feature a -> LockableFeature a
 withUnlocked = withLockStatus LockStatusUnlocked
@@ -609,7 +592,7 @@ instance (IsFeatureConfig a, ToSchema a) => ToJSON (ImplicitLockStatus a) where
   toJSON (ImplicitLockStatus a) = A.toJSON $ forgetLock a
 
 instance (IsFeatureConfig a, ToSchema a) => FromJSON (ImplicitLockStatus a) where
-  parseJSON v = ImplicitLockStatus . withLockStatus (wsLockStatus $ defFeatureStatus @a) <$> A.parseJSON v
+  parseJSON v = ImplicitLockStatus . withLockStatus ((defFeatureStatus @a).lockStatus) <$> A.parseJSON v
 
 -- | Convert a feature coming from the database to its public form. This can be
 -- overridden on a feature basis by implementing the `computeFeature` method of
@@ -620,8 +603,8 @@ genericComputeFeature ::
   DbFeature cfg ->
   LockableFeature cfg
 genericComputeFeature defFeature lockStatus dbFeature =
-  case fromMaybe (wsLockStatus defFeature) lockStatus of
-    LockStatusLocked -> setLockStatus LockStatusLocked defFeature
+  case fromMaybe defFeature.lockStatus lockStatus of
+    LockStatusLocked -> defFeature {lockStatus = LockStatusLocked}
     LockStatusUnlocked -> withUnlocked $ unDbFeature dbFeature (forgetLock defFeature)
 
 -- | This contains the pure business logic for users from teams
@@ -635,7 +618,7 @@ computeFeatureConfigForTeamUser mStatusDb mLockStatusDb defStatus =
         Nothing -> forgetLock defStatus
         Just fs -> fs
   where
-    lockStatus = fromMaybe (wsLockStatus defStatus) mLockStatusDb
+    lockStatus = fromMaybe defStatus.lockStatus mLockStatusDb
 
 --------------------------------------------------------------------------------
 -- GuestLinks feature
@@ -652,7 +635,7 @@ instance ToSchema GuestLinksConfig where
 
 instance IsFeatureConfig GuestLinksConfig where
   type FeatureSymbol GuestLinksConfig = "conversationGuestLinks"
-  defFeatureStatus = withStatus FeatureStatusEnabled LockStatusUnlocked GuestLinksConfig FeatureTTLUnlimited
+  defFeatureStatus = defUnlockedFeature GuestLinksConfig
   featureSingleton = FeatureSingletonGuestLinksConfig
 
   objectSchema = pure GuestLinksConfig
@@ -669,7 +652,7 @@ instance RenderableSymbol LegalholdConfig where
 
 instance IsFeatureConfig LegalholdConfig where
   type FeatureSymbol LegalholdConfig = "legalhold"
-  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked LegalholdConfig FeatureTTLUnlimited
+  defFeatureStatus = (defUnlockedFeature LegalholdConfig) {status = FeatureStatusDisabled}
   featureSingleton = FeatureSingletonLegalholdConfig
   objectSchema = pure LegalholdConfig
 
@@ -689,7 +672,7 @@ instance RenderableSymbol SSOConfig where
 
 instance IsFeatureConfig SSOConfig where
   type FeatureSymbol SSOConfig = "sso"
-  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked SSOConfig FeatureTTLUnlimited
+  defFeatureStatus = (defUnlockedFeature SSOConfig) {status = FeatureStatusDisabled}
   featureSingleton = FeatureSingletonSSOConfig
   objectSchema = pure SSOConfig
 
@@ -710,7 +693,7 @@ instance RenderableSymbol SearchVisibilityAvailableConfig where
 
 instance IsFeatureConfig SearchVisibilityAvailableConfig where
   type FeatureSymbol SearchVisibilityAvailableConfig = "searchVisibility"
-  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked SearchVisibilityAvailableConfig FeatureTTLUnlimited
+  defFeatureStatus = (defUnlockedFeature SearchVisibilityAvailableConfig) {status = FeatureStatusDisabled}
   featureSingleton = FeatureSingletonSearchVisibilityAvailableConfig
   objectSchema = pure SearchVisibilityAvailableConfig
 
@@ -736,7 +719,7 @@ instance ToSchema ValidateSAMLEmailsConfig where
 
 instance IsFeatureConfig ValidateSAMLEmailsConfig where
   type FeatureSymbol ValidateSAMLEmailsConfig = "validateSAMLemails"
-  defFeatureStatus = withStatus FeatureStatusEnabled LockStatusUnlocked ValidateSAMLEmailsConfig FeatureTTLUnlimited
+  defFeatureStatus = defUnlockedFeature ValidateSAMLEmailsConfig
   featureSingleton = FeatureSingletonValidateSAMLEmailsConfig
   objectSchema = pure ValidateSAMLEmailsConfig
 
@@ -756,7 +739,7 @@ instance RenderableSymbol DigitalSignaturesConfig where
 
 instance IsFeatureConfig DigitalSignaturesConfig where
   type FeatureSymbol DigitalSignaturesConfig = "digitalSignatures"
-  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked DigitalSignaturesConfig FeatureTTLUnlimited
+  defFeatureStatus = (defUnlockedFeature DigitalSignaturesConfig) {status = FeatureStatusDisabled}
   featureSingleton = FeatureSingletonDigitalSignaturesConfig
   objectSchema = pure DigitalSignaturesConfig
 
@@ -806,7 +789,7 @@ instance RenderableSymbol ConferenceCallingConfig where
 
 instance IsFeatureConfig ConferenceCallingConfig where
   type FeatureSymbol ConferenceCallingConfig = "conferenceCalling"
-  defFeatureStatus = withStatus FeatureStatusEnabled LockStatusLocked def FeatureTTLUnlimited
+  defFeatureStatus = (defLockedFeature def) {status = FeatureStatusEnabled}
   featureSingleton = FeatureSingletonConferenceCallingConfig
   objectSchema = fromMaybe def <$> optField "config" schema
 
@@ -834,7 +817,7 @@ instance ToSchema SndFactorPasswordChallengeConfig where
 
 instance IsFeatureConfig SndFactorPasswordChallengeConfig where
   type FeatureSymbol SndFactorPasswordChallengeConfig = "sndFactorPasswordChallenge"
-  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusLocked SndFactorPasswordChallengeConfig FeatureTTLUnlimited
+  defFeatureStatus = defLockedFeature SndFactorPasswordChallengeConfig
   featureSingleton = FeatureSingletonSndFactorPasswordChallengeConfig
   objectSchema = pure SndFactorPasswordChallengeConfig
 
@@ -851,7 +834,7 @@ instance RenderableSymbol SearchVisibilityInboundConfig where
 
 instance IsFeatureConfig SearchVisibilityInboundConfig where
   type FeatureSymbol SearchVisibilityInboundConfig = "searchVisibilityInbound"
-  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked SearchVisibilityInboundConfig FeatureTTLUnlimited
+  defFeatureStatus = (defUnlockedFeature SearchVisibilityInboundConfig) {status = FeatureStatusDisabled}
   featureSingleton = FeatureSingletonSearchVisibilityInboundConfig
   objectSchema = pure SearchVisibilityInboundConfig
 
@@ -885,11 +868,9 @@ instance IsFeatureConfig ClassifiedDomainsConfig where
   type FeatureSymbol ClassifiedDomainsConfig = "classifiedDomains"
 
   defFeatureStatus =
-    withStatus
-      FeatureStatusDisabled
-      LockStatusUnlocked
-      (ClassifiedDomainsConfig [])
-      FeatureTTLUnlimited
+    (defUnlockedFeature (ClassifiedDomainsConfig []))
+      { status = FeatureStatusDisabled
+      }
   featureSingleton = FeatureSingletonClassifiedDomainsConfig
   objectSchema = field "config" schema
 
@@ -917,12 +898,7 @@ instance ToSchema AppLockConfig where
 instance IsFeatureConfig AppLockConfig where
   type FeatureSymbol AppLockConfig = "appLock"
 
-  defFeatureStatus =
-    withStatus
-      FeatureStatusEnabled
-      LockStatusUnlocked
-      (AppLockConfig (EnforceAppLock False) 60)
-      FeatureTTLUnlimited
+  defFeatureStatus = defUnlockedFeature (AppLockConfig (EnforceAppLock False) 60)
   featureSingleton = FeatureSingletonAppLockConfig
   objectSchema = field "config" schema
 
@@ -946,7 +922,7 @@ instance RenderableSymbol FileSharingConfig where
 
 instance IsFeatureConfig FileSharingConfig where
   type FeatureSymbol FileSharingConfig = "fileSharing"
-  defFeatureStatus = withStatus FeatureStatusEnabled LockStatusUnlocked FileSharingConfig FeatureTTLUnlimited
+  defFeatureStatus = defUnlockedFeature FileSharingConfig
   featureSingleton = FeatureSingletonFileSharingConfig
   objectSchema = pure FileSharingConfig
 
@@ -974,12 +950,7 @@ instance ToSchema SelfDeletingMessagesConfig where
 
 instance IsFeatureConfig SelfDeletingMessagesConfig where
   type FeatureSymbol SelfDeletingMessagesConfig = "selfDeletingMessages"
-  defFeatureStatus =
-    withStatus
-      FeatureStatusEnabled
-      LockStatusUnlocked
-      (SelfDeletingMessagesConfig 0)
-      FeatureTTLUnlimited
+  defFeatureStatus = defUnlockedFeature (SelfDeletingMessagesConfig 0)
   featureSingleton = FeatureSingletonSelfDeletingMessagesConfig
   objectSchema = field "config" schema
 
@@ -1019,7 +990,7 @@ instance IsFeatureConfig MLSConfig where
             [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519]
             MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
             [ProtocolProteusTag, ProtocolMLSTag]
-     in withStatus FeatureStatusDisabled LockStatusUnlocked config FeatureTTLUnlimited
+     in (defUnlockedFeature config) {status = FeatureStatusDisabled}
   featureSingleton = FeatureSingletonMLSConfig
   objectSchema = field "config" schema
 
@@ -1035,7 +1006,7 @@ instance RenderableSymbol ExposeInvitationURLsToTeamAdminConfig where
 
 instance IsFeatureConfig ExposeInvitationURLsToTeamAdminConfig where
   type FeatureSymbol ExposeInvitationURLsToTeamAdminConfig = "exposeInvitationURLsToTeamAdmin"
-  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusLocked ExposeInvitationURLsToTeamAdminConfig FeatureTTLUnlimited
+  defFeatureStatus = defLockedFeature ExposeInvitationURLsToTeamAdminConfig
   featureSingleton = FeatureSingletonExposeInvitationURLsToTeamAdminConfig
   objectSchema = pure ExposeInvitationURLsToTeamAdminConfig
 
@@ -1056,7 +1027,7 @@ instance RenderableSymbol OutlookCalIntegrationConfig where
 
 instance IsFeatureConfig OutlookCalIntegrationConfig where
   type FeatureSymbol OutlookCalIntegrationConfig = "outlookCalIntegration"
-  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusLocked OutlookCalIntegrationConfig FeatureTTLUnlimited
+  defFeatureStatus = defLockedFeature OutlookCalIntegrationConfig
   featureSingleton = FeatureSingletonOutlookCalIntegrationConfig
   objectSchema = pure OutlookCalIntegrationConfig
 
@@ -1118,9 +1089,9 @@ instance ToSchema MlsE2EIdConfig where
 
 instance IsFeatureConfig MlsE2EIdConfig where
   type FeatureSymbol MlsE2EIdConfig = "mlsE2EId"
-  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked defValue FeatureTTLUnlimited
-    where
-      defValue = MlsE2EIdConfig (fromIntegral @Int (60 * 60 * 24)) Nothing Nothing False
+  defFeatureStatus =
+    defLockedFeature $
+      MlsE2EIdConfig (fromIntegral @Int (60 * 60 * 24)) Nothing Nothing False
   featureSingleton = FeatureSingletonMlsE2EIdConfig
   objectSchema = field "config" schema
 
@@ -1155,9 +1126,7 @@ instance ToSchema MlsMigrationConfig where
 
 instance IsFeatureConfig MlsMigrationConfig where
   type FeatureSymbol MlsMigrationConfig = "mlsMigration"
-  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusLocked defValue FeatureTTLUnlimited
-    where
-      defValue = MlsMigrationConfig Nothing Nothing
+  defFeatureStatus = defLockedFeature (MlsMigrationConfig Nothing Nothing)
   featureSingleton = FeatureSingletonMlsMigration
   objectSchema = field "config" schema
 
@@ -1183,7 +1152,7 @@ instance ToSchema EnforceFileDownloadLocationConfig where
 
 instance IsFeatureConfig EnforceFileDownloadLocationConfig where
   type FeatureSymbol EnforceFileDownloadLocationConfig = "enforceFileDownloadLocation"
-  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusLocked (EnforceFileDownloadLocationConfig Nothing) FeatureTTLUnlimited
+  defFeatureStatus = defLockedFeature (EnforceFileDownloadLocationConfig Nothing)
   featureSingleton = FeatureSingletonEnforceFileDownloadLocationConfig
   objectSchema = field "config" schema
 
@@ -1204,7 +1173,7 @@ instance RenderableSymbol LimitedEventFanoutConfig where
 
 instance IsFeatureConfig LimitedEventFanoutConfig where
   type FeatureSymbol LimitedEventFanoutConfig = "limitedEventFanout"
-  defFeatureStatus = withStatus FeatureStatusEnabled LockStatusUnlocked LimitedEventFanoutConfig FeatureTTLUnlimited
+  defFeatureStatus = defUnlockedFeature LimitedEventFanoutConfig
   featureSingleton = FeatureSingletonLimitedEventFanoutConfig
   objectSchema = pure LimitedEventFanoutConfig
 

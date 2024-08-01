@@ -472,7 +472,7 @@ checkHandleImpl uhandle = do
 
 hasE2EId :: (Member GalleyAPIAccess r) => StoredUser -> Sem r Bool
 hasE2EId user =
-  wsStatus . afcMlsE2EId
+  (.status) . afcMlsE2EId
     <$> getAllFeatureConfigsForUser (Just user.id) <&> \case
       FeatureStatusEnabled -> True
       FeatureStatusDisabled -> False

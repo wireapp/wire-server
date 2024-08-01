@@ -223,7 +223,7 @@ spec = describe "UserSubsystem.Interpreter" do
 
     prop "should mark user as managed by scim if E2EId is enabled for the user and they have a handle" \storedSelf domain susbsystemConfig mlsE2EIdConfig ->
       let localBackend = def {users = [storedSelf]}
-          allFeatureConfigs = def {afcMlsE2EId = withStatus FeatureStatusEnabled LockStatusUnlocked mlsE2EIdConfig FeatureTTLUnlimited}
+          allFeatureConfigs = def {afcMlsE2EId = defUnlockedFeature mlsE2EIdConfig}
           SelfProfile retrievedUser =
             fromJust
               . runAllErrorsUnsafe
@@ -326,9 +326,20 @@ spec = describe "UserSubsystem.Interpreter" do
                 run
                   . runErrorUnsafe
                   . runError
-                  $ interpretNoFederationStack localBackend Nothing def {afcMlsE2EId = setStatus FeatureStatusEnabled defFeatureStatus} config do
-                    updateUserProfile lusr Nothing UpdateOriginScim (def {name = Just newName})
-                    getUserProfile lusr (tUntagged lusr)
+                  $ interpretNoFederationStack
+                    localBackend
+                    Nothing
+                    def
+                      { afcMlsE2EId =
+                          defFeatureStatus
+                            { status = FeatureStatusEnabled
+                            } ::
+                            LockableFeature MlsE2EIdConfig
+                      }
+                    config
+                    do
+                      updateUserProfile lusr Nothing UpdateOriginScim (def {name = Just newName})
+                      getUserProfile lusr (tUntagged lusr)
            in profileErr === Left UserSubsystemDisplayNameManagedByScim
 
     prop
