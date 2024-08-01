@@ -134,7 +134,7 @@ verifyCode mbCode action uid = do
   (mbEmail, mbTeamId) <- getEmailAndTeamId uid
   featureEnabled <- lift $ do
     mbFeatureEnabled <- liftSem $ GalleyAPIAccess.getVerificationCodeEnabled `traverse` mbTeamId
-    pure $ fromMaybe (Public.status (Public.defFeatureStatus @Public.SndFactorPasswordChallengeConfig) == Public.FeatureStatusEnabled) mbFeatureEnabled
+    pure $ fromMaybe ((.status) (Public.defFeatureStatus @Public.SndFactorPasswordChallengeConfig) == Public.FeatureStatusEnabled) mbFeatureEnabled
   isSsoUser <- wrapHttpClientE $ Data.isSamlUser uid
   when (featureEnabled && not isSsoUser) $ do
     case (mbCode, mbEmail) of

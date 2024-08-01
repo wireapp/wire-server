@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -Wno-unused-local-binds #-}
 
@@ -1530,7 +1531,7 @@ getGuestLinksStatusFromForeignTeamConv = do
   let checkGuestLinksStatus u c s =
         getGuestLinkStatus galley u c !!! do
           const 200 === statusCode
-          const s === (Public.status . (responseJsonUnsafe @(Public.LockableFeature Public.GuestLinksConfig)))
+          const s === ((.status) . (responseJsonUnsafe @(Public.LockableFeature Public.GuestLinksConfig)))
   let checkGetGuestLinksStatus s u c =
         getGuestLinkStatus galley u c !!! do
           const s === statusCode

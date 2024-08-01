@@ -37,15 +37,9 @@ module Wire.API.Team.Feature
     LockableFeature (..),
     defUnlockedFeature,
     defLockedFeature,
-    withStatus',
     setConfig',
     setTTL,
-    LockableFeaturePatch,
-    wsPatch,
-    wspStatus,
-    wspLockStatus,
-    wspConfig,
-    wspTTL,
+    LockableFeaturePatch (..),
     Feature (..),
     forgetLock,
     withLockStatus,
@@ -343,52 +337,33 @@ instance (Arbitrary cfg, IsFeatureConfig cfg) => Arbitrary (LockableFeature cfg)
 ----------------------------------------------------------------------
 -- LockableFeaturePatch
 
-type LockableFeaturePatch (cfg :: Type) = LockableFeatureBase Maybe cfg
-
-deriving instance (Eq cfg) => Eq (LockableFeaturePatch cfg)
-
-deriving instance (Show cfg) => Show (LockableFeaturePatch cfg)
-
-deriving via (Schema (LockableFeaturePatch cfg)) instance (ToSchema (LockableFeaturePatch cfg)) => ToJSON (LockableFeaturePatch cfg)
-
-deriving via (Schema (LockableFeaturePatch cfg)) instance (ToSchema (LockableFeaturePatch cfg)) => FromJSON (LockableFeaturePatch cfg)
-
-deriving via (Schema (LockableFeaturePatch cfg)) instance (ToSchema (LockableFeaturePatch cfg), Typeable cfg) => S.ToSchema (LockableFeaturePatch cfg)
-
-wsPatch :: Maybe FeatureStatus -> Maybe LockStatus -> Maybe cfg -> Maybe FeatureTTL -> LockableFeaturePatch cfg
-wsPatch = LockableFeatureBase
-
-wspStatus :: LockableFeaturePatch cfg -> Maybe FeatureStatus
-wspStatus = wsbStatus
-
-wspLockStatus :: LockableFeaturePatch cfg -> Maybe LockStatus
-wspLockStatus = wsbLockStatus
-
-wspConfig :: LockableFeaturePatch cfg -> Maybe cfg
-wspConfig = wsbConfig
-
-wspTTL :: LockableFeaturePatch cfg -> Maybe FeatureTTL
-wspTTL = wsbTTL
-
-withStatus' :: Maybe FeatureStatus -> Maybe LockStatus -> Maybe cfg -> Maybe FeatureTTL -> LockableFeaturePatch cfg
-withStatus' = LockableFeatureBase
+data LockableFeaturePatch (cfg :: Type) = LockableFeaturePatch
+  { status :: Maybe FeatureStatus,
+    lockStatus :: Maybe LockStatus,
+    config :: Maybe cfg
+  }
+  deriving stock (Eq, Show)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema (LockableFeaturePatch cfg))
 
 -- | The ToJSON implementation of `LockableFeaturePatch` will encode the trivial config as `"config": {}`
 -- when the value is a `Just`, if it's `Nothing` it will be omitted, which is the important part.
 instance (ToSchema cfg) => ToSchema (LockableFeaturePatch cfg) where
   schema =
     object name $
-      LockableFeatureBase
-        <$> wsbStatus .= maybe_ (optField "status" schema)
-        <*> wsbLockStatus .= maybe_ (optField "lockStatus" schema)
-        <*> wsbConfig .= maybe_ (optField "config" schema)
-        <*> wsbTTL .= maybe_ (optField "ttl" schema)
+      LockableFeaturePatch
+        <$> (.status) .= maybe_ (optField "status" schema)
+        <*> (.lockStatus) .= maybe_ (optField "lockStatus" schema)
+        <*> (.config) .= maybe_ (optField "config" schema)
+        <* const FeatureTTLUnlimited
+          .= optField
+            "ttl"
+            (schema :: ValueSchema NamedSwaggerDoc FeatureTTL)
     where
       inner = schema @cfg
       name = fromMaybe "" (getName (schemaDoc inner)) <> ".LockableFeaturePatch"
 
 instance (Arbitrary cfg, IsFeatureConfig cfg) => Arbitrary (LockableFeaturePatch cfg) where
-  arbitrary = LockableFeatureBase <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = LockableFeaturePatch <$> arbitrary <*> arbitrary <*> arbitrary
 
 ----------------------------------------------------------------------
 -- Feature

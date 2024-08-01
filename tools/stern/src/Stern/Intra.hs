@@ -532,7 +532,6 @@ setTeamFeatureFlag ::
   Handler ()
 setTeamFeatureFlag tid status = do
   info $ msg "Setting team feature status"
-  checkDaysLimit (wssTTL status)
   galleyRpc $
     method PUT
       . Bilge.paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg]
@@ -549,7 +548,6 @@ patchTeamFeatureFlag ::
   Handler ()
 patchTeamFeatureFlag tid patch = do
   info $ msg "Patching team feature status"
-  for_ (wspTTL patch) $ \ttl -> checkDaysLimit ttl
   galleyRpc $
     method PATCH
       . Bilge.paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg]
@@ -565,26 +563,6 @@ galleyRpc req = do
     404 -> throwE (mkError status404 "bad-upstream" "team does not exist")
     403 -> throwE (mkError status403 "bad-upstream" "config cannot be changed")
     _ -> throwE (mkError status502 "bad-upstream" (errorMessage resp))
-
-checkDaysLimit :: FeatureTTL -> Handler ()
-checkDaysLimit = \case
-  FeatureTTLUnlimited -> pure ()
-  FeatureTTLSeconds ((`div` (60 * 60 * 24)) -> days) -> do
-    unless (days <= daysLimit) $ do
-      throwE
-        ( mkError
-            status400
-            "bad-data"
-            ( LT.pack $
-                "ttl limit is "
-                  <> show daysLimit
-                  <> " days; I got "
-                  <> show days
-                  <> "."
-            )
-        )
-  where
-    daysLimit = 2000
 
 setTeamFeatureLockStatus ::
   forall cfg.

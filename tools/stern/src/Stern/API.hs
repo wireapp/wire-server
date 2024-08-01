@@ -350,8 +350,8 @@ mkFeaturePutRouteTrivialConfigWithTTL tid status = mkFeaturePutRouteTrivialConfi
 
 mkFeaturePutRouteTrivialConfig ::
   forall cfg. (MkFeaturePutConstraints cfg) => TeamId -> FeatureStatus -> Maybe FeatureTTLDays -> Handler NoContent
-mkFeaturePutRouteTrivialConfig tid status (fmap convertFeatureTTLDaysToSeconds -> ttl) = do
-  let patch = wsPatch (Just status) Nothing Nothing ttl
+mkFeaturePutRouteTrivialConfig tid status _ = do
+  let patch = LockableFeaturePatch (Just status) Nothing Nothing
   NoContent <$ Intra.patchTeamFeatureFlag @cfg tid patch
 
 getSearchVisibility :: TeamId -> Handler TeamSearchVisibilityView

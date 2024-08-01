@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -98,15 +100,15 @@ patchFeatureStatusInternal tid patch = do
   let newFeatureStatus = applyPatch currentFeatureStatus
   -- setting the config can fail, so we need to do it first
   void $ setConfigForTeam @cfg tid (forgetLock newFeatureStatus)
-  when (isJust $ wspLockStatus patch) $ void $ updateLockStatus @cfg tid newFeatureStatus.lockStatus
+  when (isJust $ patch.lockStatus) $ void $ updateLockStatus @cfg tid newFeatureStatus.lockStatus
   getFeatureStatus @cfg DontDoAuth tid
   where
     applyPatch :: LockableFeature cfg -> LockableFeature cfg
     applyPatch current =
       current
-        { status = fromMaybe current.status (wspStatus patch),
-          lockStatus = fromMaybe current.lockStatus (wspLockStatus patch),
-          config = fromMaybe current.config (wspConfig patch)
+        { status = fromMaybe current.status patch.status,
+          lockStatus = fromMaybe current.lockStatus patch.lockStatus,
+          config = fromMaybe current.config patch.config
         }
 
 setFeatureStatus ::
