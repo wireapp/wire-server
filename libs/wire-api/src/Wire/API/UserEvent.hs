@@ -348,7 +348,7 @@ eventObjectSchema =
               _ClientEvent
               ( tag
                   _ClientAdded
-                  (field "client" (clientSchema (Just V5)))
+                  (field "client" (clientSchema (Just V6)))
               )
           EventTypeClientRemoved ->
             tag

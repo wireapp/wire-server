@@ -386,13 +386,13 @@ servantSitemap =
 
     userClientAPI :: ServerT UserClientAPI (Handler r)
     userClientAPI =
-      Named @"add-client-v5" (callsFed (exposeAnnotations addClient))
+      Named @"add-client-v6" (callsFed (exposeAnnotations addClient))
         :<|> Named @"add-client" (callsFed (exposeAnnotations addClient))
         :<|> Named @"update-client" updateClient
         :<|> Named @"delete-client" deleteClient
-        :<|> Named @"list-clients-v5" listClients
+        :<|> Named @"list-clients-v6" listClients
         :<|> Named @"list-clients" listClients
-        :<|> Named @"get-client-v5" getClient
+        :<|> Named @"get-client-v6" getClient
         :<|> Named @"get-client" getClient
         :<|> Named @"get-client-capabilities" getClientCapabilities
         :<|> Named @"get-client-prekeys" getClientPrekeys
