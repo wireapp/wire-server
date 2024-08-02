@@ -1,4 +1,0 @@
-dependencies:
-- name: nginx
-  version: 15.10.4
-  repository: https://charts.bitnami.com/bitnami

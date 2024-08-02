@@ -21,7 +21,7 @@ ${DIR}/integration-cleanup.sh
 # script beforehand on all relevant charts to download the nested dependencies
 # (e.g. cassandra from underneath databases-ephemeral)
 echo "updating recursive dependencies ..."
-charts=(fake-aws databases-ephemeral redis-cluster rabbitmq wire-server ingress-nginx-controller nginx-ingress-controller nginx-ingress-services)
+charts=(fake-aws databases-ephemeral redis-cluster rabbitmq wire-server ingress-nginx-controller nginx-ingress-services)
 mkdir -p ~/.parallel && touch ~/.parallel/will-cite
 printf '%s\n' "${charts[@]}" | parallel -P "${HELM_PARALLELISM}" "$DIR/update.sh" "$CHARTS_DIR/{}"
 

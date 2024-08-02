@@ -1,4 +1,0 @@
-apiVersion: v1
-description: A Helm chart in-memory, ephemeral databases for use with wire-server https://github.com/wireapp/wire-server
-name: databases-ephemeral
-version: 0.0.42

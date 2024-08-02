@@ -1,5 +1,0 @@
-dependencies:
-- name: cassandra
-  version: 0.13.3
-  repository: https://charts.helm.sh/incubator
-  alias: cassandra-ephemeral

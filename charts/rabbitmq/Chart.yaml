@@ -1,4 +1,0 @@
-apiVersion: v1
-description: Wrapper chart for bitnami/rabbitmq
-name: rabbitmq
-version: 0.0.42

@@ -1,4 +1,0 @@
-apiVersion: v1
-description: Wrapper chart for incubator/cassandra with custom settings to be used as non-persistent cassandra during tests
-name: cassandra-ephemeral
-version: 0.0.42
