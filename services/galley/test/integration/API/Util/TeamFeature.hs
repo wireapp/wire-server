@@ -50,7 +50,7 @@ putTeamSearchVisibilityAvailableInternal tid statusValue =
       @Public.SearchVisibilityAvailableConfig
       expect2xx
       tid
-      (Public.Feature statusValue Public.SearchVisibilityAvailableConfig Public.FeatureTTLUnlimited)
+      (Public.Feature statusValue Public.SearchVisibilityAvailableConfig)
 
 putTeamFeatureInternal ::
   forall cfg m.

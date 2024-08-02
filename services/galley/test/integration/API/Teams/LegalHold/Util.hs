@@ -256,7 +256,7 @@ putEnabledM' g extra tid enabled = do
   put $
     g
       . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
-      . json (Public.Feature enabled Public.LegalholdConfig Public.FeatureTTLUnlimited)
+      . json (Public.Feature enabled Public.LegalholdConfig)
       . extra
 
 postSettings :: (HasCallStack) => UserId -> TeamId -> NewLegalHoldService -> TestM ResponseLBS

@@ -1,4 +1,5 @@
-{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -301,7 +302,7 @@ updateRichInfo u ri = retry x5 $ write userRichInfoUpdate (params LocalQuorum (r
 
 updateFeatureConferenceCalling :: (MonadClient m) => UserId -> Maybe (ApiFt.Feature ApiFt.ConferenceCallingConfig) -> m (Maybe (ApiFt.Feature ApiFt.ConferenceCallingConfig))
 updateFeatureConferenceCalling uid mbStatus = do
-  let flag = ApiFt.wssStatus <$> mbStatus
+  let flag = (.status) <$> mbStatus
   retry x5 $ write update (params LocalQuorum (flag, uid))
   pure mbStatus
   where
@@ -442,7 +443,7 @@ lookupFeatureConferenceCalling uid = do
   mStatusValue <- (>>= runIdentity) <$> retry x1 q
   case mStatusValue of
     Nothing -> pure Nothing
-    Just status -> pure $ Just $ ApiFt.defFeatureStatusNoLock {ApiFt.wssStatus = status}
+    Just status -> pure $ Just $ ApiFt.defFeatureStatusNoLock {ApiFt.status = status}
   where
     select :: PrepQuery R (Identity UserId) (Identity (Maybe ApiFt.FeatureStatus))
     select = fromString "select feature_conference_calling from user where id = ?"

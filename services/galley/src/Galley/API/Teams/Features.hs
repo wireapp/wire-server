@@ -130,7 +130,7 @@ setFeatureStatus ::
   TeamId ->
   Feature cfg ->
   Sem r (LockableFeature cfg)
-setFeatureStatus doauth tid wsnl = do
+setFeatureStatus doauth tid feat = do
   case doauth of
     DoAuth uid -> do
       zusrMembership <- getTeamMember tid uid
@@ -138,7 +138,7 @@ setFeatureStatus doauth tid wsnl = do
     DontDoAuth ->
       assertTeamExists tid
   guardLockStatus . (.lockStatus) =<< getConfigForTeam @cfg tid
-  setConfigForTeam @cfg tid wsnl
+  setConfigForTeam @cfg tid feat
 
 setFeatureStatusInternal ::
   forall cfg r.
@@ -190,8 +190,8 @@ persistAndPushEvent ::
   TeamId ->
   Feature cfg ->
   Sem r (LockableFeature cfg)
-persistAndPushEvent tid wsnl = do
-  setFeatureConfig (featureSingleton @cfg) tid wsnl
+persistAndPushEvent tid feat = do
+  setFeatureConfig (featureSingleton @cfg) tid feat
   fs <- getConfigForTeam @cfg tid
   pushFeatureConfigEvent tid (Event.mkUpdateEvent fs)
   pure fs
@@ -264,7 +264,7 @@ class (GetFeatureConfig cfg) => SetFeatureConfig cfg where
     TeamId ->
     Feature cfg ->
     Sem r (LockableFeature cfg)
-  setConfigForTeam tid wsnl = persistAndPushEvent tid wsnl
+  setConfigForTeam tid feat = persistAndPushEvent tid feat
 
 instance SetFeatureConfig SSOConfig where
   type
@@ -273,11 +273,11 @@ instance SetFeatureConfig SSOConfig where
         Member (Error TeamFeatureError) r
       )
 
-  setConfigForTeam tid wsnl = do
-    case wssStatus wsnl of
+  setConfigForTeam tid feat = do
+    case feat.status of
       FeatureStatusEnabled -> pure ()
       FeatureStatusDisabled -> throw DisableSsoNotImplemented
-    persistAndPushEvent tid wsnl
+    persistAndPushEvent tid feat
 
 instance SetFeatureConfig SearchVisibilityAvailableConfig where
   type
@@ -286,11 +286,11 @@ instance SetFeatureConfig SearchVisibilityAvailableConfig where
         Member (Input Opts) r
       )
 
-  setConfigForTeam tid wsnl = do
-    case wssStatus wsnl of
+  setConfigForTeam tid feat = do
+    case feat.status of
       FeatureStatusEnabled -> pure ()
       FeatureStatusDisabled -> SearchVisibilityData.resetSearchVisibility tid
-    persistAndPushEvent tid wsnl
+    persistAndPushEvent tid feat
 
 instance SetFeatureConfig ValidateSAMLEmailsConfig
 
@@ -337,7 +337,7 @@ instance SetFeatureConfig LegalholdConfig where
       )
 
   -- we're good to update the status now.
-  setConfigForTeam tid wsnl = do
+  setConfigForTeam tid feat = do
     -- this extra do is to encapsulate the assertions running before the actual operation.
     -- enabling LH for teams is only allowed in normal operation; disabled-permanently and
     -- whitelist-teams have no or their own way to do that, resp.
@@ -350,20 +350,20 @@ instance SetFeatureConfig LegalholdConfig where
       FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
         throw LegalHoldWhitelistedOnly
 
-    case wssStatus wsnl of
+    case feat.status of
       FeatureStatusDisabled -> LegalHold.removeSettings' @InternalPaging tid
       FeatureStatusEnabled -> ensureNotTooLargeToActivateLegalHold tid
-    persistAndPushEvent tid wsnl
+    persistAndPushEvent tid feat
 
 instance SetFeatureConfig FileSharingConfig
 
 instance SetFeatureConfig AppLockConfig where
   type SetConfigForTeamConstraints AppLockConfig r = Member (Error TeamFeatureError) r
 
-  setConfigForTeam tid wsnl = do
-    when ((applockInactivityTimeoutSecs . wssConfig $ wsnl) < 30) $
+  setConfigForTeam tid feat = do
+    when ((applockInactivityTimeoutSecs feat.config) < 30) $
       throw AppLockInactivityTimeoutTooLow
-    persistAndPushEvent tid wsnl
+    persistAndPushEvent tid feat
 
 instance SetFeatureConfig ConferenceCallingConfig
 
@@ -375,9 +375,9 @@ instance SetFeatureConfig SndFactorPasswordChallengeConfig
 
 instance SetFeatureConfig SearchVisibilityInboundConfig where
   type SetConfigForTeamConstraints SearchVisibilityInboundConfig (r :: EffectRow) = (Member BrigAccess r)
-  setConfigForTeam tid wsnl = do
-    updateSearchVisibilityInbound $ toTeamStatus tid wsnl
-    persistAndPushEvent tid wsnl
+  setConfigForTeam tid feat = do
+    updateSearchVisibilityInbound $ toTeamStatus tid feat
+    persistAndPushEvent tid feat
 
 instance SetFeatureConfig MLSConfig where
   type SetConfigForTeamConstraints MLSConfig (r :: EffectRow) = (Member (Error TeamFeatureError) r)
@@ -385,9 +385,9 @@ instance SetFeatureConfig MLSConfig where
     mlsMigrationConfig <- getConfigForTeam @MlsMigrationConfig tid
     unless
       ( -- default protocol needs to be included in supported protocols
-        mlsDefaultProtocol (wssConfig feat) `elem` mlsSupportedProtocols (wssConfig feat)
+        feat.config.mlsDefaultProtocol `elem` feat.config.mlsSupportedProtocols
           -- when MLS migration is enabled, MLS needs to be enabled as well
-          && (mlsMigrationConfig.status == FeatureStatusDisabled || wssStatus feat == FeatureStatusEnabled)
+          && (mlsMigrationConfig.status == FeatureStatusDisabled || feat.status == FeatureStatusEnabled)
       )
       $ throw MLSProtocolMismatch
     persistAndPushEvent tid feat
@@ -406,9 +406,9 @@ guardMlsE2EIdConfig ::
   TeamId ->
   Feature MlsE2EIdConfig ->
   Sem r a
-guardMlsE2EIdConfig handler uid tid conf = do
-  when (isNothing . crlProxy . wssConfig $ conf) $ throw MLSE2EIDMissingCrlProxy
-  handler uid tid conf
+guardMlsE2EIdConfig handler uid tid feat = do
+  when (isNothing feat.config.crlProxy) $ throw MLSE2EIDMissingCrlProxy
+  handler uid tid feat
 
 instance SetFeatureConfig MlsMigrationConfig where
   type SetConfigForTeamConstraints MlsMigrationConfig (r :: EffectRow) = (Member (Error TeamFeatureError) r)
@@ -416,7 +416,7 @@ instance SetFeatureConfig MlsMigrationConfig where
     mlsConfig <- getConfigForTeam @MLSConfig tid
     unless
       ( -- when MLS migration is enabled, MLS needs to be enabled as well
-        wssStatus feat == FeatureStatusDisabled || mlsConfig.status == FeatureStatusEnabled
+        feat.status == FeatureStatusDisabled || mlsConfig.status == FeatureStatusEnabled
       )
       $ throw MLSProtocolMismatch
     persistAndPushEvent tid feat

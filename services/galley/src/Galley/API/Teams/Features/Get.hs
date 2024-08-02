@@ -150,7 +150,7 @@ getFeatureStatusMulti (Multi.TeamFeatureNoConfigMultiRequest tids) = do
   pure $ Multi.TeamFeatureNoConfigMultiResponse xs
 
 toTeamStatus :: TeamId -> Feature cfg -> Multi.TeamStatus cfg
-toTeamStatus tid ws = Multi.TeamStatus tid (wssStatus ws)
+toTeamStatus tid feat = Multi.TeamStatus tid feat.status
 
 getTeamAndCheckMembership ::
   ( Member TeamStore r,
@@ -464,7 +464,7 @@ instance GetFeatureConfig ConferenceCallingConfig where
         withUnlocked $
           (unDbFeature dbFeature)
             (forgetLock defFeature)
-              { wssStatus = FeatureStatusEnabled
+              { status = FeatureStatusEnabled
               }
 
 instance GetFeatureConfig SelfDeletingMessagesConfig where

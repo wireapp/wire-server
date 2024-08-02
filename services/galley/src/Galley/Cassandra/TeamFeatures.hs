@@ -119,51 +119,51 @@ getFeatureConfig FeatureSingletonLimitedEventFanoutConfig tid =
   getFeature "limited_event_fanout_status" tid
 
 setFeatureConfig :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> Feature cfg -> m ()
-setFeatureConfig FeatureSingletonLegalholdConfig tid statusNoLock = setFeatureStatusC "legalhold_status" tid (wssStatus statusNoLock)
-setFeatureConfig FeatureSingletonSSOConfig tid statusNoLock = setFeatureStatusC "sso_status" tid (wssStatus statusNoLock)
-setFeatureConfig FeatureSingletonSearchVisibilityAvailableConfig tid statusNoLock = setFeatureStatusC "search_visibility_status" tid (wssStatus statusNoLock)
-setFeatureConfig FeatureSingletonValidateSAMLEmailsConfig tid statusNoLock = setFeatureStatusC "validate_saml_emails" tid (wssStatus statusNoLock)
-setFeatureConfig FeatureSingletonClassifiedDomainsConfig _tid _statusNoLock = pure ()
-setFeatureConfig FeatureSingletonDigitalSignaturesConfig tid statusNoLock = setFeatureStatusC "digital_signatures" tid (wssStatus statusNoLock)
-setFeatureConfig FeatureSingletonAppLockConfig tid status = do
-  let enforce = applockEnforceAppLock (wssConfig status)
-      timeout = applockInactivityTimeoutSecs (wssConfig status)
+setFeatureConfig FeatureSingletonLegalholdConfig tid feat = setFeatureStatusC "legalhold_status" tid feat.status
+setFeatureConfig FeatureSingletonSSOConfig tid feat = setFeatureStatusC "sso_status" tid feat.status
+setFeatureConfig FeatureSingletonSearchVisibilityAvailableConfig tid feat = setFeatureStatusC "search_visibility_status" tid feat.status
+setFeatureConfig FeatureSingletonValidateSAMLEmailsConfig tid feat = setFeatureStatusC "validate_saml_emails" tid feat.status
+setFeatureConfig FeatureSingletonClassifiedDomainsConfig _tid _feat = pure ()
+setFeatureConfig FeatureSingletonDigitalSignaturesConfig tid feat = setFeatureStatusC "digital_signatures" tid feat.status
+setFeatureConfig FeatureSingletonAppLockConfig tid feat = do
+  let enforce = applockEnforceAppLock feat.config
+      timeout = applockInactivityTimeoutSecs feat.config
 
-  retry x5 $ write insert (params LocalQuorum (tid, wssStatus status, enforce, timeout))
+  retry x5 $ write insert (params LocalQuorum (tid, feat.status, enforce, timeout))
   where
     insert :: PrepQuery W (TeamId, FeatureStatus, EnforceAppLock, Int32) ()
     insert =
       fromString $
         "insert into team_features (team_id, app_lock_status, app_lock_enforce,\
         \ app_lock_inactivity_timeout_secs) values (?, ?, ?, ?)"
-setFeatureConfig FeatureSingletonFileSharingConfig tid statusNoLock = setFeatureStatusC "file_sharing" tid (wssStatus statusNoLock)
-setFeatureConfig FeatureSingletonSelfDeletingMessagesConfig tid status = do
-  let statusValue = wssStatus status
-      timeout = sdmEnforcedTimeoutSeconds . wssConfig $ status
+setFeatureConfig FeatureSingletonFileSharingConfig tid feat = setFeatureStatusC "file_sharing" tid feat.status
+setFeatureConfig FeatureSingletonSelfDeletingMessagesConfig tid feat = do
+  let statusValue = feat.status
+      timeout = sdmEnforcedTimeoutSeconds feat.config
   retry x5 $ write insert (params LocalQuorum (tid, statusValue, timeout))
   where
     insert :: PrepQuery W (TeamId, FeatureStatus, Int32) ()
     insert =
       "insert into team_features (team_id, self_deleting_messages_status,\
       \ self_deleting_messages_ttl) values (?, ?, ?)"
-setFeatureConfig FeatureSingletonConferenceCallingConfig tid statusNoLock = do
+setFeatureConfig FeatureSingletonConferenceCallingConfig tid feat = do
   retry x5 . batch $ do
     setType BatchLogged
     setConsistency LocalQuorum
-    addPrepQuery insertStatus (tid, statusNoLock.wssStatus)
-    addPrepQuery insertConfig (tid, statusNoLock.wssConfig.one2OneCalls)
+    addPrepQuery insertStatus (tid, feat.status)
+    addPrepQuery insertConfig (tid, feat.config.one2OneCalls)
   where
     insertStatus :: PrepQuery W (TeamId, FeatureStatus) ()
     insertStatus = "insert into team_features (team_id, conference_calling_status) values (?, ?)"
     insertConfig :: PrepQuery W (TeamId, One2OneCalls) ()
     insertConfig = "insert into team_features (team_id, conference_calling_one_to_one) values (?, ?)"
-setFeatureConfig FeatureSingletonGuestLinksConfig tid statusNoLock = setFeatureStatusC "guest_links_status" tid (wssStatus statusNoLock)
-setFeatureConfig FeatureSingletonSndFactorPasswordChallengeConfig tid statusNoLock =
-  setFeatureStatusC "snd_factor_password_challenge_status" tid (wssStatus statusNoLock)
-setFeatureConfig FeatureSingletonSearchVisibilityInboundConfig tid statusNoLock = setFeatureStatusC "search_visibility_status" tid (wssStatus statusNoLock)
-setFeatureConfig FeatureSingletonMLSConfig tid statusNoLock = do
-  let status = wssStatus statusNoLock
-  let MLSConfig protocolToggleUsers defaultProtocol allowedCipherSuites defaultCipherSuite supportedProtocols = wssConfig statusNoLock
+setFeatureConfig FeatureSingletonGuestLinksConfig tid feat = setFeatureStatusC "guest_links_status" tid feat.status
+setFeatureConfig FeatureSingletonSndFactorPasswordChallengeConfig tid feat =
+  setFeatureStatusC "snd_factor_password_challenge_status" tid feat.status
+setFeatureConfig FeatureSingletonSearchVisibilityInboundConfig tid feat = setFeatureStatusC "search_visibility_status" tid feat.status
+setFeatureConfig FeatureSingletonMLSConfig tid feat = do
+  let status = feat.status
+  let MLSConfig protocolToggleUsers defaultProtocol allowedCipherSuites defaultCipherSuite supportedProtocols = feat.config
   retry x5 $
     write
       insert
@@ -183,39 +183,33 @@ setFeatureConfig FeatureSingletonMLSConfig tid statusNoLock = do
     insert =
       "insert into team_features (team_id, mls_status, mls_default_protocol, \
       \mls_protocol_toggle_users, mls_allowed_ciphersuites, mls_default_ciphersuite, mls_supported_protocols) values (?, ?, ?, ?, ?, ?, ?)"
-setFeatureConfig FeatureSingletonMlsE2EIdConfig tid status = do
-  let statusValue = wssStatus status
-      vex = verificationExpiration . wssConfig $ status
-      mUrl = acmeDiscoveryUrl . wssConfig $ status
-      mCrlProxy = crlProxy . wssConfig $ status
-      useProxy = useProxyOnMobile . wssConfig $ status
+setFeatureConfig FeatureSingletonMlsE2EIdConfig tid feat = do
+  let statusValue = feat.status
+      vex = verificationExpiration feat.config
+      mUrl = acmeDiscoveryUrl feat.config
+      mCrlProxy = crlProxy feat.config
+      useProxy = useProxyOnMobile feat.config
   retry x5 $ write insert (params LocalQuorum (tid, statusValue, truncate vex, mUrl, mCrlProxy, useProxy))
   where
     insert :: PrepQuery W (TeamId, FeatureStatus, Int32, Maybe HttpsUrl, Maybe HttpsUrl, Bool) ()
     insert =
       "insert into team_features (team_id, mls_e2eid_status, mls_e2eid_grace_period, mls_e2eid_acme_discovery_url, mls_e2eid_crl_proxy, mls_e2eid_use_proxy_on_mobile) values (?, ?, ?, ?, ?, ?)"
-setFeatureConfig FeatureSingletonMlsMigration tid status = do
-  let statusValue = wssStatus status
-      config = wssConfig status
-
-  retry x5 $ write insert (params LocalQuorum (tid, statusValue, config.startTime, config.finaliseRegardlessAfter))
+setFeatureConfig FeatureSingletonMlsMigration tid feat = do
+  retry x5 $ write insert (params LocalQuorum (tid, feat.status, feat.config.startTime, feat.config.finaliseRegardlessAfter))
   where
     insert :: PrepQuery W (TeamId, FeatureStatus, Maybe UTCTime, Maybe UTCTime) ()
     insert =
       "insert into team_features (team_id, mls_migration_status, mls_migration_start_time, mls_migration_finalise_regardless_after) values (?, ?, ?, ?)"
-setFeatureConfig FeatureSingletonExposeInvitationURLsToTeamAdminConfig tid statusNoLock = setFeatureStatusC "expose_invitation_urls_to_team_admin" tid (wssStatus statusNoLock)
-setFeatureConfig FeatureSingletonOutlookCalIntegrationConfig tid statusNoLock = setFeatureStatusC "outlook_cal_integration_status" tid (wssStatus statusNoLock)
-setFeatureConfig FeatureSingletonEnforceFileDownloadLocationConfig tid status = do
-  let statusValue = wssStatus status
-      config = wssConfig status
-
-  retry x5 $ write insert (params LocalQuorum (tid, statusValue, config.enforcedDownloadLocation))
+setFeatureConfig FeatureSingletonExposeInvitationURLsToTeamAdminConfig tid feat = setFeatureStatusC "expose_invitation_urls_to_team_admin" tid feat.status
+setFeatureConfig FeatureSingletonOutlookCalIntegrationConfig tid feat = setFeatureStatusC "outlook_cal_integration_status" tid feat.status
+setFeatureConfig FeatureSingletonEnforceFileDownloadLocationConfig tid feat = do
+  retry x5 $ write insert (params LocalQuorum (tid, feat.status, feat.config.enforcedDownloadLocation))
   where
     insert :: PrepQuery W (TeamId, FeatureStatus, Maybe Text) ()
     insert =
       "insert into team_features (team_id, enforce_file_download_location_status, enforce_file_download_location) values (?, ?, ?)"
-setFeatureConfig FeatureSingletonLimitedEventFanoutConfig tid statusNoLock =
-  setFeatureStatusC "limited_event_fanout_status" tid (wssStatus statusNoLock)
+setFeatureConfig FeatureSingletonLimitedEventFanoutConfig tid feat =
+  setFeatureStatusC "limited_event_fanout_status" tid feat.status
 
 getFeatureLockStatus :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> m (Maybe LockStatus)
 getFeatureLockStatus FeatureSingletonFileSharingConfig tid = getLockStatusC "file_sharing_lock_status" tid
@@ -231,16 +225,16 @@ getFeatureLockStatus FeatureSingletonConferenceCallingConfig tid = getLockStatus
 getFeatureLockStatus _ _ = pure Nothing
 
 setFeatureLockStatus :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> LockStatus -> m ()
-setFeatureLockStatus FeatureSingletonFileSharingConfig tid status = setLockStatusC "file_sharing_lock_status" tid status
-setFeatureLockStatus FeatureSingletonSelfDeletingMessagesConfig tid status = setLockStatusC "self_deleting_messages_lock_status" tid status
-setFeatureLockStatus FeatureSingletonGuestLinksConfig tid status = setLockStatusC "guest_links_lock_status" tid status
-setFeatureLockStatus FeatureSingletonSndFactorPasswordChallengeConfig tid status = setLockStatusC "snd_factor_password_challenge_lock_status" tid status
-setFeatureLockStatus FeatureSingletonMlsE2EIdConfig tid status = setLockStatusC "mls_e2eid_lock_status" tid status
-setFeatureLockStatus FeatureSingletonMlsMigration tid status = setLockStatusC "mls_migration_lock_status" tid status
-setFeatureLockStatus FeatureSingletonOutlookCalIntegrationConfig tid status = setLockStatusC "outlook_cal_integration_lock_status" tid status
-setFeatureLockStatus FeatureSingletonMLSConfig tid status = setLockStatusC "mls_lock_status" tid status
-setFeatureLockStatus FeatureSingletonEnforceFileDownloadLocationConfig tid status = setLockStatusC "enforce_file_download_location_lock_status" tid status
-setFeatureLockStatus FeatureSingletonConferenceCallingConfig tid status = setLockStatusC "conference_calling" tid status
+setFeatureLockStatus FeatureSingletonFileSharingConfig tid feat = setLockStatusC "file_sharing_lock_status" tid feat
+setFeatureLockStatus FeatureSingletonSelfDeletingMessagesConfig tid feat = setLockStatusC "self_deleting_messages_lock_status" tid feat
+setFeatureLockStatus FeatureSingletonGuestLinksConfig tid feat = setLockStatusC "guest_links_lock_status" tid feat
+setFeatureLockStatus FeatureSingletonSndFactorPasswordChallengeConfig tid feat = setLockStatusC "snd_factor_password_challenge_lock_status" tid feat
+setFeatureLockStatus FeatureSingletonMlsE2EIdConfig tid feat = setLockStatusC "mls_e2eid_lock_status" tid feat
+setFeatureLockStatus FeatureSingletonMlsMigration tid feat = setLockStatusC "mls_migration_lock_status" tid feat
+setFeatureLockStatus FeatureSingletonOutlookCalIntegrationConfig tid feat = setLockStatusC "outlook_cal_integration_lock_status" tid feat
+setFeatureLockStatus FeatureSingletonMLSConfig tid feat = setLockStatusC "mls_lock_status" tid feat
+setFeatureLockStatus FeatureSingletonEnforceFileDownloadLocationConfig tid feat = setLockStatusC "enforce_file_download_location_lock_status" tid feat
+setFeatureLockStatus FeatureSingletonConferenceCallingConfig tid feat = setLockStatusC "conference_calling" tid feat
 setFeatureLockStatus _ _tid _status = pure ()
 
 getFeature ::

@@ -151,7 +151,7 @@ unlockFeature galley tid =
 
 setSndFactorPasswordChallengeStatus :: GalleyReq -> TeamId -> Public.FeatureStatus -> TestSpar ()
 setSndFactorPasswordChallengeStatus galley tid status = do
-  let js = RequestBodyLBS $ encode $ Public.Feature @Public.SndFactorPasswordChallengeConfig status Public.SndFactorPasswordChallengeConfig Public.FeatureTTLUnlimited
+  let js = RequestBodyLBS $ encode $ Public.Feature @Public.SndFactorPasswordChallengeConfig status Public.SndFactorPasswordChallengeConfig
   call $
     put (galley . paths ["i", "teams", toByteString' tid, "features", featureNameBS @Public.SndFactorPasswordChallengeConfig] . contentJson . body js)
       !!! const 200 === statusCode

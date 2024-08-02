@@ -313,9 +313,8 @@ instance MakeFeature ClassifiedDomainsConfig
 instance MakeFeature ConferenceCallingConfig where
   type FeatureRow ConferenceCallingConfig = (Maybe FeatureStatus, Maybe FeatureTTL, Maybe One2OneCalls)
 
-  mkFeature (status, ttl, sftForOneToOne) =
+  mkFeature (status, _, sftForOneToOne) =
     foldMap dbFeatureStatus status
-      <> foldMap dbFeatureTTL ttl
       <> foldMap (dbFeatureConfig . ConferenceCallingConfig) sftForOneToOne
 
 instance MakeFeature SelfDeletingMessagesConfig where

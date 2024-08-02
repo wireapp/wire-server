@@ -63,8 +63,7 @@ computeLegalHoldFeatureStatus tid dbFeature =
   getLegalHoldFlag >>= \case
     FeatureLegalHoldDisabledPermanently -> pure FeatureStatusDisabled
     FeatureLegalHoldDisabledByDefault ->
-      pure . wssStatus $
-        unDbFeature dbFeature defFeatureStatusNoLock
+      pure (unDbFeature dbFeature defFeatureStatusNoLock).status
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
       wl <- LegalHoldData.isTeamLegalholdWhitelisted tid
       pure $ if wl then FeatureStatusEnabled else FeatureStatusDisabled

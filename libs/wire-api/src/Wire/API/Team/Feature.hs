@@ -30,7 +30,6 @@ module Wire.API.Team.Feature
     DbFeature (..),
     DbFeatureWithLock (..),
     dbFeatureStatus,
-    dbFeatureTTL,
     dbFeatureConfig,
     dbFeatureModConfig,
     LockableFeature (..),
@@ -233,16 +232,13 @@ instance Monoid (DbFeature cfg) where
   mempty = DbFeature id
 
 dbFeatureStatus :: FeatureStatus -> DbFeature cfg
-dbFeatureStatus s = DbFeature $ \w -> w {wssStatus = s}
-
-dbFeatureTTL :: FeatureTTL -> DbFeature cfg
-dbFeatureTTL ttl = DbFeature $ \w -> w {wssTTL = ttl}
+dbFeatureStatus s = DbFeature $ \w -> w {status = s}
 
 dbFeatureConfig :: cfg -> DbFeature cfg
-dbFeatureConfig c = DbFeature $ \w -> w {wssConfig = c}
+dbFeatureConfig c = DbFeature $ \w -> w {config = c}
 
 dbFeatureModConfig :: (cfg -> cfg) -> DbFeature cfg
-dbFeatureModConfig f = DbFeature $ \w -> w {wssConfig = f (wssConfig w)}
+dbFeatureModConfig f = DbFeature $ \w -> w {config = f w.config}
 
 data DbFeatureWithLock cfg = DbFeatureWithLock
   { lockStatus :: Maybe LockStatus,
@@ -349,21 +345,20 @@ instance (Arbitrary cfg, IsFeatureConfig cfg) => Arbitrary (LockableFeaturePatch
 -- Feature
 
 data Feature (cfg :: Type) = Feature
-  { wssStatus :: FeatureStatus,
-    wssConfig :: cfg,
-    wssTTL :: FeatureTTL
+  { status :: FeatureStatus,
+    config :: cfg
   }
   deriving stock (Eq, Show, Generic, Typeable, Functor)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema (Feature cfg))
 
 instance (Arbitrary cfg) => Arbitrary (Feature cfg) where
-  arbitrary = Feature <$> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = Feature <$> arbitrary <*> arbitrary
 
 forgetLock :: LockableFeature a -> Feature a
-forgetLock ws = Feature ws.status ws.config FeatureTTLUnlimited
+forgetLock ws = Feature ws.status ws.config
 
 withLockStatus :: LockStatus -> Feature a -> LockableFeature a
-withLockStatus ls (Feature s c _ttl) = LockableFeature s ls c
+withLockStatus ls (Feature s c) = LockableFeature s ls c
 
 withUnlocked :: Feature a -> LockableFeature a
 withUnlocked = withLockStatus LockStatusUnlocked
@@ -375,9 +370,12 @@ instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (Feature cfg) where
   schema =
     object name $
       Feature
-        <$> wssStatus .= field "status" schema
-        <*> wssConfig .= objectSchema @cfg
-        <*> wssTTL .= (fromMaybe FeatureTTLUnlimited <$> optField "ttl" schema)
+        <$> (.status) .= field "status" schema
+        <*> (.config) .= objectSchema @cfg
+        <* const FeatureTTLUnlimited
+          .= optField
+            "ttl"
+            (schema :: ValueSchema NamedSwaggerDoc FeatureTTL)
     where
       inner = schema @cfg
       name = fromMaybe "" (getName (schemaDoc inner)) <> ".Feature"
