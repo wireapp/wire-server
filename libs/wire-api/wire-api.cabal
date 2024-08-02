@@ -660,7 +660,6 @@ test-suite wire-api-tests
     Test.Wire.API.Run
     Test.Wire.API.Swagger
     Test.Wire.API.Team.Export
-    Test.Wire.API.Team.Feature
     Test.Wire.API.Team.Member
     Test.Wire.API.User
     Test.Wire.API.User.Auth

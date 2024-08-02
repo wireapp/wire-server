@@ -48,7 +48,6 @@ module Wire.API.Team.Feature
     EnforceAppLock (..),
     defFeatureStatusNoLock,
     genericComputeFeature,
-    computeFeatureConfigForTeamUser,
     IsFeatureConfig (..),
     FeatureSingleton (..),
     HasDeprecatedFeatureName (..),
@@ -363,9 +362,6 @@ withLockStatus ls (Feature s c) = LockableFeature s ls c
 withUnlocked :: Feature a -> LockableFeature a
 withUnlocked = withLockStatus LockStatusUnlocked
 
-withLocked :: Feature a -> LockableFeature a
-withLocked = withLockStatus LockStatusLocked
-
 instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (Feature cfg) where
   schema =
     object name $
@@ -559,19 +555,6 @@ genericComputeFeature defFeature lockStatus dbFeature =
   case fromMaybe defFeature.lockStatus lockStatus of
     LockStatusLocked -> defFeature {lockStatus = LockStatusLocked}
     LockStatusUnlocked -> withUnlocked $ unDbFeature dbFeature (forgetLock defFeature)
-
--- | This contains the pure business logic for users from teams
-computeFeatureConfigForTeamUser :: Maybe (Feature cfg) -> Maybe LockStatus -> LockableFeature cfg -> LockableFeature cfg
-computeFeatureConfigForTeamUser mStatusDb mLockStatusDb defStatus =
-  case lockStatus of
-    LockStatusLocked ->
-      withLocked (forgetLock defStatus)
-    LockStatusUnlocked ->
-      withUnlocked $ case mStatusDb of
-        Nothing -> forgetLock defStatus
-        Just fs -> fs
-  where
-    lockStatus = fromMaybe defStatus.lockStatus mLockStatusDb
 
 --------------------------------------------------------------------------------
 -- GuestLinks feature
