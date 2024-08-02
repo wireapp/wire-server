@@ -23,10 +23,7 @@ module Galley.Cassandra.TeamFeatures
 where
 
 import Cassandra
-import Cassandra qualified as C
 import Data.Id
-import Data.Misc (HttpsUrl)
-import Data.Time
 import Galley.API.Teams.Features.Get
 import Galley.Cassandra.GetAllTeamFeatureConfigs
 import Galley.Cassandra.Instances ()
@@ -39,8 +36,6 @@ import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog
 import UnliftIO.Async (pooledMapConcurrentlyN)
-import Wire.API.Conversation.Protocol (ProtocolTag)
-import Wire.API.MLS.CipherSuite
 import Wire.API.Team.Feature
 
 interpretTeamFeatureStoreToCassandra ::
@@ -93,97 +88,26 @@ getFeatureConfig FeatureSingletonEnforceFileDownloadLocationConfig = getFeature
 getFeatureConfig FeatureSingletonLimitedEventFanoutConfig = getFeature
 
 setFeatureConfig :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> Feature cfg -> m ()
-setFeatureConfig FeatureSingletonLegalholdConfig tid feat = setFeatureStatusC "legalhold_status" tid feat.status
-setFeatureConfig FeatureSingletonSSOConfig tid feat = setFeatureStatusC "sso_status" tid feat.status
-setFeatureConfig FeatureSingletonSearchVisibilityAvailableConfig tid feat = setFeatureStatusC "search_visibility_status" tid feat.status
-setFeatureConfig FeatureSingletonValidateSAMLEmailsConfig tid feat = setFeatureStatusC "validate_saml_emails" tid feat.status
-setFeatureConfig FeatureSingletonClassifiedDomainsConfig _tid _feat = pure ()
-setFeatureConfig FeatureSingletonDigitalSignaturesConfig tid feat = setFeatureStatusC "digital_signatures" tid feat.status
-setFeatureConfig FeatureSingletonAppLockConfig tid feat = do
-  let enforce = applockEnforceAppLock feat.config
-      timeout = applockInactivityTimeoutSecs feat.config
-
-  retry x5 $ write insert (params LocalQuorum (tid, feat.status, enforce, timeout))
-  where
-    insert :: PrepQuery W (TeamId, FeatureStatus, EnforceAppLock, Int32) ()
-    insert =
-      fromString $
-        "insert into team_features (team_id, app_lock_status, app_lock_enforce,\
-        \ app_lock_inactivity_timeout_secs) values (?, ?, ?, ?)"
-setFeatureConfig FeatureSingletonFileSharingConfig tid feat = setFeatureStatusC "file_sharing" tid feat.status
-setFeatureConfig FeatureSingletonSelfDeletingMessagesConfig tid feat = do
-  let statusValue = feat.status
-      timeout = sdmEnforcedTimeoutSeconds feat.config
-  retry x5 $ write insert (params LocalQuorum (tid, statusValue, timeout))
-  where
-    insert :: PrepQuery W (TeamId, FeatureStatus, Int32) ()
-    insert =
-      "insert into team_features (team_id, self_deleting_messages_status,\
-      \ self_deleting_messages_ttl) values (?, ?, ?)"
-setFeatureConfig FeatureSingletonConferenceCallingConfig tid feat = do
-  retry x5 . batch $ do
-    setType BatchLogged
-    setConsistency LocalQuorum
-    addPrepQuery insertStatus (tid, feat.status)
-    addPrepQuery insertConfig (tid, feat.config.one2OneCalls)
-  where
-    insertStatus :: PrepQuery W (TeamId, FeatureStatus) ()
-    insertStatus = "insert into team_features (team_id, conference_calling_status) values (?, ?)"
-    insertConfig :: PrepQuery W (TeamId, One2OneCalls) ()
-    insertConfig = "insert into team_features (team_id, conference_calling_one_to_one) values (?, ?)"
-setFeatureConfig FeatureSingletonGuestLinksConfig tid feat = setFeatureStatusC "guest_links_status" tid feat.status
-setFeatureConfig FeatureSingletonSndFactorPasswordChallengeConfig tid feat =
-  setFeatureStatusC "snd_factor_password_challenge_status" tid feat.status
-setFeatureConfig FeatureSingletonSearchVisibilityInboundConfig tid feat = setFeatureStatusC "search_visibility_status" tid feat.status
-setFeatureConfig FeatureSingletonMLSConfig tid feat = do
-  let status = feat.status
-  let MLSConfig protocolToggleUsers defaultProtocol allowedCipherSuites defaultCipherSuite supportedProtocols = feat.config
-  retry x5 $
-    write
-      insert
-      ( params
-          LocalQuorum
-          ( tid,
-            status,
-            defaultProtocol,
-            C.Set protocolToggleUsers,
-            C.Set allowedCipherSuites,
-            defaultCipherSuite,
-            C.Set supportedProtocols
-          )
-      )
-  where
-    insert :: PrepQuery W (TeamId, FeatureStatus, ProtocolTag, C.Set UserId, C.Set CipherSuiteTag, CipherSuiteTag, C.Set ProtocolTag) ()
-    insert =
-      "insert into team_features (team_id, mls_status, mls_default_protocol, \
-      \mls_protocol_toggle_users, mls_allowed_ciphersuites, mls_default_ciphersuite, mls_supported_protocols) values (?, ?, ?, ?, ?, ?, ?)"
-setFeatureConfig FeatureSingletonMlsE2EIdConfig tid feat = do
-  let statusValue = feat.status
-      vex = verificationExpiration feat.config
-      mUrl = acmeDiscoveryUrl feat.config
-      mCrlProxy = crlProxy feat.config
-      useProxy = useProxyOnMobile feat.config
-  retry x5 $ write insert (params LocalQuorum (tid, statusValue, truncate vex, mUrl, mCrlProxy, useProxy))
-  where
-    insert :: PrepQuery W (TeamId, FeatureStatus, Int32, Maybe HttpsUrl, Maybe HttpsUrl, Bool) ()
-    insert =
-      "insert into team_features (team_id, mls_e2eid_status, mls_e2eid_grace_period, mls_e2eid_acme_discovery_url, mls_e2eid_crl_proxy, mls_e2eid_use_proxy_on_mobile) values (?, ?, ?, ?, ?, ?)"
-setFeatureConfig FeatureSingletonMlsMigration tid feat = do
-  retry x5 $ write insert (params LocalQuorum (tid, feat.status, feat.config.startTime, feat.config.finaliseRegardlessAfter))
-  where
-    insert :: PrepQuery W (TeamId, FeatureStatus, Maybe UTCTime, Maybe UTCTime) ()
-    insert =
-      "insert into team_features (team_id, mls_migration_status, mls_migration_start_time, mls_migration_finalise_regardless_after) values (?, ?, ?, ?)"
-setFeatureConfig FeatureSingletonExposeInvitationURLsToTeamAdminConfig tid feat = setFeatureStatusC "expose_invitation_urls_to_team_admin" tid feat.status
-setFeatureConfig FeatureSingletonOutlookCalIntegrationConfig tid feat = setFeatureStatusC "outlook_cal_integration_status" tid feat.status
-setFeatureConfig FeatureSingletonEnforceFileDownloadLocationConfig tid feat = do
-  retry x5 $ write insert (params LocalQuorum (tid, feat.status, feat.config.enforcedDownloadLocation))
-  where
-    insert :: PrepQuery W (TeamId, FeatureStatus, Maybe Text) ()
-    insert =
-      "insert into team_features (team_id, enforce_file_download_location_status, enforce_file_download_location) values (?, ?, ?)"
-setFeatureConfig FeatureSingletonLimitedEventFanoutConfig tid feat =
-  setFeatureStatusC "limited_event_fanout_status" tid feat.status
+setFeatureConfig FeatureSingletonLegalholdConfig = setFeature
+setFeatureConfig FeatureSingletonSSOConfig = setFeature
+setFeatureConfig FeatureSingletonSearchVisibilityAvailableConfig = setFeature
+setFeatureConfig FeatureSingletonValidateSAMLEmailsConfig = setFeature
+setFeatureConfig FeatureSingletonClassifiedDomainsConfig = \_ _ -> pure ()
+setFeatureConfig FeatureSingletonDigitalSignaturesConfig = setFeature
+setFeatureConfig FeatureSingletonAppLockConfig = setFeature
+setFeatureConfig FeatureSingletonFileSharingConfig = setFeature
+setFeatureConfig FeatureSingletonSelfDeletingMessagesConfig = setFeature
+setFeatureConfig FeatureSingletonConferenceCallingConfig = setFeature
+setFeatureConfig FeatureSingletonGuestLinksConfig = setFeature
+setFeatureConfig FeatureSingletonSndFactorPasswordChallengeConfig = setFeature
+setFeatureConfig FeatureSingletonSearchVisibilityInboundConfig = setFeature
+setFeatureConfig FeatureSingletonMLSConfig = setFeature
+setFeatureConfig FeatureSingletonMlsE2EIdConfig = setFeature
+setFeatureConfig FeatureSingletonMlsMigration = setFeature
+setFeatureConfig FeatureSingletonExposeInvitationURLsToTeamAdminConfig = setFeature
+setFeatureConfig FeatureSingletonOutlookCalIntegrationConfig = setFeature
+setFeatureConfig FeatureSingletonEnforceFileDownloadLocationConfig = setFeature
+setFeatureConfig FeatureSingletonLimitedEventFanoutConfig = setFeature
 
 getFeatureLockStatus :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> m (Maybe LockStatus)
 getFeatureLockStatus FeatureSingletonFileSharingConfig tid = getLockStatusC "file_sharing_lock_status" tid
@@ -210,21 +134,6 @@ setFeatureLockStatus FeatureSingletonMLSConfig tid feat = setLockStatusC "mls_lo
 setFeatureLockStatus FeatureSingletonEnforceFileDownloadLocationConfig tid feat = setLockStatusC "enforce_file_download_location_lock_status" tid feat
 setFeatureLockStatus FeatureSingletonConferenceCallingConfig tid feat = setLockStatusC "conference_calling" tid feat
 setFeatureLockStatus _ _tid _status = pure ()
-
-setFeatureStatusC ::
-  forall m.
-  (MonadClient m) =>
-  String ->
-  TeamId ->
-  FeatureStatus ->
-  m ()
-setFeatureStatusC statusCol tid status = do
-  retry x5 $ write insert (params LocalQuorum (tid, status))
-  where
-    insert :: PrepQuery W (TeamId, FeatureStatus) ()
-    insert =
-      fromString $
-        "insert into team_features (team_id, " <> statusCol <> ") values (?, ?)"
 
 getLockStatusC ::
   forall m.

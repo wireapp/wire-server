@@ -6,6 +6,7 @@ import Cassandra
 import Cassandra qualified as C
 import Data.Id
 import Data.Misc (HttpsUrl)
+import Data.SOP
 import Data.Time
 import Database.CQL.Protocol
 import Galley.Cassandra.Instances ()
@@ -137,71 +138,76 @@ emptyRow =
 allFeatureConfigsFromRow :: AllTeamFeatureConfigsRow -> AllFeatures DbFeatureWithLock
 allFeatureConfigsFromRow row =
   AllFeatures
-    { afcLegalholdStatus = mkFeatureWithLock Nothing row.legalhold,
-      afcSSOStatus = mkFeatureWithLock Nothing row.sso,
-      afcTeamSearchVisibilityAvailable = mkFeatureWithLock Nothing row.searchVisibility,
-      afcSearchVisibilityInboundConfig = mkFeatureWithLock Nothing row.searchVisibility,
-      afcValidateSAMLEmails = mkFeatureWithLock Nothing row.validateSamlEmails,
-      afcDigitalSignatures = mkFeatureWithLock Nothing row.digitalSignatures,
+    { afcLegalholdStatus = mkFeatureWithLock Nothing (I row.legalhold :* Nil),
+      afcSSOStatus = mkFeatureWithLock Nothing (I row.sso :* Nil),
+      afcTeamSearchVisibilityAvailable = mkFeatureWithLock Nothing (I row.searchVisibility :* Nil),
+      afcSearchVisibilityInboundConfig = mkFeatureWithLock Nothing (I row.searchVisibility :* Nil),
+      afcValidateSAMLEmails = mkFeatureWithLock Nothing (I row.validateSamlEmails :* Nil),
+      afcDigitalSignatures = mkFeatureWithLock Nothing (I row.digitalSignatures :* Nil),
       afcAppLock =
         mkFeatureWithLock
           Nothing
-          (row.appLock, row.appLockEnforce, row.appLockInactivityTimeoutSecs),
-      afcFileSharing = mkFeatureWithLock row.fileSharingLock row.fileSharing,
-      afcClassifiedDomains = mkFeatureWithLock Nothing Nothing,
+          (I row.appLock :* I row.appLockEnforce :* I row.appLockInactivityTimeoutSecs :* Nil),
+      afcFileSharing = mkFeatureWithLock row.fileSharingLock (I row.fileSharing :* Nil),
+      afcClassifiedDomains = mkFeatureWithLock Nothing (I Nothing :* Nil),
       afcConferenceCalling =
         mkFeatureWithLock
           row.conferenceCallingLock
-          ( row.conferenceCalling,
-            row.conferenceCallingTtl,
-            row.conferenceCallingOne2One
+          ( I row.conferenceCalling
+              :* I row.conferenceCallingOne2One
+              :* Nil
           ),
       afcSelfDeletingMessages =
         mkFeatureWithLock
           row.selfDeletingMessagesLock
-          ( row.selfDeletingMessages,
-            row.selfDeletingMessagesTtl
+          ( I row.selfDeletingMessages
+              :* I row.selfDeletingMessagesTtl
+              :* Nil
           ),
-      afcGuestLink = mkFeatureWithLock row.guestLinksLock row.guestLinks,
-      afcSndFactorPasswordChallenge = mkFeatureWithLock row.sndFactorLock row.sndFactor,
+      afcGuestLink = mkFeatureWithLock row.guestLinksLock (I row.guestLinks :* Nil),
+      afcSndFactorPasswordChallenge = mkFeatureWithLock row.sndFactorLock (I row.sndFactor :* Nil),
       afcMLS =
         mkFeatureWithLock
           row.mlsLock
-          ( row.mls,
-            row.mlsDefaultProtocol,
-            row.mlsToggleUsers,
-            row.mlsAllowedCipherSuites,
-            row.mlsDefaultCipherSuite,
-            row.mlsSupportedProtocols
+          ( I row.mls
+              :* I row.mlsDefaultProtocol
+              :* I row.mlsToggleUsers
+              :* I row.mlsAllowedCipherSuites
+              :* I row.mlsDefaultCipherSuite
+              :* I row.mlsSupportedProtocols
+              :* Nil
           ),
-      afcExposeInvitationURLsToTeamAdmin = mkFeatureWithLock Nothing row.exposeInvitationUrls,
+      afcExposeInvitationURLsToTeamAdmin = mkFeatureWithLock Nothing (I row.exposeInvitationUrls :* Nil),
       afcOutlookCalIntegration =
         mkFeatureWithLock
           row.outlookCalIntegrationLock
-          row.outlookCalIntegration,
+          (I row.outlookCalIntegration :* Nil),
       afcMlsE2EId =
         mkFeatureWithLock
           row.mlsE2eidLock
-          ( row.mlsE2eid,
-            row.mlsE2eidGracePeriod,
-            row.mlsE2eidAcmeDiscoverUrl,
-            row.mlsE2eidMaybeCrlProxy,
-            row.mlsE2eidMaybeUseProxyOnMobile
+          ( I row.mlsE2eid
+              :* I row.mlsE2eidGracePeriod
+              :* I row.mlsE2eidAcmeDiscoverUrl
+              :* I row.mlsE2eidMaybeCrlProxy
+              :* I row.mlsE2eidMaybeUseProxyOnMobile
+              :* Nil
           ),
       afcMlsMigration =
         mkFeatureWithLock
           row.mlsMigrationLock
-          ( row.mlsMigration,
-            row.mlsMigrationStartTime,
-            row.mlsMigrationFinalizeRegardlessAfter
+          ( I row.mlsMigration
+              :* I row.mlsMigrationStartTime
+              :* I row.mlsMigrationFinalizeRegardlessAfter
+              :* Nil
           ),
       afcEnforceFileDownloadLocation =
         mkFeatureWithLock
           row.enforceDownloadLocationLock
-          ( row.enforceDownloadLocation,
-            row.enforceDownloadLocation_Location
+          ( I row.enforceDownloadLocation
+              :* I row.enforceDownloadLocation_Location
+              :* Nil
           ),
-      afcLimitedEventFanout = mkFeatureWithLock Nothing row.limitEventFanout
+      afcLimitedEventFanout = mkFeatureWithLock Nothing (I row.limitEventFanout :* Nil)
     }
 
 getAllFeatureConfigs :: (MonadClient m) => TeamId -> m (AllFeatures DbFeatureWithLock)
