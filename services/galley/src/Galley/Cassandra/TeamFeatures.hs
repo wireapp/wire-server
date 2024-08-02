@@ -71,53 +71,26 @@ interpretTeamFeatureStoreToCassandra = interpret $ \case
     embedClient $ getAllFeatureConfigs tid
 
 getFeatureConfig :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> m (DbFeature cfg)
-getFeatureConfig FeatureSingletonLegalholdConfig tid = getFeature "legalhold_status" tid
-getFeatureConfig FeatureSingletonSSOConfig tid = getFeature "sso_status" tid
-getFeatureConfig FeatureSingletonSearchVisibilityAvailableConfig tid = getFeature "search_visibility_status" tid
-getFeatureConfig FeatureSingletonValidateSAMLEmailsConfig tid = getFeature "validate_saml_emails" tid
-getFeatureConfig FeatureSingletonClassifiedDomainsConfig _tid = pure mempty
-getFeatureConfig FeatureSingletonDigitalSignaturesConfig tid = getFeature "digital_signatures" tid
-getFeatureConfig FeatureSingletonAppLockConfig tid =
-  getFeature
-    "app_lock_status, app_lock_enforce, app_lock_inactivity_timeout_secs"
-    tid
-getFeatureConfig FeatureSingletonFileSharingConfig tid = getFeature "file_sharing" tid
-getFeatureConfig FeatureSingletonSelfDeletingMessagesConfig tid =
-  getFeature
-    "self_deleting_messages_status, self_deleting_messages_ttl"
-    tid
-getFeatureConfig FeatureSingletonConferenceCallingConfig tid =
-  getFeature
-    "conference_calling_status, ttl(conference_calling_status), conference_calling_one_to_one"
-    tid
-getFeatureConfig FeatureSingletonGuestLinksConfig tid = getFeature "guest_links_status" tid
-getFeatureConfig FeatureSingletonSndFactorPasswordChallengeConfig tid = getFeature "snd_factor_password_challenge_status" tid
-getFeatureConfig FeatureSingletonSearchVisibilityInboundConfig tid = getFeature "search_visibility_status" tid
-getFeatureConfig FeatureSingletonMLSConfig tid =
-  getFeature
-    "mls_status, mls_default_protocol, mls_protocol_toggle_users, \
-    \mls_allowed_ciphersuites, mls_default_ciphersuite, mls_supported_protocols"
-    tid
-getFeatureConfig FeatureSingletonMlsE2EIdConfig tid =
-  getFeature
-    "mls_e2eid_status, mls_e2eid_grace_period, mls_e2eid_acme_discovery_url, \
-    \mls_e2eid_crl_proxy, mls_e2eid_use_proxy_on_mobile"
-    tid
-getFeatureConfig FeatureSingletonMlsMigration tid =
-  getFeature
-    "mls_migration_status, mls_migration_start_time, \
-    \mls_migration_finalise_regardless_after"
-    tid
-getFeatureConfig FeatureSingletonExposeInvitationURLsToTeamAdminConfig tid =
-  getFeature "expose_invitation_urls_to_team_admin" tid
-getFeatureConfig FeatureSingletonOutlookCalIntegrationConfig tid =
-  getFeature "outlook_cal_integration_status" tid
-getFeatureConfig FeatureSingletonEnforceFileDownloadLocationConfig tid =
-  getFeature
-    "enforce_file_download_location_status, enforce_file_download_location"
-    tid
-getFeatureConfig FeatureSingletonLimitedEventFanoutConfig tid =
-  getFeature "limited_event_fanout_status" tid
+getFeatureConfig FeatureSingletonLegalholdConfig = getFeature
+getFeatureConfig FeatureSingletonSSOConfig = getFeature
+getFeatureConfig FeatureSingletonSearchVisibilityAvailableConfig = getFeature
+getFeatureConfig FeatureSingletonValidateSAMLEmailsConfig = getFeature
+getFeatureConfig FeatureSingletonClassifiedDomainsConfig = const (pure mempty)
+getFeatureConfig FeatureSingletonDigitalSignaturesConfig = getFeature
+getFeatureConfig FeatureSingletonAppLockConfig = getFeature
+getFeatureConfig FeatureSingletonFileSharingConfig = getFeature
+getFeatureConfig FeatureSingletonSelfDeletingMessagesConfig = getFeature
+getFeatureConfig FeatureSingletonConferenceCallingConfig = getFeature
+getFeatureConfig FeatureSingletonGuestLinksConfig = getFeature
+getFeatureConfig FeatureSingletonSndFactorPasswordChallengeConfig = getFeature
+getFeatureConfig FeatureSingletonSearchVisibilityInboundConfig = getFeature
+getFeatureConfig FeatureSingletonMLSConfig = getFeature
+getFeatureConfig FeatureSingletonMlsE2EIdConfig = getFeature
+getFeatureConfig FeatureSingletonMlsMigration = getFeature
+getFeatureConfig FeatureSingletonExposeInvitationURLsToTeamAdminConfig = getFeature
+getFeatureConfig FeatureSingletonOutlookCalIntegrationConfig = getFeature
+getFeatureConfig FeatureSingletonEnforceFileDownloadLocationConfig = getFeature
+getFeatureConfig FeatureSingletonLimitedEventFanoutConfig = getFeature
 
 setFeatureConfig :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> Feature cfg -> m ()
 setFeatureConfig FeatureSingletonLegalholdConfig tid feat = setFeatureStatusC "legalhold_status" tid feat.status
@@ -237,23 +210,6 @@ setFeatureLockStatus FeatureSingletonMLSConfig tid feat = setLockStatusC "mls_lo
 setFeatureLockStatus FeatureSingletonEnforceFileDownloadLocationConfig tid feat = setLockStatusC "enforce_file_download_location_lock_status" tid feat
 setFeatureLockStatus FeatureSingletonConferenceCallingConfig tid feat = setLockStatusC "conference_calling" tid feat
 setFeatureLockStatus _ _tid _status = pure ()
-
-getFeature ::
-  forall m cfg.
-  (MonadClient m, MakeFeature cfg) =>
-  String ->
-  TeamId ->
-  m (DbFeature cfg)
-getFeature columns tid = do
-  row <- retry x1 $ query1 select (params LocalQuorum (Identity tid))
-  pure $ foldMap (mkFeature . toRowType) row
-  where
-    select :: PrepQuery R (Identity TeamId) (FeatureRow cfg)
-    select =
-      fromString $
-        "select "
-          <> columns
-          <> " from team_features where team_id = ?"
 
 setFeatureStatusC ::
   forall m.
