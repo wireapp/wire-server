@@ -139,6 +139,7 @@ library
     Galley.Cassandra.GetAllTeamFeatureConfigs
     Galley.Cassandra.Instances
     Galley.Cassandra.LegalHold
+    Galley.Cassandra.MakeFeature
     Galley.Cassandra.Proposal
     Galley.Cassandra.Queries
     Galley.Cassandra.SearchVisibility

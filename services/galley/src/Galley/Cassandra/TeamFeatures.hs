@@ -30,6 +30,7 @@ import Data.Time
 import Galley.API.Teams.Features.Get
 import Galley.Cassandra.GetAllTeamFeatureConfigs
 import Galley.Cassandra.Instances ()
+import Galley.Cassandra.MakeFeature
 import Galley.Cassandra.Store
 import Galley.Cassandra.Util
 import Galley.Effects.TeamFeatureStore qualified as TFS
