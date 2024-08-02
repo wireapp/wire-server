@@ -27,7 +27,6 @@ module Wire.API.Team.Feature
     featureName,
     featureNameBS,
     LockStatus (..),
-    LockableFeatureBase (..),
     DbFeature (..),
     DbFeatureWithLock (..),
     dbFeatureStatus,
@@ -37,8 +36,6 @@ module Wire.API.Team.Feature
     LockableFeature (..),
     defUnlockedFeature,
     defLockedFeature,
-    setConfig',
-    setTTL,
     LockableFeaturePatch (..),
     Feature (..),
     forgetLock,
@@ -221,23 +218,6 @@ featureName = T.pack $ symbolVal (Proxy @(FeatureSymbol cfg))
 
 featureNameBS :: forall cfg. (KnownSymbol (FeatureSymbol cfg)) => ByteString
 featureNameBS = UTF8.fromString $ symbolVal (Proxy @(FeatureSymbol cfg))
-
-----------------------------------------------------------------------
--- LockableFeatureBase
-
-data LockableFeatureBase (m :: Type -> Type) (cfg :: Type) = LockableFeatureBase
-  { wsbStatus :: m FeatureStatus,
-    wsbLockStatus :: m LockStatus,
-    wsbConfig :: m cfg,
-    wsbTTL :: m FeatureTTL
-  }
-  deriving stock (Generic, Typeable, Functor)
-
-setConfig' :: forall (m :: Type -> Type) (cfg :: Type). (Applicative m) => cfg -> LockableFeatureBase m cfg -> LockableFeatureBase m cfg
-setConfig' c (LockableFeatureBase s ls _ ttl) = LockableFeatureBase s ls (pure c) ttl
-
-setTTL :: forall (m :: Type -> Type) (cfg :: Type). (Applicative m) => FeatureTTL -> LockableFeatureBase m cfg -> LockableFeatureBase m cfg
-setTTL ttl (LockableFeatureBase s ls c _) = LockableFeatureBase s ls c (pure ttl)
 
 --------------------------------------------------------------------------------
 -- DbFeature
