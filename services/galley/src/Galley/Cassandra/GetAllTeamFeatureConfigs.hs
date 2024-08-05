@@ -9,7 +9,6 @@ import Data.Misc (HttpsUrl)
 import Data.Time
 import Database.CQL.Protocol
 import Galley.Cassandra.Instances ()
-import Galley.Types.Teams (FeatureLegalHold (..))
 import Imports
 import Wire.API.Conversation.Protocol (ProtocolTag)
 import Wire.API.MLS.CipherSuite
@@ -40,6 +39,8 @@ data AllTeamFeatureConfigsRow = AllTeamFeatureConfigsRow
     -- conference calling
     conferenceCalling :: Maybe FeatureStatus,
     conferenceCallingTtl :: Maybe FeatureTTL,
+    conferenceCallingOne2One :: Maybe One2OneCalls,
+    conferenceCallingLock :: Maybe LockStatus,
     -- guest links
     guestLinks :: Maybe FeatureStatus,
     guestLinksLock :: Maybe LockStatus,
@@ -100,6 +101,8 @@ emptyRow =
       selfDeletingMessagesLock = Nothing,
       conferenceCalling = Nothing,
       conferenceCallingTtl = Nothing,
+      conferenceCallingOne2One = Nothing,
+      conferenceCallingLock = Nothing,
       guestLinks = Nothing,
       guestLinksLock = Nothing,
       sndFactor = Nothing,
@@ -130,227 +133,80 @@ emptyRow =
       limitEventFanout = Nothing
     }
 
-allFeatureConfigsFromRow ::
-  -- id of team of which we want to see the feature
-  TeamId ->
-  -- team id list is from "settings.exposeInvitationURLsTeamAllowlist"
-  Maybe [TeamId] ->
-  FeatureLegalHold ->
-  Bool ->
-  AllFeatureConfigs ->
-  AllTeamFeatureConfigsRow ->
-  AllFeatureConfigs
-allFeatureConfigsFromRow ourteam allowListForExposeInvitationURLs featureLH hasTeamImplicitLegalhold serverConfigs row =
-  AllFeatureConfigs
-    { afcLegalholdStatus = legalholdComputeFeatureStatus row.legalhold,
-      afcSSOStatus =
-        computeConfig
-          row.sso
-          Nothing
-          FeatureTTLUnlimited
-          (Just SSOConfig)
-          serverConfigs.afcSSOStatus,
-      afcTeamSearchVisibilityAvailable =
-        computeConfig
-          row.searchVisibility
-          Nothing
-          FeatureTTLUnlimited
-          (Just SearchVisibilityAvailableConfig)
-          serverConfigs.afcTeamSearchVisibilityAvailable,
-      afcSearchVisibilityInboundConfig =
-        computeConfig
-          row.searchVisibility
-          Nothing
-          FeatureTTLUnlimited
-          (Just SearchVisibilityInboundConfig)
-          serverConfigs.afcSearchVisibilityInboundConfig,
-      afcValidateSAMLEmails =
-        computeConfig
-          row.validateSamlEmails
-          Nothing
-          FeatureTTLUnlimited
-          (Just ValidateSAMLEmailsConfig)
-          serverConfigs.afcValidateSAMLEmails,
-      afcDigitalSignatures =
-        computeConfig
-          row.digitalSignatures
-          Nothing
-          FeatureTTLUnlimited
-          (Just DigitalSignaturesConfig)
-          serverConfigs.afcDigitalSignatures,
+allFeatureConfigsFromRow :: AllTeamFeatureConfigsRow -> AllFeatures DbFeatureWithLock
+allFeatureConfigsFromRow row =
+  AllFeatures
+    { afcLegalholdStatus = mkFeatureWithLock Nothing row.legalhold,
+      afcSSOStatus = mkFeatureWithLock Nothing row.sso,
+      afcTeamSearchVisibilityAvailable = mkFeatureWithLock Nothing row.searchVisibility,
+      afcSearchVisibilityInboundConfig = mkFeatureWithLock Nothing row.searchVisibility,
+      afcValidateSAMLEmails = mkFeatureWithLock Nothing row.validateSamlEmails,
+      afcDigitalSignatures = mkFeatureWithLock Nothing row.digitalSignatures,
       afcAppLock =
-        computeConfig
-          row.appLock
+        mkFeatureWithLock
           Nothing
-          FeatureTTLUnlimited
-          appLockConfig
-          serverConfigs.afcAppLock,
-      afcFileSharing =
-        computeConfig
-          row.fileSharing
-          row.fileSharingLock
-          FeatureTTLUnlimited
-          (Just FileSharingConfig)
-          serverConfigs.afcFileSharing,
-      afcClassifiedDomains =
-        computeConfig Nothing Nothing FeatureTTLUnlimited Nothing serverConfigs.afcClassifiedDomains,
+          (row.appLock, row.appLockEnforce, row.appLockInactivityTimeoutSecs),
+      afcFileSharing = mkFeatureWithLock row.fileSharingLock row.fileSharing,
+      afcClassifiedDomains = mkFeatureWithLock Nothing Nothing,
       afcConferenceCalling =
-        computeConfig
-          row.conferenceCalling
-          Nothing
-          (fromMaybe FeatureTTLUnlimited row.conferenceCallingTtl)
-          (Just ConferenceCallingConfig)
-          serverConfigs.afcConferenceCalling,
+        mkFeatureWithLock
+          row.conferenceCallingLock
+          ( row.conferenceCalling,
+            row.conferenceCallingTtl,
+            row.conferenceCallingOne2One
+          ),
       afcSelfDeletingMessages =
-        computeConfig
-          row.selfDeletingMessages
+        mkFeatureWithLock
           row.selfDeletingMessagesLock
-          FeatureTTLUnlimited
-          selfDeletingMessagesConfig
-          serverConfigs.afcSelfDeletingMessages,
-      afcGuestLink =
-        computeConfig
-          row.guestLinks
-          row.guestLinksLock
-          FeatureTTLUnlimited
-          (Just GuestLinksConfig)
-          serverConfigs.afcGuestLink,
-      afcSndFactorPasswordChallenge =
-        computeConfig
-          row.sndFactor
-          row.sndFactorLock
-          FeatureTTLUnlimited
-          (Just SndFactorPasswordChallengeConfig)
-          serverConfigs.afcSndFactorPasswordChallenge,
+          ( row.selfDeletingMessages,
+            row.selfDeletingMessagesTtl
+          ),
+      afcGuestLink = mkFeatureWithLock row.guestLinksLock row.guestLinks,
+      afcSndFactorPasswordChallenge = mkFeatureWithLock row.sndFactorLock row.sndFactor,
       afcMLS =
-        computeConfig
-          row.mls
+        mkFeatureWithLock
           row.mlsLock
-          FeatureTTLUnlimited
-          mlsConfig
-          serverConfigs.afcMLS,
-      afcExposeInvitationURLsToTeamAdmin = exposeInvitationURLsComputeFeatureStatus row.exposeInvitationUrls,
+          ( row.mls,
+            row.mlsDefaultProtocol,
+            row.mlsToggleUsers,
+            row.mlsAllowedCipherSuites,
+            row.mlsDefaultCipherSuite,
+            row.mlsSupportedProtocols
+          ),
+      afcExposeInvitationURLsToTeamAdmin = mkFeatureWithLock Nothing row.exposeInvitationUrls,
       afcOutlookCalIntegration =
-        computeConfig
-          row.outlookCalIntegration
+        mkFeatureWithLock
           row.outlookCalIntegrationLock
-          FeatureTTLUnlimited
-          (Just OutlookCalIntegrationConfig)
-          serverConfigs.afcOutlookCalIntegration,
+          row.outlookCalIntegration,
       afcMlsE2EId =
-        computeConfig
-          row.mlsE2eid
+        mkFeatureWithLock
           row.mlsE2eidLock
-          FeatureTTLUnlimited
-          mlsE2eidConfig
-          serverConfigs.afcMlsE2EId,
+          ( row.mlsE2eid,
+            row.mlsE2eidGracePeriod,
+            row.mlsE2eidAcmeDiscoverUrl,
+            row.mlsE2eidMaybeCrlProxy,
+            row.mlsE2eidMaybeUseProxyOnMobile
+          ),
       afcMlsMigration =
-        computeConfig
-          row.mlsMigration
+        mkFeatureWithLock
           row.mlsMigrationLock
-          FeatureTTLUnlimited
-          mlsMigrationConfig
-          serverConfigs.afcMlsMigration,
+          ( row.mlsMigration,
+            row.mlsMigrationStartTime,
+            row.mlsMigrationFinalizeRegardlessAfter
+          ),
       afcEnforceFileDownloadLocation =
-        computeConfig
-          row.enforceDownloadLocation
+        mkFeatureWithLock
           row.enforceDownloadLocationLock
-          FeatureTTLUnlimited
-          downloadLocationConfig
-          serverConfigs.afcEnforceFileDownloadLocation,
-      afcLimitedEventFanout =
-        computeConfig
-          row.limitEventFanout
-          Nothing
-          FeatureTTLUnlimited
-          (Just LimitedEventFanoutConfig)
-          serverConfigs.afcLimitedEventFanout
+          ( row.enforceDownloadLocation,
+            row.enforceDownloadLocation_Location
+          ),
+      afcLimitedEventFanout = mkFeatureWithLock Nothing row.limitEventFanout
     }
-  where
-    computeConfig :: Maybe FeatureStatus -> Maybe LockStatus -> FeatureTTL -> Maybe cfg -> WithStatus cfg -> WithStatus cfg
-    computeConfig mDbStatus mDbLock dbTtl mDbCfg serverCfg =
-      let withStatusNoLock = case (mDbStatus, mDbCfg) of
-            (Just dbStatus, Just dbCfg) ->
-              Just $
-                WithStatusNoLock
-                  { wssTTL = dbTtl,
-                    wssStatus = dbStatus,
-                    wssConfig = dbCfg
-                  }
-            _ -> Nothing
-       in computeFeatureConfigForTeamUser withStatusNoLock mDbLock serverCfg
 
-    -- FUTUREWORK: the following lines are duplicated in
-    -- "Galley.Cassandra.TeamFeatures"; make sure the pairs don't diverge!
-    appLockConfig = AppLockConfig <$> row.appLockEnforce <*> row.appLockInactivityTimeoutSecs
-
-    selfDeletingMessagesConfig = SelfDeletingMessagesConfig <$> row.selfDeletingMessagesTtl
-
-    mlsConfig =
-      MLSConfig
-        <$> maybe (Just []) (Just . C.fromSet) row.mlsToggleUsers
-        <*> row.mlsDefaultProtocol
-        <*> maybe (Just []) (Just . C.fromSet) row.mlsAllowedCipherSuites
-        <*> row.mlsDefaultCipherSuite
-        <*> maybe (Just []) (Just . C.fromSet) row.mlsSupportedProtocols
-
-    mlsE2eidConfig =
-      Just $
-        MlsE2EIdConfig
-          (toGracePeriodOrDefault row.mlsE2eidGracePeriod)
-          row.mlsE2eidAcmeDiscoverUrl
-          row.mlsE2eidMaybeCrlProxy
-          (fromMaybe (useProxyOnMobile . wsConfig $ defFeatureStatus) row.mlsE2eidMaybeUseProxyOnMobile)
-      where
-        toGracePeriodOrDefault :: Maybe Int32 -> NominalDiffTime
-        toGracePeriodOrDefault = maybe (verificationExpiration $ wsConfig defFeatureStatus) fromIntegral
-
-    mlsMigrationConfig =
-      Just $
-        MlsMigrationConfig
-          { startTime = row.mlsMigrationStartTime,
-            finaliseRegardlessAfter = row.mlsMigrationFinalizeRegardlessAfter
-          }
-
-    downloadLocationConfig = Just $ EnforceFileDownloadLocationConfig row.enforceDownloadLocation_Location
-
-    -- FUTUREWORK: this duplicates logic hidden elsewhere for the other getters and setters.  do not change lightly!
-    exposeInvitationURLsComputeFeatureStatus ::
-      Maybe FeatureStatus ->
-      WithStatus ExposeInvitationURLsToTeamAdminConfig
-    exposeInvitationURLsComputeFeatureStatus mFeatureStatus =
-      if ourteam `elem` fromMaybe [] allowListForExposeInvitationURLs
-        then
-          serverConfigs.afcExposeInvitationURLsToTeamAdmin
-            & maybe id setStatus mFeatureStatus
-            & setLockStatus LockStatusUnlocked
-        else serverConfigs.afcExposeInvitationURLsToTeamAdmin
-
-    -- FUTUREWORK: this duplicates logic hidden elsewhere for the other getters and setters.  do not change lightly!
-    legalholdComputeFeatureStatus :: Maybe FeatureStatus -> WithStatus LegalholdConfig
-    legalholdComputeFeatureStatus mStatusValue = setStatus status defFeatureStatus
-      where
-        status =
-          if isLegalHoldEnabledForTeam
-            then FeatureStatusEnabled
-            else FeatureStatusDisabled
-        isLegalHoldEnabledForTeam =
-          case featureLH of
-            FeatureLegalHoldDisabledPermanently -> False
-            FeatureLegalHoldDisabledByDefault -> maybe False ((==) FeatureStatusEnabled) mStatusValue
-            FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> hasTeamImplicitLegalhold
-
-getAllFeatureConfigs :: MonadClient m => Maybe [TeamId] -> FeatureLegalHold -> Bool -> AllFeatureConfigs -> TeamId -> m AllFeatureConfigs
-getAllFeatureConfigs allowListForExposeInvitationURLs featureLH hasTeamImplicitLegalhold serverConfigs tid = do
+getAllFeatureConfigs :: (MonadClient m) => TeamId -> m (AllFeatures DbFeatureWithLock)
+getAllFeatureConfigs tid = do
   mRow <- retry x1 $ query1 select (params LocalQuorum (Identity tid))
-  pure
-    $ allFeatureConfigsFromRow
-      tid
-      allowListForExposeInvitationURLs
-      featureLH
-      hasTeamImplicitLegalhold
-      serverConfigs
-    $ maybe emptyRow asRecord mRow
+  pure $ allFeatureConfigsFromRow $ maybe emptyRow asRecord mRow
   where
     select ::
       PrepQuery
@@ -367,7 +223,7 @@ getAllFeatureConfigs allowListForExposeInvitationURLs featureLH hasTeamImplicitL
       \app_lock_status, app_lock_enforce, app_lock_inactivity_timeout_secs, \
       \file_sharing, file_sharing_lock_status, \
       \self_deleting_messages_status, self_deleting_messages_ttl, self_deleting_messages_lock_status, \
-      \conference_calling, ttl(conference_calling), \
+      \conference_calling_status, ttl(conference_calling_status), conference_calling_one_to_one, conference_calling, \
       \guest_links_status, guest_links_lock_status, \
       \snd_factor_password_challenge_status, snd_factor_password_challenge_lock_status, \
       \\
@@ -384,3 +240,161 @@ getAllFeatureConfigs allowListForExposeInvitationURLs featureLH hasTeamImplicitL
       \enforce_file_download_location_status, enforce_file_download_location, enforce_file_download_location_lock_status, \
       \limited_event_fanout_status \
       \from team_features where team_id = ?"
+
+class (Tuple (FeatureRow cfg), HasRowType (FeatureRow cfg)) => MakeFeature cfg where
+  type FeatureRow cfg
+  type FeatureRow cfg = Identity (Maybe FeatureStatus)
+
+  mkFeature :: RowType (FeatureRow cfg) -> DbFeature cfg
+  default mkFeature ::
+    (FeatureRow cfg ~ Identity (Maybe FeatureStatus)) =>
+    RowType (FeatureRow cfg) ->
+    DbFeature cfg
+  mkFeature = foldMap dbFeatureStatus
+
+mkFeatureWithLock ::
+  (MakeFeature cfg) =>
+  Maybe LockStatus ->
+  RowType (FeatureRow cfg) ->
+  DbFeatureWithLock cfg
+mkFeatureWithLock lockStatus row = DbFeatureWithLock lockStatus (mkFeature row)
+
+-- | Used to remove the annoying Identity wrapper around single-element rows.
+type family RowType a where
+  RowType (Identity a) = a
+  RowType tuple = tuple
+
+class HasRowType a where
+  fromRowType :: RowType a -> a
+  default fromRowType :: (RowType a ~ a) => RowType a -> a
+  fromRowType = id
+
+  toRowType :: a -> RowType a
+  default toRowType :: (RowType a ~ a) => a -> RowType a
+  toRowType = id
+
+instance HasRowType (a, b)
+
+instance HasRowType (a, b, c)
+
+instance HasRowType (a, b, c, d)
+
+instance HasRowType (a, b, c, d, e)
+
+instance HasRowType (a, b, c, d, e, f)
+
+instance HasRowType (Identity a) where
+  fromRowType = Identity
+  toRowType = runIdentity
+
+instance MakeFeature LegalholdConfig
+
+instance MakeFeature SSOConfig
+
+instance MakeFeature SearchVisibilityAvailableConfig
+
+instance MakeFeature SearchVisibilityInboundConfig
+
+instance MakeFeature ValidateSAMLEmailsConfig
+
+instance MakeFeature DigitalSignaturesConfig
+
+instance MakeFeature AppLockConfig where
+  type FeatureRow AppLockConfig = (Maybe FeatureStatus, Maybe EnforceAppLock, Maybe Int32)
+
+  mkFeature (status, enforce, timeout) =
+    foldMap dbFeatureStatus status
+      <> foldMap dbFeatureConfig (AppLockConfig <$> enforce <*> timeout)
+
+instance MakeFeature FileSharingConfig
+
+instance MakeFeature ClassifiedDomainsConfig
+
+instance MakeFeature ConferenceCallingConfig where
+  type FeatureRow ConferenceCallingConfig = (Maybe FeatureStatus, Maybe FeatureTTL, Maybe One2OneCalls)
+
+  mkFeature (status, ttl, sftForOneToOne) =
+    foldMap dbFeatureStatus status
+      <> foldMap dbFeatureTTL ttl
+      <> foldMap (dbFeatureConfig . ConferenceCallingConfig) sftForOneToOne
+
+instance MakeFeature SelfDeletingMessagesConfig where
+  type FeatureRow SelfDeletingMessagesConfig = (Maybe FeatureStatus, Maybe Int32)
+
+  mkFeature (status, ttl) =
+    foldMap dbFeatureStatus status
+      <> foldMap (dbFeatureConfig . SelfDeletingMessagesConfig) ttl
+
+instance MakeFeature GuestLinksConfig
+
+instance MakeFeature SndFactorPasswordChallengeConfig
+
+instance MakeFeature ExposeInvitationURLsToTeamAdminConfig
+
+instance MakeFeature OutlookCalIntegrationConfig
+
+instance MakeFeature MLSConfig where
+  type
+    FeatureRow MLSConfig =
+      ( Maybe FeatureStatus,
+        Maybe ProtocolTag,
+        Maybe (C.Set UserId),
+        Maybe (C.Set CipherSuiteTag),
+        Maybe CipherSuiteTag,
+        Maybe (C.Set ProtocolTag)
+      )
+
+  mkFeature (status, defProto, toggleUsers, ciphersuites, defCiphersuite, supportedProtos) =
+    foldMap dbFeatureStatus status
+      <> foldMap
+        dbFeatureConfig
+        ( MLSConfig (foldMap C.fromSet toggleUsers)
+            <$> defProto
+            <*> pure (foldMap C.fromSet ciphersuites)
+            <*> defCiphersuite
+            <*> pure (foldMap C.fromSet supportedProtos)
+        )
+
+instance MakeFeature MlsE2EIdConfig where
+  type
+    FeatureRow MlsE2EIdConfig =
+      ( Maybe FeatureStatus,
+        Maybe Int32,
+        Maybe HttpsUrl,
+        Maybe HttpsUrl,
+        Maybe Bool
+      )
+
+  mkFeature (status, gracePeriod, acmeDiscoveryUrl, crlProxy, useProxyOnMobile) =
+    foldMap dbFeatureStatus status
+      <> dbFeatureModConfig
+        ( \defCfg ->
+            defCfg
+              { verificationExpiration =
+                  maybe defCfg.verificationExpiration fromIntegral gracePeriod,
+                acmeDiscoveryUrl = acmeDiscoveryUrl,
+                crlProxy = crlProxy,
+                useProxyOnMobile = fromMaybe defCfg.useProxyOnMobile useProxyOnMobile
+              }
+        )
+
+instance MakeFeature MlsMigrationConfig where
+  type
+    FeatureRow MlsMigrationConfig =
+      ( Maybe FeatureStatus,
+        Maybe UTCTime,
+        Maybe UTCTime
+      )
+
+  mkFeature (status, startTime, finalizeAfter) =
+    foldMap dbFeatureStatus status
+      <> dbFeatureConfig (MlsMigrationConfig startTime finalizeAfter)
+
+instance MakeFeature EnforceFileDownloadLocationConfig where
+  type FeatureRow EnforceFileDownloadLocationConfig = (Maybe FeatureStatus, Maybe Text)
+
+  mkFeature (status, location) =
+    foldMap dbFeatureStatus status
+      <> dbFeatureConfig (EnforceFileDownloadLocationConfig location)
+
+instance MakeFeature LimitedEventFanoutConfig

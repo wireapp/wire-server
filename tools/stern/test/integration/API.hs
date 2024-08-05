@@ -86,7 +86,7 @@ tests s =
       test s "/teams/:tid/features/validateSamlEmails" $ testFeatureStatus @ValidateSAMLEmailsConfig,
       test s "/teams/:tid/features/digitalSignatures" $ testFeatureStatus @DigitalSignaturesConfig,
       test s "/teams/:tid/features/fileSharing" $ testFeatureStatus @FileSharingConfig,
-      test s "/teams/:tid/features/conference-calling" $ testFeatureStatusOptTtl @ConferenceCallingConfig (Just FeatureTTLUnlimited),
+      test s "/teams/:tid/features/conference-calling" $ testFeatureStatusOptTtl defConfCalling (Just FeatureTTLUnlimited),
       test s "/teams/:tid/searchVisibility" $ testFeatureStatus @SearchVisibilityAvailableConfig,
       test s "/teams/:tid/features/appLock" $ testFeatureConfig @AppLockConfig,
       test s "/teams/:tid/features/mls" $ testFeatureConfig @MLSConfig,
@@ -105,6 +105,9 @@ tests s =
       -- - `PUT /teams/:tid/billing`
       -- - `POST /teams/:tid/billing`
     ]
+
+defConfCalling :: WithStatus ConferenceCallingConfig
+defConfCalling = setStatus FeatureStatusDisabled defFeatureStatus
 
 testRudSsoDomainRedirect :: TestM ()
 testRudSsoDomainRedirect = do
@@ -315,7 +318,7 @@ testFeatureStatus ::
     Show cfg
   ) =>
   TestM ()
-testFeatureStatus = testFeatureStatusOptTtl @cfg Nothing
+testFeatureStatus = testFeatureStatusOptTtl (defFeatureStatus @cfg) Nothing
 
 testFeatureStatusOptTtl ::
   forall cfg.
@@ -326,12 +329,13 @@ testFeatureStatusOptTtl ::
     Eq cfg,
     Show cfg
   ) =>
+  WithStatus cfg ->
   Maybe FeatureTTL ->
   TestM ()
-testFeatureStatusOptTtl mTtl = do
+testFeatureStatusOptTtl defValue mTtl = do
   (_, tid, _) <- createTeamWithNMembers 10
   cfg <- getFeatureConfig @cfg tid
-  liftIO $ cfg @?= defFeatureStatus @cfg
+  liftIO $ cfg @?= defValue
   when (wsLockStatus cfg == LockStatusLocked) $ unlockFeature @cfg tid
   let newStatus = if wsStatus cfg == FeatureStatusEnabled then FeatureStatusDisabled else FeatureStatusEnabled
   putFeatureStatus @cfg tid newStatus mTtl !!! const 200 === statusCode

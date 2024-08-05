@@ -326,11 +326,6 @@ mkFeaturePutRoute ::
 mkFeaturePutRoute tid payload = NoContent <$ Intra.setTeamFeatureFlag @cfg tid payload
 
 type MkFeaturePutConstraints cfg =
-  ( MkFeaturePutLockConstraints cfg,
-    FeatureTrivialConfig cfg
-  )
-
-type MkFeaturePutLockConstraints cfg =
   ( IsFeatureConfig cfg,
     KnownSymbol (FeatureSymbol cfg),
     ToSchema cfg,
@@ -344,7 +339,7 @@ mkFeaturePutRouteTrivialConfigNoTTL ::
 mkFeaturePutRouteTrivialConfigNoTTL tid status = mkFeaturePutRouteTrivialConfig @cfg tid status Nothing
 
 mkFeatureLockUnlockRouteTrivialConfigNoTTL ::
-  forall cfg. (MkFeaturePutLockConstraints cfg) => TeamId -> LockStatus -> Handler NoContent
+  forall cfg. (MkFeaturePutConstraints cfg) => TeamId -> LockStatus -> Handler NoContent
 mkFeatureLockUnlockRouteTrivialConfigNoTTL tid lstat = NoContent <$ Intra.setTeamFeatureLockStatus @cfg tid lstat
 
 mkFeaturePutRouteTrivialConfigWithTTL ::
@@ -353,9 +348,9 @@ mkFeaturePutRouteTrivialConfigWithTTL tid status = mkFeaturePutRouteTrivialConfi
 
 mkFeaturePutRouteTrivialConfig ::
   forall cfg. (MkFeaturePutConstraints cfg) => TeamId -> FeatureStatus -> Maybe FeatureTTLDays -> Handler NoContent
-mkFeaturePutRouteTrivialConfig tid status (maybe FeatureTTLUnlimited convertFeatureTTLDaysToSeconds -> ttl) = do
-  let fullStatus = WithStatusNoLock status trivialConfig ttl
-  NoContent <$ Intra.setTeamFeatureFlag @cfg tid fullStatus
+mkFeaturePutRouteTrivialConfig tid status (fmap convertFeatureTTLDaysToSeconds -> ttl) = do
+  let patch = wsPatch (Just status) Nothing Nothing ttl
+  NoContent <$ Intra.patchTeamFeatureFlag @cfg tid patch
 
 getSearchVisibility :: TeamId -> Handler TeamSearchVisibilityView
 getSearchVisibility = Intra.getSearchVisibility

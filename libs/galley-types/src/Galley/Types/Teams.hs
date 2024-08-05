@@ -158,7 +158,7 @@ data FeatureFlags = FeatureFlags
     _flagAppLockDefaults :: !(Defaults (ImplicitLockStatus AppLockConfig)),
     _flagClassifiedDomains :: !(ImplicitLockStatus ClassifiedDomainsConfig),
     _flagFileSharing :: !(Defaults (WithStatus FileSharingConfig)),
-    _flagConferenceCalling :: !(Defaults (ImplicitLockStatus ConferenceCallingConfig)),
+    _flagConferenceCalling :: !(Defaults (WithStatus ConferenceCallingConfig)),
     _flagSelfDeletingMessages :: !(Defaults (WithStatus SelfDeletingMessagesConfig)),
     _flagConversationGuestLinks :: !(Defaults (WithStatus GuestLinksConfig)),
     _flagsTeamFeatureValidateSAMLEmailsStatus :: !(Defaults (ImplicitLockStatus ValidateSAMLEmailsConfig)),
@@ -212,7 +212,7 @@ instance FromJSON FeatureFlags where
       <*> withImplicitLockStatusOrDefault obj "appLock"
       <*> (fromMaybe (ImplicitLockStatus (defFeatureStatus @ClassifiedDomainsConfig)) <$> (obj .:? "classifiedDomains"))
       <*> (fromMaybe (Defaults (defFeatureStatus @FileSharingConfig)) <$> (obj .:? "fileSharing"))
-      <*> withImplicitLockStatusOrDefault obj "conferenceCalling"
+      <*> (fromMaybe (Defaults (defFeatureStatus @ConferenceCallingConfig)) <$> (obj .:? "conferenceCalling"))
       <*> (fromMaybe (Defaults (defFeatureStatus @SelfDeletingMessagesConfig)) <$> (obj .:? "selfDeletingMessages"))
       <*> (fromMaybe (Defaults (defFeatureStatus @GuestLinksConfig)) <$> (obj .:? "conversationGuestLinks"))
       <*> withImplicitLockStatusOrDefault obj "validateSAMLEmails"
@@ -227,49 +227,6 @@ instance FromJSON FeatureFlags where
     where
       withImplicitLockStatusOrDefault :: forall cfg. (IsFeatureConfig cfg, Schema.ToSchema cfg) => Object -> Key -> A.Parser (Defaults (ImplicitLockStatus cfg))
       withImplicitLockStatusOrDefault obj fieldName = fromMaybe (Defaults (ImplicitLockStatus (defFeatureStatus @cfg))) <$> obj .:? fieldName
-
-instance ToJSON FeatureFlags where
-  toJSON
-    ( FeatureFlags
-        sso
-        legalhold
-        searchVisibility
-        appLock
-        classifiedDomains
-        fileSharing
-        conferenceCalling
-        selfDeletingMessages
-        guestLinks
-        validateSAMLEmails
-        sndFactorPasswordChallenge
-        searchVisibilityInbound
-        mls
-        outlookCalIntegration
-        mlsE2EId
-        mlsMigration
-        enforceFileDownloadLocation
-        teamMemberDeletedLimitedEventFanout
-      ) =
-      object
-        [ "sso" .= sso,
-          "legalhold" .= legalhold,
-          "teamSearchVisibility" .= searchVisibility,
-          "appLock" .= appLock,
-          "classifiedDomains" .= classifiedDomains,
-          "fileSharing" .= fileSharing,
-          "conferenceCalling" .= conferenceCalling,
-          "selfDeletingMessages" .= selfDeletingMessages,
-          "conversationGuestLinks" .= guestLinks,
-          "validateSAMLEmails" .= validateSAMLEmails,
-          "sndFactorPasswordChallenge" .= sndFactorPasswordChallenge,
-          "searchVisibilityInbound" .= searchVisibilityInbound,
-          "mls" .= mls,
-          "outlookCalIntegration" .= outlookCalIntegration,
-          "mlsE2EId" .= mlsE2EId,
-          "mlsMigration" .= mlsMigration,
-          "enforceFileDownloadLocation" .= enforceFileDownloadLocation,
-          "limitedEventFanout" .= teamMemberDeletedLimitedEventFanout
-        ]
 
 instance FromJSON FeatureSSO where
   parseJSON (String "enabled-by-default") = pure FeatureSSOEnabledByDefault

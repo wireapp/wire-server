@@ -58,6 +58,7 @@ import Galley.Effects.TeamFeatureStore
 import Galley.Effects.TeamFeatureStore qualified as TeamFeatures
 import Galley.Effects.TeamStore (getLegalHoldFlag, getTeamMember)
 import Galley.Intra.Push (PushEvent (FeatureConfigEvent), newPush)
+import Galley.Options
 import Galley.Types.Teams
 import Imports
 import Polysemy
@@ -78,10 +79,11 @@ import Wire.Sem.Paging.Cassandra
 patchFeatureStatusInternal ::
   forall cfg r.
   ( SetFeatureConfig cfg,
-    GetConfigForTeamConstraints cfg r,
+    ComputeFeatureConstraints cfg r,
     SetConfigForTeamConstraints cfg r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TeamNotFound) r,
+    Member (Input Opts) r,
     Member TeamStore r,
     Member TeamFeatureStore r,
     Member (P.Logger (Log.Msg -> Log.Msg)) r,
@@ -110,12 +112,13 @@ patchFeatureStatusInternal tid patch = do
 setFeatureStatus ::
   forall cfg r.
   ( SetFeatureConfig cfg,
-    GetConfigForTeamConstraints cfg r,
+    ComputeFeatureConstraints cfg r,
     SetConfigForTeamConstraints cfg r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'TeamNotFound) r,
     Member (Error TeamFeatureError) r,
+    Member (Input Opts) r,
     Member TeamStore r,
     Member TeamFeatureStore r,
     Member (P.Logger (Log.Msg -> Log.Msg)) r,
@@ -138,12 +141,13 @@ setFeatureStatus doauth tid wsnl = do
 setFeatureStatusInternal ::
   forall cfg r.
   ( SetFeatureConfig cfg,
-    GetConfigForTeamConstraints cfg r,
+    ComputeFeatureConstraints cfg r,
     SetConfigForTeamConstraints cfg r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'TeamNotFound) r,
     Member (Error TeamFeatureError) r,
+    Member (Input Opts) r,
     Member TeamStore r,
     Member TeamFeatureStore r,
     Member (P.Logger (Log.Msg -> Log.Msg)) r,
@@ -174,7 +178,8 @@ persistAndPushEvent ::
   ( KnownSymbol (FeatureSymbol cfg),
     ToSchema cfg,
     GetFeatureConfig cfg,
-    GetConfigForTeamConstraints cfg r,
+    ComputeFeatureConstraints cfg r,
+    Member (Input Opts) r,
     Member TeamFeatureStore r,
     Member (P.Logger (Log.Msg -> Log.Msg)) r,
     Member GundeckAccess r,
@@ -232,27 +237,25 @@ class GetFeatureConfig cfg => SetFeatureConfig cfg where
   -- push a event to clients (see 'persistAndPushEvent').
   setConfigForTeam ::
     ( SetConfigForTeamConstraints cfg r,
-      GetConfigForTeamConstraints cfg r,
-      ( Member TeamFeatureStore r,
-        Member (P.Logger (Log.Msg -> Log.Msg)) r,
-        Member GundeckAccess r,
-        Member TeamStore r
-      )
+      ComputeFeatureConstraints cfg r,
+      Member (Input Opts) r,
+      Member TeamFeatureStore r,
+      Member (P.Logger (Log.Msg -> Log.Msg)) r,
+      Member GundeckAccess r,
+      Member TeamStore r
     ) =>
     TeamId ->
     WithStatusNoLock cfg ->
     Sem r (WithStatus cfg)
   default setConfigForTeam ::
-    ( GetConfigForTeamConstraints cfg r,
+    ( ComputeFeatureConstraints cfg r,
       KnownSymbol (FeatureSymbol cfg),
       ToSchema cfg,
-      Members
-        '[ TeamFeatureStore,
-           P.Logger (Log.Msg -> Log.Msg),
-           GundeckAccess,
-           TeamStore
-         ]
-        r
+      Member (Input Opts) r,
+      Member TeamFeatureStore r,
+      Member (P.Logger (Log.Msg -> Log.Msg)) r,
+      Member GundeckAccess r,
+      Member TeamStore r
     ) =>
     TeamId ->
     WithStatusNoLock cfg ->
@@ -260,7 +263,11 @@ class GetFeatureConfig cfg => SetFeatureConfig cfg where
   setConfigForTeam tid wsnl = persistAndPushEvent tid wsnl
 
 instance SetFeatureConfig SSOConfig where
-  type SetConfigForTeamConstraints SSOConfig (r :: EffectRow) = (Member (Error TeamFeatureError) r)
+  type
+    SetConfigForTeamConstraints SSOConfig (r :: EffectRow) =
+      ( Member (Input Opts) r,
+        Member (Error TeamFeatureError) r
+      )
 
   setConfigForTeam tid wsnl = do
     case wssStatus wsnl of
@@ -269,7 +276,11 @@ instance SetFeatureConfig SSOConfig where
     persistAndPushEvent tid wsnl
 
 instance SetFeatureConfig SearchVisibilityAvailableConfig where
-  type SetConfigForTeamConstraints SearchVisibilityAvailableConfig (r :: EffectRow) = (Member SearchVisibilityStore r)
+  type
+    SetConfigForTeamConstraints SearchVisibilityAvailableConfig (r :: EffectRow) =
+      ( Member SearchVisibilityStore r,
+        Member (Input Opts) r
+      )
 
   setConfigForTeam tid wsnl = do
     case wssStatus wsnl of

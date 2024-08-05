@@ -94,6 +94,14 @@ legalholdIsEnabled tid uid = do
   baseRequest uid Galley Unversioned do joinHttpPath ["i", "teams", tidStr, "features", "legalhold"]
     >>= submit "GET"
 
+patchTeamFeatureConfig :: (HasCallStack, MakesValue domain, MakesValue team, MakesValue featureName, MakesValue payload) => domain -> team -> featureName -> payload -> App Response
+patchTeamFeatureConfig domain team featureName payload = do
+  tid <- asString team
+  fn <- asString featureName
+  p <- make payload
+  req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", fn]
+  submit "PATCH" $ req & addJSON p
+
 -- https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/galley/#/galley/post_i_features_multi_teams_searchVisibilityInbound
 getFeatureStatusMulti :: (HasCallStack, MakesValue domain, MakesValue featureName) => domain -> featureName -> [String] -> App Response
 getFeatureStatusMulti domain featureName tids = do
