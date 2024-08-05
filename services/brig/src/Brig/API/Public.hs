@@ -51,7 +51,6 @@ import Brig.Options hiding (internalEvents)
 import Brig.Provider.API
 import Brig.Team.API qualified as Team
 import Brig.Team.Email qualified as Team
-import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Intra (UserAccount (UserAccount, accountUser))
 import Brig.Types.User (HavePendingInvitations (..))
 import Brig.User.API.Handle qualified as Handle
@@ -61,7 +60,7 @@ import Brig.User.Auth.Cookie qualified as Auth
 import Cassandra qualified as C
 import Cassandra qualified as Data
 import Control.Error hiding (bool, note)
-import Control.Lens (view, (.~), (?~), (^.))
+import Control.Lens (view, (.~), (?~))
 import Control.Monad.Catch (throwM)
 import Control.Monad.Except
 import Data.Aeson hiding (json)
@@ -129,7 +128,6 @@ import Wire.API.Routes.Public.Util
 import Wire.API.Routes.Version
 import Wire.API.SwaggerHelper (cleanupSwagger)
 import Wire.API.SystemSettings
-import Wire.API.Team qualified as Public
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.Team.Member (HiddenPerm (..), hasPermission)
 import Wire.API.User (RegisterError (RegisterErrorAllowlistError))
@@ -707,7 +705,6 @@ createUser ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
-    Member EmailSubsystem r,
     Member EmailSending r
   ) =>
   Public.NewUserPublic ->
@@ -720,8 +717,6 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
   result <- API.createUser new
   let acc = createdAccount result
 
-  let eac = createdEmailActivation result
-  let epair = (,) <$> (activationKey <$> eac) <*> (activationCode <$> eac)
   let newUserLabel = Public.newUserLabel new
   let newUserTeam = Public.newUserTeam new
   let usr = accountUser acc
@@ -739,12 +734,10 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
             )
   lift . Log.info $ context . Log.msg @Text "Sucessfully created user"
 
-  let Public.User {userLocale, userDisplayName} = usr
+  let Public.User {userLocale} = usr
       userEmail = Public.userEmail usr
       userId = Public.userId usr
   lift $ do
-    for_ (liftM2 (,) userEmail epair) $ \(e, p) ->
-      sendActivationEmail e userDisplayName p (Just userLocale) newUserTeam
     for_ (liftM3 (,,) userEmail (createdUserTeam result) newUserTeam) $ \(e, ct, ut) ->
       sendWelcomeEmail e ct ut (Just userLocale)
   cok <-
@@ -758,15 +751,6 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
   -- pure $ CreateUserResponse cok userId (Public.SelfProfile usr)
   pure $ Public.RegisterSuccess cok (Public.SelfProfile usr)
   where
-    sendActivationEmail :: (Member EmailSubsystem r) => Public.Email -> Public.Name -> ActivationPair -> Maybe Public.Locale -> Maybe Public.NewTeamUser -> (AppT r) ()
-    sendActivationEmail email name (key, code) locale mTeamUser
-      | Just teamUser <- mTeamUser,
-        Public.NewTeamCreator creator <- teamUser,
-        let Public.BindingNewTeamUser (Public.BindingNewTeam team) _ = creator =
-          liftSem $ sendTeamActivationMail email name key code locale (fromRange $ team ^. Public.newTeamName)
-      | otherwise =
-          liftSem $ sendActivationMail email name key code locale
-
     sendWelcomeEmail :: (Member EmailSending r) => Public.Email -> CreateUserTeam -> Public.NewTeamUser -> Maybe Public.Locale -> (AppT r) ()
     -- NOTE: Welcome e-mails for the team creator are not dealt by brig anymore
     sendWelcomeEmail e (CreateUserTeam t n) newUser l = case newUser of
