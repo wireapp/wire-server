@@ -45,7 +45,6 @@ import Wire.API.User.Search
 import Wire.API.UserEvent
 import Wire.Arbitrary
 import Wire.AuthenticationSubsystem
-import Wire.Authorize
 import Wire.BlockListStore as BlockList
 import Wire.DeleteQueue
 import Wire.Events
@@ -133,16 +132,16 @@ runUserSubsystem cfg authInterpreter =
       UpdateUserProfile self mconn mb update ->
         runInputConst cfg $
           updateUserProfileImpl self mconn mb update
-      UpdateUserEmailInit uid email -> 
-        runInputConst cfg $ 
-          updateUserEmailInitImpl (runAuthorized uid) email
-      UpdateUserEmailComplete activate -> 
+      UpdateUserEmailInit uid email ->
+        runInputConst cfg $
+          updateUserEmailInitImpl uid email
+      UpdateUserEmailComplete activate ->
         runInputConst cfg $
           updateUserEmailCompleteImpl activate
-      UpdateUserSamlUserRef uref -> 
+      UpdateUserSamlUserRef uref ->
         runInputConst cfg $
           undefined uref
-      UpdateUserScimExternalId scimEId -> 
+      UpdateUserScimExternalId scimEId ->
         runInputConst cfg $
           undefined scimEId
       CheckHandle uhandle ->
@@ -183,7 +182,6 @@ runUserSubsystem cfg authInterpreter =
       InternalFindTeamInvitation mEmailKey code ->
         runInputConst cfg $
           internalFindTeamInvitationImpl mEmailKey code
-
 
 internalFindTeamInvitationImpl ::
   ( Member InvitationStore r,
