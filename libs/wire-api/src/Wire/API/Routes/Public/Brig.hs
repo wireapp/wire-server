@@ -519,6 +519,7 @@ type AccountAPI =
     :<|> Named
            "get-activate"
            ( Summary "Activate (i.e. confirm) an email address."
+               :> Description "Used in deprecated registration flow.  DO NOT USE"
                :> MakesFederatedCall 'Brig "send-connection-action"
                :> Description "See also 'POST /activate' which has a larger feature set."
                :> CanThrow 'UserKeyExists
@@ -546,6 +547,7 @@ type AccountAPI =
                :> Description
                     "Activation only succeeds once and the number of \
                     \failed attempts for a valid key is limited."
+               :> Description "Used in deprecated registration flow.  DO NOT USE"
                :> MakesFederatedCall 'Brig "send-connection-action"
                :> CanThrow 'UserKeyExists
                :> CanThrow 'InvalidActivationCodeWrongUser
@@ -564,6 +566,7 @@ type AccountAPI =
     :<|> Named
            "post-activate-send"
            ( Summary "Send (or resend) an email activation code."
+               :> Description "Used in standard activation flow as a first step to trigger sending the validation email."
                :> CanThrow 'UserKeyExists
                :> CanThrow 'InvalidEmail
                :> CanThrow 'BlacklistedEmail
@@ -1481,7 +1484,8 @@ type AuthAPI =
                :> "email"
                :> Summary "Change your email address"
                :> Description
-                    "We have to do zauth validation here in cases where we may not have a session token\
+                    "Called when user changes email address in settings out of an active session.\n\n\
+                    \ We have to do zauth validation here in cases where we may not have a session token\
                     \ (because no communication for 15 minutes). In these cases, nginz can't authenticate,\
                     \ so brig has to do it based on the cookie(s)."
                :> Cookies '["zuid" ::: SomeUserToken]
