@@ -266,7 +266,6 @@ executable spar-integration
 
   -- cabal-fmt: expand test-integration
   other-modules:
-    Main
     Test.LoggingSpec
     Test.MetricsSpec
     Test.Spar.APISpec

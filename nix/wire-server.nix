@@ -517,8 +517,8 @@ in
       pkgs.kind
       pkgs.netcat
       pkgs.niv
-      (hlib.justStaticExecutables pkgs.haskellPackages.apply-refact)
-      (pkgs.python3.withPackages
+      pkgs.haskellPackages.apply-refact
+      (pkgs.python310.withPackages
         (ps: with ps; [
           black
           bokeh
@@ -547,7 +547,7 @@ in
     ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
       # linux-only, not strictly required tools
       pkgs.docker-compose
-      pkgs.telepresence
+      (pkgs.telepresence.override { pythonPackages = pkgs.python310Packages; })
     ];
   };
 

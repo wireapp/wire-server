@@ -316,13 +316,6 @@ let
     };
     # end pinned dependencies for http2
 
-    # pinned for warp
-    warp-tls = {
-      version = "3.4.5";
-      sha256 = "sha256-3cDi/+n7wHfcWT/iFWAsGdLYXtKYXmvzolDt+ACJnaM=";
-    };
-    # end pinned for warp
-
     # PR: https://github.com/wireapp/wire-server/pull/4027
     HsOpenSSL = {
       version = "0.11.7.7";

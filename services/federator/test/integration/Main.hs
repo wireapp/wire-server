@@ -29,8 +29,8 @@ import Test.Federator.InwardSpec qualified
 import Test.Federator.Util (TestEnv, mkEnvFromOptions)
 import Test.Hspec
 import Test.Hspec.Core.Format
-import Test.Hspec.JUnit
 import Test.Hspec.JUnit.Config.Env
+import Test.Hspec.JUnit.Formatter
 import Test.Hspec.Runner
 
 main :: IO ()

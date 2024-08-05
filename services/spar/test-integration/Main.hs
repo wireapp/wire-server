@@ -40,8 +40,8 @@ import System.Random (randomRIO)
 import Test.Hspec
 import Test.Hspec.Core.Format
 import Test.Hspec.Core.Runner
-import Test.Hspec.JUnit
 import Test.Hspec.JUnit.Config.Env
+import Test.Hspec.JUnit.Formatter as JUnit
 import qualified Test.LoggingSpec
 import qualified Test.MetricsSpec
 import qualified Test.Spar.APISpec
@@ -77,7 +77,7 @@ hspecConfig = do
             : configAvailableFormatters defaultConfig
       }
   where
-    checksAndJUnitFormatter :: JUnitConfig -> FormatConfig -> IO Format
+    checksAndJUnitFormatter :: JUnitConfig -> JUnit.FormatConfig -> IO JUnit.Format
     checksAndJUnitFormatter junitConfig config = do
       junit <- junitFormat junitConfig config
       let checksFormatter = fromJust (lookup "checks" $ configAvailableFormatters defaultConfig)
