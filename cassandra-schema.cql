@@ -1170,6 +1170,8 @@ CREATE TABLE galley_test.team_features (
     app_lock_inactivity_timeout_secs int,
     app_lock_status int,
     conference_calling int,
+    conference_calling_one_to_one int,
+    conference_calling_status int,
     digital_signatures int,
     enforce_file_download_location text,
     enforce_file_download_location_lock_status int,

@@ -249,20 +249,20 @@ type SternAPI =
                :> Get '[JSON] TeamAdminInfo
            )
     :<|> Named "get-route-legalhold-config" (MkFeatureGetRoute LegalholdConfig)
-    :<|> Named "put-route-legalhold-config" (MkFeaturePutRouteTrivialConfigNoTTL LegalholdConfig)
+    :<|> Named "put-route-legalhold-config" (MkFeaturePutRouteNoTTL LegalholdConfig)
     :<|> Named "get-route-sso-config" (MkFeatureGetRoute SSOConfig)
-    :<|> Named "put-route-sso-config" (MkFeaturePutRouteTrivialConfigNoTTL SSOConfig)
+    :<|> Named "put-route-sso-config" (MkFeaturePutRouteNoTTL SSOConfig)
     :<|> Named "get-route-search-visibility-available-config" (MkFeatureGetRoute SearchVisibilityAvailableConfig)
-    :<|> Named "put-route-search-visibility-available-config" (MkFeaturePutRouteTrivialConfigNoTTL SearchVisibilityAvailableConfig)
+    :<|> Named "put-route-search-visibility-available-config" (MkFeaturePutRouteNoTTL SearchVisibilityAvailableConfig)
     :<|> Named "get-route-validate-saml-emails-config" (MkFeatureGetRoute ValidateSAMLEmailsConfig)
-    :<|> Named "put-route-validate-saml-emails-config" (MkFeaturePutRouteTrivialConfigNoTTL ValidateSAMLEmailsConfig)
+    :<|> Named "put-route-validate-saml-emails-config" (MkFeaturePutRouteNoTTL ValidateSAMLEmailsConfig)
     :<|> Named "get-route-digital-signatures-config" (MkFeatureGetRoute DigitalSignaturesConfig)
-    :<|> Named "put-route-digital-signatures-config" (MkFeaturePutRouteTrivialConfigNoTTL DigitalSignaturesConfig)
+    :<|> Named "put-route-digital-signatures-config" (MkFeaturePutRouteNoTTL DigitalSignaturesConfig)
     :<|> Named "get-route-file-sharing-config" (MkFeatureGetRoute FileSharingConfig)
-    :<|> Named "put-route-file-sharing-config" (MkFeaturePutRouteTrivialConfigNoTTL FileSharingConfig)
+    :<|> Named "put-route-file-sharing-config" (MkFeaturePutRouteNoTTL FileSharingConfig)
     :<|> Named "get-route-classified-domains-config" (MkFeatureGetRoute ClassifiedDomainsConfig)
     :<|> Named "get-route-conference-calling-config" (MkFeatureGetRoute ConferenceCallingConfig)
-    :<|> Named "put-route-conference-calling-config" (MkFeaturePutRouteTrivialConfigWithTTL ConferenceCallingConfig)
+    :<|> Named "put-route-conference-calling-config" (MkFeaturePutRouteWithTTL ConferenceCallingConfig)
     :<|> Named "get-route-applock-config" (MkFeatureGetRoute AppLockConfig)
     :<|> Named "put-route-applock-config" (MkFeaturePutRoute AppLockConfig)
     :<|> Named "get-route-mls-config" (MkFeatureGetRoute MLSConfig)
@@ -293,8 +293,8 @@ type SternAPI =
                :> Put '[JSON] NoContent
            )
     :<|> Named "get-route-outlook-cal-config" (MkFeatureGetRoute OutlookCalIntegrationConfig)
-    :<|> Named "lock-unlock-route-outlook-cal-config" (MkFeatureLockUnlockRouteTrivialConfigNoTTL OutlookCalIntegrationConfig)
-    :<|> Named "put-route-outlook-cal-config" (MkFeaturePutRouteTrivialConfigNoTTL OutlookCalIntegrationConfig)
+    :<|> Named "lock-unlock-route-outlook-cal-config" (MkFeatureLockUnlockRouteNoTTL OutlookCalIntegrationConfig)
+    :<|> Named "put-route-outlook-cal-config" (MkFeaturePutRouteNoTTL OutlookCalIntegrationConfig)
     :<|> Named
            "get-route-enforce-file-download-location"
            ( Description
@@ -305,7 +305,7 @@ type SternAPI =
            "lock-unlock-route-enforce-file-download-location"
            ( Description
                "<p><b>Custom feature: only supported for some decidated on-prem systems.</b></p>"
-               :> MkFeatureLockUnlockRouteTrivialConfigNoTTL EnforceFileDownloadLocationConfig
+               :> MkFeatureLockUnlockRouteNoTTL EnforceFileDownloadLocationConfig
            )
     :<|> Named
            "put-route-enforce-file-download-location"
@@ -486,7 +486,7 @@ type MkFeatureGetRoute (feature :: Type) =
     :> FeatureSymbol feature
     :> Get '[JSON] (WithStatus feature)
 
-type MkFeaturePutRouteTrivialConfigNoTTL (feature :: Type) =
+type MkFeaturePutRouteNoTTL (feature :: Type) =
   Summary "Disable / enable status for a given feature / team"
     :> "teams"
     :> Capture "tid" TeamId
@@ -495,7 +495,7 @@ type MkFeaturePutRouteTrivialConfigNoTTL (feature :: Type) =
     :> QueryParam' [Required, Strict] "status" FeatureStatus
     :> Put '[JSON] NoContent
 
-type MkFeaturePutRouteTrivialConfigWithTTL (feature :: Type) =
+type MkFeaturePutRouteWithTTL (feature :: Type) =
   Summary "Disable / enable status for a given feature / team"
     :> Description "team feature time to live, given in days, or 'unlimited' (default).  only available on *some* features!"
     :> "teams"
@@ -506,7 +506,7 @@ type MkFeaturePutRouteTrivialConfigWithTTL (feature :: Type) =
     :> QueryParam' [Required, Strict, Description "team feature time to live, given in days, or 'unlimited' (default)."] "ttl" FeatureTTLDays
     :> Put '[JSON] NoContent
 
-type MkFeatureLockUnlockRouteTrivialConfigNoTTL (feature :: Type) =
+type MkFeatureLockUnlockRouteNoTTL (feature :: Type) =
   Summary "Lock / unlock status for a given feature / team (en-/disable should happen in team settings)"
     :> "teams"
     :> Capture "tid" TeamId

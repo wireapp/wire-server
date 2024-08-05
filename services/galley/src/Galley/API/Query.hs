@@ -63,6 +63,7 @@ import Galley.API.MLS.Types
 import Galley.API.Mapping
 import Galley.API.Mapping qualified as Mapping
 import Galley.API.One2One
+import Galley.API.Teams.Features.Get
 import Galley.API.Util
 import Galley.Data.Conversation qualified as Data
 import Galley.Data.Conversation.Types qualified as Data
@@ -73,11 +74,9 @@ import Galley.Effects.ConversationStore qualified as E
 import Galley.Effects.FederatorAccess qualified as E
 import Galley.Effects.ListItems qualified as E
 import Galley.Effects.MemberStore qualified as E
-import Galley.Effects.TeamFeatureStore qualified as TeamFeatures
 import Galley.Env
 import Galley.Options
 import Galley.Types.Conversations.Members
-import Galley.Types.Teams
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -681,14 +680,8 @@ getConversationGuestLinksFeatureStatus ::
   ) =>
   Maybe TeamId ->
   Sem r (WithStatus GuestLinksConfig)
-getConversationGuestLinksFeatureStatus mbTid = do
-  defaultStatus :: WithStatus GuestLinksConfig <- input <&> view (settings . featureFlags . flagConversationGuestLinks . unDefaults)
-  case mbTid of
-    Nothing -> pure defaultStatus
-    Just tid -> do
-      mbConfigNoLock <- TeamFeatures.getFeatureConfig FeatureSingletonGuestLinksConfig tid
-      mbLockStatus <- TeamFeatures.getFeatureLockStatus FeatureSingletonGuestLinksConfig tid
-      pure $ computeFeatureConfigForTeamUser mbConfigNoLock mbLockStatus defaultStatus
+getConversationGuestLinksFeatureStatus Nothing = getConfigForServer @GuestLinksConfig
+getConversationGuestLinksFeatureStatus (Just tid) = getConfigForTeam @GuestLinksConfig tid
 
 -- | The same as 'getMLSSelfConversation', but it throws an error in case the
 -- backend is not configured for MLS (the proxy for it being the existance of

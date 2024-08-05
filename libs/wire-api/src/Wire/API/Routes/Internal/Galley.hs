@@ -117,6 +117,7 @@ type IFeatureAPI =
     -- ConferenceCallingConfig
     :<|> IFeatureStatusGet ConferenceCallingConfig
     :<|> IFeatureStatusPut '[] '() ConferenceCallingConfig
+    :<|> IFeatureStatusLockStatusPut ConferenceCallingConfig
     :<|> IFeatureStatusPatch '[] '() ConferenceCallingConfig
     -- SelfDeletingMessagesConfig
     :<|> IFeatureStatusGet SelfDeletingMessagesConfig

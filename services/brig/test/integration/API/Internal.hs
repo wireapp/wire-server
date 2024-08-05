@@ -27,29 +27,21 @@ import API.Internal.Util
 import API.MLS.Util
 import Bilge
 import Bilge.Assert
-import Brig.Data.User (lookupFeatureConferenceCalling, userExists)
+import Brig.Data.User
 import Brig.Options qualified as Opt
 import Cassandra qualified as C
 import Cassandra qualified as Cass
 import Cassandra.Util
-import Control.Exception (ErrorCall (ErrorCall), throwIO)
-import Control.Lens ((^.), (^?!))
-import Data.Aeson qualified as Aeson
-import Data.Aeson.Lens qualified as Aeson
-import Data.Aeson.Types qualified as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Default
 import Data.Id
 import Data.Qualified
-import GHC.TypeLits (KnownSymbol)
 import Imports
 import System.IO.Temp
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
 import Util.Options (Endpoint)
-import Wire.API.Team.Feature
-import Wire.API.Team.Feature qualified as ApiFt
 import Wire.API.User
 import Wire.API.User.Client
 
@@ -57,9 +49,7 @@ tests :: Opt.Opts -> Manager -> Cass.ClientState -> Brig -> Endpoint -> Gundeck 
 tests opts mgr db brig brigep _gundeck galley = do
   pure $
     testGroup "api/internal" $
-      [ test mgr "account features: conferenceCalling" $
-          testFeatureConferenceCallingByAccount opts mgr db brig brigep galley,
-        test mgr "suspend and unsuspend user" $ testSuspendUser db brig,
+      [ test mgr "suspend and unsuspend user" $ testSuspendUser db brig,
         test mgr "suspend non existing user and verify no db entry" $
           testSuspendNonExistingUser db brig,
         test mgr "mls/clients" $ testGetMlsClients brig,
@@ -94,76 +84,6 @@ setAccountStatus brig u s =
         . json (AccountStatusUpdate s)
     )
 
-testFeatureConferenceCallingByAccount :: forall m. (TestConstraints m) => Opt.Opts -> Manager -> Cass.ClientState -> Brig -> Endpoint -> Galley -> m ()
-testFeatureConferenceCallingByAccount (Opt.optSettings -> settings) mgr db brig brigep galley = do
-  let check :: (HasCallStack) => ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig -> m ()
-      check status = do
-        uid <- userId <$> createUser "joe" brig
-        _ <-
-          aFewTimes 12 (putAccountConferenceCallingConfigClient brigep mgr uid status) isRight
-            >>= either (liftIO . throwIO . ErrorCall . ("putAccountConferenceCallingConfigClient: " <>) . show) pure
-
-        mbStatus' <- getAccountConferenceCallingConfigClient brigep mgr uid
-        liftIO $ assertEqual "GET /i/users/:uid/features/conferenceCalling" (Right status) mbStatus'
-
-        featureConfigs <- getAllFeatureConfigs galley uid
-        liftIO $ assertEqual "GET /feature-configs" status (ApiFt.forgetLock $ readFeatureConfigs featureConfigs)
-
-        featureConfigsConfCalling <- getFeatureConfig @ApiFt.ConferenceCallingConfig galley uid
-        liftIO $ assertEqual "GET /feature-configs/conferenceCalling" status (responseJsonUnsafe featureConfigsConfCalling)
-
-      check' :: m ()
-      check' = do
-        uid <- userId <$> createUser "joe" brig
-        let defaultIfNull :: ApiFt.WithStatus ApiFt.ConferenceCallingConfig
-            defaultIfNull = settings ^. Opt.getAfcConferenceCallingDefNull
-
-            defaultIfNewRaw :: Maybe (ApiFt.WithStatus ApiFt.ConferenceCallingConfig)
-            defaultIfNewRaw =
-              -- tested manually: whether we remove `defaultForNew` from `brig.yaml` or set it
-              -- to `enabled` or `disabled`, this test always passes.
-              settings ^. Opt.getAfcConferenceCallingDefNewMaybe
-
-        do
-          cassandraResp :: Maybe (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig) <-
-            aFewTimes
-              12
-              (Cass.runClient db (lookupFeatureConferenceCalling uid))
-              isJust
-          liftIO $ assertEqual mempty (ApiFt.forgetLock <$> defaultIfNewRaw) cassandraResp
-
-        _ <-
-          aFewTimes 12 (deleteAccountConferenceCallingConfigClient brigep mgr uid) isRight
-            >>= either (liftIO . throwIO . ErrorCall . ("deleteAccountConferenceCallingConfigClient: " <>) . show) pure
-
-        do
-          cassandraResp :: Maybe (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig) <-
-            aFewTimes
-              12
-              (Cass.runClient db (lookupFeatureConferenceCalling uid))
-              isJust
-          liftIO $ assertEqual mempty Nothing cassandraResp
-
-        mbStatus' <- getAccountConferenceCallingConfigClient brigep mgr uid
-        liftIO $ assertEqual "GET /i/users/:uid/features/conferenceCalling" (Right (ApiFt.forgetLock defaultIfNull)) mbStatus'
-
-        featureConfigs <- getAllFeatureConfigs galley uid
-        liftIO $ assertEqual "GET /feature-configs" defaultIfNull (readFeatureConfigs featureConfigs)
-
-        featureConfigsConfCalling <- getFeatureConfig @ApiFt.ConferenceCallingConfig galley uid
-        liftIO $ assertEqual "GET /feature-configs/conferenceCalling" defaultIfNull (responseJsonUnsafe featureConfigsConfCalling)
-
-      readFeatureConfigs :: (HasCallStack) => ResponseLBS -> ApiFt.WithStatus ApiFt.ConferenceCallingConfig
-      readFeatureConfigs =
-        either (error . show) id
-          . Aeson.parseEither Aeson.parseJSON
-          . (^?! Aeson.key "conferenceCalling")
-          . responseJsonUnsafe @Aeson.Value
-
-  check $ ApiFt.WithStatusNoLock ApiFt.FeatureStatusEnabled ApiFt.ConferenceCallingConfig ApiFt.FeatureTTLUnlimited
-  check $ ApiFt.WithStatusNoLock ApiFt.FeatureStatusDisabled ApiFt.ConferenceCallingConfig ApiFt.FeatureTTLUnlimited
-  check'
-
 testGetMlsClients :: Brig -> Http ()
 testGetMlsClients brig = do
   qusr <- userQualifiedId <$> randomUser brig
@@ -197,14 +117,6 @@ createClient brig u i =
         (qUnqualified u)
         (defNewClient PermanentClientType [somePrekeys !! i] (someLastPrekeys !! i))
         <!! const 201 === statusCode
-
-getFeatureConfig :: forall cfg m. (MonadHttp m, HasCallStack, KnownSymbol (ApiFt.FeatureSymbol cfg)) => (Request -> Request) -> UserId -> m ResponseLBS
-getFeatureConfig galley uid = do
-  get $ apiVersion "v1" . galley . paths ["feature-configs", featureNameBS @cfg] . zUser uid
-
-getAllFeatureConfigs :: (MonadHttp m, HasCallStack) => (Request -> Request) -> UserId -> m ResponseLBS
-getAllFeatureConfigs galley uid = do
-  get $ galley . paths ["feature-configs"] . zUser uid
 
 testWritetimeRepresentation :: forall m. (TestConstraints m) => Opt.Opts -> Manager -> Cass.ClientState -> Brig -> Endpoint -> Galley -> m ()
 testWritetimeRepresentation _ _mgr db brig _brigep _galley = do

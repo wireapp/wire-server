@@ -17,6 +17,7 @@
 
 module Galley.API.LegalHold.Team
   ( isLegalHoldEnabledForTeam,
+    computeLegalHoldFeatureStatus,
     assertLegalHoldEnabledForTeam,
     ensureNotTooLargeToActivateLegalHold,
     teamSizeBelowLimit,
@@ -28,14 +29,14 @@ import Data.Range
 import Galley.Effects
 import Galley.Effects.BrigAccess
 import Galley.Effects.LegalHoldStore qualified as LegalHoldData
-import Galley.Effects.TeamFeatureStore qualified as TeamFeatures
+import Galley.Effects.TeamFeatureStore
 import Galley.Effects.TeamStore
 import Galley.Types.Teams as Team
 import Imports
 import Polysemy
 import Wire.API.Error
 import Wire.API.Error.Galley
-import Wire.API.Team.Feature qualified as Public
+import Wire.API.Team.Feature
 import Wire.API.Team.Size
 
 assertLegalHoldEnabledForTeam ::
@@ -51,6 +52,23 @@ assertLegalHoldEnabledForTeam tid =
   unlessM (isLegalHoldEnabledForTeam tid) $
     throwS @'LegalHoldNotEnabled
 
+computeLegalHoldFeatureStatus ::
+  ( Member TeamStore r,
+    Member LegalHoldStore r
+  ) =>
+  TeamId ->
+  DbFeature LegalholdConfig ->
+  Sem r FeatureStatus
+computeLegalHoldFeatureStatus tid dbFeature =
+  getLegalHoldFlag >>= \case
+    FeatureLegalHoldDisabledPermanently -> pure FeatureStatusDisabled
+    FeatureLegalHoldDisabledByDefault ->
+      pure . wssStatus $
+        unDbFeature dbFeature defFeatureStatusNoLock
+    FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
+      wl <- LegalHoldData.isTeamLegalholdWhitelisted tid
+      pure $ if wl then FeatureStatusEnabled else FeatureStatusDisabled
+
 isLegalHoldEnabledForTeam ::
   forall r.
   ( Member LegalHoldStore r,
@@ -60,18 +78,9 @@ isLegalHoldEnabledForTeam ::
   TeamId ->
   Sem r Bool
 isLegalHoldEnabledForTeam tid = do
-  getLegalHoldFlag >>= \case
-    FeatureLegalHoldDisabledPermanently -> do
-      pure False
-    FeatureLegalHoldDisabledByDefault -> do
-      statusValue <-
-        Public.wssStatus <$$> TeamFeatures.getFeatureConfig Public.FeatureSingletonLegalholdConfig tid
-      pure $ case statusValue of
-        Just Public.FeatureStatusEnabled -> True
-        Just Public.FeatureStatusDisabled -> False
-        Nothing -> False
-    FeatureLegalHoldWhitelistTeamsAndImplicitConsent ->
-      LegalHoldData.isTeamLegalholdWhitelisted tid
+  dbFeature <- getFeatureConfig FeatureSingletonLegalholdConfig tid
+  status <- computeLegalHoldFeatureStatus tid dbFeature
+  pure $ status == FeatureStatusEnabled
 
 ensureNotTooLargeToActivateLegalHold ::
   ( Member BrigAccess r,

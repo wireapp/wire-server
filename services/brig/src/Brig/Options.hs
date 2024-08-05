@@ -705,10 +705,10 @@ data AccountFeatureConfigs = AccountFeatureConfigs
   deriving (Show, Eq, Generic)
 
 instance Arbitrary AccountFeatureConfigs where
-  arbitrary = AccountFeatureConfigs <$> fmap unlocked arbitrary <*> fmap unlocked arbitrary
+  arbitrary = AccountFeatureConfigs <$> fmap locked arbitrary <*> fmap locked arbitrary
     where
-      unlocked :: Public.ImplicitLockStatus a -> Public.ImplicitLockStatus a
-      unlocked = Public.ImplicitLockStatus . Public.setLockStatus Public.LockStatusUnlocked . Public._unImplicitLockStatus
+      locked :: Public.ImplicitLockStatus a -> Public.ImplicitLockStatus a
+      locked = Public.ImplicitLockStatus . Public.setLockStatus Public.LockStatusLocked . Public._unImplicitLockStatus
 
 instance FromJSON AccountFeatureConfigs where
   parseJSON =

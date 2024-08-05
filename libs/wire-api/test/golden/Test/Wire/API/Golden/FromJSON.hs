@@ -25,6 +25,7 @@ import Test.Wire.API.Golden.Generated.MemberUpdateData_user
 import Test.Wire.API.Golden.Generated.NewOtrMessage_user
 import Test.Wire.API.Golden.Generated.RmClient_user
 import Test.Wire.API.Golden.Generated.SimpleMember_user
+import Test.Wire.API.Golden.Generated.WithStatus_team
 import Test.Wire.API.Golden.Runner
 import Wire.API.Conversation (Conversation, MemberUpdate, OtherMemberUpdate)
 import Wire.API.User (NewUser, NewUserPublic)
@@ -88,5 +89,7 @@ tests =
             testFromJSONFailureWithMsg @NewUserPublic
               (Just "only managed-by-Wire users can be created here.")
               "testObject_NewUserPublic_user_1-3.json"
-        ]
+        ],
+      testCase "WithStatus_ConferenceCallingConfig" $
+        testFromJSONObject testObject_WithStatus_team_14 "testObject_WithStatus_team_14.json"
     ]
