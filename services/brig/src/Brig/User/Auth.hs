@@ -329,6 +329,8 @@ isPendingActivation ident = case ident of
 --   If there are multiple valid cookies, we try all of them. When an access token is
 --   given, we perform the usual checks.
 --   If multiple cookies are given and several are valid, we return the first valid one.
+--
+-- TODO: this has moved to Wire.Authorize.*, remove it here!
 validateTokens ::
   (ZAuth.TokenPair u a) =>
   List1 (ZAuth.Token u) ->
@@ -348,6 +350,7 @@ validateTokens uts at = do
       (e : _, _) -> throwE e
       _ -> throwE ZAuth.Invalid -- Impossible
 
+-- TODO: this has moved to Wire.Authorize.*, remove it here!
 validateToken ::
   (ZAuth.TokenPair u a) =>
   ZAuth.Token u ->
