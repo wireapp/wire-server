@@ -58,6 +58,8 @@ data AllTeamFeatureConfigsRow = AllTeamFeatureConfigsRow
     mlsE2eid :: Maybe FeatureStatus,
     mlsE2eidGracePeriod :: Maybe Int32,
     mlsE2eidAcmeDiscoverUrl :: Maybe HttpsUrl,
+    mlsE2eidMaybeCrlProxy :: Maybe HttpsUrl,
+    mlsE2eidMaybeUseProxyOnMobile :: Maybe Bool,
     mlsE2eidLock :: Maybe LockStatus,
     -- mls migration
     mlsMigration :: Maybe FeatureStatus,
@@ -116,6 +118,8 @@ emptyRow =
       mlsMigration = Nothing,
       mlsMigrationStartTime = Nothing,
       mlsMigrationFinalizeRegardlessAfter = Nothing,
+      mlsE2eidMaybeCrlProxy = Nothing,
+      mlsE2eidMaybeUseProxyOnMobile = Nothing,
       mlsMigrationLock = Nothing,
       exposeInvitationUrls = Nothing,
       outlookCalIntegration = Nothing,
@@ -295,6 +299,8 @@ allFeatureConfigsFromRow ourteam allowListForExposeInvitationURLs featureLH hasT
         MlsE2EIdConfig
           (toGracePeriodOrDefault row.mlsE2eidGracePeriod)
           row.mlsE2eidAcmeDiscoverUrl
+          row.mlsE2eidMaybeCrlProxy
+          (fromMaybe (useProxyOnMobile . wsConfig $ defFeatureStatus) row.mlsE2eidMaybeUseProxyOnMobile)
       where
         toGracePeriodOrDefault :: Maybe Int32 -> NominalDiffTime
         toGracePeriodOrDefault = maybe (verificationExpiration $ wsConfig defFeatureStatus) fromIntegral
@@ -368,7 +374,7 @@ getAllFeatureConfigs allowListForExposeInvitationURLs featureLH hasTeamImplicitL
       \mls_status, mls_default_protocol, mls_protocol_toggle_users, mls_allowed_ciphersuites, \
       \mls_default_ciphersuite, mls_supported_protocols, mls_lock_status, \
       \\
-      \mls_e2eid_status, mls_e2eid_grace_period, mls_e2eid_acme_discovery_url, mls_e2eid_lock_status, \
+      \mls_e2eid_status, mls_e2eid_grace_period, mls_e2eid_acme_discovery_url, mls_e2eid_crl_proxy, mls_e2eid_use_proxy_on_mobile, mls_e2eid_lock_status, \
       \\
       \mls_migration_status, mls_migration_start_time, mls_migration_finalise_regardless_after, \
       \mls_migration_lock_status, \
