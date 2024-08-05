@@ -226,7 +226,7 @@ After all containers are up you can use these Makefile targets to run the tests 
    1. nodejs
    2. yarn
    3. mkcert
-3. Copy .env.localhost to .env and uncomment the local section
+3. Copy `.env.localhost` to `.env` and uncomment the local section
 4. Run the webapp using:
    ```bash
    yarn
