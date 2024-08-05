@@ -72,7 +72,6 @@ library
     Wire.AuthenticationSubsystem
     Wire.AuthenticationSubsystem.Error
     Wire.AuthenticationSubsystem.Interpreter
-    Wire.Authorize
     Wire.AWS
     Wire.BlockListStore
     Wire.BlockListStore.Cassandra
@@ -206,7 +205,6 @@ test-suite wire-subsystems-tests
   other-modules:
     Spec
     Wire.AuthenticationSubsystem.InterpreterSpec
-    Wire.AuthorizeSpec
     Wire.MiniBackend
     Wire.MockInterpreters
     Wire.MockInterpreters.BlockListStore

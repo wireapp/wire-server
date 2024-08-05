@@ -13,7 +13,6 @@ import Wire.API.Federation.Error
 import Wire.API.User
 import Wire.API.User.Activation
 import Wire.Arbitrary
-import Wire.Authorize
 import Wire.UserKeyStore
 
 -- | Who is performing this update operation?  (Single source of truth: users managed by SCIM
@@ -69,7 +68,7 @@ data UserSubsystem m a where
   -- | Simple updates (as opposed to, eg., handle, where we need to manage locks).  Empty fields are ignored (not deleted).
   UpdateUserProfile :: Local UserId -> Maybe ConnId -> UpdateOriginType -> UserProfileUpdate -> UserSubsystem m ()
   -- | Initiate change of email address
-  UpdateUserEmailInit :: Authorized AuthorizeUpdateEmail UserId -> Email -> UserSubsystem m ChangeEmailResponse
+  UpdateUserEmailInit :: UserId -> Email -> UserSubsystem m ChangeEmailResponse
   -- | Complete the email address update flow
   UpdateUserEmailComplete :: Activate -> UserSubsystem m ActivationFullResponse
   -- | Update SAML IdP EntityId (Issuer) and User NameId

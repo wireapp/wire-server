@@ -28,7 +28,6 @@ import Wire.API.Team.Member hiding (userId)
 import Wire.API.User
 import Wire.API.UserEvent
 import Wire.Arbitrary
-import Wire.Authorize
 import Wire.BlockListStore as BlockList
 import Wire.DeleteQueue
 import Wire.Events
@@ -97,7 +96,7 @@ interpretUserSubsystem = interpret \case
   GetSelfProfile self -> getSelfProfileImpl self
   GetUserProfilesWithErrors self others -> getUserProfilesWithErrorsImpl self others
   UpdateUserProfile self mconn mb update -> updateUserProfileImpl self mconn mb update
-  UpdateUserEmailInit uid email -> updateUserEmailInitImpl (runAuthorized uid) email
+  UpdateUserEmailInit uid email -> updateUserEmailInitImpl uid email
   UpdateUserEmailComplete activate -> updateUserEmailCompleteImpl activate
   UpdateUserSamlUserRef uref -> undefined uref
   UpdateUserScimExternalId scimEId -> undefined scimEId
