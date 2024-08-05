@@ -32,7 +32,6 @@ import Brig.API.OAuth (internalOauthAPI)
 import Brig.API.Types
 import Brig.API.User qualified as API
 import Brig.App as App
-import Brig.Data.Activation
 import Brig.Data.Client qualified as Data
 import Brig.Data.Connection qualified as Data
 import Brig.Data.MLS.KeyPackage qualified as Data
@@ -84,7 +83,6 @@ import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
 import Wire.API.Team.Feature
 import Wire.API.User
-import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.RichInfo
 import Wire.API.UserEvent
@@ -472,35 +470,20 @@ createUserNoVerify ::
   (Handler r) (Either RegisterError SelfProfile)
 createUserNoVerify uData = lift . runExceptT $ do
   result <- API.createUser uData
-  let acc = createdAccount result
-  let uid = userId acc
-  let eac = createdEmailActivation result
-  for_ eac $ \adata ->
-    let key = ActivateKey $ activationKey adata
-        code = activationCode adata
-     in API.activate key code (Just uid) !>> activationErrorToRegisterError
-  pure . SelfProfile $ acc
+  pure $ SelfProfile result.createdAccount
 
 createUserNoVerifySpar ::
   ( Member GalleyAPIAccess r,
     Member TinyLog r,
     Member UserSubsystem r,
-    Member Events r,
-    Member PasswordResetCodeStore r
+    Member Events r
   ) =>
   NewUserSpar ->
   (Handler r) (Either CreateUserSparError SelfProfile)
 createUserNoVerifySpar uData =
   lift . runExceptT $ do
     result <- API.createUserSpar uData
-    let acc = createdAccount result
-    let uid = userId acc
-    let eac = createdEmailActivation result
-    for_ eac $ \adata ->
-      let key = ActivateKey $ activationKey adata
-          code = activationCode adata
-       in API.activate key code (Just uid) !>> CreateUserSparRegistrationError . activationErrorToRegisterError
-    pure . SelfProfile $ acc
+    pure $ SelfProfile result.createdAccount
 
 deleteUserNoAuthH ::
   ( Member (Embed HttpClientIO) r,

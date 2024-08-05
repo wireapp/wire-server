@@ -228,7 +228,7 @@ createUserSpar new = do
   -- Set handle
   lift $ updateHandle' luid handle'
 
-  pure $! CreateUserResult account Nothing (Just userTeam)
+  pure $! CreateUserResult account (Just userTeam)
   where
     updateHandle' :: Local UserId -> Maybe Handle -> AppT r ()
     updateHandle' _ Nothing = pure ()
@@ -410,14 +410,11 @@ createUser new = do
 
     pure (activatedTeam <|> joinedTeamInvite <|> joinedTeamSSO)
 
-  edata <-
-    if isJust teamInvitation
-      then pure Nothing
-      else handleEmailActivation email uid mNewTeamUser
-
+  when (isNothing teamInvitation) do
+    handleEmailActivation email uid mNewTeamUser
   lift $ initAccountFeatureConfig uid
 
-  pure $! CreateUserResult account edata createUserTeam
+  pure $! CreateUserResult account createUserTeam
   where
     -- NOTE: all functions in the where block don't use any arguments of createUser
 
@@ -475,24 +472,17 @@ createUser new = do
       Team.TeamName nm <- lift $ liftSem $ GalleyAPIAccess.getTeamName tid
       pure $ CreateUserTeam tid nm
 
-    -- Handle e-mail activation (deprecated, see #RefRegistrationNoPreverification in /docs/reference/user/registration.md)
-    handleEmailActivation :: Maybe EmailAddress -> UserId -> Maybe BindingNewTeamUser -> ExceptT RegisterError (AppT r) (Maybe Activation)
-    handleEmailActivation email uid newTeam = do
-      fmap join . for (mkEmailKey <$> email) $ \ek -> case newUserEmailCode new of
-        Nothing -> do
-          timeout <- asks (.settings.activationTimeout)
-          edata <- lift . wrapClient $ Data.newActivation ek timeout (Just uid)
-          lift . liftSem . Log.info $
-            field "user" (toByteString uid)
-              . field "activation.key" (toByteString $ activationKey edata)
-              . msg (val "Created email activation key/code pair")
-          pure $ Just edata
-        Just c -> do
-          ak <- liftIO $ Data.mkActivationKey ek
-          void $
-            activateWithCurrency (ActivateKey ak) c (Just uid) (bnuCurrency =<< newTeam)
-              !>> activationErrorToRegisterError
-          pure Nothing
+    -- Handle e-mail activation (se #RefRegistrationStandard in /docs/reference/user/registration.md)
+    handleEmailActivation :: Maybe EmailAddress -> UserId -> Maybe BindingNewTeamUser -> ExceptT RegisterError (AppT r) ()
+    handleEmailActivation email uid newTeam = maybe (pure ()) hdl (mkEmailKey <$> email)
+      where
+        hdl ek = case newUserEmailCode new of
+          Nothing -> throwE RegisterErrorInvalidActivationCodeWrongCode -- (actually no code. should we introduce a new error for that?)
+          Just c -> do
+            ak <- liftIO $ Data.mkActivationKey ek
+            void $
+              activateWithCurrency (ActivateKey ak) c (Just uid) (bnuCurrency =<< newTeam)
+                !>> activationErrorToRegisterError
 
 initAccountFeatureConfig :: UserId -> (AppT r) ()
 initAccountFeatureConfig uid = do
