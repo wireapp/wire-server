@@ -47,7 +47,6 @@ import Data.OpenApi (ToParamSchema)
 import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Text.Ascii
-import Data.Tuple.Extra (fst3, snd3, thd3)
 import Generics.SOP qualified as GSOP
 import Imports
 import Servant (FromHttpApiData (..))
