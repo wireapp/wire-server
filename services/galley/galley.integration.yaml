@@ -82,6 +82,7 @@ settings:
     conferenceCalling:
       defaults:
         status: disabled
+        lockStatus: locked
     outlookCalIntegration:
       defaults:
         status: disabled

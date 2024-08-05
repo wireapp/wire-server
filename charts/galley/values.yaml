@@ -80,6 +80,7 @@ config:
       conferenceCalling:
         defaults:
           status: enabled
+          lockStatus: locked
       conversationGuestLinks:
         defaults:
           lockStatus: unlocked

@@ -104,12 +104,9 @@ newtype Defaults a = Defaults {_unDefaults :: a}
   deriving (Eq, Ord, Show, Enum, Bounded, Generic, Functor)
   deriving newtype (Arbitrary)
 
-parseJSONDefaults :: (Value -> A.Parser a) -> Value -> A.Parser (Defaults a)
-parseJSONDefaults p = withObject "default object" $ \ob ->
-  Defaults <$> A.explicitParseField p ob "defaults"
-
 instance (FromJSON a) => FromJSON (Defaults a) where
-  parseJSON = parseJSONDefaults parseJSON
+  parseJSON = withObject "default object" $ \ob ->
+    Defaults <$> (ob .: "defaults")
 
 instance (ToJSON a) => ToJSON (Defaults a) where
   toJSON (Defaults x) =
@@ -142,7 +139,7 @@ instance FromJSON FeatureFlags where
       <*> withImplicitLockStatusOrDefault obj "appLock"
       <*> (fromMaybe (ImplicitLockStatus (defFeatureStatus @ClassifiedDomainsConfig)) <$> (obj .:? "classifiedDomains"))
       <*> (fromMaybe (Defaults (defFeatureStatus @FileSharingConfig)) <$> (obj .:? "fileSharing"))
-      <*> A.explicitParseField (parseJSONDefaults parseDefaultLockStatus) obj "conferenceCalling"
+      <*> (fromMaybe (Defaults (defFeatureStatus @ConferenceCallingConfig)) <$> (obj .:? "conferenceCalling"))
       <*> (fromMaybe (Defaults (defFeatureStatus @SelfDeletingMessagesConfig)) <$> (obj .:? "selfDeletingMessages"))
       <*> (fromMaybe (Defaults (defFeatureStatus @GuestLinksConfig)) <$> (obj .:? "conversationGuestLinks"))
       <*> withImplicitLockStatusOrDefault obj "validateSAMLEmails"
@@ -155,15 +152,6 @@ instance FromJSON FeatureFlags where
       <*> (fromMaybe (Defaults (defFeatureStatus @EnforceFileDownloadLocationConfig)) <$> (obj .:? "enforceFileDownloadLocation"))
       <*> withImplicitLockStatusOrDefault obj "limitedEventFanout"
     where
-      parseDefaultLockStatus ::
-        forall cfg.
-        (IsFeatureConfig cfg, Schema.ToSchema cfg) =>
-        Value ->
-        A.Parser (WithStatus cfg)
-      parseDefaultLockStatus x =
-        let defLockStatus = wsLockStatus (defFeatureStatus @cfg)
-         in withLockStatus defLockStatus <$> parseJSON x
-
       withImplicitLockStatusOrDefault :: forall cfg. (IsFeatureConfig cfg, Schema.ToSchema cfg) => Object -> Key -> A.Parser (Defaults (ImplicitLockStatus cfg))
       withImplicitLockStatusOrDefault obj fieldName = fromMaybe (Defaults (ImplicitLockStatus (defFeatureStatus @cfg))) <$> obj .:? fieldName
 
