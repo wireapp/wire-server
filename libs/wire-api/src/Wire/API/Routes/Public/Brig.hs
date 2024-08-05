@@ -1480,6 +1480,10 @@ type AuthAPI =
                :> "self"
                :> "email"
                :> Summary "Change your email address"
+               :> Description
+                    "We have to do zauth validation here in cases where we may not have a session token\
+                    \ (because no communication for 15 minutes). In these cases, nginz can't authenticate,\
+                    \ so brig has to do it based on the cookie(s)."
                :> Cookies '["zuid" ::: SomeUserToken]
                :> Bearer SomeAccessToken
                :> ReqBody '[JSON] EmailUpdate
