@@ -797,6 +797,7 @@ sendActivationCode email loc = do
     Just (Just uid, c) -> sendActivationEmail ek c uid -- User re-requesting activation
   where
     notFound = throwM . UserDisplayNameNotFound
+
     mkPair k c u = do
       timeout <- asks (.settings.activationTimeout)
       case c of
@@ -804,10 +805,12 @@ sendActivationCode email loc = do
         Nothing -> lift $ do
           dat <- Data.newActivation k timeout u
           pure (activationKey dat, activationCode dat)
+
     sendVerificationEmail ek uc = do
       (key, code) <- wrapClientE $ mkPair ek uc Nothing
       let em = emailKeyOrig ek
       lift $ liftSem $ sendVerificationMail em key code loc
+
     sendActivationEmail ek uc uid = do
       -- FUTUREWORK(fisx): we allow for 'PendingInvitations' here, but I'm not sure this
       -- top-level function isn't another piece of a deprecated onboarding flow?
