@@ -73,7 +73,6 @@ library
     Wire.AuthenticationSubsystem.Error
     Wire.AuthenticationSubsystem.Interpreter
     Wire.Authorize
-    Wire.Authorize.ZAuth
     Wire.AWS
     Wire.BlockListStore
     Wire.BlockListStore.Cassandra
@@ -163,7 +162,6 @@ library
     , memory
     , mime
     , mime-mail
-    , mtl
     , network
     , network-conduit-tls
     , polysemy
@@ -177,7 +175,6 @@ library
     , saml2-web-sso
     , servant
     , servant-client-core
-    , sodium-crypto-sign
     , stomp-queue
     , template
     , text
@@ -194,7 +191,6 @@ library
     , wai-utilities
     , wire-api
     , wire-api-federation
-    , zauth
 
   default-language: GHC2021
 

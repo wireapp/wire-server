@@ -52,7 +52,6 @@ import Wire.API.User.Auth hiding (access)
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
-import Wire.Authorize
 import Wire.BlockListStore
 import Wire.EmailSubsystem (EmailSubsystem)
 import Wire.GalleyAPIAccess
@@ -148,12 +147,22 @@ changeSelfEmailH ::
   Maybe (Either Text SomeAccessToken) ->
   EmailUpdate ->
   Handler r ChangeEmailResponse
-changeSelfEmailH uts mat (EmailUpdate email) =
-  case authorize @AuthorizeUpdateEmail (uts, mat) of
-    Right (runAuthorized -> uid) ->
-      -- TODO: i think this should become `UpdateUserEmailInit`?
-      changeSelfEmail uid email UpdateOriginWireClient
-    Left () -> undefined
+changeSelfEmailH uts' mat' up = do
+  uts <- handleTokenErrors uts'
+  mat <- traverse handleTokenError mat'
+  toks <- partitionTokens uts mat
+  usr <- either (uncurry validateCredentials) (uncurry validateCredentials) toks
+  let email = euEmail up
+  changeSelfEmail usr email UpdateOriginWireClient
+
+validateCredentials ::
+  (TokenPair u a) =>
+  NonEmpty (Token u) ->
+  Maybe (Token a) ->
+  Handler r UserId
+validateCredentials _ Nothing = throwStd missingAccessToken
+validateCredentials uts mat =
+  fst <$> Auth.validateTokens (List1 uts) mat !>> zauthError
 
 listCookies :: Local UserId -> Maybe (CommaSeparatedList CookieLabel) -> Handler r CookieList
 listCookies lusr (fold -> labels) =
@@ -229,7 +238,6 @@ mkUserTokenCookie c = do
         utcSecure = not (setCookieInsecure s)
       }
 
--- TODO: remove this, it's been replaced by Wire.Authorize
 partitionTokens ::
   [SomeUserToken] ->
   Maybe SomeAccessToken ->
@@ -259,7 +267,6 @@ partitionTokens tokens mat =
     toEither (PlainUserToken ut) = Left ut
     toEither (LHUserToken lt) = Right lt
 
--- TODO: remove this, it's been replaced by Wire.Authorize
 handleTokenError :: Either Text a -> Handler r a
 handleTokenError =
   either
@@ -276,7 +283,6 @@ handleTokenError =
       | T.isPrefixOf "Failed reading" e = "client-error"
       | otherwise = "invalid-credentials"
 
--- TODO: remove this, it's been replaced by Wire.Authorize
 handleTokenErrors :: [Either Text a] -> Handler r [a]
 handleTokenErrors ts = case partitionEithers ts of
   (e : _, []) ->

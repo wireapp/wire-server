@@ -42,7 +42,6 @@
 , memory
 , mime
 , mime-mail
-, mtl
 , network
 , network-conduit-tls
 , pipes
@@ -61,7 +60,6 @@
 , scientific
 , servant
 , servant-client-core
-, sodium-crypto-sign
 , stomp-queue
 , streaming-commons
 , string-conversions
@@ -80,7 +78,6 @@
 , wai-utilities
 , wire-api
 , wire-api-federation
-, zauth
 }:
 mkDerivation {
   pname = "wire-subsystems";
@@ -123,7 +120,6 @@ mkDerivation {
     memory
     mime
     mime-mail
-    mtl
     network
     network-conduit-tls
     polysemy
@@ -137,7 +133,6 @@ mkDerivation {
     saml2-web-sso
     servant
     servant-client-core
-    sodium-crypto-sign
     stomp-queue
     template
     text
@@ -154,7 +149,6 @@ mkDerivation {
     wai-utilities
     wire-api
     wire-api-federation
-    zauth
   ];
   testHaskellDepends = [
     aeson
