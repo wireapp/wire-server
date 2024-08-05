@@ -33,39 +33,46 @@ testFeatureConferenceCallingForUser = do
             ]
         )
       >>= getBody 200
-    config <- I.getFeatureForUser u featureName >>= getJSON 200
-    config %. "status" `shouldMatch` "disabled"
+    I.getFeatureForUser u featureName `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      config <- resp.json
+      config %. "status" `shouldMatch` "disabled"
 
-    -- this config is just made up by brig, it does not reflect the actual value
-    -- that will be returned to the user
-    config %. "config.useSFTForOneToOneCalls" `shouldMatch` False
+      -- this config is just made up by brig, it does not reflect the actual value
+      -- that will be returned to the user
+      config %. "config.useSFTForOneToOneCalls" `shouldMatch` False
 
   -- alice
   do
-    features <- getFeaturesForUser alice >>= getJSON 200
-    config <- features %. featureName
-    -- alice is a team user, so her config reflects that of the team
-    config %. "status" `shouldMatch` "enabled"
-    config %. "config.useSFTForOneToOneCalls" `shouldMatch` True
+    getFeaturesForUser alice `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      config <- resp.json %. featureName
+
+      -- alice is a team user, so her config reflects that of the team
+      config %. "status" `shouldMatch` "enabled"
+      config %. "config.useSFTForOneToOneCalls" `shouldMatch` True
 
   do
     void $ I.deleteFeatureForUser alice featureName >>= getBody 200
-    features <- getFeaturesForUser alice >>= getJSON 200
-    config <- features %. featureName
-    config %. "status" `shouldMatch` "enabled"
-    config %. "config.useSFTForOneToOneCalls" `shouldMatch` True
+    getFeaturesForUser alice `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      config <- resp.json %. featureName
+      config %. "status" `shouldMatch` "enabled"
+      config %. "config.useSFTForOneToOneCalls" `shouldMatch` True
 
   -- bob
   do
-    features <- getFeaturesForUser bob >>= getJSON 200
-    config <- features %. featureName
-    -- bob is not in a team, so we get his own personal settings here
-    config %. "status" `shouldMatch` "disabled"
-    -- but only for status, config is the server defaults
-    config %. "config.useSFTForOneToOneCalls" `shouldMatch` False
+    getFeaturesForUser bob `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      config <- resp.json %. featureName
+      -- bob is not in a team, so we get his own personal settings here
+      config %. "status" `shouldMatch` "disabled"
+      -- but only for status, config is the server defaults
+      config %. "config.useSFTForOneToOneCalls" `shouldMatch` False
   do
     void $ I.deleteFeatureForUser bob featureName >>= getBody 200
-    features <- getFeaturesForUser bob >>= getJSON 200
-    config <- features %. featureName
-    config %. "status" `shouldMatch` "disabled"
-    config %. "config.useSFTForOneToOneCalls" `shouldMatch` False
+    getFeaturesForUser bob `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      config <- resp.json %. featureName
+      config %. "status" `shouldMatch` "disabled"
+      config %. "config.useSFTForOneToOneCalls" `shouldMatch` False
