@@ -283,8 +283,8 @@ executable federator-integration
     , bytestring
     , bytestring-conversion
     , crypton
-    , data-default
     , crypton-connection
+    , data-default
     , dns-util
     , exceptions
     , federator
