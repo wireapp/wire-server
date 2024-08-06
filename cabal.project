@@ -74,3 +74,4 @@ program-options
 allow-newer:
   , proto-lens-protoc:base
   , proto-lens-protoc:ghc
+  , proto-lens-setup:Cabal
