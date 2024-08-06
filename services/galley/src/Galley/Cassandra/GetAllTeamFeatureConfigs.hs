@@ -135,31 +135,39 @@ emptyRow =
       limitEventFanout = Nothing
     }
 
-allFeatureConfigsFromRow :: AllTeamFeatureConfigsRow -> AllFeatures DbFeatureWithLock
+allFeatureConfigsFromRow :: AllTeamFeatureConfigsRow -> AllFeatures DbFeature
 allFeatureConfigsFromRow row =
-  mkFeatureWithLock Nothing (row.legalhold :* Nil)
-    :* mkFeatureWithLock Nothing (row.sso :* Nil)
-    :* mkFeatureWithLock Nothing (row.searchVisibility :* Nil)
-    :* mkFeatureWithLock Nothing (row.searchVisibility :* Nil)
-    :* mkFeatureWithLock Nothing (row.validateSamlEmails :* Nil)
-    :* mkFeatureWithLock Nothing (row.digitalSignatures :* Nil)
-    :* mkFeatureWithLock Nothing (row.appLock :* row.appLockEnforce :* row.appLockInactivityTimeoutSecs :* Nil)
-    :* mkFeatureWithLock row.fileSharingLock (row.fileSharing :* Nil)
-    :* mkFeatureWithLock Nothing Nil
-    :* mkFeatureWithLock row.conferenceCallingLock (row.conferenceCalling :* row.conferenceCallingOne2One :* Nil)
-    :* mkFeatureWithLock row.selfDeletingMessagesLock (row.selfDeletingMessages :* row.selfDeletingMessagesTtl :* Nil)
-    :* mkFeatureWithLock row.guestLinksLock (row.guestLinks :* Nil)
-    :* mkFeatureWithLock row.sndFactorLock (row.sndFactor :* Nil)
-    :* mkFeatureWithLock row.mlsLock (row.mls :* row.mlsDefaultProtocol :* row.mlsToggleUsers :* row.mlsAllowedCipherSuites :* row.mlsDefaultCipherSuite :* row.mlsSupportedProtocols :* Nil)
-    :* mkFeatureWithLock Nothing (row.exposeInvitationUrls :* Nil)
-    :* mkFeatureWithLock row.outlookCalIntegrationLock (row.outlookCalIntegration :* Nil)
-    :* mkFeatureWithLock row.mlsE2eidLock (row.mlsE2eid :* row.mlsE2eidGracePeriod :* row.mlsE2eidAcmeDiscoverUrl :* row.mlsE2eidMaybeCrlProxy :* row.mlsE2eidMaybeUseProxyOnMobile :* Nil)
-    :* mkFeatureWithLock row.mlsMigrationLock (row.mlsMigration :* row.mlsMigrationStartTime :* row.mlsMigrationFinalizeRegardlessAfter :* Nil)
-    :* mkFeatureWithLock row.enforceDownloadLocationLock (row.enforceDownloadLocation :* row.enforceDownloadLocation_Location :* Nil)
-    :* mkFeatureWithLock Nothing (row.limitEventFanout :* Nil)
+  mkFeature (row.legalhold :* Nil)
+    :* mkFeature (row.sso :* Nil)
+    :* mkFeature (row.searchVisibility :* Nil)
+    :* mkFeature (row.searchVisibility :* Nil)
+    :* mkFeature (row.validateSamlEmails :* Nil)
+    :* mkFeature (row.digitalSignatures :* Nil)
+    :* mkFeature (row.appLock :* row.appLockEnforce :* row.appLockInactivityTimeoutSecs :* Nil)
+    :* mkFeature (row.fileSharingLock :* row.fileSharing :* Nil)
+    :* mkFeature Nil
+    :* mkFeature (row.conferenceCallingLock :* row.conferenceCalling :* row.conferenceCallingOne2One :* Nil)
+    :* mkFeature (row.selfDeletingMessagesLock :* row.selfDeletingMessages :* row.selfDeletingMessagesTtl :* Nil)
+    :* mkFeature (row.guestLinksLock :* row.guestLinks :* Nil)
+    :* mkFeature (row.sndFactorLock :* row.sndFactor :* Nil)
+    :* mkFeature (row.mlsLock :* row.mls :* row.mlsDefaultProtocol :* row.mlsToggleUsers :* row.mlsAllowedCipherSuites :* row.mlsDefaultCipherSuite :* row.mlsSupportedProtocols :* Nil)
+    :* mkFeature (row.exposeInvitationUrls :* Nil)
+    :* mkFeature (row.outlookCalIntegrationLock :* row.outlookCalIntegration :* Nil)
+    :* mkFeature
+      ( row.mlsE2eidLock
+          :* row.mlsE2eid
+          :* row.mlsE2eidGracePeriod
+          :* row.mlsE2eidAcmeDiscoverUrl
+          :* row.mlsE2eidMaybeCrlProxy
+          :* row.mlsE2eidMaybeUseProxyOnMobile
+          :* Nil
+      )
+    :* mkFeature (row.mlsMigrationLock :* row.mlsMigration :* row.mlsMigrationStartTime :* row.mlsMigrationFinalizeRegardlessAfter :* Nil)
+    :* mkFeature (row.enforceDownloadLocationLock :* row.enforceDownloadLocation :* row.enforceDownloadLocation_Location :* Nil)
+    :* mkFeature (row.limitEventFanout :* Nil)
     :* Nil
 
-getAllFeatureConfigs :: (MonadClient m) => TeamId -> m (AllFeatures DbFeatureWithLock)
+getAllFeatureConfigs :: (MonadClient m) => TeamId -> m (AllFeatures DbFeature)
 getAllFeatureConfigs tid = do
   mRow <- retry x1 $ query1 select (params LocalQuorum (Identity tid))
   pure $ allFeatureConfigsFromRow $ maybe emptyRow asRecord mRow

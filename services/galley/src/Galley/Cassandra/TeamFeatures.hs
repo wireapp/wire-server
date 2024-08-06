@@ -55,15 +55,12 @@ interpretTeamFeatureStoreToCassandra = interpret $ \case
   TFS.GetFeatureConfigMulti sing tids -> do
     logEffect "TeamFeatureStore.GetFeatureConfigMulti"
     embedClient $ getFeatureConfigMulti sing tids
-  TFS.SetFeatureConfig sing tid wsnl -> do
+  TFS.SetFeatureConfig sing tid feat -> do
     logEffect "TeamFeatureStore.SetFeatureConfig"
-    embedClient $ setFeatureConfig sing tid wsnl
-  TFS.GetFeatureLockStatus sing tid -> do
-    logEffect "TeamFeatureStore.GetFeatureLockStatus"
-    fmap untag . embedClient $ getFeatureLockStatus sing tid
-  TFS.SetFeatureLockStatus sing tid ls -> do
+    embedClient $ setFeatureConfig sing tid feat
+  TFS.SetFeatureLockStatus sing tid lock -> do
     logEffect "TeamFeatureStore.SetFeatureLockStatus"
-    embedClient $ setFeatureLockStatus sing tid (Tagged ls)
+    embedClient $ setFeatureLockStatus sing tid (Tagged lock)
   TFS.GetAllFeatureConfigs tid -> do
     logEffect "TeamFeatureStore.GetAllFeatureConfigs"
     embedClient $ getAllFeatureConfigs tid
@@ -80,20 +77,8 @@ getFeatureConfigMulti proxy =
 getFeatureConfig :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> m (DbFeature cfg)
 getFeatureConfig = $(featureCases [|fetchFeature|])
 
-setFeatureConfig :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> Feature cfg -> m ()
+setFeatureConfig :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> LockableFeature cfg -> m ()
 setFeatureConfig = $(featureCases [|storeFeature|])
 
-getFeatureLockStatus ::
-  (MonadClient m) =>
-  FeatureSingleton cfg ->
-  TeamId ->
-  m (Tagged cfg (Maybe LockStatus))
-getFeatureLockStatus = $(featureCases [|fetchFeatureLockStatus|])
-
-setFeatureLockStatus ::
-  (MonadClient m) =>
-  FeatureSingleton cfg ->
-  TeamId ->
-  Tagged cfg LockStatus ->
-  m ()
+setFeatureLockStatus :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> Tagged cfg LockStatus -> m ()
 setFeatureLockStatus = $(featureCases [|storeFeatureLockStatus|])

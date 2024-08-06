@@ -98,9 +98,7 @@ patchFeatureStatusInternal tid patch = do
   assertTeamExists tid
   currentFeatureStatus <- getFeatureStatus @cfg DontDoAuth tid
   let newFeatureStatus = applyPatch currentFeatureStatus
-  -- setting the config can fail, so we need to do it first
-  void $ setConfigForTeam @cfg tid (forgetLock newFeatureStatus)
-  when (isJust $ patch.lockStatus) $ void $ updateLockStatus @cfg tid newFeatureStatus.lockStatus
+  void $ setConfigForTeam @cfg tid newFeatureStatus
   getFeatureStatus @cfg DontDoAuth tid
   where
     applyPatch :: LockableFeature cfg -> LockableFeature cfg
@@ -137,8 +135,9 @@ setFeatureStatus doauth tid feat = do
       void $ permissionCheck ChangeTeamFeature zusrMembership
     DontDoAuth ->
       assertTeamExists tid
-  guardLockStatus . (.lockStatus) =<< getConfigForTeam @cfg tid
-  setConfigForTeam @cfg tid feat
+  feat0 <- getConfigForTeam @cfg tid
+  guardLockStatus feat0.lockStatus
+  setConfigForTeam @cfg tid (withLockStatus feat0.lockStatus feat)
 
 setFeatureStatusInternal ::
   forall cfg r.
@@ -188,7 +187,7 @@ persistAndPushEvent ::
     Member TeamStore r
   ) =>
   TeamId ->
-  Feature cfg ->
+  LockableFeature cfg ->
   Sem r (LockableFeature cfg)
 persistAndPushEvent tid feat = do
   setFeatureConfig (featureSingleton @cfg) tid feat
@@ -249,7 +248,7 @@ class (GetFeatureConfig cfg) => SetFeatureConfig cfg where
       Member TeamStore r
     ) =>
     TeamId ->
-    Feature cfg ->
+    LockableFeature cfg ->
     Sem r (LockableFeature cfg)
   default setConfigForTeam ::
     ( ComputeFeatureConstraints cfg r,
@@ -262,7 +261,7 @@ class (GetFeatureConfig cfg) => SetFeatureConfig cfg where
       Member TeamStore r
     ) =>
     TeamId ->
-    Feature cfg ->
+    LockableFeature cfg ->
     Sem r (LockableFeature cfg)
   setConfigForTeam tid feat = persistAndPushEvent tid feat
 

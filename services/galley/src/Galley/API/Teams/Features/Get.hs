@@ -36,7 +36,6 @@ where
 
 import Control.Error (hush)
 import Control.Lens
-import Data.Bifunctor (second)
 import Data.Default
 import Data.Id
 import Data.Kind
@@ -103,18 +102,16 @@ class (IsFeatureConfig cfg) => GetFeatureConfig cfg where
     (ComputeFeatureConstraints cfg r) =>
     TeamId ->
     LockableFeature cfg ->
-    Maybe LockStatus ->
     DbFeature cfg ->
     Sem r (LockableFeature cfg)
   default computeFeature ::
     TeamId ->
     LockableFeature cfg ->
-    Maybe LockStatus ->
     DbFeature cfg ->
     Sem r (LockableFeature cfg)
-  computeFeature _tid defFeature lockStatus dbFeature =
+  computeFeature _tid defFeature dbFeature =
     pure $
-      genericComputeFeature @cfg defFeature lockStatus dbFeature
+      genericComputeFeature @cfg defFeature dbFeature
 
 getFeatureStatus ::
   forall cfg r.
@@ -148,10 +145,10 @@ getFeatureStatusMulti ::
   Sem r (Multi.TeamFeatureNoConfigMultiResponse cfg)
 getFeatureStatusMulti (Multi.TeamFeatureNoConfigMultiRequest tids) = do
   cfgs <- getConfigForMultiTeam @cfg tids
-  let xs = uncurry toTeamStatus . second forgetLock <$> cfgs
+  let xs = uncurry toTeamStatus <$> cfgs
   pure $ Multi.TeamFeatureNoConfigMultiResponse xs
 
-toTeamStatus :: TeamId -> Feature cfg -> Multi.TeamStatus cfg
+toTeamStatus :: TeamId -> LockableFeature cfg -> Multi.TeamStatus cfg
 toTeamStatus tid feat = Multi.TeamStatus tid feat.status
 
 getTeamAndCheckMembership ::
@@ -184,16 +181,6 @@ getAllFeatureConfigsForTeam luid tid = do
   void $ getTeamMember tid (tUnqualified luid) >>= noteS @'NotATeamMember
   getAllFeatureConfigs tid
 
-computeFeatureWithLock ::
-  forall cfg r.
-  (GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) =>
-  TeamId ->
-  LockableFeature cfg ->
-  DbFeatureWithLock cfg ->
-  Sem r (LockableFeature cfg)
-computeFeatureWithLock tid defFeature feat =
-  computeFeature @cfg tid defFeature feat.lockStatus feat.feature
-
 class (GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) => GetAllFeatureConfigsForServerConstraints r cfg
 
 instance (GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) => GetAllFeatureConfigsForServerConstraints r cfg
@@ -221,9 +208,9 @@ getAllFeatureConfigs tid = do
     compute ::
       (ComputeFeatureConstraints p r, GetFeatureConfig p) =>
       LockableFeature p ->
-      DbFeatureWithLock p ->
+      DbFeature p ->
       (Sem r :.: LockableFeature) p
-    compute defFeature feat = Comp $ computeFeatureWithLock tid defFeature feat
+    compute defFeature feat = Comp $ computeFeature tid defFeature feat
 
 class (GetConfigForUserConstraints cfg r, GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) => GetAllFeatureConfigsForUserConstraints r cfg
 
@@ -274,15 +261,12 @@ getConfigForTeam ::
   Sem r (LockableFeature cfg)
 getConfigForTeam tid = do
   dbFeature <- TeamFeatures.getFeatureConfig (featureSingleton @cfg) tid
-  lockStatus <- TeamFeatures.getFeatureLockStatus (featureSingleton @cfg) tid
   defFeature <- getConfigForServer
   computeFeature @cfg
     tid
     defFeature
-    lockStatus
     dbFeature
 
--- Note: this function assumes the feature cannot be locked
 getConfigForMultiTeam ::
   forall cfg r.
   ( GetFeatureConfig cfg,
@@ -296,7 +280,7 @@ getConfigForMultiTeam tids = do
   defFeature <- getConfigForServer
   features <- TeamFeatures.getFeatureConfigMulti (featureSingleton @cfg) tids
   for features $ \(tid, dbFeature) -> do
-    feat <- computeFeature @cfg tid defFeature (Just LockStatusUnlocked) dbFeature
+    feat <- computeFeature @cfg tid defFeature dbFeature
     pure (tid, feat)
 
 getConfigForTeamUser ::
@@ -353,7 +337,7 @@ instance GetFeatureConfig LegalholdConfig where
     ComputeFeatureConstraints LegalholdConfig r =
       (Member TeamStore r, Member LegalHoldStore r)
 
-  computeFeature tid defFeature _lockStatus dbFeature = do
+  computeFeature tid defFeature dbFeature = do
     status <- computeLegalHoldFeatureStatus tid dbFeature
     pure $ defFeature {status = status}
 
@@ -398,15 +382,12 @@ instance GetFeatureConfig ConferenceCallingConfig where
     feat <- getAccountConferenceCallingConfigClient uid
     pure $ withLockStatus (def @(LockableFeature ConferenceCallingConfig)).lockStatus feat
 
-  computeFeature _tid defFeature lockStatus dbFeature =
-    pure $ case fromMaybe defFeature.lockStatus lockStatus of
-      LockStatusLocked -> defFeature {lockStatus = LockStatusLocked}
-      LockStatusUnlocked ->
-        withUnlocked $
-          (applyDbFeature dbFeature)
-            (forgetLock defFeature)
-              { status = FeatureStatusEnabled
-              }
+  computeFeature _tid defFeature dbFeature =
+    pure $
+      let feat = applyDbFeature dbFeature defFeature {status = FeatureStatusEnabled}
+       in case feat.lockStatus of
+            LockStatusLocked -> defFeature {lockStatus = LockStatusLocked}
+            LockStatusUnlocked -> feat
 
 instance GetFeatureConfig SelfDeletingMessagesConfig where
   getConfigForServer =
@@ -434,11 +415,11 @@ instance GetFeatureConfig ExposeInvitationURLsToTeamAdminConfig where
       (Member (Input Opts) r)
 
   -- the lock status of this feature is calculated from the allow list, not the database
-  computeFeature tid defFeature _lockStatus dbFeature = do
+  computeFeature tid defFeature dbFeature = do
     allowList <- input <&> view (settings . exposeInvitationURLsTeamAllowlist . to (fromMaybe []))
     let teamAllowed = tid `elem` allowList
         lockStatus = if teamAllowed then LockStatusUnlocked else LockStatusLocked
-    pure $ genericComputeFeature defFeature (Just lockStatus) dbFeature
+    pure $ genericComputeFeature defFeature (dbFeatureLockStatus lockStatus <> dbFeature)
 
 instance GetFeatureConfig OutlookCalIntegrationConfig where
   getConfigForServer =

@@ -32,7 +32,7 @@ module Wire.API.Team.Feature
     featureNameBS,
     LockStatus (..),
     DbFeature (..),
-    DbFeatureWithLock (..),
+    dbFeatureLockStatus,
     dbFeatureStatus,
     dbFeatureConfig,
     dbFeatureModConfig,
@@ -104,6 +104,7 @@ import Data.Id
 import Data.Json.Util
 import Data.Kind
 import Data.Misc (HttpsUrl)
+import Data.Monoid
 import Data.OpenApi qualified as S
 import Data.Proxy
 import Data.SOP
@@ -230,13 +231,11 @@ featureNameBS = UTF8.fromString $ symbolVal (Proxy @(FeatureSymbol cfg))
 
 -- | Feature data stored in the database, as a function of its default values.
 newtype DbFeature cfg = DbFeature
-  {applyDbFeature :: Feature cfg -> Feature cfg}
+  {applyDbFeature :: LockableFeature cfg -> LockableFeature cfg}
+  deriving (Semigroup, Monoid) via Endo (LockableFeature cfg)
 
-instance Semigroup (DbFeature cfg) where
-  DbFeature f <> DbFeature g = DbFeature (f . g)
-
-instance Monoid (DbFeature cfg) where
-  mempty = DbFeature id
+dbFeatureLockStatus :: LockStatus -> DbFeature cfg
+dbFeatureLockStatus s = DbFeature $ \w -> w {lockStatus = s}
 
 dbFeatureStatus :: FeatureStatus -> DbFeature cfg
 dbFeatureStatus s = DbFeature $ \w -> w {status = s}
@@ -246,11 +245,6 @@ dbFeatureConfig c = DbFeature $ \w -> w {config = c}
 
 dbFeatureModConfig :: (cfg -> cfg) -> DbFeature cfg
 dbFeatureModConfig f = DbFeature $ \w -> w {config = f w.config}
-
-data DbFeatureWithLock cfg = DbFeatureWithLock
-  { lockStatus :: Maybe LockStatus,
-    feature :: DbFeature cfg
-  }
 
 ----------------------------------------------------------------------
 -- LockableFeature
@@ -557,15 +551,12 @@ instance (IsFeatureConfig a, ToSchema a) => FromJSON (ImplicitLockStatus a) wher
 -- | Convert a feature coming from the database to its public form. This can be
 -- overridden on a feature basis by implementing the `computeFeature` method of
 -- the `GetFeatureConfig` class.
-genericComputeFeature ::
-  LockableFeature cfg ->
-  Maybe LockStatus ->
-  DbFeature cfg ->
-  LockableFeature cfg
-genericComputeFeature defFeature lockStatus dbFeature =
-  case fromMaybe defFeature.lockStatus lockStatus of
-    LockStatusLocked -> defFeature {lockStatus = LockStatusLocked}
-    LockStatusUnlocked -> withUnlocked $ applyDbFeature dbFeature (forgetLock defFeature)
+genericComputeFeature :: forall cfg. LockableFeature cfg -> DbFeature cfg -> LockableFeature cfg
+genericComputeFeature defFeature dbFeature =
+  let feat = applyDbFeature dbFeature defFeature
+   in case feat.lockStatus of
+        LockStatusLocked -> defFeature {lockStatus = LockStatusLocked}
+        LockStatusUnlocked -> feat
 
 --------------------------------------------------------------------------------
 -- GuestLinks feature
