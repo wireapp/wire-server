@@ -80,6 +80,7 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           GetTeamName id' -> getTeamName id'
           GetTeamLegalHoldStatus id' -> getTeamLegalHoldStatus id'
           GetTeamSearchVisibility id' -> getTeamSearchVisibility id'
+          GetFeatureConfigForTeam tid -> getFeatureConfigForTeam tid
           ChangeTeamStatus id' ts m_al -> changeTeamStatus id' ts m_al
           MemberIsTeamOwner id' id'' -> memberIsTeamOwner id' id''
           GetAllTeamFeaturesForUser m_id' -> getAllTeamFeaturesForUser m_id'
@@ -430,6 +431,25 @@ getTeamSearchVisibility tid =
     req =
       method GET
         . paths ["i", "teams", toByteString' tid, "search-visibility"]
+        . expect2xx
+
+getFeatureConfigForTeam ::
+  forall feature r.
+  ( IsFeatureConfig feature,
+    Typeable feature,
+    Member TinyLog r,
+    Member Rpc r,
+    Member (Error ParseException) r
+  ) =>
+  TeamId ->
+  Sem (Input Endpoint : r) (LockableFeature feature)
+getFeatureConfigForTeam tid = do
+  debug $ remote "galley" . msg (val "Get feature config for team")
+  galleyRequest req >>= decodeBodyOrThrow "galley"
+  where
+    req =
+      method GET
+        . paths ["i", "teams", toByteString' tid, "features", featureNameBS @feature]
         . expect2xx
 
 getVerificationCodeEnabled ::

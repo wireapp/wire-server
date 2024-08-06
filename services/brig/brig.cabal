@@ -200,7 +200,6 @@ library
     Brig.User.Auth.Cookie.Limit
     Brig.User.EJPD
     Brig.User.Search.Index
-    Brig.User.Search.Index.Types
     Brig.User.Search.SearchIndex
     Brig.User.Search.TeamSize
     Brig.User.Search.TeamUserSearch
@@ -296,7 +295,6 @@ library
     , resourcet                  >=1.1
     , retry                      >=0.7
     , safe-exceptions            >=0.1
-    , saml2-web-sso
     , schema-profunctor
     , scientific                 >=0.3.4
     , servant
@@ -311,7 +309,6 @@ library
     , template                   >=0.2
     , template-haskell
     , text                       >=0.11
-    , text-icu-translit          >=0.1
     , time                       >=1.1
     , time-out
     , time-units

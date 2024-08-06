@@ -27,7 +27,6 @@ module Test.Brig.Types.User where
 
 import Brig.Types.Connection (UpdateConnectionsInternal (..))
 import Brig.Types.Intra (NewUserScimInvitation (..), UserAccount (..))
-import Brig.Types.Search (SearchVisibilityInbound (..))
 import Brig.Types.User (ManagedByUpdate (..), RichInfoUpdate (..))
 import Data.Aeson
 import Imports
@@ -50,7 +49,6 @@ roundtripTests =
     testRoundTripWithSwagger @EJPDRequestBody,
     testRoundTripWithSwagger @EJPDResponseBody,
     testRoundTrip @UpdateConnectionsInternal,
-    testRoundTrip @SearchVisibilityInbound,
     testRoundTripWithSwagger @UserAccount,
     testGroup "golden tests" $
       [testCaseUserAccount]

@@ -73,16 +73,12 @@ library
     -funbox-strict-fields -Wredundant-constraints -Wunused-packages
 
   build-depends:
-      aeson                  >=2.0.1.0
-    , attoparsec             >=0.10
-    , base                   >=4       && <5
-    , bytestring
+      base                   >=4    && <5
     , bytestring-conversion  >=0.2
     , cassandra-util
     , containers             >=0.5
     , imports
     , QuickCheck             >=2.9
-    , text                   >=0.11
     , types-common           >=0.16
     , wire-api
 

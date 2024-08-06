@@ -91,6 +91,8 @@ library
     Wire.GalleyAPIAccess.Rpc
     Wire.GundeckAPIAccess
     Wire.HashPassword
+    Wire.IndexedUserStore
+    Wire.IndexedUserStore.ElasticSearch
     Wire.InternalEvent
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
@@ -109,8 +111,12 @@ library
     Wire.StoredUser
     Wire.UserKeyStore
     Wire.UserKeyStore.Cassandra
+    Wire.UserSearch.Types
+    Wire.UserSearchSubsystem
+    Wire.UserSearchSubsystem.Interpreter
     Wire.UserStore
     Wire.UserStore.Cassandra
+    Wire.UserStore.IndexUser
     Wire.UserStore.Unique
     Wire.UserSubsystem
     Wire.UserSubsystem.Error
@@ -130,12 +136,15 @@ library
     , amazonka-core
     , amazonka-ses
     , async
+    , attoparsec
     , base
     , base16-bytestring
     , bilge
+    , bloodhound
     , bytestring
     , bytestring-conversion
     , cassandra-util
+    , conduit
     , containers
     , cql
     , crypton
@@ -171,11 +180,14 @@ library
     , resource-pool
     , resourcet
     , retry
+    , saml2-web-sso
+    , schema-profunctor
     , servant
     , servant-client-core
     , stomp-queue
     , template
     , text
+    , text-icu-translit
     , time
     , time-out
     , time-units
@@ -185,6 +197,7 @@ library
     , types-common
     , unliftio
     , unordered-containers
+    , uri-bytestring
     , uuid
     , wai-utilities
     , wire-api

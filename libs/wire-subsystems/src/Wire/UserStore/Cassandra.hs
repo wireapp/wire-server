@@ -1,6 +1,7 @@
 module Wire.UserStore.Cassandra (interpretUserStoreCassandra) where
 
 import Cassandra
+import Cassandra.Exec (prepared)
 import Data.Handle
 import Data.Id
 import Database.CQL.Protocol
@@ -11,6 +12,7 @@ import Polysemy.Error
 import Wire.API.User hiding (DeleteUser)
 import Wire.StoredUser
 import Wire.UserStore
+import Wire.UserStore.IndexUser hiding (userId)
 import Wire.UserStore.Unique
 
 interpretUserStoreCassandra :: (Member (Embed IO) r) => ClientState -> InterpreterFor UserStore r
@@ -18,6 +20,8 @@ interpretUserStoreCassandra casClient =
   interpret $
     runEmbedded (runClient casClient) . embed . \case
       GetUser uid -> getUserImpl uid
+      GetIndexUser uid -> getIndexUserImpl uid
+      GetIndexUsersPaginated mPagingState -> getIndexUserPaginatedImpl mPagingState
       UpdateUser uid update -> updateUserImpl uid update
       UpdateUserHandleEither uid update -> updateUserHandleEitherImpl uid update
       DeleteUser user -> deleteUserImpl user
@@ -31,6 +35,37 @@ getUserImpl :: UserId -> Client (Maybe StoredUser)
 getUserImpl uid = do
   mUserTuple <- retry x1 $ query1 selectUser (params LocalQuorum (Identity uid))
   pure $ asRecord <$> mUserTuple
+
+getIndexUserImpl :: UserId -> Client (Maybe IndexUser)
+getIndexUserImpl u = do
+  mIndexUserTuple <- retry x1 $ query1 cql (params LocalQuorum (Identity u))
+  pure $ asRecord <$> mIndexUserTuple
+  where
+    cql :: PrepQuery R (Identity UserId) (TupleType IndexUser)
+    cql = prepared . QueryString $ getIndexUserBaseQuery <> " WHERE id = ?"
+
+getIndexUserPaginatedImpl :: Maybe PagingState -> Client (PageWithState IndexUser)
+getIndexUserPaginatedImpl mPagingState =
+  asRecord <$$> paginateWithState cql (paramsPagingState LocalQuorum () 10000 mPagingState)
+  where
+    cql :: PrepQuery R () (TupleType IndexUser)
+    cql = prepared $ QueryString getIndexUserBaseQuery
+
+getIndexUserBaseQuery :: LText
+getIndexUserBaseQuery =
+  "SELECT \
+  \id, team, \
+  \name, writetime(name), \
+  \status, writetime(status), \
+  \handle, writetime(handle), \
+  \email, writetime(email), \
+  \accent_id, writetime(accent_id), \
+  \activated, writetime(activated), \
+  \service, writetime(service), \
+  \managed_by, writetime(managed_by), \
+  \sso_id, writetime(sso_id), \
+  \email_unvalidated, writetime(email_unvalidated) \
+  \FROM user"
 
 updateUserImpl :: UserId -> StoredUserUpdate -> Client ()
 updateUserImpl uid update =

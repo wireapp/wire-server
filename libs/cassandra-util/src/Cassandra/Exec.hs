@@ -27,6 +27,7 @@ module Cassandra.Exec
     paginateC,
     PageWithState (..),
     paginateWithState,
+    paginateWithStateC,
     paramsPagingState,
     pwsHasMore,
     module C,
@@ -114,6 +115,29 @@ paginateWithState q p = do
     Protocol.RowsResult m b ->
       pure $ PageWithState b (pagingState m)
     _ -> throwM $ UnexpectedResponse (hrHost r) (hrResponse r)
+
+-- | Like 'paginateWithState' but returns a conduit instead of one page.
+--
+-- This can be used with 'paginateWithState' like this:
+-- @
+--   main :: IO ()
+--   main = do
+--     runConduit $
+--       paginateWithStateC getUsers
+--       .| mapC doSomethingWithAPageOfUsers
+--   where
+--     getUsers state = paginateWithState getUsersQuery (paramsPagingState Quorum () 10000 state)
+-- @
+paginateWithStateC :: forall m a. (Monad m) => (Maybe Protocol.PagingState -> m (PageWithState a)) -> ConduitT () [a] m ()
+paginateWithStateC getPage = do
+  go =<< lift (getPage Nothing)
+  where
+    go :: PageWithState a -> ConduitT () [a] m ()
+    go page = do
+      unless (null page.pwsResults) $
+        yield (page.pwsResults)
+      when (pwsHasMore page) $
+        go =<< lift (getPage page.pwsState)
 
 paramsPagingState :: Consistency -> a -> Int32 -> Maybe Protocol.PagingState -> QueryParams a
 paramsPagingState c p n state = QueryParams c False p (Just n) state Nothing Nothing
