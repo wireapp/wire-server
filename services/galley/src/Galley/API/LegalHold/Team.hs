@@ -24,6 +24,7 @@ module Galley.API.LegalHold.Team
   )
 where
 
+import Data.Default
 import Data.Id
 import Data.Range
 import Galley.Effects
@@ -63,7 +64,7 @@ computeLegalHoldFeatureStatus tid dbFeature =
   getLegalHoldFlag >>= \case
     FeatureLegalHoldDisabledPermanently -> pure FeatureStatusDisabled
     FeatureLegalHoldDisabledByDefault ->
-      pure (unDbFeature dbFeature defFeatureStatusNoLock).status
+      pure (unDbFeature dbFeature def).status
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
       wl <- LegalHoldData.isTeamLegalholdWhitelisted tid
       pure $ if wl then FeatureStatusEnabled else FeatureStatusDisabled

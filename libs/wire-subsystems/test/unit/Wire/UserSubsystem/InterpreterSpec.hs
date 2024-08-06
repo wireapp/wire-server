@@ -223,7 +223,11 @@ spec = describe "UserSubsystem.Interpreter" do
 
     prop "should mark user as managed by scim if E2EId is enabled for the user and they have a handle" \storedSelf domain susbsystemConfig mlsE2EIdConfig ->
       let localBackend = def {users = [storedSelf]}
-          allFeatureConfigs = def {afcMlsE2EId = defUnlockedFeature mlsE2EIdConfig}
+          allFeatureConfigs =
+            def
+              { afcMlsE2EId =
+                  LockableFeature FeatureStatusEnabled LockStatusUnlocked mlsE2EIdConfig
+              }
           SelfProfile retrievedUser =
             fromJust
               . runAllErrorsUnsafe
@@ -331,7 +335,7 @@ spec = describe "UserSubsystem.Interpreter" do
                     Nothing
                     def
                       { afcMlsE2EId =
-                          defFeatureStatus
+                          def
                             { status = FeatureStatusEnabled
                             } ::
                             LockableFeature MlsE2EIdConfig

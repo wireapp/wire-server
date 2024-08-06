@@ -31,6 +31,7 @@ import Control.Lens hiding ((.=))
 import Data.Aeson (ToJSON, Value)
 import Data.Aeson qualified as A
 import Data.ByteString.Conversion
+import Data.Default
 import Data.Handle
 import Data.Id
 import Data.Range (unsafeRange)
@@ -107,7 +108,7 @@ tests s =
     ]
 
 defConfCalling :: LockableFeature ConferenceCallingConfig
-defConfCalling = defFeatureStatus {status = FeatureStatusDisabled}
+defConfCalling = def {status = FeatureStatusDisabled}
 
 testRudSsoDomainRedirect :: TestM ()
 testRudSsoDomainRedirect = do
@@ -262,7 +263,7 @@ testLegalholdConfig :: TestM ()
 testLegalholdConfig = do
   (_, tid, _) <- createTeamWithNMembers 10
   cfg <- getFeatureConfig @LegalholdConfig tid
-  liftIO $ cfg @?= defFeatureStatus @LegalholdConfig
+  liftIO $ cfg @?= def
   -- Legal hold is enabled for teams via server config and cannot be changed here
   putFeatureStatus @LegalholdConfig tid FeatureStatusEnabled Nothing !!! const 403 === statusCode
 
@@ -279,7 +280,7 @@ testFeatureConfig ::
 testFeatureConfig = do
   (_, tid, _) <- createTeamWithNMembers 10
   cfg <- getFeatureConfig @cfg tid
-  liftIO $ cfg @?= defFeatureStatus @cfg
+  liftIO $ cfg @?= def
   let newStatus = if cfg.status == FeatureStatusEnabled then FeatureStatusDisabled else FeatureStatusEnabled
   putFeatureConfig @cfg tid cfg {status = newStatus} !!! const 200 === statusCode
   cfg' <- getFeatureConfig @cfg tid
@@ -299,7 +300,7 @@ testGetFeatureConfig ::
 testGetFeatureConfig mDef = do
   (_, tid, _) <- createTeamWithNMembers 10
   cfg <- getFeatureConfig @cfg tid
-  liftIO $ cfg.status @?= fromMaybe (defFeatureStatus @cfg).status mDef
+  liftIO $ cfg.status @?= fromMaybe (def @(Feature cfg)).status mDef
 
 testFeatureStatus ::
   forall cfg.
@@ -311,7 +312,7 @@ testFeatureStatus ::
     Show cfg
   ) =>
   TestM ()
-testFeatureStatus = testFeatureStatusOptTtl (defFeatureStatus @cfg) Nothing
+testFeatureStatus = testFeatureStatusOptTtl @cfg def Nothing
 
 testFeatureStatusOptTtl ::
   forall cfg.
@@ -349,7 +350,7 @@ testFeatureStatusWithLock = do
   let mTtl = Nothing -- this function can become a variant of `testFeatureStatusOptTtl` if we need one.
   (_, tid, _) <- createTeamWithNMembers 10
   getFeatureConfig @cfg tid >>= \cfg -> liftIO $ do
-    cfg @?= defFeatureStatus @cfg
+    cfg @?= def
     -- if either of these two lines fails, it's probably because the default is surprising.
     -- in that case, make the text more flexible.
     cfg.lockStatus @?= LockStatusLocked

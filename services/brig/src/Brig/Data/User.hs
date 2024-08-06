@@ -71,6 +71,7 @@ import Cassandra hiding (Set)
 import Control.Error
 import Control.Lens hiding (from)
 import Data.Conduit (ConduitM)
+import Data.Default
 import Data.Domain
 import Data.Handle (Handle)
 import Data.Id
@@ -443,7 +444,7 @@ lookupFeatureConferenceCalling uid = do
   mStatusValue <- (>>= runIdentity) <$> retry x1 q
   case mStatusValue of
     Nothing -> pure Nothing
-    Just status -> pure $ Just $ ApiFt.defFeatureStatusNoLock {ApiFt.status = status}
+    Just status -> pure $ Just $ def {ApiFt.status = status}
   where
     select :: PrepQuery R (Identity UserId) (Identity (Maybe ApiFt.FeatureStatus))
     select = fromString "select feature_conference_calling from user where id = ?"

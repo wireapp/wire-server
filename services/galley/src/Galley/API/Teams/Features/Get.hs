@@ -37,6 +37,7 @@ where
 import Control.Error (hush)
 import Control.Lens
 import Data.Bifunctor (second)
+import Data.Default
 import Data.Id
 import Data.Kind
 import Data.Qualified (Local, tUnqualified)
@@ -85,7 +86,7 @@ class (IsFeatureConfig cfg) => GetFeatureConfig cfg where
   -- and/or if the feature flag is configured for the backend in 'FeatureFlags' for galley in 'Galley.Types.Teams'
   -- otherwise this will return the default config from wire-api
   default getConfigForServer :: Sem r (LockableFeature cfg)
-  getConfigForServer = pure defFeatureStatus
+  getConfigForServer = pure def
 
   getConfigForUser ::
     (GetConfigForUserConstraints cfg r) =>
@@ -381,7 +382,7 @@ instance GetFeatureConfig SSOConfig where
       inputs (view (settings . featureFlags . flagSSO)) <&> \case
         FeatureSSOEnabledByDefault -> FeatureStatusEnabled
         FeatureSSODisabledByDefault -> FeatureStatusDisabled
-    pure $ defFeatureStatus {status = status}
+    pure $ def {status = status}
 
 instance GetFeatureConfig SearchVisibilityAvailableConfig where
   getConfigForServer = do
@@ -389,7 +390,7 @@ instance GetFeatureConfig SearchVisibilityAvailableConfig where
       inputs (view (settings . featureFlags . flagTeamSearchVisibility)) <&> \case
         FeatureTeamSearchVisibilityAvailableByDefault -> FeatureStatusEnabled
         FeatureTeamSearchVisibilityUnavailableByDefault -> FeatureStatusDisabled
-    pure $ defFeatureStatus {status = status}
+    pure $ def {status = status}
 
 instance GetFeatureConfig ValidateSAMLEmailsConfig where
   getConfigForServer =
@@ -455,7 +456,7 @@ instance GetFeatureConfig ConferenceCallingConfig where
 
   getConfigForUser uid = do
     feat <- getAccountConferenceCallingConfigClient uid
-    pure $ withLockStatus (defFeatureStatus @ConferenceCallingConfig).lockStatus feat
+    pure $ withLockStatus (def @(LockableFeature ConferenceCallingConfig)).lockStatus feat
 
   computeFeature _tid defFeature lockStatus dbFeature =
     pure $ case fromMaybe defFeature.lockStatus lockStatus of

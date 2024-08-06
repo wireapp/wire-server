@@ -35,6 +35,7 @@ import Data.Aeson qualified as Aeson
 import Data.Aeson.Types (typeMismatch)
 import Data.Char qualified as Char
 import Data.Code qualified as Code
+import Data.Default
 import Data.Domain (Domain (..))
 import Data.Id
 import Data.LanguageCodes (ISO639_1 (EN))
@@ -754,8 +755,8 @@ getAfcConferenceCallingDefNull = Lens.to (Public._unImplicitLockStatus . afcConf
 defAccountFeatureConfigs :: AccountFeatureConfigs
 defAccountFeatureConfigs =
   AccountFeatureConfigs
-    { afcConferenceCallingDefNew = Public.ImplicitLockStatus Public.defFeatureStatus,
-      afcConferenceCallingDefNull = Public.ImplicitLockStatus Public.defFeatureStatus
+    { afcConferenceCallingDefNew = Public.ImplicitLockStatus def,
+      afcConferenceCallingDefNull = Public.ImplicitLockStatus def
     }
 
 -- | Customer extensions naturally are covered by the AGPL like everything else, but use them

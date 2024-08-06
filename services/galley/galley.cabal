@@ -304,6 +304,7 @@ library
     , crypton
     , crypton-x509
     , currency-codes         >=2.0
+    , data-default
     , data-timeout
     , either
     , enclosed-exceptions    >=1.0
