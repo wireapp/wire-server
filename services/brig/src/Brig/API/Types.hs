@@ -64,13 +64,6 @@ data CreateUserTeam = CreateUserTeam
   }
   deriving (Show)
 
--- | Outcome of the invariants check in 'Brig.API.User.changeEmail'.
-data ChangeEmailResult
-  = -- | The request was successful, user needs to verify the new email address
-    ChangeEmailNeedsActivation !(User, Activation, Email)
-  | -- | The user asked to change the email address to the one already owned
-    ChangeEmailIdempotent
-
 -------------------------------------------------------------------------------
 -- Failures
 
