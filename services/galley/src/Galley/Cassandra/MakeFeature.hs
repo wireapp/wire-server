@@ -1,4 +1,6 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -Wwarn #-}
 
 -- | Abstraction to fetch and store feature values from and to the database.
@@ -10,6 +12,7 @@ import Data.Functor
 import Data.Functor.Identity
 import Data.Id
 import Data.Kind
+import Data.List (nub)
 import Data.List.Singletons (Length)
 import Data.Misc (HttpsUrl)
 import Data.Singletons (demote)

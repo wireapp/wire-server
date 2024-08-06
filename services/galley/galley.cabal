@@ -136,6 +136,7 @@ library
     Galley.Cassandra.Conversation.MLS
     Galley.Cassandra.ConversationList
     Galley.Cassandra.CustomBackend
+    Galley.Cassandra.FeatureTH
     Galley.Cassandra.GetAllTeamFeatureConfigs
     Galley.Cassandra.Instances
     Galley.Cassandra.LegalHold
@@ -350,6 +351,7 @@ library
     , ssl-util               >=0.1
     , stm                    >=2.4
     , tagged
+    , template-haskell
     , text                   >=0.11
     , time                   >=1.4
     , tinylog                >=0.10
