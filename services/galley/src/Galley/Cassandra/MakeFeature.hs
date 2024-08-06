@@ -275,15 +275,18 @@ fetchFeature ::
   TeamId ->
   m (DbFeature cfg)
 fetchFeature tid = do
-  row <- retry x1 $ query1 select (params LocalQuorum (Identity tid))
-  pure $ foldMap (mkFeature . unfactorI . productTypeFrom) row
-  where
-    selectQ =
-      "select "
-        <> intercalate ", " (hcollapse (featureColumns @cfg))
-        <> " from team_features where team_id = ?"
-    select :: PrepQuery R (Identity TeamId) (TupleP mrow)
-    select = fromString selectQ
+  let cols = hcollapse (featureColumns @cfg)
+  if null cols
+    then pure mempty
+    else do
+      let select :: PrepQuery R (Identity TeamId) (TupleP mrow)
+          select =
+            fromString $
+              "select "
+                <> intercalate ", " cols
+                <> " from team_features where team_id = ?"
+      row <- retry x1 $ query1 select (params LocalQuorum (Identity tid))
+      pure $ foldMap (mkFeature . unfactorI . productTypeFrom) row
 
 storeFeature ::
   forall cfg m row mrow.
@@ -299,7 +302,14 @@ storeFeature ::
   Feature cfg ->
   m ()
 storeFeature tid feat = do
-  retry x5 $ write insert (params LocalQuorum (productTypeTo (I tid :* factorI (unmkFeature feat))))
+  if n == 0
+    then pure ()
+    else
+      retry x5 $
+        write
+          insert
+          ( params LocalQuorum (productTypeTo (I tid :* factorI (unmkFeature feat)))
+          )
   where
     n :: Int
     n = fromIntegral (demote @(Length row))
@@ -330,6 +340,7 @@ fetchFeatureLockStatus tid = do
 -- | This is necessary in order to convert an @NP f xs@ type to something that
 -- CQL can understand.
 type family TupleP (xs :: [Type]) where
+  TupleP '[] = ()
   TupleP '[a] = Identity a
   TupleP [a, b] = (a, b)
   TupleP [a, b, c] = (a, b, c)
