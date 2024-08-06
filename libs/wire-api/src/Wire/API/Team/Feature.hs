@@ -1,8 +1,12 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE UndecidableSuperClasses #-}
+{-# LANGUAGE NoStarIsType #-}
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 -- This file is part of the Wire Server implementation.
@@ -73,7 +77,12 @@ module Wire.API.Team.Feature
     MlsMigrationConfig (..),
     EnforceFileDownloadLocationConfig (..),
     LimitedEventFanoutConfig (..),
-    AllFeatures (..),
+    Features,
+    AllFeatures,
+    NpProject (..),
+    npProject,
+    NpUpdate (..),
+    npUpdate,
     AllFeatureConfigs,
     unImplicitLockStatus,
     ImplicitLockStatus (..),
@@ -97,6 +106,7 @@ import Data.Kind
 import Data.Misc (HttpsUrl)
 import Data.OpenApi qualified as S
 import Data.Proxy
+import Data.SOP
 import Data.Schema
 import Data.Scientific (toBoundedInteger)
 import Data.Text qualified as T
@@ -1267,117 +1277,107 @@ instance Cass.Cql FeatureStatus where
   toCql FeatureStatusDisabled = Cass.CqlInt 0
   toCql FeatureStatusEnabled = Cass.CqlInt 1
 
--- FUTUREWORK: rewrite using SOP
-data AllFeatures f = AllFeatures
-  { afcLegalholdStatus :: f LegalholdConfig,
-    afcSSOStatus :: f SSOConfig,
-    afcTeamSearchVisibilityAvailable :: f SearchVisibilityAvailableConfig,
-    afcSearchVisibilityInboundConfig :: f SearchVisibilityInboundConfig,
-    afcValidateSAMLEmails :: f ValidateSAMLEmailsConfig,
-    afcDigitalSignatures :: f DigitalSignaturesConfig,
-    afcAppLock :: f AppLockConfig,
-    afcFileSharing :: f FileSharingConfig,
-    afcClassifiedDomains :: f ClassifiedDomainsConfig,
-    afcConferenceCalling :: f ConferenceCallingConfig,
-    afcSelfDeletingMessages :: f SelfDeletingMessagesConfig,
-    afcGuestLink :: f GuestLinksConfig,
-    afcSndFactorPasswordChallenge :: f SndFactorPasswordChallengeConfig,
-    afcMLS :: f MLSConfig,
-    afcExposeInvitationURLsToTeamAdmin :: f ExposeInvitationURLsToTeamAdminConfig,
-    afcOutlookCalIntegration :: f OutlookCalIntegrationConfig,
-    afcMlsE2EId :: f MlsE2EIdConfig,
-    afcMlsMigration :: f MlsMigrationConfig,
-    afcEnforceFileDownloadLocation :: f EnforceFileDownloadLocationConfig,
-    afcLimitedEventFanout :: f LimitedEventFanoutConfig
-  }
+-- | list of available features config types
+type Features :: [Type]
+type Features =
+  [ LegalholdConfig,
+    SSOConfig,
+    SearchVisibilityAvailableConfig,
+    SearchVisibilityInboundConfig,
+    ValidateSAMLEmailsConfig,
+    DigitalSignaturesConfig,
+    AppLockConfig,
+    FileSharingConfig,
+    ClassifiedDomainsConfig,
+    ConferenceCallingConfig,
+    SelfDeletingMessagesConfig,
+    GuestLinksConfig,
+    SndFactorPasswordChallengeConfig,
+    MLSConfig,
+    ExposeInvitationURLsToTeamAdminConfig,
+    OutlookCalIntegrationConfig,
+    MlsE2EIdConfig,
+    MlsMigrationConfig,
+    EnforceFileDownloadLocationConfig,
+    LimitedEventFanoutConfig
+  ]
 
+-- | list of available features as a record
+type AllFeatures f = NP f Features
+
+-- | 'AllFeatures' specialised to the 'LockableFeature' functor
 type AllFeatureConfigs = AllFeatures LockableFeature
 
+-- | constraint synonym requiring the @c@ instance for the @f@ type constructor applied to type @a@ to hold
+class (c (f a)) => LiftForF c f a
+
+instance (c (f a)) => LiftForF c f a
+
+type LockableFeatureDefault = LiftForF Default LockableFeature
+
 instance Default AllFeatureConfigs where
-  def =
-    AllFeatures
-      { afcLegalholdStatus = def,
-        afcSSOStatus = def,
-        afcTeamSearchVisibilityAvailable = def,
-        afcSearchVisibilityInboundConfig = def,
-        afcValidateSAMLEmails = def,
-        afcDigitalSignatures = def,
-        afcAppLock = def,
-        afcFileSharing = def,
-        afcClassifiedDomains = def,
-        afcConferenceCalling = def,
-        afcSelfDeletingMessages = def,
-        afcGuestLink = def,
-        afcSndFactorPasswordChallenge = def,
-        afcMLS = def,
-        afcExposeInvitationURLsToTeamAdmin = def,
-        afcOutlookCalIntegration = def,
-        afcMlsE2EId = def,
-        afcMlsMigration = def,
-        afcEnforceFileDownloadLocation = def,
-        afcLimitedEventFanout = def
-      }
+  def = hcpure (Proxy @LockableFeatureDefault) def
+
+-- | object schema for nary products
+--
+-- TODO(mangoiv): generalize this to be useable with schema profunctor
+class HObjectSchema c xs where
+  hobjectSchema :: (forall cfg. (c cfg) => ObjectSchema SwaggerDoc (f cfg)) -> ObjectSchema SwaggerDoc (NP f xs)
+
+instance HObjectSchema c '[] where
+  hobjectSchema _ = pure Nil
+
+instance (HObjectSchema c xs, c x) => HObjectSchema c ((x :: Type) : xs) where
+  hobjectSchema f = (:*) <$> hd .= f <*> tl .= hobjectSchema @c @xs f
+
+-- | constraint synonym  for 'ToSchema' 'AllFeatureConfigs'
+class (IsFeatureConfig cfg, ToSchema cfg, KnownSymbol (FeatureSymbol cfg)) => FeatureFieldConstraints cfg
+
+instance (IsFeatureConfig cfg, ToSchema cfg, KnownSymbol (FeatureSymbol cfg)) => FeatureFieldConstraints cfg
 
 instance ToSchema AllFeatureConfigs where
   schema =
-    object "AllFeatureConfigs" $
-      AllFeatures
-        <$> afcLegalholdStatus .= featureField
-        <*> afcSSOStatus .= featureField
-        <*> afcTeamSearchVisibilityAvailable .= featureField
-        <*> afcSearchVisibilityInboundConfig .= featureField
-        <*> afcValidateSAMLEmails .= featureField
-        <*> afcDigitalSignatures .= featureField
-        <*> afcAppLock .= featureField
-        <*> afcFileSharing .= featureField
-        <*> afcClassifiedDomains .= featureField
-        <*> afcConferenceCalling .= featureField
-        <*> afcSelfDeletingMessages .= featureField
-        <*> afcGuestLink .= featureField
-        <*> afcSndFactorPasswordChallenge .= featureField
-        <*> afcMLS .= featureField
-        <*> afcExposeInvitationURLsToTeamAdmin .= featureField
-        <*> afcOutlookCalIntegration .= featureField
-        <*> afcMlsE2EId .= featureField
-        <*> afcMlsMigration .= featureField
-        <*> afcEnforceFileDownloadLocation .= featureField
-        <*> afcLimitedEventFanout .= featureField
+    object "AllFeatureConfigs" $ hobjectSchema @FeatureFieldConstraints featureField
     where
-      featureField ::
-        forall cfg.
-        (IsFeatureConfig cfg, ToSchema cfg, KnownSymbol (FeatureSymbol cfg)) =>
-        ObjectSchema SwaggerDoc (LockableFeature cfg)
+      featureField :: forall cfg. (FeatureFieldConstraints cfg) => ObjectSchema SwaggerDoc (LockableFeature cfg)
       featureField = field (T.pack (symbolVal (Proxy @(FeatureSymbol cfg)))) schema
 
 instance Arbitrary AllFeatureConfigs where
-  arbitrary =
-    AllFeatures
-      <$> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
+  arbitrary = hsequence' $ hcpure (Proxy @(LiftForF Arbitrary LockableFeature)) (Comp arbitrary)
+
+class NpProject x xs where
+  npProject' :: Proxy x -> NP f xs -> f x
+
+instance {-# OVERLAPPING #-} NpProject x (x : xs) where
+  npProject' _ (x :* _) = x
+
+instance (NpProject x xs) => NpProject x (y : xs) where
+  npProject' p (_ :* xs) = npProject' p xs
+
+instance (TypeError ('ShowType x :<>: 'Text " not found")) => NpProject x '[] where
+  npProject' = error "npProject': someone naughty removed the type error constraint"
+
+-- | Get the first field of a given type out of an @'NP' f xs@.
+npProject :: forall x f xs. (NpProject x xs) => NP f xs -> f x
+npProject = npProject' (Proxy @x)
+
+class NpUpdate x xs where
+  npUpdate' :: Proxy x -> f x -> NP f xs -> NP f xs
+
+instance {-# OVERLAPPING #-} NpUpdate x (x : xs) where
+  npUpdate' _ x (_ :* xs) = x :* xs
+
+instance (NpUpdate x xs) => NpUpdate x (y : xs) where
+  npUpdate' p x (y :* xs) = y :* npUpdate' p x xs
+
+instance (TypeError ('ShowType x :<>: 'Text " not found")) => NpUpdate x '[] where
+  npUpdate' = error "npUpdate': someone naughty removed the type error constraint"
+
+-- | Update the first field of a given type in an @'NP' f xs@.
+npUpdate :: forall x f xs. (NpUpdate x xs) => f x -> NP f xs -> NP f xs
+npUpdate = npUpdate' (Proxy @x)
 
 makeLenses ''ImplicitLockStatus
-
-deriving instance Show AllFeatureConfigs
-
-deriving instance Eq AllFeatureConfigs
 
 deriving via (Schema AllFeatureConfigs) instance (FromJSON AllFeatureConfigs)
 

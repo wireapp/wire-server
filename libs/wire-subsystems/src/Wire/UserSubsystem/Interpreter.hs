@@ -472,7 +472,8 @@ checkHandleImpl uhandle = do
 
 hasE2EId :: (Member GalleyAPIAccess r) => StoredUser -> Sem r Bool
 hasE2EId user =
-  (.status) . afcMlsE2EId
+  -- FUTUREWORK(mangoiv): we should use a function 'getSingleFeatureConfigForUser'
+  (.status) . npProject @MlsE2EIdConfig
     <$> getAllFeatureConfigsForUser (Just user.id) <&> \case
       FeatureStatusEnabled -> True
       FeatureStatusDisabled -> False

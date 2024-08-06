@@ -221,13 +221,12 @@ spec = describe "UserSubsystem.Interpreter" do
               getSelfProfile (toLocalUnsafe domain selfId)
        in retrievedProfile === Nothing
 
-    prop "should mark user as managed by scim if E2EId is enabled for the user and they have a handle" \storedSelf domain susbsystemConfig mlsE2EIdConfig ->
+    prop "should mark user as managed by scim if E2EId is enabled for the user and they have a handle" \storedSelf domain susbsystemConfig (mlsE2EIdConfig :: MlsE2EIdConfig) ->
       let localBackend = def {users = [storedSelf]}
           allFeatureConfigs =
-            def
-              { afcMlsE2EId =
-                  LockableFeature FeatureStatusEnabled LockStatusUnlocked mlsE2EIdConfig
-              }
+            npUpdate
+              (LockableFeature FeatureStatusEnabled LockStatusUnlocked mlsE2EIdConfig)
+              def
           SelfProfile retrievedUser =
             fromJust
               . runAllErrorsUnsafe
@@ -333,13 +332,14 @@ spec = describe "UserSubsystem.Interpreter" do
                   $ interpretNoFederationStack
                     localBackend
                     Nothing
-                    def
-                      { afcMlsE2EId =
-                          def
+                    ( npUpdate
+                        ( def
                             { status = FeatureStatusEnabled
                             } ::
                             LockableFeature MlsE2EIdConfig
-                      }
+                        )
+                        def
+                    )
                     config
                     do
                       updateUserProfile lusr Nothing UpdateOriginScim (def {name = Just newName})

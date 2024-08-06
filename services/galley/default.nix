@@ -42,6 +42,7 @@
 , federator
 , filepath
 , galley-types
+, generics-sop
 , gitignoreSource
 , gundeck-types
 , hex
@@ -86,6 +87,7 @@
 , servant-client-core
 , servant-server
 , singletons
+, singletons-base
 , sop-core
 , split
 , ssl-util
@@ -98,6 +100,7 @@
 , tasty-cannon
 , tasty-hunit
 , tasty-quickcheck
+, template-haskell
 , temporary
 , text
 , time
@@ -156,6 +159,7 @@ mkDerivation {
     crypton
     crypton-x509
     currency-codes
+    data-default
     data-timeout
     either
     enclosed-exceptions
@@ -164,6 +168,7 @@ mkDerivation {
     extended
     extra
     galley-types
+    generics-sop
     gundeck-types
     hex
     HsOpenSSL
@@ -193,10 +198,13 @@ mkDerivation {
     servant-client
     servant-server
     singletons
+    singletons-base
+    sop-core
     split
     ssl-util
     stm
     tagged
+    template-haskell
     text
     time
     tinylog

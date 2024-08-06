@@ -86,6 +86,7 @@ import Test.Wire.API.Golden.Generated.Event_conversation qualified
 import Test.Wire.API.Golden.Generated.Event_featureConfig qualified
 import Test.Wire.API.Golden.Generated.Event_team qualified
 import Test.Wire.API.Golden.Generated.Event_user qualified
+import Test.Wire.API.Golden.Generated.Feature_team qualified
 import Test.Wire.API.Golden.Generated.HandleUpdate_user qualified
 import Test.Wire.API.Golden.Generated.InvitationCode_user qualified
 import Test.Wire.API.Golden.Generated.InvitationList_team qualified
@@ -99,6 +100,8 @@ import Test.Wire.API.Golden.Generated.LimitedQualifiedUserIdList_user qualified
 import Test.Wire.API.Golden.Generated.ListType_team qualified
 import Test.Wire.API.Golden.Generated.LocaleUpdate_user qualified
 import Test.Wire.API.Golden.Generated.Locale_user qualified
+import Test.Wire.API.Golden.Generated.LockableFeaturePatch_team qualified
+import Test.Wire.API.Golden.Generated.LockableFeature_team qualified
 import Test.Wire.API.Golden.Generated.LoginCodeTimeout_user qualified
 import Test.Wire.API.Golden.Generated.LoginCode_user qualified
 import Test.Wire.API.Golden.Generated.ManagedBy_user qualified
@@ -227,9 +230,6 @@ import Test.Wire.API.Golden.Generated.VerificationAction_user qualified
 import Test.Wire.API.Golden.Generated.VerifyDeleteUser_user qualified
 import Test.Wire.API.Golden.Generated.ViewLegalHoldServiceInfo_team qualified
 import Test.Wire.API.Golden.Generated.ViewLegalHoldService_team qualified
-import Test.Wire.API.Golden.Generated.Feature_team qualified
-import Test.Wire.API.Golden.Generated.LockableFeaturePatch_team qualified
-import Test.Wire.API.Golden.Generated.LockableFeature_team qualified
 import Test.Wire.API.Golden.Generated.Wrapped_20_22some_5fint_22_20Int_user qualified
 import Test.Wire.API.Golden.Runner
 import Wire.API.Routes.Version

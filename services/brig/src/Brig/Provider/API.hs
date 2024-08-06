@@ -804,8 +804,12 @@ guardSecondFactorDisabled ::
   Maybe UserId ->
   ExceptT HttpError (AppT r) ()
 guardSecondFactorDisabled mbUserId = do
-  enabled <- lift $ liftSem $ (==) Feature.FeatureStatusEnabled . (.status) . Feature.afcSndFactorPasswordChallenge <$> GalleyAPIAccess.getAllFeatureConfigsForUser mbUserId
-  when enabled $ (throwStd (errorToWai @'E.AccessDenied))
+  feat <- lift $ liftSem $ GalleyAPIAccess.getAllFeatureConfigsForUser mbUserId
+  let enabled =
+        (Feature.npProject @Feature.SndFactorPasswordChallengeConfig feat).status
+          == Feature.FeatureStatusEnabled
+  when enabled do
+    throwStd $ errorToWai @'E.AccessDenied
 
 minRsaKeySize :: Int
 minRsaKeySize = 256 -- Bytes (= 2048 bits)

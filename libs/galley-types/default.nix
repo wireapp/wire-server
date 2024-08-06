@@ -9,6 +9,7 @@
 , bytestring-conversion
 , containers
 , crypton
+, data-default
 , errors
 , gitignoreSource
 , imports
@@ -34,6 +35,7 @@ mkDerivation {
     bytestring-conversion
     containers
     crypton
+    data-default
     errors
     imports
     lens

@@ -1,4 +1,4 @@
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE UndecidableSuperClasses #-}
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 -- This file is part of the Wire Server implementation.
@@ -41,6 +41,7 @@ import Data.Default
 import Data.Id
 import Data.Kind
 import Data.Qualified (Local, tUnqualified)
+import Data.SOP
 import Data.Tagged
 import Galley.API.LegalHold.Team
 import Galley.API.Util
@@ -183,19 +184,6 @@ getAllFeatureConfigsForTeam luid tid = do
   void $ getTeamMember tid (tUnqualified luid) >>= noteS @'NotATeamMember
   getAllFeatureConfigs tid
 
-getAllFeatureConfigs ::
-  ( Member (Input Opts) r,
-    Member LegalHoldStore r,
-    Member TeamFeatureStore r,
-    Member TeamStore r
-  ) =>
-  TeamId ->
-  Sem r AllFeatureConfigs
-getAllFeatureConfigs tid = do
-  features <- TeamFeatures.getAllFeatureConfigs tid
-  defFeatures <- getAllFeatureConfigsForServer
-  biTraverseAllFeatures (computeFeatureWithLock tid) defFeatures features
-
 computeFeatureWithLock ::
   forall cfg r.
   (GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) =>
@@ -206,68 +194,40 @@ computeFeatureWithLock ::
 computeFeatureWithLock tid defFeature feat =
   computeFeature @cfg tid defFeature feat.lockStatus feat.feature
 
--- | One of a number of possible combinators. This is the only one we happen to need.
-biTraverseAllFeatures ::
-  ( Member (Input Opts) r,
-    Member TeamStore r,
-    Member LegalHoldStore r
-  ) =>
-  ( forall cfg.
-    (GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) =>
-    f cfg ->
-    g cfg ->
-    Sem r (h cfg)
-  ) ->
-  (AllFeatures f -> AllFeatures g -> Sem r (AllFeatures h))
-biTraverseAllFeatures phi features1 features2 = do
-  afcLegalholdStatus <- phi (afcLegalholdStatus features1) (afcLegalholdStatus features2)
-  afcSSOStatus <- phi (afcSSOStatus features1) (afcSSOStatus features2)
-  afcTeamSearchVisibilityAvailable <- phi (afcTeamSearchVisibilityAvailable features1) (afcTeamSearchVisibilityAvailable features2)
-  afcSearchVisibilityInboundConfig <- phi (afcSearchVisibilityInboundConfig features1) (afcSearchVisibilityInboundConfig features2)
-  afcValidateSAMLEmails <- phi (afcValidateSAMLEmails features1) (afcValidateSAMLEmails features2)
-  afcDigitalSignatures <- phi (afcDigitalSignatures features1) (afcDigitalSignatures features2)
-  afcAppLock <- phi (afcAppLock features1) (afcAppLock features2)
-  afcFileSharing <- phi (afcFileSharing features1) (afcFileSharing features2)
-  afcClassifiedDomains <- phi (afcClassifiedDomains features1) (afcClassifiedDomains features2)
-  afcConferenceCalling <- phi (afcConferenceCalling features1) (afcConferenceCalling features2)
-  afcSelfDeletingMessages <- phi (afcSelfDeletingMessages features1) (afcSelfDeletingMessages features2)
-  afcGuestLink <- phi (afcGuestLink features1) (afcGuestLink features2)
-  afcSndFactorPasswordChallenge <- phi (afcSndFactorPasswordChallenge features1) (afcSndFactorPasswordChallenge features2)
-  afcMLS <- phi (afcMLS features1) (afcMLS features2)
-  afcExposeInvitationURLsToTeamAdmin <- phi (afcExposeInvitationURLsToTeamAdmin features1) (afcExposeInvitationURLsToTeamAdmin features2)
-  afcOutlookCalIntegration <- phi (afcOutlookCalIntegration features1) (afcOutlookCalIntegration features2)
-  afcMlsE2EId <- phi (afcMlsE2EId features1) (afcMlsE2EId features2)
-  afcMlsMigration <- phi (afcMlsMigration features1) (afcMlsMigration features2)
-  afcEnforceFileDownloadLocation <- phi (afcEnforceFileDownloadLocation features1) (afcEnforceFileDownloadLocation features2)
-  afcLimitedEventFanout <- phi (afcLimitedEventFanout features1) (afcLimitedEventFanout features2)
-  pure AllFeatures {..}
+class (GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) => GetAllFeatureConfigsForServerConstraints r cfg
+
+instance (GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) => GetAllFeatureConfigsForServerConstraints r cfg
 
 getAllFeatureConfigsForServer ::
   forall r.
   (Member (Input Opts) r) =>
   Sem r AllFeatureConfigs
-getAllFeatureConfigsForServer =
-  AllFeatures
-    <$> getConfigForServer @LegalholdConfig
-    <*> getConfigForServer @SSOConfig
-    <*> getConfigForServer @SearchVisibilityAvailableConfig
-    <*> getConfigForServer @SearchVisibilityInboundConfig
-    <*> getConfigForServer @ValidateSAMLEmailsConfig
-    <*> getConfigForServer @DigitalSignaturesConfig
-    <*> getConfigForServer @AppLockConfig
-    <*> getConfigForServer @FileSharingConfig
-    <*> getConfigForServer @ClassifiedDomainsConfig
-    <*> getConfigForServer @ConferenceCallingConfig
-    <*> getConfigForServer @SelfDeletingMessagesConfig
-    <*> getConfigForServer @GuestLinksConfig
-    <*> getConfigForServer @SndFactorPasswordChallengeConfig
-    <*> getConfigForServer @MLSConfig
-    <*> getConfigForServer @ExposeInvitationURLsToTeamAdminConfig
-    <*> getConfigForServer @OutlookCalIntegrationConfig
-    <*> getConfigForServer @MlsE2EIdConfig
-    <*> getConfigForServer @MlsMigrationConfig
-    <*> getConfigForServer @EnforceFileDownloadLocationConfig
-    <*> getConfigForServer @LimitedEventFanoutConfig
+getAllFeatureConfigsForServer = hsequence' $ hcpure (Proxy @GetFeatureConfig) $ Comp getConfigForServer
+
+getAllFeatureConfigs ::
+  forall r.
+  ( Member (Input Opts) r,
+    Member LegalHoldStore r,
+    Member TeamFeatureStore r,
+    Member TeamStore r
+  ) =>
+  TeamId ->
+  Sem r AllFeatureConfigs
+getAllFeatureConfigs tid = do
+  features <- TeamFeatures.getAllFeatureConfigs tid
+  defFeatures <- getAllFeatureConfigsForServer
+  hsequence' $ hcliftA2 (Proxy @(GetAllFeatureConfigsForServerConstraints r)) compute defFeatures features
+  where
+    compute ::
+      (ComputeFeatureConstraints p r, GetFeatureConfig p) =>
+      LockableFeature p ->
+      DbFeatureWithLock p ->
+      (Sem r :.: LockableFeature) p
+    compute defFeature feat = Comp $ computeFeatureWithLock tid defFeature feat
+
+class (GetConfigForUserConstraints cfg r, GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) => GetAllFeatureConfigsForUserConstraints r cfg
+
+instance (GetConfigForUserConstraints cfg r, GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) => GetAllFeatureConfigsForUserConstraints r cfg
 
 getAllFeatureConfigsForUser ::
   forall r.
@@ -284,27 +244,7 @@ getAllFeatureConfigsForUser ::
   Sem r AllFeatureConfigs
 getAllFeatureConfigsForUser uid = do
   mTid <- getTeamAndCheckMembership uid
-  AllFeatures
-    <$> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
+  hsequence' $ hcpure (Proxy @(GetAllFeatureConfigsForUserConstraints r)) $ Comp $ getConfigForTeamUser uid mTid
 
 getSingleFeatureConfigForUser ::
   forall cfg r.

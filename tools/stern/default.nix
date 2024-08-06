@@ -11,6 +11,7 @@
 , bytestring-conversion
 , containers
 , cookie
+, data-default
 , errors
 , exceptions
 , extended
@@ -100,6 +101,7 @@ mkDerivation {
     bytestring-conversion
     containers
     cookie
+    data-default
     exceptions
     extra
     HsOpenSSL

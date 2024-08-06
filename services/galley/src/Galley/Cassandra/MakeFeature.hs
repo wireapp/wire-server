@@ -1,6 +1,4 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -Wwarn #-}
 
 -- | Abstraction to fetch and store feature values from and to the database.
@@ -12,7 +10,6 @@ import Data.Functor
 import Data.Functor.Identity
 import Data.Id
 import Data.Kind
-import Data.List (nub)
 import Data.List.Singletons (Length)
 import Data.Misc (HttpsUrl)
 import Data.Singletons (demote)
@@ -338,7 +335,7 @@ fetchFeatureLockStatus tid = do
       let select :: PrepQuery R (Identity TeamId) (Identity (Maybe LockStatus))
           select = fromString $ "select " <> col <> " from team_features where team_id = ?"
       row <- retry x1 $ query1 select (params LocalQuorum (Identity tid))
-      pure . Tagged . join . fmap runIdentity $ row
+      pure . Tagged . (runIdentity =<<) $ row
 
 storeFeatureLockStatus ::
   forall cfg m.

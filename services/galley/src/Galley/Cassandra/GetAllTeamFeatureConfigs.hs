@@ -137,78 +137,27 @@ emptyRow =
 
 allFeatureConfigsFromRow :: AllTeamFeatureConfigsRow -> AllFeatures DbFeatureWithLock
 allFeatureConfigsFromRow row =
-  AllFeatures
-    { afcLegalholdStatus = mkFeatureWithLock Nothing (row.legalhold :* Nil),
-      afcSSOStatus = mkFeatureWithLock Nothing (row.sso :* Nil),
-      afcTeamSearchVisibilityAvailable = mkFeatureWithLock Nothing (row.searchVisibility :* Nil),
-      afcSearchVisibilityInboundConfig = mkFeatureWithLock Nothing (row.searchVisibility :* Nil),
-      afcValidateSAMLEmails = mkFeatureWithLock Nothing (row.validateSamlEmails :* Nil),
-      afcDigitalSignatures = mkFeatureWithLock Nothing (row.digitalSignatures :* Nil),
-      afcAppLock =
-        mkFeatureWithLock
-          Nothing
-          (row.appLock :* row.appLockEnforce :* row.appLockInactivityTimeoutSecs :* Nil),
-      afcFileSharing = mkFeatureWithLock row.fileSharingLock (row.fileSharing :* Nil),
-      afcClassifiedDomains = mkFeatureWithLock Nothing Nil,
-      afcConferenceCalling =
-        mkFeatureWithLock
-          row.conferenceCallingLock
-          ( row.conferenceCalling
-              :* row.conferenceCallingOne2One
-              :* Nil
-          ),
-      afcSelfDeletingMessages =
-        mkFeatureWithLock
-          row.selfDeletingMessagesLock
-          ( row.selfDeletingMessages
-              :* row.selfDeletingMessagesTtl
-              :* Nil
-          ),
-      afcGuestLink = mkFeatureWithLock row.guestLinksLock (row.guestLinks :* Nil),
-      afcSndFactorPasswordChallenge = mkFeatureWithLock row.sndFactorLock (row.sndFactor :* Nil),
-      afcMLS =
-        mkFeatureWithLock
-          row.mlsLock
-          ( row.mls
-              :* row.mlsDefaultProtocol
-              :* row.mlsToggleUsers
-              :* row.mlsAllowedCipherSuites
-              :* row.mlsDefaultCipherSuite
-              :* row.mlsSupportedProtocols
-              :* Nil
-          ),
-      afcExposeInvitationURLsToTeamAdmin = mkFeatureWithLock Nothing (row.exposeInvitationUrls :* Nil),
-      afcOutlookCalIntegration =
-        mkFeatureWithLock
-          row.outlookCalIntegrationLock
-          (row.outlookCalIntegration :* Nil),
-      afcMlsE2EId =
-        mkFeatureWithLock
-          row.mlsE2eidLock
-          ( row.mlsE2eid
-              :* row.mlsE2eidGracePeriod
-              :* row.mlsE2eidAcmeDiscoverUrl
-              :* row.mlsE2eidMaybeCrlProxy
-              :* row.mlsE2eidMaybeUseProxyOnMobile
-              :* Nil
-          ),
-      afcMlsMigration =
-        mkFeatureWithLock
-          row.mlsMigrationLock
-          ( row.mlsMigration
-              :* row.mlsMigrationStartTime
-              :* row.mlsMigrationFinalizeRegardlessAfter
-              :* Nil
-          ),
-      afcEnforceFileDownloadLocation =
-        mkFeatureWithLock
-          row.enforceDownloadLocationLock
-          ( row.enforceDownloadLocation
-              :* row.enforceDownloadLocation_Location
-              :* Nil
-          ),
-      afcLimitedEventFanout = mkFeatureWithLock Nothing (row.limitEventFanout :* Nil)
-    }
+  mkFeatureWithLock Nothing (row.legalhold :* Nil)
+    :* mkFeatureWithLock Nothing (row.sso :* Nil)
+    :* mkFeatureWithLock Nothing (row.searchVisibility :* Nil)
+    :* mkFeatureWithLock Nothing (row.searchVisibility :* Nil)
+    :* mkFeatureWithLock Nothing (row.validateSamlEmails :* Nil)
+    :* mkFeatureWithLock Nothing (row.digitalSignatures :* Nil)
+    :* mkFeatureWithLock Nothing (row.appLock :* row.appLockEnforce :* row.appLockInactivityTimeoutSecs :* Nil)
+    :* mkFeatureWithLock row.fileSharingLock (row.fileSharing :* Nil)
+    :* mkFeatureWithLock Nothing Nil
+    :* mkFeatureWithLock row.conferenceCallingLock (row.conferenceCalling :* row.conferenceCallingOne2One :* Nil)
+    :* mkFeatureWithLock row.selfDeletingMessagesLock (row.selfDeletingMessages :* row.selfDeletingMessagesTtl :* Nil)
+    :* mkFeatureWithLock row.guestLinksLock (row.guestLinks :* Nil)
+    :* mkFeatureWithLock row.sndFactorLock (row.sndFactor :* Nil)
+    :* mkFeatureWithLock row.mlsLock (row.mls :* row.mlsDefaultProtocol :* row.mlsToggleUsers :* row.mlsAllowedCipherSuites :* row.mlsDefaultCipherSuite :* row.mlsSupportedProtocols :* Nil)
+    :* mkFeatureWithLock Nothing (row.exposeInvitationUrls :* Nil)
+    :* mkFeatureWithLock row.outlookCalIntegrationLock (row.outlookCalIntegration :* Nil)
+    :* mkFeatureWithLock row.mlsE2eidLock (row.mlsE2eid :* row.mlsE2eidGracePeriod :* row.mlsE2eidAcmeDiscoverUrl :* row.mlsE2eidMaybeCrlProxy :* row.mlsE2eidMaybeUseProxyOnMobile :* Nil)
+    :* mkFeatureWithLock row.mlsMigrationLock (row.mlsMigration :* row.mlsMigrationStartTime :* row.mlsMigrationFinalizeRegardlessAfter :* Nil)
+    :* mkFeatureWithLock row.enforceDownloadLocationLock (row.enforceDownloadLocation :* row.enforceDownloadLocation_Location :* Nil)
+    :* mkFeatureWithLock Nothing (row.limitEventFanout :* Nil)
+    :* Nil
 
 getAllFeatureConfigs :: (MonadClient m) => TeamId -> m (AllFeatures DbFeatureWithLock)
 getAllFeatureConfigs tid = do

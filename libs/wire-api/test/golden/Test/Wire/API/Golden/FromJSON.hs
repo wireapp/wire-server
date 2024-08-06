@@ -21,11 +21,11 @@ import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Wire.API.Golden.Generated.Invite_user (testObject_Invite_user_2)
+import Test.Wire.API.Golden.Generated.LockableFeature_team
 import Test.Wire.API.Golden.Generated.MemberUpdateData_user
 import Test.Wire.API.Golden.Generated.NewOtrMessage_user
 import Test.Wire.API.Golden.Generated.RmClient_user
 import Test.Wire.API.Golden.Generated.SimpleMember_user
-import Test.Wire.API.Golden.Generated.LockableFeature_team
 import Test.Wire.API.Golden.Runner
 import Wire.API.Conversation (Conversation, MemberUpdate, OtherMemberUpdate)
 import Wire.API.User (NewUser, NewUserPublic)
