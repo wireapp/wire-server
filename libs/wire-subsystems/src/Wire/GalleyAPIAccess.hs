@@ -22,6 +22,8 @@ import Data.Currency qualified as Currency
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
 import Data.Qualified
+import Data.Schema
+import GHC.TypeLits
 import Imports
 import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
@@ -108,6 +110,14 @@ data GalleyAPIAccess m a where
   GetAllFeatureConfigsForUser ::
     Maybe UserId ->
     GalleyAPIAccess m AllFeatureConfigs
+  GetFeatureConfigForTeam ::
+    ( IsFeatureConfig feature,
+      Typeable feature,
+      ToSchema feature,
+      KnownSymbol (FeatureSymbol feature)
+    ) =>
+    TeamId ->
+    GalleyAPIAccess m (WithStatus feature)
   GetVerificationCodeEnabled ::
     TeamId ->
     GalleyAPIAccess m Bool

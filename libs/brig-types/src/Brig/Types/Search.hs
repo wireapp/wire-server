@@ -56,16 +56,6 @@ data TeamSearchInfo
   | -- | No search restrictions, all users are searched
     AllUsers
 
--- | Inbound search restrictions configured by team to-be-searched. Affects only
--- full-text search (i.e. search on the display name and the handle), not exact
--- handle search.
-data SearchVisibilityInbound
-  = -- | The user can only be found by users from the same team
-    SearchableByOwnTeam
-  | -- | The user can by found by any user of any team
-    SearchableByAllTeams
-  deriving (Eq, Show)
-
 instance Arbitrary SearchVisibilityInbound where
   arbitrary = elements [SearchableByOwnTeam, SearchableByAllTeams]
 

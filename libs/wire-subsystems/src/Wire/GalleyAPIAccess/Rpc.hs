@@ -25,7 +25,10 @@ import Data.Coerce (coerce)
 import Data.Currency qualified as Currency
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
+import Data.Proxy
 import Data.Qualified
+import Data.Schema (ToSchema)
+import GHC.TypeLits
 import Imports
 import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Types qualified as HTTP
@@ -80,6 +83,7 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           GetTeamName id' -> getTeamName id'
           GetTeamLegalHoldStatus id' -> getTeamLegalHoldStatus id'
           GetTeamSearchVisibility id' -> getTeamSearchVisibility id'
+          GetFeatureConfigForTeam tid -> getFeatureConfigForTeam tid
           ChangeTeamStatus id' ts m_al -> changeTeamStatus id' ts m_al
           MemberIsTeamOwner id' id'' -> memberIsTeamOwner id' id''
           GetAllFeatureConfigsForUser m_id' -> getAllFeatureConfigsForUser m_id'
@@ -430,6 +434,27 @@ getTeamSearchVisibility tid =
     req =
       method GET
         . paths ["i", "teams", toByteString' tid, "search-visibility"]
+        . expect2xx
+
+getFeatureConfigForTeam ::
+  forall feature r.
+  ( IsFeatureConfig feature,
+    Typeable feature,
+    ToSchema feature,
+    KnownSymbol (FeatureSymbol feature),
+    Member TinyLog r,
+    Member Rpc r,
+    Member (Error ParseException) r
+  ) =>
+  TeamId ->
+  Sem (Input Endpoint : r) (WithStatus feature)
+getFeatureConfigForTeam tid = do
+  debug $ remote "galley" . msg (val "Get feature config for team")
+  galleyRequest req >>= decodeBodyOrThrow "galley"
+  where
+    req =
+      method GET
+        . paths ["i", "teams", toByteString' tid, "features", toByteString' $ symbolVal @(FeatureSymbol feature) Proxy]
         . expect2xx
 
 getVerificationCodeEnabled ::

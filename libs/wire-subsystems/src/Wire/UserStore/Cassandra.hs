@@ -11,6 +11,7 @@ import Polysemy.Error
 import Wire.API.User hiding (DeleteUser)
 import Wire.StoredUser
 import Wire.UserStore
+import Wire.UserStore.IndexUser hiding (userId)
 import Wire.UserStore.Unique
 
 interpretUserStoreCassandra :: (Member (Embed IO) r) => ClientState -> InterpreterFor UserStore r
@@ -18,6 +19,7 @@ interpretUserStoreCassandra casClient =
   interpret $
     runEmbedded (runClient casClient) . embed . \case
       GetUser uid -> getUserImpl uid
+      GetIndexUser uid -> getIndexUserImpl uid
       UpdateUser uid update -> updateUserImpl uid update
       UpdateUserHandleEither uid update -> updateUserHandleEitherImpl uid update
       DeleteUser user -> deleteUserImpl user
@@ -31,6 +33,28 @@ getUserImpl :: UserId -> Client (Maybe StoredUser)
 getUserImpl uid = do
   mUserTuple <- retry x1 $ query1 selectUser (params LocalQuorum (Identity uid))
   pure $ asRecord <$> mUserTuple
+
+getIndexUserImpl :: UserId -> Client (Maybe IndexUser)
+getIndexUserImpl u = do
+  mIndexUserTuple <- retry x1 $ query1 cql (params LocalQuorum (Identity u))
+  pure $ asRecord <$> mIndexUserTuple
+  where
+    cql :: PrepQuery R (Identity UserId) (TupleType IndexUser)
+    cql =
+      "SELECT \
+      \id, team, \
+      \name, writetime(name), \
+      \status, writetime(status), \
+      \handle, writetime(handle), \
+      \email, writetime(email), \
+      \accent_id, writetime(accent_id), \
+      \activated, writetime(activated), \
+      \service, writetime(service), \
+      \managed_by, writetime(managed_by), \
+      \sso_id, writetime(sso_id), \
+      \email_unvalidated, writetime(email_unvalidated) \
+      \FROM user \
+      \WHERE id = ?"
 
 updateUserImpl :: UserId -> StoredUserUpdate -> Client ()
 updateUserImpl uid update =
