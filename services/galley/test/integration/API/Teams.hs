@@ -427,8 +427,7 @@ testEnableTeamSearchVisibilityPerTeam = do
   (tid, owner, member : _) <- Util.createBindingTeamWithMembers 2
   let check :: String -> Public.FeatureStatus -> TestM ()
       check msg enabledness = do
-        g <- viewGalley
-        status :: Public.WithStatusNoLock Public.SearchVisibilityAvailableConfig <- responseJsonUnsafe <$> (Util.getTeamSearchVisibilityAvailableInternal g tid <!! testResponse 200 Nothing)
+        status :: Public.WithStatusNoLock Public.SearchVisibilityAvailableConfig <- responseJsonUnsafe <$> (Util.getTeamFeatureInternal @Public.SearchVisibilityAvailableConfig tid <!! testResponse 200 Nothing)
         let statusValue = Public.wssStatus status
 
         liftIO $ assertEqual msg enabledness statusValue
@@ -456,7 +455,7 @@ testEnableTeamSearchVisibilityPerTeam = do
     putSearchVisibilityCheckNotAllowed
 
   g <- viewGalley
-  Util.putTeamSearchVisibilityAvailableInternal g tid Public.FeatureStatusEnabled
+  Util.putTeamSearchVisibilityAvailableInternal tid Public.FeatureStatusEnabled
   -- Nothing was set, default value
   getSearchVisibilityCheck SearchVisibilityStandard
   putSearchVisibility g owner tid SearchVisibilityNoNameOutsideTeam !!! testResponse 204 Nothing
@@ -467,7 +466,7 @@ testEnableTeamSearchVisibilityPerTeam = do
   -- Members can also see it?
   getSearchVisibility g member tid !!! testResponse 200 Nothing
   -- Once we disable the feature, team setting is back to the default value
-  Util.putTeamSearchVisibilityAvailableInternal g tid Public.FeatureStatusDisabled
+  Util.putTeamSearchVisibilityAvailableInternal tid Public.FeatureStatusDisabled
   getSearchVisibilityCheck SearchVisibilityStandard
 
 testCreateOne2OneFailForNonTeamMembers :: TestM ()
@@ -1737,16 +1736,16 @@ newTeamMember' :: Permissions -> UserId -> TeamMember
 newTeamMember' perms uid = Member.mkTeamMember uid perms Nothing LH.defUserLegalHoldStatus
 
 -- NOTE: all client functions calling @{/i,}/teams/*/features/*@ can be replaced by
--- hypothetical functions 'getTeamFeatureFlag', 'getTeamFeatureFlagInternal',
--- 'putTeamFeatureFlagInternal'.  Since these functions all work in slightly different monads
+-- hypothetical functions 'getTeamFeature', 'getTeamFeatureInternal',
+-- 'putTeamFeatureInternal'.  Since these functions all work in slightly different monads
 -- and with different kinds of internal checks, it's quite tedious to do so.
 
 getSSOEnabledInternal :: HasCallStack => TeamId -> TestM ResponseLBS
-getSSOEnabledInternal = Util.getTeamFeatureFlagInternal @Public.SSOConfig
+getSSOEnabledInternal = Util.getTeamFeatureInternal @Public.SSOConfig
 
 putSSOEnabledInternal :: HasCallStack => TeamId -> Public.FeatureStatus -> TestM ()
 putSSOEnabledInternal tid statusValue =
-  void $ Util.putTeamFeatureFlagInternal @Public.SSOConfig expect2xx tid (Public.WithStatusNoLock statusValue Public.SSOConfig Public.FeatureTTLUnlimited)
+  void $ Util.putTeamFeatureInternal @Public.SSOConfig expect2xx tid (Public.WithStatusNoLock statusValue Public.SSOConfig Public.FeatureTTLUnlimited)
 
 getSearchVisibility :: HasCallStack => (Request -> Request) -> UserId -> TeamId -> MonadHttp m => m ResponseLBS
 getSearchVisibility g uid tid = do

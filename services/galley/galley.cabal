@@ -139,6 +139,7 @@ library
     Galley.Cassandra.Conversation.MLS
     Galley.Cassandra.ConversationList
     Galley.Cassandra.CustomBackend
+    Galley.Cassandra.GetAllTeamFeatureConfigs
     Galley.Cassandra.Instances
     Galley.Cassandra.LegalHold
     Galley.Cassandra.Proposal
@@ -307,6 +308,7 @@ library
     , cereal                 >=0.4
     , comonad
     , containers             >=0.5
+    , cql
     , crypton
     , crypton-x509
     , currency-codes         >=2.0

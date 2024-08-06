@@ -18,6 +18,7 @@
 module Galley.Cassandra.TeamFeatures
   ( interpretTeamFeatureStoreToCassandra,
     getFeatureConfigMulti,
+    getAllFeatureConfigsForServer,
   )
 where
 
@@ -27,10 +28,15 @@ import Control.Monad.Trans.Maybe
 import Data.Id
 import Data.Misc (HttpsUrl)
 import Data.Time
+import Galley.API.Teams.Features.Get
+import Galley.Cassandra.GetAllTeamFeatureConfigs
 import Galley.Cassandra.Instances ()
 import Galley.Cassandra.Store
 import Galley.Cassandra.Util
+import Galley.Effects (LegalHoldStore)
+import Galley.Effects.LegalHoldStore qualified as LH
 import Galley.Effects.TeamFeatureStore qualified as TFS
+import Galley.Types.Teams (FeatureLegalHold)
 import Imports
 import Polysemy
 import Polysemy.Input
@@ -43,6 +49,9 @@ import Wire.API.Team.Feature
 interpretTeamFeatureStoreToCassandra ::
   ( Member (Embed IO) r,
     Member (Input ClientState) r,
+    Member (Input AllFeatureConfigs) r,
+    Member (Input (Maybe [TeamId], FeatureLegalHold)) r,
+    Member LegalHoldStore r,
     Member TinyLog r
   ) =>
   Sem (TFS.TeamFeatureStore ': r) a ->
@@ -63,6 +72,18 @@ interpretTeamFeatureStoreToCassandra = interpret $ \case
   TFS.SetFeatureLockStatus sing tid ls -> do
     logEffect "TeamFeatureStore.SetFeatureLockStatus"
     embedClient $ setFeatureLockStatus sing tid ls
+  TFS.GetAllFeatureConfigs tid -> do
+    logEffect "TeamFeatureStore.GetAllFeatureConfigs"
+    serverConfigs <- input
+    (allowListForExposeInvitationURLs, featureLH) <- input
+    hasTeamImplicitLegalhold <- LH.isTeamLegalholdWhitelisted tid
+    embedClient $
+      getAllFeatureConfigs
+        allowListForExposeInvitationURLs
+        featureLH
+        hasTeamImplicitLegalhold
+        serverConfigs
+        tid
 
 getFeatureConfig :: MonadClient m => FeatureSingleton cfg -> TeamId -> m (Maybe (WithStatusNoLock cfg))
 getFeatureConfig FeatureSingletonLegalholdConfig tid = getTrivialConfigC "legalhold_status" tid
@@ -79,6 +100,8 @@ getFeatureConfig FeatureSingletonAppLockConfig tid = runMaybeT $ do
     WithStatusNoLock
       <$> mStatus
       <*> (AppLockConfig <$> mEnforce <*> mTimeout)
+      -- FUTUREWORK: the above line is duplicated in
+      -- "Galley.Cassandra.GetAllTeamFeatureConfigs"; make sure the two don't diverge!
       <*> Just FeatureTTLUnlimited
   where
     select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe EnforceAppLock, Maybe Int32)
@@ -94,6 +117,8 @@ getFeatureConfig FeatureSingletonSelfDeletingMessagesConfig tid = runMaybeT $ do
     WithStatusNoLock
       <$> mEnabled
       <*> fmap SelfDeletingMessagesConfig mTimeout
+      -- FUTUREWORK: the above line is duplicated in
+      -- "Galley.Cassandra.GetAllTeamFeatureConfigs"; make sure the two don't diverge!
       <*> Just FeatureTTLUnlimited
   where
     select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe Int32)
@@ -105,7 +130,12 @@ getFeatureConfig FeatureSingletonConferenceCallingConfig tid = do
   retry x1 q <&> \case
     Nothing -> Nothing
     Just (Nothing, _) -> Nothing
-    Just (Just status, mTtl) -> Just . forgetLock . setStatus status . setWsTTL (fromMaybe FeatureTTLUnlimited mTtl) $ defFeatureStatus
+    Just (Just status, mTtl) ->
+      Just
+        . forgetLock
+        . setStatus status
+        . setWsTTL (fromMaybe FeatureTTLUnlimited mTtl)
+        $ defFeatureStatus
   where
     select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe FeatureTTL)
     select =
@@ -121,7 +151,9 @@ getFeatureConfig FeatureSingletonMLSConfig tid = do
     Just (status, defaultProtocol, protocolToggleUsers, allowedCipherSuites, defaultCipherSuite, supportedProtocols) ->
       WithStatusNoLock
         <$> status
-        <*> ( MLSConfig
+        <*> ( -- FUTUREWORK: this block is duplicated in
+              -- "Galley.Cassandra.GetAllTeamFeatureConfigs"; make sure the two don't diverge!
+              MLSConfig
                 <$> maybe (Just []) (Just . C.fromSet) protocolToggleUsers
                 <*> defaultProtocol
                 <*> maybe (Just []) (Just . C.fromSet) allowedCipherSuites
@@ -163,6 +195,8 @@ getFeatureConfig FeatureSingletonMlsMigration tid = do
       Just $
         WithStatusNoLock
           fs
+          -- FUTUREWORK: the following expression is duplicated in
+          -- "Galley.Cassandra.GetAllTeamFeatureConfigs"; make sure the two don't diverge!
           MlsMigrationConfig
             { startTime = startTime,
               finaliseRegardlessAfter = finaliseRegardlessAfter
