@@ -26,7 +26,7 @@ class MakeFeature cfg where
   type FeatureRow cfg :: [Type]
   type FeatureRow cfg = '[FeatureStatus]
 
-  featureColumns :: String
+  featureColumns :: NP (K String) (FeatureRow cfg)
   lockStatusColumn :: Maybe String
   lockStatusColumn = Nothing
 
@@ -52,26 +52,26 @@ mkFeatureWithLock ::
 mkFeatureWithLock lockStatus row = DbFeatureWithLock lockStatus (mkFeature row)
 
 instance MakeFeature LegalholdConfig where
-  featureColumns = "legalhold_status"
+  featureColumns = K "legalhold_status" :* Nil
 
 instance MakeFeature SSOConfig where
-  featureColumns = "sso_status"
+  featureColumns = K "sso_status" :* Nil
 
 instance MakeFeature SearchVisibilityAvailableConfig where
-  featureColumns = "search_visibility_status"
+  featureColumns = K "search_visibility_status" :* Nil
 
 instance MakeFeature SearchVisibilityInboundConfig where
-  featureColumns = "search_visibility_status"
+  featureColumns = K "search_visibility_status" :* Nil
 
 instance MakeFeature ValidateSAMLEmailsConfig where
-  featureColumns = "validate_saml_emails"
+  featureColumns = K "validate_saml_emails" :* Nil
 
 instance MakeFeature DigitalSignaturesConfig where
-  featureColumns = "digital_signatures"
+  featureColumns = K "digital_signatures" :* Nil
 
 instance MakeFeature AppLockConfig where
   type FeatureRow AppLockConfig = '[FeatureStatus, EnforceAppLock, Int32]
-  featureColumns = "app_lock_status, app_lock_enforce, app_lock_inactivity_timeout_secs"
+  featureColumns = K "app_lock_status" :* K "app_lock_enforce" :* K "app_lock_inactivity_timeout_secs" :* Nil
 
   mkFeature (status :* enforce :* timeout :* Nil) =
     foldMap dbFeatureStatus status
@@ -84,15 +84,19 @@ instance MakeFeature AppLockConfig where
       :* Nil
 
 instance MakeFeature ClassifiedDomainsConfig where
-  featureColumns = ""
+  type FeatureRow ClassifiedDomainsConfig = '[]
+  featureColumns = Nil
+
+  mkFeature Nil = mempty
+  unmkFeature _ = Nil
 
 instance MakeFeature FileSharingConfig where
-  featureColumns = "file_sharing"
+  featureColumns = K "file_sharing" :* Nil
   lockStatusColumn = Just "file_sharing_lock_status"
 
 instance MakeFeature ConferenceCallingConfig where
   type FeatureRow ConferenceCallingConfig = '[FeatureStatus, One2OneCalls]
-  featureColumns = "conference_calling_status, conference_calling_one_to_one"
+  featureColumns = K "conference_calling_status" :* K "conference_calling_one_to_one" :* Nil
   lockStatusColumn = Just "conference_calling"
 
   mkFeature (status :* calls :* Nil) =
@@ -106,7 +110,7 @@ instance MakeFeature ConferenceCallingConfig where
 
 instance MakeFeature SelfDeletingMessagesConfig where
   type FeatureRow SelfDeletingMessagesConfig = '[FeatureStatus, Int32]
-  featureColumns = "self_deleting_messages_status, self_deleting_messages_ttl"
+  featureColumns = K "self_deleting_messages_status" :* K "self_deleting_messages_ttl" :* Nil
   lockStatusColumn = Just "self_deleting_messages_lock_status"
 
   mkFeature (status :* ttl :* Nil) =
@@ -119,18 +123,18 @@ instance MakeFeature SelfDeletingMessagesConfig where
       :* Nil
 
 instance MakeFeature GuestLinksConfig where
-  featureColumns = "guest_links_status"
+  featureColumns = K "guest_links_status" :* Nil
   lockStatusColumn = Just "guest_links_lock_status"
 
 instance MakeFeature SndFactorPasswordChallengeConfig where
-  featureColumns = "snd_factor_password_challenge_status"
+  featureColumns = K "snd_factor_password_challenge_status" :* Nil
   lockStatusColumn = Just "snd_factor_password_challenge_lock_status"
 
 instance MakeFeature ExposeInvitationURLsToTeamAdminConfig where
-  featureColumns = "expose_invitation_urls_to_team_admin"
+  featureColumns = K "expose_invitation_urls_to_team_admin" :* Nil
 
 instance MakeFeature OutlookCalIntegrationConfig where
-  featureColumns = "outlook_cal_integration_status"
+  featureColumns = K "outlook_cal_integration_status" :* Nil
   lockStatusColumn = Just "outlook_cal_integration_lock_status"
 
 instance MakeFeature MLSConfig where
@@ -144,7 +148,13 @@ instance MakeFeature MLSConfig where
          (C.Set ProtocolTag)
        ]
   featureColumns =
-    "mls_status, mls_default_protocol, mls_protocol_toggle_users, mls_allowed_ciphersuites, mls_default_ciphersuite, mls_supported_protocols"
+    K "mls_status"
+      :* K "mls_default_protocol"
+      :* K "mls_protocol_toggle_users"
+      :* K "mls_allowed_ciphersuites"
+      :* K "mls_default_ciphersuite"
+      :* K "mls_supported_protocols"
+      :* Nil
   lockStatusColumn = Just "mls_lock_status"
 
   mkFeature
@@ -185,7 +195,12 @@ instance MakeFeature MlsE2EIdConfig where
          Bool
        ]
   featureColumns =
-    "mls_e2eid_status, mls_e2eid_grace_period, mls_e2eid_acme_discovery_url, mls_e2eid_crl_proxy, mls_e2eid_use_proxy_on_mobile"
+    K "mls_e2eid_status"
+      :* K "mls_e2eid_grace_period"
+      :* K "mls_e2eid_acme_discovery_url"
+      :* K "mls_e2eid_crl_proxy"
+      :* K "mls_e2eid_use_proxy_on_mobile"
+      :* Nil
   lockStatusColumn = Just "mls_e2eid_lock_status"
 
   mkFeature (status :* gracePeriod :* acmeDiscoveryUrl :* crlProxy :* useProxyOnMobile :* Nil) =
@@ -215,7 +230,10 @@ instance MakeFeature MlsMigrationConfig where
       '[FeatureStatus, UTCTime, UTCTime]
 
   featureColumns =
-    "mls_migration_status, mls_migration_start_time, mls_migration_finalise_regardless_after"
+    K "mls_migration_status"
+      :* K "mls_migration_start_time"
+      :* K "mls_migration_finalise_regardless_after"
+      :* Nil
   lockStatusColumn = Just "mls_migration_lock_status"
 
   mkFeature (status :* startTime :* finalizeAfter :* Nil) =
@@ -231,7 +249,10 @@ instance MakeFeature MlsMigrationConfig where
 instance MakeFeature EnforceFileDownloadLocationConfig where
   type FeatureRow EnforceFileDownloadLocationConfig = '[FeatureStatus, Text]
 
-  featureColumns = "enforce_file_download_location_status, enforce_file_download_location"
+  featureColumns =
+    K "enforce_file_download_location_status"
+      :* K "enforce_file_download_location"
+      :* Nil
   lockStatusColumn = Just "enforce_file_download_location_lock_status"
 
   mkFeature (status :* location :* Nil) =
@@ -240,7 +261,7 @@ instance MakeFeature EnforceFileDownloadLocationConfig where
   unmkFeature feat = Just feat.status :* feat.config.enforcedDownloadLocation :* Nil
 
 instance MakeFeature LimitedEventFanoutConfig where
-  featureColumns = "limited_event_fanout_status"
+  featureColumns = K "limited_event_fanout_status" :* Nil
 
 fetchFeature ::
   forall cfg m row mrow.
@@ -259,7 +280,7 @@ fetchFeature tid = do
   where
     selectQ =
       "select "
-        <> featureColumns @cfg
+        <> intercalate ", " (hcollapse (featureColumns @cfg))
         <> " from team_features where team_id = ?"
     select :: PrepQuery R (Identity TeamId) (TupleP mrow)
     select = fromString selectQ
@@ -287,7 +308,7 @@ storeFeature tid feat = do
     insert =
       fromString $
         "insert into team_features (team_id, "
-          <> featureColumns @cfg
+          <> intercalate ", " (hcollapse (featureColumns @cfg))
           <> ") values ("
           <> intercalate "," (replicate (succ n) "?")
           <> ")"

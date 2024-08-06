@@ -149,7 +149,7 @@ allFeatureConfigsFromRow row =
           Nothing
           (row.appLock :* row.appLockEnforce :* row.appLockInactivityTimeoutSecs :* Nil),
       afcFileSharing = mkFeatureWithLock row.fileSharingLock (row.fileSharing :* Nil),
-      afcClassifiedDomains = mkFeatureWithLock Nothing (Nothing :* Nil),
+      afcClassifiedDomains = mkFeatureWithLock Nothing Nil,
       afcConferenceCalling =
         mkFeatureWithLock
           row.conferenceCallingLock
