@@ -115,3 +115,6 @@ readinessProbe:
   timeoutSeconds: 5
   failureThreshold: 5
 
+service:
+  # Kubernetes annotations to be set at the Service
+  annotations: {}
