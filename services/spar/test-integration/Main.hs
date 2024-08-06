@@ -29,7 +29,6 @@
 -- the solution: https://github.com/hspec/hspec/pull/397.
 module Main where
 
-import Control.Concurrent.Async
 import Control.Lens ((.~), (^.))
 import Data.Text (pack)
 import Imports
@@ -38,10 +37,8 @@ import Spar.Run (mkApp)
 import System.Environment (withArgs)
 import System.Random (randomRIO)
 import Test.Hspec
-import Test.Hspec.Core.Format
-import Test.Hspec.Core.Runner
 import Test.Hspec.JUnit.Config.Env
-import Test.Hspec.JUnit.Formatter as JUnit
+import Test.Hspec.JUnit.Formatter
 import qualified Test.LoggingSpec
 import qualified Test.MetricsSpec
 import qualified Test.Spar.APISpec
@@ -58,32 +55,14 @@ main :: IO ()
 main = do
   (wireArgs, hspecArgs) <- partitionArgs <$> getArgs
   let env = withArgs wireArgs mkEnvFromOptions
-  cfg <- hspecConfig
-  withArgs hspecArgs . hspecWith cfg $ do
+  junitConfig <- envJUnitConfig
+  withArgs hspecArgs . hspec . add junitConfig $ do
     for_ [minBound ..] $ \idpApiVersion -> do
       describe (show idpApiVersion) . beforeAll (env <&> teWireIdPAPIVersion .~ idpApiVersion) . afterAll destroyEnv $ do
         mkspecMisc
         mkspecSaml
         mkspecScim
     mkspecHscimAcceptance env destroyEnv
-
-hspecConfig :: IO Config
-hspecConfig = do
-  junitConfig <- envJUnitConfig
-  pure $
-    defaultConfig
-      { configAvailableFormatters =
-          ("junit", checksAndJUnitFormatter junitConfig)
-            : configAvailableFormatters defaultConfig
-      }
-  where
-    checksAndJUnitFormatter :: JUnitConfig -> JUnit.FormatConfig -> IO JUnit.Format
-    checksAndJUnitFormatter junitConfig config = do
-      junit <- junitFormat junitConfig config
-      let checksFormatter = fromJust (lookup "checks" $ configAvailableFormatters defaultConfig)
-      checks <- checksFormatter config
-      pure $ \event -> do
-        concurrently_ (junit event) (checks event)
 
 partitionArgs :: [String] -> ([String], [String])
 partitionArgs = go [] []

@@ -355,6 +355,7 @@ executable spar-integration
     , hscim
     , HsOpenSSL
     , hspec
+    , hspec-api
     , hspec-core
     , hspec-junit-formatter
     , hspec-wai

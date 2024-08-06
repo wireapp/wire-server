@@ -15,12 +15,8 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Main
-  ( main,
-  )
-where
+module Main (main) where
 
-import Control.Concurrent.Async
 import Imports
 import OpenSSL (withOpenSSL)
 import System.Environment (withArgs)
@@ -28,10 +24,8 @@ import Test.Federator.IngressSpec qualified
 import Test.Federator.InwardSpec qualified
 import Test.Federator.Util (TestEnv, mkEnvFromOptions)
 import Test.Hspec
-import Test.Hspec.Core.Format
 import Test.Hspec.JUnit.Config.Env
 import Test.Hspec.JUnit.Formatter
-import Test.Hspec.Runner
 
 main :: IO ()
 main = withOpenSSL $ do
@@ -39,26 +33,8 @@ main = withOpenSSL $ do
   env <- withArgs wireArgs mkEnvFromOptions
   -- withArgs hspecArgs . hspec $ do
   --   beforeAll (pure env) . afterAll destroyEnv $ Hspec.mkspec
-  cfg <- hspecConfig
-  withArgs hspecArgs . hspecWith cfg $ mkspec env
-
-hspecConfig :: IO Config
-hspecConfig = do
   junitConfig <- envJUnitConfig
-  pure $
-    defaultConfig
-      { configAvailableFormatters =
-          ("junit", checksAndJUnitFormatter junitConfig)
-            : configAvailableFormatters defaultConfig
-      }
-  where
-    checksAndJUnitFormatter :: JUnitConfig -> FormatConfig -> IO Format
-    checksAndJUnitFormatter junitConfig config = do
-      junit <- junitFormat junitConfig config
-      let checksFormatter = fromJust (lookup "checks" $ configAvailableFormatters defaultConfig)
-      checks <- checksFormatter config
-      pure $ \event -> do
-        concurrently_ (junit event) (checks event)
+  withArgs hspecArgs . hspec . add junitConfig $ mkspec env
 
 partitionArgs :: [String] -> ([String], [String])
 partitionArgs = go [] []
