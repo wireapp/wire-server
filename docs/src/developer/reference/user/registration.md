@@ -72,6 +72,48 @@ If the code is incorrect or if an incorrect code has been tried enough times, th
 }
 ```
 
+## Registration without pre-verification
+(RefRegistrationNoPreverification)=
+
+_NOTE: This flow is currently not used by any clients. At least this was the state on 2020-05-28_
+
+It is also possible to call `POST /register` without verifying the email
+address, in which case the account will have to be activated later by calling
+[`POST /activate`](RefActivationSubmit). Sample API request and response:
+
+```
+POST /register
+
+{
+    // The name is mandatory
+    "name": "Pink",
+
+    // 'email'  has to be provided
+    "email": "pink@example.com",
+
+    // The password is optional
+    "password": "secret"
+}
+```
+
+```
+201 Created
+Set-Cookie: zuid=...
+
+{
+    "accent_id": 0,
+    "assets": [],
+    "email": "pink@example.com",
+    "id": "c193136a-55fb-4534-ad72-d02a72bb16af",
+    "locale": "en",
+    "managed_by": "wire",
+    "name": "Pink",
+    "picture": []
+}
+```
+
+A verification email will be sent to the email address (if provided).
+
 ## Anonymous registration, aka "Wireless"
 (RefRegistrationWireless)=
 
