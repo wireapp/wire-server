@@ -24,15 +24,15 @@ testFeatureConferenceCallingForUser = do
 
   -- set user value for both users
   for_ [alice, bob] $ \u -> do
-    void
-      $ I.putFeatureForUser
+    void $
+      I.putFeatureForUser
         u
         featureName
         ( object
             [ "status" .= "disabled"
             ]
         )
-      >>= getBody 200
+        >>= getBody 200
     I.getFeatureForUser u featureName `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
       config <- resp.json

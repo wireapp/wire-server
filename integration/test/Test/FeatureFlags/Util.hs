@@ -106,10 +106,10 @@ instance Default ConfCalling where
 
 confCalling :: ConfCalling -> Value
 confCalling args =
-  object
-    $ ["lockStatus" .= s | s <- toList args.lockStatus]
-    <> ["ttl" .= "unlimited"]
-    <> [ "status" .= args.status,
-         "config"
-           .= object ["useSFTForOneToOneCalls" .= args.sft]
-       ]
+  object $
+    ["lockStatus" .= s | s <- toList args.lockStatus]
+      <> ["ttl" .= "unlimited"]
+      <> [ "status" .= args.status,
+           "config"
+             .= object ["useSFTForOneToOneCalls" .= args.sft]
+         ]
