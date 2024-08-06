@@ -327,15 +327,15 @@ fetchFeatureLockStatus ::
   forall cfg m.
   (MakeFeature cfg, MonadClient m) =>
   TeamId ->
-  m (Maybe LockStatus)
+  m (Tagged cfg (Maybe LockStatus))
 fetchFeatureLockStatus tid = do
   case lockStatusColumn @cfg of
-    Nothing -> pure Nothing
+    Nothing -> pure (Tagged Nothing)
     Just col -> do
       let select :: PrepQuery R (Identity TeamId) (Identity (Maybe LockStatus))
           select = fromString $ "select " <> col <> " from team_features where team_id = ?"
       row <- retry x1 $ query1 select (params LocalQuorum (Identity tid))
-      pure $ join $ fmap runIdentity row
+      pure . Tagged . join . fmap runIdentity $ row
 
 -- | This is necessary in order to convert an @NP f xs@ type to something that
 -- CQL can understand.
