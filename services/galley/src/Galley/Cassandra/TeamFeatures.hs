@@ -66,61 +66,70 @@ interpretTeamFeatureStoreToCassandra = interpret $ \case
     embedClient $ getAllFeatureConfigs tid
 
 getFeatureConfig :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> m (DbFeature cfg)
-getFeatureConfig FeatureSingletonLegalholdConfig = getFeature
-getFeatureConfig FeatureSingletonSSOConfig = getFeature
-getFeatureConfig FeatureSingletonSearchVisibilityAvailableConfig = getFeature
-getFeatureConfig FeatureSingletonValidateSAMLEmailsConfig = getFeature
+getFeatureConfig FeatureSingletonLegalholdConfig = fetchFeature
+getFeatureConfig FeatureSingletonSSOConfig = fetchFeature
+getFeatureConfig FeatureSingletonSearchVisibilityAvailableConfig = fetchFeature
+getFeatureConfig FeatureSingletonValidateSAMLEmailsConfig = fetchFeature
 getFeatureConfig FeatureSingletonClassifiedDomainsConfig = const (pure mempty)
-getFeatureConfig FeatureSingletonDigitalSignaturesConfig = getFeature
-getFeatureConfig FeatureSingletonAppLockConfig = getFeature
-getFeatureConfig FeatureSingletonFileSharingConfig = getFeature
-getFeatureConfig FeatureSingletonSelfDeletingMessagesConfig = getFeature
-getFeatureConfig FeatureSingletonConferenceCallingConfig = getFeature
-getFeatureConfig FeatureSingletonGuestLinksConfig = getFeature
-getFeatureConfig FeatureSingletonSndFactorPasswordChallengeConfig = getFeature
-getFeatureConfig FeatureSingletonSearchVisibilityInboundConfig = getFeature
-getFeatureConfig FeatureSingletonMLSConfig = getFeature
-getFeatureConfig FeatureSingletonMlsE2EIdConfig = getFeature
-getFeatureConfig FeatureSingletonMlsMigration = getFeature
-getFeatureConfig FeatureSingletonExposeInvitationURLsToTeamAdminConfig = getFeature
-getFeatureConfig FeatureSingletonOutlookCalIntegrationConfig = getFeature
-getFeatureConfig FeatureSingletonEnforceFileDownloadLocationConfig = getFeature
-getFeatureConfig FeatureSingletonLimitedEventFanoutConfig = getFeature
+getFeatureConfig FeatureSingletonDigitalSignaturesConfig = fetchFeature
+getFeatureConfig FeatureSingletonAppLockConfig = fetchFeature
+getFeatureConfig FeatureSingletonFileSharingConfig = fetchFeature
+getFeatureConfig FeatureSingletonSelfDeletingMessagesConfig = fetchFeature
+getFeatureConfig FeatureSingletonConferenceCallingConfig = fetchFeature
+getFeatureConfig FeatureSingletonGuestLinksConfig = fetchFeature
+getFeatureConfig FeatureSingletonSndFactorPasswordChallengeConfig = fetchFeature
+getFeatureConfig FeatureSingletonSearchVisibilityInboundConfig = fetchFeature
+getFeatureConfig FeatureSingletonMLSConfig = fetchFeature
+getFeatureConfig FeatureSingletonMlsE2EIdConfig = fetchFeature
+getFeatureConfig FeatureSingletonMlsMigration = fetchFeature
+getFeatureConfig FeatureSingletonExposeInvitationURLsToTeamAdminConfig = fetchFeature
+getFeatureConfig FeatureSingletonOutlookCalIntegrationConfig = fetchFeature
+getFeatureConfig FeatureSingletonEnforceFileDownloadLocationConfig = fetchFeature
+getFeatureConfig FeatureSingletonLimitedEventFanoutConfig = fetchFeature
 
 setFeatureConfig :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> Feature cfg -> m ()
-setFeatureConfig FeatureSingletonLegalholdConfig = setFeature
-setFeatureConfig FeatureSingletonSSOConfig = setFeature
-setFeatureConfig FeatureSingletonSearchVisibilityAvailableConfig = setFeature
-setFeatureConfig FeatureSingletonValidateSAMLEmailsConfig = setFeature
+setFeatureConfig FeatureSingletonLegalholdConfig = storeFeature
+setFeatureConfig FeatureSingletonSSOConfig = storeFeature
+setFeatureConfig FeatureSingletonSearchVisibilityAvailableConfig = storeFeature
+setFeatureConfig FeatureSingletonValidateSAMLEmailsConfig = storeFeature
 setFeatureConfig FeatureSingletonClassifiedDomainsConfig = \_ _ -> pure ()
-setFeatureConfig FeatureSingletonDigitalSignaturesConfig = setFeature
-setFeatureConfig FeatureSingletonAppLockConfig = setFeature
-setFeatureConfig FeatureSingletonFileSharingConfig = setFeature
-setFeatureConfig FeatureSingletonSelfDeletingMessagesConfig = setFeature
-setFeatureConfig FeatureSingletonConferenceCallingConfig = setFeature
-setFeatureConfig FeatureSingletonGuestLinksConfig = setFeature
-setFeatureConfig FeatureSingletonSndFactorPasswordChallengeConfig = setFeature
-setFeatureConfig FeatureSingletonSearchVisibilityInboundConfig = setFeature
-setFeatureConfig FeatureSingletonMLSConfig = setFeature
-setFeatureConfig FeatureSingletonMlsE2EIdConfig = setFeature
-setFeatureConfig FeatureSingletonMlsMigration = setFeature
-setFeatureConfig FeatureSingletonExposeInvitationURLsToTeamAdminConfig = setFeature
-setFeatureConfig FeatureSingletonOutlookCalIntegrationConfig = setFeature
-setFeatureConfig FeatureSingletonEnforceFileDownloadLocationConfig = setFeature
-setFeatureConfig FeatureSingletonLimitedEventFanoutConfig = setFeature
+setFeatureConfig FeatureSingletonDigitalSignaturesConfig = storeFeature
+setFeatureConfig FeatureSingletonAppLockConfig = storeFeature
+setFeatureConfig FeatureSingletonFileSharingConfig = storeFeature
+setFeatureConfig FeatureSingletonSelfDeletingMessagesConfig = storeFeature
+setFeatureConfig FeatureSingletonConferenceCallingConfig = storeFeature
+setFeatureConfig FeatureSingletonGuestLinksConfig = storeFeature
+setFeatureConfig FeatureSingletonSndFactorPasswordChallengeConfig = storeFeature
+setFeatureConfig FeatureSingletonSearchVisibilityInboundConfig = storeFeature
+setFeatureConfig FeatureSingletonMLSConfig = storeFeature
+setFeatureConfig FeatureSingletonMlsE2EIdConfig = storeFeature
+setFeatureConfig FeatureSingletonMlsMigration = storeFeature
+setFeatureConfig FeatureSingletonExposeInvitationURLsToTeamAdminConfig = storeFeature
+setFeatureConfig FeatureSingletonOutlookCalIntegrationConfig = storeFeature
+setFeatureConfig FeatureSingletonEnforceFileDownloadLocationConfig = storeFeature
+setFeatureConfig FeatureSingletonLimitedEventFanoutConfig = storeFeature
 
 getFeatureLockStatus :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> m (Maybe LockStatus)
-getFeatureLockStatus FeatureSingletonFileSharingConfig tid = getLockStatusC "file_sharing_lock_status" tid
-getFeatureLockStatus FeatureSingletonSelfDeletingMessagesConfig tid = getLockStatusC "self_deleting_messages_lock_status" tid
-getFeatureLockStatus FeatureSingletonGuestLinksConfig tid = getLockStatusC "guest_links_lock_status" tid
-getFeatureLockStatus FeatureSingletonSndFactorPasswordChallengeConfig tid = getLockStatusC "snd_factor_password_challenge_lock_status" tid
-getFeatureLockStatus FeatureSingletonMlsE2EIdConfig tid = getLockStatusC "mls_e2eid_lock_status" tid
-getFeatureLockStatus FeatureSingletonMlsMigration tid = getLockStatusC "mls_migration_lock_status" tid
-getFeatureLockStatus FeatureSingletonOutlookCalIntegrationConfig tid = getLockStatusC "outlook_cal_integration_lock_status" tid
-getFeatureLockStatus FeatureSingletonMLSConfig tid = getLockStatusC "mls_lock_status" tid
-getFeatureLockStatus FeatureSingletonEnforceFileDownloadLocationConfig tid = getLockStatusC "enforce_file_download_location_lock_status" tid
-getFeatureLockStatus FeatureSingletonConferenceCallingConfig tid = getLockStatusC "conference_calling" tid
-getFeatureLockStatus _ _ = pure Nothing
+getFeatureLockStatus FeatureSingletonLegalholdConfig = fetchFeatureLockStatus @LegalholdConfig
+getFeatureLockStatus FeatureSingletonSSOConfig = fetchFeatureLockStatus @SSOConfig
+getFeatureLockStatus FeatureSingletonSearchVisibilityAvailableConfig = fetchFeatureLockStatus @SearchVisibilityAvailableConfig
+getFeatureLockStatus FeatureSingletonValidateSAMLEmailsConfig = fetchFeatureLockStatus @ValidateSAMLEmailsConfig
+getFeatureLockStatus FeatureSingletonClassifiedDomainsConfig = \_ -> pure Nothing
+getFeatureLockStatus FeatureSingletonDigitalSignaturesConfig = fetchFeatureLockStatus @DigitalSignaturesConfig
+getFeatureLockStatus FeatureSingletonAppLockConfig = fetchFeatureLockStatus @AppLockConfig
+getFeatureLockStatus FeatureSingletonFileSharingConfig = fetchFeatureLockStatus @FileSharingConfig
+getFeatureLockStatus FeatureSingletonSelfDeletingMessagesConfig = fetchFeatureLockStatus @SelfDeletingMessagesConfig
+getFeatureLockStatus FeatureSingletonConferenceCallingConfig = fetchFeatureLockStatus @ConferenceCallingConfig
+getFeatureLockStatus FeatureSingletonGuestLinksConfig = fetchFeatureLockStatus @GuestLinksConfig
+getFeatureLockStatus FeatureSingletonSndFactorPasswordChallengeConfig = fetchFeatureLockStatus @SndFactorPasswordChallengeConfig
+getFeatureLockStatus FeatureSingletonSearchVisibilityInboundConfig = fetchFeatureLockStatus @SearchVisibilityInboundConfig
+getFeatureLockStatus FeatureSingletonMLSConfig = fetchFeatureLockStatus @MLSConfig
+getFeatureLockStatus FeatureSingletonMlsE2EIdConfig = fetchFeatureLockStatus @MlsE2EIdConfig
+getFeatureLockStatus FeatureSingletonMlsMigration = fetchFeatureLockStatus @MlsMigrationConfig
+getFeatureLockStatus FeatureSingletonExposeInvitationURLsToTeamAdminConfig = fetchFeatureLockStatus @ExposeInvitationURLsToTeamAdminConfig
+getFeatureLockStatus FeatureSingletonOutlookCalIntegrationConfig = fetchFeatureLockStatus @OutlookCalIntegrationConfig
+getFeatureLockStatus FeatureSingletonEnforceFileDownloadLocationConfig = fetchFeatureLockStatus @EnforceFileDownloadLocationConfig
+getFeatureLockStatus FeatureSingletonLimitedEventFanoutConfig = fetchFeatureLockStatus @LimitedEventFanoutConfig
 
 setFeatureLockStatus :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> LockStatus -> m ()
 setFeatureLockStatus FeatureSingletonFileSharingConfig tid feat = setLockStatusC "file_sharing_lock_status" tid feat
@@ -134,23 +143,6 @@ setFeatureLockStatus FeatureSingletonMLSConfig tid feat = setLockStatusC "mls_lo
 setFeatureLockStatus FeatureSingletonEnforceFileDownloadLocationConfig tid feat = setLockStatusC "enforce_file_download_location_lock_status" tid feat
 setFeatureLockStatus FeatureSingletonConferenceCallingConfig tid feat = setLockStatusC "conference_calling" tid feat
 setFeatureLockStatus _ _tid _status = pure ()
-
-getLockStatusC ::
-  forall m.
-  (MonadClient m) =>
-  String ->
-  TeamId ->
-  m (Maybe LockStatus)
-getLockStatusC lockStatusCol tid = do
-  let q = query1 select (params LocalQuorum (Identity tid))
-  (>>= runIdentity) <$> retry x1 q
-  where
-    select :: PrepQuery R (Identity TeamId) (Identity (Maybe LockStatus))
-    select =
-      fromString $
-        "select "
-          <> lockStatusCol
-          <> " from team_features where team_id = ?"
 
 setLockStatusC ::
   (MonadClient m) =>

@@ -27,6 +27,8 @@ class MakeFeature cfg where
   type FeatureRow cfg = '[FeatureStatus]
 
   featureColumns :: String
+  lockStatusColumn :: Maybe String
+  lockStatusColumn = Nothing
 
   mkFeature :: NP Maybe (FeatureRow cfg) -> DbFeature cfg
   default mkFeature ::
@@ -86,10 +88,12 @@ instance MakeFeature ClassifiedDomainsConfig where
 
 instance MakeFeature FileSharingConfig where
   featureColumns = "file_sharing"
+  lockStatusColumn = Just "file_sharing_lock_status"
 
 instance MakeFeature ConferenceCallingConfig where
   type FeatureRow ConferenceCallingConfig = '[FeatureStatus, One2OneCalls]
   featureColumns = "conference_calling_status, conference_calling_one_to_one"
+  lockStatusColumn = Just "conference_calling"
 
   mkFeature (status :* calls :* Nil) =
     foldMap dbFeatureStatus status
@@ -103,6 +107,7 @@ instance MakeFeature ConferenceCallingConfig where
 instance MakeFeature SelfDeletingMessagesConfig where
   type FeatureRow SelfDeletingMessagesConfig = '[FeatureStatus, Int32]
   featureColumns = "self_deleting_messages_status, self_deleting_messages_ttl"
+  lockStatusColumn = Just "self_deleting_messages_lock_status"
 
   mkFeature (status :* ttl :* Nil) =
     foldMap dbFeatureStatus status
@@ -115,15 +120,18 @@ instance MakeFeature SelfDeletingMessagesConfig where
 
 instance MakeFeature GuestLinksConfig where
   featureColumns = "guest_links_status"
+  lockStatusColumn = Just "guest_links_lock_status"
 
 instance MakeFeature SndFactorPasswordChallengeConfig where
   featureColumns = "snd_factor_password_challenge_status"
+  lockStatusColumn = Just "snd_factor_password_challenge_lock_status"
 
 instance MakeFeature ExposeInvitationURLsToTeamAdminConfig where
   featureColumns = "expose_invitation_urls_to_team_admin"
 
 instance MakeFeature OutlookCalIntegrationConfig where
   featureColumns = "outlook_cal_integration_status"
+  lockStatusColumn = Just "outlook_cal_integration_lock_status"
 
 instance MakeFeature MLSConfig where
   type
@@ -137,6 +145,7 @@ instance MakeFeature MLSConfig where
        ]
   featureColumns =
     "mls_status, mls_default_protocol, mls_protocol_toggle_users, mls_allowed_ciphersuites, mls_default_ciphersuite, mls_supported_protocols"
+  lockStatusColumn = Just "mls_lock_status"
 
   mkFeature
     ( status
@@ -177,6 +186,7 @@ instance MakeFeature MlsE2EIdConfig where
        ]
   featureColumns =
     "mls_e2eid_status, mls_e2eid_grace_period, mls_e2eid_acme_discovery_url, mls_e2eid_crl_proxy, mls_e2eid_use_proxy_on_mobile"
+  lockStatusColumn = Just "mls_e2eid_lock_status"
 
   mkFeature (status :* gracePeriod :* acmeDiscoveryUrl :* crlProxy :* useProxyOnMobile :* Nil) =
     foldMap dbFeatureStatus status
@@ -206,6 +216,7 @@ instance MakeFeature MlsMigrationConfig where
 
   featureColumns =
     "mls_migration_status, mls_migration_start_time, mls_migration_finalise_regardless_after"
+  lockStatusColumn = Just "mls_migration_lock_status"
 
   mkFeature (status :* startTime :* finalizeAfter :* Nil) =
     foldMap dbFeatureStatus status
@@ -221,6 +232,7 @@ instance MakeFeature EnforceFileDownloadLocationConfig where
   type FeatureRow EnforceFileDownloadLocationConfig = '[FeatureStatus, Text]
 
   featureColumns = "enforce_file_download_location_status, enforce_file_download_location"
+  lockStatusColumn = Just "enforce_file_download_location_lock_status"
 
   mkFeature (status :* location :* Nil) =
     foldMap dbFeatureStatus status
@@ -230,7 +242,7 @@ instance MakeFeature EnforceFileDownloadLocationConfig where
 instance MakeFeature LimitedEventFanoutConfig where
   featureColumns = "limited_event_fanout_status"
 
-getFeature ::
+fetchFeature ::
   forall cfg m row mrow.
   ( MonadClient m,
     row ~ FeatureRow cfg,
@@ -241,7 +253,7 @@ getFeature ::
   ) =>
   TeamId ->
   m (DbFeature cfg)
-getFeature tid = do
+fetchFeature tid = do
   row <- retry x1 $ query1 select (params LocalQuorum (Identity tid))
   pure $ foldMap (mkFeature . unfactorI . productTypeFrom) row
   where
@@ -252,7 +264,7 @@ getFeature tid = do
     select :: PrepQuery R (Identity TeamId) (TupleP mrow)
     select = fromString selectQ
 
-setFeature ::
+storeFeature ::
   forall cfg m row mrow.
   ( MonadClient m,
     row ~ FeatureRow cfg,
@@ -265,7 +277,7 @@ setFeature ::
   TeamId ->
   Feature cfg ->
   m ()
-setFeature tid feat = do
+storeFeature tid feat = do
   retry x5 $ write insert (params LocalQuorum (productTypeTo (I tid :* factorI (unmkFeature feat))))
   where
     n :: Int
@@ -279,6 +291,20 @@ setFeature tid feat = do
           <> ") values ("
           <> intercalate "," (replicate (succ n) "?")
           <> ")"
+
+fetchFeatureLockStatus ::
+  forall cfg m.
+  (MakeFeature cfg, MonadClient m) =>
+  TeamId ->
+  m (Maybe LockStatus)
+fetchFeatureLockStatus tid = do
+  case lockStatusColumn @cfg of
+    Nothing -> pure Nothing
+    Just col -> do
+      let select :: PrepQuery R (Identity TeamId) (Identity (Maybe LockStatus))
+          select = fromString $ "select " <> col <> " from team_features where team_id = ?"
+      row <- retry x1 $ query1 select (params LocalQuorum (Identity tid))
+      pure $ join $ fmap runIdentity row
 
 -- | This is necessary in order to convert an @NP f xs@ type to something that
 -- CQL can understand.
