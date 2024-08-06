@@ -251,7 +251,7 @@ testAddGetClient params brig cannon = do
       let etype = j ^? key "type" . _String
       let eclient = j ^? key "client"
       etype @?= Just "user.client-add"
-      fmap fromJSON eclient @?= Just (Success (Versioned @'V5 c))
+      fmap fromJSON eclient @?= Just (Success (Versioned @'V6 c))
     pure c
   liftIO $ clientMLSPublicKeys c @?= keys
   getClient brig uid (clientId c) !!! do

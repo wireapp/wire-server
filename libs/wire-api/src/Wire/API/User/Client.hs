@@ -88,7 +88,6 @@ import Data.Qualified
 import Data.SOP hiding (fn)
 import Data.Schema
 import Data.Set qualified as Set
-import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.Time.Clock
 import Data.UUID (toASCIIBytes)
@@ -502,7 +501,7 @@ mlsPublicKeysSchema =
 
 clientSchema :: Maybe Version -> ValueSchema NamedSwaggerDoc Client
 clientSchema mv =
-  object ("Client" <> T.pack (foldMap show mv)) $
+  object "Client" $
     Client
       <$> clientId .= field "id" schema
       <*> clientType .= field "type" schema
@@ -518,20 +517,20 @@ clientSchema mv =
     caps :: ObjectSchemaP SwaggerDoc ClientCapabilityList (Maybe ClientCapabilityList)
     caps = case mv of
       -- broken capability serialisation for backwards compatibility
-      Just v | v <= V5 -> optField "capabilities" schema
+      Just v | v <= V6 -> optField "capabilities" schema
       _ -> fmap ClientCapabilityList <$> fromClientCapabilityList .= capabilitiesFieldSchema
 
 instance ToSchema Client where
   schema = clientSchema Nothing
 
-instance ToSchema (Versioned 'V5 Client) where
-  schema = Versioned <$> unVersioned .= clientSchema (Just V5)
+instance ToSchema (Versioned 'V6 Client) where
+  schema = Versioned <$> unVersioned .= clientSchema (Just V6)
 
-instance {-# OVERLAPPING #-} ToSchema (Versioned 'V5 [Client]) where
+instance {-# OVERLAPPING #-} ToSchema (Versioned 'V6 [Client]) where
   schema =
     Versioned
       <$> unVersioned
-        .= named "ClientList" (array (clientSchema (Just V5)))
+        .= named "ClientList" (array (clientSchema (Just V6)))
 
 mlsPublicKeysFieldSchema :: ObjectSchema SwaggerDoc MLSPublicKeys
 mlsPublicKeysFieldSchema = fromMaybe mempty <$> optField "mls_public_keys" mlsPublicKeysSchema

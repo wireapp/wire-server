@@ -850,7 +850,7 @@ getUserClients uid = do
             . expect2xx
         )
   info $ msg ("Response" ++ show r)
-  let resultOrError :: Either String [Versioned 'V5 Client] = responseJsonEither r
+  let resultOrError :: Either String [Versioned 'V6 Client] = responseJsonEither r
   case resultOrError of
     Left e -> do
       Log.err $ msg ("Error parsing client response: " ++ e)

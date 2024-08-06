@@ -734,9 +734,9 @@ type UserClientAPI =
   -- - ClientAdded event to self
   -- - ClientRemoved event to self, if removing old clients due to max number
   Named
-    "add-client-v5"
+    "add-client-v6"
     ( Summary "Register a new client"
-        :> Until 'V6
+        :> Until 'V7
         :> MakesFederatedCall 'Brig "send-connection-action"
         :> CanThrow 'TooManyClients
         :> CanThrow 'MissingAuth
@@ -753,7 +753,7 @@ type UserClientAPI =
              ( WithHeaders
                  ClientHeaders
                  Client
-                 (VersionedRespond 'V5 201 "Client registered" Client)
+                 (VersionedRespond 'V6 201 "Client registered" Client)
              )
     )
     :<|> Named
@@ -803,21 +803,21 @@ type UserClientAPI =
           :> MultiVerb 'DELETE '[JSON] '[RespondEmpty 200 "Client deleted"] ()
       )
     :<|> Named
-           "list-clients-v5"
+           "list-clients-v6"
            ( Summary "List the registered clients"
-               :> Until 'V6
+               :> Until 'V7
                :> ZUser
                :> "clients"
                :> MultiVerb1
                     'GET
                     '[JSON]
-                    ( VersionedRespond 'V5 200 "List of clients" [Client]
+                    ( VersionedRespond 'V6 200 "List of clients" [Client]
                     )
            )
     :<|> Named
            "list-clients"
            ( Summary "List the registered clients"
-               :> From 'V6
+               :> From 'V7
                :> ZUser
                :> "clients"
                :> MultiVerb1
@@ -827,9 +827,9 @@ type UserClientAPI =
                     )
            )
     :<|> Named
-           "get-client-v5"
+           "get-client-v6"
            ( Summary "Get a registered client by ID"
-               :> Until 'V6
+               :> Until 'V7
                :> ZUser
                :> "clients"
                :> CaptureClientId "client"
@@ -837,14 +837,14 @@ type UserClientAPI =
                     'GET
                     '[JSON]
                     '[ EmptyErrorForLegacyReasons 404 "Client not found",
-                       VersionedRespond 'V5 200 "Client found" Client
+                       VersionedRespond 'V6 200 "Client found" Client
                      ]
                     (Maybe Client)
            )
     :<|> Named
            "get-client"
            ( Summary "Get a registered client by ID"
-               :> From 'V6
+               :> From 'V7
                :> ZUser
                :> "clients"
                :> CaptureClientId "client"

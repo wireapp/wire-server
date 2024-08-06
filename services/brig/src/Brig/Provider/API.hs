@@ -141,7 +141,7 @@ botAPI =
     :<|> Named @"bot-delete-self" botDeleteSelf
     :<|> Named @"bot-list-prekeys" botListPrekeys
     :<|> Named @"bot-update-prekeys" botUpdatePrekeys
-    :<|> Named @"bot-get-client-v5" botGetClient
+    :<|> Named @"bot-get-client-v6" botGetClient
     :<|> Named @"bot-get-client" botGetClient
     :<|> Named @"bot-claim-users-prekeys" botClaimUsersPrekeys
     :<|> Named @"bot-list-users" botListUserProfiles

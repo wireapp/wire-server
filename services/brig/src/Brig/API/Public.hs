@@ -194,22 +194,23 @@ internalEndpointsSwaggerDocsAPIs =
 --
 -- Dual to `internalEndpointsSwaggerDocsAPI`.
 versionedSwaggerDocsAPI :: Servant.Server VersionedSwaggerDocsAPI
-versionedSwaggerDocsAPI (Just (VersionNumber V6)) =
+versionedSwaggerDocsAPI (Just (VersionNumber V7)) =
   swaggerSchemaUIServer $
-    ( serviceSwagger @VersionAPITag @'V6
-        <> serviceSwagger @BrigAPITag @'V6
-        <> serviceSwagger @GalleyAPITag @'V6
-        <> serviceSwagger @SparAPITag @'V6
-        <> serviceSwagger @CargoholdAPITag @'V6
-        <> serviceSwagger @CannonAPITag @'V6
-        <> serviceSwagger @GundeckAPITag @'V6
-        <> serviceSwagger @ProxyAPITag @'V6
-        <> serviceSwagger @OAuthAPITag @'V6
+    ( serviceSwagger @VersionAPITag @'V7
+        <> serviceSwagger @BrigAPITag @'V7
+        <> serviceSwagger @GalleyAPITag @'V7
+        <> serviceSwagger @SparAPITag @'V7
+        <> serviceSwagger @CargoholdAPITag @'V7
+        <> serviceSwagger @CannonAPITag @'V7
+        <> serviceSwagger @GundeckAPITag @'V7
+        <> serviceSwagger @ProxyAPITag @'V7
+        <> serviceSwagger @OAuthAPITag @'V7
     )
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
-      & S.servers .~ [S.Server ("/" <> toUrlPiece V6) Nothing mempty]
+      & S.servers .~ [S.Server ("/" <> toUrlPiece V7) Nothing mempty]
       & cleanupSwagger
+versionedSwaggerDocsAPI (Just (VersionNumber V6)) = swaggerPregenUIServer $(pregenSwagger V6)
 versionedSwaggerDocsAPI (Just (VersionNumber V5)) = swaggerPregenUIServer $(pregenSwagger V5)
 versionedSwaggerDocsAPI (Just (VersionNumber V4)) = swaggerPregenUIServer $(pregenSwagger V4)
 versionedSwaggerDocsAPI (Just (VersionNumber V3)) = swaggerPregenUIServer $(pregenSwagger V3)
@@ -242,38 +243,19 @@ versionedSwaggerDocsAPI Nothing = allroutes (throwError listAllVersionsResp)
           ]
         <> "</body>"
 
--- | Serves Swagger docs for internal endpoints
---
--- Dual to `versionedSwaggerDocsAPI`. Swagger docs for old versions are (almost)
--- empty. It would have been too tedious to create them. Please add
--- pre-generated docs on version increase as it's done in
--- `versionedSwaggerDocsAPI`.
---
--- If you're having issues with this function not typechecking when it should,
--- be sure to supply the type argument explicitly
+-- | Serves Swagger docs for internal endpoints.
 internalEndpointsSwaggerDocsAPI ::
   forall service.
   String ->
   PortNumber ->
   S.OpenApi ->
   Servant.Server (VersionedSwaggerDocsAPIBase service)
-internalEndpointsSwaggerDocsAPI service examplePort swagger (Just (VersionNumber V6)) =
-  swaggerSchemaUIServer $
-    swagger
-      & adjustSwaggerForInternalEndpoint service examplePort
-      & cleanupSwagger
-internalEndpointsSwaggerDocsAPI service examplePort swagger (Just (VersionNumber V5)) =
-  swaggerSchemaUIServer $
-    swagger
-      & adjustSwaggerForInternalEndpoint service examplePort
-      & cleanupSwagger
-internalEndpointsSwaggerDocsAPI _ _ _ (Just (VersionNumber V4)) = emptySwagger
-internalEndpointsSwaggerDocsAPI _ _ _ (Just (VersionNumber V3)) = emptySwagger
-internalEndpointsSwaggerDocsAPI _ _ _ (Just (VersionNumber V2)) = emptySwagger
-internalEndpointsSwaggerDocsAPI _ _ _ (Just (VersionNumber V1)) = emptySwagger
-internalEndpointsSwaggerDocsAPI _ _ _ (Just (VersionNumber V0)) = emptySwagger
+internalEndpointsSwaggerDocsAPI _ _ _ (Just _) = emptySwagger
 internalEndpointsSwaggerDocsAPI service examplePort swagger Nothing =
-  internalEndpointsSwaggerDocsAPI service examplePort swagger (Just maxBound)
+  swaggerSchemaUIServer $
+    swagger
+      & adjustSwaggerForInternalEndpoint service examplePort
+      & cleanupSwagger
 
 servantSitemap ::
   forall r p.
@@ -389,13 +371,13 @@ servantSitemap =
 
     userClientAPI :: ServerT UserClientAPI (Handler r)
     userClientAPI =
-      Named @"add-client-v5" (callsFed (exposeAnnotations addClient))
+      Named @"add-client-v6" (callsFed (exposeAnnotations addClient))
         :<|> Named @"add-client" (callsFed (exposeAnnotations addClient))
         :<|> Named @"update-client" updateClient
         :<|> Named @"delete-client" deleteClient
-        :<|> Named @"list-clients-v5" listClients
+        :<|> Named @"list-clients-v6" listClients
         :<|> Named @"list-clients" listClients
-        :<|> Named @"get-client-v5" getClient
+        :<|> Named @"get-client-v6" getClient
         :<|> Named @"get-client" getClient
         :<|> Named @"get-client-capabilities" getClientCapabilities
         :<|> Named @"get-client-prekeys" getClientPrekeys
