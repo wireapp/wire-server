@@ -6,6 +6,7 @@ cd "$( dirname "${BASH_SOURCE[0]}" )/.."
 
 ALLOW_DIRTY_WC="0"
 ARG_ORMOLU_MODE="inplace"
+PR_BASE=${PR_BASE:-"origin/develop"}
 
 USAGE="
 This bash script can either
@@ -73,7 +74,7 @@ fi
 if [ "$f" = "all" ] || [ "$f" = "" ]; then
     files=$(git ls-files | grep '\.hsc\?$')
 elif [ "$f" = "pr" ]; then
-    files=$(git diff --diff-filter=ACMR --name-only origin/develop... | { grep '\.hsc\?$' || true; }; git diff --diff-filter=ACMR --name-only HEAD | { grep \.hs\$ || true ; })
+    files=$(git diff --diff-filter=ACMR --name-only "$PR_BASE"... | { grep '\.hsc\?$' || true; }; git diff --diff-filter=ACMR --name-only HEAD | { grep \.hs\$ || true ; })
 fi
 
 count=$( echo "$files" | sed '/^\s*$/d' | wc -l )
