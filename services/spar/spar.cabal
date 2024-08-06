@@ -337,7 +337,6 @@ executable spar-integration
   build-depends:
       aeson
     , aeson-qq
-    , async
     , base
     , base64-bytestring
     , bilge
@@ -355,8 +354,6 @@ executable spar-integration
     , hscim
     , HsOpenSSL
     , hspec
-    , hspec-api
-    , hspec-core
     , hspec-junit-formatter
     , hspec-wai
     , http-api-data

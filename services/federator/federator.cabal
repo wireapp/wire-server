@@ -277,20 +277,19 @@ executable federator-integration
 
   build-depends:
       aeson
-    , async
     , base
     , bilge
     , binary
     , bytestring
     , bytestring-conversion
     , crypton
+    , data-default
     , crypton-connection
     , dns-util
     , exceptions
     , federator
     , HsOpenSSL
     , hspec
-    , hspec-core
     , hspec-junit-formatter
     , http-client-tls
     , http-types

@@ -35,6 +35,7 @@ import Data.Aeson
 import Data.Aeson.TH
 import Data.Aeson.Types qualified as Aeson
 import Data.ByteString.Char8 qualified as C8
+import Data.Default (def)
 import Data.Id
 import Data.Misc
 import Data.String.Conversions
@@ -151,7 +152,7 @@ cliOptsParser =
 -- | Create an environment for integration tests from integration and federator config files.
 mkEnv :: (HasCallStack) => IntegrationConfig -> Opts -> IO TestEnv
 mkEnv _teTstOpts _teOpts = do
-  let managerSettings = mkManagerSettings (Network.Connection.TLSSettingsSimple True False False) Nothing
+  let managerSettings = mkManagerSettings (Network.Connection.TLSSettingsSimple True False False def) Nothing
   _teMgr :: Manager <- newManager managerSettings
   let _teBrig = endpointToReq _teTstOpts.brig
       _teCargohold = endpointToReq _teTstOpts.cargohold
