@@ -64,6 +64,19 @@ data ChangeEmailResult
     ChangeEmailNeedsActivation !(User, Activation, EmailAddress)
   | -- | The user asked to change the email address to the one already owned
     ChangeEmailIdempotent
+
+data CreateUserTeam = CreateUserTeam
+  { createdTeamId :: !TeamId,
+    createdTeamName :: !Text
+  }
+  deriving (Show)
+
+-- | Outcome of the invariants check in 'Brig.API.User.changeEmail'.
+data ChangeEmailResult
+  = -- | The request was successful, user needs to verify the new email address
+    ChangeEmailNeedsActivation !(User, Activation, Email)
+  | -- | The user asked to change the email address to the one already owned
+    ChangeEmailIdempotent
   deriving (Show)
 
 -------------------------------------------------------------------------------

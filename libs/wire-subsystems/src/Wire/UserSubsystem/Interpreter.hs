@@ -36,17 +36,22 @@ import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus (..))
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
+import Wire.API.Team.Member hiding (userId)
 import Wire.API.Team.Permission qualified as Permission
 import Wire.API.Team.Role (defaultRole)
 import Wire.API.Team.SearchVisibility
 import Wire.API.Team.Size (TeamSize (TeamSize))
+import Wire.API.User
 import Wire.API.User as User
+import Wire.API.User.Activation
 import Wire.API.User.Search
 import Wire.API.UserEvent
 import Wire.Arbitrary
 import Wire.AuthenticationSubsystem
 import Wire.BlockListStore as BlockList
+import Wire.BlockListStore as BlockListStore
 import Wire.DeleteQueue
+import Wire.EmailSubsystem
 import Wire.Events
 import Wire.FederationAPIAccess
 import Wire.FederationConfigStore
@@ -220,10 +225,85 @@ isBlockedImpl = BlockList.exists . mkEmailKey
 -- :> CanThrow 'BlacklistedEmail
 -- :> CanThrow 'BadCredentials
 --
--- https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/put_access_self_email  "change-self-email"
+-- https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/put_access_self_email  "change-self-email" -- this is the one we're interested in for this PR.
 -- https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_activate_send  "post-activate-send"
-updateUserEmailInitImpl :: a
-updateUserEmailInitImpl = undefined
+
+-- | Call 'changeEmail' and process result: if email changes to itself, succeed, if not, send
+-- validation email.
+updateUserEmailInitImpl ::
+  forall r.
+  (Member BlockListStore r, Member UserKeyStore r, Member EmailSubsystem r) =>
+  UserId ->
+  Email ->
+  UpdateOriginType ->
+  Sem r ChangeEmailResponse
+updateUserEmailInitImpl uid email updateOriginType = do
+  result <- prepareUpdateUserEmail u email updateOriginType
+  case result of
+    ChangeEmailIdempotent ->
+      pure ChangeEmailResponseIdempotent
+    ChangeEmailNeedsActivation (usr, adata, en) -> lift $ do
+      liftSem $ sendOutEmail usr adata en
+      wrapClient $ Data.updateEmailUnvalidated u email
+      wrapClient $ reindex u
+      pure ChangeEmailResponseNeedsActivation
+  where
+    sendOutEmail usr adata en = do
+      (maybe sendActivationMail (const sendEmailAddressUpdateMail) usr.userIdentity)
+        en
+        (userDisplayName usr)
+        (activationKey adata)
+        (activationCode adata)
+        (Just (userLocale usr))
+
+-- | Prepare changing the email (checking a number of invariants).
+prepareUpdateUserEmail ::
+  (Member BlockListStore r, Member UserKeyStore r, Member (Error ChangeEmailError) r) =>
+  UserId ->
+  Email ->
+  UpdateOriginType ->
+  Sem r ChangeEmailResult
+prepareUpdateUserEmail u email updateOriginType = do
+  em <-
+    either
+      (throwE . InvalidNewEmail email)
+      pure
+      (validateEmail email)
+  let ek = mkEmailKey em
+  blacklisted <- BlockListStore.exists ek
+  when blacklisted $
+    throwE (ChangeBlacklistedEmail email)
+  available <- lift $ liftSem $ keyAvailable ek (Just u)
+  unless available $
+    throwE $
+      EmailExists email
+  usr <- maybe (throwM $ UserProfileNotFound u) pure =<< lift (wrapClient $ Data.lookupUser WithPendingInvitations u)
+  case emailIdentity =<< userIdentity usr of
+    -- The user already has an email address and the new one is exactly the same
+    Just current | current == em -> pure ChangeEmailIdempotent
+    _ -> do
+      unless (userManagedBy usr /= ManagedByScim || updateOriginType == UpdateOriginScim) $
+        throwE EmailManagedByScim
+      timeout <- setActivationTimeout <$> view settings
+      act <- lift . wrapClient $ Data.newActivation ek timeout (Just u)
+      pure $ ChangeEmailNeedsActivation (usr, act, em)
+
+-- | Outcome of the invariants check in 'Brig.API.User.changeEmail'.
+-- TODO: does this belong here?  or in wire-api?
+data ChangeEmailResult
+  = -- | The request was successful, user needs to verify the new email address
+    ChangeEmailNeedsActivation !(User, Activation, Email)
+  | -- | The user asked to change the email address to the one already owned
+    ChangeEmailIdempotent
+
+-- | The information associated with the pending activation of a 'UserKey'.
+data Activation = Activation
+  { -- | An opaque key for the original 'UserKey' pending activation.
+    activationKey :: !ActivationKey,
+    -- | The confidential activation code.
+    activationCode :: !ActivationCode
+  }
+  deriving (Eq, Show)
 
 -- :> CanThrow 'UserKeyExists
 -- :> CanThrow 'InvalidActivationCodeWrongUser
@@ -231,8 +311,8 @@ updateUserEmailInitImpl = undefined
 -- :> CanThrow 'InvalidEmail
 -- :> CanThrow 'InvalidPhone
 --
--- https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/get_activate  "get-activate"
--- https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_activate  "post-activate"
+-- https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/get_activate  "get-activate" (is this still used?)
+-- https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_activate  "post-activate" (is this still used?)
 updateUserEmailCompleteImpl :: a
 updateUserEmailCompleteImpl = undefined
 
