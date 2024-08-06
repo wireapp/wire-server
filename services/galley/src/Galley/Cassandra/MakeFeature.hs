@@ -337,6 +337,20 @@ fetchFeatureLockStatus tid = do
       row <- retry x1 $ query1 select (params LocalQuorum (Identity tid))
       pure . Tagged . join . fmap runIdentity $ row
 
+storeFeatureLockStatus ::
+  forall cfg m.
+  (MakeFeature cfg, MonadClient m) =>
+  TeamId ->
+  Tagged cfg LockStatus ->
+  m ()
+storeFeatureLockStatus tid lock = do
+  case lockStatusColumn @cfg of
+    Nothing -> pure ()
+    Just col -> do
+      let insert :: PrepQuery W (TeamId, LockStatus) ()
+          insert = fromString $ "insert into team_features (team_id, " <> col <> ") values (?, ?)"
+      retry x5 $ write insert (params LocalQuorum (tid, untag lock))
+
 -- | This is necessary in order to convert an @NP f xs@ type to something that
 -- CQL can understand.
 type family TupleP (xs :: [Type]) where

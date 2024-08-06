@@ -60,7 +60,7 @@ interpretTeamFeatureStoreToCassandra = interpret $ \case
     fmap untag . embedClient $ getFeatureLockStatus sing tid
   TFS.SetFeatureLockStatus sing tid ls -> do
     logEffect "TeamFeatureStore.SetFeatureLockStatus"
-    embedClient $ setFeatureLockStatus sing tid ls
+    embedClient $ setFeatureLockStatus sing tid (Tagged ls)
   TFS.GetAllFeatureConfigs tid -> do
     logEffect "TeamFeatureStore.GetAllFeatureConfigs"
     embedClient $ getAllFeatureConfigs tid
@@ -135,32 +135,32 @@ getFeatureLockStatus FeatureSingletonOutlookCalIntegrationConfig = fetchFeatureL
 getFeatureLockStatus FeatureSingletonEnforceFileDownloadLocationConfig = fetchFeatureLockStatus
 getFeatureLockStatus FeatureSingletonLimitedEventFanoutConfig = fetchFeatureLockStatus
 
-setFeatureLockStatus :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> LockStatus -> m ()
-setFeatureLockStatus FeatureSingletonFileSharingConfig tid feat = setLockStatusC "file_sharing_lock_status" tid feat
-setFeatureLockStatus FeatureSingletonSelfDeletingMessagesConfig tid feat = setLockStatusC "self_deleting_messages_lock_status" tid feat
-setFeatureLockStatus FeatureSingletonGuestLinksConfig tid feat = setLockStatusC "guest_links_lock_status" tid feat
-setFeatureLockStatus FeatureSingletonSndFactorPasswordChallengeConfig tid feat = setLockStatusC "snd_factor_password_challenge_lock_status" tid feat
-setFeatureLockStatus FeatureSingletonMlsE2EIdConfig tid feat = setLockStatusC "mls_e2eid_lock_status" tid feat
-setFeatureLockStatus FeatureSingletonMlsMigration tid feat = setLockStatusC "mls_migration_lock_status" tid feat
-setFeatureLockStatus FeatureSingletonOutlookCalIntegrationConfig tid feat = setLockStatusC "outlook_cal_integration_lock_status" tid feat
-setFeatureLockStatus FeatureSingletonMLSConfig tid feat = setLockStatusC "mls_lock_status" tid feat
-setFeatureLockStatus FeatureSingletonEnforceFileDownloadLocationConfig tid feat = setLockStatusC "enforce_file_download_location_lock_status" tid feat
-setFeatureLockStatus FeatureSingletonConferenceCallingConfig tid feat = setLockStatusC "conference_calling" tid feat
-setFeatureLockStatus _ _tid _status = pure ()
-
-setLockStatusC ::
+setFeatureLockStatus ::
   (MonadClient m) =>
-  String ->
+  FeatureSingleton cfg ->
   TeamId ->
-  LockStatus ->
+  Tagged cfg LockStatus ->
   m ()
-setLockStatusC col tid status = do
-  retry x5 $ write insert (params LocalQuorum (tid, status))
-  where
-    insert :: PrepQuery W (TeamId, LockStatus) ()
-    insert =
-      fromString $
-        "insert into team_features (team_id, " <> col <> ") values (?, ?)"
+setFeatureLockStatus FeatureSingletonLegalholdConfig = storeFeatureLockStatus
+setFeatureLockStatus FeatureSingletonSSOConfig = storeFeatureLockStatus
+setFeatureLockStatus FeatureSingletonSearchVisibilityAvailableConfig = storeFeatureLockStatus
+setFeatureLockStatus FeatureSingletonValidateSAMLEmailsConfig = storeFeatureLockStatus
+setFeatureLockStatus FeatureSingletonClassifiedDomainsConfig = storeFeatureLockStatus
+setFeatureLockStatus FeatureSingletonDigitalSignaturesConfig = storeFeatureLockStatus
+setFeatureLockStatus FeatureSingletonAppLockConfig = storeFeatureLockStatus
+setFeatureLockStatus FeatureSingletonFileSharingConfig = storeFeatureLockStatus
+setFeatureLockStatus FeatureSingletonSelfDeletingMessagesConfig = storeFeatureLockStatus
+setFeatureLockStatus FeatureSingletonConferenceCallingConfig = storeFeatureLockStatus
+setFeatureLockStatus FeatureSingletonGuestLinksConfig = storeFeatureLockStatus
+setFeatureLockStatus FeatureSingletonSndFactorPasswordChallengeConfig = storeFeatureLockStatus
+setFeatureLockStatus FeatureSingletonSearchVisibilityInboundConfig = storeFeatureLockStatus
+setFeatureLockStatus FeatureSingletonMLSConfig = storeFeatureLockStatus
+setFeatureLockStatus FeatureSingletonMlsE2EIdConfig = storeFeatureLockStatus
+setFeatureLockStatus FeatureSingletonMlsMigration = storeFeatureLockStatus
+setFeatureLockStatus FeatureSingletonExposeInvitationURLsToTeamAdminConfig = storeFeatureLockStatus
+setFeatureLockStatus FeatureSingletonOutlookCalIntegrationConfig = storeFeatureLockStatus
+setFeatureLockStatus FeatureSingletonEnforceFileDownloadLocationConfig = storeFeatureLockStatus
+setFeatureLockStatus FeatureSingletonLimitedEventFanoutConfig = storeFeatureLockStatus
 
 getFeatureConfigMulti ::
   forall cfg m.
