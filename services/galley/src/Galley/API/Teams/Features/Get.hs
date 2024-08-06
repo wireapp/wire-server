@@ -463,7 +463,7 @@ instance GetFeatureConfig ConferenceCallingConfig where
       LockStatusLocked -> defFeature {lockStatus = LockStatusLocked}
       LockStatusUnlocked ->
         withUnlocked $
-          (unDbFeature dbFeature)
+          (applyDbFeature dbFeature)
             (forgetLock defFeature)
               { status = FeatureStatusEnabled
               }

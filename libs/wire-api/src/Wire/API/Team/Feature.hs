@@ -220,7 +220,7 @@ featureNameBS = UTF8.fromString $ symbolVal (Proxy @(FeatureSymbol cfg))
 
 -- | Feature data stored in the database, as a function of its default values.
 newtype DbFeature cfg = DbFeature
-  {unDbFeature :: Feature cfg -> Feature cfg}
+  {applyDbFeature :: Feature cfg -> Feature cfg}
 
 instance Semigroup (DbFeature cfg) where
   DbFeature f <> DbFeature g = DbFeature (f . g)
@@ -555,7 +555,7 @@ genericComputeFeature ::
 genericComputeFeature defFeature lockStatus dbFeature =
   case fromMaybe defFeature.lockStatus lockStatus of
     LockStatusLocked -> defFeature {lockStatus = LockStatusLocked}
-    LockStatusUnlocked -> withUnlocked $ unDbFeature dbFeature (forgetLock defFeature)
+    LockStatusUnlocked -> withUnlocked $ applyDbFeature dbFeature (forgetLock defFeature)
 
 --------------------------------------------------------------------------------
 -- GuestLinks feature
