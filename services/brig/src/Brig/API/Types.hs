@@ -50,7 +50,9 @@ import Wire.UserKeyStore
 
 data CreateUserResult = CreateUserResult
   { -- | The newly created user account.
-    createdAccount :: !User,
+    createdAccount :: !UserAccount,
+    -- | Activation data for the registered email address, if any.
+    createdEmailActivation :: !(Maybe Activation),
     -- | Info of a team just created/joined
     createdUserTeam :: !(Maybe CreateUserTeam)
   }
