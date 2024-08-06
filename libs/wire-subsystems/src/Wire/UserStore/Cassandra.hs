@@ -16,19 +16,19 @@ import Wire.UserStore.Unique
 interpretUserStoreCassandra :: (Member (Embed IO) r) => ClientState -> InterpreterFor UserStore r
 interpretUserStoreCassandra casClient =
   interpret $
-    runEmbedded (runClient casClient) . \case
+    runEmbedded (runClient casClient) . embed . \case
       GetUser uid -> getUserImpl uid
-      UpdateUser uid update -> embed $ updateUserImpl uid update
-      UpdateUserHandleEither uid update -> embed $ updateUserHandleEitherImpl uid update
-      DeleteUser user -> embed $ deleteUserImpl user
-      LookupHandle hdl -> embed $ lookupHandleImpl LocalQuorum hdl
-      GlimpseHandle hdl -> embed $ lookupHandleImpl One hdl
-      LookupStatus uid -> embed $ lookupStatusImpl uid
-      IsActivated uid -> embed $ isActivatedImpl uid
-      LookupLocale uid -> embed $ lookupLocaleImpl uid
+      UpdateUser uid update -> updateUserImpl uid update
+      UpdateUserHandleEither uid update -> updateUserHandleEitherImpl uid update
+      DeleteUser user -> deleteUserImpl user
+      LookupHandle hdl -> lookupHandleImpl LocalQuorum hdl
+      GlimpseHandle hdl -> lookupHandleImpl One hdl
+      LookupStatus uid -> lookupStatusImpl uid
+      IsActivated uid -> isActivatedImpl uid
+      LookupLocale uid -> lookupLocaleImpl uid
 
-getUserImpl :: (Member (Embed Client) r) => UserId -> Sem r (Maybe StoredUser)
-getUserImpl uid = embed $ do
+getUserImpl :: UserId -> Client (Maybe StoredUser)
+getUserImpl uid = do
   mUserTuple <- retry x1 $ query1 selectUser (params LocalQuorum (Identity uid))
   pure $ asRecord <$> mUserTuple
 
