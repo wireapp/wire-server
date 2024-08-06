@@ -5,6 +5,7 @@
 { mkDerivation
 , aeson
 , aeson-qq
+, async
 , base
 , base64-bytestring
 , bilge
@@ -140,6 +141,7 @@ mkDerivation {
   executableHaskellDepends = [
     aeson
     aeson-qq
+    async
     base
     base64-bytestring
     bilge

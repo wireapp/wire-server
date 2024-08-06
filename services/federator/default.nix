@@ -130,6 +130,7 @@ mkDerivation {
   ];
   executableHaskellDepends = [
     aeson
+    async
     base
     bilge
     binary
