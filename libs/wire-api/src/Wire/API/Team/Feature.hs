@@ -210,10 +210,7 @@ data FeatureSingleton cfg where
   FeatureSingletonExposeInvitationURLsToTeamAdminConfig :: FeatureSingleton ExposeInvitationURLsToTeamAdminConfig
   FeatureSingletonOutlookCalIntegrationConfig :: FeatureSingleton OutlookCalIntegrationConfig
   FeatureSingletonMlsE2EIdConfig :: FeatureSingleton MlsE2EIdConfig
-  FeatureSingletonMlsMigration ::
-    -- FUTUREWORK: rename to `FeatureSingletonMlsMigrationConfig` (or drop the `Config` from
-    -- all other constructors)
-    FeatureSingleton MlsMigrationConfig
+  FeatureSingletonMlsMigrationConfig :: FeatureSingleton MlsMigrationConfig
   FeatureSingletonEnforceFileDownloadLocationConfig :: FeatureSingleton EnforceFileDownloadLocationConfig
   FeatureSingletonLimitedEventFanoutConfig :: FeatureSingleton LimitedEventFanoutConfig
 
@@ -1145,7 +1142,7 @@ instance Default (LockableFeature MlsMigrationConfig) where
 
 instance IsFeatureConfig MlsMigrationConfig where
   type FeatureSymbol MlsMigrationConfig = "mlsMigration"
-  featureSingleton = FeatureSingletonMlsMigration
+  featureSingleton = FeatureSingletonMlsMigrationConfig
   objectSchema = field "config" schema
 
 ----------------------------------------------------------------------

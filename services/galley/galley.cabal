@@ -141,6 +141,7 @@ library
     Galley.Cassandra.Instances
     Galley.Cassandra.LegalHold
     Galley.Cassandra.MakeFeature
+    Galley.Cassandra.Orphans
     Galley.Cassandra.Proposal
     Galley.Cassandra.Queries
     Galley.Cassandra.SearchVisibility
@@ -302,7 +303,6 @@ library
     , cassava                >=0.5.2
     , comonad
     , containers             >=0.5
-    , cql
     , crypton
     , crypton-x509
     , currency-codes         >=2.0

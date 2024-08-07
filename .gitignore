@@ -60,6 +60,9 @@ stack-dev.yaml
 # HIE db files (e.g. generated for stan)
 *.hie
 
+# dump timings
+*.dump-timings
+
 # generated files under .local
 .local
 

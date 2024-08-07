@@ -1,5 +1,5 @@
 {-# LANGUAGE CPP #-}
-{-# OPTIONS_GHC -Wwarn #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 -- | Abstraction to fetch and store feature values from and to the database.
 module Galley.Cassandra.MakeFeature where
@@ -14,14 +14,18 @@ import Data.List.Singletons (Length)
 import Data.Misc (HttpsUrl)
 import Data.Singletons (demote)
 import Data.Time
-import GHC.TypeError
 import GHC.TypeNats
+import Galley.Cassandra.FeatureTH
 import Galley.Cassandra.Instances ()
 import Generics.SOP
 import Imports hiding (Generic, Map)
 import Wire.API.Conversation.Protocol (ProtocolTag)
 import Wire.API.MLS.CipherSuite
 import Wire.API.Team.Feature
+
+-- | This is necessary in order to convert an @NP f xs@ type to something that
+-- CQL can understand.
+$(generateTupleP)
 
 class MakeFeature cfg where
   type FeatureRow cfg :: [Type]
@@ -52,6 +56,12 @@ instance MakeFeature SSOConfig where
 instance MakeFeature SearchVisibilityAvailableConfig where
   featureColumns = K "search_visibility_status" :* Nil
 
+-- | This feature shares its status column with
+-- 'SearchVisibilityAvailableConfig'. This means that when fetching all
+-- features, this column is repeated in the query, i.e. the query looks like:
+-- @@
+-- select ..., search_visibility_status, search_visibility_status, ... from team_features ...
+-- @@
 instance MakeFeature SearchVisibilityInboundConfig where
   featureColumns = K "search_visibility_status" :* Nil
 
@@ -381,7 +391,7 @@ storeFeature tid feat = do
           <> intercalate "," (replicate (succ n) "?")
           <> ")"
 
-class (FeatureRow cfg ~ row) => StoreFeatureLockStatus (row :: [Type]) cfg | cfg -> row where
+class (FeatureRow cfg ~ row) => StoreFeatureLockStatus (row :: [Type]) cfg where
   storeFeatureLockStatus' :: (MonadClient m) => TeamId -> Tagged cfg LockStatus -> m ()
 
 instance
@@ -409,20 +419,6 @@ storeFeatureLockStatus ::
   Tagged cfg LockStatus ->
   m ()
 storeFeatureLockStatus = storeFeatureLockStatus' @(FeatureRow cfg)
-
--- | This is necessary in order to convert an @NP f xs@ type to something that
--- CQL can understand.
-type family TupleP (xs :: [Type]) where
-  TupleP '[] = ()
-  TupleP '[a] = Identity a
-  TupleP [a, b] = (a, b)
-  TupleP [a, b, c] = (a, b, c)
-  TupleP [a, b, c, d] = (a, b, c, d)
-  TupleP [a, b, c, d, e] = (a, b, c, d, e)
-  TupleP [a, b, c, d, e, f] = (a, b, c, d, e, f)
-  TupleP [a, b, c, d, e, f, g] = (a, b, c, d, e, f, g)
-  TupleP [a, b, c, d, e, f, g, h] = (a, b, c, d, e, f, g, h)
-  TupleP _ = TypeError ('Text "TupleP: tuple too long")
 
 -- | Convert @NP f [x1, ..., xn]@ to @NP I [f x1, ..., f xn]@.
 --
