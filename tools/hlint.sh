@@ -5,6 +5,8 @@ usage() { echo "Usage: $0 -f [all, changeset, pr] -m [check, inplace]" 1>&2; exi
 
 files=''
 
+PR_BASE=${PR_BASE:-"origin/develop"}
+
 while getopts ':f:m:k' opt
  do
      case $opt in
@@ -12,7 +14,7 @@ while getopts ':f:m:k' opt
             if [ "$f" = "all" ]; then
               files=$(git ls-files | grep \.hs\$)
             elif [ "$f" = "pr" ]; then
-              files=$(git diff --name-only origin/develop... | grep \.hs\$)
+              files=$(git diff --name-only "$PR_BASE"... | grep \.hs\$)
             elif [ "$f" = "changeset" ]; then
               files=$(git diff --name-only HEAD | grep \.hs\$)
             else
