@@ -36,6 +36,7 @@ roots = [ # may of the entries here are about general-purpose module
          "^Data.Range.rsingleton",
          "^Data.ZAuth.Validation.*$",
          "^Galley.Types.UserList.ulDiff",
+         "^Galley.Types.Teams.canSeePermsOf", # TODO: figure out why weeder is confused by let bindings with curried infix notation
          "^HTTP2.Client.Manager.*$",
          "^Imports.getChar",
          "^Imports.getContents",
@@ -118,12 +119,13 @@ roots = [ # may of the entries here are about general-purpose module
          "^Test.Data.Schema.detailSchema",
          "^Test.Data.Schema.userSchemaWithDefaultName",
          "^Test.Data.Schema.userSchemaWithDefaultName'",
+         "^Test.Federator.JSON.deriveJSONOptions", # This is used inside an instance derivation via TH
          "^Test.Wire.API.Golden.Run.main$",
          "^Test.Wire.API.Password.testHashPasswordScrypt", # FUTUREWORK: reworking scrypt/argon2id is planned for next sprint
          "^TestSetup.runFederationClient",
          "^TestSetup.viewCargohold",
-         "^Testlib.Cannon.awaitAtLeastNMatches",
          "^Testlib.App.*$", # FUTUREWORK: See how we can have weeder parse operators in the config file.
+         "^Testlib.Cannon.awaitAtLeastNMatches",
          "^Testlib.Cannon.awaitAtLeastNMatchesResult",
          "^Testlib.Cannon.awaitNToMMatches",
          "^Testlib.Cannon.awaitNToMMatchesResult",

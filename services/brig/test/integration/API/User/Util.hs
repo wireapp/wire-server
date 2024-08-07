@@ -316,14 +316,6 @@ getProperty brig u k =
       . paths ["/properties", k]
       . zUser u
 
-deleteProperty :: Brig -> UserId -> ByteString -> (MonadHttp m) => m ResponseLBS
-deleteProperty brig u k =
-  delete $
-    brig
-      . paths ["/properties", k]
-      . zConn "conn"
-      . zUser u
-
 countCookies :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> CookieLabel -> m (Maybe Int)
 countCookies brig u label = do
   r <-
