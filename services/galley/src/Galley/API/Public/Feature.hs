@@ -19,6 +19,7 @@ module Galley.API.Public.Feature where
 
 import Galley.API.Teams
 import Galley.API.Teams.Features
+import Galley.API.Teams.Features.Get
 import Galley.App
 import Imports
 import Wire.API.Federation.API
@@ -72,16 +73,16 @@ featureAPI =
     <@> mkNamedAPI @'("get", LimitedEventFanoutConfig) (getFeatureStatus . DoAuth)
     <@> mkNamedAPI @"get-all-feature-configs-for-user" getAllFeatureConfigsForUser
     <@> mkNamedAPI @"get-all-feature-configs-for-team" getAllFeatureConfigsForTeam
-    <@> mkNamedAPI @'("get-config", LegalholdConfig) getFeatureStatusForUser
-    <@> mkNamedAPI @'("get-config", SSOConfig) getFeatureStatusForUser
-    <@> mkNamedAPI @'("get-config", SearchVisibilityAvailableConfig) getFeatureStatusForUser
-    <@> mkNamedAPI @'("get-config", ValidateSAMLEmailsConfig) getFeatureStatusForUser
-    <@> mkNamedAPI @'("get-config", DigitalSignaturesConfig) getFeatureStatusForUser
-    <@> mkNamedAPI @'("get-config", AppLockConfig) getFeatureStatusForUser
-    <@> mkNamedAPI @'("get-config", FileSharingConfig) getFeatureStatusForUser
-    <@> mkNamedAPI @'("get-config", ClassifiedDomainsConfig) getFeatureStatusForUser
-    <@> mkNamedAPI @'("get-config", ConferenceCallingConfig) getFeatureStatusForUser
-    <@> mkNamedAPI @'("get-config", SelfDeletingMessagesConfig) getFeatureStatusForUser
-    <@> mkNamedAPI @'("get-config", GuestLinksConfig) getFeatureStatusForUser
-    <@> mkNamedAPI @'("get-config", SndFactorPasswordChallengeConfig) getFeatureStatusForUser
-    <@> mkNamedAPI @'("get-config", MLSConfig) getFeatureStatusForUser
+    <@> mkNamedAPI @'("get-config", LegalholdConfig) getSingleFeatureConfigForUser
+    <@> mkNamedAPI @'("get-config", SSOConfig) getSingleFeatureConfigForUser
+    <@> mkNamedAPI @'("get-config", SearchVisibilityAvailableConfig) getSingleFeatureConfigForUser
+    <@> mkNamedAPI @'("get-config", ValidateSAMLEmailsConfig) getSingleFeatureConfigForUser
+    <@> mkNamedAPI @'("get-config", DigitalSignaturesConfig) getSingleFeatureConfigForUser
+    <@> mkNamedAPI @'("get-config", AppLockConfig) getSingleFeatureConfigForUser
+    <@> mkNamedAPI @'("get-config", FileSharingConfig) getSingleFeatureConfigForUser
+    <@> mkNamedAPI @'("get-config", ClassifiedDomainsConfig) getSingleFeatureConfigForUser
+    <@> mkNamedAPI @'("get-config", ConferenceCallingConfig) getSingleFeatureConfigForUser
+    <@> mkNamedAPI @'("get-config", SelfDeletingMessagesConfig) getSingleFeatureConfigForUser
+    <@> mkNamedAPI @'("get-config", GuestLinksConfig) getSingleFeatureConfigForUser
+    <@> mkNamedAPI @'("get-config", SndFactorPasswordChallengeConfig) getSingleFeatureConfigForUser
+    <@> mkNamedAPI @'("get-config", MLSConfig) getSingleFeatureConfigForUser

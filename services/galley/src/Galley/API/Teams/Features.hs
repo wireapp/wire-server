@@ -21,7 +21,6 @@ module Galley.API.Teams.Features
     setFeatureStatus,
     setFeatureStatusInternal,
     patchFeatureStatusInternal,
-    getFeatureStatusForUser,
     getAllFeatureConfigsForTeam,
     getAllFeatureConfigsForUser,
     updateLockStatus,
