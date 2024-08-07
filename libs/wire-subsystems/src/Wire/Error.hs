@@ -24,10 +24,6 @@ errorLabel :: HttpError -> LText
 errorLabel (StdError e) = Wai.label e
 errorLabel (RichError e _ _) = Wai.label e
 
-errorStatus :: HttpError -> Status
-errorStatus (StdError e) = Wai.code e
-errorStatus (RichError e _ _) = Wai.code e
-
 instance ToJSON HttpError where
   toJSON (StdError e) = toJSON e
   toJSON (RichError e x _) = case (toJSON e, toJSON x) of

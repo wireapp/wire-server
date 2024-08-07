@@ -69,7 +69,7 @@ tests =
             (testObject_UserClientPrekeyMap_6, "testObject_UserClientPrekeyMap_6.json"),
             (testObject_UserClientPrekeyMap_7, "testObject_UserClientPrekeyMap_7.json"),
             (testObject_UserClientPrekeyMap_8, "testObject_UserClientPrekeyMap_8.json"),
-            (testObject_UserClientPrekeyMap_8, "testObject_UserClientPrekeyMap_9.json")
+            (testObject_UserClientPrekeyMap_9, "testObject_UserClientPrekeyMap_9.json")
           ],
       testGroup "QualifiedUserClientPrekeyMap" $
         testObjects

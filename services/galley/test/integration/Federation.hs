@@ -1,7 +1,6 @@
 module Federation where
 
 import Control.Lens ((^.))
-import Control.Monad.Catch
 import Data.Domain
 import Data.Id
 import Data.Qualified
@@ -14,7 +13,6 @@ import Galley.Types.Conversations.Members (LocalMember (..), RemoteMember (..), 
 import Imports
 import Test.Tasty.HUnit
 import TestSetup
-import UnliftIO.Retry
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol (Protocol (..))
 import Wire.API.Conversation.Role (roleNameWireMember)
@@ -47,6 +45,3 @@ isConvMemberLTests = do
   liftIO $ assertBool "Remote UserId" $ isConvMemberL lconv rUserId
   liftIO $ assertBool "Qualified UserId (local)" $ isConvMemberL lconv $ tUntagged lUserId
   liftIO $ assertBool "Qualified UserId (remote)" $ isConvMemberL lconv $ tUntagged rUserId
-
-constHandlers :: (MonadIO m) => [RetryStatus -> Handler m Bool]
-constHandlers = [const $ Handler $ (\(_ :: SomeException) -> pure True)]

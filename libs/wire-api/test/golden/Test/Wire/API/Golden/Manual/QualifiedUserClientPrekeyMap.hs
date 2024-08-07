@@ -38,5 +38,6 @@ testObject_QualifiedUserClientPrekeyMap_2 =
       (Domain "epsilon.example.com", testObject_UserClientPrekeyMap_5),
       (Domain "zeta.example.com", testObject_UserClientPrekeyMap_6),
       (Domain "eta.example.com", testObject_UserClientPrekeyMap_7),
-      (Domain "theta.example.com", testObject_UserClientPrekeyMap_8)
+      (Domain "theta.example.com", testObject_UserClientPrekeyMap_8),
+      (Domain "meta.example.com", testObject_UserClientPrekeyMap_8)
     ]

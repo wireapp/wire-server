@@ -10,10 +10,14 @@ roots = [ # may of the entries here are about general-purpose module
          "^API.Galley.consentToLegalHold",  # FUTUREWORK: write tests that need this!
          "^API.Galley.enableLegalHold",  # FUTUREWORK: write tests that need this!
          "^API.Galley.getLegalHoldStatus",  # FUTUREWORK: write tests that need this!
+         "^API.GalleyInternal.putTeamMember",
+         "^API.MLS.Util.clientKeyPair",
          "^API.MLS.Util.getCurrentGroupId",
          "^API.MLS.Util.getKeyPackageCount",
          "^API.MLS.Util.getKeyPair",
          "^API.Nginz.*$", # FUTUREWORK: consider using everything or cleaning up.
+         "^API.Search._testOrderName",
+         "^API.Team.Util.*$", # FUTUREWORK: Consider whether unused utility functions should be kept.
          "^Bilge.*$",
          "^Cassandra.Helpers.toOptionFieldName",
          "^Data.ETag._OpaqueDigest",
@@ -115,9 +119,11 @@ roots = [ # may of the entries here are about general-purpose module
          "^Test.Data.Schema.userSchemaWithDefaultName",
          "^Test.Data.Schema.userSchemaWithDefaultName'",
          "^Test.Wire.API.Golden.Run.main$",
+         "^Test.Wire.API.Password.testHashPasswordScrypt", # FUTUREWORK: reworking scrypt/argon2id is planned for next sprint
          "^TestSetup.runFederationClient",
          "^TestSetup.viewCargohold",
          "^Testlib.Cannon.awaitAtLeastNMatches",
+         "^Testlib.App.*$", # FUTUREWORK: See how we can have weeder parse operators in the config file.
          "^Testlib.Cannon.awaitAtLeastNMatchesResult",
          "^Testlib.Cannon.awaitNToMMatches",
          "^Testlib.Cannon.awaitNToMMatchesResult",
@@ -131,6 +137,7 @@ roots = [ # may of the entries here are about general-purpose module
          "^Testlib.Printing.gray",
          "^Testlib.Printing.hline",
          "^Testlib.Run.main$",
+         "^Testlib.Run.mainI$",
          "^Testlib.RunServices.main$",
          "^ThreadBudget.extractLogHistory",
          "^Util.assertOne",

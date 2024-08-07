@@ -19,7 +19,6 @@ module Test.FeatureFlags.Util where
 
 import qualified API.Galley as Public
 import qualified API.GalleyInternal as Internal
-import qualified Data.Aeson as A
 import Testlib.Prelude
 
 disabled :: Value
@@ -50,45 +49,6 @@ checkFeatureWith shouldMatch' feature user tid expected = do
   bindResponse (Public.getFeatureConfigs user) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. feature `shouldMatch'` expected
-
-checkFeatureLenientTtl :: (HasCallStack, MakesValue user, MakesValue tid) => String -> user -> tid -> Value -> App ()
-checkFeatureLenientTtl = checkFeatureWith shouldMatchLenientTtl
-  where
-    shouldMatchLenientTtl :: (HasCallStack) => App Value -> Value -> App ()
-    shouldMatchLenientTtl actual expected = do
-      expectedLockStatus <- expected %. "lockStatus"
-      actual %. "lockStatus" `shouldMatch` expectedLockStatus
-      expectedStatus <- expected %. "status"
-      actual %. "status" `shouldMatch` expectedStatus
-      mExpectedConfig <- lookupField expected "config"
-      mActualConfig <- lookupField actual "config"
-      mActualConfig `shouldMatch` mExpectedConfig
-      expectedTtl <- expected %. "ttl"
-      actualTtl <- actual %. "ttl"
-      checkTtl actualTtl expectedTtl
-
-checkTtl :: (MakesValue a, MakesValue b) => a -> b -> App ()
-checkTtl x y = do
-  vx <- make x
-  vy <- make y
-  check vx vy
-  where
-    check (A.String a) (A.String b) = do
-      a `shouldMatch` "unlimited"
-      b `shouldMatch` "unlimited"
-    check _ (A.String _) = assertFailure "expected the actual ttl to be unlimited, but it was limited"
-    check (A.String _) _ = assertFailure "expected the actual ttl to be limited, but it was unlimited"
-    check (A.Number actualTtl) (A.Number expectedTtl) = do
-      assertBool
-        ("expected the actual TTL to be greater than 0 and equal to or no more than 2 seconds less than " <> show expectedTtl <> ", but it was " <> show actualTtl)
-        ( actualTtl
-            > 0
-            && actualTtl
-            <= expectedTtl
-            && abs (actualTtl - expectedTtl)
-            <= 2
-        )
-    check _ _ = assertFailure "unexpected ttl value(s)"
 
 assertForbidden :: (HasCallStack) => Response -> App ()
 assertForbidden = assertLabel 403 "no-team-member"
