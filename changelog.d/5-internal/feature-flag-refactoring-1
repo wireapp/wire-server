@@ -1,0 +1,7 @@
+Refactor feature flags 
+- Improved naming slightly. Features types are now called `Feature`, `LockableFeature` and `LockableFeaturePatch`
+- Turned `AllFeatures` into an extensible record type
+- Removed `WithStatusBase` barbie.
+- Deleted obsolete `computeFeatureConfigForTeamUser`
+- Abstracted `getFeature` and `setFeature`
+- Abstracted getAllTeamFeatures
