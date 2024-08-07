@@ -1,4 +1,4 @@
-{ libsodium, protobuf, hlib, mls-test-cli, fetchurl, curl, fetchpatch, ... }:
+{ libsodium, protobuf, hlib, mls-test-cli, fetchurl, curl, ... }:
 # FUTUREWORK: Figure out a way to detect if some of these packages are not
 # actually marked broken, so we can cleanup this file on every nixpkgs bump.
 hself: hsuper: {
@@ -55,7 +55,6 @@ hself: hsuper: {
 
   # depend on an old version of hedgehog
   polysemy-test = hlib.markUnbroken (hlib.doJailbreak hsuper.polysemy-test);
-  polysemy-conc = hlib.markUnbroken (hlib.doJailbreak hsuper.polysemy-conc);
 
   # ------------------------------------
   # okay but marked broken (nixpkgs bug)
@@ -67,11 +66,17 @@ hself: hsuper: {
   # version overrides
   # (these are fine but will probably need to be adjusted in a future nixpkgs update)
   # -----------------
-  tls = hsuper.tls_2_0_5;
-  tls-session-manager = hsuper.tls-session-manager_0_0_5;
+  tls = hsuper.tls_2_1_0;
+  tls-session-manager = hsuper.tls-session-manager_0_0_6;
+  crypton-connection = hsuper.crypton-connection_0_4_1; # older version doesn't allow tls 2.1
+  amqp = hlib.dontCheck hsuper.amqp_0_23_0; # older version doesn't allow cryton-connection 0.4.1, this one has broken tests
 
   # warp requires curl in its testsuite
   warp = hlib.addTestToolDepends hsuper.warp [ curl ];
+
+  # cabal multirepl requires Cabal 3.12
+  Cabal = hsuper.Cabal_3_12_1_0;
+  Cabal-syntax = hsuper.Cabal-syntax_3_12_1_0;
 
   # -----------------
   # flags and patches

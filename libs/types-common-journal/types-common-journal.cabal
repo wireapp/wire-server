@@ -17,7 +17,7 @@ extra-source-files:
 custom-setup
   setup-depends:
       base
-    , Cabal
+    , Cabal             >=3.12
     , proto-lens-setup
 
 library

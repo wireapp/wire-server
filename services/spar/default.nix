@@ -27,7 +27,6 @@
 , hscim
 , HsOpenSSL
 , hspec
-, hspec-core
 , hspec-discover
 , hspec-junit-formatter
 , hspec-wai
@@ -162,7 +161,6 @@ mkDerivation {
     hscim
     HsOpenSSL
     hspec
-    hspec-core
     hspec-junit-formatter
     hspec-wai
     http-api-data

@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-deprecations #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -29,7 +30,7 @@
 -- the solution: https://github.com/hspec/hspec/pull/397.
 module Main where
 
-import Control.Concurrent.Async
+import Control.Concurrent.Async (concurrently_)
 import Control.Lens ((.~), (^.))
 import Data.Text (pack)
 import Imports
@@ -38,10 +39,9 @@ import Spar.Run (mkApp)
 import System.Environment (withArgs)
 import System.Random (randomRIO)
 import Test.Hspec
-import Test.Hspec.Core.Format
-import Test.Hspec.Core.Runner
 import Test.Hspec.JUnit
 import Test.Hspec.JUnit.Config.Env
+import Test.Hspec.Runner (Config (configAvailableFormatters), defaultConfig, hspecWith)
 import qualified Test.LoggingSpec
 import qualified Test.MetricsSpec
 import qualified Test.Spar.APISpec
@@ -58,8 +58,13 @@ main :: IO ()
 main = do
   (wireArgs, hspecArgs) <- partitionArgs <$> getArgs
   let env = withArgs wireArgs mkEnvFromOptions
-  cfg <- hspecConfig
-  withArgs hspecArgs . hspecWith cfg $ do
+  -- FUTUREWORK(mangoiv): we should remove the deprecated module and instaed move to this config, however, this
+  -- needs check of whether it modifies the behaviour
+  -- junitConfig <- envJUnitConfig
+  -- withArgs hspecArgs . hspec . add junitConfig $ do
+
+  conf <- hspecConfig
+  withArgs hspecArgs . hspecWith conf $ do
     for_ [minBound ..] $ \idpApiVersion -> do
       describe (show idpApiVersion) . beforeAll (env <&> teWireIdPAPIVersion .~ idpApiVersion) . afterAll destroyEnv $ do
         mkspecMisc
@@ -77,7 +82,6 @@ hspecConfig = do
             : configAvailableFormatters defaultConfig
       }
   where
-    checksAndJUnitFormatter :: JUnitConfig -> FormatConfig -> IO Format
     checksAndJUnitFormatter junitConfig config = do
       junit <- junitFormat junitConfig config
       let checksFormatter = fromJust (lookup "checks" $ configAvailableFormatters defaultConfig)
