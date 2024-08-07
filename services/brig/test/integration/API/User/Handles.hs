@@ -69,6 +69,7 @@ tests _cl _at conf p b c g =
     ]
 
 -- The next line contains a mapping from the testHandleUpdate test to the following test standards:
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
 -- The test validates various updates to the user's handle. First, it attempts
 -- to set invalid handles. This fails. Then it successfully sets a valid handle.
@@ -138,6 +139,8 @@ testHandleUpdate brig cannon = do
   -- now 'uid2' takes 'hld' back.
   put (brig . path "/self/handle" . contentJson . zUser uid2 . zConn "c" . body update)
     !!! const 200 === statusCode
+
+-- @END
 
 testHandleRace :: Brig -> Http ()
 testHandleRace brig = do

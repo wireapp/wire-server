@@ -56,7 +56,7 @@ tests = do
           ],
         testGroup
           "Signing and Verifying"
-          [ testCase "testExpired - expired" (runCreate z 1 $ testExpired v),
+          [ testCase "expired" (runCreate z 1 $ testExpired v),
             testCase "not expired" (runCreate z 2 $ testNotExpired v),
             testCase "signed access-token is valid" (runCreate z 3 $ testSignAndVerify v)
           ],
@@ -94,6 +94,7 @@ testNotExpired p = do
   liftIO $ assertBool "testNotExpired: validation failed" (isRight x)
 
 -- The testExpired test conforms to the following testing standards:
+-- @SF.Channel @TSFI.RESTfulAPI @TSFI.NTP @S2 @S3
 --
 -- Using an expired access token should fail
 testExpired :: V.Env -> Create ()
@@ -103,6 +104,8 @@ testExpired p = do
   waitSeconds 1
   x <- liftIO $ runValidate p $ check t
   liftIO $ Left Expired @=? x
+
+-- @END
 
 testSignAndVerify :: V.Env -> Create ()
 testSignAndVerify p = do
