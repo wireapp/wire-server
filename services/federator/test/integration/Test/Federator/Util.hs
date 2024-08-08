@@ -161,9 +161,6 @@ mkEnv _teTstOpts _teOpts = do
   let _teSettings = optSettings _teOpts
   pure TestEnv {..}
 
-destroyEnv :: (HasCallStack) => TestEnv -> IO ()
-destroyEnv _ = pure ()
-
 endpointToReq :: Endpoint -> (Bilge.Request -> Bilge.Request)
 endpointToReq ep = Bilge.host (ep ^. O.host . to cs) . Bilge.port (ep ^. O.port)
 

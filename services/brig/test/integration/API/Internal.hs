@@ -23,7 +23,6 @@ module API.Internal
   )
 where
 
-import API.Internal.Util
 import API.MLS.Util
 import Bilge
 import Bilge.Assert
@@ -32,6 +31,7 @@ import Brig.Options qualified as Opt
 import Cassandra qualified as C
 import Cassandra qualified as Cass
 import Cassandra.Util
+import Control.Monad.Catch
 import Data.ByteString.Conversion (toByteString')
 import Data.Default
 import Data.Id
@@ -44,6 +44,8 @@ import Util
 import Util.Options (Endpoint)
 import Wire.API.User
 import Wire.API.User.Client
+
+type TestConstraints m = (MonadFail m, MonadCatch m, MonadIO m, MonadHttp m)
 
 tests :: Opt.Opts -> Manager -> Cass.ClientState -> Brig -> Endpoint -> Gundeck -> Galley -> IO TestTree
 tests opts mgr db brig brigep _gundeck galley = do

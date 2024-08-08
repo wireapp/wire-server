@@ -373,7 +373,6 @@ executable brig-integration
     API.Calling
     API.Federation
     API.Internal
-    API.Internal.Util
     API.Metrics
     API.MLS.Util
     API.OAuth

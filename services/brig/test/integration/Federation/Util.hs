@@ -98,9 +98,6 @@ generateClientPrekeys brig prekeys = do
   clients <- traverse (responseJsonError <=< addClient brig (qUnqualified quser)) nclients
   pure (quser, zipWith mkClientPrekey prekeys clients)
 
-assertRightT :: (MonadIO m, Show a, HasCallStack) => ExceptT a m b -> m b
-assertRightT = assertRight <=< runExceptT
-
 getConvQualified :: Galley -> UserId -> Qualified ConvId -> Http ResponseLBS
 getConvQualified g u (Qualified cnvId domain) =
   get $

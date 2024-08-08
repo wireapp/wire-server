@@ -916,27 +916,3 @@ sendMessage = do
       -- check that alice received the message
       WS.assertMatch_ (5 # Second) ws $
         wsAssertOtr' "" conv bob bobClient aliceClient (toBase64Text "hi alice")
-
-getConvAction :: Sing tag -> SomeConversationAction -> Maybe (ConversationAction tag)
-getConvAction tquery (SomeConversationAction tag action) =
-  case (tag, tquery) of
-    (SConversationJoinTag, SConversationJoinTag) -> Just action
-    (SConversationJoinTag, _) -> Nothing
-    (SConversationLeaveTag, SConversationLeaveTag) -> Just action
-    (SConversationLeaveTag, _) -> Nothing
-    (SConversationMemberUpdateTag, SConversationMemberUpdateTag) -> Just action
-    (SConversationMemberUpdateTag, _) -> Nothing
-    (SConversationDeleteTag, SConversationDeleteTag) -> Just action
-    (SConversationDeleteTag, _) -> Nothing
-    (SConversationRenameTag, SConversationRenameTag) -> Just action
-    (SConversationRenameTag, _) -> Nothing
-    (SConversationMessageTimerUpdateTag, SConversationMessageTimerUpdateTag) -> Just action
-    (SConversationMessageTimerUpdateTag, _) -> Nothing
-    (SConversationReceiptModeUpdateTag, SConversationReceiptModeUpdateTag) -> Just action
-    (SConversationReceiptModeUpdateTag, _) -> Nothing
-    (SConversationAccessDataTag, SConversationAccessDataTag) -> Just action
-    (SConversationAccessDataTag, _) -> Nothing
-    (SConversationRemoveMembersTag, SConversationRemoveMembersTag) -> Just action
-    (SConversationRemoveMembersTag, _) -> Nothing
-    (SConversationUpdateProtocolTag, SConversationUpdateProtocolTag) -> Just action
-    (SConversationUpdateProtocolTag, _) -> Nothing
