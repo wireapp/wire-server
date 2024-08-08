@@ -1,12 +1,8 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE UndecidableSuperClasses #-}
-{-# LANGUAGE NoStarIsType #-}
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 -- This file is part of the Wire Server implementation.
@@ -1296,12 +1292,9 @@ type AllFeatures f = NP f Features
 -- | 'AllFeatures' specialised to the 'LockableFeature' functor
 type AllFeatureConfigs = AllFeatures LockableFeature
 
--- | constraint synonym requiring the @c@ instance for the @f@ type constructor applied to type @a@ to hold
-class (c (f a)) => LiftForF c f a
+class (Default (LockableFeature cfg)) => LockableFeatureDefault cfg
 
-instance (c (f a)) => LiftForF c f a
-
-type LockableFeatureDefault = LiftForF Default LockableFeature
+instance (Default (LockableFeature cfg)) => LockableFeatureDefault cfg
 
 instance Default AllFeatureConfigs where
   def = hcpure (Proxy @LockableFeatureDefault) def
@@ -1328,9 +1321,15 @@ instance ToSchema AllFeatureConfigs where
       featureField :: forall cfg. (FeatureFieldConstraints cfg) => ObjectSchema SwaggerDoc (LockableFeature cfg)
       featureField = field (T.pack (symbolVal (Proxy @(FeatureSymbol cfg)))) schema
 
-instance Arbitrary AllFeatureConfigs where
-  arbitrary = hsequence' $ hcpure (Proxy @(LiftForF Arbitrary LockableFeature)) (Comp arbitrary)
+class (Arbitrary cfg, IsFeatureConfig cfg) => ArbitraryFeatureConfig cfg
 
+instance (Arbitrary cfg, IsFeatureConfig cfg) => ArbitraryFeatureConfig cfg
+
+instance Arbitrary AllFeatureConfigs where
+  arbitrary = hsequence' $ hcpure (Proxy @ArbitraryFeatureConfig) (Comp arbitrary)
+
+-- | FUTUREWORK: 'NpProject' and 'NpUpdate' can be useful for more than
+-- features. Maybe they should be moved somewhere else.
 class NpProject x xs where
   npProject' :: Proxy x -> NP f xs -> f x
 
