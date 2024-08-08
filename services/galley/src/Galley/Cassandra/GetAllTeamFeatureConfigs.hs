@@ -23,10 +23,10 @@ emptyRow :: NP Maybe AllFeatureRow
 emptyRow = hpure Nothing
 
 class ConcatFeatures cfgs where
-  mkAllFeatures :: NP Maybe (ConcatFeatureRow cfgs) -> NP DbFeature cfgs
+  rowToAllFeatures :: NP Maybe (ConcatFeatureRow cfgs) -> NP DbFeature cfgs
 
 instance ConcatFeatures '[] where
-  mkAllFeatures Nil = Nil
+  rowToAllFeatures Nil = Nil
 
 instance
   ( Split (FeatureRow cfg) (ConcatFeatureRow cfgs),
@@ -35,8 +35,8 @@ instance
   ) =>
   ConcatFeatures (cfg : cfgs)
   where
-  mkAllFeatures row = case split @(FeatureRow cfg) @(ConcatFeatureRow cfgs) row of
-    (row0, row1) -> mkFeature row0 :* mkAllFeatures row1
+  rowToAllFeatures row = case split @(FeatureRow cfg) @(ConcatFeatureRow cfgs) row of
+    (row0, row1) -> rowToFeature row0 :* rowToAllFeatures row1
 
 class Split xs ys where
   split :: NP f (Append xs ys) -> (NP f xs, NP f ys)
@@ -60,7 +60,7 @@ getAllFeatureConfigs ::
   m (AllFeatures DbFeature)
 getAllFeatureConfigs tid = do
   mRow <- retry x1 $ query1 select (params LocalQuorum (Identity tid))
-  pure $ mkAllFeatures $ maybe emptyRow (unfactorI . productTypeFrom) mRow
+  pure $ rowToAllFeatures $ maybe emptyRow (unfactorI . productTypeFrom) mRow
   where
     select :: PrepQuery R (Identity TeamId) (TupleP mrow)
     select = fromString ""

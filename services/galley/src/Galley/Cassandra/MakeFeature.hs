@@ -33,19 +33,19 @@ class MakeFeature cfg where
 
   featureColumns :: NP (K String) (FeatureRow cfg)
 
-  mkFeature :: NP Maybe (FeatureRow cfg) -> DbFeature cfg
-  default mkFeature ::
+  rowToFeature :: NP Maybe (FeatureRow cfg) -> DbFeature cfg
+  default rowToFeature ::
     (FeatureRow cfg ~ '[FeatureStatus]) =>
     NP Maybe (FeatureRow cfg) ->
     DbFeature cfg
-  mkFeature = foldMap dbFeatureStatus . hd
+  rowToFeature = foldMap dbFeatureStatus . hd
 
-  unmkFeature :: LockableFeature cfg -> NP Maybe (FeatureRow cfg)
-  default unmkFeature ::
+  featureToRow :: LockableFeature cfg -> NP Maybe (FeatureRow cfg)
+  default featureToRow ::
     (FeatureRow cfg ~ '[FeatureStatus]) =>
     LockableFeature cfg ->
     NP Maybe (FeatureRow cfg)
-  unmkFeature feat = Just feat.status :* Nil
+  featureToRow feat = Just feat.status :* Nil
 
 instance MakeFeature LegalholdConfig where
   featureColumns = K "legalhold_status" :* Nil
@@ -79,11 +79,11 @@ instance MakeFeature AppLockConfig where
       :* K "app_lock_inactivity_timeout_secs"
       :* Nil
 
-  mkFeature (status :* enforce :* timeout :* Nil) =
+  rowToFeature (status :* enforce :* timeout :* Nil) =
     foldMap dbFeatureStatus status
       <> foldMap dbFeatureConfig (AppLockConfig <$> enforce <*> timeout)
 
-  unmkFeature feat =
+  featureToRow feat =
     Just feat.status
       :* Just feat.config.applockEnforceAppLock
       :* Just feat.config.applockInactivityTimeoutSecs
@@ -93,18 +93,18 @@ instance MakeFeature ClassifiedDomainsConfig where
   type FeatureRow ClassifiedDomainsConfig = '[]
   featureColumns = Nil
 
-  mkFeature Nil = mempty
-  unmkFeature _ = Nil
+  rowToFeature Nil = mempty
+  featureToRow _ = Nil
 
 instance MakeFeature FileSharingConfig where
   type FeatureRow FileSharingConfig = '[LockStatus, FeatureStatus]
   featureColumns = K "file_sharing_lock_status" :* K "file_sharing" :* Nil
 
-  mkFeature (lockStatus :* status :* Nil) =
+  rowToFeature (lockStatus :* status :* Nil) =
     foldMap dbFeatureLockStatus lockStatus
       <> foldMap dbFeatureStatus status
 
-  unmkFeature feat = Just feat.lockStatus :* Just feat.status :* Nil
+  featureToRow feat = Just feat.lockStatus :* Just feat.status :* Nil
 
 instance MakeFeature ConferenceCallingConfig where
   type FeatureRow ConferenceCallingConfig = '[LockStatus, FeatureStatus, One2OneCalls]
@@ -114,12 +114,12 @@ instance MakeFeature ConferenceCallingConfig where
       :* K "conference_calling_one_to_one"
       :* Nil
 
-  mkFeature (lockStatus :* status :* calls :* Nil) =
+  rowToFeature (lockStatus :* status :* calls :* Nil) =
     foldMap dbFeatureLockStatus lockStatus
       <> foldMap dbFeatureStatus status
       <> foldMap (dbFeatureConfig . ConferenceCallingConfig) calls
 
-  unmkFeature feat =
+  featureToRow feat =
     Just feat.lockStatus
       :* Just feat.status
       :* Just feat.config.one2OneCalls
@@ -133,12 +133,12 @@ instance MakeFeature SelfDeletingMessagesConfig where
       :* K "self_deleting_messages_ttl"
       :* Nil
 
-  mkFeature (lockStatus :* status :* ttl :* Nil) =
+  rowToFeature (lockStatus :* status :* ttl :* Nil) =
     foldMap dbFeatureLockStatus lockStatus
       <> foldMap dbFeatureStatus status
       <> foldMap (dbFeatureConfig . SelfDeletingMessagesConfig) ttl
 
-  unmkFeature feat =
+  featureToRow feat =
     Just feat.lockStatus
       :* Just feat.status
       :* Just feat.config.sdmEnforcedTimeoutSeconds
@@ -148,11 +148,11 @@ instance MakeFeature GuestLinksConfig where
   type FeatureRow GuestLinksConfig = '[LockStatus, FeatureStatus]
   featureColumns = K "guest_links_lock_status" :* K "guest_links_status" :* Nil
 
-  mkFeature (lockStatus :* status :* Nil) =
+  rowToFeature (lockStatus :* status :* Nil) =
     foldMap dbFeatureLockStatus lockStatus
       <> foldMap dbFeatureStatus status
 
-  unmkFeature feat = Just feat.lockStatus :* Just feat.status :* Nil
+  featureToRow feat = Just feat.lockStatus :* Just feat.status :* Nil
 
 instance MakeFeature SndFactorPasswordChallengeConfig where
   type FeatureRow SndFactorPasswordChallengeConfig = '[LockStatus, FeatureStatus]
@@ -161,11 +161,11 @@ instance MakeFeature SndFactorPasswordChallengeConfig where
       :* K "snd_factor_password_challenge_status"
       :* Nil
 
-  mkFeature (lockStatus :* status :* Nil) =
+  rowToFeature (lockStatus :* status :* Nil) =
     foldMap dbFeatureLockStatus lockStatus
       <> foldMap dbFeatureStatus status
 
-  unmkFeature feat = Just feat.lockStatus :* Just feat.status :* Nil
+  featureToRow feat = Just feat.lockStatus :* Just feat.status :* Nil
 
 instance MakeFeature ExposeInvitationURLsToTeamAdminConfig where
   featureColumns = K "expose_invitation_urls_to_team_admin" :* Nil
@@ -178,11 +178,11 @@ instance MakeFeature OutlookCalIntegrationConfig where
       :* K "outlook_cal_integration_status"
       :* Nil
 
-  mkFeature (lockStatus :* status :* Nil) =
+  rowToFeature (lockStatus :* status :* Nil) =
     foldMap dbFeatureLockStatus lockStatus
       <> foldMap dbFeatureStatus status
 
-  unmkFeature feat = Just feat.lockStatus :* Just feat.status :* Nil
+  featureToRow feat = Just feat.lockStatus :* Just feat.status :* Nil
 
 instance MakeFeature MLSConfig where
   type
@@ -205,7 +205,7 @@ instance MakeFeature MLSConfig where
       :* K "mls_supported_protocols"
       :* Nil
 
-  mkFeature
+  rowToFeature
     ( lockStatus
         :* status
         :* defProto
@@ -226,7 +226,7 @@ instance MakeFeature MLSConfig where
               <*> pure (foldMap C.fromSet supportedProtos)
           )
 
-  unmkFeature feat =
+  featureToRow feat =
     Just feat.lockStatus
       :* Just feat.status
       :* Just feat.config.mlsDefaultProtocol
@@ -255,7 +255,7 @@ instance MakeFeature MlsE2EIdConfig where
       :* K "mls_e2eid_use_proxy_on_mobile"
       :* Nil
 
-  mkFeature
+  rowToFeature
     ( lockStatus
         :* status
         :* gracePeriod
@@ -277,7 +277,7 @@ instance MakeFeature MlsE2EIdConfig where
                 }
           )
 
-  unmkFeature feat =
+  featureToRow feat =
     Just feat.lockStatus
       :* Just feat.status
       :* Just (truncate feat.config.verificationExpiration)
@@ -298,12 +298,12 @@ instance MakeFeature MlsMigrationConfig where
       :* K "mls_migration_finalise_regardless_after"
       :* Nil
 
-  mkFeature (lockStatus :* status :* startTime :* finalizeAfter :* Nil) =
+  rowToFeature (lockStatus :* status :* startTime :* finalizeAfter :* Nil) =
     foldMap dbFeatureLockStatus lockStatus
       <> foldMap dbFeatureStatus status
       <> dbFeatureConfig (MlsMigrationConfig startTime finalizeAfter)
 
-  unmkFeature feat =
+  featureToRow feat =
     Just feat.lockStatus
       :* Just feat.status
       :* feat.config.startTime
@@ -319,11 +319,11 @@ instance MakeFeature EnforceFileDownloadLocationConfig where
       :* K "enforce_file_download_location"
       :* Nil
 
-  mkFeature (lockStatus :* status :* location :* Nil) =
+  rowToFeature (lockStatus :* status :* location :* Nil) =
     foldMap dbFeatureLockStatus lockStatus
       <> foldMap dbFeatureStatus status
       <> dbFeatureConfig (EnforceFileDownloadLocationConfig location)
-  unmkFeature feat =
+  featureToRow feat =
     Just feat.lockStatus
       :* Just feat.status
       :* feat.config.enforcedDownloadLocation
@@ -345,7 +345,7 @@ fetchFeature ::
   m (DbFeature cfg)
 fetchFeature tid = do
   case featureColumns @cfg of
-    Nil -> pure (mkFeature Nil)
+    Nil -> pure (rowToFeature Nil)
     cols -> do
       let select :: PrepQuery R (Identity TeamId) (TupleP mrow)
           select =
@@ -354,7 +354,7 @@ fetchFeature tid = do
                 <> intercalate ", " (hcollapse cols)
                 <> " from team_features where team_id = ?"
       row <- retry x1 $ query1 select (params LocalQuorum (Identity tid))
-      pure $ foldMap (mkFeature . unfactorI . productTypeFrom) row
+      pure $ foldMap (rowToFeature . unfactorI . productTypeFrom) row
 
 storeFeature ::
   forall cfg m row mrow.
@@ -376,7 +376,7 @@ storeFeature tid feat = do
       retry x5 $
         write
           insert
-          ( params LocalQuorum (productTypeTo (I tid :* factorI (unmkFeature feat)))
+          ( params LocalQuorum (productTypeTo (I tid :* factorI (featureToRow feat)))
           )
   where
     n :: Int
