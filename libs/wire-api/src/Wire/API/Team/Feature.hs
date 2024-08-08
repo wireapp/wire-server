@@ -1307,8 +1307,6 @@ instance Default AllFeatureConfigs where
   def = hcpure (Proxy @LockableFeatureDefault) def
 
 -- | object schema for nary products
---
--- TODO(mangoiv): generalize this to be useable with schema profunctor
 class HObjectSchema c xs where
   hobjectSchema :: (forall cfg. (c cfg) => ObjectSchema SwaggerDoc (f cfg)) -> ObjectSchema SwaggerDoc (NP f xs)
 
