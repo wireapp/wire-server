@@ -26,10 +26,8 @@ module Galley.API.Teams.Features
     getAllFeatureConfigsForTeam,
     getAllFeatureConfigsForUser,
     updateLockStatus,
-    -- Don't export methods of this typeclass
-    GetFeatureConfig,
-    -- Don't export methods of this typeclass
-    SetFeatureConfig,
+    GetFeatureConfig (..),
+    SetFeatureConfig (..),
     guardSecondFactorDisabled,
     DoAuth (..),
     featureEnabledForTeam,

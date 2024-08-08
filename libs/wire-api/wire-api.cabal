@@ -151,6 +151,7 @@ library
     Wire.API.Routes.ClientAlgebra
     Wire.API.Routes.Cookies
     Wire.API.Routes.CSV
+    Wire.API.Routes.Features
     Wire.API.Routes.FederationDomainConfig
     Wire.API.Routes.Internal.Brig
     Wire.API.Routes.Internal.Brig.Connection

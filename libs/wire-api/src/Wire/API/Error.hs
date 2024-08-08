@@ -164,7 +164,7 @@ instance (KnownError e) => ToSchema (SStaticError e) where
 
 data CanThrow e
 
-data CanThrowMany e
+data CanThrowMany (es :: [k])
 
 instance (RoutesToPaths api) => RoutesToPaths (CanThrow err :> api) where
   getRoutes = getRoutes @api
@@ -203,18 +203,18 @@ type instance
   SpecialiseToVersion v (CanThrowMany es :> api) =
     CanThrowMany es :> SpecialiseToVersion v api
 
-instance (HasOpenApi api) => HasOpenApi (CanThrowMany '() :> api) where
+instance (HasOpenApi api) => HasOpenApi (CanThrowMany '[] :> api) where
   toOpenApi _ = toOpenApi (Proxy @api)
 
 instance
   (HasOpenApi (CanThrowMany es :> api), IsSwaggerError e) =>
-  HasOpenApi (CanThrowMany '(e, es) :> api)
+  HasOpenApi (CanThrowMany (e : es) :> api)
   where
   toOpenApi _ = addToOpenApi @e (toOpenApi (Proxy @(CanThrowMany es :> api)))
 
 type family DeclaredErrorEffects api :: EffectRow where
   DeclaredErrorEffects (CanThrow e :> api) = (ErrorEffect e ': DeclaredErrorEffects api)
-  DeclaredErrorEffects (CanThrowMany '(e, es) :> api) =
+  DeclaredErrorEffects (CanThrowMany (e : es) :> api) =
     DeclaredErrorEffects (CanThrow e :> CanThrowMany es :> api)
   DeclaredErrorEffects (x :> api) = DeclaredErrorEffects api
   DeclaredErrorEffects (Named n api) = DeclaredErrorEffects api
