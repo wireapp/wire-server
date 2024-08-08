@@ -1,4 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -fconstraint-solver-iterations=0 #-}
 
 module Galley.Cassandra.GetAllTeamFeatureConfigs where
