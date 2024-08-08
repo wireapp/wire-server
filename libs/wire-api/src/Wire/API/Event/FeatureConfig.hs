@@ -30,7 +30,7 @@ import Data.OpenApi qualified as S
 import Data.Schema
 import GHC.TypeLits (KnownSymbol)
 import Imports
-import Test.QuickCheck.Gen (oneof)
+import Test.QuickCheck.Gen
 import Wire.API.Team.Feature
 import Wire.Arbitrary (Arbitrary (..), GenericUniform (..))
 
@@ -42,30 +42,31 @@ data Event = Event
   deriving (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON) via Schema Event
 
+arbitraryFeature :: forall cfg. (IsFeatureConfig cfg, ToSchema cfg, Arbitrary cfg) => Gen A.Value
+arbitraryFeature = toJSON <$> arbitrary @(LockableFeature cfg)
+
+class AllArbitraryFeatures cfgs where
+  allArbitraryFeatures :: [Gen A.Value]
+
+instance AllArbitraryFeatures '[] where
+  allArbitraryFeatures = []
+
+instance
+  ( IsFeatureConfig cfg,
+    ToSchema cfg,
+    Arbitrary cfg,
+    AllArbitraryFeatures cfgs
+  ) =>
+  AllArbitraryFeatures (cfg : cfgs)
+  where
+  allArbitraryFeatures = arbitraryFeature @cfg : allArbitraryFeatures @cfgs
+
 instance Arbitrary Event where
   arbitrary =
-    do
-      let arbConfig =
-            oneof
-              [ arbitrary @(LockableFeature SSOConfig) <&> toJSON,
-                arbitrary @(LockableFeature SearchVisibilityAvailableConfig) <&> toJSON,
-                arbitrary @(LockableFeature ValidateSAMLEmailsConfig) <&> toJSON,
-                arbitrary @(LockableFeature DigitalSignaturesConfig) <&> toJSON,
-                arbitrary @(LockableFeature AppLockConfig) <&> toJSON,
-                arbitrary @(LockableFeature FileSharingConfig) <&> toJSON,
-                arbitrary @(LockableFeature ClassifiedDomainsConfig) <&> toJSON,
-                arbitrary @(LockableFeature ConferenceCallingConfig) <&> toJSON,
-                arbitrary @(LockableFeature SelfDeletingMessagesConfig) <&> toJSON,
-                arbitrary @(LockableFeature GuestLinksConfig) <&> toJSON,
-                arbitrary @(LockableFeature SndFactorPasswordChallengeConfig) <&> toJSON,
-                arbitrary @(LockableFeature SearchVisibilityInboundConfig) <&> toJSON,
-                arbitrary @(LockableFeature MLSConfig) <&> toJSON,
-                arbitrary @(LockableFeature ExposeInvitationURLsToTeamAdminConfig) <&> toJSON
-              ]
-      Event
-        <$> arbitrary
-        <*> arbitrary
-        <*> arbConfig
+    Event
+      <$> arbitrary
+      <*> arbitrary
+      <*> oneof (allArbitraryFeatures @Features)
 
 data EventType = Update
   deriving (Eq, Show, Generic)
