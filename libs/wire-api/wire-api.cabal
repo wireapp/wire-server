@@ -263,6 +263,7 @@ library
     , crypton
     , crypton-x509
     , currency-codes             >=2.0
+    , data-default
     , deriving-aeson             >=0.2
     , deriving-swagger2
     , either

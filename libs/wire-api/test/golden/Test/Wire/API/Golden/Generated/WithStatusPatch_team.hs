@@ -63,7 +63,7 @@ testObject_WithStatusPatch_team_13 :: WithStatusPatch DigitalSignaturesConfig
 testObject_WithStatusPatch_team_13 = withStatus (Just FeatureStatusEnabled) (Just LockStatusLocked) (Just DigitalSignaturesConfig)
 
 testObject_WithStatusPatch_team_14 :: WithStatusPatch ConferenceCallingConfig
-testObject_WithStatusPatch_team_14 = withStatus Nothing (Just LockStatusUnlocked) (Just ConferenceCallingConfig)
+testObject_WithStatusPatch_team_14 = withStatus Nothing (Just LockStatusUnlocked) (Just (ConferenceCallingConfig One2OneCallsSft))
 
 testObject_WithStatusPatch_team_15 :: WithStatusPatch GuestLinksConfig
 testObject_WithStatusPatch_team_15 = withStatus (Just FeatureStatusEnabled) (Just LockStatusUnlocked) (Just GuestLinksConfig)

@@ -46,6 +46,7 @@ module Stern.Intra
     setBlacklistStatus,
     getTeamFeatureFlag,
     setTeamFeatureFlag,
+    patchTeamFeatureFlag,
     setTeamFeatureLockStatus,
     getTeamData,
     getSearchVisibility,
@@ -70,7 +71,7 @@ module Stern.Intra
   )
 where
 
-import Bilge hiding (head, options, path, paths, requestId)
+import Bilge hiding (head, options, patch, path, paths, requestId)
 import Bilge qualified
 import Bilge.RPC
 import Brig.Types.Intra
@@ -551,27 +552,58 @@ setTeamFeatureFlag ::
 setTeamFeatureFlag tid status = do
   info $ msg "Setting team feature status"
   checkDaysLimit (wssTTL status)
+  galleyRpc $
+    method PUT
+      . Bilge.paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg]
+      . Bilge.json status
+      . contentJson
+
+patchTeamFeatureFlag ::
+  forall cfg.
+  ( ToJSON (Public.WithStatusPatch cfg),
+    KnownSymbol (Public.FeatureSymbol cfg)
+  ) =>
+  TeamId ->
+  Public.WithStatusPatch cfg ->
+  Handler ()
+patchTeamFeatureFlag tid patch = do
+  info $ msg "Patching team feature status"
+  for_ (wspTTL patch) $ \ttl -> checkDaysLimit ttl
+  galleyRpc $
+    method PATCH
+      . Bilge.paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg]
+      . Bilge.json patch
+      . contentJson
+
+galleyRpc :: (Bilge.Request -> Bilge.Request) -> Handler ()
+galleyRpc req = do
   gly <- view galley
-  let req =
-        method PUT
-          . Bilge.paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg]
-          . Bilge.json status
-          . contentJson
   resp <- catchRpcErrors $ rpc' "galley" gly req
   case statusCode resp of
     200 -> pure ()
     404 -> throwE (mkError status404 "bad-upstream" "team does not exist")
-    403 -> throwE (mkError status403 "bad-upstream" "legal hold config cannot be changed")
+    403 -> throwE (mkError status403 "bad-upstream" "config cannot be changed")
     _ -> throwE (mkError status502 "bad-upstream" (errorMessage resp))
+
+checkDaysLimit :: FeatureTTL -> Handler ()
+checkDaysLimit = \case
+  FeatureTTLUnlimited -> pure ()
+  FeatureTTLSeconds ((`div` (60 * 60 * 24)) -> days) -> do
+    unless (days <= daysLimit) $ do
+      throwE
+        ( mkError
+            status400
+            "bad-data"
+            ( cs $
+                "ttl limit is "
+                  <> show daysLimit
+                  <> " days; I got "
+                  <> show days
+                  <> "."
+            )
+        )
   where
-    checkDaysLimit :: FeatureTTL -> Handler ()
-    checkDaysLimit = \case
-      FeatureTTLUnlimited -> pure ()
-      FeatureTTLSeconds ((`div` (60 * 60 * 24)) -> days) -> do
-        unless (days <= daysLimit) $ do
-          throwE (mkError status400 "bad-data" (cs $ "ttl limit is " <> show daysLimit <> " days; I got " <> show days <> "."))
-      where
-        daysLimit = 2000
+    daysLimit = 2000
 
 setTeamFeatureLockStatus ::
   forall cfg.

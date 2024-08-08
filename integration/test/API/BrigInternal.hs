@@ -242,4 +242,32 @@ getClientsFull :: (HasCallStack, MakesValue users, MakesValue uid) => uid -> use
 getClientsFull user users = do
   val <- make users
   baseRequest user Brig Unversioned do joinHttpPath ["i", "clients", "full"]
-    >>= submit "POST" . addJSONObject ["users" .= val]
+    >>= submit "POST"
+      . addJSONObject ["users" .= val]
+
+-- | http://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/get_i_users__uid__features_conferenceCalling
+getFeatureForUser :: (HasCallStack, MakesValue user) => user -> String -> App Response
+getFeatureForUser user featureName = do
+  uid <- objId user
+  req <- baseRequest user Brig Unversioned $ joinHttpPath ["i", "users", uid, "features", featureName]
+  submit "GET" req
+
+-- | http://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/put_i_users__uid__features_conferenceCalling
+putFeatureForUser ::
+  (HasCallStack, MakesValue user, MakesValue config) =>
+  user ->
+  String ->
+  config ->
+  App Response
+putFeatureForUser user featureName config = do
+  uid <- objId user
+  req <- baseRequest user Brig Unversioned $ joinHttpPath ["i", "users", uid, "features", featureName]
+  configValue <- make config
+  submit "PUT" $ req & addJSON configValue
+
+-- | http://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/delete_i_users__uid__features_conferenceCalling
+deleteFeatureForUser :: (HasCallStack, MakesValue user) => user -> String -> App Response
+deleteFeatureForUser user featureName = do
+  uid <- objId user
+  req <- baseRequest user Brig Unversioned $ joinHttpPath ["i", "users", uid, "features", featureName]
+  submit "DELETE" req

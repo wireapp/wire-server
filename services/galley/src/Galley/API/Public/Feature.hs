@@ -47,6 +47,7 @@ featureAPI =
     <@> mkNamedAPI @'("put", FileSharingConfig) (setFeatureStatus . DoAuth)
     <@> mkNamedAPI @'("get", ClassifiedDomainsConfig) (getFeatureStatus . DoAuth)
     <@> mkNamedAPI @'("get", ConferenceCallingConfig) (getFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("put", ConferenceCallingConfig) (setFeatureStatus . DoAuth)
     <@> mkNamedAPI @'("get", SelfDeletingMessagesConfig) (getFeatureStatus . DoAuth)
     <@> mkNamedAPI @'("put", SelfDeletingMessagesConfig) (setFeatureStatus . DoAuth)
     <@> mkNamedAPI @'("get", GuestLinksConfig) (getFeatureStatus . DoAuth)

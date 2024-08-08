@@ -89,6 +89,12 @@ brig:
       setMaxConvSize: 16
       # See helmfile for the real value
       setFederationDomain: integration.example.com
+      setFeatureFlags:
+        conferenceCalling:
+          defaultForNew:
+            status: disabled
+          defaultForNull:
+            status: disabled
       setFederationStrategy: allowAll
       setFederationDomainConfigsUpdateFreq: 10
       setDisabledAPIVersions: []
@@ -223,6 +229,9 @@ galley:
         sso: disabled-by-default  # this needs to be the default; tests can enable it when needed.
         legalhold: whitelist-teams-and-implicit-consent
         teamSearchVisibility: disabled-by-default
+        conferenceCalling:
+          defaults:
+            status: disabled
         classifiedDomains:
           status: enabled
           config:

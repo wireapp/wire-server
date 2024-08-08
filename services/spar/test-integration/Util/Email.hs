@@ -165,6 +165,6 @@ getActivationCode brig ep = do
 setSamlEmailValidation :: HasCallStack => TeamId -> Feature.FeatureStatus -> TestSpar ()
 setSamlEmailValidation tid status = do
   galley <- view teGalley
-  let req = put $ galley . paths p . json (Feature.WithStatusNoLock @Feature.ValidateSAMLEmailsConfig status Feature.trivialConfig Feature.FeatureTTLUnlimited)
+  let req = put $ galley . paths p . json (Feature.WithStatusNoLock @Feature.ValidateSAMLEmailsConfig status Feature.ValidateSAMLEmailsConfig Feature.FeatureTTLUnlimited)
       p = ["/i/teams", toByteString' tid, "features", Feature.featureNameBS @Feature.ValidateSAMLEmailsConfig]
   call req !!! const 200 === statusCode

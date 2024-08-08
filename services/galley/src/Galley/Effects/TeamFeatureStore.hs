@@ -25,14 +25,15 @@ import Polysemy
 import Wire.API.Team.Feature
 
 data TeamFeatureStore m a where
+  -- | Returns all stored feature values excluding lock status.
   GetFeatureConfig ::
     FeatureSingleton cfg ->
     TeamId ->
-    TeamFeatureStore m (Maybe (WithStatusNoLock cfg))
+    TeamFeatureStore m (DbFeature cfg)
   GetFeatureConfigMulti ::
     FeatureSingleton cfg ->
     [TeamId] ->
-    TeamFeatureStore m [(TeamId, Maybe (WithStatusNoLock cfg))]
+    TeamFeatureStore m [(TeamId, DbFeature cfg)]
   SetFeatureConfig ::
     FeatureSingleton cfg ->
     TeamId ->
@@ -49,6 +50,6 @@ data TeamFeatureStore m a where
     TeamFeatureStore m ()
   GetAllFeatureConfigs ::
     TeamId ->
-    TeamFeatureStore m AllFeatureConfigs
+    TeamFeatureStore m (AllFeatures DbFeatureWithLock)
 
 makeSem ''TeamFeatureStore

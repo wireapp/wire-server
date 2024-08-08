@@ -34,7 +34,7 @@ enabled = object ["lockStatus" .= "unlocked", "status" .= "enabled", "ttl" .= "u
 checkFeature :: (HasCallStack, MakesValue user, MakesValue tid) => String -> user -> tid -> Value -> App ()
 checkFeature = checkFeatureWith shouldMatch
 
-checkFeatureWith :: (HasCallStack, MakesValue user, MakesValue tid, MakesValue expected) => (App Value -> expected -> App ()) -> String -> user -> tid -> expected -> App ()
+checkFeatureWith :: (HasCallStack, MakesValue user, MakesValue tid, MakesValue expected) => ((HasCallStack) => App Value -> expected -> App ()) -> String -> user -> tid -> expected -> App ()
 checkFeatureWith shouldMatch' feature user tid expected = do
   tidStr <- asString tid
   domain <- objDomain user
@@ -54,7 +54,7 @@ checkFeatureWith shouldMatch' feature user tid expected = do
 checkFeatureLenientTtl :: (HasCallStack, MakesValue user, MakesValue tid) => String -> user -> tid -> Value -> App ()
 checkFeatureLenientTtl = checkFeatureWith shouldMatchLenientTtl
   where
-    shouldMatchLenientTtl :: App Value -> Value -> App ()
+    shouldMatchLenientTtl :: (HasCallStack) => App Value -> Value -> App ()
     shouldMatchLenientTtl actual expected = do
       expectedLockStatus <- expected %. "lockStatus"
       actual %. "lockStatus" `shouldMatch` expectedLockStatus
@@ -67,20 +67,49 @@ checkFeatureLenientTtl = checkFeatureWith shouldMatchLenientTtl
       actualTtl <- actual %. "ttl"
       checkTtl actualTtl expectedTtl
 
-    checkTtl :: Value -> Value -> App ()
-    checkTtl (A.String a) (A.String b) = do
+checkTtl :: (MakesValue a, MakesValue b) => a -> b -> App ()
+checkTtl x y = do
+  vx <- make x
+  vy <- make y
+  check vx vy
+  where
+    check (A.String a) (A.String b) = do
       a `shouldMatch` "unlimited"
       b `shouldMatch` "unlimited"
-    checkTtl _ (A.String _) = assertFailure "expected the actual ttl to be unlimited, but it was limited"
-    checkTtl (A.String _) _ = assertFailure "expected the actual ttl to be limited, but it was unlimited"
-    checkTtl (A.Number actualTtl) (A.Number expectedTtl) = do
+    check _ (A.String _) = assertFailure "expected the actual ttl to be unlimited, but it was limited"
+    check (A.String _) _ = assertFailure "expected the actual ttl to be limited, but it was unlimited"
+    check (A.Number actualTtl) (A.Number expectedTtl) = do
       assertBool
         ("expected the actual TTL to be greater than 0 and equal to or no more than 2 seconds less than " <> show expectedTtl <> ", but it was " <> show actualTtl)
         ( actualTtl > 0
             && actualTtl <= expectedTtl
             && abs (actualTtl - expectedTtl) <= 2
         )
-    checkTtl _ _ = assertFailure "unexpected ttl value(s)"
+    check _ _ = assertFailure "unexpected ttl value(s)"
 
 assertForbidden :: HasCallStack => Response -> App ()
 assertForbidden = assertLabel 403 "no-team-member"
+
+data ConfCalling = ConfCalling
+  { lockStatus :: Maybe String,
+    status :: String,
+    sft :: Value
+  }
+
+instance Default ConfCalling where
+  def =
+    ConfCalling
+      { lockStatus = Nothing,
+        status = "disabled",
+        sft = toJSON False
+      }
+
+confCalling :: ConfCalling -> Value
+confCalling args =
+  object $
+    ["lockStatus" .= s | s <- toList args.lockStatus]
+      <> ["ttl" .= "unlimited"]
+      <> [ "status" .= args.status,
+           "config"
+             .= object ["useSFTForOneToOneCalls" .= args.sft]
+         ]

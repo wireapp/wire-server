@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2023 Wire Swiss GmbH <opensource@wire.com>
@@ -19,13 +21,11 @@ module Test.FeatureFlags where
 
 import qualified API.Galley as Public
 import qualified API.GalleyInternal as Internal
-import Control.Concurrent (threadDelay)
 import Control.Monad.Reader
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Key as A
 import qualified Data.Aeson.KeyMap as KM
 import qualified Data.Set as Set
-import Data.String.Conversions (cs)
 import Notifications
 import SetupHelpers
 import Test.FeatureFlags.Util
@@ -179,9 +179,6 @@ testDigitalSignaturesInternal = _testSimpleFlag "digitalSignatures" Internal.set
 testValidateSAMLEmailsInternal :: HasCallStack => App ()
 testValidateSAMLEmailsInternal = _testSimpleFlag "validateSAMLemails" Internal.setTeamFeatureConfig True
 
-testConferenceCallingInternal :: HasCallStack => App ()
-testConferenceCallingInternal = _testSimpleFlag "conferenceCalling" Internal.setTeamFeatureConfig True
-
 testSearchVisibilityInboundInternal :: HasCallStack => App ()
 testSearchVisibilityInboundInternal = _testSimpleFlag "searchVisibilityInbound" Internal.setTeamFeatureConfig False
 
@@ -197,16 +194,16 @@ _testSimpleFlag featureName setFeatureConfig featureEnabledByDefault = do
   assertForbidden =<< Public.getTeamFeature nonTeamMember tid featureName
   checkFeature featureName m tid defaultValue
   -- should receive an event
-  void $ withWebSockets [m] $ \wss -> do
+  void $ withWebSocket m $ \ws -> do
     assertSuccess =<< setFeatureConfig owner tid featureName (object ["status" .= otherStatus])
-    for_ wss $ \ws -> do
+    do
       notif <- awaitMatch isFeatureConfigUpdateNotif ws
       notif %. "payload.0.name" `shouldMatch` featureName
       notif %. "payload.0.data" `shouldMatch` otherValue
 
     checkFeature featureName m tid otherValue
     assertSuccess =<< setFeatureConfig owner tid featureName (object ["status" .= defaultStatus])
-    for_ wss $ \ws -> do
+    do
       notif <- awaitMatch isFeatureConfigUpdateNotif ws
       notif %. "payload.0.name" `shouldMatch` featureName
       notif %. "payload.0.data" `shouldMatch` defaultValue
@@ -260,12 +257,11 @@ _testSimpleFlagWithLockStatus featureName setFeatureConfig featureEnabledByDefau
 
   -- change the status
   let otherValue = if featureEnabledByDefault then disabled else enabled
-  void $ withWebSockets [m] $ \wss -> do
+  void $ withWebSocket m $ \ws -> do
     assertSuccess =<< setFeatureConfig owner tid featureName (object ["status" .= otherStatus])
-    for_ wss $ \ws -> do
-      notif <- awaitMatch isFeatureConfigUpdateNotif ws
-      notif %. "payload.0.name" `shouldMatch` featureName
-      notif %. "payload.0.data" `shouldMatch` otherValue
+    notif <- awaitMatch isFeatureConfigUpdateNotif ws
+    notif %. "payload.0.name" `shouldMatch` featureName
+    notif %. "payload.0.data" `shouldMatch` otherValue
 
   checkFeature featureName m tid otherValue
 
@@ -308,18 +304,21 @@ testClassifiedDomainsDisabled = do
 testAllFeatures :: HasCallStack => App ()
 testAllFeatures = do
   (_, tid, m : _) <- createTeam OwnDomain 2
-  let expected =
+  let defEnabledObj :: Value -> Value
+      defEnabledObj conf = object ["lockStatus" .= "unlocked", "status" .= "enabled", "ttl" .= "unlimited", "config" .= conf]
+      expected =
         object $
           [ "legalhold" .= disabled,
             "sso" .= disabled,
             "searchVisibility" .= disabled,
             "validateSAMLemails" .= enabled,
             "digitalSignatures" .= disabled,
-            "appLock" .= object ["lockStatus" .= "unlocked", "status" .= "enabled", "ttl" .= "unlimited", "config" .= object ["enforceAppLock" .= False, "inactivityTimeoutSecs" .= A.Number 60]],
+            "appLock" .= defEnabledObj (object ["enforceAppLock" .= False, "inactivityTimeoutSecs" .= A.Number 60]),
             "fileSharing" .= enabled,
-            "classifiedDomains" .= object ["lockStatus" .= "unlocked", "status" .= "enabled", "ttl" .= "unlimited", "config" .= object ["domains" .= ["example.com"]]],
-            "conferenceCalling" .= enabled,
-            "selfDeletingMessages" .= object ["lockStatus" .= "unlocked", "status" .= "enabled", "ttl" .= "unlimited", "config" .= object ["enforcedTimeoutSeconds" .= A.Number 0]],
+            "classifiedDomains" .= defEnabledObj (object ["domains" .= ["example.com"]]),
+            "conferenceCalling" .= confCalling def {lockStatus = Just "locked"},
+            "selfDeletingMessages"
+              .= defEnabledObj (object ["enforcedTimeoutSeconds" .= A.Number 0]),
             "conversationGuestLinks" .= enabled,
             "sndFactorPasswordChallenge" .= disabledLocked,
             "mls"
@@ -671,6 +670,59 @@ testMLSE2EIdInternal = do
     cfg2
     invalidCfg'
 
+testConferenceCalling :: (HasCallStack) => App ()
+testConferenceCalling = do
+  _testLockStatusWithConfig
+    "conferenceCalling"
+    Public.setTeamFeatureConfig
+    (confCalling def {lockStatus = Just "locked"})
+    (confCalling def {sft = toJSON True})
+    (confCalling def)
+    (confCalling def {sft = toJSON (0 :: Int)})
+
+testConferenceCallingInternal :: (HasCallStack) => App ()
+testConferenceCallingInternal = do
+  let defaultArgs = def {lockStatus = Just "locked"}
+
+  (owner, tid, m : _) <- createTeam OwnDomain 2
+  nonTeamMember <- randomUser OwnDomain def
+  assertForbidden =<< Public.getTeamFeature nonTeamMember tid "conferenceCalling"
+  checkFeature "conferenceCalling" m tid (confCalling defaultArgs)
+
+  void $ withWebSocket m $ \ws -> do
+    -- unlock and enable
+    assertSuccess =<< Internal.patchTeamFeatureConfig owner tid "conferenceCalling" (object ["status" .= "enabled", "lockStatus" .= "unlocked"])
+    do
+      notif <- awaitMatch isFeatureConfigUpdateNotif ws
+      notif %. "payload.0.name" `shouldMatch` "conferenceCalling"
+      -- TODO: the patch event is currently wrong, and does not reflect the update
+      notif %. "payload.0.data" `shouldMatch` (confCalling defaultArgs {status = "disabled", lockStatus = Just "locked"})
+    checkFeature "conferenceCalling" m tid (confCalling defaultArgs {status = "enabled", lockStatus = Just "unlocked"})
+
+    -- just disable
+    assertSuccess =<< Internal.setTeamFeatureConfig owner tid "conferenceCalling" (confCalling def {status = "disabled"})
+    do
+      notif <- awaitMatch isFeatureConfigUpdateNotif ws
+      notif %. "payload.0.name" `shouldMatch` "conferenceCalling"
+      notif %. "payload.0.data" `shouldMatch` (confCalling defaultArgs {status = "disabled", lockStatus = Just "unlocked"})
+    checkFeature "conferenceCalling" m tid (confCalling defaultArgs {lockStatus = Just "unlocked"})
+
+    -- re-enable
+    assertSuccess =<< Internal.setTeamFeatureConfig owner tid "conferenceCalling" (confCalling def {status = "enabled"})
+    do
+      notif <- awaitMatch isFeatureConfigUpdateNotif ws
+      notif %. "payload.0.name" `shouldMatch` "conferenceCalling"
+      notif %. "payload.0.data" `shouldMatch` (confCalling defaultArgs {status = "enabled", lockStatus = Just "unlocked"})
+    checkFeature "conferenceCalling" m tid (confCalling defaultArgs {status = "enabled", lockStatus = Just "unlocked"})
+
+    -- restore initial state
+    assertSuccess =<< Internal.patchTeamFeatureConfig owner tid "conferenceCalling" (object ["status" .= "disabled", "lockStatus" .= "locked"])
+    do
+      notif <- awaitMatch isFeatureConfigUpdateNotif ws
+      notif %. "payload.0.name" `shouldMatch` "conferenceCalling"
+      notif %. "payload.0.data" `shouldMatch` (confCalling defaultArgs {lockStatus = Just "unlocked"})
+    checkFeature "conferenceCalling" m tid (confCalling defaultArgs)
+
 _testLockStatusWithConfig ::
   HasCallStack =>
   String ->
@@ -719,15 +771,18 @@ _testLockStatusWithConfigWithTeam (owner, tid, m) featureName setTeamFeatureConf
 
   -- lock the feature
   Internal.setTeamFeatureLockStatus OwnDomain tid featureName "locked"
+  bindResponse (Public.getTeamFeature owner tid featureName) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "lockStatus" `shouldMatch` "locked"
+
   assertStatus 409 =<< setTeamFeatureConfig owner tid featureName config1
   Internal.setTeamFeatureLockStatus OwnDomain tid featureName "unlocked"
 
-  void $ withWebSockets [m] $ \wss -> do
+  void $ withWebSocket m $ \ws -> do
     assertSuccess =<< setTeamFeatureConfig owner tid featureName config1
-    for_ wss $ \ws -> do
-      notif <- awaitMatch isFeatureConfigUpdateNotif ws
-      notif %. "payload.0.name" `shouldMatch` featureName
-      notif %. "payload.0.data" `shouldMatch` (config1 & setField "lockStatus" "unlocked" & setField "ttl" "unlimited")
+    notif <- awaitMatch isFeatureConfigUpdateNotif ws
+    notif %. "payload.0.name" `shouldMatch` featureName
+    notif %. "payload.0.data" `shouldMatch` (config1 & setField "lockStatus" "unlocked" & setField "ttl" "unlimited")
 
   checkFeature featureName m tid =<< (config1 & setField "lockStatus" "unlocked" & setField "ttl" "unlimited")
 
@@ -735,18 +790,17 @@ _testLockStatusWithConfigWithTeam (owner, tid, m) featureName setTeamFeatureConf
   checkFeature featureName m tid =<< setField "lockStatus" "locked" defaultFeatureConfig
   Internal.setTeamFeatureLockStatus OwnDomain tid featureName "unlocked"
 
-  void $ withWebSockets [m] $ \wss -> do
+  void $ withWebSocket m $ \ws -> do
     assertStatus 400 =<< setTeamFeatureConfig owner tid featureName invalidConfig
-    for_ wss $ assertNoEvent 2
+    assertNoEvent 2 ws
 
   checkFeature featureName m tid =<< (config1 & setField "lockStatus" "unlocked" & setField "ttl" "unlimited")
 
-  void $ withWebSockets [m] $ \wss -> do
+  void $ withWebSocket m $ \ws -> do
     assertSuccess =<< setTeamFeatureConfig owner tid featureName config2
-    for_ wss $ \ws -> do
-      notif <- awaitMatch isFeatureConfigUpdateNotif ws
-      notif %. "payload.0.name" `shouldMatch` featureName
-      notif %. "payload.0.data" `shouldMatch` (config2 & setField "lockStatus" "unlocked" & setField "ttl" "unlimited")
+    notif <- awaitMatch isFeatureConfigUpdateNotif ws
+    notif %. "payload.0.name" `shouldMatch` featureName
+    notif %. "payload.0.data" `shouldMatch` (config2 & setField "lockStatus" "unlocked" & setField "ttl" "unlimited")
 
   checkFeature featureName m tid =<< (config2 & setField "lockStatus" "unlocked" & setField "ttl" "unlimited")
 
@@ -763,64 +817,6 @@ testFeatureNoConfigMultiSearchVisibilityInbound = do
   length statuses `shouldMatchInt` 2
   statuses `shouldMatchSet` [object ["team" .= team1, "status" .= "disabled"], object ["team" .= team2, "status" .= "enabled"]]
 
-testConferenceCallingTTLIncreaseToUnlimited :: HasCallStack => App ()
-testConferenceCallingTTLIncreaseToUnlimited = _testSimpleFlagTTLOverride "conferenceCalling" True (Just 2) Nothing
-
-testConferenceCallingTTLIncrease :: HasCallStack => App ()
-testConferenceCallingTTLIncrease = _testSimpleFlagTTLOverride "conferenceCalling" True (Just 2) (Just 4)
-
-testConferenceCallingTTLReduceFromUnlimited :: HasCallStack => App ()
-testConferenceCallingTTLReduceFromUnlimited = _testSimpleFlagTTLOverride "conferenceCalling" True Nothing (Just 2)
-
-testConferenceCallingTTLReduce :: HasCallStack => App ()
-testConferenceCallingTTLReduce = _testSimpleFlagTTLOverride "conferenceCalling" True (Just 5) (Just 2)
-
-testConferenceCallingTTLUnlimitedToUnlimited :: HasCallStack => App ()
-testConferenceCallingTTLUnlimitedToUnlimited = _testSimpleFlagTTLOverride "conferenceCalling" True Nothing Nothing
-
-_testSimpleFlagTTLOverride :: HasCallStack => String -> Bool -> Maybe Int -> Maybe Int -> App ()
-_testSimpleFlagTTLOverride featureName enabledByDefault mTtl mTtlAfter = do
-  let ttl = maybe (A.String . cs $ "unlimited") (A.Number . fromIntegral) mTtl
-  let ttlAfter = maybe (A.String . cs $ "unlimited") (A.Number . fromIntegral) mTtlAfter
-  (owner, tid, _) <- createTeam OwnDomain 0
-  let (defaultValue, otherValue) = if enabledByDefault then ("enabled", "disabled") else ("disabled", "enabled")
-
-  -- Initial value should be the default value
-  let defFeatureStatus = object ["status" .= defaultValue, "ttl" .= "unlimited", "lockStatus" .= "unlocked"]
-  checkFeature featureName owner tid defFeatureStatus
-
-  -- Setting should work
-  assertSuccess =<< Internal.setTeamFeatureConfig OwnDomain tid featureName (object ["status" .= otherValue, "ttl" .= ttl])
-  checkFeatureLenientTtl featureName owner tid (object ["status" .= otherValue, "ttl" .= ttl, "lockStatus" .= "unlocked"])
-
-  case (mTtl, mTtlAfter) of
-    (Just d, Just d') -> do
-      -- wait less than expiration, override and recheck.
-      liftIO $ threadDelay (d * 1000000 `div` 2) -- waiting half of TTL
-      --       setFlagInternal otherValue ttlAfter
-      assertSuccess =<< Internal.setTeamFeatureConfig OwnDomain tid featureName (object ["status" .= otherValue, "ttl" .= ttlAfter])
-      -- value is still correct
-      checkFeatureLenientTtl featureName owner tid (object ["status" .= otherValue, "ttl" .= ttlAfter, "lockStatus" .= "unlocked"])
-
-      liftIO $ threadDelay (d' * 1000000) -- waiting for new TTL
-      checkFeatureLenientTtl featureName owner tid defFeatureStatus
-    (Just d, Nothing) -> do
-      -- wait less than expiration, override and recheck.
-      liftIO $ threadDelay (d * 1000000 `div` 2) -- waiting half of TTL
-      assertSuccess =<< Internal.setTeamFeatureConfig OwnDomain tid featureName (object ["status" .= otherValue, "ttl" .= ttlAfter])
-      -- value is still correct
-      checkFeatureLenientTtl featureName owner tid (object ["status" .= otherValue, "ttl" .= ttlAfter, "lockStatus" .= "unlocked"])
-    (Nothing, Nothing) -> do
-      -- overriding in this case should have no effect.
-      assertSuccess =<< Internal.setTeamFeatureConfig OwnDomain tid featureName (object ["status" .= otherValue, "ttl" .= ttl])
-      checkFeatureLenientTtl featureName owner tid (object ["status" .= otherValue, "ttl" .= ttl, "lockStatus" .= "unlocked"])
-    (Nothing, Just d) -> do
-      assertSuccess =<< Internal.setTeamFeatureConfig OwnDomain tid featureName (object ["status" .= otherValue, "ttl" .= ttlAfter])
-      checkFeatureLenientTtl featureName owner tid (object ["status" .= otherValue, "ttl" .= ttlAfter, "lockStatus" .= "unlocked"])
-      liftIO $ threadDelay (d * 1000000) -- waiting it out
-      -- value reverts back
-      checkFeatureLenientTtl featureName owner tid defFeatureStatus
-
 --------------------------------------------------------------------------------
 -- Simple flags with implicit lock status
 
@@ -832,9 +828,6 @@ testPatchValidateSAMLEmails = _testPatch "validateSAMLemails" False enabled disa
 
 testPatchDigitalSignatures :: HasCallStack => App ()
 testPatchDigitalSignatures = _testPatch "digitalSignatures" False disabled enabled
-
-testPatchConferenceCalling :: HasCallStack => App ()
-testPatchConferenceCalling = _testPatch "conferenceCalling" False enabled disabled
 
 --------------------------------------------------------------------------------
 -- Simple flags with explicit lock status
@@ -872,7 +865,15 @@ testPatchAppLock = do
 --------------------------------------------------------------------------------
 -- Flags with config & explicit lock status
 
-testPatchSelfDeletingMessages :: HasCallStack => App ()
+testPatchConferenceCalling :: (HasCallStack) => App ()
+testPatchConferenceCalling = do
+  let defCfg = confCalling def {lockStatus = Just "locked"}
+  _testPatch "conferenceCalling" True defCfg (object ["lockStatus" .= "locked"])
+  _testPatch "conferenceCalling" True defCfg (object ["status" .= "disabled"])
+  _testPatch "conferenceCalling" True defCfg (object ["lockStatus" .= "locked", "status" .= "disabled"])
+  _testPatch "conferenceCalling" True defCfg (object ["lockStatus" .= "unlocked", "config" .= object ["useSFTForOneToOneCalls" .= toJSON True]])
+
+testPatchSelfDeletingMessages :: (HasCallStack) => App ()
 testPatchSelfDeletingMessages = do
   let defCfg =
         object

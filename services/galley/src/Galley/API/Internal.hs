@@ -199,6 +199,7 @@ featureAPI =
     <@> mkNamedAPI @'("ipatch", FileSharingConfig) patchFeatureStatusInternal
     <@> mkNamedAPI @'("iget", ConferenceCallingConfig) (getFeatureStatus DontDoAuth)
     <@> mkNamedAPI @'("iput", ConferenceCallingConfig) setFeatureStatusInternal
+    <@> mkNamedAPI @'("ilock", ConferenceCallingConfig) (updateLockStatus @ConferenceCallingConfig)
     <@> mkNamedAPI @'("ipatch", ConferenceCallingConfig) patchFeatureStatusInternal
     <@> mkNamedAPI @'("iget", SelfDeletingMessagesConfig) (getFeatureStatus DontDoAuth)
     <@> mkNamedAPI @'("iput", SelfDeletingMessagesConfig) setFeatureStatusInternal

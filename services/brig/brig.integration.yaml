@@ -189,6 +189,11 @@ optSettings:
   #   Remember to keep it the same in Galley.
   setFederationDomain: example.com
   setFeatureFlags:  # see #RefConfigOptions in `/docs/reference`
+    conferenceCalling:
+      defaultForNew:
+        status: disabled
+      defaultForNull:
+        status: disabled
   setFederationDomainConfigsUpdateFreq: 1
   setFederationStrategy: allowAll
   setFederationDomainConfigs:
