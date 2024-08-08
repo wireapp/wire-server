@@ -298,7 +298,6 @@ instance SetFeatureConfig LegalholdConfig where
         Member BrigAccess r,
         Member CodeStore r,
         Member ConversationStore r,
-        Member (Error AuthenticationError) r,
         Member (Error FederationError) r,
         Member (Error InternalError) r,
         Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,

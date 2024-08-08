@@ -42,14 +42,12 @@ type FeatureAPI =
               MakesFederatedCall 'Galley "on-mls-message-sent"
             ]
            '( 'ActionDenied 'RemoveConversationMember,
-              '( AuthenticationError,
-                 '( 'CannotEnableLegalHoldServiceLargeTeam,
-                    '( 'LegalHoldNotEnabled,
-                       '( 'LegalHoldDisableUnimplemented,
-                          '( 'LegalHoldServiceNotRegistered,
-                             '( 'UserLegalHoldIllegalOperation,
-                                '( 'LegalHoldCouldNotBlockConnections, '())
-                              )
+              '( 'CannotEnableLegalHoldServiceLargeTeam,
+                 '( 'LegalHoldNotEnabled,
+                    '( 'LegalHoldDisableUnimplemented,
+                       '( 'LegalHoldServiceNotRegistered,
+                          '( 'UserLegalHoldIllegalOperation,
+                             '( 'LegalHoldCouldNotBlockConnections, '())
                            )
                         )
                      )
