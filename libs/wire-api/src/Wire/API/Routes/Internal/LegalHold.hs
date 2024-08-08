@@ -23,7 +23,7 @@ import Data.OpenApi (OpenApi)
 import Data.OpenApi.Lens
 import Data.Proxy
 import Imports
-import Servant.API hiding (Header)
+import Servant.API
 import Servant.OpenApi
 import Wire.API.Team.Feature
 
