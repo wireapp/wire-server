@@ -209,7 +209,7 @@ isDevelopmentVersion V2 = False
 isDevelopmentVersion V3 = False
 isDevelopmentVersion V4 = False
 isDevelopmentVersion V5 = False
-isDevelopmentVersion _ = True
+isDevelopmentVersion V6 = False
 
 developmentVersions :: [Version]
 developmentVersions = filter isDevelopmentVersion supportedVersions
