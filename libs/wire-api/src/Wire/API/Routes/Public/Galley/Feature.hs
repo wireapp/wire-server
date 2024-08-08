@@ -22,11 +22,11 @@ import GHC.TypeLits
 import Servant
 import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.ApplyMods
-import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.MakesFederatedCall
 import Wire.API.OAuth
+import Wire.API.Routes.Features
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
@@ -41,22 +41,9 @@ type FeatureAPI =
            '[ MakesFederatedCall 'Galley "on-conversation-updated",
               MakesFederatedCall 'Galley "on-mls-message-sent"
             ]
-           '( 'ActionDenied 'RemoveConversationMember,
-              '( 'CannotEnableLegalHoldServiceLargeTeam,
-                 '( 'LegalHoldNotEnabled,
-                    '( 'LegalHoldDisableUnimplemented,
-                       '( 'LegalHoldServiceNotRegistered,
-                          '( 'UserLegalHoldIllegalOperation,
-                             '( 'LegalHoldCouldNotBlockConnections, '())
-                           )
-                        )
-                     )
-                  )
-               )
-            )
            LegalholdConfig
     :<|> FeatureStatusGet SearchVisibilityAvailableConfig
-    :<|> FeatureStatusPut '[] '() SearchVisibilityAvailableConfig
+    :<|> FeatureStatusPut '[] SearchVisibilityAvailableConfig
     :<|> FeatureStatusDeprecatedGet "This endpoint is potentially used by the old Android client. It is not used by iOS, team management, or webapp as of June 2022" SearchVisibilityAvailableConfig
     :<|> FeatureStatusDeprecatedPut "This endpoint is potentially used by the old Android client. It is not used by iOS, team management, or webapp as of June 2022" SearchVisibilityAvailableConfig
     :<|> SearchVisibilityGet
@@ -66,41 +53,33 @@ type FeatureAPI =
     :<|> FeatureStatusGet DigitalSignaturesConfig
     :<|> FeatureStatusDeprecatedGet "The usage of this endpoint was removed in iOS in version 3.101. It is potentially used by the old Android client. It is not used by team management, or webapp as of June 2022" DigitalSignaturesConfig
     :<|> FeatureStatusGet AppLockConfig
-    :<|> FeatureStatusPut '[] '() AppLockConfig
+    :<|> FeatureStatusPut '[] AppLockConfig
     :<|> FeatureStatusGet FileSharingConfig
-    :<|> FeatureStatusPut '[] '() FileSharingConfig
+    :<|> FeatureStatusPut '[] FileSharingConfig
     :<|> FeatureStatusGet ClassifiedDomainsConfig
     :<|> FeatureStatusGet ConferenceCallingConfig
-    :<|> FeatureStatusPut '[] '() ConferenceCallingConfig
+    :<|> FeatureStatusPut '[] ConferenceCallingConfig
     :<|> FeatureStatusGet SelfDeletingMessagesConfig
-    :<|> FeatureStatusPut '[] '() SelfDeletingMessagesConfig
+    :<|> FeatureStatusPut '[] SelfDeletingMessagesConfig
     :<|> FeatureStatusGet GuestLinksConfig
-    :<|> FeatureStatusPut '[] '() GuestLinksConfig
+    :<|> FeatureStatusPut '[] GuestLinksConfig
     :<|> FeatureStatusGet SndFactorPasswordChallengeConfig
-    :<|> FeatureStatusPut '[] '() SndFactorPasswordChallengeConfig
+    :<|> FeatureStatusPut '[] SndFactorPasswordChallengeConfig
     :<|> From 'V5 ::> FeatureStatusGet MLSConfig
-    :<|> From 'V5 ::> FeatureStatusPut '[] '() MLSConfig
+    :<|> From 'V5 ::> FeatureStatusPut '[] MLSConfig
     :<|> FeatureStatusGet ExposeInvitationURLsToTeamAdminConfig
-    :<|> FeatureStatusPut '[] '() ExposeInvitationURLsToTeamAdminConfig
+    :<|> FeatureStatusPut '[] ExposeInvitationURLsToTeamAdminConfig
     :<|> FeatureStatusGet SearchVisibilityInboundConfig
-    :<|> FeatureStatusPut '[] '() SearchVisibilityInboundConfig
+    :<|> FeatureStatusPut '[] SearchVisibilityInboundConfig
     :<|> FeatureStatusGet OutlookCalIntegrationConfig
-    :<|> FeatureStatusPut '[] '() OutlookCalIntegrationConfig
+    :<|> FeatureStatusPut '[] OutlookCalIntegrationConfig
     :<|> From 'V5 ::> FeatureStatusGet MlsE2EIdConfig
-    :<|> From 'V5 ::> Until 'V6 ::> Named "put-MlsE2EIdConfig@v5" (ZUser :> FeatureStatusBasePutPublic '() MlsE2EIdConfig)
-    :<|> From 'V6 ::> FeatureStatusPut '[] '() MlsE2EIdConfig
+    :<|> From 'V5 ::> Until 'V6 ::> Named "put-MlsE2EIdConfig@v5" (ZUser :> FeatureStatusBasePutPublic MlsE2EIdConfig)
+    :<|> From 'V6 ::> FeatureStatusPut '[] MlsE2EIdConfig
     :<|> From 'V5 ::> FeatureStatusGet MlsMigrationConfig
-    :<|> From 'V5 ::> FeatureStatusPut '[] '() MlsMigrationConfig
-    :<|> From 'V5
-      ::> FeatureStatusGetWithDesc
-            EnforceFileDownloadLocationConfig
-            "<p><b>Custom feature: only supported for some decidated on-prem systems.</b></p>"
-    :<|> From 'V5
-      ::> FeatureStatusPutWithDesc
-            '[]
-            '()
-            EnforceFileDownloadLocationConfig
-            "<p><b>Custom feature: only supported for some decidated on-prem systems.</b></p>"
+    :<|> From 'V5 ::> FeatureStatusPut '[] MlsMigrationConfig
+    :<|> From 'V5 ::> FeatureStatusGet EnforceFileDownloadLocationConfig
+    :<|> From 'V5 ::> FeatureStatusPut '[] EnforceFileDownloadLocationConfig
     :<|> From 'V5 ::> FeatureStatusGet LimitedEventFanoutConfig
     :<|> AllFeatureConfigsUserGet
     :<|> AllFeatureConfigsTeamGet
@@ -118,22 +97,18 @@ type FeatureAPI =
     :<|> FeatureConfigDeprecatedGet "The usage of this endpoint was removed in iOS in version 3.101. It is used by team management, webapp, and potentially the old Android client as of June 2022" SndFactorPasswordChallengeConfig
     :<|> FeatureConfigDeprecatedGet "The usage of this endpoint was removed in iOS in version 3.101. It is used by team management, webapp, and potentially the old Android client as of June 2022" MLSConfig
 
-type FeatureStatusGet f = FeatureStatusGetWithDesc f ""
-
-type FeatureStatusGetWithDesc f desc =
+type FeatureStatusGet cfg =
   Named
-    '("get", f)
-    ( Description desc
-        :> (ZUser :> FeatureStatusBaseGet f)
+    '("get", cfg)
+    ( Description (FeatureAPIDesc cfg)
+        :> (ZUser :> FeatureStatusBaseGet cfg)
     )
 
-type FeatureStatusPut segs errs f = FeatureStatusPutWithDesc segs errs f ""
-
-type FeatureStatusPutWithDesc segs errs f desc =
+type FeatureStatusPut segs cfg =
   Named
-    '("put", f)
-    ( Description desc
-        :> (ApplyMods segs (ZUser :> FeatureStatusBasePutPublic errs f))
+    '("put", cfg)
+    ( Description (FeatureAPIDesc cfg)
+        :> (ApplyMods segs (ZUser :> FeatureStatusBasePutPublic cfg))
     )
 
 type FeatureStatusDeprecatedGet d f =
@@ -157,13 +132,13 @@ type FeatureStatusBaseGet featureConfig =
     :> FeatureSymbol featureConfig
     :> Get '[Servant.JSON] (LockableFeature featureConfig)
 
-type FeatureStatusBasePutPublic errs featureConfig =
+type FeatureStatusBasePutPublic featureConfig =
   Summary (AppendSymbol "Put config for " (FeatureSymbol featureConfig))
     :> CanThrow OperationDenied
     :> CanThrow 'NotATeamMember
     :> CanThrow 'TeamNotFound
     :> CanThrow TeamFeatureError
-    :> CanThrowMany errs
+    :> CanThrowMany (FeatureErrors featureConfig)
     :> "teams"
     :> Capture "tid" TeamId
     :> "features"
