@@ -1045,7 +1045,7 @@ _testPatchWithSetup setup domain featureName hasExplicitLockStatus defaultFeatur
 
   checkFeature featureName owner tid defaultFeatureConfig
   assertSuccess =<< Internal.patchTeamFeature domain tid featureName patch
-  patched <- (.json) =<< Internal.getTeamFeature domain tid featureName
+  patched <- (.json) =<< Internal.getTeamFeature domain featureName tid
   checkFeature featureName owner tid patched
   lockStatus <- patched %. "lockStatus" >>= asString
   if lockStatus == "locked"
