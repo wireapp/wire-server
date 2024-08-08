@@ -58,14 +58,12 @@ import Wire.API.User.Client
 
 type LegalHoldFeatureStatusChangeErrors =
   '( 'ActionDenied 'RemoveConversationMember,
-     '( AuthenticationError,
-        '( 'CannotEnableLegalHoldServiceLargeTeam,
-           '( 'LegalHoldNotEnabled,
-              '( 'LegalHoldDisableUnimplemented,
-                 '( 'LegalHoldServiceNotRegistered,
-                    '( 'UserLegalHoldIllegalOperation,
-                       '( 'LegalHoldCouldNotBlockConnections, '())
-                     )
+     '( 'CannotEnableLegalHoldServiceLargeTeam,
+        '( 'LegalHoldNotEnabled,
+           '( 'LegalHoldDisableUnimplemented,
+              '( 'LegalHoldServiceNotRegistered,
+                 '( 'UserLegalHoldIllegalOperation,
+                    '( 'LegalHoldCouldNotBlockConnections, '())
                   )
                )
             )
