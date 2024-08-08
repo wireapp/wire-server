@@ -25,7 +25,16 @@ import Wire.API.Team.Feature
 
 -- | This is necessary in order to convert an @NP f xs@ type to something that
 -- CQL can understand.
-$(generateTupleP)
+--
+-- The generated code looks like:
+-- @@
+-- instance TupleP xs where
+--   TupleP '[] = ()
+--   TupleP '[a] = Identity a
+--   TupleP '[a, b] = (a, b)
+--   ...
+-- @@
+$generateTupleP
 
 class MakeFeature cfg where
   type FeatureRow cfg :: [Type]
