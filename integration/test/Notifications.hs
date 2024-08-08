@@ -100,6 +100,10 @@ isDeleteUserNotif :: MakesValue a => a -> App Bool
 isDeleteUserNotif n =
   nPayload n %. "type" `isEqual` "user.delete"
 
+isFeatureConfigUpdateNotif :: MakesValue a => a -> App Bool
+isFeatureConfigUpdateNotif n =
+  nPayload n %. "type" `isEqual` "feature-config.update"
+
 isNewMessageNotif :: MakesValue a => a -> App Bool
 isNewMessageNotif n = fieldEquals n "payload.0.type" "conversation.otr-message-add"
 

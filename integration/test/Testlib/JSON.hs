@@ -243,8 +243,9 @@ lookupField val selector = do
     go k [] v = get v k
     go k (k2 : ks) v = get v k >>= assertField v k >>= go k2 ks
 
--- Update nested fields
+-- | Update nested fields
 -- E.g. ob & "foo.bar.baz" %.= ("quux" :: String)
+-- The selector path will be created if non-existing.
 setField ::
   forall a b.
   (HasCallStack, MakesValue a, ToJSON b) =>
@@ -260,7 +261,8 @@ setField selector v x = do
 member :: (HasCallStack, MakesValue a) => String -> a -> App Bool
 member k x = KM.member (KM.fromString k) <$> (make x >>= asObject)
 
--- Update nested fields, using the old value with a stateful action
+-- | Update nested fields, using the old value with a stateful action
+-- The selector path will be created if non-existing.
 modifyField :: (HasCallStack, MakesValue a, ToJSON b) => String -> (Maybe Value -> App b) -> a -> App Value
 modifyField selector up x = do
   v <- make x
@@ -275,7 +277,7 @@ modifyField selector up x = do
       newValue <- toJSON <$> up (KM.lookup k' ob)
       pure $ Object $ KM.insert k' newValue ob
     go k (k2 : ks) v = do
-      val <- v %. k
+      val <- fromMaybe (Object $ KM.empty) <$> lookupField v k
       newValue <- go k2 ks val
       ob <- asObject v
       pure $ Object $ KM.insert (KM.fromString k) newValue ob
@@ -346,9 +348,9 @@ objQid ob = do
     Just v -> pure v
   where
     select x = runMaybeT $ do
-      vdom <- MaybeT $ lookupField x "domain"
+      vdom <- lookupFieldM x "domain"
       dom <- MaybeT $ asStringM vdom
-      vid <- MaybeT $ lookupField x "id"
+      vid <- lookupFieldM x "id"
       id_ <- MaybeT $ asStringM vid
       pure (dom, id_)
 
