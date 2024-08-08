@@ -112,11 +112,17 @@ spec env =
 
     it "testRejectRequestsWithoutClientCertInward" (testRejectRequestsWithoutClientCertInward env)
 
+-- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
+--
 -- This test is covered by the unit tests 'validateDomainCertWrongDomain' because
 -- the domain matching is checked on certificate validation.
 testShouldRejectMissmatchingOriginDomainInward :: TestEnv -> IO ()
 testShouldRejectMissmatchingOriginDomainInward env = runTestFederator env $ pure ()
 
+-- @END
+
+-- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
+--
 -- See related tests in unit tests (for matching client certificates against domain names)
 -- and "IngressSpec".
 testRejectRequestsWithoutClientCertInward :: TestEnv -> IO ()
@@ -128,6 +134,8 @@ testRejectRequestsWithoutClientCertInward env = runTestFederator env $ do
     [(originDomainHeaderName, toByteString' originDomain)]
     (encode hdl)
     !!! const 400 === statusCode
+
+-- @END
 
 inwardCallWithHeaders ::
   (MonadIO m, MonadHttp m, MonadReader TestEnv m, HasCallStack) =>

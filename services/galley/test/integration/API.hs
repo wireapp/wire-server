@@ -408,6 +408,7 @@ postConvWithUnreachableRemoteUsers rbs = do
         groupConvs
     WS.assertNoEvent (3 # Second) [wsAlice, wsAlex]
 
+-- @SF.Separation @TSFI.RESTfulAPI @S2
 -- This test verifies whether a message actually gets sent all the way to
 -- cannon.
 postCryptoMessageVerifyMsgSentAndRejectIfMissingClient :: TestM ()
@@ -496,6 +497,9 @@ postCryptoMessageVerifyMsgSentAndRejectIfMissingClient = do
       liftIO $ assertBool "unexpected equal clients" (bc /= bc2)
       assertNoMsg wsB2 (wsAssertOtr qconv qalice ac bc cipher)
 
+-- @END
+
+-- @SF.Separation @TSFI.RESTfulAPI @S2
 -- This test verifies basic mismatch behavior of the the JSON endpoint.
 postCryptoMessageVerifyRejectMissingClientAndRespondMissingPrekeysJson :: TestM ()
 postCryptoMessageVerifyRejectMissingClientAndRespondMissingPrekeysJson = do
@@ -521,6 +525,9 @@ postCryptoMessageVerifyRejectMissingClientAndRespondMissingPrekeysJson = do
     Map.keys (userClientMap (getUserClientPrekeyMap p)) @=? [eve]
     Map.keys <$> Map.lookup eve (userClientMap (getUserClientPrekeyMap p)) @=? Just [ec]
 
+-- @END
+
+-- @SF.Separation @TSFI.RESTfulAPI @S2
 -- This test verifies basic mismatch behaviour of the protobuf endpoint.
 postCryptoMessageVerifyRejectMissingClientAndRespondMissingPrekeysProto :: TestM ()
 postCryptoMessageVerifyRejectMissingClientAndRespondMissingPrekeysProto = do
@@ -548,6 +555,8 @@ postCryptoMessageVerifyRejectMissingClientAndRespondMissingPrekeysProto = do
     Map.keys (userClientMap (getUserClientPrekeyMap p)) @=? [eve]
     Map.keys <$> Map.lookup eve (userClientMap (getUserClientPrekeyMap p)) @=? Just [ec]
 
+-- @END
+
 -- | This test verifies behaviour when an unknown client posts the message. Only
 -- tests the Protobuf endpoint.
 postCryptoMessageNotAuthorizeUnknownClient :: TestM ()
@@ -563,6 +572,7 @@ postCryptoMessageNotAuthorizeUnknownClient = do
   postProtoOtrMessage alice (ClientId 0x172618352518396) conv m
     !!! const 403 === statusCode
 
+-- @SF.Separation @TSFI.RESTfulAPI @S2
 -- This test verifies the following scenario.
 -- A client sends a message to all clients of a group and one more who is not part of the group.
 -- The server must not send this message to client ids not part of the group.
@@ -588,6 +598,9 @@ postMessageClientNotInGroupDoesNotReceiveMsg = do
     checkEveGetsMsg
     checkChadDoesNotGetMsg
 
+-- @END
+
+-- @SF.Separation @TSFI.RESTfulAPI @S2
 -- This test verifies that when a client sends a message not to all clients of a group then the server should reject the message and sent a notification to the sender (412 Missing clients).
 -- The test is somewhat redundant because this is already tested as part of other tests already. This is a stand alone test that solely tests the behavior described above.
 postMessageRejectIfMissingClients :: TestM ()
@@ -615,6 +628,9 @@ postMessageRejectIfMissingClients = do
     mkMsg :: ByteString -> (UserId, ClientId) -> (UserId, ClientId, Text)
     mkMsg text (uid, clientId) = (uid, clientId, toBase64Text text)
 
+-- @END
+
+-- @SF.Separation @TSFI.RESTfulAPI @S2
 -- This test verifies behaviour under various values of ignore_missing and
 -- report_missing. Only tests the JSON endpoint.
 postCryptoMessageVerifyCorrectResponseIfIgnoreAndReportMissingQueryParam :: TestM ()
@@ -672,6 +688,9 @@ postCryptoMessageVerifyCorrectResponseIfIgnoreAndReportMissingQueryParam = do
   where
     listToByteString = BS.intercalate "," . map toByteString'
 
+-- @END
+
+-- @SF.Separation @TSFI.RESTfulAPI @S2
 -- Sets up a conversation on Backend A known as "owning backend". One of the
 -- users from Backend A will send the message but have a missing client. It is
 -- expected that the message will not be sent.
@@ -731,6 +750,8 @@ postMessageQualifiedLocalOwningBackendMissingClients = do
                 ]
       assertMismatchQualified mempty expectedMissing mempty mempty mempty
     WS.assertNoEvent (1 # Second) [wsBob, wsChad]
+
+-- @END
 
 -- | Sets up a conversation on Backend A known as "owning backend". One of the
 -- users from Backend A will send the message, it is expected that message will
@@ -822,6 +843,7 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
       -- Wait less for no message
       WS.assertNoEvent (1 # Second) [wsNonMember]
 
+-- @SF.Separation @TSFI.RESTfulAPI @S2
 -- Sets up a conversation on Backend A known as "owning backend". One of the
 -- users from Backend A will send the message but have a missing client. It is
 -- expected that the message will be sent except when it is specifically
@@ -947,6 +969,8 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
               [(qUnqualified deeRemote, Set.singleton deeClient)]
       assertMismatchQualified mempty expectedMissing mempty mempty mempty
     WS.assertNoEvent (1 # Second) [wsBob, wsChad]
+
+-- @END
 
 postMessageQualifiedLocalOwningBackendFailedToSendClients :: TestM ()
 postMessageQualifiedLocalOwningBackendFailedToSendClients = do
@@ -1177,6 +1201,7 @@ testPostCodeRejectedIfGuestLinksDisabled = do
   setStatus Public.FeatureStatusEnabled
   checkPostCode 200
 
+-- @SF.Separation @TSFI.RESTfulAPI @S2
 -- Check if guests cannot join anymore if guest invite feature was disabled on team level
 testJoinTeamConvGuestLinksDisabled :: TestM ()
 testJoinTeamConvGuestLinksDisabled = do
@@ -1234,6 +1259,8 @@ testJoinTeamConvGuestLinksDisabled = do
   postJoinCodeConv bob' cCode !!! const 200 === statusCode
   checkFeatureStatus Public.FeatureStatusEnabled
 
+-- @END
+
 testJoinNonTeamConvGuestLinksDisabled :: TestM ()
 testJoinNonTeamConvGuestLinksDisabled = do
   let convName = "testConversation"
@@ -1257,6 +1284,7 @@ testJoinNonTeamConvGuestLinksDisabled = do
     const (Right (ConversationCoverView convId (Just convName) False)) === responseJsonEither
     const 200 === statusCode
 
+-- @SF.Separation @TSFI.RESTfulAPI @S2
 -- This test case covers a negative check that if access code of a guest link is revoked no further
 -- people can join the group conversation. Additionally it covers:
 -- Random users can use invite link
@@ -1310,6 +1338,8 @@ postJoinCodeConvOk = do
     let noCodeAccess = ConversationAccessData (Set.singleton InviteAccess) accessRoles
     putQualifiedAccessUpdate alice qconv noCodeAccess !!! const 200 === statusCode
     postJoinCodeConv dave payload !!! const 404 === statusCode
+
+-- @END
 
 postJoinCodeConvWithPassword :: TestM ()
 postJoinCodeConvWithPassword = do

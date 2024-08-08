@@ -159,6 +159,7 @@ getConversationsAllFound = do
       (Just (sort [bob, qUnqualified carlQ]))
       (fmap (sort . map (qUnqualified . omQualifiedId) . (.members.others)) c2)
 
+-- @SF.Federation @TSFI.RESTfulAPI @S2
 --
 -- The test asserts that via a federation client a user cannot fetch
 -- conversation details of a conversation they are not part of: they get an
@@ -186,6 +187,8 @@ getConversationsNotPartOf = do
     runFedClient @"get-conversations" fedGalleyClient localDomain $
       GetConversationsRequest rando [qUnqualified . cnvQualifiedId $ cnv1]
   liftIO $ assertEqual "conversation list not empty" [] convs
+
+-- @END
 
 onConvCreated :: TestM ()
 onConvCreated = do

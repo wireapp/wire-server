@@ -1044,6 +1044,7 @@ testDeleteTeamVerificationCodeSuccess = do
       const 202 === statusCode
   assertTeamDelete 10 "team delete, should be there" tid
 
+-- @SF.Channel @TSFI.RESTfulAPI @S2
 --
 -- Test that team cannot be deleted with missing second factor email verification code when this feature is enabled
 testDeleteTeamVerificationCodeMissingCode :: TestM ()
@@ -1065,6 +1066,9 @@ testDeleteTeamVerificationCodeMissingCode = do
       const 403 === statusCode
       const "code-authentication-required" === (Error.label . responseJsonUnsafeWithMsg "error label")
 
+-- @END
+
+-- @SF.Channel @TSFI.RESTfulAPI @S2
 --
 -- Test that team cannot be deleted with expired second factor email verification code when this feature is enabled
 testDeleteTeamVerificationCodeExpiredCode :: TestM ()
@@ -1089,6 +1093,9 @@ testDeleteTeamVerificationCodeExpiredCode = do
       const 403 === statusCode
       const "code-authentication-failed" === (Error.label . responseJsonUnsafeWithMsg "error label")
 
+-- @END
+
+-- @SF.Channel @TSFI.RESTfulAPI @S2
 --
 -- Test that team cannot be deleted with wrong second factor email verification code when this feature is enabled
 testDeleteTeamVerificationCodeWrongCode :: TestM ()
@@ -1110,6 +1117,8 @@ testDeleteTeamVerificationCodeWrongCode = do
     !!! do
       const 403 === statusCode
       const "code-authentication-failed" === (Error.label . responseJsonUnsafeWithMsg "error label")
+
+-- @END
 
 setFeatureLockStatus :: forall cfg. (KnownSymbol (Public.FeatureSymbol cfg)) => TeamId -> Public.LockStatus -> TestM ()
 setFeatureLockStatus tid status = do
@@ -1388,6 +1397,7 @@ testBillingInLargeTeam = do
   assertTeamUpdate ("delete fanoutLimit + 3rd billing member: " <> show ownerFanoutPlusThree) team (fanoutLimit + 2) (allOwnersBeforeFanoutLimit <> [ownerFanoutPlusTwo])
   refreshIndex
 
+-- | @SF.Management @TSFI.RESTfulAPI @S2
 -- This test covers:
 -- Promotion, demotion of team roles.
 -- Demotion by superior roles is allowed.
@@ -1453,6 +1463,8 @@ testUpdateTeamMember = do
       let e = List1.head (WS.unpackPayload notif)
       e ^. eventTeam @?= tid
       e ^. eventData @?= EdMemberUpdate uid mPerm
+
+-- @END
 
 testUpdateTeamStatus :: TestM ()
 testUpdateTeamStatus = do

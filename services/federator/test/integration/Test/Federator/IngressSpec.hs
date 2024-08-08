@@ -75,6 +75,7 @@ spec env = do
 
   it "testRejectRequestsWithoutClientCertIngress" (testRejectRequestsWithoutClientCertIngress env)
 
+-- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
 --
 -- This test was primarily intended to test that federator is using the API right (header
 -- name etc.), but it is also effectively testing that federator rejects clients without
@@ -109,6 +110,8 @@ testRejectRequestsWithoutClientCertIngress env = runTestFederator env $ do
       Left (RemoteError {}) ->
         expectationFailure "Expected client certificate error, got remote error"
       Left (RemoteErrorResponse _ _ status _) -> status `shouldBe` HTTP.status400
+
+-- @END
 
 liftToCodensity :: (Member (Embed (Codensity IO)) r) => Sem (Embed IO ': r) a -> Sem r a
 liftToCodensity = runEmbedded @IO @(Codensity IO) lift

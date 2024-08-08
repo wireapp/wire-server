@@ -293,6 +293,7 @@ specFinalizeLogin = do
             authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp3 spmeta authnreq True
             loginSuccess =<< submitAuthnResponse tid3 authnresp
 
+      -- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
       -- Do not authenticate if SSO IdP response is for different team
       context "rejectsSAMLResponseInWrongTeam" $ do
         it "fails" $ do
@@ -318,6 +319,8 @@ specFinalizeLogin = do
             authnreq <- negotiateAuthnRequest idp2
             authnresp <- runSimpleSP $ mkAuthnResponseWithSubj subj privcreds idp2 spmeta authnreq True
             loginFailure =<< submitAuthnResponse tid2 authnresp
+
+      -- @END
 
       context "user is created once, then deleted in team settings, then can login again." $ do
         it "responds with 'allowed'" $ do
@@ -1662,6 +1665,7 @@ specReAuthSsoUserWithPassword =
 ----------------------------------------------------------------------
 -- tests for bsi audit
 
+-- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
 testRejectsSAMLResponseSayingAccessNotGranted :: TestSpar ()
 testRejectsSAMLResponseSayingAccessNotGranted = do
   (user, tid) <- callCreateUserWithTeam
@@ -1683,6 +1687,10 @@ testRejectsSAMLResponseSayingAccessNotGranted = do
     bdy `shouldContain` "}, receiverOrigin)"
     hasPersistentCookieHeader sparresp `shouldBe` Left "no set-cookie header"
 
+-- @END
+
+-- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
+--
 -- Do not authenticate if SSO IdP response is for unknown issuer
 testRejectsSAMLResponseFromWrongIssuer :: TestSpar ()
 testRejectsSAMLResponseFromWrongIssuer = do
@@ -1707,6 +1715,10 @@ testRejectsSAMLResponseFromWrongIssuer = do
     submitaresp
     checkresp
 
+-- @END
+
+-- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
+--
 -- Do not authenticate if SSO IdP response is signed with wrong key
 testRejectsSAMLResponseSignedWithWrongKey :: TestSpar ()
 testRejectsSAMLResponseSignedWithWrongKey = do
@@ -1724,6 +1736,10 @@ testRejectsSAMLResponseSignedWithWrongKey = do
       checkresp sparresp = statusCode sparresp `shouldBe` 400
   checkSamlFlow mkareq mkaresp submitaresp checkresp
 
+-- @END
+
+-- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
+--
 -- Do not authenticate if SSO IdP response has no corresponding request anymore
 testRejectsSAMLResponseIfRequestIsStale :: TestSpar ()
 testRejectsSAMLResponseIfRequestIsStale = do
@@ -1739,6 +1755,10 @@ testRejectsSAMLResponseIfRequestIsStale = do
         (cs . fromJust . responseBody $ sparresp) `shouldContain` "bad InResponseTo attribute(s)"
   checkSamlFlow mkareq mkaresp submitaresp checkresp
 
+-- @END
+
+-- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
+--
 -- Do not authenticate if SSO IdP response is gone missing
 testRejectsSAMLResponseIfResponseIsStale :: TestSpar ()
 testRejectsSAMLResponseIfResponseIsStale = do
@@ -1751,6 +1771,8 @@ testRejectsSAMLResponseIfResponseIsStale = do
         statusCode sparresp `shouldBe` 200
         (cs . fromJust . responseBody $ sparresp) `shouldContain` "<title>wire:sso:error:forbidden</title>"
   checkSamlFlow mkareq mkaresp submitaresp checkresp
+
+-- @END
 
 ----------------------------------------------------------------------
 -- Helpers
