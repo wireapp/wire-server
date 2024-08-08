@@ -45,5 +45,9 @@ generateTupleP = do
       let n = length vs
        in foldl' AppT (TupleT n) vs
 
+-- | generates some of the remaining @SOP.Generic@ instances as orphans
+--   it is cut off at 50 on purpose to reduce compilation times
+--   you may increase up to 64 which is the number at which you
+--   you should probably start fixing cql instead.
 generateSOPInstances :: Q [Dec]
 generateSOPInstances = concat <$> traverse (deriveGeneric . tupleTypeName) [31 .. 50]
