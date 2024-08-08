@@ -17,7 +17,6 @@
 , lib
 , memory
 , QuickCheck
-, schema-profunctor
 , text
 , types-common
 , utf8-string
@@ -41,7 +40,6 @@ mkDerivation {
     lens
     memory
     QuickCheck
-    schema-profunctor
     text
     types-common
     utf8-string

@@ -47,7 +47,6 @@ import Data.String.Conversions
 import Data.Text.Ascii qualified as Ascii
 import Data.Vector qualified as Vec
 import Data.ZAuth.Token qualified as ZAuth
-import GHC.TypeLits (KnownSymbol)
 import Imports
 import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
@@ -61,7 +60,7 @@ import Wire.API.Federation.Component
 import Wire.API.Internal.Notification (Notification (..))
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.MultiTablePaging (LocalOrRemoteTable, MultiTablePagingState)
-import Wire.API.Team.Feature (featureNameBS)
+import Wire.API.Team.Feature (IsFeatureConfig, featureNameBS)
 import Wire.API.Team.Feature qualified as Public
 import Wire.API.User
 import Wire.API.User qualified as Public
@@ -450,7 +449,7 @@ setTeamFeatureLockStatus ::
     MonadIO m,
     MonadHttp m,
     HasCallStack,
-    KnownSymbol (Public.FeatureSymbol cfg)
+    IsFeatureConfig cfg
   ) =>
   Galley ->
   TeamId ->
