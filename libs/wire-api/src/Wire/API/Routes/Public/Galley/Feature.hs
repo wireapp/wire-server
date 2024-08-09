@@ -33,47 +33,33 @@ import Wire.API.Team.Feature
 import Wire.API.Team.SearchVisibility (TeamSearchVisibilityView)
 
 type FeatureAPIGetPut cfg =
-  FeatureStatusGet cfg :<|> FeatureStatusPut cfg
+  FeatureAPIGet cfg :<|> FeatureAPIPut cfg
 
 type FeatureAPI =
-  FeatureStatusGet SSOConfig
-    :<|> FeatureStatusGet LegalholdConfig
-    :<|> FeatureStatusPut LegalholdConfig
-    :<|> FeatureStatusGet SearchVisibilityAvailableConfig
-    :<|> FeatureStatusPut SearchVisibilityAvailableConfig
+  FeatureAPIGet SSOConfig
+    :<|> FeatureAPIGetPut LegalholdConfig
+    :<|> FeatureAPIGetPut SearchVisibilityAvailableConfig
     :<|> SearchVisibilityGet
     :<|> SearchVisibilitySet
-    :<|> FeatureStatusGet ValidateSAMLEmailsConfig
-    :<|> FeatureStatusGet DigitalSignaturesConfig
-    :<|> FeatureStatusGet AppLockConfig
-    :<|> FeatureStatusPut AppLockConfig
-    :<|> FeatureStatusGet FileSharingConfig
-    :<|> FeatureStatusPut FileSharingConfig
-    :<|> FeatureStatusGet ClassifiedDomainsConfig
-    :<|> FeatureStatusGet ConferenceCallingConfig
-    :<|> FeatureStatusPut ConferenceCallingConfig
-    :<|> FeatureStatusGet SelfDeletingMessagesConfig
-    :<|> FeatureStatusPut SelfDeletingMessagesConfig
-    :<|> FeatureStatusGet GuestLinksConfig
-    :<|> FeatureStatusPut GuestLinksConfig
-    :<|> FeatureStatusGet SndFactorPasswordChallengeConfig
-    :<|> FeatureStatusPut SndFactorPasswordChallengeConfig
-    :<|> From 'V5 ::> FeatureStatusGet MLSConfig
-    :<|> From 'V5 ::> FeatureStatusPut MLSConfig
-    :<|> FeatureStatusGet ExposeInvitationURLsToTeamAdminConfig
-    :<|> FeatureStatusPut ExposeInvitationURLsToTeamAdminConfig
-    :<|> FeatureStatusGet SearchVisibilityInboundConfig
-    :<|> FeatureStatusPut SearchVisibilityInboundConfig
-    :<|> FeatureStatusGet OutlookCalIntegrationConfig
-    :<|> FeatureStatusPut OutlookCalIntegrationConfig
-    :<|> From 'V5 ::> FeatureStatusGet MlsE2EIdConfig
+    :<|> FeatureAPIGet ValidateSAMLEmailsConfig
+    :<|> FeatureAPIGet DigitalSignaturesConfig
+    :<|> FeatureAPIGetPut AppLockConfig
+    :<|> FeatureAPIGetPut FileSharingConfig
+    :<|> FeatureAPIGet ClassifiedDomainsConfig
+    :<|> FeatureAPIGetPut ConferenceCallingConfig
+    :<|> FeatureAPIGetPut SelfDeletingMessagesConfig
+    :<|> FeatureAPIGetPut GuestLinksConfig
+    :<|> FeatureAPIGetPut SndFactorPasswordChallengeConfig
+    :<|> From 'V5 ::> FeatureAPIGetPut MLSConfig
+    :<|> FeatureAPIGetPut ExposeInvitationURLsToTeamAdminConfig
+    :<|> FeatureAPIGetPut SearchVisibilityInboundConfig
+    :<|> FeatureAPIGetPut OutlookCalIntegrationConfig
+    :<|> From 'V5 ::> FeatureAPIGet MlsE2EIdConfig
     :<|> From 'V5 ::> Until 'V6 ::> Named "put-MlsE2EIdConfig@v5" (ZUser :> FeatureStatusBasePutPublic MlsE2EIdConfig)
-    :<|> From 'V6 ::> FeatureStatusPut MlsE2EIdConfig
-    :<|> From 'V5 ::> FeatureStatusGet MlsMigrationConfig
-    :<|> From 'V5 ::> FeatureStatusPut MlsMigrationConfig
-    :<|> From 'V5 ::> FeatureStatusGet EnforceFileDownloadLocationConfig
-    :<|> From 'V5 ::> FeatureStatusPut EnforceFileDownloadLocationConfig
-    :<|> From 'V5 ::> FeatureStatusGet LimitedEventFanoutConfig
+    :<|> From 'V6 ::> FeatureAPIPut MlsE2EIdConfig
+    :<|> From 'V5 ::> FeatureAPIGetPut MlsMigrationConfig
+    :<|> From 'V5 ::> FeatureAPIGetPut EnforceFileDownloadLocationConfig
+    :<|> From 'V5 ::> FeatureAPIGet LimitedEventFanoutConfig
     :<|> AllFeatureConfigsUserGet
     :<|> AllFeatureConfigsTeamGet
     :<|> DeprecatedFeatureAPI
@@ -111,14 +97,14 @@ type DeprecatedFeatureAPI =
     :<|> FeatureStatusDeprecatedGet DeprecationNotice1 ValidateSAMLEmailsConfig
     :<|> FeatureStatusDeprecatedGet DeprecationNotice2 DigitalSignaturesConfig
 
-type FeatureStatusGet cfg =
+type FeatureAPIGet cfg =
   Named
     '("get", cfg)
     ( Description (FeatureAPIDesc cfg)
         :> (ZUser :> FeatureStatusBaseGet cfg)
     )
 
-type FeatureStatusPut cfg =
+type FeatureAPIPut cfg =
   Named
     '("put", cfg)
     ( Description (FeatureAPIDesc cfg)
