@@ -811,8 +811,7 @@ testConferenceCallingInternal = do
     do
       notif <- awaitMatch isFeatureConfigUpdateNotif ws
       notif %. "payload.0.name" `shouldMatch` "conferenceCalling"
-      -- TODO: the patch event is currently wrong, and does not reflect the update
-      notif %. "payload.0.data" `shouldMatch` (confCalling defaultArgs {status = "disabled", lockStatus = Just "locked"})
+      notif %. "payload.0.data" `shouldMatch` (confCalling defaultArgs {status = "enabled", lockStatus = Just "unlocked"})
     checkFeature "conferenceCalling" m tid (confCalling defaultArgs {status = "enabled", lockStatus = Just "unlocked"})
 
     -- just disable
@@ -836,7 +835,7 @@ testConferenceCallingInternal = do
     do
       notif <- awaitMatch isFeatureConfigUpdateNotif ws
       notif %. "payload.0.name" `shouldMatch` "conferenceCalling"
-      notif %. "payload.0.data" `shouldMatch` (confCalling defaultArgs {lockStatus = Just "unlocked"})
+      notif %. "payload.0.data" `shouldMatch` (confCalling defaultArgs)
     checkFeature "conferenceCalling" m tid (confCalling defaultArgs)
 
 _testLockStatusWithConfig ::
