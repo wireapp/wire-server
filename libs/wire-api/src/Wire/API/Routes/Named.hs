@@ -147,3 +147,7 @@ infixr 4 ::>
 type instance
   x ::> (Named name api) =
     Named name (x :> api)
+
+type instance
+  x ::> (api1 :<|> api2) =
+    (x ::> api1) :<|> (x ::> api2)
