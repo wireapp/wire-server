@@ -26,7 +26,6 @@ import GHC.TypeLits (AppendSymbol)
 import Imports hiding (head)
 import Servant
 import Servant.OpenApi
-import Wire.API.ApplyMods
 import Wire.API.Bot
 import Wire.API.Bot.Service
 import Wire.API.Conversation
@@ -69,8 +68,8 @@ type family IFeatureAPI1 cfg where
 
 type IFeatureAPI1Full cfg =
   IFeatureStatusGet cfg
-    :<|> IFeatureStatusPut '[] cfg
-    :<|> IFeatureStatusPatch '[] cfg
+    :<|> IFeatureStatusPut cfg
+    :<|> IFeatureStatusPatch cfg
 
 type family IAllFeaturesAPI cfgs where
   IAllFeaturesAPI '[cfg] = IFeatureAPI1 cfg
@@ -313,24 +312,18 @@ type IFeatureStatusGet cfg =
         :> FeatureStatusBaseGet cfg
     )
 
-type IFeatureStatusPut calls cfg =
+type IFeatureStatusPut cfg =
   Named
     '("iput", cfg)
-    ( ApplyMods
-        calls
-        ( Description (FeatureAPIDesc cfg)
-            :> FeatureStatusBasePutInternal cfg
-        )
+    ( Description (FeatureAPIDesc cfg)
+        :> FeatureStatusBasePutInternal cfg
     )
 
-type IFeatureStatusPatch calls cfg =
+type IFeatureStatusPatch cfg =
   Named
     '("ipatch", cfg)
-    ( ApplyMods
-        calls
-        ( Description (FeatureAPIDesc cfg)
-            :> FeatureStatusBasePatchInternal cfg
-        )
+    ( Description (FeatureAPIDesc cfg)
+        :> FeatureStatusBasePatchInternal cfg
     )
 
 type FeatureStatusBasePutInternal cfg =
