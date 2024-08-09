@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -fconstraint-solver-iterations=0 #-}
 
-module Galley.Cassandra.GetAllTeamFeatureConfigs where
+module Galley.Cassandra.GetAllTeamFeatureConfigs (getAllFeatureConfigs) where
 
 import Cassandra
 import Data.Id
@@ -28,24 +28,48 @@ instance ConcatFeatures '[] where
   rowToAllFeatures Nil = Nil
 
 instance
-  ( Split (FeatureRow cfg) (ConcatFeatureRow cfgs),
+  ( SplitNP (FeatureRow cfg) (ConcatFeatureRow cfgs),
     ConcatFeatures cfgs,
     MakeFeature cfg
   ) =>
   ConcatFeatures (cfg : cfgs)
   where
-  rowToAllFeatures row = case split @(FeatureRow cfg) @(ConcatFeatureRow cfgs) row of
+  rowToAllFeatures row = case splitNP @(FeatureRow cfg) @(ConcatFeatureRow cfgs) row of
     (row0, row1) -> rowToFeature row0 :* rowToAllFeatures row1
 
-class Split xs ys where
-  split :: NP f (Append xs ys) -> (NP f xs, NP f ys)
+class SplitNP xs ys where
+  splitNP :: NP f (Append xs ys) -> (NP f xs, NP f ys)
 
-instance Split '[] ys where
-  split ys = (Nil, ys)
+instance SplitNP '[] ys where
+  splitNP ys = (Nil, ys)
 
-instance (Split xs ys) => Split (x ': xs) ys where
-  split (z :* zs) = case split zs of
+instance (SplitNP xs ys) => SplitNP (x ': xs) ys where
+  splitNP (z :* zs) = case splitNP zs of
     (xs, ys) -> (z :* xs, ys)
+
+class AppendNP xs ys where
+  appendNP :: NP f xs -> NP f ys -> NP f (Append xs ys)
+
+instance AppendNP '[] ys where
+  appendNP Nil ys = ys
+
+instance (AppendNP xs ys) => AppendNP (x : xs) ys where
+  appendNP (x :* xs) ys = x :* appendNP xs ys
+
+class ConcatColumns cfgs where
+  concatColumns :: NP (K String) (ConcatFeatureRow cfgs)
+
+instance ConcatColumns '[] where
+  concatColumns = Nil
+
+instance
+  ( AppendNP (FeatureRow cfg) (ConcatFeatureRow cfgs),
+    MakeFeature cfg,
+    ConcatColumns cfgs
+  ) =>
+  ConcatColumns (cfg : cfgs)
+  where
+  concatColumns = featureColumns @cfg `appendNP` concatColumns @cfgs
 
 getAllFeatureConfigs ::
   forall row mrow m.
@@ -58,8 +82,5 @@ getAllFeatureConfigs ::
   TeamId ->
   m (AllFeatures DbFeature)
 getAllFeatureConfigs tid = do
-  mRow <- retry x1 $ query1 select (params LocalQuorum (Identity tid))
-  pure $ rowToAllFeatures $ maybe emptyRow (unfactorI . productTypeFrom) mRow
-  where
-    select :: PrepQuery R (Identity TeamId) (TupleP mrow)
-    select = fromString ""
+  mRow <- fetchFeatureRow @row @mrow tid (concatColumns @Features)
+  pure . rowToAllFeatures $ fromMaybe emptyRow mRow

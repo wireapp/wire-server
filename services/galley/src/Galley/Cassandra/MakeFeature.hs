@@ -356,14 +356,28 @@ fetchFeature tid = do
   case featureColumns @cfg of
     Nil -> pure (rowToFeature Nil)
     cols -> do
-      let select :: PrepQuery R (Identity TeamId) (TupleP mrow)
-          select =
-            fromString $
-              "select "
-                <> intercalate ", " (hcollapse cols)
-                <> " from team_features where team_id = ?"
-      row <- retry x1 $ query1 select (params LocalQuorum (Identity tid))
-      pure $ foldMap (rowToFeature . unfactorI . productTypeFrom) row
+      mRow <- fetchFeatureRow @row @mrow tid cols
+      pure $ foldMap rowToFeature mRow
+
+fetchFeatureRow ::
+  forall row mrow m.
+  ( MonadClient m,
+    IsProductType (TupleP mrow) mrow,
+    AllZip (IsF Maybe) row mrow,
+    Tuple (TupleP mrow)
+  ) =>
+  TeamId ->
+  NP (K String) row ->
+  m (Maybe (NP Maybe row))
+fetchFeatureRow tid cols = do
+  let select :: PrepQuery R (Identity TeamId) (TupleP mrow)
+      select =
+        fromString $
+          "select "
+            <> intercalate ", " (hcollapse cols)
+            <> " from team_features where team_id = ?"
+  row <- retry x1 $ query1 select (params LocalQuorum (Identity tid))
+  pure $ fmap (unfactorI . productTypeFrom) row
 
 storeFeature ::
   forall cfg m row mrow.
