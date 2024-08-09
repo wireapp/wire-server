@@ -31,6 +31,7 @@ inMemoryUserStoreInterpreter = interpret $ \case
               . maybe Imports.id setStoredUserSupportedProtocols update.supportedProtocols
               $ u
           else u
+  GetIndexUserRow _uid -> undefined -- getIndexUserRowImpl uid
   UpdateUserHandleEither uid hUpdate -> runError $ modifyLocalUsers (traverse doUpdate)
     where
       doUpdate :: StoredUser -> Sem (Error StoredUserUpdateError : r) StoredUser

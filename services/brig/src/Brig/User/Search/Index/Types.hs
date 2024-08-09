@@ -18,7 +18,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.User.Search.Index.Types where
+module Wire.IndexedUserStore.Types where
 
 import Brig.Types.Search
 import Control.Lens (makeLenses)
@@ -46,7 +46,7 @@ data IndexUpdate
   | IndexUpdateUsers IndexDocUpdateType [IndexUser]
   | IndexDeleteUser UserId
 
--- | Represents the ES *index*, ie. the attributes of a user that is searchable in ES.  See also:
+-- | Represents the ES *index*, ie. the attributes of a user that are searchable in ES.  See also:
 -- 'UserDoc'.
 data IndexUser = IndexUser
   { _iuUserId :: UserId,
@@ -78,78 +78,6 @@ data IndexError
 instance Exception IndexError
 
 newtype IndexVersion = IndexVersion {docVersion :: DocVersion}
-
--- | Represents an ES *document*, ie. the subset of user attributes stored in ES.
--- See also 'IndexUser'.
---
--- If a user is not searchable, e.g. because the account got
--- suspended, all fields except for the user id are set to 'Nothing' and
--- consequently removed from the index.
-data UserDoc = UserDoc
-  { udId :: UserId,
-    udTeam :: Maybe TeamId,
-    udName :: Maybe Name,
-    udNormalized :: Maybe Text,
-    udHandle :: Maybe Handle,
-    udEmail :: Maybe Email,
-    udColourId :: Maybe ColourId,
-    udAccountStatus :: Maybe AccountStatus,
-    udSAMLIdP :: Maybe Text,
-    udManagedBy :: Maybe ManagedBy,
-    udCreatedAt :: Maybe UTCTimeMillis,
-    udRole :: Maybe Role,
-    udSearchVisibilityInbound :: Maybe SearchVisibilityInbound,
-    udScimExternalId :: Maybe Text,
-    udSso :: Maybe Sso,
-    udEmailUnvalidated :: Maybe Email
-  }
-  deriving (Eq, Show)
-
--- Note: Keep this compatible with the FromJSON instances
--- of 'Contact' and 'TeamContact' from 'Wire.API.User.Search
-instance ToJSON UserDoc where
-  toJSON ud =
-    object
-      [ "id" .= udId ud,
-        "team" .= udTeam ud,
-        "name" .= udName ud,
-        "normalized" .= udNormalized ud,
-        "handle" .= udHandle ud,
-        "email" .= udEmail ud,
-        "accent_id" .= udColourId ud,
-        "account_status" .= udAccountStatus ud,
-        "saml_idp" .= udSAMLIdP ud,
-        "managed_by" .= udManagedBy ud,
-        "created_at" .= udCreatedAt ud,
-        "role" .= udRole ud,
-        (fromString . T.unpack $ searchVisibilityInboundFieldName) .= udSearchVisibilityInbound ud,
-        "scim_external_id" .= udScimExternalId ud,
-        "sso" .= udSso ud,
-        "email_unvalidated" .= udEmailUnvalidated ud
-      ]
-
-instance FromJSON UserDoc where
-  parseJSON = withObject "UserDoc" $ \o ->
-    UserDoc
-      <$> o .: "id"
-      <*> o .:? "team"
-      <*> o .:? "name"
-      <*> o .:? "normalized"
-      <*> o .:? "handle"
-      <*> o .:? "email"
-      <*> o .:? "accent_id"
-      <*> o .:? "account_status"
-      <*> o .:? "saml_idp"
-      <*> o .:? "managed_by"
-      <*> o .:? "created_at"
-      <*> o .:? "role"
-      <*> o .:? (fromString . T.unpack $ searchVisibilityInboundFieldName)
-      <*> o .:? "scim_external_id"
-      <*> o .:? "sso"
-      <*> o .:? "email_unvalidated"
-
-searchVisibilityInboundFieldName :: Text
-searchVisibilityInboundFieldName = "search_visibility_inbound"
 
 makeLenses ''IndexUser
 
@@ -200,11 +128,11 @@ indexToDoc iu =
       udSso = _iuSso iu,
       udEmailUnvalidated = _iuEmailUnvalidated iu
     }
-
--- | FUTUREWORK: Transliteration should be left to ElasticSearch (ICU plugin), but this will
--- require a data migration.
-normalized :: Text -> Text
-normalized = transliterate (trans "Any-Latin; Latin-ASCII; Lower")
+  where
+    -- Transliteration could also be done by ElasticSearch (ICU plugin), but this would
+    -- require a data migration.
+    normalized :: Text -> Text
+    normalized = transliterate (trans "Any-Latin; Latin-ASCII; Lower")
 
 docToIndex :: UserDoc -> IndexUser
 docToIndex ud =

@@ -109,6 +109,7 @@ initCassandra settings Nothing logger = do
 -- | Read cassandra's writetimes https://docs.datastax.com/en/dse/5.1/cql/cql/cql_using/useWritetime.html
 -- as UTCTime values without any loss of precision
 newtype Writetime a = Writetime {writetimeToUTC :: UTCTime}
+  deriving (Functor)
 
 instance Cql (Writetime a) where
   ctype = Tagged BigIntColumn
