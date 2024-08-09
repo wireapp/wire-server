@@ -29,6 +29,8 @@ module Wire.API.User.Activation
     -- * Activate
     Activate (..),
     ActivationResponse (..),
+    ActivationResult (..),
+    ActivationFullResponse (..),
 
     -- * SendActivationCode
     SendActivationCode (..),
@@ -45,6 +47,7 @@ import Data.OpenApi (ToParamSchema)
 import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Text.Ascii
+import Generics.SOP qualified as GSOP
 import Imports
 import Servant (FromHttpApiData (..))
 import Wire.API.Locale
@@ -163,6 +166,7 @@ instance ToSchema Activate where
         ActivateEmail email -> (Nothing, Just email)
 
 -- | Information returned as part of a successful activation.
+-- TODO: this should not be visible outside of the UserSubsystem.
 data ActivationResponse = ActivationResponse
   { -- | The activated / verified user identity.
     activatedIdentity :: UserIdentity,
@@ -179,6 +183,28 @@ instance ToSchema ActivationResponse where
       ActivationResponse
         <$> activatedIdentity .= userIdentityObjectSchema
         <*> activatedFirst .= (fromMaybe False <$> optFieldWithDocModifier "first" (description ?~ "Whether this is the first successful activation (i.e. account activation).") schema)
+
+-- | Something copied over from "Brig.API.Types".
+--
+-- TODO: this should not be visible outside of the UserSubsystem.
+data ActivationResult
+  = -- | The key/code was valid and successfully activated.
+    ActivationSuccess !(Maybe UserIdentity) !Bool
+  | -- | The key/code was valid but already recently activated.
+    ActivationPass
+
+-- | Outcome of an email address the procedure.
+--
+-- TODO: make `ActivationResult` and `ActivationResponse` local and only use this data type in
+-- the wire-subsystems interface.
+data ActivationFullResponse
+  = ActivationResp ActivationResponse
+  | ActivationRespDryRun
+  | ActivationRespPass
+  | ActivationRespSuccessNoIdentity
+  deriving (Generic)
+
+instance GSOP.Generic ActivationFullResponse
 
 --------------------------------------------------------------------------------
 -- SendActivationCode

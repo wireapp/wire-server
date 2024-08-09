@@ -52,15 +52,6 @@ import Wire.PasswordResetCodeStore qualified as E
 import Wire.PasswordResetCodeStore.Cassandra
 import Wire.UserKeyStore
 
---  | The information associated with the pending activation of a 'UserKey'.
-data Activation = Activation
-  { -- | An opaque key for the original 'UserKey' pending activation.
-    activationKey :: !ActivationKey,
-    -- | The confidential activation code.
-    activationCode :: !ActivationCode
-  }
-  deriving (Eq, Show)
-
 data ActivationError
   = UserKeyExists !LT.Text
   | InvalidActivationCodeWrongUser

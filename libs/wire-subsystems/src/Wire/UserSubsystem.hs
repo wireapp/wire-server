@@ -8,8 +8,10 @@ import Data.Id
 import Data.Qualified
 import Imports
 import Polysemy
+import SAML2.WebSSO.Types (UserRef)
 import Wire.API.Federation.Error
 import Wire.API.User
+import Wire.API.User.Activation
 import Wire.Arbitrary
 import Wire.UserKeyStore
 
@@ -65,6 +67,14 @@ data UserSubsystem m a where
   GetUserProfilesWithErrors :: Local UserId -> [Qualified UserId] -> UserSubsystem m ([(Qualified UserId, FederationError)], [UserProfile])
   -- | Simple updates (as opposed to, eg., handle, where we need to manage locks).  Empty fields are ignored (not deleted).
   UpdateUserProfile :: Local UserId -> Maybe ConnId -> UpdateOriginType -> UserProfileUpdate -> UserSubsystem m ()
+  -- | Initiate change of email address
+  UpdateUserEmailInit :: UserId -> Email -> UserSubsystem m ChangeEmailResponse
+  -- | Complete the email address update flow
+  UpdateUserEmailComplete :: Activate -> UserSubsystem m ActivationFullResponse
+  -- | Update SAML IdP EntityId (Issuer) and User NameId
+  UpdateUserSamlUserRef :: UserRef -> UserSubsystem m ()
+  -- | Update SCIM externalId
+  UpdateUserScimExternalId :: Text -> UserSubsystem m ()
   -- | parse and lookup a handle, return what the operation has found
   CheckHandle :: Text {- use Handle here? -} -> UserSubsystem m CheckHandleResp
   -- | checks a number of 'Handle's for availability and returns at most 'Word' amount of them
