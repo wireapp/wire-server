@@ -340,7 +340,6 @@ library
     , retry                  >=0.5
     , safe-exceptions        >=0.1
     , saml2-web-sso          >=0.20
-    , schema-profunctor
     , servant
     , servant-client
     , servant-server

@@ -66,7 +66,6 @@ import Data.ByteString (toStrict)
 import Data.ByteString.UTF8 qualified as UTF8
 import Data.Default
 import Data.Id (UserId)
-import Data.Schema qualified as Schema
 import Data.Set qualified as Set
 import Imports
 import Test.QuickCheck (Arbitrary)
@@ -153,7 +152,7 @@ instance FromJSON FeatureFlags where
       <*> (fromMaybe (Defaults def) <$> (obj .:? "enforceFileDownloadLocation"))
       <*> withImplicitLockStatusOrDefault obj "limitedEventFanout"
     where
-      withImplicitLockStatusOrDefault :: forall cfg. (IsFeatureConfig cfg, Schema.ToSchema cfg) => Object -> Key -> A.Parser (Defaults (ImplicitLockStatus cfg))
+      withImplicitLockStatusOrDefault :: forall cfg. (IsFeatureConfig cfg) => Object -> Key -> A.Parser (Defaults (ImplicitLockStatus cfg))
       withImplicitLockStatusOrDefault obj fieldName = fromMaybe (Defaults (ImplicitLockStatus def)) <$> obj .:? fieldName
 
 instance FromJSON FeatureSSO where

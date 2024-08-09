@@ -308,20 +308,14 @@ getTeamAdminInfo = fmap toAdminInfo . Intra.getTeamInfo
 
 mkFeatureGetRoute ::
   forall cfg.
-  ( IsFeatureConfig cfg,
-    ToSchema cfg,
-    KnownSymbol (FeatureSymbol cfg),
-    Typeable cfg
-  ) =>
+  (IsFeatureConfig cfg, Typeable cfg) =>
   TeamId ->
   Handler (LockableFeature cfg)
 mkFeatureGetRoute = Intra.getTeamFeatureFlag @cfg
 
 mkFeaturePutRoute ::
   forall cfg.
-  ( KnownSymbol (FeatureSymbol cfg),
-    ToJSON (Feature cfg)
-  ) =>
+  (IsFeatureConfig cfg) =>
   TeamId ->
   Feature cfg ->
   Handler NoContent

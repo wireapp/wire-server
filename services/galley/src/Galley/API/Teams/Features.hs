@@ -26,10 +26,8 @@ module Galley.API.Teams.Features
     getAllFeatureConfigsForTeam,
     getAllFeatureConfigsForUser,
     updateLockStatus,
-    -- Don't export methods of this typeclass
-    GetFeatureConfig,
-    -- Don't export methods of this typeclass
-    SetFeatureConfig,
+    GetFeatureConfig (..),
+    SetFeatureConfig (..),
     guardSecondFactorDisabled,
     DoAuth (..),
     featureEnabledForTeam,
@@ -44,9 +42,7 @@ import Data.Id
 import Data.Json.Util
 import Data.Kind
 import Data.Qualified (Local)
-import Data.Schema
 import Data.Time (UTCTime)
-import GHC.TypeLits (KnownSymbol)
 import Galley.API.Error (InternalError)
 import Galley.API.LegalHold qualified as LegalHold
 import Galley.API.Teams (ensureNotTooLargeToActivateLegalHold)
@@ -176,9 +172,7 @@ updateLockStatus tid lockStatus = do
 
 persistAndPushEvent ::
   forall cfg r.
-  ( KnownSymbol (FeatureSymbol cfg),
-    ToSchema cfg,
-    GetFeatureConfig cfg,
+  ( GetFeatureConfig cfg,
     ComputeFeatureConstraints cfg r,
     Member (Input Opts) r,
     Member TeamFeatureStore r,
@@ -252,8 +246,6 @@ class (GetFeatureConfig cfg) => SetFeatureConfig cfg where
     Sem r (LockableFeature cfg)
   default setConfigForTeam ::
     ( ComputeFeatureConstraints cfg r,
-      KnownSymbol (FeatureSymbol cfg),
-      ToSchema cfg,
       Member (Input Opts) r,
       Member TeamFeatureStore r,
       Member (P.Logger (Log.Msg -> Log.Msg)) r,
@@ -304,7 +296,6 @@ instance SetFeatureConfig LegalholdConfig where
         Member BrigAccess r,
         Member CodeStore r,
         Member ConversationStore r,
-        Member (Error AuthenticationError) r,
         Member (Error FederationError) r,
         Member (Error InternalError) r,
         Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,

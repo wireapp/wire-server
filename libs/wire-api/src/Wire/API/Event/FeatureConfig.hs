@@ -28,7 +28,6 @@ import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Json.Util (ToJSONObject (toJSONObject))
 import Data.OpenApi qualified as S
 import Data.Schema
-import GHC.TypeLits (KnownSymbol)
 import Imports
 import Test.QuickCheck.Gen
 import Wire.API.Team.Feature
@@ -42,7 +41,7 @@ data Event = Event
   deriving (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON) via Schema Event
 
-arbitraryFeature :: forall cfg. (IsFeatureConfig cfg, ToSchema cfg, Arbitrary cfg) => Gen A.Value
+arbitraryFeature :: forall cfg. (IsFeatureConfig cfg, Arbitrary cfg) => Gen A.Value
 arbitraryFeature = toJSON <$> arbitrary @(LockableFeature cfg)
 
 class AllArbitraryFeatures cfgs where
@@ -53,7 +52,6 @@ instance AllArbitraryFeatures '[] where
 
 instance
   ( IsFeatureConfig cfg,
-    ToSchema cfg,
     Arbitrary cfg,
     AllArbitraryFeatures cfgs
   ) =>
@@ -99,5 +97,5 @@ instance ToJSONObject Event where
 instance S.ToSchema Event where
   declareNamedSchema = schemaToSwagger
 
-mkUpdateEvent :: forall cfg. (IsFeatureConfig cfg, ToSchema cfg, KnownSymbol (FeatureSymbol cfg)) => LockableFeature cfg -> Event
+mkUpdateEvent :: forall cfg. (IsFeatureConfig cfg) => LockableFeature cfg -> Event
 mkUpdateEvent ws = Event Update (featureName @cfg) (toJSON ws)

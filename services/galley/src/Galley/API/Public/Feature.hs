@@ -1,3 +1,6 @@
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -22,58 +25,56 @@ import Galley.API.Teams.Features
 import Galley.API.Teams.Features.Get
 import Galley.App
 import Imports
-import Wire.API.Federation.API
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.Feature
 import Wire.API.Team.Feature
 
+featureAPIGetPut :: forall cfg r. (_) => API (FeatureAPIGetPut cfg) r
+featureAPIGetPut =
+  mkNamedAPI @'("get", cfg) (getFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("put", cfg) (setFeatureStatus . DoAuth)
+
 featureAPI :: API FeatureAPI GalleyEffects
 featureAPI =
   mkNamedAPI @'("get", SSOConfig) (getFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("get", LegalholdConfig) (getFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("put", LegalholdConfig) (callsFed (exposeAnnotations (setFeatureStatus . DoAuth)))
-    <@> mkNamedAPI @'("get", SearchVisibilityAvailableConfig) (getFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("put", SearchVisibilityAvailableConfig) (setFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("get-deprecated", SearchVisibilityAvailableConfig) (getFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("put-deprecated", SearchVisibilityAvailableConfig) (setFeatureStatus . DoAuth)
+    <@> featureAPIGetPut
+    <@> featureAPIGetPut
     <@> mkNamedAPI @"get-search-visibility" getSearchVisibility
     <@> mkNamedAPI @"set-search-visibility" (setSearchVisibility (featureEnabledForTeam @SearchVisibilityAvailableConfig))
     <@> mkNamedAPI @'("get", ValidateSAMLEmailsConfig) (getFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("get-deprecated", ValidateSAMLEmailsConfig) (getFeatureStatus . DoAuth)
     <@> mkNamedAPI @'("get", DigitalSignaturesConfig) (getFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("get-deprecated", DigitalSignaturesConfig) (getFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("get", AppLockConfig) (getFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("put", AppLockConfig) (setFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("get", FileSharingConfig) (getFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("put", FileSharingConfig) (setFeatureStatus . DoAuth)
+    <@> featureAPIGetPut
+    <@> featureAPIGetPut
     <@> mkNamedAPI @'("get", ClassifiedDomainsConfig) (getFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("get", ConferenceCallingConfig) (getFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("put", ConferenceCallingConfig) (setFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("get", SelfDeletingMessagesConfig) (getFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("put", SelfDeletingMessagesConfig) (setFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("get", GuestLinksConfig) (getFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("put", GuestLinksConfig) (setFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("get", SndFactorPasswordChallengeConfig) (getFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("put", SndFactorPasswordChallengeConfig) (setFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("get", MLSConfig) (getFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("put", MLSConfig) (setFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("get", ExposeInvitationURLsToTeamAdminConfig) (getFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("put", ExposeInvitationURLsToTeamAdminConfig) (setFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("get", SearchVisibilityInboundConfig) (getFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("put", SearchVisibilityInboundConfig) (setFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("get", OutlookCalIntegrationConfig) (getFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("put", OutlookCalIntegrationConfig) (setFeatureStatus . DoAuth)
+    <@> featureAPIGetPut
+    <@> featureAPIGetPut
+    <@> featureAPIGetPut
+    <@> featureAPIGetPut
+    <@> hoistAPI id featureAPIGetPut
+    <@> featureAPIGetPut
+    <@> featureAPIGetPut
+    <@> featureAPIGetPut
     <@> mkNamedAPI @'("get", MlsE2EIdConfig) (getFeatureStatus . DoAuth)
     <@> mkNamedAPI @"put-MlsE2EIdConfig@v5" (setFeatureStatus . DoAuth)
     <@> mkNamedAPI @'("put", MlsE2EIdConfig) (guardMlsE2EIdConfig (setFeatureStatus . DoAuth))
-    <@> mkNamedAPI @'("get", MlsMigrationConfig) (getFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("put", MlsMigrationConfig) (setFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("get", EnforceFileDownloadLocationConfig) (getFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("put", EnforceFileDownloadLocationConfig) (setFeatureStatus . DoAuth)
+    <@> hoistAPI id featureAPIGetPut
+    <@> hoistAPI id featureAPIGetPut
     <@> mkNamedAPI @'("get", LimitedEventFanoutConfig) (getFeatureStatus . DoAuth)
     <@> mkNamedAPI @"get-all-feature-configs-for-user" getAllFeatureConfigsForUser
     <@> mkNamedAPI @"get-all-feature-configs-for-team" getAllFeatureConfigsForTeam
-    <@> mkNamedAPI @'("get-config", LegalholdConfig) getSingleFeatureConfigForUser
+    <@> deprecatedFeatureConfigAPI
+    <@> deprecatedFeatureAPI
+
+deprecatedFeatureConfigAPI :: API DeprecatedFeatureAPI GalleyEffects
+deprecatedFeatureConfigAPI =
+  mkNamedAPI @'("get-deprecated", SearchVisibilityAvailableConfig) (getFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("put-deprecated", SearchVisibilityAvailableConfig) (setFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("get-deprecated", ValidateSAMLEmailsConfig) (getFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("get-deprecated", DigitalSignaturesConfig) (getFeatureStatus . DoAuth)
+
+deprecatedFeatureAPI :: API (AllDeprecatedFeatureConfigAPI DeprecatedFeatureConfigs) GalleyEffects
+deprecatedFeatureAPI =
+  mkNamedAPI @'("get-config", LegalholdConfig) getSingleFeatureConfigForUser
     <@> mkNamedAPI @'("get-config", SSOConfig) getSingleFeatureConfigForUser
     <@> mkNamedAPI @'("get-config", SearchVisibilityAvailableConfig) getSingleFeatureConfigForUser
     <@> mkNamedAPI @'("get-config", ValidateSAMLEmailsConfig) getSingleFeatureConfigForUser
