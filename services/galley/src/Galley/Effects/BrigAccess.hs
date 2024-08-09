@@ -122,7 +122,7 @@ data BrigAccess m a where
     LastPrekey ->
     BrigAccess m (Either AuthenticationError ClientId)
   RemoveLegalHoldClientFromUser :: UserId -> BrigAccess m ()
-  GetAccountConferenceCallingConfigClient :: UserId -> BrigAccess m (WithStatusNoLock ConferenceCallingConfig)
+  GetAccountConferenceCallingConfigClient :: UserId -> BrigAccess m (Feature ConferenceCallingConfig)
   GetLocalMLSClients :: Local UserId -> CipherSuiteTag -> BrigAccess m (Set ClientInfo)
   UpdateSearchVisibilityInbound ::
     Multi.TeamStatus SearchVisibilityInboundConfig ->

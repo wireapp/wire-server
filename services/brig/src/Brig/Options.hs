@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 -- Disabling to stop errors on Getters
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
@@ -34,6 +35,7 @@ import Data.Aeson qualified as Aeson
 import Data.Aeson.Types (typeMismatch)
 import Data.Char qualified as Char
 import Data.Code qualified as Code
+import Data.Default
 import Data.Domain (Domain (..))
 import Data.Id
 import Data.LanguageCodes (ISO639_1 (EN))
@@ -708,7 +710,11 @@ instance Arbitrary AccountFeatureConfigs where
   arbitrary = AccountFeatureConfigs <$> fmap locked arbitrary <*> fmap locked arbitrary
     where
       locked :: Public.ImplicitLockStatus a -> Public.ImplicitLockStatus a
-      locked = Public.ImplicitLockStatus . Public.setLockStatus Public.LockStatusLocked . Public._unImplicitLockStatus
+      locked impl =
+        Public.ImplicitLockStatus $
+          (Public._unImplicitLockStatus impl)
+            { Public.lockStatus = Public.LockStatusLocked
+            }
 
 instance FromJSON AccountFeatureConfigs where
   parseJSON =
@@ -740,17 +746,17 @@ instance ToJSON AccountFeatureConfigs where
               ]
         ]
 
-getAfcConferenceCallingDefNewMaybe :: Lens.Getter Settings (Maybe (Public.WithStatus Public.ConferenceCallingConfig))
+getAfcConferenceCallingDefNewMaybe :: Lens.Getter Settings (Maybe (Public.LockableFeature Public.ConferenceCallingConfig))
 getAfcConferenceCallingDefNewMaybe = Lens.to (Lens.^? (Lens.to setFeatureFlags . Lens._Just . Lens.to afcConferenceCallingDefNew . unImplicitLockStatus))
 
-getAfcConferenceCallingDefNull :: Lens.Getter Settings (Public.WithStatus Public.ConferenceCallingConfig)
+getAfcConferenceCallingDefNull :: Lens.Getter Settings (Public.LockableFeature Public.ConferenceCallingConfig)
 getAfcConferenceCallingDefNull = Lens.to (Public._unImplicitLockStatus . afcConferenceCallingDefNull . fromMaybe defAccountFeatureConfigs . setFeatureFlags)
 
 defAccountFeatureConfigs :: AccountFeatureConfigs
 defAccountFeatureConfigs =
   AccountFeatureConfigs
-    { afcConferenceCallingDefNew = Public.ImplicitLockStatus Public.defFeatureStatus,
-      afcConferenceCallingDefNull = Public.ImplicitLockStatus Public.defFeatureStatus
+    { afcConferenceCallingDefNew = Public.ImplicitLockStatus def,
+      afcConferenceCallingDefNull = Public.ImplicitLockStatus def
     }
 
 -- | Customer extensions naturally are covered by the AGPL like everything else, but use them

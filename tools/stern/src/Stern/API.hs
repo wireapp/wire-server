@@ -70,7 +70,7 @@ import Wire.API.Routes.Internal.Brig.Connection (ConnectionStatus)
 import Wire.API.Routes.Internal.Brig.EJPD qualified as EJPD
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.Named (Named (Named))
-import Wire.API.Team.Feature hiding (setStatus)
+import Wire.API.Team.Feature
 import Wire.API.Team.SearchVisibility
 import Wire.API.User
 import Wire.API.User.Search
@@ -314,16 +314,16 @@ mkFeatureGetRoute ::
     Typeable cfg
   ) =>
   TeamId ->
-  Handler (WithStatus cfg)
+  Handler (LockableFeature cfg)
 mkFeatureGetRoute = Intra.getTeamFeatureFlag @cfg
 
 mkFeaturePutRoute ::
   forall cfg.
   ( KnownSymbol (FeatureSymbol cfg),
-    ToJSON (WithStatusNoLock cfg)
+    ToJSON (Feature cfg)
   ) =>
   TeamId ->
-  WithStatusNoLock cfg ->
+  Feature cfg ->
   Handler NoContent
 mkFeaturePutRoute tid payload = NoContent <$ Intra.setTeamFeatureFlag @cfg tid payload
 
@@ -331,8 +331,8 @@ type MkFeaturePutConstraints cfg =
   ( IsFeatureConfig cfg,
     KnownSymbol (FeatureSymbol cfg),
     ToSchema cfg,
-    FromJSON (WithStatusNoLock cfg),
-    ToJSON (WithStatusNoLock cfg),
+    FromJSON (Feature cfg),
+    ToJSON (Feature cfg),
     Typeable cfg
   )
 
@@ -350,8 +350,8 @@ mkFeaturePutRouteTrivialConfigWithTTL tid status = mkFeaturePutRouteTrivialConfi
 
 mkFeaturePutRouteTrivialConfig ::
   forall cfg. (MkFeaturePutConstraints cfg) => TeamId -> FeatureStatus -> Maybe FeatureTTLDays -> Handler NoContent
-mkFeaturePutRouteTrivialConfig tid status (fmap convertFeatureTTLDaysToSeconds -> ttl) = do
-  let patch = wsPatch (Just status) Nothing Nothing ttl
+mkFeaturePutRouteTrivialConfig tid status _ = do
+  let patch = LockableFeaturePatch (Just status) Nothing Nothing
   NoContent <$ Intra.patchTeamFeatureFlag @cfg tid patch
 
 getSearchVisibility :: TeamId -> Handler TeamSearchVisibilityView

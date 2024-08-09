@@ -23,7 +23,7 @@ import Data.Id
 import Data.Range
 import Data.SOP (I (..), NS (..))
 import Imports hiding (head)
-import Servant hiding (WithStatus)
+import Servant
 import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Conversation
 import Wire.API.Conversation.Code
@@ -884,7 +884,7 @@ type ConversationAPI =
                :> Capture' '[Description "Conversation ID"] "cnv" ConvId
                :> "features"
                :> FeatureSymbol GuestLinksConfig
-               :> Get '[Servant.JSON] (WithStatus GuestLinksConfig)
+               :> Get '[Servant.JSON] (LockableFeature GuestLinksConfig)
            )
     -- This endpoint can lead to the following events being sent:
     -- - ConvCodeDelete event to members

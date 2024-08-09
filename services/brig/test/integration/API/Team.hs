@@ -274,11 +274,10 @@ invitationUrlGalleyMock featureStatus tid inviter (ReceivedRequest mth pth body_
       && pth == ["i", "teams", Text.pack (show tid), "features", "exposeInvitationURLsToTeamAdmin"] =
       pure . Wai.responseLBS HTTP.status200 mempty $
         encode
-          ( withStatus
+          ( LockableFeature
               featureStatus
               LockStatusUnlocked
               ExposeInvitationURLsToTeamAdminConfig
-              FeatureTTLUnlimited
           )
   | mth == "GET"
       && pth == ["i", "teams", Text.pack (show tid), "members", Text.pack (show inviter)] =

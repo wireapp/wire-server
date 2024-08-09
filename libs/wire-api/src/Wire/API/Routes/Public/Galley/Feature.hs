@@ -19,7 +19,7 @@ module Wire.API.Routes.Public.Galley.Feature where
 
 import Data.Id
 import GHC.TypeLits
-import Servant hiding (WithStatus)
+import Servant
 import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.ApplyMods
 import Wire.API.Conversation.Role
@@ -157,7 +157,7 @@ type FeatureStatusBaseGet featureConfig =
     :> Capture "tid" TeamId
     :> "features"
     :> FeatureSymbol featureConfig
-    :> Get '[Servant.JSON] (WithStatus featureConfig)
+    :> Get '[Servant.JSON] (LockableFeature featureConfig)
 
 type FeatureStatusBasePutPublic errs featureConfig =
   Summary (AppendSymbol "Put config for " (FeatureSymbol featureConfig))
@@ -170,8 +170,8 @@ type FeatureStatusBasePutPublic errs featureConfig =
     :> Capture "tid" TeamId
     :> "features"
     :> FeatureSymbol featureConfig
-    :> ReqBody '[Servant.JSON] (WithStatusNoLock featureConfig)
-    :> Put '[Servant.JSON] (WithStatus featureConfig)
+    :> ReqBody '[Servant.JSON] (Feature featureConfig)
+    :> Put '[Servant.JSON] (LockableFeature featureConfig)
 
 -- | A type for a GET endpoint for a feature with a deprecated path
 type FeatureStatusBaseDeprecatedGet desc featureConfig =
@@ -191,7 +191,7 @@ type FeatureStatusBaseDeprecatedGet desc featureConfig =
       :> Capture "tid" TeamId
       :> "features"
       :> DeprecatedFeatureName featureConfig
-      :> Get '[Servant.JSON] (WithStatus featureConfig)
+      :> Get '[Servant.JSON] (LockableFeature featureConfig)
   )
 
 -- | A type for a PUT endpoint for a feature with a deprecated path
@@ -213,8 +213,8 @@ type FeatureStatusBaseDeprecatedPut desc featureConfig =
     :> Capture "tid" TeamId
     :> "features"
     :> DeprecatedFeatureName featureConfig
-    :> ReqBody '[Servant.JSON] (WithStatusNoLock featureConfig)
-    :> Put '[Servant.JSON] (WithStatus featureConfig)
+    :> ReqBody '[Servant.JSON] (Feature featureConfig)
+    :> Put '[Servant.JSON] (LockableFeature featureConfig)
 
 type FeatureConfigDeprecatedGet desc featureConfig =
   Named
@@ -228,7 +228,7 @@ type FeatureConfigDeprecatedGet desc featureConfig =
         :> CanThrow 'TeamNotFound
         :> "feature-configs"
         :> FeatureSymbol featureConfig
-        :> Get '[Servant.JSON] (WithStatus featureConfig)
+        :> Get '[Servant.JSON] (LockableFeature featureConfig)
     )
 
 type AllFeatureConfigsUserGet =

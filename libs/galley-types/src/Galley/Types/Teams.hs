@@ -64,6 +64,7 @@ import Data.Aeson
 import Data.Aeson.Types qualified as A
 import Data.ByteString (toStrict)
 import Data.ByteString.UTF8 qualified as UTF8
+import Data.Default
 import Data.Id (UserId)
 import Data.Schema qualified as Schema
 import Data.Set qualified as Set
@@ -84,18 +85,18 @@ data FeatureFlags = FeatureFlags
     _flagTeamSearchVisibility :: !FeatureTeamSearchVisibilityAvailability,
     _flagAppLockDefaults :: !(Defaults (ImplicitLockStatus AppLockConfig)),
     _flagClassifiedDomains :: !(ImplicitLockStatus ClassifiedDomainsConfig),
-    _flagFileSharing :: !(Defaults (WithStatus FileSharingConfig)),
-    _flagConferenceCalling :: !(Defaults (WithStatus ConferenceCallingConfig)),
-    _flagSelfDeletingMessages :: !(Defaults (WithStatus SelfDeletingMessagesConfig)),
-    _flagConversationGuestLinks :: !(Defaults (WithStatus GuestLinksConfig)),
+    _flagFileSharing :: !(Defaults (LockableFeature FileSharingConfig)),
+    _flagConferenceCalling :: !(Defaults (LockableFeature ConferenceCallingConfig)),
+    _flagSelfDeletingMessages :: !(Defaults (LockableFeature SelfDeletingMessagesConfig)),
+    _flagConversationGuestLinks :: !(Defaults (LockableFeature GuestLinksConfig)),
     _flagsTeamFeatureValidateSAMLEmailsStatus :: !(Defaults (ImplicitLockStatus ValidateSAMLEmailsConfig)),
-    _flagTeamFeatureSndFactorPasswordChallengeStatus :: !(Defaults (WithStatus SndFactorPasswordChallengeConfig)),
+    _flagTeamFeatureSndFactorPasswordChallengeStatus :: !(Defaults (LockableFeature SndFactorPasswordChallengeConfig)),
     _flagTeamFeatureSearchVisibilityInbound :: !(Defaults (ImplicitLockStatus SearchVisibilityInboundConfig)),
-    _flagMLS :: !(Defaults (WithStatus MLSConfig)),
-    _flagOutlookCalIntegration :: !(Defaults (WithStatus OutlookCalIntegrationConfig)),
-    _flagMlsE2EId :: !(Defaults (WithStatus MlsE2EIdConfig)),
-    _flagMlsMigration :: !(Defaults (WithStatus MlsMigrationConfig)),
-    _flagEnforceFileDownloadLocation :: !(Defaults (WithStatus EnforceFileDownloadLocationConfig)),
+    _flagMLS :: !(Defaults (LockableFeature MLSConfig)),
+    _flagOutlookCalIntegration :: !(Defaults (LockableFeature OutlookCalIntegrationConfig)),
+    _flagMlsE2EId :: !(Defaults (LockableFeature MlsE2EIdConfig)),
+    _flagMlsMigration :: !(Defaults (LockableFeature MlsMigrationConfig)),
+    _flagEnforceFileDownloadLocation :: !(Defaults (LockableFeature EnforceFileDownloadLocationConfig)),
     _flagLimitedEventFanout :: !(Defaults (ImplicitLockStatus LimitedEventFanoutConfig))
   }
   deriving (Eq, Show, Generic)
@@ -137,23 +138,23 @@ instance FromJSON FeatureFlags where
       <*> obj .: "legalhold"
       <*> obj .: "teamSearchVisibility"
       <*> withImplicitLockStatusOrDefault obj "appLock"
-      <*> (fromMaybe (ImplicitLockStatus (defFeatureStatus @ClassifiedDomainsConfig)) <$> (obj .:? "classifiedDomains"))
-      <*> (fromMaybe (Defaults (defFeatureStatus @FileSharingConfig)) <$> (obj .:? "fileSharing"))
-      <*> (fromMaybe (Defaults (defFeatureStatus @ConferenceCallingConfig)) <$> (obj .:? "conferenceCalling"))
-      <*> (fromMaybe (Defaults (defFeatureStatus @SelfDeletingMessagesConfig)) <$> (obj .:? "selfDeletingMessages"))
-      <*> (fromMaybe (Defaults (defFeatureStatus @GuestLinksConfig)) <$> (obj .:? "conversationGuestLinks"))
+      <*> (fromMaybe (ImplicitLockStatus def) <$> (obj .:? "classifiedDomains"))
+      <*> (fromMaybe (Defaults def) <$> (obj .:? "fileSharing"))
+      <*> (fromMaybe (Defaults def) <$> (obj .:? "conferenceCalling"))
+      <*> (fromMaybe (Defaults def) <$> (obj .:? "selfDeletingMessages"))
+      <*> (fromMaybe (Defaults def) <$> (obj .:? "conversationGuestLinks"))
       <*> withImplicitLockStatusOrDefault obj "validateSAMLEmails"
-      <*> (fromMaybe (Defaults (defFeatureStatus @SndFactorPasswordChallengeConfig)) <$> (obj .:? "sndFactorPasswordChallenge"))
+      <*> (fromMaybe (Defaults def) <$> (obj .:? "sndFactorPasswordChallenge"))
       <*> withImplicitLockStatusOrDefault obj "searchVisibilityInbound"
-      <*> (fromMaybe (Defaults (defFeatureStatus @MLSConfig)) <$> (obj .:? "mls"))
-      <*> (fromMaybe (Defaults (defFeatureStatus @OutlookCalIntegrationConfig)) <$> (obj .:? "outlookCalIntegration"))
-      <*> (fromMaybe (Defaults (defFeatureStatus @MlsE2EIdConfig)) <$> (obj .:? "mlsE2EId"))
-      <*> (fromMaybe (Defaults (defFeatureStatus @MlsMigrationConfig)) <$> (obj .:? "mlsMigration"))
-      <*> (fromMaybe (Defaults (defFeatureStatus @EnforceFileDownloadLocationConfig)) <$> (obj .:? "enforceFileDownloadLocation"))
+      <*> (fromMaybe (Defaults def) <$> (obj .:? "mls"))
+      <*> (fromMaybe (Defaults def) <$> (obj .:? "outlookCalIntegration"))
+      <*> (fromMaybe (Defaults def) <$> (obj .:? "mlsE2EId"))
+      <*> (fromMaybe (Defaults def) <$> (obj .:? "mlsMigration"))
+      <*> (fromMaybe (Defaults def) <$> (obj .:? "enforceFileDownloadLocation"))
       <*> withImplicitLockStatusOrDefault obj "limitedEventFanout"
     where
       withImplicitLockStatusOrDefault :: forall cfg. (IsFeatureConfig cfg, Schema.ToSchema cfg) => Object -> Key -> A.Parser (Defaults (ImplicitLockStatus cfg))
-      withImplicitLockStatusOrDefault obj fieldName = fromMaybe (Defaults (ImplicitLockStatus (defFeatureStatus @cfg))) <$> obj .:? fieldName
+      withImplicitLockStatusOrDefault obj fieldName = fromMaybe (Defaults (ImplicitLockStatus def)) <$> obj .:? fieldName
 
 instance FromJSON FeatureSSO where
   parseJSON (String "enabled-by-default") = pure FeatureSSOEnabledByDefault

@@ -484,7 +484,7 @@ type MkFeatureGetRoute (feature :: Type) =
     :> Capture "tid" TeamId
     :> "features"
     :> FeatureSymbol feature
-    :> Get '[JSON] (WithStatus feature)
+    :> Get '[JSON] (LockableFeature feature)
 
 type MkFeaturePutRouteNoTTL (feature :: Type) =
   Summary "Disable / enable status for a given feature / team"
@@ -522,5 +522,5 @@ type MkFeaturePutRoute (feature :: Type) =
     :> Capture "tid" TeamId
     :> "features"
     :> FeatureSymbol feature
-    :> ReqBody '[JSON] (WithStatusNoLock feature)
+    :> ReqBody '[JSON] (Feature feature)
     :> Put '[JSON] NoContent

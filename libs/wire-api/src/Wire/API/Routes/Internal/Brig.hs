@@ -55,7 +55,7 @@ import Data.Text qualified as Text
 import GHC.TypeLits
 import Imports hiding (head)
 import Network.HTTP.Client qualified as HTTP
-import Servant hiding (Handler, WithStatus, addHeader, respond)
+import Servant hiding (Handler, addHeader, respond)
 import Servant.Client qualified as Servant
 import Servant.Client.Core qualified as Servant
 import Servant.OpenApi (HasOpenApi (toOpenApi))
@@ -114,7 +114,7 @@ type GetAccountConferenceCallingConfig =
     :> Capture "uid" UserId
     :> "features"
     :> "conferenceCalling"
-    :> Get '[Servant.JSON] (WithStatusNoLock ConferenceCallingConfig)
+    :> Get '[Servant.JSON] (Feature ConferenceCallingConfig)
 
 type PutAccountConferenceCallingConfig =
   Summary
@@ -123,7 +123,7 @@ type PutAccountConferenceCallingConfig =
     :> Capture "uid" UserId
     :> "features"
     :> "conferenceCalling"
-    :> Servant.ReqBody '[Servant.JSON] (WithStatusNoLock ConferenceCallingConfig)
+    :> Servant.ReqBody '[Servant.JSON] (Feature ConferenceCallingConfig)
     :> Put '[Servant.JSON] NoContent
 
 type DeleteAccountConferenceCallingConfig =

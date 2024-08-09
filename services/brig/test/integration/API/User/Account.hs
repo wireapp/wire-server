@@ -86,7 +86,7 @@ import Wire.API.Asset qualified as Asset
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Routes.MultiTablePaging
-import Wire.API.Team.Feature (ExposeInvitationURLsToTeamAdminConfig (..), FeatureStatus (..), FeatureTTL' (..), LockStatus (LockStatusLocked), withStatus)
+import Wire.API.Team.Feature
 import Wire.API.Team.Invitation (Invitation (inInvitation))
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.User
@@ -1408,11 +1408,10 @@ testTooManyMembersForLegalhold opts brig = do
             && pth == ["i", "teams", Text.pack (show tid), "features", "exposeInvitationURLsToTeamAdmin"] =
             pure . Wai.responseLBS HTTP.status200 mempty $
               encode
-                ( withStatus
+                ( LockableFeature
                     FeatureStatusDisabled
                     LockStatusLocked
                     ExposeInvitationURLsToTeamAdminConfig
-                    FeatureTTLUnlimited
                 )
         | otherwise = pure $ Wai.responseLBS HTTP.status500 mempty "Unexpected request to mocked galley"
 

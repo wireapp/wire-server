@@ -136,9 +136,12 @@ library
     Galley.Cassandra.Conversation.MLS
     Galley.Cassandra.ConversationList
     Galley.Cassandra.CustomBackend
+    Galley.Cassandra.FeatureTH
     Galley.Cassandra.GetAllTeamFeatureConfigs
     Galley.Cassandra.Instances
     Galley.Cassandra.LegalHold
+    Galley.Cassandra.MakeFeature
+    Galley.Cassandra.Orphans
     Galley.Cassandra.Proposal
     Galley.Cassandra.Queries
     Galley.Cassandra.SearchVisibility
@@ -300,10 +303,10 @@ library
     , cassava                >=0.5.2
     , comonad
     , containers             >=0.5
-    , cql
     , crypton
     , crypton-x509
     , currency-codes         >=2.0
+    , data-default
     , data-timeout
     , either
     , enclosed-exceptions    >=1.0
@@ -312,6 +315,7 @@ library
     , extended
     , extra                  >=1.3
     , galley-types           >=0.65.0
+    , generics-sop
     , gundeck-types          >=1.35.2
     , hex
     , HsOpenSSL              >=0.11
@@ -341,10 +345,13 @@ library
     , servant-client
     , servant-server
     , singletons
+    , singletons-base
+    , sop-core
     , split                  >=0.2
     , ssl-util               >=0.1
     , stm                    >=2.4
     , tagged
+    , template-haskell
     , text                   >=0.11
     , time                   >=1.4
     , tinylog                >=0.10

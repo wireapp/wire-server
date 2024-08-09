@@ -1,4 +1,5 @@
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE UndecidableSuperClasses #-}
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -35,10 +36,11 @@ where
 
 import Control.Error (hush)
 import Control.Lens
-import Data.Bifunctor (second)
+import Data.Default
 import Data.Id
 import Data.Kind
 import Data.Qualified (Local, tUnqualified)
+import Data.SOP
 import Data.Tagged
 import Galley.API.LegalHold.Team
 import Galley.API.Util
@@ -79,39 +81,37 @@ class (IsFeatureConfig cfg) => GetFeatureConfig cfg where
 
   getConfigForServer ::
     (Member (Input Opts) r) =>
-    Sem r (WithStatus cfg)
+    Sem r (LockableFeature cfg)
   -- only override if there is additional business logic for getting the feature config
   -- and/or if the feature flag is configured for the backend in 'FeatureFlags' for galley in 'Galley.Types.Teams'
   -- otherwise this will return the default config from wire-api
-  default getConfigForServer :: Sem r (WithStatus cfg)
-  getConfigForServer = pure defFeatureStatus
+  default getConfigForServer :: Sem r (LockableFeature cfg)
+  getConfigForServer = pure def
 
   getConfigForUser ::
     (GetConfigForUserConstraints cfg r) =>
     UserId ->
-    Sem r (WithStatus cfg)
+    Sem r (LockableFeature cfg)
   default getConfigForUser ::
     (DefaultGetConfigForUserConstraints cfg r) =>
     UserId ->
-    Sem r (WithStatus cfg)
+    Sem r (LockableFeature cfg)
   getConfigForUser _ = getConfigForServer
 
   computeFeature ::
     (ComputeFeatureConstraints cfg r) =>
     TeamId ->
-    WithStatus cfg ->
-    Maybe LockStatus ->
+    LockableFeature cfg ->
     DbFeature cfg ->
-    Sem r (WithStatus cfg)
+    Sem r (LockableFeature cfg)
   default computeFeature ::
     TeamId ->
-    WithStatus cfg ->
-    Maybe LockStatus ->
+    LockableFeature cfg ->
     DbFeature cfg ->
-    Sem r (WithStatus cfg)
-  computeFeature _tid defFeature lockStatus dbFeature =
+    Sem r (LockableFeature cfg)
+  computeFeature _tid defFeature dbFeature =
     pure $
-      genericComputeFeature @cfg defFeature lockStatus dbFeature
+      genericComputeFeature @cfg defFeature dbFeature
 
 getFeatureStatus ::
   forall cfg r.
@@ -125,7 +125,7 @@ getFeatureStatus ::
   ) =>
   DoAuth ->
   TeamId ->
-  Sem r (WithStatus cfg)
+  Sem r (LockableFeature cfg)
 getFeatureStatus doauth tid = do
   case doauth of
     DoAuth uid ->
@@ -145,11 +145,11 @@ getFeatureStatusMulti ::
   Sem r (Multi.TeamFeatureNoConfigMultiResponse cfg)
 getFeatureStatusMulti (Multi.TeamFeatureNoConfigMultiRequest tids) = do
   cfgs <- getConfigForMultiTeam @cfg tids
-  let xs = uncurry toTeamStatus . second forgetLock <$> cfgs
+  let xs = uncurry toTeamStatus <$> cfgs
   pure $ Multi.TeamFeatureNoConfigMultiResponse xs
 
-toTeamStatus :: TeamId -> WithStatusNoLock cfg -> Multi.TeamStatus cfg
-toTeamStatus tid ws = Multi.TeamStatus tid (wssStatus ws)
+toTeamStatus :: TeamId -> LockableFeature cfg -> Multi.TeamStatus cfg
+toTeamStatus tid feat = Multi.TeamStatus tid feat.status
 
 getTeamAndCheckMembership ::
   ( Member TeamStore r,
@@ -181,7 +181,18 @@ getAllFeatureConfigsForTeam luid tid = do
   void $ getTeamMember tid (tUnqualified luid) >>= noteS @'NotATeamMember
   getAllFeatureConfigs tid
 
+class (GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) => GetAllFeatureConfigsForServerConstraints r cfg
+
+instance (GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) => GetAllFeatureConfigsForServerConstraints r cfg
+
+getAllFeatureConfigsForServer ::
+  forall r.
+  (Member (Input Opts) r) =>
+  Sem r AllFeatureConfigs
+getAllFeatureConfigsForServer = hsequence' $ hcpure (Proxy @GetFeatureConfig) $ Comp getConfigForServer
+
 getAllFeatureConfigs ::
+  forall r.
   ( Member (Input Opts) r,
     Member LegalHoldStore r,
     Member TeamFeatureStore r,
@@ -192,80 +203,18 @@ getAllFeatureConfigs ::
 getAllFeatureConfigs tid = do
   features <- TeamFeatures.getAllFeatureConfigs tid
   defFeatures <- getAllFeatureConfigsForServer
-  biTraverseAllFeatures (computeFeatureWithLock tid) defFeatures features
+  hsequence' $ hcliftA2 (Proxy @(GetAllFeatureConfigsForServerConstraints r)) compute defFeatures features
+  where
+    compute ::
+      (ComputeFeatureConstraints p r, GetFeatureConfig p) =>
+      LockableFeature p ->
+      DbFeature p ->
+      (Sem r :.: LockableFeature) p
+    compute defFeature feat = Comp $ computeFeature tid defFeature feat
 
-computeFeatureWithLock ::
-  forall cfg r.
-  (GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) =>
-  TeamId ->
-  WithStatus cfg ->
-  DbFeatureWithLock cfg ->
-  Sem r (WithStatus cfg)
-computeFeatureWithLock tid defFeature feat =
-  computeFeature @cfg tid defFeature feat.lockStatus feat.feature
+class (GetConfigForUserConstraints cfg r, GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) => GetAllFeatureConfigsForUserConstraints r cfg
 
--- | One of a number of possible combinators. This is the only one we happen to need.
-biTraverseAllFeatures ::
-  ( Member (Input Opts) r,
-    Member TeamStore r,
-    Member LegalHoldStore r
-  ) =>
-  ( forall cfg.
-    (GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) =>
-    f cfg ->
-    g cfg ->
-    Sem r (h cfg)
-  ) ->
-  (AllFeatures f -> AllFeatures g -> Sem r (AllFeatures h))
-biTraverseAllFeatures phi features1 features2 = do
-  afcLegalholdStatus <- phi (afcLegalholdStatus features1) (afcLegalholdStatus features2)
-  afcSSOStatus <- phi (afcSSOStatus features1) (afcSSOStatus features2)
-  afcTeamSearchVisibilityAvailable <- phi (afcTeamSearchVisibilityAvailable features1) (afcTeamSearchVisibilityAvailable features2)
-  afcSearchVisibilityInboundConfig <- phi (afcSearchVisibilityInboundConfig features1) (afcSearchVisibilityInboundConfig features2)
-  afcValidateSAMLEmails <- phi (afcValidateSAMLEmails features1) (afcValidateSAMLEmails features2)
-  afcDigitalSignatures <- phi (afcDigitalSignatures features1) (afcDigitalSignatures features2)
-  afcAppLock <- phi (afcAppLock features1) (afcAppLock features2)
-  afcFileSharing <- phi (afcFileSharing features1) (afcFileSharing features2)
-  afcClassifiedDomains <- phi (afcClassifiedDomains features1) (afcClassifiedDomains features2)
-  afcConferenceCalling <- phi (afcConferenceCalling features1) (afcConferenceCalling features2)
-  afcSelfDeletingMessages <- phi (afcSelfDeletingMessages features1) (afcSelfDeletingMessages features2)
-  afcGuestLink <- phi (afcGuestLink features1) (afcGuestLink features2)
-  afcSndFactorPasswordChallenge <- phi (afcSndFactorPasswordChallenge features1) (afcSndFactorPasswordChallenge features2)
-  afcMLS <- phi (afcMLS features1) (afcMLS features2)
-  afcExposeInvitationURLsToTeamAdmin <- phi (afcExposeInvitationURLsToTeamAdmin features1) (afcExposeInvitationURLsToTeamAdmin features2)
-  afcOutlookCalIntegration <- phi (afcOutlookCalIntegration features1) (afcOutlookCalIntegration features2)
-  afcMlsE2EId <- phi (afcMlsE2EId features1) (afcMlsE2EId features2)
-  afcMlsMigration <- phi (afcMlsMigration features1) (afcMlsMigration features2)
-  afcEnforceFileDownloadLocation <- phi (afcEnforceFileDownloadLocation features1) (afcEnforceFileDownloadLocation features2)
-  afcLimitedEventFanout <- phi (afcLimitedEventFanout features1) (afcLimitedEventFanout features2)
-  pure AllFeatures {..}
-
-getAllFeatureConfigsForServer ::
-  forall r.
-  (Member (Input Opts) r) =>
-  Sem r AllFeatureConfigs
-getAllFeatureConfigsForServer =
-  AllFeatures
-    <$> getConfigForServer @LegalholdConfig
-    <*> getConfigForServer @SSOConfig
-    <*> getConfigForServer @SearchVisibilityAvailableConfig
-    <*> getConfigForServer @SearchVisibilityInboundConfig
-    <*> getConfigForServer @ValidateSAMLEmailsConfig
-    <*> getConfigForServer @DigitalSignaturesConfig
-    <*> getConfigForServer @AppLockConfig
-    <*> getConfigForServer @FileSharingConfig
-    <*> getConfigForServer @ClassifiedDomainsConfig
-    <*> getConfigForServer @ConferenceCallingConfig
-    <*> getConfigForServer @SelfDeletingMessagesConfig
-    <*> getConfigForServer @GuestLinksConfig
-    <*> getConfigForServer @SndFactorPasswordChallengeConfig
-    <*> getConfigForServer @MLSConfig
-    <*> getConfigForServer @ExposeInvitationURLsToTeamAdminConfig
-    <*> getConfigForServer @OutlookCalIntegrationConfig
-    <*> getConfigForServer @MlsE2EIdConfig
-    <*> getConfigForServer @MlsMigrationConfig
-    <*> getConfigForServer @EnforceFileDownloadLocationConfig
-    <*> getConfigForServer @LimitedEventFanoutConfig
+instance (GetConfigForUserConstraints cfg r, GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) => GetAllFeatureConfigsForUserConstraints r cfg
 
 getAllFeatureConfigsForUser ::
   forall r.
@@ -282,27 +231,7 @@ getAllFeatureConfigsForUser ::
   Sem r AllFeatureConfigs
 getAllFeatureConfigsForUser uid = do
   mTid <- getTeamAndCheckMembership uid
-  AllFeatures
-    <$> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
-    <*> getConfigForTeamUser uid mTid
+  hsequence' $ hcpure (Proxy @(GetAllFeatureConfigsForUserConstraints r)) $ Comp $ getConfigForTeamUser uid mTid
 
 getSingleFeatureConfigForUser ::
   forall cfg r.
@@ -316,7 +245,7 @@ getSingleFeatureConfigForUser ::
     ComputeFeatureConstraints cfg r
   ) =>
   UserId ->
-  Sem r (WithStatus cfg)
+  Sem r (LockableFeature cfg)
 getSingleFeatureConfigForUser uid = do
   mTid <- getTeamAndCheckMembership uid
   getConfigForTeamUser @cfg uid mTid
@@ -329,18 +258,15 @@ getConfigForTeam ::
     Member TeamFeatureStore r
   ) =>
   TeamId ->
-  Sem r (WithStatus cfg)
+  Sem r (LockableFeature cfg)
 getConfigForTeam tid = do
   dbFeature <- TeamFeatures.getFeatureConfig (featureSingleton @cfg) tid
-  lockStatus <- TeamFeatures.getFeatureLockStatus (featureSingleton @cfg) tid
   defFeature <- getConfigForServer
   computeFeature @cfg
     tid
     defFeature
-    lockStatus
     dbFeature
 
--- Note: this function assumes the feature cannot be locked
 getConfigForMultiTeam ::
   forall cfg r.
   ( GetFeatureConfig cfg,
@@ -349,12 +275,12 @@ getConfigForMultiTeam ::
     Member (Input Opts) r
   ) =>
   [TeamId] ->
-  Sem r [(TeamId, WithStatus cfg)]
+  Sem r [(TeamId, LockableFeature cfg)]
 getConfigForMultiTeam tids = do
   defFeature <- getConfigForServer
   features <- TeamFeatures.getFeatureConfigMulti (featureSingleton @cfg) tids
   for features $ \(tid, dbFeature) -> do
-    feat <- computeFeature @cfg tid defFeature (Just LockStatusUnlocked) dbFeature
+    feat <- computeFeature @cfg tid defFeature dbFeature
     pure (tid, feat)
 
 getConfigForTeamUser ::
@@ -367,7 +293,7 @@ getConfigForTeamUser ::
   ) =>
   UserId ->
   Maybe TeamId ->
-  Sem r (WithStatus cfg)
+  Sem r (LockableFeature cfg)
 getConfigForTeamUser uid Nothing = getConfigForUser uid
 getConfigForTeamUser _ (Just tid) = getConfigForTeam @cfg tid
 
@@ -380,7 +306,7 @@ instance GetFeatureConfig SSOConfig where
       inputs (view (settings . featureFlags . flagSSO)) <&> \case
         FeatureSSOEnabledByDefault -> FeatureStatusEnabled
         FeatureSSODisabledByDefault -> FeatureStatusDisabled
-    pure $ setStatus status defFeatureStatus
+    pure $ def {status = status}
 
 instance GetFeatureConfig SearchVisibilityAvailableConfig where
   getConfigForServer = do
@@ -388,7 +314,7 @@ instance GetFeatureConfig SearchVisibilityAvailableConfig where
       inputs (view (settings . featureFlags . flagTeamSearchVisibility)) <&> \case
         FeatureTeamSearchVisibilityAvailableByDefault -> FeatureStatusEnabled
         FeatureTeamSearchVisibilityUnavailableByDefault -> FeatureStatusDisabled
-    pure $ setStatus status defFeatureStatus
+    pure $ def {status = status}
 
 instance GetFeatureConfig ValidateSAMLEmailsConfig where
   getConfigForServer =
@@ -411,9 +337,9 @@ instance GetFeatureConfig LegalholdConfig where
     ComputeFeatureConstraints LegalholdConfig r =
       (Member TeamStore r, Member LegalHoldStore r)
 
-  computeFeature tid defFeature _lockStatus dbFeature = do
+  computeFeature tid defFeature dbFeature = do
     status <- computeLegalHoldFeatureStatus tid dbFeature
-    pure $ setStatus status defFeature
+    pure $ defFeature {status = status}
 
 instance GetFeatureConfig FileSharingConfig where
   getConfigForServer =
@@ -453,18 +379,15 @@ instance GetFeatureConfig ConferenceCallingConfig where
     input <&> view (settings . featureFlags . flagConferenceCalling . unDefaults)
 
   getConfigForUser uid = do
-    wsnl <- getAccountConferenceCallingConfigClient uid
-    pure $ withLockStatus (wsLockStatus (defFeatureStatus @ConferenceCallingConfig)) wsnl
+    feat <- getAccountConferenceCallingConfigClient uid
+    pure $ withLockStatus (def @(LockableFeature ConferenceCallingConfig)).lockStatus feat
 
-  computeFeature _tid defFeature lockStatus dbFeature =
-    pure $ case fromMaybe (wsLockStatus defFeature) lockStatus of
-      LockStatusLocked -> setLockStatus LockStatusLocked defFeature
-      LockStatusUnlocked ->
-        withUnlocked $
-          (unDbFeature dbFeature)
-            (forgetLock defFeature)
-              { wssStatus = FeatureStatusEnabled
-              }
+  computeFeature _tid defFeature dbFeature =
+    pure $
+      let feat = applyDbFeature dbFeature defFeature {status = FeatureStatusEnabled}
+       in case feat.lockStatus of
+            LockStatusLocked -> defFeature {lockStatus = LockStatusLocked}
+            LockStatusUnlocked -> feat
 
 instance GetFeatureConfig SelfDeletingMessagesConfig where
   getConfigForServer =
@@ -492,11 +415,11 @@ instance GetFeatureConfig ExposeInvitationURLsToTeamAdminConfig where
       (Member (Input Opts) r)
 
   -- the lock status of this feature is calculated from the allow list, not the database
-  computeFeature tid defFeature _lockStatus dbFeature = do
+  computeFeature tid defFeature dbFeature = do
     allowList <- input <&> view (settings . exposeInvitationURLsTeamAllowlist . to (fromMaybe []))
     let teamAllowed = tid `elem` allowList
         lockStatus = if teamAllowed then LockStatusUnlocked else LockStatusLocked
-    pure $ genericComputeFeature defFeature (Just lockStatus) dbFeature
+    pure $ genericComputeFeature defFeature (dbFeatureLockStatus lockStatus <> dbFeature)
 
 instance GetFeatureConfig OutlookCalIntegrationConfig where
   getConfigForServer =
@@ -542,7 +465,7 @@ guardSecondFactorDisabled uid cid = do
     pure tid
 
   tf <- getConfigForTeamUser @SndFactorPasswordChallengeConfig uid mTid
-  case wsStatus tf of
+  case tf.status of
     FeatureStatusDisabled -> pure ()
     FeatureStatusEnabled -> throwS @'AccessDenied
 
@@ -560,5 +483,5 @@ featureEnabledForTeam ::
   Sem r Bool
 featureEnabledForTeam tid =
   (==) FeatureStatusEnabled
-    . wsStatus
+    . (.status)
     <$> getFeatureStatus @cfg DontDoAuth tid

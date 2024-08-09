@@ -251,6 +251,7 @@ executable stern-integration
     , bytestring-conversion
     , containers
     , cookie
+    , data-default
     , exceptions
     , extra                  >=1.3
     , HsOpenSSL

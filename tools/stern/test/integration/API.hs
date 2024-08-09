@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
-{-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -30,6 +30,7 @@ import Control.Lens hiding ((.=))
 import Data.Aeson (ToJSON, Value)
 import Data.Aeson qualified as A
 import Data.ByteString.Conversion
+import Data.Default
 import Data.Handle
 import Data.Id
 import Data.Range (unsafeRange)
@@ -105,8 +106,8 @@ tests s =
       -- - `POST /teams/:tid/billing`
     ]
 
-defConfCalling :: WithStatus ConferenceCallingConfig
-defConfCalling = setStatus FeatureStatusDisabled defFeatureStatus
+defConfCalling :: LockableFeature ConferenceCallingConfig
+defConfCalling = def {status = FeatureStatusDisabled}
 
 testRudSsoDomainRedirect :: TestM ()
 testRudSsoDomainRedirect = do
@@ -261,7 +262,7 @@ testLegalholdConfig :: TestM ()
 testLegalholdConfig = do
   (_, tid, _) <- createTeamWithNMembers 10
   cfg <- getFeatureConfig @LegalholdConfig tid
-  liftIO $ cfg @?= defFeatureStatus @LegalholdConfig
+  liftIO $ cfg @?= def
   -- Legal hold is enabled for teams via server config and cannot be changed here
   putFeatureStatus @LegalholdConfig tid FeatureStatusEnabled Nothing !!! const 403 === statusCode
 
@@ -278,11 +279,11 @@ testFeatureConfig ::
 testFeatureConfig = do
   (_, tid, _) <- createTeamWithNMembers 10
   cfg <- getFeatureConfig @cfg tid
-  liftIO $ cfg @?= defFeatureStatus @cfg
-  let newStatus = if wsStatus cfg == FeatureStatusEnabled then FeatureStatusDisabled else FeatureStatusEnabled
-  putFeatureConfig @cfg tid (setStatus newStatus cfg) !!! const 200 === statusCode
+  liftIO $ cfg @?= def
+  let newStatus = if cfg.status == FeatureStatusEnabled then FeatureStatusDisabled else FeatureStatusEnabled
+  putFeatureConfig @cfg tid cfg {status = newStatus} !!! const 200 === statusCode
   cfg' <- getFeatureConfig @cfg tid
-  liftIO $ wsStatus cfg' @?= newStatus
+  liftIO $ cfg'.status @?= newStatus
 
 testGetFeatureConfig ::
   forall cfg.
@@ -298,7 +299,7 @@ testGetFeatureConfig ::
 testGetFeatureConfig mDef = do
   (_, tid, _) <- createTeamWithNMembers 10
   cfg <- getFeatureConfig @cfg tid
-  liftIO $ wsStatus cfg @?= fromMaybe (wsStatus $ defFeatureStatus @cfg) mDef
+  liftIO $ cfg.status @?= fromMaybe (def @(Feature cfg)).status mDef
 
 testFeatureStatus ::
   forall cfg.
@@ -310,7 +311,7 @@ testFeatureStatus ::
     Show cfg
   ) =>
   TestM ()
-testFeatureStatus = testFeatureStatusOptTtl (defFeatureStatus @cfg) Nothing
+testFeatureStatus = testFeatureStatusOptTtl @cfg def Nothing
 
 testFeatureStatusOptTtl ::
   forall cfg.
@@ -321,18 +322,18 @@ testFeatureStatusOptTtl ::
     Eq cfg,
     Show cfg
   ) =>
-  WithStatus cfg ->
+  LockableFeature cfg ->
   Maybe FeatureTTL ->
   TestM ()
 testFeatureStatusOptTtl defValue mTtl = do
   (_, tid, _) <- createTeamWithNMembers 10
   cfg <- getFeatureConfig @cfg tid
   liftIO $ cfg @?= defValue
-  when (wsLockStatus cfg == LockStatusLocked) $ unlockFeature @cfg tid
-  let newStatus = if wsStatus cfg == FeatureStatusEnabled then FeatureStatusDisabled else FeatureStatusEnabled
+  when (cfg.lockStatus == LockStatusLocked) $ unlockFeature @cfg tid
+  let newStatus = if cfg.status == FeatureStatusEnabled then FeatureStatusDisabled else FeatureStatusEnabled
   putFeatureStatus @cfg tid newStatus mTtl !!! const 200 === statusCode
   cfg' <- getFeatureConfig @cfg tid
-  liftIO $ wsStatus cfg' @?= newStatus
+  liftIO $ cfg'.status @?= newStatus
 
 testFeatureStatusWithLock ::
   forall cfg.
@@ -348,31 +349,31 @@ testFeatureStatusWithLock = do
   let mTtl = Nothing -- this function can become a variant of `testFeatureStatusOptTtl` if we need one.
   (_, tid, _) <- createTeamWithNMembers 10
   getFeatureConfig @cfg tid >>= \cfg -> liftIO $ do
-    cfg @?= defFeatureStatus @cfg
+    cfg @?= def
     -- if either of these two lines fails, it's probably because the default is surprising.
     -- in that case, make the text more flexible.
-    wsLockStatus cfg @?= LockStatusLocked
-    wsStatus cfg @?= FeatureStatusDisabled
+    cfg.lockStatus @?= LockStatusLocked
+    cfg.status @?= FeatureStatusDisabled
 
   void $ putFeatureStatusLock @cfg tid LockStatusUnlocked mTtl
   getFeatureConfig @cfg tid >>= \cfg -> liftIO $ do
-    wsLockStatus cfg @?= LockStatusUnlocked
-    wsStatus cfg @?= FeatureStatusDisabled
+    cfg.lockStatus @?= LockStatusUnlocked
+    cfg.status @?= FeatureStatusDisabled
 
   void $ putFeatureStatus @cfg tid FeatureStatusEnabled Nothing
   getFeatureConfig @cfg tid >>= \cfg -> liftIO $ do
-    wsLockStatus cfg @?= LockStatusUnlocked
-    wsStatus cfg @?= FeatureStatusEnabled
+    cfg.lockStatus @?= LockStatusUnlocked
+    cfg.status @?= FeatureStatusEnabled
 
   void $ putFeatureStatusLock @cfg tid LockStatusLocked mTtl
   getFeatureConfig @cfg tid >>= \cfg -> liftIO $ do
-    wsLockStatus cfg @?= LockStatusLocked
-    wsStatus cfg @?= FeatureStatusDisabled
+    cfg.lockStatus @?= LockStatusLocked
+    cfg.status @?= FeatureStatusDisabled
 
   void $ putFeatureStatusLock @cfg tid LockStatusUnlocked mTtl
   getFeatureConfig @cfg tid >>= \cfg -> liftIO $ do
-    wsLockStatus cfg @?= LockStatusUnlocked
-    wsStatus cfg @?= FeatureStatusEnabled
+    cfg.lockStatus @?= LockStatusUnlocked
+    cfg.status @?= FeatureStatusEnabled
 
 testGetConsentLog :: TestM ()
 testGetConsentLog = do
@@ -614,7 +615,7 @@ getFeatureConfig ::
     IsFeatureConfig cfg
   ) =>
   TeamId ->
-  TestM (WithStatus cfg)
+  TestM (LockableFeature cfg)
 getFeatureConfig tid = do
   s <- view tsStern
   r <- get (s . paths ["teams", toByteString' tid, "features", Public.featureNameBS @cfg] . expect2xx)
@@ -669,10 +670,10 @@ putFeatureConfig ::
     ToSchema cfg,
     Typeable cfg,
     IsFeatureConfig cfg,
-    ToJSON (WithStatus cfg)
+    ToJSON (LockableFeature cfg)
   ) =>
   TeamId ->
-  WithStatus cfg ->
+  LockableFeature cfg ->
   TestM ResponseLBS
 putFeatureConfig tid cfg = do
   s <- view tsStern
@@ -706,7 +707,7 @@ unlockFeature ::
     ToSchema cfg,
     Typeable cfg,
     IsFeatureConfig cfg,
-    ToJSON (WithStatus cfg)
+    ToJSON (LockableFeature cfg)
   ) =>
   TeamId ->
   TestM ()

@@ -350,12 +350,12 @@ updateFederationRemote dom fedcfg = do
             \do that, removing or updating items listed in the config file is not allowed."
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
-getAccountConferenceCallingConfig :: UserId -> (Handler r) (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig)
+getAccountConferenceCallingConfig :: UserId -> (Handler r) (ApiFt.Feature ApiFt.ConferenceCallingConfig)
 getAccountConferenceCallingConfig uid =
   lift (wrapClient $ Data.lookupFeatureConferenceCalling uid)
     >>= maybe (ApiFt.forgetLock <$> view (settings . getAfcConferenceCallingDefNull)) pure
 
-putAccountConferenceCallingConfig :: UserId -> ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig -> (Handler r) NoContent
+putAccountConferenceCallingConfig :: UserId -> ApiFt.Feature ApiFt.ConferenceCallingConfig -> (Handler r) NoContent
 putAccountConferenceCallingConfig uid status =
   lift $ wrapClient $ Data.updateFeatureConferenceCalling uid (Just status) $> NoContent
 
