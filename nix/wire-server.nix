@@ -319,6 +319,8 @@ let
     openssl
     nix-output-monitor
     which
+    # this is such that we can send things to s3
+    awscli2
   ];
 
   images = localMods:
