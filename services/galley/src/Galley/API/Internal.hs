@@ -240,8 +240,8 @@ featureAPI1Full ::
   API (IFeatureAPI1Full cfg) r
 featureAPI1Full =
   mkNamedAPI @'("iget", cfg) (getFeature DontDoAuth)
-    <@> mkNamedAPI @'("iput", cfg) setFeatureStatusInternal
-    <@> mkNamedAPI @'("ipatch", cfg) patchFeatureStatusInternal
+    <@> mkNamedAPI @'("iput", cfg) setFeatureInternal
+    <@> mkNamedAPI @'("ipatch", cfg) patchFeatureInternal
 
 allFeaturesAPI :: API (IAllFeaturesAPI Features) GalleyEffects
 allFeaturesAPI =

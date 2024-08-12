@@ -32,7 +32,7 @@ import Wire.API.Team.Feature
 featureAPIGetPut :: forall cfg r. (_) => API (FeatureAPIGetPut cfg) r
 featureAPIGetPut =
   mkNamedAPI @'("get", cfg) (getFeature . DoAuth)
-    <@> mkNamedAPI @'("put", cfg) (setFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("put", cfg) (setFeature . DoAuth)
 
 featureAPI :: API FeatureAPI GalleyEffects
 featureAPI =
@@ -55,8 +55,8 @@ featureAPI =
     <@> featureAPIGetPut
     <@> featureAPIGetPut
     <@> mkNamedAPI @'("get", MlsE2EIdConfig) (getFeature . DoAuth)
-    <@> mkNamedAPI @"put-MlsE2EIdConfig@v5" (setFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("put", MlsE2EIdConfig) (guardMlsE2EIdConfig (setFeatureStatus . DoAuth))
+    <@> mkNamedAPI @"put-MlsE2EIdConfig@v5" (setFeature . DoAuth)
+    <@> mkNamedAPI @'("put", MlsE2EIdConfig) (guardMlsE2EIdConfig (setFeature . DoAuth))
     <@> hoistAPI id featureAPIGetPut
     <@> hoistAPI id featureAPIGetPut
     <@> mkNamedAPI @'("get", LimitedEventFanoutConfig) (getFeature . DoAuth)
@@ -68,7 +68,7 @@ featureAPI =
 deprecatedFeatureConfigAPI :: API DeprecatedFeatureAPI GalleyEffects
 deprecatedFeatureConfigAPI =
   mkNamedAPI @'("get-deprecated", SearchVisibilityAvailableConfig) (getFeature . DoAuth)
-    <@> mkNamedAPI @'("put-deprecated", SearchVisibilityAvailableConfig) (setFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("put-deprecated", SearchVisibilityAvailableConfig) (setFeature . DoAuth)
     <@> mkNamedAPI @'("get-deprecated", ValidateSAMLEmailsConfig) (getFeature . DoAuth)
     <@> mkNamedAPI @'("get-deprecated", DigitalSignaturesConfig) (getFeature . DoAuth)
 
