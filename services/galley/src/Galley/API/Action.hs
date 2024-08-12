@@ -489,7 +489,7 @@ performAction tag origUser lconv action = do
           E.updateToMixedProtocol lcnv (convType (tUnqualified lconv))
           pure (mempty, action)
         (ProtocolMixedTag, ProtocolMLSTag, Just tid) -> do
-          mig <- getConfigForTeam @MlsMigrationConfig tid
+          mig <- getFeatureForTeam @MlsMigrationConfig tid
           now <- input
           mlsConv <- mkMLSConversation conv >>= noteS @'ConvInvalidProtocolTransition
           ok <- checkMigrationCriteria now mlsConv mig
