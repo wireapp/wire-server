@@ -1,9 +1,0 @@
-{{- if .Values.stepConfig.enabled }}
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: smallstep-step-certificates-config
-data:
-  ca.json: |-
-    {{(tpl .Values.stepConfig.configTemplate .) | fromYaml | toJson }}
-{{- end }}
