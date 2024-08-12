@@ -32,10 +32,11 @@
 -- | Doing operations with users via SCIM.
 --
 -- Provides a 'Scim.Class.User.UserDB' instance.
+-- Exported functions are used in tests.
 module Spar.Scim.User
   ( validateScimUser',
     synthesizeScimUser,
-    toScimStoredUser',
+    toScimStoredUser,
     mkValidExternalId,
     scimFindUserByEmail,
     deleteScimUser,
@@ -253,10 +254,11 @@ validateHandle txt = case parseHandle txt of
 -- configurable on a per-team basis in the future, to accomodate different legal uses of
 -- @externalId@ by different teams.
 --
--- __Emails and phone numbers:__ we'd like to ensure that only verified emails and phone
--- numbers end up in our database, and implementing verification requires design decisions
+-- __Email verification:__ we'd like to ensure that only verified emails numbers end up
+-- in our database, and implementing verification requires design decisions
 -- that we haven't made yet. We store them in our SCIM blobs, but don't syncronize them with
 -- Brig. See <https://github.com/wireapp/wire-server/pull/559#discussion_r247466760>.
+-- TODO(elland): verify with fisx if this still applies.
 validateScimUser' ::
   forall r.
   ( Member (Error Scim.ScimError) r,
@@ -430,7 +432,7 @@ logEmail email =
 
 logVSU :: ST.ValidScimUser -> (Msg -> Msg)
 logVSU (ST.ValidScimUser veid handl _name _richInfo _active _lang _role) =
-  maybe id logEmail (veidEmail veid)
+  maybe id logEmail (veidToEmail veid)
     . logHandle handl
 
 logTokenInfo :: ScimTokenInfo -> (Msg -> Msg)
@@ -442,10 +444,13 @@ logScimUserId = logUser . Scim.id . Scim.thing
 logScimUserIds :: Scim.ListResponse (Scim.StoredUser ST.SparTag) -> (Msg -> Msg)
 logScimUserIds lresp = foldl' (.) id (logScimUserId <$> Scim.resources lresp)
 
-veidEmail :: ST.ValidExternalId -> Maybe Email
-veidEmail (ST.EmailAndUref email _) = Just email
-veidEmail (ST.UrefOnly _) = Nothing
-veidEmail (ST.EmailOnly email) = Just email
+veidToEmail :: ST.ValidExternalId -> Maybe Email
+veidToEmail (ST.EmailAndUref email _) = Just email
+veidToEmail (ST.UrefOnly _) = Nothing
+veidToEmail (ST.EmailOnly email) = Just email
+
+vsUserEmail :: ST.ValidScimUser -> Maybe Email
+vsUserEmail usr = veidToEmail usr._vsuExternalId -- TODO:
 
 -- in ScimTokenHash (cs @ByteString @Text (convertToBase Base64 digest))
 
@@ -556,7 +561,7 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
       createValidScimUserSpar stiTeam buid storedUser veid
 
       -- If applicable, trigger email validation procedure on brig.
-      lift $ Spar.App.validateEmail (Just stiTeam) buid `mapM_` veidEmail veid
+      lift $ Spar.App.validateEmail (Just stiTeam) buid `mapM_` vsUserEmail vsu
 
       -- TODO: suspension via scim is brittle, and may leave active users behind: if we don't
       -- reach the following line due to a crash, the user will be active.
@@ -698,7 +703,8 @@ updateVsuUref ::
   ST.ValidExternalId ->
   Sem r ()
 updateVsuUref team uid old new = do
-  case (veidEmail old, veidEmail new) of
+  -- TODO:
+  case (veidToEmail old, veidToEmail new) of
     (mo, mn@(Just email)) | mo /= mn -> Spar.App.validateEmail (Just team) uid email
     _ -> pure ()
 
@@ -707,7 +713,7 @@ updateVsuUref team uid old new = do
 
   BrigAccess.setVeid uid new
 
-toScimStoredUser' ::
+toScimStoredUser ::
   (HasCallStack) =>
   UTCTimeMillis ->
   UTCTimeMillis ->
@@ -715,7 +721,7 @@ toScimStoredUser' ::
   UserId ->
   Scim.User ST.SparTag ->
   Scim.StoredUser ST.SparTag
-toScimStoredUser' createdAt lastChangedAt baseuri uid usr =
+toScimStoredUser createdAt lastChangedAt baseuri uid usr =
   Scim.WithMeta meta $
     Scim.WithId uid $
       usr {Scim.User.schemas = ST.userSchemas}
@@ -949,7 +955,7 @@ synthesizeStoredUser usr veid =
         . logUser (userId . accountUser $ usr)
         . maybe id logHandle (userHandle . accountUser $ usr)
         . maybe id logTeam (userTeam . accountUser $ usr)
-        . maybe id logEmail (veidEmail veid)
+        . maybe id logEmail (veidToEmail veid)
     )
     logScimUserId
     $ do
@@ -1030,7 +1036,7 @@ synthesizeStoredUser' uid veid dname handle richInfo accStatus createdAt lastUpd
               ST._vsuRole = mbRole
             }
 
-  pure $ toScimStoredUser' createdAt lastUpdatedAt baseuri uid (normalizeLikeStored scimUser)
+  pure $ toScimStoredUser createdAt lastUpdatedAt baseuri uid (normalizeLikeStored scimUser)
 
 synthesizeScimUser :: ST.ValidScimUser -> Scim.User ST.SparTag
 synthesizeScimUser info =
