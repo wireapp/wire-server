@@ -1,0 +1,212 @@
+nginx:
+  existingServerBlockConfigmap: "smallstep-accomp-server-block"
+
+  service:
+    type: ClusterIP
+
+  ingress:
+    enabled: true
+    # ingressClassName: "nginx"
+
+    # hostname: "acme.alpha.example.com"
+    path: "/proxyCrl"
+    pathType: "Prefix"
+      
+    # extraTls: 
+    #   - 
+    #     hosts: [ "acme.alpha.example.com" ]
+    #     secretName: "smallstep-step-certificates-ingress-cert"
+    
+    # annotations:
+    #     nginx.ingress.kubernetes.io/cors-allow-origin: https://webapp.acme.alpha.example.com
+    #     nginx.ingress.kubernetes.io/cors-expose-headers: Replay-Nonce, Location
+    #     nginx.ingress.kubernetes.io/enable-cors: 'true'
+
+upstreams:
+  enabled: true
+  # dnsResolver: 9.9.9.9
+  
+  # Note: include the smallstep host of the own domain here as well
+  proxiedHosts: []
+  # proxiedHosts: 
+  #   - acme.alpha.example.com
+  #   - acme.beta.example.com
+  #   - acme.gamma.example.com
+
+
+caPassword:
+  enabled: true
+  password: "...."
+
+existingSecrets:
+  enabled: false
+  # data:
+  #   ca.key: foobar
+
+existingCerts:
+  enabled: false
+  # data:
+  #   ca.crt: "-----BEGIN CERTIFICATE-----...."
+  #   root_ca.crt: "-----BEGIN CERTIFICATE-----...."
+  #   ca-other2-cross-signed.crt: "-----BEGIN CERTIFICATE-----...."
+  #   ca-other3-cross-signed.crt: "-----BEGIN CERTIFICATE-----...."
+
+stepConfig:
+  enabled: true
+
+  address: "0.0.0.0:9000"
+
+  # dnsName: acme.alpha.example.com
+
+  # additionalDNSNames: 
+  #   - localhost
+
+  root: /home/step/certs/root_ca.crt
+  crt: /home/step/certs/ca.crt
+  key: /home/step/secrets/ca.key
+
+  federatedRoots:
+    - /home/step/certs/ca.crt
+
+  # federatedRoots:
+  #   - /home/step/certs/ca.crt
+  #   - /home/step/certs/acme.beta.example.com-xsigned-by-acme.alpha.example.com
+
+  db:
+    badgerFileLoadingMode: ""
+    dataSource: /home/step/db
+    type: badgerv2
+
+  tls:
+    cipherSuites:
+      - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+    maxVersion: 1.3
+    minVersion: 1.2
+    renegotiation: false
+
+  logger:
+    format: text
+
+  authority:
+    claims:
+      maxTLSCertDuration: 87701h
+
+    # jwk: |-
+    #   {
+    #     "type": "JWK",
+    #     "name": "..example.com",
+    #     "key": { ... },
+    #     "encryptedKey": "e..."
+    #   }
+
+    acme:
+      name: keycloakteams
+
+      claims:
+        allowRenewalAfterExpiry: false
+        defaultTLSCertDuration: 2160h
+        disableRenewal: false
+        maxTLSCertDuration: 2160h
+        minTLSCertDuration: 60s
+
+      dpop:
+        # key: <base64 string>
+        wireDomain: alpha.example.com
+
+      oidc:
+        clientId: wireapp
+        # discoveryBaseUrl: https://keycloak.example.com/auth/realms/master
+        # issuerUrl: https://keycloak.example.com/auth/realms/master?client_id=wireapp
+        signatureAlgorithms:
+          - RS256
+          - ES256
+          - ES384
+          - EdDSA
+        transform: |
+         {
+         "name": "{{ .name }}",
+         "preferred_username": "wireapp://%40{{ .preferred_username }}"
+         }
+
+      x509:
+        # organization: alpha.example.com
+        template: |
+          {
+            "subject": {
+                "organization": {{ required "stepConfig.authority.acme.x509.organization is missing" .Values.stepConfig.authority.acme.x509.organization | toJson }},
+                "commonName": {{ "{{" }} toJson .Oidc.name {{ "}}" }}
+            },
+            "uris": [{{ "{{" }} toJson .Oidc.preferred_username {{ "}}" }}, {{ "{{" }} toJson .Dpop.sub {{ "}}" }}],
+            "keyUsage": ["digitalSignature"],
+            "extKeyUsage": ["clientAuth"],
+            "crlDistributionPoints": {{ tpl "[ https://{{ required \"stepConfig.dnsName is missing\" .Values.stepConfig.dnsName }}/crl ]" . | fromYamlArray | toJson }}
+          }
+
+  configTemplate: |-
+    address: {{ required "stepConfig.address is missing" .Values.stepConfig.address }}
+  
+    dnsNames:
+      - {{ required "stepConfig.dnsName is missing" .Values.stepConfig.dnsName }}
+      {{- if .Values.stepConfig.additionalDNSNames }}
+      {{- .Values.stepConfig.additionalDNSNames | toYaml | nindent 2 }}
+      {{- end }}
+  
+    crt: {{ required "stepConfig.crt is missing" .Values.stepConfig.crt }}
+    key: {{ required "stepConfig.key is missing" .Values.stepConfig.key }}
+    root: {{ required "stepConfig.root is missing" .Values.stepConfig.root }}
+  
+    federatedRoots:
+      {{- required "stepConfig.federatedRoots is missing" .Values.stepConfig.federatedRoots | toYaml | nindent 2 }}
+  
+    crl:
+      enabled: true
+      generateOnRevoke: true
+      idpURL: https://{{ required "stepConfig.dnsName is missing" .Values.stepConfig.dnsName }}/crl
+  
+    db:
+      {{ required "stepConfig.db is missing" .Values.stepConfig.db | toYaml | nindent 2 }}
+  
+    tls:
+      {{ required "stepConfig.tls is missing" .Values.stepConfig.tls | toYaml | nindent 2 }}
+  
+    logger:
+      {{ required "stepConfig.logger is missing" .Values.stepConfig.logger | toYaml | nindent 2 }}
+  
+    authority:
+      claims:
+        {{ required "stepConfig.authority.claims is missing" .Values.stepConfig.authority.claims | toYaml | nindent 4 }}
+      provisioners:
+        - {{ required "stepConfig.authority.jwk is missing" .Values.stepConfig.authority.jwk | fromJson | toYaml | nindent 6 }}
+        - name: {{ required "stepConfig.authority.acme.name is missing" .Values.stepConfig.authority.acme.name }}
+          type: ACME
+          forceCN: true
+          challenges: 
+          - wire-oidc-01
+          - wire-dpop-01
+          claims:
+            {{ required "stepConfig.authority.acme.claims is missing" .Values.stepConfig.authority.acme.claims | toYaml | nindent 8 }} 
+          options:
+            wire:
+              dpop:
+                key: {{ required "stepConfig.authority.acme.dpop.key is missing" .Values.stepConfig.authority.acme.dpop.key }}
+                target: https://{{ required "stepConfig.authority.acme.dpop.wireDomain" .Values.stepConfig.authority.acme.dpop.wireDomain }}/clients/{{ "{{" }}.DeviceID{{ "}}" }}/access-token
+              oidc:
+                config:
+                  clientId: {{ required "stepConfig.authority.acme.oidc.clientId is missing" .Values.stepConfig.authority.acme.oidc.clientId }}
+                  signatureAlgorithms:
+                    {{ required "stepConfig.authority.acme.oidc.signatureAlgorithms is missing" .Values.stepConfig.authority.acme.oidc.signatureAlgorithms | toYaml | nindent 14 }}
+                provider:
+                  discoveryBaseUrl: {{ required "stepConfig.authority.acme.oidc.discoveryBaseUrl is missing" .Values.stepConfig.authority.acme.oidc.discoveryBaseUrl }}
+                  id_token_signing_alg_values_supported:
+                    {{ required "stepConfig.authority.acme.oidc.signatureAlgorithms is missing" .Values.stepConfig.authority.acme.oidc.signatureAlgorithms | toYaml | nindent 14 }}
+                  issuerUrl: {{ required "stepConfig.authority.acme.oidc.issuerUrl is missing" .Values.stepConfig.authority.acme.oidc.issuerUrl }}
+                transform: {{ required "stepConfig.authority.acme.oidc.transform is missing" .Values.stepConfig.authority.acme.oidc.transform | toJson }}
+            x509:
+              template: {{ (tpl .Values.stepConfig.authority.acme.x509.template .) | toJson }}
+  
+    {{- if .Values.stepConfig.extraConfig }}
+    {{ .Values.stepConfig.extraconfig | toYaml }}
+    {{- end }}
+
+
+

@@ -1,0 +1,9 @@
+apiVersion: v2
+name: k8ssandra-test-cluster
+description: K8ssandra (Cassandra cluster) K8ssandraCluster object for wire test servers. (This does not install K8ssandra itself!)
+
+type: application
+
+version: 0.1.0
+
+appVersion: "0.39.2"

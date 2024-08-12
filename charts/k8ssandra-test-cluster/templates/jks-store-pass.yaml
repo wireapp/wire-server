@@ -1,0 +1,9 @@
+{{- if .Values.client_encryption_options.enabled }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: jks-password
+  namespace: {{ .Release.Namespace }}
+data:
+  keystore-pass: {{ .Values.client_encryption_options.keystorePassword | b64enc }}
+{{- end }}

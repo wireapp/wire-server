@@ -1,0 +1,40 @@
+# The values in k8ssandra-cluster.yaml are well choosen. Please only export and
+# override them if you are confident the change is needed.
+
+# storageClassName: the name storageClass to use. This defines where the data is
+# stored. Storage is automatically requested if the storage class is correctly
+# setup.
+storageClassName: hcloud-volumes-encrypted
+
+# storageSize: Size of the storage (persistent volume claim) to request. At
+# Hetzner's cloud the smallest volume is 10GB. So, even if you need much less
+# storage, it's fine to request 10GB. The memory units are described here:
+# https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#meaning-of-memory
+storageSize: 10G
+
+#  These options relate to the client_encryption_options described in:
+#  https://cassandra.apache.org/doc/stable/cassandra/configuration/cass_yaml_file.html#client_encryption_options
+client_encryption_options:
+  enabled: false
+  optional: true
+  # The password could be secured better. However, this chart is meant to be
+  # used as test setup. And, protecting a self-signed certificate isn't very
+  # useful.
+  keystorePassword: password
+
+# Guard the private key by syncing only the CA certificate to
+# `k8ssandra-test-cluster-tls-ca-certificate` secrets. Requires `trust-manager`
+# Helm chart to be installed (including CRDs.)
+syncCACertToSecret: false
+
+# Limit syncing to this namespace. Otherwise, the secret is synced to all
+# namespaces.
+# syncCACertNamespace: <namespace-name>
+
+# For telemetry data
+prometheus:
+  enabled: true
+
+# Size of the datacenter
+datacenter:
+  size: 1
