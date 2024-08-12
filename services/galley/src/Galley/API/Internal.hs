@@ -343,7 +343,7 @@ rmUser lusr conn = do
     leaveTeams page = for_ (pageItems page) $ \tid -> do
       toNotify <-
         handleImpossibleErrors $
-          getConfigForTeam @LimitedEventFanoutConfig tid
+          getFeatureForTeam @LimitedEventFanoutConfig tid
             >>= ( \case
                     FeatureStatusEnabled -> Left <$> E.getTeamAdmins tid
                     FeatureStatusDisabled -> Right <$> getTeamMembersForFanout tid

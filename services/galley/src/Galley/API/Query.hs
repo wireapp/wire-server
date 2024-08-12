@@ -680,8 +680,8 @@ getConversationGuestLinksFeatureStatus ::
   ) =>
   Maybe TeamId ->
   Sem r (LockableFeature GuestLinksConfig)
-getConversationGuestLinksFeatureStatus Nothing = getConfigForServer @GuestLinksConfig
-getConversationGuestLinksFeatureStatus (Just tid) = getConfigForTeam @GuestLinksConfig tid
+getConversationGuestLinksFeatureStatus Nothing = getFeatureForServer @GuestLinksConfig
+getConversationGuestLinksFeatureStatus (Just tid) = getFeatureForTeam @GuestLinksConfig tid
 
 -- | The same as 'getMLSSelfConversation', but it throws an error in case the
 -- backend is not configured for MLS (the proxy for it being the existance of

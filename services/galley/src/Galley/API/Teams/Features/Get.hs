@@ -25,9 +25,9 @@ module Galley.API.Teams.Features.Get
     getAllFeatureConfigsForServer,
     getAllFeatureConfigsForTeam,
     getAllFeatureConfigsForUser,
-    getSingleFeatureConfigForUser,
+    getSingleFeatureForUser,
     GetFeatureConfig (..),
-    getConfigForTeam,
+    getFeatureForTeam,
     guardSecondFactorDisabled,
     DoAuth (..),
     featureEnabledForTeam,
@@ -64,7 +64,7 @@ import Wire.API.Team.Feature
 
 data DoAuth = DoAuth UserId | DontDoAuth
 
-type DefaultGetConfigForUserConstraints cfg r =
+type DefaultGetFeatureForUserConstraints cfg r =
   ( Member (Input Opts) r,
     Member TeamFeatureStore r,
     ComputeFeatureConstraints cfg r
@@ -72,32 +72,32 @@ type DefaultGetConfigForUserConstraints cfg r =
 
 -- | Don't export methods of this typeclass
 class (IsFeatureConfig cfg) => GetFeatureConfig cfg where
-  type GetConfigForUserConstraints cfg (r :: EffectRow) :: Constraint
+  type GetFeatureForUserConstraints cfg (r :: EffectRow) :: Constraint
   type
-    GetConfigForUserConstraints cfg (r :: EffectRow) =
-      DefaultGetConfigForUserConstraints cfg r
+    GetFeatureForUserConstraints cfg (r :: EffectRow) =
+      DefaultGetFeatureForUserConstraints cfg r
 
   type ComputeFeatureConstraints cfg (r :: EffectRow) :: Constraint
   type ComputeFeatureConstraints cfg r = ()
 
-  getConfigForServer ::
+  getFeatureForServer ::
     (Member (Input Opts) r) =>
     Sem r (LockableFeature cfg)
   -- only override if there is additional business logic for getting the feature config
   -- and/or if the feature flag is configured for the backend in 'FeatureFlags' for galley in 'Galley.Types.Teams'
   -- otherwise this will return the default config from wire-api
-  default getConfigForServer :: Sem r (LockableFeature cfg)
-  getConfigForServer = pure def
+  default getFeatureForServer :: Sem r (LockableFeature cfg)
+  getFeatureForServer = pure def
 
-  getConfigForUser ::
-    (GetConfigForUserConstraints cfg r) =>
+  getFeatureForUser ::
+    (GetFeatureForUserConstraints cfg r) =>
     UserId ->
     Sem r (LockableFeature cfg)
-  default getConfigForUser ::
-    (DefaultGetConfigForUserConstraints cfg r) =>
+  default getFeatureForUser ::
+    (DefaultGetFeatureForUserConstraints cfg r) =>
     UserId ->
     Sem r (LockableFeature cfg)
-  getConfigForUser _ = getConfigForServer
+  getFeatureForUser _ = getFeatureForServer
 
   computeFeature ::
     (ComputeFeatureConstraints cfg r) =>
@@ -128,7 +128,7 @@ getFeature ::
   Sem r (LockableFeature cfg)
 getFeature uid tid = do
   void $ getTeamMember tid uid >>= noteS @'NotATeamMember
-  getConfigForTeam @cfg tid
+  getFeatureForTeam @cfg tid
 
 getFeatureInternal ::
   ( GetFeatureConfig cfg,
@@ -142,7 +142,7 @@ getFeatureInternal ::
   Sem r (LockableFeature cfg)
 getFeatureInternal tid = do
   assertTeamExists tid
-  getConfigForTeam tid
+  getFeatureForTeam tid
 
 getFeatureMulti ::
   forall cfg r.
@@ -154,7 +154,7 @@ getFeatureMulti ::
   Multi.TeamFeatureNoConfigMultiRequest ->
   Sem r (Multi.TeamFeatureNoConfigMultiResponse cfg)
 getFeatureMulti (Multi.TeamFeatureNoConfigMultiRequest tids) = do
-  cfgs <- getConfigForMultiTeam @cfg tids
+  cfgs <- getFeatureForMultiTeam @cfg tids
   let xs = uncurry toTeamStatus <$> cfgs
   pure $ Multi.TeamFeatureNoConfigMultiResponse xs
 
@@ -199,7 +199,7 @@ getAllFeatureConfigsForServer ::
   forall r.
   (Member (Input Opts) r) =>
   Sem r AllFeatureConfigs
-getAllFeatureConfigsForServer = hsequence' $ hcpure (Proxy @GetFeatureConfig) $ Comp getConfigForServer
+getAllFeatureConfigsForServer = hsequence' $ hcpure (Proxy @GetFeatureConfig) $ Comp getFeatureForServer
 
 getAllFeatureConfigs ::
   forall r.
@@ -222,9 +222,9 @@ getAllFeatureConfigs tid = do
       (Sem r :.: LockableFeature) p
     compute defFeature feat = Comp $ computeFeature tid defFeature feat
 
-class (GetConfigForUserConstraints cfg r, GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) => GetAllFeatureConfigsForUserConstraints r cfg
+class (GetFeatureForUserConstraints cfg r, GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) => GetAllFeatureConfigsForUserConstraints r cfg
 
-instance (GetConfigForUserConstraints cfg r, GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) => GetAllFeatureConfigsForUserConstraints r cfg
+instance (GetFeatureForUserConstraints cfg r, GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) => GetAllFeatureConfigsForUserConstraints r cfg
 
 getAllFeatureConfigsForUser ::
   forall r.
@@ -241,9 +241,9 @@ getAllFeatureConfigsForUser ::
   Sem r AllFeatureConfigs
 getAllFeatureConfigsForUser uid = do
   mTid <- getTeamAndCheckMembership uid
-  hsequence' $ hcpure (Proxy @(GetAllFeatureConfigsForUserConstraints r)) $ Comp $ getConfigForTeamUser uid mTid
+  hsequence' $ hcpure (Proxy @(GetAllFeatureConfigsForUserConstraints r)) $ Comp $ getFeatureForTeamUser uid mTid
 
-getSingleFeatureConfigForUser ::
+getSingleFeatureForUser ::
   forall cfg r.
   ( GetFeatureConfig cfg,
     Member (Input Opts) r,
@@ -251,16 +251,16 @@ getSingleFeatureConfigForUser ::
     Member (ErrorS 'TeamNotFound) r,
     Member TeamStore r,
     Member TeamFeatureStore r,
-    GetConfigForUserConstraints cfg r,
+    GetFeatureForUserConstraints cfg r,
     ComputeFeatureConstraints cfg r
   ) =>
   UserId ->
   Sem r (LockableFeature cfg)
-getSingleFeatureConfigForUser uid = do
+getSingleFeatureForUser uid = do
   mTid <- getTeamAndCheckMembership uid
-  getConfigForTeamUser @cfg uid mTid
+  getFeatureForTeamUser @cfg uid mTid
 
-getConfigForTeam ::
+getFeatureForTeam ::
   forall cfg r.
   ( GetFeatureConfig cfg,
     ComputeFeatureConstraints cfg r,
@@ -269,15 +269,15 @@ getConfigForTeam ::
   ) =>
   TeamId ->
   Sem r (LockableFeature cfg)
-getConfigForTeam tid = do
+getFeatureForTeam tid = do
   dbFeature <- TeamFeatures.getFeatureConfig (featureSingleton @cfg) tid
-  defFeature <- getConfigForServer
+  defFeature <- getFeatureForServer
   computeFeature @cfg
     tid
     defFeature
     dbFeature
 
-getConfigForMultiTeam ::
+getFeatureForMultiTeam ::
   forall cfg r.
   ( GetFeatureConfig cfg,
     ComputeFeatureConstraints cfg r,
@@ -286,17 +286,17 @@ getConfigForMultiTeam ::
   ) =>
   [TeamId] ->
   Sem r [(TeamId, LockableFeature cfg)]
-getConfigForMultiTeam tids = do
-  defFeature <- getConfigForServer
+getFeatureForMultiTeam tids = do
+  defFeature <- getFeatureForServer
   features <- TeamFeatures.getFeatureConfigMulti (featureSingleton @cfg) tids
   for features $ \(tid, dbFeature) -> do
     feat <- computeFeature @cfg tid defFeature dbFeature
     pure (tid, feat)
 
-getConfigForTeamUser ::
+getFeatureForTeamUser ::
   forall cfg r.
   ( GetFeatureConfig cfg,
-    GetConfigForUserConstraints cfg r,
+    GetFeatureForUserConstraints cfg r,
     ComputeFeatureConstraints cfg r,
     Member (Input Opts) r,
     Member TeamFeatureStore r
@@ -304,14 +304,14 @@ getConfigForTeamUser ::
   UserId ->
   Maybe TeamId ->
   Sem r (LockableFeature cfg)
-getConfigForTeamUser uid Nothing = getConfigForUser uid
-getConfigForTeamUser _ (Just tid) = getConfigForTeam @cfg tid
+getFeatureForTeamUser uid Nothing = getFeatureForUser uid
+getFeatureForTeamUser _ (Just tid) = getFeatureForTeam @cfg tid
 
 -------------------------------------------------------------------------------
 -- GetFeatureConfig instances
 
 instance GetFeatureConfig SSOConfig where
-  getConfigForServer = do
+  getFeatureForServer = do
     status <-
       inputs (view (settings . featureFlags . flagSSO)) <&> \case
         FeatureSSOEnabledByDefault -> FeatureStatusEnabled
@@ -319,7 +319,7 @@ instance GetFeatureConfig SSOConfig where
     pure $ def {status = status}
 
 instance GetFeatureConfig SearchVisibilityAvailableConfig where
-  getConfigForServer = do
+  getFeatureForServer = do
     status <-
       inputs (view (settings . featureFlags . flagTeamSearchVisibility)) <&> \case
         FeatureTeamSearchVisibilityAvailableByDefault -> FeatureStatusEnabled
@@ -327,14 +327,14 @@ instance GetFeatureConfig SearchVisibilityAvailableConfig where
     pure $ def {status = status}
 
 instance GetFeatureConfig ValidateSAMLEmailsConfig where
-  getConfigForServer =
+  getFeatureForServer =
     inputs (view (settings . featureFlags . flagsTeamFeatureValidateSAMLEmailsStatus . unDefaults . unImplicitLockStatus))
 
 instance GetFeatureConfig DigitalSignaturesConfig
 
 instance GetFeatureConfig LegalholdConfig where
   type
-    GetConfigForUserConstraints LegalholdConfig (r :: EffectRow) =
+    GetFeatureForUserConstraints LegalholdConfig (r :: EffectRow) =
       ( Member (Input Opts) r,
         Member TeamFeatureStore r,
         Member LegalHoldStore r,
@@ -352,15 +352,15 @@ instance GetFeatureConfig LegalholdConfig where
     pure $ defFeature {status = status}
 
 instance GetFeatureConfig FileSharingConfig where
-  getConfigForServer =
+  getFeatureForServer =
     input <&> view (settings . featureFlags . flagFileSharing . unDefaults)
 
 instance GetFeatureConfig AppLockConfig where
-  getConfigForServer =
+  getFeatureForServer =
     input <&> view (settings . featureFlags . flagAppLockDefaults . unDefaults . unImplicitLockStatus)
 
 instance GetFeatureConfig ClassifiedDomainsConfig where
-  getConfigForServer =
+  getFeatureForServer =
     input <&> view (settings . featureFlags . flagClassifiedDomains . unImplicitLockStatus)
 
 -- | Conference calling gets enabled automatically once unlocked. To achieve
@@ -375,7 +375,7 @@ instance GetFeatureConfig ClassifiedDomainsConfig where
 -- situations.
 instance GetFeatureConfig ConferenceCallingConfig where
   type
-    GetConfigForUserConstraints ConferenceCallingConfig r =
+    GetFeatureForUserConstraints ConferenceCallingConfig r =
       ( Member (Input Opts) r,
         Member (ErrorS OperationDenied) r,
         Member (ErrorS 'NotATeamMember) r,
@@ -385,10 +385,10 @@ instance GetFeatureConfig ConferenceCallingConfig where
         Member BrigAccess r
       )
 
-  getConfigForServer =
+  getFeatureForServer =
     input <&> view (settings . featureFlags . flagConferenceCalling . unDefaults)
 
-  getConfigForUser uid = do
+  getFeatureForUser uid = do
     feat <- getAccountConferenceCallingConfigClient uid
     pure $ withLockStatus (def @(LockableFeature ConferenceCallingConfig)).lockStatus feat
 
@@ -400,23 +400,23 @@ instance GetFeatureConfig ConferenceCallingConfig where
             LockStatusUnlocked -> feat
 
 instance GetFeatureConfig SelfDeletingMessagesConfig where
-  getConfigForServer =
+  getFeatureForServer =
     input <&> view (settings . featureFlags . flagSelfDeletingMessages . unDefaults)
 
 instance GetFeatureConfig GuestLinksConfig where
-  getConfigForServer =
+  getFeatureForServer =
     input <&> view (settings . featureFlags . flagConversationGuestLinks . unDefaults)
 
 instance GetFeatureConfig SndFactorPasswordChallengeConfig where
-  getConfigForServer =
+  getFeatureForServer =
     input <&> view (settings . featureFlags . flagTeamFeatureSndFactorPasswordChallengeStatus . unDefaults)
 
 instance GetFeatureConfig SearchVisibilityInboundConfig where
-  getConfigForServer =
+  getFeatureForServer =
     input <&> view (settings . featureFlags . flagTeamFeatureSearchVisibilityInbound . unDefaults . unImplicitLockStatus)
 
 instance GetFeatureConfig MLSConfig where
-  getConfigForServer =
+  getFeatureForServer =
     input <&> view (settings . featureFlags . flagMLS . unDefaults)
 
 instance GetFeatureConfig ExposeInvitationURLsToTeamAdminConfig where
@@ -432,23 +432,23 @@ instance GetFeatureConfig ExposeInvitationURLsToTeamAdminConfig where
     pure $ genericComputeFeature defFeature (dbFeatureLockStatus lockStatus <> dbFeature)
 
 instance GetFeatureConfig OutlookCalIntegrationConfig where
-  getConfigForServer =
+  getFeatureForServer =
     input <&> view (settings . featureFlags . flagOutlookCalIntegration . unDefaults)
 
 instance GetFeatureConfig MlsE2EIdConfig where
-  getConfigForServer =
+  getFeatureForServer =
     input <&> view (settings . featureFlags . flagMlsE2EId . unDefaults)
 
 instance GetFeatureConfig MlsMigrationConfig where
-  getConfigForServer =
+  getFeatureForServer =
     input <&> view (settings . featureFlags . flagMlsMigration . unDefaults)
 
 instance GetFeatureConfig EnforceFileDownloadLocationConfig where
-  getConfigForServer =
+  getFeatureForServer =
     input <&> view (settings . featureFlags . flagEnforceFileDownloadLocation . unDefaults)
 
 instance GetFeatureConfig LimitedEventFanoutConfig where
-  getConfigForServer =
+  getFeatureForServer =
     input <&> view (settings . featureFlags . flagLimitedEventFanout . unDefaults . unImplicitLockStatus)
 
 -- | If second factor auth is enabled, make sure that end-points that don't support it, but
@@ -474,7 +474,7 @@ guardSecondFactorDisabled uid cid = do
     mapError (unTagged @'TeamNotFound @()) $ assertTeamExists tid
     pure tid
 
-  tf <- getConfigForTeamUser @SndFactorPasswordChallengeConfig uid mTid
+  tf <- getFeatureForTeamUser @SndFactorPasswordChallengeConfig uid mTid
   case tf.status of
     FeatureStatusDisabled -> pure ()
     FeatureStatusEnabled -> throwS @'AccessDenied

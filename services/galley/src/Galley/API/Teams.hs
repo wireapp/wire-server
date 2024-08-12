@@ -991,7 +991,7 @@ deleteTeamMember' lusr zcon tid remove mBody = do
       Journal.teamUpdate tid sizeAfterDelete $ filter (/= remove) owners
       pure TeamMemberDeleteAccepted
     else do
-      getConfigForTeam @LimitedEventFanoutConfig tid
+      getFeatureForTeam @LimitedEventFanoutConfig tid
         >>= ( \case
                 FeatureStatusEnabled -> do
                   admins <- E.getTeamAdmins tid

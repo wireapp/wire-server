@@ -76,7 +76,7 @@ patchFeatureInternal ::
   forall cfg r.
   ( SetFeatureConfig cfg,
     ComputeFeatureConstraints cfg r,
-    SetConfigForTeamConstraints cfg r,
+    SetFeatureForTeamConstraints cfg r,
     Member (ErrorS 'TeamNotFound) r,
     Member (Input Opts) r,
     Member TeamStore r,
@@ -89,9 +89,9 @@ patchFeatureInternal ::
   Sem r (LockableFeature cfg)
 patchFeatureInternal tid patch = do
   assertTeamExists tid
-  currentFeatureStatus <- getConfigForTeam @cfg tid
+  currentFeatureStatus <- getFeatureForTeam @cfg tid
   let newFeatureStatus = applyPatch currentFeatureStatus
-  setConfigForTeam @cfg tid newFeatureStatus
+  setFeatureForTeam @cfg tid newFeatureStatus
   where
     applyPatch :: LockableFeature cfg -> LockableFeature cfg
     applyPatch current =
@@ -105,7 +105,7 @@ setFeature ::
   forall cfg r.
   ( SetFeatureConfig cfg,
     ComputeFeatureConstraints cfg r,
-    SetConfigForTeamConstraints cfg r,
+    SetFeatureForTeamConstraints cfg r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member (Error TeamFeatureError) r,
@@ -128,7 +128,7 @@ setFeatureInternal ::
   forall cfg r.
   ( SetFeatureConfig cfg,
     ComputeFeatureConstraints cfg r,
-    SetConfigForTeamConstraints cfg r,
+    SetFeatureForTeamConstraints cfg r,
     Member (ErrorS 'TeamNotFound) r,
     Member (Error TeamFeatureError) r,
     Member (Input Opts) r,
@@ -148,7 +148,7 @@ setFeatureUnchecked ::
   forall cfg r.
   ( SetFeatureConfig cfg,
     ComputeFeatureConstraints cfg r,
-    SetConfigForTeamConstraints cfg r,
+    SetFeatureForTeamConstraints cfg r,
     Member (Error TeamFeatureError) r,
     Member (Input Opts) r,
     Member TeamStore r,
@@ -160,9 +160,9 @@ setFeatureUnchecked ::
   Feature cfg ->
   Sem r (LockableFeature cfg)
 setFeatureUnchecked tid feat = do
-  feat0 <- getConfigForTeam @cfg tid
+  feat0 <- getFeatureForTeam @cfg tid
   guardLockStatus feat0.lockStatus
-  setConfigForTeam @cfg tid (withLockStatus feat0.lockStatus feat)
+  setFeatureForTeam @cfg tid (withLockStatus feat0.lockStatus feat)
 
 updateLockStatus ::
   forall cfg r.
@@ -225,9 +225,9 @@ guardLockStatus = \case
   LockStatusUnlocked -> pure ()
   LockStatusLocked -> throw FeatureLocked
 
-setConfigForTeam ::
+setFeatureForTeam ::
   ( SetFeatureConfig cfg,
-    SetConfigForTeamConstraints cfg r,
+    SetFeatureForTeamConstraints cfg r,
     ComputeFeatureConstraints cfg r,
     Member (Input Opts) r,
     Member P.TinyLog r,
@@ -238,7 +238,7 @@ setConfigForTeam ::
   TeamId ->
   LockableFeature cfg ->
   Sem r (LockableFeature cfg)
-setConfigForTeam tid feat = do
+setFeatureForTeam tid feat = do
   preparedFeat <- prepareFeature tid feat
   newFeat <- persistFeature tid preparedFeat
   pushFeatureEvent tid (mkUpdateEvent newFeat)
@@ -249,8 +249,8 @@ setConfigForTeam tid feat = do
 
 -- | Don't export methods of this typeclass
 class (GetFeatureConfig cfg) => SetFeatureConfig cfg where
-  type SetConfigForTeamConstraints cfg (r :: EffectRow) :: Constraint
-  type SetConfigForTeamConstraints cfg (r :: EffectRow) = ()
+  type SetFeatureForTeamConstraints cfg (r :: EffectRow) :: Constraint
+  type SetFeatureForTeamConstraints cfg (r :: EffectRow) = ()
 
   -- | This method takes a feature about to be set, performs the required
   -- checks, makes any related updates via the internal API, then finally
@@ -259,7 +259,7 @@ class (GetFeatureConfig cfg) => SetFeatureConfig cfg where
   -- The default simply returns the original feature unchanged, which should be
   -- enough for most features.
   prepareFeature ::
-    (SetConfigForTeamConstraints cfg r) =>
+    (SetFeatureForTeamConstraints cfg r) =>
     TeamId ->
     LockableFeature cfg ->
     Sem r (LockableFeature cfg)
@@ -268,7 +268,7 @@ class (GetFeatureConfig cfg) => SetFeatureConfig cfg where
 
 instance SetFeatureConfig SSOConfig where
   type
-    SetConfigForTeamConstraints SSOConfig (r :: EffectRow) =
+    SetFeatureForTeamConstraints SSOConfig (r :: EffectRow) =
       ( Member (Input Opts) r,
         Member (Error TeamFeatureError) r
       )
@@ -281,7 +281,7 @@ instance SetFeatureConfig SSOConfig where
 
 instance SetFeatureConfig SearchVisibilityAvailableConfig where
   type
-    SetConfigForTeamConstraints SearchVisibilityAvailableConfig (r :: EffectRow) =
+    SetFeatureForTeamConstraints SearchVisibilityAvailableConfig (r :: EffectRow) =
       ( Member SearchVisibilityStore r,
         Member (Input Opts) r
       )
@@ -298,7 +298,7 @@ instance SetFeatureConfig DigitalSignaturesConfig
 
 instance SetFeatureConfig LegalholdConfig where
   type
-    SetConfigForTeamConstraints LegalholdConfig (r :: EffectRow) =
+    SetFeatureForTeamConstraints LegalholdConfig (r :: EffectRow) =
       ( Bounded (PagingBounds InternalPaging TeamMember),
         Member BackendNotificationQueueAccess r,
         Member BotAccess r,
@@ -356,7 +356,7 @@ instance SetFeatureConfig LegalholdConfig where
 instance SetFeatureConfig FileSharingConfig
 
 instance SetFeatureConfig AppLockConfig where
-  type SetConfigForTeamConstraints AppLockConfig r = Member (Error TeamFeatureError) r
+  type SetFeatureForTeamConstraints AppLockConfig r = Member (Error TeamFeatureError) r
 
   prepareFeature _tid feat = do
     when ((applockInactivityTimeoutSecs feat.config) < 30) $
@@ -372,20 +372,20 @@ instance SetFeatureConfig GuestLinksConfig
 instance SetFeatureConfig SndFactorPasswordChallengeConfig
 
 instance SetFeatureConfig SearchVisibilityInboundConfig where
-  type SetConfigForTeamConstraints SearchVisibilityInboundConfig (r :: EffectRow) = (Member BrigAccess r)
+  type SetFeatureForTeamConstraints SearchVisibilityInboundConfig (r :: EffectRow) = (Member BrigAccess r)
   prepareFeature tid feat = do
     updateSearchVisibilityInbound $ toTeamStatus tid feat
     pure feat
 
 instance SetFeatureConfig MLSConfig where
   type
-    SetConfigForTeamConstraints MLSConfig (r :: EffectRow) =
+    SetFeatureForTeamConstraints MLSConfig (r :: EffectRow) =
       ( Member (Input Opts) r,
         Member TeamFeatureStore r,
         Member (Error TeamFeatureError) r
       )
   prepareFeature tid feat = do
-    mlsMigrationConfig <- getConfigForTeam @MlsMigrationConfig tid
+    mlsMigrationConfig <- getFeatureForTeam @MlsMigrationConfig tid
     unless
       ( -- default protocol needs to be included in supported protocols
         feat.config.mlsDefaultProtocol `elem` feat.config.mlsSupportedProtocols
@@ -415,13 +415,13 @@ guardMlsE2EIdConfig handler uid tid feat = do
 
 instance SetFeatureConfig MlsMigrationConfig where
   type
-    SetConfigForTeamConstraints MlsMigrationConfig (r :: EffectRow) =
+    SetFeatureForTeamConstraints MlsMigrationConfig (r :: EffectRow) =
       ( Member (Input Opts) r,
         Member (Error TeamFeatureError) r,
         Member TeamFeatureStore r
       )
   prepareFeature tid feat = do
-    mlsConfig <- getConfigForTeam @MLSConfig tid
+    mlsConfig <- getFeatureForTeam @MLSConfig tid
     unless
       ( -- when MLS migration is enabled, MLS needs to be enabled as well
         feat.status == FeatureStatusDisabled || mlsConfig.status == FeatureStatusEnabled

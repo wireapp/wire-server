@@ -74,16 +74,16 @@ deprecatedFeatureConfigAPI =
 
 deprecatedFeatureAPI :: API (AllDeprecatedFeatureConfigAPI DeprecatedFeatureConfigs) GalleyEffects
 deprecatedFeatureAPI =
-  mkNamedAPI @'("get-config", LegalholdConfig) getSingleFeatureConfigForUser
-    <@> mkNamedAPI @'("get-config", SSOConfig) getSingleFeatureConfigForUser
-    <@> mkNamedAPI @'("get-config", SearchVisibilityAvailableConfig) getSingleFeatureConfigForUser
-    <@> mkNamedAPI @'("get-config", ValidateSAMLEmailsConfig) getSingleFeatureConfigForUser
-    <@> mkNamedAPI @'("get-config", DigitalSignaturesConfig) getSingleFeatureConfigForUser
-    <@> mkNamedAPI @'("get-config", AppLockConfig) getSingleFeatureConfigForUser
-    <@> mkNamedAPI @'("get-config", FileSharingConfig) getSingleFeatureConfigForUser
-    <@> mkNamedAPI @'("get-config", ClassifiedDomainsConfig) getSingleFeatureConfigForUser
-    <@> mkNamedAPI @'("get-config", ConferenceCallingConfig) getSingleFeatureConfigForUser
-    <@> mkNamedAPI @'("get-config", SelfDeletingMessagesConfig) getSingleFeatureConfigForUser
-    <@> mkNamedAPI @'("get-config", GuestLinksConfig) getSingleFeatureConfigForUser
-    <@> mkNamedAPI @'("get-config", SndFactorPasswordChallengeConfig) getSingleFeatureConfigForUser
-    <@> mkNamedAPI @'("get-config", MLSConfig) getSingleFeatureConfigForUser
+  mkNamedAPI @'("get-config", LegalholdConfig) getSingleFeatureForUser
+    <@> mkNamedAPI @'("get-config", SSOConfig) getSingleFeatureForUser
+    <@> mkNamedAPI @'("get-config", SearchVisibilityAvailableConfig) getSingleFeatureForUser
+    <@> mkNamedAPI @'("get-config", ValidateSAMLEmailsConfig) getSingleFeatureForUser
+    <@> mkNamedAPI @'("get-config", DigitalSignaturesConfig) getSingleFeatureForUser
+    <@> mkNamedAPI @'("get-config", AppLockConfig) getSingleFeatureForUser
+    <@> mkNamedAPI @'("get-config", FileSharingConfig) getSingleFeatureForUser
+    <@> mkNamedAPI @'("get-config", ClassifiedDomainsConfig) getSingleFeatureForUser
+    <@> mkNamedAPI @'("get-config", ConferenceCallingConfig) getSingleFeatureForUser
+    <@> mkNamedAPI @'("get-config", SelfDeletingMessagesConfig) getSingleFeatureForUser
+    <@> mkNamedAPI @'("get-config", GuestLinksConfig) getSingleFeatureForUser
+    <@> mkNamedAPI @'("get-config", SndFactorPasswordChallengeConfig) getSingleFeatureForUser
+    <@> mkNamedAPI @'("get-config", MLSConfig) getSingleFeatureForUser
