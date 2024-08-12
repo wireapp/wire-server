@@ -66,7 +66,9 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints -Wunused-packages
+    -Wredundant-constraints
+
+  -- -Wunused-packages
 
   build-depends:
       aeson                  >=2.0.1.0
@@ -81,6 +83,7 @@ library
     , lens                   >=4.12
     , memory
     , QuickCheck
+    , sop-core
     , text                   >=0.11
     , types-common           >=0.16
     , utf8-string

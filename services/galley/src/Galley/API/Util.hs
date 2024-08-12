@@ -19,7 +19,7 @@
 
 module Galley.API.Util where
 
-import Control.Lens (set, view, (.~), (^.))
+import Control.Lens (set, to, view, (.~), (^.))
 import Control.Monad.Extra (allM, anyM)
 import Data.Bifunctor
 import Data.Code qualified as Code
@@ -81,6 +81,7 @@ import Wire.API.Federation.Error
 import Wire.API.Password
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Util
+import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as Mem
 import Wire.API.Team.Role
@@ -961,7 +962,7 @@ anyLegalholdActivated ::
   Sem r Bool
 anyLegalholdActivated uids = do
   opts <- input
-  case view (settings . featureFlags . flagLegalHold) opts of
+  case view (settings . featureFlags . to npProject) opts of
     FeatureLegalHoldDisabledPermanently -> pure False
     FeatureLegalHoldDisabledByDefault -> check
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> check
@@ -980,7 +981,7 @@ allLegalholdConsentGiven ::
   Sem r Bool
 allLegalholdConsentGiven uids = do
   opts <- input
-  case view (settings . featureFlags . flagLegalHold) opts of
+  case view (settings . featureFlags . to npProject) opts of
     FeatureLegalHoldDisabledPermanently -> pure False
     FeatureLegalHoldDisabledByDefault -> do
       flip allM (chunksOf 32 uids) $ \uidsPage -> do
