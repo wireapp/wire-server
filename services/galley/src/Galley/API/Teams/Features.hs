@@ -191,8 +191,7 @@ persistFeature ::
   Sem r (LockableFeature cfg)
 persistFeature tid feat = do
   setFeatureConfig (featureSingleton @cfg) tid feat
-  fs <- getFeatureForTeam @cfg tid
-  pure fs
+  getFeatureForTeam @cfg tid
 
 pushFeatureEvent ::
   ( Member NotificationSubsystem r,
