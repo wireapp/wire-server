@@ -25,7 +25,6 @@ import Test.Brig.Calling qualified
 import Test.Brig.Calling.Internal qualified
 import Test.Brig.InternalNotification qualified
 import Test.Brig.MLS qualified
-import Test.Brig.Roundtrip qualified
 import Test.Brig.User.Search.Index.Types qualified
 import Test.Tasty
 
@@ -37,7 +36,6 @@ main =
       [ Test.Brig.User.Search.Index.Types.tests,
         Test.Brig.Calling.tests,
         Test.Brig.Calling.Internal.tests,
-        Test.Brig.Roundtrip.tests,
         Test.Brig.MLS.tests,
         Test.Brig.InternalNotification.tests
       ]

@@ -92,7 +92,7 @@ import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Brig qualified as BrigIRoutes
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
-import Wire.API.Team.Feature qualified as ApiFt
+import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.API.User.Activation
 import Wire.API.User.Client
@@ -350,16 +350,17 @@ updateFederationRemote dom fedcfg = do
             \do that, removing or updating items listed in the config file is not allowed."
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
-getAccountConferenceCallingConfig :: UserId -> (Handler r) (ApiFt.Feature ApiFt.ConferenceCallingConfig)
-getAccountConferenceCallingConfig uid =
-  lift (wrapClient $ Data.lookupFeatureConferenceCalling uid)
-    >>= maybe (ApiFt.forgetLock <$> view (settings . getAfcConferenceCallingDefNull)) pure
+getAccountConferenceCallingConfig :: UserId -> Handler r (Feature ConferenceCallingConfig)
+getAccountConferenceCallingConfig uid = do
+  mStatus <- lift $ wrapClient $ Data.lookupFeatureConferenceCalling uid
+  let feat = def
+  pure $ feat {status = fromMaybe feat.status mStatus}
 
-putAccountConferenceCallingConfig :: UserId -> ApiFt.Feature ApiFt.ConferenceCallingConfig -> (Handler r) NoContent
-putAccountConferenceCallingConfig uid status =
-  lift $ wrapClient $ Data.updateFeatureConferenceCalling uid (Just status) $> NoContent
+putAccountConferenceCallingConfig :: UserId -> Feature ConferenceCallingConfig -> Handler r NoContent
+putAccountConferenceCallingConfig uid feat = do
+  lift $ wrapClient $ Data.updateFeatureConferenceCalling uid (Just feat.status) $> NoContent
 
-deleteAccountConferenceCallingConfig :: UserId -> (Handler r) NoContent
+deleteAccountConferenceCallingConfig :: UserId -> Handler r NoContent
 deleteAccountConferenceCallingConfig uid =
   lift $ wrapClient $ Data.updateFeatureConferenceCalling uid Nothing $> NoContent
 

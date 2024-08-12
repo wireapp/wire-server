@@ -80,13 +80,11 @@ module Wire.API.Team.Feature
     NpUpdate (..),
     npUpdate,
     AllTeamFeatures,
-    unImplicitLockStatus,
-    ImplicitLockStatus (..),
   )
 where
 
 import Cassandra.CQL qualified as Cass
-import Control.Lens (makeLenses, (?~))
+import Control.Lens ((?~))
 import Data.Aeson qualified as A
 import Data.Aeson.Types qualified as A
 import Data.Attoparsec.ByteString qualified as Parser
@@ -537,15 +535,6 @@ instance ToSchema LockStatusResponse where
     object "LockStatusResponse" $
       LockStatusResponse
         <$> _unlockStatus .= field "lockStatus" schema
-
-newtype ImplicitLockStatus (cfg :: Type) = ImplicitLockStatus {_unImplicitLockStatus :: LockableFeature cfg}
-  deriving newtype (Eq, Show, Arbitrary)
-
-instance (IsFeatureConfig a, ToSchema a) => ToJSON (ImplicitLockStatus a) where
-  toJSON (ImplicitLockStatus a) = A.toJSON $ forgetLock a
-
-instance (IsFeatureConfig a, ToSchema a) => FromJSON (ImplicitLockStatus a) where
-  parseJSON v = ImplicitLockStatus . withLockStatus ((def @(LockableFeature a)).lockStatus) <$> A.parseJSON v
 
 -- | Convert a feature coming from the database to its public form. This can be
 -- overridden on a feature basis by implementing the `computeFeature` method of
@@ -1364,8 +1353,6 @@ instance (TypeError ('ShowType x :<>: 'Text " not found")) => NpUpdate x '[] whe
 -- | Update the first field of a given type in an @'NP' f xs@.
 npUpdate :: forall x f xs. (NpUpdate x xs) => f x -> NP f xs -> NP f xs
 npUpdate = npUpdate' (Proxy @x)
-
-makeLenses ''ImplicitLockStatus
 
 deriving via (Schema AllTeamFeatures) instance (FromJSON AllTeamFeatures)
 

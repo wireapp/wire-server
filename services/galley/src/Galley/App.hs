@@ -81,8 +81,7 @@ import Galley.Options hiding (brig, endpoint, federator)
 import Galley.Options qualified as O
 import Galley.Queue
 import Galley.Queue qualified as Q
-import Galley.Types.Teams (FeatureLegalHold)
-import Galley.Types.Teams qualified as Teams
+import Galley.Types.Teams
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Imports hiding (forkIO)
 import Network.AMQP.Extended (mkRabbitMqChannelMVar)
@@ -146,9 +145,9 @@ validateOptions o = do
     (Nothing, Just _) -> error "RabbitMQ config is specified and federator is not, please specify both or none"
     (Just _, Nothing) -> error "Federator is specified and RabbitMQ config is not, please specify both or none"
     _ -> pure ()
-  let mlsFlag = settings' ^. featureFlags . Teams.flagMLS . Teams.unDefaults
+  let mlsFlag = settings' ^. featureFlags . to (featureDefaults @MLSConfig)
       mlsConfig = mlsFlag.config
-      migrationStatus = (.status) $ settings' ^. featureFlags . Teams.flagMlsMigration . Teams.unDefaults
+      migrationStatus = (.status) $ settings' ^. featureFlags . to (featureDefaults @MlsMigrationConfig)
   when (migrationStatus == FeatureStatusEnabled && ProtocolMLSTag `notElem` mlsSupportedProtocols mlsConfig) $
     error "For starting MLS migration, MLS must be included in the supportedProtocol list"
   unless (mlsDefaultProtocol mlsConfig `elem` mlsSupportedProtocols mlsConfig) $
@@ -291,11 +290,11 @@ evalGalley e =
     . interpretSparAccess
     . interpretBrigAccess
   where
-    lh = view (options . settings . featureFlags . Teams.flagLegalHold) e
+    lh = view (options . settings . featureFlags . to npProject) e
 
-interpretTeamFeatureSpecialContext :: Env -> Sem (Input (Maybe [TeamId], FeatureLegalHold) ': r) a -> Sem r a
+interpretTeamFeatureSpecialContext :: Env -> Sem (Input (Maybe [TeamId], FeatureDefaults LegalholdConfig) ': r) a -> Sem r a
 interpretTeamFeatureSpecialContext e =
   runInputConst
     ( e ^. options . settings . exposeInvitationURLsTeamAllowlist,
-      e ^. options . settings . featureFlags . Teams.flagLegalHold
+      e ^. options . settings . featureFlags . to npProject
     )

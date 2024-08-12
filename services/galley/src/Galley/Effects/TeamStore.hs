@@ -90,6 +90,7 @@ import Wire.API.Error.Galley
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Team
 import Wire.API.Team.Conversation
+import Wire.API.Team.Feature
 import Wire.API.Team.Member (HardTruncationLimit, TeamMember, TeamMemberList)
 import Wire.API.Team.Permission
 import Wire.Sem.Paging
@@ -135,7 +136,7 @@ data TeamStore m a where
   SetTeamData :: TeamId -> TeamUpdateData -> TeamStore m ()
   SetTeamStatus :: TeamId -> TeamStatus -> TeamStore m ()
   FanoutLimit :: TeamStore m (Range 1 HardTruncationLimit Int32)
-  GetLegalHoldFlag :: TeamStore m FeatureLegalHold
+  GetLegalHoldFlag :: TeamStore m (FeatureDefaults LegalholdConfig)
   EnqueueTeamEvent :: E.TeamEvent -> TeamStore m ()
 
 makeSem ''TeamStore

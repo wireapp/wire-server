@@ -28,6 +28,7 @@ module Galley.API.Teams.Features.Get
     getSingleFeatureForUser,
     GetFeatureConfig (..),
     getFeatureForTeam,
+    getFeatureForServer,
     guardSecondFactorDisabled,
     DoAuth (..),
     featureEnabledForTeam,
@@ -52,6 +53,7 @@ import Galley.Effects.TeamFeatureStore qualified as TeamFeatures
 import Galley.Effects.TeamStore (getOneUserTeam, getTeamMember)
 import Galley.Options
 import Galley.Types.Teams
+import Galley.Types.Teams ()
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -71,7 +73,13 @@ type DefaultGetFeatureForUserConstraints cfg r =
   )
 
 -- | Don't export methods of this typeclass
-class (IsFeatureConfig cfg) => GetFeatureConfig cfg where
+class
+  ( IsFeatureConfig cfg,
+    GetFeatureDefaults (FeatureDefaults cfg),
+    NpProject cfg Features
+  ) =>
+  GetFeatureConfig cfg
+  where
   type GetFeatureForUserConstraints cfg (r :: EffectRow) :: Constraint
   type
     GetFeatureForUserConstraints cfg (r :: EffectRow) =
@@ -79,15 +87,6 @@ class (IsFeatureConfig cfg) => GetFeatureConfig cfg where
 
   type ComputeFeatureConstraints cfg (r :: EffectRow) :: Constraint
   type ComputeFeatureConstraints cfg r = ()
-
-  getFeatureForServer ::
-    (Member (Input Opts) r) =>
-    Sem r (LockableFeature cfg)
-  -- only override if there is additional business logic for getting the feature config
-  -- and/or if the feature flag is configured for the backend in 'FeatureFlags' for galley in 'Galley.Types.Teams'
-  -- otherwise this will return the default config from wire-api
-  default getFeatureForServer :: Sem r (LockableFeature cfg)
-  getFeatureForServer = pure def
 
   getFeatureForUser ::
     (GetFeatureForUserConstraints cfg r) =>
@@ -191,15 +190,22 @@ getAllTeamFeaturesForTeam luid tid = do
   void $ getTeamMember tid (tUnqualified luid) >>= noteS @'NotATeamMember
   getAllTeamFeatures tid
 
-class (GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) => GetAllFeaturesForServerConstraints r cfg
+class
+  (GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) =>
+  GetAllFeaturesForServerConstraints r cfg
 
-instance (GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) => GetAllFeaturesForServerConstraints r cfg
+instance
+  (GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) =>
+  GetAllFeaturesForServerConstraints r cfg
 
 getAllTeamFeaturesForServer ::
   forall r.
   (Member (Input Opts) r) =>
   Sem r AllTeamFeatures
-getAllTeamFeaturesForServer = hsequence' $ hcpure (Proxy @GetFeatureConfig) $ Comp getFeatureForServer
+getAllTeamFeaturesForServer =
+  hsequence' $
+    hcpure (Proxy @GetFeatureConfig) $
+      Comp getFeatureForServer
 
 getAllTeamFeatures ::
   forall r.
@@ -307,28 +313,23 @@ getFeatureForTeamUser ::
 getFeatureForTeamUser uid Nothing = getFeatureForUser uid
 getFeatureForTeamUser _ (Just tid) = getFeatureForTeam @cfg tid
 
+getFeatureForServer ::
+  forall cfg r.
+  ( GetFeatureDefaults (FeatureDefaults cfg),
+    NpProject cfg Features,
+    Member (Input Opts) r
+  ) =>
+  Sem r (LockableFeature cfg)
+getFeatureForServer = inputs $ view (settings . featureFlags . to (featureDefaults @cfg))
+
 -------------------------------------------------------------------------------
 -- GetFeatureConfig instances
 
-instance GetFeatureConfig SSOConfig where
-  getFeatureForServer = do
-    status <-
-      inputs (view (settings . featureFlags . flagSSO)) <&> \case
-        FeatureSSOEnabledByDefault -> FeatureStatusEnabled
-        FeatureSSODisabledByDefault -> FeatureStatusDisabled
-    pure $ def {status = status}
+instance GetFeatureConfig SSOConfig
 
-instance GetFeatureConfig SearchVisibilityAvailableConfig where
-  getFeatureForServer = do
-    status <-
-      inputs (view (settings . featureFlags . flagTeamSearchVisibility)) <&> \case
-        FeatureTeamSearchVisibilityAvailableByDefault -> FeatureStatusEnabled
-        FeatureTeamSearchVisibilityUnavailableByDefault -> FeatureStatusDisabled
-    pure $ def {status = status}
+instance GetFeatureConfig SearchVisibilityAvailableConfig
 
-instance GetFeatureConfig ValidateSAMLEmailsConfig where
-  getFeatureForServer =
-    inputs (view (settings . featureFlags . flagsTeamFeatureValidateSAMLEmailsStatus . unDefaults . unImplicitLockStatus))
+instance GetFeatureConfig ValidateSAMLEmailsConfig
 
 instance GetFeatureConfig DigitalSignaturesConfig
 
@@ -351,17 +352,11 @@ instance GetFeatureConfig LegalholdConfig where
     status <- computeLegalHoldFeatureStatus tid dbFeature
     pure $ defFeature {status = status}
 
-instance GetFeatureConfig FileSharingConfig where
-  getFeatureForServer =
-    input <&> view (settings . featureFlags . flagFileSharing . unDefaults)
+instance GetFeatureConfig FileSharingConfig
 
-instance GetFeatureConfig AppLockConfig where
-  getFeatureForServer =
-    input <&> view (settings . featureFlags . flagAppLockDefaults . unDefaults . unImplicitLockStatus)
+instance GetFeatureConfig AppLockConfig
 
-instance GetFeatureConfig ClassifiedDomainsConfig where
-  getFeatureForServer =
-    input <&> view (settings . featureFlags . flagClassifiedDomains . unImplicitLockStatus)
+instance GetFeatureConfig ClassifiedDomainsConfig
 
 -- | Conference calling gets enabled automatically once unlocked. To achieve
 -- that, the default feature status in the unlocked case is forced to be
@@ -385,9 +380,6 @@ instance GetFeatureConfig ConferenceCallingConfig where
         Member BrigAccess r
       )
 
-  getFeatureForServer =
-    input <&> view (settings . featureFlags . flagConferenceCalling . unDefaults)
-
   getFeatureForUser uid = do
     feat <- getAccountConferenceCallingConfigClient uid
     pure $ withLockStatus (def @(LockableFeature ConferenceCallingConfig)).lockStatus feat
@@ -399,25 +391,15 @@ instance GetFeatureConfig ConferenceCallingConfig where
             LockStatusLocked -> defFeature {lockStatus = LockStatusLocked}
             LockStatusUnlocked -> feat
 
-instance GetFeatureConfig SelfDeletingMessagesConfig where
-  getFeatureForServer =
-    input <&> view (settings . featureFlags . flagSelfDeletingMessages . unDefaults)
+instance GetFeatureConfig SelfDeletingMessagesConfig
 
-instance GetFeatureConfig GuestLinksConfig where
-  getFeatureForServer =
-    input <&> view (settings . featureFlags . flagConversationGuestLinks . unDefaults)
+instance GetFeatureConfig GuestLinksConfig
 
-instance GetFeatureConfig SndFactorPasswordChallengeConfig where
-  getFeatureForServer =
-    input <&> view (settings . featureFlags . flagTeamFeatureSndFactorPasswordChallengeStatus . unDefaults)
+instance GetFeatureConfig SndFactorPasswordChallengeConfig
 
-instance GetFeatureConfig SearchVisibilityInboundConfig where
-  getFeatureForServer =
-    input <&> view (settings . featureFlags . flagTeamFeatureSearchVisibilityInbound . unDefaults . unImplicitLockStatus)
+instance GetFeatureConfig SearchVisibilityInboundConfig
 
-instance GetFeatureConfig MLSConfig where
-  getFeatureForServer =
-    input <&> view (settings . featureFlags . flagMLS . unDefaults)
+instance GetFeatureConfig MLSConfig
 
 instance GetFeatureConfig ExposeInvitationURLsToTeamAdminConfig where
   type
@@ -431,25 +413,15 @@ instance GetFeatureConfig ExposeInvitationURLsToTeamAdminConfig where
         lockStatus = if teamAllowed then LockStatusUnlocked else LockStatusLocked
     pure $ genericComputeFeature defFeature (dbFeatureLockStatus lockStatus <> dbFeature)
 
-instance GetFeatureConfig OutlookCalIntegrationConfig where
-  getFeatureForServer =
-    input <&> view (settings . featureFlags . flagOutlookCalIntegration . unDefaults)
+instance GetFeatureConfig OutlookCalIntegrationConfig
 
-instance GetFeatureConfig MlsE2EIdConfig where
-  getFeatureForServer =
-    input <&> view (settings . featureFlags . flagMlsE2EId . unDefaults)
+instance GetFeatureConfig MlsE2EIdConfig
 
-instance GetFeatureConfig MlsMigrationConfig where
-  getFeatureForServer =
-    input <&> view (settings . featureFlags . flagMlsMigration . unDefaults)
+instance GetFeatureConfig MlsMigrationConfig
 
-instance GetFeatureConfig EnforceFileDownloadLocationConfig where
-  getFeatureForServer =
-    input <&> view (settings . featureFlags . flagEnforceFileDownloadLocation . unDefaults)
+instance GetFeatureConfig EnforceFileDownloadLocationConfig
 
-instance GetFeatureConfig LimitedEventFanoutConfig where
-  getFeatureForServer =
-    input <&> view (settings . featureFlags . flagLimitedEventFanout . unDefaults . unImplicitLockStatus)
+instance GetFeatureConfig LimitedEventFanoutConfig
 
 -- | If second factor auth is enabled, make sure that end-points that don't support it, but
 -- should, are blocked completely.  (This is a workaround until we have 2FA for those

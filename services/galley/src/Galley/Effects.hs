@@ -91,14 +91,14 @@ import Galley.Effects.TeamNotificationStore
 import Galley.Effects.TeamStore
 import Galley.Env
 import Galley.Options
-import Galley.Types.Teams (FeatureLegalHold)
+import Galley.Types.Teams
 import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
 import Wire.API.Error
-import Wire.API.Team.Feature (AllTeamFeatures)
+import Wire.API.Team.Feature
 import Wire.GundeckAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Rpc
@@ -139,7 +139,7 @@ type GalleyEffects1 =
      ListItems LegacyPaging TeamId,
      ListItems InternalPaging TeamId,
      Input AllTeamFeatures,
-     Input (Maybe [TeamId], FeatureLegalHold),
+     Input (Maybe [TeamId], FeatureDefaults LegalholdConfig),
      Input (Local ()),
      Input Opts,
      Input UTCTime,
