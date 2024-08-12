@@ -239,7 +239,7 @@ featureAPI1Full ::
   (_) =>
   API (IFeatureAPI1Full cfg) r
 featureAPI1Full =
-  mkNamedAPI @'("iget", cfg) (getFeatureStatus DontDoAuth)
+  mkNamedAPI @'("iget", cfg) (getFeature DontDoAuth)
     <@> mkNamedAPI @'("iput", cfg) setFeatureStatusInternal
     <@> mkNamedAPI @'("ipatch", cfg) patchFeatureStatusInternal
 
@@ -253,7 +253,7 @@ allFeaturesAPI =
     <@> featureAPI1Full
     <@> featureAPI1Full
     <@> featureAPI1Full
-    <@> mkNamedAPI @'("iget", ClassifiedDomainsConfig) (getFeatureStatus DontDoAuth)
+    <@> mkNamedAPI @'("iget", ClassifiedDomainsConfig) (getFeature DontDoAuth)
     <@> featureAPI1Full
     <@> featureAPI1Full
     <@> featureAPI1Full
@@ -281,7 +281,7 @@ featureAPI =
     <@> mkNamedAPI @'("ilock", MlsMigrationConfig) (updateLockStatus @MlsMigrationConfig)
     <@> mkNamedAPI @'("ilock", EnforceFileDownloadLocationConfig) (updateLockStatus @EnforceFileDownloadLocationConfig)
     -- special endpoints
-    <@> mkNamedAPI @'("igetmulti", SearchVisibilityInboundConfig) getFeatureStatusMulti
+    <@> mkNamedAPI @'("igetmulti", SearchVisibilityInboundConfig) getFeatureMulti
     -- all features
     <@> mkNamedAPI @"feature-configs-internal" (maybe getAllFeatureConfigsForServer getAllFeatureConfigsForUser)
 
@@ -337,7 +337,7 @@ rmUser lusr conn = do
     leaveTeams page = for_ (pageItems page) $ \tid -> do
       toNotify <-
         handleImpossibleErrors $
-          getFeatureStatus @LimitedEventFanoutConfig DontDoAuth tid
+          getFeature @LimitedEventFanoutConfig DontDoAuth tid
             >>= ( \case
                     FeatureStatusEnabled -> Left <$> E.getTeamAdmins tid
                     FeatureStatusDisabled -> Right <$> getTeamMembersForFanout tid

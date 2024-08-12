@@ -18,8 +18,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.API.Teams.Features
-  ( getFeatureStatus,
-    getFeatureStatusMulti,
+  ( getFeatureMulti,
     setFeatureStatus,
     setFeatureStatusInternal,
     patchFeatureStatusInternal,
@@ -79,7 +78,6 @@ patchFeatureStatusInternal ::
   ( SetFeatureConfig cfg,
     ComputeFeatureConstraints cfg r,
     SetConfigForTeamConstraints cfg r,
-    Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TeamNotFound) r,
     Member (Input Opts) r,
     Member TeamStore r,
@@ -92,7 +90,7 @@ patchFeatureStatusInternal ::
   Sem r (LockableFeature cfg)
 patchFeatureStatusInternal tid patch = do
   assertTeamExists tid
-  currentFeatureStatus <- getFeatureStatus @cfg DontDoAuth tid
+  currentFeatureStatus <- getConfigForTeam @cfg tid
   let newFeatureStatus = applyPatch currentFeatureStatus
   setConfigForTeam @cfg tid newFeatureStatus
   where

@@ -243,11 +243,8 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
   HasConversationActionEffects 'ConversationUpdateProtocolTag r =
     ( Member ConversationStore r,
       Member (ErrorS 'ConvInvalidProtocolTransition) r,
-      Member (ErrorS OperationDenied) r,
       Member (ErrorS 'MLSMigrationCriteriaNotSatisfied) r,
       Member (Error NoChanges) r,
-      Member (ErrorS 'NotATeamMember) r,
-      Member (ErrorS 'TeamNotFound) r,
       Member BrigAccess r,
       Member ExternalAccess r,
       Member FederatorAccess r,
@@ -260,7 +257,6 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member Random r,
       Member SubConversationStore r,
       Member TeamFeatureStore r,
-      Member TeamStore r,
       Member TinyLog r
     )
 
@@ -493,7 +489,7 @@ performAction tag origUser lconv action = do
           E.updateToMixedProtocol lcnv (convType (tUnqualified lconv))
           pure (mempty, action)
         (ProtocolMixedTag, ProtocolMLSTag, Just tid) -> do
-          mig <- getFeatureStatus @MlsMigrationConfig DontDoAuth tid
+          mig <- getConfigForTeam @MlsMigrationConfig tid
           now <- input
           mlsConv <- mkMLSConversation conv >>= noteS @'ConvInvalidProtocolTransition
           ok <- checkMigrationCriteria now mlsConv mig
