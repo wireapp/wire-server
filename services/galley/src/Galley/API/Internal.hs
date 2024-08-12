@@ -289,7 +289,7 @@ featureAPI =
     -- special endpoints
     <@> mkNamedAPI @'("igetmulti", SearchVisibilityInboundConfig) getFeatureMulti
     -- all features
-    <@> mkNamedAPI @"feature-configs-internal" (maybe getAllFeatureConfigsForServer getAllFeatureConfigsForUser)
+    <@> mkNamedAPI @"feature-configs-internal" (maybe getAllTeamFeaturesForServer getAllTeamFeaturesForUser)
 
 rmUser ::
   forall p1 p2 r.

@@ -22,9 +22,9 @@ module Galley.API.Teams.Features.Get
   ( getFeature,
     getFeatureInternal,
     getFeatureMulti,
-    getAllFeatureConfigsForServer,
-    getAllFeatureConfigsForTeam,
-    getAllFeatureConfigsForUser,
+    getAllTeamFeaturesForServer,
+    getAllTeamFeaturesForTeam,
+    getAllTeamFeaturesForUser,
     getSingleFeatureForUser,
     GetFeatureConfig (..),
     getFeatureForTeam,
@@ -176,7 +176,7 @@ getTeamAndCheckMembership uid = do
     assertTeamExists tid
   pure mTid
 
-getAllFeatureConfigsForTeam ::
+getAllTeamFeaturesForTeam ::
   forall r.
   ( Member (Input Opts) r,
     Member (ErrorS 'NotATeamMember) r,
@@ -186,22 +186,22 @@ getAllFeatureConfigsForTeam ::
   ) =>
   Local UserId ->
   TeamId ->
-  Sem r AllFeatureConfigs
-getAllFeatureConfigsForTeam luid tid = do
+  Sem r AllTeamFeatures
+getAllTeamFeaturesForTeam luid tid = do
   void $ getTeamMember tid (tUnqualified luid) >>= noteS @'NotATeamMember
-  getAllFeatureConfigs tid
+  getAllTeamFeatures tid
 
-class (GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) => GetAllFeatureConfigsForServerConstraints r cfg
+class (GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) => GetAllFeaturesForServerConstraints r cfg
 
-instance (GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) => GetAllFeatureConfigsForServerConstraints r cfg
+instance (GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) => GetAllFeaturesForServerConstraints r cfg
 
-getAllFeatureConfigsForServer ::
+getAllTeamFeaturesForServer ::
   forall r.
   (Member (Input Opts) r) =>
-  Sem r AllFeatureConfigs
-getAllFeatureConfigsForServer = hsequence' $ hcpure (Proxy @GetFeatureConfig) $ Comp getFeatureForServer
+  Sem r AllTeamFeatures
+getAllTeamFeaturesForServer = hsequence' $ hcpure (Proxy @GetFeatureConfig) $ Comp getFeatureForServer
 
-getAllFeatureConfigs ::
+getAllTeamFeatures ::
   forall r.
   ( Member (Input Opts) r,
     Member LegalHoldStore r,
@@ -209,11 +209,11 @@ getAllFeatureConfigs ::
     Member TeamStore r
   ) =>
   TeamId ->
-  Sem r AllFeatureConfigs
-getAllFeatureConfigs tid = do
-  features <- TeamFeatures.getAllFeatureConfigs tid
-  defFeatures <- getAllFeatureConfigsForServer
-  hsequence' $ hcliftA2 (Proxy @(GetAllFeatureConfigsForServerConstraints r)) compute defFeatures features
+  Sem r AllTeamFeatures
+getAllTeamFeatures tid = do
+  features <- TeamFeatures.getAllTeamFeatures tid
+  defFeatures <- getAllTeamFeaturesForServer
+  hsequence' $ hcliftA2 (Proxy @(GetAllFeaturesForServerConstraints r)) compute defFeatures features
   where
     compute ::
       (ComputeFeatureConstraints p r, GetFeatureConfig p) =>
@@ -222,11 +222,11 @@ getAllFeatureConfigs tid = do
       (Sem r :.: LockableFeature) p
     compute defFeature feat = Comp $ computeFeature tid defFeature feat
 
-class (GetFeatureForUserConstraints cfg r, GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) => GetAllFeatureConfigsForUserConstraints r cfg
+class (GetFeatureForUserConstraints cfg r, GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) => GetAllTeamFeaturesForUserConstraints r cfg
 
-instance (GetFeatureForUserConstraints cfg r, GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) => GetAllFeatureConfigsForUserConstraints r cfg
+instance (GetFeatureForUserConstraints cfg r, GetFeatureConfig cfg, ComputeFeatureConstraints cfg r) => GetAllTeamFeaturesForUserConstraints r cfg
 
-getAllFeatureConfigsForUser ::
+getAllTeamFeaturesForUser ::
   forall r.
   ( Member BrigAccess r,
     Member (ErrorS 'NotATeamMember) r,
@@ -238,10 +238,10 @@ getAllFeatureConfigsForUser ::
     Member TeamStore r
   ) =>
   UserId ->
-  Sem r AllFeatureConfigs
-getAllFeatureConfigsForUser uid = do
+  Sem r AllTeamFeatures
+getAllTeamFeaturesForUser uid = do
   mTid <- getTeamAndCheckMembership uid
-  hsequence' $ hcpure (Proxy @(GetAllFeatureConfigsForUserConstraints r)) $ Comp $ getFeatureForTeamUser uid mTid
+  hsequence' $ hcpure (Proxy @(GetAllTeamFeaturesForUserConstraints r)) $ Comp $ getFeatureForTeamUser uid mTid
 
 getSingleFeatureForUser ::
   forall cfg r.

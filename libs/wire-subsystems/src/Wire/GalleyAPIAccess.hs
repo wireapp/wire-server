@@ -105,9 +105,9 @@ data GalleyAPIAccess m a where
     TeamId ->
     UserId ->
     GalleyAPIAccess m Bool
-  GetAllFeatureConfigsForUser ::
+  GetAllTeamFeaturesForUser ::
     Maybe UserId ->
-    GalleyAPIAccess m AllFeatureConfigs
+    GalleyAPIAccess m AllTeamFeatures
   GetVerificationCodeEnabled ::
     TeamId ->
     GalleyAPIAccess m Bool

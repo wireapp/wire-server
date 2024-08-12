@@ -10,10 +10,10 @@ import Wire.GalleyAPIAccess
 miniGalleyAPIAccess ::
   -- | what to return when calling GetTeamMember
   Maybe TeamMember ->
-  -- | what to return when calling GetAllFeatureConfigsForUser
-  AllFeatureConfigs ->
+  -- | what to return when calling GetAllTeamFeaturesForUser
+  AllTeamFeatures ->
   InterpreterFor GalleyAPIAccess r
 miniGalleyAPIAccess member configs = interpret $ \case
   GetTeamMember _ _ -> pure member
-  GetAllFeatureConfigsForUser _ -> pure configs
+  GetAllTeamFeaturesForUser _ -> pure configs
   _ -> error "uninterpreted effect: GalleyAPIAccess"

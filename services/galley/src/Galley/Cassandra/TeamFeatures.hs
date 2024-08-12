@@ -20,7 +20,7 @@
 module Galley.Cassandra.TeamFeatures
   ( interpretTeamFeatureStoreToCassandra,
     getFeatureConfigMulti,
-    getAllFeatureConfigsForServer,
+    getAllTeamFeaturesForServer,
   )
 where
 
@@ -28,7 +28,7 @@ import Cassandra
 import Data.Id
 import Galley.API.Teams.Features.Get
 import Galley.Cassandra.FeatureTH
-import Galley.Cassandra.GetAllTeamFeatureConfigs
+import Galley.Cassandra.GetAllTeamFeatures
 import Galley.Cassandra.Instances ()
 import Galley.Cassandra.MakeFeature
 import Galley.Cassandra.Store
@@ -61,9 +61,9 @@ interpretTeamFeatureStoreToCassandra = interpret $ \case
   TFS.SetFeatureLockStatus sing tid lock -> do
     logEffect "TeamFeatureStore.SetFeatureLockStatus"
     embedClient $ setFeatureLockStatus sing tid (Tagged lock)
-  TFS.GetAllFeatureConfigs tid -> do
-    logEffect "TeamFeatureStore.GetAllFeatureConfigs"
-    embedClient $ getAllFeatureConfigs tid
+  TFS.GetAllTeamFeatures tid -> do
+    logEffect "TeamFeatureStore.GetAllTeamFeatures"
+    embedClient $ getAllTeamFeatures tid
 
 getFeatureConfigMulti ::
   forall cfg m.

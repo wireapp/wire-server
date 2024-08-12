@@ -60,8 +60,8 @@ type FeatureAPI =
     :<|> From 'V5 ::> FeatureAPIGetPut MlsMigrationConfig
     :<|> From 'V5 ::> FeatureAPIGetPut EnforceFileDownloadLocationConfig
     :<|> From 'V5 ::> FeatureAPIGet LimitedEventFanoutConfig
-    :<|> AllFeatureConfigsUserGet
-    :<|> AllFeatureConfigsTeamGet
+    :<|> AllTeamFeaturesUserGet
+    :<|> AllTeamFeaturesTeamGet
     :<|> DeprecatedFeatureAPI
     :<|> AllDeprecatedFeatureConfigAPI DeprecatedFeatureConfigs
 
@@ -205,7 +205,7 @@ type FeatureConfigDeprecatedGet desc featureConfig =
         :> Get '[Servant.JSON] (LockableFeature featureConfig)
     )
 
-type AllFeatureConfigsUserGet =
+type AllTeamFeaturesUserGet =
   Named
     "get-all-feature-configs-for-user"
     ( Summary
@@ -219,10 +219,10 @@ type AllFeatureConfigsUserGet =
         :> CanThrow OperationDenied
         :> CanThrow 'TeamNotFound
         :> "feature-configs"
-        :> Get '[Servant.JSON] AllFeatureConfigs
+        :> Get '[Servant.JSON] AllTeamFeatures
     )
 
-type AllFeatureConfigsTeamGet =
+type AllTeamFeaturesTeamGet =
   Named
     "get-all-feature-configs-for-team"
     ( Summary "Gets feature configs for a team"
@@ -234,7 +234,7 @@ type AllFeatureConfigsTeamGet =
         :> "teams"
         :> Capture "tid" TeamId
         :> "features"
-        :> Get '[JSON] AllFeatureConfigs
+        :> Get '[JSON] AllTeamFeatures
     )
 
 type SearchVisibilityGet =

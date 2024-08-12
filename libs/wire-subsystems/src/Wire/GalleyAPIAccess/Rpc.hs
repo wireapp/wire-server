@@ -82,7 +82,7 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           GetTeamSearchVisibility id' -> getTeamSearchVisibility id'
           ChangeTeamStatus id' ts m_al -> changeTeamStatus id' ts m_al
           MemberIsTeamOwner id' id'' -> memberIsTeamOwner id' id''
-          GetAllFeatureConfigsForUser m_id' -> getAllFeatureConfigsForUser m_id'
+          GetAllTeamFeaturesForUser m_id' -> getAllTeamFeaturesForUser m_id'
           GetVerificationCodeEnabled id' -> getVerificationCodeEnabled id'
           GetExposeInvitationURLsToTeamAdmin id' -> getTeamExposeInvitationURLsToTeamAdmin id'
           IsMLSOne2OneEstablished lusr qother -> checkMLSOne2OneEstablished lusr qother
@@ -456,11 +456,11 @@ getVerificationCodeEnabled tid = do
 decodeBodyOrThrow :: forall a r. (Typeable a, FromJSON a, Member (Error ParseException) r) => Text -> Response (Maybe BL.ByteString) -> Sem r a
 decodeBodyOrThrow ctx r = either (throw . ParseException ctx) pure (responseJsonEither r)
 
-getAllFeatureConfigsForUser ::
+getAllTeamFeaturesForUser ::
   (Member Rpc r, Member (Input Endpoint) r) =>
   Maybe UserId ->
-  Sem r AllFeatureConfigs
-getAllFeatureConfigsForUser mbUserId =
+  Sem r AllTeamFeatures
+getAllTeamFeaturesForUser mbUserId =
   responseJsonUnsafe
     <$> galleyRequest
       ( method GET

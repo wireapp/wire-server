@@ -474,7 +474,7 @@ hasE2EId :: (Member GalleyAPIAccess r) => StoredUser -> Sem r Bool
 hasE2EId user =
   -- FUTUREWORK(mangoiv): we should use a function 'getSingleFeatureForUser'
   (.status) . npProject @MlsE2EIdConfig
-    <$> getAllFeatureConfigsForUser (Just user.id) <&> \case
+    <$> getAllTeamFeaturesForUser (Just user.id) <&> \case
       FeatureStatusEnabled -> True
       FeatureStatusDisabled -> False
 
