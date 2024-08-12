@@ -308,7 +308,7 @@ interpretNoFederationStack ::
   (Members AllErrors r) =>
   MiniBackend ->
   Maybe TeamMember ->
-  AllFeatureConfigs ->
+  AllTeamFeatures ->
   UserSubsystemConfig ->
   Sem (MiniBackendEffects `Append` r) a ->
   Sem r a
@@ -319,7 +319,7 @@ interpretNoFederationStackState ::
   (Members AllErrors r) =>
   MiniBackend ->
   Maybe TeamMember ->
-  AllFeatureConfigs ->
+  AllTeamFeatures ->
   UserSubsystemConfig ->
   Sem (MiniBackendEffects `Append` r) a ->
   Sem r (MiniBackend, a)
@@ -330,7 +330,7 @@ interpretMaybeFederationStackState ::
   InterpreterFor (FederationAPIAccess MiniFederationMonad) (Logger (Log.Msg -> Log.Msg) : Concurrency 'Unsafe : r) ->
   MiniBackend ->
   Maybe TeamMember ->
-  AllFeatureConfigs ->
+  AllTeamFeatures ->
   UserSubsystemConfig ->
   Sem (MiniBackendEffects `Append` r) a ->
   Sem r (MiniBackend, a)

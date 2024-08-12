@@ -43,7 +43,7 @@ data TeamFeatureStore m a where
     TeamId ->
     LockStatus ->
     TeamFeatureStore m ()
-  GetAllFeatureConfigs ::
+  GetAllTeamFeatures ::
     TeamId ->
     TeamFeatureStore m (AllFeatures DbFeature)
 

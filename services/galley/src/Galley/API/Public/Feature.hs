@@ -60,8 +60,8 @@ featureAPI =
     <@> hoistAPI id featureAPIGetPut
     <@> hoistAPI id featureAPIGetPut
     <@> mkNamedAPI @'("get", LimitedEventFanoutConfig) getFeature
-    <@> mkNamedAPI @"get-all-feature-configs-for-user" getAllFeatureConfigsForUser
-    <@> mkNamedAPI @"get-all-feature-configs-for-team" getAllFeatureConfigsForTeam
+    <@> mkNamedAPI @"get-all-feature-configs-for-user" getAllTeamFeaturesForUser
+    <@> mkNamedAPI @"get-all-feature-configs-for-team" getAllTeamFeaturesForTeam
     <@> deprecatedFeatureConfigAPI
     <@> deprecatedFeatureAPI
 

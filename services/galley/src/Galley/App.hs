@@ -258,7 +258,7 @@ evalGalley e =
     . runInputConst (e ^. options)
     . runInputConst (toLocalUnsafe (e ^. options . settings . federationDomain) ())
     . interpretTeamFeatureSpecialContext e
-    . runInputSem getAllFeatureConfigsForServer
+    . runInputSem getAllTeamFeaturesForServer
     . interpretInternalTeamListToCassandra
     . interpretTeamListToCassandra
     . interpretLegacyConversationListToCassandra

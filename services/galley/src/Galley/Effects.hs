@@ -98,7 +98,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
 import Wire.API.Error
-import Wire.API.Team.Feature (AllFeatureConfigs)
+import Wire.API.Team.Feature (AllTeamFeatures)
 import Wire.GundeckAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Rpc
@@ -138,7 +138,7 @@ type GalleyEffects1 =
      ListItems LegacyPaging ConvId,
      ListItems LegacyPaging TeamId,
      ListItems InternalPaging TeamId,
-     Input AllFeatureConfigs,
+     Input AllTeamFeatures,
      Input (Maybe [TeamId], FeatureLegalHold),
      Input (Local ()),
      Input Opts,

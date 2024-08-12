@@ -62,7 +62,7 @@ import System.Logger.Class qualified as Log
 import Wire.API.Call.Config qualified as Public
 import Wire.API.Team.Feature
 import Wire.Error
-import Wire.GalleyAPIAccess (GalleyAPIAccess, getAllFeatureConfigsForUser)
+import Wire.GalleyAPIAccess (GalleyAPIAccess, getAllTeamFeaturesForUser)
 import Wire.Network.DNS.SRV (srvTarget)
 
 -- | ('UserId', 'ConnId' are required as args here to make sure this is an authenticated end-point.)
@@ -83,7 +83,7 @@ getCallsConfigV2 uid _ limit = do
   sftFederation <- view enableSFTFederation
   discoveredServers <- turnServersV2 (env ^. turnServers)
   shared <- do
-    ccStatus <- lift $ liftSem $ ((.status) . npProject @ConferenceCallingConfig <$> getAllFeatureConfigsForUser (Just uid))
+    ccStatus <- lift $ liftSem $ ((.status) . npProject @ConferenceCallingConfig <$> getAllTeamFeaturesForUser (Just uid))
     pure $ case ccStatus of
       FeatureStatusEnabled -> True
       FeatureStatusDisabled -> False
@@ -118,7 +118,7 @@ getCallsConfig uid _ = do
   env <- view turnEnv
   discoveredServers <- turnServersV1 (env ^. turnServers)
   shared <- do
-    ccStatus <- lift $ liftSem $ ((.status) . npProject @ConferenceCallingConfig <$> getAllFeatureConfigsForUser (Just uid))
+    ccStatus <- lift $ liftSem $ ((.status) . npProject @ConferenceCallingConfig <$> getAllTeamFeaturesForUser (Just uid))
     pure $ case ccStatus of
       FeatureStatusEnabled -> True
       FeatureStatusDisabled -> False

@@ -137,7 +137,7 @@ library
     Galley.Cassandra.ConversationList
     Galley.Cassandra.CustomBackend
     Galley.Cassandra.FeatureTH
-    Galley.Cassandra.GetAllTeamFeatureConfigs
+    Galley.Cassandra.GetAllTeamFeatures
     Galley.Cassandra.Instances
     Galley.Cassandra.LegalHold
     Galley.Cassandra.MakeFeature

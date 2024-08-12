@@ -79,7 +79,7 @@ module Wire.API.Team.Feature
     npProject,
     NpUpdate (..),
     npUpdate,
-    AllFeatureConfigs,
+    AllTeamFeatures,
     unImplicitLockStatus,
     ImplicitLockStatus (..),
   )
@@ -135,7 +135,7 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- the new data type. Implement type classes 'RenderableSymbol', 'ToSchema',
 -- 'IsFeatureConfig' and 'Arbitrary'.
 --
--- 2. Add the config to 'AllFeatureConfigs'.
+-- 2. Add the config to 'AllTeamFeatures'.
 --
 -- 3. If your feature is configurable on a per-team basis, add a schema
 -- migration in galley and extend 'getFeatureStatus' and similar functions in
@@ -1293,13 +1293,13 @@ type Features =
 type AllFeatures f = NP f Features
 
 -- | 'AllFeatures' specialised to the 'LockableFeature' functor
-type AllFeatureConfigs = AllFeatures LockableFeature
+type AllTeamFeatures = AllFeatures LockableFeature
 
 class (Default (LockableFeature cfg)) => LockableFeatureDefault cfg
 
 instance (Default (LockableFeature cfg)) => LockableFeatureDefault cfg
 
-instance Default AllFeatureConfigs where
+instance Default AllTeamFeatures where
   def = hcpure (Proxy @LockableFeatureDefault) def
 
 -- | object schema for nary products
@@ -1312,14 +1312,14 @@ instance HObjectSchema c '[] where
 instance (HObjectSchema c xs, c x) => HObjectSchema c ((x :: Type) : xs) where
   hobjectSchema f = (:*) <$> hd .= f <*> tl .= hobjectSchema @c @xs f
 
--- | constraint synonym  for 'ToSchema' 'AllFeatureConfigs'
+-- | constraint synonym  for 'ToSchema' 'AllTeamFeatures'
 class (IsFeatureConfig cfg, ToSchema cfg) => FeatureFieldConstraints cfg
 
 instance (IsFeatureConfig cfg, ToSchema cfg) => FeatureFieldConstraints cfg
 
-instance ToSchema AllFeatureConfigs where
+instance ToSchema AllTeamFeatures where
   schema =
-    object "AllFeatureConfigs" $ hobjectSchema @FeatureFieldConstraints featureField
+    object "AllTeamFeatures" $ hobjectSchema @FeatureFieldConstraints featureField
     where
       featureField :: forall cfg. (FeatureFieldConstraints cfg) => ObjectSchema SwaggerDoc (LockableFeature cfg)
       featureField = field (T.pack (symbolVal (Proxy @(FeatureSymbol cfg)))) schema
@@ -1328,7 +1328,7 @@ class (Arbitrary cfg, IsFeatureConfig cfg) => ArbitraryFeatureConfig cfg
 
 instance (Arbitrary cfg, IsFeatureConfig cfg) => ArbitraryFeatureConfig cfg
 
-instance Arbitrary AllFeatureConfigs where
+instance Arbitrary AllTeamFeatures where
   arbitrary = hsequence' $ hcpure (Proxy @ArbitraryFeatureConfig) (Comp arbitrary)
 
 -- | FUTUREWORK: 'NpProject' and 'NpUpdate' can be useful for more than
@@ -1367,8 +1367,8 @@ npUpdate = npUpdate' (Proxy @x)
 
 makeLenses ''ImplicitLockStatus
 
-deriving via (Schema AllFeatureConfigs) instance (FromJSON AllFeatureConfigs)
+deriving via (Schema AllTeamFeatures) instance (FromJSON AllTeamFeatures)
 
-deriving via (Schema AllFeatureConfigs) instance (ToJSON AllFeatureConfigs)
+deriving via (Schema AllTeamFeatures) instance (ToJSON AllTeamFeatures)
 
-deriving via (Schema AllFeatureConfigs) instance (S.ToSchema AllFeatureConfigs)
+deriving via (Schema AllTeamFeatures) instance (S.ToSchema AllTeamFeatures)
