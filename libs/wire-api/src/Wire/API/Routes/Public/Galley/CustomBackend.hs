@@ -18,7 +18,7 @@
 module Wire.API.Routes.Public.Galley.CustomBackend where
 
 import Data.Domain
-import Servant hiding (WithStatus)
+import Servant
 import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.CustomBackend
 import Wire.API.Error

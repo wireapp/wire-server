@@ -20,7 +20,6 @@
 module Galley.Effects.TeamFeatureStore where
 
 import Data.Id
-import Imports
 import Polysemy
 import Wire.API.Team.Feature
 
@@ -37,12 +36,8 @@ data TeamFeatureStore m a where
   SetFeatureConfig ::
     FeatureSingleton cfg ->
     TeamId ->
-    WithStatusNoLock cfg ->
+    LockableFeature cfg ->
     TeamFeatureStore m ()
-  GetFeatureLockStatus ::
-    FeatureSingleton cfg ->
-    TeamId ->
-    TeamFeatureStore m (Maybe LockStatus)
   SetFeatureLockStatus ::
     FeatureSingleton cfg ->
     TeamId ->
@@ -50,6 +45,6 @@ data TeamFeatureStore m a where
     TeamFeatureStore m ()
   GetAllFeatureConfigs ::
     TeamId ->
-    TeamFeatureStore m (AllFeatures DbFeatureWithLock)
+    TeamFeatureStore m (AllFeatures DbFeature)
 
 makeSem ''TeamFeatureStore

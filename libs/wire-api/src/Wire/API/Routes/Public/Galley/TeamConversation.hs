@@ -18,7 +18,7 @@
 module Wire.API.Routes.Public.Galley.TeamConversation where
 
 import Data.Id
-import Servant hiding (WithStatus)
+import Servant
 import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Conversation.Role
 import Wire.API.Error

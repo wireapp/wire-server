@@ -504,12 +504,12 @@ setBlacklistStatus status email = do
 
 getTeamFeatureFlag ::
   forall cfg.
-  ( Typeable (Public.WithStatus cfg),
-    FromJSON (Public.WithStatus cfg),
+  ( Typeable (Public.LockableFeature cfg),
+    FromJSON (Public.LockableFeature cfg),
     KnownSymbol (Public.FeatureSymbol cfg)
   ) =>
   TeamId ->
-  Handler (Public.WithStatus cfg)
+  Handler (Public.LockableFeature cfg)
 getTeamFeatureFlag tid = do
   info $ msg "Getting team feature status"
   gly <- view galley
@@ -518,21 +518,20 @@ getTeamFeatureFlag tid = do
           . Bilge.paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg]
   resp <- catchRpcErrors $ rpc' "galley" gly req
   case Bilge.statusCode resp of
-    200 -> pure $ responseJsonUnsafe @(Public.WithStatus cfg) resp
+    200 -> pure $ responseJsonUnsafe @(Public.LockableFeature cfg) resp
     404 -> throwE (mkError status404 "bad-upstream" "team doesnt exist")
     _ -> throwE (mkError status502 "bad-upstream" (errorMessage resp))
 
 setTeamFeatureFlag ::
   forall cfg.
-  ( ToJSON (Public.WithStatusNoLock cfg),
+  ( ToJSON (Public.Feature cfg),
     KnownSymbol (Public.FeatureSymbol cfg)
   ) =>
   TeamId ->
-  Public.WithStatusNoLock cfg ->
+  Public.Feature cfg ->
   Handler ()
 setTeamFeatureFlag tid status = do
   info $ msg "Setting team feature status"
-  checkDaysLimit (wssTTL status)
   galleyRpc $
     method PUT
       . Bilge.paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg]
@@ -541,15 +540,14 @@ setTeamFeatureFlag tid status = do
 
 patchTeamFeatureFlag ::
   forall cfg.
-  ( ToJSON (Public.WithStatusPatch cfg),
+  ( ToJSON (Public.LockableFeaturePatch cfg),
     KnownSymbol (Public.FeatureSymbol cfg)
   ) =>
   TeamId ->
-  Public.WithStatusPatch cfg ->
+  Public.LockableFeaturePatch cfg ->
   Handler ()
 patchTeamFeatureFlag tid patch = do
   info $ msg "Patching team feature status"
-  for_ (wspTTL patch) $ \ttl -> checkDaysLimit ttl
   galleyRpc $
     method PATCH
       . Bilge.paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg]
@@ -565,26 +563,6 @@ galleyRpc req = do
     404 -> throwE (mkError status404 "bad-upstream" "team does not exist")
     403 -> throwE (mkError status403 "bad-upstream" "config cannot be changed")
     _ -> throwE (mkError status502 "bad-upstream" (errorMessage resp))
-
-checkDaysLimit :: FeatureTTL -> Handler ()
-checkDaysLimit = \case
-  FeatureTTLUnlimited -> pure ()
-  FeatureTTLSeconds ((`div` (60 * 60 * 24)) -> days) -> do
-    unless (days <= daysLimit) $ do
-      throwE
-        ( mkError
-            status400
-            "bad-data"
-            ( LT.pack $
-                "ttl limit is "
-                  <> show daysLimit
-                  <> " days; I got "
-                  <> show days
-                  <> "."
-            )
-        )
-  where
-    daysLimit = 2000
 
 setTeamFeatureLockStatus ::
   forall cfg.

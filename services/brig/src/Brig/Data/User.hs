@@ -1,4 +1,5 @@
-{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -70,6 +71,7 @@ import Cassandra hiding (Set)
 import Control.Error
 import Control.Lens hiding (from)
 import Data.Conduit (ConduitM)
+import Data.Default
 import Data.Domain
 import Data.Handle (Handle)
 import Data.Id
@@ -299,9 +301,9 @@ updateManagedBy u h = retry x5 $ write userManagedByUpdate (params LocalQuorum (
 updateRichInfo :: (MonadClient m) => UserId -> RichInfoAssocList -> m ()
 updateRichInfo u ri = retry x5 $ write userRichInfoUpdate (params LocalQuorum (ri, u))
 
-updateFeatureConferenceCalling :: (MonadClient m) => UserId -> Maybe (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig) -> m (Maybe (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig))
+updateFeatureConferenceCalling :: (MonadClient m) => UserId -> Maybe (ApiFt.Feature ApiFt.ConferenceCallingConfig) -> m (Maybe (ApiFt.Feature ApiFt.ConferenceCallingConfig))
 updateFeatureConferenceCalling uid mbStatus = do
-  let flag = ApiFt.wssStatus <$> mbStatus
+  let flag = (.status) <$> mbStatus
   retry x5 $ write update (params LocalQuorum (flag, uid))
   pure mbStatus
   where
@@ -436,13 +438,13 @@ lookupServiceUsersForTeam pid sid tid =
       "SELECT user, conv FROM service_team \
       \WHERE provider = ? AND service = ? AND team = ?"
 
-lookupFeatureConferenceCalling :: (MonadClient m) => UserId -> m (Maybe (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig))
+lookupFeatureConferenceCalling :: (MonadClient m) => UserId -> m (Maybe (ApiFt.Feature ApiFt.ConferenceCallingConfig))
 lookupFeatureConferenceCalling uid = do
   let q = query1 select (params LocalQuorum (Identity uid))
   mStatusValue <- (>>= runIdentity) <$> retry x1 q
   case mStatusValue of
     Nothing -> pure Nothing
-    Just status -> pure $ Just $ ApiFt.defFeatureStatusNoLock {ApiFt.wssStatus = status}
+    Just status -> pure $ Just $ def {ApiFt.status = status}
   where
     select :: PrepQuery R (Identity UserId) (Identity (Maybe ApiFt.FeatureStatus))
     select = fromString "select feature_conference_calling from user where id = ?"

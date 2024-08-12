@@ -51,6 +51,7 @@ import Control.Error hiding (bool)
 import Control.Lens (to, view)
 import Data.ByteString.Conversion (toByteString)
 import Data.Code qualified as Code
+import Data.Default
 import Data.Handle (Handle)
 import Data.Id
 import Data.List.NonEmpty qualified as NE
@@ -134,7 +135,7 @@ verifyCode mbCode action uid = do
   (mbEmail, mbTeamId) <- getEmailAndTeamId uid
   featureEnabled <- lift $ do
     mbFeatureEnabled <- liftSem $ GalleyAPIAccess.getVerificationCodeEnabled `traverse` mbTeamId
-    pure $ fromMaybe (Public.wsStatus (Public.defFeatureStatus @Public.SndFactorPasswordChallengeConfig) == Public.FeatureStatusEnabled) mbFeatureEnabled
+    pure $ fromMaybe ((def @(Feature Public.SndFactorPasswordChallengeConfig)).status == Public.FeatureStatusEnabled) mbFeatureEnabled
   isSsoUser <- wrapHttpClientE $ Data.isSamlUser uid
   when (featureEnabled && not isSsoUser) $ do
     case (mbCode, mbEmail) of
@@ -421,8 +422,8 @@ assertLegalHoldEnabled ::
   TeamId ->
   ExceptT LegalHoldLoginError (AppT r) ()
 assertLegalHoldEnabled tid = do
-  stat <- lift $ liftSem $ GalleyAPIAccess.getTeamLegalHoldStatus tid
-  case wsStatus stat of
+  feat <- lift $ liftSem $ GalleyAPIAccess.getTeamLegalHoldStatus tid
+  case feat.status of
     FeatureStatusDisabled -> throwE LegalHoldLoginLegalHoldNotEnabled
     FeatureStatusEnabled -> pure ()
 

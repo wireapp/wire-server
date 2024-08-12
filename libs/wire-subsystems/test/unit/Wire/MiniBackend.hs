@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
+
 module Wire.MiniBackend
   ( -- * Mini backends
     MiniBackend (..),

@@ -420,6 +420,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.Event_user
     Test.Wire.API.Golden.Generated.EventType_team
     Test.Wire.API.Golden.Generated.EventType_user
+    Test.Wire.API.Golden.Generated.Feature_team
     Test.Wire.API.Golden.Generated.HandleUpdate_user
     Test.Wire.API.Golden.Generated.Invitation_team
     Test.Wire.API.Golden.Generated.InvitationCode_user
@@ -433,6 +434,8 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.ListType_team
     Test.Wire.API.Golden.Generated.Locale_user
     Test.Wire.API.Golden.Generated.LocaleUpdate_user
+    Test.Wire.API.Golden.Generated.LockableFeature_team
+    Test.Wire.API.Golden.Generated.LockableFeaturePatch_team
     Test.Wire.API.Golden.Generated.LoginCode_user
     Test.Wire.API.Golden.Generated.LoginCodeTimeout_user
     Test.Wire.API.Golden.Generated.ManagedBy_user
@@ -562,9 +565,6 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.VerifyDeleteUser_user
     Test.Wire.API.Golden.Generated.ViewLegalHoldService_team
     Test.Wire.API.Golden.Generated.ViewLegalHoldServiceInfo_team
-    Test.Wire.API.Golden.Generated.WithStatus_team
-    Test.Wire.API.Golden.Generated.WithStatusNoLock_team
-    Test.Wire.API.Golden.Generated.WithStatusPatch_team
     Test.Wire.API.Golden.Generated.Wrapped_20_22some_5fint_22_20Int_user
     Test.Wire.API.Golden.Manual
     Test.Wire.API.Golden.Manual.Activate_user
@@ -660,7 +660,6 @@ test-suite wire-api-tests
     Test.Wire.API.Run
     Test.Wire.API.Swagger
     Test.Wire.API.Team.Export
-    Test.Wire.API.Team.Feature
     Test.Wire.API.Team.Member
     Test.Wire.API.User
     Test.Wire.API.User.Auth

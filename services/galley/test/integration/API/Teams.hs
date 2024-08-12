@@ -398,9 +398,8 @@ testEnableSSOPerTeam = do
   assertTeamActivate "create team" tid
   let check :: (HasCallStack) => String -> Public.FeatureStatus -> TestM ()
       check msg enabledness = do
-        status :: Public.WithStatusNoLock Public.SSOConfig <- responseJsonUnsafe <$> (getSSOEnabledInternal tid <!! testResponse 200 Nothing)
-        let statusValue = Public.wssStatus status
-        liftIO $ assertEqual msg enabledness statusValue
+        feat :: Public.Feature Public.SSOConfig <- responseJsonUnsafe <$> (getSSOEnabledInternal tid <!! testResponse 200 Nothing)
+        liftIO $ assertEqual msg enabledness feat.status
   let putSSOEnabledInternalCheckNotImplemented :: (HasCallStack) => TestM ()
       putSSOEnabledInternalCheckNotImplemented = do
         g <- viewGalley
@@ -409,7 +408,7 @@ testEnableSSOPerTeam = do
             <$> put
               ( g
                   . paths ["i", "teams", toByteString' tid, "features", "sso"]
-                  . json (Public.WithStatusNoLock Public.FeatureStatusDisabled Public.SSOConfig Public.FeatureTTLUnlimited)
+                  . json (Public.Feature Public.FeatureStatusDisabled Public.SSOConfig)
               )
         liftIO $ do
           assertEqual "bad status" status403 (Wai.code waierr)
@@ -427,10 +426,9 @@ testEnableTeamSearchVisibilityPerTeam = do
   (tid, owner, member : _) <- Util.createBindingTeamWithMembers 2
   let check :: String -> Public.FeatureStatus -> TestM ()
       check msg enabledness = do
-        status :: Public.WithStatusNoLock Public.SearchVisibilityAvailableConfig <- responseJsonUnsafe <$> (Util.getTeamFeatureInternal @Public.SearchVisibilityAvailableConfig tid <!! testResponse 200 Nothing)
-        let statusValue = Public.wssStatus status
+        feat :: Public.Feature Public.SearchVisibilityAvailableConfig <- responseJsonUnsafe <$> (Util.getTeamFeatureInternal @Public.SearchVisibilityAvailableConfig tid <!! testResponse 200 Nothing)
 
-        liftIO $ assertEqual msg enabledness statusValue
+        liftIO $ assertEqual msg enabledness feat.status
   let putSearchVisibilityCheckNotAllowed :: TestM ()
       putSearchVisibilityCheckNotAllowed = do
         g <- viewGalley
@@ -1134,7 +1132,7 @@ generateVerificationCode req = do
 setTeamSndFactorPasswordChallenge :: TeamId -> Public.FeatureStatus -> TestM ()
 setTeamSndFactorPasswordChallenge tid status = do
   g <- viewGalley
-  let js = RequestBodyLBS $ encode $ Public.WithStatusNoLock status Public.SndFactorPasswordChallengeConfig Public.FeatureTTLUnlimited
+  let js = RequestBodyLBS $ encode $ Public.Feature status Public.SndFactorPasswordChallengeConfig
   put (g . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @Public.SndFactorPasswordChallengeConfig] . contentJson . body js) !!! const 200 === statusCode
 
 getVerificationCode :: UserId -> Public.VerificationAction -> TestM Code.Value
@@ -1745,7 +1743,7 @@ getSSOEnabledInternal = Util.getTeamFeatureInternal @Public.SSOConfig
 
 putSSOEnabledInternal :: (HasCallStack) => TeamId -> Public.FeatureStatus -> TestM ()
 putSSOEnabledInternal tid statusValue =
-  void $ Util.putTeamFeatureInternal @Public.SSOConfig expect2xx tid (Public.WithStatusNoLock statusValue Public.SSOConfig Public.FeatureTTLUnlimited)
+  void $ Util.putTeamFeatureInternal @Public.SSOConfig expect2xx tid (Public.Feature statusValue Public.SSOConfig)
 
 getSearchVisibility :: (HasCallStack) => (Request -> Request) -> UserId -> TeamId -> (MonadHttp m) => m ResponseLBS
 getSearchVisibility g uid tid = do

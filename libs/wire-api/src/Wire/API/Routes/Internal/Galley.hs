@@ -24,7 +24,7 @@ import Data.OpenApi (OpenApi, info, title)
 import Data.Range
 import GHC.TypeLits (AppendSymbol)
 import Imports hiding (head)
-import Servant hiding (WithStatus)
+import Servant
 import Servant.OpenApi
 import Wire.API.ApplyMods
 import Wire.API.Bot
@@ -410,8 +410,8 @@ type FeatureStatusBasePutInternal errs featureConfig =
     (AppendSymbol "Put config for " (FeatureSymbol featureConfig))
     errs
     featureConfig
-    ( ReqBody '[JSON] (WithStatusNoLock featureConfig)
-        :> Put '[JSON] (WithStatus featureConfig)
+    ( ReqBody '[JSON] (Feature featureConfig)
+        :> Put '[JSON] (LockableFeature featureConfig)
     )
 
 type FeatureStatusBasePatchInternal errs featureConfig =
@@ -419,8 +419,8 @@ type FeatureStatusBasePatchInternal errs featureConfig =
     (AppendSymbol "Patch config for " (FeatureSymbol featureConfig))
     errs
     featureConfig
-    ( ReqBody '[JSON] (WithStatusPatch featureConfig)
-        :> Patch '[JSON] (WithStatus featureConfig)
+    ( ReqBody '[JSON] (LockableFeaturePatch featureConfig)
+        :> Patch '[JSON] (LockableFeature featureConfig)
     )
 
 type FeatureStatusBaseInternal desc errs featureConfig a =

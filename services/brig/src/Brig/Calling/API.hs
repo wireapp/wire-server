@@ -83,7 +83,7 @@ getCallsConfigV2 uid _ limit = do
   sftFederation <- view enableSFTFederation
   discoveredServers <- turnServersV2 (env ^. turnServers)
   shared <- do
-    ccStatus <- lift $ liftSem $ (wsStatus . afcConferenceCalling <$> getAllFeatureConfigsForUser (Just uid))
+    ccStatus <- lift $ liftSem $ ((.status) . npProject @ConferenceCallingConfig <$> getAllFeatureConfigsForUser (Just uid))
     pure $ case ccStatus of
       FeatureStatusEnabled -> True
       FeatureStatusDisabled -> False
@@ -118,7 +118,7 @@ getCallsConfig uid _ = do
   env <- view turnEnv
   discoveredServers <- turnServersV1 (env ^. turnServers)
   shared <- do
-    ccStatus <- lift $ liftSem $ (wsStatus . afcConferenceCalling <$> getAllFeatureConfigsForUser (Just uid))
+    ccStatus <- lift $ liftSem $ ((.status) . npProject @ConferenceCallingConfig <$> getAllFeatureConfigsForUser (Just uid))
     pure $ case ccStatus of
       FeatureStatusEnabled -> True
       FeatureStatusDisabled -> False

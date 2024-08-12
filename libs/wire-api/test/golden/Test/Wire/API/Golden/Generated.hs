@@ -86,6 +86,7 @@ import Test.Wire.API.Golden.Generated.Event_conversation qualified
 import Test.Wire.API.Golden.Generated.Event_featureConfig qualified
 import Test.Wire.API.Golden.Generated.Event_team qualified
 import Test.Wire.API.Golden.Generated.Event_user qualified
+import Test.Wire.API.Golden.Generated.Feature_team qualified
 import Test.Wire.API.Golden.Generated.HandleUpdate_user qualified
 import Test.Wire.API.Golden.Generated.InvitationCode_user qualified
 import Test.Wire.API.Golden.Generated.InvitationList_team qualified
@@ -99,6 +100,8 @@ import Test.Wire.API.Golden.Generated.LimitedQualifiedUserIdList_user qualified
 import Test.Wire.API.Golden.Generated.ListType_team qualified
 import Test.Wire.API.Golden.Generated.LocaleUpdate_user qualified
 import Test.Wire.API.Golden.Generated.Locale_user qualified
+import Test.Wire.API.Golden.Generated.LockableFeaturePatch_team qualified
+import Test.Wire.API.Golden.Generated.LockableFeature_team qualified
 import Test.Wire.API.Golden.Generated.LoginCodeTimeout_user qualified
 import Test.Wire.API.Golden.Generated.LoginCode_user qualified
 import Test.Wire.API.Golden.Generated.ManagedBy_user qualified
@@ -227,9 +230,6 @@ import Test.Wire.API.Golden.Generated.VerificationAction_user qualified
 import Test.Wire.API.Golden.Generated.VerifyDeleteUser_user qualified
 import Test.Wire.API.Golden.Generated.ViewLegalHoldServiceInfo_team qualified
 import Test.Wire.API.Golden.Generated.ViewLegalHoldService_team qualified
-import Test.Wire.API.Golden.Generated.WithStatusNoLock_team qualified
-import Test.Wire.API.Golden.Generated.WithStatusPatch_team qualified
-import Test.Wire.API.Golden.Generated.WithStatus_team qualified
 import Test.Wire.API.Golden.Generated.Wrapped_20_22some_5fint_22_20Int_user qualified
 import Test.Wire.API.Golden.Runner
 import Wire.API.Routes.Version
@@ -1181,110 +1181,110 @@ tests =
               "testObject_TeamConversationList_team_2.json"
             )
           ],
-      testGroup "Golden: WithStatusNoLock_team 1" $
+      testGroup "Golden: Feature_team 1" $
         testObjects
-          [ (Test.Wire.API.Golden.Generated.WithStatusNoLock_team.testObject_WithStatusNoLock_team_1, "testObject_WithStatusNoLock_team_1.json"),
-            (Test.Wire.API.Golden.Generated.WithStatusNoLock_team.testObject_WithStatusNoLock_team_2, "testObject_WithStatusNoLock_team_2.json"),
-            (Test.Wire.API.Golden.Generated.WithStatusNoLock_team.testObject_WithStatusNoLock_team_3, "testObject_WithStatusNoLock_team_3.json")
+          [ (Test.Wire.API.Golden.Generated.Feature_team.testObject_Feature_team_1, "testObject_Feature_team_1.json"),
+            (Test.Wire.API.Golden.Generated.Feature_team.testObject_Feature_team_2, "testObject_Feature_team_2.json"),
+            (Test.Wire.API.Golden.Generated.Feature_team.testObject_Feature_team_3, "testObject_Feature_team_3.json")
           ],
-      testGroup "Golden: WithStatusNoLock_team 2" $
+      testGroup "Golden: Feature_team 2" $
         testObjects
-          [ (Test.Wire.API.Golden.Generated.WithStatusNoLock_team.testObject_WithStatusNoLock_team_4, "testObject_WithStatusNoLock_team_4.json"),
-            (Test.Wire.API.Golden.Generated.WithStatusNoLock_team.testObject_WithStatusNoLock_team_5, "testObject_WithStatusNoLock_team_5.json"),
-            (Test.Wire.API.Golden.Generated.WithStatusNoLock_team.testObject_WithStatusNoLock_team_6, "testObject_WithStatusNoLock_team_6.json")
+          [ (Test.Wire.API.Golden.Generated.Feature_team.testObject_Feature_team_4, "testObject_Feature_team_4.json"),
+            (Test.Wire.API.Golden.Generated.Feature_team.testObject_Feature_team_5, "testObject_Feature_team_5.json"),
+            (Test.Wire.API.Golden.Generated.Feature_team.testObject_Feature_team_6, "testObject_Feature_team_6.json")
           ],
-      testGroup "Golden: WithStatusNoLock_team 3" $
+      testGroup "Golden: Feature_team 3" $
         testObjects
-          [ (Test.Wire.API.Golden.Generated.WithStatusNoLock_team.testObject_WithStatusNoLock_team_7, "testObject_WithStatusNoLock_team_7.json"),
-            (Test.Wire.API.Golden.Generated.WithStatusNoLock_team.testObject_WithStatusNoLock_team_8, "testObject_WithStatusNoLock_team_8.json"),
-            (Test.Wire.API.Golden.Generated.WithStatusNoLock_team.testObject_WithStatusNoLock_team_9, "testObject_WithStatusNoLock_team_9.json")
+          [ (Test.Wire.API.Golden.Generated.Feature_team.testObject_Feature_team_7, "testObject_Feature_team_7.json"),
+            (Test.Wire.API.Golden.Generated.Feature_team.testObject_Feature_team_8, "testObject_Feature_team_8.json"),
+            (Test.Wire.API.Golden.Generated.Feature_team.testObject_Feature_team_9, "testObject_Feature_team_9.json")
           ],
-      testGroup "Golden: WithStatusNoLock_team 4" $
+      testGroup "Golden: Feature_team 4" $
         testObjects
-          [ (Test.Wire.API.Golden.Generated.WithStatusNoLock_team.testObject_WithStatusNoLock_team_10, "testObject_WithStatusNoLock_team_10.json")
+          [ (Test.Wire.API.Golden.Generated.Feature_team.testObject_Feature_team_10, "testObject_Feature_team_10.json")
           ],
-      testGroup "Golden: WithStatusNoLock_team 5" $
+      testGroup "Golden: Feature_team 5" $
         testObjects
-          [ (Test.Wire.API.Golden.Generated.WithStatusNoLock_team.testObject_WithStatusNoLock_team_11, "testObject_WithStatusNoLock_team_11.json")
+          [ (Test.Wire.API.Golden.Generated.Feature_team.testObject_Feature_team_11, "testObject_Feature_team_11.json")
           ],
-      testGroup "Golden: WithStatusNoLock_team 6" $
+      testGroup "Golden: Feature_team 6" $
         testObjects
-          [ (Test.Wire.API.Golden.Generated.WithStatusNoLock_team.testObject_WithStatusNoLock_team_12, "testObject_WithStatusNoLock_team_12.json")
+          [ (Test.Wire.API.Golden.Generated.Feature_team.testObject_Feature_team_12, "testObject_Feature_team_12.json")
           ],
-      testGroup "Golden: WithStatusNoLock_team 7" $
+      testGroup "Golden: Feature_team 7" $
         testObjects
-          [ (Test.Wire.API.Golden.Generated.WithStatusNoLock_team.testObject_WithStatusNoLock_team_13, "testObject_WithStatusNoLock_team_13.json")
+          [ (Test.Wire.API.Golden.Generated.Feature_team.testObject_Feature_team_13, "testObject_Feature_team_13.json")
           ],
-      testGroup "Golden: WithStatusNoLock_team 8" $
+      testGroup "Golden: Feature_team 8" $
         testObjects
-          [ (Test.Wire.API.Golden.Generated.WithStatusNoLock_team.testObject_WithStatusNoLock_team_14, "testObject_WithStatusNoLock_team_14.json")
+          [ (Test.Wire.API.Golden.Generated.Feature_team.testObject_Feature_team_14, "testObject_Feature_team_14.json")
           ],
-      testGroup "Golden: WithStatusNoLock_team 9" $
+      testGroup "Golden: Feature_team 9" $
         testObjects
-          [ (Test.Wire.API.Golden.Generated.WithStatusNoLock_team.testObject_WithStatusNoLock_team_15, "testObject_WithStatusNoLock_team_15.json")
+          [ (Test.Wire.API.Golden.Generated.Feature_team.testObject_Feature_team_15, "testObject_Feature_team_15.json")
           ],
-      testGroup "Golden: WithStatusNoLock_team 10" $
+      testGroup "Golden: Feature_team 10" $
         testObjects
-          [ (Test.Wire.API.Golden.Generated.WithStatusNoLock_team.testObject_WithStatusNoLock_team_16, "testObject_WithStatusNoLock_team_16.json")
+          [ (Test.Wire.API.Golden.Generated.Feature_team.testObject_Feature_team_16, "testObject_Feature_team_16.json")
           ],
-      testGroup "Golden: WithStatusNoLock_team 11" $
+      testGroup "Golden: Feature_team 11" $
         testObjects
-          [ (Test.Wire.API.Golden.Generated.WithStatusNoLock_team.testObject_WithStatusNoLock_team_17, "testObject_WithStatusNoLock_team_17.json")
+          [ (Test.Wire.API.Golden.Generated.Feature_team.testObject_Feature_team_17, "testObject_Feature_team_17.json")
           ],
-      testGroup "Golden: WithStatus_team 1" $
+      testGroup "Golden: LockableFeature_team 1" $
         testObjects
-          [ (Test.Wire.API.Golden.Generated.WithStatus_team.testObject_WithStatus_team_1, "testObject_WithStatus_team_1.json"),
-            (Test.Wire.API.Golden.Generated.WithStatus_team.testObject_WithStatus_team_2, "testObject_WithStatus_team_2.json"),
-            (Test.Wire.API.Golden.Generated.WithStatus_team.testObject_WithStatus_team_3, "testObject_WithStatus_team_3.json")
+          [ (Test.Wire.API.Golden.Generated.LockableFeature_team.testObject_LockableFeature_team_1, "testObject_LockableFeature_team_1.json"),
+            (Test.Wire.API.Golden.Generated.LockableFeature_team.testObject_LockableFeature_team_2, "testObject_LockableFeature_team_2.json"),
+            (Test.Wire.API.Golden.Generated.LockableFeature_team.testObject_LockableFeature_team_3, "testObject_LockableFeature_team_3.json")
           ],
-      testGroup "Golden: WithStatus_team 2" $
+      testGroup "Golden: LockableFeature_team 2" $
         testObjects
-          [ (Test.Wire.API.Golden.Generated.WithStatus_team.testObject_WithStatus_team_4, "testObject_WithStatus_team_4.json"),
-            (Test.Wire.API.Golden.Generated.WithStatus_team.testObject_WithStatus_team_5, "testObject_WithStatus_team_5.json"),
-            (Test.Wire.API.Golden.Generated.WithStatus_team.testObject_WithStatus_team_6, "testObject_WithStatus_team_6.json")
+          [ (Test.Wire.API.Golden.Generated.LockableFeature_team.testObject_LockableFeature_team_4, "testObject_LockableFeature_team_4.json"),
+            (Test.Wire.API.Golden.Generated.LockableFeature_team.testObject_LockableFeature_team_5, "testObject_LockableFeature_team_5.json"),
+            (Test.Wire.API.Golden.Generated.LockableFeature_team.testObject_LockableFeature_team_6, "testObject_LockableFeature_team_6.json")
           ],
-      testGroup "Golden: WithStatus_team 3" $
+      testGroup "Golden: LockableFeature_team 3" $
         testObjects
-          [ (Test.Wire.API.Golden.Generated.WithStatus_team.testObject_WithStatus_team_7, "testObject_WithStatus_team_7.json"),
-            (Test.Wire.API.Golden.Generated.WithStatus_team.testObject_WithStatus_team_8, "testObject_WithStatus_team_8.json"),
-            (Test.Wire.API.Golden.Generated.WithStatus_team.testObject_WithStatus_team_9, "testObject_WithStatus_team_9.json")
+          [ (Test.Wire.API.Golden.Generated.LockableFeature_team.testObject_LockableFeature_team_7, "testObject_LockableFeature_team_7.json"),
+            (Test.Wire.API.Golden.Generated.LockableFeature_team.testObject_LockableFeature_team_8, "testObject_LockableFeature_team_8.json"),
+            (Test.Wire.API.Golden.Generated.LockableFeature_team.testObject_LockableFeature_team_9, "testObject_LockableFeature_team_9.json")
           ],
-      testGroup "Golden: WithStatus_team 4" $
+      testGroup "Golden: LockableFeature_team 4" $
         testObjects
-          [ (Test.Wire.API.Golden.Generated.WithStatus_team.testObject_WithStatus_team_10, "testObject_WithStatus_team_10.json")
+          [ (Test.Wire.API.Golden.Generated.LockableFeature_team.testObject_LockableFeature_team_10, "testObject_LockableFeature_team_10.json")
           ],
-      testGroup "Golden: WithStatus_team 5" $
+      testGroup "Golden: LockableFeature_team 5" $
         testObjects
-          [ (Test.Wire.API.Golden.Generated.WithStatus_team.testObject_WithStatus_team_11, "testObject_WithStatus_team_11.json")
+          [ (Test.Wire.API.Golden.Generated.LockableFeature_team.testObject_LockableFeature_team_11, "testObject_LockableFeature_team_11.json")
           ],
-      testGroup "Golden: WithStatus_team 6" $
+      testGroup "Golden: LockableFeature_team 6" $
         testObjects
-          [ (Test.Wire.API.Golden.Generated.WithStatus_team.testObject_WithStatus_team_12, "testObject_WithStatus_team_12.json")
+          [ (Test.Wire.API.Golden.Generated.LockableFeature_team.testObject_LockableFeature_team_12, "testObject_LockableFeature_team_12.json")
           ],
-      testGroup "Golden: WithStatus_team 7" $
+      testGroup "Golden: LockableFeature_team 7" $
         testObjects
-          [ (Test.Wire.API.Golden.Generated.WithStatus_team.testObject_WithStatus_team_13, "testObject_WithStatus_team_13.json")
+          [ (Test.Wire.API.Golden.Generated.LockableFeature_team.testObject_LockableFeature_team_13, "testObject_LockableFeature_team_13.json")
           ],
-      testGroup "Golden: WithStatus_team 8" $
+      testGroup "Golden: LockableFeature_team 8" $
         testObjects
-          [ (Test.Wire.API.Golden.Generated.WithStatus_team.testObject_WithStatus_team_14, "testObject_WithStatus_team_14.json")
+          [ (Test.Wire.API.Golden.Generated.LockableFeature_team.testObject_LockableFeature_team_14, "testObject_LockableFeature_team_14.json")
           ],
-      testGroup "Golden: WithStatus_team 9" $
+      testGroup "Golden: LockableFeature_team 9" $
         testObjects
-          [ (Test.Wire.API.Golden.Generated.WithStatus_team.testObject_WithStatus_team_15, "testObject_WithStatus_team_15.json")
+          [ (Test.Wire.API.Golden.Generated.LockableFeature_team.testObject_LockableFeature_team_15, "testObject_LockableFeature_team_15.json")
           ],
-      testGroup "Golden: WithStatus_team 10" $
+      testGroup "Golden: LockableFeature_team 10" $
         testObjects
-          [ (Test.Wire.API.Golden.Generated.WithStatus_team.testObject_WithStatus_team_16, "testObject_WithStatus_team_16.json")
+          [ (Test.Wire.API.Golden.Generated.LockableFeature_team.testObject_LockableFeature_team_16, "testObject_LockableFeature_team_16.json")
           ],
-      testGroup "Golden: WithStatus_team 11" $
+      testGroup "Golden: LockableFeature_team 11" $
         testObjects
-          [ (Test.Wire.API.Golden.Generated.WithStatus_team.testObject_WithStatus_team_17, "testObject_WithStatus_team_17.json")
+          [ (Test.Wire.API.Golden.Generated.LockableFeature_team.testObject_LockableFeature_team_17, "testObject_LockableFeature_team_17.json")
           ],
-      testGroup "Golden: WithStatus_team 12" $
+      testGroup "Golden: LockableFeature_team 12" $
         testObjects
-          [ (Test.Wire.API.Golden.Generated.WithStatus_team.testObject_WithStatus_team_18, "testObject_WithStatus_team_18.json"),
-            (Test.Wire.API.Golden.Generated.WithStatus_team.testObject_WithStatus_team_19, "testObject_WithStatus_team_19.json")
+          [ (Test.Wire.API.Golden.Generated.LockableFeature_team.testObject_LockableFeature_team_18, "testObject_LockableFeature_team_18.json"),
+            (Test.Wire.API.Golden.Generated.LockableFeature_team.testObject_LockableFeature_team_19, "testObject_LockableFeature_team_19.json")
           ],
       testGroup "Golden: InvitationRequest_team" $
         testObjects [(Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_1, "testObject_InvitationRequest_team_1.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_2, "testObject_InvitationRequest_team_2.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_3, "testObject_InvitationRequest_team_3.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_4, "testObject_InvitationRequest_team_4.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_5, "testObject_InvitationRequest_team_5.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_6, "testObject_InvitationRequest_team_6.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_7, "testObject_InvitationRequest_team_7.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_8, "testObject_InvitationRequest_team_8.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_9, "testObject_InvitationRequest_team_9.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_10, "testObject_InvitationRequest_team_10.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_11, "testObject_InvitationRequest_team_11.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_12, "testObject_InvitationRequest_team_12.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_13, "testObject_InvitationRequest_team_13.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_14, "testObject_InvitationRequest_team_14.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_15, "testObject_InvitationRequest_team_15.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_16, "testObject_InvitationRequest_team_16.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_17, "testObject_InvitationRequest_team_17.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_18, "testObject_InvitationRequest_team_18.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_19, "testObject_InvitationRequest_team_19.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_20, "testObject_InvitationRequest_team_20.json")],
@@ -1339,81 +1339,81 @@ tests =
             (Test.Wire.API.Golden.Generated.VerificationAction_user.testObject_VerificationAction_user_3, "testObject_VerificationAction_user_3")
           ],
       testGroup
-        "Golden: WithStatusPatch_team 1"
+        "Golden: LockableFeaturePatch_team 1"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_1, "testObject_WithStatusPatch_team_1.json")],
+          [(Test.Wire.API.Golden.Generated.LockableFeaturePatch_team.testObject_LockableFeaturePatch_team_1, "testObject_LockableFeaturePatch_team_1.json")],
       testGroup
-        "Golden: WithStatusPatch_team 2"
+        "Golden: LockableFeaturePatch_team 2"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_2, "testObject_WithStatusPatch_team_2.json")],
+          [(Test.Wire.API.Golden.Generated.LockableFeaturePatch_team.testObject_LockableFeaturePatch_team_2, "testObject_LockableFeaturePatch_team_2.json")],
       testGroup
-        "Golden: WithStatusPatch_team 3"
+        "Golden: LockableFeaturePatch_team 3"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_3, "testObject_WithStatusPatch_team_3.json")],
+          [(Test.Wire.API.Golden.Generated.LockableFeaturePatch_team.testObject_LockableFeaturePatch_team_3, "testObject_LockableFeaturePatch_team_3.json")],
       testGroup
-        "Golden: WithStatusPatch_team 4"
+        "Golden: LockableFeaturePatch_team 4"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_4, "testObject_WithStatusPatch_team_4.json")],
+          [(Test.Wire.API.Golden.Generated.LockableFeaturePatch_team.testObject_LockableFeaturePatch_team_4, "testObject_LockableFeaturePatch_team_4.json")],
       testGroup
-        "Golden: WithStatusPatch_team 5"
+        "Golden: LockableFeaturePatch_team 5"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_5, "testObject_WithStatusPatch_team_5.json")],
+          [(Test.Wire.API.Golden.Generated.LockableFeaturePatch_team.testObject_LockableFeaturePatch_team_5, "testObject_LockableFeaturePatch_team_5.json")],
       testGroup
-        "Golden: WithStatusPatch_team 6"
+        "Golden: LockableFeaturePatch_team 6"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_6, "testObject_WithStatusPatch_team_6.json")],
+          [(Test.Wire.API.Golden.Generated.LockableFeaturePatch_team.testObject_LockableFeaturePatch_team_6, "testObject_LockableFeaturePatch_team_6.json")],
       testGroup
-        "Golden: WithStatusPatch_team 7"
+        "Golden: LockableFeaturePatch_team 7"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_7, "testObject_WithStatusPatch_team_7.json")],
+          [(Test.Wire.API.Golden.Generated.LockableFeaturePatch_team.testObject_LockableFeaturePatch_team_7, "testObject_LockableFeaturePatch_team_7.json")],
       testGroup
-        "Golden: WithStatusPatch_team 8"
+        "Golden: LockableFeaturePatch_team 8"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_8, "testObject_WithStatusPatch_team_8.json")],
+          [(Test.Wire.API.Golden.Generated.LockableFeaturePatch_team.testObject_LockableFeaturePatch_team_8, "testObject_LockableFeaturePatch_team_8.json")],
       testGroup
-        "Golden: WithStatusPatch_team 9"
+        "Golden: LockableFeaturePatch_team 9"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_9, "testObject_WithStatusPatch_team_9.json")],
+          [(Test.Wire.API.Golden.Generated.LockableFeaturePatch_team.testObject_LockableFeaturePatch_team_9, "testObject_LockableFeaturePatch_team_9.json")],
       testGroup
-        "Golden: WithStatusPatch_team 10"
+        "Golden: LockableFeaturePatch_team 10"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_10, "testObject_WithStatusPatch_team_10.json")],
+          [(Test.Wire.API.Golden.Generated.LockableFeaturePatch_team.testObject_LockableFeaturePatch_team_10, "testObject_LockableFeaturePatch_team_10.json")],
       testGroup
-        "Golden: WithStatusPatch_team 11"
+        "Golden: LockableFeaturePatch_team 11"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_11, "testObject_WithStatusPatch_team_11.json")],
+          [(Test.Wire.API.Golden.Generated.LockableFeaturePatch_team.testObject_LockableFeaturePatch_team_11, "testObject_LockableFeaturePatch_team_11.json")],
       testGroup
-        "Golden: WithStatusPatch_team 12"
+        "Golden: LockableFeaturePatch_team 12"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_12, "testObject_WithStatusPatch_team_12.json")],
+          [(Test.Wire.API.Golden.Generated.LockableFeaturePatch_team.testObject_LockableFeaturePatch_team_12, "testObject_LockableFeaturePatch_team_12.json")],
       testGroup
-        "Golden: WithStatusPatch_team 13"
+        "Golden: LockableFeaturePatch_team 13"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_13, "testObject_WithStatusPatch_team_13.json")],
+          [(Test.Wire.API.Golden.Generated.LockableFeaturePatch_team.testObject_LockableFeaturePatch_team_13, "testObject_LockableFeaturePatch_team_13.json")],
       testGroup
-        "Golden: WithStatusPatch_team 14"
+        "Golden: LockableFeaturePatch_team 14"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_14, "testObject_WithStatusPatch_team_14.json")],
+          [(Test.Wire.API.Golden.Generated.LockableFeaturePatch_team.testObject_LockableFeaturePatch_team_14, "testObject_LockableFeaturePatch_team_14.json")],
       testGroup
-        "Golden: WithStatusPatch_team 15"
+        "Golden: LockableFeaturePatch_team 15"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_15, "testObject_WithStatusPatch_team_15.json")],
+          [(Test.Wire.API.Golden.Generated.LockableFeaturePatch_team.testObject_LockableFeaturePatch_team_15, "testObject_LockableFeaturePatch_team_15.json")],
       testGroup
-        "Golden: WithStatusPatch_team 16"
+        "Golden: LockableFeaturePatch_team 16"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_16, "testObject_WithStatusPatch_team_16.json")],
+          [(Test.Wire.API.Golden.Generated.LockableFeaturePatch_team.testObject_LockableFeaturePatch_team_16, "testObject_LockableFeaturePatch_team_16.json")],
       testGroup
-        "Golden: WithStatusPatch_team 17"
+        "Golden: LockableFeaturePatch_team 17"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_17, "testObject_WithStatusPatch_team_17.json")],
+          [(Test.Wire.API.Golden.Generated.LockableFeaturePatch_team.testObject_LockableFeaturePatch_team_17, "testObject_LockableFeaturePatch_team_17.json")],
       testGroup
-        "Golden: WithStatusPatch_team 18"
+        "Golden: LockableFeaturePatch_team 18"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_18, "testObject_WithStatusPatch_team_18.json")],
+          [(Test.Wire.API.Golden.Generated.LockableFeaturePatch_team.testObject_LockableFeaturePatch_team_18, "testObject_LockableFeaturePatch_team_18.json")],
       testGroup
-        "Golden: WithStatusPatch_team 19"
+        "Golden: LockableFeaturePatch_team 19"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_19, "testObject_WithStatusPatch_team_19.json")],
+          [(Test.Wire.API.Golden.Generated.LockableFeaturePatch_team.testObject_LockableFeaturePatch_team_19, "testObject_LockableFeaturePatch_team_19.json")],
       testGroup
         "Golden: Event_FeatureConfig"
         $ testObjects

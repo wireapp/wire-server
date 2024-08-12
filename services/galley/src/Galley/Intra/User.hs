@@ -238,7 +238,7 @@ getRichInfoMultiUser = chunkify $ \uids -> do
         . expect2xx
   parseResponse (mkError status502 "server-error: could not parse response to `GET brig:/i/users/rich-info`") resp
 
-getAccountConferenceCallingConfigClient :: (HasCallStack) => UserId -> App (WithStatusNoLock ConferenceCallingConfig)
+getAccountConferenceCallingConfigClient :: (HasCallStack) => UserId -> App (Feature ConferenceCallingConfig)
 getAccountConferenceCallingConfigClient uid =
   runHereClientM (namedClient @IAPI.API @"get-account-conference-calling-config" uid)
     >>= handleServantResp

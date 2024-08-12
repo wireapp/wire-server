@@ -92,7 +92,7 @@ data GalleyAPIAccess m a where
     GalleyAPIAccess m Team.TeamName
   GetTeamLegalHoldStatus ::
     TeamId ->
-    GalleyAPIAccess m (WithStatus LegalholdConfig)
+    GalleyAPIAccess m (LockableFeature LegalholdConfig)
   GetTeamSearchVisibility ::
     TeamId ->
     GalleyAPIAccess m TeamSearchVisibility

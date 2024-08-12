@@ -221,9 +221,12 @@ spec = describe "UserSubsystem.Interpreter" do
               getSelfProfile (toLocalUnsafe domain selfId)
        in retrievedProfile === Nothing
 
-    prop "should mark user as managed by scim if E2EId is enabled for the user and they have a handle" \storedSelf domain susbsystemConfig mlsE2EIdConfig ->
+    prop "should mark user as managed by scim if E2EId is enabled for the user and they have a handle" \storedSelf domain susbsystemConfig (mlsE2EIdConfig :: MlsE2EIdConfig) ->
       let localBackend = def {users = [storedSelf]}
-          allFeatureConfigs = def {afcMlsE2EId = withStatus FeatureStatusEnabled LockStatusUnlocked mlsE2EIdConfig FeatureTTLUnlimited}
+          allFeatureConfigs =
+            npUpdate
+              (LockableFeature FeatureStatusEnabled LockStatusUnlocked mlsE2EIdConfig)
+              def
           SelfProfile retrievedUser =
             fromJust
               . runAllErrorsUnsafe
@@ -326,9 +329,21 @@ spec = describe "UserSubsystem.Interpreter" do
                 run
                   . runErrorUnsafe
                   . runError
-                  $ interpretNoFederationStack localBackend Nothing def {afcMlsE2EId = setStatus FeatureStatusEnabled defFeatureStatus} config do
-                    updateUserProfile lusr Nothing UpdateOriginScim (def {name = Just newName})
-                    getUserProfile lusr (tUntagged lusr)
+                  $ interpretNoFederationStack
+                    localBackend
+                    Nothing
+                    ( npUpdate
+                        ( def
+                            { status = FeatureStatusEnabled
+                            } ::
+                            LockableFeature MlsE2EIdConfig
+                        )
+                        def
+                    )
+                    config
+                    do
+                      updateUserProfile lusr Nothing UpdateOriginScim (def {name = Just newName})
+                      getUserProfile lusr (tUntagged lusr)
            in profileErr === Left UserSubsystemDisplayNameManagedByScim
 
     prop
