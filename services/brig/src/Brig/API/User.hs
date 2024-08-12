@@ -40,7 +40,6 @@ module Brig.API.User
     Data.lookupRichInfo,
     Data.lookupRichInfoMultiUsers,
     removeEmail,
-    removePhone,
     revokeIdentity,
     deleteUserNoVerify,
     deleteUsersNoVerify,
@@ -277,7 +276,7 @@ createUser ::
   NewUser ->
   ExceptT RegisterError (AppT r) CreateUserResult
 createUser new = do
-  email <- validateEmailAndPhone new
+  email <- fetchAndValidateEmail new
 
   -- get invitation and existing account
   (mNewTeamUser, teamInvitation, tid) <-
@@ -374,8 +373,8 @@ createUser new = do
   where
     -- NOTE: all functions in the where block don't use any arguments of createUser
 
-    validateEmailAndPhone :: NewUser -> ExceptT RegisterError (AppT r) (Maybe Email)
-    validateEmailAndPhone newUser = do
+    fetchAndValidateEmail :: NewUser -> ExceptT RegisterError (AppT r) (Maybe Email)
+    fetchAndValidateEmail newUser = do
       -- Validate e-mail
       email <- for (newUserEmail newUser) $ \e ->
         either
@@ -607,11 +606,6 @@ removeEmail uid = do
     Nothing -> throwE NoIdentity
 
 -------------------------------------------------------------------------------
--- Remove Phone
-
--- | Phones are not supported any longer.
-removePhone :: UserId -> ExceptT RemoveIdentityError (AppT r) ()
-removePhone _uid = pure ()
 
 -------------------------------------------------------------------------------
 -- Forcefully revoke a verified identity
@@ -875,7 +869,7 @@ changePassword uid cp = do
 -- User Deletion
 
 -- | Initiate validation of a user's delete request.  Called via @delete /self@.  Users with an
--- 'UserSSOId' can still do this if they also have an 'Email', 'Phone', and/or password.  Otherwise,
+-- 'UserSSOId' can still do this if they also have an 'Email' and/or password.  Otherwise,
 -- the team admin has to delete them via the team console on galley.
 --
 -- Owners are not allowed to delete themselves.  Instead, they must ask a fellow owner to
@@ -924,7 +918,7 @@ deleteSelfUser uid pwd = do
           when isOwner $ throwE DeleteUserOwnerDeletingSelf
     go a = maybe (byIdentity a) (byPassword a) pwd
     byIdentity a = case emailIdentity =<< userIdentity (accountUser a) of
-      Just emailOrPhone -> sendCode a emailOrPhone
+      Just email -> sendCode a email
       Nothing -> case pwd of
         Just _ -> throwE DeleteUserMissingPassword
         Nothing -> lift . liftSem $ deleteAccount a >> pure Nothing

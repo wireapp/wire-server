@@ -709,7 +709,7 @@ toLocale l _ = l
 -- activated.
 --
 -- The reason it's just a "precaution" is that we /also/ have an invariant that having an
--- email or phone in the database means the user has to be activated.
+-- email in the database means the user has to be activated.
 toIdentity ::
   -- | Whether the user is activated
   Bool ->
