@@ -19,8 +19,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.API.Teams.Features.Get
-  ( getFeatureStatus,
-    getFeatureStatusMulti,
+  ( getFeature,
+    getFeatureMulti,
     getAllFeatureConfigsForServer,
     getAllFeatureConfigsForTeam,
     getAllFeatureConfigsForUser,
@@ -113,7 +113,7 @@ class (IsFeatureConfig cfg) => GetFeatureConfig cfg where
     pure $
       genericComputeFeature @cfg defFeature dbFeature
 
-getFeatureStatus ::
+getFeature ::
   forall cfg r.
   ( GetFeatureConfig cfg,
     ComputeFeatureConstraints cfg r,
@@ -126,7 +126,7 @@ getFeatureStatus ::
   DoAuth ->
   TeamId ->
   Sem r (LockableFeature cfg)
-getFeatureStatus doauth tid = do
+getFeature doauth tid = do
   case doauth of
     DoAuth uid ->
       getTeamMember tid uid >>= maybe (throwS @'NotATeamMember) (const $ pure ())
@@ -134,7 +134,7 @@ getFeatureStatus doauth tid = do
       assertTeamExists tid
   getConfigForTeam @cfg tid
 
-getFeatureStatusMulti ::
+getFeatureMulti ::
   forall cfg r.
   ( GetFeatureConfig cfg,
     ComputeFeatureConstraints cfg r,
@@ -143,7 +143,7 @@ getFeatureStatusMulti ::
   ) =>
   Multi.TeamFeatureNoConfigMultiRequest ->
   Sem r (Multi.TeamFeatureNoConfigMultiResponse cfg)
-getFeatureStatusMulti (Multi.TeamFeatureNoConfigMultiRequest tids) = do
+getFeatureMulti (Multi.TeamFeatureNoConfigMultiRequest tids) = do
   cfgs <- getConfigForMultiTeam @cfg tids
   let xs = uncurry toTeamStatus <$> cfgs
   pure $ Multi.TeamFeatureNoConfigMultiResponse xs
@@ -484,4 +484,4 @@ featureEnabledForTeam ::
 featureEnabledForTeam tid =
   (==) FeatureStatusEnabled
     . (.status)
-    <$> getFeatureStatus @cfg DontDoAuth tid
+    <$> getFeature @cfg DontDoAuth tid

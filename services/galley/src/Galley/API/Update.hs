@@ -704,8 +704,7 @@ updateConversationProtocolWithLocalUser ::
     Member Random r,
     Member ProposalStore r,
     Member SubConversationStore r,
-    Member TeamFeatureStore r,
-    Member TeamStore r
+    Member TeamFeatureStore r
   ) =>
   Local UserId ->
   ConnId ->
