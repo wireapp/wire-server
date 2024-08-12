@@ -16,7 +16,8 @@ metrics:
     enabled: false
 # This is not supported for production use, only here for testing:
 # preStop:
-#  exec: ["sh", "-c", "curl http://acme.example"]
+#  exec: 
+#   command: ["sh", "-c", "curl http://acme.example"]
 config:
   logLevel: Info
   logFormat: StructuredJSON
