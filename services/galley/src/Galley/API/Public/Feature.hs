@@ -31,21 +31,21 @@ import Wire.API.Team.Feature
 
 featureAPIGetPut :: forall cfg r. (_) => API (FeatureAPIGetPut cfg) r
 featureAPIGetPut =
-  mkNamedAPI @'("get", cfg) (getFeature . DoAuth)
-    <@> mkNamedAPI @'("put", cfg) (setFeature . DoAuth)
+  mkNamedAPI @'("get", cfg) getFeature
+    <@> mkNamedAPI @'("put", cfg) setFeature
 
 featureAPI :: API FeatureAPI GalleyEffects
 featureAPI =
-  mkNamedAPI @'("get", SSOConfig) (getFeature . DoAuth)
+  mkNamedAPI @'("get", SSOConfig) getFeature
     <@> featureAPIGetPut
     <@> featureAPIGetPut
     <@> mkNamedAPI @"get-search-visibility" getSearchVisibility
     <@> mkNamedAPI @"set-search-visibility" (setSearchVisibility (featureEnabledForTeam @SearchVisibilityAvailableConfig))
-    <@> mkNamedAPI @'("get", ValidateSAMLEmailsConfig) (getFeature . DoAuth)
-    <@> mkNamedAPI @'("get", DigitalSignaturesConfig) (getFeature . DoAuth)
+    <@> mkNamedAPI @'("get", ValidateSAMLEmailsConfig) getFeature
+    <@> mkNamedAPI @'("get", DigitalSignaturesConfig) getFeature
     <@> featureAPIGetPut
     <@> featureAPIGetPut
-    <@> mkNamedAPI @'("get", ClassifiedDomainsConfig) (getFeature . DoAuth)
+    <@> mkNamedAPI @'("get", ClassifiedDomainsConfig) getFeature
     <@> featureAPIGetPut
     <@> featureAPIGetPut
     <@> featureAPIGetPut
@@ -54,12 +54,12 @@ featureAPI =
     <@> featureAPIGetPut
     <@> featureAPIGetPut
     <@> featureAPIGetPut
-    <@> mkNamedAPI @'("get", MlsE2EIdConfig) (getFeature . DoAuth)
-    <@> mkNamedAPI @"put-MlsE2EIdConfig@v5" (setFeature . DoAuth)
-    <@> mkNamedAPI @'("put", MlsE2EIdConfig) (guardMlsE2EIdConfig (setFeature . DoAuth))
+    <@> mkNamedAPI @'("get", MlsE2EIdConfig) getFeature
+    <@> mkNamedAPI @"put-MlsE2EIdConfig@v5" setFeature
+    <@> mkNamedAPI @'("put", MlsE2EIdConfig) (guardMlsE2EIdConfig setFeature)
     <@> hoistAPI id featureAPIGetPut
     <@> hoistAPI id featureAPIGetPut
-    <@> mkNamedAPI @'("get", LimitedEventFanoutConfig) (getFeature . DoAuth)
+    <@> mkNamedAPI @'("get", LimitedEventFanoutConfig) getFeature
     <@> mkNamedAPI @"get-all-feature-configs-for-user" getAllFeatureConfigsForUser
     <@> mkNamedAPI @"get-all-feature-configs-for-team" getAllFeatureConfigsForTeam
     <@> deprecatedFeatureConfigAPI
@@ -67,10 +67,10 @@ featureAPI =
 
 deprecatedFeatureConfigAPI :: API DeprecatedFeatureAPI GalleyEffects
 deprecatedFeatureConfigAPI =
-  mkNamedAPI @'("get-deprecated", SearchVisibilityAvailableConfig) (getFeature . DoAuth)
-    <@> mkNamedAPI @'("put-deprecated", SearchVisibilityAvailableConfig) (setFeature . DoAuth)
-    <@> mkNamedAPI @'("get-deprecated", ValidateSAMLEmailsConfig) (getFeature . DoAuth)
-    <@> mkNamedAPI @'("get-deprecated", DigitalSignaturesConfig) (getFeature . DoAuth)
+  mkNamedAPI @'("get-deprecated", SearchVisibilityAvailableConfig) getFeature
+    <@> mkNamedAPI @'("put-deprecated", SearchVisibilityAvailableConfig) setFeature
+    <@> mkNamedAPI @'("get-deprecated", ValidateSAMLEmailsConfig) getFeature
+    <@> mkNamedAPI @'("get-deprecated", DigitalSignaturesConfig) getFeature
 
 deprecatedFeatureAPI :: API (AllDeprecatedFeatureConfigAPI DeprecatedFeatureConfigs) GalleyEffects
 deprecatedFeatureAPI =

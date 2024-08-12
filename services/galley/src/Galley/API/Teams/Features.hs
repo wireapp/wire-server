@@ -28,7 +28,6 @@ module Galley.API.Teams.Features
     GetFeatureConfig (..),
     SetFeatureConfig (..),
     guardSecondFactorDisabled,
-    DoAuth (..),
     featureEnabledForTeam,
     guardMlsE2EIdConfig,
   )
@@ -82,7 +81,7 @@ patchFeatureInternal ::
     Member (Input Opts) r,
     Member TeamStore r,
     Member TeamFeatureStore r,
-    Member (P.Logger (Log.Msg -> Log.Msg)) r,
+    Member P.TinyLog r,
     Member NotificationSubsystem r
   ) =>
   TeamId ->
@@ -109,37 +108,47 @@ setFeature ::
     SetConfigForTeamConstraints cfg r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
-    Member (ErrorS 'TeamNotFound) r,
     Member (Error TeamFeatureError) r,
     Member (Input Opts) r,
     Member TeamStore r,
     Member TeamFeatureStore r,
-    Member (P.Logger (Log.Msg -> Log.Msg)) r,
+    Member P.TinyLog r,
     Member NotificationSubsystem r
   ) =>
-  DoAuth ->
+  UserId ->
   TeamId ->
   Feature cfg ->
   Sem r (LockableFeature cfg)
-setFeature doauth tid feat = do
-  case doauth of
-    DoAuth uid -> do
-      zusrMembership <- getTeamMember tid uid
-      void $ permissionCheck ChangeTeamFeature zusrMembership
-    DontDoAuth ->
-      assertTeamExists tid
-  feat0 <- getConfigForTeam @cfg tid
-  guardLockStatus feat0.lockStatus
-  setConfigForTeam @cfg tid (withLockStatus feat0.lockStatus feat)
+setFeature uid tid feat = do
+  zusrMembership <- getTeamMember tid uid
+  void $ permissionCheck ChangeTeamFeature zusrMembership
+  setFeatureUnchecked tid feat
 
 setFeatureInternal ::
   forall cfg r.
   ( SetFeatureConfig cfg,
     ComputeFeatureConstraints cfg r,
     SetConfigForTeamConstraints cfg r,
-    Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS OperationDenied) r,
     Member (ErrorS 'TeamNotFound) r,
+    Member (Error TeamFeatureError) r,
+    Member (Input Opts) r,
+    Member TeamStore r,
+    Member TeamFeatureStore r,
+    Member P.TinyLog r,
+    Member NotificationSubsystem r
+  ) =>
+  TeamId ->
+  Feature cfg ->
+  Sem r (LockableFeature cfg)
+setFeatureInternal tid feat = do
+  assertTeamExists tid
+  setFeatureUnchecked tid feat
+
+setFeatureUnchecked ::
+  forall cfg r.
+  ( SetFeatureConfig cfg,
+    ComputeFeatureConstraints cfg r,
+    SetConfigForTeamConstraints cfg r,
     Member (Error TeamFeatureError) r,
     Member (Input Opts) r,
     Member TeamStore r,
@@ -150,7 +159,10 @@ setFeatureInternal ::
   TeamId ->
   Feature cfg ->
   Sem r (LockableFeature cfg)
-setFeatureInternal = setFeature @cfg DontDoAuth
+setFeatureUnchecked tid feat = do
+  feat0 <- getConfigForTeam @cfg tid
+  guardLockStatus feat0.lockStatus
+  setConfigForTeam @cfg tid (withLockStatus feat0.lockStatus feat)
 
 updateLockStatus ::
   forall cfg r.
