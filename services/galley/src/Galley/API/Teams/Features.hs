@@ -66,7 +66,7 @@ import System.Logger.Class qualified as Log
 import Wire.API.Conversation.Role (Action (RemoveConversationMember))
 import Wire.API.Error (ErrorS)
 import Wire.API.Error.Galley
-import Wire.API.Event.FeatureConfig qualified as Event
+import Wire.API.Event.FeatureConfig
 import Wire.API.Federation.Error
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
@@ -94,8 +94,7 @@ patchFeatureStatusInternal tid patch = do
   assertTeamExists tid
   currentFeatureStatus <- getFeatureStatus @cfg DontDoAuth tid
   let newFeatureStatus = applyPatch currentFeatureStatus
-  void $ setConfigForTeam @cfg tid newFeatureStatus
-  getFeatureStatus @cfg DontDoAuth tid
+  setConfigForTeam @cfg tid newFeatureStatus
   where
     applyPatch :: LockableFeature cfg -> LockableFeature cfg
     applyPatch current =
@@ -170,40 +169,36 @@ updateLockStatus tid lockStatus = do
   TeamFeatures.setFeatureLockStatus (featureSingleton @cfg) tid lockStatus
   pure $ LockStatusResponse lockStatus
 
-persistAndPushEvent ::
+persistFeature ::
   forall cfg r.
   ( GetFeatureConfig cfg,
     ComputeFeatureConstraints cfg r,
     Member (Input Opts) r,
-    Member TeamFeatureStore r,
-    Member (P.Logger (Log.Msg -> Log.Msg)) r,
-    Member NotificationSubsystem r,
-    Member TeamStore r
+    Member TeamFeatureStore r
   ) =>
   TeamId ->
   LockableFeature cfg ->
   Sem r (LockableFeature cfg)
-persistAndPushEvent tid feat = do
+persistFeature tid feat = do
   setFeatureConfig (featureSingleton @cfg) tid feat
   fs <- getConfigForTeam @cfg tid
-  pushFeatureConfigEvent tid (Event.mkUpdateEvent fs)
   pure fs
 
-pushFeatureConfigEvent ::
+pushFeatureEvent ::
   ( Member NotificationSubsystem r,
     Member TeamStore r,
     Member P.TinyLog r
   ) =>
   TeamId ->
-  Event.Event ->
+  Event ->
   Sem r ()
-pushFeatureConfigEvent tid event = do
+pushFeatureEvent tid event = do
   memList <- getTeamMembersForFanout tid
   if ((memList ^. teamMemberListType) == ListTruncated)
     then do
       P.warn $
         Log.field "action" (Log.val "Features.pushFeatureConfigEvent")
-          . Log.field "feature" (Log.val (toByteString' . Event._eventFeatureName $ event))
+          . Log.field "feature" (Log.val (toByteString' . _eventFeatureName $ event))
           . Log.field "team" (Log.val (UTF8.fromString . show $ tid))
           . Log.msg @Text "Fanout limit exceeded. Events will not be sent."
     else do
@@ -221,6 +216,25 @@ guardLockStatus = \case
   LockStatusUnlocked -> pure ()
   LockStatusLocked -> throw FeatureLocked
 
+setConfigForTeam ::
+  ( SetFeatureConfig cfg,
+    SetConfigForTeamConstraints cfg r,
+    ComputeFeatureConstraints cfg r,
+    Member (Input Opts) r,
+    Member P.TinyLog r,
+    Member NotificationSubsystem r,
+    Member TeamFeatureStore r,
+    Member TeamStore r
+  ) =>
+  TeamId ->
+  LockableFeature cfg ->
+  Sem r (LockableFeature cfg)
+setConfigForTeam tid feat = do
+  preparedFeat <- prepareFeature tid feat
+  newFeat <- persistFeature tid preparedFeat
+  pushFeatureEvent tid (mkUpdateEvent newFeat)
+  pure newFeat
+
 -------------------------------------------------------------------------------
 -- SetFeatureConfig instances
 
@@ -229,33 +243,19 @@ class (GetFeatureConfig cfg) => SetFeatureConfig cfg where
   type SetConfigForTeamConstraints cfg (r :: EffectRow) :: Constraint
   type SetConfigForTeamConstraints cfg (r :: EffectRow) = ()
 
-  -- | This method should generate the side-effects of changing the feature and
-  -- also (depending on the feature) persist the new setting to the database and
-  -- push a event to clients (see 'persistAndPushEvent').
-  setConfigForTeam ::
-    ( SetConfigForTeamConstraints cfg r,
-      ComputeFeatureConstraints cfg r,
-      Member (Input Opts) r,
-      Member TeamFeatureStore r,
-      Member (P.Logger (Log.Msg -> Log.Msg)) r,
-      Member NotificationSubsystem r,
-      Member TeamStore r
-    ) =>
+  -- | This method takes a feature about to be set, performs the required
+  -- checks, makes any related updates via the internal API, then finally
+  -- returns the feature to be persisted and pushed to clients.
+  --
+  -- The default simply returns the original feature unchanged, which should be
+  -- enough for most features.
+  prepareFeature ::
+    (SetConfigForTeamConstraints cfg r) =>
     TeamId ->
     LockableFeature cfg ->
     Sem r (LockableFeature cfg)
-  default setConfigForTeam ::
-    ( ComputeFeatureConstraints cfg r,
-      Member (Input Opts) r,
-      Member TeamFeatureStore r,
-      Member (P.Logger (Log.Msg -> Log.Msg)) r,
-      Member NotificationSubsystem r,
-      Member TeamStore r
-    ) =>
-    TeamId ->
-    LockableFeature cfg ->
-    Sem r (LockableFeature cfg)
-  setConfigForTeam tid feat = persistAndPushEvent tid feat
+  default prepareFeature :: TeamId -> LockableFeature cfg -> Sem r (LockableFeature cfg)
+  prepareFeature _tid feat = pure feat
 
 instance SetFeatureConfig SSOConfig where
   type
@@ -264,11 +264,11 @@ instance SetFeatureConfig SSOConfig where
         Member (Error TeamFeatureError) r
       )
 
-  setConfigForTeam tid feat = do
+  prepareFeature _tid feat = do
     case feat.status of
       FeatureStatusEnabled -> pure ()
       FeatureStatusDisabled -> throw DisableSsoNotImplemented
-    persistAndPushEvent tid feat
+    pure feat
 
 instance SetFeatureConfig SearchVisibilityAvailableConfig where
   type
@@ -277,11 +277,11 @@ instance SetFeatureConfig SearchVisibilityAvailableConfig where
         Member (Input Opts) r
       )
 
-  setConfigForTeam tid feat = do
+  prepareFeature tid feat = do
     case feat.status of
       FeatureStatusEnabled -> pure ()
       FeatureStatusDisabled -> SearchVisibilityData.resetSearchVisibility tid
-    persistAndPushEvent tid feat
+    pure feat
 
 instance SetFeatureConfig ValidateSAMLEmailsConfig
 
@@ -326,8 +326,7 @@ instance SetFeatureConfig LegalholdConfig where
         Member Random r
       )
 
-  -- we're good to update the status now.
-  setConfigForTeam tid feat = do
+  prepareFeature tid feat = do
     -- this extra do is to encapsulate the assertions running before the actual operation.
     -- enabling LH for teams is only allowed in normal operation; disabled-permanently and
     -- whitelist-teams have no or their own way to do that, resp.
@@ -343,17 +342,17 @@ instance SetFeatureConfig LegalholdConfig where
     case feat.status of
       FeatureStatusDisabled -> LegalHold.removeSettings' @InternalPaging tid
       FeatureStatusEnabled -> ensureNotTooLargeToActivateLegalHold tid
-    persistAndPushEvent tid feat
+    pure feat
 
 instance SetFeatureConfig FileSharingConfig
 
 instance SetFeatureConfig AppLockConfig where
   type SetConfigForTeamConstraints AppLockConfig r = Member (Error TeamFeatureError) r
 
-  setConfigForTeam tid feat = do
+  prepareFeature _tid feat = do
     when ((applockInactivityTimeoutSecs feat.config) < 30) $
       throw AppLockInactivityTimeoutTooLow
-    persistAndPushEvent tid feat
+    pure feat
 
 instance SetFeatureConfig ConferenceCallingConfig
 
@@ -365,13 +364,18 @@ instance SetFeatureConfig SndFactorPasswordChallengeConfig
 
 instance SetFeatureConfig SearchVisibilityInboundConfig where
   type SetConfigForTeamConstraints SearchVisibilityInboundConfig (r :: EffectRow) = (Member BrigAccess r)
-  setConfigForTeam tid feat = do
+  prepareFeature tid feat = do
     updateSearchVisibilityInbound $ toTeamStatus tid feat
-    persistAndPushEvent tid feat
+    pure feat
 
 instance SetFeatureConfig MLSConfig where
-  type SetConfigForTeamConstraints MLSConfig (r :: EffectRow) = (Member (Error TeamFeatureError) r)
-  setConfigForTeam tid feat = do
+  type
+    SetConfigForTeamConstraints MLSConfig (r :: EffectRow) =
+      ( Member (Input Opts) r,
+        Member TeamFeatureStore r,
+        Member (Error TeamFeatureError) r
+      )
+  prepareFeature tid feat = do
     mlsMigrationConfig <- getConfigForTeam @MlsMigrationConfig tid
     unless
       ( -- default protocol needs to be included in supported protocols
@@ -380,7 +384,7 @@ instance SetFeatureConfig MLSConfig where
           && (mlsMigrationConfig.status == FeatureStatusDisabled || feat.status == FeatureStatusEnabled)
       )
       $ throw MLSProtocolMismatch
-    persistAndPushEvent tid feat
+    pure feat
 
 instance SetFeatureConfig ExposeInvitationURLsToTeamAdminConfig
 
@@ -401,15 +405,20 @@ guardMlsE2EIdConfig handler uid tid feat = do
   handler uid tid feat
 
 instance SetFeatureConfig MlsMigrationConfig where
-  type SetConfigForTeamConstraints MlsMigrationConfig (r :: EffectRow) = (Member (Error TeamFeatureError) r)
-  setConfigForTeam tid feat = do
+  type
+    SetConfigForTeamConstraints MlsMigrationConfig (r :: EffectRow) =
+      ( Member (Input Opts) r,
+        Member (Error TeamFeatureError) r,
+        Member TeamFeatureStore r
+      )
+  prepareFeature tid feat = do
     mlsConfig <- getConfigForTeam @MLSConfig tid
     unless
       ( -- when MLS migration is enabled, MLS needs to be enabled as well
         feat.status == FeatureStatusDisabled || mlsConfig.status == FeatureStatusEnabled
       )
       $ throw MLSProtocolMismatch
-    persistAndPushEvent tid feat
+    pure feat
 
 instance SetFeatureConfig EnforceFileDownloadLocationConfig
 
