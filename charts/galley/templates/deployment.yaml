@@ -126,5 +126,10 @@ spec:
               scheme: HTTP
               path: /i/status
               port: {{ .Values.service.internalPort }}
+          {{- if .Values.preStop }}
+          lifecycle:
+            preStop:
+{{ toYaml .Values.preStop | indent 14 }}
+          {{- end }}
           resources:
 {{ toYaml .Values.resources | indent 12 }}
