@@ -901,7 +901,7 @@ changePhone ::
 changePhone _ _ _ = pure . Just $ Public.InvalidNewPhone
 
 removePhone :: UserId -> Handler r (Maybe Public.RemoveIdentityError)
-removePhone self = lift . exceptTToMaybe $ API.removePhone self
+removePhone _ = (lift . pure) Nothing
 
 removeEmail ::
   ( Member (Embed HttpClientIO) r,
