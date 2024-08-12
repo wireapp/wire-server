@@ -239,9 +239,15 @@ featureAPI1Full ::
   (_) =>
   API (IFeatureAPI1Full cfg) r
 featureAPI1Full =
-  mkNamedAPI @'("iget", cfg) (getFeature DontDoAuth)
+  mkNamedAPI @'("iget", cfg) getFeatureInternal
     <@> mkNamedAPI @'("iput", cfg) setFeatureInternal
     <@> mkNamedAPI @'("ipatch", cfg) patchFeatureInternal
+
+featureAPI1Get ::
+  forall cfg r.
+  (_) =>
+  API (IFeatureStatusGet cfg) r
+featureAPI1Get = mkNamedAPI @'("iget", cfg) getFeatureInternal
 
 allFeaturesAPI :: API (IAllFeaturesAPI Features) GalleyEffects
 allFeaturesAPI =
@@ -253,7 +259,7 @@ allFeaturesAPI =
     <@> featureAPI1Full
     <@> featureAPI1Full
     <@> featureAPI1Full
-    <@> mkNamedAPI @'("iget", ClassifiedDomainsConfig) (getFeature DontDoAuth)
+    <@> featureAPI1Get
     <@> featureAPI1Full
     <@> featureAPI1Full
     <@> featureAPI1Full
@@ -337,7 +343,7 @@ rmUser lusr conn = do
     leaveTeams page = for_ (pageItems page) $ \tid -> do
       toNotify <-
         handleImpossibleErrors $
-          getFeature @LimitedEventFanoutConfig DontDoAuth tid
+          getConfigForTeam @LimitedEventFanoutConfig tid
             >>= ( \case
                     FeatureStatusEnabled -> Left <$> E.getTeamAdmins tid
                     FeatureStatusDisabled -> Right <$> getTeamMembersForFanout tid

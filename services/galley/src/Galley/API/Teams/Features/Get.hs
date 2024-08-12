@@ -20,6 +20,7 @@
 
 module Galley.API.Teams.Features.Get
   ( getFeature,
+    getFeatureInternal,
     getFeatureMulti,
     getAllFeatureConfigsForServer,
     getAllFeatureConfigsForTeam,
@@ -120,19 +121,28 @@ getFeature ::
     Member (Input Opts) r,
     Member TeamFeatureStore r,
     Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS 'TeamNotFound) r,
     Member TeamStore r
   ) =>
-  DoAuth ->
+  UserId ->
   TeamId ->
   Sem r (LockableFeature cfg)
-getFeature doauth tid = do
-  case doauth of
-    DoAuth uid ->
-      getTeamMember tid uid >>= maybe (throwS @'NotATeamMember) (const $ pure ())
-    DontDoAuth ->
-      assertTeamExists tid
+getFeature uid tid = do
+  void $ getTeamMember tid uid >>= noteS @'NotATeamMember
   getConfigForTeam @cfg tid
+
+getFeatureInternal ::
+  ( GetFeatureConfig cfg,
+    ComputeFeatureConstraints cfg r,
+    Member (Input Opts) r,
+    Member (ErrorS 'TeamNotFound) r,
+    Member TeamFeatureStore r,
+    Member TeamStore r
+  ) =>
+  TeamId ->
+  Sem r (LockableFeature cfg)
+getFeatureInternal tid = do
+  assertTeamExists tid
+  getConfigForTeam tid
 
 getFeatureMulti ::
   forall cfg r.
@@ -473,7 +483,6 @@ featureEnabledForTeam ::
   forall cfg r.
   ( GetFeatureConfig cfg,
     Member (Input Opts) r,
-    Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TeamNotFound) r,
     Member TeamStore r,
     Member TeamFeatureStore r,
@@ -484,4 +493,4 @@ featureEnabledForTeam ::
 featureEnabledForTeam tid =
   (==) FeatureStatusEnabled
     . (.status)
-    <$> getFeature @cfg DontDoAuth tid
+    <$> getFeatureInternal @cfg tid
