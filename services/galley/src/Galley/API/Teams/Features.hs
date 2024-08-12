@@ -19,9 +19,9 @@
 
 module Galley.API.Teams.Features
   ( getFeatureMulti,
-    setFeatureStatus,
-    setFeatureStatusInternal,
-    patchFeatureStatusInternal,
+    setFeature,
+    setFeatureInternal,
+    patchFeatureInternal,
     getAllFeatureConfigsForTeam,
     getAllFeatureConfigsForUser,
     updateLockStatus,
@@ -73,7 +73,7 @@ import Wire.NotificationSubsystem
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
 
-patchFeatureStatusInternal ::
+patchFeatureInternal ::
   forall cfg r.
   ( SetFeatureConfig cfg,
     ComputeFeatureConstraints cfg r,
@@ -88,7 +88,7 @@ patchFeatureStatusInternal ::
   TeamId ->
   LockableFeaturePatch cfg ->
   Sem r (LockableFeature cfg)
-patchFeatureStatusInternal tid patch = do
+patchFeatureInternal tid patch = do
   assertTeamExists tid
   currentFeatureStatus <- getConfigForTeam @cfg tid
   let newFeatureStatus = applyPatch currentFeatureStatus
@@ -102,7 +102,7 @@ patchFeatureStatusInternal tid patch = do
           config = fromMaybe current.config patch.config
         }
 
-setFeatureStatus ::
+setFeature ::
   forall cfg r.
   ( SetFeatureConfig cfg,
     ComputeFeatureConstraints cfg r,
@@ -121,7 +121,7 @@ setFeatureStatus ::
   TeamId ->
   Feature cfg ->
   Sem r (LockableFeature cfg)
-setFeatureStatus doauth tid feat = do
+setFeature doauth tid feat = do
   case doauth of
     DoAuth uid -> do
       zusrMembership <- getTeamMember tid uid
@@ -132,7 +132,7 @@ setFeatureStatus doauth tid feat = do
   guardLockStatus feat0.lockStatus
   setConfigForTeam @cfg tid (withLockStatus feat0.lockStatus feat)
 
-setFeatureStatusInternal ::
+setFeatureInternal ::
   forall cfg r.
   ( SetFeatureConfig cfg,
     ComputeFeatureConstraints cfg r,
@@ -150,7 +150,7 @@ setFeatureStatusInternal ::
   TeamId ->
   Feature cfg ->
   Sem r (LockableFeature cfg)
-setFeatureStatusInternal = setFeatureStatus @cfg DontDoAuth
+setFeatureInternal = setFeature @cfg DontDoAuth
 
 updateLockStatus ::
   forall cfg r.
