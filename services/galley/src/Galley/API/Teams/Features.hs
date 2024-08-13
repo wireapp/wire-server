@@ -51,7 +51,6 @@ import Galley.Effects
 import Galley.Effects.BrigAccess (updateSearchVisibilityInbound)
 import Galley.Effects.SearchVisibilityStore qualified as SearchVisibilityData
 import Galley.Effects.TeamFeatureStore
-import Galley.Effects.TeamFeatureStore qualified as TeamFeatures
 import Galley.Effects.TeamStore (getLegalHoldFlag, getTeamMember)
 import Galley.Options
 import Galley.Types.Teams
@@ -176,7 +175,7 @@ updateLockStatus ::
   Sem r LockStatusResponse
 updateLockStatus tid lockStatus = do
   assertTeamExists tid
-  TeamFeatures.setFeatureLockStatus @cfg tid lockStatus
+  setFeatureLockStatus @cfg tid lockStatus
   pure $ LockStatusResponse lockStatus
 
 persistFeature ::
@@ -190,7 +189,7 @@ persistFeature ::
   LockableFeature cfg ->
   Sem r (LockableFeature cfg)
 persistFeature tid feat = do
-  setFeatureConfig tid feat
+  setDbFeature tid feat
   getFeatureForTeam @cfg tid
 
 pushFeatureEvent ::

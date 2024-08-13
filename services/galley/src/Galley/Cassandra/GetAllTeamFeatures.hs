@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -fconstraint-solver-iterations=0 #-}
 
-module Galley.Cassandra.GetAllTeamFeatures (getAllTeamFeatures) where
+module Galley.Cassandra.GetAllTeamFeatures (getAllDbFeatures) where
 
 import Cassandra
 import Data.Id
@@ -71,7 +71,7 @@ instance
   where
   concatColumns = featureColumns @cfg `appendNP` concatColumns @cfgs
 
-getAllTeamFeatures ::
+getAllDbFeatures ::
   forall row mrow m.
   ( MonadClient m,
     row ~ AllFeatureRow,
@@ -81,6 +81,6 @@ getAllTeamFeatures ::
   ) =>
   TeamId ->
   m (AllFeatures DbFeature)
-getAllTeamFeatures tid = do
+getAllDbFeatures tid = do
   mRow <- fetchFeatureRow @row @mrow tid (concatColumns @Features)
   pure . rowToAllFeatures $ fromMaybe emptyRow mRow

@@ -49,7 +49,7 @@ import Galley.API.Util
 import Galley.Effects
 import Galley.Effects.BrigAccess (getAccountConferenceCallingConfigClient)
 import Galley.Effects.ConversationStore as ConversationStore
-import Galley.Effects.TeamFeatureStore qualified as TeamFeatures
+import Galley.Effects.TeamFeatureStore
 import Galley.Effects.TeamStore (getOneUserTeam, getTeamMember)
 import Galley.Options
 import Galley.Types.Teams
@@ -217,7 +217,7 @@ getAllTeamFeatures ::
   TeamId ->
   Sem r AllTeamFeatures
 getAllTeamFeatures tid = do
-  features <- TeamFeatures.getAllTeamFeatures tid
+  features <- getAllDbFeatures tid
   defFeatures <- getAllTeamFeaturesForServer
   hsequence' $ hcliftA2 (Proxy @(GetAllFeaturesForServerConstraints r)) compute defFeatures features
   where
@@ -276,7 +276,7 @@ getFeatureForTeam ::
   TeamId ->
   Sem r (LockableFeature cfg)
 getFeatureForTeam tid = do
-  dbFeature <- TeamFeatures.getFeatureConfig tid
+  dbFeature <- getDbFeature tid
   defFeature <- getFeatureForServer
   computeFeature @cfg
     tid
@@ -294,7 +294,7 @@ getFeatureForMultiTeam ::
   Sem r [(TeamId, LockableFeature cfg)]
 getFeatureForMultiTeam tids = do
   defFeature <- getFeatureForServer
-  features <- TeamFeatures.getFeatureConfigMulti tids
+  features <- getDbFeatureMulti tids
   for features $ \(tid, dbFeature) -> do
     feat <- computeFeature @cfg tid defFeature dbFeature
     pure (tid, feat)
