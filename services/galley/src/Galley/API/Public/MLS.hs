@@ -27,5 +27,5 @@ mlsAPI :: API MLSAPI GalleyEffects
 mlsAPI =
   mkNamedAPI @"mls-message" (callsFed (exposeAnnotations postMLSMessageFromLocalUser))
     <@> mkNamedAPI @"mls-commit-bundle" (callsFed (exposeAnnotations postMLSCommitBundleFromLocalUser))
-    <@> mkNamedAPI @"mls-public-keys-v5" getMLSPublicKeys
+    <@> mkNamedAPI @"mls-public-keys-v6" getMLSPublicKeys
     <@> mkNamedAPI @"mls-public-keys" getMLSPublicKeysJWK
