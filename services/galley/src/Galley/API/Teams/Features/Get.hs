@@ -276,7 +276,7 @@ getFeatureForTeam ::
   TeamId ->
   Sem r (LockableFeature cfg)
 getFeatureForTeam tid = do
-  dbFeature <- TeamFeatures.getFeatureConfig (featureSingleton @cfg) tid
+  dbFeature <- TeamFeatures.getFeatureConfig tid
   defFeature <- getFeatureForServer
   computeFeature @cfg
     tid
@@ -294,7 +294,7 @@ getFeatureForMultiTeam ::
   Sem r [(TeamId, LockableFeature cfg)]
 getFeatureForMultiTeam tids = do
   defFeature <- getFeatureForServer
-  features <- TeamFeatures.getFeatureConfigMulti (featureSingleton @cfg) tids
+  features <- TeamFeatures.getFeatureConfigMulti tids
   for features $ \(tid, dbFeature) -> do
     feat <- computeFeature @cfg tid defFeature dbFeature
     pure (tid, feat)
