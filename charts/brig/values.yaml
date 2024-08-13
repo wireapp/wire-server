@@ -14,6 +14,10 @@ resources:
 metrics:
   serviceMonitor:
     enabled: false
+# This is not supported for production use, only here for testing:
+# preStop:
+#  exec: 
+#   command: ["sh", "-c", "curl http://acme.example"]
 config:
   logLevel: Info
   logFormat: StructuredJSON

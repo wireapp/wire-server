@@ -1,0 +1,1 @@
+charts/{brig,galley}: Allow setting a preStop hook for the deployments
