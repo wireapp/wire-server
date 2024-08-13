@@ -61,7 +61,7 @@ import Imports
 import Wire.API.Conversation.Code as Code
 import Wire.API.Provider.Service (ServiceToken (..))
 import Wire.API.Provider.Service.Tag (ServiceTag (..))
-import Wire.API.User.Identity (Email)
+import Wire.API.User.Identity (EmailAddress)
 import Wire.API.User.Profile (Name)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
@@ -72,7 +72,7 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 data Provider = Provider
   { providerId :: ProviderId,
     providerName :: Name,
-    providerEmail :: Email,
+    providerEmail :: EmailAddress,
     providerUrl :: HttpsUrl,
     providerDescr :: Text
   }
@@ -103,7 +103,7 @@ newtype ProviderProfile = ProviderProfile Provider
 -- | Input data for registering a new provider.
 data NewProvider = NewProvider
   { newProviderName :: Name,
-    newProviderEmail :: Email,
+    newProviderEmail :: EmailAddress,
     newProviderUrl :: HttpsUrl,
     newProviderDescr :: Range 1 1024 Text,
     -- | If none provided, a password is generated.
@@ -168,7 +168,7 @@ instance ToSchema UpdateProvider where
 -- | Successful response upon activating an email address (or possibly phone
 -- number in the future) of a provider.
 newtype ProviderActivationResponse = ProviderActivationResponse
-  {activatedProviderIdentity :: Email}
+  {activatedProviderIdentity :: EmailAddress}
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema ProviderActivationResponse
@@ -184,7 +184,7 @@ instance ToSchema ProviderActivationResponse where
 
 -- | Input data for a provider login request.
 data ProviderLogin = ProviderLogin
-  { providerLoginEmail :: Email,
+  { providerLoginEmail :: EmailAddress,
     providerLoginPassword :: PlainTextPassword6
   }
   deriving stock (Eq, Show, Generic)
@@ -218,7 +218,7 @@ instance ToSchema DeleteProvider where
 -- Password Change/Reset
 
 -- | The payload for initiating a password reset.
-newtype PasswordReset = PasswordReset {email :: Email}
+newtype PasswordReset = PasswordReset {email :: EmailAddress}
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema PasswordReset
@@ -264,7 +264,7 @@ instance ToSchema PasswordChange where
         <*> newPassword .= field "new_password" schema
 
 -- | The payload for updating an email address
-newtype EmailUpdate = EmailUpdate {email :: Email}
+newtype EmailUpdate = EmailUpdate {email :: EmailAddress}
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema EmailUpdate

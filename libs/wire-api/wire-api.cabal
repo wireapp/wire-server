@@ -229,6 +229,7 @@ library
     Wire.API.User.Client
     Wire.API.User.Client.DPoPAccessToken
     Wire.API.User.Client.Prekey
+    Wire.API.User.EmailAddress
     Wire.API.User.Handle
     Wire.API.User.Identity
     Wire.API.User.IdentityProvider

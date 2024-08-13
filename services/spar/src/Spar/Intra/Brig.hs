@@ -130,7 +130,7 @@ createBrigUserSAML uref (Id buid) teamid name managedBy handle richInfo mLocale 
 
 createBrigUserNoSAML ::
   (HasCallStack, MonadSparToBrig m) =>
-  Email ->
+  EmailAddress ->
   UserId ->
   TeamId ->
   -- | User name
@@ -150,7 +150,7 @@ createBrigUserNoSAML email uid teamid uname locale role = do
     then userId . accountUser <$> parseResponse @UserAccount "brig" resp
     else rethrow "brig" resp
 
-updateEmail :: (HasCallStack, MonadSparToBrig m) => UserId -> Email -> m ()
+updateEmail :: (HasCallStack, MonadSparToBrig m) => UserId -> EmailAddress -> m ()
 updateEmail buid email = do
   resp <-
     call $
@@ -210,7 +210,7 @@ getBrigUserByHandle handle = do
     404 -> pure Nothing
     _ -> rethrow "brig" resp
 
-getBrigUserByEmail :: (HasCallStack, MonadSparToBrig m) => Email -> m (Maybe UserAccount)
+getBrigUserByEmail :: (HasCallStack, MonadSparToBrig m) => EmailAddress -> m (Maybe UserAccount)
 getBrigUserByEmail email = do
   resp :: ResponseLBS <-
     call $

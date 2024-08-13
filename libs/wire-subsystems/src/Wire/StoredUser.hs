@@ -21,7 +21,7 @@ data StoredUser = StoredUser
     name :: Name,
     textStatus :: Maybe TextStatus,
     pict :: Maybe Pict,
-    email :: Maybe Email,
+    email :: Maybe EmailAddress,
     ssoId :: Maybe UserSSOId,
     accentId :: ColourId,
     assets :: Maybe [Asset],
@@ -115,7 +115,7 @@ toLocale l _ = l
 toIdentity ::
   -- | Whether the user is activated
   Bool ->
-  Maybe Email ->
+  Maybe EmailAddress ->
   Maybe UserSSOId ->
   Maybe UserIdentity
 toIdentity True (Just e) Nothing = Just $! EmailIdentity e

@@ -126,7 +126,7 @@ data VerificationEmailTemplate = VerificationEmailTemplate
     verificationEmailSubject :: Template,
     verificationEmailBodyText :: Template,
     verificationEmailBodyHtml :: Template,
-    verificationEmailSender :: Email,
+    verificationEmailSender :: EmailAddress,
     verificationEmailSenderName :: Text
   }
 
@@ -135,7 +135,7 @@ data ActivationEmailTemplate = ActivationEmailTemplate
     activationEmailSubject :: Template,
     activationEmailBodyText :: Template,
     activationEmailBodyHtml :: Template,
-    activationEmailSender :: Email,
+    activationEmailSender :: EmailAddress,
     activationEmailSenderName :: Text
   }
 
@@ -144,7 +144,7 @@ data TeamActivationEmailTemplate = TeamActivationEmailTemplate
     teamActivationEmailSubject :: Template,
     teamActivationEmailBodyText :: Template,
     teamActivationEmailBodyHtml :: Template,
-    teamActivationEmailSender :: Email,
+    teamActivationEmailSender :: EmailAddress,
     teamActivationEmailSenderName :: Text
   }
 
@@ -153,7 +153,7 @@ data DeletionEmailTemplate = DeletionEmailTemplate
     deletionEmailSubject :: Template,
     deletionEmailBodyText :: Template,
     deletionEmailBodyHtml :: Template,
-    deletionEmailSender :: Email,
+    deletionEmailSender :: EmailAddress,
     deletionEmailSenderName :: Text
   }
 
@@ -162,7 +162,7 @@ data PasswordResetEmailTemplate = PasswordResetEmailTemplate
     passwordResetEmailSubject :: Template,
     passwordResetEmailBodyText :: Template,
     passwordResetEmailBodyHtml :: Template,
-    passwordResetEmailSender :: Email,
+    passwordResetEmailSender :: EmailAddress,
     passwordResetEmailSenderName :: Text
   }
 
@@ -191,7 +191,7 @@ data NewClientEmailTemplate = NewClientEmailTemplate
   { newClientEmailSubject :: Template,
     newClientEmailBodyText :: Template,
     newClientEmailBodyHtml :: Template,
-    newClientEmailSender :: Email,
+    newClientEmailSender :: EmailAddress,
     newClientEmailSenderName :: Text
   }
 
@@ -199,6 +199,6 @@ data SecondFactorVerificationEmailTemplate = SecondFactorVerificationEmailTempla
   { sndFactorVerificationEmailSubject :: Template,
     sndFactorVerificationEmailBodyText :: Template,
     sndFactorVerificationEmailBodyHtml :: Template,
-    sndFactorVerificationEmailSender :: Email,
+    sndFactorVerificationEmailSender :: EmailAddress,
     sndFactorVerificationEmailSenderName :: Text
   }

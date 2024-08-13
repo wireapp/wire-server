@@ -220,7 +220,7 @@ postUserWithEmail ::
   Bool ->
   Bool ->
   Text ->
-  Maybe Email ->
+  Maybe EmailAddress ->
   Bool ->
   Maybe UserSSOId ->
   Maybe TeamId ->
@@ -310,17 +310,18 @@ defCookieLabel = CookieLabel "auth"
 
 -- | Generate emails that are in the trusted whitelist of domains whose @+@ suffices count for email
 -- disambiguation.  See also: 'Brig.Email.mkEmailKey'.
-randomEmail :: (MonadIO m) => m Email
+randomEmail :: (MonadIO m) => m EmailAddress
 randomEmail = mkSimulatorEmail "success"
 
-mkSimulatorEmail :: (MonadIO m) => Text -> m Email
+mkSimulatorEmail :: (MonadIO m) => Text -> m EmailAddress
 mkSimulatorEmail loc = mkEmailRandomLocalSuffix (loc <> "@simulator.amazonses.com")
 
-mkEmailRandomLocalSuffix :: (MonadIO m) => Text -> m Email
+mkEmailRandomLocalSuffix :: (MonadIO m) => Text -> m EmailAddress
 mkEmailRandomLocalSuffix e = do
   uid <- liftIO UUID.nextRandom
   case parseEmail e of
-    Just (Email loc dom) -> pure $ Email (loc <> "+" <> UUID.toText uid) dom
+    -- TODO:
+    Just (EmailAddress loc dom) -> pure $ EmailAddress (loc <> "+" <> UUID.toText uid) dom
     Nothing -> error $ "Invalid email address: " ++ Text.unpack e
 
 zUser :: UserId -> Bilge.Request -> Bilge.Request

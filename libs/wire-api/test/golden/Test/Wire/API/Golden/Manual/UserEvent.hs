@@ -109,7 +109,7 @@ testObject_UserEvent_7 =
     ( UserIdentityUpdated
         ( UserIdentityUpdatedData
             (userId alice)
-            (Just (Email "alice" "foo.example.com"))
+            (Just (unsafeEmailAddress "alice" "foo.example.com"))
             Nothing
         )
     )
@@ -120,7 +120,7 @@ testObject_UserEvent_8 =
     ( UserIdentityRemoved
         ( UserIdentityRemovedData
             (userId alice)
-            (Just (Email "alice" "foo.example.com"))
+            (Just (unsafeEmailAddress "alice" "foo.example.com"))
             Nothing
         )
     )

@@ -207,7 +207,7 @@ suspendUser uid = NoContent <$ Intra.putUserStatus Suspended uid
 unsuspendUser :: UserId -> Handler NoContent
 unsuspendUser uid = NoContent <$ Intra.putUserStatus Active uid
 
-usersByEmail :: Email -> Handler [UserAccount]
+usersByEmail :: EmailAddress -> Handler [UserAccount]
 usersByEmail = Intra.getUserProfilesByIdentity
 
 usersByIds :: [UserId] -> Handler [UserAccount]
@@ -232,13 +232,13 @@ searchOnBehalf
   (fromMaybe (unsafeRange 10) . checked @1 @100 @Int32 . fromMaybe 10 -> s) =
     Intra.getContacts uid q (fromRange s)
 
-revokeIdentity :: Email -> Handler NoContent
+revokeIdentity :: EmailAddress -> Handler NoContent
 revokeIdentity e = NoContent <$ Intra.revokeIdentity e
 
 changeEmail :: UserId -> EmailUpdate -> Handler NoContent
 changeEmail uid upd = NoContent <$ Intra.changeEmail uid upd
 
-deleteUser :: UserId -> Email -> Handler NoContent
+deleteUser :: UserId -> EmailAddress -> Handler NoContent
 deleteUser uid email = do
   usrs <- Intra.getUserProfilesByIdentity email
   case usrs of
@@ -255,7 +255,7 @@ deleteUser uid email = do
 setTeamStatusH :: Team.TeamStatus -> TeamId -> Handler NoContent
 setTeamStatusH status tid = NoContent <$ Intra.setStatusBindingTeam tid status
 
-deleteTeam :: TeamId -> Maybe Bool -> Maybe Email -> Handler NoContent
+deleteTeam :: TeamId -> Maybe Bool -> Maybe EmailAddress -> Handler NoContent
 deleteTeam givenTid (fromMaybe False -> False) (Just email) = do
   acc <- Intra.getUserProfilesByIdentity email >>= handleNoUser . listToMaybe
   userTid <- (Intra.getUserBindingTeam . userId . accountUser $ acc) >>= handleNoTeam
@@ -276,22 +276,22 @@ deleteTeam tid (fromMaybe False -> True) _ = do
 deleteTeam _ _ _ =
   throwE $ mkError status400 "Bad Request" "either email or 'force=true' parameter is required"
 
-isUserKeyBlacklisted :: Email -> Handler NoContent
+isUserKeyBlacklisted :: EmailAddress -> Handler NoContent
 isUserKeyBlacklisted email = do
   bl <- Intra.isBlacklisted email
   if bl
     then throwE $ mkError status200 "blacklisted" "The given user key IS blacklisted"
     else throwE $ mkError status404 "not-blacklisted" "The given user key is NOT blacklisted"
 
-addBlacklist :: Email -> Handler NoContent
+addBlacklist :: EmailAddress -> Handler NoContent
 addBlacklist email = do
   NoContent <$ Intra.setBlacklistStatus True email
 
-deleteFromBlacklist :: Email -> Handler NoContent
+deleteFromBlacklist :: EmailAddress -> Handler NoContent
 deleteFromBlacklist email = do
   NoContent <$ Intra.setBlacklistStatus False email
 
-getTeamInfoByMemberEmail :: Email -> Handler TeamInfo
+getTeamInfoByMemberEmail :: EmailAddress -> Handler TeamInfo
 getTeamInfoByMemberEmail e = do
   acc <- Intra.getUserProfilesByIdentity e >>= handleUser . listToMaybe
   tid <- (Intra.getUserBindingTeam . userId . accountUser $ acc) >>= handleTeam
@@ -391,7 +391,7 @@ setTeamBillingInfo tid billingInfo = do
   Intra.setTeamBillingInfo tid billingInfo
   getTeamBillingInfo tid
 
-getConsentLog :: Email -> Handler ConsentLogAndMarketo
+getConsentLog :: EmailAddress -> Handler ConsentLogAndMarketo
 getConsentLog e = do
   acc <- listToMaybe <$> Intra.getUserProfilesByIdentity e
   when (isJust acc) $

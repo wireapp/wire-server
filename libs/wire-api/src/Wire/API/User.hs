@@ -210,7 +210,7 @@ import Wire.API.Team.Member qualified as TeamMember
 import Wire.API.Team.Role
 import Wire.API.User.Activation (ActivationCode, ActivationKey)
 import Wire.API.User.Auth (CookieLabel)
-import Wire.API.User.Identity
+import Wire.API.User.Identity hiding (toByteString)
 import Wire.API.User.Password
 import Wire.API.User.Profile
 import Wire.API.User.RichInfo
@@ -489,7 +489,7 @@ data UserProfile = UserProfile
     profileHandle :: Maybe Handle,
     profileExpire :: Maybe UTCTimeMillis,
     profileTeam :: Maybe TeamId,
-    profileEmail :: Maybe Email,
+    profileEmail :: Maybe EmailAddress,
     profileLegalholdStatus :: UserLegalHoldStatus,
     profileSupportedProtocols :: Set BaseProtocolTag
   }
@@ -631,7 +631,7 @@ userObjectSchema =
       .= (fromMaybe ManagedByWire <$> optField "managed_by" schema)
     <*> userSupportedProtocols .= supportedProtocolsObjectSchema
 
-userEmail :: User -> Maybe Email
+userEmail :: User -> Maybe EmailAddress
 userEmail = emailIdentity <=< userIdentity
 
 userSSOId :: User -> Maybe UserSSOId
@@ -689,7 +689,7 @@ instance FromJSON (EmailVisibility ()) where
     "visible_to_self" -> pure EmailVisibleToSelf
     _ -> fail "unexpected value for EmailVisibility settings"
 
-mkUserProfileWithEmail :: Maybe Email -> User -> UserLegalHoldStatus -> UserProfile
+mkUserProfileWithEmail :: Maybe EmailAddress -> User -> UserLegalHoldStatus -> UserProfile
 mkUserProfileWithEmail memail u legalHoldStatus =
   -- This profile would be visible to any other user. When a new field is
   -- added, please make sure it is OK for other users to have access to it.
@@ -850,7 +850,7 @@ instance (res ~ RegisterInternalResponses) => AsUnion res (Either RegisterError 
 urefToExternalId :: SAML.UserRef -> Maybe Text
 urefToExternalId = fmap CI.original . SAML.shortShowNameID . view SAML.uidSubject
 
-urefToEmail :: SAML.UserRef -> Maybe Email
+urefToEmail :: SAML.UserRef -> Maybe EmailAddress
 urefToEmail uref = case uref ^. SAML.uidSubject . SAML.nameID of
   SAML.UNameIDEmail email -> parseEmail . SAMLEmail.render . CI.original $ email
   _ -> Nothing
@@ -1007,7 +1007,7 @@ type ExpiresIn = Range 1 604800 Integer
 data NewUserRaw = NewUserRaw
   { newUserRawDisplayName :: Name,
     newUserRawUUID :: Maybe UUID,
-    newUserRawEmail :: Maybe Email,
+    newUserRawEmail :: Maybe EmailAddress,
     newUserRawSSOId :: Maybe UserSSOId,
     -- | DEPRECATED
     newUserRawPict :: Maybe Pict,
@@ -1173,7 +1173,7 @@ newUserTeam nu = case newUserOrigin nu of
   Just (NewUserOriginTeamUser tu) -> Just tu
   _ -> Nothing
 
-newUserEmail :: NewUser -> Maybe Email
+newUserEmail :: NewUser -> Maybe EmailAddress
 newUserEmail = emailIdentity <=< newUserIdentity
 
 newUserSSOId :: NewUser -> Maybe UserSSOId
@@ -1448,7 +1448,7 @@ instance ToSchema LocaleUpdate where
         <$> luLocale
           .= field "locale" schema
 
-newtype EmailUpdate = EmailUpdate {euEmail :: Email}
+newtype EmailUpdate = EmailUpdate {euEmail :: EmailAddress}
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
   deriving (S.ToSchema) via (Schema EmailUpdate)
@@ -1810,7 +1810,7 @@ data NewUserScimInvitation = NewUserScimInvitation
     newUserScimInvUserId :: UserId,
     newUserScimInvLocale :: Maybe Locale,
     newUserScimInvName :: Name,
-    newUserScimInvEmail :: Email,
+    newUserScimInvEmail :: EmailAddress,
     newUserScimInvRole :: Role
   }
   deriving (Eq, Show, Generic)
@@ -1881,7 +1881,7 @@ instance ToHttpApiData VerificationAction where
 
 data SendVerificationCode = SendVerificationCode
   { svcAction :: VerificationAction,
-    svcEmail :: Email
+    svcEmail :: EmailAddress
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SendVerificationCode)

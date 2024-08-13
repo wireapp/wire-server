@@ -12,7 +12,7 @@ import Wire.API.User
 -- | An 'EmailKey' is an 'Email' in a form that serves as a unique lookup key.
 data EmailKey = EmailKey
   { emailKeyUniq :: !Text,
-    emailKeyOrig :: !Email
+    emailKeyOrig :: !EmailAddress
   }
   deriving (Ord)
 
@@ -33,8 +33,8 @@ instance Arbitrary EmailKey where
 --     e-mail addresses fully case-insensitive.
 --   * "+" suffixes on the local part are stripped unless the domain
 --     part is contained in a trusted whitelist.
-mkEmailKey :: Email -> EmailKey
-mkEmailKey orig@(Email localPart domain) =
+mkEmailKey :: EmailAddress -> EmailKey
+mkEmailKey orig@(EmailAddress localPart domain) =
   let uniq = Text.toLower localPart' <> "@" <> Text.toLower domain
    in EmailKey uniq orig
   where

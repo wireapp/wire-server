@@ -55,7 +55,7 @@ import Servant.API (FromHttpApiData, ToHttpApiData (..))
 import Web.Internal.HttpApiData (parseQueryParam)
 import Wire.API.Team.Role (Role)
 import Wire.API.User (ManagedBy)
-import Wire.API.User.Identity (Email (..))
+import Wire.API.User.Identity (EmailAddress)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 -------------------------------------------------------------------------------
@@ -183,14 +183,14 @@ data TeamContact = TeamContact
     teamContactColorId :: Maybe Int,
     teamContactHandle :: Maybe Text,
     teamContactTeam :: Maybe TeamId,
-    teamContactEmail :: Maybe Email,
+    teamContactEmail :: Maybe EmailAddress,
     teamContactCreatedAt :: Maybe UTCTimeMillis,
     teamContactManagedBy :: Maybe ManagedBy,
     teamContactSAMLIdp :: Maybe Text,
     teamContactRole :: Maybe Role,
     teamContactScimExternalId :: Maybe Text,
     teamContactSso :: Maybe Sso,
-    teamContactEmailUnvalidated :: Maybe Email
+    teamContactEmailUnvalidated :: Maybe EmailAddress
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform TeamContact)

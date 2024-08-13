@@ -44,7 +44,7 @@ import Wire.API.Error.Brig
 import Wire.API.Locale (Locale)
 import Wire.API.Routes.MultiVerb
 import Wire.API.Team.Role (Role, defaultRole)
-import Wire.API.User.Identity (Email)
+import Wire.API.User.Identity (EmailAddress)
 import Wire.API.User.Profile (Name)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
@@ -55,7 +55,7 @@ data InvitationRequest = InvitationRequest
   { locale :: Maybe Locale,
     role :: Maybe Role,
     inviteeName :: Maybe Name,
-    inviteeEmail :: Email
+    inviteeEmail :: EmailAddress
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform InvitationRequest)
@@ -85,7 +85,7 @@ data Invitation = Invitation
     -- | this is always 'Just' for new invitations, but for
     -- migration it is allowed to be 'Nothing'.
     inCreatedBy :: Maybe UserId,
-    inInviteeEmail :: Email,
+    inInviteeEmail :: EmailAddress,
     inInviteeName :: Maybe Name,
     inInviteeUrl :: Maybe (URIRef Absolute)
   }

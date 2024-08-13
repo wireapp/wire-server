@@ -59,7 +59,7 @@ data Code = Code
     -- once, and it cannot actually be "re"-tried after that.
     codeRetries :: !Retries,
     codeTTL :: !Timeout,
-    codeFor :: !Email,
+    codeFor :: !EmailAddress,
     codeAccount :: !(Maybe UUID)
   }
   deriving (Eq, Show)

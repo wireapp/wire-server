@@ -25,15 +25,12 @@ import Wire.API.User.Auth (LoginId (..))
 testObject_LoginId_user_1 :: LoginId
 testObject_LoginId_user_1 =
   LoginByEmail
-    (Email {emailLocal = "~]z^?j\NAK\1088399\1112814X{)\1087092t\f", emailDomain = "\1113045\n\vL$\ENQY\NUL\DELUj?H%"})
+    (unsafeEmailAddress "~]z^?j\NAK\1088399\1112814X{)\1087092t\f" "\1113045\n\vL$\ENQY\NUL\DELUj?H%")
 
 testObject_LoginId_user_2 :: LoginId
 testObject_LoginId_user_2 =
   LoginByEmail
-    ( Email
-        { emailLocal = "0\1088863^\1000125\144267\NUL)|\183379:",
-          emailDomain = "q6e/$\1033221Zb\1050001)\991223\&05i\20077~q\1071660\128584y"
-        }
+    ( unsafeEmailAddress "0\1088863^\1000125\144267\NUL)|\183379:" "q6e/$\1033221Zb\1050001)\991223\&05i\20077~q\1071660\128584y"
     )
 
 testObject_LoginId_user_3 :: LoginId
@@ -48,4 +45,4 @@ testObject_LoginId_user_5 =
 
 testObject_LoginId_user_6 :: LoginId
 testObject_LoginId_user_6 =
-  LoginByEmail (Email {emailLocal = "", emailDomain = "\18232\EM+h\ENQ(D\SO\28757\993545 \a\r1"})
+  LoginByEmail (unsafeEmailAddress "" "\18232\EM+h\ENQ(D\SO\28757\993545 \a\r1")

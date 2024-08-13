@@ -63,11 +63,11 @@ import Wire.API.User.Scim (ValidExternalId (..))
 
 data BrigAccess m a where
   CreateSAML :: SAML.UserRef -> UserId -> TeamId -> Name -> ManagedBy -> Maybe Handle -> Maybe RichInfo -> Maybe Locale -> Role -> BrigAccess m UserId
-  CreateNoSAML :: Email -> UserId -> TeamId -> Name -> Maybe Locale -> Role -> BrigAccess m UserId
-  UpdateEmail :: UserId -> Email -> BrigAccess m ()
+  CreateNoSAML :: EmailAddress -> UserId -> TeamId -> Name -> Maybe Locale -> Role -> BrigAccess m UserId
+  UpdateEmail :: UserId -> EmailAddress -> BrigAccess m ()
   GetAccount :: HavePendingInvitations -> UserId -> BrigAccess m (Maybe UserAccount)
   GetByHandle :: Handle -> BrigAccess m (Maybe UserAccount)
-  GetByEmail :: Email -> BrigAccess m (Maybe UserAccount)
+  GetByEmail :: EmailAddress -> BrigAccess m (Maybe UserAccount)
   SetName :: UserId -> Name -> BrigAccess m ()
   SetHandle :: UserId -> Handle {- not 'HandleUpdate'! -} -> BrigAccess m ()
   SetManagedBy :: UserId -> ManagedBy -> BrigAccess m ()
