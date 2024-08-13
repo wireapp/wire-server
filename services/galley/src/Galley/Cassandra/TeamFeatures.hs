@@ -19,7 +19,7 @@
 
 module Galley.Cassandra.TeamFeatures
   ( interpretTeamFeatureStoreToCassandra,
-    getFeatureConfigMulti,
+    getDbFeatureMulti,
     getAllTeamFeaturesForServer,
   )
 where
@@ -49,36 +49,36 @@ interpretTeamFeatureStoreToCassandra ::
   Sem (TFS.TeamFeatureStore ': r) a ->
   Sem r a
 interpretTeamFeatureStoreToCassandra = interpret $ \case
-  TFS.GetFeatureConfig sing tid -> do
+  TFS.GetDbFeature sing tid -> do
     logEffect "TeamFeatureStore.GetFeatureConfig"
-    embedClient $ getFeatureConfig sing tid
-  TFS.GetFeatureConfigMulti sing tids -> do
+    embedClient $ getDbFeature sing tid
+  TFS.GetDbFeatureMulti sing tids -> do
     logEffect "TeamFeatureStore.GetFeatureConfigMulti"
-    embedClient $ getFeatureConfigMulti sing tids
-  TFS.SetFeatureConfig sing tid feat -> do
+    embedClient $ getDbFeatureMulti sing tids
+  TFS.SetDbFeature sing tid feat -> do
     logEffect "TeamFeatureStore.SetFeatureConfig"
-    embedClient $ setFeatureConfig sing tid feat
+    embedClient $ setDbFeature sing tid feat
   TFS.SetFeatureLockStatus sing tid lock -> do
     logEffect "TeamFeatureStore.SetFeatureLockStatus"
     embedClient $ setFeatureLockStatus sing tid (Tagged lock)
-  TFS.GetAllTeamFeatures tid -> do
+  TFS.GetAllDbFeatures tid -> do
     logEffect "TeamFeatureStore.GetAllTeamFeatures"
-    embedClient $ getAllTeamFeatures tid
+    embedClient $ getAllDbFeatures tid
 
-getFeatureConfigMulti ::
+getDbFeatureMulti ::
   forall cfg m.
   (MonadClient m, MonadUnliftIO m) =>
   FeatureSingleton cfg ->
   [TeamId] ->
   m [(TeamId, DbFeature cfg)]
-getFeatureConfigMulti proxy =
-  pooledMapConcurrentlyN 8 (\tid -> getFeatureConfig proxy tid <&> (tid,))
+getDbFeatureMulti proxy =
+  pooledMapConcurrentlyN 8 (\tid -> getDbFeature proxy tid <&> (tid,))
 
-getFeatureConfig :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> m (DbFeature cfg)
-getFeatureConfig = $(featureCases [|fetchFeature|])
+getDbFeature :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> m (DbFeature cfg)
+getDbFeature = $(featureCases [|fetchFeature|])
 
-setFeatureConfig :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> LockableFeature cfg -> m ()
-setFeatureConfig = $(featureCases [|storeFeature|])
+setDbFeature :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> LockableFeature cfg -> m ()
+setDbFeature = $(featureCases [|storeFeature|])
 
 setFeatureLockStatus :: (MonadClient m) => FeatureSingleton cfg -> TeamId -> Tagged cfg LockStatus -> m ()
 setFeatureLockStatus = $(featureCases [|storeFeatureLockStatus|])

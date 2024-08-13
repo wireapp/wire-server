@@ -25,15 +25,15 @@ import Wire.API.Team.Feature
 
 data TeamFeatureStore m a where
   -- | Returns all stored feature values excluding lock status.
-  GetFeatureConfig ::
+  GetDbFeature ::
     FeatureSingleton cfg ->
     TeamId ->
     TeamFeatureStore m (DbFeature cfg)
-  GetFeatureConfigMulti ::
+  GetDbFeatureMulti ::
     FeatureSingleton cfg ->
     [TeamId] ->
     TeamFeatureStore m [(TeamId, DbFeature cfg)]
-  SetFeatureConfig ::
+  SetDbFeature ::
     FeatureSingleton cfg ->
     TeamId ->
     LockableFeature cfg ->
@@ -43,28 +43,28 @@ data TeamFeatureStore m a where
     TeamId ->
     LockStatus ->
     TeamFeatureStore m ()
-  GetAllTeamFeatures ::
+  GetAllDbFeatures ::
     TeamId ->
     TeamFeatureStore m (AllFeatures DbFeature)
 
-getFeatureConfig ::
+getDbFeature ::
   (Member TeamFeatureStore r, IsFeatureConfig cfg) =>
   TeamId ->
   Sem r (DbFeature cfg)
-getFeatureConfig tid = send (GetFeatureConfig featureSingleton tid)
+getDbFeature tid = send (GetDbFeature featureSingleton tid)
 
-getFeatureConfigMulti ::
+getDbFeatureMulti ::
   (Member TeamFeatureStore r, IsFeatureConfig cfg) =>
   [TeamId] ->
   Sem r [(TeamId, DbFeature cfg)]
-getFeatureConfigMulti tids = send (GetFeatureConfigMulti featureSingleton tids)
+getDbFeatureMulti tids = send (GetDbFeatureMulti featureSingleton tids)
 
-setFeatureConfig ::
+setDbFeature ::
   (Member TeamFeatureStore r, IsFeatureConfig cfg) =>
   TeamId ->
   LockableFeature cfg ->
   Sem r ()
-setFeatureConfig tid feat = send (SetFeatureConfig featureSingleton tid feat)
+setDbFeature tid feat = send (SetDbFeature featureSingleton tid feat)
 
 setFeatureLockStatus ::
   forall cfg r.
@@ -75,5 +75,5 @@ setFeatureLockStatus ::
 setFeatureLockStatus tid lockStatus =
   send (SetFeatureLockStatus (featureSingleton @cfg) tid lockStatus)
 
-getAllTeamFeatures :: (Member TeamFeatureStore r) => TeamId -> Sem r (AllFeatures DbFeature)
-getAllTeamFeatures tid = send (GetAllTeamFeatures tid)
+getAllDbFeatures :: (Member TeamFeatureStore r) => TeamId -> Sem r (AllFeatures DbFeature)
+getAllDbFeatures tid = send (GetAllDbFeatures tid)
