@@ -176,7 +176,7 @@ updateLockStatus ::
   Sem r LockStatusResponse
 updateLockStatus tid lockStatus = do
   assertTeamExists tid
-  TeamFeatures.setFeatureLockStatus (featureSingleton @cfg) tid lockStatus
+  TeamFeatures.setFeatureLockStatus @cfg tid lockStatus
   pure $ LockStatusResponse lockStatus
 
 persistFeature ::
@@ -190,7 +190,7 @@ persistFeature ::
   LockableFeature cfg ->
   Sem r (LockableFeature cfg)
 persistFeature tid feat = do
-  setFeatureConfig (featureSingleton @cfg) tid feat
+  setFeatureConfig tid feat
   getFeatureForTeam @cfg tid
 
 pushFeatureEvent ::

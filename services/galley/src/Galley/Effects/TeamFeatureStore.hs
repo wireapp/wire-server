@@ -47,4 +47,33 @@ data TeamFeatureStore m a where
     TeamId ->
     TeamFeatureStore m (AllFeatures DbFeature)
 
-makeSem ''TeamFeatureStore
+getFeatureConfig ::
+  (Member TeamFeatureStore r, IsFeatureConfig cfg) =>
+  TeamId ->
+  Sem r (DbFeature cfg)
+getFeatureConfig tid = send (GetFeatureConfig featureSingleton tid)
+
+getFeatureConfigMulti ::
+  (Member TeamFeatureStore r, IsFeatureConfig cfg) =>
+  [TeamId] ->
+  Sem r [(TeamId, DbFeature cfg)]
+getFeatureConfigMulti tids = send (GetFeatureConfigMulti featureSingleton tids)
+
+setFeatureConfig ::
+  (Member TeamFeatureStore r, IsFeatureConfig cfg) =>
+  TeamId ->
+  LockableFeature cfg ->
+  Sem r ()
+setFeatureConfig tid feat = send (SetFeatureConfig featureSingleton tid feat)
+
+setFeatureLockStatus ::
+  forall cfg r.
+  (Member TeamFeatureStore r, IsFeatureConfig cfg) =>
+  TeamId ->
+  LockStatus ->
+  Sem r ()
+setFeatureLockStatus tid lockStatus =
+  send (SetFeatureLockStatus (featureSingleton @cfg) tid lockStatus)
+
+getAllTeamFeatures :: (Member TeamFeatureStore r) => TeamId -> Sem r (AllFeatures DbFeature)
+getAllTeamFeatures tid = send (GetAllTeamFeatures tid)
