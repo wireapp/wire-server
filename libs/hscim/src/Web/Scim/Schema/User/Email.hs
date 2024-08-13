@@ -21,24 +21,24 @@ import Data.Aeson
 import Data.Text hiding (dropWhile)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import GHC.Generics (Generic)
-import Text.Email.Validate
+import qualified Text.Email.Validate as Email
 import Web.Scim.Schema.Common
 
-newtype EmailAddress2 = EmailAddress2
-  {unEmailAddress :: EmailAddress}
+newtype EmailAddress = EmailAddress
+  {unEmailAddress :: Email.EmailAddress}
   deriving (Show, Eq)
 
-instance FromJSON EmailAddress2 where
-  parseJSON = withText "Email" $ \e -> case emailAddress (encodeUtf8 e) of
+instance FromJSON EmailAddress where
+  parseJSON = withText "Email" $ \e -> case Email.emailAddress (encodeUtf8 e) of
     Nothing -> fail "Invalid email"
-    Just some -> pure $ EmailAddress2 some
+    Just some -> pure $ EmailAddress some
 
-instance ToJSON EmailAddress2 where
-  toJSON (EmailAddress2 e) = String $ decodeUtf8 . toByteString $ e
+instance ToJSON EmailAddress where
+  toJSON (EmailAddress e) = String $ decodeUtf8 . Email.toByteString $ e
 
 data Email = Email
-  { typ :: Maybe Text,
-    value :: EmailAddress2,
+  { typ :: Maybe Text, -- Work, private, and so on
+    value :: EmailAddress,
     primary :: Maybe ScimBool
   }
   deriving (Show, Eq, Generic)

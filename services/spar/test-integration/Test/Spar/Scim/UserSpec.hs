@@ -1815,7 +1815,7 @@ testBrigSideIsUpdated = do
     runSpar . runScimErrorUnsafe $
       validateScimUser' "testBrigSideIsUpdated" (Just idp) 999999 user'
   brigUser <- maybe (error "no brig user") pure =<< runSpar (Intra.getBrigUser Intra.WithPendingInvitations userid)
-  let scimUserWithDefLocale = validScimUser {Spar.Types._vsuLocale = Spar.Types._vsuLocale validScimUser <|> Just (Locale (Language EN) Nothing)}
+  let scimUserWithDefLocale = validScimUser {Spar.Types.locale = Spar.Types.locale validScimUser <|> Just (Locale (Language EN) Nothing)}
   brigUser `userShouldMatch` scimUserWithDefLocale
 
 testUpdateUserRole :: TestSpar ()
@@ -2280,8 +2280,7 @@ specEmailValidation = do
           veid <-
             runSpar . runScimErrorUnsafe $
               mkValidExternalId (Just idp) (Scim.User.externalId . Scim.value . Scim.thing $ scimStoredUser)
-          uid :: UserId <-
-            getUserIdViaRef (veid ^?! veidUref)
+          uid :: UserId <- getUserIdViaRef $ fromJust (veidUref veid)
           brig <- view teBrig
           -- we intentionally activate the email even if it's not set up to work, to make sure
           -- it doesn't if the feature is disabled.

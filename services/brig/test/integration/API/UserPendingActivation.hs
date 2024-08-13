@@ -225,10 +225,10 @@ randomScimEmail = do
       -- TODO: where should we catch users with more than one
       -- primary email?
       primary :: Maybe Scim.ScimBool = Nothing
-  value :: Email.EmailAddress2 <- do
+  value <- do
     localpart <- cs <$> replicateM 15 (getRandomR ('a', 'z'))
     domainpart <- (<> ".com") . cs <$> replicateM 15 (getRandomR ('a', 'z'))
-    pure . Email.EmailAddress2 $ Email.unsafeEmailAddress localpart domainpart
+    pure . Email.EmailAddress $ Email.unsafeEmailAddress localpart domainpart
   pure Email.Email {..}
 
 randomScimPhone :: (MonadRandom m) => m Phone.Phone

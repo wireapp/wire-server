@@ -73,7 +73,7 @@ import Spar.Error
 import qualified Spar.Intra.BrigApp as Brig
 import Spar.Options
 import Spar.Orphans ()
-import Spar.Scim
+import Spar.Scim hiding (handle)
 import Spar.Sem.AReqIDStore (AReqIDStore)
 import Spar.Sem.AssIDStore (AssIDStore)
 import Spar.Sem.BrigAccess (BrigAccess)

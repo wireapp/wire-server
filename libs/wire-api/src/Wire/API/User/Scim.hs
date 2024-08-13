@@ -42,7 +42,7 @@
 -- * Request and response types for SCIM-related endpoints.
 module Wire.API.User.Scim where
 
-import Control.Lens (Prism', makeLenses, mapped, prism', (.~), (?~), (^.))
+import Control.Lens (makeLenses, mapped, (.~), (?~), (^.))
 import Control.Monad.Except (throwError)
 import Crypto.Hash (hash)
 import Crypto.Hash.Algorithms (SHA512)
@@ -328,13 +328,14 @@ instance Scim.Patchable ScimUserExtra where
 -- and/or ignore POSTed content, returning the full representation can be useful to the
 -- client, enabling it to correlate the client's and server's views of the new resource."
 data ValidScimUser = ValidScimUser
-  { _vsuExternalId :: ValidExternalId,
-    _vsuHandle :: Handle,
-    _vsuName :: BT.Name,
-    _vsuRichInfo :: RI.RichInfo,
-    _vsuActive :: Bool,
-    _vsuLocale :: Maybe Locale,
-    _vsuRole :: Maybe Role
+  { externalId :: ValidExternalId,
+    handle :: Handle,
+    name :: BT.Name,
+    emails :: [Email],
+    richInfo :: RI.RichInfo,
+    active :: Bool,
+    locale :: Maybe Locale,
+    role :: Maybe Role
   }
   deriving (Eq, Show)
 
@@ -375,12 +376,11 @@ runValidExternalIdBoth merge doUref doEmail = \case
 runValidExternalIdUnsafe :: ValidExternalId -> Text
 runValidExternalIdUnsafe = runValidExternalIdEither urefToExternalIdUnsafe fromEmail
 
-veidUref :: Prism' ValidExternalId SAML.UserRef
-veidUref = prism' UrefOnly $
-  \case
-    EmailAndUref _ uref -> Just uref
-    UrefOnly uref -> Just uref
-    EmailOnly _ -> Nothing
+veidUref :: ValidExternalId -> Maybe SAML.UserRef
+veidUref = \case
+  EmailAndUref _ uref -> Just uref
+  UrefOnly uref -> Just uref
+  EmailOnly _ -> Nothing
 
 makeLenses ''ValidScimUser
 makeLenses ''ValidExternalId
