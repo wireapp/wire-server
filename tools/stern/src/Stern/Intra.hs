@@ -86,14 +86,12 @@ import Data.Id
 import Data.Int
 import Data.List.Split (chunksOf)
 import Data.Map qualified as Map
-import Data.Proxy (Proxy (Proxy))
 import Data.Qualified (qUnqualified)
 import Data.Text (strip)
 import Data.Text.Encoding
 import Data.Text.Encoding.Error
 import Data.Text.Lazy as LT (pack)
 import Data.Text.Lazy.Encoding qualified as TL
-import GHC.TypeLits (KnownSymbol, symbolVal)
 import Imports
 import Network.HTTP.Types (urlEncode)
 import Network.HTTP.Types.Method
@@ -504,10 +502,7 @@ setBlacklistStatus status email = do
 
 getTeamFeatureFlag ::
   forall cfg.
-  ( Typeable (Public.LockableFeature cfg),
-    FromJSON (Public.LockableFeature cfg),
-    KnownSymbol (Public.FeatureSymbol cfg)
-  ) =>
+  (IsFeatureConfig cfg, Typeable cfg) =>
   TeamId ->
   Handler (Public.LockableFeature cfg)
 getTeamFeatureFlag tid = do
@@ -524,9 +519,7 @@ getTeamFeatureFlag tid = do
 
 setTeamFeatureFlag ::
   forall cfg.
-  ( ToJSON (Public.Feature cfg),
-    KnownSymbol (Public.FeatureSymbol cfg)
-  ) =>
+  (IsFeatureConfig cfg) =>
   TeamId ->
   Public.Feature cfg ->
   Handler ()
@@ -540,9 +533,7 @@ setTeamFeatureFlag tid status = do
 
 patchTeamFeatureFlag ::
   forall cfg.
-  ( ToJSON (Public.LockableFeaturePatch cfg),
-    KnownSymbol (Public.FeatureSymbol cfg)
-  ) =>
+  (IsFeatureConfig cfg) =>
   TeamId ->
   Public.LockableFeaturePatch cfg ->
   Handler ()
@@ -566,13 +557,12 @@ galleyRpc req = do
 
 setTeamFeatureLockStatus ::
   forall cfg.
-  ( KnownSymbol (Public.FeatureSymbol cfg)
-  ) =>
+  (IsFeatureConfig cfg) =>
   TeamId ->
   LockStatus ->
   Handler ()
 setTeamFeatureLockStatus tid lstat = do
-  info $ msg ("Setting lock status: " <> show (symbolVal (Proxy @(Public.FeatureSymbol cfg)), lstat))
+  info $ msg ("Setting lock status: " <> featureName @cfg)
   gly <- view galley
   fromResponseBody
     <=< catchRpcErrors

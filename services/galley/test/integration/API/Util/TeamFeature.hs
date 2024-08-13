@@ -25,15 +25,13 @@ import API.Util (HasGalley (viewGalley), zUser)
 import API.Util qualified as Util
 import Bilge
 import Control.Lens ((.~))
-import Data.Aeson (ToJSON)
 import Data.ByteString.Conversion (toByteString')
 import Data.Id (ConvId, TeamId, UserId)
-import GHC.TypeLits (KnownSymbol)
 import Galley.Options (featureFlags, settings)
 import Galley.Types.Teams
 import Imports
 import TestSetup
-import Wire.API.Team.Feature qualified as Public
+import Wire.API.Team.Feature
 
 withCustomSearchFeature :: FeatureTeamSearchVisibilityAvailability -> TestM () -> TestM ()
 withCustomSearchFeature flag action = do
@@ -42,15 +40,15 @@ withCustomSearchFeature flag action = do
 putTeamSearchVisibilityAvailableInternal ::
   (HasCallStack) =>
   TeamId ->
-  Public.FeatureStatus ->
+  FeatureStatus ->
   (MonadIO m, MonadHttp m, HasGalley m) => m ()
 putTeamSearchVisibilityAvailableInternal tid statusValue =
   void $
     putTeamFeatureInternal
-      @Public.SearchVisibilityAvailableConfig
+      @SearchVisibilityAvailableConfig
       expect2xx
       tid
-      (Public.Feature statusValue Public.SearchVisibilityAvailableConfig)
+      (Feature statusValue SearchVisibilityAvailableConfig)
 
 putTeamFeatureInternal ::
   forall cfg m.
@@ -58,36 +56,32 @@ putTeamFeatureInternal ::
     HasGalley m,
     MonadHttp m,
     HasCallStack,
-    KnownSymbol (Public.FeatureSymbol cfg),
-    ToJSON (Public.Feature cfg)
+    IsFeatureConfig cfg
   ) =>
   (Request -> Request) ->
   TeamId ->
-  Public.Feature cfg ->
+  Feature cfg ->
   m ResponseLBS
 putTeamFeatureInternal reqmod tid status = do
   galley <- viewGalley
   put $
     galley
-      . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg]
+      . paths ["i", "teams", toByteString' tid, "features", featureNameBS @cfg]
       . json status
       . reqmod
 
 putTeamFeature ::
   forall cfg.
-  ( HasCallStack,
-    KnownSymbol (Public.FeatureSymbol cfg),
-    ToJSON (Public.Feature cfg)
-  ) =>
+  (HasCallStack, IsFeatureConfig cfg) =>
   UserId ->
   TeamId ->
-  Public.Feature cfg ->
+  Feature cfg ->
   TestM ResponseLBS
 putTeamFeature uid tid status = do
   galley <- viewGalley
   put $
     galley
-      . paths ["teams", toByteString' tid, "features", Public.featureNameBS @cfg]
+      . paths ["teams", toByteString' tid, "features", featureNameBS @cfg]
       . json status
       . zUser uid
 
@@ -100,23 +94,23 @@ getGuestLinkStatus ::
 getGuestLinkStatus galley u cid =
   get $
     galley
-      . paths ["conversations", toByteString' cid, "features", Public.featureNameBS @Public.GuestLinksConfig]
+      . paths ["conversations", toByteString' cid, "features", featureNameBS @GuestLinksConfig]
       . zUser u
 
 getTeamFeatureInternal ::
   forall cfg m.
-  (HasGalley m, MonadIO m, MonadHttp m, KnownSymbol (Public.FeatureSymbol cfg)) =>
+  (HasGalley m, MonadIO m, MonadHttp m, IsFeatureConfig cfg) =>
   TeamId ->
   m ResponseLBS
 getTeamFeatureInternal tid = do
   g <- viewGalley
   get $
     g
-      . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg]
+      . paths ["i", "teams", toByteString' tid, "features", featureNameBS @cfg]
 
 getTeamFeature ::
   forall cfg m.
-  (HasGalley m, MonadIO m, MonadHttp m, HasCallStack, KnownSymbol (Public.FeatureSymbol cfg)) =>
+  (HasGalley m, MonadIO m, MonadHttp m, HasCallStack, IsFeatureConfig cfg) =>
   UserId ->
   TeamId ->
   m ResponseLBS
@@ -124,5 +118,5 @@ getTeamFeature uid tid = do
   galley <- viewGalley
   get $
     galley
-      . paths ["teams", toByteString' tid, "features", Public.featureNameBS @cfg]
+      . paths ["teams", toByteString' tid, "features", featureNameBS @cfg]
       . zUser uid

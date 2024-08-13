@@ -49,7 +49,7 @@ module Wire.API.Team.Feature
     genericComputeFeature,
     IsFeatureConfig (..),
     FeatureSingleton (..),
-    HasDeprecatedFeatureName (..),
+    DeprecatedFeatureName,
     LockStatusResponse (..),
     One2OneCalls (..),
     -- Features
@@ -178,7 +178,14 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- 12. Add a section to the documentation at an appropriate place
 -- (e.g. 'docs/src/developer/reference/config-options.md' (if applicable) or
 -- 'docs/src/understand/team-feature-settings.md')
-class (Default cfg, Default (LockableFeature cfg)) => IsFeatureConfig cfg where
+class
+  ( Default cfg,
+    ToSchema cfg,
+    Default (LockableFeature cfg),
+    KnownSymbol (FeatureSymbol cfg)
+  ) =>
+  IsFeatureConfig cfg
+  where
   type FeatureSymbol cfg :: Symbol
   featureSingleton :: FeatureSingleton cfg
 
@@ -210,13 +217,12 @@ data FeatureSingleton cfg where
   FeatureSingletonEnforceFileDownloadLocationConfig :: FeatureSingleton EnforceFileDownloadLocationConfig
   FeatureSingletonLimitedEventFanoutConfig :: FeatureSingleton LimitedEventFanoutConfig
 
-class HasDeprecatedFeatureName cfg where
-  type DeprecatedFeatureName cfg :: Symbol
+type family DeprecatedFeatureName cfg :: Symbol
 
-featureName :: forall cfg. (KnownSymbol (FeatureSymbol cfg)) => Text
+featureName :: forall cfg. (IsFeatureConfig cfg) => Text
 featureName = T.pack $ symbolVal (Proxy @(FeatureSymbol cfg))
 
-featureNameBS :: forall cfg. (KnownSymbol (FeatureSymbol cfg)) => ByteString
+featureNameBS :: forall cfg. (IsFeatureConfig cfg) => ByteString
 featureNameBS = UTF8.fromString $ symbolVal (Proxy @(FeatureSymbol cfg))
 
 --------------------------------------------------------------------------------
@@ -289,7 +295,7 @@ defUnlockedFeature =
       config = def
     }
 
-instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (LockableFeature cfg) where
+instance (IsFeatureConfig cfg) => ToSchema (LockableFeature cfg) where
   schema =
     object name $
       LockableFeature
@@ -651,8 +657,7 @@ instance IsFeatureConfig SearchVisibilityAvailableConfig where
 instance ToSchema SearchVisibilityAvailableConfig where
   schema = object "SearchVisibilityAvailableConfig" objectSchema
 
-instance HasDeprecatedFeatureName SearchVisibilityAvailableConfig where
-  type DeprecatedFeatureName SearchVisibilityAvailableConfig = "search-visibility"
+type instance DeprecatedFeatureName SearchVisibilityAvailableConfig = "search-visibility"
 
 --------------------------------------------------------------------------------
 -- ValidateSAMLEmails feature
@@ -679,8 +684,7 @@ instance IsFeatureConfig ValidateSAMLEmailsConfig where
   featureSingleton = FeatureSingletonValidateSAMLEmailsConfig
   objectSchema = pure ValidateSAMLEmailsConfig
 
-instance HasDeprecatedFeatureName ValidateSAMLEmailsConfig where
-  type DeprecatedFeatureName ValidateSAMLEmailsConfig = "validate-saml-emails"
+type instance DeprecatedFeatureName ValidateSAMLEmailsConfig = "validate-saml-emails"
 
 --------------------------------------------------------------------------------
 -- DigitalSignatures feature
@@ -704,8 +708,7 @@ instance IsFeatureConfig DigitalSignaturesConfig where
   featureSingleton = FeatureSingletonDigitalSignaturesConfig
   objectSchema = pure DigitalSignaturesConfig
 
-instance HasDeprecatedFeatureName DigitalSignaturesConfig where
-  type DeprecatedFeatureName DigitalSignaturesConfig = "digital-signatures"
+type instance DeprecatedFeatureName DigitalSignaturesConfig = "digital-signatures"
 
 instance ToSchema DigitalSignaturesConfig where
   schema = object "DigitalSignaturesConfig" objectSchema
@@ -1310,9 +1313,9 @@ instance (HObjectSchema c xs, c x) => HObjectSchema c ((x :: Type) : xs) where
   hobjectSchema f = (:*) <$> hd .= f <*> tl .= hobjectSchema @c @xs f
 
 -- | constraint synonym  for 'ToSchema' 'AllFeatureConfigs'
-class (IsFeatureConfig cfg, ToSchema cfg, KnownSymbol (FeatureSymbol cfg)) => FeatureFieldConstraints cfg
+class (IsFeatureConfig cfg, ToSchema cfg) => FeatureFieldConstraints cfg
 
-instance (IsFeatureConfig cfg, ToSchema cfg, KnownSymbol (FeatureSymbol cfg)) => FeatureFieldConstraints cfg
+instance (IsFeatureConfig cfg, ToSchema cfg) => FeatureFieldConstraints cfg
 
 instance ToSchema AllFeatureConfigs where
   schema =

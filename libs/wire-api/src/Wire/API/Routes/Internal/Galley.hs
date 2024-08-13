@@ -26,7 +26,6 @@ import GHC.TypeLits (AppendSymbol)
 import Imports hiding (head)
 import Servant
 import Servant.OpenApi
-import Wire.API.ApplyMods
 import Wire.API.Bot
 import Wire.API.Bot.Service
 import Wire.API.Conversation
@@ -38,6 +37,7 @@ import Wire.API.Event.Conversation
 import Wire.API.FederationStatus
 import Wire.API.MakesFederatedCall
 import Wire.API.Provider.Service (ServiceRef)
+import Wire.API.Routes.Features
 import Wire.API.Routes.Internal.Brig.EJPD
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti
@@ -56,128 +56,40 @@ import Wire.API.Team.Member
 import Wire.API.Team.SearchVisibility
 import Wire.API.User.Client
 
-type LegalHoldFeatureStatusChangeErrors =
-  '( 'ActionDenied 'RemoveConversationMember,
-     '( AuthenticationError,
-        '( 'CannotEnableLegalHoldServiceLargeTeam,
-           '( 'LegalHoldNotEnabled,
-              '( 'LegalHoldDisableUnimplemented,
-                 '( 'LegalHoldServiceNotRegistered,
-                    '( 'UserLegalHoldIllegalOperation,
-                       '( 'LegalHoldCouldNotBlockConnections, '())
-                     )
-                  )
-               )
-            )
-         )
-      )
-   )
-
 type LegalHoldFeaturesStatusChangeFederatedCalls =
   '[ MakesFederatedCall 'Galley "on-conversation-updated",
      MakesFederatedCall 'Galley "on-mls-message-sent"
    ]
 
+type family IFeatureAPI1 cfg where
+  -- special case for classified domains, since it cannot be set
+  IFeatureAPI1 ClassifiedDomainsConfig = IFeatureStatusGet ClassifiedDomainsConfig
+  IFeatureAPI1 cfg = IFeatureAPI1Full cfg
+
+type IFeatureAPI1Full cfg =
+  IFeatureStatusGet cfg
+    :<|> IFeatureStatusPut cfg
+    :<|> IFeatureStatusPatch cfg
+
+type family IAllFeaturesAPI cfgs where
+  IAllFeaturesAPI '[cfg] = IFeatureAPI1 cfg
+  IAllFeaturesAPI (cfg : cfgs) = IFeatureAPI1 cfg :<|> IAllFeaturesAPI cfgs
+
 type IFeatureAPI =
-  -- SSOConfig
-  IFeatureStatusGet SSOConfig
-    :<|> IFeatureStatusPut '[] '() SSOConfig
-    :<|> IFeatureStatusPatch '[] '() SSOConfig
-    -- LegalholdConfig
-    :<|> IFeatureStatusGet LegalholdConfig
-    :<|> IFeatureStatusPut
-           LegalHoldFeaturesStatusChangeFederatedCalls
-           LegalHoldFeatureStatusChangeErrors
-           LegalholdConfig
-    :<|> IFeatureStatusPatch
-           LegalHoldFeaturesStatusChangeFederatedCalls
-           LegalHoldFeatureStatusChangeErrors
-           LegalholdConfig
-    -- SearchVisibilityAvailableConfig
-    :<|> IFeatureStatusGet SearchVisibilityAvailableConfig
-    :<|> IFeatureStatusPut '[] '() SearchVisibilityAvailableConfig
-    :<|> IFeatureStatusPatch '[] '() SearchVisibilityAvailableConfig
-    -- ValidateSAMLEmailsConfig
-    :<|> IFeatureStatusGet ValidateSAMLEmailsConfig
-    :<|> IFeatureStatusPut '[] '() ValidateSAMLEmailsConfig
-    :<|> IFeatureStatusPatch '[] '() ValidateSAMLEmailsConfig
-    -- DigitalSignaturesConfig
-    :<|> IFeatureStatusGet DigitalSignaturesConfig
-    :<|> IFeatureStatusPut '[] '() DigitalSignaturesConfig
-    :<|> IFeatureStatusPatch '[] '() DigitalSignaturesConfig
-    -- AppLockConfig
-    :<|> IFeatureStatusGet AppLockConfig
-    :<|> IFeatureStatusPut '[] '() AppLockConfig
-    :<|> IFeatureStatusPatch '[] '() AppLockConfig
-    -- FileSharingConfig
-    :<|> IFeatureStatusGet FileSharingConfig
-    :<|> IFeatureStatusPut '[] '() FileSharingConfig
+  IAllFeaturesAPI Features
+    -- legacy lock status put endpoints
     :<|> IFeatureStatusLockStatusPut FileSharingConfig
-    :<|> IFeatureStatusPatch '[] '() FileSharingConfig
-    -- ConferenceCallingConfig
-    :<|> IFeatureStatusGet ConferenceCallingConfig
-    :<|> IFeatureStatusPut '[] '() ConferenceCallingConfig
     :<|> IFeatureStatusLockStatusPut ConferenceCallingConfig
-    :<|> IFeatureStatusPatch '[] '() ConferenceCallingConfig
-    -- SelfDeletingMessagesConfig
-    :<|> IFeatureStatusGet SelfDeletingMessagesConfig
-    :<|> IFeatureStatusPut '[] '() SelfDeletingMessagesConfig
     :<|> IFeatureStatusLockStatusPut SelfDeletingMessagesConfig
-    :<|> IFeatureStatusPatch '[] '() SelfDeletingMessagesConfig
-    -- GuestLinksConfig
-    :<|> IFeatureStatusGet GuestLinksConfig
-    :<|> IFeatureStatusPut '[] '() GuestLinksConfig
     :<|> IFeatureStatusLockStatusPut GuestLinksConfig
-    :<|> IFeatureStatusPatch '[] '() GuestLinksConfig
-    --  SndFactorPasswordChallengeConfig
-    :<|> IFeatureStatusGet SndFactorPasswordChallengeConfig
-    :<|> IFeatureStatusPut '[] '() SndFactorPasswordChallengeConfig
     :<|> IFeatureStatusLockStatusPut SndFactorPasswordChallengeConfig
-    :<|> IFeatureStatusPatch '[] '() SndFactorPasswordChallengeConfig
-    -- SearchVisibilityInboundConfig
-    :<|> IFeatureStatusGet SearchVisibilityInboundConfig
-    :<|> IFeatureStatusPut '[] '() SearchVisibilityInboundConfig
-    :<|> IFeatureStatusPatch '[] '() SearchVisibilityInboundConfig
-    :<|> IFeatureNoConfigMultiGet SearchVisibilityInboundConfig
-    -- ClassifiedDomainsConfig
-    :<|> IFeatureStatusGet ClassifiedDomainsConfig
-    -- MLSConfig
-    :<|> IFeatureStatusGet MLSConfig
-    :<|> IFeatureStatusPut '[] '() MLSConfig
-    :<|> IFeatureStatusPatch '[] '() MLSConfig
     :<|> IFeatureStatusLockStatusPut MLSConfig
-    -- ExposeInvitationURLsToTeamAdminConfig
-    :<|> IFeatureStatusGet ExposeInvitationURLsToTeamAdminConfig
-    :<|> IFeatureStatusPut '[] '() ExposeInvitationURLsToTeamAdminConfig
-    :<|> IFeatureStatusPatch '[] '() ExposeInvitationURLsToTeamAdminConfig
-    -- SearchVisibilityInboundConfig
-    :<|> IFeatureStatusGet SearchVisibilityInboundConfig
-    :<|> IFeatureStatusPut '[] '() SearchVisibilityInboundConfig
-    :<|> IFeatureStatusPatch '[] '() SearchVisibilityInboundConfig
-    -- OutlookCalIntegrationConfig
-    :<|> IFeatureStatusGet OutlookCalIntegrationConfig
-    :<|> IFeatureStatusPut '[] '() OutlookCalIntegrationConfig
-    :<|> IFeatureStatusPatch '[] '() OutlookCalIntegrationConfig
     :<|> IFeatureStatusLockStatusPut OutlookCalIntegrationConfig
-    -- MlsE2EIdConfig
-    :<|> IFeatureStatusGet MlsE2EIdConfig
-    :<|> IFeatureStatusPut '[] '() MlsE2EIdConfig
-    :<|> IFeatureStatusPatch '[] '() MlsE2EIdConfig
     :<|> IFeatureStatusLockStatusPut MlsE2EIdConfig
-    -- MlsMigrationConfig
-    :<|> IFeatureStatusGet MlsMigrationConfig
-    :<|> IFeatureStatusPut '[] '() MlsMigrationConfig
-    :<|> IFeatureStatusPatch '[] '() MlsMigrationConfig
     :<|> IFeatureStatusLockStatusPut MlsMigrationConfig
-    -- EnforceFileDownloadLocationConfig
-    :<|> IFeatureStatusGetWithDesc EnforceFileDownloadLocationConfig "<p><b>Custom feature: only supported for some decidated on-prem systems.</b></p>"
-    :<|> IFeatureStatusPutWithDesc '[] '() EnforceFileDownloadLocationConfig "<p><b>Custom feature: only supported for some decidated on-prem systems.</b></p>"
-    :<|> IFeatureStatusPatchWithDesc '[] '() EnforceFileDownloadLocationConfig "<p><b>Custom feature: only supported for some decidated on-prem systems.</b></p>"
-    :<|> IFeatureStatusLockStatusPutWithDesc EnforceFileDownloadLocationConfig "<p><b>Custom feature: only supported for some decidated on-prem systems.</b></p>"
-    -- LimitedEventFanoutConfig
-    :<|> IFeatureStatusGet LimitedEventFanoutConfig
-    :<|> IFeatureStatusPut '[] '() LimitedEventFanoutConfig
-    :<|> IFeatureStatusPatch '[] '() LimitedEventFanoutConfig
+    :<|> IFeatureStatusLockStatusPut EnforceFileDownloadLocationConfig
+    -- special endpoints
+    :<|> IFeatureNoConfigMultiGet SearchVisibilityInboundConfig
     -- all feature configs
     :<|> Named
            "feature-configs-internal"
@@ -393,62 +305,67 @@ type ITeamsAPIBase =
                     )
          )
 
-type IFeatureStatusGet f = IFeatureStatusGetWithDesc f ""
-
-type IFeatureStatusGetWithDesc f desc = Named '("iget", f) (Description desc :> FeatureStatusBaseGet f)
-
-type IFeatureStatusPut calls errs f = IFeatureStatusPutWithDesc calls errs f ""
-
-type IFeatureStatusPutWithDesc calls errs f desc = Named '("iput", f) (ApplyMods calls (Description desc :> FeatureStatusBasePutInternal errs f))
-
-type IFeatureStatusPatch calls errs f = IFeatureStatusPatchWithDesc calls errs f ""
-
-type IFeatureStatusPatchWithDesc calls errs f desc = Named '("ipatch", f) (ApplyMods calls (Description desc :> FeatureStatusBasePatchInternal errs f))
-
-type FeatureStatusBasePutInternal errs featureConfig =
-  FeatureStatusBaseInternal
-    (AppendSymbol "Put config for " (FeatureSymbol featureConfig))
-    errs
-    featureConfig
-    ( ReqBody '[JSON] (Feature featureConfig)
-        :> Put '[JSON] (LockableFeature featureConfig)
+type IFeatureStatusGet cfg =
+  Named
+    '("iget", cfg)
+    ( Description (FeatureAPIDesc cfg)
+        :> FeatureStatusBaseGet cfg
     )
 
-type FeatureStatusBasePatchInternal errs featureConfig =
-  FeatureStatusBaseInternal
-    (AppendSymbol "Patch config for " (FeatureSymbol featureConfig))
-    errs
-    featureConfig
-    ( ReqBody '[JSON] (LockableFeaturePatch featureConfig)
-        :> Patch '[JSON] (LockableFeature featureConfig)
+type IFeatureStatusPut cfg =
+  Named
+    '("iput", cfg)
+    ( Description (FeatureAPIDesc cfg)
+        :> FeatureStatusBasePutInternal cfg
     )
 
-type FeatureStatusBaseInternal desc errs featureConfig a =
+type IFeatureStatusPatch cfg =
+  Named
+    '("ipatch", cfg)
+    ( Description (FeatureAPIDesc cfg)
+        :> FeatureStatusBasePatchInternal cfg
+    )
+
+type FeatureStatusBasePutInternal cfg =
+  FeatureStatusBaseInternal
+    (AppendSymbol "Put config for " (FeatureSymbol cfg))
+    cfg
+    ( ReqBody '[JSON] (Feature cfg)
+        :> Put '[JSON] (LockableFeature cfg)
+    )
+
+type FeatureStatusBasePatchInternal cfg =
+  FeatureStatusBaseInternal
+    (AppendSymbol "Patch config for " (FeatureSymbol cfg))
+    cfg
+    ( ReqBody '[JSON] (LockableFeaturePatch cfg)
+        :> Patch '[JSON] (LockableFeature cfg)
+    )
+
+type FeatureStatusBaseInternal desc cfg a =
   Summary desc
     :> CanThrow OperationDenied
     :> CanThrow 'NotATeamMember
     :> CanThrow 'TeamNotFound
     :> CanThrow TeamFeatureError
-    :> CanThrowMany errs
+    :> CanThrowMany (FeatureErrors cfg)
     :> "teams"
     :> Capture "tid" TeamId
     :> "features"
-    :> FeatureSymbol featureConfig
+    :> FeatureSymbol cfg
     :> a
 
-type IFeatureStatusLockStatusPut featureName = IFeatureStatusLockStatusPutWithDesc featureName ""
-
-type IFeatureStatusLockStatusPutWithDesc featureName desc =
+type IFeatureStatusLockStatusPut cfg =
   Named
-    '("ilock", featureName)
-    ( Summary (AppendSymbol "(Un-)lock " (FeatureSymbol featureName))
-        :> Description desc
+    '("ilock", cfg)
+    ( Summary (AppendSymbol "(Un-)lock " (FeatureSymbol cfg))
+        :> Description (FeatureAPIDesc cfg)
         :> CanThrow 'NotATeamMember
         :> CanThrow 'TeamNotFound
         :> "teams"
         :> Capture "tid" TeamId
         :> "features"
-        :> FeatureSymbol featureName
+        :> FeatureSymbol cfg
         :> Capture "lockStatus" LockStatus
         :> Put '[JSON] LockStatusResponse
     )

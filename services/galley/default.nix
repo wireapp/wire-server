@@ -80,7 +80,6 @@
 , retry
 , safe-exceptions
 , saml2-web-sso
-, schema-profunctor
 , servant
 , servant-client
 , servant-client-core
@@ -191,7 +190,6 @@ mkDerivation {
     retry
     safe-exceptions
     saml2-web-sso
-    schema-profunctor
     servant
     servant-client
     servant-server

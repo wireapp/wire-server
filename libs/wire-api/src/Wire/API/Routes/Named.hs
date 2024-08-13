@@ -137,9 +137,14 @@ namedClient ::
   Client m endpoint
 namedClient = clientIn (Proxy @endpoint) (Proxy @m)
 
----------------------------------------------
--- Utility to add a combinator to a Named API
-
+-- | Utility to push a Servant combinator inside Named APIs.
+--
+-- For example:
+-- @@
+-- From 'V5 ::> (Named "foo" (Get '[JSON] Foo) :<|> Named "bar" (Post '[JSON] Bar))
+-- ==
+-- Named "foo" (From 'V5 :> Get '[JSON] Foo) :<|> Named "bar" (From 'V5 :> Post '[JSON] Bar)
+-- @@
 type family x ::> api
 
 infixr 4 ::>
@@ -147,3 +152,7 @@ infixr 4 ::>
 type instance
   x ::> (Named name api) =
     Named name (x :> api)
+
+type instance
+  x ::> (api1 :<|> api2) =
+    (x ::> api1) :<|> (x ::> api2)
