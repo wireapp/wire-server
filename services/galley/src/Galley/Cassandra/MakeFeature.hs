@@ -341,6 +341,21 @@ instance MakeFeature EnforceFileDownloadLocationConfig where
 instance MakeFeature LimitedEventFanoutConfig where
   featureColumns = K "limited_event_fanout_status" :* Nil
 
+instance MakeFeature DummyConfig where
+  type FeatureRow DummyConfig = '[LockStatus, FeatureStatus, Int32]
+  featureColumns = K "dummy_lock_status" :* K "dummy_status" :* K "dummy_level" :* Nil
+
+  rowToFeature (lockStatus :* status :* level :* Nil) =
+    foldMap dbFeatureLockStatus lockStatus
+      <> foldMap dbFeatureStatus status
+      <> foldMap (dbFeatureConfig . DummyConfig . fromIntegral) level
+
+  featureToRow feat =
+    Just feat.lockStatus
+      :* Just feat.status
+      :* Just (fromIntegral feat.config.dummyLevel)
+      :* Nil
+
 fetchFeature ::
   forall cfg m row mrow.
   ( MonadClient m,

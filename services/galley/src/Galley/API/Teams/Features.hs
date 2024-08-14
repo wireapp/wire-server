@@ -431,3 +431,5 @@ instance SetFeatureConfig MlsMigrationConfig where
 instance SetFeatureConfig EnforceFileDownloadLocationConfig
 
 instance SetFeatureConfig LimitedEventFanoutConfig
+
+instance SetFeatureConfig DummyConfig

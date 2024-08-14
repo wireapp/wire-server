@@ -73,6 +73,7 @@ module Wire.API.Team.Feature
     MlsMigrationConfig (..),
     EnforceFileDownloadLocationConfig (..),
     LimitedEventFanoutConfig (..),
+    DummyConfig (..),
     Features,
     AllFeatures,
     NpProject (..),
@@ -214,6 +215,7 @@ data FeatureSingleton cfg where
   FeatureSingletonMlsMigrationConfig :: FeatureSingleton MlsMigrationConfig
   FeatureSingletonEnforceFileDownloadLocationConfig :: FeatureSingleton EnforceFileDownloadLocationConfig
   FeatureSingletonLimitedEventFanoutConfig :: FeatureSingleton LimitedEventFanoutConfig
+  FeatureSingletonDummyConfig :: FeatureSingleton DummyConfig
 
 type family DeprecatedFeatureName cfg :: Symbol
 
@@ -1154,6 +1156,32 @@ instance ToSchema LimitedEventFanoutConfig where
   schema = object "LimitedEventFanoutConfig" objectSchema
 
 ----------------------------------------------------------------------
+-- DummyConfig
+
+data DummyConfig = DummyConfig
+  { dummyLevel :: Int
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform DummyConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName DummyConfig)
+
+instance Default DummyConfig where
+  def = DummyConfig 0
+
+instance Default (LockableFeature DummyConfig) where
+  def = defUnlockedFeature
+
+instance IsFeatureConfig DummyConfig where
+  type FeatureSymbol DummyConfig = "dummy"
+  featureSingleton = FeatureSingletonDummyConfig
+  objectSchema = field "config" schema
+
+instance ToSchema DummyConfig where
+  schema =
+    object "DummyConfig" $
+      DummyConfig <$> dummyLevel .= field "level" schema
+
+----------------------------------------------------------------------
 -- FeatureStatus
 
 data FeatureStatus
@@ -1235,7 +1263,8 @@ type Features =
     MlsE2EIdConfig,
     MlsMigrationConfig,
     EnforceFileDownloadLocationConfig,
-    LimitedEventFanoutConfig
+    LimitedEventFanoutConfig,
+    DummyConfig
   ]
 
 -- | list of available features as a record

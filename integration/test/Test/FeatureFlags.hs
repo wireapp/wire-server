@@ -477,7 +477,14 @@ testAllFeatures = do
                         ]
                   ],
               "enforceFileDownloadLocation" .= object ["lockStatus" .= "locked", "status" .= "disabled", "ttl" .= "unlimited", "config" .= object []],
-              "limitedEventFanout" .= disabled
+              "limitedEventFanout" .= disabled,
+              "dummy"
+                .= object
+                  [ "lockStatus" .= "locked",
+                    "status" .= "disabled",
+                    "ttl" .= "unlimited",
+                    "config" .= object ["level" .= (9001 :: Int)]
+                  ]
             ]
   bindResponse (Public.getTeamFeatures m tid) $ \resp -> do
     resp.status `shouldMatchInt` 200

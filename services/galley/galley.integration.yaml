@@ -106,6 +106,12 @@ settings:
     limitedEventFanout:
       defaults:
         status: disabled
+    dummy:
+      defaults:
+        lockStatus: locked
+        status: disabled
+        config:
+          level: 9001
 
 logLevel: Warn
 logNetStrings: false

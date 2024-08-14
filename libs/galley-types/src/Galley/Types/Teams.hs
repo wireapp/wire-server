@@ -263,6 +263,12 @@ newtype instance FeatureDefaults LimitedEventFanoutConfig
   deriving (FromJSON) via Defaults (Feature LimitedEventFanoutConfig)
   deriving (ParseFeatureDefaults) via OptionalField LimitedEventFanoutConfig
 
+newtype instance FeatureDefaults DummyConfig = DummyDefaults (LockableFeature DummyConfig)
+  deriving stock (Eq, Show)
+  deriving newtype (Default, GetFeatureDefaults)
+  deriving (FromJSON) via Defaults (LockableFeature DummyConfig)
+  deriving (ParseFeatureDefaults) via RequiredField DummyConfig
+
 featureKey :: forall cfg. (IsFeatureConfig cfg) => Key.Key
 featureKey = Key.fromText $ featureName @cfg
 
