@@ -59,7 +59,7 @@ import Brig.User.API.Search qualified as Search
 import Brig.User.EJPD qualified
 import Brig.User.Search.Index qualified as Index
 import Control.Error hiding (bool)
-import Control.Lens (view)
+import Control.Lens (preview, to, view, _Just)
 import Data.ByteString.Conversion (toByteString)
 import Data.Code qualified as Code
 import Data.CommaSeparatedList
@@ -349,12 +349,11 @@ updateFederationRemote dom fedcfg = do
             "keeping track of remote domains in the brig config file is deprecated, but as long as we \
             \do that, removing or updating items listed in the config file is not allowed."
 
--- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
 getAccountConferenceCallingConfig :: UserId -> Handler r (Feature ConferenceCallingConfig)
 getAccountConferenceCallingConfig uid = do
   mStatus <- lift $ wrapClient $ Data.lookupFeatureConferenceCalling uid
-  let feat = def
-  pure $ feat {status = fromMaybe feat.status mStatus}
+  mDefStatus <- preview (settings . featureFlags . _Just . to conferenceCalling . to forNull)
+  pure $ def {status = mStatus <|> mDefStatus ?: (def :: LockableFeature ConferenceCallingConfig).status}
 
 putAccountConferenceCallingConfig :: UserId -> Feature ConferenceCallingConfig -> Handler r NoContent
 putAccountConferenceCallingConfig uid feat = do
