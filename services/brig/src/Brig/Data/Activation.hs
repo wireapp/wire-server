@@ -180,7 +180,7 @@ verifyCode key code = do
         | otherwise -> revoke >> throwE invalidCode
     Nothing -> throwE invalidCode
   where
-    mkScope "email" k u = case parseEmail k of
+    mkScope "email" k u = case emailAddressText k of
       Just e -> pure (mkEmailKey e, u)
       Nothing -> throwE invalidCode
     mkScope _ _ _ = throwE invalidCode

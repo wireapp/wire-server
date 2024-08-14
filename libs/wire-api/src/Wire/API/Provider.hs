@@ -61,7 +61,7 @@ import Imports
 import Wire.API.Conversation.Code as Code
 import Wire.API.Provider.Service (ServiceToken (..))
 import Wire.API.Provider.Service.Tag (ServiceTag (..))
-import Wire.API.User.Identity (EmailAddress)
+import Wire.API.User.EmailAddress
 import Wire.API.User.Profile (Name)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 

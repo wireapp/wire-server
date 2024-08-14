@@ -78,11 +78,12 @@ veidFromUserSSOId = \case
     case urefToEmail uref of
       Nothing -> pure $ UrefOnly uref
       Just email -> pure $ EmailAndUref email uref
+  -- TODO: parse fallback emails?
   UserScimExternalId email ->
     maybe
       (throwError "externalId not an email and no issuer")
       (pure . EmailOnly)
-      (parseEmail email)
+      (emailAddressText email)
 
 -- | If the brig user has a 'UserSSOId', transform that into a 'ValidExternalId' (this is a
 -- total function as long as brig obeys the api).  Otherwise, if the user has an email, we can

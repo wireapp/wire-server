@@ -14,7 +14,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# LANGUAGE RecordWildCards #-}
 
 module Wire.API.Team.Export (TeamExportUser (..), quoted, unquoted) where
 
@@ -35,6 +34,7 @@ import Wire.API.User (Name)
 import Wire.API.User.Identity (EmailAddress)
 import Wire.API.User.Profile (ManagedBy)
 import Wire.API.User.RichInfo (RichInfo)
+import Wire.Arbitrary
 
 data TeamExportUser = TeamExportUser
   { tExportDisplayName :: Name,
@@ -51,26 +51,8 @@ data TeamExportUser = TeamExportUser
     tExportUserId :: UserId,
     tExportNumDevices :: Int
   }
-  deriving (Show, Eq)
-
-instance Arbitrary TeamExportUser where
-  arbitrary = do
-    tExportDisplayName <- arbitrary
-    tExportHandle <- arbitrary
-    tExportRole <- arbitrary
-    tExportCreatedOn <- arbitrary
-    tExportInvitedBy <- arbitrary
-    tExportIdpIssuer <- arbitrary
-    tExportManagedBy <- arbitrary
-    tExportSAMLNamedId <- arbitrary
-    tExportSCIMExternalId <- arbitrary
-    tExportSCIMRichInfo <- arbitrary
-    tExportUserId <- arbitrary
-    tExportNumDevices <- arbitrary
-    dom :: Text <- arbitrary
-    loc :: Text <- arbitrary
-    let tExportEmail = read . show $ loc <> "@" <> dom
-    pure TeamExportUser {..}
+  deriving (Show, Eq, Generic)
+  deriving (Arbitrary) via (GenericUniform TeamExportUser)
 
 instance ToNamedRecord TeamExportUser where
   toNamedRecord row =

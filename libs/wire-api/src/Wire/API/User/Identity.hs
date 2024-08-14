@@ -293,7 +293,7 @@ lenientlyParseSAMLNameID (Just txt) = do
         maybe
           (Left "not an email")
           emailToSAMLNameID
-          (parseEmail . LT.toStrict $ txt)
+          (emailAddressText . LT.toStrict $ txt)
 
       astxt :: Either String SAML.NameID
       astxt = do
@@ -308,8 +308,8 @@ lenientlyParseSAMLNameID (Just txt) = do
     (pure . Just)
     (hush asxml <|> hush asemail <|> hush astxt)
 
-emailFromSAML :: (HasCallStack) => SAMLEmail.Email -> EmailAddress
-emailFromSAML = fromJust . parseEmail . SAMLEmail.render
+emailFromSAML :: SAMLEmail.Email -> EmailAddress
+emailFromSAML = fromJust . emailAddressText . SAMLEmail.render
 
 -- | FUTUREWORK(fisx): if saml2-web-sso exported the 'NameID' constructor, we could make this
 -- function total without all that praying and hoping.
@@ -318,7 +318,7 @@ emailToSAMLNameID = SAML.emailNameID . fromEmail
 
 -- emailToSAMLNameID mail = either (Left "not an email") (SAML.emailNameID . fromEmail $ mail)
 
-emailFromSAMLNameID :: (HasCallStack) => SAML.NameID -> Maybe EmailAddress
+emailFromSAMLNameID :: SAML.NameID -> Maybe EmailAddress
 emailFromSAMLNameID nid = case nid ^. SAML.nameID of
   SAML.UNameIDEmail email -> Just . emailFromSAML . CI.original $ email
   _ -> Nothing

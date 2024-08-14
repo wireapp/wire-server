@@ -803,7 +803,7 @@ zConn = header "Z-Connection"
 mkEmailRandomLocalSuffix :: (MonadIO m) => Text -> m EmailAddress
 mkEmailRandomLocalSuffix e = do
   uid <- liftIO UUID.nextRandom
-  case parseEmail e of
+  case emailAddressText e of
     Just mail ->
       pure $
         unsafeEmailAddress

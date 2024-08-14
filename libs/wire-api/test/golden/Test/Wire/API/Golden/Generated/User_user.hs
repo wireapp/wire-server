@@ -116,7 +116,7 @@ testObject_User_user_3 =
           { qUnqualified = Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000100000002")),
             qDomain = Domain {_domainText = "dt.n"}
           },
-      userIdentity = Just (EmailIdentity (unsafeEmailAddress "f" "\83115")),
+      userIdentity = Just (EmailIdentity (unsafeEmailAddress "f" "\83115a.o")),
       userDisplayName =
         Name {fromName = ",r\EMXEg0$\98187\RS\SI'uS\ETX/\1009222`\228V.J{\fgE(\rK!\SOp8s9gXO\21810Xj\STX\RS\DC2"},
       userTextStatus = Nothing,
@@ -148,7 +148,7 @@ testObject_User_user_4 =
             qDomain = Domain {_domainText = "28b.cqb"}
           },
       userIdentity =
-        Just (SSOIdentity (UserScimExternalId "") (Just (unsafeEmailAddress "" ""))),
+        Just (SSOIdentity (UserScimExternalId "") (Just (unsafeEmailAddress "not" "empty"))),
       userDisplayName =
         Name
           { fromName =

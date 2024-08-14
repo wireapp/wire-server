@@ -112,7 +112,7 @@ getKeys = paginateC cql (paramsP LocalQuorum () pageSize) x5
     cql = "SELECT key, user, writetime(user) from user_keys"
 
 parseKey :: Text -> Maybe EmailKey
-parseKey t = mkEmailKey <$> parseEmail t
+parseKey t = mkEmailKey <$> emailAddressText t
 
 instance Cql EmailKey where
   ctype = Tagged TextColumn

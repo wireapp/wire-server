@@ -1117,10 +1117,7 @@ testSendActivationCode opts brig = do
 
 testSendActivationCodeInvalidEmailOrPhone :: Brig -> Http ()
 testSendActivationCodeInvalidEmailOrPhone brig = do
-  let Just invalidEmail = parseEmail "?@?"
-  let invalidPhone = Phone "1234"
-  -- Code for phone pre-verification
-  requestActivationCode brig 400 (Right invalidPhone)
+  let invalidEmail = unsafeEmailAddress "?" "?"
   -- Code for email pre-verification
   requestActivationCode brig 400 (Left invalidEmail)
 

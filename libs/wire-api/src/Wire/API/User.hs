@@ -852,7 +852,7 @@ urefToExternalId = fmap CI.original . SAML.shortShowNameID . view SAML.uidSubjec
 
 urefToEmail :: SAML.UserRef -> Maybe EmailAddress
 urefToEmail uref = case uref ^. SAML.uidSubject . SAML.nameID of
-  SAML.UNameIDEmail email -> parseEmail . SAMLEmail.render . CI.original $ email
+  SAML.UNameIDEmail email -> emailAddressText . SAMLEmail.render . CI.original $ email
   _ -> Nothing
 
 urefToExternalIdUnsafe :: SAML.UserRef -> Text

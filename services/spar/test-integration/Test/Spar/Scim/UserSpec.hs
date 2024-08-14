@@ -294,7 +294,7 @@ specImportToScimFromInvitation =
       let scimUsr = Scim.value (Scim.thing storedUsr)
           uid = Scim.id (Scim.thing storedUsr)
           handle = fromRight undefined . parseHandleEither $ Scim.User.userName scimUsr
-          email = fromJust . parseEmail . fromJust . Scim.User.externalId $ scimUsr
+          email = fromJust . emailAddressText . fromJust . Scim.User.externalId $ scimUsr
           Right idpissuer = idp ^. SAML.idpMetadata . SAML.edIssuer . SAML.fromIssuer . to mkHttpsUrl
           Just samlNameID = Scim.User.externalId scimUsr
           Just scimExternalId = Scim.User.externalId scimUsr
@@ -361,7 +361,7 @@ assertBrigCassandra uid uref usr (valemail, emailValidated) managedBy = do
 
         email = case (valemail, emailValidated) of
           (Feature.FeatureStatusEnabled, True) ->
-            Just . fromJust . parseEmail . fromJust . Scim.User.externalId $ usr
+            Just . fromJust . emailAddressText . fromJust . Scim.User.externalId $ usr
           _ ->
             Nothing
 

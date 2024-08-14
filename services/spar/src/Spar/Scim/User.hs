@@ -370,7 +370,7 @@ mkValidExternalId Nothing (Just extid) = do
         Scim.badRequest
           Scim.InvalidValue
           (Just "externalId must be a valid email address or (if there is a SAML IdP) a valid SAML NameID")
-  maybe (throw err) (pure . ST.EmailOnly) $ parseEmail extid
+  maybe (throw err) (pure . ST.EmailOnly) $ emailAddressText extid
 mkValidExternalId (Just idp) (Just extid) = do
   let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
   subject <- validateSubject extid
@@ -388,7 +388,7 @@ mkValidExternalId (Just idp) (Just extid) = do
             -- The entry in spar.user_v2 does not exist yet during user
             -- creation. So we just assume that it will exist momentarily.
             pure uref
-  pure $ case parseEmail extid of
+  pure $ case emailAddressText extid of
     Just email -> ST.EmailAndUref email indexedUref
     Nothing -> ST.UrefOnly indexedUref
   where

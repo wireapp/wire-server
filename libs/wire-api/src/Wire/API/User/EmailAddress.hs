@@ -2,7 +2,8 @@
 
 module Wire.API.User.EmailAddress
   ( fromEmail,
-    parseEmail,
+    emailAddress,
+    emailAddressText,
     module Text.Email.Parser,
   )
 where
@@ -12,7 +13,7 @@ where
 -----
 
 import Cassandra.CQL qualified as C
-import Data.ByteString.Conversion
+import Data.ByteString.Conversion hiding (toByteString)
 import Data.Data (Proxy (..))
 import Data.OpenApi hiding (Schema, ToSchema)
 import Data.Schema
@@ -24,6 +25,7 @@ import Deriving.Aeson
 import Imports
 import Servant.API qualified as S
 import Text.Email.Parser
+import Text.Email.Validate
 import Wire.Arbitrary (Arbitrary (arbitrary))
 
 --------------------------------------------------------------------------------
@@ -33,7 +35,7 @@ instance ToByteString EmailAddress where
   builder = builder . fromEmail
 
 instance FromByteString EmailAddress where
-  parser = parser >>= maybe (fail "Invalid email") pure . parseEmail
+  parser = parser >>= maybe (fail "Invalid email") pure . emailAddress
 
 deriving via (Schema EmailAddress) instance ToJSON EmailAddress
 
@@ -50,7 +52,7 @@ instance ToSchema EmailAddress where
         ( maybe
             (Left "Invalid email. Expected '<local>@<domain>'.")
             pure
-            . parseEmail
+            . emailAddressText
         )
 
 instance S.FromHttpApiData EmailAddress where
@@ -70,7 +72,7 @@ instance Arbitrary EmailAddress where
 instance C.Cql EmailAddress where
   ctype = C.Tagged C.TextColumn
 
-  fromCql (C.CqlText t) = case parseEmail t of
+  fromCql (C.CqlText t) = case emailAddressText t of
     Just e -> pure e
     Nothing -> Left "fromCql: Invalid email"
   fromCql _ = Left "fromCql: email: CqlText expected"
@@ -78,8 +80,7 @@ instance C.Cql EmailAddress where
   toCql = C.toCql . fromEmail
 
 fromEmail :: EmailAddress -> Text
-fromEmail mail = decodeUtf8 $ (localPart mail) <> "@" <> (domainPart mail)
+fromEmail = decodeUtf8 . toByteString
 
--- | Parses an email address of the form <local-part>@<domain>.
-parseEmail :: Text -> Maybe EmailAddress
-parseEmail = read . Text.unpack
+emailAddressText :: Text -> Maybe EmailAddress
+emailAddressText = emailAddress . encodeUtf8

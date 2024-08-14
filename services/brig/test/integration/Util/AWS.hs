@@ -131,7 +131,7 @@ assertName l (Just nm) ev = assertEqual (l <> "name should exist") nm (Name $ fr
 assertName l Nothing ev = assertEqual (l <> "name should not exist") Nothing (ev ^. PU.maybe'name)
 
 assertEmail :: String -> Maybe EmailAddress -> PU.UserEvent -> IO ()
-assertEmail l (Just em) ev = assertEqual (l <> "email should exist") em (fromMaybe (error "Failed to convert to email") $ parseEmail $ Text.decodeLatin1 $ fromMaybe "failed to decode email value" $ fromByteString $ ev ^. PU.email)
+assertEmail l (Just em) ev = assertEqual (l <> "email should exist") em (fromMaybe (error "Failed to convert to email") $ emailAddressText $ Text.decodeLatin1 $ fromMaybe "failed to decode email value" $ fromByteString $ ev ^. PU.email)
 assertEmail l Nothing ev = assertEqual (l <> "email should not exist") Nothing (ev ^. PU.maybe'email)
 
 assertLocale :: String -> Maybe Locale -> PU.UserEvent -> IO ()
