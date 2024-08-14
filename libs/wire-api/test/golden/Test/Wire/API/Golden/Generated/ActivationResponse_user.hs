@@ -27,19 +27,19 @@ testObject_ActivationResponse_user_1 =
     { activatedIdentity =
         SSOIdentity
           (UserSSOId mkSimpleSampleUref)
-          (Just (unsafeEmailAddress "\165918\rZ\a\ESC" "p\131777\62344")),
+          (Just (unsafeEmailAddress "some" "example")),
       activatedFirst = False
     }
 
 testObject_ActivationResponse_user_2 :: ActivationResponse
 testObject_ActivationResponse_user_2 =
-  ActivationResponse {activatedIdentity = EmailIdentity (unsafeEmailAddress "foo" "example.com"), activatedFirst = False}
+  ActivationResponse {activatedIdentity = EmailIdentity (unsafeEmailAddress "some" "example"), activatedFirst = False}
 
 testObject_ActivationResponse_user_3 :: ActivationResponse
 testObject_ActivationResponse_user_3 =
   ActivationResponse
     { activatedIdentity =
-        EmailIdentity (unsafeEmailAddress "\10031*;'R\EM\SI\1032685\1041167" "Gw:[T8\34437"),
+        EmailIdentity (unsafeEmailAddress "some" "example"),
       activatedFirst = False
     }
 
@@ -47,7 +47,7 @@ testObject_ActivationResponse_user_4 :: ActivationResponse
 testObject_ActivationResponse_user_4 =
   ActivationResponse
     { activatedIdentity =
-        EmailIdentity (unsafeEmailAddress "h\nPr3" ""),
+        EmailIdentity (unsafeEmailAddress "some" "example"),
       activatedFirst = True
     }
 
@@ -55,7 +55,7 @@ testObject_ActivationResponse_user_5 :: ActivationResponse
 testObject_ActivationResponse_user_5 =
   ActivationResponse
     { activatedIdentity =
-        EmailIdentity (unsafeEmailAddress "7\1042098m\95296\b\1098765" "AJX*s&\173117\988870p"),
+        EmailIdentity (unsafeEmailAddress "some" "example"),
       activatedFirst = False
     }
 
@@ -69,19 +69,19 @@ testObject_ActivationResponse_user_6 =
 testObject_ActivationResponse_user_7 :: ActivationResponse
 testObject_ActivationResponse_user_7 =
   ActivationResponse
-    { activatedIdentity = EmailIdentity (unsafeEmailAddress "\98670" ""),
+    { activatedIdentity = EmailIdentity (unsafeEmailAddress "some" "example"),
       activatedFirst = True
     }
 
 testObject_ActivationResponse_user_8 :: ActivationResponse
 testObject_ActivationResponse_user_8 =
-  ActivationResponse {activatedIdentity = EmailIdentity (unsafeEmailAddress "bar" "example.com"), activatedFirst = True}
+  ActivationResponse {activatedIdentity = EmailIdentity (unsafeEmailAddress "some" "example"), activatedFirst = True}
 
 testObject_ActivationResponse_user_9 :: ActivationResponse
 testObject_ActivationResponse_user_9 =
   ActivationResponse
     { activatedIdentity =
-        EmailIdentity (unsafeEmailAddress "\ENQ?" ""),
+        EmailIdentity (unsafeEmailAddress "some" "example"),
       activatedFirst = False
     }
 
@@ -89,6 +89,6 @@ testObject_ActivationResponse_user_10 :: ActivationResponse
 testObject_ActivationResponse_user_10 =
   ActivationResponse
     { activatedIdentity =
-        EmailIdentity (unsafeEmailAddress "\ACK3" "\f\1040847\1071035\EOT\1003280P\DEL"),
+        EmailIdentity (unsafeEmailAddress "some" "example"),
       activatedFirst = False
     }

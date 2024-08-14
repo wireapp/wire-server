@@ -4,7 +4,7 @@
         {
             "created_at": "1864-05-09T07:22:02.426Z",
             "created_by": "00000001-0000-0001-0000-000100000001",
-            "email": "@",
+            "email": "some@example",
             "id": "00000001-0000-0000-0000-000100000000",
             "name": null,
             "role": "partner",
@@ -14,7 +14,7 @@
         {
             "created_at": "1864-05-09T18:56:29.712Z",
             "created_by": null,
-            "email": "@",
+            "email": "some@example",
             "id": "00000001-0000-0001-0000-000000000000",
             "name": "YPf╞:\u0005Ỉ&\u0018\u0011󽧛%ꦡk𪯋􅥏:Q\u0005F+\u0008b8Jh􌎓K\u0007\u001dY\u0004􃏡\u000f󽝰\u0016 􁗠6>I󾉩B$z?𤢾wECB\u001e𥼬덄\"W𗤞󲴂@\u001eg)\u0001m!-U􇧦󵜰o\u0006a\u0004𭂢;R􂪧kgT􍆈f\u0004\u001e\rp𓎎󿉊X/􄂲)\u00025.Ym󵳬n싟N\u0013𫅄]?'𠴺a4\"󳟾!i5\u001e\u001dC14",
             "role": "owner",

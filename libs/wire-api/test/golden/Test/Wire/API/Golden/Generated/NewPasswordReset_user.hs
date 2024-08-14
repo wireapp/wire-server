@@ -24,6 +24,6 @@ testObject_NewPasswordReset_user_1 :: NewPasswordReset
 testObject_NewPasswordReset_user_1 =
   NewPasswordReset
     ( unsafeEmailAddress
-        "\1007057b\1098950\&9#\34943\DLEX2o\6661\171973\60563t"
-        "\1080376\60900\DC1\41907s\f\98453}\CAN\SO\n8\SUBz\169687\n\154344Zdb#\SUB4IM8\67225+"
+        "some"
+        "example.com"
     )

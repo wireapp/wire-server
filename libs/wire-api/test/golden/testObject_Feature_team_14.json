@@ -1,7 +1,7 @@
 {
-    "status": "disabled",
-    "ttl": "unlimited",
     "config": {
-      "useSFTForOneToOneCalls": true
-    }
+        "useSFTForOneToOneCalls": true
+    },
+    "status": "disabled",
+    "ttl": "unlimited"
 }

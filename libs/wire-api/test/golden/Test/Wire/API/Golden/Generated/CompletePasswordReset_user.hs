@@ -26,7 +26,7 @@ import Wire.API.User.Password
 testObject_CompletePasswordReset_user_1 :: CompletePasswordReset
 testObject_CompletePasswordReset_user_1 =
   CompletePasswordReset
-    { cpwrIdent = PasswordResetEmailIdentity (unsafeEmailAddress "\STXQ=\33841k" ""),
+    { cpwrIdent = PasswordResetEmailIdentity (unsafeEmailAddress "some" "example"),
       cpwrCode =
         PasswordResetCode
           { fromPasswordResetCode =
@@ -179,7 +179,7 @@ testObject_CompletePasswordReset_user_8 =
 testObject_CompletePasswordReset_user_9 :: CompletePasswordReset
 testObject_CompletePasswordReset_user_9 =
   CompletePasswordReset
-    { cpwrIdent = PasswordResetEmailIdentity (unsafeEmailAddress "A" "9L\b\1021106\37856"),
+    { cpwrIdent = PasswordResetEmailIdentity (unsafeEmailAddress "some" "example"),
       cpwrCode =
         PasswordResetCode
           { fromPasswordResetCode =
@@ -237,7 +237,7 @@ testObject_CompletePasswordReset_user_12 =
   CompletePasswordReset
     { cpwrIdent =
         PasswordResetEmailIdentity
-          (unsafeEmailAddress "(\142728\EM\DEL=]=\a" "\175673\SYN\b\n\64411\v&\1083262"),
+          (unsafeEmailAddress "some" "example"),
       cpwrCode =
         PasswordResetCode
           { fromPasswordResetCode =
@@ -277,7 +277,7 @@ testObject_CompletePasswordReset_user_14 =
   CompletePasswordReset
     { cpwrIdent =
         PasswordResetEmailIdentity
-          (unsafeEmailAddress "\1046936Q?\1079889\1101745" "\178846\1002100\18704"),
+          (unsafeEmailAddress "some" "example"),
       cpwrCode =
         PasswordResetCode
           { fromPasswordResetCode =
@@ -297,7 +297,7 @@ testObject_CompletePasswordReset_user_15 =
   CompletePasswordReset
     { cpwrIdent =
         PasswordResetEmailIdentity
-          (unsafeEmailAddress "6\vF\EOT]\ESC\1087604.'" "JEe\1090620\1085217\&2dK\996913"),
+          (unsafeEmailAddress "some" "example"),
       cpwrCode =
         PasswordResetCode
           { fromPasswordResetCode =
@@ -335,7 +335,7 @@ testObject_CompletePasswordReset_user_17 :: CompletePasswordReset
 testObject_CompletePasswordReset_user_17 =
   CompletePasswordReset
     { cpwrIdent =
-        PasswordResetEmailIdentity (unsafeEmailAddress "\53825[\20709" "\38742wC\SUBE\17763\179609"),
+        PasswordResetEmailIdentity (unsafeEmailAddress "some" "example"),
       cpwrCode =
         PasswordResetCode
           { fromPasswordResetCode =

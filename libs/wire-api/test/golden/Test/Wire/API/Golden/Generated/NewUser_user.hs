@@ -51,7 +51,7 @@ testObject_NewUser_user_1 =
               "V~\14040\38047\NULw\1105603\1077601\&1\73084\1020199%\14699]y*\121297jqM\SYN\74260/\1108497-*\US \RSA\SO}\64347c\60361v [\1022394t\1012213R\181051Y\1036488\&6tg\SYN\1044855+\DLE\99976;\ACKOj\DC3\48593&aD:\nf\1002443!*\DEL"
           },
       newUserUUID = (Just . toUUID) (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))),
-      newUserIdentity = Just (EmailIdentity (unsafeEmailAddress "S\ENQX\1076723$\STX\"\1110507e\1015716\24831\1031964L\ETB" "P.b")),
+      newUserIdentity = Just (EmailIdentity (unsafeEmailAddress "some" "example")),
       newUserPict = Just (Pict {fromPict = []}),
       newUserAssets =
         [ ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview),
@@ -130,7 +130,7 @@ testObject_NewUser_user_7 =
       (Name {fromName = "test name"})
   )
     { newUserOrigin = Just (NewUserOriginTeamUser (NewTeamCreator user)),
-      newUserIdentity = Just (EmailIdentity (unsafeEmailAddress "12345678" "example.com")),
+      newUserIdentity = Just (EmailIdentity (unsafeEmailAddress "some" "example")),
       newUserPassword = Just (plainTextPassword8Unsafe "12345678")
     }
   where
@@ -163,7 +163,7 @@ testObject_NewUser_user_8 =
       newUserIdentity =
         Just
           ( EmailIdentity
-              ( unsafeEmailAddress "S\ENQX\1076723$\STX\"\1110507e\1015716\24831\1031964L\ETB" "P.b"
+              ( unsafeEmailAddress "some" "example"
               )
           ),
       newUserPassword = Just (plainTextPassword8Unsafe "12345678")

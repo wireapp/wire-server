@@ -17,16 +17,15 @@ import Data.ByteString.Conversion hiding (toByteString)
 import Data.Data (Proxy (..))
 import Data.OpenApi hiding (Schema, ToSchema)
 import Data.Schema
-import Data.Text
-import Data.Text qualified as Text
+import Data.Text hiding (null)
 import Data.Text.Encoding
 import Data.Text.Encoding.Error
 import Deriving.Aeson
 import Imports
 import Servant.API qualified as S
+import Test.QuickCheck
 import Text.Email.Parser
 import Text.Email.Validate
-import Wire.Arbitrary (Arbitrary (arbitrary))
 
 --------------------------------------------------------------------------------
 -- Email
@@ -64,10 +63,11 @@ instance S.ToHttpApiData EmailAddress where
 instance Arbitrary EmailAddress where
   -- By generating arbitrary Text and then encoding as bytestrings
   -- we avoid the risk of generating invalid UTF-8 bytes.
-  arbitrary = do
-    loc <- (pure . encodeUtf8) . Text.filter (/= '@') =<< arbitrary
-    dom <- (pure . encodeUtf8) . Text.filter (/= '@') =<< arbitrary
-    pure $ unsafeEmailAddress loc dom
+  arbitrary = arbitraryValidMail
+
+-- loc <- fromString <$> listOf1 arbitraryMailString
+-- dom <- fromString <$> listOf1 arbitraryMailString
+-- pure $ unsafeEmailAddress loc dom
 
 instance C.Cql EmailAddress where
   ctype = C.Tagged C.TextColumn
@@ -84,3 +84,27 @@ fromEmail = decodeUtf8 . toByteString
 
 emailAddressText :: Text -> Maybe EmailAddress
 emailAddressText = emailAddress . encodeUtf8
+
+-- | Generates any Unicode character (but not a surrogate)
+arbitraryValidMail :: Gen EmailAddress
+arbitraryValidMail = do
+  loc <- arbitrary `suchThat` isValidLoc
+  dom <- arbitrary `suchThat` isValidDom
+  pure . fromJust $ emailAddress (fromString $ loc <> "@" <> dom)
+  where
+    notAt :: String -> Bool
+    notAt = notElem '@'
+
+    notNull = not . null
+
+    isValidLoc :: String -> Bool
+    isValidLoc x =
+      notNull x
+        && notAt x
+        && isValid (fromString (x <> "@mail.com"))
+
+    isValidDom :: String -> Bool
+    isValidDom x =
+      notNull x
+        && notAt x
+        && isValid (fromString ("me@" <> x))
