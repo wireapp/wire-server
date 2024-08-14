@@ -714,8 +714,11 @@ instance Default (UserFeature ConferenceCallingConfig) where
 instance FromJSON (UserFeature ConferenceCallingConfig) where
   parseJSON = withObject "UserFeatureConferenceCalling" $ \obj -> do
     ConferenceCallingUserStatus
-      <$> obj .:? "defaultForNew"
-      <*> obj .:? "defaultForNull" .!= forNull def
+      <$> A.explicitParseFieldMaybe parseUserFeatureStatus obj "defaultForNew"
+      <*> A.explicitParseFieldMaybe parseUserFeatureStatus obj "defaultForNull" .!= forNull def
+
+parseUserFeatureStatus :: A.Value -> A.Parser FeatureStatus
+parseUserFeatureStatus = withObject "UserFeatureStatus" $ \obj -> obj .: "status"
 
 -- | Customer extensions naturally are covered by the AGPL like everything else, but use them
 -- at your own risk!  If you use the default server config and do not set
