@@ -184,7 +184,7 @@ newtype instance FeatureDefaults ClassifiedDomainsConfig
   deriving stock (Eq, Show)
   deriving newtype (Default, FromJSON)
   deriving (ParseFeatureDefaults) via OptionalField ClassifiedDomainsConfig
-  deriving (GetFeatureDefaults) via FixedDefaults ClassifiedDomainsConfig
+  deriving (GetFeatureDefaults) via Feature ClassifiedDomainsConfig
 
 newtype instance FeatureDefaults ConferenceCallingConfig
   = ConferenceCallingDefaults (LockableFeature ConferenceCallingConfig)
