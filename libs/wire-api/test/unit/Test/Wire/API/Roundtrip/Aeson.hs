@@ -312,7 +312,7 @@ tests =
       testRoundTrip @User.Client.Prekey.PrekeyBundle,
       testRoundTrip @User.Handle.UserHandleInfo,
       testRoundTrip @User.Handle.CheckHandles,
-      testRoundTrip @User.Identity.Email,
+      testRoundTrip @User.Identity.EmailAddress,
       testRoundTrip @User.Identity.Phone,
       testRoundTrip @User.Identity.UserSSOId,
       testRoundTrip @User.Password.NewPasswordReset,

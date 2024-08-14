@@ -150,7 +150,7 @@ newAccount u inv tid mbHandle = do
     prots = fromMaybe defSupportedProtocols (newUserSupportedProtocols u)
     user uid domain l e = User (Qualified uid domain) ident name Nothing pict assets colour False l Nothing mbHandle e tid managedBy prots
 
-newAccountInviteViaScim :: (MonadReader Env m) => UserId -> TeamId -> Maybe Locale -> Name -> Email -> m UserAccount
+newAccountInviteViaScim :: (MonadReader Env m) => UserId -> TeamId -> Maybe Locale -> Name -> EmailAddress -> m UserAccount
 newAccountInviteViaScim uid tid locale name email = do
   defLoc <- setDefaultUserLocale <$> view settings
   let loc = fromMaybe defLoc locale
@@ -279,10 +279,10 @@ insertAccount (UserAccount u status) mbConv password activated = retry x5 . batc
       "INSERT INTO service_team (provider, service, user, conv, team) \
       \VALUES (?, ?, ?, ?, ?)"
 
-updateEmail :: (MonadClient m) => UserId -> Email -> m ()
+updateEmail :: (MonadClient m) => UserId -> EmailAddress -> m ()
 updateEmail u e = retry x5 $ write userEmailUpdate (params LocalQuorum (e, u))
 
-updateEmailUnvalidated :: (MonadClient m) => UserId -> Email -> m ()
+updateEmailUnvalidated :: (MonadClient m) => UserId -> EmailAddress -> m ()
 updateEmailUnvalidated u e = retry x5 $ write userEmailUnvalidatedUpdate (params LocalQuorum (e, u))
 
 updateSSOId :: (MonadClient m) => UserId -> Maybe UserSSOId -> m Bool
@@ -453,7 +453,7 @@ type UserRow =
     Name,
     Maybe TextStatus,
     Maybe Pict,
-    Maybe Email,
+    Maybe EmailAddress,
     Maybe UserSSOId,
     ColourId,
     Maybe [Asset],
@@ -476,7 +476,7 @@ type UserRowInsert =
     Maybe TextStatus,
     Pict,
     [Asset],
-    Maybe Email,
+    Maybe EmailAddress,
     Maybe UserSSOId,
     ColourId,
     Maybe Password,
@@ -537,10 +537,10 @@ userInsert =
   \country, provider, service, handle, team, managed_by, supported_protocols) \
   \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
-userEmailUpdate :: PrepQuery W (Email, UserId) ()
+userEmailUpdate :: PrepQuery W (EmailAddress, UserId) ()
 userEmailUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET email = ? WHERE id = ?"
 
-userEmailUnvalidatedUpdate :: PrepQuery W (Email, UserId) ()
+userEmailUnvalidatedUpdate :: PrepQuery W (EmailAddress, UserId) ()
 userEmailUnvalidatedUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET email_unvalidated = ? WHERE id = ?"
 
 userEmailUnvalidatedDelete :: PrepQuery W (Identity UserId) ()
@@ -558,7 +558,7 @@ userStatusUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE use
 userDeactivatedUpdate :: PrepQuery W (Identity UserId) ()
 userDeactivatedUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET activated = false WHERE id = ?"
 
-userActivatedUpdate :: PrepQuery W (Maybe Email, UserId) ()
+userActivatedUpdate :: PrepQuery W (Maybe EmailAddress, UserId) ()
 userActivatedUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET activated = true, email = ? WHERE id = ?"
 
 userEmailDelete :: PrepQuery W (Identity UserId) ()
@@ -709,7 +709,7 @@ toLocale l _ = l
 toIdentity ::
   -- | Whether the user is activated
   Bool ->
-  Maybe Email ->
+  Maybe EmailAddress ->
   Maybe UserSSOId ->
   Maybe UserIdentity
 toIdentity True (Just e) Nothing = Just $! EmailIdentity e

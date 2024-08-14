@@ -32,7 +32,6 @@
 , data-default
 , deriving-aeson
 , deriving-swagger2
-, either
 , email-validate
 , errors
 , extended
@@ -143,7 +142,6 @@ mkDerivation {
     data-default
     deriving-aeson
     deriving-swagger2
-    either
     email-validate
     errors
     extended
@@ -228,7 +226,6 @@ mkDerivation {
     containers
     crypton
     currency-codes
-    either
     filepath
     hex
     hspec

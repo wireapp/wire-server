@@ -43,7 +43,7 @@ import Wire.EmailSubsystem.Template (TemplateBranding, renderHtmlWithBranding, r
 -------------------------------------------------------------------------------
 -- Activation Email
 
-sendActivationMail :: (Member EmailSending r) => Name -> Email -> Code.Key -> Code.Value -> Bool -> (AppT r) ()
+sendActivationMail :: (Member EmailSending r) => Name -> EmailAddress -> Code.Key -> Code.Value -> Bool -> (AppT r) ()
 sendActivationMail name email key code update = do
   tpl <- selectTemplate update . snd <$> providerTemplates Nothing
   branding <- view templateBranding
@@ -54,7 +54,7 @@ sendActivationMail name email key code update = do
     selectTemplate False = activationEmail
 
 data ActivationEmail = ActivationEmail
-  { acmTo :: !Email,
+  { acmTo :: !EmailAddress,
     acmName :: !Name,
     acmKey :: !Code.Key,
     acmCode :: !Code.Value
@@ -95,7 +95,7 @@ renderActivationUrl t (Code.Key k) (Code.Value v) branding =
 --------------------------------------------------------------------------------
 -- Approval Confirmation Email
 
-sendApprovalConfirmMail :: (Member EmailSending r) => Name -> Email -> (AppT r) ()
+sendApprovalConfirmMail :: (Member EmailSending r) => Name -> EmailAddress -> (AppT r) ()
 sendApprovalConfirmMail name email = do
   tpl <- approvalConfirmEmail . snd <$> providerTemplates Nothing
   branding <- view templateBranding
@@ -103,7 +103,7 @@ sendApprovalConfirmMail name email = do
   liftSem $ sendMail $ renderApprovalConfirmMail mail tpl branding
 
 data ApprovalConfirmEmail = ApprovalConfirmEmail
-  { apcTo :: !Email,
+  { apcTo :: !EmailAddress,
     apcName :: !Name
   }
 
@@ -131,7 +131,7 @@ renderApprovalConfirmMail ApprovalConfirmEmail {..} ApprovalConfirmEmailTemplate
 --------------------------------------------------------------------------------
 -- Password Reset Email
 
-sendPasswordResetMail :: (Member EmailSending r) => Email -> Code.Key -> Code.Value -> (AppT r) ()
+sendPasswordResetMail :: (Member EmailSending r) => EmailAddress -> Code.Key -> Code.Value -> (AppT r) ()
 sendPasswordResetMail to key code = do
   tpl <- passwordResetEmail . snd <$> providerTemplates Nothing
   branding <- view templateBranding
@@ -139,7 +139,7 @@ sendPasswordResetMail to key code = do
   liftSem $ sendMail $ renderPwResetMail mail tpl branding
 
 data PasswordResetEmail = PasswordResetEmail
-  { pwrTo :: !Email,
+  { pwrTo :: !EmailAddress,
     pwrKey :: !Code.Key,
     pwrCode :: !Code.Value
   }

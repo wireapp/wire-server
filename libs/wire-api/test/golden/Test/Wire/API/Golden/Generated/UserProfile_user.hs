@@ -20,7 +20,6 @@
 module Test.Wire.API.Golden.Generated.UserProfile_user where
 
 import Data.Domain
-import Data.Either.Combinators
 import Data.Handle
 import Data.Id
 import Data.Json.Util

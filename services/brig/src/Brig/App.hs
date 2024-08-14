@@ -149,7 +149,7 @@ import Util.Options
 import Wire.API.Federation.Error (federationNotImplemented)
 import Wire.API.Locale (Locale)
 import Wire.API.Routes.Version
-import Wire.API.User.Identity (Email)
+import Wire.API.User.Identity
 import Wire.EmailSending.SMTP qualified as SMTP
 import Wire.EmailSubsystem.Template (TemplateBranding, forLocale)
 import Wire.SessionStore
@@ -174,7 +174,7 @@ data Env = Env
     _federator :: Maybe Endpoint, -- FUTUREWORK: should we use a better type here? E.g. to avoid fresh connections all the time?
     _casClient :: Cas.ClientState,
     _smtpEnv :: Maybe SMTP.SMTP,
-    _emailSender :: Email,
+    _emailSender :: EmailAddress,
     _awsEnv :: AWS.Env,
     _applog :: Logger,
     _internalEvents :: QueueEnv,

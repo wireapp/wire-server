@@ -43,7 +43,7 @@ changeEmailBrigCreds ::
   BrigReq ->
   Cookie ->
   ZAuth.Token ZAuth.Access ->
-  Email ->
+  EmailAddress ->
   m ResponseLBS
 changeEmailBrigCreds brig cky tok newEmail = do
   put
@@ -63,7 +63,7 @@ forceCookie cky = header "Cookie" $ cookie_name cky <> "=" <> cookie_value cky
 activateEmail ::
   (MonadCatch m, MonadIO m, HasCallStack) =>
   BrigReq ->
-  Email ->
+  EmailAddress ->
   (MonadHttp m) => m ()
 activateEmail brig email = do
   act <- getActivationCode brig email
@@ -77,7 +77,7 @@ activateEmail brig email = do
 failActivatingEmail ::
   (MonadCatch m, MonadIO m, HasCallStack) =>
   BrigReq ->
-  Email ->
+  EmailAddress ->
   (MonadHttp m) => m ()
 failActivatingEmail brig email = do
   act <- getActivationCode brig email
@@ -86,7 +86,7 @@ failActivatingEmail brig email = do
 checkEmail ::
   (HasCallStack) =>
   UserId ->
-  Maybe Email ->
+  Maybe EmailAddress ->
   TestSpar ()
 checkEmail uid expectedEmail = do
   brig <- view teBrig

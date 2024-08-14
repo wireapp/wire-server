@@ -108,7 +108,7 @@ defPassword = plainTextPassword8Unsafe "topsecretdefaultpassword"
 randomEmail :: (MonadIO m) => m EmailAddress
 randomEmail = do
   uid <- liftIO nextRandom
-  pure $ Email ("success+" <> UUID.toText uid) "simulator.amazonses.com"
+  pure $ unsafeEmailAddress ("success+" <> UUID.toASCIIBytes uid) "simulator.amazonses.com"
 
 setHandle :: UserId -> Text -> TestM ()
 setHandle uid h = do

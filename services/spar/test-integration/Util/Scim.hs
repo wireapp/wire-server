@@ -31,6 +31,7 @@ import Data.Handle (Handle, parseHandle)
 import Data.Id
 import Data.LanguageCodes (ISO639_1 (EN))
 import Data.String.Conversions
+import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Lazy as Lazy
 import Data.Time
 import Data.UUID as UUID
@@ -171,10 +172,10 @@ randomScimUserWithSubjectAndRichInfo richInfo = do
 -- support externalIds that are not emails, and storing email addresses in `emails` in the
 -- scim schema.  `randomScimUserWithEmail` is from a time where non-idp-authenticated users
 -- could only be provisioned with email as externalId.  we should probably rework all that.
-randomScimUserWithEmail :: (MonadRandom m) => m (Scim.User.User SparTag, Email)
+randomScimUserWithEmail :: (MonadRandom m) => m (Scim.User.User SparTag, EmailAddress)
 randomScimUserWithEmail = do
   suffix <- cs <$> replicateM 7 (getRandomR ('0', '9'))
-  let email = Email ("email" <> suffix) "example.com"
+  let email = unsafeEmailAddress ("email" <> encodeUtf8 suffix) "example.com"
       externalId = fromEmail email
   pure
     ( (Scim.User.empty @SparTag userSchemas ("scimuser_" <> suffix) (ScimUserExtra mempty))
@@ -743,7 +744,7 @@ setDefaultRoleIfEmpty u =
     }
 
 -- this is not always correct, but hopefully for the tests that we're using it in it'll do.
-scimifyBrigUserHack :: User -> Email -> User
+scimifyBrigUserHack :: User -> EmailAddress -> User
 scimifyBrigUserHack usr email =
   usr
     { userManagedBy = ManagedByScim,

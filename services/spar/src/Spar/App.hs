@@ -94,7 +94,7 @@ import qualified System.Logger as TinyLog
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
 import Wire.API.Team.Role (Role, defaultRole)
-import Wire.API.User hiding (validateEmail)
+import Wire.API.User
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (ValidExternalId (..))
@@ -149,7 +149,7 @@ getUserIdByScimExternalId ::
     Member ScimExternalIdStore r
   ) =>
   TeamId ->
-  Email ->
+  EmailAddress ->
   Sem r (Maybe UserId)
 getUserIdByScimExternalId tid email = do
   muid <- ScimExternalIdStore.lookup tid email
@@ -252,7 +252,7 @@ validateEmail ::
   ) =>
   Maybe TeamId ->
   UserId ->
-  Email ->
+  EmailAddress ->
   Sem r ()
 validateEmail mbTid uid email = do
   enabled <- maybe (pure False) GalleyAccess.isEmailValidationEnabledTeam mbTid

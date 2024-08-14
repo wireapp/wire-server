@@ -321,7 +321,7 @@ mkEmailRandomLocalSuffix e = do
   uid <- liftIO UUID.nextRandom
   case parseEmail e of
     -- TODO:
-    Just (EmailAddress loc dom) -> pure $ EmailAddress (loc <> "+" <> UUID.toText uid) dom
+    Just mail -> pure $ unsafeEmailAddress ((localPart mail) <> "+" <> UUID.toASCIIBytes uid) (domainPart mail)
     Nothing -> error $ "Invalid email address: " ++ Text.unpack e
 
 zUser :: UserId -> Bilge.Request -> Bilge.Request

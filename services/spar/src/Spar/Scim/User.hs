@@ -293,7 +293,7 @@ validateScimUser' errloc midp richInfoLimit user = do
     either err pure $ Brig.mkUserName (Scim.displayName user) veid
   richInfo <- validateRichInfo (Scim.extra user ^. ST.sueRichInfo)
   let active = Scim.active user
-      emails = _ . Scim.Email.mailToMail <$> user.emails
+      emails = Scim.Email.mailToMail <$> user.emails
   lang <- maybe (throw $ badRequest "Could not parse language. Expected format is ISO 639-1.") pure $ mapM parseLanguage $ Scim.preferredLanguage user
   mRole <- validateRole user
 
@@ -430,7 +430,7 @@ logScim context postcontext action =
         Logger.info $ context . postcontext x . Log.msg @Text "call without exception"
         pure (Right x)
 
-logEmail :: Email -> (Msg -> Msg)
+logEmail :: EmailAddress -> (Msg -> Msg)
 logEmail email =
   Log.field "email_sha256" (sha256String . Text.pack . show $ email)
 
@@ -449,12 +449,12 @@ logScimUserId = logUser . Scim.id . Scim.thing
 logScimUserIds :: Scim.ListResponse (Scim.StoredUser ST.SparTag) -> (Msg -> Msg)
 logScimUserIds lresp = foldl' (.) id (logScimUserId <$> Scim.resources lresp)
 
-veidToEmail :: ST.ValidExternalId -> Maybe Email
+veidToEmail :: ST.ValidExternalId -> Maybe EmailAddress
 veidToEmail (ST.EmailAndUref email _) = Just email
 veidToEmail (ST.UrefOnly _) = Nothing
 veidToEmail (ST.EmailOnly email) = Just email
 
-vsUserEmail :: ST.ValidScimUser -> Maybe Email
+vsUserEmail :: ST.ValidScimUser -> Maybe EmailAddress
 vsUserEmail usr = veidToEmail usr.externalId -- TODO:
 
 -- in ScimTokenHash (cs @ByteString @Text (convertToBase Base64 digest))
@@ -1020,7 +1020,7 @@ synthesizeStoredUser' ::
   UserId ->
   ST.ValidExternalId ->
   Name ->
-  [Email] ->
+  [EmailAddress] ->
   Handle ->
   RI.RichInfo ->
   AccountStatus ->
@@ -1176,7 +1176,7 @@ scimFindUserByEmail mIdpConfig stiTeam email = do
         Nothing -> maybe (pure Nothing) withEmailOnly $ Brig.urefToEmail uref
         Just uid -> pure (Just uid)
 
-    withEmailOnly :: Email -> Sem r (Maybe UserId)
+    withEmailOnly :: EmailAddress -> Sem r (Maybe UserId)
     withEmailOnly eml = maybe inbrig (pure . Just) =<< inspar
       where
         -- FUTUREWORK: we could also always lookup brig, that's simpler and possibly faster,

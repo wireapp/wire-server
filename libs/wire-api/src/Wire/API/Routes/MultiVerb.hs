@@ -55,7 +55,6 @@ import Control.Lens hiding (Context, (<|))
 import Data.ByteString.Builder
 import Data.ByteString.Lazy qualified as LBS
 import Data.CaseInsensitive qualified as CI
-import Data.Either.Combinators (leftToMaybe)
 import Data.HashMap.Strict.InsOrd (InsOrdHashMap, unionWith)
 import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
 import Data.Kind

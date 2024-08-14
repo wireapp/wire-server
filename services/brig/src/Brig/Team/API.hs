@@ -75,7 +75,6 @@ import Wire.API.Team.Role
 import Wire.API.Team.Role qualified as Public
 import Wire.API.User hiding (fromEmail)
 import Wire.API.User qualified as Public
-import Wire.API.User.Identity qualified as Email
 import Wire.BlockListStore
 import Wire.EmailSending (EmailSending)
 import Wire.Error
@@ -118,7 +117,7 @@ getInvitationCode t r = do
 
 data CreateInvitationInviter = CreateInvitationInviter
   { inviterUid :: UserId,
-    inviterEmail :: Email
+    inviterEmail :: EmailAddress
   }
   deriving (Eq, Show)
 
@@ -217,17 +216,13 @@ createInvitation' ::
   Maybe UserId ->
   Public.Role ->
   Maybe UserId ->
-  Email ->
+  EmailAddress ->
   Public.InvitationRequest ->
   Handler r (Public.Invitation, Public.InvitationCode)
 createInvitation' tid mUid inviteeRole mbInviterUid fromEmail body = do
-  -- FUTUREWORK: These validations are nearly copy+paste from accountCreation and
-  --             sendActivationCode. Refactor this to a single place
-
-  -- Validate e-mail
-  validatedEmail <- either (const $ throwStd (errorToWai @'E.InvalidEmail)) pure (Email.validateEmail (inviteeEmail body))
-  let uke = mkEmailKey validatedEmail
-  blacklistedEm <- lift $ liftSem $ isBlocked validatedEmail
+  let email = (inviteeEmail body)
+  let uke = mkEmailKey email
+  blacklistedEm <- lift $ liftSem $ isBlocked email
   when blacklistedEm $
     throwStd blacklistedEmail
   emailTaken <- lift $ liftSem $ isJust <$> lookupKey uke
@@ -254,10 +249,10 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail body = do
           inviteeRole
           now
           mbInviterUid
-          validatedEmail
+          email
           body.inviteeName
           timeout
-    (newInv, code) <$ sendInvitationMail validatedEmail tid fromEmail code body.locale
+    (newInv, code) <$ sendInvitationMail email tid fromEmail code body.locale
 
 deleteInvitation :: (Member GalleyAPIAccess r) => UserId -> TeamId -> InvitationId -> (Handler r) ()
 deleteInvitation uid tid iid = do
@@ -282,7 +277,7 @@ getInvitationByCode c = do
   inv <- lift . wrapClient $ DB.lookupInvitationByCode HideInvitationUrl c
   maybe (throwStd $ errorToWai @'E.InvalidInvitationCode) pure inv
 
-headInvitationByEmail :: Email -> (Handler r) Public.HeadInvitationByEmailResult
+headInvitationByEmail :: EmailAddress -> (Handler r) Public.HeadInvitationByEmailResult
 headInvitationByEmail e = do
   lift $
     wrapClient $
@@ -294,7 +289,7 @@ headInvitationByEmail e = do
 -- | FUTUREWORK: This should also respond with status 409 in case of
 -- @DB.InvitationByEmailMoreThanOne@.  Refactor so that 'headInvitationByEmailH' and
 -- 'getInvitationByEmailH' are almost the same thing.
-getInvitationByEmail :: Email -> (Handler r) Public.Invitation
+getInvitationByEmail :: EmailAddress -> (Handler r) Public.Invitation
 getInvitationByEmail email = do
   inv <- lift $ wrapClient $ DB.lookupInvitationByEmail HideInvitationUrl email
   maybe (throwStd (notFound "Invitation not found")) pure inv

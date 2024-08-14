@@ -40,7 +40,6 @@ import Data.Aeson qualified as Aeson
 import Data.Attoparsec.ByteString (sepBy)
 import Data.Attoparsec.ByteString.Char8 (char, string)
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..))
-import Data.Either.Combinators (mapLeft)
 import Data.Id (TeamId, UserId)
 import Data.Json.Util (UTCTimeMillis)
 import Data.OpenApi (ToParamSchema (..))

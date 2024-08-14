@@ -44,7 +44,6 @@ import Data.ByteString qualified as C8
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import Data.Domain
-import Data.Either.Combinators
 import Data.Handle
 import Data.Id
 import Data.Json.Util (fromUTCTimeMillis)

@@ -29,7 +29,7 @@ tests = T.testGroup "Auth" [loginIdHappyCase, loginIdFailFastOnEmail]
 loginIdHappyCase :: T.TestTree
 loginIdHappyCase = testCase "LoginId parser: valid email" $ do
   let actual :: Maybe LoginId = Aeson.decode "{\"email\":\"foo@bar.com\"}"
-  let expected = Just $ LoginByEmail (Email {emailLocal = "foo", emailDomain = "bar.com"})
+  let expected = Just $ LoginByEmail (unsafeEmailAddress "foo" "bar.com")
   assertEqual "should succeed" expected actual
 
 loginIdFailFastOnEmail :: T.TestTree

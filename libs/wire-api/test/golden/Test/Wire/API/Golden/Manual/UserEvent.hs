@@ -38,7 +38,6 @@ where
 
 import Data.Aeson (toJSON)
 import Data.Domain
-import Data.Either.Combinators (rightToMaybe)
 import Data.ISO3166_CountryCodes
 import Data.Id
 import Data.Json.Util

@@ -89,14 +89,14 @@ assertLocaleUpdateJournaled :: (HasCallStack, MonadUnliftIO m) => UserJournalWat
 assertLocaleUpdateJournaled userJournalWatcher uid loc label =
   assertMessage userJournalWatcher label (userUpdateMatcher uid) (userLocaleUpdateJournaled uid loc)
 
-userEmailUpdateJournaled :: (HasCallStack, MonadIO m) => UserId -> Email -> String -> Maybe PU.UserEvent -> m ()
+userEmailUpdateJournaled :: (HasCallStack, MonadIO m) => UserId -> EmailAddress -> String -> Maybe PU.UserEvent -> m ()
 userEmailUpdateJournaled uid em l (Just ev) = liftIO $ do
   assertEventType l PU.UserEvent'USER_UPDATE ev
   assertUserId l uid ev
   assertEmail l (Just em) ev
 userEmailUpdateJournaled _ _ l Nothing = liftIO $ assertFailure $ l <> ": Expected 1 UserUpdate, got nothing"
 
-assertEmailUpdateJournaled :: (HasCallStack, MonadUnliftIO m) => UserJournalWatcher -> UserId -> Email -> String -> m ()
+assertEmailUpdateJournaled :: (HasCallStack, MonadUnliftIO m) => UserJournalWatcher -> UserId -> EmailAddress -> String -> m ()
 assertEmailUpdateJournaled userJournalWatcher uid em label =
   assertMessage userJournalWatcher label (userUpdateMatcher uid) (userEmailUpdateJournaled uid em)
 
@@ -130,7 +130,7 @@ assertName :: String -> Maybe Name -> PU.UserEvent -> IO ()
 assertName l (Just nm) ev = assertEqual (l <> "name should exist") nm (Name $ fromMaybe "failed to decode name" $ fromByteString $ ev ^. PU.name)
 assertName l Nothing ev = assertEqual (l <> "name should not exist") Nothing (ev ^. PU.maybe'name)
 
-assertEmail :: String -> Maybe Email -> PU.UserEvent -> IO ()
+assertEmail :: String -> Maybe EmailAddress -> PU.UserEvent -> IO ()
 assertEmail l (Just em) ev = assertEqual (l <> "email should exist") em (fromMaybe (error "Failed to convert to email") $ parseEmail $ Text.decodeLatin1 $ fromMaybe "failed to decode email value" $ fromByteString $ ev ^. PU.email)
 assertEmail l Nothing ev = assertEqual (l <> "email should not exist") Nothing (ev ^. PU.maybe'email)
 

@@ -308,7 +308,7 @@ createUser' hasPwd name brig = do
       <!! const 201 === statusCode
   responseJsonError r
 
-createUserWithEmail :: (HasCallStack) => Text -> Email -> Brig -> Http User
+createUserWithEmail :: (HasCallStack) => Text -> EmailAddress -> Brig -> Http User
 createUserWithEmail name email brig = do
   r <-
     postUserWithEmail True True name (Just email) False Nothing Nothing brig
@@ -329,7 +329,7 @@ createAnonUserExpiry expires name brig = do
   r <- post (brig . path "/register" . contentJson . body p) <!! const 201 === statusCode
   responseJsonError r
 
-requestActivationCode :: (HasCallStack) => Brig -> Int -> Either Email Phone -> Http ()
+requestActivationCode :: (HasCallStack) => Brig -> Int -> Either EmailAddress Phone -> Http ()
 requestActivationCode brig expectedStatus ep =
   post (brig . path "/activate/send" . contentJson . body (RequestBodyLBS . encode $ bdy ep))
     !!! const expectedStatus === statusCode
@@ -340,7 +340,7 @@ requestActivationCode brig expectedStatus ep =
 getActivationCode ::
   (MonadCatch m, MonadHttp m, HasCallStack) =>
   Brig ->
-  Either Email Phone ->
+  Either EmailAddress Phone ->
   m (Maybe (ActivationKey, ActivationCode))
 getActivationCode brig ep = do
   let qry = either (queryItem "email" . toByteString') (queryItem "phone" . toByteString') ep
@@ -403,7 +403,7 @@ postUserWithEmail ::
   Bool ->
   Bool ->
   Text ->
-  Maybe Email ->
+  Maybe EmailAddress ->
   Bool ->
   Maybe UserSSOId ->
   Maybe TeamId ->
@@ -800,27 +800,31 @@ zClient = header "Z-Client" . toByteString'
 zConn :: ByteString -> Request -> Request
 zConn = header "Z-Connection"
 
-mkEmailRandomLocalSuffix :: (MonadIO m) => Text -> m Email
+mkEmailRandomLocalSuffix :: (MonadIO m) => Text -> m EmailAddress
 mkEmailRandomLocalSuffix e = do
   uid <- liftIO UUID.nextRandom
   case parseEmail e of
-    Just (Email loc dom) -> pure $ Email (loc <> "+" <> UUID.toText uid) dom
+    Just mail ->
+      pure $
+        unsafeEmailAddress
+          ((localPart mail) <> "+" <> UUID.toASCIIBytes uid)
+          (domainPart mail)
     Nothing -> error $ "Invalid email address: " ++ Text.unpack e
 
 -- | Generate emails that are in the trusted whitelist of domains whose @+@ suffices count for email
 -- disambiguation.  See also: 'Brig.Email.mkEmailKey'.
-randomEmail :: (MonadIO m) => m Email
+randomEmail :: (MonadIO m) => m EmailAddress
 randomEmail = mkSimulatorEmail "success"
 
 -- | To test the behavior of email addresses with untrusted domains (two emails are equal even if
 -- their local part after @+@ differs), we need to generate them.
-randomUntrustedEmail :: (MonadIO m) => m Email
+randomUntrustedEmail :: (MonadIO m) => m EmailAddress
 randomUntrustedEmail = do
   -- NOTE: local part cannot be longer than 64 octets
   rd <- liftIO (randomIO :: IO Integer)
-  pure $ Email (Text.pack $ show rd) "zinfra.io"
+  pure $ unsafeEmailAddress (pack $ show rd) "zinfra.io"
 
-mkSimulatorEmail :: (MonadIO m) => Text -> m Email
+mkSimulatorEmail :: (MonadIO m) => Text -> m EmailAddress
 mkSimulatorEmail loc = mkEmailRandomLocalSuffix (loc <> "@simulator.amazonses.com")
 
 randomPhone :: (MonadIO m) => m Phone
@@ -838,10 +842,10 @@ randomActivationCode =
       . printf "%06d"
       <$> randIntegerZeroToNMinusOne 1000000
 
-defEmailLogin :: Email -> Login
+defEmailLogin :: EmailAddress -> Login
 defEmailLogin e = emailLogin e defPassword (Just defCookieLabel)
 
-emailLogin :: Email -> PlainTextPassword6 -> Maybe CookieLabel -> Login
+emailLogin :: EmailAddress -> PlainTextPassword6 -> Maybe CookieLabel -> Login
 emailLogin e pw cl = MkLogin (LoginByEmail e) pw cl Nothing
 
 somePrekeys :: [Prekey]

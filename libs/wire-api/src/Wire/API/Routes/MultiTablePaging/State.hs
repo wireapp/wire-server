@@ -25,7 +25,6 @@ import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Attoparsec.ByteString qualified as AB
 import Data.ByteString qualified as BS
 import Data.ByteString.Base64.URL qualified as Base64Url
-import Data.Either.Combinators (mapLeft)
 import Data.OpenApi qualified as S
 import Data.Proxy
 import Data.Schema

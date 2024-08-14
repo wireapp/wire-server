@@ -26,7 +26,6 @@ import Data.Aeson.Types qualified as A
 import Data.ByteArray (convert)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict, toStrict)
-import Data.Either.Combinators (mapLeft)
 import Data.HashMap.Strict qualified as HM
 import Data.Id as Id
 import Data.Json.Util

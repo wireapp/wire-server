@@ -149,7 +149,7 @@ verifyCode mbCode action uid = do
   where
     getEmailAndTeamId ::
       UserId ->
-      ExceptT e (AppT r) (Maybe Email, Maybe TeamId)
+      ExceptT e (AppT r) (Maybe EmailAddress, Maybe TeamId)
     getEmailAndTeamId u = do
       mbAccount <- wrapHttpClientE $ Data.lookupAccount u
       pure (userEmail <$> accountUser =<< mbAccount, userTeam <$> accountUser =<< mbAccount)
@@ -295,13 +295,8 @@ resolveLoginId li = do
     Just uid -> pure uid
 
 validateLoginId :: (MonadReader Env m) => LoginId -> ExceptT LoginError m (Either EmailKey Handle)
-validateLoginId (LoginByEmail email) =
-  either
-    (const $ throwE LoginFailed)
-    (pure . Left . mkEmailKey)
-    (validateEmail email)
-validateLoginId (LoginByHandle h) =
-  pure (Right h)
+validateLoginId (LoginByEmail email) = (pure . Left . mkEmailKey) email
+validateLoginId (LoginByHandle h) = (pure . Right) h
 
 isPendingActivation :: (MonadClient m, MonadReader Env m) => LoginId -> m Bool
 isPendingActivation ident = case ident of

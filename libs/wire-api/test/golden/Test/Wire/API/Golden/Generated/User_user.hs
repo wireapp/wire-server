@@ -20,7 +20,6 @@
 module Test.Wire.API.Golden.Generated.User_user where
 
 import Data.Domain (Domain (Domain, _domainText))
-import Data.Either.Combinators (rightToMaybe)
 import Data.Handle
 import Data.ISO3166_CountryCodes
   ( CountryCode

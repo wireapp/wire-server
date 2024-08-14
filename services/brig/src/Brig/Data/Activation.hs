@@ -65,7 +65,7 @@ data ActivationError
   = UserKeyExists !LT.Text
   | InvalidActivationCodeWrongUser
   | InvalidActivationCodeWrongCode
-  | InvalidActivationEmail !Email !String
+  | InvalidActivationEmail !EmailAddress !String
   | InvalidActivationPhone !Phone
 
 activationErrorToRegisterError :: ActivationError -> RegisterError
@@ -78,7 +78,7 @@ activationErrorToRegisterError = \case
 
 data ActivationEvent
   = AccountActivated !UserAccount
-  | EmailActivated !UserId !Email
+  | EmailActivated !UserId !EmailAddress
 
 -- | Max. number of activation attempts per 'ActivationKey'.
 maxAttempts :: Int32
@@ -126,7 +126,7 @@ activateKey k c u = verifyCode k c >>= pickUser >>= activate
           for_ oldKey $ lift . adhocUserKeyStoreInterpreter . deleteKey
           pure . Just $ EmailActivated uid (emailKeyOrig key)
       where
-        updateEmailAndDeleteEmailUnvalidated :: UserId -> Email -> m ()
+        updateEmailAndDeleteEmailUnvalidated :: UserId -> EmailAddress -> m ()
         updateEmailAndDeleteEmailUnvalidated u' email =
           updateEmail u' email <* deleteEmailUnvalidated u'
     claim key uid = do

@@ -30,8 +30,8 @@ import Wire.API.User.Identity
 -- Notifications
 
 data SESNotification
-  = MailBounce !SESBounceType [Email]
-  | MailComplaint [Email]
+  = MailBounce !SESBounceType [EmailAddress]
+  | MailComplaint [EmailAddress]
   deriving (Eq, Show)
 
 data SESBounceType

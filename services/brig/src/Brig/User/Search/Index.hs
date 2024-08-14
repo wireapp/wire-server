@@ -790,8 +790,8 @@ type ReindexRow =
     Maybe (Writetime AccountStatus),
     Maybe Handle,
     Maybe (Writetime Handle),
-    Maybe Email,
-    Maybe (Writetime Email),
+    Maybe EmailAddress,
+    Maybe (Writetime EmailAddress),
     ColourId,
     Writetime ColourId,
     Activated,
@@ -802,8 +802,8 @@ type ReindexRow =
     Maybe (Writetime ManagedBy),
     Maybe UserSSOId,
     Maybe (Writetime UserSSOId),
-    Maybe Email,
-    Maybe (Writetime Email)
+    Maybe EmailAddress,
+    Maybe (Writetime EmailAddress)
   )
 
 -- the _2 lens does not work for a tuple this big

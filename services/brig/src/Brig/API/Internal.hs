@@ -536,7 +536,7 @@ changeSelfEmailMaybeSendH u body (fromMaybe False -> validate) = do
 
 data MaybeSendEmail = ActuallySendEmail | DoNotSendEmail
 
-changeSelfEmailMaybeSend :: (Member BlockListStore r, Member UserKeyStore r, Member EmailSubsystem r) => UserId -> MaybeSendEmail -> Email -> UpdateOriginType -> (Handler r) ChangeEmailResponse
+changeSelfEmailMaybeSend :: (Member BlockListStore r, Member UserKeyStore r, Member EmailSubsystem r) => UserId -> MaybeSendEmail -> EmailAddress -> UpdateOriginType -> (Handler r) ChangeEmailResponse
 changeSelfEmailMaybeSend u ActuallySendEmail email allowScim = do
   API.changeSelfEmail u email allowScim
 changeSelfEmailMaybeSend u DoNotSendEmail email allowScim = do
@@ -555,7 +555,7 @@ listActivatedAccountsH ::
   ) =>
   Maybe (CommaSeparatedList UserId) ->
   Maybe (CommaSeparatedList Handle) ->
-  Maybe (CommaSeparatedList Email) ->
+  Maybe (CommaSeparatedList EmailAddress) ->
   Maybe Bool ->
   Handler r [UserAccount]
 listActivatedAccountsH
@@ -607,7 +607,7 @@ listActivatedAccounts elh includePendingInvitations = do
           (Deleted, _, _) -> pure True
           (Ephemeral, _, _) -> pure True
 
-getActivationCode :: Email -> Handler r GetActivationCodeResp
+getActivationCode :: EmailAddress -> Handler r GetActivationCodeResp
 getActivationCode email = do
   apair <- lift . wrapClient $ API.lookupActivationCode email
   maybe (throwStd activationKeyNotFound) (pure . GetActivationCodeResp) apair
@@ -615,14 +615,14 @@ getActivationCode email = do
 getPasswordResetCodeH ::
   ( Member AuthenticationSubsystem r
   ) =>
-  Email ->
+  EmailAddress ->
   Handler r GetPasswordResetCodeResp
 getPasswordResetCodeH email = getPasswordResetCode email
 
 getPasswordResetCode ::
   ( Member AuthenticationSubsystem r
   ) =>
-  Email ->
+  EmailAddress ->
   Handler r GetPasswordResetCodeResp
 getPasswordResetCode email =
   (GetPasswordResetCodeResp <$$> lift (API.lookupPasswordResetCode email))
@@ -680,7 +680,7 @@ revokeIdentityH ::
   ( Member UserSubsystem r,
     Member UserKeyStore r
   ) =>
-  Email ->
+  EmailAddress ->
   Handler r NoContent
 revokeIdentityH email = lift $ NoContent <$ API.revokeIdentity email
 
@@ -696,13 +696,13 @@ updateConnectionInternalH updateConn = do
   API.updateConnectionInternal updateConn !>> connError
   pure NoContent
 
-checkBlacklist :: (Member BlockListStore r) => Email -> Handler r CheckBlacklistResponse
+checkBlacklist :: (Member BlockListStore r) => EmailAddress -> Handler r CheckBlacklistResponse
 checkBlacklist email = lift $ bool NotBlacklisted YesBlacklisted <$> API.isBlacklisted email
 
-deleteFromBlacklist :: (Member BlockListStore r) => Email -> Handler r NoContent
+deleteFromBlacklist :: (Member BlockListStore r) => EmailAddress -> Handler r NoContent
 deleteFromBlacklist email = lift $ NoContent <$ API.blacklistDelete email
 
-addBlacklist :: (Member BlockListStore r) => Email -> Handler r NoContent
+addBlacklist :: (Member BlockListStore r) => EmailAddress -> Handler r NoContent
 addBlacklist email = lift $ NoContent <$ API.blacklistInsert email
 
 updateSSOIdH ::

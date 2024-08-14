@@ -81,7 +81,7 @@ data Inconsistency = Inconsistency
     userId :: UserId,
     time :: Writetime UserId,
     status :: Maybe (WithWritetime AccountStatus),
-    userEmail :: Maybe (WithWritetime Email),
+    userEmail :: Maybe (WithWritetime EmailAddress),
     inconsistencyCase :: Text
   }
   deriving (Generic)
@@ -129,7 +129,7 @@ instance Cql EmailKey where
 instance Aeson.ToJSON EmailKey where
   toJSON = Aeson.toJSON . emailKeyUniq
 
-type UserDetailsRow = (Maybe AccountStatus, Maybe (Writetime AccountStatus), Maybe Email, Maybe (Writetime Email))
+type UserDetailsRow = (Maybe AccountStatus, Maybe (Writetime AccountStatus), Maybe EmailAddress, Maybe (Writetime EmailAddress))
 
 getUserDetails :: UserId -> Client (Maybe UserDetailsRow)
 getUserDetails uid = retry x5 $ query1 cql (params LocalQuorum (Identity uid))

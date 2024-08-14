@@ -37,6 +37,7 @@ module Imports
     module Data.Monoid,
     module Data.Maybe,
     module Data.Either,
+    module Data.Either.Combinators,
     module Data.Foldable,
     module Data.Traversable,
     module Data.Tuple,
@@ -148,6 +149,7 @@ import Data.ByteString (ByteString)
 import Data.ByteString.Lazy qualified
 import Data.Char
 import Data.Either
+import Data.Either.Combinators hiding (fromLeft, fromRight, isLeft, isRight)
 import Data.Foldable
 import Data.Function
 import Data.Functor

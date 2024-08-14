@@ -173,7 +173,7 @@ data EmailSMSGeneralOpts = EmailSMSGeneralOpts
   { -- | Email, SMS, ... template directory
     templateDir :: !FilePath,
     -- | Email sender address
-    emailSender :: !Email,
+    emailSender :: !EmailAddress,
     -- | Twilio sender identifier (sender phone number in E.104 format)
     --   or twilio messaging sender ID - see
     --   https://www.twilio.com/docs/sms/send-messages#use-an-alphanumeric-sender-id
@@ -225,7 +225,7 @@ data ProviderOpts = ProviderOpts
     -- | Approval URL template
     approvalUrl :: !Text,
     -- | Approval email recipient
-    approvalTo :: !Email,
+    approvalTo :: !EmailAddress,
     -- | Password reset URL template
     providerPwResetUrl :: !Text
   }

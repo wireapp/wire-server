@@ -20,7 +20,6 @@
 module Test.Wire.API.Golden.Manual.ListUsersById where
 
 import Data.Domain
-import Data.Either.Combinators (rightToMaybe)
 import Data.Id
 import Data.LegalHold
 import Data.Qualified

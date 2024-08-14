@@ -470,7 +470,7 @@ makeOwner owner mem tid = do
     !!! const 200
       === statusCode
 
-acceptInviteBody :: Email -> InvitationCode -> RequestBody
+acceptInviteBody :: EmailAddress -> InvitationCode -> RequestBody
 acceptInviteBody email code =
   RequestBodyLBS . encode $
     object
@@ -2218,10 +2218,10 @@ otrRecipients =
 defPassword :: PlainTextPassword6
 defPassword = plainTextPassword6Unsafe "topsecretdefaultpassword"
 
-randomEmail :: (MonadIO m) => m Email
+randomEmail :: (MonadIO m) => m EmailAddress
 randomEmail = do
   uid <- liftIO nextRandom
-  pure $ Email ("success+" <> UUID.toText uid) "simulator.amazonses.com"
+  pure $ unsafeEmailAddress ("success+" <> UUID.toASCIIBytes uid) "simulator.amazonses.com"
 
 selfConv :: UserId -> ConvId
 selfConv u = Id (toUUID u)

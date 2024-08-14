@@ -6,6 +6,7 @@ import Data.Domain
 import Data.Id
 import Data.Misc (PlainTextPassword8)
 import Data.Qualified
+import Data.Text.Encoding (decodeUtf8)
 import Data.Time
 import Imports
 import Polysemy
@@ -50,7 +51,7 @@ type AllEffects =
     State (Map PasswordResetKey (PRQueryData Identity)),
     TinyLog,
     EmailSubsystem,
-    State (Map Email [SentMail]),
+    State (Map EmailAddress [SentMail]),
     UserSubsystem
   ]
 
@@ -126,7 +127,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
                 . interpretAuthenticationSubsystem
                 $ createPasswordResetCode (mkEmailKey email)
                   <* expectNoEmailSent
-         in emailDomain email /= "example.com" ==>
+         in domainPart email /= "example.com" ==>
               createPasswordResetCodeResult === Right ()
 
     prop "reset code is generated when email is in allow list" $
@@ -134,7 +135,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
         let user = userNoEmail {userIdentity = Just $ EmailIdentity email}
             localDomain = userNoEmail.userQualifiedId.qDomain
             createPasswordResetCodeResult =
-              interpretDependencies localDomain [UserAccount user Active] mempty (Just [emailDomain email])
+              interpretDependencies localDomain [UserAccount user Active] mempty (Just [decodeUtf8 $ domainPart email])
                 . interpretAuthenticationSubsystem
                 $ createPasswordResetCode (mkEmailKey email)
          in counterexample ("expected Right, got: " <> show createPasswordResetCodeResult) $
@@ -297,7 +298,7 @@ hashAndUpsertPassword :: (Member PasswordStore r, Member HashPassword r) => User
 hashAndUpsertPassword uid password =
   upsertHashedPassword uid =<< hashPassword password
 
-expect1ResetPasswordEmail :: (Member (State (Map Email [SentMail])) r) => Email -> Sem r PasswordResetPair
+expect1ResetPasswordEmail :: (Member (State (Map EmailAddress [SentMail])) r) => EmailAddress -> Sem r PasswordResetPair
 expect1ResetPasswordEmail email =
   getEmailsSentTo email
     <&> \case
@@ -305,7 +306,7 @@ expect1ResetPasswordEmail email =
       [SentMail _ (PasswordResetMail resetPair)] -> resetPair
       wrongEmails -> error $ "Wrong emails sent: " <> show wrongEmails
 
-expectNoEmailSent :: (Member (State (Map Email [SentMail])) r) => Sem r ()
+expectNoEmailSent :: (Member (State (Map EmailAddress [SentMail])) r) => Sem r ()
 expectNoEmailSent = do
   emails <- get
   if null emails

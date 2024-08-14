@@ -4,7 +4,8 @@ module Wire.UserKeyStore where
 
 import Data.Id
 import Data.Text qualified as Text
-import Imports
+import Data.Text.Encoding (decodeUtf8)
+import Imports hiding (local)
 import Polysemy
 import Test.QuickCheck
 import Wire.API.User
@@ -34,13 +35,15 @@ instance Arbitrary EmailKey where
 --   * "+" suffixes on the local part are stripped unless the domain
 --     part is contained in a trusted whitelist.
 mkEmailKey :: EmailAddress -> EmailKey
-mkEmailKey orig@(EmailAddress localPart domain) =
+mkEmailKey orig =
   let uniq = Text.toLower localPart' <> "@" <> Text.toLower domain
    in EmailKey uniq orig
   where
+    domain = decodeUtf8 . domainPart $ orig
+    local = decodeUtf8 . localPart $ orig
     localPart'
-      | domain `notElem` trusted = Text.takeWhile (/= '+') localPart
-      | otherwise = localPart
+      | (domainPart orig) `notElem` trusted = Text.takeWhile (/= '+') local
+      | otherwise = decodeUtf8 (localPart orig)
     trusted = ["wearezeta.com", "wire.com", "simulator.amazonses.com"]
 
 data UserKeyStore m a where

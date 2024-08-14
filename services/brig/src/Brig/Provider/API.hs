@@ -116,7 +116,6 @@ import Wire.API.User.Auth
 import Wire.API.User.Client
 import Wire.API.User.Client qualified as Public (Client, ClientCapability (ClientSupportsLegalholdImplicitConsent), PubClient (..), UserClientPrekeyMap, UserClients, userClients)
 import Wire.API.User.Client.Prekey qualified as Public (PrekeyId)
-import Wire.API.User.Identity qualified as Public (Email)
 import Wire.DeleteQueue
 import Wire.EmailSending (EmailSending)
 import Wire.Error
@@ -187,9 +186,7 @@ internalProviderAPI = Named @"get-provider-activation-code" getActivationCodeH
 newAccount :: (Member GalleyAPIAccess r, Member EmailSending r, Member VerificationCodeSubsystem r) => Public.NewProvider -> (Handler r) Public.NewProviderResponse
 newAccount new = do
   guardSecondFactorDisabled Nothing
-  email <- case validateEmail (Public.newProviderEmail new) of
-    Right em -> pure em
-    Left _ -> throwStd (errorToWai @'E.InvalidEmail)
+  let email = (Public.newProviderEmail new)
   let name = Public.newProviderName new
   let pass = Public.newProviderPassword new
   let descr = fromRange (Public.newProviderDescr new)
@@ -240,12 +237,9 @@ activateAccountKey key val = do
       lift $ sendApprovalConfirmMail name email
       pure . Just $ Public.ProviderActivationResponse email
 
-getActivationCodeH :: (Member GalleyAPIAccess r, Member VerificationCodeSubsystem r) => Public.Email -> (Handler r) Code.KeyValuePair
-getActivationCodeH e = do
+getActivationCodeH :: (Member GalleyAPIAccess r, Member VerificationCodeSubsystem r) => EmailAddress -> (Handler r) Code.KeyValuePair
+getActivationCodeH email = do
   guardSecondFactorDisabled Nothing
-  email <- case validateEmail e of
-    Right em -> pure em
-    Left _ -> throwStd (errorToWai @'E.InvalidEmail)
   let gen = mkVerificationCodeGen email
   code <- lift . liftSem $ internalLookupCode gen.genKey IdentityVerification
   maybe (throwStd activationKeyNotFound) (pure . codeToKeyValuePair) code
@@ -306,11 +300,8 @@ updateAccountProfile pid upd = do
       (updateProviderDescr upd)
 
 updateAccountEmail :: (Member GalleyAPIAccess r, Member EmailSending r, Member VerificationCodeSubsystem r) => ProviderId -> Public.EmailUpdate -> (Handler r) ()
-updateAccountEmail pid (Public.EmailUpdate new) = do
+updateAccountEmail pid (Public.EmailUpdate email) = do
   guardSecondFactorDisabled Nothing
-  email <- case validateEmail new of
-    Right em -> pure em
-    Left _ -> throwStd (errorToWai @'E.InvalidEmail)
   let emailKey = mkEmailKey email
   wrapClientE (DB.lookupKey emailKey) >>= mapM_ (const $ throwStd emailExists)
   let gen = mkVerificationCodeGen email
@@ -814,7 +805,7 @@ guardSecondFactorDisabled mbUserId = do
 minRsaKeySize :: Int
 minRsaKeySize = 256 -- Bytes (= 2048 bits)
 
-activate :: ProviderId -> Maybe Public.Email -> Public.Email -> (Handler r) ()
+activate :: ProviderId -> Maybe EmailAddress -> EmailAddress -> (Handler r) ()
 activate pid old new = do
   let emailKey = mkEmailKey new
   taken <- maybe False (/= pid) <$> wrapClientE (DB.lookupKey emailKey)

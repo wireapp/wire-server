@@ -20,7 +20,6 @@
 module Test.Wire.API.Golden.Generated.SelfProfile_user where
 
 import Data.Domain
-import Data.Either.Combinators (rightToMaybe)
 import Data.Handle
 import Data.ISO3166_CountryCodes
 import Data.Id

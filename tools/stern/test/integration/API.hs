@@ -500,7 +500,7 @@ getUsersByHandles h = do
   r <- get (stern . paths ["users", "by-handles"] . queryItem "handles" (cs h) . expect2xx)
   pure $ responseJsonUnsafe r
 
-getUsersByEmail :: Email -> TestM [UserAccount]
+getUsersByEmail :: EmailAddress -> TestM [UserAccount]
 getUsersByEmail email = do
   stern <- view tsStern
   r <- get (stern . paths ["users", "by-email"] . queryItem "email" (toByteString' email) . expect2xx)
@@ -539,12 +539,12 @@ searchUsers uid = do
   r <- get (s . paths ["users", toByteString' uid, "search"] . expect2xx)
   pure $ responseJsonUnsafe r
 
-revokeIdentity :: Either Email Phone -> TestM ()
+revokeIdentity :: Either EmailAddress Phone -> TestM ()
 revokeIdentity emailOrPhone = do
   s <- view tsStern
   void $ post (s . paths ["users", "revoke-identity"] . mkQueryParam emailOrPhone . expect2xx)
 
-mkQueryParam :: Either Email Phone -> Request -> Request
+mkQueryParam :: Either EmailAddress Phone -> Request -> Request
 mkQueryParam = \case
   Left email -> queryItem "email" (toByteString' email)
   Right phone -> queryItem "phone" (toByteString' phone)
@@ -554,7 +554,7 @@ putEmail uid emailUpdate = do
   s <- view tsStern
   void $ put (s . paths ["users", toByteString' uid, "email"] . json emailUpdate . expect2xx)
 
-deleteUser :: UserId -> Either Email Phone -> TestM ()
+deleteUser :: UserId -> Either EmailAddress Phone -> TestM ()
 deleteUser uid emailOrPhone = do
   s <- view tsStern
   void $ delete (s . paths ["users", toByteString' uid] . mkQueryParam emailOrPhone . expect2xx)
@@ -569,7 +569,7 @@ unsuspendTeam tid = do
   s <- view tsStern
   void $ put (s . paths ["teams", toByteString' tid, "unsuspend"] . expect2xx)
 
-deleteTeam :: TeamId -> Bool -> Email -> TestM ()
+deleteTeam :: TeamId -> Bool -> EmailAddress -> TestM ()
 deleteTeam tid force email = do
   s <- view tsStern
   void $ delete (s . paths ["teams", toByteString' tid] . queryItem "force" (toByteString' force) . queryItem "email" (toByteString' email) . expect2xx)
@@ -580,22 +580,22 @@ ejpdInfo includeContacts handles = do
   r <- get (s . paths ["ejpd-info"] . queryItem "include_contacts" (toByteString' includeContacts) . queryItem "handles" (toByteString' handles) . expect2xx)
   pure $ responseJsonUnsafe r
 
-userBlacklistHead :: Either Email Phone -> TestM ResponseLBS
+userBlacklistHead :: Either EmailAddress Phone -> TestM ResponseLBS
 userBlacklistHead emailOrPhone = do
   s <- view tsStern
   Bilge.get (s . paths ["users", "blacklist"] . mkQueryParam emailOrPhone)
 
-postUserBlacklist :: Either Email Phone -> TestM ()
+postUserBlacklist :: Either EmailAddress Phone -> TestM ()
 postUserBlacklist emailOrPhone = do
   s <- view tsStern
   void $ post (s . paths ["users", "blacklist"] . mkQueryParam emailOrPhone . expect2xx)
 
-deleteUserBlacklist :: Either Email Phone -> TestM ()
+deleteUserBlacklist :: Either EmailAddress Phone -> TestM ()
 deleteUserBlacklist emailOrPhone = do
   s <- view tsStern
   void $ delete (s . paths ["users", "blacklist"] . mkQueryParam emailOrPhone . expect2xx)
 
-getTeamInfoByMemberEmail :: Email -> TestM TeamInfo
+getTeamInfoByMemberEmail :: EmailAddress -> TestM TeamInfo
 getTeamInfoByMemberEmail email = do
   s <- view tsStern
   r <- get (s . paths ["teams"] . queryItem "email" (toByteString' email) . expect2xx)
@@ -690,7 +690,7 @@ putSearchVisibility tid vis = do
   s <- view tsStern
   void $ put (s . paths ["teams", toByteString' tid, "search-visibility"] . json vis . expect2xx)
 
-getConsentLog :: Email -> TestM ResponseLBS
+getConsentLog :: EmailAddress -> TestM ResponseLBS
 getConsentLog email = do
   s <- view tsStern
   get (s . paths ["i", "consent"] . queryItem "email" (toByteString' email))

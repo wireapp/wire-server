@@ -372,15 +372,9 @@ createUser new = do
   where
     -- NOTE: all functions in the where block don't use any arguments of createUser
 
-    fetchAndValidateEmail :: NewUser -> ExceptT RegisterError (AppT r) (Maybe Email)
+    fetchAndValidateEmail :: NewUser -> ExceptT RegisterError (AppT r) (Maybe EmailAddress)
     fetchAndValidateEmail newUser = do
-      -- Validate e-mail
-      email <- for (newUserEmail newUser) $ \e ->
-        either
-          (const $ throwE RegisterErrorInvalidEmail)
-          pure
-          (validateEmail e)
-
+      let email = newUserEmail newUser
       for_ (mkEmailKey <$> email) $ \k ->
         verifyUniquenessAndCheckBlacklist k !>> identityErrorToRegisterError
 
@@ -460,7 +454,7 @@ createUser new = do
       pure $ CreateUserTeam tid nm
 
     -- Handle e-mail activation (deprecated, see #RefRegistrationNoPreverification in /docs/reference/user/registration.md)
-    handleEmailActivation :: Maybe Email -> UserId -> Maybe BindingNewTeamUser -> ExceptT RegisterError (AppT r) (Maybe Activation)
+    handleEmailActivation :: Maybe EmailAddress -> UserId -> Maybe BindingNewTeamUser -> ExceptT RegisterError (AppT r) (Maybe Activation)
     handleEmailActivation email uid newTeam = do
       fmap join . for (mkEmailKey <$> email) $ \ek -> case newUserEmailCode new of
         Nothing -> do
@@ -494,8 +488,7 @@ createUserInviteViaScim ::
   ) =>
   NewUserScimInvitation ->
   ExceptT HttpError (AppT r) UserAccount
-createUserInviteViaScim (NewUserScimInvitation tid uid loc name rawEmail _) = do
-  email <- either (const . throwE . StdError $ errorToWai @'E.InvalidEmail) pure (validateEmail rawEmail)
+createUserInviteViaScim (NewUserScimInvitation tid uid loc name email _) = do
   let emKey = mkEmailKey email
   verifyUniquenessAndCheckBlacklist emKey !>> identityErrorToBrigError
   account <- lift . wrapClient $ newAccountInviteViaScim uid tid loc name email
@@ -533,7 +526,7 @@ checkRestrictedUserCreation new = do
 
 -- | Call 'changeEmail' and process result: if email changes to itself, succeed, if not, send
 -- validation email.
-changeSelfEmail :: (Member BlockListStore r, Member UserKeyStore r, Member EmailSubsystem r) => UserId -> Email -> UpdateOriginType -> ExceptT HttpError (AppT r) ChangeEmailResponse
+changeSelfEmail :: (Member BlockListStore r, Member UserKeyStore r, Member EmailSubsystem r) => UserId -> EmailAddress -> UpdateOriginType -> ExceptT HttpError (AppT r) ChangeEmailResponse
 changeSelfEmail u email allowScim = do
   changeEmail u email allowScim !>> Error.changeEmailError >>= \case
     ChangeEmailIdempotent ->
@@ -553,14 +546,9 @@ changeSelfEmail u email allowScim = do
         (Just (userLocale usr))
 
 -- | Prepare changing the email (checking a number of invariants).
-changeEmail :: (Member BlockListStore r, Member UserKeyStore r) => UserId -> Email -> UpdateOriginType -> ExceptT ChangeEmailError (AppT r) ChangeEmailResult
+changeEmail :: (Member BlockListStore r, Member UserKeyStore r) => UserId -> EmailAddress -> UpdateOriginType -> ExceptT ChangeEmailError (AppT r) ChangeEmailResult
 changeEmail u email updateOrigin = do
-  em <-
-    either
-      (throwE . InvalidNewEmail email)
-      pure
-      (validateEmail email)
-  let ek = mkEmailKey em
+  let ek = mkEmailKey email
   blacklisted <- lift . liftSem $ BlockListStore.exists ek
   when blacklisted $
     throwE (ChangeBlacklistedEmail email)
@@ -571,13 +559,13 @@ changeEmail u email updateOrigin = do
   usr <- maybe (throwM $ UserProfileNotFound u) pure =<< lift (wrapClient $ Data.lookupUser WithPendingInvitations u)
   case emailIdentity =<< userIdentity usr of
     -- The user already has an email address and the new one is exactly the same
-    Just current | current == em -> pure ChangeEmailIdempotent
+    Just current | current == email -> pure ChangeEmailIdempotent
     _ -> do
       unless (userManagedBy usr /= ManagedByScim || updateOrigin == UpdateOriginScim) $
         throwE EmailManagedByScim
       timeout <- setActivationTimeout <$> view settings
       act <- lift . wrapClient $ Data.newActivation ek timeout (Just u)
-      pure $ ChangeEmailNeedsActivation (usr, act, em)
+      pure $ ChangeEmailNeedsActivation (usr, act, email)
 
 -------------------------------------------------------------------------------
 -- Remove Email
@@ -615,7 +603,7 @@ revokeIdentity ::
   ( Member UserSubsystem r,
     Member UserKeyStore r
   ) =>
-  Email ->
+  EmailAddress ->
   AppT r ()
 revokeIdentity key = do
   mu <- liftSem . lookupKey . mkEmailKey $ key
@@ -775,15 +763,11 @@ sendActivationCode ::
     Member GalleyAPIAccess r,
     Member UserKeyStore r
   ) =>
-  Email ->
+  EmailAddress ->
   Maybe Locale ->
   ExceptT SendActivationCodeError (AppT r) ()
 sendActivationCode email loc = do
-  ek <-
-    either
-      (const . throwE . InvalidRecipient $ mkEmailKey email)
-      (pure . mkEmailKey)
-      (validateEmail email)
+  let ek = mkEmailKey email
   doesExist <- lift $ liftSem $ isJust <$> lookupKey ek
   when doesExist $
     throwE $
@@ -834,13 +818,8 @@ sendActivationCode email loc = do
 
 mkActivationKey :: (MonadClient m, MonadReader Env m) => ActivationTarget -> ExceptT ActivationError m ActivationKey
 mkActivationKey (ActivateKey k) = pure k
-mkActivationKey (ActivateEmail e) = do
-  ek <-
-    either
-      (throwE . InvalidActivationEmail e)
-      (pure . mkEmailKey)
-      (validateEmail e)
-  liftIO $ Data.mkActivationKey ek
+mkActivationKey (ActivateEmail e) =
+  liftIO $ Data.mkActivationKey (mkEmailKey e)
 
 -------------------------------------------------------------------------------
 -- Password Management
@@ -1071,7 +1050,7 @@ deleteAccount (accountUser -> user) = do
 
 lookupActivationCode ::
   (MonadClient m) =>
-  Email ->
+  EmailAddress ->
   m (Maybe ActivationPair)
 lookupActivationCode email = do
   let uk = mkEmailKey email
@@ -1082,7 +1061,7 @@ lookupActivationCode email = do
 lookupPasswordResetCode ::
   ( Member AuthenticationSubsystem r
   ) =>
-  Email ->
+  EmailAddress ->
   (AppT r) (Maybe PasswordResetPair)
 lookupPasswordResetCode =
   liftSem . internalLookupPasswordResetCode . mkEmailKey
@@ -1144,7 +1123,7 @@ getLegalHoldStatus' user =
 -- currently pending activation.
 lookupAccountsByIdentity ::
   (Member UserKeyStore r) =>
-  Email ->
+  EmailAddress ->
   Bool ->
   AppT r [UserAccount]
 lookupAccountsByIdentity email includePendingInvitations = do
@@ -1156,17 +1135,17 @@ lookupAccountsByIdentity email includePendingInvitations = do
     then pure result
     else pure $ filter ((/= PendingInvitation) . accountStatus) result
 
-isBlacklisted :: (Member BlockListStore r) => Email -> AppT r Bool
+isBlacklisted :: (Member BlockListStore r) => EmailAddress -> AppT r Bool
 isBlacklisted email = do
   let uk = mkEmailKey email
   liftSem $ BlockListStore.exists uk
 
-blacklistInsert :: (Member BlockListStore r) => Email -> AppT r ()
+blacklistInsert :: (Member BlockListStore r) => EmailAddress -> AppT r ()
 blacklistInsert email = do
   let uk = mkEmailKey email
   liftSem $ BlockListStore.insert uk
 
-blacklistDelete :: (Member BlockListStore r) => Email -> AppT r ()
+blacklistDelete :: (Member BlockListStore r) => EmailAddress -> AppT r ()
 blacklistDelete email = do
   let uk = mkEmailKey email
   liftSem $ BlockListStore.delete uk

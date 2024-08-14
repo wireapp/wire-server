@@ -19,7 +19,6 @@
 
 module Test.Wire.API.Golden.Generated.UserUpdate_user where
 
-import Data.Either.Combinators
 import Data.Id
 import Data.UUID qualified as UUID
 import Imports

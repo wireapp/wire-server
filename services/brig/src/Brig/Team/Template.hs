@@ -37,7 +37,7 @@ data InvitationEmailTemplate = InvitationEmailTemplate
     invitationEmailSubject :: !Template,
     invitationEmailBodyText :: !Template,
     invitationEmailBodyHtml :: !Template,
-    invitationEmailSender :: !Email,
+    invitationEmailSender :: !EmailAddress,
     invitationEmailSenderName :: !Text
   }
 
@@ -46,7 +46,7 @@ data CreatorWelcomeEmailTemplate = CreatorWelcomeEmailTemplate
     creatorWelcomeEmailSubject :: !Template,
     creatorWelcomeEmailBodyText :: !Template,
     creatorWelcomeEmailBodyHtml :: !Template,
-    creatorWelcomeEmailSender :: !Email,
+    creatorWelcomeEmailSender :: !EmailAddress,
     creatorWelcomeEmailSenderName :: !Text
   }
 
@@ -55,7 +55,7 @@ data MemberWelcomeEmailTemplate = MemberWelcomeEmailTemplate
     memberWelcomeEmailSubject :: !Template,
     memberWelcomeEmailBodyText :: !Template,
     memberWelcomeEmailBodyHtml :: !Template,
-    memberWelcomeEmailSender :: !Email,
+    memberWelcomeEmailSender :: !EmailAddress,
     memberWelcomeEmailSenderName :: !Text
   }
 

@@ -273,7 +273,6 @@ library
     , data-default
     , deriving-aeson             >=0.2
     , deriving-swagger2
-    , either
     , email-validate             >=2.0
     , errors
     , extended
@@ -616,7 +615,6 @@ test-suite wire-api-golden-tests
     , bytestring-conversion
     , containers               >=0.5
     , currency-codes
-    , either
     , imports
     , iso3166-country-codes
     , iso639

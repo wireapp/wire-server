@@ -86,8 +86,7 @@ veidFromUserSSOId = \case
 
 -- | If the brig user has a 'UserSSOId', transform that into a 'ValidExternalId' (this is a
 -- total function as long as brig obeys the api).  Otherwise, if the user has an email, we can
--- construct a return value from that (and an optional saml issuer).  If a user only has a
--- phone number, or no identity at all, throw an error.
+-- construct a return value from that (and an optional saml issuer).
 --
 -- Note: the saml issuer is only needed in the case where a user has been invited via team
 -- settings and is now onboarded to saml/scim.  If this case can safely be ruled out, it's ok
@@ -95,7 +94,7 @@ veidFromUserSSOId = \case
 veidFromBrigUser :: (MonadError String m) => User -> Maybe SAML.Issuer -> m ValidExternalId
 veidFromBrigUser usr mIssuer = case (userSSOId usr, userEmail usr, mIssuer) of
   (Just ssoid, _, _) -> veidFromUserSSOId ssoid
-  (Nothing, Just email, Just issuer) -> pure $ EmailAndUref email (SAML.UserRef issuer (emailToSAMLNameID email))
+  (Nothing, Just email, Just issuer) -> pure $ EmailAndUref email (SAML.UserRef issuer (fromRight' $ emailToSAMLNameID email))
   (Nothing, Just email, Nothing) -> pure $ EmailOnly email
   (Nothing, Nothing, _) -> throwError "user has neither ssoIdentity nor userEmail"
 
