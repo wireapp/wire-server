@@ -1,0 +1,1 @@
+Remove coturn helm chart. It is moved to `wireapp/coturn`.
