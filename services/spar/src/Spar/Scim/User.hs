@@ -293,7 +293,7 @@ validateScimUser' errloc midp richInfoLimit user = do
     either err pure $ Brig.mkUserName (Scim.displayName user) veid
   richInfo <- validateRichInfo (Scim.extra user ^. ST.sueRichInfo)
   let active = Scim.active user
-      emails = Scim.Email.mailToMail <$> user.emails
+      emails = Scim.Email.emailToEmailAddress <$> user.emails
   lang <- maybe (throw $ badRequest "Could not parse language. Expected format is ISO 639-1.") pure $ mapM parseLanguage $ Scim.preferredLanguage user
   mRole <- validateRole user
 

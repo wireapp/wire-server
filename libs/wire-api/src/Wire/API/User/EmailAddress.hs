@@ -12,7 +12,6 @@ where
 -----
 
 import Cassandra.CQL qualified as C
-import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Conversion
 import Data.Data (Proxy (..))
 import Data.OpenApi hiding (Schema, ToSchema)
@@ -61,9 +60,11 @@ instance S.ToHttpApiData EmailAddress where
   toUrlPiece = decodeUtf8With lenientDecode . toByteString'
 
 instance Arbitrary EmailAddress where
+  -- By generating arbitrary Text and then encoding as bytestrings
+  -- we avoid the risk of generating invalid UTF-8 bytes.
   arbitrary = do
-    loc <- BS.filter (/= '@') <$> arbitrary
-    dom <- BS.filter (/= '@') <$> arbitrary
+    loc <- (pure . encodeUtf8) . Text.filter (/= '@') =<< arbitrary
+    dom <- (pure . encodeUtf8) . Text.filter (/= '@') =<< arbitrary
     pure $ unsafeEmailAddress loc dom
 
 instance C.Cql EmailAddress where

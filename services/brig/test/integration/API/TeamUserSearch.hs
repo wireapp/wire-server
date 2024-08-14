@@ -35,7 +35,7 @@ import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, assertEqual, (@?=))
 import Util (Brig, Galley, randomEmail, test, withSettingsOverrides)
 import Wire.API.User (User (..), userEmail, userId)
-import Wire.API.User.Identity
+import Wire.API.User.Identity hiding (toByteString)
 import Wire.API.User.Search
 
 type TestConstraints m = (MonadFail m, MonadCatch m, MonadIO m, MonadHttp m)

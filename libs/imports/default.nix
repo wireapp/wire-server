@@ -27,8 +27,8 @@ mkDerivation {
     bytestring
     containers
     deepseq
-    extra
     either
+    extra
     mtl
     text
     transformers

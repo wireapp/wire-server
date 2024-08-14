@@ -54,6 +54,7 @@ import Data.String.Conversions
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Data.Vector as V
 import qualified Data.ZAuth.Token as ZAuth
+import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import Polysemy.Error
@@ -71,7 +72,6 @@ import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
 import qualified Spar.Sem.ScimUserTimesStore as ScimUserTimesStore
 import Test.Tasty.HUnit ((@?=))
-import Imports
 import qualified Text.XML.DSig as SAML
 import Util
 import Util.Invitation

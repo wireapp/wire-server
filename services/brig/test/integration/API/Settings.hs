@@ -107,7 +107,7 @@ testUsersEmailVisibleIffExpected opts brig galley viewingUserIs visibilitySettin
   let uids =
         C8.intercalate "," $
           toByteString' <$> [userId userA, userId userB, userId nonTeamUser]
-      expected :: Set (Maybe UserId, Maybe Email)
+      expected :: Set (Maybe UserId, Maybe EmailAddress)
       expected =
         Set.fromList
           [ ( Just $ userId userA,
@@ -137,7 +137,7 @@ testUsersEmailVisibleIffExpected opts brig galley viewingUserIs visibilitySettin
 testGetUserEmailShowsEmailsIffExpected :: Opts -> Brig -> Galley -> ViewingUserIs -> EmailVisibilityConfig -> Http ()
 testGetUserEmailShowsEmailsIffExpected opts brig galley viewingUserIs visibilitySetting = do
   (viewerId, userA, userB, nonTeamUser) <- setup brig galley viewingUserIs
-  let expectations :: [(UserId, Maybe Email)]
+  let expectations :: [(UserId, Maybe EmailAddress)]
       expectations =
         [ ( userId userA,
             if expectEmailVisible visibilitySetting viewingUserIs SameTeam
@@ -162,7 +162,7 @@ testGetUserEmailShowsEmailsIffExpected opts brig galley viewingUserIs visibility
         const 200 === statusCode
         const expectedEmail === emailResult
   where
-    emailResult :: Response (Maybe LByteString) -> Maybe Email
+    emailResult :: Response (Maybe LByteString) -> Maybe EmailAddress
     emailResult r = responseJsonMaybe r >>= jsonField "email"
 
 setup :: Brig -> Galley -> ViewingUserIs -> Http (UserId, User, User, User)

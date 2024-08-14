@@ -49,5 +49,5 @@ instance FromJSON Email where
 instance ToJSON Email where
   toJSON = genericToJSON serializeOptions
 
-mailToMail :: Email -> Email.EmailAddress
-mailToMail = unEmailAddress . value
+emailToEmailAddress :: Email -> Email.EmailAddress
+emailToEmailAddress = unEmailAddress . value

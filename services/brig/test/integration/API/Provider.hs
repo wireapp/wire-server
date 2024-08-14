@@ -263,7 +263,7 @@ testPasswordResetProvider db brig = do
   loginProvider brig email newPw
     !!! const 200 === statusCode
   where
-    resetPw :: PlainTextPassword6 -> Email -> Http ResponseLBS
+    resetPw :: PlainTextPassword6 -> EmailAddress -> Http ResponseLBS
     resetPw newPw email = do
       -- Get the code directly from the DB
       let gen = mkVerificationCodeGen email
@@ -1109,7 +1109,7 @@ registerProvider brig new =
 
 getProviderActivationCodeInternal ::
   Brig ->
-  Email ->
+  EmailAddress ->
   Http ResponseLBS
 getProviderActivationCodeInternal brig email =
   get $
@@ -1131,7 +1131,7 @@ activateProvider brig key val =
 
 loginProvider ::
   Brig ->
-  Email ->
+  EmailAddress ->
   PlainTextPassword6 ->
   Http ResponseLBS
 loginProvider brig email pw =
@@ -1836,7 +1836,7 @@ defNewService config = liftIO $ do
         newServiceTags = defServiceTags
       }
 
-defNewProvider :: Email -> NewProvider
+defNewProvider :: EmailAddress -> NewProvider
 defNewProvider email =
   NewProvider
     { newProviderEmail = email,

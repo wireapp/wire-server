@@ -111,7 +111,7 @@ createScimToken spar' owner = do
         }
   pure tok
 
-createUserStep :: Spar -> Brig -> ScimToken -> TeamId -> Scim.User.User SparTag -> Email -> HttpT IO (WithMeta (WithId UserId (Scim.User.User SparTag)), Invitation, InvitationCode)
+createUserStep :: Spar -> Brig -> ScimToken -> TeamId -> Scim.User.User SparTag -> EmailAddress -> HttpT IO (WithMeta (WithId UserId (Scim.User.User SparTag)), Invitation, InvitationCode)
 createUserStep spar' brig' tok tid scimUser email = do
   scimStoredUser <- createUser spar' tok scimUser
   inv <- getInvitationByEmail brig' email
@@ -141,7 +141,7 @@ userExists uid = do
     usersSelect :: PrepQuery R (Identity UserId) (UserId, Maybe AccountStatus)
     usersSelect = "SELECT id, status FROM user where id = ?"
 
-getInvitationByEmail :: Brig -> Email -> Http Invitation
+getInvitationByEmail :: Brig -> EmailAddress -> Http Invitation
 getInvitationByEmail brig email =
   responseJsonUnsafe
     <$> ( Bilge.get (brig . path "/i/teams/invitations/by-email" . contentJson . queryItem "email" (toByteString' email))
@@ -213,23 +213,25 @@ randomScimUserWithSubjectAndRichInfo richInfo = do
     ( (Scim.User.empty @SparTag userSchemas ("scimuser_" <> suffix) (ScimUserExtra richInfo))
         { Scim.User.displayName = Just ("ScimUser" <> suffix),
           Scim.User.externalId = Just externalId,
-          Scim.User.emails = emails,
+          Scim.User.emails = emailFromEmailAddress <$> emails,
           Scim.User.phoneNumbers = phones
         },
       subj
     )
+  where
+    emailFromEmailAddress :: EmailAddress -> Email.Email
+    emailFromEmailAddress addr =
+      Email.Email
+        { typ = Nothing,
+          value = (Email.EmailAddress addr),
+          primary = Nothing
+        }
 
-randomScimEmail :: (MonadRandom m) => m Email.Email
+randomScimEmail :: (MonadRandom m) => m EmailAddress
 randomScimEmail = do
-  let typ :: Maybe Text = Nothing
-      -- TODO: where should we catch users with more than one
-      -- primary email?
-      primary :: Maybe Scim.ScimBool = Nothing
-  value <- do
-    localpart <- cs <$> replicateM 15 (getRandomR ('a', 'z'))
-    domainpart <- (<> ".com") . cs <$> replicateM 15 (getRandomR ('a', 'z'))
-    pure . Email.EmailAddress $ Email.unsafeEmailAddress localpart domainpart
-  pure Email.Email {..}
+  localpart <- cs <$> replicateM 15 (getRandomR ('a', 'z'))
+  domainpart <- (<> ".com") . cs <$> replicateM 15 (getRandomR ('a', 'z'))
+  pure $ Email.unsafeEmailAddress localpart domainpart
 
 randomScimPhone :: (MonadRandom m) => m Phone.Phone
 randomScimPhone = do
@@ -344,7 +346,7 @@ createToken spar zusr payload = do
       <!! const 200 === statusCode
   pure (responseJsonUnsafe r)
 
-registerInvitation :: Brig -> Email -> Name -> InvitationCode -> Bool -> Http ()
+registerInvitation :: Brig -> EmailAddress -> Name -> InvitationCode -> Bool -> Http ()
 registerInvitation brig email name inviteeCode shouldSucceed = do
   void $
     post
@@ -355,7 +357,7 @@ registerInvitation brig email name inviteeCode shouldSucceed = do
       )
       <!! const (if shouldSucceed then 201 else 400) === statusCode
 
-acceptWithName :: Name -> Email -> InvitationCode -> Aeson.Value
+acceptWithName :: Name -> EmailAddress -> InvitationCode -> Aeson.Value
 acceptWithName name email code =
   Aeson.object
     [ "name" Aeson..= fromName name,
