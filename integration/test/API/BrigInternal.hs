@@ -278,3 +278,9 @@ deleteFeatureForUser user featureName = do
   uid <- objId user
   req <- baseRequest user Brig Unversioned $ joinHttpPath ["i", "users", uid, "features", featureName]
   submit "DELETE" req
+
+-- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/post_i_oauth_clients
+createOAuthClient :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
+createOAuthClient user name url = do
+  req <- baseRequest user Brig Unversioned "i/oauth/clients"
+  submit "POST" $ req & addJSONObject ["application_name" .= name, "redirect_url" .= url]

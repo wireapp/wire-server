@@ -139,6 +139,7 @@ library
     Test.MLS.SubConversation
     Test.MLS.Unreachable
     Test.Notifications
+    Test.OAuth
     Test.Presence
     Test.Property
     Test.Provider

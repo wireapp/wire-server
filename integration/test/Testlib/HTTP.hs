@@ -17,6 +17,7 @@ import Data.String
 import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
+import Data.Tuple.Extra
 import GHC.Generics
 import GHC.Stack
 import qualified Network.HTTP.Client as HTTP
@@ -40,6 +41,15 @@ addJSONObject = addJSON . Aeson.object
 
 addJSON :: (Aeson.ToJSON a) => a -> HTTP.Request -> HTTP.Request
 addJSON obj = addBody (HTTP.RequestBodyLBS (Aeson.encode obj)) "application/json"
+
+addUrlEncodedForm :: [(String, String)] -> HTTP.Request -> HTTP.Request
+addUrlEncodedForm form req =
+  req
+    { HTTP.requestBody = HTTP.RequestBodyLBS (L.fromStrict (HTTP.renderSimpleQuery False (both C8.pack <$> form))),
+      HTTP.requestHeaders =
+        (fromString "Content-Type", fromString "application/x-www-form-urlencoded")
+          : HTTP.requestHeaders req
+    }
 
 addBody :: HTTP.RequestBody -> String -> HTTP.Request -> HTTP.Request
 addBody body contentType req =
