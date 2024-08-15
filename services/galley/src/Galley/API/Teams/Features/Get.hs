@@ -53,7 +53,6 @@ import Galley.Effects.TeamFeatureStore
 import Galley.Effects.TeamStore (getOneUserTeam, getTeamMember)
 import Galley.Options
 import Galley.Types.Teams
-import Galley.Types.Teams ()
 import Imports
 import Polysemy
 import Polysemy.Error

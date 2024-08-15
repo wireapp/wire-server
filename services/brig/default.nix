@@ -284,7 +284,6 @@ mkDerivation {
     wire-api
     wire-api-federation
     wire-subsystems
-    yaml
     zauth
   ];
   executableHaskellDepends = [

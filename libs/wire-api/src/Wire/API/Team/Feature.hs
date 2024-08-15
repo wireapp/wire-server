@@ -1,8 +1,8 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RecordWildCards #-}
+
 {-# LANGUAGE StrictData #-}
-{-# LANGUAGE TemplateHaskell #-}
+
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 -- This file is part of the Wire Server implementation.

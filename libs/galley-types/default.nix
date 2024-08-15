@@ -17,6 +17,7 @@
 , lib
 , memory
 , QuickCheck
+, sop-core
 , text
 , types-common
 , utf8-string
@@ -40,6 +41,7 @@ mkDerivation {
     lens
     memory
     QuickCheck
+    sop-core
     text
     types-common
     utf8-string
