@@ -36,6 +36,7 @@ import Crypto.JWT hiding (params, uri)
 import Data.ByteString.Conversion
 import Data.Domain
 import Data.Id
+import Data.Json.Util (toUTCTimeMillis)
 import Data.Map qualified as Map
 import Data.Misc
 import Data.Set qualified as Set
@@ -328,7 +329,7 @@ getOAuthApplications uid = do
       let grouped = Map.fromListWith (<>) $ (\info -> (info.clientId, [info])) <$> infos
       mApps <- for (Map.toList grouped) $ \(cid, tokens) -> do
         mClient <- getOAuthClient uid cid
-        pure $ (\client -> OAuthApplication cid client.name (Set.fromList ((\i -> OAuthSession i.refreshTokenId i.createdAt) <$> tokens))) <$> mClient
+        pure $ (\client -> OAuthApplication cid client.name ((\i -> OAuthSession i.refreshTokenId (toUTCTimeMillis i.createdAt)) <$> tokens)) <$> mClient
       pure $ catMaybes mApps
 
 --------------------------------------------------------------------------------

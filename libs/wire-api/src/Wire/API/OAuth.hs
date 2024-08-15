@@ -653,7 +653,7 @@ instance ToSchema OAuthRevokeRefreshTokenRequest where
 
 data OAuthSession = OAuthSession
   { refreshTokenId :: OAuthRefreshTokenId,
-    createdAt :: UTCTime
+    createdAt :: UTCTimeMillis
   }
   deriving (Eq, Show, Ord, Generic)
   deriving (Arbitrary) via (GenericUniform OAuthSession)
@@ -664,7 +664,7 @@ instance ToSchema OAuthSession where
     object "OAuthSession" $
       OAuthSession
         <$> (.refreshTokenId) .= fieldWithDocModifier "refresh_token_id" refreshTokenIdDescription schema
-        <*> (toUTCTimeMillis . (.createdAt)) .= (fromUTCTimeMillis <$> fieldWithDocModifier "created_at" createdAtDescription schema)
+        <*> (.createdAt) .= fieldWithDocModifier "created_at" createdAtDescription schema
     where
       refreshTokenIdDescription = description ?~ "The ID of the refresh token"
       createdAtDescription = description ?~ "The time when the session was created"
@@ -672,7 +672,7 @@ instance ToSchema OAuthSession where
 data OAuthApplication = OAuthApplication
   { applicationId :: OAuthClientId,
     name :: OAuthApplicationName,
-    sessions :: Set OAuthSession
+    sessions :: [OAuthSession]
   }
   deriving (Eq, Show, Ord, Generic)
   deriving (Arbitrary) via (GenericUniform OAuthApplication)
@@ -684,7 +684,7 @@ instance ToSchema OAuthApplication where
       OAuthApplication
         <$> applicationId .= fieldWithDocModifier "id" idDescription schema
         <*> (.name) .= fieldWithDocModifier "name" nameDescription schema
-        <*> sessions .= fieldWithDocModifier "sessions" sessionsDescription (set schema)
+        <*> sessions .= fieldWithDocModifier "sessions" sessionsDescription (array schema)
     where
       idDescription = description ?~ "The OAuth client's ID"
       nameDescription = description ?~ "The OAuth client's name"
