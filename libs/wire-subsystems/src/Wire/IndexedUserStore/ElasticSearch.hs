@@ -15,6 +15,9 @@ import Network.HTTP.Types
 import Polysemy
 import Polysemy.Error
 import Wire.IndexedUserStore
+import Wire.Sem.Metrics (Metrics)
+import Wire.Sem.Metrics qualified as Metrics
+import Wire.UserSearch.Metrics
 import Wire.UserSearch.Types
 
 data ESConn = ESConn
@@ -30,14 +33,30 @@ data IndexedUserStoreConfig = IndexedUserStoreConfig
 
 data IndexedUserStoreError = IndexUpdateError ES.EsError
 
-interpretIndexedUserStoreES :: (Member (Embed IO) r, Member (Error IndexedUserStoreError) r) => IndexedUserStoreConfig -> InterpreterFor IndexedUserStore r
+interpretIndexedUserStoreES ::
+  ( Member (Embed IO) r,
+    Member (Error IndexedUserStoreError) r,
+    Member Metrics r
+  ) =>
+  IndexedUserStoreConfig ->
+  InterpreterFor IndexedUserStore r
 interpretIndexedUserStoreES cfg =
   interpret $ \case
     Upsert docId userDoc versioning -> upsertImpl cfg docId userDoc versioning
     UpdateTeamSearchVisibilityInbound tid vis -> updateTeamSearchVisibilityInboundImpl cfg tid vis
     BulkUpsert docs -> bulkUpsertImpl cfg docs
 
-upsertImpl :: forall r. (Member (Embed IO) r, Member (Error IndexedUserStoreError) r) => IndexedUserStoreConfig -> ES.DocId -> UserDoc -> ES.VersionControl -> Sem r ()
+upsertImpl ::
+  forall r.
+  ( Member (Embed IO) r,
+    Member (Error IndexedUserStoreError) r,
+    Member Metrics r
+  ) =>
+  IndexedUserStoreConfig ->
+  ES.DocId ->
+  UserDoc ->
+  ES.VersionControl ->
+  Sem r ()
 upsertImpl cfg docId userDoc versioning = do
   runInBothES cfg indexDoc
   where
@@ -45,10 +64,10 @@ upsertImpl cfg docId userDoc versioning = do
     indexDoc idx = do
       r <- ES.indexDocument idx mappingName settings userDoc docId
       unless (ES.isSuccess r || ES.isVersionConflict r) $ do
-        -- liftIO $ Prom.incCounter indexUpdateErrorCounter
+        lift $ Metrics.incCounter indexUpdateErrorCounter
         res <- liftIO $ ES.parseEsResponse r
         lift . throw . IndexUpdateError . either id id $ res
-    -- liftIO $ Prom.incCounter indexUpdateSuccessCounter
+      lift $ Metrics.incCounter indexUpdateSuccessCounter
 
     settings = ES.defaultIndexDocumentSettings {ES.idsVersionControl = versioning}
 

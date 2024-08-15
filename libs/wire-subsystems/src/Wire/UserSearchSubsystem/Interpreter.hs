@@ -21,6 +21,9 @@ import Wire.GalleyAPIAccess
 import Wire.IndexedUserStore (IndexedUserStore)
 import Wire.IndexedUserStore qualified as IndexedUserStore
 import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe), unsafePooledForConcurrentlyN)
+import Wire.Sem.Metrics (Metrics)
+import Wire.Sem.Metrics qualified as Metrics
+import Wire.UserSearch.Metrics
 import Wire.UserSearch.Types
 import Wire.UserSearchSubsystem
 import Wire.UserStore
@@ -29,7 +32,8 @@ import Wire.UserStore.IndexUser
 interpretUserSearchSubsystem ::
   ( Member UserStore r,
     Member GalleyAPIAccess r,
-    Member IndexedUserStore r
+    Member IndexedUserStore r,
+    Member Metrics r
   ) =>
   InterpreterFor UserSearchSubsystem r
 interpretUserSearchSubsystem = interpret \case
@@ -55,7 +59,8 @@ syncUserImpl ::
   forall r.
   ( Member UserStore r,
     Member GalleyAPIAccess r,
-    Member IndexedUserStore r
+    Member IndexedUserStore r,
+    Member Metrics r
   ) =>
   UserId ->
   Sem r ()
@@ -65,6 +70,7 @@ syncUserImpl uid =
   where
     delete :: Sem r ()
     delete = do
+      Metrics.incCounter indexDeleteCounter
       IndexedUserStore.upsert (docId uid) (emptyUserDoc uid) ES.NoVersionControl
 
     upsert :: IndexUser -> Sem r ()
@@ -76,6 +82,7 @@ syncUserImpl uid =
           indexUser.teamId
       let userDoc = indexUserRowToDoc vis indexUser
           version = ES.ExternalGT . ES.ExternalDocVersion . docVersion $ indexUserRowToVersion indexUser
+      Metrics.incCounter indexUpdateCounter
       IndexedUserStore.upsert (docId uid) userDoc version
 
 syncAllUsersImpl ::
