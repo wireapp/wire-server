@@ -8,8 +8,8 @@ import Network.URI
 import SetupHelpers
 import Testlib.Prelude
 
-testListApplicationsWithActiveSessions :: (HasCallStack) => App ()
-testListApplicationsWithActiveSessions = do
+testOAuthRevokeRefreshToken :: (HasCallStack) => App ()
+testOAuthRevokeRefreshToken = do
   user <- randomUser OwnDomain def
   oauthClient <- createOAuthClient user "foobar" "https://example.com" >>= getJSON 200
   cid <- oauthClient %. "client_id"
@@ -21,5 +21,11 @@ testListApplicationsWithActiveSessions = do
         void $ createOAuthAccessToken user cid code "https://example.com" >>= getJSON 200
   replicateM_ 2 generateAccessToken
   [app] <- getOAuthApplications user >>= getJSON 200 >>= asList
-  sessions <- app %. "sessions" >>= asList
-  length sessions `shouldMatchInt` 2
+  [session1, session2] <- app %. "sessions" >>= asList
+  sid1 <- session1 %. "refresh_token_id" >>= asString
+  deleteSession user cid sid1 >>= assertSuccess
+  [app'] <- getOAuthApplications user >>= getJSON 200 >>= asList
+  [session] <- app' %. "sessions" >>= asList
+  session %. "refresh_token_id" `shouldMatch` (session2 %. "refresh_token_id")
+
+-- also assert that we cannot get an access token with the revoked refresh token

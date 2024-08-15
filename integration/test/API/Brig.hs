@@ -732,3 +732,9 @@ getOAuthApplications :: (HasCallStack, MakesValue user) => user -> App Response
 getOAuthApplications user = do
   req <- baseRequest user Brig Versioned "/oauth/applications"
   submit "GET" req
+
+deleteSession :: (HasCallStack, MakesValue user, MakesValue cid) => user -> cid -> String -> App Response
+deleteSession user cid tokenId = do
+  cidStr <- asString cid
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["oauth", "applications", cidStr, "sessions", tokenId]
+  submit "DELETE" $ req
