@@ -79,6 +79,7 @@ oauthAPI =
     :<|> Named @"revoke-oauth-refresh-token" revokeRefreshToken
     :<|> Named @"get-oauth-applications" getOAuthApplications
     :<|> Named @"revoke-oauth-account-access" revokeOAuthAccountAccess
+    :<|> Named @"delete-oauth-refresh-token" deleteOAuthRefreshTokenById
 
 --------------------------------------------------------------------------------
 -- Handlers
@@ -116,8 +117,6 @@ deleteOAuthClient :: OAuthClientId -> (Handler r) ()
 deleteOAuthClient cid = do
   void $ getOAuthClientById cid
   lift $ wrapClient $ deleteOAuthClient' cid
-
---------------------------------------------------------------------------------
 
 getOAuthClient :: UserId -> OAuthClientId -> (Handler r) (Maybe OAuthClient)
 getOAuthClient _ cid = do
@@ -185,8 +184,6 @@ validateAndCreateAuthorizationCode uid (CreateOAuthAuthorizationCodeRequest cid 
       ttl <- Opt.setOAuthAuthorizationCodeExpirationTimeSecs <$> view settings
       lift $ wrapClient $ insertOAuthAuthorizationCode ttl oauthCode cid uid scope redirectUrl chal
       pure oauthCode
-
---------------------------------------------------------------------------------
 
 createAccessTokenWith :: (Member Now r, Member Jwk r) => Either OAuthAccessTokenRequest OAuthRefreshAccessTokenRequest -> (Handler r) OAuthAccessTokenResponse
 createAccessTokenWith req = do
@@ -300,8 +297,6 @@ createAccessToken key uid cid scope = do
           algo <- bestJWSAlg key
           signClaims key (newJWSHeader ((), algo)) claims
 
---------------------------------------------------------------------------------
-
 revokeRefreshToken :: (Member Jwk r) => OAuthRevokeRefreshTokenRequest -> (Handler r) ()
 revokeRefreshToken req = do
   key <- signingKey
@@ -317,8 +312,6 @@ lookupAndVerifyToken key =
     . lookupOAuthRefreshTokenInfo
     >=> maybe (throwStd $ errorToWai @'OAuthInvalidRefreshToken) pure
 
---------------------------------------------------------------------------------
-
 getOAuthApplications :: UserId -> (Handler r) [OAuthApplication]
 getOAuthApplications uid = do
   activeRefreshTokens <- lift $ wrapClient $ lookupOAuthRefreshTokens uid
@@ -332,12 +325,13 @@ getOAuthApplications uid = do
         pure $ (\client -> OAuthApplication cid client.name ((\i -> OAuthSession i.refreshTokenId (toUTCTimeMillis i.createdAt)) <$> tokens)) <$> mClient
       pure $ catMaybes mApps
 
---------------------------------------------------------------------------------
-
 revokeOAuthAccountAccess :: UserId -> OAuthClientId -> (Handler r) ()
 revokeOAuthAccountAccess uid cid = do
   rts <- lift $ wrapClient $ lookupOAuthRefreshTokens uid
   for_ rts $ \rt -> when (rt.clientId == cid) $ lift $ wrapClient $ deleteOAuthRefreshToken rt
+
+deleteOAuthRefreshTokenById :: UserId -> OAuthClientId -> OAuthRefreshTokenId -> (Handler r) ()
+deleteOAuthRefreshTokenById _ _ _ = pure ()
 
 --------------------------------------------------------------------------------
 -- DB

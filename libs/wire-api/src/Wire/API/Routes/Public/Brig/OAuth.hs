@@ -117,6 +117,19 @@ type OAuthAPI =
                     '[RespondEmpty 204 "OAuth application access revoked"]
                     ()
            )
+    :<|> Named
+           "delete-oauth-refresh-token"
+           ( Summary "Delete an OAuth refresh token"
+               :> Description "Delete an OAuth refresh token."
+               :> ZUser
+               :> CanThrow 'OAuthClientNotFound
+               :> "oauth"
+               :> "applications"
+               :> Capture' '[Description "The ID of the OAuth client"] "OAuthClientId" OAuthClientId
+               :> "sessions"
+               :> Capture' '[Description "The ID of the refresh token"] "RefreshTokenId" OAuthRefreshTokenId
+               :> Delete '[JSON] ()
+           )
 
 type CreateOAuthAuthorizationCodeHeaders = '[Header "Location" RedirectUrl]
 
