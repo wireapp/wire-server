@@ -1,8 +1,6 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 {-# LANGUAGE StrictData #-}
-
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 -- This file is part of the Wire Server implementation.
@@ -126,54 +124,60 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 -- | Checklist for adding a new feature
 --
--- 1. Add a data type for your feature's "config" part, naming convention:
--- **<NameOfFeature>Config**. If your feature doesn't have a config besides
--- being enabled/disabled, locked/unlocked, then the config should be a unit
--- type, e.g. **data MyFeatureConfig = MyFeatureConfig**. Add a singleton for
--- the new data type. Implement type classes 'RenderableSymbol', 'ToSchema',
--- 'IsFeatureConfig' and 'Arbitrary'.
+-- Assume we want to add a new feature called @dummy@. Every appearance of
+-- @dummy@ or @Dummy@ in the following has to be replaced with the actual name
+-- of the feature being added.
 --
--- 2. Add the config to 'AllTeamFeatures'.
+-- 1. Create a new type in this module for the feature configuration, called
+-- @DummyConfig@. If your feature doesn't have a config besides being 'status'
+-- and 'lockStatus', then the config should be a unit type, e.g. @data
+-- DummyConfig = DummyConfig@. Derive 'Eq', 'Show', 'Generic', 'Arbitrary',
+-- 'RenderableSymbol', 'FromJSON', 'ToJSON' and 'S.ToSchema'. Implement a
+-- 'ToSchema' instance. Add a singleton. Add the config type to 'Features'.
 --
--- 3. If your feature is configurable on a per-team basis, add a schema
--- migration in galley and extend 'getFeatureStatus' and similar functions in
--- Galley.Cassandra.TeamFeatures
+-- 2. Create a schema migration in galley, adding a column for each
+-- configurable value of the feature. The new columns must contain all the
+-- information needed to reconstruct a value of type 'LockableFeature
+-- DummyConfig'.
 --
--- 4. Add the feature to the config schema of galley in Galley.Types.Teams.
--- and extend the Arbitrary instance of FeatureConfigs in the unit tests
--- Test.Galley.Types
+-- 3. In 'Galley.Cassandra.MakeFeature', implement the 'MakeFeature' type
+-- class: set 'FeatureRow' to the list of types of the rows added by the
+-- migration. If the lock status is configurable (it should be in most cases),
+-- it must be the first in the list. Set 'featureColumns' to the names of the
+-- columns, in the same order. Implement `rowToFeature` and `featureToRow`.
 --
--- 5. Implement 'GetFeatureConfig' and 'SetFeatureConfig' in
--- Galley.API.Teams.Features which defines the main business logic for getting
--- and setting (with side-effects). Note that we don't have to check the
--- lockstatus inside 'setConfigForTeam' because the lockstatus is checked in
--- 'setFeatureStatus' before which is the public API for setting the feature
--- status.
+-- 4. Implement 'GetFeatureConfig' and 'SetFeatureConfig' in
+-- 'Galley.API.Teams.Features'. Empty instances will work fine unless this
+-- feature requires custom logic.
 --
--- 6. Add public routes to Wire.API.Routes.Public.Galley.Feature:
--- 'FeatureStatusGet', 'FeatureStatusPut' (optional). Then implement them in
--- Galley.API.Public.Feature.
+-- 5. Add a public route to 'Wire.API.Routes.Public.Galley.Feature' and the
+-- corresponding implementation in 'Galley.API.Public.Feature'.
 --
--- 7. Add internal routes in Wire.API.Routes.Internal.Galley and implement them
--- in Galley.API.Internal.
+-- 6. Add an internal route in 'Wire.API.Routes.Internal.Galley' and the
+-- corresponding implementation in 'Galley.API.Internal'.
 --
--- 8. If the feature should be configurable via Stern add routes to Stern.API.
+-- 7. If the feature should be configurable via Stern add routes to Stern.API.
 -- Manually check that the swagger looks okay and works.
 --
--- 9. If the feature is configured on a per-user level, see the
--- 'ConferenceCallingConfig' as an example.
--- (https://github.com/wireapp/wire-server/pull/1811,
--- https://github.com/wireapp/wire-server/pull/1818)
+-- 8. In 'Galley.Types.Team', add a new data instance @DummyDefaults@ to
+-- represent the server-wide feature defaults read from the configuration file.
+-- In most cases, this should be a newtype over 'LockableFeature DummyConfig'.
+-- Then derive all the instances like for the other features in that module.
+-- Note that 'ParseFeatureDefaults' can be derived either via 'OptionalField'
+-- or 'RequiredField', depending on whether the feature configuration should be
+-- optional or required.
 --
--- 10. Extend the integration tests with cases.
+-- 9. If necessary, add configuration for the feature in
+-- 'galley.integration.yaml', update the config map in
+-- 'charts/galley/templates/configmap.yaml' and set defaults in
+-- 'charts/galley/values.yaml'. Make sure that the configuration for CI matches
+-- the local one, or adjust 'hack/helm_vars/wire-server/values.yaml'
+-- accordingly.
 --
--- 11. If applicable, edit/update the configurations:
---     - optionally add the config for local integration tests to 'galley.integration.yaml'
---     - add a config mapping to 'charts/galley/templates/configmap.yaml'
---     - add the defaults to 'charts/galley/values.yaml'
---     - optionally add config for CI to 'hack/helm_vars/wire-server/values.yaml'
+-- 10. Add the default values of this feature in 'testAllFeatures'
+-- ('Test.FeatureFlags'). Add feature-specific integration tests.
 --
--- 12. Add a section to the documentation at an appropriate place
+-- 11. Add a section to the documentation at an appropriate place
 -- (e.g. 'docs/src/developer/reference/config-options.md' (if applicable) or
 -- 'docs/src/understand/team-feature-settings.md')
 class
