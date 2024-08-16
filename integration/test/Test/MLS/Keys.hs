@@ -6,10 +6,20 @@ import qualified Data.ByteString.Char8 as B8
 import SetupHelpers
 import Testlib.Prelude
 
-testPublicKeys :: (HasCallStack) => App ()
-testPublicKeys = do
+testRawPublicKeys :: (HasCallStack) => App ()
+testRawPublicKeys = do
   u <- randomUserId OwnDomain
   keys <- getMLSPublicKeys u >>= getJSON 200
+
+  do
+    pubkeyS <- keys %. "removal.ed25519" & asString
+    pubkey <- assertOne . toList . B64U.decodeUnpadded $ B8.pack pubkeyS
+    B8.length pubkey `shouldMatchInt` 32
+
+testJWKPublicKeys :: (HasCallStack) => App ()
+testJWKPublicKeys = do
+  u <- randomUserId OwnDomain
+  keys <- getMLSPublicKeysJWK u >>= getJSON 200
 
   do
     keys %. "removal.ed25519.crv" `shouldMatch` "Ed25519"
