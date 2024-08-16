@@ -20,12 +20,12 @@ testOAuthRevokeRefreshToken = do
         let code = maybe "no code query param" cs $ join $ lookup (cs "code") $ parseQuery $ cs location.uriQuery
         void $ createOAuthAccessToken user cid code "https://example.com" >>= getJSON 200
   replicateM_ 2 generateAccessToken
+  remainingSessions <- do
+    [app] <- getOAuthApplications user >>= getJSON 200 >>= asList
+    x : xs <- app %. "sessions" >>= asList
+    x %. "refresh_token_id" >>= asString >>= deleteSession user cid >>= assertSuccess
+    -- TODO: also assert that we cannot get an access token with the revoked refresh token
+    pure xs
   [app] <- getOAuthApplications user >>= getJSON 200 >>= asList
-  [session1, session2] <- app %. "sessions" >>= asList
-  sid1 <- session1 %. "refresh_token_id" >>= asString
-  deleteSession user cid sid1 >>= assertSuccess
-  [app'] <- getOAuthApplications user >>= getJSON 200 >>= asList
-  [session] <- app' %. "sessions" >>= asList
-  session %. "refresh_token_id" `shouldMatch` (session2 %. "refresh_token_id")
-
--- also assert that we cannot get an access token with the revoked refresh token
+  sessions <- app %. "sessions" >>= asList
+  sessions `shouldMatch` remainingSessions
