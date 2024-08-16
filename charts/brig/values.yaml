@@ -99,6 +99,10 @@ config:
     providerTokenTimeout: 900
     legalholdUserTokenTimeout: 4838400
     legalholdAccessTokenTimeout: 900
+  sft:
+    sftToken:
+      ttl: 120
+      secret: /etc/wire/brig/secrets/sftToken
   optSettings:
     setActivationTimeout: 1209600
     setTeamInvitationTimeout: 1814400
