@@ -746,8 +746,8 @@ getOAuthApplications user = do
   req <- baseRequest user Brig Versioned "/oauth/applications"
   submit "GET" req
 
-deleteOAuthSession :: (HasCallStack, MakesValue user, MakesValue cid) => user -> cid -> String -> App Response
-deleteOAuthSession user cid tokenId = do
+deleteOAuthSession :: (HasCallStack, MakesValue user, MakesValue cid) => user -> cid -> String -> String -> App Response
+deleteOAuthSession user cid password tokenId = do
   cidStr <- asString cid
   req <- baseRequest user Brig Versioned $ joinHttpPath ["oauth", "applications", cidStr, "sessions", tokenId]
-  submit "DELETE" $ req
+  submit "DELETE" $ req & addJSONObject ["password" .= password]

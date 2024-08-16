@@ -2,6 +2,7 @@ module Test.OAuth where
 
 import API.Brig
 import API.BrigInternal
+import API.Common (defPassword)
 import Data.String.Conversions
 import Network.HTTP.Types
 import Network.URI
@@ -30,11 +31,18 @@ testOAuthRevokeSession = do
     length sessions `shouldMatchInt` 2
     pure token
 
+  -- attempt to revoke a session with a wrong password should fail
+  sessionToBeRevoked
+    %. "refresh_token_id"
+    >>= asString
+    >>= deleteOAuthSession user cid "foobar"
+    >>= assertStatus 403
+
   -- revoke the first session and assert that there is only one session left
   sessionToBeRevoked
     %. "refresh_token_id"
     >>= asString
-    >>= deleteOAuthSession user cid
+    >>= deleteOAuthSession user cid defPassword
     >>= assertSuccess
   [app] <- getOAuthApplications user >>= getJSON 200 >>= asList
   sessions <- app %. "sessions" >>= asList

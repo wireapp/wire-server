@@ -26,12 +26,12 @@ where
 import Brig.API.Error (throwStd)
 import Brig.API.Handler (Handler)
 import Brig.App
+import Brig.Data.User
 import Brig.Options qualified as Opt
 import Cassandra hiding (Set)
 import Cassandra qualified as C
-import Control.Error (assertMay, failWith, failWithM)
+import Control.Error
 import Control.Lens (view, (?~), (^?))
-import Control.Monad.Except
 import Crypto.JWT hiding (params, uri)
 import Data.ByteString.Conversion
 import Data.Domain
@@ -44,15 +44,18 @@ import Data.Text.Ascii
 import Data.Text.Encoding qualified as T
 import Data.Time
 import Imports hiding (exp)
+import Network.Wai.Utilities.Error
 import OpenSSL.Random (randBytes)
 import Polysemy (Member)
 import Servant hiding (Handler, Tagged)
 import Wire.API.Error
+import Wire.API.Error.Brig (BrigError (AccessDenied))
 import Wire.API.OAuth as OAuth
-import Wire.API.Password (Password, mkSafePasswordScrypt)
+import Wire.API.Password
 import Wire.API.Routes.Internal.Brig.OAuth qualified as I
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig.OAuth
+import Wire.Error
 import Wire.Sem.Jwk
 import Wire.Sem.Jwk qualified as Jwk
 import Wire.Sem.Now (Now)
@@ -330,14 +333,18 @@ revokeOAuthAccountAccess uid cid = do
   rts <- lift $ wrapClient $ lookupOAuthRefreshTokens uid
   for_ rts $ \rt -> when (rt.clientId == cid) $ lift $ wrapClient $ deleteOAuthRefreshToken uid rt.refreshTokenId
 
-deleteOAuthRefreshTokenById :: UserId -> OAuthClientId -> OAuthRefreshTokenId -> (Handler r) ()
-deleteOAuthRefreshTokenById uid cid tokenId = do
+deleteOAuthRefreshTokenById :: UserId -> OAuthClientId -> OAuthRefreshTokenId -> PasswordReqBody -> (Handler r) ()
+deleteOAuthRefreshTokenById uid cid tokenId req = do
+  wrapClientE $ reauthenticate uid req.fromPasswordReqBody !>> toAccessDenied
   mInfo <- lift $ wrapClient $ lookupOAuthRefreshTokenInfo tokenId
   case mInfo of
     Nothing -> pure ()
     Just info -> do
       when (info.clientId /= cid) $ throwStd $ errorToWai @'OAuthClientNotFound
       lift $ wrapClient $ deleteOAuthRefreshToken uid tokenId
+  where
+    toAccessDenied :: ReAuthError -> HttpError
+    toAccessDenied _ = StdError $ errorToWai @'AccessDenied
 
 --------------------------------------------------------------------------------
 -- DB

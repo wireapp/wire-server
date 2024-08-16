@@ -24,7 +24,9 @@ import Servant (JSON)
 import Servant hiding (Handler, JSON, Tagged, addHeader, respond)
 import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Error
+import Wire.API.Error.Brig
 import Wire.API.OAuth
+import Wire.API.Password
 import Wire.API.Routes.API
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named (Named)
@@ -119,15 +121,17 @@ type OAuthAPI =
            )
     :<|> Named
            "delete-oauth-refresh-token"
-           ( Summary "Delete an OAuth refresh token"
-               :> Description "Delete an OAuth refresh token."
+           ( Summary "Revoke an active OAuth session"
+               :> Description "Revoke an active OAuth session by providing the refresh token ID."
                :> ZUser
+               :> CanThrow 'AccessDenied
                :> CanThrow 'OAuthClientNotFound
                :> "oauth"
                :> "applications"
                :> Capture' '[Description "The ID of the OAuth client"] "OAuthClientId" OAuthClientId
                :> "sessions"
                :> Capture' '[Description "The ID of the refresh token"] "RefreshTokenId" OAuthRefreshTokenId
+               :> ReqBody '[JSON] PasswordReqBody
                :> Delete '[JSON] ()
            )
 
