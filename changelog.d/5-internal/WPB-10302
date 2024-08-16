@@ -1,0 +1,1 @@
+Read sftToken from secrets.yaml and mount to /etc/wire/brig/secrets/sftToken by default
