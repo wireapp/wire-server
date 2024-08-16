@@ -29,6 +29,7 @@ import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Either.Combinators (mapLeft)
 import Data.HashMap.Strict qualified as HM
 import Data.Id as Id
+import Data.Json.Util
 import Data.OpenApi (ToParamSchema (..))
 import Data.OpenApi qualified as S
 import Data.Range
@@ -650,9 +651,28 @@ instance ToSchema OAuthRevokeRefreshTokenRequest where
       clientIdDescription = description ?~ "The OAuth client's ID"
       refreshTokenDescription = description ?~ "The refresh token"
 
+data OAuthSession = OAuthSession
+  { refreshTokenId :: OAuthRefreshTokenId,
+    createdAt :: UTCTimeMillis
+  }
+  deriving (Eq, Show, Ord, Generic)
+  deriving (Arbitrary) via (GenericUniform OAuthSession)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthSession)
+
+instance ToSchema OAuthSession where
+  schema =
+    object "OAuthSession" $
+      OAuthSession
+        <$> (.refreshTokenId) .= fieldWithDocModifier "refresh_token_id" refreshTokenIdDescription schema
+        <*> (.createdAt) .= fieldWithDocModifier "created_at" createdAtDescription schema
+    where
+      refreshTokenIdDescription = description ?~ "The ID of the refresh token"
+      createdAtDescription = description ?~ "The time when the session was created"
+
 data OAuthApplication = OAuthApplication
   { applicationId :: OAuthClientId,
-    name :: OAuthApplicationName
+    name :: OAuthApplicationName,
+    sessions :: [OAuthSession]
   }
   deriving (Eq, Show, Ord, Generic)
   deriving (Arbitrary) via (GenericUniform OAuthApplication)
@@ -662,13 +682,13 @@ instance ToSchema OAuthApplication where
   schema =
     object "OAuthApplication" $
       OAuthApplication
-        <$> applicationId
-          .= fieldWithDocModifier "id" idDescription schema
-        <*> (.name)
-          .= fieldWithDocModifier "name" nameDescription schema
+        <$> applicationId .= fieldWithDocModifier "id" idDescription schema
+        <*> (.name) .= fieldWithDocModifier "name" nameDescription schema
+        <*> sessions .= fieldWithDocModifier "sessions" sessionsDescription (array schema)
     where
       idDescription = description ?~ "The OAuth client's ID"
       nameDescription = description ?~ "The OAuth client's name"
+      sessionsDescription = description ?~ "The OAuth client's sessions"
 
 --------------------------------------------------------------------------------
 -- Errors

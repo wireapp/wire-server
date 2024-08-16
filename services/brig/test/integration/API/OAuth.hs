@@ -16,7 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module API.OAuth where
+module API.OAuth (tests) where
 
 import API.Team.Util qualified as Team
 import Bilge
@@ -439,7 +439,7 @@ testRefreshTokenMaxActiveTokens opts db brig =
       resp <- createOAuthAccessToken brig accessTokenRequest
       rid <- extractRefreshTokenId jwk resp.refreshToken
       tokens <- C.runClient db (lookupOAuthRefreshTokens uid)
-      liftIO $ assertBool testMsg $ [rid] `hasSameElems` (refreshTokenId <$> tokens)
+      liftIO $ assertBool testMsg $ [rid] `hasSameElems` ((.refreshTokenId) <$> tokens)
       pure (rid, cid, secret)
     delayOneSec
     rid2 <- do
@@ -449,7 +449,7 @@ testRefreshTokenMaxActiveTokens opts db brig =
       resp <- createOAuthAccessToken brig accessTokenRequest
       rid <- extractRefreshTokenId jwk resp.refreshToken
       tokens <- C.runClient db (lookupOAuthRefreshTokens uid)
-      liftIO $ assertBool testMsg $ [rid1, rid] `hasSameElems` (refreshTokenId <$> tokens)
+      liftIO $ assertBool testMsg $ [rid1, rid] `hasSameElems` ((.refreshTokenId) <$> tokens)
       pure rid
     delayOneSec
     rid3 <- do
@@ -460,7 +460,7 @@ testRefreshTokenMaxActiveTokens opts db brig =
       rid <- extractRefreshTokenId jwk resp.refreshToken
       recoverN 3 $ do
         tokens <- C.runClient db (lookupOAuthRefreshTokens uid)
-        liftIO $ assertBool testMsg $ [rid2, rid] `hasSameElems` (refreshTokenId <$> tokens)
+        liftIO $ assertBool testMsg $ [rid2, rid] `hasSameElems` ((.refreshTokenId) <$> tokens)
       pure rid
     delayOneSec
     do
@@ -470,7 +470,7 @@ testRefreshTokenMaxActiveTokens opts db brig =
       resp <- createOAuthAccessToken brig accessTokenRequest
       rid <- extractRefreshTokenId jwk resp.refreshToken
       tokens <- C.runClient db (lookupOAuthRefreshTokens uid)
-      liftIO $ assertBool testMsg $ [rid3, rid] `hasSameElems` (refreshTokenId <$> tokens)
+      liftIO $ assertBool testMsg $ [rid3, rid] `hasSameElems` ((.refreshTokenId) <$> tokens)
   where
     extractRefreshTokenId :: (MonadIO m) => JWK -> OAuthRefreshToken -> m OAuthRefreshTokenId
     extractRefreshTokenId jwk rt = do
@@ -609,14 +609,14 @@ testListApplicationsWithAccountAccess brig = do
   bob <- createUser "bob" brig
   do
     apps <- listOAuthApplications brig (User.userId alice)
-    liftIO $ assertEqual "apps" 0 (length apps)
+    liftIO $ apps @?= []
   void $ createOAuthApplicationWithAccountAccess brig (User.userId alice)
   void $ createOAuthApplicationWithAccountAccess brig (User.userId alice)
   do
     aliceApps <- listOAuthApplications brig (User.userId alice)
     liftIO $ assertEqual "apps" 2 (length aliceApps)
     bobsApps <- listOAuthApplications brig (User.userId bob)
-    liftIO $ assertEqual "apps" 0 (length bobsApps)
+    liftIO $ bobsApps @?= []
   void $ createOAuthApplicationWithAccountAccess brig (User.userId alice)
   void $ createOAuthApplicationWithAccountAccess brig (User.userId bob)
   do

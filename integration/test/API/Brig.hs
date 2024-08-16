@@ -694,3 +694,41 @@ clearProperties :: (MakesValue user) => user -> App Response
 clearProperties user = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["properties"]
   submit "DELETE" req
+
+-- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/post_oauth_authorization_codes
+generateOAuthAuthorizationCode :: (HasCallStack, MakesValue user, MakesValue cid) => user -> cid -> [String] -> String -> App Response
+generateOAuthAuthorizationCode user cid scopes redirectUrl = do
+  cidStr <- asString cid
+  req <- baseRequest user Brig Versioned "/oauth/authorization/codes"
+  submit "POST" $
+    req
+      & addJSONObject
+        [ "client_id" .= cidStr,
+          "scope" .= unwords scopes,
+          "redirect_uri" .= redirectUrl,
+          "code_challenge" .= "G7CWLBqYDT8doT_oEIN3un_QwZWYKHmOqG91nwNzITc",
+          "code_challenge_method" .= "S256",
+          "response_type" .= "code",
+          "state" .= "abc"
+        ]
+
+-- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/post_oauth_token
+createOAuthAccessToken :: (HasCallStack, MakesValue user, MakesValue cid) => user -> cid -> String -> String -> App Response
+createOAuthAccessToken user cid code redirectUrl = do
+  cidStr <- asString cid
+  req <- baseRequest user Brig Versioned "/oauth/token"
+  submit "POST" $
+    req
+      & addUrlEncodedForm
+        [ ("grant_type", "authorization_code"),
+          ("client_id", cidStr),
+          ("code_verifier", "nE3k3zykOmYki~kriKzAmeFiGT7cWugcuToFwo1YPgrZ1cFvaQqLa.dXY9MnDj3umAmG-8lSNIYIl31Cs_.fV5r2psa4WWZcB.Nlc3A-t3p67NDZaOJjIiH~8PvUH_hR"),
+          ("code", code),
+          ("redirect_uri", redirectUrl)
+        ]
+
+-- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/get_oauth_applications
+getOAuthApplications :: (HasCallStack, MakesValue user) => user -> App Response
+getOAuthApplications user = do
+  req <- baseRequest user Brig Versioned "/oauth/applications"
+  submit "GET" req
