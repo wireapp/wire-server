@@ -102,7 +102,7 @@ config:
   sft:
     sftToken:
       ttl: 120
-      secret: /etc/wire/brig/secrets/sftToken
+      secret: /etc/wire/brig/secrets/sftTokenSecret
   optSettings:
     setActivationTimeout: 1209600
     setTeamInvitationTimeout: 1814400
