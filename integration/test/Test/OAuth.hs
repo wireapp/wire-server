@@ -8,24 +8,55 @@ import Network.URI
 import SetupHelpers
 import Testlib.Prelude
 
-testOAuthRevokeRefreshToken :: (HasCallStack) => App ()
-testOAuthRevokeRefreshToken = do
+testOAuthRevokeSession :: (HasCallStack) => App ()
+testOAuthRevokeSession = do
   user <- randomUser OwnDomain def
-  oauthClient <- createOAuthClient user "foobar" "https://example.com" >>= getJSON 200
-  cid <- oauthClient %. "client_id"
+  let uri = "https://example.com"
+  cid <- createOAuthClient user "foobar" uri >>= getJSON 200 >>= flip (%.) "client_id"
   let scopes = ["write:conversations"]
-  let generateAccessToken = do
-        authCodeResponse <- generateOAuthAuthorizationCode user cid scopes "https://example.com"
-        let location = fromMaybe (error "no location header") $ parseURI . cs . snd =<< locationHeader authCodeResponse
-        let code = maybe "no code query param" cs $ join $ lookup (cs "code") $ parseQuery $ cs location.uriQuery
-        void $ createOAuthAccessToken user cid code "https://example.com" >>= getJSON 200
-  replicateM_ 2 generateAccessToken
-  remainingSessions <- do
+
+  -- create a session that will be revoked later
+  (tokenToBeRevoked, sessionToBeRevoked) <- do
+    token <- generateAccessToken user cid scopes uri
     [app] <- getOAuthApplications user >>= getJSON 200 >>= asList
-    x : xs <- app %. "sessions" >>= asList
-    x %. "refresh_token_id" >>= asString >>= deleteSession user cid >>= assertSuccess
-    -- TODO: also assert that we cannot get an access token with the revoked refresh token
-    pure xs
+    [session] <- app %. "sessions" >>= asList
+    pure (token, session)
+
+  -- create another session and assert that there are two sessions
+  validToken <- do
+    token <- generateAccessToken user cid scopes uri
+    [app] <- getOAuthApplications user >>= getJSON 200 >>= asList
+    sessions <- app %. "sessions" >>= asList
+    length sessions `shouldMatchInt` 2
+    pure token
+
+  -- revoke the first session and assert that there is only one session left
+  sessionToBeRevoked
+    %. "refresh_token_id"
+    >>= asString
+    >>= deleteOAuthSession user cid
+    >>= assertSuccess
   [app] <- getOAuthApplications user >>= getJSON 200 >>= asList
   sessions <- app %. "sessions" >>= asList
-  sessions `shouldMatch` remainingSessions
+  length sessions `shouldMatchInt` 1
+
+  -- try to use the revoked token and assert that it fails
+  tokenToBeRevoked
+    %. "refresh_token"
+    >>= asString
+    >>= createOAuthAccessTokenWithRefreshToken user cid
+    >>= assertStatus 403
+
+  -- try to use the valid token and assert that it works
+  validToken
+    %. "refresh_token"
+    >>= asString
+    >>= createOAuthAccessTokenWithRefreshToken user cid
+    >>= assertSuccess
+
+generateAccessToken :: (MakesValue cid, MakesValue user) => user -> cid -> [String] -> String -> App Value
+generateAccessToken user cid scopes uri = do
+  authCodeResponse <- generateOAuthAuthorizationCode user cid scopes uri
+  let location = fromMaybe (error "no location header") $ parseURI . cs . snd =<< locationHeader authCodeResponse
+  let code = maybe "no code query param" cs $ join $ lookup (cs "code") $ parseQuery $ cs location.uriQuery
+  createOAuthAccessToken user cid code uri >>= getJSON 200

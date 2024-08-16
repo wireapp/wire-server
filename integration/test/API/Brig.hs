@@ -727,14 +727,27 @@ createOAuthAccessToken user cid code redirectUrl = do
           ("redirect_uri", redirectUrl)
         ]
 
+-- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/post_oauth_token
+createOAuthAccessTokenWithRefreshToken :: (HasCallStack, MakesValue user, MakesValue cid) => user -> cid -> String -> App Response
+createOAuthAccessTokenWithRefreshToken user cid token = do
+  cidStr <- asString cid
+  req <- baseRequest user Brig Versioned "/oauth/token"
+  submit "POST" $
+    req
+      & addUrlEncodedForm
+        [ ("grant_type", "refresh_token"),
+          ("client_id", cidStr),
+          ("refresh_token", token)
+        ]
+
 -- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/get_oauth_applications
 getOAuthApplications :: (HasCallStack, MakesValue user) => user -> App Response
 getOAuthApplications user = do
   req <- baseRequest user Brig Versioned "/oauth/applications"
   submit "GET" req
 
-deleteSession :: (HasCallStack, MakesValue user, MakesValue cid) => user -> cid -> String -> App Response
-deleteSession user cid tokenId = do
+deleteOAuthSession :: (HasCallStack, MakesValue user, MakesValue cid) => user -> cid -> String -> App Response
+deleteOAuthSession user cid tokenId = do
   cidStr <- asString cid
   req <- baseRequest user Brig Versioned $ joinHttpPath ["oauth", "applications", cidStr, "sessions", tokenId]
   submit "DELETE" $ req
