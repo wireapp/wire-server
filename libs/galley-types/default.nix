@@ -16,7 +16,6 @@
 , lens
 , lib
 , memory
-, QuickCheck
 , sop-core
 , text
 , types-common
@@ -40,7 +39,6 @@ mkDerivation {
     imports
     lens
     memory
-    QuickCheck
     sop-core
     text
     types-common
