@@ -217,64 +217,64 @@
       "AllFeatureConfigs": {
         "properties": {
           "appLock": {
-            "$ref": "#/components/schemas/AppLockConfig.WithStatus"
+            "$ref": "#/components/schemas/AppLockConfig.LockableFeature"
           },
           "classifiedDomains": {
-            "$ref": "#/components/schemas/ClassifiedDomainsConfig.WithStatus"
+            "$ref": "#/components/schemas/ClassifiedDomainsConfig.LockableFeature"
           },
           "conferenceCalling": {
-            "$ref": "#/components/schemas/ConferenceCallingConfig.WithStatus"
+            "$ref": "#/components/schemas/ConferenceCallingConfig.LockableFeature"
           },
           "conversationGuestLinks": {
-            "$ref": "#/components/schemas/GuestLinksConfig.WithStatus"
+            "$ref": "#/components/schemas/GuestLinksConfig.LockableFeature"
           },
           "digitalSignatures": {
-            "$ref": "#/components/schemas/DigitalSignaturesConfig.WithStatus"
+            "$ref": "#/components/schemas/DigitalSignaturesConfig.LockableFeature"
           },
           "enforceFileDownloadLocation": {
-            "$ref": "#/components/schemas/EnforceFileDownloadLocation.WithStatus"
+            "$ref": "#/components/schemas/EnforceFileDownloadLocation.LockableFeature"
           },
           "exposeInvitationURLsToTeamAdmin": {
-            "$ref": "#/components/schemas/ExposeInvitationURLsToTeamAdminConfig.WithStatus"
+            "$ref": "#/components/schemas/ExposeInvitationURLsToTeamAdminConfig.LockableFeature"
           },
           "fileSharing": {
-            "$ref": "#/components/schemas/FileSharingConfig.WithStatus"
+            "$ref": "#/components/schemas/FileSharingConfig.LockableFeature"
           },
           "legalhold": {
-            "$ref": "#/components/schemas/LegalholdConfig.WithStatus"
+            "$ref": "#/components/schemas/LegalholdConfig.LockableFeature"
           },
           "limitedEventFanout": {
-            "$ref": "#/components/schemas/LimitedEventFanoutConfig.WithStatus"
+            "$ref": "#/components/schemas/LimitedEventFanoutConfig.LockableFeature"
           },
           "mls": {
-            "$ref": "#/components/schemas/MLSConfig.WithStatus"
+            "$ref": "#/components/schemas/MLSConfig.LockableFeature"
           },
           "mlsE2EId": {
-            "$ref": "#/components/schemas/MlsE2EIdConfig.WithStatus"
+            "$ref": "#/components/schemas/MlsE2EIdConfig.LockableFeature"
           },
           "mlsMigration": {
-            "$ref": "#/components/schemas/MlsMigration.WithStatus"
+            "$ref": "#/components/schemas/MlsMigration.LockableFeature"
           },
           "outlookCalIntegration": {
-            "$ref": "#/components/schemas/OutlookCalIntegrationConfig.WithStatus"
+            "$ref": "#/components/schemas/OutlookCalIntegrationConfig.LockableFeature"
           },
           "searchVisibility": {
-            "$ref": "#/components/schemas/SearchVisibilityAvailableConfig.WithStatus"
+            "$ref": "#/components/schemas/SearchVisibilityAvailableConfig.LockableFeature"
           },
           "searchVisibilityInbound": {
-            "$ref": "#/components/schemas/SearchVisibilityInboundConfig.WithStatus"
+            "$ref": "#/components/schemas/SearchVisibilityInboundConfig.LockableFeature"
           },
           "selfDeletingMessages": {
-            "$ref": "#/components/schemas/SelfDeletingMessagesConfig.WithStatus"
+            "$ref": "#/components/schemas/SelfDeletingMessagesConfig.LockableFeature"
           },
           "sndFactorPasswordChallenge": {
-            "$ref": "#/components/schemas/SndFactorPasswordChallengeConfig.WithStatus"
+            "$ref": "#/components/schemas/SndFactorPasswordChallengeConfig.LockableFeature"
           },
           "sso": {
-            "$ref": "#/components/schemas/SSOConfig.WithStatus"
+            "$ref": "#/components/schemas/SSOConfig.LockableFeature"
           },
           "validateSAMLemails": {
-            "$ref": "#/components/schemas/ValidateSAMLEmailsConfig.WithStatus"
+            "$ref": "#/components/schemas/ValidateSAMLEmailsConfig.LockableFeature"
           }
         },
         "required": [
@@ -502,7 +502,28 @@
         ],
         "type": "object"
       },
-      "AppLockConfig.WithStatus": {
+      "AppLockConfig.Feature": {
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/AppLockConfig"
+          },
+          "status": {
+            "$ref": "#/components/schemas/FeatureStatus"
+          },
+          "ttl": {
+            "example": "unlimited",
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status",
+          "config"
+        ],
+        "type": "object"
+      },
+      "AppLockConfig.LockableFeature": {
         "properties": {
           "config": {
             "$ref": "#/components/schemas/AppLockConfig"
@@ -523,27 +544,6 @@
         "required": [
           "status",
           "lockStatus",
-          "config"
-        ],
-        "type": "object"
-      },
-      "AppLockConfig.WithStatusNoLock": {
-        "properties": {
-          "config": {
-            "$ref": "#/components/schemas/AppLockConfig"
-          },
-          "status": {
-            "$ref": "#/components/schemas/FeatureStatus"
-          },
-          "ttl": {
-            "example": "unlimited",
-            "maximum": 18446744073709551615,
-            "minimum": 0,
-            "type": "integer"
-          }
-        },
-        "required": [
-          "status",
           "config"
         ],
         "type": "object"
@@ -620,10 +620,6 @@
         "type": "object"
       },
       "Base64ByteString": {
-        "example": "ZXhhbXBsZQo=",
-        "type": "string"
-      },
-      "Base64URLByteString": {
         "example": "ZXhhbXBsZQo=",
         "type": "string"
       },
@@ -758,7 +754,7 @@
         ],
         "type": "object"
       },
-      "ClassifiedDomainsConfig.WithStatus": {
+      "ClassifiedDomainsConfig.LockableFeature": {
         "properties": {
           "config": {
             "$ref": "#/components/schemas/ClassifiedDomainsConfig"
@@ -999,8 +995,39 @@
         ],
         "type": "object"
       },
-      "ConferenceCallingConfig.WithStatus": {
+      "ConferenceCallingConfig": {
         "properties": {
+          "useSFTForOneToOneCalls": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "ConferenceCallingConfig.Feature": {
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/ConferenceCallingConfig"
+          },
+          "status": {
+            "$ref": "#/components/schemas/FeatureStatus"
+          },
+          "ttl": {
+            "example": "unlimited",
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "type": "object"
+      },
+      "ConferenceCallingConfig.LockableFeature": {
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/ConferenceCallingConfig"
+          },
           "lockStatus": {
             "$ref": "#/components/schemas/LockStatus"
           },
@@ -2124,7 +2151,7 @@
         ],
         "type": "object"
       },
-      "DigitalSignaturesConfig.WithStatus": {
+      "DigitalSignaturesConfig.LockableFeature": {
         "properties": {
           "lockStatus": {
             "$ref": "#/components/schemas/LockStatus"
@@ -2217,7 +2244,28 @@
         },
         "type": "object"
       },
-      "EnforceFileDownloadLocation.WithStatus": {
+      "EnforceFileDownloadLocation.Feature": {
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/EnforceFileDownloadLocation"
+          },
+          "status": {
+            "$ref": "#/components/schemas/FeatureStatus"
+          },
+          "ttl": {
+            "example": "unlimited",
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status",
+          "config"
+        ],
+        "type": "object"
+      },
+      "EnforceFileDownloadLocation.LockableFeature": {
         "properties": {
           "config": {
             "$ref": "#/components/schemas/EnforceFileDownloadLocation"
@@ -2238,27 +2286,6 @@
         "required": [
           "status",
           "lockStatus",
-          "config"
-        ],
-        "type": "object"
-      },
-      "EnforceFileDownloadLocation.WithStatusNoLock": {
-        "properties": {
-          "config": {
-            "$ref": "#/components/schemas/EnforceFileDownloadLocation"
-          },
-          "status": {
-            "$ref": "#/components/schemas/FeatureStatus"
-          },
-          "ttl": {
-            "example": "unlimited",
-            "maximum": 18446744073709551615,
-            "minimum": 0,
-            "type": "integer"
-          }
-        },
-        "required": [
-          "status",
           "config"
         ],
         "type": "object"
@@ -2518,7 +2545,24 @@
         ],
         "type": "string"
       },
-      "ExposeInvitationURLsToTeamAdminConfig.WithStatus": {
+      "ExposeInvitationURLsToTeamAdminConfig.Feature": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/FeatureStatus"
+          },
+          "ttl": {
+            "example": "unlimited",
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "type": "object"
+      },
+      "ExposeInvitationURLsToTeamAdminConfig.LockableFeature": {
         "properties": {
           "lockStatus": {
             "$ref": "#/components/schemas/LockStatus"
@@ -2536,23 +2580,6 @@
         "required": [
           "status",
           "lockStatus"
-        ],
-        "type": "object"
-      },
-      "ExposeInvitationURLsToTeamAdminConfig.WithStatusNoLock": {
-        "properties": {
-          "status": {
-            "$ref": "#/components/schemas/FeatureStatus"
-          },
-          "ttl": {
-            "example": "unlimited",
-            "maximum": 18446744073709551615,
-            "minimum": 0,
-            "type": "integer"
-          }
-        },
-        "required": [
-          "status"
         ],
         "type": "object"
       },
@@ -2572,7 +2599,24 @@
         ],
         "type": "string"
       },
-      "FileSharingConfig.WithStatus": {
+      "FileSharingConfig.Feature": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/FeatureStatus"
+          },
+          "ttl": {
+            "example": "unlimited",
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "type": "object"
+      },
+      "FileSharingConfig.LockableFeature": {
         "properties": {
           "lockStatus": {
             "$ref": "#/components/schemas/LockStatus"
@@ -2590,23 +2634,6 @@
         "required": [
           "status",
           "lockStatus"
-        ],
-        "type": "object"
-      },
-      "FileSharingConfig.WithStatusNoLock": {
-        "properties": {
-          "status": {
-            "$ref": "#/components/schemas/FeatureStatus"
-          },
-          "ttl": {
-            "example": "unlimited",
-            "maximum": 18446744073709551615,
-            "minimum": 0,
-            "type": "integer"
-          }
-        },
-        "required": [
-          "status"
         ],
         "type": "object"
       },
@@ -2665,7 +2692,24 @@
       "GroupInfoData": {
         "description": "This object can only be parsed in TLS format. Please refer to the MLS specification for details."
       },
-      "GuestLinksConfig.WithStatus": {
+      "GuestLinksConfig.Feature": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/FeatureStatus"
+          },
+          "ttl": {
+            "example": "unlimited",
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "type": "object"
+      },
+      "GuestLinksConfig.LockableFeature": {
         "properties": {
           "lockStatus": {
             "$ref": "#/components/schemas/LockStatus"
@@ -2683,23 +2727,6 @@
         "required": [
           "status",
           "lockStatus"
-        ],
-        "type": "object"
-      },
-      "GuestLinksConfig.WithStatusNoLock": {
-        "properties": {
-          "status": {
-            "$ref": "#/components/schemas/FeatureStatus"
-          },
-          "ttl": {
-            "example": "unlimited",
-            "maximum": 18446744073709551615,
-            "minimum": 0,
-            "type": "integer"
-          }
-        },
-        "required": [
-          "status"
         ],
         "type": "object"
       },
@@ -2914,30 +2941,6 @@
         ],
         "type": "object"
       },
-      "JWK": {
-        "properties": {
-          "crv": {
-            "type": "string"
-          },
-          "kty": {
-            "type": "string"
-          },
-          "x": {
-            "example": "ZXhhbXBsZQo=",
-            "type": "string"
-          },
-          "y": {
-            "example": "ZXhhbXBsZQo=",
-            "type": "string"
-          }
-        },
-        "required": [
-          "kty",
-          "crv",
-          "x"
-        ],
-        "type": "object"
-      },
       "JoinConversationByCode": {
         "description": "Request body for joining a conversation by code",
         "properties": {
@@ -3034,7 +3037,24 @@
         ],
         "type": "string"
       },
-      "LegalholdConfig.WithStatus": {
+      "LegalholdConfig.Feature": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/FeatureStatus"
+          },
+          "ttl": {
+            "example": "unlimited",
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "type": "object"
+      },
+      "LegalholdConfig.LockableFeature": {
         "properties": {
           "lockStatus": {
             "$ref": "#/components/schemas/LockStatus"
@@ -3055,24 +3075,7 @@
         ],
         "type": "object"
       },
-      "LegalholdConfig.WithStatusNoLock": {
-        "properties": {
-          "status": {
-            "$ref": "#/components/schemas/FeatureStatus"
-          },
-          "ttl": {
-            "example": "unlimited",
-            "maximum": 18446744073709551615,
-            "minimum": 0,
-            "type": "integer"
-          }
-        },
-        "required": [
-          "status"
-        ],
-        "type": "object"
-      },
-      "LimitedEventFanoutConfig.WithStatus": {
+      "LimitedEventFanoutConfig.LockableFeature": {
         "properties": {
           "lockStatus": {
             "$ref": "#/components/schemas/LockStatus"
@@ -3269,7 +3272,28 @@
         ],
         "type": "object"
       },
-      "MLSConfig.WithStatus": {
+      "MLSConfig.Feature": {
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/MLSConfig"
+          },
+          "status": {
+            "$ref": "#/components/schemas/FeatureStatus"
+          },
+          "ttl": {
+            "example": "unlimited",
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status",
+          "config"
+        ],
+        "type": "object"
+      },
+      "MLSConfig.LockableFeature": {
         "properties": {
           "config": {
             "$ref": "#/components/schemas/MLSConfig"
@@ -3294,40 +3318,19 @@
         ],
         "type": "object"
       },
-      "MLSConfig.WithStatusNoLock": {
-        "properties": {
-          "config": {
-            "$ref": "#/components/schemas/MLSConfig"
-          },
-          "status": {
-            "$ref": "#/components/schemas/FeatureStatus"
-          },
-          "ttl": {
-            "example": "unlimited",
-            "maximum": 18446744073709551615,
-            "minimum": 0,
-            "type": "integer"
-          }
-        },
-        "required": [
-          "status",
-          "config"
-        ],
-        "type": "object"
-      },
       "MLSKeys": {
         "properties": {
           "ecdsa_secp256r1_sha256": {
-            "$ref": "#/components/schemas/JWK"
+            "$ref": "#/components/schemas/MLSPublicKey"
           },
           "ecdsa_secp384r1_sha384": {
-            "$ref": "#/components/schemas/JWK"
+            "$ref": "#/components/schemas/MLSPublicKey"
           },
           "ecdsa_secp521r1_sha512": {
-            "$ref": "#/components/schemas/JWK"
+            "$ref": "#/components/schemas/MLSPublicKey"
           },
           "ed25519": {
-            "$ref": "#/components/schemas/JWK"
+            "$ref": "#/components/schemas/MLSPublicKey"
           }
         },
         "required": [
@@ -3370,6 +3373,10 @@
           "time"
         ],
         "type": "object"
+      },
+      "MLSPublicKey": {
+        "example": "ZXhhbXBsZQo=",
+        "type": "string"
       },
       "MLSPublicKeys": {
         "additionalProperties": {
@@ -3545,7 +3552,7 @@
             "type": "boolean"
           },
           "verificationExpiration": {
-            "description": "When a client first tries to fetch or renew a certificate, they may need to login to an identity provider (IdP) depending on their IdP domain authentication policy. The user may have a grace period during which they can “snooze” this login. The duration of this grace period (in seconds) is set in the `verificationDuration` parameter, which is enforced separately by each client. After the grace period has expired, the client will not allow the user to use the application until they have logged to refresh the certificate. The default value is 1 day (86400s). The client enrolls using the Automatic Certificate Management Environment (ACME) protocol. The `acmeDiscoveryUrl` parameter must be set to the HTTPS URL of the ACME server discovery endpoint for this team. It is of the form \"https://acme.{backendDomain}/acme/{provisionerName}/discovery\". For example: `https://acme.example.com/acme/provisioner1/discovery`.",
+            "description": "When a client first tries to fetch or renew a certificate, they may need to login to an identity provider (IdP) depending on their IdP domain authentication policy. The user may have a grace period during which they can \"snooze\" this login. The duration of this grace period (in seconds) is set in the `verificationDuration` parameter, which is enforced separately by each client. After the grace period has expired, the client will not allow the user to use the application until they have logged to refresh the certificate. The default value is 1 day (86400s). The client enrolls using the Automatic Certificate Management Environment (ACME) protocol. The `acmeDiscoveryUrl` parameter must be set to the HTTPS URL of the ACME server discovery endpoint for this team. It is of the form \"https://acme.{backendDomain}/acme/{provisionerName}/discovery\". For example: `https://acme.example.com/acme/provisioner1/discovery`.",
             "maximum": 9223372036854775807,
             "minimum": -9223372036854775808,
             "type": "integer"
@@ -3556,7 +3563,28 @@
         ],
         "type": "object"
       },
-      "MlsE2EIdConfig.WithStatus": {
+      "MlsE2EIdConfig.Feature": {
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/MlsE2EIdConfig"
+          },
+          "status": {
+            "$ref": "#/components/schemas/FeatureStatus"
+          },
+          "ttl": {
+            "example": "unlimited",
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status",
+          "config"
+        ],
+        "type": "object"
+      },
+      "MlsE2EIdConfig.LockableFeature": {
         "properties": {
           "config": {
             "$ref": "#/components/schemas/MlsE2EIdConfig"
@@ -3577,27 +3605,6 @@
         "required": [
           "status",
           "lockStatus",
-          "config"
-        ],
-        "type": "object"
-      },
-      "MlsE2EIdConfig.WithStatusNoLock": {
-        "properties": {
-          "config": {
-            "$ref": "#/components/schemas/MlsE2EIdConfig"
-          },
-          "status": {
-            "$ref": "#/components/schemas/FeatureStatus"
-          },
-          "ttl": {
-            "example": "unlimited",
-            "maximum": 18446744073709551615,
-            "minimum": 0,
-            "type": "integer"
-          }
-        },
-        "required": [
-          "status",
           "config"
         ],
         "type": "object"
@@ -3613,7 +3620,28 @@
         },
         "type": "object"
       },
-      "MlsMigration.WithStatus": {
+      "MlsMigration.Feature": {
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/MlsMigration"
+          },
+          "status": {
+            "$ref": "#/components/schemas/FeatureStatus"
+          },
+          "ttl": {
+            "example": "unlimited",
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status",
+          "config"
+        ],
+        "type": "object"
+      },
+      "MlsMigration.LockableFeature": {
         "properties": {
           "config": {
             "$ref": "#/components/schemas/MlsMigration"
@@ -3634,27 +3662,6 @@
         "required": [
           "status",
           "lockStatus",
-          "config"
-        ],
-        "type": "object"
-      },
-      "MlsMigration.WithStatusNoLock": {
-        "properties": {
-          "config": {
-            "$ref": "#/components/schemas/MlsMigration"
-          },
-          "status": {
-            "$ref": "#/components/schemas/FeatureStatus"
-          },
-          "ttl": {
-            "example": "unlimited",
-            "maximum": 18446744073709551615,
-            "minimum": 0,
-            "type": "integer"
-          }
-        },
-        "required": [
-          "status",
           "config"
         ],
         "type": "object"
@@ -4310,7 +4317,24 @@
         ],
         "type": "object"
       },
-      "OutlookCalIntegrationConfig.WithStatus": {
+      "OutlookCalIntegrationConfig.Feature": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/FeatureStatus"
+          },
+          "ttl": {
+            "example": "unlimited",
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "type": "object"
+      },
+      "OutlookCalIntegrationConfig.LockableFeature": {
         "properties": {
           "lockStatus": {
             "$ref": "#/components/schemas/LockStatus"
@@ -4328,23 +4352,6 @@
         "required": [
           "status",
           "lockStatus"
-        ],
-        "type": "object"
-      },
-      "OutlookCalIntegrationConfig.WithStatusNoLock": {
-        "properties": {
-          "status": {
-            "$ref": "#/components/schemas/FeatureStatus"
-          },
-          "ttl": {
-            "example": "unlimited",
-            "maximum": 18446744073709551615,
-            "minimum": 0,
-            "type": "integer"
-          }
-        },
-        "required": [
-          "status"
         ],
         "type": "object"
       },
@@ -5013,7 +5020,7 @@
         "description": "Role name, between 2 and 128 chars, 'wire_' prefix is reserved for roles designed by Wire (i.e., no custom roles can have the same prefix)",
         "type": "string"
       },
-      "SSOConfig.WithStatus": {
+      "SSOConfig.LockableFeature": {
         "properties": {
           "lockStatus": {
             "$ref": "#/components/schemas/LockStatus"
@@ -5121,7 +5128,24 @@
         ],
         "type": "object"
       },
-      "SearchVisibilityAvailableConfig.WithStatus": {
+      "SearchVisibilityAvailableConfig.Feature": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/FeatureStatus"
+          },
+          "ttl": {
+            "example": "unlimited",
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "type": "object"
+      },
+      "SearchVisibilityAvailableConfig.LockableFeature": {
         "properties": {
           "lockStatus": {
             "$ref": "#/components/schemas/LockStatus"
@@ -5142,7 +5166,7 @@
         ],
         "type": "object"
       },
-      "SearchVisibilityAvailableConfig.WithStatusNoLock": {
+      "SearchVisibilityInboundConfig.Feature": {
         "properties": {
           "status": {
             "$ref": "#/components/schemas/FeatureStatus"
@@ -5159,7 +5183,7 @@
         ],
         "type": "object"
       },
-      "SearchVisibilityInboundConfig.WithStatus": {
+      "SearchVisibilityInboundConfig.LockableFeature": {
         "properties": {
           "lockStatus": {
             "$ref": "#/components/schemas/LockStatus"
@@ -5177,23 +5201,6 @@
         "required": [
           "status",
           "lockStatus"
-        ],
-        "type": "object"
-      },
-      "SearchVisibilityInboundConfig.WithStatusNoLock": {
-        "properties": {
-          "status": {
-            "$ref": "#/components/schemas/FeatureStatus"
-          },
-          "ttl": {
-            "example": "unlimited",
-            "maximum": 18446744073709551615,
-            "minimum": 0,
-            "type": "integer"
-          }
-        },
-        "required": [
-          "status"
         ],
         "type": "object"
       },
@@ -5211,7 +5218,28 @@
         ],
         "type": "object"
       },
-      "SelfDeletingMessagesConfig.WithStatus": {
+      "SelfDeletingMessagesConfig.Feature": {
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/SelfDeletingMessagesConfig"
+          },
+          "status": {
+            "$ref": "#/components/schemas/FeatureStatus"
+          },
+          "ttl": {
+            "example": "unlimited",
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status",
+          "config"
+        ],
+        "type": "object"
+      },
+      "SelfDeletingMessagesConfig.LockableFeature": {
         "properties": {
           "config": {
             "$ref": "#/components/schemas/SelfDeletingMessagesConfig"
@@ -5232,27 +5260,6 @@
         "required": [
           "status",
           "lockStatus",
-          "config"
-        ],
-        "type": "object"
-      },
-      "SelfDeletingMessagesConfig.WithStatusNoLock": {
-        "properties": {
-          "config": {
-            "$ref": "#/components/schemas/SelfDeletingMessagesConfig"
-          },
-          "status": {
-            "$ref": "#/components/schemas/FeatureStatus"
-          },
-          "ttl": {
-            "example": "unlimited",
-            "maximum": 18446744073709551615,
-            "minimum": 0,
-            "type": "integer"
-          }
-        },
-        "required": [
-          "status",
           "config"
         ],
         "type": "object"
@@ -5468,7 +5475,24 @@
         ],
         "type": "object"
       },
-      "SndFactorPasswordChallengeConfig.WithStatus": {
+      "SndFactorPasswordChallengeConfig.Feature": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/FeatureStatus"
+          },
+          "ttl": {
+            "example": "unlimited",
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "type": "object"
+      },
+      "SndFactorPasswordChallengeConfig.LockableFeature": {
         "properties": {
           "lockStatus": {
             "$ref": "#/components/schemas/LockStatus"
@@ -5486,23 +5510,6 @@
         "required": [
           "status",
           "lockStatus"
-        ],
-        "type": "object"
-      },
-      "SndFactorPasswordChallengeConfig.WithStatusNoLock": {
-        "properties": {
-          "status": {
-            "$ref": "#/components/schemas/FeatureStatus"
-          },
-          "ttl": {
-            "example": "unlimited",
-            "maximum": 18446744073709551615,
-            "minimum": 0,
-            "type": "integer"
-          }
-        },
-        "required": [
-          "status"
         ],
         "type": "object"
       },
@@ -6437,7 +6444,7 @@
         },
         "type": "object"
       },
-      "ValidateSAMLEmailsConfig.WithStatus": {
+      "ValidateSAMLEmailsConfig.LockableFeature": {
         "properties": {
           "lockStatus": {
             "$ref": "#/components/schemas/LockStatus"
@@ -14677,7 +14684,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/GuestLinksConfig.WithStatus"
+                  "$ref": "#/components/schemas/GuestLinksConfig.LockableFeature"
                 }
               }
             },
@@ -17172,7 +17179,7 @@
     },
     "/mls/public-keys": {
       "get": {
-        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"mls-public-keys\"]\n\n",
+        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"mls-public-keys-v6\"]\n\n",
         "responses": {
           "200": {
             "content": {
@@ -23751,7 +23758,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/AppLockConfig.WithStatus"
+                  "$ref": "#/components/schemas/AppLockConfig.LockableFeature"
                 }
               }
             },
@@ -23852,7 +23859,7 @@
           "content": {
             "application/json;charset=utf-8": {
               "schema": {
-                "$ref": "#/components/schemas/AppLockConfig.WithStatusNoLock"
+                "$ref": "#/components/schemas/AppLockConfig.Feature"
               }
             }
           },
@@ -23863,7 +23870,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/AppLockConfig.WithStatus"
+                  "$ref": "#/components/schemas/AppLockConfig.LockableFeature"
                 }
               }
             },
@@ -23967,7 +23974,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/ClassifiedDomainsConfig.WithStatus"
+                  "$ref": "#/components/schemas/ClassifiedDomainsConfig.LockableFeature"
                 }
               }
             },
@@ -24071,7 +24078,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/ConferenceCallingConfig.WithStatus"
+                  "$ref": "#/components/schemas/ConferenceCallingConfig.LockableFeature"
                 }
               }
             },
@@ -24154,6 +24161,118 @@
           }
         },
         "summary": "Get config for conferenceCalling"
+      },
+      "put": {
+        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> (\"put\", ConferenceCallingConfig)]\n\n",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tid",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json;charset=utf-8": {
+              "schema": {
+                "$ref": "#/components/schemas/ConferenceCallingConfig.Feature"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json;charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConferenceCallingConfig.LockableFeature"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json;charset=utf-8": {
+                "schema": {
+                  "example": {
+                    "code": 403,
+                    "label": "no-team-member",
+                    "message": "Requesting user is not a team member"
+                  },
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        403
+                      ],
+                      "type": "integer"
+                    },
+                    "label": {
+                      "enum": [
+                        "no-team-member",
+                        "operation-denied"
+                      ],
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "label",
+                    "message"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Requesting user is not a team member (label: `no-team-member`)\n\nInsufficient permissions (label: `operation-denied`)"
+          },
+          "404": {
+            "content": {
+              "application/json;charset=utf-8": {
+                "schema": {
+                  "example": {
+                    "code": 404,
+                    "label": "no-team",
+                    "message": "Team not found"
+                  },
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        404
+                      ],
+                      "type": "integer"
+                    },
+                    "label": {
+                      "enum": [
+                        "no-team"
+                      ],
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "label",
+                    "message"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "`tid` not found\n\nTeam not found (label: `no-team`)"
+          }
+        },
+        "summary": "Put config for conferenceCalling"
       }
     },
     "/teams/{tid}/features/conversationGuestLinks": {
@@ -24175,7 +24294,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/GuestLinksConfig.WithStatus"
+                  "$ref": "#/components/schemas/GuestLinksConfig.LockableFeature"
                 }
               }
             },
@@ -24276,7 +24395,7 @@
           "content": {
             "application/json;charset=utf-8": {
               "schema": {
-                "$ref": "#/components/schemas/GuestLinksConfig.WithStatusNoLock"
+                "$ref": "#/components/schemas/GuestLinksConfig.Feature"
               }
             }
           },
@@ -24287,7 +24406,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/GuestLinksConfig.WithStatus"
+                  "$ref": "#/components/schemas/GuestLinksConfig.LockableFeature"
                 }
               }
             },
@@ -24391,7 +24510,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/DigitalSignaturesConfig.WithStatus"
+                  "$ref": "#/components/schemas/DigitalSignaturesConfig.LockableFeature"
                 }
               }
             },
@@ -24478,7 +24597,7 @@
     },
     "/teams/{tid}/features/enforceFileDownloadLocation": {
       "get": {
-        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> (\"get\", EnforceFileDownloadLocationConfig)]\n\n<p><b>Custom feature: only supported for some decidated on-prem systems.</b></p>",
+        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> (\"get\", EnforceFileDownloadLocationConfig)]\n\n<p><b>Custom feature: only supported on some dedicated on-prem systems.</b></p>",
         "parameters": [
           {
             "in": "path",
@@ -24495,7 +24614,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/EnforceFileDownloadLocation.WithStatus"
+                  "$ref": "#/components/schemas/EnforceFileDownloadLocation.LockableFeature"
                 }
               }
             },
@@ -24580,7 +24699,7 @@
         "summary": "Get config for enforceFileDownloadLocation"
       },
       "put": {
-        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> (\"put\", EnforceFileDownloadLocationConfig)]\n\n<p><b>Custom feature: only supported for some decidated on-prem systems.</b></p>",
+        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> (\"put\", EnforceFileDownloadLocationConfig)]\n\n<p><b>Custom feature: only supported on some dedicated on-prem systems.</b></p>",
         "parameters": [
           {
             "in": "path",
@@ -24596,7 +24715,7 @@
           "content": {
             "application/json;charset=utf-8": {
               "schema": {
-                "$ref": "#/components/schemas/EnforceFileDownloadLocation.WithStatusNoLock"
+                "$ref": "#/components/schemas/EnforceFileDownloadLocation.Feature"
               }
             }
           },
@@ -24607,7 +24726,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/EnforceFileDownloadLocation.WithStatus"
+                  "$ref": "#/components/schemas/EnforceFileDownloadLocation.LockableFeature"
                 }
               }
             },
@@ -24711,7 +24830,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/ExposeInvitationURLsToTeamAdminConfig.WithStatus"
+                  "$ref": "#/components/schemas/ExposeInvitationURLsToTeamAdminConfig.LockableFeature"
                 }
               }
             },
@@ -24812,7 +24931,7 @@
           "content": {
             "application/json;charset=utf-8": {
               "schema": {
-                "$ref": "#/components/schemas/ExposeInvitationURLsToTeamAdminConfig.WithStatusNoLock"
+                "$ref": "#/components/schemas/ExposeInvitationURLsToTeamAdminConfig.Feature"
               }
             }
           },
@@ -24823,7 +24942,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/ExposeInvitationURLsToTeamAdminConfig.WithStatus"
+                  "$ref": "#/components/schemas/ExposeInvitationURLsToTeamAdminConfig.LockableFeature"
                 }
               }
             },
@@ -24927,7 +25046,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/FileSharingConfig.WithStatus"
+                  "$ref": "#/components/schemas/FileSharingConfig.LockableFeature"
                 }
               }
             },
@@ -25028,7 +25147,7 @@
           "content": {
             "application/json;charset=utf-8": {
               "schema": {
-                "$ref": "#/components/schemas/FileSharingConfig.WithStatusNoLock"
+                "$ref": "#/components/schemas/FileSharingConfig.Feature"
               }
             }
           },
@@ -25039,7 +25158,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/FileSharingConfig.WithStatus"
+                  "$ref": "#/components/schemas/FileSharingConfig.LockableFeature"
                 }
               }
             },
@@ -25143,7 +25262,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/LegalholdConfig.WithStatus"
+                  "$ref": "#/components/schemas/LegalholdConfig.LockableFeature"
                 }
               }
             },
@@ -25228,7 +25347,7 @@
         "summary": "Get config for legalhold"
       },
       "put": {
-        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> (\"put\", LegalholdConfig)]\n\nCalls federation service galley on on-mls-message-sent<br>Calls federation service galley on on-conversation-updated",
+        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> (\"put\", LegalholdConfig)]\n\n",
         "parameters": [
           {
             "in": "path",
@@ -25244,7 +25363,7 @@
           "content": {
             "application/json;charset=utf-8": {
               "schema": {
-                "$ref": "#/components/schemas/LegalholdConfig.WithStatusNoLock"
+                "$ref": "#/components/schemas/LegalholdConfig.Feature"
               }
             }
           },
@@ -25255,7 +25374,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/LegalholdConfig.WithStatus"
+                  "$ref": "#/components/schemas/LegalholdConfig.LockableFeature"
                 }
               }
             },
@@ -25319,9 +25438,6 @@
                         "legalhold-disable-unimplemented",
                         "legalhold-not-enabled",
                         "too-large-team-for-legalhold",
-                        "code-authentication-required",
-                        "code-authentication-failed",
-                        "access-denied",
                         "action-denied",
                         "no-team-member",
                         "operation-denied"
@@ -25341,7 +25457,7 @@
                 }
               }
             },
-            "description": "legal hold cannot be disabled for whitelisted teams (label: `legalhold-disable-unimplemented`)\n\nlegal hold is not enabled for this team (label: `legalhold-not-enabled`)\n\nCannot enable legalhold on large teams (reason: for removing LH from team, we need to iterate over all members, which is only supported for teams with less than 2k members) (label: `too-large-team-for-legalhold`)\n\nVerification code required (label: `code-authentication-required`)\n\nCode authentication failed (label: `code-authentication-failed`)\n\nThis operation requires reauthentication (label: `access-denied`)\n\nInsufficient authorization (missing remove_conversation_member) (label: `action-denied`)\n\nRequesting user is not a team member (label: `no-team-member`)\n\nInsufficient permissions (label: `operation-denied`)"
+            "description": "legal hold cannot be disabled for whitelisted teams (label: `legalhold-disable-unimplemented`)\n\nlegal hold is not enabled for this team (label: `legalhold-not-enabled`)\n\nCannot enable legalhold on large teams (reason: for removing LH from team, we need to iterate over all members, which is only supported for teams with less than 2k members) (label: `too-large-team-for-legalhold`)\n\nInsufficient authorization (missing remove_conversation_member) (label: `action-denied`)\n\nRequesting user is not a team member (label: `no-team-member`)\n\nInsufficient permissions (label: `operation-denied`)"
           },
           "404": {
             "content": {
@@ -25441,7 +25557,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/LimitedEventFanoutConfig.WithStatus"
+                  "$ref": "#/components/schemas/LimitedEventFanoutConfig.LockableFeature"
                 }
               }
             },
@@ -25545,7 +25661,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/MLSConfig.WithStatus"
+                  "$ref": "#/components/schemas/MLSConfig.LockableFeature"
                 }
               }
             },
@@ -25646,7 +25762,7 @@
           "content": {
             "application/json;charset=utf-8": {
               "schema": {
-                "$ref": "#/components/schemas/MLSConfig.WithStatusNoLock"
+                "$ref": "#/components/schemas/MLSConfig.Feature"
               }
             }
           },
@@ -25657,7 +25773,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/MLSConfig.WithStatus"
+                  "$ref": "#/components/schemas/MLSConfig.LockableFeature"
                 }
               }
             },
@@ -25761,7 +25877,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/MlsE2EIdConfig.WithStatus"
+                  "$ref": "#/components/schemas/MlsE2EIdConfig.LockableFeature"
                 }
               }
             },
@@ -25862,7 +25978,7 @@
           "content": {
             "application/json;charset=utf-8": {
               "schema": {
-                "$ref": "#/components/schemas/MlsE2EIdConfig.WithStatusNoLock"
+                "$ref": "#/components/schemas/MlsE2EIdConfig.Feature"
               }
             }
           },
@@ -25873,7 +25989,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/MlsE2EIdConfig.WithStatus"
+                  "$ref": "#/components/schemas/MlsE2EIdConfig.LockableFeature"
                 }
               }
             },
@@ -25977,7 +26093,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/MlsMigration.WithStatus"
+                  "$ref": "#/components/schemas/MlsMigration.LockableFeature"
                 }
               }
             },
@@ -26078,7 +26194,7 @@
           "content": {
             "application/json;charset=utf-8": {
               "schema": {
-                "$ref": "#/components/schemas/MlsMigration.WithStatusNoLock"
+                "$ref": "#/components/schemas/MlsMigration.Feature"
               }
             }
           },
@@ -26089,7 +26205,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/MlsMigration.WithStatus"
+                  "$ref": "#/components/schemas/MlsMigration.LockableFeature"
                 }
               }
             },
@@ -26193,7 +26309,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/OutlookCalIntegrationConfig.WithStatus"
+                  "$ref": "#/components/schemas/OutlookCalIntegrationConfig.LockableFeature"
                 }
               }
             },
@@ -26294,7 +26410,7 @@
           "content": {
             "application/json;charset=utf-8": {
               "schema": {
-                "$ref": "#/components/schemas/OutlookCalIntegrationConfig.WithStatusNoLock"
+                "$ref": "#/components/schemas/OutlookCalIntegrationConfig.Feature"
               }
             }
           },
@@ -26305,7 +26421,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/OutlookCalIntegrationConfig.WithStatus"
+                  "$ref": "#/components/schemas/OutlookCalIntegrationConfig.LockableFeature"
                 }
               }
             },
@@ -26409,7 +26525,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/SearchVisibilityAvailableConfig.WithStatus"
+                  "$ref": "#/components/schemas/SearchVisibilityAvailableConfig.LockableFeature"
                 }
               }
             },
@@ -26510,7 +26626,7 @@
           "content": {
             "application/json;charset=utf-8": {
               "schema": {
-                "$ref": "#/components/schemas/SearchVisibilityAvailableConfig.WithStatusNoLock"
+                "$ref": "#/components/schemas/SearchVisibilityAvailableConfig.Feature"
               }
             }
           },
@@ -26521,7 +26637,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/SearchVisibilityAvailableConfig.WithStatus"
+                  "$ref": "#/components/schemas/SearchVisibilityAvailableConfig.LockableFeature"
                 }
               }
             },
@@ -26625,7 +26741,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/SearchVisibilityInboundConfig.WithStatus"
+                  "$ref": "#/components/schemas/SearchVisibilityInboundConfig.LockableFeature"
                 }
               }
             },
@@ -26726,7 +26842,7 @@
           "content": {
             "application/json;charset=utf-8": {
               "schema": {
-                "$ref": "#/components/schemas/SearchVisibilityInboundConfig.WithStatusNoLock"
+                "$ref": "#/components/schemas/SearchVisibilityInboundConfig.Feature"
               }
             }
           },
@@ -26737,7 +26853,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/SearchVisibilityInboundConfig.WithStatus"
+                  "$ref": "#/components/schemas/SearchVisibilityInboundConfig.LockableFeature"
                 }
               }
             },
@@ -26841,7 +26957,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/SelfDeletingMessagesConfig.WithStatus"
+                  "$ref": "#/components/schemas/SelfDeletingMessagesConfig.LockableFeature"
                 }
               }
             },
@@ -26942,7 +27058,7 @@
           "content": {
             "application/json;charset=utf-8": {
               "schema": {
-                "$ref": "#/components/schemas/SelfDeletingMessagesConfig.WithStatusNoLock"
+                "$ref": "#/components/schemas/SelfDeletingMessagesConfig.Feature"
               }
             }
           },
@@ -26953,7 +27069,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/SelfDeletingMessagesConfig.WithStatus"
+                  "$ref": "#/components/schemas/SelfDeletingMessagesConfig.LockableFeature"
                 }
               }
             },
@@ -27057,7 +27173,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/SndFactorPasswordChallengeConfig.WithStatus"
+                  "$ref": "#/components/schemas/SndFactorPasswordChallengeConfig.LockableFeature"
                 }
               }
             },
@@ -27158,7 +27274,7 @@
           "content": {
             "application/json;charset=utf-8": {
               "schema": {
-                "$ref": "#/components/schemas/SndFactorPasswordChallengeConfig.WithStatusNoLock"
+                "$ref": "#/components/schemas/SndFactorPasswordChallengeConfig.Feature"
               }
             }
           },
@@ -27169,7 +27285,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/SndFactorPasswordChallengeConfig.WithStatus"
+                  "$ref": "#/components/schemas/SndFactorPasswordChallengeConfig.LockableFeature"
                 }
               }
             },
@@ -27273,7 +27389,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/SSOConfig.WithStatus"
+                  "$ref": "#/components/schemas/SSOConfig.LockableFeature"
                 }
               }
             },
@@ -27377,7 +27493,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/ValidateSAMLEmailsConfig.WithStatus"
+                  "$ref": "#/components/schemas/ValidateSAMLEmailsConfig.LockableFeature"
                 }
               }
             },
