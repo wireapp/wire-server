@@ -81,7 +81,7 @@ oauthAPI =
     :<|> Named @"create-oauth-access-token" createAccessTokenWith
     :<|> Named @"revoke-oauth-refresh-token" revokeRefreshToken
     :<|> Named @"get-oauth-applications" getOAuthApplications
-    :<|> Named @"revoke-oauth-account-access" revokeOAuthAccountAccess
+    :<|> Named @"revoke-oauth-account-access-v6" revokeOAuthAccountAccess
     :<|> Named @"delete-oauth-refresh-token" deleteOAuthRefreshTokenById
 
 --------------------------------------------------------------------------------

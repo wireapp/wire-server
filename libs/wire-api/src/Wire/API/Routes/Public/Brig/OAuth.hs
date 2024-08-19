@@ -31,6 +31,7 @@ import Wire.API.Routes.API
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named (Named)
 import Wire.API.Routes.Public
+import Wire.API.Routes.Version
 
 type OAuthAPI =
   Named
@@ -107,9 +108,10 @@ type OAuthAPI =
                     (Respond 200 "OAuth applications found" [OAuthApplication])
            )
     :<|> Named
-           "revoke-oauth-account-access"
+           "revoke-oauth-account-access-v6"
            ( Summary "Revoke account access from an OAuth application"
                :> ZUser
+               :> Until 'V7
                :> "oauth"
                :> "applications"
                :> Capture' '[Description "The ID of the OAuth client"] "OAuthClientId" OAuthClientId

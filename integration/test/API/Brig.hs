@@ -751,3 +751,10 @@ deleteOAuthSession user cid password tokenId = do
   cidStr <- asString cid
   req <- baseRequest user Brig Versioned $ joinHttpPath ["oauth", "applications", cidStr, "sessions", tokenId]
   submit "DELETE" $ req & addJSONObject ["password" .= password]
+
+-- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/delete_oauth_applications__OAuthClientId_
+revokeApplicationAccessV6 :: (HasCallStack, MakesValue user, MakesValue cid) => user -> cid -> App Response
+revokeApplicationAccessV6 user cid = do
+  cidStr <- asString cid
+  req <- baseRequest user Brig (ExplicitVersion 6) $ joinHttpPath ["oauth", "applications", cidStr]
+  submit "DELETE" req
