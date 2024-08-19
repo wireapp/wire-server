@@ -1,5 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -26,7 +24,6 @@ import Brig.App (initHttpManagerWithTLSConfig, mkIndexEnv)
 import Brig.Index.Options
 import Brig.Options
 import Brig.User.Search.Index
-import Cassandra qualified as C
 import Cassandra.Options
 import Cassandra.Util (defInitCassandra)
 import Control.Exception (throwIO)
@@ -45,7 +42,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.TinyLog hiding (Logger)
 import System.Logger qualified as Log
-import System.Logger.Class (Logger, MonadLogger (..))
+import System.Logger.Class (Logger)
 import Util.Options (initCredentials)
 import Wire.GalleyAPIAccess
 import Wire.GalleyAPIAccess.Rpc
@@ -226,32 +223,3 @@ newtype ReindexFromAnotherIndexError = ReindexFromAnotherIndexError String
   deriving (Show)
 
 instance Exception ReindexFromAnotherIndexError
-
---------------------------------------------------------------------------------
--- ReindexIO command monad
-
-newtype ReindexIO a = ReindexIO (ReaderT C.ClientState IndexIO a)
-  deriving
-    ( Functor,
-      Applicative,
-      Monad,
-      MonadIO,
-      MonadReader C.ClientState,
-      MonadThrow,
-      MonadCatch
-    )
-
-runReindexIO :: IndexEnv -> C.ClientState -> ReindexIO a -> IO a
-runReindexIO ixe cas (ReindexIO ma) = runIndexIO ixe (runReaderT ma cas)
-
-instance MonadIndexIO ReindexIO where
-  liftIndexIO = ReindexIO . ReaderT . const
-
-instance C.MonadClient ReindexIO where
-  liftClient ma = ask >>= \e -> C.runClient e ma
-  localState = local
-
-instance MonadLogger ReindexIO where
-  log lvl msg = do
-    l <- ReindexIO . lift $ asks idxLogger
-    Log.log l lvl msg
