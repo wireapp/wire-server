@@ -123,8 +123,6 @@ library
     Brig.Effects.UserPendingActivationStore.Cassandra
     Brig.Federation.Client
     Brig.Index.Eval
-    Brig.Index.Migrations
-    Brig.Index.Migrations.Types
     Brig.Index.Options
     Brig.Index.Types
     Brig.InternalEvent.Process

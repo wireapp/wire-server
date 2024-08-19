@@ -31,7 +31,13 @@ data IndexedUserStoreConfig = IndexedUserStoreConfig
     additionalConn :: Maybe ESConn
   }
 
-data IndexedUserStoreError = IndexUpdateError ES.EsError
+data IndexedUserStoreError
+  = IndexUpdateError ES.EsError
+  | IndexLookupError ES.EsError
+  | IndexError Text
+  deriving (Show)
+
+instance Exception IndexedUserStoreError
 
 interpretIndexedUserStoreES ::
   ( Member (Embed IO) r,
@@ -45,6 +51,7 @@ interpretIndexedUserStoreES cfg =
     Upsert docId userDoc versioning -> upsertImpl cfg docId userDoc versioning
     UpdateTeamSearchVisibilityInbound tid vis -> updateTeamSearchVisibilityInboundImpl cfg tid vis
     BulkUpsert docs -> bulkUpsertImpl cfg docs
+    DoesIndexExist -> doesIndexExistImpl cfg
 
 upsertImpl ::
   forall r.
@@ -58,7 +65,7 @@ upsertImpl ::
   ES.VersionControl ->
   Sem r ()
 upsertImpl cfg docId userDoc versioning = do
-  runInBothES cfg indexDoc
+  void $ runInBothES cfg indexDoc
   where
     indexDoc :: ES.IndexName -> ES.BH (Sem r) ()
     indexDoc idx = do
@@ -73,7 +80,7 @@ upsertImpl cfg docId userDoc versioning = do
 
 updateTeamSearchVisibilityInboundImpl :: forall r. (Member (Embed IO) r, Member (Error IndexedUserStoreError) r) => IndexedUserStoreConfig -> TeamId -> SearchVisibilityInbound -> Sem r ()
 updateTeamSearchVisibilityInboundImpl cfg tid vis =
-  runInBothES cfg updateAllDocs
+  void $ runInBothES cfg updateAllDocs
   where
     updateAllDocs :: ES.IndexName -> ES.BH (Sem r) ()
     updateAllDocs idx = do
@@ -150,12 +157,17 @@ bulkUpsertImpl cfg docs = do
                   ]
             ]
 
-runInBothES :: (Monad m) => IndexedUserStoreConfig -> (ES.IndexName -> ES.BH m a) -> m a
+doesIndexExistImpl :: (Member (Embed IO) r) => IndexedUserStoreConfig -> Sem r Bool
+doesIndexExistImpl cfg = do
+  (mainExists, fromMaybe True -> additionalExists) <- runInBothES cfg ES.indexExists
+  pure $ mainExists && additionalExists
+
+runInBothES :: (Monad m) => IndexedUserStoreConfig -> (ES.IndexName -> ES.BH m a) -> m (a, Maybe a)
 runInBothES cfg f = do
   x <- ES.runBH cfg.conn.env $ f cfg.conn.indexName
-  forM_ cfg.additionalConn $ \additional ->
+  y <- forM cfg.additionalConn $ \additional ->
     ES.runBH additional.env $ f additional.indexName
-  pure x
+  pure (x, y)
 
 mappingName :: ES.MappingName
 mappingName = ES.MappingName "user"

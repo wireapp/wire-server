@@ -23,13 +23,13 @@ module Brig.Index.Eval
 where
 
 import Brig.App (initHttpManagerWithTLSConfig, mkIndexEnv)
-import Brig.Index.Migrations
 import Brig.Index.Options
 import Brig.Options
 import Brig.User.Search.Index
 import Cassandra qualified as C
 import Cassandra.Options
 import Cassandra.Util (defInitCassandra)
+import Control.Exception (throwIO)
 import Control.Lens
 import Control.Monad.Catch
 import Control.Retry
@@ -37,11 +37,97 @@ import Data.Aeson (FromJSON)
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy.UTF8 qualified as UTF8
 import Data.Credentials (Credentials (..))
+import Data.Id
 import Database.Bloodhound qualified as ES
+import Database.Bloodhound.Internal.Client (BHEnv (..))
 import Imports
+import Polysemy
+import Polysemy.Error
+import Polysemy.TinyLog hiding (Logger)
 import System.Logger qualified as Log
 import System.Logger.Class (Logger, MonadLogger (..))
 import Util.Options (initCredentials)
+import Wire.GalleyAPIAccess
+import Wire.GalleyAPIAccess.Rpc
+import Wire.IndexedUserStore
+import Wire.IndexedUserStore.ElasticSearch
+import Wire.IndexedUserStore.Migration.ElasticSearch
+import Wire.ParseException
+import Wire.Rpc
+import Wire.Sem.Concurrency
+import Wire.Sem.Concurrency.IO
+import Wire.Sem.Logger.TinyLog
+import Wire.Sem.Metrics
+import Wire.Sem.Metrics.IO
+import Wire.UserSearch.Migration (MigrationException)
+import Wire.UserSearchSubsystem (UserSearchSubsystem, UserSearchSubsystemBulk)
+import Wire.UserSearchSubsystem qualified as UserSearchSubsystem
+import Wire.UserSearchSubsystem.Interpreter
+import Wire.UserStore
+import Wire.UserStore.Cassandra
+
+type BrigIndexEffectStack =
+  [ UserSearchSubsystemBulk,
+    UserSearchSubsystem,
+    UserStore,
+    IndexedUserStore,
+    Error IndexedUserStoreError,
+    IndexedUserMigrationStore,
+    Error MigrationException,
+    GalleyAPIAccess,
+    Error ParseException,
+    Rpc,
+    Metrics,
+    TinyLog,
+    Concurrency 'Unsafe,
+    Embed IO,
+    Final IO
+  ]
+
+runSem :: ESConnectionSettings -> CassandraSettings -> Endpoint -> Logger -> Sem BrigIndexEffectStack a -> IO a
+runSem esConn cas galleyEndpoint logger action = do
+  mgr <- initHttpManagerWithTLSConfig esConn.esInsecureSkipVerifyTls esConn.esCaCert
+  mEsCreds <- for esConn.esCredentials initCredentials
+  casClient <- defInitCassandra (toCassandraOpts cas) logger
+  let bhEnv =
+        BHEnv
+          { bhServer = toESServer esConn.esServer,
+            bhManager = mgr,
+            bhRequestHook = maybe pure (\creds -> ES.basicAuthHook (ES.EsUsername creds.username) (ES.EsPassword creds.password)) mEsCreds
+          }
+      indexedUserStoreConfig =
+        IndexedUserStoreConfig
+          { conn =
+              ESConn
+                { indexName = esConn.esIndex,
+                  env = bhEnv,
+                  credentials = mEsCreds
+                },
+            additionalConn = Nothing
+          }
+      reqId = (RequestId "brig-index")
+  runFinal
+    . embedToFinal
+    . unsafelyPerformConcurrency
+    . loggerToTinyLogReqId reqId logger
+    . ignoreMetrics
+    . runRpcWithHttp mgr reqId
+    . throwErrorToIOFinal @ParseException
+    . interpretGalleyAPIAccessToRpc mempty galleyEndpoint
+    . throwErrorToIOFinal @MigrationException
+    . interpretIndexedUserMigrationStoreES bhEnv
+    . throwErrorToIOFinal @IndexedUserStoreError
+    . interpretIndexedUserStoreES indexedUserStoreConfig
+    . interpretUserStoreCassandra casClient
+    . interpretUserSearchSubsystem
+    . interpretUserSearchSubsystemBulk
+    $ action
+
+throwErrorToIOFinal :: (Exception e, Member (Final IO) r) => InterpreterFor (Error e) r
+throwErrorToIOFinal action = do
+  runError action >>= \case
+    Left e -> embedFinal $ throwIO e
+    Right a -> pure a
 
 runCommand :: Logger -> Command -> IO ()
 runCommand l = \case
@@ -52,18 +138,17 @@ runCommand l = \case
     e <- initIndex (es ^. esConnection) galley
     runIndexIO e $ resetIndex (mkCreateIndexSettings es)
   Reindex es cas galley -> do
-    e <- initIndex (es ^. esConnection) galley
-    c <- initDb cas
-    runReindexIO e c reindexAll
+    runSem (es ^. esConnection) cas galley l $
+      UserSearchSubsystem.syncAllUsers
   ReindexSameOrNewer es cas galley -> do
-    e <- initIndex (es ^. esConnection) galley
-    c <- initDb cas
-    runReindexIO e c reindexAllIfSameOrNewer
+    runSem (es ^. esConnection) cas galley l $
+      UserSearchSubsystem.forceSyncAllUsers
   UpdateMapping esConn galley -> do
     e <- initIndex esConn galley
     runIndexIO e updateMapping
   Migrate es cas galley -> do
-    migrate l es cas galley
+    runSem (es ^. esConnection) cas galley l $
+      UserSearchSubsystem.migrateData
   ReindexFromAnotherIndex reindexSettings -> do
     mgr <-
       initHttpManagerWithTLSConfig
@@ -87,7 +172,7 @@ runCommand l = \case
       Log.info l $ Log.msg ("Reindexing" :: ByteString) . Log.field "from" (show src) . Log.field "to" (show dest)
       eitherTaskNodeId <- ES.reindexAsync $ ES.mkReindexRequest src dest
       case eitherTaskNodeId of
-        Left err -> throwM $ ReindexFromAnotherIndexError $ "Error occurred while running reindex: " <> show err
+        Left e -> throwM $ ReindexFromAnotherIndexError $ "Error occurred while running reindex: " <> show e
         Right taskNodeId -> do
           Log.info l $ Log.field "taskNodeId" (show taskNodeId)
           waitForTaskToComplete @ES.ReindexResponse timeoutSeconds taskNodeId
@@ -115,8 +200,6 @@ runCommand l = \case
     initES esURI mgr mCreds =
       let env = ES.mkBHEnv (toESServer esURI) mgr
        in maybe env (\(creds :: Credentials) -> env {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername creds.username) (ES.EsPassword creds.password)}) mCreds
-
-    initDb cas = defInitCassandra (toCassandraOpts cas) l
 
 waitForTaskToComplete :: forall a m. (ES.MonadBH m, MonadThrow m, FromJSON a) => Int -> ES.TaskNodeId -> m ()
 waitForTaskToComplete timeoutSeconds taskNodeId = do

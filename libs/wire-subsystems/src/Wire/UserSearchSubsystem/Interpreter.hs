@@ -12,18 +12,21 @@ import Data.Set qualified as Set
 import Database.Bloodhound.Types qualified as ES
 import Imports
 import Polysemy
+import Polysemy.Error
 import Polysemy.TinyLog
+import Polysemy.TinyLog qualified as Log
 import System.Logger.Message qualified as Log
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus (..))
 import Wire.API.Team.Feature
 import Wire.API.User.Search
 import Wire.GalleyAPIAccess
-import Wire.IndexedUserStore (IndexedUserStore)
+import Wire.IndexedUserStore (IndexedUserMigrationStore, IndexedUserStore)
 import Wire.IndexedUserStore qualified as IndexedUserStore
 import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe), unsafePooledForConcurrentlyN)
 import Wire.Sem.Metrics (Metrics)
 import Wire.Sem.Metrics qualified as Metrics
 import Wire.UserSearch.Metrics
+import Wire.UserSearch.Migration
 import Wire.UserSearch.Types
 import Wire.UserSearchSubsystem
 import Wire.UserStore
@@ -48,12 +51,15 @@ interpretUserSearchSubsystemBulk ::
     Member UserStore r,
     Member (Concurrency Unsafe) r,
     Member GalleyAPIAccess r,
-    Member IndexedUserStore r
+    Member IndexedUserStore r,
+    Member (Error MigrationException) r,
+    Member IndexedUserMigrationStore r
   ) =>
   InterpreterFor UserSearchSubsystemBulk r
 interpretUserSearchSubsystemBulk = interpret \case
-  SyncAllUsers -> syncAllUsersImpl (ES.ExternalGT)
-  ForceSyncAllUsers -> syncAllUsersImpl (ES.ExternalGTE)
+  SyncAllUsers -> syncAllUsersImpl
+  ForceSyncAllUsers -> forceSyncAllUsersImpl
+  MigrateData -> migrateDataImpl
 
 syncUserImpl ::
   forall r.
@@ -93,9 +99,31 @@ syncAllUsersImpl ::
     Member GalleyAPIAccess r,
     Member IndexedUserStore r
   ) =>
+  Sem r ()
+syncAllUsersImpl = syncAllUsersWithVersion ES.ExternalGT
+
+forceSyncAllUsersImpl ::
+  forall r.
+  ( Member UserStore r,
+    Member TinyLog r,
+    Member (Concurrency 'Unsafe) r,
+    Member GalleyAPIAccess r,
+    Member IndexedUserStore r
+  ) =>
+  Sem r ()
+forceSyncAllUsersImpl = syncAllUsersWithVersion ES.ExternalGTE
+
+syncAllUsersWithVersion ::
+  forall r.
+  ( Member UserStore r,
+    Member TinyLog r,
+    Member (Concurrency 'Unsafe) r,
+    Member GalleyAPIAccess r,
+    Member IndexedUserStore r
+  ) =>
   (ES.ExternalDocVersion -> ES.VersionControl) ->
   Sem r ()
-syncAllUsersImpl mkVersion =
+syncAllUsersWithVersion mkVersion =
   runConduit $
     paginateWithStateC getIndexUsersPaginated
       .| logPage
@@ -127,6 +155,39 @@ searchUserImpl = undefined
 
 browseTeamImpl :: UserId -> BrowseTeamFilters -> Maybe (Range 1 500 Int32) -> Maybe PagingState -> Sem r [TeamContact]
 browseTeamImpl = undefined
+
+migrateDataImpl ::
+  ( Member IndexedUserStore r,
+    Member (Error MigrationException) r,
+    Member IndexedUserMigrationStore r,
+    Member UserStore r,
+    Member (Concurrency Unsafe) r,
+    Member GalleyAPIAccess r,
+    Member TinyLog r
+  ) =>
+  Sem r ()
+migrateDataImpl = do
+  unlessM IndexedUserStore.doesIndexExist $
+    throw TargetIndexAbsent
+  IndexedUserStore.ensureMigrationIndex
+  foundVersion <- IndexedUserStore.getLatestMigrationVersion
+  if expectedMigrationVersion > foundVersion
+    then do
+      Log.info $
+        Log.msg (Log.val "Migration necessary.")
+          . Log.field "expectedVersion" expectedMigrationVersion
+          . Log.field "foundVersion" foundVersion
+      forceSyncAllUsersImpl
+      IndexedUserStore.persistMigrationVersion expectedMigrationVersion
+    else do
+      Log.info $
+        Log.msg (Log.val "No migration necessary.")
+          . Log.field "expectedVersion" expectedMigrationVersion
+          . Log.field "foundVersion" foundVersion
+
+-- | Increase this number any time you want to force reindexing.
+expectedMigrationVersion :: MigrationVersion
+expectedMigrationVersion = MigrationVersion 6
 
 docId :: UserId -> ES.DocId
 docId uid = ES.DocId (idToText uid)

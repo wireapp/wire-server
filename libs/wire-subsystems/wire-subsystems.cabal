@@ -93,6 +93,7 @@ library
     Wire.HashPassword
     Wire.IndexedUserStore
     Wire.IndexedUserStore.ElasticSearch
+    Wire.IndexedUserStore.Migration.ElasticSearch
     Wire.InternalEvent
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
@@ -112,6 +113,7 @@ library
     Wire.UserKeyStore
     Wire.UserKeyStore.Cassandra
     Wire.UserSearch.Metrics
+    Wire.UserSearch.Migration
     Wire.UserSearch.Types
     Wire.UserSearchSubsystem
     Wire.UserSearchSubsystem.Interpreter
