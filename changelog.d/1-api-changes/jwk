@@ -1,0 +1,1 @@
+The `mls/public-key` endpoint now takes a `format` query parameter which can be either `raw` (default, for raw base64-encoded keys) or `jwk` (for JWK keys)

@@ -228,6 +228,11 @@ getMLSPublicKeys user = do
   req <- baseRequest user Galley Versioned "/mls/public-keys"
   submit "GET" req
 
+getMLSPublicKeysJWK :: (HasCallStack, MakesValue user) => user -> App Response
+getMLSPublicKeysJWK user = do
+  req <- baseRequest user Galley Versioned "/mls/public-keys"
+  submit "GET" $ addQueryParams [("format", "jwk")] req
+
 postMLSMessage :: (HasCallStack) => ClientIdentity -> ByteString -> App Response
 postMLSMessage cid msg = do
   req <- baseRequest cid Galley Versioned "/mls/messages"

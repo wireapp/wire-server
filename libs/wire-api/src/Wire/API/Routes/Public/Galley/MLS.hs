@@ -110,23 +110,25 @@ type MLSMessagingAPI =
                :> MultiVerb1 'POST '[JSON] (Respond 201 "Commit accepted and forwarded" MLSMessageSendingStatus)
            )
     :<|> Named
-           "mls-public-keys-v6"
-           ( Summary "Get public keys used by the backend to sign external proposals"
-               :> From 'V5
-               :> Until 'V7
-               :> CanThrow 'MLSNotEnabled
-               :> "public-keys"
-               :> ZLocalUser
-               :> MultiVerb1 'GET '[JSON] (Respond 200 "Public keys" (MLSKeysByPurpose MLSPublicKeys))
-           )
-    :<|> Named
            "mls-public-keys"
            ( Summary "Get public keys used by the backend to sign external proposals"
-               :> From 'V7
+               :> Description
+                    "The format of the returned key is determined by the `format` query parameter:\n\
+                    \ - raw (default): base64-encoded raw public keys\n\
+                    \ - jwk: keys are nested objects in JWK format."
+               :> From 'V5
                :> CanThrow 'MLSNotEnabled
                :> "public-keys"
                :> ZLocalUser
-               :> MultiVerb1 'GET '[JSON] (Respond 200 "Public keys" (MLSKeysByPurpose MLSPublicKeysJWK))
+               :> QueryParam "format" MLSPublicKeyFormat
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    ( Respond
+                        200
+                        "Public keys"
+                        (MLSKeysByPurpose (MLSKeys SomeKey))
+                    )
            )
 
 type MLSAPI = LiftNamed ("mls" :> MLSMessagingAPI)

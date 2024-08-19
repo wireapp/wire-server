@@ -17,16 +17,20 @@
 
 module Wire.API.MLS.Keys where
 
+import Control.Lens ((?~))
 import Crypto.ECC (Curve_P256R1, Curve_P384R1, Curve_P521R1)
 import Crypto.PubKey.ECDSA qualified as ECDSA
 import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Aeson qualified as A
 import Data.Bifunctor
 import Data.ByteArray qualified as BA
+import Data.Default
 import Data.Json.Util
 import Data.OpenApi qualified as S
 import Data.Proxy
 import Data.Schema hiding (HasField)
 import Imports hiding (First, getFirst)
+import Web.HttpApiData
 import Wire.API.MLS.CipherSuite
 
 data MLSKeysByPurpose a = MLSKeysByPurpose
@@ -47,7 +51,7 @@ data MLSKeys a = MLSKeys
     ecdsa_secp384r1_sha384 :: a,
     ecdsa_secp521r1_sha512 :: a
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Functor, Foldable, Traversable)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema (MLSKeys a)
 
 instance (ToSchema a) => ToSchema (MLSKeys a) where
@@ -70,6 +74,7 @@ type MLSPublicKeys = MLSKeys MLSPublicKey
 
 newtype MLSPublicKey = MLSPublicKey {unwrapMLSPublicKey :: ByteString}
   deriving (Eq, Show)
+  deriving (ToJSON) via Schema MLSPublicKey
 
 instance ToSchema MLSPublicKey where
   schema = named "MLSPublicKey" $ MLSPublicKey <$> unwrapMLSPublicKey .= base64Schema
@@ -83,6 +88,30 @@ mlsKeysToPublic (MLSPrivateKeys (_, ed) (_, ec256) (_, ec384) (_, ec521)) =
       ecdsa_secp521r1_sha512 = MLSPublicKey $ ECDSA.encodePublic (Proxy @Curve_P521R1) ec521
     }
 
+data MLSPublicKeyFormat = MLSPublicKeyFormatRaw | MLSPublicKeyFormatJWK
+  deriving (Eq, Ord, Show)
+
+instance Default MLSPublicKeyFormat where
+  def = MLSPublicKeyFormatRaw
+
+instance FromHttpApiData MLSPublicKeyFormat where
+  parseQueryParam "raw" = pure MLSPublicKeyFormatRaw
+  parseQueryParam "jwk" = pure MLSPublicKeyFormatJWK
+  parseQueryParam _ = Left "invalid MLSPublicKeyFormat"
+
+instance ToHttpApiData MLSPublicKeyFormat where
+  toQueryParam MLSPublicKeyFormatRaw = "raw"
+  toQueryParam MLSPublicKeyFormatJWK = "jwk"
+
+instance S.ToParamSchema MLSPublicKeyFormat where
+  toParamSchema _ =
+    mempty
+      & S.type_ ?~ S.OpenApiString
+      & S.enum_
+        ?~ map
+          (toJSON . toQueryParam)
+          [MLSPublicKeyFormatRaw, MLSPublicKeyFormatJWK]
+
 data JWK = JWK
   { keyType :: String,
     curve :: String,
@@ -90,6 +119,7 @@ data JWK = JWK
     pubY :: Maybe ByteString
   }
   deriving (Show, Ord, Eq)
+  deriving (ToJSON) via Schema JWK
 
 instance ToSchema JWK where
   schema =
@@ -134,3 +164,15 @@ mlsKeysToPublicJWK (MLSPrivateKeys (_, ed) (_, ec256) (_, ec384) (_, ec521)) =
       -- to Y.
       let size = BA.length xy `div` 2
       pure $ BA.splitAt size xy
+
+data SomeKey = SomeKey A.Value
+
+instance ToSchema SomeKey where
+  schema = mkSchema d r w
+    where
+      d = pure $ S.NamedSchema (Just "SomeKey") mempty
+      r = fmap SomeKey . parseJSON
+      w (SomeKey x) = Just (toJSON x)
+
+mkSomeKey :: (ToJSON a) => a -> SomeKey
+mkSomeKey = SomeKey . toJSON
