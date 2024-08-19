@@ -96,7 +96,7 @@ import Brig.User.Search.Index (reindex)
 import Brig.User.Search.TeamSize qualified as TeamSize
 import Cassandra hiding (Set)
 import Control.Error
-import Control.Lens (view, (^.))
+import Control.Lens (preview, to, view, (^.), _Just)
 import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Code
@@ -127,7 +127,6 @@ import Wire.API.Error.Brig qualified as E
 import Wire.API.Password
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Team hiding (newTeam)
-import Wire.API.Team.Feature
 import Wire.API.Team.Invitation
 import Wire.API.Team.Invitation qualified as Team
 import Wire.API.Team.Member (legalHoldStatus)
@@ -481,8 +480,8 @@ createUser new = do
 
 initAccountFeatureConfig :: UserId -> (AppT r) ()
 initAccountFeatureConfig uid = do
-  mbCciDefNew <- view (settings . getAfcConferenceCallingDefNewMaybe)
-  forM_ (forgetLock <$> mbCciDefNew) $ wrapClient . Data.updateFeatureConferenceCalling uid . Just
+  mStatus <- preview (settings . featureFlags . _Just . to conferenceCalling . to forNew . _Just)
+  wrapClient $ traverse_ (Data.updateFeatureConferenceCalling uid . Just) mStatus
 
 -- | 'createUser' is becoming hard to maintain, and instead of adding more case distinctions
 -- all over the place there, we add a new function that handles just the one new flow where

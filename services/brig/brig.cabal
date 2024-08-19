@@ -334,7 +334,6 @@ library
     , wire-api
     , wire-api-federation
     , wire-subsystems
-    , yaml                       >=0.8.22
     , zauth                      >=0.10.3
 
 executable brig
@@ -526,7 +525,6 @@ test-suite brig-tests
     Test.Brig.Effects.Delay
     Test.Brig.InternalNotification
     Test.Brig.MLS
-    Test.Brig.Roundtrip
     Test.Brig.User.Search.Index.Types
 
   hs-source-dirs: test/unit

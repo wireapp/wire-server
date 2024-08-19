@@ -1,8 +1,6 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StrictData #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 -- This file is part of the Wire Server implementation.
@@ -79,14 +77,12 @@ module Wire.API.Team.Feature
     npProject,
     NpUpdate (..),
     npUpdate,
-    AllFeatureConfigs,
-    unImplicitLockStatus,
-    ImplicitLockStatus (..),
+    AllTeamFeatures,
   )
 where
 
 import Cassandra.CQL qualified as Cass
-import Control.Lens (makeLenses, (?~))
+import Control.Lens ((?~))
 import Data.Aeson qualified as A
 import Data.Aeson.Types qualified as A
 import Data.Attoparsec.ByteString qualified as Parser
@@ -120,7 +116,7 @@ import Test.QuickCheck.Arbitrary (arbitrary)
 import Test.QuickCheck.Gen (suchThat)
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite (CipherSuiteTag (MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519))
-import Wire.API.Routes.Named (RenderableSymbol (renderSymbol))
+import Wire.API.Routes.Named
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 ----------------------------------------------------------------------
@@ -128,54 +124,60 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 -- | Checklist for adding a new feature
 --
--- 1. Add a data type for your feature's "config" part, naming convention:
--- **<NameOfFeature>Config**. If your feature doesn't have a config besides
--- being enabled/disabled, locked/unlocked, then the config should be a unit
--- type, e.g. **data MyFeatureConfig = MyFeatureConfig**. Add a singleton for
--- the new data type. Implement type classes 'RenderableSymbol', 'ToSchema',
--- 'IsFeatureConfig' and 'Arbitrary'.
+-- Assume we want to add a new feature called @dummy@. Every appearance of
+-- @dummy@ or @Dummy@ in the following has to be replaced with the actual name
+-- of the feature being added.
 --
--- 2. Add the config to 'AllFeatureConfigs'.
+-- 1. Create a new type in this module for the feature configuration, called
+-- @DummyConfig@. If your feature doesn't have a config besides being 'status'
+-- and 'lockStatus', then the config should be a unit type, e.g. @data
+-- DummyConfig = DummyConfig@. Derive 'Eq', 'Show', 'Generic', 'Arbitrary',
+-- 'RenderableSymbol', 'FromJSON', 'ToJSON' and 'S.ToSchema'. Implement a
+-- 'ToSchema' instance. Add a singleton. Add the config type to 'Features'.
 --
--- 3. If your feature is configurable on a per-team basis, add a schema
--- migration in galley and extend 'getFeatureStatus' and similar functions in
--- Galley.Cassandra.TeamFeatures
+-- 2. Create a schema migration in galley, adding a column for each
+-- configurable value of the feature. The new columns must contain all the
+-- information needed to reconstruct a value of type 'LockableFeature
+-- DummyConfig'.
 --
--- 4. Add the feature to the config schema of galley in Galley.Types.Teams.
--- and extend the Arbitrary instance of FeatureConfigs in the unit tests
--- Test.Galley.Types
+-- 3. In 'Galley.Cassandra.MakeFeature', implement the 'MakeFeature' type
+-- class: set 'FeatureRow' to the list of types of the rows added by the
+-- migration. If the lock status is configurable (it should be in most cases),
+-- it must be the first in the list. Set 'featureColumns' to the names of the
+-- columns, in the same order. Implement `rowToFeature` and `featureToRow`.
 --
--- 5. Implement 'GetFeatureConfig' and 'SetFeatureConfig' in
--- Galley.API.Teams.Features which defines the main business logic for getting
--- and setting (with side-effects). Note that we don't have to check the
--- lockstatus inside 'setConfigForTeam' because the lockstatus is checked in
--- 'setFeatureStatus' before which is the public API for setting the feature
--- status.
+-- 4. Implement 'GetFeatureConfig' and 'SetFeatureConfig' in
+-- 'Galley.API.Teams.Features'. Empty instances will work fine unless this
+-- feature requires custom logic.
 --
--- 6. Add public routes to Wire.API.Routes.Public.Galley.Feature:
--- 'FeatureStatusGet', 'FeatureStatusPut' (optional). Then implement them in
--- Galley.API.Public.Feature.
+-- 5. Add a public route to 'Wire.API.Routes.Public.Galley.Feature' and the
+-- corresponding implementation in 'Galley.API.Public.Feature'.
 --
--- 7. Add internal routes in Wire.API.Routes.Internal.Galley and implement them
--- in Galley.API.Internal.
+-- 6. Add an internal route in 'Wire.API.Routes.Internal.Galley' and the
+-- corresponding implementation in 'Galley.API.Internal'.
 --
--- 8. If the feature should be configurable via Stern add routes to Stern.API.
+-- 7. If the feature should be configurable via Stern add routes to Stern.API.
 -- Manually check that the swagger looks okay and works.
 --
--- 9. If the feature is configured on a per-user level, see the
--- 'ConferenceCallingConfig' as an example.
--- (https://github.com/wireapp/wire-server/pull/1811,
--- https://github.com/wireapp/wire-server/pull/1818)
+-- 8. In 'Galley.Types.Team', add a new data instance @DummyDefaults@ to
+-- represent the server-wide feature defaults read from the configuration file.
+-- In most cases, this should be a newtype over 'LockableFeature DummyConfig'.
+-- Then derive all the instances like for the other features in that module.
+-- Note that 'ParseFeatureDefaults' can be derived either via 'OptionalField'
+-- or 'RequiredField', depending on whether the feature configuration should be
+-- optional or required.
 --
--- 10. Extend the integration tests with cases.
+-- 9. If necessary, add configuration for the feature in
+-- 'galley.integration.yaml', update the config map in
+-- 'charts/galley/templates/configmap.yaml' and set defaults in
+-- 'charts/galley/values.yaml'. Make sure that the configuration for CI matches
+-- the local one, or adjust 'hack/helm_vars/wire-server/values.yaml'
+-- accordingly.
 --
--- 11. If applicable, edit/update the configurations:
---     - optionally add the config for local integration tests to 'galley.integration.yaml'
---     - add a config mapping to 'charts/galley/templates/configmap.yaml'
---     - add the defaults to 'charts/galley/values.yaml'
---     - optionally add config for CI to 'hack/helm_vars/wire-server/values.yaml'
+-- 10. Add the default values of this feature in 'testAllFeatures'
+-- ('Test.FeatureFlags'). Add feature-specific integration tests.
 --
--- 12. Add a section to the documentation at an appropriate place
+-- 11. Add a section to the documentation at an appropriate place
 -- (e.g. 'docs/src/developer/reference/config-options.md' (if applicable) or
 -- 'docs/src/understand/team-feature-settings.md')
 class
@@ -538,15 +540,6 @@ instance ToSchema LockStatusResponse where
       LockStatusResponse
         <$> _unlockStatus .= field "lockStatus" schema
 
-newtype ImplicitLockStatus (cfg :: Type) = ImplicitLockStatus {_unImplicitLockStatus :: LockableFeature cfg}
-  deriving newtype (Eq, Show, Arbitrary)
-
-instance (IsFeatureConfig a, ToSchema a) => ToJSON (ImplicitLockStatus a) where
-  toJSON (ImplicitLockStatus a) = A.toJSON $ forgetLock a
-
-instance (IsFeatureConfig a, ToSchema a) => FromJSON (ImplicitLockStatus a) where
-  parseJSON v = ImplicitLockStatus . withLockStatus ((def @(LockableFeature a)).lockStatus) <$> A.parseJSON v
-
 -- | Convert a feature coming from the database to its public form. This can be
 -- overridden on a feature basis by implementing the `computeFeature` method of
 -- the `GetFeatureConfig` class.
@@ -563,12 +556,10 @@ genericComputeFeature defFeature dbFeature =
 data GuestLinksConfig = GuestLinksConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform GuestLinksConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName GuestLinksConfig)
 
 instance Default GuestLinksConfig where
   def = GuestLinksConfig
-
-instance RenderableSymbol GuestLinksConfig where
-  renderSymbol = "GuestLinksConfig"
 
 instance ToSchema GuestLinksConfig where
   schema = object "GuestLinksConfig" objectSchema
@@ -588,12 +579,10 @@ instance IsFeatureConfig GuestLinksConfig where
 data LegalholdConfig = LegalholdConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform LegalholdConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName LegalholdConfig)
 
 instance Default LegalholdConfig where
   def = LegalholdConfig
-
-instance RenderableSymbol LegalholdConfig where
-  renderSymbol = "LegalholdConfig"
 
 instance Default (LockableFeature LegalholdConfig) where
   def = defUnlockedFeature {status = FeatureStatusDisabled}
@@ -613,12 +602,10 @@ instance ToSchema LegalholdConfig where
 data SSOConfig = SSOConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SSOConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName SSOConfig)
 
 instance Default SSOConfig where
   def = SSOConfig
-
-instance RenderableSymbol SSOConfig where
-  renderSymbol = "SSOConfig"
 
 instance Default (LockableFeature SSOConfig) where
   def = defUnlockedFeature {status = FeatureStatusDisabled}
@@ -639,12 +626,10 @@ instance ToSchema SSOConfig where
 data SearchVisibilityAvailableConfig = SearchVisibilityAvailableConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SearchVisibilityAvailableConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName SearchVisibilityAvailableConfig)
 
 instance Default SearchVisibilityAvailableConfig where
   def = SearchVisibilityAvailableConfig
-
-instance RenderableSymbol SearchVisibilityAvailableConfig where
-  renderSymbol = "SearchVisibilityAvailableConfig"
 
 instance Default (LockableFeature SearchVisibilityAvailableConfig) where
   def = defUnlockedFeature {status = FeatureStatusDisabled}
@@ -666,12 +651,10 @@ type instance DeprecatedFeatureName SearchVisibilityAvailableConfig = "search-vi
 data ValidateSAMLEmailsConfig = ValidateSAMLEmailsConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ValidateSAMLEmailsConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName ValidateSAMLEmailsConfig)
 
 instance Default ValidateSAMLEmailsConfig where
   def = ValidateSAMLEmailsConfig
-
-instance RenderableSymbol ValidateSAMLEmailsConfig where
-  renderSymbol = "ValidateSAMLEmailsConfig"
 
 instance ToSchema ValidateSAMLEmailsConfig where
   schema = object "ValidateSAMLEmailsConfig" objectSchema
@@ -693,12 +676,10 @@ type instance DeprecatedFeatureName ValidateSAMLEmailsConfig = "validate-saml-em
 data DigitalSignaturesConfig = DigitalSignaturesConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform DigitalSignaturesConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName DigitalSignaturesConfig)
 
 instance Default DigitalSignaturesConfig where
   def = DigitalSignaturesConfig
-
-instance RenderableSymbol DigitalSignaturesConfig where
-  renderSymbol = "DigitalSignaturesConfig"
 
 instance Default (LockableFeature DigitalSignaturesConfig) where
   def = defUnlockedFeature {status = FeatureStatusDisabled}
@@ -744,12 +725,10 @@ data ConferenceCallingConfig = ConferenceCallingConfig
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConferenceCallingConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName ConferenceCallingConfig)
 
 instance Default ConferenceCallingConfig where
   def = ConferenceCallingConfig {one2OneCalls = def}
-
-instance RenderableSymbol ConferenceCallingConfig where
-  renderSymbol = "ConferenceCallingConfig"
 
 instance Default (LockableFeature ConferenceCallingConfig) where
   def = defLockedFeature {status = FeatureStatusEnabled}
@@ -774,12 +753,10 @@ instance ToSchema ConferenceCallingConfig where
 data SndFactorPasswordChallengeConfig = SndFactorPasswordChallengeConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SndFactorPasswordChallengeConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName SndFactorPasswordChallengeConfig)
 
 instance Default SndFactorPasswordChallengeConfig where
   def = SndFactorPasswordChallengeConfig
-
-instance RenderableSymbol SndFactorPasswordChallengeConfig where
-  renderSymbol = "SndFactorPasswordChallengeConfig"
 
 instance ToSchema SndFactorPasswordChallengeConfig where
   schema = object "SndFactorPasswordChallengeConfig" objectSchema
@@ -799,12 +776,10 @@ data SearchVisibilityInboundConfig = SearchVisibilityInboundConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SearchVisibilityInboundConfig)
   deriving (S.ToSchema) via Schema SearchVisibilityInboundConfig
+  deriving (RenderableSymbol) via (RenderableTypeName SearchVisibilityInboundConfig)
 
 instance Default SearchVisibilityInboundConfig where
   def = SearchVisibilityInboundConfig
-
-instance RenderableSymbol SearchVisibilityInboundConfig where
-  renderSymbol = "SearchVisibilityInboundConfig"
 
 instance Default (LockableFeature SearchVisibilityInboundConfig) where
   def = defUnlockedFeature {status = FeatureStatusDisabled}
@@ -828,12 +803,10 @@ data ClassifiedDomainsConfig = ClassifiedDomainsConfig
   }
   deriving stock (Show, Eq, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema ClassifiedDomainsConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName ClassifiedDomainsConfig)
 
 instance Default ClassifiedDomainsConfig where
   def = ClassifiedDomainsConfig []
-
-instance RenderableSymbol ClassifiedDomainsConfig where
-  renderSymbol = "ClassifiedDomainsConfig"
 
 deriving via (GenericUniform ClassifiedDomainsConfig) instance Arbitrary ClassifiedDomainsConfig
 
@@ -862,12 +835,10 @@ data AppLockConfig = AppLockConfig
   deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AppLockConfig)
   deriving (Arbitrary) via (GenericUniform AppLockConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName AppLockConfig)
 
 instance Default AppLockConfig where
   def = AppLockConfig (EnforceAppLock False) 60
-
-instance RenderableSymbol AppLockConfig where
-  renderSymbol = "AppLockConfig"
 
 instance ToSchema AppLockConfig where
   schema =
@@ -899,12 +870,10 @@ instance ToSchema EnforceAppLock where
 data FileSharingConfig = FileSharingConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform FileSharingConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName FileSharingConfig)
 
 instance Default FileSharingConfig where
   def = FileSharingConfig
-
-instance RenderableSymbol FileSharingConfig where
-  renderSymbol = "FileSharingConfig"
 
 instance Default (LockableFeature FileSharingConfig) where
   def = defUnlockedFeature
@@ -926,12 +895,10 @@ newtype SelfDeletingMessagesConfig = SelfDeletingMessagesConfig
   deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema SelfDeletingMessagesConfig)
   deriving (Arbitrary) via (GenericUniform SelfDeletingMessagesConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName SelfDeletingMessagesConfig)
 
 instance Default SelfDeletingMessagesConfig where
   def = SelfDeletingMessagesConfig 0
-
-instance RenderableSymbol SelfDeletingMessagesConfig where
-  renderSymbol = "SelfDeletingMessagesConfig"
 
 instance ToSchema SelfDeletingMessagesConfig where
   schema =
@@ -959,6 +926,7 @@ data MLSConfig = MLSConfig
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform MLSConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName MLSConfig)
 
 instance Default MLSConfig where
   def =
@@ -968,9 +936,6 @@ instance Default MLSConfig where
       [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519]
       MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
       [ProtocolProteusTag, ProtocolMLSTag]
-
-instance RenderableSymbol MLSConfig where
-  renderSymbol = "MLSConfig"
 
 instance ToSchema MLSConfig where
   schema =
@@ -996,12 +961,10 @@ instance IsFeatureConfig MLSConfig where
 data ExposeInvitationURLsToTeamAdminConfig = ExposeInvitationURLsToTeamAdminConfig
   deriving stock (Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform ExposeInvitationURLsToTeamAdminConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName ExposeInvitationURLsToTeamAdminConfig)
 
 instance Default ExposeInvitationURLsToTeamAdminConfig where
   def = ExposeInvitationURLsToTeamAdminConfig
-
-instance RenderableSymbol ExposeInvitationURLsToTeamAdminConfig where
-  renderSymbol = "ExposeInvitationURLsToTeamAdminConfig"
 
 instance Default (LockableFeature ExposeInvitationURLsToTeamAdminConfig) where
   def = defLockedFeature
@@ -1022,12 +985,10 @@ instance ToSchema ExposeInvitationURLsToTeamAdminConfig where
 data OutlookCalIntegrationConfig = OutlookCalIntegrationConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform OutlookCalIntegrationConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName OutlookCalIntegrationConfig)
 
 instance Default OutlookCalIntegrationConfig where
   def = OutlookCalIntegrationConfig
-
-instance RenderableSymbol OutlookCalIntegrationConfig where
-  renderSymbol = "OutlookCalIntegrationConfig"
 
 instance Default (LockableFeature OutlookCalIntegrationConfig) where
   def = defLockedFeature
@@ -1050,12 +1011,10 @@ data MlsE2EIdConfig = MlsE2EIdConfig
     useProxyOnMobile :: Bool
   }
   deriving stock (Eq, Show, Generic)
+  deriving (RenderableSymbol) via (RenderableTypeName MlsE2EIdConfig)
 
 instance Default MlsE2EIdConfig where
   def = MlsE2EIdConfig (fromIntegral @Int (60 * 60 * 24)) Nothing Nothing False
-
-instance RenderableSymbol MlsE2EIdConfig where
-  renderSymbol = "MlsE2EIdConfig"
 
 instance Arbitrary MlsE2EIdConfig where
   arbitrary =
@@ -1112,12 +1071,10 @@ data MlsMigrationConfig = MlsMigrationConfig
     finaliseRegardlessAfter :: Maybe UTCTime
   }
   deriving stock (Eq, Show, Generic)
+  deriving (RenderableSymbol) via (RenderableTypeName MlsMigrationConfig)
 
 instance Default MlsMigrationConfig where
   def = MlsMigrationConfig Nothing Nothing
-
-instance RenderableSymbol MlsMigrationConfig where
-  renderSymbol = "MlsMigrationConfig"
 
 instance Arbitrary MlsMigrationConfig where
   arbitrary = do
@@ -1151,12 +1108,10 @@ data EnforceFileDownloadLocationConfig = EnforceFileDownloadLocationConfig
   { enforcedDownloadLocation :: Maybe Text
   }
   deriving stock (Eq, Show, Generic)
+  deriving (RenderableSymbol) via (RenderableTypeName EnforceFileDownloadLocationConfig)
 
 instance Default EnforceFileDownloadLocationConfig where
   def = EnforceFileDownloadLocationConfig Nothing
-
-instance RenderableSymbol EnforceFileDownloadLocationConfig where
-  renderSymbol = "EnforceFileDownloadLocationConfig"
 
 instance Arbitrary EnforceFileDownloadLocationConfig where
   arbitrary = EnforceFileDownloadLocationConfig . fmap (T.pack . getPrintableString) <$> arbitrary
@@ -1186,12 +1141,10 @@ instance IsFeatureConfig EnforceFileDownloadLocationConfig where
 data LimitedEventFanoutConfig = LimitedEventFanoutConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform LimitedEventFanoutConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName LimitedEventFanoutConfig)
 
 instance Default LimitedEventFanoutConfig where
   def = LimitedEventFanoutConfig
-
-instance RenderableSymbol LimitedEventFanoutConfig where
-  renderSymbol = "LimitedEventFanoutConfig"
 
 instance Default (LockableFeature LimitedEventFanoutConfig) where
   def = defUnlockedFeature
@@ -1293,13 +1246,13 @@ type Features =
 type AllFeatures f = NP f Features
 
 -- | 'AllFeatures' specialised to the 'LockableFeature' functor
-type AllFeatureConfigs = AllFeatures LockableFeature
+type AllTeamFeatures = AllFeatures LockableFeature
 
 class (Default (LockableFeature cfg)) => LockableFeatureDefault cfg
 
 instance (Default (LockableFeature cfg)) => LockableFeatureDefault cfg
 
-instance Default AllFeatureConfigs where
+instance Default AllTeamFeatures where
   def = hcpure (Proxy @LockableFeatureDefault) def
 
 -- | object schema for nary products
@@ -1312,14 +1265,14 @@ instance HObjectSchema c '[] where
 instance (HObjectSchema c xs, c x) => HObjectSchema c ((x :: Type) : xs) where
   hobjectSchema f = (:*) <$> hd .= f <*> tl .= hobjectSchema @c @xs f
 
--- | constraint synonym  for 'ToSchema' 'AllFeatureConfigs'
+-- | constraint synonym  for 'ToSchema' 'AllTeamFeatures'
 class (IsFeatureConfig cfg, ToSchema cfg) => FeatureFieldConstraints cfg
 
 instance (IsFeatureConfig cfg, ToSchema cfg) => FeatureFieldConstraints cfg
 
-instance ToSchema AllFeatureConfigs where
+instance ToSchema AllTeamFeatures where
   schema =
-    object "AllFeatureConfigs" $ hobjectSchema @FeatureFieldConstraints featureField
+    object "AllTeamFeatures" $ hobjectSchema @FeatureFieldConstraints featureField
     where
       featureField :: forall cfg. (FeatureFieldConstraints cfg) => ObjectSchema SwaggerDoc (LockableFeature cfg)
       featureField = field (T.pack (symbolVal (Proxy @(FeatureSymbol cfg)))) schema
@@ -1328,7 +1281,7 @@ class (Arbitrary cfg, IsFeatureConfig cfg) => ArbitraryFeatureConfig cfg
 
 instance (Arbitrary cfg, IsFeatureConfig cfg) => ArbitraryFeatureConfig cfg
 
-instance Arbitrary AllFeatureConfigs where
+instance Arbitrary AllTeamFeatures where
   arbitrary = hsequence' $ hcpure (Proxy @ArbitraryFeatureConfig) (Comp arbitrary)
 
 -- | FUTUREWORK: 'NpProject' and 'NpUpdate' can be useful for more than
@@ -1365,10 +1318,8 @@ instance (TypeError ('ShowType x :<>: 'Text " not found")) => NpUpdate x '[] whe
 npUpdate :: forall x f xs. (NpUpdate x xs) => f x -> NP f xs -> NP f xs
 npUpdate = npUpdate' (Proxy @x)
 
-makeLenses ''ImplicitLockStatus
+deriving via (Schema AllTeamFeatures) instance (FromJSON AllTeamFeatures)
 
-deriving via (Schema AllFeatureConfigs) instance (FromJSON AllFeatureConfigs)
+deriving via (Schema AllTeamFeatures) instance (ToJSON AllTeamFeatures)
 
-deriving via (Schema AllFeatureConfigs) instance (ToJSON AllFeatureConfigs)
-
-deriving via (Schema AllFeatureConfigs) instance (S.ToSchema AllFeatureConfigs)
+deriving via (Schema AllTeamFeatures) instance (S.ToSchema AllTeamFeatures)

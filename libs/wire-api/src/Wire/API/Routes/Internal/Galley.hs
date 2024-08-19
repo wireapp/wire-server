@@ -105,7 +105,7 @@ type IFeatureAPI =
                     ]
                     "user_id"
                     UserId
-               :> Get '[JSON] AllFeatureConfigs
+               :> Get '[JSON] AllTeamFeatures
            )
 
 type InternalAPI = "i" :> InternalAPIBase

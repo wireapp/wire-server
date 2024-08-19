@@ -71,7 +71,6 @@ import Cassandra hiding (Set)
 import Control.Error
 import Control.Lens hiding (from)
 import Data.Conduit (ConduitM)
-import Data.Default
 import Data.Domain
 import Data.Handle (Handle)
 import Data.Id
@@ -85,7 +84,7 @@ import Imports
 import Polysemy
 import Wire.API.Password
 import Wire.API.Provider.Service
-import Wire.API.Team.Feature qualified as ApiFt
+import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.API.User.RichInfo
 import Wire.PasswordStore
@@ -301,13 +300,11 @@ updateManagedBy u h = retry x5 $ write userManagedByUpdate (params LocalQuorum (
 updateRichInfo :: (MonadClient m) => UserId -> RichInfoAssocList -> m ()
 updateRichInfo u ri = retry x5 $ write userRichInfoUpdate (params LocalQuorum (ri, u))
 
-updateFeatureConferenceCalling :: (MonadClient m) => UserId -> Maybe (ApiFt.Feature ApiFt.ConferenceCallingConfig) -> m (Maybe (ApiFt.Feature ApiFt.ConferenceCallingConfig))
-updateFeatureConferenceCalling uid mbStatus = do
-  let flag = (.status) <$> mbStatus
-  retry x5 $ write update (params LocalQuorum (flag, uid))
-  pure mbStatus
+updateFeatureConferenceCalling :: (MonadClient m) => UserId -> Maybe FeatureStatus -> m ()
+updateFeatureConferenceCalling uid mStatus =
+  retry x5 $ write update (params LocalQuorum (mStatus, uid))
   where
-    update :: PrepQuery W (Maybe ApiFt.FeatureStatus, UserId) ()
+    update :: PrepQuery W (Maybe FeatureStatus, UserId) ()
     update = fromString "update user set feature_conference_calling = ? where id = ?"
 
 deleteEmail :: (MonadClient m) => UserId -> m ()
@@ -438,15 +435,12 @@ lookupServiceUsersForTeam pid sid tid =
       "SELECT user, conv FROM service_team \
       \WHERE provider = ? AND service = ? AND team = ?"
 
-lookupFeatureConferenceCalling :: (MonadClient m) => UserId -> m (Maybe (ApiFt.Feature ApiFt.ConferenceCallingConfig))
+lookupFeatureConferenceCalling :: (MonadClient m) => UserId -> m (Maybe FeatureStatus)
 lookupFeatureConferenceCalling uid = do
   let q = query1 select (params LocalQuorum (Identity uid))
-  mStatusValue <- (>>= runIdentity) <$> retry x1 q
-  case mStatusValue of
-    Nothing -> pure Nothing
-    Just status -> pure $ Just $ def {ApiFt.status = status}
+  (>>= runIdentity) <$> retry x1 q
   where
-    select :: PrepQuery R (Identity UserId) (Identity (Maybe ApiFt.FeatureStatus))
+    select :: PrepQuery R (Identity UserId) (Identity (Maybe FeatureStatus))
     select = fromString "select feature_conference_calling from user where id = ?"
 
 -------------------------------------------------------------------------------

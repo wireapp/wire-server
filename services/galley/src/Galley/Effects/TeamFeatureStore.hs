@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -25,15 +23,15 @@ import Wire.API.Team.Feature
 
 data TeamFeatureStore m a where
   -- | Returns all stored feature values excluding lock status.
-  GetFeatureConfig ::
+  GetDbFeature ::
     FeatureSingleton cfg ->
     TeamId ->
     TeamFeatureStore m (DbFeature cfg)
-  GetFeatureConfigMulti ::
+  GetDbFeatureMulti ::
     FeatureSingleton cfg ->
     [TeamId] ->
     TeamFeatureStore m [(TeamId, DbFeature cfg)]
-  SetFeatureConfig ::
+  SetDbFeature ::
     FeatureSingleton cfg ->
     TeamId ->
     LockableFeature cfg ->
@@ -43,8 +41,37 @@ data TeamFeatureStore m a where
     TeamId ->
     LockStatus ->
     TeamFeatureStore m ()
-  GetAllFeatureConfigs ::
+  GetAllDbFeatures ::
     TeamId ->
     TeamFeatureStore m (AllFeatures DbFeature)
 
-makeSem ''TeamFeatureStore
+getDbFeature ::
+  (Member TeamFeatureStore r, IsFeatureConfig cfg) =>
+  TeamId ->
+  Sem r (DbFeature cfg)
+getDbFeature tid = send (GetDbFeature featureSingleton tid)
+
+getDbFeatureMulti ::
+  (Member TeamFeatureStore r, IsFeatureConfig cfg) =>
+  [TeamId] ->
+  Sem r [(TeamId, DbFeature cfg)]
+getDbFeatureMulti tids = send (GetDbFeatureMulti featureSingleton tids)
+
+setDbFeature ::
+  (Member TeamFeatureStore r, IsFeatureConfig cfg) =>
+  TeamId ->
+  LockableFeature cfg ->
+  Sem r ()
+setDbFeature tid feat = send (SetDbFeature featureSingleton tid feat)
+
+setFeatureLockStatus ::
+  forall cfg r.
+  (Member TeamFeatureStore r, IsFeatureConfig cfg) =>
+  TeamId ->
+  LockStatus ->
+  Sem r ()
+setFeatureLockStatus tid lockStatus =
+  send (SetFeatureLockStatus (featureSingleton @cfg) tid lockStatus)
+
+getAllDbFeatures :: (Member TeamFeatureStore r) => TeamId -> Sem r (AllFeatures DbFeature)
+getAllDbFeatures tid = send (GetAllDbFeatures tid)

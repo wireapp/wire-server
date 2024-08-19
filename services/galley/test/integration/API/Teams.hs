@@ -412,7 +412,7 @@ testEnableSSOPerTeam = do
         liftIO $ do
           assertEqual "bad status" status403 (Wai.code waierr)
           assertEqual "bad label" "not-implemented" (Wai.label waierr)
-  featureSSO <- view (tsGConf . settings . featureFlags . flagSSO)
+  featureSSO <- view (tsGConf . settings . featureFlags . to npProject)
   case featureSSO of
     FeatureSSOEnabledByDefault -> check "Teams should start with SSO enabled" FeatureStatusEnabled
     FeatureSSODisabledByDefault -> check "Teams should start with SSO disabled" FeatureStatusDisabled

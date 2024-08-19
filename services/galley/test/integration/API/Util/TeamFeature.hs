@@ -24,7 +24,7 @@ module API.Util.TeamFeature where
 import API.Util (HasGalley (viewGalley), zUser)
 import API.Util qualified as Util
 import Bilge
-import Control.Lens ((.~))
+import Control.Lens ((%~))
 import Data.ByteString.Conversion (toByteString')
 import Data.Id (ConvId, TeamId, UserId)
 import Galley.Options (featureFlags, settings)
@@ -33,9 +33,13 @@ import Imports
 import TestSetup
 import Wire.API.Team.Feature
 
-withCustomSearchFeature :: FeatureTeamSearchVisibilityAvailability -> TestM () -> TestM ()
+withCustomSearchFeature :: FeatureDefaults SearchVisibilityAvailableConfig -> TestM () -> TestM ()
 withCustomSearchFeature flag action = do
-  Util.withSettingsOverrides (\opts -> opts & settings . featureFlags . flagTeamSearchVisibility .~ flag) action
+  Util.withSettingsOverrides
+    ( \opts ->
+        opts & settings . featureFlags %~ npUpdate @SearchVisibilityAvailableConfig flag
+    )
+    action
 
 putTeamSearchVisibilityAvailableInternal ::
   (HasCallStack) =>

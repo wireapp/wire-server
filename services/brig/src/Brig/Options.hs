@@ -29,10 +29,8 @@ import Brig.User.Auth.Cookie.Limit
 import Brig.ZAuth qualified as ZAuth
 import Control.Applicative
 import Control.Lens qualified as Lens
-import Data.Aeson (defaultOptions, fieldLabelModifier, genericParseJSON)
-import Data.Aeson qualified as A
-import Data.Aeson qualified as Aeson
-import Data.Aeson.Types (typeMismatch)
+import Data.Aeson
+import Data.Aeson.Types qualified as A
 import Data.Char qualified as Char
 import Data.Code qualified as Code
 import Data.Default
@@ -47,10 +45,7 @@ import Data.Scientific (toBoundedInteger)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.Time.Clock (DiffTime, NominalDiffTime, secondsToDiffTime)
-import Data.Yaml (FromJSON (..), ToJSON (..), (.:), (.:?))
-import Data.Yaml qualified as Y
 import Database.Bloodhound.Types qualified as ES
-import Galley.Types.Teams (unImplicitLockStatus)
 import Imports
 import Network.AMQP.Extended
 import Network.DNS qualified as DNS
@@ -59,9 +54,8 @@ import Util.Options
 import Wire.API.Allowlists (AllowlistEmailDomains (..))
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Version
-import Wire.API.Team.Feature qualified as Public
+import Wire.API.Team.Feature
 import Wire.API.User
-import Wire.Arbitrary (Arbitrary, arbitrary)
 import Wire.EmailSending.SMTP (SMTPConnType (..))
 
 newtype Timeout = Timeout
@@ -172,8 +166,8 @@ data InternalEventsOpts = InternalEventsOpts
   deriving (Show)
 
 instance FromJSON InternalEventsOpts where
-  parseJSON = Y.withObject "InternalEventsOpts" $ \o ->
-    InternalEventsOpts <$> parseJSON (Y.Object o)
+  parseJSON = withObject "InternalEventsOpts" $ \o ->
+    InternalEventsOpts <$> parseJSON (Object o)
 
 data EmailSMSGeneralOpts = EmailSMSGeneralOpts
   { -- | Email, SMS, ... template directory
@@ -329,12 +323,12 @@ data TurnOpts = TurnOpts
   deriving (Show)
 
 instance FromJSON TurnOpts where
-  parseJSON = A.withObject "TurnOpts" $ \o -> do
+  parseJSON = withObject "TurnOpts" $ \o -> do
     sourceName <- o .: "serversSource"
     source <-
       case sourceName of
-        "files" -> TurnSourceFiles <$> A.parseJSON (A.Object o)
-        "dns" -> TurnSourceDNS <$> A.parseJSON (A.Object o)
+        "files" -> TurnSourceFiles <$> parseJSON (Object o)
+        "dns" -> TurnSourceDNS <$> parseJSON (Object o)
         _ -> fail $ "TurnOpts: Invalid sourceType, expected one of [files, dns] but got: " <> Text.unpack sourceName
     TurnOpts source
       <$> o .: "secret"
@@ -353,7 +347,7 @@ data TurnServersFiles = TurnServersFiles
   deriving (Show)
 
 instance FromJSON TurnServersFiles where
-  parseJSON = A.withObject "TurnServersFiles" $ \o ->
+  parseJSON = withObject "TurnServersFiles" $ \o ->
     TurnServersFiles
       <$> o .: "servers"
       <*> o .: "serversV2"
@@ -365,7 +359,7 @@ data TurnDnsOpts = TurnDnsOpts
   deriving (Show)
 
 instance FromJSON TurnDnsOpts where
-  parseJSON = A.withObject "TurnDnsOpts" $ \o ->
+  parseJSON = withObject "TurnDnsOpts" $ \o ->
     TurnDnsOpts
       <$> (asciiOnly =<< o .: "baseDomain")
       <*> o .:? "discoveryIntervalSeconds"
@@ -553,7 +547,7 @@ data Settings = Settings
     -- docs/reference/user/registration.md {#RefRestrictRegistration}.
     setRestrictUserCreation :: !(Maybe Bool),
     -- | The analog to `Galley.Options.setFeatureFlags`.  See 'AccountFeatureConfigs'.
-    setFeatureFlags :: !(Maybe AccountFeatureConfigs),
+    setFeatureFlags :: !(Maybe UserFeatureFlags),
     -- | Customer extensions.  Read 'CustomerExtensions' docs carefully!
     setCustomerExtensions :: !(Maybe CustomerExtensions),
     -- | When set; instead of using SRV lookups to discover SFTs the calls
@@ -611,11 +605,11 @@ newtype ImplicitNoFederationRestriction = ImplicitNoFederationRestriction
 
 instance FromJSON ImplicitNoFederationRestriction where
   parseJSON =
-    Aeson.withObject
+    withObject
       "ImplicitNoFederationRestriction"
       ( \obj -> do
-          domain <- obj Aeson..: "domain"
-          searchPolicy <- obj Aeson..: "search_policy"
+          domain <- obj .: "domain"
+          searchPolicy <- obj .: "search_policy"
           pure . ImplicitNoFederationRestriction $
             FederationDomainConfig domain searchPolicy FederationRestrictionAllowAll
       )
@@ -692,72 +686,39 @@ defaultOAuthMaxActiveRefreshTokens = 10
 setOAuthMaxActiveRefreshTokens :: Settings -> Word32
 setOAuthMaxActiveRefreshTokens = fromMaybe defaultOAuthMaxActiveRefreshTokens . setOAuthMaxActiveRefreshTokensInternal
 
--- | The analog to `GT.FeatureFlags`.  This type tracks only the things that we need to
--- express our current cloud business logic.
---
--- FUTUREWORK: it would be nice to have a system of feature configs that allows to coherently
--- express arbitrary logic across personal and team accounts, teams, and instances; including
--- default values for new records, default for records that have a NULL value (eg., because
--- they are grandfathered), and feature-specific extra data (eg., TLL for self-deleting
--- messages).  For now, we have something quick & simple.
-data AccountFeatureConfigs = AccountFeatureConfigs
-  { afcConferenceCallingDefNew :: !(Public.ImplicitLockStatus Public.ConferenceCallingConfig),
-    afcConferenceCallingDefNull :: !(Public.ImplicitLockStatus Public.ConferenceCallingConfig)
+-- | The analog to `FeatureFlags`. At the moment, only status flags for
+-- conferenceCalling are stored.
+data UserFeatureFlags = UserFeatureFlags
+  { conferenceCalling :: UserFeature ConferenceCallingConfig
   }
-  deriving (Show, Eq, Generic)
+  deriving (Eq, Ord, Show)
 
-instance Arbitrary AccountFeatureConfigs where
-  arbitrary = AccountFeatureConfigs <$> fmap locked arbitrary <*> fmap locked arbitrary
-    where
-      locked :: Public.ImplicitLockStatus a -> Public.ImplicitLockStatus a
-      locked impl =
-        Public.ImplicitLockStatus $
-          (Public._unImplicitLockStatus impl)
-            { Public.lockStatus = Public.LockStatusLocked
-            }
+instance FromJSON UserFeatureFlags where
+  parseJSON = withObject "UserFeatureFlags" $ \obj -> do
+    UserFeatureFlags
+      <$> obj .:? "conferenceCalling" .!= def
 
-instance FromJSON AccountFeatureConfigs where
-  parseJSON =
-    Aeson.withObject
-      "AccountFeatureConfigs"
-      ( \obj -> do
-          confCallInit <- obj Aeson..: "conferenceCalling"
-          Aeson.withObject
-            "conferenceCalling"
-            ( \obj' -> do
-                AccountFeatureConfigs
-                  <$> obj' Aeson..: "defaultForNew"
-                  <*> obj' Aeson..: "defaultForNull"
-            )
-            confCallInit
-      )
+data family UserFeature cfg
 
-instance ToJSON AccountFeatureConfigs where
-  toJSON
-    AccountFeatureConfigs
-      { afcConferenceCallingDefNew,
-        afcConferenceCallingDefNull
-      } =
-      Aeson.object
-        [ "conferenceCalling"
-            Aeson..= Aeson.object
-              [ "defaultForNew" Aeson..= afcConferenceCallingDefNew,
-                "defaultForNull" Aeson..= afcConferenceCallingDefNull
-              ]
-        ]
+data instance UserFeature ConferenceCallingConfig = ConferenceCallingUserStatus
+  { -- | This will be set as the status of the feature for newly created users.
+    forNew :: Maybe FeatureStatus,
+    -- | How an unset status for this feature should be interpreted.
+    forNull :: FeatureStatus
+  }
+  deriving (Eq, Ord, Show)
 
-getAfcConferenceCallingDefNewMaybe :: Lens.Getter Settings (Maybe (Public.LockableFeature Public.ConferenceCallingConfig))
-getAfcConferenceCallingDefNewMaybe = Lens.to (Lens.^? (Lens.to setFeatureFlags . Lens._Just . Lens.to afcConferenceCallingDefNew . unImplicitLockStatus))
+instance Default (UserFeature ConferenceCallingConfig) where
+  def = ConferenceCallingUserStatus Nothing FeatureStatusEnabled
 
-getAfcConferenceCallingDefNull :: Lens.Getter Settings (Public.LockableFeature Public.ConferenceCallingConfig)
-getAfcConferenceCallingDefNull = Lens.to (Public._unImplicitLockStatus . afcConferenceCallingDefNull . fromMaybe defAccountFeatureConfigs . setFeatureFlags)
+instance FromJSON (UserFeature ConferenceCallingConfig) where
+  parseJSON = withObject "UserFeatureConferenceCalling" $ \obj -> do
+    ConferenceCallingUserStatus
+      <$> A.explicitParseFieldMaybe parseUserFeatureStatus obj "defaultForNew"
+      <*> A.explicitParseFieldMaybe parseUserFeatureStatus obj "defaultForNull" .!= forNull def
 
-defAccountFeatureConfigs :: AccountFeatureConfigs
-defAccountFeatureConfigs =
-  AccountFeatureConfigs
-    { afcConferenceCallingDefNew = Public.ImplicitLockStatus def,
-      afcConferenceCallingDefNull = Public.ImplicitLockStatus def
-    }
+parseUserFeatureStatus :: A.Value -> A.Parser FeatureStatus
+parseUserFeatureStatus = withObject "UserFeatureStatus" $ \obj -> obj .: "status"
 
 -- | Customer extensions naturally are covered by the AGPL like everything else, but use them
 -- at your own risk!  If you use the default server config and do not set
@@ -814,7 +775,7 @@ data SFTOptions = SFTOptions
   deriving (Show, Generic)
 
 instance FromJSON SFTOptions where
-  parseJSON = Y.withObject "SFTOptions" $ \o ->
+  parseJSON = withObject "SFTOptions" $ \o ->
     SFTOptions
       <$> (asciiOnly =<< o .: "sftBaseDomain")
       <*> (mapM asciiOnly =<< o .:? "sftSRVServiceName")
@@ -829,12 +790,12 @@ data SFTTokenOptions = SFTTokenOptions
   deriving (Show, Generic)
 
 instance FromJSON SFTTokenOptions where
-  parseJSON = Y.withObject "SFTTokenOptions" $ \o ->
+  parseJSON = withObject "SFTTokenOptions" $ \o ->
     SFTTokenOptions
       <$> (o .: "ttl")
       <*> (o .: "secret")
 
-asciiOnly :: Text -> Y.Parser ByteString
+asciiOnly :: Text -> A.Parser ByteString
 asciiOnly t =
   if Text.all Char.isAscii t
     then pure $ Text.encodeUtf8 t
@@ -865,14 +826,14 @@ defSftListLength :: Range 1 100 Int
 defSftListLength = unsafeRange 5
 
 instance FromJSON Timeout where
-  parseJSON (Y.Number n) =
+  parseJSON (Number n) =
     let defaultV = 3600
         bounded = toBoundedInteger n :: Maybe Int64
      in pure $
           Timeout $
             fromIntegral @Int $
               maybe defaultV fromIntegral bounded
-  parseJSON v = typeMismatch "activationTimeout" v
+  parseJSON v = A.typeMismatch "activationTimeout" v
 
 instance FromJSON Settings where
   parseJSON = genericParseJSON customOptions
@@ -920,6 +881,7 @@ Lens.makeLensesFor
     ("setFederationDomainConfigs", "federationDomainConfigs"),
     ("setFederationStrategy", "federationStrategy"),
     ("setRestrictUserCreation", "restrictUserCreation"),
+    ("setFeatureFlags", "featureFlags"),
     ("setEnableMLS", "enableMLS"),
     ("setOAuthEnabledInternal", "oauthEnabledInternal"),
     ("setOAuthAuthorizationCodeExpirationTimeSecsInternal", "oauthAuthorizationCodeExpirationTimeSecsInternal"),

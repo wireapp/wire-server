@@ -31,21 +31,21 @@ import Wire.API.Team.Feature
 
 featureAPIGetPut :: forall cfg r. (_) => API (FeatureAPIGetPut cfg) r
 featureAPIGetPut =
-  mkNamedAPI @'("get", cfg) (getFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("put", cfg) (setFeatureStatus . DoAuth)
+  mkNamedAPI @'("get", cfg) getFeature
+    <@> mkNamedAPI @'("put", cfg) setFeature
 
 featureAPI :: API FeatureAPI GalleyEffects
 featureAPI =
-  mkNamedAPI @'("get", SSOConfig) (getFeatureStatus . DoAuth)
+  mkNamedAPI @'("get", SSOConfig) getFeature
     <@> featureAPIGetPut
     <@> featureAPIGetPut
     <@> mkNamedAPI @"get-search-visibility" getSearchVisibility
     <@> mkNamedAPI @"set-search-visibility" (setSearchVisibility (featureEnabledForTeam @SearchVisibilityAvailableConfig))
-    <@> mkNamedAPI @'("get", ValidateSAMLEmailsConfig) (getFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("get", DigitalSignaturesConfig) (getFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("get", ValidateSAMLEmailsConfig) getFeature
+    <@> mkNamedAPI @'("get", DigitalSignaturesConfig) getFeature
     <@> featureAPIGetPut
     <@> featureAPIGetPut
-    <@> mkNamedAPI @'("get", ClassifiedDomainsConfig) (getFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("get", ClassifiedDomainsConfig) getFeature
     <@> featureAPIGetPut
     <@> featureAPIGetPut
     <@> featureAPIGetPut
@@ -54,36 +54,36 @@ featureAPI =
     <@> featureAPIGetPut
     <@> featureAPIGetPut
     <@> featureAPIGetPut
-    <@> mkNamedAPI @'("get", MlsE2EIdConfig) (getFeatureStatus . DoAuth)
-    <@> mkNamedAPI @"put-MlsE2EIdConfig@v5" (setFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("put", MlsE2EIdConfig) (guardMlsE2EIdConfig (setFeatureStatus . DoAuth))
+    <@> mkNamedAPI @'("get", MlsE2EIdConfig) getFeature
+    <@> mkNamedAPI @"put-MlsE2EIdConfig@v5" setFeature
+    <@> mkNamedAPI @'("put", MlsE2EIdConfig) (guardMlsE2EIdConfig setFeature)
     <@> hoistAPI id featureAPIGetPut
     <@> hoistAPI id featureAPIGetPut
-    <@> mkNamedAPI @'("get", LimitedEventFanoutConfig) (getFeatureStatus . DoAuth)
-    <@> mkNamedAPI @"get-all-feature-configs-for-user" getAllFeatureConfigsForUser
-    <@> mkNamedAPI @"get-all-feature-configs-for-team" getAllFeatureConfigsForTeam
+    <@> mkNamedAPI @'("get", LimitedEventFanoutConfig) getFeature
+    <@> mkNamedAPI @"get-all-feature-configs-for-user" getAllTeamFeaturesForUser
+    <@> mkNamedAPI @"get-all-feature-configs-for-team" getAllTeamFeaturesForTeam
     <@> deprecatedFeatureConfigAPI
     <@> deprecatedFeatureAPI
 
 deprecatedFeatureConfigAPI :: API DeprecatedFeatureAPI GalleyEffects
 deprecatedFeatureConfigAPI =
-  mkNamedAPI @'("get-deprecated", SearchVisibilityAvailableConfig) (getFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("put-deprecated", SearchVisibilityAvailableConfig) (setFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("get-deprecated", ValidateSAMLEmailsConfig) (getFeatureStatus . DoAuth)
-    <@> mkNamedAPI @'("get-deprecated", DigitalSignaturesConfig) (getFeatureStatus . DoAuth)
+  mkNamedAPI @'("get-deprecated", SearchVisibilityAvailableConfig) getFeature
+    <@> mkNamedAPI @'("put-deprecated", SearchVisibilityAvailableConfig) setFeature
+    <@> mkNamedAPI @'("get-deprecated", ValidateSAMLEmailsConfig) getFeature
+    <@> mkNamedAPI @'("get-deprecated", DigitalSignaturesConfig) getFeature
 
 deprecatedFeatureAPI :: API (AllDeprecatedFeatureConfigAPI DeprecatedFeatureConfigs) GalleyEffects
 deprecatedFeatureAPI =
-  mkNamedAPI @'("get-config", LegalholdConfig) getSingleFeatureConfigForUser
-    <@> mkNamedAPI @'("get-config", SSOConfig) getSingleFeatureConfigForUser
-    <@> mkNamedAPI @'("get-config", SearchVisibilityAvailableConfig) getSingleFeatureConfigForUser
-    <@> mkNamedAPI @'("get-config", ValidateSAMLEmailsConfig) getSingleFeatureConfigForUser
-    <@> mkNamedAPI @'("get-config", DigitalSignaturesConfig) getSingleFeatureConfigForUser
-    <@> mkNamedAPI @'("get-config", AppLockConfig) getSingleFeatureConfigForUser
-    <@> mkNamedAPI @'("get-config", FileSharingConfig) getSingleFeatureConfigForUser
-    <@> mkNamedAPI @'("get-config", ClassifiedDomainsConfig) getSingleFeatureConfigForUser
-    <@> mkNamedAPI @'("get-config", ConferenceCallingConfig) getSingleFeatureConfigForUser
-    <@> mkNamedAPI @'("get-config", SelfDeletingMessagesConfig) getSingleFeatureConfigForUser
-    <@> mkNamedAPI @'("get-config", GuestLinksConfig) getSingleFeatureConfigForUser
-    <@> mkNamedAPI @'("get-config", SndFactorPasswordChallengeConfig) getSingleFeatureConfigForUser
-    <@> mkNamedAPI @'("get-config", MLSConfig) getSingleFeatureConfigForUser
+  mkNamedAPI @'("get-config", LegalholdConfig) getSingleFeatureForUser
+    <@> mkNamedAPI @'("get-config", SSOConfig) getSingleFeatureForUser
+    <@> mkNamedAPI @'("get-config", SearchVisibilityAvailableConfig) getSingleFeatureForUser
+    <@> mkNamedAPI @'("get-config", ValidateSAMLEmailsConfig) getSingleFeatureForUser
+    <@> mkNamedAPI @'("get-config", DigitalSignaturesConfig) getSingleFeatureForUser
+    <@> mkNamedAPI @'("get-config", AppLockConfig) getSingleFeatureForUser
+    <@> mkNamedAPI @'("get-config", FileSharingConfig) getSingleFeatureForUser
+    <@> mkNamedAPI @'("get-config", ClassifiedDomainsConfig) getSingleFeatureForUser
+    <@> mkNamedAPI @'("get-config", ConferenceCallingConfig) getSingleFeatureForUser
+    <@> mkNamedAPI @'("get-config", SelfDeletingMessagesConfig) getSingleFeatureForUser
+    <@> mkNamedAPI @'("get-config", GuestLinksConfig) getSingleFeatureForUser
+    <@> mkNamedAPI @'("get-config", SndFactorPasswordChallengeConfig) getSingleFeatureForUser
+    <@> mkNamedAPI @'("get-config", MLSConfig) getSingleFeatureForUser

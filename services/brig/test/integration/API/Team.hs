@@ -285,7 +285,7 @@ invitationUrlGalleyMock featureStatus tid inviter (ReceivedRequest mth pth body_
         encode (mkTeamMember inviter fullPermissions Nothing UserLegalHoldDisabled)
   | mth == "GET"
       && pth == ["i", "feature-configs"] =
-      pure $ Wai.responseLBS HTTP.status200 mempty (encode (def @AllFeatureConfigs))
+      pure $ Wai.responseLBS HTTP.status200 mempty (encode (def @AllTeamFeatures))
   | otherwise =
       let errBody =
             encode . object $

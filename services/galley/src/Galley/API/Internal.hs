@@ -239,9 +239,15 @@ featureAPI1Full ::
   (_) =>
   API (IFeatureAPI1Full cfg) r
 featureAPI1Full =
-  mkNamedAPI @'("iget", cfg) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", cfg) setFeatureStatusInternal
-    <@> mkNamedAPI @'("ipatch", cfg) patchFeatureStatusInternal
+  mkNamedAPI @'("iget", cfg) getFeatureInternal
+    <@> mkNamedAPI @'("iput", cfg) setFeatureInternal
+    <@> mkNamedAPI @'("ipatch", cfg) patchFeatureInternal
+
+featureAPI1Get ::
+  forall cfg r.
+  (_) =>
+  API (IFeatureStatusGet cfg) r
+featureAPI1Get = mkNamedAPI @'("iget", cfg) getFeatureInternal
 
 allFeaturesAPI :: API (IAllFeaturesAPI Features) GalleyEffects
 allFeaturesAPI =
@@ -253,7 +259,7 @@ allFeaturesAPI =
     <@> featureAPI1Full
     <@> featureAPI1Full
     <@> featureAPI1Full
-    <@> mkNamedAPI @'("iget", ClassifiedDomainsConfig) (getFeatureStatus DontDoAuth)
+    <@> featureAPI1Get
     <@> featureAPI1Full
     <@> featureAPI1Full
     <@> featureAPI1Full
@@ -281,9 +287,9 @@ featureAPI =
     <@> mkNamedAPI @'("ilock", MlsMigrationConfig) (updateLockStatus @MlsMigrationConfig)
     <@> mkNamedAPI @'("ilock", EnforceFileDownloadLocationConfig) (updateLockStatus @EnforceFileDownloadLocationConfig)
     -- special endpoints
-    <@> mkNamedAPI @'("igetmulti", SearchVisibilityInboundConfig) getFeatureStatusMulti
+    <@> mkNamedAPI @'("igetmulti", SearchVisibilityInboundConfig) getFeatureMulti
     -- all features
-    <@> mkNamedAPI @"feature-configs-internal" (maybe getAllFeatureConfigsForServer getAllFeatureConfigsForUser)
+    <@> mkNamedAPI @"feature-configs-internal" (maybe getAllTeamFeaturesForServer getAllTeamFeaturesForUser)
 
 rmUser ::
   forall p1 p2 r.
@@ -337,7 +343,7 @@ rmUser lusr conn = do
     leaveTeams page = for_ (pageItems page) $ \tid -> do
       toNotify <-
         handleImpossibleErrors $
-          getFeatureStatus @LimitedEventFanoutConfig DontDoAuth tid
+          getFeatureForTeam @LimitedEventFanoutConfig tid
             >>= ( \case
                     FeatureStatusEnabled -> Left <$> E.getTeamAdmins tid
                     FeatureStatusDisabled -> Right <$> getTeamMembersForFanout tid

@@ -804,7 +804,7 @@ guardSecondFactorDisabled ::
   Maybe UserId ->
   ExceptT HttpError (AppT r) ()
 guardSecondFactorDisabled mbUserId = do
-  feat <- lift $ liftSem $ GalleyAPIAccess.getAllFeatureConfigsForUser mbUserId
+  feat <- lift $ liftSem $ GalleyAPIAccess.getAllTeamFeaturesForUser mbUserId
   let enabled =
         (Feature.npProject @Feature.SndFactorPasswordChallengeConfig feat).status
           == Feature.FeatureStatusEnabled

@@ -26,6 +26,7 @@ import Data.OpenApi.Lens hiding (HasServer)
 import Data.OpenApi.Operation
 import Data.Proxy
 import Data.Text qualified as T
+import GHC.Generics
 import GHC.TypeLits
 import Imports
 import Servant
@@ -42,11 +43,22 @@ newtype Named name x = Named {unnamed :: x}
 class RenderableSymbol a where
   renderSymbol :: Text
 
-instance {-# OVERLAPPABLE #-} (KnownSymbol a) => RenderableSymbol a where
+instance (KnownSymbol a) => RenderableSymbol a where
   renderSymbol = T.pack . show $ symbolVal (Proxy @a)
 
-instance {-# OVERLAPPING #-} (RenderableSymbol a, RenderableSymbol b) => RenderableSymbol '(a, b) where
+instance (RenderableSymbol a, RenderableSymbol b) => RenderableSymbol '(a, b) where
   renderSymbol = "(" <> (renderSymbol @a) <> ", " <> (renderSymbol @b) <> ")"
+
+newtype RenderableTypeName a = RenderableTypeName a
+
+instance (GRenderableSymbol (Rep a)) => RenderableSymbol (RenderableTypeName a) where
+  renderSymbol = grenderSymbol @(Rep a)
+
+class GRenderableSymbol f where
+  grenderSymbol :: Text
+
+instance (KnownSymbol tyName) => GRenderableSymbol (D1 (MetaData tyName modName pkg b) k) where
+  grenderSymbol = T.pack $ symbolVal (Proxy @tyName)
 
 instance (HasOpenApi api, RenderableSymbol name) => HasOpenApi (Named name api) where
   toOpenApi _ =
