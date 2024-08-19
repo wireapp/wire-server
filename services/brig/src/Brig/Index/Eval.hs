@@ -87,7 +87,7 @@ type BrigIndexEffectStack =
 runSem :: ESConnectionSettings -> CassandraSettings -> Endpoint -> Logger -> Sem BrigIndexEffectStack a -> IO a
 runSem esConn cas galleyEndpoint logger action = do
   mgr <- initHttpManagerWithTLSConfig esConn.esInsecureSkipVerifyTls esConn.esCaCert
-  mEsCreds <- for esConn.esCredentials initCredentials
+  mEsCreds :: Maybe Credentials <- for esConn.esCredentials initCredentials
   casClient <- defInitCassandra (toCassandraOpts cas) logger
   let bhEnv =
         BHEnv
@@ -100,8 +100,7 @@ runSem esConn cas galleyEndpoint logger action = do
           { conn =
               ESConn
                 { indexName = esConn.esIndex,
-                  env = bhEnv,
-                  credentials = mEsCreds
+                  env = bhEnv
                 },
             additionalConn = Nothing
           }

@@ -4,7 +4,6 @@ import Data.Aeson
 import Data.Aeson.Key qualified as Key
 import Data.ByteString.Builder
 import Data.ByteString.Conversion
-import Data.Credentials
 import Data.Id
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
@@ -22,7 +21,6 @@ import Wire.UserSearch.Types
 
 data ESConn = ESConn
   { env :: ES.BHEnv,
-    credentials :: Maybe Credentials,
     indexName :: ES.IndexName
   }
 
@@ -115,17 +113,15 @@ bulkUpsertImpl cfg docs = do
       ES.IndexName idx = cfg.conn.indexName
       ES.MappingName mpp = mappingName
       (ES.Server base) = ES.bhServer bhe
-      authHeaders = maybe [] ((: []) . mkBasicAuthHeader) cfg.conn.credentials
-  req <- embed $ parseRequest (Text.unpack $ base <> "/" <> idx <> "/" <> mpp <> "/_bulk")
-  res <-
-    embed $
-      httpLbs
-        req
+  baseReq <- embed $ parseRequest (Text.unpack $ base <> "/" <> idx <> "/" <> mpp <> "/_bulk")
+  let reqWithoutCreds =
+        baseReq
           { method = "POST",
-            requestHeaders = [(hContentType, "application/x-ndjson")] <> authHeaders, -- sic
+            requestHeaders = [(hContentType, "application/x-ndjson")],
             requestBody = RequestBodyLBS (toLazyByteString (foldMap encodeActionAndData docs))
           }
-        (ES.bhManager bhe)
+  req <- embed $ bhe.bhRequestHook reqWithoutCreds
+  res <- embed $ httpLbs req (ES.bhManager bhe)
   unless (ES.isSuccess res) $ do
     parsedRes <- liftIO $ ES.parseEsResponse res
     throw . IndexUpdateError . either id id $ parsedRes
