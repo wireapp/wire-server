@@ -316,8 +316,6 @@ emailFromSAML = fromJust . emailAddressText . SAMLEmail.render
 emailToSAMLNameID :: EmailAddress -> Either String SAML.NameID
 emailToSAMLNameID = SAML.emailNameID . fromEmail
 
--- emailToSAMLNameID mail = either (Left "not an email") (SAML.emailNameID . fromEmail $ mail)
-
 emailFromSAMLNameID :: SAML.NameID -> Maybe EmailAddress
 emailFromSAMLNameID nid = case nid ^. SAML.nameID of
   SAML.UNameIDEmail email -> Just . emailFromSAML . CI.original $ email

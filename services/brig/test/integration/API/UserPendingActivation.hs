@@ -213,20 +213,10 @@ randomScimUserWithSubjectAndRichInfo richInfo = do
     ( (Scim.User.empty @SparTag userSchemas ("scimuser_" <> suffix) (ScimUserExtra richInfo))
         { Scim.User.displayName = Just ("ScimUser" <> suffix),
           Scim.User.externalId = Just externalId,
-          -- Scim.User.emails = emailFromEmailAddress <$> emails,
           Scim.User.phoneNumbers = phones
         },
       subj
     )
-
--- where
---   emailFromEmailAddress :: EmailAddress -> Email.Email
---   emailFromEmailAddress addr =
---     Email.Email
---       { typ = Nothing,
---         value = (Email.EmailAddress addr),
---         primary = Nothing
---       }
 
 randomScimEmail :: (MonadRandom m) => m EmailAddress
 randomScimEmail = do

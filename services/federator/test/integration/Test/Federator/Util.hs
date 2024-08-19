@@ -320,7 +320,6 @@ mkEmailRandomLocalSuffix :: (MonadIO m) => Text -> m EmailAddress
 mkEmailRandomLocalSuffix e = do
   uid <- liftIO UUID.nextRandom
   case emailAddressText e of
-    -- TODO:
     Just mail -> pure $ unsafeEmailAddress ((localPart mail) <> "+" <> UUID.toASCIIBytes uid) (domainPart mail)
     Nothing -> error $ "Invalid email address: " ++ Text.unpack e
 

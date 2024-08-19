@@ -78,7 +78,7 @@ veidFromUserSSOId = \case
     case urefToEmail uref of
       Nothing -> pure $ UrefOnly uref
       Just email -> pure $ EmailAndUref email uref
-  -- TODO: parse fallback emails?
+  -- FUTUREWORK(elland): account for SCIM emails fields?
   UserScimExternalId email ->
     maybe
       (throwError "externalId not an email and no issuer")

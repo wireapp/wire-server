@@ -260,7 +260,7 @@ validateHandle txt = case parseHandle txt of
 -- in our database, and implementing verification requires design decisions
 -- that we haven't made yet. We store them in our SCIM blobs, but don't syncronize them with
 -- Brig. See <https://github.com/wireapp/wire-server/pull/559#discussion_r247466760>.
--- TODO(elland): verify with fisx if this still applies.
+-- FUTUREWORK(elland): verify with fisx if this still applies.
 validateScimUser' ::
   forall r.
   ( Member (Error Scim.ScimError) r,
@@ -567,7 +567,7 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser {..}
       createValidScimUserSpar stiTeam buid storedUser externalId
 
       -- If applicable, trigger email validation procedure on brig.
-      -- TODO: validate fallback emails?
+      -- FUTUREWORK: validate fallback emails?
       lift $ Spar.App.validateEmail (Just stiTeam) buid `mapM_` vsUserEmail vsu
 
       -- TODO: suspension via scim is brittle, and may leave active users behind: if we don't
