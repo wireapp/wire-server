@@ -122,6 +122,23 @@ type OAuthAPI =
                     ()
            )
     :<|> Named
+           "revoke-oauth-account-access"
+           ( Summary "Revoke account access from an OAuth application"
+               :> CanThrow 'AccessDenied
+               :> ZUser
+               :> From 'V7
+               :> "oauth"
+               :> "applications"
+               :> Capture' '[Description "The ID of the OAuth client"] "OAuthClientId" OAuthClientId
+               :> "sessions"
+               :> ReqBody '[JSON] PasswordReqBody
+               :> MultiVerb
+                    'DELETE
+                    '[JSON]
+                    '[RespondEmpty 204 "OAuth application access revoked"]
+                    ()
+           )
+    :<|> Named
            "delete-oauth-refresh-token"
            ( Summary "Revoke an active OAuth session"
                :> Description "Revoke an active OAuth session by providing the refresh token ID."

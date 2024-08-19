@@ -95,6 +95,40 @@ testRevokeApplicationAccountAccessV6 = do
     apps <- resp.json >>= asList
     length apps `shouldMatchInt` 0
 
+testRevokeApplicationAccountAccess :: App ()
+testRevokeApplicationAccountAccess = do
+  user <- randomUser OwnDomain def
+  bindResponse (getOAuthApplications user) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    apps <- resp.json >>= asList
+    length apps `shouldMatchInt` 0
+  let uri = "https://example.com"
+  let scopes = ["write:conversations"]
+  replicateM_ 3 $ do
+    cid <- createOAuthClient user "foobar" uri >>= getJSON 200 >>= flip (%.) "client_id"
+    generateAccessToken user cid scopes uri
+  [cid1, cid2, cid3] <- getOAuthApplications user >>= getJSON 200 >>= asList >>= mapM (%. "id")
+  revokeApplicationAccess user cid1 "foobar" >>= assertStatus 403
+  revokeApplicationAccess user cid1 defPassword >>= assertSuccess
+  bindResponse (getOAuthApplications user) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    apps <- resp.json >>= asList
+    length apps `shouldMatchInt` 2
+    ids <- for apps $ \app -> app %. "id"
+    ids `shouldMatchSet` [cid2, cid3]
+  revokeApplicationAccess user cid2 defPassword >>= assertSuccess
+  bindResponse (getOAuthApplications user) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    apps <- resp.json >>= asList
+    length apps `shouldMatchInt` 1
+    ids <- for apps $ \app -> app %. "id"
+    ids `shouldMatchSet` [cid3]
+  revokeApplicationAccess user cid3 defPassword >>= assertSuccess
+  bindResponse (getOAuthApplications user) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    apps <- resp.json >>= asList
+    length apps `shouldMatchInt` 0
+
 generateAccessToken :: (MakesValue cid, MakesValue user) => user -> cid -> [String] -> String -> App Value
 generateAccessToken user cid scopes uri = do
   authCodeResponse <- generateOAuthAuthorizationCode user cid scopes uri

@@ -81,7 +81,8 @@ oauthAPI =
     :<|> Named @"create-oauth-access-token" createAccessTokenWith
     :<|> Named @"revoke-oauth-refresh-token" revokeRefreshToken
     :<|> Named @"get-oauth-applications" getOAuthApplications
-    :<|> Named @"revoke-oauth-account-access-v6" revokeOAuthAccountAccess
+    :<|> Named @"revoke-oauth-account-access-v6" revokeOAuthAccountAccessV6
+    :<|> Named @"revoke-oauth-account-access" revokeOAuthAccountAccess
     :<|> Named @"delete-oauth-refresh-token" deleteOAuthRefreshTokenById
 
 --------------------------------------------------------------------------------
@@ -328,10 +329,18 @@ getOAuthApplications uid = do
         pure $ (\client -> OAuthApplication cid client.name ((\i -> OAuthSession i.refreshTokenId (toUTCTimeMillis i.createdAt)) <$> tokens)) <$> mClient
       pure $ catMaybes mApps
 
-revokeOAuthAccountAccess :: UserId -> OAuthClientId -> (Handler r) ()
-revokeOAuthAccountAccess uid cid = do
+revokeOAuthAccountAccessV6 :: UserId -> OAuthClientId -> (Handler r) ()
+revokeOAuthAccountAccessV6 uid cid = do
   rts <- lift $ wrapClient $ lookupOAuthRefreshTokens uid
   for_ rts $ \rt -> when (rt.clientId == cid) $ lift $ wrapClient $ deleteOAuthRefreshToken uid rt.refreshTokenId
+
+revokeOAuthAccountAccess :: UserId -> OAuthClientId -> PasswordReqBody -> (Handler r) ()
+revokeOAuthAccountAccess uid cid req = do
+  wrapClientE $ reauthenticate uid req.fromPasswordReqBody !>> toAccessDenied
+  revokeOAuthAccountAccessV6 uid cid
+  where
+    toAccessDenied :: ReAuthError -> HttpError
+    toAccessDenied _ = StdError $ errorToWai @'AccessDenied
 
 deleteOAuthRefreshTokenById :: UserId -> OAuthClientId -> OAuthRefreshTokenId -> PasswordReqBody -> (Handler r) ()
 deleteOAuthRefreshTokenById uid cid tokenId req = do

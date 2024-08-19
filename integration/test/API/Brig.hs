@@ -758,3 +758,9 @@ revokeApplicationAccessV6 user cid = do
   cidStr <- asString cid
   req <- baseRequest user Brig (ExplicitVersion 6) $ joinHttpPath ["oauth", "applications", cidStr]
   submit "DELETE" req
+
+revokeApplicationAccess :: (HasCallStack, MakesValue user, MakesValue cid) => user -> cid -> String -> App Response
+revokeApplicationAccess user cid password = do
+  cidStr <- asString cid
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["oauth", "applications", cidStr, "sessions"]
+  submit "DELETE" $ req & addJSONObject ["password" .= password]
