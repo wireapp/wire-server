@@ -415,30 +415,16 @@ testCreateUserConflict _ brig = do
 -- The testCreateUserInvalidEmail test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
--- Test to make sure a new user cannot be created with an invalid email address or invalid phone number.
+-- Test to make sure a new user cannot be created with an invalid email address
 testCreateUserInvalidEmail :: Opt.Opts -> Brig -> Http ()
 testCreateUserInvalidEmail (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ = pure ()
 testCreateUserInvalidEmail _ brig = do
-  email <- randomEmail
-  let reqEmail =
-        RequestBodyLBS . encode $
-          object
-            [ "name" .= ("foo" :: Text),
-              "email" .= fromEmail email,
-              "password" .= defPassword,
-              "phone" .= ("123456" :: Text) -- invalid phone number, but ignored
-            ]
-  post (brig . path "/register" . contentJson . body reqEmail)
-    !!! const 201 === statusCode
-
-  phone <- randomPhone
   let reqPhone =
         RequestBodyLBS . encode $
           object
             [ "name" .= ("foo" :: Text),
-              "email" .= ("invalid@email" :: Text), -- invalid since there's only a single label
-              "password" .= defPassword,
-              "phone" .= fromPhone phone
+              "email" .= ("invalid@" :: Text),
+              "password" .= defPassword
             ]
   post (brig . path "/register" . contentJson . body reqPhone)
     !!! const 400 === statusCode
