@@ -1,0 +1,1 @@
+Added warning when deploying wire-server helm chart with User/Team creation over internet enabled.
