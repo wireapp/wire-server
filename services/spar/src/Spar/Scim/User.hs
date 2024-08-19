@@ -104,7 +104,7 @@ import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.ResourceType as Scim
 import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User (schemas)
-import qualified Web.Scim.Schema.User.Email as Scim.Email
+-- import qualified Web.Scim.Schema.User.Email as Scim.Email
 import qualified Wire.API.Team.Member as Member
 import Wire.API.Team.Role
 import Wire.API.User
@@ -293,7 +293,7 @@ validateScimUser' errloc midp richInfoLimit user = do
     either err pure $ Brig.mkUserName (Scim.displayName user) veid
   richInfo <- validateRichInfo (Scim.extra user ^. ST.sueRichInfo)
   let active = Scim.active user
-      emails = Scim.Email.emailToEmailAddress <$> user.emails
+      emails = [] -- TODO: Scim.Email.emailToEmailAddress <$> user.emails
   lang <- maybe (throw $ badRequest "Could not parse language. Expected format is ISO 639-1.") pure $ mapM parseLanguage $ Scim.preferredLanguage user
   mRole <- validateRole user
 
@@ -1030,7 +1030,7 @@ synthesizeStoredUser' ::
   Locale ->
   Maybe Role ->
   m (Scim.StoredUser ST.SparTag)
-synthesizeStoredUser' uid veid dname emails handle richInfo accStatus createdAt lastUpdatedAt baseuri locale mbRole = do
+synthesizeStoredUser' uid veid dname _emails handle richInfo accStatus createdAt lastUpdatedAt baseuri locale mbRole = do
   let scimUser :: Scim.User ST.SparTag
       scimUser =
         synthesizeScimUser
@@ -1039,7 +1039,7 @@ synthesizeStoredUser' uid veid dname emails handle richInfo accStatus createdAt 
               ST.handle = handle {- 'Maybe' there is one in @usr@, but we want the type
                                     checker to make sure this exists, so we add it here
                                     redundantly, without the 'Maybe'. -},
-              ST.emails = emails,
+              ST.emails = [], -- TODO: emails,
               ST.name = dname,
               ST.richInfo = richInfo,
               ST.active = ST.scimActiveFlagFromAccountStatus accStatus,

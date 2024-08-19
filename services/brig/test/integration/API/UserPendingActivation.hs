@@ -56,7 +56,7 @@ import Web.Scim.Schema.Common qualified as Scim
 import Web.Scim.Schema.Meta (WithMeta)
 import Web.Scim.Schema.Meta qualified as Scim
 import Web.Scim.Schema.User qualified as Scim.User
-import Web.Scim.Schema.User.Email qualified as Email
+-- import Web.Scim.Schema.User.Email qualified as Email
 import Web.Scim.Schema.User.Phone qualified as Phone
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Team hiding (newTeam)
@@ -194,7 +194,7 @@ randomScimUserWithSubjectAndRichInfo ::
   m (Scim.User.User SparTag, SAML.UnqualifiedNameID)
 randomScimUserWithSubjectAndRichInfo richInfo = do
   suffix <- cs <$> replicateM 7 (getRandomR ('0', '9'))
-  emails <- getRandomR (0, 3) >>= \n -> replicateM n randomScimEmail
+  _emails <- getRandomR (0, 3) >>= \n -> replicateM n randomScimEmail
   phones <- getRandomR (0, 3) >>= \n -> replicateM n randomScimPhone
   -- Related, but non-trivial to re-use here: 'nextSubject'
   (externalId, subj) <-
@@ -213,19 +213,20 @@ randomScimUserWithSubjectAndRichInfo richInfo = do
     ( (Scim.User.empty @SparTag userSchemas ("scimuser_" <> suffix) (ScimUserExtra richInfo))
         { Scim.User.displayName = Just ("ScimUser" <> suffix),
           Scim.User.externalId = Just externalId,
-          Scim.User.emails = emailFromEmailAddress <$> emails,
+          -- Scim.User.emails = emailFromEmailAddress <$> emails,
           Scim.User.phoneNumbers = phones
         },
       subj
     )
-  where
-    emailFromEmailAddress :: EmailAddress -> Email.Email
-    emailFromEmailAddress addr =
-      Email.Email
-        { typ = Nothing,
-          value = (Email.EmailAddress addr),
-          primary = Nothing
-        }
+
+-- where
+--   emailFromEmailAddress :: EmailAddress -> Email.Email
+--   emailFromEmailAddress addr =
+--     Email.Email
+--       { typ = Nothing,
+--         value = (Email.EmailAddress addr),
+--         primary = Nothing
+--       }
 
 randomScimEmail :: (MonadRandom m) => m EmailAddress
 randomScimEmail = do
