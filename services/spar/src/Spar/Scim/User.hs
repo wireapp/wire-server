@@ -293,11 +293,11 @@ validateScimUser' errloc midp richInfoLimit user = do
     either err pure $ Brig.mkUserName (Scim.displayName user) veid
   richInfo <- validateRichInfo (Scim.extra user ^. ST.sueRichInfo)
   let active = Scim.active user
-      emails = [] -- TODO: Scim.Email.emailToEmailAddress <$> user.emails
   lang <- maybe (throw $ badRequest "Could not parse language. Expected format is ISO 639-1.") pure $ mapM parseLanguage $ Scim.preferredLanguage user
   mRole <- validateRole user
 
-  pure $ ST.ValidScimUser veid handl uname emails richInfo (maybe True Scim.unScimBool active) (flip Locale Nothing <$> lang) mRole
+  -- FUTUREWORK(elland): Handle the SCIM emails field.
+  pure $ ST.ValidScimUser veid handl uname [] richInfo (maybe True Scim.unScimBool active) (flip Locale Nothing <$> lang) mRole
   where
     validRoleNames :: Text
     validRoleNames =
@@ -436,7 +436,7 @@ logEmail email =
 
 logVSU :: ST.ValidScimUser -> (Msg -> Msg)
 logVSU (ST.ValidScimUser veid handl _name _emails _richInfo _active _lang _role) =
-  -- TODO: consider _emails
+  -- FUTUREWORK(elland): Take SCIM emails field into account.
   maybe id logEmail (veidToEmail veid)
     . logHandle handl
 
@@ -454,8 +454,9 @@ veidToEmail (ST.EmailAndUref email _) = Just email
 veidToEmail (ST.UrefOnly _) = Nothing
 veidToEmail (ST.EmailOnly email) = Just email
 
+-- FUTUREWORK(elland): Account for SCIM emails field, if relevant here.
 vsUserEmail :: ST.ValidScimUser -> Maybe EmailAddress
-vsUserEmail usr = veidToEmail usr.externalId -- TODO:
+vsUserEmail usr = veidToEmail usr.externalId
 
 -- in ScimTokenHash (cs @ByteString @Text (convertToBase Base64 digest))
 
@@ -709,7 +710,7 @@ updateVsuUref ::
   ST.ValidExternalId ->
   Sem r ()
 updateVsuUref team uid old new = do
-  -- TODO:
+  -- FUTUREWORK(elland): Account for SCIM emails field.
   case (veidToEmail old, veidToEmail new) of
     (mo, mn@(Just email)) | mo /= mn -> Spar.App.validateEmail (Just team) uid email
     _ -> pure ()
@@ -1039,7 +1040,7 @@ synthesizeStoredUser' uid veid dname _emails handle richInfo accStatus createdAt
               ST.handle = handle {- 'Maybe' there is one in @usr@, but we want the type
                                     checker to make sure this exists, so we add it here
                                     redundantly, without the 'Maybe'. -},
-              ST.emails = [], -- TODO: emails,
+              ST.emails = [], -- FUTUREWORK(elland): Account for SCIM emails field.
               ST.name = dname,
               ST.richInfo = richInfo,
               ST.active = ST.scimActiveFlagFromAccountStatus accStatus,
@@ -1069,7 +1070,6 @@ synthesizeScimUser info =
         }
 
 -- TODO: now write a test, either in /integration or in spar, whichever is easier.  (spar)
-
 getUserById ::
   forall r.
   ( Member BrigAccess r,
@@ -1199,58 +1199,3 @@ logFilter (FilterAttrCompare attr op val) =
         "sha256 "
           <> sha256String s
           <> (if isJust (UUID.fromText s) then " original is a UUID" else "")
-
-{- TODO: might be useful later.
-~~~~~~~~~~~~~~~~~~~~~~~~~
-
--- | Parse a name from a user profile into an SCIM name (Okta wants given
--- name and last name, so we break our names up to satisfy Okta).
---
--- TODO: use the same algorithm as Wire clients use.
-toScimName :: Name -> Scim.Name
-toScimName (Name name) =
-  Scim.Name
-    { Scim.formatted = Just name
-    , Scim.givenName = Just first
-    , Scim.familyName = if Text.null rest then Nothing else Just rest
-    , Scim.middleName = Nothing
-    , Scim.honorificPrefix = Nothing
-    , Scim.honorificSuffix = Nothing
-    }
-  where
-    (first, Text.drop 1 -> rest) = Text.breakOn " " name
-
--- | Convert from the Wire phone type to the SCIM phone type.
-toScimPhone :: Phone -> Scim.Phone
-toScimPhone (Phone phone) =
-  Scim.Phone
-    { Scim.typ = Nothing
-    , Scim.value = Just phone
-    }
-
--- | Convert from the Wire email type to the SCIM email type.
-toScimEmail :: Email -> Scim.Email
-toScimEmail (Email eLocal eDomain) =
-  Scim.Email
-    { Scim.typ = Nothing
-    , Scim.value = Scim.EmailAddress
-        (unsafeEmailAddress (encodeUtf8 eLocal) (encodeUtf8 eDomain))
-    , Scim.primary = Just True
-    }
-
--}
-
--- Note [error handling]
--- ~~~~~~~~~~~~~~~~~
---
--- FUTUREWORK: There are two problems with error handling here:
---
--- 1. We want all errors originating from SCIM handlers to be thrown as SCIM
---    errors, not as Spar errors. Currently errors thrown from things like
---    'getTeamMembers' will look like Spar errors and won't be wrapped into
---    the 'ScimError' type. This might or might not be important, depending
---    on what is expected by apps that use the SCIM interface.
---
--- 2. We want generic error descriptions in response bodies, while still
---    logging nice error messages internally. The current messages might
---    be giving too many internal details away.
