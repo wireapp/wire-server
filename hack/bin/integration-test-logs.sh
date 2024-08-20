@@ -6,7 +6,7 @@ if [[ -z "$NAMESPACE" ]]; then
   exit 1
 fi
 
-while IFS= read LINE; do
+while IFS= read -r LINE; do
   if [[ "$LINE" =~ ^Pod\ (.*)\ running$ ]]; then
     kubectl -n "$NAMESPACE" logs "${BASH_REMATCH[1]}" -f
   fi

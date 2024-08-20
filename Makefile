@@ -249,11 +249,11 @@ add-license:
 
 .PHONY: treefmt
 treefmt:
-	treefmt -u debug
+	treefmt -u debug --walk=filesystem
 
 .PHONY: treefmt-check
 treefmt-check:
-	treefmt --fail-on-change -u debug
+	treefmt --fail-on-change -u debug --walk=filesystem
 
 #################################
 ## docker targets
