@@ -519,7 +519,6 @@ test-suite brig-tests
     Test.Brig.Effects.Delay
     Test.Brig.InternalNotification
     Test.Brig.MLS
-    Test.Brig.User.Search.Index.Types
 
   hs-source-dirs: test/unit
   ghc-options:    -funbox-strict-fields -threaded -with-rtsopts=-N

@@ -18,6 +18,7 @@ import Wire.API.Team.Feature
 import Wire.API.Team.Role
 import Wire.API.User
 import Wire.API.User.Search
+import Wire.Arbitrary
 
 newtype IndexVersion = IndexVersion {docVersion :: DocVersion}
 
@@ -57,7 +58,8 @@ data UserDoc = UserDoc
     udSso :: Maybe Sso,
     udEmailUnvalidated :: Maybe EmailAddress
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UserDoc)
 
 -- Note: Keep this compatible with the FromJSON instances
 -- of 'Contact' and 'TeamContact' from 'Wire.API.User.Search
