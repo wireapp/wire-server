@@ -8,12 +8,15 @@
 , amazonka-core
 , amazonka-ses
 , async
+, attoparsec
 , base
 , base16-bytestring
 , bilge
+, bloodhound
 , bytestring
 , bytestring-conversion
 , cassandra-util
+, conduit
 , containers
 , cql
 , crypton
@@ -50,12 +53,15 @@
 , polysemy-time
 , polysemy-wire-zoo
 , postie
+, prometheus-client
 , QuickCheck
 , quickcheck-instances
 , random
 , resource-pool
 , resourcet
 , retry
+, saml2-web-sso
+, schema-profunctor
 , scientific
 , servant
 , servant-client-core
@@ -64,6 +70,7 @@
 , string-conversions
 , template
 , text
+, text-icu-translit
 , time
 , time-out
 , time-units
@@ -73,6 +80,7 @@
 , types-common
 , unliftio
 , unordered-containers
+, uri-bytestring
 , uuid
 , wai-utilities
 , wire-api
@@ -88,12 +96,15 @@ mkDerivation {
     amazonka-core
     amazonka-ses
     async
+    attoparsec
     base
     base16-bytestring
     bilge
+    bloodhound
     bytestring
     bytestring-conversion
     cassandra-util
+    conduit
     containers
     cql
     crypton
@@ -125,15 +136,19 @@ mkDerivation {
     polysemy-plugin
     polysemy-time
     polysemy-wire-zoo
+    prometheus-client
     QuickCheck
     resource-pool
     resourcet
     retry
+    saml2-web-sso
+    schema-profunctor
     servant
     servant-client-core
     stomp-queue
     template
     text
+    text-icu-translit
     time
     time-out
     time-units
@@ -143,6 +158,7 @@ mkDerivation {
     types-common
     unliftio
     unordered-containers
+    uri-bytestring
     uuid
     wai-utilities
     wire-api

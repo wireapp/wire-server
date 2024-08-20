@@ -129,7 +129,6 @@
 , template-haskell
 , temporary
 , text
-, text-icu-translit
 , time
 , time-out
 , time-units
@@ -245,7 +244,6 @@ mkDerivation {
     resourcet
     retry
     safe-exceptions
-    saml2-web-sso
     schema-profunctor
     scientific
     servant
@@ -260,7 +258,6 @@ mkDerivation {
     template
     template-haskell
     text
-    text-icu-translit
     time
     time-out
     time-units
