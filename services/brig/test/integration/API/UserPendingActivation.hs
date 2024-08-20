@@ -56,7 +56,6 @@ import Web.Scim.Schema.Common qualified as Scim
 import Web.Scim.Schema.Meta (WithMeta)
 import Web.Scim.Schema.Meta qualified as Scim
 import Web.Scim.Schema.User qualified as Scim.User
--- import Web.Scim.Schema.User.Email qualified as Email
 import Web.Scim.Schema.User.Phone qualified as Phone
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Team hiding (newTeam)
