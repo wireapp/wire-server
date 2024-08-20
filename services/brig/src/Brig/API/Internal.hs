@@ -391,8 +391,6 @@ getVerificationCode uid action = runMaybeT do
 internalSearchIndexAPI :: forall r. ServerT BrigIRoutes.ISearchIndexAPI (Handler r)
 internalSearchIndexAPI =
   Named @"indexRefresh" (NoContent <$ lift (wrapClient Search.refreshIndex))
-    :<|> Named @"indexReindex" (NoContent <$ lift (wrapClient Search.reindexAll))
-    :<|> Named @"indexReindexIfSameOrNewer" (NoContent <$ lift (wrapClient Search.reindexAllIfSameOrNewer))
 
 ---------------------------------------------------------------------------
 -- Handlers
