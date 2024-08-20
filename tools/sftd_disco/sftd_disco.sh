@@ -12,13 +12,11 @@ old="/etc/wire/sftd-disco/sft_servers_all.json"
 new="${old}.new"
 
 function valid_entry() {
-    local line=$1
     # TODO sanity check that this is real dig output
     return 0
 }
 
 function valid_url() {
-    local url=$1
     #TODO basic sanity check
     return 0
 }
@@ -30,23 +28,23 @@ function valid_url() {
 # this file can then be served from nginx running besides sft
 function upstream() {
     name=$1
-    port=${2:-'8585'}
-    entries=$(dig +short +retries=3 +search SRV ${name} | sort)
+    entries=$(dig +short +retries=3 +search SRV "${name}" | sort)
     unset servers
     comma=""
     IFS=$'\n'
-    for entry in ${entries[@]}; do
+    for entry in "${entries[@]}"; do
         if valid_entry "$entry"; then
             sft_host_port=$(echo "$entry" | awk '{print $4":"$3}')
-            sft_url=$(curl -s http://$sft_host_port/sft/url | xargs)
+            sft_url=$(curl -s http://"$sft_host_port"/sft/url | xargs)
             if valid_url "$sft_url"; then
-                servers+=(${comma}'"'${sft_url}'"')
+                servers+=("$comma"'"'"$sft_url"'"')
                 comma=","
             fi
         fi
     done
+    # shellcheck disable=SC2128
     if [ -n "$servers" ]; then
-        echo '{"sft_servers_all": ['${servers[@]}']}' | jq >${new}
+        echo '{"sft_servers_all": ['"${servers[*]}"']}' | jq >${new}
     else
         printf "" >>${new}
     fi
@@ -68,10 +66,10 @@ function routing_disco() {
 
     rm -f $new
 
-    echo done, sleeping $ivl
-    sleep $ivl
+    echo done, sleeping "$ivl"
+    sleep "$ivl"
 }
 
 while true; do
-    routing_disco $srv_name
+    routing_disco "$srv_name"
 done

@@ -10,8 +10,9 @@ HELMFILE_ENV=${HELMFILE_ENV:-default}
 CHARTS_DIR="${TOP_LEVEL}/.local/charts"
 HELM_PARALLELISM=${HELM_PARALLELISM:-1}
 
+# shellcheck disable=SC1091
 . "$DIR/helm_overrides.sh"
-${DIR}/integration-cleanup.sh
+"${DIR}"/integration-cleanup.sh
 
 # FUTUREWORK explore: have helmfile do the interpolation (and skip the "make charts" step) https://wearezeta.atlassian.net/browse/SQPIT-722
 #

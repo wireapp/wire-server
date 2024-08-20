@@ -33,7 +33,7 @@ $ grep code out.log | grep -v email-exists
 
 If you are in a hurry, you may want to change the sleep(1) at the end
 of the invite loop to less than a second.  If you want to give up on
-the first error, add an exit(1) where we check the $INVIDATION_ID.
+the first error, add an exit(1) where we check the INVITATION_ID.
 
 "
 

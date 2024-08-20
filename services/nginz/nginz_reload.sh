@@ -19,15 +19,17 @@ watches=${WATCH_PATHS:-"/etc/wire/nginz/upstreams"}
 # only react on changes to upstreams.conf
 cfg=upstreams.conf
 
-echo "Setting up watches for ${watches[@]}"
+echo "Setting up watches for ${watches[*]}"
 
 {
   echo "nginx PID: $nginx_pid"
+  #shellcheck disable=SC2068
   inotifywait -m -e moved_to -e modify,move,create,delete -m --format '%f' \
-  ${watches[@]} | while read file; do \
-    if [ $file == $cfg ]; then \
+  ${watches[@]} | while read -r file; do \
+    if [ "$file" == "$cfg" ]; then \
         echo "Config file update detected"; \
         nginx -t "$@"; \
+        # shellcheck disable=SC2181
         if [ $? -ne 0 ]; then \
             echo "ERROR: New configuration is invalid!!"; \
         else \
