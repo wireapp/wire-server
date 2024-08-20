@@ -186,7 +186,6 @@ test-suite stern-tests
 
 executable stern-integration
   main-is:            Main.hs
-
   other-modules:
     API
     TestSetup

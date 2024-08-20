@@ -69,6 +69,8 @@ library
 
   -- cabal-fmt: expand src
   exposed-modules:
+    Wire.ActivationCodeStore
+    Wire.ActivationCodeStore.Cassandra
     Wire.AuthenticationSubsystem
     Wire.AuthenticationSubsystem.Error
     Wire.AuthenticationSubsystem.Interpreter
@@ -92,15 +94,13 @@ library
     Wire.GundeckAPIAccess
     Wire.HashPassword
     Wire.InternalEvent
+    Wire.InvitationCodeStore
+    Wire.InvitationCodeStore.Cassandra
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
     Wire.ParseException
     Wire.PasswordResetCodeStore
     Wire.PasswordResetCodeStore.Cassandra
-    Wire.InvitationCodeStore
-    Wire.InvitationCodeStore.Cassandra
-    Wire.ActivationCodeStore
-    Wire.ActivationCodeStore.Cassandra
     Wire.PasswordStore
     Wire.PasswordStore.Cassandra
     Wire.PropertyStore
@@ -192,8 +192,8 @@ library
     , uuid
     , wai-utilities
     , wire-api
-    , witherable
     , wire-api-federation
+    , witherable
 
   default-language: GHC2021
 
@@ -211,7 +211,6 @@ test-suite wire-subsystems-tests
     Wire.AuthenticationSubsystem.InterpreterSpec
     Wire.MiniBackend
     Wire.MockInterpreters
-    Wire.MockInterpreters.InvitationCodeStore
     Wire.MockInterpreters.ActivationCodeStore
     Wire.MockInterpreters.BlockListStore
     Wire.MockInterpreters.EmailSubsystem
@@ -219,6 +218,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.Events
     Wire.MockInterpreters.GalleyAPIAccess
     Wire.MockInterpreters.HashPassword
+    Wire.MockInterpreters.InvitationCodeStore
     Wire.MockInterpreters.Now
     Wire.MockInterpreters.PasswordResetCodeStore
     Wire.MockInterpreters.PasswordStore
