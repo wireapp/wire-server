@@ -28,13 +28,12 @@ library
     , bytestring
     , cassandra-util
     , conduit
-    , exceptions
-    , cql
-    , imports
     , containers
+    , cql
+    , exceptions
+    , imports
     , lens
     , optparse-applicative
-    , time
     , tinylog
     , types-common
     , wire-api

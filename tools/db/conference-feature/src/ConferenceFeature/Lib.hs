@@ -51,22 +51,35 @@ scanUsers = do
     .| Conduit.concat
     .| Conduit.map userToResult
     .| Conduit.scanl (<>) mempty
-    .| Conduit.iterM (logEvery 100000 . usersTotal)
+    .| Conduit.iterM (logEvery 100000)
   where
-    logEvery :: Int -> Sum Int -> m ()
-    logEvery i s =
-      when (getSum s `mod` i == 0) $ Log.info $ "intermediate" .= show s
+    logEvery :: Int -> Result -> m ()
+    logEvery i r =
+      when ((getSum (usersTotal r)) `mod` i == 0) $ Log.info $ "intermediate" .= show r
 
 userToResult :: UserRow -> Result
 userToResult user = case user.conferenceCallingFeatureStatus of
   Just FeatureStatusEnabled ->
     if user.activated && user.status == Just Active
       then case user.team of
-        Just tid -> Result (Sum 1) mempty (Sum 1) mempty (Set.singleton tid)
-        Nothing -> Result (Sum 1) (Sum 1) mempty mempty mempty
-      else Result (Sum 1) mempty mempty (Sum 1) mempty
-  Just FeatureStatusDisabled -> Result (Sum 1) mempty mempty mempty mempty
-  Nothing -> Result (Sum 1) mempty mempty mempty mempty
+        Just tid ->
+          mempty
+            { usersTotal = Sum 1,
+              activeTeamUsersWithConferenceCalling = Sum 1,
+              affectedTeams = Set.singleton tid
+            }
+        Nothing ->
+          mempty
+            { usersTotal = Sum 1,
+              activeFreeUsersWithConferenceCalling = Sum 1
+            }
+      else
+        mempty
+          { usersTotal = Sum 1,
+            inactiveUsersWithConferenceCalling = Sum 1
+          }
+  Just FeatureStatusDisabled -> mempty {usersTotal = Sum 1}
+  Nothing -> mempty {usersTotal = Sum 1}
 
 run :: forall m. (MonadClient m, MonadLogger m) => m ()
 run = do
