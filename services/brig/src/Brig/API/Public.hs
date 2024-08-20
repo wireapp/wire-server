@@ -160,6 +160,7 @@ import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserKeyStore
+import Wire.UserSearchSubsystem (UserSearchSubsystem)
 import Wire.UserStore (UserStore)
 import Wire.UserSubsystem hiding (checkHandle, checkHandles)
 import Wire.UserSubsystem qualified as UserSubsystem
@@ -285,7 +286,8 @@ servantSitemap ::
     Member EmailSubsystem r,
     Member EmailSending r,
     Member VerificationCodeSubsystem r,
-    Member PropertySubsystem r
+    Member PropertySubsystem r,
+    Member UserSearchSubsystem r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -559,7 +561,8 @@ addClient ::
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
     Member EmailSubsystem r,
-    Member VerificationCodeSubsystem r
+    Member VerificationCodeSubsystem r,
+    Member UserSearchSubsystem r
   ) =>
   UserId ->
   ConnId ->
@@ -690,7 +693,8 @@ createUser ::
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
     Member EmailSubsystem r,
-    Member EmailSending r
+    Member EmailSending r,
+    Member UserSearchSubsystem r
   ) =>
   Public.NewUserPublic ->
   Handler r (Either Public.RegisterError Public.RegisterSuccess)
@@ -911,7 +915,8 @@ removeEmail ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member UserSearchSubsystem r
   ) =>
   UserId ->
   Handler r (Maybe Public.RemoveIdentityError)
@@ -1173,7 +1178,8 @@ deleteSelfUser ::
     Member (ConnectionStore InternalPaging) r,
     Member EmailSubsystem r,
     Member VerificationCodeSubsystem r,
-    Member PropertySubsystem r
+    Member PropertySubsystem r,
+    Member UserSearchSubsystem r
   ) =>
   UserId ->
   Public.DeleteUser ->
@@ -1191,7 +1197,8 @@ verifyDeleteUser ::
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
     Member VerificationCodeSubsystem r,
-    Member PropertySubsystem r
+    Member PropertySubsystem r,
+    Member UserSearchSubsystem r
   ) =>
   Public.VerifyDeleteUser ->
   Handler r ()
@@ -1202,7 +1209,8 @@ updateUserEmail ::
   ( Member BlockListStore r,
     Member UserKeyStore r,
     Member GalleyAPIAccess r,
-    Member EmailSubsystem r
+    Member EmailSubsystem r,
+    Member UserSearchSubsystem r
   ) =>
   UserId ->
   UserId ->
@@ -1237,7 +1245,8 @@ activate ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSearchSubsystem r
   ) =>
   Public.ActivationKey ->
   Public.ActivationCode ->
@@ -1254,7 +1263,8 @@ activateKey ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSearchSubsystem r
   ) =>
   Public.Activate ->
   (Handler r) ActivationRespWithStatus

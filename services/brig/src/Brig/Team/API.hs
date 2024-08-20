@@ -84,6 +84,7 @@ import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserKeyStore
+import Wire.UserSearchSubsystem (UserSearchSubsystem)
 import Wire.UserSubsystem
 
 servantAPI ::
@@ -302,7 +303,8 @@ suspendTeam ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSearchSubsystem r
   ) =>
   TeamId ->
   (Handler r) NoContent
@@ -321,7 +323,8 @@ unsuspendTeam ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSearchSubsystem r
   ) =>
   TeamId ->
   (Handler r) NoContent
@@ -341,7 +344,8 @@ changeTeamAccountStatuses ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSearchSubsystem r
   ) =>
   TeamId ->
   AccountStatus ->

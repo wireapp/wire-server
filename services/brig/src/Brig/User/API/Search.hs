@@ -19,8 +19,6 @@ module Brig.User.API.Search
   ( search,
     teamUserSearch,
     refreshIndex,
-    reindexAll,
-    reindexAllIfSameOrNewer,
   )
 where
 
@@ -33,7 +31,6 @@ import Brig.Effects.FederationConfigStore qualified as E
 import Brig.Federation.Client qualified as Federation
 import Brig.Options qualified as Opts
 import Brig.Team.Util (ensurePermissions, ensurePermissionsOrPersonalUser)
-import Brig.Types.Search as Search
 import Brig.User.API.Handle qualified as HandleAPI
 import Brig.User.Search.Index
 import Brig.User.Search.SearchIndex qualified as Q
@@ -59,6 +56,7 @@ import Wire.API.User.Search
 import Wire.API.User.Search qualified as Public
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
+import Wire.UserSearch.Types qualified as Search
 import Wire.UserStore (UserStore)
 import Wire.UserSubsystem
 
@@ -152,7 +150,7 @@ searchLocally searcherId searchTerm maybeMaxResults = do
     handleTeamVisibility _ SearchVisibilityStandard = Search.AllUsers
     handleTeamVisibility t SearchVisibilityNoNameOutsideTeam = Search.TeamOnly t
 
-    mkTeamSearchInfo :: Maybe TeamId -> (Handler r) TeamSearchInfo
+    mkTeamSearchInfo :: Maybe TeamId -> (Handler r) Search.TeamSearchInfo
     mkTeamSearchInfo searcherTeamId = lift $ do
       sameTeamSearchOnly <- fromMaybe False <$> view (settings . Opts.searchSameTeamOnly)
       case searcherTeamId of

@@ -17,7 +17,6 @@ library
     Brig.Types.Instances
     Brig.Types.Intra
     Brig.Types.Provider.Tag
-    Brig.Types.Search
     Brig.Types.Team
     Brig.Types.Team.LegalHold
     Brig.Types.Test.Arbitrary

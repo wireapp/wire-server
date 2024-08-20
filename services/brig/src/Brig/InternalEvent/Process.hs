@@ -43,6 +43,7 @@ import Wire.PropertySubsystem
 import Wire.Sem.Delay
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserKeyStore
+import Wire.UserSearchSubsystem (UserSearchSubsystem)
 import Wire.UserStore (UserStore)
 
 -- | Handle an internal event.
@@ -59,7 +60,8 @@ onEvent ::
     Member (Input UTCTime) r,
     Member UserStore r,
     Member (ConnectionStore InternalPaging) r,
-    Member PropertySubsystem r
+    Member PropertySubsystem r,
+    Member UserSearchSubsystem r
   ) =>
   InternalNotification ->
   Sem r ()

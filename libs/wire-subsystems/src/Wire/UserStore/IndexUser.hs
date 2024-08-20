@@ -169,10 +169,10 @@ indexUserToDoc searchVisInbound IndexUser {..} =
       (issuer, nameid) <- ssoIssuerAndNameId userSsoId
       pure $ Sso {ssoIssuer = issuer, ssoNameId = nameid}
 
-    -- Transliteration could also be done by ElasticSearch (ICU plugin), but this would
-    -- require a data migration.
-    normalized :: Text -> Text
-    normalized = transliterate (trans "Any-Latin; Latin-ASCII; Lower")
+-- Transliteration could also be done by ElasticSearch (ICU plugin), but this would
+-- require a data migration.
+normalized :: Text -> Text
+normalized = transliterate (trans "Any-Latin; Latin-ASCII; Lower")
 
 emptyUserDoc :: UserId -> UserDoc
 emptyUserDoc uid =

@@ -40,38 +40,26 @@ module Brig.User.Search.Index
   )
 where
 
-import Bilge (expect2xx, header, lbytes, paths)
 import Bilge.IO (MonadHttp)
 import Bilge.IO qualified as RPC
-import Bilge.RPC (RPCException (RPCException))
-import Bilge.Request qualified as RPC (empty, host, method, port)
-import Bilge.Response (responseJsonThrow)
-import Bilge.Retry (rpcHandlers)
 import Brig.Index.Types (CreateIndexSettings (..))
 import Control.Lens hiding ((#), (.=))
-import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow, throwM, try)
+import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow, throwM)
 import Control.Monad.Except
-import Control.Retry (RetryPolicy, exponentialBackoff, limitRetries, recovering)
 import Data.Aeson as Aeson
-import Data.ByteString.Lazy qualified as BL
 import Data.Credentials
 import Data.Id
 import Data.Map qualified as Map
-import Data.Text qualified as T
 import Data.Text qualified as Text
 import Data.Text.Encoding
-import Data.Text.Lazy qualified as LT
 import Database.Bloodhound qualified as ES
 import Imports hiding (log, searchable)
 import Network.HTTP.Client hiding (host, path, port)
-import Network.HTTP.Types (StdMethod (POST), statusCode)
+import Network.HTTP.Types (statusCode)
 import Prometheus (MonadMonitor)
-import Prometheus qualified as Prom
 import System.Logger qualified as Log
 import System.Logger.Class (Logger, MonadLogger (..), field, info, msg, val, (+++), (~~))
-import Util.Options (Endpoint, host, port)
-import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
-import Wire.API.Team.Feature (SearchVisibilityInboundConfig, featureNameBS)
+import Util.Options (Endpoint)
 import Wire.UserSearch.Types (searchVisibilityInboundFieldName)
 
 --------------------------------------------------------------------------------

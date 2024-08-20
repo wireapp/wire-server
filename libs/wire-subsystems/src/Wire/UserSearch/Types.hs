@@ -174,3 +174,5 @@ instance FromJSON SearchVisibilityInbound where
     case runParser (parser @SearchVisibilityInbound) (encodeUtf8 str) of
       Left err -> fail err
       Right result -> pure result
+
+data IndexQuery r = IndexQuery Query Filter [DefaultSort]

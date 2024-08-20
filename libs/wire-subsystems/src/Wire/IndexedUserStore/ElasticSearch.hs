@@ -1,5 +1,6 @@
 module Wire.IndexedUserStore.ElasticSearch where
 
+import Control.Exception (throwIO)
 import Data.Aeson
 import Data.Aeson.Key qualified as Key
 import Data.ByteString.Builder
@@ -12,7 +13,6 @@ import Imports
 import Network.HTTP.Client
 import Network.HTTP.Types
 import Polysemy
-import Polysemy.Error
 import Wire.IndexedUserStore
 import Wire.Sem.Metrics (Metrics)
 import Wire.Sem.Metrics qualified as Metrics
@@ -39,7 +39,6 @@ instance Exception IndexedUserStoreError
 
 interpretIndexedUserStoreES ::
   ( Member (Embed IO) r,
-    Member (Error IndexedUserStoreError) r,
     Member Metrics r
   ) =>
   IndexedUserStoreConfig ->
@@ -54,7 +53,6 @@ interpretIndexedUserStoreES cfg =
 upsertImpl ::
   forall r.
   ( Member (Embed IO) r,
-    Member (Error IndexedUserStoreError) r,
     Member Metrics r
   ) =>
   IndexedUserStoreConfig ->
@@ -71,12 +69,12 @@ upsertImpl cfg docId userDoc versioning = do
       unless (ES.isSuccess r || ES.isVersionConflict r) $ do
         lift $ Metrics.incCounter indexUpdateErrorCounter
         res <- liftIO $ ES.parseEsResponse r
-        lift . throw . IndexUpdateError . either id id $ res
+        liftIO . throwIO . IndexUpdateError . either id id $ res
       lift $ Metrics.incCounter indexUpdateSuccessCounter
 
     settings = ES.defaultIndexDocumentSettings {ES.idsVersionControl = versioning}
 
-updateTeamSearchVisibilityInboundImpl :: forall r. (Member (Embed IO) r, Member (Error IndexedUserStoreError) r) => IndexedUserStoreConfig -> TeamId -> SearchVisibilityInbound -> Sem r ()
+updateTeamSearchVisibilityInboundImpl :: forall r. (Member (Embed IO) r) => IndexedUserStoreConfig -> TeamId -> SearchVisibilityInbound -> Sem r ()
 updateTeamSearchVisibilityInboundImpl cfg tid vis =
   void $ runInBothES cfg updateAllDocs
   where
@@ -85,7 +83,7 @@ updateTeamSearchVisibilityInboundImpl cfg tid vis =
       r <- ES.updateByQuery idx query (Just script)
       unless (ES.isSuccess r || ES.isVersionConflict r) $ do
         res <- liftIO $ ES.parseEsResponse r
-        lift . throw . IndexUpdateError . either id id $ res
+        liftIO . throwIO . IndexUpdateError . either id id $ res
 
     query :: ES.Query
     query = ES.TermQuery (ES.Term "team" $ idToText tid) Nothing
@@ -101,13 +99,7 @@ updateTeamSearchVisibilityInboundImpl cfg tid vis =
         <> Text.decodeUtf8 (toByteString' vis)
         <> "';"
 
-bulkUpsertImpl ::
-  ( Member (Embed IO) r,
-    Member (Error IndexedUserStoreError) r
-  ) =>
-  IndexedUserStoreConfig ->
-  [(ES.DocId, UserDoc, ES.VersionControl)] ->
-  Sem r ()
+bulkUpsertImpl :: (Member (Embed IO) r) => IndexedUserStoreConfig -> [(ES.DocId, UserDoc, ES.VersionControl)] -> Sem r ()
 bulkUpsertImpl cfg docs = do
   let bhe = cfg.conn.env
       ES.IndexName idx = cfg.conn.indexName
@@ -124,7 +116,7 @@ bulkUpsertImpl cfg docs = do
   res <- embed $ httpLbs req (ES.bhManager bhe)
   unless (ES.isSuccess res) $ do
     parsedRes <- liftIO $ ES.parseEsResponse res
-    throw . IndexUpdateError . either id id $ parsedRes
+    liftIO . throwIO . IndexUpdateError . either id id $ parsedRes
   where
     encodeJSONToString :: (ToJSON a) => a -> Builder
     encodeJSONToString = fromEncoding . toEncoding

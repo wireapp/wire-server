@@ -61,7 +61,6 @@ import Brig.Federation.Client (notifyUserDeleted, sendConnectionAction)
 import Brig.IO.Journal qualified as Journal
 import Brig.IO.Logging
 import Brig.RPC
-import Brig.User.Search.Index qualified as Search
 import Control.Error (ExceptT, runExceptT)
 import Control.Lens (view, (.~), (?~), (^.), (^?))
 import Control.Monad.Catch
@@ -105,6 +104,8 @@ import Wire.Rpc
 import Wire.Sem.Logger qualified as Log
 import Wire.Sem.Paging qualified as P
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.UserSearchSubsystem (UserSearchSubsystem)
+import Wire.UserSearchSubsystem qualified as UserSearchSubsystem
 
 -----------------------------------------------------------------------------
 -- Event Handlers
@@ -115,7 +116,8 @@ onUserEvent ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSearchSubsystem r
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -132,7 +134,8 @@ runEvents ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSearchSubsystem r
   ) =>
   InterpreterFor Events r
 runEvents = interpret \case
@@ -193,23 +196,23 @@ onClientEvent orig conn e = do
     ]
 
 updateSearchIndex ::
-  (Member (Embed HttpClientIO) r) =>
+  (Member UserSearchSubsystem r) =>
   UserId ->
   UserEvent ->
   Sem r ()
-updateSearchIndex orig e = embed $ case e of
+updateSearchIndex orig e = case e of
   -- no-ops
   UserCreated {} -> pure ()
   UserIdentityUpdated UserIdentityUpdatedData {..} -> do
-    when (isJust eiuEmail) $ Search.reindex orig
+    when (isJust eiuEmail) $ UserSearchSubsystem.syncUser orig
   UserIdentityRemoved {} -> pure ()
   UserLegalHoldDisabled {} -> pure ()
   UserLegalHoldEnabled {} -> pure ()
   LegalHoldClientRequested {} -> pure ()
-  UserSuspended {} -> Search.reindex orig
-  UserResumed {} -> Search.reindex orig
-  UserActivated {} -> Search.reindex orig
-  UserDeleted {} -> Search.reindex orig
+  UserSuspended {} -> UserSearchSubsystem.syncUser orig
+  UserResumed {} -> UserSearchSubsystem.syncUser orig
+  UserActivated {} -> UserSearchSubsystem.syncUser orig
+  UserDeleted {} -> UserSearchSubsystem.syncUser orig
   UserUpdated UserUpdatedData {..} -> do
     let interesting =
           or
@@ -219,7 +222,7 @@ updateSearchIndex orig e = embed $ case e of
               isJust eupManagedBy,
               isJust eupSSOId || eupSSOIdRemoved
             ]
-    when interesting $ Search.reindex orig
+    when interesting $ UserSearchSubsystem.syncUser orig
 
 journalEvent :: (MonadReader Env m, MonadIO m) => UserId -> UserEvent -> m ()
 journalEvent orig e = case e of

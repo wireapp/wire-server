@@ -15,6 +15,7 @@ import Brig.Effects.UserPendingActivationStore.Cassandra (userPendingActivationS
 import Brig.IO.Intra (runEvents)
 import Brig.Options (ImplicitNoFederationRestriction (federationDomainConfig), federationDomainConfigs, federationStrategy)
 import Brig.Options qualified as Opt
+import Brig.User.Search.Index (IndexEnv (..))
 import Cassandra qualified as Cas
 import Control.Exception (ErrorCall)
 import Control.Lens (to, (^.))
@@ -50,6 +51,8 @@ import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess.Rpc
 import Wire.GundeckAPIAccess
 import Wire.HashPassword
+import Wire.IndexedUserStore
+import Wire.IndexedUserStore.ElasticSearch
 import Wire.NotificationSubsystem
 import Wire.NotificationSubsystem.Interpreter (defaultNotificationSubsystemConfig, runNotificationSubsystemGundeck)
 import Wire.ParseException
@@ -67,6 +70,8 @@ import Wire.Sem.Concurrency.IO
 import Wire.Sem.Delay
 import Wire.Sem.Jwk
 import Wire.Sem.Logger.TinyLog (loggerToTinyLogReqId)
+import Wire.Sem.Metrics
+import Wire.Sem.Metrics.IO (runMetricsToIO)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIOAction)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
@@ -76,6 +81,8 @@ import Wire.SessionStore
 import Wire.SessionStore.Cassandra (interpretSessionStoreCassandra)
 import Wire.UserKeyStore
 import Wire.UserKeyStore.Cassandra
+import Wire.UserSearchSubsystem
+import Wire.UserSearchSubsystem.Interpreter (interpretUserSearchSubsystem)
 import Wire.UserStore
 import Wire.UserStore.Cassandra
 import Wire.UserSubsystem
@@ -94,6 +101,7 @@ type BrigCanonicalEffects =
      PropertySubsystem,
      DeleteQueue,
      Wire.Events.Events,
+     UserSearchSubsystem,
      Error UserSubsystemError,
      Error AuthenticationSubsystemError,
      Error Wire.API.Federation.Error.FederationError,
@@ -104,6 +112,7 @@ type BrigCanonicalEffects =
      HashPassword,
      UserKeyStore,
      UserStore,
+     IndexedUserStore,
      SessionStore,
      PasswordStore,
      VerificationCodeStore,
@@ -129,6 +138,7 @@ type BrigCanonicalEffects =
      GalleyAPIAccess,
      EmailSending,
      Rpc,
+     Metrics,
      Embed Cas.Client,
      Error ParseException,
      Error ErrorCall,
@@ -162,6 +172,21 @@ runBrigToIO e (AppT ma) = do
             maxValueLength = fromMaybe Opt.defMaxValueLen $ e ^. settings . Opt.propertyMaxValueLen,
             maxProperties = 16
           }
+      mainESEnv = e ^. App.indexEnv . to idxElastic
+      indexedUserStoreConfig =
+        IndexedUserStoreConfig
+          { conn =
+              ESConn
+                { env = mainESEnv,
+                  indexName = e ^. App.indexEnv . to idxName
+                },
+            additionalConn =
+              (e ^. App.indexEnv . to idxAdditionalName) <&> \additionalIndexName ->
+                ESConn
+                  { env = e ^. App.indexEnv . to idxAdditionalElastic . to (fromMaybe mainESEnv),
+                    indexName = additionalIndexName
+                  }
+          }
   ( either throwM pure
       <=< ( runFinal
               . unsafelyPerformConcurrency
@@ -174,6 +199,7 @@ runBrigToIO e (AppT ma) = do
               . mapError @ErrorCall SomeException
               . mapError @ParseException SomeException
               . interpretClientToIO (e ^. casClient)
+              . runMetricsToIO
               . runRpcWithHttp (e ^. httpManager) (e ^. App.requestId)
               . emailSendingInterpreter e
               . interpretGalleyAPIAccessToRpc (e ^. disabledVersions) (e ^. galleyEndpoint)
@@ -199,6 +225,7 @@ runBrigToIO e (AppT ma) = do
               . interpretVerificationCodeStoreCassandra (e ^. casClient)
               . interpretPasswordStore (e ^. casClient)
               . interpretSessionStoreCassandra (e ^. casClient)
+              . interpretIndexedUserStoreES indexedUserStoreConfig
               . interpretUserStoreCassandra (e ^. casClient)
               . interpretUserKeyStoreCassandra (e ^. casClient)
               . runHashPassword
@@ -209,6 +236,7 @@ runBrigToIO e (AppT ma) = do
               . mapError (StdError . federationErrorToWai)
               . mapError authenticationSubsystemErrorToHttpError
               . mapError userSubsystemErrorToHttpError
+              . interpretUserSearchSubsystem
               . runEvents
               . runDeleteQueue (e ^. internalEvents)
               . interpretPropertySubsystem propertySubsystemConfig

@@ -57,7 +57,6 @@ import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User
 import Brig.User.API.Search qualified as Search
 import Brig.User.EJPD qualified
-import Brig.User.Search.Index qualified as Index
 import Control.Error hiding (bool)
 import Control.Lens (preview, to, view, _Just)
 import Data.ByteString.Conversion (toByteString)
@@ -110,6 +109,7 @@ import Wire.Rpc
 import Wire.Sem.Concurrency
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserKeyStore
+import Wire.UserSearchSubsystem (UserSearchSubsystem, updateTeamSearchVisibilityInbound)
 import Wire.UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem qualified as UserSubsystem
@@ -139,7 +139,8 @@ servantSitemap ::
     Member EmailSending r,
     Member EmailSubsystem r,
     Member VerificationCodeSubsystem r,
-    Member PropertySubsystem r
+    Member PropertySubsystem r,
+    Member UserSearchSubsystem r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -190,7 +191,8 @@ accountAPI ::
     Member (ConnectionStore InternalPaging) r,
     Member EmailSubsystem r,
     Member VerificationCodeSubsystem r,
-    Member PropertySubsystem r
+    Member PropertySubsystem r,
+    Member UserSearchSubsystem r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
@@ -242,11 +244,12 @@ teamsAPI ::
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
     Member EmailSending r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member UserSearchSubsystem r
   ) =>
   ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI =
-  Named @"updateSearchVisibilityInbound" Index.updateSearchVisibilityInbound
+  Named @"updateSearchVisibilityInbound" (lift . liftSem . updateTeamSearchVisibilityInbound)
     :<|> Named @"get-invitation-by-email" Team.getInvitationByEmail
     :<|> Named @"get-invitation-code" Team.getInvitationCode
     :<|> Named @"suspend-team" Team.suspendTeam
@@ -271,7 +274,8 @@ authAPI ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
-    Member VerificationCodeSubsystem r
+    Member VerificationCodeSubsystem r,
+    Member UserSearchSubsystem r
   ) =>
   ServerT BrigIRoutes.AuthAPI (Handler r)
 authAPI =
@@ -406,7 +410,8 @@ addClientInternalH ::
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
     Member EmailSubsystem r,
-    Member VerificationCodeSubsystem r
+    Member VerificationCodeSubsystem r,
+    Member UserSearchSubsystem r
   ) =>
   UserId ->
   Maybe Bool ->
@@ -425,7 +430,8 @@ legalHoldClientRequestedH ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSearchSubsystem r
   ) =>
   UserId ->
   LegalHoldClientRequest ->
@@ -440,7 +446,8 @@ removeLegalHoldClientH ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSearchSubsystem r
   ) =>
   UserId ->
   (Handler r) NoContent
@@ -466,7 +473,8 @@ createUserNoVerify ::
     Member UserKeyStore r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSearchSubsystem r
   ) =>
   NewUser ->
   (Handler r) (Either RegisterError SelfProfile)
@@ -490,7 +498,8 @@ createUserNoVerifySpar ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSearchSubsystem r
   ) =>
   NewUserSpar ->
   (Handler r) (Either CreateUserSparError SelfProfile)
@@ -516,7 +525,8 @@ deleteUserNoAuthH ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
-    Member PropertySubsystem r
+    Member PropertySubsystem r,
+    Member UserSearchSubsystem r
   ) =>
   UserId ->
   (Handler r) DeleteUserResponse
@@ -527,14 +537,14 @@ deleteUserNoAuthH uid = do
     AccountAlreadyDeleted -> pure UserResponseAccountAlreadyDeleted
     AccountDeleted -> pure UserResponseAccountDeleted
 
-changeSelfEmailMaybeSendH :: (Member BlockListStore r, Member UserKeyStore r, Member EmailSubsystem r) => UserId -> EmailUpdate -> Maybe Bool -> (Handler r) ChangeEmailResponse
+changeSelfEmailMaybeSendH :: (Member BlockListStore r, Member UserKeyStore r, Member EmailSubsystem r, Member UserSearchSubsystem r) => UserId -> EmailUpdate -> Maybe Bool -> (Handler r) ChangeEmailResponse
 changeSelfEmailMaybeSendH u body (fromMaybe False -> validate) = do
   let email = euEmail body
   changeSelfEmailMaybeSend u (if validate then ActuallySendEmail else DoNotSendEmail) email UpdateOriginScim
 
 data MaybeSendEmail = ActuallySendEmail | DoNotSendEmail
 
-changeSelfEmailMaybeSend :: (Member BlockListStore r, Member UserKeyStore r, Member EmailSubsystem r) => UserId -> MaybeSendEmail -> EmailAddress -> UpdateOriginType -> (Handler r) ChangeEmailResponse
+changeSelfEmailMaybeSend :: (Member BlockListStore r, Member UserKeyStore r, Member EmailSubsystem r, Member UserSearchSubsystem r) => UserId -> MaybeSendEmail -> EmailAddress -> UpdateOriginType -> (Handler r) ChangeEmailResponse
 changeSelfEmailMaybeSend u ActuallySendEmail email allowScim = do
   API.changeSelfEmail u email allowScim
 changeSelfEmailMaybeSend u DoNotSendEmail email allowScim = do
@@ -632,7 +642,8 @@ changeAccountStatusH ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSearchSubsystem r
   ) =>
   UserId ->
   AccountStatusUpdate ->
@@ -709,7 +720,8 @@ updateSSOIdH ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSearchSubsystem r
   ) =>
   UserId ->
   UserSSOId ->
@@ -728,7 +740,8 @@ deleteSSOIdH ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSearchSubsystem r
   ) =>
   UserId ->
   (Handler r) UpdateSSOIdResponse

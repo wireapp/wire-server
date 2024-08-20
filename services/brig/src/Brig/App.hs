@@ -39,6 +39,7 @@ module Brig.App
     cargoholdEndpoint,
     federator,
     casClient,
+    indexEnv,
     userTemplates,
     providerTemplates,
     teamTemplates,

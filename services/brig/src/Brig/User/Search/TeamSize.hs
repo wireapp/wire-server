@@ -28,6 +28,8 @@ import Control.Monad.Catch (throwM)
 import Data.Id
 import Database.Bloodhound qualified as ES
 import Imports hiding (log, searchable)
+-- TODO: Not ideal to import interpreters
+import Wire.IndexedUserStore.ElasticSearch (IndexedUserStoreError (..))
 
 teamSize :: (MonadIndexIO m) => TeamId -> m TeamSize
 teamSize t = liftIndexIO $ do

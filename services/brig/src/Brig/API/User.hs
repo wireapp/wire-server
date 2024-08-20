@@ -92,7 +92,6 @@ import Brig.Team.DB qualified as Team
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Intra
 import Brig.User.Auth.Cookie qualified as Auth
-import Brig.User.Search.Index (reindex)
 import Brig.User.Search.TeamSize qualified as TeamSize
 import Cassandra hiding (Set)
 import Control.Error
@@ -149,6 +148,8 @@ import Wire.PropertySubsystem as PropertySubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserKeyStore
+import Wire.UserSearchSubsystem (UserSearchSubsystem)
+import Wire.UserSearchSubsystem qualified as UserSearchSubsystem
 import Wire.UserStore
 import Wire.UserSubsystem as User
 import Wire.UserSubsystem.HandleBlacklist
@@ -198,7 +199,8 @@ createUserSpar ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member UserSubsystem r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSearchSubsystem r
   ) =>
   NewUserSpar ->
   ExceptT CreateUserSparError (AppT r) CreateUserResult
@@ -270,7 +272,8 @@ createUser ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSearchSubsystem r
   ) =>
   NewUser ->
   ExceptT RegisterError (AppT r) CreateUserResult
@@ -526,7 +529,16 @@ checkRestrictedUserCreation new = do
 
 -- | Call 'changeEmail' and process result: if email changes to itself, succeed, if not, send
 -- validation email.
-changeSelfEmail :: (Member BlockListStore r, Member UserKeyStore r, Member EmailSubsystem r) => UserId -> EmailAddress -> UpdateOriginType -> ExceptT HttpError (AppT r) ChangeEmailResponse
+changeSelfEmail ::
+  ( Member BlockListStore r,
+    Member UserKeyStore r,
+    Member EmailSubsystem r,
+    Member UserSearchSubsystem r
+  ) =>
+  UserId ->
+  EmailAddress ->
+  UpdateOriginType ->
+  ExceptT HttpError (AppT r) ChangeEmailResponse
 changeSelfEmail u email allowScim = do
   changeEmail u email allowScim !>> Error.changeEmailError >>= \case
     ChangeEmailIdempotent ->
@@ -534,7 +546,7 @@ changeSelfEmail u email allowScim = do
     ChangeEmailNeedsActivation (usr, adata, en) -> lift $ do
       liftSem $ sendOutEmail usr adata en
       wrapClient $ Data.updateEmailUnvalidated u email
-      wrapClient $ reindex u
+      liftSem $ UserSearchSubsystem.syncUser u
       pure ChangeEmailResponseNeedsActivation
   where
     sendOutEmail usr adata en = do
@@ -578,7 +590,8 @@ removeEmail ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member UserSearchSubsystem r
   ) =>
   UserId ->
   ExceptT RemoveIdentityError (AppT r) ()
@@ -622,7 +635,8 @@ changeAccountStatus ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSearchSubsystem r
   ) =>
   List1 UserId ->
   AccountStatus ->
@@ -645,7 +659,8 @@ changeSingleAccountStatus ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSearchSubsystem r
   ) =>
   UserId ->
   AccountStatus ->
@@ -678,7 +693,8 @@ activate ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSearchSubsystem r
   ) =>
   ActivationTarget ->
   ActivationCode ->
@@ -694,7 +710,8 @@ activateWithCurrency ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSearchSubsystem r
   ) =>
   ActivationTarget ->
   ActivationCode ->
@@ -741,7 +758,8 @@ onActivated ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSearchSubsystem r
   ) =>
   ActivationEvent ->
   AppT r (UserId, Maybe UserIdentity, Bool)
@@ -871,7 +889,8 @@ deleteSelfUser ::
     Member (ConnectionStore InternalPaging) r,
     Member EmailSubsystem r,
     Member VerificationCodeSubsystem r,
-    Member PropertySubsystem r
+    Member PropertySubsystem r,
+    Member UserSearchSubsystem r
   ) =>
   UserId ->
   Maybe PlainTextPassword6 ->
@@ -943,7 +962,8 @@ verifyDeleteUser ::
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
     Member VerificationCodeSubsystem r,
-    Member PropertySubsystem r
+    Member PropertySubsystem r,
+    Member UserSearchSubsystem r
   ) =>
   VerifyDeleteUser ->
   ExceptT DeleteUserError (AppT r) ()
@@ -970,7 +990,8 @@ ensureAccountDeleted ::
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
     Member UserStore r,
-    Member PropertySubsystem r
+    Member PropertySubsystem r,
+    Member UserSearchSubsystem r
   ) =>
   UserId ->
   AppT r DeleteUserResult
@@ -1020,7 +1041,8 @@ deleteAccount ::
     Member UserStore r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
-    Member PropertySubsystem r
+    Member PropertySubsystem r,
+    Member UserSearchSubsystem r
   ) =>
   UserAccount ->
   Sem r ()

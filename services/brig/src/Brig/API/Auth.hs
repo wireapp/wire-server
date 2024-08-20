@@ -59,6 +59,7 @@ import Wire.NotificationSubsystem
 import Wire.PasswordStore (PasswordStore)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserKeyStore
+import Wire.UserSearchSubsystem (UserSearchSubsystem)
 import Wire.UserStore
 import Wire.UserSubsystem
 import Wire.VerificationCodeSubsystem (VerificationCodeSubsystem)
@@ -69,7 +70,8 @@ accessH ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSearchSubsystem r
   ) =>
   Maybe ClientId ->
   [Either Text SomeUserToken] ->
@@ -88,7 +90,8 @@ access ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSearchSubsystem r
   ) =>
   Maybe ClientId ->
   NonEmpty (Token u) ->
@@ -114,7 +117,8 @@ login ::
     Member PasswordStore r,
     Member UserKeyStore r,
     Member UserStore r,
-    Member VerificationCodeSubsystem r
+    Member VerificationCodeSubsystem r,
+    Member UserSearchSubsystem r
   ) =>
   Login ->
   Maybe Bool ->
@@ -141,7 +145,8 @@ logout uts (Just at) = Auth.logout (List1 uts) at !>> zauthError
 changeSelfEmailH ::
   ( Member BlockListStore r,
     Member UserKeyStore r,
-    Member EmailSubsystem r
+    Member EmailSubsystem r,
+    Member UserSearchSubsystem r
   ) =>
   [Either Text SomeUserToken] ->
   Maybe (Either Text SomeAccessToken) ->
@@ -180,7 +185,8 @@ legalHoldLogin ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSearchSubsystem r
   ) =>
   LegalHoldLogin ->
   Handler r SomeAccess
@@ -195,7 +201,8 @@ ssoLogin ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSearchSubsystem r
   ) =>
   SsoLogin ->
   Maybe Bool ->

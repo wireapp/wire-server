@@ -80,6 +80,7 @@ import Wire.NotificationSubsystem
 import Wire.PasswordStore (PasswordStore)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserKeyStore
+import Wire.UserSearchSubsystem (UserSearchSubsystem)
 import Wire.UserStore
 import Wire.VerificationCode qualified as VerificationCode
 import Wire.VerificationCodeGen qualified as VerificationCodeGen
@@ -98,7 +99,8 @@ login ::
     Member PasswordStore r,
     Member UserKeyStore r,
     Member UserStore r,
-    Member VerificationCodeSubsystem r
+    Member VerificationCodeSubsystem r,
+    Member UserSearchSubsystem r
   ) =>
   Login ->
   CookieType ->
@@ -201,7 +203,8 @@ renewAccess ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSearchSubsystem r
   ) =>
   List1 (ZAuth.Token u) ->
   Maybe (ZAuth.Token a) ->
@@ -237,7 +240,8 @@ catchSuspendInactiveUser ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSearchSubsystem r
   ) =>
   UserId ->
   e ->
@@ -266,7 +270,8 @@ newAccess ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSearchSubsystem r
   ) =>
   UserId ->
   Maybe ClientId ->
@@ -367,7 +372,8 @@ ssoLogin ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSearchSubsystem r
   ) =>
   SsoLogin ->
   CookieType ->
@@ -394,7 +400,8 @@ legalHoldLogin ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSearchSubsystem r
   ) =>
   LegalHoldLogin ->
   CookieType ->

@@ -40,6 +40,10 @@ import Data.Text.Ascii (decodeBase64Url, encodeBase64Url)
 import Database.Bloodhound qualified as ES
 import Imports hiding (log, searchable)
 import Wire.API.User.Search
+-- TODO: importing interpreters is not ideal
+import Wire.IndexedUserStore.ElasticSearch (IndexedUserStoreError (..), mappingName)
+import Wire.UserSearch.Types (IndexQuery (..))
+import Wire.UserStore.IndexUser (normalized)
 
 teamUserSearch ::
   (HasCallStack, MonadIndexIO m) =>

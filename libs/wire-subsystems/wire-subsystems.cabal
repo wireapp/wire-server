@@ -241,6 +241,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.VerificationCodeStore
     Wire.NotificationSubsystem.InterpreterSpec
     Wire.PropertySubsystem.InterpreterSpec
+    Wire.UserSearch.TypesSpec
     Wire.UserStoreSpec
     Wire.UserSubsystem.InterpreterSpec
     Wire.VerificationCodeSubsystem.InterpreterSpec
