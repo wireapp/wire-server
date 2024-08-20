@@ -42,7 +42,7 @@ interpretUserSearchSubsystem ::
 interpretUserSearchSubsystem = interpret \case
   SyncUser uid -> syncUserImpl uid
   UpdateTeamSearchVisibilityInbound status -> updateTeamSearchVisibilityInboundImpl status
-  SearchUser luid query mDomain mMaxResults -> searchUserImpl luid query mDomain mMaxResults
+  SearchUsers luid query mDomain mMaxResults -> searchUsersImpl luid query mDomain mMaxResults
   BrowseTeam uid browseTeamFilters mMaxResults mPagingState -> do
     browseTeamImpl uid browseTeamFilters mMaxResults mPagingState
 
@@ -150,8 +150,8 @@ updateTeamSearchVisibilityInboundImpl teamStatus =
   IndexedUserStore.updateTeamSearchVisibilityInbound teamStatus.team $
     searchVisibilityInboundFromFeatureStatus teamStatus.status
 
-searchUserImpl :: Local UserId -> Text -> Maybe Domain -> Maybe (Range 1 500 Int32) -> Sem r [Contact]
-searchUserImpl = undefined
+searchUsersImpl :: Local UserId -> Text -> Maybe Domain -> Maybe (Range 1 500 Int32) -> Sem r [Contact]
+searchUsersImpl = undefined
 
 browseTeamImpl :: UserId -> BrowseTeamFilters -> Maybe (Range 1 500 Int32) -> Maybe PagingState -> Sem r [TeamContact]
 browseTeamImpl = undefined

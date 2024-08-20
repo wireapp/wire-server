@@ -23,7 +23,7 @@ data BrowseTeamFilters = BrowseTeamFilters
 data UserSearchSubsystem m a where
   SyncUser :: UserId -> UserSearchSubsystem m ()
   UpdateTeamSearchVisibilityInbound :: TeamStatus SearchVisibilityInboundConfig -> UserSearchSubsystem m ()
-  SearchUser :: Local UserId -> Text -> Maybe Domain -> Maybe (Range 1 500 Int32) -> UserSearchSubsystem m [Contact]
+  SearchUsers :: Local UserId -> Text -> Maybe Domain -> Maybe (Range 1 500 Int32) -> UserSearchSubsystem m [Contact]
   BrowseTeam :: UserId -> BrowseTeamFilters -> Maybe (Range 1 500 Int32) -> Maybe PagingState -> UserSearchSubsystem m [TeamContact]
 
 makeSem ''UserSearchSubsystem
