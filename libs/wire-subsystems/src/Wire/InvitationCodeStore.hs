@@ -20,14 +20,17 @@
 module Wire.InvitationCodeStore where
 
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT, runMaybeT))
-import Data.Id
-import Data.Json.Util
+import Data.Id (InvitationId, TeamId, UserId)
+import Data.Json.Util (UTCTimeMillis)
 import Database.CQL.Protocol (Record (..), TupleType, recordInstance)
 import Imports
 import Polysemy
-import Wire.API.Team.Role
-import Wire.API.User
+import Polysemy.TinyLog (TinyLog)
+import System.Logger.Message qualified as Log
+import Wire.API.Team.Role (Role)
+import Wire.API.User (Email, InvitationCode, Name)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
+import Wire.Sem.Logger qualified as Log
 
 data StoredInvitation = MkStoredInvitation
   { teamId :: TeamId,
@@ -58,11 +61,24 @@ recordInstance ''StoredInvitationByTeam
 data InvitationCodeStore :: Effect where
   LookupInvitation :: TeamId -> InvitationId -> InvitationCodeStore m (Maybe StoredInvitation)
   LookupInvitationCodesByEmail :: Email -> InvitationCodeStore m [StoredInvitationByTeam]
-  LookupSingleInvitationCodeByEmail :: Email -> InvitationCodeStore m (Maybe StoredInvitationByTeam)
 
 makeSem ''InvitationCodeStore
 
-lookupInvitationByEmail :: (Member InvitationCodeStore r) => Email -> Sem r (Maybe StoredInvitation)
+lookupInvitationByEmail :: (Member InvitationCodeStore r, Member TinyLog r) => Email -> Sem r (Maybe StoredInvitation)
 lookupInvitationByEmail email = runMaybeT do
   MkStoredInvitationByTeam {teamId, invId} <- MaybeT $ lookupSingleInvitationCodeByEmail email
   MaybeT $ lookupInvitation teamId invId
+
+lookupSingleInvitationCodeByEmail :: (Member TinyLog r, Member InvitationCodeStore r) => Email -> Sem r (Maybe StoredInvitationByTeam)
+lookupSingleInvitationCodeByEmail email = do
+  invs <- lookupInvitationCodesByEmail email
+  case invs of
+    [] -> pure Nothing
+    [inv] -> pure $ Just inv
+    (_ : _ : _) -> do
+      -- edge case: more than one pending invite from different teams
+      Log.info $
+        Log.msg (Log.val "team_invidation_email: multiple pending invites from different teams for the same email")
+          . Log.field "email" (show email)
+
+      pure Nothing

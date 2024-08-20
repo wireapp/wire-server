@@ -211,6 +211,8 @@ test-suite wire-subsystems-tests
     Wire.AuthenticationSubsystem.InterpreterSpec
     Wire.MiniBackend
     Wire.MockInterpreters
+    Wire.MockInterpreters.InvitationCodeStore
+    Wire.MockInterpreters.ActivationCodeStore
     Wire.MockInterpreters.BlockListStore
     Wire.MockInterpreters.EmailSubsystem
     Wire.MockInterpreters.Error
@@ -245,6 +247,7 @@ test-suite wire-subsystems-tests
     , data-default
     , errors
     , extended
+    , generics-sop
     , gundeck-types
     , hspec
     , imports

@@ -23,7 +23,7 @@ interpretActivationCodeStoreToCassandra casClient =
     cql :: PrepQuery R (Identity ActivationKey) (Maybe UserId, ActivationCode)
     cql =
       [sql| 
-      SELECT user, code FROM activation_keys WHERE key = ?"
+      SELECT user, code FROM activation_keys WHERE key = ?
       |]
 
 mkActivationKey :: EmailKey -> IO ActivationKey

@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveAnyClass #-}
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 module Wire.MiniBackend
@@ -34,6 +35,8 @@ import Data.Proxy
 import Data.Qualified
 import Data.Time
 import Data.Type.Equality
+import GHC.Generics
+import Generics.SOP qualified as SOP
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -51,7 +54,9 @@ import Wire.API.Federation.Error
 import Wire.API.Team.Feature
 import Wire.API.Team.Member hiding (userId)
 import Wire.API.User as User hiding (DeleteUser)
+import Wire.API.User.Activation (ActivationCode)
 import Wire.API.User.Password
+import Wire.ActivationCodeStore
 import Wire.BlockListStore
 import Wire.DeleteQueue
 import Wire.DeleteQueue.InMemory
@@ -60,7 +65,10 @@ import Wire.FederationAPIAccess
 import Wire.FederationAPIAccess.Interpreter as FI
 import Wire.GalleyAPIAccess
 import Wire.InternalEvent hiding (DeleteUser)
+import Wire.InvitationCodeStore
 import Wire.MockInterpreters
+import Wire.MockInterpreters.ActivationCodeStore (inMemoryActivationCodeStoreInterpreter)
+import Wire.MockInterpreters.InvitationCodeStore (inMemoryInvitationCodeStoreInterpreter)
 import Wire.PasswordResetCodeStore
 import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.Sequential
@@ -97,6 +105,10 @@ type AllErrors =
 type MiniBackendEffects =
   [ UserSubsystem,
     GalleyAPIAccess,
+    InvitationCodeStore,
+    State (Map (TeamId, InvitationId) StoredInvitation),
+    ActivationCodeStore,
+    State (Map EmailKey (Maybe UserId, ActivationCode)),
     BlockListStore,
     State [EmailKey],
     UserStore,
@@ -123,17 +135,15 @@ data MiniBackend = MkMiniBackend
     users :: [StoredUser],
     userKeys :: Map EmailKey UserId,
     passwordResetCodes :: Map PasswordResetKey (PRQueryData Identity),
-    blockList :: [EmailKey]
+    blockList :: [EmailKey],
+    activationCodes :: Map EmailKey (Maybe UserId, ActivationCode),
+    invitations :: Map (TeamId, InvitationId) StoredInvitation
   }
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (SOP.Generic)
 
 instance Default MiniBackend where
-  def =
-    MkMiniBackend
-      { users = mempty,
-        userKeys = mempty,
-        passwordResetCodes = mempty,
-        blockList = mempty
-      }
+  def = SOP.productTypeTo $ SOP.hcpure (Proxy @Monoid) mempty
 
 -- | represents an entire federated, stateful world of backends
 newtype MiniFederation = MkMiniFederation
@@ -352,8 +362,22 @@ interpretMaybeFederationStackState maybeFederationAPIAccess localBackend teamMem
     . inMemoryUserStoreInterpreter
     . liftBlockListStoreState
     . inMemoryBlockListStoreInterpreter
+    . liftActivationCodeStoreState
+    . inMemoryActivationCodeStoreInterpreter
+    . liftInvitationCodeStoreState
+    . inMemoryInvitationCodeStoreInterpreter
     . miniGalleyAPIAccess teamMember galleyConfigs
     . runUserSubsystem cfg
+
+liftActivationCodeStoreState :: (Member (State MiniBackend) r) => Sem (State (Map EmailKey (Maybe UserId, ActivationCode)) : r) a -> Sem r a
+liftActivationCodeStoreState = interpret \case
+  Polysemy.State.Get -> gets (.activationCodes)
+  Put newAcs -> modify $ \b -> b {activationCodes = newAcs}
+
+liftInvitationCodeStoreState :: (Member (State MiniBackend) r) => Sem (State (Map (TeamId, InvitationId) StoredInvitation) : r) a -> Sem r a
+liftInvitationCodeStoreState = interpret \case
+  Polysemy.State.Get -> gets (.invitations)
+  Put newInvs -> modify $ \b -> b {invitations = newInvs}
 
 liftBlockListStoreState :: (Member (State MiniBackend) r) => Sem (State [EmailKey] : r) a -> Sem r a
 liftBlockListStoreState = interpret $ \case

@@ -20,6 +20,7 @@ import Imports hiding (local)
 import Polysemy
 import Polysemy.Error hiding (try)
 import Polysemy.Input
+import Polysemy.TinyLog (TinyLog)
 import Servant.Client.Core
 import Wire.API.Federation.API
 import Wire.API.Federation.Error
@@ -70,6 +71,7 @@ runUserSubsystem ::
     RunClient (fedM 'Brig),
     FederationMonad fedM,
     Typeable fedM,
+    Member (TinyLog) r,
     Member InvitationCodeStore r,
     Member ActivationCodeStore r
   ) =>
@@ -94,7 +96,8 @@ interpretUserSubsystem ::
     FederationMonad fedM,
     Typeable fedM,
     Member InvitationCodeStore r,
-    Member ActivationCodeStore r
+    Member ActivationCodeStore r,
+    Member TinyLog r
   ) =>
   InterpreterFor UserSubsystem r
 interpretUserSubsystem = interpret \case
@@ -515,7 +518,8 @@ getAccountsByImpl ::
     Member (Input UserSubsystemConfig) r,
     Member InvitationCodeStore r,
     Member UserKeyStore r,
-    Member ActivationCodeStore r
+    Member ActivationCodeStore r,
+    Member TinyLog r
   ) =>
   Local GetBy ->
   Sem r [UserAccount]
