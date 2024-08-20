@@ -38,33 +38,22 @@ data IndexUser = IndexUser
     unverifiedEmail :: Maybe (WithWritetime EmailAddress)
   }
 
+{- ORMOLU_DISABLE -}
 type instance
   TupleType IndexUser =
     ( UserId,
       Maybe TeamId,
-      Name,
-      Writetime Name,
-      Maybe AccountStatus,
-      Maybe (Writetime AccountStatus),
-      Maybe Handle,
-      Maybe (Writetime Handle),
-      Maybe Email,
-      Maybe (Writetime Email),
-      ColourId,
-      Writetime ColourId,
-      Activated,
-      Writetime Activated,
-      Maybe ServiceId,
-      Maybe (Writetime ServiceId),
-      Maybe ManagedBy,
-      Maybe (Writetime ManagedBy),
-      Maybe UserSSOId,
-      Maybe (Writetime UserSSOId),
-      Maybe Email,
-      Maybe (Writetime Email)
+      Name, Writetime Name,
+      Maybe AccountStatus, Maybe (Writetime AccountStatus),
+      Maybe Handle, Maybe (Writetime Handle),
+      Maybe Email, Maybe (Writetime Email),
+      ColourId, Writetime ColourId,
+      Activated, Writetime Activated,
+      Maybe ServiceId, Maybe (Writetime ServiceId),
+      Maybe ManagedBy, Maybe (Writetime ManagedBy),
+      Maybe UserSSOId, Maybe (Writetime UserSSOId),
+      Maybe Email, Maybe (Writetime Email)
     )
-
-{- ORMOLU_DISABLE -}
 
 instance Record IndexUser where
   asTuple (IndexUser {..}) =
@@ -109,8 +98,8 @@ instance Record IndexUser where
         }
 {- ORMOLU_ENABLE -}
 
-indexUserRowToVersion :: IndexUser -> IndexVersion
-indexUserRowToVersion IndexUser {..} =
+indexUserToVersion :: IndexUser -> IndexVersion
+indexUserToVersion IndexUser {..} =
   mkIndexVersion
     [ const () <$$> Just name.writetime,
       const () <$$> fmap writetime accountStatus,
@@ -124,8 +113,8 @@ indexUserRowToVersion IndexUser {..} =
       const () <$$> fmap writetime unverifiedEmail
     ]
 
-indexUserRowToDoc :: SearchVisibilityInbound -> IndexUser -> UserDoc
-indexUserRowToDoc searchVisInbound IndexUser {..} =
+indexUserToDoc :: SearchVisibilityInbound -> IndexUser -> UserDoc
+indexUserToDoc searchVisInbound IndexUser {..} =
   if shouldIndex
     then
       UserDoc

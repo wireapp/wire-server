@@ -86,8 +86,8 @@ syncUserImpl uid =
           (pure defaultSearchVisibilityInbound)
           teamSearchVisibilityInbound
           indexUser.teamId
-      let userDoc = indexUserRowToDoc vis indexUser
-          version = ES.ExternalGT . ES.ExternalDocVersion . docVersion $ indexUserRowToVersion indexUser
+      let userDoc = indexUserToDoc vis indexUser
+          version = ES.ExternalGT . ES.ExternalDocVersion . docVersion $ indexUserToVersion indexUser
       Metrics.incCounter indexUpdateCounter
       IndexedUserStore.upsert (docId uid) userDoc version
 
@@ -141,8 +141,8 @@ syncAllUsersWithVersion mkVersion =
       visMap <- fmap Map.fromList . unsafePooledForConcurrentlyN 16 (Set.fromList $ mapMaybe (.teamId) page) $ \t ->
         (t,) <$> teamSearchVisibilityInbound t
       let vis indexUser = fromMaybe defaultSearchVisibilityInbound $ flip Map.lookup visMap =<< indexUser.teamId
-          mkUserDoc indexUser = indexUserRowToDoc (vis indexUser) indexUser
-          mkDocVersion = mkVersion . ES.ExternalDocVersion . docVersion . indexUserRowToVersion
+          mkUserDoc indexUser = indexUserToDoc (vis indexUser) indexUser
+          mkDocVersion = mkVersion . ES.ExternalDocVersion . docVersion . indexUserToVersion
       pure $ map (\u -> (docId u.userId, mkUserDoc u, mkDocVersion u)) page
 
 updateTeamSearchVisibilityInboundImpl :: (Member IndexedUserStore r) => TeamStatus SearchVisibilityInboundConfig -> Sem r ()
