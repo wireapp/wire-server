@@ -46,7 +46,7 @@ selectTeamMembers client teamId =
   where
     cql :: C.PrepQuery C.R (Identity TeamId) (CQL.TupleType TeamMemberRow)
     cql =
-      "SELECT user, legalhold_status FROM team_members WHERE team = ?"
+      "SELECT user, legalhold_status FROM team_member WHERE team = ?"
 
 lookUpActivity :: ClientState -> TeamMemberRow -> IO TeamMember
 lookUpActivity brigClient tmr = do
