@@ -21,9 +21,12 @@ module Brig.Index.Eval
 where
 
 import Brig.App (initHttpManagerWithTLSConfig, mkIndexEnv)
+import Brig.Effects.FederationConfigStore.Cassandra (interpretFederationDomainConfig)
 import Brig.Index.Options
 import Brig.Options
+import Brig.Options qualified as Opt
 import Brig.User.Search.Index
+import Cassandra (Client, runClient)
 import Cassandra.Options
 import Cassandra.Util (defInitCassandra)
 import Control.Exception (throwIO)
@@ -39,11 +42,18 @@ import Database.Bloodhound qualified as ES
 import Database.Bloodhound.Internal.Client (BHEnv (..))
 import Imports
 import Polysemy
+import Polysemy.Embed (runEmbedded)
 import Polysemy.Error
 import Polysemy.TinyLog hiding (Logger)
 import System.Logger qualified as Log
 import System.Logger.Class (Logger)
 import Util.Options (initCredentials)
+import Wire.API.Federation.Client (FederatorClient)
+import Wire.API.Federation.Error
+import Wire.API.User
+import Wire.FederationAPIAccess
+import Wire.FederationAPIAccess.Interpreter (noFederationAPIAccess)
+import Wire.FederationConfigStore (FederationConfigStore)
 import Wire.GalleyAPIAccess
 import Wire.GalleyAPIAccess.Rpc
 import Wire.IndexedUserStore
@@ -62,15 +72,21 @@ import Wire.UserSearchSubsystem qualified as UserSearchSubsystem
 import Wire.UserSearchSubsystem.Interpreter
 import Wire.UserStore
 import Wire.UserStore.Cassandra
+import Wire.UserSubsystem.Error
+import Wire.UserSubsystem.Interpreter (UserSubsystemConfig (..))
 
 type BrigIndexEffectStack =
   [ UserSearchSubsystemBulk,
     UserSearchSubsystem,
+    Error UserSubsystemError,
+    FederationAPIAccess FederatorClient,
+    Error FederationError,
     UserStore,
     IndexedUserStore,
     Error IndexedUserStoreError,
     IndexedUserMigrationStore,
     Error MigrationException,
+    FederationConfigStore,
     GalleyAPIAccess,
     Error ParseException,
     Rpc,
@@ -102,6 +118,15 @@ runSem esConn cas galleyEndpoint logger action = do
             additionalConn = Nothing
           }
       reqId = (RequestId "brig-index")
+      userSubsystemConfig =
+        -- These values usually come from brig's config, but in the brig-index
+        -- CLI we don't have this. These are not really used so it doesn't
+        -- matter, but they could get used in future causing weird issues.
+        UserSubsystemConfig
+          { emailVisibilityConfig = EmailVisibleToSelf,
+            defaultLocale = Opt.defaultUserLocale,
+            searchSameTeamOnly = False
+          }
   runFinal
     . embedToFinal
     . unsafelyPerformConcurrency
@@ -110,12 +135,18 @@ runSem esConn cas galleyEndpoint logger action = do
     . runRpcWithHttp mgr reqId
     . throwErrorToIOFinal @ParseException
     . interpretGalleyAPIAccessToRpc mempty galleyEndpoint
+    . runEmbedded (runClient casClient)
+    . interpretFederationDomainConfig Nothing mempty
+    . raiseUnder @(Embed Client)
     . throwErrorToIOFinal @MigrationException
     . interpretIndexedUserMigrationStoreES bhEnv
     . throwErrorToIOFinal @IndexedUserStoreError
     . interpretIndexedUserStoreES indexedUserStoreConfig
     . interpretUserStoreCassandra casClient
-    . interpretUserSearchSubsystem
+    . throwErrorToIOFinal @FederationError
+    . noFederationAPIAccess
+    . throwErrorToIOFinal @UserSubsystemError
+    . interpretUserSearchSubsystem userSubsystemConfig
     . interpretUserSearchSubsystemBulk
     $ action
 

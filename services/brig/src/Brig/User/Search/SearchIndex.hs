@@ -43,12 +43,12 @@ import Wire.IndexedUserStore.ElasticSearch (IndexedUserStoreError (..), mappingN
 import Wire.UserSearch.Types
 import Wire.UserStore.IndexUser (normalized)
 
--- | User that is performing the search
--- Team of user that is performing the search
--- Outgoing search restrictions
 data SearchSetting
   = FederatedSearch (Maybe [TeamId])
-  | LocalSearch
+  | -- | User that is performing the search
+    -- Team of user that is performing the search
+    -- Outgoing search restrictions
+    LocalSearch
       UserId
       (Maybe TeamId)
       TeamSearchInfo

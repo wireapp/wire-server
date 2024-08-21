@@ -22,7 +22,6 @@ module Brig.Effects.FederationConfigStore.Cassandra
   )
 where
 
-import Brig.Effects.FederationConfigStore
 import Cassandra
 import Control.Exception (ErrorCall (ErrorCall))
 import Control.Lens
@@ -36,6 +35,7 @@ import Imports
 import Polysemy
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.User.Search
+import Wire.FederationConfigStore
 
 -- | Interpreter for getting the federation config from the database and the config file.
 -- The config file is injected into the interpreter and has precedence over the database.
@@ -44,6 +44,8 @@ import Wire.API.User.Search
 -- If a domain is configured in the config file, it is not allowed to update it in the database.
 -- If a domain is configured in the config file, it is not allowed to add a team restriction to it in the database.
 -- In the future the config file will be removed and the database will be the only source of truth.
+--
+-- TODO: Just take a ClientState instead of (Embed m)
 interpretFederationDomainConfig ::
   forall m r a.
   ( MonadClient m,

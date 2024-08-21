@@ -13,11 +13,13 @@ import Imports
 import Network.HTTP.Client
 import Network.HTTP.Types
 import Polysemy
+import Wire.API.User.Search
 import Wire.IndexedUserStore
 import Wire.Sem.Metrics (Metrics)
 import Wire.Sem.Metrics qualified as Metrics
 import Wire.UserSearch.Metrics
 import Wire.UserSearch.Types
+import Wire.UserStore.IndexUser
 
 data ESConn = ESConn
   { env :: ES.BHEnv,
@@ -49,6 +51,7 @@ interpretIndexedUserStoreES cfg =
     UpdateTeamSearchVisibilityInbound tid vis -> updateTeamSearchVisibilityInboundImpl cfg tid vis
     BulkUpsert docs -> bulkUpsertImpl cfg docs
     DoesIndexExist -> doesIndexExistImpl cfg
+    SearchUsers searcherId mSearcherTeam teamSearchInfo term maxResults -> searchUsersImpl cfg searcherId mSearcherTeam teamSearchInfo term maxResults
 
 upsertImpl ::
   forall r.
@@ -150,6 +153,210 @@ doesIndexExistImpl cfg = do
   (mainExists, fromMaybe True -> additionalExists) <- runInBothES cfg ES.indexExists
   pure $ mainExists && additionalExists
 
+searchUsersImpl ::
+  (Member (Embed IO) r) =>
+  IndexedUserStoreConfig ->
+  UserId ->
+  Maybe TeamId ->
+  TeamSearchInfo ->
+  Text ->
+  Int ->
+  Sem r (SearchResult UserDoc)
+searchUsersImpl cfg searcherId mSearcherTeam teamSearchInfo term maxResults =
+  queryIndex cfg maxResults $
+    defaultUserQuery searcherId mSearcherTeam teamSearchInfo term
+
+queryIndex ::
+  (Member (Embed IO) r) =>
+  IndexedUserStoreConfig ->
+  Int ->
+  IndexQuery x ->
+  Sem r (SearchResult UserDoc)
+queryIndex cfg s (IndexQuery q f _) = do
+  -- localDomain <- viewFederationDomain
+  let search = (ES.mkSearch (Just q) (Just f)) {ES.size = ES.Size (fromIntegral s)}
+  r <- ES.runBH cfg.conn.env $ do
+    res <- ES.searchByType cfg.conn.indexName mappingName search
+    liftIO $ ES.parseEsResponse @_ @(ES.SearchResult UserDoc) res
+  either (embed . throwIO . IndexLookupError) (pure . mkResult) r
+  where
+    mkResult es =
+      let results = mapMaybe ES.hitSource . ES.hits . ES.searchHits $ es
+       in SearchResult
+            { searchFound = ES.hitsTotal . ES.searchHits $ es,
+              searchReturned = length results,
+              searchTook = ES.took es,
+              searchResults = results,
+              searchPolicy = FullSearch,
+              searchPagingState = Nothing,
+              searchHasMore = Nothing
+            }
+
+-- | The default or canonical 'IndexQuery'.
+--
+-- The intention behind parameterising 'queryIndex' over the 'IndexQuery' is that
+-- it allows to experiment with different queries (perhaps in an A/B context).
+--
+-- FUTUREWORK: Drop legacyPrefixMatch
+defaultUserQuery :: UserId -> Maybe TeamId -> TeamSearchInfo -> Text -> IndexQuery Contact
+defaultUserQuery searcher mSearcherTeamId teamSearchInfo (normalized -> term') =
+  let matchPhraseOrPrefix =
+        ES.QueryMultiMatchQuery $
+          ( ES.mkMultiMatchQuery
+              [ ES.FieldName "handle.prefix^2",
+                ES.FieldName "normalized.prefix",
+                ES.FieldName "normalized^3"
+              ]
+              (ES.QueryString term')
+          )
+            { ES.multiMatchQueryType = Just ES.MultiMatchMostFields,
+              ES.multiMatchQueryOperator = ES.And
+            }
+      query =
+        ES.QueryBoolQuery
+          boolQuery
+            { ES.boolQueryMustMatch =
+                [ ES.QueryBoolQuery
+                    boolQuery
+                      { ES.boolQueryShouldMatch = [matchPhraseOrPrefix],
+                        -- This removes exact handle matches, as they are fetched from cassandra
+                        ES.boolQueryMustNotMatch = [termQ "handle" term']
+                      }
+                ],
+              ES.boolQueryShouldMatch = [ES.QueryExistsQuery (ES.FieldName "handle")]
+            }
+      -- This reduces relevance on users not in team of search by 90% (no
+      -- science behind that number). If the searcher is not part of a team the
+      -- relevance is not reduced for any users.
+      queryWithBoost =
+        ES.QueryBoostingQuery
+          ES.BoostingQuery
+            { ES.positiveQuery = query,
+              ES.negativeQuery = maybe ES.QueryMatchNoneQuery matchUsersNotInTeam mSearcherTeamId,
+              ES.negativeBoost = ES.Boost 0.1
+            }
+   in mkUserQuery searcher mSearcherTeamId teamSearchInfo queryWithBoost
+
+mkUserQuery :: UserId -> Maybe TeamId -> TeamSearchInfo -> ES.Query -> IndexQuery Contact
+mkUserQuery searcher mSearcherTeamId teamSearchInfo q =
+  IndexQuery
+    q
+    ( ES.Filter
+        . ES.QueryBoolQuery
+        $ boolQuery
+          { ES.boolQueryMustNotMatch = maybeToList $ matchSelf searcher,
+            ES.boolQueryMustMatch =
+              [ restrictSearchSpace mSearcherTeamId teamSearchInfo,
+                ES.QueryBoolQuery
+                  boolQuery
+                    { ES.boolQueryShouldMatch =
+                        [ termQ "account_status" "active",
+                          -- Also match entries where the account_status field is not present.
+                          -- These must have been inserted before we added the account_status
+                          -- and at that time we only inserted active users in the first place.
+                          -- This should be unnecessary after re-indexing, but let's be lenient
+                          -- here for a while.
+                          ES.QueryBoolQuery
+                            boolQuery
+                              { ES.boolQueryMustNotMatch =
+                                  [ES.QueryExistsQuery (ES.FieldName "account_status")]
+                              }
+                        ]
+                    }
+              ]
+          }
+    )
+    []
+
+termQ :: Text -> Text -> ES.Query
+termQ f v =
+  ES.TermQuery
+    ES.Term
+      { ES.termField = f,
+        ES.termValue = v
+      }
+    Nothing
+
+matchSelf :: UserId -> Maybe ES.Query
+matchSelf searcher = Just (termQ "_id" (idToText searcher))
+
+-- | See 'TeamSearchInfo'
+restrictSearchSpace :: Maybe TeamId -> TeamSearchInfo -> ES.Query
+-- restrictSearchSpace (FederatedSearch Nothing) =
+--   ES.QueryBoolQuery
+--     boolQuery
+--       { ES.boolQueryShouldMatch =
+--           [ matchNonTeamMemberUsers,
+--             matchTeamMembersSearchableByAllTeams
+--           ]
+--       }
+-- restrictSearchSpace (FederatedSearch (Just [])) =
+--   ES.QueryBoolQuery
+--     boolQuery
+--       { ES.boolQueryMustMatch =
+--           [ -- if the list of allowed teams is empty, this is impossible to fulfill, and no results will be returned
+--             -- this case should be handled earlier, so this is just a safety net
+--             ES.TermQuery (ES.Term "team" "must not match any team") Nothing
+--           ]
+--       }
+-- restrictSearchSpace (FederatedSearch (Just teams)) =
+--   ES.QueryBoolQuery
+--     boolQuery
+--       { ES.boolQueryMustMatch =
+--           [ matchTeamMembersSearchableByAllTeams,
+--             onlyInTeams
+--           ]
+--       }
+--   where
+--     onlyInTeams = ES.QueryBoolQuery boolQuery {ES.boolQueryShouldMatch = map matchTeamMembersOf teams}
+restrictSearchSpace mteam searchInfo =
+  case (mteam, searchInfo) of
+    (Nothing, _) -> matchNonTeamMemberUsers
+    (Just _, NoTeam) -> matchNonTeamMemberUsers
+    (Just searcherTeam, TeamOnly team) ->
+      if searcherTeam == team
+        then matchTeamMembersOf team
+        else ES.QueryMatchNoneQuery
+    (Just searcherTeam, AllUsers) ->
+      ES.QueryBoolQuery
+        boolQuery
+          { ES.boolQueryShouldMatch =
+              [ matchNonTeamMemberUsers,
+                matchTeamMembersSearchableByAllTeams,
+                matchTeamMembersOf searcherTeam
+              ]
+          }
+
+matchTeamMembersOf :: TeamId -> ES.Query
+matchTeamMembersOf team = ES.TermQuery (ES.Term "team" $ idToText team) Nothing
+
+matchTeamMembersSearchableByAllTeams :: ES.Query
+matchTeamMembersSearchableByAllTeams =
+  ES.QueryBoolQuery
+    boolQuery
+      { ES.boolQueryMustMatch =
+          [ ES.QueryExistsQuery $ ES.FieldName "team",
+            ES.TermQuery (ES.Term (Key.toText searchVisibilityInboundFieldName) "searchable-by-all-teams") Nothing
+          ]
+      }
+
+matchNonTeamMemberUsers :: ES.Query
+matchNonTeamMemberUsers =
+  ES.QueryBoolQuery
+    boolQuery
+      { ES.boolQueryMustNotMatch = [ES.QueryExistsQuery $ ES.FieldName "team"]
+      }
+
+matchUsersNotInTeam :: TeamId -> ES.Query
+matchUsersNotInTeam tid =
+  ES.QueryBoolQuery
+    boolQuery
+      { ES.boolQueryMustNotMatch = [ES.TermQuery (ES.Term "team" $ idToText tid) Nothing]
+      }
+
+--------------------------------------------
+-- Utils
+
 runInBothES :: (Monad m) => IndexedUserStoreConfig -> (ES.IndexName -> ES.BH m a) -> m (a, Maybe a)
 runInBothES cfg f = do
   x <- ES.runBH cfg.conn.env $ f cfg.conn.indexName
@@ -159,3 +366,6 @@ runInBothES cfg f = do
 
 mappingName :: ES.MappingName
 mappingName = ES.MappingName "user"
+
+boolQuery :: ES.BoolQuery
+boolQuery = ES.mkBoolQuery [] [] [] []

@@ -87,6 +87,7 @@ library
     Wire.Events
     Wire.FederationAPIAccess
     Wire.FederationAPIAccess.Interpreter
+    Wire.FederationConfigStore
     Wire.GalleyAPIAccess
     Wire.GalleyAPIAccess.Rpc
     Wire.GundeckAPIAccess

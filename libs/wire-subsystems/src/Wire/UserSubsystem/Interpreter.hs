@@ -44,12 +44,11 @@ import Wire.UserSubsystem.HandleBlacklist
 
 data UserSubsystemConfig = UserSubsystemConfig
   { emailVisibilityConfig :: EmailVisibilityConfig,
-    defaultLocale :: Locale
+    defaultLocale :: Locale,
+    searchSameTeamOnly :: Bool
   }
-  deriving (Show)
-
-instance Arbitrary UserSubsystemConfig where
-  arbitrary = UserSubsystemConfig <$> arbitrary <*> arbitrary
+  deriving (Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UserSubsystemConfig)
 
 runUserSubsystem ::
   ( Member GalleyAPIAccess r,

@@ -38,13 +38,6 @@ import Brig.Data.Connection qualified as Data
 import Brig.Data.MLS.KeyPackage qualified as Data
 import Brig.Data.User qualified as Data
 import Brig.Effects.ConnectionStore (ConnectionStore)
-import Brig.Effects.FederationConfigStore
-  ( AddFederationRemoteResult (..),
-    AddFederationRemoteTeamResult (..),
-    FederationConfigStore,
-    UpdateFederationResult (..),
-  )
-import Brig.Effects.FederationConfigStore qualified as E
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.IO.Intra qualified as Intra
 import Brig.Options hiding (internalEvents)
@@ -102,6 +95,13 @@ import Wire.BlockListStore (BlockListStore)
 import Wire.DeleteQueue
 import Wire.EmailSending (EmailSending)
 import Wire.EmailSubsystem (EmailSubsystem)
+import Wire.FederationConfigStore
+  ( AddFederationRemoteResult (..),
+    AddFederationRemoteTeamResult (..),
+    FederationConfigStore,
+    UpdateFederationResult (..),
+  )
+import Wire.FederationConfigStore qualified as E
 import Wire.GalleyAPIAccess (GalleyAPIAccess, ShowOrHideInvitationUrl (..))
 import Wire.NotificationSubsystem
 import Wire.PropertySubsystem

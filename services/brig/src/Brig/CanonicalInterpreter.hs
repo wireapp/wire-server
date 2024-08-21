@@ -5,7 +5,6 @@ import Brig.App as App
 import Brig.DeleteQueue.Interpreter as DQ
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.ConnectionStore.Cassandra (connectionStoreToCassandra)
-import Brig.Effects.FederationConfigStore (FederationConfigStore)
 import Brig.Effects.FederationConfigStore.Cassandra (interpretFederationDomainConfig, remotesMapFromCfgFile)
 import Brig.Effects.JwtTools
 import Brig.Effects.PublicKeyBundle
@@ -47,6 +46,7 @@ import Wire.Error
 import Wire.Events
 import Wire.FederationAPIAccess qualified
 import Wire.FederationAPIAccess.Interpreter (FederationAPIAccessConfig (..), interpretFederationAPIAccess)
+import Wire.FederationConfigStore (FederationConfigStore)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess.Rpc
 import Wire.GundeckAPIAccess
@@ -157,7 +157,8 @@ runBrigToIO e (AppT ma) = do
   let userSubsystemConfig =
         UserSubsystemConfig
           { emailVisibilityConfig = e ^. settings . Opt.emailVisibility,
-            defaultLocale = e ^. settings . to Opt.setDefaultUserLocale
+            defaultLocale = e ^. settings . to Opt.setDefaultUserLocale,
+            searchSameTeamOnly = e ^. settings . Opt.searchSameTeamOnly . to (fromMaybe False)
           }
       federationApiAccessConfig =
         FederationAPIAccessConfig
@@ -236,7 +237,7 @@ runBrigToIO e (AppT ma) = do
               . mapError (StdError . federationErrorToWai)
               . mapError authenticationSubsystemErrorToHttpError
               . mapError userSubsystemErrorToHttpError
-              . interpretUserSearchSubsystem
+              . interpretUserSearchSubsystem userSubsystemConfig
               . runEvents
               . runDeleteQueue (e ^. internalEvents)
               . interpretPropertySubsystem propertySubsystemConfig

@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Brig.Effects.FederationConfigStore where
+module Wire.FederationConfigStore where
 
 import Data.Domain
 import Data.Id

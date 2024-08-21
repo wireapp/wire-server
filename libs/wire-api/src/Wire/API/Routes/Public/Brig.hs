@@ -1178,7 +1178,7 @@ type ConnectionAPI =
            ( Summary "Search for users"
                :> MakesFederatedCall 'Brig "get-users-by-ids"
                :> MakesFederatedCall 'Brig "search-users"
-               :> ZUser
+               :> ZLocalUser
                :> "search"
                :> "contacts"
                :> QueryParam' '[Required, Strict, Description "Search query"] "q" Text

@@ -34,6 +34,10 @@ import Wire.Error
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 
+-- TODO(md): remove ensurePermissionsOrPersonalUser as it's been moved to an
+-- interpreter
+--
+
 -- | If the user is in a team, it has to have these permissions.  If not, it is a personal
 -- user with account validation and thus given the permission implicitly.  (Used for
 -- `SearchContactcs`.)

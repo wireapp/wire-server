@@ -26,8 +26,6 @@ import Brig.API.Error (fedError)
 import Brig.API.Handler
 import Brig.App
 import Brig.Data.User qualified as DB
-import Brig.Effects.FederationConfigStore
-import Brig.Effects.FederationConfigStore qualified as E
 import Brig.Federation.Client qualified as Federation
 import Brig.Options qualified as Opts
 import Brig.Team.Util (ensurePermissions, ensurePermissionsOrPersonalUser)
@@ -54,6 +52,8 @@ import Wire.API.Team.Permission qualified as Public
 import Wire.API.Team.SearchVisibility (TeamSearchVisibility (..))
 import Wire.API.User.Search
 import Wire.API.User.Search qualified as Public
+import Wire.FederationConfigStore
+import Wire.FederationConfigStore qualified as E
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.UserSearch.Types qualified as Search

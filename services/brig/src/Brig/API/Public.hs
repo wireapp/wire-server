@@ -42,7 +42,6 @@ import Brig.Data.Connection qualified as Data
 import Brig.Data.Nonce as Nonce
 import Brig.Data.User qualified as Data
 import Brig.Effects.ConnectionStore (ConnectionStore)
-import Brig.Effects.FederationConfigStore (FederationConfigStore)
 import Brig.Effects.JwtTools (JwtTools)
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
 import Brig.Effects.SFT
@@ -56,7 +55,6 @@ import Brig.Types.Intra (UserAccount (UserAccount, accountUser))
 import Brig.Types.User (HavePendingInvitations (..))
 import Brig.User.API.Handle qualified as Handle
 import Brig.User.API.Search (teamUserSearch)
-import Brig.User.API.Search qualified as Search
 import Brig.User.Auth.Cookie qualified as Auth
 import Cassandra qualified as C
 import Cassandra qualified as Data
@@ -142,6 +140,7 @@ import Wire.API.User.Client.Prekey qualified as Public
 import Wire.API.User.Handle qualified as Public
 import Wire.API.User.Password qualified as Public
 import Wire.API.User.RichInfo qualified as Public
+import Wire.API.User.Search qualified as Public
 import Wire.API.UserMap qualified as Public
 import Wire.API.Wrapped qualified as Public
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem, createPasswordResetCode, resetPassword)
@@ -150,6 +149,7 @@ import Wire.DeleteQueue
 import Wire.EmailSending (EmailSending)
 import Wire.EmailSubsystem
 import Wire.Error
+import Wire.FederationConfigStore (FederationConfigStore)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
@@ -161,6 +161,7 @@ import Wire.Sem.Now (Now)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserKeyStore
 import Wire.UserSearchSubsystem (UserSearchSubsystem)
+import Wire.UserSearchSubsystem qualified as UserSearchSubsystem
 import Wire.UserStore (UserStore)
 import Wire.UserSubsystem hiding (checkHandle, checkHandles)
 import Wire.UserSubsystem qualified as UserSubsystem
@@ -397,7 +398,7 @@ servantSitemap =
         :<|> Named @"get-connection" getConnection
         :<|> Named @"update-connection-unqualified" (callsFed (exposeAnnotations updateLocalConnection))
         :<|> Named @"update-connection" (callsFed (exposeAnnotations updateConnection))
-        :<|> Named @"search-contacts" (callsFed (exposeAnnotations Search.search))
+        :<|> Named @"search-contacts" (callsFed (exposeAnnotations searchUsersHandler))
 
     propertiesAPI :: ServerT PropertiesAPI (Handler r)
     propertiesAPI =
@@ -1024,6 +1025,16 @@ sendActivationCode ac = do
   customerExtensionCheckBlockedDomains email
   checkAllowlist email
   API.sendActivationCode email (ac.locale) !>> sendActCodeError
+
+searchUsersHandler ::
+  (Member UserSearchSubsystem r) =>
+  Local UserId ->
+  Text ->
+  Maybe Domain ->
+  Maybe (Range 1 500 Int32) ->
+  Handler r (Public.SearchResult Public.Contact)
+searchUsersHandler luid term mDomain mMaxResults =
+  lift . liftSem $ UserSearchSubsystem.searchUsers luid term mDomain mMaxResults
 
 -- | If the user presents an email address from a blocked domain, throw an error.
 --

@@ -31,8 +31,6 @@ import Brig.API.User qualified as API
 import Brig.App
 import Brig.Data.Connection qualified as Data
 import Brig.Data.User qualified as Data
-import Brig.Effects.FederationConfigStore (FederationConfigStore)
-import Brig.Effects.FederationConfigStore qualified as E
 import Brig.IO.Intra (notify)
 import Brig.Options
 import Brig.User.API.Handle
@@ -72,6 +70,8 @@ import Wire.API.UserEvent
 import Wire.API.UserMap (UserMap)
 import Wire.DeleteQueue
 import Wire.Error
+import Wire.FederationConfigStore (FederationConfigStore)
+import Wire.FederationConfigStore qualified as E
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
