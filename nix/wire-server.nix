@@ -86,6 +86,7 @@ let
     integration = [ "integration" ];
     rabbitmq-consumer = [ "rabbitmq-consumer" ];
     test-stats = [ "test-stats" ];
+    team-info = [ "team-info" ];
   };
 
   inherit (lib) attrsets;

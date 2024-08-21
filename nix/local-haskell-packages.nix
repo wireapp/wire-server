@@ -53,6 +53,7 @@
   repair-brig-clients-table = hself.callPackage ../tools/db/repair-brig-clients-table/default.nix { inherit gitignoreSource; };
   repair-handles = hself.callPackage ../tools/db/repair-handles/default.nix { inherit gitignoreSource; };
   service-backfill = hself.callPackage ../tools/db/service-backfill/default.nix { inherit gitignoreSource; };
+  team-info = hself.callPackage ../tools/db/team-info/default.nix { inherit gitignoreSource; };
   fedcalls = hself.callPackage ../tools/fedcalls/default.nix { inherit gitignoreSource; };
   mlsstats = hself.callPackage ../tools/mlsstats/default.nix { inherit gitignoreSource; };
   rabbitmq-consumer = hself.callPackage ../tools/rabbitmq-consumer/default.nix { inherit gitignoreSource; };
