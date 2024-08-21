@@ -29,7 +29,6 @@
 , conduit
 , containers
 , cookie
-, cql
 , cryptobox-haskell
 , crypton
 , currency-codes
@@ -187,7 +186,6 @@ mkDerivation {
     conduit
     containers
     cookie
-    cql
     cryptobox-haskell
     crypton
     currency-codes

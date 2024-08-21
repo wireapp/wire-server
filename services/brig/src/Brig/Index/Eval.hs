@@ -21,7 +21,6 @@ module Brig.Index.Eval
 where
 
 import Brig.App (initHttpManagerWithTLSConfig, mkIndexEnv)
-import Brig.Effects.FederationConfigStore.Cassandra (interpretFederationDomainConfig)
 import Brig.Index.Options
 import Brig.Options
 import Brig.Options qualified as Opt
@@ -54,6 +53,7 @@ import Wire.API.User
 import Wire.FederationAPIAccess
 import Wire.FederationAPIAccess.Interpreter (noFederationAPIAccess)
 import Wire.FederationConfigStore (FederationConfigStore)
+import Wire.FederationConfigStore.Cassandra (interpretFederationDomainConfig)
 import Wire.GalleyAPIAccess
 import Wire.GalleyAPIAccess.Rpc
 import Wire.IndexedUserStore

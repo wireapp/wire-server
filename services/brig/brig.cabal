@@ -114,7 +114,6 @@ library
     Brig.DeleteQueue.Interpreter
     Brig.Effects.ConnectionStore
     Brig.Effects.ConnectionStore.Cassandra
-    Brig.Effects.FederationConfigStore.Cassandra
     Brig.Effects.JwtTools
     Brig.Effects.PublicKeyBundle
     Brig.Effects.SFT
@@ -235,7 +234,6 @@ library
     , conduit                    >=1.2.8
     , containers                 >=0.5
     , cookie                     >=0.4
-    , cql
     , cryptobox-haskell          >=0.1.1
     , crypton
     , currency-codes             >=2.0
