@@ -7,7 +7,7 @@ import Language.Haskell.TH
 import Language.Haskell.TH.Quote (QuasiQuoter (..))
 
 -- | a simple quasi quoter to allow for tree-sitter syntax highlight injection.
--- This uses the name sql because that is known to tree-sitter, in contras to the name cql
+-- This uses the name sql because that is known to tree-sitter, unlike cql
 sql :: QuasiQuoter
 sql =
   QuasiQuoter
