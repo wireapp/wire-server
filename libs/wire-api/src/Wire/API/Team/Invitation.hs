@@ -70,11 +70,11 @@ instance ToSchema InvitationRequest where
       InvitationRequest
         <$> locale
           .= optFieldWithDocModifier "locale" (description ?~ "Locale to use for the invitation.") (maybeWithDefault A.Null schema)
-        <*> (getField @"role")
+        <*> (.role)
           .= optFieldWithDocModifier "role" (description ?~ "Role of the invitee (invited user).") (maybeWithDefault A.Null schema)
-        <*> (getField @"inviteeName")
+        <*> (.inviteeName)
           .= optFieldWithDocModifier "name" (description ?~ "Name of the invitee (1 - 128 characters).") (maybeWithDefault A.Null schema)
-        <*> (getField @"inviteeEmail")
+        <*> (.inviteeEmail)
           .= fieldWithDocModifier "email" (description ?~ "Email of the invitee.") schema
 
 --------------------------------------------------------------------------------
@@ -102,20 +102,20 @@ instance ToSchema Invitation where
       "Invitation"
       (description ?~ "An invitation to join a team on Wire")
       $ Invitation
-        <$> (getField @"team")
+        <$> (.team)
           .= fieldWithDocModifier "team" (description ?~ "Team ID of the inviting team") schema
-        <*> (getField @"role")
+        <*> (.role)
           -- clients, when leaving "role" empty, can leave the default role choice to us
           .= (fromMaybe defaultRole <$> optFieldWithDocModifier "role" (description ?~ "Role of the invited user") schema)
-        <*> (getField @"invitationId")
+        <*> (.invitationId)
           .= fieldWithDocModifier "id" (description ?~ "UUID used to refer the invitation") schema
-        <*> (getField @"createdAt")
+        <*> (.createdAt)
           .= fieldWithDocModifier "created_at" (description ?~ "Timestamp of invitation creation") schema
-        <*> (getField @"createdBy")
+        <*> (.createdBy)
           .= optFieldWithDocModifier "created_by" (description ?~ "ID of the inviting user") (maybeWithDefault A.Null schema)
-        <*> (getField @"inviteeEmail")
+        <*> (.inviteeEmail)
           .= fieldWithDocModifier "email" (description ?~ "Email of the invitee") schema
-        <*> (getField @"inviteeName")
+        <*> (.inviteeName)
           .= optFieldWithDocModifier "name" (description ?~ "Name of the invitee (1 - 128 characters)") (maybeWithDefault A.Null schema)
         <*> (fmap (TE.decodeUtf8 . serializeURIRef') . inviteeUrl)
           .= optFieldWithDocModifier "url" (description ?~ "URL of the invitation link to be sent to the invitee") (maybeWithDefault A.Null urlSchema)
