@@ -78,7 +78,7 @@ userToResult user = case user.conferenceCallingFeatureStatus of
           { usersTotal = Sum 1,
             inactiveUsersWithConferenceCalling = Sum 1
           }
-  Just FeatureStatusDisabled -> mempty {usersTotal = Sum 1}
+  Just FeatureStatusDisabled -> mempty {usersTotal = Sum 1, usersWithConferenceCallingDisabled = Sum 1}
   Nothing -> mempty {usersTotal = Sum 1}
 
 run :: forall m. (MonadClient m, MonadLogger m) => m ()

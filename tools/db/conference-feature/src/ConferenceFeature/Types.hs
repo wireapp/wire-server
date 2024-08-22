@@ -141,15 +141,16 @@ data Result = Result
     activeFreeUsersWithConferenceCalling :: Sum Int,
     activeTeamUsersWithConferenceCalling :: Sum Int,
     inactiveUsersWithConferenceCalling :: Sum Int,
+    usersWithConferenceCallingDisabled :: Sum Int,
     affectedTeams :: Set TeamId
   }
   deriving (Generic, Eq)
 
 instance Semigroup Result where
-  Result a1 a2 a3 a4 a5 <> Result b1 b2 b3 b4 b5 = Result (a1 <> b1) (a2 <> b2) (a3 <> b3) (a4 <> b4) (a5 <> b5)
+  Result a1 a2 a3 a4 a5 a6 <> Result b1 b2 b3 b4 b5 b6 = Result (a1 <> b1) (a2 <> b2) (a3 <> b3) (a4 <> b4) (a5 <> b5) (a6 <> b6)
 
 instance Monoid Result where
-  mempty = Result 0 0 0 0 mempty
+  mempty = Result mempty mempty mempty mempty mempty mempty
 
 data UserRow = UserRow
   { id :: UserId,
