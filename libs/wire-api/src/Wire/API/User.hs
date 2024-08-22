@@ -1225,7 +1225,7 @@ maybeNewUserOriginFromComponents hasPassword hasSSO (invcode, teamcode, team, te
 -- | A random invitation code for use during registration
 newtype InvitationCode = InvitationCode
   {fromInvitationCode :: AsciiBase64Url}
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
   deriving newtype (ToSchema, ToByteString, FromByteString, Arbitrary)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema InvitationCode
 
