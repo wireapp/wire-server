@@ -79,8 +79,9 @@ import Wire.API.User qualified as Public
 import Wire.BlockListStore
 import Wire.EmailSending (EmailSending)
 import Wire.Error
-import Wire.GalleyAPIAccess (GalleyAPIAccess, ShowOrHideInvitationUrl (..))
+import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
+import Wire.InvitationCodeStore (InvitationCodeStore)
 import Wire.InvitationCodeStore qualified as Store
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
@@ -295,19 +296,18 @@ getInvitationByCode ::
   Public.InvitationCode ->
   (Handler r) Public.Invitation
 getInvitationByCode c = do
-  inv <- lift . liftSem $ Store.lookupInvitationByCode HideInvitationUrl c
+  inv <- lift . liftSem $ Store.lookupInvitationByCode c
   maybe (throwStd $ errorToWai @'E.InvalidInvitationCode) (pure . Store.invitationFromStored) inv
 
 -- FIXME(mangoiv): This should not be in terms of store
-headInvitationByEmail :: EmailAddress -> (Handler r) Public.HeadInvitationByEmailResult
-headInvitationByEmail _e = todo
-
--- lift $
---   liftSem $
---     Store.lookupInvitationInfo e <&> \case
---       InvitationByEmail -> Public.InvitationByEmail
---       InvitationByEmailNotFound -> Public.InvitationByEmailNotFound
---       InvitationByEmailMoreThanOne -> Public.InvitationByEmailMoreThanOne
+headInvitationByEmail :: (Member InvitationCodeStore r) => EmailAddress -> (Handler r) Public.HeadInvitationByEmailResult
+headInvitationByEmail e =
+  lift $
+    liftSem $
+      Store.lookupInvitationInfoByEmail e <&> \case
+        Store.InvitationByEmail _ -> Public.InvitationByEmail
+        Store.InvitationByEmailNotFound -> Public.InvitationByEmailNotFound
+        Store.InvitationByEmailMoreThanOne -> Public.InvitationByEmailMoreThanOne
 
 -- | FUTUREWORK: This should also respond with status 409 in case of
 -- @DB.InvitationByEmailMoreThanOne@.  Refactor so that 'headInvitationByEmailH' and
@@ -317,7 +317,7 @@ getInvitationByEmail ::
   EmailAddress ->
   (Handler r) Public.Invitation
 getInvitationByEmail email = do
-  inv <- lift . liftSem $ Store.lookupInvitationByEmail HideInvitationUrl email
+  inv <- lift . liftSem $ Store.lookupInvitationByEmail email
   maybe (throwStd (notFound "Invitation not found")) (pure . Store.invitationFromStored) inv
 
 suspendTeam ::

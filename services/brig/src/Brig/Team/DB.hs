@@ -23,11 +23,8 @@ module Brig.Team.DB
     deleteInvitations,
     lookupInvitationCode,
     lookupInvitations,
-    lookupInvitationInfo,
     mkInvitationCode,
     mkInvitationId,
-    InvitationByEmail (..),
-    InvitationInfo (..),
   )
 where
 
@@ -63,18 +60,6 @@ mkInvitationCode = InvitationCode . encodeBase64Url <$> randBytes 24
 
 mkInvitationId :: IO InvitationId
 mkInvitationId = Id <$> nextRandom
-
-data InvitationInfo = InvitationInfo
-  { iiCode :: InvitationCode,
-    iiTeam :: TeamId,
-    iiInvId :: InvitationId
-  }
-  deriving (Eq, Show)
-
-data InvitationByEmail
-  = InvitationByEmail InvitationInfo
-  | InvitationByEmailNotFound
-  | InvitationByEmailMoreThanOne
 
 insertInvitation ::
   ( Log.MonadLogger m,
@@ -183,17 +168,6 @@ deleteInvitations t =
   where
     cqlSelect :: PrepQuery R (Identity TeamId) (Identity InvitationId)
     cqlSelect = "SELECT id FROM team_invitation WHERE team = ? ORDER BY id ASC"
-
-lookupInvitationInfo :: (MonadClient m) => InvitationCode -> m (Maybe InvitationInfo)
-lookupInvitationInfo ic@(InvitationCode c)
-  | c == mempty = pure Nothing
-  | otherwise =
-      fmap (toInvitationInfo ic)
-        <$> retry x1 (query1 cqlInvitationInfo (params LocalQuorum (Identity ic)))
-  where
-    toInvitationInfo i (t, r) = InvitationInfo i t r
-    cqlInvitationInfo :: PrepQuery R (Identity InvitationCode) (TeamId, InvitationId)
-    cqlInvitationInfo = "SELECT team, id FROM team_invitation_info WHERE code = ?"
 
 countInvitations :: (MonadClient m) => TeamId -> m Int64
 countInvitations t =

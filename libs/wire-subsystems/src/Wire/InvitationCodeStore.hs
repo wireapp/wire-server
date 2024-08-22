@@ -33,7 +33,6 @@ import Wire.API.Team.Invitation qualified as Public
 import Wire.API.Team.Role (Role, defaultRole)
 import Wire.API.User (EmailAddress, InvitationCode, Name)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
-import Wire.GalleyAPIAccess (ShowOrHideInvitationUrl)
 import Wire.Sem.Logger qualified as Log
 
 data StoredInvitation = MkStoredInvitation
@@ -62,23 +61,37 @@ data StoredInvitationByTeam = MkStoredInvitationByTeam
 
 recordInstance ''StoredInvitationByTeam
 
+data InvitationByEmail
+  = InvitationByEmail InvitationInfo
+  | InvitationByEmailNotFound
+  | InvitationByEmailMoreThanOne
+
+data InvitationInfo = InvitationInfo
+  { code :: InvitationCode,
+    team :: TeamId,
+    invitationId :: InvitationId
+  }
+  deriving (Eq, Show, Generic)
+
+recordInstance ''InvitationInfo
+
 data InvitationCodeStore :: Effect where
   LookupInvitation :: TeamId -> InvitationId -> InvitationCodeStore m (Maybe StoredInvitation)
-  LookupInvitationInfo :: InvitationCode -> InvitationCodeStore m (Maybe (TeamId, InvitationId))
+  LookupInvitationInfo :: InvitationCode -> InvitationCodeStore m (Maybe InvitationInfo)
+  LookupInvitationInfoByEmail :: EmailAddress -> InvitationCodeStore m InvitationByEmail
   LookupInvitationCodesByEmail :: EmailAddress -> InvitationCodeStore m [StoredInvitationByTeam]
 
 makeSem ''InvitationCodeStore
 
--- TODO: account for show/hide?
-lookupInvitationByEmail :: (Member InvitationCodeStore r, Member TinyLog r) => ShowOrHideInvitationUrl -> EmailAddress -> Sem r (Maybe StoredInvitation)
-lookupInvitationByEmail _ email = runMaybeT do
+lookupInvitationByEmail :: (Member InvitationCodeStore r, Member TinyLog r) => EmailAddress -> Sem r (Maybe StoredInvitation)
+lookupInvitationByEmail email = runMaybeT do
   MkStoredInvitationByTeam {teamId, invitationId} <- MaybeT $ lookupSingleInvitationCodeByEmail email
   MaybeT $ lookupInvitation teamId invitationId
 
-lookupInvitationByCode :: (Member InvitationCodeStore r) => ShowOrHideInvitationUrl -> InvitationCode -> Sem r (Maybe StoredInvitation)
-lookupInvitationByCode _ code = runMaybeT do
-  (tid, iid) <- MaybeT $ lookupInvitationInfo code
-  MaybeT $ lookupInvitation tid iid
+lookupInvitationByCode :: (Member InvitationCodeStore r) => InvitationCode -> Sem r (Maybe StoredInvitation)
+lookupInvitationByCode code = runMaybeT do
+  info <- MaybeT $ lookupInvitationInfo code
+  MaybeT $ lookupInvitation info.team info.invitationId
 
 lookupSingleInvitationCodeByEmail :: (Member TinyLog r, Member InvitationCodeStore r) => EmailAddress -> Sem r (Maybe StoredInvitationByTeam)
 lookupSingleInvitationCodeByEmail email = do

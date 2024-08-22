@@ -379,18 +379,25 @@ createUser new = do
 
       pure email
 
-    findTeamInvitation :: Maybe EmailKey -> InvitationCode -> ExceptT RegisterError (AppT r) (Maybe (Store.StoredInvitation, Team.InvitationInfo, TeamId))
+    findTeamInvitation ::
+      Maybe EmailKey ->
+      InvitationCode ->
+      ExceptT
+        RegisterError
+        (AppT r)
+        ( Maybe
+            (Store.StoredInvitation, Store.InvitationInfo, TeamId)
+        )
     findTeamInvitation Nothing _ = throwE RegisterErrorMissingIdentity
     findTeamInvitation (Just e) c =
-      lift (wrapClient $ Team.lookupInvitationInfo c) >>= \case
+      lift (liftSem $ Store.lookupInvitationInfo c) >>= \case
         Just invitationInfo -> do
-          -- TODO(elland): rework this
-          inv <- lift . liftSem $ Store.lookupInvitation invitationInfo.iiTeam invitationInfo.iiInvId
+          inv <- lift . liftSem $ Store.lookupInvitation invitationInfo.team invitationInfo.invitationId
           case (inv, (.email) <$> inv) of
             (Just invite, Just em)
               | e == mkEmailKey em -> do
-                  _ <- ensureMemberCanJoin invitationInfo.iiTeam
-                  pure $ Just (invite, invitationInfo, invitationInfo.iiTeam)
+                  ensureMemberCanJoin invitationInfo.team
+                  pure $ Just (invite, invitationInfo, invitationInfo.team)
             _ -> throwE RegisterErrorInvalidInvitationCode
         Nothing -> throwE RegisterErrorInvalidInvitationCode
 
@@ -410,7 +417,7 @@ createUser new = do
     acceptTeamInvitation ::
       UserAccount ->
       Store.StoredInvitation ->
-      Team.InvitationInfo ->
+      Store.InvitationInfo ->
       EmailKey ->
       UserIdentity ->
       ExceptT RegisterError (AppT r) ()
@@ -423,7 +430,7 @@ createUser new = do
           minvmeta = (,inv.createdAt) <$> inv.createdBy
           role :: Role
           role = fromMaybe defaultRole inv.role
-      added <- lift $ liftSem $ GalleyAPIAccess.addTeamMember uid invitationInfo.iiTeam minvmeta role
+      added <- lift $ liftSem $ GalleyAPIAccess.addTeamMember uid invitationInfo.team minvmeta role
       unless added $
         throwE RegisterErrorTooManyTeamMembers
       lift $ do
@@ -432,7 +439,7 @@ createUser new = do
         liftSem $
           Log.info $
             field "user" (toByteString uid)
-              . field "team" (toByteString $ invitationInfo.iiTeam)
+              . field "team" (toByteString $ invitationInfo.team)
               . msg (val "Accepting invitation")
         liftSem $ UserPendingActivationStore.remove uid
         wrapClient $ do
