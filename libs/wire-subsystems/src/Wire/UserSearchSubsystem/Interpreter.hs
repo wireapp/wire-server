@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Wire.UserSearchSubsystem.Interpreter where
 
 import Cassandra.Exec (paginateWithStateC)
@@ -11,7 +13,7 @@ import Data.Map qualified as Map
 import Data.Qualified
 import Data.Range
 import Data.Set qualified as Set
-import Database.Bloodhound.Types qualified as ES
+import Database.Bloodhound qualified as ES
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -26,6 +28,7 @@ import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus (..))
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
+import Wire.API.Team.Permission qualified as Permission
 import Wire.API.Team.SearchVisibility
 import Wire.API.User
 import Wire.API.User.Search
@@ -66,10 +69,13 @@ interpretUserSearchSubsystem ::
   UserSubsystemConfig ->
   InterpreterFor UserSearchSubsystem r
 interpretUserSearchSubsystem config = interpret \case
-  SyncUser uid -> syncUserImpl uid
-  UpdateTeamSearchVisibilityInbound status -> updateTeamSearchVisibilityInboundImpl status
-  SearchUsers luid query mDomain mMaxResults -> searchUsersImpl config luid query mDomain mMaxResults
-  BrowseTeam uid browseTeamFilters mMaxResults mPagingState -> do
+  SyncUser uid ->
+    syncUserImpl uid
+  UpdateTeamSearchVisibilityInbound status ->
+    updateTeamSearchVisibilityInboundImpl status
+  SearchUsers luid query mDomain mMaxResults ->
+    searchUsersImpl config luid query mDomain mMaxResults
+  BrowseTeam uid browseTeamFilters mMaxResults mPagingState ->
     browseTeamImpl uid browseTeamFilters mMaxResults mPagingState
 
 interpretUserSearchSubsystemBulk ::
@@ -197,11 +203,6 @@ searchUsersImpl ::
   Maybe (Range 1 500 Int32) ->
   Sem r (SearchResult Contact)
 searchUsersImpl config searcherId searchTerm maybeDomain maybeMaxResults = do
-  -- FUTUREWORK(fisx): to reduce cassandra traffic, 'ensurePermissionsOrPersonalUser' could be
-  -- run from `searchLocally` and `searchRemotely`, resp., where the team id is already
-  -- available (at least in the local case) and can be passed as an argument rather than
-  -- looked up again.
-  -- user <- fromMaybe (error "TODO: searcher is not real") <$> UserSubsystem.getLocalUser searcherId
   storedSearcher <- fromMaybe (error "TODO: searcher is not real") <$> UserStore.getUser (tUnqualified searcherId)
   for_ storedSearcher.teamId $ \tid -> ensurePermissions (tUnqualified searcherId) tid [SearchContacts]
   let localDomain = tDomain searcherId
@@ -209,16 +210,6 @@ searchUsersImpl config searcherId searchTerm maybeDomain maybeMaxResults = do
   if queryDomain == localDomain
     then searchLocally config (qualifyAs searcherId storedSearcher) searchTerm maybeMaxResults
     else searchRemotely queryDomain storedSearcher.teamId searchTerm
-  where
-    ensurePermissions :: (IsPerm perm) => UserId -> TeamId -> [perm] -> Sem r ()
-    ensurePermissions u t perms = do
-      m <- GalleyAPIAccess.getTeamMember u t
-      unless (check m) $
-        throw UserSubsystemInsufficientTeamPermissions
-      where
-        check :: Maybe TeamMember -> Bool
-        check (Just m) = all (hasPermission m) perms
-        check Nothing = False
 
 searchLocally ::
   forall r.
@@ -349,8 +340,24 @@ searchRemotely domain mTid searchTerm = do
         searchHasMore = Nothing
       }
 
-browseTeamImpl :: UserId -> BrowseTeamFilters -> Maybe (Range 1 500 Int32) -> Maybe PagingState -> Sem r [TeamContact]
-browseTeamImpl = undefined
+browseTeamImpl ::
+  ( Member GalleyAPIAccess r,
+    Member (Error UserSubsystemError) r,
+    Member IndexedUserStore r
+  ) =>
+  UserId ->
+  BrowseTeamFilters ->
+  Maybe (Range 1 500 Int) ->
+  Maybe PagingState ->
+  Sem r (SearchResult TeamContact)
+browseTeamImpl uid filters mMaxResults mPagingState = do
+  -- limit this to team admins to reduce risk of involuntary DOS attacks. (also,
+  -- this way we don't need to worry about revealing confidential user data to
+  -- other team members.)
+  ensurePermissions uid filters.teamId [Permission.AddTeamMember]
+
+  let maxResults = maybe 15 fromRange mMaxResults
+  userDocToTeamContact <$$> IndexedUserStore.paginateTeamMembers filters maxResults mPagingState
 
 migrateDataImpl ::
   ( Member IndexedUserStore r,
@@ -392,3 +399,21 @@ teamSearchVisibilityInbound :: (Member GalleyAPIAccess r) => TeamId -> Sem r Sea
 teamSearchVisibilityInbound tid =
   searchVisibilityInboundFromFeatureStatus . (.status)
     <$> getFeatureConfigForTeam @_ @SearchVisibilityInboundConfig tid
+
+ensurePermissions ::
+  ( IsPerm perm,
+    Member GalleyAPIAccess r,
+    Member (Error UserSubsystemError) r
+  ) =>
+  UserId ->
+  TeamId ->
+  [perm] ->
+  Sem r ()
+ensurePermissions u t perms = do
+  m <- GalleyAPIAccess.getTeamMember u t
+  unless (check m) $
+    throw UserSubsystemInsufficientTeamPermissions
+  where
+    check :: Maybe TeamMember -> Bool
+    check (Just m) = all (hasPermission m) perms
+    check Nothing = False

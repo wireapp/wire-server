@@ -1,12 +1,17 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Wire.IndexedUserStore.ElasticSearch where
 
+import Control.Error (lastMay)
 import Control.Exception (throwIO)
 import Data.Aeson
 import Data.Aeson.Key qualified as Key
+import Data.ByteString qualified as LBS
 import Data.ByteString.Builder
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Text qualified as Text
+import Data.Text.Ascii
 import Data.Text.Encoding qualified as Text
 import Database.Bloodhound qualified as ES
 import Imports
@@ -48,10 +53,14 @@ interpretIndexedUserStoreES ::
 interpretIndexedUserStoreES cfg =
   interpret $ \case
     Upsert docId userDoc versioning -> upsertImpl cfg docId userDoc versioning
-    UpdateTeamSearchVisibilityInbound tid vis -> updateTeamSearchVisibilityInboundImpl cfg tid vis
+    UpdateTeamSearchVisibilityInbound tid vis ->
+      updateTeamSearchVisibilityInboundImpl cfg tid vis
     BulkUpsert docs -> bulkUpsertImpl cfg docs
     DoesIndexExist -> doesIndexExistImpl cfg
-    SearchUsers searcherId mSearcherTeam teamSearchInfo term maxResults -> searchUsersImpl cfg searcherId mSearcherTeam teamSearchInfo term maxResults
+    SearchUsers searcherId mSearcherTeam teamSearchInfo term maxResults ->
+      searchUsersImpl cfg searcherId mSearcherTeam teamSearchInfo term maxResults
+    PaginateTeamMembers filters maxResults mPagingState ->
+      paginateTeamMembersImpl cfg filters maxResults mPagingState
 
 upsertImpl ::
   forall r.
@@ -166,32 +175,6 @@ searchUsersImpl cfg searcherId mSearcherTeam teamSearchInfo term maxResults =
   queryIndex cfg maxResults $
     defaultUserQuery searcherId mSearcherTeam teamSearchInfo term
 
-queryIndex ::
-  (Member (Embed IO) r) =>
-  IndexedUserStoreConfig ->
-  Int ->
-  IndexQuery x ->
-  Sem r (SearchResult UserDoc)
-queryIndex cfg s (IndexQuery q f _) = do
-  -- localDomain <- viewFederationDomain
-  let search = (ES.mkSearch (Just q) (Just f)) {ES.size = ES.Size (fromIntegral s)}
-  r <- ES.runBH cfg.conn.env $ do
-    res <- ES.searchByType cfg.conn.indexName mappingName search
-    liftIO $ ES.parseEsResponse @_ @(ES.SearchResult UserDoc) res
-  either (embed . throwIO . IndexLookupError) (pure . mkResult) r
-  where
-    mkResult es =
-      let results = mapMaybe ES.hitSource . ES.hits . ES.searchHits $ es
-       in SearchResult
-            { searchFound = ES.hitsTotal . ES.searchHits $ es,
-              searchReturned = length results,
-              searchTook = ES.took es,
-              searchResults = results,
-              searchPolicy = FullSearch,
-              searchPagingState = Nothing,
-              searchHasMore = Nothing
-            }
-
 -- | The default or canonical 'IndexQuery'.
 --
 -- The intention behind parameterising 'queryIndex' over the 'IndexQuery' is that
@@ -236,6 +219,160 @@ defaultUserQuery searcher mSearcherTeamId teamSearchInfo (normalized -> term') =
               ES.negativeBoost = ES.Boost 0.1
             }
    in mkUserQuery searcher mSearcherTeamId teamSearchInfo queryWithBoost
+
+paginateTeamMembersImpl ::
+  (Member (Embed IO) r) =>
+  IndexedUserStoreConfig ->
+  BrowseTeamFilters ->
+  Int ->
+  Maybe PagingState ->
+  Sem r (SearchResult UserDoc)
+paginateTeamMembersImpl cfg BrowseTeamFilters {..} maxResults mPagingState = do
+  let (IndexQuery q f sortSpecs) =
+        teamUserSearchQuery teamId mQuery mRoleFilter mSortBy mSortOrder
+  let search =
+        (ES.mkSearch (Just q) (Just f))
+          { -- we are requesting one more result than the page size to determine if there is a next page
+            ES.size = ES.Size (fromIntegral maxResults + 1),
+            ES.sortBody = Just (fmap ES.DefaultSortSpec sortSpecs),
+            ES.searchAfterKey = toSearchAfterKey =<< mPagingState
+          }
+  mkResult <$> searchInMainIndex cfg search
+  where
+    toSearchAfterKey ps = decode' . LBS.fromStrict =<< (decodeBase64Url . unPagingState) ps
+
+    fromSearchAfterKey :: ES.SearchAfterKey -> PagingState
+    fromSearchAfterKey = PagingState . encodeBase64Url . LBS.toStrict . encode
+
+    mkResult es =
+      let hitsPlusOne = ES.hits . ES.searchHits $ es
+          hits = take (fromIntegral maxResults) hitsPlusOne
+          mps = fromSearchAfterKey <$> lastMay (mapMaybe ES.hitSort hits)
+          results = mapMaybe ES.hitSource hits
+       in SearchResult
+            { searchFound = ES.hitsTotal . ES.searchHits $ es,
+              searchReturned = length results,
+              searchTook = ES.took es,
+              searchResults = results,
+              searchPolicy = FullSearch,
+              searchPagingState = mps,
+              searchHasMore = Just $ length hitsPlusOne > length hits
+            }
+
+searchInMainIndex :: forall r. (Member (Embed IO) r) => IndexedUserStoreConfig -> ES.Search -> Sem r (ES.SearchResult UserDoc)
+searchInMainIndex cfg search = do
+  r <- ES.runBH cfg.conn.env $ do
+    res <- ES.searchByType cfg.conn.indexName mappingName search
+    liftIO $ ES.parseEsResponse res
+  either (embed . throwIO . IndexLookupError) pure r
+
+queryIndex ::
+  (Member (Embed IO) r) =>
+  IndexedUserStoreConfig ->
+  Int ->
+  IndexQuery x ->
+  Sem r (SearchResult UserDoc)
+queryIndex cfg s (IndexQuery q f _) = do
+  let search = (ES.mkSearch (Just q) (Just f)) {ES.size = ES.Size (fromIntegral s)}
+  mkResult <$> searchInMainIndex cfg search
+  where
+    mkResult es =
+      let results = mapMaybe ES.hitSource . ES.hits . ES.searchHits $ es
+       in SearchResult
+            { searchFound = ES.hitsTotal . ES.searchHits $ es,
+              searchReturned = length results,
+              searchTook = ES.took es,
+              searchResults = results,
+              searchPolicy = FullSearch,
+              searchPagingState = Nothing,
+              searchHasMore = Nothing
+            }
+
+teamUserSearchQuery ::
+  TeamId ->
+  Maybe Text ->
+  Maybe RoleFilter ->
+  Maybe TeamUserSearchSortBy ->
+  Maybe TeamUserSearchSortOrder ->
+  IndexQuery TeamContact
+teamUserSearchQuery tid mbSearchText _mRoleFilter mSortBy mSortOrder =
+  IndexQuery
+    ( maybe
+        (ES.MatchAllQuery Nothing)
+        matchPhraseOrPrefix
+        mbQStr
+    )
+    teamFilter
+    -- in combination with pagination a non-unique search specification can lead to missing results
+    -- therefore we use the unique `_doc` value as a tie breaker
+    -- - see https://www.elastic.co/guide/en/elasticsearch/reference/6.8/search-request-sort.html for details on `_doc`
+    -- - see https://www.elastic.co/guide/en/elasticsearch/reference/6.8/search-request-search-after.html for details on pagination and tie breaker
+    -- in the latter article it "is advised to duplicate (client side or [...]) the content of the _id field
+    -- in another field that has doc value enabled and to use this new field as the tiebreaker for the sort"
+    -- so alternatively we could use the user ID as a tie breaker, but this would require a change in the index mapping
+    (sorting ++ sortingTieBreaker)
+  where
+    sorting :: [ES.DefaultSort]
+    sorting =
+      maybe
+        [defaultSort SortByCreatedAt SortOrderDesc | isNothing mbQStr]
+        (\tuSortBy -> [defaultSort tuSortBy (fromMaybe SortOrderAsc mSortOrder)])
+        mSortBy
+    sortingTieBreaker :: [ES.DefaultSort]
+    sortingTieBreaker = [ES.DefaultSort (ES.FieldName "_doc") ES.Ascending Nothing Nothing Nothing Nothing]
+
+    mbQStr :: Maybe Text
+    mbQStr =
+      case mbSearchText of
+        Nothing -> Nothing
+        Just q ->
+          case normalized q of
+            "" -> Nothing
+            term' -> Just term'
+
+    matchPhraseOrPrefix term' =
+      ES.QueryMultiMatchQuery $
+        ( ES.mkMultiMatchQuery
+            [ ES.FieldName "email^4",
+              ES.FieldName "handle^4",
+              ES.FieldName "normalized^3",
+              ES.FieldName "email.prefix^3",
+              ES.FieldName "handle.prefix^2",
+              ES.FieldName "normalized.prefix"
+            ]
+            (ES.QueryString term')
+        )
+          { ES.multiMatchQueryType = Just ES.MultiMatchMostFields,
+            ES.multiMatchQueryOperator = ES.And
+          }
+
+    teamFilter =
+      ES.Filter $
+        ES.QueryBoolQuery
+          boolQuery
+            { ES.boolQueryMustMatch = [ES.TermQuery (ES.Term "team" $ idToText tid) Nothing]
+            }
+
+    defaultSort :: TeamUserSearchSortBy -> TeamUserSearchSortOrder -> ES.DefaultSort
+    defaultSort tuSortBy sortOrder =
+      ES.DefaultSort
+        ( case tuSortBy of
+            SortByName -> ES.FieldName "name"
+            SortByHandle -> ES.FieldName "handle.keyword"
+            SortByEmail -> ES.FieldName "email.keyword"
+            SortBySAMLIdp -> ES.FieldName "saml_idp"
+            SortByManagedBy -> ES.FieldName "managed_by"
+            SortByRole -> ES.FieldName "role"
+            SortByCreatedAt -> ES.FieldName "created_at"
+        )
+        ( case sortOrder of
+            SortOrderAsc -> ES.Ascending
+            SortOrderDesc -> ES.Descending
+        )
+        Nothing
+        Nothing
+        Nothing
+        Nothing
 
 mkUserQuery :: UserId -> Maybe TeamId -> TeamSearchInfo -> ES.Query -> IndexQuery Contact
 mkUserQuery searcher mSearcherTeamId teamSearchInfo q =

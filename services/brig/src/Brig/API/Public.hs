@@ -54,7 +54,6 @@ import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Intra (UserAccount (UserAccount, accountUser))
 import Brig.Types.User (HavePendingInvitations (..))
 import Brig.User.API.Handle qualified as Handle
-import Brig.User.API.Search (teamUserSearch)
 import Brig.User.Auth.Cookie qualified as Auth
 import Cassandra qualified as C
 import Cassandra qualified as Data
@@ -160,6 +159,7 @@ import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserKeyStore
+import Wire.UserSearch.Types
 import Wire.UserSearchSubsystem (UserSearchSubsystem)
 import Wire.UserSearchSubsystem qualified as UserSearchSubsystem
 import Wire.UserStore (UserStore)
@@ -425,7 +425,7 @@ servantSitemap =
 
     searchAPI :: ServerT SearchAPI (Handler r)
     searchAPI =
-      Named @"browse-team" teamUserSearch
+      Named @"browse-team" browseTeamHandler
 
     authAPI :: ServerT AuthAPI (Handler r)
     authAPI =
@@ -456,6 +456,21 @@ servantSitemap =
 
 ---------------------------------------------------------------------------
 -- Handlers
+
+browseTeamHandler ::
+  (Member UserSearchSubsystem r) =>
+  UserId ->
+  TeamId ->
+  Maybe Text ->
+  Maybe Public.RoleFilter ->
+  Maybe Public.TeamUserSearchSortBy ->
+  Maybe Public.TeamUserSearchSortOrder ->
+  Maybe (Range 1 500 Int) ->
+  Maybe Public.PagingState ->
+  Handler r (Public.SearchResult Public.TeamContact)
+browseTeamHandler uid tid mQuery mRoleFilter mTeamUserSearchSortBy mTeamUserSearchSortOrder mMaxResults mPagingState = do
+  let browseTeamFilters = BrowseTeamFilters tid mQuery mRoleFilter mTeamUserSearchSortBy mTeamUserSearchSortOrder
+  lift . liftSem $ UserSearchSubsystem.browseTeam uid browseTeamFilters mMaxResults mPagingState
 
 setPropertyH :: (Member PropertySubsystem r) => UserId -> ConnId -> Public.PropertyKey -> Public.RawPropertyValue -> Handler r ()
 setPropertyH u c key raw = lift . liftSem $ setProperty u c key raw

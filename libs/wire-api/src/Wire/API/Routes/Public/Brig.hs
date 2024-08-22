@@ -1380,7 +1380,7 @@ type SearchAPI =
                Description "Number of results to return (min: 1, max: 500, default: 15)"
              ]
              "size"
-             (Range 1 500 Int32)
+             (Range 1 500 Int)
         :> QueryParam'
              [ Optional,
                Strict,

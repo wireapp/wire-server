@@ -19,8 +19,6 @@ module Brig.Team.Util where -- TODO: remove this module and move contents to Bri
 
 import Brig.API.Error
 import Brig.App
-import Brig.Data.User qualified as Data
-import Brig.Types.User (HavePendingInvitations (NoPendingInvitations))
 import Control.Error
 import Control.Lens
 import Data.Id
@@ -29,22 +27,9 @@ import Imports
 import Polysemy (Member)
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
-import Wire.API.User (User (userTeam))
 import Wire.Error
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
-
--- TODO(md): remove ensurePermissionsOrPersonalUser as it's been moved to an
--- interpreter
---
-
--- | If the user is in a team, it has to have these permissions.  If not, it is a personal
--- user with account validation and thus given the permission implicitly.  (Used for
--- `SearchContactcs`.)
-ensurePermissionsOrPersonalUser :: (Member GalleyAPIAccess r, IsPerm perm) => UserId -> [perm] -> ExceptT HttpError (AppT r) ()
-ensurePermissionsOrPersonalUser u perms = do
-  mbUser <- lift $ wrapHttp $ Data.lookupUser NoPendingInvitations u
-  maybe (pure ()) (\tid -> ensurePermissions u tid perms) (userTeam =<< mbUser :: Maybe TeamId)
 
 ensurePermissions :: (Member GalleyAPIAccess r, IsPerm perm) => UserId -> TeamId -> [perm] -> ExceptT HttpError (AppT r) ()
 ensurePermissions u t perms = do

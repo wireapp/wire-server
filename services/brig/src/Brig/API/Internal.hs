@@ -48,8 +48,8 @@ import Brig.Types.Connection
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User
-import Brig.User.API.Search qualified as Search
 import Brig.User.EJPD qualified
+import Brig.User.Search.Index qualified as Search
 import Control.Error hiding (bool)
 import Control.Lens (preview, to, view, _Just)
 import Data.ByteString.Conversion (toByteString)

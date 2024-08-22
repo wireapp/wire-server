@@ -11,38 +11,20 @@ import Polysemy
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus)
 import Wire.API.Team.Feature
 import Wire.API.User.Search
-
-data BrowseTeamFilters = BrowseTeamFilters
-  { teamId :: TeamId,
-    mQuery :: Maybe Text,
-    mRoleFilter :: Maybe RoleFilter,
-    mSortBy :: Maybe TeamUserSearchSortBy,
-    mSortOrder :: Maybe TeamUserSearchSortOrder
-  }
+import Wire.UserSearch.Types
 
 data UserSearchSubsystem m a where
   SyncUser :: UserId -> UserSearchSubsystem m ()
   UpdateTeamSearchVisibilityInbound :: TeamStatus SearchVisibilityInboundConfig -> UserSearchSubsystem m ()
   SearchUsers :: Local UserId -> Text -> Maybe Domain -> Maybe (Range 1 500 Int32) -> UserSearchSubsystem m (SearchResult Contact)
-  BrowseTeam :: UserId -> BrowseTeamFilters -> Maybe (Range 1 500 Int32) -> Maybe PagingState -> UserSearchSubsystem m [TeamContact]
+  BrowseTeam ::
+    UserId ->
+    BrowseTeamFilters ->
+    Maybe (Range 1 500 Int) ->
+    Maybe PagingState ->
+    UserSearchSubsystem m (SearchResult TeamContact)
 
 makeSem ''UserSearchSubsystem
-
--- | This function exists because there are a lot query params and they cannot all become 'BrowseTeamFilters' automatically
-browseTeamHandler ::
-  (Member UserSearchSubsystem r) =>
-  UserId ->
-  TeamId ->
-  Maybe Text ->
-  Maybe RoleFilter ->
-  Maybe TeamUserSearchSortBy ->
-  Maybe TeamUserSearchSortOrder ->
-  Maybe (Range 1 500 Int32) ->
-  Maybe PagingState ->
-  Sem r [TeamContact]
-browseTeamHandler uid tid mQuery mRoleFilter mTeamUserSearchSortBy mTeamUserSearchSortOrder mMaxResults mPagingState = do
-  let browseTeamFilters = BrowseTeamFilters tid mQuery mRoleFilter mTeamUserSearchSortBy mTeamUserSearchSortOrder
-  browseTeam uid browseTeamFilters mMaxResults mPagingState
 
 -- | Bulk operations, must not be used from any web handler
 data UserSearchSubsystemBulk m a where

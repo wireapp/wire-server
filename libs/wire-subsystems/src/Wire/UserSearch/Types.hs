@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Wire.UserSearch.Types where
 
 import Cassandra qualified as C
@@ -107,6 +109,24 @@ instance FromJSON UserDoc where
 searchVisibilityInboundFieldName :: Key
 searchVisibilityInboundFieldName = "search_visibility_inbound"
 
+userDocToTeamContact :: UserDoc -> TeamContact
+userDocToTeamContact UserDoc {..} =
+  TeamContact
+    { teamContactUserId = udId,
+      teamContactTeam = udTeam,
+      teamContactSso = udSso,
+      teamContactScimExternalId = udScimExternalId,
+      teamContactSAMLIdp = udSAMLIdP,
+      teamContactRole = udRole,
+      teamContactName = maybe "" fromName udName,
+      teamContactManagedBy = udManagedBy,
+      teamContactHandle = fromHandle <$> udHandle,
+      teamContactEmailUnvalidated = udEmailUnvalidated,
+      teamContactEmail = udEmail,
+      teamContactCreatedAt = udCreatedAt,
+      teamContactColorId = fromIntegral . fromColourId <$> udColourId
+    }
+
 -- | Outbound search restrictions configured by team admin of the searcher. This
 -- value restricts the set of user that are searched.
 --
@@ -176,3 +196,11 @@ instance FromJSON SearchVisibilityInbound where
       Right result -> pure result
 
 data IndexQuery r = IndexQuery Query Filter [DefaultSort]
+
+data BrowseTeamFilters = BrowseTeamFilters
+  { teamId :: TeamId,
+    mQuery :: Maybe Text,
+    mRoleFilter :: Maybe RoleFilter,
+    mSortBy :: Maybe TeamUserSearchSortBy,
+    mSortOrder :: Maybe TeamUserSearchSortOrder
+  }
