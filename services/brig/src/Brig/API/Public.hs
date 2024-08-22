@@ -152,6 +152,7 @@ import Wire.EmailSubsystem
 import Wire.Error
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
+import Wire.InvitationCodeStore
 import Wire.NotificationSubsystem
 import Wire.PasswordStore (PasswordStore, lookupHashedPassword)
 import Wire.PropertySubsystem
@@ -285,7 +286,8 @@ servantSitemap ::
     Member EmailSubsystem r,
     Member EmailSending r,
     Member VerificationCodeSubsystem r,
-    Member PropertySubsystem r
+    Member PropertySubsystem r,
+    Member InvitationCodeStore r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -681,6 +683,7 @@ createAccessToken method luid cid proof = do
 createUser ::
   ( Member BlockListStore r,
     Member GalleyAPIAccess r,
+    Member InvitationCodeStore r,
     Member (UserPendingActivationStore p) r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,

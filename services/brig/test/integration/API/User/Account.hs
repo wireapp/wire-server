@@ -86,7 +86,7 @@ import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Team.Feature
-import Wire.API.Team.Invitation (Invitation (inInvitation))
+import Wire.API.Team.Invitation
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.User
 import Wire.API.User.Activation
@@ -1374,11 +1374,11 @@ testTooManyMembersForLegalhold opts brig = do
   -- would return in that case.
   inviteeEmail <- randomEmail
   let invite = stdInvitationRequest inviteeEmail
-  inv <-
+  inv :: Invitation <-
     responseJsonError
       =<< postInvitation brig tid owner invite
         <!! statusCode === const 201
-  Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
+  Just inviteeCode <- getInvitationCode brig tid inv.invitationId
   let mockGalley (ReceivedRequest mth pth _body)
         | mth == "GET" && pth == ["i", "teams", Text.pack (show tid), "members", "check"] =
             pure . Wai.responseLBS HTTP.status403 mempty $

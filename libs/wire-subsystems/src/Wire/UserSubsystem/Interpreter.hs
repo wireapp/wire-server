@@ -540,7 +540,7 @@ getAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations, getByE
               Just ident -> case (accountStatus account, includePendingInvitations, emailIdentity ident) of
                 (PendingInvitation, False, _) -> notValid
                 (PendingInvitation, True, Just email) ->
-                  lookupInvitationByEmail email >>= \case
+                  lookupInvitationByEmail HideInvitationUrl email >>= \case
                     Nothing -> notValid
                     Just _ -> do
                       -- user invited via scim should expire together with its invitation

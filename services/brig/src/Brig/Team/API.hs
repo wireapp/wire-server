@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wno-deprecations #-}
 
 module Brig.Team.API
   ( servantAPI,
@@ -80,6 +81,7 @@ import Wire.EmailSending (EmailSending)
 import Wire.Error
 import Wire.GalleyAPIAccess (GalleyAPIAccess, ShowOrHideInvitationUrl (..))
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
+import Wire.InvitationCodeStore qualified as Store
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.Paging.Cassandra (InternalPaging)
@@ -90,7 +92,8 @@ servantAPI ::
   ( Member GalleyAPIAccess r,
     Member UserKeyStore r,
     Member UserSubsystem r,
-    Member EmailSending r
+    Member EmailSending r,
+    Member Store.InvitationCodeStore r
   ) =>
   ServerT TeamsAPI (Handler r)
 servantAPI =
@@ -110,10 +113,14 @@ teamSizePublic uid tid = do
 teamSize :: TeamId -> (Handler r) TeamSize
 teamSize t = lift $ TeamSize.teamSize t
 
-getInvitationCode :: TeamId -> InvitationId -> (Handler r) FoundInvitationCode
+getInvitationCode ::
+  (Member Store.InvitationCodeStore r) =>
+  TeamId ->
+  InvitationId ->
+  (Handler r) FoundInvitationCode
 getInvitationCode t r = do
-  code <- lift . wrapClient $ DB.lookupInvitationCode t r
-  maybe (throwStd $ errorToWai @'E.InvalidInvitationCode) (pure . FoundInvitationCode) code
+  inv <- lift . liftSem $ Store.lookupInvitation t r
+  maybe (throwStd $ errorToWai @'E.InvalidInvitationCode) (pure . FoundInvitationCode . (.code)) inv
 
 data CreateInvitationInviter = CreateInvitationInviter
   { inviterUid :: UserId,
@@ -152,7 +159,7 @@ createInvitation uid tid body = do
   where
     loc :: Invitation -> InvitationLocation
     loc inv =
-      InvitationLocation $ "/teams/" <> toByteString' tid <> "/invitations/" <> toByteString' (inInvitation inv)
+      InvitationLocation $ "/teams/" <> toByteString' tid <> "/invitations/" <> toByteString' inv.invitationId
 
 createInvitationViaScim ::
   ( Member BlockListStore r,
@@ -220,7 +227,7 @@ createInvitation' ::
   Public.InvitationRequest ->
   Handler r (Public.Invitation, Public.InvitationCode)
 createInvitation' tid mUid inviteeRole mbInviterUid fromEmail body = do
-  let email = (inviteeEmail body)
+  let email = body.inviteeEmail
   let uke = mkEmailKey email
   blacklistedEm <- lift $ liftSem $ isBlocked email
   when blacklistedEm $
@@ -259,40 +266,59 @@ deleteInvitation uid tid iid = do
   ensurePermissions uid tid [AddTeamMember]
   lift $ wrapClient $ DB.deleteInvitation tid iid
 
-listInvitations :: (Member GalleyAPIAccess r) => UserId -> TeamId -> Maybe InvitationId -> Maybe (Range 1 500 Int32) -> (Handler r) Public.InvitationList
+listInvitations ::
+  (Member GalleyAPIAccess r) =>
+  UserId ->
+  TeamId ->
+  Maybe InvitationId ->
+  Maybe (Range 1 500 Int32) ->
+  (Handler r) Public.InvitationList
 listInvitations uid tid start mSize = do
   ensurePermissions uid tid [AddTeamMember]
   showInvitationUrl <- lift $ liftSem $ GalleyAPIAccess.getExposeInvitationURLsToTeamAdmin tid
   rs <- lift $ wrapClient $ DB.lookupInvitations showInvitationUrl tid start (fromMaybe (unsafeRange 100) mSize)
   pure $! Public.InvitationList (DB.resultList rs) (DB.resultHasMore rs)
 
-getInvitation :: (Member GalleyAPIAccess r) => UserId -> TeamId -> InvitationId -> (Handler r) (Maybe Public.Invitation)
+getInvitation ::
+  (Member GalleyAPIAccess r, Member Store.InvitationCodeStore r) =>
+  UserId ->
+  TeamId ->
+  InvitationId ->
+  (Handler r) (Maybe Public.Invitation)
 getInvitation uid tid iid = do
   ensurePermissions uid tid [AddTeamMember]
-  showInvitationUrl <- lift $ liftSem $ GalleyAPIAccess.getExposeInvitationURLsToTeamAdmin tid
-  lift $ wrapClient $ DB.lookupInvitation showInvitationUrl tid iid
+  _showInvitationUrl <- lift $ liftSem $ GalleyAPIAccess.getExposeInvitationURLsToTeamAdmin tid
+  (lift . liftSem) (Store.invitationFromStored <$$> Store.lookupInvitation tid iid)
 
-getInvitationByCode :: Public.InvitationCode -> (Handler r) Public.Invitation
+getInvitationByCode ::
+  (Member Store.InvitationCodeStore r) =>
+  Public.InvitationCode ->
+  (Handler r) Public.Invitation
 getInvitationByCode c = do
-  inv <- lift . wrapClient $ DB.lookupInvitationByCode HideInvitationUrl c
-  maybe (throwStd $ errorToWai @'E.InvalidInvitationCode) pure inv
+  inv <- lift . liftSem $ Store.lookupInvitationByCode HideInvitationUrl c
+  maybe (throwStd $ errorToWai @'E.InvalidInvitationCode) (pure . Store.invitationFromStored) inv
 
+-- FIXME(mangoiv): This should not be in terms of store
 headInvitationByEmail :: EmailAddress -> (Handler r) Public.HeadInvitationByEmailResult
-headInvitationByEmail e = do
-  lift $
-    wrapClient $
-      DB.lookupInvitationInfoByEmail e <&> \case
-        DB.InvitationByEmail _ -> Public.InvitationByEmail
-        DB.InvitationByEmailNotFound -> Public.InvitationByEmailNotFound
-        DB.InvitationByEmailMoreThanOne -> Public.InvitationByEmailMoreThanOne
+headInvitationByEmail _e = todo
+
+-- lift $
+--   liftSem $
+--     Store.lookupInvitationInfo e <&> \case
+--       InvitationByEmail -> Public.InvitationByEmail
+--       InvitationByEmailNotFound -> Public.InvitationByEmailNotFound
+--       InvitationByEmailMoreThanOne -> Public.InvitationByEmailMoreThanOne
 
 -- | FUTUREWORK: This should also respond with status 409 in case of
 -- @DB.InvitationByEmailMoreThanOne@.  Refactor so that 'headInvitationByEmailH' and
 -- 'getInvitationByEmailH' are almost the same thing.
-getInvitationByEmail :: EmailAddress -> (Handler r) Public.Invitation
+getInvitationByEmail ::
+  (Member Store.InvitationCodeStore r, Member TinyLog r) =>
+  EmailAddress ->
+  (Handler r) Public.Invitation
 getInvitationByEmail email = do
-  inv <- lift $ wrapClient $ DB.lookupInvitationByEmail HideInvitationUrl email
-  maybe (throwStd (notFound "Invitation not found")) pure inv
+  inv <- lift . liftSem $ Store.lookupInvitationByEmail HideInvitationUrl email
+  maybe (throwStd (notFound "Invitation not found")) (pure . Store.invitationFromStored) inv
 
 suspendTeam ::
   ( Member (Embed HttpClientIO) r,

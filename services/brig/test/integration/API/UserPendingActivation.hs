@@ -114,7 +114,7 @@ createUserStep :: Spar -> Brig -> ScimToken -> TeamId -> Scim.User.User SparTag 
 createUserStep spar' brig' tok tid scimUser email = do
   scimStoredUser <- createUser spar' tok scimUser
   inv <- getInvitationByEmail brig' email
-  Just inviteeCode <- getInvitationCode brig' tid (inInvitation inv)
+  Just inviteeCode <- getInvitationCode brig' tid inv.invitationId
   pure (scimStoredUser, inv, inviteeCode)
 
 assertUserExist :: (HasCallStack) => String -> ClientState -> UserId -> Bool -> HttpT IO ()

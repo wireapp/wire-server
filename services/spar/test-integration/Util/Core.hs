@@ -398,8 +398,8 @@ inviteAndRegisterUser ::
   m User
 inviteAndRegisterUser brig u tid inviteeEmail = do
   let invite = stdInvitationRequest inviteeEmail
-  inv <- responseJsonError =<< postInvitation tid u invite
-  Just inviteeCode <- getInvitationCode tid (TeamInvitation.inInvitation inv)
+  inv :: TeamInvitation.Invitation <- responseJsonError =<< postInvitation tid u invite
+  Just inviteeCode <- getInvitationCode tid inv.invitationId
   rspInvitee <-
     post
       ( brig

@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-deprecations #-}
 
 module Wire.MockInterpreters.InvitationCodeStore where
 
@@ -13,6 +14,7 @@ import Wire.InvitationCodeStore
 inMemoryInvitationCodeStoreInterpreter :: forall r. (Member (State (Map (TeamId, InvitationId) StoredInvitation)) r) => InterpreterFor InvitationCodeStore r
 inMemoryInvitationCodeStoreInterpreter = interpret \case
   LookupInvitation tid iid -> gets (!? (tid, iid))
+  LookupInvitationInfo _iid -> todo
   LookupInvitationCodesByEmail em ->
     let c MkStoredInvitation {..}
           | email == em = Just MkStoredInvitationByTeam {..}

@@ -60,7 +60,7 @@ data GetBy = MkGetBy
     -- | get accounds by 'UserId's
     getByUserIds :: ![UserId],
     -- | get accounds by 'Email's
-    getByEmail :: ![Email],
+    getByEmail :: ![EmailAddress],
     -- | get accounds by their 'Handle'
     getByHandle :: ![Handle]
   }

@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -23,13 +21,9 @@ module Brig.Team.DB
     insertInvitation,
     deleteInvitation,
     deleteInvitations,
-    lookupInvitation,
     lookupInvitationCode,
     lookupInvitations,
-    lookupInvitationByCode,
     lookupInvitationInfo,
-    lookupInvitationInfoByEmail,
-    lookupInvitationByEmail,
     mkInvitationCode,
     mkInvitationId,
     InvitationByEmail (..),
@@ -118,35 +112,6 @@ insertInvitation showUrl iid t role (toUTCTimeMillis -> now) minviter email invi
     cqlInvitationByEmail :: PrepQuery W (EmailAddress, TeamId, InvitationId, InvitationCode, Int32) ()
     cqlInvitationByEmail = "INSERT INTO team_invitation_email (email, team, invitation, code) VALUES (?, ?, ?, ?) USING TTL ?"
 
-lookupInvitation ::
-  ( MonadClient m,
-    MonadReader Env m,
-    Log.MonadLogger m
-  ) =>
-  ShowOrHideInvitationUrl ->
-  TeamId ->
-  InvitationId ->
-  m (Maybe Invitation)
-lookupInvitation showUrl t r = do
-  inv <- retry x1 (query1 cqlInvitation (params LocalQuorum (t, r)))
-  traverse (toInvitation showUrl) inv
-  where
-    cqlInvitation :: PrepQuery R (TeamId, InvitationId) (TeamId, Maybe Role, InvitationId, UTCTimeMillis, Maybe UserId, EmailAddress, Maybe Name, InvitationCode)
-    cqlInvitation = "SELECT team, role, id, created_at, created_by, email, name, code FROM team_invitation WHERE team = ? AND id = ?"
-
-lookupInvitationByCode ::
-  ( Log.MonadLogger m,
-    MonadReader Env m,
-    MonadClient m
-  ) =>
-  ShowOrHideInvitationUrl ->
-  InvitationCode ->
-  m (Maybe Invitation)
-lookupInvitationByCode showUrl i =
-  lookupInvitationInfo i >>= \case
-    Just InvitationInfo {..} -> lookupInvitation showUrl iiTeam iiInvId
-    _ -> pure Nothing
-
 lookupInvitationCode :: (MonadClient m) => TeamId -> InvitationId -> m (Maybe InvitationCode)
 lookupInvitationCode t r =
   fmap runIdentity
@@ -229,37 +194,6 @@ lookupInvitationInfo ic@(InvitationCode c)
     toInvitationInfo i (t, r) = InvitationInfo i t r
     cqlInvitationInfo :: PrepQuery R (Identity InvitationCode) (TeamId, InvitationId)
     cqlInvitationInfo = "SELECT team, id FROM team_invitation_info WHERE code = ?"
-
-lookupInvitationByEmail ::
-  ( Log.MonadLogger m,
-    MonadReader Env m,
-    MonadClient m
-  ) =>
-  ShowOrHideInvitationUrl ->
-  EmailAddress ->
-  m (Maybe Invitation)
-lookupInvitationByEmail showUrl e =
-  lookupInvitationInfoByEmail e >>= \case
-    InvitationByEmail InvitationInfo {..} -> lookupInvitation showUrl iiTeam iiInvId
-    _ -> pure Nothing
-
-lookupInvitationInfoByEmail :: (Log.MonadLogger m, MonadClient m) => EmailAddress -> m InvitationByEmail
-lookupInvitationInfoByEmail email = do
-  res <- retry x1 (query cqlInvitationEmail (params LocalQuorum (Identity email)))
-  case res of
-    [] -> pure InvitationByEmailNotFound
-    [(tid, invId, code)] ->
-      -- one invite pending
-      pure $ InvitationByEmail (InvitationInfo code tid invId)
-    _ : _ : _ -> do
-      -- edge case: more than one pending invite from different teams
-      Log.info $
-        Log.msg (Log.val "team_invidation_email: multiple pending invites from different teams for the same email")
-          Log.~~ Log.field "email" (show email)
-      pure InvitationByEmailMoreThanOne
-  where
-    cqlInvitationEmail :: PrepQuery R (Identity EmailAddress) (TeamId, InvitationId, InvitationCode)
-    cqlInvitationEmail = "SELECT team, invitation, code FROM team_invitation_email WHERE email = ?"
 
 countInvitations :: (MonadClient m) => TeamId -> m Int64
 countInvitations t =

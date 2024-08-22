@@ -623,7 +623,7 @@ testCreateUserNoIdPWithRole brig tid owner tok role = do
   -- user follows invitation flow
   do
     inv <- call $ getInvitation brig email
-    Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
+    Just inviteeCode <- call $ getInvitationCode brig tid inv.invitationId
     registerInvitation email userName inviteeCode True
   -- check for correct role
   do
@@ -681,7 +681,7 @@ testCreateUserNoIdP = do
   -- user should be able to follow old team invitation flow
   do
     inv <- call $ getInvitation brig email
-    Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
+    Just inviteeCode <- call $ getInvitationCode brig tid inv.invitationId
     registerInvitation email userName inviteeCode True
     call $ headInvitation404 brig email
 
@@ -1129,7 +1129,7 @@ testCreateUserTimeout = do
 
       scimStoredUser <- aFewTimesRecover (createUser tok scimUser)
       inv <- call $ getInvitation brig email
-      Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
+      Just inviteeCode <- call $ getInvitationCode brig tid inv.invitationId
       pure (scimStoredUser, inv, inviteeCode)
 
     searchUser :: (HasCallStack) => Spar.Types.ScimToken -> Scim.User.User tag -> EmailAddress -> Bool -> TestSpar ()
@@ -1796,8 +1796,8 @@ lookupByValidExternalId tid =
 registerUser :: BrigReq -> TeamId -> EmailAddress -> TestSpar ()
 registerUser brig tid email = do
   let r = call $ get (brig . path "/i/teams/invitations/by-email" . queryItem "email" (toByteString' email))
-  inv <- responseJsonError =<< r <!! statusCode === const 200
-  Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
+  inv :: Invitation <- responseJsonError =<< r <!! statusCode === const 200
+  Just inviteeCode <- call $ getInvitationCode brig tid inv.invitationId
   call $
     post (brig . path "/register" . contentJson . json (acceptWithName (Name "Alice") email inviteeCode))
       !!! const 201 === statusCode
@@ -1847,7 +1847,7 @@ testUpdateUserRole = do
       -- user follows invitation flow
       do
         inv <- call $ getInvitation brig email
-        Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
+        Just inviteeCode <- call $ getInvitationCode brig tid inv.invitationId
         registerInvitation email userName inviteeCode True
       checkTeamMembersRole tid owner userid initialRole
       _ <- updateUser tok userid (scimUser {Scim.User.roles = cs . toByteString <$> maybeToList mUpdatedRole})
@@ -2082,7 +2082,7 @@ createScimUserWithRole brig tid owner tok initialRole = do
   -- user follows invitation flow
   do
     inv <- call $ getInvitation brig email
-    Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
+    Just inviteeCode <- call $ getInvitationCode brig tid inv.invitationId
     registerInvitation email userName inviteeCode True
   checkTeamMembersRole tid owner userid initialRole
   pure userid
@@ -2203,7 +2203,7 @@ specDeleteUser = do
 
         do
           inv <- call $ getInvitation brig email
-          Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
+          Just inviteeCode <- call $ getInvitationCode brig tid inv.invitationId
           registerInvitation email (Name "Alice") inviteeCode True
           call $ headInvitation404 brig email
 
@@ -2315,7 +2315,7 @@ testDeletedUsersFreeExternalIdNoIdp = do
   -- accept invitation
   do
     inv <- call $ getInvitation brig email
-    Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
+    Just inviteeCode <- call $ getInvitationCode brig tid inv.invitationId
     registerInvitation email userName inviteeCode True
     call $ headInvitation404 brig email
 

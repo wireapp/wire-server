@@ -15,11 +15,21 @@ interpretInvitationCodeStoreToCassandra casClient =
     runEmbedded (runClient casClient) . \case
       LookupInvitation tid iid -> embed $ lookupInvitationImpl tid iid
       LookupInvitationCodesByEmail email -> embed $ lookupInvitationCodesByEmailImpl email
+      LookupInvitationInfo code -> embed $ lookupInvitationInfoImpl code
 
-lookupInvitationCodesByEmailImpl :: Email -> Client [StoredInvitationByTeam]
+lookupInvitationInfoImpl :: InvitationCode -> Client (Maybe (TeamId, InvitationId))
+lookupInvitationInfoImpl code = retry x1 (query1 cql (params LocalQuorum (Identity code)))
+  where
+    cql :: PrepQuery R (Identity InvitationCode) (TeamId, InvitationId)
+    cql =
+      [sql| 
+      SELECT team, id FROM team_invitation_info WHERE code = ?
+      |]
+
+lookupInvitationCodesByEmailImpl :: EmailAddress -> Client [StoredInvitationByTeam]
 lookupInvitationCodesByEmailImpl email = map asRecord <$> retry x1 (query cql (params LocalQuorum (Identity email)))
   where
-    cql :: PrepQuery R (Identity Email) (TeamId, InvitationId, InvitationCode)
+    cql :: PrepQuery R (Identity EmailAddress) (TeamId, InvitationId, InvitationCode)
     cql =
       [sql| 
       SELECT team, invitation, code FROM team_invitation_email WHERE email = ?
