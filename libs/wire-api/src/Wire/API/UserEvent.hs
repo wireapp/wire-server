@@ -162,14 +162,14 @@ data UserUpdatedData = UserUpdatedData
 
 data UserIdentityUpdatedData = UserIdentityUpdatedData
   { eiuId :: !UserId,
-    eiuEmail :: !(Maybe Email),
+    eiuEmail :: !(Maybe EmailAddress),
     eiuPhone :: !(Maybe Phone)
   }
   deriving stock (Eq, Show)
 
 data UserIdentityRemovedData = UserIdentityRemovedData
   { eirId :: !UserId,
-    eirEmail :: !(Maybe Email),
+    eirEmail :: !(Maybe EmailAddress),
     eirPhone :: !(Maybe Phone)
   }
   deriving stock (Eq, Show)
@@ -184,11 +184,11 @@ data LegalHoldClientRequestedData = LegalHoldClientRequestedData
   }
   deriving stock (Eq, Show)
 
-emailRemoved :: UserId -> Email -> UserEvent
+emailRemoved :: UserId -> EmailAddress -> UserEvent
 emailRemoved u e =
   UserIdentityRemoved $ UserIdentityRemovedData u (Just e) Nothing
 
-emailUpdated :: UserId -> Email -> UserEvent
+emailUpdated :: UserId -> EmailAddress -> UserEvent
 emailUpdated u e =
   UserIdentityUpdated $ UserIdentityUpdatedData u (Just e) Nothing
 

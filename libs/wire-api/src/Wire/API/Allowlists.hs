@@ -25,6 +25,7 @@ module Wire.API.Allowlists
 where
 
 import Data.Aeson
+import Data.Text.Encoding (decodeUtf8)
 import Imports
 import Wire.API.User.Identity
 
@@ -36,6 +37,6 @@ instance FromJSON AllowlistEmailDomains
 
 -- | Consult the whitelist settings in brig's config file and verify that the provided
 -- email address is whitelisted.
-verify :: Maybe AllowlistEmailDomains -> Email -> Bool
-verify (Just (AllowlistEmailDomains allowed)) email = emailDomain email `elem` allowed
+verify :: Maybe AllowlistEmailDomains -> EmailAddress -> Bool
+verify (Just (AllowlistEmailDomains allowed)) email = (decodeUtf8 . domainPart $ email) `elem` allowed
 verify Nothing (_) = True

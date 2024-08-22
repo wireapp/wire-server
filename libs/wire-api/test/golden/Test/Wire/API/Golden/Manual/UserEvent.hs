@@ -38,7 +38,6 @@ where
 
 import Data.Aeson (toJSON)
 import Data.Domain
-import Data.Either.Combinators (rightToMaybe)
 import Data.ISO3166_CountryCodes
 import Data.Id
 import Data.Json.Util
@@ -109,7 +108,7 @@ testObject_UserEvent_7 =
     ( UserIdentityUpdated
         ( UserIdentityUpdatedData
             (userId alice)
-            (Just (Email "alice" "foo.example.com"))
+            (Just (unsafeEmailAddress "alice" "foo.example.com"))
             Nothing
         )
     )
@@ -120,7 +119,7 @@ testObject_UserEvent_8 =
     ( UserIdentityRemoved
         ( UserIdentityRemovedData
             (userId alice)
-            (Just (Email "alice" "foo.example.com"))
+            (Just (unsafeEmailAddress "alice" "foo.example.com"))
             Nothing
         )
     )

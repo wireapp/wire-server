@@ -20,7 +20,6 @@
 module Test.Wire.API.Golden.Generated.SelfProfile_user where
 
 import Data.Domain
-import Data.Either.Combinators (rightToMaybe)
 import Data.Handle
 import Data.ISO3166_CountryCodes
 import Data.Id
@@ -43,7 +42,7 @@ testObject_SelfProfile_user_1 =
                   qDomain = Domain {_domainText = "n0-994.m-226.f91.vg9p-mj-j2"}
                 },
             userIdentity =
-              Just (EmailIdentity (Email {emailLocal = "\a", emailDomain = ""})),
+              Just (EmailIdentity (unsafeEmailAddress "some" "example")),
             userDisplayName = Name {fromName = "@\1457\2598\66242\US\1104967l+\137302\&6\996495^\162211Mu\t"},
             userTextStatus = rightToMaybe $ mkTextStatus "text status",
             userPict = Pict {fromPict = []},

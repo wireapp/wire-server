@@ -251,7 +251,7 @@ completeUser =
               Email.value =
                 maybe
                   (error "couldn't parse email")
-                  EmailAddress2
+                  EmailAddress
                   (emailAddress "user@example.com"),
               Email.primary = Nothing
             }

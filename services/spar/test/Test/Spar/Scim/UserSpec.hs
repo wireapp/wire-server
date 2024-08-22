@@ -150,7 +150,7 @@ someActiveUser tokenInfo = do
               userPict = noPict,
               userAssets = [],
               userHandle = parseHandle "some-handle",
-              userIdentity = (Just . EmailIdentity . fromJust . parseEmail) "someone@wire.com",
+              userIdentity = (Just . EmailIdentity . fromJust . emailAddressText) "someone@wire.com",
               userTeam = Just $ stiTeam tokenInfo
             }
       }

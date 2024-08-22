@@ -399,7 +399,7 @@ spec = describe "UserSubsystem.Interpreter" do
 
       prop
         "Updating handles succeeds when UpdateOriginScim"
-        \(alice, ssoId, email :: Maybe Email, fromHandle -> newHandle, domain, config) ->
+        \(alice, ssoId, email :: Maybe EmailAddress, fromHandle -> newHandle, domain, config) ->
           not (isBlacklistedHandle (fromJust (parseHandle newHandle))) ==>
             let res :: Either UserSubsystemError () = run
                   . runErrorUnsafe
@@ -486,7 +486,7 @@ spec = describe "UserSubsystem.Interpreter" do
          in retrievedUser === Just (mkAccountFromStored localDomain config.defaultLocale storedUser)
 
     prop "doesn't get users if they are not indexed by the UserKeyStore" $
-      \(config :: UserSubsystemConfig) (localDomain :: Domain) (storedUserNoEmail :: StoredUser) (email :: Email) ->
+      \(config :: UserSubsystemConfig) (localDomain :: Domain) (storedUserNoEmail :: StoredUser) (email :: EmailAddress) ->
         let localBackend =
               def
                 { users = [storedUser],

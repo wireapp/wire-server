@@ -23,7 +23,7 @@ import Data.UUID qualified as UUID (fromString)
 import Imports (Maybe (Just, Nothing), fromJust)
 import Wire.API.Team.Invitation (Invitation (..))
 import Wire.API.Team.Role (Role (RoleAdmin, RoleExternalPartner, RoleMember, RoleOwner))
-import Wire.API.User.Identity (Email (Email, emailDomain, emailLocal))
+import Wire.API.User.Identity
 import Wire.API.User.Profile (Name (Name, fromName))
 
 testObject_Invitation_team_1 :: Invitation
@@ -34,7 +34,7 @@ testObject_Invitation_team_1 =
       inInvitation = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000200000000")),
       inCreatedAt = fromJust (readUTCTimeMillis "1864-05-11T20:13:15.856Z"),
       inCreatedBy = Just (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000100000001"))),
-      inInviteeEmail = Email {emailLocal = "\FS\58114Y", emailDomain = "7"},
+      inInviteeEmail = unsafeEmailAddress "some" "example",
       inInviteeName = Nothing,
       inInviteeUrl = Nothing
     }
@@ -47,7 +47,7 @@ testObject_Invitation_team_2 =
       inInvitation = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000100000002")),
       inCreatedAt = fromJust (readUTCTimeMillis "1864-05-12T14:47:35.551Z"),
       inCreatedBy = Just (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000200000001"))),
-      inInviteeEmail = Email {emailLocal = "i", emailDomain = "m_:"},
+      inInviteeEmail = unsafeEmailAddress "some" "example",
       inInviteeName = Just (Name {fromName = "\1067847} 2pGEW+\rT\171609p\174643\157218&\146145v0\b"}),
       inInviteeUrl = Nothing
     }
@@ -60,7 +60,7 @@ testObject_Invitation_team_3 =
       inInvitation = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000100000002")),
       inCreatedAt = fromJust (readUTCTimeMillis "1864-05-08T22:07:35.846Z"),
       inCreatedBy = Just (Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000200000001"))),
-      inInviteeEmail = Email {emailLocal = "", emailDomain = "\31189L"},
+      inInviteeEmail = unsafeEmailAddress "some" "example",
       inInviteeName = Nothing,
       inInviteeUrl = Nothing
     }
@@ -73,7 +73,7 @@ testObject_Invitation_team_4 =
       inInvitation = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001")),
       inCreatedAt = fromJust (readUTCTimeMillis "1864-05-09T09:23:58.270Z"),
       inCreatedBy = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000001"))),
-      inInviteeEmail = Email {emailLocal = "^", emailDomain = "e"},
+      inInviteeEmail = unsafeEmailAddress "some" "example",
       inInviteeName = Nothing,
       inInviteeUrl = Nothing
     }
@@ -86,7 +86,7 @@ testObject_Invitation_team_5 =
       inInvitation = Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000000000002")),
       inCreatedAt = fromJust (readUTCTimeMillis "1864-05-09T03:42:15.266Z"),
       inCreatedBy = Nothing,
-      inInviteeEmail = Email {emailLocal = "\SOHV", emailDomain = "f\1086249\43462"},
+      inInviteeEmail = unsafeEmailAddress "some" "example",
       inInviteeName =
         Just
           ( Name
@@ -105,7 +105,7 @@ testObject_Invitation_team_6 =
       inInvitation = Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000100000000")),
       inCreatedAt = fromJust (readUTCTimeMillis "1864-05-09T08:56:40.919Z"),
       inCreatedBy = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000200000000"))),
-      inInviteeEmail = Email {emailLocal = "", emailDomain = "OC"},
+      inInviteeEmail = unsafeEmailAddress "some" "example",
       inInviteeName =
         Just
           ( Name
@@ -124,7 +124,7 @@ testObject_Invitation_team_7 =
       inInvitation = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000002")),
       inCreatedAt = fromJust (readUTCTimeMillis "1864-05-07T18:46:22.786Z"),
       inCreatedBy = Just (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000100000000"))),
-      inInviteeEmail = Email {emailLocal = "oj", emailDomain = ""},
+      inInviteeEmail = unsafeEmailAddress "some" "example",
       inInviteeName =
         Just
           ( Name
@@ -143,7 +143,7 @@ testObject_Invitation_team_8 =
       inInvitation = Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000200000000")),
       inCreatedAt = fromJust (readUTCTimeMillis "1864-05-07T12:20:00.738Z"),
       inCreatedBy = Just (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000100000001"))),
-      inInviteeEmail = Email {emailLocal = "", emailDomain = "Y\fr"},
+      inInviteeEmail = unsafeEmailAddress "some" "example",
       inInviteeName = Just (Name {fromName = "\67592\154970\1102305lE\990376\SYN\rjI!@\RS\1094043"}),
       inInviteeUrl = Nothing
     }
@@ -156,7 +156,7 @@ testObject_Invitation_team_9 =
       inInvitation = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000002")),
       inCreatedAt = fromJust (readUTCTimeMillis "1864-05-06T13:15:34.606Z"),
       inCreatedBy = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000002"))),
-      inInviteeEmail = Email {emailLocal = "Qi\183990", emailDomain = "\144719"},
+      inInviteeEmail = unsafeEmailAddress "some" "example",
       inInviteeName = Nothing,
       inInviteeUrl = Nothing
     }
@@ -169,7 +169,7 @@ testObject_Invitation_team_10 =
       inInvitation = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000200000002")),
       inCreatedAt = fromJust (readUTCTimeMillis "1864-05-10T19:57:59.926Z"),
       inCreatedBy = Just (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000000000002"))),
-      inInviteeEmail = Email {emailLocal = "\SOH", emailDomain = "\SUB"},
+      inInviteeEmail = unsafeEmailAddress "some" "example",
       inInviteeName = Nothing,
       inInviteeUrl = Nothing
     }
@@ -182,7 +182,7 @@ testObject_Invitation_team_11 =
       inInvitation = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")),
       inCreatedAt = fromJust (readUTCTimeMillis "1864-05-10T16:20:51.120Z"),
       inCreatedBy = Just (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000100000000"))),
-      inInviteeEmail = Email {emailLocal = "6", emailDomain = "\1101264N"},
+      inInviteeEmail = unsafeEmailAddress "some" "example",
       inInviteeName =
         Just
           ( Name
@@ -201,7 +201,7 @@ testObject_Invitation_team_12 =
       inInvitation = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000002")),
       inCreatedAt = fromJust (readUTCTimeMillis "1864-05-12T22:47:35.829Z"),
       inCreatedBy = Just (Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000000000000"))),
-      inInviteeEmail = Email {emailLocal = "\1016862\141073\RS", emailDomain = ""},
+      inInviteeEmail = unsafeEmailAddress "some" "example",
       inInviteeName =
         Just
           ( Name
@@ -220,7 +220,7 @@ testObject_Invitation_team_13 =
       inInvitation = Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000200000002")),
       inCreatedAt = fromJust (readUTCTimeMillis "1864-05-08T01:18:31.982Z"),
       inCreatedBy = Just (Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000100000002"))),
-      inInviteeEmail = Email {emailLocal = "", emailDomain = "\DELr"},
+      inInviteeEmail = unsafeEmailAddress "some" "example",
       inInviteeName = Just (Name {fromName = "U"}),
       inInviteeUrl = Nothing
     }
@@ -233,7 +233,7 @@ testObject_Invitation_team_14 =
       inInvitation = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000200000002")),
       inCreatedAt = fromJust (readUTCTimeMillis "1864-05-12T23:54:25.090Z"),
       inCreatedBy = Just (Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000200000000"))),
-      inInviteeEmail = Email {emailLocal = "EI", emailDomain = "{"},
+      inInviteeEmail = unsafeEmailAddress "some" "example",
       inInviteeName = Nothing,
       inInviteeUrl = Nothing
     }
@@ -246,7 +246,7 @@ testObject_Invitation_team_15 =
       inInvitation = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000200000001")),
       inCreatedAt = fromJust (readUTCTimeMillis "1864-05-08T22:22:28.568Z"),
       inCreatedBy = Nothing,
-      inInviteeEmail = Email {emailLocal = ".", emailDomain = "\DEL"},
+      inInviteeEmail = unsafeEmailAddress "some" "example",
       inInviteeName =
         Just
           ( Name
@@ -265,7 +265,7 @@ testObject_Invitation_team_16 =
       inInvitation = Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000200000001")),
       inCreatedAt = fromJust (readUTCTimeMillis "1864-05-09T09:56:33.113Z"),
       inCreatedBy = Just (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))),
-      inInviteeEmail = Email {emailLocal = "\\", emailDomain = "\"\DEL{"},
+      inInviteeEmail = unsafeEmailAddress "some" "example",
       inInviteeName = Just (Name {fromName = "\GS\DC4Q;6/_f*7\1093966\SI+\1092810\41698\&9"}),
       inInviteeUrl = Nothing
     }
@@ -278,7 +278,7 @@ testObject_Invitation_team_17 =
       inInvitation = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001")),
       inCreatedAt = fromJust (readUTCTimeMillis "1864-05-08T06:30:23.239Z"),
       inCreatedBy = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))),
-      inInviteeEmail = Email {emailLocal = "", emailDomain = "\SOH[\97119"},
+      inInviteeEmail = unsafeEmailAddress "some" "example",
       inInviteeName =
         Just
           ( Name
@@ -297,7 +297,7 @@ testObject_Invitation_team_18 =
       inInvitation = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000100000002")),
       inCreatedAt = fromJust (readUTCTimeMillis "1864-05-08T06:07:59.528Z"),
       inCreatedBy = Just (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000100000001"))),
-      inInviteeEmail = Email {emailLocal = "\SOH", emailDomain = "l\42676a"},
+      inInviteeEmail = unsafeEmailAddress "some" "example",
       inInviteeName =
         Just
           ( Name
@@ -316,7 +316,7 @@ testObject_Invitation_team_19 =
       inInvitation = Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000000000001")),
       inCreatedAt = fromJust (readUTCTimeMillis "1864-05-07T15:08:06.796Z"),
       inCreatedBy = Nothing,
-      inInviteeEmail = Email {emailLocal = "\1019726\96050\DEL", emailDomain = "(S\ETB"},
+      inInviteeEmail = unsafeEmailAddress "some" "example",
       inInviteeName =
         Just
           ( Name
@@ -335,7 +335,7 @@ testObject_Invitation_team_20 =
       inInvitation = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000000000001")),
       inCreatedAt = fromJust (readUTCTimeMillis "1864-05-12T08:07:17.747Z"),
       inCreatedBy = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))),
-      inInviteeEmail = Email {emailLocal = "b", emailDomain = "u9T"},
+      inInviteeEmail = unsafeEmailAddress "some" "example",
       inInviteeName = Nothing,
       inInviteeUrl = Nothing
     }

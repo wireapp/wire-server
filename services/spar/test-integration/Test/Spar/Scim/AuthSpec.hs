@@ -138,7 +138,7 @@ testCreateTokenWithVerificationCode = do
   listUsers_ (Just token) (Just fltr) (env ^. teSpar)
     !!! const 200 === statusCode
   where
-    requestVerificationCode :: BrigReq -> Email -> Public.VerificationAction -> TestSpar ResponseLBS
+    requestVerificationCode :: BrigReq -> EmailAddress -> Public.VerificationAction -> TestSpar ResponseLBS
     requestVerificationCode brig email action = do
       call $
         post (brig . paths ["verification-code", "send"] . contentJson . json (Public.SendVerificationCode action email))

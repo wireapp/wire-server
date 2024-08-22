@@ -93,7 +93,7 @@ insertInvitation ::
   Role ->
   UTCTime ->
   Maybe UserId ->
-  Email ->
+  EmailAddress ->
   Maybe Name ->
   -- | The timeout for the invitation code.
   Timeout ->
@@ -112,10 +112,10 @@ insertInvitation showUrl iid t role (toUTCTimeMillis -> now) minviter email invi
   where
     cqlInvitationInfo :: PrepQuery W (InvitationCode, TeamId, InvitationId, Int32) ()
     cqlInvitationInfo = "INSERT INTO team_invitation_info (code, team, id) VALUES (?, ?, ?) USING TTL ?"
-    cqlInvitation :: PrepQuery W (TeamId, Role, InvitationId, InvitationCode, Email, UTCTimeMillis, Maybe UserId, Maybe Name, Int32) ()
+    cqlInvitation :: PrepQuery W (TeamId, Role, InvitationId, InvitationCode, EmailAddress, UTCTimeMillis, Maybe UserId, Maybe Name, Int32) ()
     cqlInvitation = "INSERT INTO team_invitation (team, role, id, code, email, created_at, created_by, name) VALUES (?, ?, ?, ?, ?, ?, ?, ?) USING TTL ?"
     -- Note: the edge case of multiple invites to the same team by different admins from the same team results in last-invite-wins in the team_invitation_email table.
-    cqlInvitationByEmail :: PrepQuery W (Email, TeamId, InvitationId, InvitationCode, Int32) ()
+    cqlInvitationByEmail :: PrepQuery W (EmailAddress, TeamId, InvitationId, InvitationCode, Int32) ()
     cqlInvitationByEmail = "INSERT INTO team_invitation_email (email, team, invitation, code) VALUES (?, ?, ?, ?) USING TTL ?"
 
 lookupInvitation ::
@@ -131,7 +131,7 @@ lookupInvitation showUrl t r = do
   inv <- retry x1 (query1 cqlInvitation (params LocalQuorum (t, r)))
   traverse (toInvitation showUrl) inv
   where
-    cqlInvitation :: PrepQuery R (TeamId, InvitationId) (TeamId, Maybe Role, InvitationId, UTCTimeMillis, Maybe UserId, Email, Maybe Name, InvitationCode)
+    cqlInvitation :: PrepQuery R (TeamId, InvitationId) (TeamId, Maybe Role, InvitationId, UTCTimeMillis, Maybe UserId, EmailAddress, Maybe Name, InvitationCode)
     cqlInvitation = "SELECT team, role, id, created_at, created_by, email, name, code FROM team_invitation WHERE team = ? AND id = ?"
 
 lookupInvitationByCode ::
@@ -155,10 +155,10 @@ lookupInvitationCode t r =
     cqlInvitationCode :: PrepQuery R (TeamId, InvitationId) (Identity InvitationCode)
     cqlInvitationCode = "SELECT code FROM team_invitation WHERE team = ? AND id = ?"
 
-lookupInvitationCodeEmail :: (MonadClient m) => TeamId -> InvitationId -> m (Maybe (InvitationCode, Email))
+lookupInvitationCodeEmail :: (MonadClient m) => TeamId -> InvitationId -> m (Maybe (InvitationCode, EmailAddress))
 lookupInvitationCodeEmail t r = retry x1 (query1 cqlInvitationCodeEmail (params LocalQuorum (t, r)))
   where
-    cqlInvitationCodeEmail :: PrepQuery R (TeamId, InvitationId) (InvitationCode, Email)
+    cqlInvitationCodeEmail :: PrepQuery R (TeamId, InvitationId) (InvitationCode, EmailAddress)
     cqlInvitationCodeEmail = "SELECT code, email FROM team_invitation WHERE team = ? AND id = ?"
 
 lookupInvitations ::
@@ -184,9 +184,9 @@ lookupInvitations showUrl team start (fromRange -> size) = do
           { result = invs,
             hasMore = more
           }
-    cqlSelect :: PrepQuery R (Identity TeamId) (TeamId, Maybe Role, InvitationId, UTCTimeMillis, Maybe UserId, Email, Maybe Name, InvitationCode)
+    cqlSelect :: PrepQuery R (Identity TeamId) (TeamId, Maybe Role, InvitationId, UTCTimeMillis, Maybe UserId, EmailAddress, Maybe Name, InvitationCode)
     cqlSelect = "SELECT team, role, id, created_at, created_by, email, name, code FROM team_invitation WHERE team = ? ORDER BY id ASC"
-    cqlSelectFrom :: PrepQuery R (TeamId, InvitationId) (TeamId, Maybe Role, InvitationId, UTCTimeMillis, Maybe UserId, Email, Maybe Name, InvitationCode)
+    cqlSelectFrom :: PrepQuery R (TeamId, InvitationId) (TeamId, Maybe Role, InvitationId, UTCTimeMillis, Maybe UserId, EmailAddress, Maybe Name, InvitationCode)
     cqlSelectFrom = "SELECT team, role, id, created_at, created_by, email, name, code FROM team_invitation WHERE team = ? AND id > ? ORDER BY id ASC"
 
 deleteInvitation :: (MonadClient m) => TeamId -> InvitationId -> m ()
@@ -206,7 +206,7 @@ deleteInvitation t i = do
     cqlInvitation = "DELETE FROM team_invitation where team = ? AND id = ?"
     cqlInvitationInfo :: PrepQuery W (Identity InvitationCode) ()
     cqlInvitationInfo = "DELETE FROM team_invitation_info WHERE code = ?"
-    cqlInvitationEmail :: PrepQuery W (Email, TeamId) ()
+    cqlInvitationEmail :: PrepQuery W (EmailAddress, TeamId) ()
     cqlInvitationEmail = "DELETE FROM team_invitation_email WHERE email = ? AND team = ?"
 
 deleteInvitations :: (MonadClient m) => TeamId -> m ()
@@ -236,14 +236,14 @@ lookupInvitationByEmail ::
     MonadClient m
   ) =>
   ShowOrHideInvitationUrl ->
-  Email ->
+  EmailAddress ->
   m (Maybe Invitation)
 lookupInvitationByEmail showUrl e =
   lookupInvitationInfoByEmail e >>= \case
     InvitationByEmail InvitationInfo {..} -> lookupInvitation showUrl iiTeam iiInvId
     _ -> pure Nothing
 
-lookupInvitationInfoByEmail :: (Log.MonadLogger m, MonadClient m) => Email -> m InvitationByEmail
+lookupInvitationInfoByEmail :: (Log.MonadLogger m, MonadClient m) => EmailAddress -> m InvitationByEmail
 lookupInvitationInfoByEmail email = do
   res <- retry x1 (query cqlInvitationEmail (params LocalQuorum (Identity email)))
   case res of
@@ -258,7 +258,7 @@ lookupInvitationInfoByEmail email = do
           Log.~~ Log.field "email" (show email)
       pure InvitationByEmailMoreThanOne
   where
-    cqlInvitationEmail :: PrepQuery R (Identity Email) (TeamId, InvitationId, InvitationCode)
+    cqlInvitationEmail :: PrepQuery R (Identity EmailAddress) (TeamId, InvitationId, InvitationCode)
     cqlInvitationEmail = "SELECT team, invitation, code FROM team_invitation_email WHERE email = ?"
 
 countInvitations :: (MonadClient m) => TeamId -> m Int64
@@ -281,7 +281,7 @@ toInvitation ::
     InvitationId,
     UTCTimeMillis,
     Maybe UserId,
-    Email,
+    EmailAddress,
     Maybe Name,
     InvitationCode
   ) ->

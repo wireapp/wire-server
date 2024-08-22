@@ -32,7 +32,6 @@
 , currency-codes
 , data-default
 , data-timeout
-, either
 , enclosed-exceptions
 , errors
 , exceptions
@@ -158,7 +157,6 @@ mkDerivation {
     currency-codes
     data-default
     data-timeout
-    either
     enclosed-exceptions
     errors
     exceptions

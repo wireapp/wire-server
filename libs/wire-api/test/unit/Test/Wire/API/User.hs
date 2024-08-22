@@ -142,7 +142,7 @@ parseIdentityTests =
             Right Nothing =#= [("something_unrelated", "#")]
         ]
   where
-    hemail = Email "me" "example.com"
+    hemail = unsafeEmailAddress "me" "example.com"
     email = ("email", "me@example.com")
     bademail = ("email", "justme")
     badphone = ("phone", "__@@")

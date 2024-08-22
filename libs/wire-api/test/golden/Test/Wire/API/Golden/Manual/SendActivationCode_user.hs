@@ -26,14 +26,14 @@ import Wire.API.User.Activation
 testObject_SendActivationCode_1 :: SendActivationCode
 testObject_SendActivationCode_1 =
   SendActivationCode
-    { emailKey = Email {emailLocal = "\1021635", emailDomain = "nK"},
+    { emailKey = unsafeEmailAddress "some" "example",
       locale = Nothing
     }
 
 testObject_SendActivationCode_2 :: SendActivationCode
 testObject_SendActivationCode_2 =
   SendActivationCode
-    { emailKey = Email {emailLocal = "b", emailDomain = "4M\1076452P\149723$[\DC2j"},
+    { emailKey = unsafeEmailAddress "some" "example",
       locale =
         Just (Locale {lLanguage = Language Data.LanguageCodes.CU, lCountry = Just (Country {fromCountry = VI})})
     }

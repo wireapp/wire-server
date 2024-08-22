@@ -84,7 +84,7 @@ type SternAPI =
            ( Summary "Displays user's info given an email address"
                :> "users"
                :> "by-email"
-               :> QueryParam' [Required, Strict, Description "Email address"] "email" Email
+               :> QueryParam' [Required, Strict, Description "Email address"] "email" EmailAddress
                :> Get '[JSON] [UserAccount]
            )
     :<|> Named
@@ -141,7 +141,7 @@ type SternAPI =
                     \If the given identity is not taken / verified, this is a no-op."
                :> "users"
                :> "revoke-identity"
-               :> QueryParam' [Required, Strict, Description "A verified email address"] "email" Email
+               :> QueryParam' [Required, Strict, Description "A verified email address"] "email" EmailAddress
                :> Post '[JSON] NoContent
            )
     :<|> Named
@@ -161,7 +161,7 @@ type SternAPI =
                     "Email must match UserId's (to prevent copy/paste mistakes)."
                :> "users"
                :> Capture "uid" UserId
-               :> QueryParam' [Required, Strict, Description "A verified email address"] "email" Email
+               :> QueryParam' [Required, Strict, Description "A verified email address"] "email" EmailAddress
                :> Delete '[JSON] NoContent
            )
     :<|> Named
@@ -191,7 +191,7 @@ type SternAPI =
                :> "teams"
                :> Capture "tid" TeamId
                :> QueryParam' [Optional, Strict, Description "THIS WILL PERMANENTLY DELETE ALL TEAM MEMBERS! CHECK TEAM MEMBER LIST (SEE ABOVE OR BELOW) IF YOU ARE UNCERTAIN THAT'S WHAT YOU WANT."] "force" Bool
-               :> QueryParam' [Optional, Strict, Description "Matching verified remaining user address"] "email" Email
+               :> QueryParam' [Optional, Strict, Description "Matching verified remaining user address"] "email" EmailAddress
                :> Delete '[JSON] NoContent
            )
     :<|> Named
@@ -207,7 +207,7 @@ type SternAPI =
            ( Summary "Fetch blacklist information on a email (200: blacklisted; 404: not blacklisted)"
                :> "users"
                :> "blacklist"
-               :> QueryParam' [Required, Strict, Description "A verified email address"] "email" Email
+               :> QueryParam' [Required, Strict, Description "A verified email address"] "email" EmailAddress
                :> Verb 'GET 200 '[JSON] NoContent
            )
     :<|> Named
@@ -215,7 +215,7 @@ type SternAPI =
            ( Summary "Add the email to our blacklist"
                :> "users"
                :> "blacklist"
-               :> QueryParam' [Required, Strict, Description "A verified email address"] "email" Email
+               :> QueryParam' [Required, Strict, Description "A verified email address"] "email" EmailAddress
                :> Post '[JSON] NoContent
            )
     :<|> Named
@@ -223,14 +223,14 @@ type SternAPI =
            ( Summary "Remove the email from our blacklist"
                :> "users"
                :> "blacklist"
-               :> QueryParam' [Required, Strict, Description "A verified email address"] "email" Email
+               :> QueryParam' [Required, Strict, Description "A verified email address"] "email" EmailAddress
                :> Delete '[JSON] NoContent
            )
     :<|> Named
            "get-team-info-by-member-email"
            ( Summary "Fetch a team information given a member's email"
                :> "teams"
-               :> QueryParam' [Required, Strict, Description "A verified email address"] "email" Email
+               :> QueryParam' [Required, Strict, Description "A verified email address"] "email" EmailAddress
                :> Get '[JSON] TeamInfo
            )
     :<|> Named
@@ -360,7 +360,7 @@ type SternAPI =
                :> Description "Relevant only internally at Wire"
                :> "i"
                :> "consent"
-               :> QueryParam' [Required, Strict, Description "A verified email address"] "email" Email
+               :> QueryParam' [Required, Strict, Description "A verified email address"] "email" EmailAddress
                :> Get '[JSON] ConsentLogAndMarketo
            )
     :<|> Named

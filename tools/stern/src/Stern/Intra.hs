@@ -232,7 +232,7 @@ getUserProfiles uidsOrHandles = do
       fmap (BS.intercalate "," . map toByteString')
         . chunksOf 50
 
-getUserProfilesByIdentity :: Email -> Handler [UserAccount]
+getUserProfilesByIdentity :: EmailAddress -> Handler [UserAccount]
 getUserProfilesByIdentity email = do
   info $ msg "Getting user accounts by identity"
   b <- view brig
@@ -289,7 +289,7 @@ getContacts u q s = do
         )
   parseResponse (mkError status502 "bad-upstream") r
 
-revokeIdentity :: Email -> Handler ()
+revokeIdentity :: EmailAddress -> Handler ()
 revokeIdentity email = do
   info $ msg "Revoking user identity"
   b <- view brig
@@ -464,7 +464,7 @@ setTeamBillingInfo tid tbu = do
           . expect2xx
       )
 
-isBlacklisted :: Email -> Handler Bool
+isBlacklisted :: EmailAddress -> Handler Bool
 isBlacklisted email = do
   info $ msg "Checking blacklist"
   b <- view brig
@@ -482,7 +482,7 @@ isBlacklisted email = do
     404 -> pure False
     _ -> throwE (mkError status502 "bad-upstream" (errorMessage resp))
 
-setBlacklistStatus :: Bool -> Email -> Handler ()
+setBlacklistStatus :: Bool -> EmailAddress -> Handler ()
 setBlacklistStatus status email = do
   info $ msg "Changing blacklist status"
   b <- view brig
@@ -630,7 +630,7 @@ setSearchVisibility tid typ = do
 stripBS :: ByteString -> ByteString
 stripBS = encodeUtf8 . strip . decodeUtf8
 
-userKeyToParam :: Email -> Request -> Request
+userKeyToParam :: EmailAddress -> Request -> Request
 userKeyToParam e = queryItem "email" (stripBS $ toByteString' e)
 
 errorMessage :: Response (Maybe LByteString) -> LText
@@ -679,7 +679,7 @@ getTeamMembers tid = do
         )
   parseResponse (mkError status502 "bad-upstream") r
 
-getEmailConsentLog :: Email -> Handler ConsentLog
+getEmailConsentLog :: EmailAddress -> Handler ConsentLog
 getEmailConsentLog email = do
   info $ msg "Getting email consent log"
   g <- view galeb
@@ -713,7 +713,7 @@ getUserConsentValue uid = do
         )
   parseResponse (mkError status502 "bad-upstream") r
 
-getMarketoResult :: Email -> Handler MarketoResult
+getMarketoResult :: EmailAddress -> Handler MarketoResult
 getMarketoResult email = do
   info $ msg "Getting marketo results"
   g <- view galeb

@@ -20,7 +20,6 @@
 module Test.Wire.API.Golden.Generated.UserProfile_user where
 
 import Data.Domain
-import Data.Either.Combinators
 import Data.Handle
 import Data.Id
 import Data.Json.Util
@@ -79,7 +78,7 @@ testObject_UserProfile_user_2 =
         Just (fromJust (parseHandle "emsonpvo3-x_4ys4qjtjtkfgx.mag6pi2ldq.77m5vnsn_tte41r-0vwgklpeejr1t4se0bknu4tsuqs-njzh34-ba_mj8lm5x6aro4o.2wsqe0ldx")),
       profileExpire = Just (fromJust (readUTCTimeMillis "1864-05-09T01:42:22.437Z")),
       profileTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000200000002"))),
-      profileEmail = Just (Email {emailLocal = "\172353 ", emailDomain = ""}),
+      profileEmail = Just (unsafeEmailAddress "some" "example"),
       profileLegalholdStatus = UserLegalHoldNoConsent,
       profileSupportedProtocols = defSupportedProtocols
     }

@@ -34,7 +34,7 @@ testObject_Activate_user_1 =
 testObject_Activate_user_2 :: Activate
 testObject_Activate_user_2 =
   Activate
-    { activateTarget = ActivateEmail (Email {emailLocal = "\1002810\NUL\1075125", emailDomain = "k\\\SOHa\SYN*\176499"}),
+    { activateTarget = ActivateEmail (unsafeEmailAddress "valid1j28hfna" "iagh28nuwkas"),
       activateCode = ActivationCode {fromActivationCode = fromRight undefined (validate "")},
       activateDryrun = False
     }

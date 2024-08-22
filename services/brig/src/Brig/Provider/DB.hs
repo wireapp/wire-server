@@ -81,10 +81,10 @@ updateAccountProfile p name url descr = retry x5 . batch $ do
 lookupAccountData ::
   (MonadClient m) =>
   ProviderId ->
-  m (Maybe (Name, Maybe Email, HttpsUrl, Text))
+  m (Maybe (Name, Maybe EmailAddress, HttpsUrl, Text))
 lookupAccountData p = retry x1 $ query1 cql $ params LocalQuorum (Identity p)
   where
-    cql :: PrepQuery R (Identity ProviderId) (Name, Maybe Email, HttpsUrl, Text)
+    cql :: PrepQuery R (Identity ProviderId) (Name, Maybe EmailAddress, HttpsUrl, Text)
     cql = "SELECT name, email, url, descr FROM provider WHERE id = ?"
 
 lookupAccount ::
@@ -93,7 +93,7 @@ lookupAccount ::
   m (Maybe Provider)
 lookupAccount p = (>>= mk) <$> lookupAccountData p
   where
-    mk :: (Name, Maybe Email, HttpsUrl, Text) -> Maybe Provider
+    mk :: (Name, Maybe EmailAddress, HttpsUrl, Text) -> Maybe Provider
     mk (_, Nothing, _, _) = Nothing
     mk (n, Just e, u, d) = Just $! Provider p n e u d
 
@@ -159,7 +159,7 @@ insertKey p old new = retry x5 . batch $ do
     cqlKeyDelete :: PrepQuery W (Identity Text) ()
     cqlKeyDelete = "DELETE FROM provider_keys WHERE key = ?"
 
-    cqlEmail :: PrepQuery W (Email, ProviderId) ()
+    cqlEmail :: PrepQuery W (EmailAddress, ProviderId) ()
     cqlEmail = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE provider SET email = ? WHERE id = ?"
 
 lookupKey ::

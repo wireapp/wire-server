@@ -28,18 +28,18 @@ import Data.Json.Util (UTCTimeMillis)
 import Data.Misc (HttpsUrl)
 import Data.Vector (fromList)
 import Imports
-import Test.QuickCheck (Arbitrary)
+import Test.QuickCheck
 import Wire.API.Team.Role (Role)
 import Wire.API.User (Name)
-import Wire.API.User.Identity (Email)
+import Wire.API.User.Identity (EmailAddress)
 import Wire.API.User.Profile (ManagedBy)
 import Wire.API.User.RichInfo (RichInfo)
-import Wire.Arbitrary (GenericUniform (GenericUniform))
+import Wire.Arbitrary
 
 data TeamExportUser = TeamExportUser
   { tExportDisplayName :: Name,
     tExportHandle :: Maybe Handle,
-    tExportEmail :: Maybe Email,
+    tExportEmail :: Maybe EmailAddress,
     tExportRole :: Maybe Role,
     tExportCreatedOn :: Maybe UTCTimeMillis,
     tExportInvitedBy :: Maybe Handle,

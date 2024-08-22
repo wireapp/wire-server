@@ -129,7 +129,7 @@ registerUser name brig = do
             ]
   post (brig . path "/register" . contentJson . body p)
 
-initiatePasswordReset :: Brig -> Email -> (MonadHttp m) => m ResponseLBS
+initiatePasswordReset :: Brig -> EmailAddress -> (MonadHttp m) => m ResponseLBS
 initiatePasswordReset brig email =
   post
     ( brig
@@ -138,7 +138,7 @@ initiatePasswordReset brig email =
         . body (RequestBodyLBS . encode $ NewPasswordReset email)
     )
 
-activateEmail :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> Email -> m ()
+activateEmail :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> EmailAddress -> m ()
 activateEmail brig email = do
   act <- getActivationCode brig (Left email)
   case act of
@@ -148,13 +148,13 @@ activateEmail brig email = do
         const 200 === statusCode
         const (Just False) === fmap activatedFirst . responseJsonMaybe
 
-checkEmail :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> Email -> m ()
+checkEmail :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> EmailAddress -> m ()
 checkEmail brig uid expectedEmail =
   get (brig . path "/self" . zUser uid) !!! do
     const 200 === statusCode
     const (Just expectedEmail) === (userEmail <=< responseJsonMaybe)
 
-initiateEmailUpdateLogin :: Brig -> Email -> Login -> UserId -> (MonadIO m, MonadCatch m, MonadHttp m) => m ResponseLBS
+initiateEmailUpdateLogin :: Brig -> EmailAddress -> Login -> UserId -> (MonadIO m, MonadCatch m, MonadHttp m) => m ResponseLBS
 initiateEmailUpdateLogin brig email loginCreds uid = do
   (cky, tok) <- do
     rsp <-
@@ -163,7 +163,7 @@ initiateEmailUpdateLogin brig email loginCreds uid = do
     pure (decodeCookie rsp, decodeToken rsp)
   initiateEmailUpdateCreds brig email (cky, tok) uid
 
-initiateEmailUpdateCreds :: Brig -> Email -> (Bilge.Cookie, Brig.ZAuth.Token ZAuth.Access) -> UserId -> (MonadHttp m) => m ResponseLBS
+initiateEmailUpdateCreds :: Brig -> EmailAddress -> (Bilge.Cookie, Brig.ZAuth.Token ZAuth.Access) -> UserId -> (MonadHttp m) => m ResponseLBS
 initiateEmailUpdateCreds brig email (cky, tok) uid = do
   put $
     unversioned
@@ -174,7 +174,7 @@ initiateEmailUpdateCreds brig email (cky, tok) uid = do
       . zUser uid
       . Bilge.json (EmailUpdate email)
 
-initiateEmailUpdateNoSend :: (MonadHttp m, MonadIO m, MonadCatch m) => Brig -> Email -> UserId -> m ResponseLBS
+initiateEmailUpdateNoSend :: (MonadHttp m, MonadIO m, MonadCatch m) => Brig -> EmailAddress -> UserId -> m ResponseLBS
 initiateEmailUpdateNoSend brig email uid =
   let emailUpdate = RequestBodyLBS . encode $ EmailUpdate email
    in put (brig . path "/i/self/email" . contentJson . zUser uid . body emailUpdate)
@@ -183,7 +183,7 @@ initiateEmailUpdateNoSend brig email uid =
 preparePasswordReset ::
   (MonadIO m, MonadHttp m) =>
   Brig ->
-  Email ->
+  EmailAddress ->
   UserId ->
   PlainTextPassword8 ->
   m CompletePasswordReset
@@ -205,7 +205,7 @@ completePasswordReset brig passwordResetData =
         . body (RequestBodyLBS $ encode passwordResetData)
     )
 
-removeBlacklist :: Brig -> Email -> (MonadIO m, MonadHttp m) => m ()
+removeBlacklist :: Brig -> EmailAddress -> (MonadIO m, MonadHttp m) => m ()
 removeBlacklist brig email =
   void $ delete (brig . path "/i/users/blacklist" . queryItem "email" (toByteString' email))
 

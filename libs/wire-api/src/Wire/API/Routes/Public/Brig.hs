@@ -1637,7 +1637,7 @@ type TeamsAPI =
                :> "teams"
                :> "invitations"
                :> "by-email"
-               :> QueryParam' '[Required, Strict, Description "Email address"] "email" Email
+               :> QueryParam' '[Required, Strict, Description "Email address"] "email" EmailAddress
                :> MultiVerb
                     'HEAD
                     '[JSON]

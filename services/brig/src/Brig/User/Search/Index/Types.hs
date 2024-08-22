@@ -54,7 +54,7 @@ data IndexUser = IndexUser
     _iuTeam :: Maybe TeamId,
     _iuName :: Maybe Name,
     _iuHandle :: Maybe Handle,
-    _iuEmail :: Maybe Email,
+    _iuEmail :: Maybe EmailAddress,
     _iuColourId :: Maybe ColourId,
     _iuAccountStatus :: Maybe AccountStatus,
     _iuSAMLIdP :: Maybe Text,
@@ -64,7 +64,7 @@ data IndexUser = IndexUser
     _iuSearchVisibilityInbound :: Maybe SearchVisibilityInbound,
     _iuScimExternalId :: Maybe Text,
     _iuSso :: Maybe Sso,
-    _iuEmailUnvalidated :: Maybe Email
+    _iuEmailUnvalidated :: Maybe EmailAddress
   }
 
 data IndexQuery r = IndexQuery Query Filter [DefaultSort]
@@ -91,7 +91,7 @@ data UserDoc = UserDoc
     udName :: Maybe Name,
     udNormalized :: Maybe Text,
     udHandle :: Maybe Handle,
-    udEmail :: Maybe Email,
+    udEmail :: Maybe EmailAddress,
     udColourId :: Maybe ColourId,
     udAccountStatus :: Maybe AccountStatus,
     udSAMLIdP :: Maybe Text,
@@ -101,7 +101,7 @@ data UserDoc = UserDoc
     udSearchVisibilityInbound :: Maybe SearchVisibilityInbound,
     udScimExternalId :: Maybe Text,
     udSso :: Maybe Sso,
-    udEmailUnvalidated :: Maybe Email
+    udEmailUnvalidated :: Maybe EmailAddress
   }
   deriving (Eq, Show)
 

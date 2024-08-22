@@ -86,7 +86,7 @@ import Imports
 import Servant
 import Web.Cookie
 import Wire.API.Routes.MultiVerb
-import Wire.API.User.Identity (Email, Phone)
+import Wire.API.User.Identity (EmailAddress, Phone)
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
@@ -94,7 +94,7 @@ import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 -- | The login ID for client API versions v0..v5
 data LoginId
-  = LoginByEmail Email
+  = LoginByEmail EmailAddress
   | LoginByHandle Handle
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform LoginId)
@@ -109,16 +109,16 @@ loginObjectSchema :: ObjectSchema SwaggerDoc LoginId
 loginObjectSchema =
   fromLoginId .= tupleSchema `withParser` validate
   where
-    fromLoginId :: LoginId -> (Maybe Email, Maybe Handle)
+    fromLoginId :: LoginId -> (Maybe EmailAddress, Maybe Handle)
     fromLoginId = \case
       LoginByEmail e -> (Just e, Nothing)
       LoginByHandle h -> (Nothing, Just h)
-    tupleSchema :: ObjectSchema SwaggerDoc (Maybe Email, Maybe Handle)
+    tupleSchema :: ObjectSchema SwaggerDoc (Maybe EmailAddress, Maybe Handle)
     tupleSchema =
       (,)
         <$> fst .= maybe_ (optField "email" schema)
         <*> snd .= maybe_ (optField "handle" schema)
-    validate :: (Maybe Email, Maybe Handle) -> A.Parser LoginId
+    validate :: (Maybe EmailAddress, Maybe Handle) -> A.Parser LoginId
     validate (mEmail, mHandle) =
       maybe (fail "'email' or 'handle' required") pure $
         (LoginByEmail <$> mEmail) <|> (LoginByHandle <$> mHandle)

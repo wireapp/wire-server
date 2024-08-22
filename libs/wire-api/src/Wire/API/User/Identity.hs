@@ -30,16 +30,13 @@ module Wire.API.User.Identity
     maybeUserIdentityObjectSchema,
     maybeUserIdentityFromComponents,
 
-    -- * Email
-    Email (..),
-    fromEmail,
-    parseEmail,
-    validateEmail,
-
     -- * Phone
     Phone (..),
     parsePhone,
     isValidPhone,
+
+    -- * Email
+    module Wire.API.User.EmailAddress,
 
     -- * UserSSOId
     UserSSOId (..),
@@ -59,7 +56,6 @@ import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Aeson qualified as A
 import Data.Aeson.Types qualified as A
 import Data.Attoparsec.Text
-import Data.Bifunctor (first)
 import Data.ByteString (fromStrict, toStrict)
 import Data.ByteString.Conversion
 import Data.ByteString.UTF8 qualified as UTF8
@@ -81,9 +77,11 @@ import Servant
 import Servant.API qualified as S
 import System.FilePath ((</>))
 import Test.QuickCheck qualified as QC
-import Text.Email.Validate qualified as Email.V
+import Text.Email.Parser
 import URI.ByteString qualified as URI
 import URI.ByteString.QQ (uri)
+import Web.Scim.Schema.User.Email ()
+import Wire.API.User.EmailAddress
 import Wire.API.User.Profile (fromName, mkName)
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
@@ -93,8 +91,8 @@ import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 -- | The private unique user identity that is used for login and
 -- account recovery.
 data UserIdentity
-  = EmailIdentity Email
-  | SSOIdentity UserSSOId (Maybe Email)
+  = EmailIdentity EmailAddress
+  | SSOIdentity UserSSOId (Maybe EmailAddress)
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserIdentity)
 
@@ -110,7 +108,7 @@ maybeUserIdentityObjectSchema :: ObjectSchema SwaggerDoc (Maybe UserIdentity)
 maybeUserIdentityObjectSchema =
   dimap maybeUserIdentityToComponents maybeUserIdentityFromComponents userIdentityComponentsObjectSchema
 
-type UserIdentityComponents = (Maybe Email, Maybe UserSSOId)
+type UserIdentityComponents = (Maybe EmailAddress, Maybe UserSSOId)
 
 userIdentityComponentsObjectSchema :: ObjectSchema SwaggerDoc UserIdentityComponents
 userIdentityComponentsObjectSchema =
@@ -129,12 +127,12 @@ maybeUserIdentityToComponents Nothing = (Nothing, Nothing)
 maybeUserIdentityToComponents (Just (EmailIdentity email)) = (Just email, Nothing)
 maybeUserIdentityToComponents (Just (SSOIdentity ssoid m_email)) = (m_email, Just ssoid)
 
-newIdentity :: Maybe Email -> Maybe UserSSOId -> Maybe UserIdentity
+newIdentity :: Maybe EmailAddress -> Maybe UserSSOId -> Maybe UserIdentity
 newIdentity email (Just sso) = Just $! SSOIdentity sso email
 newIdentity (Just e) Nothing = Just $! EmailIdentity e
 newIdentity Nothing Nothing = Nothing
 
-emailIdentity :: UserIdentity -> Maybe Email
+emailIdentity :: UserIdentity -> Maybe EmailAddress
 emailIdentity (EmailIdentity email) = Just email
 emailIdentity (SSOIdentity _ (Just email)) = Just email
 emailIdentity (SSOIdentity _ _) = Nothing
@@ -142,113 +140,6 @@ emailIdentity (SSOIdentity _ _) = Nothing
 ssoIdentity :: UserIdentity -> Maybe UserSSOId
 ssoIdentity (SSOIdentity ssoid _) = Just ssoid
 ssoIdentity _ = Nothing
-
---------------------------------------------------------------------------------
--- Email
-
--- FUTUREWORK: replace this type with 'EmailAddress'
-data Email = Email
-  { emailLocal :: Text,
-    emailDomain :: Text
-  }
-  deriving stock (Eq, Ord, Generic)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema Email
-
-instance ToParamSchema Email where
-  toParamSchema _ = toParamSchema (Proxy @Text)
-
-instance ToSchema Email where
-  schema =
-    fromEmail
-      .= parsedText
-        "Email"
-        ( maybe
-            (Left "Invalid email. Expected '<local>@<domain>'.")
-            pure
-            . parseEmail
-        )
-
-instance Show Email where
-  show = Text.unpack . fromEmail
-
-instance ToByteString Email where
-  builder = builder . fromEmail
-
-instance FromByteString Email where
-  parser = parser >>= maybe (fail "Invalid email") pure . parseEmail
-
-instance S.FromHttpApiData Email where
-  parseUrlPiece = maybe (Left "Invalid email") Right . fromByteString . encodeUtf8
-
-instance S.ToHttpApiData Email where
-  toUrlPiece = decodeUtf8With lenientDecode . toByteString'
-
-instance Arbitrary Email where
-  arbitrary = do
-    localPart <- Text.filter (/= '@') <$> arbitrary
-    domain <- Text.filter (/= '@') <$> arbitrary
-    pure $ Email localPart domain
-
-instance C.Cql Email where
-  ctype = C.Tagged C.TextColumn
-
-  fromCql (C.CqlText t) = case parseEmail t of
-    Just e -> pure e
-    Nothing -> Left "fromCql: Invalid email"
-  fromCql _ = Left "fromCql: email: CqlText expected"
-
-  toCql = C.toCql . fromEmail
-
-fromEmail :: Email -> Text
-fromEmail (Email loc dom) = loc <> "@" <> dom
-
--- | Parses an email address of the form <local-part>@<domain>.
-parseEmail :: Text -> Maybe Email
-parseEmail t = case Text.split (== '@') t of
-  [localPart, domain] -> Just $! Email localPart domain
-  _ -> Nothing
-
--- |
--- FUTUREWORK:
---
--- * Enforce these constrains during parsing already or use a separate type, see
---   [Parse, don't validate](https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate).
---
--- * Check for differences to validation of `Data.Domain.Domain` and decide whether to
---   align/de-duplicate the two.
---
--- * Drop dependency on email-validate? We do our own email domain validation anyways,
---   is the dependency worth it just for validating the local part?
-validateEmail :: Email -> Either String Email
-validateEmail =
-  pure
-    . uncurry Email
-    <=< validateDomain
-    <=< validateExternalLib
-    <=< validateLength
-    . fromEmail
-  where
-    validateLength e
-      | len <= 100 = Right e
-      | otherwise = Left $ "length " <> show len <> " exceeds 100"
-      where
-        len = Text.length e
-    validateExternalLib e = do
-      email <- Email.V.validate $ encodeUtf8 e
-      l <- first show . decodeUtf8' $ Email.V.localPart email
-      d <- first show . decodeUtf8' $ Email.V.domainPart email
-      pure (l, d)
-    -- cf. https://en.wikipedia.org/wiki/Email_address#Domain
-    -- n.b. We do not allow IP address literals, comments or non-ASCII
-    --      characters, mostly because SES (and probably many other mail
-    --      systems) don't support that (yet?) either.
-    validateDomain (l, d) = parseOnly domain d
-      where
-        domain = (label *> many1 (char '.' *> label) *> endOfInput) $> (l, d)
-        label =
-          satisfy (inClass "a-zA-Z0-9")
-            *> count 61 (optional (satisfy (inClass "-a-zA-Z0-9")))
-            *> optional (satisfy (inClass "a-zA-Z0-9"))
 
 --------------------------------------------------------------------------------
 -- Phone
@@ -401,8 +292,8 @@ lenientlyParseSAMLNameID (Just txt) = do
       asemail =
         maybe
           (Left "not an email")
-          (fmap emailToSAMLNameID . validateEmail)
-          (parseEmail . LT.toStrict $ txt)
+          emailToSAMLNameID
+          (emailAddressText . LT.toStrict $ txt)
 
       astxt :: Either String SAML.NameID
       astxt = do
@@ -417,15 +308,15 @@ lenientlyParseSAMLNameID (Just txt) = do
     (pure . Just)
     (hush asxml <|> hush asemail <|> hush astxt)
 
-emailFromSAML :: (HasCallStack) => SAMLEmail.Email -> Email
-emailFromSAML = fromJust . parseEmail . SAMLEmail.render
+emailFromSAML :: SAMLEmail.Email -> EmailAddress
+emailFromSAML = fromJust . emailAddressText . SAMLEmail.render
 
 -- | FUTUREWORK(fisx): if saml2-web-sso exported the 'NameID' constructor, we could make this
 -- function total without all that praying and hoping.
-emailToSAMLNameID :: (HasCallStack) => Email -> SAML.NameID
-emailToSAMLNameID = fromRight (error "impossible") . SAML.emailNameID . fromEmail
+emailToSAMLNameID :: EmailAddress -> Either String SAML.NameID
+emailToSAMLNameID = SAML.emailNameID . fromEmail
 
-emailFromSAMLNameID :: (HasCallStack) => SAML.NameID -> Maybe Email
+emailFromSAMLNameID :: SAML.NameID -> Maybe EmailAddress
 emailFromSAMLNameID nid = case nid ^. SAML.nameID of
   SAML.UNameIDEmail email -> Just . emailFromSAML . CI.original $ email
   _ -> Nothing

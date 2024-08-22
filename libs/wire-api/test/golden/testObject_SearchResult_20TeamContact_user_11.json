@@ -18,7 +18,7 @@
         {
             "accent_id": 0,
             "created_at": "1864-05-09T09:36:08.567Z",
-            "email": "@",
+            "email": "some@example",
             "email_unvalidated": null,
             "handle": null,
             "id": "00000001-0000-0000-0000-000000000001",
@@ -33,7 +33,7 @@
         {
             "accent_id": null,
             "created_at": "1864-05-09T11:56:16.082Z",
-            "email": "@",
+            "email": "some@example",
             "email_unvalidated": null,
             "handle": "",
             "id": "00000001-0000-0000-0000-000100000000",
@@ -63,7 +63,7 @@
         {
             "accent_id": 0,
             "created_at": null,
-            "email": "@",
+            "email": "some@example",
             "email_unvalidated": null,
             "handle": "",
             "id": "00000001-0000-0001-0000-000000000000",
@@ -78,7 +78,7 @@
         {
             "accent_id": null,
             "created_at": "1864-05-09T02:39:28.838Z",
-            "email": "@",
+            "email": "some@example",
             "email_unvalidated": null,
             "handle": "",
             "id": "00000001-0000-0001-0000-000100000001",
@@ -93,7 +93,7 @@
         {
             "accent_id": 0,
             "created_at": null,
-            "email": "@",
+            "email": "some@example",
             "email_unvalidated": null,
             "handle": "",
             "id": "00000000-0000-0001-0000-000100000001",
@@ -108,7 +108,7 @@
         {
             "accent_id": 0,
             "created_at": "1864-05-09T01:15:59.694Z",
-            "email": "@",
+            "email": "some@example",
             "email_unvalidated": null,
             "handle": "",
             "id": "00000001-0000-0001-0000-000000000001",

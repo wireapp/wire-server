@@ -31,6 +31,7 @@ import Data.Handle (Handle, parseHandle)
 import Data.Id
 import Data.LanguageCodes (ISO639_1 (EN))
 import Data.String.Conversions
+import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Lazy as Lazy
 import Data.Time
 import Data.UUID as UUID
@@ -64,7 +65,7 @@ import qualified Web.Scim.Schema.User.Phone as Phone
 import qualified Wire.API.Team.Member as Member
 import Wire.API.Team.Role (Role, defaultRole)
 import Wire.API.User
-import Wire.API.User.IdentityProvider hiding (team)
+import Wire.API.User.IdentityProvider hiding (handle, team)
 import Wire.API.User.RichInfo
 import Wire.API.User.Scim
 
@@ -171,10 +172,10 @@ randomScimUserWithSubjectAndRichInfo richInfo = do
 -- support externalIds that are not emails, and storing email addresses in `emails` in the
 -- scim schema.  `randomScimUserWithEmail` is from a time where non-idp-authenticated users
 -- could only be provisioned with email as externalId.  we should probably rework all that.
-randomScimUserWithEmail :: (MonadRandom m) => m (Scim.User.User SparTag, Email)
+randomScimUserWithEmail :: (MonadRandom m) => m (Scim.User.User SparTag, EmailAddress)
 randomScimUserWithEmail = do
   suffix <- cs <$> replicateM 7 (getRandomR ('0', '9'))
-  let email = Email ("email" <> suffix) "example.com"
+  let email = unsafeEmailAddress ("email" <> encodeUtf8 suffix) "example.com"
       externalId = fromEmail email
   pure
     ( (Scim.User.empty @SparTag userSchemas ("scimuser_" <> suffix) (ScimUserExtra mempty))
@@ -202,10 +203,10 @@ randomScimEmail = do
   let typ :: Maybe Text = Nothing
       primary :: Maybe Scim.ScimBool = Nothing -- TODO: where should we catch users with more than one
       -- primary email?
-  value :: Email.EmailAddress2 <- do
+  value <- do
     localpart <- cs <$> replicateM 15 (getRandomR ('a', 'z'))
     domainpart <- (<> ".com") . cs <$> replicateM 15 (getRandomR ('a', 'z'))
-    pure . Email.EmailAddress2 $ Email.unsafeEmailAddress localpart domainpart
+    pure . Email.EmailAddress $ Email.unsafeEmailAddress localpart domainpart
   pure Email.Email {..}
 
 randomScimPhone :: (MonadRandom m) => m Phone.Phone
@@ -632,12 +633,12 @@ class IsUser u where
 -- is correct and don't aim to verify that name, handle, etc correspond to ones in 'vsuUser'.
 instance IsUser ValidScimUser where
   maybeUserId = Nothing
-  maybeHandle = Just (Just . view vsuHandle)
-  maybeName = Just (Just . view vsuName)
-  maybeTenant = Just (^? (vsuExternalId . veidUref . SAML.uidTenant))
-  maybeSubject = Just (^? (vsuExternalId . veidUref . SAML.uidSubject))
-  maybeScimExternalId = Just (runValidExternalIdEither Intra.urefToExternalId (Just . fromEmail) . view vsuExternalId)
-  maybeLocale = Just (view vsuLocale)
+  maybeHandle = Just (Just <$> handle)
+  maybeName = Just (Just <$> name)
+  maybeTenant = Just (fmap SAML._uidTenant . veidUref . externalId)
+  maybeSubject = Just (fmap SAML._uidSubject . veidUref . externalId)
+  maybeScimExternalId = Just (runValidExternalIdEither Intra.urefToExternalId (Just . fromEmail) . externalId)
+  maybeLocale = Just locale
 
 instance IsUser (WrappedScimStoredUser SparTag) where
   maybeUserId = Just $ scimUserId . fromWrappedScimStoredUser
@@ -675,12 +676,12 @@ instance IsUser User where
     Intra.veidFromBrigUser usr Nothing
       & either
         (const Nothing)
-        (preview (veidUref . SAML.uidTenant))
+        (fmap SAML._uidTenant . veidUref)
   maybeSubject = Just $ \usr ->
     Intra.veidFromBrigUser usr Nothing
       & either
         (const Nothing)
-        (preview (veidUref . SAML.uidSubject))
+        (fmap SAML._uidSubject . veidUref)
   maybeScimExternalId = Just $ \usr ->
     Intra.veidFromBrigUser usr Nothing
       & either
@@ -743,7 +744,7 @@ setDefaultRoleIfEmpty u =
     }
 
 -- this is not always correct, but hopefully for the tests that we're using it in it'll do.
-scimifyBrigUserHack :: User -> Email -> User
+scimifyBrigUserHack :: User -> EmailAddress -> User
 scimifyBrigUserHack usr email =
   usr
     { userManagedBy = ManagedByScim,

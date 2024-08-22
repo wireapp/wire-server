@@ -740,7 +740,7 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
   -- pure $ CreateUserResponse cok userId (Public.SelfProfile usr)
   pure $ Public.RegisterSuccess cok (Public.SelfProfile usr)
   where
-    sendActivationEmail :: (Member EmailSubsystem r) => Public.Email -> Public.Name -> ActivationPair -> Maybe Public.Locale -> Maybe Public.NewTeamUser -> (AppT r) ()
+    sendActivationEmail :: (Member EmailSubsystem r) => Public.EmailAddress -> Public.Name -> ActivationPair -> Maybe Public.Locale -> Maybe Public.NewTeamUser -> (AppT r) ()
     sendActivationEmail email name (key, code) locale mTeamUser
       | Just teamUser <- mTeamUser,
         Public.NewTeamCreator creator <- teamUser,
@@ -749,7 +749,7 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
       | otherwise =
           liftSem $ sendActivationMail email name key code locale
 
-    sendWelcomeEmail :: (Member EmailSending r) => Public.Email -> CreateUserTeam -> Public.NewTeamUser -> Maybe Public.Locale -> (AppT r) ()
+    sendWelcomeEmail :: (Member EmailSending r) => Public.EmailAddress -> CreateUserTeam -> Public.NewTeamUser -> Maybe Public.Locale -> (AppT r) ()
     -- NOTE: Welcome e-mails for the team creator are not dealt by brig anymore
     sendWelcomeEmail e (CreateUserTeam t n) newUser l = case newUser of
       Public.NewTeamCreator _ ->
@@ -1024,11 +1024,11 @@ sendActivationCode ac = do
 --
 -- The tautological constraint in the type signature is added so that once we remove the
 -- feature, ghc will guide us here.
-customerExtensionCheckBlockedDomains :: Public.Email -> (Handler r) ()
+customerExtensionCheckBlockedDomains :: Public.EmailAddress -> (Handler r) ()
 customerExtensionCheckBlockedDomains email = do
   mBlockedDomains <- asks (fmap domainsBlockedForRegistration . setCustomerExtensions . view settings)
   for_ mBlockedDomains $ \(DomainsBlockedForRegistration blockedDomains) -> do
-    case mkDomain (Public.emailDomain email) of
+    case mkDomain (Text.decodeUtf8 $ Public.domainPart email) of
       Left _ ->
         pure () -- if it doesn't fit the syntax of blocked domains, it is not blocked
       Right domain ->
@@ -1300,12 +1300,12 @@ sendVerificationCode req = do
       sendMail email code.codeValue (Just $ Public.userLocale $ accountUser account) action
     _ -> pure ()
   where
-    getAccount :: Public.Email -> (Handler r) (Maybe UserAccount)
+    getAccount :: Public.EmailAddress -> (Handler r) (Maybe UserAccount)
     getAccount email = lift $ do
       mbUserId <- liftSem $ lookupKey $ mkEmailKey email
       join <$> wrapClient (Data.lookupAccount `traverse` mbUserId)
 
-    sendMail :: Public.Email -> Code.Value -> Maybe Public.Locale -> Public.VerificationAction -> (Handler r) ()
+    sendMail :: Public.EmailAddress -> Code.Value -> Maybe Public.Locale -> Public.VerificationAction -> (Handler r) ()
     sendMail email value mbLocale =
       lift . liftSem . \case
         Public.CreateScimToken -> sendCreateScimTokenVerificationMail email value mbLocale

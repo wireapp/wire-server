@@ -87,7 +87,7 @@ randomUser'' isCreator hasPassword hasEmail = selfUser <$> randomUserProfile' is
 randomUserProfile' :: (HasCallStack) => Bool -> Bool -> Bool -> TestM SelfProfile
 randomUserProfile' isCreator hasPassword hasEmail = randomUserProfile'' isCreator hasPassword hasEmail <&> fst
 
-randomUserProfile'' :: (HasCallStack) => Bool -> Bool -> Bool -> TestM (SelfProfile, Email)
+randomUserProfile'' :: (HasCallStack) => Bool -> Bool -> Bool -> TestM (SelfProfile, EmailAddress)
 randomUserProfile'' isCreator hasPassword hasEmail = do
   b <- view tsBrig
   e <- liftIO randomEmail
@@ -99,16 +99,16 @@ randomUserProfile'' isCreator hasPassword hasEmail = do
             <> ["team" .= BindingNewTeam (newNewTeam (unsafeRange "teamName") DefaultIcon) | isCreator]
   (,e) . responseJsonUnsafe <$> (post (b . path "/i/users" . Bilge.json pl) <!! const 201 === statusCode)
 
-randomEmailUser :: (HasCallStack) => TestM (UserId, Email)
+randomEmailUser :: (HasCallStack) => TestM (UserId, EmailAddress)
 randomEmailUser = randomUserProfile'' False False True <&> first (User.userId . selfUser)
 
 defPassword :: PlainTextPassword8
 defPassword = plainTextPassword8Unsafe "topsecretdefaultpassword"
 
-randomEmail :: (MonadIO m) => m Email
+randomEmail :: (MonadIO m) => m EmailAddress
 randomEmail = do
   uid <- liftIO nextRandom
-  pure $ Email ("success+" <> UUID.toText uid) "simulator.amazonses.com"
+  pure $ unsafeEmailAddress ("success+" <> UUID.toASCIIBytes uid) "simulator.amazonses.com"
 
 setHandle :: UserId -> Text -> TestM ()
 setHandle uid h = do
@@ -163,7 +163,7 @@ addUserToTeamWithRole' role inviter tid = do
       )
   pure (inv, r)
 
-acceptInviteBody :: Email -> InvitationCode -> RequestBody
+acceptInviteBody :: EmailAddress -> InvitationCode -> RequestBody
 acceptInviteBody email code =
   RequestBodyLBS . encode $
     object

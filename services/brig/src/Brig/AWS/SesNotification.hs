@@ -35,21 +35,21 @@ onEvent (MailBounce BounceTransient es) = onTransientBounce es
 onEvent (MailBounce BounceUndetermined es) = onUndeterminedBounce es
 onEvent (MailComplaint es) = onComplaint es
 
-onPermanentBounce :: (Member UserSubsystem r) => [Email] -> AppT r ()
+onPermanentBounce :: (Member UserSubsystem r) => [EmailAddress] -> AppT r ()
 onPermanentBounce = mapM_ $ \e -> do
   logEmailEvent "Permanent bounce" e
   liftSem $ blockListInsert e
 
-onTransientBounce :: [Email] -> AppT r ()
+onTransientBounce :: [EmailAddress] -> AppT r ()
 onTransientBounce = mapM_ (logEmailEvent "Transient bounce")
 
-onUndeterminedBounce :: [Email] -> AppT r ()
+onUndeterminedBounce :: [EmailAddress] -> AppT r ()
 onUndeterminedBounce = mapM_ (logEmailEvent "Undetermined bounce")
 
-onComplaint :: (Member UserSubsystem r) => [Email] -> AppT r ()
+onComplaint :: (Member UserSubsystem r) => [EmailAddress] -> AppT r ()
 onComplaint = mapM_ $ \e -> do
   logEmailEvent "Complaint" e
   liftSem $ blockListInsert e
 
-logEmailEvent :: Text -> Email -> AppT r ()
+logEmailEvent :: Text -> EmailAddress -> AppT r ()
 logEmailEvent t e = Log.info $ field "email" (fromEmail e) ~~ msg t

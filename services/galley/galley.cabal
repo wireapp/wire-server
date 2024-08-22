@@ -308,7 +308,6 @@ library
     , currency-codes         >=2.0
     , data-default
     , data-timeout
-    , either
     , enclosed-exceptions    >=1.0
     , errors                 >=2.0
     , exceptions             >=0.4

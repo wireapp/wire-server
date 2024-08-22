@@ -42,7 +42,7 @@
 -- * Request and response types for SCIM-related endpoints.
 module Wire.API.User.Scim where
 
-import Control.Lens (Prism', makeLenses, mapped, prism', (.~), (?~), (^.))
+import Control.Lens (makeLenses, mapped, (.~), (?~), (^.))
 import Control.Monad.Except (throwError)
 import Crypto.Hash (hash)
 import Crypto.Hash.Algorithms (SHA512)
@@ -86,7 +86,7 @@ import Web.Scim.Schema.User qualified as Scim.User
 import Wire.API.Locale
 import Wire.API.Team.Role (Role)
 import Wire.API.User (emailFromSAMLNameID, urefToExternalIdUnsafe)
-import Wire.API.User.Identity (Email, fromEmail)
+import Wire.API.User.Identity (EmailAddress, fromEmail)
 import Wire.API.User.Profile as BT
 import Wire.API.User.RichInfo qualified as RI
 import Wire.API.User.Saml ()
@@ -328,22 +328,23 @@ instance Scim.Patchable ScimUserExtra where
 -- and/or ignore POSTed content, returning the full representation can be useful to the
 -- client, enabling it to correlate the client's and server's views of the new resource."
 data ValidScimUser = ValidScimUser
-  { _vsuExternalId :: ValidExternalId,
-    _vsuHandle :: Handle,
-    _vsuName :: BT.Name,
-    _vsuRichInfo :: RI.RichInfo,
-    _vsuActive :: Bool,
-    _vsuLocale :: Maybe Locale,
-    _vsuRole :: Maybe Role
+  { externalId :: ValidExternalId,
+    handle :: Handle,
+    name :: BT.Name,
+    emails :: [EmailAddress],
+    richInfo :: RI.RichInfo,
+    active :: Bool,
+    locale :: Maybe Locale,
+    role :: Maybe Role
   }
   deriving (Eq, Show)
 
 -- | Note that a 'SAML.UserRef' may contain an email. Even though it is possible to construct a 'ValidExternalId' from such a 'UserRef' with 'UrefOnly',
 -- this does not represent a valid 'ValidExternalId'. So in case of a 'UrefOnly', we can assume that the 'UserRef' does not contain an email.
 data ValidExternalId
-  = EmailAndUref Email SAML.UserRef
+  = EmailAndUref EmailAddress SAML.UserRef
   | UrefOnly SAML.UserRef
-  | EmailOnly Email
+  | EmailOnly EmailAddress
   deriving (Eq, Show, Generic)
 
 instance Arbitrary ValidExternalId where
@@ -356,7 +357,7 @@ instance Arbitrary ValidExternalId where
       Nothing -> EmailOnly <$> QC.arbitrary
 
 -- | Take apart a 'ValidExternalId', using 'SAML.UserRef' if available, otherwise 'Email'.
-runValidExternalIdEither :: (SAML.UserRef -> a) -> (Email -> a) -> ValidExternalId -> a
+runValidExternalIdEither :: (SAML.UserRef -> a) -> (EmailAddress -> a) -> ValidExternalId -> a
 runValidExternalIdEither doUref doEmail = \case
   EmailAndUref _ uref -> doUref uref
   UrefOnly uref -> doUref uref
@@ -364,7 +365,7 @@ runValidExternalIdEither doUref doEmail = \case
 
 -- | Take apart a 'ValidExternalId', use both 'SAML.UserRef', 'Email' if applicable, and
 -- merge the result with a given function.
-runValidExternalIdBoth :: (a -> a -> a) -> (SAML.UserRef -> a) -> (Email -> a) -> ValidExternalId -> a
+runValidExternalIdBoth :: (a -> a -> a) -> (SAML.UserRef -> a) -> (EmailAddress -> a) -> ValidExternalId -> a
 runValidExternalIdBoth merge doUref doEmail = \case
   EmailAndUref eml uref -> doUref uref `merge` doEmail eml
   UrefOnly uref -> doUref uref
@@ -375,12 +376,11 @@ runValidExternalIdBoth merge doUref doEmail = \case
 runValidExternalIdUnsafe :: ValidExternalId -> Text
 runValidExternalIdUnsafe = runValidExternalIdEither urefToExternalIdUnsafe fromEmail
 
-veidUref :: Prism' ValidExternalId SAML.UserRef
-veidUref = prism' UrefOnly $
-  \case
-    EmailAndUref _ uref -> Just uref
-    UrefOnly uref -> Just uref
-    EmailOnly _ -> Nothing
+veidUref :: ValidExternalId -> Maybe SAML.UserRef
+veidUref = \case
+  EmailAndUref _ uref -> Just uref
+  UrefOnly uref -> Just uref
+  EmailOnly _ -> Nothing
 
 makeLenses ''ValidScimUser
 makeLenses ''ValidExternalId

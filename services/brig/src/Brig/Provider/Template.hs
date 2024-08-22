@@ -51,16 +51,16 @@ data ApprovalRequestEmailTemplate = ApprovalRequestEmailTemplate
     approvalRequestEmailSubject :: !Template,
     approvalRequestEmailBodyText :: !Template,
     approvalRequestEmailBodyHtml :: !Template,
-    approvalRequestEmailSender :: !Email,
+    approvalRequestEmailSender :: !EmailAddress,
     approvalRequestEmailSenderName :: !Text,
-    approvalRequestEmailTo :: !Email
+    approvalRequestEmailTo :: !EmailAddress
   }
 
 data ApprovalConfirmEmailTemplate = ApprovalConfirmEmailTemplate
   { approvalConfirmEmailSubject :: !Template,
     approvalConfirmEmailBodyText :: !Template,
     approvalConfirmEmailBodyHtml :: !Template,
-    approvalConfirmEmailSender :: !Email,
+    approvalConfirmEmailSender :: !EmailAddress,
     approvalConfirmEmailSenderName :: !Text,
     approvalConfirmEmailHomeUrl :: !HttpsUrl
   }

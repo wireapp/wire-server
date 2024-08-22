@@ -59,7 +59,7 @@ data ActivationTarget
   = -- | An opaque key for some email awaiting activation.
     ActivateKey ActivationKey
   | -- | A known email address awaiting activation.
-    ActivateEmail Email
+    ActivateEmail EmailAddress
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ActivationTarget)
 
@@ -138,11 +138,11 @@ instance ToSchema Activate where
              \cookies or tokens on success but failures still count \
              \towards the maximum failure count."
 
-      maybeActivationTargetObjectSchema :: ObjectSchemaP SwaggerDoc (Maybe ActivationKey, Maybe Email) ActivationTarget
+      maybeActivationTargetObjectSchema :: ObjectSchemaP SwaggerDoc (Maybe ActivationKey, Maybe EmailAddress) ActivationTarget
       maybeActivationTargetObjectSchema =
         withParser activationTargetTupleObjectSchema maybeActivationTargetTargetFromTuple
         where
-          activationTargetTupleObjectSchema :: ObjectSchema SwaggerDoc (Maybe ActivationKey, Maybe Email)
+          activationTargetTupleObjectSchema :: ObjectSchema SwaggerDoc (Maybe ActivationKey, Maybe EmailAddress)
           activationTargetTupleObjectSchema =
             (,)
               <$> fst .= maybe_ (optFieldWithDocModifier "key" keyDocs schema)
@@ -151,13 +151,13 @@ instance ToSchema Activate where
               keyDocs = description ?~ "An opaque key to activate, as it was sent by the API."
               emailDocs = description ?~ "A known email address to activate."
 
-          maybeActivationTargetTargetFromTuple :: (Maybe ActivationKey, Maybe Email) -> Parser ActivationTarget
+          maybeActivationTargetTargetFromTuple :: (Maybe ActivationKey, Maybe EmailAddress) -> Parser ActivationTarget
           maybeActivationTargetTargetFromTuple = \case
             (Just key, _) -> pure $ ActivateKey key
             (_, Just email) -> pure $ ActivateEmail email
             _ -> fail "key or email must be present"
 
-      maybeActivationTargetToTuple :: ActivationTarget -> (Maybe ActivationKey, Maybe Email)
+      maybeActivationTargetToTuple :: ActivationTarget -> (Maybe ActivationKey, Maybe EmailAddress)
       maybeActivationTargetToTuple = \case
         ActivateKey key -> (Just key, Nothing)
         ActivateEmail email -> (Nothing, Just email)
@@ -186,7 +186,7 @@ instance ToSchema ActivationResponse where
 -- | Payload for a request to (re-)send an activation code for an e-mail
 -- address.
 data SendActivationCode = SendActivationCode
-  { emailKey :: Email,
+  { emailKey :: EmailAddress,
     locale :: Maybe Locale
   }
   deriving stock (Eq, Show, Generic)

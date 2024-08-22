@@ -8,7 +8,6 @@ where
 
 import Control.Lens (view)
 import Control.Monad.Trans.Maybe
-import Data.Either.Extra
 import Data.Handle (Handle)
 import Data.Handle qualified as Handle
 import Data.Id
@@ -105,13 +104,13 @@ interpretUserSubsystem = interpret \case
   BlockListDelete email -> blockListDeleteImpl email
   BlockListInsert email -> blockListInsertImpl email
 
-isBlockedImpl :: (Member BlockListStore r) => Email -> Sem r Bool
+isBlockedImpl :: (Member BlockListStore r) => EmailAddress -> Sem r Bool
 isBlockedImpl = BlockList.exists . mkEmailKey
 
-blockListDeleteImpl :: (Member BlockListStore r) => Email -> Sem r ()
+blockListDeleteImpl :: (Member BlockListStore r) => EmailAddress -> Sem r ()
 blockListDeleteImpl = BlockList.delete . mkEmailKey
 
-blockListInsertImpl :: (Member BlockListStore r) => Email -> Sem r ()
+blockListInsertImpl :: (Member BlockListStore r) => EmailAddress -> Sem r ()
 blockListInsertImpl = BlockList.insert . mkEmailKey
 
 lookupLocaleOrDefaultImpl :: (Member UserStore r, Member (Input UserSubsystemConfig) r) => Local UserId -> Sem r (Maybe Locale)

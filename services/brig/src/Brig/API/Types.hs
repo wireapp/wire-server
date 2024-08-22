@@ -73,7 +73,7 @@ data ActivationResult
 -- | Outcome of the invariants check in 'Brig.API.User.changeEmail'.
 data ChangeEmailResult
   = -- | The request was successful, user needs to verify the new email address
-    ChangeEmailNeedsActivation !(User, Activation, Email)
+    ChangeEmailNeedsActivation !(User, Activation, EmailAddress)
   | -- | The user asked to change the email address to the one already owned
     ChangeEmailIdempotent
 
@@ -85,7 +85,7 @@ data CreateUserError
   | MissingIdentity
   | EmailActivationError ActivationError
   | PhoneActivationError ActivationError
-  | InvalidEmail Email String
+  | InvalidEmail EmailAddress String
   | InvalidPhone Phone
   | DuplicateUserKey EmailKey
   | BlacklistedUserKey EmailKey
@@ -96,8 +96,8 @@ data CreateUserError
 
 data InvitationError
   = InviteeEmailExists UserId
-  | InviteInvalidEmail Email
-  | InviteBlacklistedEmail Email
+  | InviteInvalidEmail EmailAddress
+  | InviteBlacklistedEmail EmailAddress
 
 data ConnectionError
   = -- | Max. # of 'Accepted' / 'Sent' connections reached
@@ -115,7 +115,7 @@ data ConnectionError
   | -- | An attempt at creating an invitation to a blacklisted user key.
     ConnectBlacklistedUserKey EmailKey
   | -- | An attempt at creating an invitation to an invalid email address.
-    ConnectInvalidEmail Email String
+    ConnectInvalidEmail EmailAddress String
   | -- | An attempt at creating an invitation to an invalid phone nbumber.
     ConnectInvalidPhone Phone
   | -- | An attempt at creating a connection with another user from the same binding team.
@@ -158,9 +158,9 @@ data VerificationCodeError
   | VerificationCodeNoEmail
 
 data ChangeEmailError
-  = InvalidNewEmail !Email !String
-  | EmailExists !Email
-  | ChangeBlacklistedEmail !Email
+  = InvalidNewEmail !EmailAddress !String
+  | EmailExists !EmailAddress
+  | ChangeBlacklistedEmail !EmailAddress
   | EmailManagedByScim
 
 data SendActivationCodeError

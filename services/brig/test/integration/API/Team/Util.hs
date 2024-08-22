@@ -276,10 +276,10 @@ putLHWhitelistTeam galley tid = do
         . paths ["i", "legalhold", "whitelisted-teams", toByteString' tid]
     )
 
-accept :: Email -> InvitationCode -> RequestBody
+accept :: EmailAddress -> InvitationCode -> RequestBody
 accept = acceptWithName (Name "Bob")
 
-acceptWithName :: Name -> Email -> InvitationCode -> RequestBody
+acceptWithName :: Name -> EmailAddress -> InvitationCode -> RequestBody
 acceptWithName name email code =
   RequestBodyLBS . encode $
     object
@@ -289,7 +289,7 @@ acceptWithName name email code =
         "team_code" .= code
       ]
 
-extAccept :: Email -> Name -> Phone -> ActivationCode -> InvitationCode -> RequestBody
+extAccept :: EmailAddress -> Name -> Phone -> ActivationCode -> InvitationCode -> RequestBody
 extAccept email name phone phoneCode code =
   RequestBodyLBS . encode $
     object
@@ -302,7 +302,7 @@ extAccept email name phone phoneCode code =
         "team_code" .= code
       ]
 
-register :: Email -> BindingNewTeam -> Brig -> Http (Response (Maybe LByteString))
+register :: EmailAddress -> BindingNewTeam -> Brig -> Http (Response (Maybe LByteString))
 register e t brig =
   post
     ( brig
@@ -319,7 +319,7 @@ register e t brig =
           )
     )
 
-register' :: Email -> BindingNewTeam -> ActivationCode -> Brig -> Http (Response (Maybe LByteString))
+register' :: EmailAddress -> BindingNewTeam -> ActivationCode -> Brig -> Http (Response (Maybe LByteString))
 register' e t c brig =
   post
     ( brig
@@ -423,10 +423,10 @@ isActivatedUser uid brig = do
     Just (_ : _) -> True
     _ -> False
 
-stdInvitationRequest :: Email -> InvitationRequest
+stdInvitationRequest :: EmailAddress -> InvitationRequest
 stdInvitationRequest = stdInvitationRequest' Nothing Nothing
 
-stdInvitationRequest' :: Maybe Locale -> Maybe Role -> Email -> InvitationRequest
+stdInvitationRequest' :: Maybe Locale -> Maybe Role -> EmailAddress -> InvitationRequest
 stdInvitationRequest' loc role email =
   InvitationRequest loc role Nothing email
 
@@ -463,7 +463,7 @@ setTeamSearchVisibilityInboundAvailable galley tid status =
     !!! do
       const 200 === statusCode
 
-setUserEmail :: Brig -> UserId -> UserId -> Email -> Http ResponseLBS
+setUserEmail :: Brig -> UserId -> UserId -> EmailAddress -> Http ResponseLBS
 setUserEmail brig from uid email = do
   put
     ( brig

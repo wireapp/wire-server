@@ -44,7 +44,6 @@ import Data.ByteString qualified as C8
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import Data.Domain
-import Data.Either.Combinators
 import Data.Handle
 import Data.Id
 import Data.Json.Util (fromUTCTimeMillis)
@@ -201,13 +200,13 @@ testUpdateUserEmailByTeamOwner opts brig = do
   checkUnauthorizedRequests emailOwner otherTeamMember teamOwnerDifferentTeam newEmail
   checkActivationCode newEmail False
   where
-    checkLetActivationExpire :: Email -> Http ()
+    checkLetActivationExpire :: EmailAddress -> Http ()
     checkLetActivationExpire email = do
       let timeout = round (Opt.setActivationTimeout (Opt.optSettings opts))
       threadDelay ((timeout + 1) * 1000_000)
       checkActivationCode email False
 
-    checkActivationCode :: Email -> Bool -> Http ()
+    checkActivationCode :: EmailAddress -> Bool -> Http ()
     checkActivationCode email shouldExist = do
       maybeActivationCode <- Util.getActivationCode brig (Left email)
       void $
@@ -216,11 +215,11 @@ testUpdateUserEmailByTeamOwner opts brig = do
             then assertBool "activation code should exists" (isJust maybeActivationCode)
             else assertBool "activation code should not exists" (isNothing maybeActivationCode)
 
-    checkSetUserEmail :: User -> User -> Email -> Int -> Http ()
+    checkSetUserEmail :: User -> User -> EmailAddress -> Int -> Http ()
     checkSetUserEmail teamOwner emailOwner email expectedStatusCode =
       setUserEmail brig (userId teamOwner) (userId emailOwner) email !!! (const expectedStatusCode === statusCode)
 
-    checkUnauthorizedRequests :: User -> User -> User -> Email -> Http ()
+    checkUnauthorizedRequests :: User -> User -> User -> EmailAddress -> Http ()
     checkUnauthorizedRequests emailOwner otherTeamMember teamOwnerDifferentTeam email = do
       setUserEmail brig (userId teamOwnerDifferentTeam) (userId emailOwner) email !!! (const 404 === statusCode)
       setUserEmail brig (userId otherTeamMember) (userId emailOwner) email !!! (const 403 === statusCode)
@@ -397,7 +396,9 @@ testCreateUserConflict _ brig = do
     const (Just "key-exists") === fmap Error.label . responseJsonMaybe
   -- untrusted email domains
   u2 <- createUserUntrustedEmail "conflict" brig
-  let Just (Email loc dom) = userEmail u2
+  let Just email = userEmail u2
+      dom = T.decodeUtf8 $ domainPart email
+      loc = T.decodeUtf8 $ localPart email
   let p2 =
         RequestBodyLBS . encode $
           object
@@ -414,30 +415,16 @@ testCreateUserConflict _ brig = do
 -- The testCreateUserInvalidEmail test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
--- Test to make sure a new user cannot be created with an invalid email address or invalid phone number.
+-- Test to make sure a new user cannot be created with an invalid email address
 testCreateUserInvalidEmail :: Opt.Opts -> Brig -> Http ()
 testCreateUserInvalidEmail (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ = pure ()
 testCreateUserInvalidEmail _ brig = do
-  email <- randomEmail
-  let reqEmail =
-        RequestBodyLBS . encode $
-          object
-            [ "name" .= ("foo" :: Text),
-              "email" .= fromEmail email,
-              "password" .= defPassword,
-              "phone" .= ("123456" :: Text) -- invalid phone number, but ignored
-            ]
-  post (brig . path "/register" . contentJson . body reqEmail)
-    !!! const 201 === statusCode
-
-  phone <- randomPhone
   let reqPhone =
         RequestBodyLBS . encode $
           object
             [ "name" .= ("foo" :: Text),
-              "email" .= ("invalid@email" :: Text), -- invalid since there's only a single label
-              "password" .= defPassword,
-              "phone" .= fromPhone phone
+              "email" .= ("invalid@" :: Text),
+              "password" .= defPassword
             ]
   post (brig . path "/register" . contentJson . body reqPhone)
     !!! const 400 === statusCode
@@ -469,18 +456,18 @@ testCreateUserBlacklist _ brig aws =
             "password" .= defPassword
           ]
     -- If there is no queue available, we need to force it either by publishing an event or using the API
-    forceBlacklist :: Text -> Email -> Http ()
+    forceBlacklist :: Text -> EmailAddress -> Http ()
     forceBlacklist typ em = case aws ^. AWS.sesQueue of
       Just queue -> publishMessage typ em queue
       Nothing -> Bilge.post (brig . path "i/users/blacklist" . queryItem "email" (toByteString' em)) !!! const 200 === statusCode
-    publishMessage :: Text -> Email -> Text -> Http ()
+    publishMessage :: Text -> EmailAddress -> Text -> Http ()
     publishMessage typ em queue = do
       let bdy = encode $ case typ of
             "bounce" -> MailBounce BouncePermanent [em]
             "complaint" -> MailComplaint [em]
             x -> error ("Unsupported message type: " ++ show x)
       void . AWS.execute aws $ AWS.enqueueStandard queue bdy
-    awaitBlacklist :: Int -> Email -> Http ()
+    awaitBlacklist :: Int -> EmailAddress -> Http ()
     awaitBlacklist n e = do
       r <- Bilge.head (brig . path "i/users/blacklist" . queryItem "email" (toByteString' e))
       when (statusCode r == 404 && n > 0) $ do
@@ -668,7 +655,7 @@ testMultipleUsersUnqualified brig = do
       -- on this endpoint, only from the self profile (/self).
       expected =
         Set.fromList
-          [ (Just $ userDisplayName u1, Nothing :: Maybe Email),
+          [ (Just $ userDisplayName u1, Nothing :: Maybe EmailAddress),
             (Just $ userDisplayName u2, Nothing),
             (Just $ userDisplayName u3, Nothing)
           ]
@@ -700,7 +687,7 @@ testMultipleUsersV3 brig = do
       q = ListUsersByIds (map userQualifiedId users)
       expected =
         Set.fromList
-          [ (Just $ userDisplayName u1, Nothing :: Maybe Email),
+          [ (Just $ userDisplayName u1, Nothing :: Maybe EmailAddress),
             (Just $ userDisplayName u2, Nothing),
             (Just $ userDisplayName u3, Nothing)
           ]
@@ -754,7 +741,7 @@ testMultipleUsers opts brig = do
       q = ListUsersByIds $ u5 : u4 : map userQualifiedId users
       expected =
         Set.fromList
-          [ (Just $ userDisplayName u1, Nothing :: Maybe Email),
+          [ (Just $ userDisplayName u1, Nothing :: Maybe EmailAddress),
             (Just $ userDisplayName u2, Nothing),
             (Just $ userDisplayName u3, Nothing),
             (Just $ profileName u5Profile, profileEmail u5Profile)
@@ -910,7 +897,7 @@ testEmailUpdate brig userJournalWatcher = do
   -- ensure no other user has "test+<uuid>@example.com"
   -- if there is such a user, let's delete it first.  otherwise
   -- this test fails since there can be only one user with "test+...@example.com"
-  ensureNoOtherUserWithEmail (Email "test" "example.com")
+  ensureNoOtherUserWithEmail (unsafeEmailAddress "test" "example.com")
   -- we want to use a non-trusted domain in order to verify profile changes
   flip initiateUpdateAndActivate uid =<< mkEmailRandomLocalSuffix "test@example.com"
   flip initiateUpdateAndActivate uid =<< mkEmailRandomLocalSuffix "test@example.com"
@@ -921,7 +908,7 @@ testEmailUpdate brig userJournalWatcher = do
   -- In that case, you might need to manually delete the user from the test DB. @elland
   deleteUserInternal uid brig !!! const 202 === statusCode
   where
-    ensureNoOtherUserWithEmail :: Email -> Http ()
+    ensureNoOtherUserWithEmail :: EmailAddress -> Http ()
     ensureNoOtherUserWithEmail eml = do
       tk :: Maybe AccessToken <-
         responseJsonMaybe <$> login brig (defEmailLogin eml) SessionCookie
@@ -929,7 +916,7 @@ testEmailUpdate brig userJournalWatcher = do
         deleteUser (Auth.user t) (Just defPassword) brig !!! const 200 === statusCode
         Util.assertDeleteJournaled userJournalWatcher (Auth.user t) "user deletion"
 
-    initiateUpdateAndActivate :: Email -> UserId -> Http ()
+    initiateUpdateAndActivate :: EmailAddress -> UserId -> Http ()
     initiateUpdateAndActivate eml uid = do
       initiateEmailUpdateNoSend brig eml uid !!! const 202 === statusCode
       activateEmail brig eml
@@ -937,7 +924,7 @@ testEmailUpdate brig userJournalWatcher = do
       Util.assertEmailUpdateJournaled userJournalWatcher uid eml "user update"
       -- Ensure login work both with the full email and the "short" version
       login brig (defEmailLogin eml) SessionCookie !!! const 200 === statusCode
-      login brig (defEmailLogin (Email "test" "example.com")) SessionCookie !!! const 200 === statusCode
+      login brig (defEmailLogin (unsafeEmailAddress "test" "example.com")) SessionCookie !!! const 200 === statusCode
 
 testUserLocaleUpdate :: Brig -> UserJournalWatcher -> Http ()
 testUserLocaleUpdate brig userJournalWatcher = do
@@ -1116,10 +1103,7 @@ testSendActivationCode opts brig = do
 
 testSendActivationCodeInvalidEmailOrPhone :: Brig -> Http ()
 testSendActivationCodeInvalidEmailOrPhone brig = do
-  let Just invalidEmail = parseEmail "?@?"
-  let invalidPhone = Phone "1234"
-  -- Code for phone pre-verification
-  requestActivationCode brig 400 (Right invalidPhone)
+  let invalidEmail = unsafeEmailAddress "?" "?"
   -- Code for email pre-verification
   requestActivationCode brig 400 (Left invalidEmail)
 
@@ -1287,15 +1271,15 @@ testUpdateSSOId brig galley = do
 
 testDomainsBlockedForRegistration :: Opt.Opts -> Brig -> Http ()
 testDomainsBlockedForRegistration opts brig = withDomainsBlockedForRegistration opts ["bad1.domain.com", "bad2.domain.com"] $ do
-  badEmail1 <- randomEmail <&> \e -> e {emailDomain = "bad1.domain.com"}
-  badEmail2 <- randomEmail <&> \e -> e {emailDomain = "bad2.domain.com"}
+  badEmail1 <- randomEmail <&> \e -> unsafeEmailAddress (localPart e) "bad1.domain.com"
+  badEmail2 <- randomEmail <&> \e -> unsafeEmailAddress (localPart e) "bad2.domain.com"
   post (brig . path "/activate/send" . contentJson . body (p badEmail1)) !!! do
     const 451 === statusCode
     const (Just "domain-blocked-for-registration") === (^? AesonL.key "label" . AesonL._String) . (responseJsonUnsafe @Value)
   post (brig . path "/activate/send" . contentJson . body (p badEmail2)) !!! do
     const 451 === statusCode
     const (Just "domain-blocked-for-registration") === (^? AesonL.key "label" . AesonL._String) . (responseJsonUnsafe @Value)
-  goodEmail <- randomEmail <&> \e -> e {emailDomain = "good.domain.com"}
+  goodEmail <- randomEmail <&> \e -> unsafeEmailAddress (localPart e) "good.domain.com"
   post (brig . path "/activate/send" . contentJson . body (p goodEmail)) !!! do
     const 200 === statusCode
   where

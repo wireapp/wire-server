@@ -75,7 +75,6 @@ import Data.ByteString (toStrict)
 import Data.ByteString.Conversion
 import Data.Code as Code
 import Data.Domain
-import Data.Either.Extra (mapLeft)
 import Data.Id (ClientId, ConnId, UserId)
 import Data.List.Split (chunksOf)
 import Data.Map.Strict qualified as Map

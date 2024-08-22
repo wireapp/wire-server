@@ -36,6 +36,7 @@ module Util.Core
 
     -- * Test helpers
     it,
+    fit,
     pending,
     pendingWith,
     shouldRespondWith,
@@ -184,7 +185,7 @@ import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
 import qualified System.Logger.Extended as Log
 import System.Random (randomRIO)
-import Test.Hspec hiding (it, pending, pendingWith, xit)
+import Test.Hspec hiding (fit, it, pending, pendingWith, xit)
 import qualified Test.Hspec
 import qualified Text.XML as XML
 import qualified Text.XML.Cursor as XML
@@ -292,6 +293,15 @@ it ::
   SpecWith TestEnv
 it msg bdy = Test.Hspec.it msg $ runReaderT bdy
 
+fit ::
+  (HasCallStack) =>
+  -- or, more generally:
+  -- MonadIO m, Example (TestEnv -> m ()), Arg (TestEnv -> m ()) ~ TestEnv
+  String ->
+  TestSpar () ->
+  SpecWith TestEnv
+fit msg bdy = Test.Hspec.fit msg $ runReaderT bdy
+
 pending :: (HasCallStack, MonadIO m) => m ()
 pending = liftIO Test.Hspec.pending
 
@@ -394,7 +404,7 @@ inviteAndRegisterUser ::
   BrigReq ->
   UserId ->
   TeamId ->
-  Email ->
+  EmailAddress ->
   m User
 inviteAndRegisterUser brig u tid inviteeEmail = do
   let invite = stdInvitationRequest inviteeEmail
@@ -415,10 +425,10 @@ inviteAndRegisterUser brig u tid inviteeEmail = do
   unless (selfTeam == Just tid) $ error "Team ID in self profile and team table do not match"
   pure invitee
   where
-    accept' :: User.Email -> User.InvitationCode -> RequestBody
+    accept' :: EmailAddress -> User.InvitationCode -> RequestBody
     accept' email code = acceptWithName (User.Name "Bob") email code
     --
-    acceptWithName :: User.Name -> User.Email -> User.InvitationCode -> RequestBody
+    acceptWithName :: User.Name -> EmailAddress -> User.InvitationCode -> RequestBody
     acceptWithName name email code =
       RequestBodyLBS . Aeson.encode $
         object
@@ -608,10 +618,10 @@ zAuthAccess u c = header "Z-Type" "access" . zUser u . zConn c
 newTeam :: Galley.BindingNewTeam
 newTeam = Galley.BindingNewTeam $ Galley.newNewTeam (unsafeRange "teamName") DefaultIcon
 
-randomEmail :: (MonadIO m) => m Email
+randomEmail :: (MonadIO m) => m EmailAddress
 randomEmail = do
   uid <- liftIO nextRandom
-  pure $ Email ("success+" <> UUID.toText uid) "simulator.amazonses.com"
+  pure $ User.unsafeEmailAddress ("success+" <> UUID.toASCIIBytes uid) "simulator.amazonses.com"
 
 randomUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => BrigReq -> m User
 randomUser brig_ = do
@@ -1204,11 +1214,11 @@ checkErrHspec :: (HasCallStack) => Int -> TestErrorLabel -> ResponseLBS -> Bool
 checkErrHspec status label resp = status == statusCode resp && responseJsonEither resp == Right label
 
 -- | copied from brig integration tests
-stdInvitationRequest :: User.Email -> TeamInvitation.InvitationRequest
+stdInvitationRequest :: EmailAddress -> TeamInvitation.InvitationRequest
 stdInvitationRequest = stdInvitationRequest' Nothing Nothing
 
 -- | copied from brig integration tests
-stdInvitationRequest' :: Maybe User.Locale -> Maybe Role -> User.Email -> TeamInvitation.InvitationRequest
+stdInvitationRequest' :: Maybe User.Locale -> Maybe Role -> EmailAddress -> TeamInvitation.InvitationRequest
 stdInvitationRequest' loc role email =
   TeamInvitation.InvitationRequest loc role Nothing email
 

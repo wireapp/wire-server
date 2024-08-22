@@ -54,7 +54,7 @@ import System.Logger.Class (Logger)
 import Wire.API.Allowlists qualified as Allowlists
 import Wire.API.Error
 import Wire.API.Error.Brig
-import Wire.API.User (Email)
+import Wire.API.User
 import Wire.Error
 
 -------------------------------------------------------------------------------
@@ -119,15 +119,15 @@ brigErrorHandlers logger reqId =
 -- Utilities
 
 -- | If an Allowlist is configured, consult it, otherwise a no-op. {#RefActivationAllowlist}
-checkAllowlist :: Email -> Handler r ()
+checkAllowlist :: EmailAddress -> Handler r ()
 checkAllowlist = wrapHttpClientE . checkAllowlistWithError (StdError allowlistError)
 
-checkAllowlistWithError :: (MonadReader Env m, MonadError e m) => e -> Email -> m ()
+checkAllowlistWithError :: (MonadReader Env m, MonadError e m) => e -> EmailAddress -> m ()
 checkAllowlistWithError e key = do
   ok <- isAllowlisted key
   unless ok (throwError e)
 
-isAllowlisted :: (MonadReader Env m) => Email -> m Bool
+isAllowlisted :: (MonadReader Env m) => EmailAddress -> m Bool
 isAllowlisted key = do
   env <- view settings
   pure $ Allowlists.verify (setAllowlistEmailDomains env) key

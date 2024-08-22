@@ -43,7 +43,7 @@ import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldDisabled))
 import Data.String.Conversions (cs)
 import Data.Text qualified as Text
 import Data.Text.Ascii qualified as Ascii
-import Data.Text.Encoding (encodeUtf8)
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Time (addUTCTime, getCurrentTime)
 import Data.UUID qualified as UUID (fromString)
 import Data.UUID.V4 qualified as UUID
@@ -357,7 +357,7 @@ testInvitationEmailLookupNginz brig nginz = do
   -- expect an invitation to be found querying with email after invite
   headInvitationByEmail nginz email 200
 
-headInvitationByEmail :: (Request -> Request) -> Email -> Int -> Http ()
+headInvitationByEmail :: (Request -> Request) -> EmailAddress -> Int -> Http ()
 headInvitationByEmail service email expectedCode =
   Bilge.head (service . path "/teams/invitations/by-email" . contentJson . queryItem "email" (toByteString' email))
     !!! const expectedCode === statusCode
@@ -377,7 +377,7 @@ testInvitationTooManyPending opts brig (TeamSizeLimit limit) = do
     const 403 === statusCode
     const (Just "too-many-team-invitations") === fmap Error.label . responseJsonMaybe
 
-registerInvite :: Brig -> TeamId -> Invitation -> Email -> Http UserId
+registerInvite :: Brig -> TeamId -> Invitation -> EmailAddress -> Http UserId
 registerInvite brig tid inv invemail = do
   Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
   rsp <-
@@ -437,9 +437,9 @@ testInvitationEmailAccepted brig galley = do
 -- remove it).
 testInvitationEmailAcceptedInBlockedDomain :: Opt.Opts -> Brig -> Galley -> Http ()
 testInvitationEmailAcceptedInBlockedDomain opts brig galley = do
-  email :: Email <- randomEmail
+  email :: EmailAddress <- randomEmail
   let invite = stdInvitationRequest email
-      replacementBrigApp = withDomainsBlockedForRegistration opts [emailDomain email]
+      replacementBrigApp = withDomainsBlockedForRegistration opts [decodeUtf8 $ domainPart email]
   void $ createAndVerifyInvitation' (Just replacementBrigApp) (accept invite.inviteeEmail) invite brig galley
 
 -- | FUTUREWORK: this is an alternative helper to 'createPopulatedBindingTeam'.  it has been
@@ -665,7 +665,7 @@ testInvitationMutuallyExclusive brig = do
   req email (Just code) (Just newTeam) (Just code) !!! const 400 === statusCode
   where
     req ::
-      Email ->
+      EmailAddress ->
       Maybe InvitationCode ->
       Maybe BindingNewTeam ->
       Maybe InvitationCode ->

@@ -42,14 +42,14 @@ import Wire.EmailSubsystem.Template (TemplateBranding, renderHtmlWithBranding, r
 -------------------------------------------------------------------------------
 -- Invitation Email
 
-sendInvitationMail :: (Member EmailSending r) => Email -> TeamId -> Email -> InvitationCode -> Maybe Locale -> (AppT r) ()
+sendInvitationMail :: (Member EmailSending r) => EmailAddress -> TeamId -> EmailAddress -> InvitationCode -> Maybe Locale -> (AppT r) ()
 sendInvitationMail to tid from code loc = do
   tpl <- invitationEmail . snd <$> teamTemplates loc
   branding <- view templateBranding
   let mail = InvitationEmail to tid code from
   liftSem $ sendMail $ renderInvitationEmail mail tpl branding
 
-sendMemberWelcomeMail :: (Member EmailSending r) => Email -> TeamId -> Text -> Maybe Locale -> (AppT r) ()
+sendMemberWelcomeMail :: (Member EmailSending r) => EmailAddress -> TeamId -> Text -> Maybe Locale -> (AppT r) ()
 sendMemberWelcomeMail to tid teamName loc = do
   tpl <- memberWelcomeEmail . snd <$> teamTemplates loc
   branding <- view templateBranding
@@ -60,10 +60,10 @@ sendMemberWelcomeMail to tid teamName loc = do
 -- Invitation Email
 
 data InvitationEmail = InvitationEmail
-  { invTo :: !Email,
+  { invTo :: !EmailAddress,
     invTeamId :: !TeamId,
     invInvCode :: !InvitationCode,
-    invInviter :: !Email
+    invInviter :: !EmailAddress
   }
 
 renderInvitationEmail :: InvitationEmail -> InvitationEmailTemplate -> TemplateBranding -> Mail
@@ -100,7 +100,7 @@ renderInvitationUrl t tid (InvitationCode c) branding =
 -- Creator Welcome Email
 
 data CreatorWelcomeEmail = CreatorWelcomeEmail
-  { cwTo :: !Email,
+  { cwTo :: !EmailAddress,
     cwTid :: !TeamId,
     cwTeamName :: !Text
   }
@@ -109,7 +109,7 @@ data CreatorWelcomeEmail = CreatorWelcomeEmail
 -- Member Welcome Email
 
 data MemberWelcomeEmail = MemberWelcomeEmail
-  { mwTo :: !Email,
+  { mwTo :: !EmailAddress,
     mwTid :: !TeamId,
     mwTeamName :: !Text
   }

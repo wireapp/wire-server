@@ -52,7 +52,7 @@ scimExternalIdStoreToCassandra =
 -- 'UserId' here.  (Note that since there is no associated IdP, the externalId is required to
 -- be an email address, so we enforce that in the type signature, even though we only use it
 -- as a 'Text'.)
-insertScimExternalId :: (HasCallStack, MonadClient m) => TeamId -> Email -> UserId -> m ()
+insertScimExternalId :: (HasCallStack, MonadClient m) => TeamId -> EmailAddress -> UserId -> m ()
 insertScimExternalId tid (fromEmail -> email) uid =
   retry x5 . write insert $ params LocalQuorum (tid, email, uid)
   where
@@ -60,14 +60,14 @@ insertScimExternalId tid (fromEmail -> email) uid =
     insert = "INSERT INTO scim_external (team, external_id, user) VALUES (?, ?, ?)"
 
 -- | The inverse of 'insertScimExternalId'.
-lookupScimExternalId :: (HasCallStack, MonadClient m) => TeamId -> Email -> m (Maybe UserId)
+lookupScimExternalId :: (HasCallStack, MonadClient m) => TeamId -> EmailAddress -> m (Maybe UserId)
 lookupScimExternalId tid (fromEmail -> email) = runIdentity <$$> (retry x1 . query1 sel $ params LocalQuorum (tid, email))
   where
     sel :: PrepQuery R (TeamId, Text) (Identity UserId)
     sel = "SELECT user FROM scim_external WHERE team = ? and external_id = ?"
 
 -- | The other inverse of 'insertScimExternalId' :).
-deleteScimExternalId :: (HasCallStack, MonadClient m) => TeamId -> Email -> m ()
+deleteScimExternalId :: (HasCallStack, MonadClient m) => TeamId -> EmailAddress -> m ()
 deleteScimExternalId tid (fromEmail -> email) =
   retry x5 . write delete $ params LocalQuorum (tid, email)
   where

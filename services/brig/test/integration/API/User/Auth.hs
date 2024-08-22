@@ -46,6 +46,7 @@ import Data.Misc (PlainTextPassword6, plainTextPassword6, plainTextPassword6Unsa
 import Data.Proxy
 import Data.Qualified
 import Data.Text qualified as Text
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Text.IO (hPutStrLn)
 import Data.Text.Lazy qualified as Lazy
 import Data.Time.Clock
@@ -175,7 +176,7 @@ testLoginWith6CharPassword brig db = do
   checkLogin email defPassword 403
   checkLogin email pw6 200
   where
-    checkLogin :: Email -> PlainTextPassword6 -> Int -> Http ()
+    checkLogin :: EmailAddress -> PlainTextPassword6 -> Int -> Http ()
     checkLogin email pw expectedStatusCode =
       login
         brig
@@ -350,8 +351,9 @@ testEmailLogin brig = do
     assertSanePersistentCookie @ZAuth.User (decodeCookie rs)
     assertSaneAccessToken now (userId u) (decodeToken rs)
   -- Login again, but with capitalised email address
-  let Email loc dom = email
-  let email' = Email (Text.toUpper loc) dom
+  let loc = localPart email
+      dom = domainPart email
+      email' = unsafeEmailAddress (encodeUtf8 . Text.toUpper . decodeUtf8 $ loc) dom
   login brig (defEmailLogin email') PersistentCookie
     !!! const 200 === statusCode
 
@@ -369,9 +371,11 @@ testHandleLogin brig = do
 -- untrusted.
 testLoginUntrustedDomain :: Brig -> Http ()
 testLoginUntrustedDomain brig = do
-  Just (Email loc dom) <- userEmail <$> createUserUntrustedEmail "Homer" brig
+  Just email <- userEmail <$> createUserUntrustedEmail "Homer" brig
+  let loc = decodeUtf8 $ localPart email
+      dom = domainPart email
   -- login without "+" suffix
-  let email' = Email (Text.takeWhile (/= '+') loc) dom
+  let email' = unsafeEmailAddress (encodeUtf8 $ Text.takeWhile (/= '+') loc) dom
   login brig (defEmailLogin email') PersistentCookie
     !!! const 200 === statusCode
 
@@ -390,7 +394,7 @@ testLoginFailure brig = do
     PersistentCookie
     !!! const 403 === statusCode
   -- login with wrong / non-existent email
-  let badmail = Email "wrong" "wire.com"
+  let badmail = unsafeEmailAddress "wrong" "wire.com"
   login
     brig
     ( MkLogin (LoginByEmail badmail) defPassword Nothing Nothing

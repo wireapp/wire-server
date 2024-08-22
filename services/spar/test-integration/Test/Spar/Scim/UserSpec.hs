@@ -131,7 +131,7 @@ specImportToScimFromSAML =
       setSamlEmailValidation teamid valemail
 
       -- saml-auto-provision a new user
-      (usr :: Scim.User.User SparTag, email :: Email) <- do
+      (usr :: Scim.User.User SparTag, email :: EmailAddress) <- do
         (usr, email) <- randomScimUserWithEmail
         pure
           ( -- when auto-provisioning via saml, user display name is set to saml name id.
@@ -141,7 +141,7 @@ specImportToScimFromSAML =
 
       (uref :: SAML.UserRef, uid :: UserId) <- do
         let uref = SAML.UserRef tenant subj
-            subj = emailToSAMLNameID email
+            subj = fromRight' $ emailToSAMLNameID email
             tenant = idp ^. SAML.idpMetadata . SAML.edIssuer
         (Just !uid) <- createViaSaml idp privCreds uref
         samlUserShouldSatisfy uref isJust
@@ -215,7 +215,7 @@ specImportToScimFromInvitation =
       env <- ask
       call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
 
-    invite :: (HasCallStack) => UserId -> TeamId -> TestSpar (UserId, Email)
+    invite :: (HasCallStack) => UserId -> TeamId -> TestSpar (UserId, EmailAddress)
     invite owner teamid = do
       env <- ask
       email <- randomEmail
@@ -238,7 +238,7 @@ specImportToScimFromInvitation =
       Maybe (SAML.IdPConfig User.WireIdP) ->
       TeamId ->
       UserId ->
-      Email ->
+      EmailAddress ->
       TestSpar (Scim.UserC.StoredUser SparTag)
     reProvisionWithScim changeHandle mbidp teamid userid email = do
       tok :: ScimToken <- do
@@ -267,10 +267,10 @@ specImportToScimFromInvitation =
           <!! const 200 === statusCode
       pure $ responseJsonUnsafe resp
 
-    signInWithSaml :: (HasCallStack) => (SAML.IdPConfig User.WireIdP, SAML.SignPrivCreds) -> Email -> UserId -> TestSpar ()
+    signInWithSaml :: (HasCallStack) => (SAML.IdPConfig User.WireIdP, SAML.SignPrivCreds) -> EmailAddress -> UserId -> TestSpar ()
     signInWithSaml (idp, privCreds) email userid = do
       let uref = SAML.UserRef tenant subj
-          subj = emailToSAMLNameID email
+          subj = fromRight' $ emailToSAMLNameID email
           tenant = idp ^. SAML.idpMetadata . SAML.edIssuer
       mbUid <- createViaSaml idp privCreds uref
       liftIO $ mbUid `shouldBe` Just userid
@@ -294,7 +294,7 @@ specImportToScimFromInvitation =
       let scimUsr = Scim.value (Scim.thing storedUsr)
           uid = Scim.id (Scim.thing storedUsr)
           handle = fromRight undefined . parseHandleEither $ Scim.User.userName scimUsr
-          email = fromJust . parseEmail . fromJust . Scim.User.externalId $ scimUsr
+          email = fromJust . emailAddressText . fromJust . Scim.User.externalId $ scimUsr
           Right idpissuer = idp ^. SAML.idpMetadata . SAML.edIssuer . SAML.fromIssuer . to mkHttpsUrl
           Just samlNameID = Scim.User.externalId scimUsr
           Just scimExternalId = Scim.User.externalId scimUsr
@@ -324,7 +324,7 @@ specImportToScimFromInvitation =
       signInWithSaml (idp, privcreds) email userid
       checkCsvDownload ownerid teamid idp storedusr
 
-findUserByEmail :: ScimToken -> Email -> TestSpar (Scim.UserC.StoredUser SparTag)
+findUserByEmail :: ScimToken -> EmailAddress -> TestSpar (Scim.UserC.StoredUser SparTag)
 findUserByEmail tok email = do
   let fltr = filterBy "externalid" (fromEmail email)
   resp <- listUsers_ (Just tok) (Just fltr) =<< view teSpar
@@ -338,7 +338,7 @@ assertSparCassandraUref (uref, urefAnswer) = do
   liftIO . (`shouldBe` urefAnswer)
     =<< runSpar (SAMLUserStore.get uref)
 
-assertSparCassandraScim :: (HasCallStack) => ((TeamId, Email), Maybe UserId) -> TestSpar ()
+assertSparCassandraScim :: (HasCallStack) => ((TeamId, EmailAddress), Maybe UserId) -> TestSpar ()
 assertSparCassandraScim ((teamid, email), scimAnswer) = do
   liftIO . (`shouldBe` scimAnswer)
     =<< runSpar (ScimExternalIdStore.lookup teamid email)
@@ -361,7 +361,7 @@ assertBrigCassandra uid uref usr (valemail, emailValidated) managedBy = do
 
         email = case (valemail, emailValidated) of
           (Feature.FeatureStatusEnabled, True) ->
-            Just . fromJust . parseEmail . fromJust . Scim.User.externalId $ usr
+            Just . fromJust . emailAddressText . fromJust . Scim.User.externalId $ usr
           _ ->
             Nothing
 
@@ -1132,7 +1132,7 @@ testCreateUserTimeout = do
       Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
       pure (scimStoredUser, inv, inviteeCode)
 
-    searchUser :: (HasCallStack) => Spar.Types.ScimToken -> Scim.User.User tag -> Email -> Bool -> TestSpar ()
+    searchUser :: (HasCallStack) => Spar.Types.ScimToken -> Scim.User.User tag -> EmailAddress -> Bool -> TestSpar ()
     searchUser tok scimUser email shouldSucceed = do
       let handle = fromJust . parseHandle . Scim.User.userName $ scimUser
           tryquery qry =
@@ -1793,7 +1793,7 @@ lookupByValidExternalId tid =
           Left err -> error $ show err
     )
 
-registerUser :: BrigReq -> TeamId -> Email -> TestSpar ()
+registerUser :: BrigReq -> TeamId -> EmailAddress -> TestSpar ()
 registerUser brig tid email = do
   let r = call $ get (brig . path "/i/teams/invitations/by-email" . queryItem "email" (toByteString' email))
   inv <- responseJsonError =<< r <!! statusCode === const 200
@@ -1815,7 +1815,7 @@ testBrigSideIsUpdated = do
     runSpar . runScimErrorUnsafe $
       validateScimUser' "testBrigSideIsUpdated" (Just idp) 999999 user'
   brigUser <- maybe (error "no brig user") pure =<< runSpar (Intra.getBrigUser Intra.WithPendingInvitations userid)
-  let scimUserWithDefLocale = validScimUser {Spar.Types._vsuLocale = Spar.Types._vsuLocale validScimUser <|> Just (Locale (Language EN) Nothing)}
+  let scimUserWithDefLocale = validScimUser {Spar.Types.locale = Spar.Types.locale validScimUser <|> Just (Locale (Language EN) Nothing)}
   brigUser `userShouldMatch` scimUserWithDefLocale
 
 testUpdateUserRole :: TestSpar ()
@@ -2269,7 +2269,7 @@ specAzureQuirks = do
 specEmailValidation :: SpecWith TestEnv
 specEmailValidation = do
   describe "email validation" $ do
-    let setup :: (HasCallStack) => Bool -> TestSpar (UserId, Email)
+    let setup :: (HasCallStack) => Bool -> TestSpar (UserId, EmailAddress)
         setup enabled = do
           (tok, (_ownerid, teamid, idp)) <- registerIdPAndScimToken
           if enabled
@@ -2280,8 +2280,7 @@ specEmailValidation = do
           veid <-
             runSpar . runScimErrorUnsafe $
               mkValidExternalId (Just idp) (Scim.User.externalId . Scim.value . Scim.thing $ scimStoredUser)
-          uid :: UserId <-
-            getUserIdViaRef (veid ^?! veidUref)
+          uid :: UserId <- getUserIdViaRef $ fromJust (veidUref veid)
           brig <- view teBrig
           -- we intentionally activate the email even if it's not set up to work, to make sure
           -- it doesn't if the feature is disabled.

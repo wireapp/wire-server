@@ -53,7 +53,7 @@ fetchUserIdentity uid = do
       (throwM $ UserProfileNotFound uid)
       (pure . userIdentity . selfUser)
 
-logEmail :: Email -> (Msg -> Msg)
+logEmail :: EmailAddress -> (Msg -> Msg)
 logEmail email =
   Log.field "email_sha256" (sha256String . T.pack . show $ email)
 
