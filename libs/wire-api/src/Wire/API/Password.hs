@@ -29,6 +29,7 @@ module Wire.API.Password
     unsafeMkPassword,
     hashPasswordArgon2idWithSalt,
     hashPasswordArgon2idWithOptions,
+    PasswordReqBody (..),
   )
 where
 
@@ -37,11 +38,14 @@ import Crypto.Error
 import Crypto.KDF.Argon2 qualified as Argon2
 import Crypto.KDF.Scrypt as Scrypt
 import Crypto.Random
+import Data.Aeson qualified as A
 import Data.ByteArray hiding (length)
 import Data.ByteString.Base64 qualified as B64
 import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Misc
+import Data.OpenApi qualified as S
+import Data.Schema
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Imports
@@ -334,3 +338,17 @@ unsafePad64 t
   where
     remains = Text.length t `rem` 4
     pad = Text.replicate (4 - remains) "="
+
+--------------------------------------------------------------------------------
+-- Type that can be used to pass a plaintext password as a request body
+
+newtype PasswordReqBody = PasswordReqBody
+  {fromPasswordReqBody :: Maybe PlainTextPassword6}
+  deriving stock (Eq, Show)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema PasswordReqBody
+
+instance ToSchema PasswordReqBody where
+  schema =
+    object "PasswordReqBody" $
+      PasswordReqBody
+        <$> fromPasswordReqBody .= maybe_ (optField "password" schema)

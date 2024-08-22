@@ -122,8 +122,7 @@ tests m db b n o = do
         ],
       testGroup
         "oauth applications"
-        [ test m "list applications with account access" $ testListApplicationsWithAccountAccess b,
-          test m "revoke application account access" $ testRevokeApplicationAccountAccess b
+        [ test m "list applications with account access" $ testListApplicationsWithAccountAccess b
         ]
     ]
 
@@ -625,31 +624,6 @@ testListApplicationsWithAccountAccess brig = do
     bobsApps <- listOAuthApplications brig (User.userId bob)
     liftIO $ assertEqual "apps" 1 (length bobsApps)
 
-testRevokeApplicationAccountAccess :: Brig -> Http ()
-testRevokeApplicationAccountAccess brig = do
-  user <- createUser "alice" brig
-  do
-    apps <- listOAuthApplications brig (User.userId user)
-    liftIO $ assertEqual "apps" 0 (length apps)
-  for_ [1 .. 3 :: Int] $ const $ createOAuthApplicationWithAccountAccess brig (User.userId user)
-  cids <- fmap applicationId <$> listOAuthApplications brig (User.userId user)
-  liftIO $ assertEqual "apps" 3 (length cids)
-  case cids of
-    [cid1, cid2, cid3] -> do
-      revokeOAuthApplicationAccess brig (User.userId user) cid1
-      do
-        apps <- listOAuthApplications brig (User.userId user)
-        liftIO $ assertEqual "apps" 2 (length apps)
-      revokeOAuthApplicationAccess brig (User.userId user) cid2
-      do
-        apps <- listOAuthApplications brig (User.userId user)
-        liftIO $ assertEqual "apps" 1 (length apps)
-      revokeOAuthApplicationAccess brig (User.userId user) cid3
-      do
-        apps <- listOAuthApplications brig (User.userId user)
-        liftIO $ assertEqual "apps" 0 (length apps)
-    _ -> liftIO $ assertFailure "unexpected number of apps"
-
 testWriteConversationsSuccessNginz :: Brig -> Nginz -> Http ()
 testWriteConversationsSuccessNginz brig nginz = do
   (uid, tid) <- Team.createUserWithTeam brig
@@ -785,14 +759,6 @@ listOAuthApplications' brig uid =
 listOAuthApplications :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) => Brig -> UserId -> m [OAuthApplication]
 listOAuthApplications brig uid =
   responseJsonError =<< listOAuthApplications' brig uid <!! const 200 === statusCode
-
-revokeOAuthApplicationAccess' :: (MonadHttp m) => Brig -> UserId -> OAuthClientId -> m ResponseLBS
-revokeOAuthApplicationAccess' brig uid cid =
-  delete (brig . paths ["oauth", "applications", toByteString' cid] . zUser uid)
-
-revokeOAuthApplicationAccess :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) => Brig -> UserId -> OAuthClientId -> m ()
-revokeOAuthApplicationAccess brig uid cid =
-  void $ revokeOAuthApplicationAccess' brig uid cid <!! const 204 === statusCode
 
 generateOAuthClientAndAuthorizationCode :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) => Brig -> UserId -> OAuthScopes -> RedirectUrl -> m (OAuthClientId, OAuthAuthorizationCode)
 generateOAuthClientAndAuthorizationCode = generateOAuthClientAndAuthorizationCode' challenge

@@ -727,8 +727,40 @@ createOAuthAccessToken user cid code redirectUrl = do
           ("redirect_uri", redirectUrl)
         ]
 
+-- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/post_oauth_token
+createOAuthAccessTokenWithRefreshToken :: (HasCallStack, MakesValue user, MakesValue cid) => user -> cid -> String -> App Response
+createOAuthAccessTokenWithRefreshToken user cid token = do
+  cidStr <- asString cid
+  req <- baseRequest user Brig Versioned "/oauth/token"
+  submit "POST" $
+    req
+      & addUrlEncodedForm
+        [ ("grant_type", "refresh_token"),
+          ("client_id", cidStr),
+          ("refresh_token", token)
+        ]
+
 -- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/get_oauth_applications
 getOAuthApplications :: (HasCallStack, MakesValue user) => user -> App Response
 getOAuthApplications user = do
   req <- baseRequest user Brig Versioned "/oauth/applications"
   submit "GET" req
+
+deleteOAuthSession :: (HasCallStack, MakesValue user, MakesValue cid) => user -> cid -> String -> String -> App Response
+deleteOAuthSession user cid password tokenId = do
+  cidStr <- asString cid
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["oauth", "applications", cidStr, "sessions", tokenId]
+  submit "DELETE" $ req & addJSONObject ["password" .= password]
+
+-- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/delete_oauth_applications__OAuthClientId_
+revokeApplicationAccessV6 :: (HasCallStack, MakesValue user, MakesValue cid) => user -> cid -> App Response
+revokeApplicationAccessV6 user cid = do
+  cidStr <- asString cid
+  req <- baseRequest user Brig (ExplicitVersion 6) $ joinHttpPath ["oauth", "applications", cidStr]
+  submit "DELETE" req
+
+revokeApplicationAccess :: (HasCallStack, MakesValue user, MakesValue cid) => user -> cid -> String -> App Response
+revokeApplicationAccess user cid password = do
+  cidStr <- asString cid
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["oauth", "applications", cidStr, "sessions"]
+  submit "DELETE" $ req & addJSONObject ["password" .= password]
