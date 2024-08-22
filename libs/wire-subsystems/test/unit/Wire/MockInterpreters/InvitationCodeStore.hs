@@ -1,5 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -Wno-deprecations #-}
+{-# OPTIONS_GHC -Wwarn #-}
 
 module Wire.MockInterpreters.InvitationCodeStore where
 

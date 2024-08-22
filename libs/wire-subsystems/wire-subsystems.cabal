@@ -247,7 +247,6 @@ test-suite wire-subsystems-tests
     , data-default
     , errors
     , extended
-    , generics-sop
     , gundeck-types
     , hspec
     , imports

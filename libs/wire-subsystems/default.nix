@@ -24,7 +24,6 @@
 , exceptions
 , extended
 , extra
-, generics-sop
 , gitignoreSource
 , gundeck-types
 , HaskellNet
@@ -162,7 +161,6 @@ mkDerivation {
     data-default
     errors
     extended
-    generics-sop
     gundeck-types
     hspec
     imports

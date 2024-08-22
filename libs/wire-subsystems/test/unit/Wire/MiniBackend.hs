@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveAnyClass #-}
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 module Wire.MiniBackend
@@ -36,7 +35,6 @@ import Data.Qualified
 import Data.Time
 import Data.Type.Equality
 import GHC.Generics
-import Generics.SOP qualified as SOP
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -140,10 +138,17 @@ data MiniBackend = MkMiniBackend
     invitations :: Map (TeamId, InvitationId) StoredInvitation
   }
   deriving stock (Eq, Show, Generic)
-  deriving anyclass (SOP.Generic)
 
 instance Default MiniBackend where
-  def = SOP.productTypeTo $ SOP.hcpure (Proxy @Monoid) mempty
+  def =
+    MkMiniBackend
+      { users = mempty,
+        userKeys = mempty,
+        passwordResetCodes = mempty,
+        blockList = mempty,
+        activationCodes = mempty,
+        invitations = mempty
+      }
 
 -- | represents an entire federated, stateful world of backends
 newtype MiniFederation = MkMiniFederation
