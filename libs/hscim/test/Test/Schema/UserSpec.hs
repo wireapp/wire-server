@@ -98,7 +98,7 @@ spec = do
           ("preferredLanguage", toJSON @Text mempty),
           ("locale", toJSON @Text mempty),
           ("password", toJSON @Text mempty),
-          ("emails", toJSON @[EmailAddress] mempty),
+          ("emails", toJSON @[Email] mempty),
           ("phoneNumbers", toJSON @[Phone] mempty),
           ("ims", toJSON @[IM] mempty),
           ("photos", toJSON @[Photo] mempty),
