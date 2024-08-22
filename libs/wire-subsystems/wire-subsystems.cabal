@@ -97,6 +97,10 @@ library
     Wire.ParseException
     Wire.PasswordResetCodeStore
     Wire.PasswordResetCodeStore.Cassandra
+    Wire.InvitationCodeStore
+    Wire.InvitationCodeStore.Cassandra
+    Wire.ActivationCodeStore
+    Wire.ActivationCodeStore.Cassandra
     Wire.PasswordStore
     Wire.PasswordStore.Cassandra
     Wire.PropertyStore
@@ -188,6 +192,7 @@ library
     , uuid
     , wai-utilities
     , wire-api
+    , witherable
     , wire-api-federation
 
   default-language: GHC2021

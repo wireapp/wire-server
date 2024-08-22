@@ -585,7 +585,7 @@ data User = User
     userManagedBy :: ManagedBy,
     userSupportedProtocols :: Set BaseProtocolTag
   }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform User)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema User)
 
@@ -1790,7 +1790,7 @@ data UserAccount = UserAccount
   { accountUser :: !User,
     accountStatus :: !AccountStatus
   }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserAccount)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema.Schema UserAccount
 

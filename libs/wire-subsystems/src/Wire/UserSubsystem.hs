@@ -53,11 +53,30 @@ instance Default UserProfileUpdate where
         supportedProtocols = Nothing
       }
 
+-- | how to get an account for a user
+data GetBy = MkGetBy
+  { -- | whether or not to include ending invitations in the lookups }
+    includePendingInvitations :: !Bool,
+    -- | get accounds by 'UserId's
+    getByUserIds :: ![UserId],
+    -- | get accounds by 'Email's
+    getByEmail :: ![Email],
+    -- | get accounds by their 'Handle'
+    getByHandle :: ![Handle]
+  }
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via GenericUniform GetBy
+
+instance Default GetBy where
+  def = MkGetBy False [] [] []
+
 data UserSubsystem m a where
   -- | First arg is for authorization only.
   GetUserProfiles :: Local UserId -> [Qualified UserId] -> UserSubsystem m [UserProfile]
   -- | Sometimes we don't have any identity of a requesting user, and local profiles are public.
   GetLocalUserProfiles :: Local [UserId] -> UserSubsystem m [UserProfile]
+  -- | given a lookup criteria record ('GetBy'), return the union of the user accounts fulfilling that criteria
+  GetAccountsBy :: Local GetBy -> UserSubsystem m [UserAccount]
   -- | Self profile contains things not present in Profile.
   GetSelfProfile :: Local UserId -> UserSubsystem m (Maybe SelfProfile)
   -- | These give us partial success and hide concurrency in the interpreter.
@@ -71,6 +90,7 @@ data UserSubsystem m a where
   CheckHandles :: [Handle] -> Word -> UserSubsystem m [Handle]
   -- | parses a handle, this may fail so it's effectful
   UpdateHandle :: Local UserId -> Maybe ConnId -> UpdateOriginType -> Text {- use Handle here? -} -> UserSubsystem m ()
+  -- TODO(mangoiv): this can probably go in favour of 'GetAccountsBy'
   GetLocalUserAccountByUserKey :: Local EmailKey -> UserSubsystem m (Maybe UserAccount)
   -- | returns the user's locale or the default locale if the users exists
   LookupLocaleWithDefault :: Local UserId -> UserSubsystem m (Maybe Locale)

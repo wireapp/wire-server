@@ -13,6 +13,7 @@ import Data.Handle qualified as Handle
 import Data.Id
 import Data.Json.Util
 import Data.LegalHold
+import Data.List.Extra (nubOrd)
 import Data.Qualified
 import Data.Time.Clock
 import Imports hiding (local)
@@ -26,12 +27,14 @@ import Wire.API.Team.Feature
 import Wire.API.Team.Member hiding (userId)
 import Wire.API.User
 import Wire.API.UserEvent
+import Wire.ActivationCodeStore (ActivationCodeStore, lookupActivationCode)
 import Wire.Arbitrary
 import Wire.BlockListStore as BlockList
 import Wire.DeleteQueue
 import Wire.Events
 import Wire.FederationAPIAccess
 import Wire.GalleyAPIAccess
+import Wire.InvitationCodeStore (InvitationCodeStore, lookupInvitationByEmail)
 import Wire.Sem.Concurrency
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
@@ -41,6 +44,7 @@ import Wire.UserStore as UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.HandleBlacklist
+import Witherable (wither)
 
 data UserSubsystemConfig = UserSubsystemConfig
   { emailVisibilityConfig :: EmailVisibilityConfig,
@@ -65,7 +69,9 @@ runUserSubsystem ::
     Member Now r,
     RunClient (fedM 'Brig),
     FederationMonad fedM,
-    Typeable fedM
+    Typeable fedM,
+    Member InvitationCodeStore r,
+    Member ActivationCodeStore r
   ) =>
   UserSubsystemConfig ->
   InterpreterFor UserSubsystem r
@@ -86,12 +92,15 @@ interpretUserSubsystem ::
     Member Now r,
     RunClient (fedM 'Brig),
     FederationMonad fedM,
-    Typeable fedM
+    Typeable fedM,
+    Member InvitationCodeStore r,
+    Member ActivationCodeStore r
   ) =>
   InterpreterFor UserSubsystem r
 interpretUserSubsystem = interpret \case
   GetUserProfiles self others -> getUserProfilesImpl self others
   GetLocalUserProfiles others -> getLocalUserProfilesImpl others
+  GetAccountsBy criteria -> getAccountsByImpl criteria
   GetSelfProfile self -> getSelfProfileImpl self
   GetUserProfilesWithErrors self others -> getUserProfilesWithErrorsImpl self others
   UpdateUserProfile self mconn mb update -> updateUserProfileImpl self mconn mb update
@@ -495,3 +504,66 @@ checkHandlesImpl check num = reverse <$> collectFree [] check num
           case owner of
             Nothing -> collectFree (h : free) hs (n - 1)
             Just _ -> collectFree free hs n
+
+--------------------------------------------------------------------------------
+-- getting user accounts by different criteria
+
+getAccountsByImpl ::
+  forall r.
+  ( Member UserStore r,
+    Member DeleteQueue r,
+    Member (Input UserSubsystemConfig) r,
+    Member InvitationCodeStore r,
+    Member UserKeyStore r,
+    Member ActivationCodeStore r
+  ) =>
+  Local GetBy ->
+  Sem r [UserAccount]
+getAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations, getByEmail, getByHandle, getByUserIds})) = do
+  config <- input
+
+  handleUserIds <- wither lookupHandle getByHandle
+
+  let storedToAcc = mkAccountFromStored domain config.defaultLocale
+
+      accountValid :: StoredUser -> Sem r (Maybe UserAccount)
+      accountValid storedUser =
+        let account = storedToAcc storedUser
+            notValid = pure Nothing
+            valid = pure $ Just account
+         in case userIdentity . accountUser $ account of
+              Nothing -> notValid
+              Just ident -> case (accountStatus account, includePendingInvitations, emailIdentity ident) of
+                (PendingInvitation, False, _) -> notValid
+                (PendingInvitation, True, Just email) ->
+                  lookupInvitationByEmail email >>= \case
+                    Nothing -> notValid
+                    Just _ -> do
+                      -- user invited via scim should expire together with its invitation
+                      -- FIXME(mangoiv): this is not the right place to do this, ideally this should be part of a recurring
+                      -- job akin to 'pendingUserActivationCleanup'
+                      enqueueUserDeletion (userId account.accountUser)
+                      valid
+                (PendingInvitation, True, Nothing) -> valid -- cannot happen, user invited via scim always has an email
+                (Active, _, _) -> valid
+                (Suspended, _, _) -> valid
+                (Deleted, _, _) -> valid
+                (Ephemeral, _, _) -> valid
+
+  accsByIds :: [UserAccount] <-
+    wither accountValid
+      =<< lookupAccounts (nubOrd $ handleUserIds <> getByUserIds)
+
+  accsByEmail <- flip foldMap getByEmail \email -> do
+    let ek = mkEmailKey email
+    mactiveUid <- lookupKey ek
+    ac <- lookupActivationCode ek
+    let muidFromActivationKey = ac >>= fst
+    res <- lookupAccounts (nubOrd $ catMaybes [mactiveUid, muidFromActivationKey])
+    pure $
+      map
+        storedToAcc
+        if includePendingInvitations
+          then res
+          else filter (\acc -> acc.status /= Just PendingInvitation) res
+  pure (nubOrd $ accsByIds <> accsByEmail)

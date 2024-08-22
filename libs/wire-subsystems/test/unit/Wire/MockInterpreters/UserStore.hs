@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wwarn #-}
+
 module Wire.MockInterpreters.UserStore where
 
 import Data.Handle
@@ -57,6 +59,7 @@ inMemoryUserStoreInterpreter = interpret $ \case
   LookupStatus uid -> lookupStatusImpl uid
   IsActivated uid -> isActivatedImpl uid
   LookupLocale uid -> lookupLocaleImpl uid
+  LookupAccounts TODO -> TODO
 
 lookupLocaleImpl :: (Member (State [StoredUser]) r) => UserId -> Sem r (Maybe ((Maybe Language, Maybe Country)))
 lookupLocaleImpl uid = do

@@ -13,6 +13,7 @@ build-type:    Simple
 library
   exposed-modules:
     Cassandra
+    Cassandra.QQ
     Cassandra.CQL
     Cassandra.Exec
     Cassandra.Helpers
@@ -84,6 +85,7 @@ library
     , imports
     , lens                  >=4.4
     , lens-aeson            >=1.0
+    , template-haskell
     , optparse-applicative  >=0.10
     , retry
     , split                 >=0.2

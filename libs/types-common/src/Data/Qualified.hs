@@ -28,6 +28,7 @@ module Data.Qualified
     tUnqualified,
     tDomain,
     tUntagged,
+    tSplit,
     qTagUnsafe,
     Remote,
     toRemoteUnsafe,
@@ -91,6 +92,10 @@ tUnqualified = qUnqualified . tUntagged
 
 tDomain :: QualifiedWithTag t a -> Domain
 tDomain = qDomain . tUntagged
+
+-- | perform 'qUnqualified' and 'tDomain' at once. Useful in ViewPatterns.
+tSplit :: QualifiedWithTag t a -> (Domain, a)
+tSplit (tUntagged -> q) = (q.qDomain, q.qUnqualified)
 
 -- | A type representing a 'Qualified' value where the domain is guaranteed to
 -- be remote.

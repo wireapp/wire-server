@@ -26,6 +26,12 @@ interpretUserStoreCassandra casClient =
       LookupStatus uid -> embed $ lookupStatusImpl uid
       IsActivated uid -> embed $ isActivatedImpl uid
       LookupLocale uid -> embed $ lookupLocaleImpl uid
+      LookupAccounts uids -> embed $ lookupAccountsImpl uids
+
+lookupAccountsImpl :: [UserId] -> Client [StoredUser]
+lookupAccountsImpl usrs =
+  map asRecord
+    <$> retry x1 (query accountsSelect (params LocalQuorum (Identity usrs)))
 
 getUserImpl :: (Member (Embed Client) r) => UserId -> Sem r (Maybe StoredUser)
 getUserImpl uid = embed $ do
@@ -180,3 +186,12 @@ activatedSelect = "SELECT activated FROM user WHERE id = ?"
 
 localeSelect :: PrepQuery R (Identity UserId) (Maybe Language, Maybe Country)
 localeSelect = "SELECT language, country FROM user WHERE id = ?"
+
+accountsSelect :: PrepQuery R (Identity [UserId]) (TupleType StoredUser)
+accountsSelect =
+  [sql|
+  SELECT id, name, text_status, picture, email, sso_id, accent_id, assets,
+  activated, status, expires, language, country, provider,
+  service, handle, team, managed_by, supported_protocols
+  FROM user WHERE id IN ?
+  |]
