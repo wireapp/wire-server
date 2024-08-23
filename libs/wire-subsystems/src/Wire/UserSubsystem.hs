@@ -8,6 +8,7 @@ import Data.Id
 import Data.Qualified
 import Imports
 import Polysemy
+import Wire.API.AWS.Types
 import Wire.API.Federation.Error
 import Wire.API.User
 import Wire.Arbitrary
@@ -79,7 +80,7 @@ data UserSubsystem m a where
   -- | removes an email from the block list
   BlockListDelete :: Email -> UserSubsystem m ()
   -- | adds an email to the block list
-  BlockListInsert :: Email -> UserSubsystem m ()
+  BlockListInsert :: Email -> Maybe SESOriginalEvent -> UserSubsystem m ()
 
 -- | the return type of 'CheckHandle'
 data CheckHandleResp

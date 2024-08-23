@@ -20,37 +20,37 @@ module Brig.AWS.SesNotification
   )
 where
 
-import Brig.AWS.Types
 import Brig.App
-import Data.Aeson (Value, encode)
+import Data.Aeson
 import Imports
 import Polysemy (Member)
 import System.Logger.Class (field, msg, (~~))
 import System.Logger.Class qualified as Log
+import Wire.API.AWS.Types
 import Wire.API.User.Identity
 import Wire.UserSubsystem
 
 onEvent :: (Member UserSubsystem r) => SESNotification -> AppT r ()
-onEvent (MailBounce BouncePermanent es v) = onPermanentBounce v es
-onEvent (MailBounce BounceTransient es v) = onTransientBounce v es
-onEvent (MailBounce BounceUndetermined es v) = onUndeterminedBounce v es
-onEvent (MailComplaint es v) = onComplaint v es
+onEvent (MailBounce BouncePermanent es e) = onPermanentBounce e es
+onEvent (MailBounce BounceTransient es e) = onTransientBounce e es
+onEvent (MailBounce BounceUndetermined es e) = onUndeterminedBounce e es
+onEvent (MailComplaint es e) = onComplaint e es
 
-onPermanentBounce :: (Member UserSubsystem r) => Value -> [Email] -> AppT r ()
-onPermanentBounce v = mapM_ $ \e -> do
-  logEmailEvent v "Permanent bounce" e
-  liftSem $ blockListInsert e
+onPermanentBounce :: (Member UserSubsystem r) => SESOriginalEvent -> [Email] -> AppT r ()
+onPermanentBounce event = mapM_ $ \email -> do
+  logEmailEvent event "Permanent bounce" email
+  liftSem $ blockListInsert email (Just event)
 
-onTransientBounce :: Value -> [Email] -> AppT r ()
-onTransientBounce v = mapM_ (logEmailEvent v "Transient bounce")
+onTransientBounce :: SESOriginalEvent -> [Email] -> AppT r ()
+onTransientBounce e = mapM_ (logEmailEvent e "Transient bounce")
 
-onUndeterminedBounce :: Value -> [Email] -> AppT r ()
-onUndeterminedBounce v = mapM_ (logEmailEvent v "Undetermined bounce")
+onUndeterminedBounce :: SESOriginalEvent -> [Email] -> AppT r ()
+onUndeterminedBounce e = mapM_ (logEmailEvent e "Undetermined bounce")
 
-onComplaint :: (Member UserSubsystem r) => Value -> [Email] -> AppT r ()
-onComplaint v = mapM_ $ \e -> do
-  logEmailEvent v "Complaint" e
-  liftSem $ blockListInsert e
+onComplaint :: (Member UserSubsystem r) => SESOriginalEvent -> [Email] -> AppT r ()
+onComplaint event = mapM_ $ \email -> do
+  logEmailEvent event "Complaint" email
+  liftSem $ blockListInsert email (Just event)
 
-logEmailEvent :: Value -> Text -> Email -> AppT r ()
-logEmailEvent v t e = Log.info $ field "email" (fromEmail e) ~~ msg t ~~ field "event" (encode v)
+logEmailEvent :: SESOriginalEvent -> Text -> Email -> AppT r ()
+logEmailEvent event t e = Log.info $ field "email" (fromEmail e) ~~ msg t ~~ field "event" (encode event)

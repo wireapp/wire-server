@@ -21,6 +21,7 @@ import Polysemy
 import Polysemy.Error hiding (try)
 import Polysemy.Input
 import Servant.Client.Core
+import Wire.API.AWS.Types
 import Wire.API.Federation.API
 import Wire.API.Federation.Error
 import Wire.API.Team.Feature
@@ -103,7 +104,7 @@ interpretUserSubsystem = interpret \case
   LookupLocaleWithDefault luid -> lookupLocaleOrDefaultImpl luid
   IsBlocked email -> isBlockedImpl email
   BlockListDelete email -> blockListDeleteImpl email
-  BlockListInsert email -> blockListInsertImpl email
+  BlockListInsert email event -> blockListInsertImpl event email
 
 isBlockedImpl :: (Member BlockListStore r) => Email -> Sem r Bool
 isBlockedImpl = BlockList.exists . mkEmailKey
@@ -111,8 +112,8 @@ isBlockedImpl = BlockList.exists . mkEmailKey
 blockListDeleteImpl :: (Member BlockListStore r) => Email -> Sem r ()
 blockListDeleteImpl = BlockList.delete . mkEmailKey
 
-blockListInsertImpl :: (Member BlockListStore r) => Email -> Sem r ()
-blockListInsertImpl = BlockList.insert . mkEmailKey
+blockListInsertImpl :: (Member BlockListStore r) => Maybe SESOriginalEvent -> Email -> Sem r ()
+blockListInsertImpl v = flip BlockList.insert v . mkEmailKey
 
 lookupLocaleOrDefaultImpl :: (Member UserStore r, Member (Input UserSubsystemConfig) r) => Local UserId -> Sem r (Maybe Locale)
 lookupLocaleOrDefaultImpl luid = do

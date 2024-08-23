@@ -1164,7 +1164,7 @@ isBlacklisted email = do
 blacklistInsert :: (Member BlockListStore r) => Email -> AppT r ()
 blacklistInsert email = do
   let uk = mkEmailKey email
-  liftSem $ BlockListStore.insert uk
+  liftSem $ BlockListStore.insert uk Nothing
 
 blacklistDelete :: (Member BlockListStore r) => Email -> AppT r ()
 blacklistDelete email = do

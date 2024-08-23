@@ -24,7 +24,6 @@ module Util where
 
 import Bilge hiding (host, port)
 import Bilge.Assert
-import Brig.AWS.Types
 import Brig.App (applog, fsWatcher, sftEnv, turnEnv)
 import Brig.Calling as Calling
 import Brig.Options qualified as Opt
@@ -103,6 +102,7 @@ import Test.Tasty.Pending (flakyTestCase)
 import Text.Printf (printf)
 import UnliftIO.Async qualified as Async
 import Util.Options
+import Wire.API.AWS.Types
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Conversation.Role (roleNameWireAdmin)

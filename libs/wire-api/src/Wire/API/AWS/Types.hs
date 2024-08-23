@@ -15,13 +15,15 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.AWS.Types
+module Wire.API.AWS.Types
   ( -- * SES Notification
     SESNotification (..),
     SESBounceType (..),
+    SESOriginalEvent (..),
   )
 where
 
+import Cassandra qualified as C
 import Data.Aeson
 import Imports
 import Wire.API.User.Identity
@@ -29,9 +31,18 @@ import Wire.API.User.Identity
 -------------------------------------------------------------------------------
 -- Notifications
 
+newtype SESOriginalEvent = SESOriginalEvent {unSESOriginalEvent :: Value}
+  deriving (Eq, Show, ToJSON, FromJSON)
+
+instance C.Cql SESOriginalEvent where
+  ctype = C.Tagged C.BlobColumn
+  toCql = C.toCql . C.Blob . encode
+  fromCql (C.CqlBlob v) = eitherDecode @SESOriginalEvent v
+  fromCql _ = Left "SESOriginalEvent: Blob expected"
+
 data SESNotification
-  = MailBounce !SESBounceType [Email] Value
-  | MailComplaint [Email] Value
+  = MailBounce !SESBounceType [Email] SESOriginalEvent
+  | MailComplaint [Email] SESOriginalEvent
   deriving (Eq, Show)
 
 data SESBounceType
@@ -55,10 +66,10 @@ instance FromJSON SESNotification where
         bt <- b .: "bounceType"
         br <- b .: "bouncedRecipients"
         em <- mapM (\r -> r .: "emailAddress") br
-        pure $! MailBounce bt em (Object o)
+        pure $! MailBounce bt em (SESOriginalEvent (Object o))
       "Complaint" -> do
         c <- o .: "complaint"
         cr <- c .: "complainedRecipients"
         em <- mapM (\r -> r .: "emailAddress") cr
-        pure $! MailComplaint em (Object o)
+        pure $! MailComplaint em (SESOriginalEvent (Object o))
       x -> fail ("Brig.AWS: Unexpected notification type" ++ show x)

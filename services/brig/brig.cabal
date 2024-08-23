@@ -98,7 +98,6 @@ library
     Brig.App
     Brig.AWS
     Brig.AWS.SesNotification
-    Brig.AWS.Types
     Brig.Budget
     Brig.Calling
     Brig.Calling.API

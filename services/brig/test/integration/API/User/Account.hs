@@ -28,7 +28,6 @@ import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import Brig.AWS qualified as AWS
-import Brig.AWS.Types
 import Brig.Options qualified as Opt
 import Brig.Types.Activation
 import Brig.Types.Intra
@@ -81,6 +80,7 @@ import UnliftIO (mapConcurrently_)
 import Util
 import Util.AWS as Util
 import Web.Cookie (parseSetCookie)
+import Wire.API.AWS.Types
 import Wire.API.Asset hiding (Asset)
 import Wire.API.Asset qualified as Asset
 import Wire.API.Connection
