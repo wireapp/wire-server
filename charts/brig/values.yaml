@@ -99,6 +99,14 @@ config:
     providerTokenTimeout: 900
     legalholdUserTokenTimeout: 4838400
     legalholdAccessTokenTimeout: 900
+  # sft:
+  #   sftBaseDomain: sft.wire.example.com
+  #   sftSRVServiceName: sft
+  #   sftDiscoveryIntervalSeconds: 10
+  #   sftListLength: 20
+  #   sftToken:
+  #     ttl: 120
+  #     secret: /etc/wire/brig/secrets/sftTokenSecret # this is the default path for secret.sftTokenSecret
   optSettings:
     setActivationTimeout: 1209600
     setTeamInvitationTimeout: 1814400

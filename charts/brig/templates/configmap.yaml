@@ -233,11 +233,11 @@ data:
       {{- if .sftDiscoveryIntervalSeconds }}
       sftDiscoveryIntervalSeconds: {{ .sftDiscoveryIntervalSeconds }}
       {{- end }}
-      {{- if .sftToken }}
+      {{- if $.Values.secrets.sftTokenSecret }}
       sftToken:
         {{- with .sftToken }}
         ttl: {{ .ttl }}
-        secret: {{ .secret }}
+        secret: {{ .secret | default "/etc/wire/brig/secrets/sftTokenSecret" }}
         {{- end }}
       {{- end }}
     {{- end }}
