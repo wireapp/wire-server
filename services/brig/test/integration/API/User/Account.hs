@@ -476,8 +476,8 @@ testCreateUserBlacklist _ brig aws =
     publishMessage :: Text -> Email -> Text -> Http ()
     publishMessage typ em queue = do
       let bdy = encode $ case typ of
-            "bounce" -> MailBounce BouncePermanent [em]
-            "complaint" -> MailComplaint [em]
+            "bounce" -> MailBounce BouncePermanent [em] undefined
+            "complaint" -> MailComplaint [em] undefined
             x -> error ("Unsupported message type: " ++ show x)
       void . AWS.execute aws $ AWS.enqueueStandard queue bdy
     awaitBlacklist :: Int -> Email -> Http ()

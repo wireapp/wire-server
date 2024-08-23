@@ -30,8 +30,8 @@ import Wire.API.User.Identity
 -- Notifications
 
 data SESNotification
-  = MailBounce !SESBounceType [Email]
-  | MailComplaint [Email]
+  = MailBounce !SESBounceType [Email] Value
+  | MailComplaint [Email] Value
   deriving (Eq, Show)
 
 data SESBounceType
@@ -55,10 +55,10 @@ instance FromJSON SESNotification where
         bt <- b .: "bounceType"
         br <- b .: "bouncedRecipients"
         em <- mapM (\r -> r .: "emailAddress") br
-        pure $! MailBounce bt em
+        pure $! MailBounce bt em (Object o)
       "Complaint" -> do
         c <- o .: "complaint"
         cr <- c .: "complainedRecipients"
         em <- mapM (\r -> r .: "emailAddress") cr
-        pure $! MailComplaint em
+        pure $! MailComplaint em (Object o)
       x -> fail ("Brig.AWS: Unexpected notification type" ++ show x)

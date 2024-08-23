@@ -22,6 +22,7 @@ where
 
 import Brig.AWS.Types
 import Brig.App
+import Data.Aeson (Value, encode)
 import Imports
 import Polysemy (Member)
 import System.Logger.Class (field, msg, (~~))
@@ -30,26 +31,26 @@ import Wire.API.User.Identity
 import Wire.UserSubsystem
 
 onEvent :: (Member UserSubsystem r) => SESNotification -> AppT r ()
-onEvent (MailBounce BouncePermanent es) = onPermanentBounce es
-onEvent (MailBounce BounceTransient es) = onTransientBounce es
-onEvent (MailBounce BounceUndetermined es) = onUndeterminedBounce es
-onEvent (MailComplaint es) = onComplaint es
+onEvent (MailBounce BouncePermanent es v) = onPermanentBounce v es
+onEvent (MailBounce BounceTransient es v) = onTransientBounce v es
+onEvent (MailBounce BounceUndetermined es v) = onUndeterminedBounce v es
+onEvent (MailComplaint es v) = onComplaint v es
 
-onPermanentBounce :: (Member UserSubsystem r) => [Email] -> AppT r ()
-onPermanentBounce = mapM_ $ \e -> do
-  logEmailEvent "Permanent bounce" e
+onPermanentBounce :: (Member UserSubsystem r) => Value -> [Email] -> AppT r ()
+onPermanentBounce v = mapM_ $ \e -> do
+  logEmailEvent v "Permanent bounce" e
   liftSem $ blockListInsert e
 
-onTransientBounce :: [Email] -> AppT r ()
-onTransientBounce = mapM_ (logEmailEvent "Transient bounce")
+onTransientBounce :: Value -> [Email] -> AppT r ()
+onTransientBounce v = mapM_ (logEmailEvent v "Transient bounce")
 
-onUndeterminedBounce :: [Email] -> AppT r ()
-onUndeterminedBounce = mapM_ (logEmailEvent "Undetermined bounce")
+onUndeterminedBounce :: Value -> [Email] -> AppT r ()
+onUndeterminedBounce v = mapM_ (logEmailEvent v "Undetermined bounce")
 
-onComplaint :: (Member UserSubsystem r) => [Email] -> AppT r ()
-onComplaint = mapM_ $ \e -> do
-  logEmailEvent "Complaint" e
+onComplaint :: (Member UserSubsystem r) => Value -> [Email] -> AppT r ()
+onComplaint v = mapM_ $ \e -> do
+  logEmailEvent v "Complaint" e
   liftSem $ blockListInsert e
 
-logEmailEvent :: Text -> Email -> AppT r ()
-logEmailEvent t e = Log.info $ field "email" (fromEmail e) ~~ msg t
+logEmailEvent :: Value -> Text -> Email -> AppT r ()
+logEmailEvent v t e = Log.info $ field "email" (fromEmail e) ~~ msg t ~~ field "event" (encode v)

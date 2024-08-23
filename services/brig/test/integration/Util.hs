@@ -211,7 +211,7 @@ instance ToJSON SESBounceType where
   toJSON BounceTransient = String "Transient"
 
 instance ToJSON SESNotification where
-  toJSON (MailBounce typ ems) =
+  toJSON (MailBounce typ ems _) =
     object
       [ "notificationType" .= ("Bounce" :: Text),
         "bounce"
@@ -220,7 +220,7 @@ instance ToJSON SESNotification where
               "bounceType" .= typ
             ]
       ]
-  toJSON (MailComplaint ems) =
+  toJSON (MailComplaint ems _) =
     object
       [ "notificationType" .= ("Complaint" :: Text),
         "complaint"
