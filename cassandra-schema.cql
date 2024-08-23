@@ -579,7 +579,8 @@ CREATE TABLE brig_test.service_team (
     AND speculative_retry = '99PERCENTILE';
 
 CREATE TABLE brig_test.blacklist (
-    key text PRIMARY KEY
+    key text PRIMARY KEY,
+    event blob
 ) WITH bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
