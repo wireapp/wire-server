@@ -18,7 +18,6 @@
 module Brig.Team.DB
   ( module T,
     mkInviteUrl,
-    countInvitations,
     insertInvitation,
     deleteInvitation,
     deleteInvitations,
@@ -169,14 +168,6 @@ deleteInvitations t =
   where
     cqlSelect :: PrepQuery R (Identity TeamId) (Identity InvitationId)
     cqlSelect = "SELECT id FROM team_invitation WHERE team = ? ORDER BY id ASC"
-
-countInvitations :: (MonadClient m) => TeamId -> m Int64
-countInvitations t =
-  maybe 0 runIdentity
-    <$> retry x1 (query1 cqlSelect (params LocalQuorum (Identity t)))
-  where
-    cqlSelect :: PrepQuery R (Identity TeamId) (Identity Int64)
-    cqlSelect = "SELECT count(*) FROM team_invitation WHERE team = ?"
 
 -- | brig used to not store the role, so for migration we allow this to be empty and fill in the
 -- default here.

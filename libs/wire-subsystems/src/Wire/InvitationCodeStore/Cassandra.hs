@@ -6,9 +6,6 @@ import Database.CQL.Protocol (TupleType, asRecord)
 import Imports
 import Polysemy
 import Polysemy.Embed
-import Polysemy.TinyLog (TinyLog)
-import Polysemy.TinyLog qualified as Log
-import System.Logger.Message qualified as Log
 import Wire.API.User
 import Wire.InvitationCodeStore
 
@@ -19,6 +16,15 @@ interpretInvitationCodeStoreToCassandra casClient =
       LookupInvitation tid iid -> embed $ lookupInvitationImpl tid iid
       LookupInvitationCodesByEmail email -> embed $ lookupInvitationCodesByEmailImpl email
       LookupInvitationInfo code -> embed $ lookupInvitationInfoImpl code
+      CountInvitations tid -> embed $ countInvitationsImpl tid
+
+countInvitationsImpl :: TeamId -> Client (Int64)
+countInvitationsImpl t =
+  maybe 0 runIdentity
+    <$> retry x1 (query1 cql (params LocalQuorum (Identity t)))
+  where
+    cql :: PrepQuery R (Identity TeamId) (Identity Int64)
+    cql = [sql|  count(*) FROM team_invitation WHERE team = ?|]
 
 lookupInvitationInfoImpl :: InvitationCode -> Client (Maybe StoredInvitationInfo)
 lookupInvitationInfoImpl code =

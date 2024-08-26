@@ -66,6 +66,7 @@ data InvitationCodeStore :: Effect where
   LookupInvitation :: TeamId -> InvitationId -> InvitationCodeStore m (Maybe StoredInvitation)
   LookupInvitationInfo :: InvitationCode -> InvitationCodeStore m (Maybe StoredInvitationInfo)
   LookupInvitationCodesByEmail :: EmailAddress -> InvitationCodeStore m [StoredInvitationInfo]
+  CountInvitations :: TeamId -> InvitationCodeStore m Int64
 
 makeSem ''InvitationCodeStore
 

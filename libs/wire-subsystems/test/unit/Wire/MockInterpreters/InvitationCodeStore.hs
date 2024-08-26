@@ -5,6 +5,7 @@ module Wire.MockInterpreters.InvitationCodeStore where
 
 import Data.Id (InvitationId, TeamId)
 import Data.Map (elems, (!?))
+import Data.Map qualified as M
 import Imports
 import Polysemy
 import Polysemy.State (State, get, gets)
@@ -26,3 +27,4 @@ inMemoryInvitationCodeStoreInterpreter = interpret \case
           | email == em = Just MkStoredInvitationInfo {..}
           | otherwise = Nothing
      in mapMaybe c . elems <$> get
+  CountInvitations tid -> gets (fromIntegral . M.size . M.filterWithKey (\(tid', _) _v -> tid == tid'))

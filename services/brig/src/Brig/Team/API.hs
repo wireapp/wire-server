@@ -135,7 +135,8 @@ createInvitation ::
     Member UserKeyStore r,
     Member UserSubsystem r,
     Member EmailSending r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member InvitationCodeStore r
   ) =>
   UserId ->
   TeamId ->
@@ -171,7 +172,8 @@ createInvitationViaScim ::
     Member (UserPendingActivationStore p) r,
     Member TinyLog r,
     Member EmailSending r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member InvitationCodeStore r
   ) =>
   TeamId ->
   NewUserScimInvitation ->
@@ -221,7 +223,8 @@ createInvitation' ::
   ( Member UserSubsystem r,
     Member GalleyAPIAccess r,
     Member UserKeyStore r,
-    Member EmailSending r
+    Member EmailSending r,
+    Member InvitationCodeStore r
   ) =>
   TeamId ->
   Maybe UserId ->
@@ -241,7 +244,7 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail body = do
     throwStd emailExists
 
   maxSize <- setMaxTeamSize <$> view settings
-  pending <- lift $ wrapClient $ DB.countInvitations tid
+  pending <- lift $ liftSem $ countInvitations tid
   when (fromIntegral pending >= maxSize) $
     throwStd (errorToWai @'E.TooManyTeamInvitations)
 
