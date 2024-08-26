@@ -353,38 +353,40 @@ data ValidScimId = ValidScimId
 
 instance Arbitrary ValidScimId where
   arbitrary = do
-    muref <- QC.arbitrary
-    case muref of
-      Just uref -> case emailFromSAMLNameID $ uref ^. SAML.uidSubject of
-        Just e -> pure $ EmailAndUref e uref
-        Nothing -> pure $ UrefOnly uref
-      Nothing -> EmailOnly <$> QC.arbitrary
+    authInfo <- arbitraryAuthInfo
+    pure $ ValidScimId (runValidScimIdUnsafe authInfo) authInfo -- TODO: make text and email differ
+    where
+      arbitraryAuthInfo = do
+        muref <- QC.arbitrary -- TODO: use off-the-shelf QC instance
+        case muref of
+          Just uref -> case emailFromSAMLNameID $ uref ^. SAML.uidSubject of
+            Just e -> pure $ These e uref
+            Nothing -> pure $ That uref
+          Nothing -> This <$> QC.arbitrary
 
 -- | Take apart a 'ValidScimId', using 'SAML.UserRef' if available, otherwise 'Email'.
-runValidScimIdEither :: (SAML.UserRef -> a) -> (EmailAddress -> a) -> ValidScimId -> a
-runValidScimIdEither doUref doEmail = \case
-  EmailAndUref _ uref -> doUref uref
-  UrefOnly uref -> doUref uref
-  EmailOnly em -> doEmail em
+-- TODO: remove
+runValidScimIdEither :: (SAML.UserRef -> a) -> (EmailAddress -> a) -> These EmailAddress SAML.UserRef -> a
+runValidScimIdEither doUref doEmail = these doEmail doUref (\_ uref -> doUref uref)
 
 -- | Take apart a 'ValidScimId', use both 'SAML.UserRef', 'Email' if applicable, and
 -- merge the result with a given function.
-runValidScimIdBoth :: (a -> a -> a) -> (SAML.UserRef -> a) -> (EmailAddress -> a) -> ValidScimId -> a
-runValidScimIdBoth merge doUref doEmail = \case
-  EmailAndUref eml uref -> doUref uref `merge` doEmail eml
-  UrefOnly uref -> doUref uref
-  EmailOnly em -> doEmail em
+-- TODO: remove
+runValidScimIdBoth :: (a -> a -> a) -> (SAML.UserRef -> a) -> (EmailAddress -> a) -> These EmailAddress SAML.UserRef -> a
+runValidScimIdBoth merge doUref doEmail = these doEmail doUref (\eml uref -> doUref uref `merge` doEmail eml)
 
 -- | Returns either the extracted `UnqualifiedNameID` if present and not qualified, or the email address.
 -- This throws an exception if there are any qualifiers.
-runValidScimIdUnsafe :: ValidScimId -> Text
+-- TODO: remove
+runValidScimIdUnsafe :: These EmailAddress SAML.UserRef -> Text
 runValidScimIdUnsafe = runValidScimIdEither urefToExternalIdUnsafe fromEmail
 
+urefToExternalIdUnsafe :: SAML.UserRef -> Text
+urefToExternalIdUnsafe = CI.original . SAML.unsafeShowNameID . view SAML.uidSubject
+
+-- TODO: inline this everywhere?
 veidUref :: ValidScimId -> Maybe SAML.UserRef
-veidUref = \case
-  EmailAndUref _ uref -> Just uref
-  UrefOnly uref -> Just uref
-  EmailOnly _ -> Nothing
+veidUref = justThat . validScimIdAuthInfo
 
 urefToExternalIdUnsafe :: SAML.UserRef -> Text
 urefToExternalIdUnsafe = CI.original . SAML.unsafeShowNameID . view SAML.uidSubject

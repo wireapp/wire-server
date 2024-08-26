@@ -137,6 +137,8 @@ ssoIdentity _ = Nothing
 
 -- | User's external identity.
 --
+--
+-- TODO: the NB is outdated.
 -- NB: this type is serialized to the full xml encoding of the `SAML.UserRef` components, but
 -- deserialiation is more lenient: it also allows for the `Issuer` to be a plain URL (without
 -- xml around it), and the `NameID` to be an email address (=> format "email") or an arbitrary
@@ -174,6 +176,7 @@ ordUserRef (UserRef tenant1 subject1) (UserRef tenant2 subject2) =
 -- | FUTUREWORK: This schema should ideally be a choice of either tenant+subject, or scim_external_id
 -- but this is currently not possible to derive in swagger2
 -- Maybe this becomes possible with swagger 3?
+-- TODO: migrate to schema-profunctor
 instance S.ToSchema UserSSOId where
   declareNamedSchema _ = do
     tenantSchema <- S.declareSchemaRef (Proxy @Text) -- FUTUREWORK: 'Issuer'

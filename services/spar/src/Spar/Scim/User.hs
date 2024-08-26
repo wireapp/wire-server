@@ -371,6 +371,7 @@ mkValidScimId Nothing (Just extid) = do
           Scim.InvalidValue
           (Just "externalId must be a valid email address or (if there is a SAML IdP) a valid SAML NameID")
   maybe (throw err) (pure . ST.EmailOnly) $ emailAddressText extid
+-- TODO: outline pure parts of this function
 mkValidScimId (Just idp) (Just extid) = do
   let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
   subject <- validateSubject extid
