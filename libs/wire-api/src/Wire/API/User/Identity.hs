@@ -59,7 +59,7 @@ import Data.Text qualified as Text
 import Data.Text.Encoding
 import Data.Text.Encoding.Error
 import Data.Text.Lazy qualified as LT
-import Data.These.Combinators (justThat)
+import Data.These
 import Imports
 import SAML2.WebSSO.Test.Arbitrary ()
 import SAML2.WebSSO.Types qualified as SAML
@@ -183,34 +183,59 @@ instance S.ToSchema UserSSOId where
                ]
 
 instance ToJSON UserSSOId where
-  toJSON (UserSSOId validScimId) = case justThat validScimId.validScimIdAuthInfo of
-    Just (SAML.UserRef issuer nameid) ->
-      A.object
-        [ "tenant" A..= SAML.encodeElem issuer,
-          "subject" A..= SAML.encodeElem nameid
-        ]
-    Nothing -> A.object ["scim_external_id" A..= validScimId.validScimIdExternal]
+  toJSON (UserSSOId validScimId) =
+    these onlyEmail onlyURef fromBoth validScimId.validScimIdAuthInfo
+    where
+      onlyEmail email =
+        A.object
+          [ "email" A..= email,
+            "scim_external_id" A..= validScimId.validScimIdExternal
+          ]
+      onlyURef (SAML.UserRef issuer nameid) =
+        A.object
+          [ "tenant" A..= SAML.encodeElem issuer,
+            "subject" A..= SAML.encodeElem nameid,
+            "scim_external_id" A..= validScimId.validScimIdExternal
+          ]
+      fromBoth email (SAML.UserRef issuer nameid) =
+        A.object
+          [ "email" A..= email,
+            "tenant" A..= SAML.encodeElem issuer,
+            "subject" A..= SAML.encodeElem nameid,
+            "scim_external_id" A..= email
+          ]
 
 instance FromJSON UserSSOId where
-  parseJSON _ = error "todo(leif)"
+  parseJSON = A.withObject "UserSSOId" $ \obj -> do
+    memail <- obj A..:? "email"
+    muref <- do
+      mtenant <- lenientlyParseSAMLIssuer =<< (obj A..:? "tenant")
+      msubject <- lenientlyParseSAMLNameID =<< (obj A..:? "subject")
+      pure $ (,) <$> mtenant <*> msubject
+    meid <- obj A..:? "scim_external_id"
+    case (memail, muref, meid) of
+      -- NEW CASES (since refactoring to `UserSSOId {unUserSSOId :: ValidScimId}`)
+      (Just email, Nothing, Just eid) -> pure $ UserSSOId (ValidScimId eid (This email))
+      (Nothing, Just (tenant, subject), Just eid) -> pure $ UserSSOId (ValidScimId eid (That $ SAML.UserRef tenant subject))
+      (Just email, Just (tenant, subject), Just eid) -> pure $ UserSSOId (ValidScimId eid (These email (SAML.UserRef tenant subject)))
+      -- OLD CASES for backwards compatibility
+      -- here we need to generate the scim_external_id from the saml data
+      (Nothing, Just (tenant, subject), Nothing) -> do
+        let uref = SAML.UserRef tenant subject
+        pure $ UserSSOId (ValidScimId (urefToExternalIdUnsafe uref) (That uref))
+      -- in this case the external id must be an email
+      (Nothing, Nothing, Just eid) -> do
+        let mEmailFromEid = emailAddress (encodeUtf8 eid)
+        case mEmailFromEid of
+          Just email -> pure $ UserSSOId (ValidScimId eid (This email))
+          Nothing -> fail $ "cannot parse: '" <> show obj <> "' to UserSSOId"
+      -- INVALID CASES
+      ((Just _), Nothing, Nothing) -> fail "need tenant and subject, or scim_external_id"
+      ((Just _), (Just (_, _)), Nothing) -> fail "need scim_external_id"
+      (Nothing, Nothing, Nothing) -> fail $ "cannot parse: '" <> show obj <> "' to UserSSOId"
 
--- instance ToJSON UserSSOId where
---   toJSON = \case
---     UserSSOId (SAML.UserRef tenant subject) -> A.object ["tenant" A..= SAML.encodeElem tenant, "subject" A..= SAML.encodeElem subject]
---     UserScimExternalId eid -> A.object ["scim_external_id" A..= eid]
-
--- instance FromJSON UserSSOId where
---   parseJSON = A.withObject "UserSSOId" $ \obj -> do
---     mtenant <- lenientlyParseSAMLIssuer =<< (obj A..:? "tenant")
---     msubject <- lenientlyParseSAMLNameID =<< (obj A..:? "subject")
---     meid <- obj A..:? "scim_external_id"
---     case (mtenant, msubject, meid) of
---       (Just tenant, Just subject, Nothing) -> pure $ UserSSOId (SAML.UserRef tenant subject)
---       (Nothing, Nothing, Just eid) -> pure $ UserScimExternalId eid
---       _ -> fail "either need tenant and subject, or scim_external_id, but not both"
-
-_lenientlyParseSAMLIssuer :: Maybe LText -> A.Parser (Maybe SAML.Issuer)
-_lenientlyParseSAMLIssuer mbtxt = forM mbtxt $ \txt -> do
+lenientlyParseSAMLIssuer :: Maybe LText -> A.Parser (Maybe SAML.Issuer)
+lenientlyParseSAMLIssuer mbtxt = forM mbtxt $ \txt -> do
   let asxml :: Either String SAML.Issuer
       asxml = SAML.decodeElem txt
 
@@ -224,9 +249,9 @@ _lenientlyParseSAMLIssuer mbtxt = forM mbtxt $ \txt -> do
 
   maybe (fail err) pure $ hush asxml <|> hush asurl
 
-_lenientlyParseSAMLNameID :: Maybe LText -> A.Parser (Maybe SAML.NameID)
-_lenientlyParseSAMLNameID Nothing = pure Nothing
-_lenientlyParseSAMLNameID (Just txt) = do
+lenientlyParseSAMLNameID :: Maybe LText -> A.Parser (Maybe SAML.NameID)
+lenientlyParseSAMLNameID Nothing = pure Nothing
+lenientlyParseSAMLNameID (Just txt) = do
   let asxml :: Either String SAML.NameID
       asxml = SAML.decodeElem txt
 
