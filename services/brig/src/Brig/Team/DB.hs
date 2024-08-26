@@ -21,8 +21,6 @@ module Brig.Team.DB
     insertInvitation,
     deleteInvitation,
     deleteInvitations,
-    lookupInvitationCode,
-    lookupInvitations,
     mkInvitationCode,
     mkInvitationId,
   )
@@ -97,47 +95,11 @@ insertInvitation showUrl iid t role (toUTCTimeMillis -> now) minviter email invi
     cqlInvitationByEmail :: PrepQuery W (EmailAddress, TeamId, InvitationId, InvitationCode, Int32) ()
     cqlInvitationByEmail = "INSERT INTO team_invitation_email (email, team, invitation, code) VALUES (?, ?, ?, ?) USING TTL ?"
 
-lookupInvitationCode :: (MonadClient m) => TeamId -> InvitationId -> m (Maybe InvitationCode)
-lookupInvitationCode t r =
-  fmap runIdentity
-    <$> retry x1 (query1 cqlInvitationCode (params LocalQuorum (t, r)))
-  where
-    cqlInvitationCode :: PrepQuery R (TeamId, InvitationId) (Identity InvitationCode)
-    cqlInvitationCode = "SELECT code FROM team_invitation WHERE team = ? AND id = ?"
-
 lookupInvitationCodeEmail :: (MonadClient m) => TeamId -> InvitationId -> m (Maybe (InvitationCode, EmailAddress))
 lookupInvitationCodeEmail t r = retry x1 (query1 cqlInvitationCodeEmail (params LocalQuorum (t, r)))
   where
     cqlInvitationCodeEmail :: PrepQuery R (TeamId, InvitationId) (InvitationCode, EmailAddress)
     cqlInvitationCodeEmail = "SELECT code, email FROM team_invitation WHERE team = ? AND id = ?"
-
-lookupInvitations ::
-  ( Log.MonadLogger m,
-    MonadReader Env m,
-    MonadClient m
-  ) =>
-  ShowOrHideInvitationUrl ->
-  TeamId ->
-  Maybe InvitationId ->
-  Range 1 500 Int32 ->
-  m (ResultPage Invitation)
-lookupInvitations showUrl team start (fromRange -> size) = do
-  page <- case start of
-    Just ref -> retry x1 $ paginate cqlSelectFrom (paramsP LocalQuorum (team, ref) (size + 1))
-    Nothing -> retry x1 $ paginate cqlSelect (paramsP LocalQuorum (Identity team) (size + 1))
-  toResult (hasMore page) <$> traverse (toInvitation showUrl) (trim page)
-  where
-    trim p = take (fromIntegral size) (result p)
-    toResult more invs =
-      cassandraResultPage $
-        emptyPage
-          { result = invs,
-            hasMore = more
-          }
-    cqlSelect :: PrepQuery R (Identity TeamId) (TeamId, Maybe Role, InvitationId, UTCTimeMillis, Maybe UserId, EmailAddress, Maybe Name, InvitationCode)
-    cqlSelect = "SELECT team, role, id, created_at, created_by, email, name, code FROM team_invitation WHERE team = ? ORDER BY id ASC"
-    cqlSelectFrom :: PrepQuery R (TeamId, InvitationId) (TeamId, Maybe Role, InvitationId, UTCTimeMillis, Maybe UserId, EmailAddress, Maybe Name, InvitationCode)
-    cqlSelectFrom = "SELECT team, role, id, created_at, created_by, email, name, code FROM team_invitation WHERE team = ? AND id > ? ORDER BY id ASC"
 
 deleteInvitation :: (MonadClient m) => TeamId -> InvitationId -> m ()
 deleteInvitation t i = do

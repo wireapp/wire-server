@@ -283,8 +283,13 @@ listInvitations ::
 listInvitations uid tid start mSize = do
   ensurePermissions uid tid [AddTeamMember]
   showInvitationUrl <- lift $ liftSem $ GalleyAPIAccess.getExposeInvitationURLsToTeamAdmin tid
-  rs <- lift $ wrapClient $ DB.lookupInvitations showInvitationUrl tid start (fromMaybe (unsafeRange 100) mSize)
-  pure $! Public.InvitationList (DB.resultList rs) (DB.resultHasMore rs)
+  rs <- lift $ liftSem $ Store.lookupInvitationsPaginated mSize showInvitationUrl tid start
+  pure $! todo
+
+-- TODO(mangoiv):
+-- traverse with toInvitation showInvitationUrl
+-- and no Bool
+-- Public.InvitationList (DB.resultList rs) (DB.resultHasMore rs)
 
 getInvitation ::
   (Member GalleyAPIAccess r, Member Store.InvitationCodeStore r) =>

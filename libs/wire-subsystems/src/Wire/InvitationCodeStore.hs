@@ -23,6 +23,7 @@ module Wire.InvitationCodeStore where
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT, runMaybeT))
 import Data.Id (InvitationId, TeamId, UserId)
 import Data.Json.Util (UTCTimeMillis)
+import Data.Range (Range)
 import Database.CQL.Protocol (Record (..), TupleType, recordInstance)
 import Imports
 import Polysemy
@@ -62,11 +63,18 @@ data StoredInvitationInfo = MkStoredInvitationInfo
 
 recordInstance ''StoredInvitationInfo
 
+data PaginatedResult a
+  = PaginatedResultHasMore a
+  | PaginatedResult a
+  deriving stock (Eq, Ord, Show, Functor, Foldable)
+
 data InvitationCodeStore :: Effect where
   LookupInvitation :: TeamId -> InvitationId -> InvitationCodeStore m (Maybe StoredInvitation)
   LookupInvitationInfo :: InvitationCode -> InvitationCodeStore m (Maybe StoredInvitationInfo)
   LookupInvitationCodesByEmail :: EmailAddress -> InvitationCodeStore m [StoredInvitationInfo]
   CountInvitations :: TeamId -> InvitationCodeStore m Int64
+  -- | invariant: page size is 100
+  LookupInvitationsPaginated :: Maybe (Range 1 500 Int32) -> TeamId -> Maybe InvitationId -> InvitationCodeStore m (PaginatedResult [StoredInvitation])
 
 makeSem ''InvitationCodeStore
 
