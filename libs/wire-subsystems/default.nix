@@ -73,6 +73,7 @@
 , types-common
 , unliftio
 , unordered-containers
+, uri-bytestring
 , uuid
 , wai-utilities
 , wire-api
@@ -144,6 +145,7 @@ mkDerivation {
     types-common
     unliftio
     unordered-containers
+    uri-bytestring
     uuid
     wai-utilities
     wire-api
