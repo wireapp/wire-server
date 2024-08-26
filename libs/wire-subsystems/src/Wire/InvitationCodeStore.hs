@@ -28,6 +28,7 @@ import Imports
 import Polysemy
 import Polysemy.TinyLog (TinyLog)
 import System.Logger.Message qualified as Log
+import URI.ByteString
 import Wire.API.Team.Invitation (Invitation (inviteeEmail))
 import Wire.API.Team.Invitation qualified as Public
 import Wire.API.Team.Role (Role, defaultRole)
@@ -107,8 +108,8 @@ lookupSingleInvitationCodeByEmail email = do
 
       pure Nothing
 
-invitationFromStored :: StoredInvitation -> Public.Invitation
-invitationFromStored MkStoredInvitation {..} =
+invitationFromStored :: Maybe (URIRef Absolute) -> StoredInvitation -> Public.Invitation
+invitationFromStored maybeUrl MkStoredInvitation {..} =
   Public.Invitation
     { team = teamId,
       role = fromMaybe defaultRole role,
@@ -117,5 +118,5 @@ invitationFromStored MkStoredInvitation {..} =
       createdBy = createdBy,
       inviteeEmail = email,
       inviteeName = name,
-      inviteeUrl = Nothing -- TODO: Huh?
+      inviteeUrl = maybeUrl
     }

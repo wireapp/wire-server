@@ -17,6 +17,7 @@
 
 module Brig.Team.DB
   ( module T,
+    mkInviteUrl,
     countInvitations,
     insertInvitation,
     deleteInvitation,
