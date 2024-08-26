@@ -541,13 +541,13 @@ getAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations, getByE
                 (PendingInvitation, False, _) -> notValid
                 (PendingInvitation, True, Just email) ->
                   lookupInvitationByEmail email >>= \case
-                    Nothing -> notValid
-                    Just _ -> do
+                    Nothing -> do
                       -- user invited via scim should expire together with its invitation
                       -- FIXME(mangoiv): this is not the right place to do this, ideally this should be part of a recurring
                       -- job akin to 'pendingUserActivationCleanup'
                       enqueueUserDeletion (userId account.accountUser)
-                      valid
+                      notValid
+                    Just _ -> valid
                 (PendingInvitation, True, Nothing) -> valid -- cannot happen, user invited via scim always has an email
                 (Active, _, _) -> valid
                 (Suspended, _, _) -> valid
