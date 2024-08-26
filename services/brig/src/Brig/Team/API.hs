@@ -32,7 +32,6 @@ import Brig.API.User (createUserInviteViaScim, fetchUserIdentity)
 import Brig.API.User qualified as API
 import Brig.API.Util (logEmail, logInvitationCode)
 import Brig.App
-import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
 import Brig.Team.DB qualified as DB
@@ -45,15 +44,12 @@ import Control.Monad.Trans.Except (mapExceptT)
 import Data.ByteString.Conversion (toByteString, toByteString')
 import Data.Id
 import Data.List1 qualified as List1
-import Data.Qualified (Local)
 import Data.Range
 import Data.Text.Lazy qualified as LT
-import Data.Time.Clock (UTCTime)
 import Data.Tuple.Extra
 import Imports hiding (head)
 import Network.Wai.Utilities hiding (code, message)
 import Polysemy
-import Polysemy.Input (Input)
 import Polysemy.TinyLog (TinyLog)
 import Servant hiding (Handler, JSON, addHeader)
 import System.Logger.Class qualified as Log
@@ -78,13 +74,11 @@ import Wire.API.User qualified as Public
 import Wire.BlockListStore
 import Wire.EmailSending (EmailSending)
 import Wire.Error
+import Wire.Events (Events)
 import Wire.GalleyAPIAccess (GalleyAPIAccess, ShowOrHideInvitationUrl (..))
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
-import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
-import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserKeyStore
-import Wire.UserSearchSubsystem (UserSearchSubsystem)
 import Wire.UserSubsystem
 
 servantAPI ::
@@ -297,14 +291,10 @@ getInvitationByEmail email = do
 
 suspendTeam ::
   ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
     Member (Concurrency 'Unsafe) r,
     Member GalleyAPIAccess r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
-    Member UserSearchSubsystem r
+    Member UserSubsystem r,
+    Member Events r
   ) =>
   TeamId ->
   (Handler r) NoContent
@@ -317,14 +307,10 @@ suspendTeam tid = do
 
 unsuspendTeam ::
   ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
     Member (Concurrency 'Unsafe) r,
     Member GalleyAPIAccess r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
-    Member UserSearchSubsystem r
+    Member UserSubsystem r,
+    Member Events r
   ) =>
   TeamId ->
   (Handler r) NoContent
@@ -338,14 +324,10 @@ unsuspendTeam tid = do
 
 changeTeamAccountStatuses ::
   ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
     Member (Concurrency 'Unsafe) r,
     Member GalleyAPIAccess r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
-    Member UserSearchSubsystem r
+    Member UserSubsystem r,
+    Member Events r
   ) =>
   TeamId ->
   AccountStatus ->

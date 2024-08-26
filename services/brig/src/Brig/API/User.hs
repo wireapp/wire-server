@@ -83,7 +83,6 @@ import Brig.Data.Connection (countConnections)
 import Brig.Data.Connection qualified as Data
 import Brig.Data.User
 import Brig.Data.User qualified as Data
-import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivation (..), UserPendingActivationStore)
 import Brig.Effects.UserPendingActivationStore qualified as UserPendingActivationStore
 import Brig.IO.Intra qualified as Intra
@@ -109,12 +108,11 @@ import Data.List1 as List1 (List1, singleton)
 import Data.Misc
 import Data.Qualified
 import Data.Range
-import Data.Time.Clock (UTCTime, addUTCTime)
+import Data.Time.Clock (addUTCTime)
 import Data.UUID.V4 (nextRandom)
 import Imports
 import Network.Wai.Utilities
 import Polysemy
-import Polysemy.Input (Input)
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import Prometheus qualified as Prom
@@ -141,15 +139,14 @@ import Wire.BlockListStore as BlockListStore
 import Wire.DeleteQueue
 import Wire.EmailSubsystem
 import Wire.Error
+import Wire.Events (Events)
+import Wire.Events qualified as Events
 import Wire.GalleyAPIAccess as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.PasswordStore (PasswordStore, lookupHashedPassword, upsertHashedPassword)
 import Wire.PropertySubsystem as PropertySubsystem
 import Wire.Sem.Concurrency
-import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserKeyStore
-import Wire.UserSearchSubsystem (UserSearchSubsystem)
-import Wire.UserSearchSubsystem qualified as UserSearchSubsystem
 import Wire.UserStore
 import Wire.UserSubsystem as User
 import Wire.UserSubsystem.HandleBlacklist
@@ -193,14 +190,9 @@ verifyUniquenessAndCheckBlacklist uk = do
 createUserSpar ::
   forall r.
   ( Member GalleyAPIAccess r,
-    Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
     Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
     Member UserSubsystem r,
-    Member (ConnectionStore InternalPaging) r,
-    Member UserSearchSubsystem r
+    Member Events r
   ) =>
   NewUserSpar ->
   ExceptT CreateUserSparError (AppT r) CreateUserResult
@@ -222,7 +214,8 @@ createUserSpar new = do
       Just richInfo -> wrapClient $ Data.updateRichInfo uid richInfo
       Nothing -> pure () -- Nothing to do
     liftSem $ GalleyAPIAccess.createSelfConv uid
-    liftSem $ Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
+    liftSem $ User.internalUpdateSearchIndex uid
+    liftSem $ Events.generateUserEvent uid Nothing (UserCreated (accountUser account))
 
     pure account
 
@@ -268,12 +261,8 @@ createUser ::
     Member (UserPendingActivationStore p) r,
     Member UserKeyStore r,
     Member TinyLog r,
-    Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
-    Member UserSearchSubsystem r
+    Member Events r,
+    Member UserSubsystem r
   ) =>
   NewUser ->
   ExceptT RegisterError (AppT r) CreateUserResult
@@ -331,7 +320,7 @@ createUser new = do
 
     wrapClient $ Data.insertAccount account Nothing pw False
     liftSem $ GalleyAPIAccess.createSelfConv uid
-    liftSem $ Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
+    liftSem $ Events.generateUserEvent uid Nothing (UserCreated (accountUser account))
 
     pure account
 
@@ -533,7 +522,7 @@ changeSelfEmail ::
   ( Member BlockListStore r,
     Member UserKeyStore r,
     Member EmailSubsystem r,
-    Member UserSearchSubsystem r
+    Member UserSubsystem r
   ) =>
   UserId ->
   EmailAddress ->
@@ -546,7 +535,7 @@ changeSelfEmail u email allowScim = do
     ChangeEmailNeedsActivation (usr, adata, en) -> lift $ do
       liftSem $ sendOutEmail usr adata en
       wrapClient $ Data.updateEmailUnvalidated u email
-      liftSem $ UserSearchSubsystem.syncUser u
+      liftSem $ User.internalUpdateSearchIndex u
       pure ChangeEmailResponseNeedsActivation
   where
     sendOutEmail usr adata en = do
@@ -583,15 +572,9 @@ changeEmail u email updateOrigin = do
 -- Remove Email
 
 removeEmail ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member UserKeyStore r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
+  ( Member UserKeyStore r,
     Member UserSubsystem r,
-    Member UserSearchSubsystem r
+    Member Events r
   ) =>
   UserId ->
   ExceptT RemoveIdentityError (AppT r) ()
@@ -601,7 +584,9 @@ removeEmail uid = do
     Just (SSOIdentity (UserSSOId _) (Just e)) -> lift $ do
       liftSem $ deleteKey $ mkEmailKey e
       wrapClient $ Data.deleteEmail uid
-      liftSem $ Intra.onUserEvent uid Nothing (emailRemoved uid e)
+      -- TODO: This doesn't delete user's email address from the index, looks
+      -- like a bug
+      liftSem $ Events.generateUserEvent uid Nothing (emailRemoved uid e)
     Just _ -> throwE LastIdentity
     Nothing -> throwE NoIdentity
 
@@ -630,13 +615,9 @@ revokeIdentity key = do
 changeAccountStatus ::
   forall r.
   ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
     Member (Concurrency 'Unsafe) r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
-    Member UserSearchSubsystem r
+    Member UserSubsystem r,
+    Member Events r
   ) =>
   List1 UserId ->
   AccountStatus ->
@@ -651,16 +632,12 @@ changeAccountStatus usrs status = do
       Sem r ()
     update ev u = do
       embed $ Data.updateStatus u status
-      Intra.onUserEvent u Nothing (ev u)
+      User.internalUpdateSearchIndex u
+      Events.generateUserEvent u Nothing (ev u)
 
 changeSingleAccountStatus ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
-    Member UserSearchSubsystem r
+  ( Member UserSubsystem r,
+    Member Events r
   ) =>
   UserId ->
   AccountStatus ->
@@ -670,7 +647,8 @@ changeSingleAccountStatus uid status = do
   ev <- mkUserEvent (List1.singleton uid) status
   lift $ do
     wrapClient $ Data.updateStatus uid status
-    liftSem $ Intra.onUserEvent uid Nothing (ev uid)
+    liftSem $ User.internalUpdateSearchIndex uid
+    liftSem $ Events.generateUserEvent uid Nothing (ev uid)
 
 mkUserEvent :: (Traversable t) => t UserId -> AccountStatus -> ExceptT AccountStatusError (AppT r) (UserId -> UserEvent)
 mkUserEvent usrs status =
@@ -689,12 +667,8 @@ mkUserEvent usrs status =
 activate ::
   ( Member GalleyAPIAccess r,
     Member TinyLog r,
-    Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
-    Member UserSearchSubsystem r
+    Member UserSubsystem r,
+    Member Events r
   ) =>
   ActivationTarget ->
   ActivationCode ->
@@ -706,12 +680,8 @@ activate tgt code usr = activateWithCurrency tgt code usr Nothing
 activateWithCurrency ::
   ( Member GalleyAPIAccess r,
     Member TinyLog r,
-    Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
-    Member UserSearchSubsystem r
+    Member UserSubsystem r,
+    Member Events r
   ) =>
   ActivationTarget ->
   ActivationCode ->
@@ -754,12 +724,8 @@ preverify tgt code = do
 
 onActivated ::
   ( Member TinyLog r,
-    Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
-    Member UserSearchSubsystem r
+    Member UserSubsystem r,
+    Member Events r
   ) =>
   ActivationEvent ->
   AppT r (UserId, Maybe UserIdentity, Bool)
@@ -767,10 +733,12 @@ onActivated (AccountActivated account) = liftSem $ do
   let uid = userId (accountUser account)
   Log.debug $ field "user" (toByteString uid) . field "action" (val "User.onActivated")
   Log.info $ field "user" (toByteString uid) . msg (val "User activated")
-  Intra.onUserEvent uid Nothing $ UserActivated (accountUser account)
+  User.internalUpdateSearchIndex uid
+  Events.generateUserEvent uid Nothing $ UserActivated (accountUser account)
   pure (uid, userIdentity (accountUser account), True)
 onActivated (EmailActivated uid email) = do
-  liftSem $ Intra.onUserEvent uid Nothing (emailUpdated uid email)
+  -- TODO: Looks like a bug to not update the index
+  liftSem $ Events.generateUserEvent uid Nothing (emailUpdated uid email)
   wrapHttpClient $ Data.deleteEmailUnvalidated uid
   pure (uid, Just (EmailIdentity email), False)
 
@@ -882,15 +850,13 @@ deleteSelfUser ::
     Member (Embed HttpClientIO) r,
     Member UserKeyStore r,
     Member NotificationSubsystem r,
-    Member (Input (Local ())) r,
     Member PasswordStore r,
     Member UserStore r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
     Member EmailSubsystem r,
     Member VerificationCodeSubsystem r,
     Member PropertySubsystem r,
-    Member UserSearchSubsystem r
+    Member UserSubsystem r,
+    Member Events r
   ) =>
   UserId ->
   Maybe PlainTextPassword6 ->
@@ -957,13 +923,11 @@ verifyDeleteUser ::
     Member NotificationSubsystem r,
     Member UserKeyStore r,
     Member TinyLog r,
-    Member (Input (Local ())) r,
     Member UserStore r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
     Member VerificationCodeSubsystem r,
     Member PropertySubsystem r,
-    Member UserSearchSubsystem r
+    Member UserSubsystem r,
+    Member Events r
   ) =>
   VerifyDeleteUser ->
   ExceptT DeleteUserError (AppT r) ()
@@ -986,12 +950,10 @@ ensureAccountDeleted ::
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member UserKeyStore r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
     Member UserStore r,
     Member PropertySubsystem r,
-    Member UserSearchSubsystem r
+    Member UserSubsystem r,
+    Member Events r
   ) =>
   UserId ->
   AppT r DeleteUserResult
@@ -1037,12 +999,10 @@ deleteAccount ::
     Member NotificationSubsystem r,
     Member UserKeyStore r,
     Member TinyLog r,
-    Member (Input (Local ())) r,
     Member UserStore r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
     Member PropertySubsystem r,
-    Member UserSearchSubsystem r
+    Member UserSubsystem r,
+    Member Events r
   ) =>
   UserAccount ->
   Sem r ()
@@ -1060,7 +1020,8 @@ deleteAccount (accountUser -> user) = do
   Intra.rmUser uid (userAssets user)
   embed $ Data.lookupClients uid >>= mapM_ (Data.rmClient uid . clientId)
   luid <- embed $ qualifyLocal uid
-  Intra.onUserEvent uid Nothing (UserDeleted (tUntagged luid))
+  User.internalUpdateSearchIndex uid
+  Events.generateUserEvent uid Nothing (UserDeleted (tUntagged luid))
   embed do
     -- Note: Connections can only be deleted afterwards, since
     --       they need to be notified.

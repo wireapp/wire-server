@@ -23,7 +23,6 @@ where
 import Brig.App (initHttpManagerWithTLSConfig, mkIndexEnv)
 import Brig.Index.Options
 import Brig.Options
-import Brig.Options qualified as Opt
 import Brig.User.Search.Index
 import Cassandra (Client, runClient)
 import Cassandra.Options
@@ -49,7 +48,8 @@ import System.Logger.Class (Logger)
 import Util.Options (initCredentials)
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
-import Wire.API.User
+import Wire.BlockListStore (BlockListStore)
+import Wire.BlockListStore.Cassandra
 import Wire.FederationAPIAccess
 import Wire.FederationAPIAccess.Interpreter (noFederationAPIAccess)
 import Wire.FederationConfigStore (FederationConfigStore)
@@ -66,18 +66,20 @@ import Wire.Sem.Concurrency.IO
 import Wire.Sem.Logger.TinyLog
 import Wire.Sem.Metrics
 import Wire.Sem.Metrics.IO
+import Wire.UserKeyStore (UserKeyStore)
+import Wire.UserKeyStore.Cassandra
 import Wire.UserSearch.Migration (MigrationException)
-import Wire.UserSearchSubsystem (UserSearchSubsystem, UserSearchSubsystemBulk)
+import Wire.UserSearchSubsystem (UserSearchSubsystemBulk)
 import Wire.UserSearchSubsystem qualified as UserSearchSubsystem
 import Wire.UserSearchSubsystem.Interpreter
 import Wire.UserStore
 import Wire.UserStore.Cassandra
 import Wire.UserSubsystem.Error
-import Wire.UserSubsystem.Interpreter (UserSubsystemConfig (..))
 
 type BrigIndexEffectStack =
   [ UserSearchSubsystemBulk,
-    UserSearchSubsystem,
+    UserKeyStore,
+    BlockListStore,
     Error UserSubsystemError,
     FederationAPIAccess FederatorClient,
     Error FederationError,
@@ -118,15 +120,6 @@ runSem esConn cas galleyEndpoint logger action = do
             additionalConn = Nothing
           }
       reqId = (RequestId "brig-index")
-      userSubsystemConfig =
-        -- These values usually come from brig's config, but in the brig-index
-        -- CLI we don't have this. These are not really used so it doesn't
-        -- matter, but they could get used in future causing weird issues.
-        UserSubsystemConfig
-          { emailVisibilityConfig = EmailVisibleToSelf,
-            defaultLocale = Opt.defaultUserLocale,
-            searchSameTeamOnly = False
-          }
   runFinal
     . embedToFinal
     . unsafelyPerformConcurrency
@@ -146,7 +139,8 @@ runSem esConn cas galleyEndpoint logger action = do
     . throwErrorToIOFinal @FederationError
     . noFederationAPIAccess
     . throwErrorToIOFinal @UserSubsystemError
-    . interpretUserSearchSubsystem userSubsystemConfig
+    . interpretBlockListStoreToCassandra casClient
+    . interpretUserKeyStoreCassandra casClient
     . interpretUserSearchSubsystemBulk
     $ action
 

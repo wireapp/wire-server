@@ -41,7 +41,6 @@ import Brig.Calling.API qualified as Calling
 import Brig.Data.Connection qualified as Data
 import Brig.Data.Nonce as Nonce
 import Brig.Data.User qualified as Data
-import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.JwtTools (JwtTools)
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
 import Brig.Effects.SFT
@@ -82,14 +81,12 @@ import Data.Qualified
 import Data.Range
 import Data.Schema ()
 import Data.Text.Encoding qualified as Text
-import Data.Time.Clock (UTCTime)
 import Data.ZAuth.Token qualified as ZAuth
 import FileEmbedLzma
 import Imports hiding (head)
 import Network.Socket (PortNumber)
 import Network.Wai.Utilities as Utilities
 import Polysemy
-import Polysemy.Input (Input)
 import Polysemy.TinyLog (TinyLog)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant qualified
@@ -148,6 +145,7 @@ import Wire.DeleteQueue
 import Wire.EmailSending (EmailSending)
 import Wire.EmailSubsystem
 import Wire.Error
+import Wire.Events (Events)
 import Wire.FederationConfigStore (FederationConfigStore)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
@@ -157,11 +155,8 @@ import Wire.PropertySubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Now (Now)
-import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserKeyStore
 import Wire.UserSearch.Types
-import Wire.UserSearchSubsystem (UserSearchSubsystem)
-import Wire.UserSearchSubsystem qualified as UserSearchSubsystem
 import Wire.UserStore (UserStore)
 import Wire.UserSubsystem hiding (checkHandle, checkHandles)
 import Wire.UserSubsystem qualified as UserSubsystem
@@ -264,13 +259,10 @@ servantSitemap ::
   ( Member BlockListStore r,
     Member DeleteQueue r,
     Member (Concurrency 'Unsafe) r,
-    Member (ConnectionStore InternalPaging) r,
     Member (Embed HttpClientIO) r,
     Member (Embed IO) r,
     Member FederationConfigStore r,
-    Member (Input (Local ())) r,
     Member AuthenticationSubsystem r,
-    Member (Input UTCTime) r,
     Member Jwk r,
     Member GalleyAPIAccess r,
     Member JwtTools r,
@@ -288,7 +280,7 @@ servantSitemap ::
     Member EmailSending r,
     Member VerificationCodeSubsystem r,
     Member PropertySubsystem r,
-    Member UserSearchSubsystem r
+    Member Events r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -458,7 +450,7 @@ servantSitemap =
 -- Handlers
 
 browseTeamHandler ::
-  (Member UserSearchSubsystem r) =>
+  (Member UserSubsystem r) =>
   UserId ->
   TeamId ->
   Maybe Text ->
@@ -470,7 +462,7 @@ browseTeamHandler ::
   Handler r (Public.SearchResult Public.TeamContact)
 browseTeamHandler uid tid mQuery mRoleFilter mTeamUserSearchSortBy mTeamUserSearchSortOrder mMaxResults mPagingState = do
   let browseTeamFilters = BrowseTeamFilters tid mQuery mRoleFilter mTeamUserSearchSortBy mTeamUserSearchSortOrder
-  lift . liftSem $ UserSearchSubsystem.browseTeam uid browseTeamFilters mMaxResults mPagingState
+  lift . liftSem $ UserSubsystem.browseTeam uid browseTeamFilters mMaxResults mPagingState
 
 setPropertyH :: (Member PropertySubsystem r) => UserId -> ConnId -> Public.PropertyKey -> Public.RawPropertyValue -> Handler r ()
 setPropertyH u c key raw = lift . liftSem $ setProperty u c key raw
@@ -569,16 +561,11 @@ getMultiUserPrekeyBundleH zusr qualUserClients = do
 
 addClient ::
   ( Member GalleyAPIAccess r,
-    Member (Embed HttpClientIO) r,
     Member DeleteQueue r,
     Member NotificationSubsystem r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
     Member EmailSubsystem r,
     Member VerificationCodeSubsystem r,
-    Member UserSearchSubsystem r
+    Member Events r
   ) =>
   UserId ->
   ConnId ->
@@ -702,15 +689,11 @@ createUser ::
     Member GalleyAPIAccess r,
     Member (UserPendingActivationStore p) r,
     Member TinyLog r,
-    Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
     Member UserKeyStore r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
     Member EmailSubsystem r,
     Member EmailSending r,
-    Member UserSearchSubsystem r
+    Member UserSubsystem r,
+    Member Events r
   ) =>
   Public.NewUserPublic ->
   Handler r (Either Public.RegisterError Public.RegisterSuccess)
@@ -924,15 +907,9 @@ removePhone :: UserId -> Handler r (Maybe Public.RemoveIdentityError)
 removePhone _ = (lift . pure) Nothing
 
 removeEmail ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member UserKeyStore r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
+  ( Member UserKeyStore r,
     Member UserSubsystem r,
-    Member UserSearchSubsystem r
+    Member Events r
   ) =>
   UserId ->
   Handler r (Maybe Public.RemoveIdentityError)
@@ -1042,14 +1019,14 @@ sendActivationCode ac = do
   API.sendActivationCode email (ac.locale) !>> sendActCodeError
 
 searchUsersHandler ::
-  (Member UserSearchSubsystem r) =>
+  (Member UserSubsystem r) =>
   Local UserId ->
   Text ->
   Maybe Domain ->
   Maybe (Range 1 500 Int32) ->
   Handler r (Public.SearchResult Public.Contact)
 searchUsersHandler luid term mDomain mMaxResults =
-  lift . liftSem $ UserSearchSubsystem.searchUsers luid term mDomain mMaxResults
+  lift . liftSem $ UserSubsystem.searchUsers luid term mDomain mMaxResults
 
 -- | If the user presents an email address from a blocked domain, throw an error.
 --
@@ -1199,13 +1176,11 @@ deleteSelfUser ::
     Member NotificationSubsystem r,
     Member UserStore r,
     Member PasswordStore r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
     Member EmailSubsystem r,
     Member VerificationCodeSubsystem r,
     Member PropertySubsystem r,
-    Member UserSearchSubsystem r
+    Member UserSubsystem r,
+    Member Events r
   ) =>
   UserId ->
   Public.DeleteUser ->
@@ -1218,13 +1193,11 @@ verifyDeleteUser ::
     Member NotificationSubsystem r,
     Member UserStore r,
     Member TinyLog r,
-    Member (Input (Local ())) r,
     Member UserKeyStore r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
     Member VerificationCodeSubsystem r,
     Member PropertySubsystem r,
-    Member UserSearchSubsystem r
+    Member UserSubsystem r,
+    Member Events r
   ) =>
   Public.VerifyDeleteUser ->
   Handler r ()
@@ -1236,7 +1209,7 @@ updateUserEmail ::
     Member UserKeyStore r,
     Member GalleyAPIAccess r,
     Member EmailSubsystem r,
-    Member UserSearchSubsystem r
+    Member UserSubsystem r
   ) =>
   UserId ->
   UserId ->
@@ -1267,12 +1240,8 @@ updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
 activate ::
   ( Member GalleyAPIAccess r,
     Member TinyLog r,
-    Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
-    Member UserSearchSubsystem r
+    Member UserSubsystem r,
+    Member Events r
   ) =>
   Public.ActivationKey ->
   Public.ActivationCode ->
@@ -1285,12 +1254,8 @@ activate k c = do
 activateKey ::
   ( Member GalleyAPIAccess r,
     Member TinyLog r,
-    Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
-    Member UserSearchSubsystem r
+    Member UserSubsystem r,
+    Member Events r
   ) =>
   Public.Activate ->
   (Handler r) ActivationRespWithStatus

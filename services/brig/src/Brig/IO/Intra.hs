@@ -20,7 +20,7 @@
 -- FUTUREWORK: Move to Brig.User.RPC or similar.
 module Brig.IO.Intra
   ( -- * Pushing & Journaling Events
-    onUserEvent,
+    sendUserEvent,
     onConnectionEvent,
     onPropertyEvent,
     onClientEvent,
@@ -104,28 +104,25 @@ import Wire.Rpc
 import Wire.Sem.Logger qualified as Log
 import Wire.Sem.Paging qualified as P
 import Wire.Sem.Paging.Cassandra (InternalPaging)
-import Wire.UserSearchSubsystem (UserSearchSubsystem)
-import Wire.UserSearchSubsystem qualified as UserSearchSubsystem
 
 -----------------------------------------------------------------------------
 -- Event Handlers
 
-onUserEvent ::
+-- TODO: Extract 'journalEvent' out of this
+sendUserEvent ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
-    Member UserSearchSubsystem r
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   Maybe ConnId ->
   UserEvent ->
   Sem r ()
-onUserEvent orig conn e =
-  updateSearchIndex orig e
-    *> dispatchNotifications orig conn e
+sendUserEvent orig conn e =
+  dispatchNotifications orig conn e
     *> embed (journalEvent orig e)
 
 runEvents ::
@@ -134,13 +131,12 @@ runEvents ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
-    Member UserSearchSubsystem r
+    Member (ConnectionStore InternalPaging) r
   ) =>
   InterpreterFor Events r
 runEvents = interpret \case
   -- FUTUREWORK(mangoiv): should this be in another module?
-  GenerateUserEvent uid mconnid event -> onUserEvent uid mconnid event
+  GenerateUserEvent uid mconnid event -> sendUserEvent uid mconnid event
   GeneratePropertyEvent uid connid event -> onPropertyEvent uid connid event
 
 onConnectionEvent ::
@@ -194,35 +190,6 @@ onClientEvent orig conn e = do
         & pushConn .~ conn
         & pushApsData .~ toApsData event
     ]
-
-updateSearchIndex ::
-  (Member UserSearchSubsystem r) =>
-  UserId ->
-  UserEvent ->
-  Sem r ()
-updateSearchIndex orig e = case e of
-  -- no-ops
-  UserCreated {} -> pure ()
-  UserIdentityUpdated UserIdentityUpdatedData {..} -> do
-    when (isJust eiuEmail) $ UserSearchSubsystem.syncUser orig
-  UserIdentityRemoved {} -> pure ()
-  UserLegalHoldDisabled {} -> pure ()
-  UserLegalHoldEnabled {} -> pure ()
-  LegalHoldClientRequested {} -> pure ()
-  UserSuspended {} -> UserSearchSubsystem.syncUser orig
-  UserResumed {} -> UserSearchSubsystem.syncUser orig
-  UserActivated {} -> UserSearchSubsystem.syncUser orig
-  UserDeleted {} -> UserSearchSubsystem.syncUser orig
-  UserUpdated UserUpdatedData {..} -> do
-    let interesting =
-          or
-            [ isJust eupName,
-              isJust eupAccentId,
-              isJust eupHandle,
-              isJust eupManagedBy,
-              isJust eupSSOId || eupSSOIdRemoved
-            ]
-    when interesting $ UserSearchSubsystem.syncUser orig
 
 journalEvent :: (MonadReader Env m, MonadIO m) => UserId -> UserEvent -> m ()
 journalEvent orig e = case e of

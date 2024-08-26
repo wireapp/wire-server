@@ -81,8 +81,6 @@ import Wire.SessionStore
 import Wire.SessionStore.Cassandra (interpretSessionStoreCassandra)
 import Wire.UserKeyStore
 import Wire.UserKeyStore.Cassandra
-import Wire.UserSearchSubsystem
-import Wire.UserSearchSubsystem.Interpreter (interpretUserSearchSubsystem)
 import Wire.UserStore
 import Wire.UserStore.Cassandra
 import Wire.UserSubsystem
@@ -101,7 +99,6 @@ type BrigCanonicalEffects =
      PropertySubsystem,
      DeleteQueue,
      Wire.Events.Events,
-     UserSearchSubsystem,
      Error UserSubsystemError,
      Error AuthenticationSubsystemError,
      Error Wire.API.Federation.Error.FederationError,
@@ -237,7 +234,6 @@ runBrigToIO e (AppT ma) = do
               . mapError (StdError . federationErrorToWai)
               . mapError authenticationSubsystemErrorToHttpError
               . mapError userSubsystemErrorToHttpError
-              . interpretUserSearchSubsystem userSubsystemConfig
               . runEvents
               . runDeleteQueue (e ^. internalEvents)
               . interpretPropertySubsystem propertySubsystemConfig

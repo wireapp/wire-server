@@ -23,7 +23,6 @@ import Brig.API.Types
 import Brig.API.User
 import Brig.App
 import Brig.Data.User qualified as User
-import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Options
 import Brig.User.Auth qualified as Auth
 import Brig.ZAuth hiding (Env, settings)
@@ -36,14 +35,12 @@ import Data.List1 (List1 (..))
 import Data.Qualified
 import Data.Text qualified as T
 import Data.Text.Lazy qualified as LT
-import Data.Time.Clock (UTCTime)
 import Data.ZAuth.Token qualified as ZAuth
 import Imports
 import Network.HTTP.Types
 import Network.Wai.Utilities ((!>>))
 import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
-import Polysemy.Input (Input)
 import Polysemy.TinyLog (TinyLog)
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
@@ -54,24 +51,18 @@ import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.BlockListStore
 import Wire.EmailSubsystem (EmailSubsystem)
+import Wire.Events (Events)
 import Wire.GalleyAPIAccess
-import Wire.NotificationSubsystem
 import Wire.PasswordStore (PasswordStore)
-import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserKeyStore
-import Wire.UserSearchSubsystem (UserSearchSubsystem)
 import Wire.UserStore
 import Wire.UserSubsystem
 import Wire.VerificationCodeSubsystem (VerificationCodeSubsystem)
 
 accessH ::
   ( Member TinyLog r,
-    Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
-    Member UserSearchSubsystem r
+    Member UserSubsystem r,
+    Member Events r
   ) =>
   Maybe ClientId ->
   [Either Text SomeUserToken] ->
@@ -86,12 +77,8 @@ accessH mcid ut' mat' = do
 access ::
   ( TokenPair u a,
     Member TinyLog r,
-    Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
-    Member UserSearchSubsystem r
+    Member UserSubsystem r,
+    Member Events r
   ) =>
   Maybe ClientId ->
   NonEmpty (Token u) ->
@@ -109,16 +96,12 @@ sendLoginCode _ =
 login ::
   ( Member GalleyAPIAccess r,
     Member TinyLog r,
-    Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
     Member PasswordStore r,
     Member UserKeyStore r,
     Member UserStore r,
     Member VerificationCodeSubsystem r,
-    Member UserSearchSubsystem r
+    Member UserSubsystem r,
+    Member Events r
   ) =>
   Login ->
   Maybe Bool ->
@@ -146,7 +129,7 @@ changeSelfEmailH ::
   ( Member BlockListStore r,
     Member UserKeyStore r,
     Member EmailSubsystem r,
-    Member UserSearchSubsystem r
+    Member UserSubsystem r
   ) =>
   [Either Text SomeUserToken] ->
   Maybe (Either Text SomeAccessToken) ->
@@ -180,13 +163,9 @@ removeCookies lusr (RemoveCookies pw lls ids) =
 
 legalHoldLogin ::
   ( Member GalleyAPIAccess r,
-    Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
     Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
-    Member UserSearchSubsystem r
+    Member UserSubsystem r,
+    Member Events r
   ) =>
   LegalHoldLogin ->
   Handler r SomeAccess
@@ -197,12 +176,8 @@ legalHoldLogin lhl = do
 
 ssoLogin ::
   ( Member TinyLog r,
-    Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
-    Member UserSearchSubsystem r
+    Member UserSubsystem r,
+    Member Events r
   ) =>
   SsoLogin ->
   Maybe Bool ->
