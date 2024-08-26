@@ -59,7 +59,6 @@ module Wire.API.User
     CreateUserSparInternalResponses,
     newUserFromSpar,
     urefToExternalId,
-    urefToExternalIdUnsafe,
     urefToEmail,
     ExpiresIn,
     newUserTeam,
@@ -854,9 +853,6 @@ urefToEmail :: SAML.UserRef -> Maybe EmailAddress
 urefToEmail uref = case uref ^. SAML.uidSubject . SAML.nameID of
   SAML.UNameIDEmail email -> emailAddressText . SAMLEmail.render . CI.original $ email
   _ -> Nothing
-
-urefToExternalIdUnsafe :: SAML.UserRef -> Text
-urefToExternalIdUnsafe = CI.original . SAML.unsafeShowNameID . view SAML.uidSubject
 
 data CreateUserSparError
   = CreateUserSparHandleError ChangeHandleError
