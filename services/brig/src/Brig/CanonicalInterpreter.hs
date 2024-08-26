@@ -209,7 +209,7 @@ runBrigToIO e (AppT ma) = do
               . runDelay
               . nowToIOAction (e ^. currentTime)
               . userPendingActivationStoreToCassandra
-              . interpretBlockListStoreToCassandra @Cas.Client
+              . interpretBlockListStoreToCassandra (e ^. casClient)
               . interpretJwtTools
               . interpretPublicKeyBundle
               . interpretJwk
