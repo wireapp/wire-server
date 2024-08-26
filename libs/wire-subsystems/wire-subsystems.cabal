@@ -229,8 +229,10 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.EmailSubsystem
     Wire.MockInterpreters.Error
     Wire.MockInterpreters.Events
+    Wire.MockInterpreters.FederationConfigStore
     Wire.MockInterpreters.GalleyAPIAccess
     Wire.MockInterpreters.HashPassword
+    Wire.MockInterpreters.IndexedUserStore
     Wire.MockInterpreters.Now
     Wire.MockInterpreters.PasswordResetCodeStore
     Wire.MockInterpreters.PasswordStore

@@ -58,12 +58,16 @@ import Wire.DeleteQueue.InMemory
 import Wire.Events
 import Wire.FederationAPIAccess
 import Wire.FederationAPIAccess.Interpreter as FI
+import Wire.FederationConfigStore
 import Wire.GalleyAPIAccess
+import Wire.IndexedUserStore
 import Wire.InternalEvent hiding (DeleteUser)
 import Wire.MockInterpreters
 import Wire.PasswordResetCodeStore
 import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.Sequential
+import Wire.Sem.Metrics
+import Wire.Sem.Metrics.IO (ignoreMetrics)
 import Wire.Sem.Now hiding (get)
 import Wire.StoredUser
 import Wire.UserKeyStore
@@ -103,6 +107,8 @@ type MiniBackendEffects =
     State [StoredUser],
     UserKeyStore,
     State (Map EmailKey UserId),
+    IndexedUserStore,
+    FederationConfigStore,
     DeleteQueue,
     Events,
     State [InternalNotification],
@@ -111,6 +117,7 @@ type MiniBackendEffects =
     Now,
     Input UserSubsystemConfig,
     Input (Local ()),
+    Metrics,
     FederationAPIAccess MiniFederationMonad,
     TinyLog,
     Concurrency 'Unsafe
@@ -338,6 +345,7 @@ interpretMaybeFederationStackState maybeFederationAPIAccess localBackend teamMem
   sequentiallyPerformConcurrency
     . noOpLogger
     . maybeFederationAPIAccess
+    . ignoreMetrics
     . runInputConst (toLocalUnsafe (Domain "localdomain") ())
     . runInputConst cfg
     . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
@@ -346,6 +354,8 @@ interpretMaybeFederationStackState maybeFederationAPIAccess localBackend teamMem
     . evalState []
     . miniEventInterpreter
     . inMemoryDeleteQueueInterpreter
+    . runFederationConfigStoreInMemory
+    . inMemoryIndexedUserStoreInterpreter
     . liftUserKeyStoreState
     . inMemoryUserKeyStoreInterpreter
     . liftUserStoreState
