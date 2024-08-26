@@ -56,8 +56,8 @@ import Network.Wai.Utilities hiding (code, message)
 import Polysemy
 import Polysemy.Input (Input)
 import Polysemy.TinyLog (TinyLog)
+import Polysemy.TinyLog qualified as Log
 import Servant hiding (Handler, JSON, addHeader)
-import System.Logger.Class qualified as Log
 import System.Logger.Message as Log
 import Util.Logging (logFunction, logTeam)
 import Wire.API.Error
@@ -94,6 +94,7 @@ servantAPI ::
     Member UserKeyStore r,
     Member UserSubsystem r,
     Member EmailSending r,
+    Member TinyLog r,
     Member Store.InvitationCodeStore r
   ) =>
   ServerT TeamsAPI (Handler r)
@@ -133,7 +134,8 @@ createInvitation ::
   ( Member GalleyAPIAccess r,
     Member UserKeyStore r,
     Member UserSubsystem r,
-    Member EmailSending r
+    Member EmailSending r,
+    Member TinyLog r
   ) =>
   UserId ->
   TeamId ->
@@ -197,20 +199,21 @@ createInvitationViaScim tid newUser@(NewUserScimInvitation _tid uid loc name ema
 
   createUserInviteViaScim newUser
 
-logInvitationRequest :: (Msg -> Msg) -> (Handler r) (Invitation, InvitationCode) -> (Handler r) (Invitation, InvitationCode)
+logInvitationRequest :: (Member TinyLog r) => (Msg -> Msg) -> (Handler r) (Invitation, InvitationCode) -> Handler r (Invitation, InvitationCode)
 logInvitationRequest context action =
-  flip mapExceptT action $ \action' -> do
+  flip mapExceptT action \action' -> do
     eith <- action'
     case eith of
       Left err' -> do
-        Log.warn $
-          context
-            . Log.msg @Text
-              ( "Failed to create invitation, label: "
-                  <> (LT.toStrict . errorLabel) err'
-              )
+        liftSem $
+          Log.warn $
+            context
+              . Log.msg @Text
+                ( "Failed to create invitation, label: "
+                    <> (LT.toStrict . errorLabel) err'
+                )
         pure (Left err')
-      Right result@(_, code) -> do
+      Right result@(_, code) -> liftSem do
         Log.info $ (context . logInvitationCode code) . Log.msg @Text "Successfully created invitation"
         pure (Right result)
 
@@ -305,14 +308,20 @@ getInvitationByCode c = do
   maybe (throwStd $ errorToWai @'E.InvalidInvitationCode) (pure . Store.invitationFromStored Nothing) inv
 
 -- FIXME(mangoiv): This should not be in terms of store
-headInvitationByEmail :: (Member InvitationCodeStore r) => EmailAddress -> (Handler r) Public.HeadInvitationByEmailResult
-headInvitationByEmail e =
+headInvitationByEmail :: (Member InvitationCodeStore r, Member TinyLog r) => EmailAddress -> (Handler r) Public.HeadInvitationByEmailResult
+headInvitationByEmail email =
   lift $
     liftSem $
-      Store.lookupInvitationInfoByEmail e <&> \case
-        Store.InvitationByEmail _ -> Public.InvitationByEmail
-        Store.InvitationByEmailNotFound -> Public.InvitationByEmailNotFound
-        Store.InvitationByEmailMoreThanOne -> Public.InvitationByEmailMoreThanOne
+      Store.lookupInvitationCodesByEmail email >>= \case
+        [] -> pure Public.InvitationByEmailNotFound
+        [_code] -> pure Public.InvitationByEmail
+        (_ : _ : _) -> do
+          Log.info $
+            Log.msg (Log.val "team_invidation_email: multiple pending invites from different teams for the same email")
+              . Log.field "email" (show email)
+          pure Public.InvitationByEmailMoreThanOne
+
+-- Store.InvitationByEmail _ -> Public.InvitationByEmail
 
 -- | FUTUREWORK: This should also respond with status 409 in case of
 -- @DB.InvitationByEmailMoreThanOne@.  Refactor so that 'headInvitationByEmailH' and
@@ -338,7 +347,7 @@ suspendTeam ::
   TeamId ->
   (Handler r) NoContent
 suspendTeam tid = do
-  Log.info $ Log.msg (Log.val "Team suspended") ~~ Log.field "team" (toByteString tid)
+  lift $ liftSem $ Log.info $ Log.msg (Log.val "Team suspended") ~~ Log.field "team" (toByteString tid)
   changeTeamAccountStatuses tid Suspended
   lift $ wrapClient $ DB.deleteInvitations tid
   lift $ liftSem $ GalleyAPIAccess.changeTeamStatus tid Team.Suspended Nothing

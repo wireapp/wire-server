@@ -15,7 +15,7 @@ import Wire.InvitationCodeStore
 inMemoryInvitationCodeStoreInterpreter ::
   forall r.
   ( Member (State (Map (TeamId, InvitationId) StoredInvitation)) r,
-    Member (State (Map (InvitationCode) InvitationInfo)) r
+    Member (State (Map (InvitationCode) StoredInvitationInfo)) r
   ) =>
   InterpreterFor InvitationCodeStore r
 inMemoryInvitationCodeStoreInterpreter = interpret \case
@@ -23,6 +23,6 @@ inMemoryInvitationCodeStoreInterpreter = interpret \case
   LookupInvitationInfo iid -> gets (!? iid)
   LookupInvitationCodesByEmail em ->
     let c MkStoredInvitation {..}
-          | email == em = Just MkStoredInvitationByTeam {..}
+          | email == em = Just MkStoredInvitationInfo {..}
           | otherwise = Nothing
      in mapMaybe c . elems <$> get

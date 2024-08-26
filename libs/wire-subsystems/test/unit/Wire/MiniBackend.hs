@@ -105,7 +105,7 @@ type MiniBackendEffects =
     GalleyAPIAccess,
     InvitationCodeStore,
     State (Map (TeamId, InvitationId) StoredInvitation),
-    State (Map InvitationCode InvitationInfo),
+    State (Map InvitationCode StoredInvitationInfo),
     ActivationCodeStore,
     State (Map EmailKey (Maybe UserId, ActivationCode)),
     BlockListStore,
@@ -136,7 +136,7 @@ data MiniBackend = MkMiniBackend
     passwordResetCodes :: Map PasswordResetKey (PRQueryData Identity),
     blockList :: [EmailKey],
     activationCodes :: Map EmailKey (Maybe UserId, ActivationCode),
-    invitationInfos :: Map InvitationCode InvitationInfo,
+    invitationInfos :: Map InvitationCode StoredInvitationInfo,
     invitations :: Map (TeamId, InvitationId) StoredInvitation
   }
   deriving stock (Eq, Show, Generic)
@@ -378,7 +378,7 @@ interpretMaybeFederationStackState maybeFederationAPIAccess localBackend teamMem
     . miniGalleyAPIAccess teamMember galleyConfigs
     . runUserSubsystem cfg
 
-liftInvitationInfoStoreState :: (Member (State MiniBackend) r) => Sem (State (Map InvitationCode InvitationInfo) : r) a -> Sem r a
+liftInvitationInfoStoreState :: (Member (State MiniBackend) r) => Sem (State (Map InvitationCode StoredInvitationInfo) : r) a -> Sem r a
 liftInvitationInfoStoreState = interpret \case
   Polysemy.State.Get -> gets (.invitationInfos)
   Put newAcs -> modify $ \b -> b {invitationInfos = newAcs}
