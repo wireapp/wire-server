@@ -34,6 +34,7 @@ import Data.LanguageCodes qualified
 import Data.Misc (plainTextPassword8Unsafe)
 import Data.Range (unsafeRange)
 import Data.Text.Ascii (AsciiChars (validate))
+import Data.These
 import Data.UUID qualified as UUID (fromString)
 import Imports (Maybe (Just, Nothing), fromJust, fromRight, undefined, (.))
 import Wire.API.Asset
@@ -41,6 +42,7 @@ import Wire.API.Team (BindingNewTeam (..), Icon (..), NewTeam (..))
 import Wire.API.User
 import Wire.API.User.Activation (ActivationCode (ActivationCode, fromActivationCode))
 import Wire.API.User.Auth (CookieLabel (CookieLabel, cookieLabelText))
+import Wire.API.User.Scim (ValidScimId (ValidScimId))
 
 testObject_NewUser_user_1 :: NewUser
 testObject_NewUser_user_1 =
@@ -119,7 +121,7 @@ testObject_NewUser_user_6 =
       (Name {fromName = "test name"})
   )
     { newUserOrigin = Just (NewUserOriginTeamUser (NewTeamMemberSSO tid)),
-      newUserIdentity = Just (SSOIdentity (UserSSOId mkSimpleSampleUref) Nothing)
+      newUserIdentity = Just (SSOIdentity (UserSSOId (ValidScimId "" (That mkSimpleSampleUref))) Nothing)
     }
   where
     tid = Id (fromJust (UUID.fromString "00007b0e-0000-3489-0000-075c00005be7"))

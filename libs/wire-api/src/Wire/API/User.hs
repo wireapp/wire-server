@@ -159,7 +159,6 @@ import Data.Aeson.Types qualified as A
 import Data.Attoparsec.ByteString qualified as Parser
 import Data.Bits
 import Data.ByteString (toStrict)
-import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Conversion
 import Data.CaseInsensitive qualified as CI
 import Data.Code qualified as Code
@@ -184,6 +183,7 @@ import Data.Text qualified as T
 import Data.Text.Ascii
 import Data.Text.Encoding qualified as T
 import Data.Text.Encoding.Error
+import Data.These.Combinators (justThat)
 import Data.UUID (UUID, nil)
 import Data.UUID qualified as UUID
 import Deriving.Swagger
@@ -194,7 +194,7 @@ import SAML2.WebSSO qualified as SAML
 import SAML2.WebSSO.Types.Email qualified as SAMLEmail
 import Servant (FromHttpApiData (..), ToHttpApiData (..), type (.++))
 import Test.QuickCheck qualified as QC
-import URI.ByteString (serializeURIRef)
+import URI.ByteString qualified as URI
 import Web.Cookie qualified as Web
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
@@ -213,6 +213,7 @@ import Wire.API.User.Identity hiding (toByteString)
 import Wire.API.User.Password
 import Wire.API.User.Profile
 import Wire.API.User.RichInfo
+import Wire.API.User.Scim (ValidScimId (..))
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
@@ -637,32 +638,29 @@ userSSOId :: User -> Maybe UserSSOId
 userSSOId = ssoIdentity <=< userIdentity
 
 userSCIMExternalId :: User -> Maybe Text
-userSCIMExternalId usr = scimExternalId (userManagedBy usr) =<< userSSOId usr
+userSCIMExternalId usr = scimExternalId <$> userSSOId usr
 
--- FUTUREWORK: this is only ignoring case in the email format, and emails should be
--- handled case-insensitively.  https://wearezeta.atlassian.net/browse/SQSERVICES-909
-scimExternalId :: ManagedBy -> UserSSOId -> Maybe Text
-scimExternalId _ (UserScimExternalId extId) = Just extId
-scimExternalId ManagedByScim (UserSSOId (SAML.UserRef _ nameIdXML)) = Just . CI.original . SAML.unsafeShowNameID $ nameIdXML
-scimExternalId ManagedByWire (UserSSOId _) = Nothing
+-- do we need this?
+scimExternalId :: UserSSOId -> Text
+scimExternalId (UserSSOId validScimId) = validScimIdExternal $ validScimId
 
 ssoIssuerAndNameId :: UserSSOId -> Maybe (Text, Text)
-ssoIssuerAndNameId (UserSSOId (SAML.UserRef (SAML.Issuer uri) nameIdXML)) = Just (fromUri uri, fromNameId nameIdXML)
+ssoIssuerAndNameId (UserSSOId validScimId) = toTuple <$> justThat validScimId.validScimIdAuthInfo
   where
-    fromUri =
-      T.decodeUtf8With lenientDecode
-        . toStrict
-        . toLazyByteString
-        . serializeURIRef
-    fromNameId = CI.original . SAML.unsafeShowNameID
-ssoIssuerAndNameId (UserScimExternalId _) = Nothing
+    toTuple :: SAML.UserRef -> (Text, Text)
+    toTuple = issuer &&& tenant
+
+    issuer :: SAML.UserRef -> Text
+    issuer = T.decodeUtf8Lenient . URI.serializeURIRef' . view (SAML.uidTenant . SAML.fromIssuer)
+
+    tenant :: SAML.UserRef -> Text
+    tenant = CI.original . SAML.nameIDToST . view SAML.uidSubject
 
 userIssuer :: User -> Maybe SAML.Issuer
 userIssuer user = userSSOId user >>= fromSSOId
   where
     fromSSOId :: UserSSOId -> Maybe SAML.Issuer
-    fromSSOId (UserSSOId (SAML.UserRef issuer _)) = Just issuer
-    fromSSOId _ = Nothing
+    fromSSOId (UserSSOId validScimId) = view SAML.uidTenant <$> justThat validScimId.validScimIdAuthInfo
 
 -- | Configurations for whether to show a user's email to others.
 data EmailVisibility a

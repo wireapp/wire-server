@@ -59,8 +59,8 @@ import Data.Text qualified as Text
 import Data.Text.Encoding
 import Data.Text.Encoding.Error
 import Data.Text.Lazy qualified as LT
+import Data.These.Combinators (justThat)
 import Imports
-import SAML2.WebSSO (UserRef (..))
 import SAML2.WebSSO.Test.Arbitrary ()
 import SAML2.WebSSO.Types qualified as SAML
 import SAML2.WebSSO.XML qualified as SAML
@@ -83,7 +83,8 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- account recovery.
 data UserIdentity
   = EmailIdentity EmailAddress
-  | SSOIdentity UserSSOId (Maybe EmailAddress)
+  | -- todo(leif): 2nd param (Maybe EmailAddress) should be part of valid scim ID
+    SSOIdentity UserSSOId (Maybe EmailAddress)
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserIdentity)
 
@@ -147,7 +148,7 @@ ssoIdentity _ = Nothing
 --
 -- FUTUREWORK: we should probably drop this entirely and store saml and scim data in separate
 -- database columns.
-data UserSSOId = UserSSOId ValidScimId
+newtype UserSSOId = UserSSOId ValidScimId
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserSSOId)
 
@@ -160,18 +161,6 @@ instance C.Cql UserSSOId where
   fromCql _ = Left "fromCql: UserSSOId: CqlText expected"
 
   toCql = C.toCql . decodeUtf8With lenientDecode . toStrict . A.encode
-
-instance Ord UserSSOId where
-  compare (UserSSOId ref1) (UserSSOId ref2) = ref1 `ordUserRef` ref2
-  compare (UserSSOId _) (UserScimExternalId _) = LT
-  compare (UserScimExternalId _) (UserSSOId _) = GT
-  compare (UserScimExternalId t1) (UserScimExternalId t2) = t1 `compare` t2
-
--- FUTUREWORK(mangoiv): this should be upstreamed, there's no reason why SAML.UserRef doesn't have
--- an Ord instane, both of its constituents have one
-ordUserRef :: SAML.UserRef -> SAML.UserRef -> Ordering
-ordUserRef (UserRef tenant1 subject1) (UserRef tenant2 subject2) =
-  compare tenant1 tenant2 <> compare subject1 subject2
 
 -- | FUTUREWORK: This schema should ideally be a choice of either tenant+subject, or scim_external_id
 -- but this is currently not possible to derive in swagger2
@@ -194,22 +183,34 @@ instance S.ToSchema UserSSOId where
                ]
 
 instance ToJSON UserSSOId where
-  toJSON = \case
-    UserSSOId (SAML.UserRef tenant subject) -> A.object ["tenant" A..= SAML.encodeElem tenant, "subject" A..= SAML.encodeElem subject]
-    UserScimExternalId eid -> A.object ["scim_external_id" A..= eid]
+  toJSON (UserSSOId validScimId) = case justThat validScimId.validScimIdAuthInfo of
+    Just (SAML.UserRef issuer nameid) ->
+      A.object
+        [ "tenant" A..= SAML.encodeElem issuer,
+          "subject" A..= SAML.encodeElem nameid
+        ]
+    Nothing -> A.object ["scim_external_id" A..= validScimId.validScimIdExternal]
 
 instance FromJSON UserSSOId where
-  parseJSON = A.withObject "UserSSOId" $ \obj -> do
-    mtenant <- lenientlyParseSAMLIssuer =<< (obj A..:? "tenant")
-    msubject <- lenientlyParseSAMLNameID =<< (obj A..:? "subject")
-    meid <- obj A..:? "scim_external_id"
-    case (mtenant, msubject, meid) of
-      (Just tenant, Just subject, Nothing) -> pure $ UserSSOId (SAML.UserRef tenant subject)
-      (Nothing, Nothing, Just eid) -> pure $ UserScimExternalId eid
-      _ -> fail "either need tenant and subject, or scim_external_id, but not both"
+  parseJSON _ = error "todo(leif)"
 
-lenientlyParseSAMLIssuer :: Maybe LText -> A.Parser (Maybe SAML.Issuer)
-lenientlyParseSAMLIssuer mbtxt = forM mbtxt $ \txt -> do
+-- instance ToJSON UserSSOId where
+--   toJSON = \case
+--     UserSSOId (SAML.UserRef tenant subject) -> A.object ["tenant" A..= SAML.encodeElem tenant, "subject" A..= SAML.encodeElem subject]
+--     UserScimExternalId eid -> A.object ["scim_external_id" A..= eid]
+
+-- instance FromJSON UserSSOId where
+--   parseJSON = A.withObject "UserSSOId" $ \obj -> do
+--     mtenant <- lenientlyParseSAMLIssuer =<< (obj A..:? "tenant")
+--     msubject <- lenientlyParseSAMLNameID =<< (obj A..:? "subject")
+--     meid <- obj A..:? "scim_external_id"
+--     case (mtenant, msubject, meid) of
+--       (Just tenant, Just subject, Nothing) -> pure $ UserSSOId (SAML.UserRef tenant subject)
+--       (Nothing, Nothing, Just eid) -> pure $ UserScimExternalId eid
+--       _ -> fail "either need tenant and subject, or scim_external_id, but not both"
+
+_lenientlyParseSAMLIssuer :: Maybe LText -> A.Parser (Maybe SAML.Issuer)
+_lenientlyParseSAMLIssuer mbtxt = forM mbtxt $ \txt -> do
   let asxml :: Either String SAML.Issuer
       asxml = SAML.decodeElem txt
 
@@ -223,9 +224,9 @@ lenientlyParseSAMLIssuer mbtxt = forM mbtxt $ \txt -> do
 
   maybe (fail err) pure $ hush asxml <|> hush asurl
 
-lenientlyParseSAMLNameID :: Maybe LText -> A.Parser (Maybe SAML.NameID)
-lenientlyParseSAMLNameID Nothing = pure Nothing
-lenientlyParseSAMLNameID (Just txt) = do
+_lenientlyParseSAMLNameID :: Maybe LText -> A.Parser (Maybe SAML.NameID)
+_lenientlyParseSAMLNameID Nothing = pure Nothing
+_lenientlyParseSAMLNameID (Just txt) = do
   let asxml :: Either String SAML.NameID
       asxml = SAML.decodeElem txt
 

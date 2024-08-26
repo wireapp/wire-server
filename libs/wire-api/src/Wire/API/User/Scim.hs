@@ -351,6 +351,20 @@ data ValidScimId = ValidScimId
   }
   deriving (Eq, Show, Generic)
 
+-- instance Ord ValidScimId where
+--   compare = error "todo(leif): implement"
+
+-- instance Ord UserSSOId where
+--   compare (UserSSOId ref1) (UserSSOId ref2) = ref1 `ordUserRef` ref2
+--   compare (UserSSOId _) (UserScimExternalId _) = LT
+--   compare (UserScimExternalId _) (UserSSOId _) = GT
+--   compare (UserScimExternalId t1) (UserScimExternalId t2) = t1 `compare` t2
+-- -- FUTUREWORK(mangoiv): this should be upstreamed, there's no reason why SAML.UserRef doesn't have
+-- -- an Ord instane, both of its constituents have one
+-- ordUserRef :: SAML.UserRef -> SAML.UserRef -> Ordering
+-- ordUserRef (UserRef tenant1 subject1) (UserRef tenant2 subject2) =
+--   compare tenant1 tenant2 <> compare subject1 subject2
+
 instance Arbitrary ValidScimId where
   arbitrary = do
     authInfo <- arbitraryAuthInfo
@@ -387,9 +401,6 @@ urefToExternalIdUnsafe = CI.original . SAML.unsafeShowNameID . view SAML.uidSubj
 -- TODO: inline this everywhere?
 veidUref :: ValidScimId -> Maybe SAML.UserRef
 veidUref = justThat . validScimIdAuthInfo
-
-urefToExternalIdUnsafe :: SAML.UserRef -> Text
-urefToExternalIdUnsafe = CI.original . SAML.unsafeShowNameID . view SAML.uidSubject
 
 makeLenses ''ValidScimUser
 makeLenses ''ValidScimId

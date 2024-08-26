@@ -627,6 +627,7 @@ test-suite wire-api-golden-tests
     , tasty
     , tasty-hunit
     , text
+    , these
     , time
     , types-common             >=0.16
     , uri-bytestring
@@ -703,6 +704,7 @@ test-suite wire-api-tests
     , tasty-hunit
     , tasty-quickcheck
     , text
+    , these
     , types-common           >=0.16
     , unliftio
     , uuid

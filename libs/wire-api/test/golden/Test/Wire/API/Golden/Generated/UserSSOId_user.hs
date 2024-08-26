@@ -17,14 +17,17 @@
 
 module Test.Wire.API.Golden.Generated.UserSSOId_user where
 
+import Data.These
+import Imports
 import Wire.API.User (UserSSOId (..))
 import Wire.API.User.Identity (mkSimpleSampleUref)
+import Wire.API.User.Scim
 
 testObject_UserSSOId_user_2 :: UserSSOId
-testObject_UserSSOId_user_2 = UserSSOId mkSimpleSampleUref
+testObject_UserSSOId_user_2 = UserSSOId (ValidScimId undefined (That mkSimpleSampleUref))
 
 testObject_UserSSOId_user_9 :: UserSSOId
-testObject_UserSSOId_user_9 = UserScimExternalId "\r\1074376iua\1008736M\138936\v"
+testObject_UserSSOId_user_9 = UserSSOId (ValidScimId "\r\1074376iua\1008736M\138936\v" undefined)
 
 testObject_UserSSOId_user_13 :: UserSSOId
-testObject_UserSSOId_user_13 = UserScimExternalId ""
+testObject_UserSSOId_user_13 = UserSSOId (ValidScimId "" undefined)

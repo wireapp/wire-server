@@ -17,16 +17,18 @@
 
 module Test.Wire.API.Golden.Generated.ActivationResponse_user where
 
-import Imports (Bool (False, True), Maybe (Just, Nothing))
+import Data.These
+import Imports (Bool (False, True), Maybe (Just, Nothing), undefined)
 import Wire.API.User
 import Wire.API.User.Activation (ActivationResponse (..))
+import Wire.API.User.Scim (ValidScimId (ValidScimId))
 
 testObject_ActivationResponse_user_1 :: ActivationResponse
 testObject_ActivationResponse_user_1 =
   ActivationResponse
     { activatedIdentity =
         SSOIdentity
-          (UserSSOId mkSimpleSampleUref)
+          (UserSSOId (ValidScimId "" (That mkSimpleSampleUref)))
           (Just (unsafeEmailAddress "some" "example")),
       activatedFirst = False
     }
@@ -62,7 +64,7 @@ testObject_ActivationResponse_user_5 =
 testObject_ActivationResponse_user_6 :: ActivationResponse
 testObject_ActivationResponse_user_6 =
   ActivationResponse
-    { activatedIdentity = SSOIdentity (UserScimExternalId "\an|") Nothing,
+    { activatedIdentity = SSOIdentity (UserSSOId (ValidScimId "\an|" undefined)) Nothing,
       activatedFirst = False
     }
 
