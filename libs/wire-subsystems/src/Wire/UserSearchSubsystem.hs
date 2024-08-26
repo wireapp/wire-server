@@ -2,29 +2,7 @@
 
 module Wire.UserSearchSubsystem where
 
-import Data.Domain
-import Data.Id
-import Data.Qualified
-import Data.Range
-import Imports
 import Polysemy
-import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus)
-import Wire.API.Team.Feature
-import Wire.API.User.Search
-import Wire.UserSearch.Types
-
-data UserSearchSubsystem m a where
-  SyncUser :: UserId -> UserSearchSubsystem m ()
-  UpdateTeamSearchVisibilityInbound :: TeamStatus SearchVisibilityInboundConfig -> UserSearchSubsystem m ()
-  SearchUsers :: Local UserId -> Text -> Maybe Domain -> Maybe (Range 1 500 Int32) -> UserSearchSubsystem m (SearchResult Contact)
-  BrowseTeam ::
-    UserId ->
-    BrowseTeamFilters ->
-    Maybe (Range 1 500 Int) ->
-    Maybe PagingState ->
-    UserSearchSubsystem m (SearchResult TeamContact)
-
-makeSem ''UserSearchSubsystem
 
 -- | Bulk operations, must not be used from any web handler
 data UserSearchSubsystemBulk m a where

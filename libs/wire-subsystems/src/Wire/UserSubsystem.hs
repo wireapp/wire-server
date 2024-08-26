@@ -3,15 +3,21 @@
 module Wire.UserSubsystem where
 
 import Data.Default
+import Data.Domain
 import Data.Handle (Handle)
 import Data.Id
 import Data.Qualified
+import Data.Range
 import Imports
 import Polysemy
 import Wire.API.Federation.Error
+import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus)
+import Wire.API.Team.Feature
 import Wire.API.User
+import Wire.API.User.Search
 import Wire.Arbitrary
 import Wire.UserKeyStore
+import Wire.UserSearch.Types
 
 -- | Who is performing this update operation?  (Single source of truth: users managed by SCIM
 -- can't be updated by clients and vice versa.)
@@ -80,6 +86,17 @@ data UserSubsystem m a where
   BlockListDelete :: EmailAddress -> UserSubsystem m ()
   -- | adds an email to the block list
   BlockListInsert :: EmailAddress -> UserSubsystem m ()
+  UpdateTeamSearchVisibilityInbound :: TeamStatus SearchVisibilityInboundConfig -> UserSubsystem m ()
+  SearchUsers :: Local UserId -> Text -> Maybe Domain -> Maybe (Range 1 500 Int32) -> UserSubsystem m (SearchResult Contact)
+  BrowseTeam ::
+    UserId ->
+    BrowseTeamFilters ->
+    Maybe (Range 1 500 Int) ->
+    Maybe PagingState ->
+    UserSubsystem m (SearchResult TeamContact)
+  -- | This function exists to support migration in this susbystem, after the
+  -- migration this would just be an internal detail of the subsystem
+  InternalUpdateSearchIndex :: UserId -> UserSubsystem m ()
 
 -- | the return type of 'CheckHandle'
 data CheckHandleResp

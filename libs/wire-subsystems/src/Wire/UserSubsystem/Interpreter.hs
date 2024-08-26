@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 module Wire.UserSubsystem.Interpreter
   ( runUserSubsystem,
@@ -8,36 +9,58 @@ where
 
 import Control.Lens (view)
 import Control.Monad.Trans.Maybe
+import Data.Domain
+import Data.Either.Extra
 import Data.Handle (Handle)
 import Data.Handle qualified as Handle
 import Data.Id
 import Data.Json.Util
 import Data.LegalHold
 import Data.Qualified
+import Data.Range
 import Data.Time.Clock
-import Imports hiding (local)
+import Database.Bloodhound qualified as ES
+import Imports
 import Polysemy
-import Polysemy.Error hiding (try)
+import Polysemy.Error
 import Polysemy.Input
+import Polysemy.TinyLog
+import Polysemy.TinyLog qualified as Log
 import Servant.Client.Core
+import System.Logger.Message qualified as Log
 import Wire.API.Federation.API
+import Wire.API.Federation.API.Brig qualified as FedBrig
 import Wire.API.Federation.Error
+import Wire.API.Routes.FederationDomainConfig
+import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus (..))
 import Wire.API.Team.Feature
-import Wire.API.Team.Member hiding (userId)
+import Wire.API.Team.Member
+import Wire.API.Team.Permission qualified as Permission
+import Wire.API.Team.SearchVisibility
 import Wire.API.User
+import Wire.API.User.Search
 import Wire.API.UserEvent
 import Wire.Arbitrary
 import Wire.BlockListStore as BlockList
 import Wire.DeleteQueue
 import Wire.Events
 import Wire.FederationAPIAccess
+import Wire.FederationConfigStore
 import Wire.GalleyAPIAccess
+import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
+import Wire.IndexedUserStore (IndexedUserStore)
+import Wire.IndexedUserStore qualified as IndexedUserStore
 import Wire.Sem.Concurrency
+import Wire.Sem.Metrics
+import Wire.Sem.Metrics qualified as Metrics
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredUser
 import Wire.UserKeyStore
+import Wire.UserSearch.Metrics
+import Wire.UserSearch.Types
 import Wire.UserStore as UserStore
+import Wire.UserStore.IndexUser
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.HandleBlacklist
@@ -64,7 +87,11 @@ runUserSubsystem ::
     Member Now r,
     RunClient (fedM 'Brig),
     FederationMonad fedM,
-    Typeable fedM
+    Typeable fedM,
+    Member TinyLog r,
+    Member IndexedUserStore r,
+    Member FederationConfigStore r,
+    Member Metrics r
   ) =>
   UserSubsystemConfig ->
   InterpreterFor UserSubsystem r
@@ -85,7 +112,11 @@ interpretUserSubsystem ::
     Member Now r,
     RunClient (fedM 'Brig),
     FederationMonad fedM,
-    Typeable fedM
+    Typeable fedM,
+    Member IndexedUserStore r,
+    Member TinyLog r,
+    Member FederationConfigStore r,
+    Member Metrics r
   ) =>
   InterpreterFor UserSubsystem r
 interpretUserSubsystem = interpret \case
@@ -102,6 +133,14 @@ interpretUserSubsystem = interpret \case
   IsBlocked email -> isBlockedImpl email
   BlockListDelete email -> blockListDeleteImpl email
   BlockListInsert email -> blockListInsertImpl email
+  UpdateTeamSearchVisibilityInbound status ->
+    updateTeamSearchVisibilityInboundImpl status
+  SearchUsers luid query mDomain mMaxResults ->
+    searchUsersImpl luid query mDomain mMaxResults
+  BrowseTeam uid browseTeamFilters mMaxResults mPagingState ->
+    browseTeamImpl uid browseTeamFilters mMaxResults mPagingState
+  InternalUpdateSearchIndex uid ->
+    syncUserIndex uid
 
 isBlockedImpl :: (Member BlockListStore r) => EmailAddress -> Sem r Bool
 isBlockedImpl = BlockList.exists . mkEmailKey
@@ -329,10 +368,10 @@ getUserProfilesWithErrorsImpl self others = do
       (outp -> inp -> outp)
     aggregate acc [] = acc
     aggregate (accL, accR) (Right prof : buckets) = aggregate (accL, prof <> accR) buckets
-    aggregate (accL, accR) (Left err : buckets) = aggregate (renderBucketError err <> accL, accR) buckets
+    aggregate (accL, accR) (Left e : buckets) = aggregate (renderBucketError e <> accL, accR) buckets
 
     renderBucketError :: (FederationError, Qualified [UserId]) -> [(Qualified UserId, FederationError)]
-    renderBucketError (err, qlist) = (,err) . (flip Qualified (qDomain qlist)) <$> qUnqualified qlist
+    renderBucketError (e, qlist) = (,e) . (flip Qualified (qDomain qlist)) <$> qUnqualified qlist
 
 -- | Some fields cannot be overwritten by clients for scim-managed users; some others if e2eid
 -- is used.  If a client attempts to overwrite any of these, throw `UserSubsystem*ManagedByScim`.
@@ -374,7 +413,9 @@ updateUserProfileImpl ::
   ( Member UserStore r,
     Member (Error UserSubsystemError) r,
     Member Events r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member IndexedUserStore r,
+    Member Metrics r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -386,6 +427,8 @@ updateUserProfileImpl (tUnqualified -> uid) mconn updateOrigin update = do
   guardLockedFields user updateOrigin update
   mapError (\StoredUserUpdateHandleExists -> UserSubsystemHandleExists) $
     updateUser uid (storedUserUpdate update)
+  let interestingToUpdateIndex = isJust update.name || isJust update.accentId
+  when interestingToUpdateIndex $ syncUserIndex uid
   generateUserEvent uid mconn (mkProfileUpdateEvent uid update)
 
 storedUserUpdate :: UserProfileUpdate -> StoredUserUpdate
@@ -437,7 +480,9 @@ updateHandleImpl ::
   ( Member (Error UserSubsystemError) r,
     Member GalleyAPIAccess r,
     Member Events r,
-    Member UserStore r
+    Member UserStore r,
+    Member IndexedUserStore r,
+    Member Metrics r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -454,6 +499,7 @@ updateHandleImpl (tUnqualified -> uid) mconn updateOrigin uhandle = do
     throw UserSubsystemNoIdentity
   mapError (\StoredUserUpdateHandleExists -> UserSubsystemHandleExists) $
     UserStore.updateUserHandle uid (MkStoredUserHandleUpdate user.handle newHandle)
+  syncUserIndex uid
   generateUserEvent uid mconn (mkProfileUpdateHandleEvent uid newHandle)
 
 checkHandleImpl :: (Member (Error UserSubsystemError) r, Member UserStore r) => Text -> Sem r CheckHandleResp
@@ -494,3 +540,245 @@ checkHandlesImpl check num = reverse <$> collectFree [] check num
           case owner of
             Nothing -> collectFree (h : free) hs (n - 1)
             Just _ -> collectFree free hs n
+
+-------------------------------------------------------------------------------
+-- Search
+
+syncUserIndex ::
+  forall r.
+  ( Member UserStore r,
+    Member GalleyAPIAccess r,
+    Member IndexedUserStore r,
+    Member Metrics r
+  ) =>
+  UserId ->
+  Sem r ()
+syncUserIndex uid =
+  getIndexUser uid
+    >>= maybe deleteFromIndex upsert
+  where
+    deleteFromIndex :: Sem r ()
+    deleteFromIndex = do
+      Metrics.incCounter indexDeleteCounter
+      IndexedUserStore.upsert (userIdToDocId uid) (emptyUserDoc uid) ES.NoVersionControl
+
+    upsert :: IndexUser -> Sem r ()
+    upsert indexUser = do
+      vis <-
+        maybe
+          (pure defaultSearchVisibilityInbound)
+          teamSearchVisibilityInbound
+          indexUser.teamId
+      let userDoc = indexUserToDoc vis indexUser
+          version = ES.ExternalGT . ES.ExternalDocVersion . docVersion $ indexUserToVersion indexUser
+      Metrics.incCounter indexUpdateCounter
+      IndexedUserStore.upsert (userIdToDocId uid) userDoc version
+
+teamSearchVisibilityInbound :: (Member GalleyAPIAccess r) => TeamId -> Sem r SearchVisibilityInbound
+teamSearchVisibilityInbound tid =
+  searchVisibilityInboundFromFeatureStatus . (.status)
+    <$> getFeatureConfigForTeam @_ @SearchVisibilityInboundConfig tid
+
+updateTeamSearchVisibilityInboundImpl :: (Member IndexedUserStore r) => TeamStatus SearchVisibilityInboundConfig -> Sem r ()
+updateTeamSearchVisibilityInboundImpl teamStatus =
+  IndexedUserStore.updateTeamSearchVisibilityInbound teamStatus.team $
+    searchVisibilityInboundFromFeatureStatus teamStatus.status
+
+searchUsersImpl ::
+  forall r fedM.
+  ( Member UserStore r,
+    Member GalleyAPIAccess r,
+    Member (Error UserSubsystemError) r,
+    Member IndexedUserStore r,
+    Member FederationConfigStore r,
+    RunClient (fedM 'Brig),
+    Member (FederationAPIAccess fedM) r,
+    FederationMonad fedM,
+    Typeable fedM,
+    Member TinyLog r,
+    Member (Error FederationError) r,
+    Member (Input UserSubsystemConfig) r
+  ) =>
+  Local UserId ->
+  Text ->
+  Maybe Domain ->
+  Maybe (Range 1 500 Int32) ->
+  Sem r (SearchResult Contact)
+searchUsersImpl searcherId searchTerm maybeDomain maybeMaxResults = do
+  storedSearcher <- fromMaybe (error "TODO: searcher is not real") <$> UserStore.getUser (tUnqualified searcherId)
+  for_ storedSearcher.teamId $ \tid -> ensurePermissions (tUnqualified searcherId) tid [SearchContacts]
+  let localDomain = tDomain searcherId
+      queryDomain = fromMaybe localDomain maybeDomain
+  if queryDomain == localDomain
+    then searchLocally (qualifyAs searcherId storedSearcher) searchTerm maybeMaxResults
+    else searchRemotely queryDomain storedSearcher.teamId searchTerm
+
+searchLocally ::
+  forall r.
+  ( Member GalleyAPIAccess r,
+    Member UserStore r,
+    Member IndexedUserStore r,
+    Member (Input UserSubsystemConfig) r
+  ) =>
+  Local StoredUser ->
+  Text ->
+  Maybe (Range 1 500 Int32) ->
+  Sem r (SearchResult Contact)
+searchLocally searcher searchTerm maybeMaxResults = do
+  let maxResults = maybe 15 (fromIntegral . fromRange) maybeMaxResults
+  let searcherTeamId = (tUnqualified searcher).teamId
+      searcherId = (tUnqualified searcher).id
+  teamSearchInfo <- mkTeamSearchInfo searcherTeamId
+
+  maybeExactHandleMatch <- exactHandleSearch teamSearchInfo
+
+  let exactHandleMatchCount = length maybeExactHandleMatch
+      esMaxResults = maxResults - exactHandleMatchCount
+
+  esResult <-
+    if esMaxResults > 0
+      then IndexedUserStore.searchUsers searcherId searcherTeamId teamSearchInfo searchTerm esMaxResults
+      else pure $ SearchResult 0 0 0 [] FullSearch Nothing Nothing
+
+  -- Prepend results matching exact handle and results from ES.
+  pure $
+    esResult
+      { searchResults = maybeToList maybeExactHandleMatch <> map userDocToContact (searchResults esResult),
+        searchFound = exactHandleMatchCount + searchFound esResult,
+        searchReturned = exactHandleMatchCount + searchReturned esResult
+      }
+  where
+    handleTeamVisibility :: TeamId -> TeamSearchVisibility -> TeamSearchInfo
+    handleTeamVisibility _ SearchVisibilityStandard = AllUsers
+    handleTeamVisibility t SearchVisibilityNoNameOutsideTeam = TeamOnly t
+
+    userDocToContact :: UserDoc -> Contact
+    userDocToContact userDoc =
+      Contact
+        { contactQualifiedId = tUntagged $ qualifyAs searcher userDoc.udId,
+          contactName = maybe "" fromName userDoc.udName,
+          contactColorId = fromIntegral . fromColourId <$> userDoc.udColourId,
+          contactHandle = Handle.fromHandle <$> userDoc.udHandle,
+          contactTeam = userDoc.udTeam
+        }
+
+    mkTeamSearchInfo :: Maybe TeamId -> Sem r TeamSearchInfo
+    mkTeamSearchInfo searcherTeamId = do
+      config <- input
+      case searcherTeamId of
+        Nothing -> pure NoTeam
+        Just t ->
+          -- This flag in brig overrules any flag on galley - it is system wide
+          if config.searchSameTeamOnly
+            then pure (TeamOnly t)
+            else do
+              -- For team users, we need to check the visibility flag
+              handleTeamVisibility t <$> GalleyAPIAccess.getTeamSearchVisibility t
+
+    exactHandleSearch :: TeamSearchInfo -> Sem r (Maybe Contact)
+    exactHandleSearch _teamSerachInfo = runMaybeT $ do
+      handle <- MaybeT . pure $ Handle.parseHandle searchTerm
+      owner <- MaybeT $ UserStore.lookupHandle handle
+      storedUser <- MaybeT $ UserStore.getUser owner
+      config <- lift input
+      let contact = contactFromStoredUser (tDomain searcher) storedUser
+          isContactVisible =
+            (config.searchSameTeamOnly && (tUnqualified searcher).teamId == storedUser.teamId)
+              || (not config.searchSameTeamOnly)
+      -- case teamSerachInfo of
+      -- AllUsers -> True
+      -- NoTeam -> isNothing (storedUser.teamId)
+      -- TeamOnly tid -> storedUser.teamId == Just tid
+      if isContactVisible
+        then pure contact
+        else MaybeT $ pure Nothing
+
+    contactFromStoredUser :: Domain -> StoredUser -> Contact
+    contactFromStoredUser domain storedUser =
+      Contact
+        { contactQualifiedId = Qualified storedUser.id domain,
+          contactName = fromName storedUser.name,
+          contactHandle = Handle.fromHandle <$> storedUser.handle,
+          contactColorId = Just . fromIntegral . fromColourId $ storedUser.accentId,
+          contactTeam = storedUser.teamId
+        }
+
+searchRemotely ::
+  ( Member FederationConfigStore r,
+    RunClient (fedM 'Brig),
+    Member (FederationAPIAccess fedM) r,
+    FederationMonad fedM,
+    Typeable fedM,
+    Member TinyLog r,
+    Member (Error FederationError) r
+  ) =>
+  Domain ->
+  Maybe TeamId ->
+  Text ->
+  Sem r (SearchResult Contact)
+searchRemotely domain mTid searchTerm = do
+  Log.info $
+    Log.msg (Log.val "searchRemotely")
+      . Log.field "domain" (show domain)
+      . Log.field "searchTerm" searchTerm
+  mFedCnf <- getFederationConfig domain
+  let onlyInTeams = case restriction <$> mFedCnf of
+        Just FederationRestrictionAllowAll -> Nothing
+        Just (FederationRestrictionByTeam teams) -> Just teams
+        -- if we are not federating at all, we also do not allow to search any remote teams
+        Nothing -> Just []
+
+  searchResponse <-
+    runFederated (toRemoteUnsafe domain ()) $
+      fedClient @'Brig @"search-users" (FedBrig.SearchRequest searchTerm mTid onlyInTeams)
+  let contacts = searchResponse.contacts
+  let count = length contacts
+  pure
+    SearchResult
+      { searchResults = contacts,
+        searchFound = count,
+        searchReturned = count,
+        searchTook = 0,
+        searchPolicy = searchResponse.searchPolicy,
+        searchPagingState = Nothing,
+        searchHasMore = Nothing
+      }
+
+browseTeamImpl ::
+  ( Member GalleyAPIAccess r,
+    Member (Error UserSubsystemError) r,
+    Member IndexedUserStore r
+  ) =>
+  UserId ->
+  BrowseTeamFilters ->
+  Maybe (Range 1 500 Int) ->
+  Maybe PagingState ->
+  Sem r (SearchResult TeamContact)
+browseTeamImpl uid filters mMaxResults mPagingState = do
+  -- limit this to team admins to reduce risk of involuntary DOS attacks. (also,
+  -- this way we don't need to worry about revealing confidential user data to
+  -- other team members.)
+  ensurePermissions uid filters.teamId [Permission.AddTeamMember]
+
+  let maxResults = maybe 15 fromRange mMaxResults
+  userDocToTeamContact <$$> IndexedUserStore.paginateTeamMembers filters maxResults mPagingState
+
+-- TODO: Move this somewhere more appropriate as this function is broader than
+-- just the UserSubsystem
+ensurePermissions ::
+  ( IsPerm perm,
+    Member GalleyAPIAccess r,
+    Member (Error UserSubsystemError) r
+  ) =>
+  UserId ->
+  TeamId ->
+  [perm] ->
+  Sem r ()
+ensurePermissions u t perms = do
+  m <- GalleyAPIAccess.getTeamMember u t
+  unless (check m) $
+    throw UserSubsystemInsufficientTeamPermissions
+  where
+    check :: Maybe TeamMember -> Bool
+    check (Just m) = all (hasPermission m) perms
+    check Nothing = False
