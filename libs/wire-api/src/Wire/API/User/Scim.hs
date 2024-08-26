@@ -42,7 +42,7 @@
 -- * Request and response types for SCIM-related endpoints.
 module Wire.API.User.Scim where
 
-import Control.Lens (makeLenses, mapped, (.~), (?~), (^.))
+import Control.Lens (makeLenses, mapped, view, (.~), (?~), (^.))
 import Control.Monad.Except (throwError)
 import Crypto.Hash (hash)
 import Crypto.Hash.Algorithms (SHA512)
@@ -85,8 +85,7 @@ import Web.Scim.Schema.User qualified as Scim
 import Web.Scim.Schema.User qualified as Scim.User
 import Wire.API.Locale
 import Wire.API.Team.Role (Role)
-import Wire.API.User (emailFromSAMLNameID, urefToExternalIdUnsafe)
-import Wire.API.User.Identity (EmailAddress, fromEmail)
+import Wire.API.User.EmailAddress (EmailAddress, emailFromSAMLNameID, fromEmail)
 import Wire.API.User.Profile as BT
 import Wire.API.User.RichInfo qualified as RI
 import Wire.API.User.Saml ()
@@ -383,6 +382,9 @@ veidUref = \case
   EmailAndUref _ uref -> Just uref
   UrefOnly uref -> Just uref
   EmailOnly _ -> Nothing
+
+urefToExternalIdUnsafe :: SAML.UserRef -> Text
+urefToExternalIdUnsafe = CI.original . SAML.unsafeShowNameID . view SAML.uidSubject
 
 makeLenses ''ValidScimUser
 makeLenses ''ValidScimId

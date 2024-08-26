@@ -51,7 +51,8 @@ import Data.Text.Ascii
 import Data.Tuple.Extra
 import Imports
 import Servant (FromHttpApiData (..))
-import Wire.API.User.Identity
+import Wire.API.User.EmailAddress
+import Wire.API.User.Phone
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 --------------------------------------------------------------------------------
