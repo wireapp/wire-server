@@ -73,6 +73,7 @@ import Web.Scim.Schema.User.Email ()
 import Wire.API.User.EmailAddress
 import Wire.API.User.Phone
 import Wire.API.User.Profile (fromName, mkName)
+import Wire.API.User.Scim
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 --------------------------------------------------------------------------------
@@ -144,9 +145,7 @@ ssoIdentity _ = Nothing
 --
 -- FUTUREWORK: we should probably drop this entirely and store saml and scim data in separate
 -- database columns.
-data UserSSOId
-  = UserSSOId SAML.UserRef
-  | UserScimExternalId Text
+data UserSSOId = UserSSOId ValidScimId
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserSSOId)
 

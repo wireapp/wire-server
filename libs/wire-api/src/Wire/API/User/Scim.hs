@@ -63,6 +63,8 @@ import Data.OpenApi hiding (Operation)
 import Data.Proxy
 import Data.Text qualified as T
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import Data.These
+import Data.These.Combinators
 import Data.Time.Clock (UTCTime)
 import Imports
 import SAML2.WebSSO qualified as SAML
@@ -338,14 +340,15 @@ data ValidScimUser = ValidScimUser
   }
   deriving (Eq, Show)
 
--- | This type carries parsed externalId, email address, and saml credentials.
+-- | This type carries parsed externalId, email address, and saml credentials. It contains the email address and saml credentials,
+-- because those are sometimes derived from the externalId field.
 --
 -- Note that a 'SAML.UserRef' may contain an email. Even though it is possible to construct a 'ValidScimId' from such a 'UserRef' with 'UrefOnly',
 -- this does not represent a valid 'ValidScimId'. So in case of a 'UrefOnly', we can assume that the 'UserRef' does not contain an email.
-data ValidScimId
-  = EmailAndUref EmailAddress SAML.UserRef
-  | UrefOnly SAML.UserRef
-  | EmailOnly EmailAddress
+data ValidScimId = ValidScimId
+  { validScimIdExternal :: Text,
+    validScimIdAuthInfo :: These EmailAddress SAML.UserRef
+  }
   deriving (Eq, Show, Generic)
 
 instance Arbitrary ValidScimId where
