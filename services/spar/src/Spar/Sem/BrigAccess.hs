@@ -59,7 +59,7 @@ import Wire.API.User (AccountStatus (..), DeleteUserResult, VerificationAction)
 import Wire.API.User.Identity
 import Wire.API.User.Profile
 import Wire.API.User.RichInfo as RichInfo
-import Wire.API.User.Scim (ValidExternalId (..))
+import Wire.API.User.Scim (ValidScimId (..))
 
 data BrigAccess m a where
   CreateSAML :: SAML.UserRef -> UserId -> TeamId -> Name -> ManagedBy -> Maybe Handle -> Maybe RichInfo -> Maybe Locale -> Role -> BrigAccess m UserId
@@ -71,7 +71,7 @@ data BrigAccess m a where
   SetName :: UserId -> Name -> BrigAccess m ()
   SetHandle :: UserId -> Handle {- not 'HandleUpdate'! -} -> BrigAccess m ()
   SetManagedBy :: UserId -> ManagedBy -> BrigAccess m ()
-  SetVeid :: UserId -> ValidExternalId -> BrigAccess m ()
+  SetVeid :: UserId -> ValidScimId -> BrigAccess m ()
   SetRichInfo :: UserId -> RichInfo -> BrigAccess m ()
   SetLocale :: UserId -> Maybe Locale -> BrigAccess m ()
   GetRichInfo :: UserId -> BrigAccess m RichInfo

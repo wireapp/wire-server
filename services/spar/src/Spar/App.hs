@@ -97,7 +97,7 @@ import Wire.API.Team.Role (Role, defaultRole)
 import Wire.API.User
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
-import Wire.API.User.Scim (ValidExternalId (..))
+import Wire.API.User.Scim (ValidScimId (..))
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger
 import Wire.Sem.Random (Random)

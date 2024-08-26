@@ -1236,9 +1236,9 @@ testFindSamlAutoProvisionedUserMigratedWithEmailInTeamWithSSO = do
   Just brigUser' <- runSpar $ Intra.getBrigUser Intra.NoPendingInvitations memberIdWithSSO
   liftIO $ userManagedBy brigUser' `shouldBe` ManagedByScim
   where
-    veidToText :: (MonadError String m) => ValidExternalId -> m Text
+    veidToText :: (MonadError String m) => ValidScimId -> m Text
     veidToText veid =
-      runValidExternalIdEither
+      runValidScimIdEither
         (\(SAML.UserRef _ subj) -> maybe (throwError "bad uref from brig") (pure . CI.original) $ SAML.shortShowNameID subj)
         (pure . fromEmail)
         veid
@@ -1710,9 +1710,9 @@ testUpdateExternalId withidp = do
         if withidp
           then call $ activateEmail brig email
           else registerUser brig tid email
-        veid :: ValidExternalId <-
+        veid :: ValidScimId <-
           runSpar . runScimErrorUnsafe $
-            mkValidExternalId midp (Scim.User.externalId user)
+            mkValidScimId midp (Scim.User.externalId user)
         -- Overwrite the user with another randomly-generated user (only controlling externalId)
         otherEmail <- randomEmail
         user' <- do
@@ -1726,13 +1726,13 @@ testUpdateExternalId withidp = do
           randomScimUser <&> upd
         veid' <-
           runSpar . runScimErrorUnsafe $
-            mkValidExternalId midp (Scim.User.externalId user')
+            mkValidScimId midp (Scim.User.externalId user')
 
         _ <- updateUser tok userid user'
 
         when hasChanged (call $ activateEmail brig otherEmail)
-        muserid <- lookupByValidExternalId tid veid
-        muserid' <- lookupByValidExternalId tid veid'
+        muserid <- lookupByValidScimId tid veid
+        muserid' <- lookupByValidScimId tid veid'
         liftIO $ do
           if hasChanged
             then do
@@ -1757,9 +1757,9 @@ testUpdateExternalIdOfUnregisteredAccount = do
   user <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email}
   storedUser <- createUser tok user
   let userid = scimUserId storedUser
-  veid :: ValidExternalId <-
+  veid :: ValidScimId <-
     runSpar . runScimErrorUnsafe $
-      mkValidExternalId Nothing (Scim.User.externalId user)
+      mkValidScimId Nothing (Scim.User.externalId user)
   -- Overwrite the user with another randomly-generated user (only controlling externalId)
   -- And update the user before they have registered their account
   otherEmail <- randomEmail
@@ -1768,22 +1768,22 @@ testUpdateExternalIdOfUnregisteredAccount = do
     randomScimUser <&> upd
   veid' <-
     runSpar . runScimErrorUnsafe $
-      mkValidExternalId Nothing (Scim.User.externalId user')
+      mkValidScimId Nothing (Scim.User.externalId user')
   _ <- updateUser tok userid user'
   -- Now the user registers their account (via old email)
   registerUser brig tid email
   -- Then the user activates their new email address
   call $ activateEmail brig otherEmail
-  muserid <- lookupByValidExternalId tid veid
-  muserid' <- lookupByValidExternalId tid veid'
+  muserid <- lookupByValidScimId tid veid
+  muserid' <- lookupByValidScimId tid veid'
   liftIO $ do
     muserid `shouldBe` Nothing
     muserid' `shouldBe` Just userid
   eventually $ checkEmail userid (Just otherEmail)
 
-lookupByValidExternalId :: TeamId -> ValidExternalId -> TestSpar (Maybe UserId)
-lookupByValidExternalId tid =
-  runValidExternalIdEither
+lookupByValidScimId :: TeamId -> ValidScimId -> TestSpar (Maybe UserId)
+lookupByValidScimId tid =
+  runValidScimIdEither
     (runSpar . SAMLUserStore.get)
     ( \email -> do
         let action = SU.scimFindUserByEmail Nothing tid $ fromEmail email
@@ -2108,7 +2108,7 @@ specDeleteUser = do
         usr <- runSpar $ Intra.getBrigUser Intra.WithPendingInvitations uid
         let err = error . ("brig user without UserRef: " <>) . show
         case (`Intra.veidFromBrigUser` Nothing) <$> usr of
-          bad@(Just (Right veid)) -> runValidExternalIdEither pure (const $ err bad) veid
+          bad@(Just (Right veid)) -> runValidScimIdEither pure (const $ err bad) veid
           bad -> err bad
       spar <- view teSpar
       deleteUser_ (Just tok) (Just uid) spar
@@ -2279,7 +2279,7 @@ specEmailValidation = do
           scimStoredUser <- createUser tok user
           veid <-
             runSpar . runScimErrorUnsafe $
-              mkValidExternalId (Just idp) (Scim.User.externalId . Scim.value . Scim.thing $ scimStoredUser)
+              mkValidScimId (Just idp) (Scim.User.externalId . Scim.value . Scim.thing $ scimStoredUser)
           uid :: UserId <- getUserIdViaRef $ fromJust (veidUref veid)
           brig <- view teBrig
           -- we intentionally activate the email even if it's not set up to work, to make sure

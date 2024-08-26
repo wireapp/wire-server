@@ -69,4 +69,4 @@ spec = do
       veidFromUserSSOId want `shouldBe` Right have
 
     it "roundtrips" . property $
-      \(x :: ValidExternalId) -> (veidFromUserSSOId @(Either String) . veidToUserSSOId) x === Right x
+      \(x :: ValidScimId) -> (veidFromUserSSOId @(Either String) . veidToUserSSOId) x === Right x

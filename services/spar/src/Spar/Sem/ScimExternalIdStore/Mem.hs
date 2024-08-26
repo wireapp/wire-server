@@ -27,7 +27,7 @@ import qualified Data.Map as M
 import Imports
 import Polysemy
 import Polysemy.State
-import Spar.Scim (runValidExternalIdUnsafe)
+import Spar.Scim (runValidScimIdUnsafe)
 import Spar.Scim.Types (ScimUserCreationStatus)
 import Spar.Sem.ScimExternalIdStore
 import Wire.API.User (fromEmail)
@@ -40,5 +40,5 @@ scimExternalIdStoreToMem = (runState mempty .) $
     Insert tid em uid -> modify $ M.insert (tid, fromEmail em) (uid, Nothing)
     Lookup tid em -> fmap fst <$> gets (M.lookup (tid, fromEmail em))
     Delete tid em -> modify $ M.delete (tid, fromEmail em)
-    InsertStatus tid veid uid status -> modify $ M.insert (tid, runValidExternalIdUnsafe veid) (uid, Just status)
-    LookupStatus tid veid -> ((=<<) (\(uid, mStatus) -> (uid,) <$> mStatus)) <$> gets (M.lookup (tid, runValidExternalIdUnsafe veid))
+    InsertStatus tid veid uid status -> modify $ M.insert (tid, runValidScimIdUnsafe veid) (uid, Just status)
+    LookupStatus tid veid -> ((=<<) (\(uid, mStatus) -> (uid,) <$> mStatus)) <$> gets (M.lookup (tid, runValidScimIdUnsafe veid))

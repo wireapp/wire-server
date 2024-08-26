@@ -38,7 +38,7 @@ module Spar.Scim.User
   ( validateScimUser',
     synthesizeScimUser,
     toScimStoredUser,
-    mkValidExternalId,
+    mkValidScimId,
     scimFindUserByEmail,
     deleteScimUser,
   )
@@ -277,7 +277,7 @@ validateScimUser' ::
   Sem r ST.ValidScimUser
 validateScimUser' errloc midp richInfoLimit user = do
   unless (isNothing $ Scim.password user) $ throw $ badRequest "Setting user passwords is not supported for security reasons."
-  veid <- mkValidExternalId midp (Scim.externalId user)
+  veid <- mkValidScimId midp (Scim.externalId user)
   handl <- validateHandle . Text.toLower . Scim.userName $ user
   -- FUTUREWORK: 'Scim.userName' should be case insensitive; then the toLower here would
   -- be a little less brittle.
@@ -347,11 +347,11 @@ validateScimUser' errloc midp richInfoLimit user = do
             }
       pure richInfo
 
--- | Given an 'externalId' and an 'IdP', construct a 'ST.ValidExternalId'.
+-- | Given an 'externalId' and an 'IdP', construct a 'ST.ValidScimId'.
 --
 -- This is needed primarily in 'validateScimUser', but also in 'updateValidScimUser' to
 -- recover the 'SAML.UserRef' of the scim user before the update from the database.
-mkValidExternalId ::
+mkValidScimId ::
   forall r.
   ( Member BrigAccess r,
     Member SAMLUserStore r,
@@ -359,19 +359,19 @@ mkValidExternalId ::
   ) =>
   Maybe IdP ->
   Maybe Text ->
-  Sem r ST.ValidExternalId
-mkValidExternalId _ Nothing =
+  Sem r ST.ValidScimId
+mkValidScimId _ Nothing =
   throw $
     Scim.badRequest
       Scim.InvalidValue
       (Just "externalId is required")
-mkValidExternalId Nothing (Just extid) = do
+mkValidScimId Nothing (Just extid) = do
   let err =
         Scim.badRequest
           Scim.InvalidValue
           (Just "externalId must be a valid email address or (if there is a SAML IdP) a valid SAML NameID")
   maybe (throw err) (pure . ST.EmailOnly) $ emailAddressText extid
-mkValidExternalId (Just idp) (Just extid) = do
+mkValidScimId (Just idp) (Just extid) = do
   let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
   subject <- validateSubject extid
   let uref = SAML.UserRef issuer subject
@@ -449,7 +449,7 @@ logScimUserId = logUser . Scim.id . Scim.thing
 logScimUserIds :: Scim.ListResponse (Scim.StoredUser ST.SparTag) -> (Msg -> Msg)
 logScimUserIds lresp = foldl' (.) id (logScimUserId <$> Scim.resources lresp)
 
-veidToEmail :: ST.ValidExternalId -> Maybe EmailAddress
+veidToEmail :: ST.ValidScimId -> Maybe EmailAddress
 veidToEmail (ST.EmailAndUref email _) = Just email
 veidToEmail (ST.UrefOnly _) = Nothing
 veidToEmail (ST.EmailOnly email) = Just email
@@ -532,7 +532,7 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser {..}
 
       -- Generate a UserId will be used both for scim user in spar and for brig.
       lift $ do
-        ST.runValidExternalIdEither
+        ST.runValidScimIdEither
           ( \uref ->
               -- FUTUREWORK: outsource this and some other fragments from
               -- `createValidScimUser` into a function `createValidScimUserBrig` similar
@@ -606,14 +606,14 @@ createValidScimUserSpar ::
   TeamId ->
   UserId ->
   Scim.StoredUser ST.SparTag ->
-  ST.ValidExternalId ->
+  ST.ValidScimId ->
   m ()
 createValidScimUserSpar stiTeam uid storedUser veid = lift $ do
   ScimUserTimesStore.write storedUser
   -- This uses the "both" variant to always write all applicable index tables, even if
   -- `spar.scim_external` is never consulted as long as there is an IdP.  This is hoped to
   -- mitigate logic errors in this code and corner cases.  (eg., if the IdP is later removed?)
-  ST.runValidExternalIdBoth
+  ST.runValidScimIdBoth
     (>>)
     (`SAMLUserStore.insert` uid)
     (\email -> ScimExternalIdStore.insert stiTeam email uid)
@@ -706,8 +706,8 @@ updateVsuUref ::
   ) =>
   TeamId ->
   UserId ->
-  ST.ValidExternalId ->
-  ST.ValidExternalId ->
+  ST.ValidScimId ->
+  ST.ValidScimId ->
   Sem r ()
 updateVsuUref team uid old new = do
   -- FUTUREWORK(elland): Account for SCIM emails field.
@@ -715,8 +715,8 @@ updateVsuUref team uid old new = do
     (mo, mn@(Just email)) | mo /= mn -> Spar.App.validateEmail (Just team) uid email
     _ -> pure ()
 
-  old & ST.runValidExternalIdBoth (>>) (SAMLUserStore.delete uid) (ScimExternalIdStore.delete team)
-  new & ST.runValidExternalIdBoth (>>) (`SAMLUserStore.insert` uid) (\email -> ScimExternalIdStore.insert team email uid)
+  old & ST.runValidScimIdBoth (>>) (SAMLUserStore.delete uid) (ScimExternalIdStore.delete team)
+  new & ST.runValidScimIdBoth (>>) (`SAMLUserStore.insert` uid) (\email -> ScimExternalIdStore.insert team email uid)
 
   BrigAccess.setVeid uid new
 
@@ -838,7 +838,7 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
         Left _ -> pure ()
         Right veid ->
           lift $
-            ST.runValidExternalIdBoth
+            ST.runValidScimIdBoth
               (>>)
               (SAMLUserStore.delete uid)
               (ScimExternalIdStore.delete stiTeam)
@@ -878,7 +878,7 @@ assertExternalIdUnused ::
     Member SAMLUserStore r
   ) =>
   TeamId ->
-  ST.ValidExternalId ->
+  ST.ValidScimId ->
   Scim.ScimHandler (Sem r) ()
 assertExternalIdUnused =
   assertExternalIdInAllowedValues
@@ -895,7 +895,7 @@ assertExternalIdNotUsedElsewhere ::
     Member SAMLUserStore r
   ) =>
   TeamId ->
-  ST.ValidExternalId ->
+  ST.ValidScimId ->
   UserId ->
   Scim.ScimHandler (Sem r) ()
 assertExternalIdNotUsedElsewhere tid veid wireUserId =
@@ -913,12 +913,12 @@ assertExternalIdInAllowedValues ::
   [Maybe UserId] ->
   Text ->
   TeamId ->
-  ST.ValidExternalId ->
+  ST.ValidScimId ->
   Scim.ScimHandler (Sem r) ()
 assertExternalIdInAllowedValues allowedValues errmsg tid veid = do
   isGood <-
     lift $
-      ST.runValidExternalIdBoth
+      ST.runValidScimIdBoth
         (\ma mb -> (&&) <$> ma <*> mb)
         (fmap ((`elem` allowedValues) . fmap userId) . getUserByUrefUnsafe)
         (fmap (`elem` allowedValues) . getUserIdByScimExternalId tid)
@@ -954,7 +954,7 @@ synthesizeStoredUser ::
     Member ScimUserTimesStore r
   ) =>
   UserAccount ->
-  ST.ValidExternalId ->
+  ST.ValidScimId ->
   Scim.ScimHandler (Sem r) (Scim.StoredUser ST.SparTag)
 synthesizeStoredUser usr veid =
   logScim
@@ -1019,7 +1019,7 @@ synthesizeStoredUser usr veid =
 synthesizeStoredUser' ::
   (MonadError Scim.ScimError m) =>
   UserId ->
-  ST.ValidExternalId ->
+  ST.ValidScimId ->
   Name ->
   [EmailAddress] ->
   Handle ->
@@ -1054,7 +1054,7 @@ synthesizeScimUser :: ST.ValidScimUser -> Scim.User ST.SparTag
 synthesizeScimUser info =
   let userName = info.handle.fromHandle
    in (Scim.empty @ST.SparTag ST.userSchemas userName (ST.ScimUserExtra info.richInfo))
-        { Scim.externalId = Brig.renderValidExternalId info.externalId,
+        { Scim.externalId = Brig.renderValidScimId info.externalId,
           Scim.displayName = Just $ fromName info.name,
           Scim.active = Just . Scim.ScimBool $ info.active,
           Scim.preferredLanguage = lan2Text . lLanguage <$> info.locale,
@@ -1106,7 +1106,7 @@ getUserById midp stiTeam uid = do
       pure storedUser
     _ -> Applicative.empty
   where
-    veidChanged :: User -> ST.ValidExternalId -> Bool
+    veidChanged :: User -> ST.ValidScimId -> Bool
     veidChanged usr veid = case userIdentity usr of
       Nothing -> True
       Just (EmailIdentity _) -> True
@@ -1158,13 +1158,13 @@ scimFindUserByEmail ::
   MaybeT (Scim.ScimHandler (Sem r)) (Scim.StoredUser ST.SparTag)
 scimFindUserByEmail mIdpConfig stiTeam email = do
   -- Azure has been observed to search for externalIds that are not emails, even if the
-  -- mapping is set up like it should be.  This is a problem: if there is no SAML IdP, 'mkValidExternalId'
+  -- mapping is set up like it should be.  This is a problem: if there is no SAML IdP, 'mkValidScimId'
   -- only supports external IDs that are emails.  This is a missing feature / bug in spar tracked in
   -- https://wearezeta.atlassian.net/browse/SQSERVICES-157; once it is fixed, we should go back to
-  -- throwing errors returned by 'mkValidExternalId' here, but *not* throw an error if the externalId is
+  -- throwing errors returned by 'mkValidScimId' here, but *not* throw an error if the externalId is
   -- a UUID, or any other text that is valid according to SCIM.
-  veid <- MaybeT . lift $ either (const Nothing) Just <$> runError @Scim.ScimError (mkValidExternalId mIdpConfig (pure email))
-  uid <- MaybeT . lift $ ST.runValidExternalIdEither withUref withEmailOnly veid
+  veid <- MaybeT . lift $ either (const Nothing) Just <$> runError @Scim.ScimError (mkValidScimId mIdpConfig (pure email))
+  uid <- MaybeT . lift $ ST.runValidScimIdEither withUref withEmailOnly veid
   -- since gc on `spar.users{,_v2}` is unreliable, we need to double-check with brig if the
   -- user we found actually exists.
   brigUser <- MaybeT . lift . BrigAccess.getAccount Brig.WithPendingInvitations $ uid

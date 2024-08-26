@@ -328,7 +328,7 @@ instance Scim.Patchable ScimUserExtra where
 -- and/or ignore POSTed content, returning the full representation can be useful to the
 -- client, enabling it to correlate the client's and server's views of the new resource."
 data ValidScimUser = ValidScimUser
-  { externalId :: ValidExternalId,
+  { externalId :: ValidScimId,
     handle :: Handle,
     name :: BT.Name,
     emails :: [EmailAddress],
@@ -339,15 +339,17 @@ data ValidScimUser = ValidScimUser
   }
   deriving (Eq, Show)
 
--- | Note that a 'SAML.UserRef' may contain an email. Even though it is possible to construct a 'ValidExternalId' from such a 'UserRef' with 'UrefOnly',
--- this does not represent a valid 'ValidExternalId'. So in case of a 'UrefOnly', we can assume that the 'UserRef' does not contain an email.
-data ValidExternalId
+-- | This type carries parsed externalId, email address, and saml credentials.
+--
+-- Note that a 'SAML.UserRef' may contain an email. Even though it is possible to construct a 'ValidScimId' from such a 'UserRef' with 'UrefOnly',
+-- this does not represent a valid 'ValidScimId'. So in case of a 'UrefOnly', we can assume that the 'UserRef' does not contain an email.
+data ValidScimId
   = EmailAndUref EmailAddress SAML.UserRef
   | UrefOnly SAML.UserRef
   | EmailOnly EmailAddress
   deriving (Eq, Show, Generic)
 
-instance Arbitrary ValidExternalId where
+instance Arbitrary ValidScimId where
   arbitrary = do
     muref <- QC.arbitrary
     case muref of
@@ -356,34 +358,34 @@ instance Arbitrary ValidExternalId where
         Nothing -> pure $ UrefOnly uref
       Nothing -> EmailOnly <$> QC.arbitrary
 
--- | Take apart a 'ValidExternalId', using 'SAML.UserRef' if available, otherwise 'Email'.
-runValidExternalIdEither :: (SAML.UserRef -> a) -> (EmailAddress -> a) -> ValidExternalId -> a
-runValidExternalIdEither doUref doEmail = \case
+-- | Take apart a 'ValidScimId', using 'SAML.UserRef' if available, otherwise 'Email'.
+runValidScimIdEither :: (SAML.UserRef -> a) -> (EmailAddress -> a) -> ValidScimId -> a
+runValidScimIdEither doUref doEmail = \case
   EmailAndUref _ uref -> doUref uref
   UrefOnly uref -> doUref uref
   EmailOnly em -> doEmail em
 
--- | Take apart a 'ValidExternalId', use both 'SAML.UserRef', 'Email' if applicable, and
+-- | Take apart a 'ValidScimId', use both 'SAML.UserRef', 'Email' if applicable, and
 -- merge the result with a given function.
-runValidExternalIdBoth :: (a -> a -> a) -> (SAML.UserRef -> a) -> (EmailAddress -> a) -> ValidExternalId -> a
-runValidExternalIdBoth merge doUref doEmail = \case
+runValidScimIdBoth :: (a -> a -> a) -> (SAML.UserRef -> a) -> (EmailAddress -> a) -> ValidScimId -> a
+runValidScimIdBoth merge doUref doEmail = \case
   EmailAndUref eml uref -> doUref uref `merge` doEmail eml
   UrefOnly uref -> doUref uref
   EmailOnly em -> doEmail em
 
 -- | Returns either the extracted `UnqualifiedNameID` if present and not qualified, or the email address.
 -- This throws an exception if there are any qualifiers.
-runValidExternalIdUnsafe :: ValidExternalId -> Text
-runValidExternalIdUnsafe = runValidExternalIdEither urefToExternalIdUnsafe fromEmail
+runValidScimIdUnsafe :: ValidScimId -> Text
+runValidScimIdUnsafe = runValidScimIdEither urefToExternalIdUnsafe fromEmail
 
-veidUref :: ValidExternalId -> Maybe SAML.UserRef
+veidUref :: ValidScimId -> Maybe SAML.UserRef
 veidUref = \case
   EmailAndUref _ uref -> Just uref
   UrefOnly uref -> Just uref
   EmailOnly _ -> Nothing
 
 makeLenses ''ValidScimUser
-makeLenses ''ValidExternalId
+makeLenses ''ValidScimId
 
 ----------------------------------------------------------------------------
 -- Request and response types

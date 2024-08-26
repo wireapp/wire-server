@@ -637,7 +637,7 @@ instance IsUser ValidScimUser where
   maybeName = Just (Just <$> name)
   maybeTenant = Just (fmap SAML._uidTenant . veidUref . externalId)
   maybeSubject = Just (fmap SAML._uidSubject . veidUref . externalId)
-  maybeScimExternalId = Just (runValidExternalIdEither Intra.urefToExternalId (Just . fromEmail) . externalId)
+  maybeScimExternalId = Just (runValidScimIdEither Intra.urefToExternalId (Just . fromEmail) . externalId)
   maybeLocale = Just locale
 
 instance IsUser (WrappedScimStoredUser SparTag) where
@@ -686,7 +686,7 @@ instance IsUser User where
     Intra.veidFromBrigUser usr Nothing
       & either
         (const Nothing)
-        (runValidExternalIdEither Intra.urefToExternalId (Just . fromEmail))
+        (runValidScimIdEither Intra.urefToExternalId (Just . fromEmail))
   maybeLocale = Just $ Just . userLocale
 
 -- | For all properties that are present in both @u1@ and @u2@, check that they match.

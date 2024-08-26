@@ -27,7 +27,7 @@ module Spar.Intra.BrigApp
     veidFromBrigUser,
     veidFromUserSSOId,
     mkUserName,
-    renderValidExternalId,
+    renderValidScimId,
     HavePendingInvitations (..),
     getBrigUser,
     getBrigUserTeam,
@@ -64,15 +64,15 @@ import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.GalleyAccess as GalleyAccess
 import Wire.API.Team.Member (HiddenPerm (CreateReadDeleteScimToken), IsPerm)
 import Wire.API.User
-import Wire.API.User.Scim (ValidExternalId (..), runValidExternalIdEither)
+import Wire.API.User.Scim (ValidScimId (..), runValidScimIdEither)
 
 ----------------------------------------------------------------------
 
 -- | FUTUREWORK: this is redundantly defined in "Spar.Intra.Brig"
-veidToUserSSOId :: ValidExternalId -> UserSSOId
-veidToUserSSOId = runValidExternalIdEither UserSSOId (UserScimExternalId . fromEmail)
+veidToUserSSOId :: ValidScimId -> UserSSOId
+veidToUserSSOId = runValidScimIdEither UserSSOId (UserScimExternalId . fromEmail)
 
-veidFromUserSSOId :: (MonadError String m) => UserSSOId -> m ValidExternalId
+veidFromUserSSOId :: (MonadError String m) => UserSSOId -> m ValidScimId
 veidFromUserSSOId = \case
   UserSSOId uref ->
     case urefToEmail uref of
@@ -85,14 +85,14 @@ veidFromUserSSOId = \case
       (pure . EmailOnly)
       (emailAddressText email)
 
--- | If the brig user has a 'UserSSOId', transform that into a 'ValidExternalId' (this is a
+-- | If the brig user has a 'UserSSOId', transform that into a 'ValidScimId' (this is a
 -- total function as long as brig obeys the api).  Otherwise, if the user has an email, we can
 -- construct a return value from that (and an optional saml issuer).
 --
 -- Note: the saml issuer is only needed in the case where a user has been invited via team
 -- settings and is now onboarded to saml/scim.  If this case can safely be ruled out, it's ok
 -- to just set it to 'Nothing'.
-veidFromBrigUser :: (MonadError String m) => User -> Maybe SAML.Issuer -> m ValidExternalId
+veidFromBrigUser :: (MonadError String m) => User -> Maybe SAML.Issuer -> m ValidScimId
 veidFromBrigUser usr mIssuer = case (userSSOId usr, userEmail usr, mIssuer) of
   (Just ssoid, _, _) -> veidFromUserSSOId ssoid
   (Nothing, Just email, Just issuer) -> pure $ EmailAndUref email (SAML.UserRef issuer (fromRight' $ emailToSAMLNameID email))
@@ -102,15 +102,15 @@ veidFromBrigUser usr mIssuer = case (userSSOId usr, userEmail usr, mIssuer) of
 -- | Take a maybe text, construct a 'Name' from what we have in a scim user.  If the text
 -- isn't present, use an email address or a saml subject (usually also an email address).  If
 -- both are 'Nothing', fail.
-mkUserName :: Maybe Text -> ValidExternalId -> Either String Name
+mkUserName :: Maybe Text -> ValidScimId -> Either String Name
 mkUserName (Just n) = const $ mkName n
 mkUserName Nothing =
-  runValidExternalIdEither
+  runValidScimIdEither
     (\uref -> mkName (CI.original . SAML.unsafeShowNameID $ uref ^. SAML.uidSubject))
     (mkName . fromEmail)
 
-renderValidExternalId :: ValidExternalId -> Maybe Text
-renderValidExternalId = runValidExternalIdEither urefToExternalId (Just . fromEmail)
+renderValidScimId :: ValidScimId -> Maybe Text
+renderValidScimId = runValidScimIdEither urefToExternalId (Just . fromEmail)
 
 ----------------------------------------------------------------------
 
