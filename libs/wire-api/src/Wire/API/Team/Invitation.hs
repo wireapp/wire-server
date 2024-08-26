@@ -1,6 +1,5 @@
-{-# LANGUAGE RebindableSyntax #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE StrictData #-}
-{-# LANGUAGE TypeApplications #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -38,7 +37,6 @@ import Data.OpenApi qualified as S
 import Data.SOP
 import Data.Schema
 import Data.Text.Encoding qualified as TE
-import GHC.Records
 import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import URI.ByteString
