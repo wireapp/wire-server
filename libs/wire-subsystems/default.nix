@@ -170,6 +170,7 @@ mkDerivation {
     base
     bilge
     bytestring
+    cassandra-util
     containers
     crypton
     data-default
