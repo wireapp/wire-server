@@ -14,6 +14,7 @@
 , bytestring
 , bytestring-conversion
 , cassandra-util
+, conduit
 , containers
 , cql
 , crypton
@@ -96,6 +97,7 @@ mkDerivation {
     bytestring
     bytestring-conversion
     cassandra-util
+    conduit
     containers
     cql
     crypton

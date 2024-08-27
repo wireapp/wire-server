@@ -105,7 +105,6 @@
 , safe-exceptions
 , saml2-web-sso
 , schema-profunctor
-, scientific
 , servant
 , servant-client
 , servant-client-core
@@ -247,7 +246,6 @@ mkDerivation {
     safe-exceptions
     saml2-web-sso
     schema-profunctor
-    scientific
     servant
     servant-openapi3
     servant-server
