@@ -73,7 +73,8 @@ insertInvitationImpl invId teamId role (toUTCTimeMillis -> now) uid email name t
       [sql|
             INSERT INTO team_invitation_info (code, team, id) VALUES (?, ?, ?) USING TTL ?
           |]
-    -- Note: the edge case of multiple invites to the same team by different admins from the same team results in last-invite-wins in the team_invitation_email table.
+    -- Note: the edge case of multiple invites to the same team by different admins from the
+    -- same team results in last-invite-wins in the team_invitation_email table.
     cqlInsertByEmail :: PrepQuery W (EmailAddress, TeamId, InvitationId, InvitationCode, Int32) ()
     cqlInsertByEmail =
       [sql|

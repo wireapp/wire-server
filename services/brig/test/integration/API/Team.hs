@@ -338,6 +338,8 @@ testInvitationEmailLookupRegister brig = do
   email <- randomEmail
   (owner, tid) <- createUserWithTeam brig
   let invite = stdInvitationRequest email
+  -- This incidentally also tests that sending multiple
+  -- invites from the same team results in last-invite-wins scenario
   void $ postInvitation brig tid owner invite
   inv :: Invitation <- responseJsonError =<< postInvitation brig tid owner invite
   -- expect an invitation to be found querying with email after invite
