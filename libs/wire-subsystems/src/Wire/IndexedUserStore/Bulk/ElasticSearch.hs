@@ -124,10 +124,6 @@ migrateDataImpl = do
           . Log.field "expectedVersion" expectedMigrationVersion
           . Log.field "foundVersion" foundVersion
 
--- | Increase this number any time you want to force reindexing.
-expectedMigrationVersion :: MigrationVersion
-expectedMigrationVersion = MigrationVersion 6
-
 -- TODO: This is duplicated in UserSubsystem.Interpreter
 teamSearchVisibilityInbound :: (Member GalleyAPIAccess r) => TeamId -> Sem r SearchVisibilityInbound
 teamSearchVisibilityInbound tid =

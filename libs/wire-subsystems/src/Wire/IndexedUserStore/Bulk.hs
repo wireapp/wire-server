@@ -3,6 +3,11 @@
 module Wire.IndexedUserStore.Bulk where
 
 import Polysemy
+import Wire.UserSearch.Migration
+
+-- | Increase this number any time you want to force reindexing.
+expectedMigrationVersion :: MigrationVersion
+expectedMigrationVersion = MigrationVersion 6
 
 -- | Bulk operations, must not be used from any web handler
 data IndexedUserStoreBulk m a where
