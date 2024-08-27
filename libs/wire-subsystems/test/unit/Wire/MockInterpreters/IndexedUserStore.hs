@@ -7,9 +7,9 @@ import Wire.IndexedUserStore
 inMemoryIndexedUserStoreInterpreter :: InterpreterFor IndexedUserStore r
 inMemoryIndexedUserStoreInterpreter =
   interpret $ \case
-    Upsert {} -> error "IndexedUserStore: unimplemented in memory interpreter"
-    UpdateTeamSearchVisibilityInbound {} -> error "IndexedUserStore: unimplemented in memory interpreter"
-    BulkUpsert {} -> error "IndexedUserStore: unimplemented in memory interpreter"
-    DoesIndexExist -> error "IndexedUserStore: unimplemented in memory interpreter"
+    Upsert {} -> pure ()
+    UpdateTeamSearchVisibilityInbound {} -> pure ()
+    BulkUpsert {} -> pure ()
+    DoesIndexExist -> pure True
     SearchUsers {} -> error "IndexedUserStore: unimplemented in memory interpreter"
     PaginateTeamMembers {} -> error "IndexedUserStore: unimplemented in memory interpreter"

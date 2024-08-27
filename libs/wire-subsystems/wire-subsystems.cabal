@@ -257,6 +257,7 @@ test-suite wire-subsystems-tests
     , base
     , bilge
     , bytestring
+    , cassandra-util
     , containers
     , crypton
     , data-default
