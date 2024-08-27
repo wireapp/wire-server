@@ -188,7 +188,6 @@ library
     Brig.Schema.V84_DropTeamInvitationPhone
     Brig.Schema.V85_DropUserKeysHashed
     Brig.Team.API
-    Brig.Team.DB
     Brig.Team.Email
     Brig.Team.Template
     Brig.Team.Util

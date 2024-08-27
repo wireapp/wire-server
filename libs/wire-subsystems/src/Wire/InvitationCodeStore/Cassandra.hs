@@ -1,6 +1,8 @@
 module Wire.InvitationCodeStore.Cassandra where
 
 import Cassandra
+import Data.Conduit (runConduit, (.|))
+import Data.Conduit.List qualified as Conduit
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Range (Range, fromRange)
@@ -10,6 +12,7 @@ import Imports
 import OpenSSL.Random (randBytes)
 import Polysemy
 import Polysemy.Embed
+import UnliftIO.Async (pooledMapConcurrentlyN_)
 import Wire.API.Team.Role (Role)
 import Wire.API.User
 import Wire.InvitationCodeStore
@@ -25,6 +28,8 @@ interpretInvitationCodeStoreToCassandra casClient =
       LookupInvitationInfo code -> embed $ lookupInvitationInfoImpl code
       LookupInvitationsPaginated mSize tid miid -> embed $ lookupInvitationsPaginatedImpl mSize tid miid
       CountInvitations tid -> embed $ countInvitationsImpl tid
+      DeleteInvitation tid invId -> embed $ deleteInvitationImpl tid invId
+      DeleteInvitations tid -> embed $ deleteInvitationsImpl tid
 
 insertInvitationImpl ::
   --   ( Log.MonadLogger m,
@@ -145,5 +150,39 @@ lookupInvitationImpl tid iid =
       SELECT team, role, id, created_at, created_by, email, name, code FROM team_invitation WHERE team = ? AND id = ?
       |]
 
+deleteInvitationImpl :: TeamId -> InvitationId -> Client ()
+deleteInvitationImpl teamId invId = do
+  codeEmail <- lookupInvitationCodeEmail
+  case codeEmail of
+    Just (invCode, invEmail) -> retry x5 . batch $ do
+      setType BatchLogged
+      setConsistency LocalQuorum
+      addPrepQuery cqlInvitation (teamId, invId)
+      addPrepQuery cqlInvitationInfo (Identity invCode)
+      addPrepQuery cqlInvitationEmail (invEmail, teamId)
+    Nothing ->
+      retry x5 $ write cqlInvitation (params LocalQuorum (teamId, invId))
+  where
+    cqlInvitation :: PrepQuery W (TeamId, InvitationId) ()
+    cqlInvitation = "DELETE FROM team_invitation where team = ? AND id = ?"
+    cqlInvitationInfo :: PrepQuery W (Identity InvitationCode) ()
+    cqlInvitationInfo = "DELETE FROM team_invitation_info WHERE code = ?"
+    cqlInvitationEmail :: PrepQuery W (EmailAddress, TeamId) ()
+    cqlInvitationEmail = "DELETE FROM team_invitation_email WHERE email = ? AND team = ?"
+    lookupInvitationCodeEmail :: Client (Maybe (InvitationCode, EmailAddress))
+    lookupInvitationCodeEmail = retry x1 (query1 cqlInvitationCodeEmail (params LocalQuorum (teamId, invId)))
+    cqlInvitationCodeEmail :: PrepQuery R (TeamId, InvitationId) (InvitationCode, EmailAddress)
+    cqlInvitationCodeEmail = "SELECT code, email FROM team_invitation WHERE team = ? AND id = ?"
+
+deleteInvitationsImpl :: TeamId -> Client ()
+deleteInvitationsImpl teamId =
+  runConduit $
+    paginateC cqlSelect (paramsP LocalQuorum (Identity teamId) 100) x1
+      .| Conduit.mapM_ (pooledMapConcurrentlyN_ 16 (deleteInvitationImpl teamId . runIdentity))
+  where
+    cqlSelect :: PrepQuery R (Identity TeamId) (Identity InvitationId)
+    cqlSelect = "SELECT id FROM team_invitation WHERE team = ? ORDER BY id ASC"
+
+--------------------------------
 mkInvitationCode :: IO InvitationCode
 mkInvitationCode = InvitationCode . encodeBase64Url <$> randBytes 24

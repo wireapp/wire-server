@@ -37,7 +37,6 @@ import Brig.App qualified as App
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
-import Brig.Team.DB qualified as DB
 import Brig.Team.Email
 import Brig.Team.Template
 import Brig.Team.Util (ensurePermissionToAddUser, ensurePermissions)
@@ -88,7 +87,7 @@ import Wire.EmailSubsystem.Template
 import Wire.Error
 import Wire.GalleyAPIAccess (GalleyAPIAccess, ShowOrHideInvitationUrl (..))
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
-import Wire.InvitationCodeStore
+import Wire.InvitationCodeStore (InvitationCodeStore (..), PaginatedResult (..), StoredInvitation (..))
 import Wire.InvitationCodeStore qualified as Store
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
@@ -252,13 +251,13 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail body = do
     throwStd emailExists
 
   maxSize <- setMaxTeamSize <$> view settings
-  pending <- lift $ liftSem $ countInvitations tid
+  pending <- lift $ liftSem $ Store.countInvitations tid
   when (fromIntegral pending >= maxSize) $
     throwStd (errorToWai @'E.TooManyTeamInvitations)
 
   showInvitationUrl <- lift $ liftSem $ GalleyAPIAccess.getExposeInvitationURLsToTeamAdmin tid
 
-  iid <- maybe (liftIO DB.mkInvitationId) (pure . Id . toUUID) mUid
+  iid <- maybe (liftIO randomId) (pure . Id . toUUID) mUid
   now <- liftIO =<< view currentTime
   timeout <- setTeamInvitationTimeout <$> view settings
   newInv <-
@@ -276,10 +275,15 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail body = do
   inv <- toInvitation showInvitationUrl newInv
   pure (inv, newInv.code)
 
-deleteInvitation :: (Member GalleyAPIAccess r) => UserId -> TeamId -> InvitationId -> (Handler r) ()
+deleteInvitation ::
+  (Member GalleyAPIAccess r, Member InvitationCodeStore r) =>
+  UserId ->
+  TeamId ->
+  InvitationId ->
+  (Handler r) ()
 deleteInvitation uid tid iid = do
   ensurePermissions uid tid [AddTeamMember]
-  lift $ wrapClient $ DB.deleteInvitation tid iid
+  lift . liftSem $ Store.deleteInvitation tid iid
 
 listInvitations ::
   ( Member GalleyAPIAccess r,
@@ -413,15 +417,17 @@ suspendTeam ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member InvitationCodeStore r
   ) =>
   TeamId ->
   (Handler r) NoContent
 suspendTeam tid = do
   lift $ liftSem $ Log.info $ Log.msg (Log.val "Team suspended") ~~ Log.field "team" (toByteString tid)
   changeTeamAccountStatuses tid Suspended
-  lift $ wrapClient $ DB.deleteInvitations tid
-  lift $ liftSem $ GalleyAPIAccess.changeTeamStatus tid Team.Suspended Nothing
+  lift . liftSem $ do
+    Store.deleteInvitations tid
+    GalleyAPIAccess.changeTeamStatus tid Team.Suspended Nothing
   pure NoContent
 
 unsuspendTeam ::

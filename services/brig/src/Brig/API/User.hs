@@ -88,7 +88,6 @@ import Brig.Effects.UserPendingActivationStore (UserPendingActivation (..), User
 import Brig.Effects.UserPendingActivationStore qualified as UserPendingActivationStore
 import Brig.IO.Intra qualified as Intra
 import Brig.Options hiding (internalEvents)
-import Brig.Team.DB qualified as Team
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Intra
 import Brig.User.Auth.Cookie qualified as Auth
@@ -436,14 +435,13 @@ createUser new = do
       lift $ do
         wrapClient $ activateUser uid ident -- ('insertAccount' sets column activated to False; here it is set to True.)
         void $ onActivated (AccountActivated account)
-        liftSem $
+        liftSem do
           Log.info $
             field "user" (toByteString uid)
               . field "team" (toByteString $ invitationInfo.teamId)
               . msg (val "Accepting invitation")
-        liftSem $ UserPendingActivationStore.remove uid
-        wrapClient $ do
-          Team.deleteInvitation inv.teamId inv.invitationId
+          UserPendingActivationStore.remove uid
+          Store.deleteInvitation inv.teamId inv.invitationId
 
     addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT RegisterError (AppT r) CreateUserTeam
     addUserToTeamSSO account tid ident = do
