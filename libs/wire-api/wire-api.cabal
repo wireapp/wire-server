@@ -273,7 +273,6 @@ library
     , currency-codes             >=2.0
     , data-default
     , deriving-aeson             >=0.2
-    , these
     , deriving-swagger2
     , email-validate             >=2.0
     , errors
@@ -327,6 +326,7 @@ library
     , sop-core
     , tagged
     , text                       >=0.11
+    , these
     , time                       >=1.4
     , tinylog
     , transitive-anns

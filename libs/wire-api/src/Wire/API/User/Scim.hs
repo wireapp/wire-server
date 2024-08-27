@@ -42,7 +42,7 @@
 -- * Request and response types for SCIM-related endpoints.
 module Wire.API.User.Scim where
 
-import Control.Lens (makeLenses, mapped, view, (.~), (?~), (^.))
+import Control.Lens (makeLenses, mapped, view, (.~), (?~))
 import Control.Monad.Except (throwError)
 import Crypto.Hash (hash)
 import Crypto.Hash.Algorithms (SHA512)
@@ -64,6 +64,7 @@ import Data.Proxy
 import Data.Text qualified as T
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.These
+import Data.These.Combinators (justThat, justThis)
 import Data.Time.Clock (UTCTime)
 import Imports
 import SAML2.WebSSO qualified as SAML
@@ -86,7 +87,7 @@ import Web.Scim.Schema.User qualified as Scim
 import Web.Scim.Schema.User qualified as Scim.User
 import Wire.API.Locale
 import Wire.API.Team.Role (Role)
-import Wire.API.User.EmailAddress (EmailAddress, emailFromSAMLNameID, fromEmail)
+import Wire.API.User.EmailAddress (EmailAddress, fromEmail)
 import Wire.API.User.Profile as BT
 import Wire.API.User.RichInfo qualified as RI
 import Wire.API.User.Saml ()
@@ -352,34 +353,31 @@ data ValidScimId = ValidScimId
 
 instance Arbitrary ValidScimId where
   arbitrary = do
-    muref <- QC.arbitrary
-    case muref of
-      Just uref -> case emailFromSAMLNameID $ uref ^. SAML.uidSubject of
-        Just e -> pure $ EmailAndUref e uref
-        Nothing -> pure $ UrefOnly uref
-      Nothing -> EmailOnly <$> QC.arbitrary
+    authInfo <- QC.arbitrary
+    let mEmail = justThis authInfo
+    case mEmail of
+      Just em -> do
+        -- veid either matches the email or is arbitrary
+        veid <- QC.oneof [pure (fromEmail em), QC.arbitrary]
+        pure ValidScimId {validScimIdExternal = veid, validScimIdAuthInfo = authInfo}
+      Nothing -> do
+        -- should veid be a valid email, in case authInfo has no email?
+        veid <- QC.arbitrary
+        pure ValidScimId {validScimIdExternal = veid, validScimIdAuthInfo = authInfo}
 
-{-
 -- | Take apart a 'ValidScimId', using 'SAML.UserRef' if available, otherwise 'Email'.
 runValidScimIdEither :: (SAML.UserRef -> a) -> (EmailAddress -> a) -> ValidScimId -> a
-runValidScimIdEither doUref doEmail = \case
-  EmailAndUref _ uref -> doUref uref
-  UrefOnly uref -> doUref uref
-  EmailOnly em -> doEmail em
+runValidScimIdEither doUref doEmail = these doEmail doUref (\_ uref -> doUref uref) . validScimIdAuthInfo
 
 -- | Take apart a 'ValidScimId', use both 'SAML.UserRef', 'Email' if applicable, and
 -- merge the result with a given function.
 runValidScimIdBoth :: (a -> a -> a) -> (SAML.UserRef -> a) -> (EmailAddress -> a) -> ValidScimId -> a
-runValidScimIdBoth merge doUref doEmail = \case
-  EmailAndUref eml uref -> doUref uref `merge` doEmail eml
-  UrefOnly uref -> doUref uref
-  EmailOnly em -> doEmail em
+runValidScimIdBoth merge doURefl doEmail = these doEmail doURefl (\em uref -> doEmail em `merge` doURefl uref) . validScimIdAuthInfo
 
 -- | Returns either the extracted `UnqualifiedNameID` if present and not qualified, or the email address.
 -- This throws an exception if there are any qualifiers.
 runValidScimIdUnsafe :: ValidScimId -> Text
 runValidScimIdUnsafe = runValidScimIdEither urefToExternalIdUnsafe fromEmail
--}
 
 veidUref :: ValidScimId -> Maybe SAML.UserRef
 veidUref = justThat . validScimIdAuthInfo
