@@ -53,6 +53,7 @@ import Data.Handle (Handle, parseHandle)
 import Data.Id (TeamId, UserId)
 import Data.Text.Encoding
 import Data.Text.Encoding.Error
+import Data.These
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -76,14 +77,11 @@ veidFromUserSSOId :: (MonadError String m) => UserSSOId -> m ValidScimId
 veidFromUserSSOId = \case
   UserSSOId uref ->
     case urefToEmail uref of
-      Nothing -> pure $ UrefOnly uref
-      Just email -> pure $ EmailAndUref email uref
+      Nothing -> pure $ ValidScimId _ (That uref)
+      Just email -> pure $ ValidScimId _ (These email uref)
   -- FUTUREWORK(elland): account for SCIM emails fields?
-  UserScimExternalId email ->
-    maybe
-      (throwError "externalId not an email and no issuer")
-      (pure . EmailOnly)
-      (emailAddressText email)
+  UserScimExternalId veid ->
+    pure $ ValidScimId veid (This _)
 
 -- | If the brig user has a 'UserSSOId', transform that into a 'ValidScimId' (this is a
 -- total function as long as brig obeys the api).  Otherwise, if the user has an email, we can
@@ -95,8 +93,8 @@ veidFromUserSSOId = \case
 veidFromBrigUser :: (MonadError String m) => User -> Maybe SAML.Issuer -> m ValidScimId
 veidFromBrigUser usr mIssuer = case (userSSOId usr, userEmail usr, mIssuer) of
   (Just ssoid, _, _) -> veidFromUserSSOId ssoid
-  (Nothing, Just email, Just issuer) -> pure $ EmailAndUref email (SAML.UserRef issuer (fromRight' $ emailToSAMLNameID email))
-  (Nothing, Just email, Nothing) -> pure $ EmailOnly email
+  (Nothing, Just email, Just issuer) -> pure $ ValidScimId _ (These email (SAML.UserRef issuer (fromRight' $ emailToSAMLNameID email)))
+  (Nothing, Just email, Nothing) -> pure $ ValidScimId _ (This email)
   (Nothing, Nothing, _) -> throwError "user has neither ssoIdentity nor userEmail"
 
 -- | Take a maybe text, construct a 'Name' from what we have in a scim user.  If the text

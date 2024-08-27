@@ -53,6 +53,7 @@ import qualified Data.Text.Encoding as Text
 import Data.Text.Encoding.Error
 import qualified Data.Text.Lazy as LText
 import qualified Data.Text.Lazy.Encoding as LText
+import Data.These
 import Imports hiding (MonadReader, asks, log)
 import qualified Network.HTTP.Types.Status as Http
 import qualified Network.Wai.Utilities.Error as Wai
@@ -189,7 +190,7 @@ createSamlUserWithId ::
 createSamlUserWithId teamid buid suid role = do
   uname <-
     either (throwSparSem . SparBadUserName . LText.pack) pure $
-      Intra.mkUserName Nothing (UrefOnly suid)
+      Intra.mkUserName Nothing (ValidScimId (_) (That suid))
   buid' <- BrigAccess.createSAML suid buid teamid uname ManagedByWire Nothing Nothing Nothing role
   assert (buid == buid') $ pure ()
   SAMLUserStore.insert suid buid
@@ -390,7 +391,7 @@ moveUserToNewIssuer ::
   Sem r ()
 moveUserToNewIssuer oldUserRef newUserRef uid = do
   SAMLUserStore.insert newUserRef uid
-  BrigAccess.setVeid uid (UrefOnly newUserRef)
+  BrigAccess.setVeid uid (ValidScimId _ (That newUserRef))
   SAMLUserStore.delete uid oldUserRef
 
 verdictHandlerResultCore ::
