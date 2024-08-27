@@ -72,6 +72,10 @@ import Wire.API.User.Scim (ValidScimId (..), runValidScimIdEither)
 
 ----------------------------------------------------------------------
 
+-- | FUTUREWORK: this is redundantly defined in "Spar.Intra.BrigApp".
+veidToUserSSOId :: ValidScimId -> UserSSOId
+veidToUserSSOId = runValidScimIdEither UserSSOId (UserScimExternalId . fromEmail)
+
 -- | Similar to 'Network.Wire.Client.API.Auth.tokenResponse', but easier: we just need to set the
 -- cookie in the response, and the redirect will make the client negotiate a fresh auth token.
 -- (This is the easiest way, since the login-request that we are in the middle of responding to here
@@ -107,7 +111,7 @@ createBrigUserSAML uref (Id buid) teamid name managedBy handle richInfo mLocale 
         NewUserSpar
           { newUserSparUUID = buid,
             newUserSparDisplayName = name,
-            newUserSparSSOId = UserSSOId (ValidScimId _ (That uref)), -- TODO(fisx): we need a clear understanding of the different email addresses that we carry around, in particular validated vs. unvalidated, but there may be others.
+            newUserSparSSOId = UserSSOId uref,
             newUserSparTeamId = teamid,
             newUserSparManagedBy = managedBy,
             newUserSparHandle = handle,

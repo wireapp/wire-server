@@ -148,7 +148,7 @@ ssoIdentity _ = Nothing
 --
 -- FUTUREWORK: we should probably drop this entirely and store saml and scim data in separate
 -- database columns.
-newtype UserSSOId = UserSSOId {unUserSSOId :: ValidScimId}
+newtype UserSSOId = UserSSOId ValidScimId
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserSSOId)
 

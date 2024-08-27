@@ -68,6 +68,23 @@ import Wire.API.User.Scim (ValidScimId (..), runValidScimIdEither)
 
 ----------------------------------------------------------------------
 
+-- | FUTUREWORK: this is redundantly defined in "Spar.Intra.Brig"
+veidToUserSSOId :: ValidScimId -> UserSSOId
+veidToUserSSOId = runValidScimIdEither UserSSOId (UserScimExternalId . fromEmail)
+
+veidFromUserSSOId :: (MonadError String m) => UserSSOId -> m ValidScimId
+veidFromUserSSOId = \case
+  UserSSOId uref ->
+    case urefToEmail uref of
+      Nothing -> pure $ UrefOnly uref
+      Just email -> pure $ EmailAndUref email uref
+  -- FUTUREWORK(elland): account for SCIM emails fields?
+  UserScimExternalId email ->
+    maybe
+      (throwError "externalId not an email and no issuer")
+      (pure . EmailOnly)
+      (emailAddressText email)
+
 -- | If the brig user has a 'UserSSOId', transform that into a 'ValidScimId' (this is a
 -- total function as long as brig obeys the api).  Otherwise, if the user has an email, we can
 -- construct a return value from that (and an optional saml issuer).
