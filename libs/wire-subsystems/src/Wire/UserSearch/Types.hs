@@ -63,8 +63,6 @@ data UserDoc = UserDoc
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserDoc)
 
--- Note: Keep this compatible with the FromJSON instances
--- of 'Contact' and 'TeamContact' from 'Wire.API.User.Search
 instance ToJSON UserDoc where
   toJSON ud =
     object
