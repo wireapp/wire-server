@@ -46,13 +46,13 @@ type instance
       Name, Writetime Name,
       Maybe AccountStatus, Maybe (Writetime AccountStatus),
       Maybe Handle, Maybe (Writetime Handle),
-      Maybe Email, Maybe (Writetime Email),
+      Maybe EmailAddress, Maybe (Writetime EmailAddress),
       ColourId, Writetime ColourId,
       Activated, Writetime Activated,
       Maybe ServiceId, Maybe (Writetime ServiceId),
       Maybe ManagedBy, Maybe (Writetime ManagedBy),
       Maybe UserSSOId, Maybe (Writetime UserSSOId),
-      Maybe Email, Maybe (Writetime Email)
+      Maybe EmailAddress, Maybe (Writetime EmailAddress)
     )
 
 instance Record IndexUser where

@@ -10,7 +10,6 @@ where
 import Control.Lens (view)
 import Control.Monad.Trans.Maybe
 import Data.Domain
-import Data.Either.Extra
 import Data.Handle (Handle)
 import Data.Handle qualified as Handle
 import Data.Id
