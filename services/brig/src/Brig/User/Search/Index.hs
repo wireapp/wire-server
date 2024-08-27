@@ -60,6 +60,7 @@ import Prometheus (MonadMonitor)
 import System.Logger qualified as Log
 import System.Logger.Class (Logger, MonadLogger (..), field, info, msg, val, (+++), (~~))
 import Util.Options (Endpoint)
+import Wire.IndexedUserStore.ElasticSearch (IndexedUserStoreError (..))
 import Wire.UserSearch.Types (searchVisibilityInboundFieldName)
 
 --------------------------------------------------------------------------------
@@ -192,14 +193,6 @@ analysisSettings =
             ("truncate_30", ES.TokenFilterTruncate 30)
           ]
    in ES.Analysis analyzerDef mempty filterDef mempty
-
-data IndexError
-  = IndexUpdateError ES.EsError
-  | IndexLookupError ES.EsError
-  | IndexError Text
-  deriving (Show)
-
-instance Exception IndexError
 
 updateMapping :: (MonadIndexIO m) => m ()
 updateMapping = liftIndexIO $ do
