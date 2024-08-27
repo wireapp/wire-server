@@ -5,7 +5,7 @@ import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Range (Range, fromRange)
 import Data.Text.Ascii (encodeBase64Url)
-import Database.CQL.Protocol (TupleType, asRecord, asTuple)
+import Database.CQL.Protocol (TupleType, asRecord)
 import Imports
 import OpenSSL.Random (randBytes)
 import Polysemy
@@ -54,14 +54,31 @@ insertInvitationImpl invId teamId role (toUTCTimeMillis -> now) uid email name t
             name = name,
             code = code
           }
-  retry x5 $ write cqlInsert (params LocalQuorum (asTuple inv, round timeout))
+  -- TODO: see how we can improve this
+  retry x5 . batch $ do
+    setType BatchLogged
+    setConsistency LocalQuorum
+    addPrepQuery cqlInsert (teamId, Just role, invId, now, uid, email, name, code, round timeout)
+    addPrepQuery cqlInsertInfo (code, teamId, invId, round timeout)
+    addPrepQuery cqlInsertByEmail (email, teamId, invId, code, round timeout)
   pure inv
   where
-    cqlInsert :: PrepQuery W (TupleType StoredInvitation, Int32) ()
+    cqlInsert :: PrepQuery W (TeamId, Maybe Role, InvitationId, UTCTimeMillis, Maybe UserId, EmailAddress, Maybe Name, InvitationCode, Int32) ()
     cqlInsert =
       [sql|
         INSERT INTO team_invitation (team, role, id, created_at, created_by, email, name, code) VALUES (?, ?, ?, ?, ?, ?, ?, ?) USING TTL ?
       |]
+    cqlInsertInfo :: PrepQuery W (InvitationCode, TeamId, InvitationId, Int32) ()
+    cqlInsertInfo =
+      [sql|
+            INSERT INTO team_invitation_info (code, team, id) VALUES (?, ?, ?) USING TTL ?
+          |]
+    -- Note: the edge case of multiple invites to the same team by different admins from the same team results in last-invite-wins in the team_invitation_email table.
+    cqlInsertByEmail :: PrepQuery W (EmailAddress, TeamId, InvitationId, InvitationCode, Int32) ()
+    cqlInsertByEmail =
+      [sql|
+            INSERT INTO team_invitation_email (email, team, invitation, code) VALUES (?, ?, ?, ?) USING TTL ?
+          |]
 
 lookupInvitationsPaginatedImpl :: Maybe (Range 1 500 Int32) -> TeamId -> Maybe InvitationId -> Client (PaginatedResult [StoredInvitation])
 lookupInvitationsPaginatedImpl mSize tid miid = do
@@ -95,7 +112,7 @@ countInvitationsImpl t =
     <$> retry x1 (query1 cql (params LocalQuorum (Identity t)))
   where
     cql :: PrepQuery R (Identity TeamId) (Identity Int64)
-    cql = [sql|  count(*) FROM team_invitation WHERE team = ?|]
+    cql = [sql| SELECT count(*) FROM team_invitation WHERE team = ?|]
 
 lookupInvitationInfoImpl :: InvitationCode -> Client (Maybe StoredInvitationInfo)
 lookupInvitationInfoImpl code =
