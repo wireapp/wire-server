@@ -63,6 +63,7 @@ import Data.OpenApi hiding (Operation)
 import Data.Proxy
 import Data.Text qualified as T
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import Data.These
 import Data.Time.Clock (UTCTime)
 import Imports
 import SAML2.WebSSO qualified as SAML
@@ -338,14 +339,15 @@ data ValidScimUser = ValidScimUser
   }
   deriving (Eq, Show)
 
--- | This type carries parsed externalId, email address, and saml credentials.
+-- | This type carries parsed externalId, email address, and saml credentials. It contains the email address and saml credentials,
+-- because those are sometimes derived from the externalId field.
 --
 -- Note that a 'SAML.UserRef' may contain an email. Even though it is possible to construct a 'ValidScimId' from such a 'UserRef' with 'UrefOnly',
 -- this does not represent a valid 'ValidScimId'. So in case of a 'UrefOnly', we can assume that the 'UserRef' does not contain an email.
-data ValidScimId
-  = EmailAndUref EmailAddress SAML.UserRef
-  | UrefOnly SAML.UserRef
-  | EmailOnly EmailAddress
+data ValidScimId = ValidScimId
+  { validScimIdExternal :: Text,
+    validScimIdAuthInfo :: These EmailAddress SAML.UserRef
+  }
   deriving (Eq, Show, Generic)
 
 instance Arbitrary ValidScimId where
@@ -357,6 +359,7 @@ instance Arbitrary ValidScimId where
         Nothing -> pure $ UrefOnly uref
       Nothing -> EmailOnly <$> QC.arbitrary
 
+{-
 -- | Take apart a 'ValidScimId', using 'SAML.UserRef' if available, otherwise 'Email'.
 runValidScimIdEither :: (SAML.UserRef -> a) -> (EmailAddress -> a) -> ValidScimId -> a
 runValidScimIdEither doUref doEmail = \case
@@ -376,12 +379,10 @@ runValidScimIdBoth merge doUref doEmail = \case
 -- This throws an exception if there are any qualifiers.
 runValidScimIdUnsafe :: ValidScimId -> Text
 runValidScimIdUnsafe = runValidScimIdEither urefToExternalIdUnsafe fromEmail
+-}
 
 veidUref :: ValidScimId -> Maybe SAML.UserRef
-veidUref = \case
-  EmailAndUref _ uref -> Just uref
-  UrefOnly uref -> Just uref
-  EmailOnly _ -> Nothing
+veidUref = justThat . validScimIdAuthInfo
 
 urefToExternalIdUnsafe :: SAML.UserRef -> Text
 urefToExternalIdUnsafe = CI.original . SAML.unsafeShowNameID . view SAML.uidSubject
