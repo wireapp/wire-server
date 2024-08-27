@@ -98,7 +98,6 @@ import Wire.API.Team.Role (Role, defaultRole)
 import Wire.API.User
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
-import Wire.API.User.Scim (ValidScimId (..))
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger
 import Wire.Sem.Random (Random)
@@ -190,7 +189,7 @@ createSamlUserWithId ::
 createSamlUserWithId teamid buid suid role = do
   uname <-
     either (throwSparSem . SparBadUserName . LText.pack) pure $
-      Intra.mkUserName Nothing (ValidScimId (_) (That suid))
+      Intra.mkUserName Nothing (That suid)
   buid' <- BrigAccess.createSAML suid buid teamid uname ManagedByWire Nothing Nothing Nothing role
   assert (buid == buid') $ pure ()
   SAMLUserStore.insert suid buid
@@ -391,7 +390,7 @@ moveUserToNewIssuer ::
   Sem r ()
 moveUserToNewIssuer oldUserRef newUserRef uid = do
   SAMLUserStore.insert newUserRef uid
-  BrigAccess.setVeid uid (ValidScimId _ (That newUserRef))
+  BrigAccess.setSSOId uid (UserSSOId newUserRef)
   SAMLUserStore.delete uid oldUserRef
 
 verdictHandlerResultCore ::

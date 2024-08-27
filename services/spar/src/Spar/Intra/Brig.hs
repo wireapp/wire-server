@@ -28,7 +28,7 @@ module Spar.Intra.Brig
     setBrigUserName,
     setBrigUserHandle,
     setBrigUserManagedBy,
-    setBrigUserVeid,
+    setBrigUserSSOId,
     setBrigUserRichInfo,
     setBrigUserLocale,
     checkHandleAvailable,
@@ -68,13 +68,8 @@ import Wire.API.User
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.RichInfo as RichInfo
-import Wire.API.User.Scim (ValidScimId (..), runValidScimIdEither)
 
 ----------------------------------------------------------------------
-
--- | FUTUREWORK: this is redundantly defined in "Spar.Intra.BrigApp".
-veidToUserSSOId :: ValidScimId -> UserSSOId
-veidToUserSSOId = runValidScimIdEither UserSSOId (UserScimExternalId . fromEmail)
 
 -- | Similar to 'Network.Wire.Client.API.Auth.tokenResponse', but easier: we just need to set the
 -- cookie in the response, and the redirect will make the client negotiate a fresh auth token.
@@ -273,13 +268,13 @@ setBrigUserManagedBy buid managedBy = do
     rethrow "brig" resp
 
 -- | Set user's UserSSOId.
-setBrigUserVeid :: (HasCallStack, MonadSparToBrig m) => UserId -> ValidScimId -> m ()
-setBrigUserVeid buid veid = do
+setBrigUserSSOId :: (HasCallStack, MonadSparToBrig m) => UserId -> UserSSOId -> m ()
+setBrigUserSSOId buid ssoId = do
   resp <-
     call $
       method PUT
         . paths ["i", "users", toByteString' buid, "sso-id"]
-        . json (veidToUserSSOId veid)
+        . json ssoId
   case statusCode resp of
     200 -> pure ()
     _ -> rethrow "brig" resp

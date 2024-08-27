@@ -118,12 +118,13 @@ veidFromBrigUser usr mIssuer = case (userSSOId usr, userEmail usr, mIssuer) of
 -- | Take a maybe text, construct a 'Name' from what we have in a scim user.  If the text
 -- isn't present, use an email address or a saml subject (usually also an email address).  If
 -- both are 'Nothing', fail.
-mkUserName :: Maybe Text -> ValidScimId -> Either String Name
+mkUserName :: Maybe Text -> These EmailAddress SAML.UserRef -> Either String Name
 mkUserName (Just n) = const $ mkName n
 mkUserName Nothing =
-  runValidScimIdEither
-    (\uref -> mkName (CI.original . SAML.unsafeShowNameID $ uref ^. SAML.uidSubject))
+  these
     (mkName . fromEmail)
+    (\uref -> mkName (CI.original . SAML.unsafeShowNameID $ uref ^. SAML.uidSubject))
+    (\_ uref -> mkName (CI.original . SAML.unsafeShowNameID $ uref ^. SAML.uidSubject))
 
 renderValidScimId :: ValidScimId -> Maybe Text
 renderValidScimId = runValidScimIdEither urefToExternalId (Just . fromEmail)

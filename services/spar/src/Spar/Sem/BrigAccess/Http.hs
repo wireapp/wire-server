@@ -52,7 +52,7 @@ brigAccessToHttp mgr req =
       SetName itlu n -> Intra.setBrigUserName itlu n
       SetHandle itlu h -> Intra.setBrigUserHandle itlu h
       SetManagedBy itlu m -> Intra.setBrigUserManagedBy itlu m
-      SetVeid itlu v -> Intra.setBrigUserVeid itlu v
+      SetSSOId itlu v -> Intra.setBrigUserSSOId itlu v
       SetRichInfo itlu r -> Intra.setBrigUserRichInfo itlu r
       SetLocale itlu l -> Intra.setBrigUserLocale itlu l
       GetRichInfo itlu -> Intra.getBrigUserRichInfo itlu
