@@ -53,14 +53,12 @@ import Data.Aeson qualified as A
 import Data.Aeson.Types qualified as A
 import Data.ByteString (fromStrict, toStrict)
 import Data.ByteString.UTF8 qualified as UTF8
-import Data.CaseInsensitive qualified as CI
 import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Text qualified as Text
 import Data.Text.Encoding
 import Data.Text.Encoding.Error
 import Data.Text.Lazy qualified as LT
-import Data.These
 import Data.These.Combinators (justThat)
 import Imports
 import SAML2.WebSSO.Test.Arbitrary ()
@@ -193,23 +191,26 @@ instance ToJSON UserSSOId where
         ]
     Nothing -> A.object ["scim_external_id" A..= validScimId.validScimIdExternal]
 
-instance FromJSON (EmailAddress -> UserSSOId) where
-  parseJSON = A.withObject "UserSSOId" $ \obj -> do
-    mtenant <- lenientlyParseSAMLIssuer =<< (obj A..:? "tenant")
-    msubject <- lenientlyParseSAMLNameID =<< (obj A..:? "subject")
-    meid <- obj A..:? "scim_external_id"
-    case (mtenant, msubject, meid) of
-      (Just tenant, Just subject, Nothing) -> do
-        let eid = CI.original (SAML.nameIDToST subject)
-            uref = SAML.UserRef tenant subject
-            vsi = ValidScimId eid (That uref)
-        pure $ \_ -> UserSSOId vsi
-      (Nothing, Nothing, Just eid) ->
-        pure $ \email -> UserSSOId (ValidScimId eid (This email))
-      _ -> fail "either need tenant and subject, or scim_external_id, but not both"
+instance FromJSON UserSSOId where
+  parseJSON _ = error "todo(leif)"
 
-lenientlyParseSAMLIssuer :: Maybe LText -> A.Parser (Maybe SAML.Issuer)
-lenientlyParseSAMLIssuer mbtxt = forM mbtxt $ \txt -> do
+-- instance ToJSON UserSSOId where
+--   toJSON = \case
+--     UserSSOId (SAML.UserRef tenant subject) -> A.object ["tenant" A..= SAML.encodeElem tenant, "subject" A..= SAML.encodeElem subject]
+--     UserScimExternalId eid -> A.object ["scim_external_id" A..= eid]
+
+-- instance FromJSON UserSSOId where
+--   parseJSON = A.withObject "UserSSOId" $ \obj -> do
+--     mtenant <- lenientlyParseSAMLIssuer =<< (obj A..:? "tenant")
+--     msubject <- lenientlyParseSAMLNameID =<< (obj A..:? "subject")
+--     meid <- obj A..:? "scim_external_id"
+--     case (mtenant, msubject, meid) of
+--       (Just tenant, Just subject, Nothing) -> pure $ UserSSOId (SAML.UserRef tenant subject)
+--       (Nothing, Nothing, Just eid) -> pure $ UserScimExternalId eid
+--       _ -> fail "either need tenant and subject, or scim_external_id, but not both"
+
+_lenientlyParseSAMLIssuer :: Maybe LText -> A.Parser (Maybe SAML.Issuer)
+_lenientlyParseSAMLIssuer mbtxt = forM mbtxt $ \txt -> do
   let asxml :: Either String SAML.Issuer
       asxml = SAML.decodeElem txt
 
@@ -223,9 +224,9 @@ lenientlyParseSAMLIssuer mbtxt = forM mbtxt $ \txt -> do
 
   maybe (fail err) pure $ hush asxml <|> hush asurl
 
-lenientlyParseSAMLNameID :: Maybe LText -> A.Parser (Maybe SAML.NameID)
-lenientlyParseSAMLNameID Nothing = pure Nothing
-lenientlyParseSAMLNameID (Just txt) = do
+_lenientlyParseSAMLNameID :: Maybe LText -> A.Parser (Maybe SAML.NameID)
+_lenientlyParseSAMLNameID Nothing = pure Nothing
+_lenientlyParseSAMLNameID (Just txt) = do
   let asxml :: Either String SAML.NameID
       asxml = SAML.decodeElem txt
 
