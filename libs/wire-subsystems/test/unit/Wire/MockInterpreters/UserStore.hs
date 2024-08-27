@@ -32,7 +32,7 @@ inMemoryUserStoreInterpreter = interpret $ \case
               $ u
           else u
   GetIndexUser _uid -> undefined
-  GetIndexUsersPaginated _pagingState -> undefined
+  GetIndexUsersPaginated _pageSize _pagingState -> undefined
   UpdateUserHandleEither uid hUpdate -> runError $ modifyLocalUsers (traverse doUpdate)
     where
       doUpdate :: StoredUser -> Sem (Error StoredUserUpdateError : r) StoredUser

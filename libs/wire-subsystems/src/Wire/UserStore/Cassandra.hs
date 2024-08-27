@@ -21,7 +21,7 @@ interpretUserStoreCassandra casClient =
     runEmbedded (runClient casClient) . embed . \case
       GetUser uid -> getUserImpl uid
       GetIndexUser uid -> getIndexUserImpl uid
-      GetIndexUsersPaginated mPagingState -> getIndexUserPaginatedImpl mPagingState
+      GetIndexUsersPaginated pageSize mPagingState -> getIndexUserPaginatedImpl pageSize mPagingState
       UpdateUser uid update -> updateUserImpl uid update
       UpdateUserHandleEither uid update -> updateUserHandleEitherImpl uid update
       DeleteUser user -> deleteUserImpl user
@@ -44,9 +44,9 @@ getIndexUserImpl u = do
     cql :: PrepQuery R (Identity UserId) (TupleType IndexUser)
     cql = prepared . QueryString $ getIndexUserBaseQuery <> " WHERE id = ?"
 
-getIndexUserPaginatedImpl :: Maybe PagingState -> Client (PageWithState IndexUser)
-getIndexUserPaginatedImpl mPagingState =
-  asRecord <$$> paginateWithState cql (paramsPagingState LocalQuorum () 10000 mPagingState)
+getIndexUserPaginatedImpl :: Int32 -> Maybe PagingState -> Client (PageWithState IndexUser)
+getIndexUserPaginatedImpl pageSize mPagingState =
+  asRecord <$$> paginateWithState cql (paramsPagingState LocalQuorum () pageSize mPagingState)
   where
     cql :: PrepQuery R () (TupleType IndexUser)
     cql = prepared $ QueryString getIndexUserBaseQuery

@@ -73,7 +73,7 @@ syncAllUsersWithVersion ::
   Sem r ()
 syncAllUsersWithVersion mkVersion =
   runConduit $
-    paginateWithStateC getIndexUsersPaginated
+    paginateWithStateC (getIndexUsersPaginated 1000)
       .| logPage
       .| mkUserDocs
       .| Conduit.mapM_ IndexedUserStore.bulkUpsert

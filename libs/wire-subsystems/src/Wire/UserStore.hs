@@ -49,7 +49,7 @@ data StoredUserUpdateError = StoredUserUpdateHandleExists
 data UserStore m a where
   GetUser :: UserId -> UserStore m (Maybe StoredUser)
   GetIndexUser :: UserId -> UserStore m (Maybe IndexUser)
-  GetIndexUsersPaginated :: Maybe PagingState -> UserStore m (PageWithState IndexUser)
+  GetIndexUsersPaginated :: Int32 -> Maybe PagingState -> UserStore m (PageWithState IndexUser)
   UpdateUser :: UserId -> StoredUserUpdate -> UserStore m ()
   UpdateUserHandleEither :: UserId -> StoredUserHandleUpdate -> UserStore m (Either StoredUserUpdateError ())
   DeleteUser :: User -> UserStore m ()
