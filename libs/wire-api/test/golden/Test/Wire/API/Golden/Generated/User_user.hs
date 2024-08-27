@@ -45,7 +45,6 @@ import Imports
 import Wire.API.Asset
 import Wire.API.Provider.Service (ServiceRef (ServiceRef, _serviceRefId, _serviceRefProvider))
 import Wire.API.User
-import Wire.API.User.Scim (ValidScimId (ValidScimId))
 
 testObject_User_user_1 :: User
 testObject_User_user_1 =
@@ -149,7 +148,7 @@ testObject_User_user_4 =
             qDomain = Domain {_domainText = "28b.cqb"}
           },
       userIdentity =
-        Just (SSOIdentity (UserSSOId (ValidScimId "" undefined)) (Just (unsafeEmailAddress "some" "example"))),
+        Just (SSOIdentity (UserScimExternalId "") (Just (unsafeEmailAddress "some" "example"))),
       userDisplayName =
         Name
           { fromName =

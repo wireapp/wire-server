@@ -28,7 +28,6 @@ import Data.Id
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent))
 import Data.Qualified
 import Data.Schema (schemaIn)
-import Data.These
 import Data.UUID.V4 qualified as UUID
 import Imports
 import Test.Tasty
@@ -38,7 +37,6 @@ import Wire.API.Team.Member (TeamMember)
 import Wire.API.Team.Member qualified as TeamMember
 import Wire.API.Team.Role
 import Wire.API.User
-import Wire.API.User.Scim
 
 tests :: TestTree
 tests =
@@ -148,5 +146,5 @@ parseIdentityTests =
     email = ("email", "me@example.com")
     bademail = ("email", "justme")
     badphone = ("phone", "__@@")
-    hssoid = UserSSOId (ValidScimId "" (That mkSimpleSampleUref))
+    hssoid = UserSSOId mkSimpleSampleUref
     ssoid = ("sso_id", toJSON hssoid)
