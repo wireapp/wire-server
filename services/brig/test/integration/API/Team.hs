@@ -44,7 +44,6 @@ import Data.String.Conversions (cs)
 import Data.Text qualified as Text
 import Data.Text.Ascii qualified as Ascii
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
-import Data.Time (addUTCTime, getCurrentTime)
 import Data.UUID qualified as UUID (fromString)
 import Data.UUID.V4 qualified as UUID
 import Imports
@@ -76,6 +75,7 @@ import Wire.API.Team.Size
 import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.Client (ClientType (PermanentClientType))
+import Wire.Timeout
 
 newtype TeamSizeLimit = TeamSizeLimit Word32
 
@@ -769,7 +769,7 @@ testInvitationInfoBadCode brig = do
   get (brig . path ("/teams/invitations/info?code=" <> icode))
     !!! const 400 === statusCode
 
-testInvitationInfoExpired :: Brig -> Opt.Timeout -> Http ()
+testInvitationInfoExpired :: Brig -> Timeout -> Http ()
 testInvitationInfoExpired brig timeout = do
   email <- randomEmail
   (uid, tid) <- createUserWithTeam brig

@@ -59,7 +59,6 @@ import Data.List1 (List1)
 import Data.List1 qualified as List1
 import Data.Misc (PlainTextPassword6)
 import Data.Qualified (Local)
-import Data.Time.Clock (UTCTime)
 import Data.ZAuth.Token qualified as ZAuth
 import Imports
 import Network.Wai.Utilities.Error ((!>>))
@@ -79,6 +78,7 @@ import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.PasswordStore (PasswordStore)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.Timeout
 import Wire.UserKeyStore
 import Wire.UserStore
 import Wire.VerificationCode qualified as VerificationCode
@@ -177,7 +177,7 @@ withRetryLimit action uid = do
     let bkey = BudgetKey ("login#" <> idToText uid)
         budget =
           Budget
-            (Opt.timeoutDiff $ Opt.timeout opts)
+            (timeoutDiff $ Opt.timeout opts)
             (fromIntegral $ Opt.retryLimit opts)
     bresult <- action bkey budget
     case bresult of

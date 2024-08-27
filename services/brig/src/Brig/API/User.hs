@@ -87,7 +87,7 @@ import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivation (..), UserPendingActivationStore)
 import Brig.Effects.UserPendingActivationStore qualified as UserPendingActivationStore
 import Brig.IO.Intra qualified as Intra
-import Brig.Options hiding (Timeout, internalEvents)
+import Brig.Options hiding (internalEvents)
 import Brig.Team.DB qualified as Team
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Intra

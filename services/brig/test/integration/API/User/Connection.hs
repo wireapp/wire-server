@@ -26,7 +26,6 @@ import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import Brig.Data.Connection (remoteConnectionInsert)
-import Brig.Options qualified as Opt
 import Cassandra qualified as DB
 import Control.Arrow ((&&&))
 import Data.ByteString.Conversion
@@ -34,7 +33,6 @@ import Data.Domain
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Qualified
-import Data.Time.Clock (getCurrentTime)
 import Data.UUID.V4 qualified as UUID
 import Imports
 import Network.Wai.Utilities.Error qualified as Error
@@ -48,10 +46,11 @@ import Wire.API.Federation.Component
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.User as User
+import Wire.Timeout
 
 tests ::
   ConnectionLimit ->
-  Opt.Timeout ->
+  Timeout ->
   Manager ->
   Brig ->
   Cannon ->

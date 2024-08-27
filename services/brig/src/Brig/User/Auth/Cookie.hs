@@ -60,6 +60,7 @@ import System.Logger.Class qualified as Log
 import Web.Cookie qualified as WebCookie
 import Wire.API.User.Auth
 import Wire.SessionStore qualified as Store
+import Wire.Timeout
 
 --------------------------------------------------------------------------------
 -- Basic Cookie Management

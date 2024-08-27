@@ -26,7 +26,7 @@ where
 
 import Brig.API.MLS.KeyPackages.Validation
 import Brig.App
-import Brig.Options hiding (Timeout)
+import Brig.Options
 import Cassandra
 import Control.Arrow
 import Control.Error

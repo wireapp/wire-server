@@ -36,6 +36,7 @@ import Wire.API.Team.Role (Role, defaultRole)
 import Wire.API.User (EmailAddress, InvitationCode, Name)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.Sem.Logger qualified as Log
+import Wire.Timeout
 
 data StoredInvitation = MkStoredInvitation
   { teamId :: TeamId,
@@ -68,15 +69,20 @@ data PaginatedResult a
   | PaginatedResult a
   deriving stock (Eq, Ord, Show, Functor, Foldable)
 
+----------------------------
+
 data InvitationCodeStore :: Effect where
+  InsertInvitation :: InvitationId -> TeamId -> Role -> UTCTime -> Maybe UserId -> EmailAddress -> Maybe Name -> Timeout -> InvitationCodeStore m StoredInvitation
   LookupInvitation :: TeamId -> InvitationId -> InvitationCodeStore m (Maybe StoredInvitation)
   LookupInvitationInfo :: InvitationCode -> InvitationCodeStore m (Maybe StoredInvitationInfo)
   LookupInvitationCodesByEmail :: EmailAddress -> InvitationCodeStore m [StoredInvitationInfo]
-  CountInvitations :: TeamId -> InvitationCodeStore m Int64
   -- | invariant: page size is 100
   LookupInvitationsPaginated :: Maybe (Range 1 500 Int32) -> TeamId -> Maybe InvitationId -> InvitationCodeStore m (PaginatedResult [StoredInvitation])
+  CountInvitations :: TeamId -> InvitationCodeStore m Int64
 
 makeSem ''InvitationCodeStore
+
+----------------------------
 
 lookupInvitationByEmail :: (Member InvitationCodeStore r, Member TinyLog r) => EmailAddress -> Sem r (Maybe StoredInvitation)
 lookupInvitationByEmail email = runMaybeT do

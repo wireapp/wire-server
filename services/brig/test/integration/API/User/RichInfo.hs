@@ -37,8 +37,9 @@ import Util
 import Wire.API.Team.Permission
 import Wire.API.User
 import Wire.API.User.RichInfo
+import Wire.Timeout
 
-tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
+tests :: ConnectionLimit -> Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
 tests _cl _at conf p b _c g =
   testGroup
     "rich info"

@@ -2,25 +2,66 @@ module Wire.InvitationCodeStore.Cassandra where
 
 import Cassandra
 import Data.Id
-import Data.Json.Util (UTCTimeMillis)
+import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Range (Range, fromRange)
-import Database.CQL.Protocol (TupleType, asRecord)
+import Data.Text.Ascii (encodeBase64Url)
+import Database.CQL.Protocol (TupleType, asRecord, asTuple)
 import Imports
+import OpenSSL.Random (randBytes)
 import Polysemy
 import Polysemy.Embed
 import Wire.API.Team.Role (Role)
 import Wire.API.User
 import Wire.InvitationCodeStore
+import Wire.Timeout
 
 interpretInvitationCodeStoreToCassandra :: (Member (Embed IO) r) => ClientState -> InterpreterFor InvitationCodeStore r
 interpretInvitationCodeStoreToCassandra casClient =
   interpret $
     runEmbedded (runClient casClient) . \case
+      InsertInvitation iid tid role time muid mail mname timeout -> embed $ insertInvitationImpl iid tid role time muid mail mname timeout
       LookupInvitation tid iid -> embed $ lookupInvitationImpl tid iid
       LookupInvitationCodesByEmail email -> embed $ lookupInvitationCodesByEmailImpl email
       LookupInvitationInfo code -> embed $ lookupInvitationInfoImpl code
-      CountInvitations tid -> embed $ countInvitationsImpl tid
       LookupInvitationsPaginated mSize tid miid -> embed $ lookupInvitationsPaginatedImpl mSize tid miid
+      CountInvitations tid -> embed $ countInvitationsImpl tid
+
+insertInvitationImpl ::
+  --   ( Log.MonadLogger m,
+  --     MonadClient m
+  --   ) =>
+  --   ShowOrHideInvitationUrl ->
+  InvitationId ->
+  TeamId ->
+  Role ->
+  UTCTime ->
+  Maybe UserId ->
+  EmailAddress ->
+  Maybe Name ->
+  -- | The timeout for the invitation code.
+  Timeout ->
+  Client StoredInvitation
+insertInvitationImpl invId teamId role (toUTCTimeMillis -> now) uid email name timeout = do
+  code <- liftIO mkInvitationCode
+  let inv =
+        MkStoredInvitation
+          { teamId = teamId,
+            role = Just role,
+            invitationId = invId,
+            createdAt = now,
+            createdBy = uid,
+            email = email,
+            name = name,
+            code = code
+          }
+  retry x5 $ write cqlInsert (params LocalQuorum (asTuple inv, round timeout))
+  pure inv
+  where
+    cqlInsert :: PrepQuery W (TupleType StoredInvitation, Int32) ()
+    cqlInsert =
+      [sql|
+        INSERT INTO team_invitation (team, role, id, created_at, created_by, email, name, code) VALUES (?, ?, ?, ?, ?, ?, ?, ?) USING TTL ?
+      |]
 
 lookupInvitationsPaginatedImpl :: Maybe (Range 1 500 Int32) -> TeamId -> Maybe InvitationId -> Client (PaginatedResult [StoredInvitation])
 lookupInvitationsPaginatedImpl mSize tid miid = do
@@ -85,3 +126,6 @@ lookupInvitationImpl tid iid =
       [sql| 
       SELECT team, role, id, created_at, created_by, email, name, code FROM team_invitation WHERE team = ? AND id = ?
       |]
+
+mkInvitationCode :: IO InvitationCode
+mkInvitationCode = InvitationCode . encodeBase64Url <$> randBytes 24

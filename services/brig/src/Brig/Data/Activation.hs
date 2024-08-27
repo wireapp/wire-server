@@ -31,7 +31,6 @@ where
 
 import Brig.App (Env, adhocUserKeyStoreInterpreter)
 import Brig.Data.User
-import Brig.Options
 import Brig.Types.Intra
 import Cassandra
 import Control.Error
@@ -50,6 +49,7 @@ import Wire.API.User.Activation
 import Wire.API.User.Password
 import Wire.PasswordResetCodeStore qualified as E
 import Wire.PasswordResetCodeStore.Cassandra
+import Wire.Timeout
 import Wire.UserKeyStore
 
 --  | The information associated with the pending activation of a 'UserKey'.

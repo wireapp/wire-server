@@ -55,7 +55,7 @@ import Data.ZAuth.Token qualified as ZAuth
 import Imports
 import Network.HTTP.Client (equivCookie)
 import Network.Wai.Utilities.Error qualified as Error
-import Test.Tasty
+import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
 import Test.Tasty.HUnit qualified as HUnit
 import UnliftIO.Async hiding (wait)
@@ -68,6 +68,7 @@ import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
+import Wire.Timeout
 
 -- | FUTUREWORK: Implement this function. This wrapper should make sure that
 -- wrapped tests run only when the feature flag 'legalhold' is set to
@@ -462,7 +463,7 @@ testLimitRetries conf brig = do
   -- throttling should stop and login should work again
   do
     let Just retryAfterSecs = fromByteString =<< getHeader "Retry-After" resp
-        retryTimeout = Opts.Timeout $ fromIntegral retryAfterSecs
+        retryTimeout = Timeout $ fromIntegral retryAfterSecs
     liftIO $ do
       assertBool
         ("throttle delay (1): " <> show (retryTimeout, Opts.timeout opts))
@@ -1045,7 +1046,7 @@ testSuspendInactiveUsers config brig cookieType endPoint = do
       <!! const 200 === statusCode
   let cky = decodeCookie rs
   -- wait slightly longer than required for being marked as inactive.
-  let waitTime :: Int = floor (Opts.timeoutDiff suspendAge) + 5 -- adding 1 *should* be enough, but it's not.
+  let waitTime :: Int = floor (timeoutDiff suspendAge) + 5 -- adding 1 *should* be enough, but it's not.
   liftIO $ threadDelay (1000000 * waitTime)
   case endPoint of
     "/access" -> do

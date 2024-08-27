@@ -39,6 +39,7 @@ library
     Util.Options.Common
     Util.Test
     Wire.Arbitrary
+    Wire.Timeout
 
   other-modules:      Paths_types_common
   hs-source-dirs:     src
@@ -125,6 +126,7 @@ library
     , quickcheck-instances   >=0.3.16
     , random                 >=1.1
     , schema-profunctor
+    , scientific
     , servant-server
     , tagged                 >=0.8
     , tasty                  >=0.11

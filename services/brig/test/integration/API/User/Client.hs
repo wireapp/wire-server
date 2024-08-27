@@ -55,7 +55,6 @@ import Data.Set qualified as Set
 import Data.String.Conversions
 import Data.Text.Ascii (AsciiChars (validate), encodeBase64UrlUnpadded, toText)
 import Data.Text.Encoding qualified as T
-import Data.Time (addUTCTime)
 import Data.Time.Clock.POSIX
 import Data.UUID (toByteString)
 import Data.UUID qualified as UUID
@@ -65,7 +64,7 @@ import Network.Wai.Utilities.Error qualified as Error
 import System.Logger qualified as Log
 import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty hiding (Timeout)
-import Test.Tasty.Cannon hiding (Cannon)
+import Test.Tasty.Cannon hiding (Cannon, Timeout)
 import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently)
@@ -83,10 +82,11 @@ import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey
 import Wire.API.UserMap (QualifiedUserMap (..), UserMap (..), WrappedQualifiedUserMap)
 import Wire.API.Wrapped (Wrapped (..))
+import Wire.Timeout
 import Wire.VerificationCode qualified as Code
 import Wire.VerificationCodeGen
 
-tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> DB.ClientState -> Nginz -> Brig -> Cannon -> Galley -> TestTree
+tests :: ConnectionLimit -> Timeout -> Opt.Opts -> Manager -> DB.ClientState -> Nginz -> Brig -> Cannon -> Galley -> TestTree
 tests _cl _at opts p db n b c g =
   testGroup
     "client"

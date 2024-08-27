@@ -73,6 +73,7 @@ import Wire.API.Routes.Version.Wai
 import Wire.API.User (AccountStatus (PendingInvitation))
 import Wire.DeleteQueue
 import Wire.Sem.Paging qualified as P
+import Wire.Timeout
 import Wire.UserStore
 
 -- FUTUREWORK: If any of these async threads die, we will have no clue about it
