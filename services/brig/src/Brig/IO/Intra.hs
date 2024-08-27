@@ -108,7 +108,6 @@ import Wire.Sem.Paging.Cassandra (InternalPaging)
 -----------------------------------------------------------------------------
 -- Event Handlers
 
--- TODO: Extract 'journalEvent' out of this
 sendUserEvent ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
