@@ -15,15 +15,11 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Intra.Util
-  ( IntraComponent (..),
-    call,
-  )
-where
+module Galley.Intra.Util (IntraComponent (..), call) where
 
 import Bilge hiding (getHeader, host, options, port, statusCode)
 import Bilge qualified as B
-import Bilge.RPC
+import Bilge.RPC (rpc')
 import Bilge.Retry
 import Control.Lens (view, (^.))
 import Control.Retry
@@ -37,6 +33,7 @@ import Galley.Options
 import Imports hiding (log)
 import Network.HTTP.Types
 import Util.Options
+import Wire.OpenTelemetry (withClientInstrumentation)
 
 data IntraComponent = Brig | Spar | Gundeck
   deriving (Show)
@@ -69,11 +66,15 @@ call ::
   IntraComponent ->
   (Request -> Request) ->
   App (Response (Maybe LB.ByteString))
-call comp r = do
+call comp rMod0 = do
   o <- view options
-  let r0 = componentRequest comp o
+  let rMod1 = componentRequest comp o
   let n = LT.pack (componentName comp)
-  recovering (componentRetryPolicy comp) rpcHandlers (const (rpc n (r . r0)))
+  withClientInstrumentation "galley-intra-call" \k -> do
+    let mkReq = rMod1 . rMod0
+    recovering (componentRetryPolicy comp) rpcHandlers $
+      const $
+        k (mkReq empty) \req -> rpc' n req id
 
 x1 :: RetryPolicy
 x1 = limitRetries 1

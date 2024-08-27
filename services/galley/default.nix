@@ -44,6 +44,8 @@
 , gitignoreSource
 , gundeck-types
 , hex
+, hs-opentelemetry-instrumentation-wai
+, hs-opentelemetry-sdk
 , HsOpenSSL
 , http-api-data
 , http-client
@@ -124,6 +126,7 @@
 , warp-tls
 , wire-api
 , wire-api-federation
+, wire-otel
 , wire-subsystems
 , yaml
 }:
@@ -166,6 +169,8 @@ mkDerivation {
     generics-sop
     gundeck-types
     hex
+    hs-opentelemetry-instrumentation-wai
+    hs-opentelemetry-sdk
     HsOpenSSL
     http-client
     http-client-openssl
@@ -218,6 +223,7 @@ mkDerivation {
     wai-utilities
     wire-api
     wire-api-federation
+    wire-otel
     wire-subsystems
   ];
   executableHaskellDepends = [

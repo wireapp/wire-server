@@ -196,6 +196,7 @@ library
     , wire-api
     , wire-api-federation
     , witherable
+    , wire-otel
 
   default-language: GHC2021
 

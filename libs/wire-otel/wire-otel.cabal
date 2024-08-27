@@ -1,0 +1,47 @@
+cabal-version:   3.4
+name:            wire-otel
+version:         0.1.0.0
+description:     wire open-telemetry-instrumentation
+homepage:        https://wire.com/
+license:         AGPL-3.0-only
+license-file:    LICENSE
+author:          Wire Swiss GmbH
+maintainer:      backend@wire.com
+copyright:       (c) 2020 Wire Swiss GmbH
+build-type:      Simple
+extra-doc-files: CHANGELOG.md
+
+common common-all
+  ghc-options:        -O2 -Wall
+  default-extensions:
+    BlockArguments
+    OverloadedStrings
+
+library
+  import:           common-all
+  exposed-modules:  Wire.OpenTelemetry
+
+  -- other-modules:
+  -- other-extensions:
+  build-depends:
+    , base
+    , hs-opentelemetry-instrumentation-http-client
+    , hs-opentelemetry-instrumentation-wai
+    , hs-opentelemetry-sdk
+    , http-client
+    , kan-extensions
+    , text
+    , unliftio
+
+  hs-source-dirs:   src
+  default-language: GHC2021
+
+test-suite wire-otel-test
+  import:           common-all
+  default-language: GHC2021
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   test
+  main-is:          Main.hs
+  build-depends:
+    , base
+    , wire-otel

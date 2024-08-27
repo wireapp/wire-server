@@ -59,6 +59,8 @@ import Network.Wai.Middleware.Gzip qualified as GZip
 import Network.Wai.Utilities.Request
 import Network.Wai.Utilities.Server
 import Network.Wai.Utilities.Server qualified as Server
+import OpenTelemetry.Instrumentation.Wai qualified as Otel
+import OpenTelemetry.Trace as Otel
 import Polysemy (Member)
 import Servant (Context ((:.)), (:<|>) (..))
 import Servant qualified
@@ -73,6 +75,7 @@ import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 import Wire.API.User (AccountStatus (PendingInvitation))
 import Wire.DeleteQueue
+import Wire.OpenTelemetry (withTracer)
 import Wire.Sem.Paging qualified as P
 import Wire.UserStore
 
@@ -81,15 +84,16 @@ import Wire.UserStore
 -- thread terminates for any reason.
 -- https://github.com/zinfra/backend-issues/issues/1647
 run :: Opts -> IO ()
-run o = do
+run o = withTracer \tracer -> do
   (app, e) <- mkApp o
   s <- Server.newSettings (server e)
   internalEventListener <-
     Async.async $
-      runBrigToIO e $
-        wrapHttpClient $
-          Queue.listen (e ^. internalEvents) $
-            liftIO . runBrigToIO e . liftSem . Internal.onEvent
+      inSpan tracer "brig-event-listener" defaultSpanArguments $
+        runBrigToIO e $
+          wrapHttpClient $
+            Queue.listen (e ^. internalEvents) $
+              liftIO . inSpan tracer "brig-internal-event" defaultSpanArguments {- TODO(mangoiv): needs more information here -} . runBrigToIO e . liftSem . Internal.onEvent
   let throttleMillis = fromMaybe defSqsThrottleMillis $ setSqsThrottleMillis (optSettings o)
   emailListener <- for (e ^. awsEnv . sesQueue) $ \q ->
     Async.async $
@@ -100,7 +104,7 @@ run o = do
   authMetrics <- Async.async (runBrigToIO e collectAuthMetrics)
   pendingActivationCleanupAsync <- Async.async (runBrigToIO e pendingActivationCleanup)
 
-  runSettingsWithShutdown s app Nothing `finally` do
+  inSpan tracer "brig" defaultSpanArguments {kind = Otel.Server} (runSettingsWithShutdown s app Nothing) `finally` do
     mapM_ Async.cancel emailListener
     Async.cancel internalEventListener
     mapM_ Async.cancel sftDiscovery
@@ -115,7 +119,8 @@ run o = do
 mkApp :: Opts -> IO (Wai.Application, Env)
 mkApp o = do
   e <- newEnv o
-  pure (middleware e $ servantApp e, e)
+  otelMiddleware <- Otel.newOpenTelemetryWaiMiddleware
+  pure (otelMiddleware . middleware e $ servantApp e, e)
   where
     middleware :: Env -> Wai.Middleware
     middleware e =
