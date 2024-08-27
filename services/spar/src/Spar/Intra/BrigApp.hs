@@ -71,17 +71,22 @@ import Wire.API.User.Scim (ValidScimId (..), runValidScimIdEither)
 
 -- | FUTUREWORK: this is redundantly defined in "Spar.Intra.Brig"
 veidToUserSSOId :: ValidScimId -> UserSSOId
-veidToUserSSOId = runValidScimIdEither UserSSOId (UserScimExternalId . fromEmail)
+veidToUserSSOId = runValidScimIdEither UserSSOId (UserScimExternalId . validScimIdExternal)
 
-veidFromUserSSOId :: (MonadError String m) => UserSSOId -> m ValidScimId
-veidFromUserSSOId = \case
-  UserSSOId uref ->
-    case urefToEmail uref of
-      Nothing -> pure $ ValidScimId _ (That uref)
-      Just email -> pure $ ValidScimId _ (These email uref)
-  -- FUTUREWORK(elland): account for SCIM emails fields?
-  UserScimExternalId veid ->
-    pure $ ValidScimId veid (This _)
+veidFromUserSSOId :: (MonadError String m) => UserSSOId -> Maybe EmailAddress -> m ValidScimId
+veidFromUserSSOId userSSOId mbUnvalidatedEmail = case userSSOId of
+  UserSSOId uref -> do
+    let eid = error "NameID of uref as Text"
+    pure $ case mbUnvalidatedEmail of
+      Just email -> ValidScimId eid (These email uref)
+      Nothing -> ValidScimId eid (That uref)
+  UserScimExternalId veid -> do
+    case mbUnvalidatedEmail of
+      Just email ->
+        pure $ ValidScimId veid (This email)
+      Nothing ->
+        -- If veid can be parsed as an email, we end up in the case above with email delivered separately.
+        throwError "internal error: externalId is not an email and there is no SAML issuer"
 
 -- | If the brig user has a 'UserSSOId', transform that into a 'ValidScimId' (this is a
 -- total function as long as brig obeys the api).  Otherwise, if the user has an email, we can
@@ -90,11 +95,20 @@ veidFromUserSSOId = \case
 -- Note: the saml issuer is only needed in the case where a user has been invited via team
 -- settings and is now onboarded to saml/scim.  If this case can safely be ruled out, it's ok
 -- to just set it to 'Nothing'.
+--
+-- `userSSOId usr` can be empty if the user has no SAML credentials and is brought under scim
+-- management for the first time with `getUserById`.  In that case, the externalId is taken to
+-- be the email address.
 veidFromBrigUser :: (MonadError String m) => User -> Maybe SAML.Issuer -> m ValidScimId
 veidFromBrigUser usr mIssuer = case (userSSOId usr, userEmail usr, mIssuer) of
-  (Just ssoid, _, _) -> veidFromUserSSOId ssoid
-  (Nothing, Just email, Just issuer) -> pure $ ValidScimId _ (These email (SAML.UserRef issuer (fromRight' $ emailToSAMLNameID email)))
-  (Nothing, Just email, Nothing) -> pure $ ValidScimId _ (This email)
+  (Just ssoid, _, _) -> do
+    let email =
+          -- use validated email? => if email has been updated by scim, but not validated, this will lead to false resulsts.
+          -- use unvalidated email? => probably only available in some cases, not all of the ones we need.
+          error "TODO(fisx): here goes unvalidated email if present, but we only have the validated one."
+    veidFromUserSSOId ssoid email
+  (Nothing, Just email, Just issuer) -> pure $ ValidScimId (emailAddressText email) (These email (SAML.UserRef issuer (fromRight' $ emailToSAMLNameID email)))
+  (Nothing, Just email, Nothing) -> pure $ ValidScimId (emailAddressText email) (This email)
   (Nothing, Nothing, _) -> throwError "user has neither ssoIdentity nor userEmail"
 
 -- | Take a maybe text, construct a 'Name' from what we have in a scim user.  If the text

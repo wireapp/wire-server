@@ -167,7 +167,6 @@ library
     , hscim
     , hspec
     , http-types
-    , these
     , imports
     , lens
     , metrics-wai
@@ -186,6 +185,7 @@ library
     , servant-server
     , text
     , text-latin1
+    , these
     , time
     , tinylog
     , transformers
