@@ -71,17 +71,22 @@ import Wire.API.User.Scim (ValidScimId (..), runValidScimIdEither)
 
 -- | FUTUREWORK: this is redundantly defined in "Spar.Intra.Brig"
 veidToUserSSOId :: ValidScimId -> UserSSOId
-veidToUserSSOId = runValidScimIdEither UserSSOId (UserScimExternalId . validScimIdExternal)
+veidToUserSSOId = runValidScimIdEither UserSSOId (UserScimExternalId . fromEmail)
 
-veidFromUserSSOId :: (MonadError String m) => UserSSOId -> Maybe EmailAddress -> m ValidScimId
-veidFromUserSSOId userSSOId mbUnvalidatedEmail = case userSSOId of
+veidFromUserSSOId ::
+  (MonadError String m) =>
+  UserSSOId ->
+  -- | this is either the unvalidated email if exists, or otherwise the validated email.
+  Maybe EmailAddress ->
+  m ValidScimId
+veidFromUserSSOId ssoId mEmail = case ssoId of
   UserSSOId uref -> do
     let eid = error "NameID of uref as Text"
-    pure $ case mbUnvalidatedEmail of
+    pure $ case mEmail of
       Just email -> ValidScimId eid (These email uref)
       Nothing -> ValidScimId eid (That uref)
   UserScimExternalId veid -> do
-    case mbUnvalidatedEmail of
+    case mEmail of
       Just email ->
         pure $ ValidScimId veid (This email)
       Nothing ->
@@ -101,14 +106,13 @@ veidFromUserSSOId userSSOId mbUnvalidatedEmail = case userSSOId of
 -- be the email address.
 veidFromBrigUser :: (MonadError String m) => User -> Maybe SAML.Issuer -> m ValidScimId
 veidFromBrigUser usr mIssuer = case (userSSOId usr, userEmail usr, mIssuer) of
-  (Just ssoid, _, _) -> do
-    let email =
-          -- use validated email? => if email has been updated by scim, but not validated, this will lead to false resulsts.
-          -- use unvalidated email? => probably only available in some cases, not all of the ones we need.
-          error "TODO(fisx): here goes unvalidated email if present, but we only have the validated one."
-    veidFromUserSSOId ssoid email
-  (Nothing, Just email, Just issuer) -> pure $ ValidScimId (emailAddressText email) (These email (SAML.UserRef issuer (fromRight' $ emailToSAMLNameID email)))
-  (Nothing, Just email, Nothing) -> pure $ ValidScimId (emailAddressText email) (This email)
+  (Just ssoid, mValidatedEmail, _) -> do
+    let mUnvalidatedEmail = error "TODO(fisx): get from somewhere"
+    -- `mEmail` is in synch with SCIM user schema.
+    let mEmail = mUnvalidatedEmail <|> mValidatedEmail
+    veidFromUserSSOId ssoid mEmail
+  (Nothing, Just email, Just issuer) -> pure $ ValidScimId (fromEmail email) (These email (SAML.UserRef issuer (fromRight' $ emailToSAMLNameID email)))
+  (Nothing, Just email, Nothing) -> pure $ ValidScimId (fromEmail email) (This email)
   (Nothing, Nothing, _) -> throwError "user has neither ssoIdentity nor userEmail"
 
 -- | Take a maybe text, construct a 'Name' from what we have in a scim user.  If the text

@@ -160,6 +160,7 @@ newAccountInviteViaScim uid tid locale name email = do
     user domain loc =
       User
         (Qualified uid domain)
+        -- TODO: do we really want to store the email of an unvalidated/pending account invitation?
         (Just $ EmailIdentity email)
         name
         Nothing
