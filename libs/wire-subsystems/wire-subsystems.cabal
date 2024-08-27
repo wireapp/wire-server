@@ -94,8 +94,11 @@ library
     Wire.GundeckAPIAccess
     Wire.HashPassword
     Wire.IndexedUserStore
+    Wire.IndexedUserStore.Bulk
+    Wire.IndexedUserStore.Bulk.ElasticSearch
     Wire.IndexedUserStore.ElasticSearch
-    Wire.IndexedUserStore.Migration.ElasticSearch
+    Wire.IndexedUserStore.MigrationStore
+    Wire.IndexedUserStore.MigrationStore.ElasticSearch
     Wire.InternalEvent
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
@@ -117,8 +120,6 @@ library
     Wire.UserSearch.Metrics
     Wire.UserSearch.Migration
     Wire.UserSearch.Types
-    Wire.UserSearchSubsystem
-    Wire.UserSearchSubsystem.Interpreter
     Wire.UserStore
     Wire.UserStore.Cassandra
     Wire.UserStore.IndexUser

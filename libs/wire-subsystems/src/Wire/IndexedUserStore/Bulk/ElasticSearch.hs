@@ -1,4 +1,4 @@
-module Wire.UserSearchSubsystem.Interpreter where
+module Wire.IndexedUserStore.Bulk.ElasticSearch where
 
 import Cassandra.Exec (paginateWithStateC)
 import Conduit (ConduitT, runConduit, (.|))
@@ -15,16 +15,18 @@ import Polysemy.TinyLog qualified as Log
 import System.Logger.Message qualified as Log
 import Wire.API.Team.Feature
 import Wire.GalleyAPIAccess
-import Wire.IndexedUserStore (IndexedUserMigrationStore, IndexedUserStore)
+import Wire.IndexedUserStore (IndexedUserStore)
 import Wire.IndexedUserStore qualified as IndexedUserStore
+import Wire.IndexedUserStore.Bulk
+import Wire.IndexedUserStore.MigrationStore
+import Wire.IndexedUserStore.MigrationStore qualified as MigrationStore
 import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe), unsafePooledForConcurrentlyN)
 import Wire.UserSearch.Migration
 import Wire.UserSearch.Types
-import Wire.UserSearchSubsystem
 import Wire.UserStore
 import Wire.UserStore.IndexUser
 
-interpretUserSearchSubsystemBulk ::
+interpretIndexedUserStoreBulk ::
   ( Member TinyLog r,
     Member UserStore r,
     Member (Concurrency Unsafe) r,
@@ -33,8 +35,8 @@ interpretUserSearchSubsystemBulk ::
     Member (Error MigrationException) r,
     Member IndexedUserMigrationStore r
   ) =>
-  InterpreterFor UserSearchSubsystemBulk r
-interpretUserSearchSubsystemBulk = interpret \case
+  InterpreterFor IndexedUserStoreBulk r
+interpretIndexedUserStoreBulk = interpret \case
   SyncAllUsers -> syncAllUsersImpl
   ForceSyncAllUsers -> forceSyncAllUsersImpl
   MigrateData -> migrateDataImpl
@@ -106,8 +108,8 @@ migrateDataImpl ::
 migrateDataImpl = do
   unlessM IndexedUserStore.doesIndexExist $
     throw TargetIndexAbsent
-  IndexedUserStore.ensureMigrationIndex
-  foundVersion <- IndexedUserStore.getLatestMigrationVersion
+  MigrationStore.ensureMigrationIndex
+  foundVersion <- MigrationStore.getLatestMigrationVersion
   if expectedMigrationVersion > foundVersion
     then do
       Log.info $
@@ -115,7 +117,7 @@ migrateDataImpl = do
           . Log.field "expectedVersion" expectedMigrationVersion
           . Log.field "foundVersion" foundVersion
       forceSyncAllUsersImpl
-      IndexedUserStore.persistMigrationVersion expectedMigrationVersion
+      MigrationStore.persistMigrationVersion expectedMigrationVersion
     else do
       Log.info $
         Log.msg (Log.val "No migration necessary.")

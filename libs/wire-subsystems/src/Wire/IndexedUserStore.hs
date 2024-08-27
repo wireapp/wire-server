@@ -7,7 +7,6 @@ import Database.Bloodhound.Types hiding (SearchResult)
 import Imports
 import Polysemy
 import Wire.API.User.Search
-import Wire.UserSearch.Migration
 import Wire.UserSearch.Types
 
 data IndexedUserStore m a where
@@ -33,10 +32,3 @@ data IndexedUserStore m a where
     IndexedUserStore m (SearchResult UserDoc)
 
 makeSem ''IndexedUserStore
-
-data IndexedUserMigrationStore m a where
-  EnsureMigrationIndex :: IndexedUserMigrationStore m ()
-  GetLatestMigrationVersion :: IndexedUserMigrationStore m MigrationVersion
-  PersistMigrationVersion :: MigrationVersion -> IndexedUserMigrationStore m ()
-
-makeSem ''IndexedUserMigrationStore

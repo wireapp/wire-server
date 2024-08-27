@@ -57,8 +57,12 @@ import Wire.FederationConfigStore.Cassandra (interpretFederationDomainConfig)
 import Wire.GalleyAPIAccess
 import Wire.GalleyAPIAccess.Rpc
 import Wire.IndexedUserStore
+import Wire.IndexedUserStore.Bulk (IndexedUserStoreBulk)
+import Wire.IndexedUserStore.Bulk qualified as IndexedUserStoreBulk
+import Wire.IndexedUserStore.Bulk.ElasticSearch (interpretIndexedUserStoreBulk)
 import Wire.IndexedUserStore.ElasticSearch
-import Wire.IndexedUserStore.Migration.ElasticSearch
+import Wire.IndexedUserStore.MigrationStore (IndexedUserMigrationStore)
+import Wire.IndexedUserStore.MigrationStore.ElasticSearch
 import Wire.ParseException
 import Wire.Rpc
 import Wire.Sem.Concurrency
@@ -69,15 +73,12 @@ import Wire.Sem.Metrics.IO
 import Wire.UserKeyStore (UserKeyStore)
 import Wire.UserKeyStore.Cassandra
 import Wire.UserSearch.Migration (MigrationException)
-import Wire.UserSearchSubsystem (UserSearchSubsystemBulk)
-import Wire.UserSearchSubsystem qualified as UserSearchSubsystem
-import Wire.UserSearchSubsystem.Interpreter
 import Wire.UserStore
 import Wire.UserStore.Cassandra
 import Wire.UserSubsystem.Error
 
 type BrigIndexEffectStack =
-  [ UserSearchSubsystemBulk,
+  [ IndexedUserStoreBulk,
     UserKeyStore,
     BlockListStore,
     Error UserSubsystemError,
@@ -141,7 +142,7 @@ runSem esConn cas galleyEndpoint logger action = do
     . throwErrorToIOFinal @UserSubsystemError
     . interpretBlockListStoreToCassandra casClient
     . interpretUserKeyStoreCassandra casClient
-    . interpretUserSearchSubsystemBulk
+    . interpretIndexedUserStoreBulk
     $ action
 
 throwErrorToIOFinal :: (Exception e, Member (Final IO) r) => InterpreterFor (Error e) r
@@ -160,16 +161,16 @@ runCommand l = \case
     runIndexIO e $ resetIndex (mkCreateIndexSettings es)
   Reindex es cas galley -> do
     runSem (es ^. esConnection) cas galley l $
-      UserSearchSubsystem.syncAllUsers
+      IndexedUserStoreBulk.syncAllUsers
   ReindexSameOrNewer es cas galley -> do
     runSem (es ^. esConnection) cas galley l $
-      UserSearchSubsystem.forceSyncAllUsers
+      IndexedUserStoreBulk.forceSyncAllUsers
   UpdateMapping esConn galley -> do
     e <- initIndex esConn galley
     runIndexIO e updateMapping
   Migrate es cas galley -> do
     runSem (es ^. esConnection) cas galley l $
-      UserSearchSubsystem.migrateData
+      IndexedUserStoreBulk.migrateData
   ReindexFromAnotherIndex reindexSettings -> do
     mgr <-
       initHttpManagerWithTLSConfig

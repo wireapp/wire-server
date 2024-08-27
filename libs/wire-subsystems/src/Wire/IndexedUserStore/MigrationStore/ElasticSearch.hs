@@ -1,4 +1,4 @@
-module Wire.IndexedUserStore.Migration.ElasticSearch where
+module Wire.IndexedUserStore.MigrationStore.ElasticSearch where
 
 import Data.Aeson
 import Data.Text qualified as Text
@@ -8,7 +8,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.TinyLog
 import System.Logger.Message qualified as Log
-import Wire.IndexedUserStore
+import Wire.IndexedUserStore.MigrationStore
 import Wire.Sem.Logger qualified as Log
 import Wire.UserSearch.Migration
 
