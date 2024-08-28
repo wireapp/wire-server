@@ -346,7 +346,6 @@ executable spar-integration
     , brig-types
     , bytestring
     , bytestring-conversion
-    , these
     , case-insensitive
     , cassandra-util
     , cassava
@@ -385,6 +384,7 @@ executable spar-integration
     , string-conversions
     , tasty-hunit
     , text
+    , these
     , time
     , tinylog
     , transformers
@@ -619,7 +619,6 @@ test-suite spec
     , imports
     , lens
     , lens-aeson
-    , these
     , metrics-wai
     , mtl
     , network-uri
@@ -633,6 +632,7 @@ test-suite spec
     , servant-openapi3
     , spar
     , string-conversions
+    , these
     , time
     , tinylog
     , types-common

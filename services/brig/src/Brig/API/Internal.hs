@@ -568,7 +568,7 @@ listActivatedAccountsH
     lift $ do
       u1 <- listActivatedAccounts (Left uids) includePendingInvitations
       u2 <- listActivatedAccounts (Right handles) includePendingInvitations
-      u3 <- (\email -> API.lookupAccountsByIdentity email includePendingInvitations) `mapM` emails
+      u3 <- (\email -> API.lookupExtendedAccountsByIdentity email includePendingInvitations) `mapM` emails
       pure $ u1 <> u2 <> join u3
 
 -- FUTUREWORK: this should use UserStore only through UserSubsystem.
@@ -576,7 +576,7 @@ listActivatedAccounts ::
   (Member DeleteQueue r, Member UserStore r) =>
   Either [UserId] [Handle] ->
   Bool ->
-  AppT r [UserAccount]
+  AppT r [ExtendedUserAccount]
 listActivatedAccounts elh includePendingInvitations = do
   Log.debug (Log.msg $ "listActivatedAccounts: " <> show (elh, includePendingInvitations))
   case elh of
@@ -585,20 +585,20 @@ listActivatedAccounts elh includePendingInvitations = do
       us <- liftSem $ mapM API.lookupHandle hs
       byIds (catMaybes us)
   where
-    byIds :: (Member DeleteQueue r) => [UserId] -> (AppT r) [UserAccount]
-    byIds uids = wrapClient (API.lookupAccounts uids) >>= filterM accountValid
+    byIds :: (Member DeleteQueue r) => [UserId] -> (AppT r) [ExtendedUserAccount]
+    byIds uids = wrapClient (API.lookupExtendedAccounts uids) >>= filterM accountValid
 
-    accountValid :: (Member DeleteQueue r) => UserAccount -> (AppT r) Bool
-    accountValid account = case userIdentity . accountUser $ account of
+    accountValid :: (Member DeleteQueue r) => ExtendedUserAccount -> (AppT r) Bool
+    accountValid extAccount@(account -> acc) = case userIdentity . accountUser $ acc of
       Nothing -> pure False
       Just ident ->
-        case (accountStatus account, includePendingInvitations, emailIdentity ident) of
+        case (accountStatus acc, includePendingInvitations, emailIdentity ident) of
           (PendingInvitation, False, _) -> pure False
           (PendingInvitation, True, Just email) -> do
             hasInvitation <- isJust <$> wrapClient (lookupInvitationByEmail HideInvitationUrl email)
             unless hasInvitation $ do
               -- user invited via scim should expire together with its invitation
-              liftSem $ API.deleteUserNoVerify (userId . accountUser $ account)
+              liftSem $ API.deleteUserNoVerify (userId . accountUser $ acc)
             pure hasInvitation
           (PendingInvitation, True, Nothing) ->
             pure True -- cannot happen, user invited via scim always has an email

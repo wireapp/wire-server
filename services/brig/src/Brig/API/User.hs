@@ -32,8 +32,10 @@ module Brig.API.User
     changeAccountStatus,
     changeSingleAccountStatus,
     Data.lookupAccounts,
+    Data.lookupExtendedAccounts,
     Data.lookupAccount,
     lookupAccountsByIdentity,
+    lookupExtendedAccountsByIdentity,
     getLegalHoldStatus,
     Data.lookupName,
     Data.lookupUser,
@@ -1121,19 +1123,29 @@ getLegalHoldStatus' user =
 
 -- | Find user accounts for a given identity, both activated and those
 -- currently pending activation.
+lookupExtendedAccountsByIdentity ::
+  (Member UserKeyStore r) =>
+  EmailAddress ->
+  Bool ->
+  AppT r [ExtendedUserAccount]
+lookupExtendedAccountsByIdentity email includePendingInvitations = do
+  let uk = mkEmailKey email
+  activeUid <- liftSem $ lookupKey uk
+  uidFromKey <- (>>= fst) <$> wrapClient (Data.lookupActivationCode uk)
+  result <- wrapClient $ Data.lookupExtendedAccounts (nub $ catMaybes [activeUid, uidFromKey])
+  if includePendingInvitations
+    then pure result
+    else pure $ filter ((/= PendingInvitation) . accountStatus . account) result
+
+-- | Find user accounts for a given identity, both activated and those
+-- currently pending activation.
 lookupAccountsByIdentity ::
   (Member UserKeyStore r) =>
   EmailAddress ->
   Bool ->
   AppT r [UserAccount]
-lookupAccountsByIdentity email includePendingInvitations = do
-  let uk = mkEmailKey email
-  activeUid <- liftSem $ lookupKey uk
-  uidFromKey <- (>>= fst) <$> wrapClient (Data.lookupActivationCode uk)
-  result <- wrapClient $ Data.lookupAccounts (nub $ catMaybes [activeUid, uidFromKey])
-  if includePendingInvitations
-    then pure result
-    else pure $ filter ((/= PendingInvitation) . accountStatus) result
+lookupAccountsByIdentity email includePendingInvitations =
+  account <$$> lookupExtendedAccountsByIdentity email includePendingInvitations
 
 isBlacklisted :: (Member BlockListStore r) => EmailAddress -> AppT r Bool
 isBlacklisted email = do
