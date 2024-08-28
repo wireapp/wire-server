@@ -687,7 +687,7 @@ type ConversationAPI =
     :<|> Named
            "get-one-to-one-mls-conversation"
            ( Summary "Get an MLS 1:1 conversation"
-               :> From 'V5
+               :> From 'V6
                :> ZLocalUser
                :> CanThrow 'MLSNotEnabled
                :> CanThrow 'NotConnected
