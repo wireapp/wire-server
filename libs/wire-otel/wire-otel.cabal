@@ -29,6 +29,7 @@ library
     , hs-opentelemetry-instrumentation-wai
     , hs-opentelemetry-sdk
     , http-client
+    , http2
     , kan-extensions
     , text
     , unliftio

@@ -8,17 +8,33 @@ module Wire.OpenTelemetry
     -- ** wai instrumentation
 
     -- * outbound instrumentation
+
+    -- ** http client
     withClientInstrumentation,
+
+    -- ** http2 client
+    instrumentHttp2Request,
+    instrumentHttp2Response,
   )
 where
 
 import Control.Monad.Codensity (Codensity (Codensity))
 import Data.Text
 import Network.HTTP.Client
+import Network.HTTP2.Client qualified as HTTP2
+import OpenTelemetry.Context (Context)
 import OpenTelemetry.Context.ThreadLocal (getContext)
-import OpenTelemetry.Instrumentation.HttpClient.Raw (httpClientInstrumentationConfig, httpTracerProvider, instrumentRequest, instrumentResponse)
+import OpenTelemetry.Instrumentation.HttpClient.Raw (HttpClientInstrumentationConfig, httpClientInstrumentationConfig, httpTracerProvider, instrumentRequest, instrumentResponse)
 import OpenTelemetry.Trace
 import UnliftIO
+
+-- TODO(mangoiv): see https://github.com/iand675/hs-opentelemetry/blob/0b3c854a88113fc18df8561202a76357e593a294/instrumentation/http-client/src/OpenTelemetry/Instrumentation/HttpClient/Raw.hs#L60
+instrumentHttp2Request :: HttpClientInstrumentationConfig -> Context -> HTTP2.Request -> IO HTTP2.Request
+instrumentHttp2Request cfg ctx req = _
+
+-- TODO(mangoiv): see https://github.com/iand675/hs-opentelemetry/blob/0b3c854a88113fc18df8561202a76357e593a294/instrumentation/http-client/src/OpenTelemetry/Instrumentation/HttpClient/Raw.hs#L136
+instrumentHttp2Response :: HttpClientInstrumentationConfig -> Context -> HTTP2.Response -> IO ()
+instrumentHttp2Response cfg ctx resp = _
 
 -- | a tracer for a service like brig, galley, etc.
 withTracer :: (Tracer -> IO r) -> IO r

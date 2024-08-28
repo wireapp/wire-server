@@ -65,6 +65,8 @@ import Network.HTTP.Types qualified as HTTP
 import Network.HTTP2.Client qualified as HTTP2
 import Network.Wai.Utilities.Error qualified as Wai
 import OpenSSL.Session qualified as SSL
+import OpenTelemetry.Context.ThreadLocal (getContext)
+import OpenTelemetry.Instrumentation.HttpClient.Raw
 import Servant.Client
 import Servant.Client.Core
 import Servant.Types.SourceT
@@ -74,6 +76,7 @@ import Wire.API.Federation.Domain (originDomainHeaderName)
 import Wire.API.Federation.Error
 import Wire.API.Federation.Version
 import Wire.API.VersionInfo
+import Wire.OpenTelemetry (withClientInstrumentation)
 
 data FederatorClientEnv = FederatorClientEnv
   { ceOriginDomain :: Domain,
@@ -138,7 +141,10 @@ withNewHttpRequest target req k = do
   sendReqMVar <- newEmptyMVar
   thread <- liftIO . async $ H2Manager.startPersistentHTTP2Connection ctx target cacheLimit sslRemoveTrailingDot tcpConnectionTimeout sendReqMVar
   let newConn = H2Manager.HTTP2Conn thread (putMVar sendReqMVar H2Manager.CloseConnection) sendReqMVar
-  H2Manager.sendRequestWithConnection newConn req $ \resp -> do
+  otelCtx <- getContext
+  instrumentedReq <- instrumentHttp2Request httpClientInstrumentationConfig otelCtx req
+  H2Manager.sendRequestWithConnection newConn instrumentedReq $ \resp -> do
+    instrumentHttp2Response httpClientInstrumentationConfig otelCtx resp
     k resp <* newConn.disconnect
 
 performHTTP2Request ::
