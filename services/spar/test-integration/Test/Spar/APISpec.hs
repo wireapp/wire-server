@@ -1274,7 +1274,7 @@ specScimAndSAML = do
     userid' <- getUserIdViaRef' userref
     liftIO $ ('i', userid') `shouldBe` ('i', Just userid)
     userssoid <- getSsoidViaSelf' userid
-    liftIO $ ('r', veidUref <$$> (Intra.veidFromUserSSOId <$> userssoid)) `shouldBe` ('r', Just (Right (Just userref)))
+    liftIO $ ('r', veidUref <$$> ((`Intra.veidFromUserSSOId` Nothing) <$> userssoid)) `shouldBe` ('r', Just (Right (Just userref)))
     -- login a user for the first time with the scim-supplied credentials
     authnreq <- negotiateAuthnRequest idp
     spmeta <- getTestSPMetadata tid
@@ -1516,7 +1516,7 @@ getSsoidViaAuthResp :: (HasCallStack) => SignedAuthnResponse -> TestSpar UserSSO
 getSsoidViaAuthResp aresp = do
   parsed :: AuthnResponse <-
     either error pure . parseFromDocument $ fromSignedAuthnResponse aresp
-  either error (pure . Intra.veidToUserSSOId . UrefOnly) $ getUserRef parsed
+  either error (pure . UserSSOId) $ getUserRef parsed
 
 specSparUserMigration :: SpecWith TestEnv
 specSparUserMigration = do

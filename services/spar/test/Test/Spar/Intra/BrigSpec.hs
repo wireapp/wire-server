@@ -21,6 +21,7 @@ module Test.Spar.Intra.BrigSpec where
 
 import Arbitrary ()
 import Data.String.Conversions
+import Data.These
 import Imports
 import SAML2.WebSSO as SAML
 import Spar.Intra.BrigApp
@@ -42,7 +43,7 @@ spec = do
 
     it "example" $ do
       let have =
-            UrefOnly $
+            ValidScimId "V" . That $
               UserRef
                 (Issuer $ mkuri "http://wire.com/")
                 ( either (error . show) id $
@@ -52,10 +53,10 @@ spec = do
           iss :: SAML.Issuer = fromRight undefined $ SAML.decodeElem "<Issuer xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">http://wire.com/</Issuer>"
           nam :: SAML.NameID = fromRight undefined $ SAML.decodeElem "<NameID xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" Format=\"urn:oasis:names:tc:SAML:2.0:nameid-format:transient\" NameQualifier=\"kati\" SPNameQualifier=\"rolli\" SPProvidedID=\"jaan\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">V</NameID>"
       veidToUserSSOId have `shouldBe` want
-      veidFromUserSSOId want `shouldBe` Right have
+      veidFromUserSSOId want Nothing `shouldBe` Right have
     it "another example" $ do
       let have =
-            UrefOnly $
+            ValidScimId "PWKS" . That $
               UserRef
                 (Issuer $ mkuri "http://wire.com/")
                 ( either (error . show) id $
@@ -66,7 +67,7 @@ spec = do
           nam :: SAML.NameID = fromRight undefined $ SAML.decodeElem "<NameID xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" Format=\"urn:oasis:names:tc:SAML:2.0:nameid-format:persistent\" NameQualifier=\"hendrik\" SPProvidedID=\"marye\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">PWkS</NameID>"
 
       veidToUserSSOId have `shouldBe` want
-      veidFromUserSSOId want `shouldBe` Right have
+      veidFromUserSSOId want Nothing `shouldBe` Right have
 
     it "roundtrips" . property $
-      \(x :: ValidScimId) -> (veidFromUserSSOId @(Either String) . veidToUserSSOId) x === Right x
+      \(x :: ValidScimId) -> veidFromUserSSOId @(Either String) (veidToUserSSOId x) Nothing === Right x

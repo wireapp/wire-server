@@ -48,7 +48,6 @@ import Web.Scim.Schema.Common as Scim.Common
 import Web.Scim.Schema.Meta as Scim.Meta
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
-import Wire.API.User.Scim
 
 spec :: SpecWith TestEnv
 spec = do
@@ -248,7 +247,7 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
     liftIO $ tokens `shouldBe` []
   -- The users from 'user':
   do
-    mbUser1 <- case veidFromUserSSOId ssoid1 of
+    mbUser1 <- case veidFromUserSSOId ssoid1 Nothing of
       Right veid ->
         runSpar $
           runValidScimIdEither
@@ -258,7 +257,7 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
       Left _email -> undefined -- runSparCass . Data.lookupScimExternalId . fromEmail $ _email
     liftIO $ mbUser1 `shouldBe` Nothing
   do
-    mbUser2 <- case veidFromUserSSOId ssoid2 of
+    mbUser2 <- case veidFromUserSSOId ssoid2 Nothing of
       Right veid ->
         runSpar $
           runValidScimIdEither

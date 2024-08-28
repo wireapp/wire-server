@@ -149,10 +149,10 @@ getUserIdByScimExternalId ::
     Member ScimExternalIdStore r
   ) =>
   TeamId ->
-  EmailAddress ->
+  Text ->
   Sem r (Maybe UserId)
-getUserIdByScimExternalId tid email = do
-  muid <- ScimExternalIdStore.lookup tid email
+getUserIdByScimExternalId tid eid = do
+  muid <- ScimExternalIdStore.lookup tid eid
   case muid of
     Nothing -> pure Nothing
     Just uid -> do

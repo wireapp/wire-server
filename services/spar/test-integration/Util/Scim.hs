@@ -33,6 +33,7 @@ import Data.LanguageCodes (ISO639_1 (EN))
 import Data.String.Conversions
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Lazy as Lazy
+import Data.These
 import Data.Time
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
@@ -68,6 +69,10 @@ import Wire.API.User
 import Wire.API.User.IdentityProvider hiding (handle, team)
 import Wire.API.User.RichInfo
 import Wire.API.User.Scim
+
+-- | Take apart a 'ValidScimId', using 'SAML.UserRef' if available, otherwise 'Email'.
+runValidScimIdEither :: (SAML.UserRef -> a) -> (EmailAddress -> a) -> ValidScimId -> a
+runValidScimIdEither doUref doEmail = these doEmail doUref (\_ uref -> doUref uref) . validScimIdAuthInfo
 
 -- | Call 'registerTestIdP', then 'registerScimToken'.  The user returned is the owner of the team;
 -- the IdP is registered with the team; the SCIM token can be used to manipulate the team.

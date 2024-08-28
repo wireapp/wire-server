@@ -365,19 +365,10 @@ instance Arbitrary ValidScimId where
         veid <- QC.arbitrary
         pure ValidScimId {validScimIdExternal = veid, validScimIdAuthInfo = authInfo}
 
--- | Take apart a 'ValidScimId', using 'SAML.UserRef' if available, otherwise 'Email'.
-runValidScimIdEither :: (SAML.UserRef -> a) -> (EmailAddress -> a) -> ValidScimId -> a
-runValidScimIdEither doUref doEmail = these doEmail doUref (\_ uref -> doUref uref) . validScimIdAuthInfo
-
 -- | Take apart a 'ValidScimId', use both 'SAML.UserRef', 'Email' if applicable, and
 -- merge the result with a given function.
 runValidScimIdBoth :: (a -> a -> a) -> (SAML.UserRef -> a) -> (EmailAddress -> a) -> ValidScimId -> a
 runValidScimIdBoth merge doURefl doEmail = these doEmail doURefl (\em uref -> doEmail em `merge` doURefl uref) . validScimIdAuthInfo
-
--- | Returns either the extracted `UnqualifiedNameID` if present and not qualified, or the email address.
--- This throws an exception if there are any qualifiers.
-runValidScimIdUnsafe :: ValidScimId -> Text
-runValidScimIdUnsafe = runValidScimIdEither urefToExternalIdUnsafe fromEmail
 
 veidUref :: ValidScimId -> Maybe SAML.UserRef
 veidUref = justThat . validScimIdAuthInfo

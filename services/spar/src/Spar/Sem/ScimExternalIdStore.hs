@@ -28,17 +28,17 @@ module Spar.Sem.ScimExternalIdStore
 where
 
 import Data.Id (TeamId, UserId)
+import Data.Text
 import Imports (Maybe, Show)
 import Polysemy
 import Polysemy.Check (deriveGenericK)
 import Spar.Scim.Types
-import Wire.API.User.Identity
 import Wire.API.User.Scim
 
 data ScimExternalIdStore m a where
-  Insert :: TeamId -> EmailAddress -> UserId -> ScimExternalIdStore m ()
-  Lookup :: TeamId -> EmailAddress -> ScimExternalIdStore m (Maybe UserId)
-  Delete :: TeamId -> EmailAddress -> ScimExternalIdStore m ()
+  Insert :: TeamId -> Text -> UserId -> ScimExternalIdStore m ()
+  Lookup :: TeamId -> Text -> ScimExternalIdStore m (Maybe UserId)
+  Delete :: TeamId -> Text -> ScimExternalIdStore m ()
   -- NB: the fact that we are using `Email` in some cases here and `ValidScimId` in others has historical reasons (this table was only used for non-saml accounts in the past, now it is used for *all* scim-managed accounts).  the interface would work equally well with just `Text` here (for unvalidated scim external id).
   InsertStatus :: TeamId -> ValidScimId -> UserId -> ScimUserCreationStatus -> ScimExternalIdStore m ()
   LookupStatus :: TeamId -> ValidScimId -> ScimExternalIdStore m (Maybe (UserId, ScimUserCreationStatus))

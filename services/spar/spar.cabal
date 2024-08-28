@@ -346,6 +346,7 @@ executable spar-integration
     , brig-types
     , bytestring
     , bytestring-conversion
+    , these
     , case-insensitive
     , cassandra-util
     , cassava
@@ -618,6 +619,7 @@ test-suite spec
     , imports
     , lens
     , lens-aeson
+    , these
     , metrics-wai
     , mtl
     , network-uri

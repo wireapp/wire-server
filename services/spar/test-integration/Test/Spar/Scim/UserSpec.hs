@@ -341,7 +341,7 @@ assertSparCassandraUref (uref, urefAnswer) = do
 assertSparCassandraScim :: (HasCallStack) => ((TeamId, EmailAddress), Maybe UserId) -> TestSpar ()
 assertSparCassandraScim ((teamid, email), scimAnswer) = do
   liftIO . (`shouldBe` scimAnswer)
-    =<< runSpar (ScimExternalIdStore.lookup teamid email)
+    =<< runSpar (ScimExternalIdStore.lookup teamid (fromEmail email))
 
 assertBrigCassandra ::
   (HasCallStack) =>
@@ -1786,7 +1786,7 @@ lookupByValidScimId tid =
   runValidScimIdEither
     (runSpar . SAMLUserStore.get)
     ( \email -> do
-        let action = SU.scimFindUserByEmail Nothing tid $ fromEmail email
+        let action = SU.scimFindUserByExternalId Nothing tid $ fromEmail email
         result <- runSpar . runExceptT . runMaybeT $ action
         case result of
           Right muser -> pure $ Scim.id . Scim.thing <$> muser
@@ -2325,7 +2325,7 @@ testDeletedUsersFreeExternalIdNoIdp = do
 
   void $
     aFewTimes
-      (runSpar $ ScimExternalIdStore.lookup tid email)
+      (runSpar $ ScimExternalIdStore.lookup tid (fromEmail email))
       (== Nothing)
 
 -- | CSV download of team members is mainly tested here: 'API.Teams.testListTeamMembersCsv'.

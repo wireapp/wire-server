@@ -27,7 +27,6 @@ module Spar.Intra.BrigApp
     veidFromBrigUser,
     veidFromUserSSOId,
     mkUserName,
-    renderValidScimId,
     HavePendingInvitations (..),
     getBrigUser,
     getBrigUserTeam,
@@ -54,6 +53,7 @@ import Data.Id (TeamId, UserId)
 import Data.Text.Encoding
 import Data.Text.Encoding.Error
 import Data.These
+import Data.These.Combinators
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -65,13 +65,12 @@ import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.GalleyAccess as GalleyAccess
 import Wire.API.Team.Member (HiddenPerm (CreateReadDeleteScimToken), IsPerm)
 import Wire.API.User
-import Wire.API.User.Scim (ValidScimId (..), runValidScimIdEither)
+import Wire.API.User.Scim (ValidScimId (..))
 
 ----------------------------------------------------------------------
 
--- | FUTUREWORK: this is redundantly defined in "Spar.Intra.Brig"
 veidToUserSSOId :: ValidScimId -> UserSSOId
-veidToUserSSOId = runValidScimIdEither UserSSOId (UserScimExternalId . fromEmail)
+veidToUserSSOId (ValidScimId eid authInfo) = maybe (UserScimExternalId eid) UserSSOId (justThat authInfo)
 
 veidFromUserSSOId ::
   (MonadError String m) =>
@@ -125,9 +124,6 @@ mkUserName Nothing =
     (mkName . fromEmail)
     (\uref -> mkName (CI.original . SAML.unsafeShowNameID $ uref ^. SAML.uidSubject))
     (\_ uref -> mkName (CI.original . SAML.unsafeShowNameID $ uref ^. SAML.uidSubject))
-
-renderValidScimId :: ValidScimId -> Maybe Text
-renderValidScimId = runValidScimIdEither urefToExternalId (Just . fromEmail)
 
 ----------------------------------------------------------------------
 
