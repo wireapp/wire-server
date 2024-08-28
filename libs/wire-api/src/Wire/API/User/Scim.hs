@@ -42,7 +42,7 @@
 -- * Request and response types for SCIM-related endpoints.
 module Wire.API.User.Scim where
 
-import Control.Lens (makeLenses, mapped, view, (.~), (?~))
+import Control.Lens (makeLenses, mapped, to, view, (.~), (?~), (^.))
 import Control.Monad.Except (throwError)
 import Crypto.Hash (hash)
 import Crypto.Hash.Algorithms (SHA512)
@@ -64,7 +64,7 @@ import Data.Proxy
 import Data.Text qualified as T
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.These
-import Data.These.Combinators (justThat, justThis)
+import Data.These.Combinators (justThat)
 import Data.Time.Clock (UTCTime)
 import Imports
 import SAML2.WebSSO qualified as SAML
@@ -354,16 +354,16 @@ data ValidScimId = ValidScimId
 instance Arbitrary ValidScimId where
   arbitrary = do
     authInfo <- QC.arbitrary
-    let mEmail = justThis authInfo
-    case mEmail of
-      Just em -> do
-        -- veid either matches the email or is arbitrary
-        veid <- QC.oneof [pure (fromEmail em), QC.arbitrary]
-        pure ValidScimId {validScimIdExternal = veid, validScimIdAuthInfo = authInfo}
-      Nothing -> do
-        -- should veid be a valid email, in case authInfo has no email?
-        veid <- QC.arbitrary
-        pure ValidScimId {validScimIdExternal = veid, validScimIdAuthInfo = authInfo}
+    -- TODO(fisx): delete qualifiers from name ID
+    pure $ these onlyThis onlyThat (\_ uref -> onlyThat uref) authInfo
+    where
+      -- TODO: the external ID can also be different from the email
+      onlyThis :: EmailAddress -> ValidScimId
+      onlyThis em = ValidScimId {validScimIdExternal = fromEmail em, validScimIdAuthInfo = This em}
+
+      onlyThat :: SAML.UserRef -> ValidScimId
+      -- TODO: user shortShowNameID
+      onlyThat uref = ValidScimId {validScimIdExternal = uref ^. SAML.uidSubject . to SAML.nameIDToST . to CI.original, validScimIdAuthInfo = That uref}
 
 -- | Take apart a 'ValidScimId', use both 'SAML.UserRef', 'Email' if applicable, and
 -- merge the result with a given function.

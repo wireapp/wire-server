@@ -589,7 +589,7 @@ listActivatedAccounts elh includePendingInvitations = do
     byIds uids = wrapClient (API.lookupExtendedAccounts uids) >>= filterM accountValid
 
     accountValid :: (Member DeleteQueue r) => ExtendedUserAccount -> (AppT r) Bool
-    accountValid extAccount@(account -> acc) = case userIdentity . accountUser $ acc of
+    accountValid (account -> acc) = case userIdentity . accountUser $ acc of
       Nothing -> pure False
       Just ident ->
         case (accountStatus acc, includePendingInvitations, emailIdentity ident) of
