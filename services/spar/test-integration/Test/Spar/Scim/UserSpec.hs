@@ -352,7 +352,7 @@ assertBrigCassandra ::
   ManagedBy ->
   TestSpar ()
 assertBrigCassandra uid uref usr (valemail, emailValidated) managedBy = do
-  runSpar (BrigAccess.getAccount NoPendingInvitations uid) >>= \(Just acc) -> liftIO $ do
+  runSpar (BrigAccess.getAccount NoPendingInvitations uid) >>= \(Just (account -> acc)) -> liftIO $ do
     let handle = fromRight errmsg . parseHandleEither $ Scim.User.userName usr
           where
             errmsg = error . show . Scim.User.userName $ usr
@@ -650,9 +650,9 @@ testCreateUserNoIdP = do
     brigUserAccount <-
       aFewTimes (runSpar $ BrigAccess.getAccount Intra.WithPendingInvitations userid) isJust
         >>= maybe (error "could not find user in brig") pure
-    let brigUser = accountUser brigUserAccount
+    let brigUser = brigUserAccount.account.accountUser
     brigUser `userShouldMatch` WrappedScimStoredUser scimStoredUser
-    liftIO $ accountStatus brigUserAccount `shouldBe` PendingInvitation
+    liftIO $ accountStatus brigUserAccount.account `shouldBe` PendingInvitation
     liftIO $ userEmail brigUser `shouldBe` Just email
     liftIO $ userManagedBy brigUser `shouldBe` ManagedByScim
     liftIO $ userSSOId brigUser `shouldBe` Nothing
@@ -690,10 +690,10 @@ testCreateUserNoIdP = do
     brigUser <-
       aFewTimes (runSpar $ BrigAccess.getAccount Intra.NoPendingInvitations userid) isJust
         >>= maybe (error "could not find user in brig") pure
-    liftIO $ accountStatus brigUser `shouldBe` Active
-    liftIO $ userManagedBy (accountUser brigUser) `shouldBe` ManagedByScim
-    liftIO $ userHandle (accountUser brigUser) `shouldBe` Just handle
-    liftIO $ userSSOId (accountUser brigUser) `shouldBe` Just (UserScimExternalId (fromEmail email))
+    liftIO $ accountStatus brigUser.account `shouldBe` Active
+    liftIO $ userManagedBy (accountUser brigUser.account) `shouldBe` ManagedByScim
+    liftIO $ userHandle (accountUser brigUser.account) `shouldBe` Just handle
+    liftIO $ userSSOId (accountUser brigUser.account) `shouldBe` Just (UserScimExternalId (fromEmail email))
     susr <- getUser tok userid
     let usr = Scim.value . Scim.thing $ susr
     liftIO $ Scim.User.active usr `shouldNotBe` Just (Scim.ScimBool False)
@@ -1225,7 +1225,7 @@ testFindSamlAutoProvisionedUserMigratedWithEmailInTeamWithSSO = do
     runSpar $ BrigAccess.setHandle uid handle
     pure usr
   let memberIdWithSSO = userId memberWithSSO
-      externalId = either error id $ veidToText =<< Intra.veidFromBrigUser memberWithSSO Nothing
+      externalId = either error id $ veidToText =<< Intra.veidFromBrigUser memberWithSSO Nothing Nothing
 
   -- NOTE: once SCIM is enabled, SSO auto-provisioning is disabled
   tok <- registerScimToken teamid (Just (idp ^. SAML.idpId))
@@ -2105,9 +2105,9 @@ specDeleteUser = do
       storedUser <- createUser tok user
       let uid :: UserId = scimUserId storedUser
       uref :: SAML.UserRef <- do
-        usr <- runSpar $ Intra.getBrigUser Intra.WithPendingInvitations uid
+        mUsr <- runSpar $ Intra.getBrigUser Intra.WithPendingInvitations uid
         let err = error . ("brig user without UserRef: " <>) . show
-        case (`Intra.veidFromBrigUser` Nothing) <$> usr of
+        case (\usr -> Intra.veidFromBrigUser usr Nothing Nothing) <$> mUsr of
           bad@(Just (Right veid)) -> runValidScimIdEither pure (const $ err bad) veid
           bad -> err bad
       spar <- view teSpar

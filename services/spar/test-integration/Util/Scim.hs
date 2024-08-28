@@ -678,17 +678,17 @@ instance IsUser User where
   maybeHandle = Just userHandle
   maybeName = Just (Just . userDisplayName)
   maybeTenant = Just $ \usr ->
-    Intra.veidFromBrigUser usr Nothing
+    Intra.veidFromBrigUser usr Nothing Nothing
       & either
         (const Nothing)
         (fmap SAML._uidTenant . veidUref)
   maybeSubject = Just $ \usr ->
-    Intra.veidFromBrigUser usr Nothing
+    Intra.veidFromBrigUser usr Nothing Nothing
       & either
         (const Nothing)
         (fmap SAML._uidSubject . veidUref)
   maybeScimExternalId = Just $ \usr ->
-    Intra.veidFromBrigUser usr Nothing
+    Intra.veidFromBrigUser usr Nothing Nothing
       & either
         (const Nothing)
         (runValidScimIdEither Intra.urefToExternalId (Just . fromEmail))

@@ -160,7 +160,7 @@ updateEmail buid email = do
     _ -> rethrow "brig" resp
 
 -- | Get a user; returns 'Nothing' if the user was not found or has been deleted.
-getBrigUserAccount :: (HasCallStack, MonadSparToBrig m) => HavePendingInvitations -> UserId -> m (Maybe UserAccount)
+getBrigUserAccount :: (HasCallStack, MonadSparToBrig m) => HavePendingInvitations -> UserId -> m (Maybe ExtendedUserAccount)
 getBrigUserAccount havePending buid = do
   resp :: ResponseLBS <-
     call $
@@ -178,10 +178,10 @@ getBrigUserAccount havePending buid = do
 
   case statusCode resp of
     200 ->
-      parseResponse @[UserAccount] "brig" resp >>= \case
+      parseResponse @[ExtendedUserAccount] "brig" resp >>= \case
         [account] ->
           pure $
-            if userDeleted $ accountUser account
+            if userDeleted account.account.accountUser
               then Nothing
               else Just account
         _ -> pure Nothing

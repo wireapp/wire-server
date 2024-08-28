@@ -108,6 +108,7 @@ module Wire.API.User
 
     -- * Account
     UserAccount (..),
+    ExtendedUserAccount (..),
 
     -- * Scim invitations
     NewUserScimInvitation (..),
@@ -1791,11 +1792,30 @@ data UserAccount = UserAccount
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema.Schema UserAccount
 
 instance Schema.ToSchema UserAccount where
+  schema = Schema.object "UserAccount" userAccountObjectSchema
+
+userAccountObjectSchema :: ObjectSchema SwaggerDoc UserAccount
+userAccountObjectSchema =
+  UserAccount
+    <$> accountUser Schema..= userObjectSchema
+    <*> accountStatus Schema..= Schema.field "status" Schema.schema
+
+-- | This can be parsed as UserAccount, but it has an extra field `email_unvalidated` from
+-- brig's cassandra that is needed in spar.  so we return this from GET /i/users in brig.
+data ExtendedUserAccount = ExtendedUserAccount
+  { account :: UserAccount,
+    emailUnvalidated :: Maybe EmailAddress
+  }
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ExtendedUserAccount)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema.Schema ExtendedUserAccount
+
+instance Schema.ToSchema ExtendedUserAccount where
   schema =
-    Schema.object "UserAccount" $
-      UserAccount
-        <$> accountUser Schema..= userObjectSchema
-        <*> accountStatus Schema..= Schema.field "status" Schema.schema
+    Schema.object "ExtendedUserAccount" $
+      ExtendedUserAccount
+        <$> account Schema..= userAccountObjectSchema
+        <*> emailUnvalidated Schema..= maybe_ (Schema.optField "email_unvalidated" Schema.schema)
 
 -------------------------------------------------------------------------------
 -- NewUserScimInvitation

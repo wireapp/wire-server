@@ -249,7 +249,7 @@ type AccountAPI =
                     ]
                     "includePendingInvitations"
                     Bool
-               :> Get '[Servant.JSON] [UserAccount]
+               :> Get '[Servant.JSON] [ExtendedUserAccount]
            )
     :<|> Named
            "iGetUserContacts"

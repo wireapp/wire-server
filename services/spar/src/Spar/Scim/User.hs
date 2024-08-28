@@ -106,7 +106,6 @@ import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.ResourceType as Scim
 import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User (schemas)
--- import qualified Web.Scim.Schema.User.Email as Scim.Email
 import qualified Wire.API.Team.Member as Member
 import Wire.API.Team.Role
 import Wire.API.User
@@ -786,8 +785,8 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
       -- ("tombstones") would not have the needed values (`userIdentity =
       -- Nothing`) to delete a user in spar. I.e. `SAML.UserRef` and `Email`
       -- cannot be figured out when a `User` has status `Deleted`.
-      mbBrigUser <- lift $ Brig.getBrigUser WithPendingInvitations uid
-      case mbBrigUser of
+      mbAccount <- lift $ BrigAccess.getAccount WithPendingInvitations uid
+      case mbAccount of
         Nothing ->
           -- Ensure there's no left-over of this user in brig. This is safe
           -- because the user has either been deleted (tombstone) or does not
@@ -796,7 +795,7 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
           -- thing that could happen is that foreign users cleanup partially
           -- deleted users.
           void . lift $ BrigAccess.deleteUser uid
-        Just brigUser -> do
+        Just acc@(accountUser . account -> brigUser) -> do
           if userTeam brigUser == Just stiTeam
             then do
               -- This deletion needs data from the non-deleted User in brig. So,
@@ -805,7 +804,7 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
               -- that have been deleted in brig.  Deleting scim-managed users in brig
               -- (via the TM app) is blocked, though, so there is no legal way to enter
               -- that situation.
-              deleteUserInSpar brigUser
+              deleteUserInSpar acc
               void . lift $ BrigAccess.deleteUser uid
             else do
               -- if we find the user in another team, we pretend it wasn't even there, to
@@ -818,12 +817,12 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
         Member ScimExternalIdStore r,
         Member ScimUserTimesStore r
       ) =>
-      User ->
+      ExtendedUserAccount ->
       Scim.ScimHandler (Sem r) ()
-    deleteUserInSpar brigUser = do
+    deleteUserInSpar account = do
       mIdpConfig <- mapM (lift . IdPConfigStore.getConfig) stiIdP
 
-      case Brig.veidFromBrigUser brigUser ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig) of
+      case Brig.veidFromBrigUser account.account.accountUser ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig) account.emailUnvalidated of
         Left _ -> pure ()
         Right veid -> lift $ do
           for_ (justThat veid.validScimIdAuthInfo) (SAMLUserStore.delete uid)
@@ -936,21 +935,21 @@ synthesizeStoredUser ::
     Member GalleyAccess r,
     Member ScimUserTimesStore r
   ) =>
-  UserAccount ->
+  ExtendedUserAccount ->
   ST.ValidScimId ->
   Scim.ScimHandler (Sem r) (Scim.StoredUser ST.SparTag)
-synthesizeStoredUser usr veid =
+synthesizeStoredUser acc veid =
   logScim
     ( logFunction "Spar.Scim.User.synthesizeStoredUser"
-        . logUser (userId . accountUser $ usr)
-        . maybe id logHandle (userHandle . accountUser $ usr)
-        . maybe id logTeam (userTeam . accountUser $ usr)
+        . logUser (userId acc.account.accountUser)
+        . maybe id logHandle acc.account.accountUser.userHandle
+        . maybe id logTeam acc.account.accountUser.userTeam
         . maybe id logEmail (justThis $ ST.validScimIdAuthInfo veid)
     )
     logScimUserId
     $ do
-      let uid = userId (accountUser usr)
-          accStatus = accountStatus usr
+      let uid = userId acc.account.accountUser
+          accStatus = acc.account.accountStatus
 
       let readState :: Sem r (RI.RichInfo, Maybe (UTCTimeMillis, UTCTimeMillis), URIBS.URI, Role)
           readState =
@@ -974,14 +973,14 @@ synthesizeStoredUser usr veid =
       now <- toUTCTimeMillis <$> lift Now.get
       let (createdAt, lastUpdatedAt) = fromMaybe (now, now) accessTimes
 
-      handle <- lift $ Brig.giveDefaultHandle (accountUser usr)
-      let emails = catMaybesToList (emailIdentity <$> usr.accountUser.userIdentity)
+      handle <- lift $ Brig.giveDefaultHandle acc.account.accountUser
+      let emails = catMaybesToList (emailIdentity <$> userIdentity acc.account.accountUser)
 
       storedUser <-
         synthesizeStoredUser'
           uid
           veid
-          (userDisplayName (accountUser usr))
+          (userDisplayName acc.account.accountUser)
           emails
           handle
           richInfo
@@ -989,15 +988,15 @@ synthesizeStoredUser usr veid =
           createdAt
           lastUpdatedAt
           baseuri
-          (userLocale (accountUser usr))
+          (userLocale acc.account.accountUser)
           (Just role)
-      lift $ writeState accessTimes (userManagedBy (accountUser usr)) richInfo storedUser
+      lift $ writeState accessTimes (userManagedBy acc.account.accountUser) richInfo storedUser
       pure storedUser
   where
     getRole :: Sem r Role
     getRole = do
       let tmRoleOrDefault m = fromMaybe defaultRole $ m >>= \member -> member ^. Member.permissions . to Member.permissionsRole
-      maybe (pure defaultRole) (\tid -> tmRoleOrDefault <$> GalleyAccess.getTeamMember tid (userId $ accountUser usr)) (userTeam $ accountUser usr)
+      maybe (pure defaultRole) (\tid -> tmRoleOrDefault <$> GalleyAccess.getTeamMember tid (userId acc.account.accountUser)) (userTeam acc.account.accountUser)
 
 synthesizeStoredUser' ::
   (MonadError Scim.ScimError m) =>
@@ -1069,14 +1068,15 @@ getUserById ::
   UserId ->
   MaybeT (Scim.ScimHandler (Sem r)) (Scim.StoredUser ST.SparTag)
 getUserById midp stiTeam uid = do
-  brigUser <- MaybeT . lift $ BrigAccess.getAccount Brig.WithPendingInvitations uid
+  acc@(account -> brigUser) <- MaybeT . lift $ BrigAccess.getAccount Brig.WithPendingInvitations uid
   let mbveid =
         Brig.veidFromBrigUser
-          (accountUser brigUser)
+          brigUser.accountUser
           ((^. SAML.idpMetadata . SAML.edIssuer) <$> midp)
+          acc.emailUnvalidated
   case mbveid of
     Right veid | userTeam (accountUser brigUser) == Just stiTeam -> lift $ do
-      storedUser :: Scim.StoredUser ST.SparTag <- synthesizeStoredUser brigUser veid
+      storedUser :: Scim.StoredUser ST.SparTag <- synthesizeStoredUser acc veid
       -- if we get a user from brig that hasn't been touched by scim yet, we call this
       -- function to move it under scim control.
       assertExternalIdNotUsedElsewhere stiTeam veid uid
@@ -1152,8 +1152,8 @@ scimFindUserByExternalId mIdpConfig stiTeam eid = do
     mViaEmail :: Maybe UserId <- join <$> (for (justThis veid.validScimIdAuthInfo) ((userId . accountUser <$$>) . BrigAccess.getByEmail))
     mViaUref :: Maybe UserId <- join <$> (for (justThat veid.validScimIdAuthInfo) SAMLUserStore.get)
     pure $ mViaEid <|> mViaEmail <|> mViaUref
-  brigUser <- MaybeT . lift . BrigAccess.getAccount Brig.WithPendingInvitations $ uid
-  getUserById mIdpConfig stiTeam . userId . accountUser $ brigUser
+  acc <- MaybeT . lift . BrigAccess.getAccount Brig.WithPendingInvitations $ uid
+  getUserById mIdpConfig stiTeam (userId acc.account.accountUser)
 
 logFilter :: Filter -> (Msg -> Msg)
 logFilter (FilterAttrCompare attr op val) =

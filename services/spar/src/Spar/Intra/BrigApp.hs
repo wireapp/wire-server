@@ -103,10 +103,9 @@ veidFromUserSSOId ssoId mEmail = case ssoId of
 -- `userSSOId usr` can be empty if the user has no SAML credentials and is brought under scim
 -- management for the first time with `getUserById`.  In that case, the externalId is taken to
 -- be the email address.
-veidFromBrigUser :: (MonadError String m) => User -> Maybe SAML.Issuer -> m ValidScimId
-veidFromBrigUser usr mIssuer = case (userSSOId usr, userEmail usr, mIssuer) of
+veidFromBrigUser :: (MonadError String m) => User -> Maybe SAML.Issuer -> Maybe EmailAddress -> m ValidScimId
+veidFromBrigUser usr mIssuer mUnvalidatedEmail = case (userSSOId usr, userEmail usr, mIssuer) of
   (Just ssoid, mValidatedEmail, _) -> do
-    let mUnvalidatedEmail = error "TODO(fisx): get from somewhere"
     -- `mEmail` is in synch with SCIM user schema.
     let mEmail = mUnvalidatedEmail <|> mValidatedEmail
     veidFromUserSSOId ssoid mEmail
@@ -128,7 +127,7 @@ mkUserName Nothing =
 ----------------------------------------------------------------------
 
 getBrigUser :: (HasCallStack, Member BrigAccess r) => HavePendingInvitations -> UserId -> Sem r (Maybe User)
-getBrigUser ifpend = (accountUser <$$>) . BrigAccess.getAccount ifpend
+getBrigUser ifpend = ((accountUser . account) <$$>) . BrigAccess.getAccount ifpend
 
 -- | Check that an id maps to an user on brig that is 'Active' (or optionally
 -- 'PendingInvitation') and has a team id.
