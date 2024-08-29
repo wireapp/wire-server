@@ -118,6 +118,7 @@ data:
       {{ $name }}:
         domain: {{ $dynamicBackend.federatorExternalHostPrefix }}.{{ $.Release.Namespace }}.svc.cluster.local
         federatorExternalPort: {{ $dynamicBackend.federatorExternalPort }}
+        # TODO: Add mlsPrivateKeyPaths
       {{- end }}
     cassandra:
       host: {{ .Values.config.cassandra.host }}

@@ -68,7 +68,8 @@ data BackendResource = BackendResource
     berVHost :: String,
     berNginzSslPort :: Word16,
     berNginzHttp2Port :: Word16,
-    berInternalServicePorts :: forall a. (Num a) => Service -> a
+    berInternalServicePorts :: forall a. (Num a) => Service -> a,
+    berMlsPrivateKeyPaths :: Value
   }
 
 instance Eq BackendResource where
@@ -79,7 +80,8 @@ instance Ord BackendResource where
 
 data DynamicBackendConfig = DynamicBackendConfig
   { domain :: String,
-    federatorExternalPort :: Word16
+    federatorExternalPort :: Word16,
+    mlsPrivateKeyPaths :: Value
   }
   deriving (Show, Generic)
 
