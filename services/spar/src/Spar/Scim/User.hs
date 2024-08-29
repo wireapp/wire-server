@@ -106,6 +106,7 @@ import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.ResourceType as Scim
 import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User (schemas)
+import qualified Web.Scim.Schema.User.Email as Scim.Email
 import qualified Wire.API.Team.Member as Member
 import Wire.API.Team.Role
 import Wire.API.User
@@ -278,7 +279,7 @@ validateScimUser' ::
   Sem r ST.ValidScimUser
 validateScimUser' errloc midp richInfoLimit user = do
   unless (isNothing $ Scim.password user) $ throw $ badRequest "Setting user passwords is not supported for security reasons."
-  veid <- mkValidScimId midp (Scim.externalId user)
+  veid <- mkValidScimId midp (Scim.externalId user) (Scim.Email.scimEmailsToEmailAddress $ Scim.emails user)
   handl <- validateHandle . Text.toLower . Scim.userName $ user
   -- FUTUREWORK: 'Scim.userName' should be case insensitive; then the toLower here would
   -- be a little less brittle.
@@ -360,19 +361,22 @@ mkValidScimId ::
   ) =>
   Maybe IdP ->
   Maybe Text ->
+  Maybe EmailAddress ->
   Sem r ST.ValidScimId
-mkValidScimId _ Nothing =
+mkValidScimId _ Nothing _ =
   throw $
     Scim.badRequest
       Scim.InvalidValue
       (Just "externalId is required")
-mkValidScimId Nothing (Just extid) = do
+mkValidScimId Nothing (Just extid) (Just email) = do
+  pure $ ST.ValidScimId extid (This email)
+mkValidScimId Nothing (Just extid) Nothing = do
   let err =
         Scim.badRequest
           Scim.InvalidValue
           (Just "externalId must be a valid email address or (if there is a SAML IdP) a valid SAML NameID")
   maybe (throw err) (pure . ST.ValidScimId extid . This) $ emailAddressText extid
-mkValidScimId (Just idp) (Just extid) = do
+mkValidScimId (Just idp) (Just extid) mEmail = do
   let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
   subject <- validateSubject extid
   let uref = SAML.UserRef issuer subject
@@ -389,7 +393,7 @@ mkValidScimId (Just idp) (Just extid) = do
             -- The entry in spar.user_v2 does not exist yet during user
             -- creation. So we just assume that it will exist momentarily.
             pure uref
-  pure . ST.ValidScimId extid $ case emailAddressText extid of
+  pure . ST.ValidScimId extid $ case mEmail of
     Just email -> These email indexedUref
     Nothing -> That indexedUref
   where
@@ -1140,7 +1144,7 @@ scimFindUserByExternalId ::
   Text ->
   MaybeT (Scim.ScimHandler (Sem r)) (Scim.StoredUser ST.SparTag)
 scimFindUserByExternalId mIdpConfig stiTeam eid = do
-  veid <- MaybeT . lift $ either (const Nothing) Just <$> runError @Scim.ScimError (mkValidScimId mIdpConfig (pure eid))
+  veid <- MaybeT . lift $ either (const Nothing) Just <$> runError @Scim.ScimError (mkValidScimId mIdpConfig (Just eid) (emailAddressText eid))
   uid :: UserId <- MaybeT . lift $ do
     -- there are a few ways to find a user. this should all be redundant, especially the where
     -- we lookup a user from brig by email, throw it away and only keep the uid, and then use

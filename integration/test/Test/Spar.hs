@@ -2,6 +2,7 @@
 
 module Test.Spar where
 
+import API.Common (randomEmail, randomExternalId)
 import API.Spar
 import Control.Concurrent (threadDelay)
 import SetupHelpers
@@ -25,4 +26,14 @@ testSparUserCreationInvitationTimeout = do
 
   -- ...we should be able to create the user again
   retryT $ bindResponse (createScimUser OwnDomain tok scimUser) $ \res -> do
+    res.status `shouldMatchInt` 201
+
+testSparExternalIdDifferentFromEmail :: (HasCallStack) => App ()
+testSparExternalIdDifferentFromEmail = do
+  (owner, _tid, _) <- createTeam OwnDomain 1
+  tok <- createScimToken owner >>= \resp -> resp.json %. "token" >>= asString
+  email <- randomEmail
+  extId <- randomExternalId
+  scimUser <- randomScimUserWith extId email
+  bindResponse (createScimUser OwnDomain tok scimUser) $ \res -> do
     res.status `shouldMatchInt` 201

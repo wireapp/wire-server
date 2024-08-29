@@ -20,6 +20,15 @@ randomEmail = do
   u <- randomName
   pure $ u <> "@example.com"
 
+randomExternalId :: App String
+randomExternalId = liftIO $ do
+  -- external ID has no constraints, but the following is a reasonable
+  n <- randomRIO (8, 15)
+  replicateM n pick
+  where
+    chars = mkArray $ ['A' .. 'Z'] <> ['a' .. 'z'] <> ['0' .. '9']
+    pick = (chars !) <$> randomRIO (Array.bounds chars)
+
 randomName :: App String
 randomName = liftIO $ do
   n <- randomRIO (8, 15)

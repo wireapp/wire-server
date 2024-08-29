@@ -1712,7 +1712,7 @@ testUpdateExternalId withidp = do
           else registerUser brig tid email
         veid :: ValidScimId <-
           runSpar . runScimErrorUnsafe $
-            mkValidScimId midp (Scim.User.externalId user)
+            mkValidScimId midp (Scim.User.externalId user) (Just email)
         -- Overwrite the user with another randomly-generated user (only controlling externalId)
         otherEmail <- randomEmail
         user' <- do
@@ -1726,7 +1726,7 @@ testUpdateExternalId withidp = do
           randomScimUser <&> upd
         veid' <-
           runSpar . runScimErrorUnsafe $
-            mkValidScimId midp (Scim.User.externalId user')
+            mkValidScimId midp (Scim.User.externalId user') (Just otherEmail)
 
         _ <- updateUser tok userid user'
 
@@ -1759,7 +1759,7 @@ testUpdateExternalIdOfUnregisteredAccount = do
   let userid = scimUserId storedUser
   veid :: ValidScimId <-
     runSpar . runScimErrorUnsafe $
-      mkValidScimId Nothing (Scim.User.externalId user)
+      mkValidScimId Nothing (Scim.User.externalId user) (Just email)
   -- Overwrite the user with another randomly-generated user (only controlling externalId)
   -- And update the user before they have registered their account
   otherEmail <- randomEmail
@@ -1768,7 +1768,7 @@ testUpdateExternalIdOfUnregisteredAccount = do
     randomScimUser <&> upd
   veid' <-
     runSpar . runScimErrorUnsafe $
-      mkValidScimId Nothing (Scim.User.externalId user')
+      mkValidScimId Nothing (Scim.User.externalId user') (Just otherEmail)
   _ <- updateUser tok userid user'
   -- Now the user registers their account (via old email)
   registerUser brig tid email
@@ -2279,7 +2279,7 @@ specEmailValidation = do
           scimStoredUser <- createUser tok user
           veid <-
             runSpar . runScimErrorUnsafe $
-              mkValidScimId (Just idp) (Scim.User.externalId . Scim.value . Scim.thing $ scimStoredUser)
+              mkValidScimId (Just idp) (Scim.User.externalId . Scim.value . Scim.thing $ scimStoredUser) (Just email)
           uid :: UserId <- getUserIdViaRef $ fromJust (veidUref veid)
           brig <- view teBrig
           -- we intentionally activate the email even if it's not set up to work, to make sure
