@@ -29,7 +29,7 @@ interpretInvitationCodeStoreToCassandra casClient =
       LookupInvitationsPaginated mSize tid miid -> embed $ lookupInvitationsPaginatedImpl mSize tid miid
       CountInvitations tid -> embed $ countInvitationsImpl tid
       DeleteInvitation tid invId -> embed $ deleteInvitationImpl tid invId
-      DeleteInvitations tid -> embed $ deleteInvitationsImpl tid
+      DeleteAllTeamInvitations tid -> embed $ deleteInvitationsImpl tid
 
 insertInvitationImpl ::
   InvitationId ->

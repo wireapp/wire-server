@@ -426,7 +426,7 @@ suspendTeam tid = do
   lift $ liftSem $ Log.info $ Log.msg (Log.val "Team suspended") ~~ Log.field "team" (toByteString tid)
   changeTeamAccountStatuses tid Suspended
   lift . liftSem $ do
-    Store.deleteInvitations tid
+    Store.deleteAllTeamInvitations tid
     GalleyAPIAccess.changeTeamStatus tid Team.Suspended Nothing
   pure NoContent
 

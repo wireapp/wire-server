@@ -80,7 +80,7 @@ data InvitationCodeStore :: Effect where
   LookupInvitationsPaginated :: Maybe (Range 1 500 Int32) -> TeamId -> Maybe InvitationId -> InvitationCodeStore m (PaginatedResult [StoredInvitation])
   CountInvitations :: TeamId -> InvitationCodeStore m Int64
   DeleteInvitation :: TeamId -> InvitationId -> InvitationCodeStore m ()
-  DeleteInvitations :: TeamId -> InvitationCodeStore m ()
+  DeleteAllTeamInvitations :: TeamId -> InvitationCodeStore m ()
 
 makeSem ''InvitationCodeStore
 

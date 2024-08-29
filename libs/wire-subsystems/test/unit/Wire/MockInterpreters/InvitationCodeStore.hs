@@ -39,4 +39,4 @@ inMemoryInvitationCodeStoreInterpreter = interpret \case
   LookupInvitationsPaginated {} -> todo
   CountInvitations tid -> gets (fromIntegral . M.size . M.filterWithKey (\(tid', _) _v -> tid == tid'))
   DeleteInvitation tid invId -> todo
-  DeleteInvitations tid -> todo
+  DeleteAllTeamInvitations tid -> todo
