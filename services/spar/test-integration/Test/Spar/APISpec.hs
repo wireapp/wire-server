@@ -1316,8 +1316,7 @@ specScimAndSAML = do
     scimStoredUser <- ScimT.createUser tok usr
     let subjectWithQualifier :: NameID =
           either (error . show) id $
-            -- TODO(fisx): do we care about the qualifiers here?
-            mkNameID subj Nothing Nothing Nothing
+            mkNameID subj (Just "https://federation.foobar.com/nidp/saml2/metadata") (Just "https://prod-nginz-https.wire.com/sso/finalize-login") Nothing
 
     authnreq <- negotiateAuthnRequest idp
     spmeta <- getTestSPMetadata (idp ^. idpExtraInfo . team)
