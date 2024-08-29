@@ -80,8 +80,9 @@ veidFromUserSSOId ::
   m ValidScimId
 veidFromUserSSOId ssoId mEmail = case ssoId of
   UserSSOId uref -> do
-    -- let eid = CI.original $ uref ^. SAML.uidSubject . to SAML.unsafeShowNameID
-    eid <- maybe (throwError "SAML name ID qualifiers not supported") (pure . CI.original) $ uref ^. SAML.uidSubject . to SAML.shortShowNameID
+    -- TODO(fisx): what can possibly go wrong here?
+    let eid = CI.original $ uref ^. SAML.uidSubject . to SAML.unsafeShowNameID
+    -- eid <- maybe (throwError "SAML name ID qualifiers not supported") (pure . CI.original) $ uref ^. SAML.uidSubject . to SAML.shortShowNameID
     pure $ case mEmail of
       Just email -> ValidScimId eid (These email uref)
       Nothing -> ValidScimId eid (That uref)
