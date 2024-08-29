@@ -76,7 +76,7 @@ data InvitationCodeStore :: Effect where
   LookupInvitation :: TeamId -> InvitationId -> InvitationCodeStore m (Maybe StoredInvitation)
   LookupInvitationInfo :: InvitationCode -> InvitationCodeStore m (Maybe StoredInvitationInfo)
   LookupInvitationCodesByEmail :: EmailAddress -> InvitationCodeStore m [StoredInvitationInfo]
-  -- | invariant: page size is 100
+  -- | Range is page size, it defaults to 100
   LookupInvitationsPaginated :: Maybe (Range 1 500 Int32) -> TeamId -> Maybe InvitationId -> InvitationCodeStore m (PaginatedResult [StoredInvitation])
   CountInvitations :: TeamId -> InvitationCodeStore m Int64
   DeleteInvitation :: TeamId -> InvitationId -> InvitationCodeStore m ()
