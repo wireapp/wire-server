@@ -64,12 +64,13 @@ import Data.Proxy
 import Data.Text qualified as T
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.These
-import Data.These.Combinators (justThat)
+import Data.These.Combinators (justThat, mapThere)
 import Data.Time.Clock (UTCTime)
 import Imports
 import SAML2.WebSSO qualified as SAML
 import SAML2.WebSSO.Test.Arbitrary ()
 import Servant.API (FromHttpApiData (..), ToHttpApiData (..))
+import Test.QuickCheck (suchThat)
 import Test.QuickCheck qualified as QC
 import Web.HttpApiData (parseHeaderWithPrefix)
 import Web.Scim.AttrName (AttrName (..))
@@ -353,17 +354,28 @@ data ValidScimId = ValidScimId
 
 instance Arbitrary ValidScimId where
   arbitrary = do
-    authInfo <- QC.arbitrary
-    -- TODO(fisx): delete qualifiers from name ID
+    authInfo <-
+      QC.arbitrary
+        & fmap (mapThere removeQualifiers)
+        & flip suchThat shortShowNameIDIsNotNothing
     pure $ these onlyThis onlyThat (\_ uref -> onlyThat uref) authInfo
     where
-      -- TODO: the external ID can also be different from the email
+      shortShowNameIDIsNotNothing :: These EmailAddress SAML.UserRef -> Bool
+      shortShowNameIDIsNotNothing = all (\uref -> isJust (uref ^. SAML.uidSubject . to SAML.shortShowNameID)) . justThat
+
+      removeQualifiers :: SAML.UserRef -> SAML.UserRef
+      removeQualifiers =
+        (SAML.uidSubject . SAML.nameIDNameQ .~ Nothing)
+          . (SAML.uidSubject . SAML.nameIDSPProvidedID .~ Nothing)
+          . (SAML.uidSubject . SAML.nameIDSPNameQ .~ Nothing)
+
+      -- TODO(leif): the external ID can also be different from the email
       onlyThis :: EmailAddress -> ValidScimId
       onlyThis em = ValidScimId {validScimIdExternal = fromEmail em, validScimIdAuthInfo = This em}
 
+      -- `unsafeShowNameID` works here because of `suchThat shortShowNameIDIsNotNothing`
       onlyThat :: SAML.UserRef -> ValidScimId
-      -- TODO: user shortShowNameID
-      onlyThat uref = ValidScimId {validScimIdExternal = uref ^. SAML.uidSubject . to SAML.nameIDToST . to CI.original, validScimIdAuthInfo = That uref}
+      onlyThat uref = ValidScimId {validScimIdExternal = uref ^. SAML.uidSubject . to SAML.unsafeShowNameID . to CI.original, validScimIdAuthInfo = That uref}
 
 -- | Take apart a 'ValidScimId', use both 'SAML.UserRef', 'Email' if applicable, and
 -- merge the result with a given function.
