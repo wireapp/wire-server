@@ -233,12 +233,12 @@ resetGroup cid conv = do
         epoch = 0,
         newMembers = mempty
       }
-  resetClientGroup cid groupId convId
+  resetClientGroup cid groupId
 
-resetClientGroup :: (MakesValue conv) => ClientIdentity -> String -> conv -> App ()
-resetClientGroup cid gid conv = do
+resetClientGroup :: ClientIdentity -> String -> App ()
+resetClientGroup cid gid = do
   mls <- getMLSState
-  keys <- withAPIVersion 5 $ getMLSPublicKeys conv >>= getJSON 200
+  keys <- getMLSPublicKeys cid.qualifiedUserId >>= getJSON 200
   removalKey <- asByteString $ keys %. ("removal." <> csSignatureScheme mls.ciphersuite)
   void $
     mlscli
