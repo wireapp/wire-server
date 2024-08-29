@@ -59,6 +59,7 @@ import URI.ByteString
 import UnliftIO.Async (mapConcurrently_, pooledForConcurrentlyN_, replicateConcurrently)
 import Util
 import Util.AWS as Util
+import Util.Timeout
 import Web.Cookie (parseSetCookie, setCookieName)
 import Wire.API.Asset
 import Wire.API.Connection
@@ -75,7 +76,6 @@ import Wire.API.Team.Size
 import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.Client (ClientType (PermanentClientType))
-import Wire.Timeout
 
 newtype TeamSizeLimit = TeamSizeLimit Word32
 

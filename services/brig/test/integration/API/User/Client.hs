@@ -69,6 +69,7 @@ import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently)
 import Util
+import Util.Timeout
 import Wire.API.Internal.Notification
 import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.Version
@@ -82,7 +83,6 @@ import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey
 import Wire.API.UserMap (QualifiedUserMap (..), UserMap (..), WrappedQualifiedUserMap)
 import Wire.API.Wrapped (Wrapped (..))
-import Wire.Timeout
 import Wire.VerificationCode qualified as Code
 import Wire.VerificationCodeGen
 

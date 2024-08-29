@@ -46,12 +46,12 @@ import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently)
 import Util
+import Util.Timeout
 import Wire.API.Internal.Notification hiding (target)
 import Wire.API.Team.Feature (FeatureStatus (..))
 import Wire.API.Team.SearchVisibility
 import Wire.API.User
 import Wire.API.User.Handle
-import Wire.Timeout
 
 tests :: ConnectionLimit -> Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
 tests _cl _at conf p b c g =

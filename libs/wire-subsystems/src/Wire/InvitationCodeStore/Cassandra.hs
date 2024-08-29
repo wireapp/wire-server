@@ -13,10 +13,10 @@ import OpenSSL.Random (randBytes)
 import Polysemy
 import Polysemy.Embed
 import UnliftIO.Async (pooledMapConcurrentlyN_)
+import Util.Timeout
 import Wire.API.Team.Role (Role)
 import Wire.API.User
 import Wire.InvitationCodeStore
-import Wire.Timeout
 
 interpretInvitationCodeStoreToCassandra :: (Member (Embed IO) r) => ClientState -> InterpreterFor InvitationCodeStore r
 interpretInvitationCodeStoreToCassandra casClient =

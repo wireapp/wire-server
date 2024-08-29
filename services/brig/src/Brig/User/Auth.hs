@@ -67,6 +67,7 @@ import Polysemy.Input (Input)
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import System.Logger (field, msg, val, (~~))
+import Util.Timeout
 import Wire.API.Team.Feature
 import Wire.API.Team.Feature qualified as Public
 import Wire.API.User
@@ -78,7 +79,6 @@ import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.PasswordStore (PasswordStore)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
-import Wire.Timeout
 import Wire.UserKeyStore
 import Wire.UserStore
 import Wire.VerificationCode qualified as VerificationCode

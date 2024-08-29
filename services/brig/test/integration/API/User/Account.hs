@@ -77,6 +77,7 @@ import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently_)
 import Util
 import Util.AWS as Util
+import Util.Timeout
 import Web.Cookie (parseSetCookie)
 import Wire.API.Asset hiding (Asset)
 import Wire.API.Asset qualified as Asset
@@ -91,7 +92,6 @@ import Wire.API.User.Activation
 import Wire.API.User.Auth
 import Wire.API.User.Auth qualified as Auth
 import Wire.API.User.Client
-import Wire.Timeout
 
 tests :: ConnectionLimit -> Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> AWS.Env -> UserJournalWatcher -> TestTree
 tests _ at opts p b c ch g aws userJournalWatcher =

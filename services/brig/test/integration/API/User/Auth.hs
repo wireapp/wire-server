@@ -60,6 +60,7 @@ import Test.Tasty.HUnit
 import Test.Tasty.HUnit qualified as HUnit
 import UnliftIO.Async hiding (wait)
 import Util
+import Util.Timeout
 import Wire.API.Conversation (Conversation (..))
 import Wire.API.Password (Password, mkSafePasswordScrypt)
 import Wire.API.User as Public
@@ -68,7 +69,6 @@ import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
-import Wire.Timeout
 
 -- | FUTUREWORK: Implement this function. This wrapper should make sure that
 -- wrapped tests run only when the feature flag 'legalhold' is set to

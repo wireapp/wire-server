@@ -44,12 +44,12 @@ import OpenSSL.BN (randIntegerZeroToNMinusOne)
 import OpenSSL.EVP.Digest (digestBS, getDigestByName)
 import Polysemy
 import Text.Printf (printf)
+import Util.Timeout
 import Wire.API.User
 import Wire.API.User.Activation
 import Wire.API.User.Password
 import Wire.PasswordResetCodeStore qualified as E
 import Wire.PasswordResetCodeStore.Cassandra
-import Wire.Timeout
 import Wire.UserKeyStore
 
 --  | The information associated with the pending activation of a 'UserKey'.

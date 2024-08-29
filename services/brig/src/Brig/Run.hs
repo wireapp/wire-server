@@ -65,6 +65,7 @@ import Servant qualified
 import System.Logger (msg, val, (.=), (~~))
 import System.Logger.Class (MonadLogger, err)
 import Util.Options
+import Util.Timeout
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Brig qualified as IAPI
 import Wire.API.Routes.Public.Brig
@@ -73,7 +74,6 @@ import Wire.API.Routes.Version.Wai
 import Wire.API.User (AccountStatus (PendingInvitation))
 import Wire.DeleteQueue
 import Wire.Sem.Paging qualified as P
-import Wire.Timeout
 import Wire.UserStore
 
 -- FUTUREWORK: If any of these async threads die, we will have no clue about it

@@ -38,8 +38,8 @@ library
     Util.Options
     Util.Options.Common
     Util.Test
+    Util.Timeout
     Wire.Arbitrary
-    Wire.Timeout
 
   other-modules:      Paths_types_common
   hs-source-dirs:     src

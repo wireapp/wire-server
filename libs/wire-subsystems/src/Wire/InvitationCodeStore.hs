@@ -30,13 +30,13 @@ import Polysemy
 import Polysemy.TinyLog (TinyLog)
 import System.Logger.Message qualified as Log
 import URI.ByteString
+import Util.Timeout
 import Wire.API.Team.Invitation (Invitation (inviteeEmail))
 import Wire.API.Team.Invitation qualified as Public
 import Wire.API.Team.Role (Role, defaultRole)
 import Wire.API.User (EmailAddress, InvitationCode, Name)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.Sem.Logger qualified as Log
-import Wire.Timeout
 
 data StoredInvitation = MkStoredInvitation
   { teamId :: TeamId,

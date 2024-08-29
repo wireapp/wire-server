@@ -49,13 +49,13 @@ import Network.AMQP.Extended
 import Network.DNS qualified as DNS
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
+import Util.Timeout
 import Wire.API.Allowlists (AllowlistEmailDomains (..))
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Version
 import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.EmailSending.SMTP (SMTPConnType (..))
-import Wire.Timeout
 
 data ElasticSearchOpts = ElasticSearchOpts
   { -- | ElasticSearch URL

@@ -1,4 +1,4 @@
-module Wire.Timeout
+module Util.Timeout
   ( Timeout (..),
     module Data.Time.Clock,
   )

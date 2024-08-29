@@ -39,6 +39,7 @@ import Network.Wai.Utilities.Error qualified as Error
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
 import Util
+import Util.Timeout
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Federation.API.Brig
@@ -46,7 +47,6 @@ import Wire.API.Federation.Component
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.User as User
-import Wire.Timeout
 
 tests ::
   ConnectionLimit ->

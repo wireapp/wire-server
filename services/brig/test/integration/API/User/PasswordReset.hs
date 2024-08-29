@@ -33,9 +33,9 @@ import Data.Misc
 import Imports
 import Test.Tasty hiding (Timeout)
 import Util
+import Util.Timeout
 import Wire.API.User
 import Wire.API.User.Auth
-import Wire.Timeout
 
 tests ::
   DB.ClientState ->
