@@ -103,7 +103,7 @@ interpretUserSubsystem ::
 interpretUserSubsystem = interpret \case
   GetUserProfiles self others -> getUserProfilesImpl self others
   GetLocalUserProfiles others -> getLocalUserProfilesImpl others
-  GetAccountsBy criteria -> getAccountsByImpl criteria
+  GetAccountsBy getBy -> getAccountsByImpl getBy
   GetSelfProfile self -> getSelfProfileImpl self
   GetUserProfilesWithErrors self others -> getUserProfilesWithErrorsImpl self others
   UpdateUserProfile self mconn mb update -> updateUserProfileImpl self mconn mb update

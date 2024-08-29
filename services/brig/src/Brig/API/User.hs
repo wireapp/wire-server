@@ -140,7 +140,8 @@ import Wire.DeleteQueue
 import Wire.EmailSubsystem
 import Wire.Error
 import Wire.GalleyAPIAccess as GalleyAPIAccess
-import Wire.InvitationCodeStore qualified as Store
+import Wire.InvitationCodeStore (InvitationCodeStore, StoredInvitation, StoredInvitationInfo)
+import Wire.InvitationCodeStore qualified as InvitationCodeStore
 import Wire.NotificationSubsystem
 import Wire.PasswordStore (PasswordStore, lookupHashedPassword, upsertHashedPassword)
 import Wire.PropertySubsystem as PropertySubsystem
@@ -269,7 +270,7 @@ createUser ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
-    Member Store.InvitationCodeStore r
+    Member InvitationCodeStore r
   ) =>
   NewUser ->
   ExceptT RegisterError (AppT r) CreateUserResult
@@ -385,13 +386,13 @@ createUser new = do
         RegisterError
         (AppT r)
         ( Maybe
-            (Store.StoredInvitation, Store.StoredInvitationInfo, TeamId)
+            (StoredInvitation, StoredInvitationInfo, TeamId)
         )
     findTeamInvitation Nothing _ = throwE RegisterErrorMissingIdentity
     findTeamInvitation (Just e) c =
-      lift (liftSem $ Store.lookupInvitationInfo c) >>= \case
+      lift (liftSem $ InvitationCodeStore.lookupInvitationInfo c) >>= \case
         Just invitationInfo -> do
-          inv <- lift . liftSem $ Store.lookupInvitation invitationInfo.teamId invitationInfo.invitationId
+          inv <- lift . liftSem $ InvitationCodeStore.lookupInvitation invitationInfo.teamId invitationInfo.invitationId
           case (inv, (.email) <$> inv) of
             (Just invite, Just em)
               | e == mkEmailKey em -> do
@@ -415,8 +416,8 @@ createUser new = do
 
     acceptTeamInvitation ::
       UserAccount ->
-      Store.StoredInvitation ->
-      Store.StoredInvitationInfo ->
+      StoredInvitation ->
+      StoredInvitationInfo ->
       EmailKey ->
       UserIdentity ->
       ExceptT RegisterError (AppT r) ()
@@ -441,7 +442,7 @@ createUser new = do
               . field "team" (toByteString $ invitationInfo.teamId)
               . msg (val "Accepting invitation")
           UserPendingActivationStore.remove uid
-          Store.deleteInvitation inv.teamId inv.invitationId
+          InvitationCodeStore.deleteInvitation inv.teamId inv.invitationId
 
     addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT RegisterError (AppT r) CreateUserTeam
     addUserToTeamSSO account tid ident = do

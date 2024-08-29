@@ -10,8 +10,10 @@ import Data.Map qualified as M
 import Imports
 import Polysemy
 import Polysemy.State (State, get, gets, modify')
+import Unsafe.Coerce (unsafeCoerce)
 import Wire.API.User (InvitationCode (..))
 import Wire.InvitationCodeStore
+import Wire.InvitationCodeStore.Cassandra (mkInvitationCode)
 
 inMemoryInvitationCodeStoreInterpreter ::
   forall r.
@@ -21,7 +23,7 @@ inMemoryInvitationCodeStoreInterpreter ::
   InterpreterFor InvitationCodeStore r
 inMemoryInvitationCodeStoreInterpreter = interpret \case
   InsertInvitation invitationId teamId role' createdAt' createdBy email name _timeout -> do
-    code <- todo -- InvitationCode . encodeBase64Url <$> unsafeCoerce (randBytes 24)
+    code <- unsafeCoerce mkInvitationCode
     let role = Just role'
         createdAt = toUTCTimeMillis createdAt'
         inv = MkStoredInvitation {..}

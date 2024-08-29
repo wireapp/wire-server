@@ -159,16 +159,32 @@ deleteInvitationImpl teamId invId = do
     Nothing ->
       retry x5 $ write cqlInvitation (params LocalQuorum (teamId, invId))
   where
-    cqlInvitation :: PrepQuery W (TeamId, InvitationId) ()
-    cqlInvitation = "DELETE FROM team_invitation where team = ? AND id = ?"
-    cqlInvitationInfo :: PrepQuery W (Identity InvitationCode) ()
-    cqlInvitationInfo = "DELETE FROM team_invitation_info WHERE code = ?"
-    cqlInvitationEmail :: PrepQuery W (EmailAddress, TeamId) ()
-    cqlInvitationEmail = "DELETE FROM team_invitation_email WHERE email = ? AND team = ?"
     lookupInvitationCodeEmail :: Client (Maybe (InvitationCode, EmailAddress))
     lookupInvitationCodeEmail = retry x1 (query1 cqlInvitationCodeEmail (params LocalQuorum (teamId, invId)))
+
+    cqlInvitation :: PrepQuery W (TeamId, InvitationId) ()
+    cqlInvitation =
+      [sql|
+        DELETE FROM team_invitation where team = ? AND id = ? 
+      |]
+
+    cqlInvitationInfo :: PrepQuery W (Identity InvitationCode) ()
+    cqlInvitationInfo =
+      [sql|
+        DELETE FROM team_invitation_info WHERE code = ? 
+      |]
+
+    cqlInvitationEmail :: PrepQuery W (EmailAddress, TeamId) ()
+    cqlInvitationEmail =
+      [sql|
+        DELETE FROM team_invitation_email WHERE email = ? AND team = ? 
+      |]
+
     cqlInvitationCodeEmail :: PrepQuery R (TeamId, InvitationId) (InvitationCode, EmailAddress)
-    cqlInvitationCodeEmail = "SELECT code, email FROM team_invitation WHERE team = ? AND id = ?"
+    cqlInvitationCodeEmail =
+      [sql|
+        SELECT code, email FROM team_invitation WHERE team = ? AND id = ? 
+      |]
 
 deleteInvitationsImpl :: TeamId -> Client ()
 deleteInvitationsImpl teamId =
@@ -179,6 +195,5 @@ deleteInvitationsImpl teamId =
     cqlSelect :: PrepQuery R (Identity TeamId) (Identity InvitationId)
     cqlSelect = "SELECT id FROM team_invitation WHERE team = ? ORDER BY id ASC"
 
---------------------------------
 mkInvitationCode :: IO InvitationCode
 mkInvitationCode = InvitationCode . encodeBase64Url <$> randBytes 24

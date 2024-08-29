@@ -307,7 +307,7 @@ listInvitations uid tid startingId mSize = do
       invs <- toInvitations storedInvs
       pure $ InvitationList invs False
 
--- \| brig used to not store the role, so for migration we allow this to be empty and fill in the
+-- | brig used to not store the role, so for migration we allow this to be empty and fill in the
 -- default here.
 toInvitation ::
   ( Member TinyLog r
