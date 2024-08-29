@@ -641,8 +641,6 @@ CREATE TABLE brig_test.team_invitation (
     AND min_index_interval = 128
     AND read_repair_chance = 0.0
     AND speculative_retry = '99PERCENTILE';
-CREATE INDEX team_invitation_by_email ON brig_test.team_invitation (email);
-CREATE INDEX team_invitation_by_code ON brig_test.team_invitation (code);
 
 CREATE TABLE brig_test.user (
     id uuid PRIMARY KEY,
