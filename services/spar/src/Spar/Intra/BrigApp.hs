@@ -70,7 +70,7 @@ import Wire.API.User.Scim (ValidScimId (..))
 ----------------------------------------------------------------------
 
 veidToUserSSOId :: ValidScimId -> UserSSOId
-veidToUserSSOId (ValidScimId eid authInfo) = maybe (UserScimExternalId eid) UserSSOId (justThat authInfo)
+veidToUserSSOId (ValidScimId eid authInfo) = maybe (UserScimExternalId eid) UserSSOId (justThere authInfo)
 
 veidFromUserSSOId ::
   (MonadError String m) =>
@@ -80,6 +80,7 @@ veidFromUserSSOId ::
   m ValidScimId
 veidFromUserSSOId ssoId mEmail = case ssoId of
   UserSSOId uref -> do
+    -- let eid = CI.original $ uref ^. SAML.uidSubject . to SAML.unsafeShowNameID
     eid <- maybe (throwError "SAML name ID qualifiers not supported") (pure . CI.original) $ uref ^. SAML.uidSubject . to SAML.shortShowNameID
     pure $ case mEmail of
       Just email -> ValidScimId eid (These email uref)

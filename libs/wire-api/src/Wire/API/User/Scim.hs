@@ -64,7 +64,7 @@ import Data.Proxy
 import Data.Text qualified as T
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.These
-import Data.These.Combinators (justThat, mapThere)
+import Data.These.Combinators
 import Data.Time.Clock (UTCTime)
 import Imports
 import SAML2.WebSSO qualified as SAML
@@ -361,7 +361,7 @@ instance Arbitrary ValidScimId where
     pure $ these onlyThis onlyThat (\_ uref -> onlyThat uref) authInfo
     where
       shortShowNameIDIsNotNothing :: These EmailAddress SAML.UserRef -> Bool
-      shortShowNameIDIsNotNothing = all (\uref -> isJust (uref ^. SAML.uidSubject . to SAML.shortShowNameID)) . justThat
+      shortShowNameIDIsNotNothing = all (\uref -> isJust (uref ^. SAML.uidSubject . to SAML.shortShowNameID)) . justThere
 
       removeQualifiers :: SAML.UserRef -> SAML.UserRef
       removeQualifiers =
@@ -383,7 +383,7 @@ runValidScimIdBoth :: (a -> a -> a) -> (SAML.UserRef -> a) -> (EmailAddress -> a
 runValidScimIdBoth merge doURefl doEmail = these doEmail doURefl (\em uref -> doEmail em `merge` doURefl uref) . validScimIdAuthInfo
 
 veidUref :: ValidScimId -> Maybe SAML.UserRef
-veidUref = justThat . validScimIdAuthInfo
+veidUref = justThere . validScimIdAuthInfo
 
 urefToExternalIdUnsafe :: SAML.UserRef -> Text
 urefToExternalIdUnsafe = CI.original . SAML.unsafeShowNameID . view SAML.uidSubject

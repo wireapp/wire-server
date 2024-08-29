@@ -438,7 +438,7 @@ logEmail email =
 logVSU :: ST.ValidScimUser -> (Msg -> Msg)
 logVSU (ST.ValidScimUser veid handl _name _emails _richInfo _active _lang _role) =
   -- FUTUREWORK(elland): Take SCIM emails field into account.
-  maybe id logEmail (justThis $ ST.validScimIdAuthInfo veid)
+  maybe id logEmail (justHere $ ST.validScimIdAuthInfo veid)
     . logHandle handl
 
 logTokenInfo :: ScimTokenInfo -> (Msg -> Msg)
@@ -451,7 +451,7 @@ logScimUserIds :: Scim.ListResponse (Scim.StoredUser ST.SparTag) -> (Msg -> Msg)
 logScimUserIds lresp = foldl' (.) id (logScimUserId <$> Scim.resources lresp)
 
 vsUserEmail :: ST.ValidScimUser -> Maybe EmailAddress
-vsUserEmail usr = justThis $ ST.validScimIdAuthInfo usr.externalId
+vsUserEmail usr = justHere $ ST.validScimIdAuthInfo usr.externalId
 
 -- in ScimTokenHash (cs @ByteString @Text (convertToBase Base64 digest))
 
@@ -603,7 +603,7 @@ createValidScimUserSpar ::
 createValidScimUserSpar stiTeam uid storedUser veid = lift $ do
   ScimUserTimesStore.write storedUser
   ScimExternalIdStore.insert stiTeam veid.validScimIdExternal uid
-  for_ (justThat veid.validScimIdAuthInfo) (`SAMLUserStore.insert` uid)
+  for_ (justThere veid.validScimIdAuthInfo) (`SAMLUserStore.insert` uid)
 
 -- TODO(arianvp): how do we get this safe w.r.t. race conditions / crashes?
 updateValidScimUser ::
@@ -696,15 +696,15 @@ updateVsuUref ::
   ST.ValidScimId ->
   Sem r ()
 updateVsuUref team uid old new = do
-  case (justThis $ ST.validScimIdAuthInfo old, justThis $ ST.validScimIdAuthInfo new) of
+  case (justHere $ ST.validScimIdAuthInfo old, justHere $ ST.validScimIdAuthInfo new) of
     (mo, mn@(Just email)) | mo /= mn -> Spar.App.validateEmail (Just team) uid email
     _ -> pure ()
 
   ScimExternalIdStore.delete team old.validScimIdExternal
-  for_ (justThat old.validScimIdAuthInfo) (SAMLUserStore.delete uid)
+  for_ (justThere old.validScimIdAuthInfo) (SAMLUserStore.delete uid)
 
   ScimExternalIdStore.insert team new.validScimIdExternal uid
-  for_ (justThat new.validScimIdAuthInfo) (`SAMLUserStore.insert` uid)
+  for_ (justThere new.validScimIdAuthInfo) (`SAMLUserStore.insert` uid)
 
   BrigAccess.setSSOId uid $ veidToUserSSOId new
 
@@ -825,7 +825,7 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
       case Brig.veidFromBrigUser account.account.accountUser ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig) account.emailUnvalidated of
         Left _ -> pure ()
         Right veid -> lift $ do
-          for_ (justThat veid.validScimIdAuthInfo) (SAMLUserStore.delete uid)
+          for_ (justThere veid.validScimIdAuthInfo) (SAMLUserStore.delete uid)
           ScimExternalIdStore.delete stiTeam veid.validScimIdExternal
       lift $ ScimUserTimesStore.delete uid
 
@@ -903,7 +903,7 @@ assertExternalIdInAllowedValues allowedValues errmsg tid veid = do
   isGood <-
     lift $ do
       mViaEid <- getUserIdByScimExternalId tid veid.validScimIdExternal
-      mViaUref <- join <$> (for (justThat veid.validScimIdAuthInfo) ((userId <$$>) . getUserByUrefUnsafe))
+      mViaUref <- join <$> (for (justThere veid.validScimIdAuthInfo) ((userId <$$>) . getUserByUrefUnsafe))
       pure $ all (`elem` allowedValues) [mViaEid, mViaUref]
   unless isGood $
     throwError Scim.conflict {Scim.detail = Just errmsg}
@@ -944,7 +944,7 @@ synthesizeStoredUser acc veid =
         . logUser (userId acc.account.accountUser)
         . maybe id logHandle acc.account.accountUser.userHandle
         . maybe id logTeam acc.account.accountUser.userTeam
-        . maybe id logEmail (justThis $ ST.validScimIdAuthInfo veid)
+        . maybe id logEmail (justHere $ ST.validScimIdAuthInfo veid)
     )
     logScimUserId
     $ do
@@ -1149,8 +1149,8 @@ scimFindUserByExternalId mIdpConfig stiTeam eid = do
     -- we also shouldn't call all three and only then check if the first one would have been
     -- enough...
     mViaEid :: Maybe UserId <- ScimExternalIdStore.lookup stiTeam eid
-    mViaEmail :: Maybe UserId <- join <$> (for (justThis veid.validScimIdAuthInfo) ((userId . accountUser <$$>) . BrigAccess.getByEmail))
-    mViaUref :: Maybe UserId <- join <$> (for (justThat veid.validScimIdAuthInfo) SAMLUserStore.get)
+    mViaEmail :: Maybe UserId <- join <$> (for (justHere veid.validScimIdAuthInfo) ((userId . accountUser <$$>) . BrigAccess.getByEmail))
+    mViaUref :: Maybe UserId <- join <$> (for (justThere veid.validScimIdAuthInfo) SAMLUserStore.get)
     pure $ mViaEid <|> mViaEmail <|> mViaUref
   acc <- MaybeT . lift . BrigAccess.getAccount Brig.WithPendingInvitations $ uid
   getUserById mIdpConfig stiTeam (userId acc.account.accountUser)
