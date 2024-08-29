@@ -70,7 +70,6 @@ import Imports
 import SAML2.WebSSO qualified as SAML
 import SAML2.WebSSO.Test.Arbitrary ()
 import Servant.API (FromHttpApiData (..), ToHttpApiData (..))
-import Test.QuickCheck (suchThat)
 import Test.QuickCheck qualified as QC
 import Web.HttpApiData (parseHeaderWithPrefix)
 import Web.Scim.AttrName (AttrName (..))
@@ -353,29 +352,33 @@ data ValidScimId = ValidScimId
   deriving (Eq, Show, Generic)
 
 instance Arbitrary ValidScimId where
-  arbitrary = do
-    authInfo <-
-      QC.arbitrary
-        & fmap (mapThere removeQualifiers)
-        & flip suchThat shortShowNameIDIsNotNothing
-    pure $ these onlyThis onlyThat (\_ uref -> onlyThat uref) authInfo
+  arbitrary =
+    these onlyThis onlyThat (\_ uref -> onlyThat uref) <$> QC.arbitrary
     where
-      shortShowNameIDIsNotNothing :: These EmailAddress SAML.UserRef -> Bool
-      shortShowNameIDIsNotNothing = all (\uref -> isJust (uref ^. SAML.uidSubject . to SAML.shortShowNameID)) . justThere
-
-      removeQualifiers :: SAML.UserRef -> SAML.UserRef
-      removeQualifiers =
-        (SAML.uidSubject . SAML.nameIDNameQ .~ Nothing)
-          . (SAML.uidSubject . SAML.nameIDSPProvidedID .~ Nothing)
-          . (SAML.uidSubject . SAML.nameIDSPNameQ .~ Nothing)
-
       -- TODO(leif): the external ID can also be different from the email
       onlyThis :: EmailAddress -> ValidScimId
       onlyThis em = ValidScimId {validScimIdExternal = fromEmail em, validScimIdAuthInfo = This em}
 
-      -- `unsafeShowNameID` works here because of `suchThat shortShowNameIDIsNotNothing`
+      -- `unsafeShowNameID` can name clash, if this is a problem consider using `arbitraryValidScimIdNoNameIDQualifiers`
       onlyThat :: SAML.UserRef -> ValidScimId
       onlyThat uref = ValidScimId {validScimIdExternal = uref ^. SAML.uidSubject . to SAML.unsafeShowNameID . to CI.original, validScimIdAuthInfo = That uref}
+
+newtype ValidScimIdNoNameIDQualifiers = ValidScimIdNoNameIDQualifiers ValidScimId
+  deriving (Eq, Show)
+
+instance Arbitrary ValidScimIdNoNameIDQualifiers where
+  arbitrary = ValidScimIdNoNameIDQualifiers <$> arbitraryValidScimIdNoNameIDQualifiers
+
+arbitraryValidScimIdNoNameIDQualifiers :: QC.Gen ValidScimId
+arbitraryValidScimIdNoNameIDQualifiers = do
+  veid :: ValidScimId <- QC.arbitrary
+  pure $ ValidScimId veid.validScimIdExternal (veid.validScimIdAuthInfo & mapThere removeQualifiers)
+  where
+    removeQualifiers :: SAML.UserRef -> SAML.UserRef
+    removeQualifiers =
+      (SAML.uidSubject . SAML.nameIDNameQ .~ Nothing)
+        . (SAML.uidSubject . SAML.nameIDSPProvidedID .~ Nothing)
+        . (SAML.uidSubject . SAML.nameIDSPNameQ .~ Nothing)
 
 -- | Take apart a 'ValidScimId', use both 'SAML.UserRef', 'Email' if applicable, and
 -- merge the result with a given function.
