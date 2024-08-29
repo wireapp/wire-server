@@ -95,6 +95,7 @@
 , tasty-hunit
 , tasty-quickcheck
 , text
+, these
 , time
 , tinylog
 , transitive-anns
@@ -194,6 +195,7 @@ mkDerivation {
     sop-core
     tagged
     text
+    these
     time
     tinylog
     transitive-anns
