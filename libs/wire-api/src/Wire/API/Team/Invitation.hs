@@ -83,7 +83,7 @@ data Invitation = Invitation
     role :: Role,
     invitationId :: InvitationId,
     createdAt :: UTCTimeMillis,
-    -- | this is always 'Just' for newvitations, but for
+    -- | this is always 'Just' for new invitations, but for
     -- migration it is allowed to be 'Nothing'.
     createdBy :: Maybe UserId,
     inviteeEmail :: EmailAddress,
