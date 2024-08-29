@@ -32,10 +32,6 @@ interpretInvitationCodeStoreToCassandra casClient =
       DeleteInvitations tid -> embed $ deleteInvitationsImpl tid
 
 insertInvitationImpl ::
-  --   ( Log.MonadLogger m,
-  --     MonadClient m
-  --   ) =>
-  --   ShowOrHideInvitationUrl ->
   InvitationId ->
   TeamId ->
   Role ->
