@@ -22,7 +22,7 @@ module Test.Spar.Intra.BrigSpec where
 import Arbitrary ()
 import Data.String.Conversions
 import Data.These
-import Data.These.Combinators (justThis)
+import Data.These.Combinators
 import Imports
 import SAML2.WebSSO as SAML
 import Spar.Intra.BrigApp
@@ -57,20 +57,20 @@ spec = do
       veidFromUserSSOId ssoId Nothing `shouldBe` Right veid
 
     it "another example" $ do
-      let have =
+      let veid =
             ValidScimId "PWKS" . That $
               UserRef
                 (Issuer $ mkuri "http://wire.com/")
                 ( either (error . show) id $
+                    -- TODO(fisx): is a lower case 'k' in 'PWkS' here on purpose?
                     mkNameID (mkUNameIDPersistent "PWkS") (Just "hendrik") Nothing (Just "marye")
                 )
-          want = UserSSOId (SAML.UserRef iss nam)
+          ssoId = UserSSOId (SAML.UserRef iss nam)
           iss :: SAML.Issuer = fromRight undefined $ SAML.decodeElem "<Issuer xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">http://wire.com/</Issuer>"
           nam :: SAML.NameID = fromRight undefined $ SAML.decodeElem "<NameID xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" Format=\"urn:oasis:names:tc:SAML:2.0:nameid-format:persistent\" NameQualifier=\"hendrik\" SPProvidedID=\"marye\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">PWkS</NameID>"
-
-      veidToUserSSOId have `shouldBe` want
-      veidFromUserSSOId want Nothing `shouldBe` Right have
+      veidToUserSSOId veid `shouldBe` ssoId
+      veidFromUserSSOId ssoId Nothing `shouldBe` Right veid
 
     it "roundtrips" . property $
       \(x :: ValidScimId) ->
-        veidFromUserSSOId @(Either String) (veidToUserSSOId x) (justThis x.validScimIdAuthInfo) === Right x
+        veidFromUserSSOId @(Either String) (veidToUserSSOId x) (justHere x.validScimIdAuthInfo) === Right x
