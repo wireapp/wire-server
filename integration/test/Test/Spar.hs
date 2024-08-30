@@ -2,10 +2,13 @@
 
 module Test.Spar where
 
+import qualified API.Brig as Brig
+import API.BrigInternal as BrigInternal
 import API.Common (randomEmail, randomExternalId)
 import API.Spar
 import Control.Concurrent (threadDelay)
 import SetupHelpers
+import Testlib.JSON
 import Testlib.Prelude
 
 testSparUserCreationInvitationTimeout :: (HasCallStack) => App ()
@@ -30,10 +33,24 @@ testSparUserCreationInvitationTimeout = do
 
 testSparExternalIdDifferentFromEmail :: (HasCallStack) => App ()
 testSparExternalIdDifferentFromEmail = do
-  (owner, _tid, _) <- createTeam OwnDomain 1
+  (owner, tid, _) <- createTeam OwnDomain 1
   tok <- createScimToken owner >>= \resp -> resp.json %. "token" >>= asString
   email <- randomEmail
   extId <- randomExternalId
   scimUser <- randomScimUserWith extId email
-  bindResponse (createScimUser OwnDomain tok scimUser) $ \res -> do
-    res.status `shouldMatchInt` 201
+  createScimUser OwnDomain tok scimUser >>= assertSuccess
+  registerUser OwnDomain tid email
+  bindResponse (findUsersByExternalId OwnDomain tok extId) $ \res -> do
+    actualExternalId <- res.json %. "Resources" >>= asList >>= assertOne >>= (%. "externalId") >>= asString
+    actualExternalId `shouldMatch` extId
+
+registerUser :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App ()
+registerUser domain tid email = do
+  BrigInternal.getInvitationByEmail domain email
+    >>= getJSON 200
+    >>= BrigInternal.getInvitationCodeForTeam domain tid
+    >>= getJSON 200
+    >>= (%. "code")
+    >>= asString
+    >>= Brig.registerUser domain email
+    >>= assertSuccess

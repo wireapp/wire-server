@@ -21,3 +21,11 @@ createScimUser domain token scimUser = do
   req <- baseRequest domain Spar Versioned "/scim/v2/Users"
   body <- make scimUser
   submit "POST" $ req & addJSON body . addHeader "Authorization" ("Bearer " <> token)
+
+findUsersByExternalId :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
+findUsersByExternalId domain scimToken externalId = do
+  req <- baseRequest domain Spar Versioned "/scim/v2/Users"
+  submit "GET" $ req
+    & addQueryParams [("filter", "externalId eq \"" <> externalId <> "\"")]
+    & addHeader "Authorization" ("Bearer " <> scimToken)
+    & addHeader "Accept" "application/scim+json"

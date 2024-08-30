@@ -764,3 +764,15 @@ revokeApplicationAccess user cid password = do
   cidStr <- asString cid
   req <- baseRequest user Brig Versioned $ joinHttpPath ["oauth", "applications", cidStr, "sessions"]
   submit "DELETE" $ req & addJSONObject ["password" .= password]
+
+registerUser :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
+registerUser domain email inviteeCode = do
+  req <- baseRequest domain Brig Versioned "register"
+  submit "POST" $
+    req
+      & addJSONObject
+        [ "name" .= "Alice",
+          "email" .= email,
+          "password" .= defPassword,
+          "team_code" .= inviteeCode
+        ]
