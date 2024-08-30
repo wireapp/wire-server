@@ -619,6 +619,8 @@ testCreateUserNoIdPWithRole brig tid owner tok role = do
     -- - if the user has a pending invitation, we have to look up the role in the invitation table
     --   by doing an rpc to brig
     liftIO $ Scim.User.roles usr `shouldBe` [cs $ toByteString defaultRole]
+    liftIO $ Scim.User.emails usr `shouldBe` []
+    liftIO $ Scim.User.externalId usr `shouldBe` (Just (fromEmail email))
 
   -- user follows invitation flow
   do
@@ -1700,51 +1702,72 @@ testUpdateExternalId withidp = do
         (_owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
         (,Nothing,tid) <$> registerScimToken tid Nothing
 
-  let checkUpdate :: (HasCallStack) => Bool -> TestSpar ()
-      checkUpdate hasChanged {- is externalId updated with a different value, or with itself? -} = do
-        -- Create a user via SCIM
-        email <- randomEmail
-        user <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email}
-        storedUser <- createUser tok user
-        let userid = scimUserId storedUser
-        if withidp
-          then call $ activateEmail brig email
-          else registerUser brig tid email
-        veid :: ValidScimId <-
-          runSpar . runScimErrorUnsafe $
-            mkValidScimId midp (Scim.User.externalId user) (Just email)
-        -- Overwrite the user with another randomly-generated user (only controlling externalId)
-        otherEmail <- randomEmail
-        user' <- do
-          let upd u =
-                u
-                  { Scim.User.externalId =
-                      if hasChanged
-                        then Just $ fromEmail otherEmail
-                        else Scim.User.externalId user
-                  }
-          randomScimUser <&> upd
-        veid' <-
-          runSpar . runScimErrorUnsafe $
-            mkValidScimId midp (Scim.User.externalId user') (Just otherEmail)
+  do
+    -- idempotency (email changes to itself)
+    email <- randomEmail
+    user <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email}
+    storedUser <- createUser tok user
+    let userid = scimUserId storedUser
+    if withidp
+      then call $ activateEmail brig email
+      else registerUser brig tid email
+    veid :: ValidScimId <-
+      runSpar . runScimErrorUnsafe $
+        mkValidScimId midp (Scim.User.externalId user) (Just email)
+    -- Overwrite the user with another randomly-generated user (only controlling externalId)
+    updatedUser <- do
+      let upd u = u {Scim.User.externalId = Scim.User.externalId user}
+      randomScimUser <&> upd
+    veid' <-
+      runSpar . runScimErrorUnsafe $
+        mkValidScimId midp (Scim.User.externalId updatedUser) (Just email)
+    _ <- updateUser tok userid updatedUser
 
-        _ <- updateUser tok userid user'
+    muserid <- lookupByValidScimId tid veid
+    muserid' <- lookupByValidScimId tid veid'
+    liftIO $ do
+      ('i', veid') `shouldBe` ('i', veid)
+      ('i', muserid) `shouldBe` ('i', Just userid)
+      ('i', muserid') `shouldBe` ('i', Just userid)
+    eventually $ checkEmail userid (Just email)
 
-        when hasChanged (call $ activateEmail brig otherEmail)
-        muserid <- lookupByValidScimId tid veid
-        muserid' <- lookupByValidScimId tid veid'
-        liftIO $ do
-          if hasChanged
-            then do
-              (hasChanged, muserid) `shouldBe` (hasChanged, Nothing)
-              (hasChanged, muserid') `shouldBe` (hasChanged, Just userid)
-            else do
-              (hasChanged, veid') `shouldBe` (hasChanged, veid)
-              (hasChanged, muserid') `shouldBe` (hasChanged, Just userid)
-        eventually $ checkEmail userid (Just $ if hasChanged then otherEmail else email)
+  do
+    -- email changes to other email
+    email <- randomEmail
+    user <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email}
+    storedUser <- createUser tok user
+    let userid = scimUserId storedUser
+    if withidp
+      then do
+        call $ activateEmail brig email
+      else registerUser brig tid email
+    veid :: ValidScimId <-
+      runSpar . runScimErrorUnsafe $
+        mkValidScimId midp (Scim.User.externalId user) (Just email)
+    -- Overwrite the user with another randomly-generated user (only controlling externalId)
+    otherEmail <- randomEmail
+    updatedUser <- do
+      let upd u = u {Scim.User.externalId = Just $ fromEmail otherEmail}
+      randomScimUser <&> upd
+    veid' <-
+      runSpar . runScimErrorUnsafe $
+        mkValidScimId midp (Scim.User.externalId updatedUser) (Just email) -- otherEmail has not been validated yet.
+    _ <- updateUser tok userid updatedUser
 
-  checkUpdate True
-  checkUpdate False
+    call $ activateEmail brig otherEmail
+    veid'' <-
+      runSpar . runScimErrorUnsafe $
+        mkValidScimId midp (Scim.User.externalId updatedUser) (Just otherEmail)
+
+    muserid <- lookupByValidScimId tid veid
+    muserid' <- lookupByValidScimId tid veid'
+    muserid'' <- lookupByValidScimId tid veid''
+
+    liftIO $ do
+      ('c', muserid) `shouldBe` ('c', Nothing)
+      ('c', muserid') `shouldBe` ('c', if withidp then Just userid else Nothing)
+      ('c', muserid'') `shouldBe` ('c', Just userid)
+    eventually $ checkEmail userid (Just otherEmail)
 
 testUpdateExternalIdOfUnregisteredAccount :: TestSpar ()
 testUpdateExternalIdOfUnregisteredAccount = do

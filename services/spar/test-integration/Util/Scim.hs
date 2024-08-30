@@ -142,7 +142,6 @@ randomScimUserWithSubjectAndRichInfo ::
   m (Scim.User.User SparTag, SAML.UnqualifiedNameID)
 randomScimUserWithSubjectAndRichInfo richInfo = do
   suffix <- cs <$> replicateM 20 (getRandomR ('a', 'z'))
-  emails <- getRandomR (0, 3) >>= \n -> replicateM n randomScimEmail
   phones <- getRandomR (0, 3) >>= \n -> replicateM n randomScimPhone
   -- Related, but non-trivial to re-use here: 'nextSubject'
   (externalId, subj) <-
@@ -161,7 +160,7 @@ randomScimUserWithSubjectAndRichInfo richInfo = do
     ( (Scim.User.empty @SparTag userSchemas ("scimuser_" <> suffix) (ScimUserExtra richInfo))
         { Scim.User.displayName = Just ("ScimUser" <> suffix),
           Scim.User.externalId = Just externalId,
-          Scim.User.emails = emails,
+          Scim.User.emails = [],
           Scim.User.phoneNumbers = phones,
           Scim.User.roles = ["member"]
           -- if we don't add this role here explicitly, some tests may show confusing failures
