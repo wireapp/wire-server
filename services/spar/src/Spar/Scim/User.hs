@@ -393,9 +393,10 @@ mkValidScimId (Just idp) (Just extid) mEmail = do
             -- The entry in spar.user_v2 does not exist yet during user
             -- creation. So we just assume that it will exist momentarily.
             pure uref
-  pure . ST.ValidScimId extid $ case mEmail of
-    Just email -> These email indexedUref
-    Nothing -> That indexedUref
+  pure . ST.ValidScimId extid $ case (mEmail, emailAddressText extid) of
+    (Just email, _) -> These email indexedUref
+    (Nothing, Just email) -> These email indexedUref
+    (Nothing, Nothing) -> That indexedUref
   where
     -- Validate a subject ID (@externalId@).
     validateSubject :: Text -> Sem r SAML.NameID
