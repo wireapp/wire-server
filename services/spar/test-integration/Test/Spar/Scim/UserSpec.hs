@@ -1809,6 +1809,7 @@ lookupByValidScimId tid =
   runValidScimIdEither
     (runSpar . SAMLUserStore.get)
     ( \email -> do
+        -- caution: now ext id and email can differ, in which case this will not work anymore
         let action = SU.scimFindUserByExternalId Nothing tid $ fromEmail email
         result <- runSpar . runExceptT . runMaybeT $ action
         case result of
