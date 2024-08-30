@@ -94,6 +94,7 @@ import qualified Wire.API.User.IdentityProvider as User
 import Wire.API.User.RichInfo
 import qualified Wire.API.User.Scim as Spar.Types
 import qualified Wire.API.User.Search as Search
+import qualified Polysemy.Internal.CustomErrors as registered
 
 -- | Tests for @\/scim\/v2\/Users@.
 spec :: SpecWith TestEnv
@@ -657,7 +658,14 @@ testCreateUserNoIdP = do
     liftIO $ accountStatus brigUserAccount.account `shouldBe` PendingInvitation
     liftIO $ userEmail brigUser `shouldBe` Just email
     liftIO $ userManagedBy brigUser `shouldBe` ManagedByScim
-    liftIO $ userSSOId brigUser `shouldBe` Nothing
+    -- TODO(fisx, leif): previous to the change that allows the external ID to be different from the email
+    -- `userSSOId brigUser` was `Nothing`.
+    -- Not sure if it can be a problem that it is now a `Just`?
+    -- The reason is that we now store the external id as the sso_id when the user invitation is created, whereas before
+    -- we stored the email address (as in EmailIdentity) and sso_id was not stored until the user registered.
+    -- Now we need to store the external id when the user is invited because in case it is different from the email, we don't have it
+    -- when the user registers.
+    liftIO $ userSSOId brigUser `shouldBe` Just (UserScimExternalId (fromEmail email))
 
   -- searching user in brig should fail
   -- >>> searchUser brig owner userName False
@@ -1702,18 +1710,19 @@ testUpdateExternalId withidp = do
         (_owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
         (,Nothing,tid) <$> registerScimToken tid Nothing
 
+  email <- randomEmail
+  user <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email}
+  storedUser <- createUser tok user
+  let userid = scimUserId storedUser
+  if withidp
+    then call $ activateEmail brig email
+    else registerUser brig tid email
+  veid :: ValidScimId <-
+    runSpar . runScimErrorUnsafe $
+      mkValidScimId midp (Scim.User.externalId user) (Just email)
+
   do
     -- idempotency (email changes to itself)
-    email <- randomEmail
-    user <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email}
-    storedUser <- createUser tok user
-    let userid = scimUserId storedUser
-    if withidp
-      then call $ activateEmail brig email
-      else registerUser brig tid email
-    veid :: ValidScimId <-
-      runSpar . runScimErrorUnsafe $
-        mkValidScimId midp (Scim.User.externalId user) (Just email)
     -- Overwrite the user with another randomly-generated user (only controlling externalId)
     updatedUser <- do
       let upd u = u {Scim.User.externalId = Scim.User.externalId user}
@@ -1733,17 +1742,6 @@ testUpdateExternalId withidp = do
 
   do
     -- email changes to other email
-    email <- randomEmail
-    user <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email}
-    storedUser <- createUser tok user
-    let userid = scimUserId storedUser
-    if withidp
-      then do
-        call $ activateEmail brig email
-      else registerUser brig tid email
-    veid :: ValidScimId <-
-      runSpar . runScimErrorUnsafe $
-        mkValidScimId midp (Scim.User.externalId user) (Just email)
     -- Overwrite the user with another randomly-generated user (only controlling externalId)
     otherEmail <- randomEmail
     updatedUser <- do

@@ -1824,6 +1824,7 @@ data NewUserScimInvitation = NewUserScimInvitation
   -- FIXME: the TID should be captured in the route as usual
   { newUserScimInvTeamId :: TeamId,
     newUserScimInvUserId :: UserId,
+    newUserScimExternalId :: Text,
     newUserScimInvLocale :: Maybe Locale,
     newUserScimInvName :: Name,
     newUserScimInvEmail :: EmailAddress,
@@ -1839,6 +1840,7 @@ instance Schema.ToSchema NewUserScimInvitation where
       NewUserScimInvitation
         <$> newUserScimInvTeamId Schema..= Schema.field "team_id" Schema.schema
         <*> newUserScimInvUserId Schema..= Schema.field "user_id" Schema.schema
+        <*> newUserScimExternalId Schema..= field "external_id" schema
         <*> newUserScimInvLocale Schema..= maybe_ (optField "locale" Schema.schema)
         <*> newUserScimInvName Schema..= Schema.field "name" Schema.schema
         <*> newUserScimInvEmail Schema..= Schema.field "email" Schema.schema

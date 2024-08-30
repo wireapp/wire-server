@@ -538,7 +538,7 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser {..}
               -- to `createValidScimUserSpar`?
               void $ BrigAccess.createSAML uref buid stiTeam name ManagedByScim (Just handle) (Just richInfo) locale (fromMaybe defaultRole role)
             doEmail email = do
-              void $ BrigAccess.createNoSAML email buid stiTeam name locale (fromMaybe defaultRole role)
+              void $ BrigAccess.createNoSAML externalId.validScimIdExternal email buid stiTeam name locale (fromMaybe defaultRole role)
               BrigAccess.setHandle buid handle -- FUTUREWORK: possibly do the same one req as we do for saml?
         these doEmail doUref (\_ uref -> doUref uref) (validScimIdAuthInfo externalId)
         Logger.debug ("createValidScimUser: brig says " <> show buid)
@@ -1018,7 +1018,7 @@ synthesizeStoredUser' ::
   Locale ->
   Maybe Role ->
   m (Scim.StoredUser ST.SparTag)
-synthesizeStoredUser' uid veid dname _emails handle richInfo accStatus createdAt lastUpdatedAt baseuri locale mbRole = do
+synthesizeStoredUser' uid veid dname emails handle richInfo accStatus createdAt lastUpdatedAt baseuri locale mbRole = do
   let scimUser :: Scim.User ST.SparTag
       scimUser =
         synthesizeScimUser
@@ -1027,7 +1027,7 @@ synthesizeStoredUser' uid veid dname _emails handle richInfo accStatus createdAt
               ST.handle = handle {- 'Maybe' there is one in @usr@, but we want the type
                                     checker to make sure this exists, so we add it here
                                     redundantly, without the 'Maybe'. -},
-              ST.emails = [],
+              ST.emails = emails,
               ST.name = dname,
               ST.richInfo = richInfo,
               ST.active = ST.scimActiveFlagFromAccountStatus accStatus,
@@ -1073,23 +1073,23 @@ getUserById ::
   UserId ->
   MaybeT (Scim.ScimHandler (Sem r)) (Scim.StoredUser ST.SparTag)
 getUserById midp stiTeam uid = do
-  acc@(account -> brigUser) <- MaybeT . lift $ BrigAccess.getAccount Brig.WithPendingInvitations uid
+  acc@(accountUser . account -> brigUser) <- MaybeT . lift $ BrigAccess.getAccount Brig.WithPendingInvitations uid
   let mbveid =
         Brig.veidFromBrigUser
-          brigUser.accountUser
+          brigUser
           ((^. SAML.idpMetadata . SAML.edIssuer) <$> midp)
           acc.emailUnvalidated
   case mbveid of
-    Right veid | userTeam (accountUser brigUser) == Just stiTeam -> lift $ do
+    Right veid | userTeam brigUser == Just stiTeam -> lift $ do
       storedUser :: Scim.StoredUser ST.SparTag <- synthesizeStoredUser acc veid
       -- if we get a user from brig that hasn't been touched by scim yet, we call this
       -- function to move it under scim control.
       assertExternalIdNotUsedElsewhere stiTeam veid uid
       createValidScimUserSpar stiTeam uid storedUser veid
       lift $ do
-        when (veidChanged (accountUser brigUser) veid) $
+        when (veidChanged brigUser veid) $
           BrigAccess.setSSOId uid (veidToUserSSOId veid)
-        when (managedByChanged (accountUser brigUser)) $
+        when (managedByChanged brigUser) $
           BrigAccess.setManagedBy uid ManagedByScim
       pure storedUser
     _ -> Applicative.empty
@@ -1145,18 +1145,18 @@ scimFindUserByExternalId ::
   Text ->
   MaybeT (Scim.ScimHandler (Sem r)) (Scim.StoredUser ST.SparTag)
 scimFindUserByExternalId mIdpConfig stiTeam eid = do
-  veid <- MaybeT . lift $ either (const Nothing) Just <$> runError @Scim.ScimError (mkValidScimId mIdpConfig (Just eid) (emailAddressText eid))
-  uid :: UserId <- MaybeT . lift $ do
-    -- there are a few ways to find a user. this should all be redundant, especially the where
-    -- we lookup a user from brig by email, throw it away and only keep the uid, and then use
-    -- the uid to lookup the account again. but cassandra, and also reasons.
-    --
-    -- we also shouldn't call all three and only then check if the first one would have been
-    -- enough...
-    mViaEid :: Maybe UserId <- ScimExternalIdStore.lookup stiTeam eid
-    mViaEmail :: Maybe UserId <- join <$> (for (justHere veid.validScimIdAuthInfo) ((userId . accountUser <$$>) . BrigAccess.getByEmail))
-    mViaUref :: Maybe UserId <- join <$> (for (justThere veid.validScimIdAuthInfo) SAMLUserStore.get)
-    pure $ mViaEid <|> mViaEmail <|> mViaUref
+  mViaEid :: Maybe UserId <- MaybeT $ Just <$> lift (ScimExternalIdStore.lookup stiTeam eid)
+  uid <- case mViaEid of
+    Nothing -> do
+      veid <- MaybeT . lift $ either (const Nothing) Just <$> runError @Scim.ScimError (mkValidScimId mIdpConfig (Just eid) (emailAddressText eid))
+      MaybeT . lift $ do
+        -- there are a few ways to find a user. this should all be redundant, especially the where
+        -- we lookup a user from brig by email, throw it away and only keep the uid, and then use
+        -- the uid to lookup the account again. but cassandra, and also reasons.
+        mViaEmail :: Maybe UserId <- join <$> (for (justHere veid.validScimIdAuthInfo) ((userId . accountUser <$$>) . BrigAccess.getByEmail))
+        mViaUref :: Maybe UserId <- join <$> (for (justThere veid.validScimIdAuthInfo) SAMLUserStore.get)
+        pure $ mViaEmail <|> mViaUref
+    Just uid -> pure uid
   acc <- MaybeT . lift . BrigAccess.getAccount Brig.WithPendingInvitations $ uid
   getUserById mIdpConfig stiTeam (userId acc.account.accountUser)
 

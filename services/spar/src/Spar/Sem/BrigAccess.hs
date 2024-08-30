@@ -62,7 +62,7 @@ import Wire.API.User.RichInfo as RichInfo
 
 data BrigAccess m a where
   CreateSAML :: SAML.UserRef -> UserId -> TeamId -> Name -> ManagedBy -> Maybe Handle -> Maybe RichInfo -> Maybe Locale -> Role -> BrigAccess m UserId
-  CreateNoSAML :: EmailAddress -> UserId -> TeamId -> Name -> Maybe Locale -> Role -> BrigAccess m UserId
+  CreateNoSAML :: Text -> EmailAddress -> UserId -> TeamId -> Name -> Maybe Locale -> Role -> BrigAccess m UserId
   UpdateEmail :: UserId -> EmailAddress -> BrigAccess m ()
   GetAccount :: HavePendingInvitations -> UserId -> BrigAccess m (Maybe ExtendedUserAccount)
   GetByHandle :: Handle -> BrigAccess m (Maybe UserAccount)

@@ -166,7 +166,7 @@ createInvitationViaScim ::
   TeamId ->
   NewUserScimInvitation ->
   (Handler r) UserAccount
-createInvitationViaScim tid newUser@(NewUserScimInvitation _tid uid loc name email role) = do
+createInvitationViaScim tid newUser@(NewUserScimInvitation _tid uid _eid loc name email role) = do
   env <- ask
   let inviteeRole = role
       fromEmail = env ^. emailSender
