@@ -36,7 +36,6 @@ module Util.Core
 
     -- * Test helpers
     it,
-    fit,
     pending,
     pendingWith,
     shouldRespondWith,
@@ -292,15 +291,6 @@ it ::
   TestSpar () ->
   SpecWith TestEnv
 it msg bdy = Test.Hspec.it msg $ runReaderT bdy
-
-fit ::
-  (HasCallStack) =>
-  -- or, more generally:
-  -- MonadIO m, Example (TestEnv -> m ()), Arg (TestEnv -> m ()) ~ TestEnv
-  String ->
-  TestSpar () ->
-  SpecWith TestEnv
-fit msg bdy = Test.Hspec.fit msg $ runReaderT bdy
 
 pending :: (HasCallStack, MonadIO m) => m ()
 pending = liftIO Test.Hspec.pending

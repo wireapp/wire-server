@@ -46,7 +46,6 @@
 , prometheus-client
 , resourcet
 , retry
-, safe
 , servant
 , servant-client
 , servant-server
@@ -155,7 +154,6 @@ mkDerivation {
     mmorph
     mtl
     optparse-applicative
-    safe
     servant-client
     tagged
     tasty

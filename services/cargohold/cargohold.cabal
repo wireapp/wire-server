@@ -283,7 +283,6 @@ executable cargohold-integration
     , mmorph
     , mtl
     , optparse-applicative
-    , safe
     , servant-client
     , tagged                 >=0.8
     , tasty                  >=1.0
