@@ -67,7 +67,7 @@ import Wire.Sem.Now qualified as Now
 internalOauthAPI :: ServerT I.OAuthAPI (Handler r)
 internalOauthAPI =
   Named @"create-oauth-client" registerOAuthClient
-    :<|> Named @"get-oauth-client" getOAuthClientById
+    :<|> Named @"i-get-oauth-client" getOAuthClientById
     :<|> Named @"update-oauth-client" updateOAuthClient
     :<|> Named @"delete-oauth-client" deleteOAuthClient
 

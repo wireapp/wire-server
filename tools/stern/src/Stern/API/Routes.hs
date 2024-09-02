@@ -411,7 +411,7 @@ type SternAPI =
                :> Post '[JSON] OAuthClientCredentials
            )
     :<|> Named
-           "get-oauth-client"
+           "stern-get-oauth-client"
            ( Summary "Get OAuth client by id"
                :> "i"
                :> "oauth"
