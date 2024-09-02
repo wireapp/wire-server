@@ -424,9 +424,11 @@ suspendTeam ::
   (Handler r) NoContent
 suspendTeam tid = do
   lift $ liftSem $ Log.info $ Log.msg (Log.val "Team suspended") ~~ Log.field "team" (toByteString tid)
+  -- Update the status of all users from the given team
   changeTeamAccountStatuses tid Suspended
   lift . liftSem $ do
     Store.deleteAllTeamInvitations tid
+    -- RPC to galley to change team status there
     GalleyAPIAccess.changeTeamStatus tid Team.Suspended Nothing
   pure NoContent
 
