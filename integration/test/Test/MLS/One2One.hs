@@ -114,15 +114,15 @@ testMLSOne2OneOtherMember scenario = do
   let otherDomain = one2OneScenarioUserDomain scenario
       convDomain = one2OneScenarioConvDomain scenario
   bob <- createMLSOne2OnePartner otherDomain alice convDomain
-  conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
+  one2OneConv <- getMLSOne2OneConversation alice bob >>= getJSON 200
   do
-    convId <- conv %. "qualified_id"
-    bobConv <- getMLSOne2OneConversation bob alice >>= getJSON 200
-    convId `shouldMatch` (bobConv %. "qualified_id")
+    convId <- one2OneConv %. "conversation.qualified_id"
+    bobOne2OneConv <- getMLSOne2OneConversation bob alice >>= getJSON 200
+    convId `shouldMatch` (bobOne2OneConv %. "conversation.qualified_id")
 
   [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
   traverse_ uploadNewKeyPackage [bob1]
-  resetGroup alice1 conv
+  resetOne2OneGroup alice1 one2OneConv
   withWebSocket bob1 $ \ws -> do
     commit <- createAddCommit alice1 [bob]
     void $ sendAndConsumeCommitBundle commit
@@ -132,14 +132,18 @@ testMLSOne2OneOtherMember scenario = do
 
   -- Make sure the membership info is OK both for the MLS 1-to-1 endpoint and
   -- for the general conversation fetching endpoint.
-  let assertOthers other resp = do
-        bdy <- getJSON 200 resp
-        othersObj <- bdy %. "members.others" & asList
+  let assertOthers :: (HasCallStack, MakesValue other, MakesValue retrievedConv) => other -> retrievedConv -> App ()
+      assertOthers other retrievedConv = do
+        othersObj <- retrievedConv %. "members.others" & asList
         otherActual <- assertOne othersObj
         otherActual %. "qualified_id" `shouldMatch` (other %. "qualified_id")
   forM_ [(alice, bob), (bob, alice)] $ \(self, other) -> do
-    getMLSOne2OneConversation self other `bindResponse` assertOthers other
-    getConversation self conv `bindResponse` assertOthers other
+    getMLSOne2OneConversation self other `bindResponse` \resp -> do
+      retrievedConv <- getJSON 200 resp >>= (%. "conversation")
+      assertOthers other retrievedConv
+    getConversation self (one2OneConv %. "conversation") `bindResponse` \resp -> do
+      retrievedConv <- getJSON 200 resp
+      assertOthers other retrievedConv
 
 testMLSOne2OneRemoveClientLocalV5 :: App ()
 testMLSOne2OneRemoveClientLocalV5 = withVersion5 Version5 $ do
@@ -197,15 +201,15 @@ testMLSOne2OneBlockedAfterConnected scenario = do
   let otherDomain = one2OneScenarioUserDomain scenario
       convDomain = one2OneScenarioConvDomain scenario
   bob <- createMLSOne2OnePartner otherDomain alice convDomain
-  conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
-  convId <- conv %. "qualified_id"
+  one2OneConv <- getMLSOne2OneConversation alice bob >>= getJSON 200
+  convId <- one2OneConv %. "conversation.qualified_id"
   do
     bobConv <- getMLSOne2OneConversation bob alice >>= getJSON 200
-    convId `shouldMatch` (bobConv %. "qualified_id")
+    convId `shouldMatch` (bobConv %. "conversation.qualified_id")
 
   [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
   traverse_ uploadNewKeyPackage [bob1]
-  resetGroup alice1 conv
+  resetOne2OneGroup alice1 one2OneConv
   commit <- createAddCommit alice1 [bob]
   withWebSocket bob1 $ \ws -> do
     void $ sendAndConsumeCommitBundle commit
@@ -236,15 +240,15 @@ testMLSOne2OneUnblocked scenario = do
   let otherDomain = one2OneScenarioUserDomain scenario
       convDomain = one2OneScenarioConvDomain scenario
   bob <- createMLSOne2OnePartner otherDomain alice convDomain
-  conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
+  one2OneConv <- getMLSOne2OneConversation alice bob >>= getJSON 200
   do
-    convId <- conv %. "qualified_id"
+    convId <- one2OneConv %. "conversation.qualified_id"
     bobConv <- getMLSOne2OneConversation bob alice >>= getJSON 200
-    convId `shouldMatch` (bobConv %. "qualified_id")
+    convId `shouldMatch` (bobConv %. "conversation.qualified_id")
 
   [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
   traverse_ uploadNewKeyPackage [bob1]
-  resetGroup alice1 conv
+  resetOne2OneGroup alice1 one2OneConv
   withWebSocket bob1 $ \ws -> do
     commit <- createAddCommit alice1 [bob]
     void $ sendAndConsumeCommitBundle commit
@@ -324,8 +328,8 @@ testMLSOne2One suite scenario = do
   [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
   traverse_ uploadNewKeyPackage [bob1]
 
-  conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
-  resetGroup alice1 conv
+  one2OneConv <- getMLSOne2OneConversation alice bob >>= getJSON 200
+  resetOne2OneGroup alice1 one2OneConv
 
   commit <- createAddCommit alice1 [bob]
   withWebSocket bob1 $ \ws -> do
@@ -348,9 +352,9 @@ testMLSOne2One suite scenario = do
   -- the cipersuite of this conversation.
   void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
 
-  conv' <- getMLSOne2OneConversation alice bob >>= getJSON 200
+  one2OneConv' <- getMLSOne2OneConversation alice bob >>= getJSON 200
   (suiteCode, _) <- assertOne $ T.hexadecimal (T.pack suite.code)
-  conv' %. "cipher_suite" `shouldMatchInt` suiteCode
+  one2OneConv' %. "conversation.cipher_suite" `shouldMatchInt` suiteCode
 
 -- | This test verifies that one-to-one conversations are created inside the
 -- commit lock. There used to be an issue where a conversation could be
@@ -362,15 +366,16 @@ testMLSGhostOne2OneConv = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
   [alice1, bob1, bob2] <- traverse (createMLSClient def) [alice, bob, bob]
   traverse_ uploadNewKeyPackage [bob1, bob2]
-  conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
-  resetGroup alice1 conv
+  one2OneConv <- getMLSOne2OneConversation alice bob >>= getJSON 200
+  resetOne2OneGroup alice1 one2OneConv
 
   doneVar <- liftIO $ newEmptyMVar
   let checkConversation =
         liftIO (tryReadMVar doneVar) >>= \case
           Nothing -> do
-            bindResponse (getConversation alice conv) $ \resp ->
+            bindResponse (getConversation alice (one2OneConv %. "conversation")) $ \resp ->
               resp.status `shouldMatchOneOf` [404 :: Int, 403, 200]
+
             checkConversation
           Just _ -> pure ()
   checkConversationIO <- appToIO checkConversation
