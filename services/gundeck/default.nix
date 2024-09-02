@@ -30,6 +30,8 @@
 , gitignoreSource
 , gundeck-types
 , hedis
+, hs-opentelemetry-instrumentation-wai
+, hs-opentelemetry-sdk
 , HsOpenSSL
 , http-client
 , http-client-tls
@@ -83,6 +85,7 @@
 , wai-utilities
 , websockets
 , wire-api
+, wire-otel
 , yaml
 }:
 mkDerivation {
@@ -114,6 +117,8 @@ mkDerivation {
     foldl
     gundeck-types
     hedis
+    hs-opentelemetry-instrumentation-wai
+    hs-opentelemetry-sdk
     http-client
     http-client-tls
     http-types
@@ -147,6 +152,7 @@ mkDerivation {
     wai-routing
     wai-utilities
     wire-api
+    wire-otel
     yaml
   ];
   executableHaskellDepends = [

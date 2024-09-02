@@ -4,11 +4,17 @@
 # dependencies are added or removed.
 { mkDerivation
 , base
+, bytestring
 , gitignoreSource
+, hs-opentelemetry-api
 , hs-opentelemetry-instrumentation-http-client
 , hs-opentelemetry-instrumentation-wai
 , hs-opentelemetry-sdk
 , http-client
+, http-semantics
+, http-types
+, http2
+, http2-manager
 , kan-extensions
 , lib
 , text
@@ -20,10 +26,16 @@ mkDerivation {
   src = gitignoreSource ./.;
   libraryHaskellDepends = [
     base
+    bytestring
+    hs-opentelemetry-api
     hs-opentelemetry-instrumentation-http-client
     hs-opentelemetry-instrumentation-wai
     hs-opentelemetry-sdk
     http-client
+    http-semantics
+    http-types
+    http2
+    http2-manager
     kan-extensions
     text
     unliftio

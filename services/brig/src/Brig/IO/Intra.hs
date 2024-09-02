@@ -564,7 +564,7 @@ blockConv lusr qcnv = do
 
 upsertOne2OneConversation ::
   ( MonadReader Env m,
-    MonadIO m,
+    MonadUnliftIO m,
     MonadMask m,
     MonadHttp m,
     HasRequestId m

@@ -31,6 +31,7 @@ library
   default-extensions:
     AllowAmbiguousTypes
     BangPatterns
+    BlockArguments
     ConstraintKinds
     DataKinds
     DefaultSignatures
@@ -97,5 +98,6 @@ library
     , uri-bytestring
     , wai
     , wai-extra
+    , wire-otel
 
   default-language:   GHC2021

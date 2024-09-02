@@ -19,13 +19,11 @@ import Control.Retry
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Text.Encoding (encodeUtf8)
-import Data.Text.Lazy qualified as T
 import Imports
 import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Types
 import Polysemy
 import Util.Options
-import Wire.OpenTelemetry (withClientInstrumentation)
 
 -- * Effect
 
@@ -45,14 +43,11 @@ runRpcWithHttp mgr reqId = interpret $ \case
     embed $ runHttpRpc mgr reqId $ rpcWithRetriesImpl serviceName ep req
 
 rpcImpl :: ServiceName -> Endpoint -> (Request -> Request) -> HttpRpc (Response (Maybe LByteString))
-rpcImpl serviceName ep req =
-  withClientInstrumentation ("intra-call-to-" <> T.toStrict serviceName) \k -> do
-    -- TODO(mangoiv): maybe we should move the otel instrumentation to bilge all-together
-    let mkReq =
-          req
-            . Bilge.host (encodeUtf8 ep._host)
-            . Bilge.port ep._port
-    k (mkReq empty) \r -> rpc' serviceName r id
+rpcImpl serviceName ep req = do
+  rpc' serviceName empty $
+    req
+      . Bilge.host (encodeUtf8 ep._host)
+      . Bilge.port ep._port
 
 rpcWithRetriesImpl :: ServiceName -> Endpoint -> (Request -> Request) -> HttpRpc (Response (Maybe LByteString))
 rpcWithRetriesImpl serviceName ep req =
