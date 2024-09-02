@@ -39,6 +39,7 @@ import Data.Text.Lazy qualified as LT
 import Data.Time.Clock
 import Galley.API.Action
 import Galley.API.Error
+import Galley.API.MLS
 import Galley.API.MLS.Enabled
 import Galley.API.MLS.GroupInfo
 import Galley.API.MLS.Message
@@ -89,6 +90,7 @@ import Wire.API.Federation.Error
 import Wire.API.Federation.Version
 import Wire.API.MLS.Credential
 import Wire.API.MLS.GroupInfo
+import Wire.API.MLS.Keys
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.Message
@@ -117,6 +119,7 @@ federationSitemap =
     :<|> Named @"get-sub-conversation" getSubConversationForRemoteUser
     :<|> Named @"delete-sub-conversation" (callsFed deleteSubConversationForRemoteUser)
     :<|> Named @"leave-sub-conversation" (callsFed leaveSubConversation)
+    :<|> Named @"get-one2one-conversation@v1" getOne2OneConversationV1
     :<|> Named @"get-one2one-conversation" getOne2OneConversation
     :<|> Named @"on-client-removed" onClientRemoved
     :<|> Named @"on-message-sent" onMessageSent
@@ -735,7 +738,7 @@ deleteSubConversationForRemoteUser domain DeleteSubConversationFedRequest {..} =
       lconv <- qualifyLocal dscreqConv
       deleteLocalSubConversation qusr lconv dscreqSubConv dsc
 
-getOne2OneConversation ::
+getOne2OneConversationV1 ::
   ( Member ConversationStore r,
     Member (Input (Local ())) r,
     Member (Error InternalError) r,
@@ -744,7 +747,7 @@ getOne2OneConversation ::
   Domain ->
   GetOne2OneConversationRequest ->
   Sem r GetOne2OneConversationResponse
-getOne2OneConversation domain (GetOne2OneConversationRequest self other) =
+getOne2OneConversationV1 domain (GetOne2OneConversationRequest self other) =
   fmap (Imports.fromRight GetOne2OneConversationNotConnected)
     . runError @(Tagged 'NotConnected ())
     $ do
@@ -764,6 +767,33 @@ getOne2OneConversation domain (GetOne2OneConversationRequest self other) =
         getLocal
         (const (pure GetOne2OneConversationBackendMismatch))
         (one2OneConvId BaseProtocolMLSTag (tUntagged lother) (tUntagged rself))
+
+getOne2OneConversation ::
+  ( Member ConversationStore r,
+    Member (Input (Local ())) r,
+    Member (Error InternalError) r,
+    Member BrigAccess r,
+    Member (Input Env) r
+  ) =>
+  Domain ->
+  GetOne2OneConversationRequest ->
+  Sem r GetOne2OneConversationResponseV2
+getOne2OneConversation domain req =
+  fmap (Imports.fromRight GetOne2OneConversationV2MLSNotEnabled)
+    . runError @(Tagged 'MLSNotEnabled ())
+    $ do
+      resp <- getOne2OneConversationV1 domain req
+      case resp of
+        GetOne2OneConversationOk conv -> do
+          mlsPublicKeys <- mlsKeysToPublic <$$> getMLSPrivateKeys
+          pure $
+            GetOne2OneConversationV2Ok $
+              RemoteMLSOne2OneConversation
+                { conversation = conv,
+                  publicKeys = mlsPublicKeys
+                }
+        GetOne2OneConversationBackendMismatch -> pure GetOne2OneConversationV2BackendMismatch
+        GetOne2OneConversationNotConnected -> pure GetOne2OneConversationV2NotConnected
 
 --------------------------------------------------------------------------------
 -- Error handling machinery

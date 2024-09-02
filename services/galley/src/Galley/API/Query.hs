@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -37,6 +38,8 @@ module Galley.API.Query
     ensureConvAdmin,
     getMLSSelfConversation,
     getMLSSelfConversationWithError,
+    getMLSOne2OneConversationV5,
+    getMLSOne2OneConversationInternal,
     getMLSOne2OneConversation,
     isMLSOne2OneEstablished,
   )
@@ -58,6 +61,7 @@ import Data.Range
 import Data.Set qualified as Set
 import Galley.API.Error
 import Galley.API.MLS
+import Galley.API.MLS.Enabled
 import Galley.API.MLS.One2One
 import Galley.API.MLS.Types
 import Galley.API.Mapping
@@ -95,6 +99,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
+import Wire.API.MLS.Keys
 import Wire.API.Provider.Bot qualified as Public
 import Wire.API.Routes.MultiTablePaging qualified as Public
 import Wire.API.Team.Feature as Public
@@ -728,7 +733,28 @@ getMLSSelfConversation lusr = do
 -- uses the same function to calculate the conversation ID and corresponding
 -- group ID, however we /do/ assume that the two backends agree on which of the
 -- two is responsible for hosting the conversation.
-getMLSOne2OneConversation ::
+getMLSOne2OneConversationV5 ::
+  ( Member BrigAccess r,
+    Member ConversationStore r,
+    Member (Input Env) r,
+    Member (Error FederationError) r,
+    Member (Error InternalError) r,
+    Member (ErrorS 'MLSNotEnabled) r,
+    Member (ErrorS 'NotConnected) r,
+    Member (ErrorS 'MLSFederatedOne2OneNotSupported) r,
+    Member FederatorAccess r,
+    Member TeamStore r,
+    Member P.TinyLog r
+  ) =>
+  Local UserId ->
+  Qualified UserId ->
+  Sem r Conversation
+getMLSOne2OneConversationV5 lself qother = do
+  if isLocal lself qother
+    then getMLSOne2OneConversationInternal lself qother
+    else throwS @MLSFederatedOne2OneNotSupported
+
+getMLSOne2OneConversationInternal ::
   ( Member BrigAccess r,
     Member ConversationStore r,
     Member (Input Env) r,
@@ -743,40 +769,75 @@ getMLSOne2OneConversation ::
   Local UserId ->
   Qualified UserId ->
   Sem r Conversation
+getMLSOne2OneConversationInternal lself qother =
+  (.conversation) <$> getMLSOne2OneConversation lself qother
+
+-- TODO: rename One2OneMLSConversation -> MLSOne2OneConversation so it matches the name of the function
+getMLSOne2OneConversation ::
+  ( Member BrigAccess r,
+    Member ConversationStore r,
+    Member (Input Env) r,
+    Member (Error FederationError) r,
+    Member (Error InternalError) r,
+    Member (ErrorS 'MLSNotEnabled) r,
+    Member (ErrorS 'NotConnected) r,
+    Member FederatorAccess r,
+    Member TeamStore r,
+    Member P.TinyLog r
+  ) =>
+  Local UserId ->
+  Qualified UserId ->
+  Sem r (One2OneMLSConversation SomeKey)
 getMLSOne2OneConversation lself qother = do
   assertMLSEnabled
   ensureConnectedOrSameTeam lself [qother]
   let convId = one2OneConvId BaseProtocolMLSTag (tUntagged lself) qother
-  foldQualified
-    lself
-    (getLocalMLSOne2OneConversation lself)
-    (getRemoteMLSOne2OneConversation lself qother)
-    convId
+  convWithUnformattedKeys <-
+    foldQualified
+      lself
+      (getLocalMLSOne2OneConversation lself)
+      (getRemoteMLSOne2OneConversation lself qother)
+      convId
+  -- TODO: source this format from somewhere
+  formattedKeys <- formatPublicKeys Nothing convWithUnformattedKeys.publicKeys
+  pure $
+    convWithUnformattedKeys
+      { publicKeys = formattedKeys
+      }
 
 getLocalMLSOne2OneConversation ::
   ( Member ConversationStore r,
     Member (Error InternalError) r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member (Input Env) r,
+    Member (ErrorS MLSNotEnabled) r
   ) =>
   Local UserId ->
   Local ConvId ->
-  Sem r Conversation
+  Sem r (One2OneMLSConversation MLSPublicKey)
 getLocalMLSOne2OneConversation lself lconv = do
   mconv <- E.getConversation (tUnqualified lconv)
-  case mconv of
+  keys <- mlsKeysToPublic <$$> getMLSPrivateKeys
+  conv <- case mconv of
     Nothing -> pure (localMLSOne2OneConversation lself lconv)
     Just conv -> conversationView lself conv
+  pure $
+    One2OneMLSConversation
+      { conversation = conv,
+        publicKeys = keys
+      }
 
 getRemoteMLSOne2OneConversation ::
   ( Member (Error InternalError) r,
     Member (Error FederationError) r,
     Member (ErrorS 'NotConnected) r,
-    Member FederatorAccess r
+    Member FederatorAccess r,
+    Member (ErrorS MLSNotEnabled) r
   ) =>
   Local UserId ->
   Qualified UserId ->
   Remote conv ->
-  Sem r Conversation
+  Sem r (One2OneMLSConversation MLSPublicKey)
 getRemoteMLSOne2OneConversation lself qother rconv = do
   -- a conversation can only be remote if it is hosted on the other user's domain
   rother <-
@@ -784,16 +845,26 @@ getRemoteMLSOne2OneConversation lself qother rconv = do
       then pure (qualifyAs rconv (qUnqualified qother))
       else throw (InternalErrorWithDescription "Unexpected 1-1 conversation domain")
 
+  -- TODO: This will just explode ungracefully when retrying to talk to V0 or
+  -- V1. Figure out how to fail gracefully.
   resp <-
     E.runFederated rconv $
       fedClient @'Galley @"get-one2one-conversation" $
         GetOne2OneConversationRequest (tUnqualified lself) (tUnqualified rother)
   case resp of
-    GetOne2OneConversationOk rc ->
+    GetOne2OneConversationV2Ok rc ->
       pure (remoteMLSOne2OneConversation lself rother rc)
-    GetOne2OneConversationBackendMismatch ->
+    GetOne2OneConversationV2BackendMismatch ->
       throw (FederationUnexpectedBody "Backend mismatch when retrieving a remote 1-1 conversation")
-    GetOne2OneConversationNotConnected -> throwS @'NotConnected
+    GetOne2OneConversationV2NotConnected -> throwS @'NotConnected
+    GetOne2OneConversationV2MLSNotEnabled ->
+      -- This is weird because we do not tell clients which backend doesn't have
+      -- MLS enabled, which would nice information for fixing problems in real
+      -- world. We do the same thing when sending Welcome messages, so for now,
+      -- let's do the same thing.
+      --
+      -- TODO: Log this at least like in welcome messages
+      throwS @'MLSNotEnabled
 
 -- | Check if an MLS 1-1 conversation has been established, namely if its epoch
 -- is non-zero. The conversation will only be stored in the database when its
@@ -840,14 +911,15 @@ isRemoteMLSOne2OneEstablished ::
   ( Member (ErrorS 'NotConnected) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
-    Member FederatorAccess r
+    Member FederatorAccess r,
+    Member (ErrorS MLSNotEnabled) r
   ) =>
   Local UserId ->
   Qualified UserId ->
   Remote conv ->
   Sem r Bool
 isRemoteMLSOne2OneEstablished lself qother rconv = do
-  conv <- getRemoteMLSOne2OneConversation lself qother rconv
+  conv <- (.conversation) <$> getRemoteMLSOne2OneConversation lself qother rconv
   pure . (> 0) $ case cnvProtocol conv of
     ProtocolProteus -> 0
     ProtocolMLS meta -> ep meta

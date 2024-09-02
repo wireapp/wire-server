@@ -37,6 +37,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Federation.API.Galley
 import Wire.API.MLS.Group.Serialisation
+import Wire.API.MLS.Keys
 import Wire.API.MLS.SubConversation
 import Wire.API.User
 
@@ -100,19 +101,24 @@ localMLSOne2OneConversationMetadata convId =
 remoteMLSOne2OneConversation ::
   Local UserId ->
   Remote UserId ->
-  RemoteConversation ->
-  Conversation
+  RemoteMLSOne2OneConversation ->
+  (One2OneMLSConversation MLSPublicKey)
 remoteMLSOne2OneConversation lself rother rc =
   let members =
         ConvMembers
           { cmSelf = defMember (tUntagged lself),
-            cmOthers = rc.members.others
+            cmOthers = rc.conversation.members.others
           }
-   in Conversation
-        { cnvQualifiedId = tUntagged (qualifyAs rother rc.id),
-          cnvMetadata = rc.metadata,
-          cnvMembers = members,
-          cnvProtocol = rc.protocol
+      conv =
+        Conversation
+          { cnvQualifiedId = tUntagged (qualifyAs rother rc.conversation.id),
+            cnvMetadata = rc.conversation.metadata,
+            cnvMembers = members,
+            cnvProtocol = rc.conversation.protocol
+          }
+   in One2OneMLSConversation
+        { conversation = conv,
+          publicKeys = rc.publicKeys
         }
 
 -- | Create a new record for an MLS 1-1 conversation in the database and add
