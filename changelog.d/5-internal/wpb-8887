@@ -1,1 +1,1 @@
-Migrated user invitation DB access to Subsystems.
+Implemented GetBy* for complex account queries.
