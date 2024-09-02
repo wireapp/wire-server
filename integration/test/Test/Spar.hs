@@ -4,7 +4,7 @@ module Test.Spar where
 
 import qualified API.Brig as Brig
 import API.BrigInternal as BrigInternal
-import API.Common (randomEmail, randomExternalId)
+import API.Common (randomEmail, randomExternalId, randomHandle)
 import API.Spar
 import Control.Concurrent (threadDelay)
 import SetupHelpers
@@ -38,11 +38,30 @@ testSparExternalIdDifferentFromEmail = do
   email <- randomEmail
   extId <- randomExternalId
   scimUser <- randomScimUserWith extId email
-  createScimUser OwnDomain tok scimUser >>= assertSuccess
+  userId <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
   registerUser OwnDomain tid email
   bindResponse (findUsersByExternalId OwnDomain tok extId) $ \res -> do
-    actualExternalId <- res.json %. "Resources" >>= asList >>= assertOne >>= (%. "externalId") >>= asString
-    actualExternalId `shouldMatch` extId
+    res.status `shouldMatchInt` 200
+    u <- res.json %. "Resources" >>= asList >>= assertOne
+    u %. "externalId" `shouldMatch` extId
+    (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` email
+  bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
+    res.status `shouldMatchInt` 200
+    u <- res.json >>= asList >>= assertOne
+    u %. "email" `shouldMatch` email
+    u %. "sso_id.scim_external_id" `shouldMatch` extId
+    u %. "handle" `shouldMatch` (scimUser %. "userName")
+
+  do
+    newHandle <- randomHandle
+    updatedScimUser <- setField "userName" newHandle scimUser
+    bindResponse (updateScimUser OwnDomain tok userId updatedScimUser) $ \res -> do
+      res.status `shouldMatchInt` 200
+      res.json %. "userName" `shouldMatch` newHandle
+    bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
+      res.status `shouldMatchInt` 200
+      u <- res.json >>= asList >>= assertOne
+      u %. "handle" `shouldMatch` newHandle
 
 registerUser :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App ()
 registerUser domain tid email = do

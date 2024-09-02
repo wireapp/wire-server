@@ -979,6 +979,7 @@ synthesizeStoredUser acc veid =
       let (createdAt, lastUpdatedAt) = fromMaybe (now, now) accessTimes
 
       handle <- lift $ Brig.giveDefaultHandle acc.account.accountUser
+      -- TODO(fisx): do we need to consider unvalidated emails here as well?
       let emails = catMaybesToList (emailIdentity <$> userIdentity acc.account.accountUser)
 
       storedUser <-
@@ -1034,7 +1035,6 @@ synthesizeStoredUser' uid veid dname emails handle richInfo accStatus createdAt 
               ST.locale = Just locale,
               ST.role = mbRole
             }
-
   pure $ toScimStoredUser createdAt lastUpdatedAt baseuri uid (normalizeLikeStored scimUser)
 
 synthesizeScimUser :: ST.ValidScimUser -> Scim.User ST.SparTag
@@ -1053,7 +1053,8 @@ synthesizeScimUser info =
                   . toStrict
                   . toByteString
               )
-              (info.role)
+              (info.role),
+          Scim.emails = (\e -> Scim.Email.Email Nothing (Scim.Email.EmailAddress e) Nothing) <$> info.emails
         }
 
 -- TODO: now write a test, either in /integration or in spar, whichever is easier.  (spar)

@@ -84,6 +84,7 @@ import qualified Web.Scim.Schema.Meta as Scim
 import Web.Scim.Schema.PatchOp (Operation)
 import qualified Web.Scim.Schema.PatchOp as PatchOp
 import qualified Web.Scim.Schema.User as Scim.User
+import qualified Web.Scim.Schema.User.Email as Scim.Email
 import qualified Wire.API.Team.Export as CsvExport
 import qualified Wire.API.Team.Feature as Feature
 import Wire.API.Team.Invitation (Invitation (..))
@@ -94,7 +95,6 @@ import qualified Wire.API.User.IdentityProvider as User
 import Wire.API.User.RichInfo
 import qualified Wire.API.User.Scim as Spar.Types
 import qualified Wire.API.User.Search as Search
-import qualified Polysemy.Internal.CustomErrors as registered
 
 -- | Tests for @\/scim\/v2\/Users@.
 spec :: SpecWith TestEnv
@@ -620,7 +620,8 @@ testCreateUserNoIdPWithRole brig tid owner tok role = do
     -- - if the user has a pending invitation, we have to look up the role in the invitation table
     --   by doing an rpc to brig
     liftIO $ Scim.User.roles usr `shouldBe` [cs $ toByteString defaultRole]
-    liftIO $ Scim.User.emails usr `shouldBe` []
+    -- now external ID can differ from email, so emails are also returned
+    liftIO $ (\(Scim.Email.Email _ e _) -> Scim.Email.unEmailAddress e) <$> Scim.User.emails usr `shouldBe` [email]
     liftIO $ Scim.User.externalId usr `shouldBe` (Just (fromEmail email))
 
   -- user follows invitation flow
