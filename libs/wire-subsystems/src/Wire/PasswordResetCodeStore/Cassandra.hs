@@ -19,6 +19,7 @@
 module Wire.PasswordResetCodeStore.Cassandra
   ( passwordResetCodeStoreToCassandra,
     interpretClientToIO,
+    codeDeleteImpl,
   )
 where
 
@@ -58,12 +59,7 @@ passwordResetCodeStoreToCassandra =
             . write codeInsertQuery
             . params LocalQuorum
             $ (prk, prc, uid, runIdentity n, runIdentity ut, ttl)
-        CodeDelete prk ->
-          retry x5
-            . write codeDeleteQuery
-            . params LocalQuorum
-            . Identity
-            $ prk
+        CodeDelete prk -> codeDeleteImpl prk
   where
     toRecord ::
       (PasswordResetCode, UserId, Maybe Int32, Maybe UTCTime) ->
@@ -78,6 +74,14 @@ genPhoneCode :: (MonadIO m) => m PasswordResetCode
 genPhoneCode =
   PasswordResetCode . unsafeFromText . pack . printf "%06d"
     <$> liftIO (randIntegerZeroToNMinusOne 1000000)
+
+codeDeleteImpl :: (MonadClient m) => PasswordResetKey -> m ()
+codeDeleteImpl prk =
+  retry x5
+    . write codeDeleteQuery
+    . params LocalQuorum
+    . Identity
+    $ prk
 
 interpretClientToIO ::
   (Member (Final IO) r) =>

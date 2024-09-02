@@ -31,8 +31,6 @@ module Brig.API.User
     lookupHandle,
     changeAccountStatus,
     changeSingleAccountStatus,
-    Data.lookupAccounts,
-    Data.lookupAccount,
     getLegalHoldStatus,
     Data.lookupName,
     Data.lookupUser,
@@ -98,6 +96,7 @@ import Control.Lens (preview, to, view, (^.), _Just)
 import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Code
+import Data.Coerce (coerce)
 import Data.Currency qualified as Currency
 import Data.Handle (Handle (fromHandle))
 import Data.Id as Id
@@ -110,10 +109,10 @@ import Data.Qualified
 import Data.Range
 import Data.Time.Clock (UTCTime, addUTCTime)
 import Data.UUID.V4 (nextRandom)
-import Imports
+import Imports hiding (local)
 import Network.Wai.Utilities
 import Polysemy
-import Polysemy.Input (Input)
+import Polysemy.Input (Input, input)
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import Prometheus qualified as Prom
@@ -263,6 +262,7 @@ createUser ::
     Member GalleyAPIAccess r,
     Member (UserPendingActivationStore p) r,
     Member UserKeyStore r,
+    Member UserSubsystem r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
@@ -293,7 +293,8 @@ createUser new = do
       Nothing ->
         pure (Nothing, Nothing, Nothing)
   let mbInv = (.invitationId) . fst <$> teamInvitation
-  mbExistingAccount <- lift $ join <$> for mbInv (\(Id uuid) -> wrapClient $ Data.lookupAccount (Id uuid))
+  local :: Local () <- lift $ liftSem input
+  mbExistingAccount <- lift $ join <$> for mbInv (\someId -> liftSem $ User.getLocalUserAccount (qualifyAs local $ coerce someId))
 
   let (new', mbHandle) = case mbExistingAccount of
         Nothing ->
@@ -331,7 +332,7 @@ createUser new = do
 
     pure account
 
-  let uid = userId (accountUser account)
+  let uid = qUnqualified account.accountUser.userQualifiedId
 
   createUserTeam <- do
     activatedTeam <- lift $ do
@@ -685,7 +686,8 @@ activate ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member UserSubsystem r
   ) =>
   ActivationTarget ->
   ActivationCode ->
@@ -701,6 +703,7 @@ activateWithCurrency ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
+    Member UserSubsystem r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   ActivationTarget ->
@@ -717,7 +720,7 @@ activateWithCurrency tgt code usr cur = do
     field "activation.key" (toByteString key)
       . field "activation.code" (toByteString code)
       . msg (val "Activating")
-  event <- wrapClientE $ Data.activateKey key code usr
+  event <- Data.activateKey key code usr
   case event of
     Nothing -> pure ActivationPass
     Just e -> do
@@ -871,6 +874,7 @@ deleteSelfUser ::
     Member (Embed HttpClientIO) r,
     Member UserKeyStore r,
     Member NotificationSubsystem r,
+    -- TODO: maybe delete?
     Member (Input (Local ())) r,
     Member PasswordStore r,
     Member UserStore r,
@@ -878,13 +882,14 @@ deleteSelfUser ::
     Member (ConnectionStore InternalPaging) r,
     Member EmailSubsystem r,
     Member VerificationCodeSubsystem r,
+    Member UserSubsystem r,
     Member PropertySubsystem r
   ) =>
-  UserId ->
+  Local UserId ->
   Maybe PlainTextPassword6 ->
   ExceptT DeleteUserError (AppT r) (Maybe Timeout)
-deleteSelfUser uid pwd = do
-  account <- lift . wrapClient $ Data.lookupAccount uid
+deleteSelfUser luid@(tUnqualified -> uid) pwd = do
+  account <- lift . liftSem $ User.getLocalUserAccount luid
   case account of
     Nothing -> throwE DeleteUserInvalid
     Just a -> case accountStatus a of
@@ -950,6 +955,7 @@ verifyDeleteUser ::
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
     Member VerificationCodeSubsystem r,
+    Member UserSubsystem r,
     Member PropertySubsystem r
   ) =>
   VerifyDeleteUser ->
@@ -959,7 +965,8 @@ verifyDeleteUser d = do
   let code = verifyDeleteUserCode d
   c <- lift . liftSem $ verifyCode key VerificationCode.AccountDeletion code
   a <- maybe (throwE DeleteUserInvalidCode) pure (VerificationCode.codeAccount =<< c)
-  account <- lift . wrapClient $ Data.lookupAccount (Id a)
+  local :: Local () <- lift . liftSem $ input
+  account <- lift . liftSem $ User.getLocalUserAccount (qualifyAs local $ Id a)
   for_ account $ lift . liftSem . deleteAccount
   lift . liftSem $ deleteCode key VerificationCode.AccountDeletion
 
@@ -977,12 +984,13 @@ ensureAccountDeleted ::
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
     Member UserStore r,
+    Member UserSubsystem r,
     Member PropertySubsystem r
   ) =>
-  UserId ->
+  Local UserId ->
   AppT r DeleteUserResult
-ensureAccountDeleted uid = do
-  mbAcc <- wrapClient $ lookupAccount uid
+ensureAccountDeleted luid@(tUnqualified -> uid) = do
+  mbAcc <- liftSem $ User.getLocalUserAccount luid
   case mbAcc of
     Nothing -> pure NoUser
     Just acc -> do
@@ -1110,10 +1118,12 @@ enqueueMultiDeleteCallsCounter =
         }
 
 getLegalHoldStatus ::
-  (Member GalleyAPIAccess r) =>
-  UserId ->
+  ( Member GalleyAPIAccess r,
+    Member UserSubsystem r
+  ) =>
+  Local UserId ->
   AppT r (Maybe UserLegalHoldStatus)
-getLegalHoldStatus uid = traverse (liftSem . getLegalHoldStatus' . accountUser) =<< wrapHttpClient (lookupAccount uid)
+getLegalHoldStatus uid = liftSem $ traverse (getLegalHoldStatus' . accountUser) =<< User.getLocalUserAccount uid
 
 getLegalHoldStatus' ::
   (Member GalleyAPIAccess r) =>

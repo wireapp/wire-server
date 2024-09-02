@@ -32,8 +32,6 @@ module Brig.Data.User
     isSamlUser,
 
     -- * Lookups
-    lookupAccount,
-    lookupAccounts,
     lookupUser,
     lookupUsers,
     lookupName,
@@ -202,7 +200,13 @@ authenticate u pw =
 -- | Password reauthentication. If the account has a password, reauthentication
 -- is mandatory. If the account has no password, or is an SSO user, and no password is given,
 -- reauthentication is a no-op.
-reauthenticate :: (MonadClient m, MonadReader Env m) => UserId -> Maybe PlainTextPassword6 -> ExceptT ReAuthError m ()
+reauthenticate ::
+  ( MonadClient m,
+    MonadReader Env m
+  ) =>
+  UserId ->
+  Maybe PlainTextPassword6 ->
+  ExceptT ReAuthError m ()
 reauthenticate u pw =
   lift (lookupAuth u) >>= \case
     Nothing -> throwE (ReAuthError AuthInvalidUser)
@@ -214,17 +218,18 @@ reauthenticate u pw =
     Just (Just pw', Ephemeral) -> maybeReAuth pw'
   where
     maybeReAuth pw' = case pw of
-      Nothing -> unlessM (isSamlUser u) $ throwE ReAuthMissingPassword
+      Nothing -> do
+        musr <- lookupUser NoPendingInvitations u
+        unless (maybe False isSamlUser musr) $ throwE ReAuthMissingPassword
       Just p ->
         unless (verifyPassword p pw') $
           throwE (ReAuthError AuthInvalidCredentials)
 
-isSamlUser :: (MonadClient m, MonadReader Env m) => UserId -> m Bool
-isSamlUser uid = do
-  account <- lookupAccount uid
-  case userIdentity . accountUser =<< account of
-    Just (SSOIdentity (UserSSOId _) _) -> pure True
-    _ -> pure False
+isSamlUser :: User -> Bool
+isSamlUser usr = do
+  case usr.userIdentity of
+    Just (SSOIdentity (UserSSOId _) _) -> True
+    _ -> False
 
 insertAccount ::
   (MonadClient m) =>
@@ -390,14 +395,14 @@ lookupUsers hpi usrs = do
   domain <- viewFederationDomain
   toUsers domain loc hpi <$> retry x1 (query usersSelect (params LocalQuorum (Identity usrs)))
 
-lookupAccount :: (MonadClient m, MonadReader Env m) => UserId -> m (Maybe UserAccount)
-lookupAccount u = listToMaybe <$> lookupAccounts [u]
-
-lookupAccounts :: (MonadClient m, MonadReader Env m) => [UserId] -> m [UserAccount]
-lookupAccounts usrs = do
-  loc <- setDefaultUserLocale <$> view settings
-  domain <- viewFederationDomain
-  fmap (toUserAccount domain loc) <$> retry x1 (query accountsSelect (params LocalQuorum (Identity usrs)))
+-- lookupAccount :: (MonadClient m, MonadReader Env m) => UserId -> m (Maybe UserAccount)
+-- lookupAccount u = listToMaybe <$> lookupAccounts [u]
+--
+-- lookupAccounts :: (MonadClient m, MonadReader Env m) => [UserId] -> m [UserAccount]
+-- lookupAccounts usrs = do
+--   loc <- setDefaultUserLocale <$> view settings
+--   domain <- viewFederationDomain
+--   fmap (toUserAccount domain loc) <$> retry x1 (query accountsSelect (params LocalQuorum (Identity usrs)))
 
 lookupServiceUser :: (MonadClient m) => ProviderId -> ServiceId -> BotId -> m (Maybe (ConvId, Maybe TeamId))
 lookupServiceUser pid sid bid = retry x1 (query1 cql (params LocalQuorum (pid, sid, bid)))
@@ -448,6 +453,8 @@ lookupFeatureConferenceCalling uid = do
 
 type Activated = Bool
 
+-- UserRow is the same as AccountRow from the user subsystem.  when migrating this code there,
+-- consider eliminating it instead.
 type UserRow =
   ( UserId,
     Name,
@@ -495,9 +502,6 @@ type UserRowInsert =
 
 deriving instance Show UserRowInsert
 
--- Represents a 'UserAccount'
-type AccountRow = UserRow
-
 usersSelect :: PrepQuery R (Identity [UserId]) UserRow
 usersSelect =
   "SELECT id, name, text_status, picture, email, sso_id, accent_id, assets, \
@@ -522,13 +526,6 @@ richInfoSelectMulti = "SELECT user, json FROM rich_info WHERE user in ?"
 
 teamSelect :: PrepQuery R (Identity UserId) (Identity (Maybe TeamId))
 teamSelect = "SELECT team FROM user WHERE id = ?"
-
-accountsSelect :: PrepQuery R (Identity [UserId]) AccountRow
-accountsSelect =
-  "SELECT id, name, text_status, picture, email, sso_id, accent_id, assets, \
-  \activated, status, expires, language, country, provider, \
-  \service, handle, team, managed_by, supported_protocols \
-  \FROM user WHERE id IN ?"
 
 userInsert :: PrepQuery W UserRowInsert ()
 userInsert =
@@ -569,56 +566,6 @@ userRichInfoUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE r
 
 -------------------------------------------------------------------------------
 -- Conversions
-
--- | Construct a 'UserAccount' from a raw user record in the database.
-toUserAccount :: Domain -> Locale -> AccountRow -> UserAccount
-toUserAccount
-  domain
-  defaultLocale
-  ( uid,
-    name,
-    textStatus,
-    pict,
-    email,
-    ssoid,
-    accent,
-    assets,
-    activated,
-    status,
-    expires,
-    lan,
-    con,
-    pid,
-    sid,
-    handle,
-    tid,
-    managed_by,
-    prots
-    ) =
-    let ident = toIdentity activated email ssoid
-        deleted = Just Deleted == status
-        expiration = if status == Just Ephemeral then expires else Nothing
-        loc = toLocale defaultLocale (lan, con)
-        svc = newServiceRef <$> sid <*> pid
-     in UserAccount
-          ( User
-              (Qualified uid domain)
-              ident
-              name
-              textStatus
-              (fromMaybe noPict pict)
-              (fromMaybe [] assets)
-              accent
-              deleted
-              loc
-              svc
-              handle
-              expiration
-              tid
-              (fromMaybe ManagedByWire managed_by)
-              (fromMaybe defSupportedProtocols prots)
-          )
-          (fromMaybe Active status)
 
 toUsers :: Domain -> Locale -> HavePendingInvitations -> [UserRow] -> [User]
 toUsers domain defaultLocale havePendingInvitations = fmap mk . filter fp

@@ -115,6 +115,7 @@ import Wire.Sem.Concurrency
 import Wire.Sem.FromUTC (FromUTC (fromUTCTime))
 import Wire.Sem.Now as Now
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.UserSubsystem
 import Wire.VerificationCodeSubsystem (VerificationCodeSubsystem)
 
 lookupLocalClient :: UserId -> ClientId -> (AppT r) (Maybe Client)
@@ -164,6 +165,7 @@ addClient ::
   ( Member GalleyAPIAccess r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
+    Member UserSubsystem r,
     Member TinyLog r,
     Member DeleteQueue r,
     Member (Input (Local ())) r,
@@ -172,7 +174,7 @@ addClient ::
     Member EmailSubsystem r,
     Member VerificationCodeSubsystem r
   ) =>
-  UserId ->
+  Local UserId ->
   Maybe ConnId ->
   NewClient ->
   ExceptT ClientError (AppT r) Client
@@ -191,16 +193,17 @@ addClientWithReAuthPolicy ::
     Member DeleteQueue r,
     Member (ConnectionStore InternalPaging) r,
     Member EmailSubsystem r,
+    Member UserSubsystem r,
     Member VerificationCodeSubsystem r
   ) =>
   Data.ReAuthPolicy ->
-  UserId ->
+  Local UserId ->
   Maybe ConnId ->
   NewClient ->
   ExceptT ClientError (AppT r) Client
-addClientWithReAuthPolicy policy u con new = do
-  acc <- lift (wrapClient $ Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound u)) pure
-  verifyCode (newClientVerificationCode new) (userId . accountUser $ acc)
+addClientWithReAuthPolicy policy luid@(tUnqualified -> u) con new = do
+  usr <- (lift . liftSem $ getLocalUserAccount luid) >>= maybe (throwE (ClientUserNotFound u)) (pure . (.accountUser))
+  verifyCode (newClientVerificationCode new) luid
   maxPermClients <- fromMaybe Opt.defUserMaxPermClients . Opt.setUserMaxPermClients <$> view settings
   let caps :: Maybe (Set ClientCapability)
       caps = updlhdev $ newClientCapabilities new
@@ -212,10 +215,9 @@ addClientWithReAuthPolicy policy u con new = do
           lhcaps = ClientSupportsLegalholdImplicitConsent
   (clt0, old, count) <-
     wrapClientE
-      (Data.addClientWithReAuthPolicy policy u clientId' new maxPermClients caps)
+      (Data.addClientWithReAuthPolicy policy luid clientId' new maxPermClients caps)
       !>> ClientDataError
   let clt = clt0 {clientMLSPublicKeys = newClientMLSPublicKeys new}
-  let usr = accountUser acc
   lift $ do
     for_ old $ execDelete u con
     liftSem $ GalleyAPIAccess.newClient u (clientId clt)
@@ -231,12 +233,12 @@ addClientWithReAuthPolicy policy u con new = do
 
     verifyCode ::
       Maybe Code.Value ->
-      UserId ->
+      Local UserId ->
       ExceptT ClientError (AppT r) ()
-    verifyCode mbCode uid =
+    verifyCode mbCode luid1 =
       -- this only happens inside the login flow (in particular, when logging in from a new device)
       -- the code obtained for logging in is used a second time for adding the device
-      UserAuth.verifyCode mbCode Code.Login uid `catchE` \case
+      UserAuth.verifyCode mbCode Code.Login luid1 `catchE` \case
         VerificationCodeRequired -> throwE ClientCodeAuthenticationRequired
         VerificationCodeNoPendingCode -> throwE ClientCodeAuthenticationFailed
         VerificationCodeNoEmail -> throwE ClientCodeAuthenticationFailed

@@ -566,7 +566,7 @@ type IMiscAPI =
                     (RespondEmpty 200 "OK")
            )
     :<|> Named
-           "add-bot"
+           "i-add-bot"
            ( -- This endpoint can lead to the following events being sent:
              -- - MemberJoin event to members
              CanThrow ('ActionDenied 'AddConversationMember)

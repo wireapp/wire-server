@@ -271,6 +271,7 @@ authAPI ::
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
+    Member UserSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
@@ -281,7 +282,7 @@ authAPI =
   Named @"legalhold-login" (callsFed (exposeAnnotations legalHoldLogin))
     :<|> Named @"sso-login" (callsFed (exposeAnnotations ssoLogin))
     :<|> Named @"login-code" getLoginCode
-    :<|> Named @"reauthenticate" reauthenticate
+    :<|> Named @"reauthenticate" (\uid reauth -> qualifyLocal uid >>= \luid -> reauthenticate luid reauth)
 
 federationRemotesAPI :: (Member FederationConfigStore r) => ServerT BrigIRoutes.FederationRemotesAPI (Handler r)
 federationRemotesAPI =
@@ -411,6 +412,7 @@ addClientInternalH ::
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
     Member EmailSubsystem r,
+    Member UserSubsystem r,
     Member VerificationCodeSubsystem r
   ) =>
   UserId ->
@@ -422,7 +424,8 @@ addClientInternalH usr mSkipReAuth new connId = do
   let policy
         | mSkipReAuth == Just True = \_ _ -> False
         | otherwise = Data.reAuthForNewClients
-  API.addClientWithReAuthPolicy policy usr connId new !>> clientError
+  lusr <- qualifyLocal usr
+  API.addClientWithReAuthPolicy policy lusr connId new !>> clientError
 
 legalHoldClientRequestedH ::
   ( Member (Embed HttpClientIO) r,
@@ -470,6 +473,7 @@ createUserNoVerify ::
     Member NotificationSubsystem r,
     Member InvitationCodeStore r,
     Member UserKeyStore r,
+    Member UserSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r
@@ -519,6 +523,7 @@ deleteUserNoAuthH ::
     Member UserStore r,
     Member TinyLog r,
     Member UserKeyStore r,
+    Member UserSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
@@ -527,7 +532,8 @@ deleteUserNoAuthH ::
   UserId ->
   (Handler r) DeleteUserResponse
 deleteUserNoAuthH uid = do
-  r <- lift $ API.ensureAccountDeleted uid
+  luid <- qualifyLocal uid
+  r <- lift $ API.ensureAccountDeleted luid
   case r of
     NoUser -> throwStd (errorToWai @'E.UserNotFound)
     AccountAlreadyDeleted -> pure UserResponseAccountAlreadyDeleted

@@ -214,7 +214,14 @@ newAccount new = do
   lift $ sendActivationMail name email key val False
   pure $ Public.NewProviderResponse pid newPass
 
-activateAccountKey :: (Member GalleyAPIAccess r, Member EmailSending r, Member VerificationCodeSubsystem r) => Code.Key -> Code.Value -> (Handler r) (Maybe Public.ProviderActivationResponse)
+activateAccountKey ::
+  ( Member GalleyAPIAccess r,
+    Member EmailSending r,
+    Member VerificationCodeSubsystem r
+  ) =>
+  Code.Key ->
+  Code.Value ->
+  (Handler r) (Maybe Public.ProviderActivationResponse)
 activateAccountKey key val = do
   guardSecondFactorDisabled Nothing
   c <- (lift . liftSem $ verifyCode key IdentityVerification val) >>= maybeInvalidCode
@@ -678,7 +685,8 @@ addBot zuid zcon cid add = do
       -- if we want to protect bots against lh, 'addClient' cannot just send lh capability
       -- implicitly in the next line.
       pure $ FutureWork @'UnprotectedBot undefined
-    wrapClientE (User.addClient (botUserId bid) bcl newClt maxPermClients (Just $ Set.singleton Public.ClientSupportsLegalholdImplicitConsent))
+    lbid <- qualifyLocal (botUserId bid)
+    wrapClientE (User.addClient lbid bcl newClt maxPermClients (Just $ Set.singleton Public.ClientSupportsLegalholdImplicitConsent))
       !>> const (StdError $ badGatewayWith "MalformedPrekeys")
 
   -- Add the bot to the conversation

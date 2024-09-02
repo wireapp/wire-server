@@ -229,7 +229,7 @@ miscAPI =
     <@> mkNamedAPI @"test-delete-client" Clients.rmClient
     <@> mkNamedAPI @"add-service" createService
     <@> mkNamedAPI @"delete-service" deleteService
-    <@> mkNamedAPI @"add-bot" Update.addBot
+    <@> mkNamedAPI @"i-add-bot" Update.addBot
     <@> mkNamedAPI @"delete-bot" Update.rmBot
     <@> mkNamedAPI @"put-custom-backend" setCustomBackend
     <@> mkNamedAPI @"delete-custom-backend" deleteCustomBackend

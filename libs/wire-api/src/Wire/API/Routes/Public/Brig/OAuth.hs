@@ -39,7 +39,7 @@ type OAuthAPI =
     ( Summary "Get OAuth client information"
         :> CanThrow 'OAuthFeatureDisabled
         :> CanThrow 'OAuthClientNotFound
-        :> ZUser
+        :> ZLocalUser
         :> "oauth"
         :> "clients"
         :> Capture' '[Description "The ID of the OAuth client"] "OAuthClientId" OAuthClientId
@@ -55,7 +55,7 @@ type OAuthAPI =
            "create-oauth-auth-code"
            ( Summary "Create an OAuth authorization code"
                :> Description "Currently only supports the 'code' response type, which corresponds to the authorization code flow."
-               :> ZUser
+               :> ZLocalUser
                :> "oauth"
                :> "authorization"
                :> "codes"
@@ -99,7 +99,7 @@ type OAuthAPI =
            "get-oauth-applications"
            ( Summary "Get OAuth applications with account access"
                :> Description "Get all OAuth applications with active account access for a user."
-               :> ZUser
+               :> ZLocalUser
                :> "oauth"
                :> "applications"
                :> MultiVerb1
@@ -110,7 +110,7 @@ type OAuthAPI =
     :<|> Named
            "revoke-oauth-account-access-v6"
            ( Summary "Revoke account access from an OAuth application"
-               :> ZUser
+               :> ZLocalUser
                :> Until 'V7
                :> "oauth"
                :> "applications"
@@ -125,7 +125,7 @@ type OAuthAPI =
            "revoke-oauth-account-access"
            ( Summary "Revoke account access from an OAuth application"
                :> CanThrow 'AccessDenied
-               :> ZUser
+               :> ZLocalUser
                :> From 'V7
                :> "oauth"
                :> "applications"
@@ -142,7 +142,7 @@ type OAuthAPI =
            "delete-oauth-refresh-token"
            ( Summary "Revoke an active OAuth session"
                :> Description "Revoke an active OAuth session by providing the refresh token ID."
-               :> ZUser
+               :> ZLocalUser
                :> CanThrow 'AccessDenied
                :> CanThrow 'OAuthClientNotFound
                :> "oauth"
