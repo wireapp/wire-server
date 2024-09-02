@@ -35,6 +35,7 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.MLS.GroupInfo
+import Wire.API.MLS.Keys
 import Wire.API.MLS.Servant
 import Wire.API.MLS.SubConversation
 import Wire.API.MakesFederatedCall
@@ -679,6 +680,7 @@ type ConversationAPI =
                :> ZLocalUser
                :> CanThrow 'MLSNotEnabled
                :> CanThrow 'NotConnected
+               :> CanThrow 'MLSFederatedOne2OneNotSupported
                :> "conversations"
                :> "one2one"
                :> QualifiedCapture "usr" UserId
@@ -694,7 +696,7 @@ type ConversationAPI =
                :> "conversations"
                :> "one2one"
                :> QualifiedCapture "usr" UserId
-               :> MultiVerb1 'GET '[JSON] (Respond 200 "MLS 1-1 conversation" Conversation)
+               :> MultiVerb1 'GET '[JSON] (Respond 200 "MLS 1-1 conversation" (One2OneMLSConversation SomeKey))
            )
     -- This endpoint can lead to the following events being sent:
     -- - MemberJoin event to members

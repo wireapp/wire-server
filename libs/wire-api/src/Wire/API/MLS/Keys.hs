@@ -23,6 +23,7 @@ import Crypto.PubKey.ECDSA qualified as ECDSA
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Aeson qualified as A
 import Data.Bifunctor
+import Data.ByteArray (ByteArray)
 import Data.ByteArray qualified as BA
 import Data.Default
 import Data.Json.Util
@@ -132,10 +133,8 @@ instance ToSchema JWK where
 
 type MLSPublicKeysJWK = MLSKeys JWK
 
-mlsKeysToPublicJWK ::
-  MLSPrivateKeys ->
-  Maybe MLSPublicKeysJWK
-mlsKeysToPublicJWK (MLSPrivateKeys (_, ed) (_, ec256) (_, ec384) (_, ec521)) =
+mlsPublicKeysToJWK :: MLSPublicKeys -> Maybe MLSPublicKeysJWK
+mlsPublicKeysToJWK (MLSKeys (MLSPublicKey ed) (MLSPublicKey ec256) (MLSPublicKey ec384) (MLSPublicKey ec521)) =
   -- The kty parameter for ECDSA is "EC", for Ed25519 it's "OKP" (octet key
   -- pair).
   -- https://www.rfc-editor.org/rfc/rfc7518.html#section-6.1
@@ -146,16 +145,18 @@ mlsKeysToPublicJWK (MLSPrivateKeys (_, ed) (_, ec256) (_, ec384) (_, ec521)) =
   -- The x parameter is mandatory for all keys, the y parameter is mandatory for
   -- all ECDSA keys.
   -- https://www.rfc-editor.org/rfc/rfc7518.html#section-6.2.1
-  MLSKeys (JWK "OKP" "Ed25519" (BA.convert ed) Nothing)
-    <$> (uncurry (JWK "EC" "P-256") . second Just <$> splitXY (ECDSA.encodePublic (Proxy @Curve_P256R1) ec256))
-    <*> (uncurry (JWK "EC" "P-384") . second Just <$> splitXY (ECDSA.encodePublic (Proxy @Curve_P384R1) ec384))
-    <*> (uncurry (JWK "EC" "P-521") . second Just <$> splitXY (ECDSA.encodePublic (Proxy @Curve_P521R1) ec521))
+  MLSKeys
+    (JWK "OKP" "Ed25519" (BA.convert ed) Nothing)
+    <$> (uncurry (JWK "EC" "P-256") . second Just <$> splitXY ec256)
+    <*> (uncurry (JWK "EC" "P-384") . second Just <$> splitXY ec384)
+    <*> (uncurry (JWK "EC" "P-521") . second Just <$> splitXY ec521)
   where
     -- Obtaining X and Y from an encoded curve point follows the logic of
     -- Crypto.ECC's encodeECPoint and decodeECPoint (the module is not
     -- exported). Points need to be encoded in uncompressed representation. This
     -- is true for ECDSA.encodePublic.
     -- https://www.rfc-editor.org/rfc/rfc8422#section-5.4.1
+    splitXY :: forall {bs}. (ByteArray bs) => bs -> Maybe (bs, bs)
     splitXY mxy = do
       (m, xy) <- BA.uncons mxy
       -- The first Byte m is 4 for the uncompressed representation of curve points.

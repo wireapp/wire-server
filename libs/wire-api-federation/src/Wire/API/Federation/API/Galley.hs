@@ -44,9 +44,11 @@ import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley.Notifications as Notifications
 import Wire.API.Federation.Endpoint
 import Wire.API.Federation.Version
+import Wire.API.MLS.Keys
 import Wire.API.MLS.SubConversation
 import Wire.API.MakesFederatedCall
 import Wire.API.Message
+import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Galley.Messaging
 import Wire.API.Routes.SpecialiseToVersion
 import Wire.API.Util.Aeson (CustomEncoded (..))
@@ -143,11 +145,19 @@ type GalleyApi =
            "leave-sub-conversation"
            LeaveSubConversationRequest
            LeaveSubConversationResponse
+    :<|> Named
+           "get-one2one-conversation@v1"
+           ( UnnamedFedEndpointWithMods
+               '[From 'V1, Until 'V2]
+               "get-one2one-conversation"
+               GetOne2OneConversationRequest
+               GetOne2OneConversationResponse
+           )
     :<|> FedEndpointWithMods
-           '[From 'V1]
+           '[From 'V2]
            "get-one2one-conversation"
            GetOne2OneConversationRequest
-           GetOne2OneConversationResponse
+           GetOne2OneConversationResponseV2
     -- All the notification endpoints that go through the queue-based
     -- federation client ('fedQueueClient').
     :<|> GalleyNotificationAPI
@@ -256,6 +266,29 @@ data GetOne2OneConversationResponse
   deriving (ToJSON, FromJSON) via (CustomEncoded GetOne2OneConversationResponse)
 
 instance ToSchema GetOne2OneConversationResponse
+
+data GetOne2OneConversationResponseV2
+  = GetOne2OneConversationV2Ok RemoteMLSOne2OneConversation
+  | -- | This is returned when the local backend is asked for a 1-1 conversation
+    -- that should reside on the other backend.
+    GetOne2OneConversationV2BackendMismatch
+  | -- | This is returned when a 1-1 conversation between two unconnected users
+    -- is requested.
+    GetOne2OneConversationV2NotConnected
+  | GetOne2OneConversationV2MLSNotEnabled
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded GetOne2OneConversationResponseV2)
+
+instance ToSchema GetOne2OneConversationResponseV2
+
+data RemoteMLSOne2OneConversation = RemoteMLSOne2OneConversation
+  { conversation :: RemoteConversation,
+    publicKeys :: MLSKeysByPurpose MLSPublicKeys
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded RemoteMLSOne2OneConversation)
+
+instance ToSchema RemoteMLSOne2OneConversation
 
 -- | A record type describing a new federated conversation
 --

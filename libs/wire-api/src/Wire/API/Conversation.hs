@@ -34,6 +34,7 @@ module Wire.API.Conversation
     cnvMessageTimer,
     cnvReceiptMode,
     cnvAccessRoles,
+    One2OneMLSConversation (..),
     CreateGroupConversation (..),
     ConversationCoverView (..),
     ConversationList (..),
@@ -114,6 +115,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
 import Wire.API.Event.LeaveReason
 import Wire.API.MLS.Group
+import Wire.API.MLS.Keys
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Version
@@ -288,6 +290,22 @@ conversationSchema v =
     ("Conversation" <> foldMap (Text.toUpper . versionText) v)
     (description ?~ "A conversation object as returned from the server")
     (conversationObjectSchema v)
+
+data One2OneMLSConversation a = One2OneMLSConversation
+  { conversation :: Conversation,
+    publicKeys :: MLSKeysByPurpose (MLSKeys a)
+  }
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema (One2OneMLSConversation a))
+
+instance (ToSchema a) => ToSchema (One2OneMLSConversation a) where
+  schema =
+    -- let aName = fromMaybe "a" $ S.getName (schemaDoc (schema @a))
+    -- TODO: Figure out how to derive the name
+    let aName = "a"
+     in object ("One2OneMLSConversation_" <> aName) $
+          One2OneMLSConversation
+            <$> conversation .= field "conversation" schema
+            <*> publicKeys .= field "public_keys" schema
 
 -- | The public-facing conversation type extended with information on which
 -- remote users could not be added when creating the conversation.
