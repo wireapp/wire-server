@@ -67,6 +67,7 @@ import Network.Wai.Utilities.Error qualified as Wai
 import OpenSSL.Session qualified as SSL
 import OpenTelemetry.Context.ThreadLocal (getContext)
 import OpenTelemetry.Instrumentation.HttpClient.Raw
+import OpenTelemetry.Trace (SpanArguments (kind), SpanKind (Client), defaultSpanArguments, inSpan)
 import Servant.Client
 import Servant.Client.Core
 import Servant.Types.SourceT
@@ -141,11 +142,13 @@ withNewHttpRequest target req k = do
   sendReqMVar <- newEmptyMVar
   thread <- liftIO . async $ H2Manager.startPersistentHTTP2Connection ctx target cacheLimit sslRemoveTrailingDot tcpConnectionTimeout sendReqMVar
   let newConn = H2Manager.HTTP2Conn thread (putMVar sendReqMVar H2Manager.CloseConnection) sendReqMVar
-  otelCtx <- getContext
-  instrumentedReq <- instrumentHttp2Request httpClientInstrumentationConfig otelCtx target req
-  H2Manager.sendRequestWithConnection newConn instrumentedReq $ \resp -> do
-    instrumentHttp2Response httpClientInstrumentationConfig otelCtx resp
-    k resp `finally` newConn.disconnect
+  tracer <- httpTracerProvider
+  inSpan tracer "wire-api-federation" defaultSpanArguments {kind = Client} do
+    otelCtx <- getContext
+    instrumentedReq <- instrumentHttp2Request httpClientInstrumentationConfig otelCtx target req
+    H2Manager.sendRequestWithConnection newConn instrumentedReq $ \resp -> do
+      instrumentHttp2Response httpClientInstrumentationConfig otelCtx resp
+      k resp `finally` newConn.disconnect
 
 performHTTP2Request ::
   Http2Manager ->
