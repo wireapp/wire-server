@@ -556,14 +556,14 @@ getAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations, getByE
 
   accsByIds :: [UserAccount] <-
     wither accountValid
-      =<< lookupAccounts (nubOrd $ handleUserIds <> getByUserIds)
+      =<< getUsers (nubOrd $ handleUserIds <> getByUserIds)
 
   accsByEmail <- flip foldMap getByEmail \email -> do
     let ek = mkEmailKey email
     mactiveUid <- lookupKey ek
     ac <- lookupActivationCode ek
     let muidFromActivationKey = ac >>= fst
-    res <- lookupAccounts (nubOrd $ catMaybes [mactiveUid, muidFromActivationKey])
+    res <- getUsers (nubOrd $ catMaybes [mactiveUid, muidFromActivationKey])
     pure $
       map
         storedToAcc

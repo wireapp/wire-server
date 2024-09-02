@@ -19,6 +19,7 @@ inMemoryUserStoreInterpreter ::
   InterpreterFor UserStore r
 inMemoryUserStoreInterpreter = interpret $ \case
   GetUser uid -> gets $ find (\user -> user.id == uid)
+  GetUsers TODO -> TODO
   UpdateUser uid update -> modify (map doUpdate)
     where
       doUpdate :: StoredUser -> StoredUser
@@ -59,7 +60,6 @@ inMemoryUserStoreInterpreter = interpret $ \case
   LookupStatus uid -> lookupStatusImpl uid
   IsActivated uid -> isActivatedImpl uid
   LookupLocale uid -> lookupLocaleImpl uid
-  LookupAccounts TODO -> TODO
 
 lookupLocaleImpl :: (Member (State [StoredUser]) r) => UserId -> Sem r (Maybe ((Maybe Language, Maybe Country)))
 lookupLocaleImpl uid = do

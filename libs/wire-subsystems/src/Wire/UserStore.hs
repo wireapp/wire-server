@@ -47,6 +47,7 @@ data StoredUserUpdateError = StoredUserUpdateHandleExists
 -- database logic; validate handle is application logic.)
 data UserStore m a where
   GetUser :: UserId -> UserStore m (Maybe StoredUser)
+  GetUsers :: [UserId] -> UserStore m [StoredUser]
   UpdateUser :: UserId -> StoredUserUpdate -> UserStore m ()
   UpdateUserHandleEither :: UserId -> StoredUserHandleUpdate -> UserStore m (Either StoredUserUpdateError ())
   DeleteUser :: User -> UserStore m ()
@@ -63,9 +64,6 @@ data UserStore m a where
   --   an email address or phone number.
   IsActivated :: UserId -> UserStore m Bool
   LookupLocale :: UserId -> UserStore m (Maybe (Maybe Language, Maybe Country))
-  -- | Look up accounts given user ids. For the purpose of the DB, Users and accounts are identical, so this
-  -- returns a @['StoredUser']@
-  LookupAccounts :: [UserId] -> UserStore m [StoredUser]
 
 makeSem ''UserStore
 

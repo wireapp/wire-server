@@ -18,6 +18,7 @@ interpretUserStoreCassandra casClient =
   interpret $
     runEmbedded (runClient casClient) . \case
       GetUser uid -> getUserImpl uid
+      GetUsers uids -> embed $ getUsersImpl uids
       UpdateUser uid update -> embed $ updateUserImpl uid update
       UpdateUserHandleEither uid update -> embed $ updateUserHandleEitherImpl uid update
       DeleteUser user -> embed $ deleteUserImpl user
@@ -26,10 +27,9 @@ interpretUserStoreCassandra casClient =
       LookupStatus uid -> embed $ lookupStatusImpl uid
       IsActivated uid -> embed $ isActivatedImpl uid
       LookupLocale uid -> embed $ lookupLocaleImpl uid
-      LookupAccounts uids -> embed $ lookupAccountsImpl uids
 
-lookupAccountsImpl :: [UserId] -> Client [StoredUser]
-lookupAccountsImpl usrs =
+getUsersImpl :: [UserId] -> Client [StoredUser]
+getUsersImpl usrs =
   map asRecord
     <$> retry x1 (query accountsSelect (params LocalQuorum (Identity usrs)))
 

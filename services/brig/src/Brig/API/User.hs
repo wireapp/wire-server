@@ -33,7 +33,6 @@ module Brig.API.User
     changeSingleAccountStatus,
     Data.lookupAccounts,
     Data.lookupAccount,
-    lookupAccountsByIdentity,
     getLegalHoldStatus,
     Data.lookupName,
     Data.lookupUser,
@@ -1126,22 +1125,6 @@ getLegalHoldStatus' user =
     Just tid -> do
       teamMember <- GalleyAPIAccess.getTeamMember (userId user) tid
       pure $ maybe defUserLegalHoldStatus (^. legalHoldStatus) teamMember
-
--- | Find user accounts for a given identity, both activated and those
--- currently pending activation.
-lookupAccountsByIdentity ::
-  (Member UserKeyStore r) =>
-  EmailAddress ->
-  Bool ->
-  AppT r [UserAccount]
-lookupAccountsByIdentity email includePendingInvitations = do
-  let uk = mkEmailKey email
-  activeUid <- liftSem $ lookupKey uk
-  uidFromKey <- (>>= fst) <$> wrapClient (Data.lookupActivationCode uk)
-  result <- wrapClient $ Data.lookupAccounts (nub $ catMaybes [activeUid, uidFromKey])
-  if includePendingInvitations
-    then pure result
-    else pure $ filter ((/= PendingInvitation) . accountStatus) result
 
 isBlacklisted :: (Member BlockListStore r) => EmailAddress -> AppT r Bool
 isBlacklisted email = do
