@@ -19,6 +19,13 @@ spec:
         app: {{ template "demo-smtp.name" . }}
         release: {{ .Release.Name }}
     spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: "kubernetes.io/hostname"
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: {{ template "demo-smtp.name" . }}
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image }}"

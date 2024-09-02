@@ -30,6 +30,13 @@ spec:
         {{- end }}
         fluentbit.io/parser: json
     spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: "kubernetes.io/hostname"
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: federator
       volumes:
         - name: "federator-config"
           configMap:
