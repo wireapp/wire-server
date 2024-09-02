@@ -293,3 +293,8 @@ getInvitationByEmail :: (HasCallStack, MakesValue domain) => domain -> String ->
 getInvitationByEmail domain email = do
   req <- baseRequest domain Brig Unversioned "i/teams/invitations/by-email"
   submit "GET" $ req & addQueryParams [("email", email)]
+
+getActivationCode :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
+getActivationCode domain email = do
+  req <- baseRequest domain Brig Unversioned "i/users/activation-code"
+  submit "GET" $ req & addQueryParams [("email", email)]

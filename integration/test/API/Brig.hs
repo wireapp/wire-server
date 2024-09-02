@@ -776,3 +776,10 @@ registerUser domain email inviteeCode = do
           "password" .= defPassword,
           "team_code" .= inviteeCode
         ]
+
+activate :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
+activate domain key code = do
+  req <- rawBaseRequest domain Brig Versioned $ joinHttpPath ["activate"]
+  submit "GET" $
+    req
+      & addQueryParams [("key", key), ("code", code)]

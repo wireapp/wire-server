@@ -7,6 +7,7 @@ import API.BrigInternal as BrigInternal
 import API.Common (randomEmail, randomExternalId, randomHandle)
 import API.Spar
 import Control.Concurrent (threadDelay)
+import qualified Data.Vector as Vector
 import SetupHelpers
 import Testlib.JSON
 import Testlib.Prelude
@@ -70,7 +71,8 @@ testSparExternalIdDifferentFromEmail = do
       u <- res.json >>= asList >>= assertOne
       u %. "handle" `shouldMatch` newHandle
     pure updatedScimUser
-  do
+
+  scimUserWith2Updates <- do
     -- Verify that updating the user's external ID works
     newExtId <- randomExternalId
     updatedScimUser <- setField "externalId" newExtId scimUserWith1Update
@@ -90,6 +92,38 @@ testSparExternalIdDifferentFromEmail = do
     bindResponse (findUsersByExternalId OwnDomain tok extId) $ \res -> do
       res.json %. "totalResults" `shouldMatchInt` 0
       res.json %. "Resources" `shouldMatch` ([] :: [Value])
+    pure updatedScimUser
+  do
+    -- Verify that updating the user's email works
+    let oldEmail = email
+    newEmail <- randomEmail
+    updatedScimUser <- setField "emails" (Array (Vector.fromList [object ["value" .= newEmail]])) scimUserWith2Updates
+    currentExtId <- updatedScimUser %. "externalId" >>= asString
+    bindResponse (updateScimUser OwnDomain tok userId updatedScimUser) $ \res -> do
+      res.status `shouldMatchInt` 200
+
+    bindResponse (findUsersByExternalId OwnDomain tok currentExtId) $ \res -> do
+      res.status `shouldMatchInt` 200
+      u <- res.json %. "Resources" >>= asList >>= assertOne
+      u %. "externalId" `shouldMatch` currentExtId
+      (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` oldEmail
+    bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
+      res.status `shouldMatchInt` 200
+      u <- res.json >>= asList >>= assertOne
+      u %. "email" `shouldMatch` oldEmail
+      u %. "sso_id.scim_external_id" `shouldMatch` currentExtId
+
+    activateEmail OwnDomain newEmail
+    bindResponse (findUsersByExternalId OwnDomain tok currentExtId) $ \res -> do
+      res.status `shouldMatchInt` 200
+      u <- res.json %. "Resources" >>= asList >>= assertOne
+      u %. "externalId" `shouldMatch` currentExtId
+      (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` newEmail
+    bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
+      res.status `shouldMatchInt` 200
+      u <- res.json >>= asList >>= assertOne
+      u %. "email" `shouldMatch` newEmail
+      u %. "sso_id.scim_external_id" `shouldMatch` currentExtId
 
 registerUser :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App ()
 registerUser domain tid email = do
@@ -101,3 +135,12 @@ registerUser domain tid email = do
     >>= asString
     >>= Brig.registerUser domain email
     >>= assertSuccess
+
+activateEmail :: (HasCallStack, MakesValue domain) => domain -> String -> App ()
+activateEmail domain email = do
+  (key, code) <- bindResponse (BrigInternal.getActivationCode domain email) $ \res -> do
+    res.status `shouldMatchInt` 200
+    key <- res.json %. "key" >>= asString
+    code <- res.json %. "code" >>= asString
+    pure (key, code)
+  Brig.activate domain key code >>= assertSuccess
