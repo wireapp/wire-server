@@ -32,25 +32,24 @@ import SetupHelpers
 import Test.Version
 import Testlib.Prelude
 
-testGetMLSOne2One :: (HasCallStack) => Version5 -> Domain -> App ()
-testGetMLSOne2One v otherDomain = withVersion5 v $ do
-  [alice, bob] <- createAndConnectUsers [OwnDomain, otherDomain]
-
+testGetMLSOne2OneLocalV5 :: (HasCallStack) => App ()
+testGetMLSOne2OneLocalV5 = withVersion5 Version5 $ do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
   let assertConvData conv = do
         conv %. "epoch" `shouldMatchInt` 0
-        case v of
-          Version5 -> conv %. "cipher_suite" `shouldMatchInt` 1
-          NoVersion5 -> assertFieldMissing conv "cipher_suite"
+        conv %. "cipher_suite" `shouldMatchInt` 1
 
-  conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
-  conv %. "type" `shouldMatchInt` 2
-  shouldBeEmpty (conv %. "members.others")
+  convId <-
+    getMLSOne2OneConversation alice bob `bindResponse` \resp -> do
+      conv <- getJSON 200 resp
+      conv %. "type" `shouldMatchInt` 2
+      shouldBeEmpty (conv %. "members.others")
 
-  conv %. "members.self.conversation_role" `shouldMatch` "wire_member"
-  conv %. "members.self.qualified_id" `shouldMatch` (alice %. "qualified_id")
-  assertConvData conv
+      conv %. "members.self.conversation_role" `shouldMatch` "wire_member"
+      conv %. "members.self.qualified_id" `shouldMatch` (alice %. "qualified_id")
+      assertConvData conv
 
-  convId <- conv %. "qualified_id"
+      conv %. "qualified_id"
 
   -- check that the conversation has the same ID on the other side
   conv2 <- bindResponse (getMLSOne2OneConversation bob alice) $ \resp -> do
@@ -59,6 +58,54 @@ testGetMLSOne2One v otherDomain = withVersion5 v $ do
 
   conv2 %. "type" `shouldMatchInt` 2
   conv2 %. "qualified_id" `shouldMatch` convId
+  assertConvData conv2
+
+testGetMLSOne2OneRemoteV5 :: (HasCallStack) => App ()
+testGetMLSOne2OneRemoteV5 = withVersion5 Version5 $ do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
+  getMLSOne2OneConversation alice bob `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.jsonBody %. "label" `shouldMatch` "mls-federated-one2one-not-supported"
+
+  getMLSOne2OneConversation bob alice `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.jsonBody %. "label" `shouldMatch` "mls-federated-one2one-not-supported"
+
+testGetMLSOne2One :: (HasCallStack) => Domain -> App ()
+testGetMLSOne2One bobDomain = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, bobDomain]
+  bobDomainStr <- asString bobDomain
+  let assertConvData conv = do
+        conv %. "epoch" `shouldMatchInt` 0
+        assertFieldMissing conv "cipher_suite"
+
+  mlsOne2OneConv <-
+    getMLSOne2OneConversation alice bob `bindResponse` \resp -> do
+      one2oneConv <- getJSON 200 resp
+      convOwnerDomain <- asString $ one2oneConv %. "conversation.qualified_id.domain"
+      let user = if convOwnerDomain == bobDomainStr then bob else alice
+      ownerDomainPublicKeys <- getMLSPublicKeys user >>= getJSON 200
+
+      one2oneConv %. "public_keys" `shouldMatch` ownerDomainPublicKeys
+
+      conv <- one2oneConv %. "conversation"
+      conv %. "type" `shouldMatchInt` 2
+      shouldBeEmpty (conv %. "members.others")
+      conv %. "members.self.conversation_role" `shouldMatch` "wire_member"
+      conv %. "members.self.qualified_id" `shouldMatch` (alice %. "qualified_id")
+      assertConvData conv
+
+      pure one2oneConv
+
+  -- check that the conversation has the same ID on the other side
+  mlsOne2OneConv2 <- bindResponse (getMLSOne2OneConversation bob alice) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json
+
+  conv2 <- mlsOne2OneConv2 %. "conversation"
+  conv2 %. "type" `shouldMatchInt` 2
+  conv2 %. "qualified_id" `shouldMatch` (mlsOne2OneConv %. "conversation.qualified_id")
+  mlsOne2OneConv2 %. "public_keys" `shouldMatch` (mlsOne2OneConv %. "public_keys")
   assertConvData conv2
 
 testMLSOne2OneOtherMember :: (HasCallStack) => One2OneScenario -> App ()
@@ -93,6 +140,40 @@ testMLSOne2OneOtherMember scenario = do
   forM_ [(alice, bob), (bob, alice)] $ \(self, other) -> do
     getMLSOne2OneConversation self other `bindResponse` assertOthers other
     getConversation self conv `bindResponse` assertOthers other
+
+testMLSOne2OneRemoveClientLocalV5 :: App ()
+testMLSOne2OneRemoveClientLocalV5 = withVersion5 Version5 $ do
+  -- alice <- randomUser OwnDomain def
+  -- bob <- createMLSOne2OnePartner OwnDomain alice OwnDomain
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
+  conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
+
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  traverse_ uploadNewKeyPackage [bob1]
+  resetGroup alice1 conv
+
+  void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+
+  withWebSocket alice $ \wsAlice -> do
+    _ <- deleteClient bob bob1.client >>= getBody 200
+    let predicate n = nPayload n %. "type" `isEqual` "conversation.mls-message-add"
+    n <- awaitMatch predicate wsAlice
+    shouldMatch (nPayload n %. "conversation") (objId conv)
+    shouldMatch (nPayload n %. "from") (objId bob)
+
+    mlsMsg <- asByteString (nPayload n %. "data")
+
+    -- Checks that the remove proposal is consumable by alice
+    void $ mlsCliConsume alice1 mlsMsg
+    -- This doesn't work because `sendAndConsumeCommitBundle` doesn't like
+    -- remove proposals from the backend. We should fix that in future.
+    -- void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
+
+    parsedMsg <- showMessage alice1 mlsMsg
+    let leafIndexBob = 1
+    -- msg `shouldMatch` "foo"
+    parsedMsg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` leafIndexBob
+    parsedMsg %. "message.content.sender.External" `shouldMatchInt` 0
 
 testGetMLSOne2OneUnconnected :: (HasCallStack) => Domain -> App ()
 testGetMLSOne2OneUnconnected otherDomain = do

@@ -173,13 +173,17 @@ addUserToTeam u = do
 
 -- | Create a user on the given domain, such that the 1-1 conversation with
 -- 'other' resides on 'convDomain'. This connects the two users as a side-effect.
-createMLSOne2OnePartner :: (MakesValue user) => Domain -> user -> Domain -> App Value
+createMLSOne2OnePartner :: (MakesValue user, HasCallStack) => Domain -> user -> Domain -> App Value
 createMLSOne2OnePartner domain other convDomain = loop
   where
     loop = do
       u <- randomUser domain def
       connectTwoUsers u other
-      conv <- getMLSOne2OneConversation other u >>= getJSON 200
+      defAPIVersion <- asks (.defaultAPIVersion)
+      conv <-
+        if defAPIVersion < 6
+          then getMLSOne2OneConversation other u >>= getJSON 200
+          else getMLSOne2OneConversation other u >>= getJSON 200 >>= (%. "conversation")
 
       desiredConvDomain <- make convDomain & asString
       actualConvDomain <- conv %. "qualified_id.domain" & asString

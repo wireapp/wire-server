@@ -241,6 +241,9 @@ data ClientIdentity = ClientIdentity
   }
   deriving stock (Show, Eq, Ord, Generic)
 
+instance HasField "qualifiedUserId" ClientIdentity Aeson.Value where
+  getField cid = object [fromString "id" .= cid.user, fromString "domain" .= cid.domain]
+
 newtype Ciphersuite = Ciphersuite {code :: String}
   deriving (Eq, Ord, Show, Generic)
 
