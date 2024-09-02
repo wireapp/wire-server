@@ -87,7 +87,7 @@ instrumentHttp2Request cfg ctx (tls, host, port) req = do
       Old -> addOldAttributes
 
   hdrs <- inject (getTracerProviderPropagators $ getTracerTracerProvider tracer) ctx [] -- TODO(mangoiv): This sucks
-  pure $ let HTTP2.Request outObj = req in HTTP2.Request $ outObj {outObjHeaders = hdrs <> outObj.outObjHeaders}
+  pure $ let HTTP2.Request outObj = req in HTTP2.Request $ outObj {outObjHeaders = outObj.outObjHeaders <> hdrs}
 
 -- TODO(mangoiv): see https://github.com/iand675/hs-opentelemetry/blob/0b3c854a88113fc18df8561202a76357e593a294/instrumentation/http-client/src/OpenTelemetry/Instrumentation/HttpClient/Raw.hs#L136
 instrumentHttp2Response :: HttpClientInstrumentationConfig -> Context -> HTTP2.Response -> IO ()

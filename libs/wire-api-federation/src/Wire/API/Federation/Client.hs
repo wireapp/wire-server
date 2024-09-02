@@ -145,7 +145,7 @@ withNewHttpRequest target req k = do
   instrumentedReq <- instrumentHttp2Request httpClientInstrumentationConfig otelCtx target req
   H2Manager.sendRequestWithConnection newConn instrumentedReq $ \resp -> do
     instrumentHttp2Response httpClientInstrumentationConfig otelCtx resp
-    k resp <* newConn.disconnect
+    k resp `finally` newConn.disconnect
 
 performHTTP2Request ::
   Http2Manager ->
