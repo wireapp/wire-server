@@ -116,3 +116,11 @@ getUserProfile luid targetUser =
 getLocalUserProfile :: (Member UserSubsystem r) => Local UserId -> Sem r (Maybe UserProfile)
 getLocalUserProfile targetUser =
   listToMaybe <$> getLocalUserProfiles ((: []) <$> targetUser)
+
+getLocalUserAccount :: (Member UserSubsystem r) => Local UserId -> Sem r (Maybe UserAccount)
+getLocalUserAccount uid =
+  listToMaybe
+    <$> getAccountsBy
+      ( qualifyAs uid $
+          def {getByUserIds = [tUnqualified uid]}
+      )
