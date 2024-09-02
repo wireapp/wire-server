@@ -365,11 +365,12 @@ getInvitation ::
   InvitationId ->
   (Handler r) (Maybe Public.Invitation)
 getInvitation uid tid iid = do
+  ensurePermissions uid tid [AddTeamMember]
+
   invitationM <- lift . liftSem $ Store.lookupInvitation tid iid
   case invitationM of
     Nothing -> pure Nothing
     Just invitation -> do
-      ensurePermissions uid tid [AddTeamMember]
       showInvitationUrl <- lift . liftSem $ GalleyAPIAccess.getExposeInvitationURLsToTeamAdmin tid
       maybeUrl <- mkInviteUrl showInvitationUrl tid invitation.code
       pure $ Just (Store.invitationFromStored maybeUrl invitation)
