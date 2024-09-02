@@ -52,16 +52,44 @@ testSparExternalIdDifferentFromEmail = do
     u %. "sso_id.scim_external_id" `shouldMatch` extId
     u %. "handle" `shouldMatch` (scimUser %. "userName")
 
-  do
+  scimUserWith1Update <- do
+    -- Verify that updating the scim user works
+    -- FUTUREWORK: test updating other fields besides handle as well
     newHandle <- randomHandle
     updatedScimUser <- setField "userName" newHandle scimUser
     bindResponse (updateScimUser OwnDomain tok userId updatedScimUser) $ \res -> do
       res.status `shouldMatchInt` 200
       res.json %. "userName" `shouldMatch` newHandle
+    bindResponse (findUsersByExternalId OwnDomain tok extId) $ \res -> do
+      res.status `shouldMatchInt` 200
+      u <- res.json %. "Resources" >>= asList >>= assertOne
+      u %. "externalId" `shouldMatch` extId
+      (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` email
     bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
       res.status `shouldMatchInt` 200
       u <- res.json >>= asList >>= assertOne
       u %. "handle" `shouldMatch` newHandle
+    pure updatedScimUser
+  do
+    -- Verify that updating the user's external ID works
+    newExtId <- randomExternalId
+    updatedScimUser <- setField "externalId" newExtId scimUserWith1Update
+    bindResponse (updateScimUser OwnDomain tok userId updatedScimUser) $ \res -> do
+      res.status `shouldMatchInt` 200
+      res.json %. "externalId" `shouldMatch` newExtId
+    bindResponse (findUsersByExternalId OwnDomain tok newExtId) $ \res -> do
+      res.status `shouldMatchInt` 200
+      u <- res.json %. "Resources" >>= asList >>= assertOne
+      u %. "externalId" `shouldMatch` newExtId
+      (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` email
+    bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
+      res.status `shouldMatchInt` 200
+      u <- res.json >>= asList >>= assertOne
+      u %. "email" `shouldMatch` email
+      u %. "sso_id.scim_external_id" `shouldMatch` newExtId
+    bindResponse (findUsersByExternalId OwnDomain tok extId) $ \res -> do
+      res.json %. "totalResults" `shouldMatchInt` 0
+      res.json %. "Resources" `shouldMatch` ([] :: [Value])
 
 registerUser :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App ()
 registerUser domain tid email = do
