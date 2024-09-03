@@ -9,6 +9,11 @@ import API.Spar
 import Control.Concurrent (threadDelay)
 import Data.Vector (fromList)
 import qualified Data.Vector as Vector
+import SAML2.WebSSO as SAML hiding ((<$$>))
+import qualified SAML2.WebSSO.API.Example as SAML
+import SAML2.WebSSO.Test.Lenses (userRefL)
+import SAML2.WebSSO.Test.MockResponse
+import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
 import SetupHelpers
 import Testlib.JSON
 import Testlib.Prelude
@@ -32,6 +37,32 @@ testSparUserCreationInvitationTimeout = do
   -- ...we should be able to create the user again
   retryT $ bindResponse (createScimUser OwnDomain tok scimUser) $ \res -> do
     res.status `shouldMatchInt` 201
+
+testSparExternalIdDifferentFromEmailWithIdp :: (HasCallStack) => App ()
+testSparExternalIdDifferentFromEmailWithIdp = do
+  (_owner, _tid, _) <- createTeam OwnDomain 1
+  pure ()
+
+-- | Call 'registerTestIdP', then 'registerScimToken'.  The user returned is the owner of the team;
+-- the IdP is registered with the team; the SCIM token can be used to manipulate the team.
+registerIdPAndScimToken :: (HasCallStack, MakesValue owner) => owner -> App ()
+registerIdPAndScimToken owner = do
+  idp <- registerTestIdPWithMeta owner
+  pure ()
+
+-- token <- registerScimToken teamid (Just (idp ^. idpId))
+-- let team = (owner, teamid, idp)
+-- pure (token, team)
+
+-- | Create a fresh 'IdPMetadata' suitable for testing.
+registerTestIdPWithMeta :: (HasCallStack, MakesValue owner) => owner -> App (Value, (Value, String))
+registerTestIdPWithMeta owner = do
+  SampleIdP idpmeta privkey _ _ <- makeSampleIdPMetadata
+  undefined
+
+-- env <- ask
+-- idp <- registerTestIdPFrom idpmeta (env ^. teMgr) owner (env ^. teSpar)
+-- pure (idp, (IdPMetadataValue (cs $ SAML.encode idpmeta) idpmeta, privkey))
 
 testSparExternalIdDifferentFromEmail :: (HasCallStack) => App ()
 testSparExternalIdDifferentFromEmail = do

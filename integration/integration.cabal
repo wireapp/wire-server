@@ -197,6 +197,7 @@ library
     , crypton
     , crypton-x509
     , cryptostore
+    , saml2-web-sso
     , data-default
     , data-timeout
     , deriving-aeson
