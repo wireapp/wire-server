@@ -110,7 +110,6 @@ interpretUserSubsystem = interpret \case
   CheckHandle uhandle -> checkHandleImpl uhandle
   CheckHandles hdls cnt -> checkHandlesImpl hdls cnt
   UpdateHandle uid mconn mb uhandle -> updateHandleImpl uid mconn mb uhandle
-  GetLocalUserAccountByUserKey userKey -> getLocalUserAccountByUserKeyImpl userKey
   LookupLocaleWithDefault luid -> lookupLocaleOrDefaultImpl luid
   IsBlocked email -> isBlockedImpl email
   BlockListDelete email -> blockListDeleteImpl email
@@ -429,19 +428,6 @@ mkProfileUpdateEvent uid update =
 mkProfileUpdateHandleEvent :: UserId -> Handle -> UserEvent
 mkProfileUpdateHandleEvent uid handle =
   UserUpdated $ (emptyUserUpdatedData uid) {eupHandle = Just handle}
-
-getLocalUserAccountByUserKeyImpl ::
-  ( Member UserStore r,
-    Member UserKeyStore r,
-    Member (Input UserSubsystemConfig) r
-  ) =>
-  Local EmailKey ->
-  Sem r (Maybe UserAccount)
-getLocalUserAccountByUserKeyImpl target = runMaybeT $ do
-  config <- lift input
-  uid <- MaybeT $ lookupKey (tUnqualified target)
-  user <- MaybeT $ getUser uid
-  pure $ mkAccountFromStored (tDomain target) config.defaultLocale user
 
 --------------------------------------------------------------------------------
 -- Update Handle

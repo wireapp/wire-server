@@ -90,8 +90,6 @@ data UserSubsystem m a where
   CheckHandles :: [Handle] -> Word -> UserSubsystem m [Handle]
   -- | parses a handle, this may fail so it's effectful
   UpdateHandle :: Local UserId -> Maybe ConnId -> UpdateOriginType -> Text {- use Handle here? -} -> UserSubsystem m ()
-  -- TODO(mangoiv): this can probably go in favour of 'GetAccountsBy'
-  GetLocalUserAccountByUserKey :: Local EmailKey -> UserSubsystem m (Maybe UserAccount)
   -- | returns the user's locale or the default locale if the users exists
   LookupLocaleWithDefault :: Local UserId -> UserSubsystem m (Maybe Locale)
   -- | checks if an email is blocked
@@ -123,4 +121,12 @@ getLocalUserAccount uid =
     <$> getAccountsBy
       ( qualifyAs uid $
           def {getByUserIds = [tUnqualified uid]}
+      )
+
+getLocalUserAccountByUserKey :: (Member UserSubsystem r) => Local EmailKey -> Sem r (Maybe UserAccount)
+getLocalUserAccountByUserKey email =
+  listToMaybe
+    <$> getAccountsBy
+      ( qualifyAs email $
+          def {getByEmail = [emailKeyOrig $ tUnqualified email]}
       )
