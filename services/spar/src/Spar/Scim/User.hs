@@ -979,7 +979,12 @@ synthesizeStoredUser acc veid =
       let (createdAt, lastUpdatedAt) = fromMaybe (now, now) accessTimes
 
       handle <- lift $ Brig.giveDefaultHandle acc.account.accountUser
-      let emails = catMaybes [acc.emailUnvalidated <|> (emailIdentity =<< userIdentity acc.account.accountUser)]
+
+      let emails =
+            maybeToList $
+              if ST.isSAMLUser veid
+                then emailIdentity =<< userIdentity acc.account.accountUser
+                else acc.emailUnvalidated <|> (emailIdentity =<< userIdentity acc.account.accountUser)
 
       storedUser <-
         synthesizeStoredUser'

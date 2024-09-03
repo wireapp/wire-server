@@ -391,6 +391,9 @@ veidUref = justThere . validScimIdAuthInfo
 urefToExternalIdUnsafe :: SAML.UserRef -> Text
 urefToExternalIdUnsafe = CI.original . SAML.unsafeShowNameID . view SAML.uidSubject
 
+isSAMLUser :: ValidScimId -> Bool
+isSAMLUser = isJust . justThere . validScimIdAuthInfo
+
 makeLenses ''ValidScimUser
 makeLenses ''ValidScimId
 
