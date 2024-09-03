@@ -1,4 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 
 module Wire.UserSubsystem.Interpreter
   ( runUserSubsystem,
@@ -514,47 +516,51 @@ getAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations, includ
 
   let storedToAcc = mkAccountFromStored domain config.defaultLocale
 
+      filterPendingInvitations =
+        if includePendingInvitations
+          then pure
+          else pure . filter (\acc -> acc.accountStatus /= PendingInvitation)
+
+      filterPendingActivation =
+        if includePendingActivations
+          then pure
+          else pure . filter (\acc -> isNothing acc.accountUser.userIdentity)
+
       accountValid :: StoredUser -> Sem r (Maybe UserAccount)
       accountValid storedUser = do
         let account = storedToAcc storedUser
             notValid = pure Nothing
             valid = pure $ Just account
-        if includePendingActivations
-          then valid
-          else case userIdentity . accountUser $ account of
-            Nothing -> notValid
-            Just ident -> case (accountStatus account, includePendingInvitations, emailIdentity ident) of
-              (PendingInvitation, False, _) -> notValid
-              (PendingInvitation, True, Just email) ->
-                lookupInvitationByEmail email >>= \case
-                  Nothing -> do
-                    -- user invited via scim should expire together with its invitation
-                    -- FIXME(mangoiv): this is not the right place to do this, ideally this should be part of a recurring
-                    -- job akin to 'pendingUserActivationCleanup'
-                    enqueueUserDeletion (userId account.accountUser)
-                    notValid
-                  Just _ -> valid
-              (PendingInvitation, True, Nothing) -> valid -- cannot happen, user invited via scim always has an email
-              (Active, _, _) -> valid
-              (Suspended, _, _) -> valid
-              (Deleted, _, _) -> valid
-              (Ephemeral, _, _) -> valid
+        case userIdentity . accountUser $ account of
+          Nothing -> notValid
+          Just ident -> case (accountStatus account, includePendingInvitations, emailIdentity ident) of
+            (PendingInvitation, False, _) -> notValid
+            (PendingInvitation, True, Just email) ->
+              lookupInvitationByEmail email >>= \case
+                Nothing -> do
+                  -- user invited via scim should expire together with its invitation
+                  -- FIXME(mangoiv): this is not the right place to do this, ideally this should be part of a recurring
+                  -- job akin to 'pendingUserActivationCleanup'
+                  enqueueUserDeletion (userId account.accountUser)
+                  notValid
+                Just _ -> valid
+            (PendingInvitation, True, Nothing) -> valid -- cannot happen, user invited via scim always has an email
+            (Active, _, _) -> valid
+            (Suspended, _, _) -> valid
+            (Deleted, _, _) -> valid
+            (Ephemeral, _, _) -> valid
 
   handleUserIds :: [UserId] <- wither lookupHandle getByHandle
 
   accsByIds :: [UserAccount] <-
-    wither accountValid =<< getUsers (nubOrd $ handleUserIds <> getByUserIds)
+    getUsers (nubOrd $ handleUserIds <> getByUserIds)
+      >>= wither accountValid
+      >>= (filterPendingInvitations >=> filterPendingActivation)
 
-  accsByEmail :: [UserAccount] <- flip foldMap getByEmail \email -> do
-    let ek = mkEmailKey email
+  accsByEmail :: [UserAccount] <- flip foldMap getByEmail \ek -> do
     mactiveUid <- lookupKey ek
-    ac <- lookupActivationCode ek
-    let muidFromActivationKey = ac >>= fst
-    res <- getUsers (nubOrd $ catMaybes [mactiveUid, muidFromActivationKey])
-    pure $
-      map
-        storedToAcc
-        if includePendingInvitations
-          then res
-          else filter (\acc -> acc.status /= Just PendingInvitation) res
+    getUsers (nubOrd . catMaybes $ [mactiveUid])
+      <&> map storedToAcc
+      >>= (filterPendingInvitations >=> filterPendingActivation)
+
   pure (nubOrd $ accsByIds <> accsByEmail)

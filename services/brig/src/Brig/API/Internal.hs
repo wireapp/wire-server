@@ -572,7 +572,7 @@ listActivatedAccountsH ::
 listActivatedAccountsH
   (maybe [] fromCommaSeparatedList -> uids)
   (maybe [] fromCommaSeparatedList -> handles)
-  (maybe [] fromCommaSeparatedList -> emails)
+  (maybe [] (fromCommaSeparatedList . fmap mkEmailKey) -> emails)
   (fromMaybe False -> include) = do
     when (length uids + length handles + length emails == 0) $ do
       throwStd (notFound "no user keys")

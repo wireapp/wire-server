@@ -62,7 +62,7 @@ data GetBy = MkGetBy
     -- | get accounts by 'UserId's
     getByUserIds :: ![UserId],
     -- | get accounts by 'Email's
-    getByEmail :: ![EmailAddress],
+    getByEmail :: ![EmailKey],
     -- | get accounts by their 'Handle'
     getByHandle :: ![Handle]
   }
@@ -141,5 +141,9 @@ getLocalUserAccountByUserKey email =
   listToMaybe
     <$> getAccountsBy
       ( qualifyAs email $
-          def {getByEmail = [emailKeyOrig $ tUnqualified email]}
+          def
+            { includePendingInvitations = True,
+              includePendingActivations = True,
+              getByEmail = [tUnqualified email]
+            }
       )

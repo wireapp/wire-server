@@ -36,7 +36,7 @@ inMemoryInvitationCodeStoreInterpreter = interpret \case
           | email == em = Just MkStoredInvitationInfo {..}
           | otherwise = Nothing
      in mapMaybe c . elems <$> get
-  LookupInvitationsPaginated {} -> todo
+  LookupInvitationsPaginated {} -> error "LookupInvitationsPaginated"
   CountInvitations tid -> gets (fromIntegral . M.size . M.filterWithKey (\(tid', _) _v -> tid == tid'))
-  DeleteInvitation tid invId -> todo
-  DeleteAllTeamInvitations tid -> todo
+  DeleteInvitation tid invId -> error "DeleteInvitation"
+  DeleteAllTeamInvitations tid -> error "DeleteAllTeamInvitations"
