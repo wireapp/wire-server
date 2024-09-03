@@ -128,6 +128,19 @@ testSparExternalIdDifferentFromEmail = do
       u %. "email" `shouldMatch` newEmail
       u %. "sso_id.scim_external_id" `shouldMatch` currentExtId
 
+{-
+TODO(fisx, leif, marko): Edge cases:
+1.
+  - user has only externalId which is an email, and emails field is empty
+  - user gets updated with an externalId that is not an email
+  - expect: failure
+
+2.
+  - user has only externalId which is an email, and emails field is empty
+  - user gets updated with a record that has a primary email
+  - expect: externalId stays the same, email gets updated/changed
+-}
+
 registerUser :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App ()
 registerUser domain tid email = do
   BrigInternal.getInvitationByEmail domain email
