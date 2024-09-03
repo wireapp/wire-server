@@ -979,8 +979,7 @@ synthesizeStoredUser acc veid =
       let (createdAt, lastUpdatedAt) = fromMaybe (now, now) accessTimes
 
       handle <- lift $ Brig.giveDefaultHandle acc.account.accountUser
-      -- TODO(fisx): do we need to consider unvalidated emails here as well?
-      let emails = catMaybesToList (emailIdentity <$> userIdentity acc.account.accountUser)
+      let emails = catMaybes [acc.emailUnvalidated <|> (emailIdentity =<< userIdentity acc.account.accountUser)]
 
       storedUser <-
         synthesizeStoredUser'

@@ -108,7 +108,7 @@ testSparExternalIdDifferentFromEmail = do
       res.status `shouldMatchInt` 200
       u <- res.json %. "Resources" >>= asList >>= assertOne
       u %. "externalId" `shouldMatch` currentExtId
-      (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` oldEmail
+      (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` newEmail
     bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
       res.status `shouldMatchInt` 200
       u <- res.json >>= asList >>= assertOne
