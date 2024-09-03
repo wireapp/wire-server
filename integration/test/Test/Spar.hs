@@ -7,6 +7,7 @@ import API.BrigInternal as BrigInternal
 import API.Common (randomEmail, randomExternalId, randomHandle)
 import API.Spar
 import Control.Concurrent (threadDelay)
+import Data.Vector (fromList)
 import qualified Data.Vector as Vector
 import SetupHelpers
 import Testlib.JSON
@@ -132,14 +133,58 @@ testSparExternalIdDifferentFromEmail = do
 TODO(fisx, leif, marko): Edge cases:
 1.
   - user has only externalId which is an email, and emails field is empty
-  - user gets updated with an externalId that is not an email
-  - expect: failure
-
-2.
-  - user has only externalId which is an email, and emails field is empty
   - user gets updated with a record that has a primary email
   - expect: externalId stays the same, email gets updated/changed
 -}
+
+testSparExternalIdUpdateToANonEmail :: (HasCallStack) => App ()
+testSparExternalIdUpdateToANonEmail = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  tok <- createScimToken owner >>= \resp -> resp.json %. "token" >>= asString
+  scimUser <- randomScimUser >>= removeField "emails"
+  email <- scimUser %. "externalId" >>= asString
+  userId <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+  registerUser OwnDomain tid email
+
+  let extId = "notanemailaddress"
+  updatedScimUser <- setField "externalId" extId scimUser
+  updateScimUser OwnDomain tok userId updatedScimUser >>= assertStatus 400
+
+testSparMigrateFromExternalIdOnlyToEmail :: (HasCallStack) => Bool -> App ()
+testSparMigrateFromExternalIdOnlyToEmail emailUnchanged = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  tok <- createScimToken owner >>= \resp -> resp.json %. "token" >>= asString
+  scimUser <- randomScimUser >>= removeField "emails"
+  email <- scimUser %. "externalId" >>= asString
+  userId <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+  registerUser OwnDomain tid email
+
+  newEmail <- if emailUnchanged then pure email else randomEmail
+  let newEmails = (Array (fromList [object ["value" .= newEmail]]))
+  updatedScimUser <-
+    setField
+      "emails"
+      newEmails
+      scimUser
+  updateScimUser OwnDomain tok userId updatedScimUser `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "externalId" `shouldMatch` (updatedScimUser %. "externalId")
+    resp.json %. "emails" `shouldMatch` (updatedScimUser %. "emails")
+
+  -- after activation the new email should be present
+  unless emailUnchanged $ activateEmail OwnDomain newEmail
+
+  extId <- scimUser %. "externalId" >>= asString
+  bindResponse (findUsersByExternalId OwnDomain tok extId) $ \res -> do
+    res.status `shouldMatchInt` 200
+    u <- res.json %. "Resources" >>= asList >>= assertOne
+    u %. "externalId" `shouldMatch` extId
+    (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` newEmail
+  bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
+    res.status `shouldMatchInt` 200
+    u <- res.json >>= asList >>= assertOne
+    u %. "email" `shouldMatch` newEmail
+    u %. "sso_id.scim_external_id" `shouldMatch` extId
 
 registerUser :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App ()
 registerUser domain tid email = do
