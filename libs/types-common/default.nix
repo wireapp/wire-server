@@ -40,7 +40,6 @@
 , quickcheck-instances
 , random
 , schema-profunctor
-, scientific
 , servant-server
 , string-conversions
 , tagged
@@ -97,7 +96,6 @@ mkDerivation {
     quickcheck-instances
     random
     schema-profunctor
-    scientific
     servant-server
     tagged
     tasty
