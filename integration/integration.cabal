@@ -197,7 +197,6 @@ library
     , crypton
     , crypton-x509
     , cryptostore
-    , saml2-web-sso
     , data-default
     , data-timeout
     , deriving-aeson
@@ -230,6 +229,7 @@ library
     , regex-base
     , regex-tdfa
     , retry
+    , saml2-web-sso
     , scientific
     , split
     , stm
