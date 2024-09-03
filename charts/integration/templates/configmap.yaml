@@ -6,6 +6,12 @@ metadata:
     "helm.sh/hook": post-install
     "helm.sh/hook-delete-policy": before-hook-creation
 data:
+  {{- range $name, $dynamicBackend := .Values.config.dynamicBackends }}
+  {{ $name }}-mls-removal-key-ed25519.pem: {{ $dynamicBackend.mlsPrivateKeys.removal.ed25519 | quote }}
+  {{ $name }}-mls-removal-key-ecdsa_secp256r1_sha256.pem:  {{ $dynamicBackend.mlsPrivateKeys.removal.ecdsa_secp256r1_sha256 | quote }}
+  {{ $name }}-mls-removal-key-ecdsa_secp384r1_sha384.pem: {{ $dynamicBackend.mlsPrivateKeys.removal.ecdsa_secp384r1_sha384 | quote }}
+  {{ $name }}-mls-removal-key-ecdsa_secp521r1_sha512.pem: {{ $dynamicBackend.mlsPrivateKeys.removal.ecdsa_secp521r1_sha512 | quote }}
+  {{- end }}
   integration.yaml: |
     brig:
       host: brig.{{ .Release.Namespace }}.svc.cluster.local
@@ -118,7 +124,12 @@ data:
       {{ $name }}:
         domain: {{ $dynamicBackend.federatorExternalHostPrefix }}.{{ $.Release.Namespace }}.svc.cluster.local
         federatorExternalPort: {{ $dynamicBackend.federatorExternalPort }}
-        # TODO: Add mlsPrivateKeyPaths
+        mlsPrivateKeyPaths:
+          removal:
+            ed25519: "/etc/wire/integration/{{ $name }}-mls-removal-key-ed25519.pem"
+            ecdsa_secp256r1_sha256: "/etc/wire/integration/{{ $name }}-mls-removal-key-ecdsa_secp256r1_sha256.pem"
+            ecdsa_secp384r1_sha384: "/etc/wire/integration/{{ $name }}-mls-removal-key-ecdsa_secp384r1_sha384.pem"
+            ecdsa_secp521r1_sha512: "/etc/wire/integration/{{ $name }}-mls-removal-key-ecdsa_secp521r1_sha512.pem"
       {{- end }}
     cassandra:
       host: {{ .Values.config.cassandra.host }}
