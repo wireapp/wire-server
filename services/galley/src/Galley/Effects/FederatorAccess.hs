@@ -35,28 +35,29 @@ import Polysemy
 import Wire.API.Federation.Client
 import Wire.API.Federation.Component
 import Wire.API.Federation.Error
+import Wire.API.Federation.Version
 
 data FederatorAccess m a where
   RunFederated ::
     (KnownComponent c) =>
     Remote x ->
-    FederatorClient c a ->
+    (Version -> FederatorClient c a) ->
     FederatorAccess m a
   RunFederatedEither ::
     (KnownComponent c) =>
     Remote x ->
-    FederatorClient c a ->
+    (Version -> FederatorClient c a) ->
     FederatorAccess m (Either FederationError a)
   RunFederatedConcurrently ::
     (KnownComponent c, Foldable f, Functor f) =>
     f (Remote x) ->
-    (Remote [x] -> FederatorClient c a) ->
+    (Remote [x] -> Version -> FederatorClient c a) ->
     FederatorAccess m [Remote a]
   RunFederatedConcurrentlyEither ::
     forall (c :: Component) f a m x.
     (KnownComponent c, Foldable f, Functor f) =>
     f (Remote x) ->
-    (Remote [x] -> FederatorClient c a) ->
+    (Remote [x] -> Version -> FederatorClient c a) ->
     FederatorAccess m [Either (Remote [x], FederationError) (Remote a)]
   -- | An action similar to 'RunFederatedConcurrentlyEither', but whose input is
   -- already in buckets. The buckets are paired with arbitrary data that affect
@@ -65,7 +66,7 @@ data FederatorAccess m a where
     forall (c :: Component) f a m x.
     (KnownComponent c, Foldable f) =>
     f (Remote x) ->
-    (Remote x -> FederatorClient c a) ->
+    (Remote x -> Version -> FederatorClient c a) ->
     FederatorAccess m [Either (Remote x, FederationError) (Remote a)]
   IsFederationConfigured :: FederatorAccess m Bool
 

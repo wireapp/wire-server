@@ -93,7 +93,7 @@ mkFederatorClientEnv remote = do
 executeFederated :: Remote x -> FederatorClient 'Cargohold a -> Handler a
 executeFederated remote c = do
   env <- mkFederatorClientEnv remote
-  liftIO (runFederatorClient @'Cargohold env c)
+  liftIO (runFederatorClient @'Cargohold env (const c))
     >>= either (throwE . federationErrorToWai . FederationCallFailure) pure
 
 executeFederatedStreaming ::
@@ -114,5 +114,5 @@ executeFederatedStreaming remote c = do
   pure $
     SourceT $ \k ->
       runCodensity
-        (runFederatorClientToCodensity @'Cargohold env c)
+        (runFederatorClientToCodensity @'Cargohold env (const c))
         (either (throw . federationErrorToWai . FederationCallFailure) (flip unSourceT k))

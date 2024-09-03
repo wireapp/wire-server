@@ -372,7 +372,7 @@ updateRemoteConversation rcnv lusr conn action = getUpdateResult $ do
             convId = tUnqualified rcnv,
             action = SomeConversationAction (sing @tag) action
           }
-  response <- E.runFederated rcnv (fedClient @'Galley @"update-conversation" updateRequest)
+  response <- E.runFederated rcnv (\_version -> fedClient @'Galley @"update-conversation" updateRequest)
   convUpdate <- case response of
     ConversationUpdateResponseNoChanges -> throw NoChanges
     ConversationUpdateResponseError err' -> raise $ rethrowErrors @(HasConversationActionGalleyErrors tag) err'
@@ -1184,8 +1184,8 @@ removeMemberFromRemoteConv ::
 removeMemberFromRemoteConv cnv lusr victim
   | tUntagged lusr == victim = do
       let lc = LeaveConversationRequest (tUnqualified cnv) (qUnqualified victim)
-      let rpc = fedClient @'Galley @"leave-conversation" lc
-      E.runFederated cnv rpc
+      let mkRpc _version = fedClient @'Galley @"leave-conversation" lc
+      E.runFederated cnv mkRpc
         >>= either handleError handleSuccess . void . (.response)
   | otherwise = throwS @('ActionDenied 'RemoveConversationMember)
   where
@@ -1505,7 +1505,7 @@ memberTyping lusr zcon qcnv ts = do
                   userId = tUnqualified lusr,
                   convId = tUnqualified rcnv
                 }
-        res <- E.runFederated rcnv (fedClient @'Galley @"update-typing-indicator" rpc)
+        res <- E.runFederated rcnv (\_version -> fedClient @'Galley @"update-typing-indicator" rpc)
         case res of
           TypingDataUpdateSuccess (TypingDataUpdated {..}) -> do
             pushTypingIndicatorEvents origUserId time usersInConv (Just zcon) qcnv typingStatus

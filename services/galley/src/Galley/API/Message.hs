@@ -80,6 +80,7 @@ import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
+import Wire.API.Federation.Version qualified as Fed
 import Wire.API.Message
 import Wire.API.Routes.Public.Galley.Messaging
 import Wire.API.Team.LegalHold
@@ -227,8 +228,8 @@ getRemoteClients remoteMembers =
   -- which domains and users aren't contactable at the moment.
   tUnqualified <$$$> runFederatedConcurrentlyEither (map rmId remoteMembers) getRemoteClientsFromDomain
   where
-    getRemoteClientsFromDomain :: Remote [UserId] -> FederatorClient 'Brig (Map (Domain, UserId) (Set ClientId))
-    getRemoteClientsFromDomain (tUntagged -> Qualified uids domain) =
+    getRemoteClientsFromDomain :: Remote [UserId] -> Fed.Version -> FederatorClient 'Brig (Map (Domain, UserId) (Set ClientId))
+    getRemoteClientsFromDomain (tUntagged -> Qualified uids domain) _version =
       Map.mapKeys (domain,) . fmap (Set.map pubClientId) . userMap
         <$> fedClient @'Brig @"get-user-clients" (GetUserClients uids)
 
@@ -245,7 +246,7 @@ postRemoteOtrMessage sender conv rawMsg = do
             sender = qUnqualified (tUntagged sender),
             rawMessage = Base64ByteString rawMsg
           }
-      rpc = fedClient @'Galley @"send-message" msr
+      rpc _version = fedClient @'Galley @"send-message" msr
   (.response) <$> runFederated conv rpc
 
 postBroadcast ::

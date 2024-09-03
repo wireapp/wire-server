@@ -351,7 +351,7 @@ getFederationStatus req = do
     . (ensureNoUnreachableBackends =<<)
     $ E.runFederatedConcurrentlyEither
       (Set.toList req.rdDomains)
-      ( \qds ->
+      ( \qds _version ->
           fedClient @'Brig @"get-not-fully-connected-backends"
             (DomainSet . Set.map tDomain $ void qds `Set.delete` req.rdDomains)
       )
@@ -539,7 +539,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
         then checkFederationStatus (RemoteDomains (invitedRemoteDomains <> existingRemoteDomains))
         else -- even if there are no new remotes, we still need to check they are reachable
         void . (ensureNoUnreachableBackends =<<) $
-          E.runFederatedConcurrentlyEither @_ @'Brig invitedRemoteUsers $ \_ ->
+          E.runFederatedConcurrentlyEither @_ @'Brig invitedRemoteUsers $ \_ _ ->
             pure ()
 
     conv :: Data.Conversation
@@ -1068,7 +1068,7 @@ notifyTypingIndicator conv qusr mcon ts = do
             typingStatus = ts
           }
 
-  void $ E.runFederatedConcurrentlyEither (fmap rmId remoteMemsOther) $ \rmems -> do
+  void $ E.runFederatedConcurrentlyEither (fmap rmId remoteMemsOther) $ \rmems _version -> do
     fedClient @'Galley @"on-typing-indicator-updated" (tdu (tUnqualified rmems))
 
   pure (tdu (fmap (tUnqualified . rmId) remoteMemsOrig))

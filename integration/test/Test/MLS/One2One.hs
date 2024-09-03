@@ -31,6 +31,7 @@ import Notifications
 import SetupHelpers
 import Test.Version
 import Testlib.Prelude
+import Testlib.VersionedFed
 
 testGetMLSOne2One :: (HasCallStack) => Version5 -> Domain -> App ()
 testGetMLSOne2One v otherDomain = withVersion5 v $ do
@@ -304,3 +305,42 @@ testMLSGhostOne2OneConv = do
     createCommit
     liftIO $ putMVar doneVar ()
     wait a
+
+testMLSFederationV1 :: App ()
+testMLSFederationV1 = do
+  alice <- randomUser OwnDomain def
+  bob <- randomUser (StaticFedDomain 1) def
+  connectUsers [alice, bob]
+  bobDomainStr <- asString (StaticFedDomain 1)
+  let assertConvData conv = do
+        conv %. "epoch" `shouldMatchInt` 0
+        assertFieldMissing conv "cipher_suite"
+
+  mlsOne2OneConv <-
+    getMLSOne2OneConversation alice bob `bindResponse` \resp -> do
+      one2oneConv <- getJSON 200 resp
+      convOwnerDomain <- asString $ one2oneConv %. "conversation.qualified_id.domain"
+      let user = if convOwnerDomain == bobDomainStr then bob else alice
+      ownerDomainPublicKeys <- getMLSPublicKeys user >>= getJSON 200
+
+      one2oneConv %. "public_keys" `shouldMatch` ownerDomainPublicKeys
+
+      conv <- one2oneConv %. "conversation"
+      conv %. "type" `shouldMatchInt` 2
+      shouldBeEmpty (conv %. "members.others")
+      conv %. "members.self.conversation_role" `shouldMatch` "wire_member"
+      conv %. "members.self.qualified_id" `shouldMatch` (alice %. "qualified_id")
+      assertConvData conv
+
+      pure one2oneConv
+
+  -- check that the conversation has the same ID on the other side
+  mlsOne2OneConv2 <- bindResponse (getMLSOne2OneConversation bob alice) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json
+
+  conv2 <- mlsOne2OneConv2 %. "conversation"
+  conv2 %. "type" `shouldMatchInt` 2
+  conv2 %. "qualified_id" `shouldMatch` (mlsOne2OneConv %. "conversation.qualified_id")
+  mlsOne2OneConv2 %. "public_keys" `shouldMatch` (mlsOne2OneConv %. "public_keys")
+  assertConvData conv2

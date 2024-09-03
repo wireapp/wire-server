@@ -91,7 +91,7 @@ getGroupInfoFromRemoteConv lusr rcnv = do
           { sender = tUnqualified lusr,
             conv = tUnqualified rcnv
           }
-  response <- E.runFederated rcnv (fedClient @'Galley @"query-group-info" getRequest)
+  response <- E.runFederated rcnv (\_version -> fedClient @'Galley @"query-group-info" getRequest)
   case response of
     GetGroupInfoResponseError e -> rethrowErrors @MLSGroupInfoStaticErrors e
     GetGroupInfoResponseState s ->

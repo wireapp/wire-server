@@ -42,7 +42,8 @@ interpretFederationAPIAccess config action = do
                       ceHttp2Manager = config.http2Manager,
                       ceOriginRequestId = config.requestId
                     }
-            embed . fmap (first FederationCallFailure) $ runFederatorClient ce rpc
+            -- FUTUREWORK: remove this 'const' and take rpc as 'Version ->  FederatorClient c a'
+            embed . fmap (first FederationCallFailure) $ runFederatorClient ce (const $ rpc)
   interpretFederationAPIAccessGeneral runner (pure isFederationConfigured) action
 
 interpretFederationAPIAccessGeneral ::

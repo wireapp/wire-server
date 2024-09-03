@@ -163,7 +163,7 @@ getRemoteMLSClients rusr suite = do
           { userId = tUnqualified rusr,
             cipherSuite = tagCipherSuite suite
           }
-  runFederatedEither rusr $
+  runFederatedEither rusr $ \_version ->
     fedClient @'Brig @"get-mls-clients" mcr
       <|> fedClient @'Brig @(Versioned 'V0 "get-mls-clients") (mlsClientsRequestToV0 mcr)
 

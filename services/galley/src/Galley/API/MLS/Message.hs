@@ -298,7 +298,7 @@ postMLSCommitBundleToRemoteConv loc qusr c con bundle ctype rConvOrSubId = do
     flip unless (throwS @'ConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) ((.conv) <$> rConvOrSubId)
 
   resp <-
-    runFederated rConvOrSubId $
+    runFederated rConvOrSubId $ \_version ->
       fedClient @'Galley @"send-mls-commit-bundle" $
         MLSMessageSendRequest
           { convOrSubId = tUnqualified rConvOrSubId,
@@ -440,7 +440,7 @@ postMLSMessageToRemoteConv loc qusr senderClient con msg rConvOrSubId = do
   flip unless (throwS @'ConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) ((.conv) <$> rConvOrSubId)
 
   resp <-
-    runFederated rConvOrSubId $
+    runFederated rConvOrSubId $ \_version ->
       fedClient @'Galley @"send-mls-message" $
         MLSMessageSendRequest
           { convOrSubId = tUnqualified rConvOrSubId,

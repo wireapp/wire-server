@@ -33,6 +33,7 @@ import Polysemy.TinyLog
 import UnliftIO
 import Wire.API.Federation.Client
 import Wire.API.Federation.Error
+import Wire.API.Federation.Version
 
 interpretFederatorAccess ::
   ( Member (Embed IO) r,
@@ -63,7 +64,7 @@ interpretFederatorAccess = interpret $ \case
 
 runFederatedEither ::
   Remote x ->
-  FederatorClient c a ->
+  (Version -> FederatorClient c a) ->
   App (Either FederationError a)
 runFederatedEither (tDomain -> remoteDomain) rpc = do
   ownDomain <- view (options . settings . federationDomain)
@@ -85,7 +86,7 @@ runFederatedEither (tDomain -> remoteDomain) rpc = do
 
 runFederated ::
   Remote x ->
-  FederatorClient c a ->
+  (Version -> FederatorClient c a) ->
   App a
 runFederated dom rpc =
   runFederatedEither dom rpc
@@ -96,7 +97,7 @@ runFederatedConcurrently ::
     Functor f
   ) =>
   f (Remote a) ->
-  (Remote [a] -> FederatorClient c b) ->
+  (Remote [a] -> Version -> FederatorClient c b) ->
   App [Remote b]
 runFederatedConcurrently xs rpc =
   pooledForConcurrentlyN 8 (bucketRemote xs) $ \r ->
@@ -105,7 +106,7 @@ runFederatedConcurrently xs rpc =
 runFederatedConcurrentlyEither ::
   (Foldable f, Functor f) =>
   f (Remote a) ->
-  (Remote [a] -> FederatorClient c b) ->
+  (Remote [a] -> Version -> FederatorClient c b) ->
   App [Either (Remote [a], FederationError) (Remote b)]
 runFederatedConcurrentlyEither xs rpc =
   pooledForConcurrentlyN 8 (bucketRemote xs) $ \r ->
@@ -114,7 +115,7 @@ runFederatedConcurrentlyEither xs rpc =
 runFederatedConcurrentlyBucketsEither ::
   (Foldable f) =>
   f (Remote x) ->
-  (Remote x -> FederatorClient c b) ->
+  (Remote x -> Version -> FederatorClient c b) ->
   App [Either (Remote x, FederationError) (Remote b)]
 runFederatedConcurrentlyBucketsEither xs rpc =
   pooledForConcurrentlyN 8 (toList xs) $ \r ->

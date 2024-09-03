@@ -72,6 +72,6 @@ checkMigrationCriteria now conv ws
     remoteUsersMigrated = ApAll $ do
       remoteProfiles <- fmap (foldMap tUnqualified)
         . runFederatedConcurrently (map rmId conv.mcRemoteMembers)
-        $ \ruids ->
+        $ \ruids _version ->
           fedClient @'Brig @"get-users-by-ids" (tUnqualified ruids)
       pure $ all (containsMLS . profileSupportedProtocols) remoteProfiles

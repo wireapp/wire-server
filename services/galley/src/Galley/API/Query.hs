@@ -95,6 +95,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
+import Wire.API.Federation.Version qualified as Fed
 import Wire.API.Provider.Bot qualified as Public
 import Wire.API.Routes.MultiTablePaging qualified as Public
 import Wire.API.Team.Feature as Public
@@ -252,8 +253,8 @@ getRemoteConversationsWithFailures lusr convs = do
         | otherwise = [failedGetConversationLocally (map tUntagged locallyNotFound)]
 
   -- request conversations from remote backends
-  let rpc :: GetConversationsRequest -> FederatorClient 'Galley GetConversationsResponse
-      rpc = fedClient @'Galley @"get-conversations"
+  let rpc :: GetConversationsRequest -> Fed.Version -> FederatorClient 'Galley GetConversationsResponse
+      rpc req _version = fedClient @'Galley @"get-conversations" req
   resp <-
     E.runFederatedConcurrentlyEither locallyFound $ \someConvs ->
       rpc $ GetConversationsRequest (tUnqualified lusr) (tUnqualified someConvs)
@@ -785,7 +786,7 @@ getRemoteMLSOne2OneConversation lself qother rconv = do
       else throw (InternalErrorWithDescription "Unexpected 1-1 conversation domain")
 
   resp <-
-    E.runFederated rconv $
+    E.runFederated rconv $ \_version ->
       fedClient @'Galley @"get-one2one-conversation" $
         GetOne2OneConversationRequest (tUnqualified lself) (tUnqualified rother)
   case resp of

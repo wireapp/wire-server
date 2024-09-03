@@ -840,13 +840,13 @@ registerRemoteConversationMemberships now lusr lc = deleteOnUnreachable $ do
 
   -- ping involved remote backends
   void . (ensureNoUnreachableBackends =<<) $
-    runFederatedConcurrentlyEither allRemoteMembersQualified $ \_ ->
+    runFederatedConcurrentlyEither allRemoteMembersQualified $ \_ _ ->
       void $ fedClient @'Brig @"api-version" ()
 
   void . (ensureNoUnreachableBackends =<<) $
     -- let remote backends know about a subset of new joiners
     runFederatedConcurrentlyEither allRemoteMembersQualified $
-      \rrms ->
+      \rrms _version ->
         fedClient @'Galley @"on-conversation-created"
           ( rc
               { nonCreatorMembers =
