@@ -1,7 +1,9 @@
 module API.Spar where
 
 import API.Common (defPassword)
+import Data.String.Conversions.Monomorphic (fromLT)
 import GHC.Stack
+import qualified SAML2.WebSSO as SAML
 import Testlib.Prelude
 
 -- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/get_scim_auth_tokens
@@ -37,3 +39,11 @@ updateScimUser domain scimToken userId scimUser = do
   submit "PUT" $ req
     & addJSON body . addHeader "Authorization" ("Bearer " <> scimToken)
     & addHeader "Accept" "application/scim+json"
+
+createIdp :: (HasCallStack, MakesValue user) => user -> SAML.IdPMetadata -> App Response
+createIdp user metadata = do
+  req <- baseRequest user Spar Unversioned "/identity-providers"
+  submit "POST" $ req
+    & addQueryParams [("api_version", "v2")]
+    & addXML (fromLT $ SAML.encode metadata)
+    & addHeader "Content-Type" "application/xml"

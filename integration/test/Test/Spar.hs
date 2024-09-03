@@ -5,14 +5,11 @@ module Test.Spar where
 import qualified API.Brig as Brig
 import API.BrigInternal as BrigInternal
 import API.Common (randomEmail, randomExternalId, randomHandle)
+import API.GalleyInternal (setTeamFeatureStatus)
 import API.Spar
 import Control.Concurrent (threadDelay)
 import Data.Vector (fromList)
 import qualified Data.Vector as Vector
-import SAML2.WebSSO as SAML hiding ((<$$>))
-import qualified SAML2.WebSSO.API.Example as SAML
-import SAML2.WebSSO.Test.Lenses (userRefL)
-import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
 import SetupHelpers
 import Testlib.JSON
@@ -40,29 +37,111 @@ testSparUserCreationInvitationTimeout = do
 
 testSparExternalIdDifferentFromEmailWithIdp :: (HasCallStack) => App ()
 testSparExternalIdDifferentFromEmailWithIdp = do
-  (_owner, _tid, _) <- createTeam OwnDomain 1
-  pure ()
+  (owner, tid, _) <- createTeam OwnDomain 1
+  void $ setTeamFeatureStatus owner tid "sso" "enabled"
+  void $ registerTestIdPWithMeta owner >>= getJSON 201
+  tok <- createScimToken owner >>= getJSON 200 >>= (%. "token") >>= asString
+  email <- randomEmail
+  extId <- randomExternalId
+  scimUser <- randomScimUserWith extId email
+  userId <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+  activateEmail OwnDomain email
+  bindResponse (findUsersByExternalId OwnDomain tok extId) $ \res -> do
+    res.status `shouldMatchInt` 200
+    u <- res.json %. "Resources" >>= asList >>= assertOne
+    u %. "externalId" `shouldMatch` extId
+    (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` email
+  bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
+    res.status `shouldMatchInt` 200
+    u <- res.json >>= asList >>= assertOne
+    u %. "email" `shouldMatch` email
+    subject <- u %. "sso_id.subject" >>= asString
+    subject `shouldContainString` extId
+    u %. "handle" `shouldMatch` (scimUser %. "userName")
 
--- | Call 'registerTestIdP', then 'registerScimToken'.  The user returned is the owner of the team;
--- the IdP is registered with the team; the SCIM token can be used to manipulate the team.
-registerIdPAndScimToken :: (HasCallStack, MakesValue owner) => owner -> App ()
-registerIdPAndScimToken owner = do
-  idp <- registerTestIdPWithMeta owner
-  pure ()
+  -- Verify that updating the scim user works
+  scimUserWith1Update <- do
+    newHandle <- randomHandle
+    updatedScimUser <- setField "userName" newHandle scimUser
+    bindResponse (updateScimUser OwnDomain tok userId updatedScimUser) $ \res -> do
+      res.status `shouldMatchInt` 200
+      res.json %. "userName" `shouldMatch` newHandle
+    bindResponse (findUsersByExternalId OwnDomain tok extId) $ \res -> do
+      res.status `shouldMatchInt` 200
+      u <- res.json %. "Resources" >>= asList >>= assertOne
+      u %. "externalId" `shouldMatch` extId
+      (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` email
+    bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
+      res.status `shouldMatchInt` 200
+      u <- res.json >>= asList >>= assertOne
+      u %. "handle" `shouldMatch` newHandle
+    pure updatedScimUser
 
--- token <- registerScimToken teamid (Just (idp ^. idpId))
--- let team = (owner, teamid, idp)
--- pure (token, team)
+  -- Verify that updating the user's external ID works
+  scimUserWith2Updates <- do
+    newExtId <- randomExternalId
+    updatedScimUser <- setField "externalId" newExtId scimUserWith1Update
+    bindResponse (updateScimUser OwnDomain tok userId updatedScimUser) $ \res -> do
+      res.status `shouldMatchInt` 200
+      res.json %. "externalId" `shouldMatch` newExtId
+    bindResponse (findUsersByExternalId OwnDomain tok newExtId) $ \res -> do
+      res.status `shouldMatchInt` 200
+      u <- res.json %. "Resources" >>= asList >>= assertOne
+      u %. "externalId" `shouldMatch` newExtId
+      (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` email
+    bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
+      res.status `shouldMatchInt` 200
+      u <- res.json >>= asList >>= assertOne
+      u %. "email" `shouldMatch` email
+      subject <- u %. "sso_id.subject" >>= asString
+      subject `shouldContainString` newExtId
+    bindResponse (findUsersByExternalId OwnDomain tok extId) $ \res -> do
+      res.json %. "totalResults" `shouldMatchInt` 0
+      res.json %. "Resources" `shouldMatch` ([] :: [Value])
+    pure updatedScimUser
 
--- | Create a fresh 'IdPMetadata' suitable for testing.
-registerTestIdPWithMeta :: (HasCallStack, MakesValue owner) => owner -> App (Value, (Value, String))
+  -- Verify that updating the user's email works
+  do
+    let oldEmail = email
+    newEmail <- randomEmail
+    updatedScimUser <- setField "emails" (Array (Vector.fromList [object ["value" .= newEmail]])) scimUserWith2Updates
+    currentExtId <- updatedScimUser %. "externalId" >>= asString
+    bindResponse (updateScimUser OwnDomain tok userId updatedScimUser) $ \res -> do
+      res.status `shouldMatchInt` 200
+
+    -- before activation the old email should still be present
+    bindResponse (findUsersByExternalId OwnDomain tok currentExtId) $ \res -> do
+      res.status `shouldMatchInt` 200
+      u <- res.json %. "Resources" >>= asList >>= assertOne
+      u %. "externalId" `shouldMatch` currentExtId
+      -- TODO(fisx, leif): here the SCIM+SAML case differs from the only SCIM case
+      -- the email is not updated in the SCIM API, yet, before activation
+      (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` oldEmail
+    bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
+      res.status `shouldMatchInt` 200
+      u <- res.json >>= asList >>= assertOne
+      u %. "email" `shouldMatch` oldEmail
+      subject <- u %. "sso_id.subject" >>= asString
+      subject `shouldContainString` currentExtId
+
+    -- after activation the new email should be present
+    activateEmail OwnDomain newEmail
+    bindResponse (findUsersByExternalId OwnDomain tok currentExtId) $ \res -> do
+      res.status `shouldMatchInt` 200
+      u <- res.json %. "Resources" >>= asList >>= assertOne
+      u %. "externalId" `shouldMatch` currentExtId
+      (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` newEmail
+    bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
+      res.status `shouldMatchInt` 200
+      u <- res.json >>= asList >>= assertOne
+      u %. "email" `shouldMatch` newEmail
+      subject <- u %. "sso_id.subject" >>= asString
+      subject `shouldContainString` currentExtId
+
+registerTestIdPWithMeta :: (HasCallStack, MakesValue owner) => owner -> App Response
 registerTestIdPWithMeta owner = do
-  SampleIdP idpmeta privkey _ _ <- makeSampleIdPMetadata
-  undefined
-
--- env <- ask
--- idp <- registerTestIdPFrom idpmeta (env ^. teMgr) owner (env ^. teSpar)
--- pure (idp, (IdPMetadataValue (cs $ SAML.encode idpmeta) idpmeta, privkey))
+  SampleIdP idpmeta _ _ _ <- makeSampleIdPMetadata
+  createIdp owner idpmeta
 
 testSparExternalIdDifferentFromEmail :: (HasCallStack) => App ()
 testSparExternalIdDifferentFromEmail = do
@@ -135,12 +214,13 @@ testSparExternalIdDifferentFromEmail = do
     bindResponse (updateScimUser OwnDomain tok userId updatedScimUser) $ \res -> do
       res.status `shouldMatchInt` 200
 
-    -- before activation the old email should still be present
+    -- before activation the new email should be returned by the SCIM API
     bindResponse (findUsersByExternalId OwnDomain tok currentExtId) $ \res -> do
       res.status `shouldMatchInt` 200
       u <- res.json %. "Resources" >>= asList >>= assertOne
       u %. "externalId" `shouldMatch` currentExtId
       (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` newEmail
+    -- however brig should still return the old email
     bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
       res.status `shouldMatchInt` 200
       u <- res.json >>= asList >>= assertOne
