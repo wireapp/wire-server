@@ -28,9 +28,7 @@ interpretActivationCodeStoreToCassandra casClient =
 
 mkActivationKey :: EmailKey -> IO ActivationKey
 mkActivationKey k = do
-  d <-
-    maybe (fail "mkActivationKey: SHA256 not found") pure
-      =<< getDigestByName "SHA256"
+  Just d <- getDigestByName "SHA256"
   pure do
     ActivationKey
       . Ascii.encodeBase64Url

@@ -397,7 +397,6 @@ headInvitationByEmail email =
               . Log.field "email" (show email)
           pure Public.InvitationByEmailMoreThanOne
 
--- Store.InvitationByEmail _ -> Public.InvitationByEmail
 
 -- | FUTUREWORK: This should also respond with status 409 in case of
 -- @DB.InvitationByEmailMoreThanOne@.  Refactor so that 'headInvitationByEmailH' and

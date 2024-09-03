@@ -59,11 +59,11 @@ data GetBy = MkGetBy
     includePendingInvitations :: !Bool,
     -- | whether or not to include users with unverified identities
     includePendingActivations :: !Bool,
-    -- | get accounds by 'UserId's
+    -- | get accounts by 'UserId's
     getByUserIds :: ![UserId],
-    -- | get accounds by 'Email's
+    -- | get accounts by 'Email's
     getByEmail :: ![EmailAddress],
-    -- | get accounds by their 'Handle'
+    -- | get accounts by their 'Handle'
     getByHandle :: ![Handle]
   }
   deriving stock (Eq, Ord, Show, Generic)
