@@ -59,6 +59,7 @@
 , regex-base
 , regex-tdfa
 , retry
+, saml2-web-sso
 , scientific
 , split
 , stm
@@ -151,6 +152,7 @@ mkDerivation {
     regex-base
     regex-tdfa
     retry
+    saml2-web-sso
     scientific
     split
     stm
