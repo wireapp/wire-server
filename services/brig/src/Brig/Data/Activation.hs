@@ -29,16 +29,13 @@ module Brig.Data.Activation
   )
 where
 
-import Brig.App (AppT, adhocUserKeyStoreInterpreter, liftSem, settings, wrapClient, wrapClientE)
+import Brig.App (AppT, adhocUserKeyStoreInterpreter, liftSem, qualifyLocal, wrapClient, wrapClientE)
 import Brig.Data.User
-import Brig.Options qualified as Opt
 import Brig.Types.Intra
 import Cassandra
 import Control.Error
-import Control.Lens ((^.))
 import Data.Code
 import Data.Id
-import Data.Qualified
 import Data.Text (pack)
 import Data.Text.Ascii qualified as Ascii
 import Data.Text.Encoding qualified as T
@@ -83,6 +80,7 @@ activationErrorToRegisterError = \case
 data ActivationEvent
   = AccountActivated !UserAccount
   | EmailActivated !UserId !EmailAddress
+  deriving (Show)
 
 -- | Max. number of activation attempts per 'ActivationKey'.
 maxAttempts :: Int32
@@ -104,8 +102,8 @@ activateKey k c u = wrapClientE (verifyCode k c) >>= pickUser >>= activate
 
     activate :: (EmailKey, UserId) -> ExceptT ActivationError (AppT r) (Maybe ActivationEvent)
     activate (key, uid) = do
-      dom <- lift $ asks (^. settings . Opt.federationDomain)
-      a <- lift (liftSem $ User.getLocalUserAccount (toLocalUnsafe dom uid)) >>= maybe (throwE invalidUser) pure
+      luid <- qualifyLocal uid
+      a <- lift (liftSem $ User.getLocalUserAccountUnverified luid) >>= maybe (throwE invalidUser) pure
       unless (accountStatus a == Active) $ -- this is never 'PendingActivation' in the flow this function is used in.
         throwE invalidCode
       case userIdentity (accountUser a) of

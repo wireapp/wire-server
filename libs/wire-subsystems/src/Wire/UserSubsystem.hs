@@ -55,8 +55,10 @@ instance Default UserProfileUpdate where
 
 -- | how to get an account for a user
 data GetBy = MkGetBy
-  { -- | whether or not to include ending invitations in the lookups }
+  { -- | whether or not to include ending invitations in the lookups
     includePendingInvitations :: !Bool,
+    -- | whether or not to include users with unverified identities
+    includePendingActivations :: !Bool,
     -- | get accounds by 'UserId's
     getByUserIds :: ![UserId],
     -- | get accounds by 'Email's
@@ -68,7 +70,7 @@ data GetBy = MkGetBy
   deriving (Arbitrary) via GenericUniform GetBy
 
 instance Default GetBy where
-  def = MkGetBy False [] [] []
+  def = MkGetBy False False [] [] []
 
 data UserSubsystem m a where
   -- | First arg is for authorization only.
@@ -114,6 +116,17 @@ getUserProfile luid targetUser =
 getLocalUserProfile :: (Member UserSubsystem r) => Local UserId -> Sem r (Maybe UserProfile)
 getLocalUserProfile targetUser =
   listToMaybe <$> getLocalUserProfiles ((: []) <$> targetUser)
+
+getLocalUserAccountUnverified :: (Member UserSubsystem r) => Local UserId -> Sem r (Maybe UserAccount)
+getLocalUserAccountUnverified uid =
+  listToMaybe
+    <$> getAccountsBy
+      ( qualifyAs uid $
+          def
+            { includePendingActivations = True,
+              getByUserIds = [tUnqualified uid]
+            }
+      )
 
 getLocalUserAccount :: (Member UserSubsystem r) => Local UserId -> Sem r (Maybe UserAccount)
 getLocalUserAccount uid =

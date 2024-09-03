@@ -69,6 +69,7 @@ data ActivationResult
     ActivationSuccess !(Maybe UserIdentity) !Bool
   | -- | The key/code was valid but already recently activated.
     ActivationPass
+  deriving (Show)
 
 -- | Outcome of the invariants check in 'Brig.API.User.changeEmail'.
 data ChangeEmailResult
@@ -76,6 +77,7 @@ data ChangeEmailResult
     ChangeEmailNeedsActivation !(User, Activation, EmailAddress)
   | -- | The user asked to change the email address to the one already owned
     ChangeEmailIdempotent
+  deriving (Show)
 
 -------------------------------------------------------------------------------
 -- Failures

@@ -296,7 +296,7 @@ createUser new = do
     lift $
       join <$> for mbInv do
         \invid -> liftSem $ do
-          luid <- qualifyLocal' (coerce invid)
+          luid :: Local UserId <- qualifyLocal' (coerce invid)
           User.getLocalUserAccount luid
 
   let (new', mbHandle) = case mbExistingAccount of
