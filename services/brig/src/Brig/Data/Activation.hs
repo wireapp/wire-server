@@ -136,6 +136,7 @@ activateKey k c u = wrapClientE (verifyCode k c) >>= pickUser >>= activate
           pure . Just $ EmailActivated uid (emailKeyOrig key)
       -- if the key is the same, we only want to update our profile
       | otherwise = do
+          -- Temporary measure until we create AuthSubsystem
           wrapClientE (codeDeleteImpl (mkPasswordResetKey uid))
           claim key uid
           lift $ updateEmailAndDeleteEmailUnvalidated uid (emailKeyOrig key)

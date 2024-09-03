@@ -115,7 +115,8 @@ import Wire.Sem.Concurrency
 import Wire.Sem.FromUTC (FromUTC (fromUTCTime))
 import Wire.Sem.Now as Now
 import Wire.Sem.Paging.Cassandra (InternalPaging)
-import Wire.UserSubsystem
+import Wire.UserSubsystem (UserSubsystem)
+import Wire.UserSubsystem qualified as User
 import Wire.VerificationCodeSubsystem (VerificationCodeSubsystem)
 
 lookupLocalClient :: UserId -> ClientId -> (AppT r) (Maybe Client)
@@ -202,7 +203,7 @@ addClientWithReAuthPolicy ::
   NewClient ->
   ExceptT ClientError (AppT r) Client
 addClientWithReAuthPolicy policy luid@(tUnqualified -> u) con new = do
-  usr <- (lift . liftSem $ getLocalUserAccount luid) >>= maybe (throwE (ClientUserNotFound u)) (pure . (.accountUser))
+  usr <- (lift . liftSem $ User.getLocalUserAccount luid) >>= maybe (throwE (ClientUserNotFound u)) (pure . (.accountUser))
   verifyCode (newClientVerificationCode new) luid
   maxPermClients <- fromMaybe Opt.defUserMaxPermClients . Opt.setUserMaxPermClients <$> view settings
   let caps :: Maybe (Set ClientCapability)

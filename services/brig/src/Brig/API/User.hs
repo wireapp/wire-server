@@ -112,7 +112,7 @@ import Data.UUID.V4 (nextRandom)
 import Imports hiding (local)
 import Network.Wai.Utilities
 import Polysemy
-import Polysemy.Input (Input, input)
+import Polysemy.Input (Input)
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import Prometheus qualified as Prom
@@ -293,8 +293,12 @@ createUser new = do
       Nothing ->
         pure (Nothing, Nothing, Nothing)
   let mbInv = (.invitationId) . fst <$> teamInvitation
-  local :: Local () <- lift $ liftSem input
-  mbExistingAccount <- lift $ join <$> for mbInv (\someId -> liftSem $ User.getLocalUserAccount (qualifyAs local $ coerce someId))
+  mbExistingAccount <-
+    lift $
+      join <$> for mbInv do
+        \invid -> liftSem $ do
+          luid <- qualifyLocal' (coerce invid)
+          User.getLocalUserAccount luid
 
   let (new', mbHandle) = case mbExistingAccount of
         Nothing ->
@@ -874,7 +878,6 @@ deleteSelfUser ::
     Member (Embed HttpClientIO) r,
     Member UserKeyStore r,
     Member NotificationSubsystem r,
-    -- TODO: maybe delete?
     Member (Input (Local ())) r,
     Member PasswordStore r,
     Member UserStore r,
@@ -965,8 +968,8 @@ verifyDeleteUser d = do
   let code = verifyDeleteUserCode d
   c <- lift . liftSem $ verifyCode key VerificationCode.AccountDeletion code
   a <- maybe (throwE DeleteUserInvalidCode) pure (VerificationCode.codeAccount =<< c)
-  local :: Local () <- lift . liftSem $ input
-  account <- lift . liftSem $ User.getLocalUserAccount (qualifyAs local $ Id a)
+  luid <- qualifyLocal $ Id a
+  account <- lift . liftSem $ User.getLocalUserAccount luid
   for_ account $ lift . liftSem . deleteAccount
   lift . liftSem $ deleteCode key VerificationCode.AccountDeletion
 

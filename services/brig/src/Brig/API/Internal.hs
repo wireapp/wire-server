@@ -282,6 +282,8 @@ authAPI =
   Named @"legalhold-login" (callsFed (exposeAnnotations legalHoldLogin))
     :<|> Named @"sso-login" (callsFed (exposeAnnotations ssoLogin))
     :<|> Named @"login-code" getLoginCode
+    -- We qualify in place to avoid changing the internal API too much
+    -- FUTUREWORK?
     :<|> Named @"reauthenticate" (\uid reauth -> qualifyLocal uid >>= \luid -> reauthenticate luid reauth)
 
 federationRemotesAPI :: (Member FederationConfigStore r) => ServerT BrigIRoutes.FederationRemotesAPI (Handler r)

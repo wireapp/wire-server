@@ -81,7 +81,8 @@ import Wire.PasswordStore (PasswordStore)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserKeyStore
 import Wire.UserStore
-import Wire.UserSubsystem
+import Wire.UserSubsystem (UserSubsystem)
+import Wire.UserSubsystem qualified as User
 import Wire.VerificationCode qualified as VerificationCode
 import Wire.VerificationCodeGen qualified as VerificationCodeGen
 import Wire.VerificationCodeSubsystem (VerificationCodeSubsystem)
@@ -139,7 +140,7 @@ verifyCode mbCode action luid = do
   featureEnabled <- lift $ do
     mbFeatureEnabled <- liftSem $ GalleyAPIAccess.getVerificationCodeEnabled `traverse` mbTeamId
     pure $ fromMaybe ((def @(Feature Public.SndFactorPasswordChallengeConfig)).status == Public.FeatureStatusEnabled) mbFeatureEnabled
-  account <- lift . liftSem $ getLocalUserAccount luid
+  account <- lift . liftSem $ User.getLocalUserAccount luid
   let isSsoUser = maybe False Data.isSamlUser ((.accountUser) <$> account)
   when (featureEnabled && not isSsoUser) $ do
     case (mbCode, mbEmail) of
@@ -155,7 +156,7 @@ verifyCode mbCode action luid = do
       Local UserId ->
       ExceptT e (AppT r) (Maybe EmailAddress, Maybe TeamId)
     getEmailAndTeamId u = do
-      mbAccount <- lift . liftSem $ getLocalUserAccount u
+      mbAccount <- lift . liftSem $ User.getLocalUserAccount u
       pure (userEmail <$> accountUser =<< mbAccount, userTeam <$> accountUser =<< mbAccount)
 
 loginFailedWith :: (MonadClient m, MonadReader Env m) => LoginError -> UserId -> ExceptT LoginError m ()
@@ -233,7 +234,7 @@ revokeAccess ::
 revokeAccess luid@(tUnqualified -> u) pw cc ll = do
   lift . liftSem $ Log.debug $ field "user" (toByteString u) . field "action" (val "User.revokeAccess")
   isSaml <- lift . liftSem $ do
-    account <- getLocalUserAccount luid
+    account <- User.getLocalUserAccount luid
     pure $ maybe False Data.isSamlUser ((.accountUser) <$> account)
   unless isSaml $ Data.authenticate u pw
   lift $ wrapHttpClient $ revokeCookies u cc ll
@@ -331,7 +332,7 @@ isPendingActivation ident = case ident of
         Nothing -> pure False
         Just usr -> liftSem do
           lusr <- qualifyLocal' usr
-          maybe False (checkAccount k) <$> getLocalUserAccount lusr
+          maybe False (checkAccount k) <$> User.getLocalUserAccount lusr
 
     checkAccount :: EmailKey -> UserAccount -> Bool
     checkAccount k a =

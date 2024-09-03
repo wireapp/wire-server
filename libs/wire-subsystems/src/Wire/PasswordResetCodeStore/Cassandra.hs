@@ -19,6 +19,7 @@
 module Wire.PasswordResetCodeStore.Cassandra
   ( passwordResetCodeStoreToCassandra,
     interpretClientToIO,
+    -- Temporary measure until we create AuthSubsystem
     codeDeleteImpl,
   )
 where

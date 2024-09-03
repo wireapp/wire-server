@@ -202,7 +202,7 @@ createAccessTokenWithRefreshToken req = do
   unless (req.grantType == OAuthGrantTypeRefreshToken) $ throwStd $ errorToWai @'OAuthInvalidGrantType
   key <- signingKey
   (OAuthRefreshTokenInfo _ cid uid scope _) <- lookupVerifyAndDeleteToken key req.refreshToken
-  let luid = undefined uid
+  luid <- qualifyLocal uid
   void $ getOAuthClient luid cid >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
   unless (cid == req.clientId) $ throwStd $ errorToWai @'OAuthInvalidClientCredentials
   createAccessToken key uid cid scope
@@ -228,7 +228,7 @@ createAccessTokenWithAuthorizationCode req = do
   (cid, uid, scope, uri, mChal) <-
     lift (wrapClient $ lookupAndDeleteByOAuthAuthorizationCode req.code)
       >>= maybe (throwStd $ errorToWai @'OAuthAuthorizationCodeNotFound) pure
-  let luid = undefined uid
+  luid <- qualifyLocal uid
   oauthClient <- getOAuthClient luid req.clientId >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
 
   unless (uri == req.redirectUri) $ throwStd $ errorToWai @'OAuthRedirectUrlMissMatch
@@ -308,7 +308,7 @@ revokeRefreshToken :: (Member Jwk r) => OAuthRevokeRefreshTokenRequest -> (Handl
 revokeRefreshToken req = do
   key <- signingKey
   info <- lookupAndVerifyToken key req.refreshToken
-  let luid = undefined info.userId
+  luid <- qualifyLocal info.userId
   void $ getOAuthClient luid info.clientId >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
   lift $ wrapClient $ deleteOAuthRefreshToken info.userId info.refreshTokenId
 

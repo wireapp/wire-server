@@ -395,15 +395,6 @@ lookupUsers hpi usrs = do
   domain <- viewFederationDomain
   toUsers domain loc hpi <$> retry x1 (query usersSelect (params LocalQuorum (Identity usrs)))
 
--- lookupAccount :: (MonadClient m, MonadReader Env m) => UserId -> m (Maybe UserAccount)
--- lookupAccount u = listToMaybe <$> lookupAccounts [u]
---
--- lookupAccounts :: (MonadClient m, MonadReader Env m) => [UserId] -> m [UserAccount]
--- lookupAccounts usrs = do
---   loc <- setDefaultUserLocale <$> view settings
---   domain <- viewFederationDomain
---   fmap (toUserAccount domain loc) <$> retry x1 (query accountsSelect (params LocalQuorum (Identity usrs)))
-
 lookupServiceUser :: (MonadClient m) => ProviderId -> ServiceId -> BotId -> m (Maybe (ConvId, Maybe TeamId))
 lookupServiceUser pid sid bid = retry x1 (query1 cql (params LocalQuorum (pid, sid, bid)))
   where
