@@ -83,7 +83,6 @@ import Data.Qualified
 import Data.Set qualified as Set
 import Data.Text.Encoding qualified as T
 import Data.Text.Encoding.Error
-import Data.Time.Clock (UTCTime)
 import Imports
 import Network.HTTP.Types.Method (StdMethod)
 import Network.Wai.Utilities

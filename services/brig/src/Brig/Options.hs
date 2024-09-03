@@ -32,6 +32,7 @@ import Control.Lens qualified as Lens
 import Data.Aeson
 import Data.Aeson.Types qualified as A
 import Data.Char qualified as Char
+import Data.Code
 import Data.Code qualified as Code
 import Data.Default
 import Data.Domain (Domain (..))
@@ -49,7 +50,6 @@ import Network.AMQP.Extended
 import Network.DNS qualified as DNS
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
-import Util.Timeout
 import Wire.API.Allowlists (AllowlistEmailDomains (..))
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Version

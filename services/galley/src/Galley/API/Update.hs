@@ -83,7 +83,6 @@ import Data.Misc (HttpsUrl)
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Singletons
-import Data.Time
 import Galley.API.Action
 import Galley.API.Error
 import Galley.API.Mapping

@@ -63,7 +63,6 @@ import Data.OpenApi hiding (Operation)
 import Data.Proxy
 import Data.Text qualified as T
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
-import Data.Time.Clock (UTCTime)
 import Imports
 import SAML2.WebSSO qualified as SAML
 import SAML2.WebSSO.Test.Arbitrary ()

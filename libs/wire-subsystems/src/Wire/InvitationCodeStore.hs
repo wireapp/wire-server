@@ -21,6 +21,7 @@
 module Wire.InvitationCodeStore where
 
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT, runMaybeT))
+import Data.Code
 import Data.Id (InvitationId, TeamId, UserId)
 import Data.Json.Util (UTCTimeMillis)
 import Data.Range (Range)
@@ -30,7 +31,6 @@ import Polysemy
 import Polysemy.TinyLog (TinyLog)
 import System.Logger.Message qualified as Log
 import URI.ByteString
-import Util.Timeout
 import Wire.API.Team.Invitation (Invitation (inviteeEmail))
 import Wire.API.Team.Invitation qualified as Public
 import Wire.API.Team.Role (Role, defaultRole)
@@ -57,7 +57,6 @@ data StoredInvitationInfo = MkStoredInvitationInfo
   { teamId :: TeamId,
     invitationId :: InvitationId,
     code :: InvitationCode
-    -- TODO(mangoiv): maybe we can drop this last element
   }
   deriving (Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform StoredInvitationInfo)

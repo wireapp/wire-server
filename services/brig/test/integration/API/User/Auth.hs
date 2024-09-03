@@ -40,6 +40,7 @@ import Data.Aeson as Aeson hiding (json)
 import Data.ByteString qualified as BS
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as Lazy
+import Data.Code (Timeout (..))
 import Data.Handle (parseHandle)
 import Data.Id
 import Data.Misc (PlainTextPassword6, plainTextPassword6, plainTextPassword6Unsafe)
@@ -60,7 +61,6 @@ import Test.Tasty.HUnit
 import Test.Tasty.HUnit qualified as HUnit
 import UnliftIO.Async hiding (wait)
 import Util
-import Util.Timeout
 import Wire.API.Conversation (Conversation (..))
 import Wire.API.Password (Password, mkSafePasswordScrypt)
 import Wire.API.User as Public
@@ -1046,7 +1046,7 @@ testSuspendInactiveUsers config brig cookieType endPoint = do
       <!! const 200 === statusCode
   let cky = decodeCookie rs
   -- wait slightly longer than required for being marked as inactive.
-  let waitTime :: Int = floor (timeoutDiff suspendAge) + 5 -- adding 1 *should* be enough, but it's not.
+  let waitTime :: Int = floor (timeoutDiffTime suspendAge) + 5 -- adding 1 *should* be enough, but it's not.
   liftIO $ threadDelay (1000000 * waitTime)
   case endPoint of
     "/access" -> do

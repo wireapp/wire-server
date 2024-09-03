@@ -29,6 +29,7 @@ import Brig.Data.Connection (remoteConnectionInsert)
 import Cassandra qualified as DB
 import Control.Arrow ((&&&))
 import Data.ByteString.Conversion
+import Data.Code
 import Data.Domain
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
@@ -39,7 +40,6 @@ import Network.Wai.Utilities.Error qualified as Error
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
 import Util
-import Util.Timeout
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Federation.API.Brig

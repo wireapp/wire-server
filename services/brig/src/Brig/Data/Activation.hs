@@ -36,6 +36,7 @@ import Brig.Types.Intra
 import Cassandra
 import Control.Error
 import Control.Lens ((^.))
+import Data.Code
 import Data.Id
 import Data.Qualified
 import Data.Text (pack)
@@ -47,7 +48,6 @@ import OpenSSL.BN (randIntegerZeroToNMinusOne)
 import OpenSSL.EVP.Digest (digestBS, getDigestByName)
 import Polysemy
 import Text.Printf (printf)
-import Util.Timeout
 import Wire.API.User
 import Wire.API.User.Activation
 import Wire.API.User.Password

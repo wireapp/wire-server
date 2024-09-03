@@ -48,16 +48,15 @@ import Control.Error
 import Control.Lens (to, view)
 import Control.Monad.Except
 import Data.ByteString.Conversion
+import Data.Code
 import Data.Id
 import Data.List qualified as List
 import Data.Proxy
 import Data.RetryAfter
-import Data.Time.Clock
 import Imports
 import Prometheus qualified as Prom
 import System.Logger.Class (field, msg, val, (~~))
 import System.Logger.Class qualified as Log
-import Util.Timeout
 import Web.Cookie qualified as WebCookie
 import Wire.API.User.Auth
 import Wire.SessionStore qualified as Store

@@ -35,6 +35,7 @@ import Control.Monad.Catch (MonadCatch)
 import Data.Aeson
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
+import Data.Code
 import Data.Default (def)
 import Data.Either.Extra (eitherToMaybe)
 import Data.Id
@@ -59,7 +60,6 @@ import URI.ByteString
 import UnliftIO.Async (mapConcurrently_, pooledForConcurrentlyN_, replicateConcurrently)
 import Util
 import Util.AWS as Util
-import Util.Timeout
 import Web.Cookie (parseSetCookie, setCookieName)
 import Wire.API.Asset
 import Wire.API.Connection
