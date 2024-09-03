@@ -56,6 +56,8 @@ install_certs "$TEMP/federation" "$ROOT_DIR/services/nginz/integration-test/conf
     integration-ca integration-ca-key integration-leaf integration-leaf-key
 install_certs "$TEMP/federation" "$ROOT_DIR/deploy/dockerephemeral/federation-v0" \
     integration-ca "" integration-leaf integration-leaf-key
+install_certs "$TEMP/federation" "$ROOT_DIR/deploy/dockerephemeral/federation-v1" \
+    integration-ca "" integration-leaf integration-leaf-key
 
 # elasticsearch
 mkdir -p "$TEMP/es"
