@@ -575,6 +575,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.ConversationCoverView
     Test.Wire.API.Golden.Manual.ConversationEvent
     Test.Wire.API.Golden.Manual.ConversationPagingState
+    Test.Wire.API.Golden.Manual.ConversationProtocol
     Test.Wire.API.Golden.Manual.ConversationRemoveMembers
     Test.Wire.API.Golden.Manual.ConversationsResponse
     Test.Wire.API.Golden.Manual.ConvIdsPage

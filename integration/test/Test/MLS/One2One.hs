@@ -31,6 +31,7 @@ import Notifications
 import SetupHelpers
 import Test.Version
 import Testlib.Prelude
+import Testlib.VersionedFed
 
 testGetMLSOne2OneLocalV5 :: (HasCallStack) => App ()
 testGetMLSOne2OneLocalV5 = withVersion5 Version5 $ do
@@ -390,3 +391,26 @@ testMLSGhostOne2OneConv = do
     createCommit
     liftIO $ putMVar doneVar ()
     wait a
+
+-- 1:1 Conversations shouldn't work with older backends when the conversation is
+-- hosted by the other backend because they do not expose their MLS public keys,
+-- without which removal of clients do not work properly.
+testMLSFederationV1 :: App ()
+testMLSFederationV1 = do
+  alice <- randomUser OwnDomain def
+  bob <- randomUser (StaticFedDomain 1) def
+  -- bob <- createMLSOne2OnePartner (StaticFedDomain 1) alice (StaticFedDomain 1)
+  connectUsers [alice, bob]
+
+  getMLSOne2OneConversation bob alice `bindResponse` \resp -> do
+    fedError <- resp.status `shouldMatchInt` 533
+    fedError %. "label" `shouldMatch` "federation-version-error"
+
+  getMLSOne2OneConversation alice bob `bindResponse` \resp -> do
+    case resp.status of
+      200 -> undefined
+      533 -> do
+       fedError <- getJSON 533 resp
+       fedError %. "label" `shouldMatch` "federation-version-error"
+      _ -> 
+

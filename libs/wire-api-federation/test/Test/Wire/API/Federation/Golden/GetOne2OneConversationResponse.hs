@@ -12,6 +12,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Federation.API.Galley
 import Wire.API.MLS.Keys
+import Wire.API.Routes.Versioned qualified as ClientAPI
 
 testObject_GetOne2OneConversationResponseOk :: GetOne2OneConversationResponse
 testObject_GetOne2OneConversationResponseOk =
@@ -27,7 +28,7 @@ testObject_GetOne2OneConversationResponseV2Ok :: GetOne2OneConversationResponseV
 testObject_GetOne2OneConversationResponseV2Ok =
   GetOne2OneConversationV2Ok $
     RemoteMLSOne2OneConversation
-      { conversation = remoteConversation,
+      { conversation = remoteConversationV2,
         publicKeys =
           MLSKeysByPurpose
             { removal =
@@ -57,6 +58,43 @@ testObject_GetOne2OneConversationResponseV2NotConnected = GetOne2OneConversation
 remoteConversation :: RemoteConversation
 remoteConversation =
   RemoteConversation
+    { id = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000200040001"))),
+      metadata =
+        ConversationMetadata
+          { cnvmType = One2OneConv,
+            cnvmCreator = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000200000001"))),
+            cnvmAccess = [],
+            cnvmAccessRoles = Set.empty,
+            cnvmName = Just " 0",
+            cnvmTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000002"))),
+            cnvmMessageTimer = Nothing,
+            cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -2})
+          },
+      members =
+        RemoteConvMembers
+          { selfRole = roleNameWireAdmin,
+            others =
+              [ OtherMember
+                  { omQualifiedId =
+                      Qualified
+                        (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000200000001")))
+                        (Domain "example.com"),
+                    omService = Nothing,
+                    omConvRoleName = roleNameWireMember
+                  }
+              ]
+          },
+      protocol =
+        ClientAPI.Versioned . ProtocolMLS $
+          ConversationMLSData
+            { cnvmlsGroupId = GroupId "group",
+              cnvmlsActiveData = Nothing
+            }
+    }
+
+remoteConversationV2 :: RemoteConversationV2
+remoteConversationV2 =
+  RemoteConversationV2
     { id = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000200040001"))),
       metadata =
         ConversationMetadata

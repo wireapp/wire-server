@@ -29,6 +29,7 @@ import Servant
 import Servant.API.ContentTypes
 import Servant.OpenApi
 import Servant.OpenApi.Internal
+import Test.QuickCheck (Arbitrary)
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Version
 
@@ -102,6 +103,7 @@ instance
 -- Servant.
 newtype Versioned (v :: Version) a = Versioned {unVersioned :: a}
   deriving (Eq, Show)
+  deriving newtype (Arbitrary)
 
 instance Functor (Versioned v) where
   fmap f (Versioned a) = Versioned (f a)

@@ -97,8 +97,9 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
-import Wire.API.Federation.Client (FederatorClient)
+import Wire.API.Federation.Client (FederatorClient, getNegotiatedVersion)
 import Wire.API.Federation.Error
+import Wire.API.Federation.Version qualified as Federation
 import Wire.API.MLS.Keys
 import Wire.API.Provider.Bot qualified as Public
 import Wire.API.Routes.MultiTablePaging qualified as Public
@@ -241,7 +242,7 @@ getRemoteConversationsWithFailures ::
 getRemoteConversationsWithFailures lusr convs = do
   -- get self member statuses from the database
   statusMap <- E.getRemoteConversationStatus (tUnqualified lusr) convs
-  let remoteView :: Remote RemoteConversation -> Conversation
+  let remoteView :: Remote RemoteConversationV2 -> Conversation
       remoteView rconv =
         Mapping.remoteConversationView
           lusr
@@ -257,8 +258,15 @@ getRemoteConversationsWithFailures lusr convs = do
         | otherwise = [failedGetConversationLocally (map tUntagged locallyNotFound)]
 
   -- request conversations from remote backends
-  let rpc :: GetConversationsRequest -> FederatorClient 'Galley GetConversationsResponse
-      rpc = fedClient @'Galley @"get-conversations"
+  let rpc :: GetConversationsRequest -> FederatorClient 'Galley GetConversationsResponseV2
+      rpc req = do
+        mFedVersion <- getNegotiatedVersion
+        case mFedVersion of
+          Nothing -> error "impossible"
+          Just fedVersion ->
+            if fedVersion < Federation.V2
+              then getConversationsResponseToV2 <$> fedClient @'Galley @"get-conversations@v1" req
+              else fedClient @'Galley @"get-conversations" req
   resp <-
     E.runFederatedConcurrentlyEither locallyFound $ \someConvs ->
       rpc $ GetConversationsRequest (tUnqualified lusr) (tUnqualified someConvs)
@@ -268,8 +276,8 @@ getRemoteConversationsWithFailures lusr convs = do
   where
     handleFailure ::
       (Member P.TinyLog r) =>
-      Either (Remote [ConvId], FederationError) (Remote GetConversationsResponse) ->
-      Sem r (Either FailedGetConversation [Remote RemoteConversation])
+      Either (Remote [ConvId], FederationError) (Remote GetConversationsResponseV2) ->
+      Sem r (Either FailedGetConversation [Remote RemoteConversationV2])
     handleFailure (Left (rcids, e)) = do
       P.warn $
         Logger.msg ("Error occurred while fetching remote conversations" :: ByteString)
@@ -845,19 +853,23 @@ getRemoteMLSOne2OneConversation lself qother rconv = do
       then pure (qualifyAs rconv (qUnqualified qother))
       else throw (InternalErrorWithDescription "Unexpected 1-1 conversation domain")
 
-  -- TODO: This will just explode ungracefully when retrying to talk to V0 or
-  -- V1. Figure out how to fail gracefully.
   resp <-
-    E.runFederated rconv $
-      fedClient @'Galley @"get-one2one-conversation" $
-        GetOne2OneConversationRequest (tUnqualified lself) (tUnqualified rother)
+    E.runFederated rconv $ do
+      negotiatedVersion <- getNegotiatedVersion
+      case negotiatedVersion of
+        Nothing -> error "impossible"
+        Just Federation.V0 -> pure . Left . FederationCallFailure $ FederatorClientVersionNegotiationError RemoteTooOld
+        Just Federation.V1 -> pure . Left . FederationCallFailure $ FederatorClientVersionNegotiationError RemoteTooOld
+        Just _ ->
+          fmap Right . fedClient @'Galley @"get-one2one-conversation" $
+            GetOne2OneConversationRequest (tUnqualified lself) (tUnqualified rother)
   case resp of
-    GetOne2OneConversationV2Ok rc ->
+    Right (GetOne2OneConversationV2Ok rc) ->
       pure (remoteMLSOne2OneConversation lself rother rc)
-    GetOne2OneConversationV2BackendMismatch ->
+    Right GetOne2OneConversationV2BackendMismatch ->
       throw (FederationUnexpectedBody "Backend mismatch when retrieving a remote 1-1 conversation")
-    GetOne2OneConversationV2NotConnected -> throwS @'NotConnected
-    GetOne2OneConversationV2MLSNotEnabled ->
+    Right GetOne2OneConversationV2NotConnected -> throwS @'NotConnected
+    Right GetOne2OneConversationV2MLSNotEnabled ->
       -- This is weird because we do not tell clients which backend doesn't have
       -- MLS enabled, which would nice information for fixing problems in real
       -- world. We do the same thing when sending Welcome messages, so for now,
@@ -865,6 +877,7 @@ getRemoteMLSOne2OneConversation lself qother rconv = do
       --
       -- TODO: Log this at least like in welcome messages
       throwS @'MLSNotEnabled
+    Left e -> throw e
 
 -- | Check if an MLS 1-1 conversation has been established, namely if its epoch
 -- is non-zero. The conversation will only be stored in the database when its

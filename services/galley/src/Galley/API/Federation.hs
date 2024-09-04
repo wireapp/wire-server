@@ -106,6 +106,7 @@ federationSitemap ::
   ServerT FederationAPI (Sem GalleyEffects)
 federationSitemap =
   Named @"on-conversation-created" onConversationCreated
+    :<|> Named @"get-conversations@v1" getConversationsV1
     :<|> Named @"get-conversations" getConversations
     :<|> Named @"leave-conversation" (callsFed (exposeAnnotations leaveConversation))
     :<|> Named @"send-message" (callsFed (exposeAnnotations sendMessage))
@@ -201,17 +202,27 @@ onConversationCreated domain rc = do
     pushConversationEvent Nothing event (qualifyAs loc [qUnqualified . Public.memId $ mem]) []
   pure EmptyResponse
 
-getConversations ::
+getConversationsV1 ::
   ( Member ConversationStore r,
     Member (Input (Local ())) r
   ) =>
   Domain ->
   GetConversationsRequest ->
   Sem r GetConversationsResponse
+getConversationsV1 domain req =
+  getConversationsResponseFromV2 <$> getConversations domain req
+
+getConversations ::
+  ( Member ConversationStore r,
+    Member (Input (Local ())) r
+  ) =>
+  Domain ->
+  GetConversationsRequest ->
+  Sem r GetConversationsResponseV2
 getConversations domain (GetConversationsRequest uid cids) = do
   let ruid = toRemoteUnsafe domain uid
   loc <- qualifyLocal ()
-  GetConversationsResponse
+  GetConversationsResponseV2
     . mapMaybe (Mapping.conversationToRemote (tDomain loc) ruid)
     <$> E.getConversations cids
 
@@ -757,11 +768,11 @@ getOne2OneConversationV1 domain (GetOne2OneConversationRequest self other) =
       let getLocal lconv = do
             mconv <- E.getConversation (tUnqualified lconv)
             fmap GetOne2OneConversationOk $ case mconv of
-              Nothing -> pure (localMLSOne2OneConversationAsRemote lconv)
+              Nothing -> pure (remoteConversationFromV2 $ localMLSOne2OneConversationAsRemote lconv)
               Just conv ->
                 note
                   (InternalErrorWithDescription "Unexpected member list in 1-1 conversation")
-                  (conversationToRemote (tDomain lother) rself conv)
+                  (remoteConversationFromV2 <$> conversationToRemote (tDomain lother) rself conv)
       foldQualified
         lother
         getLocal
@@ -789,7 +800,7 @@ getOne2OneConversation domain req =
           pure $
             GetOne2OneConversationV2Ok $
               RemoteMLSOne2OneConversation
-                { conversation = conv,
+                { conversation = remoteConversationToV2 conv,
                   publicKeys = mlsPublicKeys
                 }
         GetOne2OneConversationBackendMismatch -> pure GetOne2OneConversationV2BackendMismatch
