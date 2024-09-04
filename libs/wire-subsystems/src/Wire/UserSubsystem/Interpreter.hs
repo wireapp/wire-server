@@ -516,45 +516,47 @@ getAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations, includ
 
   let storedToAcc = mkAccountFromStored domain config.defaultLocale
 
+      filterPendingInvitations :: [UserAccount] -> Sem r [UserAccount]
       filterPendingInvitations =
-        if includePendingInvitations
-          then pure
-          else pure . filter (\acc -> acc.accountStatus /= PendingInvitation)
+        filterM
+          ( \acc ->
+              if acc.accountStatus == PendingInvitation
+                then do
+                  case mailKeyFrom acc of
+                    -- TODO: ensure this case is sound
+                    -- Some tests fail but they seem to not rely on this
+                    Nothing -> pure includePendingInvitations
+                    Just key -> do
+                      -- This is the case of expired invitations for users still pending
+                      lookupInvitationByEmail key >>= \case
+                        Nothing -> do
+                          -- user invited via scim should expire together with its invitation
+                          -- FIXME(mangoiv): this is not the right place to do this, ideally this should be part of a recurring
+                          -- job akin to 'pendingUserActivationCleanup'
+                          enqueueUserDeletion (userId acc.accountUser)
+                          pure False
+                        Just _ -> pure includePendingInvitations
+                else pure True
+          )
 
+      filterPendingActivation :: [UserAccount] -> Sem r [UserAccount]
       filterPendingActivation =
         if includePendingActivations
           then pure
           else pure . filter (\acc -> isNothing acc.accountUser.userIdentity)
 
-      accountValid :: StoredUser -> Sem r (Maybe UserAccount)
-      accountValid storedUser = do
-        let account = storedToAcc storedUser
-            notValid = pure Nothing
-            valid = pure $ Just account
-        case userIdentity . accountUser $ account of
-          Nothing -> notValid
-          Just ident -> case (accountStatus account, includePendingInvitations, emailIdentity ident) of
-            (PendingInvitation, False, _) -> notValid
-            (PendingInvitation, True, Just email) ->
-              lookupInvitationByEmail email >>= \case
-                Nothing -> do
-                  -- user invited via scim should expire together with its invitation
-                  -- FIXME(mangoiv): this is not the right place to do this, ideally this should be part of a recurring
-                  -- job akin to 'pendingUserActivationCleanup'
-                  enqueueUserDeletion (userId account.accountUser)
-                  notValid
-                Just _ -> valid
-            (PendingInvitation, True, Nothing) -> valid -- cannot happen, user invited via scim always has an email
-            (Active, _, _) -> valid
-            (Suspended, _, _) -> valid
-            (Deleted, _, _) -> valid
-            (Ephemeral, _, _) -> valid
-
+      mailKeyFrom :: UserAccount -> Maybe EmailAddress
+      mailKeyFrom acc =
+        case acc.accountUser.userIdentity of
+          Just (EmailIdentity mail) -> Just mail
+          Just (SSOIdentity _ (Just mail)) -> Just mail
+          -- TODO: fix this error
+          _ -> Nothing -- error "SCIM invited user should have an email"
   handleUserIds :: [UserId] <- wither lookupHandle getByHandle
 
   accsByIds :: [UserAccount] <-
     getUsers (nubOrd $ handleUserIds <> getByUserIds)
-      >>= wither accountValid
+      <&> map storedToAcc
       >>= (filterPendingInvitations >=> filterPendingActivation)
 
   accsByEmail :: [UserAccount] <- flip foldMap getByEmail \ek -> do

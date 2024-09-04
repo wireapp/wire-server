@@ -19,6 +19,8 @@ module Wire.MiniBackend
 
     -- * Quickcheck helpers
     NotPendingStoredUser (..),
+    NotPendingEmptyIdentityStoredUser (..),
+    PendingNotEmptyIdentityStoredUser (..),
     PendingStoredUser (..),
   )
 where
@@ -77,6 +79,24 @@ import Wire.UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.Interpreter
+
+newtype PendingNotEmptyIdentityStoredUser = PendingNotEmptyIdentityStoredUser StoredUser
+  deriving (Show, Eq)
+
+instance Arbitrary PendingNotEmptyIdentityStoredUser where
+  arbitrary = do
+    user <- arbitrary `suchThat` \user -> isJust user.identity
+    pure $ PendingNotEmptyIdentityStoredUser (user {status = Just PendingInvitation})
+
+newtype NotPendingEmptyIdentityStoredUser = NotPendingEmptyIdentityStoredUser StoredUser
+  deriving (Show, Eq)
+
+-- TODO: make sure this is a valid state
+instance Arbitrary NotPendingEmptyIdentityStoredUser where
+  arbitrary = do
+    user <- arbitrary `suchThat` \user -> isNothing user.identity
+    notPendingStatus <- elements (Nothing : map Just [Active, Suspended, Deleted, Ephemeral])
+    pure $ NotPendingEmptyIdentityStoredUser (user {status = notPendingStatus})
 
 newtype PendingStoredUser = PendingStoredUser StoredUser
   deriving (Show, Eq)
@@ -383,15 +403,15 @@ liftInvitationInfoStoreState = interpret \case
   Polysemy.State.Get -> gets (.invitationInfos)
   Put newAcs -> modify $ \b -> b {invitationInfos = newAcs}
 
-liftActivationCodeStoreState :: (Member (State MiniBackend) r) => Sem (State (Map EmailKey (Maybe UserId, ActivationCode)) : r) a -> Sem r a
-liftActivationCodeStoreState = interpret \case
-  Polysemy.State.Get -> gets (.activationCodes)
-  Put newAcs -> modify $ \b -> b {activationCodes = newAcs}
-
 liftInvitationCodeStoreState :: (Member (State MiniBackend) r) => Sem (State (Map (TeamId, InvitationId) StoredInvitation) : r) a -> Sem r a
 liftInvitationCodeStoreState = interpret \case
   Polysemy.State.Get -> gets (.invitations)
   Put newInvs -> modify $ \b -> b {invitations = newInvs}
+
+liftActivationCodeStoreState :: (Member (State MiniBackend) r) => Sem (State (Map EmailKey (Maybe UserId, ActivationCode)) : r) a -> Sem r a
+liftActivationCodeStoreState = interpret \case
+  Polysemy.State.Get -> gets (.activationCodes)
+  Put newAcs -> modify $ \b -> b {activationCodes = newAcs}
 
 liftBlockListStoreState :: (Member (State MiniBackend) r) => Sem (State [EmailKey] : r) a -> Sem r a
 liftBlockListStoreState = interpret $ \case
