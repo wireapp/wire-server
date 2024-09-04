@@ -22,7 +22,7 @@ randomEmail = do
 
 randomExternalId :: App String
 randomExternalId = liftIO $ do
-  -- external ID has no constraints, but the following is a reasonable
+  -- external ID has no constraints, but we only generate human-readable samples
   n <- randomRIO (8, 15)
   replicateM n pick
   where
