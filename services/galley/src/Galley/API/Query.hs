@@ -853,19 +853,23 @@ getRemoteMLSOne2OneConversation lself qother rconv = do
       then pure (qualifyAs rconv (qUnqualified qother))
       else throw (InternalErrorWithDescription "Unexpected 1-1 conversation domain")
 
-  -- TODO: This will just explode ungracefully when retrying to talk to V0 or
-  -- V1. Figure out how to fail gracefully.
   resp <-
-    E.runFederated rconv $
-      fedClient @'Galley @"get-one2one-conversation" $
-        GetOne2OneConversationRequest (tUnqualified lself) (tUnqualified rother)
+    E.runFederated rconv $ do
+      negotiatedVersion <- getNegotiatedVersion
+      case negotiatedVersion of
+        Nothing -> error "impossible"
+        Just Federation.V0 -> pure . Left . FederationCallFailure $ FederatorClientVersionNegotiationError RemoteTooOld
+        Just Federation.V1 -> pure . Left . FederationCallFailure $ FederatorClientVersionNegotiationError RemoteTooOld
+        Just _ ->
+          fmap Right . fedClient @'Galley @"get-one2one-conversation" $
+            GetOne2OneConversationRequest (tUnqualified lself) (tUnqualified rother)
   case resp of
-    GetOne2OneConversationV2Ok rc ->
+    Right (GetOne2OneConversationV2Ok rc) ->
       pure (remoteMLSOne2OneConversation lself rother rc)
-    GetOne2OneConversationV2BackendMismatch ->
+    Right GetOne2OneConversationV2BackendMismatch ->
       throw (FederationUnexpectedBody "Backend mismatch when retrieving a remote 1-1 conversation")
-    GetOne2OneConversationV2NotConnected -> throwS @'NotConnected
-    GetOne2OneConversationV2MLSNotEnabled ->
+    Right GetOne2OneConversationV2NotConnected -> throwS @'NotConnected
+    Right GetOne2OneConversationV2MLSNotEnabled ->
       -- This is weird because we do not tell clients which backend doesn't have
       -- MLS enabled, which would nice information for fixing problems in real
       -- world. We do the same thing when sending Welcome messages, so for now,
@@ -873,6 +877,7 @@ getRemoteMLSOne2OneConversation lself qother rconv = do
       --
       -- TODO: Log this at least like in welcome messages
       throwS @'MLSNotEnabled
+    Left e -> throw e
 
 -- | Check if an MLS 1-1 conversation has been established, namely if its epoch
 -- is non-zero. The conversation will only be stored in the database when its
