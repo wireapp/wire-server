@@ -31,6 +31,7 @@ import Notifications
 import SetupHelpers
 import Test.Version
 import Testlib.Prelude
+import Testlib.VersionedFed
 
 testGetMLSOne2OneLocalV5 :: (HasCallStack) => App ()
 testGetMLSOne2OneLocalV5 = withVersion5 Version5 $ do
@@ -385,3 +386,114 @@ testMLSGhostOne2OneConv = do
     createCommit
     liftIO $ putMVar doneVar ()
     wait a
+
+-- [NOTE: Federated 1:1 MLS Conversations]
+-- 1:1 Conversations shouldn't work when there is no way for the creator to know
+-- the MLS public keys of the backend which will host this conversation. In
+-- federation API V2, this will always work and has been tested above. When one
+-- of the backends doesn't support federation API v2, the 1:1 conversation can
+-- still be created but only by the user whose backend hosts this conversation.
+
+-- | See Note: [Federated 1:1 MLS Conversations]
+testMLSFederationV1ConvOnOldBackend :: App ()
+testMLSFederationV1ConvOnOldBackend = do
+  alice <- randomUser OwnDomain def
+  let createBob = do
+        bobCandidate <- randomUser (StaticFedDomain 1) def
+        connectUsers [alice, bobCandidate]
+        getMLSOne2OneConversation alice bobCandidate `bindResponse` \resp -> do
+          if resp.status == 533
+            then pure bobCandidate
+            else createBob
+
+  bob <- createBob
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  traverse_ uploadNewKeyPackage [alice1]
+
+  -- Alice cannot start this conversation because it would exist on Bob's
+  -- backend and Alice cannot get the MLS public keys of that backend.
+  getMLSOne2OneConversation alice bob `bindResponse` \resp -> do
+    fedError <- getJSON 533 resp
+    fedError %. "label" `shouldMatch` "federation-version-error"
+
+  conv <- getMLSOne2OneConversation bob alice >>= getJSON 200
+  keys <- getMLSPublicKeys bob >>= getJSON 200
+  resetOne2OneGroupGeneric bob1 conv keys
+
+  withWebSocket alice1 $ \wsAlice -> do
+    commit <- createAddCommit bob1 [alice]
+    void $ sendAndConsumeCommitBundle commit
+
+    let isMessage n = nPayload n %. "type" `isEqual` "conversation.mls-welcome"
+    n <- awaitMatch isMessage wsAlice
+    nPayload n %. "data" `shouldMatch` B8.unpack (Base64.encode (fold commit.welcome))
+
+  withWebSocket bob1 $ \wsBob -> do
+    _ <- deleteClient alice alice1.client >>= getBody 200
+
+    let predicate n = nPayload n %. "type" `isEqual` "conversation.mls-message-add"
+    n <- awaitMatch predicate wsBob
+    shouldMatch (nPayload n %. "conversation") (objId conv)
+    shouldMatch (nPayload n %. "from") (objId alice)
+
+    mlsMsg <- asByteString (nPayload n %. "data")
+
+    -- Checks that the remove proposal is consumable by bob
+    void $ mlsCliConsume bob1 mlsMsg
+
+    parsedMsg <- showMessage bob1 mlsMsg
+    let leafIndexAlice = 1
+    parsedMsg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` leafIndexAlice
+    parsedMsg %. "message.content.sender.External" `shouldMatchInt` 0
+
+-- | See Note: Federated 1:1 MLS Conversations
+testMLSFederationV1ConvOnNewBackend :: App ()
+testMLSFederationV1ConvOnNewBackend = do
+  alice <- randomUser OwnDomain def
+  let createBob = do
+        bobCandidate <- randomUser (StaticFedDomain 1) def
+        connectUsers [alice, bobCandidate]
+        getMLSOne2OneConversation alice bobCandidate `bindResponse` \resp -> do
+          if resp.status == 200
+            then pure bobCandidate
+            else createBob
+
+  bob <- createBob
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  traverse_ uploadNewKeyPackage [bob1]
+
+  -- Bob cannot start this conversation because it would exist on Alice's
+  -- backend and Bob cannot get the MLS public keys of that backend.
+  getMLSOne2OneConversation bob alice `bindResponse` \resp -> do
+    fedError <- getJSON 533 resp
+    fedError %. "label" `shouldMatch` "federation-remote-error"
+
+  one2OneConv <- getMLSOne2OneConversation alice bob >>= getJSON 200
+  conv <- one2OneConv %. "conversation"
+  resetOne2OneGroup alice1 one2OneConv
+
+  withWebSocket bob1 $ \wsBob -> do
+    commit <- createAddCommit alice1 [bob]
+    void $ sendAndConsumeCommitBundle commit
+
+    let isMessage n = nPayload n %. "type" `isEqual` "conversation.mls-welcome"
+    n <- awaitMatch isMessage wsBob
+    nPayload n %. "data" `shouldMatch` B8.unpack (Base64.encode (fold commit.welcome))
+
+  withWebSocket alice1 $ \wsAlice -> do
+    _ <- deleteClient bob bob1.client >>= getBody 200
+
+    let predicate n = nPayload n %. "type" `isEqual` "conversation.mls-message-add"
+    n <- awaitMatch predicate wsAlice
+    shouldMatch (nPayload n %. "conversation") (objId conv)
+    shouldMatch (nPayload n %. "from") (objId bob)
+
+    mlsMsg <- asByteString (nPayload n %. "data")
+
+    -- Checks that the remove proposal is consumable by bob
+    void $ mlsCliConsume alice1 mlsMsg
+
+    parsedMsg <- showMessage alice1 mlsMsg
+    let leafIndexBob = 1
+    parsedMsg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` leafIndexBob
+    parsedMsg %. "message.content.sender.External" `shouldMatchInt` 0
