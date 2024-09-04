@@ -76,7 +76,7 @@ genPhoneCode =
   PasswordResetCode . unsafeFromText . pack . printf "%06d"
     <$> liftIO (randIntegerZeroToNMinusOne 1000000)
 
--- FUTUREWORK(fisx,elland): this should be replaced by a method in a 
+-- FUTUREWORK(fisx,elland): this should be replaced by a method in a
 -- future auth subsystem
 codeDeleteImpl :: (MonadClient m) => PasswordResetKey -> m ()
 codeDeleteImpl prk =

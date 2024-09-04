@@ -1,18 +1,28 @@
 module Wire.MockInterpreters.UserSubsystem where
 
-import Debug.Trace (traceM)
+import Data.Qualified
 import Imports
 import Polysemy
 import Wire.API.User
+import Wire.UserKeyStore
 import Wire.UserSubsystem
 
 userSubsystemTestInterpreter :: [UserAccount] -> InterpreterFor UserSubsystem r
-userSubsystemTestInterpreter _initialUsers =
+userSubsystemTestInterpreter initialUsers =
   interpret \case
-    GetAccountsBy getBy -> do
-      traceM $ "\n getBy: " <> show getBy
-      pure []
+    GetAccountsBy (tSplit -> (_dom, getBy)) ->
+      pure $
+        filter
+          ( \u ->
+              mailKeyFrom u
+                `elem` getBy.getByEmail
+          )
+          initialUsers
     _ -> error $ "userSubsystemTestInterpreter: implement on demand"
 
--- case (tUnqualified localUserKey) of
--- EmailKey _ email -> pure $ find (\u -> userEmail u.accountUser == Just email) initialUsers
+mailKeyFrom :: UserAccount -> EmailKey
+mailKeyFrom acc =
+  case acc.accountUser.userIdentity of
+    Just (EmailIdentity mail) -> mkEmailKey mail
+    Just (SSOIdentity _ (Just mail)) -> mkEmailKey mail
+    _ -> error "Why are we testing users without emails for this?"
