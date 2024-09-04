@@ -101,7 +101,7 @@ veidFromUserSSOId ssoId mEmail = case ssoId of
 -- to just set it to 'Nothing'.
 --
 -- `userSSOId usr` can be empty if the user has no SAML credentials and is brought under scim
--- management for the first time with `getUserById`.  In that case, the externalId is taken to
+-- management for the first time.  In that case, the externalId is taken to
 -- be the email address.
 veidFromBrigUser :: (MonadError String m) => User -> Maybe SAML.Issuer -> Maybe EmailAddress -> m ValidScimId
 veidFromBrigUser usr mIssuer mUnvalidatedEmail = case (userSSOId usr, userEmail usr, mIssuer) of
