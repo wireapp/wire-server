@@ -243,7 +243,7 @@ testSparExternalIdUpdateToANonEmail = do
   updatedScimUser <- setField "externalId" extId scimUser
   updateScimUser OwnDomain tok userId updatedScimUser >>= assertStatus 400
 
-testSparMigrateFromExternalIdOnlyToEmail :: (HasCallStack) => Bool -> App ()
+testSparMigrateFromExternalIdOnlyToEmail :: (HasCallStack) => Tagged "mailUnchanged" Bool -> App ()
 testSparMigrateFromExternalIdOnlyToEmail emailUnchanged = do
   (owner, tid, _) <- createTeam OwnDomain 1
   tok <- createScimToken owner >>= \resp -> resp.json %. "token" >>= asString
