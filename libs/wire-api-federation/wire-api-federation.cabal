@@ -85,17 +85,15 @@ library
     -fplugin=TransitiveAnns.Plugin
 
   build-depends:
-      aeson                                         >=2.0.1.0
+      aeson                  >=2.0.1.0
     , amqp
     , async
-    , base                                          >=4.6     && <5.0
+    , base                   >=4.6     && <5.0
     , bytestring
     , bytestring-conversion
     , containers
     , dns-util
     , exceptions
-    , hs-opentelemetry-instrumentation-http-client
-    , hs-opentelemetry-sdk
     , HsOpenSSL
     , http-media
     , http-types
@@ -107,22 +105,21 @@ library
     , metrics-wai
     , mtl
     , openapi3
-    , QuickCheck                                    >=2.13
+    , QuickCheck             >=2.13
     , schema-profunctor
-    , servant                                       >=0.16
+    , servant                >=0.16
     , servant-client
     , servant-client-core
     , servant-openapi3
     , servant-server
     , singletons-base
-    , text                                          >=0.11
-    , time                                          >=1.8
+    , text                   >=0.11
+    , time                   >=1.8
     , transformers
     , transitive-anns
     , types-common
     , wai-utilities
     , wire-api
-    , wire-otel
 
   default-language:   GHC2021
 

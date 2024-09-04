@@ -14,8 +14,6 @@
 , dns-util
 , exceptions
 , gitignoreSource
-, hs-opentelemetry-instrumentation-http-client
-, hs-opentelemetry-sdk
 , HsOpenSSL
 , hspec
 , hspec-discover
@@ -48,7 +46,6 @@
 , uuid
 , wai-utilities
 , wire-api
-, wire-otel
 }:
 mkDerivation {
   pname = "wire-api-federation";
@@ -64,8 +61,6 @@ mkDerivation {
     containers
     dns-util
     exceptions
-    hs-opentelemetry-instrumentation-http-client
-    hs-opentelemetry-sdk
     HsOpenSSL
     http-media
     http-types
@@ -92,7 +87,6 @@ mkDerivation {
     types-common
     wai-utilities
     wire-api
-    wire-otel
   ];
   testHaskellDepends = [
     aeson
