@@ -1811,6 +1811,10 @@ testUpdateExternalIdOfUnregisteredAccount = do
 
 lookupByValidScimId :: TeamId -> ValidScimId -> TestSpar (Maybe UserId)
 lookupByValidScimId tid =
+  -- `SU.scimFindUserByExternalId Nothing tid vsid.validScimIdExternal` would be simpler, but
+  -- if you want to simplify this you'll have to fix the type errors, and this is one of the
+  -- abandoned test suites.
+
   runValidScimIdEither
     (runSpar . SAMLUserStore.get)
     ( \email -> do

@@ -1155,7 +1155,10 @@ callDeleteDefaultSsoCode sparreq_ = do
 
 -- helpers talking to spar's cassandra directly
 
--- | Look up 'UserId' under 'UserSSOId' on spar's cassandra directly.
+-- | Look up 'UserId' under 'externalId', and if no email address is given, under the saml user ref.
+--
+-- This is a bit convoluted, don't try too hard to make sense of it. Better luck when
+-- rewriting this in /integration!  :-)
 ssoToUidSpar :: (HasCallStack, MonadIO m, MonadReader TestEnv m) => TeamId -> UserSSOId -> m (Maybe UserId)
 ssoToUidSpar tid ssoid = do
   veid <- either (error . ("could not parse brig sso_id: " <>)) pure $ Intra.veidFromUserSSOId ssoid Nothing
