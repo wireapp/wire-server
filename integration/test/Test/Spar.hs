@@ -224,7 +224,10 @@ testSparExternalIdUpdateToANonEmail = do
   tok <- createScimToken owner >>= \resp -> resp.json %. "token" >>= asString
   scimUser <- randomScimUser >>= removeField "emails"
   email <- scimUser %. "externalId" >>= asString
-  userId <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+  userId <- bindResponse (createScimUser OwnDomain tok scimUser) $ \resp -> do
+    resp.status `shouldMatchInt` 201
+    (resp.json %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString) `shouldMatch` email
+    resp.json %. "id" >>= asString
   registerUser OwnDomain tid email
 
   let extId = "notanemailaddress"
@@ -240,13 +243,14 @@ testSparMigrateFromExternalIdOnlyToEmail emailUnchanged = do
   userId <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
   registerUser OwnDomain tid email
 
+  -- Verify that updating a user with an empty emails does not change the email
+  bindResponse (updateScimUser OwnDomain tok userId scimUser) $ \resp -> do
+    resp.json %. "emails" `shouldMatch` (Array (fromList [object ["value" .= email]]))
+    resp.status `shouldMatchInt` 200
+
   newEmail <- if emailUnchanged then pure email else randomEmail
   let newEmails = (Array (fromList [object ["value" .= newEmail]]))
-  updatedScimUser <-
-    setField
-      "emails"
-      newEmails
-      scimUser
+  updatedScimUser <- setField "emails" newEmails scimUser
   updateScimUser OwnDomain tok userId updatedScimUser `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "externalId" `shouldMatch` (updatedScimUser %. "externalId")
