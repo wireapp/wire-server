@@ -391,9 +391,6 @@ runValidScimIdBoth merge doURefl doEmail = these doEmail doURefl (\em uref -> do
 veidUref :: ValidScimId -> Maybe SAML.UserRef
 veidUref = justThere . validScimIdAuthInfo
 
-urefToExternalIdUnsafe :: SAML.UserRef -> Text
-urefToExternalIdUnsafe = CI.original . SAML.unsafeShowNameID . view SAML.uidSubject
-
 isSAMLUser :: ValidScimId -> Bool
 isSAMLUser = isJust . justThere . validScimIdAuthInfo
 
