@@ -115,8 +115,6 @@ testSparExternalIdDifferentFromEmailWithIdp = do
       res.status `shouldMatchInt` 200
       u <- res.json %. "Resources" >>= asList >>= assertOne
       u %. "externalId" `shouldMatch` currentExtId
-      -- TODO(fisx, leif): here the SCIM+SAML case differs from the only SCIM case
-      -- the email is not updated in the SCIM API, yet, before activation
       (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` newEmail
     bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
       res.status `shouldMatchInt` 200

@@ -87,6 +87,7 @@ import qualified Web.Scim.Class.User as Scim
 import qualified Web.Scim.Schema.Common as Scim
 import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.User as Scim
+import qualified Web.Scim.Schema.User.Email as Scim
 import Wire.API.Team.Member (newTeamMemberDeleteData, rolePermissions)
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.Team.Role
@@ -1056,8 +1057,20 @@ specCRUDIdentityProvider = do
                 respId <- listUsers tok (Just (filterBy "externalId" externalId))
                 respHandle <- listUsers tok (Just (filterBy "userName" handle'))
                 liftIO $ do
-                  respId `shouldBe` [target]
-                  respHandle `shouldBe` [target]
+                  let patched = case target of
+                        Scim.WithMeta m (Scim.WithId i u) ->
+                          let u' :: Scim.User SparTag
+                              u' =
+                                -- if the externalId is an email, and the email field was
+                                -- empty, the scim response from spar contains the externalId
+                                -- (parsed) in the emails field.
+                                u {Scim.emails = [Scim.Email Nothing e t]}
+                                where
+                                  e = Scim.EmailAddress (fromJust (emailAddress (cs externalId)))
+                                  t = Just (Scim.ScimBool True) -- TODO: this doesn't really matter, we should just test for whatever's being returned.
+                           in Scim.WithMeta m (Scim.WithId i u')
+                  respId `shouldBe` [patched]
+                  respHandle `shouldBe` [patched]
 
           checkScimSearch scimStoredUser scimUser
           updateOrReplaceIdps (owner1, idp1, idpmeta1)
