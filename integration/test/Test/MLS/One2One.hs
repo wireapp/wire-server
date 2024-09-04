@@ -147,8 +147,6 @@ testMLSOne2OneOtherMember scenario = do
 
 testMLSOne2OneRemoveClientLocalV5 :: App ()
 testMLSOne2OneRemoveClientLocalV5 = withVersion5 Version5 $ do
-  -- alice <- randomUser OwnDomain def
-  -- bob <- createMLSOne2OnePartner OwnDomain alice OwnDomain
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
   conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
 
@@ -169,9 +167,6 @@ testMLSOne2OneRemoveClientLocalV5 = withVersion5 Version5 $ do
 
     -- Checks that the remove proposal is consumable by alice
     void $ mlsCliConsume alice1 mlsMsg
-    -- This doesn't work because `sendAndConsumeCommitBundle` doesn't like
-    -- remove proposals from the backend. We should fix that in future.
-    -- void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
 
     parsedMsg <- showMessage alice1 mlsMsg
     let leafIndexBob = 1
