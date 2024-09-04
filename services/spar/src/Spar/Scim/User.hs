@@ -299,6 +299,7 @@ validateScimUser' errloc midp richInfoLimit user = do
   mRole <- validateRole user
 
   -- FUTUREWORK(elland): Handle the SCIM emails field.
+  -- TODO(leif): add emails here already?
   pure $ ST.ValidScimUser veid handl uname [] richInfo (maybe True Scim.unScimBool active) (flip Locale Nothing <$> lang) mRole
   where
     validRoleNames :: Text
@@ -982,7 +983,7 @@ synthesizeStoredUser acc veid =
 
       let emails =
             maybeToList $
-              acc.emailUnvalidated <|> (emailIdentity =<< userIdentity acc.account.accountUser)
+              acc.emailUnvalidated <|> (emailIdentity =<< userIdentity acc.account.accountUser) <|> justHere veid.validScimIdAuthInfo
 
       storedUser <-
         synthesizeStoredUser'

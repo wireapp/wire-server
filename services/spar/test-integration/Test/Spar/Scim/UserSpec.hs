@@ -1201,7 +1201,8 @@ testFindProvisionedUser = do
   storedUser <- createUser tok user
   [storedUser'] <- listUsers tok (Just (filterBy "userName" (Scim.User.userName user)))
   liftIO $ storedUser' `shouldBe` storedUser
-  liftIO $ Scim.value (Scim.thing storedUser') `shouldBe` setDefaultRoleIfEmpty (normalizeLikeStored (setPreferredLanguage defLang user {Scim.User.emails = [] {- only after validation -}}))
+  let expected = setDefaultRoleAndEmailsIfEmpty (normalizeLikeStored (setPreferredLanguage defLang user))
+  liftIO $ Scim.value (Scim.thing storedUser') `shouldBe` expected
   let Just externalId = Scim.User.externalId user
   users' <- listUsers tok (Just (filterBy "externalId" externalId))
   liftIO $ users' `shouldBe` [storedUser]
@@ -1625,7 +1626,7 @@ testScimSideIsUpdated = do
   -- Check that the updated user also matches the data that we sent with
   -- 'updateUser'
   richInfoLimit <- view (teOpts . to richInfoLimit)
-  expectedUser <- setDefaultRoleIfEmpty <$$> whatSparReturnsFor idp richInfoLimit (setPreferredLanguage defLang user')
+  expectedUser <- setDefaultRoleAndEmailsIfEmpty <$$> whatSparReturnsFor idp richInfoLimit (setPreferredLanguage defLang user')
   liftIO $ do
     Right (Scim.value (Scim.thing storedUser')) `shouldBe` expectedUser
     Scim.id (Scim.thing storedUser') `shouldBe` Scim.id (Scim.thing storedUser)
@@ -1682,7 +1683,7 @@ testUpdateSameHandle = do
   liftIO $ updatedUser `shouldBe` storedUser'
   -- Check that the updated user also matches the data that we sent with 'updateUser'
   richInfoLimit <- view (teOpts . to richInfoLimit)
-  expectedUser <- setDefaultRoleIfEmpty <$$> whatSparReturnsFor idp richInfoLimit (setPreferredLanguage defLang user')
+  expectedUser <- setDefaultRoleAndEmailsIfEmpty <$$> whatSparReturnsFor idp richInfoLimit (setPreferredLanguage defLang user')
   liftIO $ do
     Right (Scim.value (Scim.thing storedUser')) `shouldBe` expectedUser
     Scim.id (Scim.thing storedUser') `shouldBe` Scim.id (Scim.thing storedUser)

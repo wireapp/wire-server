@@ -62,6 +62,7 @@ import qualified Web.Scim.Schema.PatchOp as Scim.PatchOp
 import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User
 import qualified Web.Scim.Schema.User.Email as Email
+import qualified Web.Scim.Schema.User.Email as Scim.Email
 import qualified Web.Scim.Schema.User.Phone as Phone
 import qualified Wire.API.Team.Member as Member
 import Wire.API.Team.Role (Role, defaultRole)
@@ -147,8 +148,9 @@ randomScimUserWithSubjectAndRichInfo richInfo = do
   (externalId, subj) <-
     getRandomR (0, 1 :: Int) <&> \case
       0 ->
-        ( "scimuser_extid_" <> suffix,
-          SAML.mkUNameIDUnspecified ("scimuser_extid_" <> suffix)
+        ( "scimuser_extid_" <> suffix <> "@example.com",
+          either (error . show) id $
+            SAML.mkUNameIDEmail ("scimuser_extid_" <> suffix <> "@example.com")
         )
       1 ->
         ( "scimuser_extid_" <> suffix,
@@ -738,11 +740,15 @@ setPreferredLanguage :: Language -> Scim.User.User SparTag -> Scim.User.User Spa
 setPreferredLanguage lang u =
   u {Scim.preferredLanguage = Scim.preferredLanguage u <|> Just (lan2Text lang)}
 
-setDefaultRoleIfEmpty :: Scim.User.User a -> Scim.User.User a
-setDefaultRoleIfEmpty u =
+setDefaultRoleAndEmailsIfEmpty :: Scim.User.User a -> Scim.User.User a
+setDefaultRoleAndEmailsIfEmpty u =
   u
     { Scim.User.roles = case Scim.User.roles u of
         [] -> [cs $ toByteString' defaultRole]
+        xs -> xs,
+      -- when the emails field is empty, we try to populate it with the externalId
+      Scim.User.emails = case Scim.User.emails u of
+        [] -> maybeToList ((\e -> Scim.Email.Email Nothing (Scim.Email.EmailAddress e) Nothing) <$> (emailAddressText =<< (Scim.User.externalId u)))
         xs -> xs
     }
 
