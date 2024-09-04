@@ -341,7 +341,7 @@ data ValidScimUser = ValidScimUser
   }
   deriving (Eq, Show)
 
--- | This type carries parsed externalId, email address, and saml credentials. It contains the email address and saml credentials,
+-- | This type carries externalId, plus email address (validated if present, unvalidated if not) and saml credentials,
 -- because those are sometimes derived from the externalId field.
 data ValidScimId = ValidScimId
   { validScimIdExternal :: Text,
