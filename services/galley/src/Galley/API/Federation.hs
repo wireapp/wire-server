@@ -750,10 +750,9 @@ deleteSubConversationForRemoteUser domain DeleteSubConversationFedRequest {..} =
       deleteLocalSubConversation qusr lconv dscreqSubConv dsc
 
 getOne2OneConversationV1 ::
-  ( Member ConversationStore r,
-    Member (Input (Local ())) r,
-    Member (Error InternalError) r,
-    Member BrigAccess r
+  ( Member (Input (Local ())) r,
+    Member BrigAccess r,
+    Member (Error InvalidInput) r
   ) =>
   Domain ->
   GetOne2OneConversationRequest ->
@@ -765,17 +764,9 @@ getOne2OneConversationV1 domain (GetOne2OneConversationRequest self other) =
       lother <- qualifyLocal other
       let rself = toRemoteUnsafe domain self
       ensureConnectedToRemotes lother [rself]
-      let getLocal lconv = do
-            mconv <- E.getConversation (tUnqualified lconv)
-            fmap GetOne2OneConversationOk $ case mconv of
-              Nothing -> pure (localMLSOne2OneConversationAsRemote lconv)
-              Just conv ->
-                note
-                  (InternalErrorWithDescription "Unexpected member list in 1-1 conversation")
-                  (conversationToRemote (tDomain lother) rself conv)
       foldQualified
         lother
-        getLocal
+        (const . throw $ FederationFunctionNotSupported "Getting 1:1 conversations is not supported over federation API < V2.")
         (const (pure GetOne2OneConversationBackendMismatch))
         (one2OneConvId BaseProtocolMLSTag (tUntagged lother) (tUntagged rself))
 
@@ -789,22 +780,32 @@ getOne2OneConversation ::
   Domain ->
   GetOne2OneConversationRequest ->
   Sem r GetOne2OneConversationResponseV2
-getOne2OneConversation domain req =
+getOne2OneConversation domain (GetOne2OneConversationRequest self other) =
   fmap (Imports.fromRight GetOne2OneConversationV2MLSNotEnabled)
     . runError @(Tagged 'MLSNotEnabled ())
+    . fmap (Imports.fromRight GetOne2OneConversationV2NotConnected)
+    . runError @(Tagged 'NotConnected ())
     $ do
-      resp <- getOne2OneConversationV1 domain req
-      case resp of
-        GetOne2OneConversationOk conv -> do
-          mlsPublicKeys <- mlsKeysToPublic <$$> getMLSPrivateKeys
-          pure $
-            GetOne2OneConversationV2Ok $
-              RemoteMLSOne2OneConversation
-                { conversation = conv,
-                  publicKeys = mlsPublicKeys
-                }
-        GetOne2OneConversationBackendMismatch -> pure GetOne2OneConversationV2BackendMismatch
-        GetOne2OneConversationNotConnected -> pure GetOne2OneConversationV2NotConnected
+      lother <- qualifyLocal other
+      let rself = toRemoteUnsafe domain self
+      let getLocal lconv = do
+            mconv <- E.getConversation (tUnqualified lconv)
+            mlsPublicKeys <- mlsKeysToPublic <$$> getMLSPrivateKeys
+            conv <- case mconv of
+              Nothing -> pure (localMLSOne2OneConversationAsRemote lconv)
+              Just conv ->
+                note
+                  (InternalErrorWithDescription "Unexpected member list in 1-1 conversation")
+                  (conversationToRemote (tDomain lother) rself conv)
+            pure . GetOne2OneConversationV2Ok $ RemoteMLSOne2OneConversation conv mlsPublicKeys
+
+      ensureConnectedToRemotes lother [rself]
+
+      foldQualified
+        lother
+        getLocal
+        (const (pure GetOne2OneConversationV2BackendMismatch))
+        (one2OneConvId BaseProtocolMLSTag (tUntagged lother) (tUntagged rself))
 
 --------------------------------------------------------------------------------
 -- Error handling machinery
