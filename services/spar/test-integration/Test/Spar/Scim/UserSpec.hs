@@ -659,7 +659,7 @@ testCreateUserNoIdP = do
     liftIO $ accountStatus brigUserAccount.account `shouldBe` PendingInvitation
     liftIO $ userEmail brigUser `shouldBe` Just email
     liftIO $ userManagedBy brigUser `shouldBe` ManagedByScim
-    -- TODO(fisx, leif): previous to the change that allows the external ID to be different from the email
+    -- TODO(leif): previous to the change that allows the external ID to be different from the email
     -- `userSSOId brigUser` was `Nothing`.
     -- Not sure if it can be a problem that it is now a `Just`?
     -- The reason is that we now store the external id as the sso_id when the user invitation is created, whereas before

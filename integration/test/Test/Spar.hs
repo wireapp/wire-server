@@ -35,7 +35,6 @@ testSparUserCreationInvitationTimeout = do
   retryT $ bindResponse (createScimUser OwnDomain tok scimUser) $ \res -> do
     res.status `shouldMatchInt` 201
 
--- TODO(leif): check get user by id is in sync
 testSparExternalIdDifferentFromEmailWithIdp :: (HasCallStack) => App ()
 testSparExternalIdDifferentFromEmailWithIdp = do
   (owner, tid, _) <- createTeam OwnDomain 1
@@ -47,9 +46,7 @@ testSparExternalIdDifferentFromEmailWithIdp = do
   scimUser <- randomScimUserWith extId email
   userId <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
   activateEmail OwnDomain email
-  bindResponse (findUsersByExternalId OwnDomain tok extId) $ \res -> do
-    res.status `shouldMatchInt` 200
-    u <- res.json %. "Resources" >>= asList >>= assertOne
+  checkSparGetUserAndFindByExtId OwnDomain tok extId userId $ \u -> do
     u %. "externalId" `shouldMatch` extId
     (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` email
   bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
@@ -67,9 +64,7 @@ testSparExternalIdDifferentFromEmailWithIdp = do
     bindResponse (updateScimUser OwnDomain tok userId updatedScimUser) $ \res -> do
       res.status `shouldMatchInt` 200
       res.json %. "userName" `shouldMatch` newHandle
-    bindResponse (findUsersByExternalId OwnDomain tok extId) $ \res -> do
-      res.status `shouldMatchInt` 200
-      u <- res.json %. "Resources" >>= asList >>= assertOne
+    checkSparGetUserAndFindByExtId OwnDomain tok extId userId $ \u -> do
       u %. "externalId" `shouldMatch` extId
       (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` email
     bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
@@ -85,9 +80,7 @@ testSparExternalIdDifferentFromEmailWithIdp = do
     bindResponse (updateScimUser OwnDomain tok userId updatedScimUser) $ \res -> do
       res.status `shouldMatchInt` 200
       res.json %. "externalId" `shouldMatch` newExtId
-    bindResponse (findUsersByExternalId OwnDomain tok newExtId) $ \res -> do
-      res.status `shouldMatchInt` 200
-      u <- res.json %. "Resources" >>= asList >>= assertOne
+    checkSparGetUserAndFindByExtId OwnDomain tok newExtId userId $ \u -> do
       u %. "externalId" `shouldMatch` newExtId
       (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` email
     bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
@@ -111,9 +104,7 @@ testSparExternalIdDifferentFromEmailWithIdp = do
       res.status `shouldMatchInt` 200
 
     -- before activation the old email should still be present
-    bindResponse (findUsersByExternalId OwnDomain tok currentExtId) $ \res -> do
-      res.status `shouldMatchInt` 200
-      u <- res.json %. "Resources" >>= asList >>= assertOne
+    checkSparGetUserAndFindByExtId OwnDomain tok currentExtId userId $ \u -> do
       u %. "externalId" `shouldMatch` currentExtId
       (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` newEmail
     bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
@@ -125,9 +116,7 @@ testSparExternalIdDifferentFromEmailWithIdp = do
 
     -- after activation the new email should be present
     activateEmail OwnDomain newEmail
-    bindResponse (findUsersByExternalId OwnDomain tok currentExtId) $ \res -> do
-      res.status `shouldMatchInt` 200
-      u <- res.json %. "Resources" >>= asList >>= assertOne
+    checkSparGetUserAndFindByExtId OwnDomain tok currentExtId userId $ \u -> do
       u %. "externalId" `shouldMatch` currentExtId
       (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` newEmail
     bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
@@ -151,9 +140,7 @@ testSparExternalIdDifferentFromEmail = do
   scimUser <- randomScimUserWith extId email
   userId <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
   registerUser OwnDomain tid email
-  bindResponse (findUsersByExternalId OwnDomain tok extId) $ \res -> do
-    res.status `shouldMatchInt` 200
-    u <- res.json %. "Resources" >>= asList >>= assertOne
+  checkSparGetUserAndFindByExtId OwnDomain tok extId userId $ \u -> do
     u %. "externalId" `shouldMatch` extId
     (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` email
   bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
@@ -171,9 +158,7 @@ testSparExternalIdDifferentFromEmail = do
     bindResponse (updateScimUser OwnDomain tok userId updatedScimUser) $ \res -> do
       res.status `shouldMatchInt` 200
       res.json %. "userName" `shouldMatch` newHandle
-    bindResponse (findUsersByExternalId OwnDomain tok extId) $ \res -> do
-      res.status `shouldMatchInt` 200
-      u <- res.json %. "Resources" >>= asList >>= assertOne
+    checkSparGetUserAndFindByExtId OwnDomain tok extId userId $ \u -> do
       u %. "externalId" `shouldMatch` extId
       (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` email
     bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
@@ -189,9 +174,7 @@ testSparExternalIdDifferentFromEmail = do
     bindResponse (updateScimUser OwnDomain tok userId updatedScimUser) $ \res -> do
       res.status `shouldMatchInt` 200
       res.json %. "externalId" `shouldMatch` newExtId
-    bindResponse (findUsersByExternalId OwnDomain tok newExtId) $ \res -> do
-      res.status `shouldMatchInt` 200
-      u <- res.json %. "Resources" >>= asList >>= assertOne
+    checkSparGetUserAndFindByExtId OwnDomain tok newExtId userId $ \u -> do
       u %. "externalId" `shouldMatch` newExtId
       (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` email
     bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
@@ -214,9 +197,7 @@ testSparExternalIdDifferentFromEmail = do
       res.status `shouldMatchInt` 200
 
     -- before activation the new email should be returned by the SCIM API
-    bindResponse (findUsersByExternalId OwnDomain tok currentExtId) $ \res -> do
-      res.status `shouldMatchInt` 200
-      u <- res.json %. "Resources" >>= asList >>= assertOne
+    checkSparGetUserAndFindByExtId OwnDomain tok currentExtId userId $ \u -> do
       u %. "externalId" `shouldMatch` currentExtId
       (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` newEmail
     -- however brig should still return the old email
@@ -228,9 +209,7 @@ testSparExternalIdDifferentFromEmail = do
 
     -- after activation the new email should be present
     activateEmail OwnDomain newEmail
-    bindResponse (findUsersByExternalId OwnDomain tok currentExtId) $ \res -> do
-      res.status `shouldMatchInt` 200
-      u <- res.json %. "Resources" >>= asList >>= assertOne
+    checkSparGetUserAndFindByExtId OwnDomain tok currentExtId userId $ \u -> do
       u %. "externalId" `shouldMatch` currentExtId
       (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` newEmail
     bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
@@ -277,9 +256,7 @@ testSparMigrateFromExternalIdOnlyToEmail emailUnchanged = do
   unless emailUnchanged $ activateEmail OwnDomain newEmail
 
   extId <- scimUser %. "externalId" >>= asString
-  bindResponse (findUsersByExternalId OwnDomain tok extId) $ \res -> do
-    res.status `shouldMatchInt` 200
-    u <- res.json %. "Resources" >>= asList >>= assertOne
+  checkSparGetUserAndFindByExtId OwnDomain tok extId userId $ \u -> do
     u %. "externalId" `shouldMatch` extId
     (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` newEmail
   bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
@@ -306,3 +283,17 @@ activateEmail domain email = do
       <$> (res.json %. "key" >>= asString)
       <*> (res.json %. "code" >>= asString)
   Brig.activate domain key code >>= assertSuccess
+
+checkSparGetUserAndFindByExtId :: (HasCallStack, MakesValue domain) => domain -> String -> String -> String -> (Value -> App ()) -> App ()
+checkSparGetUserAndFindByExtId domain tok extId uid k = do
+  usersByExtIdResp <- findUsersByExternalId domain tok extId
+  usersByExtIdResp.status `shouldMatchInt` 200
+  userByIdExtId <- usersByExtIdResp.json %. "Resources" >>= asList >>= assertOne
+  k userByIdExtId
+
+  userByUidResp <- getUser domain tok uid
+  userByUidResp.status `shouldMatchInt` 200
+  userByUid <- userByUidResp.json
+  k userByUid
+
+  userByUid `shouldMatch` userByIdExtId

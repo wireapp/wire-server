@@ -32,6 +32,13 @@ findUsersByExternalId domain scimToken externalId = do
     & addHeader "Authorization" ("Bearer " <> scimToken)
     & addHeader "Accept" "application/scim+json"
 
+getUser :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
+getUser domain scimToken uid = do
+  req <- baseRequest domain Spar Versioned $ joinHttpPath ["scim", "v2", "Users", uid]
+  submit "GET" $ req
+    & addHeader "Authorization" ("Bearer " <> scimToken)
+    & addHeader "Accept" "application/scim+json"
+
 updateScimUser :: (HasCallStack, MakesValue domain, MakesValue scimUser) => domain -> String -> String -> scimUser -> App Response
 updateScimUser domain scimToken userId scimUser = do
   req <- baseRequest domain Spar Versioned $ joinHttpPath ["scim", "v2", "Users", userId]
