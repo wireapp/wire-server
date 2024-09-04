@@ -2464,8 +2464,8 @@ testBulkGetQualifiedConvs = do
     let mock = do
           d <- frTargetDomain <$> getRequest
           asum
-            [ guard (d == remoteDomainA) *> mockReply (GetConversationsResponse [mockConversationA]),
-              guard (d == remoteDomainB) *> mockReply (GetConversationsResponse [mockConversationB]),
+            [ guard (d == remoteDomainA) *> mockReply (GetConversationsResponseV2 [mockConversationA]),
+              guard (d == remoteDomainB) *> mockReply (GetConversationsResponseV2 [mockConversationB]),
               guard (d == remoteDomainC) *> liftIO (throw (DiscoveryFailureSrvNotAvailable "domainC")),
               do
                 r <- getRequest
@@ -3145,7 +3145,7 @@ putRemoteConvMemberOk update = do
           (qUnqualified qbob)
           roleNameWireMember
           [localMemberToOther remoteDomain bobAsLocal]
-      remoteConversationResponse = GetConversationsResponse [mockConversation]
+      remoteConversationResponse = GetConversationsResponseV2 [mockConversation]
   (rs, _) <-
     withTempMockFederator'
       (mockReply remoteConversationResponse)
@@ -3467,7 +3467,7 @@ testOne2OneConversationRequest shouldBeLocal actor desired = do
               pure . map omQualifiedId . cmOthers . cnvMembers $ conv
             RemoteActor -> do
               fedGalleyClient <- view tsFedGalleyClient
-              GetConversationsResponse convs <-
+              GetConversationsResponseV2 convs <-
                 runFedClient @"get-conversations" fedGalleyClient (tDomain bob) $
                   GetConversationsRequest
                     { userId = tUnqualified bob,
@@ -3486,7 +3486,7 @@ testOne2OneConversationRequest shouldBeLocal actor desired = do
           found <- do
             let rconv = mkProteusConv (qUnqualified convId) (tUnqualified bob) roleNameWireAdmin []
             (resp, _) <-
-              withTempMockFederator' (mockReply (GetConversationsResponse [rconv])) $
+              withTempMockFederator' (mockReply (GetConversationsResponseV2 [rconv])) $
                 getConvQualified (tUnqualified alice) convId
             pure $ statusCode resp == 200
           liftIO $ found @?= ((actor, desired) == (LocalActor, Included))

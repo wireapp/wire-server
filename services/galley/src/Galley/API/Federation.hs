@@ -106,6 +106,7 @@ federationSitemap ::
   ServerT FederationAPI (Sem GalleyEffects)
 federationSitemap =
   Named @"on-conversation-created" onConversationCreated
+    :<|> Named @"get-conversations@v1" getConversationsV1
     :<|> Named @"get-conversations" getConversations
     :<|> Named @"leave-conversation" (callsFed (exposeAnnotations leaveConversation))
     :<|> Named @"send-message" (callsFed (exposeAnnotations sendMessage))
@@ -201,17 +202,27 @@ onConversationCreated domain rc = do
     pushConversationEvent Nothing event (qualifyAs loc [qUnqualified . Public.memId $ mem]) []
   pure EmptyResponse
 
-getConversations ::
+getConversationsV1 ::
   ( Member ConversationStore r,
     Member (Input (Local ())) r
   ) =>
   Domain ->
   GetConversationsRequest ->
   Sem r GetConversationsResponse
+getConversationsV1 domain req =
+  getConversationsResponseFromV2 <$> getConversations domain req
+
+getConversations ::
+  ( Member ConversationStore r,
+    Member (Input (Local ())) r
+  ) =>
+  Domain ->
+  GetConversationsRequest ->
+  Sem r GetConversationsResponseV2
 getConversations domain (GetConversationsRequest uid cids) = do
   let ruid = toRemoteUnsafe domain uid
   loc <- qualifyLocal ()
-  GetConversationsResponse
+  GetConversationsResponseV2
     . mapMaybe (Mapping.conversationToRemote (tDomain loc) ruid)
     <$> E.getConversations cids
 

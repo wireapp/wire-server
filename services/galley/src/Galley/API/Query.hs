@@ -97,8 +97,9 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
-import Wire.API.Federation.Client (FederatorClient)
+import Wire.API.Federation.Client (FederatorClient, getNegotiatedVersion)
 import Wire.API.Federation.Error
+import Wire.API.Federation.Version qualified as Federation
 import Wire.API.MLS.Keys
 import Wire.API.Provider.Bot qualified as Public
 import Wire.API.Routes.MultiTablePaging qualified as Public
@@ -241,7 +242,7 @@ getRemoteConversationsWithFailures ::
 getRemoteConversationsWithFailures lusr convs = do
   -- get self member statuses from the database
   statusMap <- E.getRemoteConversationStatus (tUnqualified lusr) convs
-  let remoteView :: Remote RemoteConversation -> Conversation
+  let remoteView :: Remote RemoteConversationV2 -> Conversation
       remoteView rconv =
         Mapping.remoteConversationView
           lusr
@@ -257,8 +258,15 @@ getRemoteConversationsWithFailures lusr convs = do
         | otherwise = [failedGetConversationLocally (map tUntagged locallyNotFound)]
 
   -- request conversations from remote backends
-  let rpc :: GetConversationsRequest -> FederatorClient 'Galley GetConversationsResponse
-      rpc = fedClient @'Galley @"get-conversations"
+  let rpc :: GetConversationsRequest -> FederatorClient 'Galley GetConversationsResponseV2
+      rpc req = do
+        mFedVersion <- getNegotiatedVersion
+        case mFedVersion of
+          Nothing -> error "impossible"
+          Just fedVersion ->
+            if fedVersion < Federation.V2
+              then getConversationsResponseToV2 <$> fedClient @'Galley @"get-conversations@v1" req
+              else fedClient @'Galley @"get-conversations" req
   resp <-
     E.runFederatedConcurrentlyEither locallyFound $ \someConvs ->
       rpc $ GetConversationsRequest (tUnqualified lusr) (tUnqualified someConvs)
@@ -268,8 +276,8 @@ getRemoteConversationsWithFailures lusr convs = do
   where
     handleFailure ::
       (Member P.TinyLog r) =>
-      Either (Remote [ConvId], FederationError) (Remote GetConversationsResponse) ->
-      Sem r (Either FailedGetConversation [Remote RemoteConversation])
+      Either (Remote [ConvId], FederationError) (Remote GetConversationsResponseV2) ->
+      Sem r (Either FailedGetConversation [Remote RemoteConversationV2])
     handleFailure (Left (rcids, e)) = do
       P.warn $
         Logger.msg ("Error occurred while fetching remote conversations" :: ByteString)

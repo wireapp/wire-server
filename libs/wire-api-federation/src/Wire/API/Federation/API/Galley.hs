@@ -51,6 +51,8 @@ import Wire.API.Message
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Galley.Messaging
 import Wire.API.Routes.SpecialiseToVersion
+import Wire.API.Routes.Version qualified as ClientAPI
+import Wire.API.Routes.Versioned qualified as ClientAPI
 import Wire.API.Util.Aeson (CustomEncoded (..))
 import Wire.API.VersionInfo
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
@@ -68,7 +70,19 @@ type GalleyApi =
   FedEndpoint "on-conversation-created" (ConversationCreated ConvId) EmptyResponse
     -- This endpoint is called the first time a user from this backend is
     -- added to a remote conversation.
-    :<|> FedEndpoint "get-conversations" GetConversationsRequest GetConversationsResponse
+    :<|> Named
+           "get-conversations@v1"
+           ( UnnamedFedEndpointWithMods
+               '[Until 'V2]
+               "get-conversations"
+               GetConversationsRequest
+               GetConversationsResponse
+           )
+    :<|> FedEndpointWithMods
+           '[From 'V2]
+           "get-conversations"
+           GetConversationsRequest
+           GetConversationsResponseV2
     :<|> FedEndpointWithMods
            '[ MakesFederatedCall 'Galley "on-conversation-updated",
               MakesFederatedCall 'Galley "on-mls-message-sent",
@@ -236,13 +250,49 @@ data RemoteConversation = RemoteConversation
     id :: ConvId,
     metadata :: ConversationMetadata,
     members :: RemoteConvMembers,
-    protocol :: Protocol
+    protocol :: ClientAPI.Versioned 'ClientAPI.V5 Protocol
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform RemoteConversation)
   deriving (FromJSON, ToJSON) via (CustomEncoded RemoteConversation)
 
 instance ToSchema RemoteConversation
+
+-- | A conversation hosted on a remote backend. This contains the same
+-- information as a 'Conversation', with the exception that conversation status
+-- fields (muted\/archived\/hidden) are omitted, since they are not known by the
+-- remote backend.
+data RemoteConversationV2 = RemoteConversationV2
+  { -- | Id of the conversation, implicitly qualified with the domain of the
+    -- backend that created this value.
+    id :: ConvId,
+    metadata :: ConversationMetadata,
+    members :: RemoteConvMembers,
+    protocol :: Protocol
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform RemoteConversationV2)
+  deriving (FromJSON, ToJSON) via (CustomEncoded RemoteConversationV2)
+
+instance ToSchema RemoteConversationV2
+
+remoteConversationFromV2 :: RemoteConversationV2 -> RemoteConversation
+remoteConversationFromV2 rc =
+  RemoteConversation
+    { id = rc.id,
+      metadata = rc.metadata,
+      members = rc.members,
+      protocol = ClientAPI.Versioned rc.protocol
+    }
+
+remoteConversationToV2 :: RemoteConversation -> RemoteConversationV2
+remoteConversationToV2 rc =
+  RemoteConversationV2
+    { id = rc.id,
+      metadata = rc.metadata,
+      members = rc.members,
+      protocol = rc.protocol.unVersioned
+    }
 
 newtype GetConversationsResponse = GetConversationsResponse
   { convs :: [RemoteConversation]
@@ -252,6 +302,21 @@ newtype GetConversationsResponse = GetConversationsResponse
   deriving (ToJSON, FromJSON) via (CustomEncoded GetConversationsResponse)
 
 instance ToSchema GetConversationsResponse
+
+newtype GetConversationsResponseV2 = GetConversationsResponseV2
+  { convs :: [RemoteConversationV2]
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform GetConversationsResponseV2)
+  deriving (ToJSON, FromJSON) via (CustomEncoded GetConversationsResponseV2)
+
+instance ToSchema GetConversationsResponseV2
+
+getConversationsResponseToV2 :: GetConversationsResponse -> GetConversationsResponseV2
+getConversationsResponseToV2 res = GetConversationsResponseV2 (map remoteConversationToV2 res.convs)
+
+getConversationsResponseFromV2 :: GetConversationsResponseV2 -> GetConversationsResponse
+getConversationsResponseFromV2 res = GetConversationsResponse (map remoteConversationFromV2 res.convs)
 
 data GetOne2OneConversationResponse
   = GetOne2OneConversationOk RemoteConversation
@@ -282,7 +347,7 @@ data GetOne2OneConversationResponseV2
 instance ToSchema GetOne2OneConversationResponseV2
 
 data RemoteMLSOne2OneConversation = RemoteMLSOne2OneConversation
-  { conversation :: RemoteConversation,
+  { conversation :: RemoteConversationV2,
     publicKeys :: MLSKeysByPurpose MLSPublicKeys
   }
   deriving stock (Eq, Show, Generic)

@@ -97,7 +97,7 @@ conversationViewMaybe luid remoteOthers localOthers conv = do
 remoteConversationView ::
   Local UserId ->
   MemberStatus ->
-  Remote RemoteConversation ->
+  Remote RemoteConversationV2 ->
   Conversation
 remoteConversationView uid status (tUntagged -> Qualified rconv rDomain) =
   let mems = rconv.members
@@ -125,7 +125,7 @@ conversationToRemote ::
   Domain ->
   Remote UserId ->
   Data.Conversation ->
-  Maybe RemoteConversation
+  Maybe RemoteConversationV2
 conversationToRemote localDomain ruid conv = do
   let (selfs, rothers) = partition ((== ruid) . rmId) (Data.convRemoteMembers conv)
       lothers = Data.convLocalMembers conv
@@ -134,7 +134,7 @@ conversationToRemote localDomain ruid conv = do
         map (localMemberToOther localDomain) lothers
           <> map remoteMemberToOther rothers
   pure $
-    RemoteConversation
+    RemoteConversationV2
       { id = Data.convId conv,
         metadata = Data.convMetadata conv,
         members =

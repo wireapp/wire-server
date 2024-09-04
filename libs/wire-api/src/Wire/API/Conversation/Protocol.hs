@@ -240,6 +240,9 @@ protocolSchema v =
 instance ToSchema Protocol where
   schema = object "Protocol" (protocolSchema Nothing)
 
+instance ToSchema (Versioned 'V5 Protocol) where
+  schema = object "Protocol" (Versioned <$> unVersioned .= protocolSchema (Just V5))
+
 deriving via (Schema Protocol) instance FromJSON Protocol
 
 deriving via (Schema Protocol) instance ToJSON Protocol
