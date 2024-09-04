@@ -92,6 +92,7 @@ import Wire.API.User.Profile as BT
 import Wire.API.User.RichInfo qualified as RI
 import Wire.API.User.Saml ()
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
+import Test.QuickCheck (Gen)
 
 ----------------------------------------------------------------------------
 -- Schemas
@@ -353,11 +354,13 @@ data ValidScimId = ValidScimId
 
 instance Arbitrary ValidScimId where
   arbitrary =
-    these onlyThis onlyThat (\_ uref -> onlyThat uref) <$> QC.arbitrary
+    these onlyThis (pure . onlyThat) (\_ uref -> pure (onlyThat uref)) =<< QC.arbitrary
     where
-      -- TODO(leif): the external ID can also be different from the email
-      onlyThis :: EmailAddress -> ValidScimId
-      onlyThis em = ValidScimId {validScimIdExternal = fromEmail em, validScimIdAuthInfo = This em}
+      onlyThis :: EmailAddress -> Gen ValidScimId
+      onlyThis em = do
+        extIdNick <- T.pack . QC.getPrintableString <$> QC.arbitrary
+        extId <- QC.elements [extIdNick, fromEmail em]
+        pure $ ValidScimId {validScimIdExternal = extId, validScimIdAuthInfo = This em}
 
       -- `unsafeShowNameID` can name clash, if this is a problem consider using `arbitraryValidScimIdNoNameIDQualifiers`
       onlyThat :: SAML.UserRef -> ValidScimId
