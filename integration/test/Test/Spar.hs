@@ -57,7 +57,7 @@ testSparExternalIdDifferentFromEmailWithIdp = do
     subject `shouldContainString` extId
     u %. "handle" `shouldMatch` (scimUser %. "userName")
 
-  -- Verify that updating the scim user works
+  -- Verify that updating `userName` (handle) works
   scimUserWith1Update <- do
     newHandle <- randomHandle
     updatedScimUser <- setField "userName" newHandle scimUser
