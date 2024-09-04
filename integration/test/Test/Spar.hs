@@ -139,7 +139,16 @@ testSparExternalIdDifferentFromEmail = do
   extId <- randomExternalId
   scimUser <- randomScimUserWith extId email
   userId <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+
+  checkSparGetUserAndFindByExtId OwnDomain tok extId userId $ \u -> do
+    u %. "externalId" `shouldMatch` extId
+    (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` email
+  bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
+    res.status `shouldMatchInt` 200
+    res.json >>= asList >>= shouldBeEmpty
+
   registerUser OwnDomain tid email
+
   checkSparGetUserAndFindByExtId OwnDomain tok extId userId $ \u -> do
     u %. "externalId" `shouldMatch` extId
     (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` email
