@@ -554,4 +554,5 @@ in
   inherit brig-templates;
 } // attrsets.genAttrs wireServerPackages (e: (hPkgs localModsEnableAll).${e}) // {
   staticExes = staticExecs localModsEnableAll;
+  nginz = pkgs.nginz;
 }
