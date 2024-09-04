@@ -982,9 +982,9 @@ synthesizeStoredUser acc veid =
 
       let emails =
             maybeToList $
-              if ST.isSAMLUser veid
-                then emailIdentity =<< userIdentity acc.account.accountUser
-                else acc.emailUnvalidated <|> (emailIdentity =<< userIdentity acc.account.accountUser)
+              -- if ST.isSAMLUser veid
+              --   then emailIdentity =<< userIdentity acc.account.accountUser
+                acc.emailUnvalidated <|> (emailIdentity =<< userIdentity acc.account.accountUser)
 
       storedUser <-
         synthesizeStoredUser'

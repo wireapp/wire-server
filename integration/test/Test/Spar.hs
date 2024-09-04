@@ -35,6 +35,7 @@ testSparUserCreationInvitationTimeout = do
   retryT $ bindResponse (createScimUser OwnDomain tok scimUser) $ \res -> do
     res.status `shouldMatchInt` 201
 
+-- TODO(leif): check get user by id is in sync
 testSparExternalIdDifferentFromEmailWithIdp :: (HasCallStack) => App ()
 testSparExternalIdDifferentFromEmailWithIdp = do
   (owner, tid, _) <- createTeam OwnDomain 1
@@ -116,7 +117,7 @@ testSparExternalIdDifferentFromEmailWithIdp = do
       u %. "externalId" `shouldMatch` currentExtId
       -- TODO(fisx, leif): here the SCIM+SAML case differs from the only SCIM case
       -- the email is not updated in the SCIM API, yet, before activation
-      (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` oldEmail
+      (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` newEmail
     bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
       res.status `shouldMatchInt` 200
       u <- res.json >>= asList >>= assertOne

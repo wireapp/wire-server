@@ -147,9 +147,8 @@ randomScimUserWithSubjectAndRichInfo richInfo = do
   (externalId, subj) <-
     getRandomR (0, 1 :: Int) <&> \case
       0 ->
-        ( "scimuser_extid_" <> suffix <> "@example.com",
-          either (error . show) id $
-            SAML.mkUNameIDEmail ("scimuser_extid_" <> suffix <> "@example.com")
+        ( "scimuser_extid_" <> suffix,
+          SAML.mkUNameIDUnspecified ("scimuser_extid_" <> suffix)
         )
       1 ->
         ( "scimuser_extid_" <> suffix,
