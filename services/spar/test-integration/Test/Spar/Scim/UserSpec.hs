@@ -659,13 +659,11 @@ testCreateUserNoIdP = do
     liftIO $ accountStatus brigUserAccount.account `shouldBe` PendingInvitation
     liftIO $ userEmail brigUser `shouldBe` Just email
     liftIO $ userManagedBy brigUser `shouldBe` ManagedByScim
-    -- TODO(leif): previous to the change that allows the external ID to be different from the email
-    -- `userSSOId brigUser` was `Nothing`.
-    -- Not sure if it can be a problem that it is now a `Just`?
-    -- The reason is that we now store the external id as the sso_id when the user invitation is created, whereas before
+    -- Previous to the change that allowed the external ID to be different from the email, `userSSOId brigUser` was `Nothing`.
+    -- We now store the external id as the sso_id when the user invitation is created, whereas before
     -- we stored the email address (as in EmailIdentity) and sso_id was not stored until the user registered.
-    -- Now we need to store the external id when the user is invited because in case it is different from the email, we don't have it
-    -- when the user registers.
+    -- We need to store the external id when the user is invited because in case it is different from the email, we don't have it
+    -- otherwise when the user registers.
     liftIO $ userSSOId brigUser `shouldBe` Just (UserScimExternalId (fromEmail email))
 
   -- searching user in brig should fail
