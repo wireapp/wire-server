@@ -343,9 +343,6 @@ data ValidScimUser = ValidScimUser
 
 -- | This type carries parsed externalId, email address, and saml credentials. It contains the email address and saml credentials,
 -- because those are sometimes derived from the externalId field.
---
--- Note that a 'SAML.UserRef' may contain an email. Even though it is possible to construct a 'ValidScimId' from such a 'UserRef' with 'UrefOnly',
--- this does not represent a valid 'ValidScimId'. So in case of a 'UrefOnly', we can assume that the 'UserRef' does not contain an email.
 data ValidScimId = ValidScimId
   { validScimIdExternal :: Text,
     validScimIdAuthInfo :: These EmailAddress SAML.UserRef
