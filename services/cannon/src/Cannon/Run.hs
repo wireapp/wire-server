@@ -77,7 +77,7 @@ run o = withTracer \tracer -> do
   refreshMetricsThread <- Async.async $ runCannon e refreshMetrics
   s <- newSettings $ Server (o ^. cannon . host) (o ^. cannon . port) (applog e) (Just idleTimeout)
 
-  otelMiddleWare <- newOpenTelemetryWaiMiddleware -- TODO(mangoiv): should this be in the main cannon span
+  otelMiddleWare <- newOpenTelemetryWaiMiddleware
   let middleware :: Wai.Middleware
       middleware =
         versionMiddleware (foldMap expandVersionExp (o ^. disabledAPIVersions))

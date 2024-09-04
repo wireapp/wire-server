@@ -15,11 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Run
-  ( run,
-    mkApp,
-  )
-where
+module Brig.Run (run, mkApp) where
 
 import AWS.Util (readAuthExpiration)
 import Brig.API.Federation
@@ -89,11 +85,10 @@ run o = withTracer \tracer -> do
   s <- Server.newSettings (server e)
   internalEventListener <-
     Async.async $
-      inSpan tracer "brig-event-listener" defaultSpanArguments $
-        runBrigToIO e $
-          wrapHttpClient $
-            Queue.listen (e ^. internalEvents) $
-              liftIO . inSpan tracer "brig-internal-event" defaultSpanArguments {- TODO(mangoiv): needs more information here -} . runBrigToIO e . liftSem . Internal.onEvent
+      runBrigToIO e $
+        wrapHttpClient $
+          Queue.listen (e ^. internalEvents) $
+            liftIO . runBrigToIO e . liftSem . Internal.onEvent
   let throttleMillis = fromMaybe defSqsThrottleMillis $ setSqsThrottleMillis (optSettings o)
   emailListener <- for (e ^. awsEnv . sesQueue) $ \q ->
     Async.async $
@@ -105,12 +100,10 @@ run o = withTracer \tracer -> do
   pendingActivationCleanupAsync <- Async.async (runBrigToIO e pendingActivationCleanup)
 
   inSpan tracer "brig" defaultSpanArguments {kind = Otel.Server} (runSettingsWithShutdown s app Nothing) `finally` do
-    mapM_ Async.cancel emailListener
-    Async.cancel internalEventListener
-    mapM_ Async.cancel sftDiscovery
-    Async.cancel pendingActivationCleanupAsync
-    mapM_ Async.cancel turnDiscovery
-    Async.cancel authMetrics
+    Async.cancelMany $
+      [internalEventListener, pendingActivationCleanupAsync, authMetrics]
+        <> catMaybes [emailListener, sftDiscovery]
+        <> turnDiscovery
     closeEnv e
   where
     endpoint' = brig o

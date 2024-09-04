@@ -69,10 +69,7 @@ run o = withTracer \tracer -> do
   s <- newSettings $ defaultServer (unpack $ o ^. gundeck . host) (o ^. gundeck . port) l
   let throttleMillis = fromMaybe defSqsThrottleMillis $ o ^. (settings . sqsThrottleMillis)
 
-  lst <-
-    Async.async $
-      inSpan tracer "gundeck-aws" defaultSpanArguments $
-        Aws.execute (e ^. awsEnv) (Aws.listen throttleMillis (inSpan tracer "aws on event" defaultSpanArguments . runDirect e . onEvent))
+  lst <- Async.async $ Aws.execute (e ^. awsEnv) (Aws.listen throttleMillis (runDirect e . onEvent))
   wtbs <- forM (e ^. threadBudgetState) $ \tbs -> Async.async $ runDirect e $ watchThreadBudgetState tbs 10
   wCollectAuth <- Async.async (collectAuthMetrics (Aws._awsEnv (Env._awsEnv e)))
 
