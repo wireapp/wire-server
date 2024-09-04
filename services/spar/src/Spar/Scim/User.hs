@@ -298,9 +298,7 @@ validateScimUser' errloc midp richInfoLimit user = do
   lang <- maybe (throw $ badRequest "Could not parse language. Expected format is ISO 639-1.") pure $ mapM parseLanguage $ Scim.preferredLanguage user
   mRole <- validateRole user
 
-  -- FUTUREWORK(elland): Handle the SCIM emails field.
-  -- TODO(leif): add emails here already?
-  pure $ ST.ValidScimUser veid handl uname [] richInfo (maybe True Scim.unScimBool active) (flip Locale Nothing <$> lang) mRole
+  pure $ ST.ValidScimUser veid handl uname (maybeToList (justHere veid.validScimIdAuthInfo)) richInfo (maybe True Scim.unScimBool active) (flip Locale Nothing <$> lang) mRole
   where
     validRoleNames :: Text
     validRoleNames =

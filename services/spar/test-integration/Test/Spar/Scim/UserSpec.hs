@@ -1615,7 +1615,10 @@ testScimSideIsUpdated = do
   storedUser <- createUser tok user
   let userid = scimUserId storedUser
   -- Overwrite the user with another randomly-generated user
-  user' <- randomScimUser
+  user' <-
+    if isJust (emailAddressText =<< user.externalId)
+      then fst <$> randomScimUserWithEmail
+      else fst <$> randomScimUserWithNick
   updatedUser <- updateUser tok userid user'
   -- Get the updated user and check that it matches the user returned by
   -- 'updateUser'
@@ -1669,9 +1672,13 @@ testUpdateSameHandle = do
   let userid = scimUserId storedUser
   -- Overwrite the user with another randomly-generated user who has the same name and
   -- handle
-  user' <-
-    randomScimUser <&> \u ->
-      u
+  user' <- do
+    rsu <-
+      if isJust (emailAddressText =<< user.externalId)
+        then fst <$> randomScimUserWithEmail
+        else fst <$> randomScimUserWithNick
+    pure
+      rsu
         { Scim.User.userName = Scim.User.userName user,
           Scim.User.displayName = Scim.User.displayName user
         }
