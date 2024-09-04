@@ -295,7 +295,7 @@ checkSparGetUserAndFindByExtId domain tok extId uid k = do
   userByIdExtId <- usersByExtIdResp.json %. "Resources" >>= asList >>= assertOne
   k userByIdExtId
 
-  userByUidResp <- getUser domain tok uid
+  userByUidResp <- getScimUser domain tok uid
   userByUidResp.status `shouldMatchInt` 200
   userByUid <- userByUidResp.json
   k userByUid
