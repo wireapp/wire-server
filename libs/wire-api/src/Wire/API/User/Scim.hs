@@ -70,6 +70,7 @@ import Imports
 import SAML2.WebSSO qualified as SAML
 import SAML2.WebSSO.Test.Arbitrary ()
 import Servant.API (FromHttpApiData (..), ToHttpApiData (..))
+import Test.QuickCheck (Gen)
 import Test.QuickCheck qualified as QC
 import Web.HttpApiData (parseHeaderWithPrefix)
 import Web.Scim.AttrName (AttrName (..))
@@ -92,7 +93,6 @@ import Wire.API.User.Profile as BT
 import Wire.API.User.RichInfo qualified as RI
 import Wire.API.User.Saml ()
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
-import Test.QuickCheck (Gen)
 
 ----------------------------------------------------------------------------
 -- Schemas
