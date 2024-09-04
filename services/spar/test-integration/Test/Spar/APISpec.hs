@@ -1058,19 +1058,18 @@ specCRUDIdentityProvider = do
                 respHandle <- listUsers tok (Just (filterBy "userName" handle'))
                 liftIO $ do
                   let patched = case target of
-                        Scim.WithMeta m (Scim.WithId i u) ->
+                        Scim.WithMeta _m (Scim.WithId i u) ->
                           let u' :: Scim.User SparTag
-                              u' =
+                              u' = case emailAddress (cs externalId) of
                                 -- if the externalId is an email, and the email field was
                                 -- empty, the scim response from spar contains the externalId
                                 -- (parsed) in the emails field.
-                                u {Scim.emails = [Scim.Email Nothing e t]}
-                                where
-                                  e = Scim.EmailAddress (fromJust (emailAddress (cs externalId)))
-                                  t = Just (Scim.ScimBool True) -- TODO: this doesn't really matter, we should just test for whatever's being returned.
-                           in Scim.WithMeta m (Scim.WithId i u')
-                  respId `shouldBe` [patched]
-                  respHandle `shouldBe` [patched]
+                                Just e -> u {Scim.emails = [Scim.Email Nothing (Scim.EmailAddress e) Nothing]}
+                                Nothing -> u
+                           in -- don't compare meta, or you need to update the ETag in version because email may have changed.
+                              Scim.WithId i u'
+                  (Scim.thing <$> respId) `shouldBe` [patched]
+                  (Scim.thing <$> respHandle) `shouldBe` [patched]
 
           checkScimSearch scimStoredUser scimUser
           updateOrReplaceIdps (owner1, idp1, idpmeta1)
