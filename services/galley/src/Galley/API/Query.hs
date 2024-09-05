@@ -778,7 +778,7 @@ getMLSOne2OneConversationInternal ::
   Qualified UserId ->
   Sem r Conversation
 getMLSOne2OneConversationInternal lself qother =
-  (.conversation) <$> getMLSOne2OneConversation lself qother
+  (.conversation) <$> getMLSOne2OneConversation lself qother Nothing
 
 -- TODO: rename One2OneMLSConversation -> MLSOne2OneConversation so it matches the name of the function
 getMLSOne2OneConversation ::
@@ -795,8 +795,9 @@ getMLSOne2OneConversation ::
   ) =>
   Local UserId ->
   Qualified UserId ->
+  Maybe MLSPublicKeyFormat ->
   Sem r (One2OneMLSConversation SomeKey)
-getMLSOne2OneConversation lself qother = do
+getMLSOne2OneConversation lself qother fmt = do
   assertMLSEnabled
   ensureConnectedOrSameTeam lself [qother]
   let convId = one2OneConvId BaseProtocolMLSTag (tUntagged lself) qother
@@ -806,8 +807,7 @@ getMLSOne2OneConversation lself qother = do
       (getLocalMLSOne2OneConversation lself)
       (getRemoteMLSOne2OneConversation lself qother)
       convId
-  -- TODO: source this format from somewhere
-  formattedKeys <- formatPublicKeys Nothing convWithUnformattedKeys.publicKeys
+  formattedKeys <- formatPublicKeys fmt convWithUnformattedKeys.publicKeys
   pure $
     convWithUnformattedKeys
       { publicKeys = formattedKeys
