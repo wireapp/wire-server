@@ -1,0 +1,6 @@
+Use latest stable RabbitMQ version (`3.13.7`) and Helm chart (`14.6.9`). Please
+note that this minor RabbitMQ version upgrade (`3.11.x` to `3.13.x`) may need
+special treatment regarding existing RabbitMQ instances. See
+https://www.rabbitmq.com/docs/upgrade#rabbitmq-version-upgradability . The major
+Helm chart version upgrade may (depending on your setup/values) need attention
+as well: https://github.com/bitnami/charts/tree/main/bitnami/rabbitmq#upgrading
