@@ -276,8 +276,9 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail invRequest = do
           timeout
           mUrl
     if migrateIndividualUser
-      then pure (newInv, code) -- todo(leif): send invitation for migrating to a team member
-      else sendInvitationMail email tid fromEmail code invRequest.locale $> (newInv, code)
+      then sendInvitationMailIndividualUser email tid fromEmail code invRequest.locale
+      else sendInvitationMail email tid fromEmail code invRequest.locale
+    pure (newInv, code)
 
 deleteInvitation :: (Member GalleyAPIAccess r) => UserId -> TeamId -> InvitationId -> (Handler r) ()
 deleteInvitation uid tid iid = do

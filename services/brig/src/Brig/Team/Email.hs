@@ -22,6 +22,7 @@ module Brig.Team.Email
     CreatorWelcomeEmail (..),
     MemberWelcomeEmail (..),
     sendInvitationMail,
+    sendInvitationMailIndividualUser,
     sendMemberWelcomeMail,
   )
 where
@@ -39,9 +40,6 @@ import Wire.API.User
 import Wire.EmailSending
 import Wire.EmailSubsystem.Template (TemplateBranding, renderHtmlWithBranding, renderTextWithBranding)
 
--------------------------------------------------------------------------------
--- Invitation Email
-
 sendInvitationMail :: (Member EmailSending r) => EmailAddress -> TeamId -> EmailAddress -> InvitationCode -> Maybe Locale -> (AppT r) ()
 sendInvitationMail to tid from code loc = do
   tpl <- invitationEmail . snd <$> teamTemplates loc
@@ -55,6 +53,9 @@ sendMemberWelcomeMail to tid teamName loc = do
   branding <- view templateBranding
   let mail = MemberWelcomeEmail to tid teamName
   liftSem $ sendMail $ renderMemberWelcomeMail mail tpl branding
+
+sendInvitationMailIndividualUser :: EmailAddress -> TeamId -> EmailAddress -> InvitationCode -> Maybe Locale -> (AppT r) ()
+sendInvitationMailIndividualUser _ _ _ _ _ = pure () -- TODO(leif): Implement
 
 -------------------------------------------------------------------------------
 -- Invitation Email
