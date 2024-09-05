@@ -582,7 +582,6 @@ listActivatedAccountsH
         dom
           $> MkGetBy
             { includePendingInvitations = include,
-              includePendingActivations = False,
               getByUserIds = uids,
               getByEmail = emails,
               getByHandle = handles

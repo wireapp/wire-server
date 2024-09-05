@@ -83,6 +83,7 @@ import Data.Qualified
 import Data.Set qualified as Set
 import Data.Text.Encoding qualified as T
 import Data.Text.Encoding.Error
+import Debug.Trace
 import Imports
 import Network.HTTP.Types.Method (StdMethod)
 import Network.Wai.Utilities
@@ -202,8 +203,11 @@ addClientWithReAuthPolicy ::
   NewClient ->
   ExceptT ClientError (AppT r) Client
 addClientWithReAuthPolicy policy luid@(tUnqualified -> u) con new = do
+  traceM "\n --------------- addClientWithReAuthPolicy"
   usr <- (lift . liftSem $ User.getLocalUserAccount luid) >>= maybe (throwE (ClientUserNotFound u)) (pure . (.accountUser))
+  traceM "\n --------------- will verify code"
   verifyCode (newClientVerificationCode new) luid
+  traceM "\n --------------- verified code"
   maxPermClients <- fromMaybe Opt.defUserMaxPermClients . Opt.setUserMaxPermClients <$> view settings
   let caps :: Maybe (Set ClientCapability)
       caps = updlhdev $ newClientCapabilities new
@@ -218,6 +222,7 @@ addClientWithReAuthPolicy policy luid@(tUnqualified -> u) con new = do
       (Data.addClientWithReAuthPolicy policy luid clientId' new maxPermClients caps)
       !>> ClientDataError
   let clt = clt0 {clientMLSPublicKeys = newClientMLSPublicKeys new}
+  traceM $ "\n 1 ------- ctl:  " <> show clt
   lift $ do
     for_ old $ execDelete u con
     liftSem $ GalleyAPIAccess.newClient u (clientId clt)
@@ -227,6 +232,7 @@ addClientWithReAuthPolicy policy luid@(tUnqualified -> u) con new = do
       for_ (userEmail usr) $
         \email ->
           liftSem $ sendNewClientEmail email (userDisplayName usr) clt (userLocale usr)
+  traceM $ "\n 2 ------- client:  " <> show clt
   pure clt
   where
     clientId' = clientIdFromPrekey (unpackLastPrekey $ newClientLastKey new)

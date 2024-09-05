@@ -511,7 +511,7 @@ getAccountsByImpl ::
   ) =>
   Local GetBy ->
   Sem r [UserAccount]
-getAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations, includePendingActivations, getByEmail, getByHandle, getByUserIds})) = do
+getAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations, getByEmail, getByHandle, getByUserIds})) = do
   config <- input
 
   let storedToAcc = mkAccountFromStored domain config.defaultLocale
@@ -539,12 +539,6 @@ getAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations, includ
                 else pure True
           )
 
-      filterPendingActivation :: [UserAccount] -> Sem r [UserAccount]
-      filterPendingActivation =
-        if includePendingActivations
-          then pure
-          else pure . filter (\acc -> isNothing acc.accountUser.userIdentity)
-
       mailKeyFrom :: UserAccount -> Maybe EmailAddress
       mailKeyFrom acc =
         case acc.accountUser.userIdentity of
@@ -557,12 +551,12 @@ getAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations, includ
   accsByIds :: [UserAccount] <-
     getUsers (nubOrd $ handleUserIds <> getByUserIds)
       <&> map storedToAcc
-      >>= (filterPendingInvitations >=> filterPendingActivation)
+      >>= filterPendingInvitations
 
   accsByEmail :: [UserAccount] <- flip foldMap getByEmail \ek -> do
     mactiveUid <- lookupKey ek
     getUsers (nubOrd . catMaybes $ [mactiveUid])
       <&> map storedToAcc
-      >>= (filterPendingInvitations >=> filterPendingActivation)
+      >>= filterPendingInvitations
 
   pure (nubOrd $ accsByIds <> accsByEmail)
