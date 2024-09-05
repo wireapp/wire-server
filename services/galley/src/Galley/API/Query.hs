@@ -780,7 +780,6 @@ getMLSOne2OneConversationInternal ::
 getMLSOne2OneConversationInternal lself qother =
   (.conversation) <$> getMLSOne2OneConversation lself qother Nothing
 
--- TODO: rename One2OneMLSConversation -> MLSOne2OneConversation so it matches the name of the function
 getMLSOne2OneConversation ::
   ( Member BrigAccess r,
     Member ConversationStore r,
@@ -796,7 +795,7 @@ getMLSOne2OneConversation ::
   Local UserId ->
   Qualified UserId ->
   Maybe MLSPublicKeyFormat ->
-  Sem r (One2OneMLSConversation SomeKey)
+  Sem r (MLSOne2OneConversation SomeKey)
 getMLSOne2OneConversation lself qother fmt = do
   assertMLSEnabled
   ensureConnectedOrSameTeam lself [qother]
@@ -822,7 +821,7 @@ getLocalMLSOne2OneConversation ::
   ) =>
   Local UserId ->
   Local ConvId ->
-  Sem r (One2OneMLSConversation MLSPublicKey)
+  Sem r (MLSOne2OneConversation MLSPublicKey)
 getLocalMLSOne2OneConversation lself lconv = do
   mconv <- E.getConversation (tUnqualified lconv)
   keys <- mlsKeysToPublic <$$> getMLSPrivateKeys
@@ -830,7 +829,7 @@ getLocalMLSOne2OneConversation lself lconv = do
     Nothing -> pure (localMLSOne2OneConversation lself lconv)
     Just conv -> conversationView lself conv
   pure $
-    One2OneMLSConversation
+    MLSOne2OneConversation
       { conversation = conv,
         publicKeys = keys
       }
@@ -845,7 +844,7 @@ getRemoteMLSOne2OneConversation ::
   Local UserId ->
   Qualified UserId ->
   Remote conv ->
-  Sem r (One2OneMLSConversation MLSPublicKey)
+  Sem r (MLSOne2OneConversation MLSPublicKey)
 getRemoteMLSOne2OneConversation lself qother rconv = do
   -- a conversation can only be remote if it is hosted on the other user's domain
   rother <-

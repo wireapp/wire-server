@@ -34,7 +34,7 @@ module Wire.API.Conversation
     cnvMessageTimer,
     cnvReceiptMode,
     cnvAccessRoles,
-    One2OneMLSConversation (..),
+    MLSOne2OneConversation (..),
     CreateGroupConversation (..),
     ConversationCoverView (..),
     ConversationList (..),
@@ -291,19 +291,19 @@ conversationSchema v =
     (description ?~ "A conversation object as returned from the server")
     (conversationObjectSchema v)
 
-data One2OneMLSConversation a = One2OneMLSConversation
+data MLSOne2OneConversation a = MLSOne2OneConversation
   { conversation :: Conversation,
     publicKeys :: MLSKeysByPurpose (MLSKeys a)
   }
-  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema (One2OneMLSConversation a))
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema (MLSOne2OneConversation a))
 
-instance (ToSchema a) => ToSchema (One2OneMLSConversation a) where
+instance (ToSchema a) => ToSchema (MLSOne2OneConversation a) where
   schema =
     -- let aName = fromMaybe "a" $ S.getName (schemaDoc (schema @a))
     -- TODO: Figure out how to derive the name
     let aName = "a"
-     in object ("One2OneMLSConversation_" <> aName) $
-          One2OneMLSConversation
+     in object ("MLSOne2OneConversation_" <> aName) $
+          MLSOne2OneConversation
             <$> conversation .= field "conversation" schema
             <*> publicKeys .= field "public_keys" schema
 

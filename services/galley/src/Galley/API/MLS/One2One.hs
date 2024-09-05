@@ -102,7 +102,7 @@ remoteMLSOne2OneConversation ::
   Local UserId ->
   Remote UserId ->
   RemoteMLSOne2OneConversation ->
-  (One2OneMLSConversation MLSPublicKey)
+  (MLSOne2OneConversation MLSPublicKey)
 remoteMLSOne2OneConversation lself rother rc =
   let members =
         ConvMembers
@@ -116,7 +116,7 @@ remoteMLSOne2OneConversation lself rother rc =
             cnvMembers = members,
             cnvProtocol = rc.conversation.protocol
           }
-   in One2OneMLSConversation
+   in MLSOne2OneConversation
         { conversation = conv,
           publicKeys = rc.publicKeys
         }

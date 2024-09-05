@@ -697,7 +697,7 @@ type ConversationAPI =
                :> "one2one"
                :> QualifiedCapture "usr" UserId
                :> QueryParam "format" MLSPublicKeyFormat
-               :> MultiVerb1 'GET '[JSON] (Respond 200 "MLS 1-1 conversation" (One2OneMLSConversation SomeKey))
+               :> MultiVerb1 'GET '[JSON] (Respond 200 "MLS 1-1 conversation" (MLSOne2OneConversation SomeKey))
            )
     -- This endpoint can lead to the following events being sent:
     -- - MemberJoin event to members
