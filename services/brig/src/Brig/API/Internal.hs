@@ -578,7 +578,7 @@ listActivatedAccountsH
       throwStd (notFound "no user keys")
     lift $ liftSem do
       dom <- input
-      getAccountsBy $
+      getExtendedAccountsBy $
         dom
           $> MkGetBy
             { includePendingInvitations = include,
