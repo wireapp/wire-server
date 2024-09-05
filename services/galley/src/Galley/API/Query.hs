@@ -898,7 +898,8 @@ isMLSOne2OneEstablished ::
     Member (Error InternalError) r,
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'NotConnected) r,
-    Member FederatorAccess r
+    Member FederatorAccess r,
+    Member TinyLog r
   ) =>
   Local UserId ->
   Qualified UserId ->
@@ -929,7 +930,8 @@ isRemoteMLSOne2OneEstablished ::
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member FederatorAccess r,
-    Member (ErrorS MLSNotEnabled) r
+    Member (ErrorS MLSNotEnabled) r,
+    Member TinyLog r
   ) =>
   Local UserId ->
   Qualified UserId ->
