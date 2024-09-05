@@ -307,7 +307,7 @@ mkFailureResponse status domain path body
 -- | Run federator client synchronously.
 runFederatorClient ::
   FederatorClientEnv ->
-  FederatorClient c a ->
+  (Version -> FederatorClient c a) ->
   IO (Either FederatorClientError a)
 runFederatorClient env =
   lowerCodensity
@@ -325,16 +325,16 @@ runVersionedFederatorClient venv =
 runFederatorClientToCodensity ::
   forall c a.
   FederatorClientEnv ->
-  FederatorClient c a ->
+  (Version -> FederatorClient c a) ->
   Codensity IO (Either FederatorClientError a)
-runFederatorClientToCodensity env action = runExceptT $ do
+runFederatorClientToCodensity env mkAction = runExceptT $ do
   v <-
     runVersionedFederatorClientToCodensity
       (FederatorClientVersionedEnv env Nothing)
       (versionNegotiation supportedVersions)
   runVersionedFederatorClientToCodensity @c
     (FederatorClientVersionedEnv env (Just v))
-    action
+    (mkAction v)
 
 runVersionedFederatorClientToCodensity ::
   FederatorClientVersionedEnv ->

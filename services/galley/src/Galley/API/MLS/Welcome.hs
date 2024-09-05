@@ -114,7 +114,7 @@ sendRemoteWelcomes ::
   Sem r ()
 sendRemoteWelcomes qcnv qusr welcome clients = do
   let msg = Base64ByteString welcome.raw
-  traverse_ handleError <=< runFederatedConcurrentlyEither clients $ \rcpts ->
+  traverse_ handleError <=< runFederatedConcurrentlyEither clients $ \rcpts _version ->
     fedClient @'Galley @"mls-welcome"
       MLSWelcomeRequest
         { originatingUser = qUnqualified qusr,

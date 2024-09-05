@@ -149,7 +149,7 @@ getRemoteSubConversation ::
   SubConvId ->
   Sem r PublicSubConversation
 getRemoteSubConversation lusr rcnv sconv = do
-  res <- runFederated rcnv $ do
+  res <- runFederated rcnv $ \_version ->
     fedClient @'Galley @"get-sub-conversation" $
       GetSubConversationsRequest
         { gsreqUser = tUnqualified lusr,
@@ -317,7 +317,7 @@ deleteRemoteSubConversation lusr rcnvId scnvId dsc = do
   response <-
     runFederated
       rcnvId
-      (fedClient @'Galley @"delete-sub-conversation" deleteRequest)
+      (\_version -> fedClient @'Galley @"delete-sub-conversation" deleteRequest)
   case response of
     DeleteSubConversationResponseError e -> rethrowErrors @MLSDeleteSubConvStaticErrors e
     DeleteSubConversationResponseSuccess -> pure ()
@@ -428,7 +428,7 @@ leaveRemoteSubConversation ::
   Sem r ()
 leaveRemoteSubConversation cid rcnv sub = do
   res <-
-    runFederated rcnv $
+    runFederated rcnv $ \_version ->
       fedClient @'Galley @"leave-sub-conversation" $
         LeaveSubConversationRequest
           { lscrUser = ciUser cid,

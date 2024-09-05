@@ -209,5 +209,6 @@ runBrigFederatorClient targetDomain action = do
             ceHttp2Manager = mgr,
             ceOriginRequestId = rid
           }
-  liftIO (runFederatorClient env action)
+  -- FUTUREWORK: remove this 'const' and take action as 'Version ->  FederatorClient Brig a'
+  liftIO (runFederatorClient env (const action))
     >>= either (throwE . FederationCallFailure) pure

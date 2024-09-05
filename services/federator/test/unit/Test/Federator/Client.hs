@@ -99,7 +99,7 @@ withMockFederatorClient mock action = withTempMockFederator mock $ \port -> do
             ceHttp2Manager = mgr,
             ceOriginRequestId = RequestId "N/A"
           }
-  a <- runFederatorClient env action
+  a <- runFederatorClient env (const action)
   case a of
     Left (FederatorClientError r) -> pure (Left (ResponseFailure r))
     Left err -> assertFailure $ "Unexpected client error: " <> displayException err
@@ -204,7 +204,7 @@ testClientConnectionError = do
             ceHttp2Manager = mgr,
             ceOriginRequestId = RequestId "N/A"
           }
-  result <- runFederatorClient env (fedClient @'Brig @"get-user-by-handle" handle)
+  result <- runFederatorClient env (\_version -> fedClient @'Brig @"get-user-by-handle" handle)
   case result of
     Left (FederatorClientHTTP2Error (FederatorClientConnectionError _)) -> pure ()
     Left x -> assertFailure $ "Expected connection error, got: " <> show x
