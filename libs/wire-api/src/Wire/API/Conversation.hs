@@ -298,10 +298,8 @@ data MLSOne2OneConversation a = MLSOne2OneConversation
 
 instance (ToSchema a) => ToSchema (MLSOne2OneConversation a) where
   schema =
-    -- let aName = fromMaybe "a" $ S.getName (schemaDoc (schema @a))
-    -- TODO: Figure out how to derive the name
-    let aName = "a"
-     in object ("MLSOne2OneConversation_" <> aName) $
+    let aName = maybe "" ("_" <>) $ getName (schemaDoc (schema @a))
+     in object ("MLSOne2OneConversation" <> aName) $
           MLSOne2OneConversation
             <$> conversation .= field "conversation" schema
             <*> publicKeys .= field "public_keys" schema
