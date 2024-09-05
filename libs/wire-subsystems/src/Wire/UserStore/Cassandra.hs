@@ -134,7 +134,7 @@ lookupLocaleImpl u = do
 
 selectUser :: PrepQuery R (Identity UserId) (TupleType StoredUser)
 selectUser =
-  "SELECT id, name, text_status, picture, email, sso_id, accent_id, assets, \
+  "SELECT id, name, text_status, picture, email, email_unvalidated, sso_id, accent_id, assets, \
   \activated, status, expires, language, country, provider, service, \
   \handle, team, managed_by, supported_protocols \
   \FROM user where id = ?"
