@@ -1660,6 +1660,15 @@ type TeamsAPI =
                     '[JSON]
                     (Respond 200 "Number of team members" TeamSize)
            )
+    :<|> Named
+           "accept-team-invitation"
+           ( Summary "Accept a team invitation."
+               :> "teams"
+               :> "invitations"
+               :> "accept"
+               :> ReqBody '[JSON] AcceptTeamInvitation
+               :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Team invitation accepted."] ()
+           )
 
 type SystemSettingsAPI =
   Named

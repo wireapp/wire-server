@@ -22,6 +22,7 @@ module Wire.API.Team.Invitation
     Invitation (..),
     InvitationList (..),
     InvitationLocation (..),
+    AcceptTeamInvitation (..),
     HeadInvitationByEmailResult (..),
     HeadInvitationsResponses,
   )
@@ -41,11 +42,9 @@ import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import URI.ByteString
 import Wire.API.Error
 import Wire.API.Error.Brig
-import Wire.API.Locale (Locale)
 import Wire.API.Routes.MultiVerb
 import Wire.API.Team.Role (Role, defaultRole)
-import Wire.API.User.Identity (EmailAddress)
-import Wire.API.User.Profile (Name)
+import Wire.API.User
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 --------------------------------------------------------------------------------
@@ -178,3 +177,18 @@ instance ToSchema InvitationList where
           .= field "invitations" (array schema)
         <*> ilHasMore
           .= fieldWithDocModifier "has_more" (description ?~ "Indicator that the server has more invitations than returned.") schema
+
+--------------------------------------------------------------------------------
+-- AcceptTeamInvitation
+
+data AcceptTeamInvitation = AcceptTeamInvitation
+  { code :: InvitationCode
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema AcceptTeamInvitation)
+
+instance ToSchema AcceptTeamInvitation where
+  schema =
+    objectWithDocModifier "AcceptTeamInvitation" (description ?~ "Accept an invitation to join a team on Wire.") $
+      AcceptTeamInvitation
+        <$> code .= fieldWithDocModifier "code" (description ?~ "Invitation code to accept.") schema

@@ -102,6 +102,7 @@ servantAPI =
     :<|> Named @"get-team-invitation-info" getInvitationByCode
     :<|> Named @"head-team-invitations" headInvitationByEmail
     :<|> Named @"get-team-size" teamSizePublic
+    :<|> Named @"accept-team-invitation" acceptTeamInvitation
 
 teamSizePublic :: (Member GalleyAPIAccess r) => UserId -> TeamId -> (Handler r) TeamSize
 teamSizePublic uid tid = do
@@ -381,3 +382,6 @@ changeTeamAccountStatuses tid s = do
   where
     toList1 (x : xs) = pure $ List1.list1 x xs
     toList1 [] = throwStd (notFound "Team not found or no members")
+
+acceptTeamInvitation :: AcceptTeamInvitation -> (Handler r) ()
+acceptTeamInvitation _ = pure () -- TODO(leif): Implement

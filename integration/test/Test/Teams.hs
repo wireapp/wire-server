@@ -18,7 +18,7 @@
 module Test.Teams where
 
 import API.Brig
-import API.BrigInternal (createUser)
+import API.BrigInternal (createUser, getInvitationCode)
 import SetupHelpers
 import Testlib.JSON
 import Testlib.Prelude
@@ -29,4 +29,6 @@ testInviteIndividualUserToTeam = do
   individualUser <- createUser OwnDomain def
   email <- individualUser.json %. "email" >>= asString
   inv <- postInvitation owner (PostInvitation $ Just email) >>= getJSON 201
-  printJSON inv
+  resp <- getInvitationCode owner inv >>= getJSON 200
+  code <- resp %. "code" & asString
+  printJSON code
