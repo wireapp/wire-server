@@ -90,7 +90,8 @@ servantAPI ::
   ( Member GalleyAPIAccess r,
     Member UserKeyStore r,
     Member UserSubsystem r,
-    Member EmailSending r
+    Member EmailSending r,
+    Member (Input (Local ())) r
   ) =>
   ServerT TeamsAPI (Handler r)
 servantAPI =
@@ -125,7 +126,8 @@ createInvitation ::
   ( Member GalleyAPIAccess r,
     Member UserKeyStore r,
     Member UserSubsystem r,
-    Member EmailSending r
+    Member EmailSending r,
+    Member (Input (Local ())) r
   ) =>
   UserId ->
   TeamId ->
@@ -161,7 +163,8 @@ createInvitationViaScim ::
     Member (UserPendingActivationStore p) r,
     Member TinyLog r,
     Member EmailSending r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member (Input (Local ())) r
   ) =>
   TeamId ->
   NewUserScimInvitation ->
@@ -210,7 +213,8 @@ createInvitation' ::
   ( Member UserSubsystem r,
     Member GalleyAPIAccess r,
     Member UserKeyStore r,
-    Member EmailSending r
+    Member EmailSending r,
+    Member (Input (Local ())) r
   ) =>
   TeamId ->
   Maybe UserId ->
@@ -219,15 +223,27 @@ createInvitation' ::
   EmailAddress ->
   Public.InvitationRequest ->
   Handler r (Public.Invitation, Public.InvitationCode)
-createInvitation' tid mUid inviteeRole mbInviterUid fromEmail body = do
-  let email = (inviteeEmail body)
+createInvitation' tid mUid inviteeRole mbInviterUid fromEmail invRequest = do
+  let email = inviteeEmail invRequest
   let uke = mkEmailKey email
   blacklistedEm <- lift $ liftSem $ isBlocked email
   when blacklistedEm $
     throwStd blacklistedEmail
   emailTaken <- lift $ liftSem $ isJust <$> lookupKey uke
+  migrateIndividualUser <-
+    if emailTaken
+      then do
+        mAccount <- lift $ liftSem $ getLocalUserAccountByUserKey =<< qualifyLocal' uke
+        pure $ case mAccount of
+          Nothing -> False
+          Just account ->
+            account.accountStatus == Active
+              && isNothing account.accountUser.userTeam
+      else pure False
+
   when emailTaken $
-    throwStd emailExists
+    unless migrateIndividualUser $
+      throwStd emailExists
 
   maxSize <- setMaxTeamSize <$> view settings
   pending <- lift $ wrapClient $ DB.countInvitations tid
@@ -240,19 +256,28 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail body = do
     iid <- maybe (liftIO DB.mkInvitationId) (pure . Id . toUUID) mUid
     now <- liftIO =<< view currentTime
     timeout <- setTeamInvitationTimeout <$> view settings
-    (newInv, code) <-
+    code <- liftIO $ DB.mkInvitationCode
+    mUrl <-
+      wrapClient $
+        if migrateIndividualUser
+          then DB.mkInviteUrlIndividualUser showInvitationUrl tid code
+          else DB.mkInviteUrl showInvitationUrl tid code
+    newInv <-
       wrapClient $
         DB.insertInvitation
-          showInvitationUrl
+          code
           iid
           tid
           inviteeRole
           now
           mbInviterUid
           email
-          body.inviteeName
+          invRequest.inviteeName
           timeout
-    (newInv, code) <$ sendInvitationMail email tid fromEmail code body.locale
+          mUrl
+    if migrateIndividualUser
+      then pure (newInv, code) -- todo(leif): send invitation for migrating to a team member
+      else sendInvitationMail email tid fromEmail code invRequest.locale $> (newInv, code)
 
 deleteInvitation :: (Member GalleyAPIAccess r) => UserId -> TeamId -> InvitationId -> (Handler r) ()
 deleteInvitation uid tid iid = do

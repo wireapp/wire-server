@@ -32,6 +32,8 @@ module Brig.Team.DB
     lookupInvitationByEmail,
     mkInvitationCode,
     mkInvitationId,
+    mkInviteUrl,
+    mkInviteUrlIndividualUser,
     InvitationByEmail (..),
     InvitationInfo (..),
   )
@@ -84,10 +86,9 @@ data InvitationByEmail
 
 insertInvitation ::
   ( Log.MonadLogger m,
-    MonadReader Env m,
     MonadClient m
   ) =>
-  ShowOrHideInvitationUrl ->
+  InvitationCode ->
   InvitationId ->
   TeamId ->
   Role ->
@@ -97,18 +98,17 @@ insertInvitation ::
   Maybe Name ->
   -- | The timeout for the invitation code.
   Timeout ->
-  m (Invitation, InvitationCode)
-insertInvitation showUrl iid t role (toUTCTimeMillis -> now) minviter email inviteeName timeout = do
-  code <- liftIO mkInvitationCode
-  url <- mkInviteUrl showUrl t code
-  let inv = Invitation t role iid now minviter email inviteeName url
+  Maybe (URIRef Absolute) ->
+  m Invitation
+insertInvitation code iid t role (toUTCTimeMillis -> now) minviter email inviteeName timeout mUrl = do
+  let inv = Invitation t role iid now minviter email inviteeName mUrl
   retry x5 . batch $ do
     setType BatchLogged
     setConsistency LocalQuorum
     addPrepQuery cqlInvitation (t, role, iid, code, email, now, minviter, inviteeName, round timeout)
     addPrepQuery cqlInvitationInfo (code, t, iid, round timeout)
     addPrepQuery cqlInvitationByEmail (email, t, iid, code, round timeout)
-  pure (inv, code)
+  pure inv
   where
     cqlInvitationInfo :: PrepQuery W (InvitationCode, TeamId, InvitationId, Int32) ()
     cqlInvitationInfo = "INSERT INTO team_invitation_info (code, team, id) VALUES (?, ?, ?) USING TTL ?"
@@ -321,3 +321,6 @@ mkInviteUrl ShowInvitationUrl team (InvitationCode c) = do
           (Log.val "Unable to create invitation url. Please check configuration.")
           . Log.field "url" url
           . Log.field "error" (show e)
+
+mkInviteUrlIndividualUser :: (Monad m) => ShowOrHideInvitationUrl -> TeamId -> InvitationCode -> m (Maybe (URIRef Absolute))
+mkInviteUrlIndividualUser _ _ _ = pure Nothing -- todo(leif): implement
