@@ -34,6 +34,7 @@ module Brig.Data.User
     -- * Lookups
     lookupAccount,
     lookupAccounts,
+    lookupExtendedAccounts,
     lookupUser,
     lookupUsers,
     lookupName,
@@ -150,8 +151,8 @@ newAccount u inv tid mbHandle = do
     prots = fromMaybe defSupportedProtocols (newUserSupportedProtocols u)
     user uid domain l e = User (Qualified uid domain) ident name Nothing pict assets colour False l Nothing mbHandle e tid managedBy prots
 
-newAccountInviteViaScim :: (MonadReader Env m) => UserId -> TeamId -> Maybe Locale -> Name -> EmailAddress -> m UserAccount
-newAccountInviteViaScim uid tid locale name email = do
+newAccountInviteViaScim :: (MonadReader Env m) => UserId -> Text -> TeamId -> Maybe Locale -> Name -> EmailAddress -> m UserAccount
+newAccountInviteViaScim uid externalId tid locale name email = do
   defLoc <- setDefaultUserLocale <$> view settings
   let loc = fromMaybe defLoc locale
   domain <- viewFederationDomain
@@ -160,7 +161,7 @@ newAccountInviteViaScim uid tid locale name email = do
     user domain loc =
       User
         (Qualified uid domain)
-        (Just $ EmailIdentity email)
+        (Just $ SSOIdentity (UserScimExternalId externalId) (Just email))
         name
         Nothing
         (Pict [])
@@ -394,10 +395,13 @@ lookupAccount :: (MonadClient m, MonadReader Env m) => UserId -> m (Maybe UserAc
 lookupAccount u = listToMaybe <$> lookupAccounts [u]
 
 lookupAccounts :: (MonadClient m, MonadReader Env m) => [UserId] -> m [UserAccount]
-lookupAccounts usrs = do
+lookupAccounts usrs = account <$$> lookupExtendedAccounts usrs
+
+lookupExtendedAccounts :: (MonadClient m, MonadReader Env m) => [UserId] -> m [ExtendedUserAccount]
+lookupExtendedAccounts usrs = do
   loc <- setDefaultUserLocale <$> view settings
   domain <- viewFederationDomain
-  fmap (toUserAccount domain loc) <$> retry x1 (query accountsSelect (params LocalQuorum (Identity usrs)))
+  fmap (toExtendedUserAccount domain loc) <$> retry x1 (query accountsSelect (params LocalQuorum (Identity usrs)))
 
 lookupServiceUser :: (MonadClient m) => ProviderId -> ServiceId -> BotId -> m (Maybe (ConvId, Maybe TeamId))
 lookupServiceUser pid sid bid = retry x1 (query1 cql (params LocalQuorum (pid, sid, bid)))
@@ -454,6 +458,7 @@ type UserRow =
     Maybe TextStatus,
     Maybe Pict,
     Maybe EmailAddress,
+    Maybe EmailAddress,
     Maybe UserSSOId,
     ColourId,
     Maybe [Asset],
@@ -500,7 +505,7 @@ type AccountRow = UserRow
 
 usersSelect :: PrepQuery R (Identity [UserId]) UserRow
 usersSelect =
-  "SELECT id, name, text_status, picture, email, sso_id, accent_id, assets, \
+  "SELECT id, name, text_status, picture, email, email_unvalidated, sso_id, accent_id, assets, \
   \activated, status, expires, language, country, provider, service, \
   \handle, team, managed_by, supported_protocols \
   \FROM user where id IN ?"
@@ -525,7 +530,7 @@ teamSelect = "SELECT team FROM user WHERE id = ?"
 
 accountsSelect :: PrepQuery R (Identity [UserId]) AccountRow
 accountsSelect =
-  "SELECT id, name, text_status, picture, email, sso_id, accent_id, assets, \
+  "SELECT id, name, text_status, picture, email, email_unvalidated, sso_id, accent_id, assets, \
   \activated, status, expires, language, country, provider, \
   \service, handle, team, managed_by, supported_protocols \
   \FROM user WHERE id IN ?"
@@ -571,8 +576,8 @@ userRichInfoUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE r
 -- Conversions
 
 -- | Construct a 'UserAccount' from a raw user record in the database.
-toUserAccount :: Domain -> Locale -> AccountRow -> UserAccount
-toUserAccount
+toExtendedUserAccount :: Domain -> Locale -> AccountRow -> ExtendedUserAccount
+toExtendedUserAccount
   domain
   defaultLocale
   ( uid,
@@ -580,6 +585,7 @@ toUserAccount
     textStatus,
     pict,
     email,
+    emailUnvalidated,
     ssoid,
     accent,
     assets,
@@ -600,25 +606,27 @@ toUserAccount
         expiration = if status == Just Ephemeral then expires else Nothing
         loc = toLocale defaultLocale (lan, con)
         svc = newServiceRef <$> sid <*> pid
-     in UserAccount
-          ( User
-              (Qualified uid domain)
-              ident
-              name
-              textStatus
-              (fromMaybe noPict pict)
-              (fromMaybe [] assets)
-              accent
-              deleted
-              loc
-              svc
-              handle
-              expiration
-              tid
-              (fromMaybe ManagedByWire managed_by)
-              (fromMaybe defSupportedProtocols prots)
-          )
-          (fromMaybe Active status)
+        account =
+          UserAccount
+            ( User
+                (Qualified uid domain)
+                ident
+                name
+                textStatus
+                (fromMaybe noPict pict)
+                (fromMaybe [] assets)
+                accent
+                deleted
+                loc
+                svc
+                handle
+                expiration
+                tid
+                (fromMaybe ManagedByWire managed_by)
+                (fromMaybe defSupportedProtocols prots)
+            )
+            (fromMaybe Active status)
+     in ExtendedUserAccount account emailUnvalidated
 
 toUsers :: Domain -> Locale -> HavePendingInvitations -> [UserRow] -> [User]
 toUsers domain defaultLocale havePendingInvitations = fmap mk . filter fp
@@ -633,6 +641,7 @@ toUsers domain defaultLocale havePendingInvitations = fmap mk . filter fp
                _textStatus,
                _pict,
                _email,
+               _,
                _ssoid,
                _accent,
                _assets,
@@ -657,6 +666,7 @@ toUsers domain defaultLocale havePendingInvitations = fmap mk . filter fp
         textStatus,
         pict,
         email,
+        _,
         ssoid,
         accent,
         assets,

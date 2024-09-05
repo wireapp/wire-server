@@ -87,6 +87,7 @@ import qualified Web.Scim.Class.User as Scim
 import qualified Web.Scim.Schema.Common as Scim
 import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.User as Scim
+import qualified Web.Scim.Schema.User.Email as Scim
 import Wire.API.Team.Member (newTeamMemberDeleteData, rolePermissions)
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.Team.Role
@@ -1056,8 +1057,19 @@ specCRUDIdentityProvider = do
                 respId <- listUsers tok (Just (filterBy "externalId" externalId))
                 respHandle <- listUsers tok (Just (filterBy "userName" handle'))
                 liftIO $ do
-                  respId `shouldBe` [target]
-                  respHandle `shouldBe` [target]
+                  let patched = case target of
+                        Scim.WithMeta _m (Scim.WithId i u) ->
+                          let u' :: Scim.User SparTag
+                              u' = case emailAddress (cs externalId) of
+                                -- if the externalId is an email, and the email field was
+                                -- empty, the scim response from spar contains the externalId
+                                -- (parsed) in the emails field.
+                                Just e -> u {Scim.emails = [Scim.Email Nothing (Scim.EmailAddress e) Nothing]}
+                                Nothing -> u
+                           in -- don't compare meta, or you need to update the ETag in version because email may have changed.
+                              Scim.WithId i u'
+                  (Scim.thing <$> respId) `shouldBe` [patched]
+                  (Scim.thing <$> respHandle) `shouldBe` [patched]
 
           checkScimSearch scimStoredUser scimUser
           updateOrReplaceIdps (owner1, idp1, idpmeta1)
@@ -1274,7 +1286,7 @@ specScimAndSAML = do
     userid' <- getUserIdViaRef' userref
     liftIO $ ('i', userid') `shouldBe` ('i', Just userid)
     userssoid <- getSsoidViaSelf' userid
-    liftIO $ ('r', veidUref <$$> (Intra.veidFromUserSSOId <$> userssoid)) `shouldBe` ('r', Just (Right (Just userref)))
+    liftIO $ ('r', veidUref <$$> ((`Intra.veidFromUserSSOId` Nothing) <$> userssoid)) `shouldBe` ('r', Just (Right (Just userref)))
     -- login a user for the first time with the scim-supplied credentials
     authnreq <- negotiateAuthnRequest idp
     spmeta <- getTestSPMetadata tid
@@ -1516,7 +1528,7 @@ getSsoidViaAuthResp :: (HasCallStack) => SignedAuthnResponse -> TestSpar UserSSO
 getSsoidViaAuthResp aresp = do
   parsed :: AuthnResponse <-
     either error pure . parseFromDocument $ fromSignedAuthnResponse aresp
-  either error (pure . Intra.veidToUserSSOId . UrefOnly) $ getUserRef parsed
+  either error (pure . UserSSOId) $ getUserRef parsed
 
 specSparUserMigration :: SpecWith TestEnv
 specSparUserMigration = do

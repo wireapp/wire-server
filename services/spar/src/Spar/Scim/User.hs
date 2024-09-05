@@ -38,8 +38,8 @@ module Spar.Scim.User
   ( validateScimUser',
     synthesizeScimUser,
     toScimStoredUser,
-    mkValidExternalId,
-    scimFindUserByEmail,
+    mkValidScimId,
+    scimFindUserByExternalId,
     deleteScimUser,
   )
 where
@@ -63,6 +63,8 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.Text.Encoding.Error
 import qualified Data.Text.Lazy as LText
+import Data.These
+import Data.These.Combinators
 import qualified Data.UUID as UUID
 import Imports
 import Network.URI (URI, parseURI)
@@ -104,13 +106,13 @@ import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.ResourceType as Scim
 import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User (schemas)
--- import qualified Web.Scim.Schema.User.Email as Scim.Email
+import qualified Web.Scim.Schema.User.Email as Scim.Email
 import qualified Wire.API.Team.Member as Member
 import Wire.API.Team.Role
 import Wire.API.User
 import Wire.API.User.IdentityProvider (IdP)
 import qualified Wire.API.User.RichInfo as RI
-import Wire.API.User.Scim (ScimTokenInfo (..))
+import Wire.API.User.Scim (ScimTokenInfo (..), ValidScimId (..))
 import qualified Wire.API.User.Scim as ST
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger
@@ -157,7 +159,7 @@ instance
             | Scim.isUserSchema schema -> do
                 x <- runMaybeT $ case attrName of
                   "username" -> scimFindUserByHandle mIdpConfig stiTeam val
-                  "externalid" -> scimFindUserByEmail mIdpConfig stiTeam val
+                  "externalid" -> scimFindUserByExternalId mIdpConfig stiTeam val
                   _ -> throwError (Scim.badRequest Scim.InvalidFilter (Just "Unsupported attribute"))
                 pure $ Scim.fromList (toList x)
             | otherwise -> throwError $ Scim.badRequest Scim.InvalidFilter (Just "Unsupported schema")
@@ -277,7 +279,7 @@ validateScimUser' ::
   Sem r ST.ValidScimUser
 validateScimUser' errloc midp richInfoLimit user = do
   unless (isNothing $ Scim.password user) $ throw $ badRequest "Setting user passwords is not supported for security reasons."
-  veid <- mkValidExternalId midp (Scim.externalId user)
+  veid <- mkValidScimId midp (Scim.externalId user) (Scim.Email.scimEmailsToEmailAddress $ Scim.emails user)
   handl <- validateHandle . Text.toLower . Scim.userName $ user
   -- FUTUREWORK: 'Scim.userName' should be case insensitive; then the toLower here would
   -- be a little less brittle.
@@ -290,14 +292,13 @@ validateScimUser' errloc midp richInfoLimit user = do
               <> " ("
               <> errloc
               <> ")"
-    either err pure $ Brig.mkUserName (Scim.displayName user) veid
+    either err pure $ Brig.mkUserName (Scim.displayName user) (ST.validScimIdAuthInfo veid)
   richInfo <- validateRichInfo (Scim.extra user ^. ST.sueRichInfo)
   let active = Scim.active user
   lang <- maybe (throw $ badRequest "Could not parse language. Expected format is ISO 639-1.") pure $ mapM parseLanguage $ Scim.preferredLanguage user
   mRole <- validateRole user
 
-  -- FUTUREWORK(elland): Handle the SCIM emails field.
-  pure $ ST.ValidScimUser veid handl uname [] richInfo (maybe True Scim.unScimBool active) (flip Locale Nothing <$> lang) mRole
+  pure $ ST.ValidScimUser veid handl uname (maybeToList (justHere veid.validScimIdAuthInfo)) richInfo (maybe True Scim.unScimBool active) (flip Locale Nothing <$> lang) mRole
   where
     validRoleNames :: Text
     validRoleNames =
@@ -347,11 +348,11 @@ validateScimUser' errloc midp richInfoLimit user = do
             }
       pure richInfo
 
--- | Given an 'externalId' and an 'IdP', construct a 'ST.ValidExternalId'.
+-- | Given an 'externalId' and an 'IdP', construct a 'ST.ValidScimId'.
 --
 -- This is needed primarily in 'validateScimUser', but also in 'updateValidScimUser' to
 -- recover the 'SAML.UserRef' of the scim user before the update from the database.
-mkValidExternalId ::
+mkValidScimId ::
   forall r.
   ( Member BrigAccess r,
     Member SAMLUserStore r,
@@ -359,19 +360,22 @@ mkValidExternalId ::
   ) =>
   Maybe IdP ->
   Maybe Text ->
-  Sem r ST.ValidExternalId
-mkValidExternalId _ Nothing =
+  Maybe EmailAddress ->
+  Sem r ST.ValidScimId
+mkValidScimId _ Nothing _ =
   throw $
     Scim.badRequest
       Scim.InvalidValue
       (Just "externalId is required")
-mkValidExternalId Nothing (Just extid) = do
+mkValidScimId Nothing (Just extid) (Just email) = do
+  pure $ ST.ValidScimId extid (This email)
+mkValidScimId Nothing (Just extid) Nothing = do
   let err =
         Scim.badRequest
           Scim.InvalidValue
           (Just "externalId must be a valid email address or (if there is a SAML IdP) a valid SAML NameID")
-  maybe (throw err) (pure . ST.EmailOnly) $ emailAddressText extid
-mkValidExternalId (Just idp) (Just extid) = do
+  maybe (throw err) (pure . ST.ValidScimId extid . This) $ emailAddressText extid
+mkValidScimId (Just idp) (Just extid) mEmail = do
   let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
   subject <- validateSubject extid
   let uref = SAML.UserRef issuer subject
@@ -388,9 +392,10 @@ mkValidExternalId (Just idp) (Just extid) = do
             -- The entry in spar.user_v2 does not exist yet during user
             -- creation. So we just assume that it will exist momentarily.
             pure uref
-  pure $ case emailAddressText extid of
-    Just email -> ST.EmailAndUref email indexedUref
-    Nothing -> ST.UrefOnly indexedUref
+  pure . ST.ValidScimId extid $ case (mEmail, emailAddressText extid) of
+    (Just email, _) -> These email indexedUref
+    (Nothing, Just email) -> These email indexedUref
+    (Nothing, Nothing) -> That indexedUref
   where
     -- Validate a subject ID (@externalId@).
     validateSubject :: Text -> Sem r SAML.NameID
@@ -437,7 +442,7 @@ logEmail email =
 logVSU :: ST.ValidScimUser -> (Msg -> Msg)
 logVSU (ST.ValidScimUser veid handl _name _emails _richInfo _active _lang _role) =
   -- FUTUREWORK(elland): Take SCIM emails field into account.
-  maybe id logEmail (veidToEmail veid)
+  maybe id logEmail (justHere $ ST.validScimIdAuthInfo veid)
     . logHandle handl
 
 logTokenInfo :: ScimTokenInfo -> (Msg -> Msg)
@@ -449,14 +454,8 @@ logScimUserId = logUser . Scim.id . Scim.thing
 logScimUserIds :: Scim.ListResponse (Scim.StoredUser ST.SparTag) -> (Msg -> Msg)
 logScimUserIds lresp = foldl' (.) id (logScimUserId <$> Scim.resources lresp)
 
-veidToEmail :: ST.ValidExternalId -> Maybe EmailAddress
-veidToEmail (ST.EmailAndUref email _) = Just email
-veidToEmail (ST.UrefOnly _) = Nothing
-veidToEmail (ST.EmailOnly email) = Just email
-
--- FUTUREWORK(elland): Account for SCIM emails field, if relevant here.
 vsUserEmail :: ST.ValidScimUser -> Maybe EmailAddress
-vsUserEmail usr = veidToEmail usr.externalId
+vsUserEmail usr = justHere $ ST.validScimIdAuthInfo usr.externalId
 
 -- in ScimTokenHash (cs @ByteString @Text (convertToBase Base64 digest))
 
@@ -532,18 +531,15 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser {..}
 
       -- Generate a UserId will be used both for scim user in spar and for brig.
       lift $ do
-        ST.runValidExternalIdEither
-          ( \uref ->
+        let doUref uref = do
               -- FUTUREWORK: outsource this and some other fragments from
               -- `createValidScimUser` into a function `createValidScimUserBrig` similar
               -- to `createValidScimUserSpar`?
               void $ BrigAccess.createSAML uref buid stiTeam name ManagedByScim (Just handle) (Just richInfo) locale (fromMaybe defaultRole role)
-          )
-          ( \email -> do
-              void $ BrigAccess.createNoSAML email buid stiTeam name locale (fromMaybe defaultRole role)
+            doEmail email = do
+              void $ BrigAccess.createNoSAML externalId.validScimIdExternal email buid stiTeam name locale (fromMaybe defaultRole role)
               BrigAccess.setHandle buid handle -- FUTUREWORK: possibly do the same one req as we do for saml?
-          )
-          externalId
+        these doEmail doUref (\_ uref -> doUref uref) (validScimIdAuthInfo externalId)
         Logger.debug ("createValidScimUser: brig says " <> show buid)
 
         BrigAccess.setRichInfo buid richInfo
@@ -606,18 +602,12 @@ createValidScimUserSpar ::
   TeamId ->
   UserId ->
   Scim.StoredUser ST.SparTag ->
-  ST.ValidExternalId ->
+  ST.ValidScimId ->
   m ()
 createValidScimUserSpar stiTeam uid storedUser veid = lift $ do
   ScimUserTimesStore.write storedUser
-  -- This uses the "both" variant to always write all applicable index tables, even if
-  -- `spar.scim_external` is never consulted as long as there is an IdP.  This is hoped to
-  -- mitigate logic errors in this code and corner cases.  (eg., if the IdP is later removed?)
-  ST.runValidExternalIdBoth
-    (>>)
-    (`SAMLUserStore.insert` uid)
-    (\email -> ScimExternalIdStore.insert stiTeam email uid)
-    veid
+  ScimExternalIdStore.insert stiTeam veid.validScimIdExternal uid
+  for_ (justThere veid.validScimIdAuthInfo) (`SAMLUserStore.insert` uid)
 
 -- TODO(arianvp): how do we get this safe w.r.t. race conditions / crashes?
 updateValidScimUser ::
@@ -706,19 +696,21 @@ updateVsuUref ::
   ) =>
   TeamId ->
   UserId ->
-  ST.ValidExternalId ->
-  ST.ValidExternalId ->
+  ST.ValidScimId ->
+  ST.ValidScimId ->
   Sem r ()
 updateVsuUref team uid old new = do
-  -- FUTUREWORK(elland): Account for SCIM emails field.
-  case (veidToEmail old, veidToEmail new) of
+  case (justHere $ ST.validScimIdAuthInfo old, justHere $ ST.validScimIdAuthInfo new) of
     (mo, mn@(Just email)) | mo /= mn -> Spar.App.validateEmail (Just team) uid email
     _ -> pure ()
 
-  old & ST.runValidExternalIdBoth (>>) (SAMLUserStore.delete uid) (ScimExternalIdStore.delete team)
-  new & ST.runValidExternalIdBoth (>>) (`SAMLUserStore.insert` uid) (\email -> ScimExternalIdStore.insert team email uid)
+  ScimExternalIdStore.delete team old.validScimIdExternal
+  for_ (justThere old.validScimIdAuthInfo) (SAMLUserStore.delete uid)
 
-  BrigAccess.setVeid uid new
+  ScimExternalIdStore.insert team new.validScimIdExternal uid
+  for_ (justThere new.validScimIdAuthInfo) (`SAMLUserStore.insert` uid)
+
+  BrigAccess.setSSOId uid $ veidToUserSSOId new
 
 toScimStoredUser ::
   (HasCallStack) =>
@@ -797,8 +789,8 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
       -- ("tombstones") would not have the needed values (`userIdentity =
       -- Nothing`) to delete a user in spar. I.e. `SAML.UserRef` and `Email`
       -- cannot be figured out when a `User` has status `Deleted`.
-      mbBrigUser <- lift $ Brig.getBrigUser WithPendingInvitations uid
-      case mbBrigUser of
+      mbAccount <- lift $ BrigAccess.getAccount WithPendingInvitations uid
+      case mbAccount of
         Nothing ->
           -- Ensure there's no left-over of this user in brig. This is safe
           -- because the user has either been deleted (tombstone) or does not
@@ -807,7 +799,7 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
           -- thing that could happen is that foreign users cleanup partially
           -- deleted users.
           void . lift $ BrigAccess.deleteUser uid
-        Just brigUser -> do
+        Just acc@(accountUser . account -> brigUser) -> do
           if userTeam brigUser == Just stiTeam
             then do
               -- This deletion needs data from the non-deleted User in brig. So,
@@ -816,7 +808,7 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
               -- that have been deleted in brig.  Deleting scim-managed users in brig
               -- (via the TM app) is blocked, though, so there is no legal way to enter
               -- that situation.
-              deleteUserInSpar brigUser
+              deleteUserInSpar acc
               void . lift $ BrigAccess.deleteUser uid
             else do
               -- if we find the user in another team, we pretend it wasn't even there, to
@@ -829,20 +821,16 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
         Member ScimExternalIdStore r,
         Member ScimUserTimesStore r
       ) =>
-      User ->
+      ExtendedUserAccount ->
       Scim.ScimHandler (Sem r) ()
-    deleteUserInSpar brigUser = do
+    deleteUserInSpar account = do
       mIdpConfig <- mapM (lift . IdPConfigStore.getConfig) stiIdP
 
-      case Brig.veidFromBrigUser brigUser ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig) of
+      case Brig.veidFromBrigUser account.account.accountUser ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig) account.emailUnvalidated of
         Left _ -> pure ()
-        Right veid ->
-          lift $
-            ST.runValidExternalIdBoth
-              (>>)
-              (SAMLUserStore.delete uid)
-              (ScimExternalIdStore.delete stiTeam)
-              veid
+        Right veid -> lift $ do
+          for_ (justThere veid.validScimIdAuthInfo) (SAMLUserStore.delete uid)
+          ScimExternalIdStore.delete stiTeam veid.validScimIdExternal
       lift $ ScimUserTimesStore.delete uid
 
 ----------------------------------------------------------------------------
@@ -878,7 +866,7 @@ assertExternalIdUnused ::
     Member SAMLUserStore r
   ) =>
   TeamId ->
-  ST.ValidExternalId ->
+  ST.ValidScimId ->
   Scim.ScimHandler (Sem r) ()
 assertExternalIdUnused =
   assertExternalIdInAllowedValues
@@ -895,7 +883,7 @@ assertExternalIdNotUsedElsewhere ::
     Member SAMLUserStore r
   ) =>
   TeamId ->
-  ST.ValidExternalId ->
+  ST.ValidScimId ->
   UserId ->
   Scim.ScimHandler (Sem r) ()
 assertExternalIdNotUsedElsewhere tid veid wireUserId =
@@ -913,16 +901,14 @@ assertExternalIdInAllowedValues ::
   [Maybe UserId] ->
   Text ->
   TeamId ->
-  ST.ValidExternalId ->
+  ST.ValidScimId ->
   Scim.ScimHandler (Sem r) ()
 assertExternalIdInAllowedValues allowedValues errmsg tid veid = do
   isGood <-
-    lift $
-      ST.runValidExternalIdBoth
-        (\ma mb -> (&&) <$> ma <*> mb)
-        (fmap ((`elem` allowedValues) . fmap userId) . getUserByUrefUnsafe)
-        (fmap (`elem` allowedValues) . getUserIdByScimExternalId tid)
-        veid
+    lift $ do
+      mViaEid <- getUserIdByScimExternalId tid veid.validScimIdExternal
+      mViaUref <- join <$> (for (justThere veid.validScimIdAuthInfo) ((userId <$$>) . getUserByUrefUnsafe))
+      pure $ all (`elem` allowedValues) [mViaEid, mViaUref]
   unless isGood $
     throwError Scim.conflict {Scim.detail = Just errmsg}
 
@@ -953,21 +939,21 @@ synthesizeStoredUser ::
     Member GalleyAccess r,
     Member ScimUserTimesStore r
   ) =>
-  UserAccount ->
-  ST.ValidExternalId ->
+  ExtendedUserAccount ->
+  ST.ValidScimId ->
   Scim.ScimHandler (Sem r) (Scim.StoredUser ST.SparTag)
-synthesizeStoredUser usr veid =
+synthesizeStoredUser acc veid =
   logScim
     ( logFunction "Spar.Scim.User.synthesizeStoredUser"
-        . logUser (userId . accountUser $ usr)
-        . maybe id logHandle (userHandle . accountUser $ usr)
-        . maybe id logTeam (userTeam . accountUser $ usr)
-        . maybe id logEmail (veidToEmail veid)
+        . logUser (userId acc.account.accountUser)
+        . maybe id logHandle acc.account.accountUser.userHandle
+        . maybe id logTeam acc.account.accountUser.userTeam
+        . maybe id logEmail (justHere $ ST.validScimIdAuthInfo veid)
     )
     logScimUserId
     $ do
-      let uid = userId (accountUser usr)
-          accStatus = accountStatus usr
+      let uid = userId acc.account.accountUser
+          accStatus = acc.account.accountStatus
 
       let readState :: Sem r (RI.RichInfo, Maybe (UTCTimeMillis, UTCTimeMillis), URIBS.URI, Role)
           readState =
@@ -991,14 +977,17 @@ synthesizeStoredUser usr veid =
       now <- toUTCTimeMillis <$> lift Now.get
       let (createdAt, lastUpdatedAt) = fromMaybe (now, now) accessTimes
 
-      handle <- lift $ Brig.giveDefaultHandle (accountUser usr)
-      let emails = catMaybesToList (emailIdentity <$> usr.accountUser.userIdentity)
+      handle <- lift $ Brig.giveDefaultHandle acc.account.accountUser
+
+      let emails =
+            maybeToList $
+              acc.emailUnvalidated <|> (emailIdentity =<< userIdentity acc.account.accountUser) <|> justHere veid.validScimIdAuthInfo
 
       storedUser <-
         synthesizeStoredUser'
           uid
           veid
-          (userDisplayName (accountUser usr))
+          (userDisplayName acc.account.accountUser)
           emails
           handle
           richInfo
@@ -1006,20 +995,20 @@ synthesizeStoredUser usr veid =
           createdAt
           lastUpdatedAt
           baseuri
-          (userLocale (accountUser usr))
+          (userLocale acc.account.accountUser)
           (Just role)
-      lift $ writeState accessTimes (userManagedBy (accountUser usr)) richInfo storedUser
+      lift $ writeState accessTimes (userManagedBy acc.account.accountUser) richInfo storedUser
       pure storedUser
   where
     getRole :: Sem r Role
     getRole = do
       let tmRoleOrDefault m = fromMaybe defaultRole $ m >>= \member -> member ^. Member.permissions . to Member.permissionsRole
-      maybe (pure defaultRole) (\tid -> tmRoleOrDefault <$> GalleyAccess.getTeamMember tid (userId $ accountUser usr)) (userTeam $ accountUser usr)
+      maybe (pure defaultRole) (\tid -> tmRoleOrDefault <$> GalleyAccess.getTeamMember tid (userId acc.account.accountUser)) (userTeam acc.account.accountUser)
 
 synthesizeStoredUser' ::
   (MonadError Scim.ScimError m) =>
   UserId ->
-  ST.ValidExternalId ->
+  ST.ValidScimId ->
   Name ->
   [EmailAddress] ->
   Handle ->
@@ -1031,7 +1020,7 @@ synthesizeStoredUser' ::
   Locale ->
   Maybe Role ->
   m (Scim.StoredUser ST.SparTag)
-synthesizeStoredUser' uid veid dname _emails handle richInfo accStatus createdAt lastUpdatedAt baseuri locale mbRole = do
+synthesizeStoredUser' uid veid dname emails handle richInfo accStatus createdAt lastUpdatedAt baseuri locale mbRole = do
   let scimUser :: Scim.User ST.SparTag
       scimUser =
         synthesizeScimUser
@@ -1040,21 +1029,20 @@ synthesizeStoredUser' uid veid dname _emails handle richInfo accStatus createdAt
               ST.handle = handle {- 'Maybe' there is one in @usr@, but we want the type
                                     checker to make sure this exists, so we add it here
                                     redundantly, without the 'Maybe'. -},
-              ST.emails = [], -- FUTUREWORK(elland): Account for SCIM emails field.
+              ST.emails = emails,
               ST.name = dname,
               ST.richInfo = richInfo,
               ST.active = ST.scimActiveFlagFromAccountStatus accStatus,
               ST.locale = Just locale,
               ST.role = mbRole
             }
-
   pure $ toScimStoredUser createdAt lastUpdatedAt baseuri uid (normalizeLikeStored scimUser)
 
 synthesizeScimUser :: ST.ValidScimUser -> Scim.User ST.SparTag
 synthesizeScimUser info =
   let userName = info.handle.fromHandle
    in (Scim.empty @ST.SparTag ST.userSchemas userName (ST.ScimUserExtra info.richInfo))
-        { Scim.externalId = Brig.renderValidExternalId info.externalId,
+        { Scim.externalId = Just $ validScimIdExternal info.externalId,
           Scim.displayName = Just $ fromName info.name,
           Scim.active = Just . Scim.ScimBool $ info.active,
           Scim.preferredLanguage = lan2Text . lLanguage <$> info.locale,
@@ -1066,7 +1054,8 @@ synthesizeScimUser info =
                   . toStrict
                   . toByteString
               )
-              (info.role)
+              (info.role),
+          Scim.emails = (\e -> Scim.Email.Email Nothing (Scim.Email.EmailAddress e) Nothing) <$> info.emails
         }
 
 -- TODO: now write a test, either in /integration or in spar, whichever is easier.  (spar)
@@ -1086,27 +1075,28 @@ getUserById ::
   UserId ->
   MaybeT (Scim.ScimHandler (Sem r)) (Scim.StoredUser ST.SparTag)
 getUserById midp stiTeam uid = do
-  brigUser <- MaybeT . lift $ BrigAccess.getAccount Brig.WithPendingInvitations uid
+  acc@(accountUser . account -> brigUser) <- MaybeT . lift $ BrigAccess.getAccount Brig.WithPendingInvitations uid
   let mbveid =
         Brig.veidFromBrigUser
-          (accountUser brigUser)
+          brigUser
           ((^. SAML.idpMetadata . SAML.edIssuer) <$> midp)
+          acc.emailUnvalidated
   case mbveid of
-    Right veid | userTeam (accountUser brigUser) == Just stiTeam -> lift $ do
-      storedUser :: Scim.StoredUser ST.SparTag <- synthesizeStoredUser brigUser veid
+    Right veid | userTeam brigUser == Just stiTeam -> lift $ do
+      storedUser :: Scim.StoredUser ST.SparTag <- synthesizeStoredUser acc veid
       -- if we get a user from brig that hasn't been touched by scim yet, we call this
       -- function to move it under scim control.
       assertExternalIdNotUsedElsewhere stiTeam veid uid
       createValidScimUserSpar stiTeam uid storedUser veid
       lift $ do
-        when (veidChanged (accountUser brigUser) veid) $
-          BrigAccess.setVeid uid veid
-        when (managedByChanged (accountUser brigUser)) $
+        when (veidChanged brigUser veid) $
+          BrigAccess.setSSOId uid (veidToUserSSOId veid)
+        when (managedByChanged brigUser) $
           BrigAccess.setManagedBy uid ManagedByScim
       pure storedUser
     _ -> Applicative.empty
   where
-    veidChanged :: User -> ST.ValidExternalId -> Bool
+    veidChanged :: User -> ST.ValidScimId -> Bool
     veidChanged usr veid = case userIdentity usr of
       Nothing -> True
       Just (EmailIdentity _) -> True
@@ -1135,13 +1125,13 @@ scimFindUserByHandle mIdpConfig stiTeam hndl = do
   brigUser <- MaybeT . lift . BrigAccess.getByHandle $ handle
   getUserById mIdpConfig stiTeam . userId . accountUser $ brigUser
 
--- | Construct a 'ValidExternalid'.  If it an 'Email', find the non-SAML SCIM user in spar; if
+-- | Construct a 'ValidScimId'.  If it is an 'Email', find the non-SAML SCIM user in spar; if
 -- that fails, find the user by email in brig.  If it is a 'UserRef', find the SAML user.
 -- Return the result as a SCIM user.
 --
 -- Note the user won't get an entry in `spar.user`.  That will only happen on their first
 -- successful authentication with their SAML credentials.
-scimFindUserByEmail ::
+scimFindUserByExternalId ::
   forall r.
   ( Member BrigAccess r,
     Member GalleyAccess r,
@@ -1156,34 +1146,21 @@ scimFindUserByEmail ::
   TeamId ->
   Text ->
   MaybeT (Scim.ScimHandler (Sem r)) (Scim.StoredUser ST.SparTag)
-scimFindUserByEmail mIdpConfig stiTeam email = do
-  -- Azure has been observed to search for externalIds that are not emails, even if the
-  -- mapping is set up like it should be.  This is a problem: if there is no SAML IdP, 'mkValidExternalId'
-  -- only supports external IDs that are emails.  This is a missing feature / bug in spar tracked in
-  -- https://wearezeta.atlassian.net/browse/SQSERVICES-157; once it is fixed, we should go back to
-  -- throwing errors returned by 'mkValidExternalId' here, but *not* throw an error if the externalId is
-  -- a UUID, or any other text that is valid according to SCIM.
-  veid <- MaybeT . lift $ either (const Nothing) Just <$> runError @Scim.ScimError (mkValidExternalId mIdpConfig (pure email))
-  uid <- MaybeT . lift $ ST.runValidExternalIdEither withUref withEmailOnly veid
-  -- since gc on `spar.users{,_v2}` is unreliable, we need to double-check with brig if the
-  -- user we found actually exists.
-  brigUser <- MaybeT . lift . BrigAccess.getAccount Brig.WithPendingInvitations $ uid
-  getUserById mIdpConfig stiTeam . userId . accountUser $ brigUser
-  where
-    withUref :: SAML.UserRef -> Sem r (Maybe UserId)
-    withUref uref =
-      SAMLUserStore.get uref >>= \case
-        Nothing -> maybe (pure Nothing) withEmailOnly $ Brig.urefToEmail uref
-        Just uid -> pure (Just uid)
-
-    withEmailOnly :: EmailAddress -> Sem r (Maybe UserId)
-    withEmailOnly eml = maybe inbrig (pure . Just) =<< inspar
-      where
-        -- FUTUREWORK: we could also always lookup brig, that's simpler and possibly faster,
-        -- and it never should be visible in spar, but not in brig.
-        inspar, inbrig :: Sem r (Maybe UserId)
-        inspar = ScimExternalIdStore.lookup stiTeam eml
-        inbrig = userId . accountUser <$$> BrigAccess.getByEmail eml
+scimFindUserByExternalId mIdpConfig stiTeam eid = do
+  mViaEid :: Maybe UserId <- MaybeT $ Just <$> lift (ScimExternalIdStore.lookup stiTeam eid)
+  uid <- case mViaEid of
+    Nothing -> do
+      veid <- MaybeT . lift $ either (const Nothing) Just <$> runError @Scim.ScimError (mkValidScimId mIdpConfig (Just eid) (emailAddressText eid))
+      MaybeT . lift $ do
+        -- there are a few ways to find a user. this should all be redundant, especially the where
+        -- we lookup a user from brig by email, throw it away and only keep the uid, and then use
+        -- the uid to lookup the account again. but cassandra, and also reasons.
+        mViaEmail :: Maybe UserId <- join <$> (for (justHere veid.validScimIdAuthInfo) ((userId . accountUser <$$>) . BrigAccess.getByEmail))
+        mViaUref :: Maybe UserId <- join <$> (for (justThere veid.validScimIdAuthInfo) SAMLUserStore.get)
+        pure $ mViaEmail <|> mViaUref
+    Just uid -> pure uid
+  acc <- MaybeT . lift . BrigAccess.getAccount Brig.WithPendingInvitations $ uid
+  getUserById mIdpConfig stiTeam (userId acc.account.accountUser)
 
 logFilter :: Filter -> (Msg -> Msg)
 logFilter (FilterAttrCompare attr op val) =

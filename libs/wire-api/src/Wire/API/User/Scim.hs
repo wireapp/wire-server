@@ -42,7 +42,7 @@
 -- * Request and response types for SCIM-related endpoints.
 module Wire.API.User.Scim where
 
-import Control.Lens (makeLenses, mapped, (.~), (?~), (^.))
+import Control.Lens (makeLenses, mapped, to, (.~), (?~), (^.))
 import Control.Monad.Except (throwError)
 import Crypto.Hash (hash)
 import Crypto.Hash.Algorithms (SHA512)
@@ -63,11 +63,14 @@ import Data.OpenApi hiding (Operation)
 import Data.Proxy
 import Data.Text qualified as T
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import Data.These
+import Data.These.Combinators
 import Data.Time.Clock (UTCTime)
 import Imports
 import SAML2.WebSSO qualified as SAML
 import SAML2.WebSSO.Test.Arbitrary ()
 import Servant.API (FromHttpApiData (..), ToHttpApiData (..))
+import Test.QuickCheck (Gen)
 import Test.QuickCheck qualified as QC
 import Web.HttpApiData (parseHeaderWithPrefix)
 import Web.Scim.AttrName (AttrName (..))
@@ -85,8 +88,7 @@ import Web.Scim.Schema.User qualified as Scim
 import Web.Scim.Schema.User qualified as Scim.User
 import Wire.API.Locale
 import Wire.API.Team.Role (Role)
-import Wire.API.User (emailFromSAMLNameID, urefToExternalIdUnsafe)
-import Wire.API.User.Identity (EmailAddress, fromEmail)
+import Wire.API.User.EmailAddress (EmailAddress, fromEmail)
 import Wire.API.User.Profile as BT
 import Wire.API.User.RichInfo qualified as RI
 import Wire.API.User.Saml ()
@@ -328,7 +330,7 @@ instance Scim.Patchable ScimUserExtra where
 -- and/or ignore POSTed content, returning the full representation can be useful to the
 -- client, enabling it to correlate the client's and server's views of the new resource."
 data ValidScimUser = ValidScimUser
-  { externalId :: ValidExternalId,
+  { externalId :: ValidScimId,
     handle :: Handle,
     name :: BT.Name,
     emails :: [EmailAddress],
@@ -339,51 +341,58 @@ data ValidScimUser = ValidScimUser
   }
   deriving (Eq, Show)
 
--- | Note that a 'SAML.UserRef' may contain an email. Even though it is possible to construct a 'ValidExternalId' from such a 'UserRef' with 'UrefOnly',
--- this does not represent a valid 'ValidExternalId'. So in case of a 'UrefOnly', we can assume that the 'UserRef' does not contain an email.
-data ValidExternalId
-  = EmailAndUref EmailAddress SAML.UserRef
-  | UrefOnly SAML.UserRef
-  | EmailOnly EmailAddress
+-- | This type carries externalId, plus email address (validated if present, unvalidated if not) and saml credentials,
+-- because those are sometimes derived from the externalId field.
+data ValidScimId = ValidScimId
+  { validScimIdExternal :: Text,
+    validScimIdAuthInfo :: These EmailAddress SAML.UserRef
+  }
   deriving (Eq, Show, Generic)
 
-instance Arbitrary ValidExternalId where
-  arbitrary = do
-    muref <- QC.arbitrary
-    case muref of
-      Just uref -> case emailFromSAMLNameID $ uref ^. SAML.uidSubject of
-        Just e -> pure $ EmailAndUref e uref
-        Nothing -> pure $ UrefOnly uref
-      Nothing -> EmailOnly <$> QC.arbitrary
+instance Arbitrary ValidScimId where
+  arbitrary =
+    these onlyThis (pure . onlyThat) (\_ uref -> pure (onlyThat uref)) =<< QC.arbitrary
+    where
+      onlyThis :: EmailAddress -> Gen ValidScimId
+      onlyThis em = do
+        extIdNick <- T.pack . QC.getPrintableString <$> QC.arbitrary
+        extId <- QC.elements [extIdNick, fromEmail em]
+        pure $ ValidScimId {validScimIdExternal = extId, validScimIdAuthInfo = This em}
 
--- | Take apart a 'ValidExternalId', using 'SAML.UserRef' if available, otherwise 'Email'.
-runValidExternalIdEither :: (SAML.UserRef -> a) -> (EmailAddress -> a) -> ValidExternalId -> a
-runValidExternalIdEither doUref doEmail = \case
-  EmailAndUref _ uref -> doUref uref
-  UrefOnly uref -> doUref uref
-  EmailOnly em -> doEmail em
+      -- `unsafeShowNameID` can name clash, if this is a problem consider using `arbitraryValidScimIdNoNameIDQualifiers`
+      onlyThat :: SAML.UserRef -> ValidScimId
+      onlyThat uref = ValidScimId {validScimIdExternal = uref ^. SAML.uidSubject . to SAML.unsafeShowNameID . to CI.original, validScimIdAuthInfo = That uref}
 
--- | Take apart a 'ValidExternalId', use both 'SAML.UserRef', 'Email' if applicable, and
+newtype ValidScimIdNoNameIDQualifiers = ValidScimIdNoNameIDQualifiers ValidScimId
+  deriving (Eq, Show)
+
+instance Arbitrary ValidScimIdNoNameIDQualifiers where
+  arbitrary = ValidScimIdNoNameIDQualifiers <$> arbitraryValidScimIdNoNameIDQualifiers
+
+arbitraryValidScimIdNoNameIDQualifiers :: QC.Gen ValidScimId
+arbitraryValidScimIdNoNameIDQualifiers = do
+  veid :: ValidScimId <- QC.arbitrary
+  pure $ ValidScimId veid.validScimIdExternal (veid.validScimIdAuthInfo & mapThere removeQualifiers)
+  where
+    removeQualifiers :: SAML.UserRef -> SAML.UserRef
+    removeQualifiers =
+      (SAML.uidSubject . SAML.nameIDNameQ .~ Nothing)
+        . (SAML.uidSubject . SAML.nameIDSPProvidedID .~ Nothing)
+        . (SAML.uidSubject . SAML.nameIDSPNameQ .~ Nothing)
+
+-- | Take apart a 'ValidScimId', use both 'SAML.UserRef', 'Email' if applicable, and
 -- merge the result with a given function.
-runValidExternalIdBoth :: (a -> a -> a) -> (SAML.UserRef -> a) -> (EmailAddress -> a) -> ValidExternalId -> a
-runValidExternalIdBoth merge doUref doEmail = \case
-  EmailAndUref eml uref -> doUref uref `merge` doEmail eml
-  UrefOnly uref -> doUref uref
-  EmailOnly em -> doEmail em
+runValidScimIdBoth :: (a -> a -> a) -> (SAML.UserRef -> a) -> (EmailAddress -> a) -> ValidScimId -> a
+runValidScimIdBoth merge doURefl doEmail = these doEmail doURefl (\em uref -> doEmail em `merge` doURefl uref) . validScimIdAuthInfo
 
--- | Returns either the extracted `UnqualifiedNameID` if present and not qualified, or the email address.
--- This throws an exception if there are any qualifiers.
-runValidExternalIdUnsafe :: ValidExternalId -> Text
-runValidExternalIdUnsafe = runValidExternalIdEither urefToExternalIdUnsafe fromEmail
+veidUref :: ValidScimId -> Maybe SAML.UserRef
+veidUref = justThere . validScimIdAuthInfo
 
-veidUref :: ValidExternalId -> Maybe SAML.UserRef
-veidUref = \case
-  EmailAndUref _ uref -> Just uref
-  UrefOnly uref -> Just uref
-  EmailOnly _ -> Nothing
+isSAMLUser :: ValidScimId -> Bool
+isSAMLUser = isJust . justThere . validScimIdAuthInfo
 
 makeLenses ''ValidScimUser
-makeLenses ''ValidExternalId
+makeLenses ''ValidScimId
 
 ----------------------------------------------------------------------------
 -- Request and response types

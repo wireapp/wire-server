@@ -24,6 +24,7 @@ import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8)
 import Data.UUID.V1 (nextUUID)
 import Data.UUID.V4 (nextRandom)
+import Data.Vector (fromList)
 import GHC.Stack
 import Testlib.MockIntegrationService (mkLegalHoldSettings)
 import Testlib.Prelude
@@ -342,11 +343,16 @@ lhDeviceIdOf bob = do
 randomScimUser :: App Value
 randomScimUser = do
   email <- randomEmail
+  randomScimUserWith email email
+
+randomScimUserWith :: (HasCallStack) => String -> String -> App Value
+randomScimUserWith extId email = do
   handle <- randomHandleWithRange 12 128
   pure $
     object
       [ "schemas" .= ["urn:ietf:params:scim:schemas:core:2.0:User"],
-        "externalId" .= email,
+        "externalId" .= extId,
+        "emails" .= Array (fromList [object ["value" .= email]]),
         "userName" .= handle,
         "displayName" .= handle
       ]
