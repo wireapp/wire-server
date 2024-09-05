@@ -1,6 +1,4 @@
 {-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -Wno-redundant-constraints #-}
-{-# OPTIONS_GHC -Wno-unused-imports #-}
 
 module Wire.UserSubsystem.Interpreter
   ( runUserSubsystem,
@@ -30,7 +28,6 @@ import Wire.API.Team.Feature
 import Wire.API.Team.Member hiding (userId)
 import Wire.API.User
 import Wire.API.UserEvent
-import Wire.ActivationCodeStore (ActivationCodeStore, lookupActivationCode)
 import Wire.Arbitrary
 import Wire.BlockListStore as BlockList
 import Wire.DeleteQueue
@@ -74,8 +71,7 @@ runUserSubsystem ::
     FederationMonad fedM,
     Typeable fedM,
     Member (TinyLog) r,
-    Member InvitationCodeStore r,
-    Member ActivationCodeStore r
+    Member InvitationCodeStore r
   ) =>
   UserSubsystemConfig ->
   InterpreterFor UserSubsystem r
@@ -98,7 +94,6 @@ interpretUserSubsystem ::
     FederationMonad fedM,
     Typeable fedM,
     Member InvitationCodeStore r,
-    Member ActivationCodeStore r,
     Member TinyLog r
   ) =>
   InterpreterFor UserSubsystem r
@@ -506,7 +501,6 @@ getAccountsByImpl ::
     Member (Input UserSubsystemConfig) r,
     Member InvitationCodeStore r,
     Member UserKeyStore r,
-    Member ActivationCodeStore r,
     Member TinyLog r
   ) =>
   Local GetBy ->
@@ -522,25 +516,24 @@ getAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations, getByE
           ( \acc ->
               if acc.accountStatus == PendingInvitation
                 then do
-                  case mailKeyFrom acc of
+                  case accountIdentityEmail acc of
                     -- TODO: ensure this case is sound
                     -- Some tests fail but they seem to not rely on this
                     Nothing -> pure includePendingInvitations
                     Just key -> do
                       -- This is the case of expired invitations for users still pending
-                      lookupInvitationByEmail key >>= \case
-                        Nothing -> do
-                          -- user invited via scim should expire together with its invitation
-                          -- FIXME(mangoiv): this is not the right place to do this, ideally this should be part of a recurring
-                          -- job akin to 'pendingUserActivationCleanup'
-                          enqueueUserDeletion (userId acc.accountUser)
-                          pure False
-                        Just _ -> pure includePendingInvitations
+                      hasInvitation <- isJust <$> lookupInvitationByEmail key
+                      unless hasInvitation do
+                        -- user invited via scim should expire together with its invitation
+                        -- FIXME(mangoiv): this is not the right place to do this, ideally this should be part of a recurring
+                        -- job akin to 'pendingUserActivationCleanup'
+                        enqueueUserDeletion (userId acc.accountUser)
+                      pure (hasInvitation && includePendingInvitations)
                 else pure True
           )
 
-      mailKeyFrom :: UserAccount -> Maybe EmailAddress
-      mailKeyFrom acc =
+      accountIdentityEmail :: UserAccount -> Maybe EmailAddress
+      accountIdentityEmail acc =
         case acc.accountUser.userIdentity of
           Just (EmailIdentity mail) -> Just mail
           Just (SSOIdentity _ (Just mail)) -> Just mail
