@@ -59,7 +59,6 @@ module Wire.API.User
     CreateUserSparInternalResponses,
     newUserFromSpar,
     urefToExternalId,
-    urefToExternalIdUnsafe,
     urefToEmail,
     ExpiresIn,
     newUserTeam,
@@ -109,6 +108,7 @@ module Wire.API.User
 
     -- * Account
     UserAccount (..),
+    ExtendedUserAccount (..),
 
     -- * Scim invitations
     NewUserScimInvitation (..),
@@ -854,9 +854,6 @@ urefToEmail :: SAML.UserRef -> Maybe EmailAddress
 urefToEmail uref = case uref ^. SAML.uidSubject . SAML.nameID of
   SAML.UNameIDEmail email -> emailAddressText . SAMLEmail.render . CI.original $ email
   _ -> Nothing
-
-urefToExternalIdUnsafe :: SAML.UserRef -> Text
-urefToExternalIdUnsafe = CI.original . SAML.unsafeShowNameID . view SAML.uidSubject
 
 data CreateUserSparError
   = CreateUserSparHandleError ChangeHandleError
@@ -1795,11 +1792,30 @@ data UserAccount = UserAccount
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema.Schema UserAccount
 
 instance Schema.ToSchema UserAccount where
+  schema = Schema.object "UserAccount" userAccountObjectSchema
+
+userAccountObjectSchema :: ObjectSchema SwaggerDoc UserAccount
+userAccountObjectSchema =
+  UserAccount
+    <$> accountUser Schema..= userObjectSchema
+    <*> accountStatus Schema..= Schema.field "status" Schema.schema
+
+-- | This can be parsed as UserAccount, but it has an extra field `email_unvalidated` from
+-- brig's cassandra that is needed in spar.  so we return this from GET /i/users in brig.
+data ExtendedUserAccount = ExtendedUserAccount
+  { account :: UserAccount,
+    emailUnvalidated :: Maybe EmailAddress
+  }
+  deriving (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ExtendedUserAccount)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema.Schema ExtendedUserAccount
+
+instance Schema.ToSchema ExtendedUserAccount where
   schema =
-    Schema.object "UserAccount" $
-      UserAccount
-        <$> accountUser Schema..= userObjectSchema
-        <*> accountStatus Schema..= Schema.field "status" Schema.schema
+    Schema.object "ExtendedUserAccount" $
+      ExtendedUserAccount
+        <$> account Schema..= userAccountObjectSchema
+        <*> emailUnvalidated Schema..= maybe_ (Schema.optField "email_unvalidated" Schema.schema)
 
 -------------------------------------------------------------------------------
 -- NewUserScimInvitation
@@ -1808,6 +1824,7 @@ data NewUserScimInvitation = NewUserScimInvitation
   -- FIXME: the TID should be captured in the route as usual
   { newUserScimInvTeamId :: TeamId,
     newUserScimInvUserId :: UserId,
+    newUserScimExternalId :: Text,
     newUserScimInvLocale :: Maybe Locale,
     newUserScimInvName :: Name,
     newUserScimInvEmail :: EmailAddress,
@@ -1823,6 +1840,7 @@ instance Schema.ToSchema NewUserScimInvitation where
       NewUserScimInvitation
         <$> newUserScimInvTeamId Schema..= Schema.field "team_id" Schema.schema
         <*> newUserScimInvUserId Schema..= Schema.field "user_id" Schema.schema
+        <*> newUserScimExternalId Schema..= field "external_id" schema
         <*> newUserScimInvLocale Schema..= maybe_ (optField "locale" Schema.schema)
         <*> newUserScimInvName Schema..= Schema.field "name" Schema.schema
         <*> newUserScimInvEmail Schema..= Schema.field "email" Schema.schema

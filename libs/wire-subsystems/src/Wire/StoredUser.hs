@@ -22,6 +22,7 @@ data StoredUser = StoredUser
     textStatus :: Maybe TextStatus,
     pict :: Maybe Pict,
     email :: Maybe EmailAddress,
+    emailUnvalidated :: Maybe EmailAddress,
     ssoId :: Maybe UserSSOId,
     accentId :: ColourId,
     assets :: Maybe [Asset],
@@ -101,6 +102,10 @@ mkAccountFromStored domain defaultLocale storedUser =
   UserAccount
     (mkUserFromStored domain defaultLocale storedUser)
     (fromMaybe Active storedUser.status)
+
+mkExtendedAccountFromStored :: Domain -> Locale -> StoredUser -> ExtendedUserAccount
+mkExtendedAccountFromStored domain defaultLocale storedUser =
+  ExtendedUserAccount (mkAccountFromStored domain defaultLocale storedUser) storedUser.emailUnvalidated
 
 toLocale :: Locale -> (Maybe Language, Maybe Country) -> Locale
 toLocale _ (Just l, c) = Locale l c

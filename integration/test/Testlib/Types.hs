@@ -11,6 +11,7 @@ import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Reader
 import Control.Monad.Trans.Control
+import Crypto.Random (MonadRandom (..))
 import Data.Aeson
 import qualified Data.Aeson as Aeson
 import Data.ByteString (ByteString)
@@ -329,6 +330,9 @@ newtype App a = App {unApp :: ReaderT Env IO a}
       MonadUnliftIO,
       MonadBaseControl IO
     )
+
+instance MonadRandom App where
+  getRandomBytes n = liftIO (getRandomBytes n)
 
 runAppWithEnv :: Env -> App a -> IO a
 runAppWithEnv e m = runReaderT (unApp m) e

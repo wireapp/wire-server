@@ -17,6 +17,7 @@
 
 module Web.Scim.Schema.User.Email where
 
+import Control.Applicative ((<|>))
 import Data.Aeson
 import Data.Text hiding (dropWhile)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
@@ -51,3 +52,13 @@ instance ToJSON Email where
 
 emailToEmailAddress :: Email -> Email.EmailAddress
 emailToEmailAddress = unEmailAddress . value
+
+scimEmailsToEmailAddress :: [Email] -> Maybe Email.EmailAddress
+scimEmailsToEmailAddress es = pickPrimary es <|> pickFirst es
+  where
+    pickFirst [] = Nothing
+    pickFirst (e : _) = Just (unEmailAddress (value e))
+
+    pickPrimary = pickFirst . Prelude.filter isPrimary
+
+    isPrimary e = primary e == Just (ScimBool True)

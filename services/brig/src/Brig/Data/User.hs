@@ -148,8 +148,8 @@ newAccount u inv tid mbHandle = do
     prots = fromMaybe defSupportedProtocols (newUserSupportedProtocols u)
     user uid domain l e = User (Qualified uid domain) ident name Nothing pict assets colour False l Nothing mbHandle e tid managedBy prots
 
-newAccountInviteViaScim :: (MonadReader Env m) => UserId -> TeamId -> Maybe Locale -> Name -> EmailAddress -> m UserAccount
-newAccountInviteViaScim uid tid locale name email = do
+newAccountInviteViaScim :: (MonadReader Env m) => UserId -> Text -> TeamId -> Maybe Locale -> Name -> EmailAddress -> m UserAccount
+newAccountInviteViaScim uid externalId tid locale name email = do
   defLoc <- setDefaultUserLocale <$> view settings
   let loc = fromMaybe defLoc locale
   domain <- viewFederationDomain
@@ -158,7 +158,7 @@ newAccountInviteViaScim uid tid locale name email = do
     user domain loc =
       User
         (Qualified uid domain)
-        (Just $ EmailIdentity email)
+        (Just $ SSOIdentity (UserScimExternalId externalId) (Just email))
         name
         Nothing
         (Pict [])
@@ -452,6 +452,7 @@ type UserRow =
     Maybe TextStatus,
     Maybe Pict,
     Maybe EmailAddress,
+    Maybe EmailAddress,
     Maybe UserSSOId,
     ColourId,
     Maybe [Asset],
@@ -495,7 +496,7 @@ deriving instance Show UserRowInsert
 
 usersSelect :: PrepQuery R (Identity [UserId]) UserRow
 usersSelect =
-  "SELECT id, name, text_status, picture, email, sso_id, accent_id, assets, \
+  "SELECT id, name, text_status, picture, email, email_unvalidated, sso_id, accent_id, assets, \
   \activated, status, expires, language, country, provider, service, \
   \handle, team, managed_by, supported_protocols \
   \FROM user where id IN ?"
@@ -571,6 +572,7 @@ toUsers domain defaultLocale havePendingInvitations = fmap mk . filter fp
                _textStatus,
                _pict,
                _email,
+               _emailUnvalidated,
                _ssoid,
                _accent,
                _assets,
@@ -595,6 +597,7 @@ toUsers domain defaultLocale havePendingInvitations = fmap mk . filter fp
         textStatus,
         pict,
         email,
+        _emailUnvalidated,
         ssoid,
         accent,
         assets,

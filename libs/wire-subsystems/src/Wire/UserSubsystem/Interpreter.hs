@@ -100,7 +100,7 @@ interpretUserSubsystem ::
 interpretUserSubsystem = interpret \case
   GetUserProfiles self others -> getUserProfilesImpl self others
   GetLocalUserProfiles others -> getLocalUserProfilesImpl others
-  GetAccountsBy getBy -> getAccountsByImpl getBy
+  GetExtendedAccountsBy getBy -> getExtendedAccountsByImpl getBy
   GetSelfProfile self -> getSelfProfileImpl self
   GetUserProfilesWithErrors self others -> getUserProfilesWithErrorsImpl self others
   UpdateUserProfile self mconn mb update -> updateUserProfileImpl self mconn mb update
@@ -494,7 +494,7 @@ checkHandlesImpl check num = reverse <$> collectFree [] check num
 --------------------------------------------------------------------------------
 -- getting user accounts by different criteria
 
-getAccountsByImpl ::
+getExtendedAccountsByImpl ::
   forall r.
   ( Member UserStore r,
     Member DeleteQueue r,
@@ -504,16 +504,16 @@ getAccountsByImpl ::
     Member TinyLog r
   ) =>
   Local GetBy ->
-  Sem r [UserAccount]
-getAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations, getByEmail, getByHandle, getByUserIds})) = do
+  Sem r [ExtendedUserAccount]
+getExtendedAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations, getByEmail, getByHandle, getByUserIds})) = do
   config <- input
 
-  let storedToAcc = mkAccountFromStored domain config.defaultLocale
+  let storedToExtAcc = mkExtendedAccountFromStored domain config.defaultLocale
 
-      filterPendingInvitations :: [UserAccount] -> Sem r [UserAccount]
+      filterPendingInvitations :: [ExtendedUserAccount] -> Sem r [ExtendedUserAccount]
       filterPendingInvitations =
         filterM
-          ( \acc ->
+          ( \((.account) -> acc) ->
               if acc.accountStatus == PendingInvitation
                 then do
                   case accountIdentityEmail acc of
@@ -541,15 +541,15 @@ getAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations, getByE
           _ -> Nothing -- error "SCIM invited user should have an email"
   handleUserIds :: [UserId] <- wither lookupHandle getByHandle
 
-  accsByIds :: [UserAccount] <-
+  accsByIds :: [ExtendedUserAccount] <-
     getUsers (nubOrd $ handleUserIds <> getByUserIds)
-      <&> map storedToAcc
+      <&> map storedToExtAcc
       >>= filterPendingInvitations
 
-  accsByEmail :: [UserAccount] <- flip foldMap getByEmail \ek -> do
+  accsByEmail :: [ExtendedUserAccount] <- flip foldMap getByEmail \ek -> do
     mactiveUid <- lookupKey ek
     getUsers (nubOrd . catMaybes $ [mactiveUid])
-      <&> map storedToAcc
+      <&> map storedToExtAcc
       >>= filterPendingInvitations
 
   pure (nubOrd $ accsByIds <> accsByEmail)

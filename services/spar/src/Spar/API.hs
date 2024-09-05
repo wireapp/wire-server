@@ -433,7 +433,7 @@ idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (co
     assertEmptyOrPurge teamId page = do
       forM_ (Cas.result page) $ \(uref, uid) -> do
         mAccount <- BrigAccess.getAccount NoPendingInvitations uid
-        let mUserTeam = userTeam . accountUser =<< mAccount
+        let mUserTeam = userTeam . accountUser . account =<< mAccount
         when (mUserTeam == Just teamId) $ do
           if purge
             then do

@@ -42,6 +42,9 @@ addJSONObject = addJSON . Aeson.object
 addJSON :: (Aeson.ToJSON a) => a -> HTTP.Request -> HTTP.Request
 addJSON obj = addBody (HTTP.RequestBodyLBS (Aeson.encode obj)) "application/json"
 
+addXML :: ByteString -> HTTP.Request -> HTTP.Request
+addXML xml = addBody (HTTP.RequestBodyBS xml) "application/xml"
+
 addUrlEncodedForm :: [(String, String)] -> HTTP.Request -> HTTP.Request
 addUrlEncodedForm form req =
   req

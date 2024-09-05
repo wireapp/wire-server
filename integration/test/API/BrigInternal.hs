@@ -148,9 +148,13 @@ deleteOAuthClient user cid = do
 getInvitationCode :: (HasCallStack, MakesValue user, MakesValue inv) => user -> inv -> App Response
 getInvitationCode user inv = do
   tid <- user %. "team" & asString
+  getInvitationCodeForTeam user tid inv
+
+getInvitationCodeForTeam :: (HasCallStack, MakesValue domain, MakesValue inv) => domain -> String -> inv -> App Response
+getInvitationCodeForTeam domain tid inv = do
   invId <- inv %. "id" & asString
   req <-
-    baseRequest user Brig Unversioned $
+    baseRequest domain Brig Unversioned $
       "i/teams/invitation-code?team=" <> tid <> "&invitation_id=" <> invId
   submit "GET" req
 
@@ -284,3 +288,13 @@ createOAuthClient :: (HasCallStack, MakesValue user) => user -> String -> String
 createOAuthClient user name url = do
   req <- baseRequest user Brig Unversioned "i/oauth/clients"
   submit "POST" $ req & addJSONObject ["application_name" .= name, "redirect_url" .= url]
+
+getInvitationByEmail :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
+getInvitationByEmail domain email = do
+  req <- baseRequest domain Brig Unversioned "i/teams/invitations/by-email"
+  submit "GET" $ req & addQueryParams [("email", email)]
+
+getActivationCode :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
+getActivationCode domain email = do
+  req <- baseRequest domain Brig Unversioned "i/users/activation-code"
+  submit "GET" $ req & addQueryParams [("email", email)]

@@ -159,6 +159,7 @@ import Data.String.Conversions
 import Data.Text (pack)
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Lazy.Encoding as LT
+import Data.These
 import Data.UUID as UUID hiding (fromByteString, null)
 import Data.UUID.V4 as UUID (nextRandom)
 import qualified Data.Yaml as Yaml
@@ -208,7 +209,7 @@ import Wire.API.User
 import qualified Wire.API.User as User
 import Wire.API.User.Auth hiding (Cookie)
 import Wire.API.User.IdentityProvider
-import Wire.API.User.Scim (runValidExternalIdEither)
+import Wire.API.User.Scim
 import Wire.Sem.Logger.TinyLog
 
 -- | Call 'mkEnv' with options from config files.
@@ -1144,15 +1145,17 @@ callDeleteDefaultSsoCode sparreq_ = do
 
 -- helpers talking to spar's cassandra directly
 
--- | Look up 'UserId' under 'UserSSOId' on spar's cassandra directly.
+-- | Look up 'UserId' under 'externalId', and if no email address is given, under the saml user ref.
+--
+-- This is a bit convoluted, don't try too hard to make sense of it. Better luck when
+-- rewriting this in /integration!  :-)
 ssoToUidSpar :: (HasCallStack, MonadIO m, MonadReader TestEnv m) => TeamId -> UserSSOId -> m (Maybe UserId)
 ssoToUidSpar tid ssoid = do
-  veid <- either (error . ("could not parse brig sso_id: " <>)) pure $ Intra.veidFromUserSSOId ssoid
+  veid <- either (error . ("could not parse brig sso_id: " <>)) pure $ Intra.veidFromUserSSOId ssoid Nothing
   runSpar $
-    runValidExternalIdEither
-      SAMLUserStore.get
-      (ScimExternalIdStore.lookup tid)
-      veid
+    let doThat = SAMLUserStore.get
+        doThis _ = ScimExternalIdStore.lookup tid veid.validScimIdExternal
+     in these doThis doThat (const doThat) veid.validScimIdAuthInfo
 
 runSimpleSP :: (MonadReader TestEnv m, MonadIO m) => SAML.SimpleSP a -> m a
 runSimpleSP action = do

@@ -33,6 +33,8 @@ data ETag = Weak Text | Strong Text
 
 instance ToJSON ETag where
   toJSON (Weak tag) = String $ "W/" <> pack (show tag)
+  -- (if a strong tag contains a "W/" prefix by accident, it will be parsed as weak tag.  this
+  -- is mildly confusing, but should do no harm.)
   toJSON (Strong tag) = String $ pack (show tag)
 
 instance FromJSON ETag where

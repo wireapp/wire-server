@@ -63,6 +63,7 @@
 , tasty-hunit
 , text
 , text-latin1
+, these
 , time
 , tinylog
 , transformers
@@ -124,6 +125,7 @@ mkDerivation {
     servant-server
     text
     text-latin1
+    these
     time
     tinylog
     transformers
@@ -187,6 +189,7 @@ mkDerivation {
     string-conversions
     tasty-hunit
     text
+    these
     time
     tinylog
     transformers
@@ -227,6 +230,7 @@ mkDerivation {
     servant
     servant-openapi3
     string-conversions
+    these
     time
     tinylog
     types-common

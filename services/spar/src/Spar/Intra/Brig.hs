@@ -28,7 +28,7 @@ module Spar.Intra.Brig
     setBrigUserName,
     setBrigUserHandle,
     setBrigUserManagedBy,
-    setBrigUserVeid,
+    setBrigUserSSOId,
     setBrigUserRichInfo,
     setBrigUserLocale,
     checkHandleAvailable,
@@ -68,13 +68,8 @@ import Wire.API.User
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.RichInfo as RichInfo
-import Wire.API.User.Scim (ValidExternalId (..), runValidExternalIdEither)
 
 ----------------------------------------------------------------------
-
--- | FUTUREWORK: this is redundantly defined in "Spar.Intra.BrigApp".
-veidToUserSSOId :: ValidExternalId -> UserSSOId
-veidToUserSSOId = runValidExternalIdEither UserSSOId (UserScimExternalId . fromEmail)
 
 -- | Similar to 'Network.Wire.Client.API.Auth.tokenResponse', but easier: we just need to set the
 -- cookie in the response, and the redirect will make the client negotiate a fresh auth token.
@@ -130,6 +125,7 @@ createBrigUserSAML uref (Id buid) teamid name managedBy handle richInfo mLocale 
 
 createBrigUserNoSAML ::
   (HasCallStack, MonadSparToBrig m) =>
+  Text ->
   EmailAddress ->
   UserId ->
   TeamId ->
@@ -138,8 +134,8 @@ createBrigUserNoSAML ::
   Maybe Locale ->
   Role ->
   m UserId
-createBrigUserNoSAML email uid teamid uname locale role = do
-  let newUser = NewUserScimInvitation teamid uid locale uname email role
+createBrigUserNoSAML extId email uid teamid uname locale role = do
+  let newUser = NewUserScimInvitation teamid uid extId locale uname email role
   resp :: ResponseLBS <-
     call $
       method POST
@@ -165,7 +161,7 @@ updateEmail buid email = do
     _ -> rethrow "brig" resp
 
 -- | Get a user; returns 'Nothing' if the user was not found or has been deleted.
-getBrigUserAccount :: (HasCallStack, MonadSparToBrig m) => HavePendingInvitations -> UserId -> m (Maybe UserAccount)
+getBrigUserAccount :: (HasCallStack, MonadSparToBrig m) => HavePendingInvitations -> UserId -> m (Maybe ExtendedUserAccount)
 getBrigUserAccount havePending buid = do
   resp :: ResponseLBS <-
     call $
@@ -183,10 +179,10 @@ getBrigUserAccount havePending buid = do
 
   case statusCode resp of
     200 ->
-      parseResponse @[UserAccount] "brig" resp >>= \case
+      parseResponse @[ExtendedUserAccount] "brig" resp >>= \case
         [account] ->
           pure $
-            if userDeleted $ accountUser account
+            if userDeleted account.account.accountUser
               then Nothing
               else Just account
         _ -> pure Nothing
@@ -273,13 +269,13 @@ setBrigUserManagedBy buid managedBy = do
     rethrow "brig" resp
 
 -- | Set user's UserSSOId.
-setBrigUserVeid :: (HasCallStack, MonadSparToBrig m) => UserId -> ValidExternalId -> m ()
-setBrigUserVeid buid veid = do
+setBrigUserSSOId :: (HasCallStack, MonadSparToBrig m) => UserId -> UserSSOId -> m ()
+setBrigUserSSOId buid ssoId = do
   resp <-
     call $
       method PUT
         . paths ["i", "users", toByteString' buid, "sso-id"]
-        . json (veidToUserSSOId veid)
+        . json ssoId
   case statusCode resp of
     200 -> pure ()
     _ -> rethrow "brig" resp

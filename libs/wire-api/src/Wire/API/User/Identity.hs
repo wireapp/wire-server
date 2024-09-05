@@ -40,27 +40,19 @@ module Wire.API.User.Identity
 
     -- * UserSSOId
     UserSSOId (..),
-    emailFromSAML,
-    emailToSAMLNameID,
-    emailFromSAMLNameID,
     mkSampleUref,
     mkSimpleSampleUref,
   )
 where
 
 import Cassandra qualified as C
-import Control.Applicative (optional)
 import Control.Error (hush)
-import Control.Lens (dimap, over, (.~), (?~), (^.))
+import Control.Lens (dimap, (.~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Aeson qualified as A
 import Data.Aeson.Types qualified as A
-import Data.Attoparsec.Text
 import Data.ByteString (fromStrict, toStrict)
-import Data.ByteString.Conversion
 import Data.ByteString.UTF8 qualified as UTF8
-import Data.CaseInsensitive qualified as CI
-import Data.OpenApi (ToParamSchema (..))
 import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Text qualified as Text
@@ -71,19 +63,17 @@ import Imports
 import SAML2.WebSSO (UserRef (..))
 import SAML2.WebSSO.Test.Arbitrary ()
 import SAML2.WebSSO.Types qualified as SAML
-import SAML2.WebSSO.Types.Email qualified as SAMLEmail
 import SAML2.WebSSO.XML qualified as SAML
 import Servant
-import Servant.API qualified as S
 import System.FilePath ((</>))
-import Test.QuickCheck qualified as QC
 import Text.Email.Parser
 import URI.ByteString qualified as URI
 import URI.ByteString.QQ (uri)
 import Web.Scim.Schema.User.Email ()
 import Wire.API.User.EmailAddress
+import Wire.API.User.Phone
 import Wire.API.User.Profile (fromName, mkName)
-import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- UserIdentity
@@ -140,57 +130,6 @@ emailIdentity (SSOIdentity _ _) = Nothing
 ssoIdentity :: UserIdentity -> Maybe UserSSOId
 ssoIdentity (SSOIdentity ssoid _) = Just ssoid
 ssoIdentity _ = Nothing
-
---------------------------------------------------------------------------------
--- Phone
-
-newtype Phone = Phone {fromPhone :: Text}
-  deriving stock (Eq, Ord, Show, Generic)
-  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema Phone)
-
-instance ToParamSchema Phone where
-  toParamSchema _ = toParamSchema (Proxy @Text)
-
-instance ToSchema Phone where
-  schema =
-    over doc (S.description ?~ "E.164 phone number") $
-      fromPhone
-        .= parsedText "PhoneNumber" (maybe (Left "Invalid phone number. Expected E.164 format.") Right . parsePhone)
-
-instance ToByteString Phone where
-  builder = builder . fromPhone
-
-instance FromByteString Phone where
-  parser = parser >>= maybe (fail "Invalid phone") pure . parsePhone
-
-instance S.FromHttpApiData Phone where
-  parseUrlPiece = maybe (Left "Invalid phone") Right . fromByteString . encodeUtf8
-
-instance S.ToHttpApiData Phone where
-  toUrlPiece = decodeUtf8With lenientDecode . toByteString'
-
-instance Arbitrary Phone where
-  arbitrary =
-    Phone . Text.pack <$> do
-      let mkdigits n = replicateM n (QC.elements ['0' .. '9'])
-      mini <- mkdigits 8
-      maxi <- mkdigits =<< QC.chooseInt (0, 7)
-      pure $ '+' : mini <> maxi
-
-deriving instance C.Cql Phone
-
--- | Parses a phone number in E.164 format with a mandatory leading '+'.
-parsePhone :: Text -> Maybe Phone
-parsePhone p
-  | isValidPhone p = Just $! Phone p
-  | otherwise = Nothing
-
--- | Checks whether a phone number is valid, i.e. it is in E.164 format
--- with a mandatory leading '+' followed by 10-15 digits.
-isValidPhone :: Text -> Bool
-isValidPhone = either (const False) (const True) . parseOnly e164
-  where
-    e164 = char '+' *> count 8 digit *> count 7 (optional digit) *> endOfInput
 
 --------------------------------------------------------------------------------
 -- UserSSOId
@@ -307,19 +246,6 @@ lenientlyParseSAMLNameID (Just txt) = do
     (fail err)
     (pure . Just)
     (hush asxml <|> hush asemail <|> hush astxt)
-
-emailFromSAML :: SAMLEmail.Email -> EmailAddress
-emailFromSAML = fromJust . emailAddressText . SAMLEmail.render
-
--- | FUTUREWORK(fisx): if saml2-web-sso exported the 'NameID' constructor, we could make this
--- function total without all that praying and hoping.
-emailToSAMLNameID :: EmailAddress -> Either String SAML.NameID
-emailToSAMLNameID = SAML.emailNameID . fromEmail
-
-emailFromSAMLNameID :: SAML.NameID -> Maybe EmailAddress
-emailFromSAMLNameID nid = case nid ^. SAML.nameID of
-  SAML.UNameIDEmail email -> Just . emailFromSAML . CI.original $ email
-  _ -> Nothing
 
 -- | For testing.  Create a sample 'SAML.UserRef' value with random seeds to make 'Issuer' and
 -- 'NameID' unique.  FUTUREWORK: move to saml2-web-sso.

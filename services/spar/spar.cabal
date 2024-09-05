@@ -185,6 +185,7 @@ library
     , servant-server
     , text
     , text-latin1
+    , these
     , time
     , tinylog
     , transformers
@@ -264,8 +265,8 @@ executable spar
 executable spar-integration
   main-is:            Main.hs
 
-  -- we should not use cabal-fmt expand here because `Main` should not be in `other-modules`, it's wrong 
-  -- and cabal chokes on it 
+  -- we should not use cabal-fmt expand here because `Main` should not be in `other-modules`, it's wrong
+  -- and cabal chokes on it
   -- FUTUREWORK(mangoiv): move Main to a different directory such that this one can be expanded
   other-modules:
     Test.LoggingSpec
@@ -383,6 +384,7 @@ executable spar-integration
     , string-conversions
     , tasty-hunit
     , text
+    , these
     , time
     , tinylog
     , transformers
@@ -630,6 +632,7 @@ test-suite spec
     , servant-openapi3
     , spar
     , string-conversions
+    , these
     , time
     , tinylog
     , types-common

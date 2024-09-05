@@ -79,7 +79,7 @@ data UserSubsystem m a where
   -- | Sometimes we don't have any identity of a requesting user, and local profiles are public.
   GetLocalUserProfiles :: Local [UserId] -> UserSubsystem m [UserProfile]
   -- | given a lookup criteria record ('GetBy'), return the union of the user accounts fulfilling that criteria
-  GetAccountsBy :: Local GetBy -> UserSubsystem m [UserAccount]
+  GetExtendedAccountsBy :: Local GetBy -> UserSubsystem m [ExtendedUserAccount]
   -- | Self profile contains things not present in Profile.
   GetSelfProfile :: Local UserId -> UserSubsystem m (Maybe SelfProfile)
   -- | These give us partial success and hide concurrency in the interpreter.
@@ -110,6 +110,10 @@ data CheckHandleResp
 
 makeSem ''UserSubsystem
 
+-- | given a lookup criteria record ('GetBy'), return the union of the user accounts fulfilling that criteria
+getAccountsBy :: (Member UserSubsystem r) => Local GetBy -> Sem r [UserAccount]
+getAccountsBy getby = (.account) <$$> getExtendedAccountsBy getby
+
 getUserProfile :: (Member UserSubsystem r) => Local UserId -> Qualified UserId -> Sem r (Maybe UserProfile)
 getUserProfile luid targetUser =
   listToMaybe <$> getUserProfiles luid [targetUser]
@@ -135,6 +139,13 @@ getLocalUserAccount uid =
       ( qualifyAs uid $
           def {getByUserIds = [tUnqualified uid]}
       )
+
+getLocalExtendedAccounts :: (Member UserSubsystem r) => Local [UserId] -> Sem r [ExtendedUserAccount]
+getLocalExtendedAccounts uids = do
+  getExtendedAccountsBy
+    ( qualifyAs uids $
+        def {getByUserIds = tUnqualified uids}
+    )
 
 getLocalUserAccountByUserKey :: (Member UserSubsystem r) => Local EmailKey -> Sem r (Maybe UserAccount)
 getLocalUserAccountByUserKey email =
