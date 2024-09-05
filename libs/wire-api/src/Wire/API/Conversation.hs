@@ -97,7 +97,6 @@ import Data.List.NonEmpty (NonEmpty)
 import Data.List1
 import Data.Map qualified as Map
 import Data.Misc
-import Data.OpenApi (deprecated)
 import Data.OpenApi qualified as S
 import Data.Qualified
 import Data.Range (Range, fromRange, rangedSchema)
@@ -700,7 +699,7 @@ newConvSchema v sch =
       <$> newConvUsers
         .= ( fieldWithDocModifier
                "users"
-               ( (deprecated ?~ True)
+               ( (S.deprecated ?~ True)
                    . (description ?~ usersDesc)
                )
                (array schema)
