@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wwarn #-}
-
 module Wire.MockInterpreters.UserStore where
 
 import Data.Handle

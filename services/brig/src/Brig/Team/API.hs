@@ -14,7 +14,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# OPTIONS_GHC -Wwarn #-}
 
 module Brig.Team.API
   ( servantAPI,
@@ -87,7 +86,7 @@ import Wire.EmailSubsystem.Template
 import Wire.Error
 import Wire.GalleyAPIAccess (GalleyAPIAccess, ShowOrHideInvitationUrl (..))
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
-import Wire.InvitationCodeStore (InvitationCodeStore (..), PaginatedResult (..), StoredInvitation (..))
+import Wire.InvitationCodeStore (InsertInvitation (..), InvitationCodeStore (..), PaginatedResult (..), StoredInvitation (..))
 import Wire.InvitationCodeStore qualified as Store
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
@@ -260,16 +259,20 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail body = do
   iid <- maybe (liftIO randomId) (pure . Id . toUUID) mUid
   now <- liftIO =<< view currentTime
   timeout <- setTeamInvitationTimeout <$> view settings
+  let insertInv =
+        MkInsertInvitation
+          { invitationId = iid,
+            teamId = tid,
+            role = inviteeRole,
+            createdAt = now,
+            createdBy = mbInviterUid,
+            inviteeEmail = email,
+            inviteeName = body.inviteeName
+          }
   newInv <-
     lift . liftSem $
       Store.insertInvitation
-        iid
-        tid
-        inviteeRole
-        now
-        mbInviterUid
-        email
-        body.inviteeName
+        insertInv
         timeout
   lift $ sendInvitationMail email tid fromEmail newInv.code body.locale
   inv <- toInvitation showInvitationUrl newInv

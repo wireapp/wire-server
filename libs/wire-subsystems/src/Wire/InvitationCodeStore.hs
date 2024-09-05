@@ -63,6 +63,19 @@ data StoredInvitationInfo = MkStoredInvitationInfo
 
 recordInstance ''StoredInvitationInfo
 
+data InsertInvitation = MkInsertInvitation
+  { invitationId :: InvitationId,
+    teamId :: TeamId,
+    role :: Role,
+    createdAt :: UTCTime,
+    createdBy :: Maybe UserId,
+    inviteeEmail :: EmailAddress,
+    inviteeName :: Maybe Name
+  }
+  deriving (Show, Eq, Generic)
+
+recordInstance ''InsertInvitation
+
 data PaginatedResult a
   = PaginatedResultHasMore a
   | PaginatedResult a
@@ -71,7 +84,7 @@ data PaginatedResult a
 ----------------------------
 
 data InvitationCodeStore :: Effect where
-  InsertInvitation :: InvitationId -> TeamId -> Role -> UTCTime -> Maybe UserId -> EmailAddress -> Maybe Name -> Timeout -> InvitationCodeStore m StoredInvitation
+  InsertInvitation :: InsertInvitation -> Timeout -> InvitationCodeStore m StoredInvitation
   LookupInvitation :: TeamId -> InvitationId -> InvitationCodeStore m (Maybe StoredInvitation)
   LookupInvitationInfo :: InvitationCode -> InvitationCodeStore m (Maybe StoredInvitationInfo)
   LookupInvitationCodesByEmail :: EmailAddress -> InvitationCodeStore m [StoredInvitationInfo]

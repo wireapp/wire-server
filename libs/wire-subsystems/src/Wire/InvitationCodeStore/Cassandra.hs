@@ -22,7 +22,7 @@ interpretInvitationCodeStoreToCassandra :: (Member (Embed IO) r) => ClientState 
 interpretInvitationCodeStoreToCassandra casClient =
   interpret $
     runEmbedded (runClient casClient) . \case
-      InsertInvitation iid tid role time muid mail mname timeout -> embed $ insertInvitationImpl iid tid role time muid mail mname timeout
+      InsertInvitation newInv timeout -> embed $ insertInvitationImpl newInv timeout
       LookupInvitation tid iid -> embed $ lookupInvitationImpl tid iid
       LookupInvitationCodesByEmail email -> embed $ lookupInvitationCodesByEmailImpl email
       LookupInvitationInfo code -> embed $ lookupInvitationInfoImpl code
@@ -32,17 +32,11 @@ interpretInvitationCodeStoreToCassandra casClient =
       DeleteAllTeamInvitations tid -> embed $ deleteInvitationsImpl tid
 
 insertInvitationImpl ::
-  InvitationId ->
-  TeamId ->
-  Role ->
-  UTCTime ->
-  Maybe UserId ->
-  EmailAddress ->
-  Maybe Name ->
+  InsertInvitation ->
   -- | The timeout for the invitation code.
   Timeout ->
   Client StoredInvitation
-insertInvitationImpl invId teamId role (toUTCTimeMillis -> now) uid email name timeout = do
+insertInvitationImpl (MkInsertInvitation invId teamId role (toUTCTimeMillis -> now) uid email name) timeout = do
   code <- liftIO mkInvitationCode
   let inv =
         MkStoredInvitation

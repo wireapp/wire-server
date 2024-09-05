@@ -1,5 +1,4 @@
 {-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -Wwarn #-}
 
 module Wire.MockInterpreters.InvitationCodeStore where
 
@@ -22,7 +21,7 @@ inMemoryInvitationCodeStoreInterpreter ::
   ) =>
   InterpreterFor InvitationCodeStore r
 inMemoryInvitationCodeStoreInterpreter = interpret \case
-  InsertInvitation invitationId teamId role' createdAt' createdBy email name _timeout -> do
+  InsertInvitation (MkInsertInvitation invitationId teamId role' createdAt' createdBy email name) _timeout -> do
     code <- unsafeCoerce mkInvitationCode
     let role = Just role'
         createdAt = toUTCTimeMillis createdAt'
@@ -38,5 +37,5 @@ inMemoryInvitationCodeStoreInterpreter = interpret \case
      in mapMaybe c . elems <$> get
   LookupInvitationsPaginated {} -> error "LookupInvitationsPaginated"
   CountInvitations tid -> gets (fromIntegral . M.size . M.filterWithKey (\(tid', _) _v -> tid == tid'))
-  DeleteInvitation tid invId -> error "DeleteInvitation"
-  DeleteAllTeamInvitations tid -> error "DeleteAllTeamInvitations"
+  DeleteInvitation _tid _invId -> error "DeleteInvitation"
+  DeleteAllTeamInvitations _tid -> error "DeleteAllTeamInvitations"
