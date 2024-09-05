@@ -48,6 +48,7 @@ where
 import Cassandra qualified as C
 import Control.Lens
 import Control.Monad.Extra
+import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as LBS
 import Data.Code
 import Data.CommaSeparatedList
@@ -85,6 +86,7 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as P
 import System.Logger.Class qualified as Logger
 import Wire.API.Conversation hiding (Member)
@@ -839,7 +841,8 @@ getRemoteMLSOne2OneConversation ::
     Member (Error FederationError) r,
     Member (ErrorS 'NotConnected) r,
     Member FederatorAccess r,
-    Member (ErrorS MLSNotEnabled) r
+    Member (ErrorS MLSNotEnabled) r,
+    Member TinyLog r
   ) =>
   Local UserId ->
   Qualified UserId ->
@@ -868,13 +871,15 @@ getRemoteMLSOne2OneConversation lself qother rconv = do
     Right GetOne2OneConversationV2BackendMismatch ->
       throw (FederationUnexpectedBody "Backend mismatch when retrieving a remote 1-1 conversation")
     Right GetOne2OneConversationV2NotConnected -> throwS @'NotConnected
-    Right GetOne2OneConversationV2MLSNotEnabled ->
-      -- This is weird because we do not tell clients which backend doesn't have
-      -- MLS enabled, which would nice information for fixing problems in real
-      -- world. We do the same thing when sending Welcome messages, so for now,
-      -- let's do the same thing.
-      --
-      -- TODO: Log this at least like in welcome messages
+    Right GetOne2OneConversationV2MLSNotEnabled -> do
+      -- This is confusing to clients because we do not tell them which backend
+      -- doesn't have MLS enabled, which would nice information for fixing
+      -- problems in real world. We do the same thing when sending Welcome
+      -- messages, so for now, let's do the same thing.
+      P.warn $
+        Logger.field "domain" (toByteString' (tDomain rother))
+          . Logger.msg
+            ("Cannot get remote MLSOne2OneConversation because MLS is not enabled on remote" :: ByteString)
       throwS @'MLSNotEnabled
     Left e -> throw e
 
