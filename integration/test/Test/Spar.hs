@@ -13,6 +13,7 @@ import qualified Data.Vector as Vector
 import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
 import SetupHelpers
 import Testlib.JSON
+import Testlib.PTest
 import Testlib.Prelude
 
 testSparUserCreationInvitationTimeout :: (HasCallStack) => App ()
@@ -244,7 +245,7 @@ testSparExternalIdUpdateToANonEmail = do
   updateScimUser OwnDomain tok userId updatedScimUser >>= assertStatus 400
 
 testSparMigrateFromExternalIdOnlyToEmail :: (HasCallStack) => Tagged "mailUnchanged" Bool -> App ()
-testSparMigrateFromExternalIdOnlyToEmail emailUnchanged = do
+testSparMigrateFromExternalIdOnlyToEmail (MkTagged emailUnchanged) = do
   (owner, tid, _) <- createTeam OwnDomain 1
   tok <- createScimToken owner >>= \resp -> resp.json %. "token" >>= asString
   scimUser <- randomScimUser >>= removeField "emails"

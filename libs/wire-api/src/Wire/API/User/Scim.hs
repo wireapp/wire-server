@@ -42,7 +42,7 @@
 -- * Request and response types for SCIM-related endpoints.
 module Wire.API.User.Scim where
 
-import Control.Lens (makeLenses, mapped, to, view, (.~), (?~), (^.))
+import Control.Lens (makeLenses, mapped, to, (.~), (?~), (^.))
 import Control.Monad.Except (throwError)
 import Crypto.Hash (hash)
 import Crypto.Hash.Algorithms (SHA512)
