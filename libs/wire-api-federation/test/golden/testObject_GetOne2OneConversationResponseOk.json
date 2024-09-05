@@ -28,7 +28,9 @@
             "type": 2
         },
         "protocol": {
+            "cipher_suite": 1,
             "epoch": 0,
+            "epoch_timestamp": null,
             "group_id": "Z3JvdXA=",
             "protocol": "mls"
         }
