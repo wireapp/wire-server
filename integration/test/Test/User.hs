@@ -13,7 +13,7 @@ import SetupHelpers
 import Testlib.Prelude
 import Testlib.VersionedFed
 
-testSupportedProtocols :: (HasCallStack) => OneOf Domain AnyFedDomain -> App ()
+testSupportedProtocols :: (HasCallStack) => OneOf Domain (FedDomain 1) -> App ()
 testSupportedProtocols bobDomain = do
   alice <- randomUser OwnDomain def
   alice %. "supported_protocols" `shouldMatchSet` ["proteus"]
