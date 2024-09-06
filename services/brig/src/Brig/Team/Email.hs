@@ -22,7 +22,7 @@ module Brig.Team.Email
     CreatorWelcomeEmail (..),
     MemberWelcomeEmail (..),
     sendInvitationMail,
-    sendInvitationMailIndividualUser,
+    sendInvitationMailPersonalUser,
     sendMemberWelcomeMail,
   )
 where
@@ -54,8 +54,8 @@ sendMemberWelcomeMail to tid teamName loc = do
   let mail = MemberWelcomeEmail to tid teamName
   liftSem $ sendMail $ renderMemberWelcomeMail mail tpl branding
 
-sendInvitationMailIndividualUser :: EmailAddress -> TeamId -> EmailAddress -> InvitationCode -> Maybe Locale -> (AppT r) ()
-sendInvitationMailIndividualUser _ _ _ _ _ = pure () -- TODO(leif): Implement
+sendInvitationMailPersonalUser :: EmailAddress -> TeamId -> EmailAddress -> InvitationCode -> Maybe Locale -> (AppT r) ()
+sendInvitationMailPersonalUser _ _ _ _ _ = pure () -- TODO(leif): Implement
 
 -------------------------------------------------------------------------------
 -- Invitation Email

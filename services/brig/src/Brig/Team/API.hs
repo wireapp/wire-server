@@ -32,6 +32,7 @@ import Brig.API.User (createUserInviteViaScim, fetchUserIdentity)
 import Brig.API.User qualified as API
 import Brig.API.Util (logEmail, logInvitationCode)
 import Brig.App
+import Brig.Data.User as User
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Options (Timeout (Timeout), setMaxTeamSize, setTeamInvitationTimeout)
@@ -45,7 +46,7 @@ import Control.Monad.Trans.Except (mapExceptT)
 import Data.ByteString.Conversion (toByteString, toByteString')
 import Data.Id
 import Data.List1 qualified as List1
-import Data.Qualified (Local)
+import Data.Qualified (Local, tUnqualified)
 import Data.Range
 import Data.Text.Lazy qualified as LT
 import Data.Time.Clock (UTCTime, nominalDay)
@@ -231,7 +232,7 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail invRequest = do
   when blacklistedEm $
     throwStd blacklistedEmail
   emailTaken <- lift $ liftSem $ isJust <$> lookupKey uke
-  migrateIndividualUser <-
+  migratePersonalUser <-
     if emailTaken
       then do
         mAccount <- lift $ liftSem $ getLocalUserAccountByUserKey =<< qualifyLocal' uke
@@ -243,7 +244,7 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail invRequest = do
       else pure False
 
   when emailTaken $
-    unless migrateIndividualUser $
+    unless migratePersonalUser $
       throwStd emailExists
 
   maxSize <- setMaxTeamSize <$> view settings
@@ -257,14 +258,14 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail invRequest = do
     iid <- maybe (liftIO DB.mkInvitationId) (pure . Id . toUUID) mUid
     now <- liftIO =<< view currentTime
     timeout <-
-      if migrateIndividualUser
+      if migratePersonalUser
         then pure $ Timeout $ nominalDay * 2 -- todo(Leif): read from settings?
         else setTeamInvitationTimeout <$> view settings
     code <- liftIO $ DB.mkInvitationCode
     mUrl <-
       wrapClient $
-        if migrateIndividualUser
-          then DB.mkInviteUrlIndividualUser showInvitationUrl tid code
+        if migratePersonalUser
+          then DB.mkInviteUrlPersonalUser showInvitationUrl tid code
           else DB.mkInviteUrl showInvitationUrl tid code
     newInv <-
       wrapClient $
@@ -279,8 +280,8 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail invRequest = do
           invRequest.inviteeName
           timeout
           mUrl
-    if migrateIndividualUser
-      then sendInvitationMailIndividualUser email tid fromEmail code invRequest.locale
+    if migratePersonalUser
+      then sendInvitationMailPersonalUser email tid fromEmail code invRequest.locale
       else sendInvitationMail email tid fromEmail code invRequest.locale
     pure (newInv, code)
 
@@ -386,6 +387,28 @@ changeTeamAccountStatuses tid s = do
     toList1 (x : xs) = pure $ List1.list1 x xs
     toList1 [] = throwStd (notFound "Team not found or no members")
 
-acceptTeamInvitation :: AcceptTeamInvitation -> (Handler r) ()
-acceptTeamInvitation _ =
-  pure () -- TODO(leif): Implement
+acceptTeamInvitation :: (Member UserSubsystem r, Member GalleyAPIAccess r) => Local UserId -> AcceptTeamInvitation -> (Handler r) ()
+acceptTeamInvitation luid req = do
+  mSelfProfile <- lift $ liftSem $ getSelfProfile luid
+  let mek = mkEmailKey <$> (userEmail . selfUser =<< mSelfProfile)
+  mInv <- API.findTeamInvitation mek req.code !>> toInvitationError
+  case mInv of
+    Nothing -> throwStd (errorToWai @'E.PendingInvitationNotFound)
+    Just (inv, _, tid) -> do
+      let minvmeta = ((,inCreatedAt inv) <$> inCreatedBy inv, inRole inv)
+          uid = tUnqualified luid
+      added <- lift $ liftSem $ GalleyAPIAccess.addTeamMember uid tid minvmeta
+      lift $ wrapClient $ User.updateUserTeam uid tid
+      unless added $ throwStd (errorToWai @'E.TooManyTeamMembers)
+      lift $ wrapClient $ DB.deleteInvitation inv.inTeam inv.inInvitation
+      -- update brig index
+      -- send event to user
+      -- send event to admin
+      pure ()
+  where
+    toInvitationError :: RegisterError -> HttpError
+    toInvitationError = \case
+      RegisterErrorMissingIdentity -> StdError (errorToWai @'E.MissingIdentity)
+      RegisterErrorInvalidActivationCodeWrongUser -> StdError (errorToWai @'E.InvalidActivationCodeWrongUser)
+      RegisterErrorInvalidActivationCodeWrongCode -> StdError (errorToWai @'E.InvalidActivationCodeWrongCode)
+      _ -> StdError (notFound "Something went wrong, while looking up the invitation")

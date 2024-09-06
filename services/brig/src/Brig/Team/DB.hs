@@ -33,7 +33,7 @@ module Brig.Team.DB
     mkInvitationCode,
     mkInvitationId,
     mkInviteUrl,
-    mkInviteUrlIndividualUser,
+    mkInviteUrlPersonalUser,
     InvitationByEmail (..),
     InvitationInfo (..),
   )
@@ -322,5 +322,5 @@ mkInviteUrl ShowInvitationUrl team (InvitationCode c) = do
           . Log.field "url" url
           . Log.field "error" (show e)
 
-mkInviteUrlIndividualUser :: (Monad m) => ShowOrHideInvitationUrl -> TeamId -> InvitationCode -> m (Maybe (URIRef Absolute))
-mkInviteUrlIndividualUser _ _ _ = pure Nothing -- todo(leif): implement
+mkInviteUrlPersonalUser :: (Monad m) => ShowOrHideInvitationUrl -> TeamId -> InvitationCode -> m (Maybe (URIRef Absolute))
+mkInviteUrlPersonalUser _ _ _ = pure Nothing -- todo(leif): implement

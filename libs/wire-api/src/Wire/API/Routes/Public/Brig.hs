@@ -1663,6 +1663,7 @@ type TeamsAPI =
     :<|> Named
            "accept-team-invitation"
            ( Summary "Accept a team invitation."
+               :> ZLocalUser
                :> "teams"
                :> "invitations"
                :> "accept"

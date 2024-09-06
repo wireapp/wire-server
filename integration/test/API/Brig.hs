@@ -784,7 +784,7 @@ activate domain key code = do
     req
       & addQueryParams [("key", key), ("code", code)]
 
-acceptTeamInvitation :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
-acceptTeamInvitation domain code = do
-  req <- rawBaseRequest domain Brig Versioned $ joinHttpPath ["teams", "invitations", "accept"]
+acceptTeamInvitation :: (HasCallStack, MakesValue user) => user -> String -> App Response
+acceptTeamInvitation user code = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", "invitations", "accept"]
   submit "POST" $ req & addJSONObject ["code" .= code]
