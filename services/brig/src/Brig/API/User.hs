@@ -70,6 +70,7 @@ module Brig.API.User
 
     -- * Utilities
     fetchUserIdentity,
+    findTeamInvitation,
   )
 where
 
@@ -385,33 +386,6 @@ createUser new = do
 
       pure email
 
-    findTeamInvitation :: Maybe EmailKey -> InvitationCode -> ExceptT RegisterError (AppT r) (Maybe (Team.Invitation, Team.InvitationInfo, TeamId))
-    findTeamInvitation Nothing _ = throwE RegisterErrorMissingIdentity
-    findTeamInvitation (Just e) c =
-      lift (wrapClient $ Team.lookupInvitationInfo c) >>= \case
-        Just ii -> do
-          inv <- lift . wrapClient $ Team.lookupInvitation HideInvitationUrl (Team.iiTeam ii) (Team.iiInvId ii)
-          case (inv, Team.inInviteeEmail <$> inv) of
-            (Just invite, Just em)
-              | e == mkEmailKey em -> do
-                  _ <- ensureMemberCanJoin (Team.iiTeam ii)
-                  pure $ Just (invite, ii, Team.iiTeam ii)
-            _ -> throwE RegisterErrorInvalidInvitationCode
-        Nothing -> throwE RegisterErrorInvalidInvitationCode
-
-    ensureMemberCanJoin :: TeamId -> ExceptT RegisterError (AppT r) ()
-    ensureMemberCanJoin tid = do
-      maxSize <- fromIntegral . setMaxTeamSize <$> view settings
-      (TeamSize teamSize) <- TeamSize.teamSize tid
-      when (teamSize >= maxSize) $
-        throwE RegisterErrorTooManyTeamMembers
-      -- FUTUREWORK: The above can easily be done/tested in the intra call.
-      --             Remove after the next release.
-      canAdd <- lift $ liftSem $ GalleyAPIAccess.checkUserCanJoinTeam tid
-      case canAdd of
-        Just e -> throwM $ API.UserNotAllowedToJoinTeam e
-        Nothing -> pure ()
-
     acceptTeamInvitation ::
       UserAccount ->
       Team.Invitation ->
@@ -476,6 +450,31 @@ createUser new = do
             activateWithCurrency (ActivateKey ak) c (Just uid) (bnuCurrency =<< newTeam)
               !>> activationErrorToRegisterError
           pure Nothing
+
+findTeamInvitation :: (Member GalleyAPIAccess r) => Maybe EmailKey -> InvitationCode -> ExceptT RegisterError (AppT r) (Maybe (Team.Invitation, Team.InvitationInfo, TeamId))
+findTeamInvitation Nothing _ = throwE RegisterErrorMissingIdentity
+findTeamInvitation (Just e) c =
+  lift (wrapClient $ Team.lookupInvitationInfo c) >>= \case
+    Just ii -> do
+      inv <- lift . wrapClient $ Team.lookupInvitation HideInvitationUrl (Team.iiTeam ii) (Team.iiInvId ii)
+      case (inv, Team.inInviteeEmail <$> inv) of
+        (Just invite, Just em)
+          | e == mkEmailKey em -> do
+              _ <- ensureMemberCanJoin (Team.iiTeam ii)
+              pure $ Just (invite, ii, Team.iiTeam ii)
+        _ -> throwE RegisterErrorInvalidInvitationCode
+    Nothing -> throwE RegisterErrorInvalidInvitationCode
+  where
+    ensureMemberCanJoin :: (Member GalleyAPIAccess r) => TeamId -> ExceptT RegisterError (AppT r) ()
+    ensureMemberCanJoin tid = do
+      maxSize <- fromIntegral . setMaxTeamSize <$> view settings
+      (TeamSize teamSize) <- TeamSize.teamSize tid
+      when (teamSize >= maxSize) $
+        throwE RegisterErrorTooManyTeamMembers
+      -- FUTUREWORK: The above can easily be done/tested in the intra call.
+      --             Remove after the next release.
+      mAddUserError <- lift $ liftSem $ GalleyAPIAccess.checkUserCanJoinTeam tid
+      maybe (pure ()) (throwM . API.UserNotAllowedToJoinTeam) mAddUserError
 
 initAccountFeatureConfig :: UserId -> (AppT r) ()
 initAccountFeatureConfig uid = do
