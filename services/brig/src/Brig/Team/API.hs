@@ -35,6 +35,7 @@ import Brig.App
 import Brig.Data.User as User
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
+import Brig.IO.Intra qualified as Intra
 import Brig.Options (Timeout (Timeout), setMaxTeamSize, setTeamInvitationTimeout)
 import Brig.Team.DB qualified as DB
 import Brig.Team.Email
@@ -76,6 +77,7 @@ import Wire.API.Team.Role
 import Wire.API.Team.Role qualified as Public
 import Wire.API.User hiding (fromEmail)
 import Wire.API.User qualified as Public
+import Wire.API.UserEvent
 import Wire.BlockListStore
 import Wire.EmailSending (EmailSending)
 import Wire.Error
@@ -92,7 +94,12 @@ servantAPI ::
     Member UserKeyStore r,
     Member UserSubsystem r,
     Member EmailSending r,
-    Member (Input (Local ())) r
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r,
+    Member TinyLog r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r
   ) =>
   ServerT TeamsAPI (Handler r)
 servantAPI =
@@ -387,7 +394,19 @@ changeTeamAccountStatuses tid s = do
     toList1 (x : xs) = pure $ List1.list1 x xs
     toList1 [] = throwStd (notFound "Team not found or no members")
 
-acceptTeamInvitation :: (Member UserSubsystem r, Member GalleyAPIAccess r) => Local UserId -> AcceptTeamInvitation -> (Handler r) ()
+acceptTeamInvitation ::
+  ( Member UserSubsystem r,
+    Member GalleyAPIAccess r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r,
+    Member TinyLog r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r
+  ) =>
+  Local UserId ->
+  AcceptTeamInvitation ->
+  (Handler r) ()
 acceptTeamInvitation luid req = do
   mSelfProfile <- lift $ liftSem $ getSelfProfile luid
   let mek = mkEmailKey <$> (userEmail . selfUser =<< mSelfProfile)
@@ -398,13 +417,11 @@ acceptTeamInvitation luid req = do
       let minvmeta = ((,inCreatedAt inv) <$> inCreatedBy inv, inRole inv)
           uid = tUnqualified luid
       added <- lift $ liftSem $ GalleyAPIAccess.addTeamMember uid tid minvmeta
-      lift $ wrapClient $ User.updateUserTeam uid tid
       unless added $ throwStd (errorToWai @'E.TooManyTeamMembers)
-      lift $ wrapClient $ DB.deleteInvitation inv.inTeam inv.inInvitation
-      -- update brig index
-      -- send event to user
-      -- send event to admin
-      pure ()
+      lift $ do
+        wrapClient $ User.updateUserTeam uid tid
+        wrapClient $ DB.deleteInvitation inv.inTeam inv.inInvitation
+        liftSem $ Intra.onUserEvent uid Nothing (teamUpdated uid tid)
   where
     toInvitationError :: RegisterError -> HttpError
     toInvitationError = \case

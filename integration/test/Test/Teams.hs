@@ -18,19 +18,53 @@
 module Test.Teams where
 
 import API.Brig
-import API.BrigInternal (createUser, getInvitationCode)
+import API.BrigInternal (createUser, getInvitationCode, refreshIndex)
+import API.Galley (getTeamMembers)
 import SetupHelpers
 import Testlib.JSON
 import Testlib.Prelude
 
 testInvitePersonalUserToTeam :: (HasCallStack) => App ()
 testInvitePersonalUserToTeam = do
-  (owner, tid, _) <- createTeam OwnDomain 0
-  personalUser <- createUser OwnDomain def >>= getJSON 201
-  email <- personalUser %. "email" >>= asString
+  (owner, tid, tm : _) <- createTeam OwnDomain 2
+  ownerId <- owner %. "id" & asString
+  user <- createUser OwnDomain def >>= getJSON 201
+  uid <- user %. "id" >>= asString
+  email <- user %. "email" >>= asString
   inv <- postInvitation owner (PostInvitation $ Just email) >>= getJSON 201
-  resp <- getInvitationCode owner inv >>= getJSON 200
-  code <- resp %. "code" & asString
-  acceptTeamInvitation personalUser code >>= assertSuccess
-  user <- getSelf personalUser >>= getJSON 200
-  user %. "team" `shouldMatch` tid
+  code <- getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
+  acceptTeamInvitation user code >>= assertSuccess
+  bindResponse (getSelf user) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "team" `shouldMatch` tid
+  -- a team member can now find the former personal user in the team
+  bindResponse (getTeamMembers tm tid) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    members <- resp.json %. "members" >>= asList
+    ids <- for members ((%. "user") >=> asString)
+    ids `shouldContain` [uid]
+  -- the former personal user can now see other team members
+  bindResponse (getTeamMembers user tid) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    members <- resp.json %. "members" >>= asList
+    ids <- for members ((%. "user") >=> asString)
+    tmId <- tm %. "id" & asString
+    ids `shouldContain` [ownerId]
+    ids `shouldContain` [tmId]
+  -- the former personal user can now search for the owner
+  bindResponse (searchContacts user (owner %. "name") OwnDomain) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    documents <- resp.json %. "documents" >>= asList
+    ids <- for documents ((%. "id") >=> asString)
+    ids `shouldContain` [ownerId]
+  refreshIndex OwnDomain
+  -- a team member an now search for the former personal user
+  bindResponse (searchContacts tm (user %. "name") OwnDomain) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    documents <- resp.json %. "documents" >>= asList
+    ids <- for documents ((%. "id") >=> asString)
+    void $ assertFailure "TODO(leif): check team not null"
+    ids `shouldContain` [uid]
+
+  void $ assertFailure "TODO(leif): verify user events"
+  void $ assertFailure "TODO(leif): verify team admin gets events"
