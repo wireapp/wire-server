@@ -25,10 +25,12 @@ import Testlib.Prelude
 
 testInviteIndividualUserToTeam :: (HasCallStack) => App ()
 testInviteIndividualUserToTeam = do
-  (owner, _tid, _) <- createTeam OwnDomain 0
-  individualUser <- createUser OwnDomain def
-  email <- individualUser.json %. "email" >>= asString
+  (owner, tid, _) <- createTeam OwnDomain 0
+  individualUser <- createUser OwnDomain def >>= getJSON 201
+  email <- individualUser %. "email" >>= asString
   inv <- postInvitation owner (PostInvitation $ Just email) >>= getJSON 201
   resp <- getInvitationCode owner inv >>= getJSON 200
   code <- resp %. "code" & asString
-  printJSON code
+  acceptTeamInvitation OwnDomain code >>= assertSuccess
+  user <- getSelf individualUser >>= getJSON 200
+  user %. "team" `shouldMatch` tid
