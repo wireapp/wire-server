@@ -34,7 +34,7 @@ import Brig.API.Util (logEmail, logInvitationCode)
 import Brig.App
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
-import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
+import Brig.Options (Timeout (Timeout), setMaxTeamSize, setTeamInvitationTimeout)
 import Brig.Team.DB qualified as DB
 import Brig.Team.Email
 import Brig.Team.Util (ensurePermissionToAddUser, ensurePermissions)
@@ -256,7 +256,10 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail invRequest = do
   lift $ do
     iid <- maybe (liftIO DB.mkInvitationId) (pure . Id . toUUID) mUid
     now <- liftIO =<< view currentTime
-    timeout <- setTeamInvitationTimeout <$> view settings
+    timeout <-
+      if migrateIndividualUser
+        then pure $ Timeout $ nominalDay * 2 -- todo(Leif): read from settings?
+        else setTeamInvitationTimeout <$> view settings
     code <- liftIO $ DB.mkInvitationCode
     mUrl <-
       wrapClient $
@@ -384,4 +387,5 @@ changeTeamAccountStatuses tid s = do
     toList1 [] = throwStd (notFound "Team not found or no members")
 
 acceptTeamInvitation :: AcceptTeamInvitation -> (Handler r) ()
-acceptTeamInvitation _ = pure () -- TODO(leif): Implement
+acceptTeamInvitation _ =
+  pure () -- TODO(leif): Implement
