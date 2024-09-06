@@ -39,6 +39,7 @@ module Galley.API.Query
     getMLSSelfConversation,
     getMLSSelfConversationWithError,
     getMLSOne2OneConversationV5,
+    getMLSOne2OneConversationV6,
     getMLSOne2OneConversationInternal,
     getMLSOne2OneConversation,
     isMLSOne2OneEstablished,
@@ -782,6 +783,31 @@ getMLSOne2OneConversationInternal ::
 getMLSOne2OneConversationInternal lself qother =
   (.conversation) <$> getMLSOne2OneConversation lself qother Nothing
 
+getMLSOne2OneConversationV6 ::
+  ( Member BrigAccess r,
+    Member ConversationStore r,
+    Member (Input Env) r,
+    Member (Error FederationError) r,
+    Member (Error InternalError) r,
+    Member (ErrorS 'MLSNotEnabled) r,
+    Member (ErrorS 'NotConnected) r,
+    Member FederatorAccess r,
+    Member TeamStore r,
+    Member P.TinyLog r
+  ) =>
+  Local UserId ->
+  Qualified UserId ->
+  Sem r (MLSOne2OneConversation MLSPublicKey)
+getMLSOne2OneConversationV6 lself qother = do
+  assertMLSEnabled
+  ensureConnectedOrSameTeam lself [qother]
+  let convId = one2OneConvId BaseProtocolMLSTag (tUntagged lself) qother
+  foldQualified
+    lself
+    (getLocalMLSOne2OneConversation lself)
+    (getRemoteMLSOne2OneConversation lself qother)
+    convId
+
 getMLSOne2OneConversation ::
   ( Member BrigAccess r,
     Member ConversationStore r,
@@ -799,20 +825,9 @@ getMLSOne2OneConversation ::
   Maybe MLSPublicKeyFormat ->
   Sem r (MLSOne2OneConversation SomeKey)
 getMLSOne2OneConversation lself qother fmt = do
-  assertMLSEnabled
-  ensureConnectedOrSameTeam lself [qother]
-  let convId = one2OneConvId BaseProtocolMLSTag (tUntagged lself) qother
-  convWithUnformattedKeys <-
-    foldQualified
-      lself
-      (getLocalMLSOne2OneConversation lself)
-      (getRemoteMLSOne2OneConversation lself qother)
-      convId
-  formattedKeys <- formatPublicKeys fmt convWithUnformattedKeys.publicKeys
-  pure $
-    convWithUnformattedKeys
-      { publicKeys = formattedKeys
-      }
+  convWithUnformattedKeys <- getMLSOne2OneConversationV6 lself qother
+  MLSOne2OneConversation convWithUnformattedKeys.conversation
+    <$> formatPublicKeys fmt convWithUnformattedKeys.publicKeys
 
 getLocalMLSOne2OneConversation ::
   ( Member ConversationStore r,

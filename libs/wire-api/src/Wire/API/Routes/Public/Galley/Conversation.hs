@@ -687,9 +687,22 @@ type ConversationAPI =
                :> MultiVerb1 'GET '[JSON] (VersionedRespond 'V5 200 "MLS 1-1 conversation" Conversation)
            )
     :<|> Named
-           "get-one-to-one-mls-conversation"
+           "get-one-to-one-mls-conversation@v6"
            ( Summary "Get an MLS 1:1 conversation"
                :> From 'V6
+               :> Until 'V7
+               :> ZLocalUser
+               :> CanThrow 'MLSNotEnabled
+               :> CanThrow 'NotConnected
+               :> "conversations"
+               :> "one2one"
+               :> QualifiedCapture "usr" UserId
+               :> MultiVerb1 'GET '[JSON] (Respond 200 "MLS 1-1 conversation" (MLSOne2OneConversation MLSPublicKey))
+           )
+    :<|> Named
+           "get-one-to-one-mls-conversation"
+           ( Summary "Get an MLS 1:1 conversation"
+               :> From 'V7
                :> ZLocalUser
                :> CanThrow 'MLSNotEnabled
                :> CanThrow 'NotConnected

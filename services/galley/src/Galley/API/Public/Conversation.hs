@@ -63,6 +63,7 @@ conversationAPI =
     <@> mkNamedAPI @"create-one-to-one-conversation@v2" (callsFed createOne2OneConversation)
     <@> mkNamedAPI @"create-one-to-one-conversation" (callsFed createOne2OneConversation)
     <@> mkNamedAPI @"get-one-to-one-mls-conversation@v5" getMLSOne2OneConversationV5
+    <@> mkNamedAPI @"get-one-to-one-mls-conversation@v6" getMLSOne2OneConversationV6
     <@> mkNamedAPI @"get-one-to-one-mls-conversation" getMLSOne2OneConversation
     <@> mkNamedAPI @"add-members-to-conversation-unqualified" (callsFed addMembersUnqualified)
     <@> mkNamedAPI @"add-members-to-conversation-unqualified2" (callsFed addMembersUnqualifiedV2)
