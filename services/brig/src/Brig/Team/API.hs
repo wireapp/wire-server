@@ -48,7 +48,7 @@ import Data.List1 qualified as List1
 import Data.Qualified (Local)
 import Data.Range
 import Data.Text.Lazy qualified as LT
-import Data.Time.Clock (UTCTime)
+import Data.Time.Clock (UTCTime, nominalDay)
 import Data.Tuple.Extra
 import Imports hiding (head)
 import Network.Wai.Utilities hiding (code, message)
