@@ -95,7 +95,7 @@ newtype NotPendingEmptyIdentityStoredUser = NotPendingEmptyIdentityStoredUser St
 instance Arbitrary NotPendingEmptyIdentityStoredUser where
   arbitrary = do
     user <- arbitrary `suchThat` \user -> isNothing user.identity
-    notPendingStatus <- elements (Nothing : map Just [Active, Suspended, Deleted, Ephemeral])
+    notPendingStatus <- elements (Nothing : map Just [Active, Suspended, Ephemeral])
     pure $ NotPendingEmptyIdentityStoredUser (user {status = notPendingStatus})
 
 newtype PendingStoredUser = PendingStoredUser StoredUser
@@ -112,7 +112,7 @@ newtype NotPendingStoredUser = NotPendingStoredUser StoredUser
 instance Arbitrary NotPendingStoredUser where
   arbitrary = do
     user <- arbitrary `suchThat` \user -> isJust user.identity
-    notPendingStatus <- elements (Nothing : map Just [Active, Suspended, Deleted, Ephemeral])
+    notPendingStatus <- elements (Nothing : map Just [Active, Suspended, Ephemeral])
     pure $ NotPendingStoredUser (user {status = notPendingStatus})
 
 type AllErrors =

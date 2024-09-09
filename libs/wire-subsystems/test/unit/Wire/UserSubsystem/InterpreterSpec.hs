@@ -297,7 +297,7 @@ spec = describe "UserSubsystem.Interpreter" do
            in result === []
 
       prop "GetBy userId works for pending if explicitly queried" $
-        \(PendingStoredUser alice') email teamId invitationInfo localDomain visibility locale ->
+        \(PendingNotEmptyIdentityStoredUser alice') email teamId invitationInfo localDomain visibility locale ->
           let config = UserSubsystemConfig visibility locale
               alice =
                 alice'
@@ -372,7 +372,7 @@ spec = describe "UserSubsystem.Interpreter" do
                   getAccountsBy getBy
            in result === []
       prop "GetBy email pending works if explicit" $
-        \(PendingStoredUser alice') teamId email localDomain invitationInfo visibility locale ->
+        \(PendingNotEmptyIdentityStoredUser alice') teamId email localDomain invitationInfo visibility locale ->
           let config = UserSubsystemConfig visibility locale
               emailKey = mkEmailKey email
               getBy =
@@ -432,7 +432,7 @@ spec = describe "UserSubsystem.Interpreter" do
            in result === [mkAccountFromStored localDomain locale alice]
 
       prop "GetBy pending user requires a valid invitation" $
-        \(PendingStoredUser alice') (email :: EmailAddress) teamId (invitationInfo :: StoredInvitation) localDomain visibility locale ->
+        \(PendingNotEmptyIdentityStoredUser alice') (email :: EmailAddress) teamId (invitationInfo :: StoredInvitation) localDomain visibility locale ->
           let config = UserSubsystemConfig visibility locale
               emailKey = mkEmailKey email
               getBy =

@@ -16,7 +16,7 @@ import Data.LegalHold
 import Data.List.Extra (nubOrd)
 import Data.Qualified
 import Data.Time.Clock
-import Imports hiding (local)
+import Imports
 import Polysemy
 import Polysemy.Error hiding (try)
 import Polysemy.Input
@@ -514,12 +514,12 @@ getExtendedAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations
       filterPendingInvitations =
         filterM
           ( \((.account) -> acc) ->
-              if acc.accountStatus == PendingInvitation
-                then do
+              case acc.accountStatus of
+                PendingInvitation ->
                   case accountIdentityEmail acc of
                     -- TODO: ensure this case is sound
                     -- Some tests fail but they seem to not rely on this
-                    Nothing -> pure includePendingInvitations
+                    Nothing -> pure False
                     Just key -> do
                       -- This is the case of expired invitations for users still pending
                       hasInvitation <- isJust <$> lookupInvitationByEmail key
@@ -529,7 +529,10 @@ getExtendedAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations
                         -- job akin to 'pendingUserActivationCleanup'
                         enqueueUserDeletion (userId acc.accountUser)
                       pure (hasInvitation && includePendingInvitations)
-                else pure True
+                Active -> pure True
+                Suspended -> pure True
+                Deleted -> pure False -- We explicitly filter out deleted users now.
+                Ephemeral -> pure True
           )
 
       accountIdentityEmail :: UserAccount -> Maybe EmailAddress
