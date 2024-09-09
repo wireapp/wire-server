@@ -140,6 +140,7 @@ import Wire.GalleyAPIAccess as GalleyAPIAccess
 import Wire.InvitationCodeStore (InvitationCodeStore, StoredInvitation, StoredInvitationInfo)
 import Wire.InvitationCodeStore qualified as InvitationCodeStore
 import Wire.NotificationSubsystem
+import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PasswordStore (PasswordStore, lookupHashedPassword, upsertHashedPassword)
 import Wire.PropertySubsystem as PropertySubsystem
 import Wire.Sem.Concurrency
@@ -268,6 +269,7 @@ createUser ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
+    Member PasswordResetCodeStore r,
     Member InvitationCodeStore r
   ) =>
   NewUser ->
@@ -690,6 +692,7 @@ activate ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
+    Member PasswordResetCodeStore r,
     Member UserSubsystem r
   ) =>
   ActivationTarget ->
@@ -706,6 +709,7 @@ activateWithCurrency ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
+    Member PasswordResetCodeStore r,
     Member UserSubsystem r,
     Member (ConnectionStore InternalPaging) r
   ) =>

@@ -19,7 +19,6 @@
 module Wire.PasswordResetCodeStore.Cassandra
   ( passwordResetCodeStoreToCassandra,
     interpretClientToIO,
-    codeDeleteImpl,
   )
 where
 

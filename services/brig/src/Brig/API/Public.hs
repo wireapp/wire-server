@@ -153,6 +153,7 @@ import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.InvitationCodeStore
 import Wire.NotificationSubsystem
+import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PasswordStore (PasswordStore, lookupHashedPassword)
 import Wire.PropertySubsystem
 import Wire.Sem.Concurrency
@@ -286,6 +287,7 @@ servantSitemap ::
     Member EmailSending r,
     Member VerificationCodeSubsystem r,
     Member PropertySubsystem r,
+    Member PasswordResetCodeStore r,
     Member InvitationCodeStore r
   ) =>
   ServerT BrigAPI (Handler r)
@@ -694,6 +696,7 @@ createUser ::
     Member (ConnectionStore InternalPaging) r,
     Member EmailSubsystem r,
     Member UserSubsystem r,
+    Member PasswordResetCodeStore r,
     Member EmailSending r
   ) =>
   Public.NewUserPublic ->
@@ -1246,6 +1249,7 @@ activate ::
     Member UserSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
+    Member PasswordResetCodeStore r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   Public.ActivationKey ->
@@ -1264,6 +1268,7 @@ activateKey ::
     Member UserSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
+    Member PasswordResetCodeStore r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   Public.Activate ->

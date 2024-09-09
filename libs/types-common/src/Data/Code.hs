@@ -96,7 +96,8 @@ instance ToHttpApiData Value where
 -- number of seconds remaining.
 newtype Timeout = Timeout
   {timeoutDiffTime :: NominalDiffTime}
-  deriving newtype (Eq, Show, Ord, Enum, Num, Fractional, Real, RealFrac)
+  deriving newtype (Enum, Num, Fractional, Real, RealFrac)
+  deriving stock (Eq, Ord, Show)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema Timeout)
 
 instance ToSchema Timeout where

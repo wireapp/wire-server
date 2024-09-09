@@ -48,7 +48,8 @@ import Text.Printf (printf)
 import Wire.API.User
 import Wire.API.User.Activation
 import Wire.API.User.Password
-import Wire.PasswordResetCodeStore.Cassandra
+import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
+import Wire.PasswordResetCodeStore qualified as Password
 import Wire.UserKeyStore
 import Wire.UserSubsystem (UserSubsystem)
 import Wire.UserSubsystem qualified as User
@@ -89,7 +90,8 @@ maxAttempts = 3
 -- docs/reference/user/activation.md {#RefActivationSubmit}
 activateKey ::
   forall r.
-  ( Member UserSubsystem r
+  ( Member UserSubsystem r,
+    Member PasswordResetCodeStore r
   ) =>
   ActivationKey ->
   ActivationCode ->
@@ -134,7 +136,7 @@ activateKey k c u = wrapClientE (verifyCode k c) >>= pickUser >>= activate
           pure . Just $ EmailActivated uid (emailKeyOrig key)
       -- if the key is the same, we only want to update our profile
       | otherwise = do
-          wrapClientE (codeDeleteImpl (mkPasswordResetKey uid))
+          lift . liftSem $ Password.codeDelete (mkPasswordResetKey uid)
           claim key uid
           lift $ updateEmailAndDeleteEmailUnvalidated uid (emailKeyOrig key)
           for_ oldKey $ lift . adhocUserKeyStoreInterpreter . deleteKey

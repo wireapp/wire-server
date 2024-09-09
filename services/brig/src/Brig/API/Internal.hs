@@ -105,6 +105,7 @@ import Wire.EmailSubsystem (EmailSubsystem)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.InvitationCodeStore
 import Wire.NotificationSubsystem
+import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PropertySubsystem
 import Wire.Rpc
 import Wire.Sem.Concurrency
@@ -140,6 +141,7 @@ servantSitemap ::
     Member EmailSending r,
     Member EmailSubsystem r,
     Member VerificationCodeSubsystem r,
+    Member PasswordResetCodeStore r,
     Member PropertySubsystem r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
@@ -192,6 +194,7 @@ accountAPI ::
     Member EmailSubsystem r,
     Member VerificationCodeSubsystem r,
     Member PropertySubsystem r,
+    Member PasswordResetCodeStore r,
     Member InvitationCodeStore r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
@@ -478,6 +481,7 @@ createUserNoVerify ::
     Member UserSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
+    Member PasswordResetCodeStore r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   NewUser ->
@@ -502,6 +506,7 @@ createUserNoVerifySpar ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
+    Member PasswordResetCodeStore r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   NewUserSpar ->

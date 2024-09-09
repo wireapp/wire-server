@@ -25,6 +25,7 @@ import Wire.API.User.Activation
 import Wire.UserKeyStore
 
 data ActivationCodeStore :: Effect where
+  -- FUTUREWORK: Check out if we can drop the outside Maybe.
   LookupActivationCode :: EmailKey -> ActivationCodeStore m (Maybe (Maybe UserId, ActivationCode))
 
 makeSem ''ActivationCodeStore
