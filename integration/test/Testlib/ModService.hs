@@ -136,6 +136,7 @@ startDynamicBackend resource beOverrides = do
             setEsIndex,
             setFederationSettings,
             setAwsConfigs,
+            setMlsPrivateKeyPaths,
             setLogLevel,
             beOverrides
           ]
@@ -198,6 +199,12 @@ startDynamicBackend resource beOverrides = do
     setEsIndex =
       def
         { brigCfg = setField "elasticsearch.index" resource.berElasticsearchIndex
+        }
+
+    setMlsPrivateKeyPaths :: ServiceOverrides
+    setMlsPrivateKeyPaths =
+      def
+        { galleyCfg = setField "settings.mlsPrivateKeyPaths" resource.berMlsPrivateKeyPaths
         }
 
     setLogLevel :: ServiceOverrides

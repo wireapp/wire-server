@@ -20,7 +20,8 @@ module Wire.API.MLS.Keys where
 import Crypto.ECC (Curve_P256R1, Curve_P384R1, Curve_P521R1)
 import Crypto.PubKey.ECDSA qualified as ECDSA
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import Data.ByteArray
+import Data.Aeson qualified as A
+import Data.ByteArray qualified as BA
 import Data.Json.Util
 import Data.OpenApi qualified as S
 import Data.Proxy
@@ -76,8 +77,20 @@ instance ToSchema MLSPublicKey where
 mlsKeysToPublic :: MLSPrivateKeys -> MLSPublicKeys
 mlsKeysToPublic (MLSPrivateKeys (_, ed) (_, ec256) (_, ec384) (_, ec521)) =
   MLSKeys
-    { ed25519 = MLSPublicKey $ convert ed,
+    { ed25519 = MLSPublicKey $ BA.convert ed,
       ecdsa_secp256r1_sha256 = MLSPublicKey $ ECDSA.encodePublic (Proxy @Curve_P256R1) ec256,
       ecdsa_secp384r1_sha384 = MLSPublicKey $ ECDSA.encodePublic (Proxy @Curve_P384R1) ec384,
       ecdsa_secp521r1_sha512 = MLSPublicKey $ ECDSA.encodePublic (Proxy @Curve_P521R1) ec521
     }
+
+data SomeKey = SomeKey A.Value
+
+instance ToSchema SomeKey where
+  schema = mkSchema d r w
+    where
+      d = pure $ S.NamedSchema (Just "SomeKey") mempty
+      r = fmap SomeKey . parseJSON
+      w (SomeKey x) = Just (toJSON x)
+
+mkSomeKey :: (ToJSON a) => a -> SomeKey
+mkSomeKey = SomeKey . toJSON

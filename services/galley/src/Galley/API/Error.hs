@@ -65,12 +65,14 @@ data InvalidInput
   | InvalidRange LText
   | InvalidUUID4
   | InvalidPayload LText
+  | FederationFunctionNotSupported LText
 
 instance APIError InvalidInput where
   toResponse CustomRolesNotSupported = toResponse $ badRequest "Custom roles not supported"
   toResponse (InvalidRange t) = toResponse $ invalidRange t
   toResponse InvalidUUID4 = toResponse invalidUUID4
   toResponse (InvalidPayload t) = toResponse $ invalidPayload t
+  toResponse (FederationFunctionNotSupported t) = toResponse $ federationFunctionNotSupported t
 
 ----------------------------------------------------------------------------
 -- Other errors
@@ -86,6 +88,9 @@ invalidPayload = Wai.mkError status400 "invalid-payload"
 
 badRequest :: LText -> Wai.Error
 badRequest = Wai.mkError status400 "bad-request"
+
+federationFunctionNotSupported :: LText -> Wai.Error
+federationFunctionNotSupported = Wai.mkError status400 "federation-function-not-supported"
 
 invalidUUID4 :: Wai.Error
 invalidUUID4 = Wai.mkError status400 "client-error" "Invalid UUID v4 format"

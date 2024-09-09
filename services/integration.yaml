@@ -61,7 +61,7 @@ federatorExternal:
   host: 127.0.0.1
   port: 8098
 
-# This domain is configured using coredns runing along with the rest of
+# This domain is configured using coredns running along with the rest of
 # docker-ephemeral setup. There is only an SRV record for
 # _wire-server-federator._tcp.example.com
 originDomain: example.com
@@ -118,22 +118,41 @@ backendTwo:
 
   originDomain: b.example.com
 
-
 redis2:
   host: 127.0.0.1
   port: 6379
   connectionMode: master
+  enableTls: false
+  insecureSkipVerifyTls: false
 
 dynamicBackends:
   dynamic-backend-1:
     domain: d1.example.com
     federatorExternalPort: 10098
+    mlsPrivateKeyPaths:
+      removal:
+        ed25519: "test/resources/dynBackend1/ed25519.pem"
+        ecdsa_secp256r1_sha256: "test/resources/dynBackend1/ecdsa_secp256r1_sha256.pem"
+        ecdsa_secp384r1_sha384: "test/resources/dynBackend1/ecdsa_secp384r1_sha384.pem"
+        ecdsa_secp521r1_sha512: "test/resources/dynBackend1/ecdsa_secp521r1_sha512.pem"
   dynamic-backend-2:
     domain: d2.example.com
     federatorExternalPort: 11098
+    mlsPrivateKeyPaths:
+      removal:
+        ed25519: "test/resources/dynBackend2/ed25519.pem"
+        ecdsa_secp256r1_sha256: "test/resources/dynBackend2/ecdsa_secp256r1_sha256.pem"
+        ecdsa_secp384r1_sha384: "test/resources/dynBackend2/ecdsa_secp384r1_sha384.pem"
+        ecdsa_secp521r1_sha512: "test/resources/dynBackend2/ecdsa_secp521r1_sha512.pem"
   dynamic-backend-3:
     domain: d3.example.com
     federatorExternalPort: 12098
+    mlsPrivateKeyPaths:
+      removal:
+        ed25519: "test/resources/dynBackend3/ed25519.pem"
+        ecdsa_secp256r1_sha256: "test/resources/dynBackend3/ecdsa_secp256r1_sha256.pem"
+        ecdsa_secp384r1_sha384: "test/resources/dynBackend3/ecdsa_secp384r1_sha384.pem"
+        ecdsa_secp521r1_sha512: "test/resources/dynBackend3/ecdsa_secp521r1_sha512.pem"
 
 rabbitmq:
   host: localhost

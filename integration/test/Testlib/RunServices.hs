@@ -10,7 +10,6 @@ import System.Posix (getWorkingDirectory)
 import System.Process
 import Testlib.Prelude
 import Testlib.ResourcePool
-import Testlib.Run (createGlobalEnv)
 
 parentDir :: FilePath -> Maybe FilePath
 parentDir path =
@@ -52,11 +51,12 @@ main = do
           (_, _, _, ph) <- createProcess cp
           exitWith =<< waitForProcess ph
 
-  runCodensity (createGlobalEnv cfg >>= mkEnv) $ \env ->
+  runCodensity (mkGlobalEnv cfg >>= mkEnv) $ \env ->
     runAppWithEnv env $
-      lowerCodensity $ do
-        _modifyEnv <-
-          traverseConcurrentlyCodensity
-            (\r -> startDynamicBackend r mempty)
-            [backendA, backendB]
-        liftIO run
+      lowerCodensity $
+        do
+          _modifyEnv <-
+            traverseConcurrentlyCodensity
+              (\r -> startDynamicBackend r mempty)
+              [backendA, backendB]
+          liftIO run

@@ -85,7 +85,6 @@ import Wire.API.Conversation
 import Wire.API.Conversation qualified as C
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Code hiding (Value)
-import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Error.Galley
@@ -176,7 +175,6 @@ tests s =
           test s "get conversations/:domain/:cnv - local" testGetQualifiedLocalConv,
           test s "get conversations/:domain/:cnv - local, not found" testGetQualifiedLocalConvNotFound,
           test s "get conversations/:domain/:cnv - local, not participating" testGetQualifiedLocalConvNotParticipating,
-          test s "get conversations/:domain/:cnv - remote" testGetQualifiedRemoteConv,
           test s "get conversations/:domain/:cnv - remote, not found" testGetQualifiedRemoteConvNotFound,
           test s "get conversations/:domain/:cnv - remote, not found on remote" testGetQualifiedRemoteConvNotFoundOnRemote,
           test s "post conversations/list/v2" testBulkGetQualifiedConvs,
@@ -2312,42 +2310,6 @@ testGetQualifiedLocalConvNotParticipating = do
     const 403 === statusCode
     const (Just "access-denied") === view (at "label") . responseJsonUnsafe @Object
 
-testGetQualifiedRemoteConv :: TestM ()
-testGetQualifiedRemoteConv = do
-  aliceQ <- randomQualifiedUser
-  let aliceId = qUnqualified aliceQ
-  loc <- flip toLocalUnsafe () <$> viewFederationDomain
-  bobId <- randomId
-  convId <- randomId
-  let remoteDomain = Domain "far-away.example.com"
-      bobQ = Qualified bobId remoteDomain
-      remoteConvId = Qualified convId remoteDomain
-      bobAsOtherMember = OtherMember bobQ Nothing roleNameWireAdmin
-      aliceAsLocal =
-        LocalMember aliceId defMemberStatus Nothing roleNameWireAdmin
-      aliceAsOtherMember = localMemberToOther (qDomain aliceQ) aliceAsLocal
-      aliceAsSelfMember = localMemberToSelf loc aliceAsLocal
-
-  connectWithRemoteUser aliceId bobQ
-  registerRemoteConv remoteConvId bobId Nothing (Set.fromList [aliceAsOtherMember])
-
-  let mockConversation = mkProteusConv convId bobId roleNameWireAdmin [bobAsOtherMember]
-      remoteConversationResponse = GetConversationsResponse [mockConversation]
-      expected =
-        Conversation
-          remoteConvId
-          mockConversation.metadata
-          (ConvMembers aliceAsSelfMember mockConversation.members.others)
-          ProtocolProteus
-
-  (respAll, _) <-
-    withTempMockFederator'
-      (mockReply remoteConversationResponse)
-      (getConvQualified aliceId remoteConvId)
-
-  conv <- responseJsonUnsafe <$> (pure respAll <!! const 200 === statusCode)
-  liftIO $ do assertEqual "conversation metadata" expected conv
-
 testGetQualifiedRemoteConvNotFound :: TestM ()
 testGetQualifiedRemoteConvNotFound = do
   aliceId <- randomUser
@@ -2454,8 +2416,8 @@ testBulkGetQualifiedConvs = do
     let mock = do
           d <- frTargetDomain <$> getRequest
           asum
-            [ guard (d == remoteDomainA) *> mockReply (GetConversationsResponse [mockConversationA]),
-              guard (d == remoteDomainB) *> mockReply (GetConversationsResponse [mockConversationB]),
+            [ guard (d == remoteDomainA) *> mockReply (GetConversationsResponseV2 [mockConversationA]),
+              guard (d == remoteDomainB) *> mockReply (GetConversationsResponseV2 [mockConversationB]),
               guard (d == remoteDomainC) *> liftIO (throw (DiscoveryFailureSrvNotAvailable "domainC")),
               do
                 r <- getRequest
@@ -3135,7 +3097,7 @@ putRemoteConvMemberOk update = do
           (qUnqualified qbob)
           roleNameWireMember
           [localMemberToOther remoteDomain bobAsLocal]
-      remoteConversationResponse = GetConversationsResponse [mockConversation]
+      remoteConversationResponse = GetConversationsResponseV2 [mockConversation]
   (rs, _) <-
     withTempMockFederator'
       (mockReply remoteConversationResponse)
@@ -3457,7 +3419,7 @@ testOne2OneConversationRequest shouldBeLocal actor desired = do
               pure . map omQualifiedId . cmOthers . cnvMembers $ conv
             RemoteActor -> do
               fedGalleyClient <- view tsFedGalleyClient
-              GetConversationsResponse convs <-
+              GetConversationsResponseV2 convs <-
                 runFedClient @"get-conversations" fedGalleyClient (tDomain bob) $
                   GetConversationsRequest
                     { userId = tUnqualified bob,
@@ -3476,7 +3438,7 @@ testOne2OneConversationRequest shouldBeLocal actor desired = do
           found <- do
             let rconv = mkProteusConv (qUnqualified convId) (tUnqualified bob) roleNameWireAdmin []
             (resp, _) <-
-              withTempMockFederator' (mockReply (GetConversationsResponse [rconv])) $
+              withTempMockFederator' (mockReply (GetConversationsResponseV2 [rconv])) $
                 getConvQualified (tUnqualified alice) convId
             pure $ statusCode resp == 200
           liftIO $ found @?= ((actor, desired) == (LocalActor, Included))
