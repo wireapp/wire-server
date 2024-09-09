@@ -431,8 +431,8 @@ notifyContacts events orig route conn = do
 
     teamContacts :: Sem r [UserId]
     teamContacts = screenMemberList <$> getTeamContacts orig
-
     -- If we have a truncated team, we just ignore it all together to avoid very large fanouts
+    --
     screenMemberList :: Maybe Team.TeamMemberList -> [UserId]
     screenMemberList (Just mems)
       | mems ^. Team.teamMemberListType == Team.ListComplete =
