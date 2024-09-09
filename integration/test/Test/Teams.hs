@@ -20,6 +20,7 @@ module Test.Teams where
 import API.Brig
 import API.BrigInternal (createUser, getInvitationCode, refreshIndex)
 import API.Galley (getTeamMembers)
+import Notifications (isUserUpdatedNotif)
 import SetupHelpers
 import Testlib.JSON
 import Testlib.Prelude
@@ -33,7 +34,11 @@ testInvitePersonalUserToTeam = do
   email <- user %. "email" >>= asString
   inv <- postInvitation owner (PostInvitation $ Just email) >>= getJSON 201
   code <- getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
-  acceptTeamInvitation user code >>= assertSuccess
+  void $ withWebSockets [user] $ \wss -> do
+    acceptTeamInvitation user code >>= assertSuccess
+    for wss $ \ws -> do
+      n <- awaitMatch isUserUpdatedNotif ws
+      n %. "payload.0.user.team" `shouldMatch` tid
   bindResponse (getSelf user) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "team" `shouldMatch` tid
@@ -65,5 +70,5 @@ testInvitePersonalUserToTeam = do
     document %. "id" `shouldMatch` uid
     document %. "team" `shouldMatch` tid
 
-  -- void $ assertFailure "TODO(leif): verify user events"
-  -- void $ assertFailure "TODO(leif): verify team admin gets events"
+-- void $ assertFailure "TODO(leif): verify user events"
+-- void $ assertFailure "TODO(leif): verify team admin gets events"
