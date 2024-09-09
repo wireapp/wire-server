@@ -104,6 +104,7 @@ data GalleyError
   | MLSSubConvUnsupportedConvType
   | MLSSubConvClientNotInParent
   | MLSMigrationCriteriaNotSatisfied
+  | MLSFederatedOne2OneNotSupported
   | --
     NoBindingTeamMembers
   | NoBindingTeam
@@ -252,6 +253,8 @@ type instance MapError 'MLSSubConvUnsupportedConvType = 'StaticError 403 "mls-su
 type instance MapError 'MLSSubConvClientNotInParent = 'StaticError 403 "mls-subconv-join-parent-missing" "MLS client cannot join the subconversation because it is not member of the parent conversation"
 
 type instance MapError 'MLSMigrationCriteriaNotSatisfied = 'StaticError 400 "mls-migration-criteria-not-satisfied" "The migration criteria for mixed to MLS protocol transition are not satisfied for this conversation"
+
+type instance MapError 'MLSFederatedOne2OneNotSupported = 'StaticError 400 "mls-federated-one2one-not-supported" "Federated One2One MLS conversations are only supported in API version >= 6"
 
 type instance MapError 'NoBindingTeamMembers = 'StaticError 403 "non-binding-team-members" "Both users must be members of the same binding team"
 

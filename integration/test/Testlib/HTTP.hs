@@ -145,11 +145,7 @@ rawBaseRequest domain service versioned path = do
 
   pathSegsPrefix <- case versioned of
     Versioned -> do
-      d <- asString domainV
-      versionMap <- asks (.apiVersionByDomain)
-      v <- case Map.lookup d versionMap of
-        Nothing -> asks (.defaultAPIVersion)
-        Just v -> pure v
+      v <- getAPIVersionFor domainV
       pure ["v" <> show v]
     Unversioned -> pure []
     ExplicitVersion v -> do
@@ -160,6 +156,14 @@ rawBaseRequest domain service versioned path = do
   liftIO . HTTP.parseRequest $
     let HostPort h p = serviceHostPort serviceMap service
      in "http://" <> h <> ":" <> show p <> ("/" <> joinHttpPath (pathSegsPrefix <> splitHttpPath path))
+
+getAPIVersionFor :: (MakesValue domain) => domain -> App Int
+getAPIVersionFor domain = do
+  d <- asString domain
+  versionMap <- asks (.apiVersionByDomain)
+  case Map.lookup d versionMap of
+    Nothing -> asks (.defaultAPIVersion)
+    Just v -> pure v
 
 baseRequest :: (HasCallStack, MakesValue user) => user -> Service -> Versioned -> String -> App HTTP.Request
 baseRequest user service versioned path = do

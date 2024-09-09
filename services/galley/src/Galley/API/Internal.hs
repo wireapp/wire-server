@@ -179,7 +179,7 @@ conversationAPI =
     <@> mkNamedAPI @"conversation-unblock-unqualified" Update.unblockConvUnqualified
     <@> mkNamedAPI @"conversation-unblock" Update.unblockConv
     <@> mkNamedAPI @"conversation-meta" Query.getConversationMeta
-    <@> mkNamedAPI @"conversation-mls-one-to-one" Query.getMLSOne2OneConversation
+    <@> mkNamedAPI @"conversation-mls-one-to-one" Query.getMLSOne2OneConversationInternal
     <@> mkNamedAPI @"conversation-mls-one-to-one-established" Query.isMLSOne2OneEstablished
 
 legalholdWhitelistedTeamsAPI :: API ILegalholdWhitelistedTeamsAPI GalleyEffects

@@ -39,6 +39,7 @@ import Data.Text.Lazy qualified as LT
 import Data.Time.Clock
 import Galley.API.Action
 import Galley.API.Error
+import Galley.API.MLS
 import Galley.API.MLS.Enabled
 import Galley.API.MLS.GroupInfo
 import Galley.API.MLS.Message
@@ -89,6 +90,7 @@ import Wire.API.Federation.Error
 import Wire.API.Federation.Version
 import Wire.API.MLS.Credential
 import Wire.API.MLS.GroupInfo
+import Wire.API.MLS.Keys
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.Message
@@ -104,6 +106,7 @@ federationSitemap ::
   ServerT FederationAPI (Sem GalleyEffects)
 federationSitemap =
   Named @"on-conversation-created" onConversationCreated
+    :<|> Named @"get-conversations@v1" getConversationsV1
     :<|> Named @"get-conversations" getConversations
     :<|> Named @"leave-conversation" (callsFed (exposeAnnotations leaveConversation))
     :<|> Named @"send-message" (callsFed (exposeAnnotations sendMessage))
@@ -117,6 +120,7 @@ federationSitemap =
     :<|> Named @"get-sub-conversation" getSubConversationForRemoteUser
     :<|> Named @"delete-sub-conversation" (callsFed deleteSubConversationForRemoteUser)
     :<|> Named @"leave-sub-conversation" (callsFed leaveSubConversation)
+    :<|> Named @"get-one2one-conversation@v1" getOne2OneConversationV1
     :<|> Named @"get-one2one-conversation" getOne2OneConversation
     :<|> Named @"on-client-removed" onClientRemoved
     :<|> Named @"on-message-sent" onMessageSent
@@ -198,17 +202,27 @@ onConversationCreated domain rc = do
     pushConversationEvent Nothing event (qualifyAs loc [qUnqualified . Public.memId $ mem]) []
   pure EmptyResponse
 
-getConversations ::
+getConversationsV1 ::
   ( Member ConversationStore r,
     Member (Input (Local ())) r
   ) =>
   Domain ->
   GetConversationsRequest ->
   Sem r GetConversationsResponse
+getConversationsV1 domain req =
+  getConversationsResponseFromV2 <$> getConversations domain req
+
+getConversations ::
+  ( Member ConversationStore r,
+    Member (Input (Local ())) r
+  ) =>
+  Domain ->
+  GetConversationsRequest ->
+  Sem r GetConversationsResponseV2
 getConversations domain (GetConversationsRequest uid cids) = do
   let ruid = toRemoteUnsafe domain uid
   loc <- qualifyLocal ()
-  GetConversationsResponse
+  GetConversationsResponseV2
     . mapMaybe (Mapping.conversationToRemote (tDomain loc) ruid)
     <$> E.getConversations cids
 
@@ -735,34 +749,62 @@ deleteSubConversationForRemoteUser domain DeleteSubConversationFedRequest {..} =
       lconv <- qualifyLocal dscreqConv
       deleteLocalSubConversation qusr lconv dscreqSubConv dsc
 
-getOne2OneConversation ::
-  ( Member ConversationStore r,
-    Member (Input (Local ())) r,
-    Member (Error InternalError) r,
-    Member BrigAccess r
+getOne2OneConversationV1 ::
+  ( Member (Input (Local ())) r,
+    Member BrigAccess r,
+    Member (Error InvalidInput) r
   ) =>
   Domain ->
   GetOne2OneConversationRequest ->
   Sem r GetOne2OneConversationResponse
-getOne2OneConversation domain (GetOne2OneConversationRequest self other) =
+getOne2OneConversationV1 domain (GetOne2OneConversationRequest self other) =
   fmap (Imports.fromRight GetOne2OneConversationNotConnected)
     . runError @(Tagged 'NotConnected ())
     $ do
       lother <- qualifyLocal other
       let rself = toRemoteUnsafe domain self
       ensureConnectedToRemotes lother [rself]
+      foldQualified
+        lother
+        (const . throw $ FederationFunctionNotSupported "Getting 1:1 conversations is not supported over federation API < V2.")
+        (const (pure GetOne2OneConversationBackendMismatch))
+        (one2OneConvId BaseProtocolMLSTag (tUntagged lother) (tUntagged rself))
+
+getOne2OneConversation ::
+  ( Member ConversationStore r,
+    Member (Input (Local ())) r,
+    Member (Error InternalError) r,
+    Member BrigAccess r,
+    Member (Input Env) r
+  ) =>
+  Domain ->
+  GetOne2OneConversationRequest ->
+  Sem r GetOne2OneConversationResponseV2
+getOne2OneConversation domain (GetOne2OneConversationRequest self other) =
+  fmap (Imports.fromRight GetOne2OneConversationV2MLSNotEnabled)
+    . runError @(Tagged 'MLSNotEnabled ())
+    . fmap (Imports.fromRight GetOne2OneConversationV2NotConnected)
+    . runError @(Tagged 'NotConnected ())
+    $ do
+      lother <- qualifyLocal other
+      let rself = toRemoteUnsafe domain self
       let getLocal lconv = do
             mconv <- E.getConversation (tUnqualified lconv)
-            fmap GetOne2OneConversationOk $ case mconv of
+            mlsPublicKeys <- mlsKeysToPublic <$$> getMLSPrivateKeys
+            conv <- case mconv of
               Nothing -> pure (localMLSOne2OneConversationAsRemote lconv)
               Just conv ->
                 note
                   (InternalErrorWithDescription "Unexpected member list in 1-1 conversation")
                   (conversationToRemote (tDomain lother) rself conv)
+            pure . GetOne2OneConversationV2Ok $ RemoteMLSOne2OneConversation conv mlsPublicKeys
+
+      ensureConnectedToRemotes lother [rself]
+
       foldQualified
         lother
         getLocal
-        (const (pure GetOne2OneConversationBackendMismatch))
+        (const (pure GetOne2OneConversationV2BackendMismatch))
         (one2OneConvId BaseProtocolMLSTag (tUntagged lother) (tUntagged rself))
 
 --------------------------------------------------------------------------------

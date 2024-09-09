@@ -36,14 +36,14 @@ testJoinOne2OneSubConv = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
   [alice1, bob1, bob2] <- traverse (createMLSClient def) [alice, bob, bob]
   traverse_ uploadNewKeyPackage [bob1, bob2]
-  conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
-  resetGroup alice1 conv
+  one2OneConv <- getMLSOne2OneConversation alice bob >>= getJSON 200
+  resetOne2OneGroup alice1 one2OneConv
 
   void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
-  createSubConv bob1 "conference"
+  createOne2OneSubConv bob1 "conference" (one2OneConv %. "public_keys")
 
   -- bob adds his first client to the subconversation
-  sub' <- getSubConversation bob conv "conference" >>= getJSON 200
+  sub' <- getSubConversation bob (one2OneConv %. "conversation") "conference" >>= getJSON 200
   do
     tm <- sub' %. "epoch_timestamp"
     assertBool "Epoch timestamp should not be null" (tm /= Null)
@@ -62,28 +62,28 @@ testLeaveOne2OneSubConv scenario leaver = do
   bob <- createMLSOne2OnePartner otherDomain alice convDomain
   [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
   traverse_ uploadNewKeyPackage [bob1]
-  conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
-  resetGroup alice1 conv
+  one2OneConv <- getMLSOne2OneConversation alice bob >>= getJSON 200
+  resetOne2OneGroup alice1 one2OneConv
   void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
 
   -- create and join subconversation
-  createSubConv alice1 "conference"
+  createOne2OneSubConv alice1 "conference" (one2OneConv %. "public_keys")
   void $ createExternalCommit bob1 Nothing >>= sendAndConsumeCommitBundle
 
   -- one of the two clients leaves
-  let (leaverClient, leaverIndex, otherClient) = case leaver of
+  let (leaverClient, leaverIndex, remainingClient) = case leaver of
         Alice -> (alice1, 0, bob1)
         Bob -> (bob1, 1, alice1)
 
-  withWebSocket otherClient $ \ws -> do
+  withWebSocket remainingClient $ \ws -> do
     leaveCurrentConv leaverClient
 
-    msg <- consumeMessage otherClient Nothing ws
+    msg <- consumeMessage remainingClient Nothing ws
     msg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` leaverIndex
     msg %. "message.content.sender.External" `shouldMatchInt` 0
 
   -- the other client commits the pending proposal
-  void $ createPendingProposalCommit otherClient >>= sendAndConsumeCommitBundle
+  void $ createPendingProposalCommit remainingClient >>= sendAndConsumeCommitBundle
 
 testDeleteParentOfSubConv :: (HasCallStack) => Domain -> App ()
 testDeleteParentOfSubConv secondDomain = do

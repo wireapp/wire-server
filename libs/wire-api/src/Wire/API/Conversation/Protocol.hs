@@ -108,12 +108,7 @@ optionalActiveMLSConversationDataSchema (Just v)
             (description ?~ "The epoch number of the corresponding MLS group")
             schema
         <*> fmap (.epochTimestamp)
-          .= maybe_
-            ( optFieldWithDocModifier
-                "epoch_timestamp"
-                (description ?~ "The timestamp of the epoch number")
-                utcTimeSchema
-            )
+          .= field "epoch_timestamp" (named "Epoch Timestamp" . nullable . unnamed $ utcTimeSchema)
         <*> maybe MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 (.ciphersuite)
           .= fieldWithDocModifier
             "cipher_suite"
@@ -244,6 +239,9 @@ protocolSchema v =
 
 instance ToSchema Protocol where
   schema = object "Protocol" (protocolSchema Nothing)
+
+instance ToSchema (Versioned 'V5 Protocol) where
+  schema = object "Protocol" (Versioned <$> unVersioned .= protocolSchema (Just V5))
 
 deriving via (Schema Protocol) instance FromJSON Protocol
 
