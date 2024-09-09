@@ -1,0 +1,26 @@
+name: Haskell vulnerabilities
+on:
+  pull_request:
+    branches: [ "develop" ]
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  haskell-security:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - uses: haskell-actions/setup@v2
+        with:
+          ghc-version: '9.8'
+
+      # FUTUREWORK(mangoiv): this  should be pinned to a "stable" version as soon as released
+      - name: Run Haskell Security Action
+        uses: blackheaven/haskell-security-action@55e78bbbb19df58059c474ac9131882d0d22ecbc
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
