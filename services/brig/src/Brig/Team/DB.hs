@@ -50,7 +50,7 @@ import Data.Conduit.List qualified as C
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Range
-import Data.Text.Ascii (encodeBase64Url, toText)
+import Data.Text.Ascii
 import Data.Text.Encoding
 import Data.Text.Lazy (toStrict)
 import Data.Time.Clock
@@ -290,23 +290,22 @@ toInvitation showUrl (t, r, i, tm, minviter, e, inviteeName, code) = do
   url <- mkInviteUrl showUrl t code
   pure $ Invitation t (fromMaybe defaultRole r) i tm minviter e inviteeName url
 
-mkInviteUrl ::
+getInviteUrl ::
   ( MonadReader Env m,
     Log.MonadLogger m
   ) =>
-  ShowOrHideInvitationUrl ->
+  InvitationEmailTemplate ->
   TeamId ->
-  InvitationCode ->
+  AsciiText Base64Url ->
   m (Maybe (URIRef Absolute))
-mkInviteUrl HideInvitationUrl _ _ = pure Nothing
-mkInviteUrl ShowInvitationUrl team (InvitationCode c) = do
-  template <- invitationEmailUrl . invitationEmail . snd <$> teamTemplates Nothing
+getInviteUrl emailTemplate team code = do
+  let template = invitationEmailUrl emailTemplate
   branding <- view App.templateBranding
   let url = toStrict $ renderTextWithBranding template replace branding
   parseHttpsUrl url
   where
     replace "team" = idToText team
-    replace "code" = toText c
+    replace "code" = toText code
     replace x = x
 
     parseHttpsUrl :: (Log.MonadLogger m) => Text -> m (Maybe (URIRef Absolute))
@@ -322,5 +321,28 @@ mkInviteUrl ShowInvitationUrl team (InvitationCode c) = do
           . Log.field "url" url
           . Log.field "error" (show e)
 
-mkInviteUrlPersonalUser :: (Monad m) => ShowOrHideInvitationUrl -> TeamId -> InvitationCode -> m (Maybe (URIRef Absolute))
-mkInviteUrlPersonalUser _ _ _ = pure Nothing -- todo(leif): implement
+mkInviteUrl ::
+  ( MonadReader Env m,
+    Log.MonadLogger m
+  ) =>
+  ShowOrHideInvitationUrl ->
+  TeamId ->
+  InvitationCode ->
+  m (Maybe (URIRef Absolute))
+mkInviteUrl HideInvitationUrl _ _ = pure Nothing
+mkInviteUrl ShowInvitationUrl team (InvitationCode c) = do
+  template <- invitationEmail . snd <$> teamTemplates Nothing
+  getInviteUrl template team c
+
+mkInviteUrlPersonalUser ::
+  ( MonadReader Env m,
+    Log.MonadLogger m
+  ) =>
+  ShowOrHideInvitationUrl ->
+  TeamId ->
+  InvitationCode ->
+  m (Maybe (URIRef Absolute))
+mkInviteUrlPersonalUser HideInvitationUrl _ _ = pure Nothing
+mkInviteUrlPersonalUser ShowInvitationUrl team (InvitationCode c) = do
+  template <- existingUserInvitationEmail . snd <$> teamTemplates Nothing
+  getInviteUrl template team c
