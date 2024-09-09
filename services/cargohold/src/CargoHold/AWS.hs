@@ -78,9 +78,7 @@ amazonkaEnvWithDownloadEndpoint e =
 setAWSEndpoint :: AWSEndpoint -> AWS.Service -> AWS.Service
 setAWSEndpoint e = AWS.setEndpoint (_awsSecure e) (_awsHost e) (_awsPort e)
 
-newtype Amazon a = Amazon
-  { unAmazon :: ReaderT Env (ResourceT IO) a
-  }
+newtype Amazon a = Amazon {unAmazon :: ReaderT Env (ResourceT IO) a}
   deriving
     ( Functor,
       Applicative,
@@ -157,7 +155,7 @@ instance Exception Error
 -- Utilities
 
 sendCatch ::
-  (MonadCatch m, AWSRequest r, MonadResource m, Typeable r, Typeable (AWSResponse r)) =>
+  (MonadCatch m, AWSRequest r, MonadResource m) =>
   AWS.Env ->
   r ->
   m (Either AWS.Error (AWSResponse r))
@@ -165,8 +163,6 @@ sendCatch env = AWS.trying AWS._Error . AWS.send env
 
 exec ::
   ( AWSRequest r,
-    Typeable r,
-    Typeable (AWSResponse r),
     Show r,
     MonadLogger m,
     MonadIO m,
@@ -189,15 +185,7 @@ exec env request = do
       throwM (GeneralError err)
     Right r -> pure r
 
-execStream ::
-  ( AWSRequest r,
-    Typeable r,
-    Typeable (AWSResponse r),
-    Show r
-  ) =>
-  Env ->
-  (Text -> r) ->
-  ResourceT IO (AWSResponse r)
+execStream :: (AWSRequest r, Show r) => Env -> (Text -> r) -> ResourceT IO (AWSResponse r)
 execStream env request = do
   let req = request env._s3Bucket
   resp <- sendCatch (env ^. amazonkaEnv) req
@@ -212,17 +200,7 @@ execStream env request = do
       throwM (GeneralError err)
     Right r -> pure r
 
-execCatch ::
-  ( AWSRequest r,
-    Typeable r,
-    Typeable (AWSResponse r),
-    Show r,
-    MonadLogger m,
-    MonadIO m
-  ) =>
-  Env ->
-  (Text -> r) ->
-  m (Maybe (AWSResponse r))
+execCatch :: (AWSRequest r, Show r, MonadLogger m, MonadIO m) => Env -> (Text -> r) -> m (Maybe (AWSResponse r))
 execCatch env request = do
   let req = request env._s3Bucket
   resp <- execute env (retrying retry5x (const canRetry) (const (sendCatch (env ^. amazonkaEnv) req)))

@@ -29,7 +29,6 @@ import Brig.Types.Instances ()
 import Brig.Types.Team.LegalHold
 import Cassandra
 import Control.Exception.Enclosed (handleAny)
-import Control.Lens (unsnoc)
 import Data.ByteString.Conversion.To
 import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.Id

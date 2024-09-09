@@ -56,6 +56,7 @@ common common-all
     ScopedTypeVariables
     StandaloneDeriving
     TupleSections
+    TypeAbstractions
     TypeApplications
     TypeFamilies
     TypeFamilyDependencies
@@ -198,7 +199,7 @@ test-suite wire-subsystems-tests
   default-language:   GHC2021
   hs-source-dirs:     test/unit
   main-is:            ../Main.hs
-  ghc-options:        -fplugin=Polysemy.Plugin
+  ghc-options:        -fplugin=Polysemy.Plugin -Wno-x-partial
 
   -- cabal-fmt: expand test/unit
   other-modules:

@@ -146,7 +146,7 @@ import Control.Monad.Catch
 import Control.Monad.Except
 import Control.Retry
 import Crypto.Random.Types (MonadRandom)
-import Data.Aeson as Aeson hiding (json)
+import Data.Aeson as Aeson
 import Data.Aeson.Lens as Aeson
 import qualified Data.ByteString.Base64.Lazy as EL
 import Data.ByteString.Conversion

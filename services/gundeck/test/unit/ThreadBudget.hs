@@ -38,6 +38,7 @@ import System.Logger.Class qualified as LC
 import Test.QuickCheck
 import Test.QuickCheck.Monadic
 import Test.StateMachine
+import Test.StateMachine.TreeDiff
 import Test.StateMachine.Types qualified as STM
 import Test.StateMachine.Types.Rank2 qualified as Rank2
 import Test.Tasty
@@ -48,7 +49,7 @@ import Test.Tasty.QuickCheck
 -- helpers
 
 newtype NumberOfThreads = NumberOfThreads {fromNumberOfThreads :: Int}
-  deriving (Eq, Ord, Show, Generic, ToExpr)
+  deriving (Eq, Ord, Show, Generic)
 
 -- | 'microseconds' determines how long one unit lasts.  there is a trade-off of fast
 -- vs. robust in this whole setup.  this type is supposed to help us find a good sweet spot.

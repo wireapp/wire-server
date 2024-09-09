@@ -30,7 +30,7 @@ import Control.Exception (assert)
 import Control.Lens ((^.), (^?))
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.Random
-import Data.Aeson hiding (json)
+import Data.Aeson
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Lens (key, _String)
 import Data.ByteString.Conversion (fromByteString, toByteString')

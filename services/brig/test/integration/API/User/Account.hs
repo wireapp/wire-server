@@ -17,10 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module API.User.Account
-  ( tests,
-  )
-where
+module API.User.Account ( tests,) where
 
 import API.Search.Util qualified as Search
 import API.Team.Util
@@ -36,7 +33,7 @@ import Control.Arrow ((&&&))
 import Control.Exception (throw)
 import Control.Lens (ix, preview, (^.), (^?))
 import Control.Monad.Catch
-import Data.Aeson hiding (json)
+import Data.Aeson 
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Lens
 import Data.Aeson.Lens qualified as AesonL

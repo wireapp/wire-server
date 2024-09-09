@@ -472,18 +472,10 @@ listen throttleMillis callback = do
 --------------------------------------------------------------------------------
 -- Utilities
 
-sendCatch ::
-  (AWSRequest r, Typeable r, Typeable (AWSResponse r)) =>
-  AWS.Env ->
-  r ->
-  Amazon (Either AWS.Error (AWSResponse r))
+sendCatch :: (AWSRequest r) => AWS.Env -> r -> Amazon (Either AWS.Error (AWSResponse r))
 sendCatch env = AWS.trying AWS._Error . AWS.send env
 
-send ::
-  (AWSRequest r, Typeable r, Typeable (AWSResponse r)) =>
-  AWS.Env ->
-  r ->
-  Amazon (AWSResponse r)
+send :: (AWSRequest r) => AWS.Env -> r -> Amazon (AWSResponse r)
 send env r = either (throwM . GeneralError) pure =<< sendCatch env r
 
 is :: AWS.Abbrev -> Int -> AWS.Error -> Bool

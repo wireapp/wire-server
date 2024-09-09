@@ -18,12 +18,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.API.Public
-  ( servantSitemap,
-    docsAPI,
-    DocsAPI,
-  )
-where
+module Brig.API.Public (servantSitemap, docsAPI, DocsAPI) where
 
 import Brig.API.Auth
 import Brig.API.Client qualified as API
@@ -64,7 +59,7 @@ import Control.Error hiding (bool, note)
 import Control.Lens (view, (.~), (?~), (^.))
 import Control.Monad.Catch (throwM)
 import Control.Monad.Except
-import Data.Aeson hiding (json)
+import Data.Aeson
 import Data.ByteString (fromStrict, toStrict)
 import Data.ByteString.Lazy.Char8 qualified as LBS
 import Data.ByteString.UTF8 qualified as UTF8

@@ -176,14 +176,7 @@ enqueue e = do
 --------------------------------------------------------------------------------
 -- Utilities
 
-sendCatch ::
-  ( AWS.AWSRequest r,
-    Typeable r,
-    Typeable (AWS.AWSResponse r)
-  ) =>
-  AWS.Env ->
-  r ->
-  Amazon (Either AWS.Error (AWS.AWSResponse r))
+sendCatch :: (AWS.AWSRequest r) => AWS.Env -> r -> Amazon (Either AWS.Error (AWS.AWSResponse r))
 sendCatch e = AWS.trying AWS._Error . AWS.send e
 
 canRetry :: (MonadIO m) => Either AWS.Error a -> m Bool

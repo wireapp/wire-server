@@ -710,5 +710,5 @@ test-suite wire-api-tests
     , wai
     , wire-api
 
-  ghc-options:      -threaded -with-rtsopts=-N -Wunused-packages
+  ghc-options:      -threaded -with-rtsopts=-N -Wunused-packages -Wno-x-partial
   default-language: GHC2021

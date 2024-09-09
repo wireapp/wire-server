@@ -20,10 +20,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module API.Teams
-  ( tests,
-  )
-where
+module API.Teams (tests) where
 
 import API.SQS
 import API.Util hiding (deleteTeam)
@@ -34,7 +31,7 @@ import Bilge.Assert
 import Control.Arrow ((>>>))
 import Control.Lens hiding ((#), (.=))
 import Control.Monad.Catch
-import Data.Aeson hiding (json)
+import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Code qualified as Code
 import Data.Csv (FromNamedRecord (..), decodeByName)

@@ -66,8 +66,8 @@ let
     transitive-anns = {
       src = fetchgit {
         url = "https://github.com/wireapp/transitive-anns";
-        rev = "5e0cad1f411a0c92e6445404c205ddd4a0229c4d";
-        hash = "sha256-/P4KJ4yZgqhZhzmg1GcE+Ti4kdsWUQX8q++RhgCUDKI=";
+        rev = "5e146994af96836b2176618334e734e459c2f7fd";
+        hash = "sha256-tWtEDvxvag0I5puaGQpP8nbjeGbO8PGgmmOi9Uy7rVc=";
       };
     };
 
@@ -112,12 +112,34 @@ let
       };
     };
 
+    # amazonka ghc 9.8 changes are unreleased 
+    amazonka = {
+      src = fetchgit {
+        url = "https://github.com/brendanhay/amazonka";
+        rev = "4873cc451113147d071721c97704ac648d71e9ee";
+        hash = "sha256-6JPCHU/sAW5PTzTdgESTLb+PyaC3Uuc11BA/g9HDFeo=";
+      };
+      packages = {
+        amazonka = "lib/amazonka";
+        amazonka-core = "lib/amazonka-core";
+        amazonka-dynamodb-attributevalue = "lib/amazonka-dynamodb-attributevalue";
+        amazonka-test = "lib/amazonka-test";
+        amazonka-dynamodb = "lib/services/amazonka-dynamodb";
+        amazonka-s3 = "lib/services/amazonka-s3";
+        amazonka-ses = "lib/services/amazonka-ses";
+        amazonka-sns = "lib/services/amazonka-sns";
+        amazonka-sqs = "lib/services/amazonka-sqs";
+        amazonka-sso = "lib/services/amazonka-sso";
+        amazonka-sts = "lib/services/amazonka-sts";
+      };
+    };
+
     # PR: https://github.com/dpwright/HaskellNet-SSL/pull/33
     HaskellNet-SSL = {
       src = fetchgit {
         url = "https://github.com/wireapp/HaskellNet-SSL";
-        rev = "c2844b63a39f458ffbfe62f2ac824017f1f84453";
-        hash = "sha256-1mu/yEAWr3POY4MHRomum0DDvs5Qty1JvP3v5GS2u64=";
+        rev = "7b24d66672af728eed5e3faf79a44669f02407e7";
+        hash = "sha256-kF+bH6tniUd/NH8qgDVtfuMtahc6pppMdkea2doCJyM=";
       };
     };
 
@@ -228,8 +250,8 @@ let
     postie = {
       src = fetchgit {
         url = "https://github.com/alexbiehl/postie";
-        rev = "7321b977a2b427e0be782b7239901e4edfbb027f";
-        hash = "sha256-DKugy4EpRsSgaGvybdh2tLa7HCtoxId+7RAAAw43llA=";
+        rev = "13404b8cb7164cd9010c9be6cda5423194dd0c06";
+        hash = "sha256-nNivtyBpr4DFsbaXxlCznX+MYtzNshU7vfVpnhMh52c=";
       };
     };
 

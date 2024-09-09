@@ -22,16 +22,13 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Stern.API
-  ( start,
-  )
-where
+module Stern.API (start) where
 
 import Brig.Types.Intra
 import Control.Error
 import Control.Lens ((.~), (^.))
 import Control.Monad.Except
-import Data.Aeson hiding (Error, json)
+import Data.Aeson hiding (Error)
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Aeson.Types (emptyArray)
 import Data.ByteString (fromStrict)

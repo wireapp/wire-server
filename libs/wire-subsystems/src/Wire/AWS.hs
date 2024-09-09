@@ -10,15 +10,7 @@ import Network.HTTP.Client
 import Polysemy
 import Polysemy.Input
 
-sendCatch ::
-  ( Member (Input Amazonka.Env) r,
-    Member (Embed IO) r,
-    AWS.AWSRequest req,
-    Typeable req,
-    Typeable (AWS.AWSResponse req)
-  ) =>
-  req ->
-  Sem r (Either AWS.Error (AWS.AWSResponse req))
+sendCatch :: (Member (Input Amazonka.Env) r, Member (Embed IO) r, AWS.AWSRequest req) => req -> Sem r (Either AWS.Error (AWS.AWSResponse req))
 sendCatch req = do
   env <- input
   embed . AWS.trying AWS._Error . runResourceT . AWS.send env $ req

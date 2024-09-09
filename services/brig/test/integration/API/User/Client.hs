@@ -20,10 +20,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module API.User.Client
-  ( tests,
-  )
-where
+module API.User.Client ( tests,) where
 
 import API.Team.Util qualified as Util
 import API.User.Util
@@ -35,7 +32,7 @@ import Brig.Options qualified as Opts
 import Cassandra qualified as DB
 import Control.Lens hiding (Wrapped, (#))
 import Crypto.JWT hiding (Ed25519, header, params)
-import Data.Aeson hiding (json)
+import Data.Aeson
 import Data.Aeson qualified as A
 import Data.Aeson.KeyMap qualified as M
 import Data.Aeson.Lens
@@ -1450,7 +1447,7 @@ testCreateAccessToken opts n brig = do
   cid <- createClientForUser brig uid
   nonceResponse <- Util.headNonceNginz n t cid <!! const 200 === statusCode
   let nonceBs = cs $ fromMaybe (error "invalid nonce") $ getHeader "Replay-Nonce" nonceResponse
-  now <- liftIO $ posixSecondsToUTCTime . fromInteger <$> (floor <$> getPOSIXTime)
+  now <- liftIO $ (posixSecondsToUTCTime . fromInteger . floor <$> getPOSIXTime)
   let clientIdentity = cs $ "wireapp://" <> cs (toText uidB64) <> "!" <> toByteString' cid <> "@" <> toByteString' localDomain
   let httpsUrl = cs $ "https://" <> toByteString' localDomain <> "/clients/" <> toByteString' cid <> "/access-token"
   let expClaim = NumericDate $ addUTCTime 10 now

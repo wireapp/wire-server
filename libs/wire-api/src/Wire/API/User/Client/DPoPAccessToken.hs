@@ -25,7 +25,7 @@ import Data.ByteString (fromStrict)
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..), fromByteString', toByteString')
 import Data.OpenApi qualified as S
 import Data.OpenApi.ParamSchema (ToParamSchema (..))
-import Data.SOP
+import Data.Proxy
 import Data.Schema
 import Data.Text as T
 import Data.Text.Encoding

@@ -89,7 +89,7 @@ import Data.Default
 import Data.Either
 import Data.Foldable
 import Data.Function
-import Data.Functor
+import Data.Functor hiding (unzip)
 import Data.Functor.Identity
 import Data.Int
 import Data.List hiding (delete, insert, singleton)

@@ -1,5 +1,5 @@
 self: super: rec {
-  python310 = super.python310.override {
+  python312 = super.python312.override {
     packageOverrides = pself: psuper: {
       rst2pdf = pself.callPackage ./pkgs/python-docs/rst2pdf.nix { };
       sphinx-multiversion = pself.callPackage ./pkgs/python-docs/sphinx-multiversion.nix { };
@@ -9,5 +9,5 @@ self: super: rec {
     };
   };
 
-  python310Packages = python310.pkgs;
+  python3Packages = python312.pkgs;
 }

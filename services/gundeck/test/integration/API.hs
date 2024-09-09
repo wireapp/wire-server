@@ -19,10 +19,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module API
-  ( tests,
-  )
-where
+module API (tests) where
 
 import Bilge hiding (head)
 import Bilge.Assert
@@ -31,7 +28,7 @@ import Control.Concurrent.Async (Async, async, concurrently_, forConcurrently_, 
 import Control.Concurrent.Async qualified as Async
 import Control.Lens (view, (%~), (.~), (?~), (^.), (^?), _2)
 import Control.Retry (constantDelay, limitRetries, recoverAll, retrying)
-import Data.Aeson hiding (json)
+import Data.Aeson
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Aeson.Lens
 import Data.Aeson.Types qualified as Aeson

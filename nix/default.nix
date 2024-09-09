@@ -28,7 +28,7 @@ let
   docsPkgs = [
     pkgs.plantuml
     pkgs.texlive.combined.scheme-full
-    (pkgs.python310.withPackages
+    (pkgs.python312.withPackages
       (ps: with ps; [
         myst-parser
         rst2pdf

@@ -26,7 +26,7 @@ generateTupleP = do
   let vars = [VarT (mkName ("a" <> show i)) | i <- [0 .. maxSize - 1]]
   pure
     [ ClosedTypeFamilyD
-        (TypeFamilyHead (mkName "TupleP") [KindedTV (mkName "xs") () tylist] NoSig Nothing)
+        (TypeFamilyHead (mkName "TupleP") [KindedTV (mkName "xs") BndrReq tylist] NoSig Nothing)
         [ TySynEqn
             Nothing
             ( ConT (mkName "TupleP")

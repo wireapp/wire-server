@@ -158,7 +158,7 @@ import Data.HashMap.Strict (HashMap)
 import Data.HashSet (HashSet)
 import Data.Int
 import Data.Kind (Type)
-import Data.List hiding (delete, insert, singleton)
+import Data.List hiding (delete, insert, singleton, unzip)
 import Data.Map (Map)
 import Data.Maybe
 import Data.Monoid hiding (First (..), Last (..))

@@ -169,13 +169,14 @@ let
       )
       executablesMap;
 
-  hPkgs = localMods@{ enableOptimization, enableDocs, enableTests }: pkgs.haskellPackages.override {
+  hPkgs = localMods@{ enableOptimization, enableDocs, enableTests }: pkgs.haskell.packages.ghc98.override {
     overrides = lib.composeManyExtensions [
       pinnedPackages
       (localPackages localMods)
       manualOverrides
       executables
       staticExecutables
+      (hself: hsuper: { /* https://github.com/ocharles/weeder/pull/165 */ weeder = hlib.dontCheck (hself.callPackage ./pkgs/weeder { }); })
     ];
   };
 
@@ -412,7 +413,7 @@ let
     pkgs.kubelogin-oidc
     pkgs.nixpkgs-fmt
     pkgs.openssl
-    pkgs.ormolu
+    (pkgs.haskellPackages.ormolu_0_7_4_0.overrideScope (hself: _hsuper: {ghc-lib-parser = hself.ghc-lib-parser_9_8_2_20240223;}))
     pkgs.shellcheck
     pkgs.treefmt
     pkgs.gawk
@@ -518,7 +519,7 @@ in
       pkgs.netcat
       pkgs.niv
       pkgs.haskellPackages.apply-refact
-      (pkgs.python310.withPackages
+      (pkgs.python312.withPackages
         (ps: with ps; [
           black
           bokeh

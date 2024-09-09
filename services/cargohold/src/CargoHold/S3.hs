@@ -350,26 +350,12 @@ parseAmzMeta k h = lookupCI k h >>= fromByteString . encodeUtf8
 octets :: MIME.Type
 octets = MIME.Type (MIME.Application "octet-stream") []
 
-exec ::
-  ( AWSRequest r,
-    Typeable r,
-    Typeable (AWSResponse r),
-    Show r
-  ) =>
-  (Text -> r) ->
-  ExceptT Error App (AWSResponse r)
+exec :: (AWSRequest r, Show r) => (Text -> r) -> ExceptT Error App (AWSResponse r)
 exec req = do
   env <- view aws
   AWS.exec env req
 
-execCatch ::
-  ( AWSRequest r,
-    Typeable r,
-    Typeable (AWSResponse r),
-    Show r
-  ) =>
-  (Text -> r) ->
-  ExceptT Error App (Maybe (AWSResponse r))
+execCatch :: (AWSRequest r, Show r) => (Text -> r) -> ExceptT Error App (Maybe (AWSResponse r))
 execCatch req = do
   env <- view aws
   AWS.execCatch env req

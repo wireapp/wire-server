@@ -18,7 +18,6 @@ hself: hsuper: {
   # PR with fix: https://github.com/freckle/hspec-junit-formatter/pull/23
   # the PR has been merged, but has not arrived in nixpkgs
   hspec-junit-formatter = hlib.markUnbroken (hlib.dontCheck hsuper.hspec-junit-formatter);
-  quickcheck-state-machine = hlib.markUnbroken (hlib.dontCheck hsuper.quickcheck-state-machine);
   saml2-web-sso = hlib.dontCheck hsuper.saml2-web-sso;
   # these are okay, the only issue is that the compiler underlines
   # errors differently than before
@@ -29,6 +28,9 @@ hself: hsuper: {
   # Tests require a running redis
   hedis = hlib.dontCheck hsuper.hedis;
 
+  # tests are broken
+  quickcheck-state-machine = hlib.dontCheck (hlib.doJailbreak hsuper.quickcheck-state-machine_0_10_0);
+
   # ---------------------
   # need to be jailbroken
   # (these need to be fixed upstream eventually)
@@ -37,6 +39,10 @@ hself: hsuper: {
   binary-parsers = hlib.markUnbroken (hlib.doJailbreak hsuper.binary-parsers);
   bytestring-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.bytestring-arbitrary);
   lens-datetime = hlib.markUnbroken (hlib.doJailbreak hsuper.lens-datetime);
+  kind-generics = hlib.doJailbreak hsuper.kind-generics;
+  kind-generics-th = hlib.doJailbreak hsuper.kind-generics-th;
+  # HaskellNet doesn't allow the new bytestring version
+  HaskellNet = hlib.doJailbreak hsuper.HaskellNet;
 
   # the libsodium haskell library is incompatible with the new version of the libsodium c library 
   # that nixpkgs has - this downgrades libsodium from 1.0.19 to 1.0.18
@@ -71,12 +77,14 @@ hself: hsuper: {
   crypton-connection = hsuper.crypton-connection_0_4_1; # older version doesn't allow tls 2.1
   amqp = hlib.dontCheck hsuper.amqp_0_23_0; # older version doesn't allow cryton-connection 0.4.1, this one has broken tests
 
-  # warp requires curl in its testsuite
-  warp = hlib.addTestToolDepends hsuper.warp [ curl ];
+  # ghc 9.8 compatibility
+  partial-isomorphisms = hsuper.partial-isomorphisms_0_2_4_0;
+
 
   # cabal multirepl requires Cabal 3.12
   Cabal = hsuper.Cabal_3_12_1_0;
   Cabal-syntax = hsuper.Cabal-syntax_3_12_1_0;
+
 
   # -----------------
   # flags and patches
@@ -91,4 +99,7 @@ hself: hsuper: {
   types-common-journal = hlib.addBuildTool hsuper.types-common-journal protobuf;
   wire-api = hlib.addBuildTool hsuper.wire-api mls-test-cli;
   wire-message-proto-lens = hlib.addBuildTool hsuper.wire-message-proto-lens protobuf;
+  # warp requires curl in its testsuite
+  warp = hlib.addTestToolDepends hsuper.warp [ curl ];
+
 }

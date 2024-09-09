@@ -31,7 +31,6 @@ module Gundeck.Push
   )
 where
 
-import Control.Arrow ((&&&))
 import Control.Error
 import Control.Exception (ErrorCall (ErrorCall))
 import Control.Lens (to, view, (.~), (^.))
@@ -170,7 +169,7 @@ pushAny' p = do
   let pload = p ^. pushPayload
   let notif = Notification i (p ^. pushTransient) pload
   let rcps = fromRange (p ^. pushRecipients)
-  let uniq = uncurry list1 $ head &&& tail $ toList rcps
+  let uniq = uncurry list1 $ fromMaybe (error "pushAny': impossible, range was positive") $ uncons $ toList rcps
   let tgts = mkTarget <$> uniq
   unless (p ^. pushTransient) $
     mpaStreamAdd i tgts pload =<< mpaNotificationTTL

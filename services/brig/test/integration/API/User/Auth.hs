@@ -19,10 +19,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module API.User.Auth
-  ( tests,
-  )
-where
+module API.User.Auth (tests) where
 
 import API.Team.Util
 import Bilge hiding (body)
@@ -36,7 +33,7 @@ import Cassandra qualified as DB
 import Control.Arrow ((&&&))
 import Control.Lens (set, (^.))
 import Control.Retry
-import Data.Aeson as Aeson hiding (json)
+import Data.Aeson as Aeson
 import Data.ByteString qualified as BS
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as Lazy

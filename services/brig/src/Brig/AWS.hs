@@ -200,15 +200,12 @@ enqueueFIFO url group dedup m = retrying retry5x (const $ pure . canRetry) (cons
 --------------------------------------------------------------------------------
 -- Utilities
 
-send ::
-  (AWSRequest r, Typeable r, Typeable (AWSResponse r)) =>
-  r ->
-  Amazon (AWSResponse r)
+send :: (AWSRequest r) => r -> Amazon (AWSResponse r)
 send r = throwA =<< sendCatchAmazon r
 
 -- | Temporary helper to translate polysemy to Amazon monad, it should go away
 -- with more polysemisation
-sendCatchAmazon :: (AWSRequest req, Typeable req, Typeable (AWSResponse req)) => req -> Amazon (Either AWS.Error (AWS.AWSResponse req))
+sendCatchAmazon :: (AWSRequest req) => req -> Amazon (Either AWS.Error (AWS.AWSResponse req))
 sendCatchAmazon req = do
   env <- view amazonkaEnv
   liftIO . runM . runInputConst env $ sendCatch req
@@ -216,31 +213,13 @@ sendCatchAmazon req = do
 throwA :: Either AWS.Error a -> Amazon a
 throwA = either (throwM . GeneralError) pure
 
-execCatch ::
-  ( AWSRequest a,
-    Typeable a,
-    MonadUnliftIO m,
-    Typeable (AWSResponse a),
-    MonadCatch m
-  ) =>
-  AWS.Env ->
-  a ->
-  m (Either AWS.Error (AWSResponse a))
+execCatch :: (AWSRequest a, MonadUnliftIO m, MonadCatch m) => AWS.Env -> a -> m (Either AWS.Error (AWSResponse a))
 execCatch e cmd =
   runResourceT $
     AWS.trying AWS._Error $
       AWS.send e cmd
 
-exec ::
-  ( AWSRequest a,
-    Typeable a,
-    Typeable (AWSResponse a),
-    MonadCatch m,
-    MonadIO m
-  ) =>
-  AWS.Env ->
-  a ->
-  m (AWSResponse a)
+exec :: (AWSRequest a, MonadCatch m, MonadIO m) => AWS.Env -> a -> m (AWSResponse a)
 exec e cmd = liftIO (execCatch e cmd) >>= either (throwM . GeneralError) pure
 
 retry5x :: (Monad m) => RetryPolicyM m
