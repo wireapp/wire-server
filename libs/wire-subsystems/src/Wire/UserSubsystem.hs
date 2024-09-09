@@ -1,3 +1,4 @@
+{-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Wire.UserSubsystem where
@@ -55,17 +56,14 @@ instance Default UserProfileUpdate where
 
 -- | how to get an account for a user
 data GetBy = MkGetBy
-  { -- | whether or not to include ending invitations in the lookups
-    includePendingInvitations :: !Bool,
-    -- -- | whether or not to include users with unverified identities
-    -- includePendingActivations :: !Bool,
-
+  { -- | whether or not to include pending invitations in the lookups
+    includePendingInvitations :: Bool,
     -- | get accounts by 'UserId's
-    getByUserIds :: ![UserId],
+    getByUserIds :: [UserId],
     -- | get accounts by 'Email's
-    getByEmail :: ![EmailKey],
+    getByEmail :: [EmailKey],
     -- | get accounts by their 'Handle'
-    getByHandle :: ![Handle]
+    getByHandle :: [Handle]
   }
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via GenericUniform GetBy
@@ -121,16 +119,6 @@ getUserProfile luid targetUser =
 getLocalUserProfile :: (Member UserSubsystem r) => Local UserId -> Sem r (Maybe UserProfile)
 getLocalUserProfile targetUser =
   listToMaybe <$> getLocalUserProfiles ((: []) <$> targetUser)
-
-getLocalUserAccountUnverified :: (Member UserSubsystem r) => Local UserId -> Sem r (Maybe UserAccount)
-getLocalUserAccountUnverified uid =
-  listToMaybe
-    <$> getAccountsBy
-      ( qualifyAs uid $
-          def
-            { getByUserIds = [tUnqualified uid]
-            }
-      )
 
 getLocalUserAccount :: (Member UserSubsystem r) => Local UserId -> Sem r (Maybe UserAccount)
 getLocalUserAccount uid =

@@ -103,7 +103,7 @@ activateKey k c u = wrapClientE (verifyCode k c) >>= pickUser >>= activate
     activate :: (EmailKey, UserId) -> ExceptT ActivationError (AppT r) (Maybe ActivationEvent)
     activate (key, uid) = do
       luid <- qualifyLocal uid
-      a <- lift (liftSem $ User.getLocalUserAccountUnverified luid) >>= maybe (throwE invalidUser) pure
+      a <- lift (liftSem $ User.getLocalUserAccount luid) >>= maybe (throwE invalidUser) pure
       unless (accountStatus a == Active) $ -- this is never 'PendingActivation' in the flow this function is used in.
         throwE invalidCode
       case userIdentity (accountUser a) of
@@ -134,7 +134,6 @@ activateKey k c u = wrapClientE (verifyCode k c) >>= pickUser >>= activate
           pure . Just $ EmailActivated uid (emailKeyOrig key)
       -- if the key is the same, we only want to update our profile
       | otherwise = do
-          -- Temporary measure until we create AuthSubsystem
           wrapClientE (codeDeleteImpl (mkPasswordResetKey uid))
           claim key uid
           lift $ updateEmailAndDeleteEmailUnvalidated uid (emailKeyOrig key)
