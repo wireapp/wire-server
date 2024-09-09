@@ -132,6 +132,7 @@ test-suite spec
     Test.Wire.API.Federation.API.BrigSpec
     Test.Wire.API.Federation.Golden.ConversationCreated
     Test.Wire.API.Federation.Golden.ConversationUpdate
+    Test.Wire.API.Federation.Golden.GetOne2OneConversationResponse
     Test.Wire.API.Federation.Golden.GoldenSpec
     Test.Wire.API.Federation.Golden.LeaveConversationRequest
     Test.Wire.API.Federation.Golden.LeaveConversationResponse

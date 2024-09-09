@@ -221,7 +221,14 @@ createSubConv cid subId = do
   resetGroup cid sub
   void $ createPendingProposalCommit cid >>= sendAndConsumeCommitBundle
 
-resetGroup :: (MakesValue conv) => ClientIdentity -> conv -> App ()
+createOne2OneSubConv :: (HasCallStack, MakesValue keys) => ClientIdentity -> String -> keys -> App ()
+createOne2OneSubConv cid subId keys = do
+  mls <- getMLSState
+  sub <- getSubConversation cid mls.convId subId >>= getJSON 200
+  resetOne2OneGroupGeneric cid sub keys
+  void $ createPendingProposalCommit cid >>= sendAndConsumeCommitBundle
+
+resetGroup :: (HasCallStack, MakesValue conv) => ClientIdentity -> conv -> App ()
 resetGroup cid conv = do
   convId <- objSubConvObject conv
   groupId <- conv %. "group_id" & asString
@@ -233,12 +240,31 @@ resetGroup cid conv = do
         epoch = 0,
         newMembers = mempty
       }
-  resetClientGroup cid groupId convId
+  keys <- getMLSPublicKeys cid.qualifiedUserId >>= getJSON 200
+  resetClientGroup cid groupId keys
 
-resetClientGroup :: (MakesValue conv) => ClientIdentity -> String -> conv -> App ()
-resetClientGroup cid gid conv = do
+resetOne2OneGroup :: (HasCallStack, MakesValue one2OneConv) => ClientIdentity -> one2OneConv -> App ()
+resetOne2OneGroup cid one2OneConv =
+  resetOne2OneGroupGeneric cid (one2OneConv %. "conversation") (one2OneConv %. "public_keys")
+
+-- | Useful when keys are to be taken from main conv and the conv here is the subconv
+resetOne2OneGroupGeneric :: (HasCallStack, MakesValue conv, MakesValue keys) => ClientIdentity -> conv -> keys -> App ()
+resetOne2OneGroupGeneric cid conv keys = do
+  convId <- objSubConvObject conv
+  groupId <- conv %. "group_id" & asString
+  modifyMLSState $ \s ->
+    s
+      { groupId = Just groupId,
+        convId = Just convId,
+        members = Set.singleton cid,
+        epoch = 0,
+        newMembers = mempty
+      }
+  resetClientGroup cid groupId keys
+
+resetClientGroup :: (HasCallStack, MakesValue keys) => ClientIdentity -> String -> keys -> App ()
+resetClientGroup cid gid keys = do
   mls <- getMLSState
-  keys <- withAPIVersion 5 $ getMLSPublicKeys conv >>= getJSON 200
   removalKey <- asByteString $ keys %. ("removal." <> csSignatureScheme mls.ciphersuite)
   void $
     mlscli

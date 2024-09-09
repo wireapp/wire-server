@@ -18,8 +18,9 @@ instance MakesValue (FedDomain 1) where
 
 instance (KnownNat n) => TestCases (FedDomain n) where
   mkTestCases =
-    map (fmap (const FedDomain))
-      <$> mkFedTestCase "" (natVal (Proxy @n))
+    let v = natVal (Proxy @n)
+     in map (fmap (const FedDomain))
+          <$> mkFedTestCase ("[domain=fed-v" <> show v <> "]") v
 
 mkFedTestCase :: String -> Integer -> IO [TestCase Integer]
 mkFedTestCase name n = do

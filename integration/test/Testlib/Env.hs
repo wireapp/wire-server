@@ -143,11 +143,13 @@ mkEnv ge = do
           federationV1Domain = gFederationV1Domain ge,
           dynamicDomains = gDynamicDomains ge,
           defaultAPIVersion = gDefaultAPIVersion ge,
-          -- hardcode version 5 for fed 0 backend
+          -- hardcode API versions for federated domains because they don't have
+          -- latest things. Ensure we do not use development API versions in
+          -- those domains.
           apiVersionByDomain =
             Map.fromList
-              [ (gFederationV0Domain ge, 5),
-                (gFederationV1Domain ge, 6)
+              [ (gFederationV0Domain ge, 4),
+                (gFederationV1Domain ge, 5)
               ],
           manager = gManager ge,
           servicesCwdBase = gServicesCwdBase ge,
