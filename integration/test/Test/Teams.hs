@@ -58,13 +58,12 @@ testInvitePersonalUserToTeam = do
     ids <- for documents ((%. "id") >=> asString)
     ids `shouldContain` [ownerId]
   refreshIndex OwnDomain
-  -- a team member an now search for the former personal user
+  -- a team member can now search for the former personal user
   bindResponse (searchContacts tm (user %. "name") OwnDomain) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    documents <- resp.json %. "documents" >>= asList
-    ids <- for documents ((%. "id") >=> asString)
-    void $ assertFailure "TODO(leif): check team not null"
-    ids `shouldContain` [uid]
+    document <- resp.json %. "documents" >>= asList >>= assertOne
+    document %. "id" `shouldMatch` uid
+    document %. "team" `shouldMatch` tid
 
-  void $ assertFailure "TODO(leif): verify user events"
-  void $ assertFailure "TODO(leif): verify team admin gets events"
+  -- void $ assertFailure "TODO(leif): verify user events"
+  -- void $ assertFailure "TODO(leif): verify team admin gets events"
