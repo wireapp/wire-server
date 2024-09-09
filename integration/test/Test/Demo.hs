@@ -7,19 +7,13 @@ import qualified API.Brig as BrigP
 import qualified API.BrigInternal as BrigI
 import qualified API.GalleyInternal as GalleyI
 import qualified API.Nginz as Nginz
-import Control.Concurrent
-import Control.Monad.Cont
-import Data.Function
-import Data.Maybe
 import GHC.Stack
 import SetupHelpers
-import Testlib.ModService.ServiceInstance
 import Testlib.Prelude
 import Testlib.VersionedFed
-import UnliftIO.Directory
 
 -- | Deleting unknown clients should fail with 404.
-testDeleteUnknownClient :: HasCallStack => App ()
+testDeleteUnknownClient :: (HasCallStack) => App ()
 testDeleteUnknownClient = do
   user <- randomUser OwnDomain def
   let fakeClientId = "deadbeefdeadbeef"
@@ -27,7 +21,7 @@ testDeleteUnknownClient = do
     resp.status `shouldMatchInt` 404
     resp.json %. "label" `shouldMatch` "client-not-found"
 
-testModifiedBrig :: HasCallStack => App ()
+testModifiedBrig :: (HasCallStack) => App ()
 testModifiedBrig = do
   withModifiedBackend
     (def {brigCfg = setField "optSettings.setFederationDomain" "overridden.example.com"})
@@ -37,7 +31,7 @@ testModifiedBrig = do
         resp.status `shouldMatchInt` 200
         (resp.json %. "domain") `shouldMatch` "overridden.example.com"
 
-testModifiedGalley :: HasCallStack => App ()
+testModifiedGalley :: (HasCallStack) => App ()
 testModifiedGalley = do
   (_user, tid, _) <- createTeam OwnDomain 1
 
@@ -55,23 +49,23 @@ testModifiedGalley = do
       (_user, tid', _) <- createTeam domain 1
       getFeatureStatus domain tid' `shouldMatch` "enabled"
 
-testModifiedCannon :: HasCallStack => App ()
+testModifiedCannon :: (HasCallStack) => App ()
 testModifiedCannon = do
   withModifiedBackend def $ \_ -> pure ()
 
-testModifiedGundeck :: HasCallStack => App ()
+testModifiedGundeck :: (HasCallStack) => App ()
 testModifiedGundeck = do
   withModifiedBackend def $ \_ -> pure ()
 
-testModifiedCargohold :: HasCallStack => App ()
+testModifiedCargohold :: (HasCallStack) => App ()
 testModifiedCargohold = do
   withModifiedBackend def $ \_ -> pure ()
 
-testModifiedSpar :: HasCallStack => App ()
+testModifiedSpar :: (HasCallStack) => App ()
 testModifiedSpar = do
   withModifiedBackend def $ \_ -> pure ()
 
-testModifiedServices :: HasCallStack => App ()
+testModifiedServices :: (HasCallStack) => App ()
 testModifiedServices = do
   let serviceMap =
         def
@@ -95,12 +89,12 @@ testModifiedServices = do
         resp.status `shouldMatchInt` 200
         resp.json %. "setRestrictUserCreation" `shouldMatch` False
 
-testDynamicBackend :: HasCallStack => App ()
+testDynamicBackend :: (HasCallStack) => App ()
 testDynamicBackend = do
   ownDomain <- objDomain OwnDomain
   user <- randomUser OwnDomain def
   uid <- objId user
-  bindResponse (BrigP.getSelf' ownDomain uid) $ \resp -> do
+  bindResponse (BrigP.getSelf user) $ \resp -> do
     resp.status `shouldMatchInt` 200
     (resp.json %. "id") `shouldMatch` objId user
 
@@ -118,7 +112,7 @@ testDynamicBackend = do
     -- now create a user in the dynamic backend
     userD1 <- randomUser dynDomain def
     uidD1 <- objId userD1
-    bindResponse (BrigP.getSelf' dynDomain uidD1) $ \resp -> do
+    bindResponse (BrigP.getSelf userD1) $ \resp -> do
       resp.status `shouldMatchInt` 200
       (resp.json %. "id") `shouldMatch` objId userD1
 
@@ -126,7 +120,7 @@ testDynamicBackend = do
     bindResponse (BrigP.getSelf' ownDomain uidD1) $ \resp -> do
       resp.status `shouldMatchInt` 404
 
-testStartMultipleDynamicBackends :: HasCallStack => App ()
+testStartMultipleDynamicBackends :: (HasCallStack) => App ()
 testStartMultipleDynamicBackends = do
   let assertCorrectDomain domain =
         bindResponse (BrigP.getAPIVersion domain) $
@@ -135,7 +129,7 @@ testStartMultipleDynamicBackends = do
             (resp.json %. "domain") `shouldMatch` domain
   startDynamicBackends [def, def, def] $ mapM_ assertCorrectDomain
 
-testIndependentESIndices :: HasCallStack => App ()
+testIndependentESIndices :: (HasCallStack) => App ()
 testIndependentESIndices = do
   u1 <- randomUser OwnDomain def
   u2 <- randomUser OwnDomain def
@@ -168,14 +162,14 @@ testIndependentESIndices = do
         [] -> assertFailure "Expected a non empty result, but got an empty one"
         doc : _ -> doc %. "id" `shouldMatch` uidD2
 
-testDynamicBackendsFederation :: HasCallStack => App ()
+testDynamicBackendsFederation :: (HasCallStack) => App ()
 testDynamicBackendsFederation = do
   startDynamicBackends [def, def] $ \[aDynDomain, anotherDynDomain] -> do
     [u1, u2] <- createAndConnectUsers [aDynDomain, anotherDynDomain]
     bindResponse (BrigP.getConnection u1 u2) assertSuccess
     bindResponse (BrigP.getConnection u2 u1) assertSuccess
 
-testWebSockets :: HasCallStack => App ()
+testWebSockets :: (HasCallStack) => App ()
 testWebSockets = do
   user <- randomUser OwnDomain def
   withWebSocket user $ \ws -> do
@@ -213,38 +207,3 @@ testLegacyFedFederation domain = do
 
   bob' <- BrigP.getUser alice bob >>= getJSON 200
   bob' %. "qualified_id" `shouldMatch` (bob %. "qualified_id")
-
-testServiceHandles :: App ()
-testServiceHandles = do
-  -- The name was generated with a roll of a fair dice
-  let exe = "/tmp/tmp-42956614-e50a-11ee-8c4b-6b596d54b36b"
-      execName = "test-exec"
-      dom = "test-domain"
-
-  writeFile
-    exe
-    "#!/usr/bin/env bash\n\
-    \echo errmsg >&2\n\
-    \for i in `seq 0 100`; do\n\
-    \  echo $i\n\
-    \  sleep 0.1\n\
-    \done\n"
-  perms <- getPermissions exe
-  setPermissions exe (setOwnerExecutable True perms)
-  serviceInstance <- liftIO $ startServiceInstance exe [] Nothing exe execName dom
-  liftIO $ threadDelay 1_000_000
-  cleanupServiceInstance serviceInstance
-  processState <- liftIO $ flushServiceInstanceOutput serviceInstance
-  processState
-    `shouldContainString` "=== stdout: ============================================\n\
-                          \[test-exec@test-domain] 0\n\
-                          \[test-exec@test-domain] 1\n\
-                          \[test-exec@test-domain] 2\n\
-                          \[test-exec@test-domain] 3\n\
-                          \[test-exec@test-domain] 4\n\
-                          \[test-exec@test-domain] 5\n\
-                          \[test-exec@test-domain] 6\n\
-                          \[test-exec@test-domain] 7\n"
-  processState
-    `shouldContainString` "=== stderr: ============================================\n\
-                          \[test-exec@test-domain] errmsg\n"

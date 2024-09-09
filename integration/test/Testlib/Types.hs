@@ -67,7 +67,8 @@ data BackendResource = BackendResource
     berVHost :: String,
     berNginzSslPort :: Word16,
     berNginzHttp2Port :: Word16,
-    berInternalServicePorts :: forall a. Num a => Service -> a
+    berInternalServicePorts :: forall a. (Num a) => Service -> a,
+    berMlsPrivateKeyPaths :: Value
   }
 
 instance Eq BackendResource where
@@ -78,7 +79,8 @@ instance Ord BackendResource where
 
 data DynamicBackendConfig = DynamicBackendConfig
   { domain :: String,
-    federatorExternalPort :: Word16
+    federatorExternalPort :: Word16,
+    mlsPrivateKeyPaths :: Value
   }
   deriving (Show, Generic)
 
@@ -238,6 +240,9 @@ data ClientIdentity = ClientIdentity
     client :: String
   }
   deriving stock (Show, Eq, Ord, Generic)
+
+instance HasField "qualifiedUserId" ClientIdentity Aeson.Value where
+  getField cid = object [fromString "id" .= cid.user, fromString "domain" .= cid.domain]
 
 newtype Ciphersuite = Ciphersuite {code :: String}
   deriving (Eq, Ord, Show, Generic)

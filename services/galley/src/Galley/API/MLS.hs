@@ -25,8 +25,6 @@ module Galley.API.MLS
   )
 where
 
-import Data.Id
-import Data.Qualified
 import Galley.API.MLS.Enabled
 import Galley.API.MLS.Message
 import Galley.Env
@@ -41,7 +39,5 @@ getMLSPublicKeys ::
   ( Member (Input Env) r,
     Member (ErrorS 'MLSNotEnabled) r
   ) =>
-  Local UserId ->
   Sem r (MLSKeysByPurpose MLSPublicKeys)
-getMLSPublicKeys _ = do
-  fmap mlsKeysToPublic <$> getMLSPrivateKeys
+getMLSPublicKeys = mlsKeysToPublic <$$> getMLSPrivateKeys

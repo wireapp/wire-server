@@ -49,10 +49,10 @@ settings:
   federationDomain: example.com
   mlsPrivateKeyPaths:
     removal:
-      ed25519: test/resources/ed25519.pem
-      ecdsa_secp256r1_sha256: test/resources/ecdsa_secp256r1_sha256.pem
-      ecdsa_secp384r1_sha384: test/resources/ecdsa_secp384r1_sha384.pem
-      ecdsa_secp521r1_sha512: test/resources/ecdsa_secp521r1_sha512.pem
+      ed25519: test/resources/backendA/ed25519.pem
+      ecdsa_secp256r1_sha256: test/resources/backendA/ecdsa_secp256r1_sha256.pem
+      ecdsa_secp384r1_sha384: test/resources/backendA/ecdsa_secp384r1_sha384.pem
+      ecdsa_secp521r1_sha512: test/resources/backendA/ecdsa_secp521r1_sha512.pem
   guestLinkTTLSeconds: 604800
   # We explicitly do not disable any API version. Please make sure the configuration value is the same in all these configs:
   # brig, cannon, cargohold, galley, gundeck, proxy, spar.

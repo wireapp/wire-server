@@ -405,10 +405,47 @@ testRemoteRemoveClient suite = do
     shouldMatch (nPayload n %. "conversation") (objId conv)
     shouldMatch (nPayload n %. "from") (objId bob)
 
-    msg <- asByteString (nPayload n %. "data") >>= showMessage alice1
+    mlsMsg <- asByteString (nPayload n %. "data")
+
+    -- Checks that the remove proposal is consumable by alice
+    void $ mlsCliConsume alice1 mlsMsg
+    -- This doesn't work because `sendAndConsumeCommitBundle` doesn't like
+    -- remove proposals from the backend. We should fix that in future.
+    -- void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
+
+    parsedMsg <- showMessage alice1 mlsMsg
     let leafIndexBob = 1
-    msg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` leafIndexBob
-    msg %. "message.content.sender.External" `shouldMatchInt` 0
+    parsedMsg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` leafIndexBob
+    parsedMsg %. "message.content.sender.External" `shouldMatchInt` 0
+
+testRemoteRemoveCreatorClient :: (HasCallStack) => Ciphersuite -> App ()
+testRemoteRemoveCreatorClient suite = do
+  setMLSCiphersuite suite
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  void $ uploadNewKeyPackage bob1
+  (_, conv) <- createNewGroup alice1
+  void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+
+  withWebSocket bob $ \wsBob -> do
+    void $ deleteClient alice alice1.client >>= getBody 200
+    let predicate n = nPayload n %. "type" `isEqual` "conversation.mls-message-add"
+    n <- awaitMatch predicate wsBob
+    shouldMatch (nPayload n %. "conversation") (objId conv)
+    shouldMatch (nPayload n %. "from") (objId alice)
+
+    mlsMsg <- asByteString (nPayload n %. "data")
+
+    -- Checks that the remove proposal is consumable by alice
+    void $ mlsCliConsume alice1 mlsMsg
+    -- This doesn't work because `sendAndConsumeCommitBundle` doesn't like
+    -- remove proposals from the backend. We should fix that in future.
+    -- void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
+
+    parsedMsg <- showMessage alice1 mlsMsg
+    let leafIndexAlice = 0
+    parsedMsg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` leafIndexAlice
+    parsedMsg %. "message.content.sender.External" `shouldMatchInt` 0
 
 testCreateSubConv :: HasCallStack => Ciphersuite -> App ()
 testCreateSubConv suite = do

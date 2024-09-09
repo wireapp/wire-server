@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -37,7 +38,9 @@ module Galley.API.Query
     ensureConvAdmin,
     getMLSSelfConversation,
     getMLSSelfConversationWithError,
-    getMLSOne2OneConversation,
+    getMLSOne2OneConversationV5,
+    getMLSOne2OneConversationV6,
+    getMLSOne2OneConversationInternal,
     isMLSOne2OneEstablished,
   )
 where
@@ -45,6 +48,7 @@ where
 import Cassandra qualified as C
 import Control.Lens
 import Control.Monad.Extra
+import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as LBS
 import Data.Code
 import Data.CommaSeparatedList
@@ -58,6 +62,7 @@ import Data.Range
 import Data.Set qualified as Set
 import Galley.API.Error
 import Galley.API.MLS
+import Galley.API.MLS.Enabled
 import Galley.API.MLS.One2One
 import Galley.API.MLS.Types
 import Galley.API.Mapping
@@ -84,6 +89,7 @@ import Network.Wai.Utilities hiding (Error)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as P
 import System.Logger.Class qualified as Logger
 import Wire.API.Conversation hiding (Member)
@@ -96,8 +102,10 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
-import Wire.API.Federation.Client (FederatorClient)
+import Wire.API.Federation.Client (FederatorClient, getNegotiatedVersion)
 import Wire.API.Federation.Error
+import Wire.API.Federation.Version qualified as Federation
+import Wire.API.MLS.Keys
 import Wire.API.Provider.Bot qualified as Public
 import Wire.API.Routes.MultiTablePaging qualified as Public
 import Wire.API.Team.Feature as Public hiding (setStatus)
@@ -248,7 +256,7 @@ getRemoteConversationsWithFailures ::
 getRemoteConversationsWithFailures lusr convs = do
   -- get self member statuses from the database
   statusMap <- E.getRemoteConversationStatus (tUnqualified lusr) convs
-  let remoteView :: Remote RemoteConversation -> Conversation
+  let remoteView :: Remote RemoteConversationV2 -> Conversation
       remoteView rconv =
         Mapping.remoteConversationView
           lusr
@@ -264,8 +272,15 @@ getRemoteConversationsWithFailures lusr convs = do
         | otherwise = [failedGetConversationLocally (map tUntagged locallyNotFound)]
 
   -- request conversations from remote backends
-  let rpc :: GetConversationsRequest -> FederatorClient 'Galley GetConversationsResponse
-      rpc = fedClient @'Galley @"get-conversations"
+  let rpc :: GetConversationsRequest -> FederatorClient 'Galley GetConversationsResponseV2
+      rpc req = do
+        mFedVersion <- getNegotiatedVersion
+        case mFedVersion of
+          Nothing -> error "impossible"
+          Just fedVersion ->
+            if fedVersion < Federation.V2
+              then getConversationsResponseToV2 <$> fedClient @'Galley @"get-conversations@v1" req
+              else fedClient @'Galley @"get-conversations" req
   resp <-
     E.runFederatedConcurrentlyEither locallyFound $ \someConvs ->
       rpc $ GetConversationsRequest (tUnqualified lusr) (tUnqualified someConvs)
@@ -274,9 +289,9 @@ getRemoteConversationsWithFailures lusr convs = do
     <$> traverse handleFailure resp
   where
     handleFailure ::
-      Member P.TinyLog r =>
-      Either (Remote [ConvId], FederationError) (Remote GetConversationsResponse) ->
-      Sem r (Either FailedGetConversation [Remote RemoteConversation])
+      (Member P.TinyLog r) =>
+      Either (Remote [ConvId], FederationError) (Remote GetConversationsResponseV2) ->
+      Sem r (Either FailedGetConversation [Remote RemoteConversationV2])
     handleFailure (Left (rcids, e)) = do
       P.warn $
         Logger.msg ("Error occurred while fetching remote conversations" :: ByteString)
@@ -732,7 +747,28 @@ getMLSSelfConversation lusr = do
 -- uses the same function to calculate the conversation ID and corresponding
 -- group ID, however we /do/ assume that the two backends agree on which of the
 -- two is responsible for hosting the conversation.
-getMLSOne2OneConversation ::
+getMLSOne2OneConversationV5 ::
+  ( Member BrigAccess r,
+    Member ConversationStore r,
+    Member (Input Env) r,
+    Member (Error FederationError) r,
+    Member (Error InternalError) r,
+    Member (ErrorS 'MLSNotEnabled) r,
+    Member (ErrorS 'NotConnected) r,
+    Member (ErrorS 'MLSFederatedOne2OneNotSupported) r,
+    Member FederatorAccess r,
+    Member TeamStore r,
+    Member P.TinyLog r
+  ) =>
+  Local UserId ->
+  Qualified UserId ->
+  Sem r Conversation
+getMLSOne2OneConversationV5 lself qother = do
+  if isLocal lself qother
+    then getMLSOne2OneConversationInternal lself qother
+    else throwS @MLSFederatedOne2OneNotSupported
+
+getMLSOne2OneConversationInternal ::
   ( Member BrigAccess r,
     Member ConversationStore r,
     Member (Input Env) r,
@@ -747,7 +783,25 @@ getMLSOne2OneConversation ::
   Local UserId ->
   Qualified UserId ->
   Sem r Conversation
-getMLSOne2OneConversation lself qother = do
+getMLSOne2OneConversationInternal lself qother =
+  (.conversation) <$> getMLSOne2OneConversationV6 lself qother
+
+getMLSOne2OneConversationV6 ::
+  ( Member BrigAccess r,
+    Member ConversationStore r,
+    Member (Input Env) r,
+    Member (Error FederationError) r,
+    Member (Error InternalError) r,
+    Member (ErrorS 'MLSNotEnabled) r,
+    Member (ErrorS 'NotConnected) r,
+    Member FederatorAccess r,
+    Member TeamStore r,
+    Member P.TinyLog r
+  ) =>
+  Local UserId ->
+  Qualified UserId ->
+  Sem r (MLSOne2OneConversation MLSPublicKey)
+getMLSOne2OneConversationV6 lself qother = do
   assertMLSEnabled
   ensureConnectedOrSameTeam lself [qother]
   let convId = one2OneConvId BaseProtocolMLSTag (tUntagged lself) qother
@@ -760,27 +814,37 @@ getMLSOne2OneConversation lself qother = do
 getLocalMLSOne2OneConversation ::
   ( Member ConversationStore r,
     Member (Error InternalError) r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member (Input Env) r,
+    Member (ErrorS MLSNotEnabled) r
   ) =>
   Local UserId ->
   Local ConvId ->
-  Sem r Conversation
+  Sem r (MLSOne2OneConversation MLSPublicKey)
 getLocalMLSOne2OneConversation lself lconv = do
   mconv <- E.getConversation (tUnqualified lconv)
-  case mconv of
+  keys <- mlsKeysToPublic <$$> getMLSPrivateKeys
+  conv <- case mconv of
     Nothing -> pure (localMLSOne2OneConversation lself lconv)
     Just conv -> conversationView lself conv
+  pure $
+    MLSOne2OneConversation
+      { conversation = conv,
+        publicKeys = keys
+      }
 
 getRemoteMLSOne2OneConversation ::
   ( Member (Error InternalError) r,
     Member (Error FederationError) r,
     Member (ErrorS 'NotConnected) r,
-    Member FederatorAccess r
+    Member FederatorAccess r,
+    Member (ErrorS MLSNotEnabled) r,
+    Member TinyLog r
   ) =>
   Local UserId ->
   Qualified UserId ->
   Remote conv ->
-  Sem r Conversation
+  Sem r (MLSOne2OneConversation MLSPublicKey)
 getRemoteMLSOne2OneConversation lself qother rconv = do
   -- a conversation can only be remote if it is hosted on the other user's domain
   rother <-
@@ -789,15 +853,32 @@ getRemoteMLSOne2OneConversation lself qother rconv = do
       else throw (InternalErrorWithDescription "Unexpected 1-1 conversation domain")
 
   resp <-
-    E.runFederated rconv $
-      fedClient @'Galley @"get-one2one-conversation" $
-        GetOne2OneConversationRequest (tUnqualified lself) (tUnqualified rother)
+    E.runFederated rconv $ do
+      negotiatedVersion <- getNegotiatedVersion
+      case negotiatedVersion of
+        Nothing -> error "impossible"
+        Just Federation.V0 -> pure . Left . FederationCallFailure $ FederatorClientVersionNegotiationError RemoteTooOld
+        Just Federation.V1 -> pure . Left . FederationCallFailure $ FederatorClientVersionNegotiationError RemoteTooOld
+        Just _ ->
+          fmap Right . fedClient @'Galley @"get-one2one-conversation" $
+            GetOne2OneConversationRequest (tUnqualified lself) (tUnqualified rother)
   case resp of
-    GetOne2OneConversationOk rc ->
+    Right (GetOne2OneConversationV2Ok rc) ->
       pure (remoteMLSOne2OneConversation lself rother rc)
-    GetOne2OneConversationBackendMismatch ->
+    Right GetOne2OneConversationV2BackendMismatch ->
       throw (FederationUnexpectedBody "Backend mismatch when retrieving a remote 1-1 conversation")
-    GetOne2OneConversationNotConnected -> throwS @'NotConnected
+    Right GetOne2OneConversationV2NotConnected -> throwS @'NotConnected
+    Right GetOne2OneConversationV2MLSNotEnabled -> do
+      -- This is confusing to clients because we do not tell them which backend
+      -- doesn't have MLS enabled, which would nice information for fixing
+      -- problems in real world. We do the same thing when sending Welcome
+      -- messages, so for now, let's do the same thing.
+      P.warn $
+        Logger.field "domain" (toByteString' (tDomain rother))
+          . Logger.msg
+            ("Cannot get remote MLSOne2OneConversation because MLS is not enabled on remote" :: ByteString)
+      throwS @'MLSNotEnabled
+    Left e -> throw e
 
 -- | Check if an MLS 1-1 conversation has been established, namely if its epoch
 -- is non-zero. The conversation will only be stored in the database when its
@@ -814,7 +895,8 @@ isMLSOne2OneEstablished ::
     Member (Error InternalError) r,
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'NotConnected) r,
-    Member FederatorAccess r
+    Member FederatorAccess r,
+    Member TinyLog r
   ) =>
   Local UserId ->
   Qualified UserId ->
@@ -844,14 +926,16 @@ isRemoteMLSOne2OneEstablished ::
   ( Member (ErrorS 'NotConnected) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
-    Member FederatorAccess r
+    Member FederatorAccess r,
+    Member (ErrorS MLSNotEnabled) r,
+    Member TinyLog r
   ) =>
   Local UserId ->
   Qualified UserId ->
   Remote conv ->
   Sem r Bool
 isRemoteMLSOne2OneEstablished lself qother rconv = do
-  conv <- getRemoteMLSOne2OneConversation lself qother rconv
+  conv <- (.conversation) <$> getRemoteMLSOne2OneConversation lself qother rconv
   pure . (> 0) $ case cnvProtocol conv of
     ProtocolProteus -> 0
     ProtocolMLS meta -> ep meta

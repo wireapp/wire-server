@@ -158,7 +158,7 @@ spec = do
               }
       runningFlag <- newMVar ()
       (env, fedReqs) <-
-        withTempMockFederator def {versions = [0, 2]} . runTestAppT $ do
+        withTempMockFederator def {versions = [0, 999999]} . runTestAppT $ do
           wait =<< pushNotification runningFlag targetDomain (msg, envelope)
           ask
 

@@ -2479,9 +2479,9 @@ mkProteusConv ::
   UserId ->
   RoleName ->
   [OtherMember] ->
-  RemoteConversation
+  RemoteConversationV2
 mkProteusConv cnvId creator selfRole otherMembers =
-  RemoteConversation
+  RemoteConversationV2
     cnvId
     ( ConversationMetadata
         RegularConv

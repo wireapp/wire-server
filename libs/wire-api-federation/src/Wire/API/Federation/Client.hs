@@ -27,6 +27,7 @@ module Wire.API.Federation.Client
     runVersionedFederatorClient,
     runFederatorClientToCodensity,
     runVersionedFederatorClientToCodensity,
+    getNegotiatedVersion,
     performHTTP2Request,
     consumeStreamingResponseWith,
     streamingResponseStrictBody,
@@ -116,6 +117,9 @@ instance VersionedMonad Version (FederatorClient c) where
   guardVersion p = do
     v <- asks cveVersion
     guard (maybe True p v)
+
+getNegotiatedVersion :: FederatorClient c (Maybe Version)
+getNegotiatedVersion = asks cveVersion
 
 liftCodensity :: Codensity IO a -> FederatorClient c a
 liftCodensity = FederatorClient . lift . lift . lift

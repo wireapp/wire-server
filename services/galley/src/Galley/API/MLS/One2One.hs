@@ -37,6 +37,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Federation.API.Galley
 import Wire.API.MLS.Group.Serialisation
+import Wire.API.MLS.Keys
 import Wire.API.MLS.SubConversation
 import Wire.API.User
 
@@ -64,7 +65,7 @@ localMLSOne2OneConversation lself (tUntagged -> convId) =
 -- conversation to be returned to a remote backend.
 localMLSOne2OneConversationAsRemote ::
   Local ConvId ->
-  RemoteConversation
+  RemoteConversationV2
 localMLSOne2OneConversationAsRemote lcnv =
   let members =
         RemoteConvMembers
@@ -72,7 +73,7 @@ localMLSOne2OneConversationAsRemote lcnv =
             others = []
           }
       (metadata, mlsData) = localMLSOne2OneConversationMetadata (tUntagged lcnv)
-   in RemoteConversation
+   in RemoteConversationV2
         { id = tUnqualified lcnv,
           metadata = metadata,
           members = members,
@@ -100,19 +101,24 @@ localMLSOne2OneConversationMetadata convId =
 remoteMLSOne2OneConversation ::
   Local UserId ->
   Remote UserId ->
-  RemoteConversation ->
-  Conversation
+  RemoteMLSOne2OneConversation ->
+  (MLSOne2OneConversation MLSPublicKey)
 remoteMLSOne2OneConversation lself rother rc =
   let members =
         ConvMembers
           { cmSelf = defMember (tUntagged lself),
-            cmOthers = rc.members.others
+            cmOthers = rc.conversation.members.others
           }
-   in Conversation
-        { cnvQualifiedId = tUntagged (qualifyAs rother rc.id),
-          cnvMetadata = rc.metadata,
-          cnvMembers = members,
-          cnvProtocol = rc.protocol
+      conv =
+        Conversation
+          { cnvQualifiedId = tUntagged (qualifyAs rother rc.conversation.id),
+            cnvMetadata = rc.conversation.metadata,
+            cnvMembers = members,
+            cnvProtocol = rc.conversation.protocol
+          }
+   in MLSOne2OneConversation
+        { conversation = conv,
+          publicKeys = rc.publicKeys
         }
 
 -- | Create a new record for an MLS 1-1 conversation in the database and add

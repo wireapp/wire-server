@@ -15,6 +15,7 @@ import Control.Concurrent
 import Control.Monad.Catch
 import Control.Monad.Codensity
 import Control.Monad.IO.Class
+import Data.Aeson
 import Data.Foldable (for_)
 import Data.Functor
 import Data.IORef
@@ -123,7 +124,8 @@ backendResources dynConfs =
                     berVHost = dynConf.domain,
                     berNginzSslPort = Ports.portForDyn Ports.NginzSSL i,
                     berNginzHttp2Port = Ports.portForDyn Ports.NginzHttp2 i,
-                    berInternalServicePorts = Ports.internalServicePorts name
+                    berInternalServicePorts = Ports.internalServicePorts name,
+                    berMlsPrivateKeyPaths = dynConf.mlsPrivateKeyPaths
                   }
         )
   where
@@ -153,7 +155,17 @@ backendA =
       berVHost = "backendA",
       berNginzSslPort = Ports.port Ports.NginzSSL BackendA,
       berInternalServicePorts = Ports.internalServicePorts BackendA,
-      berNginzHttp2Port = Ports.port Ports.NginzHttp2 BackendA
+      berNginzHttp2Port = Ports.port Ports.NginzHttp2 BackendA,
+      berMlsPrivateKeyPaths =
+        object
+          [ fromString "removal"
+              .= object
+                [ fromString "ed25519" .= "test/resources/backendA/ed25519.pem",
+                  fromString "ecdsa_secp256r1_sha256" .= "test/resources/backendA/ecdsa_secp256r1_sha256.pem",
+                  fromString "ecdsa_secp384r1_sha384" .= "test/resources/backendA/ecdsa_secp384r1_sha384.pem",
+                  fromString "ecdsa_secp521r1_sha512" .= "test/resources/backendA/ecdsa_secp521r1_sha512.pem"
+                ]
+          ]
     }
 
 backendB :: BackendResource
@@ -182,5 +194,15 @@ backendB =
       berVHost = "backendB",
       berNginzSslPort = Ports.port Ports.NginzSSL BackendB,
       berInternalServicePorts = Ports.internalServicePorts BackendB,
-      berNginzHttp2Port = Ports.port Ports.NginzHttp2 BackendB
+      berNginzHttp2Port = Ports.port Ports.NginzHttp2 BackendB,
+      berMlsPrivateKeyPaths =
+        object
+          [ fromString "removal"
+              .= object
+                [ fromString "ed25519" .= "test/resources/backendB/ed25519.pem",
+                  fromString "ecdsa_secp256r1_sha256" .= "test/resources/backendB/ecdsa_secp256r1_sha256.pem",
+                  fromString "ecdsa_secp384r1_sha384" .= "test/resources/backendB/ecdsa_secp384r1_sha384.pem",
+                  fromString "ecdsa_secp521r1_sha512" .= "test/resources/backendB/ecdsa_secp521r1_sha512.pem"
+                ]
+          ]
     }

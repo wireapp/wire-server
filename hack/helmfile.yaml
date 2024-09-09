@@ -155,6 +155,7 @@ releases:
     chart: '../.local/charts/wire-server'
     values:
       - './helm_vars/wire-server/values.yaml.gotmpl'
+      - './helm_vars/wire-server/values-domain1.yaml.gotmpl'
     set:
       - name: brig.config.optSettings.setFederationDomain
         value: {{ .Values.federationDomain1 }}
@@ -170,6 +171,7 @@ releases:
     chart: '../.local/charts/wire-server'
     values:
       - './helm_vars/wire-server/values.yaml.gotmpl'
+      - './helm_vars/wire-server/values-domain2.yaml.gotmpl'
     set:
       - name: brig.config.optSettings.setFederationDomain
         value: {{ .Values.federationDomain2 }}
