@@ -462,7 +462,8 @@ testAllFeatures = do
                     "config"
                       .= object
                         [ "verificationExpiration" .= A.Number 86400,
-                          "useProxyOnMobile" .= False
+                          "useProxyOnMobile" .= False,
+                          "crlProxy" .= "https://crlproxy.example.com"
                         ]
                   ],
               "mlsMigration"
@@ -747,7 +748,8 @@ mlsE2EIdConfig = do
           "config"
             .= object
               [ "verificationExpiration" .= A.Number 86400,
-                "useProxyOnMobile" .= False
+                "useProxyOnMobile" .= False,
+                "crlProxy" .= "https://crlproxy.example.com"
               ]
         ]
     mlsE2EIdConfig1 :: Value
@@ -1028,7 +1030,8 @@ testPatchE2EId = do
             "config"
               .= object
                 [ "verificationExpiration" .= A.Number 86400,
-                  "useProxyOnMobile" .= False
+                  "useProxyOnMobile" .= False,
+                  "crlProxy" .= "https://crlproxy.example.com"
                 ]
           ]
   _testPatch "mlsE2EId" True defCfg (object ["lockStatus" .= "locked"])
