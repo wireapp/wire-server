@@ -22,21 +22,12 @@ common common-all
 library
   import:           common-all
   exposed-modules:  Wire.OpenTelemetry
-
-  -- other-modules:
-  -- other-extensions:
   build-depends:
     , base
-    , bytestring
-    , hs-opentelemetry-api
     , hs-opentelemetry-instrumentation-http-client
     , hs-opentelemetry-instrumentation-wai
     , hs-opentelemetry-sdk
     , http-client
-    , http-semantics
-    , http-types
-    , http2
-    , http2-manager
     , kan-extensions
     , text
     , unliftio

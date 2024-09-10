@@ -19,7 +19,7 @@ module Galley.Intra.Util (IntraComponent (..), call) where
 
 import Bilge hiding (getHeader, host, options, port, statusCode)
 import Bilge qualified as B
-import Bilge.RPC (rpc')
+import Bilge.RPC (rpc)
 import Bilge.Retry
 import Control.Lens (view, (^.))
 import Control.Retry
@@ -33,7 +33,6 @@ import Galley.Options
 import Imports hiding (log)
 import Network.HTTP.Types
 import Util.Options
-import Wire.OpenTelemetry (withClientInstrumentation)
 
 data IntraComponent = Brig | Spar | Gundeck
   deriving (Show)
