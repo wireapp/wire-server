@@ -36,6 +36,7 @@
 , errors
 , extended
 , extra
+, file-embed-lzma
 , filepath
 , generics-sop
 , ghc-prim
@@ -94,6 +95,7 @@
 , tasty-hspec
 , tasty-hunit
 , tasty-quickcheck
+, template-haskell
 , text
 , these
 , time
@@ -147,6 +149,7 @@ mkDerivation {
     errors
     extended
     extra
+    file-embed-lzma
     filepath
     generics-sop
     ghc-prim
@@ -194,6 +197,7 @@ mkDerivation {
     singletons-th
     sop-core
     tagged
+    template-haskell
     text
     these
     time

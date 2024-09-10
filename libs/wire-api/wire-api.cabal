@@ -202,6 +202,7 @@ library
     Wire.API.Routes.Versioned
     Wire.API.Routes.WebSocket
     Wire.API.ServantProto
+    Wire.API.Swagger
     Wire.API.SwaggerHelper
     Wire.API.SwaggerServant
     Wire.API.SystemSettings
@@ -278,6 +279,7 @@ library
     , errors
     , extended
     , extra
+    , file-embed-lzma
     , filepath
     , generics-sop
     , ghc-prim
@@ -325,6 +327,7 @@ library
     , singletons-th
     , sop-core
     , tagged
+    , template-haskell
     , text                       >=0.11
     , these
     , time                       >=1.4

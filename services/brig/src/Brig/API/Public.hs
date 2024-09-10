@@ -60,7 +60,7 @@ import Brig.User.Auth.Cookie qualified as Auth
 import Cassandra qualified as C
 import Cassandra qualified as Data
 import Control.Error hiding (bool, note)
-import Control.Lens (view, (.~), (?~), (^.))
+import Control.Lens (view, (^.))
 import Control.Monad.Catch (throwM)
 import Control.Monad.Except
 import Data.Aeson hiding (json)
@@ -71,7 +71,6 @@ import Data.Code qualified as Code
 import Data.CommaSeparatedList
 import Data.Default
 import Data.Domain
-import Data.FileEmbed
 import Data.Handle (Handle)
 import Data.Handle qualified as Handle
 import Data.HavePendingInvitations
@@ -87,7 +86,6 @@ import Data.Schema ()
 import Data.Text.Encoding qualified as Text
 import Data.Time.Clock (UTCTime)
 import Data.ZAuth.Token qualified as ZAuth
-import FileEmbedLzma
 import Imports hiding (head)
 import Network.Socket (PortNumber)
 import Network.Wai.Utilities as Utilities
@@ -109,7 +107,6 @@ import Wire.API.Federation.API.Cargohold qualified as CargoholdFederationAPI
 import Wire.API.Federation.API.Galley qualified as GalleyFederationAPI
 import Wire.API.Federation.Error
 import Wire.API.Properties qualified as Public
-import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Brig qualified as BrigInternalAPI
 import Wire.API.Routes.Internal.Cannon qualified as CannonInternalAPI
 import Wire.API.Routes.Internal.Cargohold qualified as CargoholdInternalAPI
@@ -118,15 +115,9 @@ import Wire.API.Routes.Internal.Spar qualified as SparInternalAPI
 import Wire.API.Routes.MultiTablePaging qualified as Public
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig
-import Wire.API.Routes.Public.Brig.OAuth
-import Wire.API.Routes.Public.Cannon
-import Wire.API.Routes.Public.Cargohold
-import Wire.API.Routes.Public.Galley
-import Wire.API.Routes.Public.Gundeck
-import Wire.API.Routes.Public.Proxy
-import Wire.API.Routes.Public.Spar
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.Version
+import Wire.API.Swagger
 import Wire.API.SwaggerHelper (cleanupSwagger)
 import Wire.API.SystemSettings
 import Wire.API.Team qualified as Public
@@ -196,22 +187,7 @@ internalEndpointsSwaggerDocsAPIs =
 --
 -- Dual to `internalEndpointsSwaggerDocsAPI`.
 versionedSwaggerDocsAPI :: Servant.Server VersionedSwaggerDocsAPI
-versionedSwaggerDocsAPI (Just (VersionNumber V7)) =
-  swaggerSchemaUIServer $
-    ( serviceSwagger @VersionAPITag @'V7
-        <> serviceSwagger @BrigAPITag @'V7
-        <> serviceSwagger @GalleyAPITag @'V7
-        <> serviceSwagger @SparAPITag @'V7
-        <> serviceSwagger @CargoholdAPITag @'V7
-        <> serviceSwagger @CannonAPITag @'V7
-        <> serviceSwagger @GundeckAPITag @'V7
-        <> serviceSwagger @ProxyAPITag @'V7
-        <> serviceSwagger @OAuthAPITag @'V7
-    )
-      & S.info . S.title .~ "Wire-Server API"
-      & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
-      & S.servers .~ [S.Server ("/" <> toUrlPiece V7) Nothing mempty]
-      & cleanupSwagger
+versionedSwaggerDocsAPI (Just (VersionNumber V7)) = swaggerSchemaUIServer $ publicAPISwagger @V7
 versionedSwaggerDocsAPI (Just (VersionNumber V6)) = swaggerPregenUIServer $(pregenSwagger V6)
 versionedSwaggerDocsAPI (Just (VersionNumber V5)) = swaggerPregenUIServer $(pregenSwagger V5)
 versionedSwaggerDocsAPI (Just (VersionNumber V4)) = swaggerPregenUIServer $(pregenSwagger V4)
