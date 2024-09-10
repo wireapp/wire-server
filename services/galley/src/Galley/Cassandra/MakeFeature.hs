@@ -280,8 +280,8 @@ instance MakeFeature MlsE2EIdConfig where
               defCfg
                 { verificationExpiration =
                     maybe defCfg.verificationExpiration fromIntegral gracePeriod,
-                  acmeDiscoveryUrl = acmeDiscoveryUrl,
-                  crlProxy = crlProxy,
+                  acmeDiscoveryUrl = acmeDiscoveryUrl <|> defCfg.acmeDiscoveryUrl,
+                  crlProxy = crlProxy <|> defCfg.crlProxy,
                   useProxyOnMobile = fromMaybe defCfg.useProxyOnMobile useProxyOnMobile
                 }
           )
