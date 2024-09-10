@@ -34,7 +34,6 @@ import Brig.Data.User
 import Brig.Types.Intra
 import Cassandra
 import Control.Error
-import Data.Code
 import Data.Id
 import Data.Text (pack)
 import Data.Text.Ascii qualified as Ascii
@@ -45,6 +44,7 @@ import OpenSSL.BN (randIntegerZeroToNMinusOne)
 import OpenSSL.EVP.Digest (digestBS, getDigestByName)
 import Polysemy
 import Text.Printf (printf)
+import Util.Timeout
 import Wire.API.User
 import Wire.API.User.Activation
 import Wire.API.User.Password

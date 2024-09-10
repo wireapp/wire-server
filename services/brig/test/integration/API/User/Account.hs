@@ -43,7 +43,6 @@ import Data.Aeson.Lens qualified as AesonL
 import Data.ByteString qualified as C8
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
-import Data.Code (Timeout, UTCTime, diffUTCTime)
 import Data.Domain
 import Data.Handle
 import Data.Id
@@ -60,7 +59,6 @@ import Data.String.Conversions
 import Data.Text qualified as T
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as T
-import Data.Time (getCurrentTime)
 import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID
 import Federator.MockServer (FederatedRequest (..), MockException (..))
@@ -79,6 +77,7 @@ import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently_)
 import Util
 import Util.AWS as Util
+import Util.Timeout
 import Web.Cookie (parseSetCookie)
 import Wire.API.Asset hiding (Asset)
 import Wire.API.Asset qualified as Asset

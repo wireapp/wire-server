@@ -40,7 +40,6 @@ import Data.Aeson qualified as A
 import Data.Aeson.KeyMap qualified as M
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
-import Data.Code (Timeout)
 import Data.Code qualified as Code
 import Data.Coerce (coerce)
 import Data.Default
@@ -56,7 +55,6 @@ import Data.Set qualified as Set
 import Data.String.Conversions
 import Data.Text.Ascii (AsciiChars (validate), encodeBase64UrlUnpadded, toText)
 import Data.Text.Encoding qualified as T
-import Data.Time (addUTCTime)
 import Data.Time.Clock.POSIX
 import Data.UUID (toByteString)
 import Data.UUID qualified as UUID
@@ -71,6 +69,7 @@ import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently)
 import Util
+import Util.Timeout
 import Wire.API.Internal.Notification
 import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.Version

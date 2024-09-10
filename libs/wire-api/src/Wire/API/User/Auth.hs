@@ -77,6 +77,7 @@ import Data.Schema
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.Text.Lazy.Encoding qualified as LT
+import Data.Time.Clock (UTCTime)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Data.Tuple.Extra hiding (first)
 import Data.ZAuth.Token (header, time)

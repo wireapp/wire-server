@@ -28,13 +28,13 @@ import Bilge.Assert
 import Brig.Options
 import Brig.Options qualified as Opt
 import Data.CaseInsensitive qualified as CI
-import Data.Code
 import Data.List1 qualified as List1
 import Data.Text qualified as Text
 import Imports
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
 import Util
+import Util.Timeout
 import Wire.API.Team.Permission
 import Wire.API.User
 import Wire.API.User.RichInfo

@@ -1,7 +1,6 @@
 module Wire.InvitationCodeStore.Cassandra where
 
 import Cassandra
-import Data.Code
 import Data.Conduit (runConduit, (.|))
 import Data.Conduit.List qualified as Conduit
 import Data.Id
@@ -14,6 +13,7 @@ import OpenSSL.Random (randBytes)
 import Polysemy
 import Polysemy.Embed
 import UnliftIO.Async (pooledMapConcurrentlyN_)
+import Util.Timeout
 import Wire.API.Team.Role (Role)
 import Wire.API.User
 import Wire.InvitationCodeStore

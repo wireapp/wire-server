@@ -50,7 +50,7 @@ import Cassandra
 import Control.Error hiding (bool)
 import Control.Lens (to, view)
 import Data.ByteString.Conversion (toByteString)
-import Data.Code as Code
+import Data.Code qualified as Code
 import Data.Default
 import Data.Handle (Handle)
 import Data.Id
@@ -67,6 +67,7 @@ import Polysemy.Input (Input)
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import System.Logger (field, msg, val, (~~))
+import Util.Timeout
 import Wire.API.Team.Feature
 import Wire.API.Team.Feature qualified as Public
 import Wire.API.User
@@ -181,7 +182,7 @@ withRetryLimit action uid = do
     let bkey = BudgetKey ("login#" <> idToText uid)
         budget =
           Budget
-            (timeoutDiffTime $ Opt.timeout opts)
+            (timeoutDiff $ Opt.timeout opts)
             (fromIntegral $ Opt.retryLimit opts)
     bresult <- action bkey budget
     case bresult of

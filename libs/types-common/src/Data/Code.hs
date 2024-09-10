@@ -22,11 +22,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 -- | Types for verification codes.
-module Data.Code
-  ( module Data.Code,
-    module Data.Time.Clock,
-  )
-where
+module Data.Code where
 
 import Cassandra hiding (Value)
 import Data.Aeson qualified as A
@@ -96,8 +92,7 @@ instance ToHttpApiData Value where
 -- number of seconds remaining.
 newtype Timeout = Timeout
   {timeoutDiffTime :: NominalDiffTime}
-  deriving newtype (Enum, Num, Fractional, Real, RealFrac)
-  deriving stock (Eq, Ord, Show)
+  deriving (Eq, Show, Ord, Enum, Num, Fractional, Real, RealFrac)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema Timeout)
 
 instance ToSchema Timeout where
@@ -105,12 +100,6 @@ instance ToSchema Timeout where
     where
       roundDiffTime :: NominalDiffTime -> Int32
       roundDiffTime = round
-
-instance Read Timeout where
-  readsPrec i s =
-    case readsPrec i s of
-      [(x :: Int, s')] -> [(Timeout (fromIntegral x), s')]
-      _ -> []
 
 -- | A 'Timeout' is rendered as an integer representing the number of seconds remaining.
 instance ToByteString Timeout where

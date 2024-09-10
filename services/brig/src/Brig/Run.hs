@@ -46,7 +46,6 @@ import Control.Monad.Catch (MonadCatch, finally)
 import Control.Monad.Random (randomRIO)
 import Data.Aeson qualified as Aeson
 import Data.ByteString.UTF8 qualified as UTF8
-import Data.Code
 import Data.Metrics.AWS (gaugeTokenRemaing)
 import Data.Metrics.Servant qualified as Metrics
 import Data.Proxy (Proxy (Proxy))
@@ -66,6 +65,7 @@ import Servant qualified
 import System.Logger (msg, val, (.=), (~~))
 import System.Logger.Class (MonadLogger, err)
 import Util.Options
+import Util.Timeout
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Brig qualified as IAPI
 import Wire.API.Routes.Public.Brig

@@ -32,7 +32,6 @@ import Control.Monad.Catch (MonadCatch)
 import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
-import Data.Code (Timeout)
 import Data.Handle (parseHandle)
 import Data.Id
 import Data.List1 qualified as List1
@@ -47,6 +46,7 @@ import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently)
 import Util
+import Util.Timeout
 import Wire.API.Internal.Notification hiding (target)
 import Wire.API.Team.Feature (FeatureStatus (..))
 import Wire.API.Team.SearchVisibility

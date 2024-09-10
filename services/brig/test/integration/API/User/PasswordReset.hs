@@ -23,17 +23,17 @@ module API.User.PasswordReset
 where
 
 import API.User.Util
-import Bilge hiding (accept)
+import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import Brig.Options qualified as Opt
 import Cassandra qualified as DB
 import Data.Aeson as A
 import Data.Aeson.KeyMap qualified as KeyMap
-import Data.Code (Timeout)
 import Data.Misc
 import Imports
 import Test.Tasty hiding (Timeout)
 import Util
+import Util.Timeout
 import Wire.API.User
 import Wire.API.User.Auth
 
