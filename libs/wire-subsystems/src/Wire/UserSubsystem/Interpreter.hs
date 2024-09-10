@@ -515,36 +515,56 @@ getExtendedAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations
   accsByIds :: [ExtendedUserAccount] <-
     getUsers (nubOrd $ handleUserIds <> getByUserIds)
       <&> map storedToExtAcc
-      >>= filterM validatePendingInvitation
+      >>= filterM want
 
   accsByEmail :: [ExtendedUserAccount] <- flip foldMap getByEmail \ek -> do
     mactiveUid <- lookupKey ek
     getUsers (nubOrd . catMaybes $ [mactiveUid])
       <&> map storedToExtAcc
-      >>= filterM validatePendingInvitation
+      >>= filterM want
 
   pure (nubOrd $ accsByIds <> accsByEmail)
   where
-    validatePendingInvitation :: ExtendedUserAccount -> Sem r Bool
-    validatePendingInvitation ExtendedUserAccount {account} =
+    -- not wanted:
+    -- . users without identity
+    -- . pending users without matching invitation (those are garbage-collected)
+    -- . TODO: deleted users?
+    want :: ExtendedUserAccount -> Sem r Bool
+    want ExtendedUserAccount {account} =
       case account.accountUser.userIdentity of
-        -- TODO: ensure this case is sound
-        -- Some tests fail but they seem to not rely on this
         Nothing -> pure False
         Just ident -> case account.accountStatus of
           PendingInvitation ->
             if includePendingInvitations
               then case emailIdentity ident of
+                -- TODO(fisx): emailIdentity does not return an unvalidated address in case a
+                -- validated one cannot be found.  that's probably wrong?  split up into
+                -- validEmailIdentity, anyEmailIdentity?
                 Just email -> do
                   hasInvitation <- isJust <$> lookupInvitationByEmail email
-                  unless hasInvitation $ do
-                    -- user invited via scim should expire together with its invitation
-                    -- FIXME(mangoiv): this is not the right place to do this, ideally this should be part of a recurring
-                    enqueueUserDeletion (userId account.accountUser)
+                  gcHack hasInvitation (userId account.accountUser)
                   pure hasInvitation
-                Nothing -> error "validatePendingInvitation: should never happen, user invited via scim always has an email"
+                Nothing -> error "getExtendedAccountsByImpl: should never happen, user invited via scim always has an email"
               else pure False
           Active -> pure True
           Suspended -> pure True
           Deleted -> pure True -- TODO(mangoiv): previous comment said "We explicitly filter out deleted users now." Why?
           Ephemeral -> pure True
+
+    -- user invited via scim expires together with its invitation. the UserSubsystem interface
+    -- semantics hides the fact that pending users have no TTL field. we chose to emulate this
+    -- in this convoluted way (by making the invitation expire and then checking if it's still
+    -- there when looking up pending users), because adding TTLs would have been a much bigger
+    -- change in the database schema (`enqueueUserDeletion` would need to happen purely based
+    -- on TTL values in cassandra, and there is too much application logic involved there).
+    --
+    -- we could also delete these users here and run a background process that scans for
+    -- pending users without invitation. we chose not to because enqueuing the user deletion
+    -- here is very cheap, and avoids database traffic if the user is looked up again. if the
+    -- background job is reliably taking care of this, there is no strong reason to keep this
+    -- function.
+    --
+    -- there are certainly other ways to improve this, but they probably involve a non-trivial
+    -- database schema re-design.
+    gcHack :: Bool -> UserId -> Sem r ()
+    gcHack hasInvitation uid = unless hasInvitation (enqueueUserDeletion uid)
