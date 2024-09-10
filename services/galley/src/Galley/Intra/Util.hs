@@ -15,7 +15,11 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Intra.Util (IntraComponent (..), call) where
+module Galley.Intra.Util
+  ( IntraComponent (..),
+    call,
+  )
+where
 
 import Bilge hiding (getHeader, host, options, port, statusCode)
 import Bilge qualified as B

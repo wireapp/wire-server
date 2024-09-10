@@ -15,7 +15,11 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Cannon.Run (run, CombinedAPI) where
+module Cannon.Run
+  ( run,
+    CombinedAPI,
+  )
+where
 
 import Bilge (ManagerSettings (..), defaultManagerSettings, newManager)
 import Cannon.API.Internal
