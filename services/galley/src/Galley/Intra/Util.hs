@@ -66,15 +66,11 @@ call ::
   IntraComponent ->
   (Request -> Request) ->
   App (Response (Maybe LB.ByteString))
-call comp rMod0 = do
+call comp r = do
   o <- view options
-  let rMod1 = componentRequest comp o
+  let r0 = componentRequest comp o
   let n = LT.pack (componentName comp)
-  withClientInstrumentation "galley-intra-call" \k -> do
-    let mkReq = rMod1 . rMod0
-    recovering (componentRetryPolicy comp) rpcHandlers $
-      const $
-        k (mkReq empty) \req -> rpc' n req id
+  recovering (componentRetryPolicy comp) rpcHandlers (const (rpc n (r . r0)))
 
 x1 :: RetryPolicy
 x1 = limitRetries 1
