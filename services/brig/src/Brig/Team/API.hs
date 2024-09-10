@@ -110,7 +110,7 @@ servantAPI =
     :<|> Named @"get-team-invitation-info" getInvitationByCode
     :<|> Named @"head-team-invitations" headInvitationByEmail
     :<|> Named @"get-team-size" teamSizePublic
-    :<|> Named @"accept-team-invitation" acceptTeamInvitation
+    :<|> Named @"accept-team-invitation" acceptTeamInvitationByPersonalUser
 
 teamSizePublic :: (Member GalleyAPIAccess r) => UserId -> TeamId -> (Handler r) TeamSize
 teamSizePublic uid tid = do
@@ -244,6 +244,7 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail invRequest = do
       then do
         mAccount <- lift $ liftSem $ getLocalUserAccountByUserKey =<< qualifyLocal' uke
         pure $ case mAccount of
+          -- this can e.g. happen if the key is claimed but the account is not yet created
           Nothing -> False
           Just account ->
             account.accountStatus == Active
@@ -394,7 +395,7 @@ changeTeamAccountStatuses tid s = do
     toList1 (x : xs) = pure $ List1.list1 x xs
     toList1 [] = throwStd (notFound "Team not found or no members")
 
-acceptTeamInvitation ::
+acceptTeamInvitationByPersonalUser ::
   ( Member UserSubsystem r,
     Member GalleyAPIAccess r,
     Member (Input (Local ())) r,
@@ -407,7 +408,7 @@ acceptTeamInvitation ::
   Local UserId ->
   AcceptTeamInvitation ->
   (Handler r) ()
-acceptTeamInvitation luid req = do
+acceptTeamInvitationByPersonalUser luid req = do
   mSelfProfile <- lift $ liftSem $ getSelfProfile luid
   let mek = mkEmailKey <$> (userEmail . selfUser =<< mSelfProfile)
   mInv <- API.findTeamInvitation mek req.code !>> toInvitationError

@@ -69,6 +69,3 @@ testInvitePersonalUserToTeam = do
     document <- resp.json %. "documents" >>= asList >>= assertOne
     document %. "id" `shouldMatch` uid
     document %. "team" `shouldMatch` tid
-
--- void $ assertFailure "TODO(leif): verify user events"
--- void $ assertFailure "TODO(leif): verify team admin gets events"
