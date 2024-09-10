@@ -1663,6 +1663,11 @@ type TeamsAPI =
     :<|> Named
            "accept-team-invitation"
            ( Summary "Accept a team invitation."
+               :> CanThrow 'PendingInvitationNotFound
+               :> CanThrow 'TooManyTeamMembers
+               :> CanThrow 'MissingIdentity
+               :> CanThrow 'InvalidActivationCodeWrongUser
+               :> CanThrow 'InvalidActivationCodeWrongCode
                :> ZLocalUser
                :> "teams"
                :> "invitations"
