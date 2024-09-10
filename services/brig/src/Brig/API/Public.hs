@@ -634,7 +634,7 @@ getRichInfo lself user = do
   -- other user
   let fetch luid =
         ifNothing (errorToWai @'E.UserNotFound)
-          =<< lift (liftSem $ (.accountUser) <$$> User.getLocalUserAccount luid)
+          =<< lift (liftSem $ (.accountUser) <$$> User.getLocalUserAccount luid False)
   selfUser <- fetch lself
   otherUser <- fetch luser
   case (Public.userTeam selfUser, Public.userTeam otherUser) of
@@ -1321,7 +1321,7 @@ sendVerificationCode req = do
     getAccount email = lift . liftSem $ do
       mbUserId <- lookupKey $ mkEmailKey email
       mbLUserId <- qualifyLocal' `traverse` mbUserId
-      join <$> User.getLocalUserAccount `traverse` mbLUserId
+      join <$> (flip User.getLocalUserAccount False) `traverse` mbLUserId
 
     sendMail :: Public.EmailAddress -> Code.Value -> Maybe Public.Locale -> Public.VerificationAction -> (Handler r) ()
     sendMail email value mbLocale =

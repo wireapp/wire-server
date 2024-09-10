@@ -299,7 +299,7 @@ createUser new = do
       join <$> for mbInv do
         \invid -> liftSem $ do
           luid :: Local UserId <- qualifyLocal' (coerce invid)
-          User.getLocalUserAccount luid
+          User.getLocalUserAccount luid True
 
   let (new', mbHandle) = case mbExistingAccount of
         Nothing ->
@@ -895,7 +895,7 @@ deleteSelfUser ::
   Maybe PlainTextPassword6 ->
   ExceptT DeleteUserError (AppT r) (Maybe Timeout)
 deleteSelfUser luid@(tUnqualified -> uid) pwd = do
-  account <- lift . liftSem $ User.getLocalUserAccount luid
+  account <- lift . liftSem $ User.getLocalUserAccount luid False
   case account of
     Nothing -> throwE DeleteUserInvalid
     Just a -> case accountStatus a of
@@ -972,7 +972,7 @@ verifyDeleteUser d = do
   c <- lift . liftSem $ verifyCode key VerificationCode.AccountDeletion code
   a <- maybe (throwE DeleteUserInvalidCode) pure (VerificationCode.codeAccount =<< c)
   luid <- qualifyLocal $ Id a
-  account <- lift . liftSem $ User.getLocalUserAccount luid
+  account <- lift . liftSem $ User.getLocalUserAccount luid False
   for_ account $ lift . liftSem . deleteAccount
   lift . liftSem $ deleteCode key VerificationCode.AccountDeletion
 
@@ -996,7 +996,7 @@ ensureAccountDeleted ::
   Local UserId ->
   AppT r DeleteUserResult
 ensureAccountDeleted luid@(tUnqualified -> uid) = do
-  mbAcc <- liftSem $ User.getLocalUserAccount luid
+  mbAcc <- liftSem $ User.getLocalUserAccount luid False
   case mbAcc of
     Nothing -> pure NoUser
     Just acc -> do
@@ -1129,7 +1129,7 @@ getLegalHoldStatus ::
   ) =>
   Local UserId ->
   AppT r (Maybe UserLegalHoldStatus)
-getLegalHoldStatus uid = liftSem $ traverse (getLegalHoldStatus' . accountUser) =<< User.getLocalUserAccount uid
+getLegalHoldStatus uid = liftSem $ traverse (getLegalHoldStatus' . accountUser) =<< User.getLocalUserAccount uid False
 
 getLegalHoldStatus' ::
   (Member GalleyAPIAccess r) =>

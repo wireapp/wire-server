@@ -120,12 +120,22 @@ getLocalUserProfile :: (Member UserSubsystem r) => Local UserId -> Sem r (Maybe 
 getLocalUserProfile targetUser =
   listToMaybe <$> getLocalUserProfiles ((: []) <$> targetUser)
 
-getLocalUserAccount :: (Member UserSubsystem r) => Local UserId -> Sem r (Maybe UserAccount)
-getLocalUserAccount uid =
+getLocalUserAccount ::
+  (Member UserSubsystem r) =>
+  Local UserId ->
+  -- TODO: Remove boolean blindness
+
+  -- | Include pending invitations or not
+  Bool ->
+  Sem r (Maybe UserAccount)
+getLocalUserAccount uid includePendingInvitations =
   listToMaybe
     <$> getAccountsBy
       ( qualifyAs uid $
-          def {getByUserIds = [tUnqualified uid]}
+          def
+            { getByUserIds = [tUnqualified uid],
+              includePendingInvitations
+            }
       )
 
 getLocalExtendedAccounts :: (Member UserSubsystem r) => Local [UserId] -> Sem r [ExtendedUserAccount]
