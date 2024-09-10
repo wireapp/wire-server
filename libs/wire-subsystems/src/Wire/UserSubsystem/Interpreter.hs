@@ -506,53 +506,45 @@ getExtendedAccountsByImpl ::
   Local GetBy ->
   Sem r [ExtendedUserAccount]
 getExtendedAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations, getByEmail, getByHandle, getByUserIds})) = do
-  config <- input
+  storedToExtAcc <- do
+    config <- input
+    pure $ mkExtendedAccountFromStored domain config.defaultLocale
 
-  let storedToExtAcc = mkExtendedAccountFromStored domain config.defaultLocale
-
-      filterPendingInvitations :: [ExtendedUserAccount] -> Sem r [ExtendedUserAccount]
-      filterPendingInvitations =
-        filterM
-          ( \((.account) -> acc) ->
-              case acc.accountStatus of
-                PendingInvitation ->
-                  case accountIdentityEmail acc of
-                    -- TODO: ensure this case is sound
-                    -- Some tests fail but they seem to not rely on this
-                    Nothing -> pure False
-                    Just key -> do
-                      -- This is the case of expired invitations for users still pending
-                      hasInvitation <- isJust <$> lookupInvitationByEmail key
-                      unless hasInvitation do
-                        -- user invited via scim should expire together with its invitation
-                        -- FIXME(mangoiv): this is not the right place to do this, ideally this should be part of a recurring
-                        -- job akin to 'pendingUserActivationCleanup'
-                        enqueueUserDeletion (userId acc.accountUser)
-                      pure (hasInvitation && includePendingInvitations)
-                Active -> pure True
-                Suspended -> pure True
-                Deleted -> pure False -- We explicitly filter out deleted users now.
-                Ephemeral -> pure True
-          )
-
-      accountIdentityEmail :: UserAccount -> Maybe EmailAddress
-      accountIdentityEmail acc =
-        case acc.accountUser.userIdentity of
-          Just (EmailIdentity mail) -> Just mail
-          Just (SSOIdentity _ (Just mail)) -> Just mail
-          -- TODO: fix this error
-          _ -> Nothing -- error "SCIM invited user should have an email"
   handleUserIds :: [UserId] <- wither lookupHandle getByHandle
 
   accsByIds :: [ExtendedUserAccount] <-
     getUsers (nubOrd $ handleUserIds <> getByUserIds)
       <&> map storedToExtAcc
-      >>= filterPendingInvitations
+      >>= filterM validatePendingInvitation
 
   accsByEmail :: [ExtendedUserAccount] <- flip foldMap getByEmail \ek -> do
     mactiveUid <- lookupKey ek
     getUsers (nubOrd . catMaybes $ [mactiveUid])
       <&> map storedToExtAcc
-      >>= filterPendingInvitations
+      >>= filterM validatePendingInvitation
 
   pure (nubOrd $ accsByIds <> accsByEmail)
+  where
+    validatePendingInvitation :: ExtendedUserAccount -> Sem r Bool
+    validatePendingInvitation ExtendedUserAccount {account} =
+      case account.accountUser.userIdentity of
+        -- TODO: ensure this case is sound
+        -- Some tests fail but they seem to not rely on this
+        Nothing -> pure False
+        Just ident -> case account.accountStatus of
+          PendingInvitation ->
+            if includePendingInvitations
+              then case emailIdentity ident of
+                Just email -> do
+                  hasInvitation <- isJust <$> lookupInvitationByEmail email
+                  unless hasInvitation $ do
+                    -- user invited via scim should expire together with its invitation
+                    -- FIXME(mangoiv): this is not the right place to do this, ideally this should be part of a recurring
+                    enqueueUserDeletion (userId account.accountUser)
+                  pure hasInvitation
+                Nothing -> error "validatePendingInvitation: should never happen, user invited via scim always has an email"
+              else pure False
+          Active -> pure True
+          Suspended -> pure True
+          Deleted -> pure True -- TODO(mangoiv): previous comment said "We explicitly filter out deleted users now." Why?
+          Ephemeral -> pure True
