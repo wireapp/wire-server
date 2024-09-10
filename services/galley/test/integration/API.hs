@@ -20,7 +20,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module API ( tests,) where
+module API (tests) where
 
 import API.CustomBackend qualified as CustomBackend
 import API.Federation qualified as Federation
@@ -43,7 +43,7 @@ import Control.Concurrent.Async qualified as Async
 import Control.Exception (throw)
 import Control.Lens hiding ((#), (.=))
 import Control.Monad.Trans.Maybe
-import Data.Aeson 
+import Data.Aeson
 import Data.ByteString qualified as BS
 import Data.ByteString.Conversion
 import Data.Code qualified as Code

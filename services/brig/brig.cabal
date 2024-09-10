@@ -403,7 +403,9 @@ executable brig-integration
     Util.AWS
 
   hs-source-dirs: test/integration
-  ghc-options:  -Wno-x-partial -funbox-strict-fields -threaded -with-rtsopts=-N
+  ghc-options:
+    -Wno-x-partial -funbox-strict-fields -threaded -with-rtsopts=-N
+
   build-depends:
     , aeson
     , async
@@ -527,7 +529,9 @@ test-suite brig-tests
     Test.Brig.User.Search.Index.Types
 
   hs-source-dirs: test/unit
-  ghc-options:    -funbox-strict-fields -threaded -with-rtsopts=-N -Wno-x-partial
+  ghc-options:
+    -funbox-strict-fields -threaded -with-rtsopts=-N -Wno-x-partial
+
   build-depends:
     , aeson
     , base

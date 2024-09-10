@@ -413,7 +413,7 @@ let
     pkgs.kubelogin-oidc
     pkgs.nixpkgs-fmt
     pkgs.openssl
-    (pkgs.haskellPackages.ormolu_0_7_4_0.overrideScope (hself: _hsuper: {ghc-lib-parser = hself.ghc-lib-parser_9_8_2_20240223;}))
+    (pkgs.haskellPackages.ormolu_0_7_4_0.overrideScope (hself: _hsuper: { ghc-lib-parser = hself.ghc-lib-parser_9_8_2_20240223; }))
     pkgs.shellcheck
     pkgs.treefmt
     pkgs.gawk

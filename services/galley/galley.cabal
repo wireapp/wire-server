@@ -388,7 +388,7 @@ executable galley
 
 executable galley-integration
   import:             common-all
-  ghc-options: -Wno-x-partial -threaded -with-rtsopts=-N -rtsopts
+  ghc-options:        -Wno-x-partial -threaded -with-rtsopts=-N -rtsopts
   main-is:            ../integration.hs
 
   -- cabal-fmt: expand test/integration
