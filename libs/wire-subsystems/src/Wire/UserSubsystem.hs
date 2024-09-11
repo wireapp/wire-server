@@ -80,6 +80,8 @@ data UserSubsystem m a where
   GetLocalUserProfiles :: Local [UserId] -> UserSubsystem m [UserProfile]
   -- | given a lookup criteria record ('GetBy'), return the union of the user accounts fulfilling that criteria
   GetExtendedAccountsBy :: Local GetBy -> UserSubsystem m [ExtendedUserAccount]
+  -- | given a local user id, return a UserAccount
+  GetLocalAccount :: Local UserId -> UserSubsystem m (Maybe UserAccount)
   -- | Self profile contains things not present in Profile.
   GetSelfProfile :: Local UserId -> UserSubsystem m (Maybe SelfProfile)
   -- | These give us partial success and hide concurrency in the interpreter.

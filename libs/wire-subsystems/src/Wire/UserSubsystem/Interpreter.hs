@@ -101,6 +101,7 @@ interpretUserSubsystem = interpret \case
   GetUserProfiles self others -> getUserProfilesImpl self others
   GetLocalUserProfiles others -> getLocalUserProfilesImpl others
   GetExtendedAccountsBy getBy -> getExtendedAccountsByImpl getBy
+  GetLocalAccount luid -> getLocalAccountImpl luid
   GetSelfProfile self -> getSelfProfileImpl self
   GetUserProfilesWithErrors self others -> getUserProfilesWithErrorsImpl self others
   UpdateUserProfile self mconn mb update -> updateUserProfileImpl self mconn mb update
@@ -490,6 +491,18 @@ checkHandlesImpl check num = reverse <$> collectFree [] check num
           case owner of
             Nothing -> collectFree (h : free) hs (n - 1)
             Just _ -> collectFree free hs n
+
+getLocalAccountImpl ::
+  forall r.
+  ( Member UserStore r,
+    Member (Input UserSubsystemConfig) r
+  ) =>
+  Local UserId ->
+  Sem r (Maybe UserAccount)
+getLocalAccountImpl (tSplit -> (domain, uid)) = do
+  cfg <- input
+  muser <- getUser uid
+  pure $ (mkAccountFromStored domain cfg.defaultLocale) <$> muser
 
 --------------------------------------------------------------------------------
 -- getting user accounts by different criteria
