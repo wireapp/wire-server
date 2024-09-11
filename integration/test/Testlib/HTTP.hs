@@ -4,6 +4,7 @@ import qualified Control.Exception as E
 import Control.Monad.Reader
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
+import Data.Bifunctor (Bifunctor (bimap))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as L
@@ -23,6 +24,7 @@ import GHC.Stack
 import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Types (hLocation)
 import qualified Network.HTTP.Types as HTTP
+import Network.HTTP.Types.URI (parseQuery)
 import Network.URI (URI (..), URIAuth (..), parseURI)
 import Testlib.Assertions
 import Testlib.Env
@@ -217,3 +219,12 @@ locationHeader = findHeader hLocation
 
 findHeader :: HTTP.HeaderName -> Response -> Maybe (HTTP.HeaderName, ByteString)
 findHeader name resp = find (\(name', _) -> name == name') resp.headers
+
+getQueryParam :: String -> String -> Maybe (Maybe String)
+getQueryParam name url =
+  parseURI url
+    >>= lookup name
+      . fmap (bimap cs ((<$>) cs))
+      . parseQuery
+      . cs
+      . uriQuery

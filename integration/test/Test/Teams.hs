@@ -23,9 +23,6 @@ import API.Galley (getTeamMembers)
 import API.GalleyInternal (setTeamFeatureStatus)
 import Control.Monad.Codensity (Codensity (runCodensity))
 import Control.Monad.Reader (asks)
-import Data.String.Conversions (cs)
-import Network.HTTP.Types.URI (parseQuery)
-import Network.URI (URI (uriQuery), parseURI)
 import Notifications (isUserUpdatedNotif)
 import SetupHelpers
 import Testlib.JSON
@@ -91,12 +88,3 @@ testInvitePersonalUserToTeam = do
           document <- resp.json %. "documents" >>= asList >>= assertOne
           document %. "id" `shouldMatch` uid
           document %. "team" `shouldMatch` tid
-
-getQueryParam :: String -> String -> Maybe (Maybe String)
-getQueryParam name url =
-  parseURI url
-    >>= lookup name
-    . fmap (bimap cs ((<$>) cs))
-    . parseQuery
-    . cs
-    . uriQuery
