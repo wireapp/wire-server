@@ -343,7 +343,6 @@ brig:
       -----BEGIN PRIVATE KEY-----
       MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgokD9kGYErMooLqpv
       IRUVCtV1l6HmtqTJUFun0/4XLuahRANCAASWH/qkgOLwZz1GvEt0ch4HPRQUoj9U
-      TL8L7QANF9JztsEQ2omrX9l7RoosjAm+PKwrL+c3GiT63CSd1qrUpoZa
       -----END PRIVATE KEY-----
 ```
 
