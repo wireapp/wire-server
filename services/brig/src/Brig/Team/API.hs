@@ -265,10 +265,7 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail invRequest = do
   lift $ do
     iid <- maybe (liftIO DB.mkInvitationId) (pure . Id . toUUID) mUid
     now <- liftIO =<< view currentTime
-    timeout <-
-      if isPersonalUserMigration
-        then pure $ Timeout $ nominalDay * 2 -- todo(Leif): read from settings?
-        else setTeamInvitationTimeout <$> view settings
+    timeout <- setTeamInvitationTimeout <$> view settings
     code <- liftIO $ DB.mkInvitationCode
     mUrl <-
       wrapClient $
