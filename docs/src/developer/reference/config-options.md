@@ -332,6 +332,36 @@ mlsE2EId:
     lockStatus: unlocked
 ```
 
+#### Key for DPoP access token signing
+
+The key for signing DPoP access tokens has to be configured at path `brig.secrets.dpopSigKeyBundle` e.g. as follows:
+
+```yaml
+brig:
+  secrets:
+    dpopSigKeyBundle: |
+      -----BEGIN PRIVATE KEY-----
+      MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgokD9kGYErMooLqpv
+      IRUVCtV1l6HmtqTJUFun0/4XLuahRANCAASWH/qkgOLwZz1GvEt0ch4HPRQUoj9U
+      TL8L7QANF9JztsEQ2omrX9l7RoosjAm+PKwrL+c3GiT63CSd1qrUpoZa
+      -----END PRIVATE KEY-----
+```
+
+The corresponding public key has to be known by the ACME server.
+
+The key must be an ECDSA P-256 key and can be created with the following `openssl` command:
+
+```shell
+openssl genpkey -algorithm ec -pkeyopt ec_paramgen_curve:P-256 --out private.pem
+```
+
+To get the public key run:
+
+```shell
+openssl ec -in private.pem -pubout --out public.pem
+```
+
+
 ### Federation Domain
 
 Regardless of whether a backend wants to enable federation or not, the operator
