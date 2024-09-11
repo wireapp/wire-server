@@ -16,6 +16,10 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.Run (run, mkApp) where
+  ( run,
+    mkApp,
+  )
+where
 
 import AWS.Util (readAuthExpiration)
 import Brig.API.Federation
