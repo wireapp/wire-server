@@ -47,19 +47,19 @@ sendInvitationMail to tid from code loc = do
   let mail = InvitationEmail to tid code from
   liftSem $ sendMail $ renderInvitationEmail mail tpl branding
 
-sendMemberWelcomeMail :: (Member EmailSending r) => EmailAddress -> TeamId -> Text -> Maybe Locale -> (AppT r) ()
-sendMemberWelcomeMail to tid teamName loc = do
-  tpl <- memberWelcomeEmail . snd <$> teamTemplates loc
-  branding <- view templateBranding
-  let mail = MemberWelcomeEmail to tid teamName
-  liftSem $ sendMail $ renderMemberWelcomeMail mail tpl branding
-
 sendInvitationMailPersonalUser :: (Member EmailSending r) => EmailAddress -> TeamId -> EmailAddress -> InvitationCode -> Maybe Locale -> (AppT r) ()
 sendInvitationMailPersonalUser to tid from code loc = do
   tpl <- existingUserInvitationEmail . snd <$> teamTemplates loc
   branding <- view templateBranding
   let mail = InvitationEmail to tid code from
   liftSem $ sendMail $ renderInvitationEmail mail tpl branding
+
+sendMemberWelcomeMail :: (Member EmailSending r) => EmailAddress -> TeamId -> Text -> Maybe Locale -> (AppT r) ()
+sendMemberWelcomeMail to tid teamName loc = do
+  tpl <- memberWelcomeEmail . snd <$> teamTemplates loc
+  branding <- view templateBranding
+  let mail = MemberWelcomeEmail to tid teamName
+  liftSem $ sendMail $ renderMemberWelcomeMail mail tpl branding
 
 -------------------------------------------------------------------------------
 -- Invitation Email
