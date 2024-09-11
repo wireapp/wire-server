@@ -585,7 +585,7 @@ listActivatedAccountsH
       dom <- input
       getExtendedAccountsBy $
         dom
-          $> MkGetBy
+          $> def
             { includePendingInvitations = include,
               getByUserIds = uids,
               getByEmail = emails,

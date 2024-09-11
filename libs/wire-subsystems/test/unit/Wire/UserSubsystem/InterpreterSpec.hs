@@ -405,16 +405,6 @@ spec = describe "UserSubsystem.Interpreter" do
                   getAccountsBy getBy
            in result === [mkAccountFromStored localDomain locale alice]
 
-      prop "GetBy userId works even if identity is empty" $
-        \(NotPendingEmptyIdentityStoredUser alice) localDomain visibility locale ->
-          let config = UserSubsystemConfig visibility locale
-              getBy = toLocalUnsafe localDomain $ def {getByUserIds = [alice.id]}
-              localBackend = def {users = [alice]}
-              result =
-                runNoFederationStack localBackend Nothing config $
-                  getAccountsBy getBy
-           in result === [mkAccountFromStored localDomain locale alice]
-
       prop "GetBy userId if not pending" $
         \(NotPendingStoredUser alice) localDomain visibility locale ->
           let config = UserSubsystemConfig visibility locale

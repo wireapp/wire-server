@@ -505,7 +505,7 @@ getExtendedAccountsByImpl ::
   ) =>
   Local GetBy ->
   Sem r [ExtendedUserAccount]
-getExtendedAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations, getByEmail, getByHandle, getByUserIds})) = do
+getExtendedAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations, includeNoIdentity, getByEmail, getByHandle, getByUserIds})) = do
   storedToExtAcc <- do
     config <- input
     pure $ mkExtendedAccountFromStored domain config.defaultLocale
@@ -532,7 +532,7 @@ getExtendedAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations
     want :: ExtendedUserAccount -> Sem r Bool
     want ExtendedUserAccount {account} =
       case account.accountUser.userIdentity of
-        Nothing -> pure False
+        Nothing -> pure includeNoIdentity
         Just ident -> case account.accountStatus of
           PendingInvitation ->
             if includePendingInvitations

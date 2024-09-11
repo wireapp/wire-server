@@ -74,7 +74,7 @@ onEvent n = handleTimeout $ case n of
       msg (val "Processing user delete event")
         ~~ field "user" (toByteString uid)
     luid <- qualifyLocal' uid
-    getLocalUserAccount luid True >>= mapM_ API.deleteAccount
+    getLocalUserAccount True True luid >>= mapM_ API.deleteAccount
     -- As user deletions are expensive resource-wise in the context of
     -- bulk user deletions (e.g. during team deletions),
     -- wait 'delay' ms before processing the next event

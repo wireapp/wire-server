@@ -109,7 +109,7 @@ import Data.Qualified
 import Data.Range
 import Data.Time.Clock (UTCTime, addUTCTime)
 import Data.UUID.V4 (nextRandom)
-import Imports hiding (local)
+import Imports
 import Network.Wai.Utilities
 import Polysemy
 import Polysemy.Input (Input)
@@ -297,10 +297,11 @@ createUser new = do
   let mbInv = (.invitationId) . fst <$> teamInvitation
   mbExistingAccount <-
     lift $
-      join <$> for mbInv do
-        \invid -> liftSem $ do
-          luid :: Local UserId <- qualifyLocal' (coerce invid)
-          User.getLocalUserAccount luid True
+      join
+        <$> for mbInv do
+          \invid -> liftSem $ do
+            luid :: Local UserId <- qualifyLocal' (coerce invid)
+            User.getLocalUserAccount True False luid
 
   let (new', mbHandle) = case mbExistingAccount of
         Nothing ->
@@ -896,7 +897,7 @@ deleteSelfUser ::
   Maybe PlainTextPassword6 ->
   ExceptT DeleteUserError (AppT r) (Maybe Timeout)
 deleteSelfUser luid@(tUnqualified -> uid) pwd = do
-  account <- lift . liftSem $ User.getLocalUserAccount luid False
+  account <- lift . liftSem $ User.getLocalUserAccount False False luid
   case account of
     Nothing -> throwE DeleteUserInvalid
     Just a -> case accountStatus a of
@@ -973,7 +974,7 @@ verifyDeleteUser d = do
   c <- lift . liftSem $ verifyCode key VerificationCode.AccountDeletion code
   a <- maybe (throwE DeleteUserInvalidCode) pure (VerificationCode.codeAccount =<< c)
   luid <- qualifyLocal $ Id a
-  account <- lift . liftSem $ User.getLocalUserAccount luid False
+  account <- lift . liftSem $ User.getLocalUserAccount False True luid
   for_ account $ lift . liftSem . deleteAccount
   lift . liftSem $ deleteCode key VerificationCode.AccountDeletion
 
@@ -997,7 +998,7 @@ ensureAccountDeleted ::
   Local UserId ->
   AppT r DeleteUserResult
 ensureAccountDeleted luid@(tUnqualified -> uid) = do
-  mbAcc <- liftSem $ User.getLocalUserAccount luid False
+  mbAcc <- liftSem $ User.getLocalUserAccount False True luid
   case mbAcc of
     Nothing -> pure NoUser
     Just acc -> do
@@ -1130,7 +1131,10 @@ getLegalHoldStatus ::
   ) =>
   Local UserId ->
   AppT r (Maybe UserLegalHoldStatus)
-getLegalHoldStatus uid = liftSem $ traverse (getLegalHoldStatus' . accountUser) =<< User.getLocalUserAccount uid False
+getLegalHoldStatus uid =
+  liftSem $
+    traverse (getLegalHoldStatus' . accountUser)
+      =<< User.getLocalUserAccount False False uid
 
 getLegalHoldStatus' ::
   (Member GalleyAPIAccess r) =>

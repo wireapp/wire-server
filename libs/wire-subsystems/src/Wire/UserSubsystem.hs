@@ -58,6 +58,8 @@ instance Default UserProfileUpdate where
 data GetBy = MkGetBy
   { -- | whether or not to include pending invitations in the lookups
     includePendingInvitations :: Bool,
+    -- | Include users with no identity yet, used for activation
+    includeNoIdentity :: Bool,
     -- | get accounts by 'UserId's
     getByUserIds :: [UserId],
     -- | get accounts by 'Email's
@@ -69,7 +71,7 @@ data GetBy = MkGetBy
   deriving (Arbitrary) via GenericUniform GetBy
 
 instance Default GetBy where
-  def = MkGetBy False [] [] []
+  def = MkGetBy False False [] [] []
 
 data UserSubsystem m a where
   -- | First arg is for authorization only.
@@ -120,21 +122,23 @@ getLocalUserProfile :: (Member UserSubsystem r) => Local UserId -> Sem r (Maybe 
 getLocalUserProfile targetUser =
   listToMaybe <$> getLocalUserProfiles ((: []) <$> targetUser)
 
+-- TODO: Remove boolean blindness
 getLocalUserAccount ::
   (Member UserSubsystem r) =>
-  Local UserId ->
-  -- TODO: Remove boolean blindness
-
   -- | Include pending invitations or not
   Bool ->
+  -- | Include users without identity
+  Bool ->
+  Local UserId ->
   Sem r (Maybe UserAccount)
-getLocalUserAccount uid includePendingInvitations =
+getLocalUserAccount includePendingInvitations includeNoIdentity uid =
   listToMaybe
     <$> getAccountsBy
       ( qualifyAs uid $
           def
             { getByUserIds = [tUnqualified uid],
-              includePendingInvitations
+              includePendingInvitations,
+              includeNoIdentity
             }
       )
 
