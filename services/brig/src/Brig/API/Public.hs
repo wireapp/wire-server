@@ -74,6 +74,7 @@ import Data.Domain
 import Data.FileEmbed
 import Data.Handle (Handle)
 import Data.Handle qualified as Handle
+import Data.HavePendingInvitations
 import Data.Id
 import Data.Id qualified as Id
 import Data.List.NonEmpty (nonEmpty)
@@ -634,7 +635,7 @@ getRichInfo lself user = do
   -- other user
   let fetch luid =
         ifNothing (errorToWai @'E.UserNotFound)
-          =<< lift (liftSem $ (.accountUser) <$$> User.getLocalUserAccount False False luid)
+          =<< lift (liftSem $ (.accountUser) <$$> User.getLocalAccountBy NoPendingInvitations luid)
   selfUser <- fetch lself
   otherUser <- fetch luser
   case (Public.userTeam selfUser, Public.userTeam otherUser) of
@@ -1321,7 +1322,7 @@ sendVerificationCode req = do
     getAccount email = lift . liftSem $ do
       mbUserId <- lookupKey $ mkEmailKey email
       mbLUserId <- qualifyLocal' `traverse` mbUserId
-      join <$> (User.getLocalUserAccount False True) `traverse` mbLUserId
+      join <$> User.getLocalAccount `traverse` mbLUserId
 
     sendMail :: Public.EmailAddress -> Code.Value -> Maybe Public.Locale -> Public.VerificationAction -> (Handler r) ()
     sendMail email value mbLocale =

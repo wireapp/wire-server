@@ -518,7 +518,7 @@ getExtendedAccountsByImpl ::
   ) =>
   Local GetBy ->
   Sem r [ExtendedUserAccount]
-getExtendedAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations, includeNoIdentity, getByEmail, getByHandle, getByUserIds})) = do
+getExtendedAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations, getByEmail, getByHandle, getByUserIds})) = do
   storedToExtAcc <- do
     config <- input
     pure $ mkExtendedAccountFromStored domain config.defaultLocale
@@ -534,7 +534,6 @@ getExtendedAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations
     mactiveUid <- lookupKey ek
     getUsers (nubOrd . catMaybes $ [mactiveUid])
       <&> map storedToExtAcc
-      >>= filterM want
 
   pure (nubOrd $ accsByIds <> accsByEmail)
   where
@@ -545,11 +544,11 @@ getExtendedAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations
     want :: ExtendedUserAccount -> Sem r Bool
     want ExtendedUserAccount {account} =
       case account.accountUser.userIdentity of
-        Nothing -> pure includeNoIdentity
+        Nothing -> pure False
         Just ident -> case account.accountStatus of
           PendingInvitation ->
-            if includePendingInvitations
-              then case emailIdentity ident of
+            case includePendingInvitations of
+              WithPendingInvitations -> case emailIdentity ident of
                 -- TODO(fisx): emailIdentity does not return an unvalidated address in case a
                 -- validated one cannot be found.  that's probably wrong?  split up into
                 -- validEmailIdentity, anyEmailIdentity?
@@ -558,7 +557,7 @@ getExtendedAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations
                   gcHack hasInvitation (userId account.accountUser)
                   pure hasInvitation
                 Nothing -> error "getExtendedAccountsByImpl: should never happen, user invited via scim always has an email"
-              else pure False
+              NoPendingInvitations -> pure False
           Active -> pure True
           Suspended -> pure True
           Deleted -> pure True -- TODO(mangoiv): previous comment said "We explicitly filter out deleted users now." Why?

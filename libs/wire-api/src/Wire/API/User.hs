@@ -121,7 +121,6 @@ module Wire.API.User
     GetPasswordResetCodeResp (..),
     CheckBlacklistResponse (..),
     ManagedByUpdate (..),
-    HavePendingInvitations (..),
     RichInfoUpdate (..),
     PasswordResetPair,
     UpdateSSOIdResponse (..),
@@ -307,11 +306,6 @@ instance ToSchema ManagedByUpdate where
     object "ManagedByUpdate" $
       ManagedByUpdate
         <$> mbuManagedBy .= field "managed_by" schema
-
-data HavePendingInvitations
-  = WithPendingInvitations
-  | NoPendingInvitations
-  deriving (Eq, Show, Generic)
 
 newtype RichInfoUpdate = RichInfoUpdate {riuRichInfo :: RichInfoAssocList}
   deriving (Eq, Show, Generic)

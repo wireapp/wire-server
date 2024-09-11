@@ -78,6 +78,7 @@
 , wai-utilities
 , warp
 , wire-api
+, wire-subsystems
 , xml-conduit
 , yaml
 , zauth
@@ -138,6 +139,7 @@ mkDerivation {
     wai-utilities
     warp
     wire-api
+    wire-subsystems
     yaml
   ];
   executableHaskellDepends = [

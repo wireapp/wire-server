@@ -50,6 +50,7 @@ import Cassandra as Cas
 import Control.Lens hiding ((.=))
 import qualified Data.ByteString as SBS
 import Data.ByteString.Builder (toLazyByteString)
+import Data.HavePendingInvitations
 import Data.Id
 import Data.Proxy
 import Data.Range

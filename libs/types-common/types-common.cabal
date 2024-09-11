@@ -19,6 +19,7 @@ library
     Data.Domain
     Data.ETag
     Data.Handle
+    Data.HavePendingInvitations
     Data.Id
     Data.Json.Util
     Data.LegalHold

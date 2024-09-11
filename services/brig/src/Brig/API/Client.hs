@@ -75,6 +75,7 @@ import Data.ByteString (toStrict)
 import Data.ByteString.Conversion
 import Data.Code as Code
 import Data.Domain
+import Data.HavePendingInvitations
 import Data.Id (ClientId, ConnId, UserId)
 import Data.List.Split (chunksOf)
 import Data.Map.Strict qualified as Map
@@ -203,7 +204,7 @@ addClientWithReAuthPolicy ::
   NewClient ->
   ExceptT ClientError (AppT r) Client
 addClientWithReAuthPolicy policy luid@(tUnqualified -> u) con new = do
-  usr <- (lift . liftSem $ User.getLocalUserAccount False False luid) >>= maybe (throwE (ClientUserNotFound u)) (pure . (.accountUser))
+  usr <- (lift . liftSem $ User.getLocalAccount luid) >>= maybe (throwE (ClientUserNotFound u)) (pure . (.accountUser))
   verifyCode (newClientVerificationCode new) luid
   maxPermClients <- fromMaybe Opt.defUserMaxPermClients . Opt.setUserMaxPermClients <$> view settings
   let caps :: Maybe (Set ClientCapability)

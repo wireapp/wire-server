@@ -65,6 +65,7 @@ import Data.CommaSeparatedList
 import Data.Default
 import Data.Domain (Domain)
 import Data.Handle
+import Data.HavePendingInvitations
 import Data.Id as Id
 import Data.Map.Strict qualified as Map
 import Data.Qualified
@@ -578,7 +579,7 @@ listActivatedAccountsH
   (maybe [] fromCommaSeparatedList -> uids)
   (maybe [] fromCommaSeparatedList -> handles)
   (maybe [] (fromCommaSeparatedList . fmap mkEmailKey) -> emails)
-  (fromMaybe False -> include) = do
+  (maybe NoPendingInvitations fromBool -> include) = do
     when (length uids + length handles + length emails == 0) $ do
       throwStd (notFound "no user keys")
     lift $ liftSem do

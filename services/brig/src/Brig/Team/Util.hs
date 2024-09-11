@@ -20,9 +20,9 @@ module Brig.Team.Util where -- TODO: remove this module and move contents to Bri
 import Brig.API.Error
 import Brig.App
 import Brig.Data.User qualified as Data
-import Brig.Types.User (HavePendingInvitations (NoPendingInvitations))
 import Control.Error
 import Control.Lens
+import Data.HavePendingInvitations
 import Data.Id
 import Data.Set qualified as Set
 import Imports

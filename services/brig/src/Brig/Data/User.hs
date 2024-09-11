@@ -71,6 +71,7 @@ import Control.Lens hiding (from)
 import Data.Conduit (ConduitM)
 import Data.Domain
 import Data.Handle (Handle)
+import Data.HavePendingInvitations
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Misc

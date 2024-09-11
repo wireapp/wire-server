@@ -1,10 +1,15 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Wire.UserSubsystem where
+module Wire.UserSubsystem
+  ( module Wire.UserSubsystem,
+    module Data.HavePendingInvitations,
+  )
+where
 
 import Data.Default
 import Data.Handle (Handle)
+import Data.HavePendingInvitations
 import Data.Id
 import Data.Qualified
 import Imports
@@ -57,9 +62,7 @@ instance Default UserProfileUpdate where
 -- | how to get an account for a user
 data GetBy = MkGetBy
   { -- | whether or not to include pending invitations in the lookups
-    includePendingInvitations :: Bool,
-    -- | Include users with no identity yet, used for activation
-    includeNoIdentity :: Bool,
+    includePendingInvitations :: HavePendingInvitations,
     -- | get accounts by 'UserId's
     getByUserIds :: [UserId],
     -- | get accounts by 'Email's
@@ -71,7 +74,7 @@ data GetBy = MkGetBy
   deriving (Arbitrary) via GenericUniform GetBy
 
 instance Default GetBy where
-  def = MkGetBy False False [] [] []
+  def = MkGetBy NoPendingInvitations [] [] []
 
 data UserSubsystem m a where
   -- | First arg is for authorization only.
@@ -125,22 +128,18 @@ getLocalUserProfile targetUser =
   listToMaybe <$> getLocalUserProfiles ((: []) <$> targetUser)
 
 -- TODO: Remove boolean blindness
-getLocalUserAccount ::
+getLocalAccountBy ::
   (Member UserSubsystem r) =>
-  -- | Include pending invitations or not
-  Bool ->
-  -- | Include users without identity
-  Bool ->
+  HavePendingInvitations ->
   Local UserId ->
   Sem r (Maybe UserAccount)
-getLocalUserAccount includePendingInvitations includeNoIdentity uid =
+getLocalAccountBy includePendingInvitations uid =
   listToMaybe
     <$> getAccountsBy
       ( qualifyAs uid $
           def
             { getByUserIds = [tUnqualified uid],
-              includePendingInvitations,
-              includeNoIdentity
+              includePendingInvitations
             }
       )
 
@@ -157,7 +156,7 @@ getLocalUserAccountByUserKey email =
     <$> getAccountsBy
       ( qualifyAs email $
           def
-            { includePendingInvitations = True,
+            { includePendingInvitations = WithPendingInvitations,
               getByEmail = [tUnqualified email]
             }
       )

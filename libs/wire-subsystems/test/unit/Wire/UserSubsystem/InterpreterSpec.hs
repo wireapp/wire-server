@@ -288,7 +288,7 @@ spec = describe "UserSubsystem.Interpreter" do
                   def
                     { getByUserIds = [alice.id],
                       -- Do not rely on default behaviour
-                      includePendingInvitations = False
+                      includePendingInvitations = NoPendingInvitations
                     }
               localBackend = def {users = [alice]}
               result =
@@ -309,7 +309,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 toLocalUnsafe localDomain $
                   def
                     { getByUserIds = [alice.id],
-                      includePendingInvitations = True
+                      includePendingInvitations = WithPendingInvitations
                     }
               localBackend =
                 def
@@ -351,26 +351,26 @@ spec = describe "UserSubsystem.Interpreter" do
                   getAccountsBy getBy
            in result === [mkAccountFromStored localDomain locale alice]
 
-      prop "GetBy email pending fails even if explicit when no invitation" $
-        \(PendingNotEmptyIdentityStoredUser alice') email localDomain visibility locale ->
-          let config = UserSubsystemConfig visibility locale
-              emailKey = mkEmailKey email
-              getBy =
-                toLocalUnsafe localDomain $
-                  def
-                    { getByEmail = [emailKey],
-                      includePendingInvitations = True
-                    }
-              alice = alice' {email = Just email}
-              localBackend =
-                def
-                  { users = [alice],
-                    userKeys = Map.singleton emailKey alice.id
-                  }
-              result =
-                runNoFederationStack localBackend Nothing config $
-                  getAccountsBy getBy
-           in result === []
+      -- prop "GetBy email does not filter by validity" $
+      --   \alice' email localDomain visibility locale ->
+      --     let config = UserSubsystemConfig visibility locale
+      --         emailKey = mkEmailKey email
+      --         getBy =
+      --           toLocalUnsafe localDomain $
+      --             def
+      --               { getByEmail = [emailKey]
+      --               }
+      --         alice = alice' {email = Just email}
+      --         localBackend =
+      --           def
+      --             { users = [alice],
+      --               userKeys = Map.singleton emailKey alice.id
+      --             }
+      --         result =
+      --           runNoFederationStack localBackend Nothing config $
+      --             getAccountsBy getBy
+      --      in result === [mkAccountFromStored alice']
+
       prop "GetBy email pending works if explicit" $
         \(PendingNotEmptyIdentityStoredUser alice') teamId email localDomain invitationInfo visibility locale ->
           let config = UserSubsystemConfig visibility locale
@@ -379,7 +379,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 toLocalUnsafe localDomain $
                   def
                     { getByEmail = [emailKey],
-                      includePendingInvitations = True
+                      includePendingInvitations = WithPendingInvitations
                     }
               alice =
                 alice'
@@ -413,7 +413,7 @@ spec = describe "UserSubsystem.Interpreter" do
                   def
                     { getByUserIds = [alice.id],
                       -- We don't care about user status, only if the email is there.
-                      includePendingInvitations = True
+                      includePendingInvitations = WithPendingInvitations
                     }
               localBackend = def {users = [alice]}
               result =
@@ -430,7 +430,7 @@ spec = describe "UserSubsystem.Interpreter" do
                   def
                     { getByEmail = [mkEmailKey email],
                       -- We don't care about user status, only if the email is there.
-                      includePendingInvitations = True
+                      includePendingInvitations = WithPendingInvitations
                     }
               localBackend =
                 def

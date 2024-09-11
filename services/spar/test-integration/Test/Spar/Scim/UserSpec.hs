@@ -30,7 +30,6 @@ where
 
 import Bilge
 import Bilge.Assert
-import Brig.Types.User as Brig
 import qualified Control.Exception
 import Control.Lens
 import Control.Monad.Except (MonadError (throwError))
@@ -46,6 +45,7 @@ import Data.ByteString.Conversion
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Csv as Csv
 import Data.Handle (Handle, fromHandle, parseHandle, parseHandleEither)
+import Data.HavePendingInvitations
 import Data.Id (TeamId, UserId, randomId)
 import Data.Ix (inRange)
 import Data.LanguageCodes (ISO639_1 (..))

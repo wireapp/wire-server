@@ -43,7 +43,6 @@ import Brig.Provider.DB qualified as DB
 import Brig.Provider.Email
 import Brig.Provider.RPC qualified as RPC
 import Brig.Team.Util
-import Brig.Types.User
 import Brig.ZAuth qualified as ZAuth
 import Cassandra (MonadClient)
 import Control.Error (throwE)
@@ -58,6 +57,7 @@ import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
 import Data.Conduit (runConduit, (.|))
 import Data.Conduit.List qualified as C
 import Data.Hashable (hash)
+import Data.HavePendingInvitations
 import Data.Id
 import Data.LegalHold
 import Data.List qualified as List
