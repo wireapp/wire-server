@@ -239,7 +239,7 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail invRequest = do
   when blacklistedEm $
     throwStd blacklistedEmail
   emailTaken <- lift $ liftSem $ isJust <$> lookupKey uke
-  migratePersonalUser <-
+  isPersonalUserMigration <-
     if emailTaken
       then do
         mAccount <- lift $ liftSem $ getLocalUserAccountByUserKey =<< qualifyLocal' uke
@@ -252,7 +252,7 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail invRequest = do
       else pure False
 
   when emailTaken $
-    unless migratePersonalUser $
+    unless isPersonalUserMigration $
       throwStd emailExists
 
   maxSize <- setMaxTeamSize <$> view settings
@@ -266,13 +266,13 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail invRequest = do
     iid <- maybe (liftIO DB.mkInvitationId) (pure . Id . toUUID) mUid
     now <- liftIO =<< view currentTime
     timeout <-
-      if migratePersonalUser
+      if isPersonalUserMigration
         then pure $ Timeout $ nominalDay * 2 -- todo(Leif): read from settings?
         else setTeamInvitationTimeout <$> view settings
     code <- liftIO $ DB.mkInvitationCode
     mUrl <-
       wrapClient $
-        if migratePersonalUser
+        if isPersonalUserMigration
           then DB.mkInviteUrlPersonalUser showInvitationUrl tid code
           else DB.mkInviteUrl showInvitationUrl tid code
     newInv <-
@@ -288,7 +288,7 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail invRequest = do
           invRequest.inviteeName
           timeout
           mUrl
-    if migratePersonalUser
+    if isPersonalUserMigration
       then sendInvitationMailPersonalUser email tid fromEmail code invRequest.locale
       else sendInvitationMail email tid fromEmail code invRequest.locale
     pure (newInv, code)
