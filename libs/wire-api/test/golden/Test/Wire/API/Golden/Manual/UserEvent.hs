@@ -33,6 +33,7 @@ module Test.Wire.API.Golden.Manual.UserEvent
     testObject_UserEvent_15,
     testObject_UserEvent_16,
     testObject_UserEvent_17,
+    testObject_UserEvent_18,
   )
 where
 
@@ -192,6 +193,27 @@ testObject_UserEvent_16 =
 testObject_UserEvent_17 :: Event
 testObject_UserEvent_17 = ClientEvent (ClientRemoved (ClientId 2839))
 
+testObject_UserEvent_18 :: Event
+testObject_UserEvent_18 =
+  UserEvent
+    ( UserUpdated
+        ( UserUpdatedData
+            (userId alice)
+            (Just alice.userDisplayName)
+            alice.userTextStatus
+            (Just alice.userPict)
+            (Just alice.userAccentId)
+            (Just alice.userAssets)
+            alice.userHandle
+            (Just alice.userLocale)
+            (Just alice.userManagedBy)
+            Nothing
+            False
+            (Just mempty)
+            alice.userTeam
+        )
+    )
+
 --------------------------------------------------------------------------------
 
 alice :: User
@@ -217,7 +239,7 @@ alice =
       userService = Nothing,
       userHandle = Nothing,
       userExpire = Nothing,
-      userTeam = Nothing,
+      userTeam = Just $ Id (fromJust (UUID.fromString "bb843450-b2f5-4ec8-90bd-52c7d5f1d22e")),
       userManagedBy = ManagedByWire,
       userSupportedProtocols = defSupportedProtocols
     }
