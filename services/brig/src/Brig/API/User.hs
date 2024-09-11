@@ -900,7 +900,7 @@ deleteSelfUser ::
   Maybe PlainTextPassword6 ->
   ExceptT DeleteUserError (AppT r) (Maybe Timeout)
 deleteSelfUser luid@(tUnqualified -> uid) pwd = do
-  account <- lift . liftSem $ User.getLocalAccountBy NoPendingInvitations luid
+  account <- lift . liftSem $ User.getLocalAccount luid
   case account of
     Nothing -> throwE DeleteUserInvalid
     Just a -> case accountStatus a of
