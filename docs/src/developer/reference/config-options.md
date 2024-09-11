@@ -341,8 +341,7 @@ brig:
   secrets:
     dpopSigKeyBundle: |
       -----BEGIN PRIVATE KEY-----
-      MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgokD9kGYErMooLqpv
-      IRUVCtV1l6HmtqTJUFun0/4XLuahRANCAASWH/qkgOLwZz1GvEt0ch4HPRQUoj9U
+      MIGHAgEAMBMGByqGSM49....
       -----END PRIVATE KEY-----
 ```
 
