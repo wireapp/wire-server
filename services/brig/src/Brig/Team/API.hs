@@ -36,7 +36,7 @@ import Brig.Data.User as User
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.IO.Intra qualified as Intra
-import Brig.Options (Timeout (Timeout), setMaxTeamSize, setTeamInvitationTimeout)
+import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
 import Brig.Team.DB qualified as DB
 import Brig.Team.Email
 import Brig.Team.Util (ensurePermissionToAddUser, ensurePermissions)
@@ -50,7 +50,7 @@ import Data.List1 qualified as List1
 import Data.Qualified (Local, tUnqualified)
 import Data.Range
 import Data.Text.Lazy qualified as LT
-import Data.Time.Clock (UTCTime, nominalDay)
+import Data.Time.Clock (UTCTime)
 import Data.Tuple.Extra
 import Imports hiding (head)
 import Network.Wai.Utilities hiding (code, message)
