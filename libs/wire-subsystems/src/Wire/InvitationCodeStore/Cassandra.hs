@@ -93,12 +93,12 @@ lookupInvitationsPaginatedImpl mSize tid miid = do
     cqlSelect :: PrepQuery R (Identity TeamId) (TeamId, Maybe Role, InvitationId, UTCTimeMillis, Maybe UserId, EmailAddress, Maybe Name, InvitationCode)
     cqlSelect =
       [sql|
-      SELECT team, role, id, created_at, created_by, email, name, code FROM team_invitation WHERE team = ? ORDER BY id ASC 
+      SELECT team, role, id, created_at, created_by, email, name, code FROM team_invitation WHERE team = ? ORDER BY id ASC
       |]
     cqlSelectFrom :: PrepQuery R (TeamId, InvitationId) (TeamId, Maybe Role, InvitationId, UTCTimeMillis, Maybe UserId, EmailAddress, Maybe Name, InvitationCode)
     cqlSelectFrom =
-      [sql| 
-      SELECT team, role, id, created_at, created_by, email, name, code FROM team_invitation WHERE team = ? AND id > ? ORDER BY id ASC 
+      [sql|
+      SELECT team, role, id, created_at, created_by, email, name, code FROM team_invitation WHERE team = ? AND id > ? ORDER BY id ASC
       |]
 
 countInvitationsImpl :: TeamId -> Client (Int64)
@@ -115,7 +115,7 @@ lookupInvitationInfoImpl code =
   where
     cql :: PrepQuery R (Identity InvitationCode) (TupleType StoredInvitationInfo)
     cql =
-      [sql| 
+      [sql|
       SELECT  team, id, code FROM team_invitation_info WHERE code = ?
       |]
 
@@ -124,7 +124,7 @@ lookupInvitationCodesByEmailImpl email = map asRecord <$> retry x1 (query cql (p
   where
     cql :: PrepQuery R (Identity EmailAddress) (TeamId, InvitationId, InvitationCode)
     cql =
-      [sql| 
+      [sql|
       SELECT team, invitation, code FROM team_invitation_email WHERE email = ?
       |]
 
@@ -135,7 +135,7 @@ lookupInvitationImpl tid iid =
   where
     cql :: PrepQuery R (TeamId, InvitationId) (TupleType StoredInvitation)
     cql =
-      [sql| 
+      [sql|
       SELECT team, role, id, created_at, created_by, email, name, code FROM team_invitation WHERE team = ? AND id = ?
       |]
 
@@ -158,25 +158,25 @@ deleteInvitationImpl teamId invId = do
     cqlInvitation :: PrepQuery W (TeamId, InvitationId) ()
     cqlInvitation =
       [sql|
-        DELETE FROM team_invitation where team = ? AND id = ? 
+        DELETE FROM team_invitation where team = ? AND id = ?
       |]
 
     cqlInvitationInfo :: PrepQuery W (Identity InvitationCode) ()
     cqlInvitationInfo =
       [sql|
-        DELETE FROM team_invitation_info WHERE code = ? 
+        DELETE FROM team_invitation_info WHERE code = ?
       |]
 
     cqlInvitationEmail :: PrepQuery W (EmailAddress, TeamId) ()
     cqlInvitationEmail =
       [sql|
-        DELETE FROM team_invitation_email WHERE email = ? AND team = ? 
+        DELETE FROM team_invitation_email WHERE email = ? AND team = ?
       |]
 
     cqlInvitationCodeEmail :: PrepQuery R (TeamId, InvitationId) (InvitationCode, EmailAddress)
     cqlInvitationCodeEmail =
       [sql|
-        SELECT code, email FROM team_invitation WHERE team = ? AND id = ? 
+        SELECT code, email FROM team_invitation WHERE team = ? AND id = ?
       |]
 
 deleteInvitationsImpl :: TeamId -> Client ()
