@@ -3,15 +3,13 @@
 module Wire.MockInterpreters.InvitationCodeStore where
 
 import Data.Id (InvitationId, TeamId)
-import Data.Json.Util (toUTCTimeMillis)
 import Data.Map (elems, (!?))
 import Data.Map qualified as M
 import Imports
 import Polysemy
-import Polysemy.State (State, get, gets, modify')
+import Polysemy.State (State, get, gets)
 import Wire.API.User (InvitationCode (..))
 import Wire.InvitationCodeStore
-import Wire.InvitationCodeStore.Cassandra (mkInvitationCode)
 
 inMemoryInvitationCodeStoreInterpreter ::
   forall r.
