@@ -1560,6 +1560,7 @@ type TeamsAPI =
         :> CanThrow 'BlacklistedEmail
         :> CanThrow 'TooManyTeamInvitations
         :> CanThrow 'InsufficientTeamPermissions
+        :> CanThrow 'InvalidInvitationCode
         :> ZUser
         :> "teams"
         :> Capture "tid" TeamId

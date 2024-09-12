@@ -284,12 +284,8 @@ createUser new = do
   (mNewTeamUser, teamInvitation, tid) <-
     case newUserTeam new of
       Just (NewTeamMember i) -> do
-        mbTeamInv <- findTeamInvitation (mkEmailKey <$> email) i
-        case mbTeamInv of
-          Just (inv, info) ->
-            pure (Nothing, Just (inv, info), Just info.iiTeam)
-          Nothing ->
-            pure (Nothing, Nothing, Nothing)
+        (inv, info) <- findTeamInvitation (mkEmailKey <$> email) i
+        pure (Nothing, Just (inv, info), Just info.iiTeam)
       Just (NewTeamCreator t) -> do
         (Just t,Nothing,) <$> (Just . Id <$> liftIO nextRandom)
       Just (NewTeamMemberSSO tid) ->
@@ -451,7 +447,7 @@ createUser new = do
               !>> activationErrorToRegisterError
           pure Nothing
 
-findTeamInvitation :: (Member GalleyAPIAccess r) => Maybe EmailKey -> InvitationCode -> ExceptT RegisterError (AppT r) (Maybe (Team.Invitation, Team.InvitationInfo))
+findTeamInvitation :: (Member GalleyAPIAccess r) => Maybe EmailKey -> InvitationCode -> ExceptT RegisterError (AppT r) (Team.Invitation, Team.InvitationInfo)
 findTeamInvitation Nothing _ = throwE RegisterErrorMissingIdentity
 findTeamInvitation (Just e) c =
   lift (wrapClient $ Team.lookupInvitationInfo c) >>= \case
@@ -461,7 +457,7 @@ findTeamInvitation (Just e) c =
         (Just invite, Just em)
           | e == mkEmailKey em -> do
               _ <- ensureMemberCanJoin (Team.iiTeam ii)
-              pure $ Just (invite, ii)
+              pure (invite, ii)
         _ -> throwE RegisterErrorInvalidInvitationCode
     Nothing -> throwE RegisterErrorInvalidInvitationCode
   where

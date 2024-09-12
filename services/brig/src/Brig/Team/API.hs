@@ -416,21 +416,18 @@ acceptTeamInvitationByPersonalUser luid req = do
         mTid = mSelfProfile >>= userTeam . selfUser
     pure (mek, mTid)
   checkPassword
-  mInv <- API.findTeamInvitation mek req.code !>> toInvitationError
-  case mInv of
-    Nothing -> throwStd (errorToWai @'E.PendingInvitationNotFound)
-    Just (inv, DB.iiTeam -> tid) -> do
-      let minvmeta = ((,inCreatedAt inv) <$> inCreatedBy inv, inRole inv)
-          uid = tUnqualified luid
-      for_ mTid $ \userTid ->
-        unless (tid == userTid) $
-          throwStd (errorToWai @'E.CannotJoinMultipleTeams)
-      added <- lift $ liftSem $ GalleyAPIAccess.addTeamMember uid tid minvmeta
-      unless added $ throwStd (errorToWai @'E.TooManyTeamMembers)
-      lift $ do
-        wrapClient $ User.updateUserTeam uid tid
-        wrapClient $ DB.deleteInvitation inv.inTeam inv.inInvitation
-        liftSem $ Intra.onUserEvent uid Nothing (teamUpdated uid tid)
+  (inv, DB.iiTeam -> tid) <- API.findTeamInvitation mek req.code !>> toInvitationError
+  let minvmeta = ((,inCreatedAt inv) <$> inCreatedBy inv, inRole inv)
+      uid = tUnqualified luid
+  for_ mTid $ \userTid ->
+    unless (tid == userTid) $
+      throwStd (errorToWai @'E.CannotJoinMultipleTeams)
+  added <- lift $ liftSem $ GalleyAPIAccess.addTeamMember uid tid minvmeta
+  unless added $ throwStd (errorToWai @'E.TooManyTeamMembers)
+  lift $ do
+    wrapClient $ User.updateUserTeam uid tid
+    wrapClient $ DB.deleteInvitation inv.inTeam inv.inInvitation
+    liftSem $ Intra.onUserEvent uid Nothing (teamUpdated uid tid)
   where
     checkPassword = do
       p <-
@@ -443,4 +440,5 @@ acceptTeamInvitationByPersonalUser luid req = do
       RegisterErrorMissingIdentity -> StdError (errorToWai @'E.MissingIdentity)
       RegisterErrorInvalidActivationCodeWrongUser -> StdError (errorToWai @'E.InvalidActivationCodeWrongUser)
       RegisterErrorInvalidActivationCodeWrongCode -> StdError (errorToWai @'E.InvalidActivationCodeWrongCode)
+      RegisterErrorInvalidInvitationCode -> StdError (errorToWai @'E.InvalidInvitationCode)
       _ -> StdError (notFound "Something went wrong, while looking up the invitation")
