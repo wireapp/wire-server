@@ -279,7 +279,6 @@ spec = describe "UserSubsystem.Interpreter" do
                       )
                   ]
 
-    -- TODO: parameterise these tests, too much copy paste.
     describe "getAccountsBy" do
       prop "GetBy userId when pending fails if not explicitly allowed" $
         \(PendingNotEmptyIdentityStoredUser alice') email teamId invitationInfo localDomain visibility locale ->
