@@ -54,8 +54,8 @@ testInvitePersonalUserToTeam = do
         code <- getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
         queryParam <- inv %. "url" & asString <&> getQueryParam "team_code"
         queryParam `shouldMatch` Just (Just code)
-        acceptTeamInvitation user code (Just "wrong-password") >>= assertStatus 403
         acceptTeamInvitation user code Nothing >>= assertStatus 400
+        acceptTeamInvitation user code (Just "wrong-password") >>= assertStatus 403
         void $ withWebSockets [user] $ \wss -> do
           acceptTeamInvitation user code (Just defPassword) >>= assertSuccess
           for wss $ \ws -> do
