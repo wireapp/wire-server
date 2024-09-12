@@ -36,7 +36,6 @@ module Util.Core
 
     -- * Test helpers
     it,
-    fit,
     pending,
     pendingWith,
     shouldRespondWith,
@@ -186,7 +185,7 @@ import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
 import qualified System.Logger.Extended as Log
 import System.Random (randomRIO)
-import Test.Hspec hiding (fit, it, pending, pendingWith, xit)
+import Test.Hspec hiding (it, pending, pendingWith, xit)
 import qualified Test.Hspec
 import qualified Text.XML as XML
 import qualified Text.XML.Cursor as XML
@@ -293,15 +292,6 @@ it ::
   TestSpar () ->
   SpecWith TestEnv
 it msg bdy = Test.Hspec.it msg $ runReaderT bdy
-
-fit ::
-  (HasCallStack) =>
-  -- or, more generally:
-  -- MonadIO m, Example (TestEnv -> m ()), Arg (TestEnv -> m ()) ~ TestEnv
-  String ->
-  TestSpar () ->
-  SpecWith TestEnv
-fit msg bdy = Test.Hspec.fit msg $ runReaderT bdy
 
 pending :: (HasCallStack, MonadIO m) => m ()
 pending = liftIO Test.Hspec.pending

@@ -147,13 +147,6 @@ getLocalAccountBy includePendingInvitations uid =
             }
       )
 
-getLocalExtendedAccounts :: (Member UserSubsystem r) => Local [UserId] -> Sem r [ExtendedUserAccount]
-getLocalExtendedAccounts uids = do
-  getExtendedAccountsBy
-    ( qualifyAs uids $
-        def {getByUserId = tUnqualified uids}
-    )
-
 getLocalUserAccountByUserKey :: (Member UserSubsystem r) => Local EmailKey -> Sem r (Maybe UserAccount)
 getLocalUserAccountByUserKey q@(tUnqualified -> ek) =
   listToMaybe . fmap (.account) <$> getExtendedAccountsByEmailNoFilter (qualifyAs q [emailKeyOrig ek])

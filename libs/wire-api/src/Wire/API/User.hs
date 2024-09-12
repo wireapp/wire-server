@@ -59,7 +59,6 @@ module Wire.API.User
     CreateUserSparInternalResponses,
     newUserFromSpar,
     urefToExternalId,
-    urefToEmail,
     ExpiresIn,
     newUserTeam,
     newUserEmail,
@@ -153,7 +152,7 @@ import Cassandra qualified as C
 import Control.Applicative
 import Control.Arrow ((&&&))
 import Control.Error.Safe (rightMay)
-import Control.Lens (makePrisms, over, view, (.~), (?~), (^.))
+import Control.Lens (makePrisms, over, view, (.~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..), withText)
 import Data.Aeson.Types qualified as A
 import Data.Attoparsec.ByteString qualified as Parser
@@ -191,7 +190,6 @@ import GHC.TypeLits
 import Generics.SOP qualified as GSOP
 import Imports
 import SAML2.WebSSO qualified as SAML
-import SAML2.WebSSO.Types.Email qualified as SAMLEmail
 import Servant (FromHttpApiData (..), ToHttpApiData (..), type (.++))
 import Test.QuickCheck qualified as QC
 import URI.ByteString (serializeURIRef)
@@ -843,11 +841,6 @@ instance (res ~ RegisterInternalResponses) => AsUnion res (Either RegisterError 
 
 urefToExternalId :: SAML.UserRef -> Maybe Text
 urefToExternalId = fmap CI.original . SAML.shortShowNameID . view SAML.uidSubject
-
-urefToEmail :: SAML.UserRef -> Maybe EmailAddress
-urefToEmail uref = case uref ^. SAML.uidSubject . SAML.nameID of
-  SAML.UNameIDEmail email -> emailAddressText . SAMLEmail.render . CI.original $ email
-  _ -> Nothing
 
 data CreateUserSparError
   = CreateUserSparHandleError ChangeHandleError

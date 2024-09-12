@@ -46,7 +46,6 @@ import qualified Spar.Intra.BrigApp as Intra
 import Spar.Scim.User (synthesizeScimUser, validateScimUser')
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import Test.QuickCheck (arbitrary, generate)
-import qualified Text.Email.Parser as Email
 import qualified Text.XML.DSig as SAML
 import Util.Core
 import Util.Types
@@ -61,7 +60,6 @@ import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.PatchOp as Scim.PatchOp
 import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User
-import qualified Web.Scim.Schema.User.Email as Email
 import qualified Web.Scim.Schema.User.Email as Scim.Email
 import qualified Web.Scim.Schema.User.Phone as Phone
 import qualified Wire.API.Team.Member as Member
@@ -202,17 +200,6 @@ randomScimUserWithNick = do
         },
       nick
     )
-
-randomScimEmail :: (MonadRandom m) => m Email.Email
-randomScimEmail = do
-  let typ :: Maybe Text = Nothing
-      primary :: Maybe Scim.ScimBool = Nothing -- TODO: where should we catch users with more than one
-      -- primary email?
-  value <- do
-    localpart <- cs <$> replicateM 15 (getRandomR ('a', 'z'))
-    domainpart <- (<> ".com") . cs <$> replicateM 15 (getRandomR ('a', 'z'))
-    pure . Email.EmailAddress $ Email.unsafeEmailAddress localpart domainpart
-  pure Email.Email {..}
 
 randomScimPhone :: (MonadRandom m) => m Phone.Phone
 randomScimPhone = do
