@@ -302,7 +302,7 @@ resolveLoginId ::
   LoginId ->
   ExceptT LoginError (AppT r) UserId
 resolveLoginId li = do
-  usr <- validateLoginId li >>= lift . liftSem . either lookupKey lookupHandle
+  usr <- lift . liftSem . either lookupKey lookupHandle $ validateLoginId li
   case usr of
     Nothing -> do
       pending <- lift $ isPendingActivation li
@@ -312,9 +312,9 @@ resolveLoginId li = do
           else LoginFailed
     Just uid -> pure uid
 
-validateLoginId :: (Applicative m) => LoginId -> m (Either EmailKey Handle)
-validateLoginId (LoginByEmail email) = (pure . Left . mkEmailKey) email
-validateLoginId (LoginByHandle h) = (pure . Right) h
+validateLoginId :: LoginId -> Either EmailKey Handle
+validateLoginId (LoginByEmail email) = (Left . mkEmailKey) email
+validateLoginId (LoginByHandle h) = Right h
 
 isPendingActivation ::
   forall r.
