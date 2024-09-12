@@ -386,7 +386,6 @@ getInvitationByCode c = do
   inv <- lift . liftSem $ Store.lookupInvitationByCode c
   maybe (throwStd $ errorToWai @'E.InvalidInvitationCode) (pure . Store.invitationFromStored Nothing) inv
 
--- FIXME(mangoiv): This should not be in terms of store
 headInvitationByEmail :: (Member InvitationCodeStore r, Member TinyLog r) => EmailAddress -> (Handler r) Public.HeadInvitationByEmailResult
 headInvitationByEmail email =
   lift $
