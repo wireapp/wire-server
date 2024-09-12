@@ -1668,6 +1668,8 @@ type TeamsAPI =
                :> CanThrow 'MissingIdentity
                :> CanThrow 'InvalidActivationCodeWrongUser
                :> CanThrow 'InvalidActivationCodeWrongCode
+               :> CanThrow 'BadCredentials
+               :> CanThrow 'MissingAuth
                :> ZLocalUser
                :> "teams"
                :> "invitations"

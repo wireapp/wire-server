@@ -63,6 +63,7 @@ import System.Logger.Message as Log
 import Util.Logging (logFunction, logTeam)
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
+import Wire.API.Password
 import Wire.API.Routes.Internal.Brig (FoundInvitationCode (FoundInvitationCode))
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.Named
@@ -84,6 +85,7 @@ import Wire.Error
 import Wire.GalleyAPIAccess (GalleyAPIAccess, ShowOrHideInvitationUrl (..))
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
+import Wire.PasswordStore
 import Wire.Sem.Concurrency
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserKeyStore
@@ -99,7 +101,8 @@ servantAPI ::
     Member (ConnectionStore InternalPaging) r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member PasswordStore r
   ) =>
   ServerT TeamsAPI (Handler r)
 servantAPI =
@@ -400,14 +403,17 @@ acceptTeamInvitationByPersonalUser ::
     Member (ConnectionStore InternalPaging) r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member PasswordStore r
   ) =>
   Local UserId ->
   AcceptTeamInvitation ->
   (Handler r) ()
 acceptTeamInvitationByPersonalUser luid req = do
-  mSelfProfile <- lift $ liftSem $ getSelfProfile luid
-  let mek = mkEmailKey <$> (userEmail . selfUser =<< mSelfProfile)
+  mek <- do
+    mSelfProfile <- lift $ liftSem $ getSelfProfile luid
+    pure $ mkEmailKey <$> (userEmail . selfUser =<< mSelfProfile)
+  checkPassword
   mInv <- API.findTeamInvitation mek req.code !>> toInvitationError
   case mInv of
     Nothing -> throwStd (errorToWai @'E.PendingInvitationNotFound)
@@ -421,6 +427,12 @@ acceptTeamInvitationByPersonalUser luid req = do
         wrapClient $ DB.deleteInvitation inv.inTeam inv.inInvitation
         liftSem $ Intra.onUserEvent uid Nothing (teamUpdated uid tid)
   where
+    checkPassword = do
+      p <-
+        lift (liftSem . lookupHashedPassword . tUnqualified $ luid)
+          >>= maybe (throwStd (errorToWai @'E.MissingAuth)) pure
+      unless (verifyPassword req.password p) $
+        throwStd (errorToWai @'E.BadCredentials)
     toInvitationError :: RegisterError -> HttpError
     toInvitationError = \case
       RegisterErrorMissingIdentity -> StdError (errorToWai @'E.MissingIdentity)

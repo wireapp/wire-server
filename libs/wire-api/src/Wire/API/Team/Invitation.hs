@@ -33,6 +33,7 @@ import Data.Aeson qualified as A
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util
+import Data.Misc
 import Data.OpenApi qualified as S
 import Data.SOP
 import Data.Schema
@@ -182,7 +183,8 @@ instance ToSchema InvitationList where
 -- AcceptTeamInvitation
 
 data AcceptTeamInvitation = AcceptTeamInvitation
-  { code :: InvitationCode
+  { code :: InvitationCode,
+    password :: PlainTextPassword6
   }
   deriving stock (Eq, Show, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema AcceptTeamInvitation)
@@ -192,3 +194,4 @@ instance ToSchema AcceptTeamInvitation where
     objectWithDocModifier "AcceptTeamInvitation" (description ?~ "Accept an invitation to join a team on Wire.") $
       AcceptTeamInvitation
         <$> code .= fieldWithDocModifier "code" (description ?~ "Invitation code to accept.") schema
+        <*> password .= fieldWithDocModifier "password" (description ?~ "The user account password.") schema
