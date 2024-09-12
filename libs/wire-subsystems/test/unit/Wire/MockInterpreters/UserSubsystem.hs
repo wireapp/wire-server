@@ -4,25 +4,15 @@ import Data.Qualified
 import Imports
 import Polysemy
 import Wire.API.User
-import Wire.UserKeyStore
 import Wire.UserSubsystem
 
+-- HINT: This is used to test AuthenticationSubsystem, not to test itself!
 userSubsystemTestInterpreter :: [ExtendedUserAccount] -> InterpreterFor UserSubsystem r
 userSubsystemTestInterpreter initialUsers =
   interpret \case
-    GetExtendedAccountsBy (tSplit -> (_dom, getBy)) ->
+    GetLocalExtendedAccountsByEmail (tUnqualified -> emails) ->
       pure $
         filter
-          ( \u ->
-              mailKeyFrom u
-                `elem` getBy.getByEmail
-          )
+          (\u -> userEmail u.account.accountUser `elem` (Just <$> emails))
           initialUsers
     _ -> error $ "userSubsystemTestInterpreter: implement on demand"
-
-mailKeyFrom :: ExtendedUserAccount -> EmailKey
-mailKeyFrom acc =
-  case acc.account.accountUser.userIdentity of
-    Just (EmailIdentity mail) -> mkEmailKey mail
-    Just (SSOIdentity _ (Just mail)) -> mkEmailKey mail
-    _ -> error "Why are we testing users without emails for this?"

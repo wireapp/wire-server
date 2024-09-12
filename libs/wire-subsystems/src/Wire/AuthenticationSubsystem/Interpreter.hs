@@ -49,7 +49,8 @@ import Wire.Sem.Now
 import Wire.Sem.Now qualified as Now
 import Wire.SessionStore
 import Wire.UserKeyStore
-import Wire.UserSubsystem (UserSubsystem, getLocalUserAccountByUserKey)
+import Wire.UserSubsystem (UserSubsystem)
+import Wire.UserSubsystem qualified as User
 
 interpretAuthenticationSubsystem ::
   forall r.
@@ -141,20 +142,22 @@ lookupActiveUserIdByUserKey target =
   userId <$$> lookupActiveUserByUserKey target
 
 lookupActiveUserByUserKey ::
-  (Member UserSubsystem r, Member (Input (Local ())) r) =>
+  ( Member UserSubsystem r,
+    Member (Input (Local ())) r
+  ) =>
   EmailKey ->
   Sem r (Maybe User)
 lookupActiveUserByUserKey target = do
   localUnit <- input
-  let ltarget = qualifyAs localUnit target
-  mUser <- getLocalUserAccountByUserKey ltarget
+  let ltarget = qualifyAs localUnit [emailKeyOrig target]
+  mUser <- User.getLocalExtendedAccountsByEmail ltarget
   case mUser of
-    Just user -> do
+    [user] -> do
       pure $
-        if user.accountStatus == Active
-          then Just user.accountUser
+        if user.account.accountStatus == Active
+          then Just user.account.accountUser
           else Nothing
-    Nothing -> pure Nothing
+    _ -> pure Nothing
 
 internalLookupPasswordResetCodeImpl ::
   ( Member PasswordResetCodeStore r,

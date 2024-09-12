@@ -17,7 +17,7 @@ import Polysemy
 import Wire.API.Federation.Error
 import Wire.API.User
 import Wire.Arbitrary
-import Wire.UserKeyStore
+import Wire.UserKeyStore (EmailKey, emailKeyOrig)
 
 -- | Who is performing this update operation?  (Single source of truth: users managed by SCIM
 -- can't be updated by clients and vice versa.)
@@ -67,9 +67,6 @@ data GetBy = MkGetBy
     -- | get accounts by 'UserId', filters out accounts
     -- missing user identity, optionally by pending invitations.
     getByUserId :: [UserId],
-    -- | get accounts by 'Email', does not filter by missing user identity,
-    -- or expired invitations, unlike by id and handle
-    getByEmail :: [EmailKey],
     -- | get accounts by their 'Handle'
     getByHandle :: [Handle]
   }
@@ -77,23 +74,27 @@ data GetBy = MkGetBy
   deriving (Arbitrary) via GenericUniform GetBy
 
 instance Default GetBy where
-  def = MkGetBy NoPendingInvitations [] [] []
+  def = MkGetBy NoPendingInvitations [] []
 
+-- TODO: consider if we want to remove Local from the names since they're already part of the type
 data UserSubsystem m a where
   -- | First arg is for authorization only.
   GetUserProfiles :: Local UserId -> [Qualified UserId] -> UserSubsystem m [UserProfile]
+  -- | These give us partial success and hide concurrency in the interpreter.
+  -- FUTUREWORK: it would be better to return errors as `Map Domain FederationError`, but would clients like that?
+  GetUserProfilesWithErrors :: Local UserId -> [Qualified UserId] -> UserSubsystem m ([(Qualified UserId, FederationError)], [UserProfile])
   -- | Sometimes we don't have any identity of a requesting user, and local profiles are public.
   GetLocalUserProfiles :: Local [UserId] -> UserSubsystem m [UserProfile]
   -- | given a lookup criteria record ('GetBy'), return the union of the user accounts fulfilling that criteria
   -- see GetBy's documentation for more information on what gets filtered.
   GetExtendedAccountsBy :: Local GetBy -> UserSubsystem m [ExtendedUserAccount]
+  -- | given a list of email address, returns all associated user accounts,
+  -- does not filter out by missing user identity or status
+  GetLocalExtendedAccountsByEmail :: Local [EmailAddress] -> UserSubsystem m [ExtendedUserAccount]
   -- | given a local user id, return a UserAccount, does not filter out by missing user identity or status
   GetLocalAccount :: Local UserId -> UserSubsystem m (Maybe UserAccount)
   -- | Self profile contains things not present in Profile.
   GetSelfProfile :: Local UserId -> UserSubsystem m (Maybe SelfProfile)
-  -- | These give us partial success and hide concurrency in the interpreter.
-  -- FUTUREWORK: it would be better to return errors as `Map Domain FederationError`, but would clients like that?
-  GetUserProfilesWithErrors :: Local UserId -> [Qualified UserId] -> UserSubsystem m ([(Qualified UserId, FederationError)], [UserProfile])
   -- | Simple updates (as opposed to, eg., handle, where we need to manage locks).  Empty fields are ignored (not deleted).
   UpdateUserProfile :: Local UserId -> Maybe ConnId -> UpdateOriginType -> UserProfileUpdate -> UserSubsystem m ()
   -- | parse and lookup a handle, return what the operation has found
@@ -131,7 +132,6 @@ getLocalUserProfile :: (Member UserSubsystem r) => Local UserId -> Sem r (Maybe 
 getLocalUserProfile targetUser =
   listToMaybe <$> getLocalUserProfiles ((: []) <$> targetUser)
 
--- TODO: Remove boolean blindness
 getLocalAccountBy ::
   (Member UserSubsystem r) =>
   HavePendingInvitations ->
@@ -155,12 +155,5 @@ getLocalExtendedAccounts uids = do
     )
 
 getLocalUserAccountByUserKey :: (Member UserSubsystem r) => Local EmailKey -> Sem r (Maybe UserAccount)
-getLocalUserAccountByUserKey email =
-  listToMaybe
-    <$> getAccountsBy
-      ( qualifyAs email $
-          def
-            { includePendingInvitations = WithPendingInvitations,
-              getByEmail = [tUnqualified email]
-            }
-      )
+getLocalUserAccountByUserKey q@(tUnqualified -> ek) =
+  listToMaybe . fmap (.account) <$> getLocalExtendedAccountsByEmail (qualifyAs q [emailKeyOrig ek])

@@ -280,7 +280,7 @@ spec = describe "UserSubsystem.Interpreter" do
                   ]
 
     -- TODO: parameterise these tests, too much copy paste.
-    describe "GetBy" do
+    describe "getAccountsBy" do
       prop "GetBy userId when pending fails if not explicitly allowed" $
         \(PendingNotEmptyIdentityStoredUser alice') email teamId invitationInfo localDomain visibility locale ->
           let config = UserSubsystemConfig visibility locale
@@ -425,22 +425,16 @@ spec = describe "UserSubsystem.Interpreter" do
       prop "GetBy email does not filter by pending, missing identity or expired invitations" $
         \(alice' :: StoredUser) email localDomain visibility locale ->
           let config = UserSubsystemConfig visibility locale
-              emailKey = mkEmailKey email
-              getBy =
-                toLocalUnsafe localDomain $
-                  def
-                    { getByEmail = [emailKey]
-                    }
               alice = alice' {email = Just email}
               localBackend =
                 def
                   { users = [alice],
-                    userKeys = Map.singleton emailKey alice.id
+                    userKeys = Map.singleton (mkEmailKey email) alice.id
                   }
               result =
                 runNoFederationStack localBackend Nothing config $
-                  getAccountsBy getBy
-           in result === [mkAccountFromStored localDomain locale alice]
+                  getLocalExtendedAccountsByEmail (toLocalUnsafe localDomain [email])
+           in result === [mkExtendedAccountFromStored localDomain locale alice]
 
       prop "GetBy userId does not return missing identity users, pending invitation off" $
         \(NotPendingEmptyIdentityStoredUser alice) localDomain visibility locale ->

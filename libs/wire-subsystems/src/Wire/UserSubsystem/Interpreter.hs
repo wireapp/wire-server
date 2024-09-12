@@ -100,6 +100,7 @@ interpretUserSubsystem ::
 interpretUserSubsystem = interpret \case
   GetUserProfiles self others -> getUserProfilesImpl self others
   GetLocalUserProfiles others -> getLocalUserProfilesImpl others
+  GetLocalExtendedAccountsByEmail emails -> getLocalExtendedAccountsByEmailImpl emails
   GetExtendedAccountsBy getBy -> getExtendedAccountsByImpl getBy
   GetLocalAccount luid -> getLocalAccountImpl luid
   GetSelfProfile self -> getSelfProfileImpl self
@@ -504,6 +505,21 @@ getLocalAccountImpl (tSplit -> (domain, uid)) = do
   muser <- getUser uid
   pure $ (mkAccountFromStored domain cfg.defaultLocale) <$> muser
 
+getLocalExtendedAccountsByEmailImpl ::
+  forall r.
+  ( Member UserStore r,
+    Member UserKeyStore r,
+    Member (Input UserSubsystemConfig) r
+  ) =>
+  Local [EmailAddress] ->
+  Sem r [ExtendedUserAccount]
+getLocalExtendedAccountsByEmailImpl (tSplit -> (domain, emails)) = do
+  config <- input
+  nubOrd <$> flip foldMap emails \ek -> do
+    mactiveUid <- lookupKey (mkEmailKey ek)
+    getUsers (nubOrd . catMaybes $ [mactiveUid])
+      <&> map (mkExtendedAccountFromStored domain config.defaultLocale)
+
 --------------------------------------------------------------------------------
 -- getting user accounts by different criteria
 
@@ -513,12 +529,11 @@ getExtendedAccountsByImpl ::
     Member DeleteQueue r,
     Member (Input UserSubsystemConfig) r,
     Member InvitationCodeStore r,
-    Member UserKeyStore r,
     Member TinyLog r
   ) =>
   Local GetBy ->
   Sem r [ExtendedUserAccount]
-getExtendedAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations, getByEmail, getByHandle, getByUserId})) = do
+getExtendedAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations, getByHandle, getByUserId})) = do
   storedToExtAcc <- do
     config <- input
     pure $ mkExtendedAccountFromStored domain config.defaultLocale
@@ -530,12 +545,7 @@ getExtendedAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations
       <&> map storedToExtAcc
       >>= filterM want
 
-  accsByEmail :: [ExtendedUserAccount] <- flip foldMap getByEmail \ek -> do
-    mactiveUid <- lookupKey ek
-    getUsers (nubOrd . catMaybes $ [mactiveUid])
-      <&> map storedToExtAcc
-
-  pure (nubOrd $ accsByIds <> accsByEmail)
+  pure (nubOrd $ accsByIds)
   where
     -- not wanted:
     -- . users without identity

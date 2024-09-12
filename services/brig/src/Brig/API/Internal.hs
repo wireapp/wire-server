@@ -578,20 +578,22 @@ listActivatedAccountsH ::
 listActivatedAccountsH
   (maybe [] fromCommaSeparatedList -> uids)
   (maybe [] fromCommaSeparatedList -> handles)
-  (maybe [] (fromCommaSeparatedList . fmap mkEmailKey) -> emails)
+  (maybe [] fromCommaSeparatedList -> emails)
   (maybe NoPendingInvitations fromBool -> include) = do
     when (length uids + length handles + length emails == 0) $ do
       throwStd (notFound "no user keys")
     lift $ liftSem do
-      dom <- input
-      getExtendedAccountsBy $
-        dom
-          $> def
-            { includePendingInvitations = include,
-              getByUserId = uids,
-              getByEmail = emails,
-              getByHandle = handles
-            }
+      loc <- input
+      byEmails <- getLocalExtendedAccountsByEmail $ loc $> emails
+      others <-
+        getExtendedAccountsBy $
+          loc
+            $> def
+              { includePendingInvitations = include,
+                getByUserId = uids,
+                getByHandle = handles
+              }
+      pure $ others <> byEmails
 
 getActivationCode :: EmailAddress -> Handler r GetActivationCodeResp
 getActivationCode email = do
