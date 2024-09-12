@@ -732,8 +732,7 @@ testInvitationPaging opts brig = do
               === statusCode
         (invs, more) <- (ilInvitations &&& ilHasMore) <$> responseJsonError r
         if more
-          then -- FUTUREWORK: improve readability
-            (invs :) <$> getPages (count + step) (fmap (.invitationId) . listToMaybe . reverse $ invs) step
+          then (invs :) <$> getPages (count + step) (fmap (.invitationId) . listToMaybe . reverse $ invs) step
           else pure [invs]
   let checkSize :: (HasCallStack) => Int -> [Int] -> Http ()
       checkSize pageSize expectedSizes =

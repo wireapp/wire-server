@@ -188,5 +188,7 @@ deleteInvitationsImpl teamId =
     cqlSelect :: PrepQuery R (Identity TeamId) (Identity InvitationId)
     cqlSelect = "SELECT id FROM team_invitation WHERE team = ? ORDER BY id ASC"
 
+-- | This function doesn't really belong here, and may want to have return type `Sem (Random :
+-- ...)` instead of `IO`.  Meh.
 mkInvitationCode :: IO InvitationCode
 mkInvitationCode = InvitationCode . encodeBase64Url <$> randBytes 24

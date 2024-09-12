@@ -279,7 +279,6 @@ spec = describe "UserSubsystem.Interpreter" do
                       )
                   ]
 
-    -- TODO: parameterise these tests, too much copy paste.
     describe "getAccountsBy" do
       prop "GetBy userId when pending fails if not explicitly allowed" $
         \(PendingNotEmptyIdentityStoredUser alice') email teamId invitationInfo localDomain visibility locale ->
@@ -770,7 +769,7 @@ spec = describe "UserSubsystem.Interpreter" do
 
   describe "getLocalUserAccountByUserKey" $ do
     prop "gets users iff they are indexed by the UserKeyStore" $
-      \(config :: UserSubsystemConfig) (localDomain :: Domain) (NotPendingStoredUser storedUser) (userKey :: EmailKey) ->
+      \(config :: UserSubsystemConfig) (localDomain :: Domain) (storedUser :: StoredUser) (userKey :: EmailKey) ->
         let localBackend =
               def
                 { users = [storedUser],
