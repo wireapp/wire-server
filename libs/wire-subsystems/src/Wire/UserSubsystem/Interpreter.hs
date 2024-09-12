@@ -538,14 +538,13 @@ getExtendedAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations
     config <- input
     pure $ mkExtendedAccountFromStored domain config.defaultLocale
 
-  handleUserIds :: [UserId] <- wither lookupHandle getByHandle
+  handleUserIds :: [UserId] <-
+    wither lookupHandle getByHandle
 
   accsByIds :: [ExtendedUserAccount] <-
-    getUsers (nubOrd $ handleUserIds <> getByUserId)
-      <&> map storedToExtAcc
-      >>= filterM want
+    getUsers (nubOrd $ handleUserIds <> getByUserId) <&> map storedToExtAcc
 
-  pure (nubOrd $ accsByIds)
+  filterM want (nubOrd $ accsByIds)
   where
     -- not wanted:
     -- . users without identity
