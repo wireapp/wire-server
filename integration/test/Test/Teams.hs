@@ -19,6 +19,7 @@ module Test.Teams where
 
 import API.Brig
 import API.BrigInternal (createUser, getInvitationCode, refreshIndex)
+import API.Common
 import API.Galley (getTeamMembers)
 import API.GalleyInternal (setTeamFeatureStatus)
 import Control.Monad.Codensity (Codensity (runCodensity))
@@ -53,8 +54,10 @@ testInvitePersonalUserToTeam = do
         code <- getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
         queryParam <- inv %. "url" & asString <&> getQueryParam "team_code"
         queryParam `shouldMatch` Just (Just code)
+        acceptTeamInvitation user code (Just "wrong-password") >>= assertStatus 403
+        acceptTeamInvitation user code Nothing >>= assertStatus 400
         void $ withWebSockets [user] $ \wss -> do
-          acceptTeamInvitation user code >>= assertSuccess
+          acceptTeamInvitation user code (Just defPassword) >>= assertSuccess
           for wss $ \ws -> do
             n <- awaitMatch isUserUpdatedNotif ws
             n %. "payload.0.user.team" `shouldMatch` tid
