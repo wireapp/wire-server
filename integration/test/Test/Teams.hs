@@ -52,7 +52,7 @@ testInvitePersonalUserToTeam = do
         email <- user %. "email" >>= asString
         inv <- postInvitation owner (PostInvitation $ Just email) >>= getJSON 201
         code <- getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
-        queryParam <- inv %. "url" & asString <&> getQueryParam "team_code"
+        queryParam <- inv %. "url" & asString <&> getQueryParam "team-code"
         queryParam `shouldMatch` Just (Just code)
         acceptTeamInvitation user code Nothing >>= assertStatus 400
         acceptTeamInvitation user code (Just "wrong-password") >>= assertStatus 403
