@@ -6,10 +6,10 @@ import Data.Id (InvitationId, TeamId)
 import Data.Json.Util (toUTCTimeMillis)
 import Data.Map (elems, (!?))
 import Data.Map qualified as M
+import GHC.IO.Unsafe (unsafePerformIO)
 import Imports
 import Polysemy
 import Polysemy.State (State, get, gets, modify')
-import Unsafe.Coerce (unsafeCoerce)
 import Wire.API.User (InvitationCode (..))
 import Wire.InvitationCodeStore
 import Wire.InvitationCodeStore.Cassandra (mkInvitationCode)
@@ -22,7 +22,8 @@ inMemoryInvitationCodeStoreInterpreter ::
   InterpreterFor InvitationCodeStore r
 inMemoryInvitationCodeStoreInterpreter = interpret \case
   InsertInvitation (MkInsertInvitation invitationId teamId role' createdAt' createdBy email name) _timeout -> do
-    code <- unsafeCoerce mkInvitationCode
+    -- Currently unused.
+    let code = unsafePerformIO mkInvitationCode -- Should confirm that this works as intended (new code on every run)
     let role = Just role'
         createdAt = toUTCTimeMillis createdAt'
         inv = MkStoredInvitation {..}
