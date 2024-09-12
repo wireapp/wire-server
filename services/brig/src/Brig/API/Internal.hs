@@ -286,9 +286,13 @@ authAPI =
   Named @"legalhold-login" (callsFed (exposeAnnotations legalHoldLogin))
     :<|> Named @"sso-login" (callsFed (exposeAnnotations ssoLogin))
     :<|> Named @"login-code" getLoginCode
-    -- We qualify in place to avoid changing the internal API too much
-    -- FUTUREWORK?
-    :<|> Named @"reauthenticate" (\uid reauth -> qualifyLocal uid >>= \luid -> reauthenticate luid reauth)
+    :<|> Named @"reauthenticate"
+      ( \uid reauth ->
+          -- changing this end-point would involve providing a `Local` type from a user id that is
+          -- captured from the path, not pulled from the http header.  this is certainly feasible,
+          -- but running qualifyLocal here is easier.
+          qualifyLocal uid >>= \luid -> reauthenticate luid reauth
+      )
 
 federationRemotesAPI :: (Member FederationConfigStore r) => ServerT BrigIRoutes.FederationRemotesAPI (Handler r)
 federationRemotesAPI =
