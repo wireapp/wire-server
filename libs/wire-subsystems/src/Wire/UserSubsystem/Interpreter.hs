@@ -518,7 +518,7 @@ getExtendedAccountsByImpl ::
   ) =>
   Local GetBy ->
   Sem r [ExtendedUserAccount]
-getExtendedAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations, getByEmail, getByHandle, getByUserIds})) = do
+getExtendedAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations, getByEmail, getByHandle, getByUserId})) = do
   storedToExtAcc <- do
     config <- input
     pure $ mkExtendedAccountFromStored domain config.defaultLocale
@@ -526,7 +526,7 @@ getExtendedAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations
   handleUserIds :: [UserId] <- wither lookupHandle getByHandle
 
   accsByIds :: [ExtendedUserAccount] <-
-    getUsers (nubOrd $ handleUserIds <> getByUserIds)
+    getUsers (nubOrd $ handleUserIds <> getByUserId)
       <&> map storedToExtAcc
       >>= filterM want
 

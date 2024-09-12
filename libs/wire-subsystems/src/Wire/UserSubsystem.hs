@@ -61,11 +61,14 @@ instance Default UserProfileUpdate where
 
 -- | how to get an account for a user
 data GetBy = MkGetBy
-  { -- | whether or not to include pending invitations in the lookups
+  { -- | whether or not to include pending invitations when getting
+    -- users by ids. Does not apply to emails.
     includePendingInvitations :: HavePendingInvitations,
-    -- | get accounts by 'UserId's
-    getByUserIds :: [UserId],
-    -- | get accounts by 'Email's
+    -- | get accounts by 'UserId', filters out accounts
+    -- missing user identity, optionally by pending invitations.
+    getByUserId :: [UserId],
+    -- | get accounts by 'Email', does not filter by missing user identity,
+    -- or expired invitations, unlike by id and handle
     getByEmail :: [EmailKey],
     -- | get accounts by their 'Handle'
     getByHandle :: [Handle]
@@ -82,8 +85,9 @@ data UserSubsystem m a where
   -- | Sometimes we don't have any identity of a requesting user, and local profiles are public.
   GetLocalUserProfiles :: Local [UserId] -> UserSubsystem m [UserProfile]
   -- | given a lookup criteria record ('GetBy'), return the union of the user accounts fulfilling that criteria
+  -- see GetBy's documentation for more information on what gets filtered.
   GetExtendedAccountsBy :: Local GetBy -> UserSubsystem m [ExtendedUserAccount]
-  -- | given a local user id, return a UserAccount
+  -- | given a local user id, return a UserAccount, does not filter out by missing user identity or status
   GetLocalAccount :: Local UserId -> UserSubsystem m (Maybe UserAccount)
   -- | Self profile contains things not present in Profile.
   GetSelfProfile :: Local UserId -> UserSubsystem m (Maybe SelfProfile)
@@ -138,7 +142,7 @@ getLocalAccountBy includePendingInvitations uid =
     <$> getAccountsBy
       ( qualifyAs uid $
           def
-            { getByUserIds = [tUnqualified uid],
+            { getByUserId = [tUnqualified uid],
               includePendingInvitations
             }
       )
@@ -147,7 +151,7 @@ getLocalExtendedAccounts :: (Member UserSubsystem r) => Local [UserId] -> Sem r 
 getLocalExtendedAccounts uids = do
   getExtendedAccountsBy
     ( qualifyAs uids $
-        def {getByUserIds = tUnqualified uids}
+        def {getByUserId = tUnqualified uids}
     )
 
 getLocalUserAccountByUserKey :: (Member UserSubsystem r) => Local EmailKey -> Sem r (Maybe UserAccount)

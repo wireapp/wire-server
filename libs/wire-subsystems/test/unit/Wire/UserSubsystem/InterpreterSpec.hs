@@ -279,18 +279,38 @@ spec = describe "UserSubsystem.Interpreter" do
                       )
                   ]
 
-    describe "getAccountsBy" do
+    -- TODO: parameterise these tests, too much copy paste.
+    describe "GetBy" do
       prop "GetBy userId when pending fails if not explicitly allowed" $
-        \(PendingStoredUser alice) localDomain visibility locale ->
+        \(PendingNotEmptyIdentityStoredUser alice') email teamId invitationInfo localDomain visibility locale ->
           let config = UserSubsystemConfig visibility locale
+              alice =
+                alice'
+                  { email = Just email,
+                    teamId = Just teamId
+                    -- For simplicity, so we don't have to match the email with invitation
+                  }
               getBy =
                 toLocalUnsafe localDomain $
                   def
-                    { getByUserIds = [alice.id],
-                      -- Do not rely on default behaviour
+                    { getByUserId = [alice.id],
                       includePendingInvitations = NoPendingInvitations
                     }
-              localBackend = def {users = [alice]}
+              localBackend =
+                def
+                  { users = [alice],
+                    -- We need valid invitations or the user gets deleted by
+                    -- our drive-by cleanup job in the interprter.
+                    -- FUTUREWORK: Remove this if we remove the enqueueDeletion from getAccountsByImpl
+                    invitations =
+                      Map.singleton
+                        (teamId, invitationInfo.invitationId)
+                        ( invitationInfo
+                            { InvitationStore.email = email,
+                              InvitationStore.teamId = teamId
+                            }
+                        )
+                  }
               result =
                 runNoFederationStack localBackend Nothing config $
                   getAccountsBy getBy
@@ -308,7 +328,78 @@ spec = describe "UserSubsystem.Interpreter" do
               getBy =
                 toLocalUnsafe localDomain $
                   def
-                    { getByUserIds = [alice.id],
+                    { getByUserId = [alice.id],
+                      includePendingInvitations = WithPendingInvitations
+                    }
+              localBackend =
+                def
+                  { users = [alice],
+                    -- We need valid invitations or the user gets deleted by
+                    -- our drive-by cleanup job in the interprter.
+                    -- FUTUREWORK: Remove this if we remove the enqueueDeletion from getAccountsByImpl
+                    invitations =
+                      Map.singleton
+                        (teamId, invitationInfo.invitationId)
+                        ( invitationInfo
+                            { InvitationStore.email = email,
+                              InvitationStore.teamId = teamId
+                            }
+                        )
+                  }
+              result =
+                runNoFederationStack localBackend Nothing config $
+                  getAccountsBy getBy
+           in result === [mkAccountFromStored localDomain locale alice]
+      prop "GetBy handle when pending fails if not explicitly allowed" $
+        \(PendingNotEmptyIdentityStoredUser alice') handl email teamId invitationInfo localDomain visibility locale ->
+          let config = UserSubsystemConfig visibility locale
+              alice =
+                alice'
+                  { email = Just email,
+                    teamId = Just teamId,
+                    handle = Just handl
+                    -- For simplicity, so we don't have to match the email with invitation
+                  }
+              getBy =
+                toLocalUnsafe localDomain $
+                  def
+                    { getByHandle = [handl],
+                      includePendingInvitations = NoPendingInvitations
+                    }
+              localBackend =
+                def
+                  { users = [alice],
+                    -- We need valid invitations or the user gets deleted by
+                    -- our drive-by cleanup job in the interprter.
+                    -- FUTUREWORK: Remove this if we remove the enqueueDeletion from getAccountsByImpl
+                    invitations =
+                      Map.singleton
+                        (teamId, invitationInfo.invitationId)
+                        ( invitationInfo
+                            { InvitationStore.email = email,
+                              InvitationStore.teamId = teamId
+                            }
+                        )
+                  }
+              result =
+                runNoFederationStack localBackend Nothing config $
+                  getAccountsBy getBy
+           in result === []
+
+      prop "GetBy handle works for pending if explicitly queried" $
+        \(PendingNotEmptyIdentityStoredUser alice') handl email teamId invitationInfo localDomain visibility locale ->
+          let config = UserSubsystemConfig visibility locale
+              alice =
+                alice'
+                  { email = Just email,
+                    teamId = Just teamId,
+                    handle = Just handl
+                    -- For simplicity, so we don't have to match the email with invitation
+                  }
+              getBy =
+                toLocalUnsafe localDomain $
+                  def
+                    { getByHandle = [handl],
                       includePendingInvitations = WithPendingInvitations
                     }
               localBackend =
@@ -331,15 +422,15 @@ spec = describe "UserSubsystem.Interpreter" do
                   getAccountsBy getBy
            in result === [mkAccountFromStored localDomain locale alice]
 
-      prop "GetBy email not pending" $
-        \(NotPendingStoredUser alice') email localDomain visibility locale ->
+      prop "GetBy email does not filter by pending, missing identity or expired invitations" $
+        \(alice' :: StoredUser) email localDomain visibility locale ->
           let config = UserSubsystemConfig visibility locale
+              emailKey = mkEmailKey email
               getBy =
                 toLocalUnsafe localDomain $
                   def
                     { getByEmail = [emailKey]
                     }
-              emailKey = mkEmailKey email
               alice = alice' {email = Just email}
               localBackend =
                 def
@@ -351,85 +442,44 @@ spec = describe "UserSubsystem.Interpreter" do
                   getAccountsBy getBy
            in result === [mkAccountFromStored localDomain locale alice]
 
-      -- prop "GetBy email does not filter by validity" $
-      --   \alice' email localDomain visibility locale ->
-      --     let config = UserSubsystemConfig visibility locale
-      --         emailKey = mkEmailKey email
-      --         getBy =
-      --           toLocalUnsafe localDomain $
-      --             def
-      --               { getByEmail = [emailKey]
-      --               }
-      --         alice = alice' {email = Just email}
-      --         localBackend =
-      --           def
-      --             { users = [alice],
-      --               userKeys = Map.singleton emailKey alice.id
-      --             }
-      --         result =
-      --           runNoFederationStack localBackend Nothing config $
-      --             getAccountsBy getBy
-      --      in result === [mkAccountFromStored alice']
-
-      prop "GetBy email pending works if explicit" $
-        \(PendingNotEmptyIdentityStoredUser alice') teamId email localDomain invitationInfo visibility locale ->
+      prop "GetBy userId does not return missing identity users, pending invitation off" $
+        \(NotPendingEmptyIdentityStoredUser alice) localDomain visibility locale ->
           let config = UserSubsystemConfig visibility locale
-              emailKey = mkEmailKey email
               getBy =
                 toLocalUnsafe localDomain $
                   def
-                    { getByEmail = [emailKey],
-                      includePendingInvitations = WithPendingInvitations
+                    { getByUserId = [alice.id],
+                      includePendingInvitations = NoPendingInvitations
                     }
-              alice =
-                alice'
-                  { email = Just email,
-                    teamId = Just teamId
-                  }
-              localBackend =
-                def
-                  { users = [alice],
-                    userKeys = Map.singleton emailKey alice.id,
-                    -- Pending users always require a valid invitation
-                    invitations =
-                      Map.singleton
-                        (teamId, invitationInfo.invitationId)
-                        ( invitationInfo
-                            { InvitationStore.email = email,
-                              InvitationStore.teamId = teamId
-                            }
-                        )
-                  }
+              localBackend = def {users = [alice]}
               result =
                 runNoFederationStack localBackend Nothing config $
                   getAccountsBy getBy
-           in result === [mkAccountFromStored localDomain locale alice]
+           in result === []
 
-      prop "GetBy userId if not pending" $
-        \(NotPendingStoredUser alice) localDomain visibility locale ->
+      prop "GetBy userId does not return missing identity users, pending invtation on" $
+        \(NotPendingEmptyIdentityStoredUser alice) localDomain visibility locale ->
           let config = UserSubsystemConfig visibility locale
               getBy =
                 toLocalUnsafe localDomain $
                   def
-                    { getByUserIds = [alice.id],
-                      -- We don't care about user status, only if the email is there.
+                    { getByUserId = [alice.id],
                       includePendingInvitations = WithPendingInvitations
                     }
               localBackend = def {users = [alice]}
               result =
                 runNoFederationStack localBackend Nothing config $
                   getAccountsBy getBy
-           in result === [mkAccountFromStored localDomain locale alice]
+           in result === []
 
-      prop "GetBy pending user requires a valid invitation" $
+      prop "GetBy pending user by id works if there is a valid invitation" $
         \(PendingNotEmptyIdentityStoredUser alice') (email :: EmailAddress) teamId (invitationInfo :: StoredInvitation) localDomain visibility locale ->
           let config = UserSubsystemConfig visibility locale
               emailKey = mkEmailKey email
               getBy =
                 toLocalUnsafe localDomain $
                   def
-                    { getByEmail = [mkEmailKey email],
-                      -- We don't care about user status, only if the email is there.
+                    { getByUserId = [alice.id],
                       includePendingInvitations = WithPendingInvitations
                     }
               localBackend =
@@ -450,6 +500,87 @@ spec = describe "UserSubsystem.Interpreter" do
                 runNoFederationStack localBackend Nothing config $
                   getAccountsBy getBy
            in result === [mkAccountFromStored localDomain locale alice]
+
+      prop "GetBy pending user by id fails if there is no valid invitation" $
+        \(PendingNotEmptyIdentityStoredUser alice') (email :: EmailAddress) teamId localDomain visibility locale ->
+          let config = UserSubsystemConfig visibility locale
+              emailKey = mkEmailKey email
+              getBy =
+                toLocalUnsafe localDomain $
+                  def
+                    { getByUserId = [alice.id],
+                      includePendingInvitations = WithPendingInvitations
+                    }
+              localBackend =
+                def
+                  { users = [alice],
+                    userKeys = Map.singleton emailKey alice.id
+                  }
+              alice = alice' {email = Just email, teamId = Just teamId}
+              result =
+                runNoFederationStack localBackend Nothing config $
+                  getAccountsBy getBy
+           in result === []
+
+      prop "GetBy pending user handle id works if there is a valid invitation" $
+        \(PendingNotEmptyIdentityStoredUser alice') (email :: EmailAddress) handl teamId (invitationInfo :: StoredInvitation) localDomain visibility locale ->
+          let config = UserSubsystemConfig visibility locale
+              emailKey = mkEmailKey email
+              getBy =
+                toLocalUnsafe localDomain $
+                  def
+                    { getByHandle = [handl],
+                      includePendingInvitations = WithPendingInvitations
+                    }
+              localBackend =
+                def
+                  { users = [alice],
+                    userKeys = Map.singleton emailKey alice.id,
+                    invitations =
+                      Map.singleton
+                        (teamId, invitationInfo.invitationId)
+                        ( invitationInfo
+                            { InvitationStore.email = email,
+                              InvitationStore.teamId = teamId
+                            }
+                        )
+                  }
+              alice =
+                alice'
+                  { email = Just email,
+                    teamId = Just teamId,
+                    handle = Just handl
+                  }
+              result =
+                runNoFederationStack localBackend Nothing config $
+                  getAccountsBy getBy
+           in result === [mkAccountFromStored localDomain locale alice]
+
+      prop "GetBy pending user by handle fails if there is no valid invitation" $
+        \(PendingNotEmptyIdentityStoredUser alice') (email :: EmailAddress) handl teamId localDomain visibility locale ->
+          let config = UserSubsystemConfig visibility locale
+              emailKey = mkEmailKey email
+              getBy =
+                toLocalUnsafe localDomain $
+                  def
+                    { getByHandle = [handl],
+                      includePendingInvitations = WithPendingInvitations
+                    }
+              localBackend =
+                def
+                  { users = [alice],
+                    userKeys = Map.singleton emailKey alice.id
+                  }
+              alice =
+                alice'
+                  { email = Just email,
+                    teamId = Just teamId,
+                    handle = Just handl
+                  }
+              result =
+                runNoFederationStack localBackend Nothing config $
+                  getAccountsBy getBy
+           in result === []
 
     describe "user managed by scim doesn't allow certain update operations, but allows others" $ do
       prop "happy" $

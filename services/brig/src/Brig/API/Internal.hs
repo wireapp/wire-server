@@ -588,7 +588,7 @@ listActivatedAccountsH
         dom
           $> def
             { includePendingInvitations = include,
-              getByUserIds = uids,
+              getByUserId = uids,
               getByEmail = emails,
               getByHandle = handles
             }
