@@ -6,7 +6,6 @@ module Wire.API.User.EmailAddress
     emailAddressText,
     module Text.Email.Parser,
     emailToSAMLNameID,
-    emailFromSAMLNameID,
     emailFromSAML,
   )
 where
@@ -16,9 +15,7 @@ where
 -----
 
 import Cassandra.CQL qualified as C
-import Control.Lens ((^.))
 import Data.ByteString.Conversion hiding (toByteString)
-import Data.CaseInsensitive qualified as CI
 import Data.Data (Proxy (..))
 import Data.OpenApi hiding (Schema, ToSchema)
 import Data.Schema
@@ -115,11 +112,6 @@ arbitraryValidMail = do
       notNull x
         && notAt x
         && isValid (fromString ("me@" <> x))
-
-emailFromSAMLNameID :: SAML.NameID -> Maybe EmailAddress
-emailFromSAMLNameID nid = case nid ^. SAML.nameID of
-  SAML.UNameIDEmail eml -> Just . emailFromSAML . CI.original $ eml
-  _ -> Nothing
 
 -- | FUTUREWORK(fisx): if saml2-web-sso exported the 'NameID' constructor, we could make this
 -- function total without all that praying and hoping.

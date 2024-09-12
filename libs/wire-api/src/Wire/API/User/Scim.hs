@@ -380,16 +380,8 @@ arbitraryValidScimIdNoNameIDQualifiers = do
         . (SAML.uidSubject . SAML.nameIDSPProvidedID .~ Nothing)
         . (SAML.uidSubject . SAML.nameIDSPNameQ .~ Nothing)
 
--- | Take apart a 'ValidScimId', use both 'SAML.UserRef', 'Email' if applicable, and
--- merge the result with a given function.
-runValidScimIdBoth :: (a -> a -> a) -> (SAML.UserRef -> a) -> (EmailAddress -> a) -> ValidScimId -> a
-runValidScimIdBoth merge doURefl doEmail = these doEmail doURefl (\em uref -> doEmail em `merge` doURefl uref) . validScimIdAuthInfo
-
 veidUref :: ValidScimId -> Maybe SAML.UserRef
 veidUref = justThere . validScimIdAuthInfo
-
-isSAMLUser :: ValidScimId -> Bool
-isSAMLUser = isJust . justThere . validScimIdAuthInfo
 
 makeLenses ''ValidScimUser
 makeLenses ''ValidScimId

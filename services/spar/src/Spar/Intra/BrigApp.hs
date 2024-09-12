@@ -23,7 +23,6 @@
 module Spar.Intra.BrigApp
   ( veidToUserSSOId,
     urefToExternalId,
-    urefToEmail,
     veidFromBrigUser,
     veidFromUserSSOId,
     mkUserName,
@@ -37,8 +36,6 @@ module Spar.Intra.BrigApp
 
     -- * re-exports, mostly for historical reasons and lazyness
     emailFromSAML,
-    emailToSAMLNameID,
-    emailFromSAMLNameID,
   )
 where
 

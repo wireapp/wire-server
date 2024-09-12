@@ -20,6 +20,7 @@ roots = [ # may of the entries here are about general-purpose module
          "^API.Team.Util.*$", # FUTUREWORK: Consider whether unused utility functions should be kept.
          "^Bilge.*$",
          "^Cassandra.Helpers.toOptionFieldName",
+         "^Cassandra.QQ.sql$",
          "^Data.ETag._OpaqueDigest",
          "^Data.ETag._StrictETag",
          "^Data.ETag._WeakETag",
