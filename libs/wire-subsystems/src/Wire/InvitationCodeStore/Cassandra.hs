@@ -49,7 +49,6 @@ insertInvitationImpl (MkInsertInvitation invId teamId role (toUTCTimeMillis -> n
             name = name,
             code = code
           }
-  -- TODO: see how we can improve this
   retry x5 . batch $ do
     setType BatchLogged
     setConsistency LocalQuorum
