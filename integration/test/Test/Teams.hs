@@ -107,7 +107,7 @@ testInvitePersonalUserToTeamMultipleInvitations = do
     resp.json %. "team" `shouldMatch` tid
   code2 <- getInvitationCode owner2 inv2 >>= getJSON 200 >>= (%. "code") & asString
   bindResponse (acceptTeamInvitation user code2 (Just defPassword)) $ \resp -> do
-    resp.status `shouldMatchInt` 409
+    resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "cannot-join-multiple-teams"
   bindResponse (getSelf user) $ \resp -> do
     resp.status `shouldMatchInt` 200
