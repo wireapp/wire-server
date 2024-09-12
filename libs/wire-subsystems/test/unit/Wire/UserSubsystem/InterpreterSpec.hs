@@ -769,7 +769,7 @@ spec = describe "UserSubsystem.Interpreter" do
 
   describe "getLocalUserAccountByUserKey" $ do
     prop "gets users iff they are indexed by the UserKeyStore" $
-      \(config :: UserSubsystemConfig) (localDomain :: Domain) (NotPendingStoredUser storedUser) (userKey :: EmailKey) ->
+      \(config :: UserSubsystemConfig) (localDomain :: Domain) (storedUser :: StoredUser) (userKey :: EmailKey) ->
         let localBackend =
               def
                 { users = [storedUser],
