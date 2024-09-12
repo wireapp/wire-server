@@ -410,9 +410,11 @@ acceptTeamInvitationByPersonalUser ::
   AcceptTeamInvitation ->
   (Handler r) ()
 acceptTeamInvitationByPersonalUser luid req = do
-  mek <- do
+  (mek, mTid) <- do
     mSelfProfile <- lift $ liftSem $ getSelfProfile luid
-    pure $ mkEmailKey <$> (userEmail . selfUser =<< mSelfProfile)
+    let mek = mkEmailKey <$> (userEmail . selfUser =<< mSelfProfile)
+        mTid = mSelfProfile >>= userTeam . selfUser
+    pure (mek, mTid)
   checkPassword
   mInv <- API.findTeamInvitation mek req.code !>> toInvitationError
   case mInv of
@@ -420,6 +422,9 @@ acceptTeamInvitationByPersonalUser luid req = do
     Just (inv, DB.iiTeam -> tid) -> do
       let minvmeta = ((,inCreatedAt inv) <$> inCreatedBy inv, inRole inv)
           uid = tUnqualified luid
+      for_ mTid $ \userTid ->
+        unless (tid == userTid) $
+          throwStd (errorToWai @'E.CannotJoinMultipleTeams)
       added <- lift $ liftSem $ GalleyAPIAccess.addTeamMember uid tid minvmeta
       unless added $ throwStd (errorToWai @'E.TooManyTeamMembers)
       lift $ do

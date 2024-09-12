@@ -70,6 +70,7 @@ data BrigError
   | ChangePasswordMustDiffer
   | PasswordAuthenticationFailed
   | TooManyTeamInvitations
+  | CannotJoinMultipleTeams
   | InsufficientTeamPermissions
   | KeyPackageDecodingError
   | InvalidKeyPackageRef
@@ -250,6 +251,8 @@ type instance MapError 'ChangePasswordMustDiffer = 'StaticError 409 "password-mu
 type instance MapError 'PasswordAuthenticationFailed = 'StaticError 403 "password-authentication-failed" "Password authentication failed."
 
 type instance MapError 'TooManyTeamInvitations = 'StaticError 403 "too-many-team-invitations" "Too many team invitations for this team"
+
+type instance MapError 'CannotJoinMultipleTeams = 'StaticError 403 "too-many-team-invitations" "Too many team invitations for this team"
 
 type instance MapError 'InsufficientTeamPermissions = 'StaticError 403 "insufficient-permissions" "Insufficient team permissions"
 
