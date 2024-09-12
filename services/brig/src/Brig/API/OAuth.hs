@@ -39,6 +39,7 @@ import Data.Id
 import Data.Json.Util (toUTCTimeMillis)
 import Data.Map qualified as Map
 import Data.Misc
+import Data.Qualified
 import Data.Set qualified as Set
 import Data.Text.Ascii
 import Data.Text.Encoding qualified as T
@@ -67,7 +68,7 @@ import Wire.Sem.Now qualified as Now
 internalOauthAPI :: ServerT I.OAuthAPI (Handler r)
 internalOauthAPI =
   Named @"create-oauth-client" registerOAuthClient
-    :<|> Named @"get-oauth-client" getOAuthClientById
+    :<|> Named @"i-get-oauth-client" getOAuthClientById
     :<|> Named @"update-oauth-client" updateOAuthClient
     :<|> Named @"delete-oauth-client" deleteOAuthClient
 
@@ -122,14 +123,14 @@ deleteOAuthClient cid = do
   void $ getOAuthClientById cid
   lift $ wrapClient $ deleteOAuthClient' cid
 
-getOAuthClient :: UserId -> OAuthClientId -> (Handler r) (Maybe OAuthClient)
+getOAuthClient :: Local UserId -> OAuthClientId -> (Handler r) (Maybe OAuthClient)
 getOAuthClient _ cid = do
   unlessM (Opt.setOAuthEnabled <$> view settings) $ throwStd $ errorToWai @'OAuthFeatureDisabled
   lift $ wrapClient $ lookupOauthClient cid
 
-createNewOAuthAuthorizationCode :: UserId -> CreateOAuthAuthorizationCodeRequest -> (Handler r) CreateOAuthCodeResponse
-createNewOAuthAuthorizationCode uid code = do
-  runExceptT (validateAndCreateAuthorizationCode uid code) >>= \case
+createNewOAuthAuthorizationCode :: Local UserId -> CreateOAuthAuthorizationCodeRequest -> (Handler r) CreateOAuthCodeResponse
+createNewOAuthAuthorizationCode luid code = do
+  runExceptT (validateAndCreateAuthorizationCode luid code) >>= \case
     Right oauthCode ->
       pure $
         CreateOAuthCodeSuccess $
@@ -174,11 +175,11 @@ data CreateNewOAuthCodeError
   | CreateNewOAuthCodeErrorUnsupportedResponseType
   | CreateNewOAuthCodeErrorRedirectUrlMissMatch
 
-validateAndCreateAuthorizationCode :: UserId -> CreateOAuthAuthorizationCodeRequest -> ExceptT CreateNewOAuthCodeError (Handler r) OAuthAuthorizationCode
-validateAndCreateAuthorizationCode uid (CreateOAuthAuthorizationCodeRequest cid scope responseType redirectUrl _state _ chal) = do
+validateAndCreateAuthorizationCode :: Local UserId -> CreateOAuthAuthorizationCodeRequest -> ExceptT CreateNewOAuthCodeError (Handler r) OAuthAuthorizationCode
+validateAndCreateAuthorizationCode luid@(tUnqualified -> uid) (CreateOAuthAuthorizationCodeRequest cid scope responseType redirectUrl _state _ chal) = do
   failWithM CreateNewOAuthCodeErrorFeatureDisabled (assertMay . Opt.setOAuthEnabled <$> view settings)
   failWith CreateNewOAuthCodeErrorUnsupportedResponseType (assertMay $ responseType == OAuthResponseTypeCode)
-  client <- failWithM CreateNewOAuthCodeErrorClientNotFound $ getOAuthClient uid cid
+  client <- failWithM CreateNewOAuthCodeErrorClientNotFound $ getOAuthClient luid cid
   failWith CreateNewOAuthCodeErrorRedirectUrlMissMatch (assertMay $ client.redirectUrl == redirectUrl)
   lift mkAuthorizationCode
   where
@@ -201,7 +202,8 @@ createAccessTokenWithRefreshToken req = do
   unless (req.grantType == OAuthGrantTypeRefreshToken) $ throwStd $ errorToWai @'OAuthInvalidGrantType
   key <- signingKey
   (OAuthRefreshTokenInfo _ cid uid scope _) <- lookupVerifyAndDeleteToken key req.refreshToken
-  void $ getOAuthClient uid cid >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
+  luid <- qualifyLocal uid
+  void $ getOAuthClient luid cid >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
   unless (cid == req.clientId) $ throwStd $ errorToWai @'OAuthInvalidClientCredentials
   createAccessToken key uid cid scope
 
@@ -226,7 +228,8 @@ createAccessTokenWithAuthorizationCode req = do
   (cid, uid, scope, uri, mChal) <-
     lift (wrapClient $ lookupAndDeleteByOAuthAuthorizationCode req.code)
       >>= maybe (throwStd $ errorToWai @'OAuthAuthorizationCodeNotFound) pure
-  oauthClient <- getOAuthClient uid req.clientId >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
+  luid <- qualifyLocal uid
+  oauthClient <- getOAuthClient luid req.clientId >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
 
   unless (uri == req.redirectUri) $ throwStd $ errorToWai @'OAuthRedirectUrlMissMatch
   unless (oauthClient.redirectUrl == req.redirectUri) $ throwStd $ errorToWai @'OAuthRedirectUrlMissMatch
@@ -305,7 +308,8 @@ revokeRefreshToken :: (Member Jwk r) => OAuthRevokeRefreshTokenRequest -> (Handl
 revokeRefreshToken req = do
   key <- signingKey
   info <- lookupAndVerifyToken key req.refreshToken
-  void $ getOAuthClient info.userId info.clientId >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
+  luid <- qualifyLocal info.userId
+  void $ getOAuthClient luid info.clientId >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
   lift $ wrapClient $ deleteOAuthRefreshToken info.userId info.refreshTokenId
 
 lookupAndVerifyToken :: JWK -> OAuthRefreshToken -> (Handler r) OAuthRefreshTokenInfo
@@ -316,8 +320,8 @@ lookupAndVerifyToken key =
     . lookupOAuthRefreshTokenInfo
     >=> maybe (throwStd $ errorToWai @'OAuthInvalidRefreshToken) pure
 
-getOAuthApplications :: UserId -> (Handler r) [OAuthApplication]
-getOAuthApplications uid = do
+getOAuthApplications :: Local UserId -> (Handler r) [OAuthApplication]
+getOAuthApplications (tUnqualified -> uid) = do
   activeRefreshTokens <- lift $ wrapClient $ lookupOAuthRefreshTokens uid
   toApplications activeRefreshTokens
   where
@@ -325,26 +329,27 @@ getOAuthApplications uid = do
     toApplications infos = do
       let grouped = Map.fromListWith (<>) $ (\info -> (info.clientId, [info])) <$> infos
       mApps <- for (Map.toList grouped) $ \(cid, tokens) -> do
-        mClient <- getOAuthClient uid cid
+        let luid = undefined uid
+        mClient <- getOAuthClient luid cid
         pure $ (\client -> OAuthApplication cid client.name ((\i -> OAuthSession i.refreshTokenId (toUTCTimeMillis i.createdAt)) <$> tokens)) <$> mClient
       pure $ catMaybes mApps
 
-revokeOAuthAccountAccessV6 :: UserId -> OAuthClientId -> (Handler r) ()
-revokeOAuthAccountAccessV6 uid cid = do
+revokeOAuthAccountAccessV6 :: Local UserId -> OAuthClientId -> (Handler r) ()
+revokeOAuthAccountAccessV6 (tUnqualified -> uid) cid = do
   rts <- lift $ wrapClient $ lookupOAuthRefreshTokens uid
   for_ rts $ \rt -> when (rt.clientId == cid) $ lift $ wrapClient $ deleteOAuthRefreshToken uid rt.refreshTokenId
 
-revokeOAuthAccountAccess :: UserId -> OAuthClientId -> PasswordReqBody -> (Handler r) ()
-revokeOAuthAccountAccess uid cid req = do
-  wrapClientE $ reauthenticate uid req.fromPasswordReqBody !>> toAccessDenied
-  revokeOAuthAccountAccessV6 uid cid
+revokeOAuthAccountAccess :: Local UserId -> OAuthClientId -> PasswordReqBody -> (Handler r) ()
+revokeOAuthAccountAccess luid@(tUnqualified -> uid) cid req = do
+  wrapClientE (reauthenticate uid req.fromPasswordReqBody) !>> toAccessDenied
+  revokeOAuthAccountAccessV6 luid cid
   where
     toAccessDenied :: ReAuthError -> HttpError
     toAccessDenied _ = StdError $ errorToWai @'AccessDenied
 
-deleteOAuthRefreshTokenById :: UserId -> OAuthClientId -> OAuthRefreshTokenId -> PasswordReqBody -> (Handler r) ()
-deleteOAuthRefreshTokenById uid cid tokenId req = do
-  wrapClientE $ reauthenticate uid req.fromPasswordReqBody !>> toAccessDenied
+deleteOAuthRefreshTokenById :: Local UserId -> OAuthClientId -> OAuthRefreshTokenId -> PasswordReqBody -> (Handler r) ()
+deleteOAuthRefreshTokenById (tUnqualified -> uid) cid tokenId req = do
+  wrapClientE (reauthenticate uid req.fromPasswordReqBody) !>> toAccessDenied
   mInfo <- lift $ wrapClient $ lookupOAuthRefreshTokenInfo tokenId
   case mInfo of
     Nothing -> pure ()

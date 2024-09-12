@@ -31,11 +31,6 @@ module Brig.API.User
     lookupHandle,
     changeAccountStatus,
     changeSingleAccountStatus,
-    Data.lookupAccounts,
-    Data.lookupExtendedAccounts,
-    Data.lookupAccount,
-    lookupAccountsByIdentity,
-    lookupExtendedAccountsByIdentity,
     getLegalHoldStatus,
     Data.lookupName,
     Data.lookupUser,
@@ -89,8 +84,7 @@ import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivation (..), UserPendingActivationStore)
 import Brig.Effects.UserPendingActivationStore qualified as UserPendingActivationStore
 import Brig.IO.Intra qualified as Intra
-import Brig.Options hiding (Timeout, internalEvents)
-import Brig.Team.DB qualified as Team
+import Brig.Options hiding (internalEvents)
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Intra
 import Brig.User.Auth.Cookie qualified as Auth
@@ -102,6 +96,7 @@ import Control.Lens (preview, to, view, (^.), _Just)
 import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Code
+import Data.Coerce (coerce)
 import Data.Currency qualified as Currency
 import Data.Handle (Handle (fromHandle))
 import Data.Id as Id
@@ -129,8 +124,6 @@ import Wire.API.Error.Brig qualified as E
 import Wire.API.Password
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Team hiding (newTeam)
-import Wire.API.Team.Invitation
-import Wire.API.Team.Invitation qualified as Team
 import Wire.API.Team.Member (legalHoldStatus)
 import Wire.API.Team.Role
 import Wire.API.Team.Size
@@ -145,7 +138,10 @@ import Wire.DeleteQueue
 import Wire.EmailSubsystem
 import Wire.Error
 import Wire.GalleyAPIAccess as GalleyAPIAccess
+import Wire.InvitationCodeStore (InvitationCodeStore, StoredInvitation, StoredInvitationInfo)
+import Wire.InvitationCodeStore qualified as InvitationCodeStore
 import Wire.NotificationSubsystem
+import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PasswordStore (PasswordStore, lookupHashedPassword, upsertHashedPassword)
 import Wire.PropertySubsystem as PropertySubsystem
 import Wire.Sem.Concurrency
@@ -246,7 +242,7 @@ createUserSpar new = do
     addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> Role -> ExceptT RegisterError (AppT r) CreateUserTeam
     addUserToTeamSSO account tid ident role = do
       let uid = userId (accountUser account)
-      added <- lift $ liftSem $ GalleyAPIAccess.addTeamMember uid tid (Nothing, role)
+      added <- lift $ liftSem $ GalleyAPIAccess.addTeamMember uid tid Nothing role
       unless added $
         throwE RegisterErrorTooManyTeamMembers
       lift $ do
@@ -267,12 +263,15 @@ createUser ::
     Member GalleyAPIAccess r,
     Member (UserPendingActivationStore p) r,
     Member UserKeyStore r,
+    Member UserSubsystem r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member PasswordResetCodeStore r,
+    Member InvitationCodeStore r
   ) =>
   NewUser ->
   ExceptT RegisterError (AppT r) CreateUserResult
@@ -295,8 +294,14 @@ createUser new = do
         pure (Nothing, Nothing, Just tid)
       Nothing ->
         pure (Nothing, Nothing, Nothing)
-  let mbInv = Team.inInvitation . fst <$> teamInvitation
-  mbExistingAccount <- lift $ join <$> for mbInv (\(Id uuid) -> wrapClient $ Data.lookupAccount (Id uuid))
+  let mbInv = (.invitationId) . fst <$> teamInvitation
+  mbExistingAccount <-
+    lift $
+      join
+        <$> for mbInv do
+          \invid -> liftSem $ do
+            luid :: Local UserId <- qualifyLocal' (coerce invid)
+            User.getLocalAccountBy WithPendingInvitations luid
 
   let (new', mbHandle) = case mbExistingAccount of
         Nothing ->
@@ -337,7 +342,7 @@ createUser new = do
 
     pure account
 
-  let uid = userId (accountUser account)
+  let uid = qUnqualified account.accountUser.userQualifiedId
 
   createUserTeam <- do
     activatedTeam <- lift $ do
@@ -354,10 +359,9 @@ createUser new = do
 
     joinedTeamInvite <- case teamInvitation of
       Just (inv, invInfo) -> do
-        let em = Team.inInviteeEmail inv
-        acceptTeamInvitation account inv invInfo (mkEmailKey em) (EmailIdentity em)
-        Team.TeamName nm <- lift $ liftSem $ GalleyAPIAccess.getTeamName (Team.inTeam inv)
-        pure (Just $ CreateUserTeam (Team.inTeam inv) nm)
+        acceptTeamInvitation account inv invInfo (mkEmailKey inv.email) (EmailIdentity inv.email)
+        Team.TeamName nm <- lift $ liftSem $ GalleyAPIAccess.getTeamName inv.teamId
+        pure (Just $ CreateUserTeam inv.teamId nm)
       Nothing -> pure Nothing
 
     joinedTeamSSO <- case (newUserIdentity new', tid) of
@@ -385,17 +389,25 @@ createUser new = do
 
       pure email
 
-    findTeamInvitation :: Maybe EmailKey -> InvitationCode -> ExceptT RegisterError (AppT r) (Maybe (Team.Invitation, Team.InvitationInfo, TeamId))
+    findTeamInvitation ::
+      Maybe EmailKey ->
+      InvitationCode ->
+      ExceptT
+        RegisterError
+        (AppT r)
+        ( Maybe
+            (StoredInvitation, StoredInvitationInfo, TeamId)
+        )
     findTeamInvitation Nothing _ = throwE RegisterErrorMissingIdentity
     findTeamInvitation (Just e) c =
-      lift (wrapClient $ Team.lookupInvitationInfo c) >>= \case
-        Just ii -> do
-          inv <- lift . wrapClient $ Team.lookupInvitation HideInvitationUrl (Team.iiTeam ii) (Team.iiInvId ii)
-          case (inv, Team.inInviteeEmail <$> inv) of
+      lift (liftSem $ InvitationCodeStore.lookupInvitationInfo c) >>= \case
+        Just invitationInfo -> do
+          inv <- lift . liftSem $ InvitationCodeStore.lookupInvitation invitationInfo.teamId invitationInfo.invitationId
+          case (inv, (.email) <$> inv) of
             (Just invite, Just em)
               | e == mkEmailKey em -> do
-                  _ <- ensureMemberCanJoin (Team.iiTeam ii)
-                  pure $ Just (invite, ii, Team.iiTeam ii)
+                  ensureMemberCanJoin invitationInfo.teamId
+                  pure $ Just (invite, invitationInfo, invitationInfo.teamId)
             _ -> throwE RegisterErrorInvalidInvitationCode
         Nothing -> throwE RegisterErrorInvalidInvitationCode
 
@@ -414,37 +426,38 @@ createUser new = do
 
     acceptTeamInvitation ::
       UserAccount ->
-      Team.Invitation ->
-      Team.InvitationInfo ->
+      StoredInvitation ->
+      StoredInvitationInfo ->
       EmailKey ->
       UserIdentity ->
       ExceptT RegisterError (AppT r) ()
-    acceptTeamInvitation account inv ii uk ident = do
+    acceptTeamInvitation account inv invitationInfo uk ident = do
       let uid = userId (accountUser account)
       ok <- lift $ liftSem $ claimKey uk uid
       unless ok $
         throwE RegisterErrorUserKeyExists
-      let minvmeta :: (Maybe (UserId, UTCTimeMillis), Role)
-          minvmeta = ((,inCreatedAt inv) <$> inCreatedBy inv, Team.inRole inv)
-      added <- lift $ liftSem $ GalleyAPIAccess.addTeamMember uid (Team.iiTeam ii) minvmeta
+      let minvmeta :: Maybe (UserId, UTCTimeMillis)
+          minvmeta = (,inv.createdAt) <$> inv.createdBy
+          role :: Role
+          role = fromMaybe defaultRole inv.role
+      added <- lift $ liftSem $ GalleyAPIAccess.addTeamMember uid invitationInfo.teamId minvmeta role
       unless added $
         throwE RegisterErrorTooManyTeamMembers
       lift $ do
         wrapClient $ activateUser uid ident -- ('insertAccount' sets column activated to False; here it is set to True.)
         void $ onActivated (AccountActivated account)
-        liftSem $
+        liftSem do
           Log.info $
             field "user" (toByteString uid)
-              . field "team" (toByteString $ Team.iiTeam ii)
+              . field "team" (toByteString $ invitationInfo.teamId)
               . msg (val "Accepting invitation")
-        liftSem $ UserPendingActivationStore.remove uid
-        wrapClient $ do
-          Team.deleteInvitation (Team.inTeam inv) (Team.inInvitation inv)
+          UserPendingActivationStore.remove uid
+          InvitationCodeStore.deleteInvitation inv.teamId inv.invitationId
 
     addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT RegisterError (AppT r) CreateUserTeam
     addUserToTeamSSO account tid ident = do
       let uid = userId (accountUser account)
-      added <- lift $ liftSem $ GalleyAPIAccess.addTeamMember uid tid (Nothing, defaultRole)
+      added <- lift $ liftSem $ GalleyAPIAccess.addTeamMember uid tid Nothing defaultRole
       unless added $
         throwE RegisterErrorTooManyTeamMembers
       lift $ do
@@ -493,10 +506,10 @@ createUserInviteViaScim ::
   ) =>
   NewUserScimInvitation ->
   ExceptT HttpError (AppT r) UserAccount
-createUserInviteViaScim (NewUserScimInvitation tid uid eid loc name email _) = do
+createUserInviteViaScim (NewUserScimInvitation tid uid extId loc name email _) = do
   let emKey = mkEmailKey email
   verifyUniquenessAndCheckBlacklist emKey !>> identityErrorToBrigError
-  account <- lift . wrapClient $ newAccountInviteViaScim uid eid tid loc name email
+  account <- lift . wrapClient $ newAccountInviteViaScim uid extId tid loc name email
   lift . liftSem . Log.debug $ field "user" (toByteString . userId . accountUser $ account) . field "action" (val "User.createUserInviteViaScim")
 
   -- add the expiry table entry first!  (if brig creates an account, and then crashes before
@@ -683,7 +696,9 @@ activate ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member PasswordResetCodeStore r,
+    Member UserSubsystem r
   ) =>
   ActivationTarget ->
   ActivationCode ->
@@ -699,6 +714,8 @@ activateWithCurrency ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
+    Member PasswordResetCodeStore r,
+    Member UserSubsystem r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   ActivationTarget ->
@@ -715,7 +732,7 @@ activateWithCurrency tgt code usr cur = do
     field "activation.key" (toByteString key)
       . field "activation.code" (toByteString code)
       . msg (val "Activating")
-  event <- wrapClientE $ Data.activateKey key code usr
+  event <- Data.activateKey key code usr
   case event of
     Nothing -> pure ActivationPass
     Just e -> do
@@ -876,13 +893,14 @@ deleteSelfUser ::
     Member (ConnectionStore InternalPaging) r,
     Member EmailSubsystem r,
     Member VerificationCodeSubsystem r,
+    Member UserSubsystem r,
     Member PropertySubsystem r
   ) =>
-  UserId ->
+  Local UserId ->
   Maybe PlainTextPassword6 ->
   ExceptT DeleteUserError (AppT r) (Maybe Timeout)
-deleteSelfUser uid pwd = do
-  account <- lift . wrapClient $ Data.lookupAccount uid
+deleteSelfUser luid@(tUnqualified -> uid) pwd = do
+  account <- lift . liftSem $ User.getAccountNoFilter luid
   case account of
     Nothing -> throwE DeleteUserInvalid
     Just a -> case accountStatus a of
@@ -948,6 +966,7 @@ verifyDeleteUser ::
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
     Member VerificationCodeSubsystem r,
+    Member UserSubsystem r,
     Member PropertySubsystem r
   ) =>
   VerifyDeleteUser ->
@@ -957,7 +976,8 @@ verifyDeleteUser d = do
   let code = verifyDeleteUserCode d
   c <- lift . liftSem $ verifyCode key VerificationCode.AccountDeletion code
   a <- maybe (throwE DeleteUserInvalidCode) pure (VerificationCode.codeAccount =<< c)
-  account <- lift . wrapClient $ Data.lookupAccount (Id a)
+  luid <- qualifyLocal $ Id a
+  account <- lift . liftSem $ User.getAccountNoFilter luid
   for_ account $ lift . liftSem . deleteAccount
   lift . liftSem $ deleteCode key VerificationCode.AccountDeletion
 
@@ -975,12 +995,13 @@ ensureAccountDeleted ::
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
     Member UserStore r,
+    Member UserSubsystem r,
     Member PropertySubsystem r
   ) =>
-  UserId ->
+  Local UserId ->
   AppT r DeleteUserResult
-ensureAccountDeleted uid = do
-  mbAcc <- wrapClient $ lookupAccount uid
+ensureAccountDeleted luid@(tUnqualified -> uid) = do
+  mbAcc <- liftSem $ User.getAccountNoFilter luid
   case mbAcc of
     Nothing -> pure NoUser
     Just acc -> do
@@ -1108,10 +1129,15 @@ enqueueMultiDeleteCallsCounter =
         }
 
 getLegalHoldStatus ::
-  (Member GalleyAPIAccess r) =>
-  UserId ->
+  ( Member GalleyAPIAccess r,
+    Member UserSubsystem r
+  ) =>
+  Local UserId ->
   AppT r (Maybe UserLegalHoldStatus)
-getLegalHoldStatus uid = traverse (liftSem . getLegalHoldStatus' . accountUser) =<< wrapHttpClient (lookupAccount uid)
+getLegalHoldStatus uid =
+  liftSem $
+    traverse (getLegalHoldStatus' . accountUser)
+      =<< User.getLocalAccountBy NoPendingInvitations uid
 
 getLegalHoldStatus' ::
   (Member GalleyAPIAccess r) =>
@@ -1123,32 +1149,6 @@ getLegalHoldStatus' user =
     Just tid -> do
       teamMember <- GalleyAPIAccess.getTeamMember (userId user) tid
       pure $ maybe defUserLegalHoldStatus (^. legalHoldStatus) teamMember
-
--- | Find user accounts for a given identity, both activated and those
--- currently pending activation.
-lookupExtendedAccountsByIdentity ::
-  (Member UserKeyStore r) =>
-  EmailAddress ->
-  Bool ->
-  AppT r [ExtendedUserAccount]
-lookupExtendedAccountsByIdentity email includePendingInvitations = do
-  let uk = mkEmailKey email
-  activeUid <- liftSem $ lookupKey uk
-  uidFromKey <- (>>= fst) <$> wrapClient (Data.lookupActivationCode uk)
-  result <- wrapClient $ Data.lookupExtendedAccounts (nub $ catMaybes [activeUid, uidFromKey])
-  if includePendingInvitations
-    then pure result
-    else pure $ filter ((/= PendingInvitation) . accountStatus . account) result
-
--- | Find user accounts for a given identity, both activated and those
--- currently pending activation.
-lookupAccountsByIdentity ::
-  (Member UserKeyStore r) =>
-  EmailAddress ->
-  Bool ->
-  AppT r [UserAccount]
-lookupAccountsByIdentity email includePendingInvitations =
-  account <$$> lookupExtendedAccountsByIdentity email includePendingInvitations
 
 isBlacklisted :: (Member BlockListStore r) => EmailAddress -> AppT r Bool
 isBlacklisted email = do

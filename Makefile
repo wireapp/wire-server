@@ -163,7 +163,7 @@ lint-all: formatc hlint-check-all lint-common
 # The extra 'hlint-check-pr' has been witnessed to be necessary due to
 # some bu in `hlint-inplace-pr`.  Details got lost in history.
 .PHONY: lint-all-shallow
-lint-all-shallow: formatf hlint-inplace-pr hlint-check-pr lint-common
+lint-all-shallow: lint-common formatf hlint-inplace-pr hlint-check-pr 
 
 .PHONY: lint-common
 lint-common: check-local-nix-derivations treefmt-check # weeder (does not work on CI yet)

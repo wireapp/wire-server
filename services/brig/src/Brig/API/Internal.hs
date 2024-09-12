@@ -50,7 +50,6 @@ import Brig.IO.Intra qualified as Intra
 import Brig.Options hiding (internalEvents)
 import Brig.Provider.API qualified as Provider
 import Brig.Team.API qualified as Team
-import Brig.Team.DB (lookupInvitationByEmail)
 import Brig.Types.Connection
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
@@ -66,6 +65,7 @@ import Data.CommaSeparatedList
 import Data.Default
 import Data.Domain (Domain)
 import Data.Handle
+import Data.HavePendingInvitations
 import Data.Id as Id
 import Data.Map.Strict qualified as Map
 import Data.Qualified
@@ -76,7 +76,7 @@ import Data.Time.Clock.System
 import Imports hiding (head)
 import Network.Wai.Utilities as Utilities
 import Polysemy
-import Polysemy.Input (Input)
+import Polysemy.Input (Input, input)
 import Polysemy.TinyLog (TinyLog)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.OpenApi.Internal.Orphans ()
@@ -100,11 +100,13 @@ import Wire.API.User.RichInfo
 import Wire.API.UserEvent
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 import Wire.BlockListStore (BlockListStore)
-import Wire.DeleteQueue
+import Wire.DeleteQueue (DeleteQueue)
 import Wire.EmailSending (EmailSending)
 import Wire.EmailSubsystem (EmailSubsystem)
-import Wire.GalleyAPIAccess (GalleyAPIAccess, ShowOrHideInvitationUrl (..))
+import Wire.GalleyAPIAccess (GalleyAPIAccess)
+import Wire.InvitationCodeStore
 import Wire.NotificationSubsystem
+import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PropertySubsystem
 import Wire.Rpc
 import Wire.Sem.Concurrency
@@ -132,6 +134,7 @@ servantSitemap ::
     Member NotificationSubsystem r,
     Member UserSubsystem r,
     Member UserStore r,
+    Member InvitationCodeStore r,
     Member UserKeyStore r,
     Member Rpc r,
     Member TinyLog r,
@@ -139,6 +142,7 @@ servantSitemap ::
     Member EmailSending r,
     Member EmailSubsystem r,
     Member VerificationCodeSubsystem r,
+    Member PasswordResetCodeStore r,
     Member PropertySubsystem r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
@@ -190,7 +194,9 @@ accountAPI ::
     Member (ConnectionStore InternalPaging) r,
     Member EmailSubsystem r,
     Member VerificationCodeSubsystem r,
-    Member PropertySubsystem r
+    Member PropertySubsystem r,
+    Member PasswordResetCodeStore r,
+    Member InvitationCodeStore r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
@@ -240,6 +246,7 @@ teamsAPI ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
+    Member InvitationCodeStore r,
     Member (ConnectionStore InternalPaging) r,
     Member EmailSending r,
     Member UserSubsystem r
@@ -268,6 +275,7 @@ authAPI ::
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
+    Member UserSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
@@ -278,7 +286,13 @@ authAPI =
   Named @"legalhold-login" (callsFed (exposeAnnotations legalHoldLogin))
     :<|> Named @"sso-login" (callsFed (exposeAnnotations ssoLogin))
     :<|> Named @"login-code" getLoginCode
-    :<|> Named @"reauthenticate" reauthenticate
+    :<|> Named @"reauthenticate"
+      ( \uid reauth ->
+          -- changing this end-point would involve providing a `Local` type from a user id that is
+          -- captured from the path, not pulled from the http header.  this is certainly feasible,
+          -- but running qualifyLocal here is easier.
+          qualifyLocal uid >>= \luid -> reauthenticate luid reauth
+      )
 
 federationRemotesAPI :: (Member FederationConfigStore r) => ServerT BrigIRoutes.FederationRemotesAPI (Handler r)
 federationRemotesAPI =
@@ -408,6 +422,7 @@ addClientInternalH ::
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
     Member EmailSubsystem r,
+    Member UserSubsystem r,
     Member VerificationCodeSubsystem r
   ) =>
   UserId ->
@@ -419,7 +434,8 @@ addClientInternalH usr mSkipReAuth new connId = do
   let policy
         | mSkipReAuth == Just True = \_ _ -> False
         | otherwise = Data.reAuthForNewClients
-  API.addClientWithReAuthPolicy policy usr connId new !>> clientError
+  lusr <- qualifyLocal usr
+  API.addClientWithReAuthPolicy policy lusr connId new !>> clientError
 
 legalHoldClientRequestedH ::
   ( Member (Embed HttpClientIO) r,
@@ -465,9 +481,12 @@ createUserNoVerify ::
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
+    Member InvitationCodeStore r,
     Member UserKeyStore r,
+    Member UserSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
+    Member PasswordResetCodeStore r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   NewUser ->
@@ -492,6 +511,7 @@ createUserNoVerifySpar ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
+    Member PasswordResetCodeStore r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   NewUserSpar ->
@@ -515,6 +535,7 @@ deleteUserNoAuthH ::
     Member UserStore r,
     Member TinyLog r,
     Member UserKeyStore r,
+    Member UserSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
@@ -523,7 +544,8 @@ deleteUserNoAuthH ::
   UserId ->
   (Handler r) DeleteUserResponse
 deleteUserNoAuthH uid = do
-  r <- lift $ API.ensureAccountDeleted uid
+  luid <- qualifyLocal uid
+  r <- lift $ API.ensureAccountDeleted luid
   case r of
     NoUser -> throwStd (errorToWai @'E.UserNotFound)
     AccountAlreadyDeleted -> pure UserResponseAccountAlreadyDeleted
@@ -549,9 +571,8 @@ changeSelfEmailMaybeSend u DoNotSendEmail email allowScim = do
 -- handler allows up to 4 lists of various user keys, and returns the union of the lookups.
 -- Empty list is forbidden for backwards compatibility.
 listActivatedAccountsH ::
-  ( Member DeleteQueue r,
-    Member UserKeyStore r,
-    Member UserStore r
+  ( Member (Input (Local ())) r,
+    Member UserSubsystem r
   ) =>
   Maybe (CommaSeparatedList UserId) ->
   Maybe (CommaSeparatedList Handle) ->
@@ -562,50 +583,21 @@ listActivatedAccountsH
   (maybe [] fromCommaSeparatedList -> uids)
   (maybe [] fromCommaSeparatedList -> handles)
   (maybe [] fromCommaSeparatedList -> emails)
-  (fromMaybe False -> includePendingInvitations) = do
+  (maybe NoPendingInvitations fromBool -> include) = do
     when (length uids + length handles + length emails == 0) $ do
       throwStd (notFound "no user keys")
-    lift $ do
-      u1 <- listActivatedAccounts (Left uids) includePendingInvitations
-      u2 <- listActivatedAccounts (Right handles) includePendingInvitations
-      u3 <- (\email -> API.lookupExtendedAccountsByIdentity email includePendingInvitations) `mapM` emails
-      pure $ u1 <> u2 <> join u3
-
--- FUTUREWORK: this should use UserStore only through UserSubsystem.
-listActivatedAccounts ::
-  (Member DeleteQueue r, Member UserStore r) =>
-  Either [UserId] [Handle] ->
-  Bool ->
-  AppT r [ExtendedUserAccount]
-listActivatedAccounts elh includePendingInvitations = do
-  Log.debug (Log.msg $ "listActivatedAccounts: " <> show (elh, includePendingInvitations))
-  case elh of
-    Left us -> byIds us
-    Right hs -> do
-      us <- liftSem $ mapM API.lookupHandle hs
-      byIds (catMaybes us)
-  where
-    byIds :: (Member DeleteQueue r) => [UserId] -> (AppT r) [ExtendedUserAccount]
-    byIds uids = wrapClient (API.lookupExtendedAccounts uids) >>= filterM accountValid
-
-    accountValid :: (Member DeleteQueue r) => ExtendedUserAccount -> (AppT r) Bool
-    accountValid (account -> acc) = case userIdentity . accountUser $ acc of
-      Nothing -> pure False
-      Just ident ->
-        case (accountStatus acc, includePendingInvitations, emailIdentity ident) of
-          (PendingInvitation, False, _) -> pure False
-          (PendingInvitation, True, Just email) -> do
-            hasInvitation <- isJust <$> wrapClient (lookupInvitationByEmail HideInvitationUrl email)
-            unless hasInvitation $ do
-              -- user invited via scim should expire together with its invitation
-              liftSem $ API.deleteUserNoVerify (userId . accountUser $ acc)
-            pure hasInvitation
-          (PendingInvitation, True, Nothing) ->
-            pure True -- cannot happen, user invited via scim always has an email
-          (Active, _, _) -> pure True
-          (Suspended, _, _) -> pure True
-          (Deleted, _, _) -> pure True
-          (Ephemeral, _, _) -> pure True
+    lift $ liftSem do
+      loc <- input
+      byEmails <- getExtendedAccountsByEmailNoFilter $ loc $> emails
+      others <-
+        getExtendedAccountsBy $
+          loc
+            $> def
+              { includePendingInvitations = include,
+                getByUserId = uids,
+                getByHandle = handles
+              }
+      pure $ others <> byEmails
 
 getActivationCode :: EmailAddress -> Handler r GetActivationCodeResp
 getActivationCode email = do

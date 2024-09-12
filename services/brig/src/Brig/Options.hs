@@ -41,33 +41,21 @@ import Data.Misc (HttpsUrl)
 import Data.Nonce
 import Data.Range
 import Data.Schema
-import Data.Scientific (toBoundedInteger)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
-import Data.Time.Clock (DiffTime, NominalDiffTime, secondsToDiffTime)
 import Database.Bloodhound.Types qualified as ES
 import Imports
 import Network.AMQP.Extended
 import Network.DNS qualified as DNS
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
+import Util.Timeout
 import Wire.API.Allowlists (AllowlistEmailDomains (..))
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Version
 import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.EmailSending.SMTP (SMTPConnType (..))
-
-newtype Timeout = Timeout
-  { timeoutDiff :: NominalDiffTime
-  }
-  deriving newtype (Eq, Enum, Ord, Num, Real, Fractional, RealFrac, Show)
-
-instance Read Timeout where
-  readsPrec i s =
-    case readsPrec i s of
-      [(x :: Int, s')] -> [(Timeout (fromIntegral x), s')]
-      _ -> []
 
 data ElasticSearchOpts = ElasticSearchOpts
   { -- | ElasticSearch URL
@@ -824,16 +812,6 @@ defSrvDiscoveryIntervalSeconds = secondsToDiffTime 10
 
 defSftListLength :: Range 1 100 Int
 defSftListLength = unsafeRange 5
-
-instance FromJSON Timeout where
-  parseJSON (Number n) =
-    let defaultV = 3600
-        bounded = toBoundedInteger n :: Maybe Int64
-     in pure $
-          Timeout $
-            fromIntegral @Int $
-              maybe defaultV fromIntegral bounded
-  parseJSON v = A.typeMismatch "activationTimeout" v
 
 instance FromJSON Settings where
   parseJSON = genericParseJSON customOptions

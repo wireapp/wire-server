@@ -188,7 +188,6 @@ library
     Brig.Schema.V84_DropTeamInvitationPhone
     Brig.Schema.V85_DropUserKeysHashed
     Brig.Team.API
-    Brig.Team.DB
     Brig.Team.Email
     Brig.Team.Template
     Brig.Team.Util
@@ -298,7 +297,6 @@ library
     , safe-exceptions            >=0.1
     , saml2-web-sso
     , schema-profunctor
-    , scientific                 >=0.3.4
     , servant
     , servant-openapi3
     , servant-server

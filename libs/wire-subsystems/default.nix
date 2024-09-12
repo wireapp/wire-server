@@ -14,6 +14,7 @@
 , bytestring
 , bytestring-conversion
 , cassandra-util
+, conduit
 , containers
 , cql
 , crypton
@@ -73,10 +74,12 @@
 , types-common
 , unliftio
 , unordered-containers
+, uri-bytestring
 , uuid
 , wai-utilities
 , wire-api
 , wire-api-federation
+, witherable
 }:
 mkDerivation {
   pname = "wire-subsystems";
@@ -94,6 +97,7 @@ mkDerivation {
     bytestring
     bytestring-conversion
     cassandra-util
+    conduit
     containers
     cql
     crypton
@@ -143,10 +147,12 @@ mkDerivation {
     types-common
     unliftio
     unordered-containers
+    uri-bytestring
     uuid
     wai-utilities
     wire-api
     wire-api-federation
+    witherable
   ];
   testHaskellDepends = [
     aeson

@@ -2,9 +2,9 @@ module Test.Spar.Scim.UserSpec where
 
 import Arbitrary ()
 import Brig.Types.Intra
-import Brig.Types.User
 import Control.Monad.Except (runExceptT)
 import Data.Handle (parseHandle)
+import Data.HavePendingInvitations
 import Data.Id
 import Imports
 import Polysemy

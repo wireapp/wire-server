@@ -58,8 +58,7 @@ import Data.List.NonEmpty qualified as NE
 import Data.List1 (List1)
 import Data.List1 qualified as List1
 import Data.Misc (PlainTextPassword6)
-import Data.Qualified (Local)
-import Data.Time.Clock (UTCTime)
+import Data.Qualified
 import Data.ZAuth.Token qualified as ZAuth
 import Imports
 import Network.Wai.Utilities.Error ((!>>))
@@ -68,6 +67,7 @@ import Polysemy.Input (Input)
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import System.Logger (field, msg, val, (~~))
+import Util.Timeout
 import Wire.API.Team.Feature
 import Wire.API.Team.Feature qualified as Public
 import Wire.API.User
@@ -81,6 +81,8 @@ import Wire.PasswordStore (PasswordStore)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserKeyStore
 import Wire.UserStore
+import Wire.UserSubsystem (UserSubsystem)
+import Wire.UserSubsystem qualified as User
 import Wire.VerificationCode qualified as VerificationCode
 import Wire.VerificationCodeGen qualified as VerificationCodeGen
 import Wire.VerificationCodeSubsystem (VerificationCodeSubsystem)
@@ -98,6 +100,7 @@ login ::
     Member PasswordStore r,
     Member UserKeyStore r,
     Member UserStore r,
+    Member UserSubsystem r,
     Member VerificationCodeSubsystem r
   ) =>
   Login ->
@@ -117,8 +120,9 @@ login (MkLogin li pw label code) typ = do
   newAccess @ZAuth.User @ZAuth.Access uid Nothing typ label
   where
     verifyLoginCode :: Maybe Code.Value -> UserId -> ExceptT LoginError (AppT r) ()
-    verifyLoginCode mbCode uid =
-      verifyCode mbCode Login uid
+    verifyLoginCode mbCode uid = do
+      luid <- lift $ qualifyLocal uid
+      verifyCode mbCode Login luid
         `catchE` \case
           VerificationCodeNoPendingCode -> wrapHttpClientE $ loginFailedWith LoginCodeInvalid uid
           VerificationCodeRequired -> wrapHttpClientE $ loginFailedWith LoginCodeRequired uid
@@ -126,17 +130,18 @@ login (MkLogin li pw label code) typ = do
 
 verifyCode ::
   forall r.
-  (Member GalleyAPIAccess r, Member VerificationCodeSubsystem r) =>
+  (Member GalleyAPIAccess r, Member VerificationCodeSubsystem r, Member UserSubsystem r) =>
   Maybe Code.Value ->
   VerificationAction ->
-  UserId ->
+  Local UserId ->
   ExceptT VerificationCodeError (AppT r) ()
-verifyCode mbCode action uid = do
-  (mbEmail, mbTeamId) <- getEmailAndTeamId uid
+verifyCode mbCode action luid = do
+  (mbEmail, mbTeamId) <- getEmailAndTeamId luid
   featureEnabled <- lift $ do
     mbFeatureEnabled <- liftSem $ GalleyAPIAccess.getVerificationCodeEnabled `traverse` mbTeamId
     pure $ fromMaybe ((def @(Feature Public.SndFactorPasswordChallengeConfig)).status == Public.FeatureStatusEnabled) mbFeatureEnabled
-  isSsoUser <- wrapHttpClientE $ Data.isSamlUser uid
+  account <- lift . liftSem $ User.getAccountNoFilter luid
+  let isSsoUser = maybe False (Data.isSamlUser . ((.accountUser))) account
   when (featureEnabled && not isSsoUser) $ do
     case (mbCode, mbEmail) of
       (Just code, Just email) -> do
@@ -148,10 +153,10 @@ verifyCode mbCode action uid = do
       (_, Nothing) -> throwE VerificationCodeNoEmail
   where
     getEmailAndTeamId ::
-      UserId ->
+      Local UserId ->
       ExceptT e (AppT r) (Maybe EmailAddress, Maybe TeamId)
     getEmailAndTeamId u = do
-      mbAccount <- wrapHttpClientE $ Data.lookupAccount u
+      mbAccount <- lift . liftSem $ User.getAccountNoFilter u
       pure (userEmail <$> accountUser =<< mbAccount, userTeam <$> accountUser =<< mbAccount)
 
 loginFailedWith :: (MonadClient m, MonadReader Env m) => LoginError -> UserId -> ExceptT LoginError m ()
@@ -177,7 +182,7 @@ withRetryLimit action uid = do
     let bkey = BudgetKey ("login#" <> idToText uid)
         budget =
           Budget
-            (Opt.timeoutDiff $ Opt.timeout opts)
+            (timeoutDiff $ Opt.timeout opts)
             (fromIntegral $ Opt.retryLimit opts)
     bresult <- action bkey budget
     case bresult of
@@ -217,15 +222,21 @@ renewAccess uts at mcid = do
   pure $ Access at' ck'
 
 revokeAccess ::
-  (Member TinyLog r, Member PasswordStore r) =>
-  UserId ->
+  ( Member TinyLog r,
+    Member PasswordStore r,
+    Member UserSubsystem r
+  ) =>
+  Local UserId ->
   PlainTextPassword6 ->
   [CookieId] ->
   [CookieLabel] ->
   ExceptT AuthError (AppT r) ()
-revokeAccess u pw cc ll = do
+revokeAccess luid@(tUnqualified -> u) pw cc ll = do
   lift . liftSem $ Log.debug $ field "user" (toByteString u) . field "action" (val "User.revokeAccess")
-  unlessM (lift . wrapHttpClient $ Data.isSamlUser u) $ Data.authenticate u pw
+  isSaml <- lift . liftSem $ do
+    account <- User.getAccountNoFilter luid
+    pure $ maybe False (Data.isSamlUser . ((.accountUser))) account
+  unless isSaml $ Data.authenticate u pw
   lift $ wrapHttpClient $ revokeCookies u cc ll
 
 --------------------------------------------------------------------------------
@@ -282,32 +293,48 @@ newAccess uid cid ct cl = do
       t <- lift $ newAccessToken @u @a ck Nothing
       pure $ Access t (Just ck)
 
-resolveLoginId :: (Member UserKeyStore r, Member UserStore r) => LoginId -> ExceptT LoginError (AppT r) UserId
+resolveLoginId ::
+  ( Member UserKeyStore r,
+    Member UserStore r,
+    Member UserSubsystem r,
+    Member (Input (Local ())) r
+  ) =>
+  LoginId ->
+  ExceptT LoginError (AppT r) UserId
 resolveLoginId li = do
-  usr <- wrapClientE (validateLoginId li) >>= lift . either (liftSem . lookupKey) (liftSem . lookupHandle)
+  usr <- lift . liftSem . either lookupKey lookupHandle $ validateLoginId li
   case usr of
     Nothing -> do
-      pending <- wrapClientE $ isPendingActivation li
+      pending <- lift $ isPendingActivation li
       throwE $
         if pending
           then LoginPendingActivation
           else LoginFailed
     Just uid -> pure uid
 
-validateLoginId :: (MonadReader Env m) => LoginId -> ExceptT LoginError m (Either EmailKey Handle)
-validateLoginId (LoginByEmail email) = (pure . Left . mkEmailKey) email
-validateLoginId (LoginByHandle h) = (pure . Right) h
+validateLoginId :: LoginId -> Either EmailKey Handle
+validateLoginId (LoginByEmail email) = (Left . mkEmailKey) email
+validateLoginId (LoginByHandle h) = Right h
 
-isPendingActivation :: (MonadClient m, MonadReader Env m) => LoginId -> m Bool
+isPendingActivation ::
+  forall r.
+  (Member UserSubsystem r, Member (Input (Local ())) r) =>
+  LoginId ->
+  AppT r Bool
 isPendingActivation ident = case ident of
   (LoginByHandle _) -> pure False
   (LoginByEmail e) -> checkKey (mkEmailKey e)
   where
+    checkKey :: EmailKey -> AppT r Bool
     checkKey k = do
-      usr <- (>>= fst) <$> Data.lookupActivationCode k
-      case usr of
+      musr <- (>>= fst) <$> wrapClient (Data.lookupActivationCode k)
+      case musr of
         Nothing -> pure False
-        Just u -> maybe False (checkAccount k) <$> Data.lookupAccount u
+        Just usr -> liftSem do
+          lusr <- qualifyLocal' usr
+          maybe False (checkAccount k) <$> User.getAccountNoFilter lusr
+
+    checkAccount :: EmailKey -> UserAccount -> Bool
     checkAccount k a =
       let i = userIdentity (accountUser a)
           statusAdmitsPending = case accountStatus a of

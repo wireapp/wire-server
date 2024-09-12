@@ -17,7 +17,7 @@ interpretUserStoreCassandra :: (Member (Embed IO) r) => ClientState -> Interpret
 interpretUserStoreCassandra casClient =
   interpret $
     runEmbedded (runClient casClient) . \case
-      GetUser uid -> getUserImpl uid
+      GetUsers uids -> embed $ getUsersImpl uids
       UpdateUser uid update -> embed $ updateUserImpl uid update
       UpdateUserHandleEither uid update -> embed $ updateUserHandleEitherImpl uid update
       DeleteUser user -> embed $ deleteUserImpl user
@@ -27,10 +27,10 @@ interpretUserStoreCassandra casClient =
       IsActivated uid -> embed $ isActivatedImpl uid
       LookupLocale uid -> embed $ lookupLocaleImpl uid
 
-getUserImpl :: (Member (Embed Client) r) => UserId -> Sem r (Maybe StoredUser)
-getUserImpl uid = embed $ do
-  mUserTuple <- retry x1 $ query1 selectUser (params LocalQuorum (Identity uid))
-  pure $ asRecord <$> mUserTuple
+getUsersImpl :: [UserId] -> Client [StoredUser]
+getUsersImpl usrs =
+  map asRecord
+    <$> retry x1 (query selectUsers (params LocalQuorum (Identity usrs)))
 
 updateUserImpl :: UserId -> StoredUserUpdate -> Client ()
 updateUserImpl uid update =
@@ -126,12 +126,14 @@ lookupLocaleImpl u = do
 --------------------------------------------------------------------------------
 -- Queries
 
-selectUser :: PrepQuery R (Identity UserId) (TupleType StoredUser)
-selectUser =
-  "SELECT id, name, text_status, picture, email, sso_id, accent_id, assets, \
-  \activated, status, expires, language, country, provider, service, \
-  \handle, team, managed_by, supported_protocols \
-  \FROM user where id = ?"
+selectUsers :: PrepQuery R (Identity [UserId]) (TupleType StoredUser)
+selectUsers =
+  [sql|
+  SELECT id, name, text_status, picture, email, email_unvalidated, sso_id, accent_id, assets,
+  activated, status, expires, language, country, provider,
+  service, handle, team, managed_by, supported_protocols
+  FROM user WHERE id IN ?
+  |]
 
 userDisplayNameUpdate :: PrepQuery W (Name, UserId) ()
 userDisplayNameUpdate = "UPDATE user SET name = ? WHERE id = ?"

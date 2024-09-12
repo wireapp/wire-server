@@ -198,6 +198,7 @@ library
     , wai-utilities
     , warp
     , wire-api
+    , wire-subsystems
     , yaml
 
   default-language:   Haskell2010
@@ -351,7 +352,6 @@ executable spar-integration
     , cassava
     , cookie
     , crypton
-    , email-validate
     , exceptions
     , extended
     , hscim

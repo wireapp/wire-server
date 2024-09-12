@@ -13,12 +13,14 @@ import Data.Handle qualified as Handle
 import Data.Id
 import Data.Json.Util
 import Data.LegalHold
+import Data.List.Extra (nubOrd)
 import Data.Qualified
 import Data.Time.Clock
-import Imports hiding (local)
+import Imports
 import Polysemy
 import Polysemy.Error hiding (try)
 import Polysemy.Input
+import Polysemy.TinyLog (TinyLog)
 import Servant.Client.Core
 import Wire.API.Federation.API
 import Wire.API.Federation.Error
@@ -32,6 +34,7 @@ import Wire.DeleteQueue
 import Wire.Events
 import Wire.FederationAPIAccess
 import Wire.GalleyAPIAccess
+import Wire.InvitationCodeStore (InvitationCodeStore, lookupInvitationByEmail)
 import Wire.Sem.Concurrency
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
@@ -41,6 +44,7 @@ import Wire.UserStore as UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.HandleBlacklist
+import Witherable (wither)
 
 data UserSubsystemConfig = UserSubsystemConfig
   { emailVisibilityConfig :: EmailVisibilityConfig,
@@ -65,7 +69,9 @@ runUserSubsystem ::
     Member Now r,
     RunClient (fedM 'Brig),
     FederationMonad fedM,
-    Typeable fedM
+    Typeable fedM,
+    Member (TinyLog) r,
+    Member InvitationCodeStore r
   ) =>
   UserSubsystemConfig ->
   InterpreterFor UserSubsystem r
@@ -86,19 +92,23 @@ interpretUserSubsystem ::
     Member Now r,
     RunClient (fedM 'Brig),
     FederationMonad fedM,
-    Typeable fedM
+    Typeable fedM,
+    Member InvitationCodeStore r,
+    Member TinyLog r
   ) =>
   InterpreterFor UserSubsystem r
 interpretUserSubsystem = interpret \case
   GetUserProfiles self others -> getUserProfilesImpl self others
   GetLocalUserProfiles others -> getLocalUserProfilesImpl others
+  GetExtendedAccountsBy getBy -> getExtendedAccountsByImpl getBy
+  GetExtendedAccountsByEmailNoFilter emails -> getExtendedAccountsByEmailNoFilterImpl emails
+  GetAccountNoFilter luid -> getAccountNoFilterImpl luid
   GetSelfProfile self -> getSelfProfileImpl self
   GetUserProfilesWithErrors self others -> getUserProfilesWithErrorsImpl self others
   UpdateUserProfile self mconn mb update -> updateUserProfileImpl self mconn mb update
   CheckHandle uhandle -> checkHandleImpl uhandle
   CheckHandles hdls cnt -> checkHandlesImpl hdls cnt
   UpdateHandle uid mconn mb uhandle -> updateHandleImpl uid mconn mb uhandle
-  GetLocalUserAccountByUserKey userKey -> getLocalUserAccountByUserKeyImpl userKey
   LookupLocaleWithDefault luid -> lookupLocaleOrDefaultImpl luid
   IsBlocked email -> isBlockedImpl email
   BlockListDelete email -> blockListDeleteImpl email
@@ -418,19 +428,6 @@ mkProfileUpdateHandleEvent :: UserId -> Handle -> UserEvent
 mkProfileUpdateHandleEvent uid handle =
   UserUpdated $ (emptyUserUpdatedData uid) {eupHandle = Just handle}
 
-getLocalUserAccountByUserKeyImpl ::
-  ( Member UserStore r,
-    Member UserKeyStore r,
-    Member (Input UserSubsystemConfig) r
-  ) =>
-  Local EmailKey ->
-  Sem r (Maybe UserAccount)
-getLocalUserAccountByUserKeyImpl target = runMaybeT $ do
-  config <- lift input
-  uid <- MaybeT $ lookupKey (tUnqualified target)
-  user <- MaybeT $ getUser uid
-  pure $ mkAccountFromStored (tDomain target) config.defaultLocale user
-
 --------------------------------------------------------------------------------
 -- Update Handle
 
@@ -495,3 +492,100 @@ checkHandlesImpl check num = reverse <$> collectFree [] check num
           case owner of
             Nothing -> collectFree (h : free) hs (n - 1)
             Just _ -> collectFree free hs n
+
+getAccountNoFilterImpl ::
+  forall r.
+  ( Member UserStore r,
+    Member (Input UserSubsystemConfig) r
+  ) =>
+  Local UserId ->
+  Sem r (Maybe UserAccount)
+getAccountNoFilterImpl (tSplit -> (domain, uid)) = do
+  cfg <- input
+  muser <- getUser uid
+  pure $ (mkAccountFromStored domain cfg.defaultLocale) <$> muser
+
+getExtendedAccountsByEmailNoFilterImpl ::
+  forall r.
+  ( Member UserStore r,
+    Member UserKeyStore r,
+    Member (Input UserSubsystemConfig) r
+  ) =>
+  Local [EmailAddress] ->
+  Sem r [ExtendedUserAccount]
+getExtendedAccountsByEmailNoFilterImpl (tSplit -> (domain, emails)) = do
+  config <- input
+  nubOrd <$> flip foldMap emails \ek -> do
+    mactiveUid <- lookupKey (mkEmailKey ek)
+    getUsers (nubOrd . catMaybes $ [mactiveUid])
+      <&> map (mkExtendedAccountFromStored domain config.defaultLocale)
+
+--------------------------------------------------------------------------------
+-- getting user accounts by different criteria
+
+getExtendedAccountsByImpl ::
+  forall r.
+  ( Member UserStore r,
+    Member DeleteQueue r,
+    Member (Input UserSubsystemConfig) r,
+    Member InvitationCodeStore r,
+    Member TinyLog r
+  ) =>
+  Local GetBy ->
+  Sem r [ExtendedUserAccount]
+getExtendedAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations, getByHandle, getByUserId})) = do
+  storedToExtAcc <- do
+    config <- input
+    pure $ mkExtendedAccountFromStored domain config.defaultLocale
+
+  handleUserIds :: [UserId] <-
+    wither lookupHandle getByHandle
+
+  accsByIds :: [ExtendedUserAccount] <-
+    getUsers (nubOrd $ handleUserIds <> getByUserId) <&> map storedToExtAcc
+
+  filterM want (nubOrd $ accsByIds)
+  where
+    -- not wanted:
+    -- . users without identity
+    -- . pending users without matching invitation (those are garbage-collected)
+    -- . TODO: deleted users?
+    want :: ExtendedUserAccount -> Sem r Bool
+    want ExtendedUserAccount {account} =
+      case account.accountUser.userIdentity of
+        Nothing -> pure False
+        Just ident -> case account.accountStatus of
+          PendingInvitation ->
+            case includePendingInvitations of
+              WithPendingInvitations -> case emailIdentity ident of
+                -- TODO(fisx): emailIdentity does not return an unvalidated address in case a
+                -- validated one cannot be found.  that's probably wrong?  split up into
+                -- validEmailIdentity, anyEmailIdentity?
+                Just email -> do
+                  hasInvitation <- isJust <$> lookupInvitationByEmail email
+                  gcHack hasInvitation (userId account.accountUser)
+                  pure hasInvitation
+                Nothing -> error "getExtendedAccountsByImpl: should never happen, user invited via scim always has an email"
+              NoPendingInvitations -> pure False
+          Active -> pure True
+          Suspended -> pure True
+          Deleted -> pure True -- TODO(mangoiv): previous comment said "We explicitly filter out deleted users now." Why?
+          Ephemeral -> pure True
+
+    -- user invited via scim expires together with its invitation. the UserSubsystem interface
+    -- semantics hides the fact that pending users have no TTL field. we chose to emulate this
+    -- in this convoluted way (by making the invitation expire and then checking if it's still
+    -- there when looking up pending users), because adding TTLs would have been a much bigger
+    -- change in the database schema (`enqueueUserDeletion` would need to happen purely based
+    -- on TTL values in cassandra, and there is too much application logic involved there).
+    --
+    -- we could also delete these users here and run a background process that scans for
+    -- pending users without invitation. we chose not to because enqueuing the user deletion
+    -- here is very cheap, and avoids database traffic if the user is looked up again. if the
+    -- background job is reliably taking care of this, there is no strong reason to keep this
+    -- function.
+    --
+    -- there are certainly other ways to improve this, but they probably involve a non-trivial
+    -- database schema re-design.
+    gcHack :: Bool -> UserId -> Sem r ()
+    gcHack hasInvitation uid = unless hasInvitation (enqueueUserDeletion uid)

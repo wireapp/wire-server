@@ -130,7 +130,7 @@ tests s =
           test s "metrics" metrics,
           test s "fetch conversation by qualified ID (v2)" testGetConvQualifiedV2,
           test s "create Proteus conversation" postProteusConvOk,
-          test s "create conversation with remote users some unreachable" (postConvWithUnreachableRemoteUsers $ Set.fromList [rb1, rb2, rb3, rb4]),
+          test s "create conversation with remote users, some unreachable" (postConvWithUnreachableRemoteUsers $ Set.fromList [rb1, rb2, rb3, rb4]),
           test s "get empty conversations" getConvsOk,
           test s "get conversations by ids" getConvsOk2,
           test s "fail to get >500 conversations with v2 API" getConvsFailMaxSizeV2,
@@ -367,8 +367,10 @@ postConvWithUnreachableRemoteUsers rbs = do
       users <- connectBackend alice rb
       pure (users, participating rb users)
     pure $ foldr (\(a, p) acc -> bimap ((<>) a) ((<>) p) acc) ([], []) v
-  liftIO $
-    assertBool "No unreachable backend in the test" (allRemotes /= participatingRemotes)
+  liftIO $ do
+    let notParticipatingRemotes = allRemotes \\ participatingRemotes
+    assertBool "No reachable backend in the test" (not (null participatingRemotes))
+    assertBool "No unreachable backend in the test" (not (null notParticipatingRemotes))
 
   let convName = "some chat"
       otherLocals = [qAlex]
@@ -405,7 +407,7 @@ postConvWithUnreachableRemoteUsers rbs = do
         "Alice does have a group conversation, while she should not!"
         []
         groupConvs
-    WS.assertNoEvent (3 # Second) [wsAlice, wsAlex]
+    WS.assertNoEvent (3 # Second) [wsAlice, wsAlex] -- TODO: sometimes, (at least?) one of these users gets a "connection accepted" event.
 
 -- @SF.Separation @TSFI.RESTfulAPI @S2
 -- This test verifies whether a message actually gets sent all the way to

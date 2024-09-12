@@ -46,7 +46,7 @@ data StoredUserUpdateError = StoredUserUpdateHandleExists
 -- | Effect containing database logic around 'StoredUser'.  (Example: claim handle lock is
 -- database logic; validate handle is application logic.)
 data UserStore m a where
-  GetUser :: UserId -> UserStore m (Maybe StoredUser)
+  GetUsers :: [UserId] -> UserStore m [StoredUser]
   UpdateUser :: UserId -> StoredUserUpdate -> UserStore m ()
   UpdateUserHandleEither :: UserId -> StoredUserHandleUpdate -> UserStore m (Either StoredUserUpdateError ())
   DeleteUser :: User -> UserStore m ()
@@ -65,6 +65,9 @@ data UserStore m a where
   LookupLocale :: UserId -> UserStore m (Maybe (Maybe Language, Maybe Country))
 
 makeSem ''UserStore
+
+getUser :: (Member UserStore r) => UserId -> Sem r (Maybe StoredUser)
+getUser uid = listToMaybe <$> getUsers [uid]
 
 updateUserHandle ::
   (Member UserStore r, Member (Error StoredUserUpdateError) r) =>

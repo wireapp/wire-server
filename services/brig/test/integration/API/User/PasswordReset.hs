@@ -33,13 +33,14 @@ import Data.Misc
 import Imports
 import Test.Tasty hiding (Timeout)
 import Util
+import Util.Timeout
 import Wire.API.User
 import Wire.API.User.Auth
 
 tests ::
   DB.ClientState ->
   ConnectionLimit ->
-  Opt.Timeout ->
+  Timeout ->
   Opt.Opts ->
   Manager ->
   Brig ->

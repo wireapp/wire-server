@@ -184,7 +184,7 @@ sitemap' =
     :<|> Named @"put-sso-domain-redirect" Intra.putSsoDomainRedirect
     :<|> Named @"delete-sso-domain-redirect" Intra.deleteSsoDomainRedirect
     :<|> Named @"register-oauth-client" Intra.registerOAuthClient
-    :<|> Named @"get-oauth-client" Intra.getOAuthClient
+    :<|> Named @"stern-get-oauth-client" Intra.getOAuthClient
     :<|> Named @"update-oauth-client" Intra.updateOAuthClient
     :<|> Named @"delete-oauth-client" Intra.deleteOAuthClient
 

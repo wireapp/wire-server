@@ -57,6 +57,7 @@ import Imports
 import Prometheus qualified as Prom
 import System.Logger.Class (field, msg, val, (~~))
 import System.Logger.Class qualified as Log
+import Util.Timeout
 import Web.Cookie qualified as WebCookie
 import Wire.API.User.Auth
 import Wire.SessionStore qualified as Store

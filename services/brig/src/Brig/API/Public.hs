@@ -53,7 +53,6 @@ import Brig.Team.API qualified as Team
 import Brig.Team.Email qualified as Team
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Intra (UserAccount (UserAccount, accountUser))
-import Brig.Types.User (HavePendingInvitations (..))
 import Brig.User.API.Handle qualified as Handle
 import Brig.User.API.Search (teamUserSearch)
 import Brig.User.API.Search qualified as Search
@@ -75,6 +74,7 @@ import Data.Domain
 import Data.FileEmbed
 import Data.Handle (Handle)
 import Data.Handle qualified as Handle
+import Data.HavePendingInvitations
 import Data.Id
 import Data.Id qualified as Id
 import Data.List.NonEmpty (nonEmpty)
@@ -152,7 +152,9 @@ import Wire.EmailSubsystem
 import Wire.Error
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
+import Wire.InvitationCodeStore
 import Wire.NotificationSubsystem
+import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PasswordStore (PasswordStore, lookupHashedPassword)
 import Wire.PropertySubsystem
 import Wire.Sem.Concurrency
@@ -162,7 +164,7 @@ import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserKeyStore
 import Wire.UserStore (UserStore)
 import Wire.UserSubsystem hiding (checkHandle, checkHandles)
-import Wire.UserSubsystem qualified as UserSubsystem
+import Wire.UserSubsystem qualified as User
 import Wire.VerificationCode
 import Wire.VerificationCodeGen
 import Wire.VerificationCodeSubsystem
@@ -285,7 +287,9 @@ servantSitemap ::
     Member EmailSubsystem r,
     Member EmailSending r,
     Member VerificationCodeSubsystem r,
-    Member PropertySubsystem r
+    Member PropertySubsystem r,
+    Member PasswordResetCodeStore r,
+    Member InvitationCodeStore r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -559,17 +563,18 @@ addClient ::
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
     Member EmailSubsystem r,
+    Member UserSubsystem r,
     Member VerificationCodeSubsystem r
   ) =>
-  UserId ->
+  Local UserId ->
   ConnId ->
   Public.NewClient ->
   Handler r Public.Client
-addClient usr con new = do
+addClient lusr con new = do
   -- Users can't add legal hold clients
   when (Public.newClientType new == Public.LegalHoldClientType) $
     throwE (clientError ClientLegalHoldCannotBeAdded)
-  API.addClient usr (Just con) new
+  API.addClient lusr (Just con) new
     !>> clientError
 
 deleteClient ::
@@ -623,21 +628,21 @@ getClientCapabilities uid cid = do
   mclient <- lift (API.lookupLocalClient uid cid)
   maybe (throwStd (errorToWai @'E.ClientNotFound)) (pure . Public.clientCapabilities) mclient
 
-getRichInfo :: UserId -> UserId -> Handler r Public.RichInfoAssocList
-getRichInfo self user = do
+getRichInfo :: (Member UserSubsystem r) => Local UserId -> UserId -> Handler r Public.RichInfoAssocList
+getRichInfo lself user = do
+  let luser = qualifyAs lself user
   -- Check that both users exist and the requesting user is allowed to see rich info of the
   -- other user
-  selfUser <-
-    ifNothing (errorToWai @'E.UserNotFound)
-      =<< lift (wrapClient $ Data.lookupUser NoPendingInvitations self)
-  otherUser <-
-    ifNothing (errorToWai @'E.UserNotFound)
-      =<< lift (wrapClient $ Data.lookupUser NoPendingInvitations user)
+  let fetch luid =
+        ifNothing (errorToWai @'E.UserNotFound)
+          =<< lift (liftSem $ (.accountUser) <$$> User.getLocalAccountBy NoPendingInvitations luid)
+  selfUser <- fetch lself
+  otherUser <- fetch luser
   case (Public.userTeam selfUser, Public.userTeam otherUser) of
     (Just t1, Just t2) | t1 == t2 -> pure ()
     _ -> throwStd insufficientTeamPermissions
   -- Query rich info
-  wrapClientE $ fromMaybe mempty <$> API.lookupRichInfo user
+  wrapClientE $ fromMaybe mempty <$> API.lookupRichInfo (tUnqualified luser)
 
 getSupportedProtocols ::
   (Member UserSubsystem r) =>
@@ -681,6 +686,7 @@ createAccessToken method luid cid proof = do
 createUser ::
   ( Member BlockListStore r,
     Member GalleyAPIAccess r,
+    Member InvitationCodeStore r,
     Member (UserPendingActivationStore p) r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
@@ -690,6 +696,8 @@ createUser ::
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
     Member EmailSubsystem r,
+    Member UserSubsystem r,
+    Member PasswordResetCodeStore r,
     Member EmailSending r
   ) =>
   Public.NewUserPublic ->
@@ -934,7 +942,7 @@ changeLocale lusr conn l =
     updateUserProfile
       lusr
       (Just conn)
-      UserSubsystem.UpdateOriginWireClient
+      User.UpdateOriginWireClient
       def {locale = Just l.luLocale}
 
 changeSupportedProtocols ::
@@ -944,7 +952,7 @@ changeSupportedProtocols ::
   Public.SupportedProtocolUpdate ->
   Handler r ()
 changeSupportedProtocols u conn (Public.SupportedProtocolUpdate prots) =
-  lift . liftSem $ UserSubsystem.updateUserProfile u (Just conn) UpdateOriginWireClient upd
+  lift . liftSem $ User.updateUserProfile u (Just conn) UpdateOriginWireClient upd
   where
     upd = def {supportedProtocols = Just prots}
 
@@ -952,7 +960,7 @@ changeSupportedProtocols u conn (Public.SupportedProtocolUpdate prots) =
 -- *any* account.)
 checkHandle :: (Member UserSubsystem r) => UserId -> Text -> Handler r ()
 checkHandle _uid hndl =
-  lift (liftSem $ UserSubsystem.checkHandle hndl) >>= \case
+  lift (liftSem $ User.checkHandle hndl) >>= \case
     API.CheckHandleFound -> pure ()
     API.CheckHandleNotFound -> throwStd (errorToWai @'E.HandleNotFound)
 
@@ -981,7 +989,7 @@ getHandleInfoUnqualifiedH self handle = do
 
 changeHandle :: (Member UserSubsystem r) => Local UserId -> ConnId -> Public.HandleUpdate -> Handler r ()
 changeHandle u conn (Public.HandleUpdate h) = lift $ liftSem do
-  UserSubsystem.updateHandle u (Just conn) UpdateOriginWireClient h
+  User.updateHandle u (Just conn) UpdateOriginWireClient h
 
 beginPasswordReset ::
   (Member AuthenticationSubsystem r) =>
@@ -1041,6 +1049,7 @@ createConnectionUnqualified ::
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member UserStore r,
+    Member UserSubsystem r,
     Member (Embed HttpClientIO) r
   ) =>
   UserId ->
@@ -1057,6 +1066,7 @@ createConnection ::
     Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member UserStore r,
+    Member UserSubsystem r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r
   ) =>
@@ -1172,19 +1182,21 @@ deleteSelfUser ::
     Member (Input UTCTime) r,
     Member (ConnectionStore InternalPaging) r,
     Member EmailSubsystem r,
+    Member UserSubsystem r,
     Member VerificationCodeSubsystem r,
     Member PropertySubsystem r
   ) =>
-  UserId ->
+  Local UserId ->
   Public.DeleteUser ->
   (Handler r) (Maybe Code.Timeout)
-deleteSelfUser u body = do
-  API.deleteSelfUser u (Public.deleteUserPassword body) !>> deleteUserError
+deleteSelfUser lu body = do
+  API.deleteSelfUser lu (Public.deleteUserPassword body) !>> deleteUserError
 
 verifyDeleteUser ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member UserStore r,
+    Member UserSubsystem r,
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member UserKeyStore r,
@@ -1235,8 +1247,10 @@ activate ::
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
+    Member UserSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
+    Member PasswordResetCodeStore r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   Public.ActivationKey ->
@@ -1252,8 +1266,10 @@ activateKey ::
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
+    Member UserSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
+    Member PasswordResetCodeStore r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   Public.Activate ->
@@ -1275,7 +1291,9 @@ sendVerificationCode ::
   forall r.
   ( Member GalleyAPIAccess r,
     Member UserKeyStore r,
+    Member (Input (Local ())) r,
     Member EmailSubsystem r,
+    Member UserSubsystem r,
     Member VerificationCodeSubsystem r
   ) =>
   Public.SendVerificationCode ->
@@ -1301,9 +1319,10 @@ sendVerificationCode req = do
     _ -> pure ()
   where
     getAccount :: Public.EmailAddress -> (Handler r) (Maybe UserAccount)
-    getAccount email = lift $ do
-      mbUserId <- liftSem $ lookupKey $ mkEmailKey email
-      join <$> wrapClient (Data.lookupAccount `traverse` mbUserId)
+    getAccount email = lift . liftSem $ do
+      mbUserId <- lookupKey $ mkEmailKey email
+      mbLUserId <- qualifyLocal' `traverse` mbUserId
+      join <$> User.getAccountNoFilter `traverse` mbLUserId
 
     sendMail :: Public.EmailAddress -> Code.Value -> Maybe Public.Locale -> Public.VerificationAction -> (Handler r) ()
     sendMail email value mbLocale =

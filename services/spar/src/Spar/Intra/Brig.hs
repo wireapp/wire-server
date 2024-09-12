@@ -68,6 +68,7 @@ import Wire.API.User
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.RichInfo as RichInfo
+import Wire.UserSubsystem (HavePendingInvitations (..))
 
 ----------------------------------------------------------------------
 

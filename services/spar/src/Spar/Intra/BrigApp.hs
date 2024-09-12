@@ -23,7 +23,6 @@
 module Spar.Intra.BrigApp
   ( veidToUserSSOId,
     urefToExternalId,
-    urefToEmail,
     veidFromBrigUser,
     veidFromUserSSOId,
     mkUserName,
@@ -37,18 +36,16 @@ module Spar.Intra.BrigApp
 
     -- * re-exports, mostly for historical reasons and lazyness
     emailFromSAML,
-    emailToSAMLNameID,
-    emailFromSAMLNameID,
   )
 where
 
 import Brig.Types.Intra
-import Brig.Types.User
 import Control.Lens
 import Control.Monad.Except
 import Data.ByteString.Conversion
 import qualified Data.CaseInsensitive as CI
 import Data.Handle (Handle, parseHandle)
+import Data.HavePendingInvitations
 import Data.Id (TeamId, UserId)
 import Data.Text.Encoding
 import Data.Text.Encoding.Error

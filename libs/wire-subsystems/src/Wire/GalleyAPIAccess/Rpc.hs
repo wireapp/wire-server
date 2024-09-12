@@ -71,7 +71,7 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           GetTeamConv id' id'' id'2 -> getTeamConv v id' id'' id'2
           NewClient id' ci -> newClient id' ci
           CheckUserCanJoinTeam id' -> checkUserCanJoinTeam id'
-          AddTeamMember id' id'' x0 -> addTeamMember id' id'' x0
+          AddTeamMember id' id'' a b -> addTeamMember id' id'' a b
           CreateTeam id' bnt id'' -> createTeam id' bnt id''
           GetTeamMember id' id'' -> getTeamMember id' id''
           GetTeamMembers id' -> getTeamMembers id'
@@ -234,9 +234,10 @@ addTeamMember ::
   ) =>
   UserId ->
   TeamId ->
-  (Maybe (UserId, UTCTimeMillis), Role) ->
+  Maybe (UserId, UTCTimeMillis) ->
+  Role ->
   Sem r Bool
-addTeamMember u tid (minvmeta, role) = do
+addTeamMember u tid minvmeta role = do
   debug $
     remote "galley"
       . msg (val "Adding member to team")

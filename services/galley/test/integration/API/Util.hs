@@ -426,7 +426,7 @@ addUserToTeamWithRole role inviter tid = do
   (inv, rsp2) <- addUserToTeamWithRole' role inviter tid
   let invitee :: User = responseJsonUnsafe rsp2
       inviteeId = User.userId invitee
-  let invmeta = Just (inviter, inCreatedAt inv)
+  let invmeta = Just (inviter, inv.createdAt)
   mem <- getTeamMember inviter tid inviteeId
   liftIO $ assertEqual "Member has no/wrong invitation metadata" invmeta (mem ^. Team.invitation)
   let zuid = parseSetCookie <$> getHeader "Set-Cookie" rsp2
@@ -440,7 +440,7 @@ addUserToTeamWithRole' role inviter tid = do
   let invite = InvitationRequest Nothing role Nothing inviteeEmail
   invResponse <- postInvitation tid inviter invite
   inv <- responseJsonError invResponse
-  inviteeCode <- getInvitationCode tid (inInvitation inv)
+  inviteeCode <- getInvitationCode tid inv.invitationId
   r <-
     post
       ( brig

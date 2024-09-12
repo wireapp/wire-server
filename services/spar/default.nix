@@ -20,7 +20,6 @@
 , cookie
 , crypton
 , crypton-x509
-, email-validate
 , exceptions
 , extended
 , gitignoreSource
@@ -78,6 +77,7 @@
 , wai-utilities
 , warp
 , wire-api
+, wire-subsystems
 , xml-conduit
 , yaml
 , zauth
@@ -138,6 +138,7 @@ mkDerivation {
     wai-utilities
     warp
     wire-api
+    wire-subsystems
     yaml
   ];
   executableHaskellDepends = [
@@ -157,7 +158,6 @@ mkDerivation {
     containers
     cookie
     crypton
-    email-validate
     exceptions
     extended
     hscim

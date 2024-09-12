@@ -91,3 +91,4 @@ import Cassandra.Exec as C
     x1,
     x5,
   )
+import Cassandra.QQ as C (sql)

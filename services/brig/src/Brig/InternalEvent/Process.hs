@@ -44,6 +44,7 @@ import Wire.Sem.Delay
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserKeyStore
 import Wire.UserStore (UserStore)
+import Wire.UserSubsystem
 
 -- | Handle an internal event.
 --
@@ -58,6 +59,7 @@ onEvent ::
     Member UserKeyStore r,
     Member (Input UTCTime) r,
     Member UserStore r,
+    Member UserSubsystem r,
     Member (ConnectionStore InternalPaging) r,
     Member PropertySubsystem r
   ) =>
@@ -71,7 +73,8 @@ onEvent n = handleTimeout $ case n of
     Log.info $
       msg (val "Processing user delete event")
         ~~ field "user" (toByteString uid)
-    embed (API.lookupAccount uid) >>= mapM_ API.deleteAccount
+    luid <- qualifyLocal' uid
+    getAccountNoFilter luid >>= mapM_ API.deleteAccount
     -- As user deletions are expensive resource-wise in the context of
     -- bulk user deletions (e.g. during team deletions),
     -- wait 'delay' ms before processing the next event

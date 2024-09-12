@@ -59,8 +59,6 @@ import Data.String.Conversions
 import Data.Text qualified as T
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as T
-import Data.Time (UTCTime, getCurrentTime)
-import Data.Time.Clock (diffUTCTime)
 import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID
 import Federator.MockServer (FederatedRequest (..), MockException (..))
@@ -73,12 +71,13 @@ import Network.Wai.Utilities.Error qualified as Error
 import Network.Wai.Utilities.Error qualified as Wai
 import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty hiding (Timeout)
-import Test.Tasty.Cannon hiding (Cannon)
+import Test.Tasty.Cannon hiding (Cannon, Timeout)
 import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently_)
 import Util
 import Util.AWS as Util
+import Util.Timeout
 import Web.Cookie (parseSetCookie)
 import Wire.API.Asset hiding (Asset)
 import Wire.API.Asset qualified as Asset
@@ -86,7 +85,7 @@ import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Team.Feature
-import Wire.API.Team.Invitation (Invitation (inInvitation))
+import Wire.API.Team.Invitation
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.User
 import Wire.API.User.Activation
@@ -94,7 +93,7 @@ import Wire.API.User.Auth
 import Wire.API.User.Auth qualified as Auth
 import Wire.API.User.Client
 
-tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> AWS.Env -> UserJournalWatcher -> TestTree
+tests :: ConnectionLimit -> Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> AWS.Env -> UserJournalWatcher -> TestTree
 tests _ at opts p b c ch g aws userJournalWatcher =
   testGroup
     "account"
@@ -490,7 +489,7 @@ testCreateUserExternalSSO brig = do
   post (brig . path "/register" . contentJson . body (p True True))
     !!! const 400 === statusCode
 
-testActivateWithExpiry :: Opt.Opts -> Brig -> Opt.Timeout -> Http ()
+testActivateWithExpiry :: Opt.Opts -> Brig -> Timeout -> Http ()
 testActivateWithExpiry (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ _ = pure ()
 testActivateWithExpiry _ brig timeout = do
   u <- responseJsonError =<< registerUser "dilbert" brig
@@ -1374,11 +1373,11 @@ testTooManyMembersForLegalhold opts brig = do
   -- would return in that case.
   inviteeEmail <- randomEmail
   let invite = stdInvitationRequest inviteeEmail
-  inv <-
+  inv :: Invitation <-
     responseJsonError
       =<< postInvitation brig tid owner invite
         <!! statusCode === const 201
-  Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
+  Just inviteeCode <- getInvitationCode brig tid inv.invitationId
   let mockGalley (ReceivedRequest mth pth _body)
         | mth == "GET" && pth == ["i", "teams", Text.pack (show tid), "members", "check"] =
             pure . Wai.responseLBS HTTP.status403 mempty $

@@ -20,6 +20,7 @@ roots = [ # may of the entries here are about general-purpose module
          "^API.Team.Util.*$", # FUTUREWORK: Consider whether unused utility functions should be kept.
          "^Bilge.*$",
          "^Cassandra.Helpers.toOptionFieldName",
+         "^Cassandra.QQ.sql$",
          "^Data.ETag._OpaqueDigest",
          "^Data.ETag._StrictETag",
          "^Data.ETag._WeakETag",
@@ -125,6 +126,7 @@ roots = [ # may of the entries here are about general-purpose module
          "^Test.Data.Schema.userSchemaWithDefaultName'",
          "^Test.Federator.JSON.deriveJSONOptions", # This is used inside an instance derivation via TH
          "^Test.Wire.API.Golden.Run.main$",
+         "^Run.main$",
          "^Test.Wire.API.Password.testHashPasswordScrypt", # FUTUREWORK: reworking scrypt/argon2id is planned for next sprint
          "^TestSetup.runFederationClient",
          "^TestSetup.viewCargohold",

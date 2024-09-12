@@ -185,7 +185,7 @@ import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
 import qualified System.Logger.Extended as Log
 import System.Random (randomRIO)
-import Test.Hspec hiding (fit, it, pending, pendingWith, xit)
+import Test.Hspec hiding (it, pending, pendingWith, xit)
 import qualified Test.Hspec
 import qualified Text.XML as XML
 import qualified Text.XML.Cursor as XML
@@ -399,8 +399,8 @@ inviteAndRegisterUser ::
   m User
 inviteAndRegisterUser brig u tid inviteeEmail = do
   let invite = stdInvitationRequest inviteeEmail
-  inv <- responseJsonError =<< postInvitation tid u invite
-  Just inviteeCode <- getInvitationCode tid (TeamInvitation.inInvitation inv)
+  inv :: TeamInvitation.Invitation <- responseJsonError =<< postInvitation tid u invite
+  Just inviteeCode <- getInvitationCode tid inv.invitationId
   rspInvitee <-
     post
       ( brig

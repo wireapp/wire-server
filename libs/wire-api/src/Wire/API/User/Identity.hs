@@ -83,7 +83,7 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 data UserIdentity
   = EmailIdentity EmailAddress
   | SSOIdentity UserSSOId (Maybe EmailAddress)
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserIdentity)
 
 isSSOIdentity :: UserIdentity -> Bool
