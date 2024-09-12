@@ -112,3 +112,4 @@ testInvitePersonalUserToTeamMultipleInvitations = do
   bindResponse (getSelf user) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "team" `shouldMatch` tid
+  acceptTeamInvitation user code (Just defPassword) >>= assertStatus 400
