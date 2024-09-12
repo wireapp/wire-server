@@ -55,6 +55,7 @@ full-clean: clean
 	rm -rf ~/.cache/hie-bios
 	rm -rf ./dist-newstyle ./.env
 	direnv reload
+	rabbitmqadmin -f pretty_json list queues vhost name messages | jq -r '.[] | "rabbitmqadmin delete queue name=\(.name) --vhost=\(.vhost)"' | bash
 	@echo -e "\n\n*** NOTE: you may want to also 'rm -rf ~/.cabal/store \$$CABAL_DIR/store', not sure.\n"
 
 .PHONY: clean
