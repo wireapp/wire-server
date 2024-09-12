@@ -417,7 +417,7 @@ acceptTeamInvitationByPersonalUser luid req = do
   mInv <- API.findTeamInvitation mek req.code !>> toInvitationError
   case mInv of
     Nothing -> throwStd (errorToWai @'E.PendingInvitationNotFound)
-    Just (inv, _, tid) -> do
+    Just (inv, DB.iiTeam -> tid) -> do
       let minvmeta = ((,inCreatedAt inv) <$> inCreatedBy inv, inRole inv)
           uid = tUnqualified luid
       added <- lift $ liftSem $ GalleyAPIAccess.addTeamMember uid tid minvmeta
