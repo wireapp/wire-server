@@ -1,1 +1,0 @@
-From API version 7 the `GET /mls/public-key` and `GET  /conversations/one2one/:domain/:uid` endpoints now take a `format` query parameter which can be either `raw` (default, for raw base64-encoded keys) or `jwk` (for JWK keys) (#4216, #4224)
