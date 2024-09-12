@@ -19,8 +19,8 @@ import Wire.API.User
 import Wire.Arbitrary
 import Wire.UserKeyStore (EmailKey, emailKeyOrig)
 
--- | Who is performing this update operation?  (Single source of truth: users managed by SCIM
--- can't be updated by clients and vice versa.)
+-- | Who is performing this update operation / who is allowed to?  (Single source of truth:
+-- users managed by SCIM can't be updated by clients and vice versa.)
 data UpdateOriginType
   = -- | Call originates from the SCIM api in spar.
     UpdateOriginScim
@@ -32,7 +32,7 @@ data UpdateOriginType
 -- | Simple updates (as opposed to, eg., handle, where we need to manage locks).
 --
 -- This is isomorphic to 'StoredUserUpdate', but we keep the two types separate because they
--- belong to different abstractions / levels (UserSubsystem vs. UserStore), and they may
+-- belong to different abstraction levels (UserSubsystem vs. UserStore), and they may
 -- change independently in the future ('UserStoreUpdate' may grow more fields for other
 -- operations).
 data UserProfileUpdate = MkUserProfileUpdate
@@ -59,13 +59,11 @@ instance Default UserProfileUpdate where
         supportedProtocols = Nothing
       }
 
--- | how to get an account for a user
+-- | Parameters for `getExternalAccountsBy` operation below.
 data GetBy = MkGetBy
-  { -- | whether or not to include pending invitations when getting
-    -- users by ids. Does not apply to emails.
+  { -- | whether or not to include pending invitations when getting users by ids.
     includePendingInvitations :: HavePendingInvitations,
-    -- | get accounts by 'UserId', filters out accounts
-    -- missing user identity, optionally by pending invitations.
+    -- | get accounts by 'UserId'.
     getByUserId :: [UserId],
     -- | get accounts by their 'Handle'
     getByHandle :: [Handle]
@@ -80,35 +78,38 @@ data UserSubsystem m a where
   -- | First arg is for authorization only.
   GetUserProfiles :: Local UserId -> [Qualified UserId] -> UserSubsystem m [UserProfile]
   -- | These give us partial success and hide concurrency in the interpreter.
-  -- FUTUREWORK: it would be better to return errors as `Map Domain FederationError`, but would clients like that?
+  -- (Nit-pick: a better return type for this might be `([Qualified ([UserId],
+  -- FederationError)], [UserProfile])`, and then we'd probably need a function of type
+  -- `([Qualified ([UserId], FederationError)], [UserProfile]) -> ([(Qualified UserId,
+  -- FederationError)], [UserProfile])` to maintain API compatibility.)
   GetUserProfilesWithErrors :: Local UserId -> [Qualified UserId] -> UserSubsystem m ([(Qualified UserId, FederationError)], [UserProfile])
   -- | Sometimes we don't have any identity of a requesting user, and local profiles are public.
   GetLocalUserProfiles :: Local [UserId] -> UserSubsystem m [UserProfile]
-  -- | given a lookup criteria record ('GetBy'), return the union of the user accounts fulfilling that criteria
-  -- see GetBy's documentation for more information on what gets filtered.
+  -- | Get the union of all user accounts matching the `GetBy` argument *and* having a non-empty UserIdentity.
   GetExtendedAccountsBy :: Local GetBy -> UserSubsystem m [ExtendedUserAccount]
-  -- | given a list of email address, returns all associated user accounts,
-  -- does not filter out by missing user identity or status
+  -- | Get user accounts matching the `[EmailAddress]` argument (accounts with missing
+  -- identity and accounts with status /= active included).
   GetExtendedAccountsByEmailNoFilter :: Local [EmailAddress] -> UserSubsystem m [ExtendedUserAccount]
-  -- | given a local user id, return a UserAccount, does not filter out by missing user identity or status
+  -- | Get user account by local user id (accounts with missing identity and accounts with
+  -- status /= active included).
   GetAccountNoFilter :: Local UserId -> UserSubsystem m (Maybe UserAccount)
-  -- | Self profile contains things not present in Profile.
+  -- | Get `SelfProfile` (it contains things not present in `UserProfile`).
   GetSelfProfile :: Local UserId -> UserSubsystem m (Maybe SelfProfile)
   -- | Simple updates (as opposed to, eg., handle, where we need to manage locks).  Empty fields are ignored (not deleted).
   UpdateUserProfile :: Local UserId -> Maybe ConnId -> UpdateOriginType -> UserProfileUpdate -> UserSubsystem m ()
-  -- | parse and lookup a handle, return what the operation has found
+  -- | Parse and lookup a handle.
   CheckHandle :: Text {- use Handle here? -} -> UserSubsystem m CheckHandleResp
-  -- | checks a number of 'Handle's for availability and returns at most 'Word' amount of them
+  -- | Check a number of 'Handle's for availability and returns at most 'Word' amount of them
   CheckHandles :: [Handle] -> Word -> UserSubsystem m [Handle]
-  -- | parses a handle, this may fail so it's effectful
+  -- | Parse and update a handle. Parsing may fail so this is effectful.
   UpdateHandle :: Local UserId -> Maybe ConnId -> UpdateOriginType -> Text {- use Handle here? -} -> UserSubsystem m ()
-  -- | returns the user's locale or the default locale if the users exists
+  -- | Return the user's locale (or the default locale if the users exists and has none).
   LookupLocaleWithDefault :: Local UserId -> UserSubsystem m (Maybe Locale)
-  -- | checks if an email is blocked
+  -- | Check if an email is blocked.
   IsBlocked :: EmailAddress -> UserSubsystem m Bool
-  -- | removes an email from the block list
+  -- | Remove an email from the block list.
   BlockListDelete :: EmailAddress -> UserSubsystem m ()
-  -- | adds an email to the block list
+  -- | Add an email to the block list.
   BlockListInsert :: EmailAddress -> UserSubsystem m ()
 
 -- | the return type of 'CheckHandle'
