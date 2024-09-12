@@ -1322,7 +1322,7 @@ sendVerificationCode req = do
     getAccount email = lift . liftSem $ do
       mbUserId <- lookupKey $ mkEmailKey email
       mbLUserId <- qualifyLocal' `traverse` mbUserId
-      join <$> User.getLocalAccount `traverse` mbLUserId
+      join <$> User.getAccountNoFilter `traverse` mbLUserId
 
     sendMail :: Public.EmailAddress -> Code.Value -> Maybe Public.Locale -> Public.VerificationAction -> (Handler r) ()
     sendMail email value mbLocale =

@@ -900,7 +900,7 @@ deleteSelfUser ::
   Maybe PlainTextPassword6 ->
   ExceptT DeleteUserError (AppT r) (Maybe Timeout)
 deleteSelfUser luid@(tUnqualified -> uid) pwd = do
-  account <- lift . liftSem $ User.getLocalAccount luid
+  account <- lift . liftSem $ User.getAccountNoFilter luid
   case account of
     Nothing -> throwE DeleteUserInvalid
     Just a -> case accountStatus a of
@@ -977,7 +977,7 @@ verifyDeleteUser d = do
   c <- lift . liftSem $ verifyCode key VerificationCode.AccountDeletion code
   a <- maybe (throwE DeleteUserInvalidCode) pure (VerificationCode.codeAccount =<< c)
   luid <- qualifyLocal $ Id a
-  account <- lift . liftSem $ User.getLocalAccount luid
+  account <- lift . liftSem $ User.getAccountNoFilter luid
   for_ account $ lift . liftSem . deleteAccount
   lift . liftSem $ deleteCode key VerificationCode.AccountDeletion
 
@@ -1001,7 +1001,7 @@ ensureAccountDeleted ::
   Local UserId ->
   AppT r DeleteUserResult
 ensureAccountDeleted luid@(tUnqualified -> uid) = do
-  mbAcc <- liftSem $ User.getLocalAccount luid
+  mbAcc <- liftSem $ User.getAccountNoFilter luid
   case mbAcc of
     Nothing -> pure NoUser
     Just acc -> do

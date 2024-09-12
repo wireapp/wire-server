@@ -140,7 +140,7 @@ verifyCode mbCode action luid = do
   featureEnabled <- lift $ do
     mbFeatureEnabled <- liftSem $ GalleyAPIAccess.getVerificationCodeEnabled `traverse` mbTeamId
     pure $ fromMaybe ((def @(Feature Public.SndFactorPasswordChallengeConfig)).status == Public.FeatureStatusEnabled) mbFeatureEnabled
-  account <- lift . liftSem $ User.getLocalAccount luid
+  account <- lift . liftSem $ User.getAccountNoFilter luid
   let isSsoUser = maybe False (Data.isSamlUser . ((.accountUser))) account
   when (featureEnabled && not isSsoUser) $ do
     case (mbCode, mbEmail) of
@@ -156,7 +156,7 @@ verifyCode mbCode action luid = do
       Local UserId ->
       ExceptT e (AppT r) (Maybe EmailAddress, Maybe TeamId)
     getEmailAndTeamId u = do
-      mbAccount <- lift . liftSem $ User.getLocalAccount u
+      mbAccount <- lift . liftSem $ User.getAccountNoFilter u
       pure (userEmail <$> accountUser =<< mbAccount, userTeam <$> accountUser =<< mbAccount)
 
 loginFailedWith :: (MonadClient m, MonadReader Env m) => LoginError -> UserId -> ExceptT LoginError m ()
@@ -234,7 +234,7 @@ revokeAccess ::
 revokeAccess luid@(tUnqualified -> u) pw cc ll = do
   lift . liftSem $ Log.debug $ field "user" (toByteString u) . field "action" (val "User.revokeAccess")
   isSaml <- lift . liftSem $ do
-    account <- User.getLocalAccount luid
+    account <- User.getAccountNoFilter luid
     pure $ maybe False (Data.isSamlUser . ((.accountUser))) account
   unless isSaml $ Data.authenticate u pw
   lift $ wrapHttpClient $ revokeCookies u cc ll
@@ -332,7 +332,7 @@ isPendingActivation ident = case ident of
         Nothing -> pure False
         Just usr -> liftSem do
           lusr <- qualifyLocal' usr
-          maybe False (checkAccount k) <$> User.getLocalAccount lusr
+          maybe False (checkAccount k) <$> User.getAccountNoFilter lusr
 
     checkAccount :: EmailKey -> UserAccount -> Bool
     checkAccount k a =

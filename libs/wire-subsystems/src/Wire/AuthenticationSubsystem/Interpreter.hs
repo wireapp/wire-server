@@ -150,7 +150,7 @@ lookupActiveUserByUserKey ::
 lookupActiveUserByUserKey target = do
   localUnit <- input
   let ltarget = qualifyAs localUnit [emailKeyOrig target]
-  mUser <- User.getLocalExtendedAccountsByEmail ltarget
+  mUser <- User.getExtendedAccountsByEmailNoFilter ltarget
   case mUser of
     [user] -> do
       pure $

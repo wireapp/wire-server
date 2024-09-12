@@ -584,7 +584,7 @@ listActivatedAccountsH
       throwStd (notFound "no user keys")
     lift $ liftSem do
       loc <- input
-      byEmails <- getLocalExtendedAccountsByEmail $ loc $> emails
+      byEmails <- getExtendedAccountsByEmailNoFilter $ loc $> emails
       others <-
         getExtendedAccountsBy $
           loc

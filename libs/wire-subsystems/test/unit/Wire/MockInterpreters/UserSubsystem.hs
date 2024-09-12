@@ -10,7 +10,7 @@ import Wire.UserSubsystem
 userSubsystemTestInterpreter :: [ExtendedUserAccount] -> InterpreterFor UserSubsystem r
 userSubsystemTestInterpreter initialUsers =
   interpret \case
-    GetLocalExtendedAccountsByEmail (tUnqualified -> emails) ->
+    GetExtendedAccountsByEmailNoFilter (tUnqualified -> emails) ->
       pure $
         filter
           (\u -> userEmail u.account.accountUser `elem` (Just <$> emails))

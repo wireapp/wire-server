@@ -76,7 +76,6 @@ data GetBy = MkGetBy
 instance Default GetBy where
   def = MkGetBy NoPendingInvitations [] []
 
--- TODO: consider if we want to remove Local from the names since they're already part of the type
 data UserSubsystem m a where
   -- | First arg is for authorization only.
   GetUserProfiles :: Local UserId -> [Qualified UserId] -> UserSubsystem m [UserProfile]
@@ -90,9 +89,9 @@ data UserSubsystem m a where
   GetExtendedAccountsBy :: Local GetBy -> UserSubsystem m [ExtendedUserAccount]
   -- | given a list of email address, returns all associated user accounts,
   -- does not filter out by missing user identity or status
-  GetLocalExtendedAccountsByEmail :: Local [EmailAddress] -> UserSubsystem m [ExtendedUserAccount]
+  GetExtendedAccountsByEmailNoFilter :: Local [EmailAddress] -> UserSubsystem m [ExtendedUserAccount]
   -- | given a local user id, return a UserAccount, does not filter out by missing user identity or status
-  GetLocalAccount :: Local UserId -> UserSubsystem m (Maybe UserAccount)
+  GetAccountNoFilter :: Local UserId -> UserSubsystem m (Maybe UserAccount)
   -- | Self profile contains things not present in Profile.
   GetSelfProfile :: Local UserId -> UserSubsystem m (Maybe SelfProfile)
   -- | Simple updates (as opposed to, eg., handle, where we need to manage locks).  Empty fields are ignored (not deleted).
@@ -156,4 +155,4 @@ getLocalExtendedAccounts uids = do
 
 getLocalUserAccountByUserKey :: (Member UserSubsystem r) => Local EmailKey -> Sem r (Maybe UserAccount)
 getLocalUserAccountByUserKey q@(tUnqualified -> ek) =
-  listToMaybe . fmap (.account) <$> getLocalExtendedAccountsByEmail (qualifyAs q [emailKeyOrig ek])
+  listToMaybe . fmap (.account) <$> getExtendedAccountsByEmailNoFilter (qualifyAs q [emailKeyOrig ek])

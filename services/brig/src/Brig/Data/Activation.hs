@@ -105,7 +105,7 @@ activateKey k c u = wrapClientE (verifyCode k c) >>= pickUser >>= activate
     activate :: (EmailKey, UserId) -> ExceptT ActivationError (AppT r) (Maybe ActivationEvent)
     activate (key, uid) = do
       luid <- qualifyLocal uid
-      a <- lift (liftSem $ User.getLocalAccount luid) >>= maybe (throwE invalidUser) pure
+      a <- lift (liftSem $ User.getAccountNoFilter luid) >>= maybe (throwE invalidUser) pure
       unless (accountStatus a == Active) $ -- this is never 'PendingActivation' in the flow this function is used in.
         throwE invalidCode
       case userIdentity (accountUser a) of
