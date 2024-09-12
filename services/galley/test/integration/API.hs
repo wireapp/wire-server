@@ -407,7 +407,7 @@ postConvWithUnreachableRemoteUsers rbs = do
         "Alice does have a group conversation, while she should not!"
         []
         groupConvs
-    WS.assertNoEvent (3 # Second) [wsAlice, wsAlex]
+    WS.assertNoEvent (3 # Second) [wsAlice, wsAlex] -- TODO: sometimes, (at least?) one of these users gets a "connection accepted" event.
 
 -- @SF.Separation @TSFI.RESTfulAPI @S2
 -- This test verifies whether a message actually gets sent all the way to
