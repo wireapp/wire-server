@@ -91,3 +91,24 @@ testInvitePersonalUserToTeam = do
           document <- resp.json %. "documents" >>= asList >>= assertOne
           document %. "id" `shouldMatch` uid
           document %. "team" `shouldMatch` tid
+
+testInvitePersonalUserToTeamMultipleInvitations :: (HasCallStack) => App ()
+testInvitePersonalUserToTeamMultipleInvitations = do
+  (owner, tid, _) <- createTeam OwnDomain 0
+  (owner2, _, _) <- createTeam OwnDomain 0
+  user <- createUser OwnDomain def >>= getJSON 201
+  email <- user %. "email" >>= asString
+  inv <- postInvitation owner (PostInvitation $ Just email) >>= getJSON 201
+  inv2 <- postInvitation owner2 (PostInvitation $ Just email) >>= getJSON 201
+  code <- getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
+  acceptTeamInvitation user code (Just defPassword) >>= assertSuccess
+  bindResponse (getSelf user) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "team" `shouldMatch` tid
+  code2 <- getInvitationCode owner2 inv2 >>= getJSON 200 >>= (%. "code") & asString
+  bindResponse (acceptTeamInvitation user code2 (Just defPassword)) $ \resp -> do
+    resp.status `shouldMatchInt` 409
+    resp.json %. "label" `shouldMatch` "cannot-join-multiple-teams"
+  bindResponse (getSelf user) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "team" `shouldMatch` tid
