@@ -228,7 +228,11 @@ testMlsE2EConfigCrlProxyNotRequiredInV5 = do
     resp.status `shouldMatchInt` 200
 
   -- Assert that the feature config got updated correctly
-  expectedResponse <- configWithoutCrlProxy & setField "lockStatus" "unlocked" & setField "ttl" "unlimited"
+  expectedResponse <-
+    configWithoutCrlProxy
+      & setField "lockStatus" "unlocked"
+      & setField "ttl" "unlimited"
+      & setField "config.crlProxy" "https://crlproxy.example.com"
   checkFeature "mlsE2EId" owner tid expectedResponse
 
 testSSODisabledByDefault :: (HasCallStack) => App ()
