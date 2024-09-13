@@ -529,6 +529,10 @@ testFirstCommitAllowsPartialAdds = do
     resp.status `shouldMatchInt` 409
     resp.json %. "label" `shouldMatch` "mls-client-mismatch"
 
+-- @SF.Separation @TSFI.RESTfulAPI @S2
+--
+-- This test verifies that the server rejects a commit containing add proposals
+-- that only add a proper subset of the set of clients of a user.
 testAddUserPartial :: (HasCallStack) => App ()
 testAddUserPartial = do
   [alice, bob, charlie] <- createAndConnectUsers (replicate 3 OwnDomain)
@@ -555,6 +559,8 @@ testAddUserPartial = do
 
   err <- postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 409
   err %. "label" `shouldMatch` "mls-client-mismatch"
+
+-- @END
 
 -- | admin removes user from a conversation but doesn't list all clients
 testRemoveClientsIncomplete :: (HasCallStack) => App ()
@@ -741,6 +747,10 @@ testPropExistingConv = do
   res <- createAddProposals alice1 [bob] >>= traverse sendAndConsumeMessage >>= assertOne
   shouldBeEmpty (res %. "events")
 
+-- @SF.Separation @TSFI.RESTfulAPI @S2
+--
+-- This test verifies that the server rejects any commit that does not
+-- reference all pending proposals in an MLS group.
 testCommitNotReferencingAllProposals :: (HasCallStack) => App ()
 testCommitNotReferencingAllProposals = do
   users@[_alice, bob, charlie] <- createAndConnectUsers (replicate 3 OwnDomain)
@@ -764,6 +774,8 @@ testCommitNotReferencingAllProposals = do
   bindResponse (postMLSCommitBundle alice1 (mkBundle commit)) $ \resp -> do
     resp.status `shouldMatchInt` 400
     resp.json %. "label" `shouldMatch` "mls-commit-missing-references"
+
+-- @END
 
 testUnsupportedCiphersuite :: (HasCallStack) => App ()
 testUnsupportedCiphersuite = do
