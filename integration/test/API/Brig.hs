@@ -783,3 +783,8 @@ activate domain key code = do
   submit "GET" $
     req
       & addQueryParams [("key", key), ("code", code)]
+
+acceptTeamInvitation :: (HasCallStack, MakesValue user) => user -> String -> Maybe String -> App Response
+acceptTeamInvitation user code mPw = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", "invitations", "accept"]
+  submit "POST" $ req & addJSONObject (["code" .= code] <> maybeToList (((.=) "password") <$> mPw))

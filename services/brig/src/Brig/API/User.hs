@@ -65,6 +65,7 @@ module Brig.API.User
 
     -- * Utilities
     fetchUserIdentity,
+    findTeamInvitation,
   )
 where
 
@@ -282,12 +283,8 @@ createUser new = do
   (mNewTeamUser, teamInvitation, tid) <-
     case newUserTeam new of
       Just (NewTeamMember i) -> do
-        mbTeamInv <- findTeamInvitation (mkEmailKey <$> email) i
-        case mbTeamInv of
-          Just (inv, info, tid) ->
-            pure (Nothing, Just (inv, info), Just tid)
-          Nothing ->
-            pure (Nothing, Nothing, Nothing)
+        (inv, info) <- findTeamInvitation (mkEmailKey <$> email) i
+        pure (Nothing, Just (inv, info), Just info.teamId)
       Just (NewTeamCreator t) -> do
         (Just t,Nothing,) <$> (Just . Id <$> liftIO nextRandom)
       Just (NewTeamMemberSSO tid) ->
@@ -386,43 +383,7 @@ createUser new = do
       let email = newUserEmail newUser
       for_ (mkEmailKey <$> email) $ \k ->
         verifyUniquenessAndCheckBlacklist k !>> identityErrorToRegisterError
-
       pure email
-
-    findTeamInvitation ::
-      Maybe EmailKey ->
-      InvitationCode ->
-      ExceptT
-        RegisterError
-        (AppT r)
-        ( Maybe
-            (StoredInvitation, StoredInvitationInfo, TeamId)
-        )
-    findTeamInvitation Nothing _ = throwE RegisterErrorMissingIdentity
-    findTeamInvitation (Just e) c =
-      lift (liftSem $ InvitationCodeStore.lookupInvitationInfo c) >>= \case
-        Just invitationInfo -> do
-          inv <- lift . liftSem $ InvitationCodeStore.lookupInvitation invitationInfo.teamId invitationInfo.invitationId
-          case (inv, (.email) <$> inv) of
-            (Just invite, Just em)
-              | e == mkEmailKey em -> do
-                  ensureMemberCanJoin invitationInfo.teamId
-                  pure $ Just (invite, invitationInfo, invitationInfo.teamId)
-            _ -> throwE RegisterErrorInvalidInvitationCode
-        Nothing -> throwE RegisterErrorInvalidInvitationCode
-
-    ensureMemberCanJoin :: TeamId -> ExceptT RegisterError (AppT r) ()
-    ensureMemberCanJoin tid = do
-      maxSize <- fromIntegral . setMaxTeamSize <$> view settings
-      (TeamSize teamSize) <- TeamSize.teamSize tid
-      when (teamSize >= maxSize) $
-        throwE RegisterErrorTooManyTeamMembers
-      -- FUTUREWORK: The above can easily be done/tested in the intra call.
-      --             Remove after the next release.
-      canAdd <- lift $ liftSem $ GalleyAPIAccess.checkUserCanJoinTeam tid
-      case canAdd of
-        Just e -> throwM $ API.UserNotAllowedToJoinTeam e
-        Nothing -> pure ()
 
     acceptTeamInvitation ::
       UserAccount ->
@@ -489,6 +450,37 @@ createUser new = do
             activateWithCurrency (ActivateKey ak) c (Just uid) (bnuCurrency =<< newTeam)
               !>> activationErrorToRegisterError
           pure Nothing
+
+findTeamInvitation ::
+  ( Member GalleyAPIAccess r,
+    Member InvitationCodeStore r
+  ) =>
+  Maybe EmailKey ->
+  InvitationCode ->
+  ExceptT RegisterError (AppT r) (StoredInvitation, StoredInvitationInfo)
+findTeamInvitation Nothing _ = throwE RegisterErrorMissingIdentity
+findTeamInvitation (Just e) c =
+  lift (liftSem $ InvitationCodeStore.lookupInvitationInfo c) >>= \case
+    Just invitationInfo -> do
+      inv <- lift . liftSem $ InvitationCodeStore.lookupInvitation invitationInfo.teamId invitationInfo.invitationId
+      case (inv, (.email) <$> inv) of
+        (Just invite, Just em)
+          | e == mkEmailKey em -> do
+              ensureMemberCanJoin invitationInfo.teamId
+              pure (invite, invitationInfo)
+        _ -> throwE RegisterErrorInvalidInvitationCode
+    Nothing -> throwE RegisterErrorInvalidInvitationCode
+  where
+    ensureMemberCanJoin :: (Member GalleyAPIAccess r) => TeamId -> ExceptT RegisterError (AppT r) ()
+    ensureMemberCanJoin tid = do
+      maxSize <- fromIntegral . setMaxTeamSize <$> view settings
+      (TeamSize teamSize) <- TeamSize.teamSize tid
+      when (teamSize >= maxSize) $
+        throwE RegisterErrorTooManyTeamMembers
+      -- FUTUREWORK: The above can easily be done/tested in the intra call.
+      --             Remove after the next release.
+      mAddUserError <- lift $ liftSem $ GalleyAPIAccess.checkUserCanJoinTeam tid
+      maybe (pure ()) (throwM . API.UserNotAllowedToJoinTeam) mAddUserError
 
 initAccountFeatureConfig :: UserId -> (AppT r) ()
 initAccountFeatureConfig uid = do

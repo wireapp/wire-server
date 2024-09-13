@@ -706,6 +706,7 @@ lookupForIndex u = do
       "SELECT \
       \id, \
       \team, \
+      \writetime(team), \
       \name, \
       \writetime(name), \
       \status, \
@@ -757,6 +758,7 @@ scanForIndex num = do
       "SELECT \
       \id, \
       \team, \
+      \writetime(team), \
       \name, \
       \writetime(name), \
       \status, \
@@ -784,6 +786,7 @@ type Activated = Bool
 type ReindexRow =
   ( UserId,
     Maybe TeamId,
+    Maybe (Writetime TeamId),
     Name,
     Writetime Name,
     Maybe AccountStatus,
@@ -808,12 +811,13 @@ type ReindexRow =
 
 -- the _2 lens does not work for a tuple this big
 teamInReindexRow :: ReindexRow -> Maybe TeamId
-teamInReindexRow (_f1, f2, _f3, _f4, _f5, _f6, _f7, _f8, _f9, _f10, _f11, _f12, _f13, _f14, _f15, _f16, _f17, _f18, _f19, _f20, _f21, _f22) = f2
+teamInReindexRow (_f1, f2, _f3, _f4, _f5, _f6, _f7, _f8, _f9, _f10, _f11, _f12, _f13, _f14, _f15, _f16, _f17, _f18, _f19, _f20, _f21, _f22, _f23) = f2
 
 reindexRowToIndexUser :: forall m. (MonadThrow m) => ReindexRow -> SearchVisibilityInbound -> m IndexUser
 reindexRowToIndexUser
   ( u,
     mteam,
+    tTeam,
     name,
     tName,
     status,
@@ -849,7 +853,8 @@ reindexRowToIndexUser
               v <$> tService,
               v <$> tManagedBy,
               v <$> tSsoId,
-              v <$> tEmailUnvalidated
+              v <$> tEmailUnvalidated,
+              v <$> tTeam
             ]
       pure $
         if shouldIndex

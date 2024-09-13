@@ -175,6 +175,9 @@ isUserActivateNotif = notifTypeIsEqual "user.activate"
 isUserClientAddNotif :: (MakesValue a) => a -> App Bool
 isUserClientAddNotif = notifTypeIsEqual "user.client-add"
 
+isUserUpdatedNotif :: (MakesValue a) => a -> App Bool
+isUserUpdatedNotif = notifTypeIsEqual "user.update"
+
 isUserClientRemoveNotif :: (MakesValue a) => a -> App Bool
 isUserClientRemoveNotif = notifTypeIsEqual "user.client-remove"
 
