@@ -22,6 +22,7 @@ import API.Galley
 import Control.Monad.Codensity
 import Control.Monad.Reader
 import GHC.Stack
+import MLS.Util
 import Notifications
 import SetupHelpers
 import Testlib.Prelude
@@ -38,29 +39,55 @@ testBaz :: HasCallStack => App ()
 testBaz = pure ()
 -}
 
+data ConversationProtocol
+  = ConversationProtocolProteus
+  | ConversationProtocolMLS
+
+instance TestCases ConversationProtocol where
+  mkTestCases =
+    pure
+      [ MkTestCase "[proto=proteus]" ConversationProtocolProteus,
+        MkTestCase "[proto=mls]" ConversationProtocolMLS
+      ]
+
 -- | @SF.Federation @SF.Separation @TSFI.RESTfulAPI @S2
 --
 -- The test asserts that, among others, remote users are removed from a
 -- conversation when an access update occurs that disallows guests from
 -- accessing.
-testAccessUpdateGuestRemoved :: (HasCallStack) => App ()
-testAccessUpdateGuestRemoved = do
+testAccessUpdateGuestRemoved :: (HasCallStack) => ConversationProtocol -> App ()
+testAccessUpdateGuestRemoved proto = do
   (alice, tid, [bob]) <- createTeam OwnDomain 2
   charlie <- randomUser OwnDomain def
   dee <- randomUser OtherDomain def
   mapM_ (connectTwoUsers alice) [charlie, dee]
-  [aliceClient, bobClient, charlieClient, deeClient] <-
-    mapM
-      (\user -> objId $ bindResponse (addClient user def) $ getJSON 201)
-      [alice, bob, charlie, dee]
-  conv <-
-    postConversation
-      alice
-      defProteus
-        { qualifiedUsers = [bob, charlie, dee],
-          team = Just tid
-        }
-      >>= getJSON 201
+
+  (conv, [aliceClient, bobClient, charlieClient, deeClient]) <- case proto of
+    ConversationProtocolProteus -> do
+      clients <-
+        mapM
+          (\user -> objId $ bindResponse (addClient user def) $ getJSON 201)
+          [alice, bob, charlie, dee]
+      conv <-
+        postConversation
+          alice
+          defProteus
+            { qualifiedUsers = [bob, charlie, dee],
+              team = Just tid
+            }
+          >>= getJSON 201
+      pure (conv, clients)
+    ConversationProtocolMLS -> do
+      alice1 <- createMLSClient def alice
+      clients <- traverse (createMLSClient def) [bob, charlie, dee]
+      traverse_ uploadNewKeyPackage clients
+
+      conv <- postConversation alice1 defMLS {team = Just tid} >>= getJSON 201
+      createGroup alice1 conv
+
+      void $ createAddCommit alice1 [bob, charlie, dee] >>= sendAndConsumeCommitBundle
+      convId <- conv %. "qualified_id"
+      pure (convId, map (.client) (alice1 : clients))
 
   let update = ["access" .= ([] :: [String]), "access_role" .= ["team_member"]]
   void $ updateAccess alice conv update >>= getJSON 200
