@@ -42,7 +42,7 @@ module Brig.App
     userTemplates,
     providerTemplates,
     teamTemplates,
-    tmTemplates,
+    teamTemplatesNoLocale,
     templateBranding,
     requestId,
     httpManager,
@@ -441,6 +441,10 @@ providerTemplates l = forLocale l <$> view provTemplates
 
 teamTemplates :: (MonadReader Env m) => Maybe Locale -> m (Locale, TeamTemplates)
 teamTemplates l = forLocale l <$> view tmTemplates
+
+-- this works because team templates is not affected by `forLocale`
+teamTemplatesNoLocale :: (MonadReader Env m) => m TeamTemplates
+teamTemplatesNoLocale = snd <$> teamTemplates Nothing
 
 closeEnv :: Env -> IO ()
 closeEnv e = do

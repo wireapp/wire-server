@@ -112,7 +112,7 @@ servantAPI ::
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member PasswordStore r,
-    Member (Input (Localised TeamTemplates)) r
+    Member (Input TeamTemplates) r
   ) =>
   ServerT TeamsAPI (Handler r)
 servantAPI =
@@ -156,7 +156,7 @@ createInvitation ::
     Member EmailSending r,
     Member TinyLog r,
     Member (Input (Local ())) r,
-    Member (Input (Localised TeamTemplates)) r
+    Member (Input TeamTemplates) r
   ) =>
   UserId ->
   TeamId ->
@@ -195,7 +195,7 @@ createInvitationViaScim ::
     Member UserSubsystem r,
     Member EmailSending r,
     Member (Input (Local ())) r,
-    Member (Input (Localised TeamTemplates)) r
+    Member (Input TeamTemplates) r
   ) =>
   TeamId ->
   NewUserScimInvitation ->
@@ -249,7 +249,7 @@ createInvitation' ::
     Member EmailSending r,
     Member TinyLog r,
     Member (Input (Local ())) r,
-    Member (Input (Localised TeamTemplates)) r
+    Member (Input TeamTemplates) r
   ) =>
   TeamId ->
   Maybe UserId ->
@@ -334,7 +334,7 @@ listInvitations ::
   ( Member GalleyAPIAccess r,
     Member TinyLog r,
     Member InvitationCodeStore r,
-    Member (Input (Localised TeamTemplates)) r,
+    Member (Input TeamTemplates) r,
     Member (Input (Local ())) r,
     Member UserSubsystem r
   ) =>
@@ -367,7 +367,7 @@ listInvitations uid tid startingId mSize = do
 -- default here.
 toInvitation ::
   ( Member TinyLog r,
-    Member (Input (Localised TeamTemplates)) r
+    Member (Input TeamTemplates) r
   ) =>
   Bool ->
   ShowOrHideInvitationUrl ->
@@ -419,7 +419,7 @@ getInviteUrl (invitationEmailUrl -> template) team code = do
 
 mkInviteUrl ::
   ( Member TinyLog r,
-    Member (Input (Localised TeamTemplates)) r
+    Member (Input TeamTemplates) r
   ) =>
   ShowOrHideInvitationUrl ->
   TeamId ->
@@ -427,12 +427,12 @@ mkInviteUrl ::
   Sem r (Maybe (URIRef Absolute))
 mkInviteUrl HideInvitationUrl _ _ = pure Nothing
 mkInviteUrl ShowInvitationUrl team (InvitationCode c) = do
-  template <- invitationEmail . snd . forLocale Nothing <$> input
+  template <- invitationEmail <$> input
   getInviteUrl template team c
 
 mkInviteUrlPersonalUser ::
   ( Member TinyLog r,
-    Member (Input (Localised TeamTemplates)) r
+    Member (Input TeamTemplates) r
   ) =>
   ShowOrHideInvitationUrl ->
   TeamId ->
@@ -440,14 +440,14 @@ mkInviteUrlPersonalUser ::
   Sem r (Maybe (URIRef Absolute))
 mkInviteUrlPersonalUser HideInvitationUrl _ _ = pure Nothing
 mkInviteUrlPersonalUser ShowInvitationUrl team (InvitationCode c) = do
-  template <- existingUserInvitationEmail . snd . forLocale Nothing <$> input
+  template <- existingUserInvitationEmail <$> input
   getInviteUrl template team c
 
 getInvitation ::
   ( Member GalleyAPIAccess r,
     Member InvitationCodeStore r,
     Member TinyLog r,
-    Member (Input (Localised TeamTemplates)) r
+    Member (Input TeamTemplates) r
   ) =>
   UserId ->
   TeamId ->

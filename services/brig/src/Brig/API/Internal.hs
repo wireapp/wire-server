@@ -51,7 +51,6 @@ import Brig.Options hiding (internalEvents)
 import Brig.Provider.API qualified as Provider
 import Brig.Team.API qualified as Team
 import Brig.Team.Template (TeamTemplates)
-import Brig.Template (Localised)
 import Brig.Types.Connection
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
@@ -146,7 +145,7 @@ servantSitemap ::
     Member VerificationCodeSubsystem r,
     Member PasswordResetCodeStore r,
     Member PropertySubsystem r,
-    Member (Input (Localised TeamTemplates)) r
+    Member (Input TeamTemplates) r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -253,7 +252,7 @@ teamsAPI ::
     Member (ConnectionStore InternalPaging) r,
     Member EmailSending r,
     Member UserSubsystem r,
-    Member (Input (Localised TeamTemplates)) r
+    Member (Input TeamTemplates) r
   ) =>
   ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI =
