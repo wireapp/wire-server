@@ -92,6 +92,7 @@ import Imports hiding (head)
 import Network.Socket (PortNumber)
 import Network.Wai.Utilities as Utilities
 import Polysemy
+import Polysemy.Fail (Fail)
 import Polysemy.Input (Input)
 import Polysemy.TinyLog (TinyLog)
 import Servant hiding (Handler, JSON, addHeader, respond)
@@ -267,6 +268,7 @@ servantSitemap ::
     Member (ConnectionStore InternalPaging) r,
     Member (Embed HttpClientIO) r,
     Member (Embed IO) r,
+    Member Fail r,
     Member FederationConfigStore r,
     Member (Input (Local ())) r,
     Member AuthenticationSubsystem r,

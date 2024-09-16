@@ -133,6 +133,7 @@ clientError (ClientDataError e) = clientDataError e
 clientError (ClientUserNotFound _) = StdError (errorToWai @'E.InvalidUser)
 clientError ClientLegalHoldCannotBeRemoved = StdError can'tDeleteLegalHoldClient
 clientError ClientLegalHoldCannotBeAdded = StdError can'tAddLegalHoldClient
+clientError ClientLegalHoldIncompatible = StdError $ Wai.mkError status409 "mls-legalhold-not-allowed" "A user who is under legal-hold may not participate in MLS conversations"
 clientError (ClientFederationError e) = fedError e
 clientError ClientCapabilitiesCannotBeRemoved = StdError clientCapabilitiesCannotBeRemoved
 clientError ClientMissingLegalholdConsentOldClients = StdError (errorToWai @'E.MissingLegalholdConsentOldClients)

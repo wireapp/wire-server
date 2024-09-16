@@ -25,6 +25,7 @@ common common-all
   default-extensions:
     AllowAmbiguousTypes
     BangPatterns
+    BlockArguments
     ConstraintKinds
     DataKinds
     DefaultSignatures

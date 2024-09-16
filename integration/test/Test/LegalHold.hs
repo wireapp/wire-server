@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wwarn #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2023 Wire Swiss GmbH <opensource@wire.com>
@@ -908,11 +906,11 @@ testLHDisableBeforeApproval = do
       >>= assertStatus 200
     getBob'sStatus `shouldMatch` "disabled"
 
+-- WPB-10783
 testMLSThenLegalhold :: (HasCallStack) => App ()
 testMLSThenLegalhold = do
   -- scenario 1:
-  -- charlie creates an MLS group and then tries to put himself under legalhold
-  -- as soon as he puts himself under legalhold, he is removed from the MLS conversation
+  -- if charlie is in any MLS conversation, he cannot approve to be put under legalhold
   (charlie, tid, []) <- createTeam OwnDomain 1
   [charlie1] <- traverse (createMLSClient def) [charlie]
   void $ createNewGroup charlie1
@@ -921,21 +919,16 @@ testMLSThenLegalhold = do
   legalholdWhitelistTeam tid charlie >>= assertStatus 200
   withMockServer def lhMockApp \lhDomAndPort _chan -> do
     postLegalHoldSettings tid charlie (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
-    withWebSocket charlie \ws -> do
-      requestLegalHoldDevice tid charlie charlie >>= assertSuccess
-      approveLegalHoldDevice tid (charlie %. "qualified_id") defPassword >>= assertSuccess
-      -- if charlie approves of the legalhold device, he is thrown out of all MLS conversations
-      notif <- awaitMatch isConvLeaveNotif ws
-      printJSON notif
-      profile <- getUser charlie charlie >>= getJSON 200
-      pStatus <- profile %. "legalhold_status" & asString
-      pStatus `shouldMatch` "enabled"
+    requestLegalHoldDevice tid charlie charlie >>= assertSuccess
+    approveLegalHoldDevice tid (charlie %. "qualified_id") defPassword
+      `bindResponse` assertLabel 409 "mls-legalhold-not-allowed"
 
+-- WPB-10772
 testLegalholdThenMLS :: (HasCallStack) => App ()
 testLegalholdThenMLS = do
   -- scenario 2:
   -- charlie first is put under legalhold and after that wants to join an MLS conversation
-  -- charlie should not be allows to do so
+  -- charlie should not be allowed to do so
   (alice, tid, [charlie]) <- createTeam OwnDomain 2
   [alice1, _charlie1] <- traverse (createMLSClient def) [alice, charlie]
   void $ createNewGroup alice1
