@@ -442,7 +442,8 @@ providerTemplates l = forLocale l <$> view provTemplates
 teamTemplates :: (MonadReader Env m) => Maybe Locale -> m (Locale, TeamTemplates)
 teamTemplates l = forLocale l <$> view tmTemplates
 
--- this works because team templates is not affected by `forLocale`
+-- this works because team templates is not affected by `forLocale`; it is useful where we
+-- use the `TeamTemplates` only for finding invitation url templates (those are not localized).
 teamTemplatesNoLocale :: (MonadReader Env m) => m TeamTemplates
 teamTemplatesNoLocale = snd <$> teamTemplates Nothing
 
