@@ -109,7 +109,7 @@ import Brig.User.Search.Index (IndexEnv (..), MonadIndexIO (..), runIndexIO)
 import Brig.User.Template
 import Brig.ZAuth (MonadZAuth (..), runZAuth)
 import Brig.ZAuth qualified as ZAuth
-import Cassandra (MonadClient, runClient)
+import Cassandra (runClient)
 import Cassandra qualified as Cas
 import Cassandra.Util (initCassandraForService)
 import Control.AutoUpdate
@@ -622,13 +622,13 @@ instance HasRequestId (AppT r) where
 -- Ad hoc interpreters
 
 -- | similarly to `wrapClient`, this function serves as a crutch while Brig is being polysemised.
-adhocUserKeyStoreInterpreter :: (MonadClient m, MonadReader Env m) => Sem '[UserKeyStore, UserStore, Embed IO] a -> m a
+adhocUserKeyStoreInterpreter :: (MonadIO m, MonadReader Env m) => Sem '[UserKeyStore, UserStore, Embed IO] a -> m a
 adhocUserKeyStoreInterpreter action = do
   clientState <- asks (view casClient)
   liftIO $ runM . interpretUserStoreCassandra clientState . interpretUserKeyStoreCassandra clientState $ action
 
 -- | similarly to `wrapClient`, this function serves as a crutch while Brig is being polysemised.
-adhocSessionStoreInterpreter :: (MonadClient m, MonadReader Env m) => Sem '[SessionStore, Embed IO] a -> m a
+adhocSessionStoreInterpreter :: (MonadIO m, MonadReader Env m) => Sem '[SessionStore, Embed IO] a -> m a
 adhocSessionStoreInterpreter action = do
   clientState <- asks (view casClient)
   liftIO $ runM . interpretSessionStoreCassandra clientState $ action

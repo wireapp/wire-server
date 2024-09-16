@@ -16,32 +16,25 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module API.Util
-  ( randomUser,
-    downloadAsset,
+  ( downloadAsset,
     withMockFederator,
   )
 where
 
 import Bilge hiding (body, host, port)
-import qualified Bilge
 import CargoHold.Options
 import CargoHold.Run
 import Control.Lens hiding ((.=))
 import Control.Monad.Codensity
-import Data.Aeson (object, (.=))
-import qualified Data.ByteString.Char8 as C
 import Data.ByteString.Conversion
 import Data.Default
 import Data.Id
 import Data.Qualified
-import Data.Text.Encoding (encodeUtf8)
 import qualified Data.UUID as UUID
-import Data.UUID.V4 (nextRandom)
 import Federator.MockServer
 import Imports hiding (head)
 import qualified Network.HTTP.Media as HTTP
 import Network.Wai.Utilities.MockServer
-import Safe (readNote)
 import TestSetup
 import Util.Options
 import Wire.API.Asset
@@ -51,27 +44,6 @@ import Wire.API.Asset
 -- The changes to the asset routes forbidding non-verified users from uploading
 -- assets breaks a lot of existing tests.
 --
--- FUTUREWORK: Move all the cargohold tests to the new integration test suite.
--- https://wearezeta.atlassian.net/browse/WPB-5382
-randomUser :: TestM UserId
-randomUser = do
-  (Endpoint (encodeUtf8 -> eHost) ePort) <- view tsBrig
-  e <- liftIO $ mkEmail "success" "simulator.amazonses.com"
-  let p =
-        object
-          [ "name" .= e,
-            "email" .= e,
-            "password" .= ("secret-8-chars-long-at-least" :: Text)
-          ]
-  r <- post (Bilge.host eHost . Bilge.port ePort . path "/i/users" . json p)
-  pure
-    . readNote "unable to parse Location header"
-    . C.unpack
-    $ getHeader' "Location" r
-  where
-    mkEmail loc dom = do
-      uid <- nextRandom
-      pure $ loc <> "+" <> UUID.toText uid <> "@" <> dom
 
 zUser :: UserId -> Request -> Request
 zUser = header "Z-User" . UUID.toASCIIBytes . toUUID

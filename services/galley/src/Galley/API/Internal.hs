@@ -179,7 +179,7 @@ conversationAPI =
     <@> mkNamedAPI @"conversation-unblock-unqualified" Update.unblockConvUnqualified
     <@> mkNamedAPI @"conversation-unblock" Update.unblockConv
     <@> mkNamedAPI @"conversation-meta" Query.getConversationMeta
-    <@> mkNamedAPI @"conversation-mls-one-to-one" Query.getMLSOne2OneConversation
+    <@> mkNamedAPI @"conversation-mls-one-to-one" Query.getMLSOne2OneConversationInternal
     <@> mkNamedAPI @"conversation-mls-one-to-one-established" Query.isMLSOne2OneEstablished
 
 legalholdWhitelistedTeamsAPI :: API ILegalholdWhitelistedTeamsAPI GalleyEffects
@@ -229,7 +229,7 @@ miscAPI =
     <@> mkNamedAPI @"test-delete-client" Clients.rmClient
     <@> mkNamedAPI @"add-service" createService
     <@> mkNamedAPI @"delete-service" deleteService
-    <@> mkNamedAPI @"add-bot" Update.addBot
+    <@> mkNamedAPI @"i-add-bot" Update.addBot
     <@> mkNamedAPI @"delete-bot" Update.rmBot
     <@> mkNamedAPI @"put-custom-backend" setCustomBackend
     <@> mkNamedAPI @"delete-custom-backend" deleteCustomBackend

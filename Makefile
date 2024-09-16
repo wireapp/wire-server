@@ -55,6 +55,7 @@ full-clean: clean
 	rm -rf ~/.cache/hie-bios
 	rm -rf ./dist-newstyle ./.env
 	direnv reload
+	rabbitmqadmin -f pretty_json list queues vhost name messages | jq -r '.[] | "rabbitmqadmin delete queue name=\(.name) --vhost=\(.vhost)"' | bash
 	@echo -e "\n\n*** NOTE: you may want to also 'rm -rf ~/.cabal/store \$$CABAL_DIR/store', not sure.\n"
 
 .PHONY: clean
@@ -162,7 +163,7 @@ lint-all: formatc hlint-check-all lint-common
 # The extra 'hlint-check-pr' has been witnessed to be necessary due to
 # some bu in `hlint-inplace-pr`.  Details got lost in history.
 .PHONY: lint-all-shallow
-lint-all-shallow: formatf hlint-inplace-pr hlint-check-pr lint-common
+lint-all-shallow: lint-common formatf hlint-inplace-pr hlint-check-pr 
 
 .PHONY: lint-common
 lint-common: check-local-nix-derivations treefmt-check # weeder (does not work on CI yet)

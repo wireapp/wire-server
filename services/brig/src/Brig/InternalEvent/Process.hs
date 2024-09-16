@@ -27,9 +27,11 @@ import Brig.Provider.API qualified as API
 import Control.Lens (view)
 import Control.Monad.Catch
 import Data.ByteString.Conversion
+import Data.Qualified (Local)
 import Imports
 import Polysemy
 import Polysemy.Conc hiding (Events)
+import Polysemy.Input (Input)
 import Polysemy.Time
 import Polysemy.TinyLog as Log
 import System.Logger.Class (field, msg, val, (~~))
@@ -40,17 +42,18 @@ import Wire.PropertySubsystem
 import Wire.Sem.Delay
 import Wire.UserKeyStore
 import Wire.UserStore (UserStore)
-import Wire.UserSubsystem (UserSubsystem)
+import Wire.UserSubsystem
 
 -- | Handle an internal event.
 --
 -- Has a one-minute timeout that should be enough for anything that it does.
 onEvent ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
+  ( Member NotificationSubsystem r,
     Member TinyLog r,
+    Member (Embed HttpClientIO) r,
     Member Delay r,
     Member Race r,
+    Member (Input (Local ())) r,
     Member UserKeyStore r,
     Member UserStore r,
     Member PropertySubsystem r,
@@ -67,7 +70,8 @@ onEvent n = handleTimeout $ case n of
     Log.info $
       msg (val "Processing user delete event")
         ~~ field "user" (toByteString uid)
-    embed (API.lookupAccount uid) >>= mapM_ API.deleteAccount
+    luid <- qualifyLocal' uid
+    getAccountNoFilter luid >>= mapM_ API.deleteAccount
     -- As user deletions are expensive resource-wise in the context of
     -- bulk user deletions (e.g. during team deletions),
     -- wait 'delay' ms before processing the next event

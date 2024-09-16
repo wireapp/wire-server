@@ -67,7 +67,8 @@ data GalleyAPIAccess m a where
   AddTeamMember ::
     UserId ->
     TeamId ->
-    (Maybe (UserId, UTCTimeMillis), Role) ->
+    Maybe (UserId, UTCTimeMillis) ->
+    Role ->
     GalleyAPIAccess m Bool
   CreateTeam ::
     UserId ->

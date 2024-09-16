@@ -268,7 +268,7 @@ type UserAPI =
            "get-rich-info"
            ( Summary "Get a user's rich info"
                :> CanThrow 'InsufficientTeamPermissions
-               :> ZUser
+               :> ZLocalUser
                :> "users"
                :> CaptureUserId "uid"
                :> "rich-info"
@@ -322,7 +322,7 @@ type SelfAPI =
           :> CanThrow 'MissingAuth
           :> CanThrow 'DeleteCodePending
           :> CanThrow 'OwnerDeletingSelf
-          :> ZUser
+          :> ZLocalUser
           :> "self"
           :> ReqBody '[JSON] DeleteUser
           :> MultiVerb 'DELETE '[JSON] DeleteSelfResponses (Maybe Timeout)
@@ -743,7 +743,7 @@ type UserClientAPI =
         :> CanThrow 'MalformedPrekeys
         :> CanThrow 'CodeAuthenticationFailed
         :> CanThrow 'CodeAuthenticationRequired
-        :> ZUser
+        :> ZLocalUser
         :> ZConn
         :> "clients"
         :> ReqBody '[JSON] NewClient
@@ -766,7 +766,7 @@ type UserClientAPI =
                :> CanThrow 'MalformedPrekeys
                :> CanThrow 'CodeAuthenticationFailed
                :> CanThrow 'CodeAuthenticationRequired
-               :> ZUser
+               :> ZLocalUser
                :> ZConn
                :> "clients"
                :> ReqBody '[JSON] NewClient

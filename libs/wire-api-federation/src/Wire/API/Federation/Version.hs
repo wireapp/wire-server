@@ -22,6 +22,7 @@ module Wire.API.Federation.Version
     Version (..),
     V0Sym0,
     V1Sym0,
+    V2Sym0,
     intToVersion,
     versionInt,
     versionText,
@@ -48,13 +49,14 @@ import Data.Singletons.Base.TH
 import Data.Text qualified as Text
 import Imports
 
-data Version = V0 | V1
+data Version = V0 | V1 | V2
   deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
   deriving (FromJSON, ToJSON) via (Schema Version)
 
 versionInt :: Version -> Int
 versionInt V0 = 0
 versionInt V1 = 1
+versionInt V2 = 2
 
 versionText :: Version -> Text
 versionText = ("v" <>) . Text.pack . show . versionInt
@@ -66,7 +68,8 @@ instance ToSchema Version where
   schema =
     enum @Integer "Version" . mconcat $
       [ element 0 V0,
-        element 1 V1
+        element 1 V1,
+        element 2 V2
       ]
 
 supportedVersions :: Set Version

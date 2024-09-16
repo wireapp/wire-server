@@ -19,6 +19,7 @@ library
     Data.Domain
     Data.ETag
     Data.Handle
+    Data.HavePendingInvitations
     Data.Id
     Data.Json.Util
     Data.LegalHold
@@ -38,6 +39,7 @@ library
     Util.Options
     Util.Options.Common
     Util.Test
+    Util.Timeout
     Wire.Arbitrary
 
   other-modules:      Paths_types_common
@@ -125,6 +127,7 @@ library
     , quickcheck-instances   >=0.3.16
     , random                 >=1.1
     , schema-profunctor
+    , scientific
     , servant-server
     , tagged                 >=0.8
     , tasty                  >=0.11

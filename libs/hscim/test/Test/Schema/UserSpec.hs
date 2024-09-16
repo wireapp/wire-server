@@ -38,7 +38,7 @@ import Lens.Micro
 import Network.URI.Static (uri)
 import Test.Hspec
 import Test.Schema.Util (genUri, mk_prop_caseInsensitive)
-import Text.Email.Validate (emailAddress)
+import Text.Email.Validate (emailAddress, validate)
 import qualified Web.Scim.Class.User as UserClass
 import Web.Scim.Filter (AttrPath (..))
 import Web.Scim.Schema.Common (ScimBool (ScimBool), URI (..), WithId (..), lowerKey)
@@ -69,6 +69,38 @@ type UserExtraPatch = KeyMap.KeyMap Text
 
 spec :: Spec
 spec = do
+  describe "scimEmailsToEmailAddress" $ do
+    let Right adr1 = validate "one@example.com"
+        Right adr2 = validate "two@example.com"
+        Right adr3 = validate "three@example.com"
+
+        false1 = Nothing
+        false2 = Just (ScimBool False)
+        true = Just (ScimBool True)
+
+    it "returns Nothing if empty" $ do
+      scimEmailsToEmailAddress [] `shouldBe` Nothing
+
+    it "returns first primary if it exists" $ do
+      scimEmailsToEmailAddress
+        [ Email Nothing (EmailAddress adr1) false1,
+          Email Nothing (EmailAddress adr2) false2,
+          Email (Just "this is ignored") (EmailAddress adr3) true
+        ]
+        `shouldBe` Just adr3
+
+    it "returns first entry if no primary exists" $ do
+      scimEmailsToEmailAddress
+        [ Email Nothing (EmailAddress adr1) false1,
+          Email Nothing (EmailAddress adr2) false2
+        ]
+        `shouldBe` Just adr1
+      scimEmailsToEmailAddress
+        [ Email Nothing (EmailAddress adr1) false2,
+          Email Nothing (EmailAddress adr2) false1
+        ]
+        `shouldBe` Just adr1
+
   describe "applyPatch" $ do
     it "only applies patch for supported fields" $ do
       let schemas' = []
@@ -127,13 +159,15 @@ spec = do
       toJSON minimalUser `shouldBe` minimalUserJson
       eitherDecode (encode minimalUserJson) `shouldBe` Right minimalUser
     it "treats 'null' and '[]' as absence of fields" $
-      eitherDecode (encode minimalUserJsonRedundant) `shouldBe` Right minimalUser
+      eitherDecode (encode minimalUserJsonRedundant)
+        `shouldBe` Right minimalUser
     it "allows casing variations in field names" $ do
       require $ mk_prop_caseInsensitive genUser
       require $ mk_prop_caseInsensitive (ListResponse.fromList . (: []) <$> genStoredUser)
       eitherDecode (encode minimalUserJsonNonCanonical) `shouldBe` Right minimalUser
     it "doesn't require the 'schemas' field" $
-      eitherDecode (encode minimalUserJsonNoSchemas) `shouldBe` Right minimalUser
+      eitherDecode (encode minimalUserJsonNoSchemas)
+        `shouldBe` Right minimalUser
     it "doesn't add 'extra' if it's an empty object" $ do
       toJSON (extendedUser UserExtraEmpty) `shouldBe` extendedUserEmptyJson
       eitherDecode (encode extendedUserEmptyJson)

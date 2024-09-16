@@ -24,6 +24,7 @@ import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8)
 import Data.UUID.V1 (nextUUID)
 import Data.UUID.V4 (nextRandom)
+import Data.Vector (fromList)
 import GHC.Stack
 import Testlib.MockIntegrationService (mkLegalHoldSettings)
 import Testlib.Prelude
@@ -173,13 +174,22 @@ addUserToTeam u = do
 
 -- | Create a user on the given domain, such that the 1-1 conversation with
 -- 'other' resides on 'convDomain'. This connects the two users as a side-effect.
-createMLSOne2OnePartner :: (MakesValue user) => Domain -> user -> Domain -> App Value
+createMLSOne2OnePartner ::
+  (MakesValue user, MakesValue domain, MakesValue convDomain, HasCallStack) =>
+  domain ->
+  user ->
+  convDomain ->
+  App Value
 createMLSOne2OnePartner domain other convDomain = loop
   where
     loop = do
       u <- randomUser domain def
       connectTwoUsers u other
-      conv <- getMLSOne2OneConversation other u >>= getJSON 200
+      apiVersion <- getAPIVersionFor domain
+      conv <-
+        if apiVersion < 6
+          then getMLSOne2OneConversation other u >>= getJSON 200
+          else getMLSOne2OneConversation other u >>= getJSON 200 >>= (%. "conversation")
 
       desiredConvDomain <- make convDomain & asString
       actualConvDomain <- conv %. "qualified_id.domain" & asString
@@ -342,11 +352,16 @@ lhDeviceIdOf bob = do
 randomScimUser :: App Value
 randomScimUser = do
   email <- randomEmail
+  randomScimUserWith email email
+
+randomScimUserWith :: (HasCallStack) => String -> String -> App Value
+randomScimUserWith extId email = do
   handle <- randomHandleWithRange 12 128
   pure $
     object
       [ "schemas" .= ["urn:ietf:params:scim:schemas:core:2.0:User"],
-        "externalId" .= email,
+        "externalId" .= extId,
+        "emails" .= Array (fromList [object ["value" .= email]]),
         "userName" .= handle,
         "displayName" .= handle
       ]

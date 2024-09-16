@@ -20,7 +20,6 @@
 , cookie
 , crypton
 , crypton-x509
-, email-validate
 , exceptions
 , extended
 , gitignoreSource
@@ -63,6 +62,7 @@
 , tasty-hunit
 , text
 , text-latin1
+, these
 , time
 , tinylog
 , transformers
@@ -77,6 +77,7 @@
 , wai-utilities
 , warp
 , wire-api
+, wire-subsystems
 , xml-conduit
 , yaml
 , zauth
@@ -124,6 +125,7 @@ mkDerivation {
     servant-server
     text
     text-latin1
+    these
     time
     tinylog
     transformers
@@ -136,6 +138,7 @@ mkDerivation {
     wai-utilities
     warp
     wire-api
+    wire-subsystems
     yaml
   ];
   executableHaskellDepends = [
@@ -155,7 +158,6 @@ mkDerivation {
     containers
     cookie
     crypton
-    email-validate
     exceptions
     extended
     hscim
@@ -187,6 +189,7 @@ mkDerivation {
     string-conversions
     tasty-hunit
     text
+    these
     time
     tinylog
     transformers
@@ -227,6 +230,7 @@ mkDerivation {
     servant
     servant-openapi3
     string-conversions
+    these
     time
     tinylog
     types-common

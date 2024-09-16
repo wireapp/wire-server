@@ -20,6 +20,7 @@ roots = [ # may of the entries here are about general-purpose module
          "^API.Team.Util.*$", # FUTUREWORK: Consider whether unused utility functions should be kept.
          "^Bilge.*$",
          "^Cassandra.Helpers.toOptionFieldName",
+         "^Cassandra.QQ.sql$",
          "^Data.ETag._OpaqueDigest",
          "^Data.ETag._StrictETag",
          "^Data.ETag._WeakETag",
@@ -35,8 +36,10 @@ roots = [ # may of the entries here are about general-purpose module
          "^Data.Range.rinc",
          "^Data.Range.rsingleton",
          "^Data.ZAuth.Validation.*$",
-         "^Galley.Types.UserList.ulDiff",
+         "^Galley.Cassandra.FeatureTH.generateSOPInstances$",
+         "^Galley.Cassandra.FeatureTH.generateTupleP$",
          "^Galley.Types.Teams.canSeePermsOf", # TODO: figure out why weeder is confused by let bindings with curried infix notation
+         "^Galley.Types.UserList.ulDiff",
          "^HTTP2.Client.Manager.*$",
          "^Imports.getChar",
          "^Imports.getContents",
@@ -44,6 +47,7 @@ roots = [ # may of the entries here are about general-purpose module
          "^Imports.putChar",
          "^Imports.readIO",
          "^Imports.readLn",
+         "^Imports.todo",
          "^Main.debugMainDebugExportFull", # move-team
          "^Main.debugMainExport", # move-team
          "^Main.debugMainImport", # move-team
@@ -108,6 +112,7 @@ roots = [ # may of the entries here are about general-purpose module
          "^Proto.Otr_Fields.vec'userIds",
          "^Proto.TeamEvents_Fields.currency",
          "^Proto.TeamEvents_Fields.vec'billingUser",
+         "^Run.main$",
          "^Spar.Sem.AReqIDStore.Mem.*$", # FUTUREWORK: @fisx can we delete this?
          "^Spar.Sem.AssIDStore.Mem.*$", # FUTUREWORK: @fisx can we delete this?
          "^Spar.Sem.ScimTokenStore.Mem.*$", # FUTUREWORK: @fisx can we delete this?
@@ -121,6 +126,7 @@ roots = [ # may of the entries here are about general-purpose module
          "^Test.Data.Schema.userSchemaWithDefaultName'",
          "^Test.Federator.JSON.deriveJSONOptions", # This is used inside an instance derivation via TH
          "^Test.Wire.API.Golden.Run.main$",
+         "^Run.main$",
          "^Test.Wire.API.Password.testHashPasswordScrypt", # FUTUREWORK: reworking scrypt/argon2id is planned for next sprint
          "^TestSetup.runFederationClient",
          "^TestSetup.viewCargohold",

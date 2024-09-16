@@ -235,6 +235,7 @@ library
     Wire.API.User.IdentityProvider
     Wire.API.User.Orphans
     Wire.API.User.Password
+    Wire.API.User.Phone
     Wire.API.User.Profile
     Wire.API.User.RichInfo
     Wire.API.User.Saml
@@ -325,6 +326,7 @@ library
     , sop-core
     , tagged
     , text                       >=0.11
+    , these
     , time                       >=1.4
     , tinylog
     , transitive-anns

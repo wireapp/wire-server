@@ -23,11 +23,9 @@
 module Spar.Intra.BrigApp
   ( veidToUserSSOId,
     urefToExternalId,
-    urefToEmail,
     veidFromBrigUser,
     veidFromUserSSOId,
     mkUserName,
-    renderValidExternalId,
     HavePendingInvitations (..),
     getBrigUser,
     getBrigUserTeam,
@@ -38,21 +36,21 @@ module Spar.Intra.BrigApp
 
     -- * re-exports, mostly for historical reasons and lazyness
     emailFromSAML,
-    emailToSAMLNameID,
-    emailFromSAMLNameID,
   )
 where
 
 import Brig.Types.Intra
-import Brig.Types.User
 import Control.Lens
 import Control.Monad.Except
 import Data.ByteString.Conversion
 import qualified Data.CaseInsensitive as CI
 import Data.Handle (Handle, parseHandle)
+import Data.HavePendingInvitations
 import Data.Id (TeamId, UserId)
 import Data.Text.Encoding
 import Data.Text.Encoding.Error
+import Data.These
+import Data.These.Combinators
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -64,58 +62,69 @@ import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.GalleyAccess as GalleyAccess
 import Wire.API.Team.Member (HiddenPerm (CreateReadDeleteScimToken), IsPerm)
 import Wire.API.User
-import Wire.API.User.Scim (ValidExternalId (..), runValidExternalIdEither)
+import Wire.API.User.Scim (ValidScimId (..))
 
 ----------------------------------------------------------------------
 
--- | FUTUREWORK: this is redundantly defined in "Spar.Intra.Brig"
-veidToUserSSOId :: ValidExternalId -> UserSSOId
-veidToUserSSOId = runValidExternalIdEither UserSSOId (UserScimExternalId . fromEmail)
+veidToUserSSOId :: ValidScimId -> UserSSOId
+veidToUserSSOId (ValidScimId eid authInfo) = maybe (UserScimExternalId eid) UserSSOId (justThere authInfo)
 
-veidFromUserSSOId :: (MonadError String m) => UserSSOId -> m ValidExternalId
-veidFromUserSSOId = \case
-  UserSSOId uref ->
-    case urefToEmail uref of
-      Nothing -> pure $ UrefOnly uref
-      Just email -> pure $ EmailAndUref email uref
-  -- FUTUREWORK(elland): account for SCIM emails fields?
-  UserScimExternalId email ->
-    maybe
-      (throwError "externalId not an email and no issuer")
-      (pure . EmailOnly)
-      (emailAddressText email)
+veidFromUserSSOId ::
+  (MonadError String m) =>
+  UserSSOId ->
+  -- | this is either the unvalidated email if exists, or otherwise the validated email.
+  Maybe EmailAddress ->
+  m ValidScimId
+veidFromUserSSOId ssoId mEmail = case ssoId of
+  UserSSOId uref -> do
+    let eid = CI.original $ uref ^. SAML.uidSubject . to SAML.unsafeShowNameID
+    pure $ case mEmail of
+      Just email -> ValidScimId eid (These email uref)
+      Nothing -> ValidScimId eid (That uref)
+  UserScimExternalId veid -> do
+    case mEmail of
+      Just email ->
+        pure $ ValidScimId veid (This email)
+      Nothing ->
+        -- If veid can be parsed as an email, we end up in the case above with email delivered separately.
+        throwError "internal error: externalId is not an email and there is no SAML issuer"
 
--- | If the brig user has a 'UserSSOId', transform that into a 'ValidExternalId' (this is a
+-- | If the brig user has a 'UserSSOId', transform that into a 'ValidScimId' (this is a
 -- total function as long as brig obeys the api).  Otherwise, if the user has an email, we can
 -- construct a return value from that (and an optional saml issuer).
 --
 -- Note: the saml issuer is only needed in the case where a user has been invited via team
 -- settings and is now onboarded to saml/scim.  If this case can safely be ruled out, it's ok
 -- to just set it to 'Nothing'.
-veidFromBrigUser :: (MonadError String m) => User -> Maybe SAML.Issuer -> m ValidExternalId
-veidFromBrigUser usr mIssuer = case (userSSOId usr, userEmail usr, mIssuer) of
-  (Just ssoid, _, _) -> veidFromUserSSOId ssoid
-  (Nothing, Just email, Just issuer) -> pure $ EmailAndUref email (SAML.UserRef issuer (fromRight' $ emailToSAMLNameID email))
-  (Nothing, Just email, Nothing) -> pure $ EmailOnly email
+--
+-- `userSSOId usr` can be empty if the user has no SAML credentials and is brought under scim
+-- management for the first time.  In that case, the externalId is taken to
+-- be the email address.
+veidFromBrigUser :: (MonadError String m) => User -> Maybe SAML.Issuer -> Maybe EmailAddress -> m ValidScimId
+veidFromBrigUser usr mIssuer mUnvalidatedEmail = case (userSSOId usr, userEmail usr, mIssuer) of
+  (Just ssoid, mValidatedEmail, _) -> do
+    -- `mEmail` is in synch with SCIM user schema.
+    let mEmail = mUnvalidatedEmail <|> mValidatedEmail
+    veidFromUserSSOId ssoid mEmail
+  (Nothing, Just email, Just issuer) -> pure $ ValidScimId (fromEmail email) (These email (SAML.UserRef issuer (fromRight' $ emailToSAMLNameID email)))
+  (Nothing, Just email, Nothing) -> pure $ ValidScimId (fromEmail email) (This email)
   (Nothing, Nothing, _) -> throwError "user has neither ssoIdentity nor userEmail"
 
 -- | Take a maybe text, construct a 'Name' from what we have in a scim user.  If the text
 -- isn't present, use an email address or a saml subject (usually also an email address).  If
 -- both are 'Nothing', fail.
-mkUserName :: Maybe Text -> ValidExternalId -> Either String Name
+mkUserName :: Maybe Text -> These EmailAddress SAML.UserRef -> Either String Name
 mkUserName (Just n) = const $ mkName n
 mkUserName Nothing =
-  runValidExternalIdEither
-    (\uref -> mkName (CI.original . SAML.unsafeShowNameID $ uref ^. SAML.uidSubject))
+  these
     (mkName . fromEmail)
-
-renderValidExternalId :: ValidExternalId -> Maybe Text
-renderValidExternalId = runValidExternalIdEither urefToExternalId (Just . fromEmail)
+    (\uref -> mkName (CI.original . SAML.unsafeShowNameID $ uref ^. SAML.uidSubject))
+    (\_ uref -> mkName (CI.original . SAML.unsafeShowNameID $ uref ^. SAML.uidSubject))
 
 ----------------------------------------------------------------------
 
 getBrigUser :: (HasCallStack, Member BrigAccess r) => HavePendingInvitations -> UserId -> Sem r (Maybe User)
-getBrigUser ifpend = (accountUser <$$>) . BrigAccess.getAccount ifpend
+getBrigUser ifpend = ((accountUser . account) <$$>) . BrigAccess.getAccount ifpend
 
 -- | Check that an id maps to an user on brig that is 'Active' (or optionally
 -- 'PendingInvitation') and has a team id.

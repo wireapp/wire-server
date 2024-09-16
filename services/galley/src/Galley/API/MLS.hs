@@ -22,12 +22,11 @@ module Galley.API.MLS
     postMLSCommitBundleFromLocalUser,
     postMLSMessageFromLocalUser,
     getMLSPublicKeys,
+    formatPublicKeys,
   )
 where
 
 import Data.Default
-import Data.Id
-import Data.Qualified
 import Galley.API.Error
 import Galley.API.MLS.Enabled
 import Galley.API.MLS.Message
@@ -45,18 +44,25 @@ getMLSPublicKeys ::
     Member (ErrorS 'MLSNotEnabled) r,
     Member (Error InternalError) r
   ) =>
-  Local UserId ->
   Maybe MLSPublicKeyFormat ->
   Sem r (MLSKeysByPurpose (MLSKeys SomeKey))
-getMLSPublicKeys _ fmt = do
-  keys <- getMLSPrivateKeys
+getMLSPublicKeys fmt = do
+  publicKeys <- mlsKeysToPublic <$$> getMLSPrivateKeys
+  formatPublicKeys fmt publicKeys
+
+formatPublicKeys ::
+  (Member (Error InternalError) r) =>
+  Maybe MLSPublicKeyFormat ->
+  MLSKeysByPurpose MLSPublicKeys ->
+  Sem r (MLSKeysByPurpose (MLSKeys SomeKey))
+formatPublicKeys fmt publicKeys =
   case fromMaybe def fmt of
-    MLSPublicKeyFormatRaw -> pure (fmap (fmap mkSomeKey . mlsKeysToPublic) keys)
+    MLSPublicKeyFormatRaw -> pure (fmap (fmap mkSomeKey) publicKeys)
     MLSPublicKeyFormatJWK -> do
       jwks <-
         traverse
           ( note (InternalErrorWithDescription "malformed MLS removal keys")
-              . mlsKeysToPublicJWK
+              . mlsPublicKeysToJWK
           )
-          keys
+          publicKeys
       pure $ fmap (fmap mkSomeKey) jwks

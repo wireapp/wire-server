@@ -32,6 +32,7 @@ import Control.Lens (view, (^.))
 import Data.Aeson qualified as A
 import Data.ByteString.Conversion
 import Data.Handle (Handle)
+import Data.HavePendingInvitations
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Text qualified as T

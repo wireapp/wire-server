@@ -5,7 +5,7 @@ module Test.User where
 import API.Brig
 import API.BrigInternal
 import API.GalleyInternal
-import API.Spar
+import qualified API.Spar as Spar
 import qualified Data.Aeson as Aeson
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
@@ -13,7 +13,7 @@ import SetupHelpers
 import Testlib.Prelude
 import Testlib.VersionedFed
 
-testSupportedProtocols :: (HasCallStack) => OneOf Domain AnyFedDomain -> App ()
+testSupportedProtocols :: (HasCallStack) => OneOf Domain (FedDomain 1) -> App ()
 testSupportedProtocols bobDomain = do
   alice <- randomUser OwnDomain def
   alice %. "supported_protocols" `shouldMatchSet` ["proteus"]
@@ -115,7 +115,7 @@ testUpdateHandle = do
     resp.status `shouldMatchInt` 200
     mb <- (assertOne =<< asList resp.json) %. "managed_by"
     mb `shouldMatch` "wire"
-  bindResponse (getScimTokens owner) $ \resp -> do
+  bindResponse (Spar.getScimTokens owner) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "tokens" `shouldMatch` ([] @String)
 

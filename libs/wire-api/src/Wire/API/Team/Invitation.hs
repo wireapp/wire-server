@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -67,27 +68,27 @@ instance ToSchema InvitationRequest where
       InvitationRequest
         <$> locale
           .= optFieldWithDocModifier "locale" (description ?~ "Locale to use for the invitation.") (maybeWithDefault A.Null schema)
-        <*> role
+        <*> (.role)
           .= optFieldWithDocModifier "role" (description ?~ "Role of the invitee (invited user).") (maybeWithDefault A.Null schema)
-        <*> inviteeName
+        <*> (.inviteeName)
           .= optFieldWithDocModifier "name" (description ?~ "Name of the invitee (1 - 128 characters).") (maybeWithDefault A.Null schema)
-        <*> inviteeEmail
+        <*> (.inviteeEmail)
           .= fieldWithDocModifier "email" (description ?~ "Email of the invitee.") schema
 
 --------------------------------------------------------------------------------
 -- Invitation
 
 data Invitation = Invitation
-  { inTeam :: TeamId,
-    inRole :: Role,
-    inInvitation :: InvitationId,
-    inCreatedAt :: UTCTimeMillis,
+  { team :: TeamId,
+    role :: Role,
+    invitationId :: InvitationId,
+    createdAt :: UTCTimeMillis,
     -- | this is always 'Just' for new invitations, but for
     -- migration it is allowed to be 'Nothing'.
-    inCreatedBy :: Maybe UserId,
-    inInviteeEmail :: EmailAddress,
-    inInviteeName :: Maybe Name,
-    inInviteeUrl :: Maybe (URIRef Absolute)
+    createdBy :: Maybe UserId,
+    inviteeEmail :: EmailAddress,
+    inviteeName :: Maybe Name,
+    inviteeUrl :: Maybe (URIRef Absolute)
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Invitation)
@@ -99,22 +100,22 @@ instance ToSchema Invitation where
       "Invitation"
       (description ?~ "An invitation to join a team on Wire")
       $ Invitation
-        <$> inTeam
+        <$> (.team)
           .= fieldWithDocModifier "team" (description ?~ "Team ID of the inviting team") schema
-        <*> inRole
+        <*> (.role)
           -- clients, when leaving "role" empty, can leave the default role choice to us
           .= (fromMaybe defaultRole <$> optFieldWithDocModifier "role" (description ?~ "Role of the invited user") schema)
-        <*> inInvitation
+        <*> (.invitationId)
           .= fieldWithDocModifier "id" (description ?~ "UUID used to refer the invitation") schema
-        <*> inCreatedAt
+        <*> (.createdAt)
           .= fieldWithDocModifier "created_at" (description ?~ "Timestamp of invitation creation") schema
-        <*> inCreatedBy
+        <*> (.createdBy)
           .= optFieldWithDocModifier "created_by" (description ?~ "ID of the inviting user") (maybeWithDefault A.Null schema)
-        <*> inInviteeEmail
+        <*> (.inviteeEmail)
           .= fieldWithDocModifier "email" (description ?~ "Email of the invitee") schema
-        <*> inInviteeName
+        <*> (.inviteeName)
           .= optFieldWithDocModifier "name" (description ?~ "Name of the invitee (1 - 128 characters)") (maybeWithDefault A.Null schema)
-        <*> (fmap (TE.decodeUtf8 . serializeURIRef') . inInviteeUrl)
+        <*> (fmap (TE.decodeUtf8 . serializeURIRef') . inviteeUrl)
           .= optFieldWithDocModifier "url" (description ?~ "URL of the invitation link to be sent to the invitee") (maybeWithDefault A.Null urlSchema)
     where
       urlSchema = parsedText "URIRef Absolute" (runParser (uriParser strictURIParserOptions) . TE.encodeUtf8)

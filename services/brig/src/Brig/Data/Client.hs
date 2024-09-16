@@ -73,6 +73,7 @@ import Data.HashMap.Strict qualified as HashMap
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Map qualified as Map
+import Data.Qualified
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Time.Clock
@@ -115,8 +116,10 @@ reAuthForNewClients :: ReAuthPolicy
 reAuthForNewClients count upsert = count > 0 && not upsert
 
 addClient ::
-  (MonadClient m, MonadReader Brig.App.Env m) =>
-  UserId ->
+  ( MonadClient m,
+    MonadReader Brig.App.Env m
+  ) =>
+  Local UserId ->
   ClientId ->
   NewClient ->
   Int ->
@@ -125,26 +128,28 @@ addClient ::
 addClient = addClientWithReAuthPolicy reAuthForNewClients
 
 addClientWithReAuthPolicy ::
-  (MonadClient m, MonadReader Brig.App.Env m) =>
+  ( MonadClient m,
+    MonadReader Brig.App.Env m
+  ) =>
   ReAuthPolicy ->
-  UserId ->
+  Local UserId ->
   ClientId ->
   NewClient ->
   Int ->
   Maybe (Imports.Set ClientCapability) ->
   ExceptT ClientDataError m (Client, [Client], Word)
 addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients cps = do
-  clients <- lookupClients u
+  clients <- lookupClients (tUnqualified u)
   let typed = filter ((== newClientType c) . clientType) clients
   let count = length typed
   let upsert = any exists typed
   when (reAuthPolicy count upsert) $
     fmapLT ClientReAuthError $
-      User.reauthenticate u (newClientPassword c)
+      User.reauthenticate (tUnqualified u) (newClientPassword c)
   let capacity = fmap (+ (-count)) limit
   unless (maybe True (> 0) capacity || upsert) $
     throwE TooManyClients
-  new <- insert
+  new <- insert (tUnqualified u)
   let !total = fromIntegral (length clients + if upsert then 0 else 1)
   let old = maybe (filter (not . exists) typed) (const []) limit
   pure (new, old, total)
@@ -158,16 +163,16 @@ addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients cps = do
     exists :: Client -> Bool
     exists = (==) newId . clientId
 
-    insert :: (MonadClient m, MonadReader Brig.App.Env m) => ExceptT ClientDataError m Client
-    insert = do
+    insert :: (MonadClient m, MonadReader Brig.App.Env m) => UserId -> ExceptT ClientDataError m Client
+    insert uid = do
       -- Is it possible to do this somewhere else? Otherwise we could use `MonadClient` instead
       now <- toUTCTimeMillis <$> (liftIO =<< view currentTime)
       let keys = unpackLastPrekey (newClientLastKey c) : newClientPrekeys c
-      updatePrekeys u newId keys
+      updatePrekeys uid newId keys
       let mdl = newClientModel c
-          prm = (u, newId, now, newClientType c, newClientLabel c, newClientClass c, newClientCookie c, mdl, C.Set . Set.toList <$> cps)
+          prm = (uid, newId, now, newClientType c, newClientLabel c, newClientClass c, newClientCookie c, mdl, C.Set . Set.toList <$> cps)
       retry x5 $ write insertClient (params LocalQuorum prm)
-      addMLSPublicKeys u newId (Map.assocs (newClientMLSPublicKeys c))
+      addMLSPublicKeys uid newId (Map.assocs (newClientMLSPublicKeys c))
       pure $!
         Client
           { clientId = newId,

@@ -184,7 +184,6 @@ library
     Brig.Schema.V84_DropTeamInvitationPhone
     Brig.Schema.V85_DropUserKeysHashed
     Brig.Team.API
-    Brig.Team.DB
     Brig.Team.Email
     Brig.Team.Template
     Brig.Team.Util
@@ -288,7 +287,6 @@ library
     , retry                      >=0.7
     , safe-exceptions            >=0.1
     , schema-profunctor
-    , scientific                 >=0.3.4
     , servant
     , servant-openapi3
     , servant-server

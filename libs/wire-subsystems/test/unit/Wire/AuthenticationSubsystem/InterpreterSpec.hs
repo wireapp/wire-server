@@ -55,7 +55,7 @@ type AllEffects =
     UserSubsystem
   ]
 
-interpretDependencies :: Domain -> [UserAccount] -> Map UserId Password -> Maybe [Text] -> Sem AllEffects a -> Either AuthenticationSubsystemError a
+interpretDependencies :: Domain -> [ExtendedUserAccount] -> Map UserId Password -> Maybe [Text] -> Sem AllEffects a -> Either AuthenticationSubsystemError a
 interpretDependencies localDomain preexistingUsers preexistingPasswords mAllowedEmailDomains =
   run
     . userSubsystemTestInterpreter preexistingUsers
@@ -84,7 +84,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
             uid = User.userId user
             localDomain = userNoEmail.userQualifiedId.qDomain
             Right (newPasswordHash, cookiesAfterReset) =
-              interpretDependencies localDomain [UserAccount user Active] mempty Nothing
+              interpretDependencies localDomain [ExtendedUserAccount (UserAccount user Active) Nothing] mempty Nothing
                 . interpretAuthenticationSubsystem
                 $ do
                   forM_ mPreviousPassword (hashPassword >=> upsertHashedPassword uid)
@@ -105,7 +105,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
             uid = User.userId user
             localDomain = userNoEmail.userQualifiedId.qDomain
             Right (newPasswordHash, cookiesAfterReset) =
-              interpretDependencies localDomain [UserAccount user Active] mempty Nothing
+              interpretDependencies localDomain [ExtendedUserAccount (UserAccount user Active) Nothing] mempty Nothing
                 . interpretAuthenticationSubsystem
                 $ do
                   forM_ mPreviousPassword (hashPassword >=> upsertHashedPassword uid)
@@ -135,7 +135,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
         let user = userNoEmail {userIdentity = Just $ EmailIdentity email}
             localDomain = userNoEmail.userQualifiedId.qDomain
             createPasswordResetCodeResult =
-              interpretDependencies localDomain [UserAccount user Active] mempty (Just [decodeUtf8 $ domainPart email])
+              interpretDependencies localDomain [ExtendedUserAccount (UserAccount user Active) Nothing] mempty (Just [decodeUtf8 $ domainPart email])
                 . interpretAuthenticationSubsystem
                 $ createPasswordResetCode (mkEmailKey email)
          in counterexample ("expected Right, got: " <> show createPasswordResetCodeResult) $
@@ -146,7 +146,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
         let user = userNoEmail {userIdentity = Just $ EmailIdentity email}
             localDomain = userNoEmail.userQualifiedId.qDomain
             createPasswordResetCodeResult =
-              interpretDependencies localDomain [UserAccount user status] mempty Nothing
+              interpretDependencies localDomain [ExtendedUserAccount (UserAccount user status) Nothing] mempty Nothing
                 . interpretAuthenticationSubsystem
                 $ createPasswordResetCode (mkEmailKey email)
                   <* expectNoEmailSent
@@ -168,7 +168,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
             uid = User.userId user
             localDomain = userNoEmail.userQualifiedId.qDomain
             Right (newPasswordHash, mCaughtException) =
-              interpretDependencies localDomain [UserAccount user Active] mempty Nothing
+              interpretDependencies localDomain [ExtendedUserAccount (UserAccount user Active) Nothing] mempty Nothing
                 . interpretAuthenticationSubsystem
                 $ do
                   createPasswordResetCode (mkEmailKey email)
@@ -189,7 +189,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
             uid = User.userId user
             localDomain = userNoEmail.userQualifiedId.qDomain
             Right (passwordInDB, resetPasswordResult) =
-              interpretDependencies localDomain [UserAccount user Active] mempty Nothing
+              interpretDependencies localDomain [ExtendedUserAccount (UserAccount user Active) Nothing] mempty Nothing
                 . interpretAuthenticationSubsystem
                 $ do
                   upsertHashedPassword uid =<< hashPassword oldPassword
@@ -209,7 +209,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
             uid = User.userId user
             localDomain = userNoEmail.userQualifiedId.qDomain
             Right (passwordInDB, resetPasswordResult) =
-              interpretDependencies localDomain [UserAccount user Active] mempty Nothing
+              interpretDependencies localDomain [ExtendedUserAccount (UserAccount user Active) Nothing] mempty Nothing
                 . interpretAuthenticationSubsystem
                 $ do
                   upsertHashedPassword uid =<< hashPassword oldPassword
@@ -224,7 +224,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
             uid = User.userId user
             localDomain = userNoEmail.userQualifiedId.qDomain
             Right (passwordInDB, resetPasswordResult) =
-              interpretDependencies localDomain [UserAccount user Active] mempty Nothing
+              interpretDependencies localDomain [ExtendedUserAccount (UserAccount user Active) Nothing] mempty Nothing
                 . interpretAuthenticationSubsystem
                 $ do
                   hashAndUpsertPassword uid oldPassword
@@ -240,7 +240,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
             uid = User.userId user
             localDomain = userNoEmail.userQualifiedId.qDomain
             Right (passwordHashInDB, correctResetCode, wrongResetErrors, resetPassworedWithCorectCodeResult) =
-              interpretDependencies localDomain [UserAccount user Active] mempty Nothing
+              interpretDependencies localDomain [ExtendedUserAccount (UserAccount user Active) Nothing] mempty Nothing
                 . interpretAuthenticationSubsystem
                 $ do
                   upsertHashedPassword uid =<< hashPassword oldPassword
@@ -274,7 +274,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
             uid = User.userId user
             localDomain = userNoEmail.userQualifiedId.qDomain
             Right passwordHashInDB =
-              interpretDependencies localDomain [UserAccount user Active] mempty Nothing
+              interpretDependencies localDomain [ExtendedUserAccount (UserAccount user Active) Nothing] mempty Nothing
                 . interpretAuthenticationSubsystem
                 $ do
                   void $ createPasswordResetCode (mkEmailKey email)

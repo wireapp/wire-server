@@ -20,7 +20,7 @@ inMemoryUserStoreInterpreter ::
   (Member (State [StoredUser]) r) =>
   InterpreterFor UserStore r
 inMemoryUserStoreInterpreter = interpret $ \case
-  GetUser uid -> gets $ find (\user -> user.id == uid)
+  GetUsers uids -> gets $ filter (\user -> user.id `elem` uids)
   UpdateUser uid update -> modify (map doUpdate)
     where
       doUpdate :: StoredUser -> StoredUser

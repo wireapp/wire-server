@@ -11,6 +11,7 @@ import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Reader
 import Control.Monad.Trans.Control
+import Crypto.Random (MonadRandom (..))
 import Data.Aeson
 import qualified Data.Aeson as Aeson
 import Data.ByteString (ByteString)
@@ -68,7 +69,8 @@ data BackendResource = BackendResource
     berVHost :: String,
     berNginzSslPort :: Word16,
     berNginzHttp2Port :: Word16,
-    berInternalServicePorts :: forall a. (Num a) => Service -> a
+    berInternalServicePorts :: forall a. (Num a) => Service -> a,
+    berMlsPrivateKeyPaths :: Value
   }
 
 instance Eq BackendResource where
@@ -79,7 +81,8 @@ instance Ord BackendResource where
 
 data DynamicBackendConfig = DynamicBackendConfig
   { domain :: String,
-    federatorExternalPort :: Word16
+    federatorExternalPort :: Word16,
+    mlsPrivateKeyPaths :: Value
   }
   deriving (Show, Generic)
 
@@ -239,6 +242,9 @@ data ClientIdentity = ClientIdentity
   }
   deriving stock (Show, Eq, Ord, Generic)
 
+instance HasField "qualifiedUserId" ClientIdentity Aeson.Value where
+  getField cid = object [fromString "id" .= cid.user, fromString "domain" .= cid.domain]
+
 newtype Ciphersuite = Ciphersuite {code :: String}
   deriving (Eq, Ord, Show, Generic)
 
@@ -329,6 +335,9 @@ newtype App a = App {unApp :: ReaderT Env IO a}
       MonadUnliftIO,
       MonadBaseControl IO
     )
+
+instance MonadRandom App where
+  getRandomBytes n = liftIO (getRandomBytes n)
 
 runAppWithEnv :: Env -> App a -> IO a
 runAppWithEnv e m = runReaderT (unApp m) e

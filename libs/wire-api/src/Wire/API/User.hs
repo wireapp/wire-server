@@ -59,8 +59,6 @@ module Wire.API.User
     CreateUserSparInternalResponses,
     newUserFromSpar,
     urefToExternalId,
-    urefToExternalIdUnsafe,
-    urefToEmail,
     ExpiresIn,
     newUserTeam,
     newUserEmail,
@@ -109,6 +107,7 @@ module Wire.API.User
 
     -- * Account
     UserAccount (..),
+    ExtendedUserAccount (..),
 
     -- * Scim invitations
     NewUserScimInvitation (..),
@@ -121,7 +120,6 @@ module Wire.API.User
     GetPasswordResetCodeResp (..),
     CheckBlacklistResponse (..),
     ManagedByUpdate (..),
-    HavePendingInvitations (..),
     RichInfoUpdate (..),
     PasswordResetPair,
     UpdateSSOIdResponse (..),
@@ -154,7 +152,7 @@ import Cassandra qualified as C
 import Control.Applicative
 import Control.Arrow ((&&&))
 import Control.Error.Safe (rightMay)
-import Control.Lens (makePrisms, over, view, (.~), (?~), (^.))
+import Control.Lens (makePrisms, over, view, (.~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..), withText)
 import Data.Aeson.Types qualified as A
 import Data.Attoparsec.ByteString qualified as Parser
@@ -192,7 +190,6 @@ import GHC.TypeLits
 import Generics.SOP qualified as GSOP
 import Imports
 import SAML2.WebSSO qualified as SAML
-import SAML2.WebSSO.Types.Email qualified as SAMLEmail
 import Servant (FromHttpApiData (..), ToHttpApiData (..), type (.++))
 import Test.QuickCheck qualified as QC
 import URI.ByteString (serializeURIRef)
@@ -307,11 +304,6 @@ instance ToSchema ManagedByUpdate where
     object "ManagedByUpdate" $
       ManagedByUpdate
         <$> mbuManagedBy .= field "managed_by" schema
-
-data HavePendingInvitations
-  = WithPendingInvitations
-  | NoPendingInvitations
-  deriving (Eq, Show, Generic)
 
 newtype RichInfoUpdate = RichInfoUpdate {riuRichInfo :: RichInfoAssocList}
   deriving (Eq, Show, Generic)
@@ -585,7 +577,7 @@ data User = User
     userManagedBy :: ManagedBy,
     userSupportedProtocols :: Set BaseProtocolTag
   }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform User)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema User)
 
@@ -849,14 +841,6 @@ instance (res ~ RegisterInternalResponses) => AsUnion res (Either RegisterError 
 
 urefToExternalId :: SAML.UserRef -> Maybe Text
 urefToExternalId = fmap CI.original . SAML.shortShowNameID . view SAML.uidSubject
-
-urefToEmail :: SAML.UserRef -> Maybe EmailAddress
-urefToEmail uref = case uref ^. SAML.uidSubject . SAML.nameID of
-  SAML.UNameIDEmail email -> emailAddressText . SAMLEmail.render . CI.original $ email
-  _ -> Nothing
-
-urefToExternalIdUnsafe :: SAML.UserRef -> Text
-urefToExternalIdUnsafe = CI.original . SAML.unsafeShowNameID . view SAML.uidSubject
 
 data CreateUserSparError
   = CreateUserSparHandleError ChangeHandleError
@@ -1225,7 +1209,7 @@ maybeNewUserOriginFromComponents hasPassword hasSSO (invcode, teamcode, team, te
 -- | A random invitation code for use during registration
 newtype InvitationCode = InvitationCode
   {fromInvitationCode :: AsciiBase64Url}
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
   deriving newtype (ToSchema, ToByteString, FromByteString, Arbitrary)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema InvitationCode
 
@@ -1790,16 +1774,35 @@ data UserAccount = UserAccount
   { accountUser :: !User,
     accountStatus :: !AccountStatus
   }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserAccount)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema.Schema UserAccount
 
 instance Schema.ToSchema UserAccount where
+  schema = Schema.object "UserAccount" userAccountObjectSchema
+
+userAccountObjectSchema :: ObjectSchema SwaggerDoc UserAccount
+userAccountObjectSchema =
+  UserAccount
+    <$> accountUser Schema..= userObjectSchema
+    <*> accountStatus Schema..= Schema.field "status" Schema.schema
+
+-- | This can be parsed as UserAccount, but it has an extra field `email_unvalidated` from
+-- brig's cassandra that is needed in spar.  so we return this from GET /i/users in brig.
+data ExtendedUserAccount = ExtendedUserAccount
+  { account :: UserAccount,
+    emailUnvalidated :: Maybe EmailAddress
+  }
+  deriving (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ExtendedUserAccount)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema.Schema ExtendedUserAccount
+
+instance Schema.ToSchema ExtendedUserAccount where
   schema =
-    Schema.object "UserAccount" $
-      UserAccount
-        <$> accountUser Schema..= userObjectSchema
-        <*> accountStatus Schema..= Schema.field "status" Schema.schema
+    Schema.object "ExtendedUserAccount" $
+      ExtendedUserAccount
+        <$> account Schema..= userAccountObjectSchema
+        <*> emailUnvalidated Schema..= maybe_ (Schema.optField "email_unvalidated" Schema.schema)
 
 -------------------------------------------------------------------------------
 -- NewUserScimInvitation
@@ -1808,6 +1811,7 @@ data NewUserScimInvitation = NewUserScimInvitation
   -- FIXME: the TID should be captured in the route as usual
   { newUserScimInvTeamId :: TeamId,
     newUserScimInvUserId :: UserId,
+    newUserScimExternalId :: Text,
     newUserScimInvLocale :: Maybe Locale,
     newUserScimInvName :: Name,
     newUserScimInvEmail :: EmailAddress,
@@ -1823,6 +1827,7 @@ instance Schema.ToSchema NewUserScimInvitation where
       NewUserScimInvitation
         <$> newUserScimInvTeamId Schema..= Schema.field "team_id" Schema.schema
         <*> newUserScimInvUserId Schema..= Schema.field "user_id" Schema.schema
+        <*> newUserScimExternalId Schema..= field "external_id" schema
         <*> newUserScimInvLocale Schema..= maybe_ (optField "locale" Schema.schema)
         <*> newUserScimInvName Schema..= Schema.field "name" Schema.schema
         <*> newUserScimInvEmail Schema..= Schema.field "email" Schema.schema

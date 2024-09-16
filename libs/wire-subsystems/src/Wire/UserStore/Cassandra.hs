@@ -19,7 +19,7 @@ interpretUserStoreCassandra :: (Member (Embed IO) r) => ClientState -> Interpret
 interpretUserStoreCassandra casClient =
   interpret $
     runEmbedded (runClient casClient) . embed . \case
-      GetUser uid -> getUserImpl uid
+      GetUsers uids -> getUsersImpl uids
       GetIndexUser uid -> getIndexUserImpl uid
       GetIndexUsersPaginated pageSize mPagingState -> getIndexUserPaginatedImpl pageSize mPagingState
       UpdateUser uid update -> updateUserImpl uid update
@@ -31,10 +31,10 @@ interpretUserStoreCassandra casClient =
       IsActivated uid -> isActivatedImpl uid
       LookupLocale uid -> lookupLocaleImpl uid
 
-getUserImpl :: UserId -> Client (Maybe StoredUser)
-getUserImpl uid = do
-  mUserTuple <- retry x1 $ query1 selectUser (params LocalQuorum (Identity uid))
-  pure $ asRecord <$> mUserTuple
+getUsersImpl :: [UserId] -> Client [StoredUser]
+getUsersImpl usrs =
+  map asRecord
+    <$> retry x1 (query selectUsers (params LocalQuorum (Identity usrs)))
 
 getIndexUserImpl :: UserId -> Client (Maybe IndexUser)
 getIndexUserImpl u = do
@@ -161,12 +161,14 @@ lookupLocaleImpl u = do
 --------------------------------------------------------------------------------
 -- Queries
 
-selectUser :: PrepQuery R (Identity UserId) (TupleType StoredUser)
-selectUser =
-  "SELECT id, name, text_status, picture, email, sso_id, accent_id, assets, \
-  \activated, status, expires, language, country, provider, service, \
-  \handle, team, managed_by, supported_protocols \
-  \FROM user where id = ?"
+selectUsers :: PrepQuery R (Identity [UserId]) (TupleType StoredUser)
+selectUsers =
+  [sql|
+  SELECT id, name, text_status, picture, email, email_unvalidated, sso_id, accent_id, assets,
+  activated, status, expires, language, country, provider,
+  service, handle, team, managed_by, supported_protocols
+  FROM user WHERE id IN ?
+  |]
 
 userDisplayNameUpdate :: PrepQuery W (Name, UserId) ()
 userDisplayNameUpdate = "UPDATE user SET name = ? WHERE id = ?"

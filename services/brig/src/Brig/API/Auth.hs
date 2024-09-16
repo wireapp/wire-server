@@ -41,6 +41,7 @@ import Network.HTTP.Types
 import Network.Wai.Utilities ((!>>))
 import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
+import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
@@ -99,9 +100,10 @@ login ::
     Member PasswordStore r,
     Member UserKeyStore r,
     Member UserStore r,
-    Member VerificationCodeSubsystem r,
+    Member Events r,
+    Member (Input (Local ())) r,
     Member UserSubsystem r,
-    Member Events r
+    Member VerificationCodeSubsystem r
   ) =>
   Login ->
   Maybe Bool ->
@@ -157,9 +159,16 @@ listCookies lusr (fold -> labels) =
   CookieList
     <$> wrapClientE (Auth.listCookies (tUnqualified lusr) (toList labels))
 
-removeCookies :: (Member TinyLog r, Member PasswordStore r) => Local UserId -> RemoveCookies -> Handler r ()
+removeCookies ::
+  ( Member TinyLog r,
+    Member PasswordStore r,
+    Member UserSubsystem r
+  ) =>
+  Local UserId ->
+  RemoveCookies ->
+  Handler r ()
 removeCookies lusr (RemoveCookies pw lls ids) =
-  Auth.revokeAccess (tUnqualified lusr) pw ids lls !>> authError
+  Auth.revokeAccess lusr pw ids lls !>> authError
 
 legalHoldLogin ::
   ( Member GalleyAPIAccess r,
@@ -190,12 +199,19 @@ ssoLogin l (fromMaybe False -> persist) = do
 getLoginCode :: Phone -> Handler r PendingLoginCode
 getLoginCode _ = throwStd loginCodeNotFound
 
-reauthenticate :: (Member GalleyAPIAccess r, Member VerificationCodeSubsystem r) => UserId -> ReAuthUser -> Handler r ()
-reauthenticate uid body = do
+reauthenticate ::
+  ( Member GalleyAPIAccess r,
+    Member VerificationCodeSubsystem r,
+    Member UserSubsystem r
+  ) =>
+  Local UserId ->
+  ReAuthUser ->
+  Handler r ()
+reauthenticate luid@(tUnqualified -> uid) body = do
   wrapClientE (User.reauthenticate uid (reAuthPassword body)) !>> reauthError
   case reAuthCodeAction body of
     Just action ->
-      Auth.verifyCode (reAuthCode body) action uid
+      Auth.verifyCode (reAuthCode body) action luid
         `catchE` \case
           VerificationCodeRequired -> throwE $ reauthError ReAuthCodeVerificationRequired
           VerificationCodeNoPendingCode -> throwE $ reauthError ReAuthCodeVerificationNoPendingCode

@@ -214,7 +214,7 @@
         ],
         "type": "object"
       },
-      "AllFeatureConfigs": {
+      "AllTeamFeatures": {
         "properties": {
           "appLock": {
             "$ref": "#/components/schemas/AppLockConfig.LockableFeature"
@@ -1499,7 +1499,7 @@
             "type": "integer"
           },
           "epoch_timestamp": {
-            "$ref": "#/components/schemas/UTCTime"
+            "$ref": "#/components/schemas/Epoch Timestamp"
           },
           "group_id": {
             "$ref": "#/components/schemas/GroupId"
@@ -1553,6 +1553,7 @@
           "members",
           "group_id",
           "epoch",
+          "epoch_timestamp",
           "cipher_suite"
         ],
         "type": "object"
@@ -1586,7 +1587,7 @@
             "type": "integer"
           },
           "epoch_timestamp": {
-            "$ref": "#/components/schemas/UTCTime"
+            "$ref": "#/components/schemas/Epoch Timestamp"
           },
           "group_id": {
             "$ref": "#/components/schemas/GroupId"
@@ -1641,6 +1642,7 @@
           "members",
           "group_id",
           "epoch",
+          "epoch_timestamp",
           "cipher_suite"
         ],
         "type": "object"
@@ -2290,6 +2292,11 @@
         ],
         "type": "object"
       },
+      "Epoch Timestamp": {
+        "example": "2021-05-12T10:52:02Z",
+        "format": "yyyy-mm-ddThh:MM:ssZ",
+        "type": "string"
+      },
       "Event": {
         "properties": {
           "conversation": {
@@ -2341,7 +2348,7 @@
                 "type": "integer"
               },
               "epoch_timestamp": {
-                "$ref": "#/components/schemas/UTCTime"
+                "$ref": "#/components/schemas/Epoch Timestamp"
               },
               "group_id": {
                 "$ref": "#/components/schemas/GroupId"
@@ -2485,6 +2492,7 @@
               "members",
               "group_id",
               "epoch",
+              "epoch_timestamp",
               "cipher_suite",
               "qualified_recipient",
               "receipt_mode",
@@ -3321,16 +3329,16 @@
       "MLSKeys": {
         "properties": {
           "ecdsa_secp256r1_sha256": {
-            "$ref": "#/components/schemas/MLSPublicKey"
+            "$ref": "#/components/schemas/SomeKey"
           },
           "ecdsa_secp384r1_sha384": {
-            "$ref": "#/components/schemas/MLSPublicKey"
+            "$ref": "#/components/schemas/SomeKey"
           },
           "ecdsa_secp521r1_sha512": {
-            "$ref": "#/components/schemas/MLSPublicKey"
+            "$ref": "#/components/schemas/SomeKey"
           },
           "ed25519": {
-            "$ref": "#/components/schemas/MLSPublicKey"
+            "$ref": "#/components/schemas/SomeKey"
           }
         },
         "required": [
@@ -3371,6 +3379,21 @@
         "required": [
           "events",
           "time"
+        ],
+        "type": "object"
+      },
+      "MLSOne2OneConversation_MLSPublicKey": {
+        "properties": {
+          "conversation": {
+            "$ref": "#/components/schemas/Conversation"
+          },
+          "public_keys": {
+            "$ref": "#/components/schemas/MLSKeysByPurpose"
+          }
+        },
+        "required": [
+          "conversation",
+          "public_keys"
         ],
         "type": "object"
       },
@@ -4154,11 +4177,19 @@
             "maxLength": 256,
             "minLength": 6,
             "type": "string"
+          },
+          "sessions": {
+            "description": "The OAuth client's sessions",
+            "items": {
+              "$ref": "#/components/schemas/OAuthSession"
+            },
+            "type": "array"
           }
         },
         "required": [
           "id",
-          "name"
+          "name",
+          "sessions"
         ],
         "type": "object"
       },
@@ -4239,6 +4270,21 @@
         "required": [
           "client_id",
           "refresh_token"
+        ],
+        "type": "object"
+      },
+      "OAuthSession": {
+        "properties": {
+          "created_at": {
+            "$ref": "#/components/schemas/UTCTimeMillis"
+          },
+          "refresh_token_id": {
+            "$ref": "#/components/schemas/UUID"
+          }
+        },
+        "required": [
+          "refresh_token_id",
+          "created_at"
         ],
         "type": "object"
       },
@@ -4389,6 +4435,16 @@
           "old_password",
           "new_password"
         ],
+        "type": "object"
+      },
+      "PasswordReqBody": {
+        "properties": {
+          "password": {
+            "maxLength": 1024,
+            "minLength": 6,
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "PasswordReset": {
@@ -5513,6 +5569,7 @@
         ],
         "type": "object"
       },
+      "SomeKey": {},
       "Sso": {
         "properties": {
           "issuer": {
@@ -5911,6 +5968,7 @@
         "type": "string"
       },
       "UTCTimeMillis": {
+        "description": "The time when the session was created",
         "example": "2021-05-12T10:52:02.671Z",
         "format": "yyyy-mm-ddThh:MM:ss.qqqZ",
         "type": "string"
@@ -11398,7 +11456,7 @@
     },
     "/conversations/one2one/{usr_domain}/{usr}": {
       "get": {
-        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"get-one-to-one-mls-conversation\"]\n\n",
+        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"get-one-to-one-mls-conversation@v6\"]\n\n",
         "parameters": [
           {
             "in": "path",
@@ -11423,12 +11481,12 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Conversation"
+                  "$ref": "#/components/schemas/MLSOne2OneConversation_MLSPublicKey"
                 }
               },
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/Conversation"
+                  "$ref": "#/components/schemas/MLSOne2OneConversation_MLSPublicKey"
                 }
               }
             },
@@ -15911,7 +15969,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/AllFeatureConfigs"
+                  "$ref": "#/components/schemas/AllTeamFeatures"
                 }
               }
             },
@@ -17179,7 +17237,21 @@
     },
     "/mls/public-keys": {
       "get": {
-        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"mls-public-keys-v6\"]\n\n",
+        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"mls-public-keys\"]\n\nThe format of the returned key is determined by the `format` query parameter:\n - raw (default): base64-encoded raw public keys\n - jwk: keys are nested objects in JWK format.",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "enum": [
+                "raw",
+                "jwk"
+              ],
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -17231,7 +17303,7 @@
                 }
               }
             },
-            "description": "MLS is not configured on this backend. See docs.wire.com for instructions on how to enable it (label: `mls-not-enabled`)"
+            "description": "Invalid `format`\n\nMLS is not configured on this backend. See docs.wire.com for instructions on how to enable it (label: `mls-not-enabled`)"
           }
         },
         "summary": "Get public keys used by the backend to sign external proposals"
@@ -17609,7 +17681,7 @@
     },
     "/oauth/applications/{OAuthClientId}": {
       "delete": {
-        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"revoke-oauth-account-access\"]\n\n",
+        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"revoke-oauth-account-access-v6\"]\n\n",
         "parameters": [
           {
             "description": "The ID of the OAuth client",
@@ -17628,6 +17700,133 @@
           }
         },
         "summary": "Revoke account access from an OAuth application"
+      }
+    },
+    "/oauth/applications/{OAuthClientId}/sessions/{RefreshTokenId}": {
+      "delete": {
+        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"delete-oauth-refresh-token\"]\n\nRevoke an active OAuth session by providing the refresh token ID.",
+        "parameters": [
+          {
+            "description": "The ID of the OAuth client",
+            "in": "path",
+            "name": "OAuthClientId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The ID of the refresh token",
+            "in": "path",
+            "name": "RefreshTokenId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json;charset=utf-8": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordReqBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json;charset=utf-8": {
+                "schema": {
+                  "example": [],
+                  "items": {},
+                  "maxItems": 0,
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json;charset=utf-8": {
+                "schema": {
+                  "example": {
+                    "code": 403,
+                    "label": "access-denied",
+                    "message": "Access denied."
+                  },
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        403
+                      ],
+                      "type": "integer"
+                    },
+                    "label": {
+                      "enum": [
+                        "access-denied"
+                      ],
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "label",
+                    "message"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Access denied. (label: `access-denied`)"
+          },
+          "404": {
+            "content": {
+              "application/json;charset=utf-8": {
+                "schema": {
+                  "example": {
+                    "code": 404,
+                    "label": "not-found",
+                    "message": "OAuth client not found"
+                  },
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        404
+                      ],
+                      "type": "integer"
+                    },
+                    "label": {
+                      "enum": [
+                        "not-found"
+                      ],
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "label",
+                    "message"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "`OAuthClientId` or `RefreshTokenId` not found\n\nOAuth client not found (label: `not-found`)"
+          }
+        },
+        "summary": "Revoke an active OAuth session"
       }
     },
     "/oauth/authorization/codes": {
@@ -23654,7 +23853,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/AllFeatureConfigs"
+                  "$ref": "#/components/schemas/AllTeamFeatures"
                 }
               }
             },

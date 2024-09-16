@@ -35,6 +35,7 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.MLS.GroupInfo
+import Wire.API.MLS.Keys
 import Wire.API.MLS.Servant
 import Wire.API.MLS.SubConversation
 import Wire.API.MakesFederatedCall
@@ -679,22 +680,37 @@ type ConversationAPI =
                :> ZLocalUser
                :> CanThrow 'MLSNotEnabled
                :> CanThrow 'NotConnected
+               :> CanThrow 'MLSFederatedOne2OneNotSupported
                :> "conversations"
                :> "one2one"
                :> QualifiedCapture "usr" UserId
                :> MultiVerb1 'GET '[JSON] (VersionedRespond 'V5 200 "MLS 1-1 conversation" Conversation)
            )
     :<|> Named
-           "get-one-to-one-mls-conversation"
+           "get-one-to-one-mls-conversation@v6"
            ( Summary "Get an MLS 1:1 conversation"
-               :> From 'V5
+               :> From 'V6
+               :> Until 'V7
                :> ZLocalUser
                :> CanThrow 'MLSNotEnabled
                :> CanThrow 'NotConnected
                :> "conversations"
                :> "one2one"
                :> QualifiedCapture "usr" UserId
-               :> MultiVerb1 'GET '[JSON] (Respond 200 "MLS 1-1 conversation" Conversation)
+               :> MultiVerb1 'GET '[JSON] (Respond 200 "MLS 1-1 conversation" (MLSOne2OneConversation MLSPublicKey))
+           )
+    :<|> Named
+           "get-one-to-one-mls-conversation"
+           ( Summary "Get an MLS 1:1 conversation"
+               :> From 'V7
+               :> ZLocalUser
+               :> CanThrow 'MLSNotEnabled
+               :> CanThrow 'NotConnected
+               :> "conversations"
+               :> "one2one"
+               :> QualifiedCapture "usr" UserId
+               :> QueryParam "format" MLSPublicKeyFormat
+               :> MultiVerb1 'GET '[JSON] (Respond 200 "MLS 1-1 conversation" (MLSOne2OneConversation SomeKey))
            )
     -- This endpoint can lead to the following events being sent:
     -- - MemberJoin event to members

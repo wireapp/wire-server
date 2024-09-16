@@ -111,7 +111,6 @@ module Imports
     -- * Extra Helpers
     whenM,
     unlessM,
-    catMaybesToList,
 
     -- * Functor
     (<$$>),
@@ -385,6 +384,3 @@ infix 4 <$$>
 (<$$$>) = fmap . fmap . fmap
 
 infix 4 <$$$>
-
-catMaybesToList :: Maybe (Maybe a) -> [a]
-catMaybesToList = catMaybes . maybeToList

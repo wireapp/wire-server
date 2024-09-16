@@ -186,11 +186,8 @@ test-suite stern-tests
 
 executable stern-integration
   main-is:            Main.hs
-
-  -- cabal-fmt: expand test/integration
   other-modules:
     API
-    Main
     TestSetup
     Util
 

@@ -31,6 +31,8 @@ import Polysemy.TinyLog (TinyLog)
 import Wire.API.Allowlists (AllowlistEmailDomains)
 import Wire.API.Federation.Client qualified
 import Wire.API.Federation.Error
+import Wire.ActivationCodeStore (ActivationCodeStore)
+import Wire.ActivationCodeStore.Cassandra (interpretActivationCodeStoreToCassandra)
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Interpreter
 import Wire.BlockListStore
@@ -53,6 +55,8 @@ import Wire.GundeckAPIAccess
 import Wire.HashPassword
 import Wire.IndexedUserStore
 import Wire.IndexedUserStore.ElasticSearch
+import Wire.InvitationCodeStore (InvitationCodeStore)
+import Wire.InvitationCodeStore.Cassandra (interpretInvitationCodeStoreToCassandra)
 import Wire.NotificationSubsystem
 import Wire.NotificationSubsystem.Interpreter (defaultNotificationSubsystemConfig, runNotificationSubsystemGundeck)
 import Wire.ParseException
@@ -113,6 +117,8 @@ type BrigCanonicalEffects =
      SessionStore,
      PasswordStore,
      VerificationCodeStore,
+     ActivationCodeStore,
+     InvitationCodeStore,
      PropertyStore,
      SFT,
      ConnectionStore InternalPaging,
@@ -220,6 +226,8 @@ runBrigToIO e (AppT ma) = do
               . connectionStoreToCassandra
               . interpretSFT (e ^. httpManager)
               . interpretPropertyStoreCassandra (e ^. casClient)
+              . interpretInvitationCodeStoreToCassandra (e ^. casClient)
+              . interpretActivationCodeStoreToCassandra (e ^. casClient)
               . interpretVerificationCodeStoreCassandra (e ^. casClient)
               . interpretPasswordStore (e ^. casClient)
               . interpretSessionStoreCassandra (e ^. casClient)

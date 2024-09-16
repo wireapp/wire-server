@@ -5,6 +5,8 @@ module Wire.API.User.EmailAddress
     emailAddress,
     emailAddressText,
     module Text.Email.Parser,
+    emailToSAMLNameID,
+    emailFromSAML,
   )
 where
 
@@ -22,6 +24,8 @@ import Data.Text.Encoding
 import Data.Text.Encoding.Error
 import Deriving.Aeson
 import Imports
+import SAML2.WebSSO.Types qualified as SAML
+import SAML2.WebSSO.Types.Email qualified as SAMLEmail
 import Servant.API qualified as S
 import Test.QuickCheck
 import Text.Email.Parser
@@ -108,3 +112,11 @@ arbitraryValidMail = do
       notNull x
         && notAt x
         && isValid (fromString ("me@" <> x))
+
+-- | FUTUREWORK(fisx): if saml2-web-sso exported the 'NameID' constructor, we could make this
+-- function total without all that praying and hoping.
+emailToSAMLNameID :: EmailAddress -> Either String SAML.NameID
+emailToSAMLNameID = SAML.emailNameID . fromEmail
+
+emailFromSAML :: SAMLEmail.Email -> EmailAddress
+emailFromSAML = fromJust . emailAddressText . SAMLEmail.render
