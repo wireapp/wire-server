@@ -124,7 +124,6 @@ migrateDataImpl = do
           . Log.field "expectedVersion" expectedMigrationVersion
           . Log.field "foundVersion" foundVersion
 
--- TODO: This is duplicated in UserSubsystem.Interpreter
 teamSearchVisibilityInbound :: (Member GalleyAPIAccess r) => TeamId -> Sem r SearchVisibilityInbound
 teamSearchVisibilityInbound tid =
   searchVisibilityInboundFromFeatureStatus . (.status)

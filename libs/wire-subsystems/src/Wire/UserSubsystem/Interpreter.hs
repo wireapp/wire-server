@@ -50,6 +50,7 @@ import Wire.GalleyAPIAccess
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.IndexedUserStore (IndexedUserStore)
 import Wire.IndexedUserStore qualified as IndexedUserStore
+import Wire.IndexedUserStore.Bulk.ElasticSearch (teamSearchVisibilityInbound)
 import Wire.InvitationCodeStore (InvitationCodeStore, lookupInvitationByEmail)
 import Wire.Sem.Concurrency
 import Wire.Sem.Metrics
@@ -566,11 +567,6 @@ syncUserIndex uid =
           version = ES.ExternalGT . ES.ExternalDocVersion . docVersion $ indexUserToVersion indexUser
       Metrics.incCounter indexUpdateCounter
       IndexedUserStore.upsert (userIdToDocId uid) userDoc version
-
-teamSearchVisibilityInbound :: (Member GalleyAPIAccess r) => TeamId -> Sem r SearchVisibilityInbound
-teamSearchVisibilityInbound tid =
-  searchVisibilityInboundFromFeatureStatus . (.status)
-    <$> getFeatureConfigForTeam @_ @SearchVisibilityInboundConfig tid
 
 updateTeamSearchVisibilityInboundImpl :: (Member IndexedUserStore r) => TeamStatus SearchVisibilityInboundConfig -> Sem r ()
 updateTeamSearchVisibilityInboundImpl teamStatus =
