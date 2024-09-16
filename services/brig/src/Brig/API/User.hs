@@ -758,7 +758,7 @@ onActivated (AccountActivated account) = liftSem $ do
   Events.generateUserEvent uid Nothing $ UserActivated (accountUser account)
   pure (uid, userIdentity (accountUser account), True)
 onActivated (EmailActivated uid email) = do
-  -- TODO: Looks like a bug to not update the index
+  liftSem $ User.internalUpdateSearchIndex uid
   liftSem $ Events.generateUserEvent uid Nothing (emailUpdated uid email)
   wrapHttpClient $ Data.deleteEmailUnvalidated uid
   pure (uid, Just (EmailIdentity email), False)
