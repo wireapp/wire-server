@@ -23,6 +23,7 @@ import API.Common
 import API.Galley (getTeamMembers)
 import API.GalleyInternal (setTeamFeatureStatus)
 import Control.Monad.Codensity (Codensity (runCodensity))
+import Control.Monad.Extra (findM)
 import Control.Monad.Reader (asks)
 import Notifications (isUserUpdatedNotif)
 import SetupHelpers
@@ -45,15 +46,18 @@ testInvitePersonalUserToTeam = do
           (def {galleyCfg = setField "settings.exposeInvitationURLsTeamAllowlist" [tid]})
       )
       $ \_ -> do
+        bindResponse (listInvitations owner tid) $ \resp -> do
+          resp.status `shouldMatchInt` 200
+          resp.json %. "invitations" `shouldMatch` ([] :: [()])
         ownerId <- owner %. "id" & asString
         setTeamFeatureStatus domain tid "exposeInvitationURLsToTeamAdmin" "enabled" >>= assertSuccess
         user <- createUser domain def >>= getJSON 201
         uid <- user %. "id" >>= asString
         email <- user %. "email" >>= asString
         inv <- postInvitation owner (PostInvitation (Just email) Nothing) >>= getJSON 201
+        checkListInvitations owner tid email
         code <- getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
-        queryParam <- inv %. "url" & asString <&> getQueryParam "team-code"
-        queryParam `shouldMatch` Just (Just code)
+        inv %. "url" & asString >>= assertUrlContainsCode code
         acceptTeamInvitation user code Nothing >>= assertStatus 400
         acceptTeamInvitation user code (Just "wrong-password") >>= assertStatus 403
         void $ withWebSockets [user] $ \wss -> do
@@ -91,6 +95,28 @@ testInvitePersonalUserToTeam = do
           document <- resp.json %. "documents" >>= asList >>= assertOne
           document %. "id" `shouldMatch` uid
           document %. "team" `shouldMatch` tid
+  where
+    checkListInvitations :: Value -> String -> String -> App ()
+    checkListInvitations owner tid email = do
+      newUserEmail <- randomEmail
+      void $ postInvitation owner (PostInvitation (Just newUserEmail) Nothing) >>= assertSuccess
+      bindResponse (listInvitations owner tid) $ \resp -> do
+        resp.status `shouldMatchInt` 200
+        invitations <- resp.json %. "invitations" >>= asList
+
+        -- personal user invitations have a different invitation URL than non-existing user invitations
+        newUserInv <- invitations & findM (\i -> (i %. "email" >>= asString) <&> (== newUserEmail))
+        newUserInvUrl <- newUserInv %. "url" & asString
+        newUserInvUrl `shouldContainString` "/register"
+
+        personalUserInv <- invitations & findM (\i -> (i %. "email" >>= asString) <&> (== email))
+        personalUserInvUrl <- personalUserInv %. "url" & asString
+        personalUserInvUrl `shouldContainString` "/accept-invitation"
+
+    assertUrlContainsCode :: (HasCallStack) => String -> String -> App ()
+    assertUrlContainsCode code url = do
+      queryParam <- url & asString <&> getQueryParam "team-code"
+      queryParam `shouldMatch` Just (Just code)
 
 testInvitePersonalUserToTeamMultipleInvitations :: (HasCallStack) => App ()
 testInvitePersonalUserToTeamMultipleInvitations = do

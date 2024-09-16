@@ -789,3 +789,9 @@ acceptTeamInvitation :: (HasCallStack, MakesValue user) => user -> String -> May
 acceptTeamInvitation user code mPw = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", "invitations", "accept"]
   submit "POST" $ req & addJSONObject (["code" .= code] <> maybeToList (((.=) "password") <$> mPw))
+
+-- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/get_teams__tid__invitations
+listInvitations :: (HasCallStack, MakesValue user) => user -> String -> App Response
+listInvitations user tid = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", tid, "invitations"]
+  submit "GET" req
