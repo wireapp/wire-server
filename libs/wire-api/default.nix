@@ -65,6 +65,7 @@
 , mime
 , mtl
 , openapi3
+, optparse-applicative
 , pem
 , polysemy
 , process
@@ -120,6 +121,8 @@ mkDerivation {
   pname = "wire-api";
   version = "0.1.0";
   src = gitignoreSource ./.;
+  isLibrary = true;
+  isExecutable = true;
   libraryHaskellDepends = [
     aeson
     asn1-encoding
@@ -173,6 +176,7 @@ mkDerivation {
     mime
     mtl
     openapi3
+    optparse-applicative
     pem
     polysemy
     proto-lens
@@ -268,4 +272,5 @@ mkDerivation {
     wire-message-proto-lens
   ];
   license = lib.licenses.agpl3Only;
+  mainProgram = "wire-api";
 }

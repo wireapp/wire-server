@@ -103,6 +103,7 @@ library
     Wire.API.Internal.BulkPush
     Wire.API.Internal.Notification
     Wire.API.Locale
+    Wire.API.Main
     Wire.API.MakesFederatedCall
     Wire.API.Message
     Wire.API.Message.Proto
@@ -303,6 +304,7 @@ library
     , mime                       >=0.4
     , mtl
     , openapi3
+    , optparse-applicative
     , pem                        >=0.2
     , polysemy
     , proto-lens
@@ -348,6 +350,15 @@ library
     , zauth
 
   default-language: GHC2021
+
+executable wire-api
+  import:        common-all
+  main-is:       exec/Main.hs
+  ghc-options:
+    -funbox-strict-fields -threaded "-with-rtsopts=-N -T" -rtsopts
+    -Wredundant-constraints -Wunused-packages
+
+  build-depends: wire-api
 
 test-suite wire-api-golden-tests
   import:           common-all
