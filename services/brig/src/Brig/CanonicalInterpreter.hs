@@ -15,6 +15,8 @@ import Brig.Effects.UserPendingActivationStore.Cassandra (userPendingActivationS
 import Brig.IO.Intra (runEvents)
 import Brig.Options (ImplicitNoFederationRestriction (federationDomainConfig), federationDomainConfigs, federationStrategy)
 import Brig.Options qualified as Opt
+import Brig.Team.Template (TeamTemplates)
+import Brig.Template (Localised)
 import Cassandra qualified as Cas
 import Control.Exception (ErrorCall)
 import Control.Lens (to, (^.))
@@ -120,6 +122,7 @@ type BrigCanonicalEffects =
      Input UTCTime,
      Input (Local ()),
      Input (Maybe AllowlistEmailDomains),
+     Input (Localised TeamTemplates),
      NotificationSubsystem,
      GundeckAPIAccess,
      FederationConfigStore,
@@ -195,6 +198,7 @@ runBrigToIO e (AppT ma) = do
               . interpretFederationDomainConfig (e ^. settings . federationStrategy) (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) (e ^. settings . federationDomainConfigs))
               . runGundeckAPIAccess (e ^. gundeckEndpoint)
               . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig (e ^. App.requestId))
+              . runInputConst (e ^. tmTemplates)
               . runInputConst (e ^. settings . Opt.allowlistEmailDomains)
               . runInputConst (toLocalUnsafe (e ^. settings . Opt.federationDomain) ())
               . runInputSem (embed getCurrentTime)

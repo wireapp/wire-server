@@ -58,7 +58,7 @@ import Data.Tuple.Extra
 import Imports hiding (head)
 import Network.Wai.Utilities hiding (code, message)
 import Polysemy
-import Polysemy.Input (Input)
+import Polysemy.Input (Input, input)
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import Servant hiding (Handler, JSON, addHeader)
@@ -111,7 +111,8 @@ servantAPI ::
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member PasswordStore r
+    Member PasswordStore r,
+    Member (Input (Localised TeamTemplates)) r
   ) =>
   ServerT TeamsAPI (Handler r)
 servantAPI =
@@ -154,7 +155,8 @@ createInvitation ::
     Member UserSubsystem r,
     Member EmailSending r,
     Member TinyLog r,
-    Member (Input (Local ())) r
+    Member (Input (Local ())) r,
+    Member (Input (Localised TeamTemplates)) r
   ) =>
   UserId ->
   TeamId ->
@@ -192,7 +194,8 @@ createInvitationViaScim ::
     Member TinyLog r,
     Member UserSubsystem r,
     Member EmailSending r,
-    Member (Input (Local ())) r
+    Member (Input (Local ())) r,
+    Member (Input (Localised TeamTemplates)) r
   ) =>
   TeamId ->
   NewUserScimInvitation ->
@@ -245,7 +248,8 @@ createInvitation' ::
     Member InvitationCodeStore r,
     Member EmailSending r,
     Member TinyLog r,
-    Member (Input (Local ())) r
+    Member (Input (Local ())) r,
+    Member (Input (Localised TeamTemplates)) r
   ) =>
   TeamId ->
   Maybe UserId ->
@@ -263,16 +267,8 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail invRequest = do
   emailTaken <- lift $ liftSem $ isJust <$> lookupKey uke
   isPersonalUserMigration <-
     if emailTaken
-      then do
-        mAccount <- lift $ liftSem $ getLocalUserAccountByUserKey =<< qualifyLocal' uke
-        pure $ case mAccount of
-          -- this can e.g. happen if the key is claimed but the account is not yet created
-          Nothing -> False
-          Just account ->
-            account.accountStatus == Active
-              && isNothing account.accountUser.userTeam
+      then lift $ liftSem $ isPersonalUser uke
       else pure False
-
   when emailTaken $
     unless isPersonalUserMigration $
       throwStd emailExists
@@ -289,11 +285,6 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail invRequest = do
     now <- liftIO =<< view currentTime
     timeout <- setTeamInvitationTimeout <$> view settings
     code <- liftIO $ Store.mkInvitationCode
-    mUrl <-
-      liftSem $
-        if isPersonalUserMigration
-          then mkInviteUrlPersonalUser showInvitationUrl tid code
-          else mkInviteUrl showInvitationUrl tid code
     newInv <-
       let insertInv =
             Store.MkInsertInvitation
@@ -315,8 +306,18 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail invRequest = do
             else sendInvitationMail
 
     sendOp email tid fromEmail code invRequest.locale
-    inv <- liftSem $ toInvitation showInvitationUrl newInv
+    inv <- liftSem $ toInvitation isPersonalUserMigration showInvitationUrl newInv
     pure (inv, code)
+
+isPersonalUser :: (Member UserSubsystem r, Member (Input (Local ())) r) => EmailKey -> Sem r Bool
+isPersonalUser uke = do
+  mAccount <- getLocalUserAccountByUserKey =<< qualifyLocal' uke
+  pure $ case mAccount of
+    -- this can e.g. happen if the key is claimed but the account is not yet created
+    Nothing -> False
+    Just account ->
+      account.accountStatus == Active
+        && isNothing account.accountUser.userTeam
 
 deleteInvitation ::
   (Member GalleyAPIAccess r, Member InvitationCodeStore r) =>
@@ -329,9 +330,13 @@ deleteInvitation uid tid iid = do
   lift . liftSem $ Store.deleteInvitation tid iid
 
 listInvitations ::
+  forall r.
   ( Member GalleyAPIAccess r,
     Member TinyLog r,
-    Member InvitationCodeStore r
+    Member InvitationCodeStore r,
+    Member (Input (Localised TeamTemplates)) r,
+    Member (Input (Local ())) r,
+    Member UserSubsystem r
   ) =>
   UserId ->
   TeamId ->
@@ -341,7 +346,7 @@ listInvitations ::
 listInvitations uid tid startingId mSize = do
   ensurePermissions uid tid [AddTeamMember]
   showInvitationUrl <- lift $ liftSem $ GalleyAPIAccess.getExposeInvitationURLsToTeamAdmin tid
-  let toInvitations is = mapM (toInvitation showInvitationUrl) is
+  let toInvitations is = mapM (toInvitationHack showInvitationUrl) is
   lift (liftSem $ Store.lookupInvitationsPaginated mSize tid startingId) >>= \case
     PaginatedResultHasMore storedInvs -> do
       invs <- lift . liftSem $ toInvitations storedInvs
@@ -349,16 +354,30 @@ listInvitations uid tid startingId mSize = do
     PaginatedResult storedInvs -> do
       invs <- lift . liftSem $ toInvitations storedInvs
       pure $ InvitationList invs False
+  where
+    -- To create the correct team invitation URL, we need to detect whether the invited account already exists.
+    -- Optimization: if url is not to be shown, do not check for existing personal user.
+    toInvitationHack :: ShowOrHideInvitationUrl -> StoredInvitation -> Sem r Invitation
+    toInvitationHack HideInvitationUrl si = toInvitation False HideInvitationUrl si -- isPersonalUserMigration is always is ignored here
+    toInvitationHack ShowInvitationUrl si = do
+      isPersonalUserMigration <- isPersonalUser (mkEmailKey si.email)
+      toInvitation isPersonalUserMigration ShowInvitationUrl si
 
 -- | brig used to not store the role, so for migration we allow this to be empty and fill in the
 -- default here.
 toInvitation ::
-  (Member TinyLog r) =>
+  ( Member TinyLog r,
+    Member (Input (Localised TeamTemplates)) r
+  ) =>
+  Bool ->
   ShowOrHideInvitationUrl ->
   StoredInvitation ->
   Sem r Invitation
-toInvitation showUrl storedInv = do
-  url <- mkInviteUrl showUrl storedInv.teamId storedInv.code
+toInvitation isPersonalUserMigration showUrl storedInv = do
+  url <-
+    if isPersonalUserMigration
+      then mkInviteUrlPersonalUser showUrl storedInv.teamId storedInv.code
+      else mkInviteUrl showUrl storedInv.teamId storedInv.code
   pure $
     Invitation
       { team = storedInv.teamId,
@@ -379,7 +398,7 @@ getInviteUrl ::
   AsciiText Base64Url ->
   Sem r (Maybe (URIRef Absolute))
 getInviteUrl (invitationEmailUrl -> template) team code = do
-  branding <- view App.templateBranding
+  let branding = id -- url is not branded
   let url = Text.toStrict $ renderTextWithBranding template replace branding
   parseHttpsUrl url
   where
@@ -399,31 +418,36 @@ getInviteUrl (invitationEmailUrl -> template) team code = do
           . Log.field "error" (show e)
 
 mkInviteUrl ::
-  (Member TinyLog r) =>
+  ( Member TinyLog r,
+    Member (Input (Localised TeamTemplates)) r
+  ) =>
   ShowOrHideInvitationUrl ->
   TeamId ->
   InvitationCode ->
   Sem r (Maybe (URIRef Absolute))
 mkInviteUrl HideInvitationUrl _ _ = pure Nothing
 mkInviteUrl ShowInvitationUrl team (InvitationCode c) = do
-  template <- invitationEmail . snd <$> teamTemplates Nothing
+  template <- invitationEmail . snd . forLocale Nothing <$> input
   getInviteUrl template team c
 
 mkInviteUrlPersonalUser ::
-  (Member TinyLog r) =>
+  ( Member TinyLog r,
+    Member (Input (Localised TeamTemplates)) r
+  ) =>
   ShowOrHideInvitationUrl ->
   TeamId ->
   InvitationCode ->
   Sem r (Maybe (URIRef Absolute))
 mkInviteUrlPersonalUser HideInvitationUrl _ _ = pure Nothing
 mkInviteUrlPersonalUser ShowInvitationUrl team (InvitationCode c) = do
-  template <- existingUserInvitationEmail . snd <$> teamTemplates Nothing
+  template <- existingUserInvitationEmail . snd . forLocale Nothing <$> input
   getInviteUrl template team c
 
 getInvitation ::
   ( Member GalleyAPIAccess r,
     Member InvitationCodeStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Localised TeamTemplates)) r
   ) =>
   UserId ->
   TeamId ->

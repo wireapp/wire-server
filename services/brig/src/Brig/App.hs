@@ -42,6 +42,7 @@ module Brig.App
     userTemplates,
     providerTemplates,
     teamTemplates,
+    tmTemplates,
     templateBranding,
     requestId,
     httpManager,
