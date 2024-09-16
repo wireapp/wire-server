@@ -50,7 +50,7 @@ testInvitePersonalUserToTeam = do
         user <- createUser domain def >>= getJSON 201
         uid <- user %. "id" >>= asString
         email <- user %. "email" >>= asString
-        inv <- postInvitation owner (PostInvitation $ Just email) >>= getJSON 201
+        inv <- postInvitation owner (PostInvitation (Just email) Nothing) >>= getJSON 201
         code <- getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
         queryParam <- inv %. "url" & asString <&> getQueryParam "team-code"
         queryParam `shouldMatch` Just (Just code)
@@ -98,8 +98,8 @@ testInvitePersonalUserToTeamMultipleInvitations = do
   (owner2, _, _) <- createTeam OwnDomain 0
   user <- createUser OwnDomain def >>= getJSON 201
   email <- user %. "email" >>= asString
-  inv <- postInvitation owner (PostInvitation $ Just email) >>= getJSON 201
-  inv2 <- postInvitation owner2 (PostInvitation $ Just email) >>= getJSON 201
+  inv <- postInvitation owner (PostInvitation (Just email) Nothing) >>= getJSON 201
+  inv2 <- postInvitation owner2 (PostInvitation (Just email) Nothing) >>= getJSON 201
   code <- getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
   acceptTeamInvitation user code (Just defPassword) >>= assertSuccess
   bindResponse (getSelf user) $ \resp -> do
@@ -113,3 +113,28 @@ testInvitePersonalUserToTeamMultipleInvitations = do
     resp.status `shouldMatchInt` 200
     resp.json %. "team" `shouldMatch` tid
   acceptTeamInvitation user code (Just defPassword) >>= assertStatus 400
+
+testInvitationTypesAreDistinct :: (HasCallStack) => App ()
+testInvitationTypesAreDistinct = do
+  -- We are only testing one direction because the other is not possible
+  -- because the non-existing user cannot have a valid session
+  (owner, _, _) <- createTeam OwnDomain 0
+  user <- createUser OwnDomain def >>= getJSON 201
+  email <- user %. "email" >>= asString
+  inv <- postInvitation owner (PostInvitation (Just email) Nothing) >>= getJSON 201
+  code <- getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
+  let body =
+        AddUser
+          { name = Just email,
+            email = Just email,
+            password = Just defPassword,
+            teamCode = Just code
+          }
+  addUser OwnDomain body >>= assertStatus 409
+
+testTeamUserCannotBeInvited :: (HasCallStack) => App ()
+testTeamUserCannotBeInvited = do
+  (_, _, tm : _) <- createTeam OwnDomain 2
+  (owner2, _, _) <- createTeam OwnDomain 0
+  email <- tm %. "email" >>= asString
+  postInvitation owner2 (PostInvitation (Just email) Nothing) >>= assertStatus 409
