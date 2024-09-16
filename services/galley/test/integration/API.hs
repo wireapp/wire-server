@@ -492,10 +492,8 @@ postCryptoMessageVerifyMsgSentAndRejectIfMissingClient = do
       liftIO $ assertBool "unexpected equal clients" (bc /= bc2)
       assertNoMsg wsB2 (wsAssertOtr qconv qalice ac bc cipher)
 
--- @SF.Separation @TSFI.RESTfulAPI @S2
--- This test verifies basic mismatch behavior of the the JSON endpoint.
-postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysJson :: TestM ()
-postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysJson = do
+postCryptoMessageVerifyRejectMissingClientAndRespondMissingPrekeysJson :: TestM ()
+postCryptoMessageVerifyRejectMissingClientAndRespondMissingPrekeysJson = do
   (alice, ac) <- randomUserWithClient (head someLastPrekeys)
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
   (eve, ec) <- randomUserWithClient (someLastPrekeys !! 2)
@@ -517,8 +515,6 @@ postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysJson = do
   liftIO $ do
     Map.keys (userClientMap (getUserClientPrekeyMap p)) @=? [eve]
     Map.keys <$> Map.lookup eve (userClientMap (getUserClientPrekeyMap p)) @=? Just [ec]
-
--- @END
 
 postCryptoMessageVerifyRejectMissingClientAndRespondMissingPrekeysProto :: TestM ()
 postCryptoMessageVerifyRejectMissingClientAndRespondMissingPrekeysProto = do
@@ -810,11 +806,6 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
       -- Wait less for no message
       WS.assertNoEvent (1 # Second) [wsNonMember]
 
--- @SF.Separation @TSFI.RESTfulAPI @S2
--- Sets up a conversation on Backend A known as "owning backend". One of the
--- users from Backend A will send the message but have a missing client. It is
--- expected that the message will be sent except when it is specifically
--- requested to report on missing clients of a user.
 postMessageQualifiedLocalOwningBackendIgnoreMissingClients :: TestM ()
 postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
   -- WS receive timeout
@@ -936,8 +927,6 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
               [(qUnqualified deeRemote, Set.singleton deeClient)]
       assertMismatchQualified mempty expectedMissing mempty mempty mempty
     WS.assertNoEvent (1 # Second) [wsBob, wsChad]
-
--- @END
 
 postMessageQualifiedLocalOwningBackendFailedToSendClients :: TestM ()
 postMessageQualifiedLocalOwningBackendFailedToSendClients = do
