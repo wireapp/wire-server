@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wwarn #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2023 Wire Swiss GmbH <opensource@wire.com>
@@ -35,6 +37,7 @@ import Data.ProtoLens.Labels ()
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import GHC.Stack
+import MLS.Util
 import Network.Wai (Request (pathInfo, requestMethod))
 import Notifications
 import Numeric.Lens (hex)
@@ -904,3 +907,48 @@ testLHDisableBeforeApproval = do
     disableLegalHold tid alice bob defPassword
       >>= assertStatus 200
     getBob'sStatus `shouldMatch` "disabled"
+
+testMLSThenLegalhold :: (HasCallStack) => App ()
+testMLSThenLegalhold = do
+  -- scenario 1:
+  -- charlie creates an MLS group and then tries to put himself under legalhold
+  -- as soon as he puts himself under legalhold, he is removed from the MLS conversation
+  (charlie, tid, []) <- createTeam OwnDomain 1
+  [charlie1] <- traverse (createMLSClient def) [charlie]
+  void $ createNewGroup charlie1
+  void $ createAddCommit charlie1 [charlie] >>= sendAndConsumeCommitBundle
+
+  legalholdWhitelistTeam tid charlie >>= assertStatus 200
+  withMockServer def lhMockApp \lhDomAndPort _chan -> do
+    postLegalHoldSettings tid charlie (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
+    withWebSocket charlie \ws -> do
+      requestLegalHoldDevice tid charlie charlie >>= assertSuccess
+      approveLegalHoldDevice tid (charlie %. "qualified_id") defPassword >>= assertSuccess
+      -- if charlie approves of the legalhold device, he is thrown out of all MLS conversations
+      notif <- awaitMatch isConvLeaveNotif ws
+      printJSON notif
+      profile <- getUser charlie charlie >>= getJSON 200
+      pStatus <- profile %. "legalhold_status" & asString
+      pStatus `shouldMatch` "enabled"
+
+testLegalholdThenMLS :: (HasCallStack) => App ()
+testLegalholdThenMLS = do
+  -- scenario 2:
+  -- charlie first is put under legalhold and after that wants to join an MLS conversation
+  -- charlie should not be allows to do so
+  (alice, tid, [charlie]) <- createTeam OwnDomain 2
+  [alice1, _charlie1] <- traverse (createMLSClient def) [alice, charlie]
+  void $ createNewGroup alice1
+  void $ createAddCommit alice1 [alice] >>= sendAndConsumeCommitBundle
+  legalholdWhitelistTeam tid alice >>= assertStatus 200
+  withMockServer def lhMockApp \lhDomAndPort _chan -> do
+    postLegalHoldSettings tid alice (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
+    requestLegalHoldDevice tid alice charlie >>= assertSuccess
+    approveLegalHoldDevice tid (charlie %. "qualified_id") defPassword >>= assertSuccess
+    profile <- getUser alice charlie >>= getJSON 200
+    pStatus <- profile %. "legalhold_status" & asString
+    pStatus `shouldMatch` "enabled"
+
+    createAddCommit alice1 [charlie] >>= \mp ->
+      postMLSCommitBundle mp.sender (mkBundle mp) `bindResponse` \resp ->
+        resp.status `shouldMatchRange` (400, 499)
