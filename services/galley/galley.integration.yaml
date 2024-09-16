@@ -90,6 +90,7 @@ settings:
         config:
           verificationExpiration: 86400
           acmeDiscoveryUrl: null
+          crlProxy: https://crlproxy.example.com
         lockStatus: unlocked
     mlsMigration:
       defaults:
