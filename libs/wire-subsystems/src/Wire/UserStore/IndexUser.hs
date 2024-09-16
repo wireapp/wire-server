@@ -122,7 +122,8 @@ indexUserToDoc searchVisInbound IndexUser {..} =
           udSso = sso . value =<< ssoId,
           udScimExternalId = join $ scimExternalId <$> (value <$> managedBy) <*> (value <$> ssoId),
           udSearchVisibilityInbound = Just searchVisInbound,
-          udRole = Nothing, -- TODO: This looks weird, why do we have this?
+          -- FUTUREWORK: This is a bug: https://wearezeta.atlassian.net/browse/WPB-11124
+          udRole = Nothing,
           udCreatedAt = Just . toUTCTimeMillis $ writetimeToUTC activated.writetime,
           udManagedBy = value <$> managedBy,
           udSAMLIdP = idpUrl . value =<< ssoId,
