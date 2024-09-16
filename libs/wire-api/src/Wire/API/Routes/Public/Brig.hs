@@ -1663,7 +1663,7 @@ type TeamsAPI =
            )
     :<|> Named
            "accept-team-invitation"
-           ( Summary "Accept a team invitation."
+           ( Summary "Accept a team invitation, changing a personal account into a team member account."
                :> CanThrow 'PendingInvitationNotFound
                :> CanThrow 'TooManyTeamMembers
                :> CanThrow 'MissingIdentity
