@@ -299,7 +299,6 @@ library
     , safe-exceptions                       >=0.1
     , saml2-web-sso
     , schema-profunctor
-    , scientific                            >=0.3.4
     , servant
     , servant-openapi3
     , servant-server
