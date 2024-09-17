@@ -752,26 +752,6 @@ browseTeamImpl uid filters mMaxResults mPagingState = do
   let maxResults = maybe 15 fromRange mMaxResults
   userDocToTeamContact <$$> IndexedUserStore.paginateTeamMembers filters maxResults mPagingState
 
--- TODO: Move this somewhere more appropriate as this function is broader than
--- just the UserSubsystem
-ensurePermissions ::
-  ( IsPerm perm,
-    Member GalleyAPIAccess r,
-    Member (Error UserSubsystemError) r
-  ) =>
-  UserId ->
-  TeamId ->
-  [perm] ->
-  Sem r ()
-ensurePermissions u t perms = do
-  m <- GalleyAPIAccess.getTeamMember u t
-  unless (check m) $
-    throw UserSubsystemInsufficientTeamPermissions
-  where
-    check :: Maybe TeamMember -> Bool
-    check (Just m) = all (hasPermission m) perms
-    check Nothing = False
-
 getAccountNoFilterImpl ::
   forall r.
   ( Member UserStore r,

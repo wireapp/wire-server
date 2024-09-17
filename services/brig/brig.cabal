@@ -186,7 +186,6 @@ library
     Brig.Team.API
     Brig.Team.Email
     Brig.Team.Template
-    Brig.Team.Util
     Brig.Template
     Brig.User.API.Handle
     Brig.User.Auth

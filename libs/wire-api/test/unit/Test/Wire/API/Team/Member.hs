@@ -21,7 +21,6 @@
 
 module Test.Wire.API.Team.Member (tests) where
 
-import Control.Lens ((^.))
 import Data.Aeson
 import Data.Set (isSubsetOf)
 import Data.Set qualified as Set
@@ -57,8 +56,8 @@ permissionTests =
         -- now it's true, and it's nice to have that written down somewhere.
         forM_ [(r1, r2) | r1 <- [minBound ..], r2 <- drop 1 [r1 ..]] $
           \(r1, r2) -> do
-            assertBool "owner.self" ((rolePermissions r2 ^. self) `isSubsetOf` (rolePermissions r1 ^. self))
-            assertBool "owner.copy" ((rolePermissions r2 ^. copy) `isSubsetOf` (rolePermissions r1 ^. copy)),
+            assertBool "owner.self" (((rolePermissions r2).self) `isSubsetOf` ((rolePermissions r1).self))
+            assertBool "owner.copy" (((rolePermissions r2).copy) `isSubsetOf` ((rolePermissions r1).copy)),
       testGroup
         "permissionsRole, rolePermissions"
         [ testCase "'Role' maps to expected permissions" $ do
@@ -76,15 +75,15 @@ permissionTests =
                   case permissionsRole perms of
                     Just role -> do
                       let perms' = rolePermissions role
-                      assertEqual "eq" (perms' ^. self) (perms' ^. copy)
-                      assertBool "self" ((perms' ^. self) `Set.isSubsetOf` (perms ^. self))
-                      assertBool "copy" ((perms' ^. copy) `Set.isSubsetOf` (perms ^. copy))
+                      assertEqual "eq" perms'.self perms'.copy
+                      assertBool "self" (perms'.self `Set.isSubsetOf` perms.self)
+                      assertBool "copy" (perms'.copy `Set.isSubsetOf` perms.copy)
                     Nothing -> do
                       let leastPermissions = rolePermissions maxBound
                       assertBool "no role for perms, but strictly more perms than max role" $
                         not
-                          ( (leastPermissions ^. self) `Set.isSubsetOf` w
-                              && (leastPermissions ^. copy) `Set.isSubsetOf` w'
+                          ( (leastPermissions.self) `Set.isSubsetOf` w
+                              && (leastPermissions.copy) `Set.isSubsetOf` w'
                           )
         ]
     ]
@@ -93,8 +92,8 @@ permissionConversionTests :: TestTree
 permissionConversionTests =
   testGroup
     "permsToInt / rolePermissions / serialization of `Role`s"
-    [ testCase "partner" $ assertEqual "" (permsToInt . _self $ rolePermissions RoleExternalPartner) 1025,
-      testCase "member" $ assertEqual "" (permsToInt . _self $ rolePermissions RoleMember) 1587,
-      testCase "admin" $ assertEqual "" (permsToInt . _self $ rolePermissions RoleAdmin) 5951,
-      testCase "owner" $ assertEqual "" (permsToInt . _self $ rolePermissions RoleOwner) 8191
+    [ testCase "partner" $ assertEqual "" (permsToInt . self $ rolePermissions RoleExternalPartner) 1025,
+      testCase "member" $ assertEqual "" (permsToInt . self $ rolePermissions RoleMember) 1587,
+      testCase "admin" $ assertEqual "" (permsToInt . self $ rolePermissions RoleAdmin) 5951,
+      testCase "owner" $ assertEqual "" (permsToInt . self $ rolePermissions RoleOwner) 8191
     ]

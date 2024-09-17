@@ -37,7 +37,6 @@ import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Options
 import Brig.Team.Email
 import Brig.Team.Template
-import Brig.Team.Util (ensurePermissionToAddUser, ensurePermissions)
 import Brig.Types.Team (TeamSize)
 import Brig.User.Search.TeamSize qualified as TeamSize
 import Control.Lens (view, (^.))
@@ -53,8 +52,9 @@ import Data.Text.Lazy qualified as LT
 import Data.Text.Lazy qualified as Text
 import Data.Tuple.Extra
 import Imports hiding (head)
-import Network.Wai.Utilities hiding (code, message)
+import Network.Wai.Utilities hiding (Error, code, message)
 import Polysemy
+import Polysemy.Error
 import Polysemy.Input (Input, input)
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
@@ -95,6 +95,7 @@ import Wire.PasswordStore
 import Wire.Sem.Concurrency
 import Wire.UserKeyStore
 import Wire.UserSubsystem
+import Wire.UserSubsystem.Error
 
 servantAPI ::
   ( Member GalleyAPIAccess r,
@@ -106,7 +107,8 @@ servantAPI ::
     Member TinyLog r,
     Member PasswordStore r,
     Member (Input TeamTemplates) r,
-    Member Events r
+    Member Events r,
+    Member (Error UserSubsystemError) r
   ) =>
   ServerT TeamsAPI (Handler r)
 servantAPI =
@@ -119,9 +121,16 @@ servantAPI =
     :<|> Named @"get-team-size" teamSizePublic
     :<|> Named @"accept-team-invitation" acceptTeamInvitationByPersonalUser
 
-teamSizePublic :: (Member GalleyAPIAccess r) => UserId -> TeamId -> (Handler r) TeamSize
+teamSizePublic ::
+  ( Member GalleyAPIAccess r,
+    Member (Error UserSubsystemError) r
+  ) =>
+  UserId ->
+  TeamId ->
+  (Handler r) TeamSize
 teamSizePublic uid tid = do
-  ensurePermissions uid tid [AddTeamMember] -- limit this to team admins to reduce risk of involuntary DOS attacks
+  -- limit this to team admins to reduce risk of involuntary DOS attacks
+  lift . liftSem $ ensurePermissions uid tid [AddTeamMember]
   teamSize tid
 
 teamSize :: TeamId -> (Handler r) TeamSize
@@ -150,7 +159,8 @@ createInvitation ::
     Member EmailSending r,
     Member TinyLog r,
     Member (Input (Local ())) r,
-    Member (Input TeamTemplates) r
+    Member (Input TeamTemplates) r,
+    Member (Error UserSubsystemError) r
   ) =>
   UserId ->
   TeamId ->
@@ -162,7 +172,7 @@ createInvitation uid tid body = do
     let inviteePerms = Teams.rolePermissions inviteeRole
     idt <- maybe (throwStd (errorToWai @'E.NoIdentity)) pure =<< lift (fetchUserIdentity uid)
     from <- maybe (throwStd (errorToWai @'E.NoEmail)) pure (emailIdentity idt)
-    ensurePermissionToAddUser uid tid inviteePerms
+    lift . liftSem $ ensurePermissionToAddUser uid tid inviteePerms
     pure $ CreateInvitationInviter uid from
 
   let context =
@@ -314,14 +324,17 @@ isPersonalUser uke = do
         && isNothing account.accountUser.userTeam
 
 deleteInvitation ::
-  (Member GalleyAPIAccess r, Member InvitationCodeStore r) =>
+  ( Member GalleyAPIAccess r,
+    Member InvitationCodeStore r,
+    Member (Error UserSubsystemError) r
+  ) =>
   UserId ->
   TeamId ->
   InvitationId ->
   (Handler r) ()
-deleteInvitation uid tid iid = do
+deleteInvitation uid tid iid = (lift . liftSem) do
   ensurePermissions uid tid [AddTeamMember]
-  lift . liftSem $ Store.deleteInvitation tid iid
+  Store.deleteInvitation tid iid
 
 listInvitations ::
   forall r.
@@ -330,23 +343,24 @@ listInvitations ::
     Member InvitationCodeStore r,
     Member (Input TeamTemplates) r,
     Member (Input (Local ())) r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member (Error UserSubsystemError) r
   ) =>
   UserId ->
   TeamId ->
   Maybe InvitationId ->
   Maybe (Range 1 500 Int32) ->
   (Handler r) Public.InvitationList
-listInvitations uid tid startingId mSize = do
+listInvitations uid tid startingId mSize = (lift . liftSem) do
   ensurePermissions uid tid [AddTeamMember]
-  showInvitationUrl <- lift $ liftSem $ GalleyAPIAccess.getExposeInvitationURLsToTeamAdmin tid
+  showInvitationUrl <- GalleyAPIAccess.getExposeInvitationURLsToTeamAdmin tid
   let toInvitations is = mapM (toInvitationHack showInvitationUrl) is
-  lift (liftSem $ Store.lookupInvitationsPaginated mSize tid startingId) >>= \case
+  Store.lookupInvitationsPaginated mSize tid startingId >>= \case
     PaginatedResultHasMore storedInvs -> do
-      invs <- lift . liftSem $ toInvitations storedInvs
+      invs <- toInvitations storedInvs
       pure $ InvitationList invs True
     PaginatedResult storedInvs -> do
-      invs <- lift . liftSem $ toInvitations storedInvs
+      invs <- toInvitations storedInvs
       pure $ InvitationList invs False
   where
     -- To create the correct team invitation URL, we need to detect whether the invited account already exists.
@@ -441,21 +455,22 @@ getInvitation ::
   ( Member GalleyAPIAccess r,
     Member InvitationCodeStore r,
     Member TinyLog r,
-    Member (Input TeamTemplates) r
+    Member (Input TeamTemplates) r,
+    Member (Error UserSubsystemError) r
   ) =>
   UserId ->
   TeamId ->
   InvitationId ->
   (Handler r) (Maybe Public.Invitation)
-getInvitation uid tid iid = do
+getInvitation uid tid iid = (lift . liftSem) do
   ensurePermissions uid tid [AddTeamMember]
 
-  invitationM <- lift . liftSem $ Store.lookupInvitation tid iid
+  invitationM <- Store.lookupInvitation tid iid
   case invitationM of
     Nothing -> pure Nothing
     Just invitation -> do
-      showInvitationUrl <- lift . liftSem $ GalleyAPIAccess.getExposeInvitationURLsToTeamAdmin tid
-      maybeUrl <- lift . liftSem $ mkInviteUrl showInvitationUrl tid invitation.code
+      showInvitationUrl <- GalleyAPIAccess.getExposeInvitationURLsToTeamAdmin tid
+      maybeUrl <- mkInviteUrl showInvitationUrl tid invitation.code
       pure $ Just (Store.invitationFromStored maybeUrl invitation)
 
 getInvitationByCode ::

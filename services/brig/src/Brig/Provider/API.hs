@@ -42,7 +42,6 @@ import Brig.Provider.DB (ServiceConn (..))
 import Brig.Provider.DB qualified as DB
 import Brig.Provider.Email
 import Brig.Provider.RPC qualified as RPC
-import Brig.Team.Util
 import Brig.ZAuth qualified as ZAuth
 import Cassandra (MonadClient)
 import Control.Error (throwE)
@@ -81,6 +80,7 @@ import OpenSSL.PEM qualified as SSL
 import OpenSSL.RSA qualified as SSL
 import OpenSSL.Random (randBytes)
 import Polysemy
+import Polysemy.Error
 import Servant (ServerT, (:<|>) (..))
 import Ssl.Util qualified as SSL
 import System.Logger.Class (MonadLogger)
@@ -123,6 +123,8 @@ import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe))
 import Wire.UserKeyStore (mkEmailKey)
+import Wire.UserSubsystem
+import Wire.UserSubsystem.Error
 import Wire.VerificationCode as VerificationCode
 import Wire.VerificationCodeGen
 import Wire.VerificationCodeSubsystem
@@ -147,7 +149,10 @@ botAPI =
     :<|> Named @"bot-get-user-clients" botGetUserClients
 
 servicesAPI ::
-  (Member GalleyAPIAccess r, Member DeleteQueue r) =>
+  ( Member GalleyAPIAccess r,
+    Member DeleteQueue r,
+    Member (Error UserSubsystemError) r
+  ) =>
   ServerT ServicesAPI (Handler r)
 servicesAPI =
   Named @"post-provider-services" addService
@@ -163,7 +168,12 @@ servicesAPI =
     :<|> Named @"get-whitelisted-services-by-team-id" searchTeamServiceProfiles
     :<|> Named @"post-team-whitelist-by-team-id" updateServiceWhitelist
 
-providerAPI :: (Member GalleyAPIAccess r, Member EmailSending r, Member VerificationCodeSubsystem r) => ServerT ProviderAPI (Handler r)
+providerAPI ::
+  ( Member GalleyAPIAccess r,
+    Member EmailSending r,
+    Member VerificationCodeSubsystem r
+  ) =>
+  ServerT ProviderAPI (Handler r)
 providerAPI =
   Named @"provider-register" newAccount
     :<|> Named @"provider-activate" activateAccountKey
@@ -177,13 +187,23 @@ providerAPI =
     :<|> Named @"provider-get-account" getAccount
     :<|> Named @"provider-get-profile" getProviderProfile
 
-internalProviderAPI :: (Member GalleyAPIAccess r, Member VerificationCodeSubsystem r) => ServerT BrigIRoutes.ProviderAPI (Handler r)
+internalProviderAPI ::
+  ( Member GalleyAPIAccess r,
+    Member VerificationCodeSubsystem r
+  ) =>
+  ServerT BrigIRoutes.ProviderAPI (Handler r)
 internalProviderAPI = Named @"get-provider-activation-code" getActivationCodeH
 
 --------------------------------------------------------------------------------
 -- Public API (Unauthenticated)
 
-newAccount :: (Member GalleyAPIAccess r, Member EmailSending r, Member VerificationCodeSubsystem r) => Public.NewProvider -> (Handler r) Public.NewProviderResponse
+newAccount ::
+  ( Member GalleyAPIAccess r,
+    Member EmailSending r,
+    Member VerificationCodeSubsystem r
+  ) =>
+  Public.NewProvider ->
+  (Handler r) Public.NewProviderResponse
 newAccount new = do
   guardSecondFactorDisabled Nothing
   let email = (Public.newProviderEmail new)
@@ -579,14 +599,22 @@ getServiceTagList _ = do
   where
     allTags = [(minBound :: Public.ServiceTag) ..]
 
-updateServiceWhitelist :: (Member GalleyAPIAccess r) => UserId -> ConnId -> TeamId -> Public.UpdateServiceWhitelist -> (Handler r) UpdateServiceWhitelistResp
+updateServiceWhitelist ::
+  ( Member GalleyAPIAccess r,
+    Member (Error UserSubsystemError) r
+  ) =>
+  UserId ->
+  ConnId ->
+  TeamId ->
+  Public.UpdateServiceWhitelist ->
+  (Handler r) UpdateServiceWhitelistResp
 updateServiceWhitelist uid con tid upd = do
   guardSecondFactorDisabled (Just uid)
   let pid = updateServiceWhitelistProvider upd
       sid = updateServiceWhitelistService upd
       newWhitelisted = updateServiceWhitelistStatus upd
   -- Preconditions
-  ensurePermissions uid tid (Set.toList serviceWhitelistPermissions)
+  lift . liftSem $ ensurePermissions uid tid (Set.toList serviceWhitelistPermissions)
   _ <- wrapClientE (DB.lookupService pid sid) >>= maybeServiceNotFound
   -- Add to various tables
   whitelisted <- wrapClientE $ DB.getServiceWhitelistStatus tid pid sid

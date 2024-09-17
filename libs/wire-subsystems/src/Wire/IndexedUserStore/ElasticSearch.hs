@@ -36,14 +36,6 @@ data IndexedUserStoreConfig = IndexedUserStoreConfig
     additionalConn :: Maybe ESConn
   }
 
-data IndexedUserStoreError
-  = IndexUpdateError ES.EsError
-  | IndexLookupError ES.EsError
-  | IndexError Text
-  deriving (Show)
-
-instance Exception IndexedUserStoreError
-
 interpretIndexedUserStoreES ::
   ( Member (Embed IO) r,
     Member Metrics r

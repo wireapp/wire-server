@@ -326,7 +326,7 @@ updateTeamMember oldPerms tid uid newPerms = do
     addPrepQuery Cql.updatePermissions (newPerms, tid, uid)
 
     -- update billing_team_member table
-    let permDiff = Set.difference `on` view self
+    let permDiff = Set.difference `on` self
         acquiredPerms = newPerms `permDiff` oldPerms
         lostPerms = oldPerms `permDiff` newPerms
 

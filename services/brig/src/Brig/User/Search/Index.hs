@@ -60,7 +60,7 @@ import Prometheus (MonadMonitor)
 import System.Logger qualified as Log
 import System.Logger.Class (Logger, MonadLogger (..), field, info, msg, val, (+++), (~~))
 import Util.Options (Endpoint)
-import Wire.IndexedUserStore.ElasticSearch (IndexedUserStoreError (..))
+import Wire.IndexedUserStore (IndexedUserStoreError (..))
 import Wire.UserSearch.Types (searchVisibilityInboundFieldName)
 
 --------------------------------------------------------------------------------

@@ -585,10 +585,10 @@ class IsPerm perm where
 instance IsPerm Perm where
   type PermError p = 'MissingPermission ('Just p)
 
-  roleHasPerm r p = p `Set.member` (rolePermissions r ^. self)
-  roleGrantsPerm r p = p `Set.member` (rolePermissions r ^. copy)
-  hasPermission tm p = p `Set.member` (tm ^. permissions . self)
-  mayGrantPermission tm p = p `Set.member` (tm ^. permissions . copy)
+  roleHasPerm r p = p `Set.member` ((rolePermissions r).self)
+  roleGrantsPerm r p = p `Set.member` ((rolePermissions r).copy)
+  hasPermission tm p = p `Set.member` ((tm ^. permissions).self)
+  mayGrantPermission tm p = p `Set.member` ((tm ^. permissions).copy)
 
 instance IsPerm HiddenPerm where
   type PermError p = OperationDenied

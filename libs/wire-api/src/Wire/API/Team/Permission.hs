@@ -26,8 +26,6 @@
 module Wire.API.Team.Permission
   ( -- * Permissions
     Permissions (..),
-    self,
-    copy,
     newPermissions,
     fullPermissions,
     noPermissions,
@@ -45,7 +43,7 @@ where
 
 import Cassandra qualified as Cql
 import Control.Error.Util qualified as Err
-import Control.Lens (makeLenses, (?~), (^.))
+import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Bits (testBit, (.|.))
 import Data.OpenApi qualified as S
@@ -61,8 +59,8 @@ import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 -- Permissions
 
 data Permissions = Permissions
-  { _self :: Set Perm,
-    _copy :: Set Perm
+  { self :: Set Perm,
+    copy :: Set Perm
   }
   deriving stock (Eq, Ord, Show, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema Permissions)
@@ -71,8 +69,8 @@ permissionsSchema :: ValueSchema NamedSwaggerDoc Permissions
 permissionsSchema =
   objectWithDocModifier "Permissions" (description ?~ docs) $
     Permissions
-      <$> (permsToInt . _self) .= field "self" (intToPerms <$> schema)
-      <*> (permsToInt . _copy) .= field "copy" (intToPerms <$> schema)
+      <$> (permsToInt . self) .= field "self" (intToPerms <$> schema)
+      <*> (permsToInt . copy) .= field "copy" (intToPerms <$> schema)
   where
     docs =
       "This is just a complicated way of representing a team role.  self and copy \
@@ -198,14 +196,12 @@ intToPerm 0x0800 = Just DeleteTeam
 intToPerm 0x1000 = Just SetMemberPermissions
 intToPerm _ = Nothing
 
-makeLenses ''Permissions
-
 instance Cql.Cql Permissions where
   ctype = Cql.Tagged $ Cql.UdtColumn "permissions" [("self", Cql.BigIntColumn), ("copy", Cql.BigIntColumn)]
 
   toCql p =
     let f = Cql.CqlBigInt . fromIntegral . permsToInt
-     in Cql.CqlUdt [("self", f (p ^. self)), ("copy", f (p ^. copy))]
+     in Cql.CqlUdt [("self", f (p.self)), ("copy", f (p.copy))]
 
   fromCql (Cql.CqlUdt p) = do
     let f = intToPerms . fromIntegral :: Int64 -> Set.Set Perm

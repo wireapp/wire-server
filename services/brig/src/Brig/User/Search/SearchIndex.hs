@@ -37,9 +37,9 @@ import Database.Bloodhound qualified as ES
 import Imports hiding (log, searchable)
 import Wire.API.User (ColourId (..), Name (fromName))
 import Wire.API.User.Search
--- TODO: importing interpreters here is not ideal, perhaps much of this code
--- will go into the interpreter in following commits.
-import Wire.IndexedUserStore.ElasticSearch (IndexedUserStoreError (..), mappingName)
+import Wire.IndexedUserStore (IndexedUserStoreError (..))
+-- TODO: Move all this code to the interpreter instead of importing it?
+import Wire.IndexedUserStore.ElasticSearch (mappingName)
 import Wire.UserSearch.Types
 import Wire.UserStore.IndexUser (normalized)
 

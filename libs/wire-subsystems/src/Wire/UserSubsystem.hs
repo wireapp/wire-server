@@ -14,16 +14,23 @@ import Data.HavePendingInvitations
 import Data.Id
 import Data.Qualified
 import Data.Range
+import Data.Set qualified as Set
 import Imports
 import Polysemy
+import Polysemy.Error
 import Wire.API.Federation.Error
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus)
 import Wire.API.Team.Feature
+import Wire.API.Team.Member (IsPerm (..), TeamMember)
+import Wire.API.Team.Permission
 import Wire.API.User
 import Wire.API.User.Search
 import Wire.Arbitrary
+import Wire.GalleyAPIAccess (GalleyAPIAccess)
+import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.UserKeyStore (EmailKey, emailKeyOrig)
 import Wire.UserSearch.Types
+import Wire.UserSubsystem.Error (UserSubsystemError (..))
 
 -- | Who is performing this update operation / who is allowed to?  (Single source of truth:
 -- users managed by SCIM can't be updated by clients and vice versa.)
@@ -170,3 +177,47 @@ getLocalAccountBy includePendingInvitations uid =
 getLocalUserAccountByUserKey :: (Member UserSubsystem r) => Local EmailKey -> Sem r (Maybe UserAccount)
 getLocalUserAccountByUserKey q@(tUnqualified -> ek) =
   listToMaybe . fmap (.account) <$> getExtendedAccountsByEmailNoFilter (qualifyAs q [emailKeyOrig ek])
+
+------------------------------------------
+-- FUTUREWORK: Pending functions for a team subsystem
+------------------------------------------
+
+ensurePermissions ::
+  ( IsPerm perm,
+    Member GalleyAPIAccess r,
+    Member (Error UserSubsystemError) r
+  ) =>
+  UserId ->
+  TeamId ->
+  [perm] ->
+  Sem r ()
+ensurePermissions u t perms = do
+  m <- GalleyAPIAccess.getTeamMember u t
+  unless (check m) $
+    throw UserSubsystemInsufficientTeamPermissions
+  where
+    check :: Maybe TeamMember -> Bool
+    check (Just m) = all (hasPermission m) perms
+    check Nothing = False
+
+-- | Privilege escalation detection (make sure no `RoleMember` user creates a `RoleOwner`).
+--
+-- There is some code duplication with 'Galley.API.Teams.ensureNotElevated'.
+ensurePermissionToAddUser ::
+  ( Member GalleyAPIAccess r,
+    Member (Error UserSubsystemError) r
+  ) =>
+  UserId ->
+  TeamId ->
+  Permissions ->
+  Sem r ()
+ensurePermissionToAddUser u t inviteePerms = do
+  minviter <- GalleyAPIAccess.getTeamMember u t
+  unless (check minviter) $
+    throw UserSubsystemInsufficientTeamPermissions
+  where
+    check :: Maybe TeamMember -> Bool
+    check (Just inviter) =
+      hasPermission inviter AddTeamMember
+        && all (mayGrantPermission inviter) (Set.toList (inviteePerms.self))
+    check Nothing = False

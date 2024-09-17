@@ -86,8 +86,10 @@ import Data.ZAuth.Token qualified as ZAuth
 import FileEmbedLzma
 import Imports hiding (head)
 import Network.Socket (PortNumber)
-import Network.Wai.Utilities as Utilities
+import Network.Wai.Utilities (CacheControl (..), (!>>))
+import Network.Wai.Utilities qualified as Utilities
 import Polysemy
+import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import Servant hiding (Handler, JSON, addHeader, respond)
@@ -164,6 +166,7 @@ import Wire.UserSearch.Types
 import Wire.UserStore (UserStore)
 import Wire.UserSubsystem hiding (checkHandle, checkHandles)
 import Wire.UserSubsystem qualified as User
+import Wire.UserSubsystem.Error
 import Wire.VerificationCode
 import Wire.VerificationCodeGen
 import Wire.VerificationCodeSubsystem
@@ -260,35 +263,36 @@ internalEndpointsSwaggerDocsAPI service examplePort swagger Nothing =
 
 servantSitemap ::
   forall r p.
-  ( Member BlockListStore r,
-    Member DeleteQueue r,
-    Member (Concurrency 'Unsafe) r,
+  ( Member (Concurrency 'Unsafe) r,
     Member (Embed HttpClientIO) r,
-    Member (Input (Local ())) r,
     Member (Embed IO) r,
-    Member FederationConfigStore r,
+    Member (Error UserSubsystemError) r,
+    Member (Input (Local ())) r,
+    Member (Input TeamTemplates) r,
+    Member (UserPendingActivationStore p) r,
     Member AuthenticationSubsystem r,
-    Member Jwk r,
+    Member DeleteQueue r,
+    Member EmailSending r,
+    Member EmailSubsystem r,
+    Member Events r,
+    Member FederationConfigStore r,
     Member GalleyAPIAccess r,
+    Member InvitationCodeStore r,
+    Member Jwk r,
     Member JwtTools r,
     Member NotificationSubsystem r,
-    Member UserSubsystem r,
-    Member UserStore r,
-    Member PasswordStore r,
-    Member UserKeyStore r,
     Member Now r,
+    Member PasswordResetCodeStore r,
+    Member PasswordStore r,
+    Member PropertySubsystem r,
     Member PublicKeyBundle r,
     Member SFT r,
     Member TinyLog r,
-    Member (UserPendingActivationStore p) r,
-    Member EmailSubsystem r,
-    Member EmailSending r,
+    Member UserKeyStore r,
+    Member UserStore r,
+    Member UserSubsystem r,
     Member VerificationCodeSubsystem r,
-    Member PropertySubsystem r,
-    Member Events r,
-    Member PasswordResetCodeStore r,
-    Member InvitationCodeStore r,
-    Member (Input TeamTemplates) r
+    Member BlockListStore r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
