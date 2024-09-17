@@ -29,7 +29,7 @@ module Wire.API.Federation.API
     fedQueueClient,
     sendBundle,
     fedClientIn,
-    module Wire.API.MakesFederatedCall,
+    module X,
 
     -- * Re-exports
     Component (..),
@@ -59,6 +59,7 @@ import Wire.API.Federation.Endpoint
 import Wire.API.Federation.HasNotificationEndpoint
 import Wire.API.Federation.Version
 import Wire.API.MakesFederatedCall
+import Wire.API.MakesFederatedCall as X hiding (Location (..))
 import Wire.API.Routes.Named
 
 -- Note: this type family being injective means that in most cases there is no need

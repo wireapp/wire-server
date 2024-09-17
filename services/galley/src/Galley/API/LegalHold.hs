@@ -34,7 +34,7 @@ import Brig.Types.Connection (UpdateConnectionsInternal (..))
 import Brig.Types.Team.LegalHold (legalHoldService, viewLegalHoldService)
 import Control.Exception (assert)
 import Control.Lens (view, (^.))
-import Data.ByteString.Conversion (toByteString, toByteString')
+import Data.ByteString.Conversion (toByteString)
 import Data.Id
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Split (chunksOf)
@@ -44,6 +44,7 @@ import Data.Qualified
 import Data.Range (toRange)
 import Data.Time.Clock
 import Galley.API.Error
+import Galley.API.LegalHold.Get
 import Galley.API.LegalHold.Team
 import Galley.API.Query (iterateConversations)
 import Galley.API.Update (removeMemberFromLocalConv)
@@ -289,44 +290,6 @@ removeSettings' tid =
       removeLegalHoldClientFromUser (tUnqualified luid)
       LHService.removeLegalHold tid (tUnqualified luid)
       changeLegalholdStatusAndHandlePolicyConflicts tid luid (member ^. legalHoldStatus) UserLegalHoldDisabled -- (support for withdrawing consent is not planned yet.)
-
--- | Learn whether a user has LH enabled and fetch pre-keys.
--- Note that this is accessible to ANY authenticated user, even ones outside the team
-getUserStatus ::
-  forall r.
-  ( Member (Error InternalError) r,
-    Member (ErrorS 'TeamMemberNotFound) r,
-    Member LegalHoldStore r,
-    Member TeamStore r,
-    Member P.TinyLog r
-  ) =>
-  Local UserId ->
-  TeamId ->
-  UserId ->
-  Sem r Public.UserLegalHoldStatusResponse
-getUserStatus _lzusr tid uid = do
-  teamMember <- noteS @'TeamMemberNotFound =<< getTeamMember tid uid
-  let status = view legalHoldStatus teamMember
-  (mlk, lcid) <- case status of
-    UserLegalHoldNoConsent -> pure (Nothing, Nothing)
-    UserLegalHoldDisabled -> pure (Nothing, Nothing)
-    UserLegalHoldPending -> makeResponseDetails
-    UserLegalHoldEnabled -> makeResponseDetails
-  pure $ UserLegalHoldStatusResponse status mlk lcid
-  where
-    makeResponseDetails :: Sem r (Maybe LastPrekey, Maybe ClientId)
-    makeResponseDetails = do
-      mLastKey <- fmap snd <$> LegalHoldData.selectPendingPrekeys uid
-      lastKey <- case mLastKey of
-        Nothing -> do
-          P.err . Log.msg $
-            "expected to find a prekey for user: "
-              <> toByteString' uid
-              <> " but none was found"
-          throw NoPrekeyForUser
-        Just lstKey -> pure lstKey
-      let clientId = clientIdFromPrekey . unpackLastPrekey $ lastKey
-      pure (Just lastKey, Just clientId)
 
 -- | Change 'UserLegalHoldStatus' from no consent to disabled.  FUTUREWORK:
 -- @withdrawExplicitConsentH@ (lots of corner cases we'd have to implement for that to pan

@@ -31,6 +31,8 @@ module Data.Qualified
     tSplit,
     qTagUnsafe,
     Remote,
+    pattern Remote,
+    pattern Local,
     toRemoteUnsafe,
     Local,
     toLocalUnsafe,
@@ -126,6 +128,16 @@ foldQualified loc f g q
       f (qTagUnsafe q)
   | otherwise =
       g (qTagUnsafe q)
+
+pattern Local :: forall a x. forall. Local a -> (Local x, Qualified a)
+pattern Local loc <- ((\(loc, q) -> (tDomain loc == qDomain q, qUnqualified q <$ loc)) -> (True, loc))
+
+pattern Remote :: forall a x. forall. Remote a -> (Local x, Qualified a)
+pattern Remote loc <- ((\(loc, q) -> (tDomain loc == qDomain q, qTagUnsafe q)) -> (False, loc))
+
+{-# COMPLETE Local, Remote #-}
+
+-- pattern Remote :: Remote a -> (Local x, Qualified a)
 
 -- Partition a collection of qualified values into locals and remotes.
 --
