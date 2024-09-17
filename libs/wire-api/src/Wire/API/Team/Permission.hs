@@ -201,7 +201,7 @@ instance Cql.Cql Permissions where
 
   toCql p =
     let f = Cql.CqlBigInt . fromIntegral . permsToInt
-     in Cql.CqlUdt [("self", f (p.self)), ("copy", f (p.copy))]
+     in Cql.CqlUdt [("self", f p.self), ("copy", f p.copy)]
 
   fromCql (Cql.CqlUdt p) = do
     let f = intToPerms . fromIntegral :: Int64 -> Set.Set Perm
