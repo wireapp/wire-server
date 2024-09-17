@@ -252,6 +252,9 @@ postMLSConvOk = do
     qcid <- assertConv rsp RegularConv (Just alice) qalice [] (Just nameMaxSize) Nothing
     checkConvCreateEvent (qUnqualified qcid) wsA
 
+-- @SF.Separation @TSFI.RESTfulAPI @S2
+--
+-- This test verifies that a user must be a member of an MLS conversation in order to send messages to it.
 testSenderNotInConversation :: TestM ()
 testSenderNotInConversation = do
   -- create users
@@ -278,6 +281,8 @@ testSenderNotInConversation = do
           <!! const 404 === statusCode
 
     liftIO $ Wai.label err @?= "no-conversation"
+
+-- @END
 
 testAddUserWithBundle :: TestM ()
 testAddUserWithBundle = do
@@ -665,6 +670,10 @@ testLocalToRemoteNonMember = do
             const (Just "no-conversation-member")
               === fmap Wai.label . responseJsonError
 
+-- @SF.Separation @TSFI.RESTfulAPI @S2
+--
+-- This test verifies that only the members of an MLS conversation are allowed
+-- to join via external commit.
 testExternalCommitNotMember :: TestM ()
 testExternalCommitNotMember = do
   [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
@@ -682,6 +691,8 @@ testExternalCommitNotMember = do
     bundle <- createBundle mp
     localPostCommitBundle (mpSender mp) bundle
       !!! const 404 === statusCode
+
+-- @END
 
 testExternalCommitSameClient :: TestM ()
 testExternalCommitSameClient = do

@@ -26,9 +26,14 @@ import Notifications
 import SetupHelpers
 import Testlib.Prelude
 
--- | Test happy case of federated MLS message sending in both directions.
-testApplicationMessage :: HasCallStack => App ()
+-- @SF.Separation @TSFI.RESTfulAPI @S2
+-- This test verifies whether a message actually gets sent all the way to
+-- cannon.
+
+testApplicationMessage :: (HasCallStack) => App ()
 testApplicationMessage = do
+  -- Test happy case of federated MLS message sending in both directions.
+
   -- local alice and alex, remote bob
   [alice, alex, bob, betty] <-
     createUsers
@@ -55,7 +60,9 @@ testApplicationMessage = do
     void $ createApplicationMessage bob1 "hey" >>= sendAndConsumeMessage
     traverse_ (awaitMatch isNewMLSMessageNotif) wss
 
-testAppMessageSomeReachable :: HasCallStack => App ()
+-- @END
+
+testAppMessageSomeReachable :: (HasCallStack) => App ()
 testAppMessageSomeReachable = do
   alice1 <- startDynamicBackends [mempty] $ \[thirdDomain] -> do
     ownDomain <- make OwnDomain & asString
