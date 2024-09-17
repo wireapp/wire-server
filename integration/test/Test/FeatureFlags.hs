@@ -228,7 +228,11 @@ testMlsE2EConfigCrlProxyNotRequiredInV5 = do
     resp.status `shouldMatchInt` 200
 
   -- Assert that the feature config got updated correctly
-  expectedResponse <- configWithoutCrlProxy & setField "lockStatus" "unlocked" & setField "ttl" "unlimited"
+  expectedResponse <-
+    configWithoutCrlProxy
+      & setField "lockStatus" "unlocked"
+      & setField "ttl" "unlimited"
+      & setField "config.crlProxy" "https://crlproxy.example.com"
   checkFeature "mlsE2EId" owner tid expectedResponse
 
 testSSODisabledByDefault :: (HasCallStack) => App ()
@@ -462,7 +466,8 @@ testAllFeatures = do
                     "config"
                       .= object
                         [ "verificationExpiration" .= A.Number 86400,
-                          "useProxyOnMobile" .= False
+                          "useProxyOnMobile" .= False,
+                          "crlProxy" .= "https://crlproxy.example.com"
                         ]
                   ],
               "mlsMigration"
@@ -747,7 +752,8 @@ mlsE2EIdConfig = do
           "config"
             .= object
               [ "verificationExpiration" .= A.Number 86400,
-                "useProxyOnMobile" .= False
+                "useProxyOnMobile" .= False,
+                "crlProxy" .= "https://crlproxy.example.com"
               ]
         ]
     mlsE2EIdConfig1 :: Value
@@ -1028,7 +1034,8 @@ testPatchE2EId = do
             "config"
               .= object
                 [ "verificationExpiration" .= A.Number 86400,
-                  "useProxyOnMobile" .= False
+                  "useProxyOnMobile" .= False,
+                  "crlProxy" .= "https://crlproxy.example.com"
                 ]
           ]
   _testPatch "mlsE2EId" True defCfg (object ["lockStatus" .= "locked"])

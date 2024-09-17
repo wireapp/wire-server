@@ -278,6 +278,14 @@ galley:
               usersThreshold: 100
               clientsThreshold: 50
             lockStatus: locked
+        mlsE2EId:
+          defaults:
+            status: disabled
+            config:
+              verificationExpiration: 86400
+              acmeDiscoveryUrl: null
+              crlProxy: https://crlproxy.example.com
+            lockStatus: unlocked
         limitedEventFanout:
             defaults:
             status: disabled

@@ -23,6 +23,20 @@ import Wire.API.Conversation.Protocol (ProtocolTag)
 import Wire.API.MLS.CipherSuite
 import Wire.API.Team.Feature
 
+-- [Note: default values for configuration fields]
+--
+-- When reading values for configuration types with multiple fields, we fall
+-- back to default values for each field independently, instead of treating the
+-- whole configuration as a single value that can be set or not.
+--
+-- In most cases, either strategy would produce the same result, because there
+-- is no way to set only *some* fields using the public API. However, that can
+-- happen when a feature flag changes over time and gains new fields, as it has
+-- been the case for mlsE2EId.
+--
+-- Therefore, we use the first strategy consistently for all feature flags,
+-- even when it does not matter.
+
 -- | This is necessary in order to convert an @NP f xs@ type to something that
 -- CQL can understand.
 --
@@ -90,7 +104,13 @@ instance MakeFeature AppLockConfig where
 
   rowToFeature (status :* enforce :* timeout :* Nil) =
     foldMap dbFeatureStatus status
-      <> foldMap dbFeatureConfig (AppLockConfig <$> enforce <*> timeout)
+      -- [Note: default values for configuration fields]
+      <> dbFeatureModConfig
+        ( \defCfg ->
+            AppLockConfig
+              (fromMaybe defCfg.applockEnforceAppLock enforce)
+              (fromMaybe defCfg.applockInactivityTimeoutSecs timeout)
+        )
 
   featureToRow feat =
     Just feat.status
@@ -226,13 +246,34 @@ instance MakeFeature MLSConfig where
       ) =
       foldMap dbFeatureLockStatus lockStatus
         <> foldMap dbFeatureStatus status
-        <> foldMap
-          dbFeatureConfig
-          ( MLSConfig (foldMap C.fromSet toggleUsers)
-              <$> defProto
-              <*> pure (foldMap C.fromSet ciphersuites)
-              <*> defCiphersuite
-              <*> pure (foldMap C.fromSet supportedProtos)
+        <> dbFeatureModConfig
+          ( \defCfg ->
+              -- [Note: default values for configuration fields]
+              --
+              -- This case is a bit special, because Cassandra sets do not
+              -- distinguish between 'null' and 'empty'. To differentiate
+              -- between these cases, we use the `mls_default_protocol` field:
+              -- if set, we interpret null sets as empty, otherwise we use the
+              -- default.
+              let configIsSet = isJust defProto
+               in MLSConfig
+                    ( maybe
+                        (if configIsSet then [] else defCfg.mlsProtocolToggleUsers)
+                        C.fromSet
+                        toggleUsers
+                    )
+                    (fromMaybe defCfg.mlsDefaultProtocol defProto)
+                    ( maybe
+                        (if configIsSet then [] else defCfg.mlsAllowedCipherSuites)
+                        C.fromSet
+                        ciphersuites
+                    )
+                    (fromMaybe defCfg.mlsDefaultCipherSuite defCiphersuite)
+                    ( maybe
+                        (if configIsSet then [] else defCfg.mlsSupportedProtocols)
+                        C.fromSet
+                        supportedProtos
+                    )
           )
 
   featureToRow feat =
@@ -280,8 +321,8 @@ instance MakeFeature MlsE2EIdConfig where
               defCfg
                 { verificationExpiration =
                     maybe defCfg.verificationExpiration fromIntegral gracePeriod,
-                  acmeDiscoveryUrl = acmeDiscoveryUrl,
-                  crlProxy = crlProxy,
+                  acmeDiscoveryUrl = acmeDiscoveryUrl <|> defCfg.acmeDiscoveryUrl,
+                  crlProxy = crlProxy <|> defCfg.crlProxy,
                   useProxyOnMobile = fromMaybe defCfg.useProxyOnMobile useProxyOnMobile
                 }
           )
@@ -310,6 +351,7 @@ instance MakeFeature MlsMigrationConfig where
   rowToFeature (lockStatus :* status :* startTime :* finalizeAfter :* Nil) =
     foldMap dbFeatureLockStatus lockStatus
       <> foldMap dbFeatureStatus status
+      -- FUTUREWORK: allow using the default
       <> dbFeatureConfig (MlsMigrationConfig startTime finalizeAfter)
 
   featureToRow feat =
@@ -331,6 +373,7 @@ instance MakeFeature EnforceFileDownloadLocationConfig where
   rowToFeature (lockStatus :* status :* location :* Nil) =
     foldMap dbFeatureLockStatus lockStatus
       <> foldMap dbFeatureStatus status
+      -- FUTUREWORK: allow using the default
       <> dbFeatureConfig (EnforceFileDownloadLocationConfig location)
   featureToRow feat =
     Just feat.lockStatus
