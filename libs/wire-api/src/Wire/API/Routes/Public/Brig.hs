@@ -1560,6 +1560,7 @@ type TeamsAPI =
         :> CanThrow 'BlacklistedEmail
         :> CanThrow 'TooManyTeamInvitations
         :> CanThrow 'InsufficientTeamPermissions
+        :> CanThrow 'InvalidInvitationCode
         :> ZUser
         :> "teams"
         :> Capture "tid" TeamId
@@ -1659,6 +1660,23 @@ type TeamsAPI =
                     'GET
                     '[JSON]
                     (Respond 200 "Number of team members" TeamSize)
+           )
+    :<|> Named
+           "accept-team-invitation"
+           ( Summary "Accept a team invitation, changing a personal account into a team member account."
+               :> CanThrow 'PendingInvitationNotFound
+               :> CanThrow 'TooManyTeamMembers
+               :> CanThrow 'MissingIdentity
+               :> CanThrow 'InvalidActivationCodeWrongUser
+               :> CanThrow 'InvalidActivationCodeWrongCode
+               :> CanThrow 'BadCredentials
+               :> CanThrow 'MissingAuth
+               :> ZLocalUser
+               :> "teams"
+               :> "invitations"
+               :> "accept"
+               :> ReqBody '[JSON] AcceptTeamInvitation
+               :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Team invitation accepted."] ()
            )
 
 type SystemSettingsAPI =

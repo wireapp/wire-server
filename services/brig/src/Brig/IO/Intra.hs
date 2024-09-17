@@ -217,7 +217,8 @@ updateSearchIndex orig e = embed $ case e of
               isJust eupAccentId,
               isJust eupHandle,
               isJust eupManagedBy,
-              isJust eupSSOId || eupSSOIdRemoved
+              isJust eupSSOId || eupSSOIdRemoved,
+              isJust eupTeam
             ]
     when interesting $ Search.reindex orig
 

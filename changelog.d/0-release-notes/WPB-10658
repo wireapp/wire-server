@@ -1,0 +1,2 @@
+With this release it will be possible to invite personal users to teams. In `brig`'s config, `emailSMS.team.tExistingUserInvitationUrl` is required to be set to a value that points to the correct teams/account page.
+If `emailSMS.team` is not defined at all in the current environment, the value of `externalUrls.teamSettings` (or, if not present, `externalUrls.nginz`) will be used to construct the correct url, and no configuration change is necessary.

@@ -235,6 +235,9 @@ verificationCodeThrottledError (VerificationCodeThrottled t) =
 clientCapabilitiesCannotBeRemoved :: Wai.Error
 clientCapabilitiesCannotBeRemoved = Wai.mkError status409 "client-capabilities-cannot-be-removed" "You can only add capabilities to a client, not remove them."
 
+-- One of two cases:
+-- (1) the email is in use by any other account or invitation;
+-- (2) (when posting an invitation) the email is in use by a member of another team (and we can't steal away those, invitee has to be personal user).
 emailExists :: Wai.Error
 emailExists = Wai.mkError status409 "email-exists" "The given e-mail address is in use."
 

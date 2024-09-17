@@ -156,7 +156,8 @@ data UserUpdatedData = UserUpdatedData
     eupManagedBy :: !(Maybe ManagedBy),
     eupSSOId :: !(Maybe UserSSOId),
     eupSSOIdRemoved :: Bool,
-    eupSupportedProtocols :: !(Maybe (Set BaseProtocolTag))
+    eupSupportedProtocols :: !(Maybe (Set BaseProtocolTag)),
+    eupTeam :: !(Maybe TeamId)
   }
   deriving stock (Eq, Show)
 
@@ -192,6 +193,9 @@ emailUpdated :: UserId -> EmailAddress -> UserEvent
 emailUpdated u e =
   UserIdentityUpdated $ UserIdentityUpdatedData u (Just e) Nothing
 
+teamUpdated :: UserId -> TeamId -> UserEvent
+teamUpdated u t = UserUpdated (emptyUserUpdatedData u) {eupTeam = Just t}
+
 emptyUserUpdatedData :: UserId -> UserUpdatedData
 emptyUserUpdatedData u =
   UserUpdatedData
@@ -206,7 +210,8 @@ emptyUserUpdatedData u =
       eupManagedBy = Nothing,
       eupSSOId = Nothing,
       eupSSOIdRemoved = False,
-      eupSupportedProtocols = Nothing
+      eupSupportedProtocols = Nothing,
+      eupTeam = Nothing
     }
 
 -- Event schema
@@ -247,12 +252,8 @@ eventObjectSchema =
                               <*> eupManagedBy .= maybe_ (optField "managed_by" schema)
                               <*> eupSSOId .= maybe_ (optField "sso_id" genericToSchema)
                               <*> eupSSOIdRemoved .= field "sso_id_deleted" schema
-                              <*> eupSupportedProtocols
-                                .= maybe_
-                                  ( optField
-                                      "supported_protocols"
-                                      (set schema)
-                                  )
+                              <*> eupSupportedProtocols .= maybe_ (optField "supported_protocols" (set schema))
+                              <*> eupTeam .= maybe_ (optField "team" schema)
                           )
                       )
                   )

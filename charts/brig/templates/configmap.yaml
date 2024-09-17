@@ -179,14 +179,17 @@ data:
       team:
       {{- if .emailSMS.team }}
         tInvitationUrl: {{ .emailSMS.team.tInvitationUrl }}
+        tExistingUserInvitationUrl: {{ .emailSMS.team.tExistingUserInvitationUrl }}
         tActivationUrl: {{ .emailSMS.team.tActivationUrl }}
         tCreatorWelcomeUrl: {{ .emailSMS.team.tCreatorWelcomeUrl }}
         tMemberWelcomeUrl: {{ .emailSMS.team.tMemberWelcomeUrl }}
       {{- else }}
       {{- if .externalUrls.teamSettings }}
         tInvitationUrl: {{ .externalUrls.teamSettings }}/join/?team-code=${code}
+        tExistingUserInvitationUrl: {{ .externalUrls.teamSettings }}/accept-invitation/?team-code=${code}
       {{- else }}
         tInvitationUrl: {{ .externalUrls.nginz }}/register?team=${team}&team_code=${code}
+        tExistingUserInvitationUrl: {{ .externalUrls.nginz }}/accept-invitation/?team-code=${code}
       {{- end }}
         tActivationUrl: {{ .externalUrls.nginz }}/register?team=${team}&team_code=${code}
         tCreatorWelcomeUrl: {{ .externalUrls.teamCreatorWelcome }}

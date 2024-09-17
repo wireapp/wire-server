@@ -1,0 +1,1 @@
+A new endpoint `POST /teams/invitations/accept` allows a non-team user to accept an invitation to join a team

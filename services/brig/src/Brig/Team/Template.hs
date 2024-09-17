@@ -61,6 +61,7 @@ data MemberWelcomeEmailTemplate = MemberWelcomeEmailTemplate
 
 data TeamTemplates = TeamTemplates
   { invitationEmail :: !InvitationEmailTemplate,
+    existingUserInvitationEmail :: !InvitationEmailTemplate,
     creatorWelcomeEmail :: !CreatorWelcomeEmailTemplate,
     memberWelcomeEmail :: !MemberWelcomeEmailTemplate
   }
@@ -72,6 +73,13 @@ loadTeamTemplates o = readLocalesDir defLocale (templateDir gOptions) "team" $ \
             <$> readTemplate fp "email/invitation-subject.txt"
             <*> readTemplate fp "email/invitation.txt"
             <*> readTemplate fp "email/invitation.html"
+            <*> pure (emailSender gOptions)
+            <*> readText fp "email/sender.txt"
+        )
+    <*> ( InvitationEmailTemplate tExistingUrl
+            <$> readTemplate fp "email/existing-invitation-subject.txt"
+            <*> readTemplate fp "email/existing-invitation.txt"
+            <*> readTemplate fp "email/existing-invitation.html"
             <*> pure (emailSender gOptions)
             <*> readText fp "email/sender.txt"
         )
@@ -93,6 +101,7 @@ loadTeamTemplates o = readLocalesDir defLocale (templateDir gOptions) "team" $ \
     gOptions = general (emailSMS o)
     tOptions = team (emailSMS o)
     tUrl = template $ tInvitationUrl tOptions
+    tExistingUrl = template $ tExistingUserInvitationUrl tOptions
     defLocale = setDefaultTemplateLocale (optSettings o)
     readTemplate = readTemplateWithDefault (templateDir gOptions) defLocale "team"
     readText = readTextWithDefault (templateDir gOptions) defLocale "team"
