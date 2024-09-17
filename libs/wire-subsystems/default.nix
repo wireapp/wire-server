@@ -79,8 +79,8 @@
 , wai-utilities
 , wire-api
 , wire-api-federation
-, witherable
 , wire-otel
+, witherable
 }:
 mkDerivation {
   pname = "wire-subsystems";
@@ -153,8 +153,8 @@ mkDerivation {
     wai-utilities
     wire-api
     wire-api-federation
-    witherable
     wire-otel
+    witherable
   ];
   testHaskellDepends = [
     aeson
