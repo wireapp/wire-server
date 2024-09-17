@@ -130,7 +130,7 @@ runSem esConn cas galleyEndpoint logger action = do
     . throwErrorToIOFinal @ParseException
     . interpretGalleyAPIAccessToRpc mempty galleyEndpoint
     . runEmbedded (runClient casClient)
-    . interpretFederationDomainConfig Nothing mempty
+    . interpretFederationDomainConfig casClient Nothing mempty
     . raiseUnder @(Embed Client)
     . throwErrorToIOFinal @MigrationException
     . interpretIndexedUserMigrationStoreES bhEnv

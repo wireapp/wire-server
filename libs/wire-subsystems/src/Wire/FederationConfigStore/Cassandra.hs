@@ -33,6 +33,7 @@ import Data.Qualified
 import Database.CQL.Protocol (SerialConsistency (LocalSerialConsistency), serialConsistency)
 import Imports
 import Polysemy
+import Polysemy.Embed
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.User.Search
 import Wire.FederationConfigStore
@@ -44,20 +45,18 @@ import Wire.FederationConfigStore
 -- If a domain is configured in the config file, it is not allowed to update it in the database.
 -- If a domain is configured in the config file, it is not allowed to add a team restriction to it in the database.
 -- In the future the config file will be removed and the database will be the only source of truth.
---
--- TODO: Just take a ClientState instead of (Embed m)
 interpretFederationDomainConfig ::
-  forall m r a.
-  ( MonadClient m,
-    Member (Embed m) r
+  forall r a.
+  ( Member (Embed IO) r
   ) =>
+  ClientState ->
   Maybe FederationStrategy ->
   Map Domain FederationDomainConfig ->
   Sem (FederationConfigStore ': r) a ->
   Sem r a
-interpretFederationDomainConfig mFedStrategy fedCfgs =
+interpretFederationDomainConfig casClient mFedStrategy fedCfgs =
   interpret $
-    embed @m . \case
+    runEmbedded (runClient casClient) . embed . \case
       GetFederationConfig d -> getFederationConfig' fedCfgs d
       GetFederationConfigs -> getFederationConfigs' mFedStrategy fedCfgs
       AddFederationConfig cnf -> addFederationConfig' fedCfgs cnf
