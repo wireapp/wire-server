@@ -149,6 +149,7 @@ library
     Test.Services
     Test.Spar
     Test.Swagger
+    Test.Teams
     Test.TeamSettings
     Test.User
     Test.Version

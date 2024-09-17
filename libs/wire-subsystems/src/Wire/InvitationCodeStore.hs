@@ -70,7 +70,8 @@ data InsertInvitation = MkInsertInvitation
     createdAt :: UTCTime,
     createdBy :: Maybe UserId,
     inviteeEmail :: EmailAddress,
-    inviteeName :: Maybe Name
+    inviteeName :: Maybe Name,
+    code :: InvitationCode
   }
   deriving (Show, Eq, Generic)
 

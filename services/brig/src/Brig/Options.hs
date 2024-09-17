@@ -224,6 +224,8 @@ instance FromJSON ProviderOpts
 data TeamOpts = TeamOpts
   { -- | Team Invitation URL template
     tInvitationUrl :: !Text,
+    -- | Existing User Invitation URL template
+    tExistingUserInvitationUrl :: !Text,
     -- | Team Activation URL template
     tActivationUrl :: !Text,
     -- | Team Creator Welcome URL

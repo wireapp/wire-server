@@ -53,6 +53,7 @@ module Brig.Data.User
     updateStatus,
     updateRichInfo,
     updateFeatureConferenceCalling,
+    updateUserTeam,
 
     -- * Deletions
     deleteEmail,
@@ -381,6 +382,12 @@ lookupUserTeam :: (MonadClient m) => UserId -> m (Maybe TeamId)
 lookupUserTeam u =
   (runIdentity =<<)
     <$> retry x1 (query1 teamSelect (params LocalQuorum (Identity u)))
+
+updateUserTeam :: (MonadClient m) => UserId -> TeamId -> m ()
+updateUserTeam u t = retry x5 $ write userTeamUpdate (params LocalQuorum (t, u))
+  where
+    userTeamUpdate :: PrepQuery W (TeamId, UserId) ()
+    userTeamUpdate = "UPDATE user SET team = ? WHERE id = ?"
 
 lookupAuth :: (MonadClient m) => UserId -> m (Maybe (Maybe Password, AccountStatus))
 lookupAuth u = fmap f <$> retry x1 (query1 authSelect (params LocalQuorum (Identity u)))

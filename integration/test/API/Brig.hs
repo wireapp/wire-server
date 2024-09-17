@@ -434,11 +434,12 @@ putUserSupportedProtocols user ps = do
   submit "PUT" (req & addJSONObject ["supported_protocols" .= ps])
 
 data PostInvitation = PostInvitation
-  { email :: Maybe String
+  { email :: Maybe String,
+    role :: Maybe String
   }
 
 instance Default PostInvitation where
-  def = PostInvitation Nothing
+  def = PostInvitation Nothing Nothing
 
 postInvitation ::
   (HasCallStack, MakesValue user) =>
@@ -452,7 +453,7 @@ postInvitation user inv = do
       joinHttpPath ["teams", tid, "invitations"]
   email <- maybe randomEmail pure inv.email
   submit "POST" $
-    req & addJSONObject ["email" .= email]
+    req & addJSONObject (["email" .= email] <> ["role" .= r | r <- toList inv.role])
 
 getApiVersions :: (HasCallStack) => App Response
 getApiVersions = do
@@ -783,3 +784,14 @@ activate domain key code = do
   submit "GET" $
     req
       & addQueryParams [("key", key), ("code", code)]
+
+acceptTeamInvitation :: (HasCallStack, MakesValue user) => user -> String -> Maybe String -> App Response
+acceptTeamInvitation user code mPw = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", "invitations", "accept"]
+  submit "POST" $ req & addJSONObject (["code" .= code] <> maybeToList (((.=) "password") <$> mPw))
+
+-- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/get_teams__tid__invitations
+listInvitations :: (HasCallStack, MakesValue user) => user -> String -> App Response
+listInvitations user tid = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", tid, "invitations"]
+  submit "GET" req

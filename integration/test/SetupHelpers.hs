@@ -60,30 +60,18 @@ createTeamMemberWithRole ::
   String ->
   String ->
   App Value
-createTeamMemberWithRole inviter tid role = do
+createTeamMemberWithRole inviter _ role = do
   newUserEmail <- randomEmail
-  let invitationJSON = ["role" .= role, "email" .= newUserEmail]
-  invitationReq <-
-    baseRequest inviter Brig Versioned $
-      joinHttpPath ["teams", tid, "invitations"]
-  invitation <- getJSON 201 =<< submit "POST" (addJSONObject invitationJSON invitationReq)
-  invitationId <- objId invitation
-  invitationCodeReq <-
-    rawBaseRequest inviter Brig Unversioned "/i/teams/invitation-code"
-      <&> addQueryParams [("team", tid), ("invitation_id", invitationId)]
-  invitationCode <- bindResponse (submit "GET" invitationCodeReq) $ \res -> do
-    res.status `shouldMatchInt` 200
-    res.json %. "code" & asString
-  let registerJSON =
-        [ "name" .= newUserEmail,
-          "email" .= newUserEmail,
-          "password" .= defPassword,
-          "team_code" .= invitationCode
-        ]
-  registerReq <-
-    rawBaseRequest inviter Brig Versioned "/register"
-      <&> addJSONObject registerJSON
-  getJSON 201 =<< submit "POST" registerReq
+  invitation <- postInvitation inviter (PostInvitation (Just newUserEmail) (Just role)) >>= getJSON 201
+  invitationCode <- getInvitationCode inviter invitation >>= getJSON 200 >>= (%. "code") & asString
+  let body =
+        AddUser
+          { name = Just newUserEmail,
+            email = Just newUserEmail,
+            password = Just defPassword,
+            teamCode = Just invitationCode
+          }
+  addUser inviter body >>= getJSON 201
 
 connectTwoUsers ::
   ( HasCallStack,

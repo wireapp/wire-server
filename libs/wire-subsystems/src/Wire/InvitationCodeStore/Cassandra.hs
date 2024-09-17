@@ -36,8 +36,7 @@ insertInvitationImpl ::
   -- | The timeout for the invitation code.
   Timeout ->
   Client StoredInvitation
-insertInvitationImpl (MkInsertInvitation invId teamId role (toUTCTimeMillis -> now) uid email name) timeout = do
-  code <- liftIO mkInvitationCode
+insertInvitationImpl (MkInsertInvitation invId teamId role (toUTCTimeMillis -> now) uid email name code) timeout = do
   let inv =
         MkStoredInvitation
           { teamId = teamId,

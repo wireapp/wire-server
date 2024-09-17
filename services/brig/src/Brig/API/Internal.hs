@@ -41,6 +41,7 @@ import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Options hiding (internalEvents)
 import Brig.Provider.API qualified as Provider
 import Brig.Team.API qualified as Team
+import Brig.Team.Template (TeamTemplates)
 import Brig.Types.Connection
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
@@ -139,7 +140,8 @@ servantSitemap ::
     Member VerificationCodeSubsystem r,
     Member Events r,
     Member PasswordResetCodeStore r,
-    Member PropertySubsystem r
+    Member PropertySubsystem r,
+    Member (Input TeamTemplates) r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -241,7 +243,9 @@ teamsAPI ::
     Member InvitationCodeStore r,
     Member EmailSending r,
     Member UserSubsystem r,
-    Member Events r
+    Member Events r,
+    Member (Input TeamTemplates) r,
+    Member (Input (Local ())) r
   ) =>
   ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI =

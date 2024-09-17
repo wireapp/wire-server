@@ -49,6 +49,7 @@ import Brig.Options hiding (internalEvents)
 import Brig.Provider.API
 import Brig.Team.API qualified as Team
 import Brig.Team.Email qualified as Team
+import Brig.Team.Template (TeamTemplates)
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Intra (UserAccount (UserAccount, accountUser))
 import Brig.User.API.Handle qualified as Handle
@@ -286,7 +287,8 @@ servantSitemap ::
     Member PropertySubsystem r,
     Member Events r,
     Member PasswordResetCodeStore r,
-    Member InvitationCodeStore r
+    Member InvitationCodeStore r,
+    Member (Input TeamTemplates) r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
