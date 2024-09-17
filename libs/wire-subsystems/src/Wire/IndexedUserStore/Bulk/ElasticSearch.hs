@@ -88,9 +88,12 @@ syncAllUsersWithVersion mkVersion =
 
     mkUserDocs :: ConduitT [IndexUser] [(ES.DocId, UserDoc, ES.VersionControl)] (Sem r) ()
     mkUserDocs = Conduit.mapM $ \page -> do
-      visMap <- fmap Map.fromList . unsafePooledForConcurrentlyN 16 (Set.fromList $ mapMaybe (.teamId) page) $ \t ->
+      let teamIds =
+            Set.fromList $
+              mapMaybe (fmap value . ((.teamId))) page
+      visMap <- fmap Map.fromList . unsafePooledForConcurrentlyN 16 teamIds $ \t ->
         (t,) <$> teamSearchVisibilityInbound t
-      let vis indexUser = fromMaybe defaultSearchVisibilityInbound $ flip Map.lookup visMap =<< indexUser.teamId
+      let vis indexUser = fromMaybe defaultSearchVisibilityInbound $ (flip Map.lookup visMap . value =<< indexUser.teamId)
           mkUserDoc indexUser = indexUserToDoc (vis indexUser) indexUser
           mkDocVersion = mkVersion . ES.ExternalDocVersion . docVersion . indexUserToVersion
       pure $ map (\u -> (userIdToDocId u.userId, mkUserDoc u, mkDocVersion u)) page

@@ -95,6 +95,7 @@ import Wire.PasswordStore
 import Wire.Sem.Concurrency
 import Wire.UserKeyStore
 import Wire.UserSubsystem
+import Wire.UserSubsystem qualified as User
 import Wire.UserSubsystem.Error
 
 servantAPI ::
@@ -592,6 +593,7 @@ acceptTeamInvitationByPersonalUser luid req = do
   lift $ do
     wrapClient $ User.updateUserTeam uid tid
     liftSem $ Store.deleteInvitation inv.teamId inv.invitationId
+    liftSem $ User.internalUpdateSearchIndex uid
     liftSem $ Events.generateUserEvent uid Nothing (teamUpdated uid tid)
   where
     checkPassword = do

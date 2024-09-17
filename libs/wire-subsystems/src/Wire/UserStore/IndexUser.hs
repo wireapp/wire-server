@@ -25,7 +25,7 @@ data WithWritetime a = WithWriteTime {value :: a, writetime :: Writetime a}
 
 data IndexUser = IndexUser
   { userId :: UserId,
-    teamId :: Maybe TeamId,
+    teamId :: Maybe (WithWritetime TeamId),
     name :: WithWritetime Name,
     accountStatus :: Maybe (WithWritetime AccountStatus),
     handle :: Maybe (WithWritetime Handle),
@@ -42,7 +42,7 @@ data IndexUser = IndexUser
 type instance
   TupleType IndexUser =
     ( UserId,
-      Maybe TeamId,
+      Maybe TeamId, Maybe (Writetime TeamId),
       Name, Writetime Name,
       Maybe AccountStatus, Maybe (Writetime AccountStatus),
       Maybe Handle, Maybe (Writetime Handle),
@@ -57,7 +57,8 @@ type instance
 
 instance Record IndexUser where
   asTuple (IndexUser {..}) =
-    ( userId, teamId,
+    ( userId, 
+      value <$> teamId, writetime <$> teamId,
       name.value, name.writetime,
       value <$> accountStatus, writetime <$> accountStatus,
       value <$> handle, writetime <$> handle,
@@ -71,7 +72,8 @@ instance Record IndexUser where
     )
 
   asRecord
-    ( u, mteam,
+    ( u, 
+      mTeam, tTeam,
       name, tName,
       status, tStatus,
       handle, tHandle,
@@ -84,7 +86,7 @@ instance Record IndexUser where
       emailUnvalidated, tEmailUnvalidated
     ) = IndexUser {
           userId = u,
-          teamId = mteam,
+          teamId =  WithWriteTime <$> mTeam <*> tTeam,
           name = WithWriteTime name tName,
           accountStatus = WithWriteTime <$> status <*> tStatus,
           handle = WithWriteTime <$> handle <*> tHandle,
@@ -102,6 +104,7 @@ indexUserToVersion :: IndexUser -> IndexVersion
 indexUserToVersion IndexUser {..} =
   mkIndexVersion
     [ const () <$$> Just name.writetime,
+      const () <$$> fmap writetime teamId,
       const () <$$> fmap writetime accountStatus,
       const () <$$> fmap writetime handle,
       const () <$$> fmap writetime email,
@@ -133,7 +136,7 @@ indexUserToDoc searchVisInbound IndexUser {..} =
           udHandle = value <$> handle,
           udNormalized = Just $ normalized name.value.fromName,
           udName = Just name.value,
-          udTeam = teamId,
+          udTeam = value <$> teamId,
           udId = userId
         }
     else -- We insert a tombstone-style user here, as it's easier than

@@ -561,7 +561,7 @@ syncUserIndex uid =
       vis <-
         maybe
           (pure defaultSearchVisibilityInbound)
-          teamSearchVisibilityInbound
+          (teamSearchVisibilityInbound . value)
           indexUser.teamId
       let userDoc = indexUserToDoc vis indexUser
           version = ES.ExternalGT . ES.ExternalDocVersion . docVersion $ indexUserToVersion indexUser

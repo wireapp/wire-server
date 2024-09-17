@@ -72,7 +72,7 @@ storedUserToIndexUser storedUser =
   let withDefaultTime x = WithWriteTime x $ Writetime $ UTCTime (YearDay 0 1) 0
    in IndexUser
         { userId = storedUser.id,
-          teamId = storedUser.teamId,
+          teamId = withDefaultTime <$> storedUser.teamId,
           name = withDefaultTime storedUser.name,
           accountStatus = withDefaultTime <$> storedUser.status,
           handle = withDefaultTime <$> storedUser.handle,

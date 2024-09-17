@@ -53,19 +53,22 @@ getIndexUserPaginatedImpl pageSize mPagingState =
 
 getIndexUserBaseQuery :: LText
 getIndexUserBaseQuery =
-  "SELECT \
-  \id, team, \
-  \name, writetime(name), \
-  \status, writetime(status), \
-  \handle, writetime(handle), \
-  \email, writetime(email), \
-  \accent_id, writetime(accent_id), \
-  \activated, writetime(activated), \
-  \service, writetime(service), \
-  \managed_by, writetime(managed_by), \
-  \sso_id, writetime(sso_id), \
-  \email_unvalidated, writetime(email_unvalidated) \
-  \FROM user"
+  [sql|
+    SELECT
+    id, 
+    team, writetime(team),
+    name, writetime(name),
+    status, writetime(status),
+    handle, writetime(handle),
+    email, writetime(email),
+    accent_id, writetime(accent_id),
+    activated, writetime(activated),
+    service, writetime(service),
+    managed_by, writetime(managed_by),
+    sso_id, writetime(sso_id),
+    email_unvalidated, writetime(email_unvalidated)
+    FROM user
+  |]
 
 updateUserImpl :: UserId -> StoredUserUpdate -> Client ()
 updateUserImpl uid update =

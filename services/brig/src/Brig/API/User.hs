@@ -398,7 +398,8 @@ createUser new = do
       unless added $
         throwE RegisterErrorTooManyTeamMembers
       lift $ do
-        wrapClient $ activateUser uid ident -- ('insertAccount' sets column activated to False; here it is set to True.)
+        -- ('insertAccount' sets column activated to False; here it is set to True.)
+        wrapClient $ activateUser uid ident
         void $ onActivated (AccountActivated account)
         liftSem do
           Log.info $
