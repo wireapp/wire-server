@@ -31,8 +31,7 @@ module Data.Qualified
     tSplit,
     qTagUnsafe,
     Remote,
-    pattern Remote,
-    pattern Local,
+    RelativeTo (Remote, Local, RelativeTo),
     toRemoteUnsafe,
     Local,
     toLocalUnsafe,
@@ -123,21 +122,24 @@ qualifyAs :: QualifiedWithTag t x -> a -> QualifiedWithTag t a
 qualifyAs = ($>)
 
 foldQualified :: Local x -> (Local a -> b) -> (Remote a -> b) -> Qualified a -> b
-foldQualified loc f g q
-  | tDomain loc == qDomain q =
-      f (qTagUnsafe q)
-  | otherwise =
-      g (qTagUnsafe q)
+foldQualified loc kLocal kRemote q = case q `RelativeTo` loc of
+  Local l -> kLocal l
+  Remote r -> kRemote r
 
-pattern Local :: forall a x. forall. Local a -> (Local x, Qualified a)
-pattern Local loc <- ((\(loc, q) -> (tDomain loc == qDomain q, qUnqualified q <$ loc)) -> (True, loc))
+data a `RelativeTo` x = Qualified a `RelativeTo` Local x
 
-pattern Remote :: forall a x. forall. Remote a -> (Local x, Qualified a)
-pattern Remote loc <- ((\(loc, q) -> (tDomain loc == qDomain q, qTagUnsafe q)) -> (False, loc))
+checkRelative :: a `RelativeTo` x -> Either (Local a) (Remote a)
+checkRelative (q `RelativeTo` loc)
+  | tDomain loc == qDomain q = Left (qTagUnsafe q)
+  | otherwise = Right (qTagUnsafe q)
+
+pattern Local :: forall a x. Local a -> a `RelativeTo` x
+pattern Local loc <- (checkRelative -> Left loc)
+
+pattern Remote :: forall a x. Remote a -> a `RelativeTo` x
+pattern Remote rem <- (checkRelative -> Right rem)
 
 {-# COMPLETE Local, Remote #-}
-
--- pattern Remote :: Remote a -> (Local x, Qualified a)
 
 -- Partition a collection of qualified values into locals and remotes.
 --

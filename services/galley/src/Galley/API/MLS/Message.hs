@@ -224,7 +224,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
 
   -- when a user tries to join any mls conversation while being legalholded
   -- they receive a 409 stating that mls and legalhold are incompatible
-  case (lConvOrSubId, qusr) of
+  case qusr `RelativeTo` lConvOrSubId of
     Local luid ->
       when (isNothing convOrSub.mlsMeta.cnvmlsActiveData) do
         usrTeams <- getUserTeams (tUnqualified luid)

@@ -162,8 +162,6 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
                       Right clientInfo -> do
                         let allClients = Set.map ciId clientInfo
                         let allMLSClients = Set.map ciId (Set.filter ciMLS clientInfo)
-                        -- TODO(mangoiv): check if any legalhold clients exist and abort if any
-
                         -- We check the following condition:
                         --   allMLSClients ⊆ clients ⊆ allClients
                         -- i.e.
