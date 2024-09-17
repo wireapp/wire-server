@@ -24,8 +24,8 @@ data AddFederationRemoteTeamResult
   | AddFederationRemoteTeamDomainNotFound
   | AddFederationRemoteTeamRestrictionAllowAll
 
--- TODO: This store effect is more than just a store, we should break it up in
--- business logic and store
+-- FUTUREWORK: This store effect is more than just a store,
+-- we should break it up in business logic and store
 data FederationConfigStore m a where
   GetFederationConfig :: Domain -> FederationConfigStore m (Maybe FederationDomainConfig)
   GetFederationConfigs :: FederationConfigStore m FederationDomainConfigs
