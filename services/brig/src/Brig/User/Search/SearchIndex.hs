@@ -38,7 +38,6 @@ import Imports hiding (log, searchable)
 import Wire.API.User (ColourId (..), Name (fromName))
 import Wire.API.User.Search
 import Wire.IndexedUserStore (IndexedUserStoreError (..))
--- TODO: Move all this code to the interpreter instead of importing it?
 import Wire.IndexedUserStore.ElasticSearch (mappingName)
 import Wire.UserSearch.Types
 import Wire.UserStore.IndexUser (normalized)
