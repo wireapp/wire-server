@@ -932,7 +932,6 @@ testLegalholdThenMLS = do
   (alice, tid, [charlie]) <- createTeam OwnDomain 2
   [alice1, _charlie1] <- traverse (createMLSClient def) [alice, charlie]
   void $ createNewGroup alice1
-  void $ createAddCommit alice1 [alice] >>= sendAndConsumeCommitBundle
   legalholdWhitelistTeam tid alice >>= assertStatus 200
   withMockServer def lhMockApp \lhDomAndPort _chan -> do
     postLegalHoldSettings tid alice (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
@@ -942,6 +941,6 @@ testLegalholdThenMLS = do
     pStatus <- profile %. "legalhold_status" & asString
     pStatus `shouldMatch` "enabled"
 
-    createAddCommit alice1 [charlie] >>= \mp ->
-      postMLSCommitBundle mp.sender (mkBundle mp) `bindResponse` \resp ->
-        resp.status `shouldMatchRange` (400, 499)
+    mls <- getMLSState
+    claimKeyPackages mls.ciphersuite alice1 charlie
+      >>= assertLabel 409 "mls-legal-hold-not-allowed"
