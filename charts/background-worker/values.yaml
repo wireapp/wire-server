@@ -18,6 +18,7 @@ metrics:
 config:
   logLevel: Info
   logFormat: StructuredJSON
+  enableFederation: false # keep in sync with brig, cargohold and galley charts' config.enableFederation as well as wire-server chart's tags.federation
   rabbitmq:
     host: rabbitmq
     port: 5672

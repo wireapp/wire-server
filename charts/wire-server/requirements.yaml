@@ -96,7 +96,6 @@ dependencies:
   repository: "file://../background-worker"
   tags:
     - background-worker
-    - federation
     - haskellServices
     - services
 - name: integration

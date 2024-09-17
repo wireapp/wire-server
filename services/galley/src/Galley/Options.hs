@@ -182,7 +182,7 @@ data Opts = Opts
     -- | Federator endpoint
     _federator :: !(Maybe Endpoint),
     -- | RabbitMQ settings, required when federation is enabled.
-    _rabbitmq :: !(Maybe RabbitMqOpts),
+    _rabbitmq :: !(Maybe AmqpEndpoint),
     -- | Disco URL
     _discoUrl :: !(Maybe Text),
     -- | Other settings

@@ -270,13 +270,13 @@ spec = do
       let federatorInternal = Endpoint "localhost" 8097
           http2Manager = undefined
           statuses = undefined
-          rabbitmqAdminClient = mockRabbitMqAdminClient mockAdmin
+          rabbitmqAdminClient = Just $ mockRabbitMqAdminClient mockAdmin
           rabbitmqVHost = "test-vhost"
           defederationTimeout = responseTimeoutNone
           backendNotificationsConfig = BackendNotificationsConfig 1000 500000 1000
 
       backendNotificationMetrics <- mkBackendNotificationMetrics
-      domains <- runAppT Env {..} getRemoteDomains
+      domains <- runAppT Env {..} $ getRemoteDomains (fromJust rabbitmqAdminClient)
       domains `shouldBe` map Domain ["foo.example", "bar.example", "baz.example"]
       readTVarIO mockAdmin.listQueuesVHostCalls `shouldReturn` ["test-vhost"]
 
@@ -287,12 +287,12 @@ spec = do
       let federatorInternal = Endpoint "localhost" 8097
           http2Manager = undefined
           statuses = undefined
-          rabbitmqAdminClient = mockRabbitMqAdminClient mockAdmin
+          rabbitmqAdminClient = Just $ mockRabbitMqAdminClient mockAdmin
           rabbitmqVHost = "test-vhost"
           defederationTimeout = responseTimeoutNone
           backendNotificationsConfig = BackendNotificationsConfig 1000 500000 1000
       backendNotificationMetrics <- mkBackendNotificationMetrics
-      domainsThread <- async $ runAppT Env {..} getRemoteDomains
+      domainsThread <- async $ runAppT Env {..} $ getRemoteDomains (fromJust rabbitmqAdminClient)
 
       -- Wait for first call
       untilM (readTVarIO mockAdmin.listQueuesVHostCalls >>= \calls -> pure $ not $ null calls)
