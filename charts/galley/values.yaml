@@ -33,7 +33,7 @@ config:
 #   tlsCaSecretRef:
 #     name: <secret-name>
 #     key: <ca-attribute>
-  enableFederation: false # keep enableFederation default in sync with brig and cargohold chart's config.enableFederation as well as wire-server chart's tags.federation
+  enableFederation: false # keep in sync with background-worker, brig and cargohold charts' config.enableFederation as well as wire-server chart's tags.federation
   # Not used if enableFederation is false
   rabbitmq:
     host: rabbitmq
