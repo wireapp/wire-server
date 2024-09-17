@@ -78,6 +78,7 @@ library
     , imports
     , lens                   >=4.11
     , network-uri            >=2.6
+    , servant
     , text                   >=0.11
     , types-common           >=0.16
     , wire-api

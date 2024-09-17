@@ -27,12 +27,11 @@ import Control.Exception (finally)
 import Control.Lens ((.~), (^.))
 import Control.Monad.Extra
 import Data.Metrics.AWS (gaugeTokenRemaing)
-import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
 import Data.Proxy (Proxy (Proxy))
 import Data.Text (unpack)
 import Database.Redis qualified as Redis
-import Gundeck.API (sitemap)
-import Gundeck.API.Public (servantSitemap)
+import Gundeck.API.Internal as Internal (GundeckInternalAPI, servantSitemap)
+import Gundeck.API.Public as Public (servantSitemap)
 import Gundeck.Aws qualified as Aws
 import Gundeck.Env
 import Gundeck.Env qualified as Env
@@ -85,28 +84,18 @@ run o = do
     middleware e =
       versionMiddleware (foldMap expandVersionExp (o ^. settings . disabledAPIVersions))
         . requestIdMiddleware (e ^. applog) defaultRequestIdHeaderName
-        . waiPrometheusMiddleware sitemap
         . GZip.gunzip
         . GZip.gzip GZip.def
         . catchErrors (e ^. applog) defaultRequestIdHeaderName
-
-type CombinedAPI = GundeckAPI :<|> Servant.Raw
 
 mkApp :: Env -> Wai.Application
 mkApp env0 req cont = do
   let rid = getRequestId defaultRequestIdHeaderName req
       env = reqId .~ rid $ env0
-  Servant.serve
-    (Proxy @CombinedAPI)
-    (servantSitemap' env :<|> Servant.Tagged (runGundeckWithRoutes env))
-    req
-    cont
-  where
-    runGundeckWithRoutes :: Env -> Wai.Application
-    runGundeckWithRoutes e r k = runGundeck e r (route (compile sitemap) r k)
+  Servant.serve (Proxy @(GundeckAPI :<|> GundeckInternalAPI)) (servantSitemap' env) req cont
 
-servantSitemap' :: Env -> Servant.Server GundeckAPI
-servantSitemap' env = Servant.hoistServer (Proxy @GundeckAPI) toServantHandler servantSitemap
+servantSitemap' :: Env -> Servant.Server (GundeckAPI :<|> GundeckInternalAPI)
+servantSitemap' env = Servant.hoistServer (Proxy @(GundeckAPI :<|> GundeckInternalAPI)) toServantHandler (Public.servantSitemap :<|> Internal.servantSitemap)
   where
     toServantHandler :: Gundeck a -> Handler a
     toServantHandler m = Handler . ExceptT $ Right <$> runDirect env m

@@ -16,42 +16,31 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Gundeck.Presence
-  ( list,
-    listAll,
-    add,
-    remove,
+  ( listH,
+    listAllH,
+    addH,
+    removeH,
   )
 where
 
-import Data.ByteString.Conversion
+import Data.CommaSeparatedList
 import Data.Id
-import Data.Predicate
 import Gundeck.Monad
 import Gundeck.Presence.Data qualified as Data
 import Gundeck.Types
-import Gundeck.Util
 import Imports
-import Network.HTTP.Types
-import Network.Wai (Request, Response)
-import Network.Wai.Utilities
+import Servant.API
 
-list :: UserId ::: JSON -> Gundeck Response
-list (uid ::: _) = setStatus status200 . json <$> runWithDefaultRedis (Data.list uid)
+listH :: UserId -> Gundeck [Presence]
+listH = runWithDefaultRedis . Data.list
 
-listAll :: List UserId ::: JSON -> Gundeck Response
-listAll (uids ::: _) =
-  setStatus status200 . json . concat
-    <$> runWithDefaultRedis (Data.listAll (fromList uids))
+listAllH :: CommaSeparatedList UserId -> Gundeck [Presence]
+listAllH uids = concat <$> runWithDefaultRedis (Data.listAll (fromCommaSeparatedList uids))
 
-add :: Request ::: JSON -> Gundeck Response
-add (req ::: _) = do
-  p <- fromJsonBody (JsonRequest req)
+addH :: Presence -> Gundeck (Headers '[Header "Location" Gundeck.Types.URI] NoContent)
+addH p = do
   Data.add p
-  pure $
-    ( setStatus status201
-        . addHeader hLocation (toByteString' (resource p))
-    )
-      empty
+  pure (addHeader (resource p) NoContent)
 
-remove :: UserId ::: ConnId ::: CannonId -> Gundeck Response
-remove _ = pure (empty & setStatus status204)
+removeH :: UserId -> ConnId -> CannonId -> Gundeck NoContent
+removeH _ _ _ = pure NoContent

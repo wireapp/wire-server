@@ -16,12 +16,14 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Gundeck.API.Internal
-  ( sitemap,
+  ( type GundeckInternalAPI,
+    servantSitemap,
   )
 where
 
 import Cassandra qualified
 import Control.Lens (view)
+import Data.CommaSeparatedList
 import Data.Id
 import Gundeck.Client qualified as Client
 import Gundeck.Monad
@@ -29,63 +31,53 @@ import Gundeck.Presence qualified as Presence
 import Gundeck.Push qualified as Push
 import Gundeck.Push.Data qualified as PushTok
 import Gundeck.Push.Native.Types qualified as PushTok
-import Imports hiding (head)
-import Network.Wai
-import Network.Wai.Predicate hiding (setStatus)
-import Network.Wai.Routing hiding (route)
-import Network.Wai.Utilities
+import Gundeck.Types.Presence as GD
+import Gundeck.Types.Push.V2
+import Imports
+import Servant
 import Wire.API.Push.Token qualified as PushTok
+import Wire.API.Routes.Public
 
-sitemap :: Routes a Gundeck ()
-sitemap = do
-  head "/i/status" (continue $ const (pure empty)) true
-  get "/i/status" (continue $ const (pure empty)) true
+type GundeckInternalAPI =
+  "i"
+    :> ( ("status" :> Get '[JSON] NoContent)
+           :<|> ("push" :> "v2" :> ReqBody '[JSON] [Push] :> Post '[JSON] NoContent)
+           :<|> ( "presences"
+                    :> ( (QueryParam' [Required, Strict] "ids" (CommaSeparatedList UserId) :> Get '[JSON] [Presence])
+                           :<|> (Capture "uid" UserId :> Get '[JSON] [Presence])
+                           :<|> (ReqBody '[JSON] Presence :> Post '[JSON] (Headers '[Header "Location" GD.URI] NoContent))
+                           :<|> (Capture "uid" UserId :> "devices" :> Capture "did" ConnId :> "cannons" :> Capture "cannon" CannonId :> Delete '[JSON] NoContent)
+                       )
+                )
+           :<|> (ZUser :> "clients" :> Capture "cid" ClientId :> Delete '[JSON] NoContent)
+           :<|> (ZUser :> "user" :> Delete '[JSON] NoContent)
+           :<|> ("push-tokens" :> Capture "uid" UserId :> Get '[JSON] PushTokenList)
+       )
 
-  -- Push API -----------------------------------------------------------
+servantSitemap :: ServerT GundeckInternalAPI Gundeck
+servantSitemap =
+  statusH
+    :<|> pushH
+    :<|> ( Presence.listAllH
+             :<|> Presence.listH
+             :<|> Presence.addH
+             :<|> Presence.removeH
+         )
+    :<|> unregisterClientH
+    :<|> removeUserH
+    :<|> getPushTokensH
 
-  post "/i/push/v2" (continue pushH) $
-    request .&. accept "application" "json"
+statusH :: (Applicative m) => m NoContent
+statusH = pure NoContent
 
-  -- Presence API ----------------------------------------------------------
+pushH :: [Push] -> Gundeck NoContent
+pushH ps = NoContent <$ Push.push ps
 
-  get "/i/presences/:uid" (continue Presence.list) $
-    param "uid" .&. accept "application" "json"
+unregisterClientH :: UserId -> ClientId -> Gundeck NoContent
+unregisterClientH uid cid = NoContent <$ Client.unregister uid cid
 
-  get "/i/presences" (continue Presence.listAll) $
-    param "ids" .&. accept "application" "json"
+removeUserH :: UserId -> Gundeck NoContent
+removeUserH uid = NoContent <$ Client.removeUser uid
 
-  post "/i/presences" (continue Presence.add) $
-    request .&. accept "application" "json"
-
-  delete "/i/presences/:uid/devices/:did/cannons/:cannon" (continue Presence.remove) $
-    param "uid" .&. param "did" .&. param "cannon"
-
-  -- User-Client API -------------------------------------------------------
-
-  delete "/i/clients/:cid" (continue unregisterClientH) $
-    header "Z-User" .&. param "cid"
-
-  delete "/i/user" (continue removeUserH) $
-    header "Z-User"
-
-  get "/i/push-tokens/:uid" (continue getPushTokensH) $
-    param "uid"
-
-type JSON = Media "application" "json"
-
-pushH :: Request ::: JSON -> Gundeck Response
-pushH (req ::: _) = do
-  ps <- fromJsonBody (JsonRequest req)
-  empty <$ Push.push ps
-
-unregisterClientH :: UserId ::: ClientId -> Gundeck Response
-unregisterClientH (uid ::: cid) = empty <$ Client.unregister uid cid
-
-removeUserH :: UserId -> Gundeck Response
-removeUserH uid = empty <$ Client.removeUser uid
-
-getPushTokensH :: UserId -> Gundeck Response
-getPushTokensH = fmap json . getPushTokens
-
-getPushTokens :: UserId -> Gundeck PushTok.PushTokenList
-getPushTokens uid = PushTok.PushTokenList <$> (view PushTok.addrPushToken <$$> PushTok.lookup uid Cassandra.All)
+getPushTokensH :: UserId -> Gundeck PushTok.PushTokenList
+getPushTokensH uid = PushTok.PushTokenList <$> (view PushTok.addrPushToken <$$> PushTok.lookup uid Cassandra.All)
