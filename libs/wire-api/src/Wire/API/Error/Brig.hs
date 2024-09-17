@@ -40,6 +40,7 @@ data BrigError
   | NotConnected
   | InvalidTransition
   | NoIdentity
+  | NoUser
   | HandleExists
   | InvalidHandle
   | HandleNotFound
@@ -169,6 +170,8 @@ type instance MapError 'NotConnected = 'StaticError 403 "not-connected" "Users a
 type instance MapError 'InvalidTransition = 'StaticError 403 "bad-conn-update" "Invalid status transition"
 
 type instance MapError 'NoIdentity = 'StaticError 403 "no-identity" "The user has no verified email"
+
+type instance MapError 'NoUser = 'StaticError 403 "no-user" "The user does not exist"
 
 type instance MapError 'HandleExists = 'StaticError 409 "handle-exists" "The given handle is already taken"
 

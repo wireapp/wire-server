@@ -594,7 +594,7 @@ searchUsersImpl ::
   Maybe (Range 1 500 Int32) ->
   Sem r (SearchResult Contact)
 searchUsersImpl searcherId searchTerm maybeDomain maybeMaxResults = do
-  storedSearcher <- fromMaybe (error "TODO: searcher is not real") <$> UserStore.getUser (tUnqualified searcherId)
+  storedSearcher <- note UserSubsystemNoUser =<< UserStore.getUser (tUnqualified searcherId)
   for_ storedSearcher.teamId $ \tid -> ensurePermissions (tUnqualified searcherId) tid [SearchContacts]
   let localDomain = tDomain searcherId
       queryDomain = fromMaybe localDomain maybeDomain
