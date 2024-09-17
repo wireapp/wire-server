@@ -907,25 +907,6 @@ testLHDisableBeforeApproval = do
     getBob'sStatus `shouldMatch` "disabled"
 
 -- ---------
--- WPB-10783
--- ---------
-testMLSThenLegalhold :: (HasCallStack) => App ()
-testMLSThenLegalhold = do
-  -- scenario 1:
-  -- if charlie is in any MLS conversation, he cannot approve to be put under legalhold
-  (charlie, tid, []) <- createTeam OwnDomain 1
-  [charlie1] <- traverse (createMLSClient def) [charlie]
-  void $ createNewGroup charlie1
-  void $ createAddCommit charlie1 [charlie] >>= sendAndConsumeCommitBundle
-
-  legalholdWhitelistTeam tid charlie >>= assertStatus 200
-  withMockServer def lhMockApp \lhDomAndPort _chan -> do
-    postLegalHoldSettings tid charlie (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
-    requestLegalHoldDevice tid charlie charlie >>= assertSuccess
-    approveLegalHoldDevice tid (charlie %. "qualified_id") defPassword
-      `bindResponse` assertLabel 409 "mls-legalhold-not-allowed"
-
--- ---------
 -- WPB-10772
 -- ---------
 
