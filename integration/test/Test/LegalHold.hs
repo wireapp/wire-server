@@ -922,7 +922,7 @@ testBlockLHForMLSUsers = do
   withMockServer def lhMockApp \lhDomAndPort _chan -> do
     postLegalHoldSettings tid charlie (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
     requestLegalHoldDevice tid charlie charlie `bindResponse` do
-      assertLabel 409 "mls-legalhold-not-allowed"
+      assertLabel 409 "mls-legal-hold-not-allowed"
 
 -- ---------
 -- WPB-10772
