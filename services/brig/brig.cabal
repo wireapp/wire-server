@@ -391,7 +391,6 @@ executable brig-integration
     API.User.Client
     API.User.Connection
     API.User.Handles
-    API.User.PasswordReset
     API.User.RichInfo
     API.User.Util
     API.UserPendingActivation

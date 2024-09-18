@@ -194,6 +194,7 @@ library
     , bytestring-conversion
     , case-insensitive
     , containers
+    , cookie
     , cql
     , cql-io
     , crypton
@@ -208,7 +209,6 @@ library
     , extended
     , extra
     , filepath
-    , cookie
     , hex
     , hourglass
     , HsOpenSSL

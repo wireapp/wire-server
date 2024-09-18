@@ -84,6 +84,20 @@ testPasswordResetAfterEmailUpdate = do
     resp.status `shouldMatchInt` 400
     resp.json %. "label" `shouldMatch` "invalid-code"
 
+testPasswordResetInvalidPasswordLength :: App ()
+testPasswordResetInvalidPasswordLength = do
+  u <- randomUser OwnDomain def
+  email <- u %. "email" & asString
+  passwordReset u email >>= assertSuccess
+  (key, code) <- getPasswordResetData email
+
+  -- complete password reset with a password that is too short should fail
+  let shortPassword = "123456"
+  completePasswordReset u key code shortPassword >>= assertStatus 400
+
+  -- try login with new password should fail
+  login u email shortPassword >>= assertStatus 403
+
 getPasswordResetData :: String -> App (String, String)
 getPasswordResetData email = do
   bindResponse (getPasswordResetCode OwnDomain email) $ \resp -> do
