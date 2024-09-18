@@ -52,6 +52,8 @@
 , gitignoreSource
 , gundeck-types
 , hashable
+, hs-opentelemetry-instrumentation-wai
+, hs-opentelemetry-sdk
 , hscim
 , HsOpenSSL
 , http-api-data
@@ -153,6 +155,7 @@
 , warp-tls
 , wire-api
 , wire-api-federation
+, wire-otel
 , wire-subsystems
 , yaml
 , zauth
@@ -206,6 +209,8 @@ mkDerivation {
     galley-types
     gundeck-types
     hashable
+    hs-opentelemetry-instrumentation-wai
+    hs-opentelemetry-sdk
     HsOpenSSL
     http-client
     http-client-openssl
@@ -280,6 +285,7 @@ mkDerivation {
     wai-utilities
     wire-api
     wire-api-federation
+    wire-otel
     wire-subsystems
     zauth
   ];

@@ -456,9 +456,10 @@ startNginzLocal resource = do
   -- override port configuration
   let portConfigTemplate =
         [r|listen {localPort};
-listen {http2_port} http2;
-listen {ssl_port} ssl http2;
-listen [::]:{ssl_port} ssl http2;
+listen {http2_port};
+listen {ssl_port} ssl;
+listen [::]:{ssl_port} ssl;
+http2 on;
 |]
   let portConfig =
         portConfigTemplate
