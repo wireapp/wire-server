@@ -99,6 +99,7 @@ data BrigError
   | TooManyProperties
   | PropertyKeyTooLarge
   | PropertyValueTooLarge
+  | UserAlreadyInATeam
 
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: BrigError) where
   addToOpenApi = addStaticErrorToSwagger @(MapError e)
@@ -295,3 +296,5 @@ type instance MapError 'TooManyProperties = 'StaticError 403 "too-many-propertie
 type instance MapError 'PropertyKeyTooLarge = 'StaticError 403 "property-key-too-large" "The property key is too large."
 
 type instance MapError 'PropertyValueTooLarge = 'StaticError 403 "property-value-too-large" "The property value is too large"
+
+type instance MapError 'UserAlreadyInATeam = 'StaticError 403 "user-already-in-a-team" "Switching teams is not allowed"

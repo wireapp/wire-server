@@ -46,6 +46,11 @@ module Wire.API.User
     mkUserProfileWithEmail,
     userObjectSchema,
 
+    -- * UpgradePersonalToTeam
+    CreateUserTeam (..),
+    UpgradePersonalToTeamResponses,
+    UpgradePersonalToTeamError (..),
+
     -- * NewUser
     NewUserPublic (..),
     RegisterError (..),
@@ -771,6 +776,41 @@ isNewUserTeamMember u = case newUserTeam u of
 
 instance Arbitrary NewUserPublic where
   arbitrary = arbitrary `QC.suchThatMap` (rightMay . validateNewUserPublic)
+
+data CreateUserTeam = CreateUserTeam
+  { createdTeamId :: !TeamId,
+    createdTeamName :: !Text
+  }
+  deriving (Show)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema CreateUserTeam
+
+instance ToSchema CreateUserTeam where
+  schema =
+    object "CreateUserTeam" $
+      CreateUserTeam
+        <$> createdTeamId .= field "team_id" schema
+        <*> createdTeamName .= field "team_name" schema
+
+data UpgradePersonalToTeamError = UpgradePersonalToTeamErrorAlreadyInATeam
+  deriving (Show)
+
+type UpgradePersonalToTeamResponses =
+  '[ ErrorResponse UserAlreadyInATeam,
+     Respond 200 "Team created" CreateUserTeam
+   ]
+
+instance
+  AsUnion
+    UpgradePersonalToTeamResponses
+    (Either UpgradePersonalToTeamError CreateUserTeam)
+  where
+  toUnion (Left UpgradePersonalToTeamErrorAlreadyInATeam) =
+    Z (I (dynError @(MapError UserAlreadyInATeam)))
+  toUnion (Right x) = S (Z (I x))
+
+  fromUnion (Z (I _)) = Left UpgradePersonalToTeamErrorAlreadyInATeam
+  fromUnion (S (Z (I x))) = Right x
+  fromUnion (S (S x)) = case x of {}
 
 data RegisterError
   = RegisterErrorAllowlistError
