@@ -139,6 +139,7 @@ import OpenSSL.EVP.Digest (Digest, getDigestByName)
 import OpenSSL.Session (SSLOption (..))
 import OpenSSL.Session qualified as SSL
 import Polysemy
+import Polysemy.Fail
 import Polysemy.Final
 import Polysemy.Input (Input, input)
 import Prometheus
@@ -488,6 +489,9 @@ instance MonadMonitor (AppT r) where
 
 instance MonadThrow (AppT r) where
   throwM = liftIO . throwM
+
+instance (Member Fail r) => MonadFail (AppT r) where
+  fail = AppT . fail
 
 instance (Member (Final IO) r) => MonadThrow (Sem r) where
   throwM = embedFinal . throwM @IO

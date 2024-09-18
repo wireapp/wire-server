@@ -41,11 +41,13 @@ module Wire.API.Error
     throwS,
     noteS,
     mapErrorS,
+    runErrorS,
     mapToRuntimeError,
     mapToDynamicError,
   )
 where
 
+import Control.Error (hush)
 import Control.Lens (at, (%~), (.~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Aeson qualified as A
@@ -271,6 +273,9 @@ throwS = throw (Tagged @e ())
 
 noteS :: forall e r a. (Member (ErrorS e) r) => Maybe a -> Sem r a
 noteS = note (Tagged @e ())
+
+runErrorS :: forall e r a. Sem (ErrorS e : r) a -> Sem r (Maybe a)
+runErrorS = fmap hush . runError @(Tagged e ())
 
 mapErrorS ::
   forall e e' r a.

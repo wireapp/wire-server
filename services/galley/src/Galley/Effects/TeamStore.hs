@@ -125,6 +125,8 @@ data TeamStore m a where
     Maybe (PagingState CassandraPaging TeamMember) ->
     PagingBounds CassandraPaging TeamMember ->
     TeamStore m (Page CassandraPaging TeamMember)
+  -- FUTUREWORK(mangoiv): this should be a single 'TeamId' (@'Maybe' 'TeamId'@), there's no way
+  -- a user could be part of multiple teams
   GetUserTeams :: UserId -> TeamStore m [TeamId]
   GetUsersTeams :: [UserId] -> TeamStore m (Map UserId TeamId)
   GetOneUserTeam :: UserId -> TeamStore m (Maybe TeamId)

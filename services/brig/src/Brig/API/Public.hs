@@ -90,6 +90,7 @@ import Network.Wai.Utilities (CacheControl (..), (!>>))
 import Network.Wai.Utilities qualified as Utilities
 import Polysemy
 import Polysemy.Error
+import Polysemy.Fail (Fail)
 import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import Servant hiding (Handler, JSON, addHeader, respond)
@@ -267,6 +268,7 @@ servantSitemap ::
     Member (Embed HttpClientIO) r,
     Member (Embed IO) r,
     Member (Error UserSubsystemError) r,
+    Member Fail r,
     Member (Input (Local ())) r,
     Member (Input TeamTemplates) r,
     Member (UserPendingActivationStore p) r,

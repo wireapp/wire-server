@@ -1,0 +1,5 @@
+Makes it impossible for a user to join an MLS conversation while already under legalhold (at least pending)
+
+This implies two things: 
+1. If a user is under legalhold they cannot ever join an MLS conversation, not even an MLS self conversation.
+2. A user has to reject to be put under legalhold when they want to join an MLS conversation (ignoring the request to be put under legalhold is not enough).

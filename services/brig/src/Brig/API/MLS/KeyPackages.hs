@@ -40,9 +40,12 @@ import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import Data.CommaSeparatedList
 import Data.Id
+import Data.LegalHold
 import Data.Qualified
 import Data.Set qualified as Set
 import Imports
+import Polysemy (Member)
+import Polysemy.Fail (Fail)
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.MLS.CipherSuite
@@ -51,6 +54,9 @@ import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
 import Wire.API.Team.LegalHold
 import Wire.API.User.Client
+import Wire.GalleyAPIAccess (GalleyAPIAccess, getUserLegalholdStatus)
+import Wire.StoredUser
+import Wire.UserStore (UserStore, getUsers)
 
 uploadKeyPackages :: Local UserId -> ClientId -> KeyPackageUpload -> Handler r ()
 uploadKeyPackages lusr cid kps = do
@@ -60,6 +66,7 @@ uploadKeyPackages lusr cid kps = do
   lift . wrapClient $ Data.insertKeyPackages (tUnqualified lusr) cid kps'
 
 claimKeyPackages ::
+  (Member GalleyAPIAccess r, Member UserStore r, Member Fail r) =>
   Local UserId ->
   Maybe ClientId ->
   Qualified UserId ->
@@ -67,6 +74,7 @@ claimKeyPackages ::
   Handler r KeyPackageBundle
 claimKeyPackages lusr mClient target mSuite = do
   assertMLSEnabled
+
   suite <- getCipherSuite mSuite
   foldQualified
     lusr
@@ -75,12 +83,22 @@ claimKeyPackages lusr mClient target mSuite = do
     target
 
 claimLocalKeyPackages ::
+  forall r.
+  (Member GalleyAPIAccess r, Member UserStore r, Member Fail r) =>
   Qualified UserId ->
   Maybe ClientId ->
   CipherSuiteTag ->
   Local UserId ->
   ExceptT ClientError (AppT r) KeyPackageBundle
 claimLocalKeyPackages qusr skipOwn suite target = do
+  -- while we do not support federation + MLS together with legalhold, to make sure that
+  -- the remote backend is complicit with our legalhold policies, we disallow anyone
+  -- fetching key packages for users under legalhold
+  --
+  -- This way we prevent both locally and on the remote to add a legalholded user to an MLS
+  -- conversation
+  assertUserNotLegalholded
+
   -- skip own client when the target is the requesting user itself
   let own = guard (qusr == tUntagged target) *> skipOwn
   clients <- map clientId <$> wrapClientE (Data.lookupClients (tUnqualified target))
@@ -102,6 +120,21 @@ claimLocalKeyPackages qusr skipOwn suite target = do
         guard $ Just c /= own
         uncurry (KeyPackageBundleEntry (tUntagged target) c)
           <$> wrapClientM (Data.claimKeyPackage target c suite)
+
+    assertUserNotLegalholded :: ExceptT ClientError (AppT r) ()
+    assertUserNotLegalholded = do
+      -- this is okay because there can only be one StoredUser per UserId
+      [su] <- lift $ liftSem $ getUsers [tUnqualified target]
+      for_ su.teamId \tid -> do
+        resp <- lift $ liftSem $ getUserLegalholdStatus target tid
+        -- if an admin tries to put a user under legalhold
+        -- the user has to first reject to be put under legalhold
+        -- before they can join conversations again
+        case resp.ulhsrStatus of
+          UserLegalHoldPending -> throwE ClientLegalHoldIncompatible
+          UserLegalHoldEnabled -> throwE ClientLegalHoldIncompatible
+          UserLegalHoldDisabled -> pure ()
+          UserLegalHoldNoConsent -> pure ()
 
 claimRemoteKeyPackages ::
   Local UserId ->

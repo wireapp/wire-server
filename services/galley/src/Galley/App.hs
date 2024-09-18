@@ -92,6 +92,7 @@ import OpenSSL.Session as Ssl
 import Polysemy
 import Polysemy.Async
 import Polysemy.Error
+import Polysemy.Fail
 import Polysemy.Input
 import Polysemy.Internal (Append)
 import Polysemy.Resource
@@ -124,6 +125,7 @@ type GalleyEffects0 =
      Error FederationError,
      Async,
      Delay,
+     Fail,
      Embed IO,
      Error JSONResponse,
      Resource,
@@ -243,6 +245,7 @@ evalGalley e =
     . resourceToIOFinal
     . runError
     . embedToFinal @IO
+    . failToEmbed @IO
     . runDelay
     . asyncToIOFinal
     . mapError toResponse
