@@ -74,6 +74,7 @@ library
     Wire.API.Bot
     Wire.API.Bot.Service
     Wire.API.Call.Config
+    Wire.API.CannonId
     Wire.API.Connection
     Wire.API.Conversation
     Wire.API.Conversation.Action
@@ -136,6 +137,7 @@ library
     Wire.API.Notification
     Wire.API.OAuth
     Wire.API.Password
+    Wire.API.Presence
     Wire.API.Properties
     Wire.API.Provider
     Wire.API.Provider.Bot
@@ -143,6 +145,7 @@ library
     Wire.API.Provider.Service
     Wire.API.Provider.Service.Tag
     Wire.API.Push.Token
+    Wire.API.Push.V2
     Wire.API.Push.V2.Token
     Wire.API.RawJson
     Wire.API.Routes.API
@@ -164,6 +167,7 @@ library
     Wire.API.Routes.Internal.Galley.ConversationsIntra
     Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti
     Wire.API.Routes.Internal.Galley.TeamsIntra
+    Wire.API.Routes.Internal.Gundeck
     Wire.API.Routes.Internal.LegalHold
     Wire.API.Routes.Internal.Spar
     Wire.API.Routes.LowLevelStream
@@ -300,6 +304,7 @@ library
     , metrics-wai
     , mime                       >=0.4
     , mtl
+    , network-uri
     , openapi3
     , pem                        >=0.2
     , polysemy
