@@ -921,9 +921,8 @@ testMLSThenLegalhold = do
   legalholdWhitelistTeam tid charlie >>= assertStatus 200
   withMockServer def lhMockApp \lhDomAndPort _chan -> do
     postLegalHoldSettings tid charlie (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
-    requestLegalHoldDevice tid charlie charlie >>= assertSuccess
-    approveLegalHoldDevice tid (charlie %. "qualified_id") defPassword
-      `bindResponse` assertLabel 409 "mls-legalhold-not-allowed"
+    requestLegalHoldDevice tid charlie charlie `bindResponse` do
+      assertLabel 409 "mls-legalhold-not-allowed"
 
 -- ---------
 -- WPB-10772
