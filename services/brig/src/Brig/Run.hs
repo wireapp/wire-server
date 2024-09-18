@@ -126,7 +126,6 @@ mkApp o = do
         . GZip.gzip GZip.def
         . catchErrors (e ^. applog) defaultRequestIdHeaderName
 
-    -- the servant API wraps the one defined using wai-routing
     servantApp :: Env -> Wai.Application
     servantApp e0 req cont = do
       let rid = getRequestId defaultRequestIdHeaderName req

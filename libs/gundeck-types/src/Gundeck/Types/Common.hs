@@ -24,8 +24,10 @@ import Data.Attoparsec.ByteString (takeByteString)
 import Data.ByteString.Char8 qualified as Bytes
 import Data.ByteString.Conversion
 import Data.Text qualified as Text
+import Data.Text.Encoding (decodeUtf8)
 import Imports
 import Network.URI qualified as Net
+import Servant.API (FromHttpApiData (parseUrlPiece), ToHttpApiData (toUrlPiece))
 
 newtype CannonId = CannonId
   { cannonId :: Text
@@ -39,6 +41,9 @@ newtype CannonId = CannonId
       FromByteString,
       ToByteString
     )
+
+instance FromHttpApiData CannonId where
+  parseUrlPiece = pure . CannonId
 
 newtype URI = URI
   { fromURI :: Net.URI
@@ -56,6 +61,9 @@ instance ToByteString URI where
 
 instance FromByteString URI where
   parser = takeByteString >>= parse . Bytes.unpack
+
+instance ToHttpApiData URI where
+  toUrlPiece = decodeUtf8 . toByteString'
 
 parse :: (MonadFail m) => String -> m URI
 parse = maybe (fail "Invalid URI") (pure . URI) . Net.parseURI

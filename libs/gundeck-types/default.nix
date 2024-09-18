@@ -14,6 +14,7 @@
 , lens
 , lib
 , network-uri
+, servant
 , text
 , types-common
 , wire-api
@@ -32,6 +33,7 @@ mkDerivation {
     imports
     lens
     network-uri
+    servant
     text
     types-common
     wire-api
