@@ -636,3 +636,30 @@ renewToken :: (HasCallStack, MakesValue uid) => uid -> String -> App Response
 renewToken caller cookie = do
   req <- baseRequest caller Brig Versioned "access"
   submit "POST" (addHeader "Cookie" ("zuid=" <> cookie) req)
+
+activate :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
+activate domain key code = do
+  req <- rawBaseRequest domain Brig Versioned $ joinHttpPath ["activate"]
+  submit "GET" $
+    req
+      & addQueryParams [("key", key), ("code", code)]
+
+passwordReset :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
+passwordReset domain email = do
+  req <- baseRequest domain Brig Versioned "password-reset"
+  submit "POST" $ req & addJSONObject ["email" .= email]
+
+completePasswordReset :: (HasCallStack, MakesValue domain) => domain -> String -> String -> String -> App Response
+completePasswordReset domain key code pw = do
+  req <- baseRequest domain Brig Versioned $ joinHttpPath ["password-reset", "complete"]
+  submit "POST" $ req & addJSONObject ["key" .= key, "code" .= code, "password" .= pw]
+
+login :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
+login domain email password = do
+  req <- baseRequest domain Brig Versioned "login"
+  submit "POST" $ req & addJSONObject ["email" .= email, "password" .= password] & addQueryParams [("persist", "true")]
+
+updateEmail :: (HasCallStack, MakesValue user) => user -> String -> String -> String -> App Response
+updateEmail user email cookie token = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["access", "self", "email"]
+  submit "PUT" $ req & addJSONObject ["email" .= email] & setCookie cookie & addHeader "Authorization" ("Bearer " <> token)

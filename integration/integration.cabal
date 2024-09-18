@@ -136,6 +136,7 @@ library
     Test.MLS.SubConversation
     Test.MLS.Unreachable
     Test.Notifications
+    Test.PasswordReset
     Test.Presence
     Test.Roles
     Test.Search
@@ -179,6 +180,7 @@ library
     , bytestring-conversion
     , case-insensitive
     , containers
+    , cookie
     , cql
     , cql-io
     , crypton
