@@ -795,3 +795,18 @@ listInvitations :: (HasCallStack, MakesValue user) => user -> String -> App Resp
 listInvitations user tid = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", tid, "invitations"]
   submit "GET" req
+
+passwordReset :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
+passwordReset domain email = do
+  req <- baseRequest domain Brig Versioned "password-reset"
+  submit "POST" $ req & addJSONObject ["email" .= email]
+
+completePasswordReset :: (HasCallStack, MakesValue domain) => domain -> String -> String -> String -> App Response
+completePasswordReset domain key code pw = do
+  req <- baseRequest domain Brig Versioned $ joinHttpPath ["password-reset", "complete"]
+  submit "POST" $ req & addJSONObject ["key" .= key, "code" .= code, "password" .= pw]
+
+login :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
+login domain email password = do
+  req <- baseRequest domain Brig Versioned "login"
+  submit "POST" $ req & addJSONObject ["email" .= email, "password" .= password] & addQueryParams [("persist", "true")]

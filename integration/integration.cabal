@@ -140,6 +140,7 @@ library
     Test.MLS.Unreachable
     Test.Notifications
     Test.OAuth
+    Test.PasswordReset
     Test.Presence
     Test.Property
     Test.Provider
