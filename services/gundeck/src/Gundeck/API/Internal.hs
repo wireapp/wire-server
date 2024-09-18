@@ -23,8 +23,10 @@ where
 
 import Cassandra qualified
 import Control.Lens (view)
+import Data.Aeson (eitherDecode)
 import Data.CommaSeparatedList
 import Data.Id
+import Data.Typeable
 import Gundeck.Client qualified as Client
 import Gundeck.Monad
 import Gundeck.Presence qualified as Presence
@@ -34,9 +36,44 @@ import Gundeck.Push.Native.Types qualified as PushTok
 import Gundeck.Types.Presence as GD
 import Gundeck.Types.Push.V2
 import Imports
+import Network.Wai (lazyRequestBody)
 import Servant
+import Servant.Server.Internal.Delayed
+import Servant.Server.Internal.DelayedIO
+import Servant.Server.Internal.ErrorFormatter
 import Wire.API.Push.Token qualified as PushTok
 import Wire.API.Routes.Public
+
+-- | this can be replaced by `ReqBody '[JSON] Presence` once the fix in cannon from
+-- https://github.com/wireapp/wire-server/pull/4246 has been deployed everywhere.
+data ReqBodyHack
+
+-- | cloned from instance for ReqBody'.
+instance
+  ( HasServer api context,
+    HasContextEntry (MkContextWithErrorFormatter context) ErrorFormatters
+  ) =>
+  HasServer (ReqBodyHack :> api) context
+  where
+  type ServerT (ReqBodyHack :> api) m = Presence -> ServerT api m
+
+  hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
+
+  route Proxy context subserver =
+    route (Proxy :: Proxy api) context $
+      addBodyCheck subserver ctCheck bodyCheck
+    where
+      rep = typeRep (Proxy :: Proxy ReqBodyHack)
+      formatError = bodyParserErrorFormatter $ getContextEntry (mkContextWithErrorFormatter context)
+
+      ctCheck = return eitherDecode
+
+      -- Body check, we get a body parsing functions as the first argument.
+      bodyCheck f = withRequest $ \request -> do
+        mrqbody <- f <$> liftIO (lazyRequestBody request)
+        case mrqbody of
+          Left e -> delayedFailFatal $ formatError rep request e
+          Right v -> return v
 
 type GundeckInternalAPI =
   "i"
@@ -45,7 +82,7 @@ type GundeckInternalAPI =
            :<|> ( "presences"
                     :> ( (QueryParam' [Required, Strict] "ids" (CommaSeparatedList UserId) :> Get '[JSON] [Presence])
                            :<|> (Capture "uid" UserId :> Get '[JSON] [Presence])
-                           :<|> (ReqBody '[JSON] Presence :> Post '[JSON] (Headers '[Header "Location" GD.URI] NoContent))
+                           :<|> (ReqBodyHack :> Post '[JSON] (Headers '[Header "Location" GD.URI] NoContent))
                            :<|> (Capture "uid" UserId :> "devices" :> Capture "did" ConnId :> "cannons" :> Capture "cannon" CannonId :> Delete '[JSON] NoContent)
                        )
                 )
