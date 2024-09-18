@@ -37,7 +37,8 @@ inMemoryUserStoreInterpreter = interpret $ \case
           else u
   GetIndexUser uid ->
     gets $ fmap storedUserToIndexUser . find (\user -> user.id == uid)
-  GetIndexUsersPaginated _pageSize _pagingState -> undefined
+  GetIndexUsersPaginated _pageSize _pagingState ->
+    error "GetIndexUsersPaginated not implemented in inMemoryUserStoreInterpreter"
   UpdateUserHandleEither uid hUpdate -> runError $ modifyLocalUsers (traverse doUpdate)
     where
       doUpdate :: StoredUser -> Sem (Error StoredUserUpdateError : r) StoredUser

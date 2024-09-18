@@ -18,11 +18,16 @@ inMemoryFederationConfigStoreInterpreter =
     AddFederationConfig newCfg -> do
       modify $ (newCfg :) . deleteBy (\a b -> a.domain == b.domain) newCfg
       pure AddFederationRemoteSuccess
-    UpdateFederationConfig cfg -> undefined cfg
-    AddFederationRemoteTeam domain team -> undefined domain team
-    RemoveFederationRemoteTeam domain team -> undefined domain team
-    GetFederationRemoteTeams domain -> undefined domain
-    BackendFederatesWith remoteMaybeTeam -> undefined remoteMaybeTeam
+    UpdateFederationConfig _ ->
+      error "UpdateFederationConfig not implemented in inMemoryFederationConfigStoreInterpreter"
+    AddFederationRemoteTeam _ _ ->
+      error "AddFederationRemoteTeam not implemented in inMemoryFederationConfigStoreInterpreter"
+    RemoveFederationRemoteTeam _ _ ->
+      error "RemoveFederationRemoteTeam not implemented in inMemoryFederationConfigStoreInterpreter"
+    GetFederationRemoteTeams _ ->
+      error "GetFederationRemoteTeams not implemented in inMemoryFederationConfigStoreInterpreter"
+    BackendFederatesWith _ ->
+      error "BackendFederatesWith not implemented in inMemoryFederationConfigStoreInterpreter"
 
 runFederationConfigStoreInMemory :: InterpreterFor FederationConfigStore r
 runFederationConfigStoreInMemory =
