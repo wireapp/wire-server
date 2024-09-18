@@ -133,6 +133,7 @@ type LegalHoldAPI =
                :> CanThrow 'LegalHoldServiceBadResponse
                :> CanThrow 'LegalHoldServiceNotRegistered
                :> CanThrow 'LegalHoldCouldNotBlockConnections
+               :> CanThrow 'MLSLegalholdIncompatible
                :> CanThrow 'UserLegalHoldIllegalOperation
                :> Description
                     "This endpoint can lead to the following events being sent:\n\
