@@ -52,6 +52,7 @@ import Gundeck.Types.Push qualified as Push
 import Imports hiding ((\\))
 import Network.Wai.Utilities.Error ((!>>))
 import Polysemy
+import Polysemy.Fail (Fail)
 import Servant (ServerT)
 import Servant.API
 import Wire.API.Connection
@@ -87,6 +88,7 @@ federationSitemap ::
     Member NotificationSubsystem r,
     Member UserSubsystem r,
     Member UserStore r,
+    Member Fail r,
     Member DeleteQueue r
   ) =>
   ServerT FederationAPI (Handler r)
@@ -193,7 +195,7 @@ claimMultiPrekeyBundle ::
   Handler r UserClientPrekeyMap
 claimMultiPrekeyBundle _ uc = API.claimLocalMultiPrekeyBundles LegalholdPlusFederationNotImplemented uc !>> clientError
 
-fedClaimKeyPackages :: Domain -> ClaimKeyPackageRequest -> Handler r (Maybe KeyPackageBundle)
+fedClaimKeyPackages :: (Member Fail r, Member GalleyAPIAccess r, Member UserStore r) => Domain -> ClaimKeyPackageRequest -> Handler r (Maybe KeyPackageBundle)
 fedClaimKeyPackages domain ckpr =
   isMLSEnabled >>= \case
     True -> do

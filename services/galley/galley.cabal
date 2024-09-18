@@ -82,6 +82,7 @@ library
     Galley.API.Internal
     Galley.API.LegalHold
     Galley.API.LegalHold.Conflicts
+    Galley.API.LegalHold.Get
     Galley.API.LegalHold.Team
     Galley.API.Mapping
     Galley.API.Message

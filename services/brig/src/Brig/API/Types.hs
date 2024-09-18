@@ -176,6 +176,9 @@ data ClientError
   | ClientUserNotFound !UserId
   | ClientLegalHoldCannotBeRemoved
   | ClientLegalHoldCannotBeAdded
+  | -- | this error is thrown if legalhold if incompatible with different features
+    --   for now, this is the case for MLS and federation
+    ClientLegalHoldIncompatible
   | ClientFederationError FederationError
   | ClientCapabilitiesCannotBeRemoved
   | ClientMissingLegalholdConsentOldClients

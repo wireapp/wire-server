@@ -72,33 +72,34 @@ type MLSMessagingAPI =
     :<|> Named
            "mls-commit-bundle"
            ( Summary "Post a MLS CommitBundle"
-               :> From 'V5
-               :> MakesFederatedCall 'Galley "on-mls-message-sent"
-               :> MakesFederatedCall 'Galley "mls-welcome"
-               :> MakesFederatedCall 'Galley "send-mls-commit-bundle"
-               :> MakesFederatedCall 'Galley "on-conversation-updated"
-               :> MakesFederatedCall 'Brig "get-mls-clients"
-               :> MakesFederatedCall 'Brig "get-users-by-ids"
-               :> MakesFederatedCall 'Brig "api-version"
-               :> CanThrow 'ConvAccessDenied
-               :> CanThrow 'ConvMemberNotFound
-               :> CanThrow 'ConvNotFound
-               :> CanThrow 'LegalHoldNotEnabled
-               :> CanThrow 'MissingLegalholdConsent
-               :> CanThrow 'MLSClientMismatch
-               :> CanThrow 'MLSClientSenderUserMismatch
-               :> CanThrow 'MLSCommitMissingReferences
-               :> CanThrow 'MLSGroupConversationMismatch
-               :> CanThrow 'MLSInvalidLeafNodeIndex
-               :> CanThrow 'MLSNotEnabled
-               :> CanThrow 'MLSProposalNotFound
-               :> CanThrow 'MLSProtocolErrorTag
-               :> CanThrow 'MLSSelfRemovalNotAllowed
-               :> CanThrow 'MLSStaleMessage
-               :> CanThrow 'MLSSubConvClientNotInParent
-               :> CanThrow 'MLSUnsupportedMessage
-               :> CanThrow 'MLSUnsupportedProposal
-               :> CanThrow 'MLSWelcomeMismatch
+               :> From V5
+               :> MakesFederatedCall Galley "on-mls-message-sent"
+               :> MakesFederatedCall Galley "mls-welcome"
+               :> MakesFederatedCall Galley "send-mls-commit-bundle"
+               :> MakesFederatedCall Galley "on-conversation-updated"
+               :> MakesFederatedCall Brig "get-mls-clients"
+               :> MakesFederatedCall Brig "get-users-by-ids"
+               :> MakesFederatedCall Brig "api-version"
+               :> CanThrow ConvAccessDenied
+               :> CanThrow ConvMemberNotFound
+               :> CanThrow ConvNotFound
+               :> CanThrow LegalHoldNotEnabled
+               :> CanThrow MissingLegalholdConsent
+               :> CanThrow MLSClientMismatch
+               :> CanThrow MLSClientSenderUserMismatch
+               :> CanThrow MLSCommitMissingReferences
+               :> CanThrow MLSGroupConversationMismatch
+               :> CanThrow MLSInvalidLeafNodeIndex
+               :> CanThrow MLSNotEnabled
+               :> CanThrow MLSProposalNotFound
+               :> CanThrow MLSProtocolErrorTag
+               :> CanThrow MLSSelfRemovalNotAllowed
+               :> CanThrow MLSStaleMessage
+               :> CanThrow MLSSubConvClientNotInParent
+               :> CanThrow MLSUnsupportedMessage
+               :> CanThrow MLSUnsupportedProposal
+               :> CanThrow MLSWelcomeMismatch
+               :> CanThrow MLSLegalholdIncompatible
                :> CanThrow MLSProposalFailure
                :> CanThrow NonFederatingBackends
                :> CanThrow UnreachableBackends
@@ -107,7 +108,7 @@ type MLSMessagingAPI =
                :> ZClient
                :> ZConn
                :> ReqBody '[MLS] (RawMLS CommitBundle)
-               :> MultiVerb1 'POST '[JSON] (Respond 201 "Commit accepted and forwarded" MLSMessageSendingStatus)
+               :> MultiVerb1 POST '[JSON] (Respond 201 "Commit accepted and forwarded" MLSMessageSendingStatus)
            )
     :<|> Named
            "mls-public-keys"

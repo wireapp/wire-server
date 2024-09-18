@@ -46,6 +46,7 @@ import Wire.API.Routes.Version
 import Wire.API.Team
 import Wire.API.Team.Conversation qualified as Conv
 import Wire.API.Team.Feature
+import Wire.API.Team.LegalHold
 import Wire.API.Team.Member as Member
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
@@ -80,6 +81,7 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           GetTeamName id' -> getTeamName id'
           GetTeamLegalHoldStatus id' -> getTeamLegalHoldStatus id'
           GetTeamSearchVisibility id' -> getTeamSearchVisibility id'
+          GetUserLegalholdStatus id' tid -> getUserLegalholdStatus id' tid
           ChangeTeamStatus id' ts m_al -> changeTeamStatus id' ts m_al
           MemberIsTeamOwner id' id'' -> memberIsTeamOwner id' id''
           GetAllTeamFeaturesForUser m_id' -> getAllTeamFeaturesForUser m_id'
@@ -88,6 +90,24 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           IsMLSOne2OneEstablished lusr qother -> checkMLSOne2OneEstablished lusr qother
           UnblockConversation lusr mconn qcnv -> unblockConversation v lusr mconn qcnv
           GetEJPDConvInfo uid -> getEJPDConvInfo uid
+
+getUserLegalholdStatus ::
+  ( Member TinyLog r,
+    Member (Error ParseException) r,
+    Member Rpc r
+  ) =>
+  Local UserId ->
+  TeamId ->
+  Sem (Input Endpoint : r) UserLegalHoldStatusResponse
+getUserLegalholdStatus luid tid = do
+  debug $
+    remote "galley"
+      . msg (val "get legalhold user status")
+  decodeBodyOrThrow "galley" =<< galleyRequest do
+    method GET
+      . paths ["teams", toByteString' tid, "legalhold", toByteString' (tUnqualified luid)]
+      . zUser (tUnqualified luid)
+      . expect2xx
 
 galleyRequest :: (Member Rpc r, Member (Input Endpoint) r) => (Request -> Request) -> Sem r (Response (Maybe LByteString))
 galleyRequest req = do

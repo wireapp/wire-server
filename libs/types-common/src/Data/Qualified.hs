@@ -31,6 +31,7 @@ module Data.Qualified
     tSplit,
     qTagUnsafe,
     Remote,
+    RelativeTo (Remote, Local, RelativeTo),
     toRemoteUnsafe,
     Local,
     toLocalUnsafe,
@@ -121,11 +122,24 @@ qualifyAs :: QualifiedWithTag t x -> a -> QualifiedWithTag t a
 qualifyAs = ($>)
 
 foldQualified :: Local x -> (Local a -> b) -> (Remote a -> b) -> Qualified a -> b
-foldQualified loc f g q
-  | tDomain loc == qDomain q =
-      f (qTagUnsafe q)
-  | otherwise =
-      g (qTagUnsafe q)
+foldQualified loc kLocal kRemote q = case q `RelativeTo` loc of
+  Local l -> kLocal l
+  Remote r -> kRemote r
+
+data a `RelativeTo` x = Qualified a `RelativeTo` Local x
+
+checkRelative :: a `RelativeTo` x -> Either (Local a) (Remote a)
+checkRelative (q `RelativeTo` loc)
+  | tDomain loc == qDomain q = Left (qTagUnsafe q)
+  | otherwise = Right (qTagUnsafe q)
+
+pattern Local :: forall a x. Local a -> a `RelativeTo` x
+pattern Local loc <- (checkRelative -> Left loc)
+
+pattern Remote :: forall a x. Remote a -> a `RelativeTo` x
+pattern Remote rem <- (checkRelative -> Right rem)
+
+{-# COMPLETE Local, Remote #-}
 
 -- Partition a collection of qualified values into locals and remotes.
 --
