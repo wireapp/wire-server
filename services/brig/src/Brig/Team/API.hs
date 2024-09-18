@@ -114,11 +114,14 @@ servantAPI ::
   ServerT TeamsAPI (Handler r)
 servantAPI =
   Named @"send-team-invitation" createInvitation
-    :<|> Named @"get-team-invitations" listInvitations
-    :<|> Named @"get-team-invitation" getInvitation
-    :<|> Named @"delete-team-invitation" deleteInvitation
+    :<|> Named @"get-team-invitations"
+      (\u t inv s -> lift . liftSem $ listInvitations u t inv s)
+    :<|> Named @"get-team-invitation"
+      (\u t inv -> lift . liftSem $ getInvitation u t inv)
+    :<|> Named @"delete-team-invitation"
+      (\u t inv -> lift . liftSem $ deleteInvitation u t inv)
     :<|> Named @"get-team-invitation-info" getInvitationByCode
-    :<|> Named @"head-team-invitations" headInvitationByEmail
+    :<|> Named @"head-team-invitations" (lift . liftSem . headInvitationByEmail)
     :<|> Named @"get-team-size" teamSizePublic
     :<|> Named @"accept-team-invitation" acceptTeamInvitationByPersonalUser
 
@@ -332,8 +335,8 @@ deleteInvitation ::
   UserId ->
   TeamId ->
   InvitationId ->
-  (Handler r) ()
-deleteInvitation uid tid iid = (lift . liftSem) do
+  Sem r ()
+deleteInvitation uid tid iid = do
   ensurePermissions uid tid [AddTeamMember]
   Store.deleteInvitation tid iid
 
@@ -351,8 +354,8 @@ listInvitations ::
   TeamId ->
   Maybe InvitationId ->
   Maybe (Range 1 500 Int32) ->
-  (Handler r) Public.InvitationList
-listInvitations uid tid startingId mSize = (lift . liftSem) do
+  Sem r Public.InvitationList
+listInvitations uid tid startingId mSize = do
   ensurePermissions uid tid [AddTeamMember]
   showInvitationUrl <- GalleyAPIAccess.getExposeInvitationURLsToTeamAdmin tid
   let toInvitations is = mapM (toInvitationHack showInvitationUrl) is
@@ -462,8 +465,8 @@ getInvitation ::
   UserId ->
   TeamId ->
   InvitationId ->
-  (Handler r) (Maybe Public.Invitation)
-getInvitation uid tid iid = (lift . liftSem) do
+  Sem r (Maybe Public.Invitation)
+getInvitation uid tid iid = do
   ensurePermissions uid tid [AddTeamMember]
 
   invitationM <- Store.lookupInvitation tid iid
@@ -482,18 +485,19 @@ getInvitationByCode c = do
   inv <- lift . liftSem $ Store.lookupInvitationByCode c
   maybe (throwStd $ errorToWai @'E.InvalidInvitationCode) (pure . Store.invitationFromStored Nothing) inv
 
-headInvitationByEmail :: (Member InvitationCodeStore r, Member TinyLog r) => EmailAddress -> (Handler r) Public.HeadInvitationByEmailResult
+headInvitationByEmail ::
+  (Member InvitationCodeStore r, Member TinyLog r) =>
+  EmailAddress ->
+  Sem r Public.HeadInvitationByEmailResult
 headInvitationByEmail email =
-  lift $
-    liftSem $
-      Store.lookupInvitationCodesByEmail email >>= \case
-        [] -> pure Public.InvitationByEmailNotFound
-        [_code] -> pure Public.InvitationByEmail
-        (_ : _ : _) -> do
-          Log.info $
-            Log.msg (Log.val "team_invidation_email: multiple pending invites from different teams for the same email")
-              . Log.field "email" (show email)
-          pure Public.InvitationByEmailMoreThanOne
+  Store.lookupInvitationCodesByEmail email >>= \case
+    [] -> pure Public.InvitationByEmailNotFound
+    [_code] -> pure Public.InvitationByEmail
+    (_ : _ : _) -> do
+      Log.info $
+        Log.msg (Log.val "team_invidation_email: multiple pending invites from different teams for the same email")
+          . Log.field "email" (show email)
+      pure Public.InvitationByEmailMoreThanOne
 
 -- | FUTUREWORK: This should also respond with status 409 in case of
 -- @DB.InvitationByEmailMoreThanOne@.  Refactor so that 'headInvitationByEmailH' and
