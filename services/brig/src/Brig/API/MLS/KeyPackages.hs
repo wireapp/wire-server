@@ -45,7 +45,6 @@ import Data.Qualified
 import Data.Set qualified as Set
 import Imports
 import Polysemy (Member)
-import Polysemy.Fail (Fail)
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.MLS.CipherSuite
@@ -56,7 +55,7 @@ import Wire.API.Team.LegalHold
 import Wire.API.User.Client
 import Wire.GalleyAPIAccess (GalleyAPIAccess, getUserLegalholdStatus)
 import Wire.StoredUser
-import Wire.UserStore (UserStore, getUsers)
+import Wire.UserStore (UserStore, getUser)
 
 uploadKeyPackages :: Local UserId -> ClientId -> KeyPackageUpload -> Handler r ()
 uploadKeyPackages lusr cid kps = do
@@ -66,7 +65,9 @@ uploadKeyPackages lusr cid kps = do
   lift . wrapClient $ Data.insertKeyPackages (tUnqualified lusr) cid kps'
 
 claimKeyPackages ::
-  (Member GalleyAPIAccess r, Member UserStore r, Member Fail r) =>
+  ( Member GalleyAPIAccess r,
+    Member UserStore r
+  ) =>
   Local UserId ->
   Maybe ClientId ->
   Qualified UserId ->
@@ -84,7 +85,9 @@ claimKeyPackages lusr mClient target mSuite = do
 
 claimLocalKeyPackages ::
   forall r.
-  (Member GalleyAPIAccess r, Member UserStore r, Member Fail r) =>
+  ( Member GalleyAPIAccess r,
+    Member UserStore r
+  ) =>
   Qualified UserId ->
   Maybe ClientId ->
   CipherSuiteTag ->
@@ -124,17 +127,20 @@ claimLocalKeyPackages qusr skipOwn suite target = do
     assertUserNotLegalholded :: ExceptT ClientError (AppT r) ()
     assertUserNotLegalholded = do
       -- this is okay because there can only be one StoredUser per UserId
-      [su] <- lift $ liftSem $ getUsers [tUnqualified target]
-      for_ su.teamId \tid -> do
-        resp <- lift $ liftSem $ getUserLegalholdStatus target tid
-        -- if an admin tries to put a user under legalhold
-        -- the user has to first reject to be put under legalhold
-        -- before they can join conversations again
-        case resp.ulhsrStatus of
-          UserLegalHoldPending -> throwE ClientLegalHoldIncompatible
-          UserLegalHoldEnabled -> throwE ClientLegalHoldIncompatible
-          UserLegalHoldDisabled -> pure ()
-          UserLegalHoldNoConsent -> pure ()
+      mSu <- lift $ liftSem $ getUser (tUnqualified target)
+      case mSu of
+        Nothing -> pure () -- Legalhold is a team feature.
+        Just su ->
+          for_ su.teamId $ \tid -> do
+            resp <- lift $ liftSem $ getUserLegalholdStatus target tid
+            -- if an admin tries to put a user under legalhold
+            -- the user has to first reject to be put under legalhold
+            -- before they can join conversations again
+            case resp.ulhsrStatus of
+              UserLegalHoldPending -> throwE ClientLegalHoldIncompatible
+              UserLegalHoldEnabled -> throwE ClientLegalHoldIncompatible
+              UserLegalHoldDisabled -> pure ()
+              UserLegalHoldNoConsent -> pure ()
 
 claimRemoteKeyPackages ::
   Local UserId ->

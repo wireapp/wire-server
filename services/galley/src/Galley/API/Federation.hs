@@ -67,7 +67,6 @@ import Gundeck.Types.Push.V2 (RecipientClients (..))
 import Imports
 import Polysemy
 import Polysemy.Error
-import Polysemy.Fail (Fail)
 import Polysemy.Input
 import Polysemy.Internal.Kind (Append)
 import Polysemy.Resource
@@ -606,7 +605,6 @@ sendMLSCommitBundle ::
     Member (Input UTCTime) r,
     Member LegalHoldStore r,
     Member MemberStore r,
-    Member Fail r,
     Member Resource r,
     Member TeamStore r,
     Member P.TinyLog r,
@@ -629,17 +627,19 @@ sendMLSCommitBundle remoteDomain msr = handleMLSMessageErrors $ do
   (ctype, qConvOrSub) <- getConvFromGroupId ibundle.groupId
   when (qUnqualified qConvOrSub /= msr.convOrSubId) $ throwS @'MLSGroupConversationMismatch
   -- this cannot throw the error since we always pass the sender which is qualified to be remote
-  Just resp <-
-    runErrorS @MLSLegalholdIncompatible $
-      postMLSCommitBundle
-        loc
-        (tUntagged @QRemote sender)
-        msr.senderClient
-        ctype
-        qConvOrSub
-        Nothing
-        ibundle
-  pure $ MLSMessageResponseUpdates $ map lcuUpdate resp
+  MLSMessageResponseUpdates
+    . fmap lcuUpdate
+    <$> mapToRuntimeError @MLSLegalholdIncompatible
+      (InternalErrorWithDescription "expected group conversation while handling policy conflicts")
+      ( postMLSCommitBundle
+          loc
+          (tUntagged sender)
+          msr.senderClient
+          ctype
+          qConvOrSub
+          Nothing
+          ibundle
+      )
 
 sendMLSMessage ::
   ( Member BackendNotificationQueueAccess r,

@@ -27,7 +27,6 @@ import Polysemy.Async
 import Polysemy.Conc
 import Polysemy.Embed (runEmbedded)
 import Polysemy.Error (Error, errorToIOFinal, mapError, runError)
-import Polysemy.Fail
 import Polysemy.Input (Input, runInputConst, runInputSem)
 import Polysemy.TinyLog (TinyLog)
 import Wire.API.Allowlists (AllowlistEmailDomains)
@@ -151,7 +150,6 @@ type BrigCanonicalEffects =
      Error SomeException,
      TinyLog,
      Embed HttpClientIO,
-     Fail,
      Embed IO,
      Race,
      Async,
@@ -201,7 +199,6 @@ runBrigToIO e (AppT ma) = do
               . asyncToIOFinal
               . interpretRace
               . embedToFinal
-              . failToEmbed @IO -- if a fallible pattern fails, we throw a hard IO error
               . runEmbedded (runHttpClientIO e)
               . loggerToTinyLogReqId (e ^. App.requestId) (e ^. applog)
               . runError @SomeException
