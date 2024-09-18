@@ -996,12 +996,13 @@ getOAuthClient :: OAuthClientId -> Handler OAuthClient
 getOAuthClient cid = do
   b <- view brig
   r <-
-    rpc'
-      "brig"
-      b
-      ( method GET
-          . Bilge.paths ["i", "oauth", "clients", toByteString' cid]
-      )
+    lift $
+      rpc'
+        "brig"
+        b
+        ( method GET
+            . Bilge.paths ["i", "oauth", "clients", toByteString' cid]
+        )
   case statusCode r of
     200 -> parseResponse (mkError status502 "bad-upstream") r
     404 -> throwE (mkError status404 "bad-upstream" "not-found")

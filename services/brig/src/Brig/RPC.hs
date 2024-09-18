@@ -41,21 +41,21 @@ decodeBody :: (Typeable a, FromJSON a, MonadThrow m) => Text -> Response (Maybe 
 decodeBody ctx = responseJsonThrow (ParseException ctx)
 
 cargoholdRequest ::
-  (MonadReader Env m, MonadIO m, MonadMask m, MonadHttp m, HasRequestId m) =>
+  (MonadReader Env m, MonadUnliftIO m, MonadMask m, MonadHttp m, HasRequestId m) =>
   StdMethod ->
   (Request -> Request) ->
   m (Response (Maybe BL.ByteString))
 cargoholdRequest = serviceRequest "cargohold" cargohold
 
 galleyRequest ::
-  (MonadReader Env m, MonadIO m, MonadMask m, MonadHttp m, HasRequestId m) =>
+  (MonadReader Env m, MonadUnliftIO m, MonadMask m, MonadHttp m, HasRequestId m) =>
   StdMethod ->
   (Request -> Request) ->
   m (Response (Maybe BL.ByteString))
 galleyRequest = serviceRequest "galley" galley
 
 serviceRequest ::
-  (MonadReader Env m, MonadIO m, MonadMask m, MonadHttp m, HasRequestId m) =>
+  (MonadReader Env m, MonadUnliftIO m, MonadMask m, MonadHttp m, HasRequestId m) =>
   LT.Text ->
   Control.Lens.Getting Request Env Request ->
   StdMethod ->
@@ -66,7 +66,7 @@ serviceRequest nm svc m r = do
   serviceRequestImpl nm service m r
 
 serviceRequestImpl ::
-  (MonadIO m, MonadMask m, MonadHttp m, HasRequestId m) =>
+  (MonadUnliftIO m, MonadMask m, MonadHttp m, HasRequestId m) =>
   LT.Text ->
   Request ->
   StdMethod ->

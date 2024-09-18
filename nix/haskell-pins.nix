@@ -281,6 +281,24 @@ let
         hash = "sha256-L90PQtDw/JFwyltSVFvmfjTAb0ZLhFt9Hl0jbzn+cFQ=";
       };
     };
+
+    # hs-opentelemetry-* has not been released for a while on hackage
+    hs-opentelemetry = {
+      src = fetchgit {
+        url = "https://github.com/iand675/hs-opentelemetry";
+        rev = "0b3c854a88113fc18df8561202a76357e593a294";
+        hash = "sha256-N5FzKz6T1sE9xffGCeWa+iTW8a1GCLsy2TlAjzIed34=";
+      };
+      packages = {
+        hs-opentelemetry-sdk = "sdk";
+        hs-opentelemetry-api = "api";
+        hs-opentelemetry-propagator-datadog = "propagators/datadog";
+        hs-opentelemetry-instrumentation-http-client = "instrumentation/http-client";
+        hs-opentelemetry-instrumentation-wai = "instrumentation/wai";
+        hs-opentelemetry-exporter-otlp = "exporters/otlp";
+      };
+    };
+
   };
 
   hackagePins = {

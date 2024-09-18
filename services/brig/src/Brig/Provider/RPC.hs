@@ -164,7 +164,7 @@ setServiceConn scon = do
 -- | Remove service connection information from galley.
 removeServiceConn ::
   ( MonadReader Env m,
-    MonadIO m,
+    MonadUnliftIO m,
     MonadMask m,
     MonadHttp m,
     HasRequestId m,
@@ -220,7 +220,7 @@ addBotMember zusr zcon conv bot clt pid sid = do
 removeBotMember ::
   ( MonadHttp m,
     MonadReader Env m,
-    MonadIO m,
+    MonadUnliftIO m,
     MonadMask m,
     HasRequestId m,
     MonadLogger m
