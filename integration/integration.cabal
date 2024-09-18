@@ -208,6 +208,7 @@ library
     , extended
     , extra
     , filepath
+    , cookie
     , hex
     , hourglass
     , HsOpenSSL

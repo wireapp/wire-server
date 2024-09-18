@@ -50,24 +50,8 @@ tests ::
 tests _cs _cl _at _conf p b _c _g =
   testGroup
     "password-reset"
-    [ test p "post /password-reset after put /access/self/email - 400" $ testPasswordResetAfterEmailUpdate b,
-      test p "post /password-reset/complete - password too short - 400" $ testPasswordResetInvalidPasswordLength b
+    [ test p "post /password-reset/complete - password too short - 400" $ testPasswordResetInvalidPasswordLength b
     ]
-
-testPasswordResetAfterEmailUpdate :: Brig -> Http ()
-testPasswordResetAfterEmailUpdate brig = do
-  u <- randomUser brig
-  let uid = userId u
-  let Just email = userEmail u
-  eml <- randomEmail
-  initiateEmailUpdateLogin brig eml (emailLogin email defPassword Nothing) uid !!! const 202 === statusCode
-  initiatePasswordReset brig email !!! const 201 === statusCode
-  passwordResetData <- preparePasswordReset brig email uid (plainTextPassword8Unsafe "newsecret")
-  -- activate new email
-  activateEmail brig eml
-  checkEmail brig uid eml
-  -- attempting to complete password reset should fail
-  completePasswordReset brig passwordResetData !!! const 400 === statusCode
 
 testPasswordResetInvalidPasswordLength :: Brig -> Http ()
 testPasswordResetInvalidPasswordLength brig = do

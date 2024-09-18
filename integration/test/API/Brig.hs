@@ -810,3 +810,8 @@ login :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App 
 login domain email password = do
   req <- baseRequest domain Brig Versioned "login"
   submit "POST" $ req & addJSONObject ["email" .= email, "password" .= password] & addQueryParams [("persist", "true")]
+
+updateEmail :: (HasCallStack, MakesValue user) => user -> String -> String -> String -> App Response
+updateEmail user email cookie token = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["access", "self", "email"]
+  submit "PUT" $ req & addJSONObject ["email" .= email] & setCookie cookie & addHeader "Authorization" ("Bearer " <> token)

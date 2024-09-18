@@ -30,6 +30,7 @@ import Testlib.Assertions
 import Testlib.Env
 import Testlib.JSON
 import Testlib.Types
+import Web.Cookie
 import Prelude
 
 splitHttpPath :: String -> [String]
@@ -88,6 +89,11 @@ addHeader name value req =
 setCookie :: String -> HTTP.Request -> HTTP.Request
 setCookie c r =
   addHeader "Cookie" (cs c) r
+
+getCookie :: String -> Response -> Maybe String
+getCookie name resp = do
+  cookieHeader <- lookup (CI.mk $ cs "set-cookie") resp.headers
+  cs <$> lookup (cs name) (parseCookies cookieHeader)
 
 addQueryParams :: [(String, String)] -> HTTP.Request -> HTTP.Request
 addQueryParams params req =

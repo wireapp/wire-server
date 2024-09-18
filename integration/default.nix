@@ -19,6 +19,7 @@
 , Cabal
 , case-insensitive
 , containers
+, cookie
 , cql
 , cql-io
 , crypton
@@ -115,6 +116,7 @@ mkDerivation {
     bytestring-conversion
     case-insensitive
     containers
+    cookie
     cql
     cql-io
     crypton
