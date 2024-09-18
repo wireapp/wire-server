@@ -3,7 +3,7 @@
 module Network.AMQP.Extended
   ( RabbitMqHooks (..),
     RabbitMqAdminOpts (..),
-    RabbitMqOpts (..),
+    AmqpEndpoint (..),
     openConnectionWithRetries,
     mkRabbitMqAdminClientEnv,
     mkRabbitMqChannelMVar,
@@ -103,9 +103,9 @@ mkRabbitMqAdminClientEnv opts = do
       (either throwM pure <=< flip runClientM clientEnv)
       (toServant $ adminClient basicAuthData)
 
--- | When admin opts are needed use `RabbitMqOpts Identity`, otherwise use
--- `RabbitMqOpts NoAdmin`.
-data RabbitMqOpts = RabbitMqOpts
+-- | When admin opts are needed use `AmqpEndpoint Identity`, otherwise use
+-- `AmqpEndpoint NoAdmin`.
+data AmqpEndpoint = AmqpEndpoint
   { host :: !String,
     port :: !Int,
     vHost :: !Text,
@@ -113,19 +113,19 @@ data RabbitMqOpts = RabbitMqOpts
   }
   deriving (Show)
 
-instance FromJSON RabbitMqOpts where
+instance FromJSON AmqpEndpoint where
   parseJSON = withObject "RabbitMqAdminOpts" $ \v ->
-    RabbitMqOpts
+    AmqpEndpoint
       <$> v .: "host"
       <*> v .: "port"
       <*> v .: "vHost"
       <*> parseTlsJson v
 
-demoteOpts :: RabbitMqAdminOpts -> RabbitMqOpts
-demoteOpts RabbitMqAdminOpts {..} = RabbitMqOpts {..}
+demoteOpts :: RabbitMqAdminOpts -> AmqpEndpoint
+demoteOpts RabbitMqAdminOpts {..} = AmqpEndpoint {..}
 
 -- | Useful if the application only pushes into some queues.
-mkRabbitMqChannelMVar :: Logger -> RabbitMqOpts -> IO (MVar Q.Channel)
+mkRabbitMqChannelMVar :: Logger -> AmqpEndpoint -> IO (MVar Q.Channel)
 mkRabbitMqChannelMVar l opts = do
   chanMVar <- newEmptyMVar
   connThread <-
@@ -152,10 +152,10 @@ openConnectionWithRetries ::
   forall m.
   (MonadIO m, MonadMask m, MonadBaseControl IO m) =>
   Logger ->
-  RabbitMqOpts ->
+  AmqpEndpoint ->
   RabbitMqHooks m ->
   m ()
-openConnectionWithRetries l RabbitMqOpts {..} hooks = do
+openConnectionWithRetries l AmqpEndpoint {..} hooks = do
   (username, password) <- liftIO $ readCredsFromEnv
   connectWithRetries username password
   where

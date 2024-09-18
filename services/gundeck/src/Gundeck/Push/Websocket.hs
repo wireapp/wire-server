@@ -165,7 +165,7 @@ bulkSend uri req = (uri,) <$> ((Right <$> bulkSend' uri req) `catch` (pure . Lef
 
 bulkSend' ::
   forall m.
-  ( MonadIO m,
+  ( MonadUnliftIO m,
     MonadMask m,
     HasRequestId m,
     MonadHttp m,

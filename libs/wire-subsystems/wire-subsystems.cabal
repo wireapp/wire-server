@@ -213,6 +213,7 @@ library
     , wai-utilities
     , wire-api
     , wire-api-federation
+    , wire-otel
     , witherable
 
   default-language: GHC2021

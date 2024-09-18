@@ -23,7 +23,7 @@ where
 
 import Bilge hiding (getHeader, host, options, port, statusCode)
 import Bilge qualified as B
-import Bilge.RPC
+import Bilge.RPC (rpc)
 import Bilge.Retry
 import Control.Lens (view, (^.))
 import Control.Retry

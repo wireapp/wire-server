@@ -85,6 +85,7 @@
 , wai-utilities
 , wire-api
 , wire-api-federation
+, wire-otel
 , witherable
 }:
 mkDerivation {
@@ -164,6 +165,7 @@ mkDerivation {
     wai-utilities
     wire-api
     wire-api-federation
+    wire-otel
     witherable
   ];
   testHaskellDepends = [

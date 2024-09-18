@@ -31,6 +31,7 @@
   wire-api-federation = hself.callPackage ../libs/wire-api-federation/default.nix { inherit gitignoreSource; };
   wire-api = hself.callPackage ../libs/wire-api/default.nix { inherit gitignoreSource; };
   wire-message-proto-lens = hself.callPackage ../libs/wire-message-proto-lens/default.nix { inherit gitignoreSource; };
+  wire-otel = hself.callPackage ../libs/wire-otel/default.nix { inherit gitignoreSource; };
   wire-subsystems = hself.callPackage ../libs/wire-subsystems/default.nix { inherit gitignoreSource; };
   zauth = hself.callPackage ../libs/zauth/default.nix { inherit gitignoreSource; };
   background-worker = hself.callPackage ../services/background-worker/default.nix { inherit gitignoreSource; };

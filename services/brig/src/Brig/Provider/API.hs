@@ -853,6 +853,7 @@ deleteBot ::
   ( MonadHttp m,
     MonadReader Env m,
     MonadMask m,
+    MonadUnliftIO m,
     HasRequestId m,
     MonadLogger m,
     MonadClient m

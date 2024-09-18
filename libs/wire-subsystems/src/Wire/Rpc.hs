@@ -43,7 +43,7 @@ runRpcWithHttp mgr reqId = interpret $ \case
     embed $ runHttpRpc mgr reqId $ rpcWithRetriesImpl serviceName ep req
 
 rpcImpl :: ServiceName -> Endpoint -> (Request -> Request) -> HttpRpc (Response (Maybe LByteString))
-rpcImpl serviceName ep req =
+rpcImpl serviceName ep req = do
   rpc' serviceName empty $
     req
       . Bilge.host (encodeUtf8 ep._host)
@@ -81,6 +81,7 @@ newtype HttpRpc a = HttpRpc {unHttpRpc :: ReaderT (Manager, RequestId) IO a}
       Applicative,
       Monad,
       MonadIO,
+      MonadUnliftIO,
       MonadThrow,
       MonadCatch,
       MonadMask,

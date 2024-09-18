@@ -6,7 +6,7 @@ tags:
   cannon: true
   cargohold: true
   spar: true
-  federation: true # also see galley.config.enableFederation and brig.config.enableFederation
+  federation: true # also see {background-worker,brig,cargohold,galley}.config.enableFederation
   backoffice: true
   proxy: false
   legalhold: false
@@ -278,6 +278,14 @@ galley:
               usersThreshold: 100
               clientsThreshold: 50
             lockStatus: locked
+        mlsE2EId:
+          defaults:
+            status: disabled
+            config:
+              verificationExpiration: 86400
+              acmeDiscoveryUrl: null
+              crlProxy: https://crlproxy.example.com
+            lockStatus: unlocked
         limitedEventFanout:
             defaults:
             status: disabled
@@ -485,6 +493,7 @@ background-worker:
     requests: {}
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   config:
+    enableFederation: true
     backendNotificationPusher:
       pushBackoffMinWait: 1000 # 1ms
       pushBackoffMaxWait: 500000 # 0.5s

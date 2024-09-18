@@ -206,121 +206,124 @@ library
     -Wunused-packages
 
   build-depends:
-    , aeson                      >=2.0.1.0
-    , amazonka                   >=2
-    , amazonka-core              >=2
-    , amazonka-dynamodb          >=2
-    , amazonka-ses               >=2
-    , amazonka-sqs               >=2
+    , aeson                                 >=2.0.1.0
+    , amazonka                              >=2
+    , amazonka-core                         >=2
+    , amazonka-dynamodb                     >=2
+    , amazonka-ses                          >=2
+    , amazonka-sqs                          >=2
     , amqp
-    , async                      >=2.1
-    , auto-update                >=0.1
-    , base                       >=4       && <5
+    , async                                 >=2.1
+    , auto-update                           >=0.1
+    , base                                  >=4       && <5
     , base-prelude
-    , base16-bytestring          >=0.1
-    , base64-bytestring          >=1.0
-    , bilge                      >=0.21.1
-    , bloodhound                 >=0.13
-    , brig-types                 >=0.91.1
-    , bytestring                 >=0.10
-    , bytestring-conversion      >=0.2
-    , cassandra-util             >=0.16.2
+    , base16-bytestring                     >=0.1
+    , base64-bytestring                     >=1.0
+    , bilge                                 >=0.21.1
+    , bloodhound                            >=0.13
+    , brig-types                            >=0.91.1
+    , bytestring                            >=0.10
+    , bytestring-conversion                 >=0.2
+    , cassandra-util                        >=0.16.2
     , comonad
-    , conduit                    >=1.2.8
-    , containers                 >=0.5
-    , cookie                     >=0.4
-    , cryptobox-haskell          >=0.1.1
+    , conduit                               >=1.2.8
+    , containers                            >=0.5
+    , cookie                                >=0.4
+    , cryptobox-haskell                     >=0.1.1
     , crypton
-    , currency-codes             >=2.0
+    , currency-codes                        >=2.0
     , data-default
     , dns
     , dns-util
-    , enclosed-exceptions        >=1.0
-    , errors                     >=1.4
-    , exceptions                 >=0.5
+    , enclosed-exceptions                   >=1.0
+    , errors                                >=1.4
+    , exceptions                            >=0.5
     , extended
     , extra
     , file-embed
     , file-embed-lzma
-    , filepath                   >=1.3
-    , fsnotify                   >=0.4
-    , galley-types               >=0.75.3
-    , gundeck-types              >=1.32.1
-    , hashable                   >=1.2
-    , HsOpenSSL                  >=0.10
-    , http-client                >=0.7
-    , http-client-openssl        >=0.2
+    , filepath                              >=1.3
+    , fsnotify                              >=0.4
+    , galley-types                          >=0.75.3
+    , gundeck-types                         >=1.32.1
+    , hashable                              >=1.2
+    , hs-opentelemetry-instrumentation-wai
+    , hs-opentelemetry-sdk
+    , HsOpenSSL                             >=0.10
+    , http-client                           >=0.7
+    , http-client-openssl                   >=0.2
     , http-media
-    , http-types                 >=0.8
+    , http-types                            >=0.8
     , http2-manager
     , imports
     , insert-ordered-containers
-    , iproute                    >=1.5
-    , iso639                     >=0.1
+    , iproute                               >=1.5
+    , iso639                                >=0.1
     , jose
     , jwt-tools
-    , lens                       >=3.8
-    , lens-aeson                 >=1.0
+    , lens                                  >=3.8
+    , lens-aeson                            >=1.0
     , memory
-    , metrics-core               >=0.3
-    , metrics-wai                >=0.3
+    , metrics-core                          >=0.3
+    , metrics-wai                           >=0.3
     , mime
-    , mime-mail                  >=0.4
+    , mime-mail                             >=0.4
     , mmorph
-    , MonadRandom                >=0.5
-    , mtl                        >=2.1
-    , network                    >=2.4
+    , MonadRandom                           >=0.5
+    , mtl                                   >=2.1
+    , network                               >=2.4
     , network-conduit-tls
     , openapi3
-    , optparse-applicative       >=0.11
+    , optparse-applicative                  >=0.11
     , polysemy
     , polysemy-conc
     , polysemy-plugin
     , polysemy-time
     , polysemy-wire-zoo
     , prometheus-client
-    , proto-lens                 >=0.1
-    , random-shuffle             >=0.0.3
+    , proto-lens                            >=0.1
+    , random-shuffle                        >=0.0.3
     , raw-strings-qq
-    , resourcet                  >=1.1
-    , retry                      >=0.7
-    , safe-exceptions            >=0.1
+    , resourcet                             >=1.1
+    , retry                                 >=0.7
+    , safe-exceptions                       >=0.1
     , schema-profunctor
     , servant
     , servant-openapi3
     , servant-server
     , servant-swagger-ui
-    , sodium-crypto-sign         >=0.1
-    , split                      >=0.2
+    , sodium-crypto-sign                    >=0.1
+    , split                                 >=0.2
     , ssl-util
-    , statistics                 >=0.13
-    , stomp-queue                >=0.3
-    , template                   >=0.2
+    , statistics                            >=0.13
+    , stomp-queue                           >=0.3
+    , template                              >=0.2
     , template-haskell
-    , text                       >=0.11
-    , time                       >=1.1
+    , text                                  >=0.11
+    , time                                  >=1.1
     , time-out
     , time-units
-    , tinylog                    >=0.10
-    , transformers               >=0.3
+    , tinylog                               >=0.10
+    , transformers                          >=0.3
     , transitive-anns
-    , types-common               >=0.16
+    , types-common                          >=0.16
     , types-common-aws
-    , types-common-journal       >=0.1
-    , unliftio                   >=0.2
-    , unordered-containers       >=0.2
-    , uri-bytestring             >=0.2
+    , types-common-journal                  >=0.1
+    , unliftio                              >=0.2
+    , unordered-containers                  >=0.2
+    , uri-bytestring                        >=0.2
     , utf8-string
-    , uuid                       >=1.3.5
-    , vector                     >=0.11
-    , wai                        >=3.0
-    , wai-extra                  >=3.0
-    , wai-middleware-gunzip      >=0.0.2
-    , wai-utilities              >=0.16
+    , uuid                                  >=1.3.5
+    , vector                                >=0.11
+    , wai                                   >=3.0
+    , wai-extra                             >=3.0
+    , wai-middleware-gunzip                 >=0.0.2
+    , wai-utilities                         >=0.16
     , wire-api
     , wire-api-federation
+    , wire-otel
     , wire-subsystems
-    , zauth                      >=0.10.3
+    , zauth                                 >=0.10.3
 
 executable brig
   import:        common-all
