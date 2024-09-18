@@ -66,14 +66,14 @@ instance
       rep = typeRep (Proxy :: Proxy ReqBodyHack)
       formatError = bodyParserErrorFormatter $ getContextEntry (mkContextWithErrorFormatter context)
 
-      ctCheck = return eitherDecode
+      ctCheck = pure eitherDecode
 
       -- Body check, we get a body parsing functions as the first argument.
       bodyCheck f = withRequest $ \request -> do
         mrqbody <- f <$> liftIO (lazyRequestBody request)
         case mrqbody of
           Left e -> delayedFailFatal $ formatError rep request e
-          Right v -> return v
+          Right v -> pure v
 
 type GundeckInternalAPI =
   "i"
