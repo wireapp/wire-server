@@ -114,7 +114,7 @@ data AmqpEndpoint = AmqpEndpoint
   deriving (Show)
 
 instance FromJSON AmqpEndpoint where
-  parseJSON = withObject "RabbitMqAdminOpts" $ \v ->
+  parseJSON = withObject "AmqpEndpoint" $ \v ->
     AmqpEndpoint
       <$> v .: "host"
       <*> v .: "port"

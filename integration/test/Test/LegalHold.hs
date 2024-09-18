@@ -907,14 +907,32 @@ testLHDisableBeforeApproval = do
     getBob'sStatus `shouldMatch` "disabled"
 
 -- ---------
+-- WPB-10783
+-- ---------
+testBlockLHForMLSUsers :: (HasCallStack) => App ()
+testBlockLHForMLSUsers = do
+  -- scenario 1:
+  -- if charlie is in any MLS conversation, he cannot approve to be put under legalhold
+  (charlie, tid, []) <- createTeam OwnDomain 1
+  [charlie1] <- traverse (createMLSClient def) [charlie]
+  void $ createNewGroup charlie1
+  void $ createAddCommit charlie1 [charlie] >>= sendAndConsumeCommitBundle
+
+  legalholdWhitelistTeam tid charlie >>= assertStatus 200
+  withMockServer def lhMockApp \lhDomAndPort _chan -> do
+    postLegalHoldSettings tid charlie (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
+    requestLegalHoldDevice tid charlie charlie `bindResponse` do
+      assertLabel 409 "mls-legal-hold-not-allowed"
+
+-- ---------
 -- WPB-10772
 -- ---------
 
 --  | scenario 2.1:
 -- charlie first is put under legalhold and after that wants to join an MLS conversation
 -- claiming a keypackage of charlie to add them to a conversation should not be possible
-testLegalholdThenMLSThirdParty :: (HasCallStack) => App ()
-testLegalholdThenMLSThirdParty = do
+testBlockClaimingKeyPackageForLHUsers :: (HasCallStack) => App ()
+testBlockClaimingKeyPackageForLHUsers = do
   (alice, tid, [charlie]) <- createTeam OwnDomain 2
   [alice1, charlie1] <- traverse (createMLSClient def) [alice, charlie]
   _ <- uploadNewKeyPackage charlie1
@@ -937,8 +955,8 @@ testLegalholdThenMLSThirdParty = do
 -- since he doesn't need to claim his own keypackage to do so, this would succeed
 -- we need to check upon group creation if the user is under legalhold and reject
 -- the operation if they are
-testLegalholdThenMLSSelf :: (HasCallStack) => App ()
-testLegalholdThenMLSSelf = do
+testBlockCreateMLSConvForLHUsers :: (HasCallStack) => App ()
+testBlockCreateMLSConvForLHUsers = do
   (alice, tid, [charlie]) <- createTeam OwnDomain 2
   [alice1, charlie1] <- traverse (createMLSClient def) [alice, charlie]
   _ <- uploadNewKeyPackage alice1

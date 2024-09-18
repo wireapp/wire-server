@@ -329,7 +329,7 @@ regInfo k c = do
   let h = externalHostname e
       p = portnum e
       r = "http://" <> h <> ":" <> pack (show p) <> "/i/push/"
-  pure . lbytes . encode . object $
+  pure . Bilge.json . object $
     [ "user_id" .= decodeUtf8 (keyUserBytes k),
       "device_id" .= decodeUtf8 (keyConnBytes k),
       "resource" .= decodeUtf8 (r <> keyUserBytes k <> "/" <> keyConnBytes k),

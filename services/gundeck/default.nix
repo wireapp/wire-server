@@ -61,6 +61,7 @@
 , safe
 , safe-exceptions
 , scientific
+, servant
 , servant-server
 , string-conversions
 , tagged
@@ -80,8 +81,6 @@
 , wai
 , wai-extra
 , wai-middleware-gunzip
-, wai-predicates
-, wai-routing
 , wai-utilities
 , websockets
 , wire-api
@@ -135,6 +134,7 @@ mkDerivation {
     resourcet
     retry
     safe-exceptions
+    servant
     servant-server
     text
     time
@@ -148,8 +148,6 @@ mkDerivation {
     wai
     wai-extra
     wai-middleware-gunzip
-    wai-predicates
-    wai-routing
     wai-utilities
     wire-api
     wire-otel
@@ -210,7 +208,6 @@ mkDerivation {
     HsOpenSSL
     imports
     lens
-    metrics-wai
     MonadRandom
     mtl
     multiset
@@ -226,7 +223,6 @@ mkDerivation {
     text
     tinylog
     types-common
-    wai-utilities
     wire-api
   ];
   benchmarkHaskellDepends = [

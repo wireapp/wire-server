@@ -18,7 +18,6 @@ flag static
 library
   -- cabal-fmt: expand src
   exposed-modules:
-    Gundeck.API
     Gundeck.API.Internal
     Gundeck.API.Public
     Gundeck.Aws
@@ -143,7 +142,7 @@ library
     , lens                                  >=4.4
     , lens-aeson                            >=1.0
     , metrics-core                          >=0.2.1
-    , metrics-wai                           >=0.5.7
+    , metrics-wai
     , mtl                                   >=2.2
     , network-uri                           >=2.6
     , prometheus-client
@@ -152,6 +151,7 @@ library
     , resourcet                             >=1.1
     , retry                                 >=0.5
     , safe-exceptions
+    , servant
     , servant-server
     , text                                  >=1.1
     , time                                  >=1.4
@@ -165,8 +165,6 @@ library
     , wai                                   >=3.2
     , wai-extra                             >=3.0
     , wai-middleware-gunzip                 >=0.0.2
-    , wai-predicates                        >=0.8
-    , wai-routing                           >=0.12
     , wai-utilities                         >=0.16
     , wire-api
     , wire-otel
@@ -297,7 +295,7 @@ executable gundeck-integration
   build-depends:
     , aeson
     , async
-    , base                   >=4   && <5
+    , base                   >=4    && <5
     , base16-bytestring      >=0.1
     , bilge
     , bytestring
@@ -328,7 +326,7 @@ executable gundeck-integration
     , tinylog
     , types-common
     , uuid
-    , wai-utilities
+    , wai-utilities          >=0.16
     , websockets             >=0.8
     , wire-api
     , yaml
@@ -546,7 +544,6 @@ test-suite gundeck-tests
     , HsOpenSSL
     , imports
     , lens
-    , metrics-wai
     , MonadRandom
     , mtl
     , multiset
@@ -562,7 +559,6 @@ test-suite gundeck-tests
     , text
     , tinylog
     , types-common
-    , wai-utilities
     , wire-api
 
   default-language:   GHC2021
