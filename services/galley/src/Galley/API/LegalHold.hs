@@ -68,6 +68,7 @@ import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import System.Logger.Class qualified as Log
 import Wire.API.Conversation (ConvType (..))
+import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -345,6 +346,7 @@ requestDevice ::
     Member (ErrorS 'LegalHoldNotEnabled) r,
     Member (ErrorS 'LegalHoldServiceBadResponse) r,
     Member (ErrorS 'LegalHoldServiceNotRegistered) r,
+    Member (ErrorS 'MLSLegalholdIncompatible) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'NoUserLegalHoldConsent) r,
     Member (ErrorS OperationDenied) r,
@@ -392,6 +394,12 @@ requestDevice lzusr tid uid = do
     lhs@UserLegalHoldDisabled -> RequestDeviceSuccess <$ provisionLHDevice zusr luid lhs
     UserLegalHoldNoConsent -> throwS @'NoUserLegalHoldConsent
   where
+    disallowIfMLSUser :: Local UserId -> Sem r ()
+    disallowIfMLSUser luid = do
+      void $ iterateConversations luid (toRange (Proxy @500)) $ \convs -> do
+        when (any (\c -> c.convProtocol /= ProtocolProteus) convs) $ do
+          throwS @'MLSLegalholdIncompatible
+
     -- Wire's LH service that galley is usually calling here is idempotent in device creation,
     -- ie. it returns the existing device on multiple calls to `/init`, like here:
     -- https://github.com/wireapp/legalhold/blob/e0a241162b9dbc841f12fbc57c8a1e1093c7e83a/src/main/java/com/wire/bots/hold/resource/InitiateResource.java#L42
@@ -401,6 +409,7 @@ requestDevice lzusr tid uid = do
     -- device at (almost) the same time.
     provisionLHDevice :: UserId -> Local UserId -> UserLegalHoldStatus -> Sem r ()
     provisionLHDevice zusr luid userLHStatus = do
+      disallowIfMLSUser luid
       (lastPrekey', prekeys) <- requestDeviceFromService luid
       -- We don't distinguish the last key here; brig will do so when the device is added
       LegalHoldData.insertPendingPrekeys (tUnqualified luid) (unpackLastPrekey lastPrekey' : prekeys)
