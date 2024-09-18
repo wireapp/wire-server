@@ -171,8 +171,6 @@ type instance MapError 'InvalidTransition = 'StaticError 403 "bad-conn-update" "
 
 type instance MapError 'NoIdentity = 'StaticError 403 "no-identity" "The user has no verified email"
 
-type instance MapError 'NoUser = 'StaticError 403 "no-user" "The user does not exist"
-
 type instance MapError 'HandleExists = 'StaticError 409 "handle-exists" "The given handle is already taken"
 
 type instance MapError 'InvalidHandle = 'StaticError 400 "invalid-handle" "The given handle is invalid (less than 2 or more than 256 characters; chars not in \"a-z0-9_.-\"; or on the blocklist)"
