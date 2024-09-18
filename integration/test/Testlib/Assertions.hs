@@ -206,6 +206,9 @@ shouldMatchSet a b = do
 shouldBeEmpty :: (MakesValue a, HasCallStack) => a -> App ()
 shouldBeEmpty a = a `shouldMatch` (mempty :: [Value])
 
+shouldBeNull :: (MakesValue a, HasCallStack) => a -> App ()
+shouldBeNull a = a `shouldMatch` Aeson.Null
+
 shouldMatchOneOf ::
   (MakesValue a, MakesValue b, HasCallStack) =>
   a ->
