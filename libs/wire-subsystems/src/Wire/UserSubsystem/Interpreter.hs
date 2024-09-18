@@ -596,11 +596,12 @@ searchUsersImpl ::
 searchUsersImpl searcherId searchTerm maybeDomain maybeMaxResults = do
   storedSearcher <- note UserSubsystemNoUser =<< UserStore.getUser (tUnqualified searcherId)
   for_ storedSearcher.teamId $ \tid -> ensurePermissions (tUnqualified searcherId) tid [SearchContacts]
-  let localDomain = tDomain searcherId
-      queryDomain = fromMaybe localDomain maybeDomain
-  if queryDomain == localDomain
-    then searchLocally (qualifyAs searcherId storedSearcher) searchTerm maybeMaxResults
-    else searchRemotely queryDomain storedSearcher.teamId searchTerm
+  let qDomain = Qualified () (fromMaybe (tDomain searcherId) maybeDomain)
+  foldQualified
+    searcherId
+    (\ldom -> searchLocally (qualifyAs ldom storedSearcher) searchTerm maybeMaxResults)
+    (\rdom -> searchRemotely rdom storedSearcher.teamId searchTerm)
+    qDomain
 
 searchLocally ::
   forall r.
@@ -701,11 +702,12 @@ searchRemotely ::
     Member TinyLog r,
     Member (Error FederationError) r
   ) =>
-  Domain ->
+  Remote x ->
   Maybe TeamId ->
   Text ->
   Sem r (SearchResult Contact)
-searchRemotely domain mTid searchTerm = do
+searchRemotely rDom mTid searchTerm = do
+  let domain = tDomain rDom
   Log.info $
     Log.msg (Log.val "searchRemotely")
       . Log.field "domain" (show domain)
@@ -718,7 +720,7 @@ searchRemotely domain mTid searchTerm = do
         Nothing -> Just []
 
   searchResponse <-
-    runFederated (toRemoteUnsafe domain ()) $
+    runFederated rDom $
       fedClient @'Brig @"search-users" (FedBrig.SearchRequest searchTerm mTid onlyInTeams)
   let contacts = searchResponse.contacts
   let count = length contacts
