@@ -117,6 +117,7 @@ library
     , amazonka-sns                          >=2
     , amazonka-sqs                          >=2
     , async                                 >=2.0
+    , metrics-wai
     , attoparsec                            >=0.10
     , auto-update                           >=0.1
     , base                                  >=4.7     && <5

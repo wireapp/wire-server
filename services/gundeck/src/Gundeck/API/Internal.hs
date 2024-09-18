@@ -26,6 +26,7 @@ import Control.Lens (view)
 import Data.Aeson (eitherDecode)
 import Data.CommaSeparatedList
 import Data.Id
+import Data.Metrics.Servant
 import Data.Typeable
 import Gundeck.Client qualified as Client
 import Gundeck.Monad
@@ -75,6 +76,13 @@ instance
           Left e -> delayedFailFatal $ formatError rep request e
           Right v -> pure v
 
+-- | cloned from instance for ReqBody'.
+instance
+  (RoutesToPaths rest) =>
+  RoutesToPaths (ReqBodyHack :> rest)
+  where
+  getRoutes = getRoutes @rest
+
 type GundeckInternalAPI =
   "i"
     :> ( ("status" :> Get '[JSON] NoContent)
@@ -82,7 +90,7 @@ type GundeckInternalAPI =
            :<|> ( "presences"
                     :> ( (QueryParam' [Required, Strict] "ids" (CommaSeparatedList UserId) :> Get '[JSON] [Presence])
                            :<|> (Capture "uid" UserId :> Get '[JSON] [Presence])
-                           :<|> (ReqBodyHack :> Post '[JSON] (Headers '[Header "Location" GD.URI] NoContent))
+                           :<|> (ReqBodyHack :> Verb 'POST 201 '[JSON] (Headers '[Header "Location" GD.URI] NoContent))
                            :<|> (Capture "uid" UserId :> "devices" :> Capture "did" ConnId :> "cannons" :> Capture "cannon" CannonId :> Delete '[JSON] NoContent)
                        )
                 )

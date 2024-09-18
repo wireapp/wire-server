@@ -42,6 +42,7 @@
 , lens-aeson
 , lib
 , metrics-core
+, metrics-wai
 , MonadRandom
 , mtl
 , multiset
@@ -124,6 +125,7 @@ mkDerivation {
     lens
     lens-aeson
     metrics-core
+    metrics-wai
     mtl
     network-uri
     prometheus-client

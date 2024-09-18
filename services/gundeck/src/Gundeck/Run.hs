@@ -27,6 +27,7 @@ import Control.Exception (finally)
 import Control.Lens ((.~), (^.))
 import Control.Monad.Extra
 import Data.Metrics.AWS (gaugeTokenRemaing)
+import Data.Metrics.Servant qualified as Metrics
 import Data.Proxy (Proxy (Proxy))
 import Data.Text (unpack)
 import Database.Redis qualified as Redis
@@ -91,6 +92,7 @@ run o = withTracer \tracer -> do
         versionMiddleware (foldMap expandVersionExp (o ^. settings . disabledAPIVersions))
           . otelMiddleWare
           . requestIdMiddleware (e ^. applog) defaultRequestIdHeaderName
+          . Metrics.servantPrometheusMiddleware (Proxy @(GundeckAPI :<|> GundeckInternalAPI))
           . GZip.gunzip
           . GZip.gzip GZip.def
           . catchErrors (e ^. applog) defaultRequestIdHeaderName
