@@ -13,7 +13,6 @@ data UserSubsystemError
   | UserSubsystemHandleManagedByScim
   | UserSubsystemLocaleManagedByScim
   | UserSubsystemNoIdentity
-  | UserSubsystemNoUser
   | UserSubsystemHandleExists
   | UserSubsystemInvalidHandle
   | UserSubsystemProfileNotFound
@@ -27,7 +26,6 @@ userSubsystemErrorToHttpError =
     UserSubsystemDisplayNameManagedByScim -> errorToWai @E.NameManagedByScim
     UserSubsystemLocaleManagedByScim -> errorToWai @E.LocaleManagedByScim
     UserSubsystemNoIdentity -> errorToWai @E.NoIdentity
-    UserSubsystemNoUser -> errorToWai @E.NoUser
     UserSubsystemHandleExists -> errorToWai @E.HandleExists
     UserSubsystemInvalidHandle -> errorToWai @E.InvalidHandle
     UserSubsystemHandleManagedByScim -> errorToWai @E.HandleManagedByScim

@@ -594,13 +594,17 @@ searchUsersImpl ::
   Maybe (Range 1 500 Int32) ->
   Sem r (SearchResult Contact)
 searchUsersImpl searcherId searchTerm maybeDomain maybeMaxResults = do
-  storedSearcher <- note UserSubsystemNoUser =<< UserStore.getUser (tUnqualified searcherId)
-  for_ storedSearcher.teamId $ \tid -> ensurePermissions (tUnqualified searcherId) tid [SearchContacts]
+  let searcher = tUnqualified searcherId
+  mSearcherTeamId <-
+    UserStore.getUser searcher >>= \mTeam -> pure (mTeam >>= (.teamId))
+
+  for_ mSearcherTeamId $ \tid ->
+    ensurePermissions searcher tid [SearchContacts]
   let qDomain = Qualified () (fromMaybe (tDomain searcherId) maybeDomain)
   foldQualified
     searcherId
-    (\ldom -> searchLocally (qualifyAs ldom storedSearcher) searchTerm maybeMaxResults)
-    (\rdom -> searchRemotely rdom storedSearcher.teamId searchTerm)
+    (\_ -> searchLocally ((,mSearcherTeamId) <$> searcherId) searchTerm maybeMaxResults)
+    (\rdom -> searchRemotely rdom mSearcherTeamId searchTerm)
     qDomain
 
 searchLocally ::
@@ -610,15 +614,14 @@ searchLocally ::
     Member IndexedUserStore r,
     Member (Input UserSubsystemConfig) r
   ) =>
-  Local StoredUser ->
+  Local (UserId, Maybe TeamId) ->
   Text ->
   Maybe (Range 1 500 Int32) ->
   Sem r (SearchResult Contact)
 searchLocally searcher searchTerm maybeMaxResults = do
   let maxResults = maybe 15 (fromIntegral . fromRange) maybeMaxResults
-  let searcherTeamId = (tUnqualified searcher).teamId
-      searcherId = (tUnqualified searcher).id
-  teamSearchInfo <- mkTeamSearchInfo searcherTeamId
+  let (searcherId, searcherTeamId) = (fst <$> searcher, snd <$> searcher)
+  teamSearchInfo <- mkTeamSearchInfo (tUnqualified searcherTeamId)
 
   maybeExactHandleMatch <- exactHandleSearch teamSearchInfo
 
@@ -627,7 +630,13 @@ searchLocally searcher searchTerm maybeMaxResults = do
 
   esResult <-
     if esMaxResults > 0
-      then IndexedUserStore.searchUsers searcherId searcherTeamId teamSearchInfo searchTerm esMaxResults
+      then
+        IndexedUserStore.searchUsers
+          (tUnqualified searcherId)
+          (tUnqualified searcherTeamId)
+          teamSearchInfo
+          searchTerm
+          esMaxResults
       else pure $ SearchResult 0 0 0 [] FullSearch Nothing Nothing
 
   -- Prepend results matching exact handle and results from ES.
@@ -673,7 +682,7 @@ searchLocally searcher searchTerm maybeMaxResults = do
       config <- lift input
       let contact = contactFromStoredUser (tDomain searcher) storedUser
           isContactVisible =
-            (config.searchSameTeamOnly && (tUnqualified searcher).teamId == storedUser.teamId)
+            (config.searchSameTeamOnly && (snd . tUnqualified $ searcher) == storedUser.teamId)
               || (not config.searchSameTeamOnly)
       if isContactVisible
         then pure contact

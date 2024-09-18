@@ -125,7 +125,12 @@ data UserSubsystem m a where
   -- | Add an email to the block list.
   BlockListInsert :: EmailAddress -> UserSubsystem m ()
   UpdateTeamSearchVisibilityInbound :: TeamStatus SearchVisibilityInboundConfig -> UserSubsystem m ()
-  SearchUsers :: Local UserId -> Text -> Maybe Domain -> Maybe (Range 1 500 Int32) -> UserSubsystem m (SearchResult Contact)
+  SearchUsers ::
+    Local UserId ->
+    Text ->
+    Maybe Domain ->
+    Maybe (Range 1 500 Int32) ->
+    UserSubsystem m (SearchResult Contact)
   BrowseTeam ::
     UserId ->
     BrowseTeamFilters ->
