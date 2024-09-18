@@ -791,11 +791,14 @@ instance ToSchema CreateUserTeam where
         <$> createdTeamId .= field "team_id" schema
         <*> createdTeamName .= field "team_name" schema
 
-data UpgradePersonalToTeamError = UpgradePersonalToTeamErrorAlreadyInATeam
+data UpgradePersonalToTeamError
+  = UpgradePersonalToTeamErrorAlreadyInATeam
+  | UpgradePersonalToTeamErrorUserNotFound
   deriving (Show)
 
 type UpgradePersonalToTeamResponses =
   '[ ErrorResponse UserAlreadyInATeam,
+     ErrorResponse UserNotFound,
      Respond 200 "Team created" CreateUserTeam
    ]
 
@@ -806,11 +809,14 @@ instance
   where
   toUnion (Left UpgradePersonalToTeamErrorAlreadyInATeam) =
     Z (I (dynError @(MapError UserAlreadyInATeam)))
-  toUnion (Right x) = S (Z (I x))
+  toUnion (Left UpgradePersonalToTeamErrorUserNotFound) =
+    S (Z (I (dynError @(MapError UserNotFound))))
+  toUnion (Right x) = S (S (Z (I x)))
 
   fromUnion (Z (I _)) = Left UpgradePersonalToTeamErrorAlreadyInATeam
-  fromUnion (S (Z (I x))) = Right x
-  fromUnion (S (S x)) = case x of {}
+  fromUnion (S (Z (I _))) = Left UpgradePersonalToTeamErrorAlreadyInATeam
+  fromUnion (S (S (Z (I x)))) = Right x
+  fromUnion (S (S (S x))) = case x of {}
 
 data RegisterError
   = RegisterErrorAllowlistError

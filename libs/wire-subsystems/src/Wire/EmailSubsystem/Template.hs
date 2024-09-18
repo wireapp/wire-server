@@ -35,6 +35,7 @@ module Wire.EmailSubsystem.Template
     LoginCallTemplate (..),
     DeletionSmsTemplate (..),
     DeletionEmailTemplate (..),
+    UpgradePersonalToTeamEmailTemplate (..),
     NewClientEmailTemplate (..),
     SecondFactorVerificationEmailTemplate (..),
 
@@ -105,6 +106,7 @@ data UserTemplates = UserTemplates
     loginCall :: LoginCallTemplate,
     deletionSms :: DeletionSmsTemplate,
     deletionEmail :: DeletionEmailTemplate,
+    upgradePersonalToTeamEmail :: UpgradePersonalToTeamEmailTemplate,
     newClientEmail :: NewClientEmailTemplate,
     verificationLoginEmail :: SecondFactorVerificationEmailTemplate,
     verificationScimTokenEmail :: SecondFactorVerificationEmailTemplate,
@@ -155,6 +157,14 @@ data DeletionEmailTemplate = DeletionEmailTemplate
     deletionEmailBodyHtml :: Template,
     deletionEmailSender :: EmailAddress,
     deletionEmailSenderName :: Text
+  }
+
+data UpgradePersonalToTeamEmailTemplate = UpgradePersonalToTeamEmailTemplate
+  { upgradePersonalToTeamEmailSubject :: Template,
+    upgradePersonalToTeamEmailBodyText :: Template,
+    upgradePersonalToTeamEmailBodyHtml :: Template,
+    upgradePersonalToTeamEmailSender :: EmailAddress,
+    upgradePersonalToTeamEmailSenderName :: Text
   }
 
 data PasswordResetEmailTemplate = PasswordResetEmailTemplate
