@@ -4,6 +4,7 @@ module Test.Client where
 
 import API.Brig
 import qualified API.Brig as API
+import API.BrigCommon
 import API.Gundeck
 import Control.Lens hiding ((.=))
 import Control.Monad.Codensity
@@ -70,3 +71,35 @@ testListClientsIfBackendIsOffline = do
     bindResponse (listUsersClients ownUser1 [ownUser1, ownUser2, downUser]) $ \resp -> do
       resp.status `shouldMatchInt` 200
       resp.json %. "qualified_user_map" `shouldMatch` expectedResponse
+
+testCreateClientWithCapabilities :: App ()
+testCreateClientWithCapabilities = do
+  let allCapabilities = ["legalhold-implicit-consent", "consumable-notifications"]
+  alice <- randomUser OwnDomain def
+  addClient alice def {acapabilities = Just allCapabilities} `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 201
+    resp.json %. "capabilities" `shouldMatchSet` allCapabilities
+  getSelfClients alice `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "0.capabilities" `shouldMatchSet` allCapabilities
+
+testUpdateClientWithConsumableNotificationsCapability :: App ()
+testUpdateClientWithConsumableNotificationsCapability = do
+  domain <- asString OwnDomain
+  let consumeCapability = "consumable-notifications"
+  alice <- randomUser domain def
+  aliceId <- alice %. "id" & asString
+  cid <-
+    addClient alice def {acapabilities = Nothing} `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 201
+      resp.json %. "id" & asString
+  let cli =
+        ClientIdentity
+          { domain = domain,
+            user = aliceId,
+            client = cid
+          }
+  updateClient cli def {capabilities = Just [consumeCapability]} >>= assertSuccess
+  getSelfClients alice `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "0.capabilities" `shouldMatch` [consumeCapability]
