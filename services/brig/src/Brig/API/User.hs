@@ -259,6 +259,7 @@ createUserSpar new = do
 upgradePersonalToTeam ::
   forall r.
   ( Member GalleyAPIAccess r,
+    Member EmailSubsystem r,
     Member UserSubsystem r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
@@ -273,8 +274,12 @@ upgradePersonalToTeam ::
 upgradePersonalToTeam luid bNewTeam = do
   -- check that the user is not part of a team
   mSelfProfile <- lift $ liftSem $ getSelfProfile luid
-  let mTid = mSelfProfile >>= userTeam . selfUser
-  when (isJust mTid) $
+  user <-
+    maybe
+      (throwE UpgradePersonalToTeamErrorUserNotFound)
+      (pure . selfUser)
+      mSelfProfile
+  when (isJust user.userTeam) $
     throwE UpgradePersonalToTeamErrorAlreadyInATeam
 
   lift $ do
@@ -290,6 +295,15 @@ upgradePersonalToTeam luid bNewTeam = do
     wrapClient $ updateUserTeam uid tid
     liftSem $ Intra.sendUserEvent uid Nothing (teamUpdated uid tid)
     initAccountFeatureConfig uid
+
+    -- send confirmation email
+    for_ (userEmail user) $ \email -> do
+      liftSem $
+        sendUpgradePersonalToTeamConfirmationEmail
+          email
+          user.userDisplayName
+          bNewTeam.bnuTeam.bntTeam._newTeamName.fromRange
+          user.userLocale
 
     pure $! createUserTeam
 

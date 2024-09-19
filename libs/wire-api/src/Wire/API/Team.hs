@@ -177,7 +177,7 @@ instance ToSchema TeamList where
 --------------------------------------------------------------------------------
 -- NewTeam
 
-newtype BindingNewTeam = BindingNewTeam (NewTeam ())
+newtype BindingNewTeam = BindingNewTeam {bntTeam :: NewTeam ()}
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema BindingNewTeam)
 

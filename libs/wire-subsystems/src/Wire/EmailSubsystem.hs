@@ -21,5 +21,6 @@ data EmailSubsystem m a where
   SendAccountDeletionEmail :: EmailAddress -> Name -> Code.Key -> Code.Value -> Locale -> EmailSubsystem m ()
   SendTeamActivationMail :: EmailAddress -> Name -> ActivationKey -> ActivationCode -> Maybe Locale -> Text -> EmailSubsystem m ()
   SendTeamDeletionVerificationMail :: EmailAddress -> Code.Value -> Maybe Locale -> EmailSubsystem m ()
+  SendUpgradePersonalToTeamConfirmationEmail :: EmailAddress -> Name -> Text -> Locale -> EmailSubsystem m ()
 
 makeSem ''EmailSubsystem
