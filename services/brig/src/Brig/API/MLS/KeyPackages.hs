@@ -98,9 +98,9 @@ claimLocalKeyPackages qusr skipOwn suite target = do
   -- the remote backend is complicit with our legalhold policies, we disallow anyone
   -- fetching key packages for users under legalhold
   --
-  -- This way we prevent both locally and on the remote to add a legalholded user to an MLS
+  -- This way we prevent both locally and on the remote to add a user under legalhold to an MLS
   -- conversation
-  assertUserNotLegalholded
+  assertUserNotUnderLegalHold
 
   -- skip own client when the target is the requesting user itself
   let own = guard (qusr == tUntagged target) *> skipOwn
@@ -124,8 +124,8 @@ claimLocalKeyPackages qusr skipOwn suite target = do
         uncurry (KeyPackageBundleEntry (tUntagged target) c)
           <$> wrapClientM (Data.claimKeyPackage target c suite)
 
-    assertUserNotLegalholded :: ExceptT ClientError (AppT r) ()
-    assertUserNotLegalholded = do
+    assertUserNotUnderLegalHold :: ExceptT ClientError (AppT r) ()
+    assertUserNotUnderLegalHold = do
       -- this is okay because there can only be one StoredUser per UserId
       mSu <- lift $ liftSem $ getUser (tUnqualified target)
       case mSu of
