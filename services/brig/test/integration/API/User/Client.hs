@@ -913,10 +913,7 @@ testTooManyClients :: Opt.Opts -> Brig -> Http ()
 testTooManyClients opts brig = do
   uid <- userId <$> randomUser brig
   -- We can always change the permanent client limit
-  -- TODO: improve this for readability
-
-  -- let newOpts = opts & Opt.optSettings . Opt.userMaxPermClients ?~ 1
-  let newOpts :: Opt.Opts = opts & optionSettings . userMaxPermClientsLens ?~ 1
+  let newOpts = opts & optionSettings . userMaxPermClientsLens ?~ 1
   withSettingsOverrides newOpts $ do
     -- There is only one temporary client, adding a new one
     -- replaces the previous one.
