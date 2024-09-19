@@ -819,6 +819,11 @@ defSftListLength = unsafeRange 5
 instance FromJSON Settings where
   parseJSON = genericParseJSON customOptions
     where
+      -- Convert a word to title case by capitalising the first letter
+      capitalise :: String -> String
+      capitalise [] = []
+      capitalise (c : cs) = toUpper c : cs
+
       customOptions =
         defaultOptions
           { fieldLabelModifier = \case
@@ -834,7 +839,7 @@ instance FromJSON Settings where
               "oAuthEnabledInternal" -> "setOAuthEnabled"
               "oAuthRefreshTokenExpirationTimeSecsInternal" -> "setOAuthRefreshTokenExpirationTimeSecs"
               "oAuthMaxActiveRefreshTokensInternal" -> "setOAuthMaxActiveRefreshTokens"
-              other -> other
+              other -> "set" <> capitalise other
           }
 
 instance FromJSON Opts
