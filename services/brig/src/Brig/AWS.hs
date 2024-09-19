@@ -20,7 +20,7 @@
 
 module Brig.AWS
   ( -- * Monad
-    Env,
+    Env (..),
     mkEnv,
     Amazon,
     amazonkaEnv,

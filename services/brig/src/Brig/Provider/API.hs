@@ -46,7 +46,7 @@ import Brig.ZAuth qualified as ZAuth
 import Cassandra (MonadClient)
 import Control.Error (throwE)
 import Control.Exception.Enclosed (handleAny)
-import Control.Lens (view, (^.))
+import Control.Lens ((^.))
 import Control.Monad.Catch (MonadMask)
 import Control.Monad.Except
 import Data.ByteString.Conversion
@@ -279,7 +279,7 @@ login l = do
   unless (verifyPassword (providerLoginPassword l) pass) $
     throwStd (errorToWai @'E.BadCredentials)
   token <- ZAuth.newProviderToken pid
-  s <- view settings
+  s <- asks (.settings)
   pure $ ProviderTokenCookie (ProviderToken token) (not (setCookieInsecure s))
 
 beginPasswordReset :: (Member GalleyAPIAccess r, Member EmailSending r, Member VerificationCodeSubsystem r) => Public.PasswordReset -> (Handler r) ()
@@ -563,11 +563,11 @@ searchServiceProfiles _ Nothing (Just start) mSize = do
   guardSecondFactorDisabled Nothing
   prefix :: Range 1 128 Text <- rangeChecked start
   let size = fromMaybe (unsafeRange 20) mSize
-  wrapClientE . DB.paginateServiceNames (Just prefix) (fromRange size) . setProviderSearchFilter =<< view settings
+  wrapClientE . DB.paginateServiceNames (Just prefix) (fromRange size) . setProviderSearchFilter =<< asks (.settings)
 searchServiceProfiles _ (Just tags) start mSize = do
   guardSecondFactorDisabled Nothing
   let size = fromMaybe (unsafeRange 20) mSize
-  (wrapClientE . DB.paginateServiceTags tags start (fromRange size)) . setProviderSearchFilter =<< view settings
+  (wrapClientE . DB.paginateServiceTags tags start (fromRange size)) . setProviderSearchFilter =<< asks (.settings)
 searchServiceProfiles _ Nothing Nothing _ = do
   guardSecondFactorDisabled Nothing
   throwStd $ badRequest "At least `tags` or `start` must be provided."
@@ -664,7 +664,7 @@ addBot zuid zcon cid add = do
   let mems = cnvMembers cnv
   unless (cnvType cnv == RegularConv) $
     throwStd (errorToWai @'E.InvalidConversation)
-  maxSize <- fromIntegral . setMaxConvSize <$> view settings
+  maxSize <- fromIntegral . setMaxConvSize <$> asks (.settings)
   unless (length (cmOthers mems) < maxSize - 1) $
     throwStd (errorToWai @'E.TooManyConversationMembers)
   -- For team conversations: bots are not allowed in
@@ -695,7 +695,7 @@ addBot zuid zcon cid add = do
   let botReq = NewBotRequest bid bcl busr bcnv btk bloc
   rs <- RPC.createBot scon botReq !>> StdError . serviceError
   -- Insert the bot user and client
-  locale <- Opt.setDefaultUserLocale <$> view settings
+  locale <- Opt.setDefaultUserLocale <$> asks (.settings)
   let name = fromMaybe (serviceProfileName svp) (Ext.rsNewBotName rs)
   let assets = fromMaybe (serviceProfileAssets svp) (Ext.rsNewBotAssets rs)
   let colour = fromMaybe defaultAccentId (Ext.rsNewBotColour rs)
@@ -707,7 +707,7 @@ addBot zuid zcon cid add = do
           { newClientPrekeys = Ext.rsNewBotPrekeys rs
           }
   lift $ wrapClient $ User.insertAccount (UserAccount usr Active) (Just (cid, cnvTeam cnv)) Nothing True
-  maxPermClients <- fromMaybe Opt.defUserMaxPermClients . Opt.setUserMaxPermClients <$> view settings
+  maxPermClients <- fromMaybe Opt.defUserMaxPermClients . Opt.setUserMaxPermClients <$> asks (.settings)
   (clt, _, _) <- do
     _ <- do
       -- if we want to protect bots against lh, 'addClient' cannot just send lh capability
@@ -795,7 +795,7 @@ botClaimUsersPrekeys ::
   Handler r Public.UserClientPrekeyMap
 botClaimUsersPrekeys _ body = do
   guardSecondFactorDisabled Nothing
-  maxSize <- fromIntegral . setMaxConvSize <$> view settings
+  maxSize <- fromIntegral . setMaxConvSize <$> asks (.settings)
   when (Map.size (Public.userClients body) > maxSize) $
     throwStd (errorToWai @'E.TooManyClients)
   Client.claimLocalMultiPrekeyBundles UnprotectedBot body !>> clientError

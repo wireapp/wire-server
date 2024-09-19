@@ -195,7 +195,7 @@ transitionTo self mzcon other (Just connection) (Just rel) actor = do
           $ ucConvId connection
       desiredMem = desiredMembership actor rel
   lift $ updateOne2OneConv self Nothing other proteusConvId desiredMem actor
-  mlsEnabled <- view (settings . enableMLS)
+  mlsEnabled <- asks ((.settings) <&> view enableMLS)
   when (fromMaybe False mlsEnabled) $ do
     let mlsConvId = one2OneConvId BaseProtocolMLSTag (tUntagged self) (tUntagged other)
     isEstablished <- lift . liftSem $ isMLSOne2OneEstablished self (tUntagged other)

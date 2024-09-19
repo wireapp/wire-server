@@ -24,7 +24,6 @@ import Brig.IO.Intra qualified as Intra
 import Brig.InternalEvent.Types
 import Brig.Options (defDeleteThrottleMillis, setDeleteThrottleMillis)
 import Brig.Provider.API qualified as API
-import Control.Lens (view)
 import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Qualified (Local)
@@ -75,7 +74,7 @@ onEvent n = handleTimeout $ case n of
     -- As user deletions are expensive resource-wise in the context of
     -- bulk user deletions (e.g. during team deletions),
     -- wait 'delay' ms before processing the next event
-    deleteThrottleMillis <- embed $ fromMaybe defDeleteThrottleMillis . setDeleteThrottleMillis <$> view settings
+    deleteThrottleMillis <- embed $ fromMaybe defDeleteThrottleMillis . setDeleteThrottleMillis <$> asks (.settings)
     delay (1000 * deleteThrottleMillis)
   DeleteService pid sid -> do
     Log.info $

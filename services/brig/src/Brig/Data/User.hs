@@ -115,7 +115,7 @@ data ReAuthError
 -- there, it was claimed properly.
 newAccount :: (MonadClient m, MonadReader Env m) => NewUser -> Maybe InvitationId -> Maybe TeamId -> Maybe Handle -> m (UserAccount, Maybe Password)
 newAccount u inv tid mbHandle = do
-  defLoc <- setDefaultUserLocale <$> view settings
+  defLoc <- setDefaultUserLocale <$> asks (.settings)
   domain <- viewFederationDomain
   uid <-
     Id <$> do
@@ -127,10 +127,10 @@ newAccount u inv tid mbHandle = do
   expiry <- case status of
     Ephemeral -> do
       -- Ephemeral users' expiry time is in expires_in (default sessionTokenTimeout) seconds
-      e <- view zauthEnv
+      e <- asks (.zauthEnv)
       let ZAuth.SessionTokenTimeout defTTL = e ^. ZAuth.settings . ZAuth.sessionTokenTimeout
           ttl = maybe defTTL fromRange (newUserExpiresIn u)
-      now <- liftIO =<< view currentTime
+      now <- liftIO =<< asks (.currentTime)
       pure . Just . toUTCTimeMillis $ addUTCTime (fromIntegral ttl) now
     _ -> pure Nothing
   pure (UserAccount (user uid domain (locale defLoc) expiry) status, passwd)
@@ -152,7 +152,7 @@ newAccount u inv tid mbHandle = do
 
 newAccountInviteViaScim :: (MonadReader Env m) => UserId -> Text -> TeamId -> Maybe Locale -> Name -> EmailAddress -> m UserAccount
 newAccountInviteViaScim uid externalId tid locale name email = do
-  defLoc <- setDefaultUserLocale <$> view settings
+  defLoc <- setDefaultUserLocale <$> asks (.settings)
   let loc = fromMaybe defLoc locale
   domain <- viewFederationDomain
   pure (UserAccount (user domain loc) PendingInvitation)
@@ -399,7 +399,7 @@ lookupAuth u = fmap f <$> retry x1 (query1 authSelect (params LocalQuorum (Ident
 -- Skips nonexistent users. /Does not/ skip users who have been deleted.
 lookupUsers :: (MonadClient m, MonadReader Env m) => HavePendingInvitations -> [UserId] -> m [User]
 lookupUsers hpi usrs = do
-  loc <- setDefaultUserLocale <$> view settings
+  loc <- setDefaultUserLocale <$> asks (.settings)
   domain <- viewFederationDomain
   toUsers domain loc hpi <$> retry x1 (query usersSelect (params LocalQuorum (Identity usrs)))
 

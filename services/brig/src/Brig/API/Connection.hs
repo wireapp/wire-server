@@ -46,7 +46,6 @@ import Brig.IO.Logging
 import Brig.Options
 import Brig.Types.Connection
 import Control.Error
-import Control.Lens (view)
 import Control.Monad.Catch (throwM)
 import Data.Id as Id
 import Data.LegalHold qualified as LH
@@ -342,7 +341,7 @@ updateConnectionToLocalUser self other newStatus conn = do
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Blocking connection")
       traverse_ (liftSem . Intra.blockConv self) (ucConvId s2o)
-      mlsEnabled <- view (settings . enableMLS)
+      mlsEnabled <- asks (.settings.setEnableMLS)
       liftSem $ when (fromMaybe False mlsEnabled) $ do
         let mlsConvId = one2OneConvId BaseProtocolMLSTag (tUntagged self) (tUntagged other)
         isEstablished <- isMLSOne2OneEstablished self (tUntagged other)
@@ -358,7 +357,7 @@ updateConnectionToLocalUser self other newStatus conn = do
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Unblocking connection")
       cnv <- lift . liftSem $ traverse (unblockConversation self conn) (ucConvId s2o)
-      mlsEnabled <- view (settings . enableMLS)
+      mlsEnabled <- asks (.settings.setEnableMLS)
       lift . liftSem $ when (fromMaybe False mlsEnabled) $ do
         let mlsConvId = one2OneConvId BaseProtocolMLSTag (tUntagged self) (tUntagged other)
         isEstablished <- isMLSOne2OneEstablished self (tUntagged other)

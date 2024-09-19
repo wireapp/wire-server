@@ -26,7 +26,6 @@ import Brig.Data.User qualified as User
 import Brig.Options
 import Brig.User.Auth qualified as Auth
 import Brig.ZAuth hiding (Env, settings)
-import Control.Lens (view)
 import Control.Monad.Trans.Except
 import Data.CommaSeparatedList
 import Data.Id
@@ -226,7 +225,7 @@ mkUserTokenCookie ::
   Cookie (Token u) ->
   m UserTokenCookie
 mkUserTokenCookie c = do
-  s <- view settings
+  s <- asks (.settings)
   pure
     UserTokenCookie
       { utcExpires =

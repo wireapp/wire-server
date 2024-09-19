@@ -211,7 +211,7 @@ createInvitationViaScim ::
 createInvitationViaScim tid newUser@(NewUserScimInvitation _tid uid _eid loc name email role) = do
   env <- ask
   let inviteeRole = role
-      fromEmail = env ^. App.emailSender
+      fromEmail = env.emailSender
       invreq =
         InvitationRequest
           { locale = loc,
@@ -281,7 +281,7 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail invRequest = do
     unless isPersonalUserMigration $
       throwStd emailExists
 
-  maxSize <- setMaxTeamSize <$> view settings
+  maxSize <- setMaxTeamSize <$> asks (.settings)
   pending <- lift $ liftSem $ Store.countInvitations tid
   when (fromIntegral pending >= maxSize) $
     throwStd (errorToWai @'E.TooManyTeamInvitations)
@@ -290,8 +290,8 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail invRequest = do
 
   lift $ do
     iid <- maybe randomId (pure . Id . toUUID) mUid
-    now <- liftIO =<< view currentTime
-    timeout <- setTeamInvitationTimeout <$> view settings
+    now <- liftIO =<< asks (.currentTime)
+    timeout <- setTeamInvitationTimeout <$> asks (.settings)
     code <- liftIO $ Store.mkInvitationCode
     newInv <-
       let insertInv =

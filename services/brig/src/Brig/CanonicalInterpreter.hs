@@ -161,35 +161,35 @@ runBrigToIO :: App.Env -> AppT BrigCanonicalEffects a -> IO a
 runBrigToIO e (AppT ma) = do
   let userSubsystemConfig =
         UserSubsystemConfig
-          { emailVisibilityConfig = e ^. settings . Opt.emailVisibility,
-            defaultLocale = e ^. settings . to Opt.setDefaultUserLocale,
-            searchSameTeamOnly = e ^. settings . Opt.searchSameTeamOnly . to (fromMaybe False)
+          { emailVisibilityConfig = e.settings ^. Opt.emailVisibility,
+            defaultLocale = e.settings ^. to Opt.setDefaultUserLocale,
+            searchSameTeamOnly = e.settings ^. Opt.searchSameTeamOnly . to (fromMaybe False)
           }
       federationApiAccessConfig =
         FederationAPIAccessConfig
-          { ownDomain = e ^. settings . Opt.federationDomain,
-            federatorEndpoint = e ^. federator,
-            http2Manager = e ^. App.http2Manager,
-            requestId = e ^. App.requestId
+          { ownDomain = e.settings ^. Opt.federationDomain,
+            federatorEndpoint = e.federator,
+            http2Manager = e.http2Manager,
+            requestId = e.requestId
           }
       propertySubsystemConfig =
         PropertySubsystemConfig
-          { maxKeyLength = fromMaybe Opt.defMaxKeyLen $ e ^. settings . Opt.propertyMaxKeyLen,
-            maxValueLength = fromMaybe Opt.defMaxValueLen $ e ^. settings . Opt.propertyMaxValueLen,
+          { maxKeyLength = fromMaybe Opt.defMaxKeyLen $ e.settings ^. Opt.propertyMaxKeyLen,
+            maxValueLength = fromMaybe Opt.defMaxValueLen $ e.settings ^. Opt.propertyMaxValueLen,
             maxProperties = 16
           }
-      mainESEnv = e ^. App.indexEnv . to idxElastic
+      mainESEnv = e.indexEnv ^. to idxElastic
       indexedUserStoreConfig =
         IndexedUserStoreConfig
           { conn =
               ESConn
                 { env = mainESEnv,
-                  indexName = e ^. App.indexEnv . to idxName
+                  indexName = e.indexEnv ^. to idxName
                 },
             additionalConn =
-              (e ^. App.indexEnv . to idxAdditionalName) <&> \additionalIndexName ->
+              (e.indexEnv ^. to idxAdditionalName) <&> \additionalIndexName ->
                 ESConn
-                  { env = e ^. App.indexEnv . to idxAdditionalElastic . to (fromMaybe mainESEnv),
+                  { env = e.indexEnv ^. to idxAdditionalElastic . to (fromMaybe mainESEnv),
                     indexName = additionalIndexName
                   }
           }
@@ -200,43 +200,43 @@ runBrigToIO e (AppT ma) = do
               . interpretRace
               . embedToFinal
               . runEmbedded (runHttpClientIO e)
-              . loggerToTinyLogReqId (e ^. App.requestId) (e ^. applog)
+              . loggerToTinyLogReqId e.requestId e.appLogger
               . runError @SomeException
               . mapError @ErrorCall SomeException
               . mapError @ParseException SomeException
-              . interpretClientToIO (e ^. casClient)
+              . interpretClientToIO e.casClient
               . runMetricsToIO
-              . runRpcWithHttp (e ^. httpManager) (e ^. App.requestId)
+              . runRpcWithHttp e.httpManager e.requestId
               . emailSendingInterpreter e
-              . interpretGalleyAPIAccessToRpc (e ^. disabledVersions) (e ^. galleyEndpoint)
+              . interpretGalleyAPIAccessToRpc e.disabledVersions e.galleyEndpoint
               . passwordResetCodeStoreToCassandra @Cas.Client
               . randomToIO
               . runDelay
-              . nowToIOAction (e ^. currentTime)
+              . nowToIOAction e.currentTime
               . userPendingActivationStoreToCassandra
-              . interpretBlockListStoreToCassandra (e ^. casClient)
+              . interpretBlockListStoreToCassandra e.casClient
               . interpretJwtTools
               . interpretPublicKeyBundle
               . interpretJwk
-              . interpretFederationDomainConfig (e ^. casClient) (e ^. settings . federationStrategy) (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) (e ^. settings . federationDomainConfigs))
-              . runGundeckAPIAccess (e ^. gundeckEndpoint)
-              . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig (e ^. App.requestId))
+              . interpretFederationDomainConfig e.casClient (e.settings ^. federationStrategy) (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) (e.settings ^. federationDomainConfigs))
+              . runGundeckAPIAccess e.gundeckEndpoint
+              . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig e.requestId)
               . runInputConst (teamTemplatesNoLocale e)
-              . runInputConst (e ^. settings . Opt.allowlistEmailDomains)
-              . runInputConst (toLocalUnsafe (e ^. settings . Opt.federationDomain) ())
+              . runInputConst (e.settings ^. Opt.allowlistEmailDomains)
+              . runInputConst (toLocalUnsafe (e.settings ^. Opt.federationDomain) ())
               . runInputSem (embed getCurrentTime)
-              . runInputConst (e ^. settings . to Opt.set2FACodeGenerationDelaySecs . to fromIntegral)
+              . runInputConst (e.settings ^. to Opt.set2FACodeGenerationDelaySecs . to fromIntegral)
               . connectionStoreToCassandra
-              . interpretSFT (e ^. httpManager)
-              . interpretPropertyStoreCassandra (e ^. casClient)
-              . interpretInvitationCodeStoreToCassandra (e ^. casClient)
-              . interpretActivationCodeStoreToCassandra (e ^. casClient)
-              . interpretVerificationCodeStoreCassandra (e ^. casClient)
-              . interpretPasswordStore (e ^. casClient)
-              . interpretSessionStoreCassandra (e ^. casClient)
+              . interpretSFT e.httpManager
+              . interpretPropertyStoreCassandra e.casClient
+              . interpretInvitationCodeStoreToCassandra e.casClient
+              . interpretActivationCodeStoreToCassandra e.casClient
+              . interpretVerificationCodeStoreCassandra e.casClient
+              . interpretPasswordStore e.casClient
+              . interpretSessionStoreCassandra e.casClient
               . interpretIndexedUserStoreES indexedUserStoreConfig
-              . interpretUserStoreCassandra (e ^. casClient)
-              . interpretUserKeyStoreCassandra (e ^. casClient)
+              . interpretUserStoreCassandra e.casClient
+              . interpretUserKeyStoreCassandra e.casClient
               . runHashPassword
               . interpretFederationAPIAccess federationApiAccessConfig
               . rethrowHttpErrorIO
@@ -246,10 +246,10 @@ runBrigToIO e (AppT ma) = do
               . mapError authenticationSubsystemErrorToHttpError
               . mapError userSubsystemErrorToHttpError
               . runEvents
-              . runDeleteQueue (e ^. internalEvents)
+              . runDeleteQueue e.internalEvents
               . interpretPropertySubsystem propertySubsystemConfig
               . interpretVerificationCodeSubsystem
-              . emailSubsystemInterpreter (e ^. userTemplates) (e ^. templateBranding)
+              . emailSubsystemInterpreter e.userTemplates e.templateBranding
               . runUserSubsystem userSubsystemConfig
               . interpretAuthenticationSubsystem
           )
@@ -265,6 +265,6 @@ rethrowHttpErrorIO act = do
 
 emailSendingInterpreter :: (Member (Embed IO) r) => Env -> InterpreterFor EmailSending r
 emailSendingInterpreter e = do
-  case (e ^. smtpEnv) of
-    Just smtp -> emailViaSMTPInterpreter (e ^. applog) smtp
-    Nothing -> emailViaSESInterpreter (e ^. awsEnv . amazonkaEnv)
+  case e.smtpEnv of
+    Just smtp -> emailViaSMTPInterpreter e.appLogger smtp
+    Nothing -> emailViaSESInterpreter (e.awsEnv ^. amazonkaEnv)

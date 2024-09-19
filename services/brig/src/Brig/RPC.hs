@@ -22,7 +22,6 @@ import Bilge
 import Bilge.RPC
 import Bilge.Retry
 import Brig.App
-import Control.Lens
 import Control.Monad.Catch
 import Control.Retry
 import Data.Aeson
@@ -57,12 +56,12 @@ galleyRequest = serviceRequest "galley" galley
 serviceRequest ::
   (MonadReader Env m, MonadUnliftIO m, MonadMask m, MonadHttp m, HasRequestId m) =>
   LT.Text ->
-  Control.Lens.Getting Request Env Request ->
+  (Env -> Request) ->
   StdMethod ->
   (Request -> Request) ->
   m (Response (Maybe BL.ByteString))
 serviceRequest nm svc m r = do
-  service <- view svc
+  service <- asks svc
   serviceRequestImpl nm service m r
 
 serviceRequestImpl ::

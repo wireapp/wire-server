@@ -112,7 +112,7 @@ federationSitemap =
 getFederationStatus :: (Member FederationConfigStore r) => Domain -> DomainSet -> Handler r NonConnectedBackends
 getFederationStatus _ request = do
   cfg <- ask
-  case setFederationStrategy (cfg ^. settings) of
+  case setFederationStrategy (cfg ^. settingsLens) of
     Just AllowAll -> pure $ NonConnectedBackends mempty
     _ -> do
       fedDomains <- fromList . fmap (.domain) . (.remotes) <$> lift (liftSem $ E.getFederationConfigs)

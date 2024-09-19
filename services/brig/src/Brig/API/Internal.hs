@@ -49,7 +49,7 @@ import Brig.Types.User
 import Brig.User.EJPD qualified
 import Brig.User.Search.Index qualified as Search
 import Control.Error hiding (bool)
-import Control.Lens (preview, to, view, _Just)
+import Control.Lens (preview, to, _Just)
 import Data.ByteString.Conversion (toByteString)
 import Data.Code qualified as Code
 import Data.CommaSeparatedList
@@ -370,7 +370,7 @@ updateFederationRemote dom fedcfg = do
 getAccountConferenceCallingConfig :: UserId -> Handler r (Feature ConferenceCallingConfig)
 getAccountConferenceCallingConfig uid = do
   mStatus <- lift $ wrapClient $ Data.lookupFeatureConferenceCalling uid
-  mDefStatus <- preview (settings . featureFlags . _Just . to conferenceCalling . to forNull)
+  mDefStatus <- preview (settingsLens . featureFlags . _Just . to conferenceCalling . to forNull)
   pure $ def {status = mStatus <|> mDefStatus ?: (def :: LockableFeature ConferenceCallingConfig).status}
 
 putAccountConferenceCallingConfig :: UserId -> Feature ConferenceCallingConfig -> Handler r NoContent
@@ -721,7 +721,7 @@ updateRichInfoH :: UserId -> RichInfoUpdate -> (Handler r) NoContent
 updateRichInfoH uid rup =
   NoContent <$ do
     let (unRichInfoAssocList -> richInfo) = normalizeRichInfoAssocList . riuRichInfo $ rup
-    maxSize <- setRichInfoLimit <$> view settings
+    maxSize <- setRichInfoLimit <$> asks (.settings)
     when (richInfoSize (RichInfo (mkRichInfoAssocList richInfo)) > maxSize) $ throwStd tooLargeRichInfo
     -- FUTUREWORK: send an event
     -- Intra.onUserEvent uid (Just conn) (richInfoUpdate uid ri)
@@ -735,14 +735,14 @@ updateLocale uid upd@(LocaleUpdate locale) = do
 
 deleteLocale :: (Member UserSubsystem r) => UserId -> (Handler r) NoContent
 deleteLocale uid = do
-  defLoc <- setDefaultUserLocale <$> view settings
+  defLoc <- setDefaultUserLocale <$> asks (.settings)
   qUid <- qualifyLocal uid
   lift . liftSem $ updateUserProfile qUid Nothing UpdateOriginScim def {locale = Just defLoc}
   pure NoContent
 
 getDefaultUserLocale :: (Handler r) LocaleUpdate
 getDefaultUserLocale = do
-  defLocale <- setDefaultUserLocale <$> view settings
+  defLocale <- setDefaultUserLocale <$> asks (.settings)
   pure $ LocaleUpdate defLocale
 
 updateClientLastActive :: UserId -> ClientId -> Handler r ()

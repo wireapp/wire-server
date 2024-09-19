@@ -86,7 +86,7 @@ getLocalHandleInfo self handle = do
 -- | Checks search permissions and filters accordingly
 filterHandleResults :: Local UserId -> [Public.UserProfile] -> (Handler r) [Public.UserProfile]
 filterHandleResults searchingUser us = do
-  sameTeamSearchOnly <- fromMaybe False <$> view (settings . searchSameTeamOnly)
+  sameTeamSearchOnly <- fromMaybe False <$> asks ((.settings) <&> view searchSameTeamOnly)
   if sameTeamSearchOnly
     then do
       fromTeam <- lift . wrapClient $ Data.lookupUserTeam (tUnqualified searchingUser)

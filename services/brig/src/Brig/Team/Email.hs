@@ -29,7 +29,6 @@ where
 
 import Brig.App
 import Brig.Team.Template
-import Control.Lens (view)
 import Data.Id (TeamId, idToText)
 import Data.Text.Ascii qualified as Ascii
 import Data.Text.Lazy (toStrict)
@@ -42,22 +41,22 @@ import Wire.EmailSubsystem.Template (TemplateBranding, renderHtmlWithBranding, r
 
 sendInvitationMail :: (Member EmailSending r) => EmailAddress -> TeamId -> EmailAddress -> InvitationCode -> Maybe Locale -> (AppT r) ()
 sendInvitationMail to tid from code loc = do
-  tpl <- invitationEmail . snd <$> teamTemplates loc
-  branding <- view templateBranding
+  tpl <- invitationEmail . snd <$> teamTemplatesWithLocale loc
+  branding <- asks (.templateBranding)
   let mail = InvitationEmail to tid code from
   liftSem $ sendMail $ renderInvitationEmail mail tpl branding
 
 sendInvitationMailPersonalUser :: (Member EmailSending r) => EmailAddress -> TeamId -> EmailAddress -> InvitationCode -> Maybe Locale -> (AppT r) ()
 sendInvitationMailPersonalUser to tid from code loc = do
-  tpl <- existingUserInvitationEmail . snd <$> teamTemplates loc
-  branding <- view templateBranding
+  tpl <- existingUserInvitationEmail . snd <$> teamTemplatesWithLocale loc
+  branding <- asks (.templateBranding)
   let mail = InvitationEmail to tid code from
   liftSem $ sendMail $ renderInvitationEmail mail tpl branding
 
 sendMemberWelcomeMail :: (Member EmailSending r) => EmailAddress -> TeamId -> Text -> Maybe Locale -> (AppT r) ()
 sendMemberWelcomeMail to tid teamName loc = do
-  tpl <- memberWelcomeEmail . snd <$> teamTemplates loc
-  branding <- view templateBranding
+  tpl <- memberWelcomeEmail . snd <$> teamTemplatesWithLocale loc
+  branding <- asks (.templateBranding)
   let mail = MemberWelcomeEmail to tid teamName
   liftSem $ sendMail $ renderMemberWelcomeMail mail tpl branding
 

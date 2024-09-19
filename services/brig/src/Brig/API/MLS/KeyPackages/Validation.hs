@@ -29,7 +29,6 @@ import Brig.App
 import Brig.Data.Client qualified as Data
 import Brig.Options
 import Control.Applicative
-import Control.Lens
 import Data.ByteString qualified as LBS
 import Data.Qualified
 import Data.Time.Clock
@@ -82,7 +81,7 @@ validateUploadedKeyPackage identity kp = do
 validateLifetime :: Lifetime -> Handler r ()
 validateLifetime lt = do
   now <- liftIO getPOSIXTime
-  mMaxLifetime <- setKeyPackageMaximumLifetime <$> view settings
+  mMaxLifetime <- setKeyPackageMaximumLifetime <$> asks (.settings)
   either mlsProtocolError pure $
     validateLifetime' now mMaxLifetime lt
 

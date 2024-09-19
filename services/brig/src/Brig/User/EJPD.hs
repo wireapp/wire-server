@@ -125,7 +125,7 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
 
       mbAssets <- do
         urls <- forM (userAssets target) $ \(asset :: Asset) -> do
-          cgh <- asks (view cargoholdEndpoint)
+          cgh <- asks (.cargoholdEndpoint)
           let key = toByteString' $ assetKey asset
           resp <- liftSem $ rpcWithRetries "cargohold" cgh (method GET . paths ["/i/assets", key])
           pure $

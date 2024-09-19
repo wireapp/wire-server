@@ -172,7 +172,7 @@ withRetryLimit ::
   UserId ->
   ExceptT LoginError m ()
 withRetryLimit action uid = do
-  mLimitFailedLogins <- view (settings . to Opt.setLimitFailedLogins)
+  mLimitFailedLogins <- view (settingsLens . to Opt.setLimitFailedLogins)
   forM_ mLimitFailedLogins $ \opts -> do
     let bkey = BudgetKey ("login#" <> idToText uid)
         budget =
