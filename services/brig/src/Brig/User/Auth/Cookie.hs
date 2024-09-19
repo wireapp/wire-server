@@ -119,7 +119,7 @@ nextCookie c mNewCid = runMaybeT $ do
   s <- asks (.settings)
   now <- liftIO =<< asks (.currentTime)
   let created = cookieCreated c
-  let renewAge = fromInteger (setUserCookieRenewAge s)
+  let renewAge = fromInteger s.userCookieRenewAge
   -- Renew the cookie if the client ID has changed, regardless of age.
   -- FUTUREWORK: Also renew the cookie if it was signed with a different zauth
   -- key index, regardless of age.
@@ -158,7 +158,7 @@ renewCookie old mcid = do
   -- around only for another renewal period so as not to build
   -- an ever growing chain of superseded cookies.
   let old' = old {cookieSucc = Just (cookieId new)}
-  ttl <- setUserCookieRenewAge <$> asks (.settings)
+  ttl <- asks (.settings.userCookieRenewAge)
   adhocSessionStoreInterpreter $ Store.insertCookie uid (toUnitCookie old') (Just (Store.TTL (fromIntegral ttl)))
   pure new
 
@@ -168,7 +168,7 @@ renewCookie old mcid = do
 -- implicitly because of cyclical dependencies).
 mustSuspendInactiveUser :: (MonadReader Env m, MonadClient m) => UserId -> m Bool
 mustSuspendInactiveUser uid =
-  asks ((.settings) <&> setSuspendInactiveUsers) >>= \case
+  asks (.settings.suspendInactiveUsers) >>= \case
     Nothing -> pure False
     Just (SuspendInactiveUsers (Timeout suspendAge)) -> do
       now <- liftIO =<< asks (.currentTime)
@@ -248,8 +248,8 @@ newCookieLimited ::
 newCookieLimited u c typ label = do
   cs <- filter ((typ ==) . cookieType) <$> adhocSessionStoreInterpreter (Store.listCookies u)
   now <- liftIO =<< asks (.currentTime)
-  lim <- CookieLimit . setUserCookieLimit <$> asks (.settings)
-  thr <- setUserCookieThrottle <$> asks (.settings)
+  lim <- CookieLimit <$> asks (.settings.userCookieLimit)
+  thr <- asks (.settings.userCookieThrottle)
   let evict = map cookieId (limitCookies lim now cs)
   if null evict
     then Right <$> newCookie u c typ label
@@ -274,7 +274,7 @@ toWebCookie c = do
           if cookieType c == PersistentCookie
             then Just (cookieExpires c)
             else Nothing,
-        WebCookie.setCookieSecure = not (setCookieInsecure s),
+        WebCookie.setCookieSecure = not s.cookieInsecure,
         WebCookie.setCookieHttpOnly = True
       }
 

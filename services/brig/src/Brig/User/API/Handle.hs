@@ -30,7 +30,6 @@ import Brig.App
 import Brig.Data.User qualified as Data
 import Brig.Federation.Client qualified as Federation
 import Brig.Options (searchSameTeamOnly)
-import Control.Lens (view)
 import Data.Handle (Handle, fromHandle)
 import Data.Id (UserId)
 import Data.Qualified
@@ -86,7 +85,7 @@ getLocalHandleInfo self handle = do
 -- | Checks search permissions and filters accordingly
 filterHandleResults :: Local UserId -> [Public.UserProfile] -> (Handler r) [Public.UserProfile]
 filterHandleResults searchingUser us = do
-  sameTeamSearchOnly <- fromMaybe False <$> asks ((.settings) <&> view searchSameTeamOnly)
+  sameTeamSearchOnly <- fromMaybe False <$> asks (.settings.searchSameTeamOnly)
   if sameTeamSearchOnly
     then do
       fromTeam <- lift . wrapClient $ Data.lookupUserTeam (tUnqualified searchingUser)

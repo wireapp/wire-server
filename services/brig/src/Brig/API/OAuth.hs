@@ -240,7 +240,7 @@ createAccessTokenWithAuthorizationCode req = do
 
 signingKey :: (Member Jwk r) => (Handler r) JWK
 signingKey = do
-  fp <- view settingsLens >>= maybe (throwStd $ errorToWai @'OAuthJwtError) pure . Opt.setOAuthJwkKeyPair
+  fp <- maybe (throwStd $ errorToWai @'OAuthJwtError) pure =<< asks (.settings.oAuthJwkKeyPair)
   lift (liftSem $ Jwk.get fp) >>= maybe (throwStd $ errorToWai @'OAuthJwtError) pure
 
 createAccessToken :: (Member Now r) => JWK -> UserId -> OAuthClientId -> OAuthScopes -> (Handler r) OAuthAccessTokenResponse
@@ -264,7 +264,7 @@ createAccessToken key uid cid scope = do
 
     mkAccessToken :: (Member Now r) => (Handler r) OAuthAccessToken
     mkAccessToken = do
-      domain <- Opt.setFederationDomain <$> view settingsLens
+      domain <- asks (.settings.federationDomain)
       exp <- fromIntegral . Opt.setOAuthAccessTokenExpirationTimeSecs <$> view settingsLens
       claims <- mkAccessTokenClaims uid domain scope exp
       OAuthToken <$> signAccessToken claims

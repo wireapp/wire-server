@@ -97,7 +97,7 @@ getNonClaimedKeyPackages u c suite = do
   let decodedKps = foldMap (keepDecoded . (decodeKp &&& id)) kps
 
   now <- liftIO getPOSIXTime
-  mMaxLifetime <- setKeyPackageMaximumLifetime <$> asks (.settings)
+  mMaxLifetime <- asks (.settings.keyPackageMaximumLifetime)
 
   let (kpsExpired, kpsNonExpired) =
         partition (hasExpired now mMaxLifetime) decodedKps

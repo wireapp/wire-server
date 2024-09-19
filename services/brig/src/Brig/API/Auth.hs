@@ -229,10 +229,10 @@ mkUserTokenCookie c = do
   pure
     UserTokenCookie
       { utcExpires =
-          guard (cookieType c == PersistentCookie)
-            $> cookieExpires c,
-        utcToken = mkSomeToken (cookieValue c),
-        utcSecure = not (setCookieInsecure s)
+          guard (c.cookieType == PersistentCookie)
+            $> c.cookieExpires,
+        utcToken = mkSomeToken c.cookieValue,
+        utcSecure = not s.cookieInsecure
       }
 
 partitionTokens ::

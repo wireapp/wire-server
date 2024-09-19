@@ -280,7 +280,7 @@ login l = do
     throwStd (errorToWai @'E.BadCredentials)
   token <- ZAuth.newProviderToken pid
   s <- asks (.settings)
-  pure $ ProviderTokenCookie (ProviderToken token) (not (setCookieInsecure s))
+  pure $ ProviderTokenCookie (ProviderToken token) (not s.cookieInsecure)
 
 beginPasswordReset :: (Member GalleyAPIAccess r, Member EmailSending r, Member VerificationCodeSubsystem r) => Public.PasswordReset -> (Handler r) ()
 beginPasswordReset (Public.PasswordReset target) = do
@@ -563,11 +563,12 @@ searchServiceProfiles _ Nothing (Just start) mSize = do
   guardSecondFactorDisabled Nothing
   prefix :: Range 1 128 Text <- rangeChecked start
   let size = fromMaybe (unsafeRange 20) mSize
-  wrapClientE . DB.paginateServiceNames (Just prefix) (fromRange size) . setProviderSearchFilter =<< asks (.settings)
+  wrapClientE . DB.paginateServiceNames (Just prefix) (fromRange size) =<< asks (.settings.providerSearchFilter)
 searchServiceProfiles _ (Just tags) start mSize = do
   guardSecondFactorDisabled Nothing
   let size = fromMaybe (unsafeRange 20) mSize
-  (wrapClientE . DB.paginateServiceTags tags start (fromRange size)) . setProviderSearchFilter =<< asks (.settings)
+  (wrapClientE . DB.paginateServiceTags tags start (fromRange size))
+    =<< asks (.settings.providerSearchFilter)
 searchServiceProfiles _ Nothing Nothing _ = do
   guardSecondFactorDisabled Nothing
   throwStd $ badRequest "At least `tags` or `start` must be provided."
@@ -664,7 +665,7 @@ addBot zuid zcon cid add = do
   let mems = cnvMembers cnv
   unless (cnvType cnv == RegularConv) $
     throwStd (errorToWai @'E.InvalidConversation)
-  maxSize <- fromIntegral . setMaxConvSize <$> asks (.settings)
+  maxSize <- fromIntegral <$> asks (.settings.maxConvSize)
   unless (length (cmOthers mems) < maxSize - 1) $
     throwStd (errorToWai @'E.TooManyConversationMembers)
   -- For team conversations: bots are not allowed in
@@ -707,7 +708,7 @@ addBot zuid zcon cid add = do
           { newClientPrekeys = Ext.rsNewBotPrekeys rs
           }
   lift $ wrapClient $ User.insertAccount (UserAccount usr Active) (Just (cid, cnvTeam cnv)) Nothing True
-  maxPermClients <- fromMaybe Opt.defUserMaxPermClients . Opt.setUserMaxPermClients <$> asks (.settings)
+  maxPermClients <- fromMaybe Opt.defUserMaxPermClients <$> asks (.settings.userMaxPermClients)
   (clt, _, _) <- do
     _ <- do
       -- if we want to protect bots against lh, 'addClient' cannot just send lh capability
@@ -795,7 +796,7 @@ botClaimUsersPrekeys ::
   Handler r Public.UserClientPrekeyMap
 botClaimUsersPrekeys _ body = do
   guardSecondFactorDisabled Nothing
-  maxSize <- fromIntegral . setMaxConvSize <$> asks (.settings)
+  maxSize <- fromIntegral <$> asks (.settings.maxConvSize)
   when (Map.size (Public.userClients body) > maxSize) $
     throwStd (errorToWai @'E.TooManyClients)
   Client.claimLocalMultiPrekeyBundles UnprotectedBot body !>> clientError

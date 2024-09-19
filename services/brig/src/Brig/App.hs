@@ -244,14 +244,14 @@ newEnv o = do
   let sett = Opt.optSettings o
   eventsQueue :: QueueEnv <- case Opt.internalEventsQueue (Opt.internalEvents o) of
     StompQueueOpts q -> do
-      stomp :: Stomp.Env <- case (Opt.stomp o, Opt.setStomp sett) of
+      stomp :: Stomp.Env <- case (o.stomp, sett.stomp) of
         (Just s, Just c) -> Stomp.mkEnv s <$> initCredentials c
         (Just _, Nothing) -> error "STOMP is configured but 'setStomp' is not set"
         (Nothing, Just _) -> error "'setStomp' is present but STOMP is not configured"
         (Nothing, Nothing) -> error "stomp is selected for internal events, but not configured in 'setStomp', STOMP"
       pure (StompQueueEnv (Stomp.broker stomp) q)
     SqsQueueOpts q -> do
-      let throttleMillis = fromMaybe Opt.defSqsThrottleMillis (view Opt.sqsThrottleMillis $ Opt.optSettings o)
+      let throttleMillis = fromMaybe Opt.defSqsThrottleMillis o.optSettings.sqsThrottleMillis
       SqsQueueEnv aws throttleMillis <$> AWS.getQueueUrl (aws ^. AWS.amazonkaEnv) q
   mSFTEnv <- mapM (Calling.mkSFTEnv sha512) $ Opt.sft o
   prekeyLocalLock <- case Opt.randomPrekeys o of
@@ -263,7 +263,7 @@ newEnv o = do
       pure Nothing
   kpLock <- newMVar ()
   rabbitChan <- traverse (Q.mkRabbitMqChannelMVar lgr) o.rabbitmq
-  let allDisabledVersions = foldMap expandVersionExp (Opt.setDisabledAPIVersions sett)
+  let allDisabledVersions = foldMap expandVersionExp sett.disabledAPIVersions
   idxEnv <- mkIndexEnv o.elasticsearch lgr (Opt.galley o) mgr
   pure $!
     Env
@@ -648,7 +648,7 @@ adhocSessionStoreInterpreter action = do
 -- Federation
 
 viewFederationDomain :: (MonadReader Env m) => m Domain
-viewFederationDomain = asks (.settings) <&> view Opt.federationDomain
+viewFederationDomain = asks (.settings.federationDomain)
 
 -- FUTUREWORK: rename to 'qualifyLocalMtl'
 qualifyLocal :: (MonadReader Env m) => a -> m (Local a)

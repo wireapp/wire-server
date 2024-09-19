@@ -33,7 +33,7 @@ import Brig.API.Error
 import Brig.AWS qualified as AWS
 import Brig.App
 import Brig.CanonicalInterpreter (BrigCanonicalEffects, runBrigToIO)
-import Brig.Options (setAllowlistEmailDomains)
+import Brig.Options (allowlistEmailDomains)
 import Control.Error
 import Control.Exception (throwIO)
 import Control.Monad.Catch (catches, throwM)
@@ -129,4 +129,4 @@ checkAllowlistWithError e key = do
 isAllowlisted :: (MonadReader Env m) => EmailAddress -> m Bool
 isAllowlisted key = do
   env <- asks (.settings)
-  pure $ Allowlists.verify (setAllowlistEmailDomains env) key
+  pure $ Allowlists.verify env.allowlistEmailDomains key

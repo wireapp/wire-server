@@ -77,8 +77,8 @@ getCallsConfigV2 ::
   (Handler r) Public.RTCConfiguration
 getCallsConfigV2 uid _ limit = do
   env <- asks (.turnEnv)
-  staticUrl <- asks ((.settings) <&> view Opt.sftStaticUrl)
-  sftListAllServers <- fromMaybe Opt.HideAllSFTServers <$> asks ((.settings) <&> view Opt.sftListAllServers)
+  staticUrl <- asks (.settings.sftStaticUrl)
+  sftListAllServers <- fromMaybe Opt.HideAllSFTServers <$> asks (.settings.sftListAllServers)
   sftEnv' <- asks (.sftEnv)
   sftFederation <- asks (.enableSFTFederation)
   discoveredServers <- turnServersV2 (env ^. turnServers)

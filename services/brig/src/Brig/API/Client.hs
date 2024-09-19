@@ -194,7 +194,7 @@ addClientWithReAuthPolicy ::
 addClientWithReAuthPolicy policy luid@(tUnqualified -> u) con new = do
   usr <- (lift . liftSem $ User.getAccountNoFilter luid) >>= maybe (throwE (ClientUserNotFound u)) (pure . (.accountUser))
   verifyCode (newClientVerificationCode new) luid
-  maxPermClients <- fromMaybe Opt.defUserMaxPermClients . Opt.setUserMaxPermClients <$> asks (.settings)
+  maxPermClients <- fromMaybe Opt.defUserMaxPermClients <$> asks (.settings.userMaxPermClients)
   let caps :: Maybe (Set ClientCapability)
       caps = updlhdev $ newClientCapabilities new
         where
@@ -561,7 +561,7 @@ createAccessToken luid cid method link proof = do
   now <- fromUTCTime <$> lift (liftSem Now.get)
   let expiresAt = now & addToEpoch expiresIn
   pubKeyBundle <- do
-    pathToKeys <- ExceptT $ note KeyBundleError . Opt.setPublicKeyBundle <$> asks (.settings)
+    pathToKeys <- ExceptT (note KeyBundleError <$> asks (.settings.publicKeyBundle))
     ExceptT $ note KeyBundleError <$> liftSem (PublicKeyBundle.get pathToKeys)
   token <-
     ExceptT $

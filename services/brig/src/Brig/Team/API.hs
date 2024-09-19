@@ -281,7 +281,7 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail invRequest = do
     unless isPersonalUserMigration $
       throwStd emailExists
 
-  maxSize <- setMaxTeamSize <$> asks (.settings)
+  maxSize <- asks (.settings.maxTeamSize)
   pending <- lift $ liftSem $ Store.countInvitations tid
   when (fromIntegral pending >= maxSize) $
     throwStd (errorToWai @'E.TooManyTeamInvitations)
@@ -291,7 +291,7 @@ createInvitation' tid mUid inviteeRole mbInviterUid fromEmail invRequest = do
   lift $ do
     iid <- maybe randomId (pure . Id . toUUID) mUid
     now <- liftIO =<< asks (.currentTime)
-    timeout <- setTeamInvitationTimeout <$> asks (.settings)
+    timeout <- asks (.settings.teamInvitationTimeout)
     code <- liftIO $ Store.mkInvitationCode
     newInv <-
       let insertInv =

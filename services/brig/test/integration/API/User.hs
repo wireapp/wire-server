@@ -55,8 +55,8 @@ tests ::
   UserJournalWatcher ->
   IO TestTree
 tests conf fbc p b c ch g n aws db userJournalWatcher = do
-  let cl = ConnectionLimit $ Opt.setUserMaxConnections (Opt.optSettings conf)
-  let at = Opt.setActivationTimeout (Opt.optSettings conf)
+  let cl = ConnectionLimit conf.optSettings.userMaxConnections
+  let at = conf.optSettings.activationTimeout
   z <- mkZAuthEnv (Just conf)
   pure $
     testGroup

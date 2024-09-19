@@ -23,11 +23,10 @@ import Brig.App
 import Brig.Data.Client
 import Brig.Options
 import Control.Error
-import Control.Lens (view)
 import Imports
 
 isMLSEnabled :: Handler r Bool
-isMLSEnabled = fromMaybe False . setEnableMLS <$> view settingsLens
+isMLSEnabled = fromMaybe False <$> asks (.settings.enableMLS)
 
 assertMLSEnabled :: Handler r ()
 assertMLSEnabled =

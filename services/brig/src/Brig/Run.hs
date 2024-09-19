@@ -36,7 +36,7 @@ import Brig.Queue qualified as Queue
 import Brig.Version
 import Control.Concurrent.Async qualified as Async
 import Control.Exception.Safe (catchAny)
-import Control.Lens (view, (.~), (^.))
+import Control.Lens ((.~), (^.))
 import Control.Monad.Catch (MonadCatch, finally)
 import Control.Monad.Random (randomRIO)
 import Data.Aeson qualified as Aeson
@@ -88,7 +88,7 @@ run o = withTracer \tracer -> do
         wrapHttpClient $
           Queue.listen e.internalEvents $
             liftIO . runBrigToIO e . liftSem . Internal.onEvent
-  let throttleMillis = fromMaybe defSqsThrottleMillis $ setSqsThrottleMillis (optSettings o)
+  let throttleMillis = fromMaybe defSqsThrottleMillis o.optSettings.sqsThrottleMillis
   emailListener <- for e.awsEnv._sesQueue $ \q ->
     Async.async $
       AWS.execute e.awsEnv $
@@ -129,7 +129,7 @@ mkApp o = do
     servantApp e0 req cont = do
       let rid = getRequestId defaultRequestIdHeaderName req
       let e = requestIdLens .~ rid $ e0
-      let localDomain = view (settingsLens . federationDomain) e
+      let localDomain = e.settings.federationDomain
       Servant.serveWithContext
         (Proxy @ServantCombinedAPI)
         (customFormatters :. localDomain :. Servant.EmptyContext)
@@ -231,7 +231,7 @@ pendingActivationCleanup = do
 
     threadDelayRandom :: (AppT r) ()
     threadDelayRandom = do
-      cleanupTimeout <- fromMaybe (hours 24) . setExpiredUserCleanupTimeout <$> asks (.settings)
+      cleanupTimeout <- fromMaybe (hours 24) <$> asks (.settings.expiredUserCleanupTimeout)
       let d = realToFrac cleanupTimeout
       randomSecs :: Int <- liftIO (round <$> randomRIO @Double (0.5 * d, d))
       threadDelay (randomSecs * 1_000_000)

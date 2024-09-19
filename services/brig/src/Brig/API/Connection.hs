@@ -341,7 +341,7 @@ updateConnectionToLocalUser self other newStatus conn = do
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Blocking connection")
       traverse_ (liftSem . Intra.blockConv self) (ucConvId s2o)
-      mlsEnabled <- asks (.settings.setEnableMLS)
+      mlsEnabled <- asks (.settings.enableMLS)
       liftSem $ when (fromMaybe False mlsEnabled) $ do
         let mlsConvId = one2OneConvId BaseProtocolMLSTag (tUntagged self) (tUntagged other)
         isEstablished <- isMLSOne2OneEstablished self (tUntagged other)
@@ -357,7 +357,7 @@ updateConnectionToLocalUser self other newStatus conn = do
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Unblocking connection")
       cnv <- lift . liftSem $ traverse (unblockConversation self conn) (ucConvId s2o)
-      mlsEnabled <- asks (.settings.setEnableMLS)
+      mlsEnabled <- asks (.settings.enableMLS)
       lift . liftSem $ when (fromMaybe False mlsEnabled) $ do
         let mlsConvId = one2OneConvId BaseProtocolMLSTag (tUntagged self) (tUntagged other)
         isEstablished <- isMLSOne2OneEstablished self (tUntagged other)

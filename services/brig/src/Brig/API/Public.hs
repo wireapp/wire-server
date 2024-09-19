@@ -531,7 +531,7 @@ getMultiUserPrekeyBundleUnqualifiedH ::
   Public.UserClients ->
   Handler r Public.UserClientPrekeyMap
 getMultiUserPrekeyBundleUnqualifiedH zusr userClients = do
-  maxSize <- fromIntegral . setMaxConvSize <$> asks (.settings)
+  maxSize <- fromIntegral <$> asks (.settings.maxConvSize)
   when (Map.size (Public.userClients userClients) > maxSize) $
     throwStd (errorToWai @'E.TooManyClients)
   API.claimLocalMultiPrekeyBundles (ProtectedUser zusr) userClients !>> clientError
@@ -541,7 +541,7 @@ getMultiUserPrekeyBundleHInternal ::
   Public.QualifiedUserClients ->
   m ()
 getMultiUserPrekeyBundleHInternal qualUserClients = do
-  maxSize <- fromIntegral . setMaxConvSize <$> asks (.settings)
+  maxSize <- fromIntegral <$> asks (.settings.maxConvSize)
   let Sum (size :: Int) =
         Map.foldMapWithKey
           (\_ v -> Sum . Map.size $ v)
@@ -1050,7 +1050,7 @@ searchUsersHandler luid term mDomain mMaxResults =
 -- feature, ghc will guide us here.
 customerExtensionCheckBlockedDomains :: Public.EmailAddress -> (Handler r) ()
 customerExtensionCheckBlockedDomains email = do
-  mBlockedDomains <- asks (fmap domainsBlockedForRegistration . setCustomerExtensions . asks (.settings))
+  mBlockedDomains <- fmap (.domainsBlockedForRegistration) <$> asks (.settings.customerExtensions)
   for_ mBlockedDomains $ \(DomainsBlockedForRegistration blockedDomains) -> do
     case mkDomain (Text.decodeUtf8 $ Public.domainPart email) of
       Left _ ->
@@ -1311,7 +1311,7 @@ sendVerificationCode req = do
   case (mbAccount, featureEnabled) of
     (Just account, True) -> do
       let gen = mk6DigitVerificationCodeGen email
-      timeout <- setVerificationTimeout <$> asks (.settings)
+      timeout <- verificationTimeout <$> asks (.settings)
       code <-
         lift . liftSem $
           createCodeOverwritePrevious
@@ -1346,13 +1346,13 @@ getSystemSettings = do
   optSettings <- asks (.settings)
   pure $
     SystemSettingsPublic $
-      fromMaybe False (setRestrictUserCreation optSettings)
+      fromMaybe False optSettings.restrictUserCreation
 
 getSystemSettingsInternal :: UserId -> (Handler r) SystemSettings
 getSystemSettingsInternal _ = do
   optSettings <- asks (.settings)
-  let pSettings = SystemSettingsPublic $ fromMaybe False (setRestrictUserCreation optSettings)
-  let iSettings = SystemSettingsInternal $ fromMaybe False (setEnableMLS optSettings)
+  let pSettings = SystemSettingsPublic $ fromMaybe False optSettings.restrictUserCreation
+  let iSettings = SystemSettingsInternal $ fromMaybe False optSettings.enableMLS
   pure $ SystemSettings pSettings iSettings
 
 -- Deprecated

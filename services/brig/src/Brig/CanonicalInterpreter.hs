@@ -11,7 +11,7 @@ import Brig.Effects.SFT (SFT, interpretSFT)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Effects.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
 import Brig.IO.Intra (runEvents)
-import Brig.Options (ImplicitNoFederationRestriction (federationDomainConfig), federationDomainConfigs, federationStrategy)
+import Brig.Options (federationDomainConfigs, federationStrategy)
 import Brig.Options qualified as Opt
 import Brig.Team.Template (TeamTemplates)
 import Brig.User.Search.Index (IndexEnv (..))
@@ -161,21 +161,21 @@ runBrigToIO :: App.Env -> AppT BrigCanonicalEffects a -> IO a
 runBrigToIO e (AppT ma) = do
   let userSubsystemConfig =
         UserSubsystemConfig
-          { emailVisibilityConfig = e.settings ^. Opt.emailVisibility,
+          { emailVisibilityConfig = e.settings.emailVisibility,
             defaultLocale = e.settings ^. to Opt.setDefaultUserLocale,
-            searchSameTeamOnly = e.settings ^. Opt.searchSameTeamOnly . to (fromMaybe False)
+            searchSameTeamOnly = fromMaybe False e.settings.searchSameTeamOnly
           }
       federationApiAccessConfig =
         FederationAPIAccessConfig
-          { ownDomain = e.settings ^. Opt.federationDomain,
+          { ownDomain = e.settings.federationDomain,
             federatorEndpoint = e.federator,
             http2Manager = e.http2Manager,
             requestId = e.requestId
           }
       propertySubsystemConfig =
         PropertySubsystemConfig
-          { maxKeyLength = fromMaybe Opt.defMaxKeyLen $ e.settings ^. Opt.propertyMaxKeyLen,
-            maxValueLength = fromMaybe Opt.defMaxValueLen $ e.settings ^. Opt.propertyMaxValueLen,
+          { maxKeyLength = fromMaybe Opt.defMaxKeyLen e.settings.propertyMaxKeyLen,
+            maxValueLength = fromMaybe Opt.defMaxValueLen e.settings.propertyMaxValueLen,
             maxProperties = 16
           }
       mainESEnv = e.indexEnv ^. to idxElastic
@@ -218,14 +218,14 @@ runBrigToIO e (AppT ma) = do
               . interpretJwtTools
               . interpretPublicKeyBundle
               . interpretJwk
-              . interpretFederationDomainConfig e.casClient (e.settings ^. federationStrategy) (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) (e.settings ^. federationDomainConfigs))
+              . interpretFederationDomainConfig e.casClient e.settings.federationStrategy (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) e.settings.federationDomainConfigs)
               . runGundeckAPIAccess e.gundeckEndpoint
               . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig e.requestId)
               . runInputConst (teamTemplatesNoLocale e)
-              . runInputConst (e.settings ^. Opt.allowlistEmailDomains)
-              . runInputConst (toLocalUnsafe (e.settings ^. Opt.federationDomain) ())
+              . runInputConst e.settings.allowlistEmailDomains
+              . runInputConst (toLocalUnsafe e.settings.federationDomain ())
               . runInputSem (embed getCurrentTime)
-              . runInputConst (e.settings ^. to Opt.set2FACodeGenerationDelaySecs . to fromIntegral)
+              . runInputConst (fromIntegral $ Opt.twoFACodeGenerationDelaySecs e.settings)
               . connectionStoreToCassandra
               . interpretSFT e.httpManager
               . interpretPropertyStoreCassandra e.casClient

@@ -370,7 +370,7 @@ updateFederationRemote dom fedcfg = do
 getAccountConferenceCallingConfig :: UserId -> Handler r (Feature ConferenceCallingConfig)
 getAccountConferenceCallingConfig uid = do
   mStatus <- lift $ wrapClient $ Data.lookupFeatureConferenceCalling uid
-  mDefStatus <- preview (settingsLens . featureFlags . _Just . to conferenceCalling . to forNull)
+  mDefStatus <- preview (settingsLens . featureFlagsLens . _Just . to conferenceCalling . to forNull)
   pure $ def {status = mStatus <|> mDefStatus ?: (def :: LockableFeature ConferenceCallingConfig).status}
 
 putAccountConferenceCallingConfig :: UserId -> Feature ConferenceCallingConfig -> Handler r NoContent
@@ -721,7 +721,7 @@ updateRichInfoH :: UserId -> RichInfoUpdate -> (Handler r) NoContent
 updateRichInfoH uid rup =
   NoContent <$ do
     let (unRichInfoAssocList -> richInfo) = normalizeRichInfoAssocList . riuRichInfo $ rup
-    maxSize <- setRichInfoLimit <$> asks (.settings)
+    maxSize <- asks (.settings.richInfoLimit)
     when (richInfoSize (RichInfo (mkRichInfoAssocList richInfo)) > maxSize) $ throwStd tooLargeRichInfo
     -- FUTUREWORK: send an event
     -- Intra.onUserEvent uid (Just conn) (richInfoUpdate uid ri)

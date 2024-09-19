@@ -78,7 +78,7 @@ tests m opts brig fedBrigClient =
 
 allowFullSearch :: Domain -> Opt.Opts -> Opt.Opts
 allowFullSearch domain opts =
-  opts & Opt.optionSettings . Opt.federationDomainConfigs ?~ [Opt.ImplicitNoFederationRestriction $ FD.FederationDomainConfig domain FullSearch FederationRestrictionAllowAll]
+  opts & Opt.optionSettings . Opt.federationDomainConfigsLens ?~ [Opt.ImplicitNoFederationRestriction $ FD.FederationDomainConfig domain FullSearch FederationRestrictionAllowAll]
 
 testSearchSuccess :: Opt.Opts -> Brig -> Http ()
 testSearchSuccess opts brig = do
@@ -176,7 +176,7 @@ testSearchRestrictions opts brig = do
 
   let opts' =
         opts
-          & Opt.optionSettings . Opt.federationDomainConfigs
+          & Opt.optionSettings . Opt.federationDomainConfigsLens
             ?~ [ Opt.ImplicitNoFederationRestriction $ FD.FederationDomainConfig domainNoSearch NoSearch FederationRestrictionAllowAll,
                  Opt.ImplicitNoFederationRestriction $ FD.FederationDomainConfig domainExactHandle ExactHandleSearch FederationRestrictionAllowAll,
                  Opt.ImplicitNoFederationRestriction $ FD.FederationDomainConfig domainFullSearch FullSearch FederationRestrictionAllowAll
@@ -220,7 +220,7 @@ testGetUserByHandleRestrictions opts brig = do
 
   let opts' =
         opts
-          & Opt.optionSettings . Opt.federationDomainConfigs
+          & Opt.optionSettings . Opt.federationDomainConfigsLens
             ?~ [ Opt.ImplicitNoFederationRestriction $ FD.FederationDomainConfig domainNoSearch NoSearch FederationRestrictionAllowAll,
                  Opt.ImplicitNoFederationRestriction $ FD.FederationDomainConfig domainExactHandle ExactHandleSearch FederationRestrictionAllowAll,
                  Opt.ImplicitNoFederationRestriction $ FD.FederationDomainConfig domainFullSearch FullSearch FederationRestrictionAllowAll

@@ -431,7 +431,7 @@ createUser new = do
     handleEmailActivation email uid newTeam = do
       fmap join . for (mkEmailKey <$> email) $ \ek -> case newUserEmailCode new of
         Nothing -> do
-          timeout <- setActivationTimeout <$> asks (.settings)
+          timeout <- asks (.settings.activationTimeout)
           edata <- lift . wrapClient $ Data.newActivation ek timeout (Just uid)
           lift . liftSem . Log.info $
             field "user" (toByteString uid)
@@ -467,7 +467,7 @@ findTeamInvitation (Just e) c =
   where
     ensureMemberCanJoin :: (Member GalleyAPIAccess r) => TeamId -> ExceptT RegisterError (AppT r) ()
     ensureMemberCanJoin tid = do
-      maxSize <- fromIntegral . setMaxTeamSize <$> asks (.settings)
+      maxSize <- fromIntegral <$> asks (.settings.maxTeamSize)
       (TeamSize teamSize) <- TeamSize.teamSize tid
       when (teamSize >= maxSize) $
         throwE RegisterErrorTooManyTeamMembers
@@ -478,7 +478,7 @@ findTeamInvitation (Just e) c =
 
 initAccountFeatureConfig :: UserId -> (AppT r) ()
 initAccountFeatureConfig uid = do
-  mStatus <- preview (settingsLens . featureFlags . _Just . to conferenceCalling . to forNew . _Just)
+  mStatus <- preview (settingsLens . featureFlagsLens . _Just . to conferenceCalling . to forNew . _Just)
   wrapClient $ traverse_ (Data.updateFeatureConferenceCalling uid . Just) mStatus
 
 -- | 'createUser' is becoming hard to maintain, and instead of adding more case distinctions
@@ -501,7 +501,7 @@ createUserInviteViaScim (NewUserScimInvitation tid uid extId loc name email _) =
   -- add the expiry table entry first!  (if brig creates an account, and then crashes before
   -- creating the expiry table entry, gc will miss user data.)
   expiresAt <- do
-    ttl <- setTeamInvitationTimeout <$> asks (.settings)
+    ttl <- asks (.settings.teamInvitationTimeout)
     now <- liftIO =<< asks (.currentTime)
     pure $ addUTCTime (realToFrac ttl) now
   lift . liftSem $ UserPendingActivationStore.add (UserPendingActivation uid expiresAt)
@@ -517,7 +517,7 @@ createUserInviteViaScim (NewUserScimInvitation tid uid extId loc name email _) =
 -- | docs/reference/user/registration.md {#RefRestrictRegistration}.
 checkRestrictedUserCreation :: NewUser -> ExceptT RegisterError (AppT r) ()
 checkRestrictedUserCreation new = do
-  restrictPlease <- lift . asks $ fromMaybe False . setRestrictUserCreation . asks (.settings)
+  restrictPlease <- fromMaybe False <$> asks (.settings.restrictUserCreation)
   when
     ( restrictPlease
         && not (isNewUserTeamMember new)
@@ -576,7 +576,7 @@ changeEmail u email updateOrigin = do
     _ -> do
       unless (userManagedBy usr /= ManagedByScim || updateOrigin == UpdateOriginScim) $
         throwE EmailManagedByScim
-      timeout <- setActivationTimeout <$> asks (.settings)
+      timeout <- asks (.settings.activationTimeout)
       act <- lift . wrapClient $ Data.newActivation ek timeout (Just u)
       pure $ ChangeEmailNeedsActivation (usr, act, email)
 
@@ -787,7 +787,7 @@ sendActivationCode email loc = do
   where
     notFound = throwM . UserDisplayNameNotFound
     mkPair k c u = do
-      timeout <- setActivationTimeout <$> asks (.settings)
+      timeout <- asks (.settings.activationTimeout)
       case c of
         Just c' -> liftIO $ (,c') <$> Data.mkActivationKey k
         Nothing -> lift $ do

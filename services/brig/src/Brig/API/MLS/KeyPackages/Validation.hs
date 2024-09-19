@@ -81,7 +81,7 @@ validateUploadedKeyPackage identity kp = do
 validateLifetime :: Lifetime -> Handler r ()
 validateLifetime lt = do
   now <- liftIO getPOSIXTime
-  mMaxLifetime <- setKeyPackageMaximumLifetime <$> asks (.settings)
+  mMaxLifetime <- asks (.settings.keyPackageMaximumLifetime)
   either mlsProtocolError pure $
     validateLifetime' now mMaxLifetime lt
 

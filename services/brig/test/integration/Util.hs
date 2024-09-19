@@ -27,7 +27,7 @@ import Bilge.Assert
 import Brig.AWS.Types
 import Brig.App (Env (..))
 import Brig.Calling as Calling
-import Brig.Options qualified as Opt
+import Brig.Options as Opt
 import Brig.Run qualified as Run
 import Brig.Types.Activation
 import Brig.ZAuth qualified as ZAuth
@@ -1004,7 +1004,7 @@ withSettingsOverrides opts action = liftIO $ do
 -- compile.
 withDomainsBlockedForRegistration :: (MonadIO m) => Opt.Opts -> [Text] -> WaiTest.Session a -> m a
 withDomainsBlockedForRegistration opts domains sess = do
-  let opts' = opts {Opt.optSettings = (Opt.optSettings opts) {Opt.setCustomerExtensions = Just blocked}}
+  let opts' = opts {Opt.optSettings = opts.optSettings {customerExtensions = Just blocked}}
       blocked = Opt.CustomerExtensions (Opt.DomainsBlockedForRegistration (unsafeMkDomain <$> domains))
       unsafeMkDomain = either error id . mkDomain
   withSettingsOverrides opts' sess
