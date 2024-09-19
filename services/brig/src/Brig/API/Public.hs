@@ -787,7 +787,7 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
     sendActivationEmail email name (key, code) locale mTeamUser
       | Just teamUser <- mTeamUser,
         Public.NewTeamCreator creator <- teamUser,
-        let Public.BindingNewTeamUser (Public.BindingNewTeam team) _ = creator =
+        let Public.BindingNewTeamUser team _ = creator =
           liftSem $ sendTeamActivationMail email name key code locale (fromRange $ team ^. Public.newTeamName)
       | otherwise =
           liftSem $ sendActivationMail email name key code locale

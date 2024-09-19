@@ -289,7 +289,7 @@ upgradePersonalToTeam luid bNewTeam = do
     let uid = tUnqualified luid
     createUserTeam <- do
       liftSem $ GalleyAPIAccess.createTeam uid (bnuTeam bNewTeam) tid
-      let BindingNewTeam newTeam = bNewTeam.bnuTeam
+      let newTeam = bNewTeam.bnuTeam
       pure $ CreateUserTeam tid (fromRange (newTeam ^. newTeamName))
 
     wrapClient $ updateUserTeam uid tid
@@ -302,7 +302,7 @@ upgradePersonalToTeam luid bNewTeam = do
         sendUpgradePersonalToTeamConfirmationEmail
           email
           user.userDisplayName
-          bNewTeam.bnuTeam.bntTeam._newTeamName.fromRange
+          bNewTeam.bnuTeam._newTeamName.fromRange
           user.userLocale
 
     pure $! createUserTeam
@@ -394,7 +394,7 @@ createUser new = do
         (Just tid', Just newTeamUser) -> do
           liftSem $ GalleyAPIAccess.createTeam uid (bnuTeam newTeamUser) tid'
           let activating = isJust (newUserEmailCode new)
-              BindingNewTeam newTeam = newTeamUser.bnuTeam
+              newTeam = newTeamUser.bnuTeam
           pure $
             if activating
               then Just $ CreateUserTeam tid' (fromRange (newTeam ^. newTeamName))

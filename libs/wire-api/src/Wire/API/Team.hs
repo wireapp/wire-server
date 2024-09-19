@@ -40,9 +40,8 @@ module Wire.API.Team
     teamListHasMore,
 
     -- * NewTeam
-    BindingNewTeam (..),
-    bindingNewTeamObjectSchema,
     NewTeam (..),
+    newTeamObjectSchema,
     newNewTeam,
     newTeamName,
     newTeamIcon,
@@ -174,42 +173,27 @@ instance ToSchema TeamList where
 --------------------------------------------------------------------------------
 -- NewTeam
 
-newtype BindingNewTeam = BindingNewTeam {bntTeam :: NewTeam ()}
-  deriving stock (Eq, Show, Generic)
-  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema BindingNewTeam)
-
-instance ToSchema BindingNewTeam where
-  schema = object "BindingNewTeam" bindingNewTeamObjectSchema
-
-bindingNewTeamObjectSchema :: ObjectSchema SwaggerDoc BindingNewTeam
-bindingNewTeamObjectSchema =
-  BindingNewTeam <$> unwrap .= newTeamObjectSchema
-  where
-    unwrap (BindingNewTeam nt) = nt
-
--- FUTUREWORK: since new team members do not get serialized, we zero them here.
--- it may be worth looking into how this can be solved in the types.
-instance Arbitrary BindingNewTeam where
-  arbitrary =
-    BindingNewTeam <$> arbitrary @(NewTeam ())
-
-data NewTeam a = NewTeam
+data NewTeam = NewTeam
   { _newTeamName :: Range 1 256 Text,
     _newTeamIcon :: Icon,
     _newTeamIconKey :: Maybe (Range 1 256 Text)
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform (NewTeam a))
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewTeam)
+  deriving (Arbitrary) via (GenericUniform NewTeam)
 
-newNewTeam :: Range 1 256 Text -> Icon -> NewTeam a
-newNewTeam nme ico = NewTeam nme ico Nothing
-
-newTeamObjectSchema :: ObjectSchema SwaggerDoc (NewTeam a)
+newTeamObjectSchema :: ObjectSchema SwaggerDoc NewTeam
 newTeamObjectSchema =
   NewTeam
     <$> _newTeamName .= fieldWithDocModifier "name" (description ?~ "team name") schema
     <*> _newTeamIcon .= fieldWithDocModifier "icon" (description ?~ "team icon (asset ID)") schema
     <*> _newTeamIconKey .= maybe_ (optFieldWithDocModifier "icon_key" (description ?~ "team icon asset key") schema)
+
+instance ToSchema NewTeam where
+  schema = object "NewTeam" newTeamObjectSchema
+
+newNewTeam :: Range 1 256 Text -> Icon -> NewTeam
+newNewTeam nme ico = NewTeam nme ico Nothing
 
 --------------------------------------------------------------------------------
 -- TeamUpdateData

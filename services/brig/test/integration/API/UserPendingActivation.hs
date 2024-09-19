@@ -147,8 +147,8 @@ getInvitationByEmail brig email =
             <!! const 200 === statusCode
         )
 
-newTeam :: BindingNewTeam
-newTeam = BindingNewTeam $ newNewTeam (unsafeRange "teamName") DefaultIcon
+newTeam :: NewTeam
+newTeam = newNewTeam (unsafeRange "teamName") DefaultIcon
 
 createUserWithTeamDisableSSO :: (HasCallStack, MonadCatch m, MonadHttp m, MonadIO m) => Brig -> Galley -> m (UserId, TeamId)
 createUserWithTeamDisableSSO brg gly = do

@@ -206,7 +206,7 @@ import Wire.API.Error.Brig qualified as E
 import Wire.API.Locale
 import Wire.API.Provider.Service (ServiceRef)
 import Wire.API.Routes.MultiVerb
-import Wire.API.Team (BindingNewTeam, bindingNewTeamObjectSchema)
+import Wire.API.Team
 import Wire.API.Team.Member (TeamMember)
 import Wire.API.Team.Member qualified as TeamMember
 import Wire.API.Team.Role
@@ -1305,7 +1305,7 @@ newTeamUserTeamId = \case
   NewTeamMemberSSO tid -> Just tid
 
 data BindingNewTeamUser = BindingNewTeamUser
-  { bnuTeam :: BindingNewTeam,
+  { bnuTeam :: NewTeam,
     bnuCurrency :: Maybe Currency.Alpha
     -- FUTUREWORK:
     -- Remove Currency selection once billing supports currency changes after team creation
@@ -1319,7 +1319,7 @@ instance ToSchema BindingNewTeamUser where
     object "BindingNewTeamUser" $
       BindingNewTeamUser
         <$> bnuTeam
-          .= bindingNewTeamObjectSchema
+          .= newTeamObjectSchema
         <*> bnuCurrency
           .= maybe_ (optField "currency" genericToSchema)
 

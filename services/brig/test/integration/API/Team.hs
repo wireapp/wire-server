@@ -668,7 +668,7 @@ testInvitationMutuallyExclusive brig = do
     req ::
       EmailAddress ->
       Maybe InvitationCode ->
-      Maybe BindingNewTeam ->
+      Maybe NewTeam ->
       Maybe InvitationCode ->
       HttpT IO (Response (Maybe LByteString))
     req e c t i =

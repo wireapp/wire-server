@@ -37,7 +37,7 @@ import Data.Text.Ascii (AsciiChars (validate))
 import Data.UUID qualified as UUID (fromString)
 import Imports (Maybe (Just, Nothing), fromJust, fromRight, undefined, (.))
 import Wire.API.Asset
-import Wire.API.Team (BindingNewTeam (..), Icon (..), NewTeam (..))
+import Wire.API.Team
 import Wire.API.User
 import Wire.API.User.Activation (ActivationCode (ActivationCode, fromActivationCode))
 import Wire.API.User.Auth (CookieLabel (CookieLabel, cookieLabelText))
@@ -137,19 +137,17 @@ testObject_NewUser_user_7 =
     user =
       BindingNewTeamUser
         { bnuTeam =
-            BindingNewTeam
-              ( NewTeam
-                  { _newTeamName =
-                      unsafeRange
-                        "\fe\ENQ\1011760zm",
-                    _newTeamIcon = DefaultIcon,
-                    _newTeamIconKey =
-                      Just
-                        ( unsafeRange
-                            "\ACKc\151665L ,"
-                        )
-                  }
-              ),
+            NewTeam
+              { _newTeamName =
+                  unsafeRange
+                    "\fe\ENQ\1011760zm",
+                _newTeamIcon = DefaultIcon,
+                _newTeamIconKey =
+                  Just
+                    ( unsafeRange
+                        "\ACKc\151665L ,"
+                    )
+              },
           bnuCurrency = Just XUA
         }
 

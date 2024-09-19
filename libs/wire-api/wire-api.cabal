@@ -373,7 +373,6 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.AssetSettings_user
     Test.Wire.API.Golden.Generated.AssetSize_user
     Test.Wire.API.Golden.Generated.AssetToken_user
-    Test.Wire.API.Golden.Generated.BindingNewTeam_team
     Test.Wire.API.Golden.Generated.BindingNewTeamUser_user
     Test.Wire.API.Golden.Generated.BotConvView_provider
     Test.Wire.API.Golden.Generated.BotUserView_provider
@@ -461,6 +460,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.NewProviderResponse_provider
     Test.Wire.API.Golden.Generated.NewService_provider
     Test.Wire.API.Golden.Generated.NewServiceResponse_provider
+    Test.Wire.API.Golden.Generated.NewTeam_team
     Test.Wire.API.Golden.Generated.NewTeamMember_team
     Test.Wire.API.Golden.Generated.NewUser_user
     Test.Wire.API.Golden.Generated.NewUserPublic_user
