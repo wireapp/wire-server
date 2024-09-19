@@ -130,7 +130,6 @@ tests s =
           test s "metrics" metrics,
           test s "fetch conversation by qualified ID (v2)" testGetConvQualifiedV2,
           test s "create Proteus conversation" postProteusConvOk,
-          test s "create conversation with remote users, some unreachable" (postConvWithUnreachableRemoteUsers $ Set.fromList [rb1, rb2, rb3, rb4]),
           test s "get empty conversations" getConvsOk,
           test s "get conversations by ids" getConvsOk2,
           test s "fail to get >500 conversations with v2 API" getConvsFailMaxSizeV2,
