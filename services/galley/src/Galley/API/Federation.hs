@@ -633,7 +633,12 @@ sendMLSCommitBundle remoteDomain msr = handleMLSMessageErrors $ do
       (InternalErrorWithDescription "expected group conversation while handling policy conflicts")
       ( postMLSCommitBundle
           loc
-          (tUntagged sender)
+          -- Type application to prevent future changes from introducing errors.
+          -- It is only safe to assume that we can discard the error when the sender
+          -- is actually remote.
+          -- Since `tUntagged` works on local and remote, a future changed may
+          -- go unchecked without this.
+          (tUntagged @QRemote sender)
           msr.senderClient
           ctype
           qConvOrSub
