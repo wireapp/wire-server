@@ -35,7 +35,7 @@ import Data.Json.Util
 import Data.LegalHold
 import Data.Qualified
 import Data.Set qualified as Set
-import Data.Tagged (Tagged)
+import Data.Tagged
 import Data.Text.Lazy qualified as LT
 import Data.Tuple.Extra
 import Galley.API.Action
@@ -60,11 +60,10 @@ import Galley.Effects.ConversationStore
 import Galley.Effects.FederatorAccess
 import Galley.Effects.MemberStore
 import Galley.Effects.SubConversationStore
-import Galley.Effects.TeamStore (getUserTeams)
+import Galley.Effects.TeamStore qualified as TeamStore
 import Imports
 import Polysemy
 import Polysemy.Error
-import Polysemy.Fail
 import Polysemy.Input
 import Polysemy.Internal
 import Polysemy.Output
@@ -151,13 +150,12 @@ postMLSMessageFromLocalUser lusr c conn smsg = do
   pure $ MLSMessageSendingStatus events t
 
 postMLSCommitBundle ::
-  ( HasProposalEffects r,
-    Members MLSBundleStaticErrors r,
-    Member Fail r,
-    Member (ErrorS MLSLegalholdIncompatible) r,
+  ( Member (ErrorS MLSLegalholdIncompatible) r,
     Member Random r,
     Member Resource r,
-    Member SubConversationStore r
+    Member SubConversationStore r,
+    Members MLSBundleStaticErrors r,
+    HasProposalEffects r
   ) =>
   Local x ->
   Qualified UserId ->
@@ -175,13 +173,12 @@ postMLSCommitBundle loc qusr c ctype qConvOrSub conn bundle =
     qConvOrSub
 
 postMLSCommitBundleFromLocalUser ::
-  ( HasProposalEffects r,
-    Members MLSBundleStaticErrors r,
+  ( Member (ErrorS MLSLegalholdIncompatible) r,
     Member Random r,
-    Member Fail r,
-    Member (ErrorS MLSLegalholdIncompatible) r,
     Member Resource r,
-    Member SubConversationStore r
+    Member SubConversationStore r,
+    Members MLSBundleStaticErrors r,
+    HasProposalEffects r
   ) =>
   Local UserId ->
   ClientId ->
@@ -199,13 +196,12 @@ postMLSCommitBundleFromLocalUser lusr c conn bundle = do
   pure $ MLSMessageSendingStatus events t
 
 postMLSCommitBundleToLocalConv ::
-  ( HasProposalEffects r,
-    Members MLSBundleStaticErrors r,
-    Member Resource r,
-    Member (ErrorS MLSLegalholdIncompatible) r,
-    Member SubConversationStore r,
+  ( Member (ErrorS MLSLegalholdIncompatible) r,
     Member Random r,
-    Member Fail r
+    Member Resource r,
+    Member SubConversationStore r,
+    Members MLSBundleStaticErrors r,
+    HasProposalEffects r
   ) =>
   Qualified UserId ->
   ClientId ->
@@ -222,22 +218,24 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
     note (mlsProtocolError "Unsupported ciphersuite") $
       cipherSuiteTag bundle.groupInfo.value.groupContext.cipherSuite
 
-  -- when a user tries to join any mls conversation while being legalholded
+  -- when a user tries to join any mls conversation while being under legalhold
   -- they receive a 409 stating that mls and legalhold are incompatible
   case qusr `relativeTo` lConvOrSubId of
     Local luid ->
       when (isNothing convOrSub.mlsMeta.cnvmlsActiveData) do
-        usrTeams <- getUserTeams (tUnqualified luid)
+        usrTeams <- TeamStore.getUserTeams (tUnqualified luid)
         for_ usrTeams \tid -> do
           -- this would only return 'Left' if the team member did vanish directly in the process of this
           -- request or if the legalhold state was somehow inconsistent. We can safely assume that this
           -- should be a server error
-          Right resp <- runError @(Tagged TeamMemberNotFound ()) $ getUserStatus luid tid (tUnqualified luid)
-          case resp.ulhsrStatus of
-            UserLegalHoldPending -> throwS @MLSLegalholdIncompatible
-            UserLegalHoldEnabled -> throwS @MLSLegalholdIncompatible
-            UserLegalHoldDisabled -> pure ()
-            UserLegalHoldNoConsent -> pure ()
+          resp <- runError @(Tagged TeamMemberNotFound ()) $ getUserStatus luid tid (tUnqualified luid)
+          case resp of
+            Left _ -> throw $ InternalErrorWithDescription "Server error. Team member must have vanished with the legal hold check"
+            Right r -> case r.ulhsrStatus of
+              UserLegalHoldPending -> throwS @MLSLegalholdIncompatible
+              UserLegalHoldEnabled -> throwS @MLSLegalholdIncompatible
+              UserLegalHoldDisabled -> pure ()
+              UserLegalHoldNoConsent -> pure ()
 
     -- we can skip the remote case because we currently to not support creating conversations on the remote backend
     Remote _ -> pure ()

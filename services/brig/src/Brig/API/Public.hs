@@ -90,8 +90,7 @@ import Network.Wai.Utilities (CacheControl (..), (!>>))
 import Network.Wai.Utilities qualified as Utilities
 import Polysemy
 import Polysemy.Error
-import Polysemy.Fail (Fail)
-import Polysemy.Input
+import Polysemy.Input (Input)
 import Polysemy.TinyLog (TinyLog)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant qualified
@@ -264,15 +263,14 @@ internalEndpointsSwaggerDocsAPI service examplePort swagger Nothing =
 
 servantSitemap ::
   forall r p.
-  ( Member (Concurrency 'Unsafe) r,
-    Member (Embed HttpClientIO) r,
+  ( Member (Embed HttpClientIO) r,
     Member (Embed IO) r,
     Member (Error UserSubsystemError) r,
-    Member Fail r,
     Member (Input (Local ())) r,
     Member (Input TeamTemplates) r,
     Member (UserPendingActivationStore p) r,
     Member AuthenticationSubsystem r,
+    Member BlockListStore r,
     Member DeleteQueue r,
     Member EmailSending r,
     Member EmailSubsystem r,
@@ -294,7 +292,7 @@ servantSitemap ::
     Member UserStore r,
     Member UserSubsystem r,
     Member VerificationCodeSubsystem r,
-    Member BlockListStore r
+    Member (Concurrency 'Unsafe) r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
