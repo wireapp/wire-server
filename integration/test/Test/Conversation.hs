@@ -874,3 +874,37 @@ testConversationWithoutFederation = withModifiedBackend
   $ \domain -> do
     [alice, bob] <- createAndConnectUsers [domain, domain]
     void $ postConversation alice (defProteus {qualifiedUsers = [bob]}) >>= getJSON 201
+
+testPostConvWithUnreachableRemoteUsers :: App ()
+testPostConvWithUnreachableRemoteUsers = do
+  [alice, alex] <- createAndConnectUsers [OwnDomain, OtherDomain]
+  resourcePool <- asks resourcePool
+  runCodensity (acquireResources 2 resourcePool) $ \[unreachableBackend, reachableBackend] -> do
+    runCodensity (startDynamicBackend reachableBackend mempty) $ \_ -> do
+      unreachableUsers <- runCodensity (startDynamicBackend unreachableBackend mempty) $ \_ -> do
+        let downDomain = unreachableBackend.berDomain
+        ownDomain <- asString OwnDomain
+        otherDomain <- asString OtherDomain
+        void $ BrigI.createFedConn downDomain (BrigI.FedConn ownDomain "full_search" Nothing)
+        void $ BrigI.createFedConn downDomain (BrigI.FedConn otherDomain "full_search" Nothing)
+        users <- replicateM 3 (randomUser downDomain def)
+        for_ users $ \user -> do
+          connectUsers [alice, user]
+          connectUsers [alex, user]
+        -- creating the conv here would work.
+        pure users
+
+      reachableUsers <- replicateM 2 (randomUser reachableBackend.berDomain def)
+      for_ reachableUsers $ \user -> do
+        connectUsers [alice, user]
+        connectUsers [alex, user]
+
+      withWebSockets [alice, alex] $ \[wssAlice, wssAlex] -> do
+        -- unreachableBackend is still allocated, but the backend is down.  creating the conv here doesn't work.
+        let payload = defProteus {name = Just "some chat", qualifiedUsers = [alex] <> reachableUsers <> unreachableUsers}
+        postConversation alice payload >>= assertStatus 533
+
+        convs <- getAllConvs alice
+        for_ convs $ \conv -> conv %. "type" `shouldNotMatchInt` 0
+        assertNoEvent 2 wssAlice
+        assertNoEvent 2 wssAlex

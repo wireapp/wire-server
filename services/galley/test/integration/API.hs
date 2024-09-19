@@ -27,7 +27,6 @@ where
 
 import API.CustomBackend qualified as CustomBackend
 import API.Federation qualified as Federation
-import API.Federation.Util
 import API.MLS qualified
 import API.MessageTimer qualified as MessageTimer
 import API.Roles qualified as Roles
@@ -130,7 +129,6 @@ tests s =
           test s "metrics" metrics,
           test s "fetch conversation by qualified ID (v2)" testGetConvQualifiedV2,
           test s "create Proteus conversation" postProteusConvOk,
-          test s "create conversation with remote users, some unreachable" (postConvWithUnreachableRemoteUsers $ Set.fromList [rb1, rb2, rb3, rb4]),
           test s "get empty conversations" getConvsOk,
           test s "get conversations by ids" getConvsOk2,
           test s "fail to get >500 conversations with v2 API" getConvsFailMaxSizeV2,
@@ -249,39 +247,6 @@ tests s =
               test s "send typing indicators with invalid pyaload" postTypingIndicatorsHandlesNonsense
             ]
         ]
-    rb1, rb2, rb3, rb4 :: Remote Backend
-    rb1 =
-      toRemoteUnsafe
-        (Domain "c.example.com")
-        ( Backend
-            { bReachable = BackendReachable,
-              bUsers = 2
-            }
-        )
-    rb2 =
-      toRemoteUnsafe
-        (Domain "d.example.com")
-        ( Backend
-            { bReachable = BackendReachable,
-              bUsers = 1
-            }
-        )
-    rb3 =
-      toRemoteUnsafe
-        (Domain "e.example.com")
-        ( Backend
-            { bReachable = BackendUnreachable,
-              bUsers = 2
-            }
-        )
-    rb4 =
-      toRemoteUnsafe
-        (Domain "f.example.com")
-        ( Backend
-            { bReachable = BackendUnreachable,
-              bUsers = 1
-            }
-        )
 
 getNotFullyConnectedBackendsMock :: Mock LByteString
 getNotFullyConnectedBackendsMock = "get-not-fully-connected-backends" ~> NonConnectedBackends mempty
@@ -355,59 +320,6 @@ postProteusConvOk = do
       case evtData e of
         EdConversation c' -> assertConvEquals cnv c'
         _ -> assertFailure "Unexpected event data"
-
-postConvWithUnreachableRemoteUsers :: Set (Remote Backend) -> TestM ()
-postConvWithUnreachableRemoteUsers rbs = do
-  c <- view tsCannon
-  (alice, _qAlice) <- randomUserTuple
-  (alex, qAlex) <- randomUserTuple
-  connectUsers alice (singleton alex)
-  (allRemotes, participatingRemotes) <- do
-    v <- forM (toList rbs) $ \rb -> do
-      users <- connectBackend alice rb
-      pure (users, participating rb users)
-    pure $ foldr (\(a, p) acc -> bimap ((<>) a) ((<>) p) acc) ([], []) v
-  liftIO $ do
-    let notParticipatingRemotes = allRemotes \\ participatingRemotes
-    assertBool "No reachable backend in the test" (not (null participatingRemotes))
-    assertBool "No unreachable backend in the test" (not (null notParticipatingRemotes))
-
-  let convName = "some chat"
-      otherLocals = [qAlex]
-      joiners = allRemotes <> otherLocals
-      unreachableBackends =
-        Set.fromList $
-          foldMap
-            ( \rb ->
-                guard (rbReachable rb == BackendUnreachable)
-                  $> tDomain rb
-            )
-            rbs
-  WS.bracketR2 c alice alex $ \(wsAlice, wsAlex) -> do
-    void
-      $ withTempMockFederator'
-        ( asum
-            [ "get-not-fully-connected-backends" ~> NonConnectedBackends mempty,
-              mockUnreachableFor unreachableBackends,
-              "on-conversation-created" ~> EmptyResponse,
-              "on-conversation-updated" ~> EmptyResponse
-            ]
-        )
-      $ postConvQualified
-        alice
-        Nothing
-        defNewProteusConv
-          { newConvName = checked convName,
-            newConvQualifiedUsers = joiners
-          }
-        <!! const 533 === statusCode
-    groupConvs <- filter ((== RegularConv) . cnvmType . cnvMetadata) <$> getAllConvs alice
-    liftIO $
-      assertEqual
-        "Alice does have a group conversation, while she should not!"
-        []
-        groupConvs
-    WS.assertNoEvent (3 # Second) [wsAlice, wsAlex] -- TODO: sometimes, (at least?) one of these users gets a "connection accepted" event.
 
 postCryptoMessageVerifyMsgSentAndRejectIfMissingClient :: TestM ()
 postCryptoMessageVerifyMsgSentAndRejectIfMissingClient = do

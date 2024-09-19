@@ -180,6 +180,15 @@ shouldMatchInt ::
   App ()
 shouldMatchInt = shouldMatch
 
+shouldNotMatchInt ::
+  (MakesValue a, HasCallStack) =>
+  -- | The actual value
+  a ->
+  -- | The expected value
+  Int ->
+  App ()
+shouldNotMatchInt = shouldNotMatch
+
 shouldMatchRange ::
   (MakesValue a, HasCallStack) =>
   -- | The actual value
