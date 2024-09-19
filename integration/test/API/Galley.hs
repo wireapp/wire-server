@@ -519,6 +519,12 @@ updateMessageTimer user qcnv update = do
   req <- baseRequest user Galley Versioned path
   submit "PUT" (addJSONObject ["message_timer" .= updateReq] req)
 
+getTeam :: (HasCallStack, MakesValue user, MakesValue tid) => user -> tid -> App Response
+getTeam user tid = do
+  tidStr <- asString tid
+  req <- baseRequest user Galley Versioned (joinHttpPath ["teams", tidStr])
+  submit "GET" req
+
 getTeamMembers :: (HasCallStack, MakesValue user, MakesValue tid) => user -> tid -> App Response
 getTeamMembers user tid = do
   tidStr <- asString tid

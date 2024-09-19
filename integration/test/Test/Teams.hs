@@ -20,7 +20,7 @@ module Test.Teams where
 import API.Brig
 import API.BrigInternal (createUser, getInvitationCode, refreshIndex)
 import API.Common
-import API.Galley (getTeamMembers)
+import API.Galley (getTeam, getTeamMembers)
 import API.GalleyInternal (setTeamFeatureStatus)
 import Control.Monad.Codensity (Codensity (runCodensity))
 import Control.Monad.Extra (findM)
@@ -172,3 +172,33 @@ testTeamUserCannotBeInvited = do
   (owner2, _, _) <- createTeam OwnDomain 0
   email <- tm %. "email" >>= asString
   postInvitation owner2 (PostInvitation (Just email) Nothing) >>= assertStatus 409
+
+testUpgradePersonalToTeam :: (HasCallStack) => App ()
+testUpgradePersonalToTeam = do
+  alice <- randomUser OwnDomain def
+  let teamName = "wonderland"
+  tid <- bindResponse (upgradePersonalToTeam alice teamName) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "team_name" `shouldMatch` teamName
+    resp.json %. "team_id"
+
+  alice' <- getUser alice alice >>= getJSON 200
+  alice' %. "team" `shouldMatch` tid
+
+  team <- getTeam alice tid >>= getJSON 200
+  team %. "name" `shouldMatch` teamName
+
+  bindResponse (getTeamMembers alice tid) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    owner <- asList (resp.json %. "members") >>= assertOne
+    owner %. "user" `shouldMatch` (alice %. "id")
+    shouldBeNull $ owner %. "created_at"
+    shouldBeNull $ owner %. "created_by"
+
+testUpgradePersonalToTeamAlreadyInATeam :: (HasCallStack) => App ()
+testUpgradePersonalToTeamAlreadyInATeam = do
+  (alice, _, _) <- createTeam OwnDomain 0
+
+  bindResponse (upgradePersonalToTeam alice "wonderland") $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "user-already-in-a-team"
