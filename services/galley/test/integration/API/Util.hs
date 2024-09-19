@@ -20,7 +20,6 @@
 
 module API.Util where
 
-import API.Federation.Util
 import API.SQS qualified as SQS
 import Bilge hiding (timeout)
 import Bilge.Assert
@@ -2773,10 +2772,4 @@ createAndConnectUsers domains = do
       (True, False) -> connectWithRemoteUser (qUnqualified a) b
       (False, True) -> connectWithRemoteUser (qUnqualified b) a
       (False, False) -> pure ()
-  pure users
-
-connectBackend :: UserId -> Remote Backend -> TestM [Qualified UserId]
-connectBackend usr (tDomain &&& bUsers . tUnqualified -> (d, c)) = do
-  users <- replicateM (fromIntegral c) (randomQualifiedId d)
-  mapM_ (connectWithRemoteUser usr) users
   pure users

@@ -27,7 +27,6 @@ where
 
 import API.CustomBackend qualified as CustomBackend
 import API.Federation qualified as Federation
-import API.Federation.Util
 import API.MLS qualified
 import API.MessageTimer qualified as MessageTimer
 import API.Roles qualified as Roles
@@ -248,39 +247,6 @@ tests s =
               test s "send typing indicators with invalid pyaload" postTypingIndicatorsHandlesNonsense
             ]
         ]
-    rb1, rb2, rb3, rb4 :: Remote Backend
-    rb1 =
-      toRemoteUnsafe
-        (Domain "c.example.com")
-        ( Backend
-            { bReachable = BackendReachable,
-              bUsers = 2
-            }
-        )
-    rb2 =
-      toRemoteUnsafe
-        (Domain "d.example.com")
-        ( Backend
-            { bReachable = BackendReachable,
-              bUsers = 1
-            }
-        )
-    rb3 =
-      toRemoteUnsafe
-        (Domain "e.example.com")
-        ( Backend
-            { bReachable = BackendUnreachable,
-              bUsers = 2
-            }
-        )
-    rb4 =
-      toRemoteUnsafe
-        (Domain "f.example.com")
-        ( Backend
-            { bReachable = BackendUnreachable,
-              bUsers = 1
-            }
-        )
 
 getNotFullyConnectedBackendsMock :: Mock LByteString
 getNotFullyConnectedBackendsMock = "get-not-fully-connected-backends" ~> NonConnectedBackends mempty
