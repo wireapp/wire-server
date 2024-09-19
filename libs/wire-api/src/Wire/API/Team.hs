@@ -42,13 +42,11 @@ module Wire.API.Team
     -- * NewTeam
     BindingNewTeam (..),
     bindingNewTeamObjectSchema,
-    NonBindingNewTeam (..),
     NewTeam (..),
     newNewTeam,
     newTeamName,
     newTeamIcon,
     newTeamIconKey,
-    newTeamMembers,
 
     -- * TeamUpdateData
     TeamUpdateData (..),
@@ -84,7 +82,6 @@ import Data.Text.Encoding qualified as T
 import Imports
 import Test.QuickCheck.Gen (suchThat)
 import Wire.API.Asset (AssetKey)
-import Wire.API.Team.Member (TeamMember)
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
@@ -186,7 +183,7 @@ instance ToSchema BindingNewTeam where
 
 bindingNewTeamObjectSchema :: ObjectSchema SwaggerDoc BindingNewTeam
 bindingNewTeamObjectSchema =
-  BindingNewTeam <$> unwrap .= newTeamObjectSchema null_
+  BindingNewTeam <$> unwrap .= newTeamObjectSchema
   where
     unwrap (BindingNewTeam nt) = nt
 
@@ -194,45 +191,25 @@ bindingNewTeamObjectSchema =
 -- it may be worth looking into how this can be solved in the types.
 instance Arbitrary BindingNewTeam where
   arbitrary =
-    BindingNewTeam . zeroTeamMembers <$> arbitrary @(NewTeam ())
-    where
-      zeroTeamMembers tms = tms {_newTeamMembers = Nothing}
-
--- | FUTUREWORK: this is dead code!  remove!
-newtype NonBindingNewTeam = NonBindingNewTeam (NewTeam (Range 1 127 [TeamMember]))
-  deriving stock (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema NonBindingNewTeam)
-
-instance ToSchema NonBindingNewTeam where
-  schema =
-    object "NonBindingNewTeam" $
-      NonBindingNewTeam
-        <$> unwrap .= newTeamObjectSchema sch
-    where
-      unwrap (NonBindingNewTeam nt) = nt
-
-      sch :: ValueSchema SwaggerDoc (Range 1 127 [TeamMember])
-      sch = fromRange .= rangedSchema (array schema)
+    BindingNewTeam <$> arbitrary @(NewTeam ())
 
 data NewTeam a = NewTeam
   { _newTeamName :: Range 1 256 Text,
     _newTeamIcon :: Icon,
-    _newTeamIconKey :: Maybe (Range 1 256 Text),
-    _newTeamMembers :: Maybe a
+    _newTeamIconKey :: Maybe (Range 1 256 Text)
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform (NewTeam a))
 
 newNewTeam :: Range 1 256 Text -> Icon -> NewTeam a
-newNewTeam nme ico = NewTeam nme ico Nothing Nothing
+newNewTeam nme ico = NewTeam nme ico Nothing
 
-newTeamObjectSchema :: ValueSchema SwaggerDoc a -> ObjectSchema SwaggerDoc (NewTeam a)
-newTeamObjectSchema sch =
+newTeamObjectSchema :: ObjectSchema SwaggerDoc (NewTeam a)
+newTeamObjectSchema =
   NewTeam
     <$> _newTeamName .= fieldWithDocModifier "name" (description ?~ "team name") schema
     <*> _newTeamIcon .= fieldWithDocModifier "icon" (description ?~ "team icon (asset ID)") schema
     <*> _newTeamIconKey .= maybe_ (optFieldWithDocModifier "icon_key" (description ?~ "team icon asset key") schema)
-    <*> _newTeamMembers .= maybe_ (optFieldWithDocModifier "members" (description ?~ "initial team member ids (between 1 and 127)") sch)
 
 --------------------------------------------------------------------------------
 -- TeamUpdateData

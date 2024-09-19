@@ -147,8 +147,7 @@ testObject_NewUser_user_7 =
                       Just
                         ( unsafeRange
                             "\ACKc\151665L ,"
-                        ),
-                    _newTeamMembers = Nothing
+                        )
                   }
               ),
           bnuCurrency = Just XUA

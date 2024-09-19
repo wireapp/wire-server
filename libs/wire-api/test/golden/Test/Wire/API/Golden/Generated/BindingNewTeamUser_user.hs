@@ -24,16 +24,6 @@ import Data.UUID as UUID
 import Imports (Maybe (Just, Nothing), fromJust)
 import Wire.API.Asset
 import Wire.API.Team
-  ( BindingNewTeam (BindingNewTeam),
-    Icon (..),
-    NewTeam
-      ( NewTeam,
-        _newTeamIcon,
-        _newTeamIconKey,
-        _newTeamMembers,
-        _newTeamName
-      ),
-  )
 import Wire.API.User (BindingNewTeamUser (..))
 
 testObject_BindingNewTeamUser_user_1 :: BindingNewTeamUser
@@ -50,8 +40,7 @@ testObject_BindingNewTeamUser_user_1 =
                   Just
                     ( unsafeRange
                         "\ACKc\151665L ,\STX\NAK[\SUB\DC1\63043\GSxe\1000559c\US\DC4<`|\29113\147003Q\1028347\987929<{\NUL^\FST\141040J\1071963U\EOT\SYN\65033\DC3G\1003198+\EM\181213xr\v\32449\ESCyTD@>Ou\70496j\43574E\STX6e\983711\SO\ESC\135327\&34\1063210\41000\1018151\&8\1057958\163400uxW\41951\1080957Y\ACK\141633(\CAN\FS$D\1055410\148196\36291\SI3\1082544#\SYN?\ETX\ACK0*W3\ACK\1085759i\35231h\NAK-\42529\1034909\ACKH?\\Tv\1098776\54330Q\46933\DLE-@k%{=4\SUB!w&\1042435D\DC2cuT^\DC4\GSH\b\137953^]\985924jXA\1010085\133569@fV,OA\185077\38677F\154006Az^g7\177712),C\1020911}.\72736\996321~V\1077077\1024186(9^z\1014725\67354\&3}Gj\1078379\fd>\57781\1088153Y\177269p#^\1054503L`S~\1101440\DC23\EOT\145319\24591\92747\13418as:F\ETX"
-                    ),
-                _newTeamMembers = Nothing
+                    )
               }
           ),
       bnuCurrency = Just XUA
@@ -71,8 +60,7 @@ testObject_BindingNewTeamUser_user_2 =
                   Just
                     ( unsafeRange
                         "-\ACK\59597v^\SOH_>p\13939\ETX\SYN\EOT\ENQ\2922\1080262]\45888\917616\SI;v}q\47502\190968\a\SI\1113366&~\51980<\GS\1024632`,\1033586sn\2651H\160130\1100746\176758:qNi]\1051932'\1000100#\a#T\171243}\990743\DC2\1008291M_\FS\DC4\988716\1091854\EM,\SO\CAN^]\77867\&9\1112574-\a\SOHID. FAp\EOT\1033411\1004852(S\1052010\68416\129120\DLEsI\ETXe|Mv-\"q\49103zM\14348$H\SOH\139130\1004399D]\SUB\1056469\ESC\151220qW2\ENQ\1104272\RSy\1018323gg\1018839 /\1079527\98975\18928~&y\b\ACK\1084334\1047493\36198\SO\FS\SYN\RSt\\a.V\SO\&Hy8k\US$O\699Xu/="
-                    ),
-                _newTeamMembers = Nothing
+                    )
               }
           ),
       bnuCurrency = Nothing
