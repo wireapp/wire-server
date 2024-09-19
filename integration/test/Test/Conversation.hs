@@ -874,3 +874,30 @@ testConversationWithoutFederation = withModifiedBackend
   $ \domain -> do
     [alice, bob] <- createAndConnectUsers [domain, domain]
     void $ postConversation alice (defProteus {qualifiedUsers = [bob]}) >>= getJSON 201
+
+testPostConvWithUnreachableRemoteUsers :: App ()
+testPostConvWithUnreachableRemoteUsers = do
+  [alice, alex] <- createAndConnectUsers [OwnDomain, OtherDomain]
+  resourcePool <- asks resourcePool
+  runCodensity (acquireResources 1 resourcePool) $ \[downResource] -> do
+    anton <- runCodensity (startDynamicBackend downResource mempty) $ \_ -> do
+      let downDomain = downResource.berDomain
+      ownDomain <- asString OwnDomain
+      otherDomain <- asString OtherDomain
+      void $ BrigI.createFedConn downDomain (BrigI.FedConn ownDomain "full_search" Nothing)
+      void $ BrigI.createFedConn downDomain (BrigI.FedConn otherDomain "full_search" Nothing)
+      anton <- randomUser downDomain def
+      connectUsers [anton, alex]
+      connectUsers [anton, alice]
+      -- creating the conv here would work.
+      pure anton
+
+    -- downResource is still allocated, but the backend is down.  creating the conv here doesn't work.
+    withWebSockets [alice, alex] $ \wss -> do
+      bindResponse (postConversation alice defProteus {name = Just "some chat", qualifiedUsers = [alex, anton]}) $ \resp -> do
+        resp.status `shouldMatchInt` 533
+
+      convs <- getAllConvs alice
+      for_ convs $ \conv ->
+        conv %. "type" `shouldNotMatchInt` 0
+      for_ wss (assertNoEvent 3)

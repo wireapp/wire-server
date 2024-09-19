@@ -356,59 +356,6 @@ postProteusConvOk = do
         EdConversation c' -> assertConvEquals cnv c'
         _ -> assertFailure "Unexpected event data"
 
-postConvWithUnreachableRemoteUsers :: Set (Remote Backend) -> TestM ()
-postConvWithUnreachableRemoteUsers rbs = do
-  c <- view tsCannon
-  (alice, _qAlice) <- randomUserTuple
-  (alex, qAlex) <- randomUserTuple
-  connectUsers alice (singleton alex)
-  (allRemotes, participatingRemotes) <- do
-    v <- forM (toList rbs) $ \rb -> do
-      users <- connectBackend alice rb
-      pure (users, participating rb users)
-    pure $ foldr (\(a, p) acc -> bimap ((<>) a) ((<>) p) acc) ([], []) v
-  liftIO $ do
-    let notParticipatingRemotes = allRemotes \\ participatingRemotes
-    assertBool "No reachable backend in the test" (not (null participatingRemotes))
-    assertBool "No unreachable backend in the test" (not (null notParticipatingRemotes))
-
-  let convName = "some chat"
-      otherLocals = [qAlex]
-      joiners = allRemotes <> otherLocals
-      unreachableBackends =
-        Set.fromList $
-          foldMap
-            ( \rb ->
-                guard (rbReachable rb == BackendUnreachable)
-                  $> tDomain rb
-            )
-            rbs
-  WS.bracketR2 c alice alex $ \(wsAlice, wsAlex) -> do
-    void
-      $ withTempMockFederator'
-        ( asum
-            [ "get-not-fully-connected-backends" ~> NonConnectedBackends mempty,
-              mockUnreachableFor unreachableBackends,
-              "on-conversation-created" ~> EmptyResponse,
-              "on-conversation-updated" ~> EmptyResponse
-            ]
-        )
-      $ postConvQualified
-        alice
-        Nothing
-        defNewProteusConv
-          { newConvName = checked convName,
-            newConvQualifiedUsers = joiners
-          }
-        <!! const 533 === statusCode
-    groupConvs <- filter ((== RegularConv) . cnvmType . cnvMetadata) <$> getAllConvs alice
-    liftIO $
-      assertEqual
-        "Alice does have a group conversation, while she should not!"
-        []
-        groupConvs
-    WS.assertNoEvent (3 # Second) [wsAlice, wsAlex] -- TODO: sometimes, (at least?) one of these users gets a "connection accepted" event.
-
 postCryptoMessageVerifyMsgSentAndRejectIfMissingClient :: TestM ()
 postCryptoMessageVerifyMsgSentAndRejectIfMissingClient = do
   localDomain <- viewFederationDomain
