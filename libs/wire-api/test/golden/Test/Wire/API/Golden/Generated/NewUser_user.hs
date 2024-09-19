@@ -138,11 +138,11 @@ testObject_NewUser_user_7 =
       BindingNewTeamUser
         { bnuTeam =
             NewTeam
-              { _newTeamName =
+              { newTeamName =
                   unsafeRange
                     "\fe\ENQ\1011760zm",
-                _newTeamIcon = DefaultIcon,
-                _newTeamIconKey =
+                newTeamIcon = DefaultIcon,
+                newTeamIconKey =
                   Just
                     ( unsafeRange
                         "\ACKc\151665L ,"

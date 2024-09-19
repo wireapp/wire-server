@@ -290,7 +290,7 @@ upgradePersonalToTeam luid bNewTeam = do
     createUserTeam <- do
       liftSem $ GalleyAPIAccess.createTeam uid (bnuTeam bNewTeam) tid
       let newTeam = bNewTeam.bnuTeam
-      pure $ CreateUserTeam tid (fromRange (newTeam ^. newTeamName))
+      pure $ CreateUserTeam tid (fromRange newTeam.newTeamName)
 
     wrapClient $ updateUserTeam uid tid
     liftSem $ Intra.sendUserEvent uid Nothing (teamUpdated uid tid)
@@ -302,7 +302,7 @@ upgradePersonalToTeam luid bNewTeam = do
         sendUpgradePersonalToTeamConfirmationEmail
           email
           user.userDisplayName
-          bNewTeam.bnuTeam._newTeamName.fromRange
+          bNewTeam.bnuTeam.newTeamName.fromRange
           user.userLocale
 
     pure $! createUserTeam
@@ -397,7 +397,7 @@ createUser new = do
               newTeam = newTeamUser.bnuTeam
           pure $
             if activating
-              then Just $ CreateUserTeam tid' (fromRange (newTeam ^. newTeamName))
+              then Just $ CreateUserTeam tid' (fromRange newTeam.newTeamName)
               else Nothing
         _ -> pure Nothing
 

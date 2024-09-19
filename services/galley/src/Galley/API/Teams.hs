@@ -249,7 +249,7 @@ createBindingTeam ::
 createBindingTeam tid zusr body = do
   let owner = Public.mkTeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
   team <-
-    E.createTeam (Just tid) zusr (body ^. newTeamName) (body ^. newTeamIcon) (body ^. newTeamIconKey) Binding
+    E.createTeam (Just tid) zusr body.newTeamName body.newTeamIcon body.newTeamIconKey Binding
   finishCreateTeam team owner [] Nothing
   pure tid
 

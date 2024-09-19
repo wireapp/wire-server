@@ -43,9 +43,6 @@ module Wire.API.Team
     NewTeam (..),
     newTeamObjectSchema,
     newNewTeam,
-    newTeamName,
-    newTeamIcon,
-    newTeamIconKey,
 
     -- * TeamUpdateData
     TeamUpdateData (..),
@@ -174,9 +171,9 @@ instance ToSchema TeamList where
 -- NewTeam
 
 data NewTeam = NewTeam
-  { _newTeamName :: Range 1 256 Text,
-    _newTeamIcon :: Icon,
-    _newTeamIconKey :: Maybe (Range 1 256 Text)
+  { newTeamName :: Range 1 256 Text,
+    newTeamIcon :: Icon,
+    newTeamIconKey :: Maybe (Range 1 256 Text)
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewTeam)
@@ -185,9 +182,9 @@ data NewTeam = NewTeam
 newTeamObjectSchema :: ObjectSchema SwaggerDoc NewTeam
 newTeamObjectSchema =
   NewTeam
-    <$> _newTeamName .= fieldWithDocModifier "name" (description ?~ "team name") schema
-    <*> _newTeamIcon .= fieldWithDocModifier "icon" (description ?~ "team icon (asset ID)") schema
-    <*> _newTeamIconKey .= maybe_ (optFieldWithDocModifier "icon_key" (description ?~ "team icon asset key") schema)
+    <$> newTeamName .= fieldWithDocModifier "name" (description ?~ "team name") schema
+    <*> newTeamIcon .= fieldWithDocModifier "icon" (description ?~ "team icon (asset ID)") schema
+    <*> newTeamIconKey .= maybe_ (optFieldWithDocModifier "icon_key" (description ?~ "team icon asset key") schema)
 
 instance ToSchema NewTeam where
   schema = object "NewTeam" newTeamObjectSchema
@@ -283,6 +280,5 @@ instance ToSchema TeamDeleteData where
 
 makeLenses ''Team
 makeLenses ''TeamList
-makeLenses ''NewTeam
 makeLenses ''TeamUpdateData
 makeLenses ''TeamDeleteData

@@ -58,7 +58,7 @@ import Brig.User.Auth.Cookie qualified as Auth
 import Cassandra qualified as C
 import Cassandra qualified as Data
 import Control.Error hiding (bool, note)
-import Control.Lens (view, (.~), (?~), (^.))
+import Control.Lens (view, (.~), (?~))
 import Control.Monad.Catch (throwM)
 import Control.Monad.Except
 import Data.Aeson hiding (json)
@@ -788,7 +788,7 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
       | Just teamUser <- mTeamUser,
         Public.NewTeamCreator creator <- teamUser,
         let Public.BindingNewTeamUser team _ = creator =
-          liftSem $ sendTeamActivationMail email name key code locale (fromRange $ team ^. Public.newTeamName)
+          liftSem $ sendTeamActivationMail email name key code locale (fromRange $ team.newTeamName)
       | otherwise =
           liftSem $ sendActivationMail email name key code locale
 
