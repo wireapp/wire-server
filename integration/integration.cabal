@@ -140,6 +140,7 @@ library
     Test.MLS.Unreachable
     Test.Notifications
     Test.OAuth
+    Test.PasswordReset
     Test.Presence
     Test.Property
     Test.Provider
@@ -193,6 +194,7 @@ library
     , bytestring-conversion
     , case-insensitive
     , containers
+    , cookie
     , cql
     , cql-io
     , crypton
