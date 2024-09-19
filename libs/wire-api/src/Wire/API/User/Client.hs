@@ -146,6 +146,7 @@ data ClientCapability
   = -- | Clients have minimum support for LH, but not for explicit consent.  Implicit consent
     -- is granted via the galley server config and cassandra table `galley.legalhold_whitelisted`.
     ClientSupportsLegalholdImplicitConsent
+  | ClientSupportsConsumableNotifications
   deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ClientCapability)
   deriving (ToJSON, FromJSON, Swagger.ToSchema) via Schema ClientCapability
@@ -154,14 +155,17 @@ instance ToSchema ClientCapability where
   schema =
     enum @Text "ClientCapability" $
       element "legalhold-implicit-consent" ClientSupportsLegalholdImplicitConsent
+        <> element "consumable-notifications" ClientSupportsConsumableNotifications
 
 instance C.Cql ClientCapability where
   ctype = C.Tagged C.IntColumn
 
   toCql ClientSupportsLegalholdImplicitConsent = C.CqlInt 1
+  toCql ClientSupportsConsumableNotifications = C.CqlInt 2
 
   fromCql (C.CqlInt i) = case i of
     1 -> pure ClientSupportsLegalholdImplicitConsent
+    2 -> pure ClientSupportsConsumableNotifications
     n -> Left $ "Unexpected ClientCapability value: " ++ show n
   fromCql _ = Left "ClientCapability value: int expected"
 
