@@ -37,16 +37,7 @@ import Brig.Data.Client qualified as Data
 import Brig.Data.Connection qualified as Data
 import Brig.Data.MLS.KeyPackage qualified as Data
 import Brig.Data.User qualified as Data
-import Brig.Effects.ConnectionStore (ConnectionStore)
-import Brig.Effects.FederationConfigStore
-  ( AddFederationRemoteResult (..),
-    AddFederationRemoteTeamResult (..),
-    FederationConfigStore,
-    UpdateFederationResult (..),
-  )
-import Brig.Effects.FederationConfigStore qualified as E
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
-import Brig.IO.Intra qualified as Intra
 import Brig.Options hiding (internalEvents)
 import Brig.Provider.API qualified as Provider
 import Brig.Team.API qualified as Team
@@ -55,9 +46,8 @@ import Brig.Types.Connection
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User
-import Brig.User.API.Search qualified as Search
 import Brig.User.EJPD qualified
-import Brig.User.Search.Index qualified as Index
+import Brig.User.Search.Index qualified as Search
 import Control.Error hiding (bool)
 import Control.Lens (preview, to, view, _Just)
 import Data.ByteString.Conversion (toByteString)
@@ -72,7 +62,6 @@ import Data.Map.Strict qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Text qualified as T
-import Data.Time.Clock (UTCTime)
 import Data.Time.Clock.System
 import Imports hiding (head)
 import Network.Wai.Utilities as Utilities
@@ -104,6 +93,15 @@ import Wire.BlockListStore (BlockListStore)
 import Wire.DeleteQueue (DeleteQueue)
 import Wire.EmailSending (EmailSending)
 import Wire.EmailSubsystem (EmailSubsystem)
+import Wire.Events (Events)
+import Wire.Events qualified as Events
+import Wire.FederationConfigStore
+  ( AddFederationRemoteResult (..),
+    AddFederationRemoteTeamResult (..),
+    FederationConfigStore,
+    UpdateFederationResult (..),
+  )
+import Wire.FederationConfigStore qualified as E
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.InvitationCodeStore
 import Wire.NotificationSubsystem
@@ -111,7 +109,6 @@ import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PropertySubsystem
 import Wire.Rpc
 import Wire.Sem.Concurrency
-import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserKeyStore
 import Wire.UserStore
 import Wire.UserSubsystem
@@ -125,13 +122,10 @@ servantSitemap ::
   ( Member BlockListStore r,
     Member DeleteQueue r,
     Member (Concurrency 'Unsafe) r,
-    Member (ConnectionStore InternalPaging) r,
     Member (Embed HttpClientIO) r,
     Member FederationConfigStore r,
     Member AuthenticationSubsystem r,
     Member GalleyAPIAccess r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
     Member NotificationSubsystem r,
     Member UserSubsystem r,
     Member UserStore r,
@@ -140,9 +134,11 @@ servantSitemap ::
     Member Rpc r,
     Member TinyLog r,
     Member (UserPendingActivationStore p) r,
+    Member (Input (Local ())) r,
     Member EmailSending r,
     Member EmailSubsystem r,
     Member VerificationCodeSubsystem r,
+    Member Events r,
     Member PasswordResetCodeStore r,
     Member PropertySubsystem r,
     Member (Input TeamTemplates) r
@@ -189,14 +185,13 @@ accountAPI ::
     Member NotificationSubsystem r,
     Member UserSubsystem r,
     Member UserKeyStore r,
+    Member (Input (Local ())) r,
     Member UserStore r,
     Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
     Member EmailSubsystem r,
     Member VerificationCodeSubsystem r,
     Member PropertySubsystem r,
+    Member Events r,
     Member PasswordResetCodeStore r,
     Member InvitationCodeStore r
   ) =>
@@ -242,21 +237,19 @@ teamsAPI ::
     Member (UserPendingActivationStore p) r,
     Member BlockListStore r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
     Member UserKeyStore r,
     Member (Concurrency 'Unsafe) r,
     Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
     Member InvitationCodeStore r,
-    Member (ConnectionStore InternalPaging) r,
     Member EmailSending r,
     Member UserSubsystem r,
-    Member (Input TeamTemplates) r
+    Member Events r,
+    Member (Input TeamTemplates) r,
+    Member (Input (Local ())) r
   ) =>
   ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI =
-  Named @"updateSearchVisibilityInbound" Index.updateSearchVisibilityInbound
+  Named @"updateSearchVisibilityInbound" (lift . liftSem . updateTeamSearchVisibilityInbound)
     :<|> Named @"get-invitation-by-email" Team.getInvitationByEmail
     :<|> Named @"get-invitation-code" Team.getInvitationCode
     :<|> Named @"suspend-team" Team.suspendTeam
@@ -276,12 +269,8 @@ clientAPI = Named @"update-client-last-active" updateClientLastActive
 authAPI ::
   ( Member GalleyAPIAccess r,
     Member TinyLog r,
-    Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
+    Member Events r,
     Member UserSubsystem r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
     Member VerificationCodeSubsystem r
   ) =>
   ServerT BrigIRoutes.AuthAPI (Handler r)
@@ -297,7 +286,10 @@ authAPI =
           qualifyLocal uid >>= \luid -> reauthenticate luid reauth
       )
 
-federationRemotesAPI :: (Member FederationConfigStore r) => ServerT BrigIRoutes.FederationRemotesAPI (Handler r)
+federationRemotesAPI ::
+  ( Member FederationConfigStore r
+  ) =>
+  ServerT BrigIRoutes.FederationRemotesAPI (Handler r)
 federationRemotesAPI =
   Named @"add-federation-remotes" addFederationRemote
     :<|> Named @"get-federation-remotes" getFederationRemotes
@@ -314,7 +306,12 @@ getFederationRemoteTeams :: (Member FederationConfigStore r) => Domain -> (Handl
 getFederationRemoteTeams domain =
   lift $ liftSem $ E.getFederationRemoteTeams domain
 
-addFederationRemoteTeam :: (Member FederationConfigStore r) => Domain -> FederationRemoteTeam -> (Handler r) ()
+addFederationRemoteTeam ::
+  ( Member FederationConfigStore r
+  ) =>
+  Domain ->
+  FederationRemoteTeam ->
+  (Handler r) ()
 addFederationRemoteTeam domain rt =
   lift (liftSem $ E.addFederationRemoteTeam domain rt.teamId) >>= \case
     AddFederationRemoteTeamSuccess -> pure ()
@@ -329,7 +326,11 @@ addFederationRemoteTeam domain rt =
 getFederationRemotes :: (Member FederationConfigStore r) => (Handler r) FederationDomainConfigs
 getFederationRemotes = lift $ liftSem $ E.getFederationConfigs
 
-addFederationRemote :: (Member FederationConfigStore r) => FederationDomainConfig -> (Handler r) ()
+addFederationRemote ::
+  ( Member FederationConfigStore r
+  ) =>
+  FederationDomainConfig ->
+  (Handler r) ()
 addFederationRemote fedDomConf = do
   lift (liftSem $ E.addFederationConfig fedDomConf) >>= \case
     AddFederationRemoteSuccess -> pure ()
@@ -408,8 +409,6 @@ getVerificationCode uid action = runMaybeT do
 internalSearchIndexAPI :: forall r. ServerT BrigIRoutes.ISearchIndexAPI (Handler r)
 internalSearchIndexAPI =
   Named @"indexRefresh" (NoContent <$ lift (wrapClient Search.refreshIndex))
-    :<|> Named @"indexReindex" (NoContent <$ lift (wrapClient Search.reindexAll))
-    :<|> Named @"indexReindexIfSameOrNewer" (NoContent <$ lift (wrapClient Search.reindexAllIfSameOrNewer))
 
 ---------------------------------------------------------------------------
 -- Handlers
@@ -417,14 +416,10 @@ internalSearchIndexAPI =
 -- | Add a client without authentication checks
 addClientInternalH ::
   ( Member GalleyAPIAccess r,
-    Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member DeleteQueue r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
     Member EmailSubsystem r,
+    Member Events r,
     Member UserSubsystem r,
     Member VerificationCodeSubsystem r
   ) =>
@@ -440,31 +435,11 @@ addClientInternalH usr mSkipReAuth new connId = do
   lusr <- qualifyLocal usr
   API.addClientWithReAuthPolicy policy lusr connId new !>> clientError
 
-legalHoldClientRequestedH ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
-  ) =>
-  UserId ->
-  LegalHoldClientRequest ->
-  (Handler r) NoContent
+legalHoldClientRequestedH :: (Member Events r) => UserId -> LegalHoldClientRequest -> (Handler r) NoContent
 legalHoldClientRequestedH targetUser clientRequest = do
   lift $ NoContent <$ API.legalHoldClientRequested targetUser clientRequest
 
-removeLegalHoldClientH ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member DeleteQueue r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
-  ) =>
-  UserId ->
-  (Handler r) NoContent
+removeLegalHoldClientH :: (Member DeleteQueue r, Member Events r) => UserId -> (Handler r) NoContent
 removeLegalHoldClientH uid = do
   lift $ NoContent <$ API.removeLegalHoldClient uid
 
@@ -482,15 +457,12 @@ createUserNoVerify ::
     Member GalleyAPIAccess r,
     Member (UserPendingActivationStore p) r,
     Member TinyLog r,
-    Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
+    Member Events r,
     Member InvitationCodeStore r,
     Member UserKeyStore r,
     Member UserSubsystem r,
     Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member PasswordResetCodeStore r,
-    Member (ConnectionStore InternalPaging) r
+    Member PasswordResetCodeStore r
   ) =>
   NewUser ->
   (Handler r) (Either RegisterError SelfProfile)
@@ -508,14 +480,10 @@ createUserNoVerify uData = lift . runExceptT $ do
 
 createUserNoVerifySpar ::
   ( Member GalleyAPIAccess r,
-    Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member UserSubsystem r,
     Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member PasswordResetCodeStore r,
-    Member (ConnectionStore InternalPaging) r
+    Member UserSubsystem r,
+    Member Events r,
+    Member PasswordResetCodeStore r
   ) =>
   NewUserSpar ->
   (Handler r) (Either CreateUserSparError SelfProfile)
@@ -538,10 +506,8 @@ deleteUserNoAuthH ::
     Member UserStore r,
     Member TinyLog r,
     Member UserKeyStore r,
+    Member Events r,
     Member UserSubsystem r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
     Member PropertySubsystem r
   ) =>
   UserId ->
@@ -554,14 +520,33 @@ deleteUserNoAuthH uid = do
     AccountAlreadyDeleted -> pure UserResponseAccountAlreadyDeleted
     AccountDeleted -> pure UserResponseAccountDeleted
 
-changeSelfEmailMaybeSendH :: (Member BlockListStore r, Member UserKeyStore r, Member EmailSubsystem r) => UserId -> EmailUpdate -> Maybe Bool -> (Handler r) ChangeEmailResponse
+changeSelfEmailMaybeSendH ::
+  ( Member BlockListStore r,
+    Member UserKeyStore r,
+    Member EmailSubsystem r,
+    Member UserSubsystem r
+  ) =>
+  UserId ->
+  EmailUpdate ->
+  Maybe Bool ->
+  (Handler r) ChangeEmailResponse
 changeSelfEmailMaybeSendH u body (fromMaybe False -> validate) = do
   let email = euEmail body
   changeSelfEmailMaybeSend u (if validate then ActuallySendEmail else DoNotSendEmail) email UpdateOriginScim
 
 data MaybeSendEmail = ActuallySendEmail | DoNotSendEmail
 
-changeSelfEmailMaybeSend :: (Member BlockListStore r, Member UserKeyStore r, Member EmailSubsystem r) => UserId -> MaybeSendEmail -> EmailAddress -> UpdateOriginType -> (Handler r) ChangeEmailResponse
+changeSelfEmailMaybeSend ::
+  ( Member BlockListStore r,
+    Member UserKeyStore r,
+    Member EmailSubsystem r,
+    Member UserSubsystem r
+  ) =>
+  UserId ->
+  MaybeSendEmail ->
+  EmailAddress ->
+  UpdateOriginType ->
+  (Handler r) ChangeEmailResponse
 changeSelfEmailMaybeSend u ActuallySendEmail email allowScim = do
   API.changeSelfEmail u email allowScim
 changeSelfEmailMaybeSend u DoNotSendEmail email allowScim = do
@@ -624,12 +609,8 @@ getPasswordResetCode email =
     >>= maybe (throwStd (errorToWai @'E.InvalidPasswordResetKey)) pure
 
 changeAccountStatusH ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+  ( Member UserSubsystem r,
+    Member Events r
   ) =>
   UserId ->
   AccountStatusUpdate ->
@@ -701,39 +682,34 @@ addBlacklist :: (Member BlockListStore r) => EmailAddress -> Handler r NoContent
 addBlacklist email = lift $ NoContent <$ API.blacklistInsert email
 
 updateSSOIdH ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+  ( Member UserSubsystem r,
+    Member Events r
   ) =>
   UserId ->
   UserSSOId ->
   (Handler r) UpdateSSOIdResponse
-updateSSOIdH uid ssoid = do
-  success <- lift $ wrapClient $ Data.updateSSOId uid (Just ssoid)
-  if success
-    then do
-      lift $ liftSem $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOId = Just ssoid}))
-      pure UpdateSSOIdSuccess
-    else pure UpdateSSOIdNotFound
+updateSSOIdH uid ssoid = lift $ do
+  success <- wrapClient $ Data.updateSSOId uid (Just ssoid)
+  liftSem $
+    if success
+      then do
+        UserSubsystem.internalUpdateSearchIndex uid
+        Events.generateUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOId = Just ssoid}))
+        pure UpdateSSOIdSuccess
+      else pure UpdateSSOIdNotFound
 
 deleteSSOIdH ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+  ( Member UserSubsystem r,
+    Member Events r
   ) =>
   UserId ->
   (Handler r) UpdateSSOIdResponse
-deleteSSOIdH uid = do
-  success <- lift $ wrapClient $ Data.updateSSOId uid Nothing
+deleteSSOIdH uid = lift $ do
+  success <- wrapClient $ Data.updateSSOId uid Nothing
   if success
-    then do
-      lift $ liftSem $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOIdRemoved = True}))
+    then liftSem $ do
+      UserSubsystem.internalUpdateSearchIndex uid
+      Events.generateUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOIdRemoved = True}))
       pure UpdateSSOIdSuccess
     else pure UpdateSSOIdNotFound
 

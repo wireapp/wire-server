@@ -7,8 +7,10 @@ import Wire.MockInterpreters.BlockListStore as MockInterpreters
 import Wire.MockInterpreters.EmailSubsystem as MockInterpreters
 import Wire.MockInterpreters.Error as MockInterpreters
 import Wire.MockInterpreters.Events as MockInterpreters
+import Wire.MockInterpreters.FederationConfigStore as MockInterpreters
 import Wire.MockInterpreters.GalleyAPIAccess as MockInterpreters
 import Wire.MockInterpreters.HashPassword as MockInterpreters
+import Wire.MockInterpreters.IndexedUserStore as MockInterpreters
 import Wire.MockInterpreters.Now as MockInterpreters
 import Wire.MockInterpreters.PasswordResetCodeStore as MockInterpreters
 import Wire.MockInterpreters.PasswordStore as MockInterpreters

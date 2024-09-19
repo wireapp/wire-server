@@ -1256,8 +1256,8 @@ ensureNonBindingTeam tid = do
 ensureNotElevated :: (Member (ErrorS 'InvalidPermissions) r) => Permissions -> TeamMember -> Sem r ()
 ensureNotElevated targetPermissions member =
   unless
-    ( (targetPermissions ^. self)
-        `Set.isSubsetOf` (member ^. permissions . copy)
+    ( targetPermissions.self
+        `Set.isSubsetOf` (member ^. permissions).copy
     )
     $ throwS @'InvalidPermissions
 

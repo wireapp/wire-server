@@ -25,10 +25,10 @@ module Brig.User.Search.SearchIndex
 where
 
 import Brig.App (Env, viewFederationDomain)
-import Brig.Types.Search
 import Brig.User.Search.Index
 import Control.Lens hiding (setting, (#), (.=))
 import Control.Monad.Catch (MonadThrow, throwM)
+import Data.Aeson.Key qualified as Key
 import Data.Domain (Domain)
 import Data.Handle (Handle (fromHandle))
 import Data.Id
@@ -37,13 +37,17 @@ import Database.Bloodhound qualified as ES
 import Imports hiding (log, searchable)
 import Wire.API.User (ColourId (..), Name (fromName))
 import Wire.API.User.Search
+import Wire.IndexedUserStore (IndexedUserStoreError (..))
+import Wire.IndexedUserStore.ElasticSearch (mappingName)
+import Wire.UserSearch.Types
+import Wire.UserStore.IndexUser (normalized)
 
--- | User that is performing the search
--- Team of user that is performing the search
--- Outgoing search restrictions
 data SearchSetting
   = FederatedSearch (Maybe [TeamId])
-  | LocalSearch
+  | -- | User that is performing the search
+    -- Team of user that is performing the search
+    -- Outgoing search restrictions
+    LocalSearch
       UserId
       (Maybe TeamId)
       TeamSearchInfo
@@ -186,7 +190,7 @@ termQ f v =
 
 matchSelf :: SearchSetting -> Maybe ES.Query
 matchSelf (FederatedSearch _) = Nothing
-matchSelf (LocalSearch searcher _tid _searchInfo) = Just (termQ "_id" (review _TextId searcher))
+matchSelf (LocalSearch searcher _tid _searchInfo) = Just (termQ "_id" (idToText searcher))
 
 -- | See 'TeamSearchInfo'
 restrictSearchSpace :: SearchSetting -> ES.Query
@@ -244,7 +248,7 @@ matchTeamMembersSearchableByAllTeams =
     boolQuery
       { ES.boolQueryMustMatch =
           [ ES.QueryExistsQuery $ ES.FieldName "team",
-            ES.TermQuery (ES.Term searchVisibilityInboundFieldName "searchable-by-all-teams") Nothing
+            ES.TermQuery (ES.Term (Key.toText searchVisibilityInboundFieldName) "searchable-by-all-teams") Nothing
           ]
       }
 

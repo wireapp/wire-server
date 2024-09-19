@@ -89,10 +89,18 @@ library
     Wire.Events
     Wire.FederationAPIAccess
     Wire.FederationAPIAccess.Interpreter
+    Wire.FederationConfigStore
+    Wire.FederationConfigStore.Cassandra
     Wire.GalleyAPIAccess
     Wire.GalleyAPIAccess.Rpc
     Wire.GundeckAPIAccess
     Wire.HashPassword
+    Wire.IndexedUserStore
+    Wire.IndexedUserStore.Bulk
+    Wire.IndexedUserStore.Bulk.ElasticSearch
+    Wire.IndexedUserStore.ElasticSearch
+    Wire.IndexedUserStore.MigrationStore
+    Wire.IndexedUserStore.MigrationStore.ElasticSearch
     Wire.InternalEvent
     Wire.InvitationCodeStore
     Wire.InvitationCodeStore.Cassandra
@@ -113,8 +121,12 @@ library
     Wire.StoredUser
     Wire.UserKeyStore
     Wire.UserKeyStore.Cassandra
+    Wire.UserSearch.Metrics
+    Wire.UserSearch.Migration
+    Wire.UserSearch.Types
     Wire.UserStore
     Wire.UserStore.Cassandra
+    Wire.UserStore.IndexUser
     Wire.UserStore.Unique
     Wire.UserSubsystem
     Wire.UserSubsystem.Error
@@ -134,9 +146,11 @@ library
     , amazonka-core
     , amazonka-ses
     , async
+    , attoparsec
     , base
     , base16-bytestring
     , bilge
+    , bloodhound
     , bytestring
     , bytestring-conversion
     , cassandra-util
@@ -172,15 +186,19 @@ library
     , polysemy-plugin
     , polysemy-time
     , polysemy-wire-zoo
+    , prometheus-client
     , QuickCheck
     , resource-pool
     , resourcet
     , retry
+    , saml2-web-sso
+    , schema-profunctor
     , servant
     , servant-client-core
     , stomp-queue
     , template
     , text
+    , text-icu-translit
     , time
     , time-out
     , time-units
@@ -219,8 +237,10 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.EmailSubsystem
     Wire.MockInterpreters.Error
     Wire.MockInterpreters.Events
+    Wire.MockInterpreters.FederationConfigStore
     Wire.MockInterpreters.GalleyAPIAccess
     Wire.MockInterpreters.HashPassword
+    Wire.MockInterpreters.IndexedUserStore
     Wire.MockInterpreters.InvitationCodeStore
     Wire.MockInterpreters.Now
     Wire.MockInterpreters.PasswordResetCodeStore
@@ -234,6 +254,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.VerificationCodeStore
     Wire.NotificationSubsystem.InterpreterSpec
     Wire.PropertySubsystem.InterpreterSpec
+    Wire.UserSearch.TypesSpec
     Wire.UserStoreSpec
     Wire.UserSubsystem.InterpreterSpec
     Wire.VerificationCodeSubsystem.InterpreterSpec
@@ -245,6 +266,7 @@ test-suite wire-subsystems-tests
     , base
     , bilge
     , bytestring
+    , cassandra-util
     , containers
     , crypton
     , data-default

@@ -40,6 +40,7 @@ data BrigError
   | NotConnected
   | InvalidTransition
   | NoIdentity
+  | NoUser
   | HandleExists
   | InvalidHandle
   | HandleNotFound

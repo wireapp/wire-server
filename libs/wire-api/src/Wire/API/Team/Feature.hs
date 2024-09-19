@@ -182,7 +182,8 @@ class
   ( Default cfg,
     ToSchema cfg,
     Default (LockableFeature cfg),
-    KnownSymbol (FeatureSymbol cfg)
+    KnownSymbol (FeatureSymbol cfg),
+    NpProject cfg Features
   ) =>
   IsFeatureConfig cfg
   where

@@ -1,6 +1,7 @@
 module Wire.UserStore.Cassandra (interpretUserStoreCassandra) where
 
 import Cassandra
+import Cassandra.Exec (prepared)
 import Data.Handle
 import Data.Id
 import Database.CQL.Protocol
@@ -11,26 +12,63 @@ import Polysemy.Error
 import Wire.API.User hiding (DeleteUser)
 import Wire.StoredUser
 import Wire.UserStore
+import Wire.UserStore.IndexUser hiding (userId)
 import Wire.UserStore.Unique
 
 interpretUserStoreCassandra :: (Member (Embed IO) r) => ClientState -> InterpreterFor UserStore r
 interpretUserStoreCassandra casClient =
   interpret $
-    runEmbedded (runClient casClient) . \case
-      GetUsers uids -> embed $ getUsersImpl uids
-      UpdateUser uid update -> embed $ updateUserImpl uid update
-      UpdateUserHandleEither uid update -> embed $ updateUserHandleEitherImpl uid update
-      DeleteUser user -> embed $ deleteUserImpl user
-      LookupHandle hdl -> embed $ lookupHandleImpl LocalQuorum hdl
-      GlimpseHandle hdl -> embed $ lookupHandleImpl One hdl
-      LookupStatus uid -> embed $ lookupStatusImpl uid
-      IsActivated uid -> embed $ isActivatedImpl uid
-      LookupLocale uid -> embed $ lookupLocaleImpl uid
+    runEmbedded (runClient casClient) . embed . \case
+      GetUsers uids -> getUsersImpl uids
+      GetIndexUser uid -> getIndexUserImpl uid
+      GetIndexUsersPaginated pageSize mPagingState -> getIndexUserPaginatedImpl pageSize mPagingState
+      UpdateUser uid update -> updateUserImpl uid update
+      UpdateUserHandleEither uid update -> updateUserHandleEitherImpl uid update
+      DeleteUser user -> deleteUserImpl user
+      LookupHandle hdl -> lookupHandleImpl LocalQuorum hdl
+      GlimpseHandle hdl -> lookupHandleImpl One hdl
+      LookupStatus uid -> lookupStatusImpl uid
+      IsActivated uid -> isActivatedImpl uid
+      LookupLocale uid -> lookupLocaleImpl uid
 
 getUsersImpl :: [UserId] -> Client [StoredUser]
 getUsersImpl usrs =
   map asRecord
     <$> retry x1 (query selectUsers (params LocalQuorum (Identity usrs)))
+
+getIndexUserImpl :: UserId -> Client (Maybe IndexUser)
+getIndexUserImpl u = do
+  mIndexUserTuple <- retry x1 $ query1 cql (params LocalQuorum (Identity u))
+  pure $ asRecord <$> mIndexUserTuple
+  where
+    cql :: PrepQuery R (Identity UserId) (TupleType IndexUser)
+    cql = prepared . QueryString $ getIndexUserBaseQuery <> " WHERE id = ?"
+
+getIndexUserPaginatedImpl :: Int32 -> Maybe PagingState -> Client (PageWithState IndexUser)
+getIndexUserPaginatedImpl pageSize mPagingState =
+  asRecord <$$> paginateWithState cql (paramsPagingState LocalQuorum () pageSize mPagingState)
+  where
+    cql :: PrepQuery R () (TupleType IndexUser)
+    cql = prepared $ QueryString getIndexUserBaseQuery
+
+getIndexUserBaseQuery :: LText
+getIndexUserBaseQuery =
+  [sql|
+    SELECT
+    id, 
+    team, writetime(team),
+    name, writetime(name),
+    status, writetime(status),
+    handle, writetime(handle),
+    email, writetime(email),
+    accent_id, writetime(accent_id),
+    activated, writetime(activated),
+    service, writetime(service),
+    managed_by, writetime(managed_by),
+    sso_id, writetime(sso_id),
+    email_unvalidated, writetime(email_unvalidated)
+    FROM user
+  |]
 
 updateUserImpl :: UserId -> StoredUserUpdate -> Client ()
 updateUserImpl uid update =

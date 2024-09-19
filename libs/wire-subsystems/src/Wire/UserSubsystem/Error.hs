@@ -16,6 +16,7 @@ data UserSubsystemError
   | UserSubsystemHandleExists
   | UserSubsystemInvalidHandle
   | UserSubsystemProfileNotFound
+  | UserSubsystemInsufficientTeamPermissions
   deriving (Eq, Show)
 
 userSubsystemErrorToHttpError :: UserSubsystemError -> HttpError
@@ -28,5 +29,6 @@ userSubsystemErrorToHttpError =
     UserSubsystemHandleExists -> errorToWai @E.HandleExists
     UserSubsystemInvalidHandle -> errorToWai @E.InvalidHandle
     UserSubsystemHandleManagedByScim -> errorToWai @E.HandleManagedByScim
+    UserSubsystemInsufficientTeamPermissions -> errorToWai @'E.InsufficientTeamPermissions
 
 instance Exception UserSubsystemError

@@ -30,21 +30,3 @@ type ISearchIndexAPI =
         :> "refresh"
         :> Post '[JSON] NoContent
     )
-    :<|> Named
-           "indexReindex"
-           ( Summary
-               "reindex from Cassandra (NB: e.g. integration testing prefer the `brig-index` \
-               \executable for actual operations!)"
-               :> "index"
-               :> "reindex"
-               :> Post '[JSON] NoContent
-           )
-    :<|> Named
-           "indexReindexIfSameOrNewer"
-           ( Summary
-               "forcefully reindex from Cassandra, even if nothing has changed (NB: e.g. \
-               \integration testing prefer the `brig-index` executable for actual operations!)"
-               :> "index"
-               :> "reindex-if-same-or-newer"
-               :> Post '[JSON] NoContent
-           )

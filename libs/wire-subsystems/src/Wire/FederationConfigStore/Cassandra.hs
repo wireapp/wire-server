@@ -15,14 +15,13 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Effects.FederationConfigStore.Cassandra
+module Wire.FederationConfigStore.Cassandra
   ( interpretFederationDomainConfig,
     remotesMapFromCfgFile,
     AddFederationRemoteResult (..),
   )
 where
 
-import Brig.Effects.FederationConfigStore
 import Cassandra
 import Control.Exception (ErrorCall (ErrorCall))
 import Control.Lens
@@ -34,8 +33,10 @@ import Data.Qualified
 import Database.CQL.Protocol (SerialConsistency (LocalSerialConsistency), serialConsistency)
 import Imports
 import Polysemy
+import Polysemy.Embed
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.User.Search
+import Wire.FederationConfigStore
 
 -- | Interpreter for getting the federation config from the database and the config file.
 -- The config file is injected into the interpreter and has precedence over the database.
@@ -45,17 +46,17 @@ import Wire.API.User.Search
 -- If a domain is configured in the config file, it is not allowed to add a team restriction to it in the database.
 -- In the future the config file will be removed and the database will be the only source of truth.
 interpretFederationDomainConfig ::
-  forall m r a.
-  ( MonadClient m,
-    Member (Embed m) r
+  forall r a.
+  ( Member (Embed IO) r
   ) =>
+  ClientState ->
   Maybe FederationStrategy ->
   Map Domain FederationDomainConfig ->
   Sem (FederationConfigStore ': r) a ->
   Sem r a
-interpretFederationDomainConfig mFedStrategy fedCfgs =
+interpretFederationDomainConfig casClient mFedStrategy fedCfgs =
   interpret $
-    embed @m . \case
+    runEmbedded (runClient casClient) . embed . \case
       GetFederationConfig d -> getFederationConfig' fedCfgs d
       GetFederationConfigs -> getFederationConfigs' mFedStrategy fedCfgs
       AddFederationConfig cnf -> addFederationConfig' fedCfgs cnf

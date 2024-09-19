@@ -29,7 +29,6 @@
 , conduit
 , containers
 , cookie
-, cql
 , cryptobox-haskell
 , crypton
 , currency-codes
@@ -130,7 +129,6 @@
 , template-haskell
 , temporary
 , text
-, text-icu-translit
 , time
 , time-out
 , time-units
@@ -190,7 +188,6 @@ mkDerivation {
     conduit
     containers
     cookie
-    cql
     cryptobox-haskell
     crypton
     currency-codes
@@ -249,7 +246,6 @@ mkDerivation {
     resourcet
     retry
     safe-exceptions
-    saml2-web-sso
     schema-profunctor
     servant
     servant-openapi3
@@ -263,7 +259,6 @@ mkDerivation {
     template
     template-haskell
     text
-    text-icu-translit
     time
     time-out
     time-units

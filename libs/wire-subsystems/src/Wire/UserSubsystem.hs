@@ -8,16 +8,29 @@ module Wire.UserSubsystem
 where
 
 import Data.Default
+import Data.Domain
 import Data.Handle (Handle)
 import Data.HavePendingInvitations
 import Data.Id
 import Data.Qualified
+import Data.Range
+import Data.Set qualified as Set
 import Imports
 import Polysemy
+import Polysemy.Error
 import Wire.API.Federation.Error
+import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus)
+import Wire.API.Team.Feature
+import Wire.API.Team.Member (IsPerm (..), TeamMember)
+import Wire.API.Team.Permission
 import Wire.API.User
+import Wire.API.User.Search
 import Wire.Arbitrary
+import Wire.GalleyAPIAccess (GalleyAPIAccess)
+import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.UserKeyStore (EmailKey, emailKeyOrig)
+import Wire.UserSearch.Types
+import Wire.UserSubsystem.Error (UserSubsystemError (..))
 
 -- | Who is performing this update operation / who is allowed to?  (Single source of truth:
 -- users managed by SCIM can't be updated by clients and vice versa.)
@@ -111,6 +124,22 @@ data UserSubsystem m a where
   BlockListDelete :: EmailAddress -> UserSubsystem m ()
   -- | Add an email to the block list.
   BlockListInsert :: EmailAddress -> UserSubsystem m ()
+  UpdateTeamSearchVisibilityInbound :: TeamStatus SearchVisibilityInboundConfig -> UserSubsystem m ()
+  SearchUsers ::
+    Local UserId ->
+    Text ->
+    Maybe Domain ->
+    Maybe (Range 1 500 Int32) ->
+    UserSubsystem m (SearchResult Contact)
+  BrowseTeam ::
+    UserId ->
+    BrowseTeamFilters ->
+    Maybe (Range 1 500 Int) ->
+    Maybe PagingState ->
+    UserSubsystem m (SearchResult TeamContact)
+  -- | This function exists to support migration in this susbystem, after the
+  -- migration this would just be an internal detail of the subsystem
+  InternalUpdateSearchIndex :: UserId -> UserSubsystem m ()
 
 -- | the return type of 'CheckHandle'
 data CheckHandleResp
@@ -132,6 +161,9 @@ getLocalUserProfile :: (Member UserSubsystem r) => Local UserId -> Sem r (Maybe 
 getLocalUserProfile targetUser =
   listToMaybe <$> getLocalUserProfiles ((: []) <$> targetUser)
 
+getLocalUser :: (Member UserSubsystem r) => Local UserId -> Sem r (Maybe User)
+getLocalUser = (selfUser <$$>) . getSelfProfile
+
 getLocalAccountBy ::
   (Member UserSubsystem r) =>
   HavePendingInvitations ->
@@ -150,3 +182,47 @@ getLocalAccountBy includePendingInvitations uid =
 getLocalUserAccountByUserKey :: (Member UserSubsystem r) => Local EmailKey -> Sem r (Maybe UserAccount)
 getLocalUserAccountByUserKey q@(tUnqualified -> ek) =
   listToMaybe . fmap (.account) <$> getExtendedAccountsByEmailNoFilter (qualifyAs q [emailKeyOrig ek])
+
+------------------------------------------
+-- FUTUREWORK: Pending functions for a team subsystem
+------------------------------------------
+
+ensurePermissions ::
+  ( IsPerm perm,
+    Member GalleyAPIAccess r,
+    Member (Error UserSubsystemError) r
+  ) =>
+  UserId ->
+  TeamId ->
+  [perm] ->
+  Sem r ()
+ensurePermissions u t perms = do
+  m <- GalleyAPIAccess.getTeamMember u t
+  unless (check m) $
+    throw UserSubsystemInsufficientTeamPermissions
+  where
+    check :: Maybe TeamMember -> Bool
+    check (Just m) = all (hasPermission m) perms
+    check Nothing = False
+
+-- | Privilege escalation detection (make sure no `RoleMember` user creates a `RoleOwner`).
+--
+-- There is some code duplication with 'Galley.API.Teams.ensureNotElevated'.
+ensurePermissionToAddUser ::
+  ( Member GalleyAPIAccess r,
+    Member (Error UserSubsystemError) r
+  ) =>
+  UserId ->
+  TeamId ->
+  Permissions ->
+  Sem r ()
+ensurePermissionToAddUser u t inviteePerms = do
+  minviter <- GalleyAPIAccess.getTeamMember u t
+  unless (check minviter) $
+    throw UserSubsystemInsufficientTeamPermissions
+  where
+    check :: Maybe TeamMember -> Bool
+    check (Just inviter) =
+      hasPermission inviter AddTeamMember
+        && all (mayGrantPermission inviter) (Set.toList (inviteePerms.self))
+    check Nothing = False

@@ -20,7 +20,7 @@
 -- FUTUREWORK: Move to Brig.User.RPC or similar.
 module Brig.IO.Intra
   ( -- * Pushing & Journaling Events
-    onUserEvent,
+    sendUserEvent,
     onConnectionEvent,
     onPropertyEvent,
     onClientEvent,
@@ -61,7 +61,6 @@ import Brig.Federation.Client (notifyUserDeleted, sendConnectionAction)
 import Brig.IO.Journal qualified as Journal
 import Brig.IO.Logging
 import Brig.RPC
-import Brig.User.Search.Index qualified as Search
 import Control.Error (ExceptT, runExceptT)
 import Control.Lens (view, (.~), (?~), (^.), (^?))
 import Control.Monad.Catch
@@ -109,7 +108,7 @@ import Wire.Sem.Paging.Cassandra (InternalPaging)
 -----------------------------------------------------------------------------
 -- Event Handlers
 
-onUserEvent ::
+sendUserEvent ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member TinyLog r,
@@ -121,9 +120,8 @@ onUserEvent ::
   Maybe ConnId ->
   UserEvent ->
   Sem r ()
-onUserEvent orig conn e =
-  updateSearchIndex orig e
-    *> dispatchNotifications orig conn e
+sendUserEvent orig conn e =
+  dispatchNotifications orig conn e
     *> embed (journalEvent orig e)
 
 runEvents ::
@@ -137,7 +135,7 @@ runEvents ::
   InterpreterFor Events r
 runEvents = interpret \case
   -- FUTUREWORK(mangoiv): should this be in another module?
-  GenerateUserEvent uid mconnid event -> onUserEvent uid mconnid event
+  GenerateUserEvent uid mconnid event -> sendUserEvent uid mconnid event
   GeneratePropertyEvent uid connid event -> onPropertyEvent uid connid event
 
 onConnectionEvent ::
@@ -191,36 +189,6 @@ onClientEvent orig conn e = do
         & pushConn .~ conn
         & pushApsData .~ toApsData event
     ]
-
-updateSearchIndex ::
-  (Member (Embed HttpClientIO) r) =>
-  UserId ->
-  UserEvent ->
-  Sem r ()
-updateSearchIndex orig e = embed $ case e of
-  -- no-ops
-  UserCreated {} -> pure ()
-  UserIdentityUpdated UserIdentityUpdatedData {..} -> do
-    when (isJust eiuEmail) $ Search.reindex orig
-  UserIdentityRemoved {} -> pure ()
-  UserLegalHoldDisabled {} -> pure ()
-  UserLegalHoldEnabled {} -> pure ()
-  LegalHoldClientRequested {} -> pure ()
-  UserSuspended {} -> Search.reindex orig
-  UserResumed {} -> Search.reindex orig
-  UserActivated {} -> Search.reindex orig
-  UserDeleted {} -> Search.reindex orig
-  UserUpdated UserUpdatedData {..} -> do
-    let interesting =
-          or
-            [ isJust eupName,
-              isJust eupAccentId,
-              isJust eupHandle,
-              isJust eupManagedBy,
-              isJust eupSSOId || eupSSOIdRemoved,
-              isJust eupTeam
-            ]
-    when interesting $ Search.reindex orig
 
 journalEvent :: (MonadReader Env m, MonadIO m) => UserId -> UserEvent -> m ()
 journalEvent orig e = case e of

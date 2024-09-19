@@ -10,13 +10,13 @@ import Wire.BlockListStore (BlockListStore (..))
 import Wire.UserKeyStore
 
 interpretBlockListStoreToCassandra ::
-  forall m r a.
-  (MonadClient m, Member (Embed m) r) =>
-  Sem (BlockListStore ': r) a ->
-  Sem r a
-interpretBlockListStoreToCassandra =
+  forall r.
+  (Member (Embed IO) r) =>
+  ClientState ->
+  InterpreterFor BlockListStore r
+interpretBlockListStoreToCassandra casClient =
   interpret $
-    embed @m . \case
+    embed @IO . runClient casClient . \case
       Insert uk -> insert uk
       Exists uk -> exists uk
       Delete uk -> delete uk

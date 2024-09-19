@@ -580,7 +580,6 @@ executable galley-migrate-data
     , exceptions
     , extended
     , imports
-    , lens
     , optparse-applicative
     , text
     , time

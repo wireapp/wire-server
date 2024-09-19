@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Brig.Effects.FederationConfigStore where
+module Wire.FederationConfigStore where
 
 import Data.Domain
 import Data.Id
@@ -24,6 +24,8 @@ data AddFederationRemoteTeamResult
   | AddFederationRemoteTeamDomainNotFound
   | AddFederationRemoteTeamRestrictionAllowAll
 
+-- FUTUREWORK: This store effect is more than just a store,
+-- we should break it up in business logic and store
 data FederationConfigStore m a where
   GetFederationConfig :: Domain -> FederationConfigStore m (Maybe FederationDomainConfig)
   GetFederationConfigs :: FederationConfigStore m FederationDomainConfigs

@@ -28,7 +28,6 @@ import Brig.API.Types (ConnectionError (..))
 import Brig.App
 import Brig.Data.Connection qualified as Data
 import Brig.Data.User qualified as Data
-import Brig.Effects.FederationConfigStore
 import Brig.Federation.Client as Federation
 import Brig.IO.Intra qualified as Intra
 import Brig.Options
@@ -51,6 +50,7 @@ import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 import Wire.API.User
 import Wire.API.UserEvent
+import Wire.FederationConfigStore
 import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.UserStore

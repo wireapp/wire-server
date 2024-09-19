@@ -114,8 +114,6 @@ library
     Brig.DeleteQueue.Interpreter
     Brig.Effects.ConnectionStore
     Brig.Effects.ConnectionStore.Cassandra
-    Brig.Effects.FederationConfigStore
-    Brig.Effects.FederationConfigStore.Cassandra
     Brig.Effects.JwtTools
     Brig.Effects.PublicKeyBundle
     Brig.Effects.SFT
@@ -123,8 +121,6 @@ library
     Brig.Effects.UserPendingActivationStore.Cassandra
     Brig.Federation.Client
     Brig.Index.Eval
-    Brig.Index.Migrations
-    Brig.Index.Migrations.Types
     Brig.Index.Options
     Brig.Index.Types
     Brig.InternalEvent.Process
@@ -190,24 +186,19 @@ library
     Brig.Team.API
     Brig.Team.Email
     Brig.Team.Template
-    Brig.Team.Util
     Brig.Template
     Brig.User.API.Handle
-    Brig.User.API.Search
     Brig.User.Auth
     Brig.User.Auth.Cookie
     Brig.User.Auth.Cookie.Limit
     Brig.User.EJPD
     Brig.User.Search.Index
-    Brig.User.Search.Index.Types
     Brig.User.Search.SearchIndex
     Brig.User.Search.TeamSize
-    Brig.User.Search.TeamUserSearch
     Brig.User.Template
     Brig.Version
     Brig.ZAuth
 
-  other-modules:   Paths_brig
   hs-source-dirs:  src
   ghc-options:
     -funbox-strict-fields -fplugin=Polysemy.Plugin
@@ -238,7 +229,6 @@ library
     , conduit                               >=1.2.8
     , containers                            >=0.5
     , cookie                                >=0.4
-    , cql
     , cryptobox-haskell                     >=0.1.1
     , crypton
     , currency-codes                        >=2.0
@@ -297,7 +287,6 @@ library
     , resourcet                             >=1.1
     , retry                                 >=0.7
     , safe-exceptions                       >=0.1
-    , saml2-web-sso
     , schema-profunctor
     , servant
     , servant-openapi3
@@ -311,7 +300,6 @@ library
     , template                              >=0.2
     , template-haskell
     , text                                  >=0.11
-    , text-icu-translit                     >=0.1
     , time                                  >=1.1
     , time-out
     , time-units
@@ -340,13 +328,11 @@ library
 executable brig
   import:        common-all
   main-is:       exec/Main.hs
-  other-modules: Paths_brig
   ghc-options:
     -funbox-strict-fields -threaded "-with-rtsopts=-N -T" -rtsopts
     -Wredundant-constraints -Wunused-packages
 
   build-depends:
-    , base
     , brig
     , HsOpenSSL
     , imports
@@ -355,7 +341,6 @@ executable brig
 executable brig-index
   import:        common-all
   main-is:       index/src/Main.hs
-  other-modules: Paths_brig
   ghc-options:   -funbox-strict-fields -threaded -with-rtsopts=-N
   build-depends:
     , base
@@ -506,7 +491,6 @@ executable brig-schema
   ghc-options:        -funbox-strict-fields -Wredundant-constraints -threaded
   default-extensions: TemplateHaskell
   build-depends:
-    , base
     , brig
     , cassandra-util
     , extended
@@ -525,7 +509,6 @@ test-suite brig-tests
     Test.Brig.Effects.Delay
     Test.Brig.InternalNotification
     Test.Brig.MLS
-    Test.Brig.User.Search.Index.Types
 
   hs-source-dirs: test/unit
   ghc-options:    -funbox-strict-fields -threaded -with-rtsopts=-N

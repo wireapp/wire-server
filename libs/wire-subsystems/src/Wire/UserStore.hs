@@ -1,8 +1,8 @@
 {-# LANGUAGE TemplateHaskell #-}
-{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 module Wire.UserStore where
 
+import Cassandra (PageWithState (..), PagingState)
 import Data.Default
 import Data.Handle
 import Data.Id
@@ -12,6 +12,7 @@ import Polysemy.Error
 import Wire.API.User
 import Wire.Arbitrary
 import Wire.StoredUser
+import Wire.UserStore.IndexUser
 
 -- | Update of any "simple" attributes (ones that do not involve locking, like handle, or
 -- validation protocols, like email).
@@ -46,6 +47,8 @@ data StoredUserUpdateError = StoredUserUpdateHandleExists
 -- | Effect containing database logic around 'StoredUser'.  (Example: claim handle lock is
 -- database logic; validate handle is application logic.)
 data UserStore m a where
+  GetIndexUser :: UserId -> UserStore m (Maybe IndexUser)
+  GetIndexUsersPaginated :: Int32 -> Maybe PagingState -> UserStore m (PageWithState IndexUser)
   GetUsers :: [UserId] -> UserStore m [StoredUser]
   UpdateUser :: UserId -> StoredUserUpdate -> UserStore m ()
   UpdateUserHandleEither :: UserId -> StoredUserHandleUpdate -> UserStore m (Either StoredUserUpdateError ())

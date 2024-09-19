@@ -5,8 +5,6 @@ import Brig.App as App
 import Brig.DeleteQueue.Interpreter as DQ
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.ConnectionStore.Cassandra (connectionStoreToCassandra)
-import Brig.Effects.FederationConfigStore (FederationConfigStore)
-import Brig.Effects.FederationConfigStore.Cassandra (interpretFederationDomainConfig, remotesMapFromCfgFile)
 import Brig.Effects.JwtTools
 import Brig.Effects.PublicKeyBundle
 import Brig.Effects.SFT (SFT, interpretSFT)
@@ -16,6 +14,7 @@ import Brig.IO.Intra (runEvents)
 import Brig.Options (ImplicitNoFederationRestriction (federationDomainConfig), federationDomainConfigs, federationStrategy)
 import Brig.Options qualified as Opt
 import Brig.Team.Template (TeamTemplates)
+import Brig.User.Search.Index (IndexEnv (..))
 import Cassandra qualified as Cas
 import Control.Exception (ErrorCall)
 import Control.Lens (to, (^.))
@@ -50,10 +49,14 @@ import Wire.Error
 import Wire.Events
 import Wire.FederationAPIAccess qualified
 import Wire.FederationAPIAccess.Interpreter (FederationAPIAccessConfig (..), interpretFederationAPIAccess)
+import Wire.FederationConfigStore (FederationConfigStore)
+import Wire.FederationConfigStore.Cassandra (interpretFederationDomainConfig, remotesMapFromCfgFile)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess.Rpc
 import Wire.GundeckAPIAccess
 import Wire.HashPassword
+import Wire.IndexedUserStore
+import Wire.IndexedUserStore.ElasticSearch
 import Wire.InvitationCodeStore (InvitationCodeStore)
 import Wire.InvitationCodeStore.Cassandra (interpretInvitationCodeStoreToCassandra)
 import Wire.NotificationSubsystem
@@ -73,6 +76,8 @@ import Wire.Sem.Concurrency.IO
 import Wire.Sem.Delay
 import Wire.Sem.Jwk
 import Wire.Sem.Logger.TinyLog (loggerToTinyLogReqId)
+import Wire.Sem.Metrics
+import Wire.Sem.Metrics.IO (runMetricsToIO)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIOAction)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
@@ -110,6 +115,7 @@ type BrigCanonicalEffects =
      HashPassword,
      UserKeyStore,
      UserStore,
+     IndexedUserStore,
      SessionStore,
      PasswordStore,
      VerificationCodeStore,
@@ -138,6 +144,7 @@ type BrigCanonicalEffects =
      GalleyAPIAccess,
      EmailSending,
      Rpc,
+     Metrics,
      Embed Cas.Client,
      Error ParseException,
      Error ErrorCall,
@@ -157,7 +164,8 @@ runBrigToIO e (AppT ma) = do
   let userSubsystemConfig =
         UserSubsystemConfig
           { emailVisibilityConfig = e ^. settings . Opt.emailVisibility,
-            defaultLocale = e ^. settings . to Opt.setDefaultUserLocale
+            defaultLocale = e ^. settings . to Opt.setDefaultUserLocale,
+            searchSameTeamOnly = e ^. settings . Opt.searchSameTeamOnly . to (fromMaybe False)
           }
       federationApiAccessConfig =
         FederationAPIAccessConfig
@@ -172,6 +180,21 @@ runBrigToIO e (AppT ma) = do
             maxValueLength = fromMaybe Opt.defMaxValueLen $ e ^. settings . Opt.propertyMaxValueLen,
             maxProperties = 16
           }
+      mainESEnv = e ^. App.indexEnv . to idxElastic
+      indexedUserStoreConfig =
+        IndexedUserStoreConfig
+          { conn =
+              ESConn
+                { env = mainESEnv,
+                  indexName = e ^. App.indexEnv . to idxName
+                },
+            additionalConn =
+              (e ^. App.indexEnv . to idxAdditionalName) <&> \additionalIndexName ->
+                ESConn
+                  { env = e ^. App.indexEnv . to idxAdditionalElastic . to (fromMaybe mainESEnv),
+                    indexName = additionalIndexName
+                  }
+          }
   ( either throwM pure
       <=< ( runFinal
               . unsafelyPerformConcurrency
@@ -185,6 +208,7 @@ runBrigToIO e (AppT ma) = do
               . mapError @ErrorCall SomeException
               . mapError @ParseException SomeException
               . interpretClientToIO (e ^. casClient)
+              . runMetricsToIO
               . runRpcWithHttp (e ^. httpManager) (e ^. App.requestId)
               . emailSendingInterpreter e
               . interpretGalleyAPIAccessToRpc (e ^. disabledVersions) (e ^. galleyEndpoint)
@@ -193,11 +217,11 @@ runBrigToIO e (AppT ma) = do
               . runDelay
               . nowToIOAction (e ^. currentTime)
               . userPendingActivationStoreToCassandra
-              . interpretBlockListStoreToCassandra @Cas.Client
+              . interpretBlockListStoreToCassandra (e ^. casClient)
               . interpretJwtTools
               . interpretPublicKeyBundle
               . interpretJwk
-              . interpretFederationDomainConfig (e ^. settings . federationStrategy) (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) (e ^. settings . federationDomainConfigs))
+              . interpretFederationDomainConfig (e ^. casClient) (e ^. settings . federationStrategy) (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) (e ^. settings . federationDomainConfigs))
               . runGundeckAPIAccess (e ^. gundeckEndpoint)
               . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig (e ^. App.requestId))
               . runInputConst (teamTemplatesNoLocale e)
@@ -213,6 +237,7 @@ runBrigToIO e (AppT ma) = do
               . interpretVerificationCodeStoreCassandra (e ^. casClient)
               . interpretPasswordStore (e ^. casClient)
               . interpretSessionStoreCassandra (e ^. casClient)
+              . interpretIndexedUserStoreES indexedUserStoreConfig
               . interpretUserStoreCassandra (e ^. casClient)
               . interpretUserKeyStoreCassandra (e ^. casClient)
               . runHashPassword

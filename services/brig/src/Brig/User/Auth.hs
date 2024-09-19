@@ -41,7 +41,6 @@ import Brig.Budget
 import Brig.Data.Activation qualified as Data
 import Brig.Data.Client
 import Brig.Data.User qualified as Data
-import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Options qualified as Opt
 import Brig.Types.Intra
 import Brig.User.Auth.Cookie
@@ -63,7 +62,7 @@ import Data.ZAuth.Token qualified as ZAuth
 import Imports
 import Network.Wai.Utilities.Error ((!>>))
 import Polysemy
-import Polysemy.Input (Input)
+import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import System.Logger (field, msg, val, (~~))
@@ -74,11 +73,10 @@ import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.Sso
+import Wire.Events (Events)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
-import Wire.NotificationSubsystem
 import Wire.PasswordStore (PasswordStore)
-import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserKeyStore
 import Wire.UserStore
 import Wire.UserSubsystem (UserSubsystem)
@@ -92,16 +90,13 @@ login ::
   forall r.
   ( Member GalleyAPIAccess r,
     Member TinyLog r,
-    Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r,
     Member PasswordStore r,
     Member UserKeyStore r,
     Member UserStore r,
+    Member VerificationCodeSubsystem r,
+    Member (Input (Local ())) r,
     Member UserSubsystem r,
-    Member VerificationCodeSubsystem r
+    Member Events r
   ) =>
   Login ->
   CookieType ->
@@ -202,11 +197,8 @@ renewAccess ::
   forall r u a.
   ( ZAuth.TokenPair u a,
     Member TinyLog r,
-    Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member UserSubsystem r,
+    Member Events r
   ) =>
   List1 (ZAuth.Token u) ->
   Maybe (ZAuth.Token a) ->
@@ -243,12 +235,9 @@ revokeAccess luid@(tUnqualified -> u) pw cc ll = do
 -- Internal
 
 catchSuspendInactiveUser ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+  ( Member TinyLog r,
+    Member UserSubsystem r,
+    Member Events r
   ) =>
   UserId ->
   e ->
@@ -273,11 +262,8 @@ newAccess ::
   forall u a r.
   ( ZAuth.TokenPair u a,
     Member TinyLog r,
-    Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member UserSubsystem r,
+    Member Events r
   ) =>
   UserId ->
   Maybe ClientId ->
@@ -390,11 +376,8 @@ validateToken ut at = do
 -- | Allow to login as any user without having the credentials.
 ssoLogin ::
   ( Member TinyLog r,
-    Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member UserSubsystem r,
+    Member Events r
   ) =>
   SsoLogin ->
   CookieType ->
@@ -416,12 +399,9 @@ ssoLogin (SsoLogin uid label) typ = do
 -- | Log in as a LegalHold service, getting LegalHoldUser/Access Tokens.
 legalHoldLogin ::
   ( Member GalleyAPIAccess r,
-    Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
     Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member UserSubsystem r,
+    Member Events r
   ) =>
   LegalHoldLogin ->
   CookieType ->

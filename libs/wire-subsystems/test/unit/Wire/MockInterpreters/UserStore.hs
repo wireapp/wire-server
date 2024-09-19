@@ -1,7 +1,10 @@
 module Wire.MockInterpreters.UserStore where
 
+import Cassandra.Util
 import Data.Handle
 import Data.Id
+import Data.Time
+import Data.Time.Calendar.OrdinalDate
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -10,6 +13,7 @@ import Wire.API.User hiding (DeleteUser)
 import Wire.API.User qualified as User
 import Wire.StoredUser
 import Wire.UserStore
+import Wire.UserStore.IndexUser
 
 inMemoryUserStoreInterpreter ::
   forall r.
@@ -31,6 +35,10 @@ inMemoryUserStoreInterpreter = interpret $ \case
               . maybe Imports.id setStoredUserSupportedProtocols update.supportedProtocols
               $ u
           else u
+  GetIndexUser uid ->
+    gets $ fmap storedUserToIndexUser . find (\user -> user.id == uid)
+  GetIndexUsersPaginated _pageSize _pagingState ->
+    error "GetIndexUsersPaginated not implemented in inMemoryUserStoreInterpreter"
   UpdateUserHandleEither uid hUpdate -> runError $ modifyLocalUsers (traverse doUpdate)
     where
       doUpdate :: StoredUser -> Sem (Error StoredUserUpdateError : r) StoredUser
@@ -57,6 +65,26 @@ inMemoryUserStoreInterpreter = interpret $ \case
   LookupStatus uid -> lookupStatusImpl uid
   IsActivated uid -> isActivatedImpl uid
   LookupLocale uid -> lookupLocaleImpl uid
+
+storedUserToIndexUser :: StoredUser -> IndexUser
+storedUserToIndexUser storedUser =
+  -- If we really care about this, we could start storing the writetimes, but we
+  -- don't need it right now
+  let withDefaultTime x = WithWriteTime x $ Writetime $ UTCTime (YearDay 0 1) 0
+   in IndexUser
+        { userId = storedUser.id,
+          teamId = withDefaultTime <$> storedUser.teamId,
+          name = withDefaultTime storedUser.name,
+          accountStatus = withDefaultTime <$> storedUser.status,
+          handle = withDefaultTime <$> storedUser.handle,
+          email = withDefaultTime <$> storedUser.email,
+          colourId = withDefaultTime storedUser.accentId,
+          activated = withDefaultTime storedUser.activated,
+          serviceId = withDefaultTime <$> storedUser.serviceId,
+          managedBy = withDefaultTime <$> storedUser.managedBy,
+          ssoId = withDefaultTime <$> storedUser.ssoId,
+          unverifiedEmail = Nothing
+        }
 
 lookupLocaleImpl :: (Member (State [StoredUser]) r) => UserId -> Sem r (Maybe ((Maybe Language, Maybe Country)))
 lookupLocaleImpl uid = do
