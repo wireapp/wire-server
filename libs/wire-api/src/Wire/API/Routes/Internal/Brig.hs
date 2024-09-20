@@ -186,10 +186,9 @@ type AccountAPI =
     :<|> Named
            "putSelfEmail"
            ( Summary
-               "internal email activation (used in tests and in spar for validating emails obtained as \
-               \SAML user identifiers).  if the validate query parameter is false or missing, only set \
-               \the activation timeout, but do not send an email, and do not do anything about \
-               \activating the email."
+               "Internal email update and activation. Used in tests and in spar for validating emails \
+               \obtained via scim or saml implicit user creation. If the `validate` query parameter is \
+               \false or missing, only update the email and do not activate."
                :> ZUser
                :> "self"
                :> "email"
