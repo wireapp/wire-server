@@ -20,7 +20,6 @@ import Data.Qualified
 import Data.Range
 import Data.Time.Clock
 import Database.Bloodhound qualified as ES
-import Debug.Trace
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -549,7 +548,6 @@ syncUserIndex ::
   UserId ->
   Sem r ()
 syncUserIndex uid = do
-  traceM $ "**************************================================== " <> show uid <> " "
   getIndexUser uid
     >>= maybe deleteFromIndex upsert
   where
@@ -559,14 +557,14 @@ syncUserIndex uid = do
       IndexedUserStore.upsert (userIdToDocId uid) (emptyUserDoc uid) ES.NoVersionControl
 
     upsert :: IndexUser -> Sem r ()
-    upsert (traceShowId -> indexUser) = do
+    upsert indexUser = do
       vis <-
         maybe
           (pure defaultSearchVisibilityInbound)
           (teamSearchVisibilityInbound . value)
           indexUser.teamId
       let userDoc = indexUserToDoc vis indexUser
-          version = traceShowId $ ES.ExternalGT . ES.ExternalDocVersion . docVersion $ indexUserToVersion indexUser
+          version = ES.ExternalGT . ES.ExternalDocVersion . docVersion $ indexUserToVersion indexUser
       Metrics.incCounter indexUpdateCounter
       IndexedUserStore.upsert (userIdToDocId uid) userDoc version
 

@@ -1,3 +1,4 @@
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 
 module Test.Brig where
@@ -238,6 +239,7 @@ testSFTFederation = do
 testDeleteEmail :: (HasCallStack) => App ()
 testDeleteEmail = do
   (owner, tid, [usr]) <- createTeam OwnDomain 2
+  putSelf usr (PutSelf Nothing Nothing (Just "Alice") Nothing) >>= assertSuccess
   email <- getSelf usr >>= getJSON 200 >>= (%. "email") >>= asString
 
   let associateUsrWithSSO :: (HasCallStack) => App ()
@@ -250,7 +252,7 @@ testDeleteEmail = do
       searchShouldBe :: (HasCallStack) => String -> App ()
       searchShouldBe expected = do
         BrigI.refreshIndex OwnDomain
-        bindResponse (BrigP.searchContacts owner email OwnDomain) $ \resp -> do
+        bindResponse (BrigP.searchTeam owner email) $ \resp -> do
           resp.status `shouldMatchInt` 200
           numDocs <- length <$> (resp.json %. "documents" >>= asList)
           case expected of

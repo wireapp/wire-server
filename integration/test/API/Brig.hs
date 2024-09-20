@@ -249,6 +249,13 @@ searchContacts user searchTerm domain = do
   d <- objDomain domain
   submit "GET" (req & addQueryParams [("q", q), ("domain", d)])
 
+-- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/get_teams__tid__search
+searchTeam :: (HasCallStack, MakesValue user) => user -> String -> App Response
+searchTeam user q = do
+  tid <- user %. "team" & asString
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", tid, "search"]
+  submit "GET" (req & addQueryParams [("q", q)])
+
 getAPIVersion :: (HasCallStack, MakesValue domain) => domain -> App Response
 getAPIVersion domain = do
   req <- baseRequest domain Brig Unversioned $ "/api-version"

@@ -651,10 +651,9 @@ removeEmail uid = do
       liftSem $ deleteKey $ mkEmailKey e
       wrapClient $ Data.deleteEmail uid
       liftSem $ Events.generateUserEvent uid Nothing (emailRemoved uid e)
+      liftSem $ User.internalUpdateSearchIndex uid
     Just _ -> throwE LastIdentity
     Nothing -> throwE NoIdentity
-
--------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
 -- Forcefully revoke a verified identity
