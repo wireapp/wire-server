@@ -87,6 +87,7 @@ import Data.Time.Clock (UTCTime)
 import Galley.API.Action
 import Galley.API.Error as Galley
 import Galley.API.LegalHold.Team
+import Galley.API.Teams.Features
 import Galley.API.Teams.Features.Get
 import Galley.API.Teams.Notifications qualified as APITeamQueue
 import Galley.API.Update qualified as API
@@ -240,6 +241,8 @@ createNonBindingTeamH _ _ _ = do
 createBindingTeam ::
   ( Member NotificationSubsystem r,
     Member (Input UTCTime) r,
+    Member (Input Opts) r,
+    Member TeamFeatureStore r,
     Member TeamStore r
   ) =>
   TeamId ->
@@ -250,6 +253,8 @@ createBindingTeam tid zusr body = do
   let owner = Public.mkTeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
   team <-
     E.createTeam (Just tid) zusr body.newTeamName body.newTeamIcon body.newTeamIconKey Binding
+  initialiseTeamFeatures tid
+
   E.createTeamMember tid owner
   now <- input
   let e = newEvent tid now (EdTeamCreate team)

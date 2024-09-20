@@ -29,6 +29,8 @@ module Galley.Types.Teams
     GetFeatureDefaults (..),
     FeatureDefaults (..),
     FeatureFlags,
+    DefaultsInitial (..),
+    initialFeature,
     featureDefaults,
     notTeamMember,
     findTeamMember,
@@ -348,6 +350,9 @@ instance (IsFeatureConfig cfg) => FromJSON (DefaultsInitial cfg) where
     DefaultsInitial
       <$> ob .: "defaults"
       <*> A.explicitParseField S.schemaParseJSON ob "initialConfig"
+
+initialFeature :: DefaultsInitial cfg -> LockableFeature cfg
+initialFeature d = d.defFeature {config = d.initial}
 
 makeLenses ''TeamCreationTime
 
