@@ -80,6 +80,7 @@ library
     , imports
     , lens                   >=4.12
     , memory
+    , schema-profunctor
     , sop-core
     , text                   >=0.11
     , types-common           >=0.16
