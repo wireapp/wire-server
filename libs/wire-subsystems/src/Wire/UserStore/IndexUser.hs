@@ -22,6 +22,7 @@ import Wire.UserSearch.Types
 type Activated = Bool
 
 data WithWritetime a = WithWriteTime {value :: a, writetime :: Writetime a}
+  deriving (Eq, Show)
 
 data IndexUser = IndexUser
   { userId :: UserId,
@@ -37,6 +38,7 @@ data IndexUser = IndexUser
     ssoId :: Maybe (WithWritetime UserSSOId),
     unverifiedEmail :: Maybe (WithWritetime EmailAddress)
   }
+  deriving (Eq, Show)
 
 {- ORMOLU_DISABLE -}
 type instance
