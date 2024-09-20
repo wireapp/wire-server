@@ -57,7 +57,7 @@ type instance
 
 instance Record IndexUser where
   asTuple (IndexUser {..}) =
-    ( userId, 
+    ( userId,
       value <$> teamId, writetime <$> teamId,
       name.value, name.writetime,
       value <$> accountStatus, writetime <$> accountStatus,
@@ -72,7 +72,7 @@ instance Record IndexUser where
     )
 
   asRecord
-    ( u, 
+    ( u,
       mTeam, tTeam,
       name, tName,
       status, tStatus,
