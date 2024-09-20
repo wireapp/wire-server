@@ -559,7 +559,7 @@ userActivatedUpdate :: PrepQuery W (Maybe EmailAddress, UserId) ()
 userActivatedUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET activated = true, email = ? WHERE id = ?"
 
 userEmailDelete :: PrepQuery W (Identity UserId) ()
-userEmailDelete = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET email = null WHERE id = ?"
+userEmailDelete = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET email = null, write_time_bumper = 0 WHERE id = ?"
 
 userRichInfoUpdate :: PrepQuery W (RichInfoAssocList, UserId) ()
 userRichInfoUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE rich_info SET json = ? WHERE user = ?"
