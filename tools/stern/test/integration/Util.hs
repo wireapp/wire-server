@@ -96,7 +96,7 @@ randomUserProfile'' isCreator hasPassword hasEmail = do
           ["name" .= fromEmail e]
             <> ["password" .= defPassword | hasPassword]
             <> ["email" .= fromEmail e | hasEmail]
-            <> ["team" .= BindingNewTeam (newNewTeam (unsafeRange "teamName") DefaultIcon) | isCreator]
+            <> ["team" .= newNewTeam (unsafeRange "teamName") DefaultIcon | isCreator]
   (,e) . responseJsonUnsafe <$> (post (b . path "/i/users" . Bilge.json pl) <!! const 201 === statusCode)
 
 randomEmailUser :: (HasCallStack) => TestM (UserId, EmailAddress)

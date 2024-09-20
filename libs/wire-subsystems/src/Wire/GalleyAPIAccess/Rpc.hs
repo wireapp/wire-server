@@ -284,7 +284,7 @@ createTeam ::
     Member TinyLog r
   ) =>
   UserId ->
-  BindingNewTeam ->
+  NewTeam ->
   TeamId ->
   Sem r ()
 createTeam u t teamid = do

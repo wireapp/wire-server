@@ -275,7 +275,7 @@ createBindingTeamInternalNoActivate :: (HasCallStack) => Text -> UserId -> TestM
 createBindingTeamInternalNoActivate name owner = do
   g <- viewGalley
   tid <- randomId
-  let nt = BindingNewTeam $ newNewTeam (unsafeRange name) DefaultIcon
+  let nt = newNewTeam (unsafeRange name) DefaultIcon
   _ <-
     put (g . paths ["/i/teams", toByteString' tid] . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
       const 201 === statusCode
@@ -2013,7 +2013,7 @@ randomUserProfile' isCreator hasPassword hasEmail = do
           ["name" .= fromEmail e]
             <> ["password" .= defPassword | hasPassword]
             <> ["email" .= fromEmail e | hasEmail]
-            <> ["team" .= BindingNewTeam (newNewTeam (unsafeRange "teamName") DefaultIcon) | isCreator]
+            <> ["team" .= newNewTeam (unsafeRange "teamName") DefaultIcon | isCreator]
   responseJsonUnsafe <$> (post (b . path "/i/users" . json p) <!! const 201 === statusCode)
 
 ephemeralUser :: (HasCallStack) => TestM UserId

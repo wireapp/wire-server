@@ -73,7 +73,7 @@ data GalleyAPIAccess m a where
     GalleyAPIAccess m Bool
   CreateTeam ::
     UserId ->
-    BindingNewTeam ->
+    NewTeam ->
     TeamId ->
     GalleyAPIAccess m ()
   GetTeamMember ::

@@ -206,7 +206,7 @@ tests =
       testRoundTrip @SystemSettings.SystemSettings,
       testRoundTrip @SystemSettings.SystemSettingsPublic,
       testRoundTrip @SystemSettings.SystemSettingsInternal,
-      testRoundTrip @Team.BindingNewTeam,
+      testRoundTrip @Team.NewTeam,
       testRoundTrip @Team.TeamBinding,
       testRoundTrip @Team.Team,
       testRoundTrip @Team.TeamList,
