@@ -183,6 +183,7 @@ library
     Brig.Schema.V83_AddTextStatus
     Brig.Schema.V84_DropTeamInvitationPhone
     Brig.Schema.V85_DropUserKeysHashed
+    Brig.Schema.V86_WriteTimeBumper
     Brig.Team.API
     Brig.Team.Email
     Brig.Team.Template

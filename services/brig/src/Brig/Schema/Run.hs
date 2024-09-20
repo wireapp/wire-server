@@ -60,6 +60,7 @@ import Brig.Schema.V82_DropPhoneColumn qualified as V82_DropPhoneColumn
 import Brig.Schema.V83_AddTextStatus qualified as V83_AddTextStatus
 import Brig.Schema.V84_DropTeamInvitationPhone qualified as V84_DropTeamInvitationPhone
 import Brig.Schema.V85_DropUserKeysHashed qualified as V85_DropUserKeysHashed
+import Brig.Schema.V86_WriteTimeBumper qualified as V86_WriteTimeBumper
 import Cassandra.MigrateSchema (migrateSchema)
 import Cassandra.Schema
 import Control.Exception (finally)
@@ -126,7 +127,8 @@ migrations =
     V82_DropPhoneColumn.migration,
     V83_AddTextStatus.migration,
     V84_DropTeamInvitationPhone.migration,
-    V85_DropUserKeysHashed.migration
+    V85_DropUserKeysHashed.migration,
+    V86_WriteTimeBumper.migration
     -- FUTUREWORK: undo V41 (searchable flag); we stopped using it in
     -- https://github.com/wireapp/wire-server/pull/964
   ]
