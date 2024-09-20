@@ -76,24 +76,12 @@ instance Arbitrary EmailAddress where
 instance C.Cql EmailAddress where
   ctype = C.Tagged C.TextColumn
 
-  fromCql (C.CqlText "NULL") = Left "fromCql: email: CqlText expected"
   fromCql (C.CqlText t) = case emailAddressText t of
     Just e -> pure e
     Nothing -> Left "fromCql: Invalid email"
   fromCql _ = Left "fromCql: email: CqlText expected"
 
   toCql = C.toCql . fromEmail
-
-instance C.Cql (Maybe EmailAddress) where
-  ctype = C.Tagged C.TextColumn
-
-  fromCql (C.CqlText "NULL") = pure Nothing
-  fromCql (C.CqlText t) = case emailAddressText t of
-    Just e -> pure $ Just e
-    Nothing -> Left "fromCql: Invalid email"
-  fromCql _ = Left "fromCql: email: CqlText expected"
-
-  toCql = C.toCql . maybe "NULL" fromEmail
 
 fromEmail :: EmailAddress -> Text
 fromEmail = decodeUtf8 . toByteString
