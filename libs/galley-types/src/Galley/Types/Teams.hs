@@ -346,10 +346,12 @@ instance GetFeatureDefaults (DefaultsInitial cfg) where
   featureDefaults1 = defFeature
 
 instance (IsFeatureConfig cfg) => FromJSON (DefaultsInitial cfg) where
-  parseJSON = withObject "default with initial" $ \ob ->
-    DefaultsInitial
-      <$> ob .: "defaults"
-      <*> A.explicitParseField S.schemaParseJSON ob "initialConfig"
+  parseJSON = withObject "default with initial" $ \ob -> do
+    feat <- ob .:? "defaults" .!= def
+    mc <-
+      fromMaybe feat.config
+        <$> A.explicitParseFieldMaybe S.schemaParseJSON ob "initialConfig"
+    pure $ DefaultsInitial feat mc
 
 initialFeature :: DefaultsInitial cfg -> LockableFeature cfg
 initialFeature d = d.defFeature {config = d.initial}
