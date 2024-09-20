@@ -55,7 +55,7 @@ getIndexUserBaseQuery :: LText
 getIndexUserBaseQuery =
   [sql|
     SELECT
-    id, 
+    id,
     team, writetime(team),
     name, writetime(name),
     status, writetime(status),
