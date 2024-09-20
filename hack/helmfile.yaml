@@ -58,6 +58,9 @@ repositories:
   - name: bedag
     url: 'https://bedag.github.io/helm-charts/'
 
+  - name: opensearch
+    url: 'https://opensearch-project.github.io/helm-charts'
+
 releases:
   - name: 'fake-aws'
     namespace: '{{ .Values.namespace1 }}'
@@ -77,29 +80,130 @@ releases:
     values:
       - './helm_vars/certs/values.yaml.gotmpl'
 
-  - name: 'databases-ephemeral'
+  - name: 'reddis-ephemeral'
     namespace: '{{ .Values.namespace1 }}'
-    chart: '../.local/charts/databases-ephemeral'
+    chart: '../.local/charts/reddis-ephemeral'
     values:
       - redis-ephemeral:
-          redis-ephemeral:
-            usePassword: true
-            password: very-secure-redis-master-password
-            tls:
-              enabled: true
-              certificatesSecret: redis-certificate
-              certFilename: "tls.crt"
-              certKeyFilename: "tls.key"
-              certCAFilename: "ca.crt"
-              authClients: false
-        elasticsearch-ephemeral:
+          usePassword: true
+          password: very-secure-redis-master-password
           tls:
             enabled: true
+            certificatesSecret: redis-certificate
+            certFilename: "tls.crt"
+            certKeyFilename: "tls.key"
+            certCAFilename: "ca.crt"
+            authClients: false
+    needs:
+      - certs
+
+  - name: 'cassandra-ephemeral'
+    namespace: '{{ .Values.namespace1 }}'
+    chart: '../.local/charts/cassandra-ephemeral'
+
+  - name: 'opensearch-ephemeral'
+    namespace: '{{ .Values.namespace1 }}'
+    chart: 'opensearch/opensearch'
+    version: "2.25.0"
+    values:
+      singleNode: false
+
+      extraObjects:
+        - apiVersion: cert-manager.io/v1
+          kind: Certificate
+          metadata:
+            name: opensearch-cert
+            namespace: {{ .Values.namespace1 }}
+            labels:
+              chart: "opensearch-2.25.0"
+              release: "opensearch-ephemeral"
+              heritage: "Helm"
+          spec:
             issuerRef:
               name: elasticsearch
               kind: Issuer
-    needs:
-      - certs
+
+            usages:
+              - server auth
+            duration: 2160h     # 90d
+            renewBefore: 360h   # 15d
+            isCA: false
+            secretName: opensearch-ephemeral-certificate
+
+            privateKey:
+              algorithm: ECDSA
+              size: 384
+              encoding: PKCS1
+              rotationPolicy: Always
+
+            dnsNames:
+            - opensearch
+            - opensearch.{{ .Values.namespace1 }}.svc.cluster.local
+
+      config:
+        opensearch.yml: |
+            cluster.name: opensearch-cluster
+
+            # Bind to all interfaces because we don't know what IP address Docker will assign to us.
+            network.host: 0.0.0.0
+
+            # Setting network.host to a non-loopback address enables the annoying bootstrap checks. "Single-node" mode disables them again.
+            # Implicitly done if ".singleNode" is set to "true".
+            # discovery.type: single-node
+
+            # Start OpenSearch Security Demo Configuration
+            # WARNING: revise all the lines below before you go into production
+            plugins:
+              security:
+                ssl:
+                  transport:
+                    pemcert_filepath: tls.crt
+                    pemkey_filepath: tls.key
+                    pemtrustedcas_filepath: root-ca.pem
+                    enforce_hostname_verification: false
+                  http:
+                    enabled: true
+                    pemcert_filepath: tls.crt
+                    pemkey_filepath: tls.key
+                    pemtrustedcas_filepath: root-ca.pem
+                allow_unsafe_democertificates: true
+                allow_default_init_securityindex: true
+                authcz:
+                  admin_dn:
+                    - CN=kirk,OU=client,O=client,L=test,C=de
+                audit.type: internal_opensearch
+                enable_snapshot_restore_privilege: true
+                check_snapshot_restore_write_privileges: true
+                restapi:
+                  roles_enabled: ["all_access", "security_rest_api_access"]
+                system_indices:
+                  enabled: true
+                  indices:
+                    [
+                      ".opendistro-alerting-config",
+                      ".opendistro-alerting-alert*",
+                      ".opendistro-anomaly-results*",
+                      ".opendistro-anomaly-detector*",
+                      ".opendistro-anomaly-checkpoints",
+                      ".opendistro-anomaly-detection-state",
+                      ".opendistro-reports-*",
+                      ".opendistro-notifications-*",
+                      ".opendistro-notebooks",
+                      ".opendistro-asynchronous-search-response*",
+                    ]
+      extraEnvs:
+        - name: OPENSEARCH_USERNAME
+          value: elastic
+        - name: OPENSEARCH_PASSWORD
+          value: changeme
+
+      persistance:
+        enabled: false
+
+      secretMounts:
+        - name: certs
+          secretName: opensearch-certificate
+          path: /usr/share/opensearch/config/
 
   # Required for testing redis migration
   - name: 'redis-ephemeral-2'

@@ -28,10 +28,10 @@ elasticsearch-index:
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   elasticsearch:
     scheme: https
-    host: elasticsearch-ephemeral
+    host: opensearch-ephemeral
     index: directory_test
     tlsCaSecretRef:
-      name: "elasticsearch-ephemeral-certificate"
+      name: "opensearch-ephemeral-certificate"
       key: "ca.crt"
   cassandra:
     host: {{ .Values.cassandraHost }}
@@ -67,13 +67,13 @@ brig:
     {{- end }}
     elasticsearch:
       scheme: https
-      host: elasticsearch-ephemeral
+      host: opensearch-ephemeral
       index: directory_test
       tlsCaSecretRef:
-        name: "elasticsearch-ephemeral-certificate"
+        name: "opensearch-ephemeral-certificate"
         key: "ca.crt"
       additionalTlsCaSecretRef:
-        name: "elasticsearch-ephemeral-certificate"
+        name: "opensearch-ephemeral-certificate"
         key: "ca.crt"
     rabbitmq:
       port: 5671
@@ -532,7 +532,7 @@ integration:
       {{- end }}
     elasticsearch:
       tlsCaSecretRef:
-        name: "elasticsearch-ephemeral-certificate"
+        name: "opensearch-ephemeral-certificate"
         key: "ca.crt"
     redis:
       tlsCaSecretRef:
