@@ -205,3 +205,18 @@ data BrowseTeamFilters = BrowseTeamFilters
 
 userIdToDocId :: UserId -> DocId
 userIdToDocId uid = DocId (idToText uid)
+
+-- | We use cassandra writetimes to construct the ES index version. Since nulling fields in
+-- cassandra also nulls the writetime, re-indexing does not happen when nulling a field, and
+-- the old search key can still effectively be used.
+--
+-- `write_time_bumper type int` is an extra field that we can update whenever we null a field
+-- and want to update the write time of the table.  `WriteTimeBumper` writes to 'int' fields,
+-- but only cares about the field's writetime.
+data WriteTimeBumper = WriteTimeBumper
+  deriving (Eq, Show)
+
+instance C.Cql WriteTimeBumper where
+  ctype = C.Tagged C.IntColumn
+  toCql WriteTimeBumper = C.CqlInt 0
+  fromCql _ = pure WriteTimeBumper

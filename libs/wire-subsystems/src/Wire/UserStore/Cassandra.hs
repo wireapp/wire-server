@@ -66,7 +66,8 @@ getIndexUserBaseQuery =
     service, writetime(service),
     managed_by, writetime(managed_by),
     sso_id, writetime(sso_id),
-    email_unvalidated, writetime(email_unvalidated)
+    email_unvalidated, writetime(email_unvalidated),
+    writetime(write_time_bumper)
     FROM user
   |]
 
