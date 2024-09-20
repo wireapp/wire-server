@@ -402,6 +402,12 @@ putSelfEmail caller emailAddress = do
   req <- baseRequest caller Brig Versioned $ joinHttpPath ["users", callerid, "email"]
   submit "PUT" $ req & addJSONObject ["email" .= emailAddress]
 
+-- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/delete_self_email
+deleteSelfEmail :: (HasCallStack, MakesValue caller) => caller -> App Response
+deleteSelfEmail caller = do
+  req <- baseRequest caller Brig Versioned $ joinHttpPath ["self", "email"]
+  submit "DELETE" req
+
 -- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/put_self_handle
 -- FUTUREWORK: rename to putSelfHandle for consistency
 putHandle :: (HasCallStack, MakesValue user) => user -> String -> App Response
