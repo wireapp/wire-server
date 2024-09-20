@@ -250,7 +250,11 @@ createBindingTeam tid zusr body = do
   let owner = Public.mkTeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
   team <-
     E.createTeam (Just tid) zusr body.newTeamName body.newTeamIcon body.newTeamIconKey Binding
-  finishCreateTeam team owner [] Nothing
+  E.createTeamMember tid owner
+  now <- input
+  let e = newEvent tid now (EdTeamCreate team)
+  pushNotifications
+    [newPushLocal1 zusr (toJSONObject e) (userRecipient zusr :| [])]
   pure tid
 
 updateTeamStatus ::
@@ -1313,28 +1317,6 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) = do
 
   APITeamQueue.pushTeamEvent tid e
   pure sizeBeforeAdd
-
-finishCreateTeam ::
-  ( Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
-    Member TeamStore r
-  ) =>
-  Team ->
-  TeamMember ->
-  [TeamMember] ->
-  Maybe ConnId ->
-  Sem r ()
-finishCreateTeam team owner others zcon = do
-  let zusr = owner ^. userId
-  for_ (owner : others) $
-    E.createTeamMember (team ^. teamId)
-  now <- input
-  let e = newEvent (team ^. teamId) now (EdTeamCreate team)
-  let r = membersToRecipients Nothing others
-  pushNotifications
-    [ newPushLocal1 zusr (toJSONObject e) (userRecipient zusr :| r)
-        & pushConn .~ zcon
-    ]
 
 getBindingTeamMembers ::
   ( Member (ErrorS 'TeamNotFound) r,
