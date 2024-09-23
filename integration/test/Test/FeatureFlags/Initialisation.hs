@@ -1,6 +1,6 @@
 module Test.FeatureFlags.Initialisation where
 
-import API.Galley
+import API.GalleyInternal
 import Control.Monad.Codensity
 import Control.Monad.Extra
 import Control.Monad.Reader
@@ -26,6 +26,7 @@ testMLSInitialisation = do
                           ]
                     ]
                 )
+                >=> removeField "settings.featureFlags.mlsMigration"
           }
 
   pool <- asks (.resourcePool)
@@ -38,10 +39,10 @@ testMLSInitialisation = do
 
       -- create a team
       lift do
-        (alice, aliceTeam, _) <- createTeam domain 0
-        feat <- getTeamFeature alice aliceTeam "mls" >>= getJSON 200
+        (alice, tid, _) <- createTeam domain 0
+        feat <- getTeamFeature alice tid "mls" >>= getJSON 200
         feat %. "config.defaultProtocol" `shouldMatch` "proteus"
-        pure (alice, aliceTeam)
+        pure (alice, tid)
 
     lift $ lowerCodensity do
       -- now start the backend again, this time with an initial mls
@@ -55,6 +56,13 @@ testMLSInitialisation = do
 
       -- a new team should get the initial mls configuration
       lift do
-        (bob, bobTeam, _) <- createTeam domain 0
-        feat <- getTeamFeature bob bobTeam "mls" >>= getJSON 200
+        (bob, tid, _) <- createTeam domain 0
+        feat <- getTeamFeature bob tid "mls" >>= getJSON 200
         feat %. "config.defaultProtocol" `shouldMatch` "mls"
+
+        -- if the mls feature is locked, the config reverts back to default
+        void
+          $ patchTeamFeature bob tid "mls" (object ["lockStatus" .= "locked"])
+          >>= getJSON 200
+        feat' <- getTeamFeature bob tid "mls" >>= getJSON 200
+        feat' %. "config.defaultProtocol" `shouldMatch` "proteus"
