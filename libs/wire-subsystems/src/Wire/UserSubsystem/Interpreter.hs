@@ -128,8 +128,7 @@ interpretUserSubsystem ::
     Member FederationConfigStore r,
     Member Metrics r,
     Member InvitationCodeStore r,
-    Member TinyLog r,
-    Member PasswordStore r
+    Member TinyLog r
   ) =>
   InterpreterFor UserSubsystem r
 interpretUserSubsystem = interpret \case
