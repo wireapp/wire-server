@@ -428,6 +428,15 @@ instance SetFeatureConfig MlsMigrationConfig where
       $ throw MLSProtocolMismatch
     pure feat
 
-instance SetFeatureConfig EnforceFileDownloadLocationConfig
+instance SetFeatureConfig EnforceFileDownloadLocationConfig where
+  type
+    SetFeatureForTeamConstraints EnforceFileDownloadLocationConfig r =
+      (Member (Error TeamFeatureError) r)
+
+  prepareFeature _ feat = do
+    -- empty download location is not allowed
+    when (feat.config.enforcedDownloadLocation == Just "") $ do
+      throw EmptyDownloadLocation
+    pure feat
 
 instance SetFeatureConfig LimitedEventFanoutConfig

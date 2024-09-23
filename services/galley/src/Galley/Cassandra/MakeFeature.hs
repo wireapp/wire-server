@@ -373,12 +373,20 @@ instance MakeFeature EnforceFileDownloadLocationConfig where
   rowToFeature (lockStatus :* status :* location :* Nil) =
     foldMap dbFeatureLockStatus lockStatus
       <> foldMap dbFeatureStatus status
-      -- FUTUREWORK: allow using the default
-      <> dbFeatureConfig (EnforceFileDownloadLocationConfig location)
+      <> foldMap
+        dbFeatureConfig
+        ( case location of
+            Nothing -> Nothing
+            -- convert empty string to 'Nothing'
+            Just "" -> Just (EnforceFileDownloadLocationConfig Nothing)
+            Just loc -> Just (EnforceFileDownloadLocationConfig (Just loc))
+        )
+
   featureToRow feat =
     Just feat.lockStatus
       :* Just feat.status
-      :* feat.config.enforcedDownloadLocation
+      -- represent 'Nothing' as the empty string
+      :* Just (fromMaybe "" feat.config.enforcedDownloadLocation)
       :* Nil
 
 instance MakeFeature LimitedEventFanoutConfig where

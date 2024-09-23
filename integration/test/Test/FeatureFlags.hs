@@ -483,7 +483,7 @@ testAllFeatures = do
                   ],
               "enforceFileDownloadLocation"
                 .= object
-                  [ "lockStatus" .= "locked",
+                  [ "lockStatus" .= "unlocked",
                     "status" .= "disabled",
                     "ttl" .= "unlimited",
                     "config"
@@ -1037,7 +1037,7 @@ testPatchEnforceFileDownloadLocation :: (HasCallStack) => App ()
 testPatchEnforceFileDownloadLocation = do
   let defCfg =
         object
-          [ "lockStatus" .= "locked",
+          [ "lockStatus" .= "unlocked",
             "status" .= "disabled",
             "ttl" .= "unlimited",
             "config"
