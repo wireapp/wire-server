@@ -481,7 +481,16 @@ testAllFeatures = do
                           "finaliseRegardlessAfter" .= "2029-10-17T00:00:00Z"
                         ]
                   ],
-              "enforceFileDownloadLocation" .= object ["lockStatus" .= "locked", "status" .= "disabled", "ttl" .= "unlimited", "config" .= object []],
+              "enforceFileDownloadLocation"
+                .= object
+                  [ "lockStatus" .= "locked",
+                    "status" .= "disabled",
+                    "ttl" .= "unlimited",
+                    "config"
+                      .= object
+                        [ "enforcedDownloadLocation" .= "downloads"
+                        ]
+                  ],
               "limitedEventFanout" .= disabled
             ]
   bindResponse (Public.getTeamFeatures m tid) $ \resp -> do
@@ -629,23 +638,38 @@ mlsInvalidConfig =
 
 testEnforceDownloadLocation :: (HasCallStack) => App ()
 testEnforceDownloadLocation =
-  _testLockStatusWithConfig
-    "enforceFileDownloadLocation"
-    Public.setTeamFeatureConfig
-    (object ["lockStatus" .= "locked", "status" .= "disabled", "ttl" .= "unlimited", "config" .= object []])
-    (object ["status" .= "enabled", "config" .= object ["enforcedDownloadLocation" .= "/tmp"]])
-    (object ["status" .= "disabled", "config" .= object []])
-    (object ["status" .= "enabled", "config" .= object ["enforcedDownloadLocation" .= object []]])
-
-testEnforceDownloadLocationInternal :: (HasCallStack) => App ()
-testEnforceDownloadLocationInternal =
-  _testLockStatusWithConfig
-    "enforceFileDownloadLocation"
-    Internal.setTeamFeatureConfig
-    (object ["lockStatus" .= "locked", "status" .= "disabled", "ttl" .= "unlimited", "config" .= object []])
-    (object ["status" .= "enabled", "config" .= object ["enforcedDownloadLocation" .= "/tmp"]])
-    (object ["status" .= "disabled", "config" .= object []])
-    (object ["status" .= "enabled", "config" .= object ["enforcedDownloadLocation" .= object []]])
+  for_
+    [ Public.setTeamFeatureConfig,
+      Internal.setTeamFeatureConfig
+    ]
+    $ \setter ->
+      _testLockStatusWithConfig
+        "enforceFileDownloadLocation"
+        setter
+        ( object
+            [ "lockStatus" .= "unlocked",
+              "status" .= "disabled",
+              "ttl" .= "unlimited",
+              "config"
+                .= object
+                  [ "enforcedDownloadLocation" .= "downloads"
+                  ]
+            ]
+        )
+        ( object
+            [ "status" .= "enabled",
+              "config" .= object ["enforcedDownloadLocation" .= "/tmp"]
+            ]
+        )
+        (object ["status" .= "disabled", "config" .= object []])
+        ( object
+            [ "status" .= "enabled",
+              "config"
+                .= object
+                  [ "enforcedDownloadLocation" .= object []
+                  ]
+            ]
+        )
 
 testMlsMigration :: (HasCallStack) => App ()
 testMlsMigration = do
@@ -1016,7 +1040,10 @@ testPatchEnforceFileDownloadLocation = do
           [ "lockStatus" .= "locked",
             "status" .= "disabled",
             "ttl" .= "unlimited",
-            "config" .= object []
+            "config"
+              .= object
+                [ "enforcedDownloadLocation" .= "downloads"
+                ]
           ]
   _testPatch "enforceFileDownloadLocation" True defCfg (object ["lockStatus" .= "unlocked"])
   _testPatch "enforceFileDownloadLocation" True defCfg (object ["status" .= "enabled"])
