@@ -260,6 +260,7 @@ upgradePersonalToTeam ::
   forall r.
   ( Member GalleyAPIAccess r,
     Member EmailSubsystem r,
+    Member UserStore r,
     Member UserSubsystem r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
@@ -292,7 +293,7 @@ upgradePersonalToTeam luid bNewTeam = do
       let newTeam = bNewTeam.bnuTeam
       pure $ CreateUserTeam tid (fromRange newTeam.newTeamName)
 
-    wrapClient $ updateUserTeam uid tid
+    liftSem $ updateUserTeam uid tid
     liftSem $ Intra.sendUserEvent uid Nothing (teamUpdated uid tid)
     initAccountFeatureConfig uid
 

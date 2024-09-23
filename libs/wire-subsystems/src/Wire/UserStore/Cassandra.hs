@@ -30,6 +30,7 @@ interpretUserStoreCassandra casClient =
       LookupStatus uid -> lookupStatusImpl uid
       IsActivated uid -> isActivatedImpl uid
       LookupLocale uid -> lookupLocaleImpl uid
+      UpdateUserTeam uid tid -> updateUserTeamImpl uid tid
 
 getUsersImpl :: [UserId] -> Client [StoredUser]
 getUsersImpl usrs =
@@ -161,6 +162,12 @@ isActivatedImpl uid =
 lookupLocaleImpl :: UserId -> Client (Maybe (Maybe Language, Maybe Country))
 lookupLocaleImpl u = do
   retry x1 (query1 localeSelect (params LocalQuorum (Identity u)))
+
+updateUserTeamImpl :: UserId -> TeamId -> Client ()
+updateUserTeamImpl u t = retry x5 $ write userTeamUpdate (params LocalQuorum (t, u))
+  where
+    userTeamUpdate :: PrepQuery W (TeamId, UserId) ()
+    userTeamUpdate = "UPDATE user SET team = ? WHERE id = ?"
 
 --------------------------------------------------------------------------------
 -- Queries

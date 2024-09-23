@@ -711,7 +711,8 @@ upgradePersonalToTeam ::
     Member (Input UTCTime) r,
     Member NotificationSubsystem r,
     Member TinyLog r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member UserStore r
   ) =>
   Local UserId ->
   Public.BindingNewTeamUser ->

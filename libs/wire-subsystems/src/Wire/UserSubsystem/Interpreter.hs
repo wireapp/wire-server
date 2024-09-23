@@ -893,7 +893,7 @@ acceptTeamInvitationImpl luid pw code = do
       throw UserSubsystemCannotJoinMultipleTeams
   added <- GalleyAPIAccess.addTeamMember uid tid minvmeta (fromMaybe defaultRole inv.role)
   unless added $ throw UserSubsystemTooManyTeamMembers
-  _ <- (error "todo updateUserTeam") uid tid
+  updateUserTeam uid tid
   deleteInvitation inv.teamId inv.invitationId
   syncUserIndex uid
   generateUserEvent uid Nothing (teamUpdated uid tid)
