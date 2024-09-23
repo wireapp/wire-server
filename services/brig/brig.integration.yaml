@@ -155,9 +155,9 @@ turn:
   tokenTTL: 21600
 
 optSettings:
-  setActivationTimeout: 10
-  setVerificationTimeout: 10
-  setTeamInvitationTimeout: 10
+  setActivationTimeout: 4
+  setVerificationTimeout: 4
+  setTeamInvitationTimeout: 4
   setExpiredUserCleanupTimeout: 1
   # setStomp: test/resources/stomp-credentials.yaml
   setUserMaxConnections: 16
@@ -171,7 +171,7 @@ optSettings:
     timeout: 5  # seconds.  if you reach the limit, how long do you have to wait to try again.
     retryLimit: 5  # how many times can you have a failed login in that timeframe.
   setSuspendInactiveUsers:  # if this is omitted: never suspend inactive users.
-    suspendTimeout: 10
+    suspendTimeout: 4
   setRichInfoLimit: 5000  # should be in sync with Spar
   setDefaultUserLocale: en
   setMaxTeamSize: 32
