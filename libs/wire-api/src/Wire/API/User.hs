@@ -46,6 +46,11 @@ module Wire.API.User
     mkUserProfileWithEmail,
     userObjectSchema,
 
+    -- * UpgradePersonalToTeam
+    CreateUserTeam (..),
+    UpgradePersonalToTeamResponses,
+    UpgradePersonalToTeamError (..),
+
     -- * NewUser
     NewUserPublic (..),
     RegisterError (..),
@@ -201,7 +206,7 @@ import Wire.API.Error.Brig qualified as E
 import Wire.API.Locale
 import Wire.API.Provider.Service (ServiceRef)
 import Wire.API.Routes.MultiVerb
-import Wire.API.Team (BindingNewTeam, bindingNewTeamObjectSchema)
+import Wire.API.Team
 import Wire.API.Team.Member (TeamMember)
 import Wire.API.Team.Member qualified as TeamMember
 import Wire.API.Team.Role
@@ -772,6 +777,47 @@ isNewUserTeamMember u = case newUserTeam u of
 instance Arbitrary NewUserPublic where
   arbitrary = arbitrary `QC.suchThatMap` (rightMay . validateNewUserPublic)
 
+data CreateUserTeam = CreateUserTeam
+  { createdTeamId :: !TeamId,
+    createdTeamName :: !Text
+  }
+  deriving (Show)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema CreateUserTeam
+
+instance ToSchema CreateUserTeam where
+  schema =
+    object "CreateUserTeam" $
+      CreateUserTeam
+        <$> createdTeamId .= field "team_id" schema
+        <*> createdTeamName .= field "team_name" schema
+
+data UpgradePersonalToTeamError
+  = UpgradePersonalToTeamErrorAlreadyInATeam
+  | UpgradePersonalToTeamErrorUserNotFound
+  deriving (Show)
+
+type UpgradePersonalToTeamResponses =
+  '[ ErrorResponse UserAlreadyInATeam,
+     ErrorResponse UserNotFound,
+     Respond 200 "Team created" CreateUserTeam
+   ]
+
+instance
+  AsUnion
+    UpgradePersonalToTeamResponses
+    (Either UpgradePersonalToTeamError CreateUserTeam)
+  where
+  toUnion (Left UpgradePersonalToTeamErrorAlreadyInATeam) =
+    Z (I (dynError @(MapError UserAlreadyInATeam)))
+  toUnion (Left UpgradePersonalToTeamErrorUserNotFound) =
+    S (Z (I (dynError @(MapError UserNotFound))))
+  toUnion (Right x) = S (S (Z (I x)))
+
+  fromUnion (Z (I _)) = Left UpgradePersonalToTeamErrorAlreadyInATeam
+  fromUnion (S (Z (I _))) = Left UpgradePersonalToTeamErrorAlreadyInATeam
+  fromUnion (S (S (Z (I x)))) = Right x
+  fromUnion (S (S (S x))) = case x of {}
+
 data RegisterError
   = RegisterErrorAllowlistError
   | RegisterErrorInvalidInvitationCode
@@ -1259,7 +1305,7 @@ newTeamUserTeamId = \case
   NewTeamMemberSSO tid -> Just tid
 
 data BindingNewTeamUser = BindingNewTeamUser
-  { bnuTeam :: BindingNewTeam,
+  { bnuTeam :: NewTeam,
     bnuCurrency :: Maybe Currency.Alpha
     -- FUTUREWORK:
     -- Remove Currency selection once billing supports currency changes after team creation
@@ -1273,7 +1319,7 @@ instance ToSchema BindingNewTeamUser where
     object "BindingNewTeamUser" $
       BindingNewTeamUser
         <$> bnuTeam
-          .= bindingNewTeamObjectSchema
+          .= newTeamObjectSchema
         <*> bnuCurrency
           .= maybe_ (optField "currency" genericToSchema)
 

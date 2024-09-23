@@ -180,6 +180,15 @@ shouldMatchInt ::
   App ()
 shouldMatchInt = shouldMatch
 
+shouldNotMatchInt ::
+  (MakesValue a, HasCallStack) =>
+  -- | The actual value
+  a ->
+  -- | The expected value
+  Int ->
+  App ()
+shouldNotMatchInt = shouldNotMatch
+
 shouldMatchRange ::
   (MakesValue a, HasCallStack) =>
   -- | The actual value
@@ -205,6 +214,9 @@ shouldMatchSet a b = do
 
 shouldBeEmpty :: (MakesValue a, HasCallStack) => a -> App ()
 shouldBeEmpty a = a `shouldMatch` (mempty :: [Value])
+
+shouldBeNull :: (MakesValue a, HasCallStack) => a -> App ()
+shouldBeNull a = a `shouldMatch` Aeson.Null
 
 shouldMatchOneOf ::
   (MakesValue a, MakesValue b, HasCallStack) =>

@@ -36,6 +36,7 @@ emailSubsystemInterpreter tpls branding = interpret \case
   SendTeamActivationMail email name key code mLocale teamName -> sendTeamActivationMailImpl tpls branding email name key code mLocale teamName
   SendNewClientEmail email name client locale -> sendNewClientEmailImpl tpls branding email name client locale
   SendAccountDeletionEmail email name key code locale -> sendAccountDeletionEmailImpl tpls branding email name key code locale
+  SendUpgradePersonalToTeamConfirmationEmail email name teamName locale -> sendUpgradePersonalToTeamConfirmationEmailImpl tpls branding email name teamName locale
 
 -------------------------------------------------------------------------------
 -- Verification Email for
@@ -394,6 +395,42 @@ renderDeletionEmail email name cKey cValue DeletionEmailTemplate {..} branding =
     replace2 "key" = key
     replace2 "code" = code
     replace2 x = x
+
+--------------------------------------------------------------------------------
+-- Upgrade personal user to team owner confirmation email
+
+sendUpgradePersonalToTeamConfirmationEmailImpl ::
+  (Member EmailSending r) =>
+  Localised UserTemplates ->
+  TemplateBranding ->
+  EmailAddress ->
+  Name ->
+  Text ->
+  Locale ->
+  Sem r ()
+sendUpgradePersonalToTeamConfirmationEmailImpl userTemplates branding email name teamName locale = do
+  let tpl = upgradePersonalToTeamEmail . snd $ forLocale (Just locale) userTemplates
+  sendMail $ renderUpgradePersonalToTeamConfirmationEmail email name teamName tpl branding
+
+renderUpgradePersonalToTeamConfirmationEmail :: EmailAddress -> Name -> Text -> UpgradePersonalToTeamEmailTemplate -> TemplateBranding -> Mail
+renderUpgradePersonalToTeamConfirmationEmail email name _teamName UpgradePersonalToTeamEmailTemplate {..} branding =
+  (emptyMail from)
+    { mailTo = [to],
+      mailHeaders =
+        [ ("Subject", toStrict subj),
+          ("X-Zeta-Purpose", "Upgrade")
+        ],
+      mailParts = [[plainPart txt, htmlPart html]]
+    }
+  where
+    from = Address (Just upgradePersonalToTeamEmailSenderName) (fromEmail upgradePersonalToTeamEmailSender)
+    to = mkMimeAddress name email
+    txt = renderTextWithBranding upgradePersonalToTeamEmailBodyText replace1 branding
+    html = renderHtmlWithBranding upgradePersonalToTeamEmailBodyHtml replace1 branding
+    subj = renderTextWithBranding upgradePersonalToTeamEmailSubject replace1 branding
+    replace1 "email" = fromEmail email
+    replace1 "name" = fromName name
+    replace1 x = x
 
 -------------------------------------------------------------------------------
 -- MIME Conversions

@@ -228,41 +228,14 @@ lookupTeam zusr tid = do
     else pure Nothing
 
 createNonBindingTeamH ::
-  forall r.
-  ( Member BrigAccess r,
-    Member (ErrorS 'UserBindingExists) r,
-    Member (ErrorS 'NotConnected) r,
-    Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
-    Member P.TinyLog r,
-    Member TeamStore r
-  ) =>
+  (Member (ErrorS InvalidAction) r) =>
   UserId ->
   ConnId ->
-  Public.NonBindingNewTeam ->
+  a ->
   Sem r TeamId
-createNonBindingTeamH zusr zcon (Public.NonBindingNewTeam body) = do
-  let owner = Public.mkTeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
-  let others =
-        filter ((zusr /=) . view userId)
-          . maybe [] fromRange
-          $ body ^. newTeamMembers
-  let zothers = map (view userId) others
-  ensureUnboundUsers (zusr : zothers)
-  ensureConnectedToLocals zusr zothers
-  P.debug $
-    Log.field "targets" (toByteString . show $ toByteString <$> zothers)
-      . Log.field "action" (Log.val "Teams.createNonBindingTeam")
-  team <-
-    E.createTeam
-      Nothing
-      zusr
-      (body ^. newTeamName)
-      (body ^. newTeamIcon)
-      (body ^. newTeamIconKey)
-      NonBinding
-  finishCreateTeam team owner others (Just zcon)
-  pure (team ^. teamId)
+createNonBindingTeamH _ _ _ = do
+  -- non-binding teams are not supported anymore
+  throwS @InvalidAction
 
 createBindingTeam ::
   ( Member NotificationSubsystem r,
@@ -271,12 +244,12 @@ createBindingTeam ::
   ) =>
   TeamId ->
   UserId ->
-  BindingNewTeam ->
+  NewTeam ->
   Sem r TeamId
-createBindingTeam tid zusr (BindingNewTeam body) = do
+createBindingTeam tid zusr body = do
   let owner = Public.mkTeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
   team <-
-    E.createTeam (Just tid) zusr (body ^. newTeamName) (body ^. newTeamIcon) (body ^. newTeamIconKey) Binding
+    E.createTeam (Just tid) zusr body.newTeamName body.newTeamIcon body.newTeamIconKey Binding
   finishCreateTeam team owner [] Nothing
   pure tid
 

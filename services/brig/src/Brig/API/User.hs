@@ -20,6 +20,7 @@
 -- TODO: Move to Brig.User.Account
 module Brig.API.User
   ( -- * User Accounts / Profiles
+    upgradePersonalToTeam,
     createUser,
     createUserSpar,
     createUserInviteViaScim,
@@ -81,6 +82,7 @@ import Brig.Data.Connection (countConnections)
 import Brig.Data.Connection qualified as Data
 import Brig.Data.User
 import Brig.Data.User qualified as Data
+import Brig.Effects.ConnectionStore
 import Brig.Effects.UserPendingActivationStore (UserPendingActivation (..), UserPendingActivationStore)
 import Brig.Effects.UserPendingActivationStore qualified as UserPendingActivationStore
 import Brig.IO.Intra qualified as Intra
@@ -106,7 +108,7 @@ import Data.List1 as List1 (List1, singleton)
 import Data.Misc
 import Data.Qualified
 import Data.Range
-import Data.Time.Clock (addUTCTime)
+import Data.Time.Clock
 import Data.UUID.V4 (nextRandom)
 import Imports
 import Network.Wai.Utilities
@@ -146,6 +148,7 @@ import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PasswordStore (PasswordStore, lookupHashedPassword, upsertHashedPassword)
 import Wire.PropertySubsystem as PropertySubsystem
 import Wire.Sem.Concurrency
+import Wire.Sem.Paging.Cassandra
 import Wire.UserKeyStore
 import Wire.UserStore
 import Wire.UserSubsystem as User
@@ -253,6 +256,57 @@ createUserSpar new = do
       Team.TeamName nm <- lift $ liftSem $ GalleyAPIAccess.getTeamName tid
       pure $ CreateUserTeam tid nm
 
+upgradePersonalToTeam ::
+  forall r.
+  ( Member GalleyAPIAccess r,
+    Member EmailSubsystem r,
+    Member UserSubsystem r,
+    Member TinyLog r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
+  ) =>
+  Local UserId ->
+  BindingNewTeamUser ->
+  ExceptT UpgradePersonalToTeamError (AppT r) CreateUserTeam
+upgradePersonalToTeam luid bNewTeam = do
+  -- check that the user is not part of a team
+  mSelfProfile <- lift $ liftSem $ getSelfProfile luid
+  user <-
+    maybe
+      (throwE UpgradePersonalToTeamErrorUserNotFound)
+      (pure . selfUser)
+      mSelfProfile
+  when (isJust user.userTeam) $
+    throwE UpgradePersonalToTeamErrorAlreadyInATeam
+
+  lift $ do
+    -- generate team ID
+    tid <- randomId
+
+    let uid = tUnqualified luid
+    createUserTeam <- do
+      liftSem $ GalleyAPIAccess.createTeam uid (bnuTeam bNewTeam) tid
+      let newTeam = bNewTeam.bnuTeam
+      pure $ CreateUserTeam tid (fromRange newTeam.newTeamName)
+
+    wrapClient $ updateUserTeam uid tid
+    liftSem $ Intra.sendUserEvent uid Nothing (teamUpdated uid tid)
+    initAccountFeatureConfig uid
+
+    -- send confirmation email
+    for_ (userEmail user) $ \email -> do
+      liftSem $
+        sendUpgradePersonalToTeamConfirmationEmail
+          email
+          user.userDisplayName
+          bNewTeam.bnuTeam.newTeamName.fromRange
+          user.userLocale
+
+    pure $! createUserTeam
+
 -- docs/reference/user/registration.md {#RefRegistration}
 createUser ::
   forall r p.
@@ -340,10 +394,10 @@ createUser new = do
         (Just tid', Just newTeamUser) -> do
           liftSem $ GalleyAPIAccess.createTeam uid (bnuTeam newTeamUser) tid'
           let activating = isJust (newUserEmailCode new)
-              BindingNewTeam newTeam = newTeamUser.bnuTeam
+              newTeam = newTeamUser.bnuTeam
           pure $
             if activating
-              then Just $ CreateUserTeam tid' (fromRange (newTeam ^. newTeamName))
+              then Just $ CreateUserTeam tid' (fromRange newTeam.newTeamName)
               else Nothing
         _ -> pure Nothing
 

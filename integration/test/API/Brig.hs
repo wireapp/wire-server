@@ -815,3 +815,8 @@ updateEmail :: (HasCallStack, MakesValue user) => user -> String -> String -> St
 updateEmail user email cookie token = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["access", "self", "email"]
   submit "PUT" $ req & addJSONObject ["email" .= email] & setCookie cookie & addHeader "Authorization" ("Bearer " <> token)
+
+upgradePersonalToTeam :: (HasCallStack, MakesValue user) => user -> String -> App Response
+upgradePersonalToTeam user name = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["upgrade-personal-to-team"]
+  submit "POST" $ req & addJSONObject ["name" .= name, "icon" .= "default"]

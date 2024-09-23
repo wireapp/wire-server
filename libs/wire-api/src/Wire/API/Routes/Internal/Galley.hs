@@ -216,7 +216,7 @@ type ITeamsAPIBase =
     :<|> Named
            "create-binding-team"
            ( ZUser
-               :> ReqBody '[JSON] BindingNewTeam
+               :> ReqBody '[JSON] NewTeam
                :> MultiVerb1
                     'PUT
                     '[JSON]

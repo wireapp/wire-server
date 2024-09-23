@@ -41,6 +41,7 @@ import Brig.Calling.API qualified as Calling
 import Brig.Data.Connection qualified as Data
 import Brig.Data.Nonce as Nonce
 import Brig.Data.User qualified as Data
+import Brig.Effects.ConnectionStore
 import Brig.Effects.JwtTools (JwtTools)
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
 import Brig.Effects.SFT
@@ -57,7 +58,7 @@ import Brig.User.Auth.Cookie qualified as Auth
 import Cassandra qualified as C
 import Cassandra qualified as Data
 import Control.Error hiding (bool, note)
-import Control.Lens ((.~), (?~), (^.))
+import Control.Lens ((.~), (?~))
 import Control.Monad.Catch (throwM)
 import Control.Monad.Except
 import Data.Aeson hiding (json)
@@ -82,6 +83,7 @@ import Data.Qualified
 import Data.Range
 import Data.Schema ()
 import Data.Text.Encoding qualified as Text
+import Data.Time.Clock
 import Data.ZAuth.Token qualified as ZAuth
 import FileEmbedLzma
 import Imports hiding (head)
@@ -161,6 +163,7 @@ import Wire.PropertySubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Now (Now)
+import Wire.Sem.Paging.Cassandra
 import Wire.UserKeyStore
 import Wire.UserSearch.Types
 import Wire.UserStore (UserStore)
@@ -267,10 +270,10 @@ servantSitemap ::
     Member (Embed IO) r,
     Member (Error UserSubsystemError) r,
     Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
     Member (Input TeamTemplates) r,
     Member (UserPendingActivationStore p) r,
     Member AuthenticationSubsystem r,
-    Member BlockListStore r,
     Member DeleteQueue r,
     Member EmailSending r,
     Member EmailSubsystem r,
@@ -292,7 +295,9 @@ servantSitemap ::
     Member UserStore r,
     Member UserSubsystem r,
     Member VerificationCodeSubsystem r,
-    Member (Concurrency 'Unsafe) r
+    Member (Concurrency 'Unsafe) r,
+    Member BlockListStore r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -346,7 +351,8 @@ servantSitemap =
 
     accountAPI :: ServerT AccountAPI (Handler r)
     accountAPI =
-      Named @"register" (callsFed (exposeAnnotations createUser))
+      Named @"upgrade-personal-to-team" upgradePersonalToTeam
+        :<|> Named @"register" (callsFed (exposeAnnotations createUser))
         :<|> Named @"verify-delete" (callsFed (exposeAnnotations verifyDeleteUser))
         :<|> Named @"get-activate" (callsFed (exposeAnnotations activate))
         :<|> Named @"post-activate" (callsFed (exposeAnnotations activateKey))
@@ -696,6 +702,24 @@ createAccessToken method luid cid proof = do
   let link = safeLink (Proxy @api) (Proxy @endpoint) cid
   API.createAccessToken luid cid method link proof !>> certEnrollmentError
 
+upgradePersonalToTeam ::
+  ( Member (ConnectionStore InternalPaging) r,
+    Member (Embed HttpClientIO) r,
+    Member EmailSubsystem r,
+    Member GalleyAPIAccess r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member NotificationSubsystem r,
+    Member TinyLog r,
+    Member UserSubsystem r
+  ) =>
+  Local UserId ->
+  Public.BindingNewTeamUser ->
+  Handler r (Either Public.UpgradePersonalToTeamError Public.CreateUserTeam)
+upgradePersonalToTeam luid bNewTeam =
+  lift . runExceptT $
+    API.upgradePersonalToTeam luid bNewTeam
+
 -- | docs/reference/user/registration.md {#RefRegistration}
 createUser ::
   ( Member BlockListStore r,
@@ -763,14 +787,14 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
     sendActivationEmail email name (key, code) locale mTeamUser
       | Just teamUser <- mTeamUser,
         Public.NewTeamCreator creator <- teamUser,
-        let Public.BindingNewTeamUser (Public.BindingNewTeam team) _ = creator =
-          liftSem $ sendTeamActivationMail email name key code locale (fromRange $ team ^. Public.newTeamName)
+        let Public.BindingNewTeamUser team _ = creator =
+          liftSem $ sendTeamActivationMail email name key code locale (fromRange $ team.newTeamName)
       | otherwise =
           liftSem $ sendActivationMail email name key code locale
 
-    sendWelcomeEmail :: (Member EmailSending r) => Public.EmailAddress -> CreateUserTeam -> Public.NewTeamUser -> Maybe Public.Locale -> (AppT r) ()
+    sendWelcomeEmail :: (Member EmailSending r) => Public.EmailAddress -> Public.CreateUserTeam -> Public.NewTeamUser -> Maybe Public.Locale -> (AppT r) ()
     -- NOTE: Welcome e-mails for the team creator are not dealt by brig anymore
-    sendWelcomeEmail e (CreateUserTeam t n) newUser l = case newUser of
+    sendWelcomeEmail e (Public.CreateUserTeam t n) newUser l = case newUser of
       Public.NewTeamCreator _ ->
         pure ()
       Public.NewTeamMember _ ->

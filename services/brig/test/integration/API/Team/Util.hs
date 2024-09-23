@@ -257,8 +257,8 @@ deleteTeam g tid u = do
     !!! const 202
       === statusCode
 
-newTeam :: BindingNewTeam
-newTeam = BindingNewTeam $ newNewTeam (unsafeRange "teamName") DefaultIcon
+newTeam :: NewTeam
+newTeam = newNewTeam (unsafeRange "teamName") DefaultIcon
 
 putLegalHoldEnabled :: (HasCallStack) => TeamId -> FeatureStatus -> Galley -> Http ()
 putLegalHoldEnabled tid enabled g = do
@@ -302,7 +302,7 @@ extAccept email name phone phoneCode code =
         "team_code" .= code
       ]
 
-register :: EmailAddress -> BindingNewTeam -> Brig -> Http (Response (Maybe LByteString))
+register :: EmailAddress -> NewTeam -> Brig -> Http (Response (Maybe LByteString))
 register e t brig =
   post
     ( brig
@@ -319,7 +319,7 @@ register e t brig =
           )
     )
 
-register' :: EmailAddress -> BindingNewTeam -> ActivationCode -> Brig -> Http (Response (Maybe LByteString))
+register' :: EmailAddress -> NewTeam -> ActivationCode -> Brig -> Http (Response (Maybe LByteString))
 register' e t c brig =
   post
     ( brig

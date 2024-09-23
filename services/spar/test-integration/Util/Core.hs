@@ -606,8 +606,8 @@ getSelfProfile brg usr = do
 zAuthAccess :: UserId -> ByteString -> Request -> Request
 zAuthAccess u c = header "Z-Type" "access" . zUser u . zConn c
 
-newTeam :: Galley.BindingNewTeam
-newTeam = Galley.BindingNewTeam $ Galley.newNewTeam (unsafeRange "teamName") DefaultIcon
+newTeam :: Galley.NewTeam
+newTeam = Galley.newNewTeam (unsafeRange "teamName") DefaultIcon
 
 randomEmail :: (MonadIO m) => m EmailAddress
 randomEmail = do
