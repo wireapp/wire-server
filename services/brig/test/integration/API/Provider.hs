@@ -891,16 +891,18 @@ testWhitelistUpdatePermissions config db brig galley = do
   new <- defNewService config
   sid <- serviceId <$> addGetService brig pid new
   enableService brig pid sid
-  -- Check that a random user can't add it to the whitelist
-  _uid <- userId <$> randomUser brig
-  updateServiceWhitelist brig _uid tid (UpdateServiceWhitelist pid sid True) !!! do
-    const 403 === statusCode
-    const (Just "insufficient-permissions") === fmap Error.label . responseJsonMaybe
-  -- Check that a member who's not a team admin also can't add it to the whitelist
-  _uid <- userId <$> Team.createTeamMember brig galley owner tid noPermissions
-  updateServiceWhitelist brig _uid tid (UpdateServiceWhitelist pid sid True) !!! do
-    const 403 === statusCode
-    const (Just "insufficient-permissions") === fmap Error.label . responseJsonMaybe
+  do
+    -- Check that a random user can't add it to the whitelist
+    uid <- userId <$> randomUser brig
+    updateServiceWhitelist brig uid tid (UpdateServiceWhitelist pid sid True) !!! do
+      const 403 === statusCode
+      const (Just "insufficient-permissions") === fmap Error.label . responseJsonMaybe
+  do
+    -- Check that a member who's not a team admin also can't add it to the whitelist
+    uid <- userId <$> Team.createTeamMember brig galley owner tid noPermissions
+    updateServiceWhitelist brig uid tid (UpdateServiceWhitelist pid sid True) !!! do
+      const 403 === statusCode
+      const (Just "insufficient-permissions") === fmap Error.label . responseJsonMaybe
   -- Check that a team admin can add and remove from the whitelist
   whitelistService brig admin tid pid sid
   dewhitelistService brig admin tid pid sid

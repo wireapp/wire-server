@@ -17,6 +17,7 @@ data UserSubsystemError
   | UserSubsystemInvalidHandle
   | UserSubsystemProfileNotFound
   | UserSubsystemInsufficientTeamPermissions
+  | UserSubsystemMLSServicesNotAllowed
   deriving (Eq, Show)
 
 userSubsystemErrorToHttpError :: UserSubsystemError -> HttpError
@@ -29,6 +30,7 @@ userSubsystemErrorToHttpError =
     UserSubsystemHandleExists -> errorToWai @E.HandleExists
     UserSubsystemInvalidHandle -> errorToWai @E.InvalidHandle
     UserSubsystemHandleManagedByScim -> errorToWai @E.HandleManagedByScim
-    UserSubsystemInsufficientTeamPermissions -> errorToWai @'E.InsufficientTeamPermissions
+    UserSubsystemInsufficientTeamPermissions -> errorToWai @E.InsufficientTeamPermissions
+    UserSubsystemMLSServicesNotAllowed -> errorToWai @E.MLSServicesNotAllowed
 
 instance Exception UserSubsystemError

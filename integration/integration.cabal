@@ -136,6 +136,7 @@ library
     Test.MLS.Message
     Test.MLS.Notifications
     Test.MLS.One2One
+    Test.MLS.Services
     Test.MLS.SubConversation
     Test.MLS.Unreachable
     Test.Notifications
