@@ -17,6 +17,7 @@ import Data.Range
 import Data.Set qualified as Set
 import Imports
 import Polysemy
+import Data.Misc
 import Polysemy.Error
 import Wire.API.Federation.Error
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus)
@@ -140,6 +141,7 @@ data UserSubsystem m a where
   -- | This function exists to support migration in this susbystem, after the
   -- migration this would just be an internal detail of the subsystem
   InternalUpdateSearchIndex :: UserId -> UserSubsystem m ()
+  AcceptTeamInvitation :: Local UserId -> PlainTextPassword6 -> InvitationCode -> UserSubsystem m ()
 
 -- | the return type of 'CheckHandle'
 data CheckHandleResp

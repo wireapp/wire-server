@@ -32,7 +32,6 @@ import Brig.API.User (createUserInviteViaScim, fetchUserIdentity)
 import Brig.API.User qualified as API
 import Brig.API.Util (logEmail, logInvitationCode)
 import Brig.App as App
-import Brig.Data.User as User
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Options
 import Brig.Team.Email
@@ -44,7 +43,7 @@ import Control.Monad.Trans.Except (mapExceptT)
 import Data.ByteString.Conversion (toByteString, toByteString')
 import Data.Id
 import Data.List1 qualified as List1
-import Data.Qualified (Local, tUnqualified)
+import Data.Qualified (Local)
 import Data.Range
 import Data.Text.Ascii
 import Data.Text.Encoding (encodeUtf8)
@@ -64,7 +63,6 @@ import URI.ByteString (Absolute, URIRef, laxURIParserOptions, parseURI)
 import Util.Logging (logFunction, logTeam)
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
-import Wire.API.Password
 import Wire.API.Routes.Internal.Brig (FoundInvitationCode (FoundInvitationCode))
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.Named
@@ -79,23 +77,19 @@ import Wire.API.Team.Role
 import Wire.API.Team.Role qualified as Public
 import Wire.API.User hiding (fromEmail)
 import Wire.API.User qualified as Public
-import Wire.API.UserEvent
 import Wire.BlockListStore
 import Wire.EmailSending (EmailSending)
 import Wire.EmailSubsystem.Template
 import Wire.Error
 import Wire.Events (Events)
-import Wire.Events qualified as Events
 import Wire.GalleyAPIAccess (GalleyAPIAccess, ShowOrHideInvitationUrl (..))
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.InvitationCodeStore (InvitationCodeStore (..), PaginatedResult (..), StoredInvitation (..))
 import Wire.InvitationCodeStore qualified as Store
 import Wire.InvitationCodeStore.Cassandra qualified as Store (mkInvitationCode)
-import Wire.PasswordStore
 import Wire.Sem.Concurrency
 import Wire.UserKeyStore
 import Wire.UserSubsystem
-import Wire.UserSubsystem qualified as User
 import Wire.UserSubsystem.Error
 
 servantAPI ::
@@ -106,9 +100,7 @@ servantAPI ::
     Member EmailSending r,
     Member (Input (Local ())) r,
     Member TinyLog r,
-    Member PasswordStore r,
     Member (Input TeamTemplates) r,
-    Member Events r,
     Member (Error UserSubsystemError) r
   ) =>
   ServerT TeamsAPI (Handler r)
@@ -123,7 +115,7 @@ servantAPI =
     :<|> Named @"get-team-invitation-info" getInvitationByCode
     :<|> Named @"head-team-invitations" (lift . liftSem . headInvitationByEmail)
     :<|> Named @"get-team-size" teamSizePublic
-    :<|> Named @"accept-team-invitation" acceptTeamInvitationByPersonalUser
+    :<|> Named @"accept-team-invitation" (\luid req -> lift $ liftSem $ acceptTeamInvitation luid req.password req.code)
 
 teamSizePublic ::
   ( Member GalleyAPIAccess r,
@@ -567,49 +559,3 @@ changeTeamAccountStatuses tid s = do
   where
     toList1 (x : xs) = pure $ List1.list1 x xs
     toList1 [] = throwStd (notFound "Team not found or no members")
-
-acceptTeamInvitationByPersonalUser ::
-  forall r.
-  ( Member UserSubsystem r,
-    Member GalleyAPIAccess r,
-    Member InvitationCodeStore r,
-    Member PasswordStore r,
-    Member Events r
-  ) =>
-  Local UserId ->
-  AcceptTeamInvitation ->
-  (Handler r) ()
-acceptTeamInvitationByPersonalUser luid req = do
-  (mek, mTid) <- do
-    mSelfProfile <- lift $ liftSem $ getSelfProfile luid
-    let mek = mkEmailKey <$> (userEmail . selfUser =<< mSelfProfile)
-        mTid = mSelfProfile >>= userTeam . selfUser
-    pure (mek, mTid)
-  checkPassword
-  (inv, (.teamId) -> tid) <- API.findTeamInvitation mek req.code !>> toInvitationError
-  let minvmeta = (,inv.createdAt) <$> inv.createdBy
-      uid = tUnqualified luid
-  for_ mTid $ \userTid ->
-    unless (tid == userTid) $
-      throwStd (errorToWai @'E.CannotJoinMultipleTeams)
-  added <- lift $ liftSem $ GalleyAPIAccess.addTeamMember uid tid minvmeta (fromMaybe defaultRole inv.role)
-  unless added $ throwStd (errorToWai @'E.TooManyTeamMembers)
-  lift $ do
-    wrapClient $ User.updateUserTeam uid tid
-    liftSem $ Store.deleteInvitation inv.teamId inv.invitationId
-    liftSem $ User.internalUpdateSearchIndex uid
-    liftSem $ Events.generateUserEvent uid Nothing (teamUpdated uid tid)
-  where
-    checkPassword = do
-      p <-
-        lift (liftSem . lookupHashedPassword . tUnqualified $ luid)
-          >>= maybe (throwStd (errorToWai @'E.MissingAuth)) pure
-      unless (verifyPassword req.password p) $
-        throwStd (errorToWai @'E.BadCredentials)
-    toInvitationError :: RegisterError -> HttpError
-    toInvitationError = \case
-      RegisterErrorMissingIdentity -> StdError (errorToWai @'E.MissingIdentity)
-      RegisterErrorInvalidActivationCodeWrongUser -> StdError (errorToWai @'E.InvalidActivationCodeWrongUser)
-      RegisterErrorInvalidActivationCodeWrongCode -> StdError (errorToWai @'E.InvalidActivationCodeWrongCode)
-      RegisterErrorInvalidInvitationCode -> StdError (errorToWai @'E.InvalidInvitationCode)
-      _ -> StdError (notFound "Something went wrong, while looking up the invitation")

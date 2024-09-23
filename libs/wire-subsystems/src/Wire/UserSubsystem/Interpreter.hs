@@ -16,6 +16,7 @@ import Data.Id
 import Data.Json.Util
 import Data.LegalHold
 import Data.List.Extra (nubOrd)
+import Data.Misc (PlainTextPassword6)
 import Data.Qualified
 import Data.Range
 import Data.Time.Clock
@@ -31,11 +32,13 @@ import System.Logger.Message qualified as Log
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig qualified as FedBrig
 import Wire.API.Federation.Error
+import Wire.API.Password (verifyPassword)
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus (..))
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Permission qualified as Permission
+import Wire.API.Team.Role (defaultRole)
 import Wire.API.Team.SearchVisibility
 import Wire.API.User as User
 import Wire.API.User.Search
@@ -51,7 +54,8 @@ import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.IndexedUserStore (IndexedUserStore)
 import Wire.IndexedUserStore qualified as IndexedUserStore
 import Wire.IndexedUserStore.Bulk.ElasticSearch (teamSearchVisibilityInbound)
-import Wire.InvitationCodeStore (InvitationCodeStore, lookupInvitationByEmail)
+import Wire.InvitationCodeStore
+import Wire.PasswordStore (PasswordStore, lookupHashedPassword)
 import Wire.Sem.Concurrency
 import Wire.Sem.Metrics
 import Wire.Sem.Metrics qualified as Metrics
@@ -95,7 +99,8 @@ runUserSubsystem ::
     Member FederationConfigStore r,
     Member Metrics r,
     Member (TinyLog) r,
-    Member InvitationCodeStore r
+    Member InvitationCodeStore r,
+    Member PasswordStore r
   ) =>
   UserSubsystemConfig ->
   InterpreterFor UserSubsystem r
@@ -121,7 +126,8 @@ interpretUserSubsystem ::
     Member FederationConfigStore r,
     Member Metrics r,
     Member InvitationCodeStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member PasswordStore r
   ) =>
   InterpreterFor UserSubsystem r
 interpretUserSubsystem = interpret \case
@@ -148,6 +154,7 @@ interpretUserSubsystem = interpret \case
     browseTeamImpl uid browseTeamFilters mMaxResults mPagingState
   InternalUpdateSearchIndex uid ->
     syncUserIndex uid
+  AcceptTeamInvitation luid pwd code -> acceptTeamInvitationImpl luid pwd code
 
 isBlockedImpl :: (Member BlockListStore r) => EmailAddress -> Sem r Bool
 isBlockedImpl = BlockList.exists . mkEmailKey
@@ -855,3 +862,53 @@ getExtendedAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations
     -- database schema re-design.
     gcHack :: Bool -> UserId -> Sem r ()
     gcHack hasInvitation uid = unless hasInvitation (enqueueUserDeletion uid)
+
+acceptTeamInvitationImpl ::
+  ( Member (Input UserSubsystemConfig) r,
+    Member UserStore r,
+    Member GalleyAPIAccess r,
+    Member (Error UserSubsystemError) r,
+    Member InvitationCodeStore r,
+    Member IndexedUserStore r,
+    Member Metrics r,
+    Member Events r,
+    Member PasswordStore r
+  ) =>
+  Local UserId ->
+  PlainTextPassword6 ->
+  InvitationCode ->
+  Sem r ()
+acceptTeamInvitationImpl luid pw code = do
+  (mek, mTid) <- do
+    mSelfProfile <- getSelfProfileImpl luid
+    let mek = mkEmailKey <$> (userEmail . selfUser =<< mSelfProfile)
+        mTid = mSelfProfile >>= userTeam . selfUser
+    pure (mek, mTid)
+  checkPassword
+  (inv :: StoredInvitation, tid) <- (error "todo findTeamInvitation") mek code
+  let minvmeta = (,inv.createdAt) <$> inv.createdBy
+      uid = tUnqualified luid
+  for_ mTid $ \userTid ->
+    unless (tid == userTid) $
+      throw UserSubsystemCannotJoinMultipleTeams
+  added <- GalleyAPIAccess.addTeamMember uid tid minvmeta (fromMaybe defaultRole inv.role)
+  unless added $ throw UserSubsystemTooManyTeamMembers
+  _ <- (error "todo updateUserTeam") uid tid
+  deleteInvitation inv.teamId inv.invitationId
+  syncUserIndex uid
+  generateUserEvent uid Nothing (teamUpdated uid tid)
+  where
+    checkPassword = do
+      p <-
+        (lookupHashedPassword . tUnqualified $ luid)
+          >>= maybe (throw UserSubsystemMissingAuth) pure
+      unless (verifyPassword pw p) $
+        throw UserSubsystemBadCredentials
+
+-- toInvitationError :: RegisterError -> UserSubsystemError
+-- toInvitationError = \case
+--   RegisterErrorMissingIdentity -> UserSubsystemMissingIdentity
+--   RegisterErrorInvalidActivationCodeWrongUser -> UserSubsystemInvalidActivationCodeWrongUser
+--   RegisterErrorInvalidActivationCodeWrongCode -> UserSubsystemInvalidActivationCodeWrongCode
+--   RegisterErrorInvalidInvitationCode -> UserSubsystemInvalidInvitationCode
+--   _ -> UserSubsystemInvitationNotFound

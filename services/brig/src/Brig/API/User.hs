@@ -403,7 +403,7 @@ createUser new = do
 
     joinedTeamInvite <- case teamInvitation of
       Just (inv, invInfo) -> do
-        acceptTeamInvitation account inv invInfo (mkEmailKey inv.email) (EmailIdentity inv.email)
+        acceptInvitationToTeam account inv invInfo (mkEmailKey inv.email) (EmailIdentity inv.email)
         Team.TeamName nm <- lift $ liftSem $ GalleyAPIAccess.getTeamName inv.teamId
         pure (Just $ CreateUserTeam inv.teamId nm)
       Nothing -> pure Nothing
@@ -432,14 +432,14 @@ createUser new = do
         verifyUniquenessAndCheckBlacklist k !>> identityErrorToRegisterError
       pure email
 
-    acceptTeamInvitation ::
+    acceptInvitationToTeam ::
       UserAccount ->
       StoredInvitation ->
       StoredInvitationInfo ->
       EmailKey ->
       UserIdentity ->
       ExceptT RegisterError (AppT r) ()
-    acceptTeamInvitation account inv invitationInfo uk ident = do
+    acceptInvitationToTeam account inv invitationInfo uk ident = do
       let uid = userId (accountUser account)
       ok <- lift $ liftSem $ claimKey uk uid
       unless ok $
