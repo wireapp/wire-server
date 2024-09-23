@@ -83,7 +83,8 @@ storedUserToIndexUser storedUser =
           serviceId = withDefaultTime <$> storedUser.serviceId,
           managedBy = withDefaultTime <$> storedUser.managedBy,
           ssoId = withDefaultTime <$> storedUser.ssoId,
-          unverifiedEmail = Nothing
+          unverifiedEmail = Nothing,
+          writeTimeBumper = Nothing
         }
 
 lookupLocaleImpl :: (Member (State [StoredUser]) r) => UserId -> Sem r (Maybe ((Maybe Language, Maybe Country)))

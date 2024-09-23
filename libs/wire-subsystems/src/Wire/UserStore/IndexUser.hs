@@ -22,6 +22,7 @@ import Wire.UserSearch.Types
 type Activated = Bool
 
 data WithWritetime a = WithWriteTime {value :: a, writetime :: Writetime a}
+  deriving (Eq, Show)
 
 data IndexUser = IndexUser
   { userId :: UserId,
@@ -35,8 +36,10 @@ data IndexUser = IndexUser
     serviceId :: Maybe (WithWritetime ServiceId),
     managedBy :: Maybe (WithWritetime ManagedBy),
     ssoId :: Maybe (WithWritetime UserSSOId),
-    unverifiedEmail :: Maybe (WithWritetime EmailAddress)
+    unverifiedEmail :: Maybe (WithWritetime EmailAddress),
+    writeTimeBumper :: Maybe (Writetime WriteTimeBumper)
   }
+  deriving (Eq, Show)
 
 {- ORMOLU_DISABLE -}
 type instance
@@ -52,12 +55,13 @@ type instance
       Maybe ServiceId, Maybe (Writetime ServiceId),
       Maybe ManagedBy, Maybe (Writetime ManagedBy),
       Maybe UserSSOId, Maybe (Writetime UserSSOId),
-      Maybe EmailAddress, Maybe (Writetime EmailAddress)
+      Maybe EmailAddress, Maybe (Writetime EmailAddress),
+      Maybe (Writetime WriteTimeBumper)
     )
 
 instance Record IndexUser where
   asTuple (IndexUser {..}) =
-    ( userId, 
+    ( userId,
       value <$> teamId, writetime <$> teamId,
       name.value, name.writetime,
       value <$> accountStatus, writetime <$> accountStatus,
@@ -68,11 +72,12 @@ instance Record IndexUser where
       value <$> serviceId, writetime <$> serviceId,
       value <$> managedBy, writetime <$> managedBy,
       value <$> ssoId, writetime <$> ssoId,
-      value <$> unverifiedEmail, writetime <$> unverifiedEmail
+      value <$> unverifiedEmail, writetime <$> unverifiedEmail,
+      writeTimeBumper
     )
 
   asRecord
-    ( u, 
+    ( u,
       mTeam, tTeam,
       name, tName,
       status, tStatus,
@@ -83,7 +88,8 @@ instance Record IndexUser where
       service, tService,
       managedBy, tManagedBy,
       ssoId, tSsoId,
-      emailUnvalidated, tEmailUnvalidated
+      emailUnvalidated, tEmailUnvalidated,
+      tWriteTimeBumper
     ) = IndexUser {
           userId = u,
           teamId =  WithWriteTime <$> mTeam <*> tTeam,
@@ -96,7 +102,8 @@ instance Record IndexUser where
           serviceId = WithWriteTime <$> service <*> tService,
           managedBy = WithWriteTime <$> managedBy <*> tManagedBy,
           ssoId = WithWriteTime <$> ssoId <*> tSsoId,
-          unverifiedEmail = WithWriteTime <$> emailUnvalidated <*> tEmailUnvalidated
+          unverifiedEmail = WithWriteTime <$> emailUnvalidated <*> tEmailUnvalidated,
+          writeTimeBumper = tWriteTimeBumper
         }
 {- ORMOLU_ENABLE -}
 
@@ -113,7 +120,8 @@ indexUserToVersion IndexUser {..} =
       const () <$$> fmap writetime serviceId,
       const () <$$> fmap writetime managedBy,
       const () <$$> fmap writetime ssoId,
-      const () <$$> fmap writetime unverifiedEmail
+      const () <$$> fmap writetime unverifiedEmail,
+      const () <$$> writeTimeBumper
     ]
 
 indexUserToDoc :: SearchVisibilityInbound -> IndexUser -> UserDoc

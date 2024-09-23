@@ -1,14 +1,20 @@
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
+
 module Test.Brig where
 
-import API.Brig
+import API.Brig as BrigP
 import qualified API.BrigInternal as BrigI
 import API.Common
+import API.GalleyInternal (setTeamFeatureStatus)
+import API.Spar
 import Data.Aeson.Types hiding ((.=))
 import Data.List.Split
 import Data.String.Conversions
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
 import GHC.Stack
+import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
 import SetupHelpers
 import System.IO.Extra
 import Testlib.Assertions
@@ -229,3 +235,37 @@ testSFTFederation = do
           maybe (assertFailure "is_federating missing") asBool
             =<< lookupField resp.json "is_federating"
         when isFederating $ assertFailure "is_federating should be false"
+
+testDeleteEmail :: (HasCallStack) => App ()
+testDeleteEmail = do
+  (owner, tid, [usr]) <- createTeam OwnDomain 2
+  putSelf usr (PutSelf Nothing Nothing (Just "Alice") Nothing) >>= assertSuccess
+  email <- getSelf usr >>= getJSON 200 >>= (%. "email") >>= asString
+
+  let associateUsrWithSSO :: (HasCallStack) => App ()
+      associateUsrWithSSO = do
+        void $ setTeamFeatureStatus owner tid "sso" "enabled"
+        registerTestIdPWithMeta owner >>= assertSuccess
+        tok <- createScimToken owner >>= getJSON 200 >>= (%. "token") >>= asString
+        void $ findUsersByExternalId owner tok email
+
+      searchShouldBe :: (HasCallStack) => String -> App ()
+      searchShouldBe expected = do
+        BrigI.refreshIndex OwnDomain
+        bindResponse (BrigP.searchTeam owner email) $ \resp -> do
+          resp.status `shouldMatchInt` 200
+          numDocs <- length <$> (resp.json %. "documents" >>= asList)
+          case expected of
+            "empty" -> numDocs `shouldMatchInt` 0
+            "non-empty" -> numDocs `shouldMatchInt` 1
+
+  deleteSelfEmail usr >>= assertStatus 403
+  searchShouldBe "non-empty"
+  associateUsrWithSSO
+  deleteSelfEmail usr >>= assertSuccess
+  searchShouldBe "empty"
+
+registerTestIdPWithMeta :: (HasCallStack, MakesValue owner) => owner -> App Response
+registerTestIdPWithMeta owner = do
+  SampleIdP idpmeta _ _ _ <- makeSampleIdPMetadata
+  createIdp owner idpmeta

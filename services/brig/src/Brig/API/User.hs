@@ -650,17 +650,10 @@ removeEmail uid = do
     Just (SSOIdentity (UserSSOId _) (Just e)) -> lift $ do
       liftSem $ deleteKey $ mkEmailKey e
       wrapClient $ Data.deleteEmail uid
-      -- FUTUREWORK: This doesn't delete user's email address from the index,
-      -- which is a bug, reported here:
-      -- https://wearezeta.atlassian.net/browse/WPB-11122.
-      --
-      -- Calling User.internalUpdateSearchIndex here wouldn't work as explained
-      -- in the ticket.
       liftSem $ Events.generateUserEvent uid Nothing (emailRemoved uid e)
+      liftSem $ User.internalUpdateSearchIndex uid
     Just _ -> throwE LastIdentity
     Nothing -> throwE NoIdentity
-
--------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
 -- Forcefully revoke a verified identity

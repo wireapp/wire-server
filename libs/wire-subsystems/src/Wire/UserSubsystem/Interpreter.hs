@@ -547,7 +547,7 @@ syncUserIndex ::
   ) =>
   UserId ->
   Sem r ()
-syncUserIndex uid =
+syncUserIndex uid = do
   getIndexUser uid
     >>= maybe deleteFromIndex upsert
   where

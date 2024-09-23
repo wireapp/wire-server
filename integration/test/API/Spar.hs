@@ -12,7 +12,7 @@ getScimTokens caller = do
   req <- baseRequest caller Spar Versioned "/scim/auth-tokens"
   submit "GET" req
 
--- https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_scim_auth_tokens
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_scim_auth_tokens
 createScimToken :: (HasCallStack, MakesValue caller) => caller -> App Response
 createScimToken caller = do
   req <- baseRequest caller Spar Versioned "/scim/auth-tokens"
