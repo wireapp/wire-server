@@ -830,7 +830,7 @@ instance FromJSON Settings where
               "defaultUserLocaleInternal" -> "setDefaultUserLocale"
               "defaultTemplateLocaleInternal" -> "setDefaultTemplateLocale"
               "verificationCodeTimeoutInternal" -> "setVerificationTimeout"
-              "2FACodeGenerationDelaySecsInternal" -> "set2FACodeGenerationDelaySecs"
+              "twoFACodeGenerationDelaySecsInternal" -> "set2FACodeGenerationDelaySecs"
               "nonceTtlSecsInternal" -> "setNonceTtlSecs"
               "dpopMaxSkewSecsInternal" -> "setDpopMaxSkewSecs"
               "dpopTokenExpirationTimeSecsInternal" -> "setDpopTokenExpirationTimeSecs"
