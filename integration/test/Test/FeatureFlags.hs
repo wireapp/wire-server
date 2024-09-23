@@ -1051,6 +1051,19 @@ testPatchEnforceFileDownloadLocation = do
   _testPatch "enforceFileDownloadLocation" True defCfg (object ["lockStatus" .= "locked", "config" .= object []])
   _testPatch "enforceFileDownloadLocation" True defCfg (object ["config" .= object ["enforcedDownloadLocation" .= "/tmp"]])
 
+  do
+    (user, tid, _) <- createTeam OwnDomain 0
+    bindResponse
+      ( Internal.patchTeamFeature
+          user
+          tid
+          "enforceFileDownloadLocation"
+          (object ["config" .= object ["enforcedDownloadLocation" .= ""]])
+      )
+      $ \resp -> do
+        resp.status `shouldMatchInt` 400
+        resp.json %. "label" `shouldMatch` "empty-download-location"
+
 testPatchE2EId :: (HasCallStack) => App ()
 testPatchE2EId = do
   let defCfg =
