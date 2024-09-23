@@ -28,6 +28,7 @@ data UserSubsystemError
   | UserSubsystemInvalidActivationCodeWrongCode
   | UserSubsystemInvalidInvitationCode
   | UserSubsystemInvitationNotFound
+  | UserSubsystemUserNotAllowedToJoinTeam Wai.Error
   deriving (Eq, Show)
 
 userSubsystemErrorToHttpError :: UserSubsystemError -> HttpError
@@ -50,5 +51,6 @@ userSubsystemErrorToHttpError =
     UserSubsystemInvalidActivationCodeWrongCode -> errorToWai @E.InvalidActivationCodeWrongCode
     UserSubsystemInvalidInvitationCode -> errorToWai @E.InvalidInvitationCode
     UserSubsystemInvitationNotFound -> Wai.mkError status404 "not-found" "Something went wrong, while looking up the invitation"
+    UserSubsystemUserNotAllowedToJoinTeam e -> e
 
 instance Exception UserSubsystemError

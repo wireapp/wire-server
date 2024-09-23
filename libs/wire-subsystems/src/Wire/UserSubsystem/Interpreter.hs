@@ -40,6 +40,7 @@ import Wire.API.Team.Member
 import Wire.API.Team.Permission qualified as Permission
 import Wire.API.Team.Role (defaultRole)
 import Wire.API.Team.SearchVisibility
+import Wire.API.Team.Size (TeamSize (TeamSize))
 import Wire.API.User as User
 import Wire.API.User.Search
 import Wire.API.UserEvent
@@ -75,7 +76,8 @@ import Witherable (wither)
 data UserSubsystemConfig = UserSubsystemConfig
   { emailVisibilityConfig :: EmailVisibilityConfig,
     defaultLocale :: Locale,
-    searchSameTeamOnly :: Bool
+    searchSameTeamOnly :: Bool,
+    maxTeamSize :: Word32
   }
   deriving (Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserSubsystemConfig)
@@ -155,6 +157,39 @@ interpretUserSubsystem = interpret \case
   InternalUpdateSearchIndex uid ->
     syncUserIndex uid
   AcceptTeamInvitation luid pwd code -> acceptTeamInvitationImpl luid pwd code
+  InternalFindTeamInvitation mEmailKey code -> internalFindTeamInvitationImpl mEmailKey code
+
+internalFindTeamInvitationImpl ::
+  ( Member InvitationCodeStore r,
+    Member (Error UserSubsystemError) r,
+    Member (Input UserSubsystemConfig) r,
+    Member (GalleyAPIAccess) r
+  ) =>
+  Maybe EmailKey ->
+  InvitationCode ->
+  Sem r (StoredInvitation, StoredInvitationInfo)
+internalFindTeamInvitationImpl Nothing _ = throw UserSubsystemMissingIdentity
+internalFindTeamInvitationImpl (Just e) c =
+  lookupInvitationInfo c >>= \case
+    Just invitationInfo -> do
+      inv <- lookupInvitation invitationInfo.teamId invitationInfo.invitationId
+      case (inv, (.email) <$> inv) of
+        (Just invite, Just em)
+          | e == mkEmailKey em -> do
+              ensureMemberCanJoin invitationInfo.teamId
+              pure (invite, invitationInfo)
+        _ -> throw UserSubsystemInvalidInvitationCode
+    Nothing -> throw UserSubsystemInvalidInvitationCode
+  where
+    ensureMemberCanJoin tid = do
+      maxSize <- maxTeamSize <$> input
+      (TeamSize teamSize) <- (error "todo impl team size in search subsystem") tid
+      when (teamSize >= fromIntegral maxSize) $
+        throw UserSubsystemTooManyTeamMembers
+      -- FUTUREWORK: The above can easily be done/tested in the intra call.
+      --             Remove after the next release.
+      mAddUserError <- checkUserCanJoinTeam tid
+      maybe (pure ()) (throw . UserSubsystemUserNotAllowedToJoinTeam) mAddUserError
 
 isBlockedImpl :: (Member BlockListStore r) => EmailAddress -> Sem r Bool
 isBlockedImpl = BlockList.exists . mkEmailKey
