@@ -287,6 +287,6 @@ testObject_UpdateClient_user_20 =
         ],
       updateClientLastKey = Just (lastPrekey "\DC4 }Kg\ve3"),
       updateClientLabel = Just "\ESC\EOT\SOHccn\US{Y5",
-      updateClientCapabilities = Just [ClientSupportsLegalholdImplicitConsent],
+      updateClientCapabilities = Just (ClientCapabilityList [ClientSupportsLegalholdImplicitConsent]),
       updateClientMLSPublicKeys = mempty
     }

@@ -177,21 +177,27 @@ newtype ClientCapabilityList = ClientCapabilityList {fromClientCapabilityList ::
   deriving (ToJSON, FromJSON, Swagger.ToSchema) via (Schema ClientCapabilityList)
 
 instance ToSchema ClientCapabilityList where
-  schema =
-    object "ClientCapabilityList" $
-      ClientCapabilityList <$> fromClientCapabilityList .= fmap runIdentity capabilitiesFieldSchema
+  schema = capabilitiesSchema Nothing
 
-capabilitiesFieldSchema ::
-  (FieldFunctor SwaggerDoc f) =>
-  ObjectSchemaP SwaggerDoc (Set ClientCapability) (f (Set ClientCapability))
-capabilitiesFieldSchema =
-  Set.toList
-    .= fieldWithDocModifierF "capabilities" mods (Set.fromList <$> array schema)
+instance ToSchema (Versioned V6 ClientCapabilityList) where
+  schema =
+    object "ClientCapabilityListV6" $
+      Versioned
+        <$> unVersioned .= field "capabilities" (capabilitiesSchema (Just V6))
+
+capabilitiesSchema ::
+  Maybe Version ->
+  ValueSchema NamedSwaggerDoc ClientCapabilityList
+capabilitiesSchema mVersion =
+  named "ClientCapabilityList" $
+    ClientCapabilityList
+      <$> (Set.toList . dropIncompatibleCapabilities . fromClientCapabilityList) .= (Set.fromList <$> array schema)
   where
-    mods =
-      description
-        ?~ "Hints provided by the client for the backend so it can \
-           \behave in a backwards-compatible way."
+    dropIncompatibleCapabilities :: Set ClientCapability -> Set ClientCapability
+    dropIncompatibleCapabilities caps =
+      case mVersion of
+        Just v | v <= V6 -> Set.delete ClientSupportsConsumableNotifications caps
+        _ -> caps
 
 --------------------------------------------------------------------------------
 -- UserClientMap
@@ -504,7 +510,7 @@ mlsPublicKeysSchema =
     mapSchema = map_ base64Schema
 
 clientSchema :: Maybe Version -> ValueSchema NamedSwaggerDoc Client
-clientSchema mv =
+clientSchema mVersion =
   object "Client" $
     Client
       <$> clientId .= field "id" schema
@@ -514,15 +520,17 @@ clientSchema mv =
       <*> clientLabel .= maybe_ (optField "label" schema)
       <*> clientCookie .= maybe_ (optField "cookie" schema)
       <*> clientModel .= maybe_ (optField "model" schema)
-      <*> clientCapabilities .= (fromMaybe mempty <$> caps)
+      <*> clientCapabilities .= (fromMaybe mempty <$> optField "capabilities" caps)
       <*> clientMLSPublicKeys .= mlsPublicKeysFieldSchema
       <*> clientLastActive .= maybe_ (optField "last_active" utcTimeSchema)
   where
-    caps :: ObjectSchemaP SwaggerDoc ClientCapabilityList (Maybe ClientCapabilityList)
-    caps = case mv of
+    caps :: ValueSchema NamedSwaggerDoc ClientCapabilityList
+    caps = case mVersion of
       -- broken capability serialisation for backwards compatibility
-      Just v | v <= V6 -> optField "capabilities" schema
-      _ -> fmap ClientCapabilityList <$> fromClientCapabilityList .= capabilitiesFieldSchema
+      Just v
+        | v <= V6 ->
+            dimap Versioned unVersioned $ schema @(Versioned V6 ClientCapabilityList)
+      _ -> schema @ClientCapabilityList
 
 instance ToSchema Client where
   schema = clientSchema Nothing
@@ -666,7 +674,7 @@ data NewClient = NewClient
     newClientCookie :: Maybe CookieLabel,
     newClientPassword :: Maybe PlainTextPassword6,
     newClientModel :: Maybe Text,
-    newClientCapabilities :: Maybe (Set ClientCapability),
+    newClientCapabilities :: Maybe ClientCapabilityList,
     newClientMLSPublicKeys :: MLSPublicKeys,
     newClientVerificationCode :: Maybe Code.Value
   }
@@ -730,7 +738,16 @@ instance ToSchema NewClient where
                 schema
             )
         <*> newClientModel .= maybe_ (optField "model" schema)
-        <*> newClientCapabilities .= maybe_ capabilitiesFieldSchema
+        <*> newClientCapabilities
+          .= maybe_
+            ( optFieldWithDocModifier
+                "capabilities"
+                ( description
+                    ?~ "Hints provided by the client for the backend so it can \
+                       \behave in a backwards-compatible way."
+                )
+                schema
+            )
         <*> newClientMLSPublicKeys .= mlsPublicKeysFieldSchema
         <*> newClientVerificationCode .= maybe_ (optField "verification_code" schema)
 
@@ -758,7 +775,7 @@ data UpdateClient = UpdateClient
     updateClientLastKey :: Maybe LastPrekey,
     updateClientLabel :: Maybe Text,
     -- | see haddocks for 'ClientCapability'
-    updateClientCapabilities :: Maybe (Set ClientCapability),
+    updateClientCapabilities :: Maybe ClientCapabilityList,
     updateClientMLSPublicKeys :: MLSPublicKeys
   }
   deriving stock (Eq, Show, Generic)
@@ -800,7 +817,13 @@ instance ToSchema UpdateClient where
                 (description ?~ "A new name for this client.")
                 schema
             )
-        <*> updateClientCapabilities .= maybe_ capabilitiesFieldSchema
+        <*> updateClientCapabilities
+          .= maybe_
+            ( optFieldWithDocModifier
+                "capabilities"
+                (description ?~ "Hints provided by the client for the backend so it can behave in a backwards-compatible way.")
+                schema
+            )
         <*> updateClientMLSPublicKeys .= mlsPublicKeysFieldSchema
 
 --------------------------------------------------------------------------------

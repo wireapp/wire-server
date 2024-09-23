@@ -103,3 +103,21 @@ testUpdateClientWithConsumableNotificationsCapability = do
   getSelfClients alice `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "0.capabilities" `shouldMatch` [consumeCapability]
+
+testGetClientCapabilitiesV6 :: App ()
+testGetClientCapabilitiesV6 = do
+  let allCapabilities = ["legalhold-implicit-consent", "consumable-notifications"]
+  alice <- randomUser OwnDomain def
+  addClient alice def {acapabilities = Just allCapabilities} `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 201
+    resp.json %. "capabilities" `shouldMatchSet` allCapabilities
+
+  getSelfClients alice `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "0.capabilities" `shouldMatchSet` allCapabilities
+
+  -- In API v6 and below, the "capabilities" field is an enum, so having a new
+  -- value for this enum is a breaking change.
+  withAPIVersion 6 $ getSelfClients alice `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "0.capabilities.capabilities" `shouldMatchSet` ["legalhold-implicit-consent"]
