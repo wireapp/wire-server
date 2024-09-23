@@ -16,6 +16,7 @@
 , lens
 , lib
 , memory
+, schema-profunctor
 , sop-core
 , text
 , types-common
@@ -39,6 +40,7 @@ mkDerivation {
     imports
     lens
     memory
+    schema-profunctor
     sop-core
     text
     types-common
