@@ -63,7 +63,7 @@ journalEvent :: (MonadReader Env m, MonadIO m) => UserEvent'EventType -> UserId 
 journalEvent typ uid em loc tid nm =
   -- this may be the only place that uses awsEnv from brig Env.  refactor it to use the
   -- DeleteQueue effect instead?
-  view awsEnv >>= \env -> for_ (view AWS.userJournalQueue env) $ \queue -> do
+  asks (.awsEnv) >>= \env -> for_ (view AWS.userJournalQueue env) $ \queue -> do
     ts <- now
     rnd <- liftIO nextRandom
     let userEvent :: UserEvent =

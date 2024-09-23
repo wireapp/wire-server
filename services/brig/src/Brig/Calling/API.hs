@@ -76,11 +76,11 @@ getCallsConfigV2 ::
   Maybe (Range 1 10 Int) ->
   (Handler r) Public.RTCConfiguration
 getCallsConfigV2 uid _ limit = do
-  env <- view turnEnv
-  staticUrl <- view $ settings . Opt.sftStaticUrl
-  sftListAllServers <- fromMaybe Opt.HideAllSFTServers <$> view (settings . Opt.sftListAllServers)
-  sftEnv' <- view sftEnv
-  sftFederation <- view enableSFTFederation
+  env <- asks (.turnEnv)
+  staticUrl <- asks (.settings.sftStaticUrl)
+  sftListAllServers <- fromMaybe Opt.HideAllSFTServers <$> asks (.settings.sftListAllServers)
+  sftEnv' <- asks (.sftEnv)
+  sftFederation <- asks (.enableSFTFederation)
   discoveredServers <- turnServersV2 (env ^. turnServers)
   shared <- do
     ccStatus <- lift $ liftSem $ ((.status) . npProject @ConferenceCallingConfig <$> getAllTeamFeaturesForUser (Just uid))
@@ -115,7 +115,7 @@ getCallsConfig ::
   ConnId ->
   (Handler r) Public.RTCConfiguration
 getCallsConfig uid _ = do
-  env <- view turnEnv
+  env <- asks (.turnEnv)
   discoveredServers <- turnServersV1 (env ^. turnServers)
   shared <- do
     ccStatus <- lift $ liftSem $ ((.status) . npProject @ConferenceCallingConfig <$> getAllTeamFeaturesForUser (Just uid))

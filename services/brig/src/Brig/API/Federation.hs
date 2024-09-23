@@ -36,7 +36,6 @@ import Brig.Options
 import Brig.User.API.Handle
 import Brig.User.Search.SearchIndex qualified as Q
 import Control.Error.Util
-import Control.Lens ((^.))
 import Control.Monad.Trans.Except
 import Data.Domain
 import Data.Handle (Handle (..))
@@ -112,7 +111,7 @@ federationSitemap =
 getFederationStatus :: (Member FederationConfigStore r) => Domain -> DomainSet -> Handler r NonConnectedBackends
 getFederationStatus _ request = do
   cfg <- ask
-  case setFederationStrategy (cfg ^. settings) of
+  case cfg.settings.federationStrategy of
     Just AllowAll -> pure $ NonConnectedBackends mempty
     _ -> do
       fedDomains <- fromList . fmap (.domain) . (.remotes) <$> lift (liftSem $ E.getFederationConfigs)

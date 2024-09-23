@@ -33,10 +33,9 @@ import Brig.API.Error
 import Brig.AWS qualified as AWS
 import Brig.App
 import Brig.CanonicalInterpreter (BrigCanonicalEffects, runBrigToIO)
-import Brig.Options (setAllowlistEmailDomains)
+import Brig.Options (allowlistEmailDomains)
 import Control.Error
 import Control.Exception (throwIO)
-import Control.Lens (view)
 import Control.Monad.Catch (catches, throwM)
 import Control.Monad.Catch qualified as Catch
 import Control.Monad.Except (MonadError, throwError)
@@ -64,8 +63,8 @@ type Handler r = ExceptT HttpError (AppT r)
 
 toServantHandler :: Env -> (Handler BrigCanonicalEffects) a -> Servant.Handler a
 toServantHandler env action = do
-  let logger = view applog env
-      reqId = unRequestId $ view requestId env
+  let logger = env.appLogger
+      reqId = unRequestId $ env.requestId
   a <-
     liftIO $
       (runBrigToIO env (runExceptT action))
@@ -129,5 +128,5 @@ checkAllowlistWithError e key = do
 
 isAllowlisted :: (MonadReader Env m) => EmailAddress -> m Bool
 isAllowlisted key = do
-  env <- view settings
-  pure $ Allowlists.verify (setAllowlistEmailDomains env) key
+  env <- asks (.settings)
+  pure $ Allowlists.verify env.allowlistEmailDomains key

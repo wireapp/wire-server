@@ -24,7 +24,7 @@ module API.UserPendingActivation where
 import API.Team.Util (getTeam)
 import Bilge hiding (query)
 import Bilge.Assert ((<!!), (===))
-import Brig.Options (Opts (..), setTeamInvitationTimeout)
+import Brig.Options (Opts (..), teamInvitationTimeout)
 import Cassandra
 import Control.Exception (assert)
 import Control.Lens ((^.), (^?))
@@ -124,7 +124,7 @@ assertUserExist msg db' uid shouldExist = liftIO $ do
 
 waitUserExpiration :: (MonadUnliftIO m) => Opts -> m ()
 waitUserExpiration opts' = do
-  let timeoutSecs = round @Double . realToFrac . setTeamInvitationTimeout . optSettings $ opts'
+  let timeoutSecs = round @Double . realToFrac $ opts'.optSettings.teamInvitationTimeout
   Control.Exception.assert (timeoutSecs < 30) $ do
     threadDelay $ (timeoutSecs + 3) * 1_000_000
 

@@ -25,9 +25,9 @@ module Util where
 import Bilge hiding (host, port)
 import Bilge.Assert
 import Brig.AWS.Types
-import Brig.App (applog, fsWatcher, sftEnv, turnEnv)
+import Brig.App (Env (..))
 import Brig.Calling as Calling
-import Brig.Options qualified as Opt
+import Brig.Options as Opt
 import Brig.Run qualified as Run
 import Brig.Types.Activation
 import Brig.ZAuth qualified as ZAuth
@@ -992,9 +992,9 @@ withSettingsOverrides :: (MonadIO m, HasCallStack) => Opt.Opts -> WaiTest.Sessio
 withSettingsOverrides opts action = liftIO $ do
   (brigApp, env) <- Run.mkApp opts
   sftDiscovery <-
-    forM (env ^. sftEnv) $ \sftEnv' ->
-      Async.async $ Calling.startSFTServiceDiscovery (env ^. applog) sftEnv'
-  turnDiscovery <- Calling.startTurnDiscovery (env ^. applog) (env ^. fsWatcher) (env ^. turnEnv)
+    forM env.sftEnv $ \sftEnv' ->
+      Async.async $ Calling.startSFTServiceDiscovery env.appLogger sftEnv'
+  turnDiscovery <- Calling.startTurnDiscovery env.appLogger env.fsWatcher env.turnEnv
   res <- WaiTest.runSession action brigApp
   mapM_ Async.cancel sftDiscovery
   mapM_ Async.cancel turnDiscovery
@@ -1004,7 +1004,7 @@ withSettingsOverrides opts action = liftIO $ do
 -- compile.
 withDomainsBlockedForRegistration :: (MonadIO m) => Opt.Opts -> [Text] -> WaiTest.Session a -> m a
 withDomainsBlockedForRegistration opts domains sess = do
-  let opts' = opts {Opt.optSettings = (Opt.optSettings opts) {Opt.setCustomerExtensions = Just blocked}}
+  let opts' = opts {Opt.optSettings = opts.optSettings {customerExtensions = Just blocked}}
       blocked = Opt.CustomerExtensions (Opt.DomainsBlockedForRegistration (unsafeMkDomain <$> domains))
       unsafeMkDomain = either error id . mkDomain
   withSettingsOverrides opts' sess

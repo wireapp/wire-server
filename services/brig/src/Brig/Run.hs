@@ -23,7 +23,6 @@ import Brig.API.Handler
 import Brig.API.Internal qualified as IAPI
 import Brig.API.Public
 import Brig.API.User qualified as API
-import Brig.AWS (amazonkaEnv, sesQueue)
 import Brig.AWS qualified as AWS
 import Brig.AWS.SesNotification qualified as SesNotification
 import Brig.App
@@ -37,7 +36,7 @@ import Brig.Queue qualified as Queue
 import Brig.Version
 import Control.Concurrent.Async qualified as Async
 import Control.Exception.Safe (catchAny)
-import Control.Lens (view, (.~), (^.))
+import Control.Lens ((.~), (^.))
 import Control.Monad.Catch (MonadCatch, finally)
 import Control.Monad.Random (randomRIO)
 import Data.Aeson qualified as Aeson
@@ -87,15 +86,15 @@ run o = withTracer \tracer -> do
     Async.async $
       runBrigToIO e $
         wrapHttpClient $
-          Queue.listen (e ^. internalEvents) $
+          Queue.listen e.internalEvents $
             liftIO . runBrigToIO e . liftSem . Internal.onEvent
-  let throttleMillis = fromMaybe defSqsThrottleMillis $ setSqsThrottleMillis (optSettings o)
-  emailListener <- for (e ^. awsEnv . sesQueue) $ \q ->
+  let throttleMillis = fromMaybe defSqsThrottleMillis o.optSettings.sqsThrottleMillis
+  emailListener <- for e.awsEnv._sesQueue $ \q ->
     Async.async $
-      AWS.execute (e ^. awsEnv) $
+      AWS.execute e.awsEnv $
         AWS.listen throttleMillis q (runBrigToIO e . SesNotification.onEvent)
-  sftDiscovery <- forM (e ^. sftEnv) $ Async.async . Calling.startSFTServiceDiscovery (e ^. applog)
-  turnDiscovery <- Calling.startTurnDiscovery (e ^. applog) (e ^. fsWatcher) (e ^. turnEnv)
+  sftDiscovery <- forM e.sftEnv $ Async.async . Calling.startSFTServiceDiscovery e.appLogger
+  turnDiscovery <- Calling.startTurnDiscovery e.appLogger e.fsWatcher e.turnEnv
   authMetrics <- Async.async (runBrigToIO e collectAuthMetrics)
   pendingActivationCleanupAsync <- Async.async (runBrigToIO e pendingActivationCleanup)
 
@@ -107,7 +106,7 @@ run o = withTracer \tracer -> do
     closeEnv e
   where
     endpoint' = brig o
-    server e = defaultServer (unpack $ endpoint' ^. host) (endpoint' ^. port) (e ^. applog)
+    server e = defaultServer (unpack $ endpoint' ^. host) (endpoint' ^. port) e.appLogger
 
 mkApp :: Opts -> IO (Wai.Application, Env)
 mkApp o = do
@@ -118,19 +117,19 @@ mkApp o = do
     middleware :: Env -> Wai.Middleware
     middleware e =
       -- this rewrites the request, so it must be at the top (i.e. applied last)
-      versionMiddleware (e ^. disabledVersions)
+      versionMiddleware e.disabledVersions
         -- this also rewrites the request
-        . requestIdMiddleware (e ^. applog) defaultRequestIdHeaderName
+        . requestIdMiddleware e.appLogger defaultRequestIdHeaderName
         . Metrics.servantPrometheusMiddleware (Proxy @ServantCombinedAPI)
         . GZip.gunzip
         . GZip.gzip GZip.def
-        . catchErrors (e ^. applog) defaultRequestIdHeaderName
+        . catchErrors e.appLogger defaultRequestIdHeaderName
 
     servantApp :: Env -> Wai.Application
     servantApp e0 req cont = do
       let rid = getRequestId defaultRequestIdHeaderName req
-      let e = requestId .~ rid $ e0
-      let localDomain = view (settings . federationDomain) e
+      let e = requestIdLens .~ rid $ e0
+      let localDomain = e.settings.federationDomain
       Servant.serveWithContext
         (Proxy @ServantCombinedAPI)
         (customFormatters :. localDomain :. Servant.EmptyContext)
@@ -185,7 +184,7 @@ pendingActivationCleanup ::
   AppT r ()
 pendingActivationCleanup = do
   safeForever "pendingActivationCleanup" $ do
-    now <- liftIO =<< view currentTime
+    now <- liftIO =<< asks (.currentTime)
     forExpirationsPaged $ \exps -> do
       uids <-
         for exps $ \(UserPendingActivation uid expiresAt) -> do
@@ -232,7 +231,7 @@ pendingActivationCleanup = do
 
     threadDelayRandom :: (AppT r) ()
     threadDelayRandom = do
-      cleanupTimeout <- fromMaybe (hours 24) . setExpiredUserCleanupTimeout <$> view settings
+      cleanupTimeout <- fromMaybe (hours 24) <$> asks (.settings.expiredUserCleanupTimeout)
       let d = realToFrac cleanupTimeout
       randomSecs :: Int <- liftIO (round <$> randomRIO @Double (0.5 * d, d))
       threadDelay (randomSecs * 1_000_000)
@@ -242,7 +241,7 @@ pendingActivationCleanup = do
 
 collectAuthMetrics :: forall r. AppT r ()
 collectAuthMetrics = do
-  env <- view (awsEnv . amazonkaEnv)
+  env <- asks (.awsEnv._amazonkaEnv)
   liftIO $
     forever $ do
       mbRemaining <- readAuthExpiration env

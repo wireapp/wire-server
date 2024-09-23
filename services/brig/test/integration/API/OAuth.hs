@@ -192,10 +192,10 @@ testCreateAccessTokenSuccess opts brig = do
   createOAuthAccessToken' brig accessTokenRequest !!! do
     const 404 === statusCode
     const (Just "not-found") === fmap Error.label . responseJsonMaybe
-  k <- liftIO $ readJwk (fromMaybe "path to jwk not set" (Opt.setOAuthJwkKeyPair $ Opt.optSettings opts)) <&> fromMaybe (error "invalid key")
+  k <- liftIO $ readJwk (fromMaybe "path to jwk not set" opts.optSettings.oAuthJwkKeyPair) <&> fromMaybe (error "invalid key")
   verifiedOrError <- liftIO $ verify k (unOAuthToken $ resp.accessToken)
   verifiedOrErrorWithotherKey <- liftIO $ verify badKey (unOAuthToken $ resp.accessToken)
-  let expectedDomain = domainText $ Opt.setFederationDomain $ Opt.optSettings opts
+  let expectedDomain = domainText opts.optSettings.federationDomain
   liftIO $ do
     isRight verifiedOrError @?= True
     isLeft verifiedOrErrorWithotherKey @?= True
@@ -247,7 +247,7 @@ testCreateAccessTokenWrongUrl brig = do
 
 testCreateAccessTokenExpiredCode :: Opt.Opts -> Brig -> Http ()
 testCreateAccessTokenExpiredCode opts brig =
-  withSettingsOverrides (opts & Opt.optionSettings . Opt.oauthAuthorizationCodeExpirationTimeSecsInternal ?~ 1) $ do
+  withSettingsOverrides (opts & Opt.optionSettings . Opt.oAuthAuthorizationCodeExpirationTimeSecsInternalLens ?~ 1) $ do
     uid <- randomId
     let redirectUrl = mkUrl "https://example.com"
     let scopes = OAuthScopes $ Set.fromList [WriteConversations, WriteConversationsCode]
@@ -297,14 +297,14 @@ testCreateAccessTokenWrongCodeVerifier brig = do
 
 testGetOAuthClientInfoAccessDeniedWhenDisabled :: Opt.Opts -> Brig -> Http ()
 testGetOAuthClientInfoAccessDeniedWhenDisabled opts brig =
-  withSettingsOverrides (opts & Opt.optionSettings . Opt.oauthEnabledInternal ?~ False) $ do
+  withSettingsOverrides (opts & Opt.optionSettings . Opt.oAuthEnabledInternalLens ?~ False) $ do
     cid <- randomId
     uid <- randomId
     getOAuthClientInfo' brig uid cid !!! assertAccessDenied
 
 testCreateCodeOAuthClientAccessDeniedWhenDisabled :: Opt.Opts -> Brig -> Http ()
 testCreateCodeOAuthClientAccessDeniedWhenDisabled opts brig =
-  withSettingsOverrides (opts & Opt.optionSettings . Opt.oauthEnabledInternal ?~ False) $ do
+  withSettingsOverrides (opts & Opt.optionSettings . Opt.oAuthEnabledInternalLens ?~ False) $ do
     cid <- randomId
     uid <- randomId
     state <- UUID.toText <$> liftIO nextRandom
@@ -318,7 +318,7 @@ testCreateCodeOAuthClientAccessDeniedWhenDisabled opts brig =
 
 testCreateAccessTokenAccessDeniedWhenDisabled :: Opt.Opts -> Brig -> Http ()
 testCreateAccessTokenAccessDeniedWhenDisabled opts brig =
-  withSettingsOverrides (opts & Opt.optionSettings . Opt.oauthEnabledInternal ?~ False) $ do
+  withSettingsOverrides (opts & Opt.optionSettings . Opt.oAuthEnabledInternalLens ?~ False) $ do
     cid <- randomId
     let code = OAuthAuthorizationCode $ encodeBase16 "eb32eb9e2aa36c081c89067dddf81bce83c1c57e0b74cfb14c9f026f145f2b1f"
     let url = mkUrl "https://example.com"
@@ -333,13 +333,13 @@ testRefreshAccessTokenAccessDeniedWhenDisabled opts brig = do
   (cid, code) <- generateOAuthClientAndAuthorizationCode brig uid scopes redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
   resp <- createOAuthAccessToken brig accessTokenRequest
-  withSettingsOverrides (opts & Opt.optionSettings . Opt.oauthEnabledInternal ?~ False) $ do
+  withSettingsOverrides (opts & Opt.optionSettings . Opt.oAuthEnabledInternalLens ?~ False) $ do
     let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken cid resp.refreshToken
     refreshOAuthAccessToken' brig refreshAccessTokenRequest !!! assertAccessDenied
 
 testRegisterOAuthClientAccessDeniedWhenDisabled :: Opt.Opts -> Brig -> Http ()
 testRegisterOAuthClientAccessDeniedWhenDisabled opts brig =
-  withSettingsOverrides (opts & Opt.optionSettings . Opt.oauthEnabledInternal ?~ False) $ do
+  withSettingsOverrides (opts & Opt.optionSettings . Opt.oAuthEnabledInternalLens ?~ False) $ do
     let newOAuthClient = newOAuthClientRequestBody "E Corp" "https://example.com"
     registerNewOAuthClient' brig newOAuthClient !!! assertAccessDenied
 
@@ -412,7 +412,7 @@ testAccessResourceInvalidSignature opts brig nginz = do
   (cid, code) <- generateOAuthClientAndAuthorizationCode brig (User.userId user) scopes redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
   resp <- createOAuthAccessToken brig accessTokenRequest
-  key <- liftIO $ readJwk (fromMaybe "path to jwk not set" (Opt.setOAuthJwkKeyPair $ Opt.optSettings opts)) <&> fromMaybe (error "invalid key")
+  key <- liftIO $ readJwk (fromMaybe "path to jwk not set" opts.optSettings.oAuthJwkKeyPair) <&> fromMaybe (error "invalid key")
   claimSet <- fromRight (error "token invalid") <$> liftIO (verify key (unOAuthToken $ resp.accessToken))
   tokenSignedWithotherKey <- signAccessToken badKey claimSet
   get (nginz . paths ["self"] . authHeader (OAuthToken tokenSignedWithotherKey)) !!! do
@@ -421,9 +421,9 @@ testAccessResourceInvalidSignature opts brig nginz = do
 
 testRefreshTokenMaxActiveTokens :: Opts -> C.ClientState -> Brig -> Http ()
 testRefreshTokenMaxActiveTokens opts db brig =
-  withSettingsOverrides (opts & Opt.optionSettings . Opt.oauthMaxActiveRefreshTokensInternal ?~ 2) $ do
+  withSettingsOverrides (opts & Opt.optionSettings . Opt.oAuthMaxActiveRefreshTokensInternalLens ?~ 2) $ do
     uid <- randomId
-    jwk <- liftIO $ readJwk (fromMaybe "path to jwk not set" (Opt.setOAuthJwkKeyPair $ Opt.optSettings opts)) <&> fromMaybe (error "invalid key")
+    jwk <- liftIO $ readJwk (fromMaybe "path to jwk not set" opts.optSettings.oAuthJwkKeyPair) <&> fromMaybe (error "invalid key")
     let redirectUrl = mkUrl "https://example.com"
     let scopes = OAuthScopes $ Set.fromList [WriteConversations, WriteConversationsCode]
     let delayOneSec =
@@ -501,7 +501,7 @@ testRefreshTokenWrongSignature opts brig = do
   (cid, code) <- generateOAuthClientAndAuthorizationCode brig (User.userId user) scopes redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
   resp <- createOAuthAccessToken brig accessTokenRequest
-  key <- liftIO $ readJwk (fromMaybe "path to jwk not set" (Opt.setOAuthJwkKeyPair $ Opt.optSettings opts)) <&> fromMaybe (error "invalid key")
+  key <- liftIO $ readJwk (fromMaybe "path to jwk not set" opts.optSettings.oAuthJwkKeyPair) <&> fromMaybe (error "invalid key")
   badRefreshToken <- liftIO $ do
     claims <- verifyRefreshToken key (unOAuthToken $ resp.refreshToken)
     OAuthToken <$> signRefreshToken badKey claims
@@ -516,7 +516,7 @@ testRefreshTokenNoTokenId opts brig = do
   let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [ReadSelf]
   (cid, _) <- generateOAuthClientAndAuthorizationCode brig (User.userId user) scopes redirectUrl
-  key <- liftIO $ readJwk (fromMaybe "path to jwk not set" (Opt.setOAuthJwkKeyPair $ Opt.optSettings opts)) <&> fromMaybe (error "invalid key")
+  key <- liftIO $ readJwk (fromMaybe "path to jwk not set" opts.optSettings.oAuthJwkKeyPair) <&> fromMaybe (error "invalid key")
   badRefreshToken <- liftIO $ OAuthToken <$> signRefreshToken key emptyClaimsSet
   let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken cid badRefreshToken
   refreshOAuthAccessToken' brig refreshAccessTokenRequest !!! do
@@ -531,7 +531,7 @@ testRefreshTokenNonExistingId opts brig = do
   (cid, code) <- generateOAuthClientAndAuthorizationCode brig (User.userId user) scopes redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
   resp <- createOAuthAccessToken brig accessTokenRequest
-  key <- liftIO $ readJwk (fromMaybe "path to jwk not set" (Opt.setOAuthJwkKeyPair $ Opt.optSettings opts)) <&> fromMaybe (error "invalid key")
+  key <- liftIO $ readJwk (fromMaybe "path to jwk not set" opts.optSettings.oAuthJwkKeyPair) <&> fromMaybe (error "invalid key")
   badRefreshToken <-
     liftIO $
       OAuthToken <$> do
@@ -575,7 +575,7 @@ testRefreshTokenWrongGrantType brig = do
 testRefreshTokenExpiredToken :: Opts -> Brig -> Http ()
 testRefreshTokenExpiredToken opts brig =
   -- overriding settings and set refresh token to expire in 2 seconds
-  withSettingsOverrides (opts & Opt.optionSettings . Opt.oauthRefreshTokenExpirationTimeSecsInternal ?~ 2) $ do
+  withSettingsOverrides (opts & Opt.optionSettings . Opt.oAuthRefreshTokenExpirationTimeSecsInternalLens ?~ 2) $ do
     user <- createUser "alice" brig
     let redirectUrl = mkUrl "https://example.com"
     let scopes = OAuthScopes $ Set.fromList [ReadSelf]

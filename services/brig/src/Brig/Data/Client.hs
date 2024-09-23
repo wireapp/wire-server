@@ -166,7 +166,7 @@ addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients cps = do
     insert :: (MonadClient m, MonadReader Brig.App.Env m) => UserId -> ExceptT ClientDataError m Client
     insert uid = do
       -- Is it possible to do this somewhere else? Otherwise we could use `MonadClient` instead
-      now <- toUTCTimeMillis <$> (liftIO =<< view currentTime)
+      now <- toUTCTimeMillis <$> (liftIO =<< asks (.currentTime))
       let keys = unpackLastPrekey (newClientLastKey c) : newClientPrekeys c
       updatePrekeys uid newId keys
       let mdl = newClientModel c
@@ -253,7 +253,7 @@ rmClient ::
 rmClient u c = do
   retry x5 $ write removeClient (params LocalQuorum (u, c))
   retry x5 $ write removeClientKeys (params LocalQuorum (u, c))
-  unlessM (isJust <$> view randomPrekeyLocalLock) $ deleteOptLock u c
+  unlessM (isJust <$> asks (.randomPrekeyLocalLock)) $ deleteOptLock u c
 
 updateClientLabel :: (MonadClient m) => UserId -> ClientId -> Maybe Text -> m ()
 updateClientLabel u c l = retry x5 $ write updateClientLabelQuery (params LocalQuorum (l, u, c))
@@ -296,7 +296,7 @@ claimPrekey ::
   ClientId ->
   m (Maybe ClientPrekey)
 claimPrekey u c =
-  view randomPrekeyLocalLock >>= \case
+  asks (.randomPrekeyLocalLock) >>= \case
     -- Use random prekey selection strategy
     Just localLock -> withLocalLock localLock $ do
       prekeys <- retry x1 $ query userPrekeys (params LocalQuorum (u, c))
@@ -488,8 +488,8 @@ deleteOptLock ::
   ClientId ->
   m ()
 deleteOptLock u c = do
-  t <- view (awsEnv . prekeyTable)
-  e <- view (awsEnv . amazonkaEnv)
+  t <- asks ((.awsEnv) <&> view prekeyTable)
+  e <- asks ((.awsEnv) <&> view amazonkaEnv)
   void $ exec e (AWS.newDeleteItem t & AWS.deleteItem_key .~ key u c)
 
 withOptLock ::
@@ -559,8 +559,8 @@ withOptLock u c ma = go (10 :: Int)
       (Text -> r) ->
       m (Maybe x)
     execDyn cnv mkCmd = do
-      cmd <- mkCmd <$> view (awsEnv . prekeyTable)
-      e <- view (awsEnv . amazonkaEnv)
+      cmd <- mkCmd <$> asks ((.awsEnv) <&> view prekeyTable)
+      e <- asks ((.awsEnv) <&> view amazonkaEnv)
       liftIO $ execDyn' e cnv cmd
       where
         execDyn' ::

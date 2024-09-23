@@ -26,7 +26,6 @@ where
 
 import Brig.App
 import Brig.Provider.Template
-import Control.Lens (view)
 import Data.Code qualified as Code
 import Data.Range
 import Data.Text (pack)
@@ -45,8 +44,8 @@ import Wire.EmailSubsystem.Template (TemplateBranding, renderHtmlWithBranding, r
 
 sendActivationMail :: (Member EmailSending r) => Name -> EmailAddress -> Code.Key -> Code.Value -> Bool -> (AppT r) ()
 sendActivationMail name email key code update = do
-  tpl <- selectTemplate update . snd <$> providerTemplates Nothing
-  branding <- view templateBranding
+  tpl <- selectTemplate update . snd <$> providerTemplatesWithLocale Nothing
+  branding <- asks (.templateBranding)
   let mail = ActivationEmail email name key code
   liftSem $ sendMail $ renderActivationMail mail tpl branding
   where
@@ -97,8 +96,8 @@ renderActivationUrl t (Code.Key k) (Code.Value v) branding =
 
 sendApprovalConfirmMail :: (Member EmailSending r) => Name -> EmailAddress -> (AppT r) ()
 sendApprovalConfirmMail name email = do
-  tpl <- approvalConfirmEmail . snd <$> providerTemplates Nothing
-  branding <- view templateBranding
+  tpl <- approvalConfirmEmail . snd <$> providerTemplatesWithLocale Nothing
+  branding <- asks (.templateBranding)
   let mail = ApprovalConfirmEmail email name
   liftSem $ sendMail $ renderApprovalConfirmMail mail tpl branding
 
@@ -133,8 +132,8 @@ renderApprovalConfirmMail ApprovalConfirmEmail {..} ApprovalConfirmEmailTemplate
 
 sendPasswordResetMail :: (Member EmailSending r) => EmailAddress -> Code.Key -> Code.Value -> (AppT r) ()
 sendPasswordResetMail to key code = do
-  tpl <- passwordResetEmail . snd <$> providerTemplates Nothing
-  branding <- view templateBranding
+  tpl <- passwordResetEmail . snd <$> providerTemplatesWithLocale Nothing
+  branding <- asks (.templateBranding)
   let mail = PasswordResetEmail to key code
   liftSem $ sendMail $ renderPwResetMail mail tpl branding
 

@@ -26,7 +26,6 @@ import Brig.Data.User qualified as User
 import Brig.Options
 import Brig.User.Auth qualified as Auth
 import Brig.ZAuth hiding (Env, settings)
-import Control.Lens (view)
 import Control.Monad.Trans.Except
 import Data.CommaSeparatedList
 import Data.Id
@@ -226,14 +225,14 @@ mkUserTokenCookie ::
   Cookie (Token u) ->
   m UserTokenCookie
 mkUserTokenCookie c = do
-  s <- view settings
+  s <- asks (.settings)
   pure
     UserTokenCookie
       { utcExpires =
-          guard (cookieType c == PersistentCookie)
-            $> cookieExpires c,
-        utcToken = mkSomeToken (cookieValue c),
-        utcSecure = not (setCookieInsecure s)
+          guard (c.cookieType == PersistentCookie)
+            $> c.cookieExpires,
+        utcToken = mkSomeToken c.cookieValue,
+        utcSecure = not s.cookieInsecure
       }
 
 partitionTokens ::

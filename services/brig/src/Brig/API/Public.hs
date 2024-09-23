@@ -58,7 +58,7 @@ import Brig.User.Auth.Cookie qualified as Auth
 import Cassandra qualified as C
 import Cassandra qualified as Data
 import Control.Error hiding (bool, note)
-import Control.Lens (view, (.~), (?~))
+import Control.Lens ((.~), (?~))
 import Control.Monad.Catch (throwM)
 import Control.Monad.Except
 import Data.Aeson hiding (json)
@@ -537,7 +537,7 @@ getMultiUserPrekeyBundleUnqualifiedH ::
   Public.UserClients ->
   Handler r Public.UserClientPrekeyMap
 getMultiUserPrekeyBundleUnqualifiedH zusr userClients = do
-  maxSize <- fromIntegral . setMaxConvSize <$> view settings
+  maxSize <- fromIntegral <$> asks (.settings.maxConvSize)
   when (Map.size (Public.userClients userClients) > maxSize) $
     throwStd (errorToWai @'E.TooManyClients)
   API.claimLocalMultiPrekeyBundles (ProtectedUser zusr) userClients !>> clientError
@@ -547,7 +547,7 @@ getMultiUserPrekeyBundleHInternal ::
   Public.QualifiedUserClients ->
   m ()
 getMultiUserPrekeyBundleHInternal qualUserClients = do
-  maxSize <- fromIntegral . setMaxConvSize <$> view settings
+  maxSize <- fromIntegral <$> asks (.settings.maxConvSize)
   let Sum (size :: Int) =
         Map.foldMapWithKey
           (\_ v -> Sum . Map.size $ v)
@@ -679,7 +679,7 @@ getClientPrekeys usr clt = lift (wrapClient $ API.lookupPrekeyIds usr clt)
 
 newNonce :: UserId -> ClientId -> (Handler r) (Nonce, CacheControl)
 newNonce uid cid = do
-  ttl <- setNonceTtlSecs <$> view settings
+  ttl <- setNonceTtlSecs <$> asks (.settings)
   nonce <- randomNonce
   lift $ wrapClient $ Nonce.insertNonce ttl uid (Id.clientToText cid) nonce
   pure (nonce, NoStore)
@@ -1074,7 +1074,7 @@ searchUsersHandler luid term mDomain mMaxResults =
 -- feature, ghc will guide us here.
 customerExtensionCheckBlockedDomains :: Public.EmailAddress -> (Handler r) ()
 customerExtensionCheckBlockedDomains email = do
-  mBlockedDomains <- asks (fmap domainsBlockedForRegistration . setCustomerExtensions . view settings)
+  mBlockedDomains <- fmap (.domainsBlockedForRegistration) <$> asks (.settings.customerExtensions)
   for_ mBlockedDomains $ \(DomainsBlockedForRegistration blockedDomains) -> do
     case mkDomain (Text.decodeUtf8 $ Public.domainPart email) of
       Left _ ->
@@ -1335,7 +1335,7 @@ sendVerificationCode req = do
   case (mbAccount, featureEnabled) of
     (Just account, True) -> do
       let gen = mk6DigitVerificationCodeGen email
-      timeout <- setVerificationTimeout <$> view settings
+      timeout <- verificationTimeout <$> asks (.settings)
       code <-
         lift . liftSem $
           createCodeOverwritePrevious
@@ -1367,16 +1367,16 @@ sendVerificationCode req = do
 
 getSystemSettings :: (Handler r) SystemSettingsPublic
 getSystemSettings = do
-  optSettings <- view settings
+  optSettings <- asks (.settings)
   pure $
     SystemSettingsPublic $
-      fromMaybe False (setRestrictUserCreation optSettings)
+      fromMaybe False optSettings.restrictUserCreation
 
 getSystemSettingsInternal :: UserId -> (Handler r) SystemSettings
 getSystemSettingsInternal _ = do
-  optSettings <- view settings
-  let pSettings = SystemSettingsPublic $ fromMaybe False (setRestrictUserCreation optSettings)
-  let iSettings = SystemSettingsInternal $ fromMaybe False (setEnableMLS optSettings)
+  optSettings <- asks (.settings)
+  let pSettings = SystemSettingsPublic $ fromMaybe False optSettings.restrictUserCreation
+  let iSettings = SystemSettingsInternal $ fromMaybe False optSettings.enableMLS
   pure $ SystemSettings pSettings iSettings
 
 -- Deprecated

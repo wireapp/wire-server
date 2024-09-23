@@ -47,7 +47,6 @@ import Brig.User.Auth.Cookie
 import Brig.ZAuth qualified as ZAuth
 import Cassandra
 import Control.Error hiding (bool)
-import Control.Lens (to, view)
 import Data.ByteString.Conversion (toByteString)
 import Data.Code qualified as Code
 import Data.Default
@@ -172,7 +171,7 @@ withRetryLimit ::
   UserId ->
   ExceptT LoginError m ()
 withRetryLimit action uid = do
-  mLimitFailedLogins <- view (settings . to Opt.setLimitFailedLogins)
+  mLimitFailedLogins <- asks (.settings.limitFailedLogins)
   forM_ mLimitFailedLogins $ \opts -> do
     let bkey = BudgetKey ("login#" <> idToText uid)
         budget =

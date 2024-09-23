@@ -116,7 +116,7 @@ testSFT b opts = do
 testSFTUnavailable :: Brig -> Opts.Opts -> String -> Http ()
 testSFTUnavailable b opts domain = do
   uid <- userId <$> randomUser b
-  withSettingsOverrides (opts {Opts.optSettings = (Opts.optSettings opts) {Opts.setSftStaticUrl = fromByteString (cs domain), Opts.setSftListAllServers = Just Opts.ListAllSFTServers}}) $ do
+  withSettingsOverrides (opts {Opts.optSettings = (Opts.optSettings opts) {Opts.sftStaticUrl = fromByteString (cs domain), Opts.sftListAllServers = Just Opts.ListAllSFTServers}}) $ do
     cfg <- getTurnConfigurationV2 uid b
     liftIO $ do
       assertEqual
@@ -178,7 +178,7 @@ testCallsConfigSRV b opts = do
   uid <- userId <$> randomUser b
   let dnsOpts = Opts.TurnSourceDNS (Opts.TurnDnsOpts "integration-tests.zinfra.io" (Just 0.5))
   config <-
-    withSettingsOverrides (opts & Opts.turnL . Opts.serversSourceL .~ dnsOpts) $
+    withSettingsOverrides (opts & Opts.turnL . Opts.serversSourceLens .~ dnsOpts) $
       responseJsonError
         =<< ( retryWhileN 10 (\r -> statusCode r /= 200) (getTurnConfiguration "" uid b)
                 <!! const 200 === statusCode
@@ -196,7 +196,7 @@ testCallsConfigV2SRV b opts = do
   uid <- userId <$> randomUser b
   let dnsOpts = Opts.TurnSourceDNS (Opts.TurnDnsOpts "integration-tests.zinfra.io" (Just 0.5))
   config <-
-    withSettingsOverrides (opts & Opts.turnL . Opts.serversSourceL .~ dnsOpts) $
+    withSettingsOverrides (opts & Opts.turnL . Opts.serversSourceLens .~ dnsOpts) $
       responseJsonError
         =<< ( retryWhileN 10 (\r -> statusCode r /= 200) (getTurnConfiguration "v2" uid b)
                 <!! const 200 === statusCode

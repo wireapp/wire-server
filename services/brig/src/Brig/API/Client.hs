@@ -68,7 +68,6 @@ import Brig.User.Auth qualified as UserAuth
 import Brig.User.Auth.Cookie qualified as Auth
 import Cassandra (MonadClient)
 import Control.Error
-import Control.Lens (view)
 import Control.Monad.Trans.Except (except)
 import Data.ByteString (toStrict)
 import Data.ByteString.Conversion
@@ -195,7 +194,7 @@ addClientWithReAuthPolicy ::
 addClientWithReAuthPolicy policy luid@(tUnqualified -> u) con new = do
   usr <- (lift . liftSem $ User.getAccountNoFilter luid) >>= maybe (throwE (ClientUserNotFound u)) (pure . (.accountUser))
   verifyCode (newClientVerificationCode new) luid
-  maxPermClients <- fromMaybe Opt.defUserMaxPermClients . Opt.setUserMaxPermClients <$> view settings
+  maxPermClients <- fromMaybe Opt.defUserMaxPermClients <$> asks (.settings.userMaxPermClients)
   let caps :: Maybe (Set ClientCapability)
       caps = updlhdev $ newClientCapabilities new
         where
@@ -557,12 +556,12 @@ createAccessToken luid cid method link proof = do
       note MisconfiguredRequestUrl $
         fromByteString $
           "https://" <> toByteString' domain <> "/" <> T.encodeUtf8 (toUrlPiece link)
-  maxSkewSeconds <- Opt.setDpopMaxSkewSecs <$> view settings
-  expiresIn <- Opt.setDpopTokenExpirationTimeSecs <$> view settings
+  maxSkewSeconds <- Opt.setDpopMaxSkewSecs <$> asks (.settings)
+  expiresIn <- Opt.setDpopTokenExpirationTimeSecs <$> asks (.settings)
   now <- fromUTCTime <$> lift (liftSem Now.get)
   let expiresAt = now & addToEpoch expiresIn
   pubKeyBundle <- do
-    pathToKeys <- ExceptT $ note KeyBundleError . Opt.setPublicKeyBundle <$> view settings
+    pathToKeys <- ExceptT (note KeyBundleError <$> asks (.settings.publicKeyBundle))
     ExceptT $ note KeyBundleError <$> liftSem (PublicKeyBundle.get pathToKeys)
   token <-
     ExceptT $

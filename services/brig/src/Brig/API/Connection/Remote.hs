@@ -33,7 +33,6 @@ import Brig.IO.Intra qualified as Intra
 import Brig.Options
 import Control.Comonad
 import Control.Error.Util ((??))
-import Control.Lens (view)
 import Control.Monad.Trans.Except
 import Data.Id as Id
 import Data.Qualified
@@ -195,7 +194,7 @@ transitionTo self mzcon other (Just connection) (Just rel) actor = do
           $ ucConvId connection
       desiredMem = desiredMembership actor rel
   lift $ updateOne2OneConv self Nothing other proteusConvId desiredMem actor
-  mlsEnabled <- view (settings . enableMLS)
+  mlsEnabled <- asks (.settings.enableMLS)
   when (fromMaybe False mlsEnabled) $ do
     let mlsConvId = one2OneConvId BaseProtocolMLSTag (tUntagged self) (tUntagged other)
     isEstablished <- lift . liftSem $ isMLSOne2OneEstablished self (tUntagged other)

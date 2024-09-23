@@ -30,8 +30,7 @@ import API.User.Util
 import API.User.Util qualified as Util
 import Bilge hiding (accept, head, timeout)
 import Bilge.Assert
-import Brig.Options qualified as Opt
-import Brig.Options qualified as Opts
+import Brig.Options as Opt
 import Cassandra qualified as DB
 import Control.Lens hiding (Wrapped, (#))
 import Crypto.JWT hiding (Ed25519, header, params)
@@ -219,8 +218,8 @@ testAddGetClientCodeExpired db opts brig galley = do
   codeValue <- (.codeValue) <$$> lookupCode db k Code.AccountLogin
   checkLoginSucceeds $
     MkLogin (LoginByEmail email) defPassword (Just defCookieLabel) codeValue
-  let verificationTimeout = round (Opt.setVerificationTimeout (Opt.optSettings opts))
-  threadDelay $ ((verificationTimeout + 1) * 1000_000)
+  let timeout = round (verificationTimeout opts.optSettings)
+  threadDelay $ ((timeout + 1) * 1000_000)
   addClient' codeValue !!! do
     const 403 === statusCode
     const (Just "code-authentication-failed") === fmap Error.label . responseJsonMaybe
@@ -292,7 +291,7 @@ testGetUserClientsQualified opts brig = do
   _c11 :: Client <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk11] lk11)
   _c12 :: Client <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk12] lk12)
   _c13 :: Client <- responseJsonError =<< addClient brig uid1 (defNewClient TemporaryClientType [pk13] lk13)
-  let localdomain = opts ^. Opt.optionSettings & Opt.setFederationDomain
+  let localdomain = opts.optSettings.federationDomain
   getUserClientsQualified brig uid2 localdomain uid1 !!! do
     const 200 === statusCode
     assertTrue_ $ \res -> do
@@ -397,7 +396,7 @@ testListClientsBulk opts brig = do
   c21 <- responseJsonError =<< addClient brig uid2 (defNewClient PermanentClientType [pk21] lk21)
   c22 <- responseJsonError =<< addClient brig uid2 (defNewClient PermanentClientType [pk22] lk22)
 
-  let domain = Opt.setFederationDomain $ Opt.optSettings opts
+  let domain = opts.optSettings.federationDomain
   uid3 <- userId <$> randomUser brig
   let mkPubClient cl = PubClient (clientId cl) (clientClass cl)
   let expectedResponse :: QualifiedUserMap (Set PubClient) =
@@ -440,7 +439,7 @@ testClientsWithoutPrekeys brig cannon db opts = do
 
   uid2 <- userId <$> randomUser brig
 
-  let domain = opts ^. Opt.optionSettings & Opt.setFederationDomain
+  let domain = opts.optSettings.federationDomain
 
   let userClients =
         QualifiedUserClients $
@@ -532,7 +531,7 @@ testClientsWithoutPrekeysV4 brig cannon db opts = do
 
   uid2 <- userId <$> randomUser brig
 
-  let domain = opts ^. Opt.optionSettings & Opt.setFederationDomain
+  let domain = opts.optSettings.federationDomain
 
   let userClients =
         QualifiedUserClients $
@@ -627,7 +626,7 @@ testClientsWithoutPrekeysFailToListV4 brig cannon db opts = do
 
   uid2 <- fakeRemoteUser
 
-  let domain = opts ^. Opt.optionSettings & Opt.setFederationDomain
+  let domain = opts.optSettings.federationDomain
 
   let userClients1 =
         QualifiedUserClients $
@@ -711,7 +710,7 @@ testListClientsBulkV2 opts brig = do
   c21 <- responseJsonError =<< addClient brig uid2 (defNewClient PermanentClientType [pk21] lk21)
   c22 <- responseJsonError =<< addClient brig uid2 (defNewClient PermanentClientType [pk22] lk22)
 
-  let domain = Opt.setFederationDomain $ Opt.optSettings opts
+  let domain = opts.optSettings.federationDomain
   uid3 <- userId <$> randomUser brig
   let mkPubClient cl = PubClient (clientId cl) (clientClass cl)
   let expectedResponse :: WrappedQualifiedUserMap (Set PubClient) =
@@ -775,7 +774,7 @@ testGetUserPrekeys brig = do
 
 testGetUserPrekeysQualified :: Brig -> Opt.Opts -> Http ()
 testGetUserPrekeysQualified brig opts = do
-  let domain = opts ^. Opt.optionSettings & Opt.setFederationDomain
+  let domain = opts.optSettings.federationDomain
   [(uid, _c, _lpk, cpk)] <- generateClients 1 brig
   get (brig . paths ["users", toByteString' domain, toByteString' uid, "prekeys"] . zUser uid) !!! do
     const 200 === statusCode
@@ -796,7 +795,7 @@ testGetClientPrekey brig = do
 
 testGetClientPrekeyQualified :: Brig -> Opt.Opts -> Http ()
 testGetClientPrekeyQualified brig opts = do
-  let domain = opts ^. Opt.optionSettings & Opt.setFederationDomain
+  let domain = opts.optSettings.federationDomain
   [(uid, c, _lpk, cpk)] <- generateClients 1 brig
   get (brig . paths ["users", toByteString' domain, toByteString' uid, "prekeys", toByteString' (clientId c)] . zUser uid) !!! do
     const 200 === statusCode
@@ -833,7 +832,7 @@ testMultiUserGetPrekeys brig = do
 
 testMultiUserGetPrekeysQualified :: Brig -> Opt.Opts -> Http ()
 testMultiUserGetPrekeysQualified brig opts = do
-  let domain = opts ^. Opt.optionSettings & Opt.setFederationDomain
+  let domain = opts.optSettings.federationDomain
 
   xs <- generateClients 3 brig
   let userClients =
@@ -867,7 +866,7 @@ testMultiUserGetPrekeysQualified brig opts = do
 
 testMultiUserGetPrekeysQualifiedV4 :: Brig -> Opt.Opts -> Http ()
 testMultiUserGetPrekeysQualifiedV4 brig opts = do
-  let domain = opts ^. Opt.optionSettings & Opt.setFederationDomain
+  let domain = opts.optSettings.federationDomain
 
   xs <- generateClients 3 brig
   let userClients =
@@ -914,7 +913,7 @@ testTooManyClients :: Opt.Opts -> Brig -> Http ()
 testTooManyClients opts brig = do
   uid <- userId <$> randomUser brig
   -- We can always change the permanent client limit
-  let newOpts = opts & Opt.optionSettings . Opt.userMaxPermClients ?~ 1
+  let newOpts = opts & optionSettings . userMaxPermClientsLens ?~ 1
   withSettingsOverrides newOpts $ do
     -- There is only one temporary client, adding a new one
     -- replaces the previous one.
@@ -1158,7 +1157,7 @@ testUpdateClient opts brig = do
     const Nothing === (preview (key "mls_public_keys") <=< responseJsonMaybe @Value)
 
   -- via `/users/:domain/:uid/clients/:client`, only `id` and `class` are visible:
-  let localdomain = opts ^. Opt.optionSettings & Opt.setFederationDomain
+  let localdomain = opts.optSettings.federationDomain
   get (brig . paths ["users", toByteString' localdomain, toByteString' uid, "clients", toByteString' (clientId c)]) !!! do
     const 200 === statusCode
     const (Just $ clientId c) === (fmap pubClientId . responseJsonMaybe)
@@ -1431,9 +1430,9 @@ instance A.ToJSON DPoPClaimsSet where
       ins k v (Object o) = Object $ M.insert k (A.toJSON v) o
       ins _ _ a = a
 
-testCreateAccessToken :: Opts.Opts -> Nginz -> Brig -> Http ()
+testCreateAccessToken :: Opt.Opts -> Nginz -> Brig -> Http ()
 testCreateAccessToken opts n brig = do
-  let localDomain = opts ^. Opt.optionSettings & Opt.setFederationDomain
+  let localDomain = opts.optSettings.federationDomain
   (u, tid) <- Util.createUserWithTeam' brig
   handle <- do
     Just h <- userHandle <$> Util.setRandomHandle brig u

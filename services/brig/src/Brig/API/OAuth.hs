@@ -91,7 +91,7 @@ oauthAPI =
 
 registerOAuthClient :: OAuthClientConfig -> (Handler r) OAuthClientCredentials
 registerOAuthClient (OAuthClientConfig name uri) = do
-  unlessM (Opt.setOAuthEnabled <$> view settings) $ throwStd $ errorToWai @'OAuthFeatureDisabled
+  unlessM (Opt.setOAuthEnabled <$> view settingsLens) $ throwStd $ errorToWai @'OAuthFeatureDisabled
   credentials@(OAuthClientCredentials cid secret) <- OAuthClientCredentials <$> randomId <*> createSecret
   safeSecret <- liftIO $ hashClientSecret secret
   lift $ wrapClient $ insertOAuthClient cid name uri safeSecret
@@ -108,7 +108,7 @@ rand32Bytes = liftIO . fmap encodeBase16 $ randBytes 32
 
 getOAuthClientById :: OAuthClientId -> (Handler r) OAuthClient
 getOAuthClientById cid = do
-  unlessM (Opt.setOAuthEnabled <$> view settings) $ throwStd $ errorToWai @'OAuthFeatureDisabled
+  unlessM (Opt.setOAuthEnabled <$> view settingsLens) $ throwStd $ errorToWai @'OAuthFeatureDisabled
   mClient <- lift $ wrapClient $ lookupOauthClient cid
   maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure mClient
 
@@ -125,7 +125,7 @@ deleteOAuthClient cid = do
 
 getOAuthClient :: Local UserId -> OAuthClientId -> (Handler r) (Maybe OAuthClient)
 getOAuthClient _ cid = do
-  unlessM (Opt.setOAuthEnabled <$> view settings) $ throwStd $ errorToWai @'OAuthFeatureDisabled
+  unlessM (Opt.setOAuthEnabled <$> view settingsLens) $ throwStd $ errorToWai @'OAuthFeatureDisabled
   lift $ wrapClient $ lookupOauthClient cid
 
 createNewOAuthAuthorizationCode :: Local UserId -> CreateOAuthAuthorizationCodeRequest -> (Handler r) CreateOAuthCodeResponse
@@ -177,7 +177,7 @@ data CreateNewOAuthCodeError
 
 validateAndCreateAuthorizationCode :: Local UserId -> CreateOAuthAuthorizationCodeRequest -> ExceptT CreateNewOAuthCodeError (Handler r) OAuthAuthorizationCode
 validateAndCreateAuthorizationCode luid@(tUnqualified -> uid) (CreateOAuthAuthorizationCodeRequest cid scope responseType redirectUrl _state _ chal) = do
-  failWithM CreateNewOAuthCodeErrorFeatureDisabled (assertMay . Opt.setOAuthEnabled <$> view settings)
+  failWithM CreateNewOAuthCodeErrorFeatureDisabled (assertMay . Opt.setOAuthEnabled <$> view settingsLens)
   failWith CreateNewOAuthCodeErrorUnsupportedResponseType (assertMay $ responseType == OAuthResponseTypeCode)
   client <- failWithM CreateNewOAuthCodeErrorClientNotFound $ getOAuthClient luid cid
   failWith CreateNewOAuthCodeErrorRedirectUrlMissMatch (assertMay $ client.redirectUrl == redirectUrl)
@@ -186,13 +186,13 @@ validateAndCreateAuthorizationCode luid@(tUnqualified -> uid) (CreateOAuthAuthor
     mkAuthorizationCode :: (Handler r) OAuthAuthorizationCode
     mkAuthorizationCode = do
       oauthCode <- OAuthAuthorizationCode <$> rand32Bytes
-      ttl <- Opt.setOAuthAuthorizationCodeExpirationTimeSecs <$> view settings
+      ttl <- Opt.setOAuthAuthorizationCodeExpirationTimeSecs <$> view settingsLens
       lift $ wrapClient $ insertOAuthAuthorizationCode ttl oauthCode cid uid scope redirectUrl chal
       pure oauthCode
 
 createAccessTokenWith :: (Member Now r, Member Jwk r) => Either OAuthAccessTokenRequest OAuthRefreshAccessTokenRequest -> (Handler r) OAuthAccessTokenResponse
 createAccessTokenWith req = do
-  unlessM (Opt.setOAuthEnabled <$> view settings) $ throwStd $ errorToWai @'OAuthFeatureDisabled
+  unlessM (Opt.setOAuthEnabled <$> view settingsLens) $ throwStd $ errorToWai @'OAuthFeatureDisabled
   case req of
     Left reqAC -> createAccessTokenWithAuthorizationCode reqAC
     Right reqRT -> createAccessTokenWithRefreshToken reqRT
@@ -240,18 +240,18 @@ createAccessTokenWithAuthorizationCode req = do
 
 signingKey :: (Member Jwk r) => (Handler r) JWK
 signingKey = do
-  fp <- view settings >>= maybe (throwStd $ errorToWai @'OAuthJwtError) pure . Opt.setOAuthJwkKeyPair
+  fp <- maybe (throwStd $ errorToWai @'OAuthJwtError) pure =<< asks (.settings.oAuthJwkKeyPair)
   lift (liftSem $ Jwk.get fp) >>= maybe (throwStd $ errorToWai @'OAuthJwtError) pure
 
 createAccessToken :: (Member Now r) => JWK -> UserId -> OAuthClientId -> OAuthScopes -> (Handler r) OAuthAccessTokenResponse
 createAccessToken key uid cid scope = do
-  exp <- fromIntegral . Opt.setOAuthAccessTokenExpirationTimeSecs <$> view settings
+  exp <- fromIntegral . Opt.setOAuthAccessTokenExpirationTimeSecs <$> view settingsLens
   accessToken <- mkAccessToken
   (rid, refreshToken) <- mkRefreshToken
   now <- lift (liftSem Now.get)
   let refreshTokenInfo = OAuthRefreshTokenInfo rid cid uid scope now
-  refreshTokenExpiration <- Opt.setOAuthRefreshTokenExpirationTimeSecs <$> view settings
-  maxActiveTokens <- Opt.setOAuthMaxActiveRefreshTokens <$> view settings
+  refreshTokenExpiration <- Opt.setOAuthRefreshTokenExpirationTimeSecs <$> view settingsLens
+  maxActiveTokens <- Opt.setOAuthMaxActiveRefreshTokens <$> view settingsLens
   lift $ wrapClient $ insertOAuthRefreshToken maxActiveTokens refreshTokenExpiration refreshTokenInfo
   pure $ OAuthAccessTokenResponse accessToken OAuthAccessTokenTypeBearer exp refreshToken
   where
@@ -264,8 +264,8 @@ createAccessToken key uid cid scope = do
 
     mkAccessToken :: (Member Now r) => (Handler r) OAuthAccessToken
     mkAccessToken = do
-      domain <- Opt.setFederationDomain <$> view settings
-      exp <- fromIntegral . Opt.setOAuthAccessTokenExpirationTimeSecs <$> view settings
+      domain <- asks (.settings.federationDomain)
+      exp <- fromIntegral . Opt.setOAuthAccessTokenExpirationTimeSecs <$> view settingsLens
       claims <- mkAccessTokenClaims uid domain scope exp
       OAuthToken <$> signAccessToken claims
 

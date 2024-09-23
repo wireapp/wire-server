@@ -47,6 +47,7 @@
 , tasty
 , tasty-hunit
 , tasty-quickcheck
+, template-haskell
 , text
 , time
 , time-locale-compat
@@ -102,6 +103,7 @@ mkDerivation {
     tagged
     tasty
     tasty-hunit
+    template-haskell
     text
     time
     time-locale-compat

@@ -38,6 +38,7 @@ library
     Util.Logging
     Util.Options
     Util.Options.Common
+    Util.SuffixNamer
     Util.Test
     Util.Timeout
     Wire.Arbitrary
@@ -132,6 +133,7 @@ library
     , tagged                 >=0.8
     , tasty                  >=0.11
     , tasty-hunit
+    , template-haskell
     , text                   >=0.11
     , time                   >=1.6
     , time-locale-compat     >=0.1
