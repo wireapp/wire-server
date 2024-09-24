@@ -136,6 +136,15 @@ getClient u cli = do
       joinHttpPath ["clients", c]
   submit "GET" req
 
+-- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/get_clients
+getSelfClients ::
+  (HasCallStack, MakesValue user) =>
+  user ->
+  App Response
+getSelfClients u =
+  baseRequest u Brig Versioned (joinHttpPath ["clients"])
+    >>= submit "GET"
+
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/delete_self
 deleteUser :: (HasCallStack, MakesValue user) => user -> App Response
 deleteUser user = do

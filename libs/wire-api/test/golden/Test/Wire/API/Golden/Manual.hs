@@ -106,11 +106,20 @@ tests =
           ],
       testGroup "ClientCapability" $
         testObjects
-          [(testObject_ClientCapability_1, "testObject_ClientCapability_1.json")],
-      testGroup "ClientCapabilityList" $
+          [ (testObject_ClientCapability_1, "testObject_ClientCapability_1.json"),
+            (testObject_ClientCapability_2, "testObject_ClientCapability_2.json")
+          ],
+      testGroup "ClientCapabilityListV6" $
         testObjects
           [ (testObject_ClientCapabilityList_1, "testObject_ClientCapabilityList_1.json"),
             (testObject_ClientCapabilityList_2, "testObject_ClientCapabilityList_2.json")
+          ],
+      testGroup "ClientCapabilityListV6 - non-round-trip" $
+        [testToJSON testObject_ClientCapabilityList_3 "testObject_ClientCapabilityList_3.json"],
+      testGroup "ClientCapabilityList" $
+        testObjects
+          [ (testObject_ClientCapabilityList_4, "testObject_ClientCapabilityList_4.json"),
+            (testObject_ClientCapabilityList_5, "testObject_ClientCapabilityList_5.json")
           ],
       testGroup
         "Event.FeatureConfig.Event"

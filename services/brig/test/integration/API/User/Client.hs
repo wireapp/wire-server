@@ -1187,7 +1187,7 @@ testUpdateClient opts brig = do
   -- update supported client capabilities work
   let checkUpdate :: (HasCallStack) => Maybe [ClientCapability] -> Bool -> [ClientCapability] -> Http ()
       checkUpdate capsIn respStatusOk capsOut = do
-        let update'' = defUpdateClient {updateClientCapabilities = Set.fromList <$> capsIn}
+        let update'' = defUpdateClient {updateClientCapabilities = ClientCapabilityList . Set.fromList <$> capsIn}
         put
           ( apiVersion "v1"
               . brig
@@ -1236,7 +1236,7 @@ testUpdateClient opts brig = do
               assertEqual "" (clientId c) cid'
               assertEqual "" expectedPrekey prekey'
 
-        caps = Just $ Set.fromList [ClientSupportsLegalholdImplicitConsent]
+        caps = Just $ ClientCapabilityList $ Set.fromList [ClientSupportsLegalholdImplicitConsent]
 
         label = "label-bc1b7b0c-b7bf-11eb-9a1d-233d397f934a"
         prekey = somePrekeys !! 4

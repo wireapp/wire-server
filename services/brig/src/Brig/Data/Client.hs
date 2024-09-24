@@ -123,7 +123,7 @@ addClient ::
   ClientId ->
   NewClient ->
   Int ->
-  Maybe (Imports.Set ClientCapability) ->
+  Maybe ClientCapabilityList ->
   ExceptT ClientDataError m (Client, [Client], Word)
 addClient = addClientWithReAuthPolicy reAuthForNewClients
 
@@ -136,9 +136,9 @@ addClientWithReAuthPolicy ::
   ClientId ->
   NewClient ->
   Int ->
-  Maybe (Imports.Set ClientCapability) ->
+  Maybe ClientCapabilityList ->
   ExceptT ClientDataError m (Client, [Client], Word)
-addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients cps = do
+addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients caps = do
   clients <- lookupClients (tUnqualified u)
   let typed = filter ((== newClientType c) . clientType) clients
   let count = length typed
@@ -170,7 +170,7 @@ addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients cps = do
       let keys = unpackLastPrekey (newClientLastKey c) : newClientPrekeys c
       updatePrekeys uid newId keys
       let mdl = newClientModel c
-          prm = (uid, newId, now, newClientType c, newClientLabel c, newClientClass c, newClientCookie c, mdl, C.Set . Set.toList <$> cps)
+          prm = (uid, newId, now, newClientType c, newClientLabel c, newClientClass c, newClientCookie c, mdl, C.Set . Set.toList . fromClientCapabilityList <$> caps)
       retry x5 $ write insertClient (params LocalQuorum prm)
       addMLSPublicKeys uid newId (Map.assocs (newClientMLSPublicKeys c))
       pure $!
@@ -182,7 +182,7 @@ addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients cps = do
             clientLabel = newClientLabel c,
             clientCookie = newClientCookie c,
             clientModel = mdl,
-            clientCapabilities = ClientCapabilityList (fromMaybe mempty cps),
+            clientCapabilities = fromMaybe mempty caps,
             clientMLSPublicKeys = mempty,
             clientLastActive = Nothing
           }
@@ -258,8 +258,8 @@ rmClient u c = do
 updateClientLabel :: (MonadClient m) => UserId -> ClientId -> Maybe Text -> m ()
 updateClientLabel u c l = retry x5 $ write updateClientLabelQuery (params LocalQuorum (l, u, c))
 
-updateClientCapabilities :: (MonadClient m) => UserId -> ClientId -> Maybe (Imports.Set ClientCapability) -> m ()
-updateClientCapabilities u c fs = retry x5 $ write updateClientCapabilitiesQuery (params LocalQuorum (C.Set . Set.toList <$> fs, u, c))
+updateClientCapabilities :: (MonadClient m) => UserId -> ClientId -> Maybe ClientCapabilityList -> m ()
+updateClientCapabilities u c fs = retry x5 $ write updateClientCapabilitiesQuery (params LocalQuorum (C.Set . Set.toList . fromClientCapabilityList <$> fs, u, c))
 
 -- | If the update fails, which can happen if device does not exist, then ignore the error silently.
 updateClientLastActive :: (MonadClient m) => UserId -> ClientId -> UTCTime -> m ()
