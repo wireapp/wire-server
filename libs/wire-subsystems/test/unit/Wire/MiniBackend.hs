@@ -48,6 +48,7 @@ import Servant.Client.Core
 import System.Logger qualified as Log
 import Test.QuickCheck
 import Type.Reflection
+import Wire.API.Allowlists (AllowlistEmailDomains)
 import Wire.API.Federation.API
 import Wire.API.Federation.Component
 import Wire.API.Federation.Error
@@ -57,14 +58,18 @@ import Wire.API.User as User hiding (DeleteUser)
 import Wire.API.User.Activation (ActivationCode)
 import Wire.API.User.Password
 import Wire.ActivationCodeStore
+import Wire.AuthenticationSubsystem
+import Wire.AuthenticationSubsystem.Interpreter
 import Wire.BlockListStore
 import Wire.DeleteQueue
 import Wire.DeleteQueue.InMemory
+import Wire.EmailSubsystem (EmailSubsystem)
 import Wire.Events
 import Wire.FederationAPIAccess
 import Wire.FederationAPIAccess.Interpreter as FI
 import Wire.FederationConfigStore
 import Wire.GalleyAPIAccess
+import Wire.HashPassword (HashPassword)
 import Wire.IndexedUserStore
 import Wire.InternalEvent hiding (DeleteUser)
 import Wire.InvitationCodeStore
@@ -72,11 +77,13 @@ import Wire.MockInterpreters
 import Wire.MockInterpreters.ActivationCodeStore (inMemoryActivationCodeStoreInterpreter)
 import Wire.MockInterpreters.InvitationCodeStore (inMemoryInvitationCodeStoreInterpreter)
 import Wire.PasswordResetCodeStore
+import Wire.PasswordStore
 import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.Sequential
 import Wire.Sem.Metrics
 import Wire.Sem.Metrics.IO (ignoreMetrics)
 import Wire.Sem.Now hiding (get)
+import Wire.SessionStore (SessionStore)
 import Wire.StoredUser
 import Wire.UserKeyStore
 import Wire.UserStore
@@ -121,13 +128,17 @@ instance Arbitrary NotPendingStoredUser where
 
 type AllErrors =
   [ Error UserSubsystemError,
-    Error FederationError
+    Error FederationError,
+    Error AuthenticationSubsystemError
   ]
 
-type MiniBackendEffects =
-  [ UserSubsystem,
+type MiniBackendEffects = UserSubsystem ': MiniBackendLowerEffects
+
+type MiniBackendLowerEffects =
+  [ EmailSubsystem,
     GalleyAPIAccess,
     InvitationCodeStore,
+    PasswordStore,
     State (Map (TeamId, InvitationId) StoredInvitation),
     State (Map InvitationCode StoredInvitationInfo),
     ActivationCodeStore,
@@ -140,6 +151,9 @@ type MiniBackendEffects =
     State (Map EmailKey UserId),
     IndexedUserStore,
     FederationConfigStore,
+    PasswordResetCodeStore,
+    SessionStore,
+    HashPassword,
     DeleteQueue,
     Events,
     State [InternalNotification],
@@ -148,6 +162,7 @@ type MiniBackendEffects =
     Now,
     Input UserSubsystemConfig,
     Input (Local ()),
+    Input (Maybe AllowlistEmailDomains),
     Metrics,
     FederationAPIAccess MiniFederationMonad,
     TinyLog,
@@ -371,6 +386,7 @@ interpretNoFederationStackState ::
 interpretNoFederationStackState = interpretMaybeFederationStackState emptyFederationAPIAcesss
 
 interpretMaybeFederationStackState ::
+  forall r a.
   (Members AllErrors r) =>
   InterpreterFor (FederationAPIAccess MiniFederationMonad) (Logger (Log.Msg -> Log.Msg) : Concurrency 'Unsafe : r) ->
   MiniBackend ->
@@ -380,33 +396,44 @@ interpretMaybeFederationStackState ::
   Sem (MiniBackendEffects `Append` r) a ->
   Sem r (MiniBackend, a)
 interpretMaybeFederationStackState maybeFederationAPIAccess localBackend teamMember galleyConfigs cfg =
-  sequentiallyPerformConcurrency
-    . noOpLogger
-    . maybeFederationAPIAccess
-    . ignoreMetrics
-    . runInputConst (toLocalUnsafe (Domain "localdomain") ())
-    . runInputConst cfg
-    . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
-    . evalState []
-    . runState localBackend
-    . evalState []
-    . miniEventInterpreter
-    . inMemoryDeleteQueueInterpreter
-    . runFederationConfigStoreInMemory
-    . inMemoryIndexedUserStoreInterpreter
-    . liftUserKeyStoreState
-    . inMemoryUserKeyStoreInterpreter
-    . liftUserStoreState
-    . inMemoryUserStoreInterpreter
-    . liftBlockListStoreState
-    . inMemoryBlockListStoreInterpreter
-    . liftActivationCodeStoreState
-    . inMemoryActivationCodeStoreInterpreter
-    . liftInvitationInfoStoreState
-    . liftInvitationCodeStoreState
-    . inMemoryInvitationCodeStoreInterpreter
-    . miniGalleyAPIAccess teamMember galleyConfigs
-    . runUserSubsystem cfg
+  let authSubsystemInterpreter :: InterpreterFor AuthenticationSubsystem (MiniBackendLowerEffects `Append` r)
+      authSubsystemInterpreter = interpretAuthenticationSubsystem userSubsystemInterpreter
+
+      userSubsystemInterpreter :: InterpreterFor UserSubsystem (MiniBackendLowerEffects `Append` r)
+      userSubsystemInterpreter = runUserSubsystem cfg authSubsystemInterpreter
+   in sequentiallyPerformConcurrency
+        . noOpLogger
+        . maybeFederationAPIAccess
+        . ignoreMetrics
+        . runInputConst Nothing
+        . runInputConst (toLocalUnsafe (Domain "localdomain") ())
+        . runInputConst cfg
+        . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
+        . evalState []
+        . runState localBackend
+        . evalState []
+        . miniEventInterpreter
+        . inMemoryDeleteQueueInterpreter
+        . staticHashPasswordInterpreter
+        . runInMemorySessionStore
+        . runInMemoryPasswordResetCodeStore
+        . runFederationConfigStoreInMemory
+        . inMemoryIndexedUserStoreInterpreter
+        . liftUserKeyStoreState
+        . inMemoryUserKeyStoreInterpreter
+        . liftUserStoreState
+        . inMemoryUserStoreInterpreter
+        . liftBlockListStoreState
+        . inMemoryBlockListStoreInterpreter
+        . liftActivationCodeStoreState
+        . inMemoryActivationCodeStoreInterpreter
+        . liftInvitationInfoStoreState
+        . liftInvitationCodeStoreState
+        . runInMemoryPasswordStoreInterpreter
+        . inMemoryInvitationCodeStoreInterpreter
+        . miniGalleyAPIAccess teamMember galleyConfigs
+        . noopEmailSubsystemInterpreter
+        . userSubsystemInterpreter
 
 liftInvitationInfoStoreState :: (Member (State MiniBackend) r) => Sem (State (Map InvitationCode StoredInvitationInfo) : r) a -> Sem r a
 liftInvitationInfoStoreState = interpret \case
@@ -439,7 +466,7 @@ liftUserStoreState = interpret $ \case
   Put newUsers -> modify $ \b -> b {users = newUsers}
 
 runAllErrorsUnsafe :: forall a. (HasCallStack) => Sem AllErrors a -> a
-runAllErrorsUnsafe = run . runErrorUnsafe . runErrorUnsafe
+runAllErrorsUnsafe = run . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe
 
 emptyFederationAPIAcesss :: InterpreterFor (FederationAPIAccess MiniFederationMonad) r
 emptyFederationAPIAcesss = interpret $ \case

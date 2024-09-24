@@ -28,6 +28,7 @@ import Polysemy.Conc
 import Polysemy.Embed (runEmbedded)
 import Polysemy.Error (Error, errorToIOFinal, mapError, runError)
 import Polysemy.Input (Input, runInputConst, runInputSem)
+import Polysemy.Internal.Kind
 import Polysemy.TinyLog (TinyLog)
 import Wire.API.Allowlists (AllowlistEmailDomains)
 import Wire.API.Federation.Client qualified
@@ -98,8 +99,13 @@ import Wire.VerificationCodeSubsystem.Interpreter
 
 type BrigCanonicalEffects =
   '[ AuthenticationSubsystem,
-     UserSubsystem,
-     EmailSubsystem,
+     UserSubsystem
+   ]
+    `Append` BrigLowerLevelEffects
+
+-- | These effects have interpreters which don't depend on each other
+type BrigLowerLevelEffects =
+  '[ EmailSubsystem,
      VerificationCodeSubsystem,
      PropertySubsystem,
      DeleteQueue,
@@ -163,7 +169,8 @@ runBrigToIO e (AppT ma) = do
         UserSubsystemConfig
           { emailVisibilityConfig = e.settings.emailVisibility,
             defaultLocale = e.settings ^. to Opt.setDefaultUserLocale,
-            searchSameTeamOnly = fromMaybe False e.settings.searchSameTeamOnly
+            searchSameTeamOnly = fromMaybe False e.settings.searchSameTeamOnly,
+            maxTeamSize = e.settings.maxTeamSize
           }
       federationApiAccessConfig =
         FederationAPIAccessConfig
@@ -193,6 +200,13 @@ runBrigToIO e (AppT ma) = do
                     indexName = additionalIndexName
                   }
           }
+
+      -- These interpreters depend on each other, we use let recursion to solve that.
+      userSubsystemInterpreter :: (Members BrigLowerLevelEffects r) => InterpreterFor UserSubsystem r
+      userSubsystemInterpreter = runUserSubsystem userSubsystemConfig authSubsystemInterpreter
+
+      authSubsystemInterpreter :: (Members BrigLowerLevelEffects r) => InterpreterFor AuthenticationSubsystem r
+      authSubsystemInterpreter = interpretAuthenticationSubsystem userSubsystemInterpreter
   ( either throwM pure
       <=< ( runFinal
               . unsafelyPerformConcurrency
@@ -250,8 +264,8 @@ runBrigToIO e (AppT ma) = do
               . interpretPropertySubsystem propertySubsystemConfig
               . interpretVerificationCodeSubsystem
               . emailSubsystemInterpreter e.userTemplates e.templateBranding
-              . runUserSubsystem userSubsystemConfig
-              . interpretAuthenticationSubsystem
+              . userSubsystemInterpreter
+              . authSubsystemInterpreter
           )
     )
     $ runReaderT ma e

@@ -45,6 +45,7 @@ import Wire.API.User as User
 import Wire.API.User.Search
 import Wire.API.UserEvent
 import Wire.Arbitrary
+import Wire.AuthenticationSubsystem
 import Wire.BlockListStore as BlockList
 import Wire.DeleteQueue
 import Wire.Events
@@ -83,32 +84,6 @@ data UserSubsystemConfig = UserSubsystemConfig
   deriving (Arbitrary) via (GenericUniform UserSubsystemConfig)
 
 runUserSubsystem ::
-  ( Member GalleyAPIAccess r,
-    Member UserStore r,
-    Member UserKeyStore r,
-    Member BlockListStore r,
-    Member (Concurrency 'Unsafe) r, -- FUTUREWORK: subsystems should implement concurrency inside interpreters, not depend on this dangerous effect.
-    Member (Error FederationError) r,
-    Member (Error UserSubsystemError) r,
-    Member (FederationAPIAccess fedM) r,
-    Member DeleteQueue r,
-    Member Events r,
-    Member Now r,
-    RunClient (fedM 'Brig),
-    FederationMonad fedM,
-    Typeable fedM,
-    Member IndexedUserStore r,
-    Member FederationConfigStore r,
-    Member Metrics r,
-    Member (TinyLog) r,
-    Member InvitationCodeStore r,
-    Member PasswordStore r
-  ) =>
-  UserSubsystemConfig ->
-  InterpreterFor UserSubsystem r
-runUserSubsystem cfg = runInputConst cfg . interpretUserSubsystem . raiseUnder
-
-interpretUserSubsystem ::
   ( Member UserStore r,
     Member UserKeyStore r,
     Member GalleyAPIAccess r,
@@ -117,7 +92,6 @@ interpretUserSubsystem ::
     Member (Error FederationError) r,
     Member (Error UserSubsystemError) r,
     Member (FederationAPIAccess fedM) r,
-    Member (Input UserSubsystemConfig) r,
     Member DeleteQueue r,
     Member Events r,
     Member Now r,
@@ -128,35 +102,77 @@ interpretUserSubsystem ::
     Member FederationConfigStore r,
     Member Metrics r,
     Member InvitationCodeStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member PasswordStore r
   ) =>
+  UserSubsystemConfig ->
+  InterpreterFor AuthenticationSubsystem r ->
   InterpreterFor UserSubsystem r
-interpretUserSubsystem = interpret \case
-  GetUserProfiles self others -> getUserProfilesImpl self others
-  GetLocalUserProfiles others -> getLocalUserProfilesImpl others
-  GetExtendedAccountsBy getBy -> getExtendedAccountsByImpl getBy
-  GetExtendedAccountsByEmailNoFilter emails -> getExtendedAccountsByEmailNoFilterImpl emails
-  GetAccountNoFilter luid -> getAccountNoFilterImpl luid
-  GetSelfProfile self -> getSelfProfileImpl self
-  GetUserProfilesWithErrors self others -> getUserProfilesWithErrorsImpl self others
-  UpdateUserProfile self mconn mb update -> updateUserProfileImpl self mconn mb update
-  CheckHandle uhandle -> checkHandleImpl uhandle
-  CheckHandles hdls cnt -> checkHandlesImpl hdls cnt
-  UpdateHandle uid mconn mb uhandle -> updateHandleImpl uid mconn mb uhandle
-  LookupLocaleWithDefault luid -> lookupLocaleOrDefaultImpl luid
-  IsBlocked email -> isBlockedImpl email
-  BlockListDelete email -> blockListDeleteImpl email
-  BlockListInsert email -> blockListInsertImpl email
-  UpdateTeamSearchVisibilityInbound status ->
-    updateTeamSearchVisibilityInboundImpl status
-  SearchUsers luid query mDomain mMaxResults ->
-    searchUsersImpl luid query mDomain mMaxResults
-  BrowseTeam uid browseTeamFilters mMaxResults mPagingState ->
-    browseTeamImpl uid browseTeamFilters mMaxResults mPagingState
-  InternalUpdateSearchIndex uid ->
-    syncUserIndex uid
-  AcceptTeamInvitation luid pwd code -> acceptTeamInvitationImpl luid pwd code
-  InternalFindTeamInvitation mEmailKey code -> internalFindTeamInvitationImpl mEmailKey code
+runUserSubsystem cfg authInterpreter =
+  interpret $
+    \case
+      GetUserProfiles self others ->
+        runInputConst cfg $
+          getUserProfilesImpl self others
+      GetLocalUserProfiles others ->
+        runInputConst cfg $
+          getLocalUserProfilesImpl others
+      GetExtendedAccountsBy getBy ->
+        runInputConst cfg $
+          getExtendedAccountsByImpl getBy
+      GetExtendedAccountsByEmailNoFilter emails ->
+        runInputConst cfg $
+          getExtendedAccountsByEmailNoFilterImpl emails
+      GetAccountNoFilter luid ->
+        runInputConst cfg $
+          getAccountNoFilterImpl luid
+      GetSelfProfile self ->
+        runInputConst cfg $
+          getSelfProfileImpl self
+      GetUserProfilesWithErrors self others ->
+        runInputConst cfg $
+          getUserProfilesWithErrorsImpl self others
+      UpdateUserProfile self mconn mb update ->
+        runInputConst cfg $
+          updateUserProfileImpl self mconn mb update
+      CheckHandle uhandle ->
+        runInputConst cfg $
+          checkHandleImpl uhandle
+      CheckHandles hdls cnt ->
+        runInputConst cfg $
+          checkHandlesImpl hdls cnt
+      UpdateHandle uid mconn mb uhandle ->
+        runInputConst cfg $
+          updateHandleImpl uid mconn mb uhandle
+      LookupLocaleWithDefault luid ->
+        runInputConst cfg $
+          lookupLocaleOrDefaultImpl luid
+      IsBlocked email ->
+        runInputConst cfg $
+          isBlockedImpl email
+      BlockListDelete email ->
+        runInputConst cfg $
+          blockListDeleteImpl email
+      BlockListInsert email ->
+        runInputConst cfg $
+          blockListInsertImpl email
+      UpdateTeamSearchVisibilityInbound status ->
+        runInputConst cfg $
+          updateTeamSearchVisibilityInboundImpl status
+      SearchUsers luid query mDomain mMaxResults ->
+        runInputConst cfg $
+          searchUsersImpl luid query mDomain mMaxResults
+      BrowseTeam uid browseTeamFilters mMaxResults mPagingState ->
+        browseTeamImpl uid browseTeamFilters mMaxResults mPagingState
+      InternalUpdateSearchIndex uid ->
+        syncUserIndex uid
+      AcceptTeamInvitation luid pwd code ->
+        authInterpreter
+          . runInputConst cfg
+          $ acceptTeamInvitationImpl luid pwd code
+      InternalFindTeamInvitation mEmailKey code ->
+        runInputConst cfg $
+          internalFindTeamInvitationImpl mEmailKey code
 
 internalFindTeamInvitationImpl ::
   ( Member InvitationCodeStore r,
@@ -906,7 +922,8 @@ acceptTeamInvitationImpl ::
     Member IndexedUserStore r,
     Member Metrics r,
     Member Events r,
-    Member PasswordStore r
+    Member PasswordStore r,
+    Member AuthenticationSubsystem r
   ) =>
   Local UserId ->
   PlainTextPassword6 ->
@@ -918,6 +935,9 @@ acceptTeamInvitationImpl luid pw code = do
     let mek = mkEmailKey <$> (userEmail . selfUser =<< mSelfProfile)
         mTid = mSelfProfile >>= userTeam . selfUser
     pure (mek, mTid)
+  -- TODO: This exists to make the warnings go away, this is not supposed to be
+  -- in final code. We have to implement checkPassword in terms of Auth subsystem.
+  forM_ mek $ createPasswordResetCode
   checkPassword
   (inv :: StoredInvitation, tid) <- (error "todo findTeamInvitation") mek code
   let minvmeta = (,inv.createdAt) <$> inv.createdBy

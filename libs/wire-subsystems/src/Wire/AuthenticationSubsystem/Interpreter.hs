@@ -62,15 +62,17 @@ interpretAuthenticationSubsystem ::
     Member SessionStore r,
     Member (Input (Local ())) r,
     Member (Input (Maybe AllowlistEmailDomains)) r,
-    Member UserSubsystem r,
     Member PasswordStore r,
     Member EmailSubsystem r
   ) =>
+  InterpreterFor UserSubsystem r ->
   InterpreterFor AuthenticationSubsystem r
-interpretAuthenticationSubsystem = interpret $ \case
-  CreatePasswordResetCode userKey -> createPasswordResetCodeImpl userKey
-  ResetPassword ident resetCode newPassword -> resetPasswordImpl ident resetCode newPassword
-  InternalLookupPasswordResetCode userKey -> internalLookupPasswordResetCodeImpl userKey
+interpretAuthenticationSubsystem userSubsystemInterpreter =
+  interpret $
+    userSubsystemInterpreter . \case
+      CreatePasswordResetCode userKey -> createPasswordResetCodeImpl userKey
+      ResetPassword ident resetCode newPassword -> resetPasswordImpl ident resetCode newPassword
+      InternalLookupPasswordResetCode userKey -> internalLookupPasswordResetCodeImpl userKey
 
 maxAttempts :: Int32
 maxAttempts = 3

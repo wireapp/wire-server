@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
+
 module Wire.MockInterpreters.UserStore where
 
 import Cassandra.Util
@@ -65,6 +67,10 @@ inMemoryUserStoreInterpreter = interpret $ \case
   LookupStatus uid -> lookupStatusImpl uid
   IsActivated uid -> isActivatedImpl uid
   LookupLocale uid -> lookupLocaleImpl uid
+  UpdateUserTeam uid tid ->
+    modify $
+      map
+        (\u -> if u.id == uid then u {teamId = Just tid} :: StoredUser else u)
 
 storedUserToIndexUser :: StoredUser -> IndexUser
 storedUserToIndexUser storedUser =

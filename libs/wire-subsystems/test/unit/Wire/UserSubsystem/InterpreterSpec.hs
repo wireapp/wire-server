@@ -28,6 +28,7 @@ import Wire.API.Team.Member
 import Wire.API.Team.Permission
 import Wire.API.User hiding (DeleteUser)
 import Wire.API.UserEvent
+import Wire.AuthenticationSubsystem.Error
 import Wire.InvitationCodeStore (StoredInvitation)
 import Wire.InvitationCodeStore qualified as InvitationStore
 import Wire.MiniBackend
@@ -89,6 +90,7 @@ spec = describe "UserSubsystem.Interpreter" do
             result =
               run
                 . runErrorUnsafe @UserSubsystemError
+                . runErrorUnsafe @AuthenticationSubsystemError
                 . runError @FederationError
                 . interpretFederationStack localBackend online Nothing config
                 $ getUserProfiles
@@ -580,6 +582,7 @@ spec = describe "UserSubsystem.Interpreter" do
               profileErr :: Either UserSubsystemError (Maybe UserProfile) =
                 run
                   . runErrorUnsafe
+                  . runErrorUnsafe @AuthenticationSubsystemError
                   . runError
                   $ interpretNoFederationStack localBackend Nothing def config do
                     updateUserProfile lusr Nothing UpdateOriginWireClient update {name = Nothing, locale = Nothing}
@@ -594,6 +597,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 profileErr :: Either UserSubsystemError (Maybe UserProfile) =
                   run
                     . runErrorUnsafe
+                    . runErrorUnsafe @AuthenticationSubsystemError
                     . runError
                     $ interpretNoFederationStack localBackend Nothing def config do
                       updateUserProfile lusr Nothing UpdateOriginWireClient def {name = Just name}
@@ -608,6 +612,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 profileErr :: Either UserSubsystemError (Maybe UserProfile) =
                   run
                     . runErrorUnsafe
+                    . runErrorUnsafe @AuthenticationSubsystemError
                     . runError
                     $ interpretNoFederationStack localBackend Nothing def config do
                       updateUserProfile lusr Nothing UpdateOriginWireClient def {locale = Just locale}
@@ -623,6 +628,7 @@ spec = describe "UserSubsystem.Interpreter" do
               profileErr :: Either UserSubsystemError (Maybe UserProfile) =
                 run
                   . runErrorUnsafe
+                  . runErrorUnsafe @AuthenticationSubsystemError
                   . runError
                   $ interpretNoFederationStack
                     localBackend
@@ -685,6 +691,7 @@ spec = describe "UserSubsystem.Interpreter" do
             let res :: Either UserSubsystemError ()
                 res = run
                   . runErrorUnsafe
+                  . runErrorUnsafe @AuthenticationSubsystemError
                   . runError
                   $ interpretNoFederationStack localBackend Nothing def config do
                     updateHandle (toLocalUnsafe domain alice.id) Nothing UpdateOriginWireClient (fromHandle newHandle)
@@ -698,6 +705,7 @@ spec = describe "UserSubsystem.Interpreter" do
           not (isBlacklistedHandle (fromJust (parseHandle newHandle))) ==>
             let res :: Either UserSubsystemError () = run
                   . runErrorUnsafe
+                  . runErrorUnsafe @AuthenticationSubsystemError
                   . runError
                   $ interpretNoFederationStack localBackend Nothing def config do
                     updateHandle (toLocalUnsafe domain alice.id) Nothing UpdateOriginScim newHandle
@@ -720,6 +728,7 @@ spec = describe "UserSubsystem.Interpreter" do
         (isJust storedUser.identity && not (isBlacklistedHandle newHandle)) ==>
           let updateResult :: Either UserSubsystemError () = run
                 . runErrorUnsafe
+                . runErrorUnsafe @AuthenticationSubsystemError
                 . runError
                 $ interpretNoFederationStack (def {users = [storedUser]}) Nothing def config do
                   let luid = toLocalUnsafe dom storedUser.id
@@ -733,6 +742,7 @@ spec = describe "UserSubsystem.Interpreter" do
         isJust storedUser.identity ==>
           let updateResult :: Either UserSubsystemError () = run
                 . runErrorUnsafe
+                . runErrorUnsafe @AuthenticationSubsystemError
                 . runError
                 $ interpretNoFederationStack localBackend Nothing def config do
                   let luid = toLocalUnsafe dom storedUser.id
@@ -773,9 +783,7 @@ spec = describe "UserSubsystem.Interpreter" do
                   userKeys = Map.singleton userKey storedUser.id
                 }
             retrievedUser =
-              run
-                . runErrorUnsafe
-                . runErrorUnsafe @UserSubsystemError
+              runAllErrorsUnsafe
                 . interpretNoFederationStack localBackend Nothing def config
                 $ getLocalUserAccountByUserKey (toLocalUnsafe localDomain userKey)
          in retrievedUser === Just (mkAccountFromStored localDomain config.defaultLocale storedUser)
@@ -789,9 +797,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 }
             storedUser = storedUserNoEmail {email = Just email}
             retrievedUser =
-              run
-                . runErrorUnsafe
-                . runErrorUnsafe @UserSubsystemError
+              runAllErrorsUnsafe
                 . interpretNoFederationStack localBackend Nothing def config
                 $ getLocalUserAccountByUserKey (toLocalUnsafe localDomain (mkEmailKey email))
          in retrievedUser === Nothing
@@ -804,9 +810,7 @@ spec = describe "UserSubsystem.Interpreter" do
                   userKeys = Map.singleton userKey nonExistentUserId
                 }
             retrievedUser =
-              run
-                . runErrorUnsafe
-                . runErrorUnsafe @UserSubsystemError
+              runAllErrorsUnsafe
                 . interpretNoFederationStack localBackend Nothing def config
                 $ getLocalUserAccountByUserKey (toLocalUnsafe localDomain userKey)
          in retrievedUser === Nothing
