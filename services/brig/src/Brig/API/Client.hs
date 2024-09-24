@@ -195,12 +195,13 @@ addClientWithReAuthPolicy policy luid@(tUnqualified -> u) con new = do
   usr <- (lift . liftSem $ User.getAccountNoFilter luid) >>= maybe (throwE (ClientUserNotFound u)) (pure . (.accountUser))
   verifyCode (newClientVerificationCode new) luid
   maxPermClients <- fromMaybe Opt.defUserMaxPermClients <$> asks (.settings.userMaxPermClients)
-  let caps :: Maybe (Set ClientCapability)
+  let caps :: Maybe ClientCapabilityList
       caps = updlhdev $ newClientCapabilities new
         where
+          updlhdev :: Maybe ClientCapabilityList -> Maybe ClientCapabilityList
           updlhdev =
             if newClientType new == LegalHoldClientType
-              then Just . maybe (Set.singleton lhcaps) (Set.insert lhcaps)
+              then Just . ClientCapabilityList . maybe (Set.singleton lhcaps) (Set.insert lhcaps . fromClientCapabilityList)
               else id
           lhcaps = ClientSupportsLegalholdImplicitConsent
   (clt0, old, count) <-
@@ -238,8 +239,7 @@ updateClient u c r = do
   client <- lift (Data.lookupClient u c) >>= maybe (throwE ClientNotFound) pure
   for_ (updateClientLabel r) $ lift . Data.updateClientLabel u c . Just
   for_ (updateClientCapabilities r) $ \caps' -> do
-    let ClientCapabilityList caps = clientCapabilities client
-    if caps `Set.isSubsetOf` caps'
+    if client.clientCapabilities.fromClientCapabilityList `Set.isSubsetOf` caps'.fromClientCapabilityList
       then lift . Data.updateClientCapabilities u c . Just $ caps'
       else throwE ClientCapabilitiesCannotBeRemoved
   let lk = maybeToList (unpackLastPrekey <$> updateClientLastKey r)
