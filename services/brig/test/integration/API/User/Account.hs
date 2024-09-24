@@ -1292,7 +1292,7 @@ testRestrictedUserCreation opts brig = do
   -- We create a team before to help in other tests
   (teamOwner, createdTeam) <- createUserWithTeam brig
 
-  let opts' = opts {Opt.settings = opts.settings  {Opt.restrictUserCreation = Just True}}
+  let opts' = opts {Opt.settings = opts.settings {Opt.restrictUserCreation = Just True}}
   withSettingsOverrides opts' $ do
     e <- randomEmail
 
