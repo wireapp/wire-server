@@ -93,6 +93,12 @@ config:
         defaults:
           lockStatus: unlocked
           status: enabled
+      enforceFileDownloadLocation:
+        defaults:
+          lockStatus: locked
+          status: disabled
+          config:
+            enforcedTimeoutSeconds: ""
       legalhold: disabled-by-default
       mls:
         defaults:
