@@ -37,7 +37,7 @@ testWhitelistUpdatePermissions = do
       (resp.jsonBody %. "label") `shouldMatch` Just "insufficient-permissions"
 
   do
-    -- Check that a admin can add the service to the whitelist
+    -- Check that an admin can add the service to the whitelist
     serviceId <- service %. "id" & asString
     np <-
       make
@@ -81,7 +81,7 @@ testWhitelistUpdatePermissions = do
       (resp.jsonBody %. "label") `shouldMatch` Just "mls-services-not-allowed"
 
   do
-    -- Check that a admin can't add the service to the whitelist
+    -- Check that an admin can't add the service to the whitelist
     serviceId <- service %. "id" & asString
     np <-
       make
