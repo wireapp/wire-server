@@ -18,31 +18,10 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.EmailSubsystem.Template
-  ( Localised (..),
-    TemplateBranding,
-    forLocale,
-
-    -- * templates
-    UserTemplates (..),
-    ActivationSmsTemplate (..),
-    VerificationEmailTemplate (..),
-    ActivationEmailTemplate (..),
-    TeamActivationEmailTemplate (..),
-    ActivationCallTemplate (..),
-    PasswordResetSmsTemplate (..),
-    PasswordResetEmailTemplate (..),
-    LoginSmsTemplate (..),
-    LoginCallTemplate (..),
-    DeletionSmsTemplate (..),
-    DeletionEmailTemplate (..),
-    UpgradePersonalToTeamEmailTemplate (..),
-    NewClientEmailTemplate (..),
-    SecondFactorVerificationEmailTemplate (..),
+  ( module Wire.EmailSubsystem.Template,
 
     -- * Re-exports
     Template,
-    renderTextWithBranding,
-    renderHtmlWithBranding,
   )
 where
 
@@ -211,4 +190,38 @@ data SecondFactorVerificationEmailTemplate = SecondFactorVerificationEmailTempla
     sndFactorVerificationEmailBodyHtml :: Template,
     sndFactorVerificationEmailSender :: EmailAddress,
     sndFactorVerificationEmailSenderName :: Text
+  }
+
+data InvitationEmailTemplate = InvitationEmailTemplate
+  { invitationEmailUrl :: !Template,
+    invitationEmailSubject :: !Template,
+    invitationEmailBodyText :: !Template,
+    invitationEmailBodyHtml :: !Template,
+    invitationEmailSender :: !EmailAddress,
+    invitationEmailSenderName :: !Text
+  }
+
+data CreatorWelcomeEmailTemplate = CreatorWelcomeEmailTemplate
+  { creatorWelcomeEmailUrl :: !Text,
+    creatorWelcomeEmailSubject :: !Template,
+    creatorWelcomeEmailBodyText :: !Template,
+    creatorWelcomeEmailBodyHtml :: !Template,
+    creatorWelcomeEmailSender :: !EmailAddress,
+    creatorWelcomeEmailSenderName :: !Text
+  }
+
+data MemberWelcomeEmailTemplate = MemberWelcomeEmailTemplate
+  { memberWelcomeEmailUrl :: !Text,
+    memberWelcomeEmailSubject :: !Template,
+    memberWelcomeEmailBodyText :: !Template,
+    memberWelcomeEmailBodyHtml :: !Template,
+    memberWelcomeEmailSender :: !EmailAddress,
+    memberWelcomeEmailSenderName :: !Text
+  }
+
+data TeamTemplates = TeamTemplates
+  { invitationEmail :: !InvitationEmailTemplate,
+    existingUserInvitationEmail :: !InvitationEmailTemplate,
+    creatorWelcomeEmail :: !CreatorWelcomeEmailTemplate,
+    memberWelcomeEmail :: !MemberWelcomeEmailTemplate
   }

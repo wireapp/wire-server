@@ -3,6 +3,7 @@
 module Wire.EmailSubsystem where
 
 import Data.Code qualified as Code
+import Data.Id
 import Imports
 import Polysemy
 import Wire.API.Locale
@@ -22,5 +23,7 @@ data EmailSubsystem m a where
   SendTeamActivationMail :: EmailAddress -> Name -> ActivationKey -> ActivationCode -> Maybe Locale -> Text -> EmailSubsystem m ()
   SendTeamDeletionVerificationMail :: EmailAddress -> Code.Value -> Maybe Locale -> EmailSubsystem m ()
   SendUpgradePersonalToTeamConfirmationEmail :: EmailAddress -> Name -> Text -> Locale -> EmailSubsystem m ()
+  SendTeamInvitationMail :: EmailAddress -> TeamId -> EmailAddress -> InvitationCode -> Maybe Locale -> EmailSubsystem m Text
+  SendTeamInvitationMailPersonalUser :: EmailAddress -> TeamId -> EmailAddress -> InvitationCode -> Maybe Locale -> EmailSubsystem m Text
 
 makeSem ''EmailSubsystem

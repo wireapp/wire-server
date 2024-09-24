@@ -119,6 +119,8 @@ library
     Wire.SessionStore
     Wire.SessionStore.Cassandra
     Wire.StoredUser
+    Wire.TeamInvitationSubsystem
+    Wire.TeamInvitationSubsystem.Interpreter
     Wire.UserKeyStore
     Wire.UserKeyStore.Cassandra
     Wire.UserSearch.Metrics
