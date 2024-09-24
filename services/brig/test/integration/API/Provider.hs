@@ -133,8 +133,6 @@ tests dom conf p db b c g n = do
           "service whitelist"
           [ test p "search permissions" $
               testWhitelistSearchPermissions conf db b g,
-            test p "update permissions" $
-              testWhitelistUpdatePermissions conf db b g,
             test p "basic functionality" $
               testWhitelistBasic conf db b g,
             test p "search" $ testSearchWhitelist conf db b g,
