@@ -930,16 +930,14 @@ acceptTeamInvitationImpl ::
   InvitationCode ->
   Sem r ()
 acceptTeamInvitationImpl luid pw code = do
-  (mek, mTid) <- do
-    mSelfProfile <- getSelfProfileImpl luid
-    let mek = mkEmailKey <$> (userEmail . selfUser =<< mSelfProfile)
-        mTid = mSelfProfile >>= userTeam . selfUser
-    pure (mek, mTid)
+  mSelfProfile <- getSelfProfileImpl luid
+  let mEmailKey = mkEmailKey <$> (userEmail . selfUser =<< mSelfProfile)
+      mTid = mSelfProfile >>= userTeam . selfUser
   -- TODO: This exists to make the warnings go away, this is not supposed to be
   -- in final code. We have to implement checkPassword in terms of Auth subsystem.
-  forM_ mek $ createPasswordResetCode
+  forM_ mEmailKey $ createPasswordResetCode
   checkPassword
-  (inv :: StoredInvitation, tid) <- (error "todo findTeamInvitation") mek code
+  (inv :: StoredInvitation, tid) <- (error "todo findTeamInvitation") mEmailKey code
   let minvmeta = (,inv.createdAt) <$> inv.createdBy
       uid = tUnqualified luid
   for_ mTid $ \userTid ->
