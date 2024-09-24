@@ -561,9 +561,9 @@ testMls = do
   _testLockStatusWithConfig
     "mls"
     Public.setTeamFeatureConfig
-    mlsDefaultConfig
-    (mlsConfig1 uid)
-    mlsConfig2
+    mlsDefault
+    (mls1 uid)
+    mls2
     mlsInvalidConfig
 
 testMlsInternal :: (HasCallStack) => App ()
@@ -573,29 +573,32 @@ testMlsInternal = do
   _testLockStatusWithConfig
     "mls"
     Internal.setTeamFeatureConfig
-    mlsDefaultConfig
-    (mlsConfig1 uid)
-    mlsConfig2
+    mlsDefault
+    (mls1 uid)
+    mls2
     mlsInvalidConfig
 
 mlsDefaultConfig :: Value
 mlsDefaultConfig =
   object
+    [ "protocolToggleUsers" .= ([] :: [String]),
+      "defaultProtocol" .= "proteus",
+      "supportedProtocols" .= ["proteus", "mls"],
+      "allowedCipherSuites" .= ([1] :: [Int]),
+      "defaultCipherSuite" .= A.Number 1
+    ]
+
+mlsDefault :: Value
+mlsDefault =
+  object
     [ "lockStatus" .= "unlocked",
       "status" .= "disabled",
       "ttl" .= "unlimited",
-      "config"
-        .= object
-          [ "protocolToggleUsers" .= ([] :: [String]),
-            "defaultProtocol" .= "proteus",
-            "supportedProtocols" .= ["proteus", "mls"],
-            "allowedCipherSuites" .= ([1] :: [Int]),
-            "defaultCipherSuite" .= A.Number 1
-          ]
+      "config" .= mlsDefaultConfig
     ]
 
-mlsConfig1 :: String -> Value
-mlsConfig1 uid =
+mls1 :: String -> Value
+mls1 uid =
   object
     [ "status" .= "enabled",
       "config"
@@ -608,8 +611,8 @@ mlsConfig1 uid =
           ]
     ]
 
-mlsConfig2 :: Value
-mlsConfig2 =
+mls2 :: Value
+mls2 =
   object
     [ "status" .= "enabled",
       "config"
@@ -675,12 +678,12 @@ testMlsMigration :: (HasCallStack) => App ()
 testMlsMigration = do
   -- first we have to enable mls
   (owner, tid, m : _) <- createTeam OwnDomain 2
-  assertSuccess =<< Public.setTeamFeatureConfig owner tid "mls" mlsEnableConfig
+  assertSuccess =<< Public.setTeamFeatureConfig owner tid "mls" mlsEnable
   _testLockStatusWithConfigWithTeam
     (owner, tid, m)
     "mlsMigration"
     Public.setTeamFeatureConfig
-    mlsMigrationDefaultConfig
+    mlsMigrationDefault
     mlsMigrationConfig1
     mlsMigrationConfig2
     mlsMigrationInvalidConfig
@@ -689,41 +692,61 @@ testMlsMigrationInternal :: (HasCallStack) => App ()
 testMlsMigrationInternal = do
   -- first we have to enable mls
   (owner, tid, m : _) <- createTeam OwnDomain 2
-  assertSuccess =<< Public.setTeamFeatureConfig owner tid "mls" mlsEnableConfig
+  assertSuccess =<< Public.setTeamFeatureConfig owner tid "mls" mlsEnable
   _testLockStatusWithConfigWithTeam
     (owner, tid, m)
     "mlsMigration"
     Internal.setTeamFeatureConfig
-    mlsMigrationDefaultConfig
+    mlsMigrationDefault
     mlsMigrationConfig1
     mlsMigrationConfig2
     mlsMigrationInvalidConfig
 
+testMlsMigrationDefaults :: (HasCallStack) => App ()
+testMlsMigrationDefaults = do
+  withModifiedBackend
+    def
+      { galleyCfg = setField "settings.featureFlags.mlsMigration.defaults.lockStatus" "unlocked"
+      }
+    $ \domain -> do
+      (owner, tid, _) <- createTeam domain 0
+      void
+        $ Internal.patchTeamFeature owner tid "mls" (object ["status" .= "enabled"])
+        >>= getJSON 200
+      feat <- Internal.getTeamFeature owner tid "mlsMigration" >>= getJSON 200
+      feat %. "config" `shouldMatch` mlsMigrationDefaultConfig
+
 mlsEnableConfig :: Value
 mlsEnableConfig =
   object
+    [ "protocolToggleUsers" .= ([] :: [String]),
+      "defaultProtocol" .= "mls",
+      "supportedProtocols" .= ["mls"],
+      "allowedCipherSuites" .= ([1] :: [Int]),
+      "defaultCipherSuite" .= A.Number 1
+    ]
+
+mlsEnable :: Value
+mlsEnable =
+  object
     [ "status" .= "enabled",
-      "config"
-        .= object
-          [ "protocolToggleUsers" .= ([] :: [String]),
-            "defaultProtocol" .= "mls",
-            "supportedProtocols" .= ["mls"],
-            "allowedCipherSuites" .= ([1] :: [Int]),
-            "defaultCipherSuite" .= A.Number 1
-          ]
+      "config" .= mlsEnableConfig
     ]
 
 mlsMigrationDefaultConfig :: Value
 mlsMigrationDefaultConfig =
   object
+    [ "startTime" .= "2029-05-16T10:11:12.123Z",
+      "finaliseRegardlessAfter" .= "2029-10-17T00:00:00Z"
+    ]
+
+mlsMigrationDefault :: Value
+mlsMigrationDefault =
+  object
     [ "lockStatus" .= "locked",
       "status" .= "enabled",
-      "ttl" .= "unlimited",
-      "config"
-        .= object
-          [ "startTime" .= "2029-05-16T10:11:12.123Z",
-            "finaliseRegardlessAfter" .= "2029-10-17T00:00:00Z"
-          ]
+      "config" .= mlsMigrationDefaultConfig,
+      "ttl" .= "unlimited"
     ]
 
 mlsMigrationConfig1 :: Value
