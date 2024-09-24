@@ -283,11 +283,26 @@ releases:
                   hash: "$2y$12$GRc68jkEX1m4uQpTVbwURu79xHxZ7vsbyEctOAADQwPjlhYS4LJVa"
                   reserved: true
                   description: "Wire User"
+                  backend_roles:
+                    - index_creator_role
+                    - admin
 
               roles_mapping.yml: |
                 _meta:
                   type: "rolesmapping"
                   config_version: 2
+
+                index_creator_role:
+                  backend_roles:
+                    - "wire-backend-role"
+                  users:
+                    - "elastic"
+
+                all_access:
+                  reserved: false
+                  backend_roles:
+                  - "admin"
+                  description: "Maps admin to all_access"
 
               allowlist.yml: |
                 _meta:
@@ -301,6 +316,19 @@ releases:
                 _meta:
                   type: "roles"
                   config_version: 2
+
+                wire-backend-role:
+                  reserved: true
+                  hidden: false
+                  cluster_permissions:
+                    - "indices:admin/template/get"
+                  index_permissions:
+                    - index_patterns:
+                        - '*'
+                      allowed_actions:
+                        - "indices:admin/create"
+                        - "indices:admin/get"
+                        - "indices:admin/template/get"
 
               nodes_dn.yml: |
                 _meta:
