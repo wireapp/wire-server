@@ -720,3 +720,9 @@ setTeamFeatureConfigVersioned versioned user team featureName payload = do
 -- | http://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/get_feature_configs
 getFeaturesForUser :: (HasCallStack, MakesValue user) => user -> App Response
 getFeaturesForUser user = baseRequest user Galley Versioned "feature-configs" >>= submit "GET"
+
+getTeamNotifications :: (HasCallStack, MakesValue user) => user -> Maybe String -> App Response
+getTeamNotifications user mSince =
+  baseRequest user Galley Versioned "teams/notifications" >>= \req ->
+    submit "GET"
+      $ addQueryParams [("since", since) | since <- maybeToList mSince] req
