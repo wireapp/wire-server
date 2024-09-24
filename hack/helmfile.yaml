@@ -221,6 +221,102 @@ releases:
                       ".opendistro-notebooks",
                       ".opendistro-asynchronous-search-response*",
                     ]
+
+          # TODO: Remove debug logs
+          log4j2.properties: |
+            status = error
+
+            appender.console.type = Console
+            appender.console.name = console
+            appender.console.layout.type = PatternLayout
+            appender.console.layout.pattern = [%d{ISO8601}][%-5p][%-25c{1.}] [%node_name]%marker %m%n
+
+            rootLogger.level = info
+            rootLogger.appenderRef.console.ref = console
+
+            logger.authc.name = com.amazon.dlic.auth.http
+            logger.authc.level = debug
+            logger.authz.name = com.amazon.opendistroforelasticsearch.security.auth
+            logger.authz.level = debug
+            logger.ssl.name = org.opensearch.security.ssl
+            logger.ssl.level = debug
+
+      - securityConfig:
+          enabled: true
+          path: "/usr/share/opensearch/config/opensearch-security"
+          config:
+            # There are multiple ways to define the configuration here:
+            # * If you define anything under data, the chart will automatically create
+            #   a secret and mount it. This is best option to choose if you want to override all the
+            #   existing yml files at once.
+            # * If you define securityConfigSecret, the chart will assume this secret is
+            #   created externally and mount it. This is best option to choose if your intention is to
+            #   only update a single yml file.
+            # * It is an error to define both data and securityConfigSecret.
+            dataComplete: "true"
+            data:
+              config.yml: |
+                _meta:
+                  type: "config"
+                  config_version: 2
+
+                config:
+                  dynamic:
+                    authc:
+                      basic_internal_auth_domain:
+                        description: "Authenticate using HTTP basic against the internal users database"
+                        http_enabled: true
+                        transport_enabled: true
+                        order: 1
+                        http_authenticator:
+                          type: basic
+                          challenge: true
+                        authentication_backend:
+                          type: internal
+
+              internal_users.yml: |
+                _meta:
+                  type: "internalusers"
+                  config_version: 2
+
+                elastic:
+                  hash: "$2y$12$GRc68jkEX1m4uQpTVbwURu79xHxZ7vsbyEctOAADQwPjlhYS4LJVa"
+                  reserved: true
+                  description: "Wire User"
+
+              roles_mapping.yml: |
+                _meta:
+                  type: "rolesmapping"
+                  config_version: 2
+
+              allowlist.yml: |
+                _meta:
+                  type: "allowlist"
+                  config_version: 2
+
+                config:
+                  enabled: false
+
+              roles.yml: |
+                _meta:
+                  type: "roles"
+                  config_version: 2
+
+              nodes_dn.yml: |
+                _meta:
+                  type: "nodesdn"
+                  config_version: 2
+
+              action_groups.yml: |
+                _meta:
+                  type: "actiongroups"
+                  config_version: 2
+
+              tenants.yml: |
+                _meta:
+                  type: "tenants"
+                  config_version: 2
+
       - extraEnvs:
         - name: OPENSEARCH_USERNAME
           value: elastic
