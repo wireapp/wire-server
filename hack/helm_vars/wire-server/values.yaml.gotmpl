@@ -28,7 +28,7 @@ elasticsearch-index:
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   elasticsearch:
     scheme: https
-    host: opensearch-ephemeral
+    host: opensearch-cluster-master
     index: directory_test
     tlsCaSecretRef:
       name: "opensearch-ephemeral-certificate"
@@ -67,7 +67,7 @@ brig:
     {{- end }}
     elasticsearch:
       scheme: https
-      host: opensearch-ephemeral
+      host: opensearch-cluster-master
       index: directory_test
       tlsCaSecretRef:
         name: "opensearch-ephemeral-certificate"

@@ -59,7 +59,7 @@ repositories:
     url: 'https://bedag.github.io/helm-charts/'
 
   - name: opensearch
-    url: 'https://opensearch-project.github.io/helm-charts'
+    url: 'https://opensearch-project.github.io/helm-charts/'
 
 releases:
   - name: 'fake-aws'
@@ -80,9 +80,9 @@ releases:
     values:
       - './helm_vars/certs/values.yaml.gotmpl'
 
-  - name: 'reddis-ephemeral'
+  - name: 'redis-ephemeral'
     namespace: '{{ .Values.namespace1 }}'
-    chart: '../.local/charts/reddis-ephemeral'
+    chart: '../.local/charts/redis-ephemeral'
     values:
       - redis-ephemeral:
           usePassword: true
@@ -106,9 +106,9 @@ releases:
     chart: 'opensearch/opensearch'
     version: "2.25.0"
     values:
-      singleNode: false
+      - singleNode: true
 
-      extraObjects:
+      - extraObjects:
         - apiVersion: cert-manager.io/v1
           kind: Certificate
           metadata:
@@ -125,23 +125,51 @@ releases:
 
             usages:
               - server auth
+              - client auth
             duration: 2160h     # 90d
             renewBefore: 360h   # 15d
             isCA: false
             secretName: opensearch-ephemeral-certificate
 
+            # TODO: Wrong algorithm
             privateKey:
-              algorithm: ECDSA
-              size: 384
-              encoding: PKCS1
+              algorithm: RSA
+              encoding: PKCS8
+              size: 2048
+#            privateKey:
+#              algorithm: ECDSA
+#              size: 384
+#              encoding: PKCS8
               rotationPolicy: Always
 
             dnsNames:
-            - opensearch
-            - opensearch.{{ .Values.namespace1 }}.svc.cluster.local
+            - opensearch-cluster-master
+            - opensearch-cluster-master.{{ .Values.namespace1 }}.svc.cluster.local
 
-      config:
-        opensearch.yml: |
+            commonName: opensearch-cluster-master
+
+#      - podSecurityPolicy:
+#        create: false
+#        name: ""
+#        spec:
+#          privileged: true
+#          fsGroup:
+#            rule: RunAsAny
+#          runAsUser:
+#            rule: RunAsAny
+#          seLinux:
+#            rule: RunAsAny
+#          supplementalGroups:
+#            rule: RunAsAny
+#          volumes:
+#            - secret
+#            - configMap
+#            - persistentVolumeClaim
+#            - emptyDir
+
+      - opensearchHome: /usr/share/opensearch
+      - config:
+          opensearch.yml: |
             cluster.name: opensearch-cluster
 
             # Bind to all interfaces because we don't know what IP address Docker will assign to us.
@@ -149,28 +177,30 @@ releases:
 
             # Setting network.host to a non-loopback address enables the annoying bootstrap checks. "Single-node" mode disables them again.
             # Implicitly done if ".singleNode" is set to "true".
-            # discovery.type: single-node
+            discovery.type: single-node
 
             # Start OpenSearch Security Demo Configuration
             # WARNING: revise all the lines below before you go into production
             plugins:
               security:
+                nodes_dn:
+                  - '/CN=opensearch-cluster-master.*/'
                 ssl:
                   transport:
-                    pemcert_filepath: tls.crt
-                    pemkey_filepath: tls.key
+                    pemcert_filepath: esnode.pem
+                    pemkey_filepath: esnode-key.pem
                     pemtrustedcas_filepath: root-ca.pem
                     enforce_hostname_verification: false
                   http:
                     enabled: true
-                    pemcert_filepath: tls.crt
-                    pemkey_filepath: tls.key
+                    pemcert_filepath: esnode.pem
+                    pemkey_filepath: esnode-key.pem
                     pemtrustedcas_filepath: root-ca.pem
                 allow_unsafe_democertificates: true
                 allow_default_init_securityindex: true
-                authcz:
-                  admin_dn:
-                    - CN=kirk,OU=client,O=client,L=test,C=de
+                # authcz:
+                #   admin_dn:
+                #     - CN=kirk,OU=client,O=client,L=test,C=de
                 audit.type: internal_opensearch
                 enable_snapshot_restore_privilege: true
                 check_snapshot_restore_write_privileges: true
@@ -191,19 +221,40 @@ releases:
                       ".opendistro-notebooks",
                       ".opendistro-asynchronous-search-response*",
                     ]
-      extraEnvs:
+      - extraEnvs:
         - name: OPENSEARCH_USERNAME
           value: elastic
         - name: OPENSEARCH_PASSWORD
           value: changeme
+        - name: OPENSEARCH_INITIAL_ADMIN_PASSWORD
+          value: "Ch4ng3m3Secr3t!"
+        - name: DISABLE_INSTALL_DEMO_CONFIG
+          value: "true"
 
-      persistance:
-        enabled: false
+      - persistence:
+          enabled: false
 
-      secretMounts:
-        - name: certs
-          secretName: opensearch-certificate
-          path: /usr/share/opensearch/config/
+      - secretMounts:
+        - name: node-pem
+          secretName: opensearch-ephemeral-certificate
+          path: /usr/share/opensearch/config/esnode.pem
+          subPath: tls.crt
+
+        - name: node-key
+          secretName: opensearch-ephemeral-certificate
+          path: /usr/share/opensearch/config/esnode-key.pem
+          subPath: tls.key
+
+        - name: root-cacert
+          secretName: opensearch-ephemeral-certificate
+          path: /usr/share/opensearch/config/root-ca.pem
+          subPath: ca.crt
+
+#        - name: tls-key
+#          secretName: opensearch-ephemeral-certificate
+#          path: /usr/share/opensearch/config/tls.key
+#          subpath: tls.key
+
 
   # Required for testing redis migration
   - name: 'redis-ephemeral-2'
@@ -334,7 +385,9 @@ releases:
       - name: cargohold.config.settings.federationDomain
         value: {{ .Values.federationDomain1 }}
     needs:
-      - 'databases-ephemeral'
+      - 'opensearch-ephemeral'
+      - 'cassandra-ephemeral'
+      - 'redis-ephemeral'
 
   - name: 'wire-server'
     namespace: '{{ .Values.namespace2 }}'
