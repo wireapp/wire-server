@@ -28,7 +28,7 @@ import Brig.Queue.Types (QueueOpts (..))
 import Brig.User.Auth.Cookie.Limit
 import Brig.ZAuth qualified as ZAuth
 import Control.Applicative
-import Control.Lens as Lens hiding (Level, element, enum)
+import Control.Lens hiding (Level, element, enum)
 import Data.Aeson
 import Data.Aeson.Types qualified as A
 import Data.Char qualified as Char
@@ -141,13 +141,11 @@ data EmailSMTPOpts = EmailSMTPOpts
 instance FromJSON EmailSMTPOpts
 
 data StompOpts = StompOpts
-  { stompHost :: !Text,
-    stompPort :: !Int,
-    stompTls :: !Bool
+  { host :: !Text,
+    port :: !Int,
+    tls :: !Bool
   }
   deriving (Show, Generic)
-
-instance FromJSON StompOpts
 
 data InternalEventsOpts = InternalEventsOpts
   { internalEventsQueue :: !QueueOpts
@@ -397,7 +395,7 @@ data Opts = Opts
     -- | Enable Random Prekey Strategy
     randomPrekeys :: !(Maybe Bool),
     -- | STOMP broker settings
-    stomp :: !(Maybe StompOpts),
+    stompOptions :: !(Maybe StompOpts),
     -- Email & SMS
 
     -- | Email and SMS settings
@@ -429,7 +427,7 @@ data Opts = Opts
     -- | SFT Settings
     sft :: !(Maybe SFTOptions),
     -- | Runtime settings
-    optSettings :: !Settings
+    settings :: !Settings
   }
   deriving (Show, Generic)
 
@@ -605,77 +603,74 @@ instance FromJSON ImplicitNoFederationRestriction where
             FederationDomainConfig domain searchPolicy FederationRestrictionAllowAll
       )
 
-defaultTemplateLocale :: Locale
-defaultTemplateLocale = Locale (Language EN) Nothing
+defaultLocale :: Locale
+defaultLocale = Locale (Language EN) Nothing
 
-defaultUserLocale :: Locale
-defaultUserLocale = defaultTemplateLocale
+defaultUserLocale :: Settings -> Locale
+defaultUserLocale = fromMaybe defaultLocale . defaultUserLocaleInternal
 
-setDefaultUserLocale :: Settings -> Locale
-setDefaultUserLocale = fromMaybe defaultUserLocale . defaultUserLocaleInternal
-
-defVerificationTimeout :: Code.Timeout
-defVerificationTimeout = Code.Timeout (60 * 10) -- 10 minutes
+defaultTemplateLocale :: Settings -> Locale
+defaultTemplateLocale = fromMaybe defaultLocale . defaultTemplateLocaleInternal
 
 verificationTimeout :: Settings -> Code.Timeout
 verificationTimeout = fromMaybe defVerificationTimeout . verificationCodeTimeoutInternal
-
-setDefaultTemplateLocale :: Settings -> Locale
-setDefaultTemplateLocale = fromMaybe defaultTemplateLocale . defaultTemplateLocaleInternal
-
-def2FACodeGenerationDelaySecs :: Int
-def2FACodeGenerationDelaySecs = 5 * 60 -- 5 minutes
+  where
+    defVerificationTimeout :: Code.Timeout
+    defVerificationTimeout = Code.Timeout (60 * 10) -- 10 minutes
 
 twoFACodeGenerationDelaySecs :: Settings -> Int
 twoFACodeGenerationDelaySecs = fromMaybe def2FACodeGenerationDelaySecs . twoFACodeGenerationDelaySecsInternal
+  where
+    def2FACodeGenerationDelaySecs :: Int
+    def2FACodeGenerationDelaySecs = 5 * 60 -- 5 minutes
 
-defaultNonceTtlSecs :: NonceTtlSecs
-defaultNonceTtlSecs = NonceTtlSecs $ 5 * 60 -- 5 minutes
-
-setNonceTtlSecs :: Settings -> NonceTtlSecs
-setNonceTtlSecs = fromMaybe defaultNonceTtlSecs . nonceTtlSecsInternal
-
-defaultDpopMaxSkewSecs :: Word16
-defaultDpopMaxSkewSecs = 1
+nonceTtlSecs :: Settings -> NonceTtlSecs
+nonceTtlSecs = fromMaybe defaultNonceTtlSecs . nonceTtlSecsInternal
+  where
+    defaultNonceTtlSecs :: NonceTtlSecs
+    defaultNonceTtlSecs = NonceTtlSecs $ 5 * 60 -- 5 minutes
 
 setDpopMaxSkewSecs :: Settings -> Word16
 setDpopMaxSkewSecs = fromMaybe defaultDpopMaxSkewSecs . dpopMaxSkewSecsInternal
+  where
+    defaultDpopMaxSkewSecs :: Word16
+    defaultDpopMaxSkewSecs = 1
 
-defaultDpopTokenExpirationTimeSecs :: Word64
-defaultDpopTokenExpirationTimeSecs = 30
+dpopTokenExpirationTimeSecs :: Settings -> Word64
+dpopTokenExpirationTimeSecs = fromMaybe defaultDpopTokenExpirationTimeSecs . dpopTokenExpirationTimeSecsInternal
+  where
+    defaultDpopTokenExpirationTimeSecs :: Word64
+    defaultDpopTokenExpirationTimeSecs = 30
 
-setDpopTokenExpirationTimeSecs :: Settings -> Word64
-setDpopTokenExpirationTimeSecs = fromMaybe defaultDpopTokenExpirationTimeSecs . dpopTokenExpirationTimeSecsInternal
+oAuthAccessTokenExpirationTimeSecs :: Settings -> Word64
+oAuthAccessTokenExpirationTimeSecs = fromMaybe defaultOAuthAccessTokenExpirationTimeSecs . oAuthAccessTokenExpirationTimeSecsInternal
+  where
+    defaultOAuthAccessTokenExpirationTimeSecs :: Word64
+    defaultOAuthAccessTokenExpirationTimeSecs = 60 * 60 * 24 * 7 * 3 -- 3 weeks
 
-defaultOAuthAccessTokenExpirationTimeSecs :: Word64
-defaultOAuthAccessTokenExpirationTimeSecs = 60 * 60 * 24 * 7 * 3 -- 3 weeks
+oAuthAuthorizationCodeExpirationTimeSecs :: Settings -> Word64
+oAuthAuthorizationCodeExpirationTimeSecs = fromMaybe defaultOAuthAuthorizationCodeExpirationTimeSecs . oAuthAuthorizationCodeExpirationTimeSecsInternal
+  where
+    defaultOAuthAuthorizationCodeExpirationTimeSecs :: Word64
+    defaultOAuthAuthorizationCodeExpirationTimeSecs = 300 -- 5 minutes
 
-setOAuthAccessTokenExpirationTimeSecs :: Settings -> Word64
-setOAuthAccessTokenExpirationTimeSecs = fromMaybe defaultOAuthAccessTokenExpirationTimeSecs . oAuthAccessTokenExpirationTimeSecsInternal
+oAuthEnabled :: Settings -> Bool
+oAuthEnabled = fromMaybe defaultOAuthEnabled . oAuthEnabledInternal
+  where
+    defaultOAuthEnabled :: Bool
+    defaultOAuthEnabled = False
 
-defaultOAuthAuthorizationCodeExpirationTimeSecs :: Word64
-defaultOAuthAuthorizationCodeExpirationTimeSecs = 300 -- 5 minutes
+oAuthRefreshTokenExpirationTimeSecs :: Settings -> Word64
+oAuthRefreshTokenExpirationTimeSecs = fromMaybe defaultOAuthRefreshTokenExpirationTimeSecs . oAuthRefreshTokenExpirationTimeSecsInternal
+  where
+    defaultOAuthRefreshTokenExpirationTimeSecs :: Word64
+    defaultOAuthRefreshTokenExpirationTimeSecs = 60 * 60 * 24 * 7 * 4 * 6 -- 24 weeks
 
-setOAuthAuthorizationCodeExpirationTimeSecs :: Settings -> Word64
-setOAuthAuthorizationCodeExpirationTimeSecs = fromMaybe defaultOAuthAuthorizationCodeExpirationTimeSecs . oAuthAuthorizationCodeExpirationTimeSecsInternal
-
-defaultOAuthEnabled :: Bool
-defaultOAuthEnabled = False
-
-setOAuthEnabled :: Settings -> Bool
-setOAuthEnabled = fromMaybe defaultOAuthEnabled . oAuthEnabledInternal
-
-defaultOAuthRefreshTokenExpirationTimeSecs :: Word64
-defaultOAuthRefreshTokenExpirationTimeSecs = 60 * 60 * 24 * 7 * 4 * 6 -- 24 weeks
-
-setOAuthRefreshTokenExpirationTimeSecs :: Settings -> Word64
-setOAuthRefreshTokenExpirationTimeSecs = fromMaybe defaultOAuthRefreshTokenExpirationTimeSecs . oAuthRefreshTokenExpirationTimeSecsInternal
-
-defaultOAuthMaxActiveRefreshTokens :: Word32
-defaultOAuthMaxActiveRefreshTokens = 10
-
-setOAuthMaxActiveRefreshTokens :: Settings -> Word32
-setOAuthMaxActiveRefreshTokens = fromMaybe defaultOAuthMaxActiveRefreshTokens . oAuthMaxActiveRefreshTokensInternal
+oAuthMaxActiveRefreshTokens :: Settings -> Word32
+oAuthMaxActiveRefreshTokens = fromMaybe defaultOAuthMaxActiveRefreshTokens . oAuthMaxActiveRefreshTokensInternal
+  where
+    defaultOAuthMaxActiveRefreshTokens :: Word32
+    defaultOAuthMaxActiveRefreshTokens = 10
 
 -- | The analog to `FeatureFlags`. At the moment, only status flags for
 -- conferenceCalling are stored.
@@ -816,14 +811,14 @@ defSrvDiscoveryIntervalSeconds = secondsToDiffTime 10
 defSftListLength :: Range 1 100 Int
 defSftListLength = unsafeRange 5
 
+-- | Convert a word to title case by capitalising the first letter
+capitalise :: String -> String
+capitalise [] = []
+capitalise (c : cs) = toUpper c : cs
+
 instance FromJSON Settings where
   parseJSON = genericParseJSON customOptions
     where
-      -- Convert a word to title case by capitalising the first letter
-      capitalise :: String -> String
-      capitalise [] = []
-      capitalise (c : cs) = toUpper c : cs
-
       customOptions =
         defaultOptions
           { fieldLabelModifier = \case
@@ -842,17 +837,26 @@ instance FromJSON Settings where
               other -> "set" <> capitalise other
           }
 
-instance FromJSON Opts
+instance FromJSON Opts where
+  parseJSON = genericParseJSON customOptions
+    where
+      customOptions =
+        defaultOptions
+          { fieldLabelModifier = \case
+              "settings" -> "optSettings"
+              "stompOptions" -> "stomp"
+              other -> other
+          }
 
--- TODO: Does it make sense to generate lens'es for all?
-Lens.makeLensesFor
-  [ ("optSettings", "optionSettings"),
-    ("elasticsearch", "elasticsearchL"),
-    ("sft", "sftL"),
-    ("turn", "turnL"),
-    ("multiSFT", "multiSFTL")
-  ]
-  ''Opts
+instance FromJSON StompOpts where
+  parseJSON = genericParseJSON customOptions
+    where
+      customOptions =
+        defaultOptions
+          { fieldLabelModifier = \a -> "stom" <> capitalise a
+          }
+
+makeLensesWith (lensRules & lensField .~ suffixNamer) ''Opts
 
 makeLensesWith (lensRules & lensField .~ suffixNamer) ''Settings
 

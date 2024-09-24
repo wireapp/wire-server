@@ -26,7 +26,7 @@ module Stern.App where
 import Bilge qualified
 import Bilge.RPC (HasRequestId (..))
 import Control.Error
-import Control.Lens (makeLenses, view, (^.))
+import Control.Lens (makeLenses, view)
 import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Monad.IO.Class
 import Control.Monad.Reader.Class
@@ -64,7 +64,7 @@ newEnv o = do
   Env (mkRequest $ O.brig o) (mkRequest $ O.galley o) (mkRequest $ O.gundeck o) (mkRequest $ O.ibis o) (mkRequest $ O.galeb o) l (RequestId "N/A")
     <$> newManager
   where
-    mkRequest s = Bilge.host (encodeUtf8 (s ^. host)) . Bilge.port (s ^. port) $ Bilge.empty
+    mkRequest s = Bilge.host (encodeUtf8 s.host) . Bilge.port s.port $ Bilge.empty
     newManager = Bilge.newManager (Bilge.defaultManagerSettings {Bilge.managerResponseTimeout = responseTimeoutMicro 10000000})
 
 -- Monads

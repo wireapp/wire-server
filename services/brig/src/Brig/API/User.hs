@@ -74,7 +74,7 @@ import Brig.API.Error qualified as Error
 import Brig.API.Handler qualified as API (UserNotAllowedToJoinTeam (..))
 import Brig.API.Types
 import Brig.API.Util
-import Brig.App
+import Brig.App as App
 import Brig.Data.Activation (ActivationEvent (..), activationErrorToRegisterError)
 import Brig.Data.Activation qualified as Data
 import Brig.Data.Client qualified as Data
@@ -532,7 +532,7 @@ findTeamInvitation (Just e) c =
 
 initAccountFeatureConfig :: UserId -> (AppT r) ()
 initAccountFeatureConfig uid = do
-  mStatus <- preview (settingsLens . featureFlagsLens . _Just . to conferenceCalling . to forNew . _Just)
+  mStatus <- preview (App.settingsLens . featureFlagsLens . _Just . to conferenceCalling . to forNew . _Just)
   wrapClient $ traverse_ (Data.updateFeatureConferenceCalling uid . Just) mStatus
 
 -- | 'createUser' is becoming hard to maintain, and instead of adding more case distinctions

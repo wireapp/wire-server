@@ -126,7 +126,7 @@ testUsersEmailVisibleIffExpected opts brig galley viewingUserIs visibilitySettin
                 else Nothing
             )
           ]
-  let newOpts = opts & Opt.optionSettings . Opt.emailVisibilityLens .~ visibilitySetting
+  let newOpts = opts & Opt.settingsLens . Opt.emailVisibilityLens .~ visibilitySetting
   withSettingsOverrides newOpts $ do
     get (apiVersion "v1" . brig . zUser viewerId . path "users" . queryItem "ids" uids) !!! do
       const 200 === statusCode
@@ -155,7 +155,7 @@ testGetUserEmailShowsEmailsIffExpected opts brig galley viewingUserIs visibility
               else Nothing
           )
         ]
-  let newOpts = opts & Opt.optionSettings . Opt.emailVisibilityLens .~ visibilitySetting
+  let newOpts = opts & Opt.settingsLens . Opt.emailVisibilityLens .~ visibilitySetting
   withSettingsOverrides newOpts $ do
     forM_ expectations $ \(uid, expectedEmail) ->
       get (apiVersion "v1" . brig . zUser viewerId . paths ["users", toByteString' uid]) !!! do

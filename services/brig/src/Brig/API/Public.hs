@@ -679,7 +679,7 @@ getClientPrekeys usr clt = lift (wrapClient $ API.lookupPrekeyIds usr clt)
 
 newNonce :: UserId -> ClientId -> (Handler r) (Nonce, CacheControl)
 newNonce uid cid = do
-  ttl <- setNonceTtlSecs <$> asks (.settings)
+  ttl <- nonceTtlSecs <$> asks (.settings)
   nonce <- randomNonce
   lift $ wrapClient $ Nonce.insertNonce ttl uid (Id.clientToText cid) nonce
   pure (nonce, NoStore)

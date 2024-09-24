@@ -36,7 +36,7 @@ import Brig.Queue qualified as Queue
 import Brig.Version
 import Control.Concurrent.Async qualified as Async
 import Control.Exception.Safe (catchAny)
-import Control.Lens ((.~), (^.))
+import Control.Lens ((.~))
 import Control.Monad.Catch (MonadCatch, finally)
 import Control.Monad.Random (randomRIO)
 import Data.Aeson qualified as Aeson
@@ -79,8 +79,8 @@ import Wire.UserStore
 -- thread terminates for any reason.
 -- https://github.com/zinfra/backend-issues/issues/1647
 run :: Opts -> IO ()
-run o = withTracer \tracer -> do
-  (app, e) <- mkApp o
+run opts = withTracer \tracer -> do
+  (app, e) <- mkApp opts
   s <- Server.newSettings (server e)
   internalEventListener <-
     Async.async $
@@ -88,7 +88,7 @@ run o = withTracer \tracer -> do
         wrapHttpClient $
           Queue.listen e.internalEvents $
             liftIO . runBrigToIO e . liftSem . Internal.onEvent
-  let throttleMillis = fromMaybe defSqsThrottleMillis o.optSettings.sqsThrottleMillis
+  let throttleMillis = fromMaybe defSqsThrottleMillis opts.settings.sqsThrottleMillis
   emailListener <- for e.awsEnv._sesQueue $ \q ->
     Async.async $
       AWS.execute e.awsEnv $
@@ -105,12 +105,12 @@ run o = withTracer \tracer -> do
         <> turnDiscovery
     closeEnv e
   where
-    endpoint' = brig o
-    server e = defaultServer (unpack $ endpoint' ^. host) (endpoint' ^. port) e.appLogger
+    brig = opts.brig
+    server e = defaultServer (unpack $ brig.host) brig.port e.appLogger
 
 mkApp :: Opts -> IO (Wai.Application, Env)
-mkApp o = do
-  e <- newEnv o
+mkApp opts = do
+  e <- newEnv opts
   otelMiddleware <- Otel.newOpenTelemetryWaiMiddleware
   pure (otelMiddleware . middleware e $ servantApp e, e)
   where
@@ -126,18 +126,18 @@ mkApp o = do
         . catchErrors e.appLogger defaultRequestIdHeaderName
 
     servantApp :: Env -> Wai.Application
-    servantApp e0 req cont = do
+    servantApp e req cont = do
       let rid = getRequestId defaultRequestIdHeaderName req
-      let e = requestIdLens .~ rid $ e0
-      let localDomain = e.settings.federationDomain
+      let env = requestIdLens .~ rid $ e
+      let localDomain = env.settings.federationDomain
       Servant.serveWithContext
         (Proxy @ServantCombinedAPI)
         (customFormatters :. localDomain :. Servant.EmptyContext)
         ( docsAPI
-            :<|> hoistServerWithDomain @BrigAPI (toServantHandler e) servantSitemap
-            :<|> hoistServerWithDomain @IAPI.API (toServantHandler e) IAPI.servantSitemap
-            :<|> hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
-            :<|> hoistServerWithDomain @VersionAPI (toServantHandler e) versionAPI
+            :<|> hoistServerWithDomain @BrigAPI (toServantHandler env) servantSitemap
+            :<|> hoistServerWithDomain @IAPI.API (toServantHandler env) IAPI.servantSitemap
+            :<|> hoistServerWithDomain @FederationAPI (toServantHandler env) federationSitemap
+            :<|> hoistServerWithDomain @VersionAPI (toServantHandler env) versionAPI
         )
         req
         cont

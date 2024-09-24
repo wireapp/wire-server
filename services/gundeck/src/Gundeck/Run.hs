@@ -66,7 +66,7 @@ run o = withTracer \tracer -> do
   runClient (e ^. cstate) $
     versionCheck lastSchemaVersion
   let l = e ^. applog
-  s <- newSettings $ defaultServer (unpack $ o ^. gundeck . host) (o ^. gundeck . port) l
+  s <- newSettings $ defaultServer (unpack . host $ o ^. gundeck) (port $ o ^. gundeck) l
   let throttleMillis = fromMaybe defSqsThrottleMillis $ o ^. (settings . sqsThrottleMillis)
 
   lst <- Async.async $ Aws.execute (e ^. awsEnv) (Aws.listen throttleMillis (runDirect e . onEvent))

@@ -217,44 +217,43 @@ validateOptions o =
     _ -> pure ()
 
 newEnv :: Opts -> IO Env
-newEnv o = do
-  validateOptions o
+newEnv opts = do
+  validateOptions opts
   Just md5 <- getDigestByName "MD5"
   Just sha256 <- getDigestByName "SHA256"
   Just sha512 <- getDigestByName "SHA512"
-  lgr <- Log.mkLogger (Opt.logLevel o) (Opt.logNetStrings o) (Opt.logFormat o)
-  cas <- initCassandra o lgr
+  lgr <- Log.mkLogger (Opt.logLevel opts) (Opt.logNetStrings opts) (Opt.logFormat opts)
+  cas <- initCassandra opts lgr
   mgr <- initHttpManager
   h2Mgr <- initHttp2Manager
   ext <- initExtGetManager
-  utp <- loadUserTemplates o
-  ptp <- loadProviderTemplates o
-  ttp <- loadTeamTemplates o
-  let branding = genTemplateBranding . Opt.templateBranding . Opt.general . Opt.emailSMS $ o
-  (emailAWSOpts, emailSMTP) <- emailConn lgr $ Opt.email (Opt.emailSMS o)
-  aws <- AWS.mkEnv lgr (Opt.aws o) emailAWSOpts mgr
-  zau <- initZAuth o
+  utp <- loadUserTemplates opts
+  ptp <- loadProviderTemplates opts
+  ttp <- loadTeamTemplates opts
+  let branding = genTemplateBranding . Opt.templateBranding . Opt.general . Opt.emailSMS $ opts
+  (emailAWSOpts, emailSMTP) <- emailConn lgr $ Opt.email (Opt.emailSMS opts)
+  aws <- AWS.mkEnv lgr (Opt.aws opts) emailAWSOpts mgr
+  zau <- initZAuth opts
   clock <- mkAutoUpdate defaultUpdateSettings {updateAction = getCurrentTime}
   w <-
     FS.startManagerConf $
       FS.defaultConfig {FS.confWatchMode = FS.WatchModeOS}
-  let turnOpts = Opt.turn o
+  let turnOpts = Opt.turn opts
   turnSecret <- Text.encodeUtf8 . Text.strip <$> Text.readFile (Opt.secret turnOpts)
   turn <- Calling.mkTurnEnv (Opt.serversSource turnOpts) (Opt.tokenTTL turnOpts) (Opt.configTTL turnOpts) turnSecret sha512
-  let sett = Opt.optSettings o
-  eventsQueue :: QueueEnv <- case Opt.internalEventsQueue (Opt.internalEvents o) of
+  eventsQueue :: QueueEnv <- case opts.internalEvents.internalEventsQueue of
     StompQueueOpts q -> do
-      stomp :: Stomp.Env <- case (o.stomp, sett.stomp) of
+      stomp :: Stomp.Env <- case (opts.stompOptions, opts.settings.stomp) of
         (Just s, Just c) -> Stomp.mkEnv s <$> initCredentials c
         (Just _, Nothing) -> error "STOMP is configured but 'setStomp' is not set"
         (Nothing, Just _) -> error "'setStomp' is present but STOMP is not configured"
         (Nothing, Nothing) -> error "stomp is selected for internal events, but not configured in 'setStomp', STOMP"
       pure (StompQueueEnv (Stomp.broker stomp) q)
     SqsQueueOpts q -> do
-      let throttleMillis = fromMaybe Opt.defSqsThrottleMillis o.optSettings.sqsThrottleMillis
+      let throttleMillis = fromMaybe Opt.defSqsThrottleMillis opts.settings.sqsThrottleMillis
       SqsQueueEnv aws throttleMillis <$> AWS.getQueueUrl (aws ^. AWS.amazonkaEnv) q
-  mSFTEnv <- mapM (Calling.mkSFTEnv sha512) $ Opt.sft o
-  prekeyLocalLock <- case Opt.randomPrekeys o of
+  mSFTEnv <- mapM (Calling.mkSFTEnv sha512) $ Opt.sft opts
+  prekeyLocalLock <- case Opt.randomPrekeys opts of
     Just True -> do
       Log.info lgr $ Log.msg (Log.val "randomPrekeys: active")
       Just <$> newMVar ()
@@ -262,20 +261,20 @@ newEnv o = do
       Log.info lgr $ Log.msg (Log.val "randomPrekeys: not active; using dynamoDB instead.")
       pure Nothing
   kpLock <- newMVar ()
-  rabbitChan <- traverse (Q.mkRabbitMqChannelMVar lgr) o.rabbitmq
-  let allDisabledVersions = foldMap expandVersionExp sett.disabledAPIVersions
-  idxEnv <- mkIndexEnv o.elasticsearch lgr (Opt.galley o) mgr
+  rabbitChan <- traverse (Q.mkRabbitMqChannelMVar lgr) opts.rabbitmq
+  let allDisabledVersions = foldMap expandVersionExp opts.settings.disabledAPIVersions
+  idxEnv <- mkIndexEnv opts.elasticsearch lgr (Opt.galley opts) mgr
   pure $!
     Env
-      { cargohold = mkEndpoint $ Opt.cargohold o,
-        galley = mkEndpoint $ Opt.galley o,
-        galleyEndpoint = Opt.galley o,
-        gundeckEndpoint = Opt.gundeck o,
-        cargoholdEndpoint = Opt.cargohold o,
-        federator = Opt.federatorInternal o,
+      { cargohold = mkEndpoint $ opts.cargohold,
+        galley = mkEndpoint $ opts.galley,
+        galleyEndpoint = opts.galley,
+        gundeckEndpoint = opts.gundeck,
+        cargoholdEndpoint = opts.cargohold,
+        federator = opts.federatorInternal,
         casClient = cas,
         smtpEnv = emailSMTP,
-        emailSender = Opt.emailSender . Opt.general . Opt.emailSMS $ o,
+        emailSender = opts.emailSMS.general.emailSender,
         awsEnv = aws, -- used by `journalEvent` directly
         appLogger = lgr,
         internalEvents = (eventsQueue :: QueueEnv),
@@ -287,7 +286,7 @@ newEnv o = do
         httpManager = mgr,
         http2Manager = h2Mgr,
         extGetManager = ext,
-        settings = sett,
+        settings = opts.settings,
         turnEnv = turn,
         sftEnv = mSFTEnv,
         fsWatcher = w,
@@ -300,20 +299,20 @@ newEnv o = do
         keyPackageLocalLock = kpLock,
         rabbitmqChannel = rabbitChan,
         disabledVersions = allDisabledVersions,
-        enableSFTFederation = Opt.multiSFT o
+        enableSFTFederation = opts.multiSFT
       }
   where
     emailConn _ (Opt.EmailAWS aws) = pure (Just aws, Nothing)
     emailConn lgr (Opt.EmailSMTP s) = do
-      let h = Opt.smtpEndpoint s ^. host
-          p = Just $ fromInteger $ toInteger $ Opt.smtpEndpoint s ^. port
+      let h = s.smtpEndpoint.host
+          p = Just . fromInteger . toInteger $ s.smtpEndpoint.port
       smtpCredentials <- case Opt.smtpCredentials s of
         Just (Opt.EmailSMTPCredentials u p') -> do
           Just . (SMTP.Username u,) . SMTP.Password <$> initCredentials p'
         _ -> pure Nothing
       smtp <- SMTP.initSMTP lgr h p smtpCredentials (Opt.smtpConnType s)
       pure (Nothing, Just smtp)
-    mkEndpoint service = RPC.host (encodeUtf8 (service ^. host)) . RPC.port (service ^. port) $ RPC.empty
+    mkEndpoint service = RPC.host (encodeUtf8 service.host) . RPC.port service.port $ RPC.empty
 
 mkIndexEnv :: ElasticSearchOpts -> Logger -> Endpoint -> Manager -> IO IndexEnv
 mkIndexEnv esOpts logger galleyEp rpcHttpManager = do

@@ -117,7 +117,7 @@ testDedupeDuplicateFieldNames brig = do
 
 testRichInfoSizeLimit :: (HasCallStack) => Brig -> Opt.Opts -> Http ()
 testRichInfoSizeLimit brig conf = do
-  let maxSize :: Int = conf.optSettings.richInfoLimit
+  let maxSize :: Int = conf.settings.richInfoLimit
   (owner, _) <- createUserWithTeam brig
   let bad1 =
         mkRichInfoAssocList

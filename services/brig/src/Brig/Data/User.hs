@@ -115,7 +115,7 @@ data ReAuthError
 -- there, it was claimed properly.
 newAccount :: (MonadClient m, MonadReader Env m) => NewUser -> Maybe InvitationId -> Maybe TeamId -> Maybe Handle -> m (UserAccount, Maybe Password)
 newAccount u inv tid mbHandle = do
-  defLoc <- setDefaultUserLocale <$> asks (.settings)
+  defLoc <- defaultUserLocale <$> asks (.settings)
   domain <- viewFederationDomain
   uid <-
     Id <$> do
@@ -152,7 +152,7 @@ newAccount u inv tid mbHandle = do
 
 newAccountInviteViaScim :: (MonadReader Env m) => UserId -> Text -> TeamId -> Maybe Locale -> Name -> EmailAddress -> m UserAccount
 newAccountInviteViaScim uid externalId tid locale name email = do
-  defLoc <- setDefaultUserLocale <$> asks (.settings)
+  defLoc <- defaultUserLocale <$> asks (.settings)
   let loc = fromMaybe defLoc locale
   domain <- viewFederationDomain
   pure (UserAccount (user domain loc) PendingInvitation)
@@ -399,7 +399,7 @@ lookupAuth u = fmap f <$> retry x1 (query1 authSelect (params LocalQuorum (Ident
 -- Skips nonexistent users. /Does not/ skip users who have been deleted.
 lookupUsers :: (MonadClient m, MonadReader Env m) => HavePendingInvitations -> [UserId] -> m [User]
 lookupUsers hpi usrs = do
-  loc <- setDefaultUserLocale <$> asks (.settings)
+  loc <- defaultUserLocale <$> asks (.settings)
   domain <- viewFederationDomain
   toUsers domain loc hpi <$> retry x1 (query usersSelect (params LocalQuorum (Identity usrs)))
 
@@ -568,7 +568,7 @@ userRichInfoUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE r
 -- Conversions
 
 toUsers :: Domain -> Locale -> HavePendingInvitations -> [UserRow] -> [User]
-toUsers domain defaultLocale havePendingInvitations = fmap mk . filter fp
+toUsers domain defLocale havePendingInvitations = fmap mk . filter fp
   where
     fp :: UserRow -> Bool
     fp =
@@ -624,7 +624,7 @@ toUsers domain defaultLocale havePendingInvitations = fmap mk . filter fp
         let ident = toIdentity activated email ssoid
             deleted = Just Deleted == status
             expiration = if status == Just Ephemeral then expires else Nothing
-            loc = toLocale defaultLocale (lan, con)
+            loc = toLocaleWithDefault defLocale (lan, con)
             svc = newServiceRef <$> sid <*> pid
          in User
               (Qualified uid domain)
@@ -643,9 +643,9 @@ toUsers domain defaultLocale havePendingInvitations = fmap mk . filter fp
               (fromMaybe ManagedByWire managed_by)
               (fromMaybe defSupportedProtocols prots)
 
-toLocale :: Locale -> (Maybe Language, Maybe Country) -> Locale
-toLocale _ (Just l, c) = Locale l c
-toLocale l _ = l
+    toLocaleWithDefault :: Locale -> (Maybe Language, Maybe Country) -> Locale
+    toLocaleWithDefault _ (Just l, c) = Locale l c
+    toLocaleWithDefault l _ = l
 
 -- | Construct a 'UserIdentity'.
 --

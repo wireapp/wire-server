@@ -63,8 +63,8 @@ run o = lowerCodensity $ do
     s <-
       Server.newSettings $
         defaultServer
-          (unpack $ o ^. cargohold . host)
-          (o ^. cargohold . port)
+          (unpack . host $ o ^. cargohold)
+          (port $ o ^. cargohold)
           (e ^. appLogger)
     runSettingsWithShutdown s app Nothing
 
