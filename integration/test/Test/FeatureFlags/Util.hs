@@ -19,7 +19,23 @@ module Test.FeatureFlags.Util where
 
 import qualified API.Galley as Public
 import qualified API.GalleyInternal as Internal
+import Notifications
+import SetupHelpers
 import Testlib.Prelude
+
+data APIAccess = InternalAPI | PublicAPI
+  deriving (Show, Eq)
+
+instance TestCases APIAccess where
+  mkTestCases =
+    pure
+      [ MkTestCase "[api=internal]" InternalAPI,
+        MkTestCase "[api=public]" PublicAPI
+      ]
+
+setFeature :: APIAccess -> Value -> String -> String -> Value -> App Response
+setFeature InternalAPI = Internal.setTeamFeatureConfig
+setFeature PublicAPI = Public.setTeamFeatureConfig
 
 disabled :: Value
 disabled = object ["lockStatus" .= "unlocked", "status" .= "disabled", "ttl" .= "unlimited"]
@@ -31,24 +47,21 @@ enabled :: Value
 enabled = object ["lockStatus" .= "unlocked", "status" .= "enabled", "ttl" .= "unlimited"]
 
 checkFeature :: (HasCallStack, MakesValue user, MakesValue tid) => String -> user -> tid -> Value -> App ()
-checkFeature = checkFeatureWith shouldMatch
-
-checkFeatureWith :: (HasCallStack, MakesValue user, MakesValue tid, MakesValue expected) => ((HasCallStack) => App Value -> expected -> App ()) -> String -> user -> tid -> expected -> App ()
-checkFeatureWith shouldMatch' feature user tid expected = do
+checkFeature feature user tid expected = do
   tidStr <- asString tid
   domain <- objDomain user
   bindResponse (Internal.getTeamFeature domain tidStr feature) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    resp.json `shouldMatch'` expected
+    resp.json `shouldMatch` expected
   bindResponse (Public.getTeamFeatures user tid) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    resp.json %. feature `shouldMatch'` expected
+    resp.json %. feature `shouldMatch` expected
   bindResponse (Public.getTeamFeature user tid feature) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    resp.json `shouldMatch'` expected
+    resp.json `shouldMatch` expected
   bindResponse (Public.getFeatureConfigs user) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    resp.json %. feature `shouldMatch'` expected
+    resp.json %. feature `shouldMatch` expected
 
 assertForbidden :: (HasCallStack) => Response -> App ()
 assertForbidden = assertLabel 403 "no-team-member"
@@ -76,3 +89,156 @@ confCalling args =
          "config"
            .= object ["useSFTForOneToOneCalls" .= args.sft]
        ]
+
+setFlag :: (HasCallStack) => APIAccess -> WebSocket -> String -> String -> Value -> App ()
+setFlag access ws tid featureName value = do
+  update <- removeField "ttl" value
+  void
+    $ setFeature access ws.user tid featureName update
+    >>= getJSON 200
+  expected <-
+    setField "ttl" "unlimited"
+      =<< setField "lockStatus" "unlocked" value
+
+  -- should receive an event
+  do
+    notif <- awaitMatch isFeatureConfigUpdateNotif ws
+    notif %. "payload.0.name" `shouldMatch` featureName
+    notif %. "payload.0.data" `shouldMatch` expected
+
+  checkFeature featureName ws.user tid expected
+
+checkPatch ::
+  (HasCallStack, MakesValue domain) =>
+  domain ->
+  String ->
+  Bool ->
+  Value ->
+  Value ->
+  App ()
+checkPatch domain featureName hasExplicitLockStatus defFeature patch = do
+  (owner, tid, _) <- createTeam domain 0
+
+  checkFeature featureName owner tid defFeature
+  assertSuccess =<< Internal.patchTeamFeature domain tid featureName patch
+  patched <- (.json) =<< Internal.getTeamFeature domain tid featureName
+  checkFeature featureName owner tid patched
+  lockStatus <- patched %. "lockStatus" >>= asString
+  if lockStatus == "locked"
+    then do
+      -- if lock status is locked the feature status should fall back to the default
+      patched `shouldMatch` (defFeature & setField "lockStatus" "locked")
+      -- if lock status is locked, it was either locked before or changed by the patch
+      mPatchedLockStatus <- lookupField patch "lockStatus"
+      case mPatchedLockStatus of
+        Just ls -> ls `shouldMatch` "locked"
+        Nothing -> defFeature %. "lockStatus" `shouldMatch` "locked"
+    else do
+      patched %. "status" `shouldMatch` valueOrDefault "status"
+      mPatchedConfig <- lookupField patched "config"
+      case mPatchedConfig of
+        Just patchedConfig -> patchedConfig `shouldMatch` valueOrDefault "config"
+        Nothing -> do
+          mDefConfig <- lookupField defFeature "config"
+          assertBool "patch had an unexpected config field" (isNothing mDefConfig)
+
+      -- TODO: remove condition
+      when hasExplicitLockStatus $ do
+        -- if lock status is unlocked, it was either unlocked before or changed by the patch
+        mPatchedLockStatus <- lookupField patch "lockStatus"
+        case mPatchedLockStatus of
+          Just ls -> ls `shouldMatch` "unlocked"
+          Nothing -> defFeature %. "lockStatus" `shouldMatch` "unlocked"
+  where
+    valueOrDefault :: String -> App Value
+    valueOrDefault key = do
+      mValue <- lookupField patch key
+      maybe (defFeature %. key) pure mValue
+
+data FeatureTests = FeatureTests
+  { name :: String,
+    -- | the default feature config (should include the lock status and ttl, as
+    -- it is returned by the API)
+    defFeature :: Value,
+    -- | valid config values used to update the feature setting (should not
+    -- include the lock status and ttl, as these are not part of the request
+    -- payload)
+    updates :: [Value],
+    invalidUpdates :: [Value],
+    owner :: Maybe Value
+  }
+
+mkFeatureTests :: String -> Value -> FeatureTests
+mkFeatureTests name defFeature = FeatureTests name defFeature [] [] Nothing
+
+addUpdate :: Value -> FeatureTests -> FeatureTests
+addUpdate up ft = ft {updates = ft.updates <> [up]}
+
+addInvalidUpdate :: Value -> FeatureTests -> FeatureTests
+addInvalidUpdate up ft = ft {invalidUpdates = ft.invalidUpdates <> [up]}
+
+setOwner :: (MakesValue user) => user -> FeatureTests -> App FeatureTests
+setOwner owner ft = do
+  x <- make owner
+  pure ft {owner = Just x}
+
+runFeatureTests ::
+  (HasCallStack, MakesValue domain) =>
+  domain ->
+  APIAccess ->
+  FeatureTests ->
+  App ()
+runFeatureTests domain access ft = do
+  -- personal user
+  do
+    user <- randomUser domain def
+    bindResponse (Public.getFeatureConfigs user) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      feat <- resp.json %. ft.name
+      lockStatus <- feat %. "lockStatus"
+      expected <- setField "lockStatus" lockStatus ft.defFeature
+      feat `shouldMatch` expected
+
+  -- make team
+  (owner, tid) <- case ft.owner of
+    Nothing -> do
+      (owner, tid, _) <- createTeam domain 0
+      pure (owner, tid)
+    Just owner -> do
+      tid <- owner %. "team" & asString
+      pure (owner, tid)
+  checkFeature ft.name owner tid ft.defFeature
+
+  -- lock the feature
+  Internal.setTeamFeatureLockStatus owner tid ft.name "locked"
+  bindResponse (Public.getTeamFeature owner tid ft.name) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "lockStatus" `shouldMatch` "locked"
+    expected <- setField "lockStatus" "locked" ft.defFeature
+    checkFeature ft.name owner tid expected
+
+  for_ ft.updates $ (setFeature access owner tid ft.name >=> getJSON 409)
+
+  -- unlock the feature
+  Internal.setTeamFeatureLockStatus owner tid ft.name "unlocked"
+  void $ withWebSocket owner $ \ws -> do
+    for_ ft.updates $ \update -> do
+      setFlag access ws tid ft.name update
+
+    for_ ft.invalidUpdates $ \update -> do
+      void $ setFeature access owner tid ft.name update >>= getJSON 400
+      assertNoEvent 2 ws
+
+  -- lock again, should be set to default value
+  Internal.setTeamFeatureLockStatus owner tid ft.name "locked"
+  do
+    expected <- setField "lockStatus" "locked" ft.defFeature
+    checkFeature ft.name owner tid expected
+
+  -- unlock again, should be set to the last update
+  Internal.setTeamFeatureLockStatus owner tid ft.name "unlocked"
+  for_ (take 1 (reverse ft.updates)) $ \update -> do
+    expected <-
+      setField "ttl" "unlimited"
+        =<< setField "lockStatus" "unlocked" update
+    checkFeature ft.name owner tid expected
