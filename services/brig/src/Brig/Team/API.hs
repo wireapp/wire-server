@@ -97,11 +97,11 @@ servantAPI ::
   ) =>
   ServerT TeamsAPI (Handler r)
 servantAPI =
-  Named @"send-team-invitation" (\luid tid invreq -> lift . liftSem $ inviteUser luid tid invreq)
+  Named @"send-team-invitation" (\luid tid invreq -> lift . liftSem $ inviteUser luid tid invreq) -- TODO: move 'lift . liftSem' to the outside of 'servantAPI'
     :<|> Named @"get-team-invitations" (\u t inv s -> lift . liftSem $ listInvitations u t inv s)
     :<|> Named @"get-team-invitation" (\u t inv -> lift . liftSem $ getInvitation u t inv)
     :<|> Named @"delete-team-invitation" (\u t inv -> lift . liftSem $ deleteInvitation u t inv)
-    :<|> Named @"get-team-invitation-info" (lift . liftSem . getInvitationByCode)
+    :<|> Named @"get-team-invitation-info" getInvitationByCode
     :<|> Named @"head-team-invitations" (lift . liftSem . headInvitationByEmail)
     :<|> Named @"get-team-size" teamSizePublic
     :<|> Named @"accept-team-invitation" (\luid req -> lift $ liftSem $ acceptTeamInvitation luid req.password req.code)
@@ -350,6 +350,14 @@ getInvitation uid tid iid = do
       maybeUrl <- mkInviteUrl showInvitationUrl tid invitation.code
       pure $ Just (Store.invitationFromStored maybeUrl invitation)
 
+getInvitationByCode ::
+  (Member Store.InvitationCodeStore r) =>
+  InvitationCode ->
+  (Handler r) Public.Invitation
+getInvitationByCode c = do
+  inv <- lift . liftSem $ Store.lookupInvitationByCode c
+  maybe (throwStd $ errorToWai @'E.InvalidInvitationCode) (pure . Store.invitationFromStored Nothing) inv
+
 headInvitationByEmail ::
   (Member InvitationCodeStore r, Member TinyLog r) =>
   EmailAddress ->
@@ -363,6 +371,17 @@ headInvitationByEmail email =
         Log.msg (Log.val "team_invidation_email: multiple pending invites from different teams for the same email")
           . Log.field "email" (show email)
       pure Public.InvitationByEmailMoreThanOne
+
+-- | FUTUREWORK: This should also respond with status 409 in case of
+-- @DB.InvitationByEmailMoreThanOne@.  Refactor so that 'headInvitationByEmailH' and
+-- 'getInvitationByEmailH' are almost the same thing.
+getInvitationByEmail ::
+  (Member Store.InvitationCodeStore r, Member TinyLog r) =>
+  EmailAddress ->
+  (Handler r) Public.Invitation
+getInvitationByEmail email = do
+  inv <- lift . liftSem $ Store.lookupInvitationByEmail email
+  maybe (throwStd (notFound "Invitation not found")) (pure . Store.invitationFromStored Nothing) inv
 
 suspendTeam ::
   ( Member (Embed HttpClientIO) r,

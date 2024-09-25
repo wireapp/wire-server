@@ -13,12 +13,6 @@ import Wire.API.User.EmailAddress
 
 data TeamInvitationSubsystem m a where
   InviteUser :: Local UserId -> TeamId -> InvitationRequest -> TeamInvitationSubsystem m (Invitation, InvitationLocation)
-  AcceptInvitation :: UserId -> InvitationId -> InvitationCode -> TeamInvitationSubsystem m ()
-  RevokeInvitation :: TeamId -> InvitationId -> TeamInvitationSubsystem m ()
-  GetInvitationByCode :: InvitationCode -> TeamInvitationSubsystem m Invitation
-  GetInvitationByEmail :: EmailAddress -> TeamInvitationSubsystem m Invitation
-  CheckInvitationsByEmail :: EmailAddress -> TeamInvitationSubsystem m HeadInvitationByEmailResult
-  DeleteAllInvitationsFor :: TeamId -> TeamInvitationSubsystem m ()
   -- | This function exists to support migration in this susbystem, after the
   -- migration this would just be an internal detail of the subsystem
   InternalCreateInvitation :: TeamId -> Maybe InvitationId -> Role -> Local (Maybe UserId) -> EmailAddress -> InvitationRequest -> TeamInvitationSubsystem m (Invitation, InvitationCode)

@@ -101,6 +101,7 @@ import Wire.FederationConfigStore
   )
 import Wire.FederationConfigStore qualified as E
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
+import Wire.IndexedUserStore (IndexedUserStore, getTeamSize)
 import Wire.InvitationCodeStore
 import Wire.NotificationSubsystem
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
@@ -115,7 +116,6 @@ import Wire.UserSubsystem qualified as UserSubsystem
 import Wire.VerificationCode
 import Wire.VerificationCodeGen
 import Wire.VerificationCodeSubsystem
-import Wire.IndexedUserStore (getTeamSize, IndexedUserStore)
 
 servantSitemap ::
   forall r p.
@@ -250,7 +250,7 @@ teamsAPI ::
   ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI =
   Named @"updateSearchVisibilityInbound" (lift . liftSem . updateTeamSearchVisibilityInbound)
-    :<|> Named @"get-invitation-by-email" (lift . liftSem . getInvitationByEmail)
+    :<|> Named @"get-invitation-by-email" Team.getInvitationByEmail
     :<|> Named @"get-invitation-code" Team.getInvitationCode
     :<|> Named @"suspend-team" Team.suspendTeam
     :<|> Named @"unsuspend-team" Team.unsuspendTeam
