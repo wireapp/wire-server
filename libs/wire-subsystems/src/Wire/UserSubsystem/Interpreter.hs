@@ -944,11 +944,3 @@ acceptTeamInvitationImpl luid pw code = do
   deleteInvitation inv.teamId inv.invitationId
   syncUserIndex uid
   generateUserEvent uid Nothing (teamUpdated uid tid)
-
--- toInvitationError :: RegisterError -> UserSubsystemError
--- toInvitationError = \case
---   RegisterErrorMissingIdentity -> UserSubsystemMissingIdentity
---   RegisterErrorInvalidActivationCodeWrongUser -> UserSubsystemInvalidActivationCodeWrongUser
---   RegisterErrorInvalidActivationCodeWrongCode -> UserSubsystemInvalidActivationCodeWrongCode
---   RegisterErrorInvalidInvitationCode -> UserSubsystemInvalidInvitationCode
---   _ -> UserSubsystemInvitationNotFound
