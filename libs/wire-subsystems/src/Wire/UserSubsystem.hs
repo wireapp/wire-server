@@ -137,10 +137,10 @@ data UserSubsystem m a where
     Maybe (Range 1 500 Int) ->
     Maybe PagingState ->
     UserSubsystem m (SearchResult TeamContact)
-  -- | This function exists to support migration in this susbystem, after the
+  AcceptTeamInvitation :: Local UserId -> PlainTextPassword6 -> InvitationCode -> UserSubsystem m ()
+  -- | The following "internal" functions exists to support migration in this susbystem, after the
   -- migration this would just be an internal detail of the subsystem
   InternalUpdateSearchIndex :: UserId -> UserSubsystem m ()
-  AcceptTeamInvitation :: Local UserId -> PlainTextPassword6 -> InvitationCode -> UserSubsystem m ()
   InternalFindTeamInvitation :: Maybe EmailKey -> InvitationCode -> UserSubsystem m (StoredInvitation, StoredInvitationInfo)
 
 -- | the return type of 'CheckHandle'
