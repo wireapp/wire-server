@@ -147,7 +147,7 @@ createInvitationViaScim ::
   TeamId ->
   NewUserScimInvitation ->
   (Handler r) UserAccount
-createInvitationViaScim tid newUser@(NewUserScimInvitation _tid uid _eid loc name email role) = do
+createInvitationViaScim tid newUser@(NewUserScimInvitation _tid _uid@(Id (Id -> invId)) _eid loc name email role) = do
   env <- ask
   let inviteeRole = role
       fromEmail = env.emailSender
@@ -164,13 +164,12 @@ createInvitationViaScim tid newUser@(NewUserScimInvitation _tid uid _eid loc nam
           . logTeam tid
           . logEmail email
 
-  iid <- undefined uid
   localNothing <- lift . liftSem $ qualifyLocal' Nothing
   void $
     logInvitationRequest context $
       lift $
         liftSem $
-          internalCreateInvitation tid (Just iid) inviteeRole localNothing fromEmail invreq
+          internalCreateInvitation tid (Just invId) inviteeRole localNothing fromEmail invreq
 
   createUserInviteViaScim newUser
 
