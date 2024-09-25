@@ -27,7 +27,6 @@ module Wire.API.Password
     verifyPassword,
     verifyPasswordWithStatus,
     unsafeMkPassword,
-    unsafeFromPassword,
     hashPasswordArgon2idWithSalt,
     hashPasswordArgon2idWithOptions,
     PasswordReqBody (..),
@@ -69,9 +68,6 @@ instance Cql Password where
 
 unsafeMkPassword :: Text -> Password
 unsafeMkPassword = Password
-
-unsafeFromPassword :: Password -> Text
-unsafeFromPassword = fromPassword
 
 data PasswordStatus
   = PasswordStatusOk
