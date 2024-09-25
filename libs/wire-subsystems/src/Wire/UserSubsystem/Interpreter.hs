@@ -183,7 +183,7 @@ internalFindTeamInvitationImpl ::
   ) =>
   Maybe EmailKey ->
   InvitationCode ->
-  Sem r (StoredInvitation, StoredInvitationInfo)
+  Sem r StoredInvitation
 internalFindTeamInvitationImpl Nothing _ = throw UserSubsystemMissingIdentity
 internalFindTeamInvitationImpl (Just e) c =
   lookupInvitationInfo c >>= \case
@@ -193,7 +193,7 @@ internalFindTeamInvitationImpl (Just e) c =
         (Just invite, Just em)
           | e == mkEmailKey em -> do
               ensureMemberCanJoin invitationInfo.teamId
-              pure (invite, invitationInfo)
+              pure invite
         _ -> throw UserSubsystemInvalidInvitationCode
     Nothing -> throw UserSubsystemInvalidInvitationCode
   where
@@ -938,7 +938,7 @@ acceptTeamInvitationImpl luid pw code = do
   -- in final code. We have to implement checkPassword in terms of Auth subsystem.
   forM_ mEmailKey $ createPasswordResetCode
   checkPassword
-  inv <- fst <$> internalFindTeamInvitationImpl mEmailKey code
+  inv <- internalFindTeamInvitationImpl mEmailKey code
   let tid = inv.teamId
   let minvmeta = (,inv.createdAt) <$> inv.createdBy
       uid = tUnqualified luid

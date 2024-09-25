@@ -65,13 +65,11 @@ module Brig.API.User
     blacklistInsert,
 
     -- * Utilities
-    fetchUserIdentity,
-    findTeamInvitation,
+    fetchUserIdentity
   )
 where
 
 import Brig.API.Error qualified as Error
-import Brig.API.Handler qualified as API (UserNotAllowedToJoinTeam (..))
 import Brig.API.Types
 import Brig.API.Util
 import Brig.App as App
@@ -90,7 +88,6 @@ import Brig.Options hiding (internalEvents)
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Intra
 import Brig.User.Auth.Cookie qualified as Auth
-import Brig.User.Search.TeamSize qualified as TeamSize
 import Cassandra hiding (Set)
 import Control.Error
 import Control.Lens (preview, to, (^.), _Just)
@@ -127,7 +124,6 @@ import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Team hiding (newTeam)
 import Wire.API.Team.Member (legalHoldStatus)
 import Wire.API.Team.Role
-import Wire.API.Team.Size
 import Wire.API.User
 import Wire.API.User.Activation
 import Wire.API.User.Client
@@ -141,7 +137,7 @@ import Wire.Error
 import Wire.Events (Events)
 import Wire.Events qualified as Events
 import Wire.GalleyAPIAccess as GalleyAPIAccess
-import Wire.InvitationCodeStore (InvitationCodeStore, StoredInvitation, StoredInvitationInfo)
+import Wire.InvitationCodeStore (InvitationCodeStore, StoredInvitation)
 import Wire.InvitationCodeStore qualified as InvitationCodeStore
 import Wire.NotificationSubsystem
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
@@ -331,15 +327,15 @@ createUser new = do
   (mNewTeamUser, teamInvitation, tid) <-
     case newUserTeam new of
       Just (NewTeamMember i) -> do
-        (inv, info) <- findTeamInvitation (mkEmailKey <$> email) i
-        pure (Nothing, Just (inv, info), Just info.teamId)
+        inv <- lift $ liftSem $ internalFindTeamInvitation (mkEmailKey <$> email) i
+        pure (Nothing, Just inv, Just inv.teamId)
       Just (NewTeamCreator t) -> do
         (Just t,Nothing,) <$> (Just . Id <$> liftIO nextRandom)
       Just (NewTeamMemberSSO tid) ->
         pure (Nothing, Nothing, Just tid)
       Nothing ->
         pure (Nothing, Nothing, Nothing)
-  let mbInv = (.invitationId) . fst <$> teamInvitation
+  let mbInv = (.invitationId) <$> teamInvitation
   mbExistingAccount <-
     lift $
       join
@@ -403,8 +399,8 @@ createUser new = do
         _ -> pure Nothing
 
     joinedTeamInvite <- case teamInvitation of
-      Just (inv, invInfo) -> do
-        acceptInvitationToTeam account inv invInfo (mkEmailKey inv.email) (EmailIdentity inv.email)
+      Just inv -> do
+        acceptInvitationToTeam account inv (mkEmailKey inv.email) (EmailIdentity inv.email)
         Team.TeamName nm <- lift $ liftSem $ GalleyAPIAccess.getTeamName inv.teamId
         pure (Just $ CreateUserTeam inv.teamId nm)
       Nothing -> pure Nothing
@@ -436,11 +432,10 @@ createUser new = do
     acceptInvitationToTeam ::
       UserAccount ->
       StoredInvitation ->
-      StoredInvitationInfo ->
       EmailKey ->
       UserIdentity ->
       ExceptT RegisterError (AppT r) ()
-    acceptInvitationToTeam account inv invitationInfo uk ident = do
+    acceptInvitationToTeam account inv uk ident = do
       let uid = userId (accountUser account)
       ok <- lift $ liftSem $ claimKey uk uid
       unless ok $
@@ -449,7 +444,7 @@ createUser new = do
           minvmeta = (,inv.createdAt) <$> inv.createdBy
           role :: Role
           role = fromMaybe defaultRole inv.role
-      added <- lift $ liftSem $ GalleyAPIAccess.addTeamMember uid invitationInfo.teamId minvmeta role
+      added <- lift $ liftSem $ GalleyAPIAccess.addTeamMember uid inv.teamId minvmeta role
       unless added $
         throwE RegisterErrorTooManyTeamMembers
       lift $ do
@@ -459,7 +454,7 @@ createUser new = do
         liftSem do
           Log.info $
             field "user" (toByteString uid)
-              . field "team" (toByteString $ invitationInfo.teamId)
+              . field "team" (toByteString $ inv.teamId)
               . msg (val "Accepting invitation")
           UserPendingActivationStore.remove uid
           InvitationCodeStore.deleteInvitation inv.teamId inv.invitationId
@@ -499,37 +494,6 @@ createUser new = do
             activateWithCurrency (ActivateKey ak) c (Just uid) (bnuCurrency =<< newTeam)
               !>> activationErrorToRegisterError
           pure Nothing
-
-findTeamInvitation ::
-  ( Member GalleyAPIAccess r,
-    Member InvitationCodeStore r
-  ) =>
-  Maybe EmailKey ->
-  InvitationCode ->
-  ExceptT RegisterError (AppT r) (StoredInvitation, StoredInvitationInfo)
-findTeamInvitation Nothing _ = throwE RegisterErrorMissingIdentity
-findTeamInvitation (Just e) c =
-  lift (liftSem $ InvitationCodeStore.lookupInvitationInfo c) >>= \case
-    Just invitationInfo -> do
-      inv <- lift . liftSem $ InvitationCodeStore.lookupInvitation invitationInfo.teamId invitationInfo.invitationId
-      case (inv, (.email) <$> inv) of
-        (Just invite, Just em)
-          | e == mkEmailKey em -> do
-              ensureMemberCanJoin invitationInfo.teamId
-              pure (invite, invitationInfo)
-        _ -> throwE RegisterErrorInvalidInvitationCode
-    Nothing -> throwE RegisterErrorInvalidInvitationCode
-  where
-    ensureMemberCanJoin :: (Member GalleyAPIAccess r) => TeamId -> ExceptT RegisterError (AppT r) ()
-    ensureMemberCanJoin tid = do
-      maxSize <- fromIntegral <$> asks (.settings.maxTeamSize)
-      (TeamSize teamSize) <- TeamSize.teamSize tid
-      when (teamSize >= maxSize) $
-        throwE RegisterErrorTooManyTeamMembers
-      -- FUTUREWORK: The above can easily be done/tested in the intra call.
-      --             Remove after the next release.
-      mAddUserError <- lift $ liftSem $ GalleyAPIAccess.checkUserCanJoinTeam tid
-      maybe (pure ()) (throwM . API.UserNotAllowedToJoinTeam) mAddUserError
 
 initAccountFeatureConfig :: UserId -> (AppT r) ()
 initAccountFeatureConfig uid = do

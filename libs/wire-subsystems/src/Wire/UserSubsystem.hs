@@ -141,7 +141,7 @@ data UserSubsystem m a where
   -- | The following "internal" functions exists to support migration in this susbystem, after the
   -- migration this would just be an internal detail of the subsystem
   InternalUpdateSearchIndex :: UserId -> UserSubsystem m ()
-  InternalFindTeamInvitation :: Maybe EmailKey -> InvitationCode -> UserSubsystem m (StoredInvitation, StoredInvitationInfo)
+  InternalFindTeamInvitation :: Maybe EmailKey -> InvitationCode -> UserSubsystem m StoredInvitation
 
 -- | the return type of 'CheckHandle'
 data CheckHandleResp
