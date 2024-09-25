@@ -15,7 +15,6 @@ import Data.Id
 import Data.Misc
 import Data.Qualified
 import Data.Range
-import Data.Set qualified as Set
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -23,7 +22,6 @@ import Wire.API.Federation.Error
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus)
 import Wire.API.Team.Feature
 import Wire.API.Team.Member (IsPerm (..), TeamMember)
-import Wire.API.Team.Permission
 import Wire.API.User
 import Wire.API.User.Search
 import Wire.Arbitrary

@@ -11,29 +11,39 @@ import Data.Text.Encoding qualified as Text
 import Imports
 import Polysemy
 import Polysemy.Error
-import Polysemy.Input
+import Polysemy.Input (Input, input, runInputConst)
 import Polysemy.TinyLog
 import System.Logger.Message as Log
 import URI.ByteString
 import Util.Logging
+import Util.Timeout (Timeout (..))
 import Wire.API.Team.Invitation
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as Teams
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
 import Wire.API.User
-import Wire.EmailSending (EmailSending)
+import Wire.Arbitrary
 import Wire.EmailSubsystem
 import Wire.GalleyAPIAccess hiding (AddTeamMember)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.InvitationCodeStore (InvitationCodeStore, StoredInvitation)
 import Wire.InvitationCodeStore qualified as Store
 import Wire.Sem.Logger qualified as Log
+import Wire.Sem.Now (Now)
+import Wire.Sem.Now qualified as Now
 import Wire.Sem.Random (Random)
 import Wire.Sem.Random qualified as Random
 import Wire.TeamInvitationSubsystem
 import Wire.UserKeyStore
 import Wire.UserSubsystem (UserSubsystem, getLocalUserAccountByUserKey, getSelfProfile, isBlocked)
+
+data TeamInvitationSubsystemConfig = TeamInvitationSubsystemConfig
+  { maxTeamSize :: Word32,
+    teamInvitationTimeout :: Timeout
+  }
+  deriving (Show, Generic)
+  deriving (Arbitrary) via GenericUniform TeamInvitationSubsystemConfig
 
 data TeamInvitationError
   = TeamInvitationNoEmail
@@ -41,10 +51,22 @@ data TeamInvitationError
   | TooManyTeamInvitations
   | TeamInvitationBlacklistedEmail
   | TeamInvitationEmailTaken
+  deriving (Show)
 
-runTeamInvitationSubsystem :: (Member (Error TeamInvitationError) r) => InterpreterFor TeamInvitationSubsystem r
-runTeamInvitationSubsystem = interpret $ \case
-  InviteUser luid tid request -> inviteUserImpl luid tid request
+runTeamInvitationSubsystem ::
+  ( Member (Error TeamInvitationError) r,
+    Member TinyLog r,
+    Member GalleyAPIAccess r,
+    Member UserSubsystem r,
+    Member Random r,
+    Member InvitationCodeStore r,
+    Member Now r,
+    Member EmailSubsystem r
+  ) =>
+  TeamInvitationSubsystemConfig ->
+  InterpreterFor TeamInvitationSubsystem r
+runTeamInvitationSubsystem cfg = interpret $ \case
+  InviteUser luid tid request -> runInputConst cfg $ inviteUserImpl luid tid request
   AcceptInvitation uid invitationId invitationCode -> acceptInvitationImpl uid invitationId invitationCode
   RevokeInvitation tid invitationId -> revokeInvitationImpl tid invitationId
   GetInvitationByCode invitationCode -> getInvitationByCodeImpl invitationCode
@@ -52,7 +74,21 @@ runTeamInvitationSubsystem = interpret $ \case
   CheckInvitationsByEmail email -> checkInvitationsByEmailImpl email
   DeleteAllInvitationsFor tid -> deleteAllInvitationsForImpl tid
 
-inviteUserImpl :: (Member (Error TeamInvitationError) r, Member GalleyAPIAccess r, Member UserSubsystem r, Member TinyLog r) => Local UserId -> TeamId -> InvitationRequest -> Sem r (Invitation, InvitationLocation)
+inviteUserImpl ::
+  ( Member (Error TeamInvitationError) r,
+    Member GalleyAPIAccess r,
+    Member UserSubsystem r,
+    Member TinyLog r,
+    Member Random r,
+    Member InvitationCodeStore r,
+    Member (Input TeamInvitationSubsystemConfig) r,
+    Member Now r,
+    Member EmailSubsystem r
+  ) =>
+  Local UserId ->
+  TeamId ->
+  InvitationRequest ->
+  Sem r (Invitation, InvitationLocation)
 inviteUserImpl luid tid request = do
   let inviteeRole = fromMaybe defaultRole request.role
 
@@ -81,12 +117,13 @@ inviteUserImpl luid tid request = do
 createInvitation' ::
   ( Member GalleyAPIAccess r,
     Member UserSubsystem r,
-    Member UserKeyStore r,
     Member InvitationCodeStore r,
-    Member EmailSending r,
     Member TinyLog r,
     Member (Error TeamInvitationError) r,
-    Member Random r
+    Member Random r,
+    Member (Input TeamInvitationSubsystemConfig) r,
+    Member Now r,
+    Member EmailSubsystem r
   ) =>
   TeamId ->
   Maybe InvitationId ->
@@ -110,7 +147,7 @@ createInvitation' tid mExpectedInvId inviteeRole mbInviterUid inviterEmail invRe
         then pure True
         else throw TeamInvitationEmailTaken
 
-  maxSize <- asks (.settings.maxTeamSize)
+  maxSize <- maxTeamSize <$> input
   pending <- Store.countInvitations tid
   when (fromIntegral pending >= maxSize) $
     throw TooManyTeamInvitations
@@ -119,8 +156,8 @@ createInvitation' tid mExpectedInvId inviteeRole mbInviterUid inviterEmail invRe
 
   do
     iid <- maybe (Id <$> Random.uuid) pure mExpectedInvId
-    now <- liftIO =<< asks (.currentTime)
-    timeout <- asks (.settings.teamInvitationTimeout)
+    now <- Now.get
+    timeout <- teamInvitationTimeout <$> input
     code <- mkInvitationCode
     newInv <-
       let insertInv =
@@ -162,6 +199,7 @@ isPersonalUser uke = do
 -- | brig used to not store the role, so for migration we allow this to be empty and fill in the
 -- default here.
 toInvitation ::
+  forall r.
   (Member TinyLog r) =>
   Text ->
   ShowOrHideInvitationUrl ->
@@ -195,12 +233,16 @@ toInvitation urlText showUrl storedInv = do
           . Log.field "url" url
           . Log.field "error" (show e)
 
-logInvitationRequest :: (Member TinyLog r) => (Msg -> Msg) -> Sem (Error TeamInvitationError : r) (Invitation, InvitationCode) -> Sem r (Invitation, InvitationCode)
+logInvitationRequest ::
+  (Member TinyLog r, Member (Error TeamInvitationError) r) =>
+  (Msg -> Msg) ->
+  Sem (Error TeamInvitationError : r) (Invitation, InvitationCode) ->
+  Sem r (Invitation, InvitationCode)
 logInvitationRequest context action =
   runError action >>= \case
     Left e -> do
       Log.warn $
-        msg @String ("Failed to create invitation: " <> show err)
+        msg @String ("Failed to create invitation: " <> show e)
           . context
       throw e
     Right res@(_, code) -> do
@@ -209,22 +251,6 @@ logInvitationRequest context action =
           . context
           . logInvitationCode code
       pure res
-
--- flip mapExceptT action \action' -> do
---   eith <- action'
---   case eith of
---     Left err' -> do
---       liftSem $
---         Log.warn $
---           context
---             . Log.msg @Text
---               ( "Failed to create invitation, label: "
---                   <> (LT.toStrict . errorLabel) err'
---               )
---       pure (Left err')
---     Right result@(_, code) -> liftSem do
---       Log.info $ (context . logInvitationCode code) . Log.msg @Text "Successfully created invitation"
---       pure (Right result)
 
 acceptInvitationImpl :: UserId -> InvitationId -> InvitationCode -> Sem r ()
 acceptInvitationImpl = undefined
