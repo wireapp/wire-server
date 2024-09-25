@@ -85,6 +85,9 @@ runTeamInvitationSubsystem cfg = interpret $ \case
   GetInvitationByEmail email -> getInvitationByEmailImpl email
   CheckInvitationsByEmail email -> checkInvitationsByEmailImpl email
   DeleteAllInvitationsFor tid -> deleteAllInvitationsForImpl tid
+  -- \| TODO(leif): add description
+  InternalCreateInvitation tid mExpectedInvId role mbInviterUid inviterEmail invRequest ->
+    runInputConst cfg $ createInvitation' tid mExpectedInvId role mbInviterUid inviterEmail invRequest
 
 inviteUserImpl ::
   ( Member (Error TeamInvitationError) r,

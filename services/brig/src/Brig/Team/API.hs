@@ -140,7 +140,9 @@ createInvitationViaScim ::
   ( Member BlockListStore r,
     Member UserKeyStore r,
     Member (UserPendingActivationStore p) r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member TeamInvitationSubsystem r,
+    Member (Input (Local ())) r
   ) =>
   TeamId ->
   NewUserScimInvitation ->
@@ -162,9 +164,13 @@ createInvitationViaScim tid newUser@(NewUserScimInvitation _tid uid _eid loc nam
           . logTeam tid
           . logEmail email
 
+  iid <- undefined uid
+  localNothing <- const Nothing <$$> lift (liftSem $ input)
   void $
     logInvitationRequest context $
-      createInvitation' tid (Just uid) inviteeRole Nothing fromEmail invreq
+      lift $
+        liftSem $
+          internalCreateInvitation tid (Just iid) inviteeRole localNothing fromEmail invreq
 
   createUserInviteViaScim newUser
 
