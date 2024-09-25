@@ -18,7 +18,9 @@
 
 module Wire.AuthenticationSubsystem where
 
+import Data.Id
 import Data.Misc
+import Data.Qualified
 import Imports
 import Polysemy
 import Wire.API.User
@@ -26,6 +28,7 @@ import Wire.API.User.Password
 import Wire.UserKeyStore
 
 data AuthenticationSubsystem m a where
+  VerifyPassword :: Local UserId -> PlainTextPassword6 -> AuthenticationSubsystem m ()
   CreatePasswordResetCode :: EmailKey -> AuthenticationSubsystem m ()
   ResetPassword :: PasswordResetIdentity -> PasswordResetCode -> PlainTextPassword8 -> AuthenticationSubsystem m ()
   -- For testing

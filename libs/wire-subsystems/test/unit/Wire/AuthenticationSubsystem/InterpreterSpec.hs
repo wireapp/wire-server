@@ -18,7 +18,7 @@ import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
 import Wire.API.Allowlists (AllowlistEmailDomains (AllowlistEmailDomains))
-import Wire.API.Password
+import Wire.API.Password as Password
 import Wire.API.User
 import Wire.API.User qualified as User
 import Wire.API.User.Auth
@@ -91,7 +91,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
 
                 (,) <$> lookupHashedPassword uid <*> listCookies uid
          in mPreviousPassword /= Just newPassword ==>
-              (fmap (verifyPassword newPassword) newPasswordHash === Just True)
+              (fmap (Password.verifyPassword newPassword) newPasswordHash === Just True)
                 .&&. (cookiesAfterReset === [])
 
     prop "password reset should work with the returned password reset key" $
@@ -110,7 +110,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
 
                 (,) <$> lookupHashedPassword uid <*> listCookies uid
          in mPreviousPassword /= Just newPassword ==>
-              (fmap (verifyPassword newPassword) newPasswordHash === Just True)
+              (fmap (Password.verifyPassword newPassword) newPasswordHash === Just True)
                 .&&. (cookiesAfterReset === [])
 
     prop "reset code is not generated when email is not in allow list" $
@@ -167,7 +167,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
                 resetPassword (PasswordResetEmailIdentity email) code newPassword
 
                 (,mCaughtExc) <$> lookupHashedPassword uid
-         in (fmap (verifyPassword newPassword) newPasswordHash === Just True)
+         in (fmap (Password.verifyPassword newPassword) newPasswordHash === Just True)
               .&&. (mCaughtException === Nothing)
 
     prop "reset code is not accepted after expiry" $
@@ -269,7 +269,7 @@ instance Arbitrary Upto4 where
 verifyPasswordProp :: PlainTextPassword8 -> Maybe Password -> Property
 verifyPasswordProp plainTextPassword passwordHash =
   counterexample ("Password doesn't match, plainText=" <> show plainTextPassword <> ", passwordHash=" <> show passwordHash) $
-    fmap (verifyPassword plainTextPassword) passwordHash == Just True
+    fmap (Password.verifyPassword plainTextPassword) passwordHash == Just True
 
 hashAndUpsertPassword :: (Member PasswordStore r, Member HashPassword r) => UserId -> PlainTextPassword8 -> Sem r ()
 hashAndUpsertPassword uid password =

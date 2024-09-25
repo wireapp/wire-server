@@ -32,7 +32,6 @@ import System.Logger.Message qualified as Log
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig qualified as FedBrig
 import Wire.API.Federation.Error
-import Wire.API.Password (verifyPassword)
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus (..))
 import Wire.API.Team.Feature
@@ -57,7 +56,6 @@ import Wire.IndexedUserStore (IndexedUserStore)
 import Wire.IndexedUserStore qualified as IndexedUserStore
 import Wire.IndexedUserStore.Bulk.ElasticSearch (teamSearchVisibilityInbound)
 import Wire.InvitationCodeStore
-import Wire.PasswordStore (PasswordStore, lookupHashedPassword)
 import Wire.Sem.Concurrency
 import Wire.Sem.Metrics
 import Wire.Sem.Metrics qualified as Metrics
@@ -102,8 +100,7 @@ runUserSubsystem ::
     Member FederationConfigStore r,
     Member Metrics r,
     Member InvitationCodeStore r,
-    Member TinyLog r,
-    Member PasswordStore r
+    Member TinyLog r
   ) =>
   UserSubsystemConfig ->
   InterpreterFor AuthenticationSubsystem r ->
@@ -923,7 +920,6 @@ acceptTeamInvitationImpl ::
     Member IndexedUserStore r,
     Member Metrics r,
     Member Events r,
-    Member PasswordStore r,
     Member AuthenticationSubsystem r
   ) =>
   Local UserId ->
@@ -934,10 +930,7 @@ acceptTeamInvitationImpl luid pw code = do
   mSelfProfile <- getSelfProfileImpl luid
   let mEmailKey = mkEmailKey <$> (userEmail . selfUser =<< mSelfProfile)
       mTid = mSelfProfile >>= userTeam . selfUser
-  -- TODO: This exists to make the warnings go away, this is not supposed to be
-  -- in final code. We have to implement checkPassword in terms of Auth subsystem.
-  forM_ mEmailKey $ createPasswordResetCode
-  checkPassword
+  verifyPassword luid pw
   inv <- internalFindTeamInvitationImpl mEmailKey code
   let tid = inv.teamId
   let minvmeta = (,inv.createdAt) <$> inv.createdBy
@@ -951,13 +944,6 @@ acceptTeamInvitationImpl luid pw code = do
   deleteInvitation inv.teamId inv.invitationId
   syncUserIndex uid
   generateUserEvent uid Nothing (teamUpdated uid tid)
-  where
-    checkPassword = do
-      p <-
-        (lookupHashedPassword . tUnqualified $ luid)
-          >>= maybe (throw UserSubsystemMissingAuth) pure
-      unless (verifyPassword pw p) $
-        throw UserSubsystemBadCredentials
 
 -- toInvitationError :: RegisterError -> UserSubsystemError
 -- toInvitationError = \case
