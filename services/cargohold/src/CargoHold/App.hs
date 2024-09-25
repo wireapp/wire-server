@@ -22,18 +22,17 @@
 
 module CargoHold.App
   ( -- * Environment
-    Env,
+    Env (..),
     newEnv,
     closeEnv,
-    aws,
-    multiIngress,
-    httpManager,
-    http2Manager,
-    appLogger,
-    requestId,
-    localUnit,
-    options,
-    settings,
+    awsLens,
+    multiIngressLens,
+    httpManagerLens,
+    http2ManagerLens,
+    appLoggerLens,
+    requestIdLens,
+    localUnitLens,
+    optionsLens,
 
     -- * App Monad
     AppT,
@@ -56,7 +55,7 @@ import CargoHold.Options (AWSOpts, Opts, S3Compatibility (..), brig)
 import qualified CargoHold.Options as Opt
 import Control.Error (ExceptT, exceptT)
 import Control.Exception (throw)
-import Control.Lens (Lens', makeLenses, non, view, (?~), (^.))
+import Control.Lens (lensField, lensRules, makeLensesWith, non, (.~), (?~), (^.))
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import qualified Data.Map as Map
 import Data.Qualified
@@ -72,6 +71,7 @@ import qualified Servant.Client as Servant
 import System.Logger.Class hiding (settings)
 import qualified System.Logger.Extended as Log
 import Util.Options
+import Util.SuffixNamer
 import Wire.API.Routes.Internal.Brig (BrigInternalClient)
 import qualified Wire.API.Routes.Internal.Brig as IBrig
 
@@ -79,30 +79,27 @@ import qualified Wire.API.Routes.Internal.Brig as IBrig
 -- Environment
 
 data Env = Env
-  { _aws :: AWS.Env,
-    _appLogger :: Logger,
-    _httpManager :: Manager,
-    _http2Manager :: Http2Manager,
-    _requestId :: RequestId,
-    _options :: Opt.Opts,
-    _localUnit :: Local (),
-    _multiIngress :: Map String AWS.Env
+  { aws :: AWS.Env,
+    appLogger :: Logger,
+    httpManager :: Manager,
+    http2Manager :: Http2Manager,
+    requestId :: RequestId,
+    options :: Opt.Opts,
+    localUnit :: Local (),
+    multiIngress :: Map String AWS.Env
   }
 
-makeLenses ''Env
-
-settings :: Lens' Env Opt.Settings
-settings = options . Opt.settings
+makeLensesWith (lensRules & lensField .~ suffixNamer) ''Env
 
 newEnv :: Opts -> IO Env
 newEnv opts = do
-  logger <- Log.mkLogger (opts ^. Opt.logLevel) (opts ^. Opt.logNetStrings) (opts ^. Opt.logFormat)
+  logger <- Log.mkLogger opts.logLevel opts.logNetStrings opts.logFormat
   checkOpts opts logger
-  httpMgr <- initHttpManager (opts ^. Opt.aws . Opt.s3Compatibility)
+  httpMgr <- initHttpManager opts.aws.s3Compatibility
   http2Mgr <- initHttp2Manager
-  awsEnv <- initAws (opts ^. Opt.aws) logger httpMgr
+  awsEnv <- initAws opts.aws logger httpMgr
   multiIngressAWS <- initMultiIngressAWS logger httpMgr
-  let localDomain = toLocalUnsafe (opts ^. Opt.settings . Opt.federationDomain) ()
+  let localDomain = toLocalUnsafe opts.settings.federationDomain ()
   pure $ Env awsEnv logger httpMgr http2Mgr (RequestId "N/A") opts localDomain multiIngressAWS
   where
     initMultiIngressAWS :: Logger -> Manager -> IO (Map String AWS.Env)
@@ -112,10 +109,10 @@ newEnv opts = do
           ( \(k, v) ->
               initAws (patchS3DownloadEndpoint v) logger httpMgr >>= \v' -> pure (k, v')
           )
-          (Map.assocs (opts ^. Opt.aws . Opt.multiIngress . non Map.empty))
+          (Map.assocs (opts ^. Opt.awsLens . Opt.multiIngressLens . non Map.empty))
 
     patchS3DownloadEndpoint :: AWSEndpoint -> AWSOpts
-    patchS3DownloadEndpoint e = (opts ^. Opt.aws) & Opt.s3DownloadEndpoint ?~ e
+    patchS3DownloadEndpoint e = (opts ^. Opt.awsLens) & Opt.s3DownloadEndpointLens ?~ e
 
 -- | Validate (some) options (`Opts`)
 --
@@ -132,19 +129,19 @@ checkOpts opts lgr = do
     error errorMsg
   where
     multiIngressConfigured :: Bool
-    multiIngressConfigured = (not . null) (opts ^. (Opt.aws . Opt.multiIngress . non Map.empty))
+    multiIngressConfigured = (not . null) (opts ^. (Opt.awsLens . Opt.multiIngressLens . non Map.empty))
 
     cloudFrontConfigured :: Bool
-    cloudFrontConfigured = isJust (opts ^. (Opt.aws . Opt.cloudFront))
+    cloudFrontConfigured = isJust opts.aws.cloudFront
 
     singleAwsDownloadEndpointConfigured :: Bool
-    singleAwsDownloadEndpointConfigured = isJust (opts ^. (Opt.aws . Opt.s3DownloadEndpoint))
+    singleAwsDownloadEndpointConfigured = isJust opts.aws.s3DownloadEndpoint
 
 initAws :: AWSOpts -> Logger -> Manager -> IO AWS.Env
-initAws o l = AWS.mkEnv l (o ^. Opt.s3Endpoint) addrStyle downloadEndpoint (o ^. Opt.s3Bucket) (o ^. Opt.cloudFront)
+initAws o l = AWS.mkEnv l o.s3Endpoint addrStyle downloadEndpoint o.s3Bucket o.cloudFront
   where
-    downloadEndpoint = fromMaybe (o ^. Opt.s3Endpoint) (o ^. Opt.s3DownloadEndpoint)
-    addrStyle = maybe S3AddressingStylePath Opt.unwrapS3AddressingStyle (o ^. Opt.s3AddressingStyle)
+    downloadEndpoint = fromMaybe o.s3Endpoint o.s3DownloadEndpoint
+    addrStyle = maybe S3AddressingStylePath Opt.unwrapS3AddressingStyle o.s3AddressingStyle
 
 initHttpManager :: Maybe S3Compatibility -> IO Manager
 initHttpManager s3Compat =
@@ -185,7 +182,7 @@ initSSLContext = do
   pure ctx
 
 closeEnv :: Env -> IO ()
-closeEnv e = Log.close $ e ^. appLogger
+closeEnv e = Log.close e.appLogger
 
 -------------------------------------------------------------------------------
 -- App Monad
@@ -207,8 +204,8 @@ type App = AppT IO
 
 instance MonadLogger App where
   log l m = do
-    g <- view appLogger
-    r <- view requestId
+    g <- asks (.appLogger)
+    r <- asks (.requestId)
     Log.log g l $ "request" .= unRequestId r ~~ m
 
 instance MonadLogger (ExceptT e App) where
@@ -216,11 +213,11 @@ instance MonadLogger (ExceptT e App) where
 
 instance MonadHttp App where
   handleRequestWithCont req handler = do
-    manager <- view httpManager
+    manager <- asks (.httpManager)
     liftIO $ withResponse req manager handler
 
 instance HasRequestId App where
-  getRequestId = view requestId
+  getRequestId = asks (.requestId)
 
 instance MonadHttp (ExceptT e App) where
   handleRequestWithCont req handler = lift $ Bilge.handleRequestWithCont req handler
@@ -233,8 +230,8 @@ runAppT e (AppT a) = runReaderT a e
 
 executeBrigInteral :: BrigInternalClient a -> App (Either Servant.ClientError a)
 executeBrigInteral action = do
-  httpMgr <- view httpManager
-  brigEndpoint <- view (options . brig)
+  httpMgr <- asks (.httpManager)
+  brigEndpoint <- asks (.options.brig)
   liftIO $ IBrig.runBrigInternalClient httpMgr brigEndpoint action
 
 -------------------------------------------------------------------------------

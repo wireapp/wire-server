@@ -29,7 +29,7 @@ where
 
 import Brig.Types.Intra
 import Control.Error
-import Control.Lens ((.~), (^.))
+import Control.Lens ((.~))
 import Control.Monad.Except
 import Data.Aeson hiding (Error, json)
 import Data.Aeson.KeyMap qualified as KeyMap
@@ -81,15 +81,15 @@ start :: Opts -> IO ()
 start o = do
   e <- newEnv o
   s <- Server.newSettings (server e)
-  Server.runSettingsWithShutdown s (requestIdMiddleware (e ^. applog) defaultRequestIdHeaderName $ servantApp e) Nothing
+  Server.runSettingsWithShutdown s (requestIdMiddleware e.appLogger defaultRequestIdHeaderName $ servantApp e) Nothing
   where
     server :: Env -> Server.Server
-    server e = Server.defaultServer (unpack o.stern.host) o.stern.port e._applog
+    server e = Server.defaultServer (unpack o.stern.host) o.stern.port e.appLogger
 
     servantApp :: Env -> Application
     servantApp e0 req cont = do
       let rid = getRequestId defaultRequestIdHeaderName req
-      let e = requestId .~ rid $ e0
+      let e = requestIdLens .~ rid $ e0
       Servant.serve
         ( Proxy
             @( SwaggerDocsAPI

@@ -43,7 +43,7 @@ import CargoHold.API.Error
 import CargoHold.AWS (amazonkaEnvWithDownloadEndpoint)
 import qualified CargoHold.AWS as AWS
 import CargoHold.App hiding (Env, Handler)
-import CargoHold.Options (downloadLinkTTL)
+import CargoHold.Options
 import qualified CargoHold.Types.V3 as V3
 import qualified Codec.MIME.Parse as MIME
 import qualified Codec.MIME.Type as MIME
@@ -144,7 +144,7 @@ downloadV3 ::
   V3.AssetKey ->
   ExceptT Error App (ConduitM () ByteString (ResourceT IO) ())
 downloadV3 (s3Key . mkKey -> key) = do
-  env <- view aws
+  env <- asks (.aws)
   pure . flattenResourceT $ view (getObjectResponse_body . _ResponseBody) <$> AWS.execStream env req
   where
     req :: Text -> GetObject
@@ -216,10 +216,9 @@ updateMetadataV3 (s3Key . mkKey -> key) (S3AssetMeta prc tok _) = do
 signedURL :: (ToByteString p) => p -> Maybe Text -> ExceptT Error App URI
 signedURL path mbHost = do
   e <- awsEnvForHost
-  let b = view AWS.s3Bucket e
   now <- liftIO getCurrentTime
-  ttl <- view (settings . downloadLinkTTL)
-  let req = newGetObject (BucketName b) (ObjectKey . Text.decodeLatin1 $ toByteString' path)
+  ttl <- asks (.options.settings.downloadLinkTTL)
+  let req = newGetObject (BucketName e.s3Bucket) (ObjectKey . Text.decodeLatin1 $ toByteString' path)
   signed <-
     presignURL (amazonkaEnvWithDownloadEndpoint e) now (Seconds (fromIntegral ttl)) req
   toUri signed
@@ -235,9 +234,9 @@ signedURL path mbHost = do
 
     awsEnvForHost :: ExceptT Error App AWS.Env
     awsEnvForHost = do
-      multiIngressConf <- view multiIngress
+      multiIngressConf <- asks (.multiIngress)
       if null multiIngressConf
-        then view aws
+        then asks (.aws)
         else awsEnvForHost' mbHost multiIngressConf
       where
         awsEnvForHost' :: Maybe Text -> Map String AWS.Env -> ExceptT Error App AWS.Env
@@ -262,7 +261,7 @@ signedURL path mbHost = do
                 "host"
                   .= host
                   ~~ "s3DownloadEndpoint"
-                    .= show (hostAwsEnv ^. AWS.amazonkaDownloadEndpoint)
+                    .= show hostAwsEnv.amazonkaDownloadEndpoint
                   ~~ msg (val "awsEnvForHost - multiIngress lookup succeed, using specific AWS env.")
               pure hostAwsEnv
 
@@ -359,7 +358,7 @@ exec ::
   (Text -> r) ->
   ExceptT Error App (AWSResponse r)
 exec req = do
-  env <- view aws
+  env <- asks (.aws)
   AWS.exec env req
 
 execCatch ::
@@ -371,7 +370,7 @@ execCatch ::
   (Text -> r) ->
   ExceptT Error App (Maybe (AWSResponse r))
 execCatch req = do
-  env <- view aws
+  env <- asks (.aws)
   AWS.execCatch env req
 
 --------------------------------------------------------------------------------

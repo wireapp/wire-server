@@ -107,11 +107,11 @@ downloadAsset = downloadAssetWith id
 withSettingsOverrides :: (Opts -> Opts) -> TestM a -> TestM a
 withSettingsOverrides f action = do
   ts <- ask
-  let opts = f (view tsOpts ts)
+  let opts = f ts.opts
   liftIO . lowerCodensity $ do
     (app, _) <- mkApp opts
     p <- withMockServer app
-    liftIO $ runTestM (ts & tsEndpoint %~ setLocalEndpoint p) action
+    liftIO $ runTestM (ts & endpointLens %~ setLocalEndpoint p) action
 
 setLocalEndpoint :: Word16 -> Endpoint -> Endpoint
 setLocalEndpoint port endpoint = endpoint {port = port, host = "127.0.0.1"}
@@ -123,5 +123,5 @@ withMockFederator ::
 withMockFederator respond action = do
   withTempMockFederator def {handler = respond} $ \p ->
     withSettingsOverrides
-      (federator . _Just %~ setLocalEndpoint (fromIntegral p))
+      (federatorLens . _Just %~ setLocalEndpoint (fromIntegral p))
       action

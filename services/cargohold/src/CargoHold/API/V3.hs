@@ -41,7 +41,7 @@ import qualified Codec.MIME.Type as MIME
 import qualified Conduit
 import Control.Applicative (optional)
 import Control.Error
-import Control.Lens (set, view, (^.))
+import Control.Lens (set, (^.))
 import Control.Monad.Trans.Resource
 import Crypto.Random (getRandomBytes)
 import Data.Aeson (eitherDecodeStrict')
@@ -70,7 +70,7 @@ upload own bdy = do
   let cl = fromIntegral $ hdrLength hdrs
   when (cl <= 0) $
     throwE invalidLength
-  maxBytes <- view (CargoHold.App.settings . maxTotalBytes)
+  maxBytes <- asks (.options.settings.maxTotalBytes)
   when (cl > maxBytes) $
     throwE assetTooLarge
   ast <- liftIO $ Id <$> nextRandom
