@@ -18,8 +18,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.Team.Email
-  ( InvitationEmail (..),
-    CreatorWelcomeEmail (..),
+  ( CreatorWelcomeEmail (..),
     MemberWelcomeEmail (..),
     sendMemberWelcomeMail,
   )
@@ -28,7 +27,6 @@ where
 import Brig.App
 import Brig.Team.Template
 import Data.Id (TeamId, idToText)
-import Data.Text.Ascii qualified as Ascii
 import Data.Text.Lazy (toStrict)
 import Imports
 import Network.Mail.Mime

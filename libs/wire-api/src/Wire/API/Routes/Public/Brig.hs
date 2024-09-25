@@ -1574,7 +1574,7 @@ type TeamsAPI =
         :> CanThrow 'TooManyTeamInvitations
         :> CanThrow 'InsufficientTeamPermissions
         :> CanThrow 'InvalidInvitationCode
-        :> ZUser
+        :> ZLocalUser
         :> "teams"
         :> Capture "tid" TeamId
         :> "invitations"

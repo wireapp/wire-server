@@ -85,6 +85,8 @@ import Wire.Sem.Random
 import Wire.Sem.Random.IO
 import Wire.SessionStore
 import Wire.SessionStore.Cassandra (interpretSessionStoreCassandra)
+import Wire.TeamInvitationSubsystem
+import Wire.TeamInvitationSubsystem.Interpreter
 import Wire.UserKeyStore
 import Wire.UserKeyStore.Cassandra
 import Wire.UserStore
@@ -99,6 +101,7 @@ import Wire.VerificationCodeSubsystem.Interpreter
 
 type BrigCanonicalEffects =
   '[ AuthenticationSubsystem,
+     TeamInvitationSubsystem,
      UserSubsystem
    ]
     `Append` BrigLowerLevelEffects
@@ -111,6 +114,7 @@ type BrigLowerLevelEffects =
      DeleteQueue,
      Wire.Events.Events,
      Error UserSubsystemError,
+     Error TeamInvitationError,
      Error AuthenticationSubsystemError,
      Error Wire.API.Federation.Error.FederationError,
      Error VerificationCodeSubsystemError,
@@ -207,6 +211,7 @@ runBrigToIO e (AppT ma) = do
 
       authSubsystemInterpreter :: (Members BrigLowerLevelEffects r) => InterpreterFor AuthenticationSubsystem r
       authSubsystemInterpreter = interpretAuthenticationSubsystem userSubsystemInterpreter
+
   ( either throwM pure
       <=< ( runFinal
               . unsafelyPerformConcurrency
@@ -258,13 +263,15 @@ runBrigToIO e (AppT ma) = do
               . mapError verificationCodeSubsystemErrorToHttpError
               . mapError (StdError . federationErrorToWai)
               . mapError authenticationSubsystemErrorToHttpError
+              . mapError teamInvitationErrorToHttpError
               . mapError userSubsystemErrorToHttpError
               . runEvents
               . runDeleteQueue e.internalEvents
               . interpretPropertySubsystem propertySubsystemConfig
               . interpretVerificationCodeSubsystem
-              . emailSubsystemInterpreter e.userTemplates e.templateBranding
+              . emailSubsystemInterpreter e.userTemplates undefined e.templateBranding
               . userSubsystemInterpreter
+              . runTeamInvitationSubsystem undefined -- TODO
               . authSubsystemInterpreter
           )
     )

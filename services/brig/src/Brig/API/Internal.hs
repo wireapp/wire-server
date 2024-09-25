@@ -109,6 +109,7 @@ import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PropertySubsystem
 import Wire.Rpc
 import Wire.Sem.Concurrency
+import Wire.TeamInvitationSubsystem
 import Wire.UserKeyStore
 import Wire.UserStore
 import Wire.UserSubsystem
@@ -128,6 +129,7 @@ servantSitemap ::
     Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member UserSubsystem r,
+    Member TeamInvitationSubsystem r,
     Member UserStore r,
     Member InvitationCodeStore r,
     Member UserKeyStore r,
@@ -241,7 +243,7 @@ teamsAPI ::
     Member (Concurrency 'Unsafe) r,
     Member TinyLog r,
     Member InvitationCodeStore r,
-    Member EmailSending r,
+    Member TeamInvitationSubsystem r,
     Member UserSubsystem r,
     Member Events r,
     Member (Input TeamTemplates) r,

@@ -17,6 +17,8 @@ import System.Logger.Message as Log
 import URI.ByteString
 import Util.Logging
 import Util.Timeout (Timeout (..))
+import Wire.API.Error
+import Wire.API.Error.Brig qualified as E
 import Wire.API.Team.Invitation
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as Teams
@@ -25,6 +27,7 @@ import Wire.API.Team.Role
 import Wire.API.User
 import Wire.Arbitrary
 import Wire.EmailSubsystem
+import Wire.Error
 import Wire.GalleyAPIAccess hiding (AddTeamMember)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.InvitationCodeStore (InvitationCodeStore, StoredInvitation)
@@ -45,13 +48,22 @@ data TeamInvitationSubsystemConfig = TeamInvitationSubsystemConfig
   deriving (Show, Generic)
   deriving (Arbitrary) via GenericUniform TeamInvitationSubsystemConfig
 
-data TeamInvitationError
+data TeamInvitationError -- TODO: rename to TeamInvitationSubsystemError, move to Wire.TeamInvitationSubsystem.Error
   = TeamInvitationNoEmail
   | TeamInvitationInsufficientTeamPermissions
   | TooManyTeamInvitations
   | TeamInvitationBlacklistedEmail
   | TeamInvitationEmailTaken
   deriving (Show)
+
+teamInvitationErrorToHttpError :: TeamInvitationError -> HttpError
+teamInvitationErrorToHttpError =
+  StdError . \case
+    TeamInvitationNoEmail -> errorToWai @E.NoEmail
+    TeamInvitationInsufficientTeamPermissions -> errorToWai @E.InsufficientTeamPermissions
+    TooManyTeamInvitations -> errorToWai @E.TooManyTeamInvitations
+    TeamInvitationBlacklistedEmail -> errorToWai @E.BlacklistedEmail
+    TeamInvitationEmailTaken -> errorToWai @E.EmailExists
 
 runTeamInvitationSubsystem ::
   ( Member (Error TeamInvitationError) r,

@@ -28,28 +28,23 @@ where
 
 import Brig.API.Error
 import Brig.API.Handler
-import Brig.API.User (createUserInviteViaScim, fetchUserIdentity)
+import Brig.API.User (createUserInviteViaScim)
 import Brig.API.User qualified as API
 import Brig.API.Util (logEmail, logInvitationCode)
 import Brig.App as App
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
-import Brig.Options
-import Brig.Team.Email
-import Brig.Team.Template
 import Brig.Types.Team (TeamSize)
 import Brig.User.Search.TeamSize qualified as TeamSize
 import Control.Lens (view, (^.))
 import Control.Monad.Trans.Except (mapExceptT)
-import Data.ByteString.Conversion (toByteString, toByteString')
+import Data.ByteString.Conversion (toByteString)
 import Data.Id
 import Data.List1 qualified as List1
-import Data.Qualified (Local)
 import Data.Range
 import Data.Text.Ascii
 import Data.Text.Encoding (encodeUtf8)
 import Data.Text.Lazy qualified as LT
 import Data.Text.Lazy qualified as Text
-import Data.Tuple.Extra
 import Imports hiding (head)
 import Network.Wai.Utilities hiding (Error, code, message)
 import Polysemy
@@ -74,11 +69,8 @@ import Wire.API.Team.Member (teamMembers)
 import Wire.API.Team.Member qualified as Teams
 import Wire.API.Team.Permission (Perm (AddTeamMember))
 import Wire.API.Team.Role
-import Wire.API.Team.Role qualified as Public
 import Wire.API.User hiding (fromEmail)
-import Wire.API.User qualified as Public
 import Wire.BlockListStore
-import Wire.EmailSending (EmailSending)
 import Wire.EmailSubsystem.Template
 import Wire.Error
 import Wire.Events (Events)
@@ -86,33 +78,28 @@ import Wire.GalleyAPIAccess (GalleyAPIAccess, ShowOrHideInvitationUrl (..))
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.InvitationCodeStore (InvitationCodeStore (..), PaginatedResult (..), StoredInvitation (..))
 import Wire.InvitationCodeStore qualified as Store
-import Wire.InvitationCodeStore.Cassandra qualified as Store (mkInvitationCode)
 import Wire.Sem.Concurrency
+import Wire.TeamInvitationSubsystem
 import Wire.UserKeyStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
 
 servantAPI ::
   ( Member GalleyAPIAccess r,
-    Member UserKeyStore r,
+    Member TeamInvitationSubsystem r,
     Member UserSubsystem r,
     Member Store.InvitationCodeStore r,
-    Member EmailSending r,
-    Member (Input (Local ())) r,
     Member TinyLog r,
     Member (Input TeamTemplates) r,
     Member (Error UserSubsystemError) r
   ) =>
   ServerT TeamsAPI (Handler r)
 servantAPI =
-  Named @"send-team-invitation" createInvitation
-    :<|> Named @"get-team-invitations"
-      (\u t inv s -> lift . liftSem $ listInvitations u t inv s)
-    :<|> Named @"get-team-invitation"
-      (\u t inv -> lift . liftSem $ getInvitation u t inv)
-    :<|> Named @"delete-team-invitation"
-      (\u t inv -> lift . liftSem $ deleteInvitation u t inv)
-    :<|> Named @"get-team-invitation-info" getInvitationByCode
+  Named @"send-team-invitation" (\luid tid invreq -> lift . liftSem $ inviteUser luid tid invreq)
+    :<|> Named @"get-team-invitations" (\u t inv s -> lift . liftSem $ listInvitations u t inv s)
+    :<|> Named @"get-team-invitation" (\u t inv -> lift . liftSem $ getInvitation u t inv)
+    :<|> Named @"delete-team-invitation" (\u t inv -> lift . liftSem $ deleteInvitation u t inv)
+    :<|> Named @"get-team-invitation-info" (lift . liftSem . getInvitationByCode)
     :<|> Named @"head-team-invitations" (lift . liftSem . headInvitationByEmail)
     :<|> Named @"get-team-size" teamSizePublic
     :<|> Named @"accept-team-invitation" (\luid req -> lift $ liftSem $ acceptTeamInvitation luid req.password req.code)
@@ -147,55 +134,11 @@ data CreateInvitationInviter = CreateInvitationInviter
   }
   deriving (Eq, Show)
 
-createInvitation ::
-  ( Member GalleyAPIAccess r,
-    Member UserKeyStore r,
-    Member InvitationCodeStore r,
-    Member UserSubsystem r,
-    Member EmailSending r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input TeamTemplates) r,
-    Member (Error UserSubsystemError) r
-  ) =>
-  UserId ->
-  TeamId ->
-  Public.InvitationRequest ->
-  Handler r (Public.Invitation, Public.InvitationLocation)
-createInvitation uid tid body = do
-  let inviteeRole = fromMaybe defaultRole body.role
-  inviter <- do
-    let inviteePerms = Teams.rolePermissions inviteeRole
-    idt <- maybe (throwStd (errorToWai @'E.NoIdentity)) pure =<< lift (fetchUserIdentity uid)
-    from <- maybe (throwStd (errorToWai @'E.NoEmail)) pure (emailIdentity idt)
-    lift . liftSem $ ensurePermissionToAddUser uid tid inviteePerms
-    pure $ CreateInvitationInviter uid from
-
-  let context =
-        logFunction "Brig.Team.API.createInvitation"
-          . logTeam tid
-          . logEmail body.inviteeEmail
-
-  (id &&& loc) . fst
-    <$> logInvitationRequest
-      context
-      (createInvitation' tid Nothing inviteeRole (Just (inviterUid inviter)) (inviterEmail inviter) body)
-  where
-    loc :: Invitation -> InvitationLocation
-    loc inv =
-      InvitationLocation $ "/teams/" <> toByteString' tid <> "/invitations/" <> toByteString' inv.invitationId
-
 createInvitationViaScim ::
-  ( Member GalleyAPIAccess r,
-    Member BlockListStore r,
+  ( Member BlockListStore r,
     Member UserKeyStore r,
-    Member InvitationCodeStore r,
     Member (UserPendingActivationStore p) r,
-    Member TinyLog r,
-    Member UserSubsystem r,
-    Member EmailSending r,
-    Member (Input (Local ())) r,
-    Member (Input TeamTemplates) r
+    Member TinyLog r
   ) =>
   TeamId ->
   NewUserScimInvitation ->
@@ -241,84 +184,6 @@ logInvitationRequest context action =
         Log.info $ (context . logInvitationCode code) . Log.msg @Text "Successfully created invitation"
         pure (Right result)
 
-createInvitation' ::
-  ( Member GalleyAPIAccess r,
-    Member UserSubsystem r,
-    Member UserKeyStore r,
-    Member InvitationCodeStore r,
-    Member EmailSending r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input TeamTemplates) r
-  ) =>
-  TeamId ->
-  Maybe UserId ->
-  Public.Role ->
-  Maybe UserId ->
-  EmailAddress ->
-  Public.InvitationRequest ->
-  Handler r (Public.Invitation, Public.InvitationCode)
-createInvitation' tid mUid inviteeRole mbInviterUid fromEmail invRequest = do
-  let email = invRequest.inviteeEmail
-  let uke = mkEmailKey email
-  blacklistedEm <- lift $ liftSem $ isBlocked email
-  when blacklistedEm $
-    throwStd blacklistedEmail
-  emailTaken <- lift $ liftSem $ isJust <$> lookupKey uke
-  isPersonalUserMigration <-
-    if emailTaken
-      then lift $ liftSem $ isPersonalUser uke
-      else pure False
-  when emailTaken $
-    unless isPersonalUserMigration $
-      throwStd emailExists
-
-  maxSize <- asks (.settings.maxTeamSize)
-  pending <- lift $ liftSem $ Store.countInvitations tid
-  when (fromIntegral pending >= maxSize) $
-    throwStd (errorToWai @'E.TooManyTeamInvitations)
-
-  showInvitationUrl <- lift $ liftSem $ GalleyAPIAccess.getExposeInvitationURLsToTeamAdmin tid
-
-  lift $ do
-    iid <- maybe randomId (pure . Id . toUUID) mUid
-    now <- liftIO =<< asks (.currentTime)
-    timeout <- asks (.settings.teamInvitationTimeout)
-    code <- liftIO $ Store.mkInvitationCode
-    newInv <-
-      let insertInv =
-            Store.MkInsertInvitation
-              { invitationId = iid,
-                teamId = tid,
-                role = inviteeRole,
-                createdAt = now,
-                createdBy = mbInviterUid,
-                inviteeEmail = email,
-                inviteeName = invRequest.inviteeName,
-                code = code
-                -- mUrl = mUrl
-              }
-       in liftSem $ Store.insertInvitation insertInv timeout
-
-    let sendOp =
-          if isPersonalUserMigration
-            then sendInvitationMailPersonalUser
-            else sendInvitationMail
-
-    sendOp email tid fromEmail code invRequest.locale
-    inv <- liftSem $ toInvitation isPersonalUserMigration showInvitationUrl newInv
-    pure (inv, code)
-
-isPersonalUser :: (Member UserSubsystem r, Member (Input (Local ())) r) => EmailKey -> Sem r Bool
-isPersonalUser uke = do
-  mAccount <- getLocalUserAccountByUserKey =<< qualifyLocal' uke
-  pure $ case mAccount of
-    -- this can e.g. happen if the key is claimed but the account is not yet created
-    Nothing -> False
-    Just account ->
-      account.accountStatus == Active
-        && isNothing account.accountUser.userTeam
-
 deleteInvitation ::
   ( Member GalleyAPIAccess r,
     Member InvitationCodeStore r,
@@ -338,8 +203,6 @@ listInvitations ::
     Member TinyLog r,
     Member InvitationCodeStore r,
     Member (Input TeamTemplates) r,
-    Member (Input (Local ())) r,
-    Member UserSubsystem r,
     Member (Error UserSubsystemError) r
   ) =>
   UserId ->
@@ -469,14 +332,6 @@ getInvitation uid tid iid = do
       maybeUrl <- mkInviteUrl showInvitationUrl tid invitation.code
       pure $ Just (Store.invitationFromStored maybeUrl invitation)
 
-getInvitationByCode ::
-  (Member Store.InvitationCodeStore r) =>
-  Public.InvitationCode ->
-  (Handler r) Public.Invitation
-getInvitationByCode c = do
-  inv <- lift . liftSem $ Store.lookupInvitationByCode c
-  maybe (throwStd $ errorToWai @'E.InvalidInvitationCode) (pure . Store.invitationFromStored Nothing) inv
-
 headInvitationByEmail ::
   (Member InvitationCodeStore r, Member TinyLog r) =>
   EmailAddress ->
@@ -490,17 +345,6 @@ headInvitationByEmail email =
         Log.msg (Log.val "team_invidation_email: multiple pending invites from different teams for the same email")
           . Log.field "email" (show email)
       pure Public.InvitationByEmailMoreThanOne
-
--- | FUTUREWORK: This should also respond with status 409 in case of
--- @DB.InvitationByEmailMoreThanOne@.  Refactor so that 'headInvitationByEmailH' and
--- 'getInvitationByEmailH' are almost the same thing.
-getInvitationByEmail ::
-  (Member Store.InvitationCodeStore r, Member TinyLog r) =>
-  EmailAddress ->
-  (Handler r) Public.Invitation
-getInvitationByEmail email = do
-  inv <- lift . liftSem $ Store.lookupInvitationByEmail email
-  maybe (throwStd (notFound "Invitation not found")) (pure . Store.invitationFromStored Nothing) inv
 
 suspendTeam ::
   ( Member (Embed HttpClientIO) r,
