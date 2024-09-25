@@ -18,6 +18,7 @@ import Imports
 import Network.HTTP.Client
 import Network.HTTP.Types
 import Polysemy
+import Wire.API.Team.Size (TeamSize (TeamSize))
 import Wire.API.User.Search
 import Wire.IndexedUserStore
 import Wire.Sem.Metrics (Metrics)
@@ -53,6 +54,27 @@ interpretIndexedUserStoreES cfg =
       searchUsersImpl cfg searcherId mSearcherTeam teamSearchInfo term maxResults
     PaginateTeamMembers filters maxResults mPagingState ->
       paginateTeamMembersImpl cfg filters maxResults mPagingState
+    GetTeamSize tid -> getTeamSizeImpl cfg tid
+
+getTeamSizeImpl ::
+  ( Member (Embed IO) r
+  ) =>
+  IndexedUserStoreConfig ->
+  TeamId ->
+  Sem r TeamSize
+getTeamSizeImpl cfg tid = do
+  let indexName = cfg.conn.indexName
+  countResEither <- embed $ ES.runBH cfg.conn.env $ ES.countByIndex indexName (ES.CountQuery query)
+  countRes <- either (liftIO . throwIO . IndexLookupError) pure countResEither
+  pure . TeamSize $ ES.crCount countRes
+  where
+    query =
+      ES.TermQuery
+        ES.Term
+          { ES.termField = "team",
+            ES.termValue = idToText tid
+          }
+        Nothing
 
 upsertImpl ::
   forall r.

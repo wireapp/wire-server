@@ -178,7 +178,8 @@ internalFindTeamInvitationImpl ::
   ( Member InvitationCodeStore r,
     Member (Error UserSubsystemError) r,
     Member (Input UserSubsystemConfig) r,
-    Member (GalleyAPIAccess) r
+    Member (GalleyAPIAccess) r,
+    Member IndexedUserStore r
   ) =>
   Maybe EmailKey ->
   InvitationCode ->
@@ -198,7 +199,7 @@ internalFindTeamInvitationImpl (Just e) c =
   where
     ensureMemberCanJoin tid = do
       maxSize <- maxTeamSize <$> input
-      (TeamSize teamSize) <- (error "todo impl team size in search subsystem") tid
+      (TeamSize teamSize) <- IndexedUserStore.getTeamSize tid
       when (teamSize >= fromIntegral maxSize) $
         throw UserSubsystemTooManyTeamMembers
       -- FUTUREWORK: The above can easily be done/tested in the intra call.

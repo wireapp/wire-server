@@ -7,6 +7,7 @@ import Database.Bloodhound qualified as ES
 import Database.Bloodhound.Types hiding (SearchResult)
 import Imports
 import Polysemy
+import Wire.API.Team.Size
 import Wire.API.User.Search
 import Wire.UserSearch.Types
 
@@ -39,5 +40,6 @@ data IndexedUserStore m a where
     Int ->
     Maybe PagingState ->
     IndexedUserStore m (SearchResult UserDoc)
+  GetTeamSize :: TeamId -> IndexedUserStore m TeamSize
 
 makeSem ''IndexedUserStore
