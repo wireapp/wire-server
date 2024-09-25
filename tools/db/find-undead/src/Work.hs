@@ -37,13 +37,14 @@ import System.Logger (Logger)
 import System.Logger qualified as Log
 import Wire.API.User (AccountStatus (..))
 
-runCommand :: Logger -> ClientState -> ES.BHEnv -> String -> String -> IO ()
-runCommand l cas es indexStr mappingStr = do
-  let index = ES.IndexName $ Text.pack indexStr
-      mapping = ES.MappingName $ Text.pack mappingStr
+runCommand :: Logger -> ClientState -> ES.BHEnv -> String -> IO ()
+runCommand l cas es indexStr = do
+  let index = fromRight (error "TODO: Index error helper function") $ ES.mkIndexName $ Text.pack indexStr
+      transform :: IO (Either ES.EsError a) -> IO a
+      transform = fmap (fromRight (error "TODO: Handle error"))
   runConduit $
-    transPipe (ES.runBH es) $
-      getScrolled index mapping
+    transPipe (transform <$> ES.runBH es) $
+      getScrolled index
         .| C.iterM (logProgress l)
         .| C.mapM
           ( \uuids -> do
@@ -74,10 +75,10 @@ logUUID l f (uuid, _, time) =
       . Log.field "uuid" (show uuid)
       . Log.field "write time" (show $ writetimeToUTC <$> time)
 
-getScrolled :: (ES.MonadBH m, MonadThrow m) => ES.IndexName -> ES.MappingName -> ConduitM () [UUID] m ()
-getScrolled index mapping = processRes =<< lift (ES.getInitialScroll index mapping esSearch)
+getScrolled :: (ES.MonadBH m) => ES.IndexName -> ConduitM () [UUID] m ()
+getScrolled index = processRes =<< lift (ES.getInitialScroll index esSearch)
   where
-    processRes :: (ES.MonadBH m, MonadThrow m) => Either ES.EsError (ES.SearchResult User) -> ConduitM () [UUID] m ()
+    processRes :: (ES.MonadBH m) => Either ES.EsError (ES.SearchResult User) -> ConduitM () [UUID] m ()
     processRes = \case
       Left e -> throwM $ EsError e
       Right res ->
@@ -86,7 +87,7 @@ getScrolled index mapping = processRes =<< lift (ES.getInitialScroll index mappi
           ids -> do
             yield ids
             processRes
-              =<< (\scrollId -> lift (ES.advanceScroll scrollId 120))
+              =<< (\scrollId -> lift (ES.tryEsError (ES.advanceScroll scrollId 120)))
               =<< extractScrollId res
 
 esFilter :: ES.Filter

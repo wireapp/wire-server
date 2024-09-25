@@ -128,10 +128,9 @@ updateTeamSearchVisibilityInboundImpl cfg tid vis =
 bulkUpsertImpl :: (Member (Embed IO) r) => IndexedUserStoreConfig -> [(ES.DocId, UserDoc, ES.VersionControl)] -> Sem r ()
 bulkUpsertImpl cfg docs = do
   let bhe = cfg.conn.env
-      ES.IndexName idx = cfg.conn.indexName
-      ES.MappingName mpp = mappingName
+      idx = ES.unIndexName cfg.conn.indexName
       (ES.Server base) = ES.bhServer bhe
-  baseReq <- embed $ parseRequest (Text.unpack $ base <> "/" <> idx <> "/" <> mpp <> "/_bulk")
+  baseReq <- embed $ parseRequest (Text.unpack $ base <> "/" <> idx <> "/_bulk")
   let reqWithoutCreds =
         baseReq
           { method = "POST",
@@ -293,7 +292,7 @@ queryIndex cfg s (IndexQuery q f _) = do
     mkResult es =
       let results = mapMaybe ES.hitSource . ES.hits . ES.searchHits $ es
        in SearchResult
-            { searchFound = ES.hitsTotal . ES.searchHits $ es,
+            { searchFound = ES.hitsTotal.value . ES.searchHits $ es,
               searchReturned = length results,
               searchTook = ES.took es,
               searchResults = results,
@@ -423,7 +422,7 @@ termQ :: Text -> Text -> ES.Query
 termQ f v =
   ES.TermQuery
     ES.Term
-      { ES.termField = f,
+      { ES.termField = Key.fromText f,
         ES.termValue = v
       }
     Nothing
@@ -514,9 +513,6 @@ runInBothES cfg f = do
   y <- forM cfg.additionalConn $ \additional ->
     ES.runBH additional.env $ f additional.indexName
   pure (x, y)
-
-mappingName :: ES.MappingName
-mappingName = ES.MappingName "user"
 
 boolQuery :: ES.BoolQuery
 boolQuery = ES.mkBoolQuery [] [] [] []
