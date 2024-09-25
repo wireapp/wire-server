@@ -136,14 +136,11 @@ servantSitemap ::
     Member Rpc r,
     Member TinyLog r,
     Member (UserPendingActivationStore p) r,
-    Member (Input (Local ())) r,
-    Member EmailSending r,
     Member EmailSubsystem r,
     Member VerificationCodeSubsystem r,
     Member Events r,
     Member PasswordResetCodeStore r,
     Member PropertySubsystem r,
-    Member (Input TeamTemplates) r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -252,7 +249,7 @@ teamsAPI ::
   ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI =
   Named @"updateSearchVisibilityInbound" (lift . liftSem . updateTeamSearchVisibilityInbound)
-    :<|> Named @"get-invitation-by-email" Team.getInvitationByEmail
+    :<|> Named @"get-invitation-by-email" (lift . liftSem . getInvitationByEmail)
     :<|> Named @"get-invitation-code" Team.getInvitationCode
     :<|> Named @"suspend-team" Team.suspendTeam
     :<|> Named @"unsuspend-team" Team.unsuspendTeam
