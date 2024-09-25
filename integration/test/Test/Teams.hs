@@ -63,11 +63,20 @@ testInvitePersonalUserToTeam = do
         acceptTeamInvitation user code Nothing >>= assertStatus 400
         acceptTeamInvitation user code (Just "wrong-password") >>= assertStatus 403
 
-        void $ withWebSockets [user, tm] $ \wss -> do
+        withWebSockets [owner, user, tm] $ \wss@[wsOwner, _, _] -> do
           acceptTeamInvitation user code (Just defPassword) >>= assertSuccess
-          for wss $ \ws -> do
-            n <- awaitMatch isUserUpdatedNotif ws
-            n %. "payload.0.user.team" `shouldMatch` tid
+
+          -- When the team is smaller than fanout limit, all members get this
+          -- notification.
+          for_ wss $ \ws -> do
+            updateNotif <- awaitMatch isUserUpdatedNotif ws
+            updateNotif %. "payload.0.user.team" `shouldMatch` tid
+
+          -- Admins get a team.member-join notif on the websocket for
+          -- team-settings
+          memberJobNotif <- awaitMatch isTeamMemberJoinNotif wsOwner
+          memberJobNotif %. "payload.0.team" `shouldMatch` tid
+          memberJobNotif %. "payload.0.data.user" `shouldMatch` objId user
 
         bindResponse (getSelf user) $ \resp -> do
           resp.status `shouldMatchInt` 200
@@ -152,13 +161,19 @@ testInvitePersonalUserToLargeTeam = do
       inv <- postInvitation owner (PostInvitation (Just knutEmail) Nothing) >>= getJSON 201
       code <- getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
 
-      withWebSockets [alice, dawn, eli, head otherTeamMembers] $ \[wsAlice, wsDawn, wsEli, wsOther] -> do
+      withWebSockets [owner, alice, dawn, eli, head otherTeamMembers] $ \[wsOwner, wsAlice, wsDawn, wsEli, wsOther] -> do
         acceptTeamInvitation knut code (Just defPassword) >>= assertSuccess
 
         for_ [wsAlice, wsDawn] $ \ws -> do
           notif <- awaitMatch isUserUpdatedNotif ws
           nPayload notif %. "user.id" `shouldMatch` (objId knut)
           nPayload notif %. "user.team" `shouldMatch` tid
+
+        -- Admins get a team.member-join notif on the websocket for
+        -- team-settings
+        memberJobNotif <- awaitMatch isTeamMemberJoinNotif wsOwner
+        memberJobNotif %. "payload.0.team" `shouldMatch` tid
+        memberJobNotif %. "payload.0.data.user" `shouldMatch` objId knut
 
         -- Other team members don't get notified on the websocket
         assertNoEvent 1 wsOther
@@ -173,7 +188,7 @@ testInvitePersonalUserToLargeTeam = do
         -- lastTeamNotif id.
         resp.json %. "notifications.1.payload.0.type" `shouldMatch` "team.member-join"
         resp.json %. "notifications.1.payload.0.team" `shouldMatch` tid
-        resp.json %. "notifications.1.payload.0.data.user" `shouldMatch` (objId knut)
+        resp.json %. "notifications.1.payload.0.data.user" `shouldMatch` objId knut
 
 mkContextUserIds :: (MakesValue user) => [(String, user)] -> App String
 mkContextUserIds =
