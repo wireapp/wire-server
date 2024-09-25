@@ -97,7 +97,7 @@ main = withOpenSSL $ runTests go
         ]
     getOpts gFile iFile = do
       m <- newManager tlsManagerSettings {managerResponseTimeout = responseTimeoutMicro 300000000}
-      let local p = Endpoint {_host = "127.0.0.1", _port = p}
+      let local p = Endpoint {host = "127.0.0.1", port = p}
       gConf <- handleParseError =<< decodeFileEither gFile
       iConf <- handleParseError =<< decodeFileEither iFile
       -- FUTUREWORK: we don't support process env setup any more, so both gconf and iConf

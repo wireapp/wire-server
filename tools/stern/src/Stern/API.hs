@@ -84,7 +84,7 @@ start o = do
   Server.runSettingsWithShutdown s (requestIdMiddleware (e ^. applog) defaultRequestIdHeaderName $ servantApp e) Nothing
   where
     server :: Env -> Server.Server
-    server e = Server.defaultServer (unpack $ stern o ^. host) (stern o ^. port) (e ^. applog)
+    server e = Server.defaultServer (unpack o.stern.host) o.stern.port e._applog
 
     servantApp :: Env -> Application
     servantApp e0 req cont = do

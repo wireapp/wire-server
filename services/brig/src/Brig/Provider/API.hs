@@ -707,7 +707,7 @@ addBot zuid zcon cid add = do
   let botReq = NewBotRequest bid bcl busr bcnv btk bloc
   rs <- RPC.createBot scon botReq !>> StdError . serviceError
   -- Insert the bot user and client
-  locale <- Opt.setDefaultUserLocale <$> asks (.settings)
+  locale <- Opt.defaultUserLocale <$> asks (.settings)
   let name = fromMaybe (serviceProfileName svp) (Ext.rsNewBotName rs)
   let assets = fromMaybe (serviceProfileAssets svp) (Ext.rsNewBotAssets rs)
   let colour = fromMaybe defaultAccentId (Ext.rsNewBotColour rs)

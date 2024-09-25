@@ -25,7 +25,8 @@ import Bilge hiding (getHeader, host, options, port, statusCode)
 import Bilge qualified as B
 import Bilge.RPC (rpc)
 import Bilge.Retry
-import Control.Lens (view, (^.))
+import Cassandra.Options (Endpoint (..))
+import Control.Lens (view)
 import Control.Retry
 import Data.ByteString.Lazy qualified as LB
 import Data.Misc (portNumber)
@@ -36,7 +37,6 @@ import Galley.Monad
 import Galley.Options
 import Imports hiding (log)
 import Network.HTTP.Types
-import Util.Options
 
 data IntraComponent = Brig | Spar | Gundeck
   deriving (Show)
@@ -48,14 +48,14 @@ componentName Gundeck = "gundeck"
 
 componentRequest :: IntraComponent -> Opts -> Request -> Request
 componentRequest Brig o =
-  B.host (encodeUtf8 (o ^. brig . host))
-    . B.port (portNumber (fromIntegral (o ^. brig . port)))
+  B.host (encodeUtf8 . host $ o._brig)
+    . B.port (portNumber $ fromIntegral . port $ o._brig)
 componentRequest Spar o =
-  B.host (encodeUtf8 (o ^. spar . host))
-    . B.port (portNumber (fromIntegral (o ^. spar . port)))
+  B.host (encodeUtf8 o._spar.host)
+    . B.port (portNumber $ fromIntegral . port $ o._spar)
 componentRequest Gundeck o =
-  B.host (encodeUtf8 $ o ^. gundeck . host)
-    . B.port (portNumber $ fromIntegral (o ^. gundeck . port))
+  B.host (encodeUtf8 o._gundeck.host)
+    . B.port (portNumber $ fromIntegral . port $ o._gundeck)
     . method POST
     . path "/i/push/v2"
     . expect2xx

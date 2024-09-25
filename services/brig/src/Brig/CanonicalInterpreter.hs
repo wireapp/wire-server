@@ -162,7 +162,7 @@ runBrigToIO e (AppT ma) = do
   let userSubsystemConfig =
         UserSubsystemConfig
           { emailVisibilityConfig = e.settings.emailVisibility,
-            defaultLocale = e.settings ^. to Opt.setDefaultUserLocale,
+            defaultLocale = Opt.defaultUserLocale e.settings,
             searchSameTeamOnly = fromMaybe False e.settings.searchSameTeamOnly
           }
       federationApiAccessConfig =

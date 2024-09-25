@@ -409,7 +409,7 @@ testThrottleLogins :: Opts.Opts -> Brig -> Http ()
 testThrottleLogins conf b = do
   -- Get the maximum amount of times we are allowed to login before
   -- throttling begins
-  let l = Opts.userCookieLimit (Opts.optSettings conf)
+  let l = Opts.userCookieLimit (Opts.settings conf)
   u <- randomUser b
   let Just e = userEmail u
   -- Login exactly that amount of times, as fast as possible
@@ -441,7 +441,7 @@ testThrottleLogins conf b = do
 -- the aforementioned user.
 testLimitRetries :: (HasCallStack) => Opts.Opts -> Brig -> Http ()
 testLimitRetries conf brig = do
-  let Just opts = conf.optSettings.limitFailedLogins
+  let Just opts = conf.settings.limitFailedLogins
   unless (Opts.timeout opts <= 30) $
     error "`loginRetryTimeout` is the number of seconds this test is running.  Please pick a value < 30."
   usr <- randomUser brig
@@ -770,7 +770,7 @@ testNewPersistentCookie config b =
 getAndTestDBSupersededCookieAndItsValidSuccessor :: Opts.Opts -> Brig -> Nginz -> Http (Http.Cookie, Http.Cookie)
 getAndTestDBSupersededCookieAndItsValidSuccessor config b n = do
   u <- randomUser b
-  let renewAge = config.optSettings.userCookieRenewAge
+  let renewAge = config.settings.userCookieRenewAge
   let minAge = fromIntegral $ (renewAge + 1) * 1000000
       Just email = userEmail u
   _rs <-
@@ -1017,7 +1017,7 @@ testAccessWithExistingClientId brig = do
 testNewSessionCookie :: Opts.Opts -> Brig -> Http ()
 testNewSessionCookie config b = do
   u <- randomUser b
-  let renewAge = config.optSettings.userCookieRenewAge
+  let renewAge = config.settings.userCookieRenewAge
   let minAge = fromIntegral $ renewAge * 1000000 + 1
       Just email = userEmail u
   _rs <-
@@ -1035,7 +1035,7 @@ testSuspendInactiveUsers config brig cookieType endPoint = do
   -- (context information: cookies are stored by user, not by device; so if there is a
   -- cookie that is old, it means none of the devices of the user has used it for a request.)
 
-  let Just suspendAge = Opts.suspendTimeout <$> config.optSettings.suspendInactiveUsers
+  let Just suspendAge = Opts.suspendTimeout <$> config.settings.suspendInactiveUsers
   unless (suspendAge <= 30) $
     error "`suspendCookiesOlderThanSecs` is the number of seconds this test is running.  Please pick a value < 30."
 
@@ -1155,7 +1155,7 @@ testRemoveCookiesByLabelAndId b = do
 testTooManyCookies :: Opts.Opts -> Brig -> Http ()
 testTooManyCookies config b = do
   u <- randomUser b
-  let l = config.optSettings.userCookieLimit
+  let l = config.settings.userCookieLimit
   let Just e = userEmail u
       carry = 2
       pwlP = emailLogin e defPassword (Just "persistent")

@@ -201,7 +201,7 @@ testUpdateUserEmailByTeamOwner opts brig = do
   where
     checkLetActivationExpire :: EmailAddress -> Http ()
     checkLetActivationExpire email = do
-      let timeout = round opts.optSettings.activationTimeout
+      let timeout = round opts.settings.activationTimeout
       threadDelay ((timeout + 1) * 1000_000)
       checkActivationCode email False
 
@@ -239,7 +239,7 @@ testCreateUserWithPreverified opts brig userJournalWatcher = do
                 "email" .= fromEmail e,
                 "email_code" .= c
               ]
-      if opts.optSettings.restrictUserCreation == Just True
+      if opts.settings.restrictUserCreation == Just True
         then do
           postUserRegister' reg brig !!! const 403 === statusCode
         else do
@@ -340,7 +340,7 @@ testCreateUserAnon brig galley = do
   Search.assertCan'tFind brig suid quid "Mr. Pink"
 
 testCreateUserPending :: Opt.Opts -> Brig -> Http ()
-testCreateUserPending (Opt.restrictUserCreation . Opt.optSettings -> Just True) _ = pure ()
+testCreateUserPending (Opt.restrictUserCreation . Opt.settings -> Just True) _ = pure ()
 testCreateUserPending _ brig = do
   e <- randomEmail
   let p =
@@ -379,7 +379,7 @@ testCreateUserPending _ brig = do
 --
 -- email address must not be taken on @/register@.
 testCreateUserConflict :: Opt.Opts -> Brig -> Http ()
-testCreateUserConflict (Opt.restrictUserCreation . Opt.optSettings -> Just True) _ = pure ()
+testCreateUserConflict (Opt.restrictUserCreation . Opt.settings -> Just True) _ = pure ()
 testCreateUserConflict _ brig = do
   -- trusted email domains
   u <- createUser "conflict" brig
@@ -416,7 +416,7 @@ testCreateUserConflict _ brig = do
 --
 -- Test to make sure a new user cannot be created with an invalid email address
 testCreateUserInvalidEmail :: Opt.Opts -> Brig -> Http ()
-testCreateUserInvalidEmail (Opt.restrictUserCreation . Opt.optSettings -> Just True) _ = pure ()
+testCreateUserInvalidEmail (Opt.restrictUserCreation . Opt.settings -> Just True) _ = pure ()
 testCreateUserInvalidEmail _ brig = do
   let reqPhone =
         RequestBodyLBS . encode $
@@ -431,7 +431,7 @@ testCreateUserInvalidEmail _ brig = do
 -- @END
 
 testCreateUserBlacklist :: Opt.Opts -> Brig -> AWS.Env -> Http ()
-testCreateUserBlacklist (Opt.restrictUserCreation . Opt.optSettings -> Just True) _ _ = pure ()
+testCreateUserBlacklist (Opt.restrictUserCreation . Opt.settings -> Just True) _ _ = pure ()
 testCreateUserBlacklist _ brig aws =
   mapM_ ensureBlacklist ["bounce", "complaint"]
   where
@@ -490,7 +490,7 @@ testCreateUserExternalSSO brig = do
     !!! const 400 === statusCode
 
 testActivateWithExpiry :: Opt.Opts -> Brig -> Timeout -> Http ()
-testActivateWithExpiry (Opt.restrictUserCreation . Opt.optSettings -> Just True) _ _ = pure ()
+testActivateWithExpiry (Opt.restrictUserCreation . Opt.settings -> Just True) _ _ = pure ()
 testActivateWithExpiry _ brig timeout = do
   u <- responseJsonError =<< registerUser "dilbert" brig
   let email = fromMaybe (error "missing email") (userEmail u)
@@ -1091,7 +1091,7 @@ testSendActivationCode opts brig = do
   -- Code for email pre-verification
   requestActivationCode brig 200 . Left =<< randomEmail
   -- Standard email registration flow
-  if opts.optSettings.restrictUserCreation == Just True
+  if opts.settings.restrictUserCreation == Just True
     then do
       registerUser "Alice" brig !!! const 403 === statusCode
     else do
@@ -1292,7 +1292,7 @@ testRestrictedUserCreation opts brig = do
   -- We create a team before to help in other tests
   (teamOwner, createdTeam) <- createUserWithTeam brig
 
-  let opts' = opts {Opt.optSettings = (Opt.optSettings opts) {Opt.restrictUserCreation = Just True}}
+  let opts' = opts {Opt.settings = opts.settings {Opt.restrictUserCreation = Just True}}
   withSettingsOverrides opts' $ do
     e <- randomEmail
 

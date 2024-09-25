@@ -114,7 +114,7 @@ withSettingsOverrides f action = do
     liftIO $ runTestM (ts & tsEndpoint %~ setLocalEndpoint p) action
 
 setLocalEndpoint :: Word16 -> Endpoint -> Endpoint
-setLocalEndpoint p = (port .~ p) . (host .~ "127.0.0.1")
+setLocalEndpoint port endpoint = endpoint {port = port, host = "127.0.0.1"}
 
 withMockFederator ::
   (FederatedRequest -> IO (HTTP.MediaType, LByteString)) ->

@@ -73,10 +73,10 @@ run opts = do
         void $ waitAnyCancel [internalServerThread, externalServerThread]
   where
     endpointInternal = federatorInternal opts
-    portInternal = fromIntegral $ endpointInternal ^. port
+    portInternal = fromIntegral $ endpointInternal.port
 
     endpointExternal = federatorExternal opts
-    portExternal = fromIntegral $ endpointExternal ^. port
+    portExternal = fromIntegral $ endpointExternal.port
 
     mkResolvConf :: RunSettings -> DNS.ResolvConf -> DNS.ResolvConf
     mkResolvConf settings conf =
@@ -93,12 +93,12 @@ run opts = do
 newEnv :: Opts -> DNS.Resolver -> Log.Logger -> IO Env
 newEnv o _dnsResolver _applog = do
   let _requestId = RequestId "N/A"
-      _runSettings = Opt.optSettings o
-      _service Brig = Opt.brig o
-      _service Galley = Opt.galley o
-      _service Cargohold = Opt.cargohold o
-      _externalPort = o.federatorExternal._port
-      _internalPort = o.federatorInternal._port
+      _runSettings = o.optSettings
+      _service Brig = o.brig
+      _service Galley = o.galley
+      _service Cargohold = o.cargohold
+      _externalPort = o.federatorExternal.port
+      _internalPort = o.federatorInternal.port
   _httpManager <- initHttpManager
   sslContext <- mkTLSSettingsOrThrow _runSettings
   _http2Manager <- newIORef =<< mkHttp2Manager o.optSettings.tcpConnectionTimeout sslContext

@@ -124,7 +124,7 @@ assertUserExist msg db' uid shouldExist = liftIO $ do
 
 waitUserExpiration :: (MonadUnliftIO m) => Opts -> m ()
 waitUserExpiration opts' = do
-  let timeoutSecs = round @Double . realToFrac $ opts'.optSettings.teamInvitationTimeout
+  let timeoutSecs = round @Double . realToFrac $ opts'.settings.teamInvitationTimeout
   Control.Exception.assert (timeoutSecs < 30) $ do
     threadDelay $ (timeoutSecs + 3) * 1_000_000
 

@@ -48,7 +48,7 @@ where
 
 import Bilge (Manager, MonadHttp (..), Request, withResponse)
 import Cassandra qualified as Cql
-import Control.Lens (makeLenses, view, (^.))
+import Control.Lens (makeLenses, view)
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Data.Aeson
 import Data.ByteString.Conversion
@@ -155,8 +155,8 @@ runFedClient (FedClient mgr ep) domain =
   where
     servantClientMToHttp :: Domain -> Servant.ClientM a -> m a
     servantClientMToHttp originDomain action = liftIO $ do
-      let h = Text.unpack $ ep ^. host
-          p = fromInteger . toInteger $ ep ^. port
+      let h = Text.unpack ep.host
+          p = fromInteger $ toInteger ep.port
           baseUrl = Servant.BaseUrl Servant.Http h p "/federation"
           clientEnv = Servant.ClientEnv mgr baseUrl Nothing (makeClientRequest originDomain)
       eitherRes <- Servant.runClientM action clientEnv

@@ -197,7 +197,7 @@ testHandleQuery opts brig = do
   -- Usually, you can search outside your team
   assertCanFind brig user3 user4
   -- Usually, you can search outside your team but not if this config option is set
-  let newOpts = opts & ((Opt.optionSettings . Opt.searchSameTeamOnlyLens) ?~ True)
+  let newOpts = opts & ((Opt.settingsLens . Opt.searchSameTeamOnlyLens) ?~ True)
   withSettingsOverrides newOpts $
     assertCannotFind brig user3 user4
 

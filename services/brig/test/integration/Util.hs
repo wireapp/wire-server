@@ -33,7 +33,7 @@ import Brig.Types.Activation
 import Brig.ZAuth qualified as ZAuth
 import Control.Concurrent.Async
 import Control.Exception (throw)
-import Control.Lens ((^.), (^?), (^?!))
+import Control.Lens ((^?), (^?!))
 import Control.Monad.Catch (MonadCatch, MonadMask)
 import Control.Monad.Catch qualified as Catch
 import Control.Monad.State qualified as State
@@ -184,8 +184,8 @@ runFedClient (FedClient mgr ep) domain =
   where
     servantClientMToHttp :: Domain -> Servant.ClientM a -> Http a
     servantClientMToHttp originDomain action = liftIO $ do
-      let brigHost = Text.unpack $ ep ^. host
-          brigPort = fromInteger . toInteger $ ep ^. port
+      let brigHost = Text.unpack ep.host
+          brigPort = fromInteger . toInteger $ ep.port
           baseUrl = Servant.BaseUrl Servant.Http brigHost brigPort "/federation"
           clientEnv = Servant.ClientEnv mgr baseUrl Nothing (makeClientRequest originDomain)
       eitherRes <- Servant.runClientM action clientEnv
@@ -1004,7 +1004,7 @@ withSettingsOverrides opts action = liftIO $ do
 -- compile.
 withDomainsBlockedForRegistration :: (MonadIO m) => Opt.Opts -> [Text] -> WaiTest.Session a -> m a
 withDomainsBlockedForRegistration opts domains sess = do
-  let opts' = opts {Opt.optSettings = opts.optSettings {customerExtensions = Just blocked}}
+  let opts' = opts {Opt.settings = opts.settings {customerExtensions = Just blocked}}
       blocked = Opt.CustomerExtensions (Opt.DomainsBlockedForRegistration (unsafeMkDomain <$> domains))
       unsafeMkDomain = either error id . mkDomain
   withSettingsOverrides opts' sess

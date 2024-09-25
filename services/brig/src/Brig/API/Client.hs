@@ -557,7 +557,7 @@ createAccessToken luid cid method link proof = do
         fromByteString $
           "https://" <> toByteString' domain <> "/" <> T.encodeUtf8 (toUrlPiece link)
   maxSkewSeconds <- Opt.setDpopMaxSkewSecs <$> asks (.settings)
-  expiresIn <- Opt.setDpopTokenExpirationTimeSecs <$> asks (.settings)
+  expiresIn <- Opt.dpopTokenExpirationTimeSecs <$> asks (.settings)
   now <- fromUTCTime <$> lift (liftSem Now.get)
   let expiresAt = now & addToEpoch expiresIn
   pubKeyBundle <- do

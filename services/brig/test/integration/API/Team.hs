@@ -81,8 +81,8 @@ newtype TeamSizeLimit = TeamSizeLimit Word32
 
 tests :: Opt.Opts -> Manager -> Nginz -> Brig -> Cannon -> Galley -> UserJournalWatcher -> IO TestTree
 tests conf m n b c g aws = do
-  let tl = TeamSizeLimit conf.optSettings.maxTeamSize
-  let it = conf.optSettings.teamInvitationTimeout
+  let tl = TeamSizeLimit conf.settings.maxTeamSize
+  let it = conf.settings.teamInvitationTimeout
   pure $
     testGroup
       "team"
@@ -372,7 +372,7 @@ testInvitationTooManyPending opts brig (TeamSizeLimit limit) = do
   -- If this test takes longer to run than `team-invitation-timeout`, then some of the
   -- invitations have likely expired already and this test will actually _fail_
   -- therefore we increase the timeout from default 10 to 300 seconds
-  let longerTimeout = opts {Opt.optSettings = opts.optSettings {Opt.teamInvitationTimeout = 300}}
+  let longerTimeout = opts {Opt.settings = opts.settings {Opt.teamInvitationTimeout = 300}}
   withSettingsOverrides longerTimeout $ do
     forM_ emails $ postInvitation brig tid inviter . stdInvitationRequest
   postInvitation brig tid inviter (stdInvitationRequest email) !!! do
@@ -715,7 +715,7 @@ testInvitationPaging opts brig = do
   (uid, tid) <- createUserWithTeam brig
   let total = 5
       invite email = stdInvitationRequest email
-      longerTimeout = opts {Opt.optSettings = opts.optSettings {Opt.teamInvitationTimeout = 300}}
+      longerTimeout = opts {Opt.settings = opts.settings {Opt.teamInvitationTimeout = 300}}
   emails <-
     withSettingsOverrides longerTimeout $
       replicateM total $ do

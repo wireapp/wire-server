@@ -49,7 +49,7 @@ testGetSettings opts = liftIO $ do
   where
     expectResultForSetting :: Maybe Bool -> Bool -> IO ()
     expectResultForSetting restrictUserCreationSetting expectedRes = do
-      let newOpts = opts & (optionSettings . restrictUserCreationLens) .~ restrictUserCreationSetting
+      let newOpts = opts & (settingsLens . restrictUserCreationLens) .~ restrictUserCreationSetting
       -- Run call in `WaiTest.Session` with an adjusted brig `Application`. I.e.
       -- the response is created by running the brig `Application` (with
       -- modified options) directly on the `Request`. No real HTTP request is
@@ -73,7 +73,7 @@ testGetSettingsInternal opts = liftIO $ do
   where
     expectResultForEnableMls :: UserId -> Maybe Bool -> Bool -> IO ()
     expectResultForEnableMls uid setEnableMlsValue expectedRes = do
-      let newOpts = opts & (optionSettings . enableMLSLens) .~ setEnableMlsValue
+      let newOpts = opts & (settingsLens . enableMLSLens) .~ setEnableMlsValue
       -- Run call in `WaiTest.Session` with an adjusted brig `Application`. I.e.
       -- the response is created by running the brig `Application` (with
       -- modified options) directly on the `Request`. No real HTTP request is
