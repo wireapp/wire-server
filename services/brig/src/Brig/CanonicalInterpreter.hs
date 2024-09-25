@@ -176,6 +176,11 @@ runBrigToIO e (AppT ma) = do
             searchSameTeamOnly = fromMaybe False e.settings.searchSameTeamOnly,
             maxTeamSize = e.settings.maxTeamSize
           }
+      teamInvitationSubsystemConfig =
+        TeamInvitationSubsystemConfig
+          { maxTeamSize = e.settings.maxTeamSize,
+            teamInvitationTimeout = e.settings.teamInvitationTimeout
+          }
       federationApiAccessConfig =
         FederationAPIAccessConfig
           { ownDomain = e.settings.federationDomain,
@@ -269,9 +274,9 @@ runBrigToIO e (AppT ma) = do
               . runDeleteQueue e.internalEvents
               . interpretPropertySubsystem propertySubsystemConfig
               . interpretVerificationCodeSubsystem
-              . emailSubsystemInterpreter e.userTemplates undefined e.templateBranding
+              . emailSubsystemInterpreter e.userTemplates e.teamTemplates e.templateBranding
               . userSubsystemInterpreter
-              . runTeamInvitationSubsystem undefined -- TODO
+              . runTeamInvitationSubsystem teamInvitationSubsystemConfig
               . authSubsystemInterpreter
           )
     )
