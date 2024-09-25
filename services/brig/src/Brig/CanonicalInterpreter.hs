@@ -86,6 +86,7 @@ import Wire.Sem.Random.IO
 import Wire.SessionStore
 import Wire.SessionStore.Cassandra (interpretSessionStoreCassandra)
 import Wire.TeamInvitationSubsystem
+import Wire.TeamInvitationSubsystem.Error
 import Wire.TeamInvitationSubsystem.Interpreter
 import Wire.UserKeyStore
 import Wire.UserKeyStore.Cassandra
@@ -114,7 +115,7 @@ type BrigLowerLevelEffects =
      DeleteQueue,
      Wire.Events.Events,
      Error UserSubsystemError,
-     Error TeamInvitationError,
+     Error TeamInvitationSubsystemError,
      Error AuthenticationSubsystemError,
      Error Wire.API.Federation.Error.FederationError,
      Error VerificationCodeSubsystemError,

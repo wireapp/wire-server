@@ -120,6 +120,7 @@ library
     Wire.SessionStore.Cassandra
     Wire.StoredUser
     Wire.TeamInvitationSubsystem
+    Wire.TeamInvitationSubsystem.Error
     Wire.TeamInvitationSubsystem.Interpreter
     Wire.UserKeyStore
     Wire.UserKeyStore.Cassandra

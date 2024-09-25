@@ -17,8 +17,6 @@ import System.Logger.Message as Log
 import URI.ByteString
 import Util.Logging
 import Util.Timeout (Timeout (..))
-import Wire.API.Error
-import Wire.API.Error.Brig qualified as E
 import Wire.API.Team.Invitation
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as Teams
@@ -27,7 +25,6 @@ import Wire.API.Team.Role
 import Wire.API.User
 import Wire.Arbitrary
 import Wire.EmailSubsystem
-import Wire.Error
 import Wire.GalleyAPIAccess hiding (AddTeamMember)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.InvitationCodeStore (InvitationCodeStore, StoredInvitation)
@@ -38,6 +35,7 @@ import Wire.Sem.Now qualified as Now
 import Wire.Sem.Random (Random)
 import Wire.Sem.Random qualified as Random
 import Wire.TeamInvitationSubsystem
+import Wire.TeamInvitationSubsystem.Error
 import Wire.UserKeyStore
 import Wire.UserSubsystem (UserSubsystem, getLocalUserAccountByUserKey, getSelfProfile, isBlocked)
 
@@ -48,25 +46,8 @@ data TeamInvitationSubsystemConfig = TeamInvitationSubsystemConfig
   deriving (Show, Generic)
   deriving (Arbitrary) via GenericUniform TeamInvitationSubsystemConfig
 
-data TeamInvitationError -- TODO: rename to TeamInvitationSubsystemError, move to Wire.TeamInvitationSubsystem.Error
-  = TeamInvitationNoEmail
-  | TeamInvitationInsufficientTeamPermissions
-  | TooManyTeamInvitations
-  | TeamInvitationBlacklistedEmail
-  | TeamInvitationEmailTaken
-  deriving (Show)
-
-teamInvitationErrorToHttpError :: TeamInvitationError -> HttpError
-teamInvitationErrorToHttpError =
-  StdError . \case
-    TeamInvitationNoEmail -> errorToWai @E.NoEmail
-    TeamInvitationInsufficientTeamPermissions -> errorToWai @E.InsufficientTeamPermissions
-    TooManyTeamInvitations -> errorToWai @E.TooManyTeamInvitations
-    TeamInvitationBlacklistedEmail -> errorToWai @E.BlacklistedEmail
-    TeamInvitationEmailTaken -> errorToWai @E.EmailExists
-
 runTeamInvitationSubsystem ::
-  ( Member (Error TeamInvitationError) r,
+  ( Member (Error TeamInvitationSubsystemError) r,
     Member TinyLog r,
     Member GalleyAPIAccess r,
     Member UserSubsystem r,
@@ -83,7 +64,7 @@ runTeamInvitationSubsystem cfg = interpret $ \case
     runInputConst cfg $ createInvitation' tid mExpectedInvId role mbInviterUid inviterEmail invRequest
 
 inviteUserImpl ::
-  ( Member (Error TeamInvitationError) r,
+  ( Member (Error TeamInvitationSubsystemError) r,
     Member GalleyAPIAccess r,
     Member UserSubsystem r,
     Member TinyLog r,
@@ -127,7 +108,7 @@ createInvitation' ::
     Member UserSubsystem r,
     Member InvitationCodeStore r,
     Member TinyLog r,
-    Member (Error TeamInvitationError) r,
+    Member (Error TeamInvitationSubsystemError) r,
     Member Random r,
     Member (Input TeamInvitationSubsystemConfig) r,
     Member Now r,
@@ -242,9 +223,9 @@ toInvitation urlText showUrl storedInv = do
           . Log.field "error" (show e)
 
 logInvitationRequest ::
-  (Member TinyLog r, Member (Error TeamInvitationError) r) =>
+  (Member TinyLog r, Member (Error TeamInvitationSubsystemError) r) =>
   (Msg -> Msg) ->
-  Sem (Error TeamInvitationError : r) (Invitation, InvitationCode) ->
+  Sem (Error TeamInvitationSubsystemError : r) (Invitation, InvitationCode) ->
   Sem r (Invitation, InvitationCode)
 logInvitationRequest context action =
   runError action >>= \case
@@ -265,7 +246,7 @@ logInvitationRequest context action =
 -- There is some code duplication with 'Galley.API.Teams.ensureNotElevated'.
 ensurePermissionToAddUser ::
   ( Member GalleyAPIAccess r,
-    Member (Error TeamInvitationError) r
+    Member (Error TeamInvitationSubsystemError) r
   ) =>
   UserId ->
   TeamId ->
