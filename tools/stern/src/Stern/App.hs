@@ -26,7 +26,7 @@ module Stern.App where
 import Bilge qualified
 import Bilge.RPC (HasRequestId (..))
 import Control.Error
-import Control.Lens (makeLenses, view)
+import Control.Lens (lensField, lensRules, makeLensesWith, (.~))
 import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Monad.IO.Class
 import Control.Monad.Reader.Class
@@ -38,30 +38,38 @@ import Imports
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.Wai (Response, ResponseReceived)
 import Network.Wai.Utilities (Error (..))
-import Stern.Options as O
+import Stern.Options as Opts
 import System.Logger qualified as Log
 import System.Logger.Class hiding (Error, info)
 import System.Logger.Class qualified as LC
 import System.Logger.Extended qualified as Log
 import Util.Options
+import Util.SuffixNamer
 
 data Env = Env
-  { _brig :: !Bilge.Request,
-    _galley :: !Bilge.Request,
-    _gundeck :: !Bilge.Request,
-    _ibis :: !Bilge.Request,
-    _galeb :: !Bilge.Request,
-    _applog :: !Logger,
-    _requestId :: !Bilge.RequestId,
-    _httpManager :: !Bilge.Manager
+  { brig :: !Bilge.Request,
+    galley :: !Bilge.Request,
+    gundeck :: !Bilge.Request,
+    ibis :: !Bilge.Request,
+    galeb :: !Bilge.Request,
+    appLogger :: !Logger,
+    requestId :: !Bilge.RequestId,
+    httpManager :: !Bilge.Manager
   }
 
-makeLenses ''Env
+makeLensesWith (lensRules & lensField .~ suffixNamer) ''Env
 
 newEnv :: Opts -> IO Env
-newEnv o = do
-  l <- Log.mkLogger (O.logLevel o) (O.logNetStrings o) (O.logFormat o)
-  Env (mkRequest $ O.brig o) (mkRequest $ O.galley o) (mkRequest $ O.gundeck o) (mkRequest $ O.ibis o) (mkRequest $ O.galeb o) l (RequestId "N/A")
+newEnv opts = do
+  l <- Log.mkLogger opts.logLevel opts.logNetStrings opts.logFormat
+  Env
+    (mkRequest opts.brig)
+    (mkRequest opts.galley)
+    (mkRequest opts.gundeck)
+    (mkRequest opts.ibis)
+    (mkRequest opts.galeb)
+    l
+    (RequestId "N/A")
     <$> newManager
   where
     mkRequest s = Bilge.host (encodeUtf8 s.host) . Bilge.port s.port $ Bilge.empty
@@ -85,8 +93,8 @@ type App = AppT IO
 
 instance (MonadIO m) => MonadLogger (AppT m) where
   log l m = do
-    g <- view applog
-    r <- view requestId
+    g <- asks (.appLogger)
+    r <- asks (.requestId)
     Log.log g l $ "request" .= Bilge.unRequestId r ~~ m
 
 instance MonadLogger (ExceptT e App) where
@@ -94,18 +102,18 @@ instance MonadLogger (ExceptT e App) where
 
 instance (MonadIO m) => Bilge.MonadHttp (AppT m) where
   handleRequestWithCont req h = do
-    m <- view httpManager
+    m <- asks (.httpManager)
     liftIO $ Bilge.withResponse req m h
 
 instance (Monad m) => HasRequestId (AppT m) where
-  getRequestId = view requestId
+  getRequestId = asks (.requestId)
 
 instance HasRequestId (ExceptT e App) where
-  getRequestId = view requestId
+  getRequestId = asks (.requestId)
 
 instance Bilge.MonadHttp (ExceptT e App) where
   handleRequestWithCont req h = do
-    m <- view httpManager
+    m <- asks (.httpManager)
     liftIO $ Bilge.withResponse req m h
 
 runAppT :: Env -> AppT m a -> m a

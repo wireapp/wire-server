@@ -141,7 +141,7 @@ versionedPaths = Bilge.paths . (encodeUtf8 (toUrlPiece backendApiVersion) :)
 putUserStatus :: AccountStatus -> UserId -> Handler ()
 putUserStatus status uid = do
   info $ userMsg uid . msg "Changing user status"
-  b <- view brig
+  b <- asks (.brig)
   void $
     catchRpcErrors $
       rpc'
@@ -171,7 +171,7 @@ getUserConnections uid = do
         else pure (batch ++ xs)
     fetchBatch :: Maybe UserId -> Handler UserConnectionList
     fetchBatch start = do
-      b <- view brig
+      b <- asks (.brig)
       r <-
         catchRpcErrors $
           rpc'
@@ -190,7 +190,7 @@ getUserConnections uid = do
 getUsersConnections :: List UserId -> Handler [ConnectionStatus]
 getUsersConnections uids = do
   info $ msg "Getting user connections"
-  b <- view brig
+  b <- asks (.brig)
   let reqBody = ConnectionsStatusRequest (fromList uids) Nothing
   r <-
     catchRpcErrors $
@@ -208,7 +208,7 @@ getUsersConnections uids = do
 getUserProfiles :: Either [UserId] [Handle] -> Handler [UserAccount]
 getUserProfiles uidsOrHandles = do
   info $ msg "Getting user accounts"
-  b <- view brig
+  b <- asks (.brig)
   concat <$> mapM (doRequest b) (prepareQS uidsOrHandles)
   where
     doRequest :: Request -> (Request -> Request) -> Handler [UserAccount]
@@ -235,7 +235,7 @@ getUserProfiles uidsOrHandles = do
 getUserProfilesByIdentity :: EmailAddress -> Handler [UserAccount]
 getUserProfilesByIdentity email = do
   info $ msg "Getting user accounts by identity"
-  b <- view brig
+  b <- asks (.brig)
   r <-
     catchRpcErrors $
       rpc'
@@ -251,7 +251,7 @@ getUserProfilesByIdentity email = do
 getEjpdInfo :: [Handle] -> Bool -> Handler EJPD.EJPDResponseBody
 getEjpdInfo handles includeContacts = do
   info $ msg "Getting ejpd info on users by handle"
-  b <- view brig
+  b <- asks (.brig)
   let bdy :: Value
       bdy =
         object
@@ -274,7 +274,7 @@ getEjpdInfo handles includeContacts = do
 getContacts :: UserId -> Text -> Int32 -> Handler (SearchResult Contact)
 getContacts u q s = do
   info $ msg "Getting user contacts"
-  b <- view brig
+  b <- asks (.brig)
   r <-
     catchRpcErrors $
       rpc'
@@ -292,7 +292,7 @@ getContacts u q s = do
 revokeIdentity :: EmailAddress -> Handler ()
 revokeIdentity email = do
   info $ msg "Revoking user identity"
-  b <- view brig
+  b <- asks (.brig)
   void
     . catchRpcErrors
     $ rpc'
@@ -307,7 +307,7 @@ revokeIdentity email = do
 deleteAccount :: UserId -> Handler ()
 deleteAccount uid = do
   info $ msg "Deleting account"
-  b <- view brig
+  b <- asks (.brig)
   void
     . catchRpcErrors
     $ rpc'
@@ -325,7 +325,7 @@ setStatusBindingTeam tid status = do
       ( "Setting team status to "
           <> UTF8.toString (BS.toStrict . encode $ status)
       )
-  g <- view galley
+  g <- asks (.galley)
   void
     . catchRpcErrors
     $ rpc'
@@ -340,7 +340,7 @@ setStatusBindingTeam tid status = do
 deleteBindingTeam :: TeamId -> Handler ()
 deleteBindingTeam tid = do
   info $ msg "Deleting team"
-  g <- view galley
+  g <- asks (.galley)
   void
     . catchRpcErrors
     $ rpc'
@@ -355,7 +355,7 @@ deleteBindingTeam tid = do
 deleteBindingTeamForce :: TeamId -> Handler ()
 deleteBindingTeamForce tid = do
   info $ msg "Deleting team with force flag"
-  g <- view galley
+  g <- asks (.galley)
   void
     . catchRpcErrors
     $ rpc'
@@ -370,7 +370,7 @@ deleteBindingTeamForce tid = do
 changeEmail :: UserId -> EmailUpdate -> Handler ()
 changeEmail u upd = do
   info $ msg "Updating email address"
-  b <- view brig
+  b <- asks (.brig)
   void
     . catchRpcErrors
     $ rpc'
@@ -395,7 +395,7 @@ getTeamInfo tid = do
 getUserBindingTeam :: UserId -> Handler (Maybe TeamId)
 getUserBindingTeam u = do
   info $ msg "Getting user binding team"
-  g <- view galley
+  g <- asks (.galley)
   r <-
     catchRpcErrors $
       rpc'
@@ -418,7 +418,7 @@ getUserBindingTeam u = do
 getInvoiceUrl :: TeamId -> InvoiceId -> Handler ByteString
 getInvoiceUrl tid iid = do
   info $ msg "Getting invoice"
-  i <- view ibis
+  i <- asks (.ibis)
   r <-
     catchRpcErrors $
       rpc'
@@ -434,7 +434,7 @@ getInvoiceUrl tid iid = do
 getTeamBillingInfo :: TeamId -> Handler (Maybe TeamBillingInfo)
 getTeamBillingInfo tid = do
   info $ msg "Getting team billing info"
-  i <- view ibis
+  i <- asks (.ibis)
   resp <-
     catchRpcErrors $
       rpc'
@@ -451,7 +451,7 @@ getTeamBillingInfo tid = do
 setTeamBillingInfo :: TeamId -> TeamBillingInfo -> Handler ()
 setTeamBillingInfo tid tbu = do
   info $ msg "Setting team billing info"
-  i <- view ibis
+  i <- asks (.ibis)
   void
     . catchRpcErrors
     $ rpc'
@@ -467,7 +467,7 @@ setTeamBillingInfo tid tbu = do
 isBlacklisted :: EmailAddress -> Handler Bool
 isBlacklisted email = do
   info $ msg "Checking blacklist"
-  b <- view brig
+  b <- asks (.brig)
   resp <-
     catchRpcErrors $
       rpc'
@@ -485,7 +485,7 @@ isBlacklisted email = do
 setBlacklistStatus :: Bool -> EmailAddress -> Handler ()
 setBlacklistStatus status email = do
   info $ msg "Changing blacklist status"
-  b <- view brig
+  b <- asks (.brig)
   void
     . catchRpcErrors
     $ rpc'
@@ -507,7 +507,7 @@ getTeamFeatureFlag ::
   Handler (Public.LockableFeature cfg)
 getTeamFeatureFlag tid = do
   info $ msg "Getting team feature status"
-  gly <- view galley
+  gly <- asks (.galley)
   let req =
         method GET
           . Bilge.paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg]
@@ -547,7 +547,7 @@ patchTeamFeatureFlag tid patch = do
 
 galleyRpc :: (Bilge.Request -> Bilge.Request) -> Handler ()
 galleyRpc req = do
-  gly <- view galley
+  gly <- asks (.galley)
   resp <- catchRpcErrors $ rpc' "galley" gly req
   case statusCode resp of
     200 -> pure ()
@@ -563,7 +563,7 @@ setTeamFeatureLockStatus ::
   Handler ()
 setTeamFeatureLockStatus tid lstat = do
   info $ msg ("Setting lock status: " <> featureName @cfg)
-  gly <- view galley
+  gly <- asks (.galley)
   fromResponseBody
     <=< catchRpcErrors
     $ rpc'
@@ -586,7 +586,7 @@ setTeamFeatureLockStatus tid lstat = do
 getSearchVisibility :: TeamId -> Handler TeamSearchVisibilityView
 getSearchVisibility tid = do
   info $ msg "Getting TeamSearchVisibilityView value"
-  gly <- view galley
+  gly <- asks (.galley)
   fromResponseBody
     <=< catchRpcErrors
     $ rpc'
@@ -603,7 +603,7 @@ getSearchVisibility tid = do
 setSearchVisibility :: TeamId -> TeamSearchVisibility -> Handler ()
 setSearchVisibility tid typ = do
   info $ msg "Setting TeamSearchVisibility value"
-  gly <- view galley
+  gly <- asks (.galley)
   resp <-
     catchRpcErrors $
       rpc'
@@ -650,7 +650,7 @@ catchRpcErrors action = ExceptT $ catch (Right <$> action) catchRPCException
 getTeamData :: TeamId -> Handler TeamData
 getTeamData tid = do
   info $ msg "Getting team information"
-  g <- view galley
+  g <- asks (.galley)
   r <-
     catchRpcErrors $
       rpc'
@@ -667,7 +667,7 @@ getTeamData tid = do
 getTeamMembers :: TeamId -> Handler TeamMemberList
 getTeamMembers tid = do
   info $ msg "Getting team members"
-  g <- view galley
+  g <- asks (.galley)
   r <-
     catchRpcErrors $
       rpc'
@@ -682,7 +682,7 @@ getTeamMembers tid = do
 getEmailConsentLog :: EmailAddress -> Handler ConsentLog
 getEmailConsentLog email = do
   info $ msg "Getting email consent log"
-  g <- view galeb
+  g <- asks (.galeb)
   r <-
     catchRpcErrors $
       rpc'
@@ -700,7 +700,7 @@ getEmailConsentLog email = do
 getUserConsentValue :: UserId -> Handler ConsentValue
 getUserConsentValue uid = do
   info $ msg "Getting user consent value"
-  g <- view galeb
+  g <- asks (.galeb)
   r <-
     catchRpcErrors $
       rpc'
@@ -716,7 +716,7 @@ getUserConsentValue uid = do
 getMarketoResult :: EmailAddress -> Handler MarketoResult
 getMarketoResult email = do
   info $ msg "Getting marketo results"
-  g <- view galeb
+  g <- asks (.galeb)
   r <-
     catchRpcErrors $
       rpc'
@@ -745,7 +745,7 @@ getMarketoResult email = do
 getUserConsentLog :: UserId -> Handler ConsentLog
 getUserConsentLog uid = do
   info $ msg "Getting user consent log"
-  g <- view galeb
+  g <- asks (.galeb)
   r <-
     catchRpcErrors $
       rpc'
@@ -760,7 +760,7 @@ getUserConsentLog uid = do
 getUserCookies :: UserId -> Handler CookieList
 getUserCookies uid = do
   info $ msg "Getting user cookies"
-  g <- view brig
+  g <- asks (.brig)
   r <-
     catchRpcErrors $
       rpc'
@@ -788,7 +788,7 @@ getUserConversations uid maxConvs = do
         else pure (batch ++ xs)
     fetchBatch :: Maybe ConvId -> Int -> Handler (ConversationList Conversation)
     fetchBatch start batchSize = do
-      baseReq <- view galley
+      baseReq <- asks (.galley)
       r <-
         catchRpcErrors $
           rpc'
@@ -806,7 +806,7 @@ getUserConversations uid maxConvs = do
 getUserClients :: UserId -> Handler [Client]
 getUserClients uid = do
   info $ msg "Getting user clients"
-  b <- view brig
+  b <- asks (.brig)
   r <-
     catchRpcErrors $
       rpc'
@@ -828,7 +828,7 @@ getUserClients uid = do
 getUserProperties :: UserId -> Handler UserProperties
 getUserProperties uid = do
   info $ msg "Getting user properties"
-  b <- view brig
+  b <- asks (.brig)
   r <-
     catchRpcErrors $
       rpc'
@@ -878,7 +878,7 @@ getUserNotifications uid maxNotifs = do
             else pure (batch ++ xs)
     fetchBatch :: Maybe NotificationId -> Int -> Handler (Maybe QueuedNotificationList)
     fetchBatch start batchSize = do
-      baseReq <- view gundeck
+      baseReq <- asks (.gundeck)
       r <-
         catchRpcErrors $
           rpc'
@@ -916,7 +916,7 @@ getSsoDomainRedirect :: Text -> Handler (Maybe CustomBackend)
 getSsoDomainRedirect domain = do
   info $ msg "getSsoDomainRedirect"
   -- curl  -XGET ${CLOUD_BACKEND}/custom-backend/by-domain/${DOMAIN_EXAMPLE}
-  g <- view galley
+  g <- asks (.galley)
   r <-
     catchRpcErrors $
       rpc'
@@ -939,7 +939,7 @@ putSsoDomainRedirect domain config welcome = do
   --   "webapp_welcome_url": "https://app.wire.example.com/" \
   -- }'
   -- curl -XPUT http://localhost/i/custom-backend/by-domain/${DOMAIN_EXAMPLE} -d "${DOMAIN_ENTRY}"
-  g <- view galley
+  g <- asks (.galley)
   void
     . catchRpcErrors
     $ rpc'
@@ -960,7 +960,7 @@ deleteSsoDomainRedirect :: Text -> Handler ()
 deleteSsoDomainRedirect domain = do
   info $ msg "deleteSsoDomainRedirect"
   -- curl -XDELETE http://localhost/i/custom-backend/by-domain/${DOMAIN_EXAMPLE}
-  g <- view galley
+  g <- asks (.galley)
   void
     . catchRpcErrors
     $ rpc'
@@ -978,7 +978,7 @@ deleteSsoDomainRedirect domain = do
 
 registerOAuthClient :: OAuthClientConfig -> Handler OAuthClientCredentials
 registerOAuthClient conf = do
-  b <- view brig
+  b <- asks (.brig)
   r <-
     catchRpcErrors $
       rpc'
@@ -994,7 +994,7 @@ registerOAuthClient conf = do
 
 getOAuthClient :: OAuthClientId -> Handler OAuthClient
 getOAuthClient cid = do
-  b <- view brig
+  b <- asks (.brig)
   r <-
     lift $
       rpc'
@@ -1010,7 +1010,7 @@ getOAuthClient cid = do
 
 updateOAuthClient :: OAuthClientId -> OAuthClientConfig -> Handler OAuthClient
 updateOAuthClient cid conf = do
-  b <- view brig
+  b <- asks (.brig)
   r <-
     catchRpcErrors $
       rpc'
@@ -1026,7 +1026,7 @@ updateOAuthClient cid conf = do
 
 deleteOAuthClient :: OAuthClientId -> Handler ()
 deleteOAuthClient cid = do
-  b <- view brig
+  b <- asks (.brig)
   r <-
     catchRpcErrors $
       rpc'
