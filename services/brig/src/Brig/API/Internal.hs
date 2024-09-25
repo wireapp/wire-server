@@ -65,6 +65,7 @@ import Data.Time.Clock.System
 import Imports hiding (head)
 import Network.Wai.Utilities as Utilities
 import Polysemy
+import Polysemy.Error qualified
 import Polysemy.Input (Input, input)
 import Polysemy.TinyLog (TinyLog)
 import Servant hiding (Handler, JSON, addHeader, respond)
@@ -113,6 +114,7 @@ import Wire.UserKeyStore
 import Wire.UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem qualified as UserSubsystem
+import Wire.UserSubsystem.Error
 import Wire.VerificationCode
 import Wire.VerificationCodeGen
 import Wire.VerificationCodeSubsystem
@@ -141,7 +143,8 @@ servantSitemap ::
     Member PasswordResetCodeStore r,
     Member PropertySubsystem r,
     Member (Input (Local ())) r,
-    Member IndexedUserStore r
+    Member IndexedUserStore r,
+    Member (Polysemy.Error.Error UserSubsystemError) r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -243,6 +246,7 @@ teamsAPI ::
     Member InvitationCodeStore r,
     Member TeamInvitationSubsystem r,
     Member UserSubsystem r,
+    Member (Polysemy.Error.Error UserSubsystemError) r,
     Member Events r,
     Member (Input (Local ())) r,
     Member IndexedUserStore r
@@ -251,7 +255,7 @@ teamsAPI ::
 teamsAPI =
   Named @"updateSearchVisibilityInbound" (lift . liftSem . updateTeamSearchVisibilityInbound)
     :<|> Named @"get-invitation-by-email" Team.getInvitationByEmail
-    :<|> Named @"get-invitation-code" Team.getInvitationCode
+    :<|> Named @"get-invitation-code" (\tid iid -> lift . liftSem $ Team.getInvitationCode tid iid)
     :<|> Named @"suspend-team" Team.suspendTeam
     :<|> Named @"unsuspend-team" Team.unsuspendTeam
     :<|> Named @"team-size" (lift . liftSem . getTeamSize)

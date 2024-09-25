@@ -55,8 +55,6 @@ import Servant hiding (Handler, JSON, addHeader)
 import System.Logger.Message as Log
 import URI.ByteString (Absolute, URIRef, laxURIParserOptions, parseURI)
 import Util.Logging (logFunction, logTeam)
-import Wire.API.Error
-import Wire.API.Error.Brig qualified as E
 import Wire.API.Routes.Internal.Brig (FoundInvitationCode (FoundInvitationCode))
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.Named
@@ -97,13 +95,13 @@ servantAPI ::
   ) =>
   ServerT TeamsAPI (Handler r)
 servantAPI =
-  Named @"send-team-invitation" (\luid tid invreq -> lift . liftSem $ inviteUser luid tid invreq) -- TODO: move 'lift . liftSem' to the outside of 'servantAPI'
+  Named @"send-team-invitation" (\luid tid invreq -> lift . liftSem $ inviteUser luid tid invreq)
     :<|> Named @"get-team-invitations" (\u t inv s -> lift . liftSem $ listInvitations u t inv s)
     :<|> Named @"get-team-invitation" (\u t inv -> lift . liftSem $ getInvitation u t inv)
     :<|> Named @"delete-team-invitation" (\u t inv -> lift . liftSem $ deleteInvitation u t inv)
-    :<|> Named @"get-team-invitation-info" getInvitationByCode
+    :<|> Named @"get-team-invitation-info" (lift . liftSem . getInvitationByCode)
     :<|> Named @"head-team-invitations" (lift . liftSem . headInvitationByEmail)
-    :<|> Named @"get-team-size" teamSizePublic
+    :<|> Named @"get-team-size" (\uid tid -> lift . liftSem $ teamSizePublic uid tid)
     :<|> Named @"accept-team-invitation" (\luid req -> lift $ liftSem $ acceptTeamInvitation luid req.password req.code)
 
 teamSizePublic ::
@@ -113,21 +111,22 @@ teamSizePublic ::
   ) =>
   UserId ->
   TeamId ->
-  (Handler r) TeamSize
-teamSizePublic uid tid =
-  lift . liftSem $ do
-    -- limit this to team admins to reduce risk of involuntary DOS attacks
-    ensurePermissions uid tid [AddTeamMember]
-    getTeamSize tid
+  Sem r TeamSize
+teamSizePublic uid tid = do
+  -- limit this to team admins to reduce risk of involuntary DOS attacks
+  ensurePermissions uid tid [AddTeamMember]
+  getTeamSize tid
 
 getInvitationCode ::
-  (Member Store.InvitationCodeStore r) =>
+  ( Member Store.InvitationCodeStore r,
+    Member (Error UserSubsystemError) r
+  ) =>
   TeamId ->
   InvitationId ->
-  (Handler r) FoundInvitationCode
+  Sem r FoundInvitationCode
 getInvitationCode t r = do
-  inv <- lift . liftSem $ Store.lookupInvitation t r
-  maybe (throwStd $ errorToWai @'E.InvalidInvitationCode) (pure . FoundInvitationCode . (.code)) inv
+  inv <- Store.lookupInvitation t r
+  maybe (throw UserSubsystemInvalidInvitationCode) (pure . FoundInvitationCode . (.code)) inv
 
 data CreateInvitationInviter = CreateInvitationInviter
   { inviterUid :: UserId,
@@ -351,12 +350,14 @@ isPersonalUser uke = do
         && isNothing account.accountUser.userTeam
 
 getInvitationByCode ::
-  (Member Store.InvitationCodeStore r) =>
+  ( Member Store.InvitationCodeStore r,
+    Member (Error UserSubsystemError) r
+  ) =>
   InvitationCode ->
-  (Handler r) Public.Invitation
+  Sem r Public.Invitation
 getInvitationByCode c = do
-  inv <- lift . liftSem $ Store.lookupInvitationByCode c
-  maybe (throwStd $ errorToWai @'E.InvalidInvitationCode) (pure . Store.invitationFromStored Nothing) inv
+  inv <- Store.lookupInvitationByCode c
+  maybe (throw UserSubsystemInvalidInvitationCode) (pure . Store.invitationFromStored Nothing) inv
 
 headInvitationByEmail ::
   (Member InvitationCodeStore r, Member TinyLog r) =>

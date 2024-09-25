@@ -155,6 +155,7 @@ import Wire.Events (Events)
 import Wire.FederationConfigStore (FederationConfigStore)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
+import Wire.IndexedUserStore (IndexedUserStore)
 import Wire.InvitationCodeStore
 import Wire.NotificationSubsystem
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
@@ -174,7 +175,6 @@ import Wire.UserSubsystem.Error
 import Wire.VerificationCode
 import Wire.VerificationCodeGen
 import Wire.VerificationCodeSubsystem
-import Wire.IndexedUserStore (IndexedUserStore)
 
 -- User API -----------------------------------------------------------
 
