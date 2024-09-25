@@ -19,10 +19,10 @@
 
 module TestSetup
   ( test,
-    tsManager,
-    tsEndpoint,
-    tsBrig,
-    tsOpts,
+    managerLens,
+    endpointLens,
+    TestSetup.brigLens,
+    optsLens,
     TestSetup (..),
     Cargohold,
     TestM,
@@ -56,6 +56,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Util.Options (Endpoint (..))
 import Util.Options.Common
+import Util.SuffixNamer
 import Util.Test
 import Web.HttpApiData
 import Wire.API.Federation.Domain
@@ -69,13 +70,13 @@ mkRequest :: Endpoint -> Request -> Request
 mkRequest (Endpoint h p) = Bilge.host (encodeUtf8 h) . Bilge.port p
 
 data TestSetup = TestSetup
-  { _tsManager :: Manager,
-    _tsEndpoint :: Endpoint,
-    _tsBrig :: Endpoint,
-    _tsOpts :: Opts
+  { manager :: Manager,
+    endpoint :: Endpoint,
+    brig :: Endpoint,
+    opts :: Opts
   }
 
-makeLenses ''TestSetup
+makeLensesWith (lensRules & lensField .~ suffixNamer) ''TestSetup
 
 -- | Note: Apply this function last when composing (Request -> Request) functions
 apiVersion :: ByteString -> Request -> Request
@@ -99,7 +100,7 @@ removeVersionPrefix bs = do
   pure (B8.tail s')
 
 viewUnversionedCargohold :: TestM Cargohold
-viewUnversionedCargohold = mkRequest <$> view tsEndpoint
+viewUnversionedCargohold = mkRequest <$> asks (.endpoint)
 
 viewCargohold :: TestM Cargohold
 viewCargohold =
@@ -111,7 +112,7 @@ viewCargohold =
     latestVersion = maxBound
 
 runTestM :: TestSetup -> TestM a -> IO a
-runTestM ts action = runHttpT (view tsManager ts) (runReaderT action ts)
+runTestM ts action = runHttpT ts.manager (runReaderT action ts)
 
 test :: IO TestSetup -> TestName -> TestM () -> TestTree
 test s name action = testCase name $ do
@@ -145,17 +146,17 @@ createTestSetup optsPath configPath = do
   brigEndpoint <- optOrEnv @IntegrationConfig (.brig) iConf (localEndpoint . read) "BRIG_WEB_PORT"
   pure $
     TestSetup
-      { _tsManager = m,
-        _tsEndpoint = endpoint,
-        _tsBrig = brigEndpoint,
-        _tsOpts = opts
+      { manager = m,
+        endpoint = endpoint,
+        brig = brigEndpoint,
+        opts = opts
       }
 
 runFederationClient :: ClientM a -> ReaderT TestSetup (ExceptT ClientError (Codensity IO)) a
 runFederationClient action = do
-  man <- view tsManager
-  Endpoint cHost cPort <- view tsEndpoint
-  domain <- view (tsOpts . settings . federationDomain)
+  man <- asks (.manager)
+  Endpoint cHost cPort <- asks (.endpoint)
+  domain <- asks (.opts.settings.federationDomain)
   let base = BaseUrl Http (T.unpack cHost) (fromIntegral cPort) "/federation"
   let env =
         (mkClientEnv man base)
