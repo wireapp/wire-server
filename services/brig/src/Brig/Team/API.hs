@@ -238,16 +238,6 @@ listInvitations uid tid startingId mSize = do
       isPersonalUserMigration <- isPersonalUser (mkEmailKey si.email)
       toInvitation isPersonalUserMigration ShowInvitationUrl si
 
-isPersonalUser :: (Member UserSubsystem r, Member (Input (Local ())) r) => EmailKey -> Sem r Bool
-isPersonalUser uke = do
-  mAccount <- getLocalUserAccountByUserKey =<< qualifyLocal' uke
-  pure $ case mAccount of
-    -- this can e.g. happen if the key is claimed but the account is not yet created
-    Nothing -> False
-    Just account ->
-      account.accountStatus == Active
-        && isNothing account.accountUser.userTeam
-
 -- | brig used to not store the role, so for migration we allow this to be empty and fill in the
 -- default here.
 toInvitation ::
@@ -349,6 +339,16 @@ getInvitation uid tid iid = do
       showInvitationUrl <- GalleyAPIAccess.getExposeInvitationURLsToTeamAdmin tid
       maybeUrl <- mkInviteUrl showInvitationUrl tid invitation.code
       pure $ Just (Store.invitationFromStored maybeUrl invitation)
+
+isPersonalUser :: (Member UserSubsystem r, Member (Input (Local ())) r) => EmailKey -> Sem r Bool
+isPersonalUser uke = do
+  mAccount <- getLocalUserAccountByUserKey =<< qualifyLocal' uke
+  pure $ case mAccount of
+    -- this can e.g. happen if the key is claimed but the account is not yet created
+    Nothing -> False
+    Just account ->
+      account.accountStatus == Active
+        && isNothing account.accountUser.userTeam
 
 getInvitationByCode ::
   (Member Store.InvitationCodeStore r) =>
