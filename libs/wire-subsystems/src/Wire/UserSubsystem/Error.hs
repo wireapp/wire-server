@@ -40,7 +40,7 @@ userSubsystemErrorToHttpError =
     UserSubsystemHandleExists -> errorToWai @E.HandleExists
     UserSubsystemInvalidHandle -> errorToWai @E.InvalidHandle
     UserSubsystemHandleManagedByScim -> errorToWai @E.HandleManagedByScim
-    UserSubsystemInsufficientTeamPermissions -> errorToWai @'E.InsufficientTeamPermissions
+    UserSubsystemInsufficientTeamPermissions -> errorToWai @E.InsufficientTeamPermissions
     UserSubsystemCannotJoinMultipleTeams -> errorToWai @E.CannotJoinMultipleTeams
     UserSubsystemTooManyTeamMembers -> errorToWai @E.TooManyTeamMembers
     UserSubsystemMissingIdentity -> errorToWai @E.MissingIdentity
