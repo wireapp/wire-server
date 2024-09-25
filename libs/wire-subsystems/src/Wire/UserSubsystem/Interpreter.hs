@@ -938,7 +938,8 @@ acceptTeamInvitationImpl luid pw code = do
   -- in final code. We have to implement checkPassword in terms of Auth subsystem.
   forM_ mEmailKey $ createPasswordResetCode
   checkPassword
-  (inv :: StoredInvitation, tid) <- (error "todo findTeamInvitation") mEmailKey code
+  inv <- fst <$> internalFindTeamInvitationImpl mEmailKey code
+  let tid = inv.teamId
   let minvmeta = (,inv.createdAt) <$> inv.createdBy
       uid = tUnqualified luid
   for_ mTid $ \userTid ->
