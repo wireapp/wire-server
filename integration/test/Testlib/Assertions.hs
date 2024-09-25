@@ -252,13 +252,21 @@ super `shouldContain` sub = do
     assertFailure $ "String or List:\n" <> show super <> "\nDoes not contain:\n" <> show sub
 
 printFailureDetails :: AssertionFailure -> IO String
-printFailureDetails (AssertionFailure stack mbResponse msg) = do
+printFailureDetails (AssertionFailure stack mbResponse ctx msg) = do
   s <- prettierCallStack stack
   pure . unlines $
     colored yellow "assertion failure:"
       : colored red msg
       : "\n" <> s
       : toList (fmap prettyResponse mbResponse)
+        <> toList (fmap prettyContext ctx)
+
+prettyContext :: String -> String
+prettyContext ctx = do
+  unlines
+    [ colored yellow "context:",
+      colored blue ctx
+    ]
 
 printExceptionDetails :: SomeException -> IO String
 printExceptionDetails e = do

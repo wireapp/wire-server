@@ -219,7 +219,7 @@ run wsConnect app = do
                   headers = mempty,
                   request = request
                 }
-        throwIO (AssertionFailure callStack (Just r) (displayException ex))
+        throwIO (AssertionFailure callStack (Just r) Nothing (displayException ex))
 
   liftIO $ race_ waitForPresence waitForException
   pure wsapp
@@ -421,7 +421,11 @@ awaitNMatches ::
   App [Value]
 awaitNMatches nExpected checkMatch ws = do
   res <- awaitNMatchesResult nExpected checkMatch ws
-  assertAwaitResult res
+  withWebSocketFailureContext ws $
+    assertAwaitResult res
+
+withWebSocketFailureContext :: WebSocket -> App a -> App a
+withWebSocketFailureContext ws = addFailureContext ("on websocket for user: " <> ws.wsConnect.user <> "@" <> ws.wsConnect.domain)
 
 assertAwaitResult :: (HasCallStack) => AwaitResult -> App [Value]
 assertAwaitResult res = do
@@ -481,7 +485,7 @@ assertNoEvent ::
   Int ->
   WebSocket ->
   App ()
-assertNoEvent to ws = do
+assertNoEvent to ws = withWebSocketFailureContext ws $ do
   mEvent <- awaitAnyEvent to ws
   case mEvent of
     Just event -> assertFailure $ "Expected no event, but got: " <> show event
