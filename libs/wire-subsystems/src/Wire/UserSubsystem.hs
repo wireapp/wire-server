@@ -137,7 +137,8 @@ data UserSubsystem m a where
     Maybe (Range 1 500 Int) ->
     Maybe PagingState ->
     UserSubsystem m (SearchResult TeamContact)
-  AcceptTeamInvitation :: Local UserId -> PlainTextPassword6 -> InvitationCode -> UserSubsystem m ()
+  AcceptTeamInvitation :: Local UserId -> PlainTextPassword6 -> InvitationCode -> UserSubsystem m () -- TODO(fisx): move to TeamInvitationSubsystem? (or move AcceptInvitation to UserSubsystem? :)
+
   -- | The following "internal" functions exists to support migration in this susbystem, after the
   -- migration this would just be an internal detail of the subsystem
   InternalUpdateSearchIndex :: UserId -> UserSubsystem m ()
