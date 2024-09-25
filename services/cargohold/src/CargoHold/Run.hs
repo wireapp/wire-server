@@ -27,10 +27,10 @@ import qualified Amazonka as AWS
 import CargoHold.API.Federation
 import CargoHold.API.Public
 import CargoHold.AWS (amazonkaEnv)
-import CargoHold.App hiding (settings)
+import CargoHold.App
 import CargoHold.Options hiding (aws)
 import Control.Exception (bracket)
-import Control.Lens ((.~), (^.))
+import Control.Lens ((.~))
 import Control.Monad.Codensity
 import Data.Metrics.AWS (gaugeTokenRemaing)
 import Data.Metrics.Servant
@@ -58,14 +58,14 @@ type CombinedAPI = FederationAPI :<|> CargoholdAPI :<|> InternalAPI
 run :: Opts -> IO ()
 run o = lowerCodensity $ do
   (app, e) <- mkApp o
-  void $ Codensity $ Async.withAsync (collectAuthMetrics (e ^. aws . amazonkaEnv))
+  void $ Codensity $ Async.withAsync (collectAuthMetrics e.aws.amazonkaEnv)
   liftIO $ do
     s <-
       Server.newSettings $
         defaultServer
-          (unpack . host $ o ^. cargohold)
-          (port $ o ^. cargohold)
-          (e ^. appLogger)
+          (unpack . host $ o.cargohold)
+          (port o.cargohold)
+          e.appLogger
     runSettingsWithShutdown s app Nothing
 
 mkApp :: Opts -> Codensity IO (Application, Env)
@@ -75,18 +75,18 @@ mkApp o = Codensity $ \k ->
   where
     middleware :: Env -> Wai.Middleware
     middleware e =
-      versionMiddleware (foldMap expandVersionExp (o ^. settings . disabledAPIVersions))
-        . requestIdMiddleware (e ^. appLogger) defaultRequestIdHeaderName
+      versionMiddleware (foldMap expandVersionExp o.settings.disabledAPIVersions)
+        . requestIdMiddleware e.appLogger defaultRequestIdHeaderName
         . servantPrometheusMiddleware (Proxy @CombinedAPI)
         . GZip.gzip GZip.def
-        . catchErrors (e ^. appLogger) defaultRequestIdHeaderName
+        . catchErrors e.appLogger defaultRequestIdHeaderName
     servantApp :: Env -> Application
     servantApp e0 r cont = do
       let rid = getRequestId defaultRequestIdHeaderName r
-          e = requestId .~ rid $ e0
+          e = requestIdLens .~ rid $ e0
       Servant.serveWithContext
         (Proxy @CombinedAPI)
-        ((o ^. settings . federationDomain) :. Servant.EmptyContext)
+        (o.settings.federationDomain :. Servant.EmptyContext)
         ( hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
             :<|> hoistServerWithDomain @CargoholdAPI (toServantHandler e) servantSitemap
             :<|> hoistServerWithDomain @InternalAPI (toServantHandler e) internalSitemap
