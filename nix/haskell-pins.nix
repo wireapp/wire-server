@@ -94,9 +94,10 @@ let
 
     bloodhound = {
       src = fetchgit {
-        url = "https://github.com/wireapp/bloodhound";
-        rev = "abf819a4a6ec7601f1e58cb8da13b2fdad377d9e";
-        hash = "sha256-m1O+F/mOJN5z5WNChmeyHP4dtmLRkl2YnLlTuwzRelk=";
+        url = "https://github.com/bitemyapp/bloodhound";
+        # v0.23.0.0
+        rev = "76a27a44223e8c24ec2c6a13504ea671887f2672";
+        hash = "sha256-R3uemM/4rc6hwsT/bDimMDmxzb+nKlmTxJu4DsKeXC8=";
       };
     };
 
