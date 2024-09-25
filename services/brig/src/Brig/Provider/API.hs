@@ -215,10 +215,10 @@ newAccount new = do
   let emailKey = mkEmailKey email
   wrapClientE (DB.lookupKey emailKey) >>= mapM_ (const $ throwStd emailExists)
   (safePass, newPass) <- case pass of
-    Just newPass -> (,Nothing) <$> mkSafePasswordScrypt newPass
+    Just newPass -> (,Nothing) <$> mkSafePassword newPass
     Nothing -> do
       newPass <- genPassword
-      safePass <- mkSafePasswordScrypt newPass
+      safePass <- mkSafePassword newPass
       pure (safePass, Just newPass)
   pid <- wrapClientE $ DB.insertAccount name safePass url descr
   let gen = mkVerificationCodeGen email

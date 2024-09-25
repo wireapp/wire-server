@@ -22,14 +22,16 @@ module Wire.API.Password
   ( Password,
     PasswordStatus (..),
     genPassword,
-    mkSafePasswordScrypt,
-    mkSafePasswordArgon2id,
+    mkSafePassword,
     verifyPassword,
     verifyPasswordWithStatus,
+    PasswordReqBody (..),
+
+    -- * Only for testing
     unsafeMkPassword,
     hashPasswordArgon2idWithSalt,
     hashPasswordArgon2idWithOptions,
-    PasswordReqBody (..),
+    mkSafePasswordScrypt,
   )
 where
 
@@ -110,8 +112,8 @@ defaultScryptParams =
 defaultOptions :: Argon2idOptions
 defaultOptions =
   Argon2.Options
-    { iterations = 5,
-      memory = 2 ^ (17 :: Int),
+    { iterations = 1,
+      memory = 2 ^ (21 :: Int),
       parallelism = 4,
       variant = Argon2.Argon2id,
       version = Argon2.Version13
@@ -138,8 +140,8 @@ genPassword =
 mkSafePasswordScrypt :: (MonadIO m) => PlainTextPassword' t -> m Password
 mkSafePasswordScrypt = fmap Password . hashPasswordScrypt . Text.encodeUtf8 . fromPlainTextPassword
 
-mkSafePasswordArgon2id :: (MonadIO m) => PlainTextPassword' t -> m Password
-mkSafePasswordArgon2id = fmap Password . hashPasswordArgon2id . Text.encodeUtf8 . fromPlainTextPassword
+mkSafePassword :: (MonadIO m) => PlainTextPassword' t -> m Password
+mkSafePassword = fmap Password . hashPasswordArgon2id . Text.encodeUtf8 . fromPlainTextPassword
 
 -- | Verify a plaintext password from user input against a stretched
 -- password from persistent storage.
