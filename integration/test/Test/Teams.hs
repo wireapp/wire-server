@@ -63,7 +63,7 @@ testInvitePersonalUserToTeam = do
         acceptTeamInvitation user code Nothing >>= assertStatus 400
         acceptTeamInvitation user code (Just "wrong-password") >>= assertStatus 403
 
-        void $ withWebSockets [user] $ \wss -> do
+        void $ withWebSockets [user, tm] $ \wss -> do
           acceptTeamInvitation user code (Just defPassword) >>= assertSuccess
           for wss $ \ws -> do
             n <- awaitMatch isUserUpdatedNotif ws
