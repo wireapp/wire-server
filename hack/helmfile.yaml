@@ -179,6 +179,8 @@ releases:
             # Implicitly done if ".singleNode" is set to "true".
             discovery.type: single-node
 
+            action.auto_create_index: true
+
             # Start OpenSearch Security Demo Configuration
             # WARNING: revise all the lines below before you go into production
             plugins:
