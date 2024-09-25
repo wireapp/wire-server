@@ -39,7 +39,7 @@ import Bilge hiding (getHeader, host, options, port, statusCode)
 import Bilge.RPC
 import Brig.Types.Intra qualified as Brig
 import Control.Error hiding (bool, isRight)
-import Control.Lens (view, (^.))
+import Control.Lens (view)
 import Control.Monad.Catch
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Char8 qualified as BSC
@@ -254,7 +254,7 @@ runHereClientM action = do
   mgr <- view manager
   brigep <- view brig
   let env = Client.mkClientEnv mgr baseurl
-      baseurl = Client.BaseUrl Client.Http (Text.unpack $ brigep ^. host) (fromIntegral $ brigep ^. port) ""
+      baseurl = Client.BaseUrl Client.Http (Text.unpack brigep.host) (fromIntegral brigep.port) ""
   liftIO $ Client.runClientM action env
 
 handleServantResp ::

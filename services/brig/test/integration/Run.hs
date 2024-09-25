@@ -124,7 +124,7 @@ runTests iConf brigOpts otherArgs = do
   let Opts.TurnServersFiles turnFile turnFileV2 = case Opts.serversSource $ Opts.turn brigOpts of
         Opts.TurnSourceFiles files -> files
         Opts.TurnSourceDNS _ -> error "The integration tests can only be run when TurnServers are sourced from files"
-      localDomain = brigOpts.optSettings.federationDomain
+      localDomain = brigOpts.settings.federationDomain
       awsOpts = Opts.aws brigOpts
   lg <- Logger.new Logger.defSettings -- TODO: use mkLogger'?
   db <- defInitCassandra (brigOpts.cassandra) lg

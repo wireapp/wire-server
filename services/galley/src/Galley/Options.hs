@@ -37,7 +37,7 @@ module Galley.Options
     JournalOpts (JournalOpts),
     queueName,
     endpoint,
-    Opts,
+    Opts (..),
     galley,
     cassandra,
     brig,

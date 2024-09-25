@@ -102,7 +102,7 @@ testSFT b opts = do
       "when SFT discovery is not enabled, sft_servers shouldn't be returned"
       Nothing
       (cfg ^. rtcConfSftServers)
-  withSettingsOverrides (opts & Opts.sftL ?~ Opts.SFTOptions "integration-tests.zinfra.io" Nothing (Just 0.001) Nothing Nothing) $ do
+  withSettingsOverrides (opts & Opts.sftLens ?~ Opts.SFTOptions "integration-tests.zinfra.io" Nothing (Just 0.001) Nothing Nothing) $ do
     cfg1 <- retryWhileN 10 (isNothing . view rtcConfSftServers) (getTurnConfigurationV2 uid b)
     -- These values are controlled by https://github.com/zinfra/cailleach/tree/77ca2d23cf2959aa183dd945d0a0b13537a8950d/environments/dns-integration-tests
     let Right server1 = mkHttpsUrl =<< first show (parseURI laxURIParserOptions "https://sft01.integration-tests.zinfra.io:443")
@@ -116,7 +116,7 @@ testSFT b opts = do
 testSFTUnavailable :: Brig -> Opts.Opts -> String -> Http ()
 testSFTUnavailable b opts domain = do
   uid <- userId <$> randomUser b
-  withSettingsOverrides (opts {Opts.optSettings = (Opts.optSettings opts) {Opts.sftStaticUrl = fromByteString (cs domain), Opts.sftListAllServers = Just Opts.ListAllSFTServers}}) $ do
+  withSettingsOverrides (opts {Opts.settings = (Opts.settings opts) {Opts.sftStaticUrl = fromByteString (cs domain), Opts.sftListAllServers = Just Opts.ListAllSFTServers}}) $ do
     cfg <- getTurnConfigurationV2 uid b
     liftIO $ do
       assertEqual
@@ -178,7 +178,7 @@ testCallsConfigSRV b opts = do
   uid <- userId <$> randomUser b
   let dnsOpts = Opts.TurnSourceDNS (Opts.TurnDnsOpts "integration-tests.zinfra.io" (Just 0.5))
   config <-
-    withSettingsOverrides (opts & Opts.turnL . Opts.serversSourceLens .~ dnsOpts) $
+    withSettingsOverrides (opts & Opts.turnLens . Opts.serversSourceLens .~ dnsOpts) $
       responseJsonError
         =<< ( retryWhileN 10 (\r -> statusCode r /= 200) (getTurnConfiguration "" uid b)
                 <!! const 200 === statusCode
@@ -196,7 +196,7 @@ testCallsConfigV2SRV b opts = do
   uid <- userId <$> randomUser b
   let dnsOpts = Opts.TurnSourceDNS (Opts.TurnDnsOpts "integration-tests.zinfra.io" (Just 0.5))
   config <-
-    withSettingsOverrides (opts & Opts.turnL . Opts.serversSourceLens .~ dnsOpts) $
+    withSettingsOverrides (opts & Opts.turnLens . Opts.serversSourceLens .~ dnsOpts) $
       responseJsonError
         =<< ( retryWhileN 10 (\r -> statusCode r /= 200) (getTurnConfiguration "v2" uid b)
                 <!! const 200 === statusCode

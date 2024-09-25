@@ -88,6 +88,7 @@ import UnliftIO.Async (pooledMapConcurrentlyN_)
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Bot
 import Wire.API.Conversation.Bot qualified as Public
+import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
@@ -289,6 +290,7 @@ beginPasswordReset (Public.PasswordReset target) = do
   let gen = mkVerificationCodeGen target
   (lift . liftSem $ createCode gen VerificationCode.PasswordReset (Retries 3) (Timeout 3600) (Just (toUUID pid))) >>= \case
     Left (CodeAlreadyExists code) ->
+      -- FUTUREWORK: use subsystem error
       throwE $ pwResetError (PasswordResetInProgress $ Just code.codeTTL)
     Right code ->
       lift $ sendPasswordResetMail target (code.codeKey) (code.codeValue)
@@ -610,11 +612,12 @@ updateServiceWhitelist ::
   Public.UpdateServiceWhitelist ->
   (Handler r) UpdateServiceWhitelistResp
 updateServiceWhitelist uid con tid upd = do
+  -- Preconditions
   guardSecondFactorDisabled (Just uid)
+  guardMLSNotDefault
   let pid = updateServiceWhitelistProvider upd
       sid = updateServiceWhitelistService upd
       newWhitelisted = updateServiceWhitelistStatus upd
-  -- Preconditions
   lift . liftSem $ ensurePermissions uid tid (Set.toList serviceWhitelistPermissions)
   _ <- wrapClientE (DB.lookupService pid sid) >>= maybeServiceNotFound
   -- Add to various tables
@@ -641,6 +644,14 @@ updateServiceWhitelist uid con tid upd = do
             )
       wrapClientE $ DB.deleteServiceWhitelist (Just tid) pid sid
       pure UpdateServiceWhitelistRespChanged
+  where
+    guardMLSNotDefault = lift . liftSem $ do
+      feat <- GalleyAPIAccess.getFeatureConfigForTeam @_ @Feature.MLSConfig tid
+      let defProtocol = feat.config.mlsDefaultProtocol
+      case defProtocol of
+        ProtocolProteusTag -> pure ()
+        ProtocolMLSTag -> throw UserSubsystemMLSServicesNotAllowed
+        ProtocolMixedTag -> throw UserSubsystemMLSServicesNotAllowed
 
 --------------------------------------------------------------------------------
 -- Bot API
@@ -696,7 +707,7 @@ addBot zuid zcon cid add = do
   let botReq = NewBotRequest bid bcl busr bcnv btk bloc
   rs <- RPC.createBot scon botReq !>> StdError . serviceError
   -- Insert the bot user and client
-  locale <- Opt.setDefaultUserLocale <$> asks (.settings)
+  locale <- Opt.defaultUserLocale <$> asks (.settings)
   let name = fromMaybe (serviceProfileName svp) (Ext.rsNewBotName rs)
   let assets = fromMaybe (serviceProfileAssets svp) (Ext.rsNewBotAssets rs)
   let colour = fromMaybe defaultAccentId (Ext.rsNewBotColour rs)
@@ -715,7 +726,7 @@ addBot zuid zcon cid add = do
       -- implicitly in the next line.
       pure $ FutureWork @'UnprotectedBot undefined
     lbid <- qualifyLocal (botUserId bid)
-    wrapClientE (User.addClient lbid bcl newClt maxPermClients (Just $ Set.singleton Public.ClientSupportsLegalholdImplicitConsent))
+    wrapClientE (User.addClient lbid bcl newClt maxPermClients (Just $ ClientCapabilityList $ Set.singleton Public.ClientSupportsLegalholdImplicitConsent))
       !>> const (StdError $ badGatewayWith "MalformedPrekeys")
 
   -- Add the bot to the conversation

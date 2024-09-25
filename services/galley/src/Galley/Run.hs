@@ -76,8 +76,8 @@ run opts = lowerCodensity do
     lift $
       newSettings $
         defaultServer
-          (unpack $ opts ^. galley . host)
-          (portNumber $ fromIntegral $ opts ^. galley . port)
+          (unpack $ opts._galley.host)
+          (portNumber $ fromIntegral opts._galley.port)
           (env ^. App.applog)
 
   forM_ (env ^. aEnv) $ \aws ->

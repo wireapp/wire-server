@@ -218,7 +218,7 @@ testAddGetClientCodeExpired db opts brig galley = do
   codeValue <- (.codeValue) <$$> lookupCode db k Code.AccountLogin
   checkLoginSucceeds $
     MkLogin (LoginByEmail email) defPassword (Just defCookieLabel) codeValue
-  let timeout = round (verificationTimeout opts.optSettings)
+  let timeout = round (verificationTimeout opts.settings)
   threadDelay $ ((timeout + 1) * 1000_000)
   addClient' codeValue !!! do
     const 403 === statusCode
@@ -291,7 +291,7 @@ testGetUserClientsQualified opts brig = do
   _c11 :: Client <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk11] lk11)
   _c12 :: Client <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk12] lk12)
   _c13 :: Client <- responseJsonError =<< addClient brig uid1 (defNewClient TemporaryClientType [pk13] lk13)
-  let localdomain = opts.optSettings.federationDomain
+  let localdomain = opts.settings.federationDomain
   getUserClientsQualified brig uid2 localdomain uid1 !!! do
     const 200 === statusCode
     assertTrue_ $ \res -> do
@@ -396,7 +396,7 @@ testListClientsBulk opts brig = do
   c21 <- responseJsonError =<< addClient brig uid2 (defNewClient PermanentClientType [pk21] lk21)
   c22 <- responseJsonError =<< addClient brig uid2 (defNewClient PermanentClientType [pk22] lk22)
 
-  let domain = opts.optSettings.federationDomain
+  let domain = opts.settings.federationDomain
   uid3 <- userId <$> randomUser brig
   let mkPubClient cl = PubClient (clientId cl) (clientClass cl)
   let expectedResponse :: QualifiedUserMap (Set PubClient) =
@@ -439,7 +439,7 @@ testClientsWithoutPrekeys brig cannon db opts = do
 
   uid2 <- userId <$> randomUser brig
 
-  let domain = opts.optSettings.federationDomain
+  let domain = opts.settings.federationDomain
 
   let userClients =
         QualifiedUserClients $
@@ -531,7 +531,7 @@ testClientsWithoutPrekeysV4 brig cannon db opts = do
 
   uid2 <- userId <$> randomUser brig
 
-  let domain = opts.optSettings.federationDomain
+  let domain = opts.settings.federationDomain
 
   let userClients =
         QualifiedUserClients $
@@ -626,7 +626,7 @@ testClientsWithoutPrekeysFailToListV4 brig cannon db opts = do
 
   uid2 <- fakeRemoteUser
 
-  let domain = opts.optSettings.federationDomain
+  let domain = opts.settings.federationDomain
 
   let userClients1 =
         QualifiedUserClients $
@@ -710,7 +710,7 @@ testListClientsBulkV2 opts brig = do
   c21 <- responseJsonError =<< addClient brig uid2 (defNewClient PermanentClientType [pk21] lk21)
   c22 <- responseJsonError =<< addClient brig uid2 (defNewClient PermanentClientType [pk22] lk22)
 
-  let domain = opts.optSettings.federationDomain
+  let domain = opts.settings.federationDomain
   uid3 <- userId <$> randomUser brig
   let mkPubClient cl = PubClient (clientId cl) (clientClass cl)
   let expectedResponse :: WrappedQualifiedUserMap (Set PubClient) =
@@ -774,7 +774,7 @@ testGetUserPrekeys brig = do
 
 testGetUserPrekeysQualified :: Brig -> Opt.Opts -> Http ()
 testGetUserPrekeysQualified brig opts = do
-  let domain = opts.optSettings.federationDomain
+  let domain = opts.settings.federationDomain
   [(uid, _c, _lpk, cpk)] <- generateClients 1 brig
   get (brig . paths ["users", toByteString' domain, toByteString' uid, "prekeys"] . zUser uid) !!! do
     const 200 === statusCode
@@ -795,7 +795,7 @@ testGetClientPrekey brig = do
 
 testGetClientPrekeyQualified :: Brig -> Opt.Opts -> Http ()
 testGetClientPrekeyQualified brig opts = do
-  let domain = opts.optSettings.federationDomain
+  let domain = opts.settings.federationDomain
   [(uid, c, _lpk, cpk)] <- generateClients 1 brig
   get (brig . paths ["users", toByteString' domain, toByteString' uid, "prekeys", toByteString' (clientId c)] . zUser uid) !!! do
     const 200 === statusCode
@@ -832,7 +832,7 @@ testMultiUserGetPrekeys brig = do
 
 testMultiUserGetPrekeysQualified :: Brig -> Opt.Opts -> Http ()
 testMultiUserGetPrekeysQualified brig opts = do
-  let domain = opts.optSettings.federationDomain
+  let domain = opts.settings.federationDomain
 
   xs <- generateClients 3 brig
   let userClients =
@@ -866,7 +866,7 @@ testMultiUserGetPrekeysQualified brig opts = do
 
 testMultiUserGetPrekeysQualifiedV4 :: Brig -> Opt.Opts -> Http ()
 testMultiUserGetPrekeysQualifiedV4 brig opts = do
-  let domain = opts.optSettings.federationDomain
+  let domain = opts.settings.federationDomain
 
   xs <- generateClients 3 brig
   let userClients =
@@ -913,7 +913,7 @@ testTooManyClients :: Opt.Opts -> Brig -> Http ()
 testTooManyClients opts brig = do
   uid <- userId <$> randomUser brig
   -- We can always change the permanent client limit
-  let newOpts = opts & optionSettings . userMaxPermClientsLens ?~ 1
+  let newOpts = opts & settingsLens . userMaxPermClientsLens ?~ 1
   withSettingsOverrides newOpts $ do
     -- There is only one temporary client, adding a new one
     -- replaces the previous one.
@@ -1157,7 +1157,7 @@ testUpdateClient opts brig = do
     const Nothing === (preview (key "mls_public_keys") <=< responseJsonMaybe @Value)
 
   -- via `/users/:domain/:uid/clients/:client`, only `id` and `class` are visible:
-  let localdomain = opts.optSettings.federationDomain
+  let localdomain = opts.settings.federationDomain
   get (brig . paths ["users", toByteString' localdomain, toByteString' uid, "clients", toByteString' (clientId c)]) !!! do
     const 200 === statusCode
     const (Just $ clientId c) === (fmap pubClientId . responseJsonMaybe)
@@ -1187,7 +1187,7 @@ testUpdateClient opts brig = do
   -- update supported client capabilities work
   let checkUpdate :: (HasCallStack) => Maybe [ClientCapability] -> Bool -> [ClientCapability] -> Http ()
       checkUpdate capsIn respStatusOk capsOut = do
-        let update'' = defUpdateClient {updateClientCapabilities = Set.fromList <$> capsIn}
+        let update'' = defUpdateClient {updateClientCapabilities = ClientCapabilityList . Set.fromList <$> capsIn}
         put
           ( apiVersion "v1"
               . brig
@@ -1236,7 +1236,7 @@ testUpdateClient opts brig = do
               assertEqual "" (clientId c) cid'
               assertEqual "" expectedPrekey prekey'
 
-        caps = Just $ Set.fromList [ClientSupportsLegalholdImplicitConsent]
+        caps = Just $ ClientCapabilityList $ Set.fromList [ClientSupportsLegalholdImplicitConsent]
 
         label = "label-bc1b7b0c-b7bf-11eb-9a1d-233d397f934a"
         prekey = somePrekeys !! 4
@@ -1432,7 +1432,7 @@ instance A.ToJSON DPoPClaimsSet where
 
 testCreateAccessToken :: Opt.Opts -> Nginz -> Brig -> Http ()
 testCreateAccessToken opts n brig = do
-  let localDomain = opts.optSettings.federationDomain
+  let localDomain = opts.settings.federationDomain
   (u, tid) <- Util.createUserWithTeam' brig
   handle <- do
     Just h <- userHandle <$> Util.setRandomHandle brig u

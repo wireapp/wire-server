@@ -1,6 +1,8 @@
+{-# LANGUAGE QuasiQuotes #-}
+
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2023 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -15,12 +17,19 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Wire.API.Golden.Manual.ClientCapability where
+module Brig.Schema.V87_DropInvitationTables
+  ( migration,
+  )
+where
 
-import Wire.API.User.Client (ClientCapability (..))
+import Cassandra.Schema
+import Imports
+import Text.RawString.QQ
 
-testObject_ClientCapability_1 :: ClientCapability
-testObject_ClientCapability_1 = ClientSupportsLegalholdImplicitConsent
-
-testObject_ClientCapability_2 :: ClientCapability
-testObject_ClientCapability_2 = ClientSupportsConsumableNotifications
+migration :: Migration
+migration =
+  Migration 87 "Drop unused invitation tables" $ do
+    schema'
+      [r| DROP TABLE IF EXISTS invitation |]
+    schema'
+      [r|  DROP TABLE IF EXISTS invitation_info; |]

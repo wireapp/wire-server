@@ -29,6 +29,7 @@ data UserSubsystemError
   | UserSubsystemInvalidInvitationCode
   | UserSubsystemInvitationNotFound
   | UserSubsystemUserNotAllowedToJoinTeam Wai.Error
+  | UserSubsystemMLSServicesNotAllowed
   deriving (Eq, Show)
 
 userSubsystemErrorToHttpError :: UserSubsystemError -> HttpError
@@ -52,5 +53,6 @@ userSubsystemErrorToHttpError =
     UserSubsystemInvalidInvitationCode -> errorToWai @E.InvalidInvitationCode
     UserSubsystemInvitationNotFound -> Wai.mkError status404 "not-found" "Something went wrong, while looking up the invitation"
     UserSubsystemUserNotAllowedToJoinTeam e -> e
+    UserSubsystemMLSServicesNotAllowed -> errorToWai @E.MLSServicesNotAllowed
 
 instance Exception UserSubsystemError

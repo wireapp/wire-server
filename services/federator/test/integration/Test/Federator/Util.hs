@@ -157,12 +157,12 @@ mkEnv _teTstOpts _teOpts = do
   let _teBrig = endpointToReq _teTstOpts.brig
       _teCargohold = endpointToReq _teTstOpts.cargohold
   -- _teTLSSettings <- mkTLSSettingsOrThrow (optSettings _teOpts)
-  _teSSLContext <- mkTLSSettingsOrThrow (optSettings _teOpts)
-  let _teSettings = optSettings _teOpts
+  _teSSLContext <- mkTLSSettingsOrThrow _teOpts.optSettings
+  let _teSettings = _teOpts.optSettings
   pure TestEnv {..}
 
 endpointToReq :: Endpoint -> (Bilge.Request -> Bilge.Request)
-endpointToReq ep = Bilge.host (ep ^. O.host . to cs) . Bilge.port (ep ^. O.port)
+endpointToReq ep = Bilge.host (cs ep.host) . Bilge.port ep.port
 
 -- All the code below is copied from brig-integration tests
 -- FUTUREWORK: This should live in another package and shared by all the integration tests

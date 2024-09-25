@@ -2028,7 +2028,7 @@ ephemeralUser = do
 randomClient :: (HasCallStack) => UserId -> LastPrekey -> TestM ClientId
 randomClient uid lk = randomClientWithCaps uid lk Nothing
 
-randomClientWithCaps :: (HasCallStack) => UserId -> LastPrekey -> Maybe (Set Client.ClientCapability) -> TestM ClientId
+randomClientWithCaps :: (HasCallStack) => UserId -> LastPrekey -> Maybe ClientCapabilityList -> TestM ClientId
 randomClientWithCaps uid lk caps = do
   b <- viewBrig
   resp <-
@@ -2418,7 +2418,7 @@ putCapabilities zusr cid caps = do
       ( brig
           . zUser zusr
           . paths ["clients", toByteString' cid]
-          . json defUpdateClient {updateClientCapabilities = Just (Set.fromList caps)}
+          . json defUpdateClient {updateClientCapabilities = Just $ ClientCapabilityList $ Set.fromList caps}
           . expect2xx
       )
 

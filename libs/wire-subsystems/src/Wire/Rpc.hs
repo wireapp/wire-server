@@ -46,8 +46,8 @@ rpcImpl :: ServiceName -> Endpoint -> (Request -> Request) -> HttpRpc (Response 
 rpcImpl serviceName ep req = do
   rpc' serviceName empty $
     req
-      . Bilge.host (encodeUtf8 ep._host)
-      . Bilge.port ep._port
+      . Bilge.host (encodeUtf8 ep.host)
+      . Bilge.port ep.port
 
 rpcWithRetriesImpl :: ServiceName -> Endpoint -> (Request -> Request) -> HttpRpc (Response (Maybe LByteString))
 rpcWithRetriesImpl serviceName ep req =

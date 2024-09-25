@@ -31,7 +31,7 @@ import Brig.API.MLS.KeyPackages.Validation
 import Brig.API.OAuth (internalOauthAPI)
 import Brig.API.Types
 import Brig.API.User qualified as API
-import Brig.App
+import Brig.App as App
 import Brig.Data.Activation
 import Brig.Data.Client qualified as Data
 import Brig.Data.Connection qualified as Data
@@ -367,7 +367,7 @@ updateFederationRemote dom fedcfg = do
 getAccountConferenceCallingConfig :: UserId -> Handler r (Feature ConferenceCallingConfig)
 getAccountConferenceCallingConfig uid = do
   mStatus <- lift $ wrapClient $ Data.lookupFeatureConferenceCalling uid
-  mDefStatus <- preview (settingsLens . featureFlagsLens . _Just . to conferenceCalling . to forNull)
+  mDefStatus <- preview (App.settingsLens . featureFlagsLens . _Just . to conferenceCalling . to forNull)
   pure $ def {status = mStatus <|> mDefStatus ?: (def :: LockableFeature ConferenceCallingConfig).status}
 
 putAccountConferenceCallingConfig :: UserId -> Feature ConferenceCallingConfig -> Handler r NoContent
@@ -732,14 +732,14 @@ updateLocale uid upd@(LocaleUpdate locale) = do
 
 deleteLocale :: (Member UserSubsystem r) => UserId -> (Handler r) NoContent
 deleteLocale uid = do
-  defLoc <- setDefaultUserLocale <$> asks (.settings)
+  defLoc <- defaultUserLocale <$> asks (.settings)
   qUid <- qualifyLocal uid
   lift . liftSem $ updateUserProfile qUid Nothing UpdateOriginScim def {locale = Just defLoc}
   pure NoContent
 
 getDefaultUserLocale :: (Handler r) LocaleUpdate
 getDefaultUserLocale = do
-  defLocale <- setDefaultUserLocale <$> asks (.settings)
+  defLocale <- defaultUserLocale <$> asks (.settings)
   pure $ LocaleUpdate defLocale
 
 updateClientLastActive :: UserId -> ClientId -> Handler r ()

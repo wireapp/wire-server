@@ -138,7 +138,7 @@ createTestSetup optsPath configPath = do
       tlsManagerSettings
         { managerResponseTimeout = responseTimeoutMicro 300000000
         }
-  let localEndpoint p = Endpoint {_host = "127.0.0.1", _port = p}
+  let localEndpoint p = Endpoint {host = "127.0.0.1", port = p}
   iConf <- handleParseError =<< decodeFileEither configPath
   opts <- decodeFileThrow optsPath
   endpoint <- optOrEnv @IntegrationConfig (.cargohold) iConf (localEndpoint . read) "CARGOHOLD_WEB_PORT"

@@ -136,6 +136,15 @@ getClient u cli = do
       joinHttpPath ["clients", c]
   submit "GET" req
 
+-- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/get_clients
+getSelfClients ::
+  (HasCallStack, MakesValue user) =>
+  user ->
+  App Response
+getSelfClients u =
+  baseRequest u Brig Versioned (joinHttpPath ["clients"])
+    >>= submit "GET"
+
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/delete_self
 deleteUser :: (HasCallStack, MakesValue user) => user -> App Response
 deleteUser user = do
@@ -833,3 +842,26 @@ upgradePersonalToTeam :: (HasCallStack, MakesValue user) => user -> String -> Ap
 upgradePersonalToTeam user name = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["upgrade-personal-to-team"]
   submit "POST" $ req & addJSONObject ["name" .= name, "icon" .= "default"]
+
+postServiceWhitelist ::
+  ( HasCallStack,
+    MakesValue user,
+    MakesValue tid,
+    MakesValue update
+  ) =>
+  user ->
+  tid ->
+  update ->
+  App Response
+postServiceWhitelist user tid update = do
+  tidStr <- asString tid
+  updateJson <- make update
+  req <-
+    baseRequest user Brig Versioned $
+      joinHttpPath
+        [ "teams",
+          tidStr,
+          "services",
+          "whitelist"
+        ]
+  submit "POST" (addJSON updateJson req)

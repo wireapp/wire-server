@@ -665,7 +665,7 @@ zConn :: ByteString -> Request -> Request
 zConn = header "Z-Connection"
 
 endpointToReq :: Endpoint -> (Bilge.Request -> Bilge.Request)
-endpointToReq ep = Bilge.host (ep ^. host . to cs) . Bilge.port (ep ^. port)
+endpointToReq ep = Bilge.host (cs ep.host) . Bilge.port ep.port
 
 -- spar specifics
 
