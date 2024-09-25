@@ -284,25 +284,18 @@ releases:
                   reserved: true
                   description: "Wire User"
                   backend_roles:
-                    - index_creator_role
-                    - admin
+                    - index_manager
 
               roles_mapping.yml: |
                 _meta:
                   type: "rolesmapping"
                   config_version: 2
 
-                index_creator_role:
-                  backend_roles:
-                    - "wire-backend-role"
-                  users:
-                    - "elastic"
-
                 all_access:
                   reserved: false
                   backend_roles:
-                  - "admin"
-                  description: "Maps admin to all_access"
+                    - index_manager
+                  description: "Map index_manager to full_access"
 
               allowlist.yml: |
                 _meta:
