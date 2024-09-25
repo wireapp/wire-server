@@ -174,6 +174,7 @@ import Wire.UserSubsystem.Error
 import Wire.VerificationCode
 import Wire.VerificationCodeGen
 import Wire.VerificationCodeSubsystem
+import Wire.IndexedUserStore (IndexedUserStore)
 
 -- User API -----------------------------------------------------------
 
@@ -299,7 +300,8 @@ servantSitemap ::
     Member VerificationCodeSubsystem r,
     Member (Concurrency 'Unsafe) r,
     Member BlockListStore r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member IndexedUserStore r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =

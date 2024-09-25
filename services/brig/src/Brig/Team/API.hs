@@ -21,7 +21,6 @@ module Brig.Team.API
     getInvitationCode,
     suspendTeam,
     unsuspendTeam,
-    teamSize,
     createInvitationViaScim,
   )
 where
@@ -34,7 +33,6 @@ import Brig.API.Util (logEmail, logInvitationCode)
 import Brig.App as App
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Types.Team (TeamSize)
-import Brig.User.Search.TeamSize qualified as TeamSize
 import Control.Lens (view, (^.))
 import Control.Monad.Trans.Except (mapExceptT)
 import Data.ByteString.Conversion (toByteString)
@@ -84,6 +82,7 @@ import Wire.TeamInvitationSubsystem
 import Wire.UserKeyStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
+import Wire.IndexedUserStore (getTeamSize, IndexedUserStore)
 
 servantAPI ::
   ( Member GalleyAPIAccess r,
@@ -93,7 +92,8 @@ servantAPI ::
     Member TinyLog r,
     Member (Input TeamTemplates) r,
     Member (Input (Local ())) r,
-    Member (Error UserSubsystemError) r
+    Member (Error UserSubsystemError) r,
+    Member IndexedUserStore r
   ) =>
   ServerT TeamsAPI (Handler r)
 servantAPI =
@@ -108,18 +108,17 @@ servantAPI =
 
 teamSizePublic ::
   ( Member GalleyAPIAccess r,
-    Member (Error UserSubsystemError) r
+    Member (Error UserSubsystemError) r,
+    Member IndexedUserStore r
   ) =>
   UserId ->
   TeamId ->
   (Handler r) TeamSize
-teamSizePublic uid tid = do
+teamSizePublic uid tid =
+  lift . liftSem $ do
   -- limit this to team admins to reduce risk of involuntary DOS attacks
-  lift . liftSem $ ensurePermissions uid tid [AddTeamMember]
-  teamSize tid
-
-teamSize :: TeamId -> (Handler r) TeamSize
-teamSize t = lift $ TeamSize.teamSize t
+    ensurePermissions uid tid [AddTeamMember]
+    getTeamSize tid
 
 getInvitationCode ::
   (Member Store.InvitationCodeStore r) =>

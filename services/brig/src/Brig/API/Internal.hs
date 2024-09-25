@@ -115,6 +115,7 @@ import Wire.UserSubsystem qualified as UserSubsystem
 import Wire.VerificationCode
 import Wire.VerificationCodeGen
 import Wire.VerificationCodeSubsystem
+import Wire.IndexedUserStore (getTeamSize, IndexedUserStore)
 
 servantSitemap ::
   forall r p.
@@ -139,7 +140,8 @@ servantSitemap ::
     Member Events r,
     Member PasswordResetCodeStore r,
     Member PropertySubsystem r,
-    Member (Input (Local ())) r
+    Member (Input (Local ())) r,
+    Member IndexedUserStore r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -242,7 +244,8 @@ teamsAPI ::
     Member TeamInvitationSubsystem r,
     Member UserSubsystem r,
     Member Events r,
-    Member (Input (Local ())) r
+    Member (Input (Local ())) r,
+    Member IndexedUserStore r
   ) =>
   ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI =
@@ -251,7 +254,7 @@ teamsAPI =
     :<|> Named @"get-invitation-code" Team.getInvitationCode
     :<|> Named @"suspend-team" Team.suspendTeam
     :<|> Named @"unsuspend-team" Team.unsuspendTeam
-    :<|> Named @"team-size" Team.teamSize
+    :<|> Named @"team-size" (lift . liftSem . getTeamSize)
     :<|> Named @"create-invitations-via-scim" Team.createInvitationViaScim
 
 userAPI :: (Member UserSubsystem r) => ServerT BrigIRoutes.UserAPI (Handler r)
