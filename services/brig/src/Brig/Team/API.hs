@@ -165,7 +165,7 @@ createInvitationViaScim tid newUser@(NewUserScimInvitation _tid uid _eid loc nam
           . logEmail email
 
   iid <- undefined uid
-  localNothing <- const Nothing <$$> lift (liftSem $ input)
+  localNothing <- lift . liftSem $ qualifyLocal' Nothing
   void $
     logInvitationRequest context $
       lift $
