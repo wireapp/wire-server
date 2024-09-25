@@ -40,6 +40,7 @@ import Control.Monad.Trans.Except (mapExceptT)
 import Data.ByteString.Conversion (toByteString)
 import Data.Id
 import Data.List1 qualified as List1
+import Data.Qualified
 import Data.Range
 import Data.Text.Ascii
 import Data.Text.Encoding (encodeUtf8)
@@ -91,6 +92,7 @@ servantAPI ::
     Member Store.InvitationCodeStore r,
     Member TinyLog r,
     Member (Input TeamTemplates) r,
+    Member (Input (Local ())) r,
     Member (Error UserSubsystemError) r
   ) =>
   ServerT TeamsAPI (Handler r)
@@ -203,6 +205,8 @@ listInvitations ::
     Member TinyLog r,
     Member InvitationCodeStore r,
     Member (Input TeamTemplates) r,
+    Member (Input (Local ())) r,
+    Member UserSubsystem r,
     Member (Error UserSubsystemError) r
   ) =>
   UserId ->
@@ -225,10 +229,20 @@ listInvitations uid tid startingId mSize = do
     -- To create the correct team invitation URL, we need to detect whether the invited account already exists.
     -- Optimization: if url is not to be shown, do not check for existing personal user.
     toInvitationHack :: ShowOrHideInvitationUrl -> StoredInvitation -> Sem r Invitation
-    toInvitationHack HideInvitationUrl si = toInvitation False HideInvitationUrl si -- isPersonalUserMigration is always is ignored here
+    toInvitationHack HideInvitationUrl si = toInvitation False HideInvitationUrl si -- isPersonalUserMigration is always ignored here
     toInvitationHack ShowInvitationUrl si = do
       isPersonalUserMigration <- isPersonalUser (mkEmailKey si.email)
       toInvitation isPersonalUserMigration ShowInvitationUrl si
+
+isPersonalUser :: (Member UserSubsystem r, Member (Input (Local ())) r) => EmailKey -> Sem r Bool
+isPersonalUser uke = do
+  mAccount <- getLocalUserAccountByUserKey =<< qualifyLocal' uke
+  pure $ case mAccount of
+    -- this can e.g. happen if the key is claimed but the account is not yet created
+    Nothing -> False
+    Just account ->
+      account.accountStatus == Active
+        && isNothing account.accountUser.userTeam
 
 -- | brig used to not store the role, so for migration we allow this to be empty and fill in the
 -- default here.
