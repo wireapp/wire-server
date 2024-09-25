@@ -75,6 +75,7 @@ import Wire.Error
 import Wire.Events (Events)
 import Wire.GalleyAPIAccess (GalleyAPIAccess, ShowOrHideInvitationUrl (..))
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
+import Wire.IndexedUserStore (IndexedUserStore, getTeamSize)
 import Wire.InvitationCodeStore (InvitationCodeStore (..), PaginatedResult (..), StoredInvitation (..))
 import Wire.InvitationCodeStore qualified as Store
 import Wire.Sem.Concurrency
@@ -82,7 +83,6 @@ import Wire.TeamInvitationSubsystem
 import Wire.UserKeyStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
-import Wire.IndexedUserStore (getTeamSize, IndexedUserStore)
 
 servantAPI ::
   ( Member GalleyAPIAccess r,
@@ -116,7 +116,7 @@ teamSizePublic ::
   (Handler r) TeamSize
 teamSizePublic uid tid =
   lift . liftSem $ do
-  -- limit this to team admins to reduce risk of involuntary DOS attacks
+    -- limit this to team admins to reduce risk of involuntary DOS attacks
     ensurePermissions uid tid [AddTeamMember]
     getTeamSize tid
 
