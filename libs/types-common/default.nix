@@ -19,6 +19,7 @@
 , cryptohash-sha1
 , crypton
 , currency-codes
+, email-validate
 , generic-random
 , gitignoreSource
 , hashable
@@ -79,6 +80,7 @@ mkDerivation {
     cryptohash-sha1
     crypton
     currency-codes
+    email-validate
     generic-random
     hashable
     http-api-data
