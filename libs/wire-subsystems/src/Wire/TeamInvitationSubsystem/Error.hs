@@ -21,4 +21,3 @@ teamInvitationErrorToHttpError =
     TooManyTeamInvitations -> errorToWai @E.TooManyTeamInvitations
     TeamInvitationBlacklistedEmail -> errorToWai @E.BlacklistedEmail
     TeamInvitationEmailTaken -> errorToWai @E.EmailExists
-

@@ -65,7 +65,7 @@ module Brig.API.User
     blacklistInsert,
 
     -- * Utilities
-    fetchUserIdentity
+    fetchUserIdentity,
   )
 where
 
