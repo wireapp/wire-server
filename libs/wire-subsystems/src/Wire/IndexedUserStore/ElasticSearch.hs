@@ -2,7 +2,7 @@
 
 module Wire.IndexedUserStore.ElasticSearch where
 
-import Control.Error (lastMay)
+import Control.Error (ExceptT (..), lastMay, runExceptT)
 import Control.Exception (throwIO)
 import Data.Aeson
 import Data.Aeson.Key qualified as Key
@@ -13,8 +13,9 @@ import Data.Id
 import Data.Text qualified as Text
 import Data.Text.Ascii
 import Data.Text.Encoding qualified as Text
+import Database.Bloodhound (BHResponse (BHResponse))
 import Database.Bloodhound qualified as ES
-import Database.Bloodhound.Client qualified as ES
+import Database.Bloodhound.Common.Requests qualified as ESR
 import Imports
 import Network.HTTP.Client
 import Network.HTTP.Types
@@ -92,14 +93,27 @@ upsertImpl cfg docId userDoc versioning = do
   where
     indexDoc :: ES.IndexName -> ES.BH (Sem r) ()
     indexDoc idx = do
-      r <- ES.indexDocument idx mappingName settings userDoc docId
+      r <- hoistBH (embed @IO) $ ES.performBHRequest . fmap fst . ES.keepBHResponse $ ESR.indexDocument idx settings userDoc docId
       unless (ES.isSuccess r || ES.isVersionConflict r) $ do
         lift $ Metrics.incCounter indexUpdateErrorCounter
-        res <- liftIO $ ES.parseEsResponse r
-        liftIO . throwIO . IndexUpdateError . either id id $ res
+        liftIO . throwIO . IndexUpdateError $ parseESError r
       lift $ Metrics.incCounter indexUpdateSuccessCounter
 
     settings = ES.defaultIndexDocumentSettings {ES.idsVersionControl = versioning}
+
+hoistBH :: (forall x. m x -> n x) -> ES.BH m a -> ES.BH n a
+hoistBH nat (ES.BH action) = ES.BH $ hoistReaderT (hoistExceptT nat) action
+
+hoistReaderT :: (forall x. m x -> n x) -> ReaderT r m a -> ReaderT r n a
+hoistReaderT nat (ReaderT f) = ReaderT $ \r -> nat (f r)
+
+-- Hoist a natural transformation from m to n through ExceptT
+hoistExceptT :: (forall x. m x -> n x) -> ExceptT e m a -> ExceptT e n a
+hoistExceptT nat (ExceptT ema) = ExceptT (nat ema)
+
+-- TODO: Extract into helper Module / Or the bottom of the file
+castResponse :: forall context1 val1 context2 val2. BHResponse context1 val1 -> BHResponse context2 val2
+castResponse BHResponse {..} = BHResponse {..}
 
 updateTeamSearchVisibilityInboundImpl :: forall r. (Member (Embed IO) r) => IndexedUserStoreConfig -> TeamId -> SearchVisibilityInbound -> Sem r ()
 updateTeamSearchVisibilityInboundImpl cfg tid vis =
@@ -107,16 +121,15 @@ updateTeamSearchVisibilityInboundImpl cfg tid vis =
   where
     updateAllDocs :: ES.IndexName -> ES.BH (Sem r) ()
     updateAllDocs idx = do
-      r <- ES.updateByQuery idx query (Just script)
+      r <- hoistBH (embed @IO) $ ES.performBHRequest . fmap fst . ES.keepBHResponse $ ESR.updateByQuery @Value idx query (Just script)
       unless (ES.isSuccess r || ES.isVersionConflict r) $ do
-        res <- liftIO $ ES.parseEsResponse r
-        liftIO . throwIO . IndexUpdateError . either id id $ res
+        liftIO . throwIO . IndexUpdateError $ parseESError r
 
     query :: ES.Query
     query = ES.TermQuery (ES.Term "team" $ idToText tid) Nothing
 
     script :: ES.Script
-    script = ES.Script (Just (ES.ScriptLanguage "painless")) (Just (ES.ScriptInline scriptText)) Nothing Nothing
+    script = ES.Script (Just (ES.ScriptLanguage "painless")) (ES.ScriptInline scriptText) Nothing
 
     -- Unfortunately ES disallows updating ctx._version with a "Update By Query"
     scriptText =
@@ -139,10 +152,9 @@ bulkUpsertImpl cfg docs = do
             requestBody = RequestBodyLBS (toLazyByteString (foldMap encodeActionAndData docs))
           }
   req <- embed $ bhe.bhRequestHook reqWithoutCreds
-  res <- embed $ httpLbs req (ES.bhManager bhe)
+  res <- fmap (BHResponse @ES.StatusDependant @ES.BulkResponse) . embed $ httpLbs req (ES.bhManager bhe)
   unless (ES.isSuccess res) $ do
-    parsedRes <- liftIO $ ES.parseEsResponse res
-    liftIO . throwIO . IndexUpdateError . either id id $ parsedRes
+    liftIO . throwIO . IndexUpdateError $ parseESError res
   where
     encodeJSONToString :: (ToJSON a) => a -> Builder
     encodeJSONToString = fromEncoding . toEncoding
@@ -171,8 +183,11 @@ bulkUpsertImpl cfg docs = do
                   ]
             ]
 
+parseESError :: BHResponse context a -> Either ES.EsProtocolException ES.EsError
+parseESError res = either id id <$> ES.parseEsResponse (castResponse @_ @_ @_ @ES.EsError res)
+
 doesIndexExistImpl :: (Member (Embed IO) r) => IndexedUserStoreConfig -> Sem r Bool
-doesIndexExistImpl cfg = do
+doesIndexExistImpl cfg = embed $ do
   (mainExists, fromMaybe True -> additionalExists) <- runInBothES cfg ES.indexExists
   pure $ mainExists && additionalExists
 
@@ -264,7 +279,7 @@ paginateTeamMembersImpl cfg BrowseTeamFilters {..} maxResults mPagingState = do
           mps = fromSearchAfterKey <$> lastMay (mapMaybe ES.hitSort hits)
           results = mapMaybe ES.hitSource hits
        in SearchResult
-            { searchFound = ES.hitsTotal.value . ES.searchHits $ es,
+            { searchFound = es.searchHits.hitsTotal.value,
               searchReturned = length results,
               searchTook = ES.took es,
               searchResults = results,
@@ -274,9 +289,9 @@ paginateTeamMembersImpl cfg BrowseTeamFilters {..} maxResults mPagingState = do
             }
 
 searchInMainIndex :: forall r. (Member (Embed IO) r) => IndexedUserStoreConfig -> ES.Search -> Sem r (ES.SearchResult UserDoc)
-searchInMainIndex cfg search = do
+searchInMainIndex cfg search = embed $ do
   r <- ES.runBH cfg.conn.env $ ES.searchByIndex @UserDoc cfg.conn.indexName search
-  either (embed . throwIO . IndexLookupError) pure r
+  either (throwIO . IndexLookupError) pure r
 
 queryIndex ::
   (Member (Embed IO) r) =>
@@ -291,7 +306,7 @@ queryIndex cfg s (IndexQuery q f _) = do
     mkResult es =
       let results = mapMaybe ES.hitSource . ES.hits . ES.searchHits $ es
        in SearchResult
-            { searchFound = ES.hitsTotal.value . ES.searchHits $ es,
+            { searchFound = es.searchHits.hitsTotal.value,
               searchReturned = length results,
               searchTook = ES.took es,
               searchResults = results,
@@ -506,12 +521,13 @@ matchUsersNotInTeam tid =
 --------------------------------------------
 -- Utils
 
-runInBothES :: (Monad m) => IndexedUserStoreConfig -> (ES.IndexName -> ES.BH m a) -> m (a, Maybe a)
-runInBothES cfg f = do
-  x <- ES.runBH cfg.conn.env $ f cfg.conn.indexName
-  y <- forM cfg.additionalConn $ \additional ->
-    ES.runBH additional.env $ f additional.indexName
-  pure (x, y)
+runInBothES :: forall m a. (MonadIO m) => IndexedUserStoreConfig -> (ES.IndexName -> ES.BH m a) -> m (a, Maybe a)
+runInBothES cfg f =
+  either (liftIO . throwIO) pure =<< runExceptT do
+    x <- ExceptT $ ES.runBH cfg.conn.env $ f cfg.conn.indexName
+    y <- forM @Maybe @(ExceptT ES.EsError m) cfg.additionalConn $ \additional ->
+      ExceptT $ ES.runBH additional.env $ f additional.indexName
+    pure (x, y)
 
 boolQuery :: ES.BoolQuery
 boolQuery = ES.mkBoolQuery [] [] [] []

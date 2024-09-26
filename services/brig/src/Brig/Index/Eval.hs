@@ -37,7 +37,6 @@ import Data.ByteString.Lazy.UTF8 qualified as UTF8
 import Data.Credentials (Credentials (..))
 import Data.Id
 import Database.Bloodhound qualified as ES
-import Database.Bloodhound.Internal.Client (BHEnv (..))
 import Imports
 import Polysemy
 import Polysemy.Embed (runEmbedded)
@@ -106,7 +105,7 @@ runSem esConn cas galleyEndpoint logger action = do
   mEsCreds :: Maybe Credentials <- for esConn.esCredentials initCredentials
   casClient <- defInitCassandra (toCassandraOpts cas) logger
   let bhEnv =
-        BHEnv
+        ES.BHEnv
           { bhServer = toESServer esConn.esServer,
             bhManager = mgr,
             bhRequestHook = maybe pure (\creds -> ES.basicAuthHook (ES.EsUsername creds.username) (ES.EsPassword creds.password)) mEsCreds

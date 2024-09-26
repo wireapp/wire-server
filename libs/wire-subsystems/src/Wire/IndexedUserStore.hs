@@ -12,7 +12,7 @@ import Wire.API.User.Search
 import Wire.UserSearch.Types
 
 data IndexedUserStoreError
-  = IndexUpdateError ES.EsError
+  = IndexUpdateError (Either ES.EsProtocolException ES.EsError)
   | IndexLookupError ES.EsError
   | IndexError Text
   deriving (Show)
