@@ -14,6 +14,7 @@ import Data.Text qualified as Text
 import Data.Text.Ascii
 import Data.Text.Encoding qualified as Text
 import Database.Bloodhound qualified as ES
+import Database.Bloodhound.Client qualified as ES
 import Imports
 import Network.HTTP.Client
 import Network.HTTP.Types
@@ -263,7 +264,7 @@ paginateTeamMembersImpl cfg BrowseTeamFilters {..} maxResults mPagingState = do
           mps = fromSearchAfterKey <$> lastMay (mapMaybe ES.hitSort hits)
           results = mapMaybe ES.hitSource hits
        in SearchResult
-            { searchFound = ES.hitsTotal . ES.searchHits $ es,
+            { searchFound = ES.hitsTotal.value . ES.searchHits $ es,
               searchReturned = length results,
               searchTook = ES.took es,
               searchResults = results,
@@ -274,9 +275,7 @@ paginateTeamMembersImpl cfg BrowseTeamFilters {..} maxResults mPagingState = do
 
 searchInMainIndex :: forall r. (Member (Embed IO) r) => IndexedUserStoreConfig -> ES.Search -> Sem r (ES.SearchResult UserDoc)
 searchInMainIndex cfg search = do
-  r <- ES.runBH cfg.conn.env $ do
-    res <- ES.searchByType cfg.conn.indexName mappingName search
-    liftIO $ ES.parseEsResponse res
+  r <- ES.runBH cfg.conn.env $ ES.searchByIndex @UserDoc cfg.conn.indexName search
   either (embed . throwIO . IndexLookupError) pure r
 
 queryIndex ::
@@ -486,7 +485,7 @@ matchTeamMembersSearchableByAllTeams =
     boolQuery
       { ES.boolQueryMustMatch =
           [ ES.QueryExistsQuery $ ES.FieldName "team",
-            ES.TermQuery (ES.Term (Key.toText searchVisibilityInboundFieldName) "searchable-by-all-teams") Nothing
+            ES.TermQuery (ES.Term searchVisibilityInboundFieldName "searchable-by-all-teams") Nothing
           ]
       }
 
