@@ -189,7 +189,6 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
 
                 -- Reset password still works with previously generated reset code
                 resetPassword (PasswordResetEmailIdentity email) code newPassword
-
                 (,mCaughtExc) <$> lookupHashedPassword uid
          in (fmap (Password.verifyPassword newPassword) newPasswordHash === Just True)
               .&&. (mCaughtException === Nothing)

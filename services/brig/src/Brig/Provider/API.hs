@@ -62,7 +62,11 @@ import Data.LegalHold
 import Data.List qualified as List
 import Data.List1 (maybeList1)
 import Data.Map.Strict qualified as Map
-import Data.Misc (Fingerprint (..), FutureWork (FutureWork), Rsa)
+import Data.Misc
+  ( Fingerprint (Fingerprint),
+    FutureWork (FutureWork),
+    Rsa,
+  )
 import Data.Qualified
 import Data.Range
 import Data.Set qualified as Set
@@ -117,6 +121,7 @@ import Wire.API.User.Auth
 import Wire.API.User.Client
 import Wire.API.User.Client qualified as Public (Client, ClientCapability (ClientSupportsLegalholdImplicitConsent), PubClient (..), UserClientPrekeyMap, UserClients, userClients)
 import Wire.API.User.Client.Prekey qualified as Public (PrekeyId)
+import Wire.AuthenticationSubsystem as Authentication
 import Wire.DeleteQueue
 import Wire.EmailSending (EmailSending)
 import Wire.Error
@@ -151,6 +156,7 @@ botAPI =
 
 servicesAPI ::
   ( Member GalleyAPIAccess r,
+    Member AuthenticationSubsystem r,
     Member DeleteQueue r,
     Member (Error UserSubsystemError) r
   ) =>
@@ -171,6 +177,7 @@ servicesAPI =
 
 providerAPI ::
   ( Member GalleyAPIAccess r,
+    Member AuthenticationSubsystem r,
     Member EmailSending r,
     Member VerificationCodeSubsystem r
   ) =>
@@ -265,20 +272,31 @@ activateAccountKey key val = do
       lift $ sendApprovalConfirmMail name email
       pure . Just $ Public.ProviderActivationResponse email
 
-getActivationCodeH :: (Member GalleyAPIAccess r, Member VerificationCodeSubsystem r) => EmailAddress -> (Handler r) Code.KeyValuePair
+getActivationCodeH ::
+  ( Member GalleyAPIAccess r,
+    Member VerificationCodeSubsystem r
+  ) =>
+  EmailAddress ->
+  (Handler r) Code.KeyValuePair
 getActivationCodeH email = do
   guardSecondFactorDisabled Nothing
   let gen = mkVerificationCodeGen email
   code <- lift . liftSem $ internalLookupCode gen.genKey IdentityVerification
   maybe (throwStd activationKeyNotFound) (pure . codeToKeyValuePair) code
 
-login :: (Member GalleyAPIAccess r) => ProviderLogin -> Handler r ProviderTokenCookie
+login ::
+  ( Member GalleyAPIAccess r,
+    Member AuthenticationSubsystem r
+  ) =>
+  ProviderLogin ->
+  Handler r ProviderTokenCookie
 login l = do
   guardSecondFactorDisabled Nothing
-  pid <- wrapClientE (DB.lookupKey (mkEmailKey (providerLoginEmail l))) >>= maybeBadCredentials
-  pass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
-  unless (verifyPassword (providerLoginPassword l) pass) $
-    throwStd (errorToWai @'E.BadCredentials)
+  pid <-
+    wrapClientE (DB.lookupKey (mkEmailKey (providerLoginEmail l)))
+      >>= maybeBadCredentials
+  unlessM (lift . liftSem $ Authentication.verifyProviderPassword pid l.providerLoginPassword) do
+    throwStd (errorToWai @E.BadCredentials)
   token <- ZAuth.newProviderToken pid
   s <- asks (.settings)
   pure $ ProviderTokenCookie (ProviderToken token) (not s.cookieInsecure)
@@ -295,16 +313,21 @@ beginPasswordReset (Public.PasswordReset target) = do
     Right code ->
       lift $ sendPasswordResetMail target (code.codeKey) (code.codeValue)
 
-completePasswordReset :: (Member GalleyAPIAccess r, Member VerificationCodeSubsystem r) => Public.CompletePasswordReset -> (Handler r) ()
+completePasswordReset ::
+  ( Member GalleyAPIAccess r,
+    Member AuthenticationSubsystem r,
+    Member VerificationCodeSubsystem r
+  ) =>
+  Public.CompletePasswordReset ->
+  (Handler r) ()
 completePasswordReset (Public.CompletePasswordReset key val newpwd) = do
   guardSecondFactorDisabled Nothing
   code <- (lift . liftSem $ verifyCode key VerificationCode.PasswordReset val) >>= maybeInvalidCode
   case Id <$> code.codeAccount of
-    Nothing -> throwStd (errorToWai @'E.InvalidPasswordResetCode)
+    Nothing -> throwStd (errorToWai @E.InvalidPasswordResetCode)
     Just pid -> do
-      oldpass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
-      when (verifyPassword newpwd oldpass) $ do
-        throwStd (errorToWai @'E.ResetPasswordMustDiffer)
+      whenM (lift . liftSem $ Authentication.verifyProviderPassword pid newpwd) do
+        throwStd (errorToWai @E.ResetPasswordMustDiffer)
       wrapClientE $ do
         DB.updateAccountPassword pid newpwd
       lift . liftSem $ deleteCode key VerificationCode.PasswordReset
@@ -328,7 +351,14 @@ updateAccountProfile pid upd = do
       (updateProviderUrl upd)
       (updateProviderDescr upd)
 
-updateAccountEmail :: (Member GalleyAPIAccess r, Member EmailSending r, Member VerificationCodeSubsystem r) => ProviderId -> Public.EmailUpdate -> (Handler r) ()
+updateAccountEmail ::
+  ( Member GalleyAPIAccess r,
+    Member EmailSending r,
+    Member VerificationCodeSubsystem r
+  ) =>
+  ProviderId ->
+  Public.EmailUpdate ->
+  (Handler r) ()
 updateAccountEmail pid (Public.EmailUpdate email) = do
   guardSecondFactorDisabled Nothing
   let emailKey = mkEmailKey email
@@ -344,14 +374,19 @@ updateAccountEmail pid (Public.EmailUpdate email) = do
         (Just (toUUID pid))
   lift $ sendActivationMail (Name "name") email code.codeKey code.codeValue True
 
-updateAccountPassword :: (Member GalleyAPIAccess r) => ProviderId -> Public.PasswordChange -> (Handler r) ()
+updateAccountPassword ::
+  ( Member GalleyAPIAccess r,
+    Member AuthenticationSubsystem r
+  ) =>
+  ProviderId ->
+  Public.PasswordChange ->
+  (Handler r) ()
 updateAccountPassword pid upd = do
   guardSecondFactorDisabled Nothing
-  pass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
-  unless (verifyPassword (oldPassword upd) pass) $
-    throwStd (errorToWai @'E.BadCredentials)
-  when (verifyPassword (newPassword upd) pass) $
-    throwStd (errorToWai @'E.ResetPasswordMustDiffer)
+  unlessM (lift . liftSem $ Authentication.verifyProviderPassword pid upd.oldPassword) do
+    throwStd (errorToWai @E.BadCredentials)
+  whenM (lift . liftSem $ Authentication.verifyProviderPassword pid upd.newPassword) do
+    throwStd (errorToWai @E.ResetPasswordMustDiffer)
   wrapClientE $ DB.updateAccountPassword pid (newPassword upd)
 
 addService ::
@@ -424,16 +459,17 @@ updateService pid sid upd = do
       (serviceEnabled svc)
 
 updateServiceConn ::
-  (Member GalleyAPIAccess r) =>
+  ( Member GalleyAPIAccess r,
+    Member AuthenticationSubsystem r
+  ) =>
   ProviderId ->
   ServiceId ->
   Public.UpdateServiceConn ->
   Handler r ()
 updateServiceConn pid sid upd = do
   guardSecondFactorDisabled Nothing
-  pass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
-  unless (verifyPassword (updateServiceConnPassword upd) pass) $
-    throwStd (errorToWai @'E.BadCredentials)
+  unlessM (lift . liftSem $ Authentication.verifyProviderPassword pid upd.updateServiceConnPassword) $
+    throwStd (errorToWai @E.BadCredentials)
   scon <- wrapClientE (DB.lookupServiceConn pid sid) >>= maybeServiceNotFound
   svc <- wrapClientE (DB.lookupServiceProfile pid sid) >>= maybeServiceNotFound
   let newBaseUrl = updateServiceConnUrl upd
@@ -472,6 +508,7 @@ updateServiceConn pid sid upd = do
 -- delete the service. See 'finishDeleteService'.
 deleteService ::
   ( Member GalleyAPIAccess r,
+    Member AuthenticationSubsystem r,
     Member DeleteQueue r
   ) =>
   ProviderId ->
@@ -480,10 +517,8 @@ deleteService ::
   (Handler r) ()
 deleteService pid sid del = do
   guardSecondFactorDisabled Nothing
-  pass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
-  -- We don't care about pwd status when deleting things
-  unless (verifyPassword (deleteServicePassword del) pass) $
-    throwStd (errorToWai @'E.BadCredentials)
+  unlessM (lift . liftSem $ Authentication.verifyProviderPassword pid del.deleteServicePassword) do
+    throwStd (errorToWai @E.BadCredentials)
   _ <- wrapClientE (DB.lookupService pid sid) >>= maybeServiceNotFound
   -- Disable the service
   wrapClientE $ DB.updateServiceConn pid sid Nothing Nothing Nothing (Just False)
@@ -516,7 +551,8 @@ finishDeleteService pid sid = do
     kick (bid, cid, _) = deleteBot (botUserId bid) Nothing bid cid
 
 deleteAccount ::
-  ( Member GalleyAPIAccess r
+  ( Member GalleyAPIAccess r,
+    Member AuthenticationSubsystem r
   ) =>
   ProviderId ->
   Public.DeleteProvider ->
@@ -524,10 +560,9 @@ deleteAccount ::
 deleteAccount pid del = do
   guardSecondFactorDisabled Nothing
   prov <- wrapClientE (DB.lookupAccount pid) >>= maybeInvalidProvider
-  pass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
-  -- We don't care about pwd status when deleting things
-  unless (verifyPassword (deleteProviderPassword del) pass) $
-    throwStd (errorToWai @'E.BadCredentials)
+  -- We don't care about pwd update status (scrypt, argon2id etc) when deleting things
+  unlessM (lift . liftSem $ Authentication.verifyProviderPassword pid del.deleteProviderPassword) do
+    throwStd (errorToWai @E.BadCredentials)
   svcs <- wrapClientE $ DB.listServices pid
   forM_ svcs $ \svc -> do
     let sid = serviceId svc

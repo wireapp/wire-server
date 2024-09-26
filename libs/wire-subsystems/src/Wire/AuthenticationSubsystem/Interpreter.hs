@@ -36,7 +36,7 @@ import Polysemy.TinyLog qualified as Log
 import System.Logger
 import Wire.API.Allowlists (AllowlistEmailDomains)
 import Wire.API.Allowlists qualified as AllowLists
-import Wire.API.Password
+import Wire.API.Password as Password
 import Wire.API.User
 import Wire.API.User.Password
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem (..))
@@ -44,7 +44,8 @@ import Wire.AuthenticationSubsystem.Error
 import Wire.EmailSubsystem
 import Wire.HashPassword
 import Wire.PasswordResetCodeStore
-import Wire.PasswordStore
+import Wire.PasswordStore (PasswordStore)
+import Wire.PasswordStore qualified as PasswordStore
 import Wire.Sem.Now
 import Wire.Sem.Now qualified as Now
 import Wire.SessionStore
@@ -70,21 +71,12 @@ interpretAuthenticationSubsystem ::
 interpretAuthenticationSubsystem userSubsystemInterpreter =
   interpret $
     userSubsystemInterpreter . \case
-      VerifyPassword luid password -> verifyPasswordImpl luid password
+      VerifyPasswordE luid plaintext -> verifyPasswordEImpl luid plaintext
       CreatePasswordResetCode userKey -> createPasswordResetCodeImpl userKey
       ResetPassword ident resetCode newPassword -> resetPasswordImpl ident resetCode newPassword
+      VerifyPassword uid plaintext -> verifyPasswordImpl uid plaintext
+      -- Testing
       InternalLookupPasswordResetCode userKey -> internalLookupPasswordResetCodeImpl userKey
-
-verifyPasswordImpl ::
-  ( Member PasswordStore r,
-    Member (Error AuthenticationSubsystemError) r
-  ) =>
-  Local UserId ->
-  PlainTextPassword6 ->
-  Sem r ()
-verifyPasswordImpl (tUnqualified -> uid) password = do
-  p <- lookupHashedPassword uid >>= maybe (throw AuthenticationSubsystemMissingAuth) pure
-  unless (Wire.API.Password.verifyPassword password p) $ throw AuthenticationSubsystemBadCredentials
 
 maxAttempts :: Int32
 maxAttempts = 3
@@ -149,7 +141,9 @@ createPasswordResetCodeImpl target =
       Right v -> pure v
 
 lookupActiveUserIdByUserKey ::
-  (Member UserSubsystem r, Member (Input (Local ())) r) =>
+  ( Member UserSubsystem r,
+    Member (Input (Local ())) r
+  ) =>
   EmailKey ->
   Sem r (Maybe UserId)
 lookupActiveUserIdByUserKey target =
@@ -230,7 +224,7 @@ resetPasswordImpl ident code pw = do
       Log.debug $ field "user" (toByteString uid) . field "action" (val "User.completePasswordReset")
       checkNewIsDifferent uid pw
       hashedPw <- hashPassword pw
-      upsertHashedPassword uid hashedPw
+      PasswordStore.upsertHashedPassword uid hashedPw
       codeDelete key
       deleteAllCookies uid
   where
@@ -246,10 +240,10 @@ resetPasswordImpl ident code pw = do
 
     checkNewIsDifferent :: UserId -> PlainTextPassword' t -> Sem r ()
     checkNewIsDifferent uid newPassword = do
-      mCurrentPassword <- lookupHashedPassword uid
+      mCurrentPassword <- PasswordStore.lookupHashedPassword uid
       case mCurrentPassword of
         Just currentPassword
-          | (verifyPassword newPassword currentPassword) -> throw AuthenticationSubsystemResetPasswordMustDiffer
+          | (Password.verifyPassword newPassword currentPassword) -> throw AuthenticationSubsystemResetPasswordMustDiffer
         _ -> pure ()
 
     verify :: PasswordResetPair -> Sem r (Maybe UserId)
@@ -266,3 +260,28 @@ resetPasswordImpl ident code pw = do
           pure Nothing
         Just PRQueryData {} -> codeDelete k $> Nothing
         Nothing -> pure Nothing
+
+verifyPasswordImpl ::
+  ( Member (Error AuthenticationSubsystemError) r,
+    Member PasswordStore r
+  ) =>
+  UserId ->
+  PlainTextPassword6 ->
+  Sem r Bool
+verifyPasswordImpl uid plaintext = do
+  password <-
+    -- We type-erase uid here, as this could be a provider or bot id.
+    PasswordStore.lookupHashedPassword uid
+      >>= maybe (throw AuthenticationSubsystemMissingAuth) pure
+  pure $ Password.verifyPassword plaintext password
+
+verifyPasswordEImpl ::
+  ( Member PasswordStore r,
+    Member (Error AuthenticationSubsystemError) r
+  ) =>
+  Local UserId ->
+  PlainTextPassword6 ->
+  Sem r ()
+verifyPasswordEImpl (tUnqualified -> uid) password = do
+  unlessM (verifyPasswordImpl uid password) do
+    throw AuthenticationSubsystemBadCredentials
