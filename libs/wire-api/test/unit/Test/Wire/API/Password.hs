@@ -54,7 +54,7 @@ testUpdateHash = do
       -- password hashed with scrypt and random salt
       expected = unsafeMkPassword "14|8|1|ktYx5i1DMOEfm+tXpw9i7ZVPdeqbxgxYxUbmDVLSAzQ=|Fzy0sNfXQQnJW98ncyN51PUChFWH1tpVJCxjz5JRZEReVa0//zJ6MeopiEh84Ny8lzwdvRPHDqnSS/lkPEB7Ow=="
       -- password re-hashed with argon2id and re-used salt for simplicity
-      newHash = unsafeMkPassword "$argon2id$v=19$m=131072,t=5,p=4$ktYx5i1DMOEfm+tXpw9i7ZVPdeqbxgxYxUbmDVLSAzQ=$iS/9tVk49W8bO/APETqNzMmREerdETTvSXcA7nSpqrsGrV1N33+MVaKnhWhBHqIxM92HFPsV5GP0dpgCUHmJRg=="
+      newHash = unsafeMkPassword "$argon2id$v=19$m=4194304,t=1,p=8$lj6+HdIcCpO1zvz8An56fg$Qx8OzYTq0hDNqGG9tW1dug"
       -- verify password with scrypt
       (correct, status) = verifyPasswordWithStatus orig expected
 
