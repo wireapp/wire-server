@@ -38,7 +38,6 @@ import Imports hiding (log, searchable)
 import Wire.API.User (ColourId (..), Name (fromName))
 import Wire.API.User.Search
 import Wire.IndexedUserStore (IndexedUserStoreError (..))
-import Wire.IndexedUserStore.ElasticSearch (mappingName)
 import Wire.UserSearch.Types
 import Wire.UserStore.IndexUser (normalized)
 
@@ -78,7 +77,7 @@ queryIndex (IndexQuery q f _) s = do
     idx <- asks idxName
     let search = (ES.mkSearch (Just q) (Just f)) {ES.size = ES.Size (fromIntegral s)}
     r <-
-      ES.searchByType idx mappingName search
+      ES.searchBy idx search
         >>= ES.parseEsResponse @_ @(ES.SearchResult UserDoc)
     either (throwM . IndexLookupError) (traverse (userDocToContact localDomain) . mkResult) r
   where
