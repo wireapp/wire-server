@@ -40,7 +40,6 @@ import Wire.API.Password
 import Wire.API.User
 import Wire.API.User.Password
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem (..))
-import Wire.AuthenticationSubsystem qualified as Auth
 import Wire.AuthenticationSubsystem.Error
 import Wire.EmailSubsystem
 import Wire.HashPassword
