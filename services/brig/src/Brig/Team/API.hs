@@ -229,9 +229,6 @@ listInvitations uid tid startingId mSize = do
       invs <- toInvitations storedInvs
       pure $ InvitationList invs False
   where
-    -- TODO: fix this in this PR?
-    -- TODO: did we write enough tests to wire-subsystems?
-
     -- To create the correct team invitation URL, we need to detect whether the invited account already exists.
     -- Optimization: if url is not to be shown, do not check for existing personal user.
     toInvitationHack :: ShowOrHideInvitationUrl -> StoredInvitation -> Sem r Invitation
