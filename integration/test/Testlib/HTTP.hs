@@ -139,8 +139,8 @@ assertLabel status label resp = do
 onFailureAddResponse :: (HasCallStack) => Response -> App a -> App a
 onFailureAddResponse r m = App $ do
   e <- ask
-  liftIO $ E.catch (runAppWithEnv e m) $ \(AssertionFailure stack _ msg) -> do
-    E.throw (AssertionFailure stack (Just r) msg)
+  liftIO $ E.catch (runAppWithEnv e m) $ \(AssertionFailure stack _ ctx msg) -> do
+    E.throw (AssertionFailure stack (Just r) ctx msg)
 
 data Versioned = Versioned | Unversioned | ExplicitVersion Int
   deriving stock (Generic)

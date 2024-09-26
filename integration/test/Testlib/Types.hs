@@ -312,14 +312,15 @@ getRequestBody req = case HTTP.requestBody req of
 data AssertionFailure = AssertionFailure
   { callstack :: CallStack,
     response :: Maybe Response,
+    context :: Maybe String,
     msg :: String
   }
 
 instance Show AssertionFailure where
-  show (AssertionFailure _ _ msg) = "AssertionFailure _ _ " <> show msg
+  show (AssertionFailure _ _ _ msg) = "AssertionFailure _ _ _ " <> show msg
 
 instance Exception AssertionFailure where
-  displayException (AssertionFailure _ _ msg) = msg
+  displayException (AssertionFailure _ _ _ msg) = msg
 
 newtype App a = App {unApp :: ReaderT Env IO a}
   deriving newtype
@@ -391,7 +392,7 @@ assertFailure :: (HasCallStack) => String -> App a
 assertFailure msg =
   forceList msg $
     liftIO $
-      E.throw (AssertionFailure callStack Nothing msg)
+      E.throw (AssertionFailure callStack Nothing Nothing msg)
   where
     forceList [] y = y
     forceList (x : xs) y = seq x (forceList xs y)
@@ -404,10 +405,15 @@ assertNothing :: (HasCallStack) => Maybe a -> App ()
 assertNothing = maybe (pure ()) $ const $ assertFailure "Maybe value was Just, not Nothing"
 
 addFailureContext :: String -> App a -> App a
-addFailureContext msg = modifyFailureMsg (\m -> m <> "\nThis failure happened in this context:\n" <> msg)
+addFailureContext ctx = modifyFailureContext (\mCtx0 -> Just $ maybe ctx (\x -> ctx <> "\n" <> x) mCtx0)
 
 modifyFailureMsg :: (String -> String) -> App a -> App a
 modifyFailureMsg modMessage = modifyFailure (\e -> e {msg = modMessage e.msg})
+
+modifyFailureContext :: (Maybe String -> Maybe String) -> App a -> App a
+modifyFailureContext modContext =
+  modifyFailure
+    (\e -> e {context = modContext e.context})
 
 modifyFailure :: (AssertionFailure -> AssertionFailure) -> App a -> App a
 modifyFailure modifyAssertion action = do

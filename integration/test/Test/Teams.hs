@@ -20,12 +20,12 @@ module Test.Teams where
 import API.Brig
 import API.BrigInternal (createUser, getInvitationCode, refreshIndex)
 import API.Common
-import API.Galley (getTeam, getTeamMembers)
+import API.Galley (getTeam, getTeamMembers, getTeamNotifications)
 import API.GalleyInternal (setTeamFeatureStatus)
 import Control.Monad.Codensity (Codensity (runCodensity))
 import Control.Monad.Extra (findM)
 import Control.Monad.Reader (asks)
-import Notifications (isUserUpdatedNotif)
+import Notifications
 import SetupHelpers
 import Testlib.JSON
 import Testlib.Prelude
@@ -63,11 +63,20 @@ testInvitePersonalUserToTeam = do
         acceptTeamInvitation user code Nothing >>= assertStatus 400
         acceptTeamInvitation user code (Just "wrong-password") >>= assertStatus 403
 
-        void $ withWebSockets [user] $ \wss -> do
+        withWebSockets [owner, user, tm] $ \wss@[wsOwner, _, _] -> do
           acceptTeamInvitation user code (Just defPassword) >>= assertSuccess
-          for wss $ \ws -> do
-            n <- awaitMatch isUserUpdatedNotif ws
-            n %. "payload.0.user.team" `shouldMatch` tid
+
+          -- When the team is smaller than fanout limit, all members get this
+          -- notification.
+          for_ wss $ \ws -> do
+            updateNotif <- awaitMatch isUserUpdatedNotif ws
+            updateNotif %. "payload.0.user.team" `shouldMatch` tid
+
+          -- Admins get a team.member-join notif on the websocket for
+          -- team-settings
+          memberJobNotif <- awaitMatch isTeamMemberJoinNotif wsOwner
+          memberJobNotif %. "payload.0.team" `shouldMatch` tid
+          memberJobNotif %. "payload.0.data.user" `shouldMatch` objId user
 
         bindResponse (getSelf user) $ \resp -> do
           resp.status `shouldMatchInt` 200
@@ -125,6 +134,71 @@ testInvitePersonalUserToTeam = do
     assertUrlContainsCode code url = do
       queryParam <- url & asString <&> getQueryParam "team-code"
       queryParam `shouldMatch` Just (Just code)
+
+testInvitePersonalUserToLargeTeam :: (HasCallStack) => App ()
+testInvitePersonalUserToLargeTeam = do
+  teamSize <- readServiceConfig Galley %. "settings.maxFanoutSize" & asInt <&> (+ 1)
+  (owner, tid, (alice : otherTeamMembers)) <- createTeam OwnDomain teamSize
+  -- User to be invited to the team
+  knut <- createUser OwnDomain def >>= getJSON 201
+
+  -- Non team friends of knut
+  dawn <- createUser OwnDomain def >>= getJSON 201
+  eli <- createUser OtherDomain def >>= getJSON 201
+
+  -- knut is also friends with alice, but not any other team members.
+  traverse_ (connectTwoUsers knut) [alice, dawn, eli]
+
+  addFailureContext ("tid: " <> tid) $ do
+    uidContext <- mkContextUserIds [("owner", owner), ("alice", alice), ("knut", knut), ("dawn", dawn), ("eli", eli)]
+    addFailureContext uidContext $ do
+      lastTeamNotif <-
+        getTeamNotifications owner Nothing `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 200
+          resp.json %. "notifications.-1.id" & asString
+
+      knutEmail <- knut %. "email" >>= asString
+      inv <- postInvitation owner (PostInvitation (Just knutEmail) Nothing) >>= getJSON 201
+      code <- getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
+
+      withWebSockets [owner, alice, dawn, eli, head otherTeamMembers] $ \[wsOwner, wsAlice, wsDawn, wsEli, wsOther] -> do
+        acceptTeamInvitation knut code (Just defPassword) >>= assertSuccess
+
+        for_ [wsAlice, wsDawn] $ \ws -> do
+          notif <- awaitMatch isUserUpdatedNotif ws
+          nPayload notif %. "user.id" `shouldMatch` (objId knut)
+          nPayload notif %. "user.team" `shouldMatch` tid
+
+        -- Admins get a team.member-join notif on the websocket for
+        -- team-settings
+        memberJobNotif <- awaitMatch isTeamMemberJoinNotif wsOwner
+        memberJobNotif %. "payload.0.team" `shouldMatch` tid
+        memberJobNotif %. "payload.0.data.user" `shouldMatch` objId knut
+
+        -- Other team members don't get notified on the websocket
+        assertNoEvent 1 wsOther
+
+        -- Remote users are not notified at all
+        assertNoEvent 1 wsEli
+
+      -- Other team members learn about knut via team notifications
+      getTeamNotifications (head otherTeamMembers) (Just lastTeamNotif) `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        -- Ignore the first notif because it is always the notif matching the
+        -- lastTeamNotif id.
+        resp.json %. "notifications.1.payload.0.type" `shouldMatch` "team.member-join"
+        resp.json %. "notifications.1.payload.0.team" `shouldMatch` tid
+        resp.json %. "notifications.1.payload.0.data.user" `shouldMatch` objId knut
+
+mkContextUserIds :: (MakesValue user) => [(String, user)] -> App String
+mkContextUserIds =
+  fmap (intercalate "\n")
+    . traverse
+      ( \(name, user) -> do
+          uid <- objQidObject user %. "id" & asString
+          domain <- objDomain user
+          pure $ name <> ": " <> uid <> "@" <> domain
+      )
 
 testInvitePersonalUserToTeamMultipleInvitations :: (HasCallStack) => App ()
 testInvitePersonalUserToTeamMultipleInvitations = do

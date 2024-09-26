@@ -25,6 +25,7 @@ import Data.String
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Data.Vector ((!?))
+import qualified Data.Vector as V
 import GHC.Stack
 import Testlib.Types
 import Prelude
@@ -237,7 +238,10 @@ lookupField val selector = do
         Object ob -> pure (KM.lookup (KM.fromString k) ob)
         -- index array
         Array arr -> case reads k of
-          [(i, "")] -> pure (arr !? i)
+          [(i, "")] ->
+            if i >= 0
+              then pure (arr !? i)
+              else pure (arr !? (V.length arr + i))
           _ -> assertFailureWithJSON arr $ "Invalid array index \"" <> k <> "\""
         x -> assertFailureWithJSON x ("Object or Array" `typeWasExpectedButGot` x)
     go k [] v = get v k
