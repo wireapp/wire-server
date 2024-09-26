@@ -41,7 +41,6 @@ import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Options hiding (internalEvents)
 import Brig.Provider.API qualified as Provider
 import Brig.Team.API qualified as Team
-import Brig.Team.Template (TeamTemplates)
 import Brig.Types.Connection
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
@@ -66,6 +65,7 @@ import Data.Time.Clock.System
 import Imports hiding (head)
 import Network.Wai.Utilities as Utilities
 import Polysemy
+import Polysemy.Error qualified
 import Polysemy.Input (Input, input)
 import Polysemy.TinyLog (TinyLog)
 import Servant hiding (Handler, JSON, addHeader, respond)
@@ -91,7 +91,6 @@ import Wire.API.UserEvent
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 import Wire.BlockListStore (BlockListStore)
 import Wire.DeleteQueue (DeleteQueue)
-import Wire.EmailSending (EmailSending)
 import Wire.EmailSubsystem (EmailSubsystem)
 import Wire.Events (Events)
 import Wire.Events qualified as Events
@@ -103,16 +102,19 @@ import Wire.FederationConfigStore
   )
 import Wire.FederationConfigStore qualified as E
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
+import Wire.IndexedUserStore (IndexedUserStore, getTeamSize)
 import Wire.InvitationCodeStore
 import Wire.NotificationSubsystem
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PropertySubsystem
 import Wire.Rpc
 import Wire.Sem.Concurrency
+import Wire.TeamInvitationSubsystem
 import Wire.UserKeyStore
 import Wire.UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem qualified as UserSubsystem
+import Wire.UserSubsystem.Error
 import Wire.VerificationCode
 import Wire.VerificationCodeGen
 import Wire.VerificationCodeSubsystem
@@ -128,20 +130,21 @@ servantSitemap ::
     Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member UserSubsystem r,
+    Member TeamInvitationSubsystem r,
     Member UserStore r,
     Member InvitationCodeStore r,
     Member UserKeyStore r,
     Member Rpc r,
     Member TinyLog r,
     Member (UserPendingActivationStore p) r,
-    Member (Input (Local ())) r,
-    Member EmailSending r,
     Member EmailSubsystem r,
     Member VerificationCodeSubsystem r,
     Member Events r,
     Member PasswordResetCodeStore r,
     Member PropertySubsystem r,
-    Member (Input TeamTemplates) r
+    Member (Input (Local ())) r,
+    Member IndexedUserStore r,
+    Member (Polysemy.Error.Error UserSubsystemError) r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -241,20 +244,21 @@ teamsAPI ::
     Member (Concurrency 'Unsafe) r,
     Member TinyLog r,
     Member InvitationCodeStore r,
-    Member EmailSending r,
+    Member TeamInvitationSubsystem r,
     Member UserSubsystem r,
+    Member (Polysemy.Error.Error UserSubsystemError) r,
     Member Events r,
-    Member (Input TeamTemplates) r,
-    Member (Input (Local ())) r
+    Member (Input (Local ())) r,
+    Member IndexedUserStore r
   ) =>
   ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI =
   Named @"updateSearchVisibilityInbound" (lift . liftSem . updateTeamSearchVisibilityInbound)
     :<|> Named @"get-invitation-by-email" Team.getInvitationByEmail
-    :<|> Named @"get-invitation-code" Team.getInvitationCode
+    :<|> Named @"get-invitation-code" (\tid iid -> lift . liftSem $ Team.getInvitationCode tid iid)
     :<|> Named @"suspend-team" Team.suspendTeam
     :<|> Named @"unsuspend-team" Team.unsuspendTeam
-    :<|> Named @"team-size" Team.teamSize
+    :<|> Named @"team-size" (lift . liftSem . getTeamSize)
     :<|> Named @"create-invitations-via-scim" Team.createInvitationViaScim
 
 userAPI :: (Member UserSubsystem r) => ServerT BrigIRoutes.UserAPI (Handler r)

@@ -50,7 +50,6 @@ import Brig.Options hiding (internalEvents)
 import Brig.Provider.API
 import Brig.Team.API qualified as Team
 import Brig.Team.Email qualified as Team
-import Brig.Team.Template (TeamTemplates)
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Intra (UserAccount (UserAccount, accountUser))
 import Brig.User.API.Handle qualified as Handle
@@ -150,11 +149,13 @@ import Wire.BlockListStore (BlockListStore)
 import Wire.DeleteQueue
 import Wire.EmailSending (EmailSending)
 import Wire.EmailSubsystem
+import Wire.EmailSubsystem.Template
 import Wire.Error
 import Wire.Events (Events)
 import Wire.FederationConfigStore (FederationConfigStore)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
+import Wire.IndexedUserStore (IndexedUserStore)
 import Wire.InvitationCodeStore
 import Wire.NotificationSubsystem
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
@@ -164,6 +165,7 @@ import Wire.Sem.Concurrency
 import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging.Cassandra
+import Wire.TeamInvitationSubsystem
 import Wire.UserKeyStore
 import Wire.UserSearch.Types
 import Wire.UserStore (UserStore)
@@ -271,7 +273,6 @@ servantSitemap ::
     Member (Error UserSubsystemError) r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (Input TeamTemplates) r,
     Member (UserPendingActivationStore p) r,
     Member AuthenticationSubsystem r,
     Member DeleteQueue r,
@@ -293,11 +294,14 @@ servantSitemap ::
     Member TinyLog r,
     Member UserKeyStore r,
     Member UserStore r,
+    Member (Input TeamTemplates) r,
     Member UserSubsystem r,
+    Member TeamInvitationSubsystem r,
     Member VerificationCodeSubsystem r,
     Member (Concurrency 'Unsafe) r,
     Member BlockListStore r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member IndexedUserStore r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -711,7 +715,8 @@ upgradePersonalToTeam ::
     Member (Input UTCTime) r,
     Member NotificationSubsystem r,
     Member TinyLog r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member UserStore r
   ) =>
   Local UserId ->
   Public.BindingNewTeamUser ->

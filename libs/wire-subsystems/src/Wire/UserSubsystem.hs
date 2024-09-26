@@ -12,9 +12,9 @@ import Data.Domain
 import Data.Handle (Handle)
 import Data.HavePendingInvitations
 import Data.Id
+import Data.Misc
 import Data.Qualified
 import Data.Range
-import Data.Set qualified as Set
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -22,12 +22,12 @@ import Wire.API.Federation.Error
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus)
 import Wire.API.Team.Feature
 import Wire.API.Team.Member (IsPerm (..), TeamMember)
-import Wire.API.Team.Permission
 import Wire.API.User
 import Wire.API.User.Search
 import Wire.Arbitrary
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
+import Wire.InvitationCodeStore
 import Wire.UserKeyStore (EmailKey, emailKeyOrig)
 import Wire.UserSearch.Types
 import Wire.UserSubsystem.Error (UserSubsystemError (..))
@@ -137,9 +137,12 @@ data UserSubsystem m a where
     Maybe (Range 1 500 Int) ->
     Maybe PagingState ->
     UserSubsystem m (SearchResult TeamContact)
-  -- | This function exists to support migration in this susbystem, after the
+  -- | (...  or does `AcceptTeamInvitation` belong into `TeamInvitationSubsystems`?)
+  AcceptTeamInvitation :: Local UserId -> PlainTextPassword6 -> InvitationCode -> UserSubsystem m ()
+  -- | The following "internal" functions exists to support migration in this susbystem, after the
   -- migration this would just be an internal detail of the subsystem
   InternalUpdateSearchIndex :: UserId -> UserSubsystem m ()
+  InternalFindTeamInvitation :: Maybe EmailKey -> InvitationCode -> UserSubsystem m StoredInvitation
 
 -- | the return type of 'CheckHandle'
 data CheckHandleResp
@@ -203,26 +206,4 @@ ensurePermissions u t perms = do
   where
     check :: Maybe TeamMember -> Bool
     check (Just m) = all (hasPermission m) perms
-    check Nothing = False
-
--- | Privilege escalation detection (make sure no `RoleMember` user creates a `RoleOwner`).
---
--- There is some code duplication with 'Galley.API.Teams.ensureNotElevated'.
-ensurePermissionToAddUser ::
-  ( Member GalleyAPIAccess r,
-    Member (Error UserSubsystemError) r
-  ) =>
-  UserId ->
-  TeamId ->
-  Permissions ->
-  Sem r ()
-ensurePermissionToAddUser u t inviteePerms = do
-  minviter <- GalleyAPIAccess.getTeamMember u t
-  unless (check minviter) $
-    throw UserSubsystemInsufficientTeamPermissions
-  where
-    check :: Maybe TeamMember -> Bool
-    check (Just inviter) =
-      hasPermission inviter AddTeamMember
-        && all (mayGrantPermission inviter) (Set.toList (inviteePerms.self))
     check Nothing = False

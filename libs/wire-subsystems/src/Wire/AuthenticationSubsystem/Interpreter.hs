@@ -39,7 +39,7 @@ import Wire.API.Allowlists qualified as AllowLists
 import Wire.API.Password
 import Wire.API.User
 import Wire.API.User.Password
-import Wire.AuthenticationSubsystem
+import Wire.AuthenticationSubsystem (AuthenticationSubsystem (..))
 import Wire.AuthenticationSubsystem.Error
 import Wire.EmailSubsystem
 import Wire.HashPassword
@@ -62,15 +62,29 @@ interpretAuthenticationSubsystem ::
     Member SessionStore r,
     Member (Input (Local ())) r,
     Member (Input (Maybe AllowlistEmailDomains)) r,
-    Member UserSubsystem r,
     Member PasswordStore r,
     Member EmailSubsystem r
   ) =>
+  InterpreterFor UserSubsystem r ->
   InterpreterFor AuthenticationSubsystem r
-interpretAuthenticationSubsystem = interpret $ \case
-  CreatePasswordResetCode userKey -> createPasswordResetCodeImpl userKey
-  ResetPassword ident resetCode newPassword -> resetPasswordImpl ident resetCode newPassword
-  InternalLookupPasswordResetCode userKey -> internalLookupPasswordResetCodeImpl userKey
+interpretAuthenticationSubsystem userSubsystemInterpreter =
+  interpret $
+    userSubsystemInterpreter . \case
+      VerifyPassword luid password -> verifyPasswordImpl luid password
+      CreatePasswordResetCode userKey -> createPasswordResetCodeImpl userKey
+      ResetPassword ident resetCode newPassword -> resetPasswordImpl ident resetCode newPassword
+      InternalLookupPasswordResetCode userKey -> internalLookupPasswordResetCodeImpl userKey
+
+verifyPasswordImpl ::
+  ( Member PasswordStore r,
+    Member (Error AuthenticationSubsystemError) r
+  ) =>
+  Local UserId ->
+  PlainTextPassword6 ->
+  Sem r ()
+verifyPasswordImpl (tUnqualified -> uid) password = do
+  p <- lookupHashedPassword uid >>= maybe (throw AuthenticationSubsystemMissingAuth) pure
+  unless (Wire.API.Password.verifyPassword password p) $ throw AuthenticationSubsystemBadCredentials
 
 maxAttempts :: Int32
 maxAttempts = 3

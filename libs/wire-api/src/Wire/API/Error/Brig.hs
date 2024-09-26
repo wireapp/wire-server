@@ -63,6 +63,7 @@ data BrigError
   | AccountEphemeral
   | AccountPending
   | UserKeyExists
+  | EmailExists
   | NameManagedByScim
   | HandleManagedByScim
   | LocaleManagedByScim
@@ -238,6 +239,8 @@ type instance MapError 'AccountEphemeral = 'StaticError 403 "ephemeral" "Account
 type instance MapError 'AccountPending = 'StaticError 403 "pending-activation" "Account pending activation"
 
 type instance MapError 'UserKeyExists = 'StaticError 409 "key-exists" "The given e-mail address is in use."
+
+type instance MapError 'EmailExists = 'StaticError 409 "email-exists" "The given e-mail address is in use."
 
 type instance MapError 'NameManagedByScim = 'StaticError 403 "managed-by-scim" "Updating name is not allowed, because it is managed by SCIM, or E2EId is enabled"
 

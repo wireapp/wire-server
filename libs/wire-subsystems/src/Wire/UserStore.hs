@@ -66,6 +66,7 @@ data UserStore m a where
   --   an email address or phone number.
   IsActivated :: UserId -> UserStore m Bool
   LookupLocale :: UserId -> UserStore m (Maybe (Maybe Language, Maybe Country))
+  UpdateUserTeam :: UserId -> TeamId -> UserStore m ()
 
 makeSem ''UserStore
 

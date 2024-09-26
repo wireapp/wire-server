@@ -16,6 +16,7 @@ import Data.Id
 import Data.Json.Util
 import Data.LegalHold
 import Data.List.Extra (nubOrd)
+import Data.Misc (PlainTextPassword6)
 import Data.Qualified
 import Data.Range
 import Data.Time.Clock
@@ -36,11 +37,14 @@ import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus (..)
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Permission qualified as Permission
+import Wire.API.Team.Role (defaultRole)
 import Wire.API.Team.SearchVisibility
+import Wire.API.Team.Size (TeamSize (TeamSize))
 import Wire.API.User as User
 import Wire.API.User.Search
 import Wire.API.UserEvent
 import Wire.Arbitrary
+import Wire.AuthenticationSubsystem
 import Wire.BlockListStore as BlockList
 import Wire.DeleteQueue
 import Wire.Events
@@ -51,7 +55,7 @@ import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.IndexedUserStore (IndexedUserStore)
 import Wire.IndexedUserStore qualified as IndexedUserStore
 import Wire.IndexedUserStore.Bulk.ElasticSearch (teamSearchVisibilityInbound)
-import Wire.InvitationCodeStore (InvitationCodeStore, lookupInvitationByEmail)
+import Wire.InvitationCodeStore
 import Wire.Sem.Concurrency
 import Wire.Sem.Metrics
 import Wire.Sem.Metrics qualified as Metrics
@@ -71,37 +75,13 @@ import Witherable (wither)
 data UserSubsystemConfig = UserSubsystemConfig
   { emailVisibilityConfig :: EmailVisibilityConfig,
     defaultLocale :: Locale,
-    searchSameTeamOnly :: Bool
+    searchSameTeamOnly :: Bool,
+    maxTeamSize :: Word32
   }
   deriving (Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserSubsystemConfig)
 
 runUserSubsystem ::
-  ( Member GalleyAPIAccess r,
-    Member UserStore r,
-    Member UserKeyStore r,
-    Member BlockListStore r,
-    Member (Concurrency 'Unsafe) r, -- FUTUREWORK: subsystems should implement concurrency inside interpreters, not depend on this dangerous effect.
-    Member (Error FederationError) r,
-    Member (Error UserSubsystemError) r,
-    Member (FederationAPIAccess fedM) r,
-    Member DeleteQueue r,
-    Member Events r,
-    Member Now r,
-    RunClient (fedM 'Brig),
-    FederationMonad fedM,
-    Typeable fedM,
-    Member IndexedUserStore r,
-    Member FederationConfigStore r,
-    Member Metrics r,
-    Member (TinyLog) r,
-    Member InvitationCodeStore r
-  ) =>
-  UserSubsystemConfig ->
-  InterpreterFor UserSubsystem r
-runUserSubsystem cfg = runInputConst cfg . interpretUserSubsystem . raiseUnder
-
-interpretUserSubsystem ::
   ( Member UserStore r,
     Member UserKeyStore r,
     Member GalleyAPIAccess r,
@@ -110,7 +90,6 @@ interpretUserSubsystem ::
     Member (Error FederationError) r,
     Member (Error UserSubsystemError) r,
     Member (FederationAPIAccess fedM) r,
-    Member (Input UserSubsystemConfig) r,
     Member DeleteQueue r,
     Member Events r,
     Member Now r,
@@ -123,31 +102,107 @@ interpretUserSubsystem ::
     Member InvitationCodeStore r,
     Member TinyLog r
   ) =>
+  UserSubsystemConfig ->
+  InterpreterFor AuthenticationSubsystem r ->
   InterpreterFor UserSubsystem r
-interpretUserSubsystem = interpret \case
-  GetUserProfiles self others -> getUserProfilesImpl self others
-  GetLocalUserProfiles others -> getLocalUserProfilesImpl others
-  GetExtendedAccountsBy getBy -> getExtendedAccountsByImpl getBy
-  GetExtendedAccountsByEmailNoFilter emails -> getExtendedAccountsByEmailNoFilterImpl emails
-  GetAccountNoFilter luid -> getAccountNoFilterImpl luid
-  GetSelfProfile self -> getSelfProfileImpl self
-  GetUserProfilesWithErrors self others -> getUserProfilesWithErrorsImpl self others
-  UpdateUserProfile self mconn mb update -> updateUserProfileImpl self mconn mb update
-  CheckHandle uhandle -> checkHandleImpl uhandle
-  CheckHandles hdls cnt -> checkHandlesImpl hdls cnt
-  UpdateHandle uid mconn mb uhandle -> updateHandleImpl uid mconn mb uhandle
-  LookupLocaleWithDefault luid -> lookupLocaleOrDefaultImpl luid
-  IsBlocked email -> isBlockedImpl email
-  BlockListDelete email -> blockListDeleteImpl email
-  BlockListInsert email -> blockListInsertImpl email
-  UpdateTeamSearchVisibilityInbound status ->
-    updateTeamSearchVisibilityInboundImpl status
-  SearchUsers luid query mDomain mMaxResults ->
-    searchUsersImpl luid query mDomain mMaxResults
-  BrowseTeam uid browseTeamFilters mMaxResults mPagingState ->
-    browseTeamImpl uid browseTeamFilters mMaxResults mPagingState
-  InternalUpdateSearchIndex uid ->
-    syncUserIndex uid
+runUserSubsystem cfg authInterpreter =
+  interpret $
+    \case
+      GetUserProfiles self others ->
+        runInputConst cfg $
+          getUserProfilesImpl self others
+      GetLocalUserProfiles others ->
+        runInputConst cfg $
+          getLocalUserProfilesImpl others
+      GetExtendedAccountsBy getBy ->
+        runInputConst cfg $
+          getExtendedAccountsByImpl getBy
+      GetExtendedAccountsByEmailNoFilter emails ->
+        runInputConst cfg $
+          getExtendedAccountsByEmailNoFilterImpl emails
+      GetAccountNoFilter luid ->
+        runInputConst cfg $
+          getAccountNoFilterImpl luid
+      GetSelfProfile self ->
+        runInputConst cfg $
+          getSelfProfileImpl self
+      GetUserProfilesWithErrors self others ->
+        runInputConst cfg $
+          getUserProfilesWithErrorsImpl self others
+      UpdateUserProfile self mconn mb update ->
+        runInputConst cfg $
+          updateUserProfileImpl self mconn mb update
+      CheckHandle uhandle ->
+        runInputConst cfg $
+          checkHandleImpl uhandle
+      CheckHandles hdls cnt ->
+        runInputConst cfg $
+          checkHandlesImpl hdls cnt
+      UpdateHandle uid mconn mb uhandle ->
+        runInputConst cfg $
+          updateHandleImpl uid mconn mb uhandle
+      LookupLocaleWithDefault luid ->
+        runInputConst cfg $
+          lookupLocaleOrDefaultImpl luid
+      IsBlocked email ->
+        runInputConst cfg $
+          isBlockedImpl email
+      BlockListDelete email ->
+        runInputConst cfg $
+          blockListDeleteImpl email
+      BlockListInsert email ->
+        runInputConst cfg $
+          blockListInsertImpl email
+      UpdateTeamSearchVisibilityInbound status ->
+        runInputConst cfg $
+          updateTeamSearchVisibilityInboundImpl status
+      SearchUsers luid query mDomain mMaxResults ->
+        runInputConst cfg $
+          searchUsersImpl luid query mDomain mMaxResults
+      BrowseTeam uid browseTeamFilters mMaxResults mPagingState ->
+        browseTeamImpl uid browseTeamFilters mMaxResults mPagingState
+      InternalUpdateSearchIndex uid ->
+        syncUserIndex uid
+      AcceptTeamInvitation luid pwd code ->
+        authInterpreter
+          . runInputConst cfg
+          $ acceptTeamInvitationImpl luid pwd code
+      InternalFindTeamInvitation mEmailKey code ->
+        runInputConst cfg $
+          internalFindTeamInvitationImpl mEmailKey code
+
+internalFindTeamInvitationImpl ::
+  ( Member InvitationCodeStore r,
+    Member (Error UserSubsystemError) r,
+    Member (Input UserSubsystemConfig) r,
+    Member (GalleyAPIAccess) r,
+    Member IndexedUserStore r
+  ) =>
+  Maybe EmailKey ->
+  InvitationCode ->
+  Sem r StoredInvitation
+internalFindTeamInvitationImpl Nothing _ = throw UserSubsystemMissingIdentity
+internalFindTeamInvitationImpl (Just e) c =
+  lookupInvitationInfo c >>= \case
+    Just invitationInfo -> do
+      inv <- lookupInvitation invitationInfo.teamId invitationInfo.invitationId
+      case (inv, (.email) <$> inv) of
+        (Just invite, Just em)
+          | e == mkEmailKey em -> do
+              ensureMemberCanJoin invitationInfo.teamId
+              pure invite
+        _ -> throw UserSubsystemInvalidInvitationCode
+    Nothing -> throw UserSubsystemInvalidInvitationCode
+  where
+    ensureMemberCanJoin tid = do
+      maxSize <- maxTeamSize <$> input
+      (TeamSize teamSize) <- IndexedUserStore.getTeamSize tid
+      when (teamSize >= fromIntegral maxSize) $
+        throw UserSubsystemTooManyTeamMembers
+      -- FUTUREWORK: The above can easily be done/tested in the intra call.
+      --             Remove after the next release.
+      mAddUserError <- checkUserCanJoinTeam tid
+      maybe (pure ()) (throw . UserSubsystemUserNotAllowedToJoinTeam) mAddUserError
 
 isBlockedImpl :: (Member BlockListStore r) => EmailAddress -> Sem r Bool
 isBlockedImpl = BlockList.exists . mkEmailKey
@@ -855,3 +910,37 @@ getExtendedAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations
     -- database schema re-design.
     gcHack :: Bool -> UserId -> Sem r ()
     gcHack hasInvitation uid = unless hasInvitation (enqueueUserDeletion uid)
+
+acceptTeamInvitationImpl ::
+  ( Member (Input UserSubsystemConfig) r,
+    Member UserStore r,
+    Member GalleyAPIAccess r,
+    Member (Error UserSubsystemError) r,
+    Member InvitationCodeStore r,
+    Member IndexedUserStore r,
+    Member Metrics r,
+    Member Events r,
+    Member AuthenticationSubsystem r
+  ) =>
+  Local UserId ->
+  PlainTextPassword6 ->
+  InvitationCode ->
+  Sem r ()
+acceptTeamInvitationImpl luid pw code = do
+  mSelfProfile <- getSelfProfileImpl luid
+  let mEmailKey = mkEmailKey <$> (userEmail . selfUser =<< mSelfProfile)
+      mTid = mSelfProfile >>= userTeam . selfUser
+  verifyPassword luid pw
+  inv <- internalFindTeamInvitationImpl mEmailKey code
+  let tid = inv.teamId
+  let minvmeta = (,inv.createdAt) <$> inv.createdBy
+      uid = tUnqualified luid
+  for_ mTid $ \userTid ->
+    unless (tid == userTid) $
+      throw UserSubsystemCannotJoinMultipleTeams
+  added <- GalleyAPIAccess.addTeamMember uid tid minvmeta (fromMaybe defaultRole inv.role)
+  unless added $ throw UserSubsystemTooManyTeamMembers
+  updateUserTeam uid tid
+  deleteInvitation inv.teamId inv.invitationId
+  syncUserIndex uid
+  generateUserEvent uid Nothing (teamUpdated uid tid)

@@ -30,41 +30,7 @@ where
 import Brig.Options
 import Brig.Template
 import Imports
-import Wire.API.User.Identity
-
-data InvitationEmailTemplate = InvitationEmailTemplate
-  { invitationEmailUrl :: !Template,
-    invitationEmailSubject :: !Template,
-    invitationEmailBodyText :: !Template,
-    invitationEmailBodyHtml :: !Template,
-    invitationEmailSender :: !EmailAddress,
-    invitationEmailSenderName :: !Text
-  }
-
-data CreatorWelcomeEmailTemplate = CreatorWelcomeEmailTemplate
-  { creatorWelcomeEmailUrl :: !Text,
-    creatorWelcomeEmailSubject :: !Template,
-    creatorWelcomeEmailBodyText :: !Template,
-    creatorWelcomeEmailBodyHtml :: !Template,
-    creatorWelcomeEmailSender :: !EmailAddress,
-    creatorWelcomeEmailSenderName :: !Text
-  }
-
-data MemberWelcomeEmailTemplate = MemberWelcomeEmailTemplate
-  { memberWelcomeEmailUrl :: !Text,
-    memberWelcomeEmailSubject :: !Template,
-    memberWelcomeEmailBodyText :: !Template,
-    memberWelcomeEmailBodyHtml :: !Template,
-    memberWelcomeEmailSender :: !EmailAddress,
-    memberWelcomeEmailSenderName :: !Text
-  }
-
-data TeamTemplates = TeamTemplates
-  { invitationEmail :: !InvitationEmailTemplate,
-    existingUserInvitationEmail :: !InvitationEmailTemplate,
-    creatorWelcomeEmail :: !CreatorWelcomeEmailTemplate,
-    memberWelcomeEmail :: !MemberWelcomeEmailTemplate
-  }
+import Wire.EmailSubsystem.Template
 
 loadTeamTemplates :: Opts -> IO (Localised TeamTemplates)
 loadTeamTemplates o = readLocalesDir defLocale (templateDir gOptions) "team" $ \fp ->

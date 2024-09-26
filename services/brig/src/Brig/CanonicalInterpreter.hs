@@ -28,6 +28,7 @@ import Polysemy.Conc
 import Polysemy.Embed (runEmbedded)
 import Polysemy.Error (Error, errorToIOFinal, mapError, runError)
 import Polysemy.Input (Input, runInputConst, runInputSem)
+import Polysemy.Internal.Kind
 import Polysemy.TinyLog (TinyLog)
 import Wire.API.Allowlists (AllowlistEmailDomains)
 import Wire.API.Federation.Client qualified
@@ -84,6 +85,9 @@ import Wire.Sem.Random
 import Wire.Sem.Random.IO
 import Wire.SessionStore
 import Wire.SessionStore.Cassandra (interpretSessionStoreCassandra)
+import Wire.TeamInvitationSubsystem
+import Wire.TeamInvitationSubsystem.Error
+import Wire.TeamInvitationSubsystem.Interpreter
 import Wire.UserKeyStore
 import Wire.UserKeyStore.Cassandra
 import Wire.UserStore
@@ -98,13 +102,20 @@ import Wire.VerificationCodeSubsystem.Interpreter
 
 type BrigCanonicalEffects =
   '[ AuthenticationSubsystem,
-     UserSubsystem,
-     EmailSubsystem,
+     TeamInvitationSubsystem,
+     UserSubsystem
+   ]
+    `Append` BrigLowerLevelEffects
+
+-- | These effects have interpreters which don't depend on each other
+type BrigLowerLevelEffects =
+  '[ EmailSubsystem,
      VerificationCodeSubsystem,
      PropertySubsystem,
      DeleteQueue,
      Wire.Events.Events,
      Error UserSubsystemError,
+     Error TeamInvitationSubsystemError,
      Error AuthenticationSubsystemError,
      Error Wire.API.Federation.Error.FederationError,
      Error VerificationCodeSubsystemError,
@@ -163,7 +174,13 @@ runBrigToIO e (AppT ma) = do
         UserSubsystemConfig
           { emailVisibilityConfig = e.settings.emailVisibility,
             defaultLocale = Opt.defaultUserLocale e.settings,
-            searchSameTeamOnly = fromMaybe False e.settings.searchSameTeamOnly
+            searchSameTeamOnly = fromMaybe False e.settings.searchSameTeamOnly,
+            maxTeamSize = e.settings.maxTeamSize
+          }
+      teamInvitationSubsystemConfig =
+        TeamInvitationSubsystemConfig
+          { maxTeamSize = e.settings.maxTeamSize,
+            teamInvitationTimeout = e.settings.teamInvitationTimeout
           }
       federationApiAccessConfig =
         FederationAPIAccessConfig
@@ -193,6 +210,14 @@ runBrigToIO e (AppT ma) = do
                     indexName = additionalIndexName
                   }
           }
+
+      -- These interpreters depend on each other, we use let recursion to solve that.
+      userSubsystemInterpreter :: (Members BrigLowerLevelEffects r) => InterpreterFor UserSubsystem r
+      userSubsystemInterpreter = runUserSubsystem userSubsystemConfig authSubsystemInterpreter
+
+      authSubsystemInterpreter :: (Members BrigLowerLevelEffects r) => InterpreterFor AuthenticationSubsystem r
+      authSubsystemInterpreter = interpretAuthenticationSubsystem userSubsystemInterpreter
+
   ( either throwM pure
       <=< ( runFinal
               . unsafelyPerformConcurrency
@@ -244,14 +269,16 @@ runBrigToIO e (AppT ma) = do
               . mapError verificationCodeSubsystemErrorToHttpError
               . mapError (StdError . federationErrorToWai)
               . mapError authenticationSubsystemErrorToHttpError
+              . mapError teamInvitationErrorToHttpError
               . mapError userSubsystemErrorToHttpError
               . runEvents
               . runDeleteQueue e.internalEvents
               . interpretPropertySubsystem propertySubsystemConfig
               . interpretVerificationCodeSubsystem
-              . emailSubsystemInterpreter e.userTemplates e.templateBranding
-              . runUserSubsystem userSubsystemConfig
-              . interpretAuthenticationSubsystem
+              . emailSubsystemInterpreter e.userTemplates e.teamTemplates e.templateBranding
+              . userSubsystemInterpreter
+              . runTeamInvitationSubsystem teamInvitationSubsystemConfig
+              . authSubsystemInterpreter
           )
     )
     $ runReaderT ma e

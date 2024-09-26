@@ -13,3 +13,4 @@ inMemoryIndexedUserStoreInterpreter =
     DoesIndexExist -> pure True
     SearchUsers {} -> error "IndexedUserStore: unimplemented in memory interpreter"
     PaginateTeamMembers {} -> error "IndexedUserStore: unimplemented in memory interpreter"
+    GetTeamSize {} -> error "IndexedUserStore: unimplemented in memory interpreter"

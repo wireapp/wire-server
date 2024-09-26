@@ -31,6 +31,8 @@ data AuthenticationSubsystemError
   | AuthenticationSubsystemInvalidPasswordResetCode
   | AuthenticationSubsystemInvalidPhone
   | AuthenticationSubsystemAllowListError
+  | AuthenticationSubsystemMissingAuth
+  | AuthenticationSubsystemBadCredentials
   deriving (Eq, Show)
 
 instance Exception AuthenticationSubsystemError
@@ -43,3 +45,5 @@ authenticationSubsystemErrorToHttpError =
     AuthenticationSubsystemResetPasswordMustDiffer -> errorToWai @E.ResetPasswordMustDiffer
     AuthenticationSubsystemInvalidPhone -> errorToWai @E.InvalidPhone
     AuthenticationSubsystemAllowListError -> errorToWai @E.AllowlistError
+    AuthenticationSubsystemMissingAuth -> errorToWai @E.MissingAuth
+    AuthenticationSubsystemBadCredentials -> errorToWai @E.BadCredentials

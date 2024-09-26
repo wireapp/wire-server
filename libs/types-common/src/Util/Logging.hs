@@ -25,6 +25,7 @@ import Data.Text.Encoding (encodeUtf8)
 import Imports
 import System.Logger.Class qualified as Log
 import System.Logger.Message (Msg)
+import Text.Email.Parser
 
 sha256String :: Text -> Text
 sha256String t =
@@ -48,3 +49,7 @@ logUser uid = Log.field "user" (T.pack . show $ uid)
 
 logTeam :: TeamId -> (Msg -> Msg)
 logTeam tid = Log.field "team" (T.pack . show $ tid)
+
+logEmail :: EmailAddress -> (Msg -> Msg)
+logEmail email =
+  Log.field "email_sha256" (sha256String . T.pack . show $ email)

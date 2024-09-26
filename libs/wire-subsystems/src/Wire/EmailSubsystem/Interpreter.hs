@@ -7,6 +7,7 @@ module Wire.EmailSubsystem.Interpreter
 where
 
 import Data.Code qualified as Code
+import Data.Id
 import Data.Json.Util
 import Data.Range (fromRange)
 import Data.Text qualified as Text
@@ -24,19 +25,21 @@ import Wire.EmailSending (EmailSending, sendMail)
 import Wire.EmailSubsystem
 import Wire.EmailSubsystem.Template
 
-emailSubsystemInterpreter :: (Member EmailSending r) => Localised UserTemplates -> TemplateBranding -> InterpreterFor EmailSubsystem r
-emailSubsystemInterpreter tpls branding = interpret \case
-  SendPasswordResetMail email (key, code) mLocale -> sendPasswordResetMailImpl tpls branding email key code mLocale
-  SendVerificationMail email key code mLocale -> sendVerificationMailImpl tpls branding email key code mLocale
-  SendTeamDeletionVerificationMail email code mLocale -> sendTeamDeletionVerificationMailImpl tpls branding email code mLocale
-  SendCreateScimTokenVerificationMail email code mLocale -> sendCreateScimTokenVerificationMailImpl tpls branding email code mLocale
-  SendLoginVerificationMail email code mLocale -> sendLoginVerificationMailImpl tpls branding email code mLocale
-  SendActivationMail email name key code mLocale -> sendActivationMailImpl tpls branding email name key code mLocale
-  SendEmailAddressUpdateMail email name key code mLocale -> sendEmailAddressUpdateMailImpl tpls branding email name key code mLocale
-  SendTeamActivationMail email name key code mLocale teamName -> sendTeamActivationMailImpl tpls branding email name key code mLocale teamName
-  SendNewClientEmail email name client locale -> sendNewClientEmailImpl tpls branding email name client locale
-  SendAccountDeletionEmail email name key code locale -> sendAccountDeletionEmailImpl tpls branding email name key code locale
-  SendUpgradePersonalToTeamConfirmationEmail email name teamName locale -> sendUpgradePersonalToTeamConfirmationEmailImpl tpls branding email name teamName locale
+emailSubsystemInterpreter :: (Member EmailSending r) => Localised UserTemplates -> Localised TeamTemplates -> TemplateBranding -> InterpreterFor EmailSubsystem r
+emailSubsystemInterpreter userTpls teamTpls branding = interpret \case
+  SendPasswordResetMail email (key, code) mLocale -> sendPasswordResetMailImpl userTpls branding email key code mLocale
+  SendVerificationMail email key code mLocale -> sendVerificationMailImpl userTpls branding email key code mLocale
+  SendTeamDeletionVerificationMail email code mLocale -> sendTeamDeletionVerificationMailImpl userTpls branding email code mLocale
+  SendCreateScimTokenVerificationMail email code mLocale -> sendCreateScimTokenVerificationMailImpl userTpls branding email code mLocale
+  SendLoginVerificationMail email code mLocale -> sendLoginVerificationMailImpl userTpls branding email code mLocale
+  SendActivationMail email name key code mLocale -> sendActivationMailImpl userTpls branding email name key code mLocale
+  SendEmailAddressUpdateMail email name key code mLocale -> sendEmailAddressUpdateMailImpl userTpls branding email name key code mLocale
+  SendTeamActivationMail email name key code mLocale teamName -> sendTeamActivationMailImpl userTpls branding email name key code mLocale teamName
+  SendNewClientEmail email name client locale -> sendNewClientEmailImpl userTpls branding email name client locale
+  SendAccountDeletionEmail email name key code locale -> sendAccountDeletionEmailImpl userTpls branding email name key code locale
+  SendUpgradePersonalToTeamConfirmationEmail email name teamName locale -> sendUpgradePersonalToTeamConfirmationEmailImpl userTpls branding email name teamName locale
+  SendTeamInvitationMail email tid from code loc -> sendTeamInvitationMailImpl teamTpls branding email tid from code loc
+  SendTeamInvitationMailPersonalUser email tid from code loc -> sendTeamInvitationMailPersonalUserImpl teamTpls branding email tid from code loc
 
 -------------------------------------------------------------------------------
 -- Verification Email for
@@ -431,6 +434,65 @@ renderUpgradePersonalToTeamConfirmationEmail email name _teamName UpgradePersona
     replace1 "email" = fromEmail email
     replace1 "name" = fromName name
     replace1 x = x
+
+-------------------------------------------------------------------------------
+-- Invitation Email
+
+sendTeamInvitationMailImpl :: (Member EmailSending r) => Localised TeamTemplates -> TemplateBranding -> EmailAddress -> TeamId -> EmailAddress -> InvitationCode -> Maybe Locale -> Sem r Text
+sendTeamInvitationMailImpl teamTemplates branding to tid from code loc = do
+  let tpl = invitationEmail . snd $ forLocale loc teamTemplates
+      mail = InvitationEmail to tid code from
+      (renderedMail, renderedInvitaitonUrl) = renderInvitationEmail mail tpl branding
+  sendMail renderedMail
+  pure renderedInvitaitonUrl
+
+sendTeamInvitationMailPersonalUserImpl :: (Member EmailSending r) => Localised TeamTemplates -> TemplateBranding -> EmailAddress -> TeamId -> EmailAddress -> InvitationCode -> Maybe Locale -> Sem r Text
+sendTeamInvitationMailPersonalUserImpl teamTemplates branding to tid from code loc = do
+  let tpl = existingUserInvitationEmail . snd $ forLocale loc teamTemplates
+      mail = InvitationEmail to tid code from
+      (renderedMail, renderedInvitaitonUrl) = renderInvitationEmail mail tpl branding
+  sendMail renderedMail
+  pure renderedInvitaitonUrl
+
+data InvitationEmail = InvitationEmail
+  { invTo :: !EmailAddress,
+    invTeamId :: !TeamId,
+    invInvCode :: !InvitationCode,
+    invInviter :: !EmailAddress
+  }
+
+renderInvitationEmail :: InvitationEmail -> InvitationEmailTemplate -> TemplateBranding -> (Mail, Text)
+renderInvitationEmail InvitationEmail {..} InvitationEmailTemplate {..} branding =
+  ( (emptyMail from)
+      { mailTo = [to],
+        mailHeaders =
+          [ ("Subject", toStrict subj),
+            ("X-Zeta-Purpose", "TeamInvitation"),
+            ("X-Zeta-Code", Ascii.toText code)
+          ],
+        mailParts = [[plainPart txt, htmlPart html]]
+      },
+    invitationUrl
+  )
+  where
+    (InvitationCode code) = invInvCode
+    from = Address (Just invitationEmailSenderName) (fromEmail invitationEmailSender)
+    to = Address Nothing (fromEmail invTo)
+    txt = renderTextWithBranding invitationEmailBodyText replace branding
+    html = renderHtmlWithBranding invitationEmailBodyHtml replace branding
+    subj = renderTextWithBranding invitationEmailSubject replace branding
+    invitationUrl = renderInvitationUrl invitationEmailUrl invTeamId invInvCode branding
+    replace "url" = invitationUrl
+    replace "inviter" = fromEmail invInviter
+    replace x = x
+
+renderInvitationUrl :: Template -> TeamId -> InvitationCode -> TemplateBranding -> Text
+renderInvitationUrl t tid (InvitationCode c) branding =
+  toStrict $ renderTextWithBranding t replace branding
+  where
+    replace "team" = idToText tid
+    replace "code" = Ascii.toText c
+    replace x = x
 
 -------------------------------------------------------------------------------
 -- MIME Conversions

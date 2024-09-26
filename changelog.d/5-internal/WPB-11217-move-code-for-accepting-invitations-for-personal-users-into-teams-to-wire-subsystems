@@ -1,0 +1,10 @@
+Move some invitation handling from brig to wire-subsystems.
+
+- introduce cyclically dependent effects: UserSubsystem, AuthenticationSubsystem (see Brig.CanonicalInterpreter).
+- introduce TeamInvitationSubsystem with operations inviteUser, internalCreateInvitation.
+- add verifyPassword to AuthenticationSubsystem.
+- add sendInvitationMail, sendInvitationMailPersonalUser to EmailSubsystem.
+- add getTeamSize to IndexedUserStore (this is morally internal to wire-subsystems, and making another ES subsystem would mean adding a lot of code everywhere).
+- add updateUserTeam to UserStore.
+- add acceptTeamInvitation, internalFindTeamInvitation to UserSubsystem.
+- make a few small rest api handlers in brig polysemic (Handler -> Sem).

@@ -196,7 +196,6 @@ library
     Brig.User.EJPD
     Brig.User.Search.Index
     Brig.User.Search.SearchIndex
-    Brig.User.Search.TeamSize
     Brig.User.Template
     Brig.Version
     Brig.ZAuth
