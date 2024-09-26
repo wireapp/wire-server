@@ -40,6 +40,8 @@ import Gundeck.Redis qualified as Redis
 import Gundeck.Redis.HedisExtensions qualified as Redis
 import Gundeck.ThreadBudget
 import Imports
+import Network.AMQP (Channel)
+import Network.AMQP.Extended qualified as Q
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Network.TLS as TLS
@@ -57,7 +59,8 @@ data Env = Env
     _rstateAdditionalWrite :: !(Maybe Redis.RobustConnection),
     _awsEnv :: !Aws.Env,
     _time :: !(IO Milliseconds),
-    _threadBudgetState :: !(Maybe ThreadBudgetState)
+    _threadBudgetState :: !(Maybe ThreadBudgetState),
+    _rabbitMqChannel :: MVar Channel
   }
 
 makeLenses ''Env
@@ -100,7 +103,8 @@ createEnv o = do
         { updateAction = Ms . round . (* 1000) <$> getPOSIXTime
         }
   mtbs <- mkThreadBudgetState `mapM` (o ^. settings . maxConcurrentNativePushes)
-  pure $! (rThread : rAdditionalThreads,) $! Env (RequestId "N/A") o l n p r rAdditional a io mtbs
+  rabbitMqChannelMVar <- Q.mkRabbitMqChannelMVar l (o ^. rabbitMq)
+  pure $! (rThread : rAdditionalThreads,) $! Env (RequestId "N/A") o l n p r rAdditional a io mtbs rabbitMqChannelMVar
 
 reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg
 reqIdMsg = ("request" Logger..=) . unRequestId

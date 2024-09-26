@@ -42,6 +42,8 @@ import Gundeck.React
 import Gundeck.Schema.Run (lastSchemaVersion)
 import Gundeck.ThreadBudget
 import Imports
+import Network.AMQP (ExchangeOpts (exchangeName, exchangeType), declareExchange, newExchange)
+import Network.AMQP qualified as Q
 import Network.Wai as Wai
 import Network.Wai.Middleware.Gunzip qualified as GZip
 import Network.Wai.Middleware.Gzip qualified as GZip
@@ -53,6 +55,7 @@ import OpenTelemetry.Trace qualified as Otel
 import Servant (Handler (Handler), (:<|>) (..))
 import Servant qualified
 import System.Logger qualified as Log
+import System.Timeout (timeout)
 import UnliftIO.Async qualified as Async
 import Util.Options
 import Wire.API.Routes.Public.Gundeck (GundeckAPI)
@@ -63,9 +66,10 @@ import Wire.OpenTelemetry
 run :: Opts -> IO ()
 run o = withTracer \tracer -> do
   (rThreads, e) <- createEnv o
+  let l = e ^. applog
+  createUserNotificationExchange l (e ^. rabbitMqChannel)
   runClient (e ^. cstate) $
     versionCheck lastSchemaVersion
-  let l = e ^. applog
   s <- newSettings $ defaultServer (unpack . host $ o ^. gundeck) (port $ o ^. gundeck) l
   let throttleMillis = fromMaybe defSqsThrottleMillis $ o ^. (settings . sqsThrottleMillis)
 
@@ -85,6 +89,16 @@ run o = withTracer \tracer -> do
     whenJust (e ^. rstateAdditionalWrite) $ (=<<) Redis.disconnect . takeMVar
     Log.close (e ^. applog)
   where
+    createUserNotificationExchange :: Log.Logger -> MVar Q.Channel -> IO ()
+    createUserNotificationExchange l chanMVar = do
+      mChan <- timeout 1_000_000 $ readMVar chanMVar
+      case mChan of
+        -- TODO(leif): we should probably fail here
+        Nothing -> Log.err l $ Log.msg (Log.val "RabbitMQ could not get channel")
+        Just chan -> do
+          Log.info l $ Log.msg (Log.val "RabbitMQ declaring exchange")
+          declareExchange chan newExchange {exchangeName = "user-notifications", exchangeType = "direct"}
+
     middleware :: Env -> IO Middleware
     middleware e = do
       otelMiddleWare <- newOpenTelemetryWaiMiddleware

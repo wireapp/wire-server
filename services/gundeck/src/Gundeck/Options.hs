@@ -25,6 +25,7 @@ import Data.Aeson.TH
 import Data.Yaml (FromJSON)
 import Gundeck.Aws.Arn
 import Imports
+import Network.AMQP.Extended
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
 import Util.Options.Common
@@ -133,6 +134,7 @@ data Opts = Opts
     _redis :: !RedisEndpoint,
     _redisAdditionalWrite :: !(Maybe RedisEndpoint),
     _aws :: !AWSOpts,
+    _rabbitMq :: !AmqpEndpoint,
     _discoUrl :: !(Maybe Text),
     _settings :: !Settings,
     -- Logging

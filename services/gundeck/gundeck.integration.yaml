@@ -34,6 +34,14 @@ aws:
   sqsEndpoint: http://localhost:4568 # https://sqs.eu-west-1.amazonaws.com
   snsEndpoint: http://localhost:4575 # https://sns.eu-west-1.amazonaws.com
 
+rabbitMq:
+  host: 127.0.0.1
+  port: 5671
+  vHost: /
+  enableTls: true
+  caCert: test/resources/rabbitmq-ca.pem
+  insecureSkipVerifyTls: false
+
 settings:
   httpPoolSize: 1024
   notificationTTL: 24192200

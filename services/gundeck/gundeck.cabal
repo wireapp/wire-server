@@ -116,6 +116,7 @@ library
     , amazonka-core                         >=2
     , amazonka-sns                          >=2
     , amazonka-sqs                          >=2
+    , amqp
     , async                                 >=2.0
     , attoparsec                            >=0.10
     , auto-update                           >=0.1
