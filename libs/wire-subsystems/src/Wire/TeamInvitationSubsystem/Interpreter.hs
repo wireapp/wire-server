@@ -60,6 +60,13 @@ runTeamInvitationSubsystem ::
   InterpreterFor TeamInvitationSubsystem r
 runTeamInvitationSubsystem cfg = interpret $ \case
   InviteUser luid tid request -> runInputConst cfg $ inviteUserImpl luid tid request
+  AcceptInvitation uid invitationId invitationCode -> acceptInvitationImpl uid invitationId invitationCode
+  GetInvitationCode tid iid -> getInvitationCodeImpl tid iid
+  RevokeInvitation tid invitationId -> revokeInvitationImpl tid invitationId
+  GetInvitationByCode invitationCode -> getInvitationByCodeImpl invitationCode
+  GetInvitationByEmail email -> getInvitationByEmailImpl email
+  CheckInvitationsByEmail email -> checkInvitationsByEmailImpl email
+  DeleteAllInvitationsFor tid -> deleteAllInvitationsForImpl tid
   InternalCreateInvitation tid mExpectedInvId role mbInviterUid inviterEmail invRequest ->
     runInputConst cfg $ createInvitation' tid mExpectedInvId role mbInviterUid inviterEmail invRequest
 
@@ -240,6 +247,33 @@ logInvitationRequest context action =
           . context
           . logInvitationCode code
       pure res
+
+acceptInvitationImpl :: UserId -> InvitationId -> InvitationCode -> Sem r ()
+acceptInvitationImpl = undefined
+
+getInvitationCodeImpl ::
+  (Member Store.InvitationCodeStore r, Member (Error UserSubsystemError) r) =>
+  TeamId ->
+  InvitationId ->
+  Sem r FoundInvitationCode
+getInvitationCodeImpl t r = do
+  inv <- Store.lookupInvitation t r
+  maybe (throw UserSubsystemInvalidInvitationCode) (pure . FoundInvitationCode . (.code)) inv
+
+revokeInvitationImpl :: TeamId -> InvitationId -> Sem r ()
+revokeInvitationImpl = undefined
+
+getInvitationByCodeImpl :: InvitationCode -> Sem r Invitation
+getInvitationByCodeImpl = undefined
+
+getInvitationByEmailImpl :: EmailAddress -> Sem r Invitation
+getInvitationByEmailImpl = undefined
+
+checkInvitationsByEmailImpl :: EmailAddress -> Sem r HeadInvitationByEmailResult
+checkInvitationsByEmailImpl = undefined
+
+deleteAllInvitationsForImpl :: TeamId -> Sem r ()
+deleteAllInvitationsForImpl = undefined
 
 -- | Privilege escalation detection (make sure no `RoleMember` user creates a `RoleOwner`).
 --
