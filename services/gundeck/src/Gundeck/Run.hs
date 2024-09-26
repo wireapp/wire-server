@@ -60,6 +60,7 @@ import System.Logger qualified as Log
 import System.Timeout (timeout)
 import UnliftIO.Async qualified as Async
 import Util.Options
+import Wire.API.Notification
 import Wire.API.Routes.Public.Gundeck (GundeckAPI)
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
@@ -102,24 +103,21 @@ run opts = withTracer \tracer -> do
           Log.err logger $ Log.msg (Log.val "RabbitMQ could not connect")
         Just chan -> do
           Log.info logger $ Log.msg (Log.val "setting up RabbitMQ exchanges and queues")
-          declareUserNotificationsExchange chan
-          declareDeadUserNotificationsExchange chan
+          createUserNotificationsExchange chan
+          createDeadUserNotificationsExchange chan
 
-    declareUserNotificationsExchange :: Channel -> IO ()
-    declareUserNotificationsExchange chan = do
-      let eName = "user-notifications"
-      declareExchange chan newExchange {exchangeName = eName, exchangeType = "topic"}
+    createUserNotificationsExchange :: Channel -> IO ()
+    createUserNotificationsExchange chan = do
+      declareExchange chan newExchange {exchangeName = userNotificationExchangeName, exchangeType = "topic"}
 
-    declareDeadUserNotificationsExchange :: Channel -> IO ()
-    declareDeadUserNotificationsExchange chan = do
-      let eName = "dead-user-notifications"
-      declareExchange chan newExchange {exchangeName = eName, exchangeType = "direct"}
+    createDeadUserNotificationsExchange :: Channel -> IO ()
+    createDeadUserNotificationsExchange chan = do
+      declareExchange chan newExchange {exchangeName = userNotificationDlxName, exchangeType = "direct"}
 
-      let qName = "dead-user-notifications"
-      let routingKey = qName
-      let headers = FieldTable $ Map.fromList [("x-dead-letter-exchange", FVString $ encodeUtf8 eName)]
-      void $ declareQueue chan newQueue {queueName = qName, queueHeaders = headers}
-      bindQueue chan qName eName routingKey
+      let routingKey = userNotificationDlqName
+      let headers = FieldTable $ Map.fromList [("x-dead-letter-exchange", FVString $ encodeUtf8 userNotificationDlxName)]
+      void $ declareQueue chan newQueue {queueName = userNotificationDlqName, queueHeaders = headers}
+      bindQueue chan userNotificationDlqName userNotificationDlxName routingKey
 
     middleware :: Env -> IO Middleware
     middleware env = do

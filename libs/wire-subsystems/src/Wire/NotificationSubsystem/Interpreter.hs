@@ -4,6 +4,7 @@ import Bilge (RequestId)
 import Control.Concurrent.Async (Async)
 import Control.Lens (set, (.~))
 import Data.Aeson
+import Data.Id (ClientId, UserId, idToText)
 import Data.List.NonEmpty (nonEmpty)
 import Data.List1 (List1)
 import Data.List1 qualified as List1
@@ -12,6 +13,7 @@ import Data.Range
 import Data.Set qualified as Set
 import Data.Time.Clock.DiffTime
 import Imports
+import Network.AMQP
 import Numeric.Natural (Natural)
 import Polysemy
 import Polysemy.Async (async, sequenceConcurrently)
@@ -20,6 +22,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import System.Logger.Class as Log
+import Wire.API.Notification (userNotificationExchangeName)
 import Wire.API.Push.V2 hiding (Push (..), Recipient, newPush)
 import Wire.API.Push.V2 qualified as V2
 import Wire.API.Team.Member
@@ -168,3 +171,13 @@ pushSlowlyImpl ps =
   for_ ps \p -> do
     delay =<< inputs (diffTimeToFullMicroseconds . slowPushDelay)
     pushImpl [p]
+
+_setUpUserNotificationQueues :: (Member (Embed IO) r) => Channel -> UserId -> ClientId -> Sem r ()
+_setUpUserNotificationQueues chan uid cid = do
+  let routingKeys = [idToText uid, idToText uid <> "." <> idToText cid]
+  liftIO $ createQueue (idToText uid) userNotificationExchangeName routingKeys
+  where
+    createQueue :: Text -> Text -> [Text] -> IO ()
+    createQueue qName eName routingKeys = do
+      void $ declareQueue chan newQueue {queueName = qName}
+      for_ routingKeys $ bindQueue chan qName eName
