@@ -113,8 +113,8 @@ defaultOptions :: Argon2idOptions
 defaultOptions =
   Argon2.Options
     { iterations = 1,
-      memory = 2 ^ (21 :: Int),
-      parallelism = 4,
+      memory = 2 ^ (32 :: Int),
+      parallelism = 8,
       variant = Argon2.Argon2id,
       version = Argon2.Version13
     }
@@ -170,7 +170,7 @@ hashPasswordScrypt password = do
 
 hashPasswordArgon2id :: (MonadIO m) => ByteString -> m Text
 hashPasswordArgon2id pwd = do
-  salt <- newSalt 32
+  salt <- newSalt 16
   pure $ hashPasswordArgon2idWithSalt salt pwd
 
 hashPasswordArgon2idWithSalt :: ByteString -> ByteString -> Text
@@ -279,12 +279,13 @@ parseScryptPasswordHashParams passwordHash = do
 
 hashPasswordWithOptions :: Argon2idOptions -> ByteString -> ByteString -> ByteString
 hashPasswordWithOptions opts password salt =
-  case (Argon2.hash opts password salt 64) of
-    -- CryptoFailed occurs when salt, output or input are too small/big.
-    -- since we control those values ourselves, it should never have a runtime error
-    -- unless we've caused it ourselves.
-    CryptoFailed cErr -> error $ "Impossible error: " <> show cErr
-    CryptoPassed hash -> hash
+  let tagSize = 32
+   in case (Argon2.hash opts password salt tagSize) of
+        -- CryptoFailed occurs when salt, output or input are too small/big.
+        -- since we control those values ourselves, it should never have a runtime error
+        -- unless we've caused it ourselves.
+        CryptoFailed cErr -> error $ "Impossible error: " <> show cErr
+        CryptoPassed hash -> hash
 
 hashPasswordWithParams ::
   ( ByteArrayAccess password,
