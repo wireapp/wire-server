@@ -28,6 +28,7 @@ module Wire.API.Password
     PasswordReqBody (..),
 
     -- * Only for testing
+    genTestPasswords,
     unsafeMkPassword,
     hashPasswordArgon2idWithSalt,
     hashPasswordArgon2idWithOptions,
@@ -113,7 +114,7 @@ defaultOptions :: Argon2idOptions
 defaultOptions =
   Argon2.Options
     { iterations = 1,
-      memory = 2 ^ (32 :: Int),
+      memory = 2 ^ (22 :: Int),
       parallelism = 8,
       variant = Argon2.Argon2id,
       version = Argon2.Version13
@@ -279,11 +280,10 @@ parseScryptPasswordHashParams passwordHash = do
 
 hashPasswordWithOptions :: Argon2idOptions -> ByteString -> ByteString -> ByteString
 hashPasswordWithOptions opts password salt =
-  let tagSize = 32
+  let tagSize = 16
    in case (Argon2.hash opts password salt tagSize) of
         -- CryptoFailed occurs when salt, output or input are too small/big.
         -- since we control those values ourselves, it should never have a runtime error
-        -- unless we've caused it ourselves.
         CryptoFailed cErr -> error $ "Impossible error: " <> show cErr
         CryptoPassed hash -> hash
 
@@ -355,3 +355,12 @@ instance ToSchema PasswordReqBody where
     object "PasswordReqBody" $
       PasswordReqBody
         <$> fromPasswordReqBody .= maybe_ (optField "password" schema)
+
+-------------------------------------------------------------------------------
+-- Generate test passwords, benchmark
+
+genTestPasswords :: IO [(Text, Text)]
+genTestPasswords = replicateM 100 do
+  pwd <- genPassword
+  hash <- mkSafePassword pwd
+  pure (fromPlainTextPassword pwd, fromPassword hash)

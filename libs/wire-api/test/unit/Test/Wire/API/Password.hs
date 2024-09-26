@@ -32,12 +32,10 @@ tests =
       testCase "verify old scrypt password still works" testHashingOldScrypt
     ]
 
--- TODO: Address password hashing being wrong
--- https://wearezeta.atlassian.net/browse/WPB-9746
 testHashPasswordScrypt :: IO ()
 testHashPasswordScrypt = do
   pwd <- genPassword
-  hashed <- mkSafePasswordScrypt pwd
+  hashed <- mkSafePassword pwd
   let (correct, status) = verifyPasswordWithStatus pwd hashed
   assertBool "Password could not be verified" correct
   assertEqual "Password could not be verified" status PasswordStatusOk
