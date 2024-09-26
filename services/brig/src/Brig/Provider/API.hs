@@ -138,7 +138,8 @@ import Wire.VerificationCodeSubsystem
 botAPI ::
   ( Member GalleyAPIAccess r,
     Member (Concurrency 'Unsafe) r,
-    Member DeleteQueue r
+    Member DeleteQueue r,
+    Member AuthenticationSubsystem r
   ) =>
   ServerT BotAPI (Handler r)
 botAPI =
@@ -691,7 +692,15 @@ updateServiceWhitelist uid con tid upd = do
 --------------------------------------------------------------------------------
 -- Bot API
 
-addBot :: (Member GalleyAPIAccess r) => UserId -> ConnId -> ConvId -> Public.AddBot -> (Handler r) Public.AddBotResponse
+addBot ::
+  ( Member GalleyAPIAccess r,
+    Member AuthenticationSubsystem r
+  ) =>
+  UserId ->
+  ConnId ->
+  ConvId ->
+  Public.AddBot ->
+  (Handler r) Public.AddBotResponse
 addBot zuid zcon cid add = do
   guardSecondFactorDisabled (Just zuid)
   zusr <- lift (wrapClient $ User.lookupUser NoPendingInvitations zuid) >>= maybeInvalidUser
@@ -761,7 +770,14 @@ addBot zuid zcon cid add = do
       -- implicitly in the next line.
       pure $ FutureWork @'UnprotectedBot undefined
     lbid <- qualifyLocal (botUserId bid)
-    wrapClientE (User.addClient lbid bcl newClt maxPermClients (Just $ ClientCapabilityList $ Set.singleton Public.ClientSupportsLegalholdImplicitConsent))
+    ( User.addClient
+        lbid
+        bcl
+        newClt
+        maxPermClients
+        ( Just $ ClientCapabilityList $ Set.singleton Public.ClientSupportsLegalholdImplicitConsent
+        )
+      )
       !>> const (StdError $ badGatewayWith "MalformedPrekeys")
 
   -- Add the bot to the conversation

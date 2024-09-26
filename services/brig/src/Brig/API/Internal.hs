@@ -275,7 +275,8 @@ authAPI ::
     Member TinyLog r,
     Member Events r,
     Member UserSubsystem r,
-    Member VerificationCodeSubsystem r
+    Member VerificationCodeSubsystem r,
+    Member AuthenticationSubsystem r
   ) =>
   ServerT BrigIRoutes.AuthAPI (Handler r)
 authAPI =
@@ -425,7 +426,8 @@ addClientInternalH ::
     Member EmailSubsystem r,
     Member Events r,
     Member UserSubsystem r,
-    Member VerificationCodeSubsystem r
+    Member VerificationCodeSubsystem r,
+    Member AuthenticationSubsystem r
   ) =>
   UserId ->
   Maybe Bool ->

@@ -49,6 +49,7 @@ import Wire.API.User.Auth hiding (access)
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
+import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 import Wire.BlockListStore
 import Wire.EmailSubsystem (EmailSubsystem)
 import Wire.Events (Events)
@@ -102,7 +103,8 @@ login ::
     Member Events r,
     Member (Input (Local ())) r,
     Member UserSubsystem r,
-    Member VerificationCodeSubsystem r
+    Member VerificationCodeSubsystem r,
+    Member AuthenticationSubsystem r
   ) =>
   Login ->
   Maybe Bool ->
@@ -161,7 +163,8 @@ listCookies lusr (fold -> labels) =
 removeCookies ::
   ( Member TinyLog r,
     Member PasswordStore r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member AuthenticationSubsystem r
   ) =>
   Local UserId ->
   RemoveCookies ->
@@ -173,7 +176,8 @@ legalHoldLogin ::
   ( Member GalleyAPIAccess r,
     Member TinyLog r,
     Member UserSubsystem r,
-    Member Events r
+    Member Events r,
+    Member AuthenticationSubsystem r
   ) =>
   LegalHoldLogin ->
   Handler r SomeAccess
@@ -184,6 +188,7 @@ legalHoldLogin lhl = do
 
 ssoLogin ::
   ( Member TinyLog r,
+    Member AuthenticationSubsystem r,
     Member UserSubsystem r,
     Member Events r
   ) =>
@@ -201,13 +206,14 @@ getLoginCode _ = throwStd loginCodeNotFound
 reauthenticate ::
   ( Member GalleyAPIAccess r,
     Member VerificationCodeSubsystem r,
+    Member AuthenticationSubsystem r,
     Member UserSubsystem r
   ) =>
   Local UserId ->
   ReAuthUser ->
   Handler r ()
 reauthenticate luid@(tUnqualified -> uid) body = do
-  wrapClientE (User.reauthenticate uid (reAuthPassword body)) !>> reauthError
+  (User.reauthenticate uid (reAuthPassword body)) !>> reauthError
   case reAuthCodeAction body of
     Just action ->
       Auth.verifyCode (reAuthCode body) action luid

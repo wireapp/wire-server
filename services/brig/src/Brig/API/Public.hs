@@ -588,6 +588,7 @@ addClient ::
     Member DeleteQueue r,
     Member NotificationSubsystem r,
     Member EmailSubsystem r,
+    Member AuthenticationSubsystem r,
     Member VerificationCodeSubsystem r,
     Member Events r,
     Member UserSubsystem r
@@ -604,7 +605,9 @@ addClient lusr con new = do
     !>> clientError
 
 deleteClient ::
-  (Member DeleteQueue r) =>
+  ( Member AuthenticationSubsystem r,
+    Member DeleteQueue r
+  ) =>
   UserId ->
   ConnId ->
   ClientId ->

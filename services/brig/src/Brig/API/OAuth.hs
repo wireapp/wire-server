@@ -56,6 +56,7 @@ import Wire.API.Password
 import Wire.API.Routes.Internal.Brig.OAuth qualified as I
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig.OAuth
+import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 import Wire.Error
 import Wire.Sem.Jwk
 import Wire.Sem.Jwk qualified as Jwk
@@ -75,7 +76,12 @@ internalOauthAPI =
 --------------------------------------------------------------------------------
 -- API Public
 
-oauthAPI :: (Member Now r, Member Jwk r) => ServerT OAuthAPI (Handler r)
+oauthAPI ::
+  ( Member Now r,
+    Member Jwk r,
+    Member AuthenticationSubsystem r
+  ) =>
+  ServerT OAuthAPI (Handler r)
 oauthAPI =
   Named @"get-oauth-client" getOAuthClient
     :<|> Named @"create-oauth-auth-code" createNewOAuthAuthorizationCode
@@ -345,17 +351,28 @@ revokeOAuthAccountAccessV6 (tUnqualified -> uid) cid = do
   rts <- lift $ wrapClient $ lookupOAuthRefreshTokens uid
   for_ rts $ \rt -> when (rt.clientId == cid) $ lift $ wrapClient $ deleteOAuthRefreshToken uid rt.refreshTokenId
 
-revokeOAuthAccountAccess :: Local UserId -> OAuthClientId -> PasswordReqBody -> (Handler r) ()
+revokeOAuthAccountAccess ::
+  (Member AuthenticationSubsystem r) =>
+  Local UserId ->
+  OAuthClientId ->
+  PasswordReqBody ->
+  (Handler r) ()
 revokeOAuthAccountAccess luid@(tUnqualified -> uid) cid req = do
-  wrapClientE (reauthenticate uid req.fromPasswordReqBody) !>> toAccessDenied
+  reauthenticate uid req.fromPasswordReqBody !>> toAccessDenied
   revokeOAuthAccountAccessV6 luid cid
   where
     toAccessDenied :: ReAuthError -> HttpError
     toAccessDenied _ = StdError $ errorToWai @'AccessDenied
 
-deleteOAuthRefreshTokenById :: Local UserId -> OAuthClientId -> OAuthRefreshTokenId -> PasswordReqBody -> (Handler r) ()
+deleteOAuthRefreshTokenById ::
+  (Member AuthenticationSubsystem r) =>
+  Local UserId ->
+  OAuthClientId ->
+  OAuthRefreshTokenId ->
+  PasswordReqBody ->
+  (Handler r) ()
 deleteOAuthRefreshTokenById (tUnqualified -> uid) cid tokenId req = do
-  wrapClientE (reauthenticate uid req.fromPasswordReqBody) !>> toAccessDenied
+  reauthenticate uid req.fromPasswordReqBody !>> toAccessDenied
   mInfo <- lift $ wrapClient $ lookupOAuthRefreshTokenInfo tokenId
   case mInfo of
     Nothing -> pure ()
