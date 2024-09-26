@@ -67,10 +67,6 @@ instance S.ToSchema TeamInfo where
         <$> tiData S..= S.field "info" S.schema
         <*> tiMembers S..= S.field "members" (S.array S.schema)
 
-data TeamActivityInfo = TeamActivityInfo
-  { tiData :: TeamData,
-    tiMembers :: [(
-
 data TeamAdminInfo = TeamAdminInfo
   { taData :: TeamData,
     taOwners :: [TeamMemberInfo],

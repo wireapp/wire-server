@@ -241,13 +241,6 @@ type SternAPI =
                :> Get '[JSON] TeamInfo
            )
     :<|> Named
-           "get-team-activity-info"
-           ( Summary "Gets information about last activity of members of a team"
-               :> "teams"
-               :> Capture "tid" TeamId
-               :> Get '[JSON] TeamActivityInfo
-           )
-    :<|> Named
            "get-team-admin-info"
            ( Summary "Gets information about a team's members, owners, and admins"
                :> "teams"

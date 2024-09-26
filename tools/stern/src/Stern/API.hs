@@ -146,7 +146,6 @@ sitemap' =
     :<|> Named @"delete-user-blacklist" deleteFromBlacklist
     :<|> Named @"get-team-info-by-member-email" getTeamInfoByMemberEmail
     :<|> Named @"get-team-info" getTeamInfo
-    :<|> Named @"get-team-activity-info" getTeamActivityInfo
     :<|> Named @"get-team-admin-info" getTeamAdminInfo
     :<|> Named @"get-route-legalhold-config" (mkFeatureGetRoute @LegalholdConfig)
     :<|> Named @"put-route-legalhold-config" (mkFeaturePutRouteTrivialConfigNoTTL @LegalholdConfig)
@@ -303,9 +302,6 @@ getTeamInfoByMemberEmail e = do
 
 getTeamInfo :: TeamId -> Handler TeamInfo
 getTeamInfo = Intra.getTeamInfo
-
-getTeamActivityInfo :: TeamId -> Handler TeamActivityInfo
-getTeamActivityInfo = Intra.getTeamActivityInfo
 
 getTeamAdminInfo :: TeamId -> Handler TeamAdminInfo
 getTeamAdminInfo = fmap toAdminInfo . Intra.getTeamInfo
