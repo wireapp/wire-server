@@ -22,6 +22,7 @@ import Control.Monad.Catch (throwM)
 import Data.Qualified (Local, toLocalUnsafe)
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Imports
+import Network.AMQP
 import Polysemy
 import Polysemy.Async
 import Polysemy.Conc
@@ -60,6 +61,7 @@ import Wire.IndexedUserStore.ElasticSearch
 import Wire.InvitationStore (InvitationStore)
 import Wire.InvitationStore.Cassandra (interpretInvitationStoreToCassandra)
 import Wire.NotificationSubsystem
+import Wire.NotificationSubsystem.Error
 import Wire.NotificationSubsystem.Interpreter (defaultNotificationSubsystemConfig, runNotificationSubsystemGundeck)
 import Wire.ParseException
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
@@ -114,12 +116,14 @@ type BrigLowerLevelEffects =
      PropertySubsystem,
      DeleteQueue,
      Wire.Events.Events,
+     NotificationSubsystem,
      Error UserSubsystemError,
      Error TeamInvitationSubsystemError,
      Error AuthenticationSubsystemError,
      Error Wire.API.Federation.Error.FederationError,
      Error VerificationCodeSubsystemError,
      Error PropertySubsystemError,
+     Error NotificationSubsystemError,
      Error HttpError,
      Wire.FederationAPIAccess.FederationAPIAccess Wire.API.Federation.Client.FederatorClient,
      HashPassword,
@@ -139,7 +143,7 @@ type BrigLowerLevelEffects =
      Input (Local ()),
      Input (Maybe AllowlistEmailDomains),
      Input TeamTemplates,
-     NotificationSubsystem,
+     Input (MVar Channel),
      GundeckAPIAccess,
      FederationConfigStore,
      Jwk,
@@ -245,7 +249,7 @@ runBrigToIO e (AppT ma) = do
               . interpretJwk
               . interpretFederationDomainConfig e.casClient e.settings.federationStrategy (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) e.settings.federationDomainConfigs)
               . runGundeckAPIAccess e.gundeckEndpoint
-              . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig e.requestId)
+              . runInputConst (fromMaybe (error "TODO(leif): make config required") e.rabbitmqChannel)
               . runInputConst (teamTemplatesNoLocale e)
               . runInputConst e.settings.allowlistEmailDomains
               . runInputConst (toLocalUnsafe e.settings.federationDomain ())
@@ -265,12 +269,14 @@ runBrigToIO e (AppT ma) = do
               . runHashPassword
               . interpretFederationAPIAccess federationApiAccessConfig
               . rethrowHttpErrorIO
+              . mapError notificationSubsystemErrorToHttpError
               . mapError propertySubsystemErrorToHttpError
               . mapError verificationCodeSubsystemErrorToHttpError
               . mapError (StdError . federationErrorToWai)
               . mapError authenticationSubsystemErrorToHttpError
               . mapError teamInvitationErrorToHttpError
               . mapError userSubsystemErrorToHttpError
+              . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig e.requestId)
               . runEvents
               . runDeleteQueue e.internalEvents
               . interpretPropertySubsystem propertySubsystemConfig

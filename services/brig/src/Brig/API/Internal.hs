@@ -63,6 +63,7 @@ import Data.Set qualified as Set
 import Data.Text qualified as T
 import Data.Time.Clock.System
 import Imports hiding (head)
+import Network.AMQP (Channel)
 import Network.Wai.Utilities as Utilities
 import Polysemy
 import Polysemy.Error qualified
@@ -144,7 +145,9 @@ servantSitemap ::
     Member PropertySubsystem r,
     Member (Input (Local ())) r,
     Member IndexedUserStore r,
-    Member (Polysemy.Error.Error UserSubsystemError) r
+    Member (Polysemy.Error.Error UserSubsystemError) r,
+    Member (Input TeamTemplates) r,
+    Member (Input (MVar Channel)) r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -196,7 +199,8 @@ accountAPI ::
     Member PropertySubsystem r,
     Member Events r,
     Member PasswordResetCodeStore r,
-    Member InvitationStore r
+    Member InvitationCodeStore r,
+    Member (Input (MVar Channel)) r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
@@ -427,7 +431,8 @@ addClientInternalH ::
     Member Events r,
     Member UserSubsystem r,
     Member VerificationCodeSubsystem r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member (Input (MVar Channel)) r
   ) =>
   UserId ->
   Maybe Bool ->
