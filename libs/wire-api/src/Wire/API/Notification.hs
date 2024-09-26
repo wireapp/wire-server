@@ -35,6 +35,9 @@ module Wire.API.Notification
     queuedHasMore,
     queuedTime,
     GetNotificationsResponse (..),
+    userNotificationExchangeName,
+    userNotificationDlxName,
+    userNotificationDlqName,
   )
 where
 
@@ -166,3 +169,18 @@ instance AsUnion '[Respond 404 "Notification list" QueuedNotificationList, Respo
   fromUnion (S (Z (I xs))) = GetNotificationsSuccess xs
   fromUnion (Z (I xs)) = GetNotificationsWithStatusNotFound xs
   fromUnion (S (S x)) = case x of {}
+
+--------------------------------------------------------------------------------
+-- RabbitMQ exchanges and queues
+
+-- | The name of the RabbitMQ exchange to which user notifications are published.
+userNotificationExchangeName :: Text
+userNotificationExchangeName = "user-notifications"
+
+-- | The name of the RabbitMQ dead letter exchange for user notifications.
+userNotificationDlxName :: Text
+userNotificationDlxName = "dead-user-notifications"
+
+-- | The name of the RabbitMQ queue for dead-lettered user notifications.
+userNotificationDlqName :: Text
+userNotificationDlqName = "dead-user-notifications"

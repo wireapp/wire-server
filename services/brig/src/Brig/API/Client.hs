@@ -222,6 +222,7 @@ addClientWithReAuthPolicy policy luid@(tUnqualified -> u) con new = do
       for_ (userEmail usr) $
         \email ->
           liftSem $ sendNewClientEmail email (userDisplayName usr) clt (userLocale usr)
+  -- TODO(leif): check if client is capable of consuming notifications and set up RabbitMQ
   pure clt
   where
     clientId' = clientIdFromPrekey (unpackLastPrekey $ newClientLastKey new)
@@ -244,7 +245,8 @@ updateClient u c r = do
   for_ (updateClientLabel r) $ lift . Data.updateClientLabel u c . Just
   for_ (updateClientCapabilities r) $ \caps' -> do
     if client.clientCapabilities.fromClientCapabilityList `Set.isSubsetOf` caps'.fromClientCapabilityList
-      then lift . Data.updateClientCapabilities u c . Just $ caps'
+      then -- TODO(leif): check if consumable notifications is added and set up RabbitMQ
+        lift . Data.updateClientCapabilities u c . Just $ caps'
       else throwE ClientCapabilitiesCannotBeRemoved
   let lk = maybeToList (unpackLastPrekey <$> updateClientLastKey r)
   Data.updatePrekeys u c (lk ++ updateClientPrekeys r) !>> ClientDataError
