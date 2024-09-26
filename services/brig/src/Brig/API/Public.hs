@@ -86,6 +86,7 @@ import Data.Time.Clock
 import Data.ZAuth.Token qualified as ZAuth
 import FileEmbedLzma
 import Imports hiding (head)
+import Network.AMQP
 import Network.Socket (PortNumber)
 import Network.Wai.Utilities (CacheControl (..), (!>>))
 import Network.Wai.Utilities qualified as Utilities
@@ -303,7 +304,9 @@ servantSitemap ::
     Member (Concurrency 'Unsafe) r,
     Member BlockListStore r,
     Member (ConnectionStore InternalPaging) r,
-    Member IndexedUserStore r
+    Member IndexedUserStore r,
+    Member (ConnectionStore InternalPaging) r,
+    Member (Input (MVar Channel)) r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -392,7 +395,7 @@ servantSitemap =
     userClientAPI =
       Named @"add-client-v6" (callsFed (exposeAnnotations addClient))
         :<|> Named @"add-client" (callsFed (exposeAnnotations addClient))
-        :<|> Named @"update-client" updateClient
+        :<|> Named @"update-client" API.updateClient
         :<|> Named @"delete-client" deleteClient
         :<|> Named @"list-clients-v6" listClients
         :<|> Named @"list-clients" listClients
@@ -591,7 +594,8 @@ addClient ::
     Member AuthenticationSubsystem r,
     Member VerificationCodeSubsystem r,
     Member Events r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member (Input (MVar Channel)) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -615,9 +619,6 @@ deleteClient ::
   (Handler r) ()
 deleteClient usr con clt body =
   API.rmClient usr con clt (Public.rmPassword body) !>> clientError
-
-updateClient :: UserId -> ClientId -> Public.UpdateClient -> (Handler r) ()
-updateClient usr clt upd = wrapClientE (API.updateClient usr clt upd) !>> clientError
 
 listClients :: UserId -> (Handler r) [Public.Client]
 listClients zusr =

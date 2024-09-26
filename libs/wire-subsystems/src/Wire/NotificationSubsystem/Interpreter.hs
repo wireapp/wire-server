@@ -4,6 +4,7 @@ import Bilge (RequestId)
 import Control.Concurrent.Async (Async)
 import Control.Lens (set, (.~))
 import Data.Aeson
+import Data.ByteString.Conversion
 import Data.Id (ClientId, UserId, idToText)
 import Data.List.NonEmpty (nonEmpty)
 import Data.List1 (List1)
@@ -11,6 +12,7 @@ import Data.List1 qualified as List1
 import Data.Proxy
 import Data.Range
 import Data.Set qualified as Set
+import Data.Text.Encoding
 import Data.Time.Clock.DiffTime
 import Imports
 import Network.AMQP
@@ -22,6 +24,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import System.Logger.Class as Log
+import System.Timeout (timeout)
 import Wire.API.Notification (userNotificationExchangeName)
 import Wire.API.Push.V2 hiding (Push (..), Recipient, newPush)
 import Wire.API.Push.V2 qualified as V2
@@ -29,6 +32,7 @@ import Wire.API.Team.Member
 import Wire.GundeckAPIAccess (GundeckAPIAccess)
 import Wire.GundeckAPIAccess qualified as GundeckAPIAccess
 import Wire.NotificationSubsystem
+import Wire.NotificationSubsystem.Error
 import Wire.Sem.Delay
 
 -- | We interpret this using 'GundeckAPIAccess' so we can mock it out for testing.
@@ -37,7 +41,9 @@ runNotificationSubsystemGundeck ::
     Member P.Async r,
     Member Delay r,
     Member (Final IO) r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member (Embed IO) r,
+    Member (Error NotificationSubsystemError) r
   ) =>
   NotificationSubsystemConfig ->
   Sem (NotificationSubsystem : r) a ->
@@ -49,6 +55,7 @@ runNotificationSubsystemGundeck cfg = interpret $ \case
   CleanupUser uid -> GundeckAPIAccess.userDeleted uid
   UnregisterPushClient uid cid -> GundeckAPIAccess.unregisterPushClient uid cid
   GetPushTokens uid -> GundeckAPIAccess.getPushTokens uid
+  SetUpUserNotificationQueues chan uid cid -> setUpUserNotificationQueuesImpl chan uid cid
 
 data NotificationSubsystemConfig = NotificationSubsystemConfig
   { fanoutLimit :: Range 1 HardTruncationLimit Int32,
@@ -172,12 +179,27 @@ pushSlowlyImpl ps =
     delay =<< inputs (diffTimeToFullMicroseconds . slowPushDelay)
     pushImpl [p]
 
-_setUpUserNotificationQueues :: (Member (Embed IO) r) => Channel -> UserId -> ClientId -> Sem r ()
-_setUpUserNotificationQueues chan uid cid = do
-  let routingKeys = [idToText uid, idToText uid <> "." <> idToText cid]
-  liftIO $ createQueue (idToText uid) userNotificationExchangeName routingKeys
-  where
-    createQueue :: Text -> Text -> [Text] -> IO ()
-    createQueue qName eName routingKeys = do
+setUpUserNotificationQueuesImpl ::
+  ( Member (Embed IO) r,
+    Member P.TinyLog r,
+    Member (Error NotificationSubsystemError) r
+  ) =>
+  MVar Channel ->
+  UserId ->
+  ClientId ->
+  Sem r ()
+setUpUserNotificationQueuesImpl chanMVar uid cid = do
+  let qName = idToText uid
+  let cidText = decodeUtf8 $ toByteString' cid
+  let routingKeys =
+        [ qName,
+          qName <> "." <> cidText
+        ]
+  mChan <- liftIO $ timeout 1_000_000 $ readMVar chanMVar
+  case mChan of
+    Just chan -> liftIO $ do
       void $ declareQueue chan newQueue {queueName = qName}
-      for_ routingKeys $ bindQueue chan qName eName
+      for_ routingKeys $ bindQueue chan qName userNotificationExchangeName
+    Nothing -> do
+      P.err $ Log.msg (Log.val "RabbitMQ connection error")
+      throw NotificationSubsystemConnectionError
