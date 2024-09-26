@@ -1,11 +1,16 @@
-# Phone users
+# Team info
 
-This program scans brig's users table and determines the number of users that can only login by phone/sms.
+This program scans brig's and galley's cassandra for members of a team, their clients, and those clients' last access times.
+
+Useful for finding out which accounts you don't want to pay license fees any more.
 
 Example usage:
 
 ```shell
-team-info --brig-cassandra-keyspace brig --galley-cassandra-keyspace galley -l 100000
+team-info \
+  --brig-cassandra-port 9048 --brig-cassandra-keyspace brig \
+  --galley-cassandra-port 9049 --galley-cassandra-keyspace galley \
+  --team-id=904912aa-7c10-11ef-9c85-8bfd758593f6
 ```
 
 Display usage:
@@ -18,12 +23,11 @@ team-info -h
 team-info
 
 Usage: team-info [--brig-cassandra-host HOST] [--brig-cassandra-port PORT]
-                   [--brig-cassandra-keyspace STRING]
-                   [--galley-cassandra-host HOST] [--galley-cassandra-port PORT]
-                   [--galley-cassandra-keyspace STRING] [-l|--limit INT]
+                 [--brig-cassandra-keyspace STRING]
+                 [--galley-cassandra-host HOST] [--galley-cassandra-port PORT]
+                 [--galley-cassandra-keyspace STRING] (-t|--team-id ID)
 
-  This program scans brig's users table and determines the number of users that
-  can only login by phone/sms
+  get team info
 
 Available options:
   -h,--help                Show this help text
@@ -40,5 +44,5 @@ Available options:
   --galley-cassandra-keyspace STRING
                            Cassandra Keyspace for galley
                            (default: "galley_test")
-  -l,--limit INT           Limit the number of users to process
+  -t,--team-id ID          Team ID
 ```
