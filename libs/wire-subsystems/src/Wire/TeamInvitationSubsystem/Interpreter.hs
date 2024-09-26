@@ -61,6 +61,7 @@ runTeamInvitationSubsystem ::
 runTeamInvitationSubsystem cfg = interpret $ \case
   InviteUser luid tid request -> runInputConst cfg $ inviteUserImpl luid tid request
   AcceptInvitation uid invitationId invitationCode -> acceptInvitationImpl uid invitationId invitationCode
+  GetInvitationCode tid iid -> getInvitationCodeImpl tid iid
   RevokeInvitation tid invitationId -> revokeInvitationImpl tid invitationId
   GetInvitationByCode invitationCode -> getInvitationByCodeImpl invitationCode
   GetInvitationByEmail email -> getInvitationByEmailImpl email
@@ -249,6 +250,15 @@ logInvitationRequest context action =
 
 acceptInvitationImpl :: UserId -> InvitationId -> InvitationCode -> Sem r ()
 acceptInvitationImpl = undefined
+
+getInvitationCodeImpl ::
+  (Member Store.InvitationCodeStore r, Member (Error UserSubsystemError) r) =>
+  TeamId ->
+  InvitationId ->
+  Sem r FoundInvitationCode
+getInvitationCodeImpl t r = do
+  inv <- Store.lookupInvitation t r
+  maybe (throw UserSubsystemInvalidInvitationCode) (pure . FoundInvitationCode . (.code)) inv
 
 revokeInvitationImpl :: TeamId -> InvitationId -> Sem r ()
 revokeInvitationImpl = undefined

@@ -14,6 +14,7 @@ import Wire.API.User.EmailAddress
 data TeamInvitationSubsystem m a where
   InviteUser :: Local UserId -> TeamId -> InvitationRequest -> TeamInvitationSubsystem m (Invitation, InvitationLocation)
   AcceptInvitation :: UserId -> InvitationId -> InvitationCode -> TeamInvitationSubsystem m ()
+  GetInvitationCode :: TeamId -> InvitationId -> TeamInvitationSubsystem m InvitationCode
   RevokeInvitation :: TeamId -> InvitationId -> TeamInvitationSubsystem m ()
   GetInvitationByCode :: InvitationCode -> TeamInvitationSubsystem m Invitation
   GetInvitationByEmail :: EmailAddress -> TeamInvitationSubsystem m Invitation

@@ -18,7 +18,6 @@
 module Brig.Team.API
   ( servantAPI,
     getInvitationByEmail,
-    getInvitationCode,
     suspendTeam,
     unsuspendTeam,
     createInvitationViaScim,
@@ -116,17 +115,6 @@ teamSizePublic uid tid = do
   -- limit this to team admins to reduce risk of involuntary DOS attacks
   ensurePermissions uid tid [AddTeamMember]
   getTeamSize tid
-
-getInvitationCode ::
-  ( Member Store.InvitationCodeStore r,
-    Member (Error UserSubsystemError) r
-  ) =>
-  TeamId ->
-  InvitationId ->
-  Sem r FoundInvitationCode
-getInvitationCode t r = do
-  inv <- Store.lookupInvitation t r
-  maybe (throw UserSubsystemInvalidInvitationCode) (pure . FoundInvitationCode . (.code)) inv
 
 data CreateInvitationInviter = CreateInvitationInviter
   { inviterUid :: UserId,
