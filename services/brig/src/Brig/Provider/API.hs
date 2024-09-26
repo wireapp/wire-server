@@ -295,7 +295,7 @@ login l = do
   pid <-
     wrapClientE (DB.lookupKey (mkEmailKey (providerLoginEmail l)))
       >>= maybeBadCredentials
-  unlessM (lift . liftSem $ Authentication.verifyProviderPassword pid l.providerLoginPassword) do
+  unlessM (fst <$> (lift . liftSem $ Authentication.verifyProviderPassword pid l.providerLoginPassword)) do
     throwStd (errorToWai @E.BadCredentials)
   token <- ZAuth.newProviderToken pid
   s <- asks (.settings)
@@ -326,7 +326,7 @@ completePasswordReset (Public.CompletePasswordReset key val newpwd) = do
   case Id <$> code.codeAccount of
     Nothing -> throwStd (errorToWai @E.InvalidPasswordResetCode)
     Just pid -> do
-      whenM (lift . liftSem $ Authentication.verifyProviderPassword pid newpwd) do
+      whenM (fst <$> (lift . liftSem $ Authentication.verifyProviderPassword pid newpwd)) do
         throwStd (errorToWai @E.ResetPasswordMustDiffer)
       wrapClientE $ do
         DB.updateAccountPassword pid newpwd
@@ -383,9 +383,9 @@ updateAccountPassword ::
   (Handler r) ()
 updateAccountPassword pid upd = do
   guardSecondFactorDisabled Nothing
-  unlessM (lift . liftSem $ Authentication.verifyProviderPassword pid upd.oldPassword) do
+  unlessM (fst <$> (lift . liftSem $ Authentication.verifyProviderPassword pid upd.oldPassword)) do
     throwStd (errorToWai @E.BadCredentials)
-  whenM (lift . liftSem $ Authentication.verifyProviderPassword pid upd.newPassword) do
+  whenM (fst <$> (lift . liftSem $ Authentication.verifyProviderPassword pid upd.newPassword)) do
     throwStd (errorToWai @E.ResetPasswordMustDiffer)
   wrapClientE $ DB.updateAccountPassword pid (newPassword upd)
 
@@ -468,7 +468,7 @@ updateServiceConn ::
   Handler r ()
 updateServiceConn pid sid upd = do
   guardSecondFactorDisabled Nothing
-  unlessM (lift . liftSem $ Authentication.verifyProviderPassword pid upd.updateServiceConnPassword) $
+  unlessM (fst <$> (lift . liftSem $ Authentication.verifyProviderPassword pid upd.updateServiceConnPassword)) $
     throwStd (errorToWai @E.BadCredentials)
   scon <- wrapClientE (DB.lookupServiceConn pid sid) >>= maybeServiceNotFound
   svc <- wrapClientE (DB.lookupServiceProfile pid sid) >>= maybeServiceNotFound
@@ -517,7 +517,7 @@ deleteService ::
   (Handler r) ()
 deleteService pid sid del = do
   guardSecondFactorDisabled Nothing
-  unlessM (lift . liftSem $ Authentication.verifyProviderPassword pid del.deleteServicePassword) do
+  unlessM (fst <$> (lift . liftSem $ Authentication.verifyProviderPassword pid del.deleteServicePassword)) do
     throwStd (errorToWai @E.BadCredentials)
   _ <- wrapClientE (DB.lookupService pid sid) >>= maybeServiceNotFound
   -- Disable the service
@@ -561,7 +561,7 @@ deleteAccount pid del = do
   guardSecondFactorDisabled Nothing
   prov <- wrapClientE (DB.lookupAccount pid) >>= maybeInvalidProvider
   -- We don't care about pwd update status (scrypt, argon2id etc) when deleting things
-  unlessM (lift . liftSem $ Authentication.verifyProviderPassword pid del.deleteProviderPassword) do
+  unlessM (fst <$> (lift . liftSem $ Authentication.verifyProviderPassword pid del.deleteProviderPassword)) do
     throwStd (errorToWai @E.BadCredentials)
   svcs <- wrapClientE $ DB.listServices pid
   forM_ svcs $ \svc -> do

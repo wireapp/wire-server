@@ -23,6 +23,7 @@ import Data.Misc
 import Data.Qualified
 import Imports
 import Polysemy
+import Wire.API.Password (Password, PasswordStatus)
 import Wire.API.User
 import Wire.API.User.Password (PasswordResetCode, PasswordResetIdentity)
 import Wire.UserKeyStore
@@ -31,17 +32,10 @@ data AuthenticationSubsystem m a where
   VerifyPasswordE :: Local UserId -> PlainTextPassword6 -> AuthenticationSubsystem m ()
   CreatePasswordResetCode :: EmailKey -> AuthenticationSubsystem m ()
   ResetPassword :: PasswordResetIdentity -> PasswordResetCode -> PlainTextPassword8 -> AuthenticationSubsystem m ()
-  VerifyPassword :: UserId -> PlainTextPassword6 -> AuthenticationSubsystem m Bool
+  VerifyPassword :: PlainTextPassword6 -> Password -> AuthenticationSubsystem m (Bool, PasswordStatus)
+  VerifyUserPassword :: UserId -> PlainTextPassword6 -> AuthenticationSubsystem r (Bool, PasswordStatus)
+  VerifyProviderPassword :: ProviderId -> PlainTextPassword6 -> AuthenticationSubsystem r (Bool, PasswordStatus)
   -- For testing
   InternalLookupPasswordResetCode :: EmailKey -> AuthenticationSubsystem m (Maybe PasswordResetPair)
 
 makeSem ''AuthenticationSubsystem
-
-verifyProviderPassword ::
-  (Member AuthenticationSubsystem r) =>
-  ProviderId ->
-  PlainTextPassword6 ->
-  Sem r Bool
-verifyProviderPassword pid pwd =
-  let uid = Id . toUUID $ pid
-   in verifyPassword uid pwd

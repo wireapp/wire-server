@@ -74,7 +74,9 @@ interpretAuthenticationSubsystem userSubsystemInterpreter =
       VerifyPasswordE luid plaintext -> verifyPasswordEImpl luid plaintext
       CreatePasswordResetCode userKey -> createPasswordResetCodeImpl userKey
       ResetPassword ident resetCode newPassword -> resetPasswordImpl ident resetCode newPassword
-      VerifyPassword uid plaintext -> verifyPasswordImpl uid plaintext
+      VerifyPassword plaintext pwd -> verifyPasswordImpl plaintext pwd
+      VerifyUserPassword uid plaintext -> verifyUserPasswordImpl uid plaintext
+      VerifyProviderPassword pid plaintext -> verifyProviderPasswordImpl pid plaintext
       -- Testing
       InternalLookupPasswordResetCode userKey -> internalLookupPasswordResetCodeImpl userKey
 
@@ -262,18 +264,32 @@ resetPasswordImpl ident code pw = do
         Nothing -> pure Nothing
 
 verifyPasswordImpl ::
-  ( Member (Error AuthenticationSubsystemError) r,
-    Member PasswordStore r
-  ) =>
+  PlainTextPassword6 ->
+  Password ->
+  Sem r (Bool, PasswordStatus)
+verifyPasswordImpl plaintext password = do
+  pure $ Password.verifyPasswordWithStatus plaintext password
+
+verifyProviderPasswordImpl ::
+  (Member PasswordStore r, Member (Error AuthenticationSubsystemError) r) =>
+  ProviderId ->
+  PlainTextPassword6 ->
+  Sem r (Bool, PasswordStatus)
+verifyProviderPasswordImpl pid pwd =
+  let uid = Id . toUUID $ pid
+   in verifyUserPasswordImpl uid pwd
+
+verifyUserPasswordImpl ::
+  (Member PasswordStore r, Member (Error AuthenticationSubsystemError) r) =>
   UserId ->
   PlainTextPassword6 ->
-  Sem r Bool
-verifyPasswordImpl uid plaintext = do
+  Sem r (Bool, PasswordStatus)
+verifyUserPasswordImpl uid plaintext = do
   password <-
     -- We type-erase uid here, as this could be a provider or bot id.
     PasswordStore.lookupHashedPassword uid
-      >>= maybe (throw AuthenticationSubsystemMissingAuth) pure
-  pure $ Password.verifyPassword plaintext password
+      >>= maybe (throw AuthenticationSubsystemBadCredentials) pure
+  verifyPasswordImpl plaintext password
 
 verifyPasswordEImpl ::
   ( Member PasswordStore r,
@@ -283,5 +299,5 @@ verifyPasswordEImpl ::
   PlainTextPassword6 ->
   Sem r ()
 verifyPasswordEImpl (tUnqualified -> uid) password = do
-  unlessM (verifyPasswordImpl uid password) do
+  unlessM (fst <$> verifyUserPasswordImpl uid password) do
     throw AuthenticationSubsystemBadCredentials
