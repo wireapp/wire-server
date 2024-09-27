@@ -101,6 +101,7 @@ import Wire.API.Error
 import Wire.API.Team.Feature
 import Wire.GundeckAPIAccess
 import Wire.NotificationSubsystem
+import Wire.NotificationSubsystem.Error
 import Wire.Rpc
 import Wire.Sem.Paging.Cassandra
 import Wire.Sem.Random
@@ -110,6 +111,7 @@ type GalleyEffects1 =
   '[ BrigAccess,
      SparAccess,
      NotificationSubsystem,
+     Error NotificationSubsystemError,
      GundeckAPIAccess,
      Rpc,
      ExternalAccess,
