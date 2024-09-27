@@ -23,28 +23,18 @@ where
 
 import Cassandra qualified
 import Control.Lens (view)
-import Data.Aeson (eitherDecode)
-import Data.CommaSeparatedList
 import Data.Id
-import Data.Metrics.Servant
-import Data.Typeable
 import Gundeck.Client qualified as Client
 import Gundeck.Monad
 import Gundeck.Presence qualified as Presence
 import Gundeck.Push qualified as Push
 import Gundeck.Push.Data qualified as PushTok
 import Gundeck.Push.Native.Types qualified as PushTok
-import Gundeck.Types.Presence as GD
 import Gundeck.Types.Push.V2
 import Imports
-import Network.Wai (lazyRequestBody)
 import Servant
-import Servant.Server.Internal.Delayed
-import Servant.Server.Internal.DelayedIO
-import Servant.Server.Internal.ErrorFormatter
 import Wire.API.Push.Token qualified as PushTok
 import Wire.API.Routes.Internal.Gundeck
-import Wire.API.Routes.Public
 
 servantSitemap :: ServerT GundeckInternalAPI Gundeck
 servantSitemap =
