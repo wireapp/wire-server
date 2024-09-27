@@ -306,4 +306,4 @@ type instance MapError 'UserAlreadyInATeam = 'StaticError 403 "user-already-in-a
 
 type instance MapError 'MLSServicesNotAllowed = 'StaticError 409 "mls-services-not-allowed" "Services not allowed in MLS"
 
-type instance MapError 'NotificationQueueConnectionError = 'StaticError 500 "notification-queue-connection-error" "Error connecting to the notification queue"
+type instance MapError 'NotificationQueueConnectionError = 'StaticError 500 "internal-server-error" "Internal server error"
