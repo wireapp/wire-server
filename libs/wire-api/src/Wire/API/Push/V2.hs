@@ -53,12 +53,15 @@ module Wire.API.Push.V2
   )
 where
 
-import Control.Lens (makeLenses)
+import Control.Lens (makeLenses, (?~))
 import Data.Aeson (FromJSON (..), Object, ToJSON (..))
+import Data.Aeson qualified as A
+import Data.Aeson.Types qualified as A
 import Data.Id
 import Data.Json.Util
 import Data.List1
 import Data.List1 qualified as List1
+import Data.OpenApi qualified as S
 import Data.Range
 import Data.Schema
 import Data.Set qualified as Set
@@ -79,17 +82,15 @@ data Route
     RouteDirect
   deriving (Eq, Ord, Enum, Bounded, Show, Generic)
   deriving (Arbitrary) via GenericUniform Route
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema Route)
 
-instance ToSchema Route
-
--- instance FromJSON Route where
---   parseJSON (String "any") = pure RouteAny
---   parseJSON (String "direct") = pure RouteDirect
---   parseJSON x = fail $ "Invalid routing: " ++ show (encode x)
---
--- instance ToJSON Route where
---   toJSON RouteAny = String "any"
---   toJSON RouteDirect = String "direct"
+instance ToSchema Route where
+  schema =
+    enum @Text "Route" $
+      mconcat
+        [ element "any" RouteAny,
+          element "direct" RouteDirect
+        ]
 
 -----------------------------------------------------------------------------
 -- Recipient
@@ -100,6 +101,7 @@ data Recipient = Recipient
     _recipientClients :: !RecipientClients
   }
   deriving (Show, Eq, Ord, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema Recipient)
 
 data RecipientClients
   = -- | All clients of some user
@@ -108,6 +110,7 @@ data RecipientClients
     RecipientClientsSome (List1 ClientId)
   deriving (Eq, Show, Ord, Generic)
   deriving (Arbitrary) via GenericUniform RecipientClients
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema RecipientClients)
 
 instance Semigroup RecipientClients where
   RecipientClientsAll <> _ = RecipientClientsAll
@@ -115,45 +118,39 @@ instance Semigroup RecipientClients where
   RecipientClientsSome cs1 <> RecipientClientsSome cs2 =
     RecipientClientsSome (cs1 <> cs2)
 
+instance ToSchema Recipient where
+  schema =
+    object "Recipient" $
+      Recipient
+        <$> _recipientId .= field "user_id" schema
+        <*> _recipientRoute .= field "route" schema
+        <*> _recipientClients .= field "clients" schema
+
+instance ToSchema RecipientClients where
+  schema = mkSchema d i o
+    where
+      d :: NamedSwaggerDoc
+      d =
+        swaggerDoc @[ClientId]
+          & (S.schema . S.type_ ?~ S.OpenApiArray)
+          & (S.schema . S.description ?~ "List of clientIds. Empty means `all clients`.")
+
+      i :: A.Value -> A.Parser RecipientClients
+      i v =
+        parseJSON @[ClientId] v >>= \case
+          [] -> pure RecipientClientsAll
+          c : cs -> pure (RecipientClientsSome (list1 c cs))
+
+      o :: RecipientClients -> Maybe A.Value
+      o =
+        pure . toJSON . \case
+          RecipientClientsSome cs -> toList cs
+          RecipientClientsAll -> []
+
 makeLenses ''Recipient
 
 recipient :: UserId -> Route -> Recipient
 recipient u r = Recipient u r RecipientClientsAll
-
-instance ToSchema Recipient
-
--- instance FromJSON Recipient where
---   parseJSON = withObject "Recipient" $ \p ->
---     Recipient
---       <$> p .: "user_id"
---       <*> p .: "route"
---       <*> p .:? "clients" .!= RecipientClientsAll
---
--- instance ToJSON Recipient where
---   toJSON (Recipient u r c) =
---     object $
---       "user_id"
---         .= u
---         # "route"
---         .= r
---         # "clients"
---         .= c
---         # []
-
-instance ToSchema RecipientClients
-
--- "All clients" is encoded in the API as an empty list.
--- instance FromJSON RecipientClients where
---   parseJSON x =
---     parseJSON @[ClientId] x >>= \case
---       [] -> pure RecipientClientsAll
---       c : cs -> pure (RecipientClientsSome (list1 c cs))
---
--- instance ToJSON RecipientClients where
---   toJSON =
---     toJSON . \case
---       RecipientClientsAll -> []
---       RecipientClientsSome cs -> toList cs
 
 -----------------------------------------------------------------------------
 -- ApsData
@@ -161,8 +158,32 @@ instance ToSchema RecipientClients
 newtype ApsSound = ApsSound {fromSound :: Text}
   deriving (Eq, Show, ToJSON, FromJSON, Arbitrary)
 
+instance ToSchema ApsSound where
+  schema =
+    mkSchema d i o
+    where
+      d =
+        swaggerDoc @Text
+          & (S.schema . S.type_ ?~ S.OpenApiString)
+          & (S.schema . S.description ?~ "ApsSound")
+
+      i = A.withText "ApsSound" (pure . ApsSound)
+      o = pure . A.String . fromSound
+
 newtype ApsLocKey = ApsLocKey {fromLocKey :: Text}
   deriving (Eq, Show, ToJSON, FromJSON, Arbitrary)
+
+instance ToSchema ApsLocKey where
+  schema =
+    mkSchema d i o
+    where
+      d =
+        swaggerDoc @Text
+          & (S.schema . S.type_ ?~ S.OpenApiString)
+          & (S.schema . S.description ?~ "ApsLocKey")
+
+      i = A.withText "ApsLocKey" (pure . ApsLocKey)
+      o = pure . A.String . fromLocKey
 
 data ApsData = ApsData
   { _apsLocKey :: !ApsLocKey,
@@ -172,34 +193,23 @@ data ApsData = ApsData
   }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via GenericUniform ApsData
-
-makeLenses ''ApsData
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema ApsData)
 
 apsData :: ApsLocKey -> [Text] -> ApsData
 apsData lk la = ApsData lk la Nothing True
 
-instance ToSchema ApsData
+instance ToSchema ApsData where
+  schema =
+    object "ApsData" $
+      ApsData
+        <$> _apsLocKey .= field "loc_key" schema
+        <*> withDefault "loc_args" _apsLocArgs (array schema) []
+        <*> _apsSound .= maybe_ (optField "sound" schema)
+        <*> withDefault "badge" _apsBadge schema True
+    where
+      withDefault fn f s def = ((Just . f) .= maybe_ (optField fn s)) <&> maybe def id
 
--- instance ToJSON ApsData where
---   toJSON (ApsData k a s b) =
---     object $
---       "loc_key"
---         .= k
---         # "loc_args"
---         .= a
---         # "sound"
---         .= s
---         # "badge"
---         .= b
---         # []
---
--- instance FromJSON ApsData where
---   parseJSON = withObject "ApsData" $ \o ->
---     ApsData
---       <$> o .: "loc_key"
---       <*> o .:? "loc_args" .!= []
---       <*> o .:? "sound"
---       <*> o .:? "badge" .!= True
+makeLenses ''ApsData
 
 -----------------------------------------------------------------------------
 -- Push
@@ -244,8 +254,7 @@ data Push = Push
     _pushPayload :: !(List1 Object)
   }
   deriving (Eq, Show)
-
-makeLenses ''Push
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema Push)
 
 newPush :: Maybe UserId -> Range 1 1024 (Set Recipient) -> List1 Object -> Push
 newPush from to pload =
@@ -269,7 +278,7 @@ instance ToSchema Push where
   schema =
     object "Push" $
       Push
-        <$> _pushRecipients .= field "recipients" (set schema)
+        <$> (fromRange . _pushRecipients) .= field "recipients" (rangedSchema (set schema))
         <*> _pushOrigin .= maybe_ (optField "origin" schema)
         <*> (ifNot Set.null . _pushConnections)
           .= maybe_ (fmap (fromMaybe mempty) (optField "connections" (set schema)))
@@ -288,43 +297,4 @@ instance ToSchema Push where
     where
       ifNot f a = if f a then Nothing else Just a
 
--- instance FromJSON Push where
---   parseJSON = withObject "Push" $ \p ->
---     Push
---       <$> p .: "recipients"
---       <*> p .:? "origin"
---       <*> p .:? "connections" .!= Set.empty
---       <*> p .:? "origin_connection"
---       <*> p .:? "transient" .!= False
---       <*> p .:? "native_include_origin" .!= True
---       <*> p .:? "native_encrypt" .!= True
---       <*> p .:? "native_aps"
---       <*> p .:? "native_priority" .!= HighPriority
---       <*> p .: "payload"
---
--- instance ToJSON Push where
---   toJSON p =
---     object $
---       "recipients"
---         .= _pushRecipients p
---         # "origin"
---         .= _pushOrigin p
---         # "connections"
---         .= ifNot Set.null (_pushConnections p)
---         # "origin_connection"
---         .= _pushOriginConnection p
---         # "transient"
---         .= ifNot not (_pushTransient p)
---         # "native_include_origin"
---         .= ifNot id (_pushNativeIncludeOrigin p)
---         # "native_encrypt"
---         .= ifNot id (_pushNativeEncrypt p)
---         # "native_aps"
---         .= _pushNativeAps p
---         # "native_priority"
---         .= ifNot (== HighPriority) (_pushNativePriority p)
---         # "payload"
---         .= _pushPayload p
---         # []
---     where
---       ifNot f a = if f a then Nothing else Just a
+makeLenses ''Push
