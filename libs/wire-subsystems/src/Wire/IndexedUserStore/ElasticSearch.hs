@@ -67,7 +67,7 @@ getTeamSizeImpl ::
 getTeamSizeImpl cfg tid = do
   let indexName = cfg.conn.indexName
   countResEither <- embed $ ES.runBH cfg.conn.env $ ES.countByIndex indexName (ES.CountQuery query)
-  countRes <- either (liftIO . throwIO . IndexLookupError) pure countResEither
+  countRes <- either (liftIO . throwIO . IndexLookupError . Right) pure countResEither
   pure . TeamSize $ ES.crCount countRes
   where
     query =
