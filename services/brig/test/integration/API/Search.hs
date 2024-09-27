@@ -1,6 +1,8 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE QuasiQuotes #-}
+-- TODO: Open ticket about the supposedly wrong deprecation.
+{-# OPTIONS_GHC -Wno-deprecations #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
@@ -49,6 +51,7 @@ import Data.String.Conversions
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Database.Bloodhound qualified as ES
+import Database.Bloodhound.Common.Requests qualified as ESR
 import Federation.Util
 import Imports
 import Network.HTTP.ReverseProxy (waiProxyTo)
@@ -611,9 +614,10 @@ testSearchOtherDomain opts brig = do
 testMigrationToNewIndex :: (TestConstraints m, MonadUnliftIO m) => Opt.Opts -> Brig -> m ()
 testMigrationToNewIndex opts brig = do
   withOldESProxy opts $ \oldESUrl oldESIndex -> do
+    oldIndexName :: ES.IndexName <- either (\v -> fail ("Invalid index name" ++ Text.unpack v)) pure $ ES.mkIndexName oldESIndex
     let optsOldIndex =
           opts
-            & Opt.elasticsearchLens . Opt.indexLens .~ (ES.IndexName oldESIndex)
+            & Opt.elasticsearchLens . Opt.indexLens .~ oldIndexName
             & Opt.elasticsearchLens . Opt.urlLens .~ (ES.Server oldESUrl)
     -- Phase 1: Using old index only
     (phase1NonTeamUser, teamOwner, phase1TeamUser1, phase1TeamUser2, tid) <- withSettingsOverrides optsOldIndex $ do
@@ -653,8 +657,8 @@ testMigrationToNewIndex opts brig = do
 
     -- Run Migrations
     let newIndexName = opts ^. Opt.elasticsearchLens . Opt.indexLens
-    taskNodeId <- assertRight =<< runBH opts (ES.reindexAsync $ ES.mkReindexRequest (ES.IndexName oldESIndex) newIndexName)
-    runBH opts $ waitForTaskToComplete @ES.ReindexResponse taskNodeId
+    taskNodeId <- assertRight =<< runBH opts (ES.reindexAsync $ ES.mkReindexRequest oldIndexName newIndexName)
+    void $ runBH opts $ waitForTaskToComplete @ES.ReindexResponse taskNodeId
 
     -- Phase 3: Using old index for search, writing to both indices, migrations have run
     refreshIndex brig
@@ -690,14 +694,15 @@ testMigrationToNewIndex opts brig = do
 
 withOldESProxy :: (TestConstraints m, MonadUnliftIO m, HasCallStack) => Opt.Opts -> (Text -> Text -> m a) -> m a
 withOldESProxy opts f = do
-  indexName <- randomHandle
+  indexNameText <- randomHandle
+  indexName <- either (\v -> fail ("Invalid index name " ++ Text.unpack v)) pure $ ES.mkIndexName indexNameText
   createIndexWithMapping opts indexName oldMapping
   mgr <- liftIO $ initHttpManagerWithTLSConfig opts.elasticsearch.insecureSkipVerifyTls opts.elasticsearch.caCert
   (proxyPort, sock) <- liftIO Warp.openFreePort
   bracket
-    (async $ liftIO $ Warp.runSettingsSocket Warp.defaultSettings sock $ indexProxyServer indexName opts mgr)
+    (async $ liftIO $ Warp.runSettingsSocket Warp.defaultSettings sock $ indexProxyServer indexNameText opts mgr)
     cancel
-    (\_ -> f ("http://localhost:" <> Text.pack (show proxyPort)) indexName) -- f undefined indexName
+    (\_ -> f ("http://localhost:" <> Text.pack (show proxyPort)) indexNameText) -- f undefined indexName
 
 indexProxyServer :: Text -> Opt.Opts -> Manager -> Wai.Application
 indexProxyServer idx opts mgr =
@@ -716,7 +721,7 @@ waitForTaskToComplete :: forall a m. (ES.MonadBH m, MonadThrow m, FromJSON a) =>
 waitForTaskToComplete taskNodeId = do
   let policy = constantDelay 100000 <> limitRetries 30
   let retryCondition _ = fmap not . isTaskComplete
-  task <- retrying policy retryCondition (const $ ES.getTask @m @a taskNodeId)
+  task <- retrying policy retryCondition (const $ ES.tryPerformBHRequest $ ESR.getTask @a taskNodeId)
   taskCompleted <- isTaskComplete task
   liftIO $ assertBool "Timed out waiting for task" taskCompleted
   where
@@ -742,36 +747,40 @@ testWithBothIndicesAndOpts opts mgr name f =
         f newOpts <* deleteIndex opts indexName
     ]
 
-withOldIndex :: (MonadIO m, HasCallStack) => Opt.Opts -> WaiTest.Session a -> m a
+withOldIndex :: (MonadIO m, MonadCatch m, HasCallStack) => Opt.Opts -> WaiTest.Session a -> m a
 withOldIndex opts f = do
-  indexName <- randomHandle
+  indexNameText <- randomHandle
+  indexName <- either (\v -> error ("Invalid index name " ++ Text.unpack v)) pure $ ES.mkIndexName indexNameText
   createIndexWithMapping opts indexName oldMapping
-  let newOpts = opts & Opt.elasticsearchLens . Opt.indexLens .~ (ES.IndexName indexName)
-  withSettingsOverrides newOpts f <* deleteIndex opts indexName
+  let newOpts = opts & Opt.elasticsearchLens . Opt.indexLens .~ indexName
+  withSettingsOverrides newOpts f <* deleteIndex opts indexNameText
 
-optsForOldIndex :: (MonadIO m, HasCallStack) => Opt.Opts -> m (Opt.Opts, Text)
+optsForOldIndex :: (MonadIO m, MonadCatch m, HasCallStack) => Opt.Opts -> m (Opt.Opts, Text)
 optsForOldIndex opts = do
-  indexName <- randomHandle
+  indexNameText <- randomHandle
+  indexName <- either (\v -> error ("Invalid index name " ++ Text.unpack v)) pure $ ES.mkIndexName indexNameText
   createIndexWithMapping opts indexName oldMapping
-  pure (opts & Opt.elasticsearchLens . Opt.indexLens .~ (ES.IndexName indexName), indexName)
+  pure (opts & Opt.elasticsearchLens . Opt.indexLens .~ indexName, indexNameText)
 
-createIndexWithMapping :: (MonadIO m, HasCallStack) => Opt.Opts -> Text -> Value -> m ()
-createIndexWithMapping opts name val = do
-  let indexName = ES.IndexName name
-  createReply <- runBH opts $ ES.createIndexWith [ES.AnalysisSetting analysisSettings] 1 indexName
-  unless (ES.isCreated createReply || ES.isSuccess createReply) $ do
-    liftIO $ assertFailure $ "failed to create index: " <> show name <> " with error: " <> show createReply
-  mappingReply <- runBH opts $ ES.putMapping indexName (ES.MappingName "user") val
-  unless (ES.isCreated mappingReply || ES.isSuccess createReply) $ do
-    liftIO $ assertFailure $ "failed to create mapping: " <> show name
+createIndexWithMapping :: (MonadIO m, MonadCatch m, HasCallStack) => Opt.Opts -> ES.IndexName -> Value -> m ()
+createIndexWithMapping opts indexName val = do
+  createReply <- runBH opts . ES.performBHRequest . ES.keepBHResponse $ ESR.createIndexWith [ES.AnalysisSetting analysisSettings] 1 indexName
+  createReply' <- fmap fst $ either (error . show) pure $ createReply
+  unless (ES.isCreated createReply' || ES.isSuccess createReply') $ do
+    liftIO $ assertFailure $ "failed to create index: " <> show indexName <> " with error: " <> show createReply
+
+  res <- runBH opts . ES.performBHRequest $ ES.keepBHResponse $ ESR.putMapping @Value indexName val
+  mappingReply <- fst <$> either (error . show) pure res
+  unless (ES.isCreated mappingReply || ES.isSuccess createReply') $ do
+    liftIO $ assertFailure $ "failed to create mapping: " <> show indexName
 
 -- | This doesn't fail if ES returns error because we don't really want to fail the tests for this
-deleteIndex :: (MonadIO m, HasCallStack) => Opt.Opts -> Text -> m ()
+deleteIndex :: (MonadIO m, MonadCatch m, HasCallStack) => Opt.Opts -> Text -> m ()
 deleteIndex opts name = do
-  let indexName = ES.IndexName name
+  let indexName = either (\v -> error ("Invalid index name" ++ show v)) id $ ES.mkIndexName name
   void $ runBH opts $ ES.deleteIndex indexName
 
-runBH :: (MonadIO m, HasCallStack) => Opt.Opts -> ES.BH m a -> m a
+runBH :: (MonadIO m, HasCallStack) => Opt.Opts -> ES.BH m a -> m (Either ES.EsError a)
 runBH opts action = do
   let (ES.Server esURL) = opts ^. Opt.elasticsearchLens . Opt.urlLens
   mgr <- liftIO $ initHttpManagerWithTLSConfig opts.elasticsearch.insecureSkipVerifyTls opts.elasticsearch.caCert
