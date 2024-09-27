@@ -6,20 +6,6 @@ import SetupHelpers
 import Test.FeatureFlags.Util
 import Testlib.Prelude
 
-defMlsE2EId :: Value
-defMlsE2EId =
-  object
-    [ "lockStatus" .= "unlocked",
-      "status" .= "disabled",
-      "ttl" .= "unlimited",
-      "config"
-        .= object
-          [ "verificationExpiration" .= A.Number 86400,
-            "useProxyOnMobile" .= False,
-            "crlProxy" .= "https://crlproxy.example.com"
-          ]
-    ]
-
 mlsE2EId1 :: Value
 mlsE2EId1 =
   object
@@ -44,7 +30,7 @@ testMLSE2EId access = do
     mlsE2EId1
       & setField "config.verificationExpiration" (A.Number 86401)
       & setField "config.useProxyOnMobile" True
-  mkFeatureTests "mlsE2EId" defMlsE2EId
+  mkFeatureTests "mlsE2EId"
     & addUpdate mlsE2EId1
     & addUpdate mlsE2EId2
     & addInvalidUpdate invalid

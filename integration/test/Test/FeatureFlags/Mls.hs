@@ -9,7 +9,7 @@ testMls access =
   do
     user <- randomUser OwnDomain def
     uid <- asString $ user %. "id"
-    mkFeatureTests "mls" mlsDefault
+    mkFeatureTests "mls"
       & addUpdate (mls1 uid)
       & addUpdate mls2
       & addInvalidUpdate mlsInvalidConfig
@@ -17,6 +17,7 @@ testMls access =
 
 testMlsPatch :: (HasCallStack) => App ()
 testMlsPatch = do
+  mlsMigrationDefaultConfig <- defAllFeatures %. "mlsMigration.config"
   withModifiedBackend
     def
       { galleyCfg =
@@ -82,15 +83,6 @@ mlsDefaultConfig =
       "defaultCipherSuite" .= toJSON (1 :: Int)
     ]
 
-mlsDefault :: Value
-mlsDefault =
-  object
-    [ "lockStatus" .= "unlocked",
-      "status" .= "disabled",
-      "ttl" .= "unlimited",
-      "config" .= mlsDefaultConfig
-    ]
-
 mls1 :: String -> Value
 mls1 uid =
   object
@@ -131,11 +123,4 @@ mlsInvalidConfig =
             "allowedCipherSuites" .= ([1] :: [Int]),
             "defaultCipherSuite" .= toJSON (1 :: Int)
           ]
-    ]
-
-mlsMigrationDefaultConfig :: Value
-mlsMigrationDefaultConfig =
-  object
-    [ "startTime" .= "2029-05-16T10:11:12.123Z",
-      "finaliseRegardlessAfter" .= "2029-10-17T00:00:00Z"
     ]

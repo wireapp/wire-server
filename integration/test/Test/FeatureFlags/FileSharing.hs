@@ -8,7 +8,7 @@ testPatchFileSharing = checkPatch OwnDomain "fileSharing" True enabled disabled
 
 testFileSharing :: (HasCallStack) => APIAccess -> App ()
 testFileSharing access =
-  mkFeatureTests "fileSharing" enabled
+  mkFeatureTests "fileSharing"
     & addUpdate disabled
     & addUpdate enabled
     & runFeatureTests OwnDomain access

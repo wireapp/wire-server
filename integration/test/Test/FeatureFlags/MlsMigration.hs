@@ -12,7 +12,7 @@ testMlsMigration access = do
   -- first we have to enable mls
   (owner, tid, _) <- createTeam OwnDomain 0
   void $ Public.setTeamFeatureConfig owner tid "mls" mlsEnable >>= getJSON 200
-  mkFeatureTests "mlsMigration" mlsMigrationDefault
+  mkFeatureTests "mlsMigration"
     & addUpdate mlsMigrationConfig1
     & addUpdate mlsMigrationConfig2
     & setOwner owner
@@ -54,15 +54,6 @@ mlsMigrationDefaultConfig =
   object
     [ "startTime" .= "2029-05-16T10:11:12.123Z",
       "finaliseRegardlessAfter" .= "2029-10-17T00:00:00Z"
-    ]
-
-mlsMigrationDefault :: Value
-mlsMigrationDefault =
-  object
-    [ "lockStatus" .= "locked",
-      "status" .= "enabled",
-      "config" .= mlsMigrationDefaultConfig,
-      "ttl" .= "unlimited"
     ]
 
 mlsMigrationConfig1 :: Value

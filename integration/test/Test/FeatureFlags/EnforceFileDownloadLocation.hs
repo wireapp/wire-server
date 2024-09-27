@@ -45,16 +45,6 @@ testEnforceDownloadLocation :: (HasCallStack) => APIAccess -> App ()
 testEnforceDownloadLocation access = do
   mkFeatureTests
     "enforceFileDownloadLocation"
-    ( object
-        [ "lockStatus" .= "unlocked",
-          "status" .= "disabled",
-          "ttl" .= "unlimited",
-          "config"
-            .= object
-              [ "enforcedDownloadLocation" .= "downloads"
-              ]
-        ]
-    )
     & addUpdate
       ( object
           [ "status" .= "enabled",

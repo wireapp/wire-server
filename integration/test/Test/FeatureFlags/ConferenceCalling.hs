@@ -21,9 +21,7 @@ testPatchConferenceCalling = do
 testConferenceCalling :: (HasCallStack) => APIAccess -> App ()
 testConferenceCalling access = do
   runFeatureTests OwnDomain access
-    $ mkFeatureTests
-      "conferenceCalling"
-      (confCalling def {lockStatus = Just "locked"})
+    $ mkFeatureTests "conferenceCalling"
     & addUpdate (confCalling def {sft = toJSON True})
     & addUpdate (confCalling def {sft = toJSON False})
     & addInvalidUpdate (confCalling def {sft = toJSON (0 :: Int)})

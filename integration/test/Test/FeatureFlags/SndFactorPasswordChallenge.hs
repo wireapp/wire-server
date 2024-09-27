@@ -10,7 +10,7 @@ testPatchSndFactorPasswordChallenge =
 testSndFactorPasswordChallenge :: (HasCallStack) => APIAccess -> App ()
 testSndFactorPasswordChallenge access =
   do
-    mkFeatureTests "sndFactorPasswordChallenge" disabledLocked
+    mkFeatureTests "sndFactorPasswordChallenge"
     & addUpdate enabled
     & addUpdate disabled
     & runFeatureTests OwnDomain access

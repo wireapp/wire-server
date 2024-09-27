@@ -5,7 +5,7 @@ import Testlib.Prelude
 
 testConversationGuestLinks :: (HasCallStack) => APIAccess -> App ()
 testConversationGuestLinks access =
-  mkFeatureTests "conversationGuestLinks" enabled
+  mkFeatureTests "conversationGuestLinks"
     & addUpdate disabled
     & addUpdate enabled
     & runFeatureTests OwnDomain access

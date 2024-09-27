@@ -15,12 +15,7 @@ feature ps timeout =
 
 testSelfDeletingMessages :: (HasCallStack) => APIAccess -> App ()
 testSelfDeletingMessages access =
-  mkFeatureTests
-    "selfDeletingMessages"
-    ( feature
-        ["lockStatus" .= "unlocked", "status" .= "enabled"]
-        (0 :: Int)
-    )
+  mkFeatureTests "selfDeletingMessages"
     & addUpdate (feature ["status" .= "disabled"] (0 :: Int))
     & addUpdate (feature ["status" .= "enabled"] (30 :: Int))
     & addInvalidUpdate (feature ["status" .= "enabled"] "")

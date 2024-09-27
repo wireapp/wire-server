@@ -8,7 +8,7 @@ testPatchOutlookCalIntegration = checkPatch OwnDomain "outlookCalIntegration" Tr
 
 testOutlookCalIntegration :: (HasCallStack) => APIAccess -> App ()
 testOutlookCalIntegration access =
-  mkFeatureTests "outlookCalIntegration" disabledLocked
+  mkFeatureTests "outlookCalIntegration"
     & addUpdate enabled
     & addUpdate disabled
     & runFeatureTests OwnDomain access

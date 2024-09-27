@@ -19,6 +19,7 @@ module Test.FeatureFlags.Util where
 
 import qualified API.Galley as Public
 import qualified API.GalleyInternal as Internal
+import qualified Data.Aeson as A
 import Notifications
 import SetupHelpers
 import Testlib.Prelude
@@ -45,6 +46,84 @@ disabledLocked = object ["lockStatus" .= "locked", "status" .= "disabled", "ttl"
 
 enabled :: Value
 enabled = object ["lockStatus" .= "unlocked", "status" .= "enabled", "ttl" .= "unlimited"]
+
+defEnabledObj :: Value -> Value
+defEnabledObj conf =
+  object
+    [ "lockStatus" .= "unlocked",
+      "status" .= "enabled",
+      "ttl" .= "unlimited",
+      "config" .= conf
+    ]
+
+defAllFeatures :: Value
+defAllFeatures =
+  object
+    [ "legalhold" .= disabled,
+      "sso" .= disabled,
+      "searchVisibility" .= disabled,
+      "validateSAMLemails" .= enabled,
+      "digitalSignatures" .= disabled,
+      "appLock" .= defEnabledObj (object ["enforceAppLock" .= False, "inactivityTimeoutSecs" .= A.Number 60]),
+      "fileSharing" .= enabled,
+      "classifiedDomains" .= defEnabledObj (object ["domains" .= ["example.com"]]),
+      "conferenceCalling" .= confCalling def {lockStatus = Just "locked"},
+      "selfDeletingMessages"
+        .= defEnabledObj (object ["enforcedTimeoutSeconds" .= A.Number 0]),
+      "conversationGuestLinks" .= enabled,
+      "sndFactorPasswordChallenge" .= disabledLocked,
+      "mls"
+        .= object
+          [ "lockStatus" .= "unlocked",
+            "status" .= "disabled",
+            "ttl" .= "unlimited",
+            "config"
+              .= object
+                [ "protocolToggleUsers" .= ([] :: [String]),
+                  "defaultProtocol" .= "proteus",
+                  "supportedProtocols" .= ["proteus", "mls"],
+                  "allowedCipherSuites" .= ([1] :: [Int]),
+                  "defaultCipherSuite" .= A.Number 1
+                ]
+          ],
+      "searchVisibilityInbound" .= disabled,
+      "exposeInvitationURLsToTeamAdmin" .= disabledLocked,
+      "outlookCalIntegration" .= disabledLocked,
+      "mlsE2EId"
+        .= object
+          [ "lockStatus" .= "unlocked",
+            "status" .= "disabled",
+            "ttl" .= "unlimited",
+            "config"
+              .= object
+                [ "verificationExpiration" .= A.Number 86400,
+                  "useProxyOnMobile" .= False,
+                  "crlProxy" .= "https://crlproxy.example.com"
+                ]
+          ],
+      "mlsMigration"
+        .= object
+          [ "lockStatus" .= "locked",
+            "status" .= "enabled",
+            "ttl" .= "unlimited",
+            "config"
+              .= object
+                [ "startTime" .= "2029-05-16T10:11:12.123Z",
+                  "finaliseRegardlessAfter" .= "2029-10-17T00:00:00Z"
+                ]
+          ],
+      "enforceFileDownloadLocation"
+        .= object
+          [ "lockStatus" .= "unlocked",
+            "status" .= "disabled",
+            "ttl" .= "unlimited",
+            "config"
+              .= object
+                [ "enforcedDownloadLocation" .= "downloads"
+                ]
+          ],
+      "limitedEventFanout" .= disabled
+    ]
 
 checkFeature :: (HasCallStack, MakesValue user, MakesValue tid) => String -> user -> tid -> Value -> App ()
 checkFeature feature user tid expected = do
@@ -157,9 +236,6 @@ checkPatch domain featureName hasExplicitLockStatus defFeature patch = do
 
 data FeatureTests = FeatureTests
   { name :: String,
-    -- | the default feature config (should include the lock status and ttl, as
-    -- it is returned by the API)
-    defFeature :: Value,
     -- | valid config values used to update the feature setting (should not
     -- include the lock status and ttl, as these are not part of the request
     -- payload)
@@ -168,8 +244,8 @@ data FeatureTests = FeatureTests
     owner :: Maybe Value
   }
 
-mkFeatureTests :: String -> Value -> FeatureTests
-mkFeatureTests name defFeature = FeatureTests name defFeature [] [] Nothing
+mkFeatureTests :: String -> FeatureTests
+mkFeatureTests name = FeatureTests name [] [] Nothing
 
 addUpdate :: Value -> FeatureTests -> FeatureTests
 addUpdate up ft = ft {updates = ft.updates <> [up]}
@@ -189,6 +265,7 @@ runFeatureTests ::
   FeatureTests ->
   App ()
 runFeatureTests domain access ft = do
+  defFeature <- defAllFeatures %. ft.name
   -- personal user
   do
     user <- randomUser domain def
@@ -196,7 +273,7 @@ runFeatureTests domain access ft = do
       resp.status `shouldMatchInt` 200
       feat <- resp.json %. ft.name
       lockStatus <- feat %. "lockStatus"
-      expected <- setField "lockStatus" lockStatus ft.defFeature
+      expected <- setField "lockStatus" lockStatus defFeature
       feat `shouldMatch` expected
 
   -- make team
@@ -207,14 +284,14 @@ runFeatureTests domain access ft = do
     Just owner -> do
       tid <- owner %. "team" & asString
       pure (owner, tid)
-  checkFeature ft.name owner tid ft.defFeature
+  checkFeature ft.name owner tid defFeature
 
   -- lock the feature
   Internal.setTeamFeatureLockStatus owner tid ft.name "locked"
   bindResponse (Public.getTeamFeature owner tid ft.name) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "lockStatus" `shouldMatch` "locked"
-    expected <- setField "lockStatus" "locked" ft.defFeature
+    expected <- setField "lockStatus" "locked" defFeature
     checkFeature ft.name owner tid expected
 
   for_ ft.updates $ (setFeature access owner tid ft.name >=> getJSON 409)
@@ -232,7 +309,7 @@ runFeatureTests domain access ft = do
   -- lock again, should be set to default value
   Internal.setTeamFeatureLockStatus owner tid ft.name "locked"
   do
-    expected <- setField "lockStatus" "locked" ft.defFeature
+    expected <- setField "lockStatus" "locked" defFeature
     checkFeature ft.name owner tid expected
 
   -- unlock again, should be set to the last update
