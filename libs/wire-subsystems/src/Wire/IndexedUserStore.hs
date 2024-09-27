@@ -13,7 +13,7 @@ import Wire.UserSearch.Types
 
 data IndexedUserStoreError
   = IndexUpdateError (Either ES.EsProtocolException ES.EsError)
-  | IndexLookupError ES.EsError
+  | IndexLookupError (Either ES.EsProtocolException ES.EsError)
   | IndexError Text
   deriving (Show)
 

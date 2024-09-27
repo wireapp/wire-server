@@ -291,7 +291,7 @@ paginateTeamMembersImpl cfg BrowseTeamFilters {..} maxResults mPagingState = do
 searchInMainIndex :: forall r. (Member (Embed IO) r) => IndexedUserStoreConfig -> ES.Search -> Sem r (ES.SearchResult UserDoc)
 searchInMainIndex cfg search = embed $ do
   r <- ES.runBH cfg.conn.env $ ES.searchByIndex @UserDoc cfg.conn.indexName search
-  either (throwIO . IndexLookupError) pure r
+  either (throwIO . IndexLookupError . Right) pure r
 
 queryIndex ::
   (Member (Embed IO) r) =>
