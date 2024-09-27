@@ -1,4 +1,4 @@
-module Wire.API.Presence (Presence (..), URI (..)) where
+module Wire.API.Presence (Presence (..), URI (..), parse) where
 
 import Control.Lens ((?~))
 import Data.Aeson qualified as A

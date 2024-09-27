@@ -16,7 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Gundeck.API.Internal
-  ( type GundeckInternalAPI,
+  ( type InternalAPI,
     servantSitemap,
   )
 where
@@ -36,7 +36,7 @@ import Servant
 import Wire.API.Push.Token qualified as PushTok
 import Wire.API.Routes.Internal.Gundeck
 
-servantSitemap :: ServerT GundeckInternalAPI Gundeck
+servantSitemap :: ServerT InternalAPI Gundeck
 servantSitemap =
   statusH
     :<|> pushH

@@ -53,7 +53,6 @@ import Data.UUID.V4
 import Gundeck.Options hiding (bulkPush)
 import Gundeck.Options qualified as O
 import Gundeck.Types
-import Gundeck.Types.Common qualified
 import Imports
 import Network.HTTP.Client qualified as Http
 import Network.URI (parseURI)
@@ -66,6 +65,7 @@ import Test.Tasty.HUnit
 import TestSetup
 import Util (runRedisProxy, withEnvOverrides, withSettingsOverrides)
 import Wire.API.Internal.Notification
+import Wire.API.Presence
 import Prelude qualified
 
 tests :: IO TestSetup -> TestTree
@@ -871,7 +871,7 @@ testRedisMigration :: TestM ()
 testRedisMigration = do
   uid <- randomUser
   con <- randomConnId
-  cannonURI <- Gundeck.Types.Common.parse "http://cannon.example"
+  cannonURI <- Wire.API.Presence.parse "http://cannon.example"
   let presence = Presence uid con cannonURI Nothing 1 ""
   redis2 <- view tsRedis2
 
