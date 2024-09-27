@@ -5,7 +5,7 @@ import Test.FeatureFlags.Util
 import Testlib.Prelude
 
 testPatchDigitalSignatures :: (HasCallStack) => App ()
-testPatchDigitalSignatures = checkPatch OwnDomain "digitalSignatures" False disabled enabled
+testPatchDigitalSignatures = checkPatch OwnDomain "digitalSignatures" enabled
 
 testDigitalSignaturesInternal :: (HasCallStack) => App ()
 testDigitalSignaturesInternal = do

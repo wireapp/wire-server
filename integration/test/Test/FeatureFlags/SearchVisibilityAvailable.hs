@@ -7,7 +7,7 @@ import Test.FeatureFlags.Util
 import Testlib.Prelude
 
 testPatchSearchVisibility :: (HasCallStack) => App ()
-testPatchSearchVisibility = checkPatch OwnDomain "searchVisibility" False disabled enabled
+testPatchSearchVisibility = checkPatch OwnDomain "searchVisibility" enabled
 
 testSearchVisibilityDisabledByDefault :: (HasCallStack) => App ()
 testSearchVisibilityDisabledByDefault = do

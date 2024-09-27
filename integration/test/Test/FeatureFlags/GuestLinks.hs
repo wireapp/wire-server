@@ -11,4 +11,4 @@ testConversationGuestLinks access =
     & runFeatureTests OwnDomain access
 
 testPatchGuestLinks :: (HasCallStack) => App ()
-testPatchGuestLinks = checkPatch OwnDomain "conversationGuestLinks" True enabled disabled
+testPatchGuestLinks = checkPatch OwnDomain "conversationGuestLinks" disabled

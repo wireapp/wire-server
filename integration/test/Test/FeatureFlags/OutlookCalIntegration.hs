@@ -4,7 +4,7 @@ import Test.FeatureFlags.Util
 import Testlib.Prelude
 
 testPatchOutlookCalIntegration :: (HasCallStack) => App ()
-testPatchOutlookCalIntegration = checkPatch OwnDomain "outlookCalIntegration" True disabledLocked enabled
+testPatchOutlookCalIntegration = checkPatch OwnDomain "outlookCalIntegration" enabled
 
 testOutlookCalIntegration :: (HasCallStack) => APIAccess -> App ()
 testOutlookCalIntegration access =

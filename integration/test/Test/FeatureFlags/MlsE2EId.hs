@@ -38,22 +38,11 @@ testMLSE2EId access = do
 
 testPatchE2EId :: (HasCallStack) => App ()
 testPatchE2EId = do
-  let defCfg =
-        object
-          [ "lockStatus" .= "unlocked",
-            "status" .= "disabled",
-            "ttl" .= "unlimited",
-            "config"
-              .= object
-                [ "verificationExpiration" .= A.Number 86400,
-                  "useProxyOnMobile" .= False,
-                  "crlProxy" .= "https://crlproxy.example.com"
-                ]
-          ]
-  checkPatch OwnDomain "mlsE2EId" True defCfg (object ["lockStatus" .= "locked"])
-  checkPatch OwnDomain "mlsE2EId" True defCfg (object ["status" .= "enabled"])
-  checkPatch OwnDomain "mlsE2EId" True defCfg (object ["lockStatus" .= "locked", "status" .= "enabled"])
-  checkPatch OwnDomain "mlsE2EId" True defCfg
+  checkPatch OwnDomain "mlsE2EId" (object ["lockStatus" .= "locked"])
+  checkPatch OwnDomain "mlsE2EId" (object ["status" .= "enabled"])
+  checkPatch OwnDomain "mlsE2EId"
+    $ object ["lockStatus" .= "locked", "status" .= "enabled"]
+  checkPatch OwnDomain "mlsE2EId"
     $ object
       [ "lockStatus" .= "unlocked",
         "config"
@@ -64,7 +53,7 @@ testPatchE2EId = do
             ]
       ]
 
-  checkPatch OwnDomain "mlsE2EId" True defCfg
+  checkPatch OwnDomain "mlsE2EId"
     $ object
       [ "config"
           .= object

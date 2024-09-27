@@ -31,25 +31,11 @@ testMlsPatch = do
             )
       }
     $ \domain -> do
-      let defCfg =
-            object
-              [ "lockStatus" .= "unlocked",
-                "status" .= "disabled",
-                "ttl" .= "unlimited",
-                "config"
-                  .= object
-                    [ "protocolToggleUsers" .= ([] :: [String]),
-                      "defaultProtocol" .= "proteus",
-                      "supportedProtocols" .= ["proteus", "mls"],
-                      "allowedCipherSuites" .= ([1] :: [Int]),
-                      "defaultCipherSuite" .= toJSON (1 :: Int)
-                    ]
-              ]
-      checkPatch domain "mls" True defCfg $ object ["lockStatus" .= "locked"]
-      checkPatch domain "mls" True defCfg $ object ["status" .= "enabled"]
-      checkPatch domain "mls" True defCfg
+      checkPatch domain "mls" $ object ["lockStatus" .= "locked"]
+      checkPatch domain "mls" $ object ["status" .= "enabled"]
+      checkPatch domain "mls"
         $ object ["lockStatus" .= "locked", "status" .= "enabled"]
-      checkPatch domain "mls" True defCfg
+      checkPatch domain "mls"
         $ object
           [ "status" .= "enabled",
             "config"
@@ -61,7 +47,7 @@ testMlsPatch = do
                   "defaultCipherSuite" .= toJSON (1 :: Int)
                 ]
           ]
-      checkPatch domain "mls" True defCfg
+      checkPatch domain "mls"
         $ object
           [ "config"
               .= object

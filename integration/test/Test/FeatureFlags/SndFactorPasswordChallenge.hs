@@ -5,7 +5,7 @@ import Testlib.Prelude
 
 testPatchSndFactorPasswordChallenge :: (HasCallStack) => App ()
 testPatchSndFactorPasswordChallenge =
-  checkPatch OwnDomain "sndFactorPasswordChallenge" True disabledLocked enabled
+  checkPatch OwnDomain "sndFactorPasswordChallenge" enabled
 
 testSndFactorPasswordChallenge :: (HasCallStack) => APIAccess -> App ()
 testSndFactorPasswordChallenge access =

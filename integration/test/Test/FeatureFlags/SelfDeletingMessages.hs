@@ -23,20 +23,13 @@ testSelfDeletingMessages access =
 
 testPatchSelfDeletingMessages :: (HasCallStack) => App ()
 testPatchSelfDeletingMessages = do
-  let defCfg =
-        object
-          [ "lockStatus" .= "unlocked",
-            "status" .= "enabled",
-            "ttl" .= "unlimited",
-            "config" .= object ["enforcedTimeoutSeconds" .= A.Number 0]
-          ]
-  checkPatch OwnDomain "selfDeletingMessages" True defCfg
+  checkPatch OwnDomain "selfDeletingMessages"
     $ object ["lockStatus" .= "locked"]
-  checkPatch OwnDomain "selfDeletingMessages" True defCfg
+  checkPatch OwnDomain "selfDeletingMessages"
     $ object ["status" .= "disabled"]
-  checkPatch OwnDomain "selfDeletingMessages" True defCfg
+  checkPatch OwnDomain "selfDeletingMessages"
     $ object ["lockStatus" .= "locked", "status" .= "disabled"]
-  checkPatch OwnDomain "selfDeletingMessages" True defCfg
+  checkPatch OwnDomain "selfDeletingMessages"
     $ object ["lockStatus" .= "unlocked", "config" .= object ["enforcedTimeoutSeconds" .= A.Number 30]]
-  checkPatch OwnDomain "selfDeletingMessages" True defCfg
+  checkPatch OwnDomain "selfDeletingMessages"
     $ object ["config" .= object ["enforcedTimeoutSeconds" .= A.Number 60]]

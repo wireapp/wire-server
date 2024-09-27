@@ -7,25 +7,15 @@ import Testlib.Prelude
 
 testPatchEnforceFileDownloadLocation :: (HasCallStack) => App ()
 testPatchEnforceFileDownloadLocation = do
-  let defCfg =
-        object
-          [ "lockStatus" .= "unlocked",
-            "status" .= "disabled",
-            "ttl" .= "unlimited",
-            "config"
-              .= object
-                [ "enforcedDownloadLocation" .= "downloads"
-                ]
-          ]
-  checkPatch OwnDomain "enforceFileDownloadLocation" True defCfg
+  checkPatch OwnDomain "enforceFileDownloadLocation"
     $ object ["lockStatus" .= "unlocked"]
-  checkPatch OwnDomain "enforceFileDownloadLocation" True defCfg
+  checkPatch OwnDomain "enforceFileDownloadLocation"
     $ object ["status" .= "enabled"]
-  checkPatch OwnDomain "enforceFileDownloadLocation" True defCfg
+  checkPatch OwnDomain "enforceFileDownloadLocation"
     $ object ["lockStatus" .= "unlocked", "status" .= "enabled"]
-  checkPatch OwnDomain "enforceFileDownloadLocation" True defCfg
+  checkPatch OwnDomain "enforceFileDownloadLocation"
     $ object ["lockStatus" .= "locked", "config" .= object []]
-  checkPatch OwnDomain "enforceFileDownloadLocation" True defCfg
+  checkPatch OwnDomain "enforceFileDownloadLocation"
     $ object ["config" .= object ["enforcedDownloadLocation" .= "/tmp"]]
 
   do

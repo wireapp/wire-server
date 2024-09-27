@@ -6,12 +6,8 @@ import Testlib.Prelude
 
 testPatchValidateSAMLEmails :: (HasCallStack) => App ()
 testPatchValidateSAMLEmails =
-  checkPatch
-    OwnDomain
-    "validateSAMLemails"
-    False
-    enabled
-    (object ["status" .= "disabled"])
+  checkPatch OwnDomain "validateSAMLemails"
+    $ object ["status" .= "disabled"]
 
 testValidateSAMLEmailsInternal :: (HasCallStack) => App ()
 testValidateSAMLEmailsInternal = do

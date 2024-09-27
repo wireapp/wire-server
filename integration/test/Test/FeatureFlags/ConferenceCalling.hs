@@ -5,18 +5,17 @@ import Testlib.Prelude
 
 testPatchConferenceCalling :: (HasCallStack) => App ()
 testPatchConferenceCalling = do
-  let defCfg = confCalling def {lockStatus = Just "locked"}
-  for_
-    [ object ["lockStatus" .= "locked"],
-      object ["status" .= "disabled"],
-      object ["lockStatus" .= "locked", "status" .= "disabled"],
-      object
-        [ "lockStatus" .= "unlocked",
-          "config" .= object ["useSFTForOneToOneCalls" .= toJSON True]
-        ]
-    ]
-    $ \patch ->
-      checkPatch OwnDomain "conferenceCalling" True defCfg patch
+  checkPatch OwnDomain "conferenceCalling"
+    $ object ["lockStatus" .= "locked"]
+  checkPatch OwnDomain "conferenceCalling"
+    $ object ["status" .= "disabled"]
+  checkPatch OwnDomain "conferenceCalling"
+    $ object ["lockStatus" .= "locked", "status" .= "disabled"]
+  checkPatch OwnDomain "conferenceCalling"
+    $ object
+      [ "lockStatus" .= "unlocked",
+        "config" .= object ["useSFTForOneToOneCalls" .= toJSON True]
+      ]
 
 testConferenceCalling :: (HasCallStack) => APIAccess -> App ()
 testConferenceCalling access = do

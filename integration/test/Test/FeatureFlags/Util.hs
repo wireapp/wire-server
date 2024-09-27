@@ -125,6 +125,16 @@ defAllFeatures =
       "limitedEventFanout" .= disabled
     ]
 
+hasExplicitLockStatus :: String -> Bool
+hasExplicitLockStatus "fileSharing" = True
+hasExplicitLockStatus "conferenceCalling" = True
+hasExplicitLockStatus "selfDeletingMessages" = True
+hasExplicitLockStatus "guestLinks" = True
+hasExplicitLockStatus "sndFactorPasswordChallenge" = True
+hasExplicitLockStatus "outlookCalIntegration" = True
+hasExplicitLockStatus "enforceFileDownloadLocation" = True
+hasExplicitLockStatus _ = False
+
 checkFeature :: (HasCallStack, MakesValue user, MakesValue tid) => String -> user -> tid -> Value -> App ()
 checkFeature feature user tid expected = do
   tidStr <- asString tid
@@ -191,16 +201,23 @@ checkPatch ::
   (HasCallStack, MakesValue domain) =>
   domain ->
   String ->
-  Bool ->
-  Value ->
   Value ->
   App ()
-checkPatch domain featureName hasExplicitLockStatus defFeature patch = do
+checkPatch domain featureName patch = do
   (owner, tid, _) <- createTeam domain 0
+  feat0 <- Internal.getTeamFeature domain tid featureName >>= getJSON 200
+  defFeature <- defAllFeatures %. featureName
+
+  let valueOrDefault :: String -> App Value
+      valueOrDefault key = do
+        mValue <- lookupField patch key
+        maybe (defFeature %. key) pure mValue
 
   checkFeature featureName owner tid defFeature
-  assertSuccess =<< Internal.patchTeamFeature domain tid featureName patch
-  patched <- (.json) =<< Internal.getTeamFeature domain tid featureName
+  void
+    $ Internal.patchTeamFeature domain tid featureName patch
+    >>= getJSON 200
+  patched <- Internal.getTeamFeature domain tid featureName >>= getJSON 200
   checkFeature featureName owner tid patched
   lockStatus <- patched %. "lockStatus" >>= asString
   if lockStatus == "locked"
@@ -221,18 +238,13 @@ checkPatch domain featureName hasExplicitLockStatus defFeature patch = do
           mDefConfig <- lookupField defFeature "config"
           assertBool "patch had an unexpected config field" (isNothing mDefConfig)
 
-      -- TODO: remove condition
-      when hasExplicitLockStatus $ do
-        -- if lock status is unlocked, it was either unlocked before or changed by the patch
+      when (hasExplicitLockStatus featureName) $ do
+        -- if lock status is unlocked, it was either unlocked before or changed
+        -- by the patch
         mPatchedLockStatus <- lookupField patch "lockStatus"
         case mPatchedLockStatus of
           Just ls -> ls `shouldMatch` "unlocked"
           Nothing -> defFeature %. "lockStatus" `shouldMatch` "unlocked"
-  where
-    valueOrDefault :: String -> App Value
-    valueOrDefault key = do
-      mValue <- lookupField patch key
-      maybe (defFeature %. key) pure mValue
 
 data FeatureTests = FeatureTests
   { name :: String,
