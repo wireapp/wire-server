@@ -146,6 +146,8 @@ import Polysemy.Error qualified as Polysemy
 import Polysemy.Fail
 import Polysemy.Final
 import Polysemy.Input (Input, input)
+import Polysemy.TinyLog (TinyLog)
+import Polysemy.TinyLog qualified as P
 import Prometheus
 import Ssl.Util
 import System.FSNotify qualified as FS
@@ -627,10 +629,20 @@ instance (MonadIndexIO (AppT r)) => MonadIndexIO (ExceptT err (AppT r)) where
 instance HasRequestId (AppT r) where
   getRequestId = asks (.requestId)
 
-readChannel :: (Member (Embed IO) r, Member (Polysemy.Error HttpError) r) => MVar Q.Channel -> Sem r Q.Channel
+readChannel ::
+  ( Member (Embed IO) r,
+    Member (Polysemy.Error HttpError) r,
+    Member TinyLog r
+  ) =>
+  MVar Q.Channel ->
+  Sem r Q.Channel
 readChannel chanMVar = do
   mChan <- liftIO $ timeout 1_000_000 $ readMVar chanMVar
-  maybe (throw (StdError $ errorToWai @'E.NotificationQueueConnectionError)) pure mChan
+  maybe onNothing pure mChan
+  where
+    onNothing = do
+      P.err $ Log.msg @Text "failed to connect to RabbitMQ"
+      throw $ StdError $ errorToWai @'E.NotificationQueueConnectionError
 
 -------------------------------------------------------------------------------
 -- Ad hoc interpreters

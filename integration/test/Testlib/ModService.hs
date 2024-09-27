@@ -179,7 +179,9 @@ startDynamicBackend resource beOverrides = do
               >=> setField "federator.host" ("127.0.0.1" :: String)
               >=> setField "federator.port" resource.berFederatorInternal
               >=> setField "rabbitmq.vHost" resource.berVHost,
-          gundeckCfg = setField "settings.federationDomain" resource.berDomain,
+          gundeckCfg =
+            setField "settings.federationDomain" resource.berDomain
+              >=> setField "rabbitmq.vHost" resource.berVHost,
           backgroundWorkerCfg =
             setField "federatorInternal.port" resource.berFederatorInternal
               >=> setField "federatorInternal.host" ("127.0.0.1" :: String)
