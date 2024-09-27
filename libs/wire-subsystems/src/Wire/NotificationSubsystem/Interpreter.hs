@@ -24,7 +24,6 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import System.Logger.Class as Log
-import System.Timeout (timeout)
 import Wire.API.Notification (userNotificationExchangeName)
 import Wire.API.Push.V2 hiding (Push (..), Recipient, newPush)
 import Wire.API.Push.V2 qualified as V2
@@ -32,7 +31,6 @@ import Wire.API.Team.Member
 import Wire.GundeckAPIAccess (GundeckAPIAccess)
 import Wire.GundeckAPIAccess qualified as GundeckAPIAccess
 import Wire.NotificationSubsystem
-import Wire.NotificationSubsystem.Error
 import Wire.Sem.Delay
 
 -- | We interpret this using 'GundeckAPIAccess' so we can mock it out for testing.
@@ -42,8 +40,7 @@ runNotificationSubsystemGundeck ::
     Member Delay r,
     Member (Final IO) r,
     Member P.TinyLog r,
-    Member (Embed IO) r,
-    Member (Error NotificationSubsystemError) r
+    Member (Embed IO) r
   ) =>
   NotificationSubsystemConfig ->
   Sem (NotificationSubsystem : r) a ->
@@ -180,26 +177,19 @@ pushSlowlyImpl ps =
     pushImpl [p]
 
 setUpUserNotificationQueuesImpl ::
-  ( Member (Embed IO) r,
-    Member P.TinyLog r,
-    Member (Error NotificationSubsystemError) r
+  ( Member (Embed IO) r
   ) =>
-  MVar Channel ->
+  Channel ->
   UserId ->
   ClientId ->
   Sem r ()
-setUpUserNotificationQueuesImpl chanMVar uid cid = do
+setUpUserNotificationQueuesImpl chan uid cid = do
   let qName = idToText uid
   let cidText = decodeUtf8 $ toByteString' cid
   let routingKeys =
         [ qName,
           qName <> "." <> cidText
         ]
-  mChan <- liftIO $ timeout 1_000_000 $ readMVar chanMVar
-  case mChan of
-    Just chan -> liftIO $ do
-      void $ declareQueue chan newQueue {queueName = qName}
-      for_ routingKeys $ bindQueue chan qName userNotificationExchangeName
-    Nothing -> do
-      P.err $ Log.msg (Log.val "RabbitMQ connection error")
-      throw NotificationSubsystemConnectionError
+  liftIO $ do
+    void $ declareQueue chan newQueue {queueName = qName}
+    for_ routingKeys $ bindQueue chan qName userNotificationExchangeName

@@ -61,7 +61,6 @@ import Wire.IndexedUserStore.ElasticSearch
 import Wire.InvitationStore (InvitationStore)
 import Wire.InvitationStore.Cassandra (interpretInvitationStoreToCassandra)
 import Wire.NotificationSubsystem
-import Wire.NotificationSubsystem.Error
 import Wire.NotificationSubsystem.Interpreter (defaultNotificationSubsystemConfig, runNotificationSubsystemGundeck)
 import Wire.ParseException
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
@@ -117,13 +116,13 @@ type BrigLowerLevelEffects =
      DeleteQueue,
      Wire.Events.Events,
      NotificationSubsystem,
+     Input Channel,
      Error UserSubsystemError,
      Error TeamInvitationSubsystemError,
      Error AuthenticationSubsystemError,
      Error Wire.API.Federation.Error.FederationError,
      Error VerificationCodeSubsystemError,
      Error PropertySubsystemError,
-     Error NotificationSubsystemError,
      Error HttpError,
      Wire.FederationAPIAccess.FederationAPIAccess Wire.API.Federation.Client.FederatorClient,
      HashPassword,
@@ -143,7 +142,6 @@ type BrigLowerLevelEffects =
      Input (Local ()),
      Input (Maybe AllowlistEmailDomains),
      Input TeamTemplates,
-     Input (MVar Channel),
      GundeckAPIAccess,
      FederationConfigStore,
      Jwk,
@@ -249,7 +247,6 @@ runBrigToIO e (AppT ma) = do
               . interpretJwk
               . interpretFederationDomainConfig e.casClient e.settings.federationStrategy (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) e.settings.federationDomainConfigs)
               . runGundeckAPIAccess e.gundeckEndpoint
-              . runInputConst (fromMaybe (error "TODO(leif): make config required") e.rabbitmqChannel)
               . runInputConst (teamTemplatesNoLocale e)
               . runInputConst e.settings.allowlistEmailDomains
               . runInputConst (toLocalUnsafe e.settings.federationDomain ())
@@ -269,13 +266,13 @@ runBrigToIO e (AppT ma) = do
               . runHashPassword
               . interpretFederationAPIAccess federationApiAccessConfig
               . rethrowHttpErrorIO
-              . mapError notificationSubsystemErrorToHttpError
               . mapError propertySubsystemErrorToHttpError
               . mapError verificationCodeSubsystemErrorToHttpError
               . mapError (StdError . federationErrorToWai)
               . mapError authenticationSubsystemErrorToHttpError
               . mapError teamInvitationErrorToHttpError
               . mapError userSubsystemErrorToHttpError
+              . runInputSem (readChannel e.rabbitmqChannel) -- (fromMaybe (error "TODO(leif): make config required") e.rabbitmqChannel)
               . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig e.requestId)
               . runEvents
               . runDeleteQueue e.internalEvents

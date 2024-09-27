@@ -153,16 +153,9 @@ notifyUserDeleted self remotes = do
   let remoteConnections = tUnqualified remotes
   let notif = UserDeletedConnectionsNotification (tUnqualified self) remoteConnections
       remoteDomain = tDomain remotes
-  asks (.rabbitmqChannel) >>= \case
-    Just chanVar -> do
-      enqueueNotification (tDomain self) remoteDomain Q.Persistent chanVar $
-        fedQueueClient @'OnUserDeletedConnectionsTag notif
-    Nothing ->
-      Log.err $
-        Log.msg ("Federation error while notifying remote backends of a user deletion." :: ByteString)
-          . Log.field "user_id" (show self)
-          . Log.field "domain" (domainText remoteDomain)
-          . Log.field "error" (show FederationNotConfigured)
+  chanVar <- asks (.rabbitmqChannel)
+  enqueueNotification (tDomain self) remoteDomain Q.Persistent chanVar $
+    fedQueueClient @'OnUserDeletedConnectionsTag notif
 
 -- | Enqueues notifications in RabbitMQ. Retries 3 times with a delay of 1s.
 enqueueNotification :: (MonadIO m, MonadMask m, Log.MonadLogger m, MonadReader Env m) => Domain -> Domain -> Q.DeliveryMode -> MVar Q.Channel -> FedQueueClient c () -> m ()
