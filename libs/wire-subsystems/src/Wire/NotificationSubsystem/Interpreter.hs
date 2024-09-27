@@ -9,6 +9,7 @@ import Data.Id (ClientId, UserId, idToText)
 import Data.List.NonEmpty (nonEmpty)
 import Data.List1 (List1)
 import Data.List1 qualified as List1
+import Data.Map qualified as Map
 import Data.Proxy
 import Data.Range
 import Data.Set qualified as Set
@@ -16,6 +17,7 @@ import Data.Text.Encoding
 import Data.Time.Clock.DiffTime
 import Imports
 import Network.AMQP
+import Network.AMQP.Types (FieldTable (FieldTable), FieldValue (FVString))
 import Numeric.Natural (Natural)
 import Polysemy
 import Polysemy.Async (async, sequenceConcurrently)
@@ -24,7 +26,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import System.Logger.Class as Log
-import Wire.API.Notification (userNotificationExchangeName)
+import Wire.API.Notification (userNotificationDlqName, userNotificationDlxName, userNotificationExchangeName)
 import Wire.API.Push.V2 hiding (Push (..), Recipient, newPush)
 import Wire.API.Push.V2 qualified as V2
 import Wire.API.Team.Member
@@ -191,5 +193,11 @@ setUpUserNotificationQueuesImpl chan uid cid = do
           qName <> "." <> cidText
         ]
   liftIO $ do
-    void $ declareQueue chan newQueue {queueName = qName}
+    let headers =
+          FieldTable $
+            Map.fromList
+              [ ("x-dead-letter-exchange", FVString $ encodeUtf8 userNotificationDlxName),
+                ("x-dead-letter-routing-key", FVString $ encodeUtf8 userNotificationDlqName)
+              ]
+    void $ declareQueue chan newQueue {queueName = qName, queueHeaders = headers}
     for_ routingKeys $ bindQueue chan qName userNotificationExchangeName
