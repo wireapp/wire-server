@@ -54,6 +54,7 @@ type InternalEndpointsSwaggerDocsAPI =
            :<|> VersionedSwaggerDocsAPIBase "cargohold"
            :<|> VersionedSwaggerDocsAPIBase "galley"
            :<|> VersionedSwaggerDocsAPIBase "spar"
+           :<|> VersionedSwaggerDocsAPIBase "gundeck"
        )
 
 type NotificationSchemasAPI = "api" :> "event-notification-schemas" :> Get '[JSON] [S.Definitions S.Schema]
