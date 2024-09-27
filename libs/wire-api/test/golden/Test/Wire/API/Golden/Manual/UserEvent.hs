@@ -230,7 +230,7 @@ alice =
       userPict = Pict {fromPict = []},
       userAssets = [],
       userAccentId = ColourId {fromColourId = 1},
-      userDeleted = True,
+      userStatus = Deleted,
       userLocale =
         Locale
           { lLanguage = Language L.TN,
@@ -258,7 +258,7 @@ bob =
       userPict = Pict {fromPict = []},
       userAssets = [],
       userAccentId = ColourId {fromColourId = 2},
-      userDeleted = False,
+      userStatus = Active,
       userLocale =
         Locale
           { lLanguage = Language L.CA,

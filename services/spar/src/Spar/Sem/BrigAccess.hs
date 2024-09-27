@@ -65,8 +65,8 @@ data BrigAccess m a where
   CreateNoSAML :: Text -> EmailAddress -> UserId -> TeamId -> Name -> Maybe Locale -> Role -> BrigAccess m UserId
   UpdateEmail :: UserId -> EmailAddress -> BrigAccess m ()
   GetAccount :: HavePendingInvitations -> UserId -> BrigAccess m (Maybe ExtendedUserAccount)
-  GetByHandle :: Handle -> BrigAccess m (Maybe UserAccount)
-  GetByEmail :: EmailAddress -> BrigAccess m (Maybe UserAccount)
+  GetByHandle :: Handle -> BrigAccess m (Maybe User)
+  GetByEmail :: EmailAddress -> BrigAccess m (Maybe User)
   SetName :: UserId -> Name -> BrigAccess m ()
   SetHandle :: UserId -> Handle {- not 'HandleUpdate'! -} -> BrigAccess m ()
   SetManagedBy :: UserId -> ManagedBy -> BrigAccess m ()

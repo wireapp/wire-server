@@ -60,7 +60,7 @@ testObject_User_user_1 =
       userPict = Pict {fromPict = []},
       userAssets = [],
       userAccentId = ColourId {fromColourId = 1},
-      userDeleted = True,
+      userStatus = Deleted,
       userLocale = Locale {lLanguage = Language Data.LanguageCodes.TN, lCountry = Just (Country {fromCountry = SB})},
       userService = Nothing,
       userHandle = Nothing,
@@ -92,7 +92,7 @@ testObject_User_user_2 =
           ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)
         ],
       userAccentId = ColourId {fromColourId = -2},
-      userDeleted = True,
+      userStatus = Deleted,
       userLocale = Locale {lLanguage = Language Data.LanguageCodes.DA, lCountry = Just (Country {fromCountry = TN})},
       userService =
         Just
@@ -123,7 +123,7 @@ testObject_User_user_3 =
       userPict = Pict {fromPict = []},
       userAssets = [],
       userAccentId = ColourId {fromColourId = -2},
-      userDeleted = True,
+      userStatus = Deleted,
       userLocale = Locale {lLanguage = Language Data.LanguageCodes.TG, lCountry = Just (Country {fromCountry = UA})},
       userService =
         Just
@@ -158,7 +158,7 @@ testObject_User_user_4 =
       userPict = Pict {fromPict = []},
       userAssets = [],
       userAccentId = ColourId {fromColourId = 0},
-      userDeleted = False,
+      userStatus = Active,
       userLocale = Locale {lLanguage = Language Data.LanguageCodes.BI, lCountry = Just (Country {fromCountry = MQ})},
       userService =
         Just
@@ -194,7 +194,7 @@ testObject_User_user_5 =
       userPict = Pict {fromPict = []},
       userAssets = [],
       userAccentId = ColourId {fromColourId = 0},
-      userDeleted = False,
+      userStatus = Active,
       userLocale = Locale {lLanguage = Language Data.LanguageCodes.BI, lCountry = Just (Country {fromCountry = MQ})},
       userService =
         Just

@@ -150,7 +150,6 @@ test-suite brig-types-tests
     , openapi3
     , QuickCheck        >=2.9
     , tasty
-    , tasty-hunit
     , tasty-quickcheck
     , wire-api
 

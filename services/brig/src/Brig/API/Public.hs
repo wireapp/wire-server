@@ -51,7 +51,7 @@ import Brig.Provider.API
 import Brig.Team.API qualified as Team
 import Brig.Team.Email qualified as Team
 import Brig.Types.Activation (ActivationPair)
-import Brig.Types.Intra (UserAccount (UserAccount, accountUser))
+import Brig.Types.Intra
 import Brig.User.API.Handle qualified as Handle
 import Brig.User.Auth.Cookie qualified as Auth
 import Cassandra qualified as C
@@ -659,7 +659,7 @@ getRichInfo lself user = do
   -- other user
   let fetch luid =
         ifNothing (errorToWai @'E.UserNotFound)
-          =<< lift (liftSem $ (.accountUser) <$$> User.getLocalAccountBy NoPendingInvitations luid)
+          =<< lift (liftSem $ User.getLocalAccountBy NoPendingInvitations luid)
   selfUser <- fetch lself
   otherUser <- fetch luser
   case (Public.userTeam selfUser, Public.userTeam otherUser) of
@@ -754,39 +754,38 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
   let epair = (,) <$> (activationKey <$> eac) <*> (activationCode <$> eac)
   let newUserLabel = Public.newUserLabel new
   let newUserTeam = Public.newUserTeam new
-  let usr = accountUser acc
 
   let context =
         let invitationCode = case Public.newUserTeam new of
               (Just (Public.NewTeamMember code)) -> Just code
               _ -> Nothing
          in ( logFunction "Brig.API.Public.createUser"
-                . logUser (Public.userId usr)
-                . maybe id logHandle (Public.userHandle usr)
-                . maybe id logTeam (Public.userTeam usr)
-                . maybe id logEmail (Public.userEmail usr)
+                . logUser (Public.userId acc)
+                . maybe id logHandle (Public.userHandle acc)
+                . maybe id logTeam (Public.userTeam acc)
+                . maybe id logEmail (Public.userEmail acc)
                 . maybe id logInvitationCode invitationCode
             )
   lift . Log.info $ context . Log.msg @Text "Sucessfully created user"
 
-  let Public.User {userLocale, userDisplayName} = usr
-      userEmail = Public.userEmail usr
-      userId = Public.userId usr
+  let Public.User {userLocale, userDisplayName} = acc
+      userEmail = Public.userEmail acc
+      userId = Public.userId acc
   lift $ do
     for_ (liftM2 (,) userEmail epair) $ \(e, p) ->
       sendActivationEmail e userDisplayName p (Just userLocale) newUserTeam
     for_ (liftM3 (,,) userEmail (createdUserTeam result) newUserTeam) $ \(e, ct, ut) ->
       sendWelcomeEmail e ct ut (Just userLocale)
   cok <-
-    Auth.toWebCookie =<< case acc of
-      UserAccount _ Public.Ephemeral ->
+    Auth.toWebCookie =<< case userStatus acc of
+      Public.Ephemeral ->
         lift . wrapHttpClient $
           Auth.newCookie @ZAuth.User userId Nothing Public.SessionCookie newUserLabel
-      UserAccount _ _ ->
+      _ ->
         lift . wrapHttpClient $
           Auth.newCookie @ZAuth.User userId Nothing Public.PersistentCookie newUserLabel
-  -- pure $ CreateUserResponse cok userId (Public.SelfProfile usr)
-  pure $ Public.RegisterSuccess cok (Public.SelfProfile usr)
+  -- pure $ CreateUserResponse cok userId (Public.SelfProfile acc)
+  pure $ Public.RegisterSuccess cok (Public.SelfProfile acc)
   where
     sendActivationEmail :: (Member EmailSubsystem r) => Public.EmailAddress -> Public.Name -> ActivationPair -> Maybe Public.Locale -> Maybe Public.NewTeamUser -> (AppT r) ()
     sendActivationEmail email name (key, code) locale mTeamUser
@@ -1348,11 +1347,11 @@ sendVerificationCode req = do
             (scopeFromAction action)
             (Retries 3)
             timeout
-            (Just $ toUUID $ Public.userId $ accountUser account)
-      sendMail email code.codeValue (Just $ Public.userLocale $ accountUser account) action
+            (Just $ toUUID $ Public.userId $ account)
+      sendMail email code.codeValue (Just (Public.userLocale account)) action
     _ -> pure ()
   where
-    getAccount :: Public.EmailAddress -> (Handler r) (Maybe UserAccount)
+    getAccount :: Public.EmailAddress -> (Handler r) (Maybe User)
     getAccount email = lift . liftSem $ do
       mbUserId <- lookupKey $ mkEmailKey email
       mbLUserId <- qualifyLocal' `traverse` mbUserId
@@ -1365,9 +1364,9 @@ sendVerificationCode req = do
         Public.Login -> sendLoginVerificationMail email value mbLocale
         Public.DeleteTeam -> sendTeamDeletionVerificationMail email value mbLocale
 
-    getFeatureStatus :: Maybe UserAccount -> (Handler r) Bool
+    getFeatureStatus :: Maybe User -> (Handler r) Bool
     getFeatureStatus mbAccount = do
-      mbStatusEnabled <- lift $ liftSem $ GalleyAPIAccess.getVerificationCodeEnabled `traverse` (Public.userTeam <$> accountUser =<< mbAccount)
+      mbStatusEnabled <- lift $ liftSem $ GalleyAPIAccess.getVerificationCodeEnabled `traverse` (Public.userTeam =<< mbAccount)
       pure $ fromMaybe False mbStatusEnabled
 
 getSystemSettings :: (Handler r) SystemSettingsPublic

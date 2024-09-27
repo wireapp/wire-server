@@ -13,6 +13,6 @@ userSubsystemTestInterpreter initialUsers =
     GetExtendedAccountsByEmailNoFilter (tUnqualified -> emails) ->
       pure $
         filter
-          (\u -> userEmail u.account.accountUser `elem` (Just <$> emails))
+          (\u -> userEmail u.account `elem` (Just <$> emails))
           initialUsers
     _ -> error $ "userSubsystemTestInterpreter: implement on demand"

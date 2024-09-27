@@ -57,7 +57,6 @@ module Galley.API.Teams
   )
 where
 
-import Brig.Types.Intra (accountUser)
 import Brig.Types.Team (TeamSize (..))
 import Cassandra (PageWithState (pwsResults), pwsHasMore)
 import Cassandra qualified as C
@@ -583,7 +582,7 @@ getTeamMembersCSV lusr tid = do
       let inviterIds :: [UserId]
           inviterIds = nub $ mapMaybe (fmap fst . view invitation) members
 
-      userList :: [User] <- accountUser <$$> E.getUsers inviterIds
+      userList <- E.getUsers inviterIds
 
       let userMap :: M.Map UserId Handle.Handle
           userMap = M.fromList (mapMaybe extract userList)

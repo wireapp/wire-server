@@ -36,6 +36,7 @@ module Wire.API.User
     -- User (should not be here)
     User (..),
     userId,
+    userDeleted,
     userEmail,
     userSSOId,
     userIssuer,
@@ -111,7 +112,6 @@ module Wire.API.User
     AccountStatusResp (..),
 
     -- * Account
-    UserAccount (..),
     ExtendedUserAccount (..),
 
     -- * Scim invitations
@@ -566,7 +566,7 @@ data User = User
     userPict :: Pict,
     userAssets :: [Asset],
     userAccentId :: ColourId,
-    userDeleted :: Bool,
+    userStatus :: AccountStatus,
     userLocale :: Locale,
     -- | Set if the user represents an external service,
     -- i.e. it is a "bot".
@@ -588,6 +588,9 @@ data User = User
 
 userId :: User -> UserId
 userId = qUnqualified . userQualifiedId
+
+userDeleted :: User -> Bool
+userDeleted u = userStatus u == Deleted
 
 -- -- FUTUREWORK:
 -- -- disentangle json serializations for 'User', 'NewUser', 'UserIdentity', 'NewUserOrigin'.
@@ -611,22 +614,17 @@ userObjectSchema =
       .= (fromMaybe noPict <$> optField "picture" schema)
     <*> userAssets
       .= (fromMaybe [] <$> optField "assets" (array schema))
-    <*> userAccentId
-      .= field "accent_id" schema
-    <*> (fromMaybe False <$> (\u -> if userDeleted u then Just True else Nothing) .= maybe_ (optField "deleted" schema))
-    <*> userLocale
-      .= field "locale" schema
-    <*> userService
-      .= maybe_ (optField "service" schema)
-    <*> userHandle
-      .= maybe_ (optField "handle" schema)
-    <*> userExpire
-      .= maybe_ (optField "expires_at" schema)
-    <*> userTeam
-      .= maybe_ (optField "team" schema)
+    <*> userAccentId .= field "accent_id" schema
+    <*> userStatus .= field "status" schema
+    <*> userLocale .= field "locale" schema
+    <*> userService .= maybe_ (optField "service" schema)
+    <*> userHandle .= maybe_ (optField "handle" schema)
+    <*> userExpire .= maybe_ (optField "expires_at" schema)
+    <*> userTeam .= maybe_ (optField "team" schema)
     <*> userManagedBy
       .= (fromMaybe ManagedByWire <$> optField "managed_by" schema)
     <*> userSupportedProtocols .= supportedProtocolsObjectSchema
+    <* (fromMaybe False <$> (\u -> if userDeleted u then Just True else Nothing) .= maybe_ (optField "deleted" schema))
 
 userEmail :: User -> Maybe EmailAddress
 userEmail = emailIdentity <=< userIdentity
@@ -1813,30 +1811,10 @@ instance Schema.ToSchema AccountStatusUpdate where
 -------------------------------------------------------------------------------
 -- UserAccount
 
--- | A UserAccount is targeted to be used by our \"backoffice\" and represents
--- all the data related to a user in our system, regardless of whether they
--- are active or not, their status, etc.
-data UserAccount = UserAccount
-  { accountUser :: !User,
-    accountStatus :: !AccountStatus
-  }
-  deriving (Eq, Ord, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform UserAccount)
-  deriving (ToJSON, FromJSON, S.ToSchema) via Schema.Schema UserAccount
-
-instance Schema.ToSchema UserAccount where
-  schema = Schema.object "UserAccount" userAccountObjectSchema
-
-userAccountObjectSchema :: ObjectSchema SwaggerDoc UserAccount
-userAccountObjectSchema =
-  UserAccount
-    <$> accountUser Schema..= userObjectSchema
-    <*> accountStatus Schema..= Schema.field "status" Schema.schema
-
 -- | This can be parsed as UserAccount, but it has an extra field `email_unvalidated` from
 -- brig's cassandra that is needed in spar.  so we return this from GET /i/users in brig.
 data ExtendedUserAccount = ExtendedUserAccount
-  { account :: UserAccount,
+  { account :: User,
     emailUnvalidated :: Maybe EmailAddress
   }
   deriving (Eq, Ord, Show, Generic)
@@ -1847,7 +1825,7 @@ instance Schema.ToSchema ExtendedUserAccount where
   schema =
     Schema.object "ExtendedUserAccount" $
       ExtendedUserAccount
-        <$> account Schema..= userAccountObjectSchema
+        <$> account Schema..= userObjectSchema
         <*> emailUnvalidated Schema..= maybe_ (Schema.optField "email_unvalidated" Schema.schema)
 
 -------------------------------------------------------------------------------

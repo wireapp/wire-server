@@ -48,7 +48,7 @@ testObject_SelfProfile_user_1 =
             userPict = Pict {fromPict = []},
             userAssets = [],
             userAccentId = ColourId {fromColourId = 1},
-            userDeleted = False,
+            userStatus = Active,
             userLocale =
               Locale {lLanguage = Language Data.LanguageCodes.GL, lCountry = Just (Country {fromCountry = PA})},
             userService =

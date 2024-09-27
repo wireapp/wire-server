@@ -105,7 +105,7 @@ data UserSubsystem m a where
   GetExtendedAccountsByEmailNoFilter :: Local [EmailAddress] -> UserSubsystem m [ExtendedUserAccount]
   -- | Get user account by local user id (accounts with missing identity and accounts with
   -- status /= active included).
-  GetAccountNoFilter :: Local UserId -> UserSubsystem m (Maybe UserAccount)
+  GetAccountNoFilter :: Local UserId -> UserSubsystem m (Maybe User)
   -- | Get `SelfProfile` (it contains things not present in `UserProfile`).
   GetSelfProfile :: Local UserId -> UserSubsystem m (Maybe SelfProfile)
   -- | Simple updates (as opposed to, eg., handle, where we need to manage locks).  Empty fields are ignored (not deleted).
@@ -153,7 +153,7 @@ data CheckHandleResp
 makeSem ''UserSubsystem
 
 -- | given a lookup criteria record ('GetBy'), return the union of the user accounts fulfilling that criteria
-getAccountsBy :: (Member UserSubsystem r) => Local GetBy -> Sem r [UserAccount]
+getAccountsBy :: (Member UserSubsystem r) => Local GetBy -> Sem r [User]
 getAccountsBy getby = (.account) <$$> getExtendedAccountsBy getby
 
 getUserProfile :: (Member UserSubsystem r) => Local UserId -> Qualified UserId -> Sem r (Maybe UserProfile)
@@ -171,7 +171,7 @@ getLocalAccountBy ::
   (Member UserSubsystem r) =>
   HavePendingInvitations ->
   Local UserId ->
-  Sem r (Maybe UserAccount)
+  Sem r (Maybe User)
 getLocalAccountBy includePendingInvitations uid =
   listToMaybe
     <$> getAccountsBy
@@ -182,7 +182,7 @@ getLocalAccountBy includePendingInvitations uid =
             }
       )
 
-getLocalUserAccountByUserKey :: (Member UserSubsystem r) => Local EmailKey -> Sem r (Maybe UserAccount)
+getLocalUserAccountByUserKey :: (Member UserSubsystem r) => Local EmailKey -> Sem r (Maybe User)
 getLocalUserAccountByUserKey q@(tUnqualified -> ek) =
   listToMaybe . fmap (.account) <$> getExtendedAccountsByEmailNoFilter (qualifyAs q [emailKeyOrig ek])
 

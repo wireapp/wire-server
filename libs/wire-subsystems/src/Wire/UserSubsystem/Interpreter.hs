@@ -820,11 +820,11 @@ getAccountNoFilterImpl ::
     Member (Input UserSubsystemConfig) r
   ) =>
   Local UserId ->
-  Sem r (Maybe UserAccount)
+  Sem r (Maybe User)
 getAccountNoFilterImpl (tSplit -> (domain, uid)) = do
   cfg <- input
   muser <- getUser uid
-  pure $ (mkAccountFromStored domain cfg.defaultLocale) <$> muser
+  pure $ (mkUserFromStored domain cfg.defaultLocale) <$> muser
 
 getExtendedAccountsByEmailNoFilterImpl ::
   forall r.
@@ -872,10 +872,10 @@ getExtendedAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations
     -- . pending users without matching invitation (those are garbage-collected)
     -- . TODO: deleted users?
     want :: ExtendedUserAccount -> Sem r Bool
-    want ExtendedUserAccount {account} =
-      case account.accountUser.userIdentity of
+    want ExtendedUserAccount {account = user} =
+      case user.userIdentity of
         Nothing -> pure False
-        Just ident -> case account.accountStatus of
+        Just ident -> case user.userStatus of
           PendingInvitation ->
             case includePendingInvitations of
               WithPendingInvitations -> case emailIdentity ident of
@@ -884,7 +884,7 @@ getExtendedAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations
                 -- validEmailIdentity, anyEmailIdentity?
                 Just email -> do
                   hasInvitation <- isJust <$> lookupInvitationByEmail email
-                  gcHack hasInvitation (User.userId account.accountUser)
+                  gcHack hasInvitation (User.userId user)
                   pure hasInvitation
                 Nothing -> error "getExtendedAccountsByImpl: should never happen, user invited via scim always has an email"
               NoPendingInvitations -> pure False

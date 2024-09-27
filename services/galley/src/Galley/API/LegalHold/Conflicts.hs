@@ -128,7 +128,7 @@ guardLegalholdPolicyConflictsUid self (Map.keys . userClients -> otherUids) = do
 
       checkAnyConsentMissing :: Sem r Bool
       checkAnyConsentMissing = do
-        users :: [User] <- accountUser <$$> getUsers (self : otherUids)
+        users <- getUsers (self : otherUids)
         -- NB: `users` can't be empty!
         let checkUserConsentMissing :: User -> Sem r Bool
             checkUserConsentMissing user =

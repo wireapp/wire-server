@@ -713,12 +713,12 @@ addBot zuid zcon cid add = do
   let colour = fromMaybe defaultAccentId (Ext.rsNewBotColour rs)
   let pict = Pict [] -- Legacy
   let sref = newServiceRef sid pid
-  let usr = User (Qualified (botUserId bid) domain) Nothing name Nothing pict assets colour False locale (Just sref) Nothing Nothing Nothing ManagedByWire defSupportedProtocols
+  let usr = User (Qualified (botUserId bid) domain) Nothing name Nothing pict assets colour Active locale (Just sref) Nothing Nothing Nothing ManagedByWire defSupportedProtocols
   let newClt =
         (newClient PermanentClientType (Ext.rsNewBotLastPrekey rs))
           { newClientPrekeys = Ext.rsNewBotPrekeys rs
           }
-  lift $ wrapClient $ User.insertAccount (UserAccount usr Active) (Just (cid, cnvTeam cnv)) Nothing True
+  lift $ wrapClient $ User.insertAccount usr (Just (cid, cnvTeam cnv)) Nothing True
   maxPermClients <- fromMaybe Opt.defUserMaxPermClients <$> asks (.settings.userMaxPermClients)
   (clt, _, _) <- do
     _ <- do

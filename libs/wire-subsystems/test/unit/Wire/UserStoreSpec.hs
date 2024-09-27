@@ -20,7 +20,7 @@ spec = do
 
     prop "user deleted" $ \domain defaultLocale storedUser ->
       let user = mkUserFromStored domain defaultLocale storedUser
-       in user.userDeleted === (storedUser.status == Just Deleted)
+       in userDeleted user === (storedUser.status == Just Deleted)
 
     prop "user expires" $ \domain defaultLocale storedUser ->
       let user = mkUserFromStored domain defaultLocale storedUser

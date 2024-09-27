@@ -124,7 +124,7 @@ mkUserName Nothing =
 ----------------------------------------------------------------------
 
 getBrigUser :: (HasCallStack, Member BrigAccess r) => HavePendingInvitations -> UserId -> Sem r (Maybe User)
-getBrigUser ifpend = ((accountUser . account) <$$>) . BrigAccess.getAccount ifpend
+getBrigUser ifpend = (account <$$>) . BrigAccess.getAccount ifpend
 
 -- | Check that an id maps to an user on brig that is 'Active' (or optionally
 -- 'PendingInvitation') and has a team id.

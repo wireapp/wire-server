@@ -799,7 +799,7 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
           -- thing that could happen is that foreign users cleanup partially
           -- deleted users.
           void . lift $ BrigAccess.deleteUser uid
-        Just acc@(accountUser . account -> brigUser) -> do
+        Just acc@(account -> brigUser) -> do
           if userTeam brigUser == Just stiTeam
             then do
               -- This deletion needs data from the non-deleted User in brig. So,
@@ -826,7 +826,7 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
     deleteUserInSpar account = do
       mIdpConfig <- mapM (lift . IdPConfigStore.getConfig) stiIdP
 
-      case Brig.veidFromBrigUser account.account.accountUser ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig) account.emailUnvalidated of
+      case Brig.veidFromBrigUser account.account ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig) account.emailUnvalidated of
         Left _ -> pure ()
         Right veid -> lift $ do
           for_ (justThere veid.validScimIdAuthInfo) (SAMLUserStore.delete uid)
@@ -945,15 +945,15 @@ synthesizeStoredUser ::
 synthesizeStoredUser acc veid =
   logScim
     ( logFunction "Spar.Scim.User.synthesizeStoredUser"
-        . logUser (userId acc.account.accountUser)
-        . maybe id logHandle acc.account.accountUser.userHandle
-        . maybe id logTeam acc.account.accountUser.userTeam
+        . logUser (userId acc.account)
+        . maybe id logHandle acc.account.userHandle
+        . maybe id logTeam acc.account.userTeam
         . maybe id logEmail (justHere $ ST.validScimIdAuthInfo veid)
     )
     logScimUserId
     $ do
-      let uid = userId acc.account.accountUser
-          accStatus = acc.account.accountStatus
+      let uid = userId acc.account
+          accStatus = acc.account.userStatus
 
       let readState :: Sem r (RI.RichInfo, Maybe (UTCTimeMillis, UTCTimeMillis), URIBS.URI, Role)
           readState =
@@ -977,17 +977,17 @@ synthesizeStoredUser acc veid =
       now <- toUTCTimeMillis <$> lift Now.get
       let (createdAt, lastUpdatedAt) = fromMaybe (now, now) accessTimes
 
-      handle <- lift $ Brig.giveDefaultHandle acc.account.accountUser
+      handle <- lift $ Brig.giveDefaultHandle acc.account
 
       let emails =
             maybeToList $
-              acc.emailUnvalidated <|> (emailIdentity =<< userIdentity acc.account.accountUser) <|> justHere veid.validScimIdAuthInfo
+              acc.emailUnvalidated <|> (emailIdentity =<< userIdentity acc.account) <|> justHere veid.validScimIdAuthInfo
 
       storedUser <-
         synthesizeStoredUser'
           uid
           veid
-          (userDisplayName acc.account.accountUser)
+          (userDisplayName acc.account)
           emails
           handle
           richInfo
@@ -995,15 +995,15 @@ synthesizeStoredUser acc veid =
           createdAt
           lastUpdatedAt
           baseuri
-          (userLocale acc.account.accountUser)
+          (userLocale acc.account)
           (Just role)
-      lift $ writeState accessTimes (userManagedBy acc.account.accountUser) richInfo storedUser
+      lift $ writeState accessTimes (userManagedBy acc.account) richInfo storedUser
       pure storedUser
   where
     getRole :: Sem r Role
     getRole = do
       let tmRoleOrDefault m = fromMaybe defaultRole $ m >>= \member -> member ^. Member.permissions . to Member.permissionsRole
-      maybe (pure defaultRole) (\tid -> tmRoleOrDefault <$> GalleyAccess.getTeamMember tid (userId acc.account.accountUser)) (userTeam acc.account.accountUser)
+      maybe (pure defaultRole) (\tid -> tmRoleOrDefault <$> GalleyAccess.getTeamMember tid (userId acc.account)) (userTeam acc.account)
 
 synthesizeStoredUser' ::
   (MonadError Scim.ScimError m) =>
@@ -1075,7 +1075,7 @@ getUserById ::
   UserId ->
   MaybeT (Scim.ScimHandler (Sem r)) (Scim.StoredUser ST.SparTag)
 getUserById midp stiTeam uid = do
-  acc@(accountUser . account -> brigUser) <- MaybeT . lift $ BrigAccess.getAccount Brig.WithPendingInvitations uid
+  acc@(account -> brigUser) <- MaybeT . lift $ BrigAccess.getAccount Brig.WithPendingInvitations uid
   let mbveid =
         Brig.veidFromBrigUser
           brigUser
@@ -1123,7 +1123,7 @@ scimFindUserByHandle ::
 scimFindUserByHandle mIdpConfig stiTeam hndl = do
   handle <- MaybeT . pure . parseHandle . Text.toLower $ hndl
   brigUser <- MaybeT . lift . BrigAccess.getByHandle $ handle
-  getUserById mIdpConfig stiTeam . userId . accountUser $ brigUser
+  getUserById mIdpConfig stiTeam . userId $ brigUser
 
 -- | Construct a 'ValidScimId'.  If it is an 'Email', find the non-SAML SCIM user in spar; if
 -- that fails, find the user by email in brig.  If it is a 'UserRef', find the SAML user.
@@ -1155,12 +1155,12 @@ scimFindUserByExternalId mIdpConfig stiTeam eid = do
         -- there are a few ways to find a user. this should all be redundant, especially the where
         -- we lookup a user from brig by email, throw it away and only keep the uid, and then use
         -- the uid to lookup the account again. but cassandra, and also reasons.
-        mViaEmail :: Maybe UserId <- join <$> (for (justHere veid.validScimIdAuthInfo) ((userId . accountUser <$$>) . BrigAccess.getByEmail))
+        mViaEmail :: Maybe UserId <- join <$> (for (justHere veid.validScimIdAuthInfo) ((userId <$$>) . BrigAccess.getByEmail))
         mViaUref :: Maybe UserId <- join <$> (for (justThere veid.validScimIdAuthInfo) SAMLUserStore.get)
         pure $ mViaEmail <|> mViaUref
     Just uid -> pure uid
   acc <- MaybeT . lift . BrigAccess.getAccount Brig.WithPendingInvitations $ uid
-  getUserById mIdpConfig stiTeam (userId acc.account.accountUser)
+  getUserById mIdpConfig stiTeam (userId acc.account)
 
 logFilter :: Filter -> (Msg -> Msg)
 logFilter (FilterAttrCompare attr op val) =

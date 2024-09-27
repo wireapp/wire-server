@@ -168,8 +168,8 @@ lookupActiveUserByUserKey target = do
   case mUser of
     [user] -> do
       pure $
-        if user.account.accountStatus == Active
-          then Just user.account.accountUser
+        if user.account.userStatus == Active
+          then Just user.account
           else Nothing
     _ -> pure Nothing
 

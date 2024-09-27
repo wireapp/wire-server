@@ -75,13 +75,13 @@ deleteUserAndAssertDeletionInSpar ::
        ]
       r
   ) =>
-  UserAccount ->
+  User ->
   ScimTokenInfo ->
   Sem r (Either ScimError ())
 deleteUserAndAssertDeletionInSpar acc tokenInfo = do
   let tid = stiTeam tokenInfo
-      email = (fromJust . emailIdentity . fromJust . userIdentity . accountUser) acc
-      uid = (userId . accountUser) acc
+      email = (fromJust . emailIdentity . fromJust . userIdentity) acc
+      uid = userId acc
   ScimExternalIdStore.insert tid (fromEmail email) uid
   r <- runExceptT $ deleteScimUser tokenInfo uid
   lr <- ScimExternalIdStore.lookup tid (fromEmail email)
@@ -133,7 +133,7 @@ mockBrig lookup_user delete_response = interpret $ \case
 
 withActiveUser :: ExtendedUserAccount -> UserId -> Maybe ExtendedUserAccount
 withActiveUser acc uid =
-  if uid == (userId . accountUser) acc.account
+  if uid == userId acc.account
     then Just acc
     else Nothing
 
@@ -143,18 +143,15 @@ someActiveUser tokenInfo = do
   pure $
     ExtendedUserAccount
       { account =
-          UserAccount
-            { accountStatus = Active,
-              accountUser =
-                user
-                  { userDisplayName = Name "Some User",
-                    userAccentId = defaultAccentId,
-                    userPict = noPict,
-                    userAssets = [],
-                    userHandle = parseHandle "some-handle",
-                    userIdentity = (Just . EmailIdentity . fromJust . emailAddressText) "someone@wire.com",
-                    userTeam = Just $ stiTeam tokenInfo
-                  }
+          user
+            { userDisplayName = Name "Some User",
+              userAccentId = defaultAccentId,
+              userStatus = Active,
+              userPict = noPict,
+              userAssets = [],
+              userHandle = parseHandle "some-handle",
+              userIdentity = (Just . EmailIdentity . fromJust . emailAddressText) "someone@wire.com",
+              userTeam = Just $ stiTeam tokenInfo
             },
         emailUnvalidated = Nothing
       }

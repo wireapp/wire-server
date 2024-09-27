@@ -77,11 +77,15 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
   describe "password reset" do
     prop "password reset should work with the email being used as password reset key" $
       \email userNoEmail (cookiesWithTTL :: [(Cookie (), Maybe TTL)]) mPreviousPassword newPassword ->
-        let user = userNoEmail {userIdentity = Just $ EmailIdentity email}
+        let user =
+              userNoEmail
+                { userIdentity = Just $ EmailIdentity email,
+                  userStatus = Active
+                }
             uid = User.userId user
             localDomain = userNoEmail.userQualifiedId.qDomain
             Right (newPasswordHash, cookiesAfterReset) =
-              runAllEffects localDomain [ExtendedUserAccount (UserAccount user Active) Nothing] Nothing $ do
+              runAllEffects localDomain [ExtendedUserAccount user Nothing] Nothing $ do
                 forM_ mPreviousPassword (hashPassword >=> upsertHashedPassword uid)
                 mapM_ (uncurry (insertCookie uid)) cookiesWithTTL
 
@@ -96,11 +100,15 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
 
     prop "password reset should work with the returned password reset key" $
       \email userNoEmail (cookiesWithTTL :: [(Cookie (), Maybe TTL)]) mPreviousPassword newPassword ->
-        let user = userNoEmail {userIdentity = Just $ EmailIdentity email}
+        let user =
+              userNoEmail
+                { userIdentity = Just $ EmailIdentity email,
+                  userStatus = Active
+                }
             uid = User.userId user
             localDomain = userNoEmail.userQualifiedId.qDomain
             Right (newPasswordHash, cookiesAfterReset) =
-              runAllEffects localDomain [ExtendedUserAccount (UserAccount user Active) Nothing] Nothing $ do
+              runAllEffects localDomain [ExtendedUserAccount user Nothing] Nothing $ do
                 forM_ mPreviousPassword (hashPassword >=> upsertHashedPassword uid)
                 mapM_ (uncurry (insertCookie uid)) cookiesWithTTL
 
@@ -124,24 +132,31 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
 
     prop "reset code is generated when email is in allow list" $
       \email userNoEmail ->
-        let user = userNoEmail {userIdentity = Just $ EmailIdentity email}
+        let user =
+              userNoEmail
+                { userIdentity = Just $ EmailIdentity email,
+                  userStatus = Active
+                }
             localDomain = userNoEmail.userQualifiedId.qDomain
             createPasswordResetCodeResult =
-              runAllEffects localDomain [ExtendedUserAccount (UserAccount user Active) Nothing] (Just [decodeUtf8 $ domainPart email]) $
+              runAllEffects localDomain [ExtendedUserAccount user Nothing] (Just [decodeUtf8 $ domainPart email]) $
                 createPasswordResetCode (mkEmailKey email)
          in counterexample ("expected Right, got: " <> show createPasswordResetCodeResult) $
               isRight createPasswordResetCodeResult
 
     prop "reset code is not generated for when user's status is not Active" $
-      \email userNoEmail status ->
-        let user = userNoEmail {userIdentity = Just $ EmailIdentity email}
+      \email userNoEmail ->
+        let user =
+              userNoEmail
+                { userIdentity = Just $ EmailIdentity email,
+                  userStatus = Active
+                }
             localDomain = userNoEmail.userQualifiedId.qDomain
             createPasswordResetCodeResult =
-              runAllEffects localDomain [ExtendedUserAccount (UserAccount user status) Nothing] Nothing $
+              runAllEffects localDomain [ExtendedUserAccount user Nothing] Nothing $
                 createPasswordResetCode (mkEmailKey email)
                   <* expectNoEmailSent
-         in status /= Active ==>
-              createPasswordResetCodeResult === Right ()
+         in createPasswordResetCodeResult === Right ()
 
     prop "reset code is not generated for when there is no user for the email" $
       \email localDomain ->
@@ -153,11 +168,15 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
 
     prop "reset code is only generated once" $
       \email userNoEmail newPassword ->
-        let user = userNoEmail {userIdentity = Just $ EmailIdentity email}
+        let user =
+              userNoEmail
+                { userIdentity = Just $ EmailIdentity email,
+                  userStatus = Active
+                }
             uid = User.userId user
             localDomain = userNoEmail.userQualifiedId.qDomain
             Right (newPasswordHash, mCaughtException) =
-              runAllEffects localDomain [ExtendedUserAccount (UserAccount user Active) Nothing] Nothing $ do
+              runAllEffects localDomain [ExtendedUserAccount user Nothing] Nothing $ do
                 createPasswordResetCode (mkEmailKey email)
                 (_, code) <- expect1ResetPasswordEmail email
 
@@ -172,11 +191,15 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
 
     prop "reset code is not accepted after expiry" $
       \email userNoEmail oldPassword newPassword ->
-        let user = userNoEmail {userIdentity = Just $ EmailIdentity email}
+        let user =
+              userNoEmail
+                { userIdentity = Just $ EmailIdentity email,
+                  userStatus = Active
+                }
             uid = User.userId user
             localDomain = userNoEmail.userQualifiedId.qDomain
             Right (passwordInDB, resetPasswordResult) =
-              runAllEffects localDomain [ExtendedUserAccount (UserAccount user Active) Nothing] Nothing $ do
+              runAllEffects localDomain [ExtendedUserAccount user Nothing] Nothing $ do
                 upsertHashedPassword uid =<< hashPassword oldPassword
                 createPasswordResetCode (mkEmailKey email)
                 (_, code) <- expect1ResetPasswordEmail email
@@ -190,11 +213,15 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
 
     prop "password reset is not allowed with arbitrary codes when no other codes exist" $
       \email userNoEmail resetCode oldPassword newPassword ->
-        let user = userNoEmail {userIdentity = Just $ EmailIdentity email}
+        let user =
+              userNoEmail
+                { userIdentity = Just $ EmailIdentity email,
+                  userStatus = Active
+                }
             uid = User.userId user
             localDomain = userNoEmail.userQualifiedId.qDomain
             Right (passwordInDB, resetPasswordResult) =
-              runAllEffects localDomain [ExtendedUserAccount (UserAccount user Active) Nothing] Nothing $ do
+              runAllEffects localDomain [ExtendedUserAccount user Nothing] Nothing $ do
                 upsertHashedPassword uid =<< hashPassword oldPassword
                 mCaughtExc <- catchExpectedError $ resetPassword (PasswordResetEmailIdentity email) resetCode newPassword
                 (,mCaughtExc) <$> lookupHashedPassword uid
@@ -203,11 +230,15 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
 
     prop "password reset doesn't work if email is wrong" $
       \email wrongEmail userNoEmail resetCode oldPassword newPassword ->
-        let user = userNoEmail {userIdentity = Just $ EmailIdentity email}
+        let user =
+              userNoEmail
+                { userIdentity = Just $ EmailIdentity email,
+                  userStatus = Active
+                }
             uid = User.userId user
             localDomain = userNoEmail.userQualifiedId.qDomain
             Right (passwordInDB, resetPasswordResult) =
-              runAllEffects localDomain [ExtendedUserAccount (UserAccount user Active) Nothing] Nothing $ do
+              runAllEffects localDomain [ExtendedUserAccount user Nothing] Nothing $ do
                 hashAndUpsertPassword uid oldPassword
                 mCaughtExc <- catchExpectedError $ resetPassword (PasswordResetEmailIdentity wrongEmail) resetCode newPassword
                 (,mCaughtExc) <$> lookupHashedPassword uid
@@ -217,11 +248,15 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
 
     prop "only 3 wrong password reset attempts are allowed" $
       \email userNoEmail arbitraryResetCode oldPassword newPassword (Upto4 wrongResetAttempts) ->
-        let user = userNoEmail {userIdentity = Just $ EmailIdentity email}
+        let user =
+              userNoEmail
+                { userIdentity = Just $ EmailIdentity email,
+                  userStatus = Active
+                }
             uid = User.userId user
             localDomain = userNoEmail.userQualifiedId.qDomain
             Right (passwordHashInDB, correctResetCode, wrongResetErrors, resetPassworedWithCorectCodeResult) =
-              runAllEffects localDomain [ExtendedUserAccount (UserAccount user Active) Nothing] Nothing $ do
+              runAllEffects localDomain [ExtendedUserAccount user Nothing] Nothing $ do
                 upsertHashedPassword uid =<< hashPassword oldPassword
                 createPasswordResetCode (mkEmailKey email)
                 (_, generatedResetCode) <- expect1ResetPasswordEmail email
@@ -249,11 +284,15 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
   describe "internalLookupPasswordResetCode" do
     prop "should find password reset code by email" $
       \email userNoEmail newPassword ->
-        let user = userNoEmail {userIdentity = Just $ EmailIdentity email}
+        let user =
+              userNoEmail
+                { userIdentity = Just $ EmailIdentity email,
+                  userStatus = Active
+                }
             uid = User.userId user
             localDomain = userNoEmail.userQualifiedId.qDomain
             Right passwordHashInDB =
-              runAllEffects localDomain [ExtendedUserAccount (UserAccount user Active) Nothing] Nothing $ do
+              runAllEffects localDomain [ExtendedUserAccount user Nothing] Nothing $ do
                 void $ createPasswordResetCode (mkEmailKey email)
                 mLookupRes <- internalLookupPasswordResetCode (mkEmailKey email)
                 for_ mLookupRes $ \(_, code) -> resetPassword (PasswordResetEmailIdentity email) code newPassword
