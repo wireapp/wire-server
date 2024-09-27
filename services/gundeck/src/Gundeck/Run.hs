@@ -26,12 +26,10 @@ import Control.Error (ExceptT (ExceptT))
 import Control.Exception (finally)
 import Control.Lens ((.~), (^.))
 import Control.Monad.Extra
-import Data.Map qualified as Map
 import Data.Metrics.AWS (gaugeTokenRemaing)
 import Data.Metrics.Servant qualified as Metrics
 import Data.Proxy (Proxy (Proxy))
 import Data.Text (unpack)
-import Data.Text.Encoding (encodeUtf8)
 import Database.Redis qualified as Redis
 import Gundeck.API.Internal as Internal (InternalAPI, servantSitemap)
 import Gundeck.API.Public as Public (servantSitemap)
@@ -45,7 +43,6 @@ import Gundeck.Schema.Run (lastSchemaVersion)
 import Gundeck.ThreadBudget
 import Imports
 import Network.AMQP
-import Network.AMQP.Types (FieldTable (FieldTable), FieldValue (FVString))
 import Network.Wai as Wai
 import Network.Wai.Middleware.Gunzip qualified as GZip
 import Network.Wai.Middleware.Gzip qualified as GZip
@@ -115,8 +112,7 @@ run opts = withTracer \tracer -> do
       declareExchange chan newExchange {exchangeName = userNotificationDlxName, exchangeType = "direct"}
 
       let routingKey = userNotificationDlqName
-      let headers = FieldTable $ Map.fromList [("x-dead-letter-exchange", FVString $ encodeUtf8 userNotificationDlxName)]
-      void $ declareQueue chan newQueue {queueName = userNotificationDlqName, queueHeaders = headers}
+      void $ declareQueue chan newQueue {queueName = userNotificationDlqName}
       bindQueue chan userNotificationDlqName userNotificationDlxName routingKey
 
     middleware :: Env -> IO Middleware
