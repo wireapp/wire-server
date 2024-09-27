@@ -1,10 +1,13 @@
-module Wire.API.Presence where
+module Wire.API.Presence (Presence (..)) where
 
-import Data.Aeson
-import Data.Aeson.Types
+import Control.Lens ((?~))
+import Data.Aeson qualified as A
+import Data.Aeson.Types qualified as A
 import Data.ByteString.Lazy qualified as Lazy
 import Data.Id
 import Data.Misc (Milliseconds)
+import Data.OpenApi qualified as S
+import Data.Schema
 import Data.Text qualified as Text
 import Imports
 import Network.URI
@@ -26,32 +29,34 @@ data Presence = Presence
     __field :: !Lazy.ByteString
   }
   deriving (Eq, Ord, Show)
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema Presence)
 
-instance ToJSON Presence where
-  toJSON p =
-    object
-      [ "user_id" .= userId p,
-        "device_id" .= connId p,
-        "resource" .= String (Text.pack (show (resource p))),
-        "client_id" .= clientId p,
-        "created_at" .= createdAt p
-      ]
+instance ToSchema Presence where
+  schema =
+    object "Presence" $
+      ( Presence
+          <$> userId .= field "user_id" schema
+          <*> connId .= field "device_id" schema
+          <*> resource .= field "resource" uriSchema
+          <*> clientId .= maybe_ (optField "client_id" schema)
+          <*> createdAt .= field "created_at" schema
+      )
+        <&> ($ ("" :: Lazy.ByteString))
 
-instance FromJSON Presence where
-  parseJSON = withObject "Presence" $ \o ->
-    Presence
-      <$> o .: "user_id"
-      <*> o .: "device_id"
-      <*> explicitParseField uriFromJSON o "resource"
-      <*> o .:? "client_id"
-      <*> o .:? "created_at" .!= 0
-      <*> pure ""
+uriSchema :: ValueSchema NamedSwaggerDoc URI
+uriSchema = mkSchema desc uriFromJSON (Just . uriToJSON)
+  where
+    desc :: NamedSwaggerDoc
+    desc =
+      swaggerDoc @Text
+        & (S.schema . S.type_ ?~ S.OpenApiString)
+        & (S.schema . S.description ?~ "Valid URI.")
 
-uriFromJSON :: Value -> Parser URI
-uriFromJSON = withText "URI" (p . Text.unpack)
+uriFromJSON :: A.Value -> A.Parser URI
+uriFromJSON = A.withText "URI" (p . Text.unpack)
   where
     p :: (MonadFail m) => String -> m URI
     p = maybe (fail "Invalid URI") pure . parseURI
 
-uriToJSON :: URI -> Value
-uriToJSON uri = String $ Text.pack (show uri)
+uriToJSON :: URI -> A.Value
+uriToJSON uri = A.String $ Text.pack (show uri)

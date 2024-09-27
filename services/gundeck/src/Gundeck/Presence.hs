@@ -30,6 +30,7 @@ import Gundeck.Presence.Data qualified as Data
 import Gundeck.Types
 import Imports
 import Servant.API
+import Wire.API.CannonId
 
 listH :: UserId -> Gundeck [Presence]
 listH = runWithDefaultRedis . Data.list
