@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
-
 module Wire.API.Routes.Internal.Gundeck where
 
 import Control.Lens ((%~), (.~), (?~))
@@ -13,9 +11,8 @@ import Data.OpenApi.Declare qualified as S
 import Data.Text qualified as Text
 import Data.Typeable
 import Imports
-import Network.URI
 import Network.Wai
-import Servant
+import Servant hiding (URI (..))
 import Servant.API.Description
 import Servant.OpenApi
 import Servant.OpenApi.Internal
@@ -98,12 +95,6 @@ type InternalAPI =
            :<|> (ZUser :> "user" :> Delete '[JSON] NoContent)
            :<|> ("push-tokens" :> Capture "uid" UserId :> Get '[JSON] PushTokenList)
        )
-
-instance S.ToParamSchema URI where
-  toParamSchema _ =
-    S.toParamSchema (Proxy @Text)
-      & S.type_ ?~ S.OpenApiString
-      & S.description ?~ "Valid URI"
 
 swaggerDoc :: S.OpenApi
 swaggerDoc =

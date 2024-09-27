@@ -74,9 +74,7 @@ library
     , base                   >=4       && <5
     , bytestring             >=0.10
     , bytestring-conversion  >=0.2
-    , containers             >=0.5
     , imports
-    , lens                   >=4.11
     , network-uri            >=2.6
     , servant
     , text                   >=0.11
