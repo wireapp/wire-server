@@ -17,6 +17,7 @@
 module Wire.NotificationSubsystem.Error where
 
 import Imports
+import Network.Wai.Utilities.Error qualified as Wai
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.Error
@@ -28,6 +29,9 @@ data NotificationSubsystemError
 instance Exception NotificationSubsystemError
 
 notificationSubsystemErrorToHttpError :: NotificationSubsystemError -> HttpError
-notificationSubsystemErrorToHttpError =
-  StdError . \case
+notificationSubsystemErrorToHttpError = StdError . notificationSubsystemErrorToWaiError
+
+notificationSubsystemErrorToWaiError :: NotificationSubsystemError -> Wai.Error
+notificationSubsystemErrorToWaiError =
+  \case
     NotificationSubsystemConnectionError -> errorToWai @E.NotificationQueueConnectionError
