@@ -103,7 +103,7 @@ createEnv o = do
         { updateAction = Ms . round . (* 1000) <$> getPOSIXTime
         }
   mtbs <- mkThreadBudgetState `mapM` (o ^. settings . maxConcurrentNativePushes)
-  rabbitMqChannelMVar <- Q.mkRabbitMqChannelMVar l (o ^. rabbitMq)
+  rabbitMqChannelMVar <- Q.mkRabbitMqChannelMVar l (o ^. rabbitmq)
   pure $! (rThread : rAdditionalThreads,) $! Env (RequestId "N/A") o l n p r rAdditional a io mtbs rabbitMqChannelMVar
 
 reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg

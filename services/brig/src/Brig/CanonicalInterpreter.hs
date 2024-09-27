@@ -272,7 +272,7 @@ runBrigToIO e (AppT ma) = do
               . mapError authenticationSubsystemErrorToHttpError
               . mapError teamInvitationErrorToHttpError
               . mapError userSubsystemErrorToHttpError
-              . runInputSem (readChannel e.rabbitmqChannel) -- (fromMaybe (error "TODO(leif): make config required") e.rabbitmqChannel)
+              . runInputSem (readChannel e.rabbitmqChannel)
               . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig e.requestId)
               . runEvents
               . runDeleteQueue e.internalEvents

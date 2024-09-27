@@ -34,7 +34,7 @@ aws:
   sqsEndpoint: http://localhost:4568 # https://sqs.eu-west-1.amazonaws.com
   snsEndpoint: http://localhost:4575 # https://sns.eu-west-1.amazonaws.com
 
-rabbitMq:
+rabbitmq:
   host: 127.0.0.1
   port: 5671
   vHost: /

@@ -134,7 +134,7 @@ data Opts = Opts
     _redis :: !RedisEndpoint,
     _redisAdditionalWrite :: !(Maybe RedisEndpoint),
     _aws :: !AWSOpts,
-    _rabbitMq :: !AmqpEndpoint,
+    _rabbitmq :: !AmqpEndpoint,
     _discoUrl :: !(Maybe Text),
     _settings :: !Settings,
     -- Logging
