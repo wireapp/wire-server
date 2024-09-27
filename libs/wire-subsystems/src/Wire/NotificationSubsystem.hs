@@ -50,7 +50,7 @@ data NotificationSubsystem m a where
   CleanupUser :: UserId -> NotificationSubsystem m ()
   UnregisterPushClient :: UserId -> ClientId -> NotificationSubsystem m ()
   GetPushTokens :: UserId -> NotificationSubsystem m [PushToken]
-  SetUpUserNotificationQueues :: MVar Channel -> UserId -> ClientId -> NotificationSubsystem m ()
+  SetUpUserNotificationQueues :: Channel -> UserId -> ClientId -> NotificationSubsystem m ()
 
 makeSem ''NotificationSubsystem
 

@@ -105,7 +105,6 @@ library
     Wire.InvitationStore
     Wire.InvitationStore.Cassandra
     Wire.NotificationSubsystem
-    Wire.NotificationSubsystem.Error
     Wire.NotificationSubsystem.Interpreter
     Wire.ParseException
     Wire.PasswordResetCodeStore

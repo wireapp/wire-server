@@ -306,7 +306,7 @@ servantSitemap ::
     Member (ConnectionStore InternalPaging) r,
     Member IndexedUserStore r,
     Member (ConnectionStore InternalPaging) r,
-    Member (Input (MVar Channel)) r
+    Member (Input Channel) r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -595,7 +595,7 @@ addClient ::
     Member VerificationCodeSubsystem r,
     Member Events r,
     Member UserSubsystem r,
-    Member (Input (MVar Channel)) r
+    Member (Input Channel) r
   ) =>
   Local UserId ->
   ConnId ->

@@ -108,7 +108,6 @@ import Wire.API.Error
 import Wire.API.Federation.Error
 import Wire.API.Team.Feature
 import Wire.GundeckAPIAccess (runGundeckAPIAccess)
-import Wire.NotificationSubsystem.Error
 import Wire.NotificationSubsystem.Interpreter (runNotificationSubsystemGundeck)
 import Wire.Rpc
 import Wire.Sem.Delay
@@ -290,7 +289,6 @@ evalGalley e =
     . interpretExternalAccess
     . runRpcWithHttp (e ^. manager) (e ^. reqId)
     . runGundeckAPIAccess (e ^. options . gundeck)
-    . mapError (toResponse . notificationSubsystemErrorToWaiError)
     . runNotificationSubsystemGundeck (notificationSubsystemConfig e)
     . interpretSparAccess
     . interpretBrigAccess

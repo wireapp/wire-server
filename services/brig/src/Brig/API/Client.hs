@@ -174,7 +174,7 @@ addClient ::
     Member AuthenticationSubsystem r,
     Member VerificationCodeSubsystem r,
     Member Events r,
-    Member (Input (MVar Channel)) r
+    Member (Input Channel) r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -194,7 +194,7 @@ addClientWithReAuthPolicy ::
     Member UserSubsystem r,
     Member AuthenticationSubsystem r,
     Member VerificationCodeSubsystem r,
-    Member (Input (MVar Channel)) r
+    Member (Input Channel) r
   ) =>
   Data.ReAuthPolicy ->
   Local UserId ->
@@ -250,7 +250,7 @@ addClientWithReAuthPolicy policy luid@(tUnqualified -> u) con new = do
 
 updateClient ::
   ( Member NotificationSubsystem r,
-    Member (Input (MVar Channel)) r
+    Member (Input Channel) r
   ) =>
   UserId ->
   ClientId ->

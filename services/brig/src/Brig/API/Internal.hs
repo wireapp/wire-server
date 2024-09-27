@@ -147,7 +147,7 @@ servantSitemap ::
     Member IndexedUserStore r,
     Member (Polysemy.Error.Error UserSubsystemError) r,
     Member (Input TeamTemplates) r,
-    Member (Input (MVar Channel)) r
+    Member (Input Channel) r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -200,7 +200,7 @@ accountAPI ::
     Member Events r,
     Member PasswordResetCodeStore r,
     Member InvitationCodeStore r,
-    Member (Input (MVar Channel)) r
+    Member (Input Channel) r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
@@ -432,7 +432,7 @@ addClientInternalH ::
     Member UserSubsystem r,
     Member VerificationCodeSubsystem r,
     Member AuthenticationSubsystem r,
-    Member (Input (MVar Channel)) r
+    Member (Input Channel) r
   ) =>
   UserId ->
   Maybe Bool ->
