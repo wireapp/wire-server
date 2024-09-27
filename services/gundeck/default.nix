@@ -232,6 +232,7 @@ mkDerivation {
     text
     types-common
     uuid
+    wire-api
   ];
   description = "Push Notification Hub";
   license = lib.licenses.agpl3Only;

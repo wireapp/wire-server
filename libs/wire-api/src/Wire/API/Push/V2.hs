@@ -207,7 +207,7 @@ instance ToSchema ApsData where
         <*> _apsSound .= maybe_ (optField "sound" schema)
         <*> withDefault "badge" _apsBadge schema True
     where
-      withDefault fn f s def = ((Just . f) .= maybe_ (optField fn s)) <&> maybe def id
+      withDefault fn f s def = ((Just . f) .= maybe_ (optField fn s)) <&> fromMaybe def
 
 makeLenses ''ApsData
 
