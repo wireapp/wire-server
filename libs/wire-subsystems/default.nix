@@ -28,7 +28,6 @@
 , extended
 , extra
 , gitignoreSource
-, gundeck-types
 , HaskellNet
 , HaskellNet-SSL
 , HsOpenSSL
@@ -117,7 +116,6 @@ mkDerivation {
     exceptions
     extended
     extra
-    gundeck-types
     HaskellNet
     HaskellNet-SSL
     HsOpenSSL
@@ -180,7 +178,6 @@ mkDerivation {
     data-default
     errors
     extended
-    gundeck-types
     hspec
     imports
     iso639

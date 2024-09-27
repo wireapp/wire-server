@@ -77,8 +77,6 @@ import Data.Proxy
 import Data.Qualified
 import Data.Range
 import Data.Time.Clock (UTCTime)
-import Gundeck.Types.Push.V2 (RecipientClients (RecipientClientsAll))
-import Gundeck.Types.Push.V2 qualified as V2
 import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
@@ -91,6 +89,8 @@ import Wire.API.Conversation hiding (Member)
 import Wire.API.Event.Conversation (Connect (Connect))
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Error
+import Wire.API.Push.V2 (RecipientClients (RecipientClientsAll))
+import Wire.API.Push.V2 qualified as V2
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Routes.Internal.Galley.TeamsIntra (GuardLegalholdPolicyConflicts (GuardLegalholdPolicyConflicts))
 import Wire.API.Team.LegalHold (LegalholdProtectee)

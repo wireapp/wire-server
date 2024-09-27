@@ -30,10 +30,10 @@ import Gundeck.Presence qualified as Presence
 import Gundeck.Push qualified as Push
 import Gundeck.Push.Data qualified as PushTok
 import Gundeck.Push.Native.Types qualified as PushTok
-import Gundeck.Types.Push.V2
 import Imports
 import Servant
 import Wire.API.Push.Token qualified as PushTok
+import Wire.API.Push.V2
 import Wire.API.Routes.Internal.Gundeck
 
 servantSitemap :: ServerT InternalAPI Gundeck

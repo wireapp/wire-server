@@ -131,7 +131,6 @@ library
     , extended
     , extra                                 >=1.1
     , foldl
-    , gundeck-types                         >=1.0
     , hedis                                 >=0.14.0
     , hs-opentelemetry-instrumentation-wai
     , hs-opentelemetry-sdk
@@ -304,7 +303,6 @@ executable gundeck-integration
     , containers
     , exceptions
     , gundeck
-    , gundeck-types
     , HsOpenSSL
     , http-client
     , http-client-tls
@@ -540,7 +538,6 @@ test-suite gundeck-tests
     , containers
     , exceptions
     , gundeck
-    , gundeck-types
     , HsOpenSSL
     , imports
     , lens
@@ -620,7 +617,6 @@ benchmark gundeck-bench
     , base
     , criterion
     , gundeck
-    , gundeck-types
     , HsOpenSSL
     , imports
     , lens
@@ -628,5 +624,6 @@ benchmark gundeck-bench
     , text
     , types-common
     , uuid
+    , wire-api
 
   default-language:   GHC2021

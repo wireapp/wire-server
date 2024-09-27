@@ -52,7 +52,6 @@ import Data.UUID qualified as UUID
 import Data.UUID.V4
 import Gundeck.Options hiding (bulkPush)
 import Gundeck.Options qualified as O
-import Gundeck.Types
 import Imports
 import Network.HTTP.Client qualified as Http
 import Network.URI (parseURI)
@@ -64,8 +63,10 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import TestSetup
 import Util (runRedisProxy, withEnvOverrides, withSettingsOverrides)
+import Wire.API.Event.Gundeck
 import Wire.API.Internal.Notification
 import Wire.API.Presence
+import Wire.API.Push.V2
 import Prelude qualified
 
 tests :: IO TestSetup -> TestTree

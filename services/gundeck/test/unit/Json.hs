@@ -22,13 +22,13 @@ import Data.Aeson
 import Data.Aeson.KeyMap (fromList)
 import Data.Id
 import Data.List1
-import Gundeck.Types.Push
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 import Wire.API.Internal.BulkPush
 import Wire.API.Internal.Notification
+import Wire.API.Push.V2
 
 tests :: TestTree
 tests =

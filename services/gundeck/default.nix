@@ -28,7 +28,6 @@
 , extra
 , foldl
 , gitignoreSource
-, gundeck-types
 , hedis
 , hs-opentelemetry-instrumentation-wai
 , hs-opentelemetry-sdk
@@ -114,7 +113,6 @@ mkDerivation {
     extended
     extra
     foldl
-    gundeck-types
     hedis
     hs-opentelemetry-instrumentation-wai
     hs-opentelemetry-sdk
@@ -166,7 +164,6 @@ mkDerivation {
     containers
     exceptions
     extended
-    gundeck-types
     HsOpenSSL
     http-client
     http-client-tls
@@ -204,7 +201,6 @@ mkDerivation {
     bytestring-conversion
     containers
     exceptions
-    gundeck-types
     HsOpenSSL
     imports
     lens
@@ -229,7 +225,6 @@ mkDerivation {
     amazonka
     base
     criterion
-    gundeck-types
     HsOpenSSL
     imports
     lens

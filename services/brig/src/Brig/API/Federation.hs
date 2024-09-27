@@ -45,7 +45,6 @@ import Data.List.NonEmpty (nonEmpty)
 import Data.Qualified
 import Data.Range
 import Data.Set (fromList, (\\))
-import Gundeck.Types.Push qualified as Push
 import Imports hiding ((\\))
 import Network.Wai.Utilities.Error ((!>>))
 import Polysemy
@@ -57,6 +56,7 @@ import Wire.API.Federation.API.Common
 import Wire.API.Federation.Endpoint
 import Wire.API.Federation.Version
 import Wire.API.MLS.KeyPackage
+import Wire.API.Push.V2 qualified as Push
 import Wire.API.Routes.FederationDomainConfig as FD
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named

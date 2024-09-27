@@ -23,7 +23,6 @@ module Push where
 import Data.Aeson qualified as Aeson
 import Gundeck.Push (pushAll, pushAny)
 import Gundeck.Push.Websocket as Web (bulkPush)
-import Gundeck.Types
 import Imports
 import MockGundeck
 import Test.QuickCheck
@@ -31,6 +30,8 @@ import Test.QuickCheck.Instances ()
 import Test.Tasty
 import Test.Tasty.QuickCheck
 import Wire.API.Internal.Notification
+import Wire.API.Presence
+import Wire.API.Push.V2
 
 tests :: TestTree
 tests =

@@ -90,7 +90,6 @@ library
     , exceptions                            >=0.6
     , extended
     , extra
-    , gundeck-types
     , hashable                              >=1.2
     , hs-opentelemetry-instrumentation-wai
     , hs-opentelemetry-sdk
