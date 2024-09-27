@@ -20,6 +20,8 @@ module Test.FeatureFlags.Util where
 import qualified API.Galley as Public
 import qualified API.GalleyInternal as Internal
 import qualified Data.Aeson as A
+import qualified Data.Aeson.KeyMap as KM
+import qualified Data.Text as Text
 import Notifications
 import SetupHelpers
 import Testlib.Prelude
@@ -33,6 +35,17 @@ instance TestCases APIAccess where
       [ MkTestCase "[api=internal]" InternalAPI,
         MkTestCase "[api=public]" PublicAPI
       ]
+
+newtype Feature = Feature String
+
+instance TestCases Feature where
+  mkTestCases = pure $ case defAllFeatures of
+    Object obj -> do
+      feat <- KM.keys obj
+      let A.String nameT = toJSON feat
+          name = Text.unpack nameT
+      pure $ MkTestCase ("[feature=" <> name <> "]") (Feature name)
+    _ -> []
 
 setFeature :: APIAccess -> Value -> String -> String -> Value -> App Response
 setFeature InternalAPI = Internal.setTeamFeatureConfig
@@ -205,7 +218,6 @@ checkPatch ::
   App ()
 checkPatch domain featureName patch = do
   (owner, tid, _) <- createTeam domain 0
-  feat0 <- Internal.getTeamFeature domain tid featureName >>= getJSON 200
   defFeature <- defAllFeatures %. featureName
 
   let valueOrDefault :: String -> App Value

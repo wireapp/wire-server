@@ -87,3 +87,10 @@ testFeatureConfigConsistency = do
       case val of
         (A.Object hm) -> pure (Set.fromList . map (show . A.toText) . KM.keys $ hm)
         x -> assertFailure ("JSON was not an object, but " <> show x)
+
+testNonMemberAccess :: (HasCallStack) => Feature -> App ()
+testNonMemberAccess (Feature featureName) = do
+  (_, tid, _) <- createTeam OwnDomain 0
+  nonMember <- randomUser OwnDomain def
+  Public.getTeamFeature nonMember tid featureName
+    >>= assertForbidden

@@ -13,8 +13,6 @@ testSearchVisibilityDisabledByDefault :: (HasCallStack) => App ()
 testSearchVisibilityDisabledByDefault = do
   withModifiedBackend def {galleyCfg = setField "settings.featureFlags.teamSearchVisibility" "disabled-by-default"} $ \domain -> do
     (owner, tid, m : _) <- createTeam domain 2
-    nonMember <- randomUser domain def
-    assertForbidden =<< Public.getTeamFeature nonMember tid "searchVisibility"
     -- Test default
     checkFeature "searchVisibility" m tid disabled
     assertSuccess =<< Internal.setTeamFeatureStatus owner tid "searchVisibility" "enabled"
