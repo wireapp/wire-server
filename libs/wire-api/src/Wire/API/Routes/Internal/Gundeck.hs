@@ -1,28 +1,37 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 module Wire.API.Routes.Internal.Gundeck where
 
-import Control.Lens ((.~))
+import Control.Lens ((%~), (.~), (?~))
 import Data.Aeson
 import Data.CommaSeparatedList
+import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
 import Data.Id
-import Data.OpenApi hiding (HasServer, Header)
+import Data.Metrics.Servant
+import Data.OpenApi qualified as S hiding (HasServer, Header)
+import Data.OpenApi.Declare qualified as S
+import Data.Text qualified as Text
 import Data.Typeable
 import Imports
 import Network.URI
 import Network.Wai
 import Servant
+import Servant.API.Description
 import Servant.OpenApi
-import Servant.Server
+import Servant.OpenApi.Internal
 import Servant.Server.Internal.Delayed
 import Servant.Server.Internal.DelayedIO
 import Servant.Server.Internal.ErrorFormatter
 import Wire.API.CannonId
 import Wire.API.Presence
 import Wire.API.Push.V2
-import Wire.API.Push.V2.Token
 import Wire.API.Routes.Public
 
 -- | this can be replaced by `ReqBody '[JSON] Presence` once the fix in cannon from
 -- https://github.com/wireapp/wire-server/pull/4246 has been deployed everywhere.
+--
+-- Background: Cannon.WS.regInfo called gundeck without setting the content-type header here.
+-- wai-routes and wai-predicates were able to work with that; servant is less lenient.
 data ReqBodyHack
 
 -- | cloned from instance for ReqBody'.
@@ -52,6 +61,28 @@ instance
           Left e -> delayedFailFatal $ formatError rep request e
           Right v -> pure v
 
+-- | cloned from instance for ReqBody'.
+instance (RoutesToPaths route) => RoutesToPaths (ReqBodyHack :> route) where
+  getRoutes = getRoutes @route
+
+-- | cloned from instance for ReqBody'.
+instance (HasOpenApi sub) => HasOpenApi (ReqBodyHack :> sub) where
+  toOpenApi _ =
+    toOpenApi (Proxy @sub)
+      & addRequestBody reqBody
+      & addDefaultResponse400 tname
+      & S.components . S.schemas %~ (<> defs)
+    where
+      tname = "body"
+      transDesc "" = Nothing
+      transDesc desc = Just (Text.pack desc)
+      (defs, ref) = S.runDeclare (S.declareSchemaRef (Proxy @Presence)) mempty
+      reqBody =
+        (mempty :: S.RequestBody)
+          & S.description .~ transDesc (reflectDescription (Proxy :: Proxy '[]))
+          & S.required ?~ True
+          & S.content .~ InsOrdHashMap.fromList [(t, mempty & S.schema ?~ ref) | t <- allContentType (Proxy :: Proxy '[JSON])]
+
 type InternalAPI =
   "i"
     :> ( ("status" :> Get '[JSON] NoContent)
@@ -68,7 +99,13 @@ type InternalAPI =
            :<|> ("push-tokens" :> Capture "uid" UserId :> Get '[JSON] PushTokenList)
        )
 
-swaggerDoc :: OpenApi
+instance S.ToParamSchema URI where
+  toParamSchema _ =
+    S.toParamSchema (Proxy @Text)
+      & S.type_ ?~ S.OpenApiString
+      & S.description ?~ "Valid URI"
+
+swaggerDoc :: S.OpenApi
 swaggerDoc =
   toOpenApi (Proxy @InternalAPI)
-    & info . title .~ "Wire-Server internal gundeck API"
+    & S.info . S.title .~ "Wire-Server internal gundeck API"
