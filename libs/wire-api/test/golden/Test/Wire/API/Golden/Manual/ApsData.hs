@@ -21,47 +21,8 @@ module Test.Wire.API.Golden.Manual.ApsData
   )
 where
 
-import Data.Aeson
-import Data.Json.Util
 import Imports
-
-newtype ApsSound = ApsSound {fromSound :: Text}
-  deriving (Eq, Show, ToJSON, FromJSON)
-
-newtype ApsLocKey = ApsLocKey {fromLocKey :: Text}
-  deriving (Eq, Show, ToJSON, FromJSON)
-
-data ApsData = ApsData
-  { _apsLocKey :: !ApsLocKey,
-    _apsLocArgs :: [Text],
-    _apsSound :: !(Maybe ApsSound),
-    _apsBadge :: !Bool
-  }
-  deriving (Eq, Show)
-
-instance ToJSON ApsData where
-  toJSON (ApsData k a s b) =
-    object $
-      "loc_key"
-        .= k
-        # "loc_args"
-        .= a
-        # "sound"
-        .= s
-        # "badge"
-        .= b
-        # []
-
-instance FromJSON ApsData where
-  parseJSON = withObject "ApsData" $ \o ->
-    ApsData
-      <$> o .: "loc_key"
-      <*> o .:? "loc_args" .!= []
-      <*> o .:? "sound"
-      <*> o .:? "badge" .!= True
-
-apsData :: ApsLocKey -> [Text] -> ApsData
-apsData lk la = ApsData lk la Nothing True
+import Wire.API.Push.V2
 
 testObject_ApsData_1 :: ApsData
 testObject_ApsData_1 =

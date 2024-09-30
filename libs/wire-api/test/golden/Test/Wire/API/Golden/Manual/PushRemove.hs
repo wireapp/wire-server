@@ -20,29 +20,8 @@ module Test.Wire.API.Golden.Manual.PushRemove
   )
 where
 
-import Data.Aeson
-import Data.Aeson.KeyMap qualified as KeyMap
-import Data.Json.Util
-import Imports
 import Test.Wire.API.Golden.Manual.Token (testObject_Token_1)
-import Wire.API.Push.V2.Token
+import Wire.API.Event.Gundeck
 
 testObject_PushRemove_1 :: PushRemove
 testObject_PushRemove_1 = PushRemove testObject_Token_1
-
-newtype PushRemove = PushRemove PushToken
-  deriving (Eq, Show)
-
-instance FromJSON PushRemove where
-  parseJSON = withObject "push-removed object" $ \o ->
-    PushRemove <$> o .: "token"
-
-instance ToJSON PushRemove where
-  toJSON = Object . toJSONObject
-
-instance ToJSONObject PushRemove where
-  toJSONObject (PushRemove t) =
-    KeyMap.fromList
-      [ "type" .= ("user.push-remove" :: Text),
-        "token" .= t
-      ]

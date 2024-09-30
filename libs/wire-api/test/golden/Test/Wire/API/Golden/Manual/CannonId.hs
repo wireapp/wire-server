@@ -22,11 +22,7 @@ module Test.Wire.API.Golden.Manual.CannonId
   )
 where
 
-import Data.Aeson
-import Imports
-
-newtype CannonId = CannonId {cannonId :: Text}
-  deriving (Eq, Show, FromJSON, ToJSON)
+import Wire.API.CannonId
 
 testObject_CannonId_1 :: CannonId
 testObject_CannonId_1 = CannonId ""
