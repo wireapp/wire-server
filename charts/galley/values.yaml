@@ -97,8 +97,7 @@ config:
         defaults:
           lockStatus: locked
           status: disabled
-          config:
-            enforcedTimeoutSeconds: ""
+          config: {}
       legalhold: disabled-by-default
       mls:
         defaults:
