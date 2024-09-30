@@ -1,0 +1,1 @@
+Expose gundeck internal API on swagger.  Mv some types and routes to wire-api.
