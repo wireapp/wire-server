@@ -95,6 +95,8 @@ instance ToSchema Route where
 -----------------------------------------------------------------------------
 -- Recipient
 
+-- FUTUREWORK: this is a duplicate of the type in "Wire.NotificationSubsystem" (even though
+-- the latter lacks a few possibly deprecated fields). consolidate!
 data Recipient = Recipient
   { _recipientId :: !UserId,
     _recipientRoute :: !Route,
@@ -214,6 +216,8 @@ makeLenses ''ApsData
 -----------------------------------------------------------------------------
 -- Push
 
+-- FUTUREWORK: this is a duplicate of the type in "Wire.NotificationSubsystem" (even though
+-- the latter lacks a few possibly deprecated fields). consolidate!
 data Push = Push
   { -- | Recipients
     --

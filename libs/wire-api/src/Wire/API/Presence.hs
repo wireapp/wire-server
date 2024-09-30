@@ -18,7 +18,8 @@ import Imports
 import Network.URI qualified as Net
 import Servant.API (ToHttpApiData (toUrlPiece))
 
-newtype URI = URI -- maybe we should use Network.URI, and toss this newtype?  servant should have all these instances for us these days.
+-- FUTUREWORK: use Network.URI and toss this newtype.  servant should have all these instances for us these days.
+newtype URI = URI
   { fromURI :: Net.URI
   }
   deriving (Eq, Ord, Show)
