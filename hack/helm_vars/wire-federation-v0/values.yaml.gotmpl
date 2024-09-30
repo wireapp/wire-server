@@ -21,7 +21,7 @@ cassandra-migrations:
     replicationFactor: 1
 elasticsearch-index:
   elasticsearch:
-    host: elasticsearch-ephemeral
+    host: opensearch-cluster-master
     index: directory_test
   cassandra:
     host: cassandra-ephemeral
@@ -41,7 +41,7 @@ brig:
       host: cassandra-ephemeral
       replicaCount: 1
     elasticsearch:
-      host: elasticsearch-ephemeral
+      host: opensearch-cluster-master
       index: directory_test
     authSettings:
       userTokenTimeout: 120
