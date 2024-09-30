@@ -371,6 +371,11 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.ActivationResponse_user
     Test.Wire.API.Golden.Generated.AddBot_user
     Test.Wire.API.Golden.Generated.AddBotResponse_user
+    Test.Wire.API.Golden.Manual.ApsData
+    Test.Wire.API.Golden.Manual.CannonId
+    Test.Wire.API.Golden.Manual.Presence
+    Test.Wire.API.Golden.Manual.Push
+    Test.Wire.API.Golden.Manual.PushRemove
     Test.Wire.API.Golden.Generated.AppName_user
     Test.Wire.API.Golden.Generated.ApproveLegalHoldForUserRequest_team
     Test.Wire.API.Golden.Generated.Asset_asset
