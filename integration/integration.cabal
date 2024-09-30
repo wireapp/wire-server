@@ -121,6 +121,7 @@ library
     Test.Demo
     Test.EJPD
     Test.Errors
+    Test.Events
     Test.ExternalPartner
     Test.FeatureFlags
     Test.FeatureFlags.AppLock
