@@ -7,8 +7,10 @@
 module Wire.IndexedUserStore.MigrationStore.ElasticSearch where
 
 import Data.Aeson
+import Data.ByteString.Char8 qualified as BS
 import Data.Either
 import Data.Text qualified as Text
+import Data.Text.Encoding (encodeUtf8)
 import Database.Bloodhound qualified as ES
 import Imports
 import Polysemy
@@ -27,7 +29,8 @@ interpretIndexedUserMigrationStoreES env = interpret $ \case
 
 ensureMigrationIndexImpl :: (Member TinyLog r, Member (Embed IO) r, Member (Error MigrationException) r) => ES.BHEnv -> Sem r ()
 ensureMigrationIndexImpl env = do
-  unlessM ((fromRight (error "TODO: Handle error")) <$> liftIO (ES.runBH env (ES.indexExists migrationIndexName))) $ do
+  exists <- either (\l -> logAndThrow CreateMigrationIndexFailed l) pure <$> liftIO (ES.runBH env (ES.indexExists migrationIndexName))
+  unlessM exists $ do
     Log.info $
       Log.msg (Log.val "Creating migrations index, used for tracking which migrations have run")
     liftIO (ES.runBH env (ES.createIndexWith [] 1 migrationIndexName))
@@ -35,13 +38,20 @@ ensureMigrationIndexImpl env = do
   liftIO (ES.runBH env (ES.putMapping @Value migrationIndexName migrationIndexMapping))
     >>= throwIfNotCreated PutMappingFailed
   where
-    throwIfNotCreated :: (Show a, Member (Error MigrationException) r) => (String -> MigrationException) -> Either ES.EsError a -> Sem r ()
+    throwIfNotCreated :: (Member TinyLog r, Member (Error MigrationException) r) => (String -> MigrationException) -> Either ES.EsError a -> Sem r ()
     throwIfNotCreated mkErr response =
       -- TODO: Hopefully, it's good enough to look for errors on the left as we
       -- don't know the structure of the right for sure...
-      when (isLeft response) $
-        throw $
-          mkErr (show response)
+      case response of
+        Left e -> logAndThrow mkErr e
+        Right _ -> pure ()
+
+    logAndThrow :: (Member TinyLog r, Member (Error MigrationException) r) => (String -> MigrationException) -> ES.EsError -> Sem r a
+    logAndThrow mkErr response = do
+      Log.warn $
+        Log.msg (Log.val ("An OpenSearch/ElasticSearch error appeared: " `BS.append` (encodeUtf8 . Text.pack . show) response))
+      throw $
+        mkErr (show response)
 
 getLatestMigrationVersionImpl :: (Member (Embed IO) r, Member (Error MigrationException) r) => ES.BHEnv -> Sem r MigrationVersion
 getLatestMigrationVersionImpl env = do
