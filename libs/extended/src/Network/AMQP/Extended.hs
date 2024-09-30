@@ -55,7 +55,7 @@ data RabbitMqTlsOpts = RabbitMqTlsOpts
   { caCert :: !(Maybe FilePath),
     insecureSkipVerifyTls :: Bool
   }
-  deriving (Show)
+  deriving (Eq, Show)
 
 parseTlsJson :: Object -> Parser (Maybe RabbitMqTlsOpts)
 parseTlsJson v = do
@@ -76,7 +76,7 @@ data RabbitMqAdminOpts = RabbitMqAdminOpts
     tls :: Maybe RabbitMqTlsOpts,
     adminPort :: !Int
   }
-  deriving (Show)
+  deriving (Eq, Show)
 
 instance FromJSON RabbitMqAdminOpts where
   parseJSON = withObject "RabbitMqAdminOpts" $ \v ->
@@ -111,7 +111,7 @@ data AmqpEndpoint = AmqpEndpoint
     vHost :: !Text,
     tls :: !(Maybe RabbitMqTlsOpts)
   }
-  deriving (Show)
+  deriving (Eq, Show)
 
 instance FromJSON AmqpEndpoint where
   parseJSON = withObject "AmqpEndpoint" $ \v ->

@@ -39,6 +39,7 @@ import Network.Wai.Utilities.Error
 import Network.WebSockets hiding (Request, Response, requestHeaders)
 import System.Logger.Class hiding (Error, close)
 import System.Logger.Class qualified as Logger
+import Data.Id
 
 -- | Connection state, updated by {read, write}Loop.
 data State = State !Int !Timeout
@@ -64,6 +65,11 @@ maxPingInterval = 3600
 -- The effective maximum lifetime is @maxLifetime + maxPingInterval@.
 maxLifetime :: Word64
 maxLifetime = 3 * 24 * 3600
+
+rabbitMQWebSocketApp :: UserId -> ClientId -> Env -> ServerApp
+rabbitMQWebSocketApp uid cid env = do
+   env.rabbitmq
+  undefined
 
 wsapp :: Key -> Maybe ClientId -> Env -> ServerApp
 wsapp k c e pc = runWS e (go `catches` ioErrors k)

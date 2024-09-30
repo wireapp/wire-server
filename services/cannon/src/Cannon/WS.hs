@@ -145,7 +145,8 @@ data Env = Env
     dict :: !(Dict Key Websocket),
     rand :: !GenIO,
     clock :: !Clock,
-    drainOpts :: DrainOpts
+    drainOpts :: DrainOpts,
+    rabbitmq :: !AmqpEndpoint
   }
 
 setRequestId :: RequestId -> Env -> Env
