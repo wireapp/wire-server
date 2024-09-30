@@ -21,7 +21,7 @@ module Wire.EmailSending.SMTP
   ( initSMTP,
     emailViaSMTPInterpreter,
     sendMailWithDuration,
-    initSMTP',
+    initSMTPWithTimeout,
     SMTPConnType (..),
     SMTP (..),
     Username (..),
@@ -83,13 +83,13 @@ initSMTP ::
   Maybe (Username, Password) ->
   SMTPConnType ->
   IO SMTP
-initSMTP = initSMTP' defaultTimeoutDuration
+initSMTP = initSMTPWithTimeout defaultTimeoutDuration
 
 -- | `initSMTP` with configurable timeout duration
 --
 -- This is mostly useful for testing. (We don't want to waste the amount of
 -- `defaultTimeoutDuration` in tests with waiting.)
-initSMTP' ::
+initSMTPWithTimeout ::
   (TimeUnit t) =>
   t ->
   Logger ->
@@ -98,7 +98,7 @@ initSMTP' ::
   Maybe (Username, Password) ->
   SMTPConnType ->
   IO SMTP
-initSMTP' timeoutDuration lg host port credentials connType = do
+initSMTPWithTimeout timeoutDuration lg host port credentials connType = do
   -- Try to initiate a connection and fail badly right away in case of bad auth.
   -- Otherwise, config errors will be detected "too late".
   con <-
