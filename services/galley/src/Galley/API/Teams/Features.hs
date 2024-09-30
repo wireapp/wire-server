@@ -435,6 +435,7 @@ instance SetFeatureConfig EnforceFileDownloadLocationConfig where
 
   prepareFeature _ feat = do
     -- empty download location is not allowed
+    -- this is consistent with all other features, and least surprising for clients
     when (feat.config.enforcedDownloadLocation == Just "") $ do
       throw EmptyDownloadLocation
     pure feat
