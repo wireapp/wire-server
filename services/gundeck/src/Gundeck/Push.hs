@@ -29,12 +29,15 @@ module Gundeck.Push
   )
 where
 
+import Bilge qualified
+import Control.Arrow ((&&&))
 import Control.Error
 import Control.Exception (ErrorCall (ErrorCall))
 import Control.Lens (to, view, (.~), (^.))
 import Control.Monad.Catch
 import Control.Monad.Except (throwError)
 import Data.Aeson as Aeson (Object)
+import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.List.Extra qualified as List
 import Data.List1 (List1, list1)
@@ -62,11 +65,14 @@ import Network.HTTP.Types
 import Network.Wai.Utilities
 import System.Logger.Class (msg, val, (+++), (.=), (~~))
 import System.Logger.Class qualified as Log
+import Util.Options
 import Wire.API.Internal.Notification
 import Wire.API.Presence (Presence (..))
 import Wire.API.Presence qualified as Presence
 import Wire.API.Push.Token qualified as Public
 import Wire.API.Push.V2
+import Wire.API.User (UserSet (..))
+import Wire.API.User.Client (Client (..), ClientCapability (..), ClientCapabilityList (..), UserClientsFull (..))
 
 push :: [Push] -> Gundeck ()
 push ps = do
@@ -123,8 +129,49 @@ instance MonadMapAsync Gundeck where
       Nothing -> mapAsync f l
       Just chunkSize -> concat <$> mapM (mapAsync f) (List.chunksOf chunkSize l)
 
--- splitPushes :: [Push] -> m ([Push], [Push])
--- splitPushes = undefined
+splitPushes :: [Push] -> m ([Push], [Push])
+splitPushes =
+  undefined
+
+splitPush :: Push -> m ([Push], [Push])
+splitPush push = do
+  let allRecipients = fromRange $ push._pushRecipients
+  undefined
+
+-- TODO: optimize for possibility of  many pushes having the same users
+splitRecipient :: (MonadReader Env m, Bilge.MonadHttp m, MonadThrow m) => Recipient -> m (Maybe Recipient, Maybe Recipient)
+splitRecipient r = do
+  clientsFull <- getClients r._recipientId
+  let allClients = Map.findWithDefault mempty r._recipientId $ clientsFull.userClientsFull
+  let relevantClients = case r._recipientClients of
+        RecipientClientsSome cs ->
+          Set.filter (\c -> c.clientId `elem` toList cs) allClients
+        RecipientClientsAll -> allClients
+      (capableClients, incapableClients) = Set.partition (\c -> ClientSupportsConsumableNotifications `Set.member` c.clientCapabilities.fromClientCapabilityList) relevantClients
+      capableClientIds = (.clientId) <$> Set.toList capableClients
+      incapableClientIds = (.clientId) <$> Set.toList incapableClients
+  case (capableClientIds, incapableClientIds) of
+    ([], _) -> pure (Nothing, Just r)
+    (_, []) -> pure (Just r, Nothing)
+    (c : cs, i : is) ->
+      pure
+        ( Just $ r {_recipientClients = RecipientClientsSome $ list1 c cs},
+          Just $ r {_recipientClients = RecipientClientsSome $ list1 i is}
+        )
+
+getClients :: (MonadReader Env m, Bilge.MonadHttp m, MonadThrow m) => UserId -> m UserClientsFull
+getClients uid = do
+  r <- do
+    Endpoint h p <- view $ options . brig
+    Bilge.post
+      ( Bilge.host (toByteString' h)
+          . Bilge.port p
+          . Bilge.path "/i/clients/full"
+          . Bilge.json (UserSet $ Set.singleton uid)
+      )
+  when (Bilge.statusCode r /= 200) $ do
+    error "something went wrong"
+  Bilge.responseJsonError r
 
 -- Old way:
 -- Client -> Cannon: establish WS (/await)
@@ -265,7 +312,7 @@ shouldActuallyPush psh rcp pres = not isOrigin && okByPushAllowlist && okByRecip
 
     okByRecipientAllowlist :: Bool
     okByRecipientAllowlist =
-      case (rcp ^. recipientClients, clientId pres) of
+      case (rcp ^. recipientClients, pres.clientId) of
         (RecipientClientsSome cs, Just c) -> c `elem` cs
         _ -> True
 
