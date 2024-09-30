@@ -371,11 +371,6 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.ActivationResponse_user
     Test.Wire.API.Golden.Generated.AddBot_user
     Test.Wire.API.Golden.Generated.AddBotResponse_user
-    Test.Wire.API.Golden.Manual.ApsData
-    Test.Wire.API.Golden.Manual.CannonId
-    Test.Wire.API.Golden.Manual.Presence
-    Test.Wire.API.Golden.Manual.Push
-    Test.Wire.API.Golden.Manual.PushRemove
     Test.Wire.API.Golden.Generated.AppName_user
     Test.Wire.API.Golden.Generated.ApproveLegalHoldForUserRequest_team
     Test.Wire.API.Golden.Generated.Asset_asset
@@ -582,6 +577,8 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.Wrapped_20_22some_5fint_22_20Int_user
     Test.Wire.API.Golden.Manual
     Test.Wire.API.Golden.Manual.Activate_user
+    Test.Wire.API.Golden.Manual.ApsData
+    Test.Wire.API.Golden.Manual.CannonId
     Test.Wire.API.Golden.Manual.ClientCapability
     Test.Wire.API.Golden.Manual.ClientCapabilityList
     Test.Wire.API.Golden.Manual.Contact
@@ -604,6 +601,9 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.Login_user
     Test.Wire.API.Golden.Manual.LoginId_user
     Test.Wire.API.Golden.Manual.MLSKeys
+    Test.Wire.API.Golden.Manual.Presence
+    Test.Wire.API.Golden.Manual.Push
+    Test.Wire.API.Golden.Manual.PushRemove
     Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
     Test.Wire.API.Golden.Manual.SearchResultContact
     Test.Wire.API.Golden.Manual.SendActivationCode_user
