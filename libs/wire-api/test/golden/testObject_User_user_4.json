@@ -20,6 +20,7 @@
     "sso_id": {
         "scim_external_id": ""
     },
+    "status": "active",
     "supported_protocols": [
         "proteus"
     ],
