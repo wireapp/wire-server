@@ -80,7 +80,7 @@ import Spar.Options
 import Spar.Scim.Auth ()
 import Spar.Scim.Types
 import qualified Spar.Scim.Types as ST
-import Spar.Sem.BrigAccess (BrigAccess)
+import Spar.Sem.BrigAccess (BrigAccess, getAccount)
 import qualified Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.GalleyAccess as GalleyAccess
 import Spar.Sem.IdPConfigStore (IdPConfigStore)
@@ -923,7 +923,7 @@ assertHandleUnused' msg hndl =
 
 assertHandleNotUsedElsewhere :: (Member BrigAccess r) => UserId -> Handle -> Scim.ScimHandler (Sem r) ()
 assertHandleNotUsedElsewhere uid hndl = do
-  musr <- lift $ Brig.getBrigUser Brig.WithPendingInvitations uid
+  musr <- lift $ getAccount Brig.WithPendingInvitations uid
   unless ((userHandle =<< musr) == Just hndl) $
     assertHandleUnused' "userName already in use by another wire user" hndl
 

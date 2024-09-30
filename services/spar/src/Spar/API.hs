@@ -77,7 +77,7 @@ import Spar.Orphans ()
 import Spar.Scim hiding (handle)
 import Spar.Sem.AReqIDStore (AReqIDStore)
 import Spar.Sem.AssIDStore (AssIDStore)
-import Spar.Sem.BrigAccess (BrigAccess)
+import Spar.Sem.BrigAccess (BrigAccess, getAccount)
 import qualified Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 import qualified Spar.Sem.DefaultSsoCode as DefaultSsoCode
@@ -466,7 +466,7 @@ idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (co
     idpDoesAuthSelf :: IdP -> UserId -> Sem r Bool
     idpDoesAuthSelf idp uid = do
       let idpIssuer = idp ^. SAML.idpMetadata . SAML.edIssuer
-      mUserIssuer <- (>>= userIssuer) <$> Brig.getBrigUser NoPendingInvitations uid
+      mUserIssuer <- (>>= userIssuer) <$> getAccount NoPendingInvitations uid
       pure $ mUserIssuer == Just idpIssuer
 
 -- | This handler only does the json parsing, and leaves all authorization checks and

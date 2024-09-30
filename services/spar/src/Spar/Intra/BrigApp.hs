@@ -27,7 +27,6 @@ module Spar.Intra.BrigApp
     veidFromUserSSOId,
     mkUserName,
     HavePendingInvitations (..),
-    getBrigUser,
     getBrigUserTeam,
     getZUsrCheckPerm,
     authorizeScimTokenManagement,
@@ -123,13 +122,10 @@ mkUserName Nothing =
 
 ----------------------------------------------------------------------
 
-getBrigUser :: (HasCallStack, Member BrigAccess r) => HavePendingInvitations -> UserId -> Sem r (Maybe User)
-getBrigUser ifpend = BrigAccess.getAccount ifpend
-
 -- | Check that an id maps to an user on brig that is 'Active' (or optionally
 -- 'PendingInvitation') and has a team id.
 getBrigUserTeam :: (HasCallStack, Member BrigAccess r) => HavePendingInvitations -> UserId -> Sem r (Maybe TeamId)
-getBrigUserTeam ifpend = fmap (userTeam =<<) . getBrigUser ifpend
+getBrigUserTeam ifpend = fmap (userTeam =<<) . BrigAccess.getAccount ifpend
 
 -- | Pull team id for z-user from brig.  Check permission in galley.  Return team id.  Fail if
 -- permission check fails or the user is not in status 'Active'.

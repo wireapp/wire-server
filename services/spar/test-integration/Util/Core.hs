@@ -180,6 +180,7 @@ import Spar.Error (SparError)
 import qualified Spar.Intra.BrigApp as Intra
 import Spar.Options
 import Spar.Run
+import Spar.Sem.BrigAccess (getAccount)
 import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
@@ -1186,7 +1187,7 @@ getSsoidViaSelf uid = maybe (error "not found") pure =<< getSsoidViaSelf' uid
 
 getSsoidViaSelf' :: (HasCallStack) => UserId -> TestSpar (Maybe UserSSOId)
 getSsoidViaSelf' uid = do
-  musr <- aFewTimes (runSpar $ Intra.getBrigUser Intra.NoPendingInvitations uid) isJust
+  musr <- aFewTimes (runSpar $ getAccount Intra.NoPendingInvitations uid) isJust
   pure $ ssoIdentity =<< (userIdentity =<< musr)
 
 getUserIdViaRef :: (HasCallStack) => UserRef -> TestSpar UserId
