@@ -353,7 +353,7 @@ assertBrigCassandra ::
   ManagedBy ->
   TestSpar ()
 assertBrigCassandra uid uref usr (valemail, emailValidated) managedBy = do
-  runSpar (BrigAccess.getAccount NoPendingInvitations uid) >>= \(Just (account -> acc)) -> liftIO $ do
+  runSpar (BrigAccess.getAccount NoPendingInvitations uid) >>= \(Just acc) -> liftIO $ do
     let handle = fromRight errmsg . parseHandleEither $ Scim.User.userName usr
           where
             errmsg = error . show . Scim.User.userName $ usr
@@ -649,12 +649,11 @@ testCreateUserNoIdP = do
   do
     aFewTimes (runSpar $ BrigAccess.getAccount Intra.NoPendingInvitations userid) isJust
       >>= maybe (pure ()) (error "pending user in brig is visible, even though it should not be")
-    brigUserAccount <-
+    brigUser <-
       aFewTimes (runSpar $ BrigAccess.getAccount Intra.WithPendingInvitations userid) isJust
         >>= maybe (error "could not find user in brig") pure
-    let brigUser = brigUserAccount.account
     brigUser `userShouldMatch` WrappedScimStoredUser scimStoredUser
-    liftIO $ brigUserAccount.account.userStatus `shouldBe` PendingInvitation
+    liftIO $ brigUser.userStatus `shouldBe` PendingInvitation
     liftIO $ userEmail brigUser `shouldBe` Just email
     liftIO $ userManagedBy brigUser `shouldBe` ManagedByScim
     -- Previous to the change that allowed the external ID to be different from the email, `userSSOId brigUser` was `Nothing`.
@@ -697,10 +696,10 @@ testCreateUserNoIdP = do
     brigUser <-
       aFewTimes (runSpar $ BrigAccess.getAccount Intra.NoPendingInvitations userid) isJust
         >>= maybe (error "could not find user in brig") pure
-    liftIO $ brigUser.account.userStatus `shouldBe` Active
-    liftIO $ userManagedBy brigUser.account `shouldBe` ManagedByScim
-    liftIO $ userHandle brigUser.account `shouldBe` Just handle
-    liftIO $ userSSOId brigUser.account `shouldBe` Just (UserScimExternalId (fromEmail email))
+    liftIO $ brigUser.userStatus `shouldBe` Active
+    liftIO $ userManagedBy brigUser `shouldBe` ManagedByScim
+    liftIO $ userHandle brigUser `shouldBe` Just handle
+    liftIO $ userSSOId brigUser `shouldBe` Just (UserScimExternalId (fromEmail email))
     susr <- getUser tok userid
     let usr = Scim.value . Scim.thing $ susr
     liftIO $ Scim.User.active usr `shouldNotBe` Just (Scim.ScimBool False)

@@ -55,6 +55,7 @@ testObject_User_user_1 =
             qDomain = Domain {_domainText = "s-f4.s"}
           },
       userIdentity = Nothing,
+      userEmailUnvalidated = Nothing,
       userDisplayName = Name {fromName = "\NULuv\996028su\28209lRi"},
       userTextStatus = Nothing,
       userPict = Pict {fromPict = []},
@@ -79,6 +80,7 @@ testObject_User_user_2 =
             qDomain = Domain {_domainText = "k.vbg.p"}
           },
       userIdentity = Just (EmailIdentity (unsafeEmailAddress "some" "example")),
+      userEmailUnvalidated = Nothing,
       userDisplayName =
         Name
           { fromName =
@@ -117,6 +119,7 @@ testObject_User_user_3 =
             qDomain = Domain {_domainText = "dt.n"}
           },
       userIdentity = Just (EmailIdentity (unsafeEmailAddress "some" "example")),
+      userEmailUnvalidated = Nothing,
       userDisplayName =
         Name {fromName = ",r\EMXEg0$\98187\RS\SI'uS\ETX/\1009222`\228V.J{\fgE(\rK!\SOp8s9gXO\21810Xj\STX\RS\DC2"},
       userTextStatus = Nothing,
@@ -149,6 +152,7 @@ testObject_User_user_4 =
           },
       userIdentity =
         Just (SSOIdentity (UserScimExternalId "") (Just (unsafeEmailAddress "some" "example"))),
+      userEmailUnvalidated = Nothing,
       userDisplayName =
         Name
           { fromName =
@@ -185,6 +189,7 @@ testObject_User_user_5 =
           },
       userIdentity =
         Just (EmailIdentity (unsafeEmailAddress "some" "example")),
+      userEmailUnvalidated = Nothing,
       userDisplayName =
         Name
           { fromName =

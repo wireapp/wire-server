@@ -53,7 +53,7 @@ type AllEffects =
     State (Map EmailAddress [SentMail])
   ]
 
-runAllEffects :: Domain -> [ExtendedUserAccount] -> Maybe [Text] -> Sem AllEffects a -> Either AuthenticationSubsystemError a
+runAllEffects :: Domain -> [User] -> Maybe [Text] -> Sem AllEffects a -> Either AuthenticationSubsystemError a
 runAllEffects localDomain preexistingUsers mAllowedEmailDomains =
   run
     . evalState mempty
@@ -80,12 +80,13 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
         let user =
               userNoEmail
                 { userIdentity = Just $ EmailIdentity email,
+                  userEmailUnvalidated = Nothing,
                   userStatus = Active
                 }
             uid = User.userId user
             localDomain = userNoEmail.userQualifiedId.qDomain
             Right (newPasswordHash, cookiesAfterReset) =
-              runAllEffects localDomain [ExtendedUserAccount user Nothing] Nothing $ do
+              runAllEffects localDomain [user] Nothing $ do
                 forM_ mPreviousPassword (hashPassword >=> upsertHashedPassword uid)
                 mapM_ (uncurry (insertCookie uid)) cookiesWithTTL
 
@@ -103,12 +104,13 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
         let user =
               userNoEmail
                 { userIdentity = Just $ EmailIdentity email,
+                  userEmailUnvalidated = Nothing,
                   userStatus = Active
                 }
             uid = User.userId user
             localDomain = userNoEmail.userQualifiedId.qDomain
             Right (newPasswordHash, cookiesAfterReset) =
-              runAllEffects localDomain [ExtendedUserAccount user Nothing] Nothing $ do
+              runAllEffects localDomain [user] Nothing $ do
                 forM_ mPreviousPassword (hashPassword >=> upsertHashedPassword uid)
                 mapM_ (uncurry (insertCookie uid)) cookiesWithTTL
 
@@ -135,11 +137,12 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
         let user =
               userNoEmail
                 { userIdentity = Just $ EmailIdentity email,
+                  userEmailUnvalidated = Nothing,
                   userStatus = Active
                 }
             localDomain = userNoEmail.userQualifiedId.qDomain
             createPasswordResetCodeResult =
-              runAllEffects localDomain [ExtendedUserAccount user Nothing] (Just [decodeUtf8 $ domainPart email]) $
+              runAllEffects localDomain [user] (Just [decodeUtf8 $ domainPart email]) $
                 createPasswordResetCode (mkEmailKey email)
          in counterexample ("expected Right, got: " <> show createPasswordResetCodeResult) $
               isRight createPasswordResetCodeResult
@@ -149,11 +152,12 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
         let user =
               userNoEmail
                 { userIdentity = Just $ EmailIdentity email,
+                  userEmailUnvalidated = Nothing,
                   userStatus = Active
                 }
             localDomain = userNoEmail.userQualifiedId.qDomain
             createPasswordResetCodeResult =
-              runAllEffects localDomain [ExtendedUserAccount user Nothing] Nothing $
+              runAllEffects localDomain [user] Nothing $
                 createPasswordResetCode (mkEmailKey email)
                   <* expectNoEmailSent
          in createPasswordResetCodeResult === Right ()
@@ -171,12 +175,13 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
         let user =
               userNoEmail
                 { userIdentity = Just $ EmailIdentity email,
+                  userEmailUnvalidated = Nothing,
                   userStatus = Active
                 }
             uid = User.userId user
             localDomain = userNoEmail.userQualifiedId.qDomain
             Right (newPasswordHash, mCaughtException) =
-              runAllEffects localDomain [ExtendedUserAccount user Nothing] Nothing $ do
+              runAllEffects localDomain [user] Nothing $ do
                 createPasswordResetCode (mkEmailKey email)
                 (_, code) <- expect1ResetPasswordEmail email
 
@@ -194,12 +199,13 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
         let user =
               userNoEmail
                 { userIdentity = Just $ EmailIdentity email,
+                  userEmailUnvalidated = Nothing,
                   userStatus = Active
                 }
             uid = User.userId user
             localDomain = userNoEmail.userQualifiedId.qDomain
             Right (passwordInDB, resetPasswordResult) =
-              runAllEffects localDomain [ExtendedUserAccount user Nothing] Nothing $ do
+              runAllEffects localDomain [user] Nothing $ do
                 upsertHashedPassword uid =<< hashPassword oldPassword
                 createPasswordResetCode (mkEmailKey email)
                 (_, code) <- expect1ResetPasswordEmail email
@@ -216,12 +222,13 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
         let user =
               userNoEmail
                 { userIdentity = Just $ EmailIdentity email,
+                  userEmailUnvalidated = Nothing,
                   userStatus = Active
                 }
             uid = User.userId user
             localDomain = userNoEmail.userQualifiedId.qDomain
             Right (passwordInDB, resetPasswordResult) =
-              runAllEffects localDomain [ExtendedUserAccount user Nothing] Nothing $ do
+              runAllEffects localDomain [user] Nothing $ do
                 upsertHashedPassword uid =<< hashPassword oldPassword
                 mCaughtExc <- catchExpectedError $ resetPassword (PasswordResetEmailIdentity email) resetCode newPassword
                 (,mCaughtExc) <$> lookupHashedPassword uid
@@ -233,12 +240,13 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
         let user =
               userNoEmail
                 { userIdentity = Just $ EmailIdentity email,
+                  userEmailUnvalidated = Nothing,
                   userStatus = Active
                 }
             uid = User.userId user
             localDomain = userNoEmail.userQualifiedId.qDomain
             Right (passwordInDB, resetPasswordResult) =
-              runAllEffects localDomain [ExtendedUserAccount user Nothing] Nothing $ do
+              runAllEffects localDomain [user] Nothing $ do
                 hashAndUpsertPassword uid oldPassword
                 mCaughtExc <- catchExpectedError $ resetPassword (PasswordResetEmailIdentity wrongEmail) resetCode newPassword
                 (,mCaughtExc) <$> lookupHashedPassword uid
@@ -251,12 +259,13 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
         let user =
               userNoEmail
                 { userIdentity = Just $ EmailIdentity email,
+                  userEmailUnvalidated = Nothing,
                   userStatus = Active
                 }
             uid = User.userId user
             localDomain = userNoEmail.userQualifiedId.qDomain
             Right (passwordHashInDB, correctResetCode, wrongResetErrors, resetPassworedWithCorectCodeResult) =
-              runAllEffects localDomain [ExtendedUserAccount user Nothing] Nothing $ do
+              runAllEffects localDomain [user] Nothing $ do
                 upsertHashedPassword uid =<< hashPassword oldPassword
                 createPasswordResetCode (mkEmailKey email)
                 (_, generatedResetCode) <- expect1ResetPasswordEmail email
@@ -287,12 +296,13 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
         let user =
               userNoEmail
                 { userIdentity = Just $ EmailIdentity email,
+                  userEmailUnvalidated = Nothing,
                   userStatus = Active
                 }
             uid = User.userId user
             localDomain = userNoEmail.userQualifiedId.qDomain
             Right passwordHashInDB =
-              runAllEffects localDomain [ExtendedUserAccount user Nothing] Nothing $ do
+              runAllEffects localDomain [user] Nothing $ do
                 void $ createPasswordResetCode (mkEmailKey email)
                 mLookupRes <- internalLookupPasswordResetCode (mkEmailKey email)
                 for_ mLookupRes $ \(_, code) -> resetPassword (PasswordResetEmailIdentity email) code newPassword

@@ -111,9 +111,6 @@ module Wire.API.User
     AccountStatusUpdate (..),
     AccountStatusResp (..),
 
-    -- * Account
-    ExtendedUserAccount (..),
-
     -- * Scim invitations
     NewUserScimInvitation (..),
 
@@ -558,6 +555,7 @@ data User = User
     -- the user is activated, and the email/phone contained in it will be guaranteedly
     -- verified. {#RefActivation}
     userIdentity :: Maybe UserIdentity,
+    userEmailUnvalidated :: Maybe EmailAddress,
     -- | required; non-unique
     userDisplayName :: Name,
     -- | text status
@@ -604,8 +602,8 @@ userObjectSchema =
       .= field "qualified_id" schema
     <* userId
       .= optional (field "id" (deprecatedSchema "qualified_id" schema))
-    <*> userIdentity
-      .= maybeUserIdentityObjectSchema
+    <*> userIdentity .= maybeUserIdentityObjectSchema
+    <*> userEmailUnvalidated .= maybe_ (optField "email_unvalidated" schema)
     <*> userDisplayName
       .= field "name" schema
     <*> userTextStatus
@@ -1810,23 +1808,6 @@ instance Schema.ToSchema AccountStatusUpdate where
 
 -------------------------------------------------------------------------------
 -- UserAccount
-
--- | This can be parsed as UserAccount, but it has an extra field `email_unvalidated` from
--- brig's cassandra that is needed in spar.  so we return this from GET /i/users in brig.
-data ExtendedUserAccount = ExtendedUserAccount
-  { account :: User,
-    emailUnvalidated :: Maybe EmailAddress
-  }
-  deriving (Eq, Ord, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform ExtendedUserAccount)
-  deriving (ToJSON, FromJSON, S.ToSchema) via Schema.Schema ExtendedUserAccount
-
-instance Schema.ToSchema ExtendedUserAccount where
-  schema =
-    Schema.object "ExtendedUserAccount" $
-      ExtendedUserAccount
-        <$> account Schema..= userObjectSchema
-        <*> emailUnvalidated Schema..= maybe_ (Schema.optField "email_unvalidated" Schema.schema)
 
 -------------------------------------------------------------------------------
 -- NewUserScimInvitation

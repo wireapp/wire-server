@@ -225,6 +225,7 @@ alice =
             qDomain = Domain {_domainText = "foo.example.com"}
           },
       userIdentity = Nothing,
+      userEmailUnvalidated = Nothing,
       userDisplayName = Name "alice",
       userTextStatus = rightToMaybe $ mkTextStatus "text status",
       userPict = Pict {fromPict = []},
@@ -253,6 +254,7 @@ bob =
             qDomain = Domain {_domainText = "baz.example.com"}
           },
       userIdentity = Nothing,
+      userEmailUnvalidated = Nothing,
       userDisplayName = Name "bob",
       userTextStatus = rightToMaybe $ mkTextStatus "text status",
       userPict = Pict {fromPict = []},

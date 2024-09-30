@@ -568,7 +568,7 @@ listActivatedAccountsH ::
   Maybe (CommaSeparatedList Handle) ->
   Maybe (CommaSeparatedList EmailAddress) ->
   Maybe Bool ->
-  Handler r [ExtendedUserAccount]
+  Handler r [User]
 listActivatedAccountsH
   (maybe [] fromCommaSeparatedList -> uids)
   (maybe [] fromCommaSeparatedList -> handles)

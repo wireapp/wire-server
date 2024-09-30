@@ -99,10 +99,10 @@ data UserSubsystem m a where
   -- | Sometimes we don't have any identity of a requesting user, and local profiles are public.
   GetLocalUserProfiles :: Local [UserId] -> UserSubsystem m [UserProfile]
   -- | Get the union of all user accounts matching the `GetBy` argument *and* having a non-empty UserIdentity.
-  GetExtendedAccountsBy :: Local GetBy -> UserSubsystem m [ExtendedUserAccount]
+  GetExtendedAccountsBy :: Local GetBy -> UserSubsystem m [User]
   -- | Get user accounts matching the `[EmailAddress]` argument (accounts with missing
   -- identity and accounts with status /= active included).
-  GetExtendedAccountsByEmailNoFilter :: Local [EmailAddress] -> UserSubsystem m [ExtendedUserAccount]
+  GetExtendedAccountsByEmailNoFilter :: Local [EmailAddress] -> UserSubsystem m [User]
   -- | Get user account by local user id (accounts with missing identity and accounts with
   -- status /= active included).
   GetAccountNoFilter :: Local UserId -> UserSubsystem m (Maybe User)
@@ -154,7 +154,7 @@ makeSem ''UserSubsystem
 
 -- | given a lookup criteria record ('GetBy'), return the union of the user accounts fulfilling that criteria
 getAccountsBy :: (Member UserSubsystem r) => Local GetBy -> Sem r [User]
-getAccountsBy getby = (.account) <$$> getExtendedAccountsBy getby
+getAccountsBy getby = getExtendedAccountsBy getby
 
 getUserProfile :: (Member UserSubsystem r) => Local UserId -> Qualified UserId -> Sem r (Maybe UserProfile)
 getUserProfile luid targetUser =
@@ -184,7 +184,7 @@ getLocalAccountBy includePendingInvitations uid =
 
 getLocalUserAccountByUserKey :: (Member UserSubsystem r) => Local EmailKey -> Sem r (Maybe User)
 getLocalUserAccountByUserKey q@(tUnqualified -> ek) =
-  listToMaybe . fmap (.account) <$> getExtendedAccountsByEmailNoFilter (qualifyAs q [emailKeyOrig ek])
+  listToMaybe <$> getExtendedAccountsByEmailNoFilter (qualifyAs q [emailKeyOrig ek])
 
 ------------------------------------------
 -- FUTUREWORK: Pending functions for a team subsystem

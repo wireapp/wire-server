@@ -833,13 +833,13 @@ getExtendedAccountsByEmailNoFilterImpl ::
     Member (Input UserSubsystemConfig) r
   ) =>
   Local [EmailAddress] ->
-  Sem r [ExtendedUserAccount]
+  Sem r [User]
 getExtendedAccountsByEmailNoFilterImpl (tSplit -> (domain, emails)) = do
   config <- input
   nubOrd <$> flip foldMap emails \ek -> do
     mactiveUid <- lookupKey (mkEmailKey ek)
     getUsers (nubOrd . catMaybes $ [mactiveUid])
-      <&> map (mkExtendedAccountFromStored domain config.defaultLocale)
+      <&> map (mkUserFromStored domain config.defaultLocale)
 
 --------------------------------------------------------------------------------
 -- getting user accounts by different criteria
@@ -853,16 +853,16 @@ getExtendedAccountsByImpl ::
     Member TinyLog r
   ) =>
   Local GetBy ->
-  Sem r [ExtendedUserAccount]
+  Sem r [User]
 getExtendedAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations, getByHandle, getByUserId})) = do
   storedToExtAcc <- do
     config <- input
-    pure $ mkExtendedAccountFromStored domain config.defaultLocale
+    pure $ mkUserFromStored domain config.defaultLocale
 
   handleUserIds :: [UserId] <-
     wither lookupHandle getByHandle
 
-  accsByIds :: [ExtendedUserAccount] <-
+  accsByIds :: [User] <-
     getUsers (nubOrd $ handleUserIds <> getByUserId) <&> map storedToExtAcc
 
   filterM want (nubOrd $ accsByIds)
@@ -871,8 +871,8 @@ getExtendedAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations
     -- . users without identity
     -- . pending users without matching invitation (those are garbage-collected)
     -- . TODO: deleted users?
-    want :: ExtendedUserAccount -> Sem r Bool
-    want ExtendedUserAccount {account = user} =
+    want :: User -> Sem r Bool
+    want user =
       case user.userIdentity of
         Nothing -> pure False
         Just ident -> case user.userStatus of

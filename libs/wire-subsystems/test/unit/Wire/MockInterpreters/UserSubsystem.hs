@@ -7,12 +7,12 @@ import Wire.API.User
 import Wire.UserSubsystem
 
 -- HINT: This is used to test AuthenticationSubsystem, not to test itself!
-userSubsystemTestInterpreter :: [ExtendedUserAccount] -> InterpreterFor UserSubsystem r
+userSubsystemTestInterpreter :: [User] -> InterpreterFor UserSubsystem r
 userSubsystemTestInterpreter initialUsers =
   interpret \case
     GetExtendedAccountsByEmailNoFilter (tUnqualified -> emails) ->
       pure $
         filter
-          (\u -> userEmail u.account `elem` (Just <$> emails))
+          (\u -> userEmail u `elem` (Just <$> emails))
           initialUsers
     _ -> error $ "userSubsystemTestInterpreter: implement on demand"

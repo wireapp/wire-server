@@ -713,7 +713,7 @@ addBot zuid zcon cid add = do
   let colour = fromMaybe defaultAccentId (Ext.rsNewBotColour rs)
   let pict = Pict [] -- Legacy
   let sref = newServiceRef sid pid
-  let usr = User (Qualified (botUserId bid) domain) Nothing name Nothing pict assets colour Active locale (Just sref) Nothing Nothing Nothing ManagedByWire defSupportedProtocols
+  let usr = User (Qualified (botUserId bid) domain) Nothing Nothing name Nothing pict assets colour Active locale (Just sref) Nothing Nothing Nothing ManagedByWire defSupportedProtocols
   let newClt =
         (newClient PermanentClientType (Ext.rsNewBotLastPrekey rs))
           { newClientPrekeys = Ext.rsNewBotPrekeys rs

@@ -79,6 +79,7 @@ mkUserFromStored domain defaultLocale storedUser =
    in User
         { userQualifiedId = (Qualified storedUser.id domain),
           userIdentity = storedUser.identity,
+          userEmailUnvalidated = storedUser.emailUnvalidated,
           userDisplayName = storedUser.name,
           userTextStatus = storedUser.textStatus,
           userPict = (fromMaybe noPict storedUser.pict),
@@ -95,10 +96,6 @@ mkUserFromStored domain defaultLocale storedUser =
             Nothing -> defSupportedProtocols
             Just ps -> if S.null ps then defSupportedProtocols else ps
         }
-
-mkExtendedAccountFromStored :: Domain -> Locale -> StoredUser -> ExtendedUserAccount
-mkExtendedAccountFromStored domain defaultLocale storedUser =
-  ExtendedUserAccount (mkUserFromStored domain defaultLocale storedUser) storedUser.emailUnvalidated
 
 toLocale :: Locale -> (Maybe Language, Maybe Country) -> Locale
 toLocale _ (Just l, c) = Locale l c
