@@ -124,8 +124,8 @@ data:
         smtpCredentials:
           smtpAuth: {{ .smtp.auth | default "basic" }}
           smtpUsername: {{ .smtp.username }}
-          {{- if eq .smtp.auth "xauth2" }}
-          smtpXAUTH2Token: {{ .smtp.xauth2TokenFile }}
+          {{- if eq .smtp.auth "xoauth2" }}
+          smtpXOAUTH2ClientCredential: {{ .smtp.xoauth2ClientCredentialFile }}
           {{- else }}
           smtpPassword: {{ .smtp.passwordFile }}
           {{- end }}

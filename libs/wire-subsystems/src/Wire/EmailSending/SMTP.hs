@@ -55,8 +55,8 @@ emailViaSMTPInterpreter logger smtp = interpret \case
 data Credential
   = -- | username and password
     BasicAuth Text Text
-  | -- | username and token
-    XAUTH2Token Text Text
+  | -- | username and client credential
+    XOAUTH2ClientCredential Text Text
 
 data SMTP = SMTP {pool :: !(Pool SMTP.SMTPConnection)}
 
@@ -147,7 +147,10 @@ initSMTPWithTimeout timeoutDuration lg host port credentials connType = do
         Just (BasicAuth u p) ->
           ensureTimeout $
             SMTP.authenticate SMTP.LOGIN (unpack u) (unpack p) conn
-        Just (XAUTH2Token u t) ->
+        Just (XOAUTH2ClientCredential u t) ->
+          -- TODO(SB) pass token endpoint
+          -- TODO(SB) get token by providing the client credential to the token endpoint
+          -- TODO(SB) find the example for querying the token endpoint in the ticket
           ensureTimeout $
             SMTP.authenticate SMTP.XOAUTH2 (unpack u) (unpack t) conn
         Nothing -> pure True

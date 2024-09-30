@@ -120,16 +120,16 @@ data EmailSMTPCredentials
   = -- | username and password file
     EmailSMTPBasicAuth !Text !FilePathSecrets
   | -- | username and token file
-    EmailSMTPXAUTH2 !Text !FilePathSecrets
+    EmailSMTPXOAUTH2 !Text !FilePathSecrets
   deriving (Show, Generic)
 
 instance FromJSON EmailSMTPCredentials where
   parseJSON = withObject "smtpCredentials" $ \v ->
     v .:? "smtpAuth" .!= ("basic" :: String) >>= \case
-      "xauth2" ->
-        EmailSMTPXAUTH2
+      "xoauth2" ->
+        EmailSMTPXOAUTH2
           <$> v .: "smtpUsername"
-          <*> v .: "smtpXAUTH2Token"
+          <*> v .: "smtpXOAUTH2ClientCredential"
       _ ->
         EmailSMTPBasicAuth
           <$> v .: "smtpUsername"

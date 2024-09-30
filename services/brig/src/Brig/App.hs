@@ -309,8 +309,8 @@ newEnv opts = do
       smtpCredentials <- for s.smtpCredentials \case
         Opt.EmailSMTPBasicAuth u passFile ->
           SMTP.BasicAuth u <$> initCredentials passFile
-        Opt.EmailSMTPXAUTH2 u tokenFile ->
-          SMTP.XAUTH2Token u <$> initCredentials tokenFile
+        Opt.EmailSMTPXOAUTH2 u clientCredentialFile ->
+          SMTP.XOAUTH2ClientCredential u <$> initCredentials clientCredentialFile
       smtp <- SMTP.initSMTP lgr h p smtpCredentials s.smtpConnType
       pure (Nothing, Just smtp)
     mkEndpoint service = RPC.host (encodeUtf8 service.host) . RPC.port service.port $ RPC.empty
