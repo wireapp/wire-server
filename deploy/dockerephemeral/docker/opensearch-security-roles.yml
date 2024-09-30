@@ -1,0 +1,16 @@
+_meta:
+  type: "roles"
+  config_version: 2
+
+wire-backend-role:
+  reserved: true
+  hidden: false
+  cluster_permissions:
+    - "indices:admin/template/get"
+  index_permissions:
+    - index_patterns:
+        - '*'
+      allowed_actions:
+        - "indices:admin/create"
+        - "indices:admin/get"
+        - "indices:admin/template/get"
