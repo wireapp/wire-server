@@ -39,9 +39,14 @@ import Wire.API.User (AccountStatus (..))
 
 runCommand :: Logger -> ClientState -> ES.BHEnv -> String -> IO ()
 runCommand l cas es indexStr = do
-  let index = fromRight (error "TODO: Index error helper function") $ ES.mkIndexName $ Text.pack indexStr
-      transform :: IO (Either ES.EsError a) -> IO a
-      transform = fmap (fromRight (error "TODO: Handle error"))
+  index <-
+    either (\err -> fail ("Invalid index name: " ++ indexStr ++ ". Error: " ++ show err)) pure $
+      ES.mkIndexName $
+        Text.pack indexStr
+  let transform :: IO (Either ES.EsError a) -> IO a
+      transform res =
+        res
+          >>= \r -> either (\err -> (fail ("ElasticSearch error: " ++ show err))) pure r
   runConduit $
     transPipe (transform <$> ES.runBH es) $
       getScrolled index
