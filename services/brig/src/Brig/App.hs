@@ -306,10 +306,11 @@ newEnv opts = do
     emailConn lgr (Opt.EmailSMTP s) = do
       let h = s.smtpEndpoint.host
           p = Just . fromInteger . toInteger $ s.smtpEndpoint.port
-      smtpCredentials <- case s.smtpCredentials of
-        Just (Opt.EmailSMTPCredentials u p') -> do
-          Just . (SMTP.Username u,) . SMTP.Password <$> initCredentials p'
-        _ -> pure Nothing
+      smtpCredentials <- for s.smtpCredentials \case
+        Opt.EmailSMTPBasicAuth u passFile ->
+          SMTP.BasicAuth u <$> initCredentials passFile
+        Opt.EmailSMTPXAUTH2 u tokenFile ->
+          SMTP.XAUTH2Token u <$> initCredentials tokenFile
       smtp <- SMTP.initSMTP lgr h p smtpCredentials s.smtpConnType
       pure (Nothing, Just smtp)
     mkEndpoint service = RPC.host (encodeUtf8 service.host) . RPC.port service.port $ RPC.empty

@@ -152,6 +152,7 @@ config:
     setFederationDomainConfigsUpdateFreq: 10
   smtp:
     passwordFile: /etc/wire/brig/secrets/smtp-password.txt
+    xauth2TokenFile: /etc/wire/brig/secrets/smtp-xauth2-token.txt
   proxy: {}
 
 turnStatic:

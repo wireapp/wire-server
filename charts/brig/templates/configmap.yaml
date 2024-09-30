@@ -122,8 +122,13 @@ data:
         smtpConnType: {{ .smtp.connType }}
         {{- if .smtp.username }}
         smtpCredentials:
+          smtpAuth: {{ .smtp.auth | default "basic" }}
           smtpUsername: {{ .smtp.username }}
+          {{- if eq .smtp.auth "xauth2" }}
+          smtpXAUTH2Token: {{ .smtp.xauth2TokenFile }}
+          {{- else }}
           smtpPassword: {{ .smtp.passwordFile }}
+          {{- end }}
         {{- end }}
       {{- end }}
       general:

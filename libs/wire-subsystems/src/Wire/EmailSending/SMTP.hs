@@ -24,8 +24,7 @@ module Wire.EmailSending.SMTP
     initSMTPWithTimeout,
     SMTPConnType (..),
     SMTP (..),
-    Username (..),
-    Password (..),
+    Credential (..),
     SMTPPoolException (..),
   )
 where
@@ -53,9 +52,11 @@ emailViaSMTPInterpreter :: (Member (Embed IO) r) => Logger -> SMTP -> Interprete
 emailViaSMTPInterpreter logger smtp = interpret \case
   SendMail mail -> sendMailImpl logger smtp mail
 
-newtype Username = Username Text
-
-newtype Password = Password Text
+data Credential
+  = -- | username and password
+    BasicAuth Text Text
+  | -- | username and token
+    XAUTH2Token Text Text
 
 data SMTP = SMTP {pool :: !(Pool SMTP.SMTPConnection)}
 
@@ -80,7 +81,7 @@ initSMTP ::
   Logger ->
   Text ->
   Maybe PortNumber ->
-  Maybe (Username, Password) ->
+  Maybe Credential ->
   SMTPConnType ->
   IO SMTP
 initSMTP = initSMTPWithTimeout defaultTimeoutDuration
@@ -95,7 +96,7 @@ initSMTPWithTimeout ::
   Logger ->
   Text ->
   Maybe PortNumber ->
-  Maybe (Username, Password) ->
+  Maybe Credential ->
   SMTPConnType ->
   IO SMTP
 initSMTPWithTimeout timeoutDuration lg host port credentials connType = do
@@ -143,10 +144,13 @@ initSMTPWithTimeout timeoutDuration lg host port credentials connType = do
           SMTP.connectSMTPSSLWithSettings (unpack host) $
             SMTP.defaultSettingsSMTPSSL {SMTP.sslPort = p}
       ok <- case credentials of
-        (Just (Username u, Password p)) ->
+        Just (BasicAuth u p) ->
           ensureTimeout $
             SMTP.authenticate SMTP.LOGIN (unpack u) (unpack p) conn
-        _ -> pure True
+        Just (XAUTH2Token u t) ->
+          ensureTimeout $
+            SMTP.authenticate SMTP.XOAUTH2 (unpack u) (unpack t) conn
+        Nothing -> pure True
       if ok
         then pure conn
         else CE.throw SMTPUnauthorized

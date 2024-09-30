@@ -116,17 +116,24 @@ data EmailAWSOpts = EmailAWSOpts
 
 instance FromJSON EmailAWSOpts
 
-data EmailSMTPCredentials = EmailSMTPCredentials
-  { -- | Username to authenticate
-    --   against the SMTP server
-    smtpUsername :: !Text,
-    -- | File containing password to
-    --   authenticate against the SMTP server
-    smtpPassword :: !FilePathSecrets
-  }
+data EmailSMTPCredentials
+  = -- | username and password file
+    EmailSMTPBasicAuth !Text !FilePathSecrets
+  | -- | username and token file
+    EmailSMTPXAUTH2 !Text !FilePathSecrets
   deriving (Show, Generic)
 
-instance FromJSON EmailSMTPCredentials
+instance FromJSON EmailSMTPCredentials where
+  parseJSON = withObject "smtpCredentials" $ \v ->
+    v .:? "smtpAuth" .!= ("basic" :: String) >>= \case
+      "xauth2" ->
+        EmailSMTPXAUTH2
+          <$> v .: "smtpUsername"
+          <*> v .: "smtpXAUTH2Token"
+      _ ->
+        EmailSMTPBasicAuth
+          <$> v .: "smtpUsername"
+          <*> v .: "smtpPassword"
 
 data EmailSMTPOpts = EmailSMTPOpts
   { -- | Hostname of the SMTP server to connect to
