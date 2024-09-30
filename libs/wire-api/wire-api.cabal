@@ -74,7 +74,6 @@ library
     Wire.API.Bot
     Wire.API.Bot.Service
     Wire.API.Call.Config
-    Wire.API.CannonId
     Wire.API.Connection
     Wire.API.Conversation
     Wire.API.Conversation.Action
@@ -97,7 +96,6 @@ library
     Wire.API.Event.Conversation
     Wire.API.Event.FeatureConfig
     Wire.API.Event.Federation
-    Wire.API.Event.Gundeck
     Wire.API.Event.LeaveReason
     Wire.API.Event.Team
     Wire.API.FederationStatus
@@ -138,7 +136,6 @@ library
     Wire.API.Notification
     Wire.API.OAuth
     Wire.API.Password
-    Wire.API.Presence
     Wire.API.Properties
     Wire.API.Provider
     Wire.API.Provider.Bot
@@ -146,7 +143,6 @@ library
     Wire.API.Provider.Service
     Wire.API.Provider.Service.Tag
     Wire.API.Push.Token
-    Wire.API.Push.V2
     Wire.API.Push.V2.Token
     Wire.API.RawJson
     Wire.API.Routes.API
@@ -168,7 +164,6 @@ library
     Wire.API.Routes.Internal.Galley.ConversationsIntra
     Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti
     Wire.API.Routes.Internal.Galley.TeamsIntra
-    Wire.API.Routes.Internal.Gundeck
     Wire.API.Routes.Internal.LegalHold
     Wire.API.Routes.Internal.Spar
     Wire.API.Routes.LowLevelStream
@@ -305,7 +300,6 @@ library
     , metrics-wai
     , mime                       >=0.4
     , mtl
-    , network-uri
     , openapi3
     , pem                        >=0.2
     , polysemy
@@ -371,11 +365,6 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.ActivationResponse_user
     Test.Wire.API.Golden.Generated.AddBot_user
     Test.Wire.API.Golden.Generated.AddBotResponse_user
-    Test.Wire.API.Golden.Manual.ApsData
-    Test.Wire.API.Golden.Manual.CannonId
-    Test.Wire.API.Golden.Manual.Presence
-    Test.Wire.API.Golden.Manual.Push
-    Test.Wire.API.Golden.Manual.PushRemove
     Test.Wire.API.Golden.Generated.AppName_user
     Test.Wire.API.Golden.Generated.ApproveLegalHoldForUserRequest_team
     Test.Wire.API.Golden.Generated.Asset_asset
@@ -582,6 +571,8 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.Wrapped_20_22some_5fint_22_20Int_user
     Test.Wire.API.Golden.Manual
     Test.Wire.API.Golden.Manual.Activate_user
+    Test.Wire.API.Golden.Manual.ApsData
+    Test.Wire.API.Golden.Manual.CannonId
     Test.Wire.API.Golden.Manual.ClientCapability
     Test.Wire.API.Golden.Manual.ClientCapabilityList
     Test.Wire.API.Golden.Manual.Contact
@@ -604,6 +595,9 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.Login_user
     Test.Wire.API.Golden.Manual.LoginId_user
     Test.Wire.API.Golden.Manual.MLSKeys
+    Test.Wire.API.Golden.Manual.Presence
+    Test.Wire.API.Golden.Manual.Push
+    Test.Wire.API.Golden.Manual.PushRemove
     Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
     Test.Wire.API.Golden.Manual.SearchResultContact
     Test.Wire.API.Golden.Manual.SendActivationCode_user
@@ -633,7 +627,10 @@ test-suite wire-api-golden-tests
     , iso639
     , lens
     , pem
+    , attoparsec
     , proto-lens
+    , servant
+    , network-uri
     , string-conversions
     , tasty
     , tasty-hunit
@@ -641,6 +638,8 @@ test-suite wire-api-golden-tests
     , time
     , types-common             >=0.16
     , uri-bytestring
+    , schema-profunctor
+    , openapi3
     , uuid
     , wire-api
     , wire-message-proto-lens
@@ -693,6 +692,7 @@ test-suite wire-api-tests
     , containers             >=0.5
     , crypton
     , filepath
+    , servant
     , hex
     , hspec
     , hspec-wai
