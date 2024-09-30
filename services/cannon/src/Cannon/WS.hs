@@ -18,7 +18,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Cannon.WS
-  ( Env,
+  ( Env (..),
     WS,
     env,
     runWS,
@@ -67,6 +67,7 @@ import Data.List.Extra (chunksOf)
 import Data.Text.Encoding (decodeUtf8)
 import Data.Timeout (TimeoutUnit (..), (#))
 import Imports hiding (threadDelay)
+import Network.AMQP.Extended
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
@@ -192,8 +193,9 @@ env ::
   GenIO ->
   Clock ->
   DrainOpts ->
+  AmqpEndpoint ->
   Env
-env leh lp gh gp = Env leh lp (host gh . port gp $ empty) (RequestId defRequestId)
+env leh lp gh gp = Env leh lp (Bilge.host gh . Bilge.port gp $ empty) (RequestId defRequestId)
 
 runWS :: (MonadIO m) => Env -> WS a -> m a
 runWS e m = liftIO $ runReaderT (_conn m) e

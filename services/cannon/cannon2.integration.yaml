@@ -16,6 +16,14 @@ gundeck:
   host: 127.0.0.1
   port: 8086
 
+rabbitmq:
+  host: 127.0.0.1
+  port: 5671
+  vHost: /
+  enableTls: true
+  caCert: test/resources/rabbitmq-ca.pem
+  insecureSkipVerifyTls: false
+
 drainOpts:
   gracePeriodSeconds: 1
   millisecondsBetweenBatches: 5

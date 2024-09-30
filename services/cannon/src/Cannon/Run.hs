@@ -28,7 +28,7 @@ import Cannon.App (maxPingInterval)
 import Cannon.Dict qualified as D
 import Cannon.Options
 import Cannon.Types (Cannon, applog, clients, env, mkEnv, runCannon, runCannonToServant)
-import Cannon.WS hiding (env)
+import Cannon.WS hiding (drainOpts, env)
 import Control.Concurrent
 import Control.Concurrent.Async qualified as Async
 import Control.Exception qualified as E
@@ -78,6 +78,7 @@ run o = withTracer \tracer -> do
       <*> newManager defaultManagerSettings {managerConnCount = 128}
       <*> createSystemRandom
       <*> mkClock
+      <*> pure (o ^. Cannon.Options.rabbitmq)
   refreshMetricsThread <- Async.async $ runCannon e refreshMetrics
   s <- newSettings $ Server (o ^. cannon . host) (o ^. cannon . port) (applog e) (Just idleTimeout)
 

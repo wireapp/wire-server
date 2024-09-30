@@ -54,7 +54,7 @@ runNotificationSubsystemGundeck cfg = interpret $ \case
   CleanupUser uid -> GundeckAPIAccess.userDeleted uid
   UnregisterPushClient uid cid -> GundeckAPIAccess.unregisterPushClient uid cid
   GetPushTokens uid -> GundeckAPIAccess.getPushTokens uid
-  SetUpUserNotificationQueues chan uid cid -> setUpUserNotificationQueuesImpl chan uid cid
+  SetUpUserNotificationQueues chan uid cid -> void $ liftIO $ setUpUserNotificationQueuesImpl chan uid cid
 
 data NotificationSubsystemConfig = NotificationSubsystemConfig
   { fanoutLimit :: Range 1 HardTruncationLimit Int32,
@@ -179,25 +179,23 @@ pushSlowlyImpl ps =
     pushImpl [p]
 
 setUpUserNotificationQueuesImpl ::
-  ( Member (Embed IO) r
-  ) =>
   Channel ->
   UserId ->
   ClientId ->
-  Sem r ()
+  IO Text
 setUpUserNotificationQueuesImpl chan uid cid = do
-  let qName = idToText uid
   let cidText = decodeUtf8 $ toByteString' cid
+  let qName = idToText uid <> cidText
   let routingKeys =
         [ qName,
           qName <> "." <> cidText
         ]
-  liftIO $ do
-    let headers =
-          FieldTable $
-            Map.fromList
-              [ ("x-dead-letter-exchange", FVString $ encodeUtf8 userNotificationDlxName),
-                ("x-dead-letter-routing-key", FVString $ encodeUtf8 userNotificationDlqName)
-              ]
-    void $ declareQueue chan newQueue {queueName = qName, queueHeaders = headers}
-    for_ routingKeys $ bindQueue chan qName userNotificationExchangeName
+  let headers =
+        FieldTable $
+          Map.fromList
+            [ ("x-dead-letter-exchange", FVString $ encodeUtf8 userNotificationDlxName),
+              ("x-dead-letter-routing-key", FVString $ encodeUtf8 userNotificationDlqName)
+            ]
+  void $ declareQueue chan newQueue {queueName = qName, queueHeaders = headers}
+  for_ routingKeys $ bindQueue chan qName userNotificationExchangeName
+  pure qName
