@@ -82,7 +82,7 @@ persistMigrationVersionImpl env v = do
         else throw $ PersistVersionFailed v $ show persistResponse
 
 migrationIndexName :: ES.IndexName
-migrationIndexName = fromRight (error "TODO: Handle error") $ ES.mkIndexName "wire_brig_migrations"
+migrationIndexName = [ES.qqIndexName|wire_brig_migrations|]
 
 migrationIndexMapping :: Value
 migrationIndexMapping =
