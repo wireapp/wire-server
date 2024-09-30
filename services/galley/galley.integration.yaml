@@ -75,6 +75,12 @@ settings:
       status: enabled
       config:
         domains: ["example.com"]
+    enforceFileDownloadLocation:
+      defaults:
+        status: disabled
+        lockStatus: unlocked
+        config:
+          enforcedDownloadLocation: "downloads"
     fileSharing:
       defaults:
         status: enabled

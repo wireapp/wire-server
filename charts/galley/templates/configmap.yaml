@@ -106,6 +106,10 @@ data:
         fileSharing:
           {{- toYaml .settings.featureFlags.fileSharing | nindent 10 }}
         {{- end }}
+        {{- if .settings.featureFlags.enforceFileDownloadLocation }}
+        enforceFileDownloadLocation:
+          {{- toYaml .settings.featureFlags.enforceFileDownloadLocation | nindent 10 }}
+        {{- end }}
         {{- if .settings.featureFlags.sndFactorPasswordChallenge }}
         sndFactorPasswordChallenge:
           {{- toYaml .settings.featureFlags.sndFactorPasswordChallenge | nindent 10 }}

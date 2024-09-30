@@ -269,6 +269,12 @@ galley:
           status: enabled
           config:
             domains: ["example.com"]
+        enforceFileDownloadLocation:
+          defaults:
+            status: disabled
+            lockStatus: unlocked
+            config:
+              enforcedDownloadLocation: "downloads"
         mlsMigration:
           defaults:
             status: enabled

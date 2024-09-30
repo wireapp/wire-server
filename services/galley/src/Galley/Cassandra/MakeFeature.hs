@@ -14,6 +14,7 @@ import Data.List.Singletons (Length)
 import Data.Misc (HttpsUrl)
 import Data.Singletons (demote)
 import Data.Time
+import Data.Time.Clock.POSIX
 import GHC.TypeNats
 import Galley.Cassandra.FeatureTH
 import Galley.Cassandra.Instances ()
@@ -336,10 +337,22 @@ instance MakeFeature MlsE2EIdConfig where
       :* Just feat.config.useProxyOnMobile
       :* Nil
 
+-- Optional time stamp. A 'Nothing' value is represented as 0.
+newtype OptionalUTCTime = OptionalUTCTime {unOptionalUTCTime :: Maybe UTCTime}
+
+instance Cql OptionalUTCTime where
+  ctype = Tagged (untag (ctype @UTCTime))
+
+  toCql = toCql . fromMaybe (posixSecondsToUTCTime 0) . unOptionalUTCTime
+
+  fromCql x = do
+    t <- fromCql x
+    pure . OptionalUTCTime $ guard (utcTimeToPOSIXSeconds t /= 0) $> t
+
 instance MakeFeature MlsMigrationConfig where
   type
     FeatureRow MlsMigrationConfig =
-      '[LockStatus, FeatureStatus, UTCTime, UTCTime]
+      '[LockStatus, FeatureStatus, OptionalUTCTime, OptionalUTCTime]
 
   featureColumns =
     K "mls_migration_lock_status"
@@ -351,14 +364,23 @@ instance MakeFeature MlsMigrationConfig where
   rowToFeature (lockStatus :* status :* startTime :* finalizeAfter :* Nil) =
     foldMap dbFeatureLockStatus lockStatus
       <> foldMap dbFeatureStatus status
-      -- FUTUREWORK: allow using the default
-      <> dbFeatureConfig (MlsMigrationConfig startTime finalizeAfter)
+      <> dbFeatureModConfig
+        ( \defCfg ->
+            defCfg
+              { startTime = maybe defCfg.startTime unOptionalUTCTime startTime,
+                finaliseRegardlessAfter =
+                  maybe
+                    defCfg.finaliseRegardlessAfter
+                    unOptionalUTCTime
+                    finalizeAfter
+              }
+        )
 
   featureToRow feat =
     Just feat.lockStatus
       :* Just feat.status
-      :* feat.config.startTime
-      :* feat.config.finaliseRegardlessAfter
+      :* Just (OptionalUTCTime feat.config.startTime)
+      :* Just (OptionalUTCTime feat.config.finaliseRegardlessAfter)
       :* Nil
 
 instance MakeFeature EnforceFileDownloadLocationConfig where
@@ -373,12 +395,20 @@ instance MakeFeature EnforceFileDownloadLocationConfig where
   rowToFeature (lockStatus :* status :* location :* Nil) =
     foldMap dbFeatureLockStatus lockStatus
       <> foldMap dbFeatureStatus status
-      -- FUTUREWORK: allow using the default
-      <> dbFeatureConfig (EnforceFileDownloadLocationConfig location)
+      <> foldMap
+        dbFeatureConfig
+        ( case location of
+            Nothing -> Nothing
+            -- convert empty string to 'Nothing'
+            Just "" -> Just (EnforceFileDownloadLocationConfig Nothing)
+            Just loc -> Just (EnforceFileDownloadLocationConfig (Just loc))
+        )
+
   featureToRow feat =
     Just feat.lockStatus
       :* Just feat.status
-      :* feat.config.enforcedDownloadLocation
+      -- represent 'Nothing' as the empty string
+      :* Just (fromMaybe "" feat.config.enforcedDownloadLocation)
       :* Nil
 
 instance MakeFeature LimitedEventFanoutConfig where
