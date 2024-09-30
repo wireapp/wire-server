@@ -39,7 +39,7 @@ ensureMigrationIndexImpl env = do
     throwIfNotCreated mkErr response =
       -- TODO: Hopefully, it's good enough to look for errors on the left as we
       -- don't know the structure of the right for sure...
-      unless (isLeft response) $
+      when (isLeft response) $
         throw $
           mkErr (show response)
 
