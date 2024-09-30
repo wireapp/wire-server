@@ -59,7 +59,9 @@ import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 -- Permissions
 
 data Permissions = Permissions
-  { self :: Set Perm,
+  { -- | User's permissions
+    self :: Set Perm,
+    -- | Permissions this user is allowed to grant others
     copy :: Set Perm
   }
   deriving stock (Eq, Ord, Show, Generic)
@@ -69,9 +71,11 @@ permissionsSchema :: ValueSchema NamedSwaggerDoc Permissions
 permissionsSchema =
   objectWithDocModifier "Permissions" (description ?~ docs) $
     Permissions
-      <$> (permsToInt . self) .= field "self" (intToPerms <$> schema)
-      <*> (permsToInt . copy) .= field "copy" (intToPerms <$> schema)
+      <$> (permsToInt . self) .= fieldWithDocModifier "self" selfDoc (intToPerms <$> schema)
+      <*> (permsToInt . copy) .= fieldWithDocModifier "copy" copyDoc (intToPerms <$> schema)
   where
+    selfDoc = S.description ?~ "Permissions that the user has"
+    copyDoc = S.description ?~ "Permissions that this user is able to grant others"
     docs =
       "This is just a complicated way of representing a team role.  self and copy \
       \always have to contain the same integer, and only the following integers \
