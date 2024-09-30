@@ -225,12 +225,13 @@ alice =
             qDomain = Domain {_domainText = "foo.example.com"}
           },
       userIdentity = Nothing,
+      userEmailUnvalidated = Nothing,
       userDisplayName = Name "alice",
       userTextStatus = rightToMaybe $ mkTextStatus "text status",
       userPict = Pict {fromPict = []},
       userAssets = [],
       userAccentId = ColourId {fromColourId = 1},
-      userDeleted = True,
+      userStatus = Deleted,
       userLocale =
         Locale
           { lLanguage = Language L.TN,
@@ -253,12 +254,13 @@ bob =
             qDomain = Domain {_domainText = "baz.example.com"}
           },
       userIdentity = Nothing,
+      userEmailUnvalidated = Nothing,
       userDisplayName = Name "bob",
       userTextStatus = rightToMaybe $ mkTextStatus "text status",
       userPict = Pict {fromPict = []},
       userAssets = [],
       userAccentId = ColourId {fromColourId = 2},
-      userDeleted = False,
+      userStatus = Active,
       userLocale =
         Locale
           { lLanguage = Language L.CA,

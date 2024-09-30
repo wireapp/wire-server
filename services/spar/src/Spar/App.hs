@@ -75,7 +75,7 @@ import qualified Spar.Intra.BrigApp as Intra
 import Spar.Options
 import Spar.Orphans ()
 import Spar.Sem.AReqIDStore (AReqIDStore)
-import Spar.Sem.BrigAccess (BrigAccess)
+import Spar.Sem.BrigAccess (BrigAccess, getAccount)
 import qualified Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.GalleyAccess as GalleyAccess
@@ -141,7 +141,7 @@ getUserByUrefUnsafe ::
   SAML.UserRef ->
   Sem r (Maybe User)
 getUserByUrefUnsafe uref = do
-  maybe (pure Nothing) (Intra.getBrigUser Intra.WithPendingInvitations) =<< SAMLUserStore.get uref
+  maybe (pure Nothing) (getAccount Intra.WithPendingInvitations) =<< SAMLUserStore.get uref
 
 -- FUTUREWORK: Remove and reinstatate getUser, in AuthID refactoring PR
 getUserIdByScimExternalId ::

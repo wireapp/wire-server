@@ -14,7 +14,6 @@
 , openapi3
 , QuickCheck
 , tasty
-, tasty-hunit
 , tasty-quickcheck
 , types-common
 , wire-api
@@ -40,7 +39,6 @@ mkDerivation {
     openapi3
     QuickCheck
     tasty
-    tasty-hunit
     tasty-quickcheck
     wire-api
   ];

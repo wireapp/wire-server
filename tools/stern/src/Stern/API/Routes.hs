@@ -85,7 +85,7 @@ type SternAPI =
                :> "users"
                :> "by-email"
                :> QueryParam' [Required, Strict, Description "Email address"] "email" EmailAddress
-               :> Get '[JSON] [UserAccount]
+               :> Get '[JSON] [User]
            )
     :<|> Named
            "get-users-by-ids"
@@ -93,7 +93,7 @@ type SternAPI =
                :> "users"
                :> "by-ids"
                :> QueryParam' [Required, Strict, Description "List of IDs of the users, separated by comma"] "ids" [UserId]
-               :> Get '[JSON] [UserAccount]
+               :> Get '[JSON] [User]
            )
     :<|> Named
            "get-users-by-handles"
@@ -101,7 +101,7 @@ type SternAPI =
                :> "users"
                :> "by-handles"
                :> QueryParam' [Required, Strict, Description "List of Handles of the users, without '@', separated by comma"] "handles" [Handle]
-               :> Get '[JSON] [UserAccount]
+               :> Get '[JSON] [User]
            )
     :<|> Named
            "get-user-connections"

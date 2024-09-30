@@ -131,8 +131,8 @@ createInvitation' tid mExpectedInvId inviteeRole mbInviterUid inviterEmail invRe
   mEmailOwner <- getLocalUserAccountByUserKey uke
   isPersonalUserMigration <- case mEmailOwner of
     Nothing -> pure False
-    Just account ->
-      if (account.accountStatus == Active && isNothing account.accountUser.userTeam)
+    Just user ->
+      if (user.userStatus == Active && isNothing user.userTeam)
         then pure True
         else throw TeamInvitationEmailTaken
 
@@ -181,9 +181,7 @@ isPersonalUser uke = do
   pure $ case mAccount of
     -- this can e.g. happen if the key is claimed but the account is not yet created
     Nothing -> False
-    Just account ->
-      account.accountStatus == Active
-        && isNothing account.accountUser.userTeam
+    Just user -> user.userStatus == Active && isNothing user.userTeam
 
 -- | brig used to not store the role, so for migration we allow this to be empty and fill in the
 -- default here.

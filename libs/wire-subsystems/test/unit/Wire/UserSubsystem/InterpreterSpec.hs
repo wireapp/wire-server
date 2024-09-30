@@ -347,7 +347,7 @@ spec = describe "UserSubsystem.Interpreter" do
               result =
                 runNoFederationStack localBackend Nothing config $
                   getAccountsBy getBy
-           in result === [mkAccountFromStored localDomain locale alice]
+           in result === [mkUserFromStored localDomain locale alice]
       prop "GetBy handle when pending fails if not explicitly allowed" $
         \(PendingNotEmptyIdentityStoredUser alice') handl email teamId invitationInfo localDomain visibility locale ->
           let config = UserSubsystemConfig visibility locale True 100
@@ -418,7 +418,7 @@ spec = describe "UserSubsystem.Interpreter" do
               result =
                 runNoFederationStack localBackend Nothing config $
                   getAccountsBy getBy
-           in result === [mkAccountFromStored localDomain locale alice]
+           in result === [mkUserFromStored localDomain locale alice]
 
       prop "GetBy email does not filter by pending, missing identity or expired invitations" $
         \(alice' :: StoredUser) email localDomain visibility locale ->
@@ -431,8 +431,8 @@ spec = describe "UserSubsystem.Interpreter" do
                   }
               result =
                 runNoFederationStack localBackend Nothing config $
-                  getExtendedAccountsByEmailNoFilter (toLocalUnsafe localDomain [email])
-           in result === [mkExtendedAccountFromStored localDomain locale alice]
+                  getAccountsByEmailNoFilter (toLocalUnsafe localDomain [email])
+           in result === [mkUserFromStored localDomain locale alice]
 
       prop "GetBy userId does not return missing identity users, pending invitation off" $
         \(NotPendingEmptyIdentityStoredUser alice) localDomain visibility locale ->
@@ -491,7 +491,7 @@ spec = describe "UserSubsystem.Interpreter" do
               result =
                 runNoFederationStack localBackend Nothing config $
                   getAccountsBy getBy
-           in result === [mkAccountFromStored localDomain locale alice]
+           in result === [mkUserFromStored localDomain locale alice]
 
       prop "GetBy pending user by id fails if there is no valid invitation" $
         \(PendingNotEmptyIdentityStoredUser alice') (email :: EmailAddress) teamId localDomain visibility locale ->
@@ -546,7 +546,7 @@ spec = describe "UserSubsystem.Interpreter" do
               result =
                 runNoFederationStack localBackend Nothing config $
                   getAccountsBy getBy
-           in result === [mkAccountFromStored localDomain locale alice]
+           in result === [mkUserFromStored localDomain locale alice]
 
       prop "GetBy pending user by handle fails if there is no valid invitation" $
         \(PendingNotEmptyIdentityStoredUser alice') (email :: EmailAddress) handl teamId localDomain visibility locale ->
@@ -786,7 +786,7 @@ spec = describe "UserSubsystem.Interpreter" do
               runAllErrorsUnsafe
                 . interpretNoFederationStack localBackend Nothing def config
                 $ getLocalUserAccountByUserKey (toLocalUnsafe localDomain userKey)
-         in retrievedUser === Just (mkAccountFromStored localDomain config.defaultLocale storedUser)
+         in retrievedUser === Just (mkUserFromStored localDomain config.defaultLocale storedUser)
 
     prop "doesn't get users if they are not indexed by the UserKeyStore" $
       \(config :: UserSubsystemConfig) (localDomain :: Domain) (storedUserNoEmail :: StoredUser) (email :: EmailAddress) ->

@@ -65,8 +65,7 @@ checkMigrationCriteria now conv ws
 
     localUsersMigrated = ApAll $ do
       localProfiles <-
-        map accountUser
-          <$> getUsers (map lmId conv.mcLocalMembers)
+        getUsers (map lmId conv.mcLocalMembers)
       pure $ all (containsMLS . userSupportedProtocols) localProfiles
 
     remoteUsersMigrated = ApAll $ do

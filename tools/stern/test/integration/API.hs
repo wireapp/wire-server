@@ -182,7 +182,7 @@ testDeleteUser = do
   (uid, email) <- randomEmailUser
   do
     [ua] <- getUsersByIds [uid]
-    liftIO $ ua.accountStatus @?= Active
+    liftIO $ ua.userStatus @?= Active
   deleteUser uid (Left email)
   do
     uas <- getUsersByIds [uid]
@@ -215,7 +215,7 @@ testDeleteTeam :: TestM ()
 testDeleteTeam = do
   (uid, tid, _) <- createTeamWithNMembers 10
   [ua] <- getUsersByIds [uid]
-  let email = fromMaybe (error "user has no email") $ emailIdentity =<< ua.accountUser.userIdentity
+  let email = fromMaybe (error "user has no email") $ emailIdentity =<< ua.userIdentity
   do
     info <- getTeamInfo tid
     liftIO $ info.tiData.tdStatus @?= Team.Active
@@ -245,7 +245,7 @@ testGetTeamInfoByMemberEmail :: TestM ()
 testGetTeamInfoByMemberEmail = do
   (_, tid, member : _) <- createTeamWithNMembers 10
   [ua] <- getUsersByIds [member]
-  let email = fromMaybe (error "user has no email") $ emailIdentity =<< ua.accountUser.userIdentity
+  let email = fromMaybe (error "user has no email") $ emailIdentity =<< ua.userIdentity
   info <- getTeamInfoByMemberEmail email
   liftIO $ (info.tiData.tdTeam ^. teamId) @?= tid
 
@@ -399,13 +399,13 @@ testGetUsersByHandles = do
   h <- randomHandle
   void $ setHandle uid h
   [ua] <- getUsersByHandles h
-  liftIO $ userId ua.accountUser @?= uid
+  liftIO $ userId ua @?= uid
 
 testGetUsersByEmail :: TestM ()
 testGetUsersByEmail = do
   (uid, email) <- randomEmailUser
   [ua] <- getUsersByEmail email
-  liftIO $ userId ua.accountUser @?= uid
+  liftIO $ userId ua @?= uid
 
 testUnsuspendUser :: TestM ()
 testUnsuspendUser = do
@@ -413,18 +413,18 @@ testUnsuspendUser = do
   void $ postSupendUser uid
   do
     [ua] <- getUsersByIds [uid]
-    liftIO $ ua.accountStatus @?= Suspended
+    liftIO $ ua.userStatus @?= Suspended
   void $ postUnsuspendUser uid
   do
     [ua] <- getUsersByIds [uid]
-    liftIO $ ua.accountStatus @?= Active
+    liftIO $ ua.userStatus @?= Active
 
 testSuspendUser :: TestM ()
 testSuspendUser = do
   uid <- randomUser
   void $ postSupendUser uid
   [ua] <- getUsersByIds [uid]
-  liftIO $ ua.accountStatus @?= Suspended
+  liftIO $ ua.userStatus @?= Suspended
 
 testGetStatus :: TestM ()
 testGetStatus = do
@@ -439,7 +439,7 @@ testGetUsersByIds = do
   uas <- getUsersByIds [uid1, uid2]
   liftIO $ do
     length uas @?= 2
-    Set.fromList (userId . (.accountUser) <$> uas) @?= Set.fromList [uid1, uid2]
+    Set.fromList (userId <$> uas) @?= Set.fromList [uid1, uid2]
 
 testGetTeamInfo :: TestM ()
 testGetTeamInfo = do
@@ -460,14 +460,14 @@ testRevokeIdentity = do
   do
     [ua] <- getUsersByEmail email
     liftIO $ do
-      ua.accountStatus @?= Active
-      isJust ua.accountUser.userIdentity @?= True
+      ua.userStatus @?= Active
+      isJust ua.userIdentity @?= True
   void $ revokeIdentity (Left email)
   do
     [ua] <- getUsersByEmail email
     liftIO $ do
-      ua.accountStatus @?= Active
-      isJust ua.accountUser.userIdentity @?= False
+      ua.userStatus @?= Active
+      isJust ua.userIdentity @?= False
 
 testPutEmail :: TestM ()
 testPutEmail = do
@@ -494,13 +494,13 @@ getConnections uid = do
   r <- get (s . paths ["users", toByteString' uid, "connections"] . expect2xx)
   pure $ responseJsonUnsafe r
 
-getUsersByHandles :: Text -> TestM [UserAccount]
+getUsersByHandles :: Text -> TestM [User]
 getUsersByHandles h = do
   stern <- view tsStern
   r <- get (stern . paths ["users", "by-handles"] . queryItem "handles" (cs h) . expect2xx)
   pure $ responseJsonUnsafe r
 
-getUsersByEmail :: EmailAddress -> TestM [UserAccount]
+getUsersByEmail :: EmailAddress -> TestM [User]
 getUsersByEmail email = do
   stern <- view tsStern
   r <- get (stern . paths ["users", "by-email"] . queryItem "email" (toByteString' email) . expect2xx)
@@ -521,7 +521,7 @@ getStatus = do
   stern <- view tsStern
   get (stern . paths ["i", "status"] . expect2xx)
 
-getUsersByIds :: [UserId] -> TestM [UserAccount]
+getUsersByIds :: [UserId] -> TestM [User]
 getUsersByIds uids = do
   stern <- view tsStern
   r <- get (stern . paths ["users", "by-ids"] . queryItem "ids" (toByteString' uids) . expect2xx)

@@ -993,7 +993,7 @@ testGetByIdentity brig = do
     const 200 === statusCode
     const (Just [uid]) === getUids
   where
-    getUids r = fmap (userId . accountUser) <$> responseJsonMaybe r
+    getUids r = fmap userId <$> responseJsonMaybe r
 
 testPasswordSet :: Brig -> Http ()
 testPasswordSet brig = do

@@ -135,7 +135,7 @@ verifyCode mbCode action luid = do
     mbFeatureEnabled <- liftSem $ GalleyAPIAccess.getVerificationCodeEnabled `traverse` mbTeamId
     pure $ fromMaybe ((def @(Feature Public.SndFactorPasswordChallengeConfig)).status == Public.FeatureStatusEnabled) mbFeatureEnabled
   account <- lift . liftSem $ User.getAccountNoFilter luid
-  let isSsoUser = maybe False (Data.isSamlUser . ((.accountUser))) account
+  let isSsoUser = maybe False Data.isSamlUser account
   when (featureEnabled && not isSsoUser) $ do
     case (mbCode, mbEmail) of
       (Just code, Just email) -> do
@@ -151,7 +151,10 @@ verifyCode mbCode action luid = do
       ExceptT e (AppT r) (Maybe EmailAddress, Maybe TeamId)
     getEmailAndTeamId u = do
       mbAccount <- lift . liftSem $ User.getAccountNoFilter u
-      pure (userEmail <$> accountUser =<< mbAccount, userTeam <$> accountUser =<< mbAccount)
+      pure
+        ( userEmail =<< mbAccount,
+          userTeam =<< mbAccount
+        )
 
 loginFailedWith :: (MonadClient m, MonadReader Env m) => LoginError -> UserId -> ExceptT LoginError m ()
 loginFailedWith e uid = decrRetryLimit uid >> throwE e
@@ -226,7 +229,7 @@ revokeAccess luid@(tUnqualified -> u) pw cc ll = do
   lift . liftSem $ Log.debug $ field "user" (toByteString u) . field "action" (val "User.revokeAccess")
   isSaml <- lift . liftSem $ do
     account <- User.getAccountNoFilter luid
-    pure $ maybe False (Data.isSamlUser . ((.accountUser))) account
+    pure $ maybe False Data.isSamlUser account
   unless isSaml $ Data.authenticate u pw
   lift $ wrapHttpClient $ revokeCookies u cc ll
 
@@ -319,10 +322,10 @@ isPendingActivation ident = case ident of
           lusr <- qualifyLocal' usr
           maybe False (checkAccount k) <$> User.getAccountNoFilter lusr
 
-    checkAccount :: EmailKey -> UserAccount -> Bool
+    checkAccount :: EmailKey -> User -> Bool
     checkAccount k a =
-      let i = userIdentity (accountUser a)
-          statusAdmitsPending = case accountStatus a of
+      let i = userIdentity a
+          statusAdmitsPending = case userStatus a of
             Active -> True
             Suspended -> False
             Deleted -> False
