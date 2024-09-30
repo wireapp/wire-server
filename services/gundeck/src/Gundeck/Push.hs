@@ -123,11 +123,25 @@ instance MonadMapAsync Gundeck where
       Nothing -> mapAsync f l
       Just chunkSize -> concat <$> mapM (mapAsync f) (List.chunksOf chunkSize l)
 
+-- splitPushes :: [Push] -> m ([Push], [Push])
+-- splitPushes = undefined
+
+-- Old way:
+-- Client -> Cannon: establish WS (/await)
+-- Galley -> Gundeck -> Cannon -> Client :  only if client is present on cannon
+--                   -> Cassandra : always write
+--
+-- New way:
+-- Galley -> Gundeck -> RabbitMQ: Always Publish to queue
+-- Client -> Cannon -> RabbitMQ: establish WS and subscribe to the queue (/events)
+
 -- | Construct and send a single bulk push request to the client.  Write the 'Notification's from
 -- the request to C*.  Trigger native pushes for all delivery failures notifications.
 pushAll :: (MonadPushAll m, MonadNativeTargets m, MonadMapAsync m) => [Push] -> m ()
 pushAll pushes = do
   newNotifications <- mapM mkNewNotification pushes
+  -- let rs = concatMap (toList . (.nnRecipients)) newNotifications
+  -- (capableClients, incapableClients) :: ([Recipient], [Recipient]) <- splitClients rs
   -- persist push request
   let cassandraTargets :: [CassandraTargets]
       cassandraTargets = map mkCassandraTargets newNotifications

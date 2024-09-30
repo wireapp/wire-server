@@ -33,8 +33,12 @@ import Wire.API.Routes.Public.Cannon
 
 publicAPIServer :: ServerT CannonAPI Cannon
 publicAPIServer = Named @"await-notifications" streamData
+                :<|> Named @"consume-events" consumeEvents
 
 streamData :: UserId -> ConnId -> Maybe ClientId -> PendingConnection -> Cannon ()
 streamData userId connId clientId con = do
   e <- wsenv
   liftIO $ wsapp (mkKey userId connId) clientId e con
+
+consumeEvents :: UserId -> ClientId -> PendingConnection -> Cannon ()
+consumeEvents = undefined

@@ -44,6 +44,7 @@ import Data.Aeson.APIFieldJsonTH
 import Imports
 import System.Logger.Extended (Level, LogFormat)
 import Wire.API.Routes.Version
+import Network.AMQP.Extended (AmqpEndpoint)
 
 data Cannon = Cannon
   { _cannonHost :: !String,
@@ -87,6 +88,7 @@ deriveApiFieldJSON ''DrainOpts
 data Opts = Opts
   { _optsCannon :: !Cannon,
     _optsGundeck :: !Gundeck,
+    _optsRabbitmq :: !AmqpEndpoint,
     _optsLogLevel :: !Level,
     _optsLogNetStrings :: !(Maybe (Last Bool)),
     _optsLogFormat :: !(Maybe (Last LogFormat)),
