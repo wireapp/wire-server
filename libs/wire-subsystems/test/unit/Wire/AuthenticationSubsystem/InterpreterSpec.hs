@@ -152,15 +152,15 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
         let user =
               userNoEmail
                 { userIdentity = Just $ EmailIdentity email,
-                  userEmailUnvalidated = Nothing,
-                  userStatus = Active
+                  userEmailUnvalidated = Nothing
                 }
             localDomain = userNoEmail.userQualifiedId.qDomain
             createPasswordResetCodeResult =
               runAllEffects localDomain [user] Nothing $
                 createPasswordResetCode (mkEmailKey email)
                   <* expectNoEmailSent
-         in createPasswordResetCodeResult === Right ()
+         in userStatus user /= Active ==>
+              createPasswordResetCodeResult === Right ()
 
     prop "reset code is not generated for when there is no user for the email" $
       \email localDomain ->
