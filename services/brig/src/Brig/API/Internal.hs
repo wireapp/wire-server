@@ -578,9 +578,9 @@ listActivatedAccountsH
       throwStd (notFound "no user keys")
     lift $ liftSem do
       loc <- input
-      byEmails <- getExtendedAccountsByEmailNoFilter $ loc $> emails
+      byEmails <- getAccountsByEmailNoFilter $ loc $> emails
       others <-
-        getExtendedAccountsBy $
+        getAccountsBy $
           loc
             $> def
               { includePendingInvitations = include,

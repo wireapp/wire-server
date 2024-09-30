@@ -114,12 +114,12 @@ runUserSubsystem cfg authInterpreter =
       GetLocalUserProfiles others ->
         runInputConst cfg $
           getLocalUserProfilesImpl others
-      GetExtendedAccountsBy getBy ->
+      GetAccountsBy getBy ->
         runInputConst cfg $
-          getExtendedAccountsByImpl getBy
-      GetExtendedAccountsByEmailNoFilter emails ->
+          getAccountsByImpl getBy
+      GetAccountsByEmailNoFilter emails ->
         runInputConst cfg $
-          getExtendedAccountsByEmailNoFilterImpl emails
+          getAccountsByEmailNoFilterImpl emails
       GetAccountNoFilter luid ->
         runInputConst cfg $
           getAccountNoFilterImpl luid
@@ -826,7 +826,7 @@ getAccountNoFilterImpl (tSplit -> (domain, uid)) = do
   muser <- getUser uid
   pure $ (mkUserFromStored domain cfg.defaultLocale) <$> muser
 
-getExtendedAccountsByEmailNoFilterImpl ::
+getAccountsByEmailNoFilterImpl ::
   forall r.
   ( Member UserStore r,
     Member UserKeyStore r,
@@ -834,7 +834,7 @@ getExtendedAccountsByEmailNoFilterImpl ::
   ) =>
   Local [EmailAddress] ->
   Sem r [User]
-getExtendedAccountsByEmailNoFilterImpl (tSplit -> (domain, emails)) = do
+getAccountsByEmailNoFilterImpl (tSplit -> (domain, emails)) = do
   config <- input
   nubOrd <$> flip foldMap emails \ek -> do
     mactiveUid <- lookupKey (mkEmailKey ek)
@@ -844,7 +844,7 @@ getExtendedAccountsByEmailNoFilterImpl (tSplit -> (domain, emails)) = do
 --------------------------------------------------------------------------------
 -- getting user accounts by different criteria
 
-getExtendedAccountsByImpl ::
+getAccountsByImpl ::
   forall r.
   ( Member UserStore r,
     Member DeleteQueue r,
@@ -854,7 +854,7 @@ getExtendedAccountsByImpl ::
   ) =>
   Local GetBy ->
   Sem r [User]
-getExtendedAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations, getByHandle, getByUserId})) = do
+getAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations, getByHandle, getByUserId})) = do
   storedToExtAcc <- do
     config <- input
     pure $ mkUserFromStored domain config.defaultLocale

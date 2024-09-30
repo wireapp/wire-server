@@ -431,7 +431,7 @@ spec = describe "UserSubsystem.Interpreter" do
                   }
               result =
                 runNoFederationStack localBackend Nothing config $
-                  getExtendedAccountsByEmailNoFilter (toLocalUnsafe localDomain [email])
+                  getAccountsByEmailNoFilter (toLocalUnsafe localDomain [email])
            in result === [mkUserFromStored localDomain locale alice]
 
       prop "GetBy userId does not return missing identity users, pending invitation off" $
