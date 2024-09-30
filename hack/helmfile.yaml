@@ -101,6 +101,26 @@ releases:
     namespace: '{{ .Values.namespace1 }}'
     chart: '../.local/charts/cassandra-ephemeral'
 
+  - name: 'redis-ephemeral'
+    namespace: '{{ .Values.namespace2 }}'
+    chart: '../.local/charts/redis-ephemeral'
+    values:
+      - redis-ephemeral:
+          usePassword: true
+          password: very-secure-redis-master-password
+          tls:
+            enabled: true
+            certificatesSecret: redis-certificate
+            certFilename: "tls.crt"
+            certKeyFilename: "tls.key"
+            certCAFilename: "ca.crt"
+            authClients: false
+    needs:
+      - certs
+
+  - name: 'cassandra-ephemeral'
+    namespace: '{{ .Values.namespace2 }}'
+    chart: '../.local/charts/cassandra-ephemeral'
   - name: 'opensearch-ephemeral'
     namespace: '{{ .Values.namespace1 }}'
     chart: 'opensearch/opensearch'
@@ -374,6 +394,279 @@ releases:
 #          path: /usr/share/opensearch/config/tls.key
 #          subpath: tls.key
 
+  - name: 'opensearch-ephemeral'
+    namespace: '{{ .Values.namespace2 }}'
+    chart: 'opensearch/opensearch'
+    version: "2.25.0"
+    values:
+      - singleNode: true
+
+      - extraObjects:
+        - apiVersion: cert-manager.io/v1
+          kind: Certificate
+          metadata:
+            name: opensearch-cert
+            namespace: {{ .Values.namespace2 }}
+            labels:
+              chart: "opensearch-2.25.0"
+              release: "opensearch-ephemeral"
+              heritage: "Helm"
+          spec:
+            issuerRef:
+              name: elasticsearch
+              kind: Issuer
+
+            usages:
+              - server auth
+              - client auth
+            duration: 2160h     # 90d
+            renewBefore: 360h   # 15d
+            isCA: false
+            secretName: opensearch-ephemeral-certificate
+
+            # TODO: Wrong algorithm
+            privateKey:
+              algorithm: RSA
+              encoding: PKCS8
+              size: 2048
+#            privateKey:
+#              algorithm: ECDSA
+#              size: 384
+#              encoding: PKCS8
+              rotationPolicy: Always
+
+            dnsNames:
+            - opensearch-cluster-master
+            - opensearch-cluster-master.{{ .Values.namespace2 }}.svc.cluster.local
+
+            commonName: opensearch-cluster-master
+
+#      - podSecurityPolicy:
+#        create: false
+#        name: ""
+#        spec:
+#          privileged: true
+#          fsGroup:
+#            rule: RunAsAny
+#          runAsUser:
+#            rule: RunAsAny
+#          seLinux:
+#            rule: RunAsAny
+#          supplementalGroups:
+#            rule: RunAsAny
+#          volumes:
+#            - secret
+#            - configMap
+#            - persistentVolumeClaim
+#            - emptyDir
+
+      - opensearchHome: /usr/share/opensearch
+      - config:
+          opensearch.yml: |
+            cluster.name: opensearch-cluster
+
+            # Bind to all interfaces because we don't know what IP address Docker will assign to us.
+            network.host: 0.0.0.0
+
+            # Setting network.host to a non-loopback address enables the annoying bootstrap checks. "Single-node" mode disables them again.
+            # Implicitly done if ".singleNode" is set to "true".
+            discovery.type: single-node
+
+            action.auto_create_index: true
+
+            # Start OpenSearch Security Demo Configuration
+            # WARNING: revise all the lines below before you go into production
+            plugins:
+              security:
+                nodes_dn:
+                  - '/CN=opensearch-cluster-master.*/'
+                ssl:
+                  transport:
+                    pemcert_filepath: esnode.pem
+                    pemkey_filepath: esnode-key.pem
+                    pemtrustedcas_filepath: root-ca.pem
+                    enforce_hostname_verification: false
+                  http:
+                    enabled: true
+                    pemcert_filepath: esnode.pem
+                    pemkey_filepath: esnode-key.pem
+                    pemtrustedcas_filepath: root-ca.pem
+                allow_unsafe_democertificates: true
+                allow_default_init_securityindex: true
+                # authcz:
+                #   admin_dn:
+                #     - CN=kirk,OU=client,O=client,L=test,C=de
+                audit.type: internal_opensearch
+                enable_snapshot_restore_privilege: true
+                check_snapshot_restore_write_privileges: true
+                restapi:
+                  roles_enabled: ["all_access", "security_rest_api_access"]
+                system_indices:
+                  enabled: true
+                  indices:
+                    [
+                      ".opendistro-alerting-config",
+                      ".opendistro-alerting-alert*",
+                      ".opendistro-anomaly-results*",
+                      ".opendistro-anomaly-detector*",
+                      ".opendistro-anomaly-checkpoints",
+                      ".opendistro-anomaly-detection-state",
+                      ".opendistro-reports-*",
+                      ".opendistro-notifications-*",
+                      ".opendistro-notebooks",
+                      ".opendistro-asynchronous-search-response*",
+                    ]
+
+          # TODO: Remove debug logs
+          log4j2.properties: |
+            status = error
+
+            appender.console.type = Console
+            appender.console.name = console
+            appender.console.layout.type = PatternLayout
+            appender.console.layout.pattern = [%d{ISO8601}][%-5p][%-25c{1.}] [%node_name]%marker %m%n
+
+            rootLogger.level = info
+            rootLogger.appenderRef.console.ref = console
+
+            logger.authc.name = com.amazon.dlic.auth.http
+            logger.authc.level = debug
+            logger.authz.name = com.amazon.opendistroforelasticsearch.security.auth
+            logger.authz.level = debug
+            logger.ssl.name = org.opensearch.security.ssl
+            logger.ssl.level = debug
+
+      - securityConfig:
+          enabled: true
+          path: "/usr/share/opensearch/config/opensearch-security"
+          config:
+            # There are multiple ways to define the configuration here:
+            # * If you define anything under data, the chart will automatically create
+            #   a secret and mount it. This is best option to choose if you want to override all the
+            #   existing yml files at once.
+            # * If you define securityConfigSecret, the chart will assume this secret is
+            #   created externally and mount it. This is best option to choose if your intention is to
+            #   only update a single yml file.
+            # * It is an error to define both data and securityConfigSecret.
+            dataComplete: "true"
+            data:
+              config.yml: |
+                _meta:
+                  type: "config"
+                  config_version: 2
+
+                config:
+                  dynamic:
+                    authc:
+                      basic_internal_auth_domain:
+                        description: "Authenticate using HTTP basic against the internal users database"
+                        http_enabled: true
+                        transport_enabled: true
+                        order: 1
+                        http_authenticator:
+                          type: basic
+                          challenge: true
+                        authentication_backend:
+                          type: internal
+
+              internal_users.yml: |
+                _meta:
+                  type: "internalusers"
+                  config_version: 2
+
+                elastic:
+                  hash: "$2y$12$GRc68jkEX1m4uQpTVbwURu79xHxZ7vsbyEctOAADQwPjlhYS4LJVa"
+                  reserved: true
+                  description: "Wire User"
+                  backend_roles:
+                    - index_manager
+
+              roles_mapping.yml: |
+                _meta:
+                  type: "rolesmapping"
+                  config_version: 2
+
+                all_access:
+                  reserved: false
+                  backend_roles:
+                    - index_manager
+                  description: "Map index_manager to full_access"
+
+              allowlist.yml: |
+                _meta:
+                  type: "allowlist"
+                  config_version: 2
+
+                config:
+                  enabled: false
+
+              roles.yml: |
+                _meta:
+                  type: "roles"
+                  config_version: 2
+
+                wire-backend-role:
+                  reserved: true
+                  hidden: false
+                  cluster_permissions:
+                    - "indices:admin/template/get"
+                  index_permissions:
+                    - index_patterns:
+                        - '*'
+                      allowed_actions:
+                        - "indices:admin/create"
+                        - "indices:admin/get"
+                        - "indices:admin/template/get"
+
+              nodes_dn.yml: |
+                _meta:
+                  type: "nodesdn"
+                  config_version: 2
+
+              action_groups.yml: |
+                _meta:
+                  type: "actiongroups"
+                  config_version: 2
+
+              tenants.yml: |
+                _meta:
+                  type: "tenants"
+                  config_version: 2
+
+      - extraEnvs:
+        - name: OPENSEARCH_USERNAME
+          value: elastic
+        - name: OPENSEARCH_PASSWORD
+          value: changeme
+        - name: OPENSEARCH_INITIAL_ADMIN_PASSWORD
+          value: "Ch4ng3m3Secr3t!"
+        - name: DISABLE_INSTALL_DEMO_CONFIG
+          value: "true"
+
+      - persistence:
+          enabled: false
+
+      - secretMounts:
+        - name: node-pem
+          secretName: opensearch-ephemeral-certificate
+          path: /usr/share/opensearch/config/esnode.pem
+          subPath: tls.crt
+
+        - name: node-key
+          secretName: opensearch-ephemeral-certificate
+          path: /usr/share/opensearch/config/esnode-key.pem
+          subPath: tls.key
+
+        - name: root-cacert
+          secretName: opensearch-ephemeral-certificate
+          path: /usr/share/opensearch/config/root-ca.pem
+          subPath: ca.crt
+
+#        - name: tls-key
+#          secretName: opensearch-ephemeral-certificate
+#          path: /usr/share/opensearch/config/tls.key
+#          subpath: tls.key
+
 
   # Required for testing redis migration
   - name: 'redis-ephemeral-2'
@@ -391,29 +684,29 @@ releases:
     values:
       - './helm_vars/certs/values.yaml.gotmpl'
 
-  - name: 'databases-ephemeral'
-    namespace: '{{ .Values.namespace2 }}'
-    chart: '../.local/charts/databases-ephemeral'
-    values:
-      - redis-ephemeral:
-          redis-ephemeral:
-            usePassword: true
-            password: very-secure-redis-master-password
-            tls:
-              enabled: true
-              certificatesSecret: redis-certificate
-              certFilename: "tls.crt"
-              certKeyFilename: "tls.key"
-              certCAFilename: "ca.crt"
-              authClients: false
-        elasticsearch-ephemeral:
-          tls:
-            enabled: true
-            issuerRef:
-              name: elasticsearch
-              kind: Issuer
-    needs:
-      - certs
+#  - name: 'databases-ephemeral'
+#    namespace: '{{ .Values.namespace2 }}'
+#    chart: '../.local/charts/databases-ephemeral'
+#    values:
+#      - redis-ephemeral:
+#          redis-ephemeral:
+#            usePassword: true
+#            password: very-secure-redis-master-password
+#            tls:
+#              enabled: true
+#              certificatesSecret: redis-certificate
+#              certFilename: "tls.crt"
+#              certKeyFilename: "tls.key"
+#              certCAFilename: "ca.crt"
+#              authClients: false
+#        elasticsearch-ephemeral:
+#          tls:
+#            enabled: true
+#            issuerRef:
+#              name: elasticsearch
+#              kind: Issuer
+#    needs:
+#      - certs
 
   - name: k8ssandra-test-cluster
     chart: '../.local/charts/k8ssandra-test-cluster'
@@ -522,4 +815,6 @@ releases:
       - name: cargohold.config.settings.federationDomain
         value: {{ .Values.federationDomain2 }}
     needs:
-      - 'databases-ephemeral'
+      - 'opensearch-ephemeral'
+      - 'cassandra-ephemeral'
+      - 'redis-ephemeral'
