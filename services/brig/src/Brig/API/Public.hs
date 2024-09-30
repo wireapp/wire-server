@@ -195,11 +195,11 @@ federatedEndpointsSwaggerDocsAPIs =
 internalEndpointsSwaggerDocsAPIs :: Servant.Server InternalEndpointsSwaggerDocsAPI
 internalEndpointsSwaggerDocsAPIs =
   internalEndpointsSwaggerDocsAPI @"brig" "brig" 9082 BrigInternalAPI.swaggerDoc
-    :<|> internalEndpointsSwaggerDocsAPI @"cannon" "cannon" 9093 CannonInternalAPI.swaggerDoc
-    :<|> internalEndpointsSwaggerDocsAPI @"cargohold" "cargohold" 9094 CargoholdInternalAPI.swaggerDoc
-    :<|> internalEndpointsSwaggerDocsAPI @"galley" "galley" 9095 GalleyInternalAPI.swaggerDoc
-    :<|> internalEndpointsSwaggerDocsAPI @"spar" "spar" 9098 SparInternalAPI.swaggerDoc
-    :<|> internalEndpointsSwaggerDocsAPI @"gundeck" "gundeck" 9096 GundeckInternalAPI.swaggerDoc
+    :<|> internalEndpointsSwaggerDocsAPI @"cannon" "cannon" 9083 CannonInternalAPI.swaggerDoc
+    :<|> internalEndpointsSwaggerDocsAPI @"cargohold" "cargohold" 9084 CargoholdInternalAPI.swaggerDoc
+    :<|> internalEndpointsSwaggerDocsAPI @"galley" "galley" 9085 GalleyInternalAPI.swaggerDoc
+    :<|> internalEndpointsSwaggerDocsAPI @"spar" "spar" 9088 SparInternalAPI.swaggerDoc
+    :<|> internalEndpointsSwaggerDocsAPI @"gundeck" "gundeck" 9086 GundeckInternalAPI.swaggerDoc
 
 -- | Serves Swagger docs for public endpoints
 --
