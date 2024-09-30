@@ -95,4 +95,4 @@ uriFromJSON = A.withText "URI" (p . Text.unpack)
     p = maybe (fail "Invalid URI") pure . parse
 
 uriToJSON :: URI -> A.Value
-uriToJSON uri = A.String $ Text.pack (show uri)
+uriToJSON (URI uri) = A.String . Text.pack $ Net.uriToString id uri mempty
