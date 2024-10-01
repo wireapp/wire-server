@@ -36,7 +36,7 @@ import Control.Exception (ErrorCall (ErrorCall))
 import Control.Lens (to, view, (.~), (^.))
 import Control.Monad.Catch
 import Control.Monad.Except (throwError)
-import Data.Aeson as Aeson (Object)
+import Data.Aeson qualified as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.List.Extra qualified as List
@@ -61,18 +61,22 @@ import Gundeck.Push.Websocket qualified as Web
 import Gundeck.ThreadBudget
 import Gundeck.Util
 import Imports
+import Network.AMQP (Message (..))
+import Network.AMQP qualified as Q
 import Network.HTTP.Types
 import Network.Wai.Utilities
 import System.Logger.Class (msg, val, (+++), (.=), (~~))
 import System.Logger.Class qualified as Log
 import Util.Options
 import Wire.API.Internal.Notification
+import Wire.API.Notification (userNotificationExchangeName)
 import Wire.API.Presence (Presence (..))
 import Wire.API.Presence qualified as Presence
 import Wire.API.Push.Token qualified as Public
 import Wire.API.Push.V2
 import Wire.API.User (UserSet (..))
 import Wire.API.User.Client (Client (..), ClientCapability (..), ClientCapabilityList (..), UserClientsFull (..))
+import Wire.NotificationSubsystem.Interpreter
 
 push :: [Push] -> Gundeck ()
 push ps = do
@@ -90,6 +94,8 @@ class (MonadThrow m) => MonadPushAll m where
   mpaPushNative :: Notification -> Priority -> [Address] -> m ()
   mpaForkIO :: m () -> m ()
   mpaRunWithBudget :: Int -> a -> m a -> m a
+  mpaGetClients :: UserId -> m UserClientsFull
+  mpaPublishToRabbitMq :: Text -> Q.Message -> m ()
 
 instance MonadPushAll Gundeck where
   mpaNotificationTTL = view (options . settings . notificationTTL)
@@ -100,6 +106,13 @@ instance MonadPushAll Gundeck where
   mpaPushNative = pushNative
   mpaForkIO = void . forkIO
   mpaRunWithBudget = runWithBudget''
+  mpaGetClients = getClients
+  mpaPublishToRabbitMq = publishToRabbitMq
+
+publishToRabbitMq :: Text -> Q.Message -> Gundeck ()
+publishToRabbitMq routingKey qMsg = do
+  chan <- readMVar =<< view rabbitMqChannel
+  void $ liftIO $ Q.publishMsg chan userNotificationExchangeName routingKey qMsg
 
 -- | Another layer of wrap around 'runWithBudget'.
 runWithBudget'' :: Int -> a -> Gundeck a -> Gundeck a
@@ -129,34 +142,52 @@ instance MonadMapAsync Gundeck where
       Nothing -> mapAsync f l
       Just chunkSize -> concat <$> mapM (mapAsync f) (List.chunksOf chunkSize l)
 
-splitPushes :: [Push] -> m ([Push], [Push])
-splitPushes =
-  undefined
+splitPushes :: (MonadPushAll m) => [Push] -> m ([Push], [Push])
+splitPushes = fmap foldMaybeTuple . traverse splitPush
 
-splitPush :: Push -> m ([Push], [Push])
-splitPush push = do
-  let allRecipients = fromRange $ push._pushRecipients
-  undefined
+-- TODO: Make it reutrn These
+splitPush :: (MonadPushAll m) => Push -> m (Maybe Push, Maybe Push)
+splitPush p = do
+  let allRecipients = Set.toList $ fromRange $ p._pushRecipients
+  (rabbitmqRecipients, legacyRecipients) <- foldMaybeTuple <$> traverse splitRecipient allRecipients
+  case (rabbitmqRecipients, legacyRecipients) of
+    ([], _) -> pure (Nothing, Just p)
+    (_, []) -> pure (Just p, Nothing)
+    (_ : _, _ : _) ->
+      -- Since we just proved that both the recipient lists are not empty and
+      -- they cannot be bigger than the limit as none of them can be bigger than
+      -- the original recipient set, it is safe to use unsafeRange here.
+      --
+      -- TODO: See if there is a better way, so we don't have to use unsafeRange
+      pure
+        ( Just $ p {_pushRecipients = unsafeRange $ Set.fromList rabbitmqRecipients},
+          Just $ p {_pushRecipients = unsafeRange $ Set.fromList legacyRecipients}
+        )
+
+foldMaybeTuple :: [(Maybe a, Maybe b)] -> ([a], [b])
+foldMaybeTuple = foldr (\(x, y) (xs, ys) -> ((maybeToList x <> xs), (maybeToList y <> ys))) ([], [])
 
 -- TODO: optimize for possibility of  many pushes having the same users
-splitRecipient :: (MonadReader Env m, Bilge.MonadHttp m, MonadThrow m) => Recipient -> m (Maybe Recipient, Maybe Recipient)
-splitRecipient r = do
-  clientsFull <- getClients r._recipientId
-  let allClients = Map.findWithDefault mempty r._recipientId $ clientsFull.userClientsFull
-  let relevantClients = case r._recipientClients of
+-- TODO: Make this return These
+splitRecipient :: (MonadPushAll m) => Recipient -> m (Maybe Recipient, Maybe Recipient)
+splitRecipient rcpt = do
+  clientsFull <- mpaGetClients rcpt._recipientId
+  let allClients = Map.findWithDefault mempty rcpt._recipientId $ clientsFull.userClientsFull
+  let relevantClients = case rcpt._recipientClients of
         RecipientClientsSome cs ->
           Set.filter (\c -> c.clientId `elem` toList cs) allClients
         RecipientClientsAll -> allClients
-      (capableClients, incapableClients) = Set.partition (\c -> ClientSupportsConsumableNotifications `Set.member` c.clientCapabilities.fromClientCapabilityList) relevantClients
-      capableClientIds = (.clientId) <$> Set.toList capableClients
-      incapableClientIds = (.clientId) <$> Set.toList incapableClients
-  case (capableClientIds, incapableClientIds) of
-    ([], _) -> pure (Nothing, Just r)
-    (_, []) -> pure (Just r, Nothing)
-    (c : cs, i : is) ->
+      isClientForRabbitMq c = ClientSupportsConsumableNotifications `Set.member` c.clientCapabilities.fromClientCapabilityList
+      (rabbitmqClients, legacyClients) = Set.partition isClientForRabbitMq relevantClients
+      rabbitmqClientIds = (.clientId) <$> Set.toList rabbitmqClients
+      legacyClientIds = (.clientId) <$> Set.toList legacyClients
+  case (rabbitmqClientIds, legacyClientIds) of
+    ([], _) -> pure (Nothing, Just rcpt)
+    (_, []) -> pure (Just rcpt, Nothing)
+    (r : rs, l : ls) ->
       pure
-        ( Just $ r {_recipientClients = RecipientClientsSome $ list1 c cs},
-          Just $ r {_recipientClients = RecipientClientsSome $ list1 i is}
+        ( Just $ rcpt {_recipientClients = RecipientClientsSome $ list1 r rs},
+          Just $ rcpt {_recipientClients = RecipientClientsSome $ list1 l ls}
         )
 
 getClients :: (MonadReader Env m, Bilge.MonadHttp m, MonadThrow m) => UserId -> m UserClientsFull
@@ -182,10 +213,17 @@ getClients uid = do
 -- Galley -> Gundeck -> RabbitMQ: Always Publish to queue
 -- Client -> Cannon -> RabbitMQ: establish WS and subscribe to the queue (/events)
 
+pushAll :: (MonadPushAll m, MonadNativeTargets m, MonadMapAsync m, Log.MonadLogger m) => [Push] -> m ()
+pushAll pushes = do
+  Log.warn $ msg (val "pushing") . Log.field "pushes" (Aeson.encode pushes)
+  (rabbitmqPushes, legacyPushes) <- splitPushes pushes
+  pushAllLegacy legacyPushes
+  pushAllViaRabbitMq rabbitmqPushes
+
 -- | Construct and send a single bulk push request to the client.  Write the 'Notification's from
 -- the request to C*.  Trigger native pushes for all delivery failures notifications.
-pushAll :: (MonadPushAll m, MonadNativeTargets m, MonadMapAsync m) => [Push] -> m ()
-pushAll pushes = do
+pushAllLegacy :: (MonadPushAll m, MonadNativeTargets m, MonadMapAsync m) => [Push] -> m ()
+pushAllLegacy pushes = do
   newNotifications <- mapM mkNewNotification pushes
   -- let rs = concatMap (toList . (.nnRecipients)) newNotifications
   -- (capableClients, incapableClients) :: ([Recipient], [Recipient]) <- splitClients rs
@@ -213,6 +251,29 @@ pushAll pushes = do
       unless (psh ^. pushTransient) $
         mpaRunWithBudget cost () $
           mpaPushNative notif (psh ^. pushNativePriority) =<< nativeTargets psh rcps' alreadySent
+
+pushAllViaRabbitMq :: (MonadPushAll m) => [Push] -> m ()
+pushAllViaRabbitMq pushes =
+  for_ pushes $ pushViaRabbitMq
+
+pushViaRabbitMq :: (MonadPushAll m) => Push -> m ()
+pushViaRabbitMq p = do
+  let qMsg =
+        Q.newMsg
+          { msgBody = Aeson.encode p._pushPayload,
+            msgContentType = Just "application/json"
+          }
+      routingKeys =
+        Set.unions $
+          flip Set.map (fromRange p._pushRecipients) \r ->
+            case r._recipientClients of
+              RecipientClientsAll ->
+                Set.singleton $ userRoutingKey r._recipientId
+              RecipientClientsSome (toList -> cs) ->
+                Set.fromList $ map (clientRoutingKey r._recipientId) cs
+  -- TODO: Figure out if there is a bulk operation in amqp
+  for_ routingKeys $ \routingKey ->
+    mpaPublishToRabbitMq routingKey qMsg
 
 -- | A new notification to be stored in C* and pushed over websockets
 data NewNotification = NewNotification
