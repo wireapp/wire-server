@@ -2,7 +2,6 @@ module Test.Events where
 
 import API.Brig
 import API.BrigCommon
-import API.Common
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TChan
 import Data.ByteString.Conversion (toByteString')
@@ -20,9 +19,12 @@ testConsumeEvents = do
   clientId <- objId client
   eventsChan <- liftIO newTChanIO
   wsThread <- eventsWebSocket alice clientId eventsChan
-  randomHandle >>= putHandle alice >>= assertSuccess
   mEvent <- race (threadDelay 1_000_000) (liftIO $ atomically (readTChan eventsChan))
-  mEvent `shouldMatch` (Right (object ["payload" .= ["event1"]]) :: Either () Value)
+  case mEvent of
+    Left () -> assertFailure "No event recieved for 1s"
+    Right e -> do
+      e %. "payload.0.type" `shouldMatch` "user.client-add"
+      e %. "payload.0.client.id" `shouldMatch` clientId
   cancel wsThread
 
 eventsWebSocket :: (MakesValue user) => user -> String -> TChan Value -> App (Async ())
