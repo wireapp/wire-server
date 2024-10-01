@@ -41,6 +41,8 @@ import Data.Text (pack, strip)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Typeable
 import Imports hiding (head, threadDelay)
+import Network.AMQP
+import Network.AMQP.Extended (mkRabbitMqChannelMVar)
 import Network.Wai qualified as Wai
 import Network.Wai.Handler.Warp hiding (run)
 import Network.Wai.Middleware.Gzip qualified as Gzip
@@ -56,6 +58,7 @@ import System.Logger.Extended qualified as L
 import System.Posix.Signals
 import System.Posix.Signals qualified as Signals
 import System.Random.MWC (createSystemRandom)
+import Wire.API.Notification (userNotificationExchangeName)
 import Wire.API.Routes.Internal.Cannon qualified as Internal
 import Wire.API.Routes.Public.Cannon
 import Wire.API.Routes.Version
@@ -79,6 +82,7 @@ run o = withTracer \tracer -> do
       <*> createSystemRandom
       <*> mkClock
       <*> pure (o ^. Cannon.Options.rabbitmq)
+  createUserNotificationsExchange $ applog e
   refreshMetricsThread <- Async.async $ runCannon e refreshMetrics
   s <- newSettings $ Server (o ^. cannon . host) (o ^. cannon . port) (applog e) (Just idleTimeout)
 
@@ -118,6 +122,11 @@ run o = withTracer \tracer -> do
       maybe (readExternal extFile) (pure . encodeUtf8) (o ^. cannon . externalHost)
     readExternal :: FilePath -> IO ByteString
     readExternal f = encodeUtf8 . strip . pack <$> Strict.readFile f
+
+    createUserNotificationsExchange :: L.Logger -> IO ()
+    createUserNotificationsExchange l = do
+      chan <- Imports.readMVar =<< mkRabbitMqChannelMVar l (o ^. Cannon.Options.rabbitmq)
+      declareExchange chan newExchange {exchangeName = userNotificationExchangeName, exchangeType = "topic"}
 
 signalHandler :: Env -> ThreadId -> Signals.Handler
 signalHandler e mainThread = CatchOnce $ do

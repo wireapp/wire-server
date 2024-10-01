@@ -3,6 +3,7 @@ module Cannon.RabbitMqConsumerApp where
 import Cannon.App (rejectOnError)
 import Cannon.WS
 import Control.Exception (catch)
+import Data.Aeson
 import Data.Id
 import Imports
 import Network.AMQP qualified as Amqp
@@ -29,4 +30,6 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
 
 pushEventsToWS :: WS.Connection -> (Amqp.Message, Amqp.Envelope) -> IO ()
 pushEventsToWS wsConn (msg, _envelope) =
-  WS.sendBinaryData wsConn msg.msgBody
+  case eitherDecode @Value msg.msgBody of
+    Left e -> error e
+    Right payload -> WS.sendBinaryData wsConn (encode $ object ["payload" .= payload])
