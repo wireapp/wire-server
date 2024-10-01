@@ -63,6 +63,7 @@
 , metrics-wai
 , mime
 , mtl
+, network-uri
 , openapi3
 , pem
 , polysemy
@@ -169,6 +170,7 @@ mkDerivation {
     metrics-wai
     mime
     mtl
+    network-uri
     openapi3
     pem
     polysemy

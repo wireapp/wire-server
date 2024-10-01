@@ -49,7 +49,6 @@
 , fsnotify
 , galley-types
 , gitignoreSource
-, gundeck-types
 , hashable
 , hs-opentelemetry-instrumentation-wai
 , hs-opentelemetry-sdk
@@ -204,7 +203,6 @@ mkDerivation {
     filepath
     fsnotify
     galley-types
-    gundeck-types
     hashable
     hs-opentelemetry-instrumentation-wai
     hs-opentelemetry-sdk

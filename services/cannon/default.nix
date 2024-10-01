@@ -17,7 +17,6 @@
 , extended
 , extra
 , gitignoreSource
-, gundeck-types
 , hashable
 , hs-opentelemetry-instrumentation-wai
 , hs-opentelemetry-sdk
@@ -73,7 +72,6 @@ mkDerivation {
     exceptions
     extended
     extra
-    gundeck-types
     hashable
     hs-opentelemetry-instrumentation-wai
     hs-opentelemetry-sdk

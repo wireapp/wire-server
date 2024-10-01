@@ -12,7 +12,6 @@
   dns-util = hself.callPackage ../libs/dns-util/default.nix { inherit gitignoreSource; };
   extended = hself.callPackage ../libs/extended/default.nix { inherit gitignoreSource; };
   galley-types = hself.callPackage ../libs/galley-types/default.nix { inherit gitignoreSource; };
-  gundeck-types = hself.callPackage ../libs/gundeck-types/default.nix { inherit gitignoreSource; };
   hscim = hself.callPackage ../libs/hscim/default.nix { inherit gitignoreSource; };
   http2-manager = hself.callPackage ../libs/http2-manager/default.nix { inherit gitignoreSource; };
   imports = hself.callPackage ../libs/imports/default.nix { inherit gitignoreSource; };

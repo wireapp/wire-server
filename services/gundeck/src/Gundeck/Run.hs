@@ -31,7 +31,7 @@ import Data.Metrics.Servant qualified as Metrics
 import Data.Proxy (Proxy (Proxy))
 import Data.Text (unpack)
 import Database.Redis qualified as Redis
-import Gundeck.API.Internal as Internal (GundeckInternalAPI, servantSitemap)
+import Gundeck.API.Internal as Internal (InternalAPI, servantSitemap)
 import Gundeck.API.Public as Public (servantSitemap)
 import Gundeck.Aws qualified as Aws
 import Gundeck.Env
@@ -92,7 +92,7 @@ run o = withTracer \tracer -> do
         versionMiddleware (foldMap expandVersionExp (o ^. settings . disabledAPIVersions))
           . otelMiddleWare
           . requestIdMiddleware (e ^. applog) defaultRequestIdHeaderName
-          . Metrics.servantPrometheusMiddleware (Proxy @(GundeckAPI :<|> GundeckInternalAPI))
+          . Metrics.servantPrometheusMiddleware (Proxy @(GundeckAPI :<|> InternalAPI))
           . GZip.gunzip
           . GZip.gzip GZip.def
           . catchErrors (e ^. applog) defaultRequestIdHeaderName
@@ -101,10 +101,10 @@ mkApp :: Env -> Wai.Application
 mkApp env0 req cont = do
   let rid = getRequestId defaultRequestIdHeaderName req
       env = reqId .~ rid $ env0
-  Servant.serve (Proxy @(GundeckAPI :<|> GundeckInternalAPI)) (servantSitemap' env) req cont
+  Servant.serve (Proxy @(GundeckAPI :<|> InternalAPI)) (servantSitemap' env) req cont
 
-servantSitemap' :: Env -> Servant.Server (GundeckAPI :<|> GundeckInternalAPI)
-servantSitemap' env = Servant.hoistServer (Proxy @(GundeckAPI :<|> GundeckInternalAPI)) toServantHandler (Public.servantSitemap :<|> Internal.servantSitemap)
+servantSitemap' :: Env -> Servant.Server (GundeckAPI :<|> InternalAPI)
+servantSitemap' env = Servant.hoistServer (Proxy @(GundeckAPI :<|> InternalAPI)) toServantHandler (Public.servantSitemap :<|> Internal.servantSitemap)
   where
     toServantHandler :: Gundeck a -> Handler a
     toServantHandler m = Handler . ExceptT $ Right <$> runDirect env m

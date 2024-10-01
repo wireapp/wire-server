@@ -1,0 +1,13 @@
+{
+    "native_include_origin": false,
+    "payload": [
+        {}
+    ],
+    "recipients": [
+        {
+            "clients": [],
+            "route": "any",
+            "user_id": "15441ff8-7f14-11ef-aeec-bbe21dc8a204"
+        }
+    ]
+}

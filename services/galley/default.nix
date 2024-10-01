@@ -42,7 +42,6 @@
 , galley-types
 , generics-sop
 , gitignoreSource
-, gundeck-types
 , hex
 , hs-opentelemetry-instrumentation-wai
 , hs-opentelemetry-sdk
@@ -167,7 +166,6 @@ mkDerivation {
     extra
     galley-types
     generics-sop
-    gundeck-types
     hex
     hs-opentelemetry-instrumentation-wai
     hs-opentelemetry-sdk

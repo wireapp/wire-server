@@ -60,8 +60,6 @@ import Gundeck.Push.Native qualified as Native
 import Gundeck.Push.Native.Types
 import Gundeck.Push.Websocket qualified as Web
 import Gundeck.ThreadBudget
-import Gundeck.Types
-import Gundeck.Types.Presence qualified as Presence
 import Gundeck.Util
 import Imports
 import Network.HTTP.Types
@@ -69,7 +67,10 @@ import Network.Wai.Utilities
 import System.Logger.Class (msg, val, (+++), (.=), (~~))
 import System.Logger.Class qualified as Log
 import Wire.API.Internal.Notification
+import Wire.API.Presence (Presence (..))
+import Wire.API.Presence qualified as Presence
 import Wire.API.Push.Token qualified as Public
+import Wire.API.Push.V2
 
 push :: [Push] -> Gundeck ()
 push ps = do

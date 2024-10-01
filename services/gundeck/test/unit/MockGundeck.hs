@@ -67,7 +67,6 @@ import Gundeck.Options
 import Gundeck.Push
 import Gundeck.Push.Native as Native
 import Gundeck.Push.Websocket as Web
-import Gundeck.Types hiding (recipient)
 import Imports
 import Network.URI qualified as URI
 import System.Logger.Class as Log hiding (trace)
@@ -75,6 +74,8 @@ import Test.QuickCheck as QC
 import Test.QuickCheck.Instances ()
 import Wire.API.Internal.BulkPush
 import Wire.API.Internal.Notification
+import Wire.API.Presence
+import Wire.API.Push.V2 hiding (recipient)
 
 ----------------------------------------------------------------------
 -- env

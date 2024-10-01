@@ -10,7 +10,6 @@ import Data.Range (fromRange, toRange)
 import Data.Set qualified as Set
 import Data.String.Conversions
 import Data.Time.Clock.DiffTime
-import Gundeck.Types.Push.V2 qualified as V2
 import Imports
 import Numeric.Natural (Natural)
 import Polysemy
@@ -21,6 +20,7 @@ import System.Timeout (timeout)
 import Test.Hspec
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
+import Wire.API.Push.V2 qualified as V2
 import Wire.GundeckAPIAccess
 import Wire.GundeckAPIAccess qualified as GundeckAPIAccess
 import Wire.NotificationSubsystem

@@ -68,7 +68,6 @@ import Galley.Options hiding (brig)
 import Galley.Queue qualified as Q
 import Galley.Types.Conversations.Members (RemoteMember (rmId))
 import Galley.Types.UserList
-import Gundeck.Types.Push.V2 qualified as PushV2
 import Imports hiding (head)
 import Network.AMQP qualified as Q
 import Polysemy
@@ -87,6 +86,7 @@ import Wire.API.Event.LeaveReason
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Brig.EJPD
 import Wire.API.Routes.Internal.Galley

@@ -57,8 +57,8 @@ import Control.Foldl qualified as Foldl
 import Control.Lens
 import Data.Attoparsec.Text
 import Data.Text qualified as Text
-import Gundeck.Types (AppName (..), Transport (..))
 import Imports
+import Wire.API.Push.V2 (AppName (..), Transport (..))
 
 newtype ArnEnv = ArnEnv {arnEnvText :: Text} deriving (Show, ToText, FromJSON)
 

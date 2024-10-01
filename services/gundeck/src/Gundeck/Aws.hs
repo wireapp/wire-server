@@ -83,8 +83,6 @@ import Gundeck.Aws.Sns
 import Gundeck.Instances ()
 import Gundeck.Options (Opts)
 import Gundeck.Options qualified as O
-import Gundeck.Types.Push hiding (token)
-import Gundeck.Types.Push qualified as Push
 import Imports
 import Network.HTTP.Client
 import Network.HTTP.Types
@@ -94,6 +92,8 @@ import System.Logger.Class
 import UnliftIO.Async
 import UnliftIO.Exception
 import Util.Options
+import Wire.API.Push.V2 hiding (token)
+import Wire.API.Push.V2 qualified as Push
 
 data Error where
   EndpointNotFound :: EndpointArn -> Error

@@ -59,7 +59,6 @@ import Galley.Types.Conversations.Members
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
 import Galley.Types.UserList
-import Gundeck.Types.Push.V2 qualified as PushV2
 import Imports hiding (forkIO)
 import Network.AMQP qualified as Q
 import Polysemy
@@ -79,6 +78,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Password
+import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Util
 import Wire.API.Team.Feature

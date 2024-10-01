@@ -44,9 +44,9 @@ where
 import Control.Lens (Lens', makeLenses, (^.))
 import Data.Id (ClientId, ConnId, UserId)
 import Gundeck.Aws.Arn
-import Gundeck.Types
 import Imports
 import Wire.API.Internal.Notification
+import Wire.API.Push.V2
 
 -- | Native push address information of a device.
 data Address = Address

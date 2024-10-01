@@ -28,11 +28,11 @@ import Data.Text.Encoding qualified as T
 import Data.Text.Lazy.Encoding qualified as LT
 import Gundeck.Push.Native.Serialise
 import Gundeck.Push.Native.Types
-import Gundeck.Types.Push
 import Imports
 import Test.Tasty
 import Test.Tasty.QuickCheck
 import Wire.API.Internal.Notification
+import Wire.API.Push.V2
 
 tests :: TestTree
 tests =

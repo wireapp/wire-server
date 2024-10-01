@@ -20,6 +20,7 @@ module Test.Wire.API.Golden.Manual where
 import Imports
 import Test.Tasty
 import Test.Wire.API.Golden.Manual.Activate_user
+import Test.Wire.API.Golden.Manual.CannonId
 import Test.Wire.API.Golden.Manual.ClientCapability
 import Test.Wire.API.Golden.Manual.ClientCapabilityList
 import Test.Wire.API.Golden.Manual.Contact
@@ -42,6 +43,9 @@ import Test.Wire.API.Golden.Manual.ListUsersById
 import Test.Wire.API.Golden.Manual.LoginId_user
 import Test.Wire.API.Golden.Manual.Login_user
 import Test.Wire.API.Golden.Manual.MLSKeys
+import Test.Wire.API.Golden.Manual.Presence
+import Test.Wire.API.Golden.Manual.Push
+import Test.Wire.API.Golden.Manual.PushRemove
 import Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
 import Test.Wire.API.Golden.Manual.SearchResultContact
 import Test.Wire.API.Golden.Manual.SendActivationCode_user
@@ -275,6 +279,26 @@ tests =
             (testObject_Login_user_3, "testObject_Login_user_3.json"),
             (testObject_Login_user_4, "testObject_Login_user_4.json"),
             (testObject_Login_user_5, "testObject_Login_user_5.json")
+          ],
+      testGroup "CannonId" $
+        testObjects
+          [ (testObject_CannonId_1, "testObject_CannonId_1.json"),
+            (testObject_CannonId_2, "testObject_CannonId_2.json"),
+            (testObject_CannonId_3, "testObject_CannonId_3.json")
+          ],
+      testGroup "Presence" $
+        testObjects
+          [ (testObject_Presence_1, "testObject_Presence_1.json"),
+            (testObject_Presence_2, "testObject_Presence_2.json")
+          ],
+      testGroup "Push" $
+        testObjects
+          [ (testObject_Push_1, "testObject_Push_1.json"),
+            (testObject_Push_2, "testObject_Push_2.json")
+          ],
+      testGroup "PushRemove" $
+        testObjects
+          [ (testObject_PushRemove_1, "testObject_PushRemove_1.json")
           ],
       testGroup "Activate" $
         testObjects

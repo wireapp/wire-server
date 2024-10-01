@@ -168,7 +168,6 @@ library
     , exceptions
     , extended
     , extra
-    , gundeck-types
     , HaskellNet
     , HaskellNet-SSL
     , HsOpenSSL
@@ -275,7 +274,6 @@ test-suite wire-subsystems-tests
     , data-default
     , errors
     , extended
-    , gundeck-types
     , hspec
     , imports
     , iso639

@@ -1,0 +1,9 @@
+{
+    "token": {
+        "app": "j{𛂚\u0001_􈷉M",
+        "client": "6",
+        "token": "K",
+        "transport": "APNS_VOIP_SANDBOX"
+    },
+    "type": "user.push-remove"
+}

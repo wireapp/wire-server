@@ -91,7 +91,6 @@ import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.UserList
 import Galley.Validation
-import Gundeck.Types.Push.V2 qualified as PushV2
 import Imports hiding ((\\))
 import Network.AMQP qualified as Q
 import Polysemy
@@ -116,6 +115,7 @@ import Wire.API.Federation.API.Galley
 import Wire.API.Federation.API.Galley qualified as F
 import Wire.API.Federation.Error
 import Wire.API.FederationStatus
+import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.Feature
 import Wire.API.Team.LegalHold

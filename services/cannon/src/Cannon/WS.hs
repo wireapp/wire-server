@@ -66,7 +66,6 @@ import Data.Id (ClientId, ConnId (..), UserId)
 import Data.List.Extra (chunksOf)
 import Data.Text.Encoding (decodeUtf8)
 import Data.Timeout (TimeoutUnit (..), (#))
-import Gundeck.Types
 import Imports hiding (threadDelay)
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
@@ -76,6 +75,7 @@ import System.Logger qualified as Logger
 import System.Logger.Class hiding (Error, Settings, close, (.=))
 import System.Random.MWC (GenIO, uniform)
 import UnliftIO.Async (async, cancel, pooledMapConcurrentlyN_)
+import Wire.API.Presence
 
 -----------------------------------------------------------------------------
 -- Key

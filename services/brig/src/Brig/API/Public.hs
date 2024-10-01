@@ -113,6 +113,7 @@ import Wire.API.Routes.Internal.Brig qualified as BrigInternalAPI
 import Wire.API.Routes.Internal.Cannon qualified as CannonInternalAPI
 import Wire.API.Routes.Internal.Cargohold qualified as CargoholdInternalAPI
 import Wire.API.Routes.Internal.Galley qualified as GalleyInternalAPI
+import Wire.API.Routes.Internal.Gundeck qualified as GundeckInternalAPI
 import Wire.API.Routes.Internal.Spar qualified as SparInternalAPI
 import Wire.API.Routes.MultiTablePaging qualified as Public
 import Wire.API.Routes.Named (Named (Named))
@@ -194,10 +195,11 @@ federatedEndpointsSwaggerDocsAPIs =
 internalEndpointsSwaggerDocsAPIs :: Servant.Server InternalEndpointsSwaggerDocsAPI
 internalEndpointsSwaggerDocsAPIs =
   internalEndpointsSwaggerDocsAPI @"brig" "brig" 9082 BrigInternalAPI.swaggerDoc
-    :<|> internalEndpointsSwaggerDocsAPI @"cannon" "cannon" 9093 CannonInternalAPI.swaggerDoc
-    :<|> internalEndpointsSwaggerDocsAPI @"cargohold" "cargohold" 9094 CargoholdInternalAPI.swaggerDoc
-    :<|> internalEndpointsSwaggerDocsAPI @"galley" "galley" 9095 GalleyInternalAPI.swaggerDoc
-    :<|> internalEndpointsSwaggerDocsAPI @"spar" "spar" 9098 SparInternalAPI.swaggerDoc
+    :<|> internalEndpointsSwaggerDocsAPI @"cannon" "cannon" 9083 CannonInternalAPI.swaggerDoc
+    :<|> internalEndpointsSwaggerDocsAPI @"cargohold" "cargohold" 9084 CargoholdInternalAPI.swaggerDoc
+    :<|> internalEndpointsSwaggerDocsAPI @"galley" "galley" 9085 GalleyInternalAPI.swaggerDoc
+    :<|> internalEndpointsSwaggerDocsAPI @"spar" "spar" 9088 SparInternalAPI.swaggerDoc
+    :<|> internalEndpointsSwaggerDocsAPI @"gundeck" "gundeck" 9086 GundeckInternalAPI.swaggerDoc
 
 -- | Serves Swagger docs for public endpoints
 --

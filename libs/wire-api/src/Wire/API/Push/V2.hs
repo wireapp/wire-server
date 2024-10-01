@@ -1,28 +1,10 @@
-{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 
--- This file is part of the Wire Server implementation.
---
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
---
--- This program is free software: you can redistribute it and/or modify it under
--- the terms of the GNU Affero General Public License as published by the Free
--- Software Foundation, either version 3 of the License, or (at your option) any
--- later version.
---
--- This program is distributed in the hope that it will be useful, but WITHOUT
--- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
--- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
--- details.
---
--- You should have received a copy of the GNU Affero General Public License along
--- with this program. If not, see <https://www.gnu.org/licenses/>.
-
-module Gundeck.Types.Push.V2
+module Wire.API.Push.V2
   ( Push (..),
     newPush,
     pushRecipients,
@@ -71,13 +53,17 @@ module Gundeck.Types.Push.V2
   )
 where
 
-import Control.Lens (makeLenses)
-import Data.Aeson
+import Control.Lens (makeLenses, (?~))
+import Data.Aeson (FromJSON (..), Object, ToJSON (..))
+import Data.Aeson qualified as A
+import Data.Aeson.Types qualified as A
 import Data.Id
 import Data.Json.Util
 import Data.List1
 import Data.List1 qualified as List1
+import Data.OpenApi qualified as S
 import Data.Range
+import Data.Schema
 import Data.Set qualified as Set
 import Imports
 import Wire.API.Message (Priority (..))
@@ -96,25 +82,28 @@ data Route
     RouteDirect
   deriving (Eq, Ord, Enum, Bounded, Show, Generic)
   deriving (Arbitrary) via GenericUniform Route
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema Route)
 
-instance FromJSON Route where
-  parseJSON (String "any") = pure RouteAny
-  parseJSON (String "direct") = pure RouteDirect
-  parseJSON x = fail $ "Invalid routing: " ++ show (encode x)
-
-instance ToJSON Route where
-  toJSON RouteAny = String "any"
-  toJSON RouteDirect = String "direct"
+instance ToSchema Route where
+  schema =
+    enum @Text "Route" $
+      mconcat
+        [ element "any" RouteAny,
+          element "direct" RouteDirect
+        ]
 
 -----------------------------------------------------------------------------
 -- Recipient
 
+-- FUTUREWORK: this is a duplicate of the type in "Wire.NotificationSubsystem" (even though
+-- the latter lacks a few possibly deprecated fields). consolidate!
 data Recipient = Recipient
   { _recipientId :: !UserId,
     _recipientRoute :: !Route,
     _recipientClients :: !RecipientClients
   }
   deriving (Show, Eq, Ord, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema Recipient)
 
 data RecipientClients
   = -- | All clients of some user
@@ -123,6 +112,7 @@ data RecipientClients
     RecipientClientsSome (List1 ClientId)
   deriving (Eq, Show, Ord, Generic)
   deriving (Arbitrary) via GenericUniform RecipientClients
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema RecipientClients)
 
 instance Semigroup RecipientClients where
   RecipientClientsAll <> _ = RecipientClientsAll
@@ -130,41 +120,39 @@ instance Semigroup RecipientClients where
   RecipientClientsSome cs1 <> RecipientClientsSome cs2 =
     RecipientClientsSome (cs1 <> cs2)
 
+instance ToSchema Recipient where
+  schema =
+    object "Recipient" $
+      Recipient
+        <$> _recipientId .= field "user_id" schema
+        <*> _recipientRoute .= field "route" schema
+        <*> _recipientClients .= field "clients" schema
+
+instance ToSchema RecipientClients where
+  schema = mkSchema d i o
+    where
+      d :: NamedSwaggerDoc
+      d =
+        swaggerDoc @[ClientId]
+          & (S.schema . S.type_ ?~ S.OpenApiArray)
+          & (S.schema . S.description ?~ "List of clientIds. Empty means `all clients`.")
+
+      i :: A.Value -> A.Parser RecipientClients
+      i v =
+        parseJSON @[ClientId] v >>= \case
+          [] -> pure RecipientClientsAll
+          c : cs -> pure (RecipientClientsSome (list1 c cs))
+
+      o :: RecipientClients -> Maybe A.Value
+      o =
+        pure . toJSON . \case
+          RecipientClientsSome cs -> toList cs
+          RecipientClientsAll -> []
+
 makeLenses ''Recipient
 
 recipient :: UserId -> Route -> Recipient
 recipient u r = Recipient u r RecipientClientsAll
-
-instance FromJSON Recipient where
-  parseJSON = withObject "Recipient" $ \p ->
-    Recipient
-      <$> p .: "user_id"
-      <*> p .: "route"
-      <*> p .:? "clients" .!= RecipientClientsAll
-
-instance ToJSON Recipient where
-  toJSON (Recipient u r c) =
-    object $
-      "user_id"
-        .= u
-        # "route"
-        .= r
-        # "clients"
-        .= c
-        # []
-
--- "All clients" is encoded in the API as an empty list.
-instance FromJSON RecipientClients where
-  parseJSON x =
-    parseJSON @[ClientId] x >>= \case
-      [] -> pure RecipientClientsAll
-      c : cs -> pure (RecipientClientsSome (list1 c cs))
-
-instance ToJSON RecipientClients where
-  toJSON =
-    toJSON . \case
-      RecipientClientsAll -> []
-      RecipientClientsSome cs -> toList cs
 
 -----------------------------------------------------------------------------
 -- ApsData
@@ -172,8 +160,32 @@ instance ToJSON RecipientClients where
 newtype ApsSound = ApsSound {fromSound :: Text}
   deriving (Eq, Show, ToJSON, FromJSON, Arbitrary)
 
+instance ToSchema ApsSound where
+  schema =
+    mkSchema d i o
+    where
+      d =
+        swaggerDoc @Text
+          & (S.schema . S.type_ ?~ S.OpenApiString)
+          & (S.schema . S.description ?~ "ApsSound")
+
+      i = A.withText "ApsSound" (pure . ApsSound)
+      o = pure . A.String . fromSound
+
 newtype ApsLocKey = ApsLocKey {fromLocKey :: Text}
   deriving (Eq, Show, ToJSON, FromJSON, Arbitrary)
+
+instance ToSchema ApsLocKey where
+  schema =
+    mkSchema d i o
+    where
+      d =
+        swaggerDoc @Text
+          & (S.schema . S.type_ ?~ S.OpenApiString)
+          & (S.schema . S.description ?~ "ApsLocKey")
+
+      i = A.withText "ApsLocKey" (pure . ApsLocKey)
+      o = pure . A.String . fromLocKey
 
 data ApsData = ApsData
   { _apsLocKey :: !ApsLocKey,
@@ -183,36 +195,29 @@ data ApsData = ApsData
   }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via GenericUniform ApsData
-
-makeLenses ''ApsData
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema ApsData)
 
 apsData :: ApsLocKey -> [Text] -> ApsData
 apsData lk la = ApsData lk la Nothing True
 
-instance ToJSON ApsData where
-  toJSON (ApsData k a s b) =
-    object $
-      "loc_key"
-        .= k
-        # "loc_args"
-        .= a
-        # "sound"
-        .= s
-        # "badge"
-        .= b
-        # []
+instance ToSchema ApsData where
+  schema =
+    object "ApsData" $
+      ApsData
+        <$> _apsLocKey .= field "loc_key" schema
+        <*> withDefault "loc_args" _apsLocArgs (array schema) []
+        <*> _apsSound .= optField "sound" (maybeWithDefault A.Null schema) -- keep null for backwards compat
+        <*> withDefault "badge" _apsBadge schema True
+    where
+      withDefault fn f s def = ((Just . f) .= maybe_ (optField fn s)) <&> fromMaybe def
 
-instance FromJSON ApsData where
-  parseJSON = withObject "ApsData" $ \o ->
-    ApsData
-      <$> o .: "loc_key"
-      <*> o .:? "loc_args" .!= []
-      <*> o .:? "sound"
-      <*> o .:? "badge" .!= True
+makeLenses ''ApsData
 
 -----------------------------------------------------------------------------
 -- Push
 
+-- FUTUREWORK: this is a duplicate of the type in "Wire.NotificationSubsystem" (even though
+-- the latter lacks a few possibly deprecated fields). consolidate!
 data Push = Push
   { -- | Recipients
     --
@@ -253,8 +258,7 @@ data Push = Push
     _pushPayload :: !(List1 Object)
   }
   deriving (Eq, Show)
-
-makeLenses ''Push
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema Push)
 
 newPush :: Maybe UserId -> Range 1 1024 (Set Recipient) -> List1 Object -> Push
 newPush from to pload =
@@ -274,43 +278,27 @@ newPush from to pload =
 singletonPayload :: (ToJSONObject a) => a -> List1 Object
 singletonPayload = List1.singleton . toJSONObject
 
-instance FromJSON Push where
-  parseJSON = withObject "Push" $ \p ->
-    Push
-      <$> p .: "recipients"
-      <*> p .:? "origin"
-      <*> p .:? "connections" .!= Set.empty
-      <*> p .:? "origin_connection"
-      <*> p .:? "transient" .!= False
-      <*> p .:? "native_include_origin" .!= True
-      <*> p .:? "native_encrypt" .!= True
-      <*> p .:? "native_aps"
-      <*> p .:? "native_priority" .!= HighPriority
-      <*> p .: "payload"
-
-instance ToJSON Push where
-  toJSON p =
-    object $
-      "recipients"
-        .= _pushRecipients p
-        # "origin"
-        .= _pushOrigin p
-        # "connections"
-        .= ifNot Set.null (_pushConnections p)
-        # "origin_connection"
-        .= _pushOriginConnection p
-        # "transient"
-        .= ifNot not (_pushTransient p)
-        # "native_include_origin"
-        .= ifNot id (_pushNativeIncludeOrigin p)
-        # "native_encrypt"
-        .= ifNot id (_pushNativeEncrypt p)
-        # "native_aps"
-        .= _pushNativeAps p
-        # "native_priority"
-        .= ifNot (== HighPriority) (_pushNativePriority p)
-        # "payload"
-        .= _pushPayload p
-        # []
+instance ToSchema Push where
+  schema =
+    object "Push" $
+      Push
+        <$> (fromRange . _pushRecipients) .= field "recipients" (rangedSchema (set schema))
+        <*> _pushOrigin .= maybe_ (optField "origin" schema)
+        <*> (ifNot Set.null . _pushConnections)
+          .= maybe_ (fmap (fromMaybe mempty) (optField "connections" (set schema)))
+        <*> _pushOriginConnection .= maybe_ (optField "origin_connection" schema)
+        <*> (ifNot not . _pushTransient)
+          .= maybe_
+            (fmap (fromMaybe False) (optField "transient" schema))
+        <*> (ifNot id . _pushNativeIncludeOrigin)
+          .= maybe_ (fmap (fromMaybe True) (optField "native_include_origin" schema))
+        <*> (ifNot id . _pushNativeEncrypt)
+          .= maybe_ (fmap (fromMaybe True) (optField "native_encrypt" schema))
+        <*> _pushNativeAps .= maybe_ (optField "native_aps" schema)
+        <*> (ifNot (== HighPriority) . _pushNativePriority)
+          .= maybe_ (fromMaybe HighPriority <$> optField "native_priority" schema)
+        <*> _pushPayload .= field "payload" schema
     where
       ifNot f a = if f a then Nothing else Just a
+
+makeLenses ''Push

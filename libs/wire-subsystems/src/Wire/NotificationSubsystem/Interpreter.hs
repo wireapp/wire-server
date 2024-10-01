@@ -11,8 +11,6 @@ import Data.Proxy
 import Data.Range
 import Data.Set qualified as Set
 import Data.Time.Clock.DiffTime
-import Gundeck.Types hiding (Push (..), Recipient, newPush)
-import Gundeck.Types.Push.V2 qualified as V2
 import Imports
 import Numeric.Natural (Natural)
 import Polysemy
@@ -22,6 +20,8 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import System.Logger.Class as Log
+import Wire.API.Push.V2 hiding (Push (..), Recipient, newPush)
+import Wire.API.Push.V2 qualified as V2
 import Wire.API.Team.Member
 import Wire.GundeckAPIAccess (GundeckAPIAccess)
 import Wire.GundeckAPIAccess qualified as GundeckAPIAccess

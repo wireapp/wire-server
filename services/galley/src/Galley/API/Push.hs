@@ -37,13 +37,13 @@ import Data.Map qualified as Map
 import Data.Qualified
 import Galley.Data.Services
 import Galley.Effects.ExternalAccess
-import Gundeck.Types.Push (RecipientClients (RecipientClientsSome), Route (..))
 import Imports
 import Polysemy
 import Polysemy.TinyLog
 import System.Logger.Class qualified as Log
 import Wire.API.Event.Conversation
 import Wire.API.Message
+import Wire.API.Push.V2 (RecipientClients (RecipientClientsSome), Route (..))
 import Wire.NotificationSubsystem
 
 data MessagePush

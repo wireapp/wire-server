@@ -63,7 +63,6 @@ import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.Conversations.One2One
 import Galley.Types.UserList (UserList (UserList))
-import Gundeck.Types.Push.V2 (RecipientClients (..))
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -94,6 +93,7 @@ import Wire.API.MLS.Keys
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.Message
+import Wire.API.Push.V2 (RecipientClients (..))
 import Wire.API.Routes.Named
 import Wire.API.ServantProto
 import Wire.API.User (BaseProtocolTag (..))

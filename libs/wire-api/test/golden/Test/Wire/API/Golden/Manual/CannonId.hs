@@ -15,11 +15,20 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Gundeck.Types
-  ( module G,
+module Test.Wire.API.Golden.Manual.CannonId
+  ( testObject_CannonId_1,
+    testObject_CannonId_2,
+    testObject_CannonId_3,
   )
 where
 
-import Gundeck.Types.Event as G
-import Gundeck.Types.Presence as G
-import Gundeck.Types.Push as G
+import Wire.API.CannonId
+
+testObject_CannonId_1 :: CannonId
+testObject_CannonId_1 = CannonId ""
+
+testObject_CannonId_2 :: CannonId
+testObject_CannonId_2 = CannonId "sdfiou"
+
+testObject_CannonId_3 :: CannonId
+testObject_CannonId_3 = CannonId "1!_*`'\""

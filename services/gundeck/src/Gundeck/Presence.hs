@@ -27,9 +27,10 @@ import Data.CommaSeparatedList
 import Data.Id
 import Gundeck.Monad
 import Gundeck.Presence.Data qualified as Data
-import Gundeck.Types
 import Imports
-import Servant.API
+import Servant.API hiding (URI)
+import Wire.API.CannonId
+import Wire.API.Presence
 
 listH :: UserId -> Gundeck [Presence]
 listH = runWithDefaultRedis . Data.list
@@ -37,7 +38,7 @@ listH = runWithDefaultRedis . Data.list
 listAllH :: CommaSeparatedList UserId -> Gundeck [Presence]
 listAllH uids = concat <$> runWithDefaultRedis (Data.listAll (fromCommaSeparatedList uids))
 
-addH :: Presence -> Gundeck (Headers '[Header "Location" Gundeck.Types.URI] NoContent)
+addH :: Presence -> Gundeck (Headers '[Header "Location" URI] NoContent)
 addH p = do
   Data.add p
   pure (addHeader (resource p) NoContent)

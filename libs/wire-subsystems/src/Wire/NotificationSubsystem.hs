@@ -7,9 +7,9 @@ import Control.Lens (makeLenses)
 import Data.Aeson
 import Data.Id
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import Gundeck.Types hiding (Push (..), Recipient, newPush)
 import Imports
 import Polysemy
+import Wire.API.Push.V2 hiding (Push (..), Recipient, newPush)
 import Wire.Arbitrary
 
 data Recipient = Recipient
