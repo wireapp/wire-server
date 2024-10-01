@@ -26,6 +26,7 @@
 module Data.Range
   ( Range,
     toRange,
+    mapRange,
     Within,
     Bounds (..),
     checked,
@@ -98,7 +99,10 @@ import Test.QuickCheck qualified as QC
 newtype Range (n :: Nat) (m :: Nat) a = Range
   { fromRange :: a
   }
-  deriving (Eq, Ord, Show, Functor)
+  deriving (Eq, Ord, Show)
+
+mapRange :: (Functor f) => (a -> b) -> Range (n :: Nat) (m :: Nat) (f a) -> Range (n :: Nat) (m :: Nat) (f b)
+mapRange f (Range as) = Range (f <$> as)
 
 toRange :: (n <= x, x <= m, KnownNat x, Num a) => Proxy x -> Range n m a
 toRange = Range . fromIntegral . natVal

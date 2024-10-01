@@ -326,7 +326,7 @@ notifyUserDeletionRemotes deleted = do
           pure ()
         Just rangedUcs -> do
           luidDeleted <- qualifyLocal' deleted
-          embed $ notifyUserDeleted luidDeleted (qualifyAs ucs ((fmap (fmap (qUnqualified . ucTo))) rangedUcs))
+          embed $ notifyUserDeleted luidDeleted (qualifyAs ucs (mapRange (qUnqualified . ucTo) rangedUcs))
           -- also sent connection cancelled events to the connections that are pending
           let remotePendingConnections = qualifyAs ucs <$> filter ((==) Sent . ucStatus) (fromRange rangedUcs)
           forM_ remotePendingConnections $ sendCancelledEvent luidDeleted
