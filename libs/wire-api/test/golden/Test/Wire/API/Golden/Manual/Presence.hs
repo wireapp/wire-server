@@ -18,6 +18,7 @@
 module Test.Wire.API.Golden.Manual.Presence
   ( testObject_Presence_1,
     testObject_Presence_2,
+    testObject_Presence_3,
   )
 where
 
@@ -44,4 +45,14 @@ testObject_Presence_2 =
     (fromJust $ parse "http://example.com/3")
     (Just (ClientId 1))
     12323
+    "" -- __field always has to be "", see ToSchema instance.
+
+testObject_Presence_3 :: Presence
+testObject_Presence_3 =
+  Presence
+    (Id . fromJust $ UUID.fromString "174ccaea-7f26-11ef-86cc-37bb6bf3b319")
+    (ConnId "wef3")
+    (fromJust $ parse "http://example.com/3")
+    (Just (ClientId 1))
+    0
     "" -- __field always has to be "", see ToSchema instance.
