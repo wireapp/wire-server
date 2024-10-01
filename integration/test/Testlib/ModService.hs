@@ -189,7 +189,9 @@ startDynamicBackend resource beOverrides = do
           federatorInternalCfg =
             setField "federatorInternal.port" resource.berFederatorInternal
               >=> setField "federatorExternal.port" resource.berFederatorExternal
-              >=> setField "optSettings.setFederationDomain" resource.berDomain
+              >=> setField "optSettings.setFederationDomain" resource.berDomain,
+          cannonCfg =
+            setField "rabbitmq.vHost" resource.berVHost
         }
 
     setKeyspace :: ServiceOverrides
