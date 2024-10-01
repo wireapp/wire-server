@@ -29,6 +29,8 @@ module Galley.Types.Teams
     GetFeatureDefaults (..),
     FeatureDefaults (..),
     FeatureFlags,
+    DefaultsInitial (..),
+    initialFeature,
     featureDefaults,
     notTeamMember,
     findTeamMember,
@@ -47,6 +49,7 @@ import Data.ByteString.UTF8 qualified as UTF8
 import Data.Default
 import Data.Id (UserId)
 import Data.SOP
+import Data.Schema qualified as S
 import Data.Set qualified as Set
 import Imports
 import Wire.API.Team.Feature
@@ -214,10 +217,10 @@ newtype instance FeatureDefaults SndFactorPasswordChallengeConfig
   deriving (FromJSON) via Defaults (LockableFeature SndFactorPasswordChallengeConfig)
   deriving (ParseFeatureDefaults) via OptionalField SndFactorPasswordChallengeConfig
 
-newtype instance FeatureDefaults MLSConfig = MLSDefaults (LockableFeature MLSConfig)
+newtype instance FeatureDefaults MLSConfig = MLSDefaults (DefaultsInitial MLSConfig)
   deriving stock (Eq, Show)
   deriving newtype (Default, GetFeatureDefaults)
-  deriving (FromJSON) via Defaults (LockableFeature MLSConfig)
+  deriving (FromJSON) via DefaultsInitial MLSConfig
   deriving (ParseFeatureDefaults) via OptionalField MLSConfig
 
 data instance FeatureDefaults ExposeInvitationURLsToTeamAdminConfig
@@ -327,6 +330,31 @@ newtype Defaults a = Defaults {_unDefaults :: a}
 instance (FromJSON a) => FromJSON (Defaults a) where
   parseJSON = withObject "default object" $ \ob ->
     Defaults <$> (ob .: "defaults")
+
+data DefaultsInitial cfg = DefaultsInitial
+  { defFeature :: LockableFeature cfg,
+    initial :: cfg
+  }
+  deriving (Eq, Show)
+
+instance (IsFeatureConfig cfg) => Default (DefaultsInitial cfg) where
+  def = DefaultsInitial def def
+
+type instance ConfigOf (DefaultsInitial cfg) = cfg
+
+instance GetFeatureDefaults (DefaultsInitial cfg) where
+  featureDefaults1 = defFeature
+
+instance (IsFeatureConfig cfg) => FromJSON (DefaultsInitial cfg) where
+  parseJSON = withObject "default with initial" $ \ob -> do
+    feat <- ob .:? "defaults" .!= def
+    mc <-
+      fromMaybe feat.config
+        <$> A.explicitParseFieldMaybe S.schemaParseJSON ob "initialConfig"
+    pure $ DefaultsInitial feat mc
+
+initialFeature :: DefaultsInitial cfg -> LockableFeature cfg
+initialFeature d = d.defFeature {config = d.initial}
 
 makeLenses ''TeamCreationTime
 

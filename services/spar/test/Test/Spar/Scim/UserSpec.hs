@@ -35,7 +35,7 @@ spec = describe "deleteScimUser" $ do
     r <-
       interpretWithBrigAccessMock
         (mockBrig (withActiveUser acc) AccountDeleted)
-        (deleteUserAndAssertDeletionInSpar acc.account tokenInfo)
+        (deleteUserAndAssertDeletionInSpar acc tokenInfo)
     r `shouldBe` Right ()
   it "is idempotent" $ do
     tokenInfo <- generate arbitrary
@@ -43,7 +43,7 @@ spec = describe "deleteScimUser" $ do
     r <-
       interpretWithBrigAccessMock
         (mockBrig (withActiveUser acc) AccountAlreadyDeleted)
-        (deleteUserAndAssertDeletionInSpar acc.account tokenInfo)
+        (deleteUserAndAssertDeletionInSpar acc tokenInfo)
     r `shouldBe` Right ()
   it "works if there never was an account" $ do
     uid <- generate arbitrary
@@ -75,13 +75,13 @@ deleteUserAndAssertDeletionInSpar ::
        ]
       r
   ) =>
-  UserAccount ->
+  User ->
   ScimTokenInfo ->
   Sem r (Either ScimError ())
 deleteUserAndAssertDeletionInSpar acc tokenInfo = do
   let tid = stiTeam tokenInfo
-      email = (fromJust . emailIdentity . fromJust . userIdentity . accountUser) acc
-      uid = (userId . accountUser) acc
+      email = (fromJust . emailIdentity . fromJust . userIdentity) acc
+      uid = userId acc
   ScimExternalIdStore.insert tid (fromEmail email) uid
   r <- runExceptT $ deleteScimUser tokenInfo uid
   lr <- ScimExternalIdStore.lookup tid (fromEmail email)
@@ -120,7 +120,7 @@ ignoringState f = fmap snd . f
 mockBrig ::
   forall (r :: EffectRow) a.
   (Member (Embed IO) r) =>
-  (UserId -> Maybe ExtendedUserAccount) ->
+  (UserId -> Maybe User) ->
   DeleteUserResult ->
   Sem (BrigAccess ': r) a ->
   Sem r a
@@ -131,30 +131,24 @@ mockBrig lookup_user delete_response = interpret $ \case
     liftIO $ expectationFailure $ "Unexpected effect (call to brig)"
     error "Throw error here to avoid implementation of all cases."
 
-withActiveUser :: ExtendedUserAccount -> UserId -> Maybe ExtendedUserAccount
+withActiveUser :: User -> UserId -> Maybe User
 withActiveUser acc uid =
-  if uid == (userId . accountUser) acc.account
+  if uid == userId acc
     then Just acc
     else Nothing
 
-someActiveUser :: ScimTokenInfo -> IO ExtendedUserAccount
+someActiveUser :: ScimTokenInfo -> IO User
 someActiveUser tokenInfo = do
   user <- generate arbitrary
   pure $
-    ExtendedUserAccount
-      { account =
-          UserAccount
-            { accountStatus = Active,
-              accountUser =
-                user
-                  { userDisplayName = Name "Some User",
-                    userAccentId = defaultAccentId,
-                    userPict = noPict,
-                    userAssets = [],
-                    userHandle = parseHandle "some-handle",
-                    userIdentity = (Just . EmailIdentity . fromJust . emailAddressText) "someone@wire.com",
-                    userTeam = Just $ stiTeam tokenInfo
-                  }
-            },
-        emailUnvalidated = Nothing
+    user
+      { userDisplayName = Name "Some User",
+        userEmailUnvalidated = Nothing,
+        userAccentId = defaultAccentId,
+        userStatus = Active,
+        userPict = noPict,
+        userAssets = [],
+        userHandle = parseHandle "some-handle",
+        userIdentity = (Just . EmailIdentity . fromJust . emailAddressText) "someone@wire.com",
+        userTeam = Just $ stiTeam tokenInfo
       }

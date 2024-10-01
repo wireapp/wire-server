@@ -13,6 +13,7 @@
             "domain": "foo.example.com",
             "id": "539d9183-32a5-4fc4-ba5c-4634454e7585"
         },
+        "status": "deleted",
         "supported_protocols": [
             "proteus"
         ],

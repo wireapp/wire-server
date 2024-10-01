@@ -114,12 +114,12 @@ runUserSubsystem cfg authInterpreter =
       GetLocalUserProfiles others ->
         runInputConst cfg $
           getLocalUserProfilesImpl others
-      GetExtendedAccountsBy getBy ->
+      GetAccountsBy getBy ->
         runInputConst cfg $
-          getExtendedAccountsByImpl getBy
-      GetExtendedAccountsByEmailNoFilter emails ->
+          getAccountsByImpl getBy
+      GetAccountsByEmailNoFilter emails ->
         runInputConst cfg $
-          getExtendedAccountsByEmailNoFilterImpl emails
+          getAccountsByEmailNoFilterImpl emails
       GetAccountNoFilter luid ->
         runInputConst cfg $
           getAccountNoFilterImpl luid
@@ -820,31 +820,31 @@ getAccountNoFilterImpl ::
     Member (Input UserSubsystemConfig) r
   ) =>
   Local UserId ->
-  Sem r (Maybe UserAccount)
+  Sem r (Maybe User)
 getAccountNoFilterImpl (tSplit -> (domain, uid)) = do
   cfg <- input
   muser <- getUser uid
-  pure $ (mkAccountFromStored domain cfg.defaultLocale) <$> muser
+  pure $ (mkUserFromStored domain cfg.defaultLocale) <$> muser
 
-getExtendedAccountsByEmailNoFilterImpl ::
+getAccountsByEmailNoFilterImpl ::
   forall r.
   ( Member UserStore r,
     Member UserKeyStore r,
     Member (Input UserSubsystemConfig) r
   ) =>
   Local [EmailAddress] ->
-  Sem r [ExtendedUserAccount]
-getExtendedAccountsByEmailNoFilterImpl (tSplit -> (domain, emails)) = do
+  Sem r [User]
+getAccountsByEmailNoFilterImpl (tSplit -> (domain, emails)) = do
   config <- input
   nubOrd <$> flip foldMap emails \ek -> do
     mactiveUid <- lookupKey (mkEmailKey ek)
     getUsers (nubOrd . catMaybes $ [mactiveUid])
-      <&> map (mkExtendedAccountFromStored domain config.defaultLocale)
+      <&> map (mkUserFromStored domain config.defaultLocale)
 
 --------------------------------------------------------------------------------
 -- getting user accounts by different criteria
 
-getExtendedAccountsByImpl ::
+getAccountsByImpl ::
   forall r.
   ( Member UserStore r,
     Member DeleteQueue r,
@@ -853,16 +853,16 @@ getExtendedAccountsByImpl ::
     Member TinyLog r
   ) =>
   Local GetBy ->
-  Sem r [ExtendedUserAccount]
-getExtendedAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations, getByHandle, getByUserId})) = do
+  Sem r [User]
+getAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations, getByHandle, getByUserId})) = do
   storedToExtAcc <- do
     config <- input
-    pure $ mkExtendedAccountFromStored domain config.defaultLocale
+    pure $ mkUserFromStored domain config.defaultLocale
 
   handleUserIds :: [UserId] <-
     wither lookupHandle getByHandle
 
-  accsByIds :: [ExtendedUserAccount] <-
+  accsByIds :: [User] <-
     getUsers (nubOrd $ handleUserIds <> getByUserId) <&> map storedToExtAcc
 
   filterM want (nubOrd $ accsByIds)
@@ -871,11 +871,11 @@ getExtendedAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations
     -- . users without identity
     -- . pending users without matching invitation (those are garbage-collected)
     -- . TODO: deleted users?
-    want :: ExtendedUserAccount -> Sem r Bool
-    want ExtendedUserAccount {account} =
-      case account.accountUser.userIdentity of
+    want :: User -> Sem r Bool
+    want user =
+      case user.userIdentity of
         Nothing -> pure False
-        Just ident -> case account.accountStatus of
+        Just ident -> case user.userStatus of
           PendingInvitation ->
             case includePendingInvitations of
               WithPendingInvitations -> case emailIdentity ident of
@@ -884,7 +884,7 @@ getExtendedAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations
                 -- validEmailIdentity, anyEmailIdentity?
                 Just email -> do
                   hasInvitation <- isJust <$> lookupInvitationByEmail email
-                  gcHack hasInvitation (User.userId account.accountUser)
+                  gcHack hasInvitation (User.userId user)
                   pure hasInvitation
                 Nothing -> error "getExtendedAccountsByImpl: should never happen, user invited via scim always has an email"
               NoPendingInvitations -> pure False

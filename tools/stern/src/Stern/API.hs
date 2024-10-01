@@ -207,13 +207,13 @@ suspendUser uid = NoContent <$ Intra.putUserStatus Suspended uid
 unsuspendUser :: UserId -> Handler NoContent
 unsuspendUser uid = NoContent <$ Intra.putUserStatus Active uid
 
-usersByEmail :: EmailAddress -> Handler [UserAccount]
+usersByEmail :: EmailAddress -> Handler [User]
 usersByEmail = Intra.getUserProfilesByIdentity
 
-usersByIds :: [UserId] -> Handler [UserAccount]
+usersByIds :: [UserId] -> Handler [User]
 usersByIds = Intra.getUserProfiles . Left
 
-usersByHandles :: [Handle] -> Handler [UserAccount]
+usersByHandles :: [Handle] -> Handler [User]
 usersByHandles = Intra.getUserProfiles . Right
 
 ejpdInfoByHandles :: Maybe Bool -> [Handle] -> Handler EJPD.EJPDResponseBody
@@ -242,7 +242,7 @@ deleteUser :: UserId -> EmailAddress -> Handler NoContent
 deleteUser uid email = do
   usrs <- Intra.getUserProfilesByIdentity email
   case usrs of
-    [accountUser -> u] ->
+    [u] ->
       if userId u == uid
         then do
           info $ userMsg uid . msg (val "Deleting account")
@@ -258,7 +258,7 @@ setTeamStatusH status tid = NoContent <$ Intra.setStatusBindingTeam tid status
 deleteTeam :: TeamId -> Maybe Bool -> Maybe EmailAddress -> Handler NoContent
 deleteTeam givenTid (fromMaybe False -> False) (Just email) = do
   acc <- Intra.getUserProfilesByIdentity email >>= handleNoUser . listToMaybe
-  userTid <- (Intra.getUserBindingTeam . userId . accountUser $ acc) >>= handleNoTeam
+  userTid <- (Intra.getUserBindingTeam . userId $ acc) >>= handleNoTeam
   when (givenTid /= userTid) $
     throwE bindingTeamMismatch
   tInfo <- Intra.getTeamInfo givenTid
@@ -294,7 +294,7 @@ deleteFromBlacklist email = do
 getTeamInfoByMemberEmail :: EmailAddress -> Handler TeamInfo
 getTeamInfoByMemberEmail e = do
   acc <- Intra.getUserProfilesByIdentity e >>= handleUser . listToMaybe
-  tid <- (Intra.getUserBindingTeam . userId . accountUser $ acc) >>= handleTeam
+  tid <- (Intra.getUserBindingTeam . userId $ acc) >>= handleTeam
   Intra.getTeamInfo tid
   where
     handleUser = ifNothing (mkError status404 "no-user" "No such user with that email")
@@ -427,7 +427,7 @@ getUserData uid mMaxConvs mMaxNotifs = do
   consentLog <-
     (Intra.getUserConsentLog uid <&> toJSON @ConsentLog)
       `catchE` (pure . String . T.pack . show)
-  let em = userEmail $ accountUser account
+  let em = userEmail account
   marketo <- do
     let noEmail = MarketoResult $ KeyMap.singleton "results" emptyArray
     maybe

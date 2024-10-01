@@ -93,6 +93,11 @@ config:
         defaults:
           lockStatus: unlocked
           status: enabled
+      enforceFileDownloadLocation:
+        defaults:
+          lockStatus: locked
+          status: disabled
+          config: {}
       legalhold: disabled-by-default
       mls:
         defaults:

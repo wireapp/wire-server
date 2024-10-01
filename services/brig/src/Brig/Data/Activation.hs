@@ -79,7 +79,7 @@ activationErrorToRegisterError = \case
   InvalidActivationPhone _ -> RegisterErrorInvalidPhone
 
 data ActivationEvent
-  = AccountActivated !UserAccount
+  = AccountActivated !User
   | EmailActivated !UserId !EmailAddress
   deriving (Show)
 
@@ -106,19 +106,18 @@ activateKey k c u = wrapClientE (verifyCode k c) >>= pickUser >>= activate
     activate (key, uid) = do
       luid <- qualifyLocal uid
       a <- lift (liftSem $ User.getAccountNoFilter luid) >>= maybe (throwE invalidUser) pure
-      unless (accountStatus a == Active) $ -- this is never 'PendingActivation' in the flow this function is used in.
+      unless (userStatus a == Active) $ -- this is never 'PendingActivation' in the flow this function is used in.
         throwE invalidCode
-      case userIdentity (accountUser a) of
+      case userIdentity a of
         Nothing -> do
           claim key uid
           let ident = EmailIdentity (emailKeyOrig key)
           wrapClientE (activateUser uid ident)
-          let a' = a {accountUser = (accountUser a) {userIdentity = Just ident}}
+          let a' = a {userIdentity = Just ident}
           pure . Just $ AccountActivated a'
         Just _ -> do
-          let usr = accountUser a
-              profileNeedsUpdate = Just (emailKeyOrig key) /= userEmail usr
-              oldKey :: Maybe EmailKey = mkEmailKey <$> userEmail usr
+          let profileNeedsUpdate = Just (emailKeyOrig key) /= userEmail a
+              oldKey :: Maybe EmailKey = mkEmailKey <$> userEmail a
            in handleExistingIdentity uid profileNeedsUpdate oldKey key
 
     handleExistingIdentity ::

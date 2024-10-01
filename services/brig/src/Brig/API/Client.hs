@@ -192,7 +192,9 @@ addClientWithReAuthPolicy ::
   NewClient ->
   ExceptT ClientError (AppT r) Client
 addClientWithReAuthPolicy policy luid@(tUnqualified -> u) con new = do
-  usr <- (lift . liftSem $ User.getAccountNoFilter luid) >>= maybe (throwE (ClientUserNotFound u)) (pure . (.accountUser))
+  usr <-
+    (lift . liftSem $ User.getAccountNoFilter luid)
+      >>= maybe (throwE (ClientUserNotFound u)) pure
   verifyCode (newClientVerificationCode new) luid
   maxPermClients <- fromMaybe Opt.defUserMaxPermClients <$> asks (.settings.userMaxPermClients)
   let caps :: Maybe ClientCapabilityList

@@ -123,8 +123,27 @@ library
     Test.Errors
     Test.ExternalPartner
     Test.FeatureFlags
+    Test.FeatureFlags.AppLock
+    Test.FeatureFlags.ClassifiedDomains
+    Test.FeatureFlags.ConferenceCalling
+    Test.FeatureFlags.DigitalSignatures
+    Test.FeatureFlags.EnforceFileDownloadLocation
+    Test.FeatureFlags.FileSharing
+    Test.FeatureFlags.GuestLinks
+    Test.FeatureFlags.Initialisation
+    Test.FeatureFlags.LegalHold
+    Test.FeatureFlags.Mls
+    Test.FeatureFlags.MlsE2EId
+    Test.FeatureFlags.MlsMigration
+    Test.FeatureFlags.OutlookCalIntegration
+    Test.FeatureFlags.SearchVisibilityAvailable
+    Test.FeatureFlags.SearchVisibilityInbound
+    Test.FeatureFlags.SelfDeletingMessages
+    Test.FeatureFlags.SndFactorPasswordChallenge
+    Test.FeatureFlags.SSO
     Test.FeatureFlags.User
     Test.FeatureFlags.Util
+    Test.FeatureFlags.ValidateSAMLEmails
     Test.Federation
     Test.Federator
     Test.LegalHold

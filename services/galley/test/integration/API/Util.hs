@@ -2400,8 +2400,7 @@ getUsersBy keyName = chunkify $ \keys -> do
           . queryItem keyName users
           . expect2xx
       )
-  let accounts = fromJust $ responseJsonMaybe @[UserAccount] res
-  pure $ fmap accountUser accounts
+  pure $ fromJust $ responseJsonMaybe @[User] res
 
 getUsersByHandle :: [Handle.Handle] -> TestM [User]
 getUsersByHandle = getUsersBy "handles"

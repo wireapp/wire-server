@@ -57,6 +57,6 @@ main = do
       $ do
         _modifyEnv <-
           traverseConcurrentlyCodensity
-            (\r -> startDynamicBackend r mempty)
+            (\r -> void $ startDynamicBackend r mempty)
             [backendA, backendB]
         liftIO run

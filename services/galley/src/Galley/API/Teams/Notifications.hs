@@ -65,7 +65,7 @@ getTeamNotifications ::
   Range 1 10000 Int32 ->
   Sem r QueuedNotificationList
 getTeamNotifications zusr since size = do
-  tid <- (noteS @'TeamNotFound =<<) $ (userTeam . accountUser =<<) <$> Intra.getUser zusr
+  tid <- (noteS @'TeamNotFound =<<) $ (userTeam =<<) <$> Intra.getUser zusr
   page <- E.getTeamNotifications tid since size
   pure $
     queuedNotificationList

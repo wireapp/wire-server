@@ -205,13 +205,13 @@ getUsersConnections uids = do
   info $ msg ("Response" ++ show r)
   parseResponse (mkError status502 "bad-upstream") r
 
-getUserProfiles :: Either [UserId] [Handle] -> Handler [UserAccount]
+getUserProfiles :: Either [UserId] [Handle] -> Handler [User]
 getUserProfiles uidsOrHandles = do
   info $ msg "Getting user accounts"
   b <- asks (.brig)
   concat <$> mapM (doRequest b) (prepareQS uidsOrHandles)
   where
-    doRequest :: Request -> (Request -> Request) -> Handler [UserAccount]
+    doRequest :: Request -> (Request -> Request) -> Handler [User]
     doRequest b qry = do
       r <-
         catchRpcErrors $
@@ -232,7 +232,7 @@ getUserProfiles uidsOrHandles = do
       fmap (BS.intercalate "," . map toByteString')
         . chunksOf 50
 
-getUserProfilesByIdentity :: EmailAddress -> Handler [UserAccount]
+getUserProfilesByIdentity :: EmailAddress -> Handler [User]
 getUserProfilesByIdentity email = do
   info $ msg "Getting user accounts by identity"
   b <- asks (.brig)

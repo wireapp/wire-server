@@ -53,7 +53,7 @@ import qualified Control.Monad.Catch as Catch
 import Control.Monad.IO.Class
 import Control.Monad.Reader (asks)
 import Control.Monad.STM
-import Data.Aeson (Value (..), decodeStrict')
+import Data.Aeson hiding ((.=))
 import Data.ByteString (ByteString)
 import Data.ByteString.Conversion (fromByteString)
 import Data.ByteString.Conversion.To
@@ -94,6 +94,13 @@ instance HasField "client" WebSocket (Maybe ClientIdentity) where
           user = ws.wsConnect.user,
           client = c
         }
+
+instance HasField "user" WebSocket Value where
+  getField ws =
+    object
+      [ "domain" .= ws.wsConnect.domain,
+        "id" .= ws.wsConnect.user
+      ]
 
 -- Specifies how a Websocket at cannon should be opened
 data WSConnect = WSConnect

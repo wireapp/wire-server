@@ -112,7 +112,13 @@ data ReAuthError
 -- Condition (2.) is essential for maintaining handle uniqueness.  It is guaranteed by the
 -- fact that we're setting getting @mbHandle@ from table @"user"@, and when/if it was added
 -- there, it was claimed properly.
-newAccount :: (MonadClient m, MonadReader Env m) => NewUser -> Maybe InvitationId -> Maybe TeamId -> Maybe Handle -> m (UserAccount, Maybe Password)
+newAccount ::
+  (MonadClient m, MonadReader Env m) =>
+  NewUser ->
+  Maybe InvitationId ->
+  Maybe TeamId ->
+  Maybe Handle ->
+  m (User, Maybe Password)
 newAccount u inv tid mbHandle = do
   defLoc <- defaultUserLocale <$> asks (.settings)
   domain <- viewFederationDomain
@@ -132,7 +138,7 @@ newAccount u inv tid mbHandle = do
       now <- liftIO =<< asks (.currentTime)
       pure . Just . toUTCTimeMillis $ addUTCTime (fromIntegral ttl) now
     _ -> pure Nothing
-  pure (UserAccount (user uid domain (locale defLoc) expiry) status, passwd)
+  pure (user uid domain (locale defLoc) expiry, passwd)
   where
     ident = newUserIdentity u
     pass = newUserPassword u
@@ -147,32 +153,31 @@ newAccount u inv tid mbHandle = do
     locale defLoc = fromMaybe defLoc (newUserLocale u)
     managedBy = fromMaybe defaultManagedBy (newUserManagedBy u)
     prots = fromMaybe defSupportedProtocols (newUserSupportedProtocols u)
-    user uid domain l e = User (Qualified uid domain) ident name Nothing pict assets colour False l Nothing mbHandle e tid managedBy prots
+    user uid domain l e = User (Qualified uid domain) ident Nothing name Nothing pict assets colour status l Nothing mbHandle e tid managedBy prots
 
-newAccountInviteViaScim :: (MonadReader Env m) => UserId -> Text -> TeamId -> Maybe Locale -> Name -> EmailAddress -> m UserAccount
+newAccountInviteViaScim :: (MonadReader Env m) => UserId -> Text -> TeamId -> Maybe Locale -> Name -> EmailAddress -> m User
 newAccountInviteViaScim uid externalId tid locale name email = do
   defLoc <- defaultUserLocale <$> asks (.settings)
   let loc = fromMaybe defLoc locale
   domain <- viewFederationDomain
-  pure (UserAccount (user domain loc) PendingInvitation)
-  where
-    user domain loc =
-      User
-        (Qualified uid domain)
-        (Just $ SSOIdentity (UserScimExternalId externalId) (Just email))
-        name
-        Nothing
-        (Pict [])
-        []
-        defaultAccentId
-        False
-        loc
-        Nothing
-        Nothing
-        Nothing
-        (Just tid)
-        ManagedByScim
-        defSupportedProtocols
+  pure $
+    User
+      (Qualified uid domain)
+      (Just $ SSOIdentity (UserScimExternalId externalId) (Just email))
+      Nothing
+      name
+      Nothing
+      (Pict [])
+      []
+      defaultAccentId
+      PendingInvitation
+      loc
+      Nothing
+      Nothing
+      Nothing
+      (Just tid)
+      ManagedByScim
+      defSupportedProtocols
 
 -- | Mandatory password authentication.
 authenticate :: forall r. (Member PasswordStore r) => UserId -> PlainTextPassword6 -> ExceptT AuthError (AppT r) ()
@@ -234,7 +239,7 @@ isSamlUser usr = do
 
 insertAccount ::
   (MonadClient m) =>
-  UserAccount ->
+  User ->
   -- | If a bot: conversation and team
   --   (if a team conversation)
   Maybe (ConvId, Maybe TeamId) ->
@@ -242,7 +247,7 @@ insertAccount ::
   -- | Whether the user is activated
   Bool ->
   m ()
-insertAccount (UserAccount u status) mbConv password activated = retry x5 . batch $ do
+insertAccount u mbConv password activated = retry x5 . batch $ do
   setType BatchLogged
   setConsistency LocalQuorum
   let Locale l c = userLocale u
@@ -258,7 +263,7 @@ insertAccount (UserAccount u status) mbConv password activated = retry x5 . batc
       userAccentId u,
       password,
       activated,
-      status,
+      userStatus u,
       userExpire u,
       l,
       c,
@@ -598,7 +603,7 @@ toUsers domain defLocale havePendingInvitations = fmap mk . filter fp
         textStatus,
         pict,
         email,
-        _emailUnvalidated,
+        emailUnvalidated,
         ssoid,
         accent,
         assets,
@@ -615,19 +620,19 @@ toUsers domain defLocale havePendingInvitations = fmap mk . filter fp
         prots
         ) =
         let ident = toIdentity activated email ssoid
-            deleted = Just Deleted == status
             expiration = if status == Just Ephemeral then expires else Nothing
             loc = toLocaleWithDefault defLocale (lan, con)
             svc = newServiceRef <$> sid <*> pid
          in User
               (Qualified uid domain)
               ident
+              emailUnvalidated
               name
               textStatus
               (fromMaybe noPict pict)
               (fromMaybe [] assets)
               accent
-              deleted
+              (fromMaybe Active status)
               loc
               svc
               handle

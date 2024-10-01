@@ -41,14 +41,14 @@ testObject_SelfProfile_user_1 =
                 { qUnqualified = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000002")),
                   qDomain = Domain {_domainText = "n0-994.m-226.f91.vg9p-mj-j2"}
                 },
-            userIdentity =
-              Just (EmailIdentity (unsafeEmailAddress "some" "example")),
+            userIdentity = Just (EmailIdentity (unsafeEmailAddress "some" "example")),
+            userEmailUnvalidated = Nothing,
             userDisplayName = Name {fromName = "@\1457\2598\66242\US\1104967l+\137302\&6\996495^\162211Mu\t"},
             userTextStatus = rightToMaybe $ mkTextStatus "text status",
             userPict = Pict {fromPict = []},
             userAssets = [],
             userAccentId = ColourId {fromColourId = 1},
-            userDeleted = False,
+            userStatus = Active,
             userLocale =
               Locale {lLanguage = Language Data.LanguageCodes.GL, lCountry = Just (Country {fromCountry = PA})},
             userService =

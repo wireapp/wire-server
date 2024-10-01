@@ -30,6 +30,7 @@ module Galley.API.Teams.Features
     guardSecondFactorDisabled,
     featureEnabledForTeam,
     guardMlsE2EIdConfig,
+    initialiseTeamFeatures,
   )
 where
 
@@ -43,7 +44,7 @@ import Data.Qualified (Local)
 import Data.Time (UTCTime)
 import Galley.API.Error (InternalError)
 import Galley.API.LegalHold qualified as LegalHold
-import Galley.API.Teams (ensureNotTooLargeToActivateLegalHold)
+import Galley.API.LegalHold.Team qualified as LegalHold
 import Galley.API.Teams.Features.Get
 import Galley.API.Util (assertTeamExists, getTeamMembersForFanout, membersToRecipients, permissionCheck)
 import Galley.App
@@ -243,6 +244,21 @@ setFeatureForTeam tid feat = do
   pushFeatureEvent tid (mkUpdateEvent newFeat)
   pure newFeat
 
+initialiseTeamFeatures ::
+  ( Member (Input Opts) r,
+    Member TeamFeatureStore r
+  ) =>
+  TeamId ->
+  Sem r ()
+initialiseTeamFeatures tid = do
+  flags :: FeatureFlags <- inputs $ view (settings . featureFlags)
+
+  -- set MLS initial config
+  let MLSDefaults fdef = npProject flags
+  let feat = initialFeature fdef
+  setDbFeature tid feat
+  pure ()
+
 -------------------------------------------------------------------------------
 -- SetFeatureConfig instances
 
@@ -349,7 +365,7 @@ instance SetFeatureConfig LegalholdConfig where
 
     case feat.status of
       FeatureStatusDisabled -> LegalHold.removeSettings' @InternalPaging tid
-      FeatureStatusEnabled -> ensureNotTooLargeToActivateLegalHold tid
+      FeatureStatusEnabled -> LegalHold.ensureNotTooLargeToActivateLegalHold tid
     pure feat
 
 instance SetFeatureConfig FileSharingConfig
@@ -428,6 +444,16 @@ instance SetFeatureConfig MlsMigrationConfig where
       $ throw MLSProtocolMismatch
     pure feat
 
-instance SetFeatureConfig EnforceFileDownloadLocationConfig
+instance SetFeatureConfig EnforceFileDownloadLocationConfig where
+  type
+    SetFeatureForTeamConstraints EnforceFileDownloadLocationConfig r =
+      (Member (Error TeamFeatureError) r)
+
+  prepareFeature _ feat = do
+    -- empty download location is not allowed
+    -- this is consistent with all other features, and least surprising for clients
+    when (feat.config.enforcedDownloadLocation == Just "") $ do
+      throw EmptyDownloadLocation
+    pure feat
 
 instance SetFeatureConfig LimitedEventFanoutConfig

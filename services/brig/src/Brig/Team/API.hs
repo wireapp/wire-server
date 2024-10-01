@@ -144,7 +144,7 @@ createInvitationViaScim ::
   ) =>
   TeamId ->
   NewUserScimInvitation ->
-  (Handler r) UserAccount
+  Handler r User
 createInvitationViaScim tid newUser@(NewUserScimInvitation _tid _uid@(Id (Id -> invId)) _eid loc name email role) = do
   env <- ask
   let inviteeRole = role
@@ -345,9 +345,7 @@ isPersonalUser uke = do
   pure $ case mAccount of
     -- this can e.g. happen if the key is claimed but the account is not yet created
     Nothing -> False
-    Just account ->
-      account.accountStatus == Active
-        && isNothing account.accountUser.userTeam
+    Just account -> account.userStatus == Active && isNothing account.userTeam
 
 getInvitationByCode ::
   ( Member Store.InvitationCodeStore r,
