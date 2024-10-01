@@ -31,6 +31,7 @@ module Galley.Options
     concurrentDeletionEvents,
     deleteConvThrottleMillis,
     federationDomain,
+    federationProtocols,
     mlsPrivateKeyPaths,
     featureFlags,
     defConcurrentDeletionEvents,
@@ -73,6 +74,7 @@ import Util.Options hiding (endpoint)
 import Util.Options.Common
 import Wire.API.Routes.Version
 import Wire.API.Team.Member
+import Wire.API.User
 
 newtype GuestLinkTTLSeconds = GuestLinkTTLSeconds
   { unGuestLinkTTLSeconds :: Int
@@ -135,6 +137,7 @@ data Settings = Settings
     --     - wire.com
     --     - example.com
     _federationDomain :: !Domain,
+    _federationProtocols :: !(Maybe [BaseProtocolTag]),
     _mlsPrivateKeyPaths :: !(Maybe MLSPrivateKeyPaths),
     -- | FUTUREWORK: 'setFeatureFlags' should be renamed to 'setFeatureConfigs' in all types.
     _featureFlags :: !FeatureFlags,
