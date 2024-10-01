@@ -122,6 +122,7 @@ library
     , auto-update                           >=0.1
     , base                                  >=4.7     && <5
     , bilge                                 >=0.21
+    , these
     , bytestring                            >=0.9
     , bytestring-conversion                 >=0.2
     , cassandra-util                        >=0.16.2
