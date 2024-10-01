@@ -86,11 +86,9 @@ import Data.Set qualified as Set
 import Data.Text.Encoding qualified as T
 import Data.Text.Encoding.Error
 import Imports hiding ((\\))
-import Network.AMQP (Channel)
 import Network.HTTP.Types.Method (StdMethod)
 import Network.Wai.Utilities
 import Polysemy
-import Polysemy.Input (Input, input)
 import Servant (Link, ToHttpApiData (toUrlPiece))
 import System.Logger.Class (field, msg, val, (~~))
 import System.Logger.Class qualified as Log
@@ -173,8 +171,7 @@ addClient ::
     Member EmailSubsystem r,
     Member AuthenticationSubsystem r,
     Member VerificationCodeSubsystem r,
-    Member Events r,
-    Member (Input Channel) r
+    Member Events r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -193,8 +190,7 @@ addClientWithReAuthPolicy ::
     Member Events r,
     Member UserSubsystem r,
     Member AuthenticationSubsystem r,
-    Member VerificationCodeSubsystem r,
-    Member (Input Channel) r
+    Member VerificationCodeSubsystem r
   ) =>
   Data.ReAuthPolicy ->
   Local UserId ->
@@ -221,8 +217,7 @@ addClientWithReAuthPolicy policy luid@(tUnqualified -> u) con new = do
       !>> ClientDataError
   let clt = clt0 {clientMLSPublicKeys = newClientMLSPublicKeys new}
   when (ClientSupportsConsumableNotifications `Set.member` (foldMap fromClientCapabilityList mCaps)) $ lift $ liftSem $ do
-    chanMVar <- input
-    setUpUserNotificationQueues chanMVar u clt.clientId
+    setupConsumableNotifications u clt.clientId
   lift $ do
     for_ old $ execDelete u con
     liftSem $ GalleyAPIAccess.newClient u clt.clientId
@@ -249,9 +244,7 @@ addClientWithReAuthPolicy policy luid@(tUnqualified -> u) con new = do
         VerificationCodeNoEmail -> throwE ClientCodeAuthenticationFailed
 
 updateClient ::
-  ( Member NotificationSubsystem r,
-    Member (Input Channel) r
-  ) =>
+  (Member NotificationSubsystem r) =>
   UserId ->
   ClientId ->
   UpdateClient ->
@@ -265,8 +258,7 @@ updateClient uid cid req = do
         -- first set up the notification queues then save the data is more robust than the other way around
         let addedCapabilities = caps.fromClientCapabilityList \\ client.clientCapabilities.fromClientCapabilityList
         when (ClientSupportsConsumableNotifications `Set.member` addedCapabilities) $ lift $ liftSem $ do
-          chanMVar <- input
-          setUpUserNotificationQueues chanMVar uid cid
+          setupConsumableNotifications uid cid
         wrapClientE $ lift . Data.updateClientCapabilities uid cid . Just $ caps
       else throwE $ clientError ClientCapabilitiesCannotBeRemoved
   let lk = maybeToList (unpackLastPrekey <$> req.updateClientLastKey)

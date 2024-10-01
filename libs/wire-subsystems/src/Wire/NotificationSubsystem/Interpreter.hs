@@ -41,7 +41,8 @@ runNotificationSubsystemGundeck ::
     Member Delay r,
     Member (Final IO) r,
     Member P.TinyLog r,
-    Member (Embed IO) r
+    Member (Embed IO) r,
+    Member (Input Channel) r
   ) =>
   NotificationSubsystemConfig ->
   Sem (NotificationSubsystem : r) a ->
@@ -53,7 +54,9 @@ runNotificationSubsystemGundeck cfg = interpret $ \case
   CleanupUser uid -> GundeckAPIAccess.userDeleted uid
   UnregisterPushClient uid cid -> GundeckAPIAccess.unregisterPushClient uid cid
   GetPushTokens uid -> GundeckAPIAccess.getPushTokens uid
-  SetUpUserNotificationQueues chan uid cid -> void $ liftIO $ setUpUserNotificationQueuesImpl chan uid cid
+  SetupConsumableNotifications uid cid -> do
+    chan <- input
+    void $ liftIO $ setupConsumableNotificationsImpl chan uid cid
 
 data NotificationSubsystemConfig = NotificationSubsystemConfig
   { fanoutLimit :: Range 1 HardTruncationLimit Int32,
@@ -177,12 +180,12 @@ pushSlowlyImpl ps =
     delay =<< inputs (diffTimeToFullMicroseconds . slowPushDelay)
     pushImpl [p]
 
-setUpUserNotificationQueuesImpl ::
+setupConsumableNotificationsImpl ::
   Channel ->
   UserId ->
   ClientId ->
   IO Text
-setUpUserNotificationQueuesImpl chan uid cid = do
+setupConsumableNotificationsImpl chan uid cid = do
   let qName = "user-notifications." <> idToText uid <> "." <> clientToText cid
   -- TODO: Do this using policies: https://www.rabbitmq.com/docs/parameters#policies
   let headers =

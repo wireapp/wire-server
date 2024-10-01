@@ -594,8 +594,7 @@ addClient ::
     Member AuthenticationSubsystem r,
     Member VerificationCodeSubsystem r,
     Member Events r,
-    Member UserSubsystem r,
-    Member (Input Channel) r
+    Member UserSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
