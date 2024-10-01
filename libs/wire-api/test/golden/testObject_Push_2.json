@@ -11,7 +11,8 @@
             "22",
             "333"
         ],
-        "loc_key": "asdf"
+        "loc_key": "asdf",
+        "sound": null
     },
     "native_encrypt": false,
     "native_priority": "low",
