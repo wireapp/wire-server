@@ -45,6 +45,8 @@ import Data.Map qualified as Map
 import Data.Range
 import Data.Set qualified as Set
 import Data.Text qualified as Text
+import Data.These
+import Data.These.Combinators
 import Data.UUID qualified as UUID
 import Gundeck.Aws (endpointUsers)
 import Gundeck.Aws qualified as Aws
@@ -143,33 +145,31 @@ instance MonadMapAsync Gundeck where
       Just chunkSize -> concat <$> mapM (mapAsync f) (List.chunksOf chunkSize l)
 
 splitPushes :: (MonadPushAll m) => [Push] -> m ([Push], [Push])
-splitPushes = fmap foldMaybeTuple . traverse splitPush
+splitPushes = fmap foldThese . traverse splitPush
 
--- TODO: Make it reutrn These
-splitPush :: (MonadPushAll m) => Push -> m (Maybe Push, Maybe Push)
+splitPush :: (MonadPushAll m) => Push -> m (These Push Push)
 splitPush p = do
   let allRecipients = Set.toList $ fromRange $ p._pushRecipients
-  (rabbitmqRecipients, legacyRecipients) <- foldMaybeTuple <$> traverse splitRecipient allRecipients
+  (rabbitmqRecipients, legacyRecipients) <- foldThese <$> traverse splitRecipient allRecipients
   case (rabbitmqRecipients, legacyRecipients) of
-    ([], _) -> pure (Nothing, Just p)
-    (_, []) -> pure (Just p, Nothing)
+    ([], _) -> pure (That p)
+    (_, []) -> pure (This p)
     (_ : _, _ : _) ->
       -- Since we just proved that both the recipient lists are not empty and
       -- they cannot be bigger than the limit as none of them can be bigger than
       -- the original recipient set, it is safe to use unsafeRange here.
       --
       -- TODO: See if there is a better way, so we don't have to use unsafeRange
-      pure
-        ( Just $ p {_pushRecipients = unsafeRange $ Set.fromList rabbitmqRecipients},
-          Just $ p {_pushRecipients = unsafeRange $ Set.fromList legacyRecipients}
-        )
+      pure $
+        These
+          p {_pushRecipients = unsafeRange $ Set.fromList rabbitmqRecipients}
+          p {_pushRecipients = unsafeRange $ Set.fromList legacyRecipients}
 
-foldMaybeTuple :: [(Maybe a, Maybe b)] -> ([a], [b])
-foldMaybeTuple = foldr (\(x, y) (xs, ys) -> ((maybeToList x <> xs), (maybeToList y <> ys))) ([], [])
+foldThese :: [These a b] -> ([a], [b])
+foldThese = foldr (\ab (xs, ys) -> ((maybeToList (justHere ab) <> xs), (maybeToList (justThere ab) <> ys))) ([], [])
 
 -- TODO: optimize for possibility of  many pushes having the same users
--- TODO: Make this return These
-splitRecipient :: (MonadPushAll m) => Recipient -> m (Maybe Recipient, Maybe Recipient)
+splitRecipient :: (MonadPushAll m) => Recipient -> m (These Recipient Recipient)
 splitRecipient rcpt = do
   clientsFull <- mpaGetClients rcpt._recipientId
   let allClients = Map.findWithDefault mempty rcpt._recipientId $ clientsFull.userClientsFull
@@ -182,13 +182,13 @@ splitRecipient rcpt = do
       rabbitmqClientIds = (.clientId) <$> Set.toList rabbitmqClients
       legacyClientIds = (.clientId) <$> Set.toList legacyClients
   case (rabbitmqClientIds, legacyClientIds) of
-    ([], _) -> pure (Nothing, Just rcpt)
-    (_, []) -> pure (Just rcpt, Nothing)
+    ([], _) -> pure (That rcpt)
+    (_, []) -> pure (This rcpt)
     (r : rs, l : ls) ->
-      pure
-        ( Just $ rcpt {_recipientClients = RecipientClientsSome $ list1 r rs},
-          Just $ rcpt {_recipientClients = RecipientClientsSome $ list1 l ls}
-        )
+      pure $
+        These
+          rcpt {_recipientClients = RecipientClientsSome $ list1 r rs}
+          rcpt {_recipientClients = RecipientClientsSome $ list1 l ls}
 
 getClients :: (MonadReader Env m, Bilge.MonadHttp m, MonadThrow m) => UserId -> m UserClientsFull
 getClients uid = do
