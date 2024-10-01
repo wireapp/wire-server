@@ -41,9 +41,6 @@ interpretBackendNotificationQueueAccess = interpret $ \case
     logEffect "BackendNotificationQueueAccess.EnqueueNotificationsConcurrentlyBuckets"
     embedApp . runExceptT $ enqueueNotificationsConcurrentlyBuckets m xs rpc
 
-getChannel :: ExceptT FederationError App (MVar Q.Channel)
-getChannel = view rabbitmqChannel >>= maybe (throwE FederationNotConfigured) pure
-
 enqueueSingleNotification :: Domain -> Q.DeliveryMode -> MVar Q.Channel -> FedQueueClient c a -> App a
 enqueueSingleNotification remoteDomain deliveryMode chanVar action = do
   ownDomain <- view (options . settings . federationDomain)
@@ -71,7 +68,7 @@ enqueueSingleNotification remoteDomain deliveryMode chanVar action = do
 
 enqueueNotification :: Q.DeliveryMode -> Domain -> FedQueueClient c a -> ExceptT FederationError App a
 enqueueNotification deliveryMode remoteDomain action = do
-  chanVar <- getChannel
+  chanVar <- view rabbitmqChannel
   lift $ enqueueSingleNotification remoteDomain deliveryMode chanVar action
 
 enqueueNotificationsConcurrently ::
@@ -94,7 +91,7 @@ enqueueNotificationsConcurrentlyBuckets m xs f = do
     -- only attempt to get a channel if there is at least one notification to send
     [] -> pure []
     _ -> do
-      chanVar <- getChannel
+      chanVar <- view rabbitmqChannel
       lift $ pooledForConcurrentlyN 8 (toList xs) $ \r ->
         qualifyAs r
           <$> enqueueSingleNotification (tDomain r) m chanVar (f r)
