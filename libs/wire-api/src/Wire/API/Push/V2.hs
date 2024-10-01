@@ -206,7 +206,7 @@ instance ToSchema ApsData where
       ApsData
         <$> _apsLocKey .= field "loc_key" schema
         <*> withDefault "loc_args" _apsLocArgs (array schema) []
-        <*> _apsSound .= maybe_ (optField "sound" schema)
+        <*> _apsSound .= optField "sound" (maybeWithDefault A.Null schema) -- keep null for backwards compat
         <*> withDefault "badge" _apsBadge schema True
     where
       withDefault fn f s def = ((Just . f) .= maybe_ (optField fn s)) <&> fromMaybe def

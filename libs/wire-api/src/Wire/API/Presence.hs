@@ -74,7 +74,7 @@ instance ToSchema Presence where
           <$> userId .= field "user_id" schema
           <*> connId .= field "device_id" schema
           <*> resource .= field "resource" uriSchema
-          <*> clientId .= maybe_ (optField "client_id" schema)
+          <*> clientId .= optField "client_id" (maybeWithDefault A.Null schema) -- keep null for backwards compat
           <*> createdAt .= field "created_at" schema
       )
         <&> ($ ("" :: Lazy.ByteString))
