@@ -20,7 +20,6 @@ module Test.Wire.API.Golden.Manual where
 import Imports
 import Test.Tasty
 import Test.Wire.API.Golden.Manual.Activate_user
-import Test.Wire.API.Golden.Manual.ApsData
 import Test.Wire.API.Golden.Manual.CannonId
 import Test.Wire.API.Golden.Manual.ClientCapability
 import Test.Wire.API.Golden.Manual.ClientCapabilityList
@@ -280,11 +279,6 @@ tests =
             (testObject_Login_user_3, "testObject_Login_user_3.json"),
             (testObject_Login_user_4, "testObject_Login_user_4.json"),
             (testObject_Login_user_5, "testObject_Login_user_5.json")
-          ],
-      testGroup "ApsData" $
-        testObjects
-          [ (testObject_ApsData_1, "testObject_ApsData_1.json"),
-            (testObject_ApsData_2, "testObject_ApsData_2.json")
           ],
       testGroup "CannonId" $
         testObjects
