@@ -4,8 +4,7 @@ import Bilge (RequestId)
 import Control.Concurrent.Async (Async)
 import Control.Lens (set, (.~))
 import Data.Aeson
-import Data.ByteString.Conversion
-import Data.Id (ClientId, UserId, idToText)
+import Data.Id (ClientId, UserId, clientToText, idToText)
 import Data.List.NonEmpty (nonEmpty)
 import Data.List1 (List1)
 import Data.List1 qualified as List1
@@ -184,12 +183,8 @@ setUpUserNotificationQueuesImpl ::
   ClientId ->
   IO Text
 setUpUserNotificationQueuesImpl chan uid cid = do
-  let cidText = decodeUtf8 $ toByteString' cid
-  let qName = idToText uid <> cidText
-  let routingKeys =
-        [ qName,
-          qName <> "." <> cidText
-        ]
+  let qName = "user-notifications." <> idToText uid <> "." <> clientToText cid
+  -- TODO: Do this using policies: https://www.rabbitmq.com/docs/parameters#policies
   let headers =
         FieldTable $
           Map.fromList
@@ -197,5 +192,11 @@ setUpUserNotificationQueuesImpl chan uid cid = do
               ("x-dead-letter-routing-key", FVString $ encodeUtf8 userNotificationDlqName)
             ]
   void $ declareQueue chan newQueue {queueName = qName, queueHeaders = headers}
-  for_ routingKeys $ bindQueue chan qName userNotificationExchangeName
+  for_ [userRoutingKey uid, clientRoutingKey uid cid] $ bindQueue chan qName userNotificationExchangeName
   pure qName
+
+userRoutingKey :: UserId -> Text
+userRoutingKey = idToText
+
+clientRoutingKey :: UserId -> ClientId -> Text
+clientRoutingKey uid cid = idToText uid <> "." <> clientToText cid
