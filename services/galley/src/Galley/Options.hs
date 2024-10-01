@@ -73,9 +73,9 @@ import Network.AMQP.Extended
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options hiding (endpoint)
 import Util.Options.Common
+import Wire.API.Conversation.Protocol
 import Wire.API.Routes.Version
 import Wire.API.Team.Member
-import Wire.API.User
 
 newtype GuestLinkTTLSeconds = GuestLinkTTLSeconds
   { unGuestLinkTTLSeconds :: Int
@@ -138,7 +138,7 @@ data Settings = Settings
     --     - wire.com
     --     - example.com
     _federationDomain :: !Domain,
-    _federationProtocols :: !(Maybe [BaseProtocolTag]),
+    _federationProtocols :: !(Maybe [ProtocolTag]),
     _mlsPrivateKeyPaths :: !(Maybe MLSPrivateKeyPaths),
     -- | FUTUREWORK: 'setFeatureFlags' should be renamed to 'setFeatureConfigs' in all types.
     _featureFlags :: !FeatureFlags,

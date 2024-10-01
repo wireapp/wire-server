@@ -332,7 +332,7 @@ enforceFederationProtocol ::
   ( Member (Error FederationError) r,
     Member (Input Opts) r
   ) =>
-  BaseProtocolTag ->
+  ProtocolTag ->
   [Remote ()] ->
   Sem r ()
 enforceFederationProtocol proto domains = do
@@ -535,6 +535,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
   ensureMemberLimit (convProtocolTag conv) (toList (convLocalMembers conv)) newMembers
   ensureAccess conv InviteAccess
   checkLocals lusr (convTeam conv) (ulLocals newMembers)
+  enforceFederationProtocol (protocolTag conv.convProtocol) (fmap void (ulRemotes newMembers))
   checkRemotes lusr (ulRemotes newMembers)
   checkLHPolicyConflictsLocal (ulLocals newMembers)
   checkLHPolicyConflictsRemote (FutureWork (ulRemotes newMembers))
