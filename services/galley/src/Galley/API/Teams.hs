@@ -86,6 +86,7 @@ import Data.Time.Clock (UTCTime)
 import Galley.API.Action
 import Galley.API.Error as Galley
 import Galley.API.LegalHold.Team
+import Galley.API.Teams.Features
 import Galley.API.Teams.Features.Get
 import Galley.API.Teams.Notifications qualified as APITeamQueue
 import Galley.API.Update qualified as API
@@ -239,6 +240,8 @@ createNonBindingTeamH _ _ _ = do
 createBindingTeam ::
   ( Member NotificationSubsystem r,
     Member (Input UTCTime) r,
+    Member (Input Opts) r,
+    Member TeamFeatureStore r,
     Member TeamStore r
   ) =>
   TeamId ->
@@ -249,7 +252,13 @@ createBindingTeam tid zusr body = do
   let owner = Public.mkTeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
   team <-
     E.createTeam (Just tid) zusr body.newTeamName body.newTeamIcon body.newTeamIconKey Binding
-  finishCreateTeam team owner [] Nothing
+  initialiseTeamFeatures tid
+
+  E.createTeamMember tid owner
+  now <- input
+  let e = newEvent tid now (EdTeamCreate team)
+  pushNotifications
+    [newPushLocal1 zusr (toJSONObject e) (userRecipient zusr :| [])]
   pure tid
 
 updateTeamStatus ::
@@ -1312,28 +1321,6 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) = do
 
   APITeamQueue.pushTeamEvent tid e
   pure sizeBeforeAdd
-
-finishCreateTeam ::
-  ( Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
-    Member TeamStore r
-  ) =>
-  Team ->
-  TeamMember ->
-  [TeamMember] ->
-  Maybe ConnId ->
-  Sem r ()
-finishCreateTeam team owner others zcon = do
-  let zusr = owner ^. userId
-  for_ (owner : others) $
-    E.createTeamMember (team ^. teamId)
-  now <- input
-  let e = newEvent (team ^. teamId) now (EdTeamCreate team)
-  let r = membersToRecipients Nothing others
-  pushNotifications
-    [ newPushLocal1 zusr (toJSONObject e) (userRecipient zusr :| r)
-        & pushConn .~ zcon
-    ]
 
 getBindingTeamMembers ::
   ( Member (ErrorS 'TeamNotFound) r,

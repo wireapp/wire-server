@@ -41,8 +41,7 @@ deleteUser user = bindResponse (API.Brig.deleteUser user) $ \resp -> do
 -- | returns (owner, team id, members)
 createTeam :: (HasCallStack, MakesValue domain) => domain -> Int -> App (Value, String, [Value])
 createTeam domain memberCount = do
-  res <- createUser domain def {team = True}
-  owner <- res.json
+  owner <- createUser domain def {team = True} >>= getJSON 201
   tid <- owner %. "team" & asString
   members <- for [2 .. memberCount] $ \_ -> createTeamMember owner tid
   pure (owner, tid, members)
