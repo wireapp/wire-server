@@ -168,6 +168,7 @@ library
     , wai-utilities                         >=0.16
     , wire-api
     , wire-otel
+    , wire-subsystems
     , yaml                                  >=0.8
 
   default-language:   GHC2021
