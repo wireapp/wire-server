@@ -8,7 +8,6 @@ import Data.Aeson
 import Data.Id
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Imports
-import Network.AMQP
 import Polysemy
 import Wire.API.Push.V2 hiding (Push (..), Recipient, newPush)
 import Wire.Arbitrary
@@ -50,7 +49,7 @@ data NotificationSubsystem m a where
   CleanupUser :: UserId -> NotificationSubsystem m ()
   UnregisterPushClient :: UserId -> ClientId -> NotificationSubsystem m ()
   GetPushTokens :: UserId -> NotificationSubsystem m [PushToken]
-  SetUpUserNotificationQueues :: Channel -> UserId -> ClientId -> NotificationSubsystem m ()
+  SetupConsumableNotifications :: UserId -> ClientId -> NotificationSubsystem m ()
 
 makeSem ''NotificationSubsystem
 

@@ -22,7 +22,7 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
   withConnection e.logg e.rabbitmq $ \conn -> do
     chan <- liftIO $ Amqp.openChannel conn
     -- TODO: Don't use  the interpreter
-    qName <- setUpUserNotificationQueuesImpl chan uid cid
+    qName <- setupConsumableNotificationsImpl chan uid cid
     let cleanup :: (Exception e, MonadThrow m, MonadIO m) => e -> m ()
         cleanup err = do
           Log.err e.logg $ Log.msg (Log.val "Pushing to WS failed") . Log.field "error" (displayException err)
