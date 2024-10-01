@@ -87,7 +87,7 @@ type InternalAPI =
            :<|> ( "presences"
                     :> ( (QueryParam' [Required, Strict] "ids" (CommaSeparatedList UserId) :> Get '[JSON] [Presence])
                            :<|> (Capture "uid" UserId :> Get '[JSON] [Presence])
-                           :<|> (ReqBodyHack :> Post '[JSON] (Headers '[Header "Location" URI] NoContent))
+                           :<|> (ReqBodyHack :> Verb 'POST 201 '[JSON] (Headers '[Header "Location" URI] NoContent))
                            :<|> (Capture "uid" UserId :> "devices" :> Capture "did" ConnId :> "cannons" :> Capture "cannon" CannonId :> Delete '[JSON] NoContent)
                        )
                 )
