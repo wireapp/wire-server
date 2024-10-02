@@ -53,16 +53,6 @@ data StoredInvitation = MkStoredInvitation
 
 recordInstance ''StoredInvitation
 
-data StoredInvitationInfo = MkStoredInvitationInfo
-  { teamId :: TeamId,
-    invitationId :: InvitationId,
-    code :: InvitationCode
-  }
-  deriving (Show, Eq, Generic)
-  deriving (Arbitrary) via (GenericUniform StoredInvitationInfo)
-
-recordInstance ''StoredInvitationInfo
-
 data InsertInvitation = MkInsertInvitation
   { invitationId :: InvitationId,
     teamId :: TeamId,
@@ -87,8 +77,8 @@ data PaginatedResult a
 data InvitationCodeStore :: Effect where
   InsertInvitation :: InsertInvitation -> Timeout -> InvitationCodeStore m StoredInvitation
   LookupInvitation :: TeamId -> InvitationId -> InvitationCodeStore m (Maybe StoredInvitation)
-  LookupInvitationInfo :: InvitationCode -> InvitationCodeStore m (Maybe StoredInvitationInfo)
-  LookupInvitationCodesByEmail :: EmailAddress -> InvitationCodeStore m [StoredInvitationInfo]
+  LookupInvitationInfo :: InvitationCode -> InvitationCodeStore m (Maybe StoredInvitation)
+  LookupInvitationCodesByEmail :: EmailAddress -> InvitationCodeStore m [StoredInvitation]
   -- | Range is page size, it defaults to 100
   LookupInvitationsPaginated :: Maybe (Range 1 500 Int32) -> TeamId -> Maybe InvitationId -> InvitationCodeStore m (PaginatedResult [StoredInvitation])
   CountInvitations :: TeamId -> InvitationCodeStore m Int64
@@ -101,15 +91,15 @@ makeSem ''InvitationCodeStore
 
 lookupInvitationByEmail :: (Member InvitationCodeStore r, Member TinyLog r) => EmailAddress -> Sem r (Maybe StoredInvitation)
 lookupInvitationByEmail email = runMaybeT do
-  MkStoredInvitationInfo {teamId, invitationId} <- MaybeT $ lookupSingleInvitationCodeByEmail email
-  MaybeT $ lookupInvitation teamId invitationId
+  inv <- MaybeT $ lookupSingleInvitationCodeByEmail email
+  MaybeT $ lookupInvitation inv.teamId inv.invitationId
 
 lookupInvitationByCode :: (Member InvitationCodeStore r) => InvitationCode -> Sem r (Maybe StoredInvitation)
 lookupInvitationByCode code = runMaybeT do
   info <- MaybeT $ lookupInvitationInfo code
   MaybeT $ lookupInvitation info.teamId info.invitationId
 
-lookupSingleInvitationCodeByEmail :: (Member TinyLog r, Member InvitationCodeStore r) => EmailAddress -> Sem r (Maybe StoredInvitationInfo)
+lookupSingleInvitationCodeByEmail :: (Member TinyLog r, Member InvitationCodeStore r) => EmailAddress -> Sem r (Maybe StoredInvitation)
 lookupSingleInvitationCodeByEmail email = do
   invs <- lookupInvitationCodesByEmail email
   case invs of

@@ -1,4 +1,7 @@
-module Wire.InvitationCodeStore.Cassandra where
+module Wire.InvitationCodeStore.Cassandra
+  ( interpretInvitationCodeStoreToCassandra,
+  )
+where
 
 import Cassandra
 import Data.Conduit (runConduit, (.|))
@@ -6,10 +9,8 @@ import Data.Conduit.List qualified as Conduit
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Range (Range, fromRange)
-import Data.Text.Ascii (encodeBase64Url)
-import Database.CQL.Protocol (TupleType, asRecord)
+import Database.CQL.Protocol (Record (..), TupleType, asRecord)
 import Imports
-import OpenSSL.Random (randBytes)
 import Polysemy
 import Polysemy.Embed
 import UnliftIO.Async (pooledMapConcurrentlyN_)
@@ -108,23 +109,42 @@ countInvitationsImpl t =
     cql :: PrepQuery R (Identity TeamId) (Identity Int64)
     cql = [sql| SELECT count(*) FROM team_invitation WHERE team = ?|]
 
-lookupInvitationInfoImpl :: InvitationCode -> Client (Maybe StoredInvitationInfo)
-lookupInvitationInfoImpl code =
-  fmap asRecord <$> retry x1 (query1 cql (params LocalQuorum (Identity code)))
+lookupInvitationInfoImpl :: InvitationCode -> Client (Maybe StoredInvitation)
+lookupInvitationInfoImpl code = do
+  mInfo <-
+    retry x1 (query1 cqlInfo (params LocalQuorum (Identity code)))
+  case mInfo of
+    Nothing -> pure Nothing
+    Just (teamId, invId, _) ->
+      fmap asRecord <$> retry x1 (query1 cqlMain (params LocalQuorum (teamId, invId)))
   where
-    cql :: PrepQuery R (Identity InvitationCode) (TupleType StoredInvitationInfo)
-    cql =
+    cqlInfo :: PrepQuery R (Identity InvitationCode) (TeamId, InvitationId, InvitationCode)
+    cqlInfo =
       [sql|
-      SELECT  team, id, code FROM team_invitation_info WHERE code = ?
+      SELECT team, id, code FROM team_invitation_info WHERE code = ?
+      |]
+    cqlMain :: PrepQuery R (TeamId, InvitationId) (TupleType StoredInvitation)
+    cqlMain =
+      [sql|
+      SELECT team, role, id, created_at, created_by, email, name, code FROM team_invitation WHERE team = ? AND id = ?
       |]
 
-lookupInvitationCodesByEmailImpl :: EmailAddress -> Client [StoredInvitationInfo]
-lookupInvitationCodesByEmailImpl email = map asRecord <$> retry x1 (query cql (params LocalQuorum (Identity email)))
+lookupInvitationCodesByEmailImpl :: EmailAddress -> Client [StoredInvitation]
+lookupInvitationCodesByEmailImpl email = do
+  infoList <-
+    retry x1 (query cqlInfo (params LocalQuorum (Identity email)))
+  fmap catMaybes $ forM infoList $ \(tid, invId, _invCode) ->
+    fmap asRecord <$> retry x1 (query1 cqlMain (params LocalQuorum (tid, invId)))
   where
-    cql :: PrepQuery R (Identity EmailAddress) (TeamId, InvitationId, InvitationCode)
-    cql =
+    cqlInfo :: PrepQuery R (Identity EmailAddress) (TeamId, InvitationId, InvitationCode)
+    cqlInfo =
       [sql|
       SELECT team, invitation, code FROM team_invitation_email WHERE email = ?
+      |]
+    cqlMain :: PrepQuery R (TeamId, InvitationId) (TupleType StoredInvitation)
+    cqlMain =
+      [sql|
+      SELECT team, role, id, created_at, created_by, email, name, code FROM team_invitation WHERE team = ? AND id = ?
       |]
 
 lookupInvitationImpl :: TeamId -> InvitationId -> Client (Maybe StoredInvitation)
@@ -186,8 +206,3 @@ deleteInvitationsImpl teamId =
   where
     cqlSelect :: PrepQuery R (Identity TeamId) (Identity InvitationId)
     cqlSelect = "SELECT id FROM team_invitation WHERE team = ? ORDER BY id ASC"
-
--- | This function doesn't really belong here, and may want to have return type `Sem (Random :
--- ...)` instead of `IO`.  Meh.
-mkInvitationCode :: IO InvitationCode
-mkInvitationCode = InvitationCode . encodeBase64Url <$> randBytes 24

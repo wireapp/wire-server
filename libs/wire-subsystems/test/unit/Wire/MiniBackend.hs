@@ -140,7 +140,7 @@ type MiniBackendLowerEffects =
     InvitationCodeStore,
     PasswordStore,
     State (Map (TeamId, InvitationId) StoredInvitation),
-    State (Map InvitationCode StoredInvitationInfo),
+    State (Map InvitationCode StoredInvitation),
     ActivationCodeStore,
     State (Map EmailKey (Maybe UserId, ActivationCode)),
     BlockListStore,
@@ -178,7 +178,7 @@ data MiniBackend = MkMiniBackend
     passwordResetCodes :: Map PasswordResetKey (PRQueryData Identity),
     blockList :: [EmailKey],
     activationCodes :: Map EmailKey (Maybe UserId, ActivationCode),
-    invitationInfos :: Map InvitationCode StoredInvitationInfo,
+    invitationInfos :: Map InvitationCode StoredInvitation,
     invitations :: Map (TeamId, InvitationId) StoredInvitation
   }
   deriving stock (Eq, Show, Generic)
@@ -435,7 +435,7 @@ interpretMaybeFederationStackState maybeFederationAPIAccess localBackend teamMem
         . noopEmailSubsystemInterpreter
         . userSubsystemInterpreter
 
-liftInvitationInfoStoreState :: (Member (State MiniBackend) r) => Sem (State (Map InvitationCode StoredInvitationInfo) : r) a -> Sem r a
+liftInvitationInfoStoreState :: (Member (State MiniBackend) r) => Sem (State (Map InvitationCode StoredInvitation) : r) a -> Sem r a
 liftInvitationInfoStoreState = interpret \case
   Polysemy.State.Get -> gets (.invitationInfos)
   Put newAcs -> modify $ \b -> b {invitationInfos = newAcs}

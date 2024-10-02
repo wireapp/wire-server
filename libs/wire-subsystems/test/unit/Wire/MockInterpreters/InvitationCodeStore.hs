@@ -14,7 +14,7 @@ import Wire.InvitationCodeStore
 inMemoryInvitationCodeStoreInterpreter ::
   forall r.
   ( Member (State (Map (TeamId, InvitationId) StoredInvitation)) r,
-    Member (State (Map (InvitationCode) StoredInvitationInfo)) r
+    Member (State (Map (InvitationCode) StoredInvitation)) r
   ) =>
   InterpreterFor InvitationCodeStore r
 inMemoryInvitationCodeStoreInterpreter = interpret \case
@@ -22,10 +22,8 @@ inMemoryInvitationCodeStoreInterpreter = interpret \case
   LookupInvitation tid iid -> gets (!? (tid, iid))
   LookupInvitationInfo iid -> gets (!? iid)
   LookupInvitationCodesByEmail em ->
-    let c MkStoredInvitation {..}
-          | email == em = Just MkStoredInvitationInfo {..}
-          | otherwise = Nothing
-     in mapMaybe c . elems <$> get
+    let c i = guard (i.email == em) $> i
+     in mapMaybe c . elems <$> get @(Map (TeamId, InvitationId) _)
   LookupInvitationsPaginated {} -> error "LookupInvitationsPaginated"
   CountInvitations tid -> gets (fromIntegral . M.size . M.filterWithKey (\(tid', _) _v -> tid == tid'))
   DeleteInvitation _tid _invId -> error "DeleteInvitation"
