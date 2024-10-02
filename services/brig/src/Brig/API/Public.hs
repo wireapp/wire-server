@@ -86,7 +86,6 @@ import Data.Time.Clock
 import Data.ZAuth.Token qualified as ZAuth
 import FileEmbedLzma
 import Imports hiding (head)
-import Network.AMQP
 import Network.Socket (PortNumber)
 import Network.Wai.Utilities (CacheControl (..), (!>>))
 import Network.Wai.Utilities qualified as Utilities
@@ -303,10 +302,8 @@ servantSitemap ::
     Member VerificationCodeSubsystem r,
     Member (Concurrency 'Unsafe) r,
     Member BlockListStore r,
-    Member (ConnectionStore InternalPaging) r,
     Member IndexedUserStore r,
-    Member (ConnectionStore InternalPaging) r,
-    Member (Input Channel) r
+    Member (ConnectionStore InternalPaging) r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
