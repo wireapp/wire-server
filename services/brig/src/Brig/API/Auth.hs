@@ -213,7 +213,7 @@ reauthenticate ::
   ReAuthUser ->
   Handler r ()
 reauthenticate luid@(tUnqualified -> uid) body = do
-  (User.reauthenticate uid (reAuthPassword body)) !>> reauthError
+  User.reauthenticate uid body.reAuthPassword !>> reauthError
   case reAuthCodeAction body of
     Just action ->
       Auth.verifyCode (reAuthCode body) action luid
