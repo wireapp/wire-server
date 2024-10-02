@@ -4,6 +4,7 @@ module Wire.InvitationCodeStore.Cassandra
 where
 
 import Cassandra
+import Control.Monad.Trans.Maybe
 import Data.Conduit (runConduit, (.|))
 import Data.Conduit.List qualified as Conduit
 import Data.Id
@@ -26,7 +27,7 @@ interpretInvitationCodeStoreToCassandra casClient =
       InsertInvitation newInv timeout -> embed $ insertInvitationImpl newInv timeout
       LookupInvitation tid iid -> embed $ lookupInvitationImpl tid iid
       LookupInvitationCodesByEmail email -> embed $ lookupInvitationCodesByEmailImpl email
-      LookupInvitationInfo code -> embed $ lookupInvitationInfoImpl code
+      LookupInvitationByCode code -> embed $ lookupInvitationByCodeImpl code
       LookupInvitationsPaginated mSize tid miid -> embed $ lookupInvitationsPaginatedImpl mSize tid miid
       CountInvitations tid -> embed $ countInvitationsImpl tid
       DeleteInvitation tid invId -> embed $ deleteInvitationImpl tid invId
@@ -109,14 +110,12 @@ countInvitationsImpl t =
     cql :: PrepQuery R (Identity TeamId) (Identity Int64)
     cql = [sql| SELECT count(*) FROM team_invitation WHERE team = ?|]
 
-lookupInvitationInfoImpl :: InvitationCode -> Client (Maybe StoredInvitation)
-lookupInvitationInfoImpl code = do
-  mInfo <-
-    retry x1 (query1 cqlInfo (params LocalQuorum (Identity code)))
-  case mInfo of
-    Nothing -> pure Nothing
-    Just (teamId, invId, _) ->
-      fmap asRecord <$> retry x1 (query1 cqlMain (params LocalQuorum (teamId, invId)))
+lookupInvitationByCodeImpl :: InvitationCode -> Client (Maybe StoredInvitation)
+lookupInvitationByCodeImpl code = runMaybeT do
+  (teamId, invId, _) <-
+    MaybeT $
+      retry x1 (query1 cqlInfo (params LocalQuorum (Identity code)))
+  MaybeT $ fmap asRecord <$> retry x1 (query1 cqlMain (params LocalQuorum (teamId, invId)))
   where
     cqlInfo :: PrepQuery R (Identity InvitationCode) (TeamId, InvitationId, InvitationCode)
     cqlInfo =

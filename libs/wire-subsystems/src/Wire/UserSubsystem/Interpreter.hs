@@ -183,7 +183,7 @@ internalFindTeamInvitationImpl ::
   Sem r StoredInvitation
 internalFindTeamInvitationImpl Nothing _ = throw UserSubsystemMissingIdentity
 internalFindTeamInvitationImpl (Just e) c =
-  lookupInvitationInfo c >>= \case
+  lookupInvitationByCode c >>= \case
     Just invitationInfo -> do
       inv <- lookupInvitation invitationInfo.teamId invitationInfo.invitationId
       case (inv, (.email) <$> inv) of
