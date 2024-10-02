@@ -1,0 +1,1 @@
+Improve abstraction in the invitation store and hide DB interaction-specific internal types from the application code.
