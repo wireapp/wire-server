@@ -112,7 +112,7 @@ instance MonadPushAll Gundeck where
 
 publishToRabbitMq :: Text -> Q.Message -> Gundeck ()
 publishToRabbitMq routingKey qMsg = do
-  chan <- readMVar =<< view rabbitMqChannel
+  chan <- getRabbitMqChan
   void $ liftIO $ Q.publishMsg chan userNotificationExchangeName routingKey qMsg
 
 -- | Another layer of wrap around 'runWithBudget'.
