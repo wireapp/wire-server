@@ -122,7 +122,6 @@ library
     , auto-update                           >=0.1
     , base                                  >=4.7     && <5
     , bilge                                 >=0.21
-    , these
     , bytestring                            >=0.9
     , bytestring-conversion                 >=0.2
     , cassandra-util                        >=0.16.2
@@ -155,6 +154,7 @@ library
     , servant
     , servant-server
     , text                                  >=1.1
+    , these
     , time                                  >=1.4
     , tinylog                               >=0.10
     , tls                                   >=1.7.0

@@ -46,7 +46,6 @@ import Data.Range
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.These
-import Data.These.Combinators
 import Data.UUID qualified as UUID
 import Gundeck.Aws (endpointUsers)
 import Gundeck.Aws qualified as Aws
@@ -145,12 +144,12 @@ instance MonadMapAsync Gundeck where
       Just chunkSize -> concat <$> mapM (mapAsync f) (List.chunksOf chunkSize l)
 
 splitPushes :: (MonadPushAll m) => [Push] -> m ([Push], [Push])
-splitPushes = fmap foldThese . traverse splitPush
+splitPushes = fmap partitionHereThere . traverse splitPush
 
 splitPush :: (MonadPushAll m) => Push -> m (These Push Push)
 splitPush p = do
   let allRecipients = Set.toList $ fromRange $ p._pushRecipients
-  (rabbitmqRecipients, legacyRecipients) <- foldThese <$> traverse splitRecipient allRecipients
+  (rabbitmqRecipients, legacyRecipients) <- partitionHereThere <$> traverse splitRecipient allRecipients
   case (rabbitmqRecipients, legacyRecipients) of
     ([], _) -> pure (That p)
     (_, []) -> pure (This p)
@@ -164,9 +163,6 @@ splitPush p = do
         These
           p {_pushRecipients = unsafeRange $ Set.fromList rabbitmqRecipients}
           p {_pushRecipients = unsafeRange $ Set.fromList legacyRecipients}
-
-foldThese :: [These a b] -> ([a], [b])
-foldThese = foldr (\ab (xs, ys) -> ((maybeToList (justHere ab) <> xs), (maybeToList (justThere ab) <> ys))) ([], [])
 
 -- TODO: optimize for possibility of  many pushes having the same users
 splitRecipient :: (MonadPushAll m) => Recipient -> m (These Recipient Recipient)
