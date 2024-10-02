@@ -103,19 +103,6 @@ lookupAccountProfile ::
   m (Maybe ProviderProfile)
 lookupAccountProfile p = fmap ProviderProfile <$> lookupAccount p
 
-lookupPassword ::
-  (MonadClient m) =>
-  ProviderId ->
-  m (Maybe Password)
-lookupPassword p =
-  fmap (fmap runIdentity) $
-    retry x1 $
-      query1 cql $
-        params LocalQuorum (Identity p)
-  where
-    cql :: PrepQuery R (Identity ProviderId) (Identity Password)
-    cql = "SELECT password FROM provider WHERE id = ?"
-
 deleteAccount ::
   (MonadClient m) =>
   ProviderId ->

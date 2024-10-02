@@ -275,9 +275,12 @@ verifyProviderPasswordImpl ::
   ProviderId ->
   PlainTextPassword6 ->
   Sem r (Bool, PasswordStatus)
-verifyProviderPasswordImpl pid pwd =
-  let uid = Id . toUUID $ pid
-   in verifyUserPasswordImpl uid pwd
+verifyProviderPasswordImpl pid plaintext = do
+  -- We type-erase uid here
+  password <-
+    PasswordStore.lookupHashedProviderPassword pid
+      >>= maybe (throw AuthenticationSubsystemBadCredentials) pure
+  verifyPasswordImpl plaintext password
 
 verifyUserPasswordImpl ::
   (Member PasswordStore r, Member (Error AuthenticationSubsystemError) r) =>
@@ -286,7 +289,6 @@ verifyUserPasswordImpl ::
   Sem r (Bool, PasswordStatus)
 verifyUserPasswordImpl uid plaintext = do
   password <-
-    -- We type-erase uid here, as this could be a provider or bot id.
     PasswordStore.lookupHashedPassword uid
       >>= maybe (throw AuthenticationSubsystemBadCredentials) pure
   verifyPasswordImpl plaintext password
