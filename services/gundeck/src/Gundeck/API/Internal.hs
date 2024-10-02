@@ -24,6 +24,7 @@ where
 import Cassandra qualified
 import Control.Lens (view)
 import Data.Id
+import Gundeck.Client
 import Gundeck.Client qualified as Client
 import Gundeck.Monad
 import Gundeck.Presence qualified as Presence
@@ -48,6 +49,7 @@ servantSitemap =
     :<|> unregisterClientH
     :<|> removeUserH
     :<|> getPushTokensH
+    :<|> registerConsumableNotifcationsClient
 
 statusH :: (Applicative m) => m NoContent
 statusH = pure NoContent
@@ -63,3 +65,9 @@ removeUserH uid = NoContent <$ Client.removeUser uid
 
 getPushTokensH :: UserId -> Gundeck PushTok.PushTokenList
 getPushTokensH uid = PushTok.PushTokenList <$> (view PushTok.addrPushToken <$$> PushTok.lookup uid Cassandra.All)
+
+registerConsumableNotifcationsClient :: UserId -> ClientId -> Gundeck NoContent
+registerConsumableNotifcationsClient uid cid = do
+  chan <- getRabbitMqChan
+  void . liftIO $ setupConsumableNotifications chan uid cid
+  pure NoContent

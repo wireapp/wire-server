@@ -216,5 +216,5 @@ getRabbitMqChan = do
   case mChan of
     Nothing -> do
       Log.err $ Log.msg (Log.val "Could not retrieve RabbitMQ channel")
-      throwM . mkError status500 "internal-server-error"
+      throwM $ mkError status500 "internal-server-error" "Could not retrieve RabbitMQ channel"
     Just chan -> pure chan
