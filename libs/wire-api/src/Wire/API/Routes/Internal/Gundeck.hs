@@ -94,6 +94,7 @@ type InternalAPI =
            :<|> (ZUser :> "clients" :> Capture "cid" ClientId :> Delete '[JSON] NoContent)
            :<|> (ZUser :> "user" :> Delete '[JSON] NoContent)
            :<|> ("push-tokens" :> Capture "uid" UserId :> Get '[JSON] PushTokenList)
+           :<|> ("users" :> Capture "uid" UserId :> "clients" :> Capture "cid" ClientId :> "consumable-notifications" :> PostNoContent)
        )
 
 swaggerDoc :: S.OpenApi

@@ -4,19 +4,14 @@ import Bilge (RequestId)
 import Control.Concurrent.Async (Async)
 import Control.Lens (set, (.~))
 import Data.Aeson
-import Data.Id (ClientId, UserId, clientToText, idToText)
 import Data.List.NonEmpty (nonEmpty)
 import Data.List1 (List1)
 import Data.List1 qualified as List1
-import Data.Map qualified as Map
 import Data.Proxy
 import Data.Range
 import Data.Set qualified as Set
-import Data.Text.Encoding
 import Data.Time.Clock.DiffTime
 import Imports
-import Network.AMQP
-import Network.AMQP.Types (FieldTable (FieldTable), FieldValue (FVString))
 import Numeric.Natural (Natural)
 import Polysemy
 import Polysemy.Async (async, sequenceConcurrently)
@@ -25,7 +20,6 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import System.Logger.Class as Log
-import Wire.API.Notification (userNotificationDlqName, userNotificationDlxName, userNotificationExchangeName)
 import Wire.API.Push.V2 hiding (Push (..), Recipient, newPush)
 import Wire.API.Push.V2 qualified as V2
 import Wire.API.Team.Member
@@ -40,9 +34,7 @@ runNotificationSubsystemGundeck ::
     Member P.Async r,
     Member Delay r,
     Member (Final IO) r,
-    Member P.TinyLog r,
-    Member (Embed IO) r,
-    Member (Input Channel) r
+    Member P.TinyLog r
   ) =>
   NotificationSubsystemConfig ->
   Sem (NotificationSubsystem : r) a ->
@@ -54,9 +46,7 @@ runNotificationSubsystemGundeck cfg = interpret $ \case
   CleanupUser uid -> GundeckAPIAccess.userDeleted uid
   UnregisterPushClient uid cid -> GundeckAPIAccess.unregisterPushClient uid cid
   GetPushTokens uid -> GundeckAPIAccess.getPushTokens uid
-  SetupConsumableNotifications uid cid -> do
-    chan <- input
-    void $ liftIO $ setupConsumableNotificationsImpl chan uid cid
+  SetupConsumableNotifications uid cid -> GundeckAPIAccess.registerConsumableNotifcationsClient uid cid
 
 data NotificationSubsystemConfig = NotificationSubsystemConfig
   { fanoutLimit :: Range 1 HardTruncationLimit Int32,
@@ -179,27 +169,3 @@ pushSlowlyImpl ps =
   for_ ps \p -> do
     delay =<< inputs (diffTimeToFullMicroseconds . slowPushDelay)
     pushImpl [p]
-
-setupConsumableNotificationsImpl ::
-  Channel ->
-  UserId ->
-  ClientId ->
-  IO Text
-setupConsumableNotificationsImpl chan uid cid = do
-  let qName = "user-notifications." <> idToText uid <> "." <> clientToText cid
-  -- TODO: Do this using policies: https://www.rabbitmq.com/docs/parameters#policies
-  let headers =
-        FieldTable $
-          Map.fromList
-            [ ("x-dead-letter-exchange", FVString $ encodeUtf8 userNotificationDlxName),
-              ("x-dead-letter-routing-key", FVString $ encodeUtf8 userNotificationDlqName)
-            ]
-  void $ declareQueue chan newQueue {queueName = qName, queueHeaders = headers}
-  for_ [userRoutingKey uid, clientRoutingKey uid cid] $ bindQueue chan qName userNotificationExchangeName
-  pure qName
-
-userRoutingKey :: UserId -> Text
-userRoutingKey = idToText
-
-clientRoutingKey :: UserId -> ClientId -> Text
-clientRoutingKey uid cid = idToText uid <> "." <> clientToText cid

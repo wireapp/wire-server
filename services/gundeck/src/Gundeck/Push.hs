@@ -50,6 +50,7 @@ import Data.UUID qualified as UUID
 import Gundeck.Aws (endpointUsers)
 import Gundeck.Aws qualified as Aws
 import Gundeck.Aws.Arn
+import Gundeck.Client
 import Gundeck.Env
 import Gundeck.Monad
 import Gundeck.Notification.Data qualified as Data
@@ -77,7 +78,6 @@ import Wire.API.Push.Token qualified as Public
 import Wire.API.Push.V2
 import Wire.API.User (UserSet (..))
 import Wire.API.User.Client (Client (..), ClientCapability (..), ClientCapabilityList (..), UserClientsFull (..))
-import Wire.NotificationSubsystem.Interpreter
 
 push :: [Push] -> Gundeck ()
 push ps = do
