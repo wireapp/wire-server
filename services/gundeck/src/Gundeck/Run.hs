@@ -122,7 +122,7 @@ run opts = withTracer \tracer -> do
         versionMiddleware (foldMap expandVersionExp (opts ^. settings . disabledAPIVersions))
           . otelMiddleWare
           . requestIdMiddleware (env ^. applog) defaultRequestIdHeaderName
-          . Metrics.servantPrometheusMiddleware (Proxy @(GundeckAPI :<|> GundeckInternalAPI))
+          . Metrics.servantPrometheusMiddleware (Proxy @(GundeckAPI :<|> InternalAPI))
           . GZip.gunzip
           . GZip.gzip GZip.def
           . catchErrors (env ^. applog) defaultRequestIdHeaderName
