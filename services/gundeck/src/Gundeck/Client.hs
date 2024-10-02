@@ -50,9 +50,9 @@ setupConsumableNotifications ::
   ClientId ->
   IO Text
 setupConsumableNotifications chan uid cid = do
-  let qName = "user-notifications." <> idToText uid <> "." <> clientToText cid
   -- TODO: Do this using policies: https://www.rabbitmq.com/docs/parameters#policies
-  let headers =
+  let qName = clientNotificationQueueName uid cid
+      headers =
         FieldTable $
           Map.fromList
             [ ("x-dead-letter-exchange", FVString $ encodeUtf8 userNotificationDlxName),
