@@ -106,8 +106,9 @@ registerOAuthClient (OAuthClientConfig name uri) = do
     createSecret :: (MonadIO m) => m OAuthClientPlainTextSecret
     createSecret = OAuthClientPlainTextSecret <$> rand32Bytes
 
+    -- TODO(elland): figure out why
     hashClientSecret :: (MonadIO m) => OAuthClientPlainTextSecret -> m Password
-    hashClientSecret = mkSafePassword . plainTextPassword8Unsafe . toText . unOAuthClientPlainTextSecret
+    hashClientSecret = mkSafePasswordScrypt . plainTextPassword8Unsafe . toText . unOAuthClientPlainTextSecret
 
 rand32Bytes :: (MonadIO m) => m AsciiBase16
 rand32Bytes = liftIO . fmap encodeBase16 $ randBytes 32
