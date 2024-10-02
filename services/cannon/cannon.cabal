@@ -120,7 +120,6 @@ library
     , websockets                            >=0.11.2
     , wire-api
     , wire-otel
-    , wire-subsystems
 
   default-language:   GHC2021
 

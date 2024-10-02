@@ -2,45 +2,70 @@ module Cannon.RabbitMqConsumerApp where
 
 import Cannon.App (rejectOnError)
 import Cannon.WS
-import Control.Exception (catch)
-import Control.Monad.Catch (Handler (..), MonadThrow, throwM)
+import Control.Concurrent.Async (race)
+import Control.Exception (Handler (..), catch, catches, throwIO)
 import Data.Aeson
 import Data.Id
 import Imports
 import Network.AMQP qualified as Amqp
 import Network.AMQP.Extended (withConnection)
-import Network.AMQP.Lifted qualified as AmqpL
 import Network.WebSockets
 import Network.WebSockets qualified as WS
 import System.Logger qualified as Log
-import UnliftIO (catches)
 import Wire.API.Notification
 
 rabbitMQWebSocketApp :: UserId -> ClientId -> Env -> ServerApp
 rabbitMQWebSocketApp uid cid e pendingConn = do
   wsConn <- liftIO (acceptRequest pendingConn `catch` rejectOnError pendingConn)
+  closeWS <- newEmptyMVar
   -- TODO: Don't create new conns for every client, this will definitely kill rabbit
   withConnection e.logg e.rabbitmq $ \conn -> do
-    chan <- liftIO $ Amqp.openChannel conn
-    let cleanup :: (Exception e, MonadThrow m, MonadIO m) => e -> m ()
-        cleanup err = do
-          Log.err e.logg $ Log.msg (Log.val "Pushing to WS failed") . Log.field "error" (displayException err)
-          throwM err
-        handlers = [Handler $ cleanup @SomeException, Handler $ cleanup @SomeAsyncException]
+    chan <- Amqp.openChannel conn
+    let handleConsumerError :: (Exception e) => e -> IO ()
+        handleConsumerError err = do
+          Log.err e.logg $
+            Log.msg (Log.val "Pushing to WS failed, closing connection")
+              . Log.field "error" (displayException err)
+              . Log.field "user" (idToText uid)
+              . Log.field "client" (clientToText cid)
+          _ <- tryPutMVar closeWS ()
+          throwIO err
+        handlers =
+          [ Handler $ handleConsumerError @SomeException,
+            Handler $ handleConsumerError @SomeAsyncException
+          ]
         qName = clientNotificationQueueName uid cid
+
     _consumerTag <-
-      AmqpL.consumeMsgs chan qName Amqp.Ack (\msg -> pushEventsToWS wsConn msg `catches` handlers)
-    forever $ do
-      eitherMsg :: Either String ClientMessage <- eitherDecode <$> WS.receiveData wsConn
-      case eitherMsg of
-        Left err -> error err
-        Right msg -> do
-          void $ Amqp.ackMsg chan msg.ack False
+      Amqp.consumeMsgs chan qName Amqp.Ack (\msg -> pushEventsToWS wsConn msg `catches` handlers)
+
+    let wsRecieverLoop = do
+          eitherData <- race (takeMVar closeWS) (WS.receiveData wsConn)
+          case eitherData of
+            Left () -> do
+              Log.info e.logg $
+                Log.msg (Log.val "gracefully closing websocket")
+                  . Log.field "user" (idToText uid)
+                  . Log.field "client" (clientToText cid)
+              WS.sendClose wsConn ("goaway" :: ByteString)
+            Right dat -> case eitherDecode @ClientMessage dat of
+              Left err -> do
+                WS.sendClose wsConn ("invalid-message" :: ByteString)
+                throwIO $ FailedToParseClientMesage err
+              Right msg -> do
+                void $ Amqp.ackMsg chan msg.ack False
+                wsRecieverLoop
+    wsRecieverLoop
 
 data ClientMessage = ClientMessage {ack :: Word64}
 
 instance FromJSON ClientMessage where
   parseJSON = withObject "ClientMessage" $ \o -> ClientMessage <$> o .: "ack"
+
+data WebSockerServerError = FailedToParseClientMesage String
+  deriving (Show)
+
+instance Exception WebSockerServerError
 
 pushEventsToWS :: WS.Connection -> (Amqp.Message, Amqp.Envelope) -> IO ()
 pushEventsToWS wsConn (msg, envelope) =
