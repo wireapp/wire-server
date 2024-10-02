@@ -1,0 +1,1 @@
+Changed default password hashing from Scrypt to Argon2id.
