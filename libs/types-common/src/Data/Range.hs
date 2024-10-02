@@ -101,8 +101,8 @@ newtype Range (n :: Nat) (m :: Nat) a = Range
   }
   deriving (Eq, Ord, Show)
 
-mapRange :: (Functor f) => (a -> b) -> Range (n :: Nat) (m :: Nat) (f a) -> Range (n :: Nat) (m :: Nat) (f b)
-mapRange f (Range as) = Range (f <$> as)
+mapRange :: forall (n :: Nat) (m :: Nat) a b. (a -> b) -> Range n m [a] -> Range n m [b]
+mapRange f (Range as) = Range (f `map` as)
 
 toRange :: (n <= x, x <= m, KnownNat x, Num a) => Proxy x -> Range n m a
 toRange = Range . fromIntegral . natVal
