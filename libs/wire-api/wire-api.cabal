@@ -250,6 +250,7 @@ library
     Wire.API.UserMap
     Wire.API.Util.Aeson
     Wire.API.VersionInfo
+    Wire.API.WebSocket
     Wire.API.Wrapped
 
   other-modules:    Paths_wire_api
