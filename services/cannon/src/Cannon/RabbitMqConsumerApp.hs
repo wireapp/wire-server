@@ -5,6 +5,7 @@ import Cannon.WS
 import Control.Concurrent.Async (race)
 import Control.Exception (Handler (..), catch, catches, throwIO)
 import Data.Aeson
+import Data.Aeson qualified as Aeson
 import Data.Id
 import Imports
 import Network.AMQP qualified as Amqp
@@ -13,6 +14,7 @@ import Network.WebSockets
 import Network.WebSockets qualified as WS
 import System.Logger qualified as Log
 import Wire.API.Notification
+import Wire.API.WebSocket
 
 rabbitMQWebSocketApp :: UserId -> ClientId -> Env -> ServerApp
 rabbitMQWebSocketApp uid cid e pendingConn = do
@@ -28,7 +30,7 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
               . Log.field "error" (displayException err)
               . Log.field "user" (idToText uid)
               . Log.field "client" (clientToText cid)
-          _ <- tryPutMVar closeWS ()
+          void $ tryPutMVar closeWS ()
           throwIO err
         handlers =
           [ Handler $ handleConsumerError @SomeException,
@@ -48,21 +50,26 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
                   . Log.field "user" (idToText uid)
                   . Log.field "client" (clientToText cid)
               WS.sendClose wsConn ("goaway" :: ByteString)
-            Right dat -> case eitherDecode @ClientMessage dat of
+            Right dat -> case eitherDecode @(WSMessage ClientToServer) dat of
               Left err -> do
                 WS.sendClose wsConn ("invalid-message" :: ByteString)
                 throwIO $ FailedToParseClientMesage err
-              Right msg -> do
-                void $ Amqp.ackMsg chan msg.ack False
+              Right (EventMessage ev) -> do
+                WS.sendClose wsConn ("invalid-message" :: ByteString)
+                throwIO $ ClientSentAnEvent ev
+              Right (AckMessage ackData) -> do
+                void $ Amqp.ackMsg chan ackData.deliveryTag ackData.multiple
+                wsRecieverLoop
+              Right PingMessage -> do
+                WS.sendBinaryData wsConn $ Aeson.encode @(WSMessage ServerToClient) PongMessage
+                wsRecieverLoop
+              Right PongMessage ->
                 wsRecieverLoop
     wsRecieverLoop
 
-data ClientMessage = ClientMessage {ack :: Word64}
-
-instance FromJSON ClientMessage where
-  parseJSON = withObject "ClientMessage" $ \o -> ClientMessage <$> o .: "ack"
-
-data WebSockerServerError = FailedToParseClientMesage String
+data WebSockerServerError
+  = FailedToParseClientMesage String
+  | ClientSentAnEvent EventData
   deriving (Show)
 
 instance Exception WebSockerServerError
