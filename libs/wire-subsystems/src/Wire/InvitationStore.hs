@@ -18,17 +18,14 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Wire.InvitationCodeStore where
+module Wire.InvitationStore where
 
-import Control.Monad.Trans.Maybe (MaybeT (MaybeT, runMaybeT))
 import Data.Id (InvitationId, TeamId, UserId)
 import Data.Json.Util (UTCTimeMillis)
 import Data.Range (Range)
 import Database.CQL.Protocol (Record (..), TupleType, recordInstance)
 import Imports
 import Polysemy
-import Polysemy.TinyLog (TinyLog)
-import System.Logger.Message qualified as Log
 import URI.ByteString
 import Util.Timeout
 import Wire.API.Team.Invitation (Invitation (inviteeEmail))
@@ -36,7 +33,6 @@ import Wire.API.Team.Invitation qualified as Public
 import Wire.API.Team.Role (Role, defaultRole)
 import Wire.API.User (EmailAddress, InvitationCode, Name)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
-import Wire.Sem.Logger qualified as Log
 
 data StoredInvitation = MkStoredInvitation
   { teamId :: TeamId,
@@ -52,16 +48,6 @@ data StoredInvitation = MkStoredInvitation
   deriving (Arbitrary) via (GenericUniform StoredInvitation)
 
 recordInstance ''StoredInvitation
-
-data StoredInvitationInfo = MkStoredInvitationInfo
-  { teamId :: TeamId,
-    invitationId :: InvitationId,
-    code :: InvitationCode
-  }
-  deriving (Show, Eq, Generic)
-  deriving (Arbitrary) via (GenericUniform StoredInvitationInfo)
-
-recordInstance ''StoredInvitationInfo
 
 data InsertInvitation = MkInsertInvitation
   { invitationId :: InvitationId,
@@ -84,44 +70,20 @@ data PaginatedResult a
 
 ----------------------------
 
-data InvitationCodeStore :: Effect where
-  InsertInvitation :: InsertInvitation -> Timeout -> InvitationCodeStore m StoredInvitation
-  LookupInvitation :: TeamId -> InvitationId -> InvitationCodeStore m (Maybe StoredInvitation)
-  LookupInvitationInfo :: InvitationCode -> InvitationCodeStore m (Maybe StoredInvitationInfo)
-  LookupInvitationCodesByEmail :: EmailAddress -> InvitationCodeStore m [StoredInvitationInfo]
+data InvitationStore :: Effect where
+  InsertInvitation :: InsertInvitation -> Timeout -> InvitationStore m StoredInvitation
+  LookupInvitation :: TeamId -> InvitationId -> InvitationStore m (Maybe StoredInvitation)
+  LookupInvitationByCode :: InvitationCode -> InvitationStore m (Maybe StoredInvitation)
+  LookupInvitationsByEmail :: EmailAddress -> InvitationStore m [StoredInvitation]
   -- | Range is page size, it defaults to 100
-  LookupInvitationsPaginated :: Maybe (Range 1 500 Int32) -> TeamId -> Maybe InvitationId -> InvitationCodeStore m (PaginatedResult [StoredInvitation])
-  CountInvitations :: TeamId -> InvitationCodeStore m Int64
-  DeleteInvitation :: TeamId -> InvitationId -> InvitationCodeStore m ()
-  DeleteAllTeamInvitations :: TeamId -> InvitationCodeStore m ()
+  LookupInvitationsPaginated :: Maybe (Range 1 500 Int32) -> TeamId -> Maybe InvitationId -> InvitationStore m (PaginatedResult [StoredInvitation])
+  CountInvitations :: TeamId -> InvitationStore m Int64
+  DeleteInvitation :: TeamId -> InvitationId -> InvitationStore m ()
+  DeleteAllTeamInvitations :: TeamId -> InvitationStore m ()
 
-makeSem ''InvitationCodeStore
+makeSem ''InvitationStore
 
 ----------------------------
-
-lookupInvitationByEmail :: (Member InvitationCodeStore r, Member TinyLog r) => EmailAddress -> Sem r (Maybe StoredInvitation)
-lookupInvitationByEmail email = runMaybeT do
-  MkStoredInvitationInfo {teamId, invitationId} <- MaybeT $ lookupSingleInvitationCodeByEmail email
-  MaybeT $ lookupInvitation teamId invitationId
-
-lookupInvitationByCode :: (Member InvitationCodeStore r) => InvitationCode -> Sem r (Maybe StoredInvitation)
-lookupInvitationByCode code = runMaybeT do
-  info <- MaybeT $ lookupInvitationInfo code
-  MaybeT $ lookupInvitation info.teamId info.invitationId
-
-lookupSingleInvitationCodeByEmail :: (Member TinyLog r, Member InvitationCodeStore r) => EmailAddress -> Sem r (Maybe StoredInvitationInfo)
-lookupSingleInvitationCodeByEmail email = do
-  invs <- lookupInvitationCodesByEmail email
-  case invs of
-    [] -> pure Nothing
-    [inv] -> pure $ Just inv
-    (_ : _ : _) -> do
-      -- edge case: more than one pending invite from different teams
-      Log.info $
-        Log.msg (Log.val "team_invidation_email: multiple pending invites from different teams for the same email")
-          . Log.field "email" (show email)
-
-      pure Nothing
 
 invitationFromStored :: Maybe (URIRef Absolute) -> StoredInvitation -> Public.Invitation
 invitationFromStored maybeUrl MkStoredInvitation {..} =

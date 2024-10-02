@@ -29,8 +29,8 @@ import Wire.API.Team.Permission
 import Wire.API.User hiding (DeleteUser)
 import Wire.API.UserEvent
 import Wire.AuthenticationSubsystem.Error
-import Wire.InvitationCodeStore (StoredInvitation)
-import Wire.InvitationCodeStore qualified as InvitationStore
+import Wire.InvitationStore (StoredInvitation)
+import Wire.InvitationStore qualified as InvitationStore
 import Wire.MiniBackend
 import Wire.StoredUser
 import Wire.UserKeyStore

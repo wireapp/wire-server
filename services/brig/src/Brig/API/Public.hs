@@ -157,7 +157,7 @@ import Wire.FederationConfigStore (FederationConfigStore)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.IndexedUserStore (IndexedUserStore)
-import Wire.InvitationCodeStore
+import Wire.InvitationStore
 import Wire.NotificationSubsystem
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PasswordStore (PasswordStore, lookupHashedPassword)
@@ -283,7 +283,7 @@ servantSitemap ::
     Member Events r,
     Member FederationConfigStore r,
     Member GalleyAPIAccess r,
-    Member InvitationCodeStore r,
+    Member InvitationStore r,
     Member Jwk r,
     Member JwtTools r,
     Member NotificationSubsystem r,
@@ -731,7 +731,7 @@ upgradePersonalToTeam luid bNewTeam =
 createUser ::
   ( Member BlockListStore r,
     Member GalleyAPIAccess r,
-    Member InvitationCodeStore r,
+    Member InvitationStore r,
     Member (UserPendingActivationStore p) r,
     Member (Input (Local ())) r,
     Member TinyLog r,

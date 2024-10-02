@@ -34,7 +34,7 @@ import Brig.App as App
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Types.Team (TeamSize)
 import Control.Lens (view, (^.))
-import Control.Monad.Trans.Except (mapExceptT)
+import Control.Monad.Trans.Except
 import Data.ByteString.Conversion (toByteString)
 import Data.Id
 import Data.List1 qualified as List1
@@ -55,6 +55,8 @@ import Servant hiding (Handler, JSON, addHeader)
 import System.Logger.Message as Log
 import URI.ByteString (Absolute, URIRef, laxURIParserOptions, parseURI)
 import Util.Logging (logFunction, logTeam)
+import Wire.API.Error
+import Wire.API.Error.Brig
 import Wire.API.Routes.Internal.Brig (FoundInvitationCode (FoundInvitationCode))
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.Named
@@ -74,8 +76,8 @@ import Wire.Events (Events)
 import Wire.GalleyAPIAccess (GalleyAPIAccess, ShowOrHideInvitationUrl (..))
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.IndexedUserStore (IndexedUserStore, getTeamSize)
-import Wire.InvitationCodeStore (InvitationCodeStore (..), PaginatedResult (..), StoredInvitation (..))
-import Wire.InvitationCodeStore qualified as Store
+import Wire.InvitationStore (InvitationStore (..), PaginatedResult (..), StoredInvitation (..))
+import Wire.InvitationStore qualified as Store
 import Wire.Sem.Concurrency
 import Wire.TeamInvitationSubsystem
 import Wire.UserKeyStore
@@ -86,7 +88,7 @@ servantAPI ::
   ( Member GalleyAPIAccess r,
     Member TeamInvitationSubsystem r,
     Member UserSubsystem r,
-    Member Store.InvitationCodeStore r,
+    Member Store.InvitationStore r,
     Member TinyLog r,
     Member (Input TeamTemplates) r,
     Member (Input (Local ())) r,
@@ -118,7 +120,7 @@ teamSizePublic uid tid = do
   getTeamSize tid
 
 getInvitationCode ::
-  ( Member Store.InvitationCodeStore r,
+  ( Member Store.InvitationStore r,
     Member (Error UserSubsystemError) r
   ) =>
   TeamId ->
@@ -191,7 +193,7 @@ logInvitationRequest context action =
 
 deleteInvitation ::
   ( Member GalleyAPIAccess r,
-    Member InvitationCodeStore r,
+    Member InvitationStore r,
     Member (Error UserSubsystemError) r
   ) =>
   UserId ->
@@ -206,7 +208,7 @@ listInvitations ::
   forall r.
   ( Member GalleyAPIAccess r,
     Member TinyLog r,
-    Member InvitationCodeStore r,
+    Member InvitationStore r,
     Member (Input TeamTemplates) r,
     Member (Input (Local ())) r,
     Member UserSubsystem r,
@@ -319,7 +321,7 @@ mkInviteUrlPersonalUser ShowInvitationUrl team (InvitationCode c) = do
 
 getInvitation ::
   ( Member GalleyAPIAccess r,
-    Member InvitationCodeStore r,
+    Member InvitationStore r,
     Member TinyLog r,
     Member (Input TeamTemplates) r,
     Member (Error UserSubsystemError) r
@@ -348,7 +350,7 @@ isPersonalUser uke = do
     Just account -> account.userStatus == Active && isNothing account.userTeam
 
 getInvitationByCode ::
-  ( Member Store.InvitationCodeStore r,
+  ( Member Store.InvitationStore r,
     Member (Error UserSubsystemError) r
   ) =>
   InvitationCode ->
@@ -358,28 +360,32 @@ getInvitationByCode c = do
   maybe (throw UserSubsystemInvalidInvitationCode) (pure . Store.invitationFromStored Nothing) inv
 
 headInvitationByEmail ::
-  (Member InvitationCodeStore r, Member TinyLog r) =>
+  (Member InvitationStore r, Member TinyLog r) =>
   EmailAddress ->
   Sem r Public.HeadInvitationByEmailResult
 headInvitationByEmail email =
-  Store.lookupInvitationCodesByEmail email >>= \case
+  Store.lookupInvitationsByEmail email >>= \case
     [] -> pure Public.InvitationByEmailNotFound
     [_code] -> pure Public.InvitationByEmail
     (_ : _ : _) -> do
       Log.info $
-        Log.msg (Log.val "team_invidation_email: multiple pending invites from different teams for the same email")
+        Log.msg (Log.val "team_invitation_email: multiple pending invites from different teams for the same email")
           . Log.field "email" (show email)
       pure Public.InvitationByEmailMoreThanOne
 
--- | FUTUREWORK: This should also respond with status 409 in case of
--- @DB.InvitationByEmailMoreThanOne@.  Refactor so that 'headInvitationByEmailH' and
--- 'getInvitationByEmailH' are almost the same thing.
+-- | FUTUREWORK: Refactor so that 'headInvitationByEmail' and
+-- 'getInvitationByEmail' are almost the same thing.
 getInvitationByEmail ::
-  (Member Store.InvitationCodeStore r, Member TinyLog r) =>
+  (Member Store.InvitationStore r) =>
   EmailAddress ->
   (Handler r) Public.Invitation
 getInvitationByEmail email = do
-  inv <- lift . liftSem $ Store.lookupInvitationByEmail email
+  inv <- do
+    invs <- lift . liftSem $ Store.lookupInvitationsByEmail email
+    case invs of
+      [] -> pure Nothing
+      [inv] -> pure . Just $ inv
+      (_ : _ : _) -> throwStd $ errorToWai @'ConflictingInvitations
   maybe (throwStd (notFound "Invitation not found")) (pure . Store.invitationFromStored Nothing) inv
 
 suspendTeam ::
@@ -389,7 +395,7 @@ suspendTeam ::
     Member UserSubsystem r,
     Member Events r,
     Member TinyLog r,
-    Member InvitationCodeStore r
+    Member InvitationStore r
   ) =>
   TeamId ->
   (Handler r) NoContent

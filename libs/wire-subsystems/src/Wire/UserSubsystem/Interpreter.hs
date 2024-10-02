@@ -55,7 +55,7 @@ import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.IndexedUserStore (IndexedUserStore)
 import Wire.IndexedUserStore qualified as IndexedUserStore
 import Wire.IndexedUserStore.Bulk.ElasticSearch (teamSearchVisibilityInbound)
-import Wire.InvitationCodeStore
+import Wire.InvitationStore
 import Wire.Sem.Concurrency
 import Wire.Sem.Metrics
 import Wire.Sem.Metrics qualified as Metrics
@@ -99,7 +99,7 @@ runUserSubsystem ::
     Member IndexedUserStore r,
     Member FederationConfigStore r,
     Member Metrics r,
-    Member InvitationCodeStore r,
+    Member InvitationStore r,
     Member TinyLog r
   ) =>
   UserSubsystemConfig ->
@@ -172,7 +172,7 @@ runUserSubsystem cfg authInterpreter =
           internalFindTeamInvitationImpl mEmailKey code
 
 internalFindTeamInvitationImpl ::
-  ( Member InvitationCodeStore r,
+  ( Member InvitationStore r,
     Member (Error UserSubsystemError) r,
     Member (Input UserSubsystemConfig) r,
     Member (GalleyAPIAccess) r,
@@ -183,15 +183,11 @@ internalFindTeamInvitationImpl ::
   Sem r StoredInvitation
 internalFindTeamInvitationImpl Nothing _ = throw UserSubsystemMissingIdentity
 internalFindTeamInvitationImpl (Just e) c =
-  lookupInvitationInfo c >>= \case
-    Just invitationInfo -> do
-      inv <- lookupInvitation invitationInfo.teamId invitationInfo.invitationId
-      case (inv, (.email) <$> inv) of
-        (Just invite, Just em)
-          | e == mkEmailKey em -> do
-              ensureMemberCanJoin invitationInfo.teamId
-              pure invite
-        _ -> throw UserSubsystemInvalidInvitationCode
+  lookupInvitationByCode c >>= \case
+    Just inv -> do
+      if e == mkEmailKey (inv.email)
+        then ensureMemberCanJoin inv.teamId $> inv
+        else throw UserSubsystemInvalidInvitationCode
     Nothing -> throw UserSubsystemInvalidInvitationCode
   where
     ensureMemberCanJoin tid = do
@@ -849,8 +845,7 @@ getAccountsByImpl ::
   ( Member UserStore r,
     Member DeleteQueue r,
     Member (Input UserSubsystemConfig) r,
-    Member InvitationCodeStore r,
-    Member TinyLog r
+    Member InvitationStore r
   ) =>
   Local GetBy ->
   Sem r [User]
@@ -883,7 +878,7 @@ getAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations, getByH
                 -- validated one cannot be found.  that's probably wrong?  split up into
                 -- validEmailIdentity, anyEmailIdentity?
                 Just email -> do
-                  hasInvitation <- isJust <$> lookupInvitationByEmail email
+                  hasInvitation <- isJust . listToMaybe <$> lookupInvitationsByEmail email
                   gcHack hasInvitation (User.userId user)
                   pure hasInvitation
                 Nothing -> error "getExtendedAccountsByImpl: should never happen, user invited via scim always has an email"
@@ -916,7 +911,7 @@ acceptTeamInvitationImpl ::
     Member UserStore r,
     Member GalleyAPIAccess r,
     Member (Error UserSubsystemError) r,
-    Member InvitationCodeStore r,
+    Member InvitationStore r,
     Member IndexedUserStore r,
     Member Metrics r,
     Member Events r,
