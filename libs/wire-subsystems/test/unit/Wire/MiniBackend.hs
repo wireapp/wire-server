@@ -72,10 +72,10 @@ import Wire.GalleyAPIAccess
 import Wire.HashPassword (HashPassword)
 import Wire.IndexedUserStore
 import Wire.InternalEvent hiding (DeleteUser)
-import Wire.InvitationCodeStore
+import Wire.InvitationStore
 import Wire.MockInterpreters
 import Wire.MockInterpreters.ActivationCodeStore (inMemoryActivationCodeStoreInterpreter)
-import Wire.MockInterpreters.InvitationCodeStore (inMemoryInvitationCodeStoreInterpreter)
+import Wire.MockInterpreters.InvitationStore (inMemoryInvitationStoreInterpreter)
 import Wire.PasswordResetCodeStore
 import Wire.PasswordStore
 import Wire.Sem.Concurrency
@@ -137,7 +137,7 @@ type MiniBackendEffects = UserSubsystem ': MiniBackendLowerEffects
 type MiniBackendLowerEffects =
   [ EmailSubsystem,
     GalleyAPIAccess,
-    InvitationCodeStore,
+    InvitationStore,
     PasswordStore,
     State (Map (TeamId, InvitationId) StoredInvitation),
     State (Map InvitationCode StoredInvitation),
@@ -428,9 +428,9 @@ interpretMaybeFederationStackState maybeFederationAPIAccess localBackend teamMem
         . liftActivationCodeStoreState
         . inMemoryActivationCodeStoreInterpreter
         . liftInvitationInfoStoreState
-        . liftInvitationCodeStoreState
+        . liftInvitationStoreState
         . runInMemoryPasswordStoreInterpreter
-        . inMemoryInvitationCodeStoreInterpreter
+        . inMemoryInvitationStoreInterpreter
         . miniGalleyAPIAccess teamMember galleyConfigs
         . noopEmailSubsystemInterpreter
         . userSubsystemInterpreter
@@ -440,8 +440,8 @@ liftInvitationInfoStoreState = interpret \case
   Polysemy.State.Get -> gets (.invitationInfos)
   Put newAcs -> modify $ \b -> b {invitationInfos = newAcs}
 
-liftInvitationCodeStoreState :: (Member (State MiniBackend) r) => Sem (State (Map (TeamId, InvitationId) StoredInvitation) : r) a -> Sem r a
-liftInvitationCodeStoreState = interpret \case
+liftInvitationStoreState :: (Member (State MiniBackend) r) => Sem (State (Map (TeamId, InvitationId) StoredInvitation) : r) a -> Sem r a
+liftInvitationStoreState = interpret \case
   Polysemy.State.Get -> gets (.invitations)
   Put newInvs -> modify $ \b -> b {invitations = newInvs}
 

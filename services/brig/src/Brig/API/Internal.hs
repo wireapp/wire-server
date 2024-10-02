@@ -103,7 +103,7 @@ import Wire.FederationConfigStore
 import Wire.FederationConfigStore qualified as E
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.IndexedUserStore (IndexedUserStore, getTeamSize)
-import Wire.InvitationCodeStore
+import Wire.InvitationStore
 import Wire.NotificationSubsystem
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PropertySubsystem
@@ -132,7 +132,7 @@ servantSitemap ::
     Member UserSubsystem r,
     Member TeamInvitationSubsystem r,
     Member UserStore r,
-    Member InvitationCodeStore r,
+    Member InvitationStore r,
     Member UserKeyStore r,
     Member Rpc r,
     Member TinyLog r,
@@ -196,7 +196,7 @@ accountAPI ::
     Member PropertySubsystem r,
     Member Events r,
     Member PasswordResetCodeStore r,
-    Member InvitationCodeStore r
+    Member InvitationStore r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
@@ -243,7 +243,7 @@ teamsAPI ::
     Member UserKeyStore r,
     Member (Concurrency 'Unsafe) r,
     Member TinyLog r,
-    Member InvitationCodeStore r,
+    Member InvitationStore r,
     Member TeamInvitationSubsystem r,
     Member UserSubsystem r,
     Member (Polysemy.Error.Error UserSubsystemError) r,
@@ -462,7 +462,7 @@ createUserNoVerify ::
     Member (UserPendingActivationStore p) r,
     Member TinyLog r,
     Member Events r,
-    Member InvitationCodeStore r,
+    Member InvitationStore r,
     Member UserKeyStore r,
     Member UserSubsystem r,
     Member (Input (Local ())) r,

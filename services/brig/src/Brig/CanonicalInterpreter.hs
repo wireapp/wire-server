@@ -57,8 +57,8 @@ import Wire.GundeckAPIAccess
 import Wire.HashPassword
 import Wire.IndexedUserStore
 import Wire.IndexedUserStore.ElasticSearch
-import Wire.InvitationCodeStore (InvitationCodeStore)
-import Wire.InvitationCodeStore.Cassandra (interpretInvitationCodeStoreToCassandra)
+import Wire.InvitationStore (InvitationStore)
+import Wire.InvitationStore.Cassandra (interpretInvitationStoreToCassandra)
 import Wire.NotificationSubsystem
 import Wire.NotificationSubsystem.Interpreter (defaultNotificationSubsystemConfig, runNotificationSubsystemGundeck)
 import Wire.ParseException
@@ -130,7 +130,7 @@ type BrigLowerLevelEffects =
      PasswordStore,
      VerificationCodeStore,
      ActivationCodeStore,
-     InvitationCodeStore,
+     InvitationStore,
      PropertyStore,
      SFT,
      ConnectionStore InternalPaging,
@@ -254,7 +254,7 @@ runBrigToIO e (AppT ma) = do
               . connectionStoreToCassandra
               . interpretSFT e.httpManager
               . interpretPropertyStoreCassandra e.casClient
-              . interpretInvitationCodeStoreToCassandra e.casClient
+              . interpretInvitationStoreToCassandra e.casClient
               . interpretActivationCodeStoreToCassandra e.casClient
               . interpretVerificationCodeStoreCassandra e.casClient
               . interpretPasswordStore e.casClient

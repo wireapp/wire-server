@@ -27,7 +27,7 @@ import Wire.API.User.Search
 import Wire.Arbitrary
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
-import Wire.InvitationCodeStore
+import Wire.InvitationStore
 import Wire.UserKeyStore (EmailKey, emailKeyOrig)
 import Wire.UserSearch.Types
 import Wire.UserSubsystem.Error (UserSubsystemError (..))

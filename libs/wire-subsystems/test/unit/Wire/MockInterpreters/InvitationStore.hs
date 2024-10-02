@@ -1,6 +1,4 @@
-{-# LANGUAGE RecordWildCards #-}
-
-module Wire.MockInterpreters.InvitationCodeStore where
+module Wire.MockInterpreters.InvitationStore where
 
 import Data.Id (InvitationId, TeamId)
 import Data.Map (elems, (!?))
@@ -9,15 +7,15 @@ import Imports
 import Polysemy
 import Polysemy.State (State, get, gets)
 import Wire.API.User (InvitationCode (..))
-import Wire.InvitationCodeStore
+import Wire.InvitationStore
 
-inMemoryInvitationCodeStoreInterpreter ::
+inMemoryInvitationStoreInterpreter ::
   forall r.
   ( Member (State (Map (TeamId, InvitationId) StoredInvitation)) r,
     Member (State (Map (InvitationCode) StoredInvitation)) r
   ) =>
-  InterpreterFor InvitationCodeStore r
-inMemoryInvitationCodeStoreInterpreter = interpret \case
+  InterpreterFor InvitationStore r
+inMemoryInvitationStoreInterpreter = interpret \case
   InsertInvitation _a _timeout -> error "InsertInvitation"
   LookupInvitation tid iid -> gets (!? (tid, iid))
   LookupInvitationByCode iid -> gets (!? iid)

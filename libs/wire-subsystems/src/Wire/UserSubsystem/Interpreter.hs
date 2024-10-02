@@ -55,7 +55,7 @@ import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.IndexedUserStore (IndexedUserStore)
 import Wire.IndexedUserStore qualified as IndexedUserStore
 import Wire.IndexedUserStore.Bulk.ElasticSearch (teamSearchVisibilityInbound)
-import Wire.InvitationCodeStore
+import Wire.InvitationStore
 import Wire.Sem.Concurrency
 import Wire.Sem.Metrics
 import Wire.Sem.Metrics qualified as Metrics
@@ -99,7 +99,7 @@ runUserSubsystem ::
     Member IndexedUserStore r,
     Member FederationConfigStore r,
     Member Metrics r,
-    Member InvitationCodeStore r,
+    Member InvitationStore r,
     Member TinyLog r
   ) =>
   UserSubsystemConfig ->
@@ -172,7 +172,7 @@ runUserSubsystem cfg authInterpreter =
           internalFindTeamInvitationImpl mEmailKey code
 
 internalFindTeamInvitationImpl ::
-  ( Member InvitationCodeStore r,
+  ( Member InvitationStore r,
     Member (Error UserSubsystemError) r,
     Member (Input UserSubsystemConfig) r,
     Member (GalleyAPIAccess) r,
@@ -845,7 +845,7 @@ getAccountsByImpl ::
   ( Member UserStore r,
     Member DeleteQueue r,
     Member (Input UserSubsystemConfig) r,
-    Member InvitationCodeStore r
+    Member InvitationStore r
   ) =>
   Local GetBy ->
   Sem r [User]
@@ -911,7 +911,7 @@ acceptTeamInvitationImpl ::
     Member UserStore r,
     Member GalleyAPIAccess r,
     Member (Error UserSubsystemError) r,
-    Member InvitationCodeStore r,
+    Member InvitationStore r,
     Member IndexedUserStore r,
     Member Metrics r,
     Member Events r,

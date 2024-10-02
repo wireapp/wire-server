@@ -137,8 +137,8 @@ import Wire.Error
 import Wire.Events (Events)
 import Wire.Events qualified as Events
 import Wire.GalleyAPIAccess as GalleyAPIAccess
-import Wire.InvitationCodeStore (InvitationCodeStore, StoredInvitation)
-import Wire.InvitationCodeStore qualified as InvitationCodeStore
+import Wire.InvitationStore (InvitationStore, StoredInvitation)
+import Wire.InvitationStore qualified as InvitationStore
 import Wire.NotificationSubsystem
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PasswordStore (PasswordStore, lookupHashedPassword, upsertHashedPassword)
@@ -316,7 +316,7 @@ createUser ::
     Member Events r,
     Member (Input (Local ())) r,
     Member PasswordResetCodeStore r,
-    Member InvitationCodeStore r
+    Member InvitationStore r
   ) =>
   NewUser ->
   ExceptT RegisterError (AppT r) CreateUserResult
@@ -456,7 +456,7 @@ createUser new = do
               . field "team" (toByteString $ inv.teamId)
               . msg (val "Accepting invitation")
           UserPendingActivationStore.remove uid
-          InvitationCodeStore.deleteInvitation inv.teamId inv.invitationId
+          InvitationStore.deleteInvitation inv.teamId inv.invitationId
 
     addUserToTeamSSO :: User -> TeamId -> UserIdentity -> ExceptT RegisterError (AppT r) CreateUserTeam
     addUserToTeamSSO account tid ident = do

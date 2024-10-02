@@ -27,8 +27,8 @@ import Wire.Arbitrary
 import Wire.EmailSubsystem
 import Wire.GalleyAPIAccess hiding (AddTeamMember)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
-import Wire.InvitationCodeStore (InvitationCodeStore, StoredInvitation)
-import Wire.InvitationCodeStore qualified as Store
+import Wire.InvitationStore (InvitationStore, StoredInvitation)
+import Wire.InvitationStore qualified as Store
 import Wire.Sem.Logger qualified as Log
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
@@ -52,7 +52,7 @@ runTeamInvitationSubsystem ::
     Member GalleyAPIAccess r,
     Member UserSubsystem r,
     Member Random r,
-    Member InvitationCodeStore r,
+    Member InvitationStore r,
     Member Now r,
     Member EmailSubsystem r
   ) =>
@@ -69,7 +69,7 @@ inviteUserImpl ::
     Member UserSubsystem r,
     Member TinyLog r,
     Member Random r,
-    Member InvitationCodeStore r,
+    Member InvitationStore r,
     Member (Input TeamInvitationSubsystemConfig) r,
     Member Now r,
     Member EmailSubsystem r
@@ -106,7 +106,7 @@ inviteUserImpl luid tid request = do
 createInvitation' ::
   ( Member GalleyAPIAccess r,
     Member UserSubsystem r,
-    Member InvitationCodeStore r,
+    Member InvitationStore r,
     Member TinyLog r,
     Member (Error TeamInvitationSubsystemError) r,
     Member Random r,

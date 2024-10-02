@@ -1,5 +1,5 @@
-module Wire.InvitationCodeStore.Cassandra
-  ( interpretInvitationCodeStoreToCassandra,
+module Wire.InvitationStore.Cassandra
+  ( interpretInvitationStoreToCassandra,
   )
 where
 
@@ -18,10 +18,10 @@ import UnliftIO.Async (pooledMapConcurrentlyN_)
 import Util.Timeout
 import Wire.API.Team.Role (Role)
 import Wire.API.User
-import Wire.InvitationCodeStore
+import Wire.InvitationStore
 
-interpretInvitationCodeStoreToCassandra :: (Member (Embed IO) r) => ClientState -> InterpreterFor InvitationCodeStore r
-interpretInvitationCodeStoreToCassandra casClient =
+interpretInvitationStoreToCassandra :: (Member (Embed IO) r) => ClientState -> InterpreterFor InvitationStore r
+interpretInvitationStoreToCassandra casClient =
   interpret $
     runEmbedded (runClient casClient) . \case
       InsertInvitation newInv timeout -> embed $ insertInvitationImpl newInv timeout

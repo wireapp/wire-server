@@ -18,7 +18,7 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Wire.InvitationCodeStore where
+module Wire.InvitationStore where
 
 import Data.Id (InvitationId, TeamId, UserId)
 import Data.Json.Util (UTCTimeMillis)
@@ -70,18 +70,18 @@ data PaginatedResult a
 
 ----------------------------
 
-data InvitationCodeStore :: Effect where
-  InsertInvitation :: InsertInvitation -> Timeout -> InvitationCodeStore m StoredInvitation
-  LookupInvitation :: TeamId -> InvitationId -> InvitationCodeStore m (Maybe StoredInvitation)
-  LookupInvitationByCode :: InvitationCode -> InvitationCodeStore m (Maybe StoredInvitation)
-  LookupInvitationsByEmail :: EmailAddress -> InvitationCodeStore m [StoredInvitation]
+data InvitationStore :: Effect where
+  InsertInvitation :: InsertInvitation -> Timeout -> InvitationStore m StoredInvitation
+  LookupInvitation :: TeamId -> InvitationId -> InvitationStore m (Maybe StoredInvitation)
+  LookupInvitationByCode :: InvitationCode -> InvitationStore m (Maybe StoredInvitation)
+  LookupInvitationsByEmail :: EmailAddress -> InvitationStore m [StoredInvitation]
   -- | Range is page size, it defaults to 100
-  LookupInvitationsPaginated :: Maybe (Range 1 500 Int32) -> TeamId -> Maybe InvitationId -> InvitationCodeStore m (PaginatedResult [StoredInvitation])
-  CountInvitations :: TeamId -> InvitationCodeStore m Int64
-  DeleteInvitation :: TeamId -> InvitationId -> InvitationCodeStore m ()
-  DeleteAllTeamInvitations :: TeamId -> InvitationCodeStore m ()
+  LookupInvitationsPaginated :: Maybe (Range 1 500 Int32) -> TeamId -> Maybe InvitationId -> InvitationStore m (PaginatedResult [StoredInvitation])
+  CountInvitations :: TeamId -> InvitationStore m Int64
+  DeleteInvitation :: TeamId -> InvitationId -> InvitationStore m ()
+  DeleteAllTeamInvitations :: TeamId -> InvitationStore m ()
 
-makeSem ''InvitationCodeStore
+makeSem ''InvitationStore
 
 ----------------------------
 

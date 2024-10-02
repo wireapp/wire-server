@@ -76,8 +76,8 @@ import Wire.Events (Events)
 import Wire.GalleyAPIAccess (GalleyAPIAccess, ShowOrHideInvitationUrl (..))
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.IndexedUserStore (IndexedUserStore, getTeamSize)
-import Wire.InvitationCodeStore (InvitationCodeStore (..), PaginatedResult (..), StoredInvitation (..))
-import Wire.InvitationCodeStore qualified as Store
+import Wire.InvitationStore (InvitationStore (..), PaginatedResult (..), StoredInvitation (..))
+import Wire.InvitationStore qualified as Store
 import Wire.Sem.Concurrency
 import Wire.TeamInvitationSubsystem
 import Wire.UserKeyStore
@@ -88,7 +88,7 @@ servantAPI ::
   ( Member GalleyAPIAccess r,
     Member TeamInvitationSubsystem r,
     Member UserSubsystem r,
-    Member Store.InvitationCodeStore r,
+    Member Store.InvitationStore r,
     Member TinyLog r,
     Member (Input TeamTemplates) r,
     Member (Input (Local ())) r,
@@ -120,7 +120,7 @@ teamSizePublic uid tid = do
   getTeamSize tid
 
 getInvitationCode ::
-  ( Member Store.InvitationCodeStore r,
+  ( Member Store.InvitationStore r,
     Member (Error UserSubsystemError) r
   ) =>
   TeamId ->
@@ -193,7 +193,7 @@ logInvitationRequest context action =
 
 deleteInvitation ::
   ( Member GalleyAPIAccess r,
-    Member InvitationCodeStore r,
+    Member InvitationStore r,
     Member (Error UserSubsystemError) r
   ) =>
   UserId ->
@@ -208,7 +208,7 @@ listInvitations ::
   forall r.
   ( Member GalleyAPIAccess r,
     Member TinyLog r,
-    Member InvitationCodeStore r,
+    Member InvitationStore r,
     Member (Input TeamTemplates) r,
     Member (Input (Local ())) r,
     Member UserSubsystem r,
@@ -321,7 +321,7 @@ mkInviteUrlPersonalUser ShowInvitationUrl team (InvitationCode c) = do
 
 getInvitation ::
   ( Member GalleyAPIAccess r,
-    Member InvitationCodeStore r,
+    Member InvitationStore r,
     Member TinyLog r,
     Member (Input TeamTemplates) r,
     Member (Error UserSubsystemError) r
@@ -350,7 +350,7 @@ isPersonalUser uke = do
     Just account -> account.userStatus == Active && isNothing account.userTeam
 
 getInvitationByCode ::
-  ( Member Store.InvitationCodeStore r,
+  ( Member Store.InvitationStore r,
     Member (Error UserSubsystemError) r
   ) =>
   InvitationCode ->
@@ -360,7 +360,7 @@ getInvitationByCode c = do
   maybe (throw UserSubsystemInvalidInvitationCode) (pure . Store.invitationFromStored Nothing) inv
 
 headInvitationByEmail ::
-  (Member InvitationCodeStore r, Member TinyLog r) =>
+  (Member InvitationStore r, Member TinyLog r) =>
   EmailAddress ->
   Sem r Public.HeadInvitationByEmailResult
 headInvitationByEmail email =
@@ -376,7 +376,7 @@ headInvitationByEmail email =
 -- | FUTUREWORK: Refactor so that 'headInvitationByEmail' and
 -- 'getInvitationByEmail' are almost the same thing.
 getInvitationByEmail ::
-  (Member Store.InvitationCodeStore r) =>
+  (Member Store.InvitationStore r) =>
   EmailAddress ->
   (Handler r) Public.Invitation
 getInvitationByEmail email = do
@@ -395,7 +395,7 @@ suspendTeam ::
     Member UserSubsystem r,
     Member Events r,
     Member TinyLog r,
-    Member InvitationCodeStore r
+    Member InvitationStore r
   ) =>
   TeamId ->
   (Handler r) NoContent
