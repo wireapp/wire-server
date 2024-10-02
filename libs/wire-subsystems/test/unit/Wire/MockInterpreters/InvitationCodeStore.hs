@@ -21,7 +21,7 @@ inMemoryInvitationCodeStoreInterpreter = interpret \case
   InsertInvitation _a _timeout -> error "InsertInvitation"
   LookupInvitation tid iid -> gets (!? (tid, iid))
   LookupInvitationByCode iid -> gets (!? iid)
-  LookupInvitationCodesByEmail em ->
+  LookupInvitationsByEmail em ->
     let c i = guard (i.email == em) $> i
      in mapMaybe c . elems <$> get @(Map (TeamId, InvitationId) _)
   LookupInvitationsPaginated {} -> error "LookupInvitationsPaginated"

@@ -26,7 +26,7 @@ interpretInvitationCodeStoreToCassandra casClient =
     runEmbedded (runClient casClient) . \case
       InsertInvitation newInv timeout -> embed $ insertInvitationImpl newInv timeout
       LookupInvitation tid iid -> embed $ lookupInvitationImpl tid iid
-      LookupInvitationCodesByEmail email -> embed $ lookupInvitationCodesByEmailImpl email
+      LookupInvitationsByEmail email -> embed $ lookupInvitationsByEmailImpl email
       LookupInvitationByCode code -> embed $ lookupInvitationByCodeImpl code
       LookupInvitationsPaginated mSize tid miid -> embed $ lookupInvitationsPaginatedImpl mSize tid miid
       CountInvitations tid -> embed $ countInvitationsImpl tid
@@ -128,8 +128,8 @@ lookupInvitationByCodeImpl code = runMaybeT do
       SELECT team, role, id, created_at, created_by, email, name, code FROM team_invitation WHERE team = ? AND id = ?
       |]
 
-lookupInvitationCodesByEmailImpl :: EmailAddress -> Client [StoredInvitation]
-lookupInvitationCodesByEmailImpl email = do
+lookupInvitationsByEmailImpl :: EmailAddress -> Client [StoredInvitation]
+lookupInvitationsByEmailImpl email = do
   infoList <-
     retry x1 (query cqlInfo (params LocalQuorum (Identity email)))
   fmap catMaybes $ forM infoList $ \(tid, invId, _invCode) ->

@@ -34,7 +34,7 @@ import Brig.App as App
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Types.Team (TeamSize)
 import Control.Lens (view, (^.))
-import Control.Monad.Trans.Except (mapExceptT)
+import Control.Monad.Trans.Except
 import Data.ByteString.Conversion (toByteString)
 import Data.Id
 import Data.List1 qualified as List1
@@ -55,6 +55,8 @@ import Servant hiding (Handler, JSON, addHeader)
 import System.Logger.Message as Log
 import URI.ByteString (Absolute, URIRef, laxURIParserOptions, parseURI)
 import Util.Logging (logFunction, logTeam)
+import Wire.API.Error
+import Wire.API.Error.Brig
 import Wire.API.Routes.Internal.Brig (FoundInvitationCode (FoundInvitationCode))
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.Named
@@ -362,24 +364,28 @@ headInvitationByEmail ::
   EmailAddress ->
   Sem r Public.HeadInvitationByEmailResult
 headInvitationByEmail email =
-  Store.lookupInvitationCodesByEmail email >>= \case
+  Store.lookupInvitationsByEmail email >>= \case
     [] -> pure Public.InvitationByEmailNotFound
     [_code] -> pure Public.InvitationByEmail
     (_ : _ : _) -> do
       Log.info $
-        Log.msg (Log.val "team_invidation_email: multiple pending invites from different teams for the same email")
+        Log.msg (Log.val "team_invitation_email: multiple pending invites from different teams for the same email")
           . Log.field "email" (show email)
       pure Public.InvitationByEmailMoreThanOne
 
--- | FUTUREWORK: This should also respond with status 409 in case of
--- @DB.InvitationByEmailMoreThanOne@.  Refactor so that 'headInvitationByEmailH' and
--- 'getInvitationByEmailH' are almost the same thing.
+-- | FUTUREWORK: Refactor so that 'headInvitationByEmail' and
+-- 'getInvitationByEmail' are almost the same thing.
 getInvitationByEmail ::
-  (Member Store.InvitationCodeStore r, Member TinyLog r) =>
+  (Member Store.InvitationCodeStore r) =>
   EmailAddress ->
   (Handler r) Public.Invitation
 getInvitationByEmail email = do
-  inv <- lift . liftSem $ Store.lookupInvitationByEmail email
+  inv <- do
+    invs <- lift . liftSem $ Store.lookupInvitationsByEmail email
+    case invs of
+      [] -> pure Nothing
+      [inv] -> pure . Just $ inv
+      (_ : _ : _) -> throwStd $ errorToWai @'ConflictingInvitations
   maybe (throwStd (notFound "Invitation not found")) (pure . Store.invitationFromStored Nothing) inv
 
 suspendTeam ::

@@ -184,14 +184,10 @@ internalFindTeamInvitationImpl ::
 internalFindTeamInvitationImpl Nothing _ = throw UserSubsystemMissingIdentity
 internalFindTeamInvitationImpl (Just e) c =
   lookupInvitationByCode c >>= \case
-    Just invitationInfo -> do
-      inv <- lookupInvitation invitationInfo.teamId invitationInfo.invitationId
-      case (inv, (.email) <$> inv) of
-        (Just invite, Just em)
-          | e == mkEmailKey em -> do
-              ensureMemberCanJoin invitationInfo.teamId
-              pure invite
-        _ -> throw UserSubsystemInvalidInvitationCode
+    Just inv -> do
+      if e == mkEmailKey (inv.email)
+        then ensureMemberCanJoin inv.teamId $> inv
+        else throw UserSubsystemInvalidInvitationCode
     Nothing -> throw UserSubsystemInvalidInvitationCode
   where
     ensureMemberCanJoin tid = do
@@ -849,8 +845,7 @@ getAccountsByImpl ::
   ( Member UserStore r,
     Member DeleteQueue r,
     Member (Input UserSubsystemConfig) r,
-    Member InvitationCodeStore r,
-    Member TinyLog r
+    Member InvitationCodeStore r
   ) =>
   Local GetBy ->
   Sem r [User]
@@ -883,7 +878,7 @@ getAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations, getByH
                 -- validated one cannot be found.  that's probably wrong?  split up into
                 -- validEmailIdentity, anyEmailIdentity?
                 Just email -> do
-                  hasInvitation <- isJust <$> lookupInvitationByEmail email
+                  hasInvitation <- isJust . listToMaybe <$> lookupInvitationsByEmail email
                   gcHack hasInvitation (User.userId user)
                   pure hasInvitation
                 Nothing -> error "getExtendedAccountsByImpl: should never happen, user invited via scim always has an email"
