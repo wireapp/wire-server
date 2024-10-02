@@ -14,20 +14,20 @@ import Network.WebSockets
 import Network.WebSockets qualified as WS
 import System.Logger qualified as Log
 import UnliftIO (catches)
-import Wire.NotificationSubsystem.Interpreter
+import Wire.API.Notification
 
 rabbitMQWebSocketApp :: UserId -> ClientId -> Env -> ServerApp
 rabbitMQWebSocketApp uid cid e pendingConn = do
   wsConn <- liftIO (acceptRequest pendingConn `catch` rejectOnError pendingConn)
+  -- TODO: Don't create new conns for every client, this will definitely kill rabbit
   withConnection e.logg e.rabbitmq $ \conn -> do
     chan <- liftIO $ Amqp.openChannel conn
-    -- TODO: Don't use  the interpreter
-    qName <- setupConsumableNotificationsImpl chan uid cid
     let cleanup :: (Exception e, MonadThrow m, MonadIO m) => e -> m ()
         cleanup err = do
           Log.err e.logg $ Log.msg (Log.val "Pushing to WS failed") . Log.field "error" (displayException err)
           throwM err
         handlers = [Handler $ cleanup @SomeException, Handler $ cleanup @SomeAsyncException]
+        qName = clientNotificationQueueName uid cid
     _consumerTag <-
       AmqpL.consumeMsgs chan qName Amqp.Ack (\msg -> pushEventsToWS wsConn msg `catches` handlers)
     forever $ do

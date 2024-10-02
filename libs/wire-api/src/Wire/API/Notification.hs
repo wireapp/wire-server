@@ -38,6 +38,7 @@ module Wire.API.Notification
     userNotificationExchangeName,
     userNotificationDlxName,
     userNotificationDlqName,
+    clientNotificationQueueName,
   )
 where
 
@@ -184,3 +185,7 @@ userNotificationDlxName = "dead-user-notifications"
 -- | The name of the RabbitMQ queue for dead-lettered user notifications.
 userNotificationDlqName :: Text
 userNotificationDlqName = "dead-user-notifications"
+
+clientNotificationQueueName :: UserId -> ClientId -> Text
+clientNotificationQueueName uid cid =
+  "user-notifications." <> idToText uid <> "." <> clientToText cid
