@@ -144,9 +144,7 @@ servantSitemap ::
     Member PropertySubsystem r,
     Member (Input (Local ())) r,
     Member IndexedUserStore r,
-    Member (Polysemy.Error.Error UserSubsystemError) r,
-    Member (Input TeamTemplates) r,
-    Member (Input Channel) r
+    Member (Polysemy.Error.Error UserSubsystemError) r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
