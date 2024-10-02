@@ -19,6 +19,8 @@ data GundeckAPIAccess m a where
   GetPushTokens :: UserId -> GundeckAPIAccess m [V2.PushToken]
   RegisterConsumableNotifcationsClient :: UserId -> ClientId -> GundeckAPIAccess m ()
 
+deriving instance Show (GundeckAPIAccess m a)
+
 makeSem ''GundeckAPIAccess
 
 runGundeckAPIAccess :: (Member Rpc r, Member (Embed IO) r) => Endpoint -> Sem (GundeckAPIAccess : r) a -> Sem r a
