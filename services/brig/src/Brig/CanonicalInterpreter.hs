@@ -23,7 +23,6 @@ import Data.Qualified (Local, toLocalUnsafe)
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Imports
 import Network.AMQP
-import Network.AMQP qualified as Q
 import Polysemy
 import Polysemy.Async
 import Polysemy.Conc
