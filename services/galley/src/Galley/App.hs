@@ -84,7 +84,6 @@ import Galley.Queue qualified as Q
 import Galley.Types.Teams
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Imports hiding (forkIO)
-import Network.AMQP qualified as AMQP
 import Network.AMQP.Extended (mkRabbitMqChannelMVar)
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
@@ -103,7 +102,6 @@ import Ssl.Util
 import System.Logger qualified as Log
 import System.Logger.Class (Logger)
 import System.Logger.Extended qualified as Logger
-import System.Timeout qualified
 import UnliftIO.Exception qualified as UnliftIO
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
@@ -120,7 +118,6 @@ import Wire.Sem.Random.IO
 type GalleyEffects0 =
   '[ Input ClientState,
      Input Env,
-     Input AMQP.Channel,
      Error InvalidInput,
      Error InternalError,
      -- federation errors can be thrown by almost every endpoint, so we avoid
@@ -146,6 +143,10 @@ validateOptions o = do
     error "setMaxConvSize cannot be > setTruncationLimit"
   when (settings' ^. maxTeamSize < optFanoutLimit) $
     error "setMaxTeamSize cannot be < setTruncationLimit"
+  case (o ^. O.federator, o ^. rabbitmq) of
+    (Nothing, Just _) -> error "RabbitMQ config is specified and federator is not, please specify both or none"
+    (Just _, Nothing) -> error "Federator is specified and RabbitMQ config is not, please specify both or none"
+    _ -> pure ()
   let mlsFlag = settings' ^. featureFlags . to (featureDefaults @MLSConfig)
       mlsConfig = mlsFlag.config
       migrationStatus = (.status) $ settings' ^. featureFlags . to (featureDefaults @MlsMigrationConfig)
@@ -171,7 +172,7 @@ createEnv o l = do
     <*> initExtEnv
     <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. journal)
     <*> traverse loadAllMLSKeys (o ^. settings . mlsPrivateKeyPaths)
-    <*> mkRabbitMqChannelMVar l (o ^. rabbitmq)
+    <*> traverse (mkRabbitMqChannelMVar l) (o ^. rabbitmq)
     <*> pure codeURIcfg
 
 initCassandra :: Opts -> Logger -> IO ClientState
@@ -250,7 +251,6 @@ evalGalley e =
     . mapError toResponse
     . mapError toResponse
     . mapError toResponse
-    . runInputSem (embed $ fromMaybe (error "TODO: no rabbitmq channel in Env") <$> System.Timeout.timeout 1_000_000 (readMVar @IO e._rabbitmqChannel))
     . runInputConst e
     . runInputConst (e ^. cstate)
     . mapError toResponse -- DynError

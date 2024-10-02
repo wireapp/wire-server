@@ -181,8 +181,8 @@ data Opts = Opts
     _spar :: !Endpoint,
     -- | Federator endpoint
     _federator :: !(Maybe Endpoint),
-    -- | RabbitMQ settings
-    _rabbitmq :: !AmqpEndpoint,
+    -- | RabbitMQ settings, required when federation is enabled.
+    _rabbitmq :: !(Maybe AmqpEndpoint),
     -- | Disco URL
     _discoUrl :: !(Maybe Text),
     -- | Other settings
