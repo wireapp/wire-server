@@ -62,7 +62,7 @@ data Env = Env
     _extEnv :: ExtEnv,
     _aEnv :: Maybe Aws.Env,
     _mlsKeys :: Maybe (MLSKeysByPurpose MLSPrivateKeys),
-    _rabbitmqChannel :: MVar Q.Channel,
+    _rabbitmqChannel :: Maybe (MVar Q.Channel),
     _convCodeURI :: Either HttpsUrl (Map Text HttpsUrl)
   }
 
