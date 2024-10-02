@@ -215,18 +215,18 @@ newAccount ::
   (Handler r) Public.NewProviderResponse
 newAccount new = do
   guardSecondFactorDisabled Nothing
-  let email = (Public.newProviderEmail new)
-  let name = Public.newProviderName new
-  let pass = Public.newProviderPassword new
-  let descr = fromRange (Public.newProviderDescr new)
-  let url = Public.newProviderUrl new
+  let email = new.newProviderEmail
+  let name = new.newProviderName
+  let pass = new.newProviderPassword
+  let descr = fromRange new.newProviderDescr
+  let url = new.newProviderUrl
   let emailKey = mkEmailKey email
   wrapClientE (DB.lookupKey emailKey) >>= mapM_ (const $ throwStd emailExists)
   (safePass, newPass) <- case pass of
-    Just newPass -> (,Nothing) <$> mkSafePassword newPass
+    Just newPass -> (,Nothing) <$> mkSafePasswordScrypt newPass
     Nothing -> do
       newPass <- genPassword
-      safePass <- mkSafePassword newPass
+      safePass <- mkSafePasswordScrypt newPass
       pure (safePass, Just newPass)
   pid <- wrapClientE $ DB.insertAccount name safePass url descr
   let gen = mkVerificationCodeGen email
