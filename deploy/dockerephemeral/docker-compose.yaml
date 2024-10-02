@@ -204,8 +204,8 @@ services:
       redis:
         ipv4_address: 172.20.0.36
 
-  elasticsearch:
-    container_name: demo_wire_elasticsearch
+  opensearch:
+    container_name: opensearch
     image: bitnami/opensearch:latest
     build:
       context: .
@@ -245,6 +245,22 @@ services:
       - ./docker/opensearch-security-nodes_dn.yml:/opt/bitnami/opensearch/config/opensearch-security/nodes_dn.yml
       - ./docker/opensearch-security-action_groups.yml:/opt/bitnami/opensearch/config/opensearch-security/action_groups.yml
       - ./docker/opensearch-security-tenants.yml:/opt/bitnami/opensearch/config/opensearch-security/tenants.yml
+    networks:
+      - demo_wire
+
+  opensearch-dashboard:
+    image: opensearchproject/opensearch-dashboards:latest
+    container_name: opensearch-dashboards
+    ports:
+      - 5601:5601
+    expose:
+      - "5601"
+#    environment:
+#      - "OPENSEARCH_HOSTS: '[\"https://opensearch:9200\"]'"
+#      - "OPENSEARCH_USERNAME=elastic"
+#      - "OPENSEARCH_PASSWORD=changeme"
+    volumes:
+      - ./docker/opensearch_dashboards.yml:/usr/share/opensearch-dashboards/config/opensearch_dashboards.yml
     networks:
       - demo_wire
 
