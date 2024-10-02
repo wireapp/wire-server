@@ -1,0 +1,1 @@
+Introduce length-preserving function mapRange to replace Functor instance for Range data type.
