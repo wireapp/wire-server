@@ -54,7 +54,7 @@ import OpenTelemetry.Trace qualified as Otel
 import Servant (Handler (Handler), (:<|>) (..))
 import Servant qualified
 import System.Logger qualified as Log
-import System.Timeout (timeout)
+import System.Logger.Class qualified as MonadLogger
 import UnliftIO.Async qualified as Async
 import Util.Options
 import Wire.API.Notification
@@ -68,7 +68,7 @@ run opts = withTracer \tracer -> do
   (rThreads, env) <- createEnv opts
   let logger = env ^. applog
 
-  setUpRabbitMqExchangesAndQueues logger (env ^. rabbitMqChannel)
+  runDirect env setUpRabbitMqExchangesAndQueues
 
   runClient (env ^. cstate) $
     versionCheck lastSchemaVersion
@@ -91,17 +91,12 @@ run opts = withTracer \tracer -> do
     whenJust (env ^. rstateAdditionalWrite) $ (=<<) Redis.disconnect . takeMVar
     Log.close (env ^. applog)
   where
-    setUpRabbitMqExchangesAndQueues :: Log.Logger -> MVar Channel -> IO ()
-    setUpRabbitMqExchangesAndQueues logger chanMVar = do
-      mChan <- timeout 1_000_000 $ readMVar chanMVar
-      case mChan of
-        Nothing -> do
-          -- TODO(leif): we should probably fail here
-          Log.err logger $ Log.msg (Log.val "RabbitMQ could not connect")
-        Just chan -> do
-          Log.info logger $ Log.msg (Log.val "setting up RabbitMQ exchanges and queues")
-          createUserNotificationsExchange chan
-          createDeadUserNotificationsExchange chan
+    setUpRabbitMqExchangesAndQueues :: Gundeck ()
+    setUpRabbitMqExchangesAndQueues = do
+      chan <- getRabbitMqChan
+      MonadLogger.info $ Log.msg (Log.val "setting up RabbitMQ exchanges and queues")
+      liftIO $ createUserNotificationsExchange chan
+      liftIO $ createDeadUserNotificationsExchange chan
 
     createUserNotificationsExchange :: Channel -> IO ()
     createUserNotificationsExchange chan = do
