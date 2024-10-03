@@ -86,6 +86,7 @@ data UserTemplates = UserTemplates
     deletionSms :: DeletionSmsTemplate,
     deletionEmail :: DeletionEmailTemplate,
     upgradePersonalToTeamEmail :: UpgradePersonalToTeamEmailTemplate,
+    finishedPersonalToTeamEmail :: FinishedPersonalToTeamEmailTemplate,
     newClientEmail :: NewClientEmailTemplate,
     verificationLoginEmail :: SecondFactorVerificationEmailTemplate,
     verificationScimTokenEmail :: SecondFactorVerificationEmailTemplate,
@@ -144,6 +145,14 @@ data UpgradePersonalToTeamEmailTemplate = UpgradePersonalToTeamEmailTemplate
     upgradePersonalToTeamEmailBodyHtml :: Template,
     upgradePersonalToTeamEmailSender :: EmailAddress,
     upgradePersonalToTeamEmailSenderName :: Text
+  }
+
+data FinishedPersonalToTeamEmailTemplate = FinishedPersonalToTeamEmailTemplate
+  { finishedPersonalToTeamEmailSubject :: Template,
+    finishedPersonalToTeamEmailBodyText :: Template,
+    finishedPersonalToTeamEmailBodyHtml :: Template,
+    finishedPersonalToTeamEmailSender :: EmailAddress,
+    finishedPersonalToTeamEmailSenderName :: Text
   }
 
 data PasswordResetEmailTemplate = PasswordResetEmailTemplate
