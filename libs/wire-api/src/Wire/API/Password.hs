@@ -142,7 +142,7 @@ mkSafePasswordScrypt :: (MonadIO m) => PlainTextPassword' t -> m Password
 mkSafePasswordScrypt = fmap Password . hashPasswordScrypt . Text.encodeUtf8 . fromPlainTextPassword
 
 mkSafePassword :: (MonadIO m) => PlainTextPassword' t -> m Password
-mkSafePassword = fmap Password . hashPasswordArgon2id . Text.encodeUtf8 . fromPlainTextPassword
+mkSafePassword = fmap Password . hashPasswordScrypt . Text.encodeUtf8 . fromPlainTextPassword
 
 -- | Verify a plaintext password from user input against a stretched
 -- password from persistent storage.
@@ -169,8 +169,8 @@ hashPasswordScrypt password = do
         Text.decodeUtf8 . B64.encode $ key
       ]
 
-hashPasswordArgon2id :: (MonadIO m) => ByteString -> m Text
-hashPasswordArgon2id pwd = do
+_hashPasswordArgon2id :: (MonadIO m) => ByteString -> m Text
+_hashPasswordArgon2id pwd = do
   salt <- newSalt 16
   pure $ hashPasswordArgon2idWithSalt salt pwd
 
