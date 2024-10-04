@@ -1,7 +1,4 @@
--- TODO: This needs to be resolved. Warning message:
--- In the use of ‘putMapping’
--- (imported from Database.Bloodhound, but defined in Database.Bloodhound.Common.Client):
--- Deprecated: "See <https://www.elastic.co/guide/en/elasticsearch/reference/7.17/removal-of-types.html>"
+-- 'putMapping' is incorrectly deprecated in bloodhound
 {-# OPTIONS_GHC -fno-warn-deprecations #-}
 
 module Wire.IndexedUserStore.MigrationStore.ElasticSearch where

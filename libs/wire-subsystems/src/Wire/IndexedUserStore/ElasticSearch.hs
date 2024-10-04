@@ -93,7 +93,10 @@ upsertImpl cfg docId userDoc versioning = do
   where
     indexDoc :: ES.IndexName -> ES.BH (Sem r) ()
     indexDoc idx = do
-      r <- hoistBH (embed @IO) $ ES.performBHRequest . fmap fst . ES.keepBHResponse $ ESR.indexDocument idx settings userDoc docId
+      r <-
+        hoistBH (embed @IO) $
+          ES.performBHRequest . fmap fst . ES.keepBHResponse $
+            ESR.indexDocument idx settings userDoc docId
       unless (ES.isSuccess r || ES.isVersionConflict r) $ do
         lift $ Metrics.incCounter indexUpdateErrorCounter
         liftIO . throwIO . IndexUpdateError $ parseESError r
@@ -111,7 +114,6 @@ hoistReaderT nat (ReaderT f) = ReaderT $ \r -> nat (f r)
 hoistExceptT :: (forall x. m x -> n x) -> ExceptT e m a -> ExceptT e n a
 hoistExceptT nat (ExceptT ema) = ExceptT (nat ema)
 
--- TODO: Extract into helper Module / Or the bottom of the file
 castResponse :: forall context1 val1 context2 val2. BHResponse context1 val1 -> BHResponse context2 val2
 castResponse BHResponse {..} = BHResponse {..}
 
