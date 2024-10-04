@@ -244,25 +244,6 @@ releases:
                       ".opendistro-asynchronous-search-response*",
                     ]
 
-          # TODO: Remove debug logs
-          log4j2.properties: |
-            status = error
-
-            appender.console.type = Console
-            appender.console.name = console
-            appender.console.layout.type = PatternLayout
-            appender.console.layout.pattern = [%d{ISO8601}][%-5p][%-25c{1.}] [%node_name]%marker %m%n
-
-            rootLogger.level = info
-            rootLogger.appenderRef.console.ref = console
-
-            logger.authc.name = com.amazon.dlic.auth.http
-            logger.authc.level = debug
-            logger.authz.name = com.amazon.opendistroforelasticsearch.security.auth
-            logger.authz.level = debug
-            logger.ssl.name = org.opensearch.security.ssl
-            logger.ssl.level = debug
-
       - securityConfig:
           enabled: true
           path: "/usr/share/opensearch/config/opensearch-security"
@@ -516,25 +497,6 @@ releases:
                       ".opendistro-notebooks",
                       ".opendistro-asynchronous-search-response*",
                     ]
-
-          # TODO: Remove debug logs
-          log4j2.properties: |
-            status = error
-
-            appender.console.type = Console
-            appender.console.name = console
-            appender.console.layout.type = PatternLayout
-            appender.console.layout.pattern = [%d{ISO8601}][%-5p][%-25c{1.}] [%node_name]%marker %m%n
-
-            rootLogger.level = info
-            rootLogger.appenderRef.console.ref = console
-
-            logger.authc.name = com.amazon.dlic.auth.http
-            logger.authc.level = debug
-            logger.authz.name = com.amazon.opendistroforelasticsearch.security.auth
-            logger.authz.level = debug
-            logger.ssl.name = org.opensearch.security.ssl
-            logger.ssl.level = debug
 
       - securityConfig:
           enabled: true
