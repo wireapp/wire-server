@@ -172,50 +172,51 @@ elasticServerParser =
 restrictedElasticSettingsParser :: Parser ElasticSettings
 restrictedElasticSettingsParser = do
   server <- elasticServerParser
-  idx <-
-    option
-      indexNameReader
+  prefix <-
+    strOption
       ( long "elasticsearch-index-prefix"
           <> metavar "PREFIX"
           <> help "Elasticsearch Index Prefix. The actual index name will be PREFIX_test."
-          <> value [ES.qqIndexName|directory_test|]
-          <> showDefault -- TODO: This will print the wrong default
+          <> value "directory"
+          <> showDefault
       )
   mCreds <- credentialsPathParser
   mCaCert <- caCertParser
   verifyCa <- verifyCaParser
-  -- index <- either (const empty) pure $ ES.mkIndexName (prefix <> "_test")
   pure $
     localElasticSettings
       { _esConnection =
           localElasticSettings._esConnection
             { esServer = server,
-              esIndex = idx,
+              esIndex = mkIndexName (prefix <> "_test"),
               esCredentials = mCreds,
               esCaCert = mCaCert,
               esInsecureSkipVerifyTls = verifyCa
             }
       }
 
-indexNameParser :: Parser ES.IndexName
+indexNameParser :: Parser String
 indexNameParser =
-  option
-    indexNameReader
+  strOption
     ( long "elasticsearch-index"
         <> metavar "STRING"
         <> help "Elasticsearch Index Name."
-        <> value (localElasticSettings._esConnection.esIndex)
-        <> showDefault -- TODO: This will use the Show instance, which might not be correct
+        <> value
+          ( Text.unpack
+              ( ES.unIndexName (localElasticSettings._esConnection.esIndex)
+              )
+          )
+        <> showDefault
     )
 
-indexNameReader :: ReadM ES.IndexName
-indexNameReader = eitherReader $ mapLeft Text.unpack . ES.mkIndexName . Text.pack
+mkIndexName :: String -> ES.IndexName
+mkIndexName = either (error "invalid index name") id . ES.mkIndexName . Text.pack
 
 connectionSettingsParser :: Parser ESConnectionSettings
 connectionSettingsParser =
   ESConnectionSettings
     <$> elasticServerParser
-    <*> indexNameParser
+    <*> fmap mkIndexName indexNameParser
     <*> caCertParser
     <*> verifyCaParser
     <*> credentialsPathParser
@@ -337,11 +338,13 @@ reindexToAnotherIndexSettingsParser :: Parser ReindexFromAnotherIndexSettings
 reindexToAnotherIndexSettingsParser =
   ReindexFromAnotherIndexSettings
     <$> connectionSettingsParser
-    <*> option
-      indexNameReader
-      ( long "destination-index"
-          <> metavar "STRING"
-          <> help "Elasticsearch index name to reindex to"
+    <*> fmap
+      mkIndexName
+      ( strOption
+          ( long "destination-index"
+              <> metavar "STRING"
+              <> help "Elasticsearch index name to reindex to"
+          )
       )
     <*> option
       auto
