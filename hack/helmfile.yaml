@@ -151,15 +151,10 @@ releases:
             isCA: false
             secretName: opensearch-ephemeral-certificate
 
-            # TODO: Wrong algorithm
             privateKey:
-              algorithm: RSA
+              algorithm: ECDSA
+              size: 384
               encoding: PKCS8
-              size: 2048
-#            privateKey:
-#              algorithm: ECDSA
-#              size: 384
-#              encoding: PKCS8
               rotationPolicy: Always
 
             dnsNames:
