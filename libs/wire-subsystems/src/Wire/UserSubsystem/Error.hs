@@ -1,3 +1,4 @@
+{-# OPTIONS -Wwarn #-}
 module Wire.UserSubsystem.Error where
 
 import Imports
@@ -33,9 +34,9 @@ data UserSubsystemError
   deriving (Eq, Show)
 
 data ChangeEmailError
-  = InvalidNewEmail !Email !String
-  | EmailExists !Email
-  | ChangeBlacklistedEmail !Email
+  = InvalidNewEmail !EmailAddress !String
+  | EmailExists !EmailAddress
+  | ChangeBlacklistedEmail !EmailAddress
   | EmailManagedByScim
   deriving (Eq, Show)
 
@@ -59,6 +60,6 @@ userSubsystemErrorToHttpError =
     UserSubsystemInvitationNotFound -> Wai.mkError status404 "not-found" "Something went wrong, while looking up the invitation"
     UserSubsystemUserNotAllowedToJoinTeam e -> e
     UserSubsystemMLSServicesNotAllowed -> errorToWai @E.MLSServicesNotAllowed
-    UserSubsystemChangeEmailError _ -> _ -- check how this is handled in brig! is it also an api error? if not: is it ok to throw it here anyway?
+    UserSubsystemChangeEmailError _ -> todo -- check how this is handled in brig! is it also an api error? if not: is it ok to throw it here anyway?
 
 instance Exception UserSubsystemError

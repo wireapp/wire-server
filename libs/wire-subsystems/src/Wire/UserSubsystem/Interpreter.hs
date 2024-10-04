@@ -234,7 +234,7 @@ updateUserEmailInitImpl ::
   forall r.
   (Member BlockListStore r, Member UserKeyStore r, Member EmailSubsystem r) =>
   UserId ->
-  Email ->
+  EmailAddress ->
   UpdateOriginType ->
   Sem r ChangeEmailResponse
 updateUserEmailInitImpl uid email updateOriginType = do
@@ -260,7 +260,7 @@ updateUserEmailInitImpl uid email updateOriginType = do
 prepareUpdateUserEmail ::
   (Member BlockListStore r, Member UserKeyStore r, Member (Error ChangeEmailError) r) =>
   UserId ->
-  Email ->
+  EmailAddress ->
   UpdateOriginType ->
   Sem r ChangeEmailResult
 prepareUpdateUserEmail u email updateOriginType = do
@@ -292,7 +292,7 @@ prepareUpdateUserEmail u email updateOriginType = do
 -- TODO: does this belong here?  or in wire-api?
 data ChangeEmailResult
   = -- | The request was successful, user needs to verify the new email address
-    ChangeEmailNeedsActivation !(User, Activation, Email)
+    ChangeEmailNeedsActivation !(User, Activation, EmailAddress)
   | -- | The user asked to change the email address to the one already owned
     ChangeEmailIdempotent
 
