@@ -267,7 +267,6 @@ pushViaRabbitMq p = do
                 Set.singleton $ userRoutingKey r._recipientId
               RecipientClientsSome (toList -> cs) ->
                 Set.fromList $ map (clientRoutingKey r._recipientId) cs
-  -- TODO: Figure out if there is a bulk operation in amqp
   for_ routingKeys $ \routingKey ->
     mpaPublishToRabbitMq routingKey qMsg
 
