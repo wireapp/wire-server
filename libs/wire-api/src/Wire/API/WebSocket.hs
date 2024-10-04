@@ -42,66 +42,96 @@ instance ToSchema EventData where
         <$> payload .= field "payload" (array genericToSchema)
         <*> (.deliveryTag) .= field "delivery_tag" schema
 
-data Direction = ServerToClient | ClientToServer
-  deriving (Eq, Show)
-
-class KnownDirection (k :: Direction) where
-  directionVal :: Direction
-
-instance KnownDirection 'ServerToClient where
-  directionVal = ServerToClient
-
-instance KnownDirection 'ClientToServer where
-  directionVal = ClientToServer
-
-data WSMessage (direction :: Direction)
+data WSMessageServerToClient
   = EventMessage EventData
-  | AckMessage AckData
-  | PingMessage
-  | PongMessage
+  | PingDownMessage
+  | PongDownMessage
   deriving (Show, Eq)
 
-makePrisms ''WSMessage
+makePrisms ''WSMessageServerToClient
 
--- | Only useful for writing the ToSchema instance for 'WSMessage'
-data WSMessageType = MsgTypeEvent | MsgTypeAck | MsgTypePing | MsgTypePong
+data WSMessageClientToServer
+  = AckMessage AckData
+  | PingUpMessage
+  | PongUpMessage
+  deriving (Show, Eq)
+
+makePrisms ''WSMessageClientToServer
+
+----------------------------------------------------------------------
+-- ServerToClient
+
+-- | Local type, only needed for writing the ToSchema instance for 'WSMessage'.
+data WSMessageTypeServerToClient = MsgTypeEvent | MsgTypePingDown | MsgTypePongDown
   deriving (Eq, Enum, Bounded)
 
-msgTypeSchema :: Direction -> ValueSchema NamedSwaggerDoc WSMessageType
-msgTypeSchema dir =
-  enum @Text "WSMessageType" $
+msgTypeSchemaServerToClient :: ValueSchema NamedSwaggerDoc WSMessageTypeServerToClient
+msgTypeSchemaServerToClient =
+  enum @Text "WSMessageTypeServerToClient" $
     mconcat $
-      [element "event" MsgTypeEvent | dir == ServerToClient]
-        <> [element "ack" MsgTypeAck | dir == ClientToServer]
-        <> [ element "ping" MsgTypePing,
-             element "pong" MsgTypePong
-           ]
+      [ element "event" MsgTypeEvent,
+        element "ping" MsgTypePingDown,
+        element "pong" MsgTypePongDown
+      ]
 
-instance forall dir. (KnownDirection dir) => ToSchema (WSMessage dir) where
+instance ToSchema WSMessageServerToClient where
   schema =
-    object "WSMessage" $
-      fromTagged
-        <$> toTagged
-          .= bind
-            (fst .= field "type" (msgTypeSchema $ directionVal @dir))
-            (snd .= untaggedSchema)
+    object "WSMessageServerToClient" $
+      fromTagged <$> toTagged .= bind (fst .= field "type" msgTypeSchemaServerToClient) (snd .= untaggedSchema)
     where
-      toTagged :: WSMessage dir -> (WSMessageType, WSMessage dir)
+      toTagged :: WSMessageServerToClient -> (WSMessageTypeServerToClient, WSMessageServerToClient)
       toTagged d@(EventMessage _) = (MsgTypeEvent, d)
-      toTagged d@(AckMessage _) = (MsgTypeAck, d)
-      toTagged d@PingMessage = (MsgTypePing, d)
-      toTagged d@PongMessage = (MsgTypePong, d)
+      toTagged d@PingDownMessage = (MsgTypePingDown, d)
+      toTagged d@PongDownMessage = (MsgTypePongDown, d)
 
-      fromTagged :: (WSMessageType, WSMessage dir) -> WSMessage dir
+      fromTagged :: (WSMessageTypeServerToClient, WSMessageServerToClient) -> WSMessageServerToClient
       fromTagged = snd
 
-      untaggedSchema :: SchemaP SwaggerDoc (A.Object, WSMessageType) [A.Pair] (WSMessage dir) (WSMessage dir)
+      untaggedSchema :: SchemaP SwaggerDoc (A.Object, WSMessageTypeServerToClient) [A.Pair] (WSMessageServerToClient) (WSMessageServerToClient)
       untaggedSchema = dispatch $ \case
         MsgTypeEvent -> tag _EventMessage (id .= field "data" schema)
+        MsgTypePingDown -> tag _PingDownMessage (id .= pure ())
+        MsgTypePongDown -> tag _PongDownMessage (id .= pure ())
+
+deriving via Schema WSMessageServerToClient instance FromJSON WSMessageServerToClient
+
+deriving via Schema WSMessageServerToClient instance ToJSON WSMessageServerToClient
+
+----------------------------------------------------------------------
+-- ClientToServer
+
+-- | Local type, only needed for writing the ToSchema instance for 'WSMessage'.
+data WSMessageTypeClientToServer = MsgTypeAck | MsgTypePingUp | MsgTypePongUp
+  deriving (Eq, Enum, Bounded)
+
+msgTypeSchemaClientToServer :: ValueSchema NamedSwaggerDoc WSMessageTypeClientToServer
+msgTypeSchemaClientToServer =
+  enum @Text "WSMessageTypeClientToServer" $
+    mconcat $
+      [ element "ack" MsgTypeAck,
+        element "ping" MsgTypePingUp,
+        element "pong" MsgTypePongUp
+      ]
+
+instance ToSchema WSMessageClientToServer where
+  schema =
+    object "WSMessageClientToServer" $
+      fromTagged <$> toTagged .= bind (fst .= field "type" msgTypeSchemaClientToServer) (snd .= untaggedSchema)
+    where
+      toTagged :: WSMessageClientToServer -> (WSMessageTypeClientToServer, WSMessageClientToServer)
+      toTagged d@(AckMessage _) = (MsgTypeAck, d)
+      toTagged d@PingUpMessage = (MsgTypePingUp, d)
+      toTagged d@PongUpMessage = (MsgTypePongUp, d)
+
+      fromTagged :: (WSMessageTypeClientToServer, WSMessageClientToServer) -> WSMessageClientToServer
+      fromTagged = snd
+
+      untaggedSchema :: SchemaP SwaggerDoc (A.Object, WSMessageTypeClientToServer) [A.Pair] WSMessageClientToServer WSMessageClientToServer
+      untaggedSchema = dispatch $ \case
         MsgTypeAck -> tag _AckMessage (id .= field "data" schema)
-        MsgTypePing -> tag _PingMessage (id .= pure ())
-        MsgTypePong -> tag _PongMessage (id .= pure ())
+        MsgTypePingUp -> tag _PingUpMessage (id .= pure ())
+        MsgTypePongUp -> tag _PongUpMessage (id .= pure ())
 
-deriving via Schema (WSMessage dir) instance (KnownDirection dir) => FromJSON (WSMessage dir)
+deriving via Schema WSMessageClientToServer instance FromJSON WSMessageClientToServer
 
-deriving via Schema (WSMessage dir) instance (KnownDirection dir) => ToJSON (WSMessage dir)
+deriving via Schema WSMessageClientToServer instance ToJSON WSMessageClientToServer
