@@ -50,20 +50,17 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
                   . Log.field "user" (idToText uid)
                   . Log.field "client" (clientToText cid)
               WS.sendClose wsConn ("goaway" :: ByteString)
-            Right dat -> case eitherDecode @(WSMessage ClientToServer) dat of
+            Right dat -> case eitherDecode @(WSMessageClientToServer) dat of
               Left err -> do
                 WS.sendClose wsConn ("invalid-message" :: ByteString)
                 throwIO $ FailedToParseClientMesage err
-              Right (EventMessage ev) -> do
-                WS.sendClose wsConn ("invalid-message" :: ByteString)
-                throwIO $ ClientSentAnEvent ev
               Right (AckMessage ackData) -> do
                 void $ Amqp.ackMsg chan ackData.deliveryTag ackData.multiple
                 wsRecieverLoop
-              Right PingMessage -> do
-                WS.sendBinaryData wsConn $ Aeson.encode @(WSMessage ServerToClient) PongMessage
+              Right PingUpMessage -> do
+                WS.sendBinaryData wsConn $ Aeson.encode @(WSMessageServerToClient) PongDownMessage
                 wsRecieverLoop
-              Right PongMessage ->
+              Right PongUpMessage ->
                 wsRecieverLoop
     wsRecieverLoop
 
