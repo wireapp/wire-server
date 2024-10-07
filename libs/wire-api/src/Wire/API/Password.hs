@@ -305,6 +305,7 @@ parseScryptPasswordHashParams passwordHash = do
 
 -------------------------------------------------------------------------------
 
+-- TODO: Force strictnes on this function, the hash function can break unsafely and we should probably force it as soon as possible.
 hashPasswordWithOptions :: Argon2.Options -> ByteString -> ByteString -> ByteString
 hashPasswordWithOptions opts password salt =
   let tagSize = 16
