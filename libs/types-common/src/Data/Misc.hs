@@ -378,8 +378,6 @@ showT = Text.pack . show
 {-# INLINE showT #-}
 
 -- | Decodes a base64 'Text' to a regular 'ByteString' (if possible)
-from64 :: Text -> Maybe ByteString
-from64 = hush . B64.decode . encodeUtf8
-  where
-    hush = either (const Nothing) Just
+from64 :: Text -> Either String ByteString
+from64 = B64.decode . encodeUtf8
 {-# INLINE from64 #-}
