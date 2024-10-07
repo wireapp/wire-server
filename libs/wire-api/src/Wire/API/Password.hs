@@ -119,12 +119,13 @@ defaultScryptParams =
       outputLength = 64
     }
 
--- | These are the default values suggested, as extracted from the crypton library.
+-- | Recommended in the RFC as the second choice: https://www.rfc-editor.org/rfc/rfc9106.html#name-parameter-choice
+-- The first choice takes ~1s to hash passwords which seems like too much.
 defaultOptions :: Argon2.Options
 defaultOptions =
   Argon2.Options
-    { iterations = 1,
-      memory = 2 ^ (14 :: Int),
+    { iterations = 3,
+      memory = 2 ^ (16 :: Int),
       parallelism = 4,
       variant = Argon2.Argon2id,
       version = Argon2.Version13
