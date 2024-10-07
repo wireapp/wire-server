@@ -1,6 +1,3 @@
--- 'putMapping' is incorrectly deprecated in bloodhound
-{-# OPTIONS_GHC -fno-warn-deprecations #-}
-
 module Wire.IndexedUserStore.MigrationStore.ElasticSearch where
 
 import Data.Aeson
@@ -10,6 +7,7 @@ import Data.Text qualified as Text
 import Data.Text.Encoding (encodeUtf8)
 import Database.Bloodhound qualified as ES
 import Database.Bloodhound.Common.Requests qualified as ESR
+import Database.Bloodhound.Compat qualified as ESC
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -35,7 +33,7 @@ ensureMigrationIndexImpl env = do
       Log.msg (Log.val "Creating migrations index, used for tracking which migrations have run")
     liftIO (ES.runBH env . ES.performBHRequest . ES.keepBHResponse $ (ESR.createIndexWith [] 1 migrationIndexName))
       >>= throwIfNotCreated CreateMigrationIndexFailed
-  liftIO (ES.runBH env . ES.performBHRequest . ES.keepBHResponse $ (ESR.putMapping @Value migrationIndexName migrationIndexMapping))
+  liftIO (ES.runBH env . ES.performBHRequest . ES.keepBHResponse $ (ESC.putMapping @Value ESC.ES6 migrationIndexName "user" migrationIndexMapping))
     >>= throwIfNotCreated PutMappingFailed
   where
     throwIfNotCreated :: (Member TinyLog r, Member (Error MigrationException) r) => (String -> MigrationException) -> Either ES.EsError (ES.BHResponse a b, c) -> Sem r ()
@@ -54,7 +52,7 @@ ensureMigrationIndexImpl env = do
 
 getLatestMigrationVersionImpl :: (Member (Embed IO) r, Member (Error MigrationException) r) => ES.BHEnv -> Sem r MigrationVersion
 getLatestMigrationVersionImpl env = do
-  reply <- liftIO $ ES.runBH env $ ES.searchByIndex @MigrationVersion migrationIndexName (ES.mkSearch Nothing Nothing)
+  reply <- liftIO $ ES.runBH env $ ES.performBHRequest $ ESC.searchByIndex @MigrationVersion ESC.ES6 migrationIndexName (ES.mkSearch Nothing Nothing)
   result <- either (throw . FetchMigrationVersionsFailed . show) pure reply
   let versions = map ES.hitSource $ ES.hits . ES.searchHits $ result
   case versions of
@@ -69,11 +67,11 @@ persistMigrationVersionImpl :: (Member (Embed IO) r, Member TinyLog r, Member (E
 persistMigrationVersionImpl env v = do
   let docIdText = Text.pack . show $ migrationVersion v
       docId = ES.DocId docIdText
-  persistResponse <- liftIO $ ES.runBH env $ ES.indexDocument migrationIndexName ES.defaultIndexDocumentSettings v docId
+  persistResponse <- liftIO $ ES.runBH env $ ES.performBHRequest $ ESC.indexDocument ESC.ES6 migrationIndexName "wire_brig_migrations" ES.defaultIndexDocumentSettings v docId
   case persistResponse of
     Left _ -> throw $ PersistVersionFailed v $ show persistResponse
     Right r ->
-      if ES.idxDocId r == docIdText
+      if ESC.idxDocId r == docIdText
         then do
           Log.info $
             Log.msg (Log.val "Migration success recorded")

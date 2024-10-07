@@ -204,17 +204,15 @@ services:
       redis:
         ipv4_address: 172.20.0.36
 
-  opensearch:
-    container_name: opensearch
-    image: bitnami/opensearch:latest
+  elasticsearch:
+    container_name: demo_wire_elasticsearch
     build:
       context: .
-#      dockerfile_inline: |
-#        FROM opensearchproject/opensearch:latest
-
-#    RUN /usr/share/elasticsearch/bin/elasticsearch-plugin install x-pack -b
-#    # this seems to be necessary to run X-Pack on Alpine (https://discuss.elastic.co/t/elasticsearch-failing-to-start-due-to-x-pack/85125/7)
-#    RUN rm -rf /usr/share/elasticsearch/plugins/x-pack/platform/linux-x86_64
+      dockerfile_inline: |
+        FROM quay.io/wire/elasticsearch:0.0.9-amd64
+        RUN /usr/share/elasticsearch/bin/elasticsearch-plugin install x-pack -b
+        # this seems to be necessary to run X-Pack on Alpine (https://discuss.elastic.co/t/elasticsearch-failing-to-start-due-to-x-pack/85125/7)
+        RUN rm -rf /usr/share/elasticsearch/plugins/x-pack/platform/linux-x86_64
     ulimits:
       nofile:
         soft: 65536
@@ -224,43 +222,16 @@ services:
       - "127.0.0.1:9300:9300"
     environment:
       - "xpack.ml.enabled=false"
+      - "xpack.security.enabled=true"
+      - "xpack.security.http.ssl.enabled=true"
+      - "xpack.ssl.certificate=certs/elasticsearch-cert.pem"
+      - "xpack.ssl.key=certs/elasticsearch-key.pem"
       - "bootstrap.system_call_filter=false"
       - "JVM_OPTIONS_ES=-Xmx512m -Xms512m"
       - "discovery.type=single-node"
-
-      - "DISABLE_INSTALL_DEMO_CONFIG=true"
-      - "OPENSEARCH_INITIAL_ADMIN_PASSWORD=Ch4ng3m3Secr3t!"
-      - "OPENSEARCH_USERNAME=elastic"
-      - "OPENSEARCH_PASSWORD=changeme"
     volumes:
-      - ./docker/elasticsearch-cert.pem:/opt/bitnami/opensearch/config/certs/tls.crt
-      - ./docker/elasticsearch-key.pem:/opt/bitnami/opensearch/config/certs/tls.key
-      - ./docker/elasticsearch-ca.pem:/opt/bitnami/opensearch/config/certs/ca.crt
-      - ./docker/opensearch.yml:/opt/bitnami/opensearch/config/opensearch.yml
-      - ./docker/opensearch-security-config.yml:/opt/bitnami/opensearch/config/opensearch-security/config.yml
-      - ./docker/opensearch-security-internal_users.yml:/opt/bitnami/opensearch/config/opensearch-security/internal_users.yml
-      - ./docker/opensearch-security-roles_mapping.yml:/opt/bitnami/opensearch/config/opensearch-security/roles_mapping.yml
-      - ./docker/opensearch-security-allowlist.yml:/opt/bitnami/opensearch/config/opensearch-security/allowlist.yml
-      - ./docker/opensearch-security-roles.yml:/opt/bitnami/opensearch/config/opensearch-security/roles.yml
-      - ./docker/opensearch-security-nodes_dn.yml:/opt/bitnami/opensearch/config/opensearch-security/nodes_dn.yml
-      - ./docker/opensearch-security-action_groups.yml:/opt/bitnami/opensearch/config/opensearch-security/action_groups.yml
-      - ./docker/opensearch-security-tenants.yml:/opt/bitnami/opensearch/config/opensearch-security/tenants.yml
-    networks:
-      - demo_wire
-
-  opensearch-dashboard:
-    image: opensearchproject/opensearch-dashboards:latest
-    container_name: opensearch-dashboards
-    ports:
-      - 5601:5601
-    expose:
-      - "5601"
-#    environment:
-#      - "OPENSEARCH_HOSTS: '[\"https://opensearch:9200\"]'"
-#      - "OPENSEARCH_USERNAME=elastic"
-#      - "OPENSEARCH_PASSWORD=changeme"
-    volumes:
-      - ./docker/opensearch_dashboards.yml:/usr/share/opensearch-dashboards/config/opensearch_dashboards.yml
+      - ./docker/elasticsearch-cert.pem:/usr/share/elasticsearch/config/certs/elasticsearch-cert.pem
+      - ./docker/elasticsearch-key.pem:/usr/share/elasticsearch/config/certs/elasticsearch-key.pem
     networks:
       - demo_wire
 

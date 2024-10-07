@@ -16,6 +16,7 @@ import Data.Text.Encoding qualified as Text
 import Database.Bloodhound (BHResponse (BHResponse))
 import Database.Bloodhound qualified as ES
 import Database.Bloodhound.Common.Requests qualified as ESR
+import Database.Bloodhound.Compat qualified as ESC
 import Imports
 import Network.HTTP.Client
 import Network.HTTP.Types
@@ -96,7 +97,7 @@ upsertImpl cfg docId userDoc versioning = do
       r <-
         hoistBH (embed @IO) $
           ES.performBHRequest . fmap fst . ES.keepBHResponse $
-            ESR.indexDocument idx settings userDoc docId
+            ESC.indexDocument ESC.ES6 idx "user" settings userDoc docId
       unless (ES.isSuccess r || ES.isVersionConflict r) $ do
         lift $ Metrics.incCounter indexUpdateErrorCounter
         liftIO . throwIO . IndexUpdateError $ parseESError r
@@ -292,7 +293,7 @@ paginateTeamMembersImpl cfg BrowseTeamFilters {..} maxResults mPagingState = do
 
 searchInMainIndex :: forall r. (Member (Embed IO) r) => IndexedUserStoreConfig -> ES.Search -> Sem r (ES.SearchResult UserDoc)
 searchInMainIndex cfg search = embed $ do
-  r <- ES.runBH cfg.conn.env $ ES.searchByIndex @UserDoc cfg.conn.indexName search
+  r <- ES.runBH cfg.conn.env $ ES.performBHRequest $ ESC.searchByIndex @UserDoc ESC.ES6 cfg.conn.indexName search
   either (throwIO . IndexLookupError . Right) pure r
 
 queryIndex ::

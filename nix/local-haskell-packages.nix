@@ -10,6 +10,7 @@
   cassandra-util = hself.callPackage ../libs/cassandra-util/default.nix { inherit gitignoreSource; };
   deriving-swagger2 = hself.callPackage ../libs/deriving-swagger2/default.nix { inherit gitignoreSource; };
   dns-util = hself.callPackage ../libs/dns-util/default.nix { inherit gitignoreSource; };
+  es-compat = hself.callPackage ../libs/es-compat/default.nix { inherit gitignoreSource; };
   extended = hself.callPackage ../libs/extended/default.nix { inherit gitignoreSource; };
   galley-types = hself.callPackage ../libs/galley-types/default.nix { inherit gitignoreSource; };
   gundeck-types = hself.callPackage ../libs/gundeck-types/default.nix { inherit gitignoreSource; };

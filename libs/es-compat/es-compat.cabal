@@ -1,0 +1,84 @@
+cabal-version:      3.4
+name:               es-compat
+version:            0.1.0.0
+synopsis:           ElasticSearch 6 to 8 compatibility layer
+-- description:
+license:            AGPL-3.0-or-later
+license-file:       LICENSE
+author:             Sven Tennie
+maintainer:         sven.tennie@wire.com
+-- copyright:
+category:           Development
+build-type:         Simple
+extra-doc-files:    CHANGELOG.md
+-- extra-source-files:
+
+common common-all
+  default-language:   Haskell2010
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -Wredundant-constraints
+
+  default-extensions:
+    AllowAmbiguousTypes
+    BangPatterns
+    BlockArguments
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    DuplicateRecordFields
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    GeneralizedNewtypeDeriving
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    NoImplicitPrelude
+    NumericUnderscores
+    OverloadedLabels
+    OverloadedRecordDot
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+library
+    import:           common-all
+    exposed-modules:
+        Database.Bloodhound.Compat
+    -- other-modules:
+    -- other-extensions:
+    build-depends:
+        , aeson
+        , base
+        , bytestring
+        , bloodhound
+        , http-types
+        , imports
+        , text
+    hs-source-dirs:   src
+    default-language: GHC2021

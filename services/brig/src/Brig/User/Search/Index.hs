@@ -55,6 +55,7 @@ import Data.Text.Encoding
 import Database.Bloodhound (BHResponse (getResponse))
 import Database.Bloodhound qualified as ES
 import Database.Bloodhound.Common.Requests qualified as ESR
+import Database.Bloodhound.Compat qualified as ESC
 import Imports hiding (log, searchable)
 import Network.HTTP.Client hiding (host, path, port)
 import Network.HTTP.Types (statusCode)
@@ -182,7 +183,7 @@ createIndex' failIfExists (CreateIndexSettings settings shardCount mbDeleteTempl
       throwM (IndexError "Index creation failed.")
     mr <-
       traceES "Put mapping" $
-        fmap fst (ES.performBHRequest $ ES.keepBHResponse $ ESR.putMapping @Value idx indexMapping)
+        fmap fst (ES.performBHRequest $ ES.keepBHResponse $ ESC.putMapping @Value ESC.ES6 idx "user" indexMapping)
     unless (ES.isSuccess mr) $
       throwM (IndexError "Put Mapping failed.")
 
@@ -211,7 +212,7 @@ updateMapping = liftIndexIO $ do
   -- https://github.com/wireapp/wire-server-deploy/blob/92311d189818ffc5e26ff589f81b95c95de8722c/charts/elasticsearch-index/templates/create-index.yaml
   void $
     traceES "Put mapping" $
-      fmap fst (ES.performBHRequest $ ES.keepBHResponse $ ESR.putMapping @Value idx indexMapping)
+      fmap fst (ES.performBHRequest $ ES.keepBHResponse $ ESC.putMapping @Value ESC.ES6 idx "user" indexMapping)
 
 resetIndex ::
   (MonadIndexIO m) =>

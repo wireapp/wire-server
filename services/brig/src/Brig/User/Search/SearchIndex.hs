@@ -34,7 +34,7 @@ import Data.Handle (Handle (fromHandle))
 import Data.Id
 import Data.Qualified (Qualified (Qualified))
 import Database.Bloodhound qualified as ES
-import Database.Bloodhound.Common.Requests as ESR
+import Database.Bloodhound.Compat qualified as ESC
 import Imports hiding (log, searchable)
 import Wire.API.User (ColourId (..), Name (fromName))
 import Wire.API.User.Search
@@ -77,7 +77,7 @@ queryIndex (IndexQuery q f _) s = do
   liftIndexIO $ do
     idx <- asks idxName
     let search = (ES.mkSearch (Just q) (Just f)) {ES.size = ES.Size (fromIntegral s)}
-    resp <- ES.tryPerformBHRequest . ES.keepBHResponse $ ESR.searchByIndex idx search
+    resp <- ES.tryPerformBHRequest . ES.keepBHResponse $ ESC.searchByIndex ESC.ES6 idx search
     resp' <- either (throwM . IndexLookupError . Right) pure resp
     let parsedResult = ES.parseEsResponse . fst $ resp'
     r <- either (throwM . IndexLookupError . Left) pure parsedResult

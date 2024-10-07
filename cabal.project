@@ -7,6 +7,7 @@ packages:
   , libs/brig-types/
   , libs/cargohold-types/
   , libs/cassandra-util/
+  , libs/es-compat/
   , libs/extended/
   , libs/dns-util/
   , libs/deriving-swagger2/

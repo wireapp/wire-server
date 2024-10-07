@@ -24,6 +24,7 @@
 , data-default
 , data-timeout
 , errors
+, es-compat
 , exceptions
 , extended
 , extra
@@ -114,6 +115,7 @@ mkDerivation {
     data-default
     data-timeout
     errors
+    es-compat
     exceptions
     extended
     extra

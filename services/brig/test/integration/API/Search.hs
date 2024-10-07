@@ -1,8 +1,6 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE QuasiQuotes #-}
--- 'putMapping' is incorrectly deprecated in bloodhound
-{-# OPTIONS_GHC -Wno-deprecations #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
@@ -52,6 +50,7 @@ import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Database.Bloodhound qualified as ES
 import Database.Bloodhound.Common.Requests qualified as ESR
+import Database.Bloodhound.Compat qualified as ESC
 import Federation.Util
 import Imports
 import Network.HTTP.ReverseProxy (waiProxyTo)
@@ -769,7 +768,7 @@ createIndexWithMapping opts indexName val = do
   unless (ES.isCreated createReply' || ES.isSuccess createReply') $ do
     liftIO $ assertFailure $ "failed to create index: " <> show indexName <> " with error: " <> show createReply
 
-  res <- runBH opts . ES.performBHRequest $ ES.keepBHResponse $ ESR.putMapping @Value indexName val
+  res <- runBH opts . ES.performBHRequest $ ES.keepBHResponse $ ESC.putMapping @Value ESC.ES6 indexName "user" val
   mappingReply <- fst <$> either (error . show) pure res
   unless (ES.isCreated mappingReply || ES.isSuccess createReply') $ do
     liftIO $ assertFailure $ "failed to create mapping: " <> show indexName

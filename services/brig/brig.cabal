@@ -238,6 +238,7 @@ library
     , dns-util
     , enclosed-exceptions                   >=1.0
     , errors                                >=1.4
+    , es-compat
     , exceptions                            >=0.5
     , extended
     , extra
@@ -409,6 +410,7 @@ executable brig-integration
     , data-default
     , data-timeout
     , email-validate
+    , es-compat
     , exceptions
     , extra
     , federator

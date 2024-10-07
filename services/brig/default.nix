@@ -39,6 +39,7 @@
 , email-validate
 , enclosed-exceptions
 , errors
+, es-compat
 , exceptions
 , extended
 , extra
@@ -196,6 +197,7 @@ mkDerivation {
     dns-util
     enclosed-exceptions
     errors
+    es-compat
     exceptions
     extended
     extra
@@ -302,6 +304,7 @@ mkDerivation {
     data-default
     data-timeout
     email-validate
+    es-compat
     exceptions
     extended
     extra
