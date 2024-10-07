@@ -14,6 +14,7 @@ import Data.Aeson.Types qualified as A
 import Data.Schema
 import Data.Word
 import Imports
+import Wire.Arbitrary
 
 data AckData = AckData
   { deliveryTag :: Word64,
@@ -22,7 +23,8 @@ data AckData = AckData
     -- https://www.rabbitmq.com/docs/confirms#consumer-acks-multiple-parameter
     multiple :: Bool
   }
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic)
+  deriving (Arbitrary) via (GenericUniform AckData)
   deriving (FromJSON, ToJSON) via (Schema AckData)
 
 instance ToSchema AckData where
@@ -36,7 +38,8 @@ data EventData = EventData
   { payload :: [A.Object],
     deliveryTag :: Word64
   }
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic)
+  deriving (Arbitrary) via (GenericUniform EventData)
   deriving (FromJSON, ToJSON) via (Schema EventData)
 
 instance ToSchema EventData where
@@ -50,7 +53,8 @@ data MessageServerToClient
   = EventMessage EventData
   | PingDownMessage
   | PongDownMessage
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic)
+  deriving (Arbitrary) via (GenericUniform MessageServerToClient)
 
 makePrisms ''MessageServerToClient
 
@@ -58,7 +62,8 @@ data MessageClientToServer
   = AckMessage AckData
   | PingUpMessage
   | PongUpMessage
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic)
+  deriving (Arbitrary) via (GenericUniform MessageClientToServer)
 
 makePrisms ''MessageClientToServer
 

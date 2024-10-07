@@ -76,6 +76,7 @@ import Wire.API.User.Profile qualified as User.Profile
 import Wire.API.User.RichInfo qualified as User.RichInfo
 import Wire.API.User.Scim qualified as Scim
 import Wire.API.User.Search qualified as User.Search
+import Wire.API.WebSocket qualified as WebSocket
 import Wire.API.Wrapped qualified as Wrapped
 
 -- FUTUREWORK(#1446): fix tests marked as failing
@@ -337,6 +338,8 @@ tests =
       testRoundTrip @(User.Search.SearchResult User.Search.TeamContact),
       testRoundTrip @User.Search.PagingState,
       testRoundTrip @User.Search.TeamContact,
+      testRoundTrip @WebSocket.MessageServerToClient,
+      testRoundTrip @WebSocket.MessageClientToServer,
       testRoundTrip @(Wrapped.Wrapped "some_int" Int),
       testRoundTrip @Conversation.Action.SomeConversationAction,
       testRoundTrip @Routes.Version.Version,
