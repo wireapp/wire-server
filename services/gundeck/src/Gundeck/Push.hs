@@ -211,7 +211,7 @@ getClients uid = do
 
 pushAll :: (MonadPushAll m, MonadNativeTargets m, MonadMapAsync m, Log.MonadLogger m) => [Push] -> m ()
 pushAll pushes = do
-  Log.warn $ msg (val "pushing") . Log.field "pushes" (Aeson.encode pushes)
+  Log.debug $ msg (val "pushing") . Log.field "pushes" (Aeson.encode pushes)
   (rabbitmqPushes, legacyPushes) <- splitPushes pushes
   pushAllLegacy legacyPushes
   pushAllViaRabbitMq rabbitmqPushes
