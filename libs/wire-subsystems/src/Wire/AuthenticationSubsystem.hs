@@ -29,7 +29,7 @@ import Wire.API.User.Password (PasswordResetCode, PasswordResetIdentity)
 import Wire.UserKeyStore
 
 data AuthenticationSubsystem m a where
-  VerifyPasswordE :: Local UserId -> PlainTextPassword6 -> AuthenticationSubsystem m ()
+  VerifyPasswordError :: Local UserId -> PlainTextPassword6 -> AuthenticationSubsystem m ()
   CreatePasswordResetCode :: EmailKey -> AuthenticationSubsystem m ()
   ResetPassword :: PasswordResetIdentity -> PasswordResetCode -> PlainTextPassword8 -> AuthenticationSubsystem m ()
   VerifyPassword :: PlainTextPassword6 -> Password -> AuthenticationSubsystem m (Bool, PasswordStatus)

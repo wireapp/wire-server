@@ -71,7 +71,7 @@ interpretAuthenticationSubsystem ::
 interpretAuthenticationSubsystem userSubsystemInterpreter =
   interpret $
     userSubsystemInterpreter . \case
-      VerifyPasswordE luid plaintext -> verifyPasswordEImpl luid plaintext
+      VerifyPasswordError luid plaintext -> verifyPasswordErrorImpl luid plaintext
       CreatePasswordResetCode userKey -> createPasswordResetCodeImpl userKey
       ResetPassword ident resetCode newPassword -> resetPasswordImpl ident resetCode newPassword
       VerifyPassword plaintext pwd -> verifyPasswordImpl plaintext pwd
@@ -293,13 +293,13 @@ verifyUserPasswordImpl uid plaintext = do
       >>= maybe (throw AuthenticationSubsystemBadCredentials) pure
   verifyPasswordImpl plaintext password
 
-verifyPasswordEImpl ::
+verifyPasswordErrorImpl ::
   ( Member PasswordStore r,
     Member (Error AuthenticationSubsystemError) r
   ) =>
   Local UserId ->
   PlainTextPassword6 ->
   Sem r ()
-verifyPasswordEImpl (tUnqualified -> uid) password = do
+verifyPasswordErrorImpl (tUnqualified -> uid) password = do
   unlessM (fst <$> verifyUserPasswordImpl uid password) do
     throw AuthenticationSubsystemBadCredentials
