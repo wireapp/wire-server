@@ -45,4 +45,5 @@ streamData userId connId clientId con = do
 consumeEvents :: UserId -> ClientId -> PendingConnection -> Cannon ()
 consumeEvents userId clientId con = do
   e <- wsenv
-  liftIO $ rabbitMQWebSocketApp userId clientId e con
+  r <- stableRabbitmqConn
+  liftIO $ rabbitMQWebSocketApp userId clientId r e con

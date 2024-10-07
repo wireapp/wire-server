@@ -4,7 +4,11 @@ module Network.AMQP.Extended
   ( RabbitMqHooks (..),
     RabbitMqAdminOpts (..),
     AmqpEndpoint (..),
-    withConnection,
+    mkStableRabbitmqConn,
+    mkRabbitmqConn,
+    getStableRabbitmqConn,
+    taintStableRabbitmqConn,
+    stableRabbitmqConnRepairLoop,
     openConnectionWithRetries,
     mkRabbitMqAdminClientEnv,
     mkRabbitMqChannelMVar,
@@ -146,15 +150,11 @@ data RabbitMqConnectionError = RabbitMqConnectionFailed String
 
 instance Exception RabbitMqConnectionError
 
--- | Connects with RabbitMQ and opens a channel.
-withConnection ::
-  forall m a.
-  (MonadIO m, MonadMask m) =>
-  Logger ->
-  AmqpEndpoint ->
-  (Q.Connection -> m a) ->
-  m a
-withConnection l AmqpEndpoint {..} k = do
+mkStableRabbitmqConn :: (MonadIO m, MonadMask m) => Logger -> AmqpEndpoint -> m (MVar (Maybe Q.Connection))
+mkStableRabbitmqConn l ep = (newMVar . Just) =<< mkRabbitmqConn l ep
+
+mkRabbitmqConn :: (MonadIO m, MonadMask m) => Logger -> AmqpEndpoint -> m Q.Connection
+mkRabbitmqConn l AmqpEndpoint {..} = do
   (username, password) <- liftIO $ readCredsFromEnv
   -- Jittered exponential backoff with 1ms as starting delay and 1s as total
   -- wait time.
@@ -173,7 +173,7 @@ withConnection l AmqpEndpoint {..} k = do
           )
           ( const $ do
               Log.info l $ Log.msg (Log.val "Trying to connect to RabbitMQ")
-              mTlsSettings <- traverse (liftIO . (mkTLSSettings host)) tls
+              mTlsSettings <- traverse (liftIO . (mkTLSSettings host)) tls -- TODO: error here is about ambiguous record fields i think?
               liftIO $
                 Q.openConnection'' $
                   Q.defaultConnectionOpts
@@ -183,7 +183,27 @@ withConnection l AmqpEndpoint {..} k = do
                       Q.coTLSSettings = fmap Q.TLSCustom mTlsSettings
                     }
           )
-  bracket getConn (liftIO . Q.closeConnection) k
+  getConn
+
+getStableRabbitmqConn :: (MonadIO m) => MVar (Maybe Q.Connection) -> m (Maybe Q.Connection)
+getStableRabbitmqConn = readMVar
+
+taintStableRabbitmqConn :: (MonadIO m) => MVar (Maybe Q.Connection) -> m ()
+taintStableRabbitmqConn mvar = void $ swapMVar mvar Nothing
+
+-- | Keep an eye on the stableRabbitmqConnection.  If it is tainted (eg., there is Nothing in
+-- it, see above), create a new one and put it.
+stableRabbitmqConnRepairLoop :: (MonadMask m, MonadUnliftIO m) => Logger -> AmqpEndpoint -> MVar (Maybe Q.Connection) -> m (Async ())
+stableRabbitmqConnRepairLoop l ep mvar = async . forever $ do
+  mustRepair <- isNothing <$> readMVar mvar
+  if mustRepair
+    then do
+      -- TODO: this block should probably catch at least SomeException (and probably not SomeAsyncException.
+      conn <- mkRabbitmqConn l ep
+      void $ swapMVar mvar (Just conn)
+      threadDelay 1_800_000 -- if it fails, retry connecting every 1.8s
+    else do
+      threadDelay 100_000 -- checking for Nothing is very cheap, so it's ok to run this every 100ms.
 
 -- | Connects with RabbitMQ and opens a channel. If the channel is closed for
 -- some reasons, reopens the channel. If the connection is closed for some
