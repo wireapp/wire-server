@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wwarn #-}
-
 module Wire.MockInterpreters.PasswordStore where
 
 import Data.Id
@@ -17,4 +15,4 @@ inMemoryPasswordStoreInterpreter :: (Member (State (Map UserId Password)) r) => 
 inMemoryPasswordStoreInterpreter = interpret $ \case
   UpsertHashedPassword uid password -> modify $ Map.insert uid password
   LookupHashedPassword uid -> gets $ Map.lookup uid
-  LookupHashedProviderPassword _uid -> todo ("Implement as needed" :: String)
+  LookupHashedProviderPassword _uid -> error ("Implement as needed" :: String)
