@@ -7,7 +7,6 @@ import Control.Exception (Handler (..), catch, catches, throwIO)
 import Data.Aeson
 import Data.Aeson qualified as Aeson
 import Data.Id
-import Debug.Trace
 import Imports
 import Network.AMQP qualified as Amqp
 import Network.AMQP.Extended (withConnection)
@@ -19,8 +18,6 @@ import Wire.API.WebSocket
 
 rabbitMQWebSocketApp :: UserId -> ClientId -> Env -> ServerApp
 rabbitMQWebSocketApp uid cid e pendingConn = do
-  traceM $ "*********************************** entering rabbitMQWebSocketApp: " <> show (uid, cid)
-
   wsConn <- liftIO (acceptRequest pendingConn `catch` rejectOnError pendingConn)
   closeWS <- newEmptyMVar
   -- TODO: Don't create new conns for every client, this will definitely kill rabbit
@@ -35,8 +32,19 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
               . Log.field "client" (clientToText cid)
           void $ tryPutMVar closeWS ()
           throwIO err
+
+        handleConnectionClosed :: ConnectionException -> IO ()
+        handleConnectionClosed err = do
+          Log.info e.logg $
+            Log.msg (Log.val "Pushing to WS failed, closing connection")
+              . Log.field "error" (displayException err)
+              . Log.field "user" (idToText uid)
+              . Log.field "client" (clientToText cid)
+          void $ tryPutMVar closeWS ()
+
         handlers =
-          [ Handler $ handleConsumerError @SomeException,
+          [ Handler $ handleConnectionClosed,
+            Handler $ handleConsumerError @SomeException,
             Handler $ handleConsumerError @SomeAsyncException
           ]
         qName = clientNotificationQueueName uid cid
@@ -44,10 +52,8 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
     _consumerTag <-
       Amqp.consumeMsgs chan qName Amqp.Ack (\msg -> pushEventsToWS wsConn msg `catches` handlers)
 
-    let wsRecieverLoop = do
-          traceM $ "*********************************** entering rabbitMQWebSocketApp receive loop"
+    let wsReceiverLoop = do
           eitherData <- race (takeMVar closeWS) (WS.receiveData wsConn) -- no timeout necessary here, we want to keep running forever.
-          traceM $ "*********************************** eitherData: " <> show eitherData
           case eitherData of
             Left () -> do
               Log.info e.logg $
@@ -57,19 +63,17 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
               WS.sendClose wsConn ("goaway" :: ByteString)
             Right dat -> case eitherDecode @MessageClientToServer dat of
               Left err -> do
-                traceM $ "*********************************** err: " <> show err
                 WS.sendClose wsConn ("invalid-message" :: ByteString)
                 throwIO $ FailedToParseClientMessage err
               Right (AckMessage ackData) -> do
-                traceM $ "*********************************** ackData: " <> show ackData
-                void $  Amqp.ackMsg chan ackData.deliveryTag ackData.multiple
-                wsRecieverLoop
+                void $ Amqp.ackMsg chan ackData.deliveryTag ackData.multiple
+                wsReceiverLoop
               Right PingUpMessage -> do
                 WS.sendBinaryData wsConn $ Aeson.encode @MessageServerToClient PongDownMessage
-                wsRecieverLoop
+                wsReceiverLoop
               Right PongUpMessage ->
-                wsRecieverLoop
-    wsRecieverLoop
+                wsReceiverLoop
+    wsReceiverLoop `catches` handlers
 
 data WebSocketServerError
   = FailedToParseClientMessage String

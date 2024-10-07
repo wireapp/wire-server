@@ -1,4 +1,4 @@
-module Test.Events (testConsumeEventsOneWebSocket, testConsumeEventsNewWebSockets  ) where
+module Test.Events (testConsumeEventsOneWebSocket, testConsumeEventsNewWebSockets) where
 
 import API.Brig
 import API.BrigCommon
@@ -12,7 +12,7 @@ import qualified Network.WebSockets.Client as WS
 import qualified Network.WebSockets.Connection as WS
 import SetupHelpers
 import Testlib.Prelude hiding (assertNoEvent)
-import UnliftIO (Async, async, cancel, race, waitAny, bracket)
+import UnliftIO (Async, async, bracket, cancel, race, waitAny)
 import UnliftIO.Concurrent (threadDelay)
 
 testConsumeEventsOneWebSocket :: (HasCallStack) => App ()
@@ -43,13 +43,14 @@ testConsumeEventsNewWebSockets = do
   client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
   clientId <- objId client
 
-  deliveryTag <- withNewWebSocket alice clientId $ \eventsChan _ -> do
-    assertEvent eventsChan $ \(e :: Value) -> do
+  withNewWebSocket alice clientId $ \eventsChan ackChan -> do
+    deliveryTag <- assertEvent eventsChan $ \(e :: Value) -> do
       e %. "payload.0.type" `shouldMatch` "user.client-add"
       e %. "payload.0.client.id" `shouldMatch` clientId
       e %. "delivery_tag"
-
-  withNewWebSocket alice clientId $ \_ ackChan -> do
+    -- if you close the WS in this line, the client-add message will remain
+    -- in the queue and will be received through the next WS connection,
+    -- before we are able to sne the Ack message
     sendAck ackChan deliveryTag
 
   withNewWebSocket alice clientId $ \eventsChan _ -> do
@@ -68,21 +69,22 @@ testConsumeEventsNewWebSockets = do
 
 withNewWebSocket :: (HasCallStack, MakesValue uid) => uid -> String -> (TChan Value -> TChan Value -> App a) -> App a
 withNewWebSocket uid cid f = do
-  bracket setup (\(_, _, wsThread) -> cancel wsThread) $ \(eventsChan, ackChan, _) -> f eventsChan ackChan
+  bracket setup (\(_, _, wsThread) -> cancel wsThread) $ \(eventsChan, ackChan, _) -> do
+    f eventsChan ackChan
   where
-    setup :: HasCallStack => App (TChan Value, TChan Value, Async ())
+    setup :: (HasCallStack) => App (TChan Value, TChan Value, Async ())
     setup = do
-      eventsChan <- liftIO newTChanIO
-      ackChan <- liftIO newTChanIO
+      (eventsChan, ackChan) <- liftIO $ (,) <$> newTChanIO <*> newTChanIO
       wsThread <- eventsWebSocket uid cid eventsChan ackChan
       pure (eventsChan, ackChan, wsThread)
 
+sendMsg :: (HasCallStack) => TChan Value -> Value -> App ()
+sendMsg eventsChan msg = liftIO $ atomically $ writeTChan eventsChan msg
 
 sendAck :: (HasCallStack) => TChan Value -> Value -> App ()
-sendAck ackChan deliveryTag = do
-  liftIO $ atomically $ writeTChan ackChan $ object [ "type" .= "ack", "data" .= object ["delivery_tag" .= deliveryTag, "multiple" .= False] ]
+sendAck ackChan deliveryTag = sendMsg ackChan $ object ["type" .= "ack", "data" .= object ["delivery_tag" .= deliveryTag, "multiple" .= False]]
 
-assertEvent:: (HasCallStack) => TChan Value -> (Value -> App a) -> App a
+assertEvent :: (HasCallStack) => TChan Value -> (Value -> App a) -> App a
 assertEvent eventsChan expectations = do
   mEvent <- race (threadDelay 1_000_000) (liftIO $ atomically (readTChan eventsChan))
   case mEvent of
