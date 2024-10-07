@@ -82,7 +82,10 @@ cabal.project.local:
 
 # Usage: make c package=brig test=1
 .PHONY: c
-c: treefmt
+c: treefmt c-fast
+
+.PHONY: c
+c-fast: 
 	cabal build $(WIRE_CABAL_BUILD_OPTIONS) $(package) || ( make clean-hint; false )
 ifeq ($(test), 1)
 	./hack/bin/cabal-run-tests.sh $(package) $(testargs)

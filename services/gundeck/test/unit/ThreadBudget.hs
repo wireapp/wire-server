@@ -52,6 +52,9 @@ newtype NumberOfThreads = NumberOfThreads {fromNumberOfThreads :: Int}
 
 -- | 'microseconds' determines how long one unit lasts.  there is a trade-off of fast
 -- vs. robust in this whole setup.  this type is supposed to help us find a good sweet spot.
+--
+-- There is also `Milliseconds` (with small `s` after `Milli`) in "Data.Misc".  maybe this
+-- should be cleaned up...
 newtype MilliSeconds = MilliSeconds {fromMilliSeconds :: Int}
   deriving (Eq, Ord, Show, Generic, ToExpr)
 

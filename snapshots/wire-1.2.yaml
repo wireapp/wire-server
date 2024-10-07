@@ -1,8 +1,0 @@
-# DO NOT MODIFY THIS FILE. See README.md to learn why.
-
-resolver: https://raw.githubusercontent.com/wireapp/wire-server/develop/snapshots/wire-1.1.yaml
-name: wire-1.2
-
-packages:
-- cql-io-1.1.0  # the MR in wire-1.0.yaml has been released on hackage.
-- cql-io-tinylog-0.1.0
