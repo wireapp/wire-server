@@ -20,6 +20,7 @@
 module Cannon.Types
   ( Env,
     opts,
+    stableRabbitmqConn,
     applog,
     dict,
     env,
@@ -45,7 +46,7 @@ import Control.Monad.Catch
 import Data.Id
 import Data.Text.Encoding
 import Imports
-import Network.AMQP.Extended (AmqpEndpoint)
+import Network.AMQP (Connection)
 import Prometheus
 import Servant qualified
 import System.Logger qualified as Logger
@@ -60,6 +61,7 @@ data Env = Env
     applog :: !Logger,
     dict :: !(Dict Key Websocket),
     reqId :: !RequestId,
+    stableRabbitmqConn_ :: MVar (Maybe Connection),
     env :: !WS.Env
   }
 
@@ -100,11 +102,11 @@ mkEnv ::
   Manager ->
   GenIO ->
   Clock ->
-  AmqpEndpoint ->
+  MVar (Maybe Connection) ->
   Env
-mkEnv external o l d p g t rabbitmqOpts =
-  Env o l d (RequestId defRequestId) $
-    WS.env external (o ^. cannon . port) (encodeUtf8 $ o ^. gundeck . host) (o ^. gundeck . port) l p d g t (o ^. drainOpts) rabbitmqOpts
+mkEnv external o l d p g t stableRabbit =
+  Env o l d (RequestId defRequestId) stableRabbit $
+    WS.env external (o ^. cannon . port) (encodeUtf8 $ o ^. gundeck . host) (o ^. gundeck . port) l p d g t (o ^. drainOpts)
 
 runCannon :: Env -> Cannon a -> IO a
 runCannon e c = runReaderT (unCannon c) e
@@ -117,6 +119,9 @@ wsenv = Cannon $ do
   e <- asks env
   r <- asks reqId
   pure $ WS.setRequestId r e
+
+stableRabbitmqConn :: Cannon (MVar (Maybe Connection))
+stableRabbitmqConn = Cannon $ asks stableRabbitmqConn_
 
 -- | Natural transformation from 'Cannon' to 'Handler' monad.
 -- Used to call 'Cannon' from servant.

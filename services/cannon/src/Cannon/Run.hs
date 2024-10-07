@@ -42,7 +42,7 @@ import Data.Text.Encoding (encodeUtf8)
 import Data.Typeable
 import Imports hiding (head, threadDelay)
 import Network.AMQP
-import Network.AMQP.Extended (mkRabbitMqChannelMVar)
+import Network.AMQP.Extended (mkRabbitMqChannelMVar, mkStableRabbitmqConn, stableRabbitmqConnRepairLoop)
 import Network.Wai qualified as Wai
 import Network.Wai.Handler.Warp hiding (run)
 import Network.Wai.Middleware.Gzip qualified as Gzip
@@ -75,13 +75,15 @@ run o = withTracer \tracer -> do
     error "drainOpts.gracePeriodSeconds must not be set to 0."
   ext <- loadExternal
   g <- L.mkLogger (o ^. logLevel) (o ^. logNetStrings) (o ^. logFormat)
+  rabbitConn <- mkStableRabbitmqConn g (o ^. Cannon.Options.rabbitmq)
+  rabbitRepairLoop <- stableRabbitmqConnRepairLoop g (o ^. Cannon.Options.rabbitmq) rabbitConn
   e <-
     mkEnv ext o g
       <$> D.empty 128
       <*> newManager defaultManagerSettings {managerConnCount = 128}
       <*> createSystemRandom
       <*> mkClock
-      <*> pure (o ^. Cannon.Options.rabbitmq)
+      <*> pure rabbitConn
   createUserNotificationsExchange $ applog e
   refreshMetricsThread <- Async.async $ runCannon e refreshMetrics
   s <- newSettings $ Server (o ^. cannon . host) (o ^. cannon . port) (applog e) (Just idleTimeout)
@@ -110,6 +112,7 @@ run o = withTracer \tracer -> do
       -- but it's a sensitive change, and it looks like this is closing all the websockets at
       -- the same time and then calling the drain script. I suspect this might be due to some
       -- cleanup in wai.  this needs to be tested very carefully when touched.
+      Async.cancel rabbitRepairLoop
       Async.cancel refreshMetricsThread
       L.close (applog e)
   where
