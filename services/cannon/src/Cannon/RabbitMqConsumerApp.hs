@@ -47,6 +47,7 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
     let wsRecieverLoop = do
           traceM $ "*********************************** entering rabbitMQWebSocketApp receive loop"
           eitherData <- race (takeMVar closeWS) (WS.receiveData wsConn) -- no timeout necessary here, we want to keep running forever.
+          traceM $ "*********************************** eitherData: " <> show eitherData
           case eitherData of
             Left () -> do
               Log.info e.logg $
@@ -56,11 +57,12 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
               WS.sendClose wsConn ("goaway" :: ByteString)
             Right dat -> case eitherDecode @MessageClientToServer dat of
               Left err -> do
+                traceM $ "*********************************** err: " <> show err
                 WS.sendClose wsConn ("invalid-message" :: ByteString)
-                throwIO $ FailedToParseClientMesage err
+                throwIO $ FailedToParseClientMessage err
               Right (AckMessage ackData) -> do
-                result <- Amqp.ackMsg chan ackData.deliveryTag ackData.multiple
-                () <- error $ "************* " <> show (ackData, result)
+                traceM $ "*********************************** ackData: " <> show ackData
+                void $  Amqp.ackMsg chan ackData.deliveryTag ackData.multiple
                 wsRecieverLoop
               Right PingUpMessage -> do
                 WS.sendBinaryData wsConn $ Aeson.encode @MessageServerToClient PongDownMessage
@@ -69,12 +71,12 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
                 wsRecieverLoop
     wsRecieverLoop
 
-data WebSockerServerError
-  = FailedToParseClientMesage String
+data WebSocketServerError
+  = FailedToParseClientMessage String
   | ClientSentAnEvent EventData
   deriving (Show)
 
-instance Exception WebSockerServerError
+instance Exception WebSocketServerError
 
 pushEventsToWS :: WS.Connection -> (Amqp.Message, Amqp.Envelope) -> IO ()
 pushEventsToWS wsConn (msg, envelope) =
