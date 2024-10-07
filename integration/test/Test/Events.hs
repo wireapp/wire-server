@@ -138,3 +138,5 @@ eventsWebSocket user clientId eventsChan ackChan = do
       WS.defaultConnectionOptions
       caHdrs
       app
+
+-- TODO: test pingpong?  or drop it?

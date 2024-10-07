@@ -7,6 +7,7 @@ import Control.Exception (Handler (..), catch, catches, throwIO)
 import Data.Aeson
 import Data.Aeson qualified as Aeson
 import Data.Id
+import Debug.Trace
 import Imports
 import Network.AMQP qualified as Amqp
 import Network.AMQP.Extended (withConnection)
@@ -18,6 +19,8 @@ import Wire.API.WebSocket
 
 rabbitMQWebSocketApp :: UserId -> ClientId -> Env -> ServerApp
 rabbitMQWebSocketApp uid cid e pendingConn = do
+  traceM $ "*********************************** entering rabbitMQWebSocketApp: " <> show (uid, cid)
+
   wsConn <- liftIO (acceptRequest pendingConn `catch` rejectOnError pendingConn)
   closeWS <- newEmptyMVar
   -- TODO: Don't create new conns for every client, this will definitely kill rabbit
@@ -42,6 +45,7 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
       Amqp.consumeMsgs chan qName Amqp.Ack (\msg -> pushEventsToWS wsConn msg `catches` handlers)
 
     let wsRecieverLoop = do
+          traceM $ "*********************************** entering rabbitMQWebSocketApp receive loop"
           eitherData <- race (takeMVar closeWS) (WS.receiveData wsConn) -- no timeout necessary here, we want to keep running forever.
           case eitherData of
             Left () -> do
@@ -55,7 +59,8 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
                 WS.sendClose wsConn ("invalid-message" :: ByteString)
                 throwIO $ FailedToParseClientMesage err
               Right (AckMessage ackData) -> do
-                void $ Amqp.ackMsg chan ackData.deliveryTag ackData.multiple
+                result <- Amqp.ackMsg chan ackData.deliveryTag ackData.multiple
+                () <- error $ "************* " <> show (ackData, result)
                 wsRecieverLoop
               Right PingUpMessage -> do
                 WS.sendBinaryData wsConn $ Aeson.encode @MessageServerToClient PongDownMessage
