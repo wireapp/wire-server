@@ -38,6 +38,7 @@ module Stern.Intra
     setStatusBindingTeam,
     deleteBindingTeam,
     deleteBindingTeamForce,
+    getTeamMembers,
     getTeamInfo,
     getUserBindingTeam,
     isBlacklisted,

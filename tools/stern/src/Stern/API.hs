@@ -28,8 +28,9 @@ module Stern.API
 where
 
 import Brig.Types.Intra
+import Control.Concurrent.Chan
 import Control.Error
-import Control.Lens ((.~))
+import Control.Lens (view, (.~))
 import Control.Monad.Except
 import Data.Aeson hiding (Error, json)
 import Data.Aeson.KeyMap qualified as KeyMap
@@ -57,6 +58,7 @@ import Network.Wai.Utilities.Server qualified as Server
 import Servant (NoContent (NoContent), ServerT, (:<|>) (..))
 import Servant qualified
 import Servant.Server qualified
+import Servant.Types.SourceT (fromAction)
 import Stern.API.Routes
 import Stern.App
 import Stern.Intra qualified as Intra
@@ -71,6 +73,7 @@ import Wire.API.Routes.Internal.Brig.EJPD qualified as EJPD
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Team.Feature
+import Wire.API.Team.Member (teamMembers)
 import Wire.API.Team.SearchVisibility
 import Wire.API.User
 import Wire.API.User.Search
@@ -187,6 +190,7 @@ sitemap' =
     :<|> Named @"stern-get-oauth-client" Intra.getOAuthClient
     :<|> Named @"update-oauth-client" Intra.updateOAuthClient
     :<|> Named @"delete-oauth-client" Intra.deleteOAuthClient
+    :<|> Named @"get-team-activity-info" getTeamActivityInfo
 
 sitemapInternal :: Servant.Server SternAPIInternal
 sitemapInternal =
@@ -449,6 +453,16 @@ getUserData uid mMaxConvs mMaxNotifs = do
       "marketo" .= marketo,
       "properties" .= properties
     ]
+
+getTeamActivityInfo :: TeamId -> Handler (Servant.SourceIO ByteString)
+getTeamActivityInfo tid = do
+  -- TODO: handle large teams
+  _memList <- view teamMembers <$> Intra.getTeamMembers tid
+  liftIO $ do
+    chan <- newChan
+    writeChan chan (Just "foo")
+    writeChan chan Nothing
+    pure $ fmap fold $ fromAction isNothing (readChan chan)
 
 -- Utilities
 
