@@ -22,7 +22,7 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
   closeWS <- newEmptyMVar
   -- TODO: Don't create new conns for every client, this will definitely kill rabbit
   withConnection e.logg e.rabbitmq $ \conn -> do
-    chan <- Amqp.openChannel conn
+    chan <- Amqp.openChannel conn -- TODO: should we open a channel for every request? or have a pool of them?
     let handleConsumerError :: (Exception e) => e -> IO ()
         handleConsumerError err = do
           Log.err e.logg $
@@ -42,7 +42,7 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
       Amqp.consumeMsgs chan qName Amqp.Ack (\msg -> pushEventsToWS wsConn msg `catches` handlers)
 
     let wsRecieverLoop = do
-          eitherData <- race (takeMVar closeWS) (WS.receiveData wsConn)
+          eitherData <- race (takeMVar closeWS) (WS.receiveData wsConn) -- no timeout necessary here, we want to keep running forever.
           case eitherData of
             Left () -> do
               Log.info e.logg $
