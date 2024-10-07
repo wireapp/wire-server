@@ -146,6 +146,7 @@ userEntryClients f c = (\x -> c {_userVal = x}) <$> field f (_userVal c)
 --------------------------------------------------------------------------------
 -- Priority
 
+-- | See also `Wire.API.Message.Priority`
 data Priority = LowPriority | HighPriority
   deriving stock (Eq, Show, Ord, Generic)
 
