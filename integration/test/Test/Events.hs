@@ -1,4 +1,4 @@
-module Test.Events (testConsumeEventsOneWebSocket, testConsumeEventsNewWebSockets) where
+module Test.Events where
 
 import API.Brig
 import API.BrigCommon
@@ -22,7 +22,7 @@ testConsumeEventsOneWebSocket = do
   clientId <- objId client
 
   withNewWebSocket alice clientId $ \eventsChan ackChan -> do
-    deliveryTag <- assertEvent eventsChan $ \(e :: Value) -> do
+    deliveryTag <- assertEvent eventsChan $ \e -> do
       e %. "payload.0.type" `shouldMatch` "user.client-add"
       e %. "payload.0.client.id" `shouldMatch` clientId
       e %. "delivery_tag"
@@ -33,7 +33,7 @@ testConsumeEventsOneWebSocket = do
     handle <- randomHandle
     putHandle alice handle >>= assertSuccess
 
-    assertEvent eventsChan $ \(e :: Value) -> do
+    assertEvent eventsChan $ \e -> do
       e %. "payload.0.type" `shouldMatch` "user.update"
       e %. "payload.0.user.handle" `shouldMatch` handle
 
@@ -44,7 +44,7 @@ testConsumeEventsNewWebSockets = do
   clientId <- objId client
 
   withNewWebSocket alice clientId $ \eventsChan ackChan -> do
-    deliveryTag <- assertEvent eventsChan $ \(e :: Value) -> do
+    deliveryTag <- assertEvent eventsChan $ \e -> do
       e %. "payload.0.type" `shouldMatch` "user.client-add"
       e %. "payload.0.client.id" `shouldMatch` clientId
       e %. "delivery_tag"
@@ -60,9 +60,20 @@ testConsumeEventsNewWebSockets = do
   putHandle alice handle >>= assertSuccess
 
   void $ withNewWebSocket alice clientId $ \eventsChan _ -> do
-    assertEvent eventsChan $ \(e :: Value) -> do
+    assertEvent eventsChan $ \e -> do
       e %. "payload.0.type" `shouldMatch` "user.update"
       e %. "payload.0.user.handle" `shouldMatch` handle
+
+testPingPong :: (HasCallStack) => App ()
+testPingPong = do
+  alice <- randomUser OwnDomain def
+  client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
+  clientId <- objId client
+
+  withNewWebSocket alice clientId $ \eventsChan ackChan -> do
+    assertEvent eventsChan $ const $ pure ()
+    sendMsg ackChan $ object ["type" .= "ping"]
+    assertEvent eventsChan $ \e -> e %. "type" `shouldMatch` "pong"
 
 ----------------------------------------------------------------------
 -- helpers
@@ -126,5 +137,3 @@ eventsWebSocket user clientId eventsChan ackChan = do
       WS.defaultConnectionOptions
       caHdrs
       app
-
--- TODO: test pingpong?  or drop it?
