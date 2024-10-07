@@ -95,8 +95,9 @@ let
     bloodhound = {
       src = fetchgit {
         url = "https://github.com/wireapp/bloodhound";
-        rev = "abf819a4a6ec7601f1e58cb8da13b2fdad377d9e";
-        hash = "sha256-m1O+F/mOJN5z5WNChmeyHP4dtmLRkl2YnLlTuwzRelk=";
+        # https://github.com/wireapp/bloodhound/tree/sventennie/es7-compatibility
+        rev = "78be105f8d67e3d083806a4c3797838183421e19";
+        hash = "sha256-oBWrJHnTZEj4fLJNHLSj3H1RI6aAwloiNUWBHjVq6QU=";
       };
     };
 
