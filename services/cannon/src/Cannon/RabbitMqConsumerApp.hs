@@ -3,7 +3,7 @@ module Cannon.RabbitMqConsumerApp where
 import Cannon.App (rejectOnError)
 import Cannon.WS
 import Control.Concurrent.Async (race)
-import Control.Exception (Handler (..), catch, catches, throwIO)
+import Control.Exception (Handler (..), bracket, catch, catches, throwIO)
 import Data.Aeson
 import Data.Id
 import Imports
@@ -18,12 +18,12 @@ import Wire.API.WebSocket
 rabbitMQWebSocketApp :: UserId -> ClientId -> Env -> ServerApp
 rabbitMQWebSocketApp uid cid e pendingConn = do
   wsConn <- liftIO (acceptRequest pendingConn `catch` rejectOnError pendingConn)
-  -- TODO: Don't create new conns for every client, this will definitely kill rabbit
+  -- FUTUREWORK: Pool connections
   withConnection e.logg e.rabbitmq $ \conn -> do
-    chan <- Amqp.openChannel conn -- TODO: should we open a channel for every request? or have a pool of them?
-    closeWS <- newEmptyMVar
-    amqpConsumerTag <- startWsSender wsConn chan closeWS
-    wsReceiverLoop wsConn chan closeWS amqpConsumerTag
+    bracket (Amqp.openChannel conn) (Amqp.closeChannel) $ \chan -> do
+      closeWS <- newEmptyMVar
+      bracket (startWsSender wsConn chan closeWS) (Amqp.cancelConsumer chan) $ \_ -> do
+        wsReceiverLoop wsConn chan closeWS
   where
     logClient =
       Log.field "user" (idToText uid)
@@ -67,42 +67,52 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
       Amqp.consumeMsgs chan qName Amqp.Ack $ \msg ->
         pushEventsToWS wsConn msg `catches` exceptionHandlers
 
-    wsReceiverLoop :: Connection -> Amqp.Channel -> MVar () -> Amqp.ConsumerTag -> IO ()
-    wsReceiverLoop wsConn chan closeWS amqpConsumerTag = do
+    wsReceiverLoop :: Connection -> Amqp.Channel -> MVar () -> IO ()
+    wsReceiverLoop wsConn chan closeWS = do
       let handleConnectionClosed :: ConnectionException -> IO ()
-          handleConnectionClosed err = do
-            Log.info e.logg $
-              Log.msg (Log.val "Websocket connection closed")
-                . Log.field "error" (displayException err)
-                . logClient
-            Amqp.cancelConsumer chan amqpConsumerTag
+          handleConnectionClosed connException = do
+            case connException of
+              CloseRequest code reason ->
+                Log.debug e.logg $
+                  Log.msg (Log.val "Client requested to close connection")
+                    . Log.field "status_code" code
+                    . Log.field "reason" reason
+                    . logClient
+              ConnectionClosed ->
+                Log.info e.logg $
+                  Log.msg (Log.val "client closed tcp connection abruptly")
+                    . logClient
+              _ -> do
+                Log.info e.logg $
+                  Log.msg (Log.val "failed to receive message, closing websocket")
+                    . Log.field "error" (displayException connException)
+                    . logClient
+                WS.send wsConn (WS.ControlMessage $ WS.Close 1003 "failed-to-parse")
           handleException :: (Exception e) => e -> IO ()
           handleException err = do
-            Log.info e.logg $
+            Log.err e.logg $
               Log.msg (Log.val "Unexpected exception in receive loop")
                 . Log.field "error" (displayException err)
                 . logClient
-            Amqp.cancelConsumer chan amqpConsumerTag
             throwIO err
           exceptionHandlers =
             [ Handler $ handleConnectionClosed,
               Handler $ handleException @SomeException,
               Handler $ handleException @SomeAsyncException
             ]
-      let loop = do
+          loop = do
             -- no timeout necessary here, we want to keep running forever.
             eitherData <- race (takeMVar closeWS) (WS.receiveData wsConn)
             case eitherData of
               Left () -> do
-                Log.info e.logg $
-                  Log.msg (Log.val "gracefully closing websocket")
+                Log.debug e.logg $
+                  Log.msg (Log.val "closing the websocket")
                     . logClient
-                -- Look at the status codes: https://datatracker.ietf.org/doc/html/rfc6455#section-7.4
-                WS.sendClose wsConn ("goaway" :: ByteString)
+                WS.sendClose wsConn ("" :: ByteString)
               Right dat -> case eitherDecode @MessageClientToServer dat of
                 Left err -> do
                   Log.info e.logg $
-                    Log.msg (Log.val "log failed to parse received message, gracefully closing websocket")
+                    Log.msg (Log.val "failed to parse received message, closing websocket")
                       . logClient
                   WS.sendClose wsConn ("invalid-message" :: ByteString)
                   throwIO $ FailedToParseClientMessage err
