@@ -51,8 +51,6 @@ instance ToSchema EventData where
 
 data MessageServerToClient
   = EventMessage EventData
-  | PingDownMessage
-  | PongDownMessage
   deriving (Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform MessageServerToClient)
 
@@ -60,8 +58,6 @@ makePrisms ''MessageServerToClient
 
 data MessageClientToServer
   = AckMessage AckData
-  | PingUpMessage
-  | PongUpMessage
   deriving (Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform MessageClientToServer)
 
@@ -71,17 +67,12 @@ makePrisms ''MessageClientToServer
 -- ServerToClient
 
 -- | Local type, only needed for writing the ToSchema instance for 'MessageServerToClient'.
-data MessageTypeServerToClient = MsgTypeEvent | MsgTypePingDown | MsgTypePongDown
+data MessageTypeServerToClient = MsgTypeEvent
   deriving (Eq, Enum, Bounded)
 
 msgTypeSchemaServerToClient :: ValueSchema NamedSwaggerDoc MessageTypeServerToClient
 msgTypeSchemaServerToClient =
-  enum @Text "MessageTypeServerToClient" $
-    mconcat $
-      [ element "event" MsgTypeEvent,
-        element "ping" MsgTypePingDown,
-        element "pong" MsgTypePongDown
-      ]
+  enum @Text "MessageTypeServerToClient" $ mconcat $ [element "event" MsgTypeEvent]
 
 instance ToSchema MessageServerToClient where
   schema =
@@ -90,8 +81,6 @@ instance ToSchema MessageServerToClient where
     where
       toTagged :: MessageServerToClient -> (MessageTypeServerToClient, MessageServerToClient)
       toTagged d@(EventMessage _) = (MsgTypeEvent, d)
-      toTagged d@PingDownMessage = (MsgTypePingDown, d)
-      toTagged d@PongDownMessage = (MsgTypePongDown, d)
 
       fromTagged :: (MessageTypeServerToClient, MessageServerToClient) -> MessageServerToClient
       fromTagged = snd
@@ -99,8 +88,6 @@ instance ToSchema MessageServerToClient where
       untaggedSchema :: SchemaP SwaggerDoc (A.Object, MessageTypeServerToClient) [A.Pair] (MessageServerToClient) (MessageServerToClient)
       untaggedSchema = dispatch $ \case
         MsgTypeEvent -> tag _EventMessage (id .= field "data" schema)
-        MsgTypePingDown -> tag _PingDownMessage (id .= pure ())
-        MsgTypePongDown -> tag _PongDownMessage (id .= pure ())
 
 deriving via Schema MessageServerToClient instance FromJSON MessageServerToClient
 
@@ -110,16 +97,14 @@ deriving via Schema MessageServerToClient instance ToJSON MessageServerToClient
 -- ClientToServer
 
 -- | Local type, only needed for writing the ToSchema instance for 'MessageClientToServer'.
-data MessageTypeClientToServer = MsgTypeAck | MsgTypePingUp | MsgTypePongUp
+data MessageTypeClientToServer = MsgTypeAck
   deriving (Eq, Enum, Bounded)
 
 msgTypeSchemaClientToServer :: ValueSchema NamedSwaggerDoc MessageTypeClientToServer
 msgTypeSchemaClientToServer =
   enum @Text "MessageTypeClientToServer" $
     mconcat $
-      [ element "ack" MsgTypeAck,
-        element "ping" MsgTypePingUp,
-        element "pong" MsgTypePongUp
+      [ element "ack" MsgTypeAck
       ]
 
 instance ToSchema MessageClientToServer where
@@ -129,8 +114,6 @@ instance ToSchema MessageClientToServer where
     where
       toTagged :: MessageClientToServer -> (MessageTypeClientToServer, MessageClientToServer)
       toTagged d@(AckMessage _) = (MsgTypeAck, d)
-      toTagged d@PingUpMessage = (MsgTypePingUp, d)
-      toTagged d@PongUpMessage = (MsgTypePongUp, d)
 
       fromTagged :: (MessageTypeClientToServer, MessageClientToServer) -> MessageClientToServer
       fromTagged = snd
@@ -138,8 +121,6 @@ instance ToSchema MessageClientToServer where
       untaggedSchema :: SchemaP SwaggerDoc (A.Object, MessageTypeClientToServer) [A.Pair] MessageClientToServer MessageClientToServer
       untaggedSchema = dispatch $ \case
         MsgTypeAck -> tag _AckMessage (id .= field "data" schema)
-        MsgTypePingUp -> tag _PingUpMessage (id .= pure ())
-        MsgTypePongUp -> tag _PongUpMessage (id .= pure ())
 
 deriving via Schema MessageClientToServer instance FromJSON MessageClientToServer
 
