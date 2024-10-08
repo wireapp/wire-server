@@ -37,8 +37,8 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
             Log.msg (Log.val "failed to decode event from the queue as a JSON")
               . logClient
               . Log.field "parse_error" err
-          -- TODO: Make it a nicer exception
-          error err
+          -- TODO: reject this event so it doesn't keep reappearing, test it somehow?
+          throwIO $ FailedToParseEvent err
         Right payload -> do
           WS.sendBinaryData wsConn . encode $
             object
@@ -128,7 +128,7 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
 
 data WebSocketServerError
   = FailedToParseClientMessage String
-  | ClientSentAnEvent EventData
+  | FailedToParseEvent String
   deriving (Show)
 
 instance Exception WebSocketServerError
