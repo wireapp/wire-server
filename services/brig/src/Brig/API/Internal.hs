@@ -196,7 +196,7 @@ accountAPI ::
     Member PropertySubsystem r,
     Member Events r,
     Member PasswordResetCodeStore r,
-    Member InvitationCodeStore r
+    Member InvitationStore r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
