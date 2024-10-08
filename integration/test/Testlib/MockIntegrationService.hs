@@ -127,8 +127,8 @@ lhMockAppWithPrekeys version mks ch req cont = withRunInIO \inIO -> do
           _ -> cont respondBad
       V1 ->
         case (cs <$> pathInfo req, cs $ requestMethod req, cs @_ @String <$> getRequestHeader "Authorization" req) of
-          (["legalhold", "v1", "status"], "GET", _) -> cont respondOk
-          (["legalhold", "v1", "api-version"], "GET", _) -> cont apiVersionResp
+          (["legalhold", "status"], "GET", _) -> cont respondOk
+          (["legalhold", "api-version"], "GET", _) -> cont apiVersionResp
           (_, _, Nothing) -> cont missingAuth
           (["legalhold", "v1", "initiate"], "POST", Just _) -> cont (initiateResp nextLastPrekey threePrekeys)
           (["legalhold", "v1", "confirm"], "POST", Just _) -> cont respondOk

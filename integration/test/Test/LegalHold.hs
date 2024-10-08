@@ -993,10 +993,28 @@ testBlockCreateMLSConvForLHUsers = do
         postMLSCommitBundle mp.sender (mkBundle mp)
           `bindResponse` assertLabel 409 "mls-legal-hold-not-allowed"
 
-testLHV1 :: App ()
-testLHV1 = do
-  (alice, tid, _) <- createTeam OwnDomain 2
+testLHApproveDeviceV1 :: App ()
+testLHApproveDeviceV1 = do
+  (alice, tid, [bob, _charlie]) <- createTeam OwnDomain 3
 
   legalholdWhitelistTeam tid alice >>= assertStatus 200
-  withMockServer def lhMockAppV1 \lhDomAndPort _chan -> do
-    postLegalHoldSettings tid alice (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
+
+  withMockServer def lhMockAppV1 \lhDomAndPort chan -> do
+    legalholdWhitelistTeam tid alice
+      >>= assertStatus 200
+    postLegalHoldSettings tid alice (mkLegalHoldSettings lhDomAndPort)
+      >>= assertStatus 201
+
+    checkChan chan \(req, _) -> runMaybeT . lift $ do
+      BS8.unpack req.requestMethod `shouldMatch` "GET"
+      req.pathInfo `shouldMatch` (T.pack <$> ["legalhold", "status"])
+
+    requestLegalHoldDevice tid alice bob
+      >>= assertStatus 201
+
+    checkChan chan \(req, body) -> runMaybeT . lift $ do
+      BS8.unpack req.requestMethod `shouldMatch` "POST"
+      req.pathInfo `shouldMatch` (T.pack <$> ["legalhold", "v1", "initiate"])
+      let (Just (value :: Value)) = decode body
+      value %. "team_id" `shouldMatch` tid
+      value %. "user_id" `shouldMatch` objQid bob
