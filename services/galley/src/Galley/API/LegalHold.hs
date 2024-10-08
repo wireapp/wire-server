@@ -111,9 +111,9 @@ createSettings lzusr tid newService = do
   --     . Log.field "action" (Log.val "LegalHold.createSettings")
   void $ permissionCheck ChangeLegalHoldTeamSettings zusrMembership
   (key :: ServiceKey, fpr :: Fingerprint Rsa) <-
-    LegalHoldData.validateServiceKey (newLegalHoldServiceKey newService)
+    LegalHoldData.validateServiceKey newService.newLegalHoldServiceKey
       >>= noteS @'LegalHoldServiceInvalidKey
-  LHService.checkLegalHoldServiceStatus fpr (newLegalHoldServiceUrl newService)
+  LHService.checkLegalHoldServiceStatus fpr newService.newLegalHoldServiceUrl
   let service = legalHoldService tid fpr newService key
   LegalHoldData.createSettings service
   pure . viewLegalHoldService $ service

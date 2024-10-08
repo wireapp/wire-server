@@ -2,10 +2,12 @@ module Testlib.MockIntegrationService
   ( withMockServer,
     lhMockAppWithPrekeys,
     lhMockApp,
+    lhMockAppV1,
     mkLegalHoldSettings,
     CreateMock (..),
     LiftedApplication,
     MockServerSettings (..),
+    LhApiVersion (..),
   )
 where
 
@@ -65,7 +67,10 @@ withMockServer settings mkApp go = withFreePortAnyAddr \(sPort, sock) -> do
     Nothing -> error . show =<< poll srv
 
 lhMockApp :: Chan (Wai.Request, LBS.ByteString) -> LiftedApplication
-lhMockApp = lhMockAppWithPrekeys def
+lhMockApp = lhMockAppWithPrekeys V0 def
+
+lhMockAppV1 :: Chan (Wai.Request, LBS.ByteString) -> LiftedApplication
+lhMockAppV1 = lhMockAppWithPrekeys V1 def
 
 data MockServerSettings = MkMockServerSettings
   { -- | the certificate the mock service uses
@@ -98,10 +103,12 @@ instance (App ~ f) => Default (CreateMock f) where
         somePrekeys = replicateM 3 getPrekey
       }
 
+data LhApiVersion = V0 | V1
+
 -- | LegalHold service.  Just fake the API, do not maintain any internal state.
 lhMockAppWithPrekeys ::
-  CreateMock App -> Chan (Wai.Request, LBS.ByteString) -> LiftedApplication
-lhMockAppWithPrekeys mks ch req cont = withRunInIO \inIO -> do
+  LhApiVersion -> CreateMock App -> Chan (Wai.Request, LBS.ByteString) -> LiftedApplication
+lhMockAppWithPrekeys version mks ch req cont = withRunInIO \inIO -> do
   reqBody <- Wai.strictRequestBody req
   writeChan ch (req, reqBody)
   inIO do
@@ -109,13 +116,24 @@ lhMockAppWithPrekeys mks ch req cont = withRunInIO \inIO -> do
       (,)
         <$> mks.nextLastPrey
         <*> mks.somePrekeys
-    case (cs <$> pathInfo req, cs $ requestMethod req, cs @_ @String <$> getRequestHeader "Authorization" req) of
-      (["legalhold", "status"], "GET", _) -> cont respondOk
-      (_, _, Nothing) -> cont missingAuth
-      (["legalhold", "initiate"], "POST", Just _) -> cont (initiateResp nextLastPrekey threePrekeys)
-      (["legalhold", "confirm"], "POST", Just _) -> cont respondOk
-      (["legalhold", "remove"], "POST", Just _) -> cont respondOk
-      _ -> cont respondBad
+    case version of
+      V0 ->
+        case (cs <$> pathInfo req, cs $ requestMethod req, cs @_ @String <$> getRequestHeader "Authorization" req) of
+          (["legalhold", "status"], "GET", _) -> cont respondOk
+          (_, _, Nothing) -> cont missingAuth
+          (["legalhold", "initiate"], "POST", Just _) -> cont (initiateResp nextLastPrekey threePrekeys)
+          (["legalhold", "confirm"], "POST", Just _) -> cont respondOk
+          (["legalhold", "remove"], "POST", Just _) -> cont respondOk
+          _ -> cont respondBad
+      V1 ->
+        case (cs <$> pathInfo req, cs $ requestMethod req, cs @_ @String <$> getRequestHeader "Authorization" req) of
+          (["legalhold", "v1", "status"], "GET", _) -> cont respondOk
+          (["legalhold", "v1", "api-version"], "GET", _) -> cont apiVersionResp
+          (_, _, Nothing) -> cont missingAuth
+          (["legalhold", "v1", "initiate"], "POST", Just _) -> cont (initiateResp nextLastPrekey threePrekeys)
+          (["legalhold", "v1", "confirm"], "POST", Just _) -> cont respondOk
+          (["legalhold", "v1", "remove"], "POST", Just _) -> cont respondOk
+          _ -> cont respondBad
   where
     initiateResp :: Value -> [Value] -> Wai.Response
     initiateResp npk pks =
@@ -124,6 +142,14 @@ lhMockAppWithPrekeys mks ch req cont = withRunInIO \inIO -> do
         . Data.Aeson.object
         $ [ "prekeys" .= pks,
             "last_prekey" .= npk
+          ]
+
+    apiVersionResp :: Wai.Response
+    apiVersionResp =
+      responseLBS status200 [(hContentType, cs "application/json")]
+        . encode
+        . Data.Aeson.object
+        $ [ "supported" .= ([1] :: [Int])
           ]
 
     respondOk :: Wai.Response

@@ -290,7 +290,7 @@ testLHRequestDevice = do
   lpk <- getLastPrekey
   pks <- replicateM 3 getPrekey
 
-  withMockServer def (lhMockAppWithPrekeys MkCreateMock {nextLastPrey = pure lpk, somePrekeys = pure pks}) \lhDomAndPort _chan -> do
+  withMockServer def (lhMockAppWithPrekeys V0 MkCreateMock {nextLastPrey = pure lpk, somePrekeys = pure pks}) \lhDomAndPort _chan -> do
     let statusShouldBe :: String -> App ()
         statusShouldBe status =
           legalholdUserStatus tid alice bob `bindResponse` \resp -> do
@@ -440,7 +440,7 @@ testLHGetDeviceStatus = do
 
   withMockServer
     def
-    do lhMockAppWithPrekeys MkCreateMock {nextLastPrey = pure lpk, somePrekeys = pure pks}
+    do lhMockAppWithPrekeys V0 MkCreateMock {nextLastPrey = pure lpk, somePrekeys = pure pks}
     \lhDomAndPort _chan -> do
       legalholdWhitelistTeam tid alice
         >>= assertStatus 200
@@ -778,7 +778,7 @@ testLHHappyFlow = do
   lpk <- getLastPrekey
   pks <- replicateM 3 getPrekey
 
-  withMockServer def (lhMockAppWithPrekeys MkCreateMock {nextLastPrey = pure lpk, somePrekeys = pure pks}) \lhDomAndPort _chan -> do
+  withMockServer def (lhMockAppWithPrekeys V0 MkCreateMock {nextLastPrey = pure lpk, somePrekeys = pure pks}) \lhDomAndPort _chan -> do
     postLegalHoldSettings tid alice (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
 
     -- implicit consent
@@ -992,3 +992,11 @@ testBlockCreateMLSConvForLHUsers = do
       >>= \mp ->
         postMLSCommitBundle mp.sender (mkBundle mp)
           `bindResponse` assertLabel 409 "mls-legal-hold-not-allowed"
+
+testLHV1 :: App ()
+testLHV1 = do
+  (alice, tid, _) <- createTeam OwnDomain 2
+
+  legalholdWhitelistTeam tid alice >>= assertStatus 200
+  withMockServer def lhMockAppV1 \lhDomAndPort _chan -> do
+    postLegalHoldSettings tid alice (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
