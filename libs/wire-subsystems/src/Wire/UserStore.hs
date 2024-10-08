@@ -6,6 +6,7 @@ import Cassandra (PageWithState (..), PagingState)
 import Data.Default
 import Data.Handle
 import Data.Id
+import Data.Time.Clock
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -67,6 +68,7 @@ data UserStore m a where
   IsActivated :: UserId -> UserStore m Bool
   LookupLocale :: UserId -> UserStore m (Maybe (Maybe Language, Maybe Country))
   UpdateUserTeam :: UserId -> TeamId -> UserStore m ()
+  GetActivityTimestamps :: UserId -> UserStore m [Maybe UTCTime]
 
 makeSem ''UserStore
 

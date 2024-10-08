@@ -30,8 +30,8 @@ where
 import Brig.Types.Intra
 import Control.Concurrent.Chan
 import Control.Error
-import Control.Exception (catch)
-import Control.Lens (view, (.~))
+import Control.Exception (throwIO)
+import Control.Lens (toListOf, (.~))
 import Control.Monad.Codensity
 import Control.Monad.Except
 import Data.Aeson hiding (Error, json)
@@ -79,7 +79,7 @@ import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.LowLevelStream
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Team.Feature
-import Wire.API.Team.Member (teamMembers)
+import Wire.API.Team.Member qualified as Team
 import Wire.API.Team.SearchVisibility
 import Wire.API.User
 import Wire.API.User.Search
@@ -464,13 +464,26 @@ getTeamActivityInfo :: TeamId -> Handler LowLevelStreamingBody
 getTeamActivityInfo tid = do
   traceM "getTeamActivityInfo"
   -- TODO: handle large teams
-  memList <- view teamMembers <$> Intra.getTeamMembers tid
+  memList <-
+    toListOf (Team.teamMembers . traverse . Team.newTeamMember . Team.nUserId)
+      <$> Intra.getTeamMembers tid
+  env <- ask
   pure $ do
     chan <- liftIO newChan
-    let runThread = do
+    let runThread :: IO () = do
           pooledForConcurrentlyN_ 8 memList $ \user -> do
             -- get user info
-            info <- Intra.getUserInfo user -- ???
+            tm <-
+              runHandler env (Intra.getActivityTimestamp user)
+                >>= either throwIO pure
+            writeChan
+              chan
+              ( Just
+                  ( toByteString' user
+                      <> ","
+                      <> B8.pack (maybe mempty show tm)
+                  )
+              )
           writeChan chan Nothing
     void $ Codensity $ withAsync runThread
     let body write flush = do

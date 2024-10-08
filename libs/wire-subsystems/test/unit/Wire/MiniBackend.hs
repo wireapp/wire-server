@@ -400,7 +400,7 @@ interpretMaybeFederationStackState maybeFederationAPIAccess localBackend teamMem
       authSubsystemInterpreter = interpretAuthenticationSubsystem userSubsystemInterpreter
 
       userSubsystemInterpreter :: InterpreterFor UserSubsystem (MiniBackendLowerEffects `Append` r)
-      userSubsystemInterpreter = runUserSubsystem cfg authSubsystemInterpreter
+      userSubsystemInterpreter = runUserSubsystem authSubsystemInterpreter
    in sequentiallyPerformConcurrency
         . noOpLogger
         . maybeFederationAPIAccess

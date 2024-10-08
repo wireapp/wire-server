@@ -100,76 +100,58 @@ runUserSubsystem ::
     Member FederationConfigStore r,
     Member Metrics r,
     Member InvitationStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input UserSubsystemConfig) r
   ) =>
-  UserSubsystemConfig ->
   InterpreterFor AuthenticationSubsystem r ->
-  InterpreterFor UserSubsystem r
-runUserSubsystem cfg authInterpreter =
-  interpret $
-    \case
-      GetUserProfiles self others ->
-        runInputConst cfg $
-          getUserProfilesImpl self others
-      GetLocalUserProfiles others ->
-        runInputConst cfg $
-          getLocalUserProfilesImpl others
-      GetAccountsBy getBy ->
-        runInputConst cfg $
-          getAccountsByImpl getBy
-      GetAccountsByEmailNoFilter emails ->
-        runInputConst cfg $
-          getAccountsByEmailNoFilterImpl emails
-      GetAccountNoFilter luid ->
-        runInputConst cfg $
-          getAccountNoFilterImpl luid
-      GetSelfProfile self ->
-        runInputConst cfg $
-          getSelfProfileImpl self
-      GetUserProfilesWithErrors self others ->
-        runInputConst cfg $
-          getUserProfilesWithErrorsImpl self others
-      UpdateUserProfile self mconn mb update ->
-        runInputConst cfg $
-          updateUserProfileImpl self mconn mb update
-      CheckHandle uhandle ->
-        runInputConst cfg $
-          checkHandleImpl uhandle
-      CheckHandles hdls cnt ->
-        runInputConst cfg $
-          checkHandlesImpl hdls cnt
-      UpdateHandle uid mconn mb uhandle ->
-        runInputConst cfg $
-          updateHandleImpl uid mconn mb uhandle
-      LookupLocaleWithDefault luid ->
-        runInputConst cfg $
-          lookupLocaleOrDefaultImpl luid
-      IsBlocked email ->
-        runInputConst cfg $
-          isBlockedImpl email
-      BlockListDelete email ->
-        runInputConst cfg $
-          blockListDeleteImpl email
-      BlockListInsert email ->
-        runInputConst cfg $
-          blockListInsertImpl email
-      UpdateTeamSearchVisibilityInbound status ->
-        runInputConst cfg $
-          updateTeamSearchVisibilityInboundImpl status
-      SearchUsers luid query mDomain mMaxResults ->
-        runInputConst cfg $
-          searchUsersImpl luid query mDomain mMaxResults
-      BrowseTeam uid browseTeamFilters mMaxResults mPagingState ->
-        browseTeamImpl uid browseTeamFilters mMaxResults mPagingState
-      InternalUpdateSearchIndex uid ->
-        syncUserIndex uid
-      AcceptTeamInvitation luid pwd code ->
-        authInterpreter
-          . runInputConst cfg
-          $ acceptTeamInvitationImpl luid pwd code
-      InternalFindTeamInvitation mEmailKey code ->
-        runInputConst cfg $
-          internalFindTeamInvitationImpl mEmailKey code
+  Sem (UserSubsystem ': r) a ->
+  Sem r a
+runUserSubsystem authInterpreter = interpret $
+  \case
+    GetUserProfiles self others ->
+      getUserProfilesImpl self others
+    GetLocalUserProfiles others ->
+      getLocalUserProfilesImpl others
+    GetAccountsBy getBy ->
+      getAccountsByImpl getBy
+    GetAccountsByEmailNoFilter emails ->
+      getAccountsByEmailNoFilterImpl emails
+    GetAccountNoFilter luid ->
+      getAccountNoFilterImpl luid
+    GetSelfProfile self ->
+      getSelfProfileImpl self
+    GetUserProfilesWithErrors self others ->
+      getUserProfilesWithErrorsImpl self others
+    UpdateUserProfile self mconn mb update ->
+      updateUserProfileImpl self mconn mb update
+    CheckHandle uhandle ->
+      checkHandleImpl uhandle
+    CheckHandles hdls cnt ->
+      checkHandlesImpl hdls cnt
+    UpdateHandle uid mconn mb uhandle ->
+      updateHandleImpl uid mconn mb uhandle
+    LookupLocaleWithDefault luid ->
+      lookupLocaleOrDefaultImpl luid
+    IsBlocked email ->
+      isBlockedImpl email
+    BlockListDelete email ->
+      blockListDeleteImpl email
+    BlockListInsert email ->
+      blockListInsertImpl email
+    UpdateTeamSearchVisibilityInbound status ->
+      updateTeamSearchVisibilityInboundImpl status
+    SearchUsers luid query mDomain mMaxResults ->
+      searchUsersImpl luid query mDomain mMaxResults
+    BrowseTeam uid browseTeamFilters mMaxResults mPagingState ->
+      browseTeamImpl uid browseTeamFilters mMaxResults mPagingState
+    InternalUpdateSearchIndex uid ->
+      syncUserIndex uid
+    AcceptTeamInvitation luid pwd code ->
+      authInterpreter $
+        acceptTeamInvitationImpl luid pwd code
+    InternalFindTeamInvitation mEmailKey code ->
+      internalFindTeamInvitationImpl mEmailKey code
+    GetUserActivityTimestamp uid -> getUserActivityTimestampImpl uid
 
 internalFindTeamInvitationImpl ::
   ( Member InvitationStore r,
@@ -939,3 +921,11 @@ acceptTeamInvitationImpl luid pw code = do
   deleteInvitation inv.teamId inv.invitationId
   syncUserIndex uid
   generateUserEvent uid Nothing (teamUpdated uid tid)
+
+getUserActivityTimestampImpl :: (Member UserStore r) => UserId -> Sem r (Maybe UTCTime)
+getUserActivityTimestampImpl =
+  fmap
+    ( maximum
+        . (Nothing :) -- make sure the list of timestamps is non-empty
+    )
+    . getActivityTimestamps

@@ -124,6 +124,9 @@ runAppT e (AppT ma) = runReaderT ma e
 
 type Handler = ExceptT Error App
 
+runHandler :: Env -> Handler a -> IO (Either Error a)
+runHandler env = runAppT env . runExceptT
+
 type Continue m = Response -> m ResponseReceived
 
 userMsg :: UserId -> Msg -> Msg
