@@ -419,7 +419,7 @@ requestDevice lzusr tid uid = do
     requestDeviceFromService :: Local UserId -> Sem r (LastPrekey, [Prekey])
     requestDeviceFromService luid = do
       LegalHoldData.dropPendingPrekeys (tUnqualified luid)
-      lhDevice <- LHService.requestNewDevice tid (tUnqualified luid)
+      lhDevice <- LHService.requestNewDevice tid luid
       let NewLegalHoldClient prekeys lastKey = lhDevice
       pure (lastKey, prekeys)
 

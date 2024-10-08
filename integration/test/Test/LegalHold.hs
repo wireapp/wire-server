@@ -1012,9 +1012,14 @@ testLHApproveDeviceV1 = do
     requestLegalHoldDevice tid alice bob
       >>= assertStatus 201
 
+    checkChan chan \(req, _) -> runMaybeT . lift $ do
+      BS8.unpack req.requestMethod `shouldMatch` "GET"
+      req.pathInfo `shouldMatch` (T.pack <$> ["legalhold", "api-version"])
+
     checkChan chan \(req, body) -> runMaybeT . lift $ do
       BS8.unpack req.requestMethod `shouldMatch` "POST"
       req.pathInfo `shouldMatch` (T.pack <$> ["legalhold", "v1", "initiate"])
       let (Just (value :: Value)) = decode body
       value %. "team_id" `shouldMatch` tid
-      value %. "user_id" `shouldMatch` objQid bob
+      value %. "qualified_user_id.id" `shouldMatch` objId bob
+      value %. "qualified_user_id.domain" `shouldMatch` objDomain bob

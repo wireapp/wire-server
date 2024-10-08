@@ -31,10 +31,13 @@ import Bilge qualified
 import Bilge.Response
 import Brig.Types.Team.LegalHold
 import Data.Aeson
+import Data.ByteString.Char8 qualified as BS8
 import Data.ByteString.Conversion.To
 import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.Id
 import Data.Misc
+import Data.Qualified (Local, QualifiedWithTag (tUntagged), tUnqualified)
+import Data.Set qualified as Set
 import Galley.Effects.LegalHoldStore as LegalHoldData
 import Galley.External.LegalHoldService.Types
 import Imports
@@ -49,6 +52,62 @@ import Wire.API.Team.LegalHold.External
 
 ----------------------------------------------------------------------
 -- api
+
+data LhApiVersion = V0 | V1
+  deriving stock (Eq, Ord, Show, Enum, Bounded, Generic)
+
+versionToInt :: LhApiVersion -> Int
+versionToInt V0 = 0
+versionToInt V1 = 1
+
+versionToBS :: LhApiVersion -> ByteString
+versionToBS = ("v" <>) . BS8.pack . show . versionToInt
+
+versionedPaths :: LhApiVersion -> [ByteString] -> Http.Request -> Http.Request
+versionedPaths V0 paths = Bilge.paths paths
+versionedPaths v paths = Bilge.paths (versionToBS v : paths)
+
+supportedClientVersions :: Set LhApiVersion
+supportedClientVersions = Set.fromList [minBound .. maxBound]
+
+getLegalHoldApiVersion ::
+  ( Member (ErrorS 'LegalHoldServiceNotRegistered) r,
+    Member LegalHoldStore r
+  ) =>
+  TeamId ->
+  Sem r (Maybe (Set LhApiVersion))
+getLegalHoldApiVersion tid =
+  fmap toLhApiVersion . decode . (.responseBody) <$> makeLegalHoldServiceRequest tid params
+  where
+    params =
+      Bilge.paths ["api-version"]
+        . Bilge.method GET
+        . Bilge.acceptJson
+
+    toLhApiVersion :: SupportedVersions -> Set LhApiVersion
+    toLhApiVersion (SupportedVersions supported) = Set.fromList $ mapMaybe toVersion supported
+      where
+        toVersion 0 = Just V0
+        toVersion 1 = Just V1
+        toVersion _ = Nothing
+
+negotiateVersion ::
+  ( Member (ErrorS 'LegalHoldServiceNotRegistered) r,
+    Member (ErrorS 'LegalHoldServiceBadResponse) r,
+    Member LegalHoldStore r
+  ) =>
+  TeamId ->
+  Set LhApiVersion ->
+  Sem r LhApiVersion
+negotiateVersion tid clientVersions = do
+  mSupportedServerVersions <- getLegalHoldApiVersion tid
+  case mSupportedServerVersions of
+    Nothing -> pure V0
+    Just serverVersions -> do
+      let commonVersions = Set.intersection clientVersions serverVersions
+      case Set.lookupMax commonVersions of
+        Nothing -> throwS @'LegalHoldServiceBadResponse
+        Just version -> pure version
 
 -- | Get /status from legal hold service; throw 'Wai.Error' if things go wrong.
 checkLegalHoldServiceStatus ::
@@ -81,22 +140,27 @@ requestNewDevice ::
     Member P.TinyLog r
   ) =>
   TeamId ->
-  UserId ->
+  Local UserId ->
   Sem r NewLegalHoldClient
-requestNewDevice tid uid = do
-  resp <- makeLegalHoldServiceRequest tid reqParams
+requestNewDevice tid luid = do
+  apiVersion <- negotiateVersion tid supportedClientVersions
+  resp <- makeLegalHoldServiceRequest tid (reqParams apiVersion)
   case eitherDecode (responseBody resp) of
     Left e -> do
       P.info . Log.msg $ "Error decoding NewLegalHoldClient: " <> e
       throwS @'LegalHoldServiceBadResponse
     Right client -> pure client
   where
-    reqParams =
-      Bilge.paths ["initiate"]
-        . Bilge.json (RequestNewLegalHoldClient uid tid)
+    reqParams v =
+      versionedPaths v ["initiate"]
+        . mkBody v
         . Bilge.method POST
         . Bilge.acceptJson
         . Bilge.expect2xx
+
+    mkBody :: LhApiVersion -> Bilge.Request -> Bilge.Request
+    mkBody V0 = Bilge.json (RequestNewLegalHoldClient (tUnqualified luid) tid)
+    mkBody V1 = Bilge.json (RequestNewLegalHoldClientV1 (tUntagged luid) tid)
 
 -- | @POST /confirm@
 -- Confirm that a device has been linked to a user and provide an authorization token

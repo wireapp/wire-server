@@ -21,6 +21,7 @@
 module Wire.API.Team.LegalHold.External
   ( -- * initiate
     RequestNewLegalHoldClient (..),
+    RequestNewLegalHoldClientV1 (..),
     NewLegalHoldClient (..),
 
     -- * confirm
@@ -28,6 +29,9 @@ module Wire.API.Team.LegalHold.External
 
     -- * remove
     LegalHoldServiceRemove (..),
+
+    -- * SupportedVersions
+    SupportedVersions (..),
   )
 where
 
@@ -35,6 +39,8 @@ import Data.Aeson hiding (fieldLabelModifier)
 import Data.Id
 import Data.Json.Util ((#))
 import Data.OpenApi
+import Data.Qualified
+import Data.Schema qualified as Schema
 import Imports
 import Wire.API.User.Client.Prekey
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
@@ -75,6 +81,20 @@ instance FromJSON RequestNewLegalHoldClient where
     RequestNewLegalHoldClient
       <$> o .: "user_id"
       <*> o .: "team_id"
+
+data RequestNewLegalHoldClientV1 = RequestNewLegalHoldClientV1
+  { userId :: Qualified UserId,
+    teamId :: TeamId
+  }
+  deriving stock (Show, Eq, Generic)
+  deriving (ToJSON) via (Schema.Schema RequestNewLegalHoldClientV1)
+
+instance Schema.ToSchema RequestNewLegalHoldClientV1 where
+  schema =
+    Schema.object "RequestNewLegalHoldClientV1" $
+      RequestNewLegalHoldClientV1
+        <$> (.userId) Schema..= Schema.field "qualified_user_id" Schema.schema
+        <*> (.teamId) Schema..= Schema.field "team_id" Schema.schema
 
 -- | Response payload that the LH service returns upon calling @/initiate@
 data NewLegalHoldClient = NewLegalHoldClient
@@ -170,3 +190,13 @@ instance FromJSON LegalHoldServiceRemove where
     LegalHoldServiceRemove
       <$> o .: "user_id"
       <*> o .: "team_id"
+
+newtype SupportedVersions = SupportedVersions {supported :: [Int]}
+  deriving (FromJSON) via (Schema.Schema SupportedVersions)
+
+instance Schema.ToSchema SupportedVersions where
+  schema =
+    Schema.object "SupportedVersions " $
+      SupportedVersions
+        <$> supported
+          Schema..= Schema.field "supported" (Schema.array Schema.schema)
