@@ -28,7 +28,7 @@ testConsumeEventsOneWebSocket = do
       e %. "delivery_tag"
     assertNoEvent eventsChan
 
-    sendAck ackChan deliveryTag
+    sendAck ackChan deliveryTag False
     assertNoEvent eventsChan
 
     handle <- randomHandle
@@ -55,7 +55,65 @@ testConsumeEventsAcks = do
       e %. "payload.0.type" `shouldMatch` "user.client-add"
       e %. "payload.0.client.id" `shouldMatch` clientId
       e %. "delivery_tag"
-    sendAck ackChan deliveryTag
+    sendAck ackChan deliveryTag False
+
+  withEventsWebSocket alice clientId $ \eventsChan _ -> do
+    assertNoEvent eventsChan
+
+testConsumeEventsMultipleAcks :: (HasCallStack) => App ()
+testConsumeEventsMultipleAcks = do
+  alice <- randomUser OwnDomain def
+  client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
+  clientId <- objId client
+
+  handle <- randomHandle
+  putHandle alice handle >>= assertSuccess
+
+  withEventsWebSocket alice clientId $ \eventsChan ackChan -> do
+    assertEvent eventsChan $ \e -> do
+      e %. "payload.0.type" `shouldMatch` "user.client-add"
+      e %. "payload.0.client.id" `shouldMatch` clientId
+
+    deliveryTag <- assertEvent eventsChan $ \e -> do
+      e %. "payload.0.type" `shouldMatch` "user.update"
+      e %. "payload.0.user.handle" `shouldMatch` handle
+      e %. "delivery_tag"
+
+    sendAck ackChan deliveryTag True
+
+  withEventsWebSocket alice clientId $ \eventsChan _ -> do
+    assertNoEvent eventsChan
+
+testConsumeEventsAckNewEventWithoutAckingOldOne :: (HasCallStack) => App ()
+testConsumeEventsAckNewEventWithoutAckingOldOne = do
+  alice <- randomUser OwnDomain def
+  client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
+  clientId <- objId client
+
+  handle <- randomHandle
+  putHandle alice handle >>= assertSuccess
+
+  withEventsWebSocket alice clientId $ \eventsChan ackChan -> do
+    assertEvent eventsChan $ \e -> do
+      e %. "payload.0.type" `shouldMatch` "user.client-add"
+      e %. "payload.0.client.id" `shouldMatch` clientId
+
+    deliveryTagHandleAdd <- assertEvent eventsChan $ \e -> do
+      e %. "payload.0.type" `shouldMatch` "user.update"
+      e %. "payload.0.user.handle" `shouldMatch` handle
+      e %. "delivery_tag"
+
+    -- Only ack the handle add delivery tag
+    sendAck ackChan deliveryTagHandleAdd False
+
+  -- Expect client-add event to be delivered again.
+  withEventsWebSocket alice clientId $ \eventsChan ackChan -> do
+    deliveryTagClientAdd <- assertEvent eventsChan $ \e -> do
+      e %. "payload.0.type" `shouldMatch` "user.client-add"
+      e %. "payload.0.client.id" `shouldMatch` clientId
+      e %. "delivery_tag"
+
+    sendAck ackChan deliveryTagClientAdd False
 
   withEventsWebSocket alice clientId $ \eventsChan _ -> do
     assertNoEvent eventsChan
@@ -77,8 +135,17 @@ withEventsWebSocket uid cid f = do
 sendMsg :: (HasCallStack) => TChan Value -> Value -> App ()
 sendMsg eventsChan msg = liftIO $ atomically $ writeTChan eventsChan msg
 
-sendAck :: (HasCallStack) => TChan Value -> Value -> App ()
-sendAck ackChan deliveryTag = sendMsg ackChan $ object ["type" .= "ack", "data" .= object ["delivery_tag" .= deliveryTag, "multiple" .= False]]
+sendAck :: (HasCallStack) => TChan Value -> Value -> Bool -> App ()
+sendAck ackChan deliveryTag multiple =
+  sendMsg ackChan
+    $ object
+      [ "type" .= "ack",
+        "data"
+          .= object
+            [ "delivery_tag" .= deliveryTag,
+              "multiple" .= multiple
+            ]
+      ]
 
 assertEvent :: (HasCallStack) => TChan Value -> (Value -> App a) -> App a
 assertEvent eventsChan expectations = do
