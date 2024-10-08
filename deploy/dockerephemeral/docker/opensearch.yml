@@ -9,20 +9,18 @@ discovery.type: single-node
 
 action.auto_create_index: true
 
-path.data: /bitnami/opensearch
+path.data: /usr/share/opensearch/data
 
 # Start OpenSearch Security Demo Configuration
 # WARNING: revise all the lines below before you go into production
 plugins:
   security:
-#    nodes_dn:
-#      - '/CN=opensearch-cluster-master.*/'
     ssl:
       transport:
-        pemcert_filepath: certs/tls.crt
-        pemkey_filepath: certs/tls.key
-        pemtrustedcas_filepath: certs/ca.crt
-        enforce_hostname_verification: false
+          pemcert_filepath: certs/tls.crt
+          pemkey_filepath: certs/tls.key
+          pemtrustedcas_filepath: certs/ca.crt
+          enforce_hostname_verification: false
       http:
         enabled: true
         pemcert_filepath: certs/tls.crt
@@ -30,9 +28,6 @@ plugins:
         pemtrustedcas_filepath: certs/ca.crt
     allow_unsafe_democertificates: true
     allow_default_init_securityindex: true
-    # authcz:
-    #   admin_dn:
-    #     - CN=kirk,OU=client,O=client,L=test,C=de
     audit.type: internal_opensearch
     enable_snapshot_restore_privilege: true
     check_snapshot_restore_write_privileges: true

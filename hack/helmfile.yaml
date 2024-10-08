@@ -124,7 +124,9 @@ releases:
   - name: 'opensearch-ephemeral'
     namespace: '{{ .Values.namespace1 }}'
     chart: 'opensearch/opensearch'
-    version: "2.25.0"
+    # The 1.x.x and 2.x.x chart versions belong to the OpenSearch versions 1.x.x
+    # and 2.x.x respectively. I.e. both strains are actively maintained.
+    version: "1.31.0"
     values:
       - singleNode: true
 
@@ -135,7 +137,7 @@ releases:
             name: opensearch-cert
             namespace: {{ .Values.namespace1 }}
             labels:
-              chart: "opensearch-2.25.0"
+              chart: "opensearch-1.31.0"
               release: "opensearch-ephemeral"
               heritage: "Helm"
           spec:
@@ -241,7 +243,8 @@ releases:
 
       - securityConfig:
           enabled: true
-          path: "/usr/share/opensearch/config/opensearch-security"
+          # The path will be different for OpenSearch 2.x.x!
+          path: "/usr/share/opensearch/plugins/opensearch-security/securityconfig"
           config:
             # There are multiple ways to define the configuration here:
             # * If you define anything under data, the chart will automatically create
@@ -373,7 +376,9 @@ releases:
   - name: 'opensearch-ephemeral'
     namespace: '{{ .Values.namespace2 }}'
     chart: 'opensearch/opensearch'
-    version: "2.25.0"
+    # The 1.x.x and 2.x.x chart versions belong to the OpenSearch versions 1.x.x
+    # and 2.x.x respectively. I.e. both strains are actively maintained.
+    version: "1.31.0"
     values:
       - singleNode: true
 
@@ -384,7 +389,7 @@ releases:
             name: opensearch-cert
             namespace: {{ .Values.namespace2 }}
             labels:
-              chart: "opensearch-2.25.0"
+              chart: "opensearch-1.31.0"
               release: "opensearch-ephemeral"
               heritage: "Helm"
           spec:
@@ -495,7 +500,8 @@ releases:
 
       - securityConfig:
           enabled: true
-          path: "/usr/share/opensearch/config/opensearch-security"
+          # The path will be different for OpenSearch 2.x.x!
+          path: "/usr/share/opensearch/plugins/opensearch-security/securityconfig"
           config:
             # There are multiple ways to define the configuration here:
             # * If you define anything under data, the chart will automatically create
