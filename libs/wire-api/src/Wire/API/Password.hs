@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -124,8 +125,8 @@ defaultScryptParams =
 defaultOptions :: Argon2.Options
 defaultOptions =
   Argon2.Options
-    { iterations = 3,
-      memory = 2 ^ (16 :: Int),
+    { iterations = 1,
+      memory = 2 ^ (20 :: Int),
       parallelism = 4,
       variant = Argon2.Argon2id,
       version = Argon2.Version13
@@ -175,7 +176,7 @@ hashPasswordScrypt password = do
   salt <- newSalt $ fromIntegral defaultScryptParams.saltLength
   let params = defaultScryptParams
   let hashedKey = hashPasswordWithParams params password salt
-  pure ScryptHashedPassword {..}
+  pure $! ScryptHashedPassword {..}
 
 encodeScryptPassword :: ScryptHashedPassword -> Text
 encodeScryptPassword ScryptHashedPassword {..} =
@@ -191,7 +192,7 @@ encodeScryptPassword ScryptHashedPassword {..} =
 hashPasswordArgon2id :: (MonadIO m) => ByteString -> m Argon2HashedPassword
 hashPasswordArgon2id pwd = do
   salt <- newSalt 16
-  pure $ hashPasswordArgon2idWithSalt salt pwd
+  pure $! hashPasswordArgon2idWithSalt salt pwd
 
 hashPasswordArgon2idWithSalt :: ByteString -> ByteString -> Argon2HashedPassword
 hashPasswordArgon2idWithSalt = hashPasswordArgon2idWithOptions defaultOptions
@@ -305,15 +306,14 @@ parseScryptPasswordHashParams passwordHash = do
 
 -------------------------------------------------------------------------------
 
--- TODO: Force strictnes on this function, the hash function can break unsafely and we should probably force it as soon as possible.
 hashPasswordWithOptions :: Argon2.Options -> ByteString -> ByteString -> ByteString
-hashPasswordWithOptions opts password salt =
+hashPasswordWithOptions opts password salt = do
   let tagSize = 16
-   in case (Argon2.hash opts password salt tagSize) of
-        -- CryptoFailed occurs when salt, output or input are too small/big.
-        -- since we control those values ourselves, it should never have a runtime error
-        CryptoFailed cErr -> error $ "Impossible error: " <> show cErr
-        CryptoPassed hash -> hash
+  case (Argon2.hash opts password salt tagSize) of
+    -- CryptoFailed occurs when salt, output or input are too small/big.
+    -- since we control those values ourselves, it should never have a runtime error
+    CryptoFailed cErr -> error $ "Impossible error: " <> show cErr
+    CryptoPassed hash -> hash
 
 hashPasswordWithParams ::
   ( ByteArrayAccess password,
