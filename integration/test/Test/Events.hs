@@ -21,11 +21,12 @@ testConsumeEventsOneWebSocket = do
   client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
   clientId <- objId client
 
-  withNewWebSocket alice clientId $ \eventsChan ackChan -> do
+  withEventsWebSocket alice clientId $ \eventsChan ackChan -> do
     deliveryTag <- assertEvent eventsChan $ \e -> do
       e %. "payload.0.type" `shouldMatch` "user.client-add"
       e %. "payload.0.client.id" `shouldMatch` clientId
       e %. "delivery_tag"
+    assertNoEvent eventsChan
 
     sendAck ackChan deliveryTag
     assertNoEvent eventsChan
@@ -37,32 +38,27 @@ testConsumeEventsOneWebSocket = do
       e %. "payload.0.type" `shouldMatch` "user.update"
       e %. "payload.0.user.handle" `shouldMatch` handle
 
-testConsumeEventsNewWebSockets :: (HasCallStack) => App ()
-testConsumeEventsNewWebSockets = do
+testConsumeEventsAcks :: (HasCallStack) => App ()
+testConsumeEventsAcks = do
   alice <- randomUser OwnDomain def
   client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
   clientId <- objId client
 
-  withNewWebSocket alice clientId $ \eventsChan ackChan -> do
+  withEventsWebSocket alice clientId $ \eventsChan _ackChan -> do
+    assertEvent eventsChan $ \e -> do
+      e %. "payload.0.type" `shouldMatch` "user.client-add"
+      e %. "payload.0.client.id" `shouldMatch` clientId
+
+  -- without ack, we receive the same event again
+  withEventsWebSocket alice clientId $ \eventsChan ackChan -> do
     deliveryTag <- assertEvent eventsChan $ \e -> do
       e %. "payload.0.type" `shouldMatch` "user.client-add"
       e %. "payload.0.client.id" `shouldMatch` clientId
       e %. "delivery_tag"
-    -- if you close the WS in this line, the client-add message will remain
-    -- in the queue and will be received through the next WS connection,
-    -- before we are able to sne the Ack message
     sendAck ackChan deliveryTag
 
-  withNewWebSocket alice clientId $ \eventsChan _ -> do
+  withEventsWebSocket alice clientId $ \eventsChan _ -> do
     assertNoEvent eventsChan
-
-  handle <- randomHandle
-  putHandle alice handle >>= assertSuccess
-
-  void $ withNewWebSocket alice clientId $ \eventsChan _ -> do
-    assertEvent eventsChan $ \e -> do
-      e %. "payload.0.type" `shouldMatch` "user.update"
-      e %. "payload.0.user.handle" `shouldMatch` handle
 
 testPingPong :: (HasCallStack) => App ()
 testPingPong = do
@@ -70,7 +66,7 @@ testPingPong = do
   client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
   clientId <- objId client
 
-  withNewWebSocket alice clientId $ \eventsChan ackChan -> do
+  withEventsWebSocket alice clientId $ \eventsChan ackChan -> do
     assertEvent eventsChan $ const $ pure ()
     sendMsg ackChan $ object ["type" .= "ping"]
     assertEvent eventsChan $ \e -> e %. "type" `shouldMatch` "pong"
@@ -78,8 +74,8 @@ testPingPong = do
 ----------------------------------------------------------------------
 -- helpers
 
-withNewWebSocket :: (HasCallStack, MakesValue uid) => uid -> String -> (TChan Value -> TChan Value -> App a) -> App a
-withNewWebSocket uid cid f = do
+withEventsWebSocket :: (HasCallStack, MakesValue uid) => uid -> String -> (TChan Value -> TChan Value -> App a) -> App a
+withEventsWebSocket uid cid f = do
   bracket setup (\(_, _, wsThread) -> cancel wsThread) $ \(eventsChan, ackChan, _) -> do
     f eventsChan ackChan
   where
