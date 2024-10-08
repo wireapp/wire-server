@@ -126,7 +126,8 @@ defaultOptions :: Argon2.Options
 defaultOptions =
   Argon2.Options
     { iterations = 1,
-      memory = 2 ^ (20 :: Int),
+      -- TODO: fix this after meeting with Security
+      memory = 2 ^ (18 :: Int),
       parallelism = 4,
       variant = Argon2.Argon2id,
       version = Argon2.Version13
@@ -232,9 +233,9 @@ parsePassword expected =
         Right hashedPassword -> Right $ ScryptPassword hashedPassword
         Left scryptParseError ->
           Left $
-            "failed to parse password are argon2 or scrypt hashed password: argon2 parse error: "
+            "Failed to parse Argon2 or Scrypt. Argon2 parse error: "
               <> argon2ParseError
-              <> ", scrypt parse error: "
+              <> ", Scrypt parse error: "
               <> scryptParseError
 
 newSalt :: (MonadIO m) => Int -> m ByteString

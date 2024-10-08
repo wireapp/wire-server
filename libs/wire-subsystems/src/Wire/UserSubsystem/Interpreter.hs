@@ -925,7 +925,7 @@ acceptTeamInvitationImpl luid pw code = do
   mSelfProfile <- getSelfProfileImpl luid
   let mEmailKey = mkEmailKey <$> (userEmail . selfUser =<< mSelfProfile)
       mTid = mSelfProfile >>= userTeam . selfUser
-  verifyPasswordError luid pw
+  verifyUserPasswordError luid pw
   inv <- internalFindTeamInvitationImpl mEmailKey code
   let tid = inv.teamId
   let minvmeta = (,inv.createdAt) <$> inv.createdBy

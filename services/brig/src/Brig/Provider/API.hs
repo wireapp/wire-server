@@ -201,7 +201,7 @@ internalProviderAPI ::
     Member VerificationCodeSubsystem r
   ) =>
   ServerT BrigIRoutes.ProviderAPI (Handler r)
-internalProviderAPI = Named @"get-provider-activation-code" getActivationCodeH
+internalProviderAPI = Named @"get-provider-activation-code" getActivationCode
 
 --------------------------------------------------------------------------------
 -- Public API (Unauthenticated)
@@ -273,13 +273,13 @@ activateAccountKey key val = do
       lift $ sendApprovalConfirmMail name email
       pure . Just $ Public.ProviderActivationResponse email
 
-getActivationCodeH ::
+getActivationCode ::
   ( Member GalleyAPIAccess r,
     Member VerificationCodeSubsystem r
   ) =>
   EmailAddress ->
   (Handler r) Code.KeyValuePair
-getActivationCodeH email = do
+getActivationCode email = do
   guardSecondFactorDisabled Nothing
   let gen = mkVerificationCodeGen email
   code <- lift . liftSem $ internalLookupCode gen.genKey IdentityVerification

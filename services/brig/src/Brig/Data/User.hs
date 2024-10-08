@@ -188,7 +188,7 @@ authenticate ::
   PlainTextPassword6 ->
   ExceptT AuthError (AppT r) ()
 authenticate u pw =
-  -- TODO: Move this logic into auth subsystem.
+  -- FUTUREWORK: Move this logic into auth subsystem.
   lift (wrapHttp $ lookupAuth u) >>= \case
     Nothing -> throwE AuthInvalidUser
     Just (_, Deleted) -> throwE AuthInvalidUser

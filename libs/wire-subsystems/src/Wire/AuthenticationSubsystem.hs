@@ -29,11 +29,11 @@ import Wire.API.User.Password (PasswordResetCode, PasswordResetIdentity)
 import Wire.UserKeyStore
 
 data AuthenticationSubsystem m a where
-  VerifyPasswordError :: Local UserId -> PlainTextPassword6 -> AuthenticationSubsystem m ()
   CreatePasswordResetCode :: EmailKey -> AuthenticationSubsystem m ()
   ResetPassword :: PasswordResetIdentity -> PasswordResetCode -> PlainTextPassword8 -> AuthenticationSubsystem m ()
   VerifyPassword :: PlainTextPassword6 -> Password -> AuthenticationSubsystem m (Bool, PasswordStatus)
   VerifyUserPassword :: UserId -> PlainTextPassword6 -> AuthenticationSubsystem r (Bool, PasswordStatus)
+  VerifyUserPasswordError :: Local UserId -> PlainTextPassword6 -> AuthenticationSubsystem m ()
   VerifyProviderPassword :: ProviderId -> PlainTextPassword6 -> AuthenticationSubsystem r (Bool, PasswordStatus)
   -- For testing
   InternalLookupPasswordResetCode :: EmailKey -> AuthenticationSubsystem m (Maybe PasswordResetPair)
