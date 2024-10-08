@@ -8,26 +8,20 @@ import Data.Aeson
 import Data.Id
 import Imports
 import Network.AMQP qualified as Amqp
-import Network.AMQP.Extended (getStableRabbitmqConn)
+import Network.AMQP.Extended (withConnection)
 import Network.WebSockets
 import Network.WebSockets qualified as WS
 import System.Logger qualified as Log
 import Wire.API.Notification
 import Wire.API.WebSocket
 
-rabbitMQWebSocketApp :: UserId -> ClientId -> MVar (Maybe Amqp.Connection) -> Env -> ServerApp
-rabbitMQWebSocketApp uid cid rConn e pendingConn = do
+rabbitMQWebSocketApp :: UserId -> ClientId -> Env -> ServerApp
+rabbitMQWebSocketApp uid cid e pendingConn = do
   wsConn <- liftIO (acceptRequest pendingConn `catch` rejectOnError pendingConn)
   closeWS <- newEmptyMVar
-
-  do
-    -- FUTUREWORK: we pool connections, but not channels.  however, channel pooling is also a
-    -- thing!  we should generate some performance data using otel and decide whether we want
-    -- to do it.
-    -- https://stackoverflow.com/questions/10365867/how-can-i-pool-channels-in-rabbitmq
-    mConn <- getStableRabbitmqConn rConn
-    chan <- maybe (throwIO ConnectionClosed) Amqp.openChannel mConn
-
+  -- TODO: Don't create new conns for every client, this will definitely kill rabbit
+  withConnection e.logg e.rabbitmq $ \conn -> do
+    chan <- Amqp.openChannel conn -- TODO: should we open a channel for every request? or have a pool of them?
     let handleConsumerError :: (Exception e) => e -> IO ()
         handleConsumerError err = do
           Log.err e.logg $
@@ -40,7 +34,6 @@ rabbitMQWebSocketApp uid cid rConn e pendingConn = do
 
         handleConnectionClosed :: ConnectionException -> IO ()
         handleConnectionClosed err = do
-          -- TODO: extract "Log.msg ..." into helper function.  don't say "pushing" in pulling exceptions.  make everything nicer.
           Log.info e.logg $
             Log.msg (Log.val "Pushing to WS failed, closing connection")
               . Log.field "error" (displayException err)
