@@ -3,17 +3,16 @@ module Test.Events where
 import API.Brig
 import API.BrigCommon
 import API.Common
-import Control.Concurrent.STM (atomically)
-import Control.Concurrent.STM.TChan
+import Control.Retry
 import qualified Data.Aeson as A
 import Data.ByteString.Conversion (toByteString')
 import Data.String.Conversions (cs)
-import qualified Network.WebSockets.Client as WS
-import qualified Network.WebSockets.Connection as WS
+import qualified Data.Text as Text
+import qualified Network.WebSockets as WS
 import SetupHelpers
 import Testlib.Prelude hiding (assertNoEvent)
-import UnliftIO (Async, async, bracket, cancel, race, waitAny)
-import UnliftIO.Concurrent (threadDelay)
+import Testlib.Printing
+import UnliftIO hiding (handle)
 
 testConsumeEventsOneWebSocket :: (HasCallStack) => App ()
 testConsumeEventsOneWebSocket = do
@@ -122,21 +121,40 @@ testConsumeEventsAckNewEventWithoutAckingOldOne = do
 -- helpers
 
 withEventsWebSocket :: (HasCallStack, MakesValue uid) => uid -> String -> (TChan Value -> TChan Value -> App a) -> App a
-withEventsWebSocket uid cid f = do
-  bracket setup (\(_, _, wsThread) -> cancel wsThread) $ \(eventsChan, ackChan, _) -> do
-    f eventsChan ackChan
+withEventsWebSocket uid cid k = do
+  closeWS <- newEmptyMVar
+  bracket (setup closeWS) (\(_, _, wsThread) -> cancel wsThread) $ \(eventsChan, ackChan, wsThread) -> do
+    x <- k eventsChan ackChan
+
+    -- Ensure all the acks are sent before closing the websocket
+    isAckChanEmpty <-
+      retrying
+        (limitRetries 5 <> constantDelay 10_000)
+        (\_ isEmpty -> pure $ not isEmpty)
+        (\_ -> atomically $ isEmptyTChan ackChan)
+    unless isAckChanEmpty $ do
+      putStrLn $ colored yellow $ "The ack chan is not empty after 50ms, some acks may not make it to the server"
+
+    void $ tryPutMVar closeWS ()
+
+    timeout 1_000_000 (wait wsThread) >>= \case
+      Nothing ->
+        putStrLn $ colored yellow $ "The websocket thread did not close after waiting for 1s"
+      Just () -> pure ()
+
+    pure x
   where
-    setup :: (HasCallStack) => App (TChan Value, TChan Value, Async ())
-    setup = do
+    setup :: (HasCallStack) => MVar () -> App (TChan Value, TChan Value, Async ())
+    setup closeWS = do
       (eventsChan, ackChan) <- liftIO $ (,) <$> newTChanIO <*> newTChanIO
-      wsThread <- eventsWebSocket uid cid eventsChan ackChan
+      wsThread <- eventsWebSocket uid cid eventsChan ackChan closeWS
       pure (eventsChan, ackChan, wsThread)
 
 sendMsg :: (HasCallStack) => TChan Value -> Value -> App ()
 sendMsg eventsChan msg = liftIO $ atomically $ writeTChan eventsChan msg
 
 sendAck :: (HasCallStack) => TChan Value -> Value -> Bool -> App ()
-sendAck ackChan deliveryTag multiple =
+sendAck ackChan deliveryTag multiple = do
   sendMsg ackChan
     $ object
       [ "type" .= "ack",
@@ -149,37 +167,43 @@ sendAck ackChan deliveryTag multiple =
 
 assertEvent :: (HasCallStack) => TChan Value -> (Value -> App a) -> App a
 assertEvent eventsChan expectations = do
-  mEvent <- race (threadDelay 1_000_000) (liftIO $ atomically (readTChan eventsChan))
-  case mEvent of
-    Left () -> assertFailure "No event received for 1s"
-    Right e -> expectations e
+  timeout 1_000_000 (atomically (readTChan eventsChan)) >>= \case
+    Nothing -> assertFailure "No event received for 1s"
+    Just e -> expectations e
 
 assertNoEvent :: (HasCallStack) => TChan Value -> App ()
 assertNoEvent eventsChan = do
-  mEvent <- race (threadDelay 1_000_000) (liftIO $ atomically (readTChan eventsChan))
-  case mEvent of
-    Left () -> pure ()
-    Right e -> assertFailure $ "Did not expect event: " <> cs (A.encode e)
+  timeout 1_000_000 (atomically (readTChan eventsChan)) >>= \case
+    Nothing -> pure ()
+    Just e -> assertFailure $ "Did not expect event: " <> cs (A.encode e)
 
-eventsWebSocket :: (MakesValue user) => user -> String -> TChan Value -> TChan Value -> App (Async ())
-eventsWebSocket user clientId eventsChan ackChan = do
+eventsWebSocket :: (MakesValue user) => user -> String -> TChan Value -> TChan Value -> MVar () -> App (Async ())
+eventsWebSocket user clientId eventsChan ackChan closeWS = do
   serviceMap <- getServiceMap =<< objDomain user
   uid <- objId =<< objQidObject user
   let HostPort caHost caPort = serviceHostPort serviceMap Cannon
       path = "/events?client=" <> clientId
       caHdrs = [(fromString "Z-User", toByteString' uid)]
       app conn = do
-        r <- async $ wsRead conn
+        r <-
+          async $ wsRead conn `catch` \(e :: WS.ConnectionException) ->
+            case e of
+              WS.CloseRequest {} -> pure ()
+              _ -> throwIO e
         w <- async $ wsWrite conn
         void $ waitAny [r, w]
+
       wsRead conn = forever $ do
         bs <- WS.receiveData conn
         case decodeStrict' bs of
           Just n -> atomically $ writeTChan eventsChan n
           Nothing -> putStrLn $ "Failed to decode events: " ++ show bs
+
       wsWrite conn = forever $ do
-        ack <- atomically $ readTChan ackChan
-        WS.sendBinaryData conn (encode ack)
+        eitherAck <- race (readMVar closeWS) (atomically $ readTChan ackChan)
+        case eitherAck of
+          Left () -> WS.sendClose conn (Text.pack "")
+          Right ack -> WS.sendBinaryData conn (encode ack)
   liftIO
     $ async
     $ WS.runClientWith
