@@ -112,7 +112,6 @@ import Galley.Types.Conversations.Members qualified as Conv
 import Galley.Types.Teams
 import Galley.Types.UserList
 import Imports hiding (forkIO)
-import Network.Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Final
@@ -132,6 +131,7 @@ import Wire.API.Event.Team
 import Wire.API.Federation.Error
 import Wire.API.Message qualified as Conv
 import Wire.API.Routes.Internal.Galley.TeamsIntra
+import Wire.API.Routes.LowLevelStream
 import Wire.API.Routes.MultiTablePaging (MultiTablePage (MultiTablePage), MultiTablePagingState (mtpsState))
 import Wire.API.Routes.Public.Galley.TeamMember
 import Wire.API.Team
@@ -500,9 +500,12 @@ getTeamMembers lzusr tid mbMaxResults mbPagingState = do
               (pwsHasMore p)
               (teamMemberPagingState p)
 
-outputToStreamingBody :: (Member (Final IO) r) => Sem (Output LByteString ': r) () -> Sem r StreamingBody
+outputToStreamingBody ::
+  (Member (Final IO) r) =>
+  Sem (Output LByteString ': r) () ->
+  Sem r LowLevelStreamingBody
 outputToStreamingBody action = withWeavingToFinal @IO $ \state weave _inspect ->
-  pure . (<$ state) $ \write flush -> do
+  pure . (<$ state) $ pure $ \write flush -> do
     let writeChunk c = embedFinal $ do
           write (lazyByteString c)
           flush
@@ -518,7 +521,7 @@ getTeamMembersCSV ::
   ) =>
   Local UserId ->
   TeamId ->
-  Sem r StreamingBody
+  Sem r LowLevelStreamingBody
 getTeamMembersCSV lusr tid = do
   E.getTeamMember tid (tUnqualified lusr) >>= \case
     Nothing -> throwS @'AccessDenied

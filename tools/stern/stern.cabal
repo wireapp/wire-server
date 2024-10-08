@@ -86,6 +86,7 @@ library
     , http-client            >=0.7
     , http-types             >=0.8
     , imports
+    , kan-extensions
     , lens                   >=4.4
     , mtl                    >=2.1
     , openapi3

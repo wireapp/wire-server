@@ -30,12 +30,16 @@ where
 import Brig.Types.Intra
 import Control.Concurrent.Chan
 import Control.Error
+import Control.Exception (catch)
 import Control.Lens (view, (.~))
+import Control.Monad.Codensity
 import Control.Monad.Except
 import Data.Aeson hiding (Error, json)
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Aeson.Types (emptyArray)
 import Data.ByteString (fromStrict)
+import Data.ByteString.Builder (byteString)
+import Data.ByteString.Char8 qualified as B8
 import Data.ByteString.Conversion
 import Data.Handle (Handle)
 import Data.Id
@@ -48,6 +52,7 @@ import Data.Text.Encoding qualified as T
 import Data.Text.Encoding.Error
 import Data.Text.Lazy qualified as LT
 import Data.Text.Lazy.Encoding qualified as LT
+import Debug.Trace
 import GHC.TypeLits (KnownSymbol)
 import Imports hiding (head)
 import Network.HTTP.Types
@@ -58,19 +63,20 @@ import Network.Wai.Utilities.Server qualified as Server
 import Servant (NoContent (NoContent), ServerT, (:<|>) (..))
 import Servant qualified
 import Servant.Server qualified
-import Servant.Types.SourceT (fromAction)
 import Stern.API.Routes
 import Stern.App
 import Stern.Intra qualified as Intra
 import Stern.Options
 import Stern.Types
-import System.Logger.Class hiding (Error, name, trace, (.=))
+import System.Logger.Class hiding (Error, flush, name, trace, (.=))
+import UnliftIO.Async
 import Util.Options
 import Wire.API.Connection
 import Wire.API.Internal.Notification (QueuedNotification)
 import Wire.API.Routes.Internal.Brig.Connection (ConnectionStatus)
 import Wire.API.Routes.Internal.Brig.EJPD qualified as EJPD
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
+import Wire.API.Routes.LowLevelStream
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Team.Feature
 import Wire.API.Team.Member (teamMembers)
@@ -454,15 +460,27 @@ getUserData uid mMaxConvs mMaxNotifs = do
       "properties" .= properties
     ]
 
-getTeamActivityInfo :: TeamId -> Handler (Servant.SourceIO ByteString)
+getTeamActivityInfo :: TeamId -> Handler LowLevelStreamingBody
 getTeamActivityInfo tid = do
+  traceM "getTeamActivityInfo"
   -- TODO: handle large teams
-  _memList <- view teamMembers <$> Intra.getTeamMembers tid
-  liftIO $ do
-    chan <- newChan
-    writeChan chan (Just "foo")
-    writeChan chan Nothing
-    pure $ fmap fold $ fromAction isNothing (readChan chan)
+  memList <- view teamMembers <$> Intra.getTeamMembers tid
+  pure $ do
+    chan <- liftIO newChan
+    let runThread = do
+          pooledForConcurrentlyN_ 8 memList $ \user -> do
+            -- get user info
+            info <- Intra.getUserInfo user -- ???
+          writeChan chan Nothing
+    void $ Codensity $ withAsync runThread
+    let body write flush = do
+          let go = do
+                traceM "write chunk"
+                readChan chan >>= \case
+                  Nothing -> write "" >> flush
+                  Just line -> write (byteString line <> "\n") >> flush >> go
+          go
+    pure (body :: StreamingBody)
 
 -- Utilities
 
