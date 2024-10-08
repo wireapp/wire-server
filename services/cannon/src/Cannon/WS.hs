@@ -67,6 +67,7 @@ import Data.List.Extra (chunksOf)
 import Data.Text.Encoding (decodeUtf8)
 import Data.Timeout (TimeoutUnit (..), (#))
 import Imports hiding (threadDelay)
+import Network.AMQP.Extended
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
@@ -145,7 +146,8 @@ data Env = Env
     dict :: !(Dict Key Websocket),
     rand :: !GenIO,
     clock :: !Clock,
-    drainOpts :: DrainOpts
+    drainOpts :: DrainOpts,
+    rabbitmq :: !AmqpEndpoint
   }
 
 setRequestId :: RequestId -> Env -> Env
@@ -191,6 +193,7 @@ env ::
   GenIO ->
   Clock ->
   DrainOpts ->
+  AmqpEndpoint ->
   Env
 env leh lp gh gp = Env leh lp (Bilge.host gh . Bilge.port gp $ empty) (RequestId defRequestId)
 
