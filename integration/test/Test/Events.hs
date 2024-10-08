@@ -60,17 +60,6 @@ testConsumeEventsAcks = do
   withEventsWebSocket alice clientId $ \eventsChan _ -> do
     assertNoEvent eventsChan
 
-testPingPong :: (HasCallStack) => App ()
-testPingPong = do
-  alice <- randomUser OwnDomain def
-  client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
-  clientId <- objId client
-
-  withEventsWebSocket alice clientId $ \eventsChan ackChan -> do
-    assertEvent eventsChan $ const $ pure ()
-    sendMsg ackChan $ object ["type" .= "ping"]
-    assertEvent eventsChan $ \e -> e %. "type" `shouldMatch` "pong"
-
 ----------------------------------------------------------------------
 -- helpers
 

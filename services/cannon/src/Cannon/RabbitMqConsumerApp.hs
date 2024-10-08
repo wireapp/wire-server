@@ -5,7 +5,6 @@ import Cannon.WS
 import Control.Concurrent.Async (race)
 import Control.Exception (Handler (..), catch, catches, throwIO)
 import Data.Aeson
-import Data.Aeson qualified as Aeson
 import Data.Id
 import Imports
 import Network.AMQP qualified as Amqp
@@ -74,11 +73,6 @@ rabbitMQWebSocketApp uid cid rConn e pendingConn = do
                 throwIO $ FailedToParseClientMessage err
               Right (AckMessage ackData) -> do
                 void $ Amqp.ackMsg chan ackData.deliveryTag ackData.multiple
-                wsReceiverLoop
-              Right PingUpMessage -> do
-                WS.sendBinaryData wsConn $ Aeson.encode @MessageServerToClient PongDownMessage
-                wsReceiverLoop
-              Right PongUpMessage ->
                 wsReceiverLoop
     wsReceiverLoop `catches` handlers
 
