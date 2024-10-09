@@ -331,7 +331,6 @@ instance SetFeatureConfig LegalholdConfig where
         Member (ErrorS 'LegalHoldServiceNotRegistered) r,
         Member (ErrorS 'UserLegalHoldIllegalOperation) r,
         Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
-        Member (ErrorS 'LegalHoldServiceBadResponse) r,
         Member ExternalAccess r,
         Member FederatorAccess r,
         Member FireAndForget r,

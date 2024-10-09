@@ -144,7 +144,7 @@ requestNewDevice tid luid = do
 -- Confirm that a device has been linked to a user and provide an authorization token
 confirmLegalHold ::
   ( Member (ErrorS 'LegalHoldServiceNotRegistered) r,
-    Member (ErrorS 'LegalHoldServiceBadResponse) r,
+    Member P.TinyLog r,
     Member LegalHoldStore r
   ) =>
   ClientId ->
@@ -186,7 +186,7 @@ confirmLegalHold clientId tid luid legalHoldAuthToken = do
 -- Inform the LegalHold Service that a user's legalhold has been disabled.
 removeLegalHold ::
   ( Member (ErrorS 'LegalHoldServiceNotRegistered) r,
-    Member (ErrorS 'LegalHoldServiceBadResponse) r,
+    Member P.TinyLog r,
     Member LegalHoldStore r
   ) =>
   TeamId ->
@@ -259,10 +259,14 @@ versionedPaths v paths = Bilge.paths (versionToBS v : paths)
 supportedClientVersions :: Set LhApiVersion
 supportedClientVersions = Set.fromList [minBound .. maxBound]
 
+-- | Find the highest common version between wire-server and the legalhold service.
+-- If the legalhold service does not support the `/api-version` endpoint, we assume it's `v0`.
+-- If there is no common version, we log a warning and use `v0`. This violates the fail-fast principle,
+-- but makes multiple API endpoints backwards compatible.
 negotiateVersion ::
   ( Member (ErrorS 'LegalHoldServiceNotRegistered) r,
-    Member (ErrorS 'LegalHoldServiceBadResponse) r,
-    Member LegalHoldStore r
+    Member LegalHoldStore r,
+    Member P.TinyLog r
   ) =>
   TeamId ->
   Set LhApiVersion ->
@@ -270,9 +274,13 @@ negotiateVersion ::
 negotiateVersion tid clientVersions = do
   mSupportedServerVersions <- getLegalHoldApiVersion tid
   case mSupportedServerVersions of
-    -- if the legal hold service does not support the api-version endpoint, we assume it's v0
     Nothing -> pure V0
     Just serverVersions -> do
       let commonVersions = Set.intersection clientVersions serverVersions
-      -- if there is no common version there is nothing we can do but throw an error
-      maybe (throwS @'LegalHoldServiceBadResponse) pure $ Set.lookupMax commonVersions
+      case Set.lookupMax commonVersions of
+        Nothing -> do
+          P.warn $
+            Log.msg (Log.val "Version negotiation with legal hold service failed. No common versions found. Using v0.")
+              . Log.field "team_id" (show tid)
+          pure V0
+        Just v -> pure v
