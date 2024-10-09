@@ -52,24 +52,10 @@ import Wire.API.Team.LegalHold.External
 
 ----------------------------------------------------------------------
 -- api
-
 data LhApiVersion = V0 | V1
   deriving stock (Eq, Ord, Show, Enum, Bounded, Generic)
 
-versionToInt :: LhApiVersion -> Int
-versionToInt V0 = 0
-versionToInt V1 = 1
-
-versionToBS :: LhApiVersion -> ByteString
-versionToBS = ("v" <>) . BS8.pack . show . versionToInt
-
-versionedPaths :: LhApiVersion -> [ByteString] -> Http.Request -> Http.Request
-versionedPaths V0 paths = Bilge.paths paths
-versionedPaths v paths = Bilge.paths (versionToBS v : paths)
-
-supportedClientVersions :: Set LhApiVersion
-supportedClientVersions = Set.fromList [minBound .. maxBound]
-
+-- | Get /api-version from legal hold service; this does not throw an error because the api-version endpoint may not exist.
 getLegalHoldApiVersion ::
   ( Member (ErrorS 'LegalHoldServiceNotRegistered) r,
     Member LegalHoldStore r
@@ -90,24 +76,6 @@ getLegalHoldApiVersion tid =
         toVersion 0 = Just V0
         toVersion 1 = Just V1
         toVersion _ = Nothing
-
-negotiateVersion ::
-  ( Member (ErrorS 'LegalHoldServiceNotRegistered) r,
-    Member (ErrorS 'LegalHoldServiceBadResponse) r,
-    Member LegalHoldStore r
-  ) =>
-  TeamId ->
-  Set LhApiVersion ->
-  Sem r LhApiVersion
-negotiateVersion tid clientVersions = do
-  mSupportedServerVersions <- getLegalHoldApiVersion tid
-  case mSupportedServerVersions of
-    Nothing -> pure V0
-    Just serverVersions -> do
-      let commonVersions = Set.intersection clientVersions serverVersions
-      case Set.lookupMax commonVersions of
-        Nothing -> throwS @'LegalHoldServiceBadResponse
-        Just version -> pure version
 
 -- | Get /status from legal hold service; throw 'Wai.Error' if things go wrong.
 checkLegalHoldServiceStatus ::
@@ -231,3 +199,35 @@ makeLegalHoldServiceRequest tid reqBuilder = do
     mkReqBuilder token =
       reqBuilder
         . Bilge.header "Authorization" ("Bearer " <> toByteString' token)
+
+versionToInt :: LhApiVersion -> Int
+versionToInt V0 = 0
+versionToInt V1 = 1
+
+versionToBS :: LhApiVersion -> ByteString
+versionToBS = ("v" <>) . BS8.pack . show . versionToInt
+
+versionedPaths :: LhApiVersion -> [ByteString] -> Http.Request -> Http.Request
+versionedPaths V0 paths = Bilge.paths paths
+versionedPaths v paths = Bilge.paths (versionToBS v : paths)
+
+supportedClientVersions :: Set LhApiVersion
+supportedClientVersions = Set.fromList [minBound .. maxBound]
+
+negotiateVersion ::
+  ( Member (ErrorS 'LegalHoldServiceNotRegistered) r,
+    Member (ErrorS 'LegalHoldServiceBadResponse) r,
+    Member LegalHoldStore r
+  ) =>
+  TeamId ->
+  Set LhApiVersion ->
+  Sem r LhApiVersion
+negotiateVersion tid clientVersions = do
+  mSupportedServerVersions <- getLegalHoldApiVersion tid
+  case mSupportedServerVersions of
+    -- if the legal hold service does not support the api-version endpoint, we assume it's v0
+    Nothing -> pure V0
+    Just serverVersions -> do
+      let commonVersions = Set.intersection clientVersions serverVersions
+      -- if there is no common version there is nothing we can do but throw an error
+      maybe (throwS @'LegalHoldServiceBadResponse) pure $ Set.lookupMax commonVersions

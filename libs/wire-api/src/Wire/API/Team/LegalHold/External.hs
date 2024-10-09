@@ -35,12 +35,12 @@ module Wire.API.Team.LegalHold.External
   )
 where
 
-import Data.Aeson hiding (fieldLabelModifier)
+import Data.Aeson qualified as A hiding (fieldLabelModifier)
 import Data.Id
 import Data.Json.Util ((#))
-import Data.OpenApi
+import Data.OpenApi qualified as OpenApi
 import Data.Qualified
-import Data.Schema qualified as Schema
+import Data.Schema
 import Imports
 import Wire.API.User.Client.Prekey
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
@@ -55,29 +55,29 @@ data RequestNewLegalHoldClientV0 = RequestNewLegalHoldClientV0
   }
   deriving stock (Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform RequestNewLegalHoldClientV0)
-  deriving (ToJSON, FromJSON) via (Schema.Schema RequestNewLegalHoldClientV0)
+  deriving (A.ToJSON, A.FromJSON) via (Schema RequestNewLegalHoldClientV0)
 
-instance Schema.ToSchema RequestNewLegalHoldClientV0 where
+instance ToSchema RequestNewLegalHoldClientV0 where
   schema =
-    Schema.object "RequestNewLegalHoldClientV0" $
+    object "RequestNewLegalHoldClientV0" $
       RequestNewLegalHoldClientV0
-        <$> (.userId) Schema..= Schema.field "user_id" Schema.schema
-        <*> (.teamId) Schema..= Schema.field "team_id" Schema.schema
+        <$> (.userId) .= field "user_id" schema
+        <*> (.teamId) .= field "team_id" schema
 
 data RequestNewLegalHoldClient = RequestNewLegalHoldClient
   { userId :: Qualified UserId,
     teamId :: TeamId
   }
   deriving stock (Show, Eq, Generic)
-  deriving (ToJSON, FromJSON) via (Schema.Schema RequestNewLegalHoldClient)
+  deriving (A.ToJSON, A.FromJSON) via (Schema RequestNewLegalHoldClient)
   deriving (Arbitrary) via (GenericUniform RequestNewLegalHoldClient)
 
-instance Schema.ToSchema RequestNewLegalHoldClient where
+instance ToSchema RequestNewLegalHoldClient where
   schema =
-    Schema.object "RequestNewLegalHoldClient" $
+    object "RequestNewLegalHoldClient" $
       RequestNewLegalHoldClient
-        <$> (.userId) Schema..= Schema.field "qualified_user_id" Schema.schema
-        <*> (.teamId) Schema..= Schema.field "team_id" Schema.schema
+        <$> (.userId) .= field "qualified_user_id" schema
+        <*> (.teamId) .= field "team_id" schema
 
 -- | Response payload that the LH service returns upon calling @/initiate@
 data NewLegalHoldClient = NewLegalHoldClient
@@ -87,31 +87,31 @@ data NewLegalHoldClient = NewLegalHoldClient
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewLegalHoldClient)
 
-instance ToSchema NewLegalHoldClient where
-  declareNamedSchema = genericDeclareNamedSchema opts
+instance OpenApi.ToSchema NewLegalHoldClient where
+  declareNamedSchema = OpenApi.genericDeclareNamedSchema opts
     where
       opts =
-        defaultSchemaOptions
-          { fieldLabelModifier = \case
+        OpenApi.defaultSchemaOptions
+          { OpenApi.fieldLabelModifier = \case
               "newLegalHoldClientPrekeys" -> "prekeys"
               "newLegalHoldClientLastKey" -> "last_prekey"
               _ -> ""
           }
 
-instance ToJSON NewLegalHoldClient where
+instance A.ToJSON NewLegalHoldClient where
   toJSON c =
-    object $
+    A.object $
       "prekeys"
-        .= newLegalHoldClientPrekeys c
+        A..= newLegalHoldClientPrekeys c
         # "last_prekey"
-        .= newLegalHoldClientLastKey c
+        A..= newLegalHoldClientLastKey c
         # []
 
-instance FromJSON NewLegalHoldClient where
-  parseJSON = withObject "NewLegalHoldClient" $ \o ->
+instance A.FromJSON NewLegalHoldClient where
+  parseJSON = A.withObject "NewLegalHoldClient" $ \o ->
     NewLegalHoldClient
-      <$> o .: "prekeys"
-      <*> o .: "last_prekey"
+      <$> o A..: "prekeys"
+      <*> o A..: "last_prekey"
 
 --------------------------------------------------------------------------------
 -- confirm
@@ -127,26 +127,26 @@ data LegalHoldServiceConfirm = LegalHoldServiceConfirm
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform LegalHoldServiceConfirm)
 
-instance ToJSON LegalHoldServiceConfirm where
+instance A.ToJSON LegalHoldServiceConfirm where
   toJSON (LegalHoldServiceConfirm clientId userId teamId refreshToken) =
-    object $
+    A.object $
       "client_id"
-        .= clientId
+        A..= clientId
         # "user_id"
-        .= userId
+        A..= userId
         # "team_id"
-        .= teamId
+        A..= teamId
         # "refresh_token"
-        .= refreshToken
+        A..= refreshToken
         # []
 
-instance FromJSON LegalHoldServiceConfirm where
-  parseJSON = withObject "LegalHoldServiceConfirm" $ \o ->
+instance A.FromJSON LegalHoldServiceConfirm where
+  parseJSON = A.withObject "LegalHoldServiceConfirm" $ \o ->
     LegalHoldServiceConfirm
-      <$> o .: "client_id"
-      <*> o .: "user_id"
-      <*> o .: "team_id"
-      <*> o .: "refresh_token"
+      <$> o A..: "client_id"
+      <*> o A..: "user_id"
+      <*> o A..: "team_id"
+      <*> o A..: "refresh_token"
 
 --------------------------------------------------------------------------------
 -- remove
@@ -159,27 +159,27 @@ data LegalHoldServiceRemove = LegalHoldServiceRemove
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform LegalHoldServiceRemove)
 
-instance ToJSON LegalHoldServiceRemove where
+instance A.ToJSON LegalHoldServiceRemove where
   toJSON (LegalHoldServiceRemove userId teamId) =
-    object $
+    A.object $
       "user_id"
-        .= userId
+        A..= userId
         # "team_id"
-        .= teamId
+        A..= teamId
         # []
 
-instance FromJSON LegalHoldServiceRemove where
-  parseJSON = withObject "LegalHoldServiceRemove" $ \o ->
+instance A.FromJSON LegalHoldServiceRemove where
+  parseJSON = A.withObject "LegalHoldServiceRemove" $ \o ->
     LegalHoldServiceRemove
-      <$> o .: "user_id"
-      <*> o .: "team_id"
+      <$> o A..: "user_id"
+      <*> o A..: "team_id"
 
 newtype SupportedVersions = SupportedVersions {supported :: [Int]}
-  deriving (FromJSON) via (Schema.Schema SupportedVersions)
+  deriving (A.FromJSON) via (Schema SupportedVersions)
 
-instance Schema.ToSchema SupportedVersions where
+instance ToSchema SupportedVersions where
   schema =
-    Schema.object "SupportedVersions " $
+    object "SupportedVersions " $
       SupportedVersions
         <$> supported
-          Schema..= Schema.field "supported" (Schema.array Schema.schema)
+          .= field "supported" (array schema)

@@ -130,6 +130,9 @@ lhMockAppWithPrekeys version mks ch req cont = withRunInIO \inIO -> do
           (["legalhold", "status"], "GET", _) -> cont respondOk
           (["legalhold", "api-version"], "GET", _) -> cont apiVersionResp
           (_, _, Nothing) -> cont missingAuth
+          (["legalhold", "initiate"], "POST", Just _) -> cont (initiateResp nextLastPrekey threePrekeys)
+          (["legalhold", "confirm"], "POST", Just _) -> cont respondOk
+          (["legalhold", "remove"], "POST", Just _) -> cont respondOk
           (["legalhold", "v1", "initiate"], "POST", Just _) -> cont (initiateResp nextLastPrekey threePrekeys)
           (["legalhold", "v1", "confirm"], "POST", Just _) -> cont respondOk
           (["legalhold", "v1", "remove"], "POST", Just _) -> cont respondOk
@@ -149,7 +152,7 @@ lhMockAppWithPrekeys version mks ch req cont = withRunInIO \inIO -> do
       responseLBS status200 [(hContentType, cs "application/json")]
         . encode
         . Data.Aeson.object
-        $ [ "supported" .= ([1] :: [Int])
+        $ [ "supported" .= ([0, 1] :: [Int])
           ]
 
     respondOk :: Wai.Response
