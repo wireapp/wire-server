@@ -229,16 +229,6 @@ getClients uids = do
           )
       Bilge.responseJsonError r
 
--- TODO: Delete this comment
--- Old way:
--- Client -> Cannon: establish WS (/await)
--- Galley -> Gundeck -> Cannon -> Client :  only if client is present on cannon
---                   -> Cassandra : always write
---
--- New way:
--- Galley -> Gundeck -> RabbitMQ: Always Publish to queue
--- Client -> Cannon -> RabbitMQ: establish WS and subscribe to the queue (/events)
-
 pushAll :: (MonadPushAll m, MonadNativeTargets m, MonadMapAsync m, Log.MonadLogger m) => [Push] -> m ()
 pushAll pushes = do
   Log.debug $ msg (val "pushing") . Log.field "pushes" (Aeson.encode pushes)
