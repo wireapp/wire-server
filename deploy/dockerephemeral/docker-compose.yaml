@@ -239,16 +239,12 @@ services:
       - demo_wire
 
   opensearch-dashboard:
-    image: opensearchproject/opensearch-dashboards:latest
+    image: opensearchproject/opensearch-dashboards:1
     container_name: opensearch-dashboards
     ports:
       - 5601:5601
     expose:
       - "5601"
-#    environment:
-#      - "OPENSEARCH_HOSTS: '[\"https://opensearch:9200\"]'"
-#      - "OPENSEARCH_USERNAME=elastic"
-#      - "OPENSEARCH_PASSWORD=changeme"
     volumes:
       - ./docker/opensearch_dashboards.yml:/usr/share/opensearch-dashboards/config/opensearch_dashboards.yml
     networks:
