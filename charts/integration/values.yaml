@@ -113,7 +113,6 @@ config:
     replicationFactor: 1
 
   elasticsearch:
-    # TODO: This should be overwritten in the deployment config itself
     host: opensearch-cluster-master
 
   sqsEndpointUrl: http://fake-aws-sqs:4568
