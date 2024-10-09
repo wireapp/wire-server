@@ -112,16 +112,14 @@ lhMockAppWithPrekeys version mks ch req cont = withRunInIO \inIO -> do
   reqBody <- Wai.strictRequestBody req
   writeChan ch (req, reqBody)
   inIO do
-    (nextLastPrekey, threePrekeys) <-
-      (,)
-        <$> mks.nextLastPrey
-        <*> mks.somePrekeys
     case version of
       V0 ->
         case (cs <$> pathInfo req, cs $ requestMethod req, cs @_ @String <$> getRequestHeader "Authorization" req) of
           (["legalhold", "status"], "GET", _) -> cont respondOk
           (_, _, Nothing) -> cont missingAuth
-          (["legalhold", "initiate"], "POST", Just _) -> cont (initiateResp nextLastPrekey threePrekeys)
+          (["legalhold", "initiate"], "POST", Just _) -> do
+            (nextLastPrekey, threePrekeys) <- getPreyKeys
+            cont (initiateResp nextLastPrekey threePrekeys)
           (["legalhold", "confirm"], "POST", Just _) -> cont respondOk
           (["legalhold", "remove"], "POST", Just _) -> cont respondOk
           _ -> cont respondBad
@@ -130,14 +128,21 @@ lhMockAppWithPrekeys version mks ch req cont = withRunInIO \inIO -> do
           (["legalhold", "status"], "GET", _) -> cont respondOk
           (["legalhold", "api-version"], "GET", _) -> cont apiVersionResp
           (_, _, Nothing) -> cont missingAuth
-          (["legalhold", "initiate"], "POST", Just _) -> cont (initiateResp nextLastPrekey threePrekeys)
+          (["legalhold", "initiate"], "POST", Just _) -> do
+            (nextLastPrekey, threePrekeys) <- getPreyKeys
+            cont (initiateResp nextLastPrekey threePrekeys)
           (["legalhold", "confirm"], "POST", Just _) -> cont respondOk
           (["legalhold", "remove"], "POST", Just _) -> cont respondOk
-          (["legalhold", "v1", "initiate"], "POST", Just _) -> cont (initiateResp nextLastPrekey threePrekeys)
+          (["legalhold", "v1", "initiate"], "POST", Just _) -> do
+            (nextLastPrekey, threePrekeys) <- getPreyKeys
+            cont (initiateResp nextLastPrekey threePrekeys)
           (["legalhold", "v1", "confirm"], "POST", Just _) -> cont respondOk
           (["legalhold", "v1", "remove"], "POST", Just _) -> cont respondOk
           _ -> cont respondBad
   where
+    getPreyKeys :: App (Value, [Value])
+    getPreyKeys = (,) <$> mks.nextLastPrey <*> mks.somePrekeys
+
     initiateResp :: Value -> [Value] -> Wai.Response
     initiateResp npk pks =
       responseLBS status200 [(hContentType, cs "application/json")]
