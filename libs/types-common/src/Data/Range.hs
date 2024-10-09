@@ -27,7 +27,6 @@ module Data.Range
   ( Range,
     toRange,
     mapRange,
-    traverseRange,
     Within,
     Bounds (..),
     checked,
@@ -112,10 +111,6 @@ mapRange f (Range as) = Range (f `map` as)
 
 toRange :: (n <= x, x <= m, KnownNat x, Num a) => Proxy x -> Range n m a
 toRange = Range . fromIntegral . natVal
-
-traverseRange :: (Traversable t, Applicative f) => (a -> f b) -> Range n m (t a) -> f (Range n m (t b))
-traverseRange f (Range xs) =
-  Range <$> traverse f xs
 
 instance (Show a, Num a, Within a n m, KnownNat n, KnownNat m) => Bounded (Range n m a) where
   minBound = unsafeRange (fromKnownNat (Proxy @n) :: a)
