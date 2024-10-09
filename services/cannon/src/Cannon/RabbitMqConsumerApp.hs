@@ -71,12 +71,37 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
 
           qName = clientNotificationQueueName uid cid
 
-      Amqp.consumeMsgs chan qName Amqp.Ack $ \msg ->
-        pushEventsToWS wsConn msg `catches` exceptionHandlers
+      Amqp.consumeMsgs chan qName Amqp.Ack $ \msgWithEnv ->
+        pushEventsToWS wsConn msgWithEnv `catches` exceptionHandlers
 
     wsReceiverLoop :: Connection -> Amqp.Channel -> MVar () -> IO ()
     wsReceiverLoop wsConn chan closeWS = do
-      let handleConnectionClosed :: ConnectionException -> IO ()
+      let loop = do
+            -- no timeout necessary here, we want to keep running forever.
+            eitherData <- race (takeMVar closeWS) (WS.receiveData wsConn)
+            case eitherData of
+              Left () -> do
+                Log.debug e.logg $
+                  Log.msg (Log.val "Closing the websocket")
+                    . logClient
+                WS.sendClose wsConn ("" :: ByteString)
+              Right dat -> case eitherDecode @MessageClientToServer dat of
+                Left err -> do
+                  Log.info e.logg $
+                    Log.msg (Log.val "Failed to parse received message, closing websocket")
+                      . logClient
+                  WS.sendCloseCode wsConn 1003 ("failed-to-parse" :: ByteString)
+                  throwIO $ FailedToParseClientMessage err
+                Right (AckMessage ackData) -> do
+                  Log.debug e.logg $
+                    Log.msg (Log.val "Received ACK")
+                      . Log.field "delivery_tag" ackData.deliveryTag
+                      . Log.field "multiple" ackData.multiple
+                      . logClient
+                  void $ Amqp.ackMsg chan ackData.deliveryTag ackData.multiple
+                  loop
+
+          handleConnectionClosed :: ConnectionException -> IO ()
           handleConnectionClosed connException = do
             case connException of
               CloseRequest code reason ->
@@ -87,11 +112,11 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
                     . logClient
               ConnectionClosed ->
                 Log.info e.logg $
-                  Log.msg (Log.val "client closed tcp connection abruptly")
+                  Log.msg (Log.val "Client closed tcp connection abruptly")
                     . logClient
               _ -> do
                 Log.info e.logg $
-                  Log.msg (Log.val "failed to receive message, closing websocket")
+                  Log.msg (Log.val "Failed to receive message, closing websocket")
                     . Log.field "error" (displayException connException)
                     . logClient
                 WS.send wsConn (WS.ControlMessage $ WS.Close 1003 "failed-to-parse")
@@ -102,36 +127,11 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
                 . Log.field "error" (displayException err)
                 . logClient
             throwIO err
-          exceptionHandlers =
-            [ Handler $ handleConnectionClosed,
-              Handler $ handleException @SomeException,
-              Handler $ handleException @SomeAsyncException
-            ]
-          loop = do
-            -- no timeout necessary here, we want to keep running forever.
-            eitherData <- race (takeMVar closeWS) (WS.receiveData wsConn)
-            case eitherData of
-              Left () -> do
-                Log.debug e.logg $
-                  Log.msg (Log.val "closing the websocket")
-                    . logClient
-                WS.sendClose wsConn ("" :: ByteString)
-              Right dat -> case eitherDecode @MessageClientToServer dat of
-                Left err -> do
-                  Log.info e.logg $
-                    Log.msg (Log.val "failed to parse received message, closing websocket")
-                      . logClient
-                  WS.sendClose wsConn ("invalid-message" :: ByteString)
-                  throwIO $ FailedToParseClientMessage err
-                Right (AckMessage ackData) -> do
-                  Log.debug e.logg $
-                    Log.msg (Log.val "Received ACK")
-                      . Log.field "delivery_tag" ackData.deliveryTag
-                      . Log.field "multiple" ackData.multiple
-                      . logClient
-                  void $ Amqp.ackMsg chan ackData.deliveryTag ackData.multiple
-                  loop
-      loop `catches` exceptionHandlers
+      loop
+        `catches` [ Handler $ handleConnectionClosed,
+                    Handler $ handleException @SomeException,
+                    Handler $ handleException @SomeAsyncException
+                  ]
 
 data WebSocketServerError
   = FailedToParseClientMessage String
