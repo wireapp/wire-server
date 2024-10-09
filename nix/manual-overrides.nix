@@ -85,7 +85,8 @@ hself: hsuper: {
   cryptostore = hlib.addBuildDepends (hlib.dontCheck (hlib.appendConfigureFlags hsuper.cryptostore [ "-fuse_crypton" ]))
     [ hself.crypton hself.crypton-x509 hself.crypton-x509-validation ];
   # Make hoogle static to reduce size of the hoogle image
-  hoogle = hlib.justStaticExecutables hsuper.hoogle;
+  # dont Check because it requires a specific crypton-connection version
+  hoogle = hlib.justStaticExecutables (hlib.dontCheck (hsuper.hoogle));
   http2-manager = hlib.enableCabalFlag hsuper.http2-manager "-f-test-trailing-dot";
   sodium-crypto-sign = hlib.addPkgconfigDepend hsuper.sodium-crypto-sign libsodium.dev;
   types-common-journal = hlib.addBuildTool hsuper.types-common-journal protobuf;
