@@ -69,6 +69,7 @@ import Network.HTTP.Types
 import Network.Wai.Utilities
 import System.Logger.Class (msg, val, (+++), (.=), (~~))
 import System.Logger.Class qualified as Log
+import UnliftIO (pooledMapConcurrentlyN)
 import Util.Options
 import Wire.API.Internal.Notification
 import Wire.API.Notification (userNotificationExchangeName)
@@ -210,17 +211,23 @@ splitPush clientsFull p = do
 
 getClients :: Set UserId -> Gundeck UserClientsFull
 getClients uids = do
-  r <- do
-    Endpoint h p <- view $ options . brig
-    Bilge.post
-      ( Bilge.host (toByteString' h)
-          . Bilge.port p
-          . Bilge.path "/i/clients/full"
-          . Bilge.json (UserSet uids)
-      )
-  when (Bilge.statusCode r /= 200) $ do
-    error "something went wrong"
-  Bilge.responseJsonError r
+  fmap mconcat
+    . pooledMapConcurrentlyN 4 getBatch
+    . List.chunksOf 100
+    $ Set.toList uids
+  where
+    getBatch :: [UserId] -> Gundeck UserClientsFull
+    getBatch uidsChunk = do
+      r <- do
+        Endpoint h p <- view $ options . brig
+        Bilge.post
+          ( Bilge.host (toByteString' h)
+              . Bilge.port p
+              . Bilge.path "/i/clients/full"
+              . Bilge.json (UserSet $ Set.fromList uidsChunk)
+              . Bilge.expect2xx
+          )
+      Bilge.responseJsonError r
 
 -- TODO: Delete this comment
 -- Old way:
