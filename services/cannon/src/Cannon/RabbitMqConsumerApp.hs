@@ -37,8 +37,15 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
             Log.msg (Log.val "failed to decode event from the queue as a JSON")
               . logClient
               . Log.field "parse_error" err
-          -- TODO: reject this event so it doesn't keep reappearing, test it somehow?
-          throwIO $ FailedToParseEvent err
+          -- This message cannot be parsed, make sure it doesn't requeue. There
+          -- is no need to throw an error and kill the websocket as this is
+          -- probably caused by a bug or someone messing with RabbitMQ.
+          --
+          -- The bug case is slightly dangerous as it could drop a lot of events
+          -- en masse, if at some point we decide that Events should not be
+          -- pushed as JSONs, hopefully we think of the parsing side if/when
+          -- that happens.
+          Amqp.rejectEnv envelope False
         Right payload -> do
           WS.sendBinaryData wsConn . encode $
             object
@@ -128,7 +135,6 @@ rabbitMQWebSocketApp uid cid e pendingConn = do
 
 data WebSocketServerError
   = FailedToParseClientMessage String
-  | FailedToParseEvent String
   deriving (Show)
 
 instance Exception WebSocketServerError
