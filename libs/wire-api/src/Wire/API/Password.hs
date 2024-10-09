@@ -120,8 +120,6 @@ defaultScryptParams =
       outputLength = 64
     }
 
--- | Recommended in the RFC as the second choice: https://www.rfc-editor.org/rfc/rfc9106.html#name-parameter-choice
--- The first choice takes ~1s to hash passwords which seems like too much.
 defaultOptions :: Argon2.Options
 defaultOptions =
   Argon2.Options
