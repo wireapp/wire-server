@@ -38,6 +38,7 @@ import Wire.API.Conversation.Typing qualified as Conversation.Typing
 import Wire.API.CustomBackend qualified as CustomBackend
 import Wire.API.Event.Conversation qualified as Event.Conversation
 import Wire.API.Event.Team qualified as Event.Team
+import Wire.API.Event.WebSocketProtocol qualified as EventWebSocketProtocol
 import Wire.API.FederationStatus qualified as FederationStatus
 import Wire.API.Locale qualified as Locale
 import Wire.API.Message qualified as Message
@@ -76,7 +77,6 @@ import Wire.API.User.Profile qualified as User.Profile
 import Wire.API.User.RichInfo qualified as User.RichInfo
 import Wire.API.User.Scim qualified as Scim
 import Wire.API.User.Search qualified as User.Search
-import Wire.API.WebSocket qualified as WebSocket
 import Wire.API.Wrapped qualified as Wrapped
 
 -- FUTUREWORK(#1446): fix tests marked as failing
@@ -338,8 +338,8 @@ tests =
       testRoundTrip @(User.Search.SearchResult User.Search.TeamContact),
       testRoundTrip @User.Search.PagingState,
       testRoundTrip @User.Search.TeamContact,
-      testRoundTrip @WebSocket.MessageServerToClient,
-      testRoundTrip @WebSocket.MessageClientToServer,
+      testRoundTrip @EventWebSocketProtocol.MessageServerToClient,
+      testRoundTrip @EventWebSocketProtocol.MessageClientToServer,
       testRoundTrip @(Wrapped.Wrapped "some_int" Int),
       testRoundTrip @Conversation.Action.SomeConversationAction,
       testRoundTrip @Routes.Version.Version,
