@@ -995,7 +995,7 @@ testBlockCreateMLSConvForLHUsers = do
 
 testLHApproveDeviceV1 :: App ()
 testLHApproveDeviceV1 = do
-  (alice, tid, [bob, _charlie]) <- createTeam OwnDomain 3
+  (alice, tid, [bob]) <- createTeam OwnDomain 2
 
   legalholdWhitelistTeam tid alice >>= assertStatus 200
 
@@ -1023,3 +1023,18 @@ testLHApproveDeviceV1 = do
       value %. "team_id" `shouldMatch` tid
       value %. "qualified_user_id.id" `shouldMatch` objId bob
       value %. "qualified_user_id.domain" `shouldMatch` objDomain bob
+
+    approveLegalHoldDevice tid (bob %. "qualified_id") defPassword >>= assertSuccess
+
+    checkChan chan \(req, _) -> runMaybeT . lift $ do
+      BS8.unpack req.requestMethod `shouldMatch` "GET"
+      req.pathInfo `shouldMatch` (T.pack <$> ["legalhold", "api-version"])
+
+    checkChan chan \(req, body) -> runMaybeT . lift $ do
+      BS8.unpack req.requestMethod `shouldMatch` "POST"
+      req.pathInfo `shouldMatch` (T.pack <$> ["legalhold", "v1", "confirm"])
+      let (Just (value :: Value)) = decode body
+      value %. "team_id" `shouldMatch` tid
+      value %. "qualified_user_id.id" `shouldMatch` objId bob
+      value %. "qualified_user_id.domain" `shouldMatch` objDomain bob
+      (isJust <$> value `lookupField` "client_id") `shouldMatch` True

@@ -134,23 +134,29 @@ requestNewDevice tid luid = do
 -- Confirm that a device has been linked to a user and provide an authorization token
 confirmLegalHold ::
   ( Member (ErrorS 'LegalHoldServiceNotRegistered) r,
+    Member (ErrorS 'LegalHoldServiceBadResponse) r,
     Member LegalHoldStore r
   ) =>
   ClientId ->
   TeamId ->
-  UserId ->
+  Local UserId ->
   -- | TODO: Replace with 'LegalHold' token type
   OpaqueAuthToken ->
   Sem r ()
-confirmLegalHold clientId tid uid legalHoldAuthToken = do
-  void $ makeLegalHoldServiceRequest tid reqParams
+confirmLegalHold clientId tid luid legalHoldAuthToken = do
+  apiVersion <- negotiateVersion tid supportedClientVersions
+  void $ makeLegalHoldServiceRequest tid (reqParams apiVersion)
   where
-    reqParams =
-      Bilge.paths ["confirm"]
-        . Bilge.json (LegalHoldServiceConfirm clientId uid tid (opaqueAuthTokenToText legalHoldAuthToken))
+    reqParams v =
+      versionedPaths v ["confirm"]
+        . mkBody v
         . Bilge.method POST
         . Bilge.acceptJson
         . Bilge.expect2xx
+
+    mkBody :: LhApiVersion -> Bilge.Request -> Bilge.Request
+    mkBody V0 = Bilge.json (LegalHoldServiceConfirmV0 clientId (tUnqualified luid) tid (opaqueAuthTokenToText legalHoldAuthToken))
+    mkBody V1 = Bilge.json (LegalHoldServiceConfirm clientId (tUntagged luid) tid (opaqueAuthTokenToText legalHoldAuthToken))
 
 -- | @POST /remove@
 -- Inform the LegalHold Service that a user's legalhold has been disabled.

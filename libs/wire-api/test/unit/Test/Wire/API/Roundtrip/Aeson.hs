@@ -234,6 +234,7 @@ tests =
       testRoundTrip @Team.LegalHold.External.RequestNewLegalHoldClientV0,
       testRoundTrip @Team.LegalHold.External.RequestNewLegalHoldClient,
       testRoundTrip @Team.LegalHold.External.NewLegalHoldClient,
+      testRoundTrip @Team.LegalHold.External.LegalHoldServiceConfirmV0,
       testRoundTrip @Team.LegalHold.External.LegalHoldServiceConfirm,
       testRoundTrip @Team.LegalHold.External.LegalHoldServiceRemove,
       testRoundTrip @Team.LegalHold.LegalholdProtectee,

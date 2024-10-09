@@ -446,6 +446,7 @@ approveDevice ::
     Member (ErrorS 'UserLegalHoldAlreadyEnabled) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
     Member (ErrorS 'UserLegalHoldNotPending) r,
+    Member (ErrorS 'LegalHoldServiceBadResponse) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
@@ -494,7 +495,7 @@ approveDevice lzusr connId tid uid (Public.ApproveLegalHoldForUserRequest mPassw
   --       checks that the user is part of a binding team
   -- FUTUREWORK: reduce double checks
   legalHoldAuthToken <- getLegalHoldAuthToken (tUnqualified luid) mPassword
-  LHService.confirmLegalHold clientId tid (tUnqualified luid) legalHoldAuthToken
+  LHService.confirmLegalHold clientId tid luid legalHoldAuthToken
   -- TODO: send event at this point (see also:
   -- https://github.com/wireapp/wire-server/pull/802#pullrequestreview-262280386)
   changeLegalholdStatusAndHandlePolicyConflicts tid luid userLHStatus UserLegalHoldEnabled

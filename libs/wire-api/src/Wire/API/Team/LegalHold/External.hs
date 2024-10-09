@@ -25,6 +25,7 @@ module Wire.API.Team.LegalHold.External
     NewLegalHoldClient (..),
 
     -- * confirm
+    LegalHoldServiceConfirmV0 (..),
     LegalHoldServiceConfirm (..),
 
     -- * remove
@@ -86,6 +87,7 @@ data NewLegalHoldClient = NewLegalHoldClient
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewLegalHoldClient)
+  deriving (A.ToJSON, A.FromJSON) via (Schema NewLegalHoldClient)
 
 instance OpenApi.ToSchema NewLegalHoldClient where
   declareNamedSchema = OpenApi.genericDeclareNamedSchema opts
@@ -98,26 +100,38 @@ instance OpenApi.ToSchema NewLegalHoldClient where
               _ -> ""
           }
 
-instance A.ToJSON NewLegalHoldClient where
-  toJSON c =
-    A.object $
-      "prekeys"
-        A..= newLegalHoldClientPrekeys c
-        # "last_prekey"
-        A..= newLegalHoldClientLastKey c
-        # []
-
-instance A.FromJSON NewLegalHoldClient where
-  parseJSON = A.withObject "NewLegalHoldClient" $ \o ->
-    NewLegalHoldClient
-      <$> o A..: "prekeys"
-      <*> o A..: "last_prekey"
+instance ToSchema NewLegalHoldClient where
+  schema =
+    object "NewLegalHoldClient" $
+      NewLegalHoldClient
+        <$> (.newLegalHoldClientPrekeys) .= field "prekeys" (array schema)
+        <*> (.newLegalHoldClientLastKey) .= field "last_prekey" schema
 
 --------------------------------------------------------------------------------
 -- confirm
 
 -- Request payload for the @/confirm@ endpoint on the LegalHold Service
 data LegalHoldServiceConfirm = LegalHoldServiceConfirm
+  { clientId :: ClientId,
+    userId :: Qualified UserId,
+    teamId :: TeamId,
+    -- | Replace with Legal Hold Token Type
+    refreshToken :: Text
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform LegalHoldServiceConfirm)
+  deriving (A.ToJSON, A.FromJSON) via (Schema LegalHoldServiceConfirm)
+
+instance ToSchema LegalHoldServiceConfirm where
+  schema =
+    object "LegalHoldServiceConfirm" $
+      LegalHoldServiceConfirm
+        <$> (.clientId) .= field "client_id" schema
+        <*> (.userId) .= field "qualified_user_id" schema
+        <*> (.teamId) .= field "team_id" schema
+        <*> (.refreshToken) .= field "refresh_token" schema
+
+data LegalHoldServiceConfirmV0 = LegalHoldServiceConfirmV0
   { lhcClientId :: ClientId,
     lhcUserId :: UserId,
     lhcTeamId :: TeamId,
@@ -125,28 +139,17 @@ data LegalHoldServiceConfirm = LegalHoldServiceConfirm
     lhcRefreshToken :: Text
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform LegalHoldServiceConfirm)
+  deriving (Arbitrary) via (GenericUniform LegalHoldServiceConfirmV0)
+  deriving (A.ToJSON, A.FromJSON) via (Schema LegalHoldServiceConfirmV0)
 
-instance A.ToJSON LegalHoldServiceConfirm where
-  toJSON (LegalHoldServiceConfirm clientId userId teamId refreshToken) =
-    A.object $
-      "client_id"
-        A..= clientId
-        # "user_id"
-        A..= userId
-        # "team_id"
-        A..= teamId
-        # "refresh_token"
-        A..= refreshToken
-        # []
-
-instance A.FromJSON LegalHoldServiceConfirm where
-  parseJSON = A.withObject "LegalHoldServiceConfirm" $ \o ->
-    LegalHoldServiceConfirm
-      <$> o A..: "client_id"
-      <*> o A..: "user_id"
-      <*> o A..: "team_id"
-      <*> o A..: "refresh_token"
+instance ToSchema LegalHoldServiceConfirmV0 where
+  schema =
+    object "LegalHoldServiceConfirmV0" $
+      LegalHoldServiceConfirmV0
+        <$> (.lhcClientId) .= field "client_id" schema
+        <*> (.lhcUserId) .= field "user_id" schema
+        <*> (.lhcTeamId) .= field "team_id" schema
+        <*> (.lhcRefreshToken) .= field "refresh_token" schema
 
 --------------------------------------------------------------------------------
 -- remove
@@ -173,6 +176,9 @@ instance A.FromJSON LegalHoldServiceRemove where
     LegalHoldServiceRemove
       <$> o A..: "user_id"
       <*> o A..: "team_id"
+
+--------------------------------------------------------------------------------
+-- SupportedVersions
 
 newtype SupportedVersions = SupportedVersions {supported :: [Int]}
   deriving (A.FromJSON) via (Schema SupportedVersions)
