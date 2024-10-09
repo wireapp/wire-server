@@ -104,6 +104,7 @@ instance (App ~ f) => Default (CreateMock f) where
       }
 
 data LhApiVersion = V0 | V1
+  deriving (Show, Generic)
 
 -- | LegalHold service.  Just fake the API, do not maintain any internal state.
 lhMockAppWithPrekeys ::
