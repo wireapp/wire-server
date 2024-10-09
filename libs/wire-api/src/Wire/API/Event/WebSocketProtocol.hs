@@ -1,11 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
--- TODO: Rename this module to something that is more specific than "websocket".
--- - "Wire.API.Event.WebSocket"?
--- - "Wire.API.Event.ClientChan"?
--- - "Wire.API.Event.APIChan"?  or "ApiChan"?
--- - "MessageBus"?  "Bus"?
-module Wire.API.WebSocket where
+module Wire.API.Event.WebSocketProtocol where
 
 import Control.Lens (makePrisms)
 import Data.Aeson (FromJSON, ToJSON)

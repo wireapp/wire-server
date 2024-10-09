@@ -100,6 +100,7 @@ library
     Wire.API.Event.Gundeck
     Wire.API.Event.LeaveReason
     Wire.API.Event.Team
+    Wire.API.Event.WebSocketProtocol
     Wire.API.FederationStatus
     Wire.API.FederationUpdate
     Wire.API.Internal.BulkPush
@@ -250,7 +251,6 @@ library
     Wire.API.UserMap
     Wire.API.Util.Aeson
     Wire.API.VersionInfo
-    Wire.API.WebSocket
     Wire.API.Wrapped
 
   other-modules:    Paths_wire_api

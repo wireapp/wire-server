@@ -12,8 +12,8 @@ import Network.AMQP.Extended (withConnection)
 import Network.WebSockets
 import Network.WebSockets qualified as WS
 import System.Logger qualified as Log
+import Wire.API.Event.WebSocketProtocol
 import Wire.API.Notification
-import Wire.API.WebSocket
 
 rabbitMQWebSocketApp :: UserId -> ClientId -> Env -> ServerApp
 rabbitMQWebSocketApp uid cid e pendingConn = do
