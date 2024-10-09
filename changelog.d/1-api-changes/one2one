@@ -1,1 +1,0 @@
-`GET /conversations/one2one/:domain/:uid` now returns `public_keys` along with the conversation containing all MLS public keys for the backend which will host this conversation (since v6).
