@@ -95,7 +95,7 @@ class (MonadThrow m) => MonadPushAll m where
   mpaPushNative :: Notification -> Priority -> [Address] -> m ()
   mpaForkIO :: m () -> m ()
   mpaRunWithBudget :: Int -> a -> m a -> m a
-  mpaGetClients :: UserId -> m UserClientsFull
+  mpaGetClients :: Set UserId -> m UserClientsFull
   mpaPublishToRabbitMq :: Text -> Q.Message -> m ()
 
 instance MonadPushAll Gundeck where
@@ -144,31 +144,33 @@ instance MonadMapAsync Gundeck where
       Just chunkSize -> concat <$> mapM (mapAsync f) (List.chunksOf chunkSize l)
 
 splitPushes :: (MonadPushAll m) => [Push] -> m ([Push], [Push])
-splitPushes = fmap partitionHereThere . traverse splitPush
+splitPushes ps = do
+  allUserClients <- mpaGetClients (Set.unions $ map (\p -> Set.map (._recipientId) $ p._pushRecipients.fromRange) ps)
+  pure . partitionHereThere $ map (splitPush allUserClients) ps
 
+-- | Split a puish into rabbitmq and legacy push. This code exists to help with
+-- migration. Once it is completed and old APIs are not supported anymore we can
+-- assume everything is meant for RabbtiMQ and stop splitting.
 splitPush ::
-  (MonadPushAll m) =>
+  UserClientsFull ->
   Push ->
-  m (These Push Push)
-splitPush p = do
-  (rabbitmqRecipients, legacyRecipients) <-
-    partitionHereThereRange . rcast @_ @_ @1024
-      <$> traverseRange splitRecipient (rangeSetToList $ p._pushRecipients)
+  These Push Push
+splitPush clientsFull p = do
+  let (rabbitmqRecipients, legacyRecipients) =
+        partitionHereThereRange . rcast @_ @_ @1024 $
+          mapRange splitRecipient (rangeSetToList $ p._pushRecipients)
   case (runcons rabbitmqRecipients, runcons legacyRecipients) of
-    (Nothing, _) -> pure (That p)
-    (_, Nothing) -> pure (This p)
+    (Nothing, _) -> (That p)
+    (_, Nothing) -> (This p)
     (Just (rabbit0, rabbits), Just (legacy0, legacies)) ->
-      pure $
-        These
-          p {_pushRecipients = rangeListToSet $ rcons rabbit0 rabbits}
-          p {_pushRecipients = rangeListToSet $ rcons legacy0 legacies}
+      These
+        p {_pushRecipients = rangeListToSet $ rcons rabbit0 rabbits}
+        p {_pushRecipients = rangeListToSet $ rcons legacy0 legacies}
   where
-    -- TODO: optimize for possibility of  many pushes having the same users
-    splitRecipient :: (MonadPushAll m) => Recipient -> m (These Recipient Recipient)
+    splitRecipient :: Recipient -> These Recipient Recipient
     splitRecipient rcpt = do
-      clientsFull <- mpaGetClients rcpt._recipientId
       let allClients = Map.findWithDefault mempty rcpt._recipientId $ clientsFull.userClientsFull
-      let relevantClients = case rcpt._recipientClients of
+          relevantClients = case rcpt._recipientClients of
             RecipientClientsSome cs ->
               Set.filter (\c -> c.clientId `elem` toList cs) allClients
             RecipientClientsAll -> allClients
@@ -177,13 +179,17 @@ splitPush p = do
           rabbitmqClientIds = (.clientId) <$> Set.toList rabbitmqClients
           legacyClientIds = (.clientId) <$> Set.toList legacyClients
       case (rabbitmqClientIds, legacyClientIds) of
-        ([], _) -> pure (That rcpt)
-        (_, []) -> pure (This rcpt)
+        ([], _) ->
+          -- Checking for rabbitmqClientIds first ensures that we fall back to
+          -- old behaviour even if legacyClientIds is empty too. This way we
+          -- won't break things before clients are ready for it.
+          (That rcpt)
+        (_, []) ->
+          (This rcpt)
         (r : rs, l : ls) ->
-          pure $
-            These
-              rcpt {_recipientClients = RecipientClientsSome $ list1 r rs}
-              rcpt {_recipientClients = RecipientClientsSome $ list1 l ls}
+          These
+            rcpt {_recipientClients = RecipientClientsSome $ list1 r rs}
+            rcpt {_recipientClients = RecipientClientsSome $ list1 l ls}
 
     partitionHereThereRange :: Range 0 m [These a b] -> (Range 0 m [a], Range 0 m [b])
     partitionHereThereRange =
@@ -202,16 +208,15 @@ splitPush p = do
           (That b) -> (rnil1, rsingleton0 b)
           (These a b) -> (rsingleton0 a, rsingleton0 b)
 
--- TODO: Move to some util module
-getClients :: (MonadReader Env m, Bilge.MonadHttp m, MonadThrow m) => UserId -> m UserClientsFull
-getClients uid = do
+getClients :: Set UserId -> Gundeck UserClientsFull
+getClients uids = do
   r <- do
     Endpoint h p <- view $ options . brig
     Bilge.post
       ( Bilge.host (toByteString' h)
           . Bilge.port p
           . Bilge.path "/i/clients/full"
-          . Bilge.json (UserSet $ Set.singleton uid)
+          . Bilge.json (UserSet uids)
       )
   when (Bilge.statusCode r /= 200) $ do
     error "something went wrong"
