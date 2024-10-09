@@ -55,32 +55,14 @@ data RequestNewLegalHoldClientV0 = RequestNewLegalHoldClientV0
   }
   deriving stock (Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform RequestNewLegalHoldClientV0)
+  deriving (ToJSON, FromJSON) via (Schema.Schema RequestNewLegalHoldClientV0)
 
-instance ToSchema RequestNewLegalHoldClientV0 where
-  declareNamedSchema = genericDeclareNamedSchema opts
-    where
-      opts =
-        defaultSchemaOptions
-          { fieldLabelModifier = \case
-              "userId" -> "user_id"
-              "teamId" -> "team_id"
-              _ -> ""
-          }
-
-instance ToJSON RequestNewLegalHoldClientV0 where
-  toJSON (RequestNewLegalHoldClientV0 userId teamId) =
-    object $
-      "user_id"
-        .= userId
-        # "team_id"
-        .= teamId
-        # []
-
-instance FromJSON RequestNewLegalHoldClientV0 where
-  parseJSON = withObject "RequestNewLegalHoldClientV0" $ \o ->
-    RequestNewLegalHoldClientV0
-      <$> o .: "user_id"
-      <*> o .: "team_id"
+instance Schema.ToSchema RequestNewLegalHoldClientV0 where
+  schema =
+    Schema.object "RequestNewLegalHoldClientV0" $
+      RequestNewLegalHoldClientV0
+        <$> (.userId) Schema..= Schema.field "user_id" Schema.schema
+        <*> (.teamId) Schema..= Schema.field "team_id" Schema.schema
 
 data RequestNewLegalHoldClient = RequestNewLegalHoldClient
   { userId :: Qualified UserId,
