@@ -2,7 +2,7 @@ module Testlib.MockIntegrationService
   ( withMockServer,
     lhMockAppWithPrekeys,
     lhMockApp,
-    lhMockAppV1,
+    lhMockAppV,
     mkLegalHoldSettings,
     CreateMock (..),
     LiftedApplication,
@@ -69,8 +69,8 @@ withMockServer settings mkApp go = withFreePortAnyAddr \(sPort, sock) -> do
 lhMockApp :: Chan (Wai.Request, LBS.ByteString) -> LiftedApplication
 lhMockApp = lhMockAppWithPrekeys V0 def
 
-lhMockAppV1 :: Chan (Wai.Request, LBS.ByteString) -> LiftedApplication
-lhMockAppV1 = lhMockAppWithPrekeys V1 def
+lhMockAppV :: LhApiVersion -> Chan (Wai.Request, LBS.ByteString) -> LiftedApplication
+lhMockAppV v = lhMockAppWithPrekeys v def
 
 data MockServerSettings = MkMockServerSettings
   { -- | the certificate the mock service uses

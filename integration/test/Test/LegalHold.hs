@@ -993,24 +993,21 @@ testBlockCreateMLSConvForLHUsers = do
         postMLSCommitBundle mp.sender (mkBundle mp)
           `bindResponse` assertLabel 409 "mls-legal-hold-not-allowed"
 
-testLHApproveDeviceV1 :: App ()
-testLHApproveDeviceV1 = do
+testLHApiV1 :: App ()
+testLHApiV1 = do
   (alice, tid, [bob]) <- createTeam OwnDomain 2
 
   legalholdWhitelistTeam tid alice >>= assertStatus 200
 
-  withMockServer def lhMockAppV1 \lhDomAndPort chan -> do
-    legalholdWhitelistTeam tid alice
-      >>= assertStatus 200
-    postLegalHoldSettings tid alice (mkLegalHoldSettings lhDomAndPort)
-      >>= assertStatus 201
+  withMockServer def (lhMockAppV V1) \lhDomAndPort chan -> do
+    legalholdWhitelistTeam tid alice >>= assertStatus 200
+    postLegalHoldSettings tid alice (mkLegalHoldSettings lhDomAndPort) >>= assertStatus 201
 
     checkChan chan \(req, _) -> runMaybeT . lift $ do
       BS8.unpack req.requestMethod `shouldMatch` "GET"
       req.pathInfo `shouldMatch` (T.pack <$> ["legalhold", "status"])
 
-    requestLegalHoldDevice tid alice bob
-      >>= assertStatus 201
+    requestLegalHoldDevice tid alice bob >>= assertStatus 201
 
     checkChan chan \(req, _) -> runMaybeT . lift $ do
       BS8.unpack req.requestMethod `shouldMatch` "GET"
@@ -1038,3 +1035,17 @@ testLHApproveDeviceV1 = do
       value %. "qualified_user_id.id" `shouldMatch` objId bob
       value %. "qualified_user_id.domain" `shouldMatch` objDomain bob
       (isJust <$> value `lookupField` "client_id") `shouldMatch` True
+
+    disableLegalHold tid alice bob defPassword >>= assertStatus 200
+
+    checkChan chan \(req, _) -> runMaybeT . lift $ do
+      BS8.unpack req.requestMethod `shouldMatch` "GET"
+      req.pathInfo `shouldMatch` (T.pack <$> ["legalhold", "api-version"])
+
+    checkChan chan \(req, body) -> runMaybeT . lift $ do
+      BS8.unpack req.requestMethod `shouldMatch` "POST"
+      req.pathInfo `shouldMatch` (T.pack <$> ["legalhold", "v1", "remove"])
+      let (Just (value :: Value)) = decode body
+      value %. "team_id" `shouldMatch` tid
+      value %. "qualified_user_id.id" `shouldMatch` objId bob
+      value %. "qualified_user_id.domain" `shouldMatch` objDomain bob

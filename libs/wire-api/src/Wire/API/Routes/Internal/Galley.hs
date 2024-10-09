@@ -349,6 +349,7 @@ type FeatureStatusBaseInternal desc cfg a =
     :> CanThrow 'TeamNotFound
     :> CanThrow TeamFeatureError
     :> CanThrowMany (FeatureErrors cfg)
+    :> CanThrow 'LegalHoldServiceBadResponse
     :> "teams"
     :> Capture "tid" TeamId
     :> "features"

@@ -29,6 +29,7 @@ module Wire.API.Team.LegalHold.External
     LegalHoldServiceConfirm (..),
 
     -- * remove
+    LegalHoldServiceRemoveV0 (..),
     LegalHoldServiceRemove (..),
 
     -- * SupportedVersions
@@ -38,7 +39,6 @@ where
 
 import Data.Aeson qualified as A hiding (fieldLabelModifier)
 import Data.Id
-import Data.Json.Util ((#))
 import Data.OpenApi qualified as OpenApi
 import Data.Qualified
 import Data.Schema
@@ -156,26 +156,34 @@ instance ToSchema LegalHoldServiceConfirmV0 where
 
 -- Request payload for the @/remove@ endpoint on the LegalHold Service
 data LegalHoldServiceRemove = LegalHoldServiceRemove
+  { userId :: Qualified UserId,
+    teamId :: TeamId
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform LegalHoldServiceRemove)
+  deriving (A.ToJSON, A.FromJSON) via (Schema LegalHoldServiceRemove)
+
+instance ToSchema LegalHoldServiceRemove where
+  schema =
+    object "LegalHoldServiceRemove" $
+      LegalHoldServiceRemove
+        <$> (.userId) .= field "qualified_user_id" schema
+        <*> (.teamId) .= field "team_id" schema
+
+data LegalHoldServiceRemoveV0 = LegalHoldServiceRemoveV0
   { lhrUserId :: UserId,
     lhrTeamId :: TeamId
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform LegalHoldServiceRemove)
+  deriving (Arbitrary) via (GenericUniform LegalHoldServiceRemoveV0)
+  deriving (A.ToJSON, A.FromJSON) via (Schema LegalHoldServiceRemoveV0)
 
-instance A.ToJSON LegalHoldServiceRemove where
-  toJSON (LegalHoldServiceRemove userId teamId) =
-    A.object $
-      "user_id"
-        A..= userId
-        # "team_id"
-        A..= teamId
-        # []
-
-instance A.FromJSON LegalHoldServiceRemove where
-  parseJSON = A.withObject "LegalHoldServiceRemove" $ \o ->
-    LegalHoldServiceRemove
-      <$> o A..: "user_id"
-      <*> o A..: "team_id"
+instance ToSchema LegalHoldServiceRemoveV0 where
+  schema =
+    object "LegalHoldServiceRemoveV0" $
+      LegalHoldServiceRemoveV0
+        <$> (.lhrUserId) .= field "user_id" schema
+        <*> (.lhrTeamId) .= field "team_id" schema
 
 --------------------------------------------------------------------------------
 -- SupportedVersions

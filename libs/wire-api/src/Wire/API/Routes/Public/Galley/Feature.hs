@@ -140,6 +140,7 @@ type FeatureStatusBasePutPublic featureConfig =
     :> CanThrow 'TeamNotFound
     :> CanThrow TeamFeatureError
     :> CanThrowMany (FeatureErrors featureConfig)
+    :> CanThrow 'LegalHoldServiceBadResponse
     :> "teams"
     :> Capture "tid" TeamId
     :> "features"

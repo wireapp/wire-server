@@ -76,6 +76,7 @@ type LegalHoldAPI =
                :> CanThrow 'LegalHoldServiceNotRegistered
                :> CanThrow 'UserLegalHoldIllegalOperation
                :> CanThrow 'LegalHoldCouldNotBlockConnections
+               :> CanThrow 'LegalHoldServiceBadResponse
                :> Description
                     "This endpoint can lead to the following events being sent:\n\
                     \- ClientRemoved event to members with a legalhold client (via brig)\n\
@@ -162,6 +163,7 @@ type LegalHoldAPI =
                :> CanThrow 'LegalHoldServiceNotRegistered
                :> CanThrow 'UserLegalHoldIllegalOperation
                :> CanThrow 'LegalHoldCouldNotBlockConnections
+               :> CanThrow 'LegalHoldServiceBadResponse
                :> Description
                     "This endpoint can lead to the following events being sent:\n\
                     \- ClientRemoved event to the user owning the client (via brig)\n\

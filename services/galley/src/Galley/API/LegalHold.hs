@@ -152,6 +152,7 @@ removeSettingsInternalPaging ::
     Member (ErrorS 'LegalHoldDisableUnimplemented) r,
     Member (ErrorS 'LegalHoldNotEnabled) r,
     Member (ErrorS 'LegalHoldServiceNotRegistered) r,
+    Member (ErrorS 'LegalHoldServiceBadResponse) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
@@ -200,6 +201,7 @@ removeSettings ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
+    Member (ErrorS 'LegalHoldServiceBadResponse) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member FireAndForget r,
@@ -253,6 +255,7 @@ removeSettings' ::
     Member (ErrorS 'LegalHoldServiceNotRegistered) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
     Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
+    Member (ErrorS 'LegalHoldServiceBadResponse) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member FireAndForget r,
@@ -289,7 +292,7 @@ removeSettings' tid =
     removeLHForUser member = do
       luid <- qualifyLocal (member ^. userId)
       removeLegalHoldClientFromUser (tUnqualified luid)
-      LHService.removeLegalHold tid (tUnqualified luid)
+      LHService.removeLegalHold tid luid
       changeLegalholdStatusAndHandlePolicyConflicts tid luid (member ^. legalHoldStatus) UserLegalHoldDisabled -- (support for withdrawing consent is not planned yet.)
 
 -- | Change 'UserLegalHoldStatus' from no consent to disabled.  FUTUREWORK:
@@ -521,6 +524,7 @@ disableForUser ::
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
     Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
     Member (ErrorS 'LegalHoldServiceNotRegistered) r,
+    Member (ErrorS 'LegalHoldServiceBadResponse) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
@@ -571,7 +575,7 @@ disableForUser lzusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) =
     disableLH zusr luid userLHStatus = do
       ensureReAuthorised zusr mPassword Nothing Nothing
       removeLegalHoldClientFromUser uid
-      LHService.removeLegalHold tid uid
+      LHService.removeLegalHold tid luid
       -- TODO: send event at this point (see also: related TODO in this module in
       -- 'approveDevice' and
       -- https://github.com/wireapp/wire-server/pull/802#pullrequestreview-262280386)

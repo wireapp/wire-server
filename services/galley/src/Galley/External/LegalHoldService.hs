@@ -127,8 +127,18 @@ requestNewDevice tid luid = do
         . Bilge.expect2xx
 
     mkBody :: LhApiVersion -> Bilge.Request -> Bilge.Request
-    mkBody V0 = Bilge.json (RequestNewLegalHoldClientV0 (tUnqualified luid) tid)
-    mkBody V1 = Bilge.json (RequestNewLegalHoldClient (tUntagged luid) tid)
+    mkBody V0 =
+      Bilge.json
+        RequestNewLegalHoldClientV0
+          { userId = tUnqualified luid,
+            teamId = tid
+          }
+    mkBody V1 =
+      Bilge.json
+        RequestNewLegalHoldClient
+          { userId = tUntagged luid,
+            teamId = tid
+          }
 
 -- | @POST /confirm@
 -- Confirm that a device has been linked to a user and provide an authorization token
@@ -155,27 +165,56 @@ confirmLegalHold clientId tid luid legalHoldAuthToken = do
         . Bilge.expect2xx
 
     mkBody :: LhApiVersion -> Bilge.Request -> Bilge.Request
-    mkBody V0 = Bilge.json (LegalHoldServiceConfirmV0 clientId (tUnqualified luid) tid (opaqueAuthTokenToText legalHoldAuthToken))
-    mkBody V1 = Bilge.json (LegalHoldServiceConfirm clientId (tUntagged luid) tid (opaqueAuthTokenToText legalHoldAuthToken))
+    mkBody V0 =
+      Bilge.json
+        LegalHoldServiceConfirmV0
+          { lhcClientId = clientId,
+            lhcUserId = tUnqualified luid,
+            lhcTeamId = tid,
+            lhcRefreshToken = opaqueAuthTokenToText legalHoldAuthToken
+          }
+    mkBody V1 =
+      Bilge.json
+        LegalHoldServiceConfirm
+          { clientId = clientId,
+            userId = tUntagged luid,
+            teamId = tid,
+            refreshToken = opaqueAuthTokenToText legalHoldAuthToken
+          }
 
 -- | @POST /remove@
 -- Inform the LegalHold Service that a user's legalhold has been disabled.
 removeLegalHold ::
   ( Member (ErrorS 'LegalHoldServiceNotRegistered) r,
+    Member (ErrorS 'LegalHoldServiceBadResponse) r,
     Member LegalHoldStore r
   ) =>
   TeamId ->
-  UserId ->
+  Local UserId ->
   Sem r ()
 removeLegalHold tid uid = do
-  void $ makeLegalHoldServiceRequest tid reqParams
+  apiVersion <- negotiateVersion tid supportedClientVersions
+  void $ makeLegalHoldServiceRequest tid (reqParams apiVersion)
   where
-    reqParams =
-      Bilge.paths ["remove"]
-        . Bilge.json (LegalHoldServiceRemove uid tid)
+    reqParams v =
+      versionedPaths v ["remove"]
+        . mkBody v
         . Bilge.method POST
         . Bilge.acceptJson
         . Bilge.expect2xx
+    mkBody :: LhApiVersion -> Bilge.Request -> Bilge.Request
+    mkBody V0 =
+      Bilge.json
+        LegalHoldServiceRemoveV0
+          { lhrUserId = tUnqualified uid,
+            lhrTeamId = tid
+          }
+    mkBody V1 =
+      Bilge.json
+        LegalHoldServiceRemove
+          { userId = tUntagged uid,
+            teamId = tid
+          }
 
 ----------------------------------------------------------------------
 -- helpers
