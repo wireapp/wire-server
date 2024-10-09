@@ -518,19 +518,6 @@ in
       pkgs.netcat
       pkgs.niv
       pkgs.haskellPackages.apply-refact
-      (pkgs.python310.withPackages
-        (ps: with ps; [
-          black
-          bokeh
-          flake8
-          ipdb
-          ipython
-          protobuf
-          pylint
-          pyyaml
-          requests
-          websockets
-        ]))
       pkgs.rsync
       pkgs.wget
       pkgs.yq
