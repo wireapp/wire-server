@@ -1,0 +1,11 @@
+--- a/hoogle.cabal
++++ b/hoogle.cabal
+@@ -54,7 +54,7 @@
+         conduit >= 1.3.0,
+         conduit-extra >= 1.2.3.2,
+         containers >= 0.5,
+-        crypton-connection == 0.3.2,
++        crypton-connection >= 0.4.1,
+         deepseq,
+         directory,
+         extra >= 1.6.6,
