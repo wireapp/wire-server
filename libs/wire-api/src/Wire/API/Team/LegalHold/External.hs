@@ -20,8 +20,8 @@
 -- | Types used by the Wire server for outbound requests to a LegalHold service.
 module Wire.API.Team.LegalHold.External
   ( -- * initiate
+    RequestNewLegalHoldClientV0 (..),
     RequestNewLegalHoldClient (..),
-    RequestNewLegalHoldClientV1 (..),
     NewLegalHoldClient (..),
 
     -- * confirm
@@ -49,14 +49,14 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- initiate
 
 -- | Request payload that the LH service endpoint @/initiate@ expects
-data RequestNewLegalHoldClient = RequestNewLegalHoldClient
+data RequestNewLegalHoldClientV0 = RequestNewLegalHoldClientV0
   { userId :: UserId,
     teamId :: TeamId
   }
   deriving stock (Show, Eq, Generic)
-  deriving (Arbitrary) via (GenericUniform RequestNewLegalHoldClient)
+  deriving (Arbitrary) via (GenericUniform RequestNewLegalHoldClientV0)
 
-instance ToSchema RequestNewLegalHoldClient where
+instance ToSchema RequestNewLegalHoldClientV0 where
   declareNamedSchema = genericDeclareNamedSchema opts
     where
       opts =
@@ -67,8 +67,8 @@ instance ToSchema RequestNewLegalHoldClient where
               _ -> ""
           }
 
-instance ToJSON RequestNewLegalHoldClient where
-  toJSON (RequestNewLegalHoldClient userId teamId) =
+instance ToJSON RequestNewLegalHoldClientV0 where
+  toJSON (RequestNewLegalHoldClientV0 userId teamId) =
     object $
       "user_id"
         .= userId
@@ -76,23 +76,24 @@ instance ToJSON RequestNewLegalHoldClient where
         .= teamId
         # []
 
-instance FromJSON RequestNewLegalHoldClient where
-  parseJSON = withObject "RequestNewLegalHoldClient" $ \o ->
-    RequestNewLegalHoldClient
+instance FromJSON RequestNewLegalHoldClientV0 where
+  parseJSON = withObject "RequestNewLegalHoldClientV0" $ \o ->
+    RequestNewLegalHoldClientV0
       <$> o .: "user_id"
       <*> o .: "team_id"
 
-data RequestNewLegalHoldClientV1 = RequestNewLegalHoldClientV1
+data RequestNewLegalHoldClient = RequestNewLegalHoldClient
   { userId :: Qualified UserId,
     teamId :: TeamId
   }
   deriving stock (Show, Eq, Generic)
-  deriving (ToJSON) via (Schema.Schema RequestNewLegalHoldClientV1)
+  deriving (ToJSON, FromJSON) via (Schema.Schema RequestNewLegalHoldClient)
+  deriving (Arbitrary) via (GenericUniform RequestNewLegalHoldClient)
 
-instance Schema.ToSchema RequestNewLegalHoldClientV1 where
+instance Schema.ToSchema RequestNewLegalHoldClient where
   schema =
-    Schema.object "RequestNewLegalHoldClientV1" $
-      RequestNewLegalHoldClientV1
+    Schema.object "RequestNewLegalHoldClient" $
+      RequestNewLegalHoldClient
         <$> (.userId) Schema..= Schema.field "qualified_user_id" Schema.schema
         <*> (.teamId) Schema..= Schema.field "team_id" Schema.schema
 

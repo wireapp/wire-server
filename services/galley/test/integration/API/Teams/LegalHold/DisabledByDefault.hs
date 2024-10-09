@@ -212,7 +212,7 @@ testApproveLegalHoldDevice = do
   WS.bracketRN cannon [owner, member, member, member2, outsideContact, stranger] $
     \[ows, mws, mws', member2Ws, outsideContactWs, strangerWs] -> withDummyTestServiceForTeam' owner tid $ \_ chan -> do
       requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
-      liftIO . assertMatchJSON chan $ \(RequestNewLegalHoldClient userId' teamId') -> do
+      liftIO . assertMatchJSON chan $ \(RequestNewLegalHoldClientV0 userId' teamId') -> do
         assertEqual "userId == member" userId' member
         assertEqual "teamId == tid" teamId' tid
       -- Only the user themself can approve adding a LH device

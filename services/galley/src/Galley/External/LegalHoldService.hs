@@ -159,8 +159,8 @@ requestNewDevice tid luid = do
         . Bilge.expect2xx
 
     mkBody :: LhApiVersion -> Bilge.Request -> Bilge.Request
-    mkBody V0 = Bilge.json (RequestNewLegalHoldClient (tUnqualified luid) tid)
-    mkBody V1 = Bilge.json (RequestNewLegalHoldClientV1 (tUntagged luid) tid)
+    mkBody V0 = Bilge.json (RequestNewLegalHoldClientV0 (tUnqualified luid) tid)
+    mkBody V1 = Bilge.json (RequestNewLegalHoldClient (tUntagged luid) tid)
 
 -- | @POST /confirm@
 -- Confirm that a device has been linked to a user and provide an authorization token
