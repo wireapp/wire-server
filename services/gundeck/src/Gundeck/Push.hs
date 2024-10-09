@@ -146,23 +146,39 @@ instance MonadMapAsync Gundeck where
 splitPushes :: (MonadPushAll m) => [Push] -> m ([Push], [Push])
 splitPushes = fmap partitionHereThere . traverse splitPush
 
-splitPush :: (MonadPushAll m) => Push -> m (These Push Push)
+partitionHereThereRange :: Range 0 m [These a b] -> (Range 0 m [a], Range 0 m [b])
+partitionHereThereRange =
+  ((&&&) (rconcat . mapRange fst) (rconcat . mapRange snd))
+    . mapRange partitionToRange
+  where
+    rsingleton0 :: forall x. x -> Range 0 1 [x]
+    rsingleton0 = rcast . rsingleton
+
+    rnil1 :: forall x. Range 0 1 [x]
+    rnil1 = rcast rnil
+
+    partitionToRange :: These a b -> (Range 0 1 [a], Range 0 1 [b])
+    partitionToRange = \case
+      (This a) -> (rsingleton0 a, rnil1)
+      (That b) -> (rnil1, rsingleton0 b)
+      (These a b) -> (rsingleton0 a, rsingleton0 b)
+
+splitPush ::
+  (MonadPushAll m) =>
+  Push ->
+  m (These Push Push)
 splitPush p = do
-  let allRecipients = Set.toList $ fromRange $ p._pushRecipients
-  (rabbitmqRecipients, legacyRecipients) <- partitionHereThere <$> traverse splitRecipient allRecipients
-  case (rabbitmqRecipients, legacyRecipients) of
-    ([], _) -> pure (That p)
-    (_, []) -> pure (This p)
-    (_ : _, _ : _) ->
-      -- Since we just proved that both the recipient lists are not empty and
-      -- they cannot be bigger than the limit as none of them can be bigger than
-      -- the original recipient set, it is safe to use unsafeRange here.
-      --
-      -- TODO: See if there is a better way, so we don't have to use unsafeRange
+  (rabbitmqRecipients, legacyRecipients) <-
+    partitionHereThereRange . rcast @_ @_ @1024
+      <$> traverseRange splitRecipient (rangeSetToList $ p._pushRecipients)
+  case (runcons rabbitmqRecipients, runcons legacyRecipients) of
+    (Nothing, _) -> pure (That p)
+    (_, Nothing) -> pure (This p)
+    (Just (rabbit0, rabbits), Just (legacy0, legacies)) ->
       pure $
         These
-          p {_pushRecipients = unsafeRange $ Set.fromList rabbitmqRecipients}
-          p {_pushRecipients = unsafeRange $ Set.fromList legacyRecipients}
+          p {_pushRecipients = rangeListToSet $ rcons rabbit0 rabbits}
+          p {_pushRecipients = rangeListToSet $ rcons legacy0 legacies}
 
 -- TODO: optimize for possibility of  many pushes having the same users
 splitRecipient :: (MonadPushAll m) => Recipient -> m (These Recipient Recipient)
@@ -200,6 +216,7 @@ getClients uid = do
     error "something went wrong"
   Bilge.responseJsonError r
 
+-- TODO: Delete this comment
 -- Old way:
 -- Client -> Cannon: establish WS (/await)
 -- Galley -> Gundeck -> Cannon -> Client :  only if client is present on cannon
