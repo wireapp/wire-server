@@ -360,7 +360,7 @@ notify event orig route conn recipients = do
           & pushConn .~ conn
           & pushRoute .~ route
           & pushApsData .~ toApsData event
-  void $ pushNotificationsAsync [push]
+  void $ pushNotificationAsync push
 
 notifySelf ::
   (Member NotificationSubsystem r) =>
