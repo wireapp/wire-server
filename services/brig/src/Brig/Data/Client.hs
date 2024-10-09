@@ -118,8 +118,7 @@ reAuthForNewClients :: ReAuthPolicy
 reAuthForNewClients count upsert = count > 0 && not upsert
 
 addClient ::
-  ( MonadReader Brig.App.Env (AppT r),
-    Member AuthenticationSubsystem r
+  ( Member AuthenticationSubsystem r
   ) =>
   Local UserId ->
   ClientId ->
