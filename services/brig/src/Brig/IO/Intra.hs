@@ -72,7 +72,6 @@ import Data.ByteString.Lazy qualified as BL
 import Data.Id
 import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.List1 (List1, singleton)
 import Data.Proxy
 import Data.Qualified
 import Data.Range
@@ -150,7 +149,7 @@ onConnectionEvent ::
 onConnectionEvent orig conn evt = do
   let from = ucFrom (ucConn evt)
   notify
-    (singleton $ ConnectionEvent evt)
+    (ConnectionEvent evt)
     orig
     V2.RouteAny
     conn
@@ -166,7 +165,7 @@ onPropertyEvent ::
   Sem r ()
 onPropertyEvent orig conn e =
   notify
-    (singleton $ PropertyEvent e)
+    (PropertyEvent e)
     orig
     V2.RouteDirect
     (Just conn)
@@ -245,7 +244,7 @@ dispatchNotifications orig conn e = case e of
     notifyUserDeletionLocals orig conn event
     notifyUserDeletionRemotes orig
   where
-    event = singleton $ UserEvent e
+    event = UserEvent e
 
 notifyUserDeletionLocals ::
   forall r.
@@ -256,7 +255,7 @@ notifyUserDeletionLocals ::
   ) =>
   UserId ->
   Maybe ConnId ->
-  List1 Event ->
+  Event ->
   Sem r ()
 notifyUserDeletionLocals deleted conn event = do
   luid <- qualifyLocal' deleted
@@ -344,7 +343,7 @@ notifyUserDeletionRemotes deleted = do
 -- | (Asynchronously) notifies other users of events.
 notify ::
   (Member NotificationSubsystem r) =>
-  List1 Event ->
+  Event ->
   -- | Origin user, TODO: Delete
   UserId ->
   -- | Push routing strategy.
@@ -354,18 +353,18 @@ notify ::
   -- | Users to notify.
   Sem r (NonEmpty UserId) ->
   Sem r ()
-notify (toList -> events) orig route conn recipients = do
+notify event orig route conn recipients = do
   rs <- (\u -> Recipient u RecipientClientsAll) <$$> recipients
-  let pushes = flip map events $ \event ->
+  let push =
         newPush1 (Just orig) (toJSONObject event) rs
           & pushConn .~ conn
           & pushRoute .~ route
           & pushApsData .~ toApsData event
-  void $ pushNotificationsAsync pushes
+  void $ pushNotificationsAsync [push]
 
 notifySelf ::
   (Member NotificationSubsystem r) =>
-  List1 Event ->
+  Event ->
   -- | Origin user.
   UserId ->
   -- | Push routing strategy.
@@ -373,8 +372,8 @@ notifySelf ::
   -- | Origin device connection, if any.
   Maybe ConnId ->
   Sem r ()
-notifySelf events orig route conn =
-  notify events orig route conn (pure (orig :| []))
+notifySelf event orig route conn =
+  notify event orig route conn (pure (orig :| []))
 
 notifyContacts ::
   forall r.
@@ -382,7 +381,7 @@ notifyContacts ::
     Member NotificationSubsystem r,
     Member TinyLog r
   ) =>
-  List1 Event ->
+  Event ->
   -- | Origin user.
   UserId ->
   -- | Push routing strategy.
@@ -390,8 +389,8 @@ notifyContacts ::
   -- | Origin device connection, if any.
   Maybe ConnId ->
   Sem r ()
-notifyContacts events orig route conn = do
-  notify events orig route conn $
+notifyContacts event orig route conn = do
+  notify event orig route conn $
     (:|) orig <$> liftA2 (++) contacts teamContacts
   where
     contacts :: Sem r [UserId]
