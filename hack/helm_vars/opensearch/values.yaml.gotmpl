@@ -1,5 +1,7 @@
 singleNode: true
 
+# Helm labels and annotations are automatically added for these Kubernetes
+# manifests.
 extraObjects:
   - apiVersion: cert-manager.io/v1
     kind: Certificate
@@ -44,8 +46,8 @@ config:
 
     action.auto_create_index: true
 
-    # Start OpenSearch Security Demo Configuration
-    # WARNING: revise all the lines below before you go into production
+    # WARNING: This config is not meant to be used as prod setup! Revise all
+    # lines before you copy them.
     plugins:
       security:
         nodes_dn:
