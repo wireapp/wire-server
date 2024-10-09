@@ -86,6 +86,7 @@ import Wire.API.Provider.Service
 import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.API.User.RichInfo
+import Wire.AuthenticationSubsystem as AuthenticationSubsystem
 import Wire.PasswordStore
 
 -- | Authentication errors.
@@ -180,8 +181,14 @@ newAccountInviteViaScim uid externalId tid locale name email = do
       defSupportedProtocols
 
 -- | Mandatory password authentication.
-authenticate :: forall r. (Member PasswordStore r) => UserId -> PlainTextPassword6 -> ExceptT AuthError (AppT r) ()
+authenticate ::
+  forall r.
+  (Member PasswordStore r, Member AuthenticationSubsystem r) =>
+  UserId ->
+  PlainTextPassword6 ->
+  ExceptT AuthError (AppT r) ()
 authenticate u pw =
+  -- FUTUREWORK: Move this logic into auth subsystem.
   lift (wrapHttp $ lookupAuth u) >>= \case
     Nothing -> throwE AuthInvalidUser
     Just (_, Deleted) -> throwE AuthInvalidUser
@@ -189,8 +196,9 @@ authenticate u pw =
     Just (_, Ephemeral) -> throwE AuthEphemeral
     Just (_, PendingInvitation) -> throwE AuthPendingInvitation
     Just (Nothing, _) -> throwE AuthInvalidCredentials
-    Just (Just pw', Active) ->
-      case verifyPasswordWithStatus pw pw' of
+    Just (Just pw', Active) -> do
+      res <- lift $ liftSem (AuthenticationSubsystem.verifyPassword pw pw')
+      case res of
         (False, _) -> throwE AuthInvalidCredentials
         (True, PasswordStatusNeedsUpdate) -> do
           -- FUTUREWORK(elland): 6char pwd allowed for now
@@ -200,21 +208,19 @@ authenticate u pw =
   where
     hashAndUpdatePwd :: UserId -> PlainTextPassword8 -> AppT r ()
     hashAndUpdatePwd uid pwd = do
-      hashed <- mkSafePasswordScrypt pwd
+      hashed <- mkSafePassword pwd
       liftSem $ upsertHashedPassword uid hashed
 
 -- | Password reauthentication. If the account has a password, reauthentication
 -- is mandatory. If the account has no password, or is an SSO user, and no password is given,
 -- reauthentication is a no-op.
 reauthenticate ::
-  ( MonadClient m,
-    MonadReader Env m
-  ) =>
+  (Member AuthenticationSubsystem r) =>
   UserId ->
   Maybe PlainTextPassword6 ->
-  ExceptT ReAuthError m ()
+  ExceptT ReAuthError (AppT r) ()
 reauthenticate u pw =
-  lift (lookupAuth u) >>= \case
+  wrapClientE (lookupAuth u) >>= \case
     Nothing -> throwE (ReAuthError AuthInvalidUser)
     Just (_, Deleted) -> throwE (ReAuthError AuthInvalidUser)
     Just (_, Suspended) -> throwE (ReAuthError AuthSuspended)
@@ -225,10 +231,10 @@ reauthenticate u pw =
   where
     maybeReAuth pw' = case pw of
       Nothing -> do
-        musr <- lookupUser NoPendingInvitations u
+        musr <- wrapClientE $ lookupUser NoPendingInvitations u
         unless (maybe False isSamlUser musr) $ throwE ReAuthMissingPassword
       Just p ->
-        unless (verifyPassword p pw') $
+        unlessM (fst <$> lift (liftSem (AuthenticationSubsystem.verifyPassword p pw'))) do
           throwE (ReAuthError AuthInvalidCredentials)
 
 isSamlUser :: User -> Bool

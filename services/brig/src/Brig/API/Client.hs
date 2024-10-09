@@ -102,6 +102,7 @@ import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey
 import Wire.API.UserEvent
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap, qualifiedUserMap), UserMap (userMap))
+import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 import Wire.DeleteQueue
 import Wire.EmailSubsystem (EmailSubsystem, sendNewClientEmail)
 import Wire.Events (Events)
@@ -165,6 +166,7 @@ addClient ::
     Member UserSubsystem r,
     Member DeleteQueue r,
     Member EmailSubsystem r,
+    Member AuthenticationSubsystem r,
     Member VerificationCodeSubsystem r,
     Member Events r
   ) =>
@@ -184,6 +186,7 @@ addClientWithReAuthPolicy ::
     Member EmailSubsystem r,
     Member Events r,
     Member UserSubsystem r,
+    Member AuthenticationSubsystem r,
     Member VerificationCodeSubsystem r
   ) =>
   Data.ReAuthPolicy ->
@@ -207,8 +210,7 @@ addClientWithReAuthPolicy policy luid@(tUnqualified -> u) con new = do
               else id
           lhcaps = ClientSupportsLegalholdImplicitConsent
   (clt0, old, count) <-
-    wrapClientE
-      (Data.addClientWithReAuthPolicy policy luid clientId' new maxPermClients caps)
+    Data.addClientWithReAuthPolicy policy luid clientId' new maxPermClients caps
       !>> ClientDataError
   let clt = clt0 {clientMLSPublicKeys = newClientMLSPublicKeys new}
   lift $ do
@@ -251,7 +253,9 @@ updateClient u c r = do
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
 rmClient ::
-  (Member DeleteQueue r) =>
+  ( Member DeleteQueue r,
+    Member AuthenticationSubsystem r
+  ) =>
   UserId ->
   ConnId ->
   ClientId ->
@@ -267,7 +271,7 @@ rmClient u con clt pw =
         -- Temporary clients don't need to re-auth
         TemporaryClientType -> pure ()
         -- All other clients must authenticate
-        _ -> wrapClientE (Data.reauthenticate u pw) !>> ClientDataError . ClientReAuthError
+        _ -> Data.reauthenticate u pw !>> ClientDataError . ClientReAuthError
       lift $ execDelete u (Just con) client
 
 claimPrekey ::

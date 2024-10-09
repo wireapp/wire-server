@@ -1,4 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE StrictData #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -15,25 +17,25 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
-{-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
 module Wire.API.Password
-  ( Password,
+  ( Password (..),
     PasswordStatus (..),
     genPassword,
-    mkSafePasswordScrypt,
-    mkSafePasswordArgon2id,
+    mkSafePassword,
     verifyPassword,
     verifyPasswordWithStatus,
-    unsafeMkPassword,
+    PasswordReqBody (..),
+
+    -- * Only for testing
     hashPasswordArgon2idWithSalt,
     hashPasswordArgon2idWithOptions,
-    PasswordReqBody (..),
+    mkSafePasswordScrypt,
+    parsePassword,
   )
 where
 
-import Cassandra
+import Cassandra hiding (params)
 import Crypto.Error
 import Crypto.KDF.Argon2 qualified as Argon2
 import Crypto.KDF.Scrypt as Scrypt
@@ -52,8 +54,9 @@ import Imports
 import OpenSSL.Random (randBytes)
 
 -- | A derived, stretched password that can be safely stored.
-newtype Password = Password
-  {fromPassword :: Text}
+data Password
+  = Argon2Password Argon2HashedPassword
+  | ScryptPassword ScryptHashedPassword
 
 instance Show Password where
   show _ = "<Password>"
@@ -61,13 +64,26 @@ instance Show Password where
 instance Cql Password where
   ctype = Tagged BlobColumn
 
-  fromCql (CqlBlob lbs) = pure . Password . Text.decodeUtf8 . toStrict $ lbs
+  fromCql (CqlBlob lbs) = parsePassword . Text.decodeUtf8 . toStrict $ lbs
   fromCql _ = Left "password: expected blob"
 
-  toCql = CqlBlob . fromStrict . Text.encodeUtf8 . fromPassword
+  toCql pw = CqlBlob . fromStrict $ Text.encodeUtf8 encoded
+    where
+      encoded = case pw of
+        Argon2Password argon2pw -> encodeArgon2HashedPassword argon2pw
+        ScryptPassword scryptpw -> encodeScryptPassword scryptpw
 
-unsafeMkPassword :: Text -> Password
-unsafeMkPassword = Password
+data Argon2HashedPassword = Argon2HashedPassword
+  { opts :: Argon2.Options,
+    salt :: ByteString,
+    hashedKey :: ByteString
+  }
+
+data ScryptHashedPassword = ScryptHashedPassword
+  { params :: ScryptParameters,
+    salt :: ByteString,
+    hashedKey :: ByteString
+  }
 
 data PasswordStatus
   = PasswordStatusOk
@@ -75,8 +91,6 @@ data PasswordStatus
   deriving (Show, Eq)
 
 -------------------------------------------------------------------------------
-
-type Argon2idOptions = Argon2.Options
 
 data ScryptParameters = ScryptParameters
   { -- | Bytes to randomly generate as a unique salt, default is __32__
@@ -106,13 +120,15 @@ defaultScryptParams =
       outputLength = 64
     }
 
--- | These are the default values suggested, as extracted from the crypton library.
-defaultOptions :: Argon2idOptions
+-- | Recommended in the RFC as the second choice: https://www.rfc-editor.org/rfc/rfc9106.html#name-parameter-choice
+-- The first choice takes ~1s to hash passwords which seems like too much.
+defaultOptions :: Argon2.Options
 defaultOptions =
   Argon2.Options
-    { iterations = 5,
+    { iterations = 1,
+      -- TODO: fix this after meeting with Security
       memory = 2 ^ (17 :: Int),
-      parallelism = 4,
+      parallelism = 32,
       variant = Argon2.Argon2id,
       version = Argon2.Version13
     }
@@ -136,10 +152,10 @@ genPassword =
     randBytes 12
 
 mkSafePasswordScrypt :: (MonadIO m) => PlainTextPassword' t -> m Password
-mkSafePasswordScrypt = fmap Password . hashPasswordScrypt . Text.encodeUtf8 . fromPlainTextPassword
+mkSafePasswordScrypt = fmap ScryptPassword . hashPasswordScrypt . Text.encodeUtf8 . fromPlainTextPassword
 
-mkSafePasswordArgon2id :: (MonadIO m) => PlainTextPassword' t -> m Password
-mkSafePasswordArgon2id = fmap Password . hashPasswordArgon2id . Text.encodeUtf8 . fromPlainTextPassword
+mkSafePassword :: (MonadIO m) => PlainTextPassword' t -> m Password
+mkSafePassword = fmap Argon2Password . hashPasswordArgon2id . Text.encodeUtf8 . fromPlainTextPassword
 
 -- | Verify a plaintext password from user input against a stretched
 -- password from persistent storage.
@@ -147,37 +163,49 @@ verifyPassword :: PlainTextPassword' t -> Password -> Bool
 verifyPassword = (fst .) . verifyPasswordWithStatus
 
 verifyPasswordWithStatus :: PlainTextPassword' t -> Password -> (Bool, PasswordStatus)
-verifyPasswordWithStatus plain opaque =
-  let actual = fromPlainTextPassword plain
-      expected = fromPassword opaque
-   in checkPassword actual expected
+verifyPasswordWithStatus (fromPlainTextPassword -> plain) hashed =
+  case hashed of
+    (Argon2Password Argon2HashedPassword {..}) ->
+      let producedKey = hashPasswordWithOptions opts (Text.encodeUtf8 plain) salt
+       in (hashedKey `constEq` producedKey, PasswordStatusOk)
+    (ScryptPassword ScryptHashedPassword {..}) ->
+      let producedKey = hashPasswordWithParams params (Text.encodeUtf8 plain) salt
+       in (hashedKey `constEq` producedKey, PasswordStatusNeedsUpdate)
 
-hashPasswordScrypt :: (MonadIO m) => ByteString -> m Text
+hashPasswordScrypt :: (MonadIO m) => ByteString -> m ScryptHashedPassword
 hashPasswordScrypt password = do
   salt <- newSalt $ fromIntegral defaultScryptParams.saltLength
-  let key = hashPasswordWithParams defaultScryptParams password salt
-  pure $
-    Text.intercalate
-      "|"
-      [ showT defaultScryptParams.rounds,
-        showT defaultScryptParams.blockSize,
-        showT defaultScryptParams.parallelism,
-        Text.decodeUtf8 . B64.encode $ salt,
-        Text.decodeUtf8 . B64.encode $ key
-      ]
+  let params = defaultScryptParams
+  let hashedKey = hashPasswordWithParams params password salt
+  pure $! ScryptHashedPassword {..}
 
-hashPasswordArgon2id :: (MonadIO m) => ByteString -> m Text
+encodeScryptPassword :: ScryptHashedPassword -> Text
+encodeScryptPassword ScryptHashedPassword {..} =
+  Text.intercalate
+    "|"
+    [ showT defaultScryptParams.rounds,
+      showT defaultScryptParams.blockSize,
+      showT defaultScryptParams.parallelism,
+      Text.decodeUtf8 . B64.encode $ salt,
+      Text.decodeUtf8 . B64.encode $ hashedKey
+    ]
+
+hashPasswordArgon2id :: (MonadIO m) => ByteString -> m Argon2HashedPassword
 hashPasswordArgon2id pwd = do
-  salt <- newSalt 32
-  pure $ hashPasswordArgon2idWithSalt salt pwd
+  salt <- newSalt 16
+  pure $! hashPasswordArgon2idWithSalt salt pwd
 
-hashPasswordArgon2idWithSalt :: ByteString -> ByteString -> Text
+hashPasswordArgon2idWithSalt :: ByteString -> ByteString -> Argon2HashedPassword
 hashPasswordArgon2idWithSalt = hashPasswordArgon2idWithOptions defaultOptions
 
-hashPasswordArgon2idWithOptions :: Argon2idOptions -> ByteString -> ByteString -> Text
+hashPasswordArgon2idWithOptions :: Argon2.Options -> ByteString -> ByteString -> Argon2HashedPassword
 hashPasswordArgon2idWithOptions opts salt pwd = do
-  let key = hashPasswordWithOptions opts pwd salt
-      optsStr =
+  let hashedKey = hashPasswordWithOptions opts pwd salt
+   in Argon2HashedPassword {..}
+
+encodeArgon2HashedPassword :: Argon2HashedPassword -> Text
+encodeArgon2HashedPassword Argon2HashedPassword {..} =
+  let optsStr =
         Text.intercalate
           ","
           [ "m=" <> showT opts.memory,
@@ -191,96 +219,100 @@ hashPasswordArgon2idWithOptions opts salt pwd = do
             "v=" <> versionToNum opts.version,
             optsStr,
             encodeWithoutPadding salt,
-            encodeWithoutPadding key
+            encodeWithoutPadding hashedKey
           ]
   where
     encodeWithoutPadding = Text.dropWhileEnd (== '=') . Text.decodeUtf8 . B64.encode
 
-checkPassword :: Text -> Text -> (Bool, PasswordStatus)
-checkPassword actual expected =
+parsePassword :: Text -> Either String Password
+parsePassword expected =
   case parseArgon2idPasswordHashOptions expected of
-    Just (opts, salt, hashedKey) ->
-      let producedKey = hashPasswordWithOptions opts (Text.encodeUtf8 actual) salt
-       in (hashedKey `constEq` producedKey, PasswordStatusOk)
-    Nothing ->
+    Right hashedPassword -> Right $ Argon2Password hashedPassword
+    Left argon2ParseError ->
       case parseScryptPasswordHashParams $ Text.encodeUtf8 expected of
-        Just (sparams, saltS, hashedKeyS) ->
-          let producedKeyS = hashPasswordWithParams sparams (Text.encodeUtf8 actual) saltS
-           in (hashedKeyS `constEq` producedKeyS, PasswordStatusNeedsUpdate)
-        Nothing -> (False, PasswordStatusNeedsUpdate)
+        Right hashedPassword -> Right $ ScryptPassword hashedPassword
+        Left scryptParseError ->
+          Left $
+            "Failed to parse Argon2 or Scrypt. Argon2 parse error: "
+              <> argon2ParseError
+              <> ", Scrypt parse error: "
+              <> scryptParseError
 
 newSalt :: (MonadIO m) => Int -> m ByteString
 newSalt i = liftIO $ getRandomBytes i
 {-# INLINE newSalt #-}
 
-parseArgon2idPasswordHashOptions :: Text -> Maybe (Argon2idOptions, ByteString, ByteString)
+parseArgon2idPasswordHashOptions :: Text -> Either String Argon2HashedPassword
 parseArgon2idPasswordHashOptions passwordHash = do
-  let paramList = Text.split (== '$') passwordHash
-  guard (length paramList >= 5)
-  let (_ : variantT : vp : ps : sh : rest) = paramList
-  variant <- parseVariant variantT
-  case rest of
-    [hashedKey64] -> do
-      version <- parseVersion vp
-      parseAll variant version ps sh hashedKey64
-    [] -> parseAll variant Argon2.Version10 vp ps sh
-    _ -> Nothing
+  let paramsList = Text.split (== '$') passwordHash
+  -- The first param is empty string b/c the string begins with a separator `$`.
+  case paramsList of
+    ["", variantStr, verStr, opts, salt, hashedKey64] -> do
+      version <- parseVersion verStr
+      parseAll variantStr version opts salt hashedKey64
+    ["", variantStr, opts, salt, hashedKey64] -> do
+      parseAll variantStr Argon2.Version10 opts salt hashedKey64
+    _ -> Left $ "failed to parse argon2id hashed password, expected 5 or 6 params, got: " <> show (length paramsList)
   where
-    parseVariant = splitMaybe "argon2" letterToVariant
-    parseVersion = splitMaybe "v=" numToVersion
+    parseVersion =
+      maybe (Left "failed to parse argon2 version") Right
+        . splitMaybe "v=" numToVersion
 
-parseAll :: Argon2.Variant -> Argon2.Version -> Text -> Text -> Text -> Maybe (Argon2idOptions, ByteString, ByteString)
-parseAll variant version parametersT salt64 hashedKey64 = do
-  (memory, iterations, parallelism) <- parseParameters parametersT
-  salt <- from64 $ unsafePad64 salt64
-  hashedKey <- from64 $ unsafePad64 hashedKey64
-  pure (Argon2.Options {..}, salt, hashedKey)
-  where
-    parseParameters paramsT = do
-      let paramsL = Text.split (== ',') paramsT
-      guard $ Imports.length paramsL == 3
-      go paramsL (Nothing, Nothing, Nothing)
+    parseAll :: Text -> Argon2.Version -> Text -> Text -> Text -> Either String Argon2HashedPassword
+    parseAll variantStr version parametersStr salt64 hashedKey64 = do
+      variant <- parseVariant variantStr
+      (memory, iterations, parallelism) <- parseParameters parametersStr
+      -- We pad the Base64 with '=' chars because we drop them while encoding this.
+      -- At the time of implementation we've opted to be consistent with how the
+      -- CLI of the reference implementation of Argon2id outputs this.
+      salt <- from64 $ unsafePad64 salt64
+      hashedKey <- from64 $ unsafePad64 hashedKey64
+      pure $ Argon2HashedPassword {opts = (Argon2.Options {..}), ..}
       where
-        go [] (Just m, Just t, Just p) = Just (m, t, p)
-        go [] _ = Nothing
-        go (x : xs) (m, t, p) =
-          case Text.splitAt 2 x of
-            ("m=", i) -> go xs (readT i, t, p)
-            ("t=", i) -> go xs (m, readT i, p)
-            ("p=", i) -> go xs (m, t, readT i)
-            _ -> Nothing
+        parseVariant =
+          maybe (Left "failed to parse argon2 variant") Right
+            . splitMaybe "argon2" letterToVariant
+        parseParameters paramsT =
+          let paramsList = Text.split (== ',') paramsT
+           in go paramsList (Nothing, Nothing, Nothing)
+          where
+            go [] (Just m, Just t, Just p) = Right (m, t, p)
+            go [] (Nothing, _, _) = Left "failed to parse Argon2Options: failed to read parameter 'm'"
+            go [] (_, Nothing, _) = Left "failed to parse Argon2Options: failed to read parameter 't'"
+            go [] (_, _, Nothing) = Left "failed to parse Argon2Options: failed to read parameter 'p'"
+            go (x : xs) (m, t, p) =
+              case Text.splitAt 2 x of
+                ("m=", i) -> go xs (readT i, t, p)
+                ("t=", i) -> go xs (m, readT i, p)
+                ("p=", i) -> go xs (m, t, readT i)
+                (unknownParam, _) -> Left $ "failed to parse Argon2Options: Unknown param: " <> Text.unpack unknownParam
 
-parseScryptPasswordHashParams :: ByteString -> Maybe (ScryptParameters, ByteString, ByteString)
+parseScryptPasswordHashParams :: ByteString -> Either String ScryptHashedPassword
 parseScryptPasswordHashParams passwordHash = do
   let paramList = Text.split (== '|') . Text.decodeUtf8 $ passwordHash
-  guard (length paramList == 5)
-  let [ scryptRoundsT,
-        scryptBlockSizeT,
-        scryptParallelismT,
-        salt64,
-        hashedKey64
-        ] = paramList
-  rounds <- readT scryptRoundsT
-  blockSize <- readT scryptBlockSizeT
-  parallelism <- readT scryptParallelismT
-  salt <- from64 salt64
-  hashedKey <- from64 hashedKey64
-  let outputLength = fromIntegral $ C8.length hashedKey
-      saltLength = fromIntegral $ C8.length salt
-  pure
-    ( ScryptParameters {..},
-      salt,
-      hashedKey
-    )
+  case paramList of
+    [roundsStr, blockSizeStr, parallelismStr, salt64, hashedKey64] -> do
+      rounds <- eitherFromMaybe "rounds" $ readT roundsStr
+      blockSize <- eitherFromMaybe "blockSize" $ readT blockSizeStr
+      parallelism <- eitherFromMaybe "parellelism" $ readT parallelismStr
+      salt <- from64 salt64
+      hashedKey <- from64 hashedKey64
+      let outputLength = fromIntegral $ C8.length hashedKey
+          saltLength = fromIntegral $ C8.length salt
+      pure $ ScryptHashedPassword {params = ScryptParameters {..}, ..}
+    _ -> Left $ "failed to parse ScryptHashedPassword: expected exactly 5 params"
+  where
+    eitherFromMaybe :: String -> Maybe a -> Either String a
+    eitherFromMaybe paramName = maybe (Left $ "failed to parse scrypt parameter: " <> paramName) Right
 
 -------------------------------------------------------------------------------
 
-hashPasswordWithOptions :: Argon2idOptions -> ByteString -> ByteString -> ByteString
-hashPasswordWithOptions opts password salt =
-  case (Argon2.hash opts password salt 64) of
+hashPasswordWithOptions :: Argon2.Options -> ByteString -> ByteString -> ByteString
+hashPasswordWithOptions opts password salt = do
+  let tagSize = 16
+  case (Argon2.hash opts password salt tagSize) of
     -- CryptoFailed occurs when salt, output or input are too small/big.
     -- since we control those values ourselves, it should never have a runtime error
-    -- unless we've caused it ourselves.
     CryptoFailed cErr -> error $ "Impossible error: " <> show cErr
     CryptoPassed hash -> hash
 

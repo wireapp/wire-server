@@ -72,6 +72,7 @@ import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.Sso
+import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 import Wire.Events (Events)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
@@ -95,7 +96,8 @@ login ::
     Member VerificationCodeSubsystem r,
     Member (Input (Local ())) r,
     Member UserSubsystem r,
-    Member Events r
+    Member Events r,
+    Member AuthenticationSubsystem r
   ) =>
   Login ->
   CookieType ->
@@ -218,7 +220,8 @@ renewAccess uts at mcid = do
 revokeAccess ::
   ( Member TinyLog r,
     Member PasswordStore r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member AuthenticationSubsystem r
   ) =>
   Local UserId ->
   PlainTextPassword6 ->
@@ -379,13 +382,14 @@ validateToken ut at = do
 ssoLogin ::
   ( Member TinyLog r,
     Member UserSubsystem r,
-    Member Events r
+    Member Events r,
+    Member AuthenticationSubsystem r
   ) =>
   SsoLogin ->
   CookieType ->
   ExceptT LoginError (AppT r) (Access ZAuth.User)
 ssoLogin (SsoLogin uid label) typ = do
-  wrapHttpClientE (Data.reauthenticate uid Nothing) `catchE` \case
+  (Data.reauthenticate uid Nothing) `catchE` \case
     ReAuthMissingPassword -> pure ()
     ReAuthCodeVerificationRequired -> pure ()
     ReAuthCodeVerificationNoPendingCode -> pure ()
@@ -403,13 +407,14 @@ legalHoldLogin ::
   ( Member GalleyAPIAccess r,
     Member TinyLog r,
     Member UserSubsystem r,
+    Member AuthenticationSubsystem r,
     Member Events r
   ) =>
   LegalHoldLogin ->
   CookieType ->
   ExceptT LegalHoldLoginError (AppT r) (Access ZAuth.LegalHoldUser)
 legalHoldLogin (LegalHoldLogin uid pw label) typ = do
-  wrapHttpClientE (Data.reauthenticate uid pw) !>> LegalHoldReAuthError
+  (Data.reauthenticate uid pw) !>> LegalHoldReAuthError
   -- legalhold login is only possible if
   -- the user is a team user
   -- and the team has legalhold enabled

@@ -79,6 +79,7 @@ import Data.Text qualified as Text
 import Data.Time.Clock
 import Data.UUID qualified as UUID
 import Imports
+import Polysemy (Member)
 import Prometheus qualified as Prom
 import System.CryptoBox (Result (Success))
 import System.CryptoBox qualified as CryptoBox
@@ -90,6 +91,7 @@ import Wire.API.User.Auth
 import Wire.API.User.Client hiding (UpdateClient (..))
 import Wire.API.User.Client.Prekey
 import Wire.API.UserMap (UserMap (..))
+import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 
 data ClientDataError
   = TooManyClients
@@ -116,20 +118,20 @@ reAuthForNewClients :: ReAuthPolicy
 reAuthForNewClients count upsert = count > 0 && not upsert
 
 addClient ::
-  ( MonadClient m,
-    MonadReader Brig.App.Env m
+  ( MonadReader Brig.App.Env (AppT r),
+    Member AuthenticationSubsystem r
   ) =>
   Local UserId ->
   ClientId ->
   NewClient ->
   Int ->
   Maybe ClientCapabilityList ->
-  ExceptT ClientDataError m (Client, [Client], Word)
+  ExceptT ClientDataError (AppT r) (Client, [Client], Word)
 addClient = addClientWithReAuthPolicy reAuthForNewClients
 
 addClientWithReAuthPolicy ::
-  ( MonadClient m,
-    MonadReader Brig.App.Env m
+  ( MonadReader Brig.App.Env (AppT r),
+    Member AuthenticationSubsystem r
   ) =>
   ReAuthPolicy ->
   Local UserId ->
@@ -137,9 +139,9 @@ addClientWithReAuthPolicy ::
   NewClient ->
   Int ->
   Maybe ClientCapabilityList ->
-  ExceptT ClientDataError m (Client, [Client], Word)
+  ExceptT ClientDataError (AppT r) (Client, [Client], Word)
 addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients caps = do
-  clients <- lookupClients (tUnqualified u)
+  clients <- wrapClientE $ lookupClients (tUnqualified u)
   let typed = filter ((== newClientType c) . clientType) clients
   let count = length typed
   let upsert = any exists typed
@@ -149,7 +151,7 @@ addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients caps = do
   let capacity = fmap (+ (-count)) limit
   unless (maybe True (> 0) capacity || upsert) $
     throwE TooManyClients
-  new <- insert (tUnqualified u)
+  new <- wrapClientE $ insert (tUnqualified u)
   let !total = fromIntegral (length clients + if upsert then 0 else 1)
   let old = maybe (filter (not . exists) typed) (const []) limit
   pure (new, old, total)

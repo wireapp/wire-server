@@ -103,19 +103,6 @@ lookupAccountProfile ::
   m (Maybe ProviderProfile)
 lookupAccountProfile p = fmap ProviderProfile <$> lookupAccount p
 
-lookupPassword ::
-  (MonadClient m) =>
-  ProviderId ->
-  m (Maybe Password)
-lookupPassword p =
-  fmap (fmap runIdentity) $
-    retry x1 $
-      query1 cql $
-        params LocalQuorum (Identity p)
-  where
-    cql :: PrepQuery R (Identity ProviderId) (Identity Password)
-    cql = "SELECT password FROM provider WHERE id = ?"
-
 deleteAccount ::
   (MonadClient m) =>
   ProviderId ->
@@ -131,7 +118,7 @@ updateAccountPassword ::
   PlainTextPassword6 ->
   m ()
 updateAccountPassword pid pwd = do
-  p <- liftIO $ mkSafePasswordScrypt pwd
+  p <- liftIO $ mkSafePassword pwd
   retry x5 $ write cql $ params LocalQuorum (p, pid)
   where
     cql :: PrepQuery W (Password, ProviderId) ()

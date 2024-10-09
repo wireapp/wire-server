@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 module Test.Wire.API.Password where
 
@@ -32,12 +33,10 @@ tests =
       testCase "verify old scrypt password still works" testHashingOldScrypt
     ]
 
--- TODO: Address password hashing being wrong
--- https://wearezeta.atlassian.net/browse/WPB-9746
 testHashPasswordScrypt :: IO ()
 testHashPasswordScrypt = do
   pwd <- genPassword
-  hashed <- mkSafePasswordScrypt pwd
+  hashed <- mkSafePassword pwd
   let (correct, status) = verifyPasswordWithStatus pwd hashed
   assertBool "Password could not be verified" correct
   assertEqual "Password could not be verified" status PasswordStatusOk
@@ -45,21 +44,21 @@ testHashPasswordScrypt = do
 testHashPasswordArgon2id :: IO ()
 testHashPasswordArgon2id = do
   pwd <- genPassword
-  hashed <- mkSafePasswordArgon2id pwd
+  hashed <- mkSafePassword pwd
   let (correct, status) = verifyPasswordWithStatus pwd hashed
-  assertBool "Password could not be verified" correct
   assertEqual "Password could not be verified" status PasswordStatusOk
+  assertBool "Password could not be verified" correct
 
 testUpdateHash :: IO ()
 testUpdateHash = do
   let orig = plainTextPassword8Unsafe "Test password scrypt to argon2id."
       -- password hashed with scrypt and random salt
-      expected = unsafeMkPassword "14|8|1|ktYx5i1DMOEfm+tXpw9i7ZVPdeqbxgxYxUbmDVLSAzQ=|Fzy0sNfXQQnJW98ncyN51PUChFWH1tpVJCxjz5JRZEReVa0//zJ6MeopiEh84Ny8lzwdvRPHDqnSS/lkPEB7Ow=="
+      Right expected = parsePassword "14|8|1|ktYx5i1DMOEfm+tXpw9i7ZVPdeqbxgxYxUbmDVLSAzQ=|Fzy0sNfXQQnJW98ncyN51PUChFWH1tpVJCxjz5JRZEReVa0//zJ6MeopiEh84Ny8lzwdvRPHDqnSS/lkPEB7Ow=="
       -- password re-hashed with argon2id and re-used salt for simplicity
-      newHash = unsafeMkPassword "$argon2id$v=19$m=131072,t=5,p=4$ktYx5i1DMOEfm+tXpw9i7ZVPdeqbxgxYxUbmDVLSAzQ=$iS/9tVk49W8bO/APETqNzMmREerdETTvSXcA7nSpqrsGrV1N33+MVaKnhWhBHqIxM92HFPsV5GP0dpgCUHmJRg=="
       -- verify password with scrypt
       (correct, status) = verifyPasswordWithStatus orig expected
 
+  newHash <- either assertFailure pure $ parsePassword "$argon2id$v=19$m=4194304,t=1,p=8$lj6+HdIcCpO1zvz8An56fg$Qx8OzYTq0hDNqGG9tW1dug"
   assertBool "Password did not match hash." correct
   assertEqual "Password could not be verified" status PasswordStatusNeedsUpdate
 
@@ -72,7 +71,7 @@ testHashingOldScrypt :: IO ()
 testHashingOldScrypt =
   forConcurrently_ pwds $ \pwd -> do
     let orig = plainTextPassword8Unsafe (fst pwd)
-        expected = unsafeMkPassword (snd pwd)
+        Right expected = parsePassword (snd pwd)
         (correct, status) = verifyPasswordWithStatus orig expected
     assertBool "Password did not match hash." correct
     assertEqual "Password could not be verified" status PasswordStatusNeedsUpdate

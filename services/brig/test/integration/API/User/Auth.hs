@@ -62,7 +62,7 @@ import UnliftIO.Async hiding (wait)
 import Util
 import Util.Timeout
 import Wire.API.Conversation (Conversation (..))
-import Wire.API.Password (Password, mkSafePasswordScrypt)
+import Wire.API.Password (Password, mkSafePassword)
 import Wire.API.User as Public
 import Wire.API.User.Auth as Auth
 import Wire.API.User.Auth.LegalHold
@@ -193,7 +193,7 @@ testLoginWith6CharPassword brig db = do
 
     updatePassword :: (MonadClient m) => UserId -> PlainTextPassword6 -> m ()
     updatePassword u t = do
-      p <- liftIO $ mkSafePasswordScrypt t
+      p <- liftIO $ mkSafePassword t
       retry x5 $ write userPasswordUpdate (params LocalQuorum (p, u))
 
     userPasswordUpdate :: PrepQuery W (Password, UserId) ()

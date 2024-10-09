@@ -15,4 +15,4 @@ makeSem ''HashPassword
 
 runHashPassword :: (Member (Embed IO) r) => InterpreterFor HashPassword r
 runHashPassword = interpret $ \case
-  HashPassword pw -> liftIO $ Password.mkSafePasswordScrypt pw
+  HashPassword pw -> liftIO $ Password.mkSafePassword pw

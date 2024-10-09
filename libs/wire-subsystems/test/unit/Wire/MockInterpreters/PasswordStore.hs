@@ -15,3 +15,4 @@ inMemoryPasswordStoreInterpreter :: (Member (State (Map UserId Password)) r) => 
 inMemoryPasswordStoreInterpreter = interpret $ \case
   UpsertHashedPassword uid password -> modify $ Map.insert uid password
   LookupHashedPassword uid -> gets $ Map.lookup uid
+  LookupHashedProviderPassword _uid -> error ("Implement as needed" :: String)

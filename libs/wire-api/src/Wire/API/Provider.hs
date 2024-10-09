@@ -202,6 +202,7 @@ instance ToSchema ProviderLogin where
 -- DeleteProvider
 
 -- | Input data for a provider deletion request.
+-- | FUTUREWORK: look into a phase out of PlainTextPassword6
 newtype DeleteProvider = DeleteProvider
   {deleteProviderPassword :: PlainTextPassword6}
   deriving stock (Eq, Show)
